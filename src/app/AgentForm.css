@@ -1,0 +1,30 @@
+.content-container {
+    display: flex;
+    justify-content: space-between; /* Space out the children */
+  }
+  
+  .form-container, .data-container {
+    flex: 1; /* Each child will take up equal space */
+    padding: 20px; /* Add some padding around the content */
+  }
+ 
+  table {
+    width: 100%; /* Make the table take up the full width of its container */
+    border-collapse: collapse; /* Collapse cell borders into a single border */
+  }
+  
+  /* Style the table headers and cells */
+  th, td {
+    border: 1px solid #ddd; /* Add a light grey border around each cell */
+    padding: 8px; /* Add some padding inside each cell for better spacing */
+    text-align: left; /* Align text to the left in each cell */
+  }
+  
+  /* Add a background color to table headers for contrast */
+  th {
+    background-color: #f2f2f2;
+  }
+  .content-container, .form-container, .data-container, th, td, label {
+    text-align: right; /* Align text to the right */
+    direction: rtl; /* For right-to-left languages like Hebrew */
+  }

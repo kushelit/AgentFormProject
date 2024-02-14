@@ -1,16 +1,4 @@
-function AgentData() {
-    const agents = ['Agent 1', 'Agent 2', 'Agent 3']; // Your agent list
+// agentData.js
 
-    return (
-        <div>
-            <h1>Agents</h1>
-            <ul>
-                {agents.map((agent, index) => (
-                    <li key={index}>{agent}</li>
-                ))}
-            </ul>
-        </div>
-    );
-}
-
-export default AgentData;
+// Define your agent names as an array
+export const agents = ['Agent 1', 'Agent 2', 'Agent 3'];
