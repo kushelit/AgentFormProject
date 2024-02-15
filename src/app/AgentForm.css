@@ -35,6 +35,56 @@
     text-align: center;
   }
  
-  
-  
- 
+  body {
+    background-color: #f0f0f0; /* Light grey background */
+} 
+input {
+  background-color: #f0f0f0; /* Light grey background for inputs */
+  border: 1px solid #ccc; /* Adds a subtle border to inputs */
+  padding: 8px; /* Adds some padding inside the inputs */
+} 
+button {
+  background-color: #333; /* Dark grey background */
+  color: black; /* White text */
+  padding: 10px 15px; /* Padding inside the button */
+  border: 2px solid #555; /* Grey border, adjust thickness/color as needed */
+  cursor: pointer; /* Changes the cursor to a pointer on hover */
+  display: block; /* Ensures the button starts on a new line */
+  width: 90%; /* Matches the input/select width for consistency */
+  margin: 10px auto; /* Centers the button and adds spacing */
+  box-sizing: border-box; /* Includes padding and border in the total width/height */
+  border-radius: 4px; /* Optionally, add rounded corners */
+}
+
+
+button:hover {
+  background-color: blueviolet; /* Slightly lighter grey on hover for feedback */
+}
+h1 {
+  font-size: 2.5em; /* Larger font size for H1 */
+  font-weight: bold; /* Makes the font bold */
+  color: black; /* Black font color */
+}
+
+h2 {
+  font-size: 2em; /* Slightly smaller font size for H2 */
+  font-weight: bold; /* Makes the font bold */
+  color: black; /* Black font color */
+}
+
+.title {
+  font-size: 3em; /* Even larger font size for a special title class */
+  font-weight: bold; /* Makes the font bold */
+  color: black; /* Black font color */
+}
+input, select {
+  display: block; /* Ensures each input/select starts on a new line */
+  width: 90%; /* Sets a specific width, adjust as needed */
+  margin: 10px auto; /* Adds top and bottom margin for spacing, auto centers them */
+  padding: 8px; /* Adds some padding inside the inputs/selects */
+  box-sizing: border-box; /* Includes padding and border in the element's total width and height */
+}
+input, select {
+  border: 1px solid #ccc; /* Subtle border */
+  border-radius: 4px; /* Slightly rounded corners */
+}
