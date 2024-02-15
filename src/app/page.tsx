@@ -1,5 +1,5 @@
 import React from 'react'; // Import React (if using JSX and not imported elsewhere in your file)
-import AgentForm from './AgentForm'; // Adjust the import path to where your AgentForm is located
+import AgentForm from './AgentForm.js'; // Adjust the import path to where your AgentForm is located
 
 const Page = () => {
   return (
