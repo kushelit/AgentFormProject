@@ -1,11 +1,10 @@
 "use client";
 import React, { useState, useEffect } from 'react';
 //import { agents } from './agentData';
-//console.log(agents);
 import { db } from '../../firebase'; // Ensure this path is correct
-//import { collection, addDoc } from 'firebase/firestore';
-import { collection, query, where, getDocs, addDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs,doc, addDoc, deleteDoc,updateDoc  } from 'firebase/firestore';
 import './AgentForm.css';
+
 
   function AgentForm() {
   const [selectedAgent, setSelectedAgent] = useState('');
@@ -23,71 +22,119 @@ import './AgentForm.css';
   const [selectedRow, setSelectedRow] = useState(null);
  // Function to fetch data based on selected agent
  
-    const fetchDataForAgent = async (agentName) => {
-    const q = query(collection(db, 'ship'), where('agent', '==', agentName));
-    const querySnapshot = await getDocs(q);
-    const data = querySnapshot.docs.map(doc => doc.data());
-    console.log(data); // For debugging
-    setAgentData(data); // Set fetched data to state
-  };
+ const fetchDataForAgent = async (agentName) => {
+  // Create a query against the 'ship' collection where the 'agent' field matches 'agentName'
+  const q = query(collection(db, 'ship'), where('agent', '==', agentName));
+
+  // Execute the query and get the snapshot of the resulting documents
+  const querySnapshot = await getDocs(q);
+
+  // Map over each document in the snapshot
+  const data = querySnapshot.docs.map(doc => ({
+    id: doc.id, // Include the Firestore document ID
+    ...doc.data() // Spread the rest of the document data
+  }));
+
+  // Log the data for debugging purposes
+  console.log(data);
+
+  // Update the state with the fetched data, including each document's ID
+  setAgentData(data);
+};
 
   // useEffect to call fetchDataForAgent when selectedAgent changes
   useEffect(() => {
+    // Clear input fields when the selected agent changes
+    setfirstNameCustomer('');
+    setlastNameCustomer('');
+    setIDCustomer('');
+    setcompany('');
+    setproduct('');
+    setinsPremia('');
+    setpensiaPremia('');
+    setammount('');
+    setmounth('');
+    // Reset other input fields as needed
+  
+    // Then, if a new agent is selected, fetch the related data
     if (selectedAgent) {
       fetchDataForAgent(selectedAgent);
     }
-  }, [selectedAgent]);
-
+  }, [selectedAgent]); // This effect depends on `selectedAgent`
 
   const handleAgentChange = (event) => {
     setSelectedAgent(event.target.value);
   };
-  const handleRowHover = (rowData) => {
-    setSelectedRow(rowData); // Store the selected row's data
-    setfirstNameCustomer(rowData.firstNameCustomer);
-    setlastNameCustomer(rowData.lastNameCustomer);
-    setIDCustomer(rowData.setIDCustomer);
-    setcompany(rowData.setcompany);
-    setproduct(rowData.setproduct);
-    setinsPremia(rowData.setinsPremia);
-    setpensiaPremia(rowData.setpensiaPremia);
-    setammount(rowData.setammount);
-    setmounth(rowData.setmounth);
+  const handleRowHover = (item) => {
+    setSelectedRow(item); // Store the selected row's data
+    setfirstNameCustomer(item.firstNameCustomer);
+    setlastNameCustomer(item.lastNameCustomer);
+    setIDCustomer(item.IDCustomer);
+    setcompany(item.company);
+    setproduct(item.product);
+    setinsPremia(item.insPremia);
+    setpensiaPremia(item.pensiaPremia);
+    setammount(item.ammount);
+    setmounth(item.mounth);
     // Set other form fields as needed
   };
   const handleDelete = async () => {
-    if (selectedRow) {
-      // Assuming selectedRow contains an 'id' field that's unique
+    if (selectedRow && selectedRow.id) {
       await deleteDoc(doc(db, 'ship', selectedRow.id));
       setSelectedRow(null); // Reset selection
       resetForm();
+      if (selectedRow.agent) {
+        fetchDataForAgent(selectedRow.agent);
+      }
+    } else {
+      console.log("No selected row or row ID is undefined");
+
       // Fetch data again or remove the item from `agentData` state to update UI
     }
   };
   const handleEdit = async () => {
-    if (selectedRow) {
-      const docRef = doc(db, 'ship', selectedRow.id); // Get a reference to the document
-      await updateDoc(docRef, {
-        firstNameCustomer: firstNameCustomer,
-        lastNameCustomer: lastNameCustomer,
-        // Update other fields as needed
-       
-      });
-      setSelectedRow(null); // Reset selection
-      // Fetch data again or update the item in `agentData` state to update UI
-      resetForm();
+    if (selectedRow && selectedRow.id) { // Ensure selectedRow has an 'id' property
+      try {
+        const docRef = doc(db, 'ship', selectedRow.id); // Reference to the Firestore document
+        await updateDoc(docRef, {
+          firstNameCustomer,
+          lastNameCustomer,
+          IDCustomer,
+          company,
+          product,
+          insPremia,
+          pensiaPremia,
+          ammount,
+          mounth,
+          // Include any additional fields as needed
+        });
+  
+        console.log("Document successfully updated");
+        setSelectedRow(null); // Reset selection
+        resetForm(); // Clear the form fields
+        // Optionally, refetch data to update the UI
+        if (selectedRow.agent) {
+          fetchDataForAgent(selectedRow.agent);
+        }
+      } catch (error) {
+        console.error("Error updating document:", error);
+        // Handle the error, e.g., show an error message to the user
+      }
+    } else {
+      console.log("No row selected or missing document ID");
+      // Handle the case where no row is selected or the selectedRow object doesn't contain an ID
     }
   };
   const resetForm = () => {
-    setFirstNameCustomer(''); // Reset to default value
-    setLastNameCustomer(''); // Reset to default value
+    setfirstNameCustomer(''); // Reset to default value
+    setlastNameCustomer(''); // Reset to default value
     setIDCustomer(''); // Reset to default value
-    setCompany(''); // Reset to default value
-    setProduct(''); // Reset to default value
-    setInsPremia(''); // Reset to default value
-    setPensiaPremia(''); // Reset to default value
-    setAmmount(''); // Reset to default value
-    setMounth(''); // Reset to default value
+    setcompany(''); // Reset to default value
+    setproduct(''); // Reset to default value
+    setinsPremia(''); // Reset to default value
+    setpensiaPremia(''); // Reset to default value
+    setammount(''); // Reset to default value
+    setmounth(''); // Reset to default value
     setSelectedRow(null); // Clear the selected row
   };
   const handleSubmit = async (event) => {
@@ -106,6 +153,13 @@ import './AgentForm.css';
         mounth: mounth,
       });
       console.log('Document written with ID:', docRef.id);
+  
+      // Use selectedAgent to refresh the table data, assuming selectedAgent holds the agent name
+      if (selectedAgent) {
+        fetchDataForAgent(selectedAgent);
+      }
+  
+      // Optionally, reset form fields and any other relevant state here
     } catch (error) {
       console.error('Error adding document:', error);
     }
@@ -116,7 +170,7 @@ import './AgentForm.css';
     <div className="form-container">
     <form onSubmit={handleSubmit}>
       <div>
-        <label htmlFor="agentSelect">Select an Agent:</label>
+        <label htmlFor="agentSelect">בחר סוכן</label>
         <select id="agentSelect" value={selectedAgent} onChange={handleAgentChange}>
           <option value="">בחר סוכן</option>
           {agents.map(agent => (
@@ -178,17 +232,16 @@ import './AgentForm.css';
           <input type="text" value={mounth} onChange={(e) => setmounth(e.target.value)} />
         </label>
       </div>
-      <div>
-        <button type="submit">Submit</button>
-        <button type="submit">Submit</button>
-<button type="button" disabled={selectedRow === null} onClick={handleDelete}>Delete</button>
-<button type="button" disabled={selectedRow === null} onClick={handleEdit}>Edit</button>
+      <div style={{ display: 'flex', gap: '10px' }}>
+        <button type="submit">הזן</button>
+        <button type="button" disabled={selectedRow === null} onClick={handleDelete} >מחק</button>
+       <button type="button" disabled={selectedRow === null} onClick={handleEdit}>ערוך</button>
       </div>
     </form>
     </div>
 
     <div className="data-container">
-    <h2>Agent Data</h2>
+    <h2>טבלת מידע מרוכז לסוכן</h2>
   {agentData.length > 0 ? (
     <table>
       <thead>
@@ -206,8 +259,9 @@ import './AgentForm.css';
         </tr>
       </thead>
       <tbody>
-        {agentData.map((item, index) => (
-          <tr key={index} onMouseEnter={() => handleRowHover(item)}>
+        {agentData.map((item) => (
+          <tr key={item.id} onMouseEnter={() => handleRowHover(item)}
+          className={selectedRow && selectedRow.id === item.id ? 'selected-row' : ''} >
             <td>{item.firstNameCustomer}</td>
             <td>{item.lastNameCustomer}</td>
             <td>{item.IDCustomer}</td>
