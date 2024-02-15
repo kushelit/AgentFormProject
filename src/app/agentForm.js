@@ -1,6 +1,5 @@
 "use client";
 import React, { useState, useEffect } from 'react';
-//import { agents } from './agentData';
 import { db } from '../../firebase'; // Ensure this path is correct
 import { collection, query, where, getDocs,doc, addDoc, deleteDoc,updateDoc  } from 'firebase/firestore';
 import './AgentForm.css';
