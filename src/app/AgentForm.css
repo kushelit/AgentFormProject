@@ -37,12 +37,7 @@
  
   body {
     background-color: #f0f0f0; /* Light grey background */
-} 
-input {
-  background-color: #f0f0f0; /* Light grey background for inputs */
-  border: 1px solid #ccc; /* Adds a subtle border to inputs */
-  padding: 8px; /* Adds some padding inside the inputs */
-} 
+
 button {
   background-color: #333; /* Dark grey background */
   color: black; /* White text */
@@ -55,6 +50,7 @@ button {
   box-sizing: border-box; /* Includes padding and border in the total width/height */
   border-radius: 4px; /* Optionally, add rounded corners */
 }
+} 
 
 
 button:hover {
@@ -78,13 +74,11 @@ h2 {
   color: black; /* Black font color */
 }
 input, select {
-  display: block; /* Ensures each input/select starts on a new line */
-  width: 90%; /* Sets a specific width, adjust as needed */
-  margin: 10px auto; /* Adds top and bottom margin for spacing, auto centers them */
-  padding: 8px; /* Adds some padding inside the inputs/selects */
-  box-sizing: border-box; /* Includes padding and border in the element's total width and height */
-}
-input, select {
-  border: 1px solid #ccc; /* Subtle border */
-  border-radius: 4px; /* Slightly rounded corners */
+  display: block; /* Keeps each input/select on a new line */
+  width: 80%; /* Reduce the width to make the elements smaller */
+  margin: 5px auto; /* Reduce the margin to decrease space between elements */
+  padding: 4px; /* Reduce the padding to decrease the overall size */
+  box-sizing: border-box; /* Ensures padding and border are included in total width/height */
+  border: 1px solid #ccc; /* Keeps a subtle border */
+  border-radius: 4px; /* Maintains slightly rounded corners */
 }
