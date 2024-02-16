@@ -4,7 +4,7 @@ import React from 'react'; // Import React (if using JSX and not imported elsewh
 const Page = () => {
   return (
     <div className="title-container">
-      <h1> חדש חדש  מערכת לניהול מכירות</h1>
+      <h1> חדש   מערכת לניהול מכירות</h1>
     </div>
   );
 };
