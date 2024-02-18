@@ -64,7 +64,11 @@ import './AgentForm.css';
   const handleAgentChange = (event) => {
     setSelectedAgent(event.target.value);
   };
-  const handleRowHover = (item) => {
+
+const [hoveredRowId, setHoveredRowId] = useState(null);
+
+
+  const handleRowClick  = (item) => {
     setSelectedRow(item); // Store the selected row's data
     setfirstNameCustomer(item.firstNameCustomer);
     setlastNameCustomer(item.lastNameCustomer);
@@ -259,8 +263,11 @@ import './AgentForm.css';
       </thead>
       <tbody>
         {agentData.map((item) => (
-          <tr key={item.id} onMouseEnter={() => handleRowHover(item)}
-          className={selectedRow && selectedRow.id === item.id ? 'selected-row' : ''} >
+          <tr key={item.id}
+          onClick={() => handleRowClick(item)}
+          onMouseEnter={() => setHoveredRowId(item.id)}
+          onMouseLeave={() => setHoveredRowId(null)}
+          className={`${selectedRow && selectedRow.id === item.id ? 'selected-row' : ''} ${hoveredRowId === item.id ? 'hovered-row' : ''}`}>
             <td>{item.firstNameCustomer}</td>
             <td>{item.lastNameCustomer}</td>
             <td>{item.IDCustomer}</td>
