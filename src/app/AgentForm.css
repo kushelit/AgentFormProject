@@ -36,10 +36,10 @@
   }
  
   body {
-    background-color: #f0f0f0; /* Light grey background */
+    background-color:rgb(71, 175, 240); /* Light grey background */
 
 button {
-  background-color: grey; /* Dark grey background */
+  background-color: blue; /* Dark grey background */
   color: black; /* White text */
   padding: 10px 15px; /* Padding inside the button */
   border: 2px solid #555; /* Grey border, adjust thickness/color as needed */
@@ -54,7 +54,7 @@ button {
 
 
 button:hover {
-  background-color: blueviolet; /* Slightly lighter grey on hover for feedback */
+  background-color: lightblue; /* Slightly lighter grey on hover for feedback */
 }
 h1 {
   font-size: 2.5em; /* Larger font size for H1 */
@@ -81,4 +81,8 @@ input, select {
   box-sizing: border-box; /* Ensures padding and border are included in total width/height */
   border: 1px solid #ccc; /* Keeps a subtle border */
   border-radius: 4px; /* Maintains slightly rounded corners */
+}
+
+.hover-class {
+  background-color: blue; /* Your desired hover color */
 }
