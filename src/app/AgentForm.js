@@ -222,7 +222,7 @@ const [hoveredRowId, setHoveredRowId] = useState(null);
       <div>
       <label>בחר עובד </label>
   <select value={selectedWorker} onChange={(e) => setSelectedWorker(e.target.value)}>
-  <option value="">Select a Worker</option>
+  <option value="">בחר עובד</option>
   {workers.map((worker, index) => (
     <option key={index} value={worker}>{worker}</option> // Assuming 'worker' is a string. If it's an object, you might need to use worker.id or worker.name
   ))}
