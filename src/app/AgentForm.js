@@ -104,6 +104,7 @@ const [hoveredRowId, setHoveredRowId] = useState(null);
 
   const handleRowClick  = (item) => {
     setSelectedRow(item); // Store the selected row's data
+    //setWorkers(item)(item.worker)
     setfirstNameCustomer(item.firstNameCustomer);
     setlastNameCustomer(item.lastNameCustomer);
     setIDCustomer(item.IDCustomer);
