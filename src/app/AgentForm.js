@@ -10,7 +10,7 @@ import './AgentForm.css';
   //const agents = ['אילון', 'אלעד', 'ברק', 'יונתן']; // Your agents list
   const [agents, setAgents] = useState([]);
   const [workers, setWorkers] = useState([]);
-
+  const [selectedWorker, setSelectedWorker] = useState('');
   const [firstNameCustomer, setfirstNameCustomer] = useState('');
   const [lastNameCustomer, setlastNameCustomer] = useState('');
   const [IDCustomer, setIDCustomer] = useState('');
@@ -59,6 +59,7 @@ import './AgentForm.css';
   // useEffect to call fetchDataForAgent when selectedAgent changes
   useEffect(() => {
     // Clear input fields when the selected agent changes
+    setSelectedWorker('');
     setfirstNameCustomer('');
     setlastNameCustomer('');
     setIDCustomer('');
@@ -101,10 +102,9 @@ import './AgentForm.css';
 
 const [hoveredRowId, setHoveredRowId] = useState(null);
 
-
   const handleRowClick  = (item) => {
     setSelectedRow(item); // Store the selected row's data
-    //setWorkers(item)(item.worker)
+    setSelectedWorker(item.worker);
     setfirstNameCustomer(item.firstNameCustomer);
     setlastNameCustomer(item.lastNameCustomer);
     setIDCustomer(item.IDCustomer);
@@ -135,6 +135,7 @@ const [hoveredRowId, setHoveredRowId] = useState(null);
       try {
         const docRef = doc(db, 'sales', selectedRow.id); // Reference to the Firestore document
         await updateDoc(docRef, {
+          worker: selectedWorker,
           firstNameCustomer,
           lastNameCustomer,
           IDCustomer,
@@ -164,6 +165,7 @@ const [hoveredRowId, setHoveredRowId] = useState(null);
     }
   };
   const resetForm = () => {
+    setSelectedWorker('');
     setfirstNameCustomer(''); // Reset to default value
     setlastNameCustomer(''); // Reset to default value
     setIDCustomer(''); // Reset to default value
@@ -180,6 +182,7 @@ const [hoveredRowId, setHoveredRowId] = useState(null);
     try {
       const docRef = await addDoc(collection(db, 'sales'), {
         agent: selectedAgent,
+        worker: selectedWorker,
         firstNameCustomer: firstNameCustomer,
         lastNameCustomer: lastNameCustomer,
         IDCustomer: IDCustomer,
@@ -218,10 +221,10 @@ const [hoveredRowId, setHoveredRowId] = useState(null);
       </div>
       <div>
       <label>בחר עובד </label>
-      <select>
-  <option value="">בחר עובד</option>
+  <select value={selectedWorker} onChange={(e) => setSelectedWorker(e.target.value)}>
+  <option value="">Select a Worker</option>
   {workers.map((worker, index) => (
-    <option key={index} value={worker}>{worker}</option>
+    <option key={index} value={worker}>{worker}</option> // Assuming 'worker' is a string. If it's an object, you might need to use worker.id or worker.name
   ))}
 </select>
 </div>
@@ -302,6 +305,7 @@ const [hoveredRowId, setHoveredRowId] = useState(null);
           <th>פרמיה פנסיה</th>
           <th>צבירה פיננסים</th>
           <th>חודש תפוקה</th>
+          <th>שם עובד</th>
           {/* Add more titles as necessary */}
         </tr>
       </thead>
@@ -321,6 +325,7 @@ const [hoveredRowId, setHoveredRowId] = useState(null);
             <td>{item.pensiaPremia}</td>
             <td>{item.ammount}</td>
             <td>{item.mounth}</td>
+            <td>{item.worker}</td>
             {/* Add more data fields as necessary */}
           </tr>
         ))}
