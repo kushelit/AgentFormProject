@@ -7,7 +7,10 @@ import './AgentForm.css';
 
   function AgentForm() {
   const [selectedAgent, setSelectedAgent] = useState('');
-  const agents = ['אילון', 'אלעד', 'ברק', 'יונתן']; // Your agents list
+  //const agents = ['אילון', 'אלעד', 'ברק', 'יונתן']; // Your agents list
+  const [agents, setAgents] = useState([]);
+  const [workers, setWorkers] = useState([]);
+
   const [firstNameCustomer, setfirstNameCustomer] = useState('');
   const [lastNameCustomer, setlastNameCustomer] = useState('');
   const [IDCustomer, setIDCustomer] = useState('');
@@ -19,11 +22,23 @@ import './AgentForm.css';
   const [mounth, setmounth] = useState('');
   const [agentData, setAgentData] = useState([]);
   const [selectedRow, setSelectedRow] = useState(null);
- // Function to fetch data based on selected agent
  
+  useEffect(() => {
+  const fetchAgents = async () => {
+    const querySnapshot = await getDocs(collection(db, 'agents'));
+    const agentsList = querySnapshot.docs.map(doc => doc.data().agentName); // Assuming the field name is 'agentName'
+    setAgents(agentsList);
+  };
+
+  fetchAgents();
+}, []);
+
+
+ // Function to fetch data based on selected agent
+
  const fetchDataForAgent = async (agentName) => {
-  // Create a query against the 'ship' collection where the 'agent' field matches 'agentName'
-  const q = query(collection(db, 'ship'), where('agent', '==', agentName));
+  // Create a query against the 'sales' collection where the 'agent' field matches 'agentName'
+  const q = query(collection(db, 'sales'), where('agent', '==', agentName));
 
   // Execute the query and get the snapshot of the resulting documents
   const querySnapshot = await getDocs(q);
@@ -61,8 +76,27 @@ import './AgentForm.css';
     }
   }, [selectedAgent]); // This effect depends on `selectedAgent`
 
-  const handleAgentChange = (event) => {
-    setSelectedAgent(event.target.value);
+  const handleAgentChange = async (event) => {
+    const selectedAgentName = event.target.value; // Correctly define the selected agent name here
+    setSelectedAgent(selectedAgentName);
+    setWorkers([]);
+  
+    // Query for the selected agent document
+    const agentsQuery = query(collection(db, 'agents'), where('agentName', '==', selectedAgentName));
+    const querySnapshot = await getDocs(agentsQuery);
+  
+    // Assuming there's only one document per agent
+    if (!querySnapshot.empty) {
+      const agentDoc = querySnapshot.docs[0];
+      const agentData = agentDoc.data();
+  
+      // Check if the 'workers' field exists and is an array
+      if (Array.isArray(agentData.workers)) {
+        setWorkers(agentData.workers);
+      }
+    } else {
+      console.log("No matching agent found or workers field is missing");
+    }
   };
 
 const [hoveredRowId, setHoveredRowId] = useState(null);
@@ -83,7 +117,7 @@ const [hoveredRowId, setHoveredRowId] = useState(null);
   };
   const handleDelete = async () => {
     if (selectedRow && selectedRow.id) {
-      await deleteDoc(doc(db, 'ship', selectedRow.id));
+      await deleteDoc(doc(db, 'sales', selectedRow.id));
       setSelectedRow(null); // Reset selection
       resetForm();
       if (selectedRow.agent) {
@@ -98,7 +132,7 @@ const [hoveredRowId, setHoveredRowId] = useState(null);
   const handleEdit = async () => {
     if (selectedRow && selectedRow.id) { // Ensure selectedRow has an 'id' property
       try {
-        const docRef = doc(db, 'ship', selectedRow.id); // Reference to the Firestore document
+        const docRef = doc(db, 'sales', selectedRow.id); // Reference to the Firestore document
         await updateDoc(docRef, {
           firstNameCustomer,
           lastNameCustomer,
@@ -143,7 +177,7 @@ const [hoveredRowId, setHoveredRowId] = useState(null);
   const handleSubmit = async (event) => {
     event.preventDefault();
     try {
-      const docRef = await addDoc(collection(db, 'ship'), {
+      const docRef = await addDoc(collection(db, 'sales'), {
         agent: selectedAgent,
         firstNameCustomer: firstNameCustomer,
         lastNameCustomer: lastNameCustomer,
@@ -173,14 +207,23 @@ const [hoveredRowId, setHoveredRowId] = useState(null);
     <div className="form-container">
     <form onSubmit={handleSubmit}>
       <div>
-        <label htmlFor="agentSelect">בחר סוכן</label>
-        <select id="agentSelect" value={selectedAgent} onChange={handleAgentChange}>
-          <option value="">בחר סוכן</option>
-          {agents.map(agent => (
-            <option key={agent} value={agent}>{agent}</option>
-          ))}
+      <label htmlFor="agentSelect">בחר סוכן</label>
+      <select id="agentSelect" value={selectedAgent} onChange={handleAgentChange}>
+     <option value="">בחר סוכן</option>
+     {agents.map((agentName, index) => (
+    <option key={index} value={agentName}>{agentName}</option>
+  ))}
         </select>
       </div>
+      <div>
+      <label>בחר עובד </label>
+      <select>
+  <option value="">בחר עובד</option>
+  {workers.map((worker, index) => (
+    <option key={index} value={worker}>{worker}</option>
+  ))}
+</select>
+</div>
       <div>
         <label>
           שם פרטי לקוח:
@@ -238,7 +281,7 @@ const [hoveredRowId, setHoveredRowId] = useState(null);
       <div style={{ display: 'flex', gap: '10px' }}>
         <button type="submit">הזן</button>
         <button type="button" disabled={selectedRow === null} onClick={handleDelete} >מחק</button>
-       <button type="button" disabled={selectedRow === null} onClick={handleEdit}>ערוך</button>
+       <button type="button" disabled={selectedRow === null} onClick={handleEdit}>עדכן</button>
       </div>
     </form>
     </div>
