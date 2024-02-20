@@ -1,9 +1,8 @@
-"use client";
+"use client"
 import React, { useState, useEffect } from 'react';
 import { db } from '../../firebase'; // Ensure this path is correct
 import { collection, query, where, getDocs,doc, addDoc, deleteDoc,updateDoc  } from 'firebase/firestore';
 import './AgentForm.css';
-
 
   function AgentForm() {
   const [selectedAgent, setSelectedAgent] = useState('');
@@ -14,29 +13,35 @@ import './AgentForm.css';
   const [firstNameCustomer, setfirstNameCustomer] = useState('');
   const [lastNameCustomer, setlastNameCustomer] = useState('');
   const [IDCustomer, setIDCustomer] = useState('');
-  const [company, setcompany] = useState('');
-  const [product, setproduct] = useState('');
+ // const [company, setcompany] = useState('');
+//const [product, setproduct] = useState('');
   const [insPremia, setinsPremia] = useState('');
   const [pensiaPremia, setpensiaPremia] = useState('');
-  const [ammount, setammount] = useState('');
+  const [pensiaZvira, setPensiaZvira] = useState('');
+  const [finansimPremia, setfinansimPremia] = useState('');
+  const [finansimZvira, setFinansimZvira] = useState('');
   const [mounth, setmounth] = useState('');
   const [agentData, setAgentData] = useState([]);
   const [selectedRow, setSelectedRow] = useState(null);
- 
+  const [companies, setCompanies] = useState([]);
+  const [products, setProducts] = useState([]);
+  const [minuySochen, setMinuySochen] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState('');
+  const [selectedCompany, setSelectedCompany] = useState('');
+  const [statusPolicies, setStatusPolicies] = useState([]);
+  const [selectedStatusPolicy, setSelectedStatusPolicy] = useState('');
+
+
   useEffect(() => {
   const fetchAgents = async () => {
     const querySnapshot = await getDocs(collection(db, 'agents'));
     const agentsList = querySnapshot.docs.map(doc => doc.data().agentName); // Assuming the field name is 'agentName'
     setAgents(agentsList);
   };
-
   fetchAgents();
 }, []);
 
-
- // Function to fetch data based on selected agent
-
- const fetchDataForAgent = async (agentName) => {
+const fetchDataForAgent = async (agentName) => {
   // Create a query against the 'sales' collection where the 'agent' field matches 'agentName'
   const q = query(collection(db, 'sales'), where('agent', '==', agentName));
 
@@ -48,29 +53,49 @@ import './AgentForm.css';
     id: doc.id, // Include the Firestore document ID
     ...doc.data() // Spread the rest of the document data
   }));
-
   // Log the data for debugging purposes
   console.log(data);
-
   // Update the state with the fetched data, including each document's ID
   setAgentData(data);
 };
 
-  // useEffect to call fetchDataForAgent when selectedAgent changes
+  useEffect(() => {
+    const fetchCompanies = async () => {
+      const querySnapshot = await getDocs(collection(db, 'company'));
+      const companiesList = querySnapshot.docs.map(doc => doc.data().companyName); // Assuming the field name is 'companyName'
+      setCompanies(companiesList);
+    };
+  
+    fetchCompanies();
+  }, []);
+
+useEffect(() => {
+  const fetchProducts = async () => {
+    const querySnapshot = await getDocs(collection(db, 'product'));
+    const productsList = querySnapshot.docs.map(doc => doc.data().productName); // Assuming the field name is 'productName'
+    setProducts(productsList);
+  };
+
+  fetchProducts();
+}, []);
+
   useEffect(() => {
     // Clear input fields when the selected agent changes
     setSelectedWorker('');
     setfirstNameCustomer('');
     setlastNameCustomer('');
     setIDCustomer('');
-    setcompany('');
-    setproduct('');
+    setSelectedCompany('');
+    setSelectedProduct('');
     setinsPremia('');
     setpensiaPremia('');
-    setammount('');
+    setPensiaZvira('');
+    setfinansimPremia('');
+    setFinansimZvira('');
     setmounth('');
+    setMinuySochen('');
+    setSelectedStatusPolicy('');
     // Reset other input fields as needed
-  
     // Then, if a new agent is selected, fetch the related data
     if (selectedAgent) {
       fetchDataForAgent(selectedAgent);
@@ -108,12 +133,16 @@ const [hoveredRowId, setHoveredRowId] = useState(null);
     setfirstNameCustomer(item.firstNameCustomer);
     setlastNameCustomer(item.lastNameCustomer);
     setIDCustomer(item.IDCustomer);
-    setcompany(item.company);
-    setproduct(item.product);
+    setSelectedCompany(item.company);
+    setSelectedProduct(item.product);
     setinsPremia(item.insPremia);
+    setPensiaZvira(item.pensiaZvira);
     setpensiaPremia(item.pensiaPremia);
-    setammount(item.ammount);
+    setfinansimPremia(item.finansimPremia);
+    setFinansimZvira(item.finansimZvira);
     setmounth(item.mounth);
+    setMinuySochen(item.minuySochen);
+    setSelectedStatusPolicy(item.statusPolicy);
     // Set other form fields as needed
   };
   const handleDelete = async () => {
@@ -139,12 +168,16 @@ const [hoveredRowId, setHoveredRowId] = useState(null);
           firstNameCustomer,
           lastNameCustomer,
           IDCustomer,
-          company,
-          product,
+          company:selectedCompany,
+          product:selectedProduct,
           insPremia,
           pensiaPremia,
-          ammount,
+          pensiaZvira,
+          finansimPremia,
+          finansimZvira,
           mounth,
+          minuySochen,
+          statusPolicy: selectedStatusPolicy,
           // Include any additional fields as needed
         });
   
@@ -169,13 +202,17 @@ const [hoveredRowId, setHoveredRowId] = useState(null);
     setfirstNameCustomer(''); // Reset to default value
     setlastNameCustomer(''); // Reset to default value
     setIDCustomer(''); // Reset to default value
-    setcompany(''); // Reset to default value
-    setproduct(''); // Reset to default value
+    setSelectedCompany(''); // Reset to default value
+    setSelectedProduct(''); // Reset to default value
     setinsPremia(''); // Reset to default value
     setpensiaPremia(''); // Reset to default value
-    setammount(''); // Reset to default value
+    setPensiaZvira('');
+    setfinansimPremia(''); // Reset to default value
+    setFinansimZvira('');
     setmounth(''); // Reset to default value
     setSelectedRow(null); // Clear the selected row
+    setMinuySochen(false);
+    setSelectedStatusPolicy('');
   };
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -186,12 +223,16 @@ const [hoveredRowId, setHoveredRowId] = useState(null);
         firstNameCustomer: firstNameCustomer,
         lastNameCustomer: lastNameCustomer,
         IDCustomer: IDCustomer,
-        company: company,
-        product: product,
+        company: selectedCompany,
+        product: selectedProduct,
         insPremia: insPremia,
         pensiaPremia: pensiaPremia,
-        ammount: ammount,
+        pensiaZvira:pensiaZvira,
+        finansimPremia: finansimPremia,
+        finansimZvira:finansimZvira,
         mounth: mounth,
+        minuySochen:minuySochen,
+        statusPolicy: selectedStatusPolicy,
       });
       console.log('Document written with ID:', docRef.id);
   
@@ -206,13 +247,71 @@ const [hoveredRowId, setHoveredRowId] = useState(null);
     }
   };
 
+  const handleFirstNameChange = (event) => {
+    const value = event.target.value;
+    const hebrewRegex = /^[\u0590-\u05FF]+$/;
+  
+    // If the value is empty or matches the Hebrew regex, update the state
+    if (value === '' || hebrewRegex.test(value)) {
+      setfirstNameCustomer(value);
+    }
+    // Otherwise, do not update the state, effectively rejecting the input
+  };
+  
+  const handleLastNameChange = (event) => {
+    const value = event.target.value;
+    const hebrewRegex = /^[\u0590-\u05FF]+$/;
+  
+    // If the value is empty or matches the Hebrew regex, update the state
+    if (value === '' || hebrewRegex.test(value)) {
+      setlastNameCustomer(value);
+    }
+    // Otherwise, do not update the state, effectively rejecting the input
+  };
+  const handleIDChange = (e) => {
+    const value = e.target.value;
+    // Allow only numbers
+    const onlyNums = value.replace(/[^0-9]/g, '').slice(0, 9);
+    setIDCustomer(onlyNums);
+  };
+  
+  function canSubmit() {
+    return (
+      selectedAgent.trim() !== '' &&
+      selectedWorker.trim() !== '' &&
+      firstNameCustomer.trim() !== '' &&
+      lastNameCustomer.trim() !== '' &&
+      IDCustomer.trim() !== '' &&
+      selectedCompany.trim() !== '' &&
+      selectedProduct.trim() !== ''
+    );
+  }
+  useEffect(() => {
+    const fetchStatus = async () => {
+      const querySnapshot = await getDocs(collection(db, 'statusPolicy'));
+      const statusList = querySnapshot.docs.map(doc => doc.data().statusName); // Assuming the field name is 'productName'
+      setStatusPolicy(statusList);
+    };
+  
+    fetchStatus();
+  }, []);useEffect(() => {
+    const fetchStatusPolicies = async () => {
+      const querySnapshot = await getDocs(collection(db, 'statusPolicy'));
+      const fetchedStatusPolicies = querySnapshot.docs.map(doc => doc.data().statusName); // Assuming the field name is 'statusName'
+      setStatusPolicies(fetchedStatusPolicies);
+    };
+  
+    fetchStatusPolicies();
+  }, []);
+
   return (
     <div className="content-container">
     <div className="form-container">
     <form onSubmit={handleSubmit}>
       <div>
       <label htmlFor="agentSelect">בחר סוכן</label>
-      <select id="agentSelect" value={selectedAgent} onChange={handleAgentChange}>
+      <select id="agentSelect" value={selectedAgent} 
+      onChange={handleAgentChange}>
      <option value="">בחר סוכן</option>
      {agents.map((agentName, index) => (
     <option key={index} value={agentName}>{agentName}</option>
@@ -221,42 +320,67 @@ const [hoveredRowId, setHoveredRowId] = useState(null);
       </div>
       <div>
       <label>בחר עובד </label>
-  <select value={selectedWorker} onChange={(e) => setSelectedWorker(e.target.value)}>
+  <select value={selectedWorker} 
+  onChange={(e) => setSelectedWorker(e.target.value)}>
   <option value="">בחר עובד</option>
   {workers.map((worker, index) => (
     <option key={index} value={worker}>{worker}</option> // Assuming 'worker' is a string. If it's an object, you might need to use worker.id or worker.name
   ))}
 </select>
 </div>
+<div>
+  <label>שם פרטי לקוח: </label>
+  <input
+    type="text"
+    value={firstNameCustomer}
+    onChange={handleFirstNameChange} // Fixed the typo here
+    title="Please enter Hebrew characters only."
+  />
+</div>
       <div>
         <label>
-          שם פרטי לקוח:
-          <input type="text" value={firstNameCustomer} onChange={(e) => setfirstNameCustomer(e.target.value)} />
-        </label>
+          שם משפחה לקוח:</label>
+          <input type="text" 
+          value={lastNameCustomer} 
+          onChange={handleLastNameChange}
+          title="Please enter Hebrew characters only." />   
       </div>
       <div>
-        <label>
-          שם משפחה לקוח:
-          <input type="text" value={lastNameCustomer} onChange={(e) => setlastNameCustomer(e.target.value)} />
-        </label>
+      <label>
+        תז לקוח:
+       <input
+      type="text"
+      inputMode="numeric" // Suggests a numeric keyboard on mobile devices
+      maxLength="9" // Limits input length to 9 characters
+      value={IDCustomer}
+      onChange={handleIDChange}
+     />
+</label>
       </div>
       <div>
-        <label>
-          תז לקוח:
-          <input type="text" value={IDCustomer} onChange={(e) => setIDCustomer(e.target.value)} />
-        </label>
-      </div>
+      <label htmlFor="companySelect">חברה:</label>
+      <select 
+      id="companySelect"
+      value={selectedCompany} 
+       onChange={(e) => setSelectedCompany(e.target.value)}
+       >
+        <option value="">בחר חברה</option>
+        {companies.map((companyName, index) => (
+          <option key={index} value={companyName}>{companyName}</option>
+        ))}
+      </select>
+    </div>
       <div>
-        <label>
-          חברה:
-          <input type="text" value={company} onChange={(e) => setcompany(e.target.value)} />
-        </label>
-      </div>
-      <div>
-        <label>
-          מוצר:
-          <input type="text" value={product} onChange={(e) => setproduct(e.target.value)} />
-        </label>
+      <label htmlFor="productSelect">מוצר:</label>
+      <select id="productSelect"
+      value={selectedProduct} 
+      onChange={(e) => setSelectedProduct(e.target.value)} 
+    >
+      <option value="">בחר מוצר</option>
+      {products.map((productName, index) => (
+     <option key={index} value={productName}>{productName}</option>
+  ))}
+</select>
       </div>
       <div>
         <label>
@@ -272,21 +396,59 @@ const [hoveredRowId, setHoveredRowId] = useState(null);
       </div>
       <div>
         <label>
-          צבירה פיננסים:
-          <input type="text" value={ammount} onChange={(e) => setammount(e.target.value)} />
+          צבירה פנסיה :
+          <input type="text" value={pensiaZvira} onChange={(e) => setPensiaZvira(e.target.value)} />
         </label>
       </div>
       <div>
         <label>
-          חודש תפוקה:
-          <input type="text" value={mounth} onChange={(e) => setmounth(e.target.value)} />
+          פנסיה פיננסים:
+          <input type="text" value={finansimPremia} onChange={(e) => setfinansimPremia(e.target.value)} />
         </label>
       </div>
+      <div>
+        <label>
+          צבירה פיננסים:
+          <input type="text" value={finansimZvira} onChange={(e) => setFinansimZvira(e.target.value)} />
+        </label>
+      </div>
+      <div>
+      <label>
+        תאריך תפוקה (MM/YY):
+      <input type="text" id="expiryDate" name="expiryDate" placeholder="MM/YY" maxlength="5" />
+     </label>
+      </div>
+      <div>
+  <label htmlFor="statusPolicySelect">סטאטוס פוליסה:</label>
+  <select 
+    id="statusPolicySelect" 
+    value={selectedStatusPolicy} 
+    onChange={(e) => setSelectedStatusPolicy(e.target.value)}
+  >
+    <option value="">בחר סטאטוס פוליסה</option>
+    {statusPolicies.map((status, index) => (
+      <option key={index} value={status}>{status}</option>
+    ))}
+  </select>
+</div>
+      <div>
+  <label htmlFor="minuySochen">מינוי סוכן:</label>
+  <input
+    type="checkbox"
+    id="minuySochen"
+    name="minuySochen"
+    checked={minuySochen}
+    onChange={(e) => setMinuySochen(e.target.checked)}
+  />
+</div>
       <div style={{ display: 'flex', gap: '10px' }}>
-        <button type="submit">הזן</button>
+      <button type="submit" disabled={!canSubmit()}>
+      הזן
+       </button>
         <button type="button" disabled={selectedRow === null} onClick={handleDelete} >מחק</button>
        <button type="button" disabled={selectedRow === null} onClick={handleEdit}>עדכן</button>
-      </div>
+       <button type="button" onClick={resetForm}>נקה</button>   
+       </div>
     </form>
     </div>
 
@@ -303,8 +465,12 @@ const [hoveredRowId, setHoveredRowId] = useState(null);
           <th>מוצר</th>
           <th>פרמיה ביטוח</th>
           <th>פרמיה פנסיה</th>
+          <th>צבירה פנסיה</th>
+          <th>פרמיה פיננסים</th>
           <th>צבירה פיננסים</th>
           <th>חודש תפוקה</th>
+         <th> סטאטוס</th>
+          <th>מינוי סוכן</th>
           <th>שם עובד</th>
           {/* Add more titles as necessary */}
         </tr>
@@ -313,7 +479,7 @@ const [hoveredRowId, setHoveredRowId] = useState(null);
         {agentData.map((item) => (
           <tr key={item.id}
           onClick={() => handleRowClick(item)}
-          onMouseEnter={() => setHoveredRowId(item.id)}
+          onMouseEnter={() => setHoveredRowId(item.id)}minuySochen
           onMouseLeave={() => setHoveredRowId(null)}
           className={`${selectedRow && selectedRow.id === item.id ? 'selected-row' : ''} ${hoveredRowId === item.id ? 'hovered-row' : ''}`}>
             <td>{item.firstNameCustomer}</td>
@@ -323,8 +489,12 @@ const [hoveredRowId, setHoveredRowId] = useState(null);
             <td>{item.product}</td>
             <td>{item.insPremia}</td>
             <td>{item.pensiaPremia}</td>
-            <td>{item.ammount}</td>
+            <td>{item.pensiaZvira}</td>
+            <td>{item.finansimPremia}</td>
+            <td>{item.finansimZvira}</td>
             <td>{item.mounth}</td>
+            <td>{item.statusPolicy}</td>
+            <td>{item.minuySochen ? 'Yes' : 'No'}</td>
             <td>{item.worker}</td>
             {/* Add more data fields as necessary */}
           </tr>
