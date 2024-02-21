@@ -303,6 +303,35 @@ const [hoveredRowId, setHoveredRowId] = useState(null);
   
     fetchStatusPolicies();
   }, []);
+  const handleExpiryDateChange = (e) => {
+    let input = e.target.value.replace(/[^\d]/g, ''); // Remove non-digits
+    let formattedInput = "";
+  
+    // Only process further if the input is not empty
+    if (input.length > 0) {
+      // If the first digit is greater than 1, prefix it with '0' and add a '/'
+      if (input.length === 1 && parseInt(input, 10) > 1) {
+        formattedInput = `0${input}/`;
+      } else {
+        // For other cases, format as MM/YY with '/' inserted appropriately
+        formattedInput = input.substring(0, 2);
+        if (input.length >= 2) {
+          formattedInput += '/';
+        }
+        formattedInput += input.substring(2, 4);
+      }
+    }
+  
+    // Prevent exceeding the MM/YY format length
+    if (formattedInput.length > 5) {
+      formattedInput = formattedInput.substring(0, 5);
+    }
+  
+    // Update the input field with the formatted value
+    e.target.value = formattedInput;
+  };
+
+  
 
   return (
     <div className="content-container">
@@ -334,7 +363,7 @@ const [hoveredRowId, setHoveredRowId] = useState(null);
     type="text"
     value={firstNameCustomer}
     onChange={handleFirstNameChange} // Fixed the typo here
-    title="Please enter Hebrew characters only."
+    title="הזן אותיות בלבד"
   />
 </div>
       <div>
@@ -343,7 +372,7 @@ const [hoveredRowId, setHoveredRowId] = useState(null);
           <input type="text" 
           value={lastNameCustomer} 
           onChange={handleLastNameChange}
-          title="Please enter Hebrew characters only." />   
+          title="הזן אותיות בלבד" />   
       </div>
       <div>
       <label>
@@ -402,7 +431,7 @@ const [hoveredRowId, setHoveredRowId] = useState(null);
       </div>
       <div>
         <label>
-          פנסיה פיננסים:
+          פרמיה פיננסים:
           <input type="text" value={finansimPremia} onChange={(e) => setfinansimPremia(e.target.value)} />
         </label>
       </div>
@@ -415,7 +444,9 @@ const [hoveredRowId, setHoveredRowId] = useState(null);
       <div>
       <label>
         תאריך תפוקה (MM/YY):
-      <input type="text" id="expiryDate" name="expiryDate" placeholder="MM/YY" maxlength="5" />
+        <input type="text" id="expiryDate" name="expiryDate" placeholder="MM/YY" maxlength="5" 
+        />
+
      </label>
       </div>
       <div>
@@ -494,7 +525,7 @@ const [hoveredRowId, setHoveredRowId] = useState(null);
             <td>{item.finansimZvira}</td>
             <td>{item.mounth}</td>
             <td>{item.statusPolicy}</td>
-            <td>{item.minuySochen ? 'Yes' : 'No'}</td>
+            <td>{item.minuySochen ? 'כן' : 'לא'}</td>
             <td>{item.worker}</td>
             {/* Add more data fields as necessary */}
           </tr>
