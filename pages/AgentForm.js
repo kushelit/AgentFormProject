@@ -1,10 +1,14 @@
 "use client"
 import React, { useState, useEffect } from 'react';
-import { db } from '../../firebase'; // Ensure this path is correct
+import { db } from '../firebase'; // Ensure this path is correct
 import { collection, query, where, getDocs,doc, addDoc, deleteDoc,updateDoc  } from 'firebase/firestore';
 import './AgentForm.css';
+import Link from 'next/link';
+import { useRouter } from 'next/router';
+
 
   function AgentForm() {
+  const router = useRouter();
   const [selectedAgent, setSelectedAgent] = useState('');
   //const agents = ['אילון', 'אלעד', 'ברק', 'יונתן']; // Your agents list
   const [agents, setAgents] = useState([]);
@@ -31,15 +35,25 @@ import './AgentForm.css';
   const [statusPolicies, setStatusPolicies] = useState([]);
   const [selectedStatusPolicy, setSelectedStatusPolicy] = useState('');
 
-
   useEffect(() => {
-  const fetchAgents = async () => {
-    const querySnapshot = await getDocs(collection(db, 'agents'));
-    const agentsList = querySnapshot.docs.map(doc => doc.data().agentName); // Assuming the field name is 'agentName'
-    setAgents(agentsList);
-  };
-  fetchAgents();
-}, []);
+    const fetchAgentsAndSetSelected = async () => {
+      // Fetch agents from your database
+      const querySnapshot = await getDocs(collection(db, 'agents'));
+      const agentsList = querySnapshot.docs.map(doc => doc.data().agentName);
+      setAgents(agentsList);
+  
+      // After fetching agents, set the selected agent from the URL query
+      if (router.query.selectedAgent) {
+        setSelectedAgent(router.query.selectedAgent);
+      }
+    };
+  
+    // Ensure that this effect runs only once or whenever router is ready and the query parameter changes
+    if (router.isReady) {
+      fetchAgentsAndSetSelected();
+    }
+  }, [router.isReady, router.query.selectedAgent]);
+
 
 const fetchDataForAgent = async (agentName) => {
   // Create a query against the 'sales' collection where the 'agent' field matches 'agentName'
@@ -337,6 +351,11 @@ const [hoveredRowId, setHoveredRowId] = useState(null);
     <div className="content-container">
     <div className="form-container">
     <form onSubmit={handleSubmit}>
+    <div>
+    <Link href={`/summaryTable?agentName=${selectedAgent}`}>
+    <a>דף מרכז</a>
+   </Link>
+   </div>
       <div>
       <label htmlFor="agentSelect">בחר סוכן</label>
       <select id="agentSelect" value={selectedAgent} 
@@ -479,6 +498,7 @@ const [hoveredRowId, setHoveredRowId] = useState(null);
         <button type="button" disabled={selectedRow === null} onClick={handleDelete} >מחק</button>
        <button type="button" disabled={selectedRow === null} onClick={handleEdit}>עדכן</button>
        <button type="button" onClick={resetForm}>נקה</button>   
+      
        </div>
     </form>
     </div>
