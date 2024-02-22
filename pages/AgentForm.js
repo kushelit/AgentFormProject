@@ -17,8 +17,6 @@ import { useRouter } from 'next/router';
   const [firstNameCustomer, setfirstNameCustomer] = useState('');
   const [lastNameCustomer, setlastNameCustomer] = useState('');
   const [IDCustomer, setIDCustomer] = useState('');
- // const [company, setcompany] = useState('');
-//const [product, setproduct] = useState('');
   const [insPremia, setinsPremia] = useState('');
   const [pensiaPremia, setpensiaPremia] = useState('');
   const [pensiaZvira, setPensiaZvira] = useState('');
@@ -184,13 +182,13 @@ const [hoveredRowId, setHoveredRowId] = useState(null);
           IDCustomer,
           company:selectedCompany,
           product:selectedProduct,
-          insPremia,
-          pensiaPremia,
-          pensiaZvira,
-          finansimPremia,
-          finansimZvira,
+          insPremia: parseInt(insPremia) || 0,
+          pensiaPremia: parseInt(pensiaPremia) || 0,
+          pensiaZvira: parseInt(pensiaZvira) || 0,
+          finansimPremia: parseInt(finansimPremia) || 0,
+          finansimZvira: parseInt(finansimZvira) || 0,
           mounth,
-          minuySochen,
+          minuySochen: !!minuySochen,
           statusPolicy: selectedStatusPolicy,
           // Include any additional fields as needed
         });
@@ -239,13 +237,13 @@ const [hoveredRowId, setHoveredRowId] = useState(null);
         IDCustomer: IDCustomer,
         company: selectedCompany,
         product: selectedProduct,
-        insPremia: insPremia,
-        pensiaPremia: pensiaPremia,
-        pensiaZvira:pensiaZvira,
-        finansimPremia: finansimPremia,
-        finansimZvira:finansimZvira,
+        insPremia:parseInt(insPremia) || 0,
+        pensiaPremia:parseInt(pensiaPremia) || 0,
+        pensiaZvira: parseInt(pensiaZvira) || 0,
+        finansimPremia: parseInt(finansimPremia) || 0,
+        finansimZvira: parseInt(finansimZvira) || 0,
         mounth: mounth,
-        minuySochen:minuySochen,
+        minuySochen: !!minuySochen,
         statusPolicy: selectedStatusPolicy,
       });
       console.log('Document written with ID:', docRef.id);
@@ -345,8 +343,35 @@ const [hoveredRowId, setHoveredRowId] = useState(null);
     e.target.value = formattedInput;
   };
 
-  
+  const handleFinansimZviraChange = (e) => {
+    // Convert input value to a number
+    const value = Number(e.target.value) || 0; // Use 0 as a fallback if conversion fails
+    setFinansimZvira(value);
+  };
 
+  const handleFinansimPremia = (e) => {
+    // Convert input value to a number
+    const value = Number(e.target.value) || 0; // Use 0 as a fallback if conversion fails
+    setfinansimPremia(value);
+  };
+
+  const handlePensiaZvira = (e) => {
+    // Convert input value to a number
+    const value = Number(e.target.value) || 0; // Use 0 as a fallback if conversion fails
+    setPensiaZvira(value);
+  };
+  const handlepensiaPremia = (e) => {
+    // Convert input value to a number
+    const value = Number(e.target.value) || 0; // Use 0 as a fallback if conversion fails
+    setpensiaPremia(value);
+  };
+  
+  const handleinsPremia = (e) => {
+    // Convert input value to a number
+    const value = Number(e.target.value) || 0; // Use 0 as a fallback if conversion fails
+    setinsPremia(value);
+  };
+  
   return (
     <div className="content-container">
     <div className="form-container">
@@ -433,31 +458,31 @@ const [hoveredRowId, setHoveredRowId] = useState(null);
       <div>
         <label>
           פרמיה ביטוח:
-          <input type="text" value={insPremia} onChange={(e) => setinsPremia(e.target.value)} />
+          <input type="text" value={insPremia} onChange={ handleinsPremia} />
         </label>
       </div>
       <div>
         <label>
           פרמיה פנסיה:
-          <input type="text" value={pensiaPremia} onChange={(e) => setpensiaPremia(e.target.value)} />
+          <input type="text" value={pensiaPremia} onChange={ handlepensiaPremia} />
         </label>
       </div>
       <div>
         <label>
           צבירה פנסיה :
-          <input type="text" value={pensiaZvira} onChange={(e) => setPensiaZvira(e.target.value)} />
+          <input type="text" value={pensiaZvira} onChange= { handlePensiaZvira} />
         </label>
       </div>
       <div>
         <label>
           פרמיה פיננסים:
-          <input type="text" value={finansimPremia} onChange={(e) => setfinansimPremia(e.target.value)} />
+          <input type="text" value={finansimPremia} onChange={handleFinansimPremia} />
         </label>
       </div>
       <div>
         <label>
           צבירה פיננסים:
-          <input type="text" value={finansimZvira} onChange={(e) => setFinansimZvira(e.target.value)} />
+          <input type="text" value={finansimZvira} onChange={handleFinansimZviraChange} />
         </label>
       </div>
       <div>
