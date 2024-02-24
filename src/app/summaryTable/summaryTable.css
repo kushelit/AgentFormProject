@@ -1,0 +1,6 @@
+table {
+  width: 100%;
+  /* Make the table take up the full width of its container */
+  border-collapse: collapse;
+  /* Collapse cell borders into a single border */
+}
