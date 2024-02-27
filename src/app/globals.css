@@ -1,3 +1,43 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+:root {
+    --hover: hsl(200 70% 90%);
+}
+
+table {
+    width: 5rem;
+    border-collapse: collapse;
+}
+
+thead {
+    position: sticky;
+    top: 0;
+    background-color: #fff;
+}
+
+th,
+td {
+    padding: 8px;
+    text-align: center;
+    border-bottom: 1px solid hsl(0 0% 80%);
+}
+
+tbody tr:nth-child(odd) {
+    background-color: hsl(0 0% 96%);
+}
+
+tbody > tr:hover {
+    background-color: var(--hover);
+}
+
+button {
+    padding: 0.75em 0.3em;
+    border: 2px solid #f1eded;
+    border-radius: 4px;
+}
+
+button:hover {
+    background-color: var(--hover);
+}

@@ -4,7 +4,7 @@ import { query, collection, where, getDocs } from "firebase/firestore";
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { db } from "@/lib/firebase/firebase";
-import './summaryTable.css';
+//import './summaryTable.css';
 import { useSearchParams } from 'next/navigation'
 
 const SummaryTable = () => {

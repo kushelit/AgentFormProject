@@ -1,7 +1,8 @@
+/* eslint-disable react/jsx-no-comment-textnodes */
 "use client"
-import React, { useState, useEffect, FormEventHandler, ChangeEventHandler } from 'react';
+import React, { useState, useEffect, FormEventHandler, ChangeEventHandler, ChangeEvent, useMemo } from 'react';
 import { db } from '@/lib/firebase/firebase';
-import { collection, query, where, getDocs, doc, addDoc, deleteDoc, updateDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, addDoc, deleteDoc, updateDoc, getDoc } from 'firebase/firestore';
 import './AgentForm.css';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
@@ -11,17 +12,21 @@ function AgentForm() {
   const searchParams = useSearchParams();
   const { user, detail } = useAuth();
   const [selectedAgent, setSelectedAgent] = useState('');
+  const [selectedAgentId, setSelectedAgentId] = useState("");
+  const [userAgentId, setUserAgentId] = useState('');
   const [agents, setAgents] = useState<string[]>([]);
-  const [workers, setWorkers] = useState<string[]>([]);
-  const [selectedWorker, setSelectedWorker] = useState('');
+  const [workers, setWorkers] = useState<Worker[]>([]);
+  const [selectedWorker, setSelectedWorker]  = useState('');
+  const [selectedWorkerId, setSelectedWorkerId] = useState("");
+  const [selectedWorkerName, setSelectedWorkerName] = useState("")
   const [firstNameCustomer, setfirstNameCustomer] = useState('');
   const [lastNameCustomer, setlastNameCustomer] = useState('');
   const [IDCustomer, setIDCustomer] = useState('');
-  const [insPremia, setinsPremia] = useState(0);
-  const [pensiaPremia, setpensiaPremia] = useState(0);
-  const [pensiaZvira, setPensiaZvira] = useState(0);
-  const [finansimPremia, setfinansimPremia] = useState(0);
-  const [finansimZvira, setFinansimZvira] = useState(0);
+  const [insPremia, setinsPremia] = useState('');
+  const [pensiaPremia, setpensiaPremia] = useState('');
+  const [pensiaZvira, setPensiaZvira] = useState('');
+  const [finansimPremia, setfinansimPremia] = useState('');
+  const [finansimZvira, setFinansimZvira] = useState('');
   const [mounth, setmounth] = useState('');
   const [agentData, setAgentData] = useState<any[]>([]);
   const [selectedRow, setSelectedRow] = useState<any | null>(null);
@@ -33,41 +38,112 @@ function AgentForm() {
   const [statusPolicies, setStatusPolicies] = useState<string[]>([]);
   const [selectedStatusPolicy, setSelectedStatusPolicy] = useState('');
 
-  useEffect(() => {
-    const fetchAgentsAndSetSelected = async () => {
-      // Fetch agents from your database
-      const querySnapshot = await getDocs(collection(db, 'agents'));
-      const agentsList = querySnapshot.docs.map(doc => doc.data().agentName);
-      setAgents(agentsList);
 
-      // After fetching agents, set the selected agent from the URL query
-      const se = searchParams?.get('selectedAgent');
-      if (se) {
-        setSelectedAgent(se);
+useEffect(() => {
+  const fetchAgentData = async () => {
+    if (detail && detail.agentId) {
+      const agentDocRef = doc(db, 'users', detail.agentId);
+      const agentDocSnap = await getDoc(agentDocRef);
+
+      if (agentDocSnap.exists()) {
+        const agentName = agentDocSnap.data().name;
+        setSelectedAgent(agentName);
+        setSelectedAgentId(detail.agentId);
+        await fetchWorkersForSelectedAgent(detail.agentId);
+      } else {
+        console.log("No such document!");
       }
-    };
-
-    fetchAgentsAndSetSelected();
-  }, [searchParams]);
-
-
-  const fetchDataForAgent = async (agentName: string) => {
-    // Create a query against the 'sales' collection where the 'agent' field matches 'agentName'
-    const q = query(collection(db, 'sales'), where('agent', '==', agentName));
-
-    // Execute the query and get the snapshot of the resulting documents
-    const querySnapshot = await getDocs(q);
-
-    // Map over each document in the snapshot
-    const data = querySnapshot.docs.map(doc => ({
-      id: doc.id, // Include the Firestore document ID
-      ...doc.data() // Spread the rest of the document data
-    }));
-    // Log the data for debugging purposes
-    console.log(data);
-    // Update the state with the fetched data, including each document's ID
-    setAgentData(data);
+    }
   };
+
+  fetchAgentData();
+}, [detail]);
+
+
+useEffect(() => {
+  if (selectedAgentId) {
+    fetchWorkersForSelectedAgent(selectedAgentId);
+  } else {
+    setWorkers([]); // Clear the workers if no agent is selected
+  }
+}, [selectedAgentId]);
+
+
+const fetchWorkersForSelectedAgent = async (agentId: string) => {
+  const workersQuery = query(collection(db, 'users'), where('agentId', '==', agentId), where('role', '==', 'worker'));
+  const querySnapshot = await getDocs(workersQuery);
+  const workersList = querySnapshot.docs.map(doc => ({
+    id: doc.id,
+    name: doc.data().name, 
+  }));
+  setWorkers(workersList); 
+};
+
+
+
+const handleAgentChange = (event: ChangeEvent<HTMLSelectElement>) =>  {
+  setSelectedAgent(event.target.value);
+};
+
+
+interface Worker {
+  name: string;
+  id: string;
+}
+
+
+useEffect(() => {
+  const fetchWorkers = async () => {
+    if (userAgentId) {
+      const workersQuery = query(
+        collection(db, 'users'),
+        where('role', '==', 'worker'),
+        where('agentid', '==', userAgentId)
+      );
+      const querySnapshot = await getDocs(workersQuery);
+      const workersList = querySnapshot.docs.map(doc => ({
+        name: doc.data().name as string, 
+        id: doc.id  
+      }));
+      setWorkers(workersList);
+    }
+  };
+
+  fetchWorkers();
+}, [userAgentId]); // 
+
+
+
+
+const handleWorkerChange = (event: ChangeEvent<HTMLSelectElement>) =>  {
+  const selectedOption = event.target.options[event.target.selectedIndex];
+  setSelectedWorkerId(selectedOption.value);
+  setSelectedWorkerName(selectedOption.text);
+};
+
+
+
+const fetchDataForAgent = async (UserAgentId : string) => {
+  const q = query(collection(db, 'sales'), where('AgentId', '==', selectedAgentId ));
+  const querySnapshot = await getDocs(q);
+  const data = querySnapshot.docs.map(doc => ({
+    id: doc.id, 
+    ...doc.data() 
+  }));
+  setAgentData(data);
+  console.log( selectedAgent,
+  selectedWorkerName,
+  firstNameCustomer,
+  lastNameCustomer,
+  IDCustomer,
+  selectedCompany,
+  selectedProduct,
+  mounth
+ );
+};
+
+//end
+
 
   useEffect(() => {
     const fetchCompanies = async () => {
@@ -89,57 +165,34 @@ function AgentForm() {
     fetchProducts();
   }, []);
 
+
   useEffect(() => {
-    // Clear input fields when the selected agent changes
     setSelectedWorker('');
     setfirstNameCustomer('');
     setlastNameCustomer('');
     setIDCustomer('');
     setSelectedCompany('');
     setSelectedProduct('');
-    setinsPremia(0);
-    setpensiaPremia(0);
-    setPensiaZvira(0);
-    setfinansimPremia(0);
-    setFinansimZvira(0);
+    setinsPremia('');''
+    setpensiaPremia('');
+    setPensiaZvira('');
+    setfinansimPremia('');
+    setFinansimZvira('');
     setmounth('');
     setMinuySochen(false);
     setSelectedStatusPolicy('');
-    // Reset other input fields as needed
-    // Then, if a new agent is selected, fetch the related data
     if (selectedAgent) {
       fetchDataForAgent(selectedAgent);
     }
-  }, [selectedAgent]); // This effect depends on `selectedAgent`
+  }, [selectedAgent]); 
 
-  const handleAgentChange: ChangeEventHandler<HTMLSelectElement> = async (event) => {
-    const selectedAgentName = event.target.value; // Correctly define the selected agent name here
-    setSelectedAgent(selectedAgentName);
-    setWorkers([]);
 
-    // Query for the selected agent document
-    const agentsQuery = query(collection(db, 'agents'), where('agentName', '==', selectedAgentName));
-    const querySnapshot = await getDocs(agentsQuery);
-
-    // Assuming there's only one document per agent
-    if (!querySnapshot.empty) {
-      const agentDoc = querySnapshot.docs[0];
-      const agentData = agentDoc.data();
-
-      // Check if the 'workers' field exists and is an array
-      if (Array.isArray(agentData.workers)) {
-        setWorkers(agentData.workers);
-      }
-    } else {
-      console.log("No matching agent found or workers field is missing");
-    }
-  };
 
   const [hoveredRowId, setHoveredRowId] = useState(null);
 
-  const handleRowClick = (item: any) => {
+    const handleRowClick = (item: any) => {
     setSelectedRow(item); // Store the selected row's data
-    setSelectedWorker(item.worker);
+    setSelectedWorker(item.selectedW ); //new 
     setfirstNameCustomer(item.firstNameCustomer);
     setlastNameCustomer(item.lastNameCustomer);
     setIDCustomer(item.IDCustomer);
@@ -175,7 +228,9 @@ function AgentForm() {
       try {
         const docRef = doc(db, 'sales', selectedRow.id); // Reference to the Firestore document
         await updateDoc(docRef, {
-          worker: selectedWorker,
+         // worker: selectedWorker,
+          workerId: selectedWorkerId,// id new
+          workerName:selectedWorkerName,
           firstNameCustomer,
           lastNameCustomer,
           IDCustomer,
@@ -193,70 +248,75 @@ function AgentForm() {
         });
 
         console.log("Document successfully updated");
-        setSelectedRow(null); // Reset selection
-        resetForm(); // Clear the form fields
-        // Optionally, refetch data to update the UI
+        setSelectedRow(null); 
+        resetForm();         
         if (selectedRow.agent) {
           fetchDataForAgent(selectedRow.agent);
         }
       } catch (error) {
-        console.error("Error updating document:", error);
-        // Handle the error, e.g., show an error message to the user
+        console.error("Error updating document:", error);     
       }
     } else {
       console.log("No row selected or missing document ID");
-      // Handle the case where no row is selected or the selectedRow object doesn't contain an ID
     }
   };
   const resetForm = () => {
     setSelectedWorker('');
-    setfirstNameCustomer(''); // Reset to default value
-    setlastNameCustomer(''); // Reset to default value
-    setIDCustomer(''); // Reset to default value
-    setSelectedCompany(''); // Reset to default value
-    setSelectedProduct(''); // Reset to default value
-    setinsPremia(0); // Reset to default value
-    setpensiaPremia(0); // Reset to default value
-    setPensiaZvira(0);
-    setfinansimPremia(0); // Reset to default value
-    setFinansimZvira(0);
-    setmounth(''); // Reset to default value
-    setSelectedRow(null); // Clear the selected row
+    setfirstNameCustomer(''); 
+    setfirstNameCustomer(''); 
+    setfirstNameCustomer(''); 
+    setlastNameCustomer(''); 
+    setIDCustomer(''); 
+    setSelectedCompany(''); 
+    setSelectedProduct(''); 
+    setinsPremia('');
+    setpensiaPremia(''); 
+    setPensiaZvira('');
+    setfinansimPremia(''); 
+    setFinansimZvira('');
+    setmounth(''); 
+    setSelectedRow(null); 
     setMinuySochen(false);
     setSelectedStatusPolicy('');
   };
-  const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
-    event.preventDefault();
-    try {
+
+ 
+//new 6
+
+const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
+  event.preventDefault();
+  try {
+    console.log("got here");
       const docRef = await addDoc(collection(db, 'sales'), {
-        agent: selectedAgent,
-        worker: selectedWorker,
-        firstNameCustomer,
-        lastNameCustomer,
-        IDCustomer,
-        company: selectedCompany,
-        product: selectedProduct,
-        insPremia,
-        pensiaPremia,
-        pensiaZvira,
-        finansimPremia,
-        finansimZvira,
-        mounth,
-        minuySochen,
-        statusPolicy: selectedStatusPolicy,
-      });
-      console.log('Document written with ID:', docRef.id);
-
-      // Use selectedAgent to refresh the table data, assuming selectedAgent holds the agent name
-      if (selectedAgent) {
-        fetchDataForAgent(selectedAgent);
-      }
-
-      // Optionally, reset form fields and any other relevant state here
-    } catch (error) {
-      console.error('Error adding document:', error);
+      agent: selectedAgent,
+      AgentId: selectedAgentId,//new 
+      workerId: selectedWorkerId,// id new
+      workerName:selectedWorkerName,
+      firstNameCustomer,
+      lastNameCustomer,
+      IDCustomer,
+      company: selectedCompany,
+      product: selectedProduct,
+      insPremia,
+      pensiaPremia,
+      pensiaZvira,
+      finansimPremia,
+      finansimZvira,
+      mounth,
+      minuySochen,
+      statusPolicy: selectedStatusPolicy,
+    });
+    console.log('Document written with ID:', docRef.id);
+    if (selectedAgent) {
+      fetchDataForAgent(selectedAgent);
     }
-  };
+  } catch (error) {
+    console.error('Error adding document:', error);
+  }
+};
+
+
+
 
   const handleFirstNameChange: ChangeEventHandler<HTMLInputElement> = (event) => {
     const value = event.target.value;
@@ -286,18 +346,18 @@ function AgentForm() {
     setIDCustomer(onlyNums);
   };
 
-  function canSubmit() {
-    return (
-      selectedAgent.trim() !== '' &&
-      selectedWorker.trim() !== '' &&
+  const canSubmit = useMemo(() => (
+    selectedAgent.trim() !== '' &&
+    selectedWorkerName.trim() !== '' &&
       firstNameCustomer.trim() !== '' &&
-      lastNameCustomer.trim() !== '' &&
-      IDCustomer.trim() !== '' &&
-      selectedCompany.trim() !== '' &&
-      selectedProduct.trim() !== '' &&
-      mounth.trim() !== ''
-    );
-  }
+     lastNameCustomer.trim() !== '' &&
+     IDCustomer.trim() !== '' &&
+     selectedCompany.trim() !== '' &&
+     selectedProduct.trim() !== '' &&
+     mounth.trim() !== ''
+  ), [selectedAgent, selectedWorkerName ]);
+
+
   useEffect(() => {
     const fetchStatus = async () => {
       const querySnapshot = await getDocs(collection(db, 'statusPolicy'));
@@ -338,37 +398,33 @@ function AgentForm() {
     if (formattedInput.length > 5) {
       formattedInput = formattedInput.substring(0, 5);
     }
-
-    // Update the input field with the formatted value
     (e.target as HTMLInputElement).value = formattedInput;
   };
 
   const handleFinansimZviraChange: ChangeEventHandler<HTMLInputElement> = (e) => {
-    // Convert input value to a number
-    const value = e.target.valueAsNumber || 0; // Use 0 as a fallback if conversion fails
+   const value = e.target.value
     setFinansimZvira(value);
   };
 
   const handleFinansimPremia: ChangeEventHandler<HTMLInputElement> = (e) => {
-    // Convert input value to a number
-    const value = e.target.valueAsNumber || 0; // Use 0 as a fallback if conversion fails
+    const value = e.target.value
     setfinansimPremia(value);
   };
 
   const handlePensiaZvira: ChangeEventHandler<HTMLInputElement> = (e) => {
-    // Convert input value to a number
-    const value = e.target.valueAsNumber || 0; // Use 0 as a fallback if conversion fails
+    const value = e.target.value
     setPensiaZvira(value);
   };
+
   const handlepensiaPremia: ChangeEventHandler<HTMLInputElement> = (e) => {
-    // Convert input value to a number
-    const value = e.target.valueAsNumber || 0; // Use 0 as a fallback if conversion fails
+    const value = e.target.value;
     setpensiaPremia(value);
-  };
+};
+
+
 
   const handleinsPremia: ChangeEventHandler<HTMLInputElement> = (e) => {
-    // Convert input value to a number
-    const value = e.target.valueAsNumber || 0; // Use 0 as a fallback if conversion fails
+    const value = e.target.value; // Use 0 as a fallback if conversion fails
     setinsPremia(value);
   };
 
@@ -382,24 +438,17 @@ function AgentForm() {
             </Link>
           </div>
           <div>
-            <label htmlFor="agentSelect">בחר סוכן</label>
-            <select id="agentSelect" value={selectedAgent}
-              onChange={handleAgentChange}>
-              <option value="">בחר סוכן</option>
-              {agents.map((agentName, index) => (
-                <option key={index} value={agentName}>{agentName}</option>
-              ))}
-            </select>
+          <label htmlFor="agentSelect">בחר סוכן</label>
+          {selectedAgent}
           </div>
           <div>
-            <label>בחר עובד </label>
-            <select value={selectedWorker}
-              onChange={(e) => setSelectedWorker(e.target.value)}>
-              <option value="">בחר עובד</option>
-              {workers.map((worker, index) => (
-                <option key={index} value={worker}>{worker}</option> // Assuming 'worker' is a string. If it's an object, you might need to use worker.id or worker.name
-              ))}
-            </select>
+          <label htmlFor="workerSelect">בחר עובד</label>
+    <select id="workerSelect" value={selectedWorkerId} onChange={handleWorkerChange}>
+      <option value="">בחר עובד</option>
+      {workers.map((worker) => (
+        <option key={worker.id} value={worker.id}>{worker.name}</option>
+      ))}
+    </select>
           </div>
           <div>
             <label>שם פרטי לקוח: </label>
@@ -515,7 +564,7 @@ function AgentForm() {
             />
           </div>
           <div style={{ display: 'flex', gap: '10px' }}>
-            <button type="submit" disabled={!canSubmit()}>
+            <button type="submit" disabled={!canSubmit}>
               הזן
             </button>
             <button type="button" disabled={selectedRow === null} onClick={handleDelete} >מחק</button>
@@ -569,7 +618,7 @@ function AgentForm() {
                   <td>{item.mounth}</td>
                   <td>{item.statusPolicy}</td>
                   <td>{item.minuySochen ? 'כן' : 'לא'}</td>
-                  <td>{item.worker}</td>
+                  <td>{item.workerName}</td>
                   {/* Add more data fields as necessary */}
                 </tr>
               ))}

@@ -17,7 +17,7 @@ type UserDetail = {
   name: string;
   email: string;
   agentId: string;
-  role: 'agent' | 'worker';
+  role: 'agent' | 'worker'| 'admin';
 };
 
 // @ts-ignore

@@ -1,95 +1,87 @@
 .content-container {
-    display: flex;
-    justify-content: space-between; /* Space out the children */
-  }
-  
-  .form-container, .data-container {
-    flex: 1; /* Each child will take up equal space */
-    padding: 20px; /* Add some padding around the content */
-    font-family: Arial, sans-serif;
-    color : black;
-  }
- 
-  table {
-    width: 100%; /* Make the table take up the full width of its container */
-    border-collapse: collapse; /* Collapse cell borders into a single border */
-  }
-  
-  /* Style the table headers and cells */
-  th, td {
-    border: 1px solid #ddd; /* Add a light grey border around each cell */
-    padding: 8px; /* Add some padding inside each cell for better spacing */
-    text-align: left; /* Align text to the left in each cell */
-  }
-  
-  /* Add a background color to table headers for contrast */
-  th {
-    background-color: #f2f2f2;
-  }
-  .content-container, .form-container, .data-container, th, td, label {
-    text-align: right; /* Align text to the right */
-    direction: rtl; /* For right-to-left languages like Hebrew */
-  }
-  
-  .title-container {
-    text-align: center;
-    font-family: Arial, sans-serif;
-    color : black;
-  }
- 
-  body {
-    background: color lightgrey; /* Light grey background */
-    font-family: Arial, sans-serif;
-    color : black;
-
-button {
-  background-color: pink; /* Dark grey background */
-  color: black; /* White text */
-  padding: 10px 15px; /* Padding inside the button */
-  border: 2px solid #f1eded; /* Grey border, adjust thickness/color as needed */
-  cursor: pointer; /* Changes the cursor to a pointer on hover */
-  display: block; /* Ensures the button starts on a new line */
-  width: 90%; /* Matches the input/select width for consistency */
-  margin: 10px auto; /* Centers the button and adds spacing */
-  box-sizing: border-box; /* Includes padding and border in the total width/height */
-  border-radius: 4px; /* Optionally, add rounded corners */
+  display: flex;
+  justify-content: space-between;
+  /* Space out the children */
 }
-} 
 
-button:hover {
-  background-color:pink; /* Slightly lighter grey on hover for feedback */
+.form-container,
+.data-container {
+  flex: 1;
+  /* Each child will take up equal space */
+  padding: 20px;
+  /* Add some padding around the content */
+  font-family: Arial, sans-serif;
+  color: black;
 }
+
+.content-container,
+.form-container,
+.data-container,
+label {
+  text-align: right;
+  /* Align text to the right */
+  direction: rtl;
+  /* For right-to-left languages like Hebrew */
+}
+
+.title-container {
+  text-align: center;
+  font-family: Arial, sans-serif;
+  color: black;
+}
+
 h1 {
-  font-size: 2.5em; /* Larger font size for H1 */
-  font-weight: bold; /* Makes the font bold */
-  color: black; /* Black font color */
+  font-size: 2.5em;
+  /* Larger font size for H1 */
+  font-weight: bold;
+  /* Makes the font bold */
+  color: black;
+  /* Black font color */
 }
 
 h2 {
-  font-size: 2em; /* Slightly smaller font size for H2 */
-  font-weight: bold; /* Makes the font bold */
-  color: black; /* Black font color */
+  font-size: 2em;
+  /* Slightly smaller font size for H2 */
+  font-weight: bold;
+  /* Makes the font bold */
+  color: black;
+  /* Black font color */
 }
 
 .title {
-  font-size: 3em; /* Even larger font size for a special title class */
-  font-weight: bold; /* Makes the font bold */
-  color: black; /* Black font color */
-}
-input, select {
-  display: block; /* Keeps each input/select on a new line */
-  width: 80%; /* Reduce the width to make the elements smaller */
-  margin: 5px auto; /* Reduce the margin to decrease space between elements */
-  padding: 4px; /* Reduce the padding to decrease the overall size */
-  box-sizing: border-box; /* Ensures padding and border are included in total width/height */
-  border: 1px solid #ccc; /* Keeps a subtle border */
-  border-radius: 4px; /* Maintains slightly rounded corners */
+  font-size: 3em;
+  /* Even larger font size for a special title class */
+  font-weight: bold;
+  /* Makes the font bold */
+  color: black;
+  /* Black font color */
 }
 
-.hovered-row {
-  background-color: pink; /* Light grey, for example */
+input,
+select {
+  display: block;
+  /* Keeps each input/select on a new line */
+  width: 80%;
+  /* Reduce the width to make the elements smaller */
+  margin: 5px auto;
+  /* Reduce the margin to decrease space between elements */
+  padding: 4px;
+  /* Reduce the padding to decrease the overall size */
+  box-sizing: border-box;
+  /* Ensures padding and border are included in total width/height */
+  border: 1px solid #ccc;
+  /* Keeps a subtle border */
+  border-radius: 4px;
+  /* Maintains slightly rounded corners */
 }
 
 .selected-row {
-  background-color: pink; /* Light blue, for example */
+  background-color: hsl(200 70% 90%);
+  /* Light blue, for example */
+}
+
+button:disabled {
+  color: gray; /* Text color for disabled buttons */
+  cursor: not-allowed; /* Cursor for disabled buttons */
+  /* Additional styles for disabled buttons */
 }
