@@ -37,6 +37,7 @@ function AgentForm() {
   const [selectedCompany, setSelectedCompany] = useState('');
   const [statusPolicies, setStatusPolicies] = useState<string[]>([]);
   const [selectedStatusPolicy, setSelectedStatusPolicy] = useState('');
+  const [isEditing, setIsEditing] = useState(false);
 
 
 useEffect(() => {
@@ -131,15 +132,7 @@ const fetchDataForAgent = async (UserAgentId : string) => {
     ...doc.data() 
   }));
   setAgentData(data);
-  console.log( selectedAgent,
-  selectedWorkerName,
-  firstNameCustomer,
-  lastNameCustomer,
-  IDCustomer,
-  selectedCompany,
-  selectedProduct,
-  mounth
- );
+  
 };
 
 //end
@@ -160,6 +153,14 @@ const fetchDataForAgent = async (UserAgentId : string) => {
       const querySnapshot = await getDocs(collection(db, 'product'));
       const productsList = querySnapshot.docs.map(doc => doc.data().productName); // Assuming the field name is 'productName'
       setProducts(productsList);
+      console.log( selectedAgent,
+        selectedWorkerName,
+        firstNameCustomer,
+        lastNameCustomer,
+        IDCustomer,
+        selectedCompany,
+        selectedProduct,
+        mounth)
     };
 
     fetchProducts();
@@ -207,6 +208,7 @@ const fetchDataForAgent = async (UserAgentId : string) => {
     setMinuySochen(item.minuySochen);
     setSelectedStatusPolicy(item.statusPolicy);
     // Set other form fields as needed
+    setIsEditing(true);
   };
 
   const handleDelete = async () => {
@@ -214,6 +216,7 @@ const fetchDataForAgent = async (UserAgentId : string) => {
       await deleteDoc(doc(db, 'sales', selectedRow.id));
       setSelectedRow(null); // Reset selection
       resetForm();
+      setIsEditing(false);
       if (selectedRow.agent) {
         fetchDataForAgent(selectedRow.agent);
       }
@@ -278,6 +281,7 @@ const fetchDataForAgent = async (UserAgentId : string) => {
     setSelectedRow(null); 
     setMinuySochen(false);
     setSelectedStatusPolicy('');
+    setIsEditing(false);
   };
 
  
@@ -306,7 +310,10 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
       minuySochen,
       statusPolicy: selectedStatusPolicy,
     });
+    
     console.log('Document written with ID:', docRef.id);
+    resetForm(); 
+    setIsEditing(false);
     if (selectedAgent) {
       fetchDataForAgent(selectedAgent);
     }
@@ -314,7 +321,6 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
     console.error('Error adding document:', error);
   }
 };
-
 
 
 
@@ -347,15 +353,16 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
   };
 
   const canSubmit = useMemo(() => (
-    selectedAgent.trim() !== '' &&
-    selectedWorkerName.trim() !== '' &&
-      firstNameCustomer.trim() !== '' &&
+     selectedAgent.trim() !== '' &&
+     selectedWorkerName.trim() !== '' &&
+    firstNameCustomer.trim() !== '' &&
      lastNameCustomer.trim() !== '' &&
      IDCustomer.trim() !== '' &&
      selectedCompany.trim() !== '' &&
      selectedProduct.trim() !== '' &&
-     mounth.trim() !== ''
-  ), [selectedAgent, selectedWorkerName ]);
+    mounth.trim() !== ''
+  ), [selectedAgent, selectedWorkerName, firstNameCustomer, lastNameCustomer, IDCustomer, 
+    selectedCompany, selectedProduct, mounth]);
 
 
   useEffect(() => {
@@ -375,31 +382,7 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
 
     fetchStatusPolicies();
   }, []);
-  const handleExpiryDateChange = (e: Event) => {
-    let input = (e.target as HTMLInputElement).value.replace(/[^\d]/g, ''); // Remove non-digits
-    let formattedInput = "";
-
-    // Only process further if the input is not empty
-    if (input.length > 0) {
-      // If the first digit is greater than 1, prefix it with '0' and add a '/'
-      if (input.length === 1 && parseInt(input, 10) > 1) {
-        formattedInput = `0${input}/`;
-      } else {
-        // For other cases, format as MM/YY with '/' inserted appropriately
-        formattedInput = input.substring(0, 2);
-        if (input.length >= 2) {
-          formattedInput += '/';
-        }
-        formattedInput += input.substring(2, 4);
-      }
-    }
-
-    // Prevent exceeding the MM/YY format length
-    if (formattedInput.length > 5) {
-      formattedInput = formattedInput.substring(0, 5);
-    }
-    (e.target as HTMLInputElement).value = formattedInput;
-  };
+  
 
   const handleFinansimZviraChange: ChangeEventHandler<HTMLInputElement> = (e) => {
    const value = e.target.value
@@ -428,6 +411,27 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
     setinsPremia(value);
   };
 
+  const handleExpiryDateChange : ChangeEventHandler<HTMLInputElement> = (e) => {
+    const { value } = e.target;
+    let formattedValue = value;
+  
+    // Remove all non-digit characters
+    formattedValue = formattedValue.replace(/\D/g, '');
+  
+    // Add a slash after the month if it's not there yet and the length is 2
+    if (formattedValue.length === 2) {
+      formattedValue = formattedValue + '/';
+    } else if (formattedValue.length > 2) {
+      // If more than 2 digits, insert slash between month and year
+      formattedValue = formattedValue.substring(0, 2) + '/' + formattedValue.substring(2, 4);
+    }
+  
+    setmounth(formattedValue);
+  };
+
+
+
+  console.log({ selectedAgent, selectedWorkerName, firstNameCustomer, lastNameCustomer, IDCustomer, selectedCompany, selectedProduct, mounth });
   return (
     <div className="content-container">
       <div className="form-container">
@@ -537,7 +541,10 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
           <div>
             <label>
               תאריך תפוקה (MM/YY):
-              <input type="text" id="expiryDate" name="expiryDate" placeholder="MM/YY" maxLength={5} />
+              <input type="text" id="expiryDate" name="expiryDate" placeholder="MM/YY" maxLength={5} 
+                value={mounth}
+                onChange={handleExpiryDateChange}
+                />
             </label>
           </div>
           <div>
@@ -564,7 +571,7 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
             />
           </div>
           <div style={{ display: 'flex', gap: '10px' }}>
-            <button type="submit" disabled={!canSubmit}>
+            <button type="submit" disabled={!canSubmit || isEditing}>
               הזן
             </button>
             <button type="button" disabled={selectedRow === null} onClick={handleDelete} >מחק</button>
