@@ -71,7 +71,7 @@ useEffect(() => {
 
 
 const fetchWorkersForSelectedAgent = async (agentId: string) => {
-  const workersQuery = query(collection(db, 'users'), where('agentId', '==', agentId), where('role', '==', 'worker'));
+  const workersQuery = query(collection(db, 'users'), where('agentId', '==', agentId), where('role', 'in', ['worker', 'agent']));
   const querySnapshot = await getDocs(workersQuery);
   const workersList = querySnapshot.docs.map(doc => ({
     id: doc.id,
@@ -98,7 +98,7 @@ useEffect(() => {
     if (userAgentId) {
       const workersQuery = query(
         collection(db, 'users'),
-        where('role', '==', 'worker'),
+        where('role', 'in', ['worker', 'agent']),
         where('agentid', '==', userAgentId)
       );
       const querySnapshot = await getDocs(workersQuery);
