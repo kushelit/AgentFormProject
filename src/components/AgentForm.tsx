@@ -442,7 +442,7 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
             </Link>
           </div>
           <div>
-          <label htmlFor="agentSelect">בחר סוכן</label>
+          <label htmlFor="agentSelect">המערכת של סוכנות:  </label>
           {selectedAgent}
           </div>
           <div>
