@@ -12,88 +12,117 @@ const SummaryTable = () => {
   const agentName = searchParams?.get('agentName');
 
 
-  //check if i can delete//
   const [finansimSum, setFinansimSum] = useState(0);
   const [pensiaSum, setPensiaSum] = useState(0);
   const [insuranceSum, setInsuranceSum] = useState(0);
   const [niudPensiaSum, setNiudPensiaSum] = useState(0);
-  // Add more states as needed for other sums
+  const [monthlyTotals, setMonthlyTotals] = useState<MonthlyTotals>({});
+  const [overallFinansimTotal, setOverallFinansimTotal] = useState(0);
+const [overallPensiaTotal, setOverallPensiaTotal] = useState(0);
+const [overallInsuranceTotal, setOverallInsuranceTotal] = useState(0);
+const [overallNiudPensiaTotal, setOverallNiudPensiaTotal] = useState(0);
+
+  
+  interface MonthlyTotals {
+      [key: string]: {
+      finansimTotal: number;
+      pensiaTotal: number;
+      insuranceTotal: number;
+      niudPensiaTotal: number;
+    };
+  }
+  
 
   useEffect(() => {
     const fetchData = async () => {
-      if (!agentName) return; // If agentName is not defined, exit early
-
+      if (!agentName) return;
+  
       const salesQuery = query(
         collection(db, 'sales'),
         where('agent', '==', agentName),
         where('minuySochen', '==', false),
-        where('statusPolicy', 'in', ['פעילה', 'הצעה']), // Added 'לידה' to the existing conditions
-        //where ('product', 'in', ['ניהול תיקים','גמל להשקעה', 'השתלמות','גמל', 'פוליסת חיסכון'])
+        where('statusPolicy', 'in', ['פעילה', 'הצעה'])
       );
-
+  
       const querySnapshot = await getDocs(salesQuery);
-      let finansimTotal = 0;
-      let pensiaTotal = 0; // Initialize pensiaTotal
-      let insuranceTotal = 0;
-      let niudPensiaTotal = 0;
-
+      let initialMonthlyTotals: MonthlyTotals = {};
+  
       querySnapshot.forEach((doc) => {
         const data = doc.data();
-
-        if (['ניהול תיקים', 'גמל להשקעה', 'השתלמות', 'גמל', 'פוליסת חיסכון'].includes(data.product)) {
-          finansimTotal += (parseInt(data.finansimZvira) || 0); // Existing calculation for finansimTotal
+        const mounth = data.mounth; // Assuming you have a month field
+  
+        if (!initialMonthlyTotals[mounth]) {
+          initialMonthlyTotals[mounth] = { finansimTotal: 0, pensiaTotal: 0, insuranceTotal: 0, niudPensiaTotal: 0 };
         }
-        // New condition for calculating pensiaTotal
-        if (['מחלות קשות', 'בריאות', 'ביטוח משכנתא- חיים'].includes(data.product)) {
-          // Double the pensiaPremia value by 12 and add to the total
-          insuranceTotal += (parseInt(data.insPremia) || 0) * 12;
-        }
+  
+        // Accumulate values directly into initialMonthlyTotals
+        initialMonthlyTotals[mounth].finansimTotal += parseInt(data.finansimZvira) || 0;
+        initialMonthlyTotals[mounth].insuranceTotal += (parseInt(data.insPremia) || 0) * 12;
+        initialMonthlyTotals[mounth].pensiaTotal += (parseInt(data.pensiaPremia) || 0) * 12;
+        initialMonthlyTotals[mounth].niudPensiaTotal += parseInt(data.pensiaZvira) || 0;
+      });
+  
+      setMonthlyTotals(initialMonthlyTotals); // Now, this correctly updates the state
+      let overallFinansimTotal = 0;
+      let overallPensiaTotal = 0;
+      let overallInsuranceTotal = 0;
+      let overallNiudPensiaTotal = 0;
+      
+      Object.values(initialMonthlyTotals).forEach(month => {
+        overallFinansimTotal += month.finansimTotal;
+        overallPensiaTotal += month.pensiaTotal;
+        overallInsuranceTotal += month.insuranceTotal;
+        overallNiudPensiaTotal += month.niudPensiaTotal;
 
-        pensiaTotal += (parseInt(data.pensiaPremia) || 0) * 12;
-        niudPensiaTotal += parseInt(data.pensiaZvira) || 0;
+
+        setOverallFinansimTotal(overallFinansimTotal);
+       setOverallPensiaTotal(overallPensiaTotal);
+      setOverallInsuranceTotal(overallInsuranceTotal);
+      setOverallNiudPensiaTotal(overallNiudPensiaTotal);
       });
 
-      setFinansimSum(finansimTotal);
-      setPensiaSum(pensiaTotal); // Update pensiaSum state with the calculated total
-      setInsuranceSum(insuranceTotal);
-      setNiudPensiaSum(niudPensiaTotal);
-    };
 
+    };
+  
     fetchData();
   }, [agentName]);
-
 
   // Render your table with the calculated sums
   return (
     <div>
       <h1>לוח מרכזי, סוכן :  {agentName}</h1>
       <table>
-        {/* Table headers */}
+      <thead>
+              <tr>
+               <th>חודש תפוקה </th>
+                <th>סך פיננסים</th>
+                <th>סך פנסיה</th>
+                <th>סך ביטוח</th>
+                <th>ניוד פנסיה</th>
+              </tr>
+            </thead>
         <tbody>
-          <tr>
-            <td>סך פיננסים</td>
-            <td>{finansimSum.toLocaleString()}</td>
-          </tr>
-          <tr>
-            <td>סך פנסיה</td>
-            <td>{pensiaSum.toLocaleString()}</td>
-          </tr>
-          <tr>
-            <td>סך ביטוח</td>
-            <td>{insuranceSum.toLocaleString()}</td>
-          </tr>
-          <tr>
-            <td>ניוד פנסיה</td>
-            <td>{niudPensiaSum.toLocaleString()}</td>
-          </tr>
-
-
-          {/* Add more rows for other sums */}
-        </tbody>
-      </table>
+    {Object.entries(monthlyTotals).map(([month, totals]) => (
+      <tr key={month}>
+      <td>{month}</td>
+      <td>{totals.finansimTotal.toLocaleString()}</td>
+      <td>{totals.pensiaTotal.toLocaleString()}</td>
+      <td>{totals.insuranceTotal.toLocaleString()}</td>
+      <td>{totals.niudPensiaTotal.toLocaleString()}</td>
+    </tr>
+  ))}
+  <tr>
+    <td>סיכום</td>
+    <td>{overallFinansimTotal.toLocaleString()}</td>
+    <td>{overallPensiaTotal.toLocaleString()}</td>
+    <td>{overallInsuranceTotal.toLocaleString()}</td>
+    <td>{overallNiudPensiaTotal.toLocaleString()}</td>
+  </tr>
+</tbody>
+</table>
       <div>
         <Link href="/">
-          Go Back to Agent Form
+          חזור לדף ניהול מכירות
         </Link>
       </div>
     </div>
