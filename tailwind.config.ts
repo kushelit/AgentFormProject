@@ -1,7 +1,6 @@
-import type { Config } from "tailwindcss";
 import formPlugin from '@tailwindcss/forms';
 
-const config: Config = {
+const config = {
   content: [
     "./src/pages/**/*.{js,ts,jsx,tsx,mdx}",
     "./src/components/**/*.{js,ts,jsx,tsx,mdx}",
@@ -9,15 +8,19 @@ const config: Config = {
   ],
   theme: {
     extend: {
+      colors: {
+        'custom-blue': '#002A5C',
+        'custom-white': '#dee2e2', 
+      },
       backgroundImage: {
-        "gradient-radial": "radial-gradient(var(--tw-gradient-stops))",
-        "gradient-conic":
-          "conic-gradient(from 180deg at 50% 50%, var(--tw-gradient-stops))",
+        'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
+        'gradient-conic': 'conic-gradient(from 180deg at 50% 50%, var(--tw-gradient-stops))',
       },
     },
   },
   plugins: [
-    formPlugin,
+    formPlugin, // Ensure your plugins are listed here
   ],
 };
-export default config;
+
+module.exports = config; // Correct way to export in Node.js environment

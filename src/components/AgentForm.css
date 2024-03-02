@@ -8,11 +8,26 @@
 .data-container {
   flex: 1;
   /* Each child will take up equal space */
-  padding: 20px;
+  padding: 10px;
   /* Add some padding around the content */
   font-family: Arial, sans-serif;
   color: black;
+  font-size: 12px;
 }
+
+
+.table-container {
+  max-height: 300px; /* Adjust based on your preference */
+  overflow-y: auto;
+  border: 1px solid #ccc;
+
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
 
 .content-container,
 .form-container,
@@ -23,6 +38,8 @@ label {
   direction: rtl;
   /* For right-to-left languages like Hebrew */
 }
+
+
 
 .title-container {
   text-align: center;
@@ -57,24 +74,31 @@ h2 {
   /* Black font color */
 }
 
-input,
-select {
-  display: block;
-  /* Keeps each input/select on a new line */
-  width: 80%;
-  /* Reduce the width to make the elements smaller */
-  margin: 5px auto;
-  /* Reduce the margin to decrease space between elements */
-  padding: 4px;
-  /* Reduce the padding to decrease the overall size */
-  box-sizing: border-box;
-  /* Ensures padding and border are included in total width/height */
-  border: 1px solid #ccc;
-  /* Keeps a subtle border */
-  border-radius: 4px;
-  /* Maintains slightly rounded corners */
+.form-group {
+  display: flex;
+  align-items: center; /* Aligns items vertically in the center */
+  margin-bottom: 5px; /* Adds some space between each form group */
 }
 
+
+label {
+  flex-basis: 30%; /* Adjust based on your needs */
+  text-align: right; /* Ensures the text is right-aligned next to the input/select */
+}
+
+
+input,
+select {
+  max-width: 150px;
+  flex-grow: 1; /* Allows input/select to take up the remaining space */
+  flex-basis: 70%;
+  padding: 2px;
+  height: 30px; /* Explicitly sets the height; adjust as needed */
+  box-sizing: border-box;
+  border: 1px solid #ccc !important;
+  border-radius: 4px  !important;
+  font-size: 12px;
+}
 .selected-row {
   background-color: hsl(200 70% 90%);
   /* Light blue, for example */
@@ -85,3 +109,4 @@ button:disabled {
   cursor: not-allowed; /* Cursor for disabled buttons */
   /* Additional styles for disabled buttons */
 }
+

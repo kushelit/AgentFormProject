@@ -8,13 +8,14 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useAuth } from '@/lib/firebase/AuthContext';
 
+
 function AgentForm() {
   const searchParams = useSearchParams();
   const { user, detail } = useAuth();
   const [selectedAgent, setSelectedAgent] = useState('');
   const [selectedAgentId, setSelectedAgentId] = useState("");
   const [userAgentId, setUserAgentId] = useState('');
-  const [agents, setAgents] = useState<string[]>([]);
+  const [agents, setAgents] = useState<{id: string, name: string}[]>([]);
   const [workers, setWorkers] = useState<Worker[]>([]);
   const [selectedWorker, setSelectedWorker]  = useState('');
   const [selectedWorkerId, setSelectedWorkerId] = useState("");
@@ -38,34 +39,53 @@ function AgentForm() {
   const [statusPolicies, setStatusPolicies] = useState<string[]>([]);
   const [selectedStatusPolicy, setSelectedStatusPolicy] = useState('');
   const [isEditing, setIsEditing] = useState(false);
+  //const { role } = detail || {};
 
 
+
+
+
+//after admin
 useEffect(() => {
   const fetchAgentData = async () => {
-    if (detail && detail.agentId) {
+    if (user && detail && detail.role === 'admin') {
+      // Fetch all users with role 'agent'
+      const agentsQuery = query(collection(db, 'users'), where('role', '==', 'agent'));
+      const querySnapshot = await getDocs(agentsQuery);
+      const agentsList = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        name: doc.data().name, 
+      }));
+      setAgents(agentsList); 
+    } else if
+         (detail && detail.agentId) {
       const agentDocRef = doc(db, 'users', detail.agentId);
       const agentDocSnap = await getDoc(agentDocRef);
 
       if (agentDocSnap.exists()) {
+        setAgents([{ id: agentDocSnap.id, name: agentDocSnap.data().name }]);
         const agentName = agentDocSnap.data().name;
         setSelectedAgent(agentName);
         setSelectedAgentId(detail.agentId);
         await fetchWorkersForSelectedAgent(detail.agentId);
       } else {
-        console.log("No such document!");
+        console.log("No such Agent!");
       }
     }
   };
 
   fetchAgentData();
-}, [detail]);
+}, [user, detail]);
+
+
+
 
 
 useEffect(() => {
   if (selectedAgentId) {
     fetchWorkersForSelectedAgent(selectedAgentId);
   } else {
-    setWorkers([]); // Clear the workers if no agent is selected
+    setWorkers([]); 
   }
 }, [selectedAgentId]);
 
@@ -83,7 +103,15 @@ const fetchWorkersForSelectedAgent = async (agentId: string) => {
 
 
 const handleAgentChange = (event: ChangeEvent<HTMLSelectElement>) =>  {
-  setSelectedAgent(event.target.value);
+  const selectedId = event.target.value;
+  const selectedAgentInfo = agents.find(agent => agent.id === selectedId);
+  
+  if (selectedAgentInfo) {
+    setSelectedAgent(selectedAgentInfo.name);
+    setSelectedAgentId(selectedAgentInfo.id);
+    // If applicable, fetch workers or other data related to the selected agent
+    fetchWorkersForSelectedAgent(selectedAgentInfo.id);
+  }
 };
 
 
@@ -436,16 +464,17 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
     <div className="content-container">
       <div className="form-container">
         <form onSubmit={handleSubmit}>
-          <div>
-            <Link href={`/summaryTable?agentName=${selectedAgent}`}>
-              דף מרכז
-            </Link>
-          </div>
-          <div>
+           <div className="form-group">
           <label htmlFor="agentSelect">המערכת של סוכנות:  </label>
-          {selectedAgent}
+          <select onChange={handleAgentChange} value={selectedAgentId}>
+          {detail?.role === 'admin' && <option value="">בחר סוכן</option>}
+
+  {agents.map((agent) => (
+    <option key={agent.id} value={agent.id}>{agent.name}</option>
+  ))}
+</select>
           </div>
-          <div>
+          <div className="form-group">
           <label htmlFor="workerSelect">בחר עובד</label>
     <select id="workerSelect" value={selectedWorkerId} onChange={handleWorkerChange}>
       <option value="">בחר עובד</option>
@@ -454,7 +483,7 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
       ))}
     </select>
           </div>
-          <div>
+          <div className="form-group">
             <label>שם פרטי לקוח: </label>
             <input
               type="text"
@@ -463,7 +492,7 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
               title="הזן אותיות בלבד"
             />
           </div>
-          <div>
+          <div className="form-group">
             <label>
               שם משפחה לקוח:</label>
             <input type="text"
@@ -471,9 +500,9 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
               onChange={handleLastNameChange}
               title="הזן אותיות בלבד" />
           </div>
-          <div>
-            <label>
-              תז לקוח:
+          <div className="form-group">
+            <label htmlFor="IDCustomer">
+              תז לקוח:</label>
               <input
                 type="text"
                 inputMode="numeric" // Suggests a numeric keyboard on mobile devices
@@ -481,9 +510,9 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
                 value={IDCustomer}
                 onChange={handleIDChange}
               />
-            </label>
+            
           </div>
-          <div>
+          <div className="form-group">
             <label htmlFor="companySelect">חברה:</label>
             <select
               id="companySelect"
@@ -496,7 +525,7 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
               ))}
             </select>
           </div>
-          <div>
+          <div className="form-group">
             <label htmlFor="productSelect">מוצר:</label>
             <select id="productSelect"
               value={selectedProduct}
@@ -508,46 +537,46 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
               ))}
             </select>
           </div>
-          <div>
-            <label>
-              פרמיה ביטוח:
+          <div className="form-group">
+            <label htmlFor="insPremia"> 
+              פרמיה ביטוח:</label>
               <input type="text" value={insPremia} onChange={handleinsPremia} />
-            </label>
+           
           </div>
-          <div>
-            <label>
-              פרמיה פנסיה:
+          <div className="form-group">
+            <label htmlFor="pensiaPremia"> 
+              פרמיה פנסיה: </label>
               <input type="text" value={pensiaPremia} onChange={handlepensiaPremia} />
-            </label>
+           
           </div>
-          <div>
-            <label>
-              צבירה פנסיה :
+          <div className="form-group">
+            <label htmlFor="pensiaZvira"> 
+              צבירה פנסיה : </label>
               <input type="text" value={pensiaZvira} onChange={handlePensiaZvira} />
-            </label>
+           
           </div>
-          <div>
-            <label>
-              פרמיה פיננסים:
+          <div className="form-group">
+            <label htmlFor="finansimPremia"> 
+              פרמיה פיננסים:</label>
               <input type="text" value={finansimPremia} onChange={handleFinansimPremia} />
-            </label>
+            
           </div>
-          <div>
-            <label>
-              צבירה פיננסים:
+          <div className="form-group">
+            <label htmlFor="finansimZvira"> 
+              צבירה פיננסים: </label>
               <input type="text" value={finansimZvira} onChange={handleFinansimZviraChange} />
-            </label>
+           
           </div>
-          <div>
-            <label>
-              תאריך תפוקה (MM/YY):
+          <div className="form-group">
+            <label  htmlFor="expiryDate"> 
+              תאריך תפוקה (MM/YY): </label>
               <input type="text" id="expiryDate" name="expiryDate" placeholder="MM/YY" maxLength={5} 
                 value={mounth}
                 onChange={handleExpiryDateChange}
                 />
-            </label>
+            
           </div>
-          <div>
+          <div className="form-group">
             <label htmlFor="statusPolicySelect">סטאטוס פוליסה:</label>
             <select
               id="statusPolicySelect"
@@ -560,8 +589,8 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
               ))}
             </select>
           </div>
-          <div>
-            <label htmlFor="minuySochen">מינוי סוכן:</label>
+          <div className="form-group">
+            <label htmlFor="minuySochen" className="checkbox-label">מינוי סוכן:</label>
             <input
               type="checkbox"
               id="minuySochen"
@@ -570,6 +599,7 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
               onChange={(e) => setMinuySochen(e.target.checked)}
             />
           </div>
+
           <div style={{ display: 'flex', gap: '10px' }}>
             <button type="submit" disabled={!canSubmit || isEditing}>
               הזן
@@ -585,6 +615,7 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
       <div className="data-container">
         <h2>טבלת מידע מרוכז לסוכן</h2>
         {agentData.length > 0 ? (
+          <div className="table-container">
           <table>
             <thead>
               <tr>
@@ -631,6 +662,7 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
               ))}
             </tbody>
           </table>
+          </div>
         ) : (
           <p>No data available for the selected agent.</p>
         )}

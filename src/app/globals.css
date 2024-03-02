@@ -41,3 +41,12 @@ button {
 button:hover {
     background-color: var(--hover);
 }
+.page-layout {
+    display: flex;
+    flex-direction: row-reverse; /* if the sidebar is on the right */
+  }
+  
+  .main-content {
+    flex-grow: 1;
+    margin-right: 100; /* Assuming the sidebar width is 250px */
+  }
