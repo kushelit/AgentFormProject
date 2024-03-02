@@ -50,3 +50,11 @@ button:hover {
     flex-grow: 1;
     margin-right: 100; /* Assuming the sidebar width is 250px */
   }
+  .header {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    width: 100%;
+    z-index: 1000; /* Ensure the header is above other content */
+  }

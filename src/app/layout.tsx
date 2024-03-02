@@ -48,6 +48,7 @@ const Sidebar: React.FC<SidebarProps> = ({ className }) => {
     <div className={`${className} ${styles.sidebar} bg-custom-blue`}>
       <nav>
         <ul>
+          <li><Link href="/" className="text-custom-white">ניהול עסקאות</Link></li>
           <li><Link href="/" className="text-custom-white">דף מרכז</Link></li>
           <li><Link href="/about" className="text-custom-white">ניהול עובדים</Link></li>
           <li><Link href="/contact" className="text-custom-white">ניהול יעדים ומבצעים</Link></li>

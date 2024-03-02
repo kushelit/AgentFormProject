@@ -464,7 +464,12 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
     <div className="content-container">
       <div className="form-container">
         <form onSubmit={handleSubmit}>
-           <div className="form-group">
+          <div>
+            <Link href={`/summaryTable?agentName=${selectedAgent}`}>
+              דף מרכז
+            </Link>
+          </div>
+          <div className="form-group">
           <label htmlFor="agentSelect">המערכת של סוכנות:  </label>
           <select onChange={handleAgentChange} value={selectedAgentId}>
           {detail?.role === 'admin' && <option value="">בחר סוכן</option>}
