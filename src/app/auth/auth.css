@@ -1,0 +1,64 @@
+
+.content-auth {
+  color: #dee2e2;
+  font-size: 12px;
+  margin-bottom: 1rem; /* Add some space between form fields */
+  height: auto; /* Adjust based on content, or remove if fixed height is not needed */
+  box-sizing: border-box;
+  border-radius: 4px;
+  display: flex; /* Enables flexbox layout */
+  flex-direction: row; /* Align children horizontally */
+  align-items: center; /* Align children vertically */
+  justify-content: center; /* Center children if needed, might adjust based on actual layout */
+  text-align: center; /* Centers the text, adjust as needed */
+}
+
+.form-auth {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  padding-top: 6rem;
+  direction: rtl;
+  background-color: #C6CFD4;
+}
+
+.form-auth form {
+  border: 2px solid #90de3d; /* Confirm color, previously mentioned as red */
+  padding: 2rem;
+  width: 80%;
+  max-width: 500px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  background-color: #002A5C;
+}
+
+
+.button-container {
+  color:#dee2e2 ;
+  font-size: 12px;
+  display: block; /* Make the button a block-level element */
+  margin: 0 auto; 
+}
+
+.content-auth {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start; /* Adjust as needed */
+  width: 100%;
+  margin-bottom: 1rem;
+}
+
+.content-auth label {
+  min-width: 100px; /* Adjust based on your longest label */
+  text-align: right; /* For RTL */
+}
+
+.content-auth input {
+  flex-grow: 1; /* Allows the input to take up the remaining space */
+  margin-left: 8px; /* For spacing between label and input, adjust for RTL if necessary */
+  max-width: 200px; /* Adjust this value to control the maximum width of inputs */
+  width: 100%; /* Makes the input width flexible */
+  height: 30px;
+  color: black;
+}

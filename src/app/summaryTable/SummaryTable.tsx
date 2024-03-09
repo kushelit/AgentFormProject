@@ -1,23 +1,37 @@
 'use client';
 
 import { query, collection, where, getDocs } from "firebase/firestore";
-import { useState, useEffect } from "react";
+import React,{ useState, useEffect } from "react";
 import Link from "next/link";
 import { db } from "@/lib/firebase/firebase";
 //import './summaryTable.css';
 import { useSearchParams } from 'next/navigation'
+import { useAuth } from '@/lib/firebase/AuthContext';
+import useFetchAgentData from "@/hooks/useFetchAgentData"; 
+import { useRouter } from 'next/router';
+
 
 const SummaryTable = () => {
-  const searchParams = useSearchParams();
-  const agentName = searchParams?.get('agentName');
 
+ // const searchParams = useSearchParams();
+ // const agentIdAdmin = searchParams?.get('agentId');
+ // const agentName = searchParams?.get('agentName');
+ 
+  //console.log(agentIdAdmin ,'agentIdAdmin');
 
-  const [finansimSum, setFinansimSum] = useState(0);
-  const [pensiaSum, setPensiaSum] = useState(0);
-  const [insuranceSum, setInsuranceSum] = useState(0);
-  const [niudPensiaSum, setNiudPensiaSum] = useState(0);
-  const [monthlyTotals, setMonthlyTotals] = useState<MonthlyTotals>({});
-  const [overallFinansimTotal, setOverallFinansimTotal] = useState(0);
+  const { user, detail } = useAuth();
+  const {
+    workers,
+    agents,
+    selectedAgentId,
+    handleAgentChange,
+    handleWorkerChange,
+    selectedWorkerId,
+  } = useFetchAgentData();
+
+ 
+const [monthlyTotals, setMonthlyTotals] = useState<MonthlyTotals>({});
+const [overallFinansimTotal, setOverallFinansimTotal] = useState(0);
 const [overallPensiaTotal, setOverallPensiaTotal] = useState(0);
 const [overallInsuranceTotal, setOverallInsuranceTotal] = useState(0);
 const [overallNiudPensiaTotal, setOverallNiudPensiaTotal] = useState(0);
@@ -31,19 +45,55 @@ const [overallNiudPensiaTotal, setOverallNiudPensiaTotal] = useState(0);
       niudPensiaTotal: number;
     };
   }
+  //const SummaryTable: React.FC = () => {
+    
   
 
   useEffect(() => {
     const fetchData = async () => {
-      if (!agentName) return;
+
+      //const effectiveAgentId = agentIdAdmin || detail?.agentId;
+     // console.log(selectedAgentId,'selectedAgentId');
+    //  console.log(selectedWorkerId,'selectedWorkerId');
+    //  if (!selectedAgentId) return;
   
-      const salesQuery = query(
-        collection(db, 'sales'),
-        where('agent', '==', agentName),
-        where('minuySochen', '==', false),
-        where('statusPolicy', 'in', ['פעילה', 'הצעה'])
-      );
-  
+     // const salesQuery = query(
+     //   collection(db, 'sales'),
+     //   where('AgentId', '==', selectedAgentId), //new
+     //   where('workerId', '==', selectedWorkerId), //new
+    //    where('minuySochen', '==', false),
+    //    where('statusPolicy', 'in', ['פעילה', 'הצעה'])
+    //  );
+
+
+  //  async function fetchSalesData(selectedAgentId: string | undefined, selectedWorkerId: string | undefined) {
+      // Start with a base query for the 'sales' collection
+
+      setMonthlyTotals({});
+      setOverallFinansimTotal(0);
+      setOverallPensiaTotal(0);
+      setOverallInsuranceTotal(0);
+      setOverallNiudPensiaTotal(0);
+
+
+      let salesQuery = query(collection(db, 'sales'), where('minuySochen', '==', false), where('statusPolicy', 'in', ['פעילה', 'הצעה']));
+    
+      // Conditionally add 'AgentId' filter if 'selectedAgentId' is provided
+      if (selectedAgentId) {
+        salesQuery = query(salesQuery, where('AgentId', '==', selectedAgentId));
+        console.log(selectedAgentId,'selectedAgentId');
+        console.log(selectedWorkerId,'selectedWorkerId');
+      }
+    
+      // Conditionally add 'workerId' filter if 'selectedWorkerId' is provided
+      if (selectedWorkerId) {
+        salesQuery = query(salesQuery, where('workerId', '==', selectedWorkerId));
+        console.log(selectedAgentId,'selectedAgentId');
+        console.log(selectedWorkerId,'selectedWorkerId');
+      }
+
+      
+
       const querySnapshot = await getDocs(salesQuery);
       let initialMonthlyTotals: MonthlyTotals = {};
   
@@ -75,8 +125,8 @@ const [overallNiudPensiaTotal, setOverallNiudPensiaTotal] = useState(0);
         overallNiudPensiaTotal += month.niudPensiaTotal;
 
 
-        setOverallFinansimTotal(overallFinansimTotal);
-       setOverallPensiaTotal(overallPensiaTotal);
+      setOverallFinansimTotal(overallFinansimTotal);
+      setOverallPensiaTotal(overallPensiaTotal);
       setOverallInsuranceTotal(overallInsuranceTotal);
       setOverallNiudPensiaTotal(overallNiudPensiaTotal);
       });
@@ -85,12 +135,13 @@ const [overallNiudPensiaTotal, setOverallNiudPensiaTotal] = useState(0);
     };
   
     fetchData();
-  }, [agentName]);
+  }, [selectedAgentId, selectedWorkerId]);
 
   // Render your table with the calculated sums
   return (
-    <div>
-      <h1>לוח מרכזי, סוכן :  {agentName}</h1>
+    <div  style={{ paddingTop: '4rem' }}   >
+      <h1  style={{ textAlign: 'right' , paddingRight: '20px' }}  > לוח מרכזי 
+      </h1> 
       <table>
       <thead>
               <tr>
@@ -102,7 +153,14 @@ const [overallNiudPensiaTotal, setOverallNiudPensiaTotal] = useState(0);
               </tr>
             </thead>
         <tbody>
-    {Object.entries(monthlyTotals).map(([month, totals]) => (
+    {Object.entries(monthlyTotals)
+      .sort((a, b) => {
+        const [monthA, yearA] = a[0].split("/").map(Number);
+        const [monthB, yearB] = b[0].split("/").map(Number);
+        // First compare by year, then by month if the years are equal
+        return yearA !== yearB ? yearA - yearB : monthA - monthB;
+      })
+      .map(([month, totals]) => (
       <tr key={month}>
       <td>{month}</td>
       <td>{totals.finansimTotal.toLocaleString()}</td>
@@ -112,20 +170,31 @@ const [overallNiudPensiaTotal, setOverallNiudPensiaTotal] = useState(0);
     </tr>
   ))}
   <tr>
-    <td>סיכום</td>
-    <td>{overallFinansimTotal.toLocaleString()}</td>
-    <td>{overallPensiaTotal.toLocaleString()}</td>
-    <td>{overallInsuranceTotal.toLocaleString()}</td>
-    <td>{overallNiudPensiaTotal.toLocaleString()}</td>
+    <td> <strong>סיכום</strong></td>
+    <td><strong>{overallFinansimTotal.toLocaleString()}</strong></td>
+    <td><strong>{overallPensiaTotal.toLocaleString()}</strong></td>
+    <td><strong>{overallInsuranceTotal.toLocaleString()}</strong></td>
+    <td><strong>{overallNiudPensiaTotal.toLocaleString()}</strong></td>
   </tr>
 </tbody>
 </table>
-      <div>
-        <Link href="/">
-          חזור לדף ניהול מכירות
-        </Link>
-      </div>
+
+<select id="agent-select" value={selectedAgentId} onChange={handleAgentChange}>
+  {detail?.role === 'admin' && <option value="">כל הסוכנות </option>}
+  {agents.map((agent) => (
+    <option key={agent.id} value={agent.id}>{agent.name}</option>
+
+  ))}
+</select>
+<select id="worker-select" value={selectedWorkerId} onChange={handleWorkerChange}>
+        <option value="">כל העובדים</option>
+        {workers.map((worker) => (
+          <option key={worker.id} value={worker.id}>{worker.name}</option>
+        ))}
+      </select>
+
     </div>
+  
   );
 };
 

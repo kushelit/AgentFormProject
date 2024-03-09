@@ -55,7 +55,7 @@ export default function AgentSignUpPage() {
 
   return (
     <form onSubmit={handleSignUp}>
-      <h1>Agent Sign up</h1>
+      <h1  style={{ paddingTop: '4rem' }}>Agent Sign up</h1>
       <div>
         <label htmlFor="name">Name</label>
         <input type="text" id="name" name="name" required />

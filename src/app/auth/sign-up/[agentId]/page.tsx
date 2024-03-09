@@ -68,7 +68,7 @@ export default function WorkerSignUpPage({ params }: { params: { agentId: string
 
   return (
     <form onSubmit={handleSignUp}>
-      <h1>Worker Sign up for <span className="font-bold">Agent {agent.name}</span></h1>
+      <h1    style={{ paddingTop: '4rem' }}>Worker Sign up for <span className="font-bold">Agent {agent.name}</span></h1>
       <div>
         <label htmlFor="name">Name</label>
         <input type="text" id="name" name="name" required />

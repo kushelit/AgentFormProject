@@ -13,6 +13,9 @@
   font-family: Arial, sans-serif;
   color: black;
   font-size: 12px;
+  position: relative;
+  z-index: 8;
+  padding-top: 4rem;
 }
 
 

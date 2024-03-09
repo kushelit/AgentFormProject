@@ -4,6 +4,7 @@ import { useAuth } from "@/lib/firebase/AuthContext";
 import { FormEventHandler, useEffect, useState } from "react";
 import { redirect } from 'next/navigation';
 import Link from "next/link";
+import "../auth.css";
 
 export default function LogInPage() {
   const { user, logIn } = useAuth();
@@ -38,19 +39,19 @@ export default function LogInPage() {
   }
 
   return (
-    <div>
+    <div  className="form-auth" style={{ paddingTop: '6rem' }} dir="rtl" >
       <form onSubmit={handleLogIn}>
-        <div>
-          <label htmlFor="email">Email</label>
+        <div  className="content-auth">
+          <label htmlFor="email" >כתובת מייל</label>
           <input type="email" id="email" name="email" required />
         </div>
-        <div>
-          <label htmlFor="password">Password</label>
+        <div className="content-auth">
+          <label htmlFor="password">סיסמא</label>
           <input type="password" id="password" name="password" required />
         </div>
         {error && <p className="text-red-500">{error}</p>}
 
-        <button type="submit">Log in</button>
+        <button className="button-container"  type="submit">כניסה</button>
       </form>
     </div>
   )

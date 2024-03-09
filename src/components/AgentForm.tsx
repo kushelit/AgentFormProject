@@ -7,6 +7,7 @@ import './AgentForm.css';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useAuth } from '@/lib/firebase/AuthContext';
+//import { useSelectedAgent } from '../context/SelectedAgentContext';
 
 
 function AgentForm() {
@@ -39,10 +40,6 @@ function AgentForm() {
   const [statusPolicies, setStatusPolicies] = useState<string[]>([]);
   const [selectedStatusPolicy, setSelectedStatusPolicy] = useState('');
   const [isEditing, setIsEditing] = useState(false);
-  //const { role } = detail || {};
-
-
-
 
 
 //after admin
@@ -109,6 +106,7 @@ const handleAgentChange = (event: ChangeEvent<HTMLSelectElement>) =>  {
   if (selectedAgentInfo) {
     setSelectedAgent(selectedAgentInfo.name);
     setSelectedAgentId(selectedAgentInfo.id);
+    console.log('setSelectedAgentId', setSelectedAgentId)
     // If applicable, fetch workers or other data related to the selected agent
     fetchWorkersForSelectedAgent(selectedAgentInfo.id);
   }
@@ -457,6 +455,7 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
     setmounth(formattedValue);
   };
 
+ 
 
 
   console.log({ selectedAgent, selectedWorkerName, firstNameCustomer, lastNameCustomer, IDCustomer, selectedCompany, selectedProduct, mounth });
@@ -465,9 +464,7 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
       <div className="form-container">
         <form onSubmit={handleSubmit}>
           <div>
-            <Link href={`/summaryTable?agentName=${selectedAgent}`}>
-              דף מרכז
-            </Link>
+           
           </div>
           <div className="form-group">
           <label htmlFor="agentSelect">המערכת של סוכנות:  </label>
@@ -489,7 +486,7 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
     </select>
           </div>
           <div className="form-group">
-            <label>שם פרטי לקוח: </label>
+            <label>שם פרטי : </label>
             <input
               type="text"
               value={firstNameCustomer}
@@ -499,7 +496,7 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
           </div>
           <div className="form-group">
             <label>
-              שם משפחה לקוח:</label>
+              שם משפחה :</label>
             <input type="text"
               value={lastNameCustomer}
               onChange={handleLastNameChange}
@@ -507,7 +504,7 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
           </div>
           <div className="form-group">
             <label htmlFor="IDCustomer">
-              תז לקוח:</label>
+              תז :</label>
               <input
                 type="text"
                 inputMode="numeric" // Suggests a numeric keyboard on mobile devices
@@ -624,9 +621,9 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
           <table>
             <thead>
               <tr>
-                <th>שם פרטי לקוח</th>
-                <th>שם משפחה לקוח</th>
-                <th>תז לקוח</th>
+                <th>שם פרטי </th>
+                <th>שם משפחה </th>
+                <th>תז </th>
                 <th>חברה</th>
                 <th>מוצר</th>
                 <th>פרמיה ביטוח</th>

@@ -11,6 +11,9 @@ const config = {
       colors: {
         'custom-blue': '#002A5C',
         'custom-white': '#dee2e2', 
+        'custom-green': '#90de3d',
+        'custom-light-blue':'005084',
+        'custom-grey':'#C6CFD4'
       },
       backgroundImage: {
         'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
