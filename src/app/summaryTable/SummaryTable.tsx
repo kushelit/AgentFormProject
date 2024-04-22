@@ -11,7 +11,8 @@ interface MonthlyData {
   pensiaTotal: number;
   insuranceTotal: number;
   niudPensiaTotal: number;
-  testCommissionTotal: number;
+  commissionHekefTotal: number;
+  commissionNifraimTotal: number;
 }
 
 interface MonthlyTotals {
@@ -25,6 +26,8 @@ interface Contract {
   productsGroup: string;
   agentId: string;
   commissionNifraim: number;
+  commissionHekef: number;
+  commissionNiud: number;
 }
 
 interface Product {
@@ -43,7 +46,8 @@ const SummaryTable = () => {
   const [overallPensiaTotal, setOverallPensiaTotal] = useState(0);
   const [overallInsuranceTotal, setOverallInsuranceTotal] = useState(0);
   const [overallNiudPensiaTotal, setOverallNiudPensiaTotal] = useState(0);
-  const [overallTestCommissionTotal, setOverallTestCommissionTotal] = useState(0);
+  const [overallCommissionHekefTotal, setOverallCommissionHekefTotal] = useState(0);
+  const [overallCommissionNifraimTotal, setOverallCommissionNifraimTotal] = useState(0);
   const [contracts, setContracts] = useState<Contract[]>([]);
 
   const [productMap, setProductMap] = useState<Record<string, string>>({});
@@ -73,7 +77,9 @@ const SummaryTable = () => {
         product: doc.data().product,
         productsGroup: doc.data().productsGroup,
         agentId: doc.data().AgentId,
-        commissionNifraim: doc.data().commissionNifraim
+        commissionNifraim: doc.data().commissionNifraim,
+        commissionHekef: doc.data().commissionHekef,
+        commissionNiud: doc.data().commissionNiud
       }));
       setContracts(fetchedContracts);
     };
@@ -103,7 +109,7 @@ const SummaryTable = () => {
 
 
         if (!initialMonthlyTotals[month]) {
-          initialMonthlyTotals[month] = { finansimTotal: 0, pensiaTotal: 0, insuranceTotal: 0, niudPensiaTotal: 0, testCommissionTotal: 0 };
+          initialMonthlyTotals[month] = { finansimTotal: 0, pensiaTotal: 0, insuranceTotal: 0, niudPensiaTotal: 0, commissionHekefTotal: 0 ,commissionNifraimTotal: 0};
         }
 
         initialMonthlyTotals[month].finansimTotal += parseInt(data.finansimZvira) || 0;
@@ -112,7 +118,11 @@ const SummaryTable = () => {
         initialMonthlyTotals[month].niudPensiaTotal += parseInt(data.pensiaZvira) || 0;
 
         if (contractMatch) {
-          initialMonthlyTotals[month].testCommissionTotal += (parseInt(data.insPremia) || 0) * contractMatch.commissionNifraim;
+          initialMonthlyTotals[month].commissionHekefTotal +=( (parseInt(data.insPremia) || 0) * contractMatch.commissionHekef * 12)
+          +((parseInt(data.pensiaPremia) || 0) * contractMatch.commissionHekef* 12)
+          +((parseInt(data.pensiaZvira) || 0) * contractMatch.commissionNiud)
+          +((parseInt(data.finansimPremia) || 0) * contractMatch.commissionHekef * 12)
+          +((parseInt(data.finansimZvira) || 0) * contractMatch.commissionNiud);
         } else {
           // Try to match based on productGroup
           const groupMatch = contracts.find(contract =>
@@ -120,11 +130,35 @@ const SummaryTable = () => {
             contract.agentId === data.AgentId
           );
           if (groupMatch) {
-            initialMonthlyTotals[month].testCommissionTotal += (parseInt(data.insPremia) || 0) * groupMatch.commissionNifraim;
+            initialMonthlyTotals[month].commissionHekefTotal += ((parseInt(data.insPremia) || 0) * groupMatch.commissionHekef * 12)
+            +((parseInt(data.pensiaPremia) || 0) * groupMatch.commissionHekef * 12)
+            +((parseInt(data.pensiaZvira) || 0) * groupMatch.commissionNiud)
+            +((parseInt(data.finansimPremia) || 0) * groupMatch.commissionHekef *12)
+            +((parseInt(data.finansimZvira) || 0) * groupMatch.commissionNiud);
           } else {
-            initialMonthlyTotals[month].testCommissionTotal += 999;
+            initialMonthlyTotals[month].commissionHekefTotal += 999;
           }
         }
+
+        if (contractMatch) {
+          initialMonthlyTotals[month].commissionNifraimTotal +=( (parseInt(data.insPremia) || 0) * contractMatch.commissionNifraim)
+          +((parseInt(data.pensiaPremia) || 0) * contractMatch.commissionNifraim)
+          +((parseInt(data.finansimZvira) || 0) * contractMatch.commissionNifraim / 12);
+        } else {
+          // Try to match based on productGroup
+          const groupMatch = contracts.find(contract =>
+            contract.productsGroup === productGroup &&
+            contract.agentId === data.AgentId
+          );
+          if (groupMatch) {
+            initialMonthlyTotals[month].commissionNifraimTotal += ((parseInt(data.insPremia) || 0) * groupMatch.commissionNifraim)
+            +((parseInt(data.pensiaPremia) || 0) * groupMatch.commissionNifraim)
+            +((parseInt(data.finansimZvira) || 0) * groupMatch.commissionNifraim / 12);
+          } else {
+            initialMonthlyTotals[month].commissionNifraimTotal += 999;
+          }
+        }
+
       });
 
       setMonthlyTotals(initialMonthlyTotals);
@@ -133,21 +167,26 @@ const SummaryTable = () => {
       let overallPensiaTotal = 0;
       let overallInsuranceTotal = 0;
       let overallNiudPensiaTotal = 0;
-      let overallTestCommissionTotal = 0;
+      let overallCommissionHekefTotal = 0;
+      let overallCommissionNifraimTotal = 0;
 
       Object.values(initialMonthlyTotals).forEach(month => {
         overallFinansimTotal += month.finansimTotal;
         overallPensiaTotal += month.pensiaTotal;
         overallInsuranceTotal += month.insuranceTotal;
         overallNiudPensiaTotal += month.niudPensiaTotal;
-        overallTestCommissionTotal += month.testCommissionTotal;
+        overallCommissionHekefTotal += month.commissionHekefTotal;
+        overallCommissionNifraimTotal += month.commissionNifraimTotal;
+
       });
 
       setOverallFinansimTotal(overallFinansimTotal);
       setOverallPensiaTotal(overallPensiaTotal);
       setOverallInsuranceTotal(overallInsuranceTotal);
       setOverallNiudPensiaTotal(overallNiudPensiaTotal);
-      setOverallTestCommissionTotal(overallTestCommissionTotal);
+      setOverallCommissionHekefTotal(overallCommissionHekefTotal);
+      setOverallCommissionNifraimTotal(overallCommissionNifraimTotal);
+
     };
 
     fetchData();
@@ -164,7 +203,8 @@ const SummaryTable = () => {
             <th>סך פנסיה</th>
             <th>סך ביטוח</th>
             <th>ניוד פנסיה</th>
-            <th>חישוב עמלה</th>
+            <th>עמלת היקף</th>
+            <th>עמלת נפרעים</th>
           </tr>
         </thead>
         <tbody>
@@ -179,7 +219,9 @@ const SummaryTable = () => {
               <td>{totals.pensiaTotal.toLocaleString()}</td>
               <td>{totals.insuranceTotal.toLocaleString()}</td>
               <td>{totals.niudPensiaTotal.toLocaleString()}</td>
-              <td>{totals.testCommissionTotal.toLocaleString()}</td>
+              <td>{totals.commissionHekefTotal.toLocaleString()}</td>
+              <td>{totals.commissionNifraimTotal.toLocaleString()}</td>
+
             </tr>
           ))}
           <tr>
@@ -188,7 +230,9 @@ const SummaryTable = () => {
             <td><strong>{overallPensiaTotal.toLocaleString()}</strong></td>
             <td><strong>{overallInsuranceTotal.toLocaleString()}</strong></td>
             <td><strong>{overallNiudPensiaTotal.toLocaleString()}</strong></td>
-            <td><strong>{overallTestCommissionTotal.toLocaleString()}</strong></td>
+            <td><strong>{overallCommissionHekefTotal.toLocaleString()}</strong></td>
+            <td><strong>{overallCommissionNifraimTotal.toLocaleString()}</strong></td>
+
           </tr>
         </tbody>
       </table>

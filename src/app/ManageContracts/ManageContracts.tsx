@@ -276,8 +276,7 @@ console.log(commissionPercentNifraim1);
         });
         console.log("Document successfully updated");
         setSelectedRow(null); 
-        resetFormDefault();         
-       
+        resetFormDefault();             
         fetchdefaultContracts();
       
       } catch (error) {
@@ -306,7 +305,7 @@ console.log(commissionPercentNifraim1);
         console.log("Document successfully updated");
         setSelectedRow(null); 
         resetFormContracts();               
-          fetchContracts();
+        fetchContracts();
       
       } catch (error) {
         console.error("Error updating document:", error);     
