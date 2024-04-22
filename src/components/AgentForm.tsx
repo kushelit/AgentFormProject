@@ -8,19 +8,43 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useAuth } from '@/lib/firebase/AuthContext';
 //import { useSelectedAgent } from '../context/SelectedAgentContext';
+import useFetchAgentData from "@/hooks/useFetchAgentData"; 
+import useSalesData from "@/hooks/useSalesData"; 
+import useFetchMD from "@/hooks/useMD"; 
 
+//useFetchAgentData
 
 function AgentForm() {
-  const searchParams = useSearchParams();
   const { user, detail } = useAuth();
+  const { 
+    agents, 
+    selectedAgentId, 
+    handleAgentChange, 
+    workers, 
+    selectedWorkerId, 
+    selectedAgentName,
+    selectedWorkerName, 
+    handleWorkerChange 
+  } = useFetchAgentData();
+
+  const 
+  { monthlyTotals,
+    overallFinansimTotal, overallPensiaTotal, overallInsuranceTotal, overallNiudPensiaTotal
+   } = useSalesData(selectedAgentId, selectedWorkerId);
+
+   const {
+    products,
+    selectedProduct,
+    setSelectedProduct,
+    selectedProductGroup
+  } = useFetchMD();
+
+
+
+
+  const searchParams = useSearchParams();
   const [selectedAgent, setSelectedAgent] = useState('');
-  const [selectedAgentId, setSelectedAgentId] = useState("");
-  const [userAgentId, setUserAgentId] = useState('');
-  const [agents, setAgents] = useState<{id: string, name: string}[]>([]);
-  const [workers, setWorkers] = useState<Worker[]>([]);
   const [selectedWorker, setSelectedWorker]  = useState('');
-  const [selectedWorkerId, setSelectedWorkerId] = useState("");
-  const [selectedWorkerName, setSelectedWorkerName] = useState("")
   const [firstNameCustomer, setfirstNameCustomer] = useState('');
   const [lastNameCustomer, setlastNameCustomer] = useState('');
   const [IDCustomer, setIDCustomer] = useState('');
@@ -33,120 +57,14 @@ function AgentForm() {
   const [agentData, setAgentData] = useState<any[]>([]);
   const [selectedRow, setSelectedRow] = useState<any | null>(null);
   const [companies, setCompanies] = useState<string[]>([]);
-  const [products, setProducts] = useState<string[]>([]);
   const [minuySochen, setMinuySochen] = useState(false);
-  const [selectedProduct, setSelectedProduct] = useState('');
   const [selectedCompany, setSelectedCompany] = useState('');
   const [statusPolicies, setStatusPolicies] = useState<string[]>([]);
   const [selectedStatusPolicy, setSelectedStatusPolicy] = useState('');
   const [isEditing, setIsEditing] = useState(false);
-
-
-//after admin
-useEffect(() => {
-  const fetchAgentData = async () => {
-    if (user && detail && detail.role === 'admin') {
-      // Fetch all users with role 'agent'
-      const agentsQuery = query(collection(db, 'users'), where('role', '==', 'agent'));
-      const querySnapshot = await getDocs(agentsQuery);
-      const agentsList = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        name: doc.data().name, 
-      }));
-      setAgents(agentsList); 
-    } else if
-         (detail && detail.agentId) {
-      const agentDocRef = doc(db, 'users', detail.agentId);
-      const agentDocSnap = await getDoc(agentDocRef);
-
-      if (agentDocSnap.exists()) {
-        setAgents([{ id: agentDocSnap.id, name: agentDocSnap.data().name }]);
-        const agentName = agentDocSnap.data().name;
-        setSelectedAgent(agentName);
-        setSelectedAgentId(detail.agentId);
-        await fetchWorkersForSelectedAgent(detail.agentId);
-      } else {
-        console.log("No such Agent!");
-      }
-    }
-  };
-
-  fetchAgentData();
-}, [user, detail]);
-
-
-
-
-
-useEffect(() => {
-  if (selectedAgentId) {
-    fetchWorkersForSelectedAgent(selectedAgentId);
-  } else {
-    setWorkers([]); 
-  }
-}, [selectedAgentId]);
-
-
-const fetchWorkersForSelectedAgent = async (agentId: string) => {
-  const workersQuery = query(collection(db, 'users'), where('agentId', '==', agentId), where('role', 'in', ['worker', 'agent']));
-  const querySnapshot = await getDocs(workersQuery);
-  const workersList = querySnapshot.docs.map(doc => ({
-    id: doc.id,
-    name: doc.data().name, 
-  }));
-  setWorkers(workersList); 
-};
-
-
-
-const handleAgentChange = (event: ChangeEvent<HTMLSelectElement>) =>  {
-  const selectedId = event.target.value;
-  const selectedAgentInfo = agents.find(agent => agent.id === selectedId);
-  
-  if (selectedAgentInfo) {
-    setSelectedAgent(selectedAgentInfo.name);
-    setSelectedAgentId(selectedAgentInfo.id);
-    console.log('setSelectedAgentId', setSelectedAgentId)
-    // If applicable, fetch workers or other data related to the selected agent
-    fetchWorkersForSelectedAgent(selectedAgentInfo.id);
-  }
-};
-
-
-interface Worker {
-  name: string;
-  id: string;
-}
-
-
-useEffect(() => {
-  const fetchWorkers = async () => {
-    if (userAgentId) {
-      const workersQuery = query(
-        collection(db, 'users'),
-        where('role', 'in', ['worker', 'agent']),
-        where('agentid', '==', userAgentId)
-      );
-      const querySnapshot = await getDocs(workersQuery);
-      const workersList = querySnapshot.docs.map(doc => ({
-        name: doc.data().name as string, 
-        id: doc.id  
-      }));
-      setWorkers(workersList);
-    }
-  };
-
-  fetchWorkers();
-}, [userAgentId]); // 
-
-
-
-
-const handleWorkerChange = (event: ChangeEvent<HTMLSelectElement>) =>  {
-  const selectedOption = event.target.options[event.target.selectedIndex];
-  setSelectedWorkerId(selectedOption.value);
-  setSelectedWorkerName(selectedOption.text);
-};
+ // const [selectedProductGroup, setSelectedProductGroup] = useState('');
+ // const [selectedProduct, setSelectedProduct] = useState('');
+ // const [products, setProducts] = useState<Product[]>([]);
 
 
 
@@ -158,10 +76,9 @@ const fetchDataForAgent = async (UserAgentId : string) => {
     ...doc.data() 
   }));
   setAgentData(data);
+  console.log(data)
   
 };
-
-//end
 
 
   useEffect(() => {
@@ -172,24 +89,6 @@ const fetchDataForAgent = async (UserAgentId : string) => {
     };
 
     fetchCompanies();
-  }, []);
-
-  useEffect(() => {
-    const fetchProducts = async () => {
-      const querySnapshot = await getDocs(collection(db, 'product'));
-      const productsList = querySnapshot.docs.map(doc => doc.data().productName); // Assuming the field name is 'productName'
-      setProducts(productsList);
-      console.log( selectedAgent,
-        selectedWorkerName,
-        firstNameCustomer,
-        lastNameCustomer,
-        IDCustomer,
-        selectedCompany,
-        selectedProduct,
-        mounth)
-    };
-
-    fetchProducts();
   }, []);
 
 
@@ -208,11 +107,10 @@ const fetchDataForAgent = async (UserAgentId : string) => {
     setmounth('');
     setMinuySochen(false);
     setSelectedStatusPolicy('');
-    if (selectedAgent) {
-      fetchDataForAgent(selectedAgent);
+    if (selectedAgentId) {
+      fetchDataForAgent(selectedAgentId);
     }
-  }, [selectedAgent]); 
-
+  }, [selectedAgentId]); 
 
 
   const [hoveredRowId, setHoveredRowId] = useState(null);
@@ -257,7 +155,7 @@ const fetchDataForAgent = async (UserAgentId : string) => {
       try {
         const docRef = doc(db, 'sales', selectedRow.id); // Reference to the Firestore document
         await updateDoc(docRef, {
-         // worker: selectedWorker,
+         // worker: selectedWorkerName,
           workerId: selectedWorkerId,// id new
           workerName:selectedWorkerName,
           firstNameCustomer,
@@ -318,7 +216,7 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
   try {
     console.log("got here");
       const docRef = await addDoc(collection(db, 'sales'), {
-      agent: selectedAgent,
+      agent: selectedAgentName,
       AgentId: selectedAgentId,//new 
       workerId: selectedWorkerId,// id new
       workerName:selectedWorkerName,
@@ -347,7 +245,6 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
     console.error('Error adding document:', error);
   }
 };
-
 
 
   const handleFirstNameChange: ChangeEventHandler<HTMLInputElement> = (event) => {
@@ -379,15 +276,15 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
   };
 
   const canSubmit = useMemo(() => (
-     selectedAgent.trim() !== '' &&
-     selectedWorkerName.trim() !== '' &&
+     selectedAgentId.trim() !== '' &&
+     selectedWorkerId.trim() !== '' &&
     firstNameCustomer.trim() !== '' &&
      lastNameCustomer.trim() !== '' &&
      IDCustomer.trim() !== '' &&
      selectedCompany.trim() !== '' &&
      selectedProduct.trim() !== '' &&
     mounth.trim() !== ''
-  ), [selectedAgent, selectedWorkerName, firstNameCustomer, lastNameCustomer, IDCustomer, 
+  ), [selectedAgentId, selectedWorkerId, firstNameCustomer, lastNameCustomer, IDCustomer, 
     selectedCompany, selectedProduct, mounth]);
 
 
@@ -455,10 +352,44 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
     setmounth(formattedValue);
   };
 
- 
+
+//useEffect(() => {
+ // const fetchProducts = async () => {
+ //   try {
+ //     console.log("Attempting to fetch products");
+  //    const querySnapshot = await getDocs(collection(db, 'product'));
+  //    const productsList = querySnapshot.docs.map(doc => ({
+  //      id: doc.id,
+  //      name: doc.data().productName,
+  //      productGroup: doc.data().productGroup
+ //     }));
+ //     setProducts(productsList);
+ //     console.log("Products fetched:", productsList);
+ //   } catch (error) {
+ //     console.error("Failed to fetch products:", error);
+ //   }
+ // };
+
+ // fetchProducts();
+//}, [selectedProduct]);
+
+//interface Product {
+ // id: string;
+ // name: string;
+ // productGroup: string;
+//}
+
+//useEffect(() => {
+ // const selectedProd = products.find(product => product.id === selectedProduct);
+ // if (selectedProd) {
+//    setSelectedProductGroup(selectedProd.productGroup);
+//  }
+//  console.log("Selected Product Group:", selectedProductGroup);
+
+//}, [selectedProduct, products]); // Ensure this effect runs whenever selectedProduct or products change
 
 
-  console.log({ selectedAgent, selectedWorkerName, firstNameCustomer, lastNameCustomer, IDCustomer, selectedCompany, selectedProduct, mounth });
+  console.log({ selectedAgentId, selectedWorkerId, firstNameCustomer, lastNameCustomer, IDCustomer, selectedCompany, selectedProduct, mounth });
   return (
     <div className="content-container">
       <div className="form-container">
@@ -528,46 +459,49 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
             </select>
           </div>
           <div className="form-group">
-            <label htmlFor="productSelect">מוצר:</label>
-            <select id="productSelect"
-              value={selectedProduct}
-              onChange={(e) => setSelectedProduct(e.target.value)}
-            >
-              <option value="">בחר מוצר</option>
-              {products.map((productName, index) => (
-                <option key={index} value={productName}>{productName}</option>
-              ))}
-            </select>
-          </div>
+          <label htmlFor="productSelect">מוצר:</label>
+          <select id="productSelect" value={selectedProduct} onChange={(e) => setSelectedProduct(e.target.value)}>
+          <option value="">בחר מוצר</option>
+         {products.map((product) => (
+         <option key={product.id} value={product.name}>{product.name}</option>
+    ))}
+  </select>
+</div>
           <div className="form-group">
             <label htmlFor="insPremia"> 
               פרמיה ביטוח:</label>
-              <input type="text" value={insPremia} onChange={handleinsPremia} />
+              <input type="text" value={insPremia} onChange={handleinsPremia} 
+               disabled={selectedProductGroup === '1' || selectedProductGroup === '4'}
+              />
            
           </div>
           <div className="form-group">
             <label htmlFor="pensiaPremia"> 
               פרמיה פנסיה: </label>
-              <input type="text" value={pensiaPremia} onChange={handlepensiaPremia} />
-           
+              <input type="text" value={pensiaPremia} onChange={handlepensiaPremia} 
+              disabled={selectedProductGroup === '3' || selectedProductGroup === '4'} 
+               />      
           </div>
           <div className="form-group">
             <label htmlFor="pensiaZvira"> 
               צבירה פנסיה : </label>
-              <input type="text" value={pensiaZvira} onChange={handlePensiaZvira} />
-           
+              <input type="text" value={pensiaZvira} onChange={handlePensiaZvira} 
+              disabled={selectedProductGroup === '3' || selectedProductGroup === '4'}
+              />
           </div>
           <div className="form-group">
             <label htmlFor="finansimPremia"> 
               פרמיה פיננסים:</label>
-              <input type="text" value={finansimPremia} onChange={handleFinansimPremia} />
-            
+              <input type="text" value={finansimPremia} onChange={handleFinansimPremia} 
+              disabled={selectedProductGroup === '1' || selectedProductGroup === '3'}
+              />
           </div>
           <div className="form-group">
             <label htmlFor="finansimZvira"> 
               צבירה פיננסים: </label>
-              <input type="text" value={finansimZvira} onChange={handleFinansimZviraChange} />
-           
+              <input type="text" value={finansimZvira} onChange={handleFinansimZviraChange} 
+              disabled={selectedProductGroup === '1' || selectedProductGroup === '3'}
+              />
           </div>
           <div className="form-group">
             <label  htmlFor="expiryDate"> 
@@ -617,8 +551,8 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
       <div className="data-container">
         <h2>טבלת מידע מרוכז לסוכן</h2>
         {agentData.length > 0 ? (
-          <div className="table-container">
-          <table>
+        <div className="table-container" style={{ overflowX: 'auto', maxHeight: '300px' }}>
+        <table>
             <thead>
               <tr>
                 <th>שם פרטי </th>
@@ -665,11 +599,56 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
             </tbody>
           </table>
           </div>
-        ) : (
-          <p>No data available for the selected agent.</p>
-        )}
+                ) : <p>No data available for the selected agent.</p>}
+
+           <h2>סיכום תפוקות</h2>
+           <div className="table-container" style={{ overflowX: 'auto', maxHeight: '300px' }}>
+          <table>
+  <thead>
+    <tr>
+      <th>חודש תפוקה</th>
+      <th>סך פיננסים</th>
+      <th>סך פנסיה</th>
+      <th>סך ביטוח</th>
+      <th>ניוד פנסיה</th>
+    </tr>
+  </thead>
+  <tbody>
+    {Object.entries(monthlyTotals)
+      .sort((a, b) => {
+        console.log("Comparing", a[0], "with", b[0]); // See the raw values
+       const [monthA, yearA] = a[0].split('/').map(Number);
+        const [monthB, yearB] = b[0].split('/').map(Number);
+     
+        if (isNaN(monthA) || isNaN(yearA) || isNaN(monthB) || isNaN(yearB)) {
+          console.error("Parsing error with data:", a[0], b[0]);
+      }
+
+        console.log("Parsed values:", monthA, yearA, monthB, yearB); // Check parsed values
+        return (yearA - yearB) || (monthA - monthB); // Adjusted 
+      })
+      .map(([month, totals]) => (
+        <tr key={month}>
+          <td>{month}</td>
+          <td>{totals.finansimTotal.toLocaleString()}</td>
+          <td>{totals.pensiaTotal.toLocaleString()}</td>
+          <td>{totals.insuranceTotal.toLocaleString()}</td>
+          <td>{totals.niudPensiaTotal.toLocaleString()}</td>
+        </tr>
+      ))}
+    <tr>
+      <td><strong>סיכום</strong></td>
+      <td><strong>{overallFinansimTotal.toLocaleString()}</strong></td>
+      <td><strong>{overallPensiaTotal.toLocaleString()}</strong></td>
+      <td><strong>{overallInsuranceTotal.toLocaleString()}</strong></td>
+      <td><strong>{overallNiudPensiaTotal.toLocaleString()}</strong></td>
+    </tr>
+  </tbody>
+</table> 
+</div>
+
       </div>
     </div>
   );
-}
+        }
 export default AgentForm;

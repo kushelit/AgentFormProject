@@ -47,7 +47,9 @@ export const AuthContextProvider = (props: any) => {
               setDetail(data as UserDetail);
             }
           });
-      }
+        } else {
+          setDetail(null); // Reset user details when logged out
+        }
     });
 
     return () => unsubscribe();

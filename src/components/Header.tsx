@@ -8,6 +8,7 @@ import Image from 'next/image';
 
 export default function Header() {
   const { user, detail, logOut } = useAuth();
+  console.log(user?.uid)
  
 
 

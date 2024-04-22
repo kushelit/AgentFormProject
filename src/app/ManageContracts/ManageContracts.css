@@ -1,0 +1,23 @@
+.frame-container {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 20px;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    background-color: #f9f9f9;
+  }
+  
+  .form-group {
+    flex-basis: 45%; /* Adjust width of form groups */
+    margin-bottom: 20px; /* Space between form groups */
+  }
+  
+  .form-group label {
+    display: block; /* Ensures the label is above the input/select */
+    margin-bottom: 5px; /* Spacing between label and input/select */
+  }
+  
+  h2 {
+    text-align: center;
+    color: #333; /* Title color */
+  }

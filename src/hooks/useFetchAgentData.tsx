@@ -19,8 +19,9 @@ interface Worker {
 
 const useFetchAgentData = () => {
   const { user, detail } = useAuth(); // Assuming useAuth() hook correctly provides User | null and Detail | null
-  const [agents, setAgents] = useState<Agent[]>([]);
-  const [selectedAgentId, setSelectedAgentId] = useState<string>('');
+  const [agents, setAgents] = useState<{id: string, name: string}[]>([]);
+  const [selectedAgentId, setSelectedAgentId] = useState("");
+  const [selectedAgentName, setSelectedAgentName] = useState("");
   const [workers, setWorkers] = useState<Worker[]>([]);
   const [selectedWorkerId, setSelectedWorkerId] = useState("");
   const [selectedWorkerName, setSelectedWorkerName] = useState("")
@@ -43,6 +44,8 @@ const useFetchAgentData = () => {
           const agent = { id: agentDocSnap.id, name: agentDocSnap.data().name as string };
           setAgents([agent]);
           setSelectedAgentId(agent.id); // Auto-select if only one agent is applicable
+          setSelectedAgentName(agent.name)
+          await fetchWorkersForSelectedAgent(detail.agentId);
         } else {
           console.log("No such Agent!");
         }
@@ -70,8 +73,13 @@ const useFetchAgentData = () => {
   }, [selectedAgentId]);
 
   const handleAgentChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
-    const newSelectedAgentId = event.target.value;
-    setSelectedAgentId(newSelectedAgentId);
+    const { value } = event.target;
+    const selectedAgent = agents.find(agent => agent.id === value);
+  
+    if (selectedAgent) {
+      setSelectedAgentId(selectedAgent.id); // Assuming this state is managed here or passed down from the hook
+      setSelectedAgentName(selectedAgent.name); // Update the state for the selected agent's name
+    }
   };
 
   const handleWorkerChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
@@ -87,6 +95,8 @@ const useFetchAgentData = () => {
   selectedWorkerId,
   handleAgentChange,
   handleWorkerChange,
+  selectedAgentName,
+  selectedWorkerName,
   // Any other states or functions you might be using
 };
 };
