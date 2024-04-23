@@ -209,7 +209,6 @@ const fetchDataForAgent = async (UserAgentId : string) => {
   };
 
  
-//new 6
 
 const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
   event.preventDefault();
@@ -328,7 +327,6 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
 };
 
 
-
   const handleinsPremia: ChangeEventHandler<HTMLInputElement> = (e) => {
     const value = e.target.value; // Use 0 as a fallback if conversion fails
     setinsPremia(value);
@@ -351,42 +349,6 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
   
     setmounth(formattedValue);
   };
-
-
-//useEffect(() => {
- // const fetchProducts = async () => {
- //   try {
- //     console.log("Attempting to fetch products");
-  //    const querySnapshot = await getDocs(collection(db, 'product'));
-  //    const productsList = querySnapshot.docs.map(doc => ({
-  //      id: doc.id,
-  //      name: doc.data().productName,
-  //      productGroup: doc.data().productGroup
- //     }));
- //     setProducts(productsList);
- //     console.log("Products fetched:", productsList);
- //   } catch (error) {
- //     console.error("Failed to fetch products:", error);
- //   }
- // };
-
- // fetchProducts();
-//}, [selectedProduct]);
-
-//interface Product {
- // id: string;
- // name: string;
- // productGroup: string;
-//}
-
-//useEffect(() => {
- // const selectedProd = products.find(product => product.id === selectedProduct);
- // if (selectedProd) {
-//    setSelectedProductGroup(selectedProd.productGroup);
-//  }
-//  console.log("Selected Product Group:", selectedProductGroup);
-
-//}, [selectedProduct, products]); // Ensure this effect runs whenever selectedProduct or products change
 
 
   console.log({ selectedAgentId, selectedWorkerId, firstNameCustomer, lastNameCustomer, IDCustomer, selectedCompany, selectedProduct, mounth });
@@ -543,7 +505,6 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
             <button type="button" disabled={selectedRow === null} onClick={handleDelete} >מחק</button>
             <button type="button" disabled={selectedRow === null} onClick={handleEdit}>עדכן</button>
             <button type="button" onClick={resetForm}>נקה</button>
-
           </div>
         </form>
       </div>

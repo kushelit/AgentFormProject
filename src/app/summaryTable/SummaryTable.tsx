@@ -118,11 +118,11 @@ const SummaryTable = () => {
         initialMonthlyTotals[month].niudPensiaTotal += parseInt(data.pensiaZvira) || 0;
 
         if (contractMatch) {
-          initialMonthlyTotals[month].commissionHekefTotal +=( (parseInt(data.insPremia) || 0) * contractMatch.commissionHekef * 12)
-          +((parseInt(data.pensiaPremia) || 0) * contractMatch.commissionHekef* 12)
-          +((parseInt(data.pensiaZvira) || 0) * contractMatch.commissionNiud)
-          +((parseInt(data.finansimPremia) || 0) * contractMatch.commissionHekef * 12)
-          +((parseInt(data.finansimZvira) || 0) * contractMatch.commissionNiud);
+          initialMonthlyTotals[month].commissionHekefTotal +=( (parseInt(data.insPremia) || 0) * contractMatch.commissionHekef/100 * 12)
+          +((parseInt(data.pensiaPremia) || 0) * contractMatch.commissionHekef/100 * 12)
+          +((parseInt(data.pensiaZvira) || 0) * contractMatch.commissionNiud/100)
+          +((parseInt(data.finansimPremia) || 0) * contractMatch.commissionHekef/100 * 12)
+          +((parseInt(data.finansimZvira) || 0) * contractMatch.commissionNiud/100);
         } else {
           // Try to match based on productGroup
           const groupMatch = contracts.find(contract =>
@@ -130,20 +130,20 @@ const SummaryTable = () => {
             contract.agentId === data.AgentId
           );
           if (groupMatch) {
-            initialMonthlyTotals[month].commissionHekefTotal += ((parseInt(data.insPremia) || 0) * groupMatch.commissionHekef * 12)
-            +((parseInt(data.pensiaPremia) || 0) * groupMatch.commissionHekef * 12)
-            +((parseInt(data.pensiaZvira) || 0) * groupMatch.commissionNiud)
-            +((parseInt(data.finansimPremia) || 0) * groupMatch.commissionHekef *12)
-            +((parseInt(data.finansimZvira) || 0) * groupMatch.commissionNiud);
+            initialMonthlyTotals[month].commissionHekefTotal += ((parseInt(data.insPremia) || 0) * groupMatch.commissionHekef /100 * 12)
+            +((parseInt(data.pensiaPremia) || 0) * groupMatch.commissionHekef /100 * 12)
+            +((parseInt(data.pensiaZvira) || 0) * groupMatch.commissionNiud/100) 
+            +((parseInt(data.finansimPremia) || 0) * groupMatch.commissionHekef/100 *12)
+            +((parseInt(data.finansimZvira) || 0) * groupMatch.commissionNiud/100);
           } else {
             initialMonthlyTotals[month].commissionHekefTotal += 999;
           }
         }
 
         if (contractMatch) {
-          initialMonthlyTotals[month].commissionNifraimTotal +=( (parseInt(data.insPremia) || 0) * contractMatch.commissionNifraim)
-          +((parseInt(data.pensiaPremia) || 0) * contractMatch.commissionNifraim)
-          +((parseInt(data.finansimZvira) || 0) * contractMatch.commissionNifraim / 12);
+          initialMonthlyTotals[month].commissionNifraimTotal +=( (parseInt(data.insPremia) || 0) * contractMatch.commissionNifraim /100)
+          +((parseInt(data.pensiaPremia) || 0) * contractMatch.commissionNifraim /100)
+          +((parseInt(data.finansimZvira) || 0) * contractMatch.commissionNifraim /100/ 12);
         } else {
           // Try to match based on productGroup
           const groupMatch = contracts.find(contract =>
@@ -151,9 +151,9 @@ const SummaryTable = () => {
             contract.agentId === data.AgentId
           );
           if (groupMatch) {
-            initialMonthlyTotals[month].commissionNifraimTotal += ((parseInt(data.insPremia) || 0) * groupMatch.commissionNifraim)
-            +((parseInt(data.pensiaPremia) || 0) * groupMatch.commissionNifraim)
-            +((parseInt(data.finansimZvira) || 0) * groupMatch.commissionNifraim / 12);
+            initialMonthlyTotals[month].commissionNifraimTotal += ((parseInt(data.insPremia) || 0) * groupMatch.commissionNifraim /100)
+            +((parseInt(data.pensiaPremia) || 0) * groupMatch.commissionNifraim /100)
+            +((parseInt(data.finansimZvira) || 0) * groupMatch.commissionNifraim /100 / 12);
           } else {
             initialMonthlyTotals[month].commissionNifraimTotal += 999;
           }

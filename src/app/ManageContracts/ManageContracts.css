@@ -1,23 +1,62 @@
 .frame-container {
-    max-width: 800px;
-    margin: 0 auto;
-    padding: 20px;
-    border: 1px solid #ccc;
-    border-radius: 8px;
-    background-color: #f9f9f9;
-  }
-  
-  .form-group {
-    flex-basis: 45%; /* Adjust width of form groups */
-    margin-bottom: 20px; /* Space between form groups */
-  }
-  
-  .form-group label {
-    display: block; /* Ensures the label is above the input/select */
-    margin-bottom: 5px; /* Spacing between label and input/select */
-  }
-  
-  h2 {
-    text-align: center;
-    color: #333; /* Title color */
-  }
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 20px;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  background-color: #f9f9f9;
+}
+
+.form-group {
+  flex-basis: 45%; /* Adjust width of form groups */
+  margin-bottom: 20px; /* Space between form groups */
+}
+
+.form-group label {
+  display: block; /* Ensures the label is above the input/select */
+  margin-bottom: 5px; /* Spacing between label and input/select */
+}
+
+h2 {
+  text-align: center;
+  color: #333; /* Title color */
+}
+
+.button-group {
+  display: flex;
+  justify-content: space-around; /* Evenly spaces the buttons across the available space */
+  padding: 10px 0; /* Adds padding above and below the button row */
+}
+
+.button-group button {
+  display: flex; /* Each button will take equal width */
+  margin: 0 5px; /* Adds margin between buttons */
+  padding: 5px 10px; /* Padding inside each button */
+  font-size: 14px; /* Smaller font size for text inside the button */
+  cursor: pointer; /* Changes cursor to pointer when hovering over the button */
+  border: 1px solid #ccc; /* Adds a border around the button */
+  background-color: #f9f9f9; /* Light grey background */
+  border-radius: 5px; /* Rounded corners */
+}
+
+.input-with-percentage {
+  display: flex;  /* Aligns children (input and span) in a row */
+  align-items: center;  /* Vertically centers the children */
+}
+button:disabled {
+  color: gray; /* Text color for disabled buttons */
+  cursor: not-allowed; /* Cursor for disabled buttons */
+  /* Additional styles for disabled buttons */
+}
+
+
+button {
+  padding: 0.75em 0.3em;
+  border: 2px solid #f1eded;
+  border-radius: 4px;
+}
+
+button:hover {
+  background-color: var(--hover);
+}
+

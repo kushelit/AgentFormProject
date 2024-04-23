@@ -32,6 +32,9 @@ const useFetchMD = () => {
     }
     
 
+    type ProductGroupMap = {
+      [key: string]: string; // Key is the product group ID, value is the product group name
+  };
         useEffect(() => {
           const fetchCompanies = async () => {
             const querySnapshot = await getDocs(collection(db, 'company'));
@@ -53,17 +56,6 @@ const useFetchMD = () => {
           fetchCommissionTypes();
         }, []);
       
-   
-   //   useEffect(() => {
-    //    const fetchProducts = async () => {
-     //     const querySnapshot = await getDocs(collection(db, 'product'));
-     //     const productsList = querySnapshot.docs.map(doc => doc.data().productName); // Assuming the field name is 'productName'
-      //    setProducts(productsList);
-         
-      //  };
-    
-     //   fetchProducts();
-     // }, []);
   
      useEffect(() => {
       const fetchProductsGroupsFromDB = async () => {
@@ -73,6 +65,24 @@ const useFetchMD = () => {
           name: doc.data().productsGroupName as string // Cast to string if you are sure about the type
         }));
         setProductGroupsDB(groupsList);
+        console.log('the PG is ' + productGroupsDB)
+      };
+    
+      fetchProductsGroupsFromDB();
+    }, []);
+
+
+    const [productGroupMap, setProductGroupMap] = useState<ProductGroupMap>({});
+
+    useEffect(() => {
+      const fetchProductsGroupsFromDB = async () => {
+        const querySnapshot = await getDocs(collection(db, 'productsGroup'));
+        const groupsMap: ProductGroupMap = {}; // Use the defined type here
+        querySnapshot.forEach(doc => {
+          const data = doc.data();
+          groupsMap[doc.id] = data.productsGroupName as string; // Ensure you cast or ensure the type here if necessary
+        });
+        setProductGroupMap(groupsMap);
       };
     
       fetchProductsGroupsFromDB();
@@ -138,7 +148,8 @@ const useFetchMD = () => {
     setSelectedProduct,
     selectedProductGroup,
     setSelectedProductGroup,
-    productGroupsDB
+    productGroupsDB,
+    productGroupMap
   };
   };
   

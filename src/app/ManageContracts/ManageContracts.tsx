@@ -1,10 +1,11 @@
-import { ChangeEventHandler, FormEventHandler, useEffect, useState } from "react";
+import { ChangeEventHandler, FormEventHandler, useEffect, useMemo, useState } from "react";
 import { collection, query, where, getDocs, addDoc, deleteDoc, doc, updateDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase/firebase"; // Ensure this path matches your project structure
 import { useAuth } from '@/lib/firebase/AuthContext';
 import Link from "next/link";
 import useFetchMD from "@/hooks/useMD"; 
 import './ManageContracts.css';
+
 
 
 const ManageContracts: React.FC = () => {
@@ -26,12 +27,12 @@ const ManageContracts: React.FC = () => {
   const [selectedRow, setSelectedRow] = useState<any | null>(null);
   const [hoveredRowId, setHoveredRowId] = useState(null);
 
+  const [isEditing1, setIsEditing1] = useState(false);
+  const [isEditing2, setIsEditing2] = useState(false);
 
-  //const [quantity, setQuantity] = useState('');
+  const [searchQuery, setSearchQuery] = useState("");
+
   //const [date, setDate] = useState('');
-  //const [description, setDescription] = useState('');
-
-
 
   const {
     companies, 
@@ -44,10 +45,8 @@ const ManageContracts: React.FC = () => {
     productGroupsDB, //new
     selectedProductGroup,
     setSelectedProductGroup,
-   // commissionTypes,
-    //setSelectedCommissionTypes,
-    //selectedCommissionTypes
-   
+    productGroupMap,
+  
   } = useFetchMD();
 
   const handlecommissionPercentHekef1: ChangeEventHandler<HTMLInputElement> = (e) => {
@@ -59,8 +58,6 @@ const handlecommissionPercentNifraim1: ChangeEventHandler<HTMLInputElement> = (e
   const value = e.target.value;
   setCommissionPercentNifraim1(value);
 };
-
-
 
 const handlecommissionPercentNiud1: ChangeEventHandler<HTMLInputElement> = (e) => {
   const value = e.target.value;
@@ -77,9 +74,6 @@ const value = e.target.value;
 setCommissionPercentNifraim2(value);
 };
 
-
-
-
 const handlecommissionPercentNiud2: ChangeEventHandler<HTMLInputElement> = (e) => {
   const value = e.target.value;
   setCommissionPercentNiud2(value);
@@ -90,9 +84,10 @@ const resetFormDefault = () => {
   setCommissionPercentHekef1('');
   setCommissionPercentNifraim1('');
   setCommissionPercentNiud1('');
+  setIsEditing1(false);
+  setSelectedRow(null); 
 
 };
-
 
 const resetFormContracts = () => {
   setSelectedCompany('');
@@ -100,8 +95,18 @@ const resetFormContracts = () => {
   setCommissionPercentHekef2('');
   setCommissionPercentNifraim2('');
   setCommissionPercentNiud2('');
+  setIsEditing2(false);
+  setSelectedRow(null); 
 
 };
+
+const canSubmit1 = useMemo(() => (
+  selectedProductGroup.trim() !== '' &&
+  commissionPercentHekef1.trim() !== '' &&
+  commissionPercentNifraim1.trim() !== '' &&
+  commissionPercentNiud1.trim() !== '' 
+), [selectedProductGroup, commissionPercentHekef1, commissionPercentNifraim1, commissionPercentNiud1 
+ ]);
 
 
 
@@ -110,6 +115,18 @@ const resetFormContracts = () => {
     try {
      
         if (!detail || !detail.agentId) return;
+
+        const existingContractQuery = query(collection(db, 'contracts'), 
+        where('AgentId', '==', detail.agentId),
+        where('productsGroup', '==', selectedProductGroup)
+      );
+  
+      const querySnapshot = await getDocs(existingContractQuery);
+      if (!querySnapshot.empty) {
+        console.log('A contract with the same details already exists.');
+        alert('לא ניתן להזין הסכם זהה להסכם קיים'); 
+        return; 
+      }
         console.log("got here");
         const docRef = await addDoc(collection(db, 'contracts'), {
         AgentId: detail.agentId,
@@ -119,13 +136,11 @@ const resetFormContracts = () => {
         commissionHekef:commissionPercentHekef1,
         commissionNifraim:commissionPercentNifraim1,
         commissionNiud:commissionPercentNiud1
-
-      });
-      
+      });      
       console.log('Document written with ID:', docRef.id);
       resetFormDefault(); 
-   //   setIsEditing(false);
    //   if (selectedAgent) {
+    console.log("got here");
     fetchdefaultContracts();
     //  }
     } catch (error) {
@@ -133,11 +148,35 @@ const resetFormContracts = () => {
     }
   };
 
+  const canSubmit2 = useMemo(() => (
+    selectedCompany.trim() !== '' &&
+    selectedProduct.trim() !== '' &&
+    commissionPercentHekef2.trim() !== '' &&
+    commissionPercentNifraim2.trim() !== '' &&
+    commissionPercentNiud2.trim() !== '' 
+  ), [selectedCompany, selectedProduct, commissionPercentHekef2, commissionPercentNifraim2, 
+    commissionPercentNiud2 
+   ]);
+  
+
   const handleSubmitFullValuesCommission = async () => {
     //  event.preventDefault();
       try {
        
           if (!detail || !detail.agentId) return;
+
+       const existingContractQuery = query(collection(db, 'contracts'), 
+      where('AgentId', '==', detail.agentId),
+      where('company', '==', selectedCompany),
+      where('product', '==', selectedProduct)
+    );
+
+    const querySnapshot = await getDocs(existingContractQuery);
+    if (!querySnapshot.empty) {
+      console.log('A contract with the same details already exists.');
+      alert('לא ניתן להזין הסכם זהה להסכם קיים'); 
+      return; 
+    }
           console.log("got here");
           const docRef = await addDoc(collection(db, 'contracts'), {
           AgentId: detail.agentId,
@@ -147,11 +186,8 @@ const resetFormContracts = () => {
           commissionHekef:commissionPercentHekef2,
           commissionNifraim:commissionPercentNifraim2,
           commissionNiud:commissionPercentNiud2
-
-  
-          
-        });
-        
+       
+        });      
         console.log('Document written with ID:', docRef.id);
         resetFormContracts(); 
      //   setIsEditing(false);
@@ -162,16 +198,18 @@ const resetFormContracts = () => {
         console.error('Error adding document:', error);
       }
     };
-  
 
 
     const fetchContracts = async () => {
       if (!detail || !detail.agentId) return;
-      const q = query(
+      let q = query(
         collection(db, 'contracts'), 
         where('AgentId', '==', detail.agentId),
         where('productsGroup', '==', '')  // Adjust if necessary
       );
+      if (selectedCompany.trim() !== '') {
+        q = query(q, where('company', '==', selectedCompany));
+      }
       const querySnapshot = await getDocs(q);
       const data = querySnapshot.docs.map(doc => ({
         id: doc.id, 
@@ -182,7 +220,7 @@ const resetFormContracts = () => {
   
     useEffect(() => {
       fetchContracts();
-    }, [detail]);  // Dependency array
+    }, [detail, selectedCompany]);  // Dependency array
 
 
   const fetchdefaultContracts = async () => {
@@ -190,10 +228,8 @@ const resetFormContracts = () => {
     const diffContractsQuery = query(
         collection(db, 'contracts'),
         where('AgentId', '==', detail.agentId),       
-        where('productsGroup', '!=', '')  // Correct use of '!=' operator
-        
+        where('productsGroup', '!=', '')          
     );
-
     const querySnapshot = await getDocs(diffContractsQuery);
     const contractsList = querySnapshot.docs.map(doc => ({
       id: doc.id, 
@@ -214,6 +250,7 @@ const resetFormContracts = () => {
     setCommissionPercentHekef1(item.commissionHekef);
     setCommissionPercentNifraim1(item.commissionNifraim);
     setCommissionPercentNiud1(item.commissionNiud);
+    setIsEditing1(true);
 
 console.log(item.commissionNifraim + '  ');
 console.log(commissionPercentNifraim1);
@@ -227,6 +264,7 @@ const handleRowClick2 = (item: any) => {
   setCommissionPercentHekef2(item.commissionHekef);
   setCommissionPercentNifraim2(item.commissionNifraim);
   setCommissionPercentNiud2(item.commissionNiud);
+  setIsEditing2(true);
 
 console.log(item.commissionNifraim + '  ');
 console.log(commissionPercentNifraim1);
@@ -238,7 +276,8 @@ console.log(commissionPercentNifraim1);
       await deleteDoc(doc(db, 'contracts', selectedRow.id));
       setSelectedRow(null); // Reset selection
       resetFormDefault();
-      fetchdefaultContracts
+      console.log('defaultContracts' + defaultContracts)
+      fetchdefaultContracts();
     } else {
       console.log("No selected row or row ID is undefined");
 
@@ -248,10 +287,11 @@ console.log(commissionPercentNifraim1);
 
   const handleDelete2 = async () => {
     if (selectedRow && selectedRow.id) {
+      console.log('selected row is ' + selectedRow + selectedRow.id);
       await deleteDoc(doc(db, 'contracts', selectedRow.id));
       setSelectedRow(null); // Reset selection
       resetFormContracts();
-      fetchContracts
+      fetchContracts();
     } else {
       console.log("No selected row or row ID is undefined");
 
@@ -270,10 +310,7 @@ console.log(commissionPercentNifraim1);
         commissionHekef:commissionPercentHekef1,
         commissionNifraim:commissionPercentNifraim1,
         commissionNiud:commissionPercentNiud1
-
-        
-          // Include any additional fields as needed
-        });
+          });
         console.log("Document successfully updated");
         setSelectedRow(null); 
         resetFormDefault();             
@@ -298,9 +335,7 @@ console.log(commissionPercentNifraim1);
         commissionHekef:commissionPercentHekef2,
         commissionNifraim:commissionPercentNifraim2,
         commissionNiud:commissionPercentNiud2
-
         
-          // Include any additional fields as needed
         });
         console.log("Document successfully updated");
         setSelectedRow(null); 
@@ -340,21 +375,27 @@ return (
         </div>
         <div className="form-group" style={{ flexBasis: '22%' }}>
           <label htmlFor="priceInputHekef1">עמלת היקף:</label>
-          <input type="text" id="priceInputHekef1" value={commissionPercentHekef1} onChange={handlecommissionPercentHekef1} style={{ width: '100%' }} />
-        </div>
+         <div className="input-with-percentage">
+          <input  type="text" id="priceInputHekef1" value={commissionPercentHekef1} onChange={handlecommissionPercentHekef1} style={{ width: '100%' }} />
+          <span>%</span>       
+          </div>  
+          </div>
         <div className="form-group" style={{ flexBasis: '22%' }}>
           <label htmlFor="priceInputNifraim1">עמלת נפרעים:</label>
+          <div className="input-with-percentage">
           <input type="text" id="priceInputNifraim1" value={commissionPercentNifraim1} onChange={handlecommissionPercentNifraim1} style={{ width: '100%' }} />
+          <span>%</span>       
+          </div>  
         </div>
         <div className="form-group" style={{ flexBasis: '22%' }}>
           <label htmlFor="priceInputNifraim1">עמלת ניוד :</label>
+          <div className="input-with-percentage">
           <input type="text" id="priceInputNiud1" value={commissionPercentNiud1} onChange={handlecommissionPercentNiud1} style={{ width: '100%' }} />
+          <span>%</span>       
+          </div>  
         </div>
-        <div className="form-group" style={{ flexBasis: '22%' }}>
-          <button type="button" onClick={handleSubmitDiffultValue} style={{ width: '100%', padding: '10px' }}>
-            הזן
-          </button>
-
+        <div className="-form-group button-group" >
+         <button type="button" onClick={handleSubmitDiffultValue} disabled={!canSubmit1 || isEditing1}>הזן</button>      
           <button type="button" disabled={selectedRow === null} onClick={handleDelete1} >מחק</button>
             <button type="button" disabled={selectedRow === null} onClick={handleEdit1}>עדכן</button>
             <button type="button" onClick={resetFormDefault}>נקה</button>
@@ -381,7 +422,7 @@ return (
                   onMouseEnter={() => setHoveredRowId(item.id)}
                   onMouseLeave={() => setHoveredRowId(null)}
                   className={`${selectedRow && selectedRow.id === item.id ? 'selected-row' : ''} ${hoveredRowId === item.id ? 'hovered-row' : ''}`}>
-                    <td>{item.productsGroup}</td>
+                    <td>{productGroupMap[item.productsGroup]}</td> {/* Use the map for fast lookup */}
                     <td>{item.commissionHekef}</td>
                     <td>{item.commissionNifraim}</td>
                     <td>{item.commissionNiud}</td>
@@ -432,21 +473,28 @@ return (
         </div>     
         <div className="form-group" style={{ flexBasis: '22%' }}>
           <label htmlFor="priceInputHekef2">עמלת היקף:</label>
+          <div className="input-with-percentage">
           <input type="text" id="priceInputHekef2" value={commissionPercentHekef2} onChange={handlecommissionPercentHekef2} style={{ width: '100%' }} />
+          <span>%</span>       
+          </div>  
         </div>
         <div className="form-group" style={{ flexBasis: '22%' }}>
           <label htmlFor="priceInputNifraim2">עמלת נפרעים:</label>
+          <div className="input-with-percentage">
           <input type="text" id="priceInputNifraim2" value={commissionPercentNifraim2} onChange={handlecommissionPercentNifraim2} style={{ width: '100%' }} />
+          <span>%</span>       
+          </div>  
         </div>
         <div className="form-group" style={{ flexBasis: '22%' }}>
           <label htmlFor="priceInputNiud2">עמלת ניוד:</label>
+          <div className="input-with-percentage">
           <input type="text" id="priceInputNiud2" value={commissionPercentNiud2} onChange={handlecommissionPercentNiud2} style={{ width: '100%' }} />
+          <span>%</span>       
+          </div>  
         </div>
-        <div className="form-group" style={{ flexBasis: '22%' }}>
-          <button type="button" onClick={handleSubmitFullValuesCommission} style={{ width: '100%', padding: '10px' }}>
-            הזן
-          </button>
-
+        
+        <div className="-form-group button-group" >
+          <button type="button" onClick={handleSubmitFullValuesCommission} disabled={!canSubmit2 || isEditing2 }>הזן </button>
           <button type="button" disabled={selectedRow === null} onClick={handleDelete2} >מחק</button>
           <button type="button" disabled={selectedRow === null} onClick={handleEdit2}>עדכן</button>
           <button type="button" onClick={resetFormContracts}>נקה</button>
@@ -495,4 +543,3 @@ return (
   </div>
 );};
 export default ManageContracts;
-
