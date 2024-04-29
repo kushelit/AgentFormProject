@@ -9,11 +9,11 @@ const config = {
   theme: {
     extend: {
       colors: {
-        'custom-blue': '#002A5C',
-        'custom-white': '#dee2e2', 
+        'custom-blue': '#0b2A5C',
+        'custom-white': '#ffffff', 
         'custom-green': '#90de3d',
-        'custom-light-blue':'005084',
-        'custom-grey':'#C6CFD4'
+        'custom-light-blue':'#236192',
+        'custom-grey':'#9ea2a2'
       },
       backgroundImage: {
         'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',

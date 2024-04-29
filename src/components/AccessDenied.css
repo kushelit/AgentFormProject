@@ -1,11 +1,29 @@
 .access-denied {
-    padding: 20px;
-    margin-top: 50px;
+    font-size: 12px;
+    height: auto;
+    box-sizing: border-box;
+    border-radius: 4px;
+    display: flex; 
+    flex-direction: row;
+    align-items: center;
     text-align: center;
-    background-color: #ffcccc; /* Light red background */
-    border: 1px solid red;
-    color: red;
+    justify-content: center;
+    color: #dee2e2;
+    background-color: #002A5C;
+    border: 2px solid #90de3d; /* Confirm color, previously mentioned as red */
+    padding: 2rem;
     width: 80%;
-    margin-left: auto;
-    margin-right: auto;
-}
+    max-width: 500px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  }
+
+
+.form-auth {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    padding-top: 6rem;
+    direction: rtl;
+    background-color: #C6CFD4;
+  }

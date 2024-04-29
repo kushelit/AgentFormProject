@@ -28,7 +28,7 @@ export default function RootLayout({
           <div className="flex flex-col min-h-screen"> {/* Vertical stacking for overall layout */}
             <Header /> {/* Header at the top */}
             <div className="flex flex-row flex-grow"> {/* Sidebar and main content side by side */}
-              <div className="flex-grow" style={{ paddingRight: '100px' }}> {/* Adapt this if sidebar width changes */}
+              <div className="flex-grow" style={{ paddingRight: '100px', backgroundColor: '#C6CFD4'  }}> {/* Adapt this if sidebar width changes */}
                 {children} {/* Main content goes here */}
               </div>
               <Sidebar /> {/* Ensure Sidebar is styled or has classes to appear correctly */}

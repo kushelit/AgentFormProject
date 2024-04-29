@@ -41,7 +41,6 @@ const useFetchMD = () => {
             const companiesList = querySnapshot.docs.map(doc => doc.data().companyName);
             setCompanies(companiesList);
           };
-      
           fetchCompanies();
         }, []);
       

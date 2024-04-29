@@ -7,12 +7,10 @@ import useFetchMD from "@/hooks/useMD";
 import './ManageContracts.css';
 
 
-
-const ManageContracts: React.FC = () => {
+  const ManageContracts: React.FC = () => {
   const { user, detail } = useAuth();
   const [defaultContracts, setDefaultContracts] = useState<any[]>([]);
   const [contracts, setContracts] = useState<any[]>([]);
-
 
   const [commissionPercentHekef1, setCommissionPercentHekef1] = useState('');
   const [commissionPercentNifraim1, setCommissionPercentNifraim1] = useState('');
@@ -355,57 +353,12 @@ console.log(commissionPercentNifraim1);
 return (
   <div>
     {/* First Frame */}
-    <div className="frame-container" style={{ maxWidth: '800px', margin: '0 auto', padding: '20px', border: '1px solid #ccc', borderRadius: '8px', backgroundColor: '#f9f9f9', marginTop: '50px' }}>
-      <h2 style={{ textAlign: 'center' }}>עמלות ברירת מחדל</h2>
-      <div style={{ paddingTop: '2rem', display: 'flex', justifyContent: 'space-around', flexWrap: 'wrap' }}>
-        <div className="form-group" style={{ flexBasis: '22%' }}>
-          <label htmlFor="productGroupSelect1">קבוצת מוצר:</label>
-          <select
-            id="productGroupSelect1"
-            value={selectedProductGroup}
-            onChange={(e) => setSelectedProductGroup(e.target.value)}
-            style={{ width: '100%' }}
-          >
-            <option value="">בחר קבוצת מוצר</option>
-            {productGroupsDB.map((group) => (
-              <option key={group.id} value={group.id}>
-                    {group.name}
-                 </option>            ))}
-          </select>
-        </div>
-        <div className="form-group" style={{ flexBasis: '22%' }}>
-          <label htmlFor="priceInputHekef1">עמלת היקף:</label>
-         <div className="input-with-percentage">
-          <input  type="text" id="priceInputHekef1" value={commissionPercentHekef1} onChange={handlecommissionPercentHekef1} style={{ width: '100%' }} />
-          <span>%</span>       
-          </div>  
-          </div>
-        <div className="form-group" style={{ flexBasis: '22%' }}>
-          <label htmlFor="priceInputNifraim1">עמלת נפרעים:</label>
-          <div className="input-with-percentage">
-          <input type="text" id="priceInputNifraim1" value={commissionPercentNifraim1} onChange={handlecommissionPercentNifraim1} style={{ width: '100%' }} />
-          <span>%</span>       
-          </div>  
-        </div>
-        <div className="form-group" style={{ flexBasis: '22%' }}>
-          <label htmlFor="priceInputNifraim1">עמלת ניוד :</label>
-          <div className="input-with-percentage">
-          <input type="text" id="priceInputNiud1" value={commissionPercentNiud1} onChange={handlecommissionPercentNiud1} style={{ width: '100%' }} />
-          <span>%</span>       
-          </div>  
-        </div>
-        <div className="-form-group button-group" >
-         <button type="button" onClick={handleSubmitDiffultValue} disabled={!canSubmit1 || isEditing1}>הזן</button>      
-          <button type="button" disabled={selectedRow === null} onClick={handleDelete1} >מחק</button>
-            <button type="button" disabled={selectedRow === null} onClick={handleEdit1}>עדכן</button>
-            <button type="button" onClick={resetFormDefault}>נקה</button>
-
-        </div>
-      </div>
-      <div style={{ marginTop: '20px' }}>
+    <div className="frame-container bg-custom-white " style={{ maxWidth: '1000px', margin: '0 auto', padding: '10px 20px 20px 20px', border: '1px solid #ccc', borderRadius: '8px', marginTop: '80px' }}>
+      <h2 style={{ textAlign: 'center' , marginBottom: '10px', fontSize:'12px' }}>עמלות ברירת מחדל</h2>    
+      <div style={{ marginTop: '20px', width: '90%', margin: '0 auto', overflowX: 'auto' }}>
         {defaultContracts.length > 0 ? (
-          <div className="table-container" style={{ overflowX: 'auto', maxHeight: '300px' }}>
-            <table>
+          <div className="table-container" style={{ width: '100%' }}>
+            <table style={{ width: '100%'  }}>
               <thead>
                 <tr>
                   <th>קבוצת מוצרים</th>
@@ -429,6 +382,30 @@ return (
 
                   </tr>
                 ))}
+                 <tr>
+        <td>
+          <select
+            id="productGroupSelect1"
+            value={selectedProductGroup}
+            onChange={(e) => setSelectedProductGroup(e.target.value)}
+            style={{ width: '100%' }}>
+            <option value="">בחר קבוצת מוצר</option>
+            {productGroupsDB.map((group) => (
+              <option key={group.id} value={group.id}>{group.name}</option>
+            ))}
+          </select>
+        </td>
+        <td>
+          <input type="text" id="priceInputHekef1" value={commissionPercentHekef1} onChange={handlecommissionPercentHekef1} style={{ width: '100%' }} />
+        </td>
+        <td>
+          <input type="text" id="priceInputNifraim1" value={commissionPercentNifraim1} onChange={handlecommissionPercentNifraim1} style={{ width: '100%' }} />
+        </td>
+        <td>
+          <input type="text" id="priceInputNiud1" value={commissionPercentNiud1} onChange={handlecommissionPercentNiud1} style={{ width: '100%' }} />
+        </td>
+      </tr>
+  
               </tbody>
             </table>
           </div>
@@ -436,76 +413,26 @@ return (
           <p>No data available for the selected agent.</p>
         )}
       </div>
-    </div>
-
-    {/* Second Frame */}
-    <div className="frame-container" style={{ maxWidth: '800px', margin: '0 auto', padding: '20px', border: '1px solid #ccc', borderRadius: '8px', backgroundColor: '#f9f9f9', marginTop: '50px' }}>
-      <h2 style={{ textAlign: 'center' }}>עמלות  למוצר</h2>
-      <div style={{ paddingTop: '2rem', display: 'flex', justifyContent: 'space-around', flexWrap: 'wrap' }}>
-              
-<div className="form-group" style={{ flexBasis: '22%' }}>
-<label htmlFor="companySelect">חברה:</label>
-<select
-  id="companySelect"
-  value={selectedCompany}
-  onChange={(e) => setSelectedCompany(e.target.value)}
-  style={{ width: '100%' }}
->
-  <option value="">בחר חברה</option>
-  {companies.map((companyName, index) => (
-    <option key={index} value={companyName}>{companyName}</option>
-  ))}
-</select>
-</div>        
-   <div className="form-group" style={{ flexBasis: '22%' }}>
-          <label htmlFor="productSelect2">מוצר:</label>
-          <select
-            id="productSelect2"
-            value={selectedProduct}
-            onChange={(e) => setSelectedProduct(e.target.value)}
-            style={{ width: '100%' }}
-          >
-            <option value="">בחר מוצר</option>
-            {products.map((product) => (
-         <option key={product.id} value={product.name}>{product.name}</option>
-         ))}
-          </select>
-        </div>     
-        <div className="form-group" style={{ flexBasis: '22%' }}>
-          <label htmlFor="priceInputHekef2">עמלת היקף:</label>
-          <div className="input-with-percentage">
-          <input type="text" id="priceInputHekef2" value={commissionPercentHekef2} onChange={handlecommissionPercentHekef2} style={{ width: '100%' }} />
-          <span>%</span>       
-          </div>  
-        </div>
-        <div className="form-group" style={{ flexBasis: '22%' }}>
-          <label htmlFor="priceInputNifraim2">עמלת נפרעים:</label>
-          <div className="input-with-percentage">
-          <input type="text" id="priceInputNifraim2" value={commissionPercentNifraim2} onChange={handlecommissionPercentNifraim2} style={{ width: '100%' }} />
-          <span>%</span>       
-          </div>  
-        </div>
-        <div className="form-group" style={{ flexBasis: '22%' }}>
-          <label htmlFor="priceInputNiud2">עמלת ניוד:</label>
-          <div className="input-with-percentage">
-          <input type="text" id="priceInputNiud2" value={commissionPercentNiud2} onChange={handlecommissionPercentNiud2} style={{ width: '100%' }} />
-          <span>%</span>       
-          </div>  
-        </div>
-        
-        <div className="-form-group button-group" >
-          <button type="button" onClick={handleSubmitFullValuesCommission} disabled={!canSubmit2 || isEditing2 }>הזן </button>
-          <button type="button" disabled={selectedRow === null} onClick={handleDelete2} >מחק</button>
-          <button type="button" disabled={selectedRow === null} onClick={handleEdit2}>עדכן</button>
-          <button type="button" onClick={resetFormContracts}>נקה</button>
-
+      <div className="form-group button-group" >
+         <button type="button" onClick={handleSubmitDiffultValue} disabled={!canSubmit1 || isEditing1}>הזן</button>      
+          <button type="button" disabled={selectedRow === null} onClick={handleDelete1} >מחק</button>
+          <button type="button" disabled={selectedRow === null} onClick={handleEdit1}>עדכן</button>
+          <button type="button" onClick={resetFormDefault}>נקה</button>
         </div>
       </div>
-      <div style={{ marginTop: '20px' }}>
-        {contracts.length > 0 ? (
+
+       
+
+    {/* Second Frame */}
+
+    <div className="frame-container" style={{ maxWidth: '1000px', margin: '0 auto', padding: '20px', border: '1px solid #ccc', borderRadius: '8px', backgroundColor: '#f9f9f9', marginTop: '20px' }}>
+      <h2 style={{ textAlign: 'center' , marginBottom: '10px' , fontSize:'12px' }}>עמלות  למוצר</h2>
+      <div style={{ marginTop: '20px', width: '90%', margin: '0 auto', overflowX: 'auto' }}>
+      {contracts.length > 0 ? (
           <div className="table-container" style={{ overflowX: 'auto', maxHeight: '300px' }}>
             <table>
               <thead>
+                
                 <tr>
                   <th>חברה </th>
                   <th>מוצר </th>
@@ -515,6 +442,43 @@ return (
                 </tr>
               </thead>
               <tbody>
+
+              <tr className="hover:bg-custom-light-blue">
+        <td>
+          <select
+            id="companySelect"
+            value={selectedCompany}
+            onChange={(e) => setSelectedCompany(e.target.value)}
+            style={{ width: '100%' }}>
+            <option value="">בחר חברה</option>
+            {companies.map((companyName, index) => (
+    <option key={index} value={companyName}>{companyName}</option>
+    ))}
+          </select>
+        </td>
+        <td>
+          <select
+            id="productSelect2"
+            value={selectedProduct}
+            onChange={(e) => setSelectedProduct(e.target.value)}
+            style={{ width: '100%' }}>
+            <option value="">בחר מוצר</option>
+            {products.map((product) => (
+         <option key={product.id} value={product.name}>{product.name}</option>
+    ))}
+          </select>
+        </td>
+        <td>
+          <input type="text" id="priceInputHekef2" value={commissionPercentHekef2} onChange={handlecommissionPercentHekef2} style={{ width: '100%' }} />
+        </td>
+        <td>
+          <input type="text" id="priceInputNifraim2" value={commissionPercentNifraim2} onChange={handlecommissionPercentNifraim2} style={{ width: '100%' }} />
+        </td>
+        <td>
+          <input type="text" id="priceInputNiud2" value={commissionPercentNiud2} onChange={handlecommissionPercentNiud2} style={{ width: '100%' }} />
+        </td>
+      </tr>
+  
                 {contracts.map((item) => (
                   <tr key={item.id}
 
@@ -522,7 +486,6 @@ return (
                   onMouseEnter={() => setHoveredRowId(item.id)}
                   onMouseLeave={() => setHoveredRowId(null)}
                   className={`${selectedRow && selectedRow.id === item.id ? 'selected-row' : ''} ${hoveredRowId === item.id ? 'hovered-row' : ''}`}>
-
 
                     <td>{item.company}</td>
                     <td>{item.product}</td>
@@ -539,7 +502,19 @@ return (
           <p>No data available for the selected agent.</p>
         )}
       </div>
-    </div>
-  </div>
+      <div className="form-group button-group" >
+          <button type="button" onClick={handleSubmitFullValuesCommission} disabled={!canSubmit2 || isEditing2 }>הזן </button>
+          <button type="button" disabled={selectedRow === null} onClick={handleDelete2} >מחק</button>
+          <button type="button" disabled={selectedRow === null} onClick={handleEdit2}>עדכן</button>
+          <button type="button" onClick={resetFormContracts}>נקה</button>
+
+        </div>
+      </div>
+
+        
+       
+      </div>
+      
+  
 );};
 export default ManageContracts;

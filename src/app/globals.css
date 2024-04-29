@@ -3,18 +3,19 @@
 @tailwind utilities;
 
 :root {
-    --hover: hsl(200 70% 90%);
+    --hover:theme('colors.custom-light-blue');
 }
 
 table {
     width: 5rem;
     border-collapse: collapse;
+    border: 2px solid theme('colors.custom-light-blue');
 }
 
 thead {
     position: sticky;
     top: 0;
-    background-color: #fff;
+    background-color: #ffffff;
 }
 
 th,
@@ -22,21 +23,38 @@ td {
     padding: 8px;
     text-align: center;
     border-bottom: 1px solid hsl(0 0% 80%);
+    background-color: #ffffff;
 }
 
-tbody tr:nth-child(odd) {
-    background-color: hsl(0 0% 96%);
-}
 
-tbody > tr:hover {
+tbody> tr:hover
+ {
     background-color: var(--hover);
+
 }
+
 
 button {
     padding: 0.75em 0.3em;
-    border: 2px solid #f1eded;
     border-radius: 4px;
+    border: 2px solid theme('colors.custom-green');
+    color: theme('colors.custom-green');
 }
+
+
+
+button {
+    background-color:theme('colors.custom-blue') !important; /* Assuming #0b2340 is the value of 'custom-blue' */
+}
+
+button:disabled {
+    padding: 0.75em 0.3em;
+    border-radius: 4px;
+    border: 2px solid theme('colors.custom-green');
+    background-color: theme('colors.custom-light-blue');
+    color: theme('colors.custom-green');
+}
+
 
 button:hover {
     background-color: var(--hover);
