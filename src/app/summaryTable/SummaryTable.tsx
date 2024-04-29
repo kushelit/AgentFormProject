@@ -136,7 +136,7 @@ const SummaryTable = () => {
             +((parseInt(data.finansimPremia) || 0) * groupMatch.commissionHekef/100 *12)
             +((parseInt(data.finansimZvira) || 0) * groupMatch.commissionNiud/100);
           } else {
-            initialMonthlyTotals[month].commissionHekefTotal += 999;
+            initialMonthlyTotals[month].commissionHekefTotal += 0;
           }
         }
 
@@ -155,7 +155,7 @@ const SummaryTable = () => {
             +((parseInt(data.pensiaPremia) || 0) * groupMatch.commissionNifraim /100)
             +((parseInt(data.finansimZvira) || 0) * groupMatch.commissionNifraim /100 / 12);
           } else {
-            initialMonthlyTotals[month].commissionNifraimTotal += 999;
+            initialMonthlyTotals[month].commissionNifraimTotal += 0;
           }
         }
 

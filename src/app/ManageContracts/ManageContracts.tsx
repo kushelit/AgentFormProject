@@ -356,7 +356,7 @@ return (
     <div className="frame-container bg-custom-white " style={{ maxWidth: '1000px', margin: '0 auto', padding: '10px 20px 20px 20px', border: '1px solid #ccc', borderRadius: '8px', marginTop: '80px' }}>
       <h2 style={{ textAlign: 'center' , marginBottom: '10px', fontSize:'12px' }}>עמלות ברירת מחדל</h2>    
       <div style={{ marginTop: '20px', width: '90%', margin: '0 auto', overflowX: 'auto' }}>
-        {defaultContracts.length > 0 ? (
+      {/*   {defaultContracts.length > 0 ? ( */}
           <div className="table-container" style={{ width: '100%' }}>
             <table style={{ width: '100%'  }}>
               <thead>
@@ -409,9 +409,11 @@ return (
               </tbody>
             </table>
           </div>
-        ) : (
+     {/*    ) : (
           <p>No data available for the selected agent.</p>
-        )}
+        )
+        
+    }*/}
       </div>
       <div className="form-group button-group" >
          <button type="button" onClick={handleSubmitDiffultValue} disabled={!canSubmit1 || isEditing1}>הזן</button>      
@@ -428,7 +430,8 @@ return (
     <div className="frame-container" style={{ maxWidth: '1000px', margin: '0 auto', padding: '20px', border: '1px solid #ccc', borderRadius: '8px', backgroundColor: '#f9f9f9', marginTop: '20px' }}>
       <h2 style={{ textAlign: 'center' , marginBottom: '10px' , fontSize:'12px' }}>עמלות  למוצר</h2>
       <div style={{ marginTop: '20px', width: '90%', margin: '0 auto', overflowX: 'auto' }}>
-      {contracts.length > 0 ? (
+      {/* {contracts.length > 0 ? (*/}
+      
           <div className="table-container" style={{ overflowX: 'auto', maxHeight: '300px' }}>
             <table>
               <thead>
@@ -498,9 +501,11 @@ return (
               </tbody>
             </table>
           </div>
-        ) : (
+           {/*    ) : (
           <p>No data available for the selected agent.</p>
-        )}
+        )
+        
+    }*/}
       </div>
       <div className="form-group button-group" >
           <button type="button" onClick={handleSubmitFullValuesCommission} disabled={!canSubmit2 || isEditing2 }>הזן </button>
