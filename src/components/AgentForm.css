@@ -15,20 +15,24 @@
   font-size: 12px;
   position: relative;
   z-index: 8;
-  padding-top: 4rem;
+  padding-top: 5rem;
 }
+
 
 
 .table-container {
   max-height: 300px; /* Adjust based on your preference */
   overflow-y: auto;
   border: 1px solid #ccc;
+  margin-bottom:6px;
+  
 
 }
 
 table {
   width: 100%;
   border-collapse: collapse;
+
 }
 
 
@@ -90,18 +94,7 @@ label {
 }
 
 
-input,
-select {
-  max-width: 150px;
-  flex-grow: 1; /* Allows input/select to take up the remaining space */
-  flex-basis: 70%;
-  padding: 2px;
-  height: 30px; /* Explicitly sets the height; adjust as needed */
-  box-sizing: border-box;
-  border: 1px solid #ccc !important;
-  border-radius: 4px  !important;
-  font-size: 12px;
-}
+
 .selected-row {
   background-color: hsl(200 70% 90%);
   /* Light blue, for example */
@@ -113,3 +106,51 @@ button:disabled {
   /* Additional styles for disabled buttons */
 }
 
+.button-group {
+  display: flex;
+  justify-content: center; /* Centers buttons horizontally */
+  align-items: center; /* Aligns buttons vertically */
+  padding: 10px 0; /* Padding above and below the button row */
+}
+
+.button-group button {
+  display: flex;
+  justify-content: center; /* Centers text horizontally */
+  align-items: center; /* Centers text vertically */
+  margin: 0 5px; /* Spacing between buttons */
+  font-size: 12px; /* Text size within the button */
+  cursor: pointer; /* Indicates the button is clickable */
+  padding: 0.75em 1em; /* Vertical and horizontal padding */
+  border-radius: 4px; /* Rounded corners for the button */
+  min-width: 50px; /* Minimum width to ensure buttons don't become too small */
+  height: 30px; /* Fixed height for uniform appearance */
+}
+
+
+.form-container input,
+ .form-container select {
+  width: 100%; /* Reduce width to make inputs/selects shorter */
+  padding: 0.25em 0.5em; /* Adjust padding as needed */
+  font-size: 12px; /* Maintain the font size or adjust as necessary */
+  margin: auto; /* Center the inputs/selects within the cell */
+  display: block; /* Ensures the input/select fills the width defined */
+  text-align: center; /* Center text inside the inputs/selects */
+  height:30px; /* Adjust height to better fit in the table row, can adjust as needed */
+}
+
+input[type="checkbox"] {
+  width: 20px; /* Width of the checkbox */
+  height: 20px; /* Height of the checkbox */
+  cursor: pointer; /* Changes cursor to pointer when hovering over the checkbox */
+}
+
+
+th, td {
+  padding: 2px 8px; /* Reduces padding inside cells */
+  line-height: 1.2; /* Tighter line height for text */
+  border: 1px solid #ccc; /* Adds a border for clarity */
+}
+
+tr {
+  height: auto; /* Allows row height to adjust based on content and padding */
+}

@@ -12,6 +12,7 @@ h2 {
   align-items: center; /* Aligns buttons vertically */
   padding: 10px 0; /* Padding above and below the button row */
 }
+
 .button-group button {
   display: flex;
   justify-content: center; /* Centers text horizontally */
@@ -73,7 +74,7 @@ button:hover {
 }
 
 .table-container th, .table-container td {
-  padding: 8px; /* Reduces padding inside each cell */
+  padding: 3px; /* Reduces padding inside each cell */
   text-align: center; /* Aligns text to the left; adjust as needed */
   border-bottom: 1px solid #ccc; /* Adds a subtle line between rows */
 }
@@ -86,6 +87,3 @@ button:hover {
   overflow-x: auto; /* Allows scrolling on x-axis if the table is too wide */
 }
 
-.table-container tr:hover {
-  background-color: #236192; /* Directly using a hex color to test */
-}

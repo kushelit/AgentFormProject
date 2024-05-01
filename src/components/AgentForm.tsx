@@ -356,149 +356,159 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
     <div className="content-container">
       <div className="form-container">
         <form onSubmit={handleSubmit}>
-          <div>
-           
+      <table>
+        <div className="scrollable-tbody">
+          <tbody>
+          <tr>
+                    <td>
+                        <label htmlFor="agentSelect">סוכנות</label>
+                    </td>
+                    <td>
+                        <select onChange={handleAgentChange} value={selectedAgentId}>
+                            {detail?.role === 'admin' && <option value="">בחר סוכן</option>}
+                            {agents.map(agent => (
+                                <option key={agent.id} value={agent.id}>{agent.name}</option>
+                            ))}
+                        </select>
+                    </td>
+                </tr>
+                <tr>
+                    <td>
+                        <label htmlFor="workerSelect">עובד</label>
+                    </td>
+                    <td>
+                        <select id="workerSelect" value={selectedWorkerId} onChange={handleWorkerChange}>
+                            <option value="">בחר עובד</option>
+                            {workers.map(worker => (
+                                <option key={worker.id} value={worker.id}>{worker.name}</option>
+                            ))}
+                        </select>
+                    </td>
+                </tr>
+                <tr>
+                    <td>
+                        <label>שם פרטי</label>
+                    </td>
+                    <td>
+                        <input type="text" value={firstNameCustomer} onChange={handleFirstNameChange} title="הזן אותיות בלבד" />
+                    </td>
+                </tr>
+                <tr>
+                    <td>
+                        <label>שם משפחה</label>
+                    </td>
+                    <td>
+                        <input type="text" value={lastNameCustomer} onChange={handleLastNameChange} title="הזן אותיות בלבד" />
+                    </td>
+                </tr>
+                <tr>
+                    <td>
+                        <label htmlFor="IDCustomer">תז</label>
+                    </td>
+                    <td>
+                        <input type="text" inputMode="numeric" maxLength={9} value={IDCustomer} onChange={handleIDChange} />
+                    </td>
+                </tr>
+                <tr>
+                    <td>
+                        <label htmlFor="companySelect">חברה</label>
+                    </td>
+                    <td>
+                        <select id="companySelect" value={selectedCompany} onChange={(e) => setSelectedCompany(e.target.value)}>
+                            <option value="">בחר חברה</option>
+                            {companies.map((companyName, index) => (
+                                <option key={index} value={companyName}>{companyName}</option>
+                            ))}
+                        </select>
+                    </td>
+                </tr>
+                <tr>
+                    <td>
+                        <label htmlFor="productSelect">מוצר</label>
+                    </td>
+                    <td>
+                        <select id="productSelect" value={selectedProduct} onChange={(e) => setSelectedProduct(e.target.value)}>
+                            <option value="">בחר מוצר</option>
+                            {products.map(product => (
+                                <option key={product.id} value={product.name}>{product.name}</option>
+                            ))}
+                        </select>
+                    </td>
+                </tr>
+                <tr>
+                    <td>
+                        <label htmlFor="insPremia">פרמיה ביטוח</label>
+                    </td>
+                    <td>
+                        <input type="text" value={insPremia} onChange={handleinsPremia} disabled={selectedProductGroup === '1' || selectedProductGroup === '4'} />
+                    </td>
+                </tr>
+                <tr>
+                    <td>
+                        <label htmlFor="pensiaPremia">פרמיה פנסיה</label>
+                    </td>
+                    <td>
+                        <input type="text" value={pensiaPremia} onChange={handlepensiaPremia} disabled={selectedProductGroup === '3' || selectedProductGroup === '4'} />
+                    </td>
+                </tr>
+                <tr>
+                    <td>
+                        <label htmlFor="pensiaZvira">צבירה פנסיה</label>
+                    </td>
+                    <td>
+                        <input type="text" value={pensiaZvira} onChange={handlePensiaZvira} disabled={selectedProductGroup === '3' || selectedProductGroup === '4'} />
+                    </td>
+                </tr>
+                <tr>
+                    <td>
+                        <label htmlFor="finansimPremia">פרמיה פיננסים</label>
+                    </td>
+                    <td>
+                        <input type="text" value={finansimPremia} onChange={handleFinansimPremia} disabled={selectedProductGroup === '1' || selectedProductGroup === '3'} />
+                    </td>
+                </tr>
+                <tr>
+                    <td>
+                        <label htmlFor="finansimZvira">צבירה פיננסים</label>
+                    </td>
+                    <td>
+                        <input type="text" value={finansimZvira} onChange={handleFinansimZviraChange} disabled={selectedProductGroup === '1' || selectedProductGroup === '3'} />
+                    </td>
+                </tr>
+                <tr>
+                    <td>
+                        <label htmlFor="expiryDate">תאריך תפוקה (MM/YY)</label>
+                    </td>
+                    <td>
+                        <input type="text" id="expiryDate" name="expiryDate" placeholder="MM/YY" maxLength={5} value={mounth} onChange={handleExpiryDateChange} />
+                    </td>
+                </tr>
+                <tr>
+                    <td>
+                        <label htmlFor="statusPolicySelect">סטאטוס פוליסה</label>
+                    </td>
+                    <td>
+                        <select id="statusPolicySelect" value={selectedStatusPolicy} onChange={(e) => setSelectedStatusPolicy(e.target.value)}>
+                            <option value="">בחר סטאטוס פוליסה</option>
+                            {statusPolicies.map((status, index) => (
+                                <option key={index} value={status}>{status}</option>
+                            ))}
+                        </select>
+                    </td>
+                </tr>
+                <tr>
+                    <td>
+                        <label htmlFor="minuySochen" className="checkbox-label">מינוי סוכן</label>
+                    </td>
+                    <td>
+                        <input type="checkbox" id="minuySochen" name="minuySochen" checked={minuySochen} onChange={(e) => setMinuySochen(e.target.checked)} />
+                    </td>
+                </tr>
+            {/** Multiple rows, each with a label and corresponding input/select **/}
+          </tbody>
           </div>
-          <div className="form-group">
-          <label htmlFor="agentSelect">המערכת של סוכנות:  </label>
-          <select onChange={handleAgentChange} value={selectedAgentId}>
-          {detail?.role === 'admin' && <option value="">בחר סוכן</option>}
-
-  {agents.map((agent) => (
-    <option key={agent.id} value={agent.id}>{agent.name}</option>
-  ))}
-</select>
-          </div>
-          <div className="form-group">
-          <label htmlFor="workerSelect">בחר עובד</label>
-    <select id="workerSelect" value={selectedWorkerId} onChange={handleWorkerChange}>
-      <option value="">בחר עובד</option>
-      {workers.map((worker) => (
-        <option key={worker.id} value={worker.id}>{worker.name}</option>
-      ))}
-    </select>
-          </div>
-          <div className="form-group">
-            <label>שם פרטי : </label>
-            <input
-              type="text"
-              value={firstNameCustomer}
-              onChange={handleFirstNameChange} // Fixed the typo here
-              title="הזן אותיות בלבד"
-            />
-          </div>
-          <div className="form-group">
-            <label>
-              שם משפחה :</label>
-            <input type="text"
-              value={lastNameCustomer}
-              onChange={handleLastNameChange}
-              title="הזן אותיות בלבד" />
-          </div>
-          <div className="form-group">
-            <label htmlFor="IDCustomer">
-              תז :</label>
-              <input
-                type="text"
-                inputMode="numeric" // Suggests a numeric keyboard on mobile devices
-                maxLength={9} // Limits input length to 9 characters
-                value={IDCustomer}
-                onChange={handleIDChange}
-              />
-            
-          </div>
-          <div className="form-group">
-            <label htmlFor="companySelect">חברה:</label>
-            <select
-              id="companySelect"
-              value={selectedCompany}
-              onChange={(e) => setSelectedCompany(e.target.value)}
-            >
-              <option value="">בחר חברה</option>
-              {companies.map((companyName, index) => (
-                <option key={index} value={companyName}>{companyName}</option>
-              ))}
-            </select>
-          </div>
-          <div className="form-group">
-          <label htmlFor="productSelect">מוצר:</label>
-          <select id="productSelect" value={selectedProduct} onChange={(e) => setSelectedProduct(e.target.value)}>
-          <option value="">בחר מוצר</option>
-         {products.map((product) => (
-         <option key={product.id} value={product.name}>{product.name}</option>
-    ))}
-  </select>
-</div>
-          <div className="form-group">
-            <label htmlFor="insPremia"> 
-              פרמיה ביטוח:</label>
-              <input type="text" value={insPremia} onChange={handleinsPremia} 
-               disabled={selectedProductGroup === '1' || selectedProductGroup === '4'}
-              />
-           
-          </div>
-          <div className="form-group">
-            <label htmlFor="pensiaPremia"> 
-              פרמיה פנסיה: </label>
-              <input type="text" value={pensiaPremia} onChange={handlepensiaPremia} 
-              disabled={selectedProductGroup === '3' || selectedProductGroup === '4'} 
-               />      
-          </div>
-          <div className="form-group">
-            <label htmlFor="pensiaZvira"> 
-              צבירה פנסיה : </label>
-              <input type="text" value={pensiaZvira} onChange={handlePensiaZvira} 
-              disabled={selectedProductGroup === '3' || selectedProductGroup === '4'}
-              />
-          </div>
-          <div className="form-group">
-            <label htmlFor="finansimPremia"> 
-              פרמיה פיננסים:</label>
-              <input type="text" value={finansimPremia} onChange={handleFinansimPremia} 
-              disabled={selectedProductGroup === '1' || selectedProductGroup === '3'}
-              />
-          </div>
-          <div className="form-group">
-            <label htmlFor="finansimZvira"> 
-              צבירה פיננסים: </label>
-              <input type="text" value={finansimZvira} onChange={handleFinansimZviraChange} 
-              disabled={selectedProductGroup === '1' || selectedProductGroup === '3'}
-              />
-          </div>
-          <div className="form-group">
-            <label  htmlFor="expiryDate"> 
-              תאריך תפוקה (MM/YY): </label>
-              <input type="text" id="expiryDate" name="expiryDate" placeholder="MM/YY" maxLength={5} 
-                value={mounth}
-                onChange={handleExpiryDateChange}
-                />
-            
-          </div>
-          <div className="form-group">
-            <label htmlFor="statusPolicySelect">סטאטוס פוליסה:</label>
-            <select
-              id="statusPolicySelect"
-              value={selectedStatusPolicy}
-              onChange={(e) => setSelectedStatusPolicy(e.target.value)}
-            >
-              <option value="">בחר סטאטוס פוליסה</option>
-              {statusPolicies.map((status, index) => (
-                <option key={index} value={status}>{status}</option>
-              ))}
-            </select>
-          </div>
-          <div className="form-group">
-            <label htmlFor="minuySochen" className="checkbox-label">מינוי סוכן:</label>
-            <input
-              type="checkbox"
-              id="minuySochen"
-              name="minuySochen"
-              checked={minuySochen}
-              onChange={(e) => setMinuySochen(e.target.checked)}
-            />
-          </div>
-
-          <div style={{ display: 'flex', gap: '10px' }}>
+        </table>
+           <div className="form-group button-group" style={{ display: 'flex' }}>
             <button type="submit" disabled={!canSubmit || isEditing}>
               הזן
             </button>
@@ -506,11 +516,12 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
             <button type="button" disabled={selectedRow === null} onClick={handleEdit}>עדכן</button>
             <button type="button" onClick={resetForm}>נקה</button>
           </div>
-        </form>
+       </form>
       </div>
-
+    
+     
       <div className="data-container">
-        <h2>טבלת מידע מרוכז לסוכן</h2>
+        
         {agentData.length > 0 ? (
         <div className="table-container" style={{ overflowX: 'auto', maxHeight: '300px' }}>
         <table>
@@ -562,7 +573,7 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
           </div>
                 ) : <p>No data available for the selected agent.</p>}
 
-           <h2>סיכום תפוקות</h2>
+           
            <div className="table-container" style={{ overflowX: 'auto', maxHeight: '300px' }}>
           <table>
   <thead>
