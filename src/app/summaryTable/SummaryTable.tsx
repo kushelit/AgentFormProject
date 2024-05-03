@@ -5,6 +5,8 @@ import { query, collection, where, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase/firebase';
 import { useAuth } from '@/lib/firebase/AuthContext';
 import useFetchAgentData from '@/hooks/useFetchAgentData';
+import './SummaryTable.css';
+
 
 interface MonthlyData {
   finansimTotal: number;
@@ -118,32 +120,40 @@ const SummaryTable = () => {
         initialMonthlyTotals[month].niudPensiaTotal += parseInt(data.pensiaZvira) || 0;
 
         if (contractMatch) {
-          initialMonthlyTotals[month].commissionHekefTotal +=( (parseInt(data.insPremia) || 0) * contractMatch.commissionHekef/100 * 12)
+          initialMonthlyTotals[month].commissionHekefTotal += Math.round(
+          ((parseInt(data.insPremia) || 0) * contractMatch.commissionHekef/100 * 12)
           +((parseInt(data.pensiaPremia) || 0) * contractMatch.commissionHekef/100 * 12)
           +((parseInt(data.pensiaZvira) || 0) * contractMatch.commissionNiud/100)
           +((parseInt(data.finansimPremia) || 0) * contractMatch.commissionHekef/100 * 12)
-          +((parseInt(data.finansimZvira) || 0) * contractMatch.commissionNiud/100);
+          +((parseInt(data.finansimZvira) || 0) * contractMatch.commissionNiud/100)
+          );
         } else {
           // Try to match based on productGroup
+
+
           const groupMatch = contracts.find(contract =>
             contract.productsGroup === productGroup &&
             contract.agentId === data.AgentId
           );
           if (groupMatch) {
-            initialMonthlyTotals[month].commissionHekefTotal += ((parseInt(data.insPremia) || 0) * groupMatch.commissionHekef /100 * 12)
+            initialMonthlyTotals[month].commissionHekefTotal += Math.round(
+            ((parseInt(data.insPremia) || 0) * groupMatch.commissionHekef /100 * 12)
             +((parseInt(data.pensiaPremia) || 0) * groupMatch.commissionHekef /100 * 12)
             +((parseInt(data.pensiaZvira) || 0) * groupMatch.commissionNiud/100) 
             +((parseInt(data.finansimPremia) || 0) * groupMatch.commissionHekef/100 *12)
-            +((parseInt(data.finansimZvira) || 0) * groupMatch.commissionNiud/100);
+            +((parseInt(data.finansimZvira) || 0) * groupMatch.commissionNiud/100)
+            );
           } else {
             initialMonthlyTotals[month].commissionHekefTotal += 0;
           }
         }
 
         if (contractMatch) {
-          initialMonthlyTotals[month].commissionNifraimTotal +=( (parseInt(data.insPremia) || 0) * contractMatch.commissionNifraim /100)
+          initialMonthlyTotals[month].commissionNifraimTotal += Math.round(
+          ((parseInt(data.insPremia) || 0) * contractMatch.commissionNifraim /100)
           +((parseInt(data.pensiaPremia) || 0) * contractMatch.commissionNifraim /100)
-          +((parseInt(data.finansimZvira) || 0) * contractMatch.commissionNifraim /100/ 12);
+          +((parseInt(data.finansimZvira) || 0) * contractMatch.commissionNifraim /100/ 12)
+          );
         } else {
           // Try to match based on productGroup
           const groupMatch = contracts.find(contract =>
@@ -151,9 +161,11 @@ const SummaryTable = () => {
             contract.agentId === data.AgentId
           );
           if (groupMatch) {
-            initialMonthlyTotals[month].commissionNifraimTotal += ((parseInt(data.insPremia) || 0) * groupMatch.commissionNifraim /100)
+            initialMonthlyTotals[month].commissionNifraimTotal += Math.round(
+            ((parseInt(data.insPremia) || 0) * groupMatch.commissionNifraim /100)
             +((parseInt(data.pensiaPremia) || 0) * groupMatch.commissionNifraim /100)
-            +((parseInt(data.finansimZvira) || 0) * groupMatch.commissionNifraim /100 / 12);
+            +((parseInt(data.finansimZvira) || 0) * groupMatch.commissionNifraim /100 / 12)
+            );
           } else {
             initialMonthlyTotals[month].commissionNifraimTotal += 0;
           }
@@ -190,11 +202,15 @@ const SummaryTable = () => {
     };
 
     fetchData();
-  }, [selectedAgentId, selectedWorkerId, contracts]);
+  }, [selectedAgentId, selectedWorkerId, contracts, productMap]);
 
   return (
-    <div style={{ paddingTop: '4rem' }}>
-      <h1 style={{ textAlign: 'right', paddingRight: '20px' }}>לוח מרכזי</h1>
+    <div className="frame-container bg-custom-white " style={{ maxWidth: '1000px', margin: '0 auto', padding: '10px 20px 20px 20px', border: '1px solid #ccc', borderRadius: '8px', marginTop: '80px' }}>
+
+       <div style={{ marginTop: '20px', width: '90%', margin: '0 auto', overflowX: 'auto' }}>
+      {/*   {defaultContracts.length > 0 ? ( */}
+          <div className="table-container" style={{ width: '100%' }}>
+            <table style={{ width: '100%'  }}></table>
       <table>
         <thead>
           <tr>
@@ -236,6 +252,7 @@ const SummaryTable = () => {
           </tr>
         </tbody>
       </table>
+      <div className="select-container" >
       <select id="agent-select" value={selectedAgentId} onChange={handleAgentChange}>
         {detail?.role === 'admin' && <option value="">כל הסוכנות</option>}
         {agents.map(agent => (
@@ -248,6 +265,9 @@ const SummaryTable = () => {
           <option key={worker.id} value={worker.id}>{worker.name}</option>
         ))}
       </select>
+      </div>
+    </div>
+    </div>
     </div>
   );
 };

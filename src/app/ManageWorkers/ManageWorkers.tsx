@@ -3,6 +3,8 @@ import { collection, query, where, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase/firebase"; // Ensure this path matches your project structure
 import { useAuth } from '@/lib/firebase/AuthContext';
 import Link from "next/link";
+import './ManageWorkers.css';
+
 
 // Define the Worker interface
 interface Worker {
@@ -38,11 +40,12 @@ const ManageWorkers: React.FC = () => {
   }, [detail]);
 
   return (
-    <div  style={{ paddingTop: '4rem' }}   >
-    <h1  style={{ textAlign: 'right' , paddingRight: '20px' }}  > ניהול עובדים
-    </h1>
-    <div style={{ display: 'flex', justifyContent: 'flex-end', paddingRight: '20px' }}>
-      <table  style={{ textAlign: 'right' }} >
+    <div className="frame-container bg-custom-white " style={{ maxWidth: '1000px', margin: '0 auto', padding: '10px 20px 20px 20px', border: '1px solid #ccc', borderRadius: '8px', marginTop: '80px' }}>
+    <h2 style={{ textAlign: 'center' , marginBottom: '10px', fontSize:'12px' }}>ניהול עובדים  </h2>    
+    <div style={{ marginTop: '20px', width: '90%', margin: '0 auto', overflowX: 'auto' }}>
+    {/*   {defaultContracts.length > 0 ? ( */}
+        <div className="table-container" style={{ width: '100%' }}>
+          <table style={{ width: '100%'  }}>
         <thead>
           <tr>
             <th> שם עובד</th>
@@ -60,6 +63,7 @@ const ManageWorkers: React.FC = () => {
       <div  style={{ textAlign: 'right' , paddingRight: '20px' }}> {detail?.role === 'agent' ? (
         <Link href={`/auth/sign-up/${user?.uid}`} className="text-custom-green">צור עובד חדש</Link>
       ) : null}</div>
+    </div>
     </div>
   );
 };
