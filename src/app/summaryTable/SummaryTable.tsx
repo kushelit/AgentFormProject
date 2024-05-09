@@ -6,6 +6,8 @@ import { db } from '@/lib/firebase/firebase';
 import { useAuth } from '@/lib/firebase/AuthContext';
 import useFetchAgentData from '@/hooks/useFetchAgentData';
 import './SummaryTable.css';
+import useFetchMD from "@/hooks/useMD"; 
+import Select from 'react-select';
 
 
 interface MonthlyData {
@@ -41,7 +43,9 @@ interface Product {
 
 const SummaryTable = () => {
   const { user, detail } = useAuth();
-  const { workers, agents, selectedAgentId, handleAgentChange, handleWorkerChange, selectedWorkerId } = useFetchAgentData();
+  const { workers, agents, selectedAgentId, handleAgentChange, handleWorkerChange, selectedWorkerId ,
+    companies, selectedCompany, selectedWorkerIdFilter,
+    setSelectedCompany } = useFetchAgentData();
 
   const [monthlyTotals, setMonthlyTotals] = useState<MonthlyTotals>({});
   const [overallFinansimTotal, setOverallFinansimTotal] = useState(0);
@@ -53,6 +57,17 @@ const SummaryTable = () => {
   const [contracts, setContracts] = useState<Contract[]>([]);
 
   const [productMap, setProductMap] = useState<Record<string, string>>({});
+
+  const {
+    products,
+    selectedProduct,
+    setSelectedProduct,
+    selectedProductGroup, 
+    setSelectedStatusPolicy, 
+    selectedStatusPolicy, 
+    statusPolicies
+  } = useFetchMD();
+
 
 
   useEffect(() => {
@@ -97,9 +112,18 @@ const SummaryTable = () => {
       if (selectedAgentId) {
         salesQuery = query(salesQuery, where('AgentId', '==', selectedAgentId));
       }
-      if (selectedWorkerId) {
-        salesQuery = query(salesQuery, where('workerId', '==', selectedWorkerId));
+      if (selectedWorkerIdFilter) {
+        salesQuery = query(salesQuery, where('workerId', '==', selectedWorkerIdFilter));
       }
+      if (selectedCompany) {
+        salesQuery = query(salesQuery, where('company', '==', selectedCompany));
+      }
+      if (selectedProduct) {
+        salesQuery = query(salesQuery, where('product', '==', selectedProduct));
+      }
+      if (selectedStatusPolicy) {
+        salesQuery = query(salesQuery, where('statusPolicy', '==', selectedStatusPolicy));
+    }
 
       const querySnapshot = await getDocs(salesQuery);
       querySnapshot.forEach(doc => {
@@ -120,40 +144,48 @@ const SummaryTable = () => {
         initialMonthlyTotals[month].niudPensiaTotal += parseInt(data.pensiaZvira) || 0;
 
         if (contractMatch) {
-          initialMonthlyTotals[month].commissionHekefTotal += Math.round(
+        //  initialMonthlyTotals[month].commissionHekefTotal += Math.round(
+          let totalHekef=(
           ((parseInt(data.insPremia) || 0) * contractMatch.commissionHekef/100 * 12)
           +((parseInt(data.pensiaPremia) || 0) * contractMatch.commissionHekef/100 * 12)
           +((parseInt(data.pensiaZvira) || 0) * contractMatch.commissionNiud/100)
           +((parseInt(data.finansimPremia) || 0) * contractMatch.commissionHekef/100 * 12)
           +((parseInt(data.finansimZvira) || 0) * contractMatch.commissionNiud/100)
           );
+          initialMonthlyTotals[month].commissionHekefTotal += Math.round(totalHekef);
+
         } else {
           // Try to match based on productGroup
-
-
           const groupMatch = contracts.find(contract =>
             contract.productsGroup === productGroup &&
             contract.agentId === data.AgentId
           );
           if (groupMatch) {
-            initialMonthlyTotals[month].commissionHekefTotal += Math.round(
+            let totalHekef=(
+           // initialMonthlyTotals[month].commissionHekefTotal += Math.round(
             ((parseInt(data.insPremia) || 0) * groupMatch.commissionHekef /100 * 12)
             +((parseInt(data.pensiaPremia) || 0) * groupMatch.commissionHekef /100 * 12)
             +((parseInt(data.pensiaZvira) || 0) * groupMatch.commissionNiud/100) 
             +((parseInt(data.finansimPremia) || 0) * groupMatch.commissionHekef/100 *12)
             +((parseInt(data.finansimZvira) || 0) * groupMatch.commissionNiud/100)
             );
+            initialMonthlyTotals[month].commissionHekefTotal += Math.round(totalHekef);
+
           } else {
             initialMonthlyTotals[month].commissionHekefTotal += 0;
           }
         }
 
         if (contractMatch) {
-          initialMonthlyTotals[month].commissionNifraimTotal += Math.round(
+        //  initialMonthlyTotals[month].commissionNifraimTotal += Math.round(
+          let totalNifraim=(
           ((parseInt(data.insPremia) || 0) * contractMatch.commissionNifraim /100)
           +((parseInt(data.pensiaPremia) || 0) * contractMatch.commissionNifraim /100)
           +((parseInt(data.finansimZvira) || 0) * contractMatch.commissionNifraim /100/ 12)
           );
+
+          initialMonthlyTotals[month].commissionNifraimTotal += Math.round(totalNifraim);
+
         } else {
           // Try to match based on productGroup
           const groupMatch = contracts.find(contract =>
@@ -161,11 +193,14 @@ const SummaryTable = () => {
             contract.agentId === data.AgentId
           );
           if (groupMatch) {
-            initialMonthlyTotals[month].commissionNifraimTotal += Math.round(
-            ((parseInt(data.insPremia) || 0) * groupMatch.commissionNifraim /100)
+           // initialMonthlyTotals[month].commissionNifraimTotal += Math.round(
+            let totalNifraim=(
+              ((parseInt(data.insPremia) || 0) * groupMatch.commissionNifraim /100)
             +((parseInt(data.pensiaPremia) || 0) * groupMatch.commissionNifraim /100)
             +((parseInt(data.finansimZvira) || 0) * groupMatch.commissionNifraim /100 / 12)
             );
+            initialMonthlyTotals[month].commissionNifraimTotal += Math.round(totalNifraim)
+
           } else {
             initialMonthlyTotals[month].commissionNifraimTotal += 0;
           }
@@ -202,7 +237,7 @@ const SummaryTable = () => {
     };
 
     fetchData();
-  }, [selectedAgentId, selectedWorkerId, contracts, productMap]);
+  }, [selectedAgentId, selectedWorkerId, contracts, productMap, selectedCompany, selectedProduct, selectedStatusPolicy, selectedWorkerIdFilter]);
 
   return (
     <div className="frame-container bg-custom-white " style={{ maxWidth: '1000px', margin: '0 auto', padding: '10px 20px 20px 20px', border: '1px solid #ccc', borderRadius: '8px', marginTop: '80px' }}>
@@ -252,6 +287,7 @@ const SummaryTable = () => {
           </tr>
         </tbody>
       </table>
+      
       <div className="select-container" >
       <select id="agent-select" value={selectedAgentId} onChange={handleAgentChange}>
         {detail?.role === 'admin' && <option value="">כל הסוכנות</option>}
@@ -259,12 +295,36 @@ const SummaryTable = () => {
           <option key={agent.id} value={agent.id}>{agent.name}</option>
         ))}
       </select>
-      <select id="worker-select" value={selectedWorkerId} onChange={handleWorkerChange}>
-        <option value="">כל העובדים</option>
+      <select id="worker-select" value={selectedWorkerIdFilter} 
+       onChange={(e) => handleWorkerChange(e, 'filter')}>
+       <option value="">כל העובדים</option>
         {workers.map(worker => (
           <option key={worker.id} value={worker.id}>{worker.name}</option>
         ))}
       </select>
+
+      <select id="companySelect" value={selectedCompany} onChange={(e) => setSelectedCompany(e.target.value)}>
+        <option value="">בחר חברה</option>
+         {companies.map((companyName, index) => (
+         <option key={index} value={companyName}>{companyName}</option>
+    ))}
+     </select>
+     <select id="productSelect" value={selectedProduct} onChange={(e) => setSelectedProduct(e.target.value)}>
+               <option value="">בחר מוצר</option>
+              {products.map(product => (
+             <option key={product.id} value={product.name}>{product.name}</option>
+         ))}
+        </select>
+        <select
+      id="statusPolicySelect"
+      value={selectedStatusPolicy}
+      onChange={(e) => setSelectedStatusPolicy(e.target.value)}>
+     <option value="">בחר סטאטוס פוליסה</option>
+                            {statusPolicies.map((status, index) => (
+                                <option key={index} value={status}>{status}</option>
+       ))}
+       </select>
+
       </div>
     </div>
     </div>

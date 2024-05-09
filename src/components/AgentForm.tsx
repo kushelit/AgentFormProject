@@ -24,7 +24,16 @@ function AgentForm() {
     selectedWorkerId, 
     selectedAgentName,
     selectedWorkerName, 
-    handleWorkerChange 
+    handleWorkerChange , 
+   // handleCompaniesChange,
+    companies,
+    setCompanies,
+    selectedCompany, 
+    setSelectedCompany,
+    selectedWorkerIdFilter,
+    selectedWorkerNameFilter,
+    selectedCompanyFilter,
+    setSelectedCompanyFilter
   } = useFetchAgentData();
 
   const 
@@ -36,10 +45,15 @@ function AgentForm() {
     products,
     selectedProduct,
     setSelectedProduct,
-    selectedProductGroup
+    selectedProductGroup, 
+    setSelectedStatusPolicy, 
+    selectedStatusPolicy, 
+    statusPolicies,
+    selectedProductFilter,
+    setSelectedProductFilter,
+    selectedStatusPolicyFilter, 
+    setSelectedStatusPolicyFilter
   } = useFetchMD();
-
-
 
 
   const searchParams = useSearchParams();
@@ -56,16 +70,43 @@ function AgentForm() {
   const [mounth, setmounth] = useState('');
   const [agentData, setAgentData] = useState<any[]>([]);
   const [selectedRow, setSelectedRow] = useState<any | null>(null);
-  const [companies, setCompanies] = useState<string[]>([]);
+  //const [companies, setCompanies] = useState<string[]>([]);
   const [minuySochen, setMinuySochen] = useState(false);
-  const [selectedCompany, setSelectedCompany] = useState('');
-  const [statusPolicies, setStatusPolicies] = useState<string[]>([]);
-  const [selectedStatusPolicy, setSelectedStatusPolicy] = useState('');
+ // const [selectedCompany, setSelectedCompany] = useState('');
+ // const [statusPolicies, setStatusPolicies] = useState<string[]>([]);
+ // const [selectedStatusPolicy, setSelectedStatusPolicy] = useState('');
   const [isEditing, setIsEditing] = useState(false);
- // const [selectedProductGroup, setSelectedProductGroup] = useState('');
- // const [selectedProduct, setSelectedProduct] = useState('');
- // const [products, setProducts] = useState<Product[]>([]);
+// Define a type for the items in your data array
+const [idCustomerFilter, setIdCustomerFilter] = useState('');
+const [firstNameCustomerFilter, setfirstNameCustomerFilter] = useState('');
+const [lastNameCustomerFilter, setlastNameCustomerFilter] = useState('');
+const [minuySochenFilter, setMinuySochenFilter] = useState('');
+const [expiryDateFilter, setExpiryDateFilter] = useState('');
 
+
+type AgentDataType = {
+  id: string;
+  firstNameCustomer: string;
+  lastNameCustomer: string;
+  IDCustomer: string;
+  company: string;
+  product: string;
+  insPremia: number;
+  pensiaPremia: number;
+  pensiaZvira: number;
+  finansimPremia: number;
+  finansimZvira: number;
+  mounth: string;
+  statusPolicy: string;
+  minuySochen: boolean;
+  workerName: string;
+  workerId: string;  // Assuming you need this based on your existing type definition
+  // Add any other fields that your Firestore documents contain and that you need in your app
+};
+
+
+// Use the defined type when initializing the state
+const [filteredData, setFilteredData] = useState<AgentDataType[]>([]);
 
 
 const fetchDataForAgent = async (UserAgentId : string) => {
@@ -79,17 +120,6 @@ const fetchDataForAgent = async (UserAgentId : string) => {
   console.log(data)
   
 };
-
-
-  useEffect(() => {
-    const fetchCompanies = async () => {
-      const querySnapshot = await getDocs(collection(db, 'company'));
-      const companiesList = querySnapshot.docs.map(doc => doc.data().companyName); // Assuming the field name is 'companyName'
-      setCompanies(companiesList);
-    };
-
-    fetchCompanies();
-  }, []);
 
 
   useEffect(() => {
@@ -113,11 +143,11 @@ const fetchDataForAgent = async (UserAgentId : string) => {
   }, [selectedAgentId]); 
 
 
-  const [hoveredRowId, setHoveredRowId] = useState(null);
+  const [hoveredRowId, setHoveredRowId] = useState<string | null>(null);
 
     const handleRowClick = (item: any) => {
     setSelectedRow(item); // Store the selected row's data
-    setSelectedWorker(item.selectedW ); //new 
+    setSelectedWorker(item.workerName); //new 
     setfirstNameCustomer(item.firstNameCustomer);
     setlastNameCustomer(item.lastNameCustomer);
     setIDCustomer(item.IDCustomer);
@@ -248,10 +278,10 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
 
   const handleFirstNameChange: ChangeEventHandler<HTMLInputElement> = (event) => {
     const value = event.target.value;
-    const hebrewRegex = /^[\u0590-\u05FF]+$/;
-
-    // If the value is empty or matches the Hebrew regex, update the state
-    if (value === '' || hebrewRegex.test(value)) {
+    // Allow Hebrew letters and spaces, but prevent leading or trailing spaces
+    const hebrewRegex = /^[\u0590-\u05FF ]+$/;
+    // Trim leading and trailing spaces for the test to prevent validation errors from extra spaces
+    if (value === '' || hebrewRegex.test(value.trim())) {
       setfirstNameCustomer(value);
     }
     // Otherwise, do not update the state, effectively rejecting the input
@@ -259,14 +289,14 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
 
   const handleLastNameChange: ChangeEventHandler<HTMLInputElement> = (event) => {
     const value = event.target.value;
-    const hebrewRegex = /^[\u0590-\u05FF]+$/;
-
-    // If the value is empty or matches the Hebrew regex, update the state
-    if (value === '' || hebrewRegex.test(value)) {
+    // Allow Hebrew letters and spaces, but prevent leading or trailing spaces
+    const hebrewRegex = /^[\u0590-\u05FF ]+$/;
+    // Trim leading and trailing spaces for the test to prevent validation errors from extra spaces
+    if (value === '' || hebrewRegex.test(value.trim())) {
       setlastNameCustomer(value);
     }
-    // Otherwise, do not update the state, effectively rejecting the input
   };
+
   const handleIDChange: ChangeEventHandler<HTMLInputElement> = (e) => {
     const value = e.target.value;
     // Allow only numbers
@@ -277,7 +307,7 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
   const canSubmit = useMemo(() => (
      selectedAgentId.trim() !== '' &&
      selectedWorkerId.trim() !== '' &&
-    firstNameCustomer.trim() !== '' &&
+     firstNameCustomer.trim() !== '' &&
      lastNameCustomer.trim() !== '' &&
      IDCustomer.trim() !== '' &&
      selectedCompany.trim() !== '' &&
@@ -287,49 +317,46 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
     selectedCompany, selectedProduct, mounth]);
 
 
-  useEffect(() => {
-    const fetchStatus = async () => {
-      const querySnapshot = await getDocs(collection(db, 'statusPolicy'));
-      const statusList = querySnapshot.docs.map(doc => doc.data().statusName); // Assuming the field name is 'productName'
-      setStatusPolicies(statusList);
-    };
+ // useEffect(() => {
+//    const fetchStatusPolicies = async () => {
+//      const querySnapshot = await getDocs(collection(db, 'statusPolicy'));
+//      const statusList = querySnapshot.docs.map(doc => doc.data().statusName); // Assuming the field name is 'productName'
+//      setStatusPolicies(statusList);
+ //   };
+//    fetchStatusPolicies();
+ // }, []);
 
-    fetchStatus();
-  }, []); useEffect(() => {
-    const fetchStatusPolicies = async () => {
-      const querySnapshot = await getDocs(collection(db, 'statusPolicy'));
-      const fetchedStatusPolicies = querySnapshot.docs.map(doc => doc.data().statusName); // Assuming the field name is 'statusName'
-      setStatusPolicies(fetchedStatusPolicies);
-    };
-
-    fetchStatusPolicies();
-  }, []);
   
 
   const handleFinansimZviraChange: ChangeEventHandler<HTMLInputElement> = (e) => {
    const value = e.target.value
-    setFinansimZvira(value);
+   const onlyNums = value.replace(/[^0-9]/g, '').slice(0, 9);
+    setFinansimZvira(onlyNums);
   };
 
   const handleFinansimPremia: ChangeEventHandler<HTMLInputElement> = (e) => {
     const value = e.target.value
-    setfinansimPremia(value);
+    const onlyNums = value.replace(/[^0-9]/g, '').slice(0, 9);
+    setfinansimPremia(onlyNums);
   };
 
   const handlePensiaZvira: ChangeEventHandler<HTMLInputElement> = (e) => {
     const value = e.target.value
-    setPensiaZvira(value);
+    const onlyNums = value.replace(/[^0-9]/g, '').slice(0, 9);
+    setPensiaZvira(onlyNums);
   };
 
   const handlepensiaPremia: ChangeEventHandler<HTMLInputElement> = (e) => {
     const value = e.target.value;
-    setpensiaPremia(value);
+    const onlyNums = value.replace(/[^0-9]/g, '').slice(0, 9);
+    setpensiaPremia(onlyNums);
 };
 
 
   const handleinsPremia: ChangeEventHandler<HTMLInputElement> = (e) => {
     const value = e.target.value; // Use 0 as a fallback if conversion fails
-    setinsPremia(value);
+    const onlyNums = value.replace(/[^0-9]/g, '').slice(0, 9);
+    setinsPremia(onlyNums);
   };
 
   const handleExpiryDateChange : ChangeEventHandler<HTMLInputElement> = (e) => {
@@ -351,6 +378,24 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
   };
 
 
+  useEffect(() => {
+    // Filter data based on selected filter values
+    let data = agentData.filter(item => {
+      return (selectedWorkerIdFilter ? item.workerId === selectedWorkerIdFilter : true) &&
+             (selectedCompanyFilter ? item.company === selectedCompanyFilter : true) &&
+             (selectedProductFilter ? item.product === selectedProductFilter : true) &&
+             item.IDCustomer.includes(idCustomerFilter)&&
+             item.firstNameCustomer.includes(firstNameCustomerFilter)&&
+             item.lastNameCustomer.includes(lastNameCustomerFilter)&&
+             (minuySochenFilter === '' || item.minuySochen.toString() === minuySochenFilter) &&
+             item.mounth.includes(expiryDateFilter)&&
+             (selectedStatusPolicyFilter ? item.statusPolicy === selectedStatusPolicyFilter : true);
+    });
+    setFilteredData(data);
+  }, [selectedWorkerIdFilter, selectedCompanyFilter, selectedProductFilter, selectedStatusPolicyFilter, agentData, idCustomerFilter, firstNameCustomerFilter, lastNameCustomerFilter, minuySochenFilter, expiryDateFilter]);
+
+
+
   console.log({ selectedAgentId, selectedWorkerId, firstNameCustomer, lastNameCustomer, IDCustomer, selectedCompany, selectedProduct, mounth });
   return (
     <div className="content-container">
@@ -360,11 +405,11 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
         <div className="scrollable-tbody">
           <tbody>
           <tr>
-                    <td>
+            <td>
                         <label htmlFor="agentSelect">סוכנות</label>
-                    </td>
-                    <td>
-                        <select onChange={handleAgentChange} value={selectedAgentId}>
+             </td>
+             <td>
+              <select onChange={handleAgentChange} value={selectedAgentId}>
                             {detail?.role === 'admin' && <option value="">בחר סוכן</option>}
                             {agents.map(agent => (
                                 <option key={agent.id} value={agent.id}>{agent.name}</option>
@@ -377,7 +422,8 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
                         <label htmlFor="workerSelect">עובד</label>
                     </td>
                     <td>
-                        <select id="workerSelect" value={selectedWorkerId} onChange={handleWorkerChange}>
+                        <select id="workerSelect" value={selectedWorkerId} 
+                      onChange={(e) => handleWorkerChange(e, 'insert')}>
                             <option value="">בחר עובד</option>
                             {workers.map(worker => (
                                 <option key={worker.id} value={worker.id}>{worker.name}</option>
@@ -440,7 +486,7 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
                         <label htmlFor="insPremia">פרמיה ביטוח</label>
                     </td>
                     <td>
-                        <input type="text" value={insPremia} onChange={handleinsPremia} disabled={selectedProductGroup === '1' || selectedProductGroup === '4'} />
+                        <input type="text" inputMode="numeric" value={insPremia} onChange={handleinsPremia} disabled={selectedProductGroup === '1' || selectedProductGroup === '4'} />
                     </td>
                 </tr>
                 <tr>
@@ -448,7 +494,7 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
                         <label htmlFor="pensiaPremia">פרמיה פנסיה</label>
                     </td>
                     <td>
-                        <input type="text" value={pensiaPremia} onChange={handlepensiaPremia} disabled={selectedProductGroup === '3' || selectedProductGroup === '4'} />
+                        <input type="text" inputMode="numeric" value={pensiaPremia} onChange={handlepensiaPremia} disabled={selectedProductGroup === '3' || selectedProductGroup === '4'} />
                     </td>
                 </tr>
                 <tr>
@@ -456,7 +502,7 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
                         <label htmlFor="pensiaZvira">צבירה פנסיה</label>
                     </td>
                     <td>
-                        <input type="text" value={pensiaZvira} onChange={handlePensiaZvira} disabled={selectedProductGroup === '3' || selectedProductGroup === '4'} />
+                        <input type="text" inputMode="numeric" value={pensiaZvira} onChange={handlePensiaZvira} disabled={selectedProductGroup === '3' || selectedProductGroup === '4'} />
                     </td>
                 </tr>
                 <tr>
@@ -464,7 +510,7 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
                         <label htmlFor="finansimPremia">פרמיה פיננסים</label>
                     </td>
                     <td>
-                        <input type="text" value={finansimPremia} onChange={handleFinansimPremia} disabled={selectedProductGroup === '1' || selectedProductGroup === '3'} />
+                        <input type="text" inputMode="numeric" value={finansimPremia} onChange={handleFinansimPremia} disabled={selectedProductGroup === '1' || selectedProductGroup === '3'} />
                     </td>
                 </tr>
                 <tr>
@@ -472,7 +518,7 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
                         <label htmlFor="finansimZvira">צבירה פיננסים</label>
                     </td>
                     <td>
-                        <input type="text" value={finansimZvira} onChange={handleFinansimZviraChange} disabled={selectedProductGroup === '1' || selectedProductGroup === '3'} />
+                        <input type="text" inputMode="numeric" value={finansimZvira} onChange={handleFinansimZviraChange} disabled={selectedProductGroup === '1' || selectedProductGroup === '3'} />
                     </td>
                 </tr>
                 <tr>
@@ -521,8 +567,72 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
     
      
       <div className="data-container">
-        
-        {agentData.length > 0 ? (
+      <div className="select-container" >
+      <input
+       type="text"
+       placeholder="שם פרטי"
+       value={firstNameCustomerFilter}
+       onChange={(e) => setfirstNameCustomerFilter(e.target.value)}
+       />
+        <input
+       type="text"
+       placeholder="שם משפחה"
+       value={lastNameCustomerFilter}
+       onChange={(e) => setlastNameCustomerFilter(e.target.value)}
+       />
+      <input
+       type="text"
+       placeholder="תז לקוח"
+       value={idCustomerFilter}
+       onChange={(e) => setIdCustomerFilter(e.target.value)}
+       />
+      
+
+      <select id="company-Select" value={selectedCompanyFilter} onChange={(e) => setSelectedCompanyFilter(e.target.value)}>
+        <option value="">בחר חברה</option>
+         {companies.map((companyName, index) => (
+         <option key={index} value={companyName}>{companyName}</option>
+    ))}
+     </select>
+     <select id="product-Select" value={selectedProductFilter} onChange={(e) => setSelectedProductFilter(e.target.value)}>
+               <option value="">בחר מוצר</option>
+              {products.map(product => (
+             <option key={product.id} value={product.name}>{product.name}</option>
+         ))}
+        </select>
+        <input type="text" 
+        id="expiry-Date" 
+        name="expiry-Date" 
+        placeholder="MM/YY" 
+        maxLength={5} 
+        value={expiryDateFilter} 
+        onChange={(e) => setExpiryDateFilter(e.target.value)} />
+
+        <select
+      id="status-PolicySelect"
+      value={selectedStatusPolicyFilter}
+      onChange={(e) => setSelectedStatusPolicyFilter(e.target.value)}>
+     <option value=""> סטאטוס פוליסה</option>
+                            {statusPolicies.map((status, index) => (
+                                <option key={index} value={status}>{status}</option>
+       ))}
+       </select>
+       <select value={minuySochenFilter} onChange={(e) => setMinuySochenFilter(e.target.value)}>
+    <option value="">מינוי סוכן </option>
+    <option value="true">כן</option>
+    <option value="false">לא</option>
+  </select>
+
+       <select id="worker-select" value={selectedWorkerIdFilter} 
+       onChange={(e) => handleWorkerChange(e, 'filter')}>
+        <option value="">כל העובדים</option>
+        {workers.map(worker => (
+          <option key={worker.id} value={worker.id}>{worker.name}</option>
+        ))}
+      </select>
+      </div>
+       {/* First Frame 
+        {agentData.length > 0 ? (*/}
         <div className="table-container" style={{ overflowX: 'auto', maxHeight: '300px' }}>
         <table>
             <thead>
@@ -545,7 +655,7 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
               </tr>
             </thead>
             <tbody>
-              {agentData.map((item) => (
+              {filteredData.map((item) => (
                 <tr key={item.id}
                   onClick={() => handleRowClick(item)}
                   onMouseEnter={() => setHoveredRowId(item.id)}
@@ -571,7 +681,7 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
             </tbody>
           </table>
           </div>
-                ) : <p>No data available for the selected agent.</p>}
+         {/*        ) : <p>No data available for the selected agent.</p>} */}
 
            
            <div className="table-container" style={{ overflowX: 'auto', maxHeight: '300px' }}>
@@ -624,3 +734,5 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
   );
         }
 export default AgentForm;
+
+

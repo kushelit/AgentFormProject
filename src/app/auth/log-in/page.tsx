@@ -39,6 +39,7 @@ export default function LogInPage() {
   }
 
   return (
+    
     <div  className="form-auth" style={{ paddingTop: '6rem' }} dir="rtl" >
       <form onSubmit={handleLogIn}>
         <div  className="content-auth">

@@ -153,3 +153,23 @@ th, td {
 tr {
   height: auto; /* Allows row height to adjust based on content and padding */
 }
+
+
+.select-container {
+  display: flex;
+  justify-content: center; /* Centers  horizontally */
+  align-items: center; /* Aligns  vertically */
+  padding: 10px 0; /* Padding above and below the button row */
+}
+
+.select-container select,
+.select-container input 
+{
+  width: 100%; /* Reduce width to make inputs/selects shorter */
+  padding: 0.25em 0.5em; /* Adjust padding as needed */
+  font-size: 12px; /* Maintain the font size or adjust as necessary */
+  margin: auto; /* Center the inputs/selects within the cell */
+  display: block; /* Ensures the input/select fills the width defined */
+  text-align: center; /* Center text inside the inputs/selects */
+  height:30px; /* Adjust height to better fit in the table row, can adjust as needed */
+}

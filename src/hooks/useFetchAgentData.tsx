@@ -25,6 +25,13 @@ const useFetchAgentData = () => {
   const [workers, setWorkers] = useState<Worker[]>([]);
   const [selectedWorkerId, setSelectedWorkerId] = useState("");
   const [selectedWorkerName, setSelectedWorkerName] = useState("")
+  const [companies, setCompanies] = useState<string[]>([]);
+  const [selectedCompany, setSelectedCompany] = useState('');
+
+
+  const [selectedWorkerIdFilter, setSelectedWorkerIdFilter] = useState("");
+  const [selectedWorkerNameFilter, setSelectedWorkerNameFilter] = useState("")
+  const [selectedCompanyFilter, setSelectedCompanyFilter] = useState('');
 
 
   useEffect(() => {
@@ -82,11 +89,40 @@ const useFetchAgentData = () => {
     }
   };
 
-  const handleWorkerChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
+
+
+  const handleWorkerChange = (event: React.ChangeEvent<HTMLSelectElement> , updateType: 'insert' | 'filter') => {
     const selectedOption = event.target.options[event.target.selectedIndex];
+    if (updateType === 'insert') {
     setSelectedWorkerId(selectedOption.value); // Update the ID of the selected worker
     setSelectedWorkerName(selectedOption.text); // Update the name of the selected worker
+    }
+    else {
+      // Update other variables
+      setSelectedWorkerIdFilter(selectedOption.value); // Assuming you have a setter for other variable IDs
+      setSelectedWorkerNameFilter(selectedOption.text); // Assuming you have a setter for other variable names
+    }
   };
+
+
+
+
+
+
+
+  useEffect(() => {
+    const fetchCompanies = async () => {
+      const querySnapshot = await getDocs(collection(db, 'company'));
+      const companiesList = querySnapshot.docs.map(doc => doc.data().companyName); // Assuming the field name is 'companyName'
+      setCompanies(companiesList);
+    };
+
+    fetchCompanies();
+  }, []);
+
+
+
+
 
  return {
   agents,
@@ -97,6 +133,15 @@ const useFetchAgentData = () => {
   handleWorkerChange,
   selectedAgentName,
   selectedWorkerName,
+  //handleCompaniesChange,
+  companies,
+  setCompanies,
+  selectedCompany, 
+  setSelectedCompany,
+  selectedWorkerIdFilter,
+  selectedWorkerNameFilter,
+  selectedCompanyFilter,
+  setSelectedCompanyFilter
   // Any other states or functions you might be using
 };
 };

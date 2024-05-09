@@ -29,7 +29,6 @@ function useSalesData(selectedAgentId: string, selectedWorkerId: string
   
   const { user, detail } = useAuth(); // Assuming useAuth() hook correctly provides User | null and Detail | null
 
-
   useEffect(() => {
     const fetchData = async () => {
       setMonthlyTotals({});

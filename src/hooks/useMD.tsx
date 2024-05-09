@@ -22,8 +22,11 @@ const useFetchMD = () => {
     const [selectedProductGroup, setSelectedProductGroup] = useState('');
     const [selectedProduct, setSelectedProduct] = useState('');
     const [products, setProducts] = useState<Product[]>([]);
-  
     const [productGroupsDB, setProductGroupsDB] = useState<ProductGroup[]>([]);
+    const [statusPolicies, setStatusPolicies] = useState<string[]>([]);
+    const [selectedStatusPolicy, setSelectedStatusPolicy] = useState('');
+    const [selectedProductFilter, setSelectedProductFilter] = useState('');
+    const [selectedStatusPolicyFilter, setSelectedStatusPolicyFilter] = useState('');
 
 
     interface ProductGroup {
@@ -41,6 +44,7 @@ const useFetchMD = () => {
             const companiesList = querySnapshot.docs.map(doc => doc.data().companyName);
             setCompanies(companiesList);
           };
+      
           fetchCompanies();
         }, []);
       
@@ -125,7 +129,14 @@ const useFetchMD = () => {
       }, [selectedProduct, products]); // Ensure this effect runs whenever selectedProduct or products change
       
 
-
+ useEffect(() => {
+    const fetchStatusPolicies = async () => {
+      const querySnapshot = await getDocs(collection(db, 'statusPolicy'));
+      const statusList = querySnapshot.docs.map(doc => doc.data().statusName); // Assuming the field name is 'productName'
+      setStatusPolicies(statusList);
+    };
+    fetchStatusPolicies();
+  }, []);
 
       
    return {
@@ -148,9 +159,16 @@ const useFetchMD = () => {
     selectedProductGroup,
     setSelectedProductGroup,
     productGroupsDB,
-    productGroupMap
-  };
+    productGroupMap,
+    setSelectedStatusPolicy, 
+    selectedStatusPolicy, 
+    statusPolicies,
+    selectedProductFilter,
+    setSelectedProductFilter,
+    selectedStatusPolicyFilter, 
+    setSelectedStatusPolicyFilter
   };
   
   
+};
   export default useFetchMD;
