@@ -42,8 +42,18 @@ export default function WorkerSignUpPage({ params }: { params: { agentId: string
     const password = values.get("password") as string | null;
     const confirmPassword = values.get("password-confirm") as string | null;
 
+
+
     if (!email || !password || !name || !confirmPassword) {
       setError('Please fill in all fields');
+      console.log('Error set:', 'Please fill in all fields');  // Add this to check
+
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setError('Passwords do not match');
+      console.log('Mismatch error set');
       return;
     }
 
@@ -114,16 +124,19 @@ export default function WorkerSignUpPage({ params }: { params: { agentId: string
                     </td>
             </tr>
             </tbody>
-            
+           
             </table>
-      {error && <p className="text-red-500">{error}</p>}
-      </form>
-     
-    </div>
-    </div>
-    <div className="button-group" >
-      <button type="submit">הרשם</button>
+
+      <div className="button-group" >
+      <button type="submit">הוסף עובד</button>
       </div>
+      </form>
+      {/* Error message displayed here, outside the form but inside the overall container */}
+      {error && <p className="text-red-500">{error}</p>}
+      
+    </div>
+    </div>
+    
     </div>
   )
 
