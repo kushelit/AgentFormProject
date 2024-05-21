@@ -30,8 +30,8 @@ export default function Header() {
           </>
           ) : (
             <>
-             <Link href="/auth/sign-up/agent">הרשם</Link>
-              <Link href="/auth/log-in">התחבר</Link>
+              <Link href="/auth/sign-up/agent">הרשם</Link>
+              <Link href="/auth/log-in">התחבר</Link> 
              
             </>
           )}

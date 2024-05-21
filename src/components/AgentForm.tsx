@@ -82,7 +82,7 @@ const [firstNameCustomerFilter, setfirstNameCustomerFilter] = useState('');
 const [lastNameCustomerFilter, setlastNameCustomerFilter] = useState('');
 const [minuySochenFilter, setMinuySochenFilter] = useState('');
 const [expiryDateFilter, setExpiryDateFilter] = useState('');
-
+const [notes, setNotes] = useState('');
 
 type AgentDataType = {
   id: string;
@@ -100,25 +100,53 @@ type AgentDataType = {
   statusPolicy: string;
   minuySochen: boolean;
   workerName: string;
-  workerId: string;  // Assuming you need this based on your existing type definition
+  workerId: string; 
+  notes: string; // Assuming you need this based on your existing type definition
   // Add any other fields that your Firestore documents contain and that you need in your app
 };
+
+
+type AgentDataTypeForFetching = {
+  
+  firstNameCustomer: string;
+  lastNameCustomer: string;
+  IDCustomer: string;
+  company: string;
+  product: string;
+  insPremia: number;
+  pensiaPremia: number;
+  pensiaZvira: number;
+  finansimPremia: number;
+  finansimZvira: number;
+  mounth: string;
+  statusPolicy: string;
+  minuySochen: boolean;
+  workerName: string;
+  workerId: string; 
+  notes: string; // Assuming you need this based on your existing type definition
+  // Add any other fields that your Firestore documents contain and that you need in your app
+};
+
+
+
+
 
 
 // Use the defined type when initializing the state
 const [filteredData, setFilteredData] = useState<AgentDataType[]>([]);
 
-
-const fetchDataForAgent = async (UserAgentId : string) => {
-  const q = query(collection(db, 'sales'), where('AgentId', '==', selectedAgentId ));
+const fetchDataForAgent = async (UserAgentId: string) => {
+  const q = query(collection(db, 'sales'), where('AgentId', '==', selectedAgentId));
   const querySnapshot = await getDocs(q);
   const data = querySnapshot.docs.map(doc => ({
-    id: doc.id, 
-    ...doc.data() 
-  }));
+    id: doc.id, // Assign id first
+    ...(doc.data() as AgentDataTypeForFetching) // Then spread the rest of the data
+  })).sort((a, b) => {
+    const [monthA, yearA] = a.mounth.split('/').map(Number);
+    const [monthB, yearB] = b.mounth.split('/').map(Number);
+    return (yearB + 2000) - (yearA + 2000) || monthB - monthA; // Adjust sort for descending order
+  });
   setAgentData(data);
-  console.log(data)
-  
 };
 
 
@@ -137,6 +165,7 @@ const fetchDataForAgent = async (UserAgentId : string) => {
     setmounth('');
     setMinuySochen(false);
     setSelectedStatusPolicy('');
+    setNotes('');
     if (selectedAgentId) {
       fetchDataForAgent(selectedAgentId);
     }
@@ -163,6 +192,7 @@ const fetchDataForAgent = async (UserAgentId : string) => {
     setSelectedStatusPolicy(item.statusPolicy);
     // Set other form fields as needed
     setIsEditing(true);
+    setNotes(item.notes);
   };
 
   const handleDelete = async () => {
@@ -201,6 +231,7 @@ const fetchDataForAgent = async (UserAgentId : string) => {
           mounth,
           minuySochen: !!minuySochen,
           statusPolicy: selectedStatusPolicy,
+          notes: notes || '',
           // Include any additional fields as needed
         });
 
@@ -236,6 +267,7 @@ const fetchDataForAgent = async (UserAgentId : string) => {
     setMinuySochen(false);
     setSelectedStatusPolicy('');
     setIsEditing(false);
+    setNotes('');
   };
 
  
@@ -262,6 +294,7 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
       mounth,
       minuySochen,
       statusPolicy: selectedStatusPolicy,
+      notes,
     });
     
     console.log('Document written with ID:', docRef.id);
@@ -550,6 +583,17 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
                         <input type="checkbox" id="minuySochen" name="minuySochen" checked={minuySochen} onChange={(e) => setMinuySochen(e.target.checked)} />
                     </td>
                 </tr>
+                <tr>
+                    <td>
+                        <label htmlFor="notes">הערות</label>
+                    </td>
+                    <td>
+                        <input type="text" id="notes" name="notes" value={notes} onChange={(e) => setNotes(e.target.value)} />
+                    </td>
+                </tr>
+
+
+
             {/** Multiple rows, each with a label and corresponding input/select **/}
           </tbody>
           </div>
@@ -666,11 +710,11 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
                   <td>{item.IDCustomer}</td>
                   <td>{item.company}</td>
                   <td>{item.product}</td>
-                  <td>{item.insPremia}</td>
-                  <td>{item.pensiaPremia}</td>
-                  <td>{item.pensiaZvira}</td>
-                  <td>{item.finansimPremia}</td>
-                  <td>{item.finansimZvira}</td>
+                  <td>{Number(item.insPremia).toLocaleString('en-US')}</td>
+                  <td>{Number(item.pensiaPremia).toLocaleString('en-US')}</td>
+                  <td>{Number(item.pensiaZvira).toLocaleString('en-US')}</td>
+                  <td>{Number(item.finansimPremia).toLocaleString('en-US')}</td>
+                  <td>{Number(item.finansimZvira).toLocaleString('en-US')}</td>
                   <td>{item.mounth}</td>
                   <td>{item.statusPolicy}</td>
                   <td>{item.minuySochen ? 'כן' : 'לא'}</td>

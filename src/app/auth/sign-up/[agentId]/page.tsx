@@ -5,7 +5,7 @@ import { FormEventHandler, useEffect, useMemo, useState } from "react";
 import { redirect, notFound } from 'next/navigation';
 import { db } from "@/lib/firebase/firebase";
 import { collection, doc, setDoc, getDoc } from "firebase/firestore";
-import './agentSignup.css';
+import './agentSignupWorker.css';
 
 
 
@@ -81,7 +81,7 @@ export default function WorkerSignUpPage({ params }: { params: { agentId: string
 
   return (
 
-  <div className="frame-container bg-custom-white " style={{ maxWidth: '500px', margin: '0 auto', padding: '10px 20px 20px 20px', border: '1px solid #ccc', borderRadius: '8px', marginTop: '80px' ,textAlign: 'center', direction: 'rtl'  }}>
+<div className="frame-container bg-custom-white " style={{ maxWidth: '500px', margin: '0 auto', padding: '10px 20px 20px 20px', border: '1px solid #ccc', borderRadius: '8px', marginTop: '80px' ,textAlign: 'center', direction: 'rtl'  }}>
 {/*<h1 style={{ paddingTop: '4rem', fontSize: '24px' }}>רישום עובד עבור סוכן <span className="font-bold">{agent.name}</span></h1>*/}
 <div style={{ marginTop: '20px', width: '90%', margin: '0 auto', overflowX: 'auto' }}>
 <div className="table-container" style={{ width: '100%' }}>

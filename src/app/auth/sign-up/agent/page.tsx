@@ -37,46 +37,71 @@ export default function AgentSignUpPage() {
     }
 
     signUp(email, password)
-      .then((userCredential) => {
-        const docRef = doc(db, 'users', userCredential.user.uid);
-        setDoc(docRef, {
-          name,
-          email,
-          role: 'agent',
-          agentId: userCredential.user.uid,
-        });
-        redirect('/');
-      })
-      .catch((err) => {
-        console.error({err});
-        setError(err.code);
+    .then((userCredential) => {
+      const docRef = doc(db, 'users', userCredential.user.uid);
+      setDoc(docRef, {
+        name,
+        email,
+        role: 'agent',
+        agentId: userCredential.user.uid,
       });
-  }
+      redirect('/auth/log-in');
+    })
+    .catch((err) => {
+      console.error({err});
+      setError(err.code);
+    });
+}
+
 
   return (
-    <form onSubmit={handleSignUp}>
-      <h1  style={{ paddingTop: '4rem' }}>Agent Sign up</h1>
-      <div>
-        <label htmlFor="name">Name</label>
-        <input type="text" id="name" name="name" required />
+    <div className="frame-container bg-custom-white" style={{ maxWidth: '500px', margin: '0 auto', padding: '10px 20px 20px 20px', border: '1px solid #ccc', borderRadius: '8px', marginTop: '80px', textAlign: 'center', direction: 'rtl' }}>
+      <div style={{ marginTop: '20px', width: '90%', margin: '0 auto', overflowX: 'auto' }}>
+        <div className="table-container" style={{ width: '100%' }}>
+          <form onSubmit={handleSignUp}>
+            <table style={{ width: '100%' }}>
+              <tbody>
+                <tr>
+                  <td>
+                    <label htmlFor="name">שם סוכן</label>
+                  </td>
+                  <td>
+                    <input type="text" id="name" name="name" required />
+                  </td>
+                </tr>
+                <tr>
+                  <td>
+                    <label htmlFor="email">אימייל</label>
+                  </td>
+                  <td>
+                    <input type="email" id="email" name="email" required />
+                  </td>
+                </tr>
+                <tr>
+                  <td>
+                    <label htmlFor="password">סיסמא</label>
+                  </td>
+                  <td>
+                    <input type="password" id="password" name="password" required />
+                  </td>
+                </tr>
+                <tr>
+                  <td>
+                    <label htmlFor="password-confirm">אימות סיסמא</label>
+                  </td>
+                  <td>
+                    <input type="password" id="password-confirm" name="password-confirm" required />
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+            <div className="button-group">
+              <button type="submit">הרשם</button>
+            </div>
+          </form>
+          {error && <p className="text-red-500">{error}</p>}
+        </div>
       </div>
-
-      <div>
-        <label htmlFor="email">Email</label>
-        <input type="email" id="email" name="email" required />
-      </div>
-
-      <div>
-        <label htmlFor="password">Password</label>
-        <input type="password" id="password" name="password" required />
-      </div>
-      <div>
-        <label htmlFor="password-confirm">Confirm Password</label>
-        <input type="password" id="password-confirm" name="password-confirm" required />
-      </div>
-      {error && <p className="text-red-500">{error}</p>}
-
-      <button type="submit">Sign up</button>
-    </form>
-  )
+    </div>
+  );
 }
