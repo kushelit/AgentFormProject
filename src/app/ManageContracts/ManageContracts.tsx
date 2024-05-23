@@ -47,34 +47,43 @@ import './ManageContracts.css';
   
   } = useFetchMD();
 
+
+
+
   const handlecommissionPercentHekef1: ChangeEventHandler<HTMLInputElement> = (e) => {
     const value = e.target.value;
-    setCommissionPercentHekef1(value);
+    // Allow numbers and one dot for decimal places
+    const onlyNumsAndDot = value.replace(/[^0-9.]/g, '').replace(/(\..*?)\..*/g, '$1');
+    setCommissionPercentHekef1(onlyNumsAndDot);
 };
-
 const handlecommissionPercentNifraim1: ChangeEventHandler<HTMLInputElement> = (e) => {
   const value = e.target.value;
-  setCommissionPercentNifraim1(value);
+  const onlyNumsAndDot = value.replace(/[^0-9.]/g, '').replace(/(\..*?)\..*/g, '$1');
+  setCommissionPercentNifraim1(onlyNumsAndDot);
 };
 
 const handlecommissionPercentNiud1: ChangeEventHandler<HTMLInputElement> = (e) => {
   const value = e.target.value;
-  setCommissionPercentNiud1(value);
+  const onlyNumsAndDot = value.replace(/[^0-9.]/g, '').replace(/(\..*?)\..*/g, '$1');
+  setCommissionPercentNiud1(onlyNumsAndDot);
 };
 
 const handlecommissionPercentHekef2: ChangeEventHandler<HTMLInputElement> = (e) => {
   const value = e.target.value;
-  setCommissionPercentHekef2(value);
+  const onlyNumsAndDot = value.replace(/[^0-9.]/g, '').replace(/(\..*?)\..*/g, '$1');
+  setCommissionPercentHekef2(onlyNumsAndDot);
 };
 
 const handlecommissionPercentNifraim2: ChangeEventHandler<HTMLInputElement> = (e) => {
 const value = e.target.value;
-setCommissionPercentNifraim2(value);
+const onlyNumsAndDot = value.replace(/[^0-9.]/g, '').replace(/(\..*?)\..*/g, '$1');
+setCommissionPercentNifraim2(onlyNumsAndDot);
 };
 
 const handlecommissionPercentNiud2: ChangeEventHandler<HTMLInputElement> = (e) => {
   const value = e.target.value;
-  setCommissionPercentNiud2(value);
+  const onlyNumsAndDot = value.replace(/[^0-9.]/g, '').replace(/(\..*?)\..*/g, '$1');
+  setCommissionPercentNiud2(onlyNumsAndDot);
   };
   
 const resetFormDefault = () => {

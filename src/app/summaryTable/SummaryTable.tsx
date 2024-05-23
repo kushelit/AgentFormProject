@@ -68,6 +68,15 @@ const SummaryTable = () => {
     statusPolicies
   } = useFetchMD();
 
+  const monthsCount = Object.keys(monthlyTotals).length;
+
+  // Calculating averages
+const averageFinansim = overallFinansimTotal / monthsCount;
+const averagePensia = overallPensiaTotal / monthsCount;
+const averageInsurance = overallInsuranceTotal / monthsCount;
+const averageNiudPensia = overallNiudPensiaTotal / monthsCount;
+const averageCommissionHekef = overallCommissionHekefTotal / monthsCount;
+const averageCommissionNifraim = overallCommissionNifraimTotal / monthsCount;
 
 
   useEffect(() => {
@@ -285,6 +294,15 @@ const SummaryTable = () => {
             <td><strong>{overallCommissionNifraimTotal.toLocaleString()}</strong></td>
 
           </tr>
+          <tr>
+        <td><strong>ממוצע</strong></td>
+        <td><strong>{averageFinansim.toLocaleString()}</strong></td>
+        <td><strong>{averagePensia.toLocaleString()}</strong></td>
+        <td><strong>{averageInsurance.toLocaleString()}</strong></td>
+        <td><strong>{averageNiudPensia.toLocaleString()}</strong></td>
+        <td><strong>{averageCommissionHekef.toLocaleString()}</strong></td>
+        <td><strong>{averageCommissionNifraim.toLocaleString()}</strong></td>
+      </tr>
         </tbody>
       </table>
       
