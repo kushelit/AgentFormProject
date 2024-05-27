@@ -39,10 +39,10 @@ const [phone, setPhone] = useState('');
 const [mail, setMail] = useState('');
 const [address, setAddress] = useState('');
 
-const handleBirthdayChange = (e) => setBirthday(e.target.value);
-const handlePhoneChange = (e) => setPhone(e.target.value);
-const handleMailChange = (e) => setMail(e.target.value);
-const handleAddressChange = (e) => setAddress(e.target.value);
+const handleBirthdayChange = (e: React.ChangeEvent<HTMLInputElement>) => setBirthday(e.target.value);
+const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>)=>  setPhone(e.target.value);
+const handleMailChange =(e: React.ChangeEvent<HTMLInputElement>)=> setMail(e.target.value);
+const handleAddressChange = (e: React.ChangeEvent<HTMLInputElement>)=> setAddress(e.target.value);
 
 type CustomerDataType = {
   id: string;
@@ -515,10 +515,15 @@ const linkSelectedCustomers = async () => {
           <table>
   <thead>
     <tr>
-      <th>עמודה</th>
-      <th>עמודה</th>
-      <th>עמודה</th>
-      <th>עמודה</th>
+               <th>שם פרטי </th>
+                <th>שם משפחה </th>
+                <th>תז </th>
+                <th>חברה</th>
+                <th>מוצר</th>
+                <th>פרמיה</th>
+                <th>צבירה</th>
+                <th>חודש תפוקה</th>
+                <th> סטאטוס</th>
     </tr>
   </thead>
   <tbody>
@@ -528,12 +533,6 @@ const linkSelectedCustomers = async () => {
           <td>3</td>
           <td>4</td>
         </tr>
-    <tr>
-      <td>11</td>
-      <td>22</td>
-      <td>33</td>
-      <td>44</td>
-    </tr>
   </tbody>
 </table> 
 </div>
