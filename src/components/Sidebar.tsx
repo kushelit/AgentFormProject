@@ -19,6 +19,7 @@ type SidebarProps = {
           <ul>
             <li><Link href="/" className="text-custom-white">ניהול עסקאות</Link></li>
             <li><Link href="/summaryTable" className="text-custom-white">דף מרכז </Link></li>
+            <li><Link href="/Customer" className="text-custom-white">לקוחות</Link></li>
             <li><Link href="/ManageWorkers" className="text-custom-white">ניהול עובדים</Link></li>
             <li><Link href="/contact" className="text-custom-white">ניהול יעדים ומבצעים</Link></li>
             <li><Link href="/ManageContracts" className="text-custom-white">ניהול עמלות </Link></li>

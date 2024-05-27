@@ -16,6 +16,7 @@
     "isolatedModules": true,
     "jsx": "preserve",
     "incremental": true,
+    "target": "es2015",
     "paths": {
       "@/*": [
         "./src/*"
@@ -25,7 +26,8 @@
       {
         "name": "next"
       }
-    ]
+    ],
+    "downlevelIteration": true
   },
   "include": [
     "next-env.d.ts",

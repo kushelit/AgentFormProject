@@ -275,6 +275,32 @@ const fetchDataForAgent = async (UserAgentId: string) => {
 const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
   event.preventDefault();
   try {
+   // First, check if the customer exists in the customer collection
+   const customerQuery = query(collection(db, 'customer'), where('IDCustomer', '==', IDCustomer));
+   const customerSnapshot = await getDocs(customerQuery);
+
+   let customerDocRef;
+   const parentID = '';
+   if (customerSnapshot.empty) {
+     // If customer doesn't exist, add to customer collection
+     customerDocRef = await addDoc(collection(db, 'customer'), {
+      AgentId: selectedAgentId,
+      firstNameCustomer,
+       lastNameCustomer,
+       IDCustomer,
+       parentID ,
+       // Add other necessary customer fields here
+     });
+     console.log('Customer added with ID:', customerDocRef.id);
+
+     // Update the parentID to be the same as the newly created customer ID if no parentID was provided
+     if (!parentID) {
+      await updateDoc(customerDocRef, { parentID: customerDocRef.id });
+       console.log('parentID updated to the new document ID');
+     }
+   }
+
+
     console.log("got here");
       const docRef = await addDoc(collection(db, 'sales'), {
       agent: selectedAgentName,
@@ -300,8 +326,8 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
     console.log('Document written with ID:', docRef.id);
     resetForm(); 
     setIsEditing(false);
-    if (selectedAgent) {
-      fetchDataForAgent(selectedAgent);
+    if (selectedAgentId) {
+      fetchDataForAgent(selectedAgentId);
     }
   } catch (error) {
     console.error('Error adding document:', error);
@@ -349,17 +375,6 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
   ), [selectedAgentId, selectedWorkerId, firstNameCustomer, lastNameCustomer, IDCustomer, 
     selectedCompany, selectedProduct, mounth]);
 
-
- // useEffect(() => {
-//    const fetchStatusPolicies = async () => {
-//      const querySnapshot = await getDocs(collection(db, 'statusPolicy'));
-//      const statusList = querySnapshot.docs.map(doc => doc.data().statusName); // Assuming the field name is 'productName'
-//      setStatusPolicies(statusList);
- //   };
-//    fetchStatusPolicies();
- // }, []);
-
-  
 
   const handleFinansimZviraChange: ChangeEventHandler<HTMLInputElement> = (e) => {
    const value = e.target.value
