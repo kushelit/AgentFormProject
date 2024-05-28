@@ -137,23 +137,21 @@ type CustomerDataType = {
       setIDCustomer(onlyNums);
     };
   
-
     const handleRowClick = (item: any) => {
       setSelectedRow(item); // Store the selected row's data
-      setfirstNameCustomer(item.firstNameCustomer);
-      setlastNameCustomer(item.lastNameCustomer);
-      setFullNameCustomer(item.fullNameCustomer);
-      setIDCustomer(item.IDCustomer);
-      setParentID(item.parentID);
+      setfirstNameCustomer(item.firstNameCustomer || '');
+      setlastNameCustomer(item.lastNameCustomer || '');
+      setFullNameCustomer(item.fullNameCustomer || '');
+      setIDCustomer(item.IDCustomer || '');
+      setParentID(item.parentID || '');
       setIsEditing(true);
-      setNotes(item.notes);
-      setBirthday(item.birthday);
-      setPhone(item.phone);
-      setMail(item.mail);
-      setPhone(item.phone);
-      setAddress(item.address);
-
+      setNotes(item.notes || '');
+      setBirthday(item.birthday || '');
+      setPhone(item.phone || '');
+      setMail(item.mail || '');
+      setAddress(item.address || '');
     };
+    
   
     const handleDelete = async () => {
       if (selectedRow && selectedRow.id) {
@@ -193,8 +191,8 @@ type CustomerDataType = {
           console.log("Document successfully updated");
           setSelectedRow(null); 
           resetForm();         
-          if (selectedRow.agent) {
-            fetchCustomersForAgent(selectedRow.agent);
+          if (selectedAgentId) {
+            fetchCustomersForAgent(selectedAgentId);
           }
         } catch (error) {
           console.error("Error updating document:", error);     
@@ -230,7 +228,6 @@ type CustomerDataType = {
   useEffect(() => {
     updateFullName();
 }, [firstNameCustomer, lastNameCustomer]); 
-
 
 
 
@@ -284,13 +281,13 @@ const canSubmit = useMemo(() => (
 const [parentFullName, setParentFullName] = useState('');
 
 // Function to fetch parent customer details
-const fetchParentCustomer = async (parentID:string) => {
+  const fetchParentCustomer = async (parentID:string) => {
   if (!parentID) return; // Exit if no parentId provided
   const docRef = doc(db, 'customer', parentID);
   const docSnap = await getDoc(docRef);
   if (docSnap.exists()) {
     // Assuming 'fullNameCustomer' is the field for the customer's full name
-    setParentFullName(docSnap.data().fullNameCustomer);
+    setParentFullName(docSnap.data().firstNameCustomer);
   } else {
     console.log("No such document!");
     setParentFullName('');
@@ -339,8 +336,86 @@ const linkSelectedCustomers = async () => {
     setSelectedCustomers(new Set());
     // Optionally, toggle visibility of the select column
     setShowSelect(false);
+    if (selectedAgentId) {
+      fetchCustomersForAgent(selectedAgentId);
+    }
   }
 };
+
+
+const [salesData, setSalesData] = useState<Sale[]>([]);
+
+interface Sale {
+  firstNameCustomer: string;
+  lastNameCustomer: string;
+  IDCustomer:string;
+  product: string;
+  company:string;
+//  premium: number;
+  month: string;
+  status: string;
+}
+
+const fetchPrivateSales = async () => {
+
+  if (!selectedRow || !selectedRow.parentID) {
+    console.log("No selected row or parent ID available");
+    return;
+  }
+  const salesRef = collection(db, "sales");
+  const q = query(salesRef, where('IDCustomer', "==", selectedRow.IDCustomer), where('AgentId', "==", selectedAgentId));
+  const querySnapshot = await getDocs(q);
+  const data = querySnapshot.docs.map(doc => ({
+    firstNameCustomer: doc.data().firstNameCustomer,
+    lastNameCustomer: doc.data().lastNameCustomer,
+    IDCustomer: doc.data().IDCustomer,
+    product:doc.data().product,
+    company:doc.data().company,
+ //   premium: doc.data().premium,
+    month: doc.data().mounth,
+    status: doc.data().status
+  } as Sale));
+  setSalesData(data);
+};
+
+
+const fetchFamilySales = async () => {
+
+  if (!selectedRow || !selectedRow.parentID) {
+    console.log("No selected row or parent ID available");
+    return;
+  }
+  // First, fetch all customers with the same parentID
+  const customerRef = collection(db, "customer");
+  const customerQuery = query(customerRef, where("parentID", "==", selectedRow.parentID));
+  const customerSnapshot = await getDocs(customerQuery);
+  
+  // Extract IDCustomer values from the customer results
+  const customerIDs = customerSnapshot.docs.map(doc => doc.data().IDCustomer);
+  
+  // Fetch sales for these customer IDCustomer values
+  const salesRef = collection(db, "sales");
+  const salesQuery = query(salesRef, where("IDCustomer", "in", customerIDs));
+  const salesSnapshot = await getDocs(salesQuery);
+  
+  // Map sales data to the state, ensure all required fields are included
+  const salesData = salesSnapshot.docs.map(doc => ({
+    id: doc.id,
+    firstNameCustomer: doc.data().firstNameCustomer,
+    lastNameCustomer: doc.data().lastNameCustomer,
+    IDCustomer: doc.data().IDCustomer,
+    product: doc.data().product,
+    company:doc.data().company,
+ //   premium: doc.data().premium,
+    month: doc.data().mounth,
+    status: doc.data().status,
+
+    // add other required fields as per your Sale type definition
+    ...doc.data()  // Ensures all fields are copied over
+  }));
+  setSalesData(salesData);
+};
+
 
     return (
       <div className="content-container">
@@ -432,7 +507,10 @@ const linkSelectedCustomers = async () => {
             <button type="button" disabled={selectedRow === null} onClick={handleDelete} >מחק</button>
             <button type="button" disabled={selectedRow === null} onClick={handleEdit}>עדכן</button>
             <button type="button" onClick={resetForm}>נקה</button>
+       
           </div>
+      
+   
        </form>
       </div>  
       <div className="data-container">
@@ -460,16 +538,15 @@ const linkSelectedCustomers = async () => {
        {/* First Frame 
         {agentData.length > 0 ? (*/}
         <div className="table-container" style={{ overflowX: 'auto', maxHeight: '300px' }}>
-        
         <button onClick={toggleSelectVisibility}> חיבור תא משפחתי</button>
         {showSelect && (
-  <button 
-    onClick={linkSelectedCustomers} 
-    disabled={selectedCustomers.size === 0}
-  >
-    אשר חיבור
-  </button>
-)}    <table>
+        <button  onClick={linkSelectedCustomers} disabled={selectedCustomers.size === 0}>אשר חיבור</button>   
+        )}    
+        <button onClick={fetchPrivateSales} disabled={!selectedRow}> הפק דוח אישי</button>
+        <button onClick={fetchFamilySales} disabled={!selectedRow}> הפק דוח משפחתי</button>
+
+       
+<table>
       <thead>
         <tr>
           {showSelect && <th>Select</th>}
@@ -512,34 +589,35 @@ const linkSelectedCustomers = async () => {
 
           </div>
   <div className="table-container" style={{ overflowX: 'auto', maxHeight: '300px' }}>
-          <table>
+  <table>
   <thead>
     <tr>
-               <th>שם פרטי </th>
-                <th>שם משפחה </th>
-                <th>תז </th>
-                <th>חברה</th>
-                <th>מוצר</th>
-                <th>פרמיה</th>
-                <th>צבירה</th>
-                <th>חודש תפוקה</th>
-                <th> סטאטוס</th>
+      <th>שם פרטי</th>
+      <th>שם משפחה</th>
+      <th>תז</th>
+      <th>מוצר</th>
+      <th>חברה</th>
+      <th>חודש תוקף</th>
     </tr>
   </thead>
   <tbody>
-        <tr >
-          <td>1</td>
-          <td>2</td>
-          <td>3</td>
-          <td>4</td>
-        </tr>
+    {salesData.map((sale, index) => (
+      <tr key={index}>
+        <td>{sale.firstNameCustomer}</td>
+        <td>{sale.lastNameCustomer}</td>
+        <td>{sale.IDCustomer}</td>
+        <td>{sale.product}</td>
+        <td>{sale.company}</td>
+        <td>{sale.month}</td>
+      </tr>
+    ))}
   </tbody>
-</table> 
+</table>
 </div>
 
       </div>
     </div>
   );
         }
-  
+    
   export default Customer;
