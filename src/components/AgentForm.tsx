@@ -7,7 +7,6 @@ import './AgentForm.css';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useAuth } from '@/lib/firebase/AuthContext';
-//import { useSelectedAgent } from '../context/SelectedAgentContext';
 import useFetchAgentData from "@/hooks/useFetchAgentData"; 
 import useSalesData from "@/hooks/useSalesData"; 
 import useFetchMD from "@/hooks/useMD"; 
@@ -21,11 +20,12 @@ function AgentForm() {
     selectedAgentId, 
     handleAgentChange, 
     workers, 
-    selectedWorkerId, 
-    selectedAgentName,
+    selectedWorkerId,
     selectedWorkerName, 
+    setSelectedWorkerName,
+    setSelectedWorkerId, 
+    selectedAgentName,
     handleWorkerChange , 
-   // handleCompaniesChange,
     companies,
     setCompanies,
     selectedCompany, 
@@ -35,6 +35,7 @@ function AgentForm() {
     selectedCompanyFilter,
     setSelectedCompanyFilter
   } = useFetchAgentData();
+
 
   const 
   { monthlyTotals,
@@ -58,7 +59,7 @@ function AgentForm() {
 
   const searchParams = useSearchParams();
   const [selectedAgent, setSelectedAgent] = useState('');
-  const [selectedWorker, setSelectedWorker]  = useState('');
+ // const [selectedWorker, setSelectedWorker]  = useState('');
   const [firstNameCustomer, setfirstNameCustomer] = useState('');
   const [lastNameCustomer, setlastNameCustomer] = useState('');
   const [IDCustomer, setIDCustomer] = useState('');
@@ -70,13 +71,8 @@ function AgentForm() {
   const [mounth, setmounth] = useState('');
   const [agentData, setAgentData] = useState<any[]>([]);
   const [selectedRow, setSelectedRow] = useState<any | null>(null);
-  //const [companies, setCompanies] = useState<string[]>([]);
   const [minuySochen, setMinuySochen] = useState(false);
- // const [selectedCompany, setSelectedCompany] = useState('');
- // const [statusPolicies, setStatusPolicies] = useState<string[]>([]);
- // const [selectedStatusPolicy, setSelectedStatusPolicy] = useState('');
   const [isEditing, setIsEditing] = useState(false);
-// Define a type for the items in your data array
 const [idCustomerFilter, setIdCustomerFilter] = useState('');
 const [firstNameCustomerFilter, setfirstNameCustomerFilter] = useState('');
 const [lastNameCustomerFilter, setlastNameCustomerFilter] = useState('');
@@ -101,8 +97,7 @@ type AgentDataType = {
   minuySochen: boolean;
   workerName: string;
   workerId: string; 
-  notes: string; // Assuming you need this based on your existing type definition
-  // Add any other fields that your Firestore documents contain and that you need in your app
+  notes: string; 
 };
 
 
@@ -123,23 +118,19 @@ type AgentDataTypeForFetching = {
   minuySochen: boolean;
   workerName: string;
   workerId: string; 
-  notes: string; // Assuming you need this based on your existing type definition
-  // Add any other fields that your Firestore documents contain and that you need in your app
+  notes: string; 
+ 
 };
 
 
 
-
-
-
-// Use the defined type when initializing the state
 const [filteredData, setFilteredData] = useState<AgentDataType[]>([]);
 
 const fetchDataForAgent = async (UserAgentId: string) => {
   const q = query(collection(db, 'sales'), where('AgentId', '==', selectedAgentId));
   const querySnapshot = await getDocs(q);
   const data = querySnapshot.docs.map(doc => ({
-    id: doc.id, // Assign id first
+    id: doc.id, 
     ...(doc.data() as AgentDataTypeForFetching) // Then spread the rest of the data
   })).sort((a, b) => {
     const [monthA, yearA] = a.mounth.split('/').map(Number);
@@ -151,7 +142,7 @@ const fetchDataForAgent = async (UserAgentId: string) => {
 
 
   useEffect(() => {
-    setSelectedWorker('');
+   // setSelectedWorkerId('');
     setfirstNameCustomer('');
     setlastNameCustomer('');
     setIDCustomer('');
@@ -173,10 +164,10 @@ const fetchDataForAgent = async (UserAgentId: string) => {
 
 
   const [hoveredRowId, setHoveredRowId] = useState<string | null>(null);
-
-    const handleRowClick = (item: any) => {
+  const handleRowClick = (item: any) => {
     setSelectedRow(item); // Store the selected row's data
-    setSelectedWorker(item.workerName); //new 
+   // setSelectedWorkerId(item.workerId);
+    //setSelectedWorkerName(item.workerName);
     setfirstNameCustomer(item.firstNameCustomer);
     setlastNameCustomer(item.lastNameCustomer);
     setIDCustomer(item.IDCustomer);
@@ -190,7 +181,6 @@ const fetchDataForAgent = async (UserAgentId: string) => {
     setmounth(item.mounth);
     setMinuySochen(item.minuySochen);
     setSelectedStatusPolicy(item.statusPolicy);
-    // Set other form fields as needed
     setIsEditing(true);
     setNotes(item.notes);
   };
@@ -207,11 +197,10 @@ const fetchDataForAgent = async (UserAgentId: string) => {
     } else {
       console.log("No selected row or row ID is undefined");
 
-      // Fetch data again or remove the item from `agentData` state to update UI
     }
   };
   const handleEdit = async () => {
-    if (selectedRow && selectedRow.id) { // Ensure selectedRow has an 'id' property
+    if (selectedRow && selectedRow.id) { 
       try {
         const docRef = doc(db, 'sales', selectedRow.id); // Reference to the Firestore document
         await updateDoc(docRef, {
@@ -232,15 +221,14 @@ const fetchDataForAgent = async (UserAgentId: string) => {
           minuySochen: !!minuySochen,
           statusPolicy: selectedStatusPolicy,
           notes: notes || '',
-          // Include any additional fields as needed
+        
         });
-
         console.log("Document successfully updated");
         setSelectedRow(null); 
         resetForm();         
-        if (selectedRow.agent) {
-          fetchDataForAgent(selectedRow.agent);
-        }
+     //   if (selectedAgentId) {
+          fetchDataForAgent(selectedAgentId);
+    //    }
       } catch (error) {
         console.error("Error updating document:", error);     
       }
@@ -248,8 +236,10 @@ const fetchDataForAgent = async (UserAgentId: string) => {
       console.log("No row selected or missing document ID");
     }
   };
+
+  
   const resetForm = () => {
-    setSelectedWorker('');
+    setSelectedWorkerId('');
     setfirstNameCustomer(''); 
     setfirstNameCustomer(''); 
     setfirstNameCustomer(''); 
@@ -299,8 +289,6 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
        console.log('parentID updated to the new document ID');
      }
    }
-
-
     console.log("got here");
       const docRef = await addDoc(collection(db, 'sales'), {
       agent: selectedAgentName,
@@ -443,6 +431,12 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
   }, [selectedWorkerIdFilter, selectedCompanyFilter, selectedProductFilter, selectedStatusPolicyFilter, agentData, idCustomerFilter, firstNameCustomerFilter, lastNameCustomerFilter, minuySochenFilter, expiryDateFilter]);
 
 
+  useEffect(() => {
+    console.log( 'select worers log ' +selectedWorkerId + selectedWorkerName);
+       // See what the workers data looks like
+  }, [handleWorkerChange]);
+
+ 
 
   console.log({ selectedAgentId, selectedWorkerId, firstNameCustomer, lastNameCustomer, IDCustomer, selectedCompany, selectedProduct, mounth });
   return (

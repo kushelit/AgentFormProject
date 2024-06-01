@@ -6,17 +6,17 @@ import Link from "next/link";
 import useFetchMD from "@/hooks/useMD"; 
 import './Customer.css';
 import useFetchAgentData from "@/hooks/useFetchAgentData"; 
+import React from 'react';
 
 
-const Customer = () => {
-   
+
+const Customer = () => { 
+
     const [firstNameCustomer, setfirstNameCustomer] = useState('');
     const [lastNameCustomer, setlastNameCustomer] = useState('');
     const [fullNameCustomer, setFullNameCustomer] = useState('');
-
     const [IDCustomer, setIDCustomer] = useState('');
     const [parentID, setParentID] = useState('');
-
     const { user, detail } = useAuth();
     const [notes, setNotes] = useState('');
     const [selectedRow, setSelectedRow] = useState<any | null>(null);
@@ -28,11 +28,11 @@ const Customer = () => {
     const [filteredData, setFilteredData] = useState<CustomerDataType[]>([]);
     const [customerData, setCustomerData] = useState<any[]>([]);
  
+    const [showSelect, setShowSelect] = useState(false);
+    const [selectedCustomers, setSelectedCustomers] = useState(new Set<string>());
 
- const [showSelect, setShowSelect] = useState(false);
-const [selectedCustomers, setSelectedCustomers] = useState(new Set<string>());
-
-
+    const [contracts, setContracts] = useState<Contract[]>([]);
+    const [productMap, setProductMap] = useState<Record<string, string>>({});
 
 const [birthday, setBirthday] = useState('');
 const [phone, setPhone] = useState('');
@@ -57,6 +57,20 @@ type CustomerDataType = {
   address: string;
 };
 
+type CustomersTypeForFetching = {
+  parentID: string;
+  firstNameCustomer: string;
+  lastNameCustomer: string;
+  fullNameCustomer: string;
+  IDCustomer: string; 
+  notes: string; 
+  birthday: string; 
+  phone: string;
+  mail: string;
+  address: string;
+
+};
+
     const { 
       agents, 
       selectedAgentId, 
@@ -64,21 +78,7 @@ type CustomerDataType = {
       selectedAgentName,
     } = useFetchAgentData();
   
-
-    type CustomersTypeForFetching = {
-      parentID: string;
-      firstNameCustomer: string;
-      lastNameCustomer: string;
-      fullNameCustomer: string;
-      IDCustomer: string; 
-      notes: string; 
-      birthday: string; 
-      phone: string;
-      mail: string;
-      address: string;
-    
-    };
-    
+ 
     useEffect(() => {
       if (selectedAgentId) {
         fetchCustomersForAgent(selectedAgentId);
@@ -171,23 +171,18 @@ type CustomerDataType = {
     const handleEdit = async () => {
       if (selectedRow && selectedRow.id) {
         try {
-          // Ensure partntID has a default value if it's undefined
-      //    const effectiveParentID = parentID || IDCustomer;
-    
           const docRef = doc(db, 'customer', selectedRow.id); 
           await updateDoc(docRef, {        
             firstNameCustomer,
             lastNameCustomer,
             fullNameCustomer,
             IDCustomer,
-         //   parentID: effectiveParentID,
             notes: notes || '',
             birthday,
             phone,
             mail,
             address,
           });
-    
           console.log("Document successfully updated");
           setSelectedRow(null); 
           resetForm();         
@@ -221,14 +216,13 @@ type CustomerDataType = {
     };
   
    
-    const updateFullName = () => {
+ const updateFullName = () => {
       setFullNameCustomer(`${firstNameCustomer} ${lastNameCustomer}`);
   };
 
   useEffect(() => {
     updateFullName();
 }, [firstNameCustomer, lastNameCustomer]); 
-
 
 
 const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
@@ -251,13 +245,10 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
       
     });    
     console.log('Document written with ID:', docRef.id);
-
-    // Update the document with its own ID as parentID if needed
-    if (!parentID) { // Only set parentID if it's not already provided
+    if (!parentID) { 
       await updateDoc(doc(db, 'customer', docRef.id), { parentID: docRef.id });
       console.log('parentID updated to document ID');
     }
-
     resetForm(); 
     setIsEditing(false);
     if (selectedAgentId) {
@@ -277,10 +268,8 @@ const canSubmit = useMemo(() => (
 ]);
 
 
-
 const [parentFullName, setParentFullName] = useState('');
 
-// Function to fetch parent customer details
   const fetchParentCustomer = async (parentID:string) => {
   if (!parentID) return; // Exit if no parentId provided
   const docRef = doc(db, 'customer', parentID);
@@ -294,18 +283,16 @@ const [parentFullName, setParentFullName] = useState('');
   }
 };
 
-// Effect to fetch details whenever parentID changes
+
 useEffect(() => {
   if (selectedRow) {
     fetchParentCustomer(selectedRow.parentID);
     console.log("selectedRow.parentID " + parentFullName);
-
   }
 }, [selectedRow]);
 
 const toggleSelectVisibility = () => {
   if (showSelect) {
-    // Clear selected customers only when closing the select view
     setSelectedCustomers(new Set());
   }
   setShowSelect(!showSelect);
@@ -342,79 +329,253 @@ const linkSelectedCustomers = async () => {
   }
 };
 
+interface Contract {
+  id: string;
+  company: string;
+  product: string;
+  productsGroup: string;
+  agentId: string;
+  commissionNifraim: number;
+  commissionHekef: number;
+  commissionNiud: number;
+}
 
-const [salesData, setSalesData] = useState<Sale[]>([]);
+interface Product {
+  productName: string;
+  productGroup: string;
+  // Add other fields as necessary
+}
+
+
+useEffect(() => {
+  const fetchContracts = async () => {
+    const snapshot = await getDocs(collection(db, 'contracts'));
+    const fetchedContracts: Contract[] = snapshot.docs.map(doc => ({
+      id: doc.id,
+      company: doc.data().company,
+      product: doc.data().product,
+      productsGroup: doc.data().productsGroup,
+      agentId: doc.data().AgentId,
+      commissionNifraim: doc.data().commissionNifraim,
+      commissionHekef: doc.data().commissionHekef,
+      commissionNiud: doc.data().commissionNiud
+    }));
+    setContracts(fetchedContracts);
+  };
+
+  fetchContracts();
+}, []);
+
+
+useEffect(() => {
+  const fetchProducts = async () => {
+    const querySnapshot = await getDocs(collection(db, 'product'));
+    const productMapping: Record<string, string> = {}; // More specific type than {}
+    querySnapshot.forEach((doc) => {
+      const productData = doc.data() as Product; 
+      productMapping[productData.productName] = productData.productGroup;
+    });
+    setProductMap(productMapping);
+  };
+
+  fetchProducts();
+}, []);
+
 
 interface Sale {
   firstNameCustomer: string;
   lastNameCustomer: string;
-  IDCustomer:string;
+  IDCustomer: string;
   product: string;
-  company:string;
-//  premium: number;
+  company: string;
   month: string;
   status: string;
+  insPremia: string;      
+  pensiaPremia: string;
+  pensiaZvira: string;
+  finansimPremia: string;
+  finansimZvira: string;
+  commissionHekef?: number;  
+  commissionNifraim?: number;
 }
 
-const fetchPrivateSales = async () => {
+const [salesData, setSalesData] = useState<Sale[]>([]);
 
-  if (!selectedRow || !selectedRow.parentID) {
-    console.log("No selected row or parent ID available");
+function calculateCommissions(sale: Sale, contractMatch: any) {
+  let commissionHekef = 0;
+  let commissionNifraim = 0;
+
+  if (contractMatch) {
+    commissionHekef = (
+      ((parseInt(sale.insPremia) || 0) * contractMatch.commissionHekef / 100 * 12) +
+      ((parseInt(sale.pensiaPremia) || 0) * contractMatch.commissionHekef / 100 * 12) +
+      ((parseInt(sale.pensiaZvira) || 0) * contractMatch.commissionNiud / 100) +
+      ((parseInt(sale.finansimPremia) || 0) * contractMatch.commissionHekef / 100 * 12) +
+      ((parseInt(sale.finansimZvira) || 0) * contractMatch.commissionNiud / 100)
+    );
+
+    commissionNifraim = (
+      ((parseInt(sale.insPremia) || 0) * contractMatch.commissionNifraim / 100) +
+      ((parseInt(sale.pensiaPremia) || 0) * contractMatch.commissionNifraim / 100) +
+      ((parseInt(sale.finansimZvira) || 0) * contractMatch.commissionNifraim / 100 / 12)
+    );
+  } else {
+    const productGroup = productMap[sale.product];
+    const groupMatch = contracts.find(contract =>
+      contract.productsGroup === productGroup &&
+      contract.agentId === selectedAgentId
+    );
+    if (groupMatch) {
+      commissionHekef = (
+        ((parseInt(sale.insPremia) || 0) * groupMatch.commissionHekef / 100 * 12) +
+        ((parseInt(sale.pensiaPremia) || 0) * groupMatch.commissionHekef / 100 * 12) +
+        ((parseInt(sale.pensiaZvira) || 0) * groupMatch.commissionNiud / 100) +
+        ((parseInt(sale.finansimPremia) || 0) * groupMatch.commissionHekef / 100 * 12) +
+        ((parseInt(sale.finansimZvira) || 0) * groupMatch.commissionNiud / 100)
+      );
+
+      commissionNifraim = (
+        ((parseInt(sale.insPremia) || 0) * groupMatch.commissionNifraim / 100) +
+        ((parseInt(sale.pensiaPremia) || 0) * groupMatch.commissionNifraim / 100) +
+        ((parseInt(sale.finansimZvira) || 0) * groupMatch.commissionNifraim / 100 / 12)
+      );
+    } else {
+      commissionNifraim = 0;
+      commissionHekef = 0;
+    }
+  }
+  return {
+    commissionHekef: Math.round(commissionHekef),
+    commissionNifraim: Math.round(commissionNifraim)
+  };
+}
+
+
+const fetchPrivateSales = async () => {
+  if (!selectedRow) {
+    console.log("No selected row available");
     return;
   }
   const salesRef = collection(db, "sales");
-  const q = query(salesRef, where('IDCustomer', "==", selectedRow.IDCustomer), where('AgentId', "==", selectedAgentId));
-  const querySnapshot = await getDocs(q);
-  const data = querySnapshot.docs.map(doc => ({
-    firstNameCustomer: doc.data().firstNameCustomer,
-    lastNameCustomer: doc.data().lastNameCustomer,
-    IDCustomer: doc.data().IDCustomer,
-    product:doc.data().product,
-    company:doc.data().company,
- //   premium: doc.data().premium,
-    month: doc.data().mounth,
-    status: doc.data().status
-  } as Sale));
-  setSalesData(data);
+  const q = query(salesRef, where('IDCustomer', "==", selectedRow.IDCustomer), where('AgentId', "==", selectedAgentId), where('minuySochen', '==', false), where('statusPolicy', 'in', ['פעילה', 'הצעה']));
+  try {
+    const querySnapshot = await getDocs(q);
+    const salesWithCommissions = querySnapshot.docs.map(doc => {
+      const data: Sale = {
+        firstNameCustomer: doc.data().firstNameCustomer,
+        lastNameCustomer: doc.data().lastNameCustomer,
+        IDCustomer: doc.data().IDCustomer,
+        product: doc.data().product,
+        company: doc.data().company,
+        month: doc.data().month,
+        status: doc.data().status,
+        insPremia: doc.data().insPremia,
+        pensiaPremia: doc.data().pensiaPremia,
+        pensiaZvira: doc.data().pensiaZvira,
+        finansimPremia: doc.data().finansimPremia,
+        finansimZvira: doc.data().finansimZvira,
+      };
+
+      const contractMatch = contracts.find(contract => contract.agentId === selectedAgentId && contract.product === data.product && contract.company === data.company);
+      const commissions = calculateCommissions(data, contractMatch);
+      return { ...data, ...commissions };  // Combine the sale data with the calculated commissions
+    });
+    setSalesData(salesWithCommissions);
+  } catch (error) {
+    console.error("Error fetching private sales data:", error);
+  }
 };
 
-
 const fetchFamilySales = async () => {
-
   if (!selectedRow || !selectedRow.parentID) {
     console.log("No selected row or parent ID available");
     return;
   }
-  // First, fetch all customers with the same parentID
+
   const customerRef = collection(db, "customer");
   const customerQuery = query(customerRef, where("parentID", "==", selectedRow.parentID));
   const customerSnapshot = await getDocs(customerQuery);
-  
-  // Extract IDCustomer values from the customer results
   const customerIDs = customerSnapshot.docs.map(doc => doc.data().IDCustomer);
-  
-  // Fetch sales for these customer IDCustomer values
-  const salesRef = collection(db, "sales");
-  const salesQuery = query(salesRef, where("IDCustomer", "in", customerIDs));
-  const salesSnapshot = await getDocs(salesQuery);
-  
-  // Map sales data to the state, ensure all required fields are included
-  const salesData = salesSnapshot.docs.map(doc => ({
-    id: doc.id,
-    firstNameCustomer: doc.data().firstNameCustomer,
-    lastNameCustomer: doc.data().lastNameCustomer,
-    IDCustomer: doc.data().IDCustomer,
-    product: doc.data().product,
-    company:doc.data().company,
- //   premium: doc.data().premium,
-    month: doc.data().mounth,
-    status: doc.data().status,
 
-    // add other required fields as per your Sale type definition
-    ...doc.data()  // Ensures all fields are copied over
-  }));
-  setSalesData(salesData);
+  const salesRef = collection(db, "sales");
+  const salesQuery = query(salesRef, where("IDCustomer", "in", customerIDs), where('minuySochen', '==', false), where('statusPolicy', 'in', ['פעילה', 'הצעה']));
+  try {
+    const salesSnapshot = await getDocs(salesQuery);
+    const salesWithCommissions = salesSnapshot.docs.map(doc => {
+      const data: Sale = {
+        firstNameCustomer: doc.data().firstNameCustomer,
+        lastNameCustomer: doc.data().lastNameCustomer,
+        IDCustomer: doc.data().IDCustomer,
+        product: doc.data().product,
+        company: doc.data().company,
+        month: doc.data().month,
+        status: doc.data().status,
+        insPremia: doc.data().insPremia,
+        pensiaPremia: doc.data().pensiaPremia,
+        pensiaZvira: doc.data().pensiaZvira,
+        finansimPremia: doc.data().finansimPremia,
+        finansimZvira: doc.data().finansimZvira,
+      };
+      const contractMatch = contracts.find(contract => contract.agentId === selectedAgentId && contract.product === data.product && contract.company === data.company);
+      const commissions = calculateCommissions(data, contractMatch);
+      return { ...data, ...commissions };  // Combine the data with calculated commissions
+    });
+    setSalesData(salesWithCommissions);
+  } catch (error) {
+    console.error("Error fetching family sales data:", error);
+  }
 };
+
+//*** no del **one time running- function to add customer from sales ** no del **
+//const [isProcessing, setIsProcessing] = useState(false);
+
+//  const handleCreateCustomers = async () => {
+    //    if (isProcessing) return;  // Prevent running while already processing
+      //  setIsProcessing(true);
+       // try {
+         //   await createCustomersFromSales(); // Function that processes the sales data
+         //  alert('Customers created successfully from sales data!');
+     //   } catch (error) {
+       //     console.error('Error creating customers:', error);
+    //        alert('Failed to create customers from sales data.');
+   //     }
+    ///    setIsProcessing(false);
+   // };
+
+  //  const createCustomersFromSales = async () => {
+  //    const salesRef = collection(db, "sales");
+   //   const salesSnapshot = await getDocs(salesRef);
+    
+   //   for (const doc of salesSnapshot.docs) {
+  //      const saleData = doc.data();
+  //      if (!saleData.AgentId) {
+  //        console.error('Missing AgentId for sale:', doc.id);
+   //       continue; // Skip this iteration if AgentId is undefined
+   //     }
+    
+    //    const customerQuery = query(collection(db, 'customer'), where('IDCustomer', '==', saleData.IDCustomer));
+    //    const customerSnapshot = await getDocs(customerQuery);
+    
+   //     if (customerSnapshot.empty) {
+   //       try {
+  //          const customerDocRef = await addDoc(collection(db, 'customer'), {
+   //           AgentId: saleData.AgentId,
+    //          firstNameCustomer: saleData.firstNameCustomer,
+    //          lastNameCustomer: saleData.lastNameCustomer,
+    //          IDCustomer: saleData.IDCustomer,
+     //         parentID: ''
+    //        });
+    //        console.log('Customer added with ID:', customerDocRef.id);
+    
+   //         await updateDoc(customerDocRef, { parentID: customerDocRef.id });
+   //         console.log('parentID updated to the new document ID');
+   //       } catch (error) {
+   //         console.error('Error adding customer:', error);
+   //       }
+   //     }
+   //   }
+   // };
+
 
 
     return (
@@ -507,6 +668,10 @@ const fetchFamilySales = async () => {
             <button type="button" disabled={selectedRow === null} onClick={handleDelete} >מחק</button>
             <button type="button" disabled={selectedRow === null} onClick={handleEdit}>עדכן</button>
             <button type="button" onClick={resetForm}>נקה</button>
+            
+        {/*       <button onClick={handleCreateCustomers} disabled={isProcessing}>
+                    {isProcessing ? 'Processing...' : 'Create Customers From Sales'}
+                </button> */}
        
           </div>
       
@@ -598,6 +763,8 @@ const fetchFamilySales = async () => {
       <th>מוצר</th>
       <th>חברה</th>
       <th>חודש תוקף</th>
+      {detail!.role !== 'worker' && <th>נפרעים</th>}
+      {detail!.role !== 'worker' && <th>צבירה</th>}
     </tr>
   </thead>
   <tbody>
@@ -609,6 +776,8 @@ const fetchFamilySales = async () => {
         <td>{sale.product}</td>
         <td>{sale.company}</td>
         <td>{sale.month}</td>
+        {detail?.role !== 'worker' && <td>{sale.commissionHekef}</td>}
+      {detail?.role !== 'worker' && <td>{sale.commissionNifraim}</td>}
       </tr>
     ))}
   </tbody>
@@ -617,7 +786,5 @@ const fetchFamilySales = async () => {
 
       </div>
     </div>
-  );
-        }
-    
-  export default Customer;
+);}
+export default Customer

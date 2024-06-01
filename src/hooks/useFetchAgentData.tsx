@@ -106,10 +106,6 @@ const useFetchAgentData = () => {
 
 
 
-
-
-
-
   useEffect(() => {
     const fetchCompanies = async () => {
       const querySnapshot = await getDocs(collection(db, 'company'));
@@ -129,6 +125,9 @@ const useFetchAgentData = () => {
   selectedAgentId,
   workers,
   selectedWorkerId,
+  setSelectedWorkerName,
+  setSelectedWorkerId,
+  
   handleAgentChange,
   handleWorkerChange,
   selectedAgentName,
