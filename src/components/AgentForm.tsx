@@ -266,7 +266,9 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
   event.preventDefault();
   try {
    // First, check if the customer exists in the customer collection
-   const customerQuery = query(collection(db, 'customer'), where('IDCustomer', '==', IDCustomer));
+   const customerQuery = query(collection(db, 'customer'), where('IDCustomer', '==', IDCustomer),
+   where('AgentId', '==', selectedAgentId)
+  ) ;
    const customerSnapshot = await getDocs(customerQuery);
 
    let customerDocRef;

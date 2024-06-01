@@ -527,54 +527,55 @@ const fetchFamilySales = async () => {
 };
 
 //*** no del **one time running- function to add customer from sales ** no del **
-//const [isProcessing, setIsProcessing] = useState(false);
+const [isProcessing, setIsProcessing] = useState(false);
 
-//  const handleCreateCustomers = async () => {
-    //    if (isProcessing) return;  // Prevent running while already processing
-      //  setIsProcessing(true);
-       // try {
-         //   await createCustomersFromSales(); // Function that processes the sales data
-         //  alert('Customers created successfully from sales data!');
-     //   } catch (error) {
-       //     console.error('Error creating customers:', error);
-    //        alert('Failed to create customers from sales data.');
-   //     }
-    ///    setIsProcessing(false);
-   // };
+  const handleCreateCustomers = async () => {
+        if (isProcessing) return;  // Prevent running while already processing
+        setIsProcessing(true);
+        try {
+            await createCustomersFromSales(); // Function that processes the sales data
+           alert('Customers created successfully from sales data!');
+        } catch (error) {
+            console.error('Error creating customers:', error);
+            alert('Failed to create customers from sales data.');
+        }
+        setIsProcessing(false);
+    };
 
-  //  const createCustomersFromSales = async () => {
-  //    const salesRef = collection(db, "sales");
-   //   const salesSnapshot = await getDocs(salesRef);
+    const createCustomersFromSales = async () => {
+      const salesRef = collection(db, "sales");
+      const salesSnapshot = await getDocs(salesRef);
     
-   //   for (const doc of salesSnapshot.docs) {
-  //      const saleData = doc.data();
-  //      if (!saleData.AgentId) {
-  //        console.error('Missing AgentId for sale:', doc.id);
-   //       continue; // Skip this iteration if AgentId is undefined
-   //     }
+      for (const doc of salesSnapshot.docs) {
+        const saleData = doc.data();
+        if (!saleData.AgentId) {
+          console.error('Missing AgentId for sale:', doc.id);
+          continue; // Skip this iteration if AgentId is undefined
+        }
     
-    //    const customerQuery = query(collection(db, 'customer'), where('IDCustomer', '==', saleData.IDCustomer));
-    //    const customerSnapshot = await getDocs(customerQuery);
+        const customerQuery = query(collection(db, 'customer'), where('IDCustomer', '==', saleData.IDCustomer),
+        where('AgentId', '==', saleData.AgentId));
+        const customerSnapshot = await getDocs(customerQuery);
     
-   //     if (customerSnapshot.empty) {
-   //       try {
-  //          const customerDocRef = await addDoc(collection(db, 'customer'), {
-   //           AgentId: saleData.AgentId,
-    //          firstNameCustomer: saleData.firstNameCustomer,
-    //          lastNameCustomer: saleData.lastNameCustomer,
-    //          IDCustomer: saleData.IDCustomer,
-     //         parentID: ''
-    //        });
-    //        console.log('Customer added with ID:', customerDocRef.id);
+        if (customerSnapshot.empty) {
+          try {
+            const customerDocRef = await addDoc(collection(db, 'customer'), {
+              AgentId: saleData.AgentId,
+              firstNameCustomer: saleData.firstNameCustomer,
+             lastNameCustomer: saleData.lastNameCustomer,
+              IDCustomer: saleData.IDCustomer,
+              parentID: ''
+            });
+            console.log('Customer added with ID:', customerDocRef.id);
     
-   //         await updateDoc(customerDocRef, { parentID: customerDocRef.id });
-   //         console.log('parentID updated to the new document ID');
-   //       } catch (error) {
-   //         console.error('Error adding customer:', error);
-   //       }
-   //     }
-   //   }
-   // };
+            await updateDoc(customerDocRef, { parentID: customerDocRef.id });
+            console.log('parentID updated to the new document ID');
+          } catch (error) {
+            console.error('Error adding customer:', error);
+         }
+        }
+      }
+    };
 
 
 
@@ -669,9 +670,9 @@ const fetchFamilySales = async () => {
             <button type="button" disabled={selectedRow === null} onClick={handleEdit}>עדכן</button>
             <button type="button" onClick={resetForm}>נקה</button>
             
-        {/*       <button onClick={handleCreateCustomers} disabled={isProcessing}>
+         {/*     <button onClick={handleCreateCustomers} disabled={isProcessing}>
                     {isProcessing ? 'Processing...' : 'Create Customers From Sales'}
-                </button> */}
+                </button>  */}
        
           </div>
       
