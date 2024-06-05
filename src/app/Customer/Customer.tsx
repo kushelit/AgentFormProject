@@ -1,5 +1,5 @@
 import { ChangeEventHandler, FormEventHandler, SetStateAction, useEffect, useMemo, useState } from "react";
-import { collection, query, where, getDocs,getDoc, addDoc, deleteDoc, doc, updateDoc } from "firebase/firestore";
+import { collection, query,setDoc, where, getDocs,getDoc, addDoc, deleteDoc, doc, updateDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase/firebase"; // Ensure this path matches your project structure
 import { useAuth } from '@/lib/firebase/AuthContext';
 import Link from "next/link";
@@ -159,13 +159,11 @@ type CustomersTypeForFetching = {
         setSelectedRow(null); // Reset selection
         resetForm();
         setIsEditing(false);
-        if (selectedRow.agent) {
-          fetchCustomersForAgent(selectedRow.agent);
+        if (selectedAgentId) {
+          fetchCustomersForAgent(selectedAgentId);
         }
       } else {
         console.log("No selected row or row ID is undefined");
-  
-        // Fetch data again or remove the item from `agentData` state to update UI
       }
     };
     const handleEdit = async () => {
@@ -224,40 +222,56 @@ type CustomersTypeForFetching = {
     updateFullName();
 }, [firstNameCustomer, lastNameCustomer]); 
 
-
 const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
   event.preventDefault();
   try {
     console.log("Preparing to submit...");
-    const docRef = await addDoc(collection(db, 'customer'), {
-      agent: selectedAgentName,
-      AgentId: selectedAgentId,
-      firstNameCustomer,
-      lastNameCustomer,
-      fullNameCustomer,
-      IDCustomer,
-      parentID: '', // Initially empty or set to a default value
-      notes,
-      birthday,
-      phone,
-      mail,
-      address,
-      
-    });    
-    console.log('Document written with ID:', docRef.id);
-    if (!parentID) { 
-      await updateDoc(doc(db, 'customer', docRef.id), { parentID: docRef.id });
-      console.log('parentID updated to document ID');
+
+    // Check for existing customer with the same IDCustomer and AgentId
+    const customerQuery = query(collection(db, 'customer'), 
+                                where('IDCustomer', '==', IDCustomer),
+                                where('AgentId', '==', selectedAgentId));
+    const customerSnapshot = await getDocs(customerQuery);
+
+    if (customerSnapshot.empty) {
+      // No existing customer found, proceed with creation
+      const customerRef = doc(collection(db, 'customer'));
+
+      // Create new customer document with self-referencing parentID
+      await setDoc(customerRef, {
+        agent: selectedAgentName,
+        AgentId: selectedAgentId,
+        firstNameCustomer,
+        lastNameCustomer,
+        fullNameCustomer,
+        IDCustomer,
+        parentID: customerRef.id,  // Self-reference the document's ID
+        notes,
+        birthday,
+        phone,
+        mail,
+        address,
+      });
+
+      console.log('Customer added with ID:', customerRef.id);
+      alert('לקוח חדש התווסף בהצלחה');
+
+    } else {
+      // Existing customer found, notify user
+      console.log('Customer already exists with ID:', customerSnapshot.docs[0].id);
+      alert('לא ניתן להוסיף - לקוח קיים במערכת');
     }
     resetForm(); 
-    setIsEditing(false);
+    setIsEditing(false);  
     if (selectedAgentId) {
       fetchCustomersForAgent(selectedAgentId);
     }
   } catch (error) {
-    console.error('Error adding document:', error);
+    console.error('Error adding document:', error);  // Log any errors during the process
   }
 };
+
+
 
 const canSubmit = useMemo(() => (
   selectedAgentId.trim() !== '' &&
@@ -311,7 +325,36 @@ const handleSelectCustomer = (id: string) => {
 const linkSelectedCustomers = async () => {
   const ids = Array.from(selectedCustomers);
   if (ids.length > 0) {
-    const mainCustomerId = ids[0];  // Assuming the first selected customer is the main one.
+    const mainCustomerId = ids[0];
+    let familyConflict = false; // To track if there's any family conflict
+    let conflictingCustomerName = ""; // To store the name of the conflicting customer
+
+    // First, check if any selected customer is already linked to a different family
+    for (const customerId of ids) {
+      const customerDocRef = doc(db, 'customer', customerId);
+      const customerDoc = await getDoc(customerDocRef);
+
+      if (customerDoc.exists()) {
+        const customerData = customerDoc.data();
+        if (customerData.parentID && customerData.parentID !== customerId && customerData.parentID !== mainCustomerId) {
+          // If any customer is already linked, capture the name and note a conflict
+          familyConflict = true;
+          conflictingCustomerName = customerData.firstNameCustomer; // Assuming 'firstNameCustomer' is the field name
+          break; // No need to check further, one conflict is enough to prompt user
+        }
+      }
+    }
+
+    // If a conflict was found, ask for user confirmation
+    if (familyConflict) {
+      const confirmTransfer = confirm(`הלקוח ${conflictingCustomerName} כבר מקושר למשפחה אחרת. האם ברצונך להעביר את כולם למשפחה חדשה?`);
+      if (!confirmTransfer) {
+        console.log("Operation canceled by the user.");
+        return; // User chose not to proceed, exit the function
+      }
+    }
+
+    // If user confirms, or no conflicts were found, update all selected customers
     for (const customerId of ids) {
       const customerDocRef = doc(db, 'customer', customerId);
       await updateDoc(customerDocRef, {
@@ -319,9 +362,9 @@ const linkSelectedCustomers = async () => {
       });
     }
     alert('קשר משפחתי הוגדר בהצלחה');
-    // Reset the selected customers
+
+    // Reset the selected customers and update UI as needed
     setSelectedCustomers(new Set());
-    // Optionally, toggle visibility of the select column
     setShowSelect(false);
     if (selectedAgentId) {
       fetchCustomersForAgent(selectedAgentId);
@@ -669,6 +712,7 @@ const [isProcessing, setIsProcessing] = useState(false);
             <button type="button" disabled={selectedRow === null} onClick={handleDelete} >מחק</button>
             <button type="button" disabled={selectedRow === null} onClick={handleEdit}>עדכן</button>
             <button type="button" onClick={resetForm}>נקה</button>
+            <button type="button" onClick={toggleSelectVisibility}> חיבור תא משפחתי</button>
             
          {/*     <button onClick={handleCreateCustomers} disabled={isProcessing}>
                     {isProcessing ? 'Processing...' : 'Create Customers From Sales'}
@@ -704,9 +748,9 @@ const [isProcessing, setIsProcessing] = useState(false);
        {/* First Frame 
         {agentData.length > 0 ? (*/}
         <div className="table-container" style={{ overflowX: 'auto', maxHeight: '300px' }}>
-        <button onClick={toggleSelectVisibility}> חיבור תא משפחתי</button>
+       
         {showSelect && (
-        <button  onClick={linkSelectedCustomers} disabled={selectedCustomers.size === 0}>אשר חיבור</button>   
+        <button type="button"  onClick={linkSelectedCustomers} disabled={selectedCustomers.size === 0}>אשר חיבור</button>   
         )}    
         <button onClick={fetchPrivateSales} disabled={!selectedRow}> הפק דוח אישי</button>
         <button onClick={fetchFamilySales} disabled={!selectedRow}> הפק דוח משפחתי</button>

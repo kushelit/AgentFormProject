@@ -272,26 +272,27 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
    const customerSnapshot = await getDocs(customerQuery);
 
    let customerDocRef;
-   const parentID = '';
-   if (customerSnapshot.empty) {
-     // If customer doesn't exist, add to customer collection
-     customerDocRef = await addDoc(collection(db, 'customer'), {
-      AgentId: selectedAgentId,
-      firstNameCustomer,
-       lastNameCustomer,
-       IDCustomer,
-       parentID ,
-       // Add other necessary customer fields here
-     });
-     console.log('Customer added with ID:', customerDocRef.id);
+    if (customerSnapshot.empty) {
+      // If customer doesn't exist, create a new customer record
+      customerDocRef = await addDoc(collection(db, 'customer'), {
+        AgentId: selectedAgentId,
+        firstNameCustomer,
+        lastNameCustomer,
+        IDCustomer,
+        parentID: '',  // Initially empty, to be updated below
+        // Add other necessary customer fields here
+      });
+      console.log('Customer added with ID:', customerDocRef.id);
 
-     // Update the parentID to be the same as the newly created customer ID if no parentID was provided
-     if (!parentID) {
+      // Update the parentID to the new customer ID, making the customer their own parent initially
       await updateDoc(customerDocRef, { parentID: customerDocRef.id });
-       console.log('parentID updated to the new document ID');
-     }
-   }
-    console.log("got here");
+      console.log('parentID updated to the new document ID');
+    } else {
+      // Optionally handle the case where customer already exists
+      customerDocRef = customerSnapshot.docs[0].ref;
+      console.log('Customer already exists:', customerDocRef.id);
+    }
+      console.log("got here");
       const docRef = await addDoc(collection(db, 'sales'), {
       agent: selectedAgentName,
       AgentId: selectedAgentId,//new 
