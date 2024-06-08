@@ -26,7 +26,9 @@ const Customer = () => {
     const [firstNameCustomerFilter, setfirstNameCustomerFilter] = useState('');
     const [lastNameCustomerFilter, setlastNameCustomerFilter] = useState('');
     const [filteredData, setFilteredData] = useState<CustomerDataType[]>([]);
+    const [parentFullNameFilter, setParentFullNameFilter] = useState("");
     const [customerData, setCustomerData] = useState<any[]>([]);
+
  
     const [showSelect, setShowSelect] = useState(false);
     const [selectedCustomers, setSelectedCustomers] = useState(new Set<string>());
@@ -38,11 +40,21 @@ const [birthday, setBirthday] = useState('');
 const [phone, setPhone] = useState('');
 const [mail, setMail] = useState('');
 const [address, setAddress] = useState('');
+const [parentFullName, setParentFullName] = useState('');
+
+const [isMainCustomerSelected, setIsMainCustomerSelected] = useState(false);
+const [mainCustomerId, setMainCustomerId] = useState<string | null>(null);
 
 const handleBirthdayChange = (e: React.ChangeEvent<HTMLInputElement>) => setBirthday(e.target.value);
 const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>)=>  setPhone(e.target.value);
 const handleMailChange =(e: React.ChangeEvent<HTMLInputElement>)=> setMail(e.target.value);
 const handleAddressChange = (e: React.ChangeEvent<HTMLInputElement>)=> setAddress(e.target.value);
+
+const [mode, setMode] = useState('');  // '' (default), 'linking', 'disconnecting'
+const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
+const [isProcessing, setIsProcessing] = useState(false);
+
+
 
 type CustomerDataType = {
   id: string;
@@ -55,6 +67,7 @@ type CustomerDataType = {
   phone: string;
   mail: string;
   address: string;
+  parentFullName: string;
 };
 
 type CustomersTypeForFetching = {
@@ -85,30 +98,60 @@ type CustomersTypeForFetching = {
       }
     }, [selectedAgentId]); 
     
-    const fetchCustomersForAgent = async (UserAgentId: string) => {
-      const q = query(collection(db, 'customer'), where('AgentId', '==', selectedAgentId));
-      const querySnapshot = await getDocs(q);
-      const data = querySnapshot.docs.map(doc => ({
-        id: doc.id, // Assign id first
-        ...(doc.data() as CustomersTypeForFetching) // Then spread the rest of the data
-      }));
-      setCustomerData(data);
-      console.log ('data :' + data)
-      console.log ('selectedAgentId :' + selectedAgentId)
-    };
     
 
+    // fetch customer function **
+      const fetchCustomersForAgent = async (UserAgentId: string) => {
+      const q = query(collection(db, 'customer'), where('AgentId', '==', UserAgentId));
+      const querySnapshot = await getDocs(q);   
+      // Use Promise.all to wait for all parent names to be fetched asynchronously
+      const data = await Promise.all(querySnapshot.docs.map(async (docSnapshot) => {
+        const customerData = docSnapshot.data() as CustomersTypeForFetching;  // Assuming CustomersTypeForFetching is your type for the data
+        let parentFullName = ''; // Default to an empty string if no parent or not found   
+        if (customerData.parentID) {
+          if (customerData.parentID === docSnapshot.id) {
+            // If the parentID is the same as the customer's own ID, use their own name as parentFullName
+            parentFullName = `${customerData.firstNameCustomer || ''} ${customerData.lastNameCustomer || ''}`.trim();
+          } else {
+            // Fetch the parent's name if the parentID is different from the customer's ID
+            const parentRef = doc(db, 'customer', customerData.parentID);
+            const parentDoc = await getDoc(parentRef);
+            if (parentDoc.exists()) {
+              // Assume the parent's full name is stored in a field named 'firstNameCustomer'
+              const parentData = parentDoc.data(); // Correct usage of .data()
+              parentFullName = `${parentData.firstNameCustomer || ''} ${parentData.lastNameCustomer || ''}`.trim(); // Safely concatenate the names
+            }
+          }
+        }  
+        // Return the customer data with the parent's full name included
+        return {
+          ...customerData,
+          id: docSnapshot.id,
+          parentFullName  // Include the parent's full name in the returned object
+        };
+      }));    
+      setCustomerData(data);  // Assuming you have a useState to hold this data
+      console.log('data:', data);
+    };
+
+
+
+// filters function **
     useEffect(() => {
       let data = customerData.filter(item => {
         return (
              item.IDCustomer.includes(idCustomerFilter))&&
              (  item.firstNameCustomer.includes(firstNameCustomerFilter))&&
-             (  item.lastNameCustomer.includes(lastNameCustomerFilter))
+             (  item.lastNameCustomer.includes(lastNameCustomerFilter)) &&
+             item.parentFullName.toLowerCase().includes(parentFullNameFilter.toLowerCase()); // Assuming the data includes a parentFullName field
+
       });
       setFilteredData(data);
-    }, [ customerData, idCustomerFilter, firstNameCustomerFilter, lastNameCustomerFilter]);
+    }, [customerData, idCustomerFilter, firstNameCustomerFilter, lastNameCustomerFilter, parentFullNameFilter]);
   
 
+
+    //handle  fields function **
     const handleFirstNameChange: ChangeEventHandler<HTMLInputElement> = (event) => {
       const value = event.target.value;
       // Allow Hebrew letters and spaces, but prevent leading or trailing spaces
@@ -120,6 +163,7 @@ type CustomersTypeForFetching = {
       // Otherwise, do not update the state, effectively rejecting the input
     };
   
+    //handle  fields function **
     const handleLastNameChange: ChangeEventHandler<HTMLInputElement> = (event) => {
       const value = event.target.value;
       // Allow Hebrew letters and spaces, but prevent leading or trailing spaces
@@ -130,6 +174,7 @@ type CustomersTypeForFetching = {
       }
     };
   
+    //handle  fields function **
     const handleIDChange: ChangeEventHandler<HTMLInputElement> = (e) => {
       const value = e.target.value;
       // Allow only numbers
@@ -137,6 +182,7 @@ type CustomersTypeForFetching = {
       setIDCustomer(onlyNums);
     };
   
+    //handle row selected function **
     const handleRowClick = (item: any) => {
       setSelectedRow(item); // Store the selected row's data
       setfirstNameCustomer(item.firstNameCustomer || '');
@@ -152,7 +198,7 @@ type CustomersTypeForFetching = {
       setAddress(item.address || '');
     };
     
-  
+  // delete function ***
     const handleDelete = async () => {
       if (selectedRow && selectedRow.id) {
         await deleteDoc(doc(db, 'customer', selectedRow.id));
@@ -195,7 +241,7 @@ type CustomersTypeForFetching = {
       }
     };
 
-
+//reset function **
     const resetForm = () => {
       setfirstNameCustomer(''); 
       setfirstNameCustomer(''); 
@@ -212,8 +258,6 @@ type CustomersTypeForFetching = {
       setPhone('');
       setAddress('');
     };
-  
-   
  const updateFullName = () => {
       setFullNameCustomer(`${firstNameCustomer} ${lastNameCustomer}`);
   };
@@ -222,11 +266,11 @@ type CustomersTypeForFetching = {
     updateFullName();
 }, [firstNameCustomer, lastNameCustomer]); 
 
+// submit **
 const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
   event.preventDefault();
   try {
     console.log("Preparing to submit...");
-
     // Check for existing customer with the same IDCustomer and AgentId
     const customerQuery = query(collection(db, 'customer'), 
                                 where('IDCustomer', '==', IDCustomer),
@@ -236,7 +280,6 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
     if (customerSnapshot.empty) {
       // No existing customer found, proceed with creation
       const customerRef = doc(collection(db, 'customer'));
-
       // Create new customer document with self-referencing parentID
       await setDoc(customerRef, {
         agent: selectedAgentName,
@@ -252,10 +295,8 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
         mail,
         address,
       });
-
       console.log('Customer added with ID:', customerRef.id);
       alert('לקוח חדש התווסף בהצלחה');
-
     } else {
       // Existing customer found, notify user
       console.log('Customer already exists with ID:', customerSnapshot.docs[0].id);
@@ -272,7 +313,7 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
 };
 
 
-
+// can submit function **
 const canSubmit = useMemo(() => (
   selectedAgentId.trim() !== '' &&
   firstNameCustomer.trim() !== '' &&
@@ -282,95 +323,29 @@ const canSubmit = useMemo(() => (
 ]);
 
 
-const [parentFullName, setParentFullName] = useState('');
 
-  const fetchParentCustomer = async (parentID:string) => {
-  if (!parentID) return; // Exit if no parentId provided
-  const docRef = doc(db, 'customer', parentID);
-  const docSnap = await getDoc(docRef);
-  if (docSnap.exists()) {
+  //const fetchParentCustomer = async (parentID:string) => {
+  //if (!parentID) return; // Exit if no parentId provided
+//  const docRef = doc(db, 'customer', parentID);
+//  const docSnap = await getDoc(docRef);
+//  if (docSnap.exists()) {
     // Assuming 'fullNameCustomer' is the field for the customer's full name
-    setParentFullName(docSnap.data().firstNameCustomer);
-  } else {
-    console.log("No such document!");
-    setParentFullName('');
-  }
-};
+//    setParentFullName(docSnap.data().firstNameCustomer);
+ // } else {
+ //   console.log("No such document!");
+ //   setParentFullName('');
+//  }
+//};
 
 
-useEffect(() => {
-  if (selectedRow) {
-    fetchParentCustomer(selectedRow.parentID);
-    console.log("selectedRow.parentID " + parentFullName);
-  }
-}, [selectedRow]);
+//useEffect(() => {
+ // if (selectedRow) {
+ //   fetchParentCustomer(selectedRow.parentID);
+ //   console.log("selectedRow.parentID " + parentFullName);
+ // }
+//}, [selectedRow]);
 
-const toggleSelectVisibility = () => {
-  if (showSelect) {
-    setSelectedCustomers(new Set());
-  }
-  setShowSelect(!showSelect);
-};
 
-const handleSelectCustomer = (id: string) => {
-  const newSelection = new Set(selectedCustomers);
-  if (newSelection.has(id)) {
-    newSelection.delete(id);
-  } else {
-    newSelection.add(id);
-  }
-  setSelectedCustomers(newSelection);
-};
-
-const linkSelectedCustomers = async () => {
-  const ids = Array.from(selectedCustomers);
-  if (ids.length > 0) {
-    const mainCustomerId = ids[0];
-    let familyConflict = false; // To track if there's any family conflict
-    let conflictingCustomerName = ""; // To store the name of the conflicting customer
-
-    // First, check if any selected customer is already linked to a different family
-    for (const customerId of ids) {
-      const customerDocRef = doc(db, 'customer', customerId);
-      const customerDoc = await getDoc(customerDocRef);
-
-      if (customerDoc.exists()) {
-        const customerData = customerDoc.data();
-        if (customerData.parentID && customerData.parentID !== customerId && customerData.parentID !== mainCustomerId) {
-          // If any customer is already linked, capture the name and note a conflict
-          familyConflict = true;
-          conflictingCustomerName = customerData.firstNameCustomer; // Assuming 'firstNameCustomer' is the field name
-          break; // No need to check further, one conflict is enough to prompt user
-        }
-      }
-    }
-
-    // If a conflict was found, ask for user confirmation
-    if (familyConflict) {
-      const confirmTransfer = confirm(`הלקוח ${conflictingCustomerName} כבר מקושר למשפחה אחרת. האם ברצונך להעביר את כולם למשפחה חדשה?`);
-      if (!confirmTransfer) {
-        console.log("Operation canceled by the user.");
-        return; // User chose not to proceed, exit the function
-      }
-    }
-
-    // If user confirms, or no conflicts were found, update all selected customers
-    for (const customerId of ids) {
-      const customerDocRef = doc(db, 'customer', customerId);
-      await updateDoc(customerDocRef, {
-        parentID: mainCustomerId
-      });
-    }
-    alert('קשר משפחתי הוגדר בהצלחה');
-
-    // Reset the selected customers and update UI as needed
-    setSelectedCustomers(new Set());
-    setShowSelect(false);
-    if (selectedAgentId) {
-      fetchCustomersForAgent(selectedAgentId);
-    }
-  }
-};
 
 interface Contract {
   id: string;
@@ -534,12 +509,10 @@ const fetchFamilySales = async () => {
     console.log("No selected row or parent ID available");
     return;
   }
-
   const customerRef = collection(db, "customer");
   const customerQuery = query(customerRef, where("parentID", "==", selectedRow.parentID));
   const customerSnapshot = await getDocs(customerQuery);
   const customerIDs = customerSnapshot.docs.map(doc => doc.data().IDCustomer);
-
   const salesRef = collection(db, "sales");
   const salesQuery = query(salesRef, where("IDCustomer", "in", customerIDs), where('minuySochen', '==', false), where('statusPolicy', 'in', ['פעילה', 'הצעה']));
   try {
@@ -569,57 +542,228 @@ const fetchFamilySales = async () => {
   }
 };
 
-//*** no del **one time running- function to add customer from sales ** no del **
-const [isProcessing, setIsProcessing] = useState(false);
 
-  const handleCreateCustomers = async () => {
-        if (isProcessing) return;  // Prevent running while already processing
-        setIsProcessing(true);
-        try {
-            await createCustomersFromSales(); // Function that processes the sales data
-           alert('Customers created successfully from sales data!');
-        } catch (error) {
-            console.error('Error creating customers:', error);
-            alert('Failed to create customers from sales data.');
-        }
-        setIsProcessing(false);
+// one time update db customer from sales function **
+const handleCreateCustomers = async () => {
+  if (isProcessing) return;  // Prevent running while already processing
+  setIsProcessing(true);
+  try {
+      await createCustomersFromSales(); // Function that processes the sales data
+     alert('Customers created successfully from sales data!');
+  } catch (error) {
+      console.error('Error creating customers:', error);
+      alert('Failed to create customers from sales data.');
+  }
+  setIsProcessing(false);
+};
+
+
+// one time update db customer from sales function **
+const createCustomersFromSales = async () => {
+const salesRef = collection(db, "sales");
+const salesSnapshot = await getDocs(salesRef);   
+for (const doc of salesSnapshot.docs) {
+  const saleData = doc.data();
+  if (!saleData.AgentId) {
+    console.error('Missing AgentId for sale:', doc.id);
+    continue; // Skip this iteration if AgentId is undefined
+  }  
+  const customerQuery = query(collection(db, 'customer'), where('IDCustomer', '==', saleData.IDCustomer),
+  where('AgentId', '==', saleData.AgentId));
+  const customerSnapshot = await getDocs(customerQuery); 
+  if (customerSnapshot.empty) {
+    try {
+      const customerDocRef = await addDoc(collection(db, 'customer'), {
+        AgentId: saleData.AgentId,
+        firstNameCustomer: saleData.firstNameCustomer,
+       lastNameCustomer: saleData.lastNameCustomer,
+        IDCustomer: saleData.IDCustomer,
+        parentID: ''
+      });
+      console.log('Customer added with ID:', customerDocRef.id); 
+      await updateDoc(customerDocRef, { parentID: customerDocRef.id });
+      console.log('parentID updated to the new document ID');
+    } catch (error) {
+      console.error('Error adding customer:', error);
+   }
+  }
+}
+};
+
+
+//starting function to handle family connection **
+
+
+
+const cancelProcess = () => {
+  setSelectedCustomers(new Set());  // Clear the selection
+  setShowSelect(false);             // Hide the selection UI
+  setIsMainCustomerSelected(false); // Reset this if you're tracking the main customer status
+  setMode('normal');                // Reset to normal mode, assuming 'mode' is used to track the current UI state
+};
+
+const startLinkingProcess = () => {
+  setMode('linking');
+  setShowSelect(true);
+  alert("בחר מבוטח ראשי");
+};
+
+const startDisconnectionProcess = () => {
+  setMode('disconnecting');
+  setShowSelect(true);
+  alert("בחר מבוטח לניתוק קשר");
+};
+
+// confirm disconnect function **
+    const confirmDisconnection = (customerId: string): void => {
+      const confirmAction = window.confirm("האם לבטל קשר משפחתי ?");
+      if (confirmAction) {
+        disconnectCustomer(customerId);
+      }
+    }
+
+   //disconnect function **
+const disconnectCustomer = async (customerId: string): Promise<void> => {
+  try {
+    const customerDocRef = doc(db, 'customer', customerId);
+    await updateDoc(customerDocRef, {
+      parentID: customerId  // Resetting their parentID to their own ID effectively disconnects them.
+    });
+    alert("קשר משפחתי  נותק בהצלחה");
+  } catch (error) {
+    console.error("Failed to disconnect customer:", error);
+    alert("כשלון בניתוק קשר משפחתי");
+  } finally {
+    setSelectedCustomers(new Set());  // Clear any selected customer ID
+    fetchCustomersForAgent(selectedAgentId);  // Refresh the customer list
+    setShowSelect(false);  // Optionally hide the selection UI
+    // Reset any additional states or flags related to the process if necessary
+    setMode('normal');  // Assuming you might have a mode state that needs to be reset
+  }
+}
+    //handle function **
+    const handleSelectCustomer = (id: string) => {
+      const newSelection = new Set(selectedCustomers);
+      if (mode === 'disconnecting') {
+        setSelectedCustomers(new Set([id]));  // Directly select only one for disconnection
+        confirmDisconnection(id);  // Optionally ask for confirmation right after selection
+      } else if (mode === 'linking') {
+    
+      // If the main customer is not yet selected, or the selected ID is the current main customer
+      if (!isMainCustomerSelected || id === mainCustomerId) {
+          if (isMainCustomerSelected && id === mainCustomerId) {
+              // If the main customer is clicked again, offer to deselect or switch main customer
+              const confirmDeselect = confirm('זהו לקוח ראשי, האם אתה רוצה לבטל את הבחירה?');
+              if (confirmDeselect) {
+                  newSelection.clear(); // Clear all selections
+                  setIsMainCustomerSelected(false); // No main customer is selected now
+                  setMainCustomerId(null); // Clear the main customer ID
+                  setSelectedCustomers(newSelection); // Update the state
+                  return; // Exit the function after resetting
+              }
+          } else {
+              // Set the clicked customer as the main customer
+              newSelection.clear(); // Clear previous selections which might include old secondary selections
+              newSelection.add(id); // Add this as the main customer
+              setMainCustomerId(id); // Set the main customer ID
+              setIsMainCustomerSelected(true); // A main customer is now selected
+              alert('מבוטח ראשי הוגדר, כעת בחר מבוטחים משניים');
+          }
+      } else {
+          // Handling secondary customers
+          if (newSelection.has(id)) {
+              newSelection.delete(id); // Deselect if already selected
+          } else {
+              newSelection.add(id); // Select if not already selected
+          }
+      }
+      setSelectedCustomers(newSelection); // Update the selected customers state
     };
-
-    const createCustomersFromSales = async () => {
-      const salesRef = collection(db, "sales");
-      const salesSnapshot = await getDocs(salesRef);
+  }
+  
+    //// link function ***
+    const linkSelectedCustomers = async () => {
+      const ids = Array.from(selectedCustomers);
+      if (ids.length > 0) {
+        const mainCustomerId = ids[0];
+        let familyConflict = false;
+        let conflictingCustomerName = "";    
+        const mainCustomerDocRef = doc(db, 'customer', mainCustomerId);
+        const mainCustomerDoc = await getDoc(mainCustomerDocRef);
     
-      for (const doc of salesSnapshot.docs) {
-        const saleData = doc.data();
-        if (!saleData.AgentId) {
-          console.error('Missing AgentId for sale:', doc.id);
-          continue; // Skip this iteration if AgentId is undefined
-        }
+        if (mainCustomerDoc.exists()) {
+          const mainCustomerData = mainCustomerDoc.data();   
+          // Check if the main customer is already part of another family link
+          if (mainCustomerData.parentID !== mainCustomerId) {
+            alert(`הלקוח ${mainCustomerData.firstNameCustomer} כבר חלק מחיבור משפחתי אחר. יש לנתק את החיבור הקיים לפני הפיכתו ללקוח ראשי בחיבור חדש.`);
+            console.log("Operation canceled due to existing parental connection.");
+            return;  // Exit the function if the main customer is already linked
+          }}
     
-        const customerQuery = query(collection(db, 'customer'), where('IDCustomer', '==', saleData.IDCustomer),
-        where('AgentId', '==', saleData.AgentId));
-        const customerSnapshot = await getDocs(customerQuery);
-    
-        if (customerSnapshot.empty) {
-          try {
-            const customerDocRef = await addDoc(collection(db, 'customer'), {
-              AgentId: saleData.AgentId,
-              firstNameCustomer: saleData.firstNameCustomer,
-             lastNameCustomer: saleData.lastNameCustomer,
-              IDCustomer: saleData.IDCustomer,
-              parentID: ''
+        // Check each secondary customer to ensure they are not already a main parent to other customers
+        for (const customerId of ids.slice(1)) {  // Exclude the main customer
+          const customerDocRef = doc(db, 'customer', customerId);
+          const customerDoc = await getDoc(customerDocRef);   
+          if (customerDoc.exists()) {
+            const customerData = customerDoc.data();     
+            const childCheckQuery = query(
+              collection(db, 'customer'),
+              where('AgentId', '==', customerData.AgentId),
+              where('parentID', '==', customerId)  // Check if they are listed as a parent to other customers
+            );
+            const childCheckSnapshot = await getDocs(childCheckQuery);
+            childCheckSnapshot.forEach((doc) => {
+              if (doc.id !== customerId) {  // Ensure the document isn't the customer being their own parent
+                familyConflict = true;
+                conflictingCustomerName = customerData.firstNameCustomer;
+                alert(`לא ניתן לחבר את הלקוח ${conflictingCustomerName} כלקוח משני מאחר שהוא כבר משמש כהורה בחיבור אחר.`);
+                console.log("Operation canceled due to existing parental connection.");
+                return;  // Exit from forEach and skip further processing
+              }
             });
-            console.log('Customer added with ID:', customerDocRef.id);
+            if (familyConflict) {
+              return;  // Exit the function if a conflict was found
+            }
+          }
+        }
+        for (const customerId of ids.slice(1)) { // Check secondary customers
+          const customerDocRef = doc(db, 'customer', customerId);
+          const customerDoc = await getDoc(customerDocRef);
     
-            await updateDoc(customerDocRef, { parentID: customerDocRef.id });
-            console.log('parentID updated to the new document ID');
-          } catch (error) {
-            console.error('Error adding customer:', error);
-         }
+          if (customerDoc.exists()) {
+            const customerData = customerDoc.data();
+            if (customerData.parentID && customerData.parentID !== customerId && customerData.parentID !== mainCustomerId) {
+              familyConflict = true;
+              conflictingCustomerName = customerData.firstNameCustomer;
+              break;
+            }
+          }
+        } 
+        if (familyConflict) {
+          const confirmTransfer = confirm(`הלקוח ${conflictingCustomerName} כבר מקושר למשפחה אחרת. האם ברצונך להעביר את כולם למשפחה חדשה?`);
+          if (!confirmTransfer) {
+            console.log("Operation canceled by the user.");
+            return;
+          }
+        }
+        for (const customerId of ids) {
+          const customerDocRef = doc(db, 'customer', customerId);
+          await updateDoc(customerDocRef, {
+            parentID: mainCustomerId
+          });
+        }
+        alert('קשר משפחתי הוגדר בהצלחה');
+        setSelectedCustomers(new Set());
+        setShowSelect(false);
+        setIsMainCustomerSelected(false); // Reset the main customer selection flag
+        setMainCustomerId(null); // Reset the main customer ID
+        if (selectedAgentId) {
+          fetchCustomersForAgent(selectedAgentId);
         }
       }
     };
-
+    
+  
 
 
     return (
@@ -681,7 +825,7 @@ const [isProcessing, setIsProcessing] = useState(false);
   <td><label htmlFor="address">כתובת</label></td>
   <td><input type="text" id="address" name="address" value={address} onChange={handleAddressChange} /></td>
 </tr>
-               <tr>
+      {/*         <tr>
                      <td>
                      <label htmlFor="parentID">מבוטח אב</label>
                     </td> 
@@ -693,7 +837,7 @@ const [isProcessing, setIsProcessing] = useState(false);
                        readOnly // making it read-only if you just want to display the name
       />
     </td>
-               </tr>
+               </tr>*/}
                 <tr>
                     <td>
                         <label htmlFor="notes">הערות</label>
@@ -702,25 +846,23 @@ const [isProcessing, setIsProcessing] = useState(false);
                         <input type="text" id="notes" name="notes" value={notes} onChange={(e) => setNotes(e.target.value)} />
                     </td>
                 </tr>
-          </tbody>
-         
+          </tbody>       
         </table>
            <div className="form-group button-group" style={{ display: 'flex' }}>
-            <button type="submit" disabled={!canSubmit || isEditing}>
-              הזן
-            </button>
+            <button type="submit" disabled={!canSubmit || isEditing}> הזן</button>                
             <button type="button" disabled={selectedRow === null} onClick={handleDelete} >מחק</button>
             <button type="button" disabled={selectedRow === null} onClick={handleEdit}>עדכן</button>
             <button type="button" onClick={resetForm}>נקה</button>
-            <button type="button" onClick={toggleSelectVisibility}> חיבור תא משפחתי</button>
-            
+            <button type="button" onClick={() => showSelect ? cancelProcess() : startLinkingProcess()}>
+  {showSelect ? "בטל קשר משפחתי" : "הוסף קשר משפחתי"}
+</button>
+<button type="button" onClick={() => showSelect ? cancelProcess() : startDisconnectionProcess()}>
+  {showSelect ? "בטל ניתוק קשר משפחתי" : "נתק קשר משפחתי"}
+</button>
          {/*     <button onClick={handleCreateCustomers} disabled={isProcessing}>
                     {isProcessing ? 'Processing...' : 'Create Customers From Sales'}
-                </button>  */}
-       
-          </div>
-      
-   
+              </button>  */}
+          </div>        
        </form>
       </div>  
       <div className="data-container">
@@ -742,20 +884,24 @@ const [isProcessing, setIsProcessing] = useState(false);
        placeholder="תז לקוח"
        value={idCustomerFilter}
        onChange={(e) => setIdCustomerFilter(e.target.value)}
-       />
-      
+       />    
+       <input
+      type="text"
+       placeholder="מבוטח אב"
+       value={parentFullNameFilter}
+       onChange={(e) => setParentFullNameFilter(e.target.value)}
+/>
       </div>
        {/* First Frame 
         {agentData.length > 0 ? (*/}
-        <div className="table-container" style={{ overflowX: 'auto', maxHeight: '300px' }}>
-       
+        <div className="table-container" style={{ overflowX: 'auto', maxHeight: '300px' }}>      
         {showSelect && (
-        <button type="button"  onClick={linkSelectedCustomers} disabled={selectedCustomers.size === 0}>אשר חיבור</button>   
-        )}    
+  <>
+    <button type="button" onClick={linkSelectedCustomers} disabled={selectedCustomers.size === 0}>אשר חיבור</button>   
+  </>
+)}
         <button onClick={fetchPrivateSales} disabled={!selectedRow}> הפק דוח אישי</button>
-        <button onClick={fetchFamilySales} disabled={!selectedRow}> הפק דוח משפחתי</button>
-
-       
+        <button onClick={fetchFamilySales} disabled={!selectedRow}> הפק דוח משפחתי</button>    
 <table>
       <thead>
         <tr>
@@ -763,10 +909,11 @@ const [isProcessing, setIsProcessing] = useState(false);
           <th>שם פרטי</th>
           <th>שם משפחה</th>
           <th>תז</th>
+          <th>מבוטח אב</th>
           <th>תאריך לידה</th>
-      <th>טלפון</th>
-      <th>מייל</th>
-      <th>כתובת</th>
+          <th>טלפון</th>
+          <th>מייל</th>
+          <th>כתובת</th>
         </tr>
       </thead>
       <tbody>
@@ -776,7 +923,7 @@ const [isProcessing, setIsProcessing] = useState(false);
               onMouseEnter={() => setHoveredRowId(item.id)}
               onMouseLeave={() => setHoveredRowId(null)}
               className={`${selectedCustomers.has(item.id) ? 'selected-row' : ''} ${hoveredRowId === item.id ? 'hovered-row' : ''}`}>
-            {showSelect && (
+            {showSelect  && (
               <td>
                 <input
                   type="checkbox"
@@ -788,6 +935,7 @@ const [isProcessing, setIsProcessing] = useState(false);
             <td>{item.firstNameCustomer}</td>
             <td>{item.lastNameCustomer}</td>
             <td>{item.IDCustomer}</td>
+            <td>{item.parentFullName || ''}</td> 
             <td>{item.birthday}</td>
         <td>{item.phone}</td>
         <td>{item.mail}</td>
@@ -796,7 +944,6 @@ const [isProcessing, setIsProcessing] = useState(false);
         ))}
       </tbody>
     </table>
-
           </div>
   <div className="table-container" style={{ overflowX: 'auto', maxHeight: '300px' }}>
   <table>
