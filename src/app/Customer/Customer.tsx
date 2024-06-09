@@ -1,5 +1,5 @@
 import { ChangeEventHandler, FormEventHandler, SetStateAction, useEffect, useMemo, useState } from "react";
-import { collection, query,setDoc, where, getDocs,getDoc, addDoc, deleteDoc, doc, updateDoc } from "firebase/firestore";
+import { collection, query,setDoc, where, getDocs,getDoc, addDoc, deleteDoc, doc, updateDoc,DocumentSnapshot, DocumentData } from "firebase/firestore";
 import { db } from "@/lib/firebase/firebase"; // Ensure this path matches your project structure
 import { useAuth } from '@/lib/firebase/AuthContext';
 import Link from "next/link";
@@ -54,6 +54,14 @@ const [mode, setMode] = useState('');  // '' (default), 'linking', 'disconnectin
 const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
 const [isProcessing, setIsProcessing] = useState(false);
 
+const [sourceValue, setSourceValue] = useState('');
+const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
+
+
+interface Suggestion {
+  id: string;
+  source: string; // or any other properties you need
+}
 
 
 type CustomerDataType = {
@@ -68,6 +76,7 @@ type CustomerDataType = {
   mail: string;
   address: string;
   parentFullName: string;
+  sourceValue:string;
 };
 
 type CustomersTypeForFetching = {
@@ -81,8 +90,15 @@ type CustomersTypeForFetching = {
   phone: string;
   mail: string;
   address: string;
+  sourceValue:string;
 
 };
+
+
+interface Customer {
+  firstNameCustomer: string;
+  lastNameCustomer: string;
+}
 
     const { 
       agents, 
@@ -184,6 +200,7 @@ type CustomersTypeForFetching = {
   
     //handle row selected function **
     const handleRowClick = (item: any) => {
+      setSalesData([]);
       setSelectedRow(item); // Store the selected row's data
       setfirstNameCustomer(item.firstNameCustomer || '');
       setlastNameCustomer(item.lastNameCustomer || '');
@@ -196,8 +213,19 @@ type CustomersTypeForFetching = {
       setPhone(item.phone || '');
       setMail(item.mail || '');
       setAddress(item.address || '');
+      setSourceValue(item.sourceValue || '');
+   //   if (item.parentID) {
+  //     fetchFamilySales();
+  //      }
     };
     
+    useEffect(() => {
+      if (selectedRow && selectedRow.parentID) {
+          fetchFamilySales();
+      }
+  }, [selectedRow]); // React to changes in selectedRow
+
+
   // delete function ***
     const handleDelete = async () => {
       if (selectedRow && selectedRow.id) {
@@ -226,6 +254,7 @@ type CustomersTypeForFetching = {
             phone,
             mail,
             address,
+            sourceValue,
           });
           console.log("Document successfully updated");
           setSelectedRow(null); 
@@ -257,6 +286,8 @@ type CustomersTypeForFetching = {
       setMail('');
       setPhone('');
       setAddress('');
+      setSourceValue('');
+      setSuggestions([]);
     };
  const updateFullName = () => {
       setFullNameCustomer(`${firstNameCustomer} ${lastNameCustomer}`);
@@ -294,6 +325,7 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
         phone,
         mail,
         address,
+        sourceValue,
       });
       console.log('Customer added with ID:', customerRef.id);
       alert('לקוח חדש התווסף בהצלחה');
@@ -468,39 +500,49 @@ function calculateCommissions(sale: Sale, contractMatch: any) {
   };
 }
 
-
 const fetchPrivateSales = async () => {
   if (!selectedRow) {
     console.log("No selected row available");
     return;
   }
   const salesRef = collection(db, "sales");
-  const q = query(salesRef, where('IDCustomer', "==", selectedRow.IDCustomer), where('AgentId', "==", selectedAgentId), where('minuySochen', '==', false), where('statusPolicy', 'in', ['פעילה', 'הצעה']));
+  const salesQuery = query(salesRef, where('IDCustomer', "==", selectedRow.IDCustomer), where('AgentId', "==", selectedAgentId), where('minuySochen', '==', false), where('statusPolicy', 'in', ['פעילה', 'הצעה']));
   try {
-    const querySnapshot = await getDocs(q);
-    const salesWithCommissions = querySnapshot.docs.map(doc => {
+    const salesSnapshot = await getDocs(salesQuery);
+    const salesWithNames = await Promise.all(salesSnapshot.docs.map(async (salesDoc) => {
+      const salesData = salesDoc.data();
+     // const customerRef = doc(db, 'customer', salesData.IDCustomer);
+     const customerQuery = query(collection(db, 'customer'), where('IDCustomer', '==', salesData.IDCustomer));
+     const customerSnapshot = await getDocs(customerQuery);
+     const customerData = customerSnapshot.docs[0]?.data();
       const data: Sale = {
-        firstNameCustomer: doc.data().firstNameCustomer,
-        lastNameCustomer: doc.data().lastNameCustomer,
-        IDCustomer: doc.data().IDCustomer,
-        product: doc.data().product,
-        company: doc.data().company,
-        month: doc.data().month,
-        status: doc.data().status,
-        insPremia: doc.data().insPremia,
-        pensiaPremia: doc.data().pensiaPremia,
-        pensiaZvira: doc.data().pensiaZvira,
-        finansimPremia: doc.data().finansimPremia,
-        finansimZvira: doc.data().finansimZvira,
+        ...salesData,
+        firstNameCustomer: customerData ? customerData.firstNameCustomer : "Unknown",
+        lastNameCustomer: customerData ? customerData.lastNameCustomer : "Unknown",
+        // Ensure all other required Sale properties are maintained
+        IDCustomer: salesData.IDCustomer,
+        product: salesData.product,
+        company: salesData.company,
+        month: salesData.month,
+        status: salesData.status,
+        insPremia: salesData.insPremia,
+        pensiaPremia: salesData.pensiaPremia,
+        pensiaZvira: salesData.pensiaZvira,
+        finansimPremia: salesData.finansimPremia,
+        finansimZvira: salesData.finansimZvira
       };
-
       const contractMatch = contracts.find(contract => contract.agentId === selectedAgentId && contract.product === data.product && contract.company === data.company);
       const commissions = calculateCommissions(data, contractMatch);
-      return { ...data, ...commissions };  // Combine the sale data with the calculated commissions
-    });
-    setSalesData(salesWithCommissions);
+      return { ...data, ...commissions };
+    }));
+    if (salesWithNames.length === 0) {
+      alert("ללקוח זה אין מכירות");
+    } else {
+      setSalesData(salesWithNames);
+    }
   } catch (error) {
     console.error("Error fetching private sales data:", error);
+    alert("Failed to fetch private sales data.");
   }
 };
 
@@ -513,34 +555,53 @@ const fetchFamilySales = async () => {
   const customerQuery = query(customerRef, where("parentID", "==", selectedRow.parentID));
   const customerSnapshot = await getDocs(customerQuery);
   const customerIDs = customerSnapshot.docs.map(doc => doc.data().IDCustomer);
+
   const salesRef = collection(db, "sales");
   const salesQuery = query(salesRef, where("IDCustomer", "in", customerIDs), where('minuySochen', '==', false), where('statusPolicy', 'in', ['פעילה', 'הצעה']));
   try {
     const salesSnapshot = await getDocs(salesQuery);
-    const salesWithCommissions = salesSnapshot.docs.map(doc => {
+    const salesWithNames = await Promise.all(salesSnapshot.docs.map(async (salesDoc) => {
+      const salesData = salesDoc.data();
+
+      // Query the customer document for each sale to get the actual customer names
+    
+      const customerQuery = query(collection(db, 'customer'), where('IDCustomer', '==', salesData.IDCustomer));
+      const customerSnapshot = await getDocs(customerQuery);
+      const customerData = customerSnapshot.docs[0]?.data();
+
       const data: Sale = {
-        firstNameCustomer: doc.data().firstNameCustomer,
-        lastNameCustomer: doc.data().lastNameCustomer,
-        IDCustomer: doc.data().IDCustomer,
-        product: doc.data().product,
-        company: doc.data().company,
-        month: doc.data().month,
-        status: doc.data().status,
-        insPremia: doc.data().insPremia,
-        pensiaPremia: doc.data().pensiaPremia,
-        pensiaZvira: doc.data().pensiaZvira,
-        finansimPremia: doc.data().finansimPremia,
-        finansimZvira: doc.data().finansimZvira,
+        ...salesData,
+        firstNameCustomer: customerData ? customerData.firstNameCustomer : "Unknown",
+        lastNameCustomer: customerData ? customerData.lastNameCustomer : "Unknown",
+        IDCustomer: salesData.IDCustomer,
+        product: salesData.product,
+        company: salesData.company,
+        month: salesData.month,
+        status: salesData.status,
+        insPremia: salesData.insPremia,
+        pensiaPremia: salesData.pensiaPremia,
+        pensiaZvira: salesData.pensiaZvira,
+        finansimPremia: salesData.finansimPremia,
+        finansimZvira: salesData.finansimZvira
       };
+
       const contractMatch = contracts.find(contract => contract.agentId === selectedAgentId && contract.product === data.product && contract.company === data.company);
       const commissions = calculateCommissions(data, contractMatch);
       return { ...data, ...commissions };  // Combine the data with calculated commissions
-    });
-    setSalesData(salesWithCommissions);
+    }));
+
+    if (salesWithNames.length === 0) {
+      alert("לללקוח זה אין מכירות");
+    } else {
+      setSalesData(salesWithNames);
+    }
   } catch (error) {
     console.error("Error fetching family sales data:", error);
+    alert("Failed to fetch family sales data.");
   }
 };
+
+
 
 
 // one time update db customer from sales function **
@@ -592,9 +653,6 @@ for (const doc of salesSnapshot.docs) {
 
 
 //starting function to handle family connection **
-
-
-
 const cancelProcess = () => {
   setSelectedCustomers(new Set());  // Clear the selection
   setShowSelect(false);             // Hide the selection UI
@@ -763,7 +821,36 @@ const disconnectCustomer = async (customerId: string): Promise<void> => {
       }
     };
     
-  
+    const fetchSuggestions = async (currentInputValue: unknown) => {
+      // Assert that currentInputValue is a string
+      const inputValue = currentInputValue as string;
+    
+      if (inputValue.length > 2) {
+        const q = query(
+          collection(db, 'customer'),
+          where('AgentId', '==', selectedAgentId),
+          where("sourceValue", ">=", inputValue),
+          where("sourceValue", "<=", inputValue + '\uf8ff')
+        );
+        const querySnapshot = await getDocs(q);
+        const suggestionList = querySnapshot.docs.map(doc => ({
+          id: doc.id,
+          source: doc.data().sourceValue  
+        }));
+        setSuggestions(suggestionList);
+        console.log('suggestions ' +suggestions)
+      } else {
+        setSuggestions([]);
+      }
+    };
+
+
+    const handleInputSourceChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+      const newValue = event.target.value;
+      setSourceValue(newValue);  
+      fetchSuggestions(newValue);  
+    };
+
 
 
     return (
@@ -838,6 +925,31 @@ const disconnectCustomer = async (customerId: string): Promise<void> => {
       />
     </td>
                </tr>*/}
+
+<tr>
+  <td><label htmlFor="sourceInput"> מקור ליד</label></td>
+  <td>
+  <div>
+    <input
+      type="text"
+      id="sourceInput"
+      name="sourceInput"
+      value={sourceValue}
+      onChange={handleInputSourceChange}
+      autoComplete="off"
+    />
+    {suggestions.length > 0 && (
+      <ul className="suggestions-list">
+        {suggestions.map(suggestion => (
+          <li key={suggestion.id} onClick={() => setSourceValue(suggestion.source)}>
+            {suggestion.source}
+          </li>
+        ))}
+      </ul>
+    )}
+  </div>
+  </td>
+</tr>
                 <tr>
                     <td>
                         <label htmlFor="notes">הערות</label>
@@ -853,12 +965,7 @@ const disconnectCustomer = async (customerId: string): Promise<void> => {
             <button type="button" disabled={selectedRow === null} onClick={handleDelete} >מחק</button>
             <button type="button" disabled={selectedRow === null} onClick={handleEdit}>עדכן</button>
             <button type="button" onClick={resetForm}>נקה</button>
-            <button type="button" onClick={() => showSelect ? cancelProcess() : startLinkingProcess()}>
-  {showSelect ? "בטל קשר משפחתי" : "הוסף קשר משפחתי"}
-</button>
-<button type="button" onClick={() => showSelect ? cancelProcess() : startDisconnectionProcess()}>
-  {showSelect ? "בטל ניתוק קשר משפחתי" : "נתק קשר משפחתי"}
-</button>
+         
          {/*     <button onClick={handleCreateCustomers} disabled={isProcessing}>
                     {isProcessing ? 'Processing...' : 'Create Customers From Sales'}
               </button>  */}
@@ -895,13 +1002,7 @@ const disconnectCustomer = async (customerId: string): Promise<void> => {
        {/* First Frame 
         {agentData.length > 0 ? (*/}
         <div className="table-container" style={{ overflowX: 'auto', maxHeight: '300px' }}>      
-        {showSelect && (
-  <>
-    <button type="button" onClick={linkSelectedCustomers} disabled={selectedCustomers.size === 0}>אשר חיבור</button>   
-  </>
-)}
-        <button onClick={fetchPrivateSales} disabled={!selectedRow}> הפק דוח אישי</button>
-        <button onClick={fetchFamilySales} disabled={!selectedRow}> הפק דוח משפחתי</button>    
+      
 <table>
       <thead>
         <tr>
@@ -946,6 +1047,25 @@ const disconnectCustomer = async (customerId: string): Promise<void> => {
     </table>
           </div>
   <div className="table-container" style={{ overflowX: 'auto', maxHeight: '300px' }}>
+    <div className= "buttons-container" >  
+    <div className="right-buttons">    
+    <button type="button" onClick={() => showSelect ? cancelProcess() : startLinkingProcess()}>
+  {showSelect ? "בטל קשר משפחתי" : "הוסף קשר משפחתי"}
+</button>
+<button type="button" onClick={() => showSelect ? cancelProcess() : startDisconnectionProcess()}>
+  {showSelect ? "בטל ניתוק קשר משפחתי" : "נתק קשר משפחתי"}
+</button>
+{showSelect && (
+  <>
+    <button type="button" onClick={linkSelectedCustomers} disabled={selectedCustomers.size === 0}>אשר חיבור</button>   
+  </>
+)}
+</div>
+<div className="left-buttons">
+        <button onClick={fetchPrivateSales} disabled={!selectedRow}> הפק דוח אישי</button>
+        <button onClick={fetchFamilySales} disabled={!selectedRow}> הפק דוח משפחתי</button>    
+        </div>
+</div>
   <table>
   <thead>
     <tr>

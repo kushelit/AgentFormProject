@@ -80,6 +80,40 @@ const [minuySochenFilter, setMinuySochenFilter] = useState('');
 const [expiryDateFilter, setExpiryDateFilter] = useState('');
 const [notes, setNotes] = useState('');
 
+interface Customer {
+  id: string;
+  AgentId: string;
+  firstNameCustomer: string;
+  lastNameCustomer: string;
+  IDCustomer: string;
+  // Add other customer fields as necessary
+}
+
+interface Sale {
+  id: string;
+  AgentId: string;
+  IDCustomer: string;
+  company: string;
+  product: string;
+  insPremia: number;
+  pensiaPremia: number;
+  pensiaZvira: number;
+  finansimPremia: number;
+  finansimZvira: number;
+  mounth: string;
+  statusPolicy: string;
+  minuySochen: boolean;
+  workerName: string;
+  workerId: string;
+  notes: string;
+  // Add other sale fields as necessary
+}
+
+interface CombinedData extends Sale {
+  firstNameCustomer: string;
+  lastNameCustomer: string;
+}
+
 type AgentDataType = {
   id: string;
   firstNameCustomer: string;
@@ -122,11 +156,9 @@ type AgentDataTypeForFetching = {
  
 };
 
-
-
 const [filteredData, setFilteredData] = useState<AgentDataType[]>([]);
 
-const fetchDataForAgent = async (UserAgentId: string) => {
+const fetchDataForAgentOld = async (UserAgentId: string) => {
   const q = query(collection(db, 'sales'), where('AgentId', '==', selectedAgentId));
   const querySnapshot = await getDocs(q);
   const data = querySnapshot.docs.map(doc => ({
@@ -138,6 +170,39 @@ const fetchDataForAgent = async (UserAgentId: string) => {
     return (yearB + 2000) - (yearA + 2000) || monthB - monthA; // Adjust sort for descending order
   });
   setAgentData(data);
+};
+
+
+const fetchDataForAgent = async (UserAgentId: string) => {
+  const customerQuery = query(collection(db, 'customer'), where('AgentId', '==', UserAgentId));
+  const customerSnapshot = await getDocs(customerQuery);
+  const customers: Customer[] = customerSnapshot.docs.map(doc => ({
+    ...doc.data() as Customer, // Spread the customer data first
+    id: doc.id // Then assign the 'id', so it does not get overwritten by doc.data()
+  }));
+
+  const salesQuery = query(collection(db, 'sales'), where('AgentId', '==', UserAgentId));
+  const salesSnapshot = await getDocs(salesQuery);
+  const sales: Sale[] = salesSnapshot.docs.map(doc => ({
+    ...doc.data() as Sale, // Spread the sales data first
+    id: doc.id // Then assign the 'id', ensuring it is set correctly
+  }));
+
+  // Combine customer and sales data
+  const combinedData: CombinedData[] = sales.map(sale => {
+    const customer = customers.find(customer => customer.IDCustomer === sale.IDCustomer);
+    return {
+      ...sale, // Spread the sale data which now includes a correctly set 'id'
+      firstNameCustomer: customer ? customer.firstNameCustomer : 'Unknown',
+      lastNameCustomer: customer ? customer.lastNameCustomer : 'Unknown',
+    };
+  });
+
+  setAgentData(combinedData.sort((a, b) => {
+    const [monthA, yearA] = a.mounth.split('/').map(Number);
+    const [monthB, yearB] = b.mounth.split('/').map(Number);
+    return (yearB + 2000) - (yearA + 2000) || monthB - monthA; // Adjust sort for descending order
+  }));
 };
 
 
@@ -191,8 +256,8 @@ const fetchDataForAgent = async (UserAgentId: string) => {
       setSelectedRow(null); // Reset selection
       resetForm();
       setIsEditing(false);
-      if (selectedRow.agent) {
-        fetchDataForAgent(selectedRow.agent);
+      if (selectedAgentId) {
+        fetchDataForAgent(selectedAgentId);
       }
     } else {
       console.log("No selected row or row ID is undefined");
@@ -223,7 +288,20 @@ const fetchDataForAgent = async (UserAgentId: string) => {
           notes: notes || '',
         
         });
-        console.log("Document successfully updated");
+
+
+        // Fetch and update the customer in the 'customer' collection
+        const customerQuery = query(collection(db, 'customer'), where('IDCustomer', '==', IDCustomer));
+        const customerSnapshot = await getDocs(customerQuery);
+        if (!customerSnapshot.empty) {
+            const customerDocRef = customerSnapshot.docs[0].ref;
+            await updateDoc(customerDocRef, {
+                firstNameCustomer,
+                lastNameCustomer,
+                // Add or update other fields as needed
+            });
+        }
+        console.log("Sales and customer documents successfully updated");
         setSelectedRow(null); 
         resetForm();         
      //   if (selectedAgentId) {
@@ -283,7 +361,6 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
         // Add other necessary customer fields here
       });
       console.log('Customer added with ID:', customerDocRef.id);
-
       // Update the parentID to the new customer ID, making the customer their own parent initially
       await updateDoc(customerDocRef, { parentID: customerDocRef.id });
       console.log('parentID updated to the new document ID');
@@ -313,7 +390,6 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
       statusPolicy: selectedStatusPolicy,
       notes,
     });
-    
     console.log('Document written with ID:', docRef.id);
     resetForm(); 
     setIsEditing(false);
@@ -400,19 +476,16 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
 
   const handleExpiryDateChange : ChangeEventHandler<HTMLInputElement> = (e) => {
     const { value } = e.target;
-    let formattedValue = value;
-  
+    let formattedValue = value; 
     // Remove all non-digit characters
-    formattedValue = formattedValue.replace(/\D/g, '');
-  
+    formattedValue = formattedValue.replace(/\D/g, ''); 
     // Add a slash after the month if it's not there yet and the length is 2
     if (formattedValue.length === 2) {
       formattedValue = formattedValue + '/';
     } else if (formattedValue.length > 2) {
       // If more than 2 digits, insert slash between month and year
       formattedValue = formattedValue.substring(0, 2) + '/' + formattedValue.substring(2, 4);
-    }
-  
+    } 
     setmounth(formattedValue);
   };
 

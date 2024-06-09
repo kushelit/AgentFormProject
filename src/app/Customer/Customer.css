@@ -173,3 +173,21 @@ tr {
   text-align: center; /* Center text inside the inputs/selects */
   height:30px; /* Adjust height to better fit in the table row, can adjust as needed */
 }
+.buttons-container {
+  display: flex;
+  justify-content: space-between; /* Ensures that there is space between the two button groups */
+  align-items: center; /* Centers the buttons vertically */
+  padding: 10px; /* Optional: Adds padding around the container */
+}
+
+.right-buttons {
+  display: flex;
+  justify-content: flex-end; /* Aligns buttons to the right */
+  gap: 10px; /* Optional: adds space between buttons */
+}
+
+.left-buttons {
+  display: flex;
+  justify-content: flex-start; /* Aligns buttons to the left */
+  gap: 10px; /* Optional: adds space between buttons */
+}

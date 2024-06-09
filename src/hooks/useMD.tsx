@@ -131,7 +131,9 @@ const useFetchMD = () => {
 
  useEffect(() => {
     const fetchStatusPolicies = async () => {
-      const querySnapshot = await getDocs(collection(db, 'statusPolicy'));
+      const activeStatusQuery = query(collection(db, 'statusPolicy'), where('isActive', '==', '1'));
+      const querySnapshot = await getDocs(activeStatusQuery);
+    //  const querySnapshot = await getDocs(collection(db, 'statusPolicy'));
       const statusList = querySnapshot.docs.map(doc => doc.data().statusName); // Assuming the field name is 'productName'
       setStatusPolicies(statusList);
     };
