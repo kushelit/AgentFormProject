@@ -23,6 +23,8 @@ type SidebarProps = {
             <li><Link href="/ManageWorkers" className="text-custom-white">ניהול עובדים</Link></li>
             <li><Link href="/contact" className="text-custom-white">ניהול יעדים ומבצעים</Link></li>
             <li><Link href="/ManageContracts" className="text-custom-white">ניהול עמלות </Link></li>
+            <li><Link href="/Enviorment" className="text-custom-white">הגדרות מערכת</Link></li>
+
             {/* Additional list items with the class applied */}
           </ul>
         </nav>

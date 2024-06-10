@@ -57,6 +57,9 @@ const [isProcessing, setIsProcessing] = useState(false);
 const [sourceValue, setSourceValue] = useState('');
 const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
 
+const [sourceLeadList, setSourceLeadList] = useState<any[]>([]);
+const [sourceLead, setSourceLead] = useState<string | null>(null);
+
 
 interface Suggestion {
   id: string;
@@ -821,35 +824,60 @@ const disconnectCustomer = async (customerId: string): Promise<void> => {
       }
     };
     
-    const fetchSuggestions = async (currentInputValue: unknown) => {
+ //   const fetchSuggestions = async (currentInputValue: unknown) => {
       // Assert that currentInputValue is a string
-      const inputValue = currentInputValue as string;
+   //   const inputValue = currentInputValue as string;
     
-      if (inputValue.length > 2) {
+   //   if (inputValue.length > 2) {
+   //     const q = query(
+   //       collection(db, 'customer'),
+    //      where('AgentId', '==', selectedAgentId),
+    //      where("sourceValue", ">=", inputValue),
+    //      where("sourceValue", "<=", inputValue + '\uf8ff')
+    //    );
+    //    const querySnapshot = await getDocs(q);
+    //    const suggestionList = querySnapshot.docs.map(doc => ({
+     //     id: doc.id,
+     //     source: doc.data().sourceValue  
+    //    }));
+    //    setSuggestions(suggestionList);
+    //    console.log('suggestions ' +suggestions)
+   //   } else {
+    //    setSuggestions([]);
+    //  }
+   // };
+
+
+  //  const handleInputSourceChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+   //   const newValue = event.target.value;
+   //   setSourceValue(newValue);  
+ //     fetchSuggestions(newValue);  
+ //   };
+
+    useEffect(() => {
+      const fetchSourceLeadForAgent = async () => {
+        if (!selectedAgentId) return; // Prevent running if selectedAgentId is not set
+    
         const q = query(
-          collection(db, 'customer'),
+          collection(db, 'sourceLead'),
           where('AgentId', '==', selectedAgentId),
-          where("sourceValue", ">=", inputValue),
-          where("sourceValue", "<=", inputValue + '\uf8ff')
+          where('statusLead', '==', true)
         );
-        const querySnapshot = await getDocs(q);
-        const suggestionList = querySnapshot.docs.map(doc => ({
-          id: doc.id,
-          source: doc.data().sourceValue  
-        }));
-        setSuggestions(suggestionList);
-        console.log('suggestions ' +suggestions)
-      } else {
-        setSuggestions([]);
-      }
-    };
-
-
-    const handleInputSourceChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-      const newValue = event.target.value;
-      setSourceValue(newValue);  
-      fetchSuggestions(newValue);  
-    };
+        try {
+          const querySnapshot = await getDocs(q);
+          const data = querySnapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+          }));
+          setSourceLeadList(data); // Ensure this is the correct setter function name
+          console.log('sourceLeadList:', data);
+        } catch (error) {
+          console.error('Error fetching source leads:', error);
+        }
+      };
+    
+      fetchSourceLeadForAgent();
+    }, [selectedAgentId]); // Ensures the effect runs when selectedAgentId changes
 
 
 
@@ -925,29 +953,17 @@ const disconnectCustomer = async (customerId: string): Promise<void> => {
       />
     </td>
                </tr>*/}
-
 <tr>
-  <td><label htmlFor="sourceInput"> מקור ליד</label></td>
   <td>
-  <div>
-    <input
-      type="text"
-      id="sourceInput"
-      name="sourceInput"
-      value={sourceValue}
-      onChange={handleInputSourceChange}
-      autoComplete="off"
-    />
-    {suggestions.length > 0 && (
-      <ul className="suggestions-list">
-        {suggestions.map(suggestion => (
-          <li key={suggestion.id} onClick={() => setSourceValue(suggestion.source)}>
-            {suggestion.source}
-          </li>
-        ))}
-      </ul>
-    )}
-  </div>
+    <label htmlFor="sourceLeadSelect">מקור ליד</label>
+  </td>
+  <td>
+    <select id="sourceLeadSelect" value={sourceLead || ''} onChange={(e) => setSourceLead(e.target.value)}>
+      <option value="">בחר מקור ליד</option>
+      {sourceLeadList.map((item, index) => (
+        <option key={index} value={item.sourceLead}>{item.sourceLead}</option>
+      ))}
+    </select>
   </td>
 </tr>
                 <tr>

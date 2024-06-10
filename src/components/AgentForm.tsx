@@ -390,6 +390,7 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
       statusPolicy: selectedStatusPolicy,
       notes,
     });
+    alert('עסקת מכירה התווספה בהצלחה');
     console.log('Document written with ID:', docRef.id);
     resetForm(); 
     setIsEditing(false);
