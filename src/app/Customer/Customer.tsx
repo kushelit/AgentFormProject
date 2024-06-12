@@ -29,6 +29,7 @@ const Customer = () => {
     const [parentFullNameFilter, setParentFullNameFilter] = useState("");
     const [customerData, setCustomerData] = useState<any[]>([]);
 
+    const [totalCommissions, setTotalCommissions] = useState({ totalCommissionHekef: 0, totalCommissionNifraim: 0 });
  
     const [showSelect, setShowSelect] = useState(false);
     const [selectedCustomers, setSelectedCustomers] = useState(new Set<string>());
@@ -54,11 +55,11 @@ const [mode, setMode] = useState('');  // '' (default), 'linking', 'disconnectin
 const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
 const [isProcessing, setIsProcessing] = useState(false);
 
-const [sourceValue, setSourceValue] = useState('');
+const [sourceValue, setSourceValue] = useState<string | null>('');
 const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
 
 const [sourceLeadList, setSourceLeadList] = useState<any[]>([]);
-const [sourceLead, setSourceLead] = useState<string | null>(null);
+//const [sourceLead, setSourceLead] = useState<string | null>(null);
 
 
 interface Suggestion {
@@ -204,6 +205,7 @@ interface Customer {
     //handle row selected function **
     const handleRowClick = (item: any) => {
       setSalesData([]);
+      setTotalCommissions({ totalCommissionHekef: 0, totalCommissionNifraim: 0 }); // Resetting totalCommissions
       setSelectedRow(item); // Store the selected row's data
       setfirstNameCustomer(item.firstNameCustomer || '');
       setlastNameCustomer(item.lastNameCustomer || '');
@@ -217,6 +219,7 @@ interface Customer {
       setMail(item.mail || '');
       setAddress(item.address || '');
       setSourceValue(item.sourceValue || '');
+      console.log('SourceValue set' + sourceValue)
    //   if (item.parentID) {
   //     fetchFamilySales();
   //      }
@@ -450,6 +453,10 @@ interface Sale {
   finansimZvira: string;
   commissionHekef?: number;  
   commissionNifraim?: number;
+  sumPremia?: number;
+  sumTzvira?: number;
+  totalCommissionHekef?: number;
+  totalCommissionNifraim ?: number;
 }
 
 const [salesData, setSalesData] = useState<Sale[]>([]);
@@ -503,6 +510,29 @@ function calculateCommissions(sale: Sale, contractMatch: any) {
   };
 }
 
+
+function calculatePremiaAndTzvira(sale: Sale) {
+  let premia = 0;
+  let tzvira = 0;
+
+    premia = (
+      ((parseInt(sale.insPremia) || 0) ) +
+      ((parseInt(sale.pensiaPremia) || 0) ) +    
+      ((parseInt(sale.finansimPremia) || 0) ) 
+    );
+    tzvira = (
+      ((parseInt(sale.pensiaZvira) || 0) ) +
+      ((parseInt(sale.finansimZvira) || 0) )
+    );
+  return {
+    sumPremia: premia,
+    sumTzvira:tzvira
+  };
+}
+
+
+
+
 const fetchPrivateSales = async () => {
   if (!selectedRow) {
     console.log("No selected row available");
@@ -512,6 +542,8 @@ const fetchPrivateSales = async () => {
   const salesQuery = query(salesRef, where('IDCustomer', "==", selectedRow.IDCustomer), where('AgentId', "==", selectedAgentId), where('minuySochen', '==', false), where('statusPolicy', 'in', ['פעילה', 'הצעה']));
   try {
     const salesSnapshot = await getDocs(salesQuery);
+    let totalCommissionHekef = 0;
+    let totalCommissionNifraim = 0;
     const salesWithNames = await Promise.all(salesSnapshot.docs.map(async (salesDoc) => {
       const salesData = salesDoc.data();
      // const customerRef = doc(db, 'customer', salesData.IDCustomer);
@@ -526,7 +558,7 @@ const fetchPrivateSales = async () => {
         IDCustomer: salesData.IDCustomer,
         product: salesData.product,
         company: salesData.company,
-        month: salesData.month,
+        month: salesData.mounth,
         status: salesData.status,
         insPremia: salesData.insPremia,
         pensiaPremia: salesData.pensiaPremia,
@@ -536,12 +568,20 @@ const fetchPrivateSales = async () => {
       };
       const contractMatch = contracts.find(contract => contract.agentId === selectedAgentId && contract.product === data.product && contract.company === data.company);
       const commissions = calculateCommissions(data, contractMatch);
-      return { ...data, ...commissions };
+      totalCommissionHekef += commissions.commissionHekef;
+      totalCommissionNifraim += commissions.commissionNifraim;
+      const calcPrem = calculatePremiaAndTzvira(data);
+      return { ...data, ...commissions, ...calcPrem };
     }));
     if (salesWithNames.length === 0) {
       alert("ללקוח זה אין מכירות");
     } else {
       setSalesData(salesWithNames);
+      setTotalCommissions({ totalCommissionHekef, totalCommissionNifraim });
+      console.log('totalCommissionHekef '+ totalCommissionHekef)
+      console.log('totalCommissionNifraim '+ totalCommissionNifraim)
+
+
     }
   } catch (error) {
     console.error("Error fetching private sales data:", error);
@@ -563,6 +603,8 @@ const fetchFamilySales = async () => {
   const salesQuery = query(salesRef, where("IDCustomer", "in", customerIDs), where('minuySochen', '==', false), where('statusPolicy', 'in', ['פעילה', 'הצעה']));
   try {
     const salesSnapshot = await getDocs(salesQuery);
+    let totalCommissionHekef = 0;
+    let totalCommissionNifraim = 0;
     const salesWithNames = await Promise.all(salesSnapshot.docs.map(async (salesDoc) => {
       const salesData = salesDoc.data();
 
@@ -579,7 +621,7 @@ const fetchFamilySales = async () => {
         IDCustomer: salesData.IDCustomer,
         product: salesData.product,
         company: salesData.company,
-        month: salesData.month,
+        month: salesData.mounth,
         status: salesData.status,
         insPremia: salesData.insPremia,
         pensiaPremia: salesData.pensiaPremia,
@@ -590,20 +632,23 @@ const fetchFamilySales = async () => {
 
       const contractMatch = contracts.find(contract => contract.agentId === selectedAgentId && contract.product === data.product && contract.company === data.company);
       const commissions = calculateCommissions(data, contractMatch);
-      return { ...data, ...commissions };  // Combine the data with calculated commissions
+      totalCommissionHekef += commissions.commissionHekef;
+      totalCommissionNifraim += commissions.commissionNifraim;
+      const calcPrem = calculatePremiaAndTzvira(data);
+      return { ...data, ...commissions, ...calcPrem };
     }));
 
     if (salesWithNames.length === 0) {
       alert("לללקוח זה אין מכירות");
     } else {
       setSalesData(salesWithNames);
+      setTotalCommissions({ totalCommissionHekef, totalCommissionNifraim });
     }
   } catch (error) {
     console.error("Error fetching family sales data:", error);
     alert("Failed to fetch family sales data.");
   }
 };
-
 
 
 
@@ -879,7 +924,10 @@ const disconnectCustomer = async (customerId: string): Promise<void> => {
       fetchSourceLeadForAgent();
     }, [selectedAgentId]); // Ensures the effect runs when selectedAgentId changes
 
-
+    const handleSelectChange = (event: { target: { value: SetStateAction<string | null>; }; }) => {
+      console.log("Selected value:", event.target.value);
+      setSourceValue(event.target.value);
+    };
 
     return (
       <div className="content-container">
@@ -958,12 +1006,12 @@ const disconnectCustomer = async (customerId: string): Promise<void> => {
     <label htmlFor="sourceLeadSelect">מקור ליד</label>
   </td>
   <td>
-    <select id="sourceLeadSelect" value={sourceLead || ''} onChange={(e) => setSourceLead(e.target.value)}>
-      <option value="">בחר מקור ליד</option>
-      {sourceLeadList.map((item, index) => (
-        <option key={index} value={item.sourceLead}>{item.sourceLead}</option>
-      ))}
-    </select>
+  <select id="sourceLeadSelect" value={sourceValue || ''} onChange={handleSelectChange}>
+  <option value="">בחר מקור ליד</option>
+  {sourceLeadList.map((item, index) => (
+    <option key={index} value={item.sourceLead}>{item.sourceLead}</option>
+  ))}
+</select>
   </td>
 </tr>
                 <tr>
@@ -1091,8 +1139,10 @@ const disconnectCustomer = async (customerId: string): Promise<void> => {
       <th>מוצר</th>
       <th>חברה</th>
       <th>חודש תוקף</th>
-      {detail!.role !== 'worker' && <th>נפרעים</th>}
+      {detail!.role !== 'worker' && <th>פרמיה</th>}
       {detail!.role !== 'worker' && <th>צבירה</th>}
+      {detail!.role !== 'worker' && <th>היקף</th>}
+      {detail!.role !== 'worker' && <th>נפרעים</th>}
     </tr>
   </thead>
   <tbody>
@@ -1104,10 +1154,19 @@ const disconnectCustomer = async (customerId: string): Promise<void> => {
         <td>{sale.product}</td>
         <td>{sale.company}</td>
         <td>{sale.month}</td>
+        {detail?.role !== 'worker' && <td>{sale.sumPremia}</td>}
+      {detail?.role !== 'worker' && <td>{sale.sumTzvira}</td>}
         {detail?.role !== 'worker' && <td>{sale.commissionHekef}</td>}
       {detail?.role !== 'worker' && <td>{sale.commissionNifraim}</td>}
       </tr>
     ))}
+      {detail?.role !== 'worker' && (
+     <tr>
+        <td colSpan={8} style={{ fontWeight: 'bold', textAlign: 'left' }} >סיכום עמלות</td>
+        <td style={{ fontWeight: 'bold' }}>{totalCommissions.totalCommissionHekef.toLocaleString()} </td>
+        <td style={{ fontWeight: 'bold' }}>{totalCommissions.totalCommissionNifraim.toLocaleString()}</td>
+      </tr>
+        )}
   </tbody>
 </table>
 </div>

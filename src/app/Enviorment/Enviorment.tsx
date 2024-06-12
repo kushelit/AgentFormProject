@@ -165,9 +165,7 @@ const {
             <button type="button" onClick={resetForm}>נקה</button>
           </div>        
        </form>
-      </div>  
-      <div className="data-container">
-      <div className="select-container" >        
+       <div className="select-container" >        
         <table>
          <thead>
          <tr>
@@ -189,6 +187,9 @@ const {
       </tbody>
     </table>
  </div>
+      </div>  
+      <div className="data-container">
+     
   <div className="table-container" style={{ overflowX: 'auto', maxHeight: '300px' }}>
     <div className= "buttons-container" >  
         </div>
