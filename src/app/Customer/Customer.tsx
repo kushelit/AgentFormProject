@@ -498,7 +498,7 @@ function calculateCommissions(sale: Sale, contractMatch: any) {
     const productGroup = productMap[sale.product];
     const groupMatch = contracts.find(contract =>
       contract.productsGroup === productGroup &&
-      contract.agentId === selectedAgentId && contract.minuySochen === sale.minuySochen
+      contract.agentId === selectedAgentId &&  (contract.minuySochen === sale.minuySochen || (contract.minuySochen === undefined && !sale.minuySochen))
     );
     if (groupMatch) {
       commissionHekef = (
@@ -581,7 +581,7 @@ const fetchPrivateSales = async () => {
         finansimPremia: salesData.finansimPremia,
         finansimZvira: salesData.finansimZvira
       };
-      const contractMatch = contracts.find(contract => contract.agentId === selectedAgentId && contract.product === data.product && contract.company === data.company && contract.minuySochen === data.minuySochen);
+      const contractMatch = contracts.find(contract => contract.agentId === selectedAgentId && contract.product === data.product && contract.company === data.company &&  (contract.minuySochen === data.minuySochen || (contract.minuySochen === undefined && !data.minuySochen)));
       const commissions = calculateCommissions(data, contractMatch);
       totalCommissionHekef += commissions.commissionHekef;
       totalCommissionNifraim += commissions.commissionNifraim;
@@ -645,7 +645,7 @@ const fetchFamilySales = async () => {
         finansimZvira: salesData.finansimZvira
       };
 
-      const contractMatch = contracts.find(contract => contract.agentId === selectedAgentId && contract.product === data.product && contract.company === data.company && contract.minuySochen === data.minuySochen);
+      const contractMatch = contracts.find(contract => contract.agentId === selectedAgentId && contract.product === data.product && contract.company === data.company &&  (contract.minuySochen === data.minuySochen || (contract.minuySochen === undefined && !data.minuySochen)));
       const commissions = calculateCommissions(data, contractMatch);
       totalCommissionHekef += commissions.commissionHekef;
       totalCommissionNifraim += commissions.commissionNifraim;

@@ -145,7 +145,7 @@ const [selectedDataset, setSelectedDataset] = useState('default');
         const month = data.mounth;
         const productGroup = productMap[data.product]; // Use the productMap to get the productGroup
 
-        const contractMatch = contracts.find(contract => contract.agentId === data.AgentId && contract.product === data.product && contract.company === data.company && contract.minuySochen === data.minuySochen);
+        const contractMatch = contracts.find(contract => contract.agentId === data.AgentId && contract.product === data.product && contract.company === data.company && (contract.minuySochen === data.minuySochen || (contract.minuySochen === undefined && !data.minuySochen)));
 
 
         if (!initialMonthlyTotals[month]) {
@@ -172,7 +172,7 @@ const [selectedDataset, setSelectedDataset] = useState('default');
           // Try to match based on productGroup
           const groupMatch = contracts.find(contract =>
             contract.productsGroup === productGroup &&
-            contract.agentId === data.AgentId && contract.minuySochen === data.minuySochen
+            contract.agentId === data.AgentId &&  (contract.minuySochen === data.minuySochen || (contract.minuySochen === undefined && !data.minuySochen))
           );
           if (groupMatch) {
             let totalHekef=(
@@ -204,7 +204,7 @@ const [selectedDataset, setSelectedDataset] = useState('default');
           // Try to match based on productGroup
           const groupMatch = contracts.find(contract =>
             contract.productsGroup === productGroup &&
-            contract.agentId === data.AgentId && contract.minuySochen === data.minuySochen
+            contract.agentId === data.AgentId &&  (contract.minuySochen === data.minuySochen || (contract.minuySochen === undefined && !data.minuySochen))
           );
           if (groupMatch) {
            // initialMonthlyTotals[month].commissionNifraimTotal += Math.round(
