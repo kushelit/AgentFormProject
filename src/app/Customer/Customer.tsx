@@ -1,5 +1,5 @@
 import { ChangeEventHandler, FormEventHandler, SetStateAction, useEffect, useMemo, useState } from "react";
-import { collection, query,setDoc, where, getDocs,getDoc, addDoc, deleteDoc, doc, updateDoc,DocumentSnapshot, DocumentData } from "firebase/firestore";
+import { collection, query,setDoc, where, getDocs,getDoc, addDoc, deleteDoc, doc, updateDoc,DocumentSnapshot, DocumentData, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase/firebase"; // Ensure this path matches your project structure
 import { useAuth } from '@/lib/firebase/AuthContext';
 import Link from "next/link";
@@ -60,6 +60,8 @@ const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
 
 const [sourceLeadList, setSourceLeadList] = useState<any[]>([]);
 //const [sourceLead, setSourceLead] = useState<string | null>(null);
+const [issueDay, setIssueDay] = useState('');
+const handleIssueDay = (e: React.ChangeEvent<HTMLInputElement>) => setIssueDay(e.target.value);
 
 
 interface Suggestion {
@@ -75,7 +77,8 @@ type CustomerDataType = {
   fullNameCustomer: string;
   IDCustomer: string;
   parentID: string;
-  birthday: string; // Assuming date is stored as a string
+  birthday: string; 
+  issueDay:string;
   phone: string;
   mail: string;
   address: string;
@@ -90,6 +93,7 @@ type CustomersTypeForFetching = {
   fullNameCustomer: string;
   IDCustomer: string; 
   notes: string; 
+  issueDay:string;
   birthday: string; 
   phone: string;
   mail: string;
@@ -97,7 +101,6 @@ type CustomersTypeForFetching = {
   sourceValue:string;
 
 };
-
 
 interface Customer {
   firstNameCustomer: string;
@@ -214,6 +217,7 @@ interface Customer {
       setParentID(item.parentID || '');
       setIsEditing(true);
       setNotes(item.notes || '');
+      setIssueDay(item.issueDay || '');
       setBirthday(item.birthday || '');
       setPhone(item.phone || '');
       setMail(item.mail || '');
@@ -256,11 +260,13 @@ interface Customer {
             fullNameCustomer,
             IDCustomer,
             notes: notes || '',
+            issueDay,
             birthday,
             phone,
             mail,
             address,
             sourceValue,
+            lastUpdateDate: serverTimestamp()
           });
           console.log("Document successfully updated");
           setSelectedRow(null); 
@@ -279,11 +285,11 @@ interface Customer {
 //reset function **
     const resetForm = () => {
       setfirstNameCustomer(''); 
-      setfirstNameCustomer(''); 
-      setfirstNameCustomer(''); 
       setlastNameCustomer(''); 
       setFullNameCustomer(''); 
       setIDCustomer(''); 
+      setIssueDay(''); 
+      setBirthday(''); 
       setIsEditing(false);
       setParentID('');
       setNotes('');
@@ -327,11 +333,15 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
         IDCustomer,
         parentID: customerRef.id,  // Self-reference the document's ID
         notes,
+        issueDay,
         birthday,
         phone,
         mail,
         address,
         sourceValue,
+        createdAt: serverTimestamp(),
+        lastUpdateDate: serverTimestamp() // Also set at creation
+
       });
       console.log('Customer added with ID:', customerRef.id);
       alert('לקוח חדש התווסף בהצלחה');
@@ -394,6 +404,8 @@ interface Contract {
   commissionNifraim: number;
   commissionHekef: number;
   commissionNiud: number;
+  minuySochen: boolean;
+
 }
 
 interface Product {
@@ -414,7 +426,8 @@ useEffect(() => {
       agentId: doc.data().AgentId,
       commissionNifraim: doc.data().commissionNifraim,
       commissionHekef: doc.data().commissionHekef,
-      commissionNiud: doc.data().commissionNiud
+      commissionNiud: doc.data().commissionNiud,
+      minuySochen: doc.data().minuySochen,
     }));
     setContracts(fetchedContracts);
   };
@@ -457,6 +470,8 @@ interface Sale {
   sumTzvira?: number;
   totalCommissionHekef?: number;
   totalCommissionNifraim ?: number;
+  minuySochen?:boolean;
+
 }
 
 const [salesData, setSalesData] = useState<Sale[]>([]);
@@ -483,7 +498,7 @@ function calculateCommissions(sale: Sale, contractMatch: any) {
     const productGroup = productMap[sale.product];
     const groupMatch = contracts.find(contract =>
       contract.productsGroup === productGroup &&
-      contract.agentId === selectedAgentId
+      contract.agentId === selectedAgentId && contract.minuySochen === sale.minuySochen
     );
     if (groupMatch) {
       commissionHekef = (
@@ -539,7 +554,7 @@ const fetchPrivateSales = async () => {
     return;
   }
   const salesRef = collection(db, "sales");
-  const salesQuery = query(salesRef, where('IDCustomer', "==", selectedRow.IDCustomer), where('AgentId', "==", selectedAgentId), where('minuySochen', '==', false), where('statusPolicy', 'in', ['פעילה', 'הצעה']));
+  const salesQuery = query(salesRef, where('IDCustomer', "==", selectedRow.IDCustomer), where('AgentId', "==", selectedAgentId), where('statusPolicy', 'in', ['פעילה', 'הצעה']));
   try {
     const salesSnapshot = await getDocs(salesQuery);
     let totalCommissionHekef = 0;
@@ -566,7 +581,7 @@ const fetchPrivateSales = async () => {
         finansimPremia: salesData.finansimPremia,
         finansimZvira: salesData.finansimZvira
       };
-      const contractMatch = contracts.find(contract => contract.agentId === selectedAgentId && contract.product === data.product && contract.company === data.company);
+      const contractMatch = contracts.find(contract => contract.agentId === selectedAgentId && contract.product === data.product && contract.company === data.company && contract.minuySochen === data.minuySochen);
       const commissions = calculateCommissions(data, contractMatch);
       totalCommissionHekef += commissions.commissionHekef;
       totalCommissionNifraim += commissions.commissionNifraim;
@@ -600,7 +615,7 @@ const fetchFamilySales = async () => {
   const customerIDs = customerSnapshot.docs.map(doc => doc.data().IDCustomer);
 
   const salesRef = collection(db, "sales");
-  const salesQuery = query(salesRef, where("IDCustomer", "in", customerIDs), where('minuySochen', '==', false), where('statusPolicy', 'in', ['פעילה', 'הצעה']));
+  const salesQuery = query(salesRef, where("IDCustomer", "in", customerIDs), where('statusPolicy', 'in', ['פעילה', 'הצעה']));
   try {
     const salesSnapshot = await getDocs(salesQuery);
     let totalCommissionHekef = 0;
@@ -630,7 +645,7 @@ const fetchFamilySales = async () => {
         finansimZvira: salesData.finansimZvira
       };
 
-      const contractMatch = contracts.find(contract => contract.agentId === selectedAgentId && contract.product === data.product && contract.company === data.company);
+      const contractMatch = contracts.find(contract => contract.agentId === selectedAgentId && contract.product === data.product && contract.company === data.company && contract.minuySochen === data.minuySochen);
       const commissions = calculateCommissions(data, contractMatch);
       totalCommissionHekef += commissions.commissionHekef;
       totalCommissionNifraim += commissions.commissionNifraim;
@@ -973,6 +988,10 @@ const disconnectCustomer = async (customerId: string): Promise<void> => {
                     </td>
                 </tr>
                 <tr>
+  <td><label htmlFor="birthday" >תאריך הנפקה תז</label></td>
+  <td><input type="date" id="issueDay" name="issueDay" value={issueDay} onChange={handleIssueDay} /></td>
+</tr>
+                <tr>
   <td><label htmlFor="birthday">תאריך לידה</label></td>
   <td><input type="date" id="birthday" name="birthday" value={birthday} onChange={handleBirthdayChange} /></td>
 </tr>
@@ -1156,8 +1175,8 @@ const disconnectCustomer = async (customerId: string): Promise<void> => {
         <td>{sale.month}</td>
         {detail?.role !== 'worker' && <td>{sale.sumPremia}</td>}
       {detail?.role !== 'worker' && <td>{sale.sumTzvira}</td>}
-        {detail?.role !== 'worker' && <td>{sale.commissionHekef}</td>}
-      {detail?.role !== 'worker' && <td>{sale.commissionNifraim}</td>}
+        {detail?.role !== 'worker' && <td>{sale.commissionHekef?.toLocaleString()}</td>}
+      {detail?.role !== 'worker' && <td>{sale.commissionNifraim?.toLocaleString()}</td>}
       </tr>
     ))}
       {detail?.role !== 'worker' && (

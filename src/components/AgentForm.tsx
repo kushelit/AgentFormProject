@@ -2,7 +2,7 @@
 "use client"
 import React, { useState, useEffect, FormEventHandler, ChangeEventHandler, ChangeEvent, useMemo } from 'react';
 import { db } from '@/lib/firebase/firebase';
-import { collection, query, where, getDocs, doc, addDoc, deleteDoc, updateDoc, getDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, addDoc, deleteDoc, updateDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 import './AgentForm.css';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
@@ -33,7 +33,8 @@ function AgentForm() {
     selectedWorkerIdFilter,
     selectedWorkerNameFilter,
     selectedCompanyFilter,
-    setSelectedCompanyFilter
+    setSelectedCompanyFilter,
+    fetchWorkersForSelectedAgent
   } = useFetchAgentData();
 
 
@@ -248,6 +249,13 @@ const fetchDataForAgent = async (UserAgentId: string) => {
     setSelectedStatusPolicy(item.statusPolicy);
     setIsEditing(true);
     setNotes(item.notes);
+    fetchWorkersForSelectedAgent(item.agentId).then(() => {
+      const worker = workers.find(w => w.id === item.workerId);
+      if (worker) {
+        setSelectedWorkerId(worker.id);
+        setSelectedWorkerName(worker.name);
+      }
+    });
   };
 
   const handleDelete = async () => {
@@ -286,6 +294,7 @@ const fetchDataForAgent = async (UserAgentId: string) => {
           minuySochen: !!minuySochen,
           statusPolicy: selectedStatusPolicy,
           notes: notes || '',
+          lastUpdateDate: serverTimestamp()
         
         });
 
@@ -389,6 +398,10 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
       minuySochen,
       statusPolicy: selectedStatusPolicy,
       notes,
+      createdAt: serverTimestamp(), // Adds server timestamp
+      lastUpdateDate: serverTimestamp() // Also set at creation
+
+
     });
     alert('עסקת מכירה התווספה בהצלחה');
     console.log('Document written with ID:', docRef.id);

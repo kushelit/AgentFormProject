@@ -5,6 +5,7 @@ import { useAuth } from '@/lib/firebase/AuthContext';
 import Link from "next/link";
 import useFetchMD from "@/hooks/useMD"; 
 import './ManageContracts.css';
+import useFetchAgentData from "@/hooks/useFetchAgentData"; 
 
 
   const ManageContracts: React.FC = () => {
@@ -29,6 +30,12 @@ import './ManageContracts.css';
   const [isEditing2, setIsEditing2] = useState(false);
 
   const [searchQuery, setSearchQuery] = useState("");
+  
+  const [minuySochenFilter1, setMinuySochenFilter1] = useState('');
+  const [minuySochenFilter2, setMinuySochenFilter2] = useState('');
+  const [minuySochen1, setMinuySochen1] = useState(false);
+  const [minuySochen2, setMinuySochen2] = useState(false);
+
 
   //const [date, setDate] = useState('');
 
@@ -44,10 +51,16 @@ import './ManageContracts.css';
     selectedProductGroup,
     setSelectedProductGroup,
     productGroupMap,
-  
+    selectedProductFilter,
+    selectedProductGroupFilter,
+    setSelectedProductGroupFilter,
+    setSelectedProductFilter,
   } = useFetchMD();
 
-
+  const { 
+    selectedCompanyFilter,
+    setSelectedCompanyFilter,
+  } = useFetchAgentData();
 
 
   const handlecommissionPercentHekef1: ChangeEventHandler<HTMLInputElement> = (e) => {
@@ -93,7 +106,7 @@ const resetFormDefault = () => {
   setCommissionPercentNiud1('');
   setIsEditing1(false);
   setSelectedRow(null); 
-
+  setMinuySochen1(false);
 };
 
 const resetFormContracts = () => {
@@ -104,7 +117,7 @@ const resetFormContracts = () => {
   setCommissionPercentNiud2('');
   setIsEditing2(false);
   setSelectedRow(null); 
-
+  setMinuySochen2(false);
 };
 
 const canSubmit1 = useMemo(() => (
@@ -125,7 +138,8 @@ const canSubmit1 = useMemo(() => (
 
         const existingContractQuery = query(collection(db, 'contracts'), 
         where('AgentId', '==', detail.agentId),
-        where('productsGroup', '==', selectedProductGroup)
+        where('productsGroup', '==', selectedProductGroup),
+        where('minuySochen', '==', minuySochen1)
       );
   
       const querySnapshot = await getDocs(existingContractQuery);
@@ -142,7 +156,9 @@ const canSubmit1 = useMemo(() => (
         product: '',
         commissionHekef:commissionPercentHekef1,
         commissionNifraim:commissionPercentNifraim1,
-        commissionNiud:commissionPercentNiud1
+        commissionNiud:commissionPercentNiud1,
+        minuySochen:minuySochen1
+
       });      
       console.log('Document written with ID:', docRef.id);
       resetFormDefault(); 
@@ -168,14 +184,15 @@ const canSubmit1 = useMemo(() => (
 
   const handleSubmitFullValuesCommission = async () => {
     //  event.preventDefault();
-      try {
-       
+      try {    
           if (!detail || !detail.agentId) return;
 
-       const existingContractQuery = query(collection(db, 'contracts'), 
+      const existingContractQuery = query(collection(db, 'contracts'), 
       where('AgentId', '==', detail.agentId),
       where('company', '==', selectedCompany),
-      where('product', '==', selectedProduct)
+      where('product', '==', selectedProduct),
+      where('minuySochen', '==', minuySochen2)
+
     );
 
     const querySnapshot = await getDocs(existingContractQuery);
@@ -192,7 +209,8 @@ const canSubmit1 = useMemo(() => (
           product: selectedProduct,
           commissionHekef:commissionPercentHekef2,
           commissionNifraim:commissionPercentNifraim2,
-          commissionNiud:commissionPercentNiud2
+          commissionNiud:commissionPercentNiud2,
+          minuySochen:minuySochen2
        
         });      
         console.log('Document written with ID:', docRef.id);
@@ -214,40 +232,62 @@ const canSubmit1 = useMemo(() => (
         where('AgentId', '==', detail.agentId),
         where('productsGroup', '==', '')  // Adjust if necessary
       );
-      if (selectedCompany.trim() !== '') {
-        q = query(q, where('company', '==', selectedCompany));
+      if (selectedCompanyFilter.trim() !== '') {
+        q = query(q, where('company', '==', selectedCompanyFilter));
       }
+      if (selectedProductFilter.trim() !== '') {
+        q = query(q, where('product', '==', selectedProductFilter));
+      }
+      if (minuySochenFilter2.trim() !== '') {
+        q = query(q, where('minuySochen', '==', minuySochenFilter2));
+      }
+      try {
       const querySnapshot = await getDocs(q);
       const data = querySnapshot.docs.map(doc => ({
         id: doc.id, 
         ...doc.data() 
       }));
       setContracts(data);
-    };
+      resetFormContracts(); // Reset form fields after fetching new data
+    } catch (error) {
+      console.error("Error fetching contracts data:", error);
+    }
+  };
   
     useEffect(() => {
       fetchContracts();
-    }, [detail, selectedCompany]);  // Dependency array
+    }, [detail, selectedCompanyFilter, selectedProductFilter, minuySochenFilter2]);  // Dependency array
 
 
   const fetchdefaultContracts = async () => {
     if (!detail || !detail.agentId) return;
-    const diffContractsQuery = query(
+    let diffContractsQuery = query(
         collection(db, 'contracts'),
         where('AgentId', '==', detail.agentId),       
         where('productsGroup', '!=', '')          
     );
+    if (selectedProductGroupFilter.trim() !== '') {
+      diffContractsQuery = query(diffContractsQuery, where('productsGroup', '==', selectedProductGroupFilter));
+    }
+    if (minuySochenFilter1.trim() !== '') {
+      diffContractsQuery = query(diffContractsQuery, where('minuySochen', '==', minuySochenFilter1));
+    }
+    try {
     const querySnapshot = await getDocs(diffContractsQuery);
     const contractsList = querySnapshot.docs.map(doc => ({
       id: doc.id, 
         ...doc.data() 
     }));
     setDefaultContracts(contractsList );
-  };
+    resetFormDefault(); // Reset form fields after fetching new data
+  } catch (error) {
+    console.error("Error fetching contracts data:", error);
+  }
+};
 
   useEffect(() => {
     fetchdefaultContracts();
-  }, [detail]);  // Dependency array
+  }, [detail, minuySochenFilter1, selectedProductGroupFilter]);  // Dependency array
 
 
 
@@ -258,6 +298,8 @@ const canSubmit1 = useMemo(() => (
     setCommissionPercentNifraim1(item.commissionNifraim);
     setCommissionPercentNiud1(item.commissionNiud);
     setIsEditing1(true);
+    setMinuySochen1(item.minuySochen || false); // Reset or set new value, assuming false if undefined
+
 
 console.log(item.commissionNifraim + '  ');
 console.log(commissionPercentNifraim1);
@@ -271,6 +313,7 @@ const handleRowClick2 = (item: any) => {
   setCommissionPercentHekef2(item.commissionHekef);
   setCommissionPercentNifraim2(item.commissionNifraim);
   setCommissionPercentNiud2(item.commissionNiud);
+  setMinuySochen2(item.minuySochen || false); // Reset or set new value, assuming false if undefined
   setIsEditing2(true);
 
 console.log(item.commissionNifraim + '  ');
@@ -316,7 +359,9 @@ console.log(commissionPercentNifraim1);
       //  product: '',
         commissionHekef:commissionPercentHekef1,
         commissionNifraim:commissionPercentNifraim1,
-        commissionNiud:commissionPercentNiud1
+        commissionNiud:commissionPercentNiud1,
+        minuySochen: !!minuySochen1,
+
           });
         console.log("Document successfully updated");
         setSelectedRow(null); 
@@ -341,8 +386,8 @@ console.log(commissionPercentNifraim1);
         product: selectedProduct,
         commissionHekef:commissionPercentHekef2,
         commissionNifraim:commissionPercentNifraim2,
-        commissionNiud:commissionPercentNiud2
-        
+        commissionNiud:commissionPercentNiud2,
+        minuySochen: !!minuySochen2, 
         });
         console.log("Document successfully updated");
         setSelectedRow(null); 
@@ -367,31 +412,31 @@ return (
       <div style={{ marginTop: '20px', width: '90%', margin: '0 auto', overflowX: 'auto' }}>
       {/*   {defaultContracts.length > 0 ? ( */}
           <div className="table-container" style={{ width: '100%' }}>
+          <div className="select-container" >
+          <select id="productGroup-Select" value={selectedProductGroupFilter} onChange={(e) => setSelectedProductGroupFilter(e.target.value)}>
+               <option value="">בחר קבוצת מוצר</option>
+               {productGroupsDB.map((group) => (
+              <option key={group.id} value={group.id}>{group.name}</option>
+         ))}
+        </select>
+          <select value={minuySochenFilter1} onChange={(e) => setMinuySochenFilter1(e.target.value)}>
+          <option value="">מינוי סוכן </option>
+         <option value="true">כן</option>
+           <option value="false">לא</option>
+         </select>
+            </div>
             <table style={{ width: '100%'  }}>
               <thead>
                 <tr>
                   <th>קבוצת מוצרים</th>
+                  <th>מינוי סוכן</th>
                   <th>עמלת היקף</th>
                   <th>עמלת נפרעים</th>
                   <th>עמלת ניוד</th>
                 </tr>
               </thead>
-              <tbody>
-                {defaultContracts.map((item) => (
-                  <tr key={item.id}
-
-                  onClick={() => handleRowClick(item)}
-                  onMouseEnter={() => setHoveredRowId(item.id)}
-                  onMouseLeave={() => setHoveredRowId(null)}
-                  className={`${selectedRow && selectedRow.id === item.id ? 'selected-row' : ''} ${hoveredRowId === item.id ? 'hovered-row' : ''}`}>
-                    <td>{productGroupMap[item.productsGroup]}</td> {/* Use the map for fast lookup */}
-                    <td>{item.commissionHekef}</td>
-                    <td>{item.commissionNifraim}</td>
-                    <td>{item.commissionNiud}</td>
-
-                  </tr>
-                ))}
-                 <tr>
+              <tbody>  
+             <tr>
         <td>
           <select
             id="productGroupSelect1"
@@ -403,7 +448,14 @@ return (
               <option key={group.id} value={group.id}>{group.name}</option>
             ))}
           </select>
-        </td>
+          </td>
+          <td>
+      <input
+      type="checkbox"
+      checked={minuySochen1}
+      onChange={(e) => setMinuySochen1(e.target.checked)}
+       />
+      </td>
         <td>
           <input type="text" id="priceInputHekef1" value={commissionPercentHekef1} onChange={handlecommissionPercentHekef1} style={{ width: '100%' }} />
         </td>
@@ -414,6 +466,21 @@ return (
           <input type="text" id="priceInputNiud1" value={commissionPercentNiud1} onChange={handlecommissionPercentNiud1} style={{ width: '100%' }} />
         </td>
       </tr>
+                {defaultContracts.map((item) => (
+                  <tr key={item.id}
+                  onClick={() => handleRowClick(item)}
+                  onMouseEnter={() => setHoveredRowId(item.id)}
+                  onMouseLeave={() => setHoveredRowId(null)}
+                  className={`${selectedRow && selectedRow.id === item.id ? 'selected-row' : ''} ${hoveredRowId === item.id ? 'hovered-row' : ''}`}>
+                    <td>{productGroupMap[item.productsGroup]}</td> {/* Use the map for fast lookup */}
+                    <td>{item.minuySochen ? 'כן' : 'לא'}</td>
+                    <td>{item.commissionHekef}</td>
+                    <td>{item.commissionNifraim}</td>
+                    <td>{item.commissionNiud}</td>
+
+                  </tr>
+                ))}
+              
   
               </tbody>
             </table>
@@ -431,23 +498,39 @@ return (
           <button type="button" onClick={resetFormDefault}>נקה</button>
         </div>
       </div>
-
        
-
     {/* Second Frame */}
 
     <div className="frame-container" style={{ maxWidth: '1000px', margin: '0 auto', padding: '20px', border: '1px solid #ccc', borderRadius: '8px', backgroundColor: '#f9f9f9', marginTop: '20px' }}>
       <h2 style={{ textAlign: 'center' , marginBottom: '10px' , fontSize:'12px' }}>עמלות  למוצר</h2>
       <div style={{ marginTop: '20px', width: '90%', margin: '0 auto', overflowX: 'auto' }}>
-      {/* {contracts.length > 0 ? (*/}
-      
+      {/* {contracts.length > 0 ? (*/}    
           <div className="table-container" style={{ overflowX: 'auto', maxHeight: '300px' }}>
+      <div className="select-container" >
+        <select id="company-Select" value={selectedCompanyFilter} onChange={(e) => setSelectedCompanyFilter(e.target.value)}>
+        <option value="">בחר חברה</option>
+         {companies.map((companyName, index) => (
+         <option key={index} value={companyName}>{companyName}</option>
+    ))}
+     </select>
+     <select id="product-Select" value={selectedProductFilter} onChange={(e) => setSelectedProductFilter(e.target.value)}>
+               <option value="">בחר מוצר</option>
+              {products.map(product => (
+             <option key={product.id} value={product.name}>{product.name}</option>
+         ))}
+        </select>
+        <select value={minuySochenFilter2} onChange={(e) => setMinuySochenFilter2(e.target.value)}>
+    <option value="">מינוי סוכן </option>
+    <option value="true">כן</option>
+    <option value="false">לא</option>
+  </select>
+        </div>
             <table>
-              <thead>
-                
+              <thead>             
                 <tr>
                   <th>חברה </th>
                   <th>מוצר </th>
+                  <th>מינוי סוכן</th>
                   <th>עמלת היקף</th>
                   <th>עמלת נפרעים</th>
                   <th>עמלת ניוד</th>
@@ -455,10 +538,10 @@ return (
               </thead>
               <tbody>
 
-              <tr className="hover:bg-custom-light-blue">
+         <tr className="hover:bg-custom-light-blue">
         <td>
           <select
-            id="companySelect"
+            id="companySelect2"
             value={selectedCompany}
             onChange={(e) => setSelectedCompany(e.target.value)}
             style={{ width: '100%' }}>
@@ -481,6 +564,13 @@ return (
           </select>
         </td>
         <td>
+      <input
+      type="checkbox"
+      checked={minuySochen2}
+      onChange={(e) => setMinuySochen2(e.target.checked)}
+       />
+      </td>
+      <td>
           <input type="text" id="priceInputHekef2" value={commissionPercentHekef2} onChange={handlecommissionPercentHekef2} style={{ width: '100%' }} />
         </td>
         <td>
@@ -490,21 +580,18 @@ return (
           <input type="text" id="priceInputNiud2" value={commissionPercentNiud2} onChange={handlecommissionPercentNiud2} style={{ width: '100%' }} />
         </td>
       </tr>
-  
                 {contracts.map((item) => (
                   <tr key={item.id}
-
                   onClick={() => handleRowClick2(item)}
                   onMouseEnter={() => setHoveredRowId(item.id)}
                   onMouseLeave={() => setHoveredRowId(null)}
                   className={`${selectedRow && selectedRow.id === item.id ? 'selected-row' : ''} ${hoveredRowId === item.id ? 'hovered-row' : ''}`}>
-
                     <td>{item.company}</td>
                     <td>{item.product}</td>
+                    <td>{item.minuySochen ? 'כן' : 'לא'}</td>
                     <td>{item.commissionHekef}</td>
                     <td>{item.commissionNifraim}</td>
                     <td>{item.commissionNiud}</td>
-
                   </tr>
                 ))}
               </tbody>

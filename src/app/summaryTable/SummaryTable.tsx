@@ -8,7 +8,7 @@ import useFetchAgentData from '@/hooks/useFetchAgentData';
 import './SummaryTable.css';
 import useFetchMD from "@/hooks/useMD"; 
 import Select from 'react-select';
-
+import SalesCountGraph from  "@/components/SalesCountGraph"; 
 
 interface MonthlyData {
   finansimTotal: number;
@@ -32,6 +32,8 @@ interface Contract {
   commissionNifraim: number;
   commissionHekef: number;
   commissionNiud: number;
+  minuySochen: boolean;
+
 }
 
 interface Product {
@@ -71,13 +73,14 @@ const SummaryTable = () => {
   const monthsCount = Object.keys(monthlyTotals).length;
 
   // Calculating averages
-const averageFinansim = overallFinansimTotal / monthsCount;
-const averagePensia = overallPensiaTotal / monthsCount;
-const averageInsurance = overallInsuranceTotal / monthsCount;
-const averageNiudPensia = overallNiudPensiaTotal / monthsCount;
-const averageCommissionHekef = overallCommissionHekefTotal / monthsCount;
-const averageCommissionNifraim = overallCommissionNifraimTotal / monthsCount;
+const averageFinansim = Math.round(overallFinansimTotal / monthsCount);
+const averagePensia = Math.round(overallPensiaTotal / monthsCount);
+const averageInsurance = Math.round(overallInsuranceTotal / monthsCount);
+const averageNiudPensia = Math.round(overallNiudPensiaTotal / monthsCount);
+const averageCommissionHekef = Math.round(overallCommissionHekefTotal / monthsCount);
+const averageCommissionNifraim = Math.round(overallCommissionNifraimTotal / monthsCount);
 
+const [selectedDataset, setSelectedDataset] = useState('default');
 
   useEffect(() => {
     const fetchProducts = async () => {
@@ -105,7 +108,9 @@ const averageCommissionNifraim = overallCommissionNifraimTotal / monthsCount;
         agentId: doc.data().AgentId,
         commissionNifraim: doc.data().commissionNifraim,
         commissionHekef: doc.data().commissionHekef,
-        commissionNiud: doc.data().commissionNiud
+        commissionNiud: doc.data().commissionNiud,
+        minuySochen: doc.data().minuySochen,
+
       }));
       setContracts(fetchedContracts);
     };
@@ -117,7 +122,7 @@ const averageCommissionNifraim = overallCommissionNifraimTotal / monthsCount;
     const fetchData = async () => {
       let initialMonthlyTotals: MonthlyTotals = {};
 
-      let salesQuery = query(collection(db, 'sales'), where('minuySochen', '==', false), where('statusPolicy', 'in', ['פעילה', 'הצעה']));
+      let salesQuery = query(collection(db, 'sales'), where('statusPolicy', 'in', ['פעילה', 'הצעה']));
       if (selectedAgentId) {
         salesQuery = query(salesQuery, where('AgentId', '==', selectedAgentId));
       }
@@ -140,7 +145,7 @@ const averageCommissionNifraim = overallCommissionNifraimTotal / monthsCount;
         const month = data.mounth;
         const productGroup = productMap[data.product]; // Use the productMap to get the productGroup
 
-        const contractMatch = contracts.find(contract => contract.agentId === data.AgentId && contract.product === data.product && contract.company === data.company);
+        const contractMatch = contracts.find(contract => contract.agentId === data.AgentId && contract.product === data.product && contract.company === data.company && contract.minuySochen === data.minuySochen);
 
 
         if (!initialMonthlyTotals[month]) {
@@ -167,7 +172,7 @@ const averageCommissionNifraim = overallCommissionNifraimTotal / monthsCount;
           // Try to match based on productGroup
           const groupMatch = contracts.find(contract =>
             contract.productsGroup === productGroup &&
-            contract.agentId === data.AgentId
+            contract.agentId === data.AgentId && contract.minuySochen === data.minuySochen
           );
           if (groupMatch) {
             let totalHekef=(
@@ -199,7 +204,7 @@ const averageCommissionNifraim = overallCommissionNifraimTotal / monthsCount;
           // Try to match based on productGroup
           const groupMatch = contracts.find(contract =>
             contract.productsGroup === productGroup &&
-            contract.agentId === data.AgentId
+            contract.agentId === data.AgentId && contract.minuySochen === data.minuySochen
           );
           if (groupMatch) {
            // initialMonthlyTotals[month].commissionNifraimTotal += Math.round(
@@ -247,6 +252,38 @@ const averageCommissionNifraim = overallCommissionNifraimTotal / monthsCount;
 
     fetchData();
   }, [selectedAgentId, selectedWorkerId, contracts, productMap, selectedCompany, selectedProduct, selectedStatusPolicy, selectedWorkerIdFilter]);
+
+  const [salesCounts, setSalesCounts] = useState<Record<string, number>>({});
+
+  const fetchSalesData = async () => {
+    let salesData: Record<string, number> = {};
+    let salesQuery = query(collection(db, 'sales'), where('AgentId', '==', selectedAgentId));
+ 
+    if (selectedWorkerIdFilter) {
+      salesQuery = query(salesQuery, where('workerId', '==', selectedWorkerIdFilter));
+    }
+    const querySnapshot = await getDocs(salesQuery);
+    querySnapshot.forEach(doc => {
+      const data = doc.data();
+      console.log(data);  // Check what each document contains
+      const month = data.mounth; // Ensure 'month' exists and is correct
+      if (!salesData[month]) {
+        salesData[month] = 0;
+      }
+      salesData[month]++;
+    });
+    console.log("Fetched sales data:", salesData); // Check the processed sales data
+    setSalesCounts(salesData);
+    console.log("Updated state with:", salesData);
+
+  };
+
+  useEffect(() => {
+    fetchSalesData(); // Call fetchSalesData within the useEffect hook
+}, [selectedAgentId, selectedWorkerIdFilter]); 
+
+
+  
 
   return (
     <div className="frame-container bg-custom-white " style={{ maxWidth: '1000px', margin: '0 auto', padding: '10px 20px 20px 20px', border: '1px solid #ccc', borderRadius: '8px', marginTop: '80px' }}>
@@ -346,6 +383,19 @@ const averageCommissionNifraim = overallCommissionNifraimTotal / monthsCount;
       </div>
     </div>
     </div>
+  
+   {/*  <div className="graph-container" style={{ width: '100%', height: '400px' }}>
+  <CommissionGraph data={monthlyTotals} /> 
+</div>*/}
+
+{/*<div className="graph-container" style={{ width: '60%', height: '200px' }}>
+  {Object.keys(salesCounts).length > 0 ? (
+    <SalesCountGraph data={salesCounts} />
+  ) : (
+    <p>Loading data...</p>
+  )}
+</div> */}
+
     </div>
   );
 };

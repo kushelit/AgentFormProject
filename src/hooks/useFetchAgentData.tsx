@@ -62,6 +62,10 @@ const useFetchAgentData = () => {
   }, [user, detail]);
 
   const fetchWorkersForSelectedAgent = async (agentId: string) => {
+    if (!agentId) {
+      console.log("agentId is undefined");
+      return; // Exit the function if agentId is undefined to avoid making a faulty query
+  }
     const workersQuery = query(collection(db, 'users'), where('agentId', '==', agentId), where('role', 'in', ['worker', 'agent']));
     const querySnapshot = await getDocs(workersQuery);
     const workersList = querySnapshot.docs.map(doc => ({
@@ -140,7 +144,8 @@ const useFetchAgentData = () => {
   selectedWorkerIdFilter,
   selectedWorkerNameFilter,
   selectedCompanyFilter,
-  setSelectedCompanyFilter
+  setSelectedCompanyFilter,
+  fetchWorkersForSelectedAgent
   // Any other states or functions you might be using
 };
 };

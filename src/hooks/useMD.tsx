@@ -26,6 +26,7 @@ const useFetchMD = () => {
     const [statusPolicies, setStatusPolicies] = useState<string[]>([]);
     const [selectedStatusPolicy, setSelectedStatusPolicy] = useState('');
     const [selectedProductFilter, setSelectedProductFilter] = useState('');
+    const [selectedProductGroupFilter, setSelectedProductGroupFilter] = useState('');
     const [selectedStatusPolicyFilter, setSelectedStatusPolicyFilter] = useState('');
 
 
@@ -146,15 +147,6 @@ const useFetchMD = () => {
     companies,
     selectedCompany,
     setSelectedCompany,
-  //  productGroups, old
- //   selectedProductGroup, old 
- //   setSelectedProductGroup, old
-     // products,  old
- //    setSelectedProduct, old
- //    selectedProduct, old
-    //commissionTypes,
-   // setSelectedCommissionTypes,
-   // selectedCommissionTypes
     products,
     selectedProduct,
     setSelectedProduct,
@@ -167,6 +159,8 @@ const useFetchMD = () => {
     statusPolicies,
     selectedProductFilter,
     setSelectedProductFilter,
+    selectedProductGroupFilter,
+    setSelectedProductGroupFilter,
     selectedStatusPolicyFilter, 
     setSelectedStatusPolicyFilter
   };

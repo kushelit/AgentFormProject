@@ -87,3 +87,17 @@ button:hover {
   overflow-x: auto; /* Allows scrolling on x-axis if the table is too wide */
 }
 
+
+input[type="checkbox"] {
+  width: 20px; /* Width of the checkbox */
+  height: 20px; /* Height of the checkbox */
+  cursor: pointer; /* Changes cursor to pointer when hovering over the checkbox */
+}
+
+
+.select-container {
+  display: flex;
+  justify-content: center; /* Centers  horizontally */
+  align-items: center; /* Aligns  vertically */
+  padding: 10px 0; /* Padding above and below the button row */
+}
