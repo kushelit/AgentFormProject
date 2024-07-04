@@ -1,6 +1,6 @@
 'use client';
 
-import { User, onAuthStateChanged, signOut, signInWithEmailAndPassword, createUserWithEmailAndPassword, UserCredential, updateCurrentUser } from "firebase/auth";
+import { User, onAuthStateChanged, signOut, signInWithEmailAndPassword, createUserWithEmailAndPassword, UserCredential, updateCurrentUser, browserSessionPersistence, setPersistence } from "firebase/auth";
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { auth, db } from "./firebase";
 import { doc, getDoc } from "firebase/firestore";
@@ -45,7 +45,10 @@ export const AuthContextProvider = (props: any) => {
   }, []);
 
   const logIn = async (email: string, password: string) => {
-    return signInWithEmailAndPassword(auth, email, password);
+    return setPersistence(auth, browserSessionPersistence)
+      .then(() => {
+        return signInWithEmailAndPassword(auth, email, password);
+      })
   };
 
   const signUp = async (email: string, password: string) => {

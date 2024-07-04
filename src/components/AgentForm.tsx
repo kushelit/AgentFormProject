@@ -584,7 +584,11 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
                         <label htmlFor="IDCustomer">תז</label>
                     </td>
                     <td>
-                        <input type="text" inputMode="numeric" maxLength={9} value={IDCustomer} onChange={handleIDChange} />
+                        <input type="text" 
+                        inputMode="numeric" maxLength={9} 
+                        value={IDCustomer} 
+                        onChange={handleIDChange} 
+                       disabled={!!IDCustomer}  />
                     </td>
                 </tr>
                 <tr>

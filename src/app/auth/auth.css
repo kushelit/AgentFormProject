@@ -14,20 +14,18 @@
 }
 
 .form-auth {
-  display: flex;
+  display: grid;
+  height: 100%;
+  place-items: center;
   justify-content: center;
   align-items: center;
-  min-height: 100vh;
-  padding-top: 6rem;
-  direction: rtl;
   background-color: #C6CFD4;
 }
 
 .form-auth form {
   border: 2px solid #90de3d; /* Confirm color, previously mentioned as red */
   padding: 2rem;
-  width: 80%;
-  max-width: 500px;
+  width: 400px;
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
   background-color: #002A5C;
 }

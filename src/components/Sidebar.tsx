@@ -1,37 +1,49 @@
 "use client"
 
 import Link from 'next/link';
-import styles from './Sidebar.module.css'; 
 import { useAuth } from "@/lib/firebase/AuthContext";
+import { usePathname } from 'next/navigation'
 
 
 type SidebarProps = {
-    className?: string;
-  };
+  className?: string;
+};
+
+const pages = [
+  { href: '/', label: 'ניהול עסקאות' },
+  { href: '/Customer', label: 'לקוחות' },
+  { href: '/summaryTable', label: 'דף מרכז' },
+  { href: '/ManageWorkers', label: 'ניהול עובדים' },
+  { href: '/contact', label: 'ניהול יעדים ומבצעים' },
+  { href: '/ManageContracts', label: 'ניהול עמלות' },
+  { href: '/Enviorment', label: 'הגדרות מערכת' },
+];
   
-  const Sidebar: React.FC<SidebarProps> = ({ className }) => {
-    const { user } = useAuth(); // Destructure to get the user object
+const Sidebar: React.FC<SidebarProps> = ({ className }) => {
+  const { user } = useAuth(); // Destructure to get the user object
+  const pathname = usePathname()
 
-    return (
-      <div className={`${className} ${styles.sidebar} bg-custom-blue`}>
-         {user ? (
-        <nav>
-          <ul>
-            <li><Link href="/" className="text-custom-white">ניהול עסקאות</Link></li>
-            <li><Link href="/Customer" className="text-custom-white">לקוחות</Link></li>
-            <li><Link href="/summaryTable" className="text-custom-white">דף מרכז </Link></li>
-            <li><Link href="/ManageWorkers" className="text-custom-white">ניהול עובדים</Link></li>
-            <li><Link href="/contact" className="text-custom-white">ניהול יעדים ומבצעים</Link></li>
-            <li><Link href="/ManageContracts" className="text-custom-white">ניהול עמלות </Link></li>
-            <li><Link href="/Enviorment" className="text-custom-white">הגדרות מערכת</Link></li>
-
-            {/* Additional list items with the class applied */}
-          </ul>
-        </nav>
+  return (
+    <div className={`${className ?? ''} relative max-w-40 min-w-40 bg-custom-blue`}>
+        {user ? (
+      <nav className="fixed max-w-40 min-w-40">
+        <ul className="flex flex-col">
+          {pages.map((page) => (
+            <li key={page.href} className={`flex px-2 py-2 ${pathname === page.href ? 'bg-white/10' : ''}`}>
+              <Link
+                href={page.href}
+                className="text-custom-white text-sm w-full"
+              >
+                {page.label}
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </nav>
       ) : (
-        <div className="text-custom-white px-4 py-2 rounded-lg">
-    נדרש להתחבר למערכת
-        </div>
+      <div className="text-custom-white px-4 py-2 rounded-lg">
+  נדרש להתחבר למערכת
+      </div>
       )}
     </div>
   );

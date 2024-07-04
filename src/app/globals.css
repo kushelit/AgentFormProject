@@ -60,17 +60,17 @@ button:hover {
 .page-layout {
     display: flex;
     flex-direction: row-reverse; /* if the sidebar is on the right */
-  }
-  
-  .main-content {
+}
+
+.main-content {
     flex-grow: 1;
     margin-right: 100; /* Assuming the sidebar width is 250px */
-  }
-  .header {
+}
+.header {
     position: fixed;
     top: 0;
     left: 0;
     right: 0;
     width: 100%;
     z-index: 1000; /* Ensure the header is above other content */
-  }
+}

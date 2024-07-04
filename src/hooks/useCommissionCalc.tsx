@@ -18,6 +18,8 @@ interface MonthlyTotals {
 
 function useSalesData(selectedAgentId: string, selectedWorkerId: string
   
+  //selectedAgentId?: string,
+  //selectedWorkerId?: string
 ) {
   const [monthlyTotals, setMonthlyTotals] = useState<MonthlyTotals>({});
   const [overallFinansimTotal, setOverallFinansimTotal] = useState<number>(0);
@@ -35,7 +37,7 @@ function useSalesData(selectedAgentId: string, selectedWorkerId: string
       setOverallInsuranceTotal(0);
       setOverallNiudPensiaTotal(0);
 
-      let salesQuery = query(collection(db, 'sales'), where('statusPolicy', 'in', ['פעילה', 'הצעה']));
+      let salesQuery = query(collection(db, 'sales'), where('minuySochen', '==', false), where('statusPolicy', 'in', ['פעילה', 'הצעה']));
 
       if (selectedAgentId) {
         salesQuery = query(salesQuery, where('AgentId', '==', selectedAgentId));

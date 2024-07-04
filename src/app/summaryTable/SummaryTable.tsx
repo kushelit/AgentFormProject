@@ -9,6 +9,8 @@ import './SummaryTable.css';
 import useFetchMD from "@/hooks/useMD"; 
 import Select from 'react-select';
 import SalesCountGraph from  "@/components/SalesCountGraph"; 
+import useSalesData from '@/hooks/useSalesCalculateData';
+
 
 interface MonthlyData {
   finansimTotal: number;
@@ -49,16 +51,17 @@ const SummaryTable = () => {
     companies, selectedCompany, selectedWorkerIdFilter,
     setSelectedCompany } = useFetchAgentData();
 
-  const [monthlyTotals, setMonthlyTotals] = useState<MonthlyTotals>({});
-  const [overallFinansimTotal, setOverallFinansimTotal] = useState(0);
-  const [overallPensiaTotal, setOverallPensiaTotal] = useState(0);
-  const [overallInsuranceTotal, setOverallInsuranceTotal] = useState(0);
-  const [overallNiudPensiaTotal, setOverallNiudPensiaTotal] = useState(0);
-  const [overallCommissionHekefTotal, setOverallCommissionHekefTotal] = useState(0);
-  const [overallCommissionNifraimTotal, setOverallCommissionNifraimTotal] = useState(0);
+ // const [monthlyTotals, setMonthlyTotals] = useState<MonthlyTotals>({});
+//  const [overallFinansimTotal, setOverallFinansimTotal] = useState(0);
+//  const [overallPensiaTotal, setOverallPensiaTotal] = useState(0);
+//  const [overallInsuranceTotal, setOverallInsuranceTotal] = useState(0);
+//  const [overallNiudPensiaTotal, setOverallNiudPensiaTotal] = useState(0);
+//  const [overallCommissionHekefTotal, setOverallCommissionHekefTotal] = useState(0);
+ // const [overallCommissionNifraimTotal, setOverallCommissionNifraimTotal] = useState(0);
   const [contracts, setContracts] = useState<Contract[]>([]);
 
   const [productMap, setProductMap] = useState<Record<string, string>>({});
+  
 
   const {
     products,
@@ -70,15 +73,16 @@ const SummaryTable = () => {
     statusPolicies
   } = useFetchMD();
 
+  const { monthlyTotals, overallTotals } = useSalesData(selectedAgentId, selectedWorkerIdFilter, selectedCompany, selectedProduct, selectedStatusPolicy);
   const monthsCount = Object.keys(monthlyTotals).length;
 
   // Calculating averages
-const averageFinansim = Math.round(overallFinansimTotal / monthsCount);
-const averagePensia = Math.round(overallPensiaTotal / monthsCount);
-const averageInsurance = Math.round(overallInsuranceTotal / monthsCount);
-const averageNiudPensia = Math.round(overallNiudPensiaTotal / monthsCount);
-const averageCommissionHekef = Math.round(overallCommissionHekefTotal / monthsCount);
-const averageCommissionNifraim = Math.round(overallCommissionNifraimTotal / monthsCount);
+const averageFinansim = Math.round(overallTotals.finansimTotal / monthsCount);
+const averagePensia = Math.round(overallTotals.pensiaTotal / monthsCount);
+const averageInsurance = Math.round(overallTotals.insuranceTotal / monthsCount);
+const averageNiudPensia = Math.round(overallTotals.niudPensiaTotal / monthsCount);
+const averageCommissionHekef = Math.round(overallTotals.commissionHekefTotal / monthsCount);
+const averageCommissionNifraim = Math.round(overallTotals.commissionNifraimTotal / monthsCount);
 
 const [selectedDataset, setSelectedDataset] = useState('default');
 
@@ -114,179 +118,221 @@ const [selectedDataset, setSelectedDataset] = useState('default');
       }));
       setContracts(fetchedContracts);
     };
+    if (selectedAgentId) {
+      fetchContracts();
+  }
+}, [selectedAgentId]);  //
 
-    fetchContracts();
-  }, []);
+ // useEffect(() => {
+ //   const fetchData = async () => {
+  //    let initialMonthlyTotals: MonthlyTotals = {};
 
-  useEffect(() => {
-    const fetchData = async () => {
-      let initialMonthlyTotals: MonthlyTotals = {};
+  //    let salesQuery = query(collection(db, 'sales'), where('statusPolicy', 'in', ['פעילה', 'הצעה']));
+  //    if (selectedAgentId) {
+  //      salesQuery = query(salesQuery, where('AgentId', '==', selectedAgentId));
+  //    }
+ //     if (selectedWorkerIdFilter) {
+  //      salesQuery = query(salesQuery, where('workerId', '==', selectedWorkerIdFilter));
+  //    }
+ //     if (selectedCompany) {
+  //      salesQuery = query(salesQuery, where('company', '==', selectedCompany));
+ //     }
+ //     if (selectedProduct) {
+  //      salesQuery = query(salesQuery, where('product', '==', selectedProduct));
+  //    }
+  //    if (selectedStatusPolicy) {
+  //      salesQuery = query(salesQuery, where('statusPolicy', '==', selectedStatusPolicy));
+ //   }
 
-      let salesQuery = query(collection(db, 'sales'), where('statusPolicy', 'in', ['פעילה', 'הצעה']));
-      if (selectedAgentId) {
-        salesQuery = query(salesQuery, where('AgentId', '==', selectedAgentId));
-      }
-      if (selectedWorkerIdFilter) {
-        salesQuery = query(salesQuery, where('workerId', '==', selectedWorkerIdFilter));
-      }
-      if (selectedCompany) {
-        salesQuery = query(salesQuery, where('company', '==', selectedCompany));
-      }
-      if (selectedProduct) {
-        salesQuery = query(salesQuery, where('product', '==', selectedProduct));
-      }
-      if (selectedStatusPolicy) {
-        salesQuery = query(salesQuery, where('statusPolicy', '==', selectedStatusPolicy));
-    }
+ //     const querySnapshot = await getDocs(salesQuery);
+ //     querySnapshot.forEach(doc => {
+ //       const data = doc.data();
+ //       const month = data.mounth;
+ //       const productGroup = productMap[data.product]; // Use the productMap to get the productGroup
 
-      const querySnapshot = await getDocs(salesQuery);
-      querySnapshot.forEach(doc => {
-        const data = doc.data();
-        const month = data.mounth;
-        const productGroup = productMap[data.product]; // Use the productMap to get the productGroup
-
-        const contractMatch = contracts.find(contract => contract.agentId === data.AgentId && contract.product === data.product && contract.company === data.company && (contract.minuySochen === data.minuySochen || (contract.minuySochen === undefined && !data.minuySochen)));
+//        const contractMatch = contracts.find(contract => contract.agentId === data.AgentId && contract.product === data.product && contract.company === data.company && (contract.minuySochen === data.minuySochen || (contract.minuySochen === undefined && !data.minuySochen)));
 
 
-        if (!initialMonthlyTotals[month]) {
-          initialMonthlyTotals[month] = { finansimTotal: 0, pensiaTotal: 0, insuranceTotal: 0, niudPensiaTotal: 0, commissionHekefTotal: 0 ,commissionNifraimTotal: 0};
-        }
+ //       if (!initialMonthlyTotals[month]) {
+ //         initialMonthlyTotals[month] = { finansimTotal: 0, pensiaTotal: 0, insuranceTotal: 0, niudPensiaTotal: 0, commissionHekefTotal: 0 ,commissionNifraimTotal: 0};
+ //       }
 
-        initialMonthlyTotals[month].finansimTotal += parseInt(data.finansimZvira) || 0;
-        initialMonthlyTotals[month].insuranceTotal += (parseInt(data.insPremia) || 0) * 12;
-        initialMonthlyTotals[month].pensiaTotal += (parseInt(data.pensiaPremia) || 0) * 12;
-        initialMonthlyTotals[month].niudPensiaTotal += parseInt(data.pensiaZvira) || 0;
+ //       initialMonthlyTotals[month].finansimTotal += parseInt(data.finansimZvira) || 0;
+  //      initialMonthlyTotals[month].insuranceTotal += (parseInt(data.insPremia) || 0) * 12;
+ //       initialMonthlyTotals[month].pensiaTotal += (parseInt(data.pensiaPremia) || 0) * 12;
+ //       initialMonthlyTotals[month].niudPensiaTotal += parseInt(data.pensiaZvira) || 0;
 
-        if (contractMatch) {
+ //       if (contractMatch) {
         //  initialMonthlyTotals[month].commissionHekefTotal += Math.round(
-          let totalHekef=(
-          ((parseInt(data.insPremia) || 0) * contractMatch.commissionHekef/100 * 12)
-          +((parseInt(data.pensiaPremia) || 0) * contractMatch.commissionHekef/100 * 12)
-          +((parseInt(data.pensiaZvira) || 0) * contractMatch.commissionNiud/100)
-          +((parseInt(data.finansimPremia) || 0) * contractMatch.commissionHekef/100 * 12)
-          +((parseInt(data.finansimZvira) || 0) * contractMatch.commissionNiud/100)
-          );
-          initialMonthlyTotals[month].commissionHekefTotal += Math.round(totalHekef);
+      //    let totalHekef=(
+  //        ((parseInt(data.insPremia) || 0) * contractMatch.commissionHekef/100 * 12)
+  //        +((parseInt(data.pensiaPremia) || 0) * contractMatch.commissionHekef/100 * 12)
+  //        +((parseInt(data.pensiaZvira) || 0) * contractMatch.commissionNiud/100)
+  //        +((parseInt(data.finansimPremia) || 0) * contractMatch.commissionHekef/100 * 12)
+  //        +((parseInt(data.finansimZvira) || 0) * contractMatch.commissionNiud/100)
+  //        );
+  //        initialMonthlyTotals[month].commissionHekefTotal += Math.round(totalHekef);
 
-        } else {
+ //       } else {
           // Try to match based on productGroup
-          const groupMatch = contracts.find(contract =>
-            contract.productsGroup === productGroup &&
-            contract.agentId === data.AgentId &&  (contract.minuySochen === data.minuySochen || (contract.minuySochen === undefined && !data.minuySochen))
-          );
-          if (groupMatch) {
-            let totalHekef=(
+ //         const groupMatch = contracts.find(contract =>
+  //          contract.productsGroup === productGroup &&
+ //           contract.agentId === data.AgentId &&  (contract.minuySochen === data.minuySochen || (contract.minuySochen === undefined && !data.minuySochen))
+ //         );
+ //         if (groupMatch) {
+ //           let totalHekef=(
            // initialMonthlyTotals[month].commissionHekefTotal += Math.round(
-            ((parseInt(data.insPremia) || 0) * groupMatch.commissionHekef /100 * 12)
-            +((parseInt(data.pensiaPremia) || 0) * groupMatch.commissionHekef /100 * 12)
-            +((parseInt(data.pensiaZvira) || 0) * groupMatch.commissionNiud/100) 
-            +((parseInt(data.finansimPremia) || 0) * groupMatch.commissionHekef/100 *12)
-            +((parseInt(data.finansimZvira) || 0) * groupMatch.commissionNiud/100)
-            );
-            initialMonthlyTotals[month].commissionHekefTotal += Math.round(totalHekef);
+  //          ((parseInt(data.insPremia) || 0) * groupMatch.commissionHekef /100 * 12)
+  //          +((parseInt(data.pensiaPremia) || 0) * groupMatch.commissionHekef /100 * 12)
+  //          +((parseInt(data.pensiaZvira) || 0) * groupMatch.commissionNiud/100) 
+  //          +((parseInt(data.finansimPremia) || 0) * groupMatch.commissionHekef/100 *12)
+  //          +((parseInt(data.finansimZvira) || 0) * groupMatch.commissionNiud/100)
+  //          );
+  //          initialMonthlyTotals[month].commissionHekefTotal += Math.round(totalHekef);
 
-          } else {
-            initialMonthlyTotals[month].commissionHekefTotal += 0;
-          }
-        }
+  //        } else {
+  //          initialMonthlyTotals[month].commissionHekefTotal += 0;
+  //        }
+  //      }
 
-        if (contractMatch) {
+   //     if (contractMatch) {
         //  initialMonthlyTotals[month].commissionNifraimTotal += Math.round(
-          let totalNifraim=(
-          ((parseInt(data.insPremia) || 0) * contractMatch.commissionNifraim /100)
-          +((parseInt(data.pensiaPremia) || 0) * contractMatch.commissionNifraim /100)
-          +((parseInt(data.finansimZvira) || 0) * contractMatch.commissionNifraim /100/ 12)
-          );
+ //         let totalNifraim=(
+  //        ((parseInt(data.insPremia) || 0) * contractMatch.commissionNifraim /100)
+  //        +((parseInt(data.pensiaPremia) || 0) * contractMatch.commissionNifraim /100)
+  //        +((parseInt(data.finansimZvira) || 0) * contractMatch.commissionNifraim /100/ 12)
+  //        );
 
-          initialMonthlyTotals[month].commissionNifraimTotal += Math.round(totalNifraim);
+ //         initialMonthlyTotals[month].commissionNifraimTotal += Math.round(totalNifraim);
 
-        } else {
+ //       } else {
           // Try to match based on productGroup
-          const groupMatch = contracts.find(contract =>
-            contract.productsGroup === productGroup &&
-            contract.agentId === data.AgentId &&  (contract.minuySochen === data.minuySochen || (contract.minuySochen === undefined && !data.minuySochen))
-          );
-          if (groupMatch) {
+  //        const groupMatch = contracts.find(contract =>
+  //          contract.productsGroup === productGroup &&
+  //          contract.agentId === data.AgentId &&  (contract.minuySochen === data.minuySochen || (contract.minuySochen === undefined && !data.minuySochen))
+  //        );
+  //        if (groupMatch) {
            // initialMonthlyTotals[month].commissionNifraimTotal += Math.round(
-            let totalNifraim=(
-              ((parseInt(data.insPremia) || 0) * groupMatch.commissionNifraim /100)
-            +((parseInt(data.pensiaPremia) || 0) * groupMatch.commissionNifraim /100)
-            +((parseInt(data.finansimZvira) || 0) * groupMatch.commissionNifraim /100 / 12)
-            );
-            initialMonthlyTotals[month].commissionNifraimTotal += Math.round(totalNifraim)
+ //           let totalNifraim=(
+ //             ((parseInt(data.insPremia) || 0) * groupMatch.commissionNifraim /100)
+ //           +((parseInt(data.pensiaPremia) || 0) * groupMatch.commissionNifraim /100)
+ //           +((parseInt(data.finansimZvira) || 0) * groupMatch.commissionNifraim /100 / 12)
+ //           );
+ //           initialMonthlyTotals[month].commissionNifraimTotal += Math.round(totalNifraim)
+//
+ //         } else {
+ //           initialMonthlyTotals[month].commissionNifraimTotal += 0;
+ //         }
+ //       }
 
-          } else {
-            initialMonthlyTotals[month].commissionNifraimTotal += 0;
-          }
-        }
+//      });
 
-      });
-
-      setMonthlyTotals(initialMonthlyTotals);
+ //     setMonthlyTotals(initialMonthlyTotals);
       // Calculate overall totals
-      let overallFinansimTotal = 0;
-      let overallPensiaTotal = 0;
-      let overallInsuranceTotal = 0;
-      let overallNiudPensiaTotal = 0;
-      let overallCommissionHekefTotal = 0;
-      let overallCommissionNifraimTotal = 0;
+ //     let overallFinansimTotal = 0;
+  //    let overallPensiaTotal = 0;
+  //    let overallInsuranceTotal = 0;
+  //    let overallNiudPensiaTotal = 0;
+ ///     let overallCommissionHekefTotal = 0;
+ //     let overallCommissionNifraimTotal = 0;
 
-      Object.values(initialMonthlyTotals).forEach(month => {
-        overallFinansimTotal += month.finansimTotal;
-        overallPensiaTotal += month.pensiaTotal;
-        overallInsuranceTotal += month.insuranceTotal;
-        overallNiudPensiaTotal += month.niudPensiaTotal;
-        overallCommissionHekefTotal += month.commissionHekefTotal;
-        overallCommissionNifraimTotal += month.commissionNifraimTotal;
+ //     Object.values(initialMonthlyTotals).forEach(month => {
+ //       overallFinansimTotal += month.finansimTotal;
+ //       overallPensiaTotal += month.pensiaTotal;
+ //       overallInsuranceTotal += month.insuranceTotal;
+  //      overallNiudPensiaTotal += month.niudPensiaTotal;
+ //       overallCommissionHekefTotal += month.commissionHekefTotal;
+   //     overallCommissionNifraimTotal += month.commissionNifraimTotal;
 
-      });
+   //   });
 
-      setOverallFinansimTotal(overallFinansimTotal);
-      setOverallPensiaTotal(overallPensiaTotal);
-      setOverallInsuranceTotal(overallInsuranceTotal);
-      setOverallNiudPensiaTotal(overallNiudPensiaTotal);
-      setOverallCommissionHekefTotal(overallCommissionHekefTotal);
-      setOverallCommissionNifraimTotal(overallCommissionNifraimTotal);
+   //   setOverallFinansimTotal(overallFinansimTotal);
+   //   setOverallPensiaTotal(overallPensiaTotal);
+   //   setOverallInsuranceTotal(overallInsuranceTotal);
+   //   setOverallNiudPensiaTotal(overallNiudPensiaTotal);
+   //   setOverallCommissionHekefTotal(overallCommissionHekefTotal);
+   //   setOverallCommissionNifraimTotal(overallCommissionNifraimTotal);
 
-    };
+   // };
 
-    fetchData();
-  }, [selectedAgentId, selectedWorkerId, contracts, productMap, selectedCompany, selectedProduct, selectedStatusPolicy, selectedWorkerIdFilter]);
+   // fetchData();
+  //}, [selectedAgentId, selectedWorkerId, contracts, productMap, selectedCompany, selectedProduct, selectedStatusPolicy, selectedWorkerIdFilter]);
 
-  const [salesCounts, setSalesCounts] = useState<Record<string, number>>({});
+  //const [salesCounts, setSalesCounts] = useState<Record<string, number>>({});
 
-  const fetchSalesData = async () => {
-    let salesData: Record<string, number> = {};
-    let salesQuery = query(collection(db, 'sales'), where('AgentId', '==', selectedAgentId));
+  //const fetchSalesData = async () => {
+  //  let salesData: Record<string, number> = {};
+  //  let salesQuery = query(collection(db, 'sales'), where('AgentId', '==', selectedAgentId));
  
-    if (selectedWorkerIdFilter) {
-      salesQuery = query(salesQuery, where('workerId', '==', selectedWorkerIdFilter));
-    }
-    const querySnapshot = await getDocs(salesQuery);
-    querySnapshot.forEach(doc => {
-      const data = doc.data();
-      console.log(data);  // Check what each document contains
-      const month = data.mounth; // Ensure 'month' exists and is correct
-      if (!salesData[month]) {
-        salesData[month] = 0;
-      }
-      salesData[month]++;
-    });
-    console.log("Fetched sales data:", salesData); // Check the processed sales data
-    setSalesCounts(salesData);
-    console.log("Updated state with:", salesData);
+   // if (selectedWorkerIdFilter) {
+  //    salesQuery = query(salesQuery, where('workerId', '==', selectedWorkerIdFilter));
+ //   }
+//    const querySnapshot = await getDocs(salesQuery);
+//    querySnapshot.forEach(doc => {
+ //     const data = doc.data();
+ //     console.log(data);  // Check what each document contains
+ //     const month = data.mounth; // Ensure 'month' exists and is correct
+//      if (!salesData[month]) {
+ //       salesData[month] = 0;
+ //     }
+ //     salesData[month]++;
+ //   });
+ //   console.log("Fetched sales data:", salesData); // Check the processed sales data
+//    setSalesCounts(salesData);
+//    console.log("Updated state with:", salesData);
 
-  };
+ // };
 
-  useEffect(() => {
-    fetchSalesData(); // Call fetchSalesData within the useEffect hook
-}, [selectedAgentId, selectedWorkerIdFilter]); 
+  //useEffect(() => {
+//    fetchSalesData(); // Call fetchSalesData within the useEffect hook
+//}, [selectedAgentId, selectedWorkerIdFilter]); 
 
-
+  //  const [companyMonthlyTotals, setCompanyMonthlyTotals] = useState<Record<string, Record<string, { commissionNifraimTotal: number }>>>({});
+  //  const filters = {
+  //      AgentId: selectedAgentId,
+  //      WorkerId: selectedWorkerIdFilter,
+   //     Company: selectedCompany,
+   //     Product: selectedProduct,
+    //    StatusPolicy: selectedStatusPolicy
+   // };
   
+   // const fetchCompanyCommissionsPerMonth = async (filters: Record<string, any>) => {
+   //   let initialMonthlyCompanyTotals: Record<string, Record<string, { commissionNifraimTotal: number }>> = {};
+    //  let salesQuery = query(collection(db, 'sales'), where('statusPolicy', 'in', ['פעילה', 'הצעה']));
+  
+      // Apply filters
+    //  Object.entries(filters).forEach(([key, value]) => {
+   //       if (value) {
+   //           salesQuery = query(salesQuery, where(key, '==', value));
+    //      }
+   //   });
+  
+  //    const querySnapshot = await getDocs(salesQuery);
+  //    querySnapshot.forEach(doc => {
+  //        const data = doc.data();
+  //        const month = data.mounth;
+   //       const company = data.company;
+  
+    //      if (!initialMonthlyCompanyTotals[month]) {
+    //          initialMonthlyCompanyTotals[month] = {};
+     //     }
+     //     if (!initialMonthlyCompanyTotals[month][company]) {
+    //          initialMonthlyCompanyTotals[month][company] = { commissionNifraimTotal: 0 };
+    //      }
+  
+   //       initialMonthlyCompanyTotals[month][company].commissionNifraimTotal += parseFloat(data.commissionNifraim) || 0;
+  //    });
+  
+ //     return initialMonthlyCompanyTotals;
+ // };
+
+ // useEffect(() => {
+   // fetchTotalCommissions(filters).then(setMonthlyTotals);
+//    fetchCompanyCommissionsPerMonth(filters).then(setCompanyMonthlyTotals);
+//}, [filters])
 
   return (
-    <div className="frame-container bg-custom-white " style={{ maxWidth: '1000px', margin: '0 auto', padding: '10px 20px 20px 20px', border: '1px solid #ccc', borderRadius: '8px', marginTop: '80px' }}>
+    <div className="frame-container bg-custom-white" style={{ maxWidth: '1000px', margin: '0 auto', padding: '10px 20px 20px 20px', border: '1px solid #ccc', borderRadius: '8px', marginTop: '10px' }}>
 
        <div style={{ marginTop: '20px', width: '90%', margin: '0 auto', overflowX: 'auto' }}>
       {/*   {defaultContracts.length > 0 ? ( */}
@@ -323,12 +369,12 @@ const [selectedDataset, setSelectedDataset] = useState('default');
           ))}
           <tr>
             <td><strong>סיכום</strong></td>
-            <td><strong>{overallFinansimTotal.toLocaleString()}</strong></td>
-            <td><strong>{overallPensiaTotal.toLocaleString()}</strong></td>
-            <td><strong>{overallInsuranceTotal.toLocaleString()}</strong></td>
-            <td><strong>{overallNiudPensiaTotal.toLocaleString()}</strong></td>
-            <td><strong>{overallCommissionHekefTotal.toLocaleString()}</strong></td>
-            <td><strong>{overallCommissionNifraimTotal.toLocaleString()}</strong></td>
+            <td><strong>{overallTotals.finansimTotal.toLocaleString()}</strong></td>
+            <td><strong>{overallTotals.pensiaTotal.toLocaleString()}</strong></td>
+            <td><strong>{overallTotals.insuranceTotal.toLocaleString()}</strong></td>
+            <td><strong>{overallTotals.niudPensiaTotal.toLocaleString()}</strong></td>
+            <td><strong>{overallTotals.commissionHekefTotal.toLocaleString()}</strong></td>
+            <td><strong>{overallTotals.commissionNifraimTotal.toLocaleString()}</strong></td>
 
           </tr>
           <tr>
@@ -388,7 +434,9 @@ const [selectedDataset, setSelectedDataset] = useState('default');
   <CommissionGraph data={monthlyTotals} /> 
 </div>*/}
 
-{/*<div className="graph-container" style={{ width: '60%', height: '200px' }}>
+
+   {/* 
+   <div className="graph-container" style={{ width: '60%', height: '200px' }}>
   {Object.keys(salesCounts).length > 0 ? (
     <SalesCountGraph data={salesCounts} />
   ) : (

@@ -1,44 +1,37 @@
+.select-container select {
+  /*display: flex;*/
+  width: 100%; /* Reduce width to make inputs/selects shorter */
+  padding: 0.25em 0.5em; /* Adjust padding as needed */
+  font-size: 12px; /* Maintain the font size or adjust as necessary */
+  margin: auto; /* Center the inputs/selects within the cell */
+/*  display: block; /* Ensures the input/select fills the width defined */
+  text-align: center; /* Center text inside the inputs/selects */
+  height:30px; /* Adjust height to better fit in the table row, can adjust as needed */
+}
 
-
-
-  
-  .select-container select {
-    /*display: flex;*/
-   width: 100%; /* Reduce width to make inputs/selects shorter */
-   padding: 0.25em 0.5em; /* Adjust padding as needed */
-   font-size: 12px; /* Maintain the font size or adjust as necessary */
-   margin: auto; /* Center the inputs/selects within the cell */
-  /*  display: block; /* Ensures the input/select fills the width defined */
-   text-align: center; /* Center text inside the inputs/selects */
-   height:30px; /* Adjust height to better fit in the table row, can adjust as needed */
- }
-
-
-  
 .select-container {
-    display: flex;
-    justify-content: center; /* Centers buttons horizontally */
-    align-items: center; /* Aligns buttons vertically */
-    padding: 10px 0; /* Padding above and below the button row */
-  }
-  
-  .table-container table {
-    width: 100%; /* Adjusts the width of the table to fill the container */
-    border-collapse: collapse; /* Eliminates space between borders */
-    font-size: 12px; /* Reduces the font size for all text within the table */
-  }
-  
-  .table-container th, .table-container td {
-    padding: 3px; /* Reduces padding inside each cell */
-    text-align: center; /* Aligns text to the left; adjust as needed */
-    border-bottom: 1px solid #ccc; /* Adds a subtle line between rows */
-  }
-  
-  .table-container th {
-    font-weight: bold; /* Makes header text bold */
-  }
-  
-  .table-container {
-    overflow-x: auto; /* Allows scrolling on x-axis if the table is too wide */
-  }
-  
+  display: flex;
+  justify-content: center; /* Centers buttons horizontally */
+  align-items: center; /* Aligns buttons vertically */
+  padding: 10px 0; /* Padding above and below the button row */
+}
+
+.table-container table {
+  width: 100%; /* Adjusts the width of the table to fill the container */
+  border-collapse: collapse; /* Eliminates space between borders */
+  font-size: 12px; /* Reduces the font size for all text within the table */
+}
+
+.table-container th, .table-container td {
+  padding: 3px; /* Reduces padding inside each cell */
+  text-align: center; /* Aligns text to the left; adjust as needed */
+  border-bottom: 1px solid #ccc; /* Adds a subtle line between rows */
+}
+
+.table-container th {
+  font-weight: bold; /* Makes header text bold */
+}
+
+.table-container {
+  overflow-x: auto; /* Allows scrolling on x-axis if the table is too wide */
+}

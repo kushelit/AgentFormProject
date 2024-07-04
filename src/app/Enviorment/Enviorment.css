@@ -9,13 +9,10 @@
    /*flex: 1;*/
   /* Each child will take up equal space */
   padding: 10px;
-  /* Add some padding around the content */
-  font-family: Arial, sans-serif;
   color: black;
   font-size: 12px;
   position: relative;
   z-index: 8;
-  padding-top: 5rem;
 }
 
 
@@ -41,15 +38,12 @@ table {
 label {
   text-align: right;
   /* Align text to the right */
-  direction: rtl;
-  /* For right-to-left languages like Hebrew */
 }
 
 
 
 .title-container {
   text-align: center;
-  font-family: Arial, sans-serif;
   color: black;
 }
 

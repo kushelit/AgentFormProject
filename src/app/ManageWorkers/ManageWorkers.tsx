@@ -40,7 +40,7 @@ const ManageWorkers: React.FC = () => {
   }, [detail]);
 
   return (
-    <div className="frame-container bg-custom-white " style={{ maxWidth: '1000px', margin: '0 auto', padding: '10px 20px 20px 20px', border: '1px solid #ccc', borderRadius: '8px', marginTop: '80px' }}>
+    <div className="frame-container bg-custom-white " style={{ maxWidth: '1000px', margin: '0 auto', padding: '10px 20px 20px 20px', border: '1px solid #ccc', borderRadius: '8px', marginTop: '10px' }}>
     <h2 style={{ textAlign: 'center' , marginBottom: '10px', fontSize:'12px' }}>ניהול עובדים  </h2>    
     <div style={{ marginTop: '20px', width: '90%', margin: '0 auto', overflowX: 'auto' }}>
     {/*   {defaultContracts.length > 0 ? ( */}

@@ -3,7 +3,6 @@
 import { useAuth } from "@/lib/firebase/AuthContext";
 import { FormEventHandler, useEffect, useState } from "react";
 import { redirect } from 'next/navigation';
-import Link from "next/link";
 import "../auth.css";
 
 export default function LogInPage() {
@@ -39,8 +38,7 @@ export default function LogInPage() {
   }
 
   return (
-    
-    <div  className="form-auth" style={{ paddingTop: '6rem' }} dir="rtl" >
+    <div className="form-auth">
       <form onSubmit={handleLogIn}>
         <div  className="content-auth">
           <label htmlFor="email" >כתובת מייל</label>

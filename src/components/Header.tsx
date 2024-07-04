@@ -14,7 +14,7 @@ export default function Header() {
 
   return (
     <>
-      <header className="bg-custom-blue p-4 flex items-center justify-between h-16 fixed top-0 left-0 right-0 w-full z-[1000]">
+      <header className="bg-custom-blue p-4 flex items-center justify-between h-16 sticky top-0 left-0 right-0 w-full z-[1000]">
 
        <Link href='/'>
           <Image src="/magicSale.jpeg" alt="Logo" width={192} height={64} />
