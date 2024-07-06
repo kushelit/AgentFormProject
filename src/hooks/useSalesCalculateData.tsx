@@ -136,8 +136,8 @@ function useSalesData(selectedAgentId: string, selectedWorkerIdFilter: string, s
         if (!includeMinuySochen ) {
             
         monthTotals.finansimTotal += parseInt(data.finansimZvira) || 0;
-        monthTotals.insuranceTotal += parseInt(data.insPremia) || 0 * 12;
-        monthTotals.pensiaTotal += parseInt(data.pensiaPremia) || 0 * 12;
+        monthTotals.insuranceTotal += (parseInt(data.insPremia) || 0) * 12;
+        monthTotals.pensiaTotal += (parseInt(data.pensiaPremia) || 0) * 12;
         monthTotals.niudPensiaTotal += parseInt(data.pensiaZvira) || 0;
     }
     }
@@ -155,7 +155,7 @@ function useSalesData(selectedAgentId: string, selectedWorkerIdFilter: string, s
                 minuySochenMatch: contract.minuySochen === data.minuySochen
             });
         });
-        const contractMatch = contracts.find(contract => contract.agentId === data.AgentId && contract.product === data.product && contract.company === data.company && (contract.minuySochen === data.minuySochen || contract.minuySochen === undefined));
+        const contractMatch = contracts.find(contract => contract.agentId === data.AgentId && contract.product === data.product && contract.company === data.company &&   (contract.minuySochen === data.minuySochen || (contract.minuySochen === undefined && data.minuySochen === false)));
         console.log('data.AgentId:', data.AgentId);
         console.log('data.product:', data.product);
         console.log('data.company:', data.company);
@@ -168,7 +168,7 @@ function useSalesData(selectedAgentId: string, selectedWorkerIdFilter: string, s
           //  const productGroup = productMap[data.product];
             console.log('data.product:', data.product+ " " +productGroup);
             
-            const groupMatch = contracts.find(contract => contract.productsGroup === productGroup && contract.agentId === data.AgentId && (contract.minuySochen === data.minuySochen || contract.minuySochen === undefined));
+            const groupMatch = contracts.find(contract => contract.productsGroup === productGroup && contract.agentId === data.AgentId &&  (contract.minuySochen === data.minuySochen || (contract.minuySochen === undefined && data.minuySochen === false)));
             console.log('groupMatch:', groupMatch);
             
             if (groupMatch) {
