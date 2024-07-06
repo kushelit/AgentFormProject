@@ -90,10 +90,7 @@ label {
 
 
 
-.selected-row {
-  background-color: hsl(200 70% 90%);
-  /* Light blue, for example */
-}
+/* Remove the empty ruleset */
 
 button:disabled {
   color: gray; /* Text color for disabled buttons */
@@ -122,6 +119,12 @@ button:disabled {
 }
 
 
+.form-container th,
+.form-container td {
+  border: none;
+}
+
+
 .form-container input,
  .form-container select {
   width: 100%; /* Reduce width to make inputs/selects shorter */
@@ -144,6 +147,7 @@ th, td {
   padding: 2px 8px; /* Reduces padding inside cells */
   line-height: 1.2; /* Tighter line height for text */
   border: 1px solid #ccc; /* Adds a border for clarity */
+  
 }
 
 tr {

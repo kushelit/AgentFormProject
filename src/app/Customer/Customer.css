@@ -16,6 +16,10 @@
 }
 
 
+.form-container th,
+.form-container td {
+  border: none;
+}
 
 .table-container {
   max-height: 300px; /* Adjust based on your preference */

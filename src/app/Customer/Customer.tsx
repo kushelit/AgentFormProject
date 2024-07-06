@@ -1173,8 +1173,8 @@ const Customer = () => {
                     <td>{sale.product}</td>
                     <td>{sale.company}</td>
                     <td>{sale.month}</td>
-                    {detail?.role !== 'worker' && <td>{sale.sumPremia}</td>}
-                    {detail?.role !== 'worker' && <td>{sale.sumTzvira}</td>}
+                    {detail?.role !== 'worker' && <td>{sale.sumPremia?.toLocaleString()}</td>}
+                    {detail?.role !== 'worker' && <td>{sale.sumTzvira?.toLocaleString()}</td>}
                     {detail?.role !== 'worker' && <td>{sale.commissionHekef?.toLocaleString()}</td>}
                     {detail?.role !== 'worker' && <td>{sale.commissionNifraim?.toLocaleString()}</td>}
                   </tr>
