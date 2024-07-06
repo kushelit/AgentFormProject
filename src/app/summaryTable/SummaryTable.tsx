@@ -12,37 +12,37 @@ import SalesCountGraph from  "@/components/SalesCountGraph";
 import useSalesData from '@/hooks/useSalesCalculateData';
 
 
-interface MonthlyData {
-  finansimTotal: number;
-  pensiaTotal: number;
-  insuranceTotal: number;
-  niudPensiaTotal: number;
-  commissionHekefTotal: number;
-  commissionNifraimTotal: number;
-}
+//interface MonthlyData {
+ // finansimTotal: number;
+//  pensiaTotal: number;
+//  insuranceTotal: number;
+//  niudPensiaTotal: number;
+//  commissionHekefTotal: number;
+//  commissionNifraimTotal: number;
+//}
 
-interface MonthlyTotals {
-  [key: string]: MonthlyData;
-}
+//interface MonthlyTotals {
+ // [key: string]: MonthlyData;
+//}
 
-interface Contract {
-  id: string;
-  company: string;
-  product: string;
-  productsGroup: string;
-  agentId: string;
-  commissionNifraim: number;
-  commissionHekef: number;
-  commissionNiud: number;
-  minuySochen: boolean;
+//interface Contract {
+////  id: string;
+ // company: string;
+ // product: string;
+ // productsGroup: string;
+//  agentId: string;
+//  commissionNifraim: number;
+//  commissionHekef: number;
+//  commissionNiud: number;
+ // minuySochen: boolean;
 
-}
+//}
 
-interface Product {
-  productName: string;
-  productGroup: string;
+//interface Product {
+ // productName: string;
+ // productGroup: string;
   // Add other fields as necessary
-}
+//}
 
 
 const SummaryTable = () => {
@@ -58,9 +58,9 @@ const SummaryTable = () => {
 //  const [overallNiudPensiaTotal, setOverallNiudPensiaTotal] = useState(0);
 //  const [overallCommissionHekefTotal, setOverallCommissionHekefTotal] = useState(0);
  // const [overallCommissionNifraimTotal, setOverallCommissionNifraimTotal] = useState(0);
-  const [contracts, setContracts] = useState<Contract[]>([]);
+ // const [contracts, setContracts] = useState<Contract[]>([]);
 
-  const [productMap, setProductMap] = useState<Record<string, string>>({});
+  //const [productMap, setProductMap] = useState<Record<string, string>>({});
   
 
   const {
@@ -84,44 +84,43 @@ const averageNiudPensia = Math.round(overallTotals.niudPensiaTotal / monthsCount
 const averageCommissionHekef = Math.round(overallTotals.commissionHekefTotal / monthsCount);
 const averageCommissionNifraim = Math.round(overallTotals.commissionNifraimTotal / monthsCount);
 
-const [selectedDataset, setSelectedDataset] = useState('default');
 
-  useEffect(() => {
-    const fetchProducts = async () => {
-      const querySnapshot = await getDocs(collection(db, 'product'));
-      const productMapping: Record<string, string> = {}; // More specific type than {}
-      querySnapshot.forEach((doc) => {
-        const productData = doc.data() as Product; // Here you assert the type
-        productMapping[productData.productName] = productData.productGroup;
-      });
-      setProductMap(productMapping);
-    };
+ // useEffect(() => {
+  //  const fetchProducts = async () => {
+    //  const querySnapshot = await getDocs(collection(db, 'product'));
+    //  const productMapping: Record<string, string> = {}; // More specific type than {}
+     // querySnapshot.forEach((doc) => {
+     //   const productData = doc.data() as Product; // Here you assert the type
+     //   productMapping[productData.productName] = productData.productGroup;
+    //  });
+    //  setProductMap(productMapping);
+   // };
   
-    fetchProducts();
-  }, []);
+   // fetchProducts();
+  //}, []);
 
 
-  useEffect(() => {
-    const fetchContracts = async () => {
-      const snapshot = await getDocs(collection(db, 'contracts'));
-      const fetchedContracts: Contract[] = snapshot.docs.map(doc => ({
-        id: doc.id,
-        company: doc.data().company,
-        product: doc.data().product,
-        productsGroup: doc.data().productsGroup,
-        agentId: doc.data().AgentId,
-        commissionNifraim: doc.data().commissionNifraim,
-        commissionHekef: doc.data().commissionHekef,
-        commissionNiud: doc.data().commissionNiud,
-        minuySochen: doc.data().minuySochen,
-
-      }));
-      setContracts(fetchedContracts);
-    };
-    if (selectedAgentId) {
-      fetchContracts();
-  }
-}, [selectedAgentId]);  //
+  //useEffect(() => {
+//    const fetchContracts = async () => {
+//      const snapshot = await getDocs(collection(db, 'contracts'));
+ //     const fetchedContracts: Contract[] = snapshot.docs.map(doc => ({
+ //       id: doc.id,
+ //       company: doc.data().company,
+ //       product: doc.data().product,
+ ////       productsGroup: doc.data().productsGroup,
+ //       agentId: doc.data().AgentId,
+  //      commissionNifraim: doc.data().commissionNifraim,
+  //      commissionHekef: doc.data().commissionHekef,
+  //      commissionNiud: doc.data().commissionNiud,
+ //       minuySochen: doc.data().minuySochen,
+//
+//      }));
+//      setContracts(fetchedContracts);
+//    };
+ //   if (selectedAgentId) {
+ //     fetchContracts();
+ // }
+//}, [selectedAgentId]);  //
 
  // useEffect(() => {
  //   const fetchData = async () => {
