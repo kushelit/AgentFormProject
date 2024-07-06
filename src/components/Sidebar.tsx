@@ -17,6 +17,7 @@ const pages = [
   { href: '/contact', label: 'ניהול יעדים ומבצעים' },
   { href: '/ManageContracts', label: 'ניהול עמלות' },
   { href: '/Enviorment', label: 'הגדרות מערכת' },
+  { href: '/Simulation', label: 'ניהול סימולטור' },
 ];
   
 const Sidebar: React.FC<SidebarProps> = ({ className }) => {
