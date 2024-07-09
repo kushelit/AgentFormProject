@@ -163,7 +163,7 @@ useEffect(() => {
                         <label htmlFor="productivity">תפוקה</label>
                     </td>
                     <td>
-                    <input type="text" id="productivity" name="productivity" value={productivity.toLocaleString()}  onChange={(e) => setProductivity(e.target.value)} />
+                    <input type="text" id="productivity" name="productivity" value={productivity.toLocaleString()} />
                     </td>
                     </tr> 
           </tbody>       
