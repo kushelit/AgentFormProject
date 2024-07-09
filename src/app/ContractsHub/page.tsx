@@ -1,12 +1,11 @@
 'use client';
 
 import { Suspense } from "react";
-import ManageContracts from "./Simulation";
+import ManageContracts from "./ManageContracts/ManageContracts";
 import { useAuth } from "@/lib/firebase/AuthContext";
 import AccessDenied from "@/components/AccessDenied";
-import Simulation from "./Simulation";
 
-const SimulationPage = () => {
+const ManageContractsPage = () => {
   const { user, detail } = useAuth(); // Destructure to get both user and detail objects
   
   let content;
@@ -17,7 +16,7 @@ const SimulationPage = () => {
       console.log("Not a worker, showing SummaryTable");
       content = (
         <Suspense fallback={<div>Loading...</div>}>
-          <Simulation />
+          <ManageContracts />
         </Suspense>
       );
     } else {
@@ -36,4 +35,4 @@ const SimulationPage = () => {
   return <div>{content}</div>;
 };
 
-export default SimulationPage;
+export default ManageContractsPage;

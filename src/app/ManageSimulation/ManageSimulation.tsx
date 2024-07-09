@@ -4,11 +4,11 @@ import { db } from "@/lib/firebase/firebase"; // Ensure this path matches your p
 import { useAuth } from '@/lib/firebase/AuthContext';
 import Link from "next/link";
 import useFetchMD from "@/hooks/useMD"; 
-import './Simulation.css';
+import './ManageSimulation.css';
 import useFetchAgentData from "@/hooks/useFetchAgentData"; 
 
 
-  const Simulation: React.FC = () => {
+  const ManageSimulation: React.FC = () => {
   const { user, detail } = useAuth();
   const [defaultContracts, setDefaultContracts] = useState<any[]>([]);
   const [defaultSimulation, setDefaultSimulation] = useState<any[]>([]);
@@ -329,4 +329,4 @@ return (
       
   
 );};
-export default Simulation;
+export default ManageSimulation;
