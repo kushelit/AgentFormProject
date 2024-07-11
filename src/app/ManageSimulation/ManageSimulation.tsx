@@ -15,8 +15,8 @@ import useFetchAgentData from "@/hooks/useFetchAgentData";
 
   const [contracts, setContracts] = useState<any[]>([]);
 
-  const [lowPrem, setLowPrem] = useState('');
-  const [highPrem, setHighPrem] = useState('');
+  const [lowPrem, setLowPrem] = useState(0);
+  const [highPrem, setHighPrem] = useState(0);
   const [cuttingPercent, setCuttingPercent] = useState('');
 
   
@@ -56,17 +56,26 @@ import useFetchAgentData from "@/hooks/useFetchAgentData";
   } = useFetchAgentData();
 
 
-
   const handleLowPremChange: ChangeEventHandler<HTMLInputElement> = (e) => {
-    const value = e.target.value
-    const onlyNums = value.replace(/[^0-9]/g, '').slice(0, 9);
-     setLowPrem(onlyNums);
-   };
+    const value = e.target.value;
+    const onlyNums = value.replace(/[^0-9]/g, ''); // Remove non-numeric characters
+    const numberValue = parseInt(onlyNums, 10); // Convert the string to an integer
+    if (!isNaN(numberValue)) { // Check if the conversion gives a valid number
+      setLowPrem(numberValue); // Set the state with the number
+    } else {
+      setLowPrem(0); // Optionally set to 0 or another default value if the input is invalid
+    }
+  }
 
    const handleHighPremChange: ChangeEventHandler<HTMLInputElement> = (e) => {
-    const value = e.target.value
-    const onlyNums = value.replace(/[^0-9]/g, '').slice(0, 9);
-     setHighPrem(onlyNums);
+    const value = e.target.value;
+    const onlyNums = value.replace(/[^0-9]/g, ''); // Remove non-numeric characters
+    const numberValue = parseInt(onlyNums, 10); // Convert the string to an integer
+    if (!isNaN(numberValue)) { // Check if the conversion gives a valid number
+      setHighPrem(numberValue); // Set the state with the number
+    } else {
+      setHighPrem(0); // Optionally set to 0 or another default value if the input is invalid
+    }
    };
 
 
@@ -81,8 +90,8 @@ import useFetchAgentData from "@/hooks/useFetchAgentData";
 
 const resetForm = () => {
   setSelectedCompany('');
-  setLowPrem('');
-  setHighPrem('');
+  setLowPrem(0);
+  setHighPrem(0);
   setCuttingPercent('');
   setIsEditing1(false);
   setSelectedRow(null); 
@@ -90,11 +99,10 @@ const resetForm = () => {
 
 const canSubmit1 = useMemo(() => (
   selectedCompany.trim() !== '' &&
-  lowPrem.trim() !== '' &&
-  highPrem.trim() !== '' &&
-  cuttingPercent.trim() !== '' 
-), [selectedCompany, lowPrem, highPrem, cuttingPercent 
- ]);
+  lowPrem !== undefined && lowPrem !== null &&
+  highPrem !== undefined && highPrem !== null &&
+  cuttingPercent !== undefined && cuttingPercent !== null
+), [selectedCompany, lowPrem, highPrem, cuttingPercent]);
 
 
 

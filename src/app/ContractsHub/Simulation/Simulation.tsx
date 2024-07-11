@@ -6,6 +6,26 @@ import Link from "next/link";
 import './Simulation.css';
 import useFetchAgentData from "@/hooks/useFetchAgentData"; 
 
+interface Contract {
+  company: string;
+  agentId: string;
+  product: string;
+  productGroup: number;
+  commissionHekef: number;
+  commissionNifraim: number;
+  cuttingPercent: number;
+}
+
+interface CalculatedData {
+  company: string;
+  cuttingPercent: number;
+  calculatedProductivityHekef: number;
+}
+
+interface SimulationData {
+  company: string;
+  cuttingPercent: number;
+}
 
 const Simulation: React.FC = () => {
 const { user, detail } = useAuth();
@@ -16,7 +36,7 @@ const [salary, setSalary] = useState('');
 const [provision, setProvision] = useState('');
 const [salaryDoubleProvision, setSalaryDoubleProvision] = useState(0);
 const [productivity, setProductivity] = useState(0);
-const [results, setResults] = useState<{ company: string, cuttingPercent: number }[]>([]);
+const [results, setResults] = useState<CalculatedData[]>([]);
 
 
 const { 
@@ -51,48 +71,78 @@ useEffect(() => {
     if (salary && provision && salaryDoubleProvision) {
       const calculatedValue = (salaryDoubleProvision) * 12;
       const roundedValue = Math.round(calculatedValue);
-      setProductivity(roundedValue); // Convert number to string
+      setProductivity(roundedValue); 
     }
   }, [provision, salary, salaryDoubleProvision]);
 
 
-  async function fetchAndProcessData(productivity: number): Promise<{ company: string, cuttingPercent: number }[]> {
+  async function fetchAndCalculateProductivity(selectedAgentID: string, productivity: number): Promise<CalculatedData[]> {
     const companyCollection = collection(db, "company");
     const simulationCollection = collection(db, "simulation");
-    const documents: { company: string, cuttingPercent: number }[] = [];
+    const contractsCollection = collection(db, "contracts");
+    const results: CalculatedData[] = [];
 
-    try {
-      
-      const companyQuery = query(companyCollection, where("simulator", "==", true));
-      const companySnapshot = await getDocs(companyQuery);
-      const companies = companySnapshot.docs.map(doc => doc.data().companyName as string);
-  
-      for (const company of companies) {
+    const companyQuery = query(companyCollection, where("simulator", "==", true));
+    const companySnapshot = await getDocs(companyQuery);
+
+    if (companySnapshot.empty) {
+        console.log("No companies found with simulator==true");
+        return [];
+    }
+
+    for (const companyDoc of companySnapshot.docs) {
+        const company = companyDoc.data().companyName as string;
+
         const simQuery = query(
-          simulationCollection,
-          where("company", "==", company),
-          where("lowPrem", "<=", productivity),
-          where("highPrem", ">=", productivity)
+            simulationCollection,
+            where("company", "==", company),
+            where("lowPrem", "<=", productivity),
+            where("highPrem", ">=", productivity)
         );
         const simSnapshot = await getDocs(simQuery);
-        console.log('Simulation data for company:', company, simSnapshot.size);  // Any documents for each company?
 
-        simSnapshot.forEach(doc => {
-          const data = doc.data();
-          documents.push({
-            company: data.company,
-            cuttingPercent: data.cuttingPercent as number
-          });
-        });
-      }
-  
-      return documents; 
-    } catch (error) {
-      console.error("Error fetching documents: ", error);
-      return []; // Return an empty array in case of an error
+        for (const simDoc of simSnapshot.docs) {
+            const simulation = simDoc.data();
+            const cuttingPercent = simulation.cuttingPercent as number;
+
+            let contractQuery = query(
+                contractsCollection,
+                where("company", "==", company),
+                where("AgentId", "==", selectedAgentID),
+                where("product", "==", "פנסיה"),
+            );
+            let contractSnapshot = await getDocs(contractQuery);
+       
+            console.log(`Contracts fetched for ${company}:`, contractSnapshot.size);
+
+            if (contractSnapshot.empty) {
+                console.log(`No contracts found for company ${company} with product 'פנסיה', trying fallback...`);
+                contractQuery = query(
+                    contractsCollection,
+                    where("AgentId", "==", selectedAgentID),
+                    where("productsGroup", "==", "1"),
+                );
+              
+                contractSnapshot = await getDocs(contractQuery);                
+            }
+            contractSnapshot.forEach(contractDoc => {
+                const contractData = contractDoc.data();
+                if (contractData.minuySochen === false || contractData.minuySochen === undefined) {
+
+                const commissionHekef = contractData.commissionHekef as number;
+                const calculatedProductivityHekef = productivity * commissionHekef/100 * cuttingPercent/100;
+                results.push({
+                    company: company,
+                    cuttingPercent: cuttingPercent,
+                    calculatedProductivityHekef: calculatedProductivityHekef
+                });
+            }}
+          );
+        }
     }
-  }
-  
+
+    return results;
+}
 
   const resetForm = () => {
     setSalary(''); 
@@ -103,16 +153,15 @@ useEffect(() => {
 
 
   const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
-    event.preventDefault();  // Prevent the default form submission behavior
-    try {
-      const fetchedResults = await fetchAndProcessData(productivity);
-      setResults(fetchedResults);
+    event.preventDefault();  
+    try {    
+      const fetchedResults = await fetchAndCalculateProductivity(selectedAgentId, productivity);
+      setResults(fetchedResults); 
     } catch (error) {
       console.error('Error finding document:', error);
     }
-  };
+};
   
-
 
 
   return (
@@ -179,6 +228,7 @@ useEffect(() => {
          <tr>
           <th>חברה</th>
           <th>אחוז קיטום</th>
+          <th>תפוקה מחושבת</th>
         </tr>
       </thead>
       <tbody>
@@ -186,6 +236,8 @@ useEffect(() => {
             <tr key={index}>
               <td>{item.company}</td>
               <td>{item.cuttingPercent}</td>
+              <td>{item.calculatedProductivityHekef.toLocaleString()}</td> {/* Display calculated productivity */}
+
             </tr>
           ))}
       </tbody>
