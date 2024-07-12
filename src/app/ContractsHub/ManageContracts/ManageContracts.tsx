@@ -474,9 +474,9 @@ return (
                   className={`${selectedRow && selectedRow.id === item.id ? 'selected-row' : ''} ${hoveredRowId === item.id ? 'hovered-row' : ''}`}>
                     <td>{productGroupMap[item.productsGroup]}</td> {/* Use the map for fast lookup */}
                     <td>{item.minuySochen ? 'כן' : 'לא'}</td>
-                    <td>{item.commissionHekef}</td>
-                    <td>{item.commissionNifraim}</td>
-                    <td>{item.commissionNiud}</td>
+                    <td>{item.commissionHekef}%</td>
+                    <td>{item.commissionNifraim}%</td>
+                    <td>{item.commissionNiud}%</td>
 
                   </tr>
                 ))}
@@ -589,9 +589,9 @@ return (
                     <td>{item.company}</td>
                     <td>{item.product}</td>
                     <td>{item.minuySochen ? 'כן' : 'לא'}</td>
-                    <td>{item.commissionHekef}</td>
-                    <td>{item.commissionNifraim}</td>
-                    <td>{item.commissionNiud}</td>
+                    <td>{item.commissionHekef}%</td>
+                    <td>{item.commissionNifraim}%</td>
+                    <td>{item.commissionNiud}%</td>
                   </tr>
                 ))}
               </tbody>

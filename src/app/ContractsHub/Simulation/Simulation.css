@@ -18,6 +18,7 @@
   
   
   .table-container {
+    width: 100%; /* Adjust this value based on your layout needs */
     max-height: 300px; /* Adjust based on your preference */
     overflow-y: auto;
     border: 1px solid #ccc;
@@ -27,7 +28,9 @@
   }
   
   table {
-    width: 100%;
+    width: 40%;
+    table-layout: fixed; /* This keeps columns the same width regardless of content */
+
   
   }
   
@@ -167,3 +170,11 @@
     text-align: center; /* Center text inside the inputs/selects */
     height:30px; /* Adjust height to better fit in the table row, can adjust as needed */
   }
+
+  .loading-text {
+    height: 50px; /* Adjust based on the size of your loading indicator */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    visibility: hidden; /* Starts hidden */
+}
