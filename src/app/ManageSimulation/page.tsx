@@ -12,16 +12,16 @@ const ManageSimulationPage = () => {
   let content;
 
   if (user) {
-    if (detail?.role !== 'worker') {
+    if (detail?.role == 'admin') {
       // If the user is logged in and their role is not 'worker'
-      console.log("Not a worker, showing SummaryTable");
+      console.log("admin, showing SummaryTable");
       content = (
         <Suspense fallback={<div>Loading...</div>}>
           <ManageSimulation />
         </Suspense>
       );
     } else {
-      // If the user is a 'worker'
+      // If the user is not a 'admin  '
       return <AccessDenied />;
       console.log("User is a worker, showing access denied message");
 
