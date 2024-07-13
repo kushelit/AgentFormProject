@@ -1,3 +1,136 @@
+.content-container {
+  display: flex;
+  justify-content: space-between;
+  /* Space out the children */
+}
+
+.form-container,
+.data-container {
+   /*flex: 1;*/
+  /* Each child will take up equal space */
+  padding: 10px;
+  color: black;
+  font-size: 12px;
+  position: relative;
+  z-index: 8;
+}
+
+
+
+.table-container {
+  max-height: 300px; /* Adjust based on your preference */
+  overflow-y: auto;
+  border: 1px solid #ccc;
+  margin-bottom:6px;
+  
+
+}
+
+table {
+  width: 100%;
+
+}
+
+
+.content-container,
+.form-container,
+.data-container,
+label {
+  text-align: right;
+  /* Align text to the right */
+}
+
+
+
+.title-container {
+  text-align: center;
+  color: black;
+}
+
+h1 {
+  font-size: 2.5em;
+  /* Larger font size for H1 */
+  font-weight: bold;
+  /* Makes the font bold */
+  color: black;
+  /* Black font color */
+}
+
+h2 {
+  font-size: 2em;
+  /* Slightly smaller font size for H2 */
+  font-weight: bold;
+  /* Makes the font bold */
+  color: black;
+  /* Black font color */
+}
+
+.title {
+  font-size: 3em;
+  /* Even larger font size for a special title class */
+  font-weight: bold;
+  /* Makes the font bold */
+  color: black;
+  /* Black font color */
+}
+
+.form-group {
+  display: flex;
+  align-items: center; /* Aligns items vertically in the center */
+  margin-bottom: 5px; /* Adds some space between each form group */
+}
+
+
+label {
+  flex-basis: 30%; /* Adjust based on your needs */
+  text-align: right; /* Ensures the text is right-aligned next to the input/select */
+}
+
+
+
+.selected-row {
+  background-color: hsl(200 70% 90%);
+  /* Light blue, for example */
+}
+
+button:disabled {
+  color: gray; /* Text color for disabled buttons */
+  cursor: not-allowed; /* Cursor for disabled buttons */
+  /* Additional styles for disabled buttons */
+}
+
+.button-group {
+  display: flex;
+  justify-content: center; /* Centers buttons horizontally */
+  align-items: center; /* Aligns buttons vertically */
+  padding: 10px 0; /* Padding above and below the button row */
+}
+
+.button-group button {
+  display: flex;
+  justify-content: center; /* Centers text horizontally */
+  align-items: center; /* Centers text vertically */
+  margin: 0 5px; /* Spacing between buttons */
+  font-size: 12px; /* Text size within the button */
+  cursor: pointer; /* Indicates the button is clickable */
+  padding: 0.75em 1em; /* Vertical and horizontal padding */
+  border-radius: 4px; /* Rounded corners for the button */
+  min-width: 50px; /* Minimum width to ensure buttons don't become too small */
+  height: 30px; /* Fixed height for uniform appearance */
+}
+
+
+.form-container input,
+ .form-container select {
+  width: 100%; /* Reduce width to make inputs/selects shorter */
+  padding: 0.25em 0.5em; /* Adjust padding as needed */
+  font-size: 12px; /* Maintain the font size or adjust as necessary */
+  margin: auto; /* Center the inputs/selects within the cell */
+  display: block; /* Ensures the input/select fills the width defined */
+  text-align: center; /* Center text inside the inputs/selects */
+  height:30px; /* Adjust height to better fit in the table row, can adjust as needed */
+}
+
 input[type="checkbox"] {
   width: 20px; /* Width of the checkbox */
   height: 20px; /* Height of the checkbox */
@@ -33,17 +166,4 @@ tr {
   display: block; /* Ensures the input/select fills the width defined */
   text-align: center; /* Center text inside the inputs/selects */
   height:30px; /* Adjust height to better fit in the table row, can adjust as needed */
-}
-.loader {
-  border: 6px solid #f3f3f3; /* Light grey border */
-  border-top: 6px solid #3498db; /* Blue border */
-  border-radius: 50%;
-  width: 50px;
-  height: 50px;
-  animation: spin 2s linear infinite;
-}
-
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
 }

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, ChangeEventHandler, FormEventHandler } from 'react';
-import { Firestore, QueryDocumentSnapshot, collection, query, where, getDocs, CollectionReference  } from "firebase/firestore";
+import { Firestore, QueryDocumentSnapshot, DocumentData ,collection, query, where, getDocs, CollectionReference  } from "firebase/firestore";
 import { db } from "@/lib/firebase/firebase";
 import { useAuth } from '@/lib/firebase/AuthContext';
 import './Simulation.css';
@@ -27,7 +27,7 @@ interface SimulationData {
 
   interface Contract {
     company: string;
-    AgentId: string; // Make sure the field names match the case used in your database
+    AgentId: string; 
     product: string;
     productsGroup: number;
     commissionHekef: number;
@@ -110,22 +110,26 @@ const Simulation: React.FC = () => {
     setSalaryDoubleProvision(0);
     setProductivity(0);
     setNiud(0);
+    setResults([]);  
   };
 
   
 const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();  // Prevent the default form submission behavior
-    setLoading(true);
+    event.preventDefault();  
+//    setLoading(true);
+    setIsEditing(true);
+    setResults([]);  
     try {
-        const companySnapshot = await fetchCompanyData();  // Fetch company data
-        const simData = await fetchSimulationData(companySnapshot, productivity);  // Fetch simulation data if needed for other purposes
-        const contractData = await fetchContractData(companySnapshot, selectedAgentId);  // Fetch contract data based on company
-        const processedResults = processResults(companySnapshot, simData, contractData);  // Process all fetched data
-        setResults(processedResults);  // Update state with processed results
+        const companySnapshot = await fetchCompanyData();  
+        const simData = await fetchSimulationData(companySnapshot, productivity);  
+        const contractData = await fetchContractData(companySnapshot, selectedAgentId);  
+        const processedResults = processResults(companySnapshot, simData, contractData);  
+        setResults(processedResults);  
     } catch (error) {
         console.error('Error handling the data fetching process:', error);
     }
-    setLoading(false);
+ //   setLoading(false);
+    setIsEditing(false);
 };
 
 
@@ -140,69 +144,95 @@ const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     companySnapshot: QueryDocumentSnapshot<Company>[],
     productivity: number
 ): Promise<SimulationData[][]> => {
-    const simData: SimulationData[][] = [];
-    for (const doc of companySnapshot) {
+  
+    const fetchPromises = companySnapshot.map(doc => {
+      
         const company = doc.data().companyName;
-        const simulationsRef: CollectionReference<Simulation> = collection(db, "simulation") as CollectionReference<Simulation>;
+        const simulationsRef = collection(db, "simulation") as CollectionReference<Simulation>;
         const simQuery = query(
             simulationsRef,
             where("company", "==", company),
             where("lowPrem", "<=", productivity),
             where("highPrem", ">=", productivity)
         );
-        const simSnapshot = await getDocs(simQuery);
-        const simulations = simSnapshot.docs.map(snapshot => ({
-            snapshot: snapshot,
-            cuttingPercent: snapshot.data().cuttingPercent
-        }));
-        simData.push(simulations);
-    }
-    return simData;
+
+        return getDocs(simQuery).then(simSnapshot => {
+            return simSnapshot.docs.map(snapshot => ({
+                snapshot: snapshot,
+                cuttingPercent: snapshot.data().cuttingPercent
+            }));
+        }).catch(error => {
+            console.error(`Error fetching simulation data for company ${company}:`, error);
+            return [];  // Handle errors appropriately, maybe return an empty array
+        });
+    });
+
+    const startTime = performance.now();  // Start timing before the requests
+    const results = await Promise.all(fetchPromises);
+    const endTime = performance.now();    // End timing after all requests have finished
+    console.log(`Fetched all simulation data in ${(endTime - startTime).toFixed(2)} ms`);
+
+    return results;
 };
 
 
-const fetchContractData = async (companySnapshot: QueryDocumentSnapshot<Company>[], selectedAgentId: string): Promise<ContractData[][]> => {
-    const contractData: ContractData[][] = [];
-    for (const companyDoc of companySnapshot) {
-      const company = companyDoc.data().companyName;
-      let contractsPerCompany: ContractData[] = [];
-  
-      let contractQuery = query(
-        collection(db, "contracts") as CollectionReference<Contract>,
-        where("company", "==", company),
-        where("AgentId", "==", selectedAgentId),
-        where("product", "==", "פנסיה")
-      );
-  
-      let contractSnapshot = await getDocs(contractQuery);
-  
-      if (contractSnapshot.empty) {
-        // Reassign contractQuery for a fallback condition
-        contractQuery = query(
-          collection(db, "contracts") as CollectionReference<Contract>,
+const fetchContractData = async (
+  companySnapshot: QueryDocumentSnapshot<Company>[],
+  selectedAgentId: string
+): Promise<ContractData[][]> => {
+  const contractData: ContractData[][] = [];
+  console.log('Fetching contracts data...');
+  const startTime = performance.now();
+  const fetchPromises = companySnapshot.map(doc => {
+      const company = doc.data().companyName;
+      const contractCollectionRef = collection(db, "contracts") as CollectionReference<Contract>;
+      const initialQuery = query(
+          contractCollectionRef,
+          where("company", "==", company),
           where("AgentId", "==", selectedAgentId),
-          where("productsGroup", "==", "1")
-        );
-        contractSnapshot = await getDocs(contractQuery);
-      }
-  
-      contractSnapshot.forEach(doc => {
-        const contract = doc.data() as Contract; // Explicitly cast to Contract
-        // Check if minuySochen is false or undefined, and add to the list if so
-        if (contract.minuySochen === false || contract.minuySochen === undefined) {
-          contractsPerCompany.push({
-            snapshot: doc,
-            commissionHekef: contract.commissionHekef,
-            commissionNifraim: contract.commissionNifraim,
-            commissionNiud: contract.commissionNiud
-          });
-        }
+          where("product", "==", "פנסיה"),
+          where("minuySochen", "==", false)
+      );
+     
+      return getDocs(initialQuery).then(querySnapshot => {
+        
+          if (querySnapshot.empty) {
+              // Fallback query
+              const fallbackQuery = query(
+                  contractCollectionRef,
+                  where("AgentId", "==", selectedAgentId),
+                  where("productsGroup", "==", "1"),
+                  where("minuySochen", "==", false)
+              );
+              return getDocs(fallbackQuery).then(fallbackSnapshot => 
+                  fallbackSnapshot.docs.map(doc => ({
+                      snapshot: doc,
+                      commissionHekef: doc.data().commissionHekef,
+                      commissionNifraim: doc.data().commissionNifraim,
+                      commissionNiud: doc.data().commissionNiud
+                  }))
+              );
+          } else {
+              return querySnapshot.docs.map(doc => ({
+                  snapshot: doc,
+                  commissionHekef: doc.data().commissionHekef,
+                  commissionNifraim: doc.data().commissionNifraim,
+                  commissionNiud: doc.data().commissionNiud
+              }));
+          }
+      }).catch(error => {
+          console.error(`Error fetching contracts for company ${company}:`, error);
+          return [];  // Return an empty array in case of error
       });
+  });
+ 
+  const results = await Promise.all(fetchPromises);
+  const endTime = performance.now();
+  console.log(`Fetched contracts data in ${(endTime - startTime).toFixed(2)} ms`);
+  return results;
   
-      contractData.push(contractsPerCompany);
-    }
-    return contractData;
-  };
+};
+
 
   const processResults = (
     companySnapshot: QueryDocumentSnapshot<Company>[],
@@ -210,14 +240,15 @@ const fetchContractData = async (companySnapshot: QueryDocumentSnapshot<Company>
     contractData: ContractData[][]  // This should contain all contract data per company
   ): CalculatedResult[] => {
     const results: CalculatedResult[] = [];
-  
+    console.log('Fetching results data...');
+    const startTime = performance.now();
     companySnapshot.forEach((companyDoc, index) => {
       const companyInfo = companyDoc.data();
       simData[index].forEach(simulationData => {
         const simulation = simulationData.snapshot.data();
         contractData[index].forEach(contractData => {
           const contract = contractData.snapshot.data();
-          if (!contract.minuySochen) {
+       //   if (!contract.minuySochen) {
             const calculatedProductivityHekef = Math.round(productivity * contract.commissionHekef / 100 * simulation.cuttingPercent / 100);
             const calculatedProductivityNifraim = Math.round(salaryDoubleProvision * contract.commissionNifraim / 100);
             const calculatedNiud = Math.round(Number(niud) * contract.commissionNiud / 100);
@@ -229,15 +260,19 @@ const fetchContractData = async (companySnapshot: QueryDocumentSnapshot<Company>
               calculatedProductivityNifraim,
               calculatedNiud,
               onceHekefNiud
-            });
+            }
+          );
           }
-        });
+   //     }
+      );
       });
     });
-  
+    const endTime = performance.now();
+    console.log(`Fetched results data in ${(endTime - startTime).toFixed(2)} ms`);
     results.sort((a, b) => b.onceHekefNiud - a.onceHekefNiud);
     return results;
   };
+  console.log(results); 
 
   return (
     <div className="content-container">
@@ -279,13 +314,13 @@ const fetchContractData = async (companySnapshot: QueryDocumentSnapshot<Company>
             </tbody>
           </table>
           <div className="form-group button-group" style={{ display: 'flex' }}>
-            <button type="submit">חשב</button>
+            <button type="submit" disabled={isEditing === true}>חשב</button>
             <button type="button" onClick={resetForm}>נקה</button>
           </div>
         </form>
-        {loading && (
+  {/*      {loading && (
           <div className="loader"></div> // This will show the loading spinner
-        )}
+        )} */}
         <div className="select-container">
           <table>
             <thead>
