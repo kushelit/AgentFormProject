@@ -82,10 +82,20 @@ const Simulation: React.FC = () => {
     setNiud(Number(onlyNums));
   };
 
-  const handleProvision: ChangeEventHandler<HTMLInputElement> = (e) => {
-    const onlyNumsAndDot = e.target.value.replace(/[^0-9.]/g, '').replace(/(\..*?)\..*/g, '$1');
-    setProvision(onlyNumsAndDot);
+  const [displayValue, setDisplayValue] = useState(''); // Display value with %
+
+  const handleProvision = (event: { target: { value: string; }; }) => {
+    const input = event.target.value.replace(/%/g, ''); // Remove % for calculation
+    const numericValue = input.replace(/[^0-9.]/g, '').replace(/(\..*?)\..*/g, '$1'); // Remove non-digits for the actual value
+    setProvision(numericValue); // Update the actual numeric value
+    setDisplayValue(`${numericValue}%`); // Update the display value
   };
+
+  
+ // const handleProvision: ChangeEventHandler<HTMLInputElement> = (e) => {
+ //   const onlyNumsAndDot = e.target.value.replace(/[^0-9.]/g, '').replace(/(\..*?)\..*/g, '$1');
+ //   setProvision(onlyNumsAndDot);
+ // };
 
   useEffect(() => {
     if (salary && provision) {
@@ -297,7 +307,7 @@ const fetchContractData = async (
               </tr>
               <tr>
                 <td><label htmlFor="provision">הפרשות</label></td>
-                <td><input type="text" id="provision" name="provision" value={provision} onChange={handleProvision} /></td>
+                <td><input type="text" id="provision" name="provision" value={displayValue} onChange={handleProvision} /></td>
               </tr>
               <tr>
                 <td><label htmlFor="salaryDoubleProvision">חודשי</label></td>

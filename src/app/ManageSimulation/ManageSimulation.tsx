@@ -7,7 +7,14 @@ import useFetchMD from "@/hooks/useMD";
 import './ManageSimulation.css';
 import useFetchAgentData from "@/hooks/useFetchAgentData"; 
 
-
+interface Simulation {
+  id: string;
+  company: string;
+  lowPrem: number;
+  highPrem: number;
+  cuttingPercent: number;
+  // Add other properties as needed
+}
   const ManageSimulation: React.FC = () => {
   const { user, detail } = useAuth();
   const [defaultContracts, setDefaultContracts] = useState<any[]>([]);
@@ -130,60 +137,38 @@ const canSubmit1 = useMemo(() => (
   const fetchSimulationData = async () => {
     if (!detail || !detail.agentId) return;
     let simulationQuery = query(
-        collection(db, 'simulation'),
-        where('agencyParentid', '==', "1"),       
+      collection(db, 'simulation'),
+      where('agencyParentid', '==', "1")
     );
+  
     if (selectedCompanyFilter.trim() !== '') {
-        simulationQuery = query(simulationQuery, where('company', '==', selectedCompanyFilter));
+      simulationQuery = query(simulationQuery, where('company', '==', selectedCompanyFilter));
     }
+  
     try {
-    const querySnapshot = await getDocs(simulationQuery);
-    const simulationList = querySnapshot.docs.map(doc => ({
-      id: doc.id, 
-        ...doc.data() 
-    }));
-    setDefaultSimulation(simulationList );
-    resetForm(); 
-  } catch (error) {
-    console.error("Error fetching contracts data:", error);
-  }
-};
+      const querySnapshot = await getDocs(simulationQuery);
+      const simulationList: Simulation[] = querySnapshot.docs.map(doc => ({
+        id: doc.id, // This is correct and should not cause an overwrite error
+        ...doc.data() as Omit<Simulation, 'id'> // Explicit cast, ensuring no 'id' is expected from data
+      }));
+      simulationList.sort((a, b) => {
+        if (a.company && b.company) {
+          if (a.company < b.company) return -1;
+          if (a.company > b.company) return 1;
+        }
+        return (a.lowPrem || 0) - (b.lowPrem || 0);
+      });
+      setDefaultSimulation(simulationList);
+      resetForm(); 
+    } catch (error) {
+      console.error("Error fetching contracts data:", error);
+    }
+  };
 
   useEffect(() => {
     fetchSimulationData();
   }, [detail,  selectedCompanyFilter]);  // Dependency array
 
-
-
-  const fetchdefaultContracts = async () => {
-    if (!detail || !detail.agentId) return;
-    let diffContractsQuery = query(
-        collection(db, 'contracts'),
-        where('AgentId', '==', detail.agentId),       
-        where('productsGroup', '!=', '')          
-    );
-    if (selectedProductGroupFilter.trim() !== '') {
-      diffContractsQuery = query(diffContractsQuery, where('productsGroup', '==', selectedProductGroupFilter));
-    }
-    if (minuySochenFilter1.trim() !== '') {
-      diffContractsQuery = query(diffContractsQuery, where('minuySochen', '==', minuySochenFilter1));
-    }
-    try {
-    const querySnapshot = await getDocs(diffContractsQuery);
-    const contractsList = querySnapshot.docs.map(doc => ({
-      id: doc.id, 
-        ...doc.data() 
-    }));
-    setDefaultContracts(contractsList );
-    resetForm(); // Reset form fields after fetching new data
-  } catch (error) {
-    console.error("Error fetching contracts data:", error);
-  }
-};
-
-  useEffect(() => {
-    fetchdefaultContracts();
-  }, [detail, minuySochenFilter1, selectedProductGroupFilter]);  // Dependency array
 
 
 
