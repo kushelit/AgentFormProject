@@ -27,6 +27,7 @@ td {
 }
 
 
+
 .table-container tr:hover, .table-container tr:hover td 
 {  background-color: var(--hover);
 
