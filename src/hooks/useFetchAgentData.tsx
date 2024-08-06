@@ -33,6 +33,13 @@ const useFetchAgentData = () => {
   const [selectedWorkerNameFilter, setSelectedWorkerNameFilter] = useState("")
   const [selectedCompanyFilter, setSelectedCompanyFilter] = useState('');
 
+  const [workerNameMap, setWorkerNameMap] = useState<WorkerNameMap>({});
+
+  interface WorkerNameMap {
+    [key: string]: string;
+  }
+
+
 
   useEffect(() => {
     const fetchAgentData = async () => {
@@ -61,19 +68,49 @@ const useFetchAgentData = () => {
     fetchAgentData();
   }, [user, detail]);
 
+ // const fetchWorkersForSelectedAgent = async (agentId: string) => {
+   // if (!agentId) {
+     // console.log("agentId is undefined");
+      //return; // Exit the function if agentId is undefined to avoid making a faulty query
+  //}
+   // const workersQuery = query(collection(db, 'users'), where('agentId', '==', agentId), where('role', 'in', ['worker', 'agent']));
+   // const querySnapshot = await getDocs(workersQuery);
+   // const workersList = querySnapshot.docs.map(doc => ({
+   //   id: doc.id,
+   //   name: doc.data().name,
+   // }));
+  //  setWorkers(workersList);
+  //};
+
   const fetchWorkersForSelectedAgent = async (agentId: string) => {
     if (!agentId) {
-      console.log("agentId is undefined");
-      return; // Exit the function if agentId is undefined to avoid making a faulty query
-  }
+      console.log("Agent ID is undefined");
+      setWorkers([]);
+      setWorkerNameMap({});
+      return;
+    }
+  
     const workersQuery = query(collection(db, 'users'), where('agentId', '==', agentId), where('role', 'in', ['worker', 'agent']));
-    const querySnapshot = await getDocs(workersQuery);
-    const workersList = querySnapshot.docs.map(doc => ({
-      id: doc.id,
-      name: doc.data().name,
-    }));
-    setWorkers(workersList);
+    try {
+      const querySnapshot = await getDocs(workersQuery);
+      const workersData: Worker[] = [];
+      const workersMap: WorkerNameMap = {};
+  
+      querySnapshot.forEach(doc => {
+        const data = doc.data() as Worker; // Assume data always contains 'name'
+        workersData.push({ id: doc.id, name: data.name });
+        workersMap[doc.id] = data.name; // Build the map
+      });
+  
+      setWorkers(workersData); // Update the workers list
+      setWorkerNameMap(workersMap); // Update the map for quick lookup
+    } catch (error) {
+      console.error('Failed to fetch workers:', error);
+      setWorkers([]);
+      setWorkerNameMap({});
+    }
   };
+
 
   useEffect(() => {
     if (selectedAgentId) {
@@ -145,7 +182,8 @@ const useFetchAgentData = () => {
   selectedWorkerNameFilter,
   selectedCompanyFilter,
   setSelectedCompanyFilter,
-  fetchWorkersForSelectedAgent
+  fetchWorkersForSelectedAgent,
+  workerNameMap
   // Any other states or functions you might be using
 };
 };

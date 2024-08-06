@@ -18,54 +18,24 @@ const useGoalsMD = () => {
    
 
   const [promotionList, SetPromotionList] = useState<any[]>([]);
-  const [promotionListForStars, setPromotionListForStars] = useState<PromotionMapping>({});
   const [promotionValue, setPromotionValue] = useState<string | null>(null);
   const [goalsTypeValue, setGoalsTypeValue] = useState<string | null>(null);
 
-  const [goalsTypeList,   setGoalsTypeList] = useState<any[]>([]);
+  const [goalsTypeList,   setGoalsTypeList] = useState<GoalsType[]>([]);
 
+  const [goalsTypeMap, setGoalsTypeMap] = useState<GoalsTypeMap>({});
 
-  interface PromotionData {
-    promotionName: string;
-  }
-  
-  interface PromotionMapping {
+  interface GoalsTypeMap {
     [key: string]: string;
   }
 
 
-  const fetchPromotionsForAgent = async (UserAgentId: string) => {
-    const q = query(
-      collection(db, 'promotion'), 
-      where('AgentId', '==', UserAgentId)
-    );
-    try {
-      const querySnapshot = await getDocs(q);
-      const promotionsMap: PromotionMapping = {};
-      if (querySnapshot.empty) {
-        SetPromotionList([]); // Clear the state if no promotions are found
-        console.log('No promotions found for agent:', UserAgentId);
-        setPromotionListForStars({}); // Clear the state if no promotions are found
-      } else {
-        querySnapshot.forEach(doc => {
-          const data = doc.data() as PromotionData;
-          SetPromotionList(prev => [...prev, { id: doc.id, ...data }]);
-          if (typeof data.promotionName === 'string') {
-            promotionsMap[doc.id] = data.promotionName;
-          } else {
-            console.error('Promotion name missing or invalid for document:', doc.id);
-          }
-        });
-        
-        setPromotionListForStars(promotionsMap); // Store the mapping
-        console.log('Promotions fetched and mapped:', promotionsMap);
-      }
-    } catch (error) {
-      console.error('Error fetching promotions:', error);
-      setPromotionListForStars({}); // Clear the state in case of error
-    }
-  };
- 
+  interface GoalsType {
+    name: string;
+    id: string;
+  }
+
+
   const handleSelectPromotion: ChangeEventHandler<HTMLSelectElement> = (event) => {
     setPromotionValue(event.target.value);
     console.log('promotionValue:',promotionValue);
@@ -77,15 +47,9 @@ const useGoalsMD = () => {
     console.log('Selected goals type ID:', event.target.value);
 };
 
-  useEffect(() => {
-    if (selectedAgentId) {
-      fetchPromotionsForAgent(selectedAgentId);
-    }  
-  }, [selectedAgentId]); // Ensure this effect runs whenever selectedProduct or products change
-  
+ 
 
-
-  const fetchGoalsTypeData = async () => {
+  const fetchGoalsTypeData_Old = async () => {
     try {
         const querySnapshot = await getDocs(collection(db, 'goalsType'));
         const fetchedGoalsTypeList = querySnapshot.docs.map(doc => ({
@@ -99,17 +63,44 @@ const useGoalsMD = () => {
 };
 
 useEffect(() => {
-    fetchGoalsTypeData();
-}, []); // Run once on component mount
+    fetchGoalsTypeData(selectedAgentId);
+}, [selectedAgentId]); // Run once on component mount
   
-   
+ 
+
+const fetchGoalsTypeData = async (agentId: string) => {
+  if (!agentId) {
+    setGoalsTypeList([]);
+    setGoalsTypeMap({});
+    return;
+  }
+  const GoalsTypeQuery = query(collection(db, 'goalsType'));
+  try {
+    const querySnapshot = await getDocs(GoalsTypeQuery);
+    const goalsTypeData: GoalsType[] = [];
+    const goalsTypeMap: GoalsTypeMap = {};
+
+    querySnapshot.forEach(doc => {
+      const data = doc.data() as GoalsType; // Assume data always contains 'name'
+      goalsTypeData.push({ id: doc.id, name: data.name });
+      goalsTypeMap[doc.id] = data.name; // Build the map
+    });
+
+    setGoalsTypeList(goalsTypeData); // Update the workers list
+    console.log('goalsTypeData:',goalsTypeData);
+    setGoalsTypeMap(goalsTypeMap); // Update the map for quick lookup
+  } catch (error) {
+    console.error('Failed to fetch GoalsType:', error);
+    setGoalsTypeList([]);
+    setGoalsTypeMap({});
+  }
+};
+
 
    return {
 
     SetPromotionList,
     promotionList,
-    promotionListForStars,
-    setPromotionListForStars,
     promotionValue,
     setPromotionValue,
     handleSelectPromotion,
@@ -117,6 +108,7 @@ useEffect(() => {
     handleSelectGoalsType,
     goalsTypeValue,
     setGoalsTypeValue,
+    goalsTypeMap
    
   };
   
