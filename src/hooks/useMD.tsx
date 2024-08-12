@@ -81,7 +81,7 @@ const useFetchMD = () => {
     useEffect(() => {
       const fetchProductsGroupsFromDB = async () => {
         const querySnapshot = await getDocs(collection(db, 'productsGroup'));
-        const groupsMap: ProductGroupMap = {}; // Use the defined type here
+        const groupsMap: ProductGroupMap = {}; 
         querySnapshot.forEach(doc => {
           const data = doc.data();
           groupsMap[doc.id] = data.productsGroupName as string; // Ensure you cast or ensure the type here if necessary
@@ -113,6 +113,36 @@ const useFetchMD = () => {
       
         fetchProducts();
       }, [selectedProduct]);
+
+      interface ProductMap {
+        [productName: string]: string; // Assuming productGroup is a string
+      }
+      const [productMap, setProductMap] = useState<ProductMap>({});
+      const [isLoading, setIsLoading] = useState(true);
+
+    
+      useEffect(() => {
+        const fetchProductsMap = async () => {
+          setIsLoading(true);
+          try {
+            const querySnapshot = await getDocs(collection(db, 'product'));
+            const productMap: ProductMap = {};
+            querySnapshot.forEach(doc => {
+              const data = doc.data();
+              productMap[data.productName] = data.productGroup; 
+            });
+            setProductMap(productMap);
+          } catch (error) {
+            console.error("Failed to fetch products:", error);
+          } finally {
+            setIsLoading(false);
+          }
+        };
+      
+        fetchProductsMap();
+      }, []);
+
+
       
       interface Product {
         id: string;
@@ -162,7 +192,8 @@ const useFetchMD = () => {
     selectedProductGroupFilter,
     setSelectedProductGroupFilter,
     selectedStatusPolicyFilter, 
-    setSelectedStatusPolicyFilter
+    setSelectedStatusPolicyFilter,
+    productMap, isLoading
   };
   
   

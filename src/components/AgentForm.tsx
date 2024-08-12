@@ -10,6 +10,10 @@ import { useAuth } from '@/lib/firebase/AuthContext';
 import useFetchAgentData from "@/hooks/useFetchAgentData"; 
 import useSalesData from "@/hooks/useSalesData"; 
 import useFetchMD from "@/hooks/useMD"; 
+import useCalculateSalesData from "@/hooks/useCalculateGoalsSales"; 
+
+
+
 
 //useFetchAgentData
 
@@ -56,6 +60,8 @@ function AgentForm() {
     selectedStatusPolicyFilter, 
     setSelectedStatusPolicyFilter
   } = useFetchMD();
+
+  const { calculateTotalPremia } = useCalculateSalesData();
 
 
   const searchParams = useSearchParams();
@@ -525,10 +531,18 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
     console.log( 'select worers log ' +selectedWorkerId + selectedWorkerName);
        // See what the workers data looks like
   }, [handleWorkerChange]);
-
- 
-
   console.log({ selectedAgentId, selectedWorkerId, firstNameCustomer, lastNameCustomer, IDCustomer, selectedCompany, selectedProduct, mounth });
+
+  const handleCalculate = async () => {
+    if (!selectedWorkerId) {
+      console.error('No worker selected');
+      return;
+    }
+    const total = await calculateTotalPremia(selectedAgentId, selectedWorkerId);
+    console.log(`Total Premia: ${total}`);
+};
+
+
   return (
     <div className="content-container">
       <div className="form-container">
@@ -875,7 +889,9 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
   </tbody>
 </table> 
 </div>
-
+<div>
+            <button onClick={handleCalculate}>Calculate Total Premia</button>
+        </div>
       </div>
     </div>
   );

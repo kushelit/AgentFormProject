@@ -33,6 +33,7 @@ const useGoalsMD = () => {
   interface GoalsType {
     name: string;
     id: string;
+    productGroup: string;
   }
 
 
@@ -54,7 +55,8 @@ const useGoalsMD = () => {
         const querySnapshot = await getDocs(collection(db, 'goalsType'));
         const fetchedGoalsTypeList = querySnapshot.docs.map(doc => ({
             id: doc.id,
-            name: doc.data().name, 
+            name: doc.data().name,
+            productGroup: doc.data().productGroup, 
         }));
         setGoalsTypeList(fetchedGoalsTypeList);
     } catch (error) {
@@ -82,7 +84,7 @@ const fetchGoalsTypeData = async (agentId: string) => {
 
     querySnapshot.forEach(doc => {
       const data = doc.data() as GoalsType; // Assume data always contains 'name'
-      goalsTypeData.push({ id: doc.id, name: data.name });
+      goalsTypeData.push({ id: doc.id, name: data.name, productGroup: data.productGroup });
       goalsTypeMap[doc.id] = data.name; // Build the map
     });
 
