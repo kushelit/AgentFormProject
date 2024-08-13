@@ -50,20 +50,6 @@ const useGoalsMD = () => {
 
  
 
-  const fetchGoalsTypeData_Old = async () => {
-    try {
-        const querySnapshot = await getDocs(collection(db, 'goalsType'));
-        const fetchedGoalsTypeList = querySnapshot.docs.map(doc => ({
-            id: doc.id,
-            name: doc.data().name,
-            productGroup: doc.data().productGroup, 
-        }));
-        setGoalsTypeList(fetchedGoalsTypeList);
-    } catch (error) {
-        console.error("Error fetching goals types:", error);
-    }
-};
-
 useEffect(() => {
     fetchGoalsTypeData(selectedAgentId);
 }, [selectedAgentId]); // Run once on component mount
@@ -110,7 +96,8 @@ const fetchGoalsTypeData = async (agentId: string) => {
     handleSelectGoalsType,
     goalsTypeValue,
     setGoalsTypeValue,
-    goalsTypeMap
+    goalsTypeMap,
+    fetchGoalsTypeData
    
   };
   

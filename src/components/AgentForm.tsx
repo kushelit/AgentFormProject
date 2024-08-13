@@ -38,7 +38,8 @@ function AgentForm() {
     selectedWorkerNameFilter,
     selectedCompanyFilter,
     setSelectedCompanyFilter,
-    fetchWorkersForSelectedAgent
+    fetchWorkersForSelectedAgent,
+    workerNameMap
   } = useFetchAgentData();
 
 
@@ -61,7 +62,7 @@ function AgentForm() {
     setSelectedStatusPolicyFilter
   } = useFetchMD();
 
-  const { calculateTotalPremia } = useCalculateSalesData();
+  const {  goalData , fetchDataGoalsForWorker} = useCalculateSalesData();
 
 
   const searchParams = useSearchParams();
@@ -255,13 +256,24 @@ const fetchDataForAgent = async (UserAgentId: string) => {
     setSelectedStatusPolicy(item.statusPolicy);
     setIsEditing(true);
     setNotes(item.notes);
-    fetchWorkersForSelectedAgent(item.agentId).then(() => {
-      const worker = workers.find(w => w.id === item.workerId);
-      if (worker) {
-        setSelectedWorkerId(worker.id);
-        setSelectedWorkerName(worker.name);
-      }
-    });
+    
+    const workerName = workerNameMap[item.workerId];
+    if (workerName) {
+        setSelectedWorkerId(item.workerId);
+        setSelectedWorkerName(workerName);
+    } else {
+        // Handle case where the worker is not found - maybe clear or set default values
+        setSelectedWorkerId('');
+        setSelectedWorkerName('Unknown Worker');
+    }
+    
+  //  fetchWorkersForSelectedAgent(item.agentId).then(() => {
+   //   const worker = workers.find(w => w.id === item.workerId);
+   //   if (worker) {
+   //     setSelectedWorkerId(worker.id);
+   //     setSelectedWorkerName(worker.name);
+  //    }
+ //   }  );
   };
 
   const handleDelete = async () => {
@@ -533,13 +545,14 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
   }, [handleWorkerChange]);
   console.log({ selectedAgentId, selectedWorkerId, firstNameCustomer, lastNameCustomer, IDCustomer, selectedCompany, selectedProduct, mounth });
 
+
   const handleCalculate = async () => {
     if (!selectedWorkerId) {
-      console.error('No worker selected');
-      return;
+        console.error('No worker selected');
+        return;
     }
-    const total = await calculateTotalPremia(selectedAgentId, selectedWorkerId);
-    console.log(`Total Premia: ${total}`);
+    await fetchDataGoalsForWorker(selectedWorkerId,selectedAgentId);
+    console.log('Data fetched and table data should be updated now');
 };
 
 
@@ -891,6 +904,29 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
 </div>
 <div>
             <button onClick={handleCalculate}>Calculate Total Premia</button>
+            <h2>Goals Table</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Promotion ID</th>
+                        <th>Amount</th>
+                        <th>Total Premia by Group</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {goalData.map((item, index) => (
+                        <tr key={index}>
+                            <td>{item.promotionId}</td>
+                            <td>{item.amaunt}</td>
+                            <td>
+                                {Object.entries(item.totalPremia).map(([groupId, total]) => (
+                                    <div key={groupId}>Group {groupId}: {total.toFixed(2)}</div>
+                                ))}
+                            </td>
+                        </tr>
+                    ))}
+                </tbody>
+            </table>
         </div>
       </div>
     </div>
