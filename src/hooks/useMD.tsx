@@ -8,16 +8,12 @@ import { db } from '@/lib/firebase/firebase';
 
 const useFetchMD = () => {
 
-   // const [productGroupsDB, setProductGroupsDB] = useState<string[]>([]);
-   // const [selectedProductGroup, setSelectedProductGroup] = useState<string>(''); // Also type the selectedCompany as string
 
     const [companies, setCompanies] = useState<string[]>([]); 
-    const [selectedCompany, setSelectedCompany] = useState<string>(''); // Also type the selectedCompany as string
-   // const [products, setProducts] = useState<string[]>([]);
-  //  const [selectedProduct, setSelectedProduct] = useState<string>(''); // Also type the selectedCompany as string
-
+    const [selectedCompany, setSelectedCompany] = useState<string>(''); 
+  
     const [commissionTypes, setCommissionTypes] = useState<string[]>([]);
-    const [selectedCommissionTypes, setSelectedCommissionTypes] = useState<string>(''); // Also type the selectedCompany as string
+    const [selectedCommissionTypes, setSelectedCommissionTypes] = useState<string>(''); 
 
     const [selectedProductGroup, setSelectedProductGroup] = useState('');
     const [selectedProduct, setSelectedProduct] = useState('');
@@ -37,7 +33,7 @@ const useFetchMD = () => {
     
 
     type ProductGroupMap = {
-      [key: string]: string; // Key is the product group ID, value is the product group name
+      [key: string]: string; 
   };
         useEffect(() => {
           const fetchCompanies = async () => {
@@ -66,7 +62,7 @@ const useFetchMD = () => {
         const querySnapshot = await getDocs(collection(db, 'productsGroup'));
         const groupsList: ProductGroup[] = querySnapshot.docs.map(doc => ({
           id: doc.id,
-          name: doc.data().productsGroupName as string // Cast to string if you are sure about the type
+          name: doc.data().productsGroupName as string 
         }));
         setProductGroupsDB(groupsList);
         console.log('the PG is ' + productGroupsDB)

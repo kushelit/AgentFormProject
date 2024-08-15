@@ -39,7 +39,7 @@ function AgentForm() {
     selectedCompanyFilter,
     setSelectedCompanyFilter,
     fetchWorkersForSelectedAgent,
-    workerNameMap
+    workerNameMap,
   } = useFetchAgentData();
 
 
@@ -59,7 +59,8 @@ function AgentForm() {
     selectedProductFilter,
     setSelectedProductFilter,
     selectedStatusPolicyFilter, 
-    setSelectedStatusPolicyFilter
+    setSelectedStatusPolicyFilter, 
+    productGroupMap
   } = useFetchMD();
 
   const {  goalData , fetchDataGoalsForWorker} = useCalculateSalesData();
@@ -166,19 +167,6 @@ type AgentDataTypeForFetching = {
 
 const [filteredData, setFilteredData] = useState<AgentDataType[]>([]);
 
-const fetchDataForAgentOld = async (UserAgentId: string) => {
-  const q = query(collection(db, 'sales'), where('AgentId', '==', selectedAgentId));
-  const querySnapshot = await getDocs(q);
-  const data = querySnapshot.docs.map(doc => ({
-    id: doc.id, 
-    ...(doc.data() as AgentDataTypeForFetching) // Then spread the rest of the data
-  })).sort((a, b) => {
-    const [monthA, yearA] = a.mounth.split('/').map(Number);
-    const [monthB, yearB] = b.mounth.split('/').map(Number);
-    return (yearB + 2000) - (yearA + 2000) || monthB - monthA; // Adjust sort for descending order
-  });
-  setAgentData(data);
-};
 
 
 const fetchDataForAgent = async (UserAgentId: string) => {
@@ -196,11 +184,10 @@ const fetchDataForAgent = async (UserAgentId: string) => {
     id: doc.id // Then assign the 'id', ensuring it is set correctly
   }));
 
-  // Combine customer and sales data
   const combinedData: CombinedData[] = sales.map(sale => {
     const customer = customers.find(customer => customer.IDCustomer === sale.IDCustomer);
     return {
-      ...sale, // Spread the sale data which now includes a correctly set 'id'
+      ...sale, 
       firstNameCustomer: customer ? customer.firstNameCustomer : 'Unknown',
       lastNameCustomer: customer ? customer.lastNameCustomer : 'Unknown',
     };
@@ -317,7 +304,6 @@ const fetchDataForAgent = async (UserAgentId: string) => {
         });
 
 
-        // Fetch and update the customer in the 'customer' collection
         const customerQuery = query(collection(db, 'customer'), where('IDCustomer', '==', IDCustomer));
         const customerSnapshot = await getDocs(customerQuery);
         if (!customerSnapshot.empty) {
@@ -325,7 +311,6 @@ const fetchDataForAgent = async (UserAgentId: string) => {
             await updateDoc(customerDocRef, {
                 firstNameCustomer,
                 lastNameCustomer,
-                // Add or update other fields as needed
             });
         }
         console.log("Sales and customer documents successfully updated");
@@ -539,21 +524,27 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
   }, [selectedWorkerIdFilter, selectedCompanyFilter, selectedProductFilter, selectedStatusPolicyFilter, agentData, idCustomerFilter, firstNameCustomerFilter, lastNameCustomerFilter, minuySochenFilter, expiryDateFilter]);
 
 
-  useEffect(() => {
-    console.log( 'select worers log ' +selectedWorkerId + selectedWorkerName);
-       // See what the workers data looks like
-  }, [handleWorkerChange]);
-  console.log({ selectedAgentId, selectedWorkerId, firstNameCustomer, lastNameCustomer, IDCustomer, selectedCompany, selectedProduct, mounth });
-
 
   const handleCalculate = async () => {
-    if (!selectedWorkerId) {
-        console.error('No worker selected');
+    if (!selectedAgentId) {
+        console.error('No agent selected');
         return;
     }
-    await fetchDataGoalsForWorker(selectedWorkerId,selectedAgentId);
+
+    await fetchDataGoalsForWorker(selectedAgentId, selectedWorkerIdFilter); 
     console.log('Data fetched and table data should be updated now');
 };
+
+
+useEffect(() => {
+ handleCalculate();
+  console.log('try to change worker to load calculate');
+}, [selectedWorkerIdFilter, selectedAgentId ]);
+
+
+
+
+
 
 
   return (
@@ -859,69 +850,28 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
 
            
            <div className="table-container" style={{ overflowX: 'auto', maxHeight: '300px' }}>
-          <table>
-  <thead>
-    <tr>
-      <th>חודש תפוקה</th>
-      <th>סך פיננסים</th>
-      <th>סך פנסיה</th>
-      <th>סך ביטוח</th>
-      <th>ניוד פנסיה</th>
-    </tr>
-  </thead>
-  <tbody>
-    {Object.entries(monthlyTotals)
-      .sort((a, b) => {
-        console.log("Comparing", a[0], "with", b[0]); // See the raw values
-       const [monthA, yearA] = a[0].split('/').map(Number);
-        const [monthB, yearB] = b[0].split('/').map(Number);
-     
-        if (isNaN(monthA) || isNaN(yearA) || isNaN(monthB) || isNaN(yearB)) {
-          console.error("Parsing error with data:", a[0], b[0]);
-      }
-
-        console.log("Parsed values:", monthA, yearA, monthB, yearB); // Check parsed values
-        return (yearA - yearB) || (monthA - monthB); // Adjusted 
-      })
-      .map(([month, totals]) => (
-        <tr key={month}>
-          <td>{month}</td>
-          <td>{totals.finansimTotal.toLocaleString()}</td>
-          <td>{totals.pensiaTotal.toLocaleString()}</td>
-          <td>{totals.insuranceTotal.toLocaleString()}</td>
-          <td>{totals.niudPensiaTotal.toLocaleString()}</td>
-        </tr>
-      ))}
-    <tr>
-      <td><strong>סיכום</strong></td>
-      <td><strong>{overallFinansimTotal.toLocaleString()}</strong></td>
-      <td><strong>{overallPensiaTotal.toLocaleString()}</strong></td>
-      <td><strong>{overallInsuranceTotal.toLocaleString()}</strong></td>
-      <td><strong>{overallNiudPensiaTotal.toLocaleString()}</strong></td>
-    </tr>
-  </tbody>
-</table> 
+      
 </div>
 <div>
-            <button onClick={handleCalculate}>Calculate Total Premia</button>
-            <h2>Goals Table</h2>
+            <h2>עמידה ביעדים</h2>
             <table>
                 <thead>
                     <tr>
-                        <th>Promotion ID</th>
-                        <th>Amount</th>
-                        <th>Total Premia by Group</th>
+                        <th>מבצע</th>
+                        <th>יעד</th>
+                        <th> עמידה ביעד</th>
                     </tr>
                 </thead>
                 <tbody>
-                    {goalData.map((item, index) => (
-                        <tr key={index}>
-                            <td>{item.promotionId}</td>
-                            <td>{item.amaunt}</td>
-                            <td>
-                                {Object.entries(item.totalPremia).map(([groupId, total]) => (
-                                    <div key={groupId}>Group {groupId}: {total.toFixed(2)}</div>
-                                ))}
+                {goalData.map((item, index) => (
+    <tr key={index}>
+        <td>{item.promotionName}</td>
+        <td>{item.amaunt} - {item.goalTypeName}</td>  
+        
+
+        <td>{Object.entries(item.totalPremia).map(([groupId, total]) => (
+                             <div key={groupId}> {total.toFixed(2)}</div>
+                         ))}
                             </td>
                         </tr>
                     ))}

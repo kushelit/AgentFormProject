@@ -3,6 +3,7 @@ import { query, collection, where, getDocs, getDoc, doc } from 'firebase/firesto
 import { db } from "@/lib/firebase/firebase";
 import { useAuth } from '@/lib/firebase/AuthContext';
 import { useRouter } from 'next/router';
+//import useCalculateSalesData from "@/hooks/useCalculateGoalsSales"; 
 
 
 interface Agent {
@@ -34,6 +35,11 @@ const useFetchAgentData = () => {
   const [selectedCompanyFilter, setSelectedCompanyFilter] = useState('');
 
   const [workerNameMap, setWorkerNameMap] = useState<WorkerNameMap>({});
+
+
+ // const { fetchDataGoalsForWorker} = useCalculateSalesData();
+
+
 
   interface WorkerNameMap {
     [key: string]: string;
@@ -68,19 +74,6 @@ const useFetchAgentData = () => {
     fetchAgentData();
   }, [user, detail]);
 
- // const fetchWorkersForSelectedAgent = async (agentId: string) => {
-   // if (!agentId) {
-     // console.log("agentId is undefined");
-      //return; // Exit the function if agentId is undefined to avoid making a faulty query
-  //}
-   // const workersQuery = query(collection(db, 'users'), where('agentId', '==', agentId), where('role', 'in', ['worker', 'agent']));
-   // const querySnapshot = await getDocs(workersQuery);
-   // const workersList = querySnapshot.docs.map(doc => ({
-   //   id: doc.id,
-   //   name: doc.data().name,
-   // }));
-  //  setWorkers(workersList);
-  //};
 
   const fetchWorkersForSelectedAgent = async (agentId: string) => {
     if (!agentId) {
@@ -125,8 +118,8 @@ const useFetchAgentData = () => {
     const selectedAgent = agents.find(agent => agent.id === value);
   
     if (selectedAgent) {
-      setSelectedAgentId(selectedAgent.id); // Assuming this state is managed here or passed down from the hook
-      setSelectedAgentName(selectedAgent.name); // Update the state for the selected agent's name
+      setSelectedAgentId(selectedAgent.id); 
+      setSelectedAgentName(selectedAgent.name); 
     }
   };
 
@@ -139,11 +132,32 @@ const useFetchAgentData = () => {
     setSelectedWorkerName(selectedOption.text); // Update the name of the selected worker
     }
     else {
-      // Update other variables
-      setSelectedWorkerIdFilter(selectedOption.value); // Assuming you have a setter for other variable IDs
-      setSelectedWorkerNameFilter(selectedOption.text); // Assuming you have a setter for other variable names
+      setSelectedWorkerIdFilter(selectedOption.value); 
+      setSelectedWorkerNameFilter(selectedOption.text); 
+    //  handleCalculate().catch(console.error); 
     }
   };
+
+
+ // const handleCalculate = async () => {
+ //   if (!selectedAgentId) {
+  //      console.error('No agent selected');
+  //      return;
+   // }
+
+   // if (selectedWorkerIdFilter) {
+        // If a specific worker is selected, fetch data for that worker
+    //    console.log(`Fetching data for worker ${selectedWorkerIdFilter}`);
+      //  await fetchDataGoalsForWorker(selectedAgentId, selectedWorkerIdFilter);
+   // } else {
+        // If no worker is selected, fetch data for all workers under the selected agent
+    //    console.log('Fetching data for all workers under the selected agent');
+   //     await fetchDataGoalsForWorker(selectedAgentId);
+ //   }
+  //  console.log('Data fetched and table data should be updated now');
+//};
+
+
 
 
 
@@ -183,7 +197,8 @@ const useFetchAgentData = () => {
   selectedCompanyFilter,
   setSelectedCompanyFilter,
   fetchWorkersForSelectedAgent,
-  workerNameMap
+  workerNameMap,
+  //handleCalculate
   // Any other states or functions you might be using
 };
 };
