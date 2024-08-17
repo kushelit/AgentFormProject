@@ -48,41 +48,52 @@ const useGoalsMD = () => {
     console.log('Selected goals type ID:', event.target.value);
 };
 
- 
 
-useEffect(() => {
-    fetchGoalsTypeData(selectedAgentId);
-}, [selectedAgentId]); // Run once on component mount
-  
  
+useEffect(() => {
+  console.log('Effect running with agent ID:', selectedAgentId);
+  if (selectedAgentId) {
+    fetchGoalsTypeData(selectedAgentId);
+  } else {
+    console.log('Waiting for agentId to be set...');
+  }
+}, [selectedAgentId]);
+
 
 const fetchGoalsTypeData = async (agentId: string) => {
   if (!agentId) {
-    setGoalsTypeList([]);
-    setGoalsTypeMap({});
-    return;
+      console.error('No agentId provided');
+      setGoalsTypeList([]);
+      setGoalsTypeMap({});
+      return;
   }
+
   const GoalsTypeQuery = query(collection(db, 'goalsType'));
   try {
-    const querySnapshot = await getDocs(GoalsTypeQuery);
-    const goalsTypeData: GoalsType[] = [];
-    const goalsTypeMap: GoalsTypeMap = {};
+      const querySnapshot = await getDocs(GoalsTypeQuery);
+      const goalsTypeData: GoalsType[] = [];  // Explicitly typing the array
+      const goalsTypeMap: { [key: string]: string } = {};
 
-    querySnapshot.forEach(doc => {
-      const data = doc.data() as GoalsType; // Assume data always contains 'name'
-      goalsTypeData.push({ id: doc.id, name: data.name, productGroup: data.productGroup });
-      goalsTypeMap[doc.id] = data.name; // Build the map
-    });
+      querySnapshot.forEach(doc => {
+          const data = doc.data() as GoalsType;  // Cast the data to GoalsType
+          goalsTypeData.push({ id: doc.id, name: data.name, productGroup: data.productGroup });
+          goalsTypeMap[doc.id] = data.name;
+      });
 
-    setGoalsTypeList(goalsTypeData); // Update the workers list
-    console.log('goalsTypeData:',goalsTypeData);
-    setGoalsTypeMap(goalsTypeMap); // Update the map for quick lookup
+      setGoalsTypeList(goalsTypeData);  // Updates state
+      setGoalsTypeMap(goalsTypeMap);
+
+      console.log('Data set in state:', goalsTypeData);  // Correctly logs populated array
   } catch (error) {
-    console.error('Failed to fetch GoalsType:', error);
-    setGoalsTypeList([]);
-    setGoalsTypeMap({});
+      console.error('Failed to fetch GoalsType:', error);
+      setGoalsTypeList([]);
+      setGoalsTypeMap({});
   }
 };
+
+useEffect(() => {
+  console.log('Updated goalsTypeList:', goalsTypeList);  // Check updated state on re-render
+}, [goalsTypeList]);
 
 
    return {

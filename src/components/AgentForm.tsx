@@ -866,13 +866,15 @@ useEffect(() => {
                 {goalData.map((item, index) => (
     <tr key={index}>
         <td>{item.promotionName}</td>
-        <td>{item.amaunt} - {item.goalTypeName}</td>  
-        
-
-        <td>{Object.entries(item.totalPremia).map(([groupId, total]) => (
-                             <div key={groupId}> {total.toFixed(2)}</div>
-                         ))}
-                            </td>
+        <td>{item.amaunt} - {item.goalTypeName}</td>
+        <td>
+            {item.goalTypeName === "כוכבים" ?
+                <div>{item.totalStars ? `${item.totalStars} Stars` : 'N/A'}</div> :
+                Object.entries(item.totalPremia.totals).map(([groupId, total]) => (
+                    <div key={groupId}>{total.toFixed(2)}</div>
+                ))
+            }
+        </td>
                         </tr>
                     ))}
                 </tbody>

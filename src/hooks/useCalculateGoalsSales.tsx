@@ -12,16 +12,9 @@ function useCalculateSalesData() {
 
     const { goalsTypeList, goalsTypeMap } = useGoalsMD();
     const { productMap } = useFetchMD();
-    const { selectedAgentId, selectedWorkerId } = useFetchAgentData();
+    const { selectedAgentId, selectedWorkerIdFilter } = useFetchAgentData();
 
-    interface GoalType {
-        id: string;
-        name: string;
-        productGroup: string;
-    }
-    
-    type GoalsTypeList = GoalType[];
-    
+
     type ProductMap = {
         [productName: string]: string; // Mapping product names to product groups
     };
@@ -32,20 +25,19 @@ function useCalculateSalesData() {
 
 
 
-    interface GoalsSuccessData {
-        id: string;
-        workerId: string;
-        goalsTypeId: string;
-        productGroup?: string;
-    }
-
     interface GoalData {
         promotionName: string;
         amaunt: number;
         goalTypeName: string;
-        totalPremia: GroupTotals;
-
+        totalPremia: GroupTotals | ExtendedGroupTotals;  // Use a union type here
+        totalStars?: number;
     }
+    type ExtendedGroupTotals = {
+        totals: GroupTotals;
+        totalStars: number;
+    };
+
+
 
     type GroupTotals = {
         [key: string]: number;
@@ -60,16 +52,6 @@ function useCalculateSalesData() {
         '4': 'finansimPremia'
     }), []);
 
-
-
-    const fetchGoalsSuccessForWorker = useCallback(async (agentId: string, workerId: string): Promise<GoalsSuccessData[]> => {
-        const q = query(collection(db, 'goalsSuccess'), where('workerId', '==', workerId), where('AgentId', '==', agentId));
-        const querySnapshot = await getDocs(q);
-        return querySnapshot.docs.map(doc => ({ ...doc.data() as GoalsSuccessData, id: doc.id }));
-    }, []);
-
-
-   
     const [promotionNames, setPromotionNames] = useState<PromotionNames>({});
     
     const fetchPromotions = useCallback(async () => {
@@ -87,10 +69,11 @@ function useCalculateSalesData() {
     }, [fetchPromotions]);
 
 
-
     const calculateTotalPremia = useCallback(
-        async (agentId: string, promotionId: string, workerId?: string) => {
+        async (agentId: string, promotionId: string, workerId: string) => {
             const groupTotals: GroupTotals = {};
+            let totalStars = 0; // Initialize totalStars to 0
+    
             console.log('promotionId:', promotionId);
     
             let goalQueryConditions = [
@@ -106,7 +89,7 @@ function useCalculateSalesData() {
     
             if (goalSnapshot.empty) {
                 console.log('No goals found for the specified criteria');
-                return groupTotals;
+                return { totals: groupTotals, totalStars }; // Ensure to return both totals and stars
             }
     
             await Promise.all(goalSnapshot.docs.map(async (doc) => {
@@ -117,66 +100,129 @@ function useCalculateSalesData() {
                     console.error('Goal details not found for:', goalData.goalsTypeId);
                     return;
                 }
+                if (goalDetails.id === '4') {
+                    const { totals, totalStarsInsideFunc: totalStars } = await calculateTypeFourPremia(agentId, promotionId, workerId);
+                    console.log(`Total stars for type '4':`, totalStars); // Now correctly referencing the stars count
+                    // Assuming you need to do something with `totals` or just want to exit
+                    return;
+                }
     
                 const premiaField = premiaFieldsMap[goalDetails.productGroup];
                 if (!premiaField) {
                     console.error(`Premia field not defined for product group ${goalDetails.productGroup}`);
                     return;
                 }
-    
                 const productsInGroup = Object.keys(productMap).filter(key => productMap[key] === goalDetails.productGroup);
-                let salesQueryConditions = [
-                    where('product', 'in', productsInGroup)
-                ];
+                let salesQuery = query(collection(db, 'sales'), where('product', 'in', productsInGroup));
                 if (workerId) {
-                    salesQueryConditions.push(where('workerId', '==', workerId));
+                    salesQuery = query(salesQuery, where('workerId', '==', workerId)); // Fixed redundant query call
                 }
-                const salesQuery = query(collection(db, 'sales'), ...salesQueryConditions);
                 const salesSnapshot = await getDocs(salesQuery);
-    
                 const totalForGroup = salesSnapshot.docs.reduce((sum, doc) => sum + parseFloat(doc.data()[premiaField] || 0), 0);
                 groupTotals[goalDetails.productGroup] = (groupTotals[goalDetails.productGroup] || 0) + totalForGroup;
             }));
     
             console.log(`Total premia for specified criteria: ${JSON.stringify(groupTotals)}`);
-            return groupTotals;
+            console.log(`Total stars accumulated: ${totalStars}`);
+            return { totals: groupTotals, totalStars }; // Return both totals and stars for all types
         },
         [goalsTypeList, productMap, premiaFieldsMap] 
     );
+    
+   
 
-
-      const fetchDataGoalsForWorker = useCallback(async (selectedAgentId: string, selectedWorkerId?: string) => {
-        if (!selectedAgentId || !selectedWorkerId) {
+    const fetchDataGoalsForWorker = useCallback(async (selectedAgentId: string, selectedWorkerIdFilter?: string) => {
+        if (!selectedAgentId || !selectedWorkerIdFilter) {
             console.log('Agent ID or Worker ID is not defined');
             return;
         }
-
+    
         let salesQuery = query(collection(db, 'goalsSuccess'), where('AgentId', '==', selectedAgentId));
-                if (selectedWorkerId) {
-            salesQuery = query(salesQuery, where('workerId', '==', selectedWorkerId));
+        if (selectedWorkerIdFilter) {
+            salesQuery = query(salesQuery, where('workerId', '==', selectedWorkerIdFilter));
         }
         const querySnapshot = await getDocs(salesQuery);
         const data = await Promise.all(querySnapshot.docs.map(async (doc) => {
             const { promotionId, amaunt, goalsTypeId } = doc.data() as { promotionId: string, amaunt: number, goalsTypeId: string };
-            const totalPremia = await calculateTotalPremia( selectedAgentId, promotionId, selectedWorkerId);
-            const promotionName = promotionNames[promotionId] || 'Unknown Promotion'; // Use the promotion name or 'Unknown' if not found
-            const goalTypeName = goalsTypeMap[goalsTypeId] || 'Unknown Goal Type';  // Retrieve goal type name using goalsTypeId
-
+            const totalPremiaResults = await calculateTotalPremia(selectedAgentId, promotionId, selectedWorkerIdFilter);
+            const promotionName = promotionNames[promotionId] || 'Unknown Promotion';
+            const goalTypeName = goalsTypeMap[goalsTypeId] || 'Unknown Goal Type';
+    
             return {
                 promotionName,
                 amaunt,
-                goalTypeName,
-                totalPremia 
+                goalTypeName: goalsTypeMap[goalsTypeId], // Assuming this maps to 'כוכבים' for type '4'
+                totalPremia: {
+                    totals: totalPremiaResults.totals, // Assuming totals is a part of the return from calculateTotalPremia
+                    totalStars: totalPremiaResults.totalStars // Adjust this to use the correct property name
+                },
+                totalStars: totalPremiaResults.totalStars // Optionally at the top level if required
             };
         }));
         setGoalData(data);
-    }, [selectedAgentId, selectedWorkerId, calculateTotalPremia, setGoalData]);
+    }, [selectedAgentId, selectedWorkerIdFilter, calculateTotalPremia, setGoalData]);
 
+    
 
-
-
-
-
+    const calculateTypeFourPremia = async (agentId: string, promotionId: string, workerId: string) => {
+        console.log('Executing calculateTypeFourPremia:');
+        console.log('Parameters:', agentId, promotionId, workerId);
+    
+        let totalStarsInsideFunc = 0;  // Initialize total stars to zero
+        const typeOneGroupTotals: GroupTotals = {};  // This will store the stars per group
+    
+        // Query to get star settings for this promotion and agent
+        const starQuery = query(
+            collection(db, 'stars'),
+            where('promotionId', '==', promotionId),
+            where('AgentId', '==', agentId)
+        );
+    
+        const starSnapshot = await getDocs(starQuery);
+        if (starSnapshot.empty) {
+            console.log('No star data found for the specified criteria');
+            return { totals: {}, totalStarsInsideFunc };  // No data found, return zeros
+        }
+    
+        // Assuming there's at least one document
+        const starData = starSnapshot.docs[0].data();
+        console.log('Star Data:', starData);
+    
+        // Define the fields that correspond to each group's star rating
+        const fields = {
+            '1': 'pensiaStar',
+            '3': 'insuranceStar',
+            '4': 'finansimStar'
+        };
+    
+        // Calculate stars for each group
+        for (const [group, field] of Object.entries(fields)) {
+            const premiaField = premiaFieldsMap[group];
+            if (!premiaField) {
+                console.error(`Premia field not defined for product group ${group}`);
+                continue;  // Skip this group if no mapping is found
+            }
+    
+            const productsInGroup = Object.keys(productMap).filter(key => productMap[key] === group);
+            const salesQuery = query(collection(db, 'sales'), where('product', 'in', productsInGroup), where('workerId', '==', workerId));
+            const salesSnapshot = await getDocs(salesQuery);
+            const totalPremia = salesSnapshot.docs.reduce((sum, doc) => sum + parseFloat(doc.data()[premiaField] || 0), 0);
+    
+            console.log(`Total Premia for group ${group}:`, totalPremia);
+            const starValue = parseFloat(starData[field] || 0);
+            const starsEarned = starValue ? Math.floor(totalPremia / starValue) : 0;
+    
+            console.log(`Stars earned for group ${group}:`, starsEarned);
+            typeOneGroupTotals[group] = starsEarned;
+            totalStarsInsideFunc += starsEarned;  // Accumulate total stars
+        }
+    
+        console.log(`Total stars earned across all groups: ${totalStarsInsideFunc}`);
+        return {
+            totals: typeOneGroupTotals,
+            totalStars: totalStarsInsideFunc
+        };  // Return both group totals and overall stars
+    };
     
 
   return { goalData, calculateTotalPremia, fetchDataGoalsForWorker };
