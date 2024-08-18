@@ -221,7 +221,7 @@ function useCalculateSalesData() {
     };
     
 
-  return { goalData, calculateTotalPremia, fetchDataGoalsForWorker };
+  return { goalData,setGoalData, calculateTotalPremia, fetchDataGoalsForWorker };
 }
 
 export default useCalculateSalesData;

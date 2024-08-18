@@ -198,6 +198,7 @@ const useFetchAgentData = () => {
   setSelectedCompanyFilter,
   fetchWorkersForSelectedAgent,
   workerNameMap,
+  setSelectedWorkerIdFilter
   //handleCalculate
   // Any other states or functions you might be using
 };

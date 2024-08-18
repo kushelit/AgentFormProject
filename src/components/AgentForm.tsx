@@ -1,6 +1,6 @@
 /* eslint-disable react/jsx-no-comment-textnodes */
 "use client"
-import React, { useState, useEffect, FormEventHandler, ChangeEventHandler, ChangeEvent, useMemo } from 'react';
+import React, { useState, useEffect, FormEventHandler, ChangeEventHandler, ChangeEvent, useMemo, useCallback } from 'react';
 import { db } from '@/lib/firebase/firebase';
 import { collection, query, where, getDocs, doc, addDoc, deleteDoc, updateDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 import './AgentForm.css';
@@ -35,6 +35,7 @@ function AgentForm() {
     selectedCompany, 
     setSelectedCompany,
     selectedWorkerIdFilter,
+    setSelectedWorkerIdFilter,
     selectedWorkerNameFilter,
     selectedCompanyFilter,
     setSelectedCompanyFilter,
@@ -63,7 +64,7 @@ function AgentForm() {
     productGroupMap
   } = useFetchMD();
 
-  const {  goalData , fetchDataGoalsForWorker} = useCalculateSalesData();
+  const {  goalData ,setGoalData, fetchDataGoalsForWorker} = useCalculateSalesData();
 
 
   const searchParams = useSearchParams();
@@ -88,6 +89,8 @@ const [lastNameCustomerFilter, setlastNameCustomerFilter] = useState('');
 const [minuySochenFilter, setMinuySochenFilter] = useState('');
 const [expiryDateFilter, setExpiryDateFilter] = useState('');
 const [notes, setNotes] = useState('');
+
+const [isLoading, setIsLoading] = useState(false);  // Loading state
 
 interface Customer {
   id: string;
@@ -524,28 +527,37 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
   }, [selectedWorkerIdFilter, selectedCompanyFilter, selectedProductFilter, selectedStatusPolicyFilter, agentData, idCustomerFilter, firstNameCustomerFilter, lastNameCustomerFilter, minuySochenFilter, expiryDateFilter]);
 
 
-
-  const handleCalculate = async () => {
+  const handleCalculate = useCallback(async () => {
     if (!selectedAgentId) {
         console.error('No agent selected');
         return;
     }
+    if (!user || !user.uid || !detail || !detail.role) {
+        console.error('User details not available');
+        return; // Handle the situation where details are not available
+    }
+    setIsLoading(true); // Start loading
+    const workerIdToFetch = (detail.role === 'worker' && !selectedWorkerIdFilter) ? user.uid : selectedWorkerIdFilter;
 
-    await fetchDataGoalsForWorker(selectedAgentId, selectedWorkerIdFilter); 
+    // Check if the user is a worker and the selected worker ID does not match their own ID
+    console.log('Fetching data for worker:', workerIdToFetch);
+    await fetchDataGoalsForWorker(selectedAgentId, workerIdToFetch);
     console.log('Data fetched and table data should be updated now');
-};
+    
+    setIsLoading(false);
+  }, [selectedAgentId, user, detail, selectedWorkerIdFilter, fetchDataGoalsForWorker]);
 
 
 useEffect(() => {
- handleCalculate();
-  console.log('try to change worker to load calculate');
-}, [selectedWorkerIdFilter, selectedAgentId ]);
-
-
-
-
-
-
+  // Ensure all necessary data is available before calling handleCalculate
+  if (detail &&  user && detail.role === 'worker' && !selectedWorkerIdFilter) {
+    // If the user is a worker and no filter is selected, use their own ID
+    setSelectedWorkerIdFilter(user.uid);
+  } else {
+    handleCalculate();
+  }
+}, [handleCalculate, detail, user, selectedWorkerIdFilter]);
+ 
 
   return (
     <div className="content-container">
@@ -855,32 +867,42 @@ useEffect(() => {
 <div>
             <h2>עמידה ביעדים</h2>
             <table>
-                <thead>
-                    <tr>
-                        <th>מבצע</th>
-                        <th>יעד</th>
-                        <th> עמידה ביעד</th>
-                    </tr>
-                </thead>
-                <tbody>
-                {goalData.map((item, index) => (
-    <tr key={index}>
-        <td>{item.promotionName}</td>
-        <td>{item.amaunt} - {item.goalTypeName}</td>
-        <td>
-        {item.goalTypeName === "כוכבים" ?
-  <div>{item.totalStars ? `${item.totalStars}` : 'N/A'}</div> :
-  (item.totalPremia && Object.keys(item.totalPremia).length > 0 ?
-    Object.entries(item.totalPremia).map(([groupId, total]) => 
-      <div key={groupId}>{typeof total === 'number' ? total.toFixed(2) : 'Invalid data'}</div>
-    ) : <div>No Data</div>
-  )
-}
-</td>
-                        </tr>
-                    ))}
-                </tbody>
-            </table>
+    <thead>
+        <tr>
+            <th>מבצע</th>
+            <th>יעד</th>
+            <th>עמידה ביעד</th>
+        </tr>
+    </thead>
+    <tbody>
+        {isLoading ? (
+            <tr>
+                <td  colSpan={3}>Loading...</td>
+            </tr>
+        ) : goalData.length > 0 ? (
+            goalData.map((item, index) => (
+                <tr key={index}>
+                    <td>{item.promotionName}</td>
+                    <td>{`${item.amaunt} - ${item.goalTypeName}`}</td>
+                    <td>
+                        {item.goalTypeName === "כוכבים" ?
+                            <div>{item.totalStars ? `${item.totalStars}` : 'N/A'}</div> :
+                            (item.totalPremia && Object.keys(item.totalPremia).length > 0 ?
+                                Object.entries(item.totalPremia).map(([groupId, total]) => 
+                                    <div key={groupId}>{typeof total === 'number' ? total.toFixed(2) : 'Invalid data'}</div>
+                                ) : <div>No Data</div>
+                            )
+                        }
+                    </td>
+                </tr>
+            ))
+        ) : (
+            <tr>
+                <td colSpan={3}>No Data</td>
+            </tr>
+        )}
+    </tbody>
+</table>
         </div>
       </div>
     </div>
