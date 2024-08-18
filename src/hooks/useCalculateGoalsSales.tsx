@@ -95,27 +95,29 @@ function useCalculateSalesData() {
             await Promise.all(goalSnapshot.docs.map(async (doc) => {
                 const goalData = doc.data();
                 const goalDetails = goalsTypeList.find(type => type.id === goalData.goalsTypeId);
-    
+            
                 if (!goalDetails) {
                     console.error('Goal details not found for:', goalData.goalsTypeId);
-                    return;
+                    return;  // Skip this iteration by returning early from the async function
                 }
+            
                 if (goalDetails.id === '4') {
-                    const { totals, totalStarsInsideFunc: totalStars } = await calculateTypeFourPremia(agentId, promotionId, workerId);
-                    console.log(`Total stars for type '4':`, totalStars); // Now correctly referencing the stars count
-                    // Assuming you need to do something with `totals` or just want to exit
-                    return;
+                    const { totals, totalStarsInsideFunc } = await calculateTypeFourPremia(agentId, promotionId, workerId);
+                    console.log(`Total stars for type '4':`, totalStarsInsideFunc);
+                    totalStars += totalStarsInsideFunc; // Accumulate stars earned from type '4'
+                    Object.assign(groupTotals, totals); // Merge type '4' totals with existing groupTotals
+                    return; // Exit this iteration early
                 }
     
                 const premiaField = premiaFieldsMap[goalDetails.productGroup];
                 if (!premiaField) {
                     console.error(`Premia field not defined for product group ${goalDetails.productGroup}`);
-                    return;
+                    return;  // Again, return early to skip further processing
                 }
                 const productsInGroup = Object.keys(productMap).filter(key => productMap[key] === goalDetails.productGroup);
                 let salesQuery = query(collection(db, 'sales'), where('product', 'in', productsInGroup));
                 if (workerId) {
-                    salesQuery = query(salesQuery, where('workerId', '==', workerId)); // Fixed redundant query call
+                    salesQuery = query(salesQuery, where('workerId', '==', workerId));
                 }
                 const salesSnapshot = await getDocs(salesQuery);
                 const totalForGroup = salesSnapshot.docs.reduce((sum, doc) => sum + parseFloat(doc.data()[premiaField] || 0), 0);
@@ -124,14 +126,13 @@ function useCalculateSalesData() {
     
             console.log(`Total premia for specified criteria: ${JSON.stringify(groupTotals)}`);
             console.log(`Total stars accumulated: ${totalStars}`);
-            return { totals: groupTotals, totalStars }; // Return both totals and stars for all types
+            return { totals: groupTotals, totalStars }; // Return the accumulated totals and stars
         },
-        [goalsTypeList, productMap, premiaFieldsMap] 
+        [goalsTypeList, productMap, premiaFieldsMap] // Dependency array
     );
-    
-   
 
     const fetchDataGoalsForWorker = useCallback(async (selectedAgentId: string, selectedWorkerIdFilter?: string) => {
+       console.log('Executing fetchDataGoalsForWorker:');
         if (!selectedAgentId || !selectedWorkerIdFilter) {
             console.log('Agent ID or Worker ID is not defined');
             return;
@@ -145,22 +146,20 @@ function useCalculateSalesData() {
         const data = await Promise.all(querySnapshot.docs.map(async (doc) => {
             const { promotionId, amaunt, goalsTypeId } = doc.data() as { promotionId: string, amaunt: number, goalsTypeId: string };
             const totalPremiaResults = await calculateTotalPremia(selectedAgentId, promotionId, selectedWorkerIdFilter);
+             console.log('fetchDataGoalsForWorker:', totalPremiaResults);
             const promotionName = promotionNames[promotionId] || 'Unknown Promotion';
             const goalTypeName = goalsTypeMap[goalsTypeId] || 'Unknown Goal Type';
     
             return {
                 promotionName,
                 amaunt,
-                goalTypeName: goalsTypeMap[goalsTypeId], // Assuming this maps to 'כוכבים' for type '4'
-                totalPremia: {
-                    totals: totalPremiaResults.totals, // Assuming totals is a part of the return from calculateTotalPremia
-                    totalStars: totalPremiaResults.totalStars // Adjust this to use the correct property name
-                },
-                totalStars: totalPremiaResults.totalStars // Optionally at the top level if required
+                goalTypeName: goalsTypeMap[goalsTypeId],
+                totalPremia: totalPremiaResults.totals,
+                totalStars: totalPremiaResults.totalStars // Capture totalStars here
             };
         }));
         setGoalData(data);
-    }, [selectedAgentId, selectedWorkerIdFilter, calculateTotalPremia, setGoalData]);
+    }, [selectedAgentId, selectedWorkerIdFilter, calculateTotalPremia, setGoalData, promotionNames, goalsTypeMap]);
 
     
 
@@ -218,10 +217,7 @@ function useCalculateSalesData() {
         }
     
         console.log(`Total stars earned across all groups: ${totalStarsInsideFunc}`);
-        return {
-            totals: typeOneGroupTotals,
-            totalStars: totalStarsInsideFunc
-        };  // Return both group totals and overall stars
+        return  { totals: typeOneGroupTotals, totalStarsInsideFunc };
     };
     
 
