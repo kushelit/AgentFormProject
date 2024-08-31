@@ -31,6 +31,7 @@ function useCalculateSalesData() {
         goalTypeName: string;
         totalPremia: GroupTotals | ExtendedGroupTotals;  // Use a union type here
         totalStars?: number;
+        achievementRate?: number;
     }
     type ExtendedGroupTotals = {
         totals: GroupTotals;
@@ -73,7 +74,9 @@ function useCalculateSalesData() {
         async (agentId: string, promotionId: string, workerId: string) => {
             const groupTotals: GroupTotals = {};
             let totalStars = 0; // Initialize totalStars to 0
-    
+            let productGroup = ""; // Initialize productGroup
+
+
             console.log('promotionId:', promotionId);
     
             let goalQueryConditions = [
@@ -121,12 +124,21 @@ function useCalculateSalesData() {
                 }
                 const salesSnapshot = await getDocs(salesQuery);
                 const totalForGroup = salesSnapshot.docs.reduce((sum, doc) => sum + parseFloat(doc.data()[premiaField] || 0), 0);
+                console.log(`Total for groupppp ${goalDetails.productGroup}:`, totalForGroup);
+
                 groupTotals[goalDetails.productGroup] = (groupTotals[goalDetails.productGroup] || 0) + totalForGroup;
+                console.log(`Total for groupppbbb ${goalDetails.productGroup}:`, totalForGroup);
+
+                 productGroup = goalDetails.productGroup; // Set productGroup based on goalDetails
+
             }));
     
             console.log(`Total premia for specified criteria: ${JSON.stringify(groupTotals)}`);
             console.log(`Total stars accumulated: ${totalStars}`);
-            return { totals: groupTotals, totalStars }; // Return the accumulated totals and stars
+
+            console.log(`Final groupTotals: ${JSON.stringify(groupTotals)}`);
+
+            return { totals: groupTotals, totalStars,productGroup  }; // Return the accumulated totals and stars
         },
         [goalsTypeList, productMap, premiaFieldsMap] // Dependency array
     );
@@ -146,16 +158,40 @@ function useCalculateSalesData() {
         const data = await Promise.all(querySnapshot.docs.map(async (doc) => {
             const { promotionId, amaunt, goalsTypeId } = doc.data() as { promotionId: string, amaunt: number, goalsTypeId: string };
             const totalPremiaResults = await calculateTotalPremia(selectedAgentId, promotionId, selectedWorkerIdFilter);
-             console.log('fetchDataGoalsForWorker:', totalPremiaResults);
+            console.log('Total Premia Results in fetch:', totalPremiaResults); // Log the results for debugging
             const promotionName = promotionNames[promotionId] || 'Unknown Promotion';
             const goalTypeName = goalsTypeMap[goalsTypeId] || 'Unknown Goal Type';
-    
+     
+
+  // Determine target values from the goal data
+  const targetGoal = amaunt; // Use amaunt from goalsSuccess as the target goal
+  const totalStars = totalPremiaResults.totalStars || 0; // Total stars from calculations
+  const totalPremia = totalPremiaResults.productGroup
+  ? totalPremiaResults.totals[totalPremiaResults.productGroup] || 0
+  : 0;
+  console.log('gtotalPremiaResults goalsTypeId:', goalsTypeId);
+  // Debugging output
+  console.log(`Target Goal: ${targetGoal}, Total Stars: ${totalStars}, Total Premia: ${totalPremia}`);
+
+
+
+  // Calculate the achievement rate (עמידה ביעד)
+  const achievementRate = goalTypeName === "כוכבים" 
+      ? (totalStars > 0 ? (totalStars / targetGoal) * 100 : 0) // Calculate based on stars
+      : (totalPremia > 0 ? (totalPremia / targetGoal) * 100 : 0); // Calculate based on premia
+
+
+       
+
+
             return {
                 promotionName,
                 amaunt,
                 goalTypeName: goalsTypeMap[goalsTypeId],
                 totalPremia: totalPremiaResults.totals,
-                totalStars: totalPremiaResults.totalStars // Capture totalStars here
+                totalStars: totalPremiaResults.totalStars ,// Capture totalStars here
+                achievementRate // Include the calculated achievement rate
+
             };
         }));
         setGoalData(data);

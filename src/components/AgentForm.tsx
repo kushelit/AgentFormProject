@@ -872,6 +872,7 @@ useEffect(() => {
             <th>מבצע</th>
             <th>יעד</th>
             <th>עמידה ביעד</th>
+            <th>אחוז עמידה</th> 
         </tr>
     </thead>
     <tbody>
@@ -893,6 +894,9 @@ useEffect(() => {
                                 ) : <div>No Data</div>
                             )
                         }
+                    </td>
+                    <td>
+                        {item.achievementRate !== undefined ? `${item.achievementRate.toFixed(2)}%` : 'N/A'}
                     </td>
                 </tr>
             ))
