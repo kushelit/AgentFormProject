@@ -107,7 +107,9 @@ function useSalesData(selectedAgentId: string, selectedWorkerIdFilter: string, s
 
                 generalQuerySnapshot.forEach(doc => {
                     const data = doc.data();
-                    const month = data.mounth;
+                 //   const month = data.mounth;
+                 const date = new Date(data.mounth);
+                const month = `${date.getMonth() + 1}`.padStart(2, '0') + '/' + date.getFullYear().toString().slice(2);
                     if (!newMonthlyTotals[month]) {
                         newMonthlyTotals[month] = { finansimTotal: 0, pensiaTotal: 0, insuranceTotal: 0, niudPensiaTotal: 0, commissionHekefTotal: 0, commissionNifraimTotal: 0 };
                     }
@@ -116,7 +118,9 @@ function useSalesData(selectedAgentId: string, selectedWorkerIdFilter: string, s
 
                 commissionQuerySnapshot.forEach(doc => {
                     const data = doc.data();
-                    const month = data.mounth;
+                  //  const month = data.mounth;
+                  const date = new Date(data.mounth);
+                const month = `${date.getMonth() + 1}`.padStart(2, '0') + '/' + date.getFullYear().toString().slice(2);
                     if (newMonthlyTotals[month]) {
                         updateCommissions(data, newMonthlyTotals[month], productMap[data.product]);
                     }

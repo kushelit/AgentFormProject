@@ -443,11 +443,14 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
     }
   };
 
+
+
   const handleIDChange: ChangeEventHandler<HTMLInputElement> = (e) => {
     const value = e.target.value;
     // Allow only numbers
     const onlyNums = value.replace(/[^0-9]/g, '').slice(0, 9);
     setIDCustomer(onlyNums);
+
   };
 
   const canSubmit = useMemo(() => (
@@ -494,7 +497,7 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
     setinsPremia(onlyNums);
   };
 
-  const handleExpiryDateChange : ChangeEventHandler<HTMLInputElement> = (e) => {
+  const handleExpiryDateChangeOld : ChangeEventHandler<HTMLInputElement> = (e) => {
     const { value } = e.target;
     let formattedValue = value; 
     // Remove all non-digit characters
@@ -508,6 +511,10 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
     } 
     setmounth(formattedValue);
   };
+
+  const handleExpiryDateChange = (e: React.ChangeEvent<HTMLInputElement>) => setmounth(e.target.value);
+
+
 
 
   useEffect(() => {
@@ -618,7 +625,7 @@ useEffect(() => {
                         inputMode="numeric" maxLength={9} 
                         value={IDCustomer} 
                         onChange={handleIDChange} 
-                       disabled={!!IDCustomer}  />
+                        disabled={isEditing}  />
                     </td>
                 </tr>
                 <tr>
@@ -692,7 +699,7 @@ useEffect(() => {
                         <label htmlFor="expiryDate">תאריך תפוקה (MM/YY)</label>
                     </td>
                     <td>
-                        <input type="text" id="expiryDate" name="expiryDate" placeholder="MM/YY" maxLength={5} value={mounth} onChange={handleExpiryDateChange} />
+                        <input type="date" id="expiryDate" name="expiryDate" value={mounth} onChange={handleExpiryDateChange} />
                     </td>
                 </tr>
                 <tr>
@@ -865,6 +872,8 @@ useEffect(() => {
       
 </div>
 <div>
+              {/** 
+
             <h2>עמידה ביעדים</h2>
             <table>
     <thead>
@@ -878,7 +887,7 @@ useEffect(() => {
     <tbody>
         {isLoading ? (
             <tr>
-                <td  colSpan={3}>Loading...</td>
+                <td  colSpan={4}>Loading...</td>
             </tr>
         ) : goalData.length > 0 ? (
             goalData.map((item, index) => (
@@ -902,11 +911,12 @@ useEffect(() => {
             ))
         ) : (
             <tr>
-                <td colSpan={3}>No Data</td>
+                <td colSpan={4}>No Data</td>
             </tr>
         )}
     </tbody>
-</table>
+</table> 
+**/}
         </div>
       </div>
     </div>

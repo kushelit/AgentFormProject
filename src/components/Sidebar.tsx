@@ -15,7 +15,7 @@ const pages = [
   { href: '/Customer', label: 'לקוחות' },
   { href: '/summaryTable', label: 'דף מרכז' },
   { href: '/ManageWorkers', label: 'ניהול עובדים' },
-  { href: '/Goals', label: 'ניהול יעדים ומבצעים' },
+ // { href: '/Goals', label: 'ניהול יעדים ומבצעים' },
   { href: '/ContractsHub', label: 'עמלות' , submenu: [
     { href: '/ContractsHub/ManageContracts', label: 'ניהול עמלות' },
     { href: '/ContractsHub/Simulation', label: 'סימולטור' }
