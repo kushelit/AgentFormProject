@@ -872,7 +872,7 @@ useEffect(() => {
       
 </div>
 <div>
-              {/** 
+              
 
             <h2>עמידה ביעדים</h2>
             <table>
@@ -916,7 +916,7 @@ useEffect(() => {
         )}
     </tbody>
 </table> 
-**/}
+
         </div>
       </div>
     </div>

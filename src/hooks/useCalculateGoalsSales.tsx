@@ -6,6 +6,10 @@ import useGoalsMD from "@/hooks/useGoalsMD";
 import useFetchMD from "@/hooks/useMD";
 import useFetchAgentData from "@/hooks/useFetchAgentData";
 
+import { Timestamp } from 'firebase/firestore';
+
+
+
 function useCalculateSalesData() {
     const { user, detail } = useAuth();
     const [goalData, setGoalData] = useState<GoalData[]>([]);
@@ -13,6 +17,9 @@ function useCalculateSalesData() {
     const { goalsTypeList, goalsTypeMap } = useGoalsMD();
     const { productMap } = useFetchMD();
     const { selectedAgentId, selectedWorkerIdFilter } = useFetchAgentData();
+    const [promotionDetails, setPromotionDetails] = useState<PromotionDetails>({});
+    
+    const [promotionNames, setPromotionNames] = useState<PromotionNames>({});
 
 
     type ProductMap = {
@@ -53,18 +60,32 @@ function useCalculateSalesData() {
         '4': 'finansimPremia'
     }), []);
 
-    const [promotionNames, setPromotionNames] = useState<PromotionNames>({});
+    type PromotionDetails = {
+        [key: string]: {
+            name: string;
+            startDate: Date;
+            endDate: Date;
+        };
+    };
+
     
     const fetchPromotions = useCallback(async () => {
         const querySnapshot = await getDocs(collection(db, 'promotion'));
-        const promotions: PromotionNames = {}; // Declare promotions with the PromotionNames type
+        const promotions: PromotionDetails = {}; // Correctly typed now
         querySnapshot.forEach(doc => {
-            promotions[doc.id] = doc.data().promotionName;
+            const data = doc.data();
+            promotions[doc.id] = {
+                name: data.promotionName,
+                startDate: data.promotionStartDate,
+                endDate: data.promotionEndDate
+            };
         });
-        setPromotionNames(promotions);
+        console.log('startDate:', promotions);
+        setPromotionDetails(promotions); // Correctly named function to set state
         console.log('Promotions:', promotions);
     }, []);
-   
+
+
     useEffect(() => {
         fetchPromotions();
     }, [fetchPromotions]);
@@ -76,8 +97,11 @@ function useCalculateSalesData() {
             let totalStars = 0; // Initialize totalStars to 0
             let productGroup = ""; // Initialize productGroup
 
-
-            console.log('promotionId:', promotionId);
+            const promotion = promotionDetails[promotionId];
+            if (!promotion) {
+                console.error('Promotion details not found for:', promotionId);
+                return { totals: groupTotals, totalStars };
+            }
     
             let goalQueryConditions = [
                 where('AgentId', '==', agentId),
@@ -105,7 +129,7 @@ function useCalculateSalesData() {
                 }
             
                 if (goalDetails.id === '4') {
-                    const { totals, totalStarsInsideFunc } = await calculateTypeFourPremia(agentId, promotionId, workerId);
+                    const { totals, totalStarsInsideFunc } = await calculateTypeFourPremia(agentId, promotionId, workerId,promotionDetails);
                     console.log(`Total stars for type '4':`, totalStarsInsideFunc);
                     totalStars += totalStarsInsideFunc; // Accumulate stars earned from type '4'
                     Object.assign(groupTotals, totals); // Merge type '4' totals with existing groupTotals
@@ -118,7 +142,13 @@ function useCalculateSalesData() {
                     return;  // Again, return early to skip further processing
                 }
                 const productsInGroup = Object.keys(productMap).filter(key => productMap[key] === goalDetails.productGroup);
-                let salesQuery = query(collection(db, 'sales'), where('product', 'in', productsInGroup));
+                
+                let salesQuery = query(collection(db, 'sales'), where
+                ('product', 'in', productsInGroup),
+                where('mounth', '>=', promotion.startDate),
+                where('mounth', '<=', promotion.endDate)
+            
+            );
                 if (workerId) {
                     salesQuery = query(salesQuery, where('workerId', '==', workerId));
                 }
@@ -140,7 +170,7 @@ function useCalculateSalesData() {
 
             return { totals: groupTotals, totalStars,productGroup  }; // Return the accumulated totals and stars
         },
-        [goalsTypeList, productMap, premiaFieldsMap] // Dependency array
+        [goalsTypeList, productMap, premiaFieldsMap, promotionDetails] 
     );
 
     const fetchDataGoalsForWorker = useCallback(async (selectedAgentId: string, selectedWorkerIdFilter?: string) => {
@@ -159,7 +189,9 @@ function useCalculateSalesData() {
             const { promotionId, amaunt, goalsTypeId } = doc.data() as { promotionId: string, amaunt: number, goalsTypeId: string };
             const totalPremiaResults = await calculateTotalPremia(selectedAgentId, promotionId, selectedWorkerIdFilter);
             console.log('Total Premia Results in fetch:', totalPremiaResults); // Log the results for debugging
-            const promotionName = promotionNames[promotionId] || 'Unknown Promotion';
+            const promotionName = promotionDetails[promotionId]?.name || 'Unknown Promotion';
+
+          //  const promotionName = promotionNames[promotionId] || 'Unknown Promotion';
             const goalTypeName = goalsTypeMap[goalsTypeId] || 'Unknown Goal Type';
      
 
@@ -176,7 +208,7 @@ function useCalculateSalesData() {
 
 
   // Calculate the achievement rate (עמידה ביעד)
-  const achievementRate = goalTypeName === "כוכבים" 
+       const achievementRate = goalTypeName === "כוכבים" 
       ? (totalStars > 0 ? (totalStars / targetGoal) * 100 : 0) // Calculate based on stars
       : (totalPremia > 0 ? (totalPremia / targetGoal) * 100 : 0); // Calculate based on premia
 
@@ -199,10 +231,17 @@ function useCalculateSalesData() {
 
     
 
-    const calculateTypeFourPremia = async (agentId: string, promotionId: string, workerId: string) => {
+    const calculateTypeFourPremia = async (agentId: string, promotionId: string, workerId: string, promotionDetails : PromotionDetails) => {
         console.log('Executing calculateTypeFourPremia:');
         console.log('Parameters:', agentId, promotionId, workerId);
     
+ // Access the promotion period from promotionDetails
+ const promotion = promotionDetails[promotionId];
+ if (!promotion) {
+     console.error('Promotion details not found for:', promotionId);
+     return { totals: {}, totalStarsInsideFunc: 0 };
+ }
+
         let totalStarsInsideFunc = 0;  // Initialize total stars to zero
         const typeOneGroupTotals: GroupTotals = {};  // This will store the stars per group
     
@@ -239,7 +278,17 @@ function useCalculateSalesData() {
             }
     
             const productsInGroup = Object.keys(productMap).filter(key => productMap[key] === group);
-            const salesQuery = query(collection(db, 'sales'), where('product', 'in', productsInGroup), where('workerId', '==', workerId));
+          
+    
+          
+    console.log('Promotion Start Date:', promotion.startDate);
+    console.log('Promotion End Date:', promotion.endDate);
+  
+            const salesQuery = query(collection(db, 'sales'),
+            where('product', 'in', productsInGroup),
+            where('mounth', '>=', promotion.startDate),
+            where('mounth', '<=', promotion.endDate),
+            where('workerId', '==', workerId));
             const salesSnapshot = await getDocs(salesQuery);
             const totalPremia = salesSnapshot.docs.reduce((sum, doc) => sum + parseFloat(doc.data()[premiaField] || 0), 0);
     
