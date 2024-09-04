@@ -28,6 +28,8 @@ const useFetchAgentData = () => {
   const [selectedWorkerName, setSelectedWorkerName] = useState("")
   const [companies, setCompanies] = useState<string[]>([]);
   const [selectedCompany, setSelectedCompany] = useState('');
+  const [selectedWorkerIdGoals, setSelectedWorkerIdGoals] = useState("");
+  const [selectedWorkerNameGoal, setSelectedWorkerNameGoal] = useState("")
 
 
   const [selectedWorkerIdFilter, setSelectedWorkerIdFilter] = useState("");
@@ -125,16 +127,20 @@ const useFetchAgentData = () => {
 
 
 
-  const handleWorkerChange = (event: React.ChangeEvent<HTMLSelectElement> , updateType: 'insert' | 'filter') => {
+  const handleWorkerChange = (event: React.ChangeEvent<HTMLSelectElement> , updateType: 'insert' | 'filter' | 'goal') => {
     const selectedOption = event.target.options[event.target.selectedIndex];
     if (updateType === 'insert') {
     setSelectedWorkerId(selectedOption.value); // Update the ID of the selected worker
     setSelectedWorkerName(selectedOption.text); // Update the name of the selected worker
     }
-    else {
+    else if (updateType === 'filter') {
       setSelectedWorkerIdFilter(selectedOption.value); 
       setSelectedWorkerNameFilter(selectedOption.text); 
     //  handleCalculate().catch(console.error); 
+    }
+    else if (updateType === 'goal') {
+      setSelectedWorkerIdGoals(selectedOption.value); 
+      setSelectedWorkerNameGoal(selectedOption.text);
     }
   };
 
@@ -198,7 +204,11 @@ const useFetchAgentData = () => {
   setSelectedCompanyFilter,
   fetchWorkersForSelectedAgent,
   workerNameMap,
-  setSelectedWorkerIdFilter
+  setSelectedWorkerIdFilter,
+  selectedWorkerIdGoals, 
+  setSelectedWorkerIdGoals,
+  selectedWorkerNameGoal, 
+  setSelectedWorkerNameGoal,
   //handleCalculate
   // Any other states or functions you might be using
 };

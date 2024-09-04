@@ -17,14 +17,15 @@
 
 
 
-.table-container {
+ /*.table-container {
   max-height: 300px; /* Adjust based on your preference */
-  overflow-y: auto;
-  border: 1px solid #ccc;
-  margin-bottom:6px;
+ /* overflow-y: auto;*/
+ /* border: 1px solid #ccc;*/
+  /*margin-bottom:6px;
+  }*/
   
 
-}
+
 
 table {
   width: 100%;
@@ -65,6 +66,7 @@ h2 {
   /* Makes the font bold */
   color: black;
   /* Black font color */
+  text-align: right;
 }
 
 .title {
@@ -88,9 +90,6 @@ label {
   text-align: right; /* Ensures the text is right-aligned next to the input/select */
 }
 
-
-
-/* Remove the empty ruleset */
 
 button:disabled {
   color: gray; /* Text color for disabled buttons */
@@ -154,6 +153,13 @@ tr {
   height: auto; /* Allows row height to adjust based on content and padding */
 }
 
+.table-container{
+
+  display: flex;
+  justify-content: center; /* Centers  horizontally */
+  align-items: center; /* Aligns  vertically */
+  padding: 10px 0; /* Padding above and below the button row */
+}
 
 .select-container {
   display: flex;
@@ -161,6 +167,19 @@ tr {
   align-items: center; /* Aligns  vertically */
   padding: 10px 0; /* Padding above and below the button row */
 }
+
+.table-container select,
+.table-container input 
+{
+  width: 100%; /* Reduce width to make inputs/selects shorter */
+  padding: 0.25em 0.5em; /* Adjust padding as needed */
+  font-size: 12px; /* Maintain the font size or adjust as necessary */
+  margin: auto; /* Center the inputs/selects within the cell */
+  display: block; /* Ensures the input/select fills the width defined */
+  text-align: center; /* Center text inside the inputs/selects */
+  height:30px; /* Adjust height to better fit in the table row, can adjust as needed */
+}
+
 
 .select-container select,
 .select-container input 
@@ -172,4 +191,14 @@ tr {
   display: block; /* Ensures the input/select fills the width defined */
   text-align: center; /* Center text inside the inputs/selects */
   height:30px; /* Adjust height to better fit in the table row, can adjust as needed */
+}
+
+.data-container select {
+  width: 100px; /* Reduce width to make inputs/selects shorter */
+  padding: 0.25em 0.5em; /* Adjust padding as needed */
+  font-size: 12px; /* Maintain the font size or adjust as necessary */
+  margin: 0 0 0 auto; /* Push the select box to the right */
+  display: block; /* Ensures the input/select fills the width defined */
+  text-align: center; /* Align text inside the inputs/selects to the right */
+  height: 30px; /* Adjust height to better fit in the table row, can adjust as needed */
 }
