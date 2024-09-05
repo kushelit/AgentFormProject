@@ -570,15 +570,15 @@ useEffect(() => {
  
 
   return (
-    <div className="content-container">
-      <div className="form-container">
+    <div className="content-container-AgentForm">
+      <div className="form-container-AgentForm">
         <form onSubmit={handleSubmit}>
       <table>
         <div className="scrollable-tbody">
           <tbody>
           <tr>
             <td>
-                        <label htmlFor="agentSelect">סוכנות</label>
+               <label htmlFor="agentSelect">סוכנות</label>
              </td>
              <td>
               <select onChange={handleAgentChange} value={selectedAgentId}>
@@ -753,7 +753,7 @@ useEffect(() => {
       </div>
     
      
-      <div className="data-container">
+      <div className="data-container-AgentForm">
       <h2>עמידה ביעדים</h2>
       <select id="worker-select-goals" value={selectedWorkerIdGoals} 
        onChange={(e) => handleWorkerChange(e, 'goal')}>
@@ -764,7 +764,7 @@ useEffect(() => {
       </select>
       
             
-      <div className="select-container" >
+      <div className="select-container-AgentForm" >
             <table>
     <thead>
         <tr>
@@ -810,13 +810,11 @@ useEffect(() => {
       </div>
        {/* First Frame 
         {agentData.length > 0 ? (*/}
-        <div className="table-container" >
           <div className="table-header" style={{ textAlign: 'right' }}>
        <h2>עסקאות</h2>
        </div>
-          </div>
          {/*        ) : <p>No data available for the selected agent.</p>} */}
-           <div className="table-container" style={{ overflowX: 'auto', maxHeight: '300px' }}>
+           <div className="table-container-AgentForm" style={{ overflowX: 'auto', maxHeight: '300px' }}>
            <input
        type="text"
        placeholder="שם פרטי"
