@@ -756,7 +756,7 @@ useEffect(() => {
       <div className="data-container-AgentForm">
       <h2>עמידה ביעדים</h2>
       <select id="worker-select-goals" value={selectedWorkerIdGoals} 
-       onChange={(e) => handleWorkerChange(e, 'goal')}>
+       onChange={(e) => handleWorkerChange(e, 'goal')} disabled={!!(detail && detail.role === 'worker')}>
         <option value="">כל העובדים</option>
         {workers.map(worker => (
           <option key={worker.id} value={worker.id}>{worker.name}</option>
