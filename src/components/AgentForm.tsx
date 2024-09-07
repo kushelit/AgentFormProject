@@ -881,7 +881,7 @@ useEffect(() => {
             
         
 </div>
-<div>
+<div style={{ overflowX: 'auto', maxHeight: '300px' }}>
               
 <table>
             <thead>
