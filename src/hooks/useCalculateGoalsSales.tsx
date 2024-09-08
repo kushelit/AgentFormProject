@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { collection, getDocs, query, where } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, query, where } from 'firebase/firestore';
 import { db } from "@/lib/firebase/firebase";
 import { useAuth } from '@/lib/firebase/AuthContext';
 import useGoalsMD from "@/hooks/useGoalsMD";
@@ -57,7 +57,7 @@ function useCalculateSalesData() {
     const premiaFieldsMap = useMemo<PremiaFieldsMap>(() => ({
         '1': 'pensiaPremia',
         '3': 'insPremia',
-        '4': 'finansimPremia'
+        '4': 'finansimZvira'
     }), []);
 
     type PromotionDetails = {
@@ -92,10 +92,10 @@ function useCalculateSalesData() {
 
 
     const calculateTotalPremia = useCallback(
-        async (agentId: string, promotionId: string, workerId: string) => {
+        async (agentId: string, promotionId: string, workerId: string, docId: string): Promise<{ totals: GroupTotals; totalStars: number; productGroup?: string }> => {
             const groupTotals: GroupTotals = {};
             let totalStars = 0; // Initialize totalStars to 0
-            let productGroup = ""; // Initialize productGroup
+            let productGroup : string | undefined;
 
             const promotion = promotionDetails[promotionId];
             if (!promotion) {
@@ -103,43 +103,60 @@ function useCalculateSalesData() {
                 return { totals: groupTotals, totalStars };
             }
     
-            let goalQueryConditions = [
-                where('AgentId', '==', agentId),
-                where('promotionId', '==', promotionId)
-            ];
-            if (workerId) {
-                goalQueryConditions.push(where('workerId', '==', workerId));
-            }
-            console.log('goalQueryConditions:', goalQueryConditions);
-            const specificGoalQuery = query(collection(db, 'goalsSuccess'), ...goalQueryConditions);
-            const goalSnapshot = await getDocs(specificGoalQuery);
+      //      let goalQueryConditions = [
+       //         where('AgentId', '==', agentId),
+        //        where('promotionId', '==', promotionId),
+        //    ];
+       //     if (workerId) {
+       //         goalQueryConditions.push(where('workerId', '==', workerId));
+       //     }
+//     console.log('goalQueryConditions:', goalQueryConditions);
+          //  const specificGoalQuery = query(collection(db, 'goalsSuccess'), ...goalQueryConditions);
+         //   const goalSnapshot = await getDocs(specificGoalQuery);
     
-            if (goalSnapshot.empty) {
-                console.log('No goals found for the specified criteria');
-                return { totals: groupTotals, totalStars }; // Ensure to return both totals and stars
-            }
+        //    if (goalSnapshot.empty) {
+        //        console.log('No goals found for the specified criteria');
+       //         return { totals: groupTotals, totalStars }; // Ensure to return both totals and stars
+       //     }
     
-            await Promise.all(goalSnapshot.docs.map(async (doc) => {
-                const goalData = doc.data();
-                const goalDetails = goalsTypeList.find(type => type.id === goalData.goalsTypeId);
+       //     await Promise.all(goalSnapshot.docs.map(async (doc) => {
+        //        const goalData = doc.data();
+        //        const goalDetails = goalsTypeList.find(type => type.id === goalData.goalsTypeId);
             
-                if (!goalDetails) {
-                    console.error('Goal details not found for:', goalData.goalsTypeId);
-                    return;  // Skip this iteration by returning early from the async function
-                }
-            
+   //             if (!goalDetails) {
+   //                 console.error('Goal details not found for:', goalData.goalsTypeId);
+   //                 return;  // Skip this iteration by returning early from the async function
+   //             }
+             // Assuming docId is the Firestore document ID for direct document retrieval
+
+             // new **
+        const docRef = doc(db, 'goalsSuccess', docId);
+        const docSnapshot = await getDoc(docRef);
+        if (!docSnapshot.exists()) {
+            console.log('No goals found for the specified docId');
+            return { totals: groupTotals, totalStars };
+        }
+        const goalData = docSnapshot.data();
+        const goalDetails = goalsTypeList.find(type => type.id === goalData.goalsTypeId);
+
+        if (!goalDetails) {
+            console.error('Goal details not found for:', goalData.goalsTypeId);
+            return { totals: groupTotals, totalStars };
+        }
+
+// new **
                 if (goalDetails.id === '4') {
                     const { totals, totalStarsInsideFunc } = await calculateTypeFourPremia(agentId, promotionId, workerId,promotionDetails);
                     console.log(`Total stars for type '4':`, totalStarsInsideFunc);
                     totalStars += totalStarsInsideFunc; // Accumulate stars earned from type '4'
                     Object.assign(groupTotals, totals); // Merge type '4' totals with existing groupTotals
-                    return; // Exit this iteration early
+                //    return; // Exit this iteration early
                 }
     
                 const premiaField = premiaFieldsMap[goalDetails.productGroup];
                 if (!premiaField) {
                     console.error(`Premia field not defined for product group ${goalDetails.productGroup}`);
-                    return;  // Again, return early to skip further processing
+                    return { totals: groupTotals, totalStars, productGroup }; // Still return an object matching the type
                 }
                 const productsInGroup = Object.keys(productMap).filter(key => productMap[key] === goalDetails.productGroup);
                 
@@ -161,7 +178,7 @@ function useCalculateSalesData() {
 
                  productGroup = goalDetails.productGroup; // Set productGroup based on goalDetails
 
-            }));
+         //   }));
     
             console.log(`Total premia for specified criteria: ${JSON.stringify(groupTotals)}`);
             console.log(`Total stars accumulated: ${totalStars}`);
@@ -173,6 +190,9 @@ function useCalculateSalesData() {
         [goalsTypeList, productMap, premiaFieldsMap, promotionDetails] 
     );
 
+
+
+    
     const fetchDataGoalsForWorker = useCallback(async (selectedAgentId: string, selectedWorkerIdFilter?: string) => {
        console.log('Executing fetchDataGoalsForWorker:');
         if (!selectedAgentId || !selectedWorkerIdFilter) {
@@ -187,7 +207,9 @@ function useCalculateSalesData() {
         const querySnapshot = await getDocs(salesQuery);
         const data = await Promise.all(querySnapshot.docs.map(async (doc) => {
             const { promotionId, amaunt, goalsTypeId } = doc.data() as { promotionId: string, amaunt: number, goalsTypeId: string };
-            const totalPremiaResults = await calculateTotalPremia(selectedAgentId, promotionId, selectedWorkerIdFilter);
+            const docId = doc.id; // This is the unique identifier for the goal
+
+            const totalPremiaResults = await calculateTotalPremia(selectedAgentId, promotionId, selectedWorkerIdFilter, docId);
             console.log('Total Premia Results in fetch:', totalPremiaResults); // Log the results for debugging
             const promotionName = promotionDetails[promotionId]?.name || 'Unknown Promotion';
 
@@ -211,9 +233,6 @@ function useCalculateSalesData() {
        const achievementRate = goalTypeName === "כוכבים" 
       ? (totalStars > 0 ? (totalStars / targetGoal) * 100 : 0) // Calculate based on stars
       : (totalPremia > 0 ? (totalPremia / targetGoal) * 100 : 0); // Calculate based on premia
-
-
-       
 
 
             return {
@@ -250,28 +269,27 @@ function useCalculateSalesData() {
             collection(db, 'stars'),
             where('promotionId', '==', promotionId),
             where('AgentId', '==', agentId)
-        );
-    
+        );  
         const starSnapshot = await getDocs(starQuery);
         if (starSnapshot.empty) {
             console.log('No star data found for the specified criteria');
             return { totals: {}, totalStarsInsideFunc };  // No data found, return zeros
-        }
-    
+        }   
         // Assuming there's at least one document
         const starData = starSnapshot.docs[0].data();
-        console.log('Star Data:', starData);
-    
+        console.log('Star Data:', starData);    
         // Define the fields that correspond to each group's star rating
         const fields = {
             '1': 'pensiaStar',
             '3': 'insuranceStar',
             '4': 'finansimStar'
         };
-    
         // Calculate stars for each group
         for (const [group, field] of Object.entries(fields)) {
+            console.log('Current group:', group); // Check what 'group' is currently processed
+
             const premiaField = premiaFieldsMap[group];
+            console.log('Premia Field for group', group, ':', premiaField); // Check mapping result
             if (!premiaField) {
                 console.error(`Premia field not defined for product group ${group}`);
                 continue;  // Skip this group if no mapping is found
