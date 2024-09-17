@@ -69,7 +69,7 @@ function AgentForm() {
     productGroupMap
   } = useFetchMD();
 
-  const {  goalData ,setGoalData, fetchDataGoalsForWorker} = useCalculateSalesData();
+  const {  goalData ,setGoalData, fetchDataGoalsForWorker,calculateDays } = useCalculateSalesData();
 
 
   const searchParams = useSearchParams();
@@ -772,15 +772,18 @@ useEffect(() => {
             <th>יעד</th>
             <th>ביצוע</th>
             <th>אחוז עמידה</th> 
+           {/**  <th>זמן נותר</th>**/}
+            <th>זמן עבר</th>
         </tr>
     </thead>
     <tbody>
         {isLoading ? (
             <tr>
-                <td  colSpan={4}>Loading...</td>
+                <td  colSpan={5}>Loading...</td>
             </tr>
         ) : goalData.length > 0 ? (
             goalData.map((item, index) => (
+              
                 <tr key={index}>
                     <td>{item.promotionName}</td>
                     <td>{`${item.amaunt} - ${item.goalTypeName}`}</td>
@@ -795,13 +798,45 @@ useEffect(() => {
                         }
                     </td>
                     <td>
-                        {item.achievementRate !== undefined ? `${item.achievementRate.toFixed(2)}%` : 'N/A'}
+                        {item.achievementRate !== undefined ? (
+                            <div style={{ width: '100%', backgroundColor: '#ddd' }}>
+                                <div style={{
+                                    height: '20px',
+                                    width: `${Math.min(item.achievementRate, 100)}%`, // Cap the width at 100%
+                                    backgroundColor: item.achievementRate >= 100 ? 'green' : 'orange',
+                                    textAlign: 'center',
+                                    lineHeight: '20px',
+                                    color: 'white'
+                                }}>
+                                    {item.achievementRate.toFixed(2)}%
+                                </div>
+                            </div>
+                        ) : 'N/A'}
                     </td>
-                </tr>
+                  {/**  <td>{item.daysLeft ?? 'No Data'}</td>*/}
+                    <td>
+    {/* Ensure calculateDays returns totalDuration and it's properly handled */}
+    {item.daysPassed !== undefined &&  (item.totalDuration ?? 0) > 0 ? (
+        <div style={{ width: '100%', backgroundColor: '#eee' }}
+             title={`תאריך התחלה: ${item.startDate?.toLocaleDateString()} - תאריך סיום: ${item.endDate?.toLocaleDateString()}`}>
+            <div style={{
+                height: '20px',
+                width: `${Math.min((item.daysPassed / (item.totalDuration ?? 0)) * 100, 100)}%`, // Cap at 100% width
+                backgroundColor: item.daysPassed / (item.totalDuration ?? 0) >= 1 ? 'orange' : 'green', // Green if time passed exceeds or equals 100%, orange otherwise
+                textAlign: 'center',
+                lineHeight: '20px',
+                color: 'white'
+            }}>
+                {Math.min((item.daysPassed /  (item.totalDuration ?? 0)) * 100, 100).toFixed(2)}% 
+            </div>
+        </div>
+    ) : 'No Data'}
+</td>
+       </tr>
             ))
         ) : (
             <tr>
-                <td colSpan={4}>No Data</td>
+                <td colSpan={5}>No Data</td>
             </tr>
         )}
     </tbody>

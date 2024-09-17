@@ -39,7 +39,17 @@ function useCalculateSalesData() {
         totalPremia: GroupTotals | ExtendedGroupTotals;  // Use a union type here
         totalStars?: number;
         achievementRate?: number;
+        startDate?: Date;  // This property can be undefined
+        endDate?: Date;    // This property can be undefined
+        daysPassed?: number;  // This property can be undefined
+        daysLeft?: number;    // This property can be undefined
+        totalDuration?: number;  // Adding this to store the total duration of the goal period
+
     }
+
+
+
+
     type ExtendedGroupTotals = {
         totals: GroupTotals;
         totalStars: number;
@@ -92,59 +102,41 @@ function useCalculateSalesData() {
 
 
     const calculateTotalPremia = useCallback(
-        async (agentId: string, promotionId: string, workerId: string, docId: string): Promise<{ totals: GroupTotals; totalStars: number; productGroup?: string }> => {
+        async (agentId: string, promotionId: string, workerId: string, docId: string): Promise<{ totals: GroupTotals; totalStars: number;productGroup: string | null ; startDate?: Date;
+            endDate?: Date;
+            daysPassed?: number;
+            daysLeft?: number;  }> => {
             const groupTotals: GroupTotals = {};
             let totalStars = 0; // Initialize totalStars to 0
-            let productGroup : string | undefined;
+            let productGroup :  string | null = null;
 
             const promotion = promotionDetails[promotionId];
             if (!promotion) {
                 console.error('Promotion details not found for:', promotionId);
-                return { totals: groupTotals, totalStars };
+                return { totals: groupTotals, totalStars , productGroup};
             }
-    
-      //      let goalQueryConditions = [
-       //         where('AgentId', '==', agentId),
-        //        where('promotionId', '==', promotionId),
-        //    ];
-       //     if (workerId) {
-       //         goalQueryConditions.push(where('workerId', '==', workerId));
-       //     }
-//     console.log('goalQueryConditions:', goalQueryConditions);
-          //  const specificGoalQuery = query(collection(db, 'goalsSuccess'), ...goalQueryConditions);
-         //   const goalSnapshot = await getDocs(specificGoalQuery);
-    
-        //    if (goalSnapshot.empty) {
-        //        console.log('No goals found for the specified criteria');
-       //         return { totals: groupTotals, totalStars }; // Ensure to return both totals and stars
-       //     }
-    
-       //     await Promise.all(goalSnapshot.docs.map(async (doc) => {
-        //        const goalData = doc.data();
-        //        const goalDetails = goalsTypeList.find(type => type.id === goalData.goalsTypeId);
-            
-   //             if (!goalDetails) {
-   //                 console.error('Goal details not found for:', goalData.goalsTypeId);
-   //                 return;  // Skip this iteration by returning early from the async function
-   //             }
-             // Assuming docId is the Firestore document ID for direct document retrieval
 
-             // new **
+    // Convert promotion dates from string to Date objects (assuming they are in 'YYYY-MM-DD' format)
+    const startDate = promotion.startDate ? new Date(promotion.startDate) : undefined;
+    const endDate = promotion.endDate ? new Date(promotion.endDate) : undefined;
+    const daysData = startDate && endDate ? calculateDays(startDate, endDate) : {};
+
+
+
+
         const docRef = doc(db, 'goalsSuccess', docId);
         const docSnapshot = await getDoc(docRef);
         if (!docSnapshot.exists()) {
             console.log('No goals found for the specified docId');
-            return { totals: groupTotals, totalStars };
+            return { totals: groupTotals, totalStars, productGroup };
         }
         const goalData = docSnapshot.data();
         const goalDetails = goalsTypeList.find(type => type.id === goalData.goalsTypeId);
 
         if (!goalDetails) {
             console.error('Goal details not found for:', goalData.goalsTypeId);
-            return { totals: groupTotals, totalStars };
+            return { totals: groupTotals, totalStars , productGroup};
         }
-
-// new **
                 if (goalDetails.id === '4') {
                     const { totals, totalStarsInsideFunc } = await calculateTypeFourPremia(agentId, promotionId, workerId,promotionDetails);
                     console.log(`Total stars for type '4':`, totalStarsInsideFunc);
@@ -185,12 +177,15 @@ function useCalculateSalesData() {
 
             console.log(`Final groupTotals: ${JSON.stringify(groupTotals)}`);
 
-            return { totals: groupTotals, totalStars,productGroup  }; // Return the accumulated totals and stars
+            return { totals: groupTotals, totalStars,productGroup }; // Return the accumulated totals and stars
         },
         [goalsTypeList, productMap, premiaFieldsMap, promotionDetails] 
     );
 
-
+// Define a type guard to check if an object is a GoalData
+function isGoalData(item: GoalData | null): item is GoalData {
+    return item !== null;
+}
 
     
     const fetchDataGoalsForWorker = useCallback(async (selectedAgentId: string, selectedWorkerIdFilter?: string) => {
@@ -205,9 +200,9 @@ function useCalculateSalesData() {
             salesQuery = query(salesQuery, where('workerId', '==', selectedWorkerIdFilter));
         }
         const querySnapshot = await getDocs(salesQuery);
-        const data = await Promise.all(querySnapshot.docs.map(async (doc) => {
+        const rawData = await Promise.all(querySnapshot.docs.map(async (doc) => {
             const { promotionId, amaunt, goalsTypeId } = doc.data() as { promotionId: string, amaunt: number, goalsTypeId: string };
-            const docId = doc.id; // This is the unique identifier for the goal
+            const docId = doc.id;
 
             const totalPremiaResults = await calculateTotalPremia(selectedAgentId, promotionId, selectedWorkerIdFilter, docId);
             console.log('Total Premia Results in fetch:', totalPremiaResults); // Log the results for debugging
@@ -227,12 +222,22 @@ function useCalculateSalesData() {
   // Debugging output
   console.log(`Target Goal: ${targetGoal}, Total Stars: ${totalStars}, Total Premia: ${totalPremia}`);
 
-
-
   // Calculate the achievement rate (עמידה ביעד)
        const achievementRate = goalTypeName === "כוכבים" 
       ? (totalStars > 0 ? (totalStars / targetGoal) * 100 : 0) // Calculate based on stars
       : (totalPremia > 0 ? (totalPremia / targetGoal) * 100 : 0); // Calculate based on premia
+
+
+        // Ensure promotionDetails is correctly referenced
+        const promotion = promotionDetails[promotionId];
+        if (!promotion) {
+            console.error('Promotion details not found for:', promotionId);
+            return null; // Skip this entry if promotion details are not found
+        }
+
+        const startDate = new Date(promotion.startDate);
+        const endDate = new Date(promotion.endDate);
+        const { daysPassed, daysLeft, totalDuration } = calculateDays(startDate, endDate);
 
 
             return {
@@ -241,14 +246,22 @@ function useCalculateSalesData() {
                 goalTypeName: goalsTypeMap[goalsTypeId],
                 totalPremia: totalPremiaResults.totals,
                 totalStars: totalPremiaResults.totalStars ,// Capture totalStars here
-                achievementRate // Include the calculated achievement rate
+                achievementRate,
+                startDate,
+                endDate,
+                daysPassed,
+                daysLeft,
+                totalDuration  // Now passing this value
 
             };
         }));
-        setGoalData(data);
+    
+        const data = rawData.filter(isGoalData); // Use the type guard here
+        setGoalData(data.filter(item => item !== null) as GoalData[]);
     }, [selectedAgentId, selectedWorkerIdFilter, calculateTotalPremia, setGoalData, promotionNames, goalsTypeMap]);
 
-    
+
+
 
     const calculateTypeFourPremia = async (agentId: string, promotionId: string, workerId: string, promotionDetails : PromotionDetails) => {
         console.log('Executing calculateTypeFourPremia:');
@@ -292,6 +305,7 @@ function useCalculateSalesData() {
             console.log('Premia Field for group', group, ':', premiaField); // Check mapping result
             if (!premiaField) {
                 console.error(`Premia field not defined for product group ${group}`);
+                console.log('Skipping group:', group);
                 continue;  // Skip this group if no mapping is found
             }
     
@@ -323,8 +337,25 @@ function useCalculateSalesData() {
         return  { totals: typeOneGroupTotals, totalStarsInsideFunc };
     };
     
+    const calculateDays = (startDate?: Date, endDate?: Date): { daysPassed: number, daysLeft: number, totalDuration: number } => {
+        if (!startDate || !endDate) {
+            return { daysPassed: 0, daysLeft: 0, totalDuration: 0 };
+        }
+    
+        const today = new Date();
+        const totalDuration = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+        const daysPassed = Math.floor((today.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+        const daysLeft = Math.ceil((endDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+    
+        return {
+            daysPassed: daysPassed >= 0 ? daysPassed : 0, // Ensure days passed is not negative
+            daysLeft: daysLeft > 0 ? daysLeft : 0, // Ensure days left is not negative
+            totalDuration // Include total duration for the entire period
+        };
+    };
 
-  return { goalData,setGoalData, calculateTotalPremia, fetchDataGoalsForWorker };
+
+  return { goalData,setGoalData, calculateTotalPremia, fetchDataGoalsForWorker,calculateDays  };
 }
 
 export default useCalculateSalesData;
