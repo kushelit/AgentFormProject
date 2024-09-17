@@ -11,6 +11,7 @@ import useFetchAgentData from "@/hooks/useFetchAgentData";
 import useSalesData from "@/hooks/useSalesData"; 
 import useFetchMD from "@/hooks/useMD"; 
 import useCalculateSalesData from "@/hooks/useCalculateGoalsSales"; 
+import confetti from 'canvas-confetti';
 
 
 
@@ -358,6 +359,25 @@ const fetchDataForAgent = async (UserAgentId: string) => {
     setNotes('');
   };
 
+
+
+    // Prepare the audio
+    const celebrationSound = new Audio('/assets/sounds/soundEffect.mp3');
+
+
+  const triggerConfetti = () => {
+    confetti({
+      particleCount: 300,  // A higher count for more confetti particles
+      spread: 180,         // A wider spread
+      startVelocity: 60,   // Higher initial velocity
+      gravity: 1,        // Adjust gravity to make confetti fall slower
+      ticks: 400,          // Longer duration before particles fade out
+      origin: { x: 0.5, y: 0 }, // Origin at the top center of the page
+      colors: ['#ff7f50', '#87cefa', '#daa520', '#32cd32', '#6a5acd'], // Multiple colors for a festive look
+      shapes: ['circle', 'square'],  // Mix shapes for variety
+      scalar: 1.8         // Larger pieces of confetti
+    });
+};
  
 
 const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
@@ -414,13 +434,18 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
 
 
     });
-    alert('עסקת מכירה התווספה בהצלחה');
+    alert('יש!!! עוד עסקה נוספה');
     console.log('Document written with ID:', docRef.id);
     resetForm(); 
     setIsEditing(false);
     if (selectedAgentId) {
       fetchDataForAgent(selectedAgentId);
     }
+ // Trigger confetti on successful submission
+ triggerConfetti();
+  // Play the audio
+  celebrationSound.play();
+
   } catch (error) {
     console.error('Error adding document:', error);
   }
