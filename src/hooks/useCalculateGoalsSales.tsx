@@ -155,7 +155,8 @@ function useCalculateSalesData() {
                 let salesQuery = query(collection(db, 'sales'), where
                 ('product', 'in', productsInGroup),
                 where('mounth', '>=', promotion.startDate),
-                where('mounth', '<=', promotion.endDate)
+                where('mounth', '<=', promotion.endDate),
+                where('minuySochen', '==', false)
             
             );
                 if (workerId) {
@@ -320,6 +321,7 @@ function isGoalData(item: GoalData | null): item is GoalData {
             where('product', 'in', productsInGroup),
             where('mounth', '>=', promotion.startDate),
             where('mounth', '<=', promotion.endDate),
+            where('minuySochen', '==', false),
             where('workerId', '==', workerId));
             const salesSnapshot = await getDocs(salesQuery);
             const totalPremia = salesSnapshot.docs.reduce((sum, doc) => sum + parseFloat(doc.data()[premiaField] || 0), 0);
