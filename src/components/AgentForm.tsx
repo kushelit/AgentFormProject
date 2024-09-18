@@ -585,7 +585,7 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
 
 useEffect(() => {
   // Ensure all necessary data is available before calling handleCalculate
-  if (detail &&  user && detail.role === 'worker' && !selectedWorkerIdGoals) {
+  if (detail &&  user && (detail.role === 'worker' || detail.role === 'agent') && !selectedWorkerIdGoals) {
     // If the user is a worker and no filter is selected, use their own ID
     setSelectedWorkerIdGoals(user.uid);
   } else {
@@ -782,7 +782,7 @@ useEffect(() => {
       <h2>עמידה ביעדים</h2>
       <select id="worker-select-goals" value={selectedWorkerIdGoals} 
        onChange={(e) => handleWorkerChange(e, 'goal')} disabled={!!(detail && detail.role === 'worker')}>
-        <option value="">כל העובדים</option>
+        <option value="">בחר עובד</option>
         {workers.map(worker => (
           <option key={worker.id} value={worker.id}>{worker.name}</option>
         ))}
@@ -811,7 +811,7 @@ useEffect(() => {
               
                 <tr key={index}>
                     <td>{item.promotionName}</td>
-                    <td>{`${item.amaunt} - ${item.goalTypeName}`}</td>
+                    <td>{`${item.amaunt.toLocaleString()} - ${item.goalTypeName}`}</td>
                     <td>
                         {item.goalTypeName === "כוכבים" ?
                             <div>{item.totalStars ? `${item.totalStars}` : 'N/A'}</div> :

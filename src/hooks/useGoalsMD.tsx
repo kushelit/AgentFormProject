@@ -49,25 +49,12 @@ const useGoalsMD = () => {
 };
 
 
- 
 useEffect(() => {
-  console.log('Effect running with agent ID:', selectedAgentId);
-  if (selectedAgentId) {
-    fetchGoalsTypeData(selectedAgentId);
-  } else {
-    console.log('Waiting for agentId to be set...');
-  }
-}, [selectedAgentId]);
+  fetchGoalsTypeData();
+}, []);
 
 
-const fetchGoalsTypeData = async (agentId: string) => {
-  if (!agentId) {
-      console.error('No agentId provided');
-      setGoalsTypeList([]);
-      setGoalsTypeMap({});
-      return;
-  }
-
+const fetchGoalsTypeData = async () => {
   const GoalsTypeQuery = query(collection(db, 'goalsType'));
   try {
       const querySnapshot = await getDocs(GoalsTypeQuery);

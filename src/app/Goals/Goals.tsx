@@ -533,7 +533,7 @@ useEffect(() => {
         <td>{promotionListForStars[item.promotionId] || 'Unknown Promotion'}</td>
         <td>{workerNameMap[item.workerId] || 'Unknown Worker'}</td>         
         <td>{goalsTypeMap[item.goalsTypeId] || 'Unknown goalsType'}</td>         
-          <td>{item.amaunt}</td>
+          <td>{item.amaunt.toLocaleString()}</td>
           <td>{item.status? 'כן' : 'לא'}</td>
         </tr>
         ))}
@@ -712,9 +712,9 @@ useEffect(() => {
           onMouseLeave={() => setHoveredRowId(null)}
           className={`${selectedRowStars && selectedRowStars.id === item.id ? 'selected-row' : ''} ${hoveredRowId === item.id ? 'hovered-row' : ''}`}>
         <td>{promotionListForStars[item.promotionId] || 'Unknown Promotion'}</td>
-        <td>{item.insuranceStar}</td>
-              <td>{item.pensiaStar}</td>
-              <td>{item.finansimStar}</td>
+        <td>{item.insuranceStar.toLocaleString()}</td>
+              <td>{item.pensiaStar.toLocaleString()}</td>
+              <td>{item.finansimStar.toLocaleString()}</td>
                 
           </tr>
         ))}

@@ -121,9 +121,6 @@ function useCalculateSalesData() {
     const endDate = promotion.endDate ? new Date(promotion.endDate) : undefined;
     const daysData = startDate && endDate ? calculateDays(startDate, endDate) : {};
 
-
-
-
         const docRef = doc(db, 'goalsSuccess', docId);
         const docSnapshot = await getDoc(docRef);
         if (!docSnapshot.exists()) {
@@ -156,7 +153,8 @@ function useCalculateSalesData() {
                 ('product', 'in', productsInGroup),
                 where('mounth', '>=', promotion.startDate),
                 where('mounth', '<=', promotion.endDate),
-                where('minuySochen', '==', false)
+                where('minuySochen', '==', false),
+                where('statusPolicy', 'in', ['פעילה', 'הצעה'])
             
             );
                 if (workerId) {
@@ -322,6 +320,7 @@ function isGoalData(item: GoalData | null): item is GoalData {
             where('mounth', '>=', promotion.startDate),
             where('mounth', '<=', promotion.endDate),
             where('minuySochen', '==', false),
+            where('statusPolicy', 'in', ['פעילה', 'הצעה']),
             where('workerId', '==', workerId));
             const salesSnapshot = await getDocs(salesQuery);
             const totalPremia = salesSnapshot.docs.reduce((sum, doc) => sum + parseFloat(doc.data()[premiaField] || 0), 0);
