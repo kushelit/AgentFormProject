@@ -817,7 +817,11 @@ useEffect(() => {
                             <div>{item.totalStars ? `${item.totalStars}` : 'N/A'}</div> :
                             (item.totalPremia && Object.keys(item.totalPremia).length > 0 ?
                                 Object.entries(item.totalPremia).map(([groupId, total]) => 
-                                    <div key={groupId}>{typeof total === 'number' ? total.toFixed(2) : 'Invalid data'}</div>
+                                    <div key={groupId}>
+                                  {typeof total === 'number' ? 
+                        new Intl.NumberFormat('he-IL').format(Math.floor(total)) :
+                                   'Invalid data'}
+                                   </div>
                                 ) : <div>No Data</div>
                             )
                         }
