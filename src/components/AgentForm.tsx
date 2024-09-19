@@ -573,9 +573,12 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
     }
     setIsLoading(true); // Start loading
     const workerIdToFetch = (detail.role === 'worker' && !selectedWorkerIdGoals) ? user.uid : selectedWorkerIdGoals;
-
-    // Check if the user is a worker and the selected worker ID does not match their own ID
-    console.log('Fetching data for worker:', workerIdToFetch);
+    console.log('workerIdToFetch:', workerIdToFetch);
+    if (!workerIdToFetch) {
+        console.error('No worker selected');
+        setIsLoading(false);
+        return;
+    }
     await fetchDataGoalsForWorker(selectedAgentId, workerIdToFetch);
     console.log('Data fetched and table data should be updated now');
     
@@ -783,6 +786,7 @@ useEffect(() => {
       <select id="worker-select-goals" value={selectedWorkerIdGoals} 
        onChange={(e) => handleWorkerChange(e, 'goal')} disabled={!!(detail && detail.role === 'worker')}>
         <option value="">בחר עובד</option>
+        <option value="all-agency">כל הסוכנות</option>
         {workers.map(worker => (
           <option key={worker.id} value={worker.id}>{worker.name}</option>
         ))}
@@ -813,11 +817,14 @@ useEffect(() => {
                     <td>{item.promotionName}</td>
                     <td>{`${item.amaunt.toLocaleString()} - ${item.goalTypeName}`}</td>
                     <td>
+                      
                         {item.goalTypeName === "כוכבים" ?
-                            <div>{item.totalStars ? `${item.totalStars}` : 'N/A'}</div> :
+                            <div>{item.totalStars ? `${item.totalStars}` : 'N/A'}
+                            
+                            </div> :
                             (item.totalPremia && Object.keys(item.totalPremia).length > 0 ?
                                 Object.entries(item.totalPremia).map(([groupId, total]) => 
-                                    <div key={groupId}>
+                                    <div key={groupId} >
                                   {typeof total === 'number' ? 
                         new Intl.NumberFormat('he-IL').format(Math.floor(total)) :
                                    'Invalid data'}

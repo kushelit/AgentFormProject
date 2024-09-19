@@ -27,7 +27,7 @@ const [promotionName, setPromotionName] = useState<string | null>(null);
 const [promotionStatus, setPromotionStatus] =  useState(false);
 const [promotionMonthlyRepeat, setPromotionMonthlyRepeat] =  useState(false);
 const [promotionStartDate, setPromotionStartDate] =  useState('');
-const [promotionEndtDate, setPromotionEndDate] =  useState('');
+const [promotionEndDate, setPromotionEndDate] =  useState('');
 const [promotionList, SetPromotionList] = useState<any[]>([]);
 const [starsList,setStarsList ] = useState<any[]>([]);
 const [insuranceStar, setInsuranceStar] = useState<number | null>(null);
@@ -124,6 +124,10 @@ const fetchGoalsSuccessForAgent = async (UserAgentId: string) => {
 
   const handleRowClick = (item: any) => {
     setSelectedRow(item); 
+    if (item.workerId === 'all-agency') {
+      setSelectedWorkerId('all-agency');
+      setSelectedWorkerName('כל הסוכנות');  
+  } else {
     const workerName = workerNameMap[item.workerId];
     if (workerName) {
         setSelectedWorkerId(item.workerId);
@@ -133,6 +137,7 @@ const fetchGoalsSuccessForAgent = async (UserAgentId: string) => {
         setSelectedWorkerId('');
         setSelectedWorkerName('Unknown Worker');
     }
+  }
     const promotionValue = promotionListForStars[item.promotionId]; 
     if (promotionValue) {
         setPromotionValue(item.promotionId);
@@ -306,7 +311,7 @@ try {
     promotionStatus:!!promotionStatus,
     promotionMonthlyRepeat:!!promotionMonthlyRepeat,
     promotionStartDate,
-    promotionEndtDate
+    promotionEndDate
   });
   console.log("Document successfully updated");
   setSelectedRowPromotion(null); 
@@ -375,7 +380,7 @@ event.preventDefault();
   promotionStatus: promotionStatus,
   promotionMonthlyRepeat: promotionMonthlyRepeat,
   promotionStartDate: promotionStartDate,
-  promotionEndDate : promotionEndtDate,
+  promotionEndDate : promotionEndDate,
 });
 alert('מבצע  התווסף בהצלחה');
 console.log('Document written with ID:', docRef.id);
@@ -453,6 +458,7 @@ useEffect(() => {
                     <select id="worker-select" value={selectedWorkerId} 
                    onChange={(e) => handleWorkerChange(e, 'insert')}>
                  <option value="">כל העובדים</option>
+                 <option value="all-agency">כל הסוכנות</option>
                  {workers.map(worker => (
           <option key={worker.id} value={worker.id}>{worker.name}</option>
         ))}
@@ -531,9 +537,9 @@ useEffect(() => {
           onMouseLeave={() => setHoveredRowId(null)}
           className={`${selectedRow && selectedRow.id === item.id ? 'selected-row' : ''} ${hoveredRowId === item.id ? 'hovered-row' : ''}`}>
         <td>{promotionListForStars[item.promotionId] || 'Unknown Promotion'}</td>
-        <td>{workerNameMap[item.workerId] || 'Unknown Worker'}</td>         
+        <td>{item.workerId === 'all-agency' ? 'כל הסוכנות' : (workerNameMap[item.workerId] || 'Unknown Worker')}</td>
         <td>{goalsTypeMap[item.goalsTypeId] || 'Unknown goalsType'}</td>         
-          <td>{item.amaunt.toLocaleString()}</td>
+          <td>{item.amaunt ? item.amaunt.toLocaleString(): 'N/A'}</td>
           <td>{item.status? 'כן' : 'לא'}</td>
         </tr>
         ))}
@@ -580,7 +586,7 @@ useEffect(() => {
               </tr>
               <tr>
                 <td><label htmlFor="promotionEndDate">תאריך סיום</label></td>
-                <td><input type="date" id="promotionEndDate" name="promotionEndDate" value={promotionEndtDate} onChange={handlePromotionEndDate} /></td>
+                <td><input type="date" id="promotionEndDate" name="promotionEndDate" value={promotionEndDate} onChange={handlePromotionEndDate} /></td>
               </tr>
                     <tr>
                     <td>
@@ -712,9 +718,9 @@ useEffect(() => {
           onMouseLeave={() => setHoveredRowId(null)}
           className={`${selectedRowStars && selectedRowStars.id === item.id ? 'selected-row' : ''} ${hoveredRowId === item.id ? 'hovered-row' : ''}`}>
         <td>{promotionListForStars[item.promotionId] || 'Unknown Promotion'}</td>
-        <td>{item.insuranceStar.toLocaleString()}</td>
-              <td>{item.pensiaStar.toLocaleString()}</td>
-              <td>{item.finansimStar.toLocaleString()}</td>
+        <td>{item.insuranceStar ? item.insuranceStar.toLocaleString(): 'N/A'}</td>
+              <td>{item.pensiaStar ? item.pensiaStar.toLocaleString(): 'N/A'}</td>
+              <td>{item.finansimStar ? item.finansimStar.toLocaleString(): 'N/A'}</td>
                 
           </tr>
         ))}

@@ -30,24 +30,25 @@ function useCalculateSalesData() {
         [productGroup: string]: string; // Mapping product groups to their respective premia fields
     };
 
-
+    interface StarRequirements {
+        [key: string]: number;  // This tells TypeScript that starRequirements uses string keys and number values.
+    }
 
     interface GoalData {
         promotionName: string;
         amaunt: number;
         goalTypeName: string;
-        totalPremia: GroupTotals | ExtendedGroupTotals;  // Use a union type here
+        totalPremia: GroupTotals | ExtendedGroupTotals;  
         totalStars?: number;
         achievementRate?: number;
-        startDate?: Date;  // This property can be undefined
-        endDate?: Date;    // This property can be undefined
-        daysPassed?: number;  // This property can be undefined
-        daysLeft?: number;    // This property can be undefined
-        totalDuration?: number;  // Adding this to store the total duration of the goal period
+        startDate?: Date;  
+        endDate?: Date;    
+        daysPassed?: number;  
+        daysLeft?: number;    
+        totalDuration?: number;  
+        starRequirements?: StarRequirements;  
 
     }
-
-
 
 
     type ExtendedGroupTotals = {
@@ -150,16 +151,18 @@ function useCalculateSalesData() {
                 const productsInGroup = Object.keys(productMap).filter(key => productMap[key] === goalDetails.productGroup);
                 
                 let salesQuery = query(collection(db, 'sales'), where
-                ('product', 'in', productsInGroup),
+                ('AgentId', '==', agentId),
+                where ('product', 'in', productsInGroup),
                 where('mounth', '>=', promotion.startDate),
                 where('mounth', '<=', promotion.endDate),
                 where('minuySochen', '==', false),
                 where('statusPolicy', 'in', ['פעילה', 'הצעה'])
             
             );
-                if (workerId) {
-                    salesQuery = query(salesQuery, where('workerId', '==', workerId));
+            if (workerId && workerId !== 'all-agency') {
+                salesQuery = query(salesQuery, where('workerId', '==', workerId));
                 }
+
                 const salesSnapshot = await getDocs(salesQuery);
                 const totalForGroup = salesSnapshot.docs.reduce((sum, doc) => sum + parseFloat(doc.data()[premiaField] || 0), 0);
                 console.log(`Total for groupppp ${goalDetails.productGroup}:`, totalForGroup);
@@ -265,8 +268,7 @@ function isGoalData(item: GoalData | null): item is GoalData {
     const calculateTypeFourPremia = async (agentId: string, promotionId: string, workerId: string, promotionDetails : PromotionDetails) => {
         console.log('Executing calculateTypeFourPremia:');
         console.log('Parameters:', agentId, promotionId, workerId);
-    
- // Access the promotion period from promotionDetails
+        const starRequirements: StarRequirements = {}; 
  const promotion = promotionDetails[promotionId];
  if (!promotion) {
      console.error('Promotion details not found for:', promotionId);
@@ -315,13 +317,18 @@ function isGoalData(item: GoalData | null): item is GoalData {
     console.log('Promotion Start Date:', promotion.startDate);
     console.log('Promotion End Date:', promotion.endDate);
   
-            const salesQuery = query(collection(db, 'sales'),
+            let salesQuery = query(collection(db, 'sales'),
+            where('AgentId', '==', agentId),
             where('product', 'in', productsInGroup),
             where('mounth', '>=', promotion.startDate),
             where('mounth', '<=', promotion.endDate),
             where('minuySochen', '==', false),
-            where('statusPolicy', 'in', ['פעילה', 'הצעה']),
-            where('workerId', '==', workerId));
+            where('statusPolicy', 'in', ['פעילה', 'הצעה']));
+
+            if (workerId && workerId !== 'all-agency') {
+                salesQuery = query(salesQuery, where('workerId', '==', workerId));
+             }
+
             const salesSnapshot = await getDocs(salesQuery);
             const totalPremia = salesSnapshot.docs.reduce((sum, doc) => sum + parseFloat(doc.data()[premiaField] || 0), 0);
     
@@ -329,6 +336,9 @@ function isGoalData(item: GoalData | null): item is GoalData {
             const starValue = parseFloat(starData[field] || 0);
             const starsEarned = starValue ? Math.floor(totalPremia / starValue) : 0;
     
+            starRequirements[group] = starValue;  // Store star requirements per group
+            console.log('Star Requirements:', starRequirements);
+
             console.log(`Stars earned for group ${group}:`, starsEarned);
             typeOneGroupTotals[group] = starsEarned;
             totalStarsInsideFunc += starsEarned;  // Accumulate total stars
