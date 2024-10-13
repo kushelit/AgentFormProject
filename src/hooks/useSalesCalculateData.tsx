@@ -78,7 +78,11 @@ function useSalesData(selectedAgentId: string, selectedWorkerIdFilter: string, s
 
     const createSalesQuery = (filterMinuySochen  = false) => {
         let salesQuery = query(collection(db, 'sales'), where('statusPolicy', 'in', ['פעילה', 'הצעה']));
-        if (selectedAgentId) salesQuery = query(salesQuery, where('AgentId', '==', selectedAgentId));
+        if (selectedAgentId) {
+            salesQuery = query(salesQuery, where('AgentId', '==', selectedAgentId));
+        }
+       
+       
         if (selectedWorkerIdFilter) salesQuery = query(salesQuery, where('workerId', '==', selectedWorkerIdFilter));
         if (selectedCompany) salesQuery = query(salesQuery, where('company', '==', selectedCompany));
         if (selectedProduct) salesQuery = query(salesQuery, where('product', '==', selectedProduct));

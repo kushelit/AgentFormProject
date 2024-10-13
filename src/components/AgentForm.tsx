@@ -46,6 +46,7 @@ function AgentForm() {
     setSelectedWorkerIdGoals,
     selectedWorkerNameGoal, 
     setSelectedWorkerNameGoal,
+    isLoadingAgent
   } = useFetchAgentData();
 
 
@@ -603,18 +604,25 @@ useEffect(() => {
         <form onSubmit={handleSubmit}>
       <table>
         <div className="scrollable-tbody">
+
           <tbody>
           <tr>
             <td>
                <label htmlFor="agentSelect">סוכנות</label>
              </td>
              <td>
+             {isLoadingAgent ? (
+                <p>Loading agents...</p>
+              ) : (
+
               <select onChange={handleAgentChange} value={selectedAgentId}>
                             {detail?.role === 'admin' && <option value="">בחר סוכן</option>}
                             {agents.map(agent => (
                                 <option key={agent.id} value={agent.id}>{agent.name}</option>
                             ))}
                         </select>
+                        )}
+
                     </td>
                 </tr>
                 <tr>
@@ -768,6 +776,7 @@ useEffect(() => {
             {/** Multiple rows, each with a label and corresponding input/select **/}
           </tbody>
           </div>
+         
         </table>
            <div className="form-group button-group" style={{ display: 'flex' }}>
             <button type="submit" disabled={!canSubmit || isEditing}>

@@ -21,7 +21,16 @@ interface Worker {
 const useFetchAgentData = () => {
   const { user, detail } = useAuth(); // Assuming useAuth() hook correctly provides User | null and Detail | null
   const [agents, setAgents] = useState<{id: string, name: string}[]>([]);
-  const [selectedAgentId, setSelectedAgentId] = useState("");
+ // const [selectedAgentId, setSelectedAgentId] = useState("");
+  
+ const [selectedAgentId, setSelectedAgentId] = useState<string>(() => {
+  if (detail?.role === 'admin') {
+      return ''; // Treat empty string as "all agents" for admins
+  }
+  return detail?.agentId || ''; // Default to the logged-in user's agent ID for other roles
+});
+  
+  
   const [selectedAgentName, setSelectedAgentName] = useState("");
   const [workers, setWorkers] = useState<Worker[]>([]);
   const [selectedWorkerId, setSelectedWorkerId] = useState("");
@@ -37,6 +46,7 @@ const useFetchAgentData = () => {
   const [selectedCompanyFilter, setSelectedCompanyFilter] = useState('');
 
   const [workerNameMap, setWorkerNameMap] = useState<WorkerNameMap>({});
+  const [isLoadingAgent, setIsLoadingAgent] = useState(false);
 
 
  // const { fetchDataGoalsForWorker} = useCalculateSalesData();
@@ -51,6 +61,8 @@ const useFetchAgentData = () => {
 
   useEffect(() => {
     const fetchAgentData = async () => {
+      setIsLoadingAgent(true); // Start loading
+      try {
       if (user && detail?.role === 'admin') {
         const agentsQuery = query(collection(db, 'users'), where('role', '==', 'agent'));
         const querySnapshot = await getDocs(agentsQuery);
@@ -65,13 +77,20 @@ const useFetchAgentData = () => {
         if (agentDocSnap.exists()) {
           const agent = { id: agentDocSnap.id, name: agentDocSnap.data().name as string };
           setAgents([agent]);
-          setSelectedAgentId(agent.id); // Auto-select if only one agent is applicable
+          setSelectedAgentId(agent.id); 
           setSelectedAgentName(agent.name)
           await fetchWorkersForSelectedAgent(detail.agentId);
         } else {
           console.log("No such Agent!");
+          setAgents([]); // Clear agents if none found
+
         }
       }
+    } catch (error) {
+      console.error('Failed to fetch agents:', error);
+      setAgents([]); // Handle error by clearing the agent list
+  }
+  setIsLoadingAgent(false); // End loading
     };
     fetchAgentData();
   }, [user, detail]);
@@ -117,13 +136,20 @@ const useFetchAgentData = () => {
 
   const handleAgentChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
     const { value } = event.target;
-    const selectedAgent = agents.find(agent => agent.id === value);
-  
-    if (selectedAgent) {
-      setSelectedAgentId(selectedAgent.id); 
-      setSelectedAgentName(selectedAgent.name); 
+
+    if (value === '') {
+        // Handle the case for "כל הסוכנים"
+        setSelectedAgentId(''); 
+        setSelectedAgentName('כל הסוכנים');
+    } else {
+        const selectedAgent = agents.find(agent => agent.id === value);
+
+        if (selectedAgent) {
+            setSelectedAgentId(selectedAgent.id);
+            setSelectedAgentName(selectedAgent.name);
+        }
     }
-  };
+};
 
 
 
@@ -209,6 +235,7 @@ const useFetchAgentData = () => {
   setSelectedWorkerIdGoals,
   selectedWorkerNameGoal, 
   setSelectedWorkerNameGoal,
+  isLoadingAgent 
   //handleCalculate
   // Any other states or functions you might be using
 };

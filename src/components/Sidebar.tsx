@@ -23,6 +23,7 @@ const pages = [
 },
   { href: '/Enviorment', label: 'הגדרות מערכת' },
   { href: '/ManageSimulation', label: 'ניהול סימולטור' },
+  { href: '/Log', label: 'לוג מערכת' },
 ];
   
 const Sidebar: React.FC<SidebarProps> = ({ className }) => {
