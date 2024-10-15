@@ -2,7 +2,7 @@
 "use client"
 import React, { useState, useEffect, FormEventHandler, ChangeEventHandler, ChangeEvent, useMemo, useCallback } from 'react';
 import { db } from '@/lib/firebase/firebase';
-import { collection, query, where, getDocs, doc, addDoc, deleteDoc, updateDoc, getDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, addDoc, deleteDoc, updateDoc, getDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
 import './Log.css';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
@@ -71,6 +71,8 @@ const [lastNameCustomerFilter, setlastNameCustomerFilter] = useState('');
 const [minuySochenFilter, setMinuySochenFilter] = useState('');
 const [expiryDateFilter, setExpiryDateFilter] = useState('');
 
+const [timeRange, setTimeRange] = useState('יום'); // Default is 'lastDay'
+const [loading, setLoading] = useState(true);  // Add loading state here
 
 interface Customer {
   id: string;
@@ -98,6 +100,7 @@ interface Sale {
   workerName: string;
   workerId: string;
   notes: string;
+  createdAt: Timestamp;
   // Add other sale fields as necessary
 }
 
@@ -124,6 +127,7 @@ type AgentDataType = {
   workerName: string;
   workerId: string; 
   notes: string; 
+  createdAt: Timestamp;
 };
 
 
@@ -150,30 +154,78 @@ type AgentDataTypeForFetching = {
 
 const [filteredData, setFilteredData] = useState<AgentDataType[]>([]);
 
+// Handler for changing the time range
+const handleTimeRangeChange = (event: { target: { value: React.SetStateAction<string>; }; }) => {
+  setTimeRange(event.target.value);
+};
+
+
+
 useEffect(() => {
- 
-   if (selectedAgentId) {
-     fetchDataForAgent(selectedAgentId);
-   }
- }, [selectedAgentId]); 
+     fetchDataForAgent(selectedAgentId); 
+ }, [selectedAgentId, timeRange]); 
 
 
+ const fetchDataForAgent = async (UserAgentId: string) => {
+  setLoading(true); // Set loading to true when the fetch starts
 
-const fetchDataForAgent = async (UserAgentId: string) => {
-  const customerQuery = query(collection(db, 'customer'), where('AgentId', '==', UserAgentId));
+  let customerQuery;
+  let salesQuery;
+  let dateRangeFilter; // Timestamp to filter based on time range
+
+  // Log timeRange and UserAgentId for debugging
+  console.log("Fetching data for time range:", timeRange, "and agent ID:", UserAgentId);
+
+  // Calculate the appropriate date range based on the selected time range
+  if (timeRange === 'יום') {
+    // Create a new Date object to avoid mutation
+    const oneDayAgo = new Date(); // New Date object for Last Day
+    oneDayAgo.setDate(oneDayAgo.getDate() - 1); // Subtract 1 day
+    dateRangeFilter = Timestamp.fromDate(oneDayAgo);
+  } else if (timeRange === 'שבוע') {
+    // Create a new Date object to avoid mutation
+    const sevenDaysAgo = new Date(); // New Date object for Last Week
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7); // Subtract 7 days
+    dateRangeFilter = Timestamp.fromDate(sevenDaysAgo);
+  }
+
+  // If no specific agent is selected, fetch all data
+  if (UserAgentId) {
+    customerQuery = query(collection(db, 'customer'), where('AgentId', '==', UserAgentId));
+    salesQuery = query(collection(db, 'sales'), where('AgentId', '==', UserAgentId));
+  } else {
+    customerQuery = collection(db, 'customer'); // Fetch all customers
+    salesQuery = collection(db, 'sales'); // Fetch all sales
+  }
+
+  // Apply date filter to salesQuery if a time range is selected (not "all")
+  if (timeRange !== 'all' && dateRangeFilter) {
+    salesQuery = query(
+      salesQuery,
+      where('createdAt', '!=', null), // Ensure createdAt is not null
+      where('createdAt', '>=', dateRangeFilter) // Apply date range filter
+    );
+    console.log('Date range filter applied:', dateRangeFilter); // Debug date range filter
+  }
+
+  // Fetch customer data
   const customerSnapshot = await getDocs(customerQuery);
   const customers: Customer[] = customerSnapshot.docs.map(doc => ({
-    ...doc.data() as Customer, // Spread the customer data first
-    id: doc.id // Then assign the 'id', so it does not get overwritten by doc.data()
+    ...doc.data() as Customer,
+    id: doc.id
   }));
 
-  const salesQuery = query(collection(db, 'sales'), where('AgentId', '==', UserAgentId));
+  // Fetch sales data
   const salesSnapshot = await getDocs(salesQuery);
   const sales: Sale[] = salesSnapshot.docs.map(doc => ({
-    ...doc.data() as Sale, // Spread the sales data first
-    id: doc.id // Then assign the 'id', ensuring it is set correctly
+    ...doc.data() as Sale,
+    id: doc.id
   }));
 
+  // Log sales data for debugging
+  console.log("Fetched sales data:", sales);
+
+  // Combine sales and customer data
   const combinedData: CombinedData[] = sales.map(sale => {
     const customer = customers.find(customer => customer.IDCustomer === sale.IDCustomer);
     return {
@@ -183,30 +235,67 @@ const fetchDataForAgent = async (UserAgentId: string) => {
     };
   });
 
+  // Sort the combined data by the month/year field in descending order
   setAgentData(combinedData.sort((a, b) => {
     const [monthA, yearA] = a.mounth.split('/').map(Number);
     const [monthB, yearB] = b.mounth.split('/').map(Number);
     return (yearB + 2000) - (yearA + 2000) || monthB - monthA; // Adjust sort for descending order
   }));
+
+  setLoading(false); // Set loading to false when the fetch completes
 };
 
-
-
   useEffect(() => {
-    // Filter data based on selected filter values
+
+
+     // Log selectedAgentId to ensure it's empty when "כל הסוכנים" is selected
+  console.log("selectedAgentId: ", selectedAgentId);
+
+  // Ensure agentData contains all agents' data
+  console.log("agentData: ", agentData);
     let data = agentData.filter(item => {
-      return (selectedWorkerIdFilter ? item.workerId === selectedWorkerIdFilter : true) &&
-             (selectedCompanyFilter ? item.company === selectedCompanyFilter : true) &&
-             (selectedProductFilter ? item.product === selectedProductFilter : true) &&
-             item.IDCustomer.includes(idCustomerFilter)&&
-             item.firstNameCustomer.includes(firstNameCustomerFilter)&&
-             item.lastNameCustomer.includes(lastNameCustomerFilter)&&
-             (minuySochenFilter === '' || item.minuySochen.toString() === minuySochenFilter) &&
-             item.mounth.includes(expiryDateFilter)&&
-             (selectedStatusPolicyFilter ? item.statusPolicy === selectedStatusPolicyFilter : true);
-    });
+
+      const matchesAgent = selectedAgentId !== '' ? item.AgentId === selectedAgentId : true;
+      const matchesWorker = selectedWorkerIdFilter ? item.workerId === selectedWorkerIdFilter : true;
+    const matchesCompany = selectedCompanyFilter ? item.company === selectedCompanyFilter : true;
+    const matchesProduct = selectedProductFilter ? item.product === selectedProductFilter : true;
+    const matchesIDCustomer = item.IDCustomer.includes(idCustomerFilter);
+    const matchesFirstName = item.firstNameCustomer.includes(firstNameCustomerFilter);
+    const matchesLastName = item.lastNameCustomer.includes(lastNameCustomerFilter);
+    const matchesMinuySochen = (minuySochenFilter === '' || item.minuySochen.toString() === minuySochenFilter);
+    const matchesMonth = item.mounth.includes(expiryDateFilter);
+    const matchesStatusPolicy = selectedStatusPolicyFilter ? item.statusPolicy === selectedStatusPolicyFilter : true;
+
+    // Return true if all conditions match
+    return (
+      matchesAgent &&
+      matchesWorker &&
+      matchesCompany &&
+      matchesProduct &&
+      matchesIDCustomer &&
+      matchesFirstName &&
+      matchesLastName &&
+      matchesMinuySochen &&
+      matchesMonth &&
+      matchesStatusPolicy
+    );
+  });
+console.log("selectedAgentId "+ selectedAgentId)
+     // Sort the filtered data by createDate in descending order (latest first)
+  data = data.sort((a, b) => {
+    // Ensure createDate exists and is either a Firestore Timestamp or a Date
+    const dateA = a.createdAt instanceof Timestamp ? a.createdAt.toDate() : a.createdAt;
+    const dateB = b.createdAt instanceof Timestamp ? b.createdAt.toDate() : b.createdAt;
+
+    // If createDate doesn't exist, sort it last
+    if (!dateA) return 1;
+    if (!dateB) return -1;
+
+    return dateB.getTime() - dateA.getTime(); // Sort by date, latest first
+  });
+  
     setFilteredData(data);
-  }, [selectedWorkerIdFilter, selectedCompanyFilter, selectedProductFilter, selectedStatusPolicyFilter, agentData, idCustomerFilter, firstNameCustomerFilter, lastNameCustomerFilter, minuySochenFilter, expiryDateFilter]);
+  }, [selectedAgentId, selectedWorkerIdFilter, selectedCompanyFilter, selectedProductFilter, selectedStatusPolicyFilter, agentData, idCustomerFilter, firstNameCustomerFilter, lastNameCustomerFilter, minuySochenFilter, expiryDateFilter]);
 
 
 
@@ -217,27 +306,77 @@ const fetchDataForAgent = async (UserAgentId: string) => {
        
    <div className="table-container" style={{ width: '100%' }}>
 
-       <input
-       type="text"
-       placeholder="שם פרטי"
-       value={firstNameCustomerFilter}
-       onChange={(e) => setfirstNameCustomerFilter(e.target.value)}
-       />
-        <input
-       type="text"
-       placeholder="שם משפחה"
-       value={lastNameCustomerFilter}
-       onChange={(e) => setlastNameCustomerFilter(e.target.value)}
-       />
-      <input
-       type="text"
-       placeholder="תז לקוח"
-       value={idCustomerFilter}
-       onChange={(e) => setIdCustomerFilter(e.target.value)}
-       />
+   <table style={{ width: '100%'  }}>
+            <thead>
+              <tr>
+              <th>תאריך יצירה</th>
+                <th>שם פרטי </th>
+                <th>שם משפחה </th>
+                <th>תז </th>
+                <th>חברה</th>
+                <th>מוצר</th>
+                <th>פרמיה ביטוח</th>
+                <th>פרמיה פנסיה</th>
+                <th>צבירה פנסיה</th>
+                <th>פרמיה פיננסים</th>
+                <th>צבירה פיננסים</th>
+                <th>חודש תפוקה</th>
+                <th> סטאטוס</th>
+                <th>מינוי סוכן</th>
+                <th>שם עובד</th>
+                {/* Add more titles as necessary */}
+              </tr>
+            </thead>
+            <tbody>
+              {filteredData.map((item) => (
+                <tr key={item.id}
       
-
-      <select id="company-Select" value={selectedCompanyFilter} onChange={(e) => setSelectedCompanyFilter(e.target.value)}>
+                 >
+                   <td>{item.createdAt ? item.createdAt.toDate().toLocaleDateString() : 'N/A'}</td>
+                  <td>{item.firstNameCustomer}</td>
+                  <td>{item.lastNameCustomer}</td>
+                  <td>{item.IDCustomer}</td>
+                  <td>{item.company}</td>
+                  <td>{item.product}</td>
+                  <td>{Number(item.insPremia).toLocaleString('en-US')}</td>
+                  <td>{Number(item.pensiaPremia).toLocaleString('en-US')}</td>
+                  <td>{Number(item.pensiaZvira).toLocaleString('en-US')}</td>
+                  <td>{Number(item.finansimPremia).toLocaleString('en-US')}</td>
+                  <td>{Number(item.finansimZvira).toLocaleString('en-US')}</td>
+                  <td>{item.mounth}</td>
+                  <td>{item.statusPolicy}</td>
+                  <td>{item.minuySochen ? 'כן' : 'לא'}</td>
+                  <td>{item.workerName}</td>
+                  {/* Add more data fields as necessary */}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+     
+ <div className="select-container" style={{ overflowX: 'auto', maxHeight: '300px' }}>      
+ 
+ <select value={timeRange} onChange={handleTimeRangeChange}>
+  <option value="lastDay">יום</option>
+  <option value="lastWeek">שבוע</option>
+  <option value="all">הכל</option>
+</select>
+ 
+ 
+ 
+ <select id="agent-select" value={selectedAgentId} onChange={handleAgentChange}>
+        {detail?.role === 'admin' && <option value="">כל הסוכנות</option>}
+        {agents.map(agent => (
+          <option key={agent.id} value={agent.id}>{agent.name}</option>
+        ))}
+      </select>
+      <select id="worker-select" value={selectedWorkerIdFilter} 
+       onChange={(e) => handleWorkerChange(e, 'filter')}>
+        <option value="">כל העובדים</option>
+        {workers.map(worker => (
+          <option key={worker.id} value={worker.id}>{worker.name}</option>
+        ))}
+      </select>
+ <select id="company-Select" value={selectedCompanyFilter} onChange={(e) => setSelectedCompanyFilter(e.target.value)}>
         <option value="">בחר חברה</option>
          {companies.map((companyName, index) => (
          <option key={index} value={companyName}>{companyName}</option>
@@ -271,68 +410,6 @@ const fetchDataForAgent = async (UserAgentId: string) => {
     <option value="true">כן</option>
     <option value="false">לא</option>
   </select>
-
-       <select id="worker-select" value={selectedWorkerIdFilter} 
-       onChange={(e) => handleWorkerChange(e, 'filter')}>
-        <option value="">כל העובדים</option>
-        {workers.map(worker => (
-          <option key={worker.id} value={worker.id}>{worker.name}</option>
-        ))}
-      </select>
-      <select id="agent-select" value={selectedAgentId} onChange={handleAgentChange}>
-        {detail?.role === 'admin' && <option value="">כל הסוכנות</option>}
-        {agents.map(agent => (
-          <option key={agent.id} value={agent.id}>{agent.name}</option>
-        ))}
-      </select>
-      <div className="select-container" >
-
-              
-<table>
-            <thead>
-              <tr>
-                <th>שם פרטי </th>
-                <th>שם משפחה </th>
-                <th>תז </th>
-                <th>חברה</th>
-                <th>מוצר</th>
-                <th>פרמיה ביטוח</th>
-                <th>פרמיה פנסיה</th>
-                <th>צבירה פנסיה</th>
-                <th>פרמיה פיננסים</th>
-                <th>צבירה פיננסים</th>
-                <th>חודש תפוקה</th>
-                <th> סטאטוס</th>
-                <th>מינוי סוכן</th>
-                <th>שם עובד</th>
-                {/* Add more titles as necessary */}
-              </tr>
-            </thead>
-            <tbody>
-              {filteredData.map((item) => (
-                <tr key={item.id}
-      
-                 >
-                  <td>{item.firstNameCustomer}</td>
-                  <td>{item.lastNameCustomer}</td>
-                  <td>{item.IDCustomer}</td>
-                  <td>{item.company}</td>
-                  <td>{item.product}</td>
-                  <td>{Number(item.insPremia).toLocaleString('en-US')}</td>
-                  <td>{Number(item.pensiaPremia).toLocaleString('en-US')}</td>
-                  <td>{Number(item.pensiaZvira).toLocaleString('en-US')}</td>
-                  <td>{Number(item.finansimPremia).toLocaleString('en-US')}</td>
-                  <td>{Number(item.finansimZvira).toLocaleString('en-US')}</td>
-                  <td>{item.mounth}</td>
-                  <td>{item.statusPolicy}</td>
-                  <td>{item.minuySochen ? 'כן' : 'לא'}</td>
-                  <td>{item.workerName}</td>
-                  {/* Add more data fields as necessary */}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          
         </div>
       </div>
       </div>

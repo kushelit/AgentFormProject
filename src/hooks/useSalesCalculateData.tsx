@@ -82,7 +82,6 @@ function useSalesData(selectedAgentId: string, selectedWorkerIdFilter: string, s
             salesQuery = query(salesQuery, where('AgentId', '==', selectedAgentId));
         }
        
-       
         if (selectedWorkerIdFilter) salesQuery = query(salesQuery, where('workerId', '==', selectedWorkerIdFilter));
         if (selectedCompany) salesQuery = query(salesQuery, where('company', '==', selectedCompany));
         if (selectedProduct) salesQuery = query(salesQuery, where('product', '==', selectedProduct));
@@ -114,10 +113,17 @@ function useSalesData(selectedAgentId: string, selectedWorkerIdFilter: string, s
                  //   const month = data.mounth;
                  const date = new Date(data.mounth);
                 const month = `${date.getMonth() + 1}`.padStart(2, '0') + '/' + date.getFullYear().toString().slice(2);
-                    if (!newMonthlyTotals[month]) {
+                console.log("month " + month);
+
+               
+                if (!newMonthlyTotals[month]) {
                         newMonthlyTotals[month] = { finansimTotal: 0, pensiaTotal: 0, insuranceTotal: 0, niudPensiaTotal: 0, commissionHekefTotal: 0, commissionNifraimTotal: 0 };
                     }
                     updateTotalsForMonth(data, newMonthlyTotals[month], data.minuySochen);
+                    if (month=="10/24"){
+                        console.log("did month 10 " + month)
+                    }
+                    
                 });
 
                 commissionQuerySnapshot.forEach(doc => {
@@ -125,7 +131,7 @@ function useSalesData(selectedAgentId: string, selectedWorkerIdFilter: string, s
                   //  const month = data.mounth;
                   const date = new Date(data.mounth);
                 const month = `${date.getMonth() + 1}`.padStart(2, '0') + '/' + date.getFullYear().toString().slice(2);
-                    if (newMonthlyTotals[month]) {
+                if (newMonthlyTotals[month]) {
                         updateCommissions(data, newMonthlyTotals[month], productMap[data.product]);
                     }
                 });

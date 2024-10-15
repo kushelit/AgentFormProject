@@ -1,205 +1,38 @@
-.content-container-AgentForm {
-  display: flex;
-  justify-content: space-between;
-  /* Space out the children */
+.select-container select, input {
+  /*display: flex;*/
+  width: 100%; /* Reduce width to make inputs/selects shorter */
+  padding: 0.25em 0.5em; /* Adjust padding as needed */
+  font-size: 12px; /* Maintain the font size or adjust as necessary */
+  margin: auto; /* Center the inputs/selects within the cell */
+/*  display: block; /* Ensures the input/select fills the width defined */
+  text-align: center; /* Center text inside the inputs/selects */
+  height:30px; /* Adjust height to better fit in the table row, can adjust as needed */
 }
 
-.form-container-AgentForm,
-.data-container-AgentForm {
-   /*flex: 1;*/
-  /* Each child will take up equal space */
-  padding: 10px;
-  color: black;
-  font-size: 12px;
-  position: relative;
-  z-index: 8;
-}
-
-
-
- /*.table-container {
-  max-height: 300px; /* Adjust based on your preference */
- /* overflow-y: auto;*/
- /* border: 1px solid #ccc;*/
-  /*margin-bottom:6px;
-  }*/
-  
-
-
-
-table {
-  width: 100%;
-
-}
-
-
-.content-container-AgentForm,
-.form-container-AgentForm,
-.data-container-AgentForm,
-label {
-  text-align: right;
-  /* Align text to the right */
-  direction: rtl;
-  /* For right-to-left languages like Hebrew */
-}
-
-
-
-.title-container {
-  text-align: center;
-  color: black;
-}
-
-h1 {
-  font-size: 2.5em;
-  /* Larger font size for H1 */
-  font-weight: bold;
-  /* Makes the font bold */
-  color: black;
-  /* Black font color */
-}
-
-h2 {
-  font-size: 2em;
-  /* Slightly smaller font size for H2 */
-  font-weight: bold;
-  /* Makes the font bold */
-  color: black;
-  /* Black font color */
-  text-align: right;
-}
-
-.title {
-  font-size: 3em;
-  /* Even larger font size for a special title class */
-  font-weight: bold;
-  /* Makes the font bold */
-  color: black;
-  /* Black font color */
-}
-
-.form-group {
-  display: flex;
-  align-items: center; /* Aligns items vertically in the center */
-  margin-bottom: 5px; /* Adds some space between each form group */
-}
-
-
-label {
-  flex-basis: 30%; /* Adjust based on your needs */
-  text-align: right; /* Ensures the text is right-aligned next to the input/select */
-}
-
-
-button:disabled {
-  color: gray; /* Text color for disabled buttons */
-  cursor: not-allowed; /* Cursor for disabled buttons */
-  /* Additional styles for disabled buttons */
-}
-
-.button-group {
+.select-container {
   display: flex;
   justify-content: center; /* Centers buttons horizontally */
   align-items: center; /* Aligns buttons vertically */
   padding: 10px 0; /* Padding above and below the button row */
+  position: sticky
 }
 
-.button-group button {
-  display: flex;
-  justify-content: center; /* Centers text horizontally */
-  align-items: center; /* Centers text vertically */
-  margin: 0 5px; /* Spacing between buttons */
-  font-size: 12px; /* Text size within the button */
-  cursor: pointer; /* Indicates the button is clickable */
-  padding: 0.75em 1em; /* Vertical and horizontal padding */
-  border-radius: 4px; /* Rounded corners for the button */
-  min-width: 50px; /* Minimum width to ensure buttons don't become too small */
-  height: 30px; /* Fixed height for uniform appearance */
+.table-container table {
+  width: 100%; /* Adjusts the width of the table to fill the container */
+  border-collapse: collapse; /* Eliminates space between borders */
+  font-size: 12px; /* Reduces the font size for all text within the table */
 }
 
-
-.form-container th,
-.form-container td {
-  border: none;
+.table-container th, .table-container td {
+  padding: 3px; /* Reduces padding inside each cell */
+  text-align: center; /* Aligns text to the left; adjust as needed */
+  border-bottom: 1px solid #ccc; /* Adds a subtle line between rows */
 }
 
-
-.form-container-AgentForm input,
- .form-container-AgentForm select {
-  width: 100%; /* Reduce width to make inputs/selects shorter */
-  padding: 0.25em 0.5em; /* Adjust padding as needed */
-  font-size: 12px; /* Maintain the font size or adjust as necessary */
-  margin: auto; /* Center the inputs/selects within the cell */
-  display: block; /* Ensures the input/select fills the width defined */
-  text-align: center; /* Center text inside the inputs/selects */
-  height:30px; /* Adjust height to better fit in the table row, can adjust as needed */
+.table-container th {
+  font-weight: bold; /* Makes header text bold */
 }
 
-input[type="checkbox"] {
-  width: 20px; /* Width of the checkbox */
-  height: 20px; /* Height of the checkbox */
-  cursor: pointer; /* Changes cursor to pointer when hovering over the checkbox */
+.table-container {
+  overflow-x: auto; /* Allows scrolling on x-axis if the table is too wide */
 }
-
-
-th, td {
-  padding: 2px 8px; /* Reduces padding inside cells */
-  line-height: 1.2; /* Tighter line height for text */
-  border: 1px solid #ccc; /* Adds a border for clarity */
-  
-}
-
-tr {
-  height: auto; /* Allows row height to adjust based on content and padding */
-}
-
-.table-container-AgentForm{
-
-  display: flex;
-  justify-content: center; /* Centers  horizontally */
-  align-items: center; /* Aligns  vertically */
-  padding: 10px 0; /* Padding above and below the button row */
-}
-
-.select-container-AgentForm {
-  display: flex;
-  justify-content: center; /* Centers  horizontally */
-  align-items: center; /* Aligns  vertically */
-  padding: 10px 0; /* Padding above and below the button row */
-}
-
-.table-container-AgentForm select,
-.table-container-AgentForm input 
-{
-  width: 100%; /* Reduce width to make inputs/selects shorter */
-  padding: 0.25em 0.5em; /* Adjust padding as needed */
-  font-size: 12px; /* Maintain the font size or adjust as necessary */
-  margin: auto; /* Center the inputs/selects within the cell */
-  display: block; /* Ensures the input/select fills the width defined */
-  text-align: center; /* Center text inside the inputs/selects */
-  height:30px; /* Adjust height to better fit in the table row, can adjust as needed */
-}
-
-
-.select-container-AgentForm select,
-.select-container-AgentForm input 
-{
-  width: 100%; /* Reduce width to make inputs/selects shorter */
-  padding: 0.25em 0.5em; /* Adjust padding as needed */
-  font-size: 12px; /* Maintain the font size or adjust as necessary */
-  margin: auto; /* Center the inputs/selects within the cell */
-  display: block; /* Ensures the input/select fills the width defined */
-  text-align: center; /* Center text inside the inputs/selects */
-  height:30px; /* Adjust height to better fit in the table row, can adjust as needed */
-}
-
-.data-container-AgentForm select {
-  width: 100px; /* Reduce width to make inputs/selects shorter */
-  padding: 0.25em 0.5em; /* Adjust padding as needed */
-  font-size: 12px; /* Maintain the font size or adjust as necessary */
-  margin: 0 0 0 auto; /* Push the select box to the right */
-  display: block; /* Ensures the input/select fills the width defined */
-  text-align: center; /* Align text inside the inputs/selects to the right */
-  height: 30px; /* Adjust height to better fit in the table row, can adjust as needed */
-}
-
