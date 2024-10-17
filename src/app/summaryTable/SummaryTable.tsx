@@ -73,7 +73,7 @@ const SummaryTable = () => {
     statusPolicies
   } = useFetchMD();
 
-  const { monthlyTotals, overallTotals } = useSalesData(selectedAgentId, selectedWorkerIdFilter, selectedCompany, selectedProduct, selectedStatusPolicy);
+  const { monthlyTotals, overallTotals, isLoadingData } = useSalesData(selectedAgentId, selectedWorkerIdFilter, selectedCompany, selectedProduct, selectedStatusPolicy);
   const monthsCount = Object.keys(monthlyTotals).length;
 
   // Calculating averages
@@ -337,6 +337,11 @@ const averageCommissionNifraim = Math.round(overallTotals.commissionNifraimTotal
       {/*   {defaultContracts.length > 0 ? ( */}
           <div className="table-container" style={{ width: '100%' }}>
             <table style={{ width: '100%'  }}></table>
+     {/*            {isLoadingData ? (
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+        <div className="spinner"></div>        </div>
+      ) : (
+*/}
       <table>
         <thead>
           <tr>
@@ -387,7 +392,8 @@ const averageCommissionNifraim = Math.round(overallTotals.commissionNifraimTotal
       </tr>
         </tbody>
       </table>
-      
+   {/*      )}  */}
+
       <div className="select-container" >
       <select id="agent-select" value={selectedAgentId} onChange={handleAgentChange}>
         {detail?.role === 'admin' && <option value="">כל הסוכנות</option>}

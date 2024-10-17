@@ -43,10 +43,12 @@ function useSalesData(selectedAgentId: string, selectedWorkerIdFilter: string, s
     const [productMap, setProductMap] = useState<Record<string, string>>({});
     const { user, detail } = useAuth(); // Assuming useAuth() hook provides user and detail context
     const [loading, setLoading] = useState(true);  // Add loading state here
+    const [isLoadingData, setIsLoadingData] = useState(false);
 
 
     useEffect(() => {
         async function fetchContractsAndProducts() {
+            
             const contractsSnapshot = await getDocs(collection(db, 'contracts'));
             const productsSnapshot = await getDocs(collection(db, 'product'));
             const fetchedContracts: Contract[] = contractsSnapshot.docs.map(doc => ({
@@ -98,8 +100,9 @@ function useSalesData(selectedAgentId: string, selectedWorkerIdFilter: string, s
 
     useEffect(() => {
         async function fetchData() {
-            if (!loading) {            
-               
+        //    setIsLoadingData(true); // Start loading
+            if (!loading) {     
+                try {                  
                 const commissionSalesQuery = createSalesQuery(); // Only minuySochen=false
                 const generalSalesQuery = createSalesQuery(); // Including all minuySochen
                 const [generalQuerySnapshot, commissionQuerySnapshot] = await Promise.all([
@@ -114,18 +117,13 @@ function useSalesData(selectedAgentId: string, selectedWorkerIdFilter: string, s
                  const date = new Date(data.mounth);
                 const month = `${date.getMonth() + 1}`.padStart(2, '0') + '/' + date.getFullYear().toString().slice(2);
                 console.log("month " + month);
-
-               
+           
                 if (!newMonthlyTotals[month]) {
                         newMonthlyTotals[month] = { finansimTotal: 0, pensiaTotal: 0, insuranceTotal: 0, niudPensiaTotal: 0, commissionHekefTotal: 0, commissionNifraimTotal: 0 };
                     }
                     updateTotalsForMonth(data, newMonthlyTotals[month], data.minuySochen);
-                    if (month=="10/24"){
-                        console.log("did month 10 " + month)
-                    }
-                    
+                                
                 });
-
                 commissionQuerySnapshot.forEach(doc => {
                     const data = doc.data();
                   //  const month = data.mounth;
@@ -138,9 +136,13 @@ function useSalesData(selectedAgentId: string, selectedWorkerIdFilter: string, s
 
                 setMonthlyTotals(newMonthlyTotals);
                 aggregateOverallTotals(newMonthlyTotals);
+            } catch (error) {
+                console.error("Error fetching data:", error);
+        //    } finally {
+       //         setIsLoadingData(false); // Stop loading after everything is done, even if an error occurs
             }
         }
-
+    }     
         fetchData();
     }, [loading, selectedAgentId, selectedWorkerIdFilter, selectedCompany, selectedProduct, selectedStatusPolicy, contracts, productMap]);
 
@@ -229,6 +231,7 @@ function useSalesData(selectedAgentId: string, selectedWorkerIdFilter: string, s
     return {
         monthlyTotals,
         overallTotals,
+        isLoadingData
     };
 }
 

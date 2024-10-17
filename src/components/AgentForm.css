@@ -26,10 +26,9 @@
   
 
 
-
+  
 table {
   width: 100%;
-
 }
 
 
@@ -124,6 +123,13 @@ button:disabled {
 }
 
 
+.form-container-AgentForm th,
+.form-container-AgentForm td {
+  border: none;
+}
+
+
+
 .form-container-AgentForm input,
  .form-container-AgentForm select {
   width: 100%; /* Reduce width to make inputs/selects shorter */
@@ -203,3 +209,16 @@ tr {
   height: 30px; /* Adjust height to better fit in the table row, can adjust as needed */
 }
 
+.spinner {
+  border: 8px solid #f3f3f3; /* Light grey */
+  border-top: 8px solid #3498db; /* Blue */
+  border-radius: 50%;
+  width: 60px;
+  height: 60px;
+  animation: spin 2s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}

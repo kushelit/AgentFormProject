@@ -12,6 +12,21 @@ table {
     border: 2px solid theme('colors.custom-light-blue');
 }
 
+/*table {*/
+  /*  border-collapse: separate; /* Use 'separate' to allow proper border-radius */
+    /*border-spacing: 0; /* Remove any gap between cells */
+    /*border-radius: 10px; /* Rounded corners for the outer table */
+    /*overflow: hidden; /* Ensure the corners are clipped properly */
+  /*}*/
+  
+  /*table th, 
+ /* table td {
+ /*   border: 1px solid #ddd; /* Inner cell borders */
+  /*  padding: 8px; /* Optional padding for spacing */
+  /*  border-radius: 0; /* Ensure no rounding on individual cells */
+ /* }*/
+  
+
 thead {
     position: sticky;
     top: 0;

@@ -182,10 +182,16 @@ useEffect(() => {
     const oneDayAgo = new Date(); // New Date object for Last Day
     oneDayAgo.setDate(oneDayAgo.getDate() - 1); // Subtract 1 day
     dateRangeFilter = Timestamp.fromDate(oneDayAgo);
+    console.log("Date range filter applied for Last Day:", dateRangeFilter);
+
   } else if (timeRange === 'שבוע') {
     // Create a new Date object to avoid mutation
     const sevenDaysAgo = new Date(); // New Date object for Last Week
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7); // Subtract 7 days
+    dateRangeFilter = Timestamp.fromDate(sevenDaysAgo); // Convert to Firestore Timestamp
+
+    console.log("Date range filter applied for Last Week:", dateRangeFilter);
+
     dateRangeFilter = Timestamp.fromDate(sevenDaysAgo);
   }
 
@@ -205,7 +211,7 @@ useEffect(() => {
       where('createdAt', '!=', null), // Ensure createdAt is not null
       where('createdAt', '>=', dateRangeFilter) // Apply date range filter
     );
-    console.log('Date range filter applied:', dateRangeFilter); // Debug date range filter
+    console.log('Sales query with date filter applied:', dateRangeFilter.toDate());
   }
 
   // Fetch customer data
@@ -355,13 +361,11 @@ console.log("selectedAgentId "+ selectedAgentId)
      
  <div className="select-container" style={{ overflowX: 'auto', maxHeight: '300px' }}>      
  
- <select value={timeRange} onChange={handleTimeRangeChange}>
-  <option value="lastDay">יום</option>
-  <option value="lastWeek">שבוע</option>
+ <select value={timeRange} onChange={(e) => setTimeRange(e.target.value)}>
+  <option value="יום">יום אחרון</option>
+  <option value="שבוע">שבוע אחרון</option>
   <option value="all">הכל</option>
 </select>
- 
- 
  
  <select id="agent-select" value={selectedAgentId} onChange={handleAgentChange}>
         {detail?.role === 'admin' && <option value="">כל הסוכנות</option>}

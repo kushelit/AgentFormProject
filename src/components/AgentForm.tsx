@@ -600,6 +600,7 @@ useEffect(() => {
 
   return (
     <div className="content-container-AgentForm">
+
       <div className="form-container-AgentForm">
         <form onSubmit={handleSubmit}>
       <table>
@@ -611,17 +612,12 @@ useEffect(() => {
                <label htmlFor="agentSelect">סוכנות</label>
              </td>
              <td>
-             {isLoadingAgent ? (
-                <p>Loading agents...</p>
-              ) : (
-
               <select onChange={handleAgentChange} value={selectedAgentId}>
                             {detail?.role === 'admin' && <option value="">בחר סוכן</option>}
                             {agents.map(agent => (
                                 <option key={agent.id} value={agent.id}>{agent.name}</option>
                             ))}
-                        </select>
-                        )}
+                        </select>              
 
                     </td>
                 </tr>
@@ -788,8 +784,7 @@ useEffect(() => {
           </div>
        </form>
       </div>
-    
-     
+  
       <div className="data-container-AgentForm">
       <h2>עמידה ביעדים</h2>
       <select id="worker-select-goals" value={selectedWorkerIdGoals} 
@@ -891,8 +886,12 @@ useEffect(() => {
        {/* First Frame 
         {agentData.length > 0 ? (*/}
           <div className="table-header" style={{ textAlign: 'right' }}>
+
+
        <h2>עסקאות</h2>
+
        </div>
+
          {/*        ) : <p>No data available for the selected agent.</p>} */}
            <div className="table-container-AgentForm" style={{ overflowX: 'auto', maxHeight: '300px' }}>
            <input
@@ -957,12 +956,16 @@ useEffect(() => {
           <option key={worker.id} value={worker.id}>{worker.name}</option>
         ))}
       </select>
-      
-            
+              
         
 </div>
 <div style={{ overflowX: 'auto', maxHeight: '300px' }}>
-              
+
+{isLoadingAgent ? (
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+        <div className="spinner"></div>  
+       </div>
+      ) : (
 <table>
             <thead>
               <tr>
@@ -1009,11 +1012,15 @@ useEffect(() => {
               ))}
             </tbody>
           </table>
-          
+        )}
         </div>
+       
       </div>
     </div>
-  );
+
+
+ 
+    );
         }
 export default AgentForm;
 
