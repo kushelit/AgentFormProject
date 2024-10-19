@@ -99,8 +99,11 @@ function useSalesData(selectedAgentId: string, selectedWorkerIdFilter: string, s
     };
 
     useEffect(() => {
+        if (detail?.role === 'agent' || (detail?.role === 'admin' && (selectedAgentId || selectedAgentId === ''))) {
+
         async function fetchData() {
-        //    setIsLoadingData(true); // Start loading
+            setIsLoadingData(true); // Start loading
+            console.log("IsLoadingData " + isLoadingData)
             if (!loading) {     
                 try {                  
                 const commissionSalesQuery = createSalesQuery(); // Only minuySochen=false
@@ -138,12 +141,17 @@ function useSalesData(selectedAgentId: string, selectedWorkerIdFilter: string, s
                 aggregateOverallTotals(newMonthlyTotals);
             } catch (error) {
                 console.error("Error fetching data:", error);
-        //    } finally {
-       //         setIsLoadingData(false); // Stop loading after everything is done, even if an error occurs
+            } finally {
+               setIsLoadingData(false); 
+               console.log("IsLoadingData " + isLoadingData)
             }
         }
     }     
         fetchData();
+    } else if (detail?.role === 'admin' && !selectedAgentId) {
+        // Stop loading if admin has not picked an agent or "All Agents"
+        setIsLoadingData(false);
+      }
     }, [loading, selectedAgentId, selectedWorkerIdFilter, selectedCompany, selectedProduct, selectedStatusPolicy, contracts, productMap]);
 
 

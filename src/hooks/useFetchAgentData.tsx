@@ -235,7 +235,8 @@ const useFetchAgentData = () => {
   setSelectedWorkerIdGoals,
   selectedWorkerNameGoal, 
   setSelectedWorkerNameGoal,
-  isLoadingAgent 
+  isLoadingAgent,
+  setIsLoadingAgent
   //handleCalculate
   // Any other states or functions you might be using
 };

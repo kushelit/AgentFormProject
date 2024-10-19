@@ -49,7 +49,7 @@ const SummaryTable = () => {
   const { user, detail } = useAuth();
   const { workers, agents, selectedAgentId, handleAgentChange, handleWorkerChange, selectedWorkerId ,
     companies, selectedCompany, selectedWorkerIdFilter,
-    setSelectedCompany } = useFetchAgentData();
+    setSelectedCompany,isLoadingAgent } = useFetchAgentData();
 
  // const [monthlyTotals, setMonthlyTotals] = useState<MonthlyTotals>({});
 //  const [overallFinansimTotal, setOverallFinansimTotal] = useState(0);
@@ -337,11 +337,13 @@ const averageCommissionNifraim = Math.round(overallTotals.commissionNifraimTotal
       {/*   {defaultContracts.length > 0 ? ( */}
           <div className="table-container" style={{ width: '100%' }}>
             <table style={{ width: '100%'  }}></table>
-     {/*            {isLoadingData ? (
-        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
-        <div className="spinner"></div>        </div>
-      ) : (
+     {/*        {(isLoadingAgent || (isLoadingData && !isLoadingAgent))  && (
+  <div className="spinner-overlay">
+    <div className="spinner"></div>
+  </div>
+)} 
 */}
+
       <table>
         <thead>
           <tr>
@@ -392,7 +394,7 @@ const averageCommissionNifraim = Math.round(overallTotals.commissionNifraimTotal
       </tr>
         </tbody>
       </table>
-   {/*      )}  */}
+      
 
       <div className="select-container" >
       <select id="agent-select" value={selectedAgentId} onChange={handleAgentChange}>

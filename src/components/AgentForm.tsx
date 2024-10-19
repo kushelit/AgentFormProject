@@ -46,7 +46,8 @@ function AgentForm() {
     setSelectedWorkerIdGoals,
     selectedWorkerNameGoal, 
     setSelectedWorkerNameGoal,
-    isLoadingAgent
+    isLoadingAgent,
+    setIsLoadingAgent
   } = useFetchAgentData();
 
 
@@ -183,15 +184,15 @@ const fetchDataForAgent = async (UserAgentId: string) => {
   const customerQuery = query(collection(db, 'customer'), where('AgentId', '==', UserAgentId));
   const customerSnapshot = await getDocs(customerQuery);
   const customers: Customer[] = customerSnapshot.docs.map(doc => ({
-    ...doc.data() as Customer, // Spread the customer data first
-    id: doc.id // Then assign the 'id', so it does not get overwritten by doc.data()
+    ...doc.data() as Customer, 
+    id: doc.id 
   }));
 
   const salesQuery = query(collection(db, 'sales'), where('AgentId', '==', UserAgentId));
   const salesSnapshot = await getDocs(salesQuery);
   const sales: Sale[] = salesSnapshot.docs.map(doc => ({
-    ...doc.data() as Sale, // Spread the sales data first
-    id: doc.id // Then assign the 'id', ensuring it is set correctly
+    ...doc.data() as Sale, 
+    id: doc.id 
   }));
 
   const combinedData: CombinedData[] = sales.map(sale => {
@@ -886,12 +887,8 @@ useEffect(() => {
        {/* First Frame 
         {agentData.length > 0 ? (*/}
           <div className="table-header" style={{ textAlign: 'right' }}>
-
-
        <h2>עסקאות</h2>
-
        </div>
-
          {/*        ) : <p>No data available for the selected agent.</p>} */}
            <div className="table-container-AgentForm" style={{ overflowX: 'auto', maxHeight: '300px' }}>
            <input
@@ -960,12 +957,11 @@ useEffect(() => {
         
 </div>
 <div style={{ overflowX: 'auto', maxHeight: '300px' }}>
-
-{isLoadingAgent ? (
-        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
-        <div className="spinner"></div>  
-       </div>
-      ) : (
+{isLoadingAgent && (
+  <div className="spinner-overlay">
+    <div className="spinner"></div>
+  </div>
+)}
 <table>
             <thead>
               <tr>
@@ -1012,7 +1008,7 @@ useEffect(() => {
               ))}
             </tbody>
           </table>
-        )}
+        
         </div>
        
       </div>

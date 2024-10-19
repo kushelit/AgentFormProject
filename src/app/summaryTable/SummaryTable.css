@@ -36,6 +36,18 @@
   overflow-x: auto; /* Allows scrolling on x-axis if the table is too wide */
 }
 
+.spinner-overlay {
+  position: fixed; /* Stays fixed relative to the viewport */
+  top: 0;
+  left: 0;
+  width: 100vw; /* Full width of the viewport */
+  height: 100vh; /* Full height of the viewport */
+  display: flex; /* Use flexbox to center the spinner */
+  justify-content: center; /* Horizontally center */
+  align-items: center; /* Vertically center */
+  z-index: 9999; /* Ensure it is on top of all other elements */
+  pointer-events: none; /* Allows you to interact with the content below the spinner */
+}
 
 .spinner {
   border: 8px solid #f3f3f3; /* Light grey */

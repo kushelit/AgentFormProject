@@ -209,9 +209,18 @@ tr {
   height: 30px; /* Adjust height to better fit in the table row, can adjust as needed */
 }
 
+.spinner-overlay {
+  position: fixed;
+  top: 50%; /* Center vertically */
+  left: 35%; /* Adjust to move left from center */
+  transform: translateY(-50%); /* Only center vertically */
+  z-index: 9999;
+  pointer-events: none;
+}
+
 .spinner {
-  border: 8px solid #f3f3f3; /* Light grey */
-  border-top: 8px solid #3498db; /* Blue */
+  border: 8px solid #f3f3f3;
+  border-top: 8px solid #3498db;
   border-radius: 50%;
   width: 60px;
   height: 60px;
