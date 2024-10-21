@@ -20,6 +20,7 @@
   width: 100%; /* Adjusts the width of the table to fill the container */
   border-collapse: collapse; /* Eliminates space between borders */
   font-size: 12px; /* Reduces the font size for all text within the table */
+  overflow: visible;
 }
 
 .table-container th, .table-container td {
@@ -61,4 +62,8 @@
 @keyframes spin {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
+}
+
+table {
+  border-radius: 8px;
 }

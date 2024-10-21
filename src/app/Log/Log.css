@@ -21,6 +21,7 @@
   width: 100%; /* Adjusts the width of the table to fill the container */
   border-collapse: collapse; /* Eliminates space between borders */
   font-size: 12px; /* Reduces the font size for all text within the table */
+  overflow: visible;
 }
 
 .table-container th, .table-container td {

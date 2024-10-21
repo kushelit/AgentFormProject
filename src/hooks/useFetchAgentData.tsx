@@ -21,16 +21,20 @@ interface Worker {
 const useFetchAgentData = () => {
   const { user, detail } = useAuth(); // Assuming useAuth() hook correctly provides User | null and Detail | null
   const [agents, setAgents] = useState<{id: string, name: string}[]>([]);
- // const [selectedAgentId, setSelectedAgentId] = useState("");
-  
- const [selectedAgentId, setSelectedAgentId] = useState<string>(() => {
-  if (detail?.role === 'admin') {
-      return ''; // Treat empty string as "all agents" for admins
-  }
-  return detail?.agentId || ''; // Default to the logged-in user's agent ID for other roles
-});
+  const [selectedAgentId, setSelectedAgentId] = useState<string>('');
   
   
+//  const [selectedAgentId, setSelectedAgentId] = useState<string>(() => {
+//   if (detail?.role === 'admin') {
+//       return ''; // Treat empty string as "all agents" for admins
+//   }
+//   return detail?.agentId || ''; // Default to the logged-in user's agent ID for other roles
+// });
+  
+
+
+
+
   const [selectedAgentName, setSelectedAgentName] = useState("");
   const [workers, setWorkers] = useState<Worker[]>([]);
   const [selectedWorkerId, setSelectedWorkerId] = useState("");
@@ -39,12 +43,9 @@ const useFetchAgentData = () => {
   const [selectedCompany, setSelectedCompany] = useState('');
   const [selectedWorkerIdGoals, setSelectedWorkerIdGoals] = useState("");
   const [selectedWorkerNameGoal, setSelectedWorkerNameGoal] = useState("")
-
-
   const [selectedWorkerIdFilter, setSelectedWorkerIdFilter] = useState("");
   const [selectedWorkerNameFilter, setSelectedWorkerNameFilter] = useState("")
   const [selectedCompanyFilter, setSelectedCompanyFilter] = useState('');
-
   const [workerNameMap, setWorkerNameMap] = useState<WorkerNameMap>({});
   const [isLoadingAgent, setIsLoadingAgent] = useState(false);
 
@@ -136,21 +137,21 @@ const useFetchAgentData = () => {
 
   const handleAgentChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
     const { value } = event.target;
-
+  
     if (value === '') {
-        // Handle the case for "כל הסוכנים"
-        setSelectedAgentId(''); 
-        setSelectedAgentName('כל הסוכנים');
+      // If "All Agents" is selected, set selectedAgentId to ''
+      setSelectedAgentId(''); 
+      setSelectedAgentName('כל הסוכנים');
     } else {
-        const selectedAgent = agents.find(agent => agent.id === value);
-
-        if (selectedAgent) {
-            setSelectedAgentId(selectedAgent.id);
-            setSelectedAgentName(selectedAgent.name);
-        }
+      // Otherwise, set the selected agent's ID
+      const selectedAgent = agents.find(agent => agent.id === value);
+  
+      if (selectedAgent) {
+        setSelectedAgentId(selectedAgent.id);
+        setSelectedAgentName(selectedAgent.name);
+      }
     }
-};
-
+  };
 
 
   const handleWorkerChange = (event: React.ChangeEvent<HTMLSelectElement> , updateType: 'insert' | 'filter' | 'goal') => {
@@ -210,6 +211,7 @@ const useFetchAgentData = () => {
  return {
   agents,
   selectedAgentId,
+  setSelectedAgentId,
   workers,
   selectedWorkerId,
   setSelectedWorkerName,

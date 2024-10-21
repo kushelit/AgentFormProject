@@ -48,7 +48,7 @@ function useSalesData(selectedAgentId: string, selectedWorkerIdFilter: string, s
 
     useEffect(() => {
         async function fetchContractsAndProducts() {
-            
+            // console.log("before 6 - loading: " + loading);
             const contractsSnapshot = await getDocs(collection(db, 'contracts'));
             const productsSnapshot = await getDocs(collection(db, 'product'));
             const fetchedContracts: Contract[] = contractsSnapshot.docs.map(doc => ({
@@ -69,9 +69,10 @@ function useSalesData(selectedAgentId: string, selectedWorkerIdFilter: string, s
             setContracts(fetchedContracts);
             setProductMap(newProductMap);
             setLoading(false);
+            // console.log("after 6 - loading: " + loading);
         }
 
-        if (selectedAgentId) {
+        if (selectedAgentId || detail?.role === 'admin') {
             fetchContractsAndProducts();
         }
     }, [selectedAgentId]);
@@ -89,7 +90,7 @@ function useSalesData(selectedAgentId: string, selectedWorkerIdFilter: string, s
         if (selectedProduct) salesQuery = query(salesQuery, where('product', '==', selectedProduct));
         if (selectedStatusPolicy) salesQuery = query(salesQuery, where('statusPolicy', '==', selectedStatusPolicy));
         // Include the minuySochen condition only if includeMinuySochen is true
-        console.log("filterMinuySochen:", filterMinuySochen);
+        // console.log("filterMinuySochen:", filterMinuySochen);
         if (filterMinuySochen ) {
             salesQuery = query(salesQuery, where('minuySochen', '==', false));
             console.log("filterMinuySochen:", filterMinuySochen.toString() + salesQuery);
@@ -99,13 +100,15 @@ function useSalesData(selectedAgentId: string, selectedWorkerIdFilter: string, s
     };
 
     useEffect(() => {
-        if (detail?.role === 'agent' || (detail?.role === 'admin' && (selectedAgentId || selectedAgentId === ''))) {
+      
+        if (!loading && (detail?.role === 'agent' || (detail?.role === 'admin' && selectedAgentId !== null && selectedAgentId !== undefined))) {
 
         async function fetchData() {
             setIsLoadingData(true); // Start loading
-            console.log("IsLoadingData " + isLoadingData)
-            if (!loading) {     
-                try {                  
+            // console.log("5-selectedAgentIdTospinner1 "+ selectedAgentId)
+   //         if (!loading) {     
+                try {           
+            //    console.log("6-selectedAgentIdTospinner2 "+ selectedAgentId)       
                 const commissionSalesQuery = createSalesQuery(); // Only minuySochen=false
                 const generalSalesQuery = createSalesQuery(); // Including all minuySochen
                 const [generalQuerySnapshot, commissionQuerySnapshot] = await Promise.all([
@@ -119,7 +122,6 @@ function useSalesData(selectedAgentId: string, selectedWorkerIdFilter: string, s
                  //   const month = data.mounth;
                  const date = new Date(data.mounth);
                 const month = `${date.getMonth() + 1}`.padStart(2, '0') + '/' + date.getFullYear().toString().slice(2);
-                console.log("month " + month);
            
                 if (!newMonthlyTotals[month]) {
                         newMonthlyTotals[month] = { finansimTotal: 0, pensiaTotal: 0, insuranceTotal: 0, niudPensiaTotal: 0, commissionHekefTotal: 0, commissionNifraimTotal: 0 };
@@ -140,19 +142,22 @@ function useSalesData(selectedAgentId: string, selectedWorkerIdFilter: string, s
                 setMonthlyTotals(newMonthlyTotals);
                 aggregateOverallTotals(newMonthlyTotals);
             } catch (error) {
-                console.error("Error fetching data:", error);
+                console.error("7-Error fetching data:", error);
             } finally {
                setIsLoadingData(false); 
-               console.log("IsLoadingData " + isLoadingData)
+               console.log("8-Data fetching completed. Spinner should stop.");
+
             }
         }
-    }     
+   // }     
         fetchData();
-    } else if (detail?.role === 'admin' && !selectedAgentId) {
-        // Stop loading if admin has not picked an agent or "All Agents"
-        setIsLoadingData(false);
-      }
-    }, [loading, selectedAgentId, selectedWorkerIdFilter, selectedCompany, selectedProduct, selectedStatusPolicy, contracts, productMap]);
+    } 
+    
+    // else if (detail?.role === 'admin' && (selectedAgentId === null || selectedAgentId === undefined)) {
+    //     // Stop loading if admin has not picked an agent or "All Agents"
+    //     setIsLoadingData(false);
+    //   }
+    }, [loading,selectedAgentId, selectedWorkerIdFilter, selectedCompany, selectedProduct, selectedStatusPolicy]);
 
 
     function updateTotalsForMonth(data: any, monthTotals: MonthlyTotal, includeMinuySochen: boolean) {
@@ -167,39 +172,39 @@ function useSalesData(selectedAgentId: string, selectedWorkerIdFilter: string, s
     }
 
     function updateCommissions(data: any, monthTotals: MonthlyTotal, productGroup: string) {
-        console.log("Current data product group:", data.productGroup);
-        console.log("Available contracts:", contracts);
+        // console.log("Current data product group:", data.productGroup);
+        // console.log("Available contracts:", contracts);
      
         contracts.forEach(contract => {
-            console.log(`Checking against - AgentId: ${contract.agentId}, Product: ${contract.product}, Company: ${contract.company}, MinuySochen: ${contract.minuySochen}`);
-            console.log('Match conditions:', {
-                agentMatch: contract.agentId === data.AgentId,
-                productMatch: contract.product === data.product,
-                companyMatch: contract.company === data.company,
-                minuySochenMatch: contract.minuySochen === data.minuySochen
-            });
+            // console.log(`Checking against - AgentId: ${contract.agentId}, Product: ${contract.product}, Company: ${contract.company}, MinuySochen: ${contract.minuySochen}`);
+            // console.log('Match conditions:', {
+            //     agentMatch: contract.agentId === data.AgentId,
+            //     productMatch: contract.product === data.product,
+            //     companyMatch: contract.company === data.company,
+            //     minuySochenMatch: contract.minuySochen === data.minuySochen
+            // });
         });
         const contractMatch = contracts.find(contract => contract.agentId === data.AgentId && contract.product === data.product && contract.company === data.company &&   (contract.minuySochen === data.minuySochen || (contract.minuySochen === undefined && data.minuySochen === false)));
-        console.log('data.AgentId:', data.AgentId);
-        console.log('data.product:', data.product);
-        console.log('data.company:', data.company);
-        console.log('data.minuySochen:', data.minuySochen);
-        console.log('productGroup:', productGroup);
+        // console.log('data.AgentId:', data.AgentId);
+        // console.log('data.product:', data.product);
+        // console.log('data.company:', data.company);
+        // console.log('data.minuySochen:', data.minuySochen);
+        // console.log('productGroup:', productGroup);
         if (contractMatch) {
-            console.log('Contract Match Found:', contractMatch);
+            // console.log('Contract Match Found:', contractMatch);
             calculateCommissions(monthTotals, data, contractMatch);
         } else {
           //  const productGroup = productMap[data.product];
-            console.log('data.product:', data.product+ " " +productGroup);
+            // console.log('data.product:', data.product+ " " +productGroup);
             
             const groupMatch = contracts.find(contract => contract.productsGroup === productGroup && contract.agentId === data.AgentId &&  (contract.minuySochen === data.minuySochen || (contract.minuySochen === undefined && data.minuySochen === false)));
-            console.log('groupMatch:', groupMatch);
+            // console.log('groupMatch:', groupMatch);
             
             if (groupMatch) {
-                console.log('Group Match Found:', groupMatch, data.productGroup);
+                // console.log('Group Match Found:', groupMatch, data.productGroup);
                 calculateCommissions(monthTotals, data, groupMatch);
             } else {
-                console.log('No Match Found' , data.productGroup);
+                // console.log('No Match Found' , data.productGroup);
             }
         }
     }
