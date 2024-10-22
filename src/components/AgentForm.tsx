@@ -181,6 +181,11 @@ const [filteredData, setFilteredData] = useState<AgentDataType[]>([]);
 
 
 const fetchDataForAgent = async (UserAgentId: string) => {
+  if (!UserAgentId) {
+    console.log('No agent selected for admin, skipping data fetch.');
+    setAgentData([]); // Clear the table data when no agent is selected
+    return;
+  }
   const customerQuery = query(collection(db, 'customer'), where('AgentId', '==', UserAgentId));
   const customerSnapshot = await getDocs(customerQuery);
   const customers: Customer[] = customerSnapshot.docs.map(doc => ({
@@ -433,8 +438,6 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
       notes,
       createdAt: serverTimestamp(), // Adds server timestamp
       lastUpdateDate: serverTimestamp() // Also set at creation
-
-
     });
     alert('יש!!! עוד עסקה נוספה');
     console.log('Document written with ID:', docRef.id);
@@ -545,7 +548,16 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
   };
 
   const handleExpiryDateChange = (e: React.ChangeEvent<HTMLInputElement>) => setmounth(e.target.value);
-
+  
+  useEffect(() => {
+    resetForm(); 
+    if (selectedAgentId) {
+      fetchDataForAgent(selectedAgentId);
+    } else {
+      setAgentData([]);  
+    }
+  }, [selectedAgentId]);
+  
 
   useEffect(() => {
     // Filter data based on selected filter values
@@ -565,8 +577,8 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
 
 
   const handleCalculate = useCallback(async () => {
-    if (!selectedAgentId) {
-        console.error('No agent selected');
+    if (!selectedAgentId || selectedAgentId.trim() === '') {
+      console.error('No agent selected');
         return;
     }
     if (!user || !user.uid || !detail || !detail.role) {
@@ -574,6 +586,7 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
         return; // Handle the situation where details are not available
     }
     setIsLoading(true); // Start loading
+
     const workerIdToFetch = (detail.role === 'worker' && !selectedWorkerIdGoals) ? user.uid : selectedWorkerIdGoals;
     console.log('workerIdToFetch:', workerIdToFetch);
     if (!workerIdToFetch) {
@@ -581,10 +594,14 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
         setIsLoading(false);
         return;
     }
+    try {
     await fetchDataGoalsForWorker(selectedAgentId, workerIdToFetch);
     console.log('Data fetched and table data should be updated now');
-    
-    setIsLoading(false);
+  } catch (error) {
+    console.error('Error during fetchDataGoalsForWorker:', error);
+} finally {
+    setIsLoading(false); 
+}
   }, [selectedAgentId, user, detail, selectedWorkerIdGoals, fetchDataGoalsForWorker]);
 
 

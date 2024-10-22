@@ -37,3 +37,15 @@
 .table-container {
   overflow-x: auto; /* Allows scrolling on x-axis if the table is too wide */
 }
+
+.wide-column {
+  width: 20%;
+}
+
+.medium-column {
+  width: 15%;
+}
+
+.narrow-column {
+  width: 10%;
+}

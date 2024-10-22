@@ -1097,6 +1097,7 @@ const Customer = () => {
                 <th>טלפון</th>
                 <th>מייל</th>
                 <th>כתובת</th>
+                <th>מקור ליד</th>
               </tr>
             </thead>
             <tbody>
@@ -1123,6 +1124,7 @@ const Customer = () => {
                   <td>{item.phone}</td>
                   <td>{item.mail}</td>
                   <td>{item.address}</td>
+                  <td>{item.sourceValue}</td>
                 </tr>
               ))}
             </tbody>

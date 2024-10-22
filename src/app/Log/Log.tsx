@@ -320,13 +320,13 @@ console.log("selectedAgentId "+ selectedAgentId)
                 <th>שם משפחה </th>
                 <th>תז </th>
                 <th>חברה</th>
-                <th>מוצר</th>
+                <th className="narrow-column">מוצר</th>
                 <th>פרמיה ביטוח</th>
                 <th>פרמיה פנסיה</th>
                 <th>צבירה פנסיה</th>
                 <th>פרמיה פיננסים</th>
                 <th>צבירה פיננסים</th>
-                <th>חודש תפוקה</th>
+                <th className="narrow-column">חודש תפוקה</th>
                 <th> סטאטוס</th>
                 <th>מינוי סוכן</th>
                 <th>שם עובד</th>
@@ -343,13 +343,13 @@ console.log("selectedAgentId "+ selectedAgentId)
                   <td>{item.lastNameCustomer}</td>
                   <td>{item.IDCustomer}</td>
                   <td>{item.company}</td>
-                  <td>{item.product}</td>
+                  <td className="narrow-column">{item.product}</td>
                   <td>{Number(item.insPremia).toLocaleString('en-US')}</td>
                   <td>{Number(item.pensiaPremia).toLocaleString('en-US')}</td>
                   <td>{Number(item.pensiaZvira).toLocaleString('en-US')}</td>
                   <td>{Number(item.finansimPremia).toLocaleString('en-US')}</td>
                   <td>{Number(item.finansimZvira).toLocaleString('en-US')}</td>
-                  <td>{item.mounth}</td>
+                  <td className="narrow-column">{item.mounth}</td>
                   <td>{item.statusPolicy}</td>
                   <td>{item.minuySochen ? 'כן' : 'לא'}</td>
                   <td>{item.workerName}</td>

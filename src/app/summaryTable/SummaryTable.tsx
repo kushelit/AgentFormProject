@@ -51,6 +51,7 @@ const SummaryTable = () => {
     if (detail?.role === 'admin' && (selectedAgentId === null || selectedAgentId === undefined)) {
         setSelectedAgentId(''); // Set to "All Agents" on admin login
     }
+    console.log("SelectedAgentId set to  " + selectedAgentId);
 }, [detail, selectedAgentId]);
 
   // useEffect(() => {

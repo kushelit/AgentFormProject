@@ -80,7 +80,16 @@ function useSalesData(selectedAgentId: string, selectedWorkerIdFilter: string, s
     
 
     const createSalesQuery = (filterMinuySochen  = false) => {
-        let salesQuery = query(collection(db, 'sales'), where('statusPolicy', 'in', ['פעילה', 'הצעה']));
+
+        const currentYear = new Date().getFullYear();
+        const startOfYear = `${currentYear}-01-01`;
+        const endOfYear = `${currentYear}-12-31`;
+
+        let salesQuery = query(collection(db, 'sales'), 
+        where('statusPolicy', 'in', ['פעילה', 'הצעה']),
+        where('mounth', '>=', startOfYear),
+        where('mounth', '<=', endOfYear)
+    );
         if (selectedAgentId) {
             salesQuery = query(salesQuery, where('AgentId', '==', selectedAgentId));
         }
@@ -118,9 +127,9 @@ function useSalesData(selectedAgentId: string, selectedWorkerIdFilter: string, s
                 let newMonthlyTotals: MonthlyTotals = {};
 
                 generalQuerySnapshot.forEach(doc => {
-                    const data = doc.data();
+                const data = doc.data();
                  //   const month = data.mounth;
-                 const date = new Date(data.mounth);
+                const date = new Date(data.mounth);
                 const month = `${date.getMonth() + 1}`.padStart(2, '0') + '/' + date.getFullYear().toString().slice(2);
            
                 if (!newMonthlyTotals[month]) {
@@ -130,9 +139,9 @@ function useSalesData(selectedAgentId: string, selectedWorkerIdFilter: string, s
                                 
                 });
                 commissionQuerySnapshot.forEach(doc => {
-                    const data = doc.data();
+                const data = doc.data();
                   //  const month = data.mounth;
-                  const date = new Date(data.mounth);
+                const date = new Date(data.mounth);
                 const month = `${date.getMonth() + 1}`.padStart(2, '0') + '/' + date.getFullYear().toString().slice(2);
                 if (newMonthlyTotals[month]) {
                         updateCommissions(data, newMonthlyTotals[month], productMap[data.product]);
@@ -160,10 +169,8 @@ function useSalesData(selectedAgentId: string, selectedWorkerIdFilter: string, s
     }, [loading,selectedAgentId, selectedWorkerIdFilter, selectedCompany, selectedProduct, selectedStatusPolicy]);
 
 
-    function updateTotalsForMonth(data: any, monthTotals: MonthlyTotal, includeMinuySochen: boolean) {
-      
-        if (!includeMinuySochen ) {
-            
+    function updateTotalsForMonth(data: any, monthTotals: MonthlyTotal, includeMinuySochen: boolean) {  
+        if (!includeMinuySochen ) {       
         monthTotals.finansimTotal += parseInt(data.finansimZvira) || 0;
         monthTotals.insuranceTotal += (parseInt(data.insPremia) || 0) * 12;
         monthTotals.pensiaTotal += (parseInt(data.pensiaPremia) || 0) * 12;
