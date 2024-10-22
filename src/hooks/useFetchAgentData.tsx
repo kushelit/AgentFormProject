@@ -127,13 +127,31 @@ const useFetchAgentData = () => {
   };
 
 
+  // useEffect(() => {
+  //   if (selectedAgentId) {
+  //     fetchWorkersForSelectedAgent(selectedAgentId);
+  //   } else {
+  //     setWorkers([]);
+  //   }
+  // }, [selectedAgentId]);
+
+
   useEffect(() => {
     if (selectedAgentId) {
+      // Fetch workers for the selected agent
       fetchWorkersForSelectedAgent(selectedAgentId);
+      
+      // Reset worker selection when the agent changes
+      setSelectedWorkerIdFilter(''); // Clear any previously selected worker
+      setSelectedWorkerName(''); // Clear worker name, if necessary
     } else {
       setWorkers([]);
+      setSelectedWorkerIdFilter(''); // Ensure the worker selection is cleared if no agent is selected
     }
   }, [selectedAgentId]);
+
+
+
 
   const handleAgentChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
     const { value } = event.target;
@@ -142,6 +160,7 @@ const useFetchAgentData = () => {
       // If "All Agents" is selected, set selectedAgentId to ''
       setSelectedAgentId(''); 
       setSelectedAgentName('כל הסוכנים');
+      setWorkers([]); // Clear workers list
     } else {
       // Otherwise, set the selected agent's ID
       const selectedAgent = agents.find(agent => agent.id === value);
@@ -149,6 +168,9 @@ const useFetchAgentData = () => {
       if (selectedAgent) {
         setSelectedAgentId(selectedAgent.id);
         setSelectedAgentName(selectedAgent.name);
+
+        // Clear the worker selection after the agent is changed
+      setSelectedWorkerIdFilter('');
       }
     }
   };
