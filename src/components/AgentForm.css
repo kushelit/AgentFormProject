@@ -231,3 +231,16 @@ tr {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
 }
+
+
+.wide-column {
+  width: 20%;
+}
+
+.medium-column {
+  width: 15%;
+}
+
+.narrow-column {
+  width: 10%;
+}

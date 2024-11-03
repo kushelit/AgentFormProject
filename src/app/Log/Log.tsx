@@ -261,8 +261,8 @@ useEffect(() => {
   console.log("agentData: ", agentData);
     let data = agentData.filter(item => {
 
-      const matchesAgent = selectedAgentId !== '' ? item.AgentId === selectedAgentId : true;
-      const matchesWorker = selectedWorkerIdFilter ? item.workerId === selectedWorkerIdFilter : true;
+    const matchesAgent = selectedAgentId !== '' ? item.AgentId === selectedAgentId : true;
+    const matchesWorker = selectedWorkerIdFilter ? item.workerId === selectedWorkerIdFilter : true;
     const matchesCompany = selectedCompanyFilter ? item.company === selectedCompanyFilter : true;
     const matchesProduct = selectedProductFilter ? item.product === selectedProductFilter : true;
     const matchesIDCustomer = item.IDCustomer.includes(idCustomerFilter);
@@ -309,57 +309,7 @@ console.log("selectedAgentId "+ selectedAgentId)
     <div className="frame-container bg-custom-white" style={{ maxWidth: '1000px', margin: '0 auto', padding: '10px 20px 20px 20px', border: '1px solid #ccc', borderRadius: '8px', marginTop: '10px' }}>
                   
    <div style={{ marginTop: '20px', width: '90%', margin: '0 auto', overflowX: 'auto' }}>
-       
-   <div className="table-container" style={{ width: '100%' }}>
-
-   <table style={{ width: '100%'  }}>
-            <thead>
-              <tr>
-              <th>תאריך יצירה</th>
-                <th>שם פרטי </th>
-                <th>שם משפחה </th>
-                <th>תז </th>
-                <th>חברה</th>
-                <th className="narrow-column">מוצר</th>
-                <th>פרמיה ביטוח</th>
-                <th>פרמיה פנסיה</th>
-                <th>צבירה פנסיה</th>
-                <th>פרמיה פיננסים</th>
-                <th>צבירה פיננסים</th>
-                <th className="narrow-column">חודש תפוקה</th>
-                <th> סטאטוס</th>
-                <th>מינוי סוכן</th>
-                <th>שם עובד</th>
-                {/* Add more titles as necessary */}
-              </tr>
-            </thead>
-            <tbody>
-              {filteredData.map((item) => (
-                <tr key={item.id}
-      
-                 >
-                   <td>{item.createdAt ? item.createdAt.toDate().toLocaleDateString() : 'N/A'}</td>
-                  <td>{item.firstNameCustomer}</td>
-                  <td>{item.lastNameCustomer}</td>
-                  <td>{item.IDCustomer}</td>
-                  <td>{item.company}</td>
-                  <td className="narrow-column">{item.product}</td>
-                  <td>{Number(item.insPremia).toLocaleString('en-US')}</td>
-                  <td>{Number(item.pensiaPremia).toLocaleString('en-US')}</td>
-                  <td>{Number(item.pensiaZvira).toLocaleString('en-US')}</td>
-                  <td>{Number(item.finansimPremia).toLocaleString('en-US')}</td>
-                  <td>{Number(item.finansimZvira).toLocaleString('en-US')}</td>
-                  <td className="narrow-column">{item.mounth}</td>
-                  <td>{item.statusPolicy}</td>
-                  <td>{item.minuySochen ? 'כן' : 'לא'}</td>
-                  <td>{item.workerName}</td>
-                  {/* Add more data fields as necessary */}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-     
- <div className="select-container" style={{ overflowX: 'auto', maxHeight: '300px' }}>      
+   <div className="select-container" style={{ overflowX: 'auto', maxHeight: '300px' }}>      
  
  <select value={timeRange} onChange={(e) => setTimeRange(e.target.value)}>
   <option value="יום">יום אחרון</option>
@@ -415,6 +365,56 @@ console.log("selectedAgentId "+ selectedAgentId)
     <option value="false">לא</option>
   </select>
         </div>
+   <div className="table-container" style={{ width: '100%' }}>
+
+   <table style={{ width: '100%'  }}>
+            <thead>
+              <tr>
+              <th>תאריך יצירה</th>
+                <th>שם פרטי </th>
+                <th>שם משפחה </th>
+                <th>תז </th>
+                <th>חברה</th>
+                <th className="narrow-column">מוצר</th>
+                <th>פרמיה ביטוח</th>
+                <th>פרמיה פנסיה</th>
+                <th>צבירה פנסיה</th>
+                <th>פרמיה פיננסים</th>
+                <th>צבירה פיננסים</th>
+                <th className="narrow-column">חודש תפוקה</th>
+                <th> סטאטוס</th>
+                <th>מינוי סוכן</th>
+                <th>שם עובד</th>
+                {/* Add more titles as necessary */}
+              </tr>
+            </thead>
+            <tbody>
+              {filteredData.map((item) => (
+                <tr key={item.id}
+      
+                 >
+                   <td>{item.createdAt ? item.createdAt.toDate().toLocaleDateString() : 'N/A'}</td>
+                  <td>{item.firstNameCustomer}</td>
+                  <td>{item.lastNameCustomer}</td>
+                  <td>{item.IDCustomer}</td>
+                  <td>{item.company}</td>
+                  <td className="narrow-column">{item.product}</td>
+                  <td>{Number(item.insPremia).toLocaleString('en-US')}</td>
+                  <td>{Number(item.pensiaPremia).toLocaleString('en-US')}</td>
+                  <td>{Number(item.pensiaZvira).toLocaleString('en-US')}</td>
+                  <td>{Number(item.finansimPremia).toLocaleString('en-US')}</td>
+                  <td>{Number(item.finansimZvira).toLocaleString('en-US')}</td>
+                  <td className="narrow-column">{item.mounth}</td>
+                  <td>{item.statusPolicy}</td>
+                  <td>{item.minuySochen ? 'כן' : 'לא'}</td>
+                  <td>{item.workerName}</td>
+                  {/* Add more data fields as necessary */}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+     
+
       </div>
       </div>
       </div>

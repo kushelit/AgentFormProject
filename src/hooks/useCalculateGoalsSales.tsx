@@ -103,7 +103,7 @@ function useCalculateSalesData() {
 
 
     const calculateTotalPremia = useCallback(
-        async (agentId: string, promotionId: string, workerId: string, docId: string): Promise<{ totals: GroupTotals; totalStars: number;productGroup: string | null ; startDate?: Date;
+        async (agentId: string, promotionId: string, workerId: string, docId: string ): Promise<{ totals: GroupTotals; totalStars: number;productGroup: string | null ; startDate?: Date;
             endDate?: Date;
             daysPassed?: number;
             daysLeft?: number;  }> => {
@@ -149,7 +149,8 @@ function useCalculateSalesData() {
                     return { totals: groupTotals, totalStars, productGroup }; // Still return an object matching the type
                 }
                 const productsInGroup = Object.keys(productMap).filter(key => productMap[key] === goalDetails.productGroup);
-                
+       
+
                 let salesQuery = query(collection(db, 'sales'), where
                 ('AgentId', '==', agentId),
                 where ('product', 'in', productsInGroup),
@@ -161,8 +162,8 @@ function useCalculateSalesData() {
             );
             if (workerId && workerId !== 'all-agency') {
                 salesQuery = query(salesQuery, where('workerId', '==', workerId));
-                }
-
+            }
+          
                 const salesSnapshot = await getDocs(salesQuery);
                 const totalForGroup = salesSnapshot.docs.reduce((sum, doc) => sum + parseFloat(doc.data()[premiaField] || 0), 0);
                 console.log(`Total for groupppp ${goalDetails.productGroup}:`, totalForGroup);
@@ -189,9 +190,9 @@ function isGoalData(item: GoalData | null): item is GoalData {
     return item !== null;
 }
 
-    
-    const fetchDataGoalsForWorker = useCallback(async (selectedAgentId: string, selectedWorkerIdFilter?: string) => {
+    const fetchDataGoalsForWorker = useCallback(async (selectedAgentId: string, isActiveGoals: boolean, selectedWorkerIdFilter?: string) => {
        console.log('Executing fetchDataGoalsForWorker:');
+       console.log('isActiveGoals :' +  isActiveGoals);
         if (!selectedAgentId || !selectedWorkerIdFilter) {
             console.log('Agent ID or Worker ID is not defined');
             return;
@@ -201,6 +202,9 @@ function isGoalData(item: GoalData | null): item is GoalData {
         if (selectedWorkerIdFilter) {
             salesQuery = query(salesQuery, where('workerId', '==', selectedWorkerIdFilter));
         }
+  // Today's date
+  const today = new Date();
+``
         const querySnapshot = await getDocs(salesQuery);
         const rawData = await Promise.all(querySnapshot.docs.map(async (doc) => {
             const { promotionId, amaunt, goalsTypeId } = doc.data() as { promotionId: string, amaunt: number, goalsTypeId: string };
@@ -239,6 +243,12 @@ function isGoalData(item: GoalData | null): item is GoalData {
 
         const startDate = new Date(promotion.startDate);
         const endDate = new Date(promotion.endDate);
+
+   // If isActiveGoals is true, only include goals within the start and end date range
+   if (isActiveGoals && (today < startDate || today > endDate)) {
+    return null;
+}
+
         const { daysPassed, daysLeft, totalDuration } = calculateDays(startDate, endDate);
 
 
@@ -312,8 +322,7 @@ function isGoalData(item: GoalData | null): item is GoalData {
     
             const productsInGroup = Object.keys(productMap).filter(key => productMap[key] === group);
           
-    
-          
+      
     console.log('Promotion Start Date:', promotion.startDate);
     console.log('Promotion End Date:', promotion.endDate);
   

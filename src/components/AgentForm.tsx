@@ -99,6 +99,8 @@ const [expiryDateFilter, setExpiryDateFilter] = useState('');
 const [notes, setNotes] = useState('');
 
 const [isLoading, setIsLoading] = useState(false);  // Loading state
+const [submitDisabled, setSubmitDisabled] = useState(false);
+const[isActiveGoals, setIsActiveGoals] = useState(true);
 
 interface Customer {
   id: string;
@@ -389,6 +391,11 @@ const fetchDataForAgent = async (UserAgentId: string) => {
 
 const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
   event.preventDefault();
+
+  if (submitDisabled) return; // Prevent form submission if already processing
+
+  setSubmitDisabled(true); // Disable the button to prevent multiple submissions
+
   try {
    // First, check if the customer exists in the customer collection
    const customerQuery = query(collection(db, 'customer'), where('IDCustomer', '==', IDCustomer),
@@ -447,12 +454,14 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
       fetchDataForAgent(selectedAgentId);
     }
  // Trigger confetti on successful submission
- triggerConfetti();
+    triggerConfetti();
   // Play the audio
-  celebrationSound.play();
+    celebrationSound.play();
 
   } catch (error) {
     console.error('Error adding document:', error);
+  } finally {
+    setSubmitDisabled(false); // Re-enable the button after the process completes
   }
 };
 
@@ -558,22 +567,121 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
     }
   }, [selectedAgentId]);
   
-
   useEffect(() => {
-    // Filter data based on selected filter values
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = (now.getMonth() + 1).toString().padStart(2, '0');
+    const startOfMonth = `${currentYear}-${currentMonth}-01`;
+    const endOfMonth = new Date(currentYear, now.getMonth() + 1, 0).toISOString().slice(0, 10);
+    
+    let expiryStart: string | undefined;
+    let expiryEnd: string | undefined;
+
+    if (expiryDateFilter) {
+        const [filterMonth, filterYear] = expiryDateFilter.split('/');
+        if (filterMonth && filterYear) {
+            const fullYear = `20${filterYear}`; // Convert 'YY' to 'YYYY'
+            expiryStart = `${fullYear}-${filterMonth}-01`;
+            expiryEnd = new Date(Number(fullYear), Number(filterMonth), 0).toISOString().slice(0, 10); // Last day of the selected month
+        }
+    }
+
     let data = agentData.filter(item => {
-      return (selectedWorkerIdFilter ? item.workerId === selectedWorkerIdFilter : true) &&
-             (selectedCompanyFilter ? item.company === selectedCompanyFilter : true) &&
-             (selectedProductFilter ? item.product === selectedProductFilter : true) &&
-             item.IDCustomer.includes(idCustomerFilter)&&
-             item.firstNameCustomer.includes(firstNameCustomerFilter)&&
-             item.lastNameCustomer.includes(lastNameCustomerFilter)&&
-             (minuySochenFilter === '' || item.minuySochen.toString() === minuySochenFilter) &&
-             item.mounth.includes(expiryDateFilter)&&
-             (selectedStatusPolicyFilter ? item.statusPolicy === selectedStatusPolicyFilter : true);
+      const itemMonth = item.mounth.slice(0, 7); // Extract "YYYY-MM" from "YYYY-MM-DD"
+
+
+      return (
+        (selectedWorkerIdFilter ? item.workerId === selectedWorkerIdFilter : true) &&
+        (selectedCompanyFilter ? item.company === selectedCompanyFilter : true) &&
+        (selectedProductFilter ? item.product === selectedProductFilter : true) &&
+        item.IDCustomer.includes(idCustomerFilter) &&
+        item.firstNameCustomer.includes(firstNameCustomerFilter) &&
+        item.lastNameCustomer.includes(lastNameCustomerFilter) &&
+        (minuySochenFilter === '' || item.minuySochen.toString() === minuySochenFilter) &&
+        (!expiryDateFilter || 
+          (expiryStart && expiryEnd && item.mounth >= expiryStart && item.mounth <= expiryEnd)) &&
+        (selectedStatusPolicyFilter ? item.statusPolicy === selectedStatusPolicyFilter : true)
+      );
     });
+    data.sort((a, b) => {
+      const dateA = new Date(a.mounth).getTime();  
+      const dateB = new Date(b.mounth).getTime();  
+      
+      if (dateA !== dateB) {
+        return dateB - dateA;
+      } else {
+        return a.IDCustomer.localeCompare(b.IDCustomer);
+      }
+    });   
     setFilteredData(data);
   }, [selectedWorkerIdFilter, selectedCompanyFilter, selectedProductFilter, selectedStatusPolicyFilter, agentData, idCustomerFilter, firstNameCustomerFilter, lastNameCustomerFilter, minuySochenFilter, expiryDateFilter]);
+
+
+
+//   useEffect(() => {
+//     const now = new Date();
+//   const currentYear = now.getFullYear();
+//   const currentMonth = (now.getMonth() + 1).toString().padStart(2, '0');
+//   const startOfMonth = `${currentYear}-${currentMonth}-01`;
+//   const endOfMonth = new Date(currentYear, now.getMonth() + 1, 0).toISOString().slice(0, 10);
+
+//   // Parse expiryDateFilter if provided in MM/YY or MM format
+//   let expiryStart: string | undefined = undefined;
+//   let expiryEnd: string | undefined = undefined;
+//   let filterMonth: string | undefined = undefined;
+//   let filterYear: string | undefined = undefined;
+
+//   if (expiryDateFilter) {
+//       const parts = expiryDateFilter.split('/');
+      
+//       // If user entered MM/YY
+//       if (parts.length === 2) {
+//           filterMonth = parts[0].padStart(2, '0'); // Ensure MM format
+//           filterYear = `20${parts[1]}`; // Assuming YY format like "24"
+//           expiryStart = `${filterYear}-${filterMonth}-01`;
+//           expiryEnd = new Date(Number(filterYear), Number(filterMonth), 0).toISOString().slice(0, 10);
+//       } 
+//       // If user entered only MM
+//       else if (parts.length === 1) {
+//           filterMonth = parts[0].padStart(2, '0');
+//       }
+//   }
+//   let data = agentData.filter(item => {
+
+//     const itemMonth = item.mounth.slice(0, 7); // Extract "YYYY-MM" from "YYYY-MM-DD"
+//     // Default to current month if no expiryDateFilter is provided
+//     const matchesDateFilter = expiryStart && expiryEnd 
+//     ? item.mounth >= expiryStart && item.mounth <= expiryEnd // Filter by expiryStart and expiryEnd if both are defined
+//     : filterMonth 
+//         ? item.mounth.slice(5, 7) === filterMonth  // Match only the month, ignoring the year
+//         : item.mounth >= startOfMonth && item.mounth <= endOfMonth; // Default to current month 
+ 
+//     return (
+//       (selectedWorkerIdFilter ? item.workerId === selectedWorkerIdFilter : true) &&
+//       (selectedCompanyFilter ? item.company === selectedCompanyFilter : true) &&
+//       (selectedProductFilter ? item.product === selectedProductFilter : true) &&
+//       item.IDCustomer.includes(idCustomerFilter) &&
+//       item.firstNameCustomer.includes(firstNameCustomerFilter) &&
+//       item.lastNameCustomer.includes(lastNameCustomerFilter) &&
+//       (minuySochenFilter === '' || item.minuySochen.toString() === minuySochenFilter) &&
+//       matchesDateFilter &&
+//       (selectedStatusPolicyFilter ? item.statusPolicy === selectedStatusPolicyFilter : true)
+//     );
+//   });
+//   data.sort((a, b) => {
+//     const dateA = new Date(a.mounth).getTime();  
+//     const dateB = new Date(b.mounth).getTime();  
+    
+//     if (dateA !== dateB) {
+//       return dateB - dateA;
+//     } else {
+//       return a.IDCustomer.localeCompare(b.IDCustomer);
+//     }
+//   });   
+//   setFilteredData(data);
+// }, [selectedWorkerIdFilter, selectedCompanyFilter, selectedProductFilter, selectedStatusPolicyFilter, agentData, idCustomerFilter, firstNameCustomerFilter, lastNameCustomerFilter, minuySochenFilter, expiryDateFilter]);
+
+
 
 
   const handleCalculate = useCallback(async () => {
@@ -595,14 +703,14 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
         return;
     }
     try {
-    await fetchDataGoalsForWorker(selectedAgentId, workerIdToFetch);
+    await fetchDataGoalsForWorker(selectedAgentId, isActiveGoals ,workerIdToFetch);
     console.log('Data fetched and table data should be updated now');
   } catch (error) {
     console.error('Error during fetchDataGoalsForWorker:', error);
 } finally {
     setIsLoading(false); 
 }
-  }, [selectedAgentId, user, detail, selectedWorkerIdGoals, fetchDataGoalsForWorker]);
+  }, [selectedAgentId,isActiveGoals, user, detail, selectedWorkerIdGoals, fetchDataGoalsForWorker]);
 
 
 useEffect(() => {
@@ -793,7 +901,7 @@ useEffect(() => {
          
         </table>
            <div className="form-group button-group" style={{ display: 'flex' }}>
-            <button type="submit" disabled={!canSubmit || isEditing}>
+            <button type="submit" disabled={!canSubmit || isEditing || submitDisabled}>
               הזן
             </button>
             <button type="button" disabled={selectedRow === null} onClick={handleDelete} >מחק</button>
@@ -813,7 +921,7 @@ useEffect(() => {
           <option key={worker.id} value={worker.id}>{worker.name}</option>
         ))}
       </select>
-      
+      <input type="checkbox" id="active-goals" name="active-goals" checked={isActiveGoals} onChange={(e) => setIsActiveGoals(e.target.checked)} />
             
       <div className="select-container-AgentForm" >
             <table>
@@ -992,7 +1100,7 @@ useEffect(() => {
                 <th>צבירה פנסיה</th>
                 <th>פרמיה פיננסים</th>
                 <th>צבירה פיננסים</th>
-                <th>חודש תפוקה</th>
+                <th className="narrow-column">חודש תפוקה</th>
                 <th> סטאטוס</th>
                 <th>מינוי סוכן</th>
                 <th>שם עובד</th>
@@ -1016,7 +1124,7 @@ useEffect(() => {
                   <td>{Number(item.pensiaZvira).toLocaleString('en-US')}</td>
                   <td>{Number(item.finansimPremia).toLocaleString('en-US')}</td>
                   <td>{Number(item.finansimZvira).toLocaleString('en-US')}</td>
-                  <td>{item.mounth}</td>
+                  <td className="narrow-column">{item.mounth}</td>
                   <td>{item.statusPolicy}</td>
                   <td>{item.minuySochen ? 'כן' : 'לא'}</td>
                   <td>{item.workerName}</td>

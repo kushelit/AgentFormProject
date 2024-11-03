@@ -31,21 +31,6 @@ const SummaryTable = () => {
     statusPolicies
   } = useFetchMD();
 
-  // useEffect(() => {
-  //   if (!detail) {
-  //     console.log("1-Detail is not available yet.");
-  //     return; // Wait until detail is available
-  //   }
-  //   console.log("2-Detail:", detail); // Check if detail is available and what its content is
-  //   if (detail.role === 'admin') {
-  //     setSelectedAgentId(''); // Set "All Agents" for admin
-  //     console.log("3-SelectedAgentId set to '' for admin");
-  //   } else {
-  //     setSelectedAgentId(detail.agentId || ''); // Set the agentId for other roles
-  //     console.log("4-SelectedAgentId set to the user's agentId");
-  //   }
-  // }, [detail]); // Run this effect when `detail` is updated
-  
 
   useEffect(() => {
     if (detail?.role === 'admin' && (selectedAgentId === null || selectedAgentId === undefined)) {
@@ -53,17 +38,6 @@ const SummaryTable = () => {
     }
     console.log("SelectedAgentId set to  " + selectedAgentId);
 }, [detail, selectedAgentId]);
-
-  // useEffect(() => {
-  //   console.log("useEffect triggered on mount");
-  //   console.log("admin " +selectedAgentId+ detail?.role  );
-  //   if (detail?.role === 'admin' && (selectedAgentId === null || selectedAgentId === undefined)) {
-  //     setSelectedAgentId(''); // Set "All Agents" by default when admin logs in
-  //     console.log("SelectedAgentId set to '' for admin");
-  //   }
-  //   console.log("SelectedAgentId2 set to '' for admin");
-  //   // Empty dependency array so it runs only once
-  // }, []);
 
 
   const { monthlyTotals, overallTotals, isLoadingData } = useSalesData(selectedAgentId, selectedWorkerIdFilter, selectedCompany, selectedProduct, selectedStatusPolicy);
