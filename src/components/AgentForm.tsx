@@ -913,6 +913,7 @@ useEffect(() => {
   
       <div className="data-container-AgentForm">
       <h2>עמידה ביעדים</h2>
+    <div className = "goalActive" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
       <select id="worker-select-goals" value={selectedWorkerIdGoals} 
        onChange={(e) => handleWorkerChange(e, 'goal')} disabled={!!(detail && detail.role === 'worker')}>
         <option value="">בחר עובד</option>
@@ -921,8 +922,10 @@ useEffect(() => {
           <option key={worker.id} value={worker.id}>{worker.name}</option>
         ))}
       </select>
-      <input type="checkbox" id="active-goals" name="active-goals" checked={isActiveGoals} onChange={(e) => setIsActiveGoals(e.target.checked)} />
-            
+      <input type="checkbox" id="active-goals" name="active-goals"  
+      checked={isActiveGoals} onChange={(e) => setIsActiveGoals(e.target.checked)} />
+      <label htmlFor="active-goals">יעדים פעילים</label>
+         </div>   
       <div className="select-container-AgentForm" >
             <table>
     <thead>
