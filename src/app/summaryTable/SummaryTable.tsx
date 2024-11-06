@@ -55,7 +55,7 @@ const averageCommissionNifraim = Math.round(overallTotals.commissionNifraimTotal
 
 
   return (
-    <div className="frame-container bg-custom-white" style={{ maxWidth: '1000px', margin: '0 auto', padding: '10px 20px 20px 20px', border: '1px solid #ccc', borderRadius: '8px', marginTop: '10px' }}>
+    <div className="frame-container bg-custom-white" style={{ maxWidth: '1000px', margin: '0 auto', padding: '10px 20px 20px 20px', border: '1px solid #ccc', borderRadius: '8px', marginTop: '10px',minHeight: '800px' }}>
 
        <div style={{ marginTop: '20px', width: '90%', margin: '0 auto', overflowX: 'auto' }}>
       {/*   {defaultContracts.length > 0 ? ( */}

@@ -118,6 +118,9 @@ const Customer = () => {
   useEffect(() => {
     if (selectedAgentId) {
       fetchCustomersForAgent(selectedAgentId);
+      setSalesData(null);
+      setTotalCommissions({ totalCommissionHekef: 0, totalCommissionNifraim: 0 });
+      resetForm();
     }
   }, [selectedAgentId]);
 
@@ -473,7 +476,7 @@ const Customer = () => {
 
   }
 
-  const [salesData, setSalesData] = useState<Sale[]>([]);
+  const [salesData, setSalesData] = useState<Sale[] | null>(null);
 
   function calculateCommissions(sale: Sale, contractMatch: any) {
     let commissionHekef = 0;
@@ -1167,7 +1170,7 @@ const Customer = () => {
                 </tr>
               </thead>
               <tbody>
-                {salesData.map((sale, index) => (
+              {(salesData ?? []).map((sale, index) => (
                   <tr key={index}>
                     <td>{sale.firstNameCustomer}</td>
                     <td>{sale.lastNameCustomer}</td>
