@@ -557,6 +557,7 @@ const Customer = () => {
     }
     const salesRef = collection(db, "sales");
     const salesQuery = query(salesRef, where('IDCustomer', "==", selectedRow.IDCustomer), where('AgentId', "==", selectedAgentId), where('statusPolicy', 'in', ['פעילה', 'הצעה']));
+      console.log('selectedAgentId ' + selectedAgentId + 'selectedRow.IDCustomer ' + selectedRow.IDCustomer)  
     try {
       const salesSnapshot = await getDocs(salesQuery);
       let totalCommissionHekef = 0;
@@ -592,6 +593,7 @@ const Customer = () => {
       }));
       if (salesWithNames.length === 0) {
         alert("ללקוח זה אין מכירות");
+        setSalesData(null);
       } else {
         setSalesData(salesWithNames);
         setTotalCommissions({ totalCommissionHekef, totalCommissionNifraim });
@@ -617,7 +619,7 @@ const Customer = () => {
     const customerIDs = customerSnapshot.docs.map(doc => doc.data().IDCustomer);
 
     const salesRef = collection(db, "sales");
-    const salesQuery = query(salesRef, where("IDCustomer", "in", customerIDs), where('statusPolicy', 'in', ['פעילה', 'הצעה']));
+    const salesQuery = query(salesRef, where("IDCustomer", "in", customerIDs), where('AgentId', "==", selectedAgentId), where('statusPolicy', 'in', ['פעילה', 'הצעה']));
     try {
       const salesSnapshot = await getDocs(salesQuery);
       let totalCommissionHekef = 0;

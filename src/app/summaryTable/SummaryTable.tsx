@@ -58,6 +58,52 @@ const averageCommissionNifraim = Math.round(overallTotals.commissionNifraimTotal
     <div className="frame-container bg-custom-white" style={{ maxWidth: '1000px', margin: '0 auto', padding: '10px 20px 20px 20px', border: '1px solid #ccc', borderRadius: '8px', marginTop: '10px',minHeight: '800px' }}>
 
        <div style={{ marginTop: '20px', width: '90%', margin: '0 auto', overflowX: 'auto' }}>
+
+
+       <div className="select-container" >
+      <select id="agent-select" value={selectedAgentId} onChange={handleAgentChange}>
+        {detail?.role === 'admin' && <option value="">כל הסוכנות</option>}
+        {agents.map(agent => (
+          <option key={agent.id} value={agent.id}>{agent.name}</option>
+        ))}
+      </select>
+      <select id="worker-select" value={selectedWorkerIdFilter} 
+       onChange={(e) => handleWorkerChange(e, 'filter')}>
+       <option value="">כל העובדים</option>
+        {workers.map(worker => (
+          <option key={worker.id} value={worker.id}>{worker.name}</option>
+        ))}
+      </select>
+
+      <select id="companySelect" value={selectedCompany} onChange={(e) => setSelectedCompany(e.target.value)}>
+        <option value="">בחר חברה</option>
+         {companies.map((companyName, index) => (
+         <option key={index} value={companyName}>{companyName}</option>
+    ))}
+     </select>
+     <select id="productSelect" value={selectedProduct} onChange={(e) => setSelectedProduct(e.target.value)}>
+               <option value="">בחר מוצר</option>
+              {products.map(product => (
+             <option key={product.id} value={product.name}>{product.name}</option>
+         ))}
+        </select>
+        <select
+      id="statusPolicySelect"
+      value={selectedStatusPolicy}
+      onChange={(e) => setSelectedStatusPolicy(e.target.value)}>
+     <option value="">בחר סטאטוס פוליסה</option>
+                            {statusPolicies.map((status, index) => (
+                                <option key={index} value={status}>{status}</option>
+       ))}
+       </select>
+
+      </div>
+
+
+
+
+
+
       {/*   {defaultContracts.length > 0 ? ( */}
           <div className="table-container" style={{ width: '100%' }}>
             <table style={{ width: '100%'  }}></table>
@@ -119,44 +165,6 @@ const averageCommissionNifraim = Math.round(overallTotals.commissionNifraimTotal
       </table>
       
 
-      <div className="select-container" >
-      <select id="agent-select" value={selectedAgentId} onChange={handleAgentChange}>
-        {detail?.role === 'admin' && <option value="">כל הסוכנות</option>}
-        {agents.map(agent => (
-          <option key={agent.id} value={agent.id}>{agent.name}</option>
-        ))}
-      </select>
-      <select id="worker-select" value={selectedWorkerIdFilter} 
-       onChange={(e) => handleWorkerChange(e, 'filter')}>
-       <option value="">כל העובדים</option>
-        {workers.map(worker => (
-          <option key={worker.id} value={worker.id}>{worker.name}</option>
-        ))}
-      </select>
-
-      <select id="companySelect" value={selectedCompany} onChange={(e) => setSelectedCompany(e.target.value)}>
-        <option value="">בחר חברה</option>
-         {companies.map((companyName, index) => (
-         <option key={index} value={companyName}>{companyName}</option>
-    ))}
-     </select>
-     <select id="productSelect" value={selectedProduct} onChange={(e) => setSelectedProduct(e.target.value)}>
-               <option value="">בחר מוצר</option>
-              {products.map(product => (
-             <option key={product.id} value={product.name}>{product.name}</option>
-         ))}
-        </select>
-        <select
-      id="statusPolicySelect"
-      value={selectedStatusPolicy}
-      onChange={(e) => setSelectedStatusPolicy(e.target.value)}>
-     <option value="">בחר סטאטוס פוליסה</option>
-                            {statusPolicies.map((status, index) => (
-                                <option key={index} value={status}>{status}</option>
-       ))}
-       </select>
-
-      </div>
     </div>
     </div>
   
