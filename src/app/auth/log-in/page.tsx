@@ -4,6 +4,7 @@ import { useAuth } from "@/lib/firebase/AuthContext";
 import { FormEventHandler, useEffect, useState } from "react";
 import { redirect } from 'next/navigation';
 import "../auth.css";
+import Link from 'next/link';
 
 export default function LogInPage() {
   const { user, logIn } = useAuth();
@@ -49,8 +50,11 @@ export default function LogInPage() {
           <input type="password" id="password" name="password" required />
         </div>
         {error && <p className="text-red-500">{error}</p>}
-
         <button className="button-container"  type="submit">כניסה</button>
+
+        <p>
+        <Link href="/auth/reset-password" style={{ color: 'white' }}>Forgot Password?</Link>
+</p>
       </form>
     </div>
   )

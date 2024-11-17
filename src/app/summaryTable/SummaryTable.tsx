@@ -10,7 +10,6 @@ import useFetchMD from "@/hooks/useMD";
 import Select from 'react-select';
 import SalesCountGraph from  "@/components/SalesCountGraph"; 
 import useSalesData from '@/hooks/useSalesCalculateData';
-
  
 
 
@@ -51,7 +50,34 @@ const averageNiudPensia = Math.round(overallTotals.niudPensiaTotal / monthsCount
 const averageCommissionHekef = Math.round(overallTotals.commissionHekefTotal / monthsCount);
 const averageCommissionNifraim = Math.round(overallTotals.commissionNifraimTotal / monthsCount);
 
+  const [salesCounts, setSalesCounts] = useState<Record<string, number>>({});
 
+  const fetchSalesData = async () => {
+   let salesData: Record<string, number> = {};
+   let salesQuery = query(collection(db, 'sales'), where('AgentId', '==', selectedAgentId));
+ 
+   if (selectedWorkerIdFilter) {
+     salesQuery = query(salesQuery, where('workerId', '==', selectedWorkerIdFilter));
+   }
+   const querySnapshot = await getDocs(salesQuery);
+   querySnapshot.forEach(doc => {
+     const data = doc.data();
+     console.log(data);  
+     const month = data.mounth; 
+     if (!salesData[month]) {
+       salesData[month] = 0;
+     }
+     salesData[month]++;
+   });
+   console.log("Fetched sales data:", salesData); // Check the processed sales data
+   setSalesCounts(salesData);
+   console.log("Updated state with:", salesData);
+
+ };
+
+  useEffect(() => {
+   fetchSalesData(); // Call fetchSalesData within the useEffect hook
+}, [selectedAgentId, selectedWorkerIdFilter]); 
 
 
   return (
@@ -168,19 +194,18 @@ const averageCommissionNifraim = Math.round(overallTotals.commissionNifraimTotal
     </div>
     </div>
   
-   {/*  <div className="graph-container" style={{ width: '100%', height: '400px' }}>
+    {/*  <div className="graph-container" style={{ width: '100%', height: '400px' }}>
   <CommissionGraph data={monthlyTotals} /> 
-</div>*/}
+</div> */}
 
-
-   {/* 
+ 
    <div className="graph-container" style={{ width: '60%', height: '200px' }}>
   {Object.keys(salesCounts).length > 0 ? (
     <SalesCountGraph data={salesCounts} />
   ) : (
     <p>Loading data...</p>
   )}
-</div> */}
+</div> 
 
     </div>
   );
