@@ -6,10 +6,15 @@ import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend);
 
 interface SalesCountGraphProps {
-  data: Record<string, number>;
+  data: {
+    newCustomerCounts: Record<string, number>;
+    distinctCustomerCounts: Record<string, number>;
+  };
 }
 
 const SalesCountGraph: React.FC<SalesCountGraphProps> = ({ data }) => {
+  const { newCustomerCounts, distinctCustomerCounts } = data;
+
   const options = {
     responsive: true,
     plugins: {
@@ -22,31 +27,33 @@ const SalesCountGraph: React.FC<SalesCountGraphProps> = ({ data }) => {
         beginAtZero: true,
         title: {
           display: true,
-          text: 'Number of Sales'
-        }
-      }
-    }
+          text: 'Number of Customers',
+        },
+      },
+    },
   };
 
-  // Generate labels from the data keys and sort them if needed
-  const labels = Object.keys(data).sort(); // Sorting keys to ensure the order
-
-  // Prepare the dataset for the chart
+  // Generate labels from the data keys and sort them chronologically
+  const labels = Object.keys(newCustomerCounts || {}).sort((a, b) => {
+    return new Date(a).getTime() - new Date(b).getTime();
+  });
+  // Prepare the datasets for the chart
   const dataset = {
     labels,
     datasets: [
       {
-        label: 'Sales per Month',
-        data: labels.map(label => {
-          if (data[label] === undefined) {
-            console.warn(`No data for month: ${label}`);
-            return 0; // Default to 0 if data for a label is missing
-          }
-          return data[label];
-        }),
+        label: 'New Customers Per Month',
+        data: labels.map((label) => newCustomerCounts[label] || 0),
         borderColor: 'rgb(53, 162, 235)',
         backgroundColor: 'rgba(53, 162, 235, 0.5)',
-      }
+      },
+      {
+        label: 'Cumulative Distinct Customers',
+        data: labels.map((label) => distinctCustomerCounts[label] || 0),
+        borderColor: 'rgb(75, 192, 192)',
+        backgroundColor: 'rgba(75, 192, 192, 0.5)',
+        borderDash: [5, 5], // Dashed line for distinction
+      },
     ],
   };
 

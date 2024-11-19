@@ -7,10 +7,12 @@ import { useAuth } from '@/lib/firebase/AuthContext';
 import useFetchAgentData from '@/hooks/useFetchAgentData';
 import './SummaryTable.css';
 import useFetchMD from "@/hooks/useMD"; 
-import Select from 'react-select';
 import SalesCountGraph from  "@/components/SalesCountGraph"; 
 import useSalesData from '@/hooks/useSalesCalculateData';
- 
+import useFetchGraphData from '@/hooks/useFetchGraphData';
+import { useMemo } from 'react';
+import CommissionPerCustomerGraph from '@/components/CommissionPerCustomerGraph';
+
 
 
 const SummaryTable = () => {
@@ -18,17 +20,38 @@ const SummaryTable = () => {
   const { workers, agents, selectedAgentId,setSelectedAgentId, handleAgentChange, handleWorkerChange, selectedWorkerId ,
     companies, selectedCompany, selectedWorkerIdFilter,
     setSelectedCompany,isLoadingAgent } = useFetchAgentData();
+    
+    const [selectedGraph, setSelectedGraph] = useState('newCustomers');
 
- 
-  const {
-    products,
-    selectedProduct,
-    setSelectedProduct,
-    selectedProductGroup, 
-    setSelectedStatusPolicy, 
-    selectedStatusPolicy, 
-    statusPolicies
-  } = useFetchMD();
+    const {
+      products,
+      selectedProduct,
+      setSelectedProduct,
+      selectedProductGroup, 
+      setSelectedStatusPolicy, 
+      selectedStatusPolicy, 
+      statusPolicies
+    } = useFetchMD();
+
+    const { monthlyTotals, overallTotals, isLoadingData } = useSalesData(selectedAgentId, selectedWorkerIdFilter, selectedCompany, selectedProduct, selectedStatusPolicy);
+
+  const monthsCount = Object.keys(monthlyTotals).length;
+
+  const filters = useMemo(
+    () => ({
+      selectedAgentId,
+      selectedWorkerIdFilter,
+    }),
+    [selectedAgentId, selectedWorkerIdFilter]
+  );
+
+
+
+  const { data, loading } = useFetchGraphData(
+    selectedGraph,
+    filters,
+    selectedGraph === 'commissionPerMonth' ? monthlyTotals : undefined // Only pass monthlyTotals if required
+  );
 
 
   useEffect(() => {
@@ -39,9 +62,6 @@ const SummaryTable = () => {
 }, [detail, selectedAgentId]);
 
 
-  const { monthlyTotals, overallTotals, isLoadingData } = useSalesData(selectedAgentId, selectedWorkerIdFilter, selectedCompany, selectedProduct, selectedStatusPolicy);
-  const monthsCount = Object.keys(monthlyTotals).length;
-
   // Calculating averages
 const averageFinansim = Math.round(overallTotals.finansimTotal / monthsCount);
 const averagePensia = Math.round(overallTotals.pensiaTotal / monthsCount);
@@ -49,35 +69,6 @@ const averageInsurance = Math.round(overallTotals.insuranceTotal / monthsCount);
 const averageNiudPensia = Math.round(overallTotals.niudPensiaTotal / monthsCount);
 const averageCommissionHekef = Math.round(overallTotals.commissionHekefTotal / monthsCount);
 const averageCommissionNifraim = Math.round(overallTotals.commissionNifraimTotal / monthsCount);
-
-  const [salesCounts, setSalesCounts] = useState<Record<string, number>>({});
-
-  const fetchSalesData = async () => {
-   let salesData: Record<string, number> = {};
-   let salesQuery = query(collection(db, 'sales'), where('AgentId', '==', selectedAgentId));
- 
-   if (selectedWorkerIdFilter) {
-     salesQuery = query(salesQuery, where('workerId', '==', selectedWorkerIdFilter));
-   }
-   const querySnapshot = await getDocs(salesQuery);
-   querySnapshot.forEach(doc => {
-     const data = doc.data();
-     console.log(data);  
-     const month = data.mounth; 
-     if (!salesData[month]) {
-       salesData[month] = 0;
-     }
-     salesData[month]++;
-   });
-   console.log("Fetched sales data:", salesData); // Check the processed sales data
-   setSalesCounts(salesData);
-   console.log("Updated state with:", salesData);
-
- };
-
-  useEffect(() => {
-   fetchSalesData(); // Call fetchSalesData within the useEffect hook
-}, [selectedAgentId, selectedWorkerIdFilter]); 
 
 
   return (
@@ -124,11 +115,6 @@ const averageCommissionNifraim = Math.round(overallTotals.commissionNifraimTotal
        </select>
 
       </div>
-
-
-
-
-
 
       {/*   {defaultContracts.length > 0 ? ( */}
           <div className="table-container" style={{ width: '100%' }}>
@@ -198,14 +184,28 @@ const averageCommissionNifraim = Math.round(overallTotals.commissionNifraimTotal
   <CommissionGraph data={monthlyTotals} /> 
 </div> */}
 
- 
-   <div className="graph-container" style={{ width: '60%', height: '200px' }}>
-  {Object.keys(salesCounts).length > 0 ? (
-    <SalesCountGraph data={salesCounts} />
-  ) : (
-    <p>Loading data...</p>
-  )}
-</div> 
+<div>
+      {/* Graph Selection */}
+      <select
+        value={selectedGraph}
+        onChange={(e) => setSelectedGraph(e.target.value)}
+      >
+        <option value="newCustomers">New Customers</option>
+        <option value="commissionPerMonth">Commission Per Customer</option>
+      </select>
+
+      {/* Render Graph */}
+      <div>
+        {(loading || isLoadingData) && <p>Loading...</p>}
+        {!loading && selectedGraph === 'newCustomers' && (
+          <SalesCountGraph data={data} />
+        )}
+        {!loading && selectedGraph === 'commissionPerMonth' && (
+          <CommissionPerCustomerGraph data={data.calculatedData || {}} />
+        )}
+      </div>
+
+    </div>
 
     </div>
   );
