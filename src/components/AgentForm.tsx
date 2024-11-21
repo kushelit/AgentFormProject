@@ -902,7 +902,7 @@ useEffect(() => {
 
 
                 <tr>
-              <td colSpan="2">
+              <td colSpan={2}>
                 <div className="form-group button-group" style={{ display: 'flex' }}>
                   <button
                     type="submit"
