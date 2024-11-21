@@ -91,9 +91,9 @@ function useCalculateSalesData() {
                 endDate: data.promotionEndDate
             };
         });
-        console.log('startDate:', promotions);
+      //  console.log('startDate:', promotions);
         setPromotionDetails(promotions); // Correctly named function to set state
-        console.log('Promotions:', promotions);
+     //   console.log('Promotions:', promotions);
     }, []);
 
 
@@ -113,7 +113,7 @@ function useCalculateSalesData() {
 
             const promotion = promotionDetails[promotionId];
             if (!promotion) {
-                console.error('Promotion details not found for:', promotionId);
+             //   console.error('Promotion details not found for:', promotionId);
                 return { totals: groupTotals, totalStars , productGroup};
             }
 
@@ -125,19 +125,19 @@ function useCalculateSalesData() {
         const docRef = doc(db, 'goalsSuccess', docId);
         const docSnapshot = await getDoc(docRef);
         if (!docSnapshot.exists()) {
-            console.log('No goals found for the specified docId');
+          //  console.log('No goals found for the specified docId');
             return { totals: groupTotals, totalStars, productGroup };
         }
         const goalData = docSnapshot.data();
         const goalDetails = goalsTypeList.find(type => type.id === goalData.goalsTypeId);
 
         if (!goalDetails) {
-            console.error('Goal details not found for:', goalData.goalsTypeId);
+         //   console.error('Goal details not found for:', goalData.goalsTypeId);
             return { totals: groupTotals, totalStars , productGroup};
         }
                 if (goalDetails.id === '4') {
                     const { totals, totalStarsInsideFunc } = await calculateTypeFourPremia(agentId, promotionId, workerId,promotionDetails);
-                    console.log(`Total stars for type '4':`, totalStarsInsideFunc);
+               //     console.log(`Total stars for type '4':`, totalStarsInsideFunc);
                     totalStars += totalStarsInsideFunc; // Accumulate stars earned from type '4'
                     Object.assign(groupTotals, totals); // Merge type '4' totals with existing groupTotals
                 //    return; // Exit this iteration early
@@ -166,19 +166,19 @@ function useCalculateSalesData() {
           
                 const salesSnapshot = await getDocs(salesQuery);
                 const totalForGroup = salesSnapshot.docs.reduce((sum, doc) => sum + parseFloat(doc.data()[premiaField] || 0), 0);
-                console.log(`Total for groupppp ${goalDetails.productGroup}:`, totalForGroup);
+        //        console.log(`Total for groupppp ${goalDetails.productGroup}:`, totalForGroup);
 
                 groupTotals[goalDetails.productGroup] = (groupTotals[goalDetails.productGroup] || 0) + totalForGroup;
-                console.log(`Total for groupppbbb ${goalDetails.productGroup}:`, totalForGroup);
+        //        console.log(`Total for groupppbbb ${goalDetails.productGroup}:`, totalForGroup);
 
                  productGroup = goalDetails.productGroup; // Set productGroup based on goalDetails
 
          //   }));
     
-            console.log(`Total premia for specified criteria: ${JSON.stringify(groupTotals)}`);
-            console.log(`Total stars accumulated: ${totalStars}`);
+     //       console.log(`Total premia for specified criteria: ${JSON.stringify(groupTotals)}`);
+     //       console.log(`Total stars accumulated: ${totalStars}`);
 
-            console.log(`Final groupTotals: ${JSON.stringify(groupTotals)}`);
+     //       console.log(`Final groupTotals: ${JSON.stringify(groupTotals)}`);
 
             return { totals: groupTotals, totalStars,productGroup }; // Return the accumulated totals and stars
         },
@@ -191,10 +191,10 @@ function isGoalData(item: GoalData | null): item is GoalData {
 }
 
     const fetchDataGoalsForWorker = useCallback(async (selectedAgentId: string, isActiveGoals: boolean, selectedWorkerIdFilter?: string) => {
-       console.log('Executing fetchDataGoalsForWorker:');
-       console.log('isActiveGoals :' +  isActiveGoals);
+   //    console.log('Executing fetchDataGoalsForWorker:');
+   //    console.log('isActiveGoals :' +  isActiveGoals);
         if (!selectedAgentId || !selectedWorkerIdFilter) {
-            console.log('Agent ID or Worker ID is not defined');
+     //       console.log('Agent ID or Worker ID is not defined');
             return;
         }
     
@@ -211,7 +211,7 @@ function isGoalData(item: GoalData | null): item is GoalData {
             const docId = doc.id;
 
             const totalPremiaResults = await calculateTotalPremia(selectedAgentId, promotionId, selectedWorkerIdFilter, docId);
-            console.log('Total Premia Results in fetch:', totalPremiaResults); // Log the results for debugging
+      //      console.log('Total Premia Results in fetch:', totalPremiaResults); // Log the results for debugging
             const promotionName = promotionDetails[promotionId]?.name || 'Unknown Promotion';
 
           //  const promotionName = promotionNames[promotionId] || 'Unknown Promotion';
@@ -224,9 +224,9 @@ function isGoalData(item: GoalData | null): item is GoalData {
   const totalPremia = totalPremiaResults.productGroup
   ? totalPremiaResults.totals[totalPremiaResults.productGroup] || 0
   : 0;
-  console.log('gtotalPremiaResults goalsTypeId:', goalsTypeId);
+  //console.log('gtotalPremiaResults goalsTypeId:', goalsTypeId);
   // Debugging output
-  console.log(`Target Goal: ${targetGoal}, Total Stars: ${totalStars}, Total Premia: ${totalPremia}`);
+ // console.log(`Target Goal: ${targetGoal}, Total Stars: ${totalStars}, Total Premia: ${totalPremia}`);
 
   // Calculate the achievement rate (עמידה ביעד)
        const achievementRate = goalTypeName === "כוכבים" 
@@ -276,8 +276,8 @@ function isGoalData(item: GoalData | null): item is GoalData {
 
 
     const calculateTypeFourPremia = async (agentId: string, promotionId: string, workerId: string, promotionDetails : PromotionDetails) => {
-        console.log('Executing calculateTypeFourPremia:');
-        console.log('Parameters:', agentId, promotionId, workerId);
+   //     console.log('Executing calculateTypeFourPremia:');
+   //     console.log('Parameters:', agentId, promotionId, workerId);
         const starRequirements: StarRequirements = {}; 
  const promotion = promotionDetails[promotionId];
  if (!promotion) {
@@ -296,12 +296,12 @@ function isGoalData(item: GoalData | null): item is GoalData {
         );  
         const starSnapshot = await getDocs(starQuery);
         if (starSnapshot.empty) {
-            console.log('No star data found for the specified criteria');
+      //      console.log('No star data found for the specified criteria');
             return { totals: {}, totalStarsInsideFunc };  // No data found, return zeros
         }   
         // Assuming there's at least one document
         const starData = starSnapshot.docs[0].data();
-        console.log('Star Data:', starData);    
+    //    console.log('Star Data:', starData);    
         // Define the fields that correspond to each group's star rating
         const fields = {
             '1': 'pensiaStar',
@@ -310,21 +310,21 @@ function isGoalData(item: GoalData | null): item is GoalData {
         };
         // Calculate stars for each group
         for (const [group, field] of Object.entries(fields)) {
-            console.log('Current group:', group); // Check what 'group' is currently processed
+     //       console.log('Current group:', group); // Check what 'group' is currently processed
 
             const premiaField = premiaFieldsMap[group];
-            console.log('Premia Field for group', group, ':', premiaField); // Check mapping result
+      //      console.log('Premia Field for group', group, ':', premiaField); // Check mapping result
             if (!premiaField) {
                 console.error(`Premia field not defined for product group ${group}`);
-                console.log('Skipping group:', group);
+       //         console.log('Skipping group:', group);
                 continue;  // Skip this group if no mapping is found
             }
     
             const productsInGroup = Object.keys(productMap).filter(key => productMap[key] === group);
           
       
-    console.log('Promotion Start Date:', promotion.startDate);
-    console.log('Promotion End Date:', promotion.endDate);
+    //console.log('Promotion Start Date:', promotion.startDate);
+    //console.log('Promotion End Date:', promotion.endDate);
   
             let salesQuery = query(collection(db, 'sales'),
             where('AgentId', '==', agentId),
@@ -341,19 +341,19 @@ function isGoalData(item: GoalData | null): item is GoalData {
             const salesSnapshot = await getDocs(salesQuery);
             const totalPremia = salesSnapshot.docs.reduce((sum, doc) => sum + parseFloat(doc.data()[premiaField] || 0), 0);
     
-            console.log(`Total Premia for group ${group}:`, totalPremia);
+        //    console.log(`Total Premia for group ${group}:`, totalPremia);
             const starValue = parseFloat(starData[field] || 0);
             const starsEarned = starValue ? Math.floor(totalPremia / starValue) : 0;
     
             starRequirements[group] = starValue;  // Store star requirements per group
-            console.log('Star Requirements:', starRequirements);
+         //   console.log('Star Requirements:', starRequirements);
 
-            console.log(`Stars earned for group ${group}:`, starsEarned);
+        //    console.log(`Stars earned for group ${group}:`, starsEarned);
             typeOneGroupTotals[group] = starsEarned;
             totalStarsInsideFunc += starsEarned;  // Accumulate total stars
         }
     
-        console.log(`Total stars earned across all groups: ${totalStarsInsideFunc}`);
+       // console.log(`Total stars earned across all groups: ${totalStarsInsideFunc}`);
         return  { totals: typeOneGroupTotals, totalStarsInsideFunc };
     };
     

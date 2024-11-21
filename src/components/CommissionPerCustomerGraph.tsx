@@ -1,9 +1,10 @@
 import React from 'react';
 import { Line } from 'react-chartjs-2';
 import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend } from 'chart.js';
+import ChartDataLabels from 'chartjs-plugin-datalabels';
 
-// Register the required components for the chart
-ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend);
+// Register the required components and plugins for the chart
+ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend, ChartDataLabels);
 
 interface CommissionPerCustomerGraphProps {
   data: Record<string, number>;
@@ -12,9 +13,25 @@ interface CommissionPerCustomerGraphProps {
 const CommissionPerCustomerGraph: React.FC<CommissionPerCustomerGraphProps> = ({ data }) => {
   const options = {
     responsive: true,
+    animation: {
+      duration: 500, // Shorten the animation duration
+    },
     plugins: {
       legend: {
         position: 'top' as const,
+      },
+      datalabels: {
+        display: (context: any) => {
+          // Display labels only for the last data point
+          return context.dataIndex === context.dataset.data.length - 1;
+        },
+        align: 'end' as const, // Use `as const` to match expected types
+        anchor: 'end' as const, // Use `as const` to match expected types
+        color: '#000',
+        font: {
+          weight: 'bold' as const, // Use `as const` for strict type compatibility
+        },
+        formatter: (value: number) => value.toLocaleString(), // Format numbers with commas
       },
     },
     scales: {

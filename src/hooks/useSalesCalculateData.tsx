@@ -103,9 +103,9 @@ function useSalesData(selectedAgentId: string, selectedWorkerIdFilter: string, s
         // console.log("filterMinuySochen:", filterMinuySochen);
         if (filterMinuySochen ) {
             salesQuery = query(salesQuery, where('minuySochen', '==', false));
-            console.log("filterMinuySochen:", filterMinuySochen.toString() + salesQuery);
+     //       console.log("filterMinuySochen:", filterMinuySochen.toString() + salesQuery);
         }
-    
+    //console.log("salesQuery: " + salesQuery);
         return salesQuery;
     };
 
@@ -157,7 +157,7 @@ function useSalesData(selectedAgentId: string, selectedWorkerIdFilter: string, s
                 console.error("7-Error fetching data:", error);
             } finally {
                setIsLoadingData(false); 
-               console.log("8-Data fetching completed. Spinner should stop.");
+           //    console.log("8-Data fetching completed. Spinner should stop.");
 
             }
         }
@@ -222,7 +222,7 @@ function useSalesData(selectedAgentId: string, selectedWorkerIdFilter: string, s
   // Update company-specific commissions
   if (data.company) {
     companyCommissions[data.company] = (companyCommissions[data.company] || 0) + Math.round(hekef);
-    console.log("companyCommissions[data.company]: " + companyCommissions[data.company]);
+  //  console.log("companyCommissions[data.company]: " + companyCommissions[data.company]);
   }
 
     }

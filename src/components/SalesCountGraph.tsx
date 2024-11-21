@@ -4,6 +4,7 @@ import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement
 
 // Register the required components for the chart
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend);
+//ChartJS.defaults.plugins.datalabels = undefined;
 
 interface SalesCountGraphProps {
   data: {
@@ -17,6 +18,10 @@ const SalesCountGraph: React.FC<SalesCountGraphProps> = ({ data }) => {
 
   const options = {
     responsive: true,
+    animation: {
+      duration: 500, // Shorten the animation duration (default is 1000ms)
+    },
+
     plugins: {
       legend: {
         position: 'top' as const,

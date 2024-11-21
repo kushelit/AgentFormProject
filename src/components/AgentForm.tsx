@@ -331,7 +331,7 @@ const fetchDataForAgent = async (UserAgentId: string) => {
                 lastNameCustomer,
             });
         }
-        console.log("Sales and customer documents successfully updated");
+      //  console.log("Sales and customer documents successfully updated");
         setSelectedRow(null); 
         resetForm();         
      //   if (selectedAgentId) {
@@ -414,16 +414,16 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
         parentID: '',  // Initially empty, to be updated below
         // Add other necessary customer fields here
       });
-      console.log('Customer added with ID:', customerDocRef.id);
+    //  console.log('Customer added with ID:', customerDocRef.id);
       // Update the parentID to the new customer ID, making the customer their own parent initially
       await updateDoc(customerDocRef, { parentID: customerDocRef.id });
-      console.log('parentID updated to the new document ID');
+   //   console.log('parentID updated to the new document ID');
     } else {
       // Optionally handle the case where customer already exists
       customerDocRef = customerSnapshot.docs[0].ref;
-      console.log('Customer already exists:', customerDocRef.id);
+   //   console.log('Customer already exists:', customerDocRef.id);
     }
-      console.log("got here");
+   //   console.log("got here");
       const docRef = await addDoc(collection(db, 'sales'), {
       agent: selectedAgentName,
       AgentId: selectedAgentId,//new 
@@ -447,7 +447,7 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
       lastUpdateDate: serverTimestamp() // Also set at creation
     });
     alert('יש!!! עוד עסקה נוספה');
-    console.log('Document written with ID:', docRef.id);
+//    console.log('Document written with ID:', docRef.id);
     resetForm(); 
     setIsEditing(false);
     if (selectedAgentId) {
@@ -686,25 +686,25 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
 
   const handleCalculate = useCallback(async () => {
     if (!selectedAgentId || selectedAgentId.trim() === '') {
-      console.error('No agent selected');
+    //  console.error('No agent selected');
         return;
     }
     if (!user || !user.uid || !detail || !detail.role) {
-        console.error('User details not available');
+   //     console.error('User details not available');
         return; // Handle the situation where details are not available
     }
     setIsLoading(true); // Start loading
 
     const workerIdToFetch = (detail.role === 'worker' && !selectedWorkerIdGoals) ? user.uid : selectedWorkerIdGoals;
-    console.log('workerIdToFetch:', workerIdToFetch);
+   // console.log('workerIdToFetch:', workerIdToFetch);
     if (!workerIdToFetch) {
-        console.error('No worker selected');
+      //  console.error('No worker selected');
         setIsLoading(false);
         return;
     }
     try {
     await fetchDataGoalsForWorker(selectedAgentId, isActiveGoals ,workerIdToFetch);
-    console.log('Data fetched and table data should be updated now');
+//    console.log('Data fetched and table data should be updated now');
   } catch (error) {
     console.error('Error during fetchDataGoalsForWorker:', error);
 } finally {
@@ -729,12 +729,19 @@ useEffect(() => {
 
       <div className="form-container-AgentForm">
         <form onSubmit={handleSubmit}>
-      <table>
-        <div className="scrollable-tbody">
-
+        <table>
+          <thead>
+            <tr>
+            <th colSpan={2}>
+                <div className="scrollable-tbody">
+                  <h3></h3>
+                </div>
+              </th>
+            </tr>
+          </thead>
           <tbody>
-          <tr>
-            <td>
+            <tr>
+              <td>
                <label htmlFor="agentSelect">סוכנות</label>
              </td>
              <td>
@@ -894,22 +901,39 @@ useEffect(() => {
                 </tr>
 
 
-
-            {/** Multiple rows, each with a label and corresponding input/select **/}
+                <tr>
+              <td colSpan="2">
+                <div className="form-group button-group" style={{ display: 'flex' }}>
+                  <button
+                    type="submit"
+                    disabled={!canSubmit || isEditing || submitDisabled}
+                  >
+                    הזן
+                  </button>
+                  <button
+                    type="button"
+                    disabled={selectedRow === null}
+                    onClick={handleDelete}
+                  >
+                    מחק
+                  </button>
+                  <button
+                    type="button"
+                    disabled={selectedRow === null}
+                    onClick={handleEdit}
+                  >
+                    עדכן
+                  </button>
+                  <button type="button" onClick={resetForm}>
+                    נקה
+                  </button>
+                </div>
+              </td>
+            </tr>
           </tbody>
-          </div>
-         
         </table>
-           <div className="form-group button-group" style={{ display: 'flex' }}>
-            <button type="submit" disabled={!canSubmit || isEditing || submitDisabled}>
-              הזן
-            </button>
-            <button type="button" disabled={selectedRow === null} onClick={handleDelete} >מחק</button>
-            <button type="button" disabled={selectedRow === null} onClick={handleEdit}>עדכן</button>
-            <button type="button" onClick={resetForm}>נקה</button>
-          </div>
-       </form>
-      </div>
+      </form>
+    </div>
   
       <div className="data-container-AgentForm">
       <h2>עמידה ביעדים</h2>

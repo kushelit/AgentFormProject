@@ -65,7 +65,7 @@ const useFetchMD = () => {
           name: doc.data().productsGroupName as string 
         }));
         setProductGroupsDB(groupsList);
-        console.log('the PG is ' + productGroupsDB)
+      //  console.log('the PG is ' + productGroupsDB)
       };
     
       fetchProductsGroupsFromDB();
@@ -93,7 +93,7 @@ const useFetchMD = () => {
       useEffect(() => {
         const fetchProducts = async () => {
           try {
-            console.log("Attempting to fetch products");
+         //   console.log("Attempting to fetch products");
             const querySnapshot = await getDocs(collection(db, 'product'));
             const productsList = querySnapshot.docs.map(doc => ({
               id: doc.id,
@@ -101,7 +101,7 @@ const useFetchMD = () => {
               productGroup: doc.data().productGroup
             }));
             setProducts(productsList);
-            console.log("Products fetched:", productsList);
+        //    console.log("Products fetched:", productsList);
           } catch (error) {
             console.error("Failed to fetch products:", error);
           }
@@ -151,7 +151,7 @@ const useFetchMD = () => {
         if (selectedProd) {
           setSelectedProductGroup(selectedProd.productGroup);
         }
-        console.log("Selected Product Group:", selectedProductGroup);
+    //    console.log("Selected Product Group:", selectedProductGroup);
       
       }, [selectedProduct, products]); // Ensure this effect runs whenever selectedProduct or products change
       

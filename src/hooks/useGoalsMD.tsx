@@ -39,13 +39,13 @@ const useGoalsMD = () => {
 
   const handleSelectPromotion: ChangeEventHandler<HTMLSelectElement> = (event) => {
     setPromotionValue(event.target.value);
-    console.log('promotionValue:',promotionValue);
+    //console.log('promotionValue:',promotionValue);
 
   };
    
   const handleSelectGoalsType = (event: React.ChangeEvent<HTMLSelectElement>) => {
     setGoalsTypeValue(event.target.value);
-    console.log('Selected goals type ID:', event.target.value);
+   // console.log('Selected goals type ID:', event.target.value);
 };
 
 
@@ -70,16 +70,16 @@ const fetchGoalsTypeData = async () => {
       setGoalsTypeList(goalsTypeData);  // Updates state
       setGoalsTypeMap(goalsTypeMap);
 
-      console.log('Data set in state:', goalsTypeData);  // Correctly logs populated array
+     // console.log('Data set in state:', goalsTypeData);  // Correctly logs populated array
   } catch (error) {
-      console.error('Failed to fetch GoalsType:', error);
+     // console.error('Failed to fetch GoalsType:', error);
       setGoalsTypeList([]);
       setGoalsTypeMap({});
   }
 };
 
 useEffect(() => {
-  console.log('Updated goalsTypeList:', goalsTypeList);  // Check updated state on re-render
+ // console.log('Updated goalsTypeList:', goalsTypeList);  // Check updated state on re-render
 }, [goalsTypeList]);
 
 
