@@ -45,6 +45,7 @@ function useSalesData(selectedAgentId: string, selectedWorkerIdFilter: string, s
     const [loading, setLoading] = useState(true);  // Add loading state here
     const [isLoadingData, setIsLoadingData] = useState(false);
 
+    const [companyCommissions, setCompanyCommissions] = useState<Record<string, number>>({});
 
     useEffect(() => {
         async function fetchContractsAndProducts() {
@@ -125,6 +126,7 @@ function useSalesData(selectedAgentId: string, selectedWorkerIdFilter: string, s
                     getDocs(commissionSalesQuery)
                 ]);
                 let newMonthlyTotals: MonthlyTotals = {};
+                let newCompanyCommissions: Record<string, number> = {}; // Temporary variable
 
                 generalQuerySnapshot.forEach(doc => {
                 const data = doc.data();
@@ -144,11 +146,12 @@ function useSalesData(selectedAgentId: string, selectedWorkerIdFilter: string, s
                 const date = new Date(data.mounth);
                 const month = `${date.getMonth() + 1}`.padStart(2, '0') + '/' + date.getFullYear().toString().slice(2);
                 if (newMonthlyTotals[month]) {
-                        updateCommissions(data, newMonthlyTotals[month], productMap[data.product]);
+                        updateCommissions(data, newMonthlyTotals[month], productMap[data.product], newCompanyCommissions);
                     }
                 });
 
                 setMonthlyTotals(newMonthlyTotals);
+                setCompanyCommissions(newCompanyCommissions); // Update the state
                 aggregateOverallTotals(newMonthlyTotals);
             } catch (error) {
                 console.error("7-Error fetching data:", error);
@@ -178,45 +181,30 @@ function useSalesData(selectedAgentId: string, selectedWorkerIdFilter: string, s
     }
     }
 
-    function updateCommissions(data: any, monthTotals: MonthlyTotal, productGroup: string) {
-        // console.log("Current data product group:", data.productGroup);
-        // console.log("Available contracts:", contracts);
-     
-        contracts.forEach(contract => {
-            // console.log(`Checking against - AgentId: ${contract.agentId}, Product: ${contract.product}, Company: ${contract.company}, MinuySochen: ${contract.minuySochen}`);
-            // console.log('Match conditions:', {
-            //     agentMatch: contract.agentId === data.AgentId,
-            //     productMatch: contract.product === data.product,
-            //     companyMatch: contract.company === data.company,
-            //     minuySochenMatch: contract.minuySochen === data.minuySochen
-            // });
-        });
+    function updateCommissions(data: any, monthTotals: MonthlyTotal, productGroup: string,
+        companyCommissions: Record<string, number> // Pass an object to track per-company commissions
+    ) {  
+       // contracts.forEach(contract => {       
+        // });
         const contractMatch = contracts.find(contract => contract.agentId === data.AgentId && contract.product === data.product && contract.company === data.company &&   (contract.minuySochen === data.minuySochen || (contract.minuySochen === undefined && data.minuySochen === false)));
-        // console.log('data.AgentId:', data.AgentId);
-        // console.log('data.product:', data.product);
-        // console.log('data.company:', data.company);
-        // console.log('data.minuySochen:', data.minuySochen);
-        // console.log('productGroup:', productGroup);
+       
         if (contractMatch) {
-            // console.log('Contract Match Found:', contractMatch);
-            calculateCommissions(monthTotals, data, contractMatch);
+            calculateCommissions(monthTotals, data, contractMatch, companyCommissions);
         } else {
-          //  const productGroup = productMap[data.product];
-            // console.log('data.product:', data.product+ " " +productGroup);
-            
             const groupMatch = contracts.find(contract => contract.productsGroup === productGroup && contract.agentId === data.AgentId &&  (contract.minuySochen === data.minuySochen || (contract.minuySochen === undefined && data.minuySochen === false)));
-            // console.log('groupMatch:', groupMatch);
             
             if (groupMatch) {
-                // console.log('Group Match Found:', groupMatch, data.productGroup);
-                calculateCommissions(monthTotals, data, groupMatch);
+                calculateCommissions(monthTotals, data, groupMatch, companyCommissions);
             } else {
                 // console.log('No Match Found' , data.productGroup);
             }
         }
     }
 
-    function calculateCommissions(monthTotals: MonthlyTotal, data: any, contract: Contract) {
+    function calculateCommissions(monthTotals: MonthlyTotal, data: any, contract: Contract,
+        companyCommissions: Record<string, number> // Add company-specific commission tracking
+
+    ) {
         const hekef = ((parseInt(data.insPremia) || 0) * contract.commissionHekef / 100 * 12) + 
                      ((parseInt(data.pensiaPremia) || 0) * contract.commissionHekef / 100 * 12) + 
                      ((parseInt(data.pensiaZvira) || 0) * contract.commissionNiud / 100) + 
@@ -230,6 +218,13 @@ function useSalesData(selectedAgentId: string, selectedWorkerIdFilter: string, s
 
         monthTotals.commissionHekefTotal += Math.round(hekef);
         monthTotals.commissionNifraimTotal += Math.round(nifraim);
+
+  // Update company-specific commissions
+  if (data.company) {
+    companyCommissions[data.company] = (companyCommissions[data.company] || 0) + Math.round(hekef);
+    console.log("companyCommissions[data.company]: " + companyCommissions[data.company]);
+  }
+
     }
 
 
@@ -251,7 +246,9 @@ function useSalesData(selectedAgentId: string, selectedWorkerIdFilter: string, s
     return {
         monthlyTotals,
         overallTotals,
-        isLoadingData
+        isLoadingData,
+        companyCommissions, 
+
     };
 }
 

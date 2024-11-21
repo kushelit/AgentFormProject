@@ -27,7 +27,7 @@ const SalesCountGraph: React.FC<SalesCountGraphProps> = ({ data }) => {
         beginAtZero: true,
         title: {
           display: true,
-          text: 'Number of Customers',
+          text: 'כמות לקוחות',
         },
       },
     },
@@ -42,13 +42,13 @@ const SalesCountGraph: React.FC<SalesCountGraphProps> = ({ data }) => {
     labels,
     datasets: [
       {
-        label: 'New Customers Per Month',
+        label: 'סה"כ לקוחות חדשים',
         data: labels.map((label) => newCustomerCounts[label] || 0),
         borderColor: 'rgb(53, 162, 235)',
         backgroundColor: 'rgba(53, 162, 235, 0.5)',
       },
       {
-        label: 'Cumulative Distinct Customers',
+        label: 'סה"כ לקוחות',
         data: labels.map((label) => distinctCustomerCounts[label] || 0),
         borderColor: 'rgb(75, 192, 192)',
         backgroundColor: 'rgba(75, 192, 192, 0.5)',

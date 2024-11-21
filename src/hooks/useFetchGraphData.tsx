@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase/firebase';
+import useSalesData from '@/hooks/useSalesCalculateData';
+
 
 type MonthlyTotal = {
   finansimTotal: number;
@@ -26,6 +28,8 @@ const useFetchGraphData = (
   });
   const [loading, setLoading] = useState(true);
 
+
+
   useEffect(() => {
     const fetchGraphData = async () => {
       setLoading(true);
@@ -48,6 +52,24 @@ const useFetchGraphData = (
             calculatedData: result.calculatedData,
           });
         }
+        else if (selectedGraph === 'companyCommissionPie') {
+          if (!monthlyTotals || Object.keys(monthlyTotals).length === 0) {
+            console.error('Monthly totals are required for companyCommissionPie');
+            setData({
+              newCustomerCounts: {},
+              distinctCustomerCounts: {},
+              calculatedData: {}, // Empty data for the pie chart
+            });
+            return;
+          }   
+          // Use fetchCompanyCommissionData to aggregate data
+          const companyTotals = fetchCompanyCommissionData(monthlyTotals);
+          setData({
+            newCustomerCounts: {}, // Empty dataset for unused property
+            distinctCustomerCounts: {}, // Empty dataset for unused property
+            calculatedData: companyTotals, // Pass aggregated company totals for pie chart
+          });
+        }
       } catch (error) {
         console.error('Error fetching graph data:', error);
       } finally {
@@ -67,10 +89,13 @@ const fetchNewCustomerData = async (filters: any) => {
 
   let salesQuery = query(
     collection(db, 'sales'),
-    where('AgentId', '==', selectedAgentId),
+   // where('AgentId', '==', selectedAgentId),
     where('statusPolicy', 'in', ['פעילה', 'הצעה'])
   );
-
+  if (selectedAgentId) {
+    salesQuery = query(salesQuery, where('AgentId', '==', selectedAgentId));
+  }
+  
   if (selectedWorkerIdFilter) {
     salesQuery = query(salesQuery, where('workerId', '==', selectedWorkerIdFilter));
   }
@@ -149,6 +174,28 @@ const fetchCommissionPerCustomerData = async (
 
   return { calculatedData };
 };
+
+const fetchCompanyCommissionData = (
+  monthlyTotals: Record<string, MonthlyTotal>
+) => {
+  const currentYear = new Date().getFullYear().toString(); // e.g., "2024"
+  const companyTotals: Record<string, number> = {};
+
+  // Iterate over `monthlyTotals` to sum commissions for the current year
+  Object.keys(monthlyTotals).forEach((month) => {
+    if (month.slice(3, 5) === currentYear.slice(2)) {
+      const monthlyData = monthlyTotals[month];
+
+      // Sum up the total commissions for the current year
+      companyTotals["Total"] = (companyTotals["Total"] || 0) + monthlyData.commissionHekefTotal || 0;
+    }
+  });
+
+  console.log('Company Totals for Current Year:', companyTotals);
+
+  return companyTotals;
+};
+
 
 
 export default useFetchGraphData;

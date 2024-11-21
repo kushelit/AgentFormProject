@@ -12,6 +12,7 @@ import useSalesData from '@/hooks/useSalesCalculateData';
 import useFetchGraphData from '@/hooks/useFetchGraphData';
 import { useMemo } from 'react';
 import CommissionPerCustomerGraph from '@/components/CommissionPerCustomerGraph';
+import PieChartGraph from '@/components/CompanyCommissionPie';
 
 
 
@@ -33,7 +34,7 @@ const SummaryTable = () => {
       statusPolicies
     } = useFetchMD();
 
-    const { monthlyTotals, overallTotals, isLoadingData } = useSalesData(selectedAgentId, selectedWorkerIdFilter, selectedCompany, selectedProduct, selectedStatusPolicy);
+    const { monthlyTotals, overallTotals, isLoadingData, companyCommissions } = useSalesData(selectedAgentId, selectedWorkerIdFilter, selectedCompany, selectedProduct, selectedStatusPolicy);
 
   const monthsCount = Object.keys(monthlyTotals).length;
 
@@ -185,29 +186,31 @@ const averageCommissionNifraim = Math.round(overallTotals.commissionNifraimTotal
 </div> */}
 
 <div>
-      {/* Graph Selection */}
-      <select
-        value={selectedGraph}
-        onChange={(e) => setSelectedGraph(e.target.value)}
-      >
-        <option value="newCustomers">New Customers</option>
-        <option value="commissionPerMonth">Commission Per Customer</option>
-      </select>
+<div style={{ margin: '20px' }}>
+  {/* Graph Selection */}
+  <select value={selectedGraph} onChange={(e) => setSelectedGraph(e.target.value)}>
+    <option value="newCustomers">לקוחות חדשים</option>
+    <option value="commissionPerMonth">ממוצע נפרעים ללקוח</option>
+    <option value="companyCommissionPie">סך היקף לחברה</option>
+  </select>
 
-      {/* Render Graph */}
-      <div>
-        {(loading || isLoadingData) && <p>Loading...</p>}
-        {!loading && selectedGraph === 'newCustomers' && (
-          <SalesCountGraph data={data} />
-        )}
-        {!loading && selectedGraph === 'commissionPerMonth' && (
-          <CommissionPerCustomerGraph data={data.calculatedData || {}} />
-        )}
-      </div>
+  {/* Render Graph */}
+  <div>
+    {(loading || isLoadingData) && <p>Loading...</p>}
+    {!loading && selectedGraph === 'newCustomers' && <SalesCountGraph data={data} />}
+    {!loading && selectedGraph === 'commissionPerMonth' && (
+      <CommissionPerCustomerGraph data={data.calculatedData || {}} />
+    )}
+    {!loading && selectedGraph === 'companyCommissionPie' && (
+      <PieChartGraph data={companyCommissions || {}} />
+    )}
+  </div>
+</div>
 
-    </div>
+</div>
 
-    </div>
+</div>
+
   );
 };
 

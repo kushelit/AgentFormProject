@@ -22,7 +22,7 @@ const CommissionPerCustomerGraph: React.FC<CommissionPerCustomerGraphProps> = ({
         beginAtZero: true,
         title: {
           display: true,
-          text: 'Commission Per Customer (NIS)', // Update the title
+          text: 'ממוצע נפרעים ללקוח', // Update the title
         },
       },
     },
@@ -36,7 +36,7 @@ const CommissionPerCustomerGraph: React.FC<CommissionPerCustomerGraphProps> = ({
     labels,
     datasets: [
       {
-        label: 'Commission Per Customer', // Update the label
+        label: 'ממוצע נפרעים ללקוח', // Update the label
         data: labels.map((label) => data[label] || 0),
         borderColor: 'rgb(255, 99, 132)',
         backgroundColor: 'rgba(255, 99, 132, 0.5)',
