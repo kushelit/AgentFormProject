@@ -53,7 +53,7 @@ export default function LogInPage() {
         <button className="button-container"  type="submit">כניסה</button>
 
         <p>
-        <Link href="/auth/reset-password" style={{ color: 'white' }}>Forgot Password?</Link>
+        <Link href="/auth/reset-password" style={{ color: 'white' }}>שכחת סיסמא?</Link>
 </p>
       </form>
     </div>
