@@ -91,10 +91,16 @@ function useSalesData(selectedAgentId: string, selectedWorkerIdFilter: string, s
         where('mounth', '>=', startOfYear),
         where('mounth', '<=', endOfYear)
     );
-        if (selectedAgentId) {
-            salesQuery = query(salesQuery, where('AgentId', '==', selectedAgentId));
-        }
-       
+        // if (selectedAgentId) {
+        //     salesQuery = query(salesQuery, where('AgentId', '==', selectedAgentId));
+        // }
+
+//new to test 
+if (selectedAgentId && selectedAgentId !== 'all') {
+    salesQuery = query(salesQuery, where('AgentId', '==', selectedAgentId));
+}
+console.log("selectedAgentId in salesQewry: " + selectedAgentId);
+ 
         if (selectedWorkerIdFilter) salesQuery = query(salesQuery, where('workerId', '==', selectedWorkerIdFilter));
         if (selectedCompany) salesQuery = query(salesQuery, where('company', '==', selectedCompany));
         if (selectedProduct) salesQuery = query(salesQuery, where('product', '==', selectedProduct));
@@ -110,27 +116,42 @@ function useSalesData(selectedAgentId: string, selectedWorkerIdFilter: string, s
     };
 
     useEffect(() => {
-      
-        if (!loading && (detail?.role === 'agent' || (detail?.role === 'admin' && selectedAgentId !== null && selectedAgentId !== undefined))) {
-
         async function fetchData() {
-            setIsLoadingData(true); // Start loading
-            // console.log("5-selectedAgentIdTospinner1 "+ selectedAgentId)
-   //         if (!loading) {     
-                try {           
-            //    console.log("6-selectedAgentIdTospinner2 "+ selectedAgentId)       
-                const commissionSalesQuery = createSalesQuery(); // Only minuySochen=false
-                const generalSalesQuery = createSalesQuery(); // Including all minuySochen
+            if (!loading) {
+                // Handle the case when "בחר סוכן" is selected
+                if (selectedAgentId === '') {
+                    setMonthlyTotals({});
+                    setCompanyCommissions({});
+                    setOverallTotals({
+                        finansimTotal: 0,
+                        pensiaTotal: 0,
+                        insuranceTotal: 0,
+                        niudPensiaTotal: 0,
+                        commissionHekefTotal: 0,
+                        commissionNifraimTotal: 0,
+                    });
+                    return;
+                }
+                setIsLoadingData(true);
+                try {
+                    const commissionSalesQuery = createSalesQuery(); // Only minuySochen=false
+                    const generalSalesQuery = createSalesQuery(); // Including all minuySochen
+    
+                    if (!commissionSalesQuery || !generalSalesQuery) {
+                        // If the query is invalid (e.g., "בחר סוכן"), skip fetching
+                        setIsLoadingData(false);
+                        return;
+                    }
+    
                 const [generalQuerySnapshot, commissionQuerySnapshot] = await Promise.all([
                     getDocs(generalSalesQuery),
                     getDocs(commissionSalesQuery)
                 ]);
                 let newMonthlyTotals: MonthlyTotals = {};
-                let newCompanyCommissions: Record<string, number> = {}; // Temporary variable
+                let newCompanyCommissions: Record<string, number> = {}; 
 
                 generalQuerySnapshot.forEach(doc => {
                 const data = doc.data();
-                 //   const month = data.mounth;
                 const date = new Date(data.mounth);
                 const month = `${date.getMonth() + 1}`.padStart(2, '0') + '/' + date.getFullYear().toString().slice(2);
            
@@ -142,7 +163,6 @@ function useSalesData(selectedAgentId: string, selectedWorkerIdFilter: string, s
                 });
                 commissionQuerySnapshot.forEach(doc => {
                 const data = doc.data();
-                  //  const month = data.mounth;
                 const date = new Date(data.mounth);
                 const month = `${date.getMonth() + 1}`.padStart(2, '0') + '/' + date.getFullYear().toString().slice(2);
                 if (newMonthlyTotals[month]) {
@@ -151,25 +171,23 @@ function useSalesData(selectedAgentId: string, selectedWorkerIdFilter: string, s
                 });
 
                 setMonthlyTotals(newMonthlyTotals);
-                setCompanyCommissions(newCompanyCommissions); // Update the state
+                setCompanyCommissions(newCompanyCommissions); 
                 aggregateOverallTotals(newMonthlyTotals);
             } catch (error) {
                 console.error("7-Error fetching data:", error);
             } finally {
                setIsLoadingData(false); 
-           //    console.log("8-Data fetching completed. Spinner should stop.");
-
             }
         }
-   // }     
+    }
+     
         fetchData();
-    } 
-    
-    // else if (detail?.role === 'admin' && (selectedAgentId === null || selectedAgentId === undefined)) {
-    //     // Stop loading if admin has not picked an agent or "All Agents"
-    //     setIsLoadingData(false);
-    //   }
-    }, [loading,selectedAgentId, selectedWorkerIdFilter, selectedCompany, selectedProduct, selectedStatusPolicy]);
+   
+    }, [loading,selectedAgentId, selectedWorkerIdFilter, selectedCompany, selectedProduct, selectedStatusPolicy
+
+    ]);
+
+  
 
 
     function updateTotalsForMonth(data: any, monthTotals: MonthlyTotal, includeMinuySochen: boolean) {  

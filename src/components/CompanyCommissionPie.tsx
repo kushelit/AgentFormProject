@@ -1,9 +1,18 @@
 import React from 'react';
 import { Line } from 'react-chartjs-2';
-import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend } from 'chart.js';
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Tooltip,
+  Legend,
+} from 'chart.js';
+import ChartDataLabels from 'chartjs-plugin-datalabels';
 
-// Register the required components for the chart
-ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend);
+// Register the required components and plugins
+ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend, ChartDataLabels);
 
 interface CommissionPerCustomerGraphProps {
   data: Record<string, number>;
@@ -16,13 +25,36 @@ const CommissionPerCustomerGraph: React.FC<CommissionPerCustomerGraphProps> = ({
       legend: {
         position: 'top' as const,
       },
+      tooltip: {
+        callbacks: {
+          label: (context: any) => {
+            const value = context.raw as number;
+            return `${value.toLocaleString('en-US')}`;
+          },
+        },
+      },
+      datalabels: {
+        display: true,
+        color: 'black',
+        anchor: 'end' as const, // Use a valid type here
+        align: 'end' as const, // Use a valid type here
+        formatter: (value: number) => value.toLocaleString('en-US'),
+      },
     },
     scales: {
       y: {
         beginAtZero: true,
         title: {
           display: true,
-          text: 'ממוצע נפרעים ללקוח', // Update the title
+          text: 'ממוצע נפרעים ללקוח',
+        },
+        ticks: {
+          callback: (tickValue: number | string) => {
+            if (typeof tickValue === 'number') {
+              return tickValue.toLocaleString('en-US');
+            }
+            return tickValue;
+          },
         },
       },
     },
@@ -36,7 +68,7 @@ const CommissionPerCustomerGraph: React.FC<CommissionPerCustomerGraphProps> = ({
     labels,
     datasets: [
       {
-        label: 'ממוצע נפרעים ללקוח', // Update the label
+        label: 'ממוצע נפרעים ללקוח',
         data: labels.map((label) => data[label] || 0),
         borderColor: 'rgb(255, 99, 132)',
         backgroundColor: 'rgba(255, 99, 132, 0.5)',

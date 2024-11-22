@@ -153,27 +153,56 @@ const useFetchAgentData = () => {
 
 
 
+  // const handleAgentChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
+  //   const { value } = event.target;
+  
+  //   if (value === '') {
+  //     // If "All Agents" is selected, set selectedAgentId to ''
+  //     setSelectedAgentId(''); 
+  //     setSelectedAgentName('כל הסוכנים');
+  //     setWorkers([]); // Clear workers list
+  //   } else {
+  //     // Otherwise, set the selected agent's ID
+  //     const selectedAgent = agents.find(agent => agent.id === value);
+  
+  //     if (selectedAgent) {
+  //       setSelectedAgentId(selectedAgent.id);
+  //       setSelectedAgentName(selectedAgent.name);
+
+  //       // Clear the worker selection after the agent is changed
+  //     setSelectedWorkerIdFilter('');
+  //     }
+  //   }
+  // };
+
+
   const handleAgentChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
     const { value } = event.target;
-  
-    if (value === '') {
-      // If "All Agents" is selected, set selectedAgentId to ''
-      setSelectedAgentId(''); 
-      setSelectedAgentName('כל הסוכנים');
-      setWorkers([]); // Clear workers list
-    } else {
-      // Otherwise, set the selected agent's ID
-      const selectedAgent = agents.find(agent => agent.id === value);
-  
-      if (selectedAgent) {
-        setSelectedAgentId(selectedAgent.id);
-        setSelectedAgentName(selectedAgent.name);
 
-        // Clear the worker selection after the agent is changed
-      setSelectedWorkerIdFilter('');
-      }
+    if (value === '') {
+        // Reset state for "בחר סוכן"
+        setSelectedAgentId('');
+        setSelectedAgentName('בחר סוכן');
+        setWorkers([]); // Clear workers list
+    } else if (value === 'all') {
+        // Fetch data for "כל הסוכנות"
+        setSelectedAgentId('all');
+        setSelectedAgentName('כל הסוכנות');
+        setWorkers([]);
+    } else {
+        // Fetch data for a specific agent
+        const selectedAgent = agents.find((agent) => agent.id === value);
+
+        if (selectedAgent) {
+            setSelectedAgentId(selectedAgent.id);
+            setSelectedAgentName(selectedAgent.name);
+            setSelectedWorkerIdFilter('');
+        }
     }
-  };
+};
+
+
+
 
 
   const handleWorkerChange = (event: React.ChangeEvent<HTMLSelectElement> , updateType: 'insert' | 'filter' | 'goal') => {

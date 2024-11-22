@@ -15,30 +15,38 @@ type MonthlyTotal = {
 
 const useFetchGraphData = (
   selectedGraph: string,
-  filters: any,
+  filters: { selectedAgentId: string | null; selectedWorkerIdFilter: string },
   monthlyTotals?: Record<string, MonthlyTotal>
 ) => {
-  const [data, setData] = useState<{
-    newCustomerCounts: Record<string, number>;
-    distinctCustomerCounts: Record<string, number>;
-    calculatedData?: Record<string, number>;
-  }>({
+
+  const [data, setData] = useState({
     newCustomerCounts: {},
     distinctCustomerCounts: {},
+    calculatedData: {},
   });
-  const [loading, setLoading] = useState(true);
-
-
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
+    if (!filters || !filters.selectedAgentId) {
+      // Reset data if filters are invalid
+      setData({
+        newCustomerCounts: {},
+        distinctCustomerCounts: {},
+        calculatedData: {},
+      });
+      return;
+    }
+  
     const fetchGraphData = async () => {
       setLoading(true);
+      console.log('Fetching graph selectedAgent:', filters);
       try {
         if (selectedGraph === 'newCustomers') {
           const result = await fetchNewCustomerData(filters);
           setData({
             newCustomerCounts: result.newCustomerCounts,
             distinctCustomerCounts: result.distinctCustomerCounts,
+            calculatedData: {}, // Provide an empty object as a default
           });
         } else if (selectedGraph === 'commissionPerMonth') {
           if (!monthlyTotals || Object.keys(monthlyTotals).length === 0) {
@@ -51,23 +59,16 @@ const useFetchGraphData = (
             distinctCustomerCounts: {}, // Empty dataset for unused property
             calculatedData: result.calculatedData,
           });
-        }
-        else if (selectedGraph === 'companyCommissionPie') {
+          } else if (selectedGraph === 'companyCommissionPie') {
           if (!monthlyTotals || Object.keys(monthlyTotals).length === 0) {
-            console.error('Monthly totals are required for companyCommissionPie');
-            setData({
-              newCustomerCounts: {},
-              distinctCustomerCounts: {},
-              calculatedData: {}, // Empty data for the pie chart
-            });
-            return;
-          }   
-          // Use fetchCompanyCommissionData to aggregate data
+            console.warn('Monthly totals are not ready for companyCommissionPie');
+            return <p>Loading graph data...</p>; 
+          }
           const companyTotals = fetchCompanyCommissionData(monthlyTotals);
           setData({
             newCustomerCounts: {}, // Empty dataset for unused property
             distinctCustomerCounts: {}, // Empty dataset for unused property
-            calculatedData: companyTotals, // Pass aggregated company totals for pie chart
+            calculatedData: companyTotals,
           });
         }
       } catch (error) {
@@ -77,28 +78,34 @@ const useFetchGraphData = (
       }
     };
 
+// Only fetch when dependencies are valid
+if (selectedGraph === 'companyCommissionPie' && (!monthlyTotals || Object.keys(monthlyTotals).length === 0)) {
+  console.warn('Waiting for monthlyTotals to populate before fetching data.');
+  return;
+}
+
     fetchGraphData();
-  }, [selectedGraph, filters, monthlyTotals]);
+  }, [selectedGraph, filters, monthlyTotals]); // Ensure dependencies are correct
 
   return { data, loading };
 };
 
 // Fetch Data for New Customers Graph
-const fetchNewCustomerData = async (filters: any) => {
+const fetchNewCustomerData = async (filters: { selectedAgentId: string | null; selectedWorkerIdFilter: string }) => {
   const { selectedAgentId, selectedWorkerIdFilter } = filters;
-
   let salesQuery = query(
     collection(db, 'sales'),
-   // where('AgentId', '==', selectedAgentId),
     where('statusPolicy', 'in', ['פעילה', 'הצעה'])
   );
-  if (selectedAgentId) {
+
+  if (selectedAgentId && selectedAgentId !== 'all') {
+    // Only add the condition if selectedAgentId is not null or empty
     salesQuery = query(salesQuery, where('AgentId', '==', selectedAgentId));
   }
-  
   if (selectedWorkerIdFilter) {
     salesQuery = query(salesQuery, where('workerId', '==', selectedWorkerIdFilter));
   }
+
 
   const querySnapshot = await getDocs(salesQuery);
 
@@ -110,9 +117,8 @@ const fetchNewCustomerData = async (filters: any) => {
     if (data.IDCustomer && data.mounth && typeof data.mounth === 'string') {
       const customer = data.IDCustomer;
 
-      // Convert month to MM/YY format to match `monthlyTotals`
-      const month = data.mounth.slice(0, 7); // Extract "YYYY-MM"
-      const formattedMonth = `${month.slice(5, 7)}/${month.slice(2, 4)}`; // Convert to MM/YY
+      const month = data.mounth.slice(0, 7);
+      const formattedMonth = `${month.slice(5, 7)}/${month.slice(2, 4)}`;
 
       if (!customerFirstMonth[customer] || customerFirstMonth[customer] > formattedMonth) {
         customerFirstMonth[customer] = formattedMonth;
@@ -120,24 +126,21 @@ const fetchNewCustomerData = async (filters: any) => {
       distinctCustomers.add(customer);
     }
   });
-
   const newCustomerCounts: Record<string, number> = {};
   Object.values(customerFirstMonth).forEach((month) => {
     newCustomerCounts[month] = (newCustomerCounts[month] || 0) + 1;
   });
 
   const distinctCustomerCounts: Record<string, number> = {};
-  const sortedMonths = Object.keys(newCustomerCounts).sort();
   let cumulativeCount = 0;
 
-  sortedMonths.forEach((month) => {
+  Object.keys(newCustomerCounts).sort().forEach((month) => {
     cumulativeCount += newCustomerCounts[month];
     distinctCustomerCounts[month] = cumulativeCount;
   });
 
   return { newCustomerCounts, distinctCustomerCounts };
 };
-
 
 // Fetch Data for Commission Per Customer Graph
 const fetchCommissionPerCustomerData = async (
@@ -195,7 +198,6 @@ const fetchCompanyCommissionData = (
 
   return companyTotals;
 };
-
 
 
 export default useFetchGraphData;

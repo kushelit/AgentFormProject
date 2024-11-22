@@ -38,13 +38,12 @@ const SummaryTable = () => {
 
   const monthsCount = Object.keys(monthlyTotals).length;
 
-  const filters = useMemo(
-    () => ({
-      selectedAgentId,
+  const filters = useMemo(() => {
+    return {
+      selectedAgentId: selectedAgentId || null, // Pass null explicitly if no agent is selected
       selectedWorkerIdFilter,
-    }),
-    [selectedAgentId, selectedWorkerIdFilter]
-  );
+    };
+  }, [selectedAgentId, selectedWorkerIdFilter]);
 
 
 
@@ -57,9 +56,9 @@ const SummaryTable = () => {
 
   useEffect(() => {
     if (detail?.role === 'admin' && (selectedAgentId === null || selectedAgentId === undefined)) {
-        setSelectedAgentId(''); // Set to "All Agents" on admin login
+        setSelectedAgentId('select'); // Set to "All Agents" on admin login
     }
-  //  console.log("SelectedAgentId set to  " + selectedAgentId);
+    console.log("SelectedAgentId set to  " + selectedAgentId);
 }, [detail, selectedAgentId]);
 
 
@@ -80,8 +79,9 @@ const averageCommissionNifraim = Math.round(overallTotals.commissionNifraimTotal
 
        <div className="select-container" >
       <select id="agent-select" value={selectedAgentId} onChange={handleAgentChange}>
-        {detail?.role === 'admin' && <option value="">כל הסוכנות</option>}
-        {agents.map(agent => (
+      <option value="">בחר סוכן</option>
+      {detail?.role === 'admin' && <option value="all">כל הסוכנות</option>}
+       {agents.map(agent => (
           <option key={agent.id} value={agent.id}>{agent.name}</option>
         ))}
       </select>
