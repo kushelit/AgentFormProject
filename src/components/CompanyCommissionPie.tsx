@@ -57,7 +57,7 @@ const CommissionPerCustomerGraph: React.FC<CommissionPerCustomerGraphProps> = ({
         beginAtZero: true,
         title: {
           display: true,
-          text: 'ממוצע נפרעים ללקוח',
+          text: 'סכום היקף שנתי מצטבר בש"ח',
         },
         ticks: {
           callback: (tickValue: number | string) => {
@@ -93,7 +93,7 @@ const CommissionPerCustomerGraph: React.FC<CommissionPerCustomerGraphProps> = ({
     labels,
     datasets: [
       {
-        label: 'ממוצע נפרעים ללקוח',
+        label: 'היקף לחברה', 
         data: labels.map((label) => data[label] || 0),
         backgroundColor: 'rgba(53, 162, 235, 0.5)',
         borderColor: 'rgb(53, 162, 235)',
