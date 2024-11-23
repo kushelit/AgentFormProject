@@ -27,68 +27,95 @@ const useFetchGraphData = (
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (!filters || !filters.selectedAgentId) {
-      // Reset data if filters are invalid
-      setData({
-        newCustomerCounts: {},
-        distinctCustomerCounts: {},
-        calculatedData: {},
-      });
-      return;
-    }
-  
     const fetchGraphData = async () => {
+      if (!filters || !filters.selectedAgentId) {
+        // Reset data if filters are invalid
+        setData({
+          newCustomerCounts: {},
+          distinctCustomerCounts: {},
+          calculatedData: {},
+        });
+        return;
+      }
+
       setLoading(true);
-     // console.log('Fetching graph selectedAgent:', filters);
       try {
         if (selectedGraph === 'newCustomers') {
           const result = await fetchNewCustomerData(filters);
+          if (Object.keys(result.newCustomerCounts).length === 0) {
+            setData({
+              newCustomerCounts: {},
+              distinctCustomerCounts: {},
+              calculatedData: {},
+            });
+            console.warn('No data available for newCustomers');
+            return;
+          }
           setData({
             newCustomerCounts: result.newCustomerCounts,
             distinctCustomerCounts: result.distinctCustomerCounts,
-            calculatedData: {}, // Provide an empty object as a default
+            calculatedData: {},
           });
         } else if (selectedGraph === 'commissionPerMonth') {
           if (!monthlyTotals || Object.keys(monthlyTotals).length === 0) {
-            console.error('Monthly totals are required for commissionPerMonth');
+            setData({
+              newCustomerCounts: {},
+              distinctCustomerCounts: {},
+              calculatedData: {},
+            });
+            console.warn('No data available for commissionPerMonth');
             return;
           }
           const result = await fetchCommissionPerCustomerData(filters, monthlyTotals);
           setData({
-            newCustomerCounts: {}, // Empty dataset for unused property
-            distinctCustomerCounts: {}, // Empty dataset for unused property
-            calculatedData: result.calculatedData,
+            newCustomerCounts: {},
+            distinctCustomerCounts: {},
+            calculatedData: result.calculatedData || {},
           });
-          } else if (selectedGraph === 'companyCommissionPie') {
+        } else if (selectedGraph === 'companyCommissionPie') {
           if (!monthlyTotals || Object.keys(monthlyTotals).length === 0) {
-            console.warn('Monthly totals are not ready for companyCommissionPie');
-            return <p>Loading graph data...</p>; 
+            setData({
+              newCustomerCounts: {},
+              distinctCustomerCounts: {},
+              calculatedData: {},
+            });
+            console.warn('No data available for companyCommissionPie');
+            return;
           }
           const companyTotals = fetchCompanyCommissionData(monthlyTotals);
+          if (!companyTotals || Object.keys(companyTotals).length === 0) {
+            setData({
+              newCustomerCounts: {},
+              distinctCustomerCounts: {},
+              calculatedData: {},
+            });
+            console.warn('No company commission data available');
+            return;
+          }
           setData({
-            newCustomerCounts: {}, // Empty dataset for unused property
-            distinctCustomerCounts: {}, // Empty dataset for unused property
+            newCustomerCounts: {},
+            distinctCustomerCounts: {},
             calculatedData: companyTotals,
           });
         }
       } catch (error) {
         console.error('Error fetching graph data:', error);
+        setData({
+          newCustomerCounts: {},
+          distinctCustomerCounts: {},
+          calculatedData: {},
+        });
       } finally {
         setLoading(false);
       }
     };
-
-// Only fetch when dependencies are valid
-if (selectedGraph === 'companyCommissionPie' && (!monthlyTotals || Object.keys(monthlyTotals).length === 0)) {
-  console.warn('Waiting for monthlyTotals to populate before fetching data.');
-  return;
-}
 
     fetchGraphData();
   }, [selectedGraph, filters, monthlyTotals]); // Ensure dependencies are correct
 
   return { data, loading };
 };
+
 
 // Fetch Data for New Customers Graph
 const fetchNewCustomerData = async (filters: { selectedAgentId: string | null; selectedWorkerIdFilter: string }) => {
