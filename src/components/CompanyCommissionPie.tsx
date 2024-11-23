@@ -1,18 +1,17 @@
 import React from 'react';
-import { Line } from 'react-chartjs-2';
+import { Bar } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
   CategoryScale,
   LinearScale,
-  PointElement,
-  LineElement,
+  BarElement,
   Tooltip,
   Legend,
 } from 'chart.js';
 import ChartDataLabels from 'chartjs-plugin-datalabels';
 
 // Register the required components and plugins
-ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend, ChartDataLabels);
+ChartJS.register(CategoryScale, LinearScale, BarElement, Tooltip, Legend, ChartDataLabels);
 
 interface CommissionPerCustomerGraphProps {
   data: Record<string, number>;
@@ -36,9 +35,21 @@ const CommissionPerCustomerGraph: React.FC<CommissionPerCustomerGraphProps> = ({
       datalabels: {
         display: true,
         color: 'black',
-        anchor: 'end' as const, // Use a valid type here
-        align: 'end' as const, // Use a valid type here
+        anchor: 'end' as const,
+        align: 'top' as const,
+        offset: 10,
         formatter: (value: number) => value.toLocaleString('en-US'),
+        font: {
+          size: 12,
+          weight: 'bold' as const,
+        },
+        textAlign: 'center' as const,
+        textStrokeWidth: 0,
+        borderWidth: 0,
+        borderRadius: 4,
+        backgroundColor: 'transparent',
+        // Use translation to adjust position
+        translation: [20, 0],  // [x, y] translation
       },
     },
     scales: {
@@ -57,6 +68,20 @@ const CommissionPerCustomerGraph: React.FC<CommissionPerCustomerGraphProps> = ({
           },
         },
       },
+      x: {
+        grid: {
+          display: false,
+        },
+        ticks: {
+          autoSkip: false,
+          maxRotation: 0,
+        },
+      },
+    },
+    layout: {
+      padding: {
+        top: 30
+      }
     },
   };
 
@@ -70,13 +95,15 @@ const CommissionPerCustomerGraph: React.FC<CommissionPerCustomerGraphProps> = ({
       {
         label: 'ממוצע נפרעים ללקוח',
         data: labels.map((label) => data[label] || 0),
-        borderColor: 'rgb(255, 99, 132)',
-        backgroundColor: 'rgba(255, 99, 132, 0.5)',
+        backgroundColor: 'rgba(53, 162, 235, 0.5)',
+        borderColor: 'rgb(53, 162, 235)',
+        borderWidth: 1,
+        barThickness: 40,
       },
     ],
   };
 
-  return <Line options={options} data={dataset} />;
+  return <Bar options={options} data={dataset} />;
 };
 
 export default CommissionPerCustomerGraph;

@@ -79,7 +79,7 @@ const averageCommissionNifraim = Math.round(overallTotals.commissionNifraimTotal
 
        <div className="select-container" >
       <select id="agent-select" value={selectedAgentId} onChange={handleAgentChange}>
-      <option value="">בחר סוכן</option>
+      {detail?.role === 'admin' && <option value="">בחר סוכן</option>}
       {detail?.role === 'admin' && <option value="all">כל הסוכנות</option>}
        {agents.map(agent => (
           <option key={agent.id} value={agent.id}>{agent.name}</option>

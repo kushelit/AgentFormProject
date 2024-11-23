@@ -39,7 +39,7 @@ const useFetchGraphData = (
   
     const fetchGraphData = async () => {
       setLoading(true);
-      console.log('Fetching graph selectedAgent:', filters);
+     // console.log('Fetching graph selectedAgent:', filters);
       try {
         if (selectedGraph === 'newCustomers') {
           const result = await fetchNewCustomerData(filters);
@@ -168,12 +168,12 @@ const fetchCommissionPerCustomerData = async (
     // Calculate commission per customer
     calculatedData[month] = cumulativeCommission / distinctCustomers;
 
-    console.log(
-      `Month: ${month}, Cumulative Commission: ${cumulativeCommission}, Customers: ${distinctCustomers}, Result: ${calculatedData[month]}`
-    );
+   // console.log(
+    //  `Month: ${month}, Cumulative Commission: ${cumulativeCommission}, Customers: ${distinctCustomers}, Result: ${calculatedData[month]}`
+    //);
   });
 
-  console.log('Commission Per Customer Calculated Data:', calculatedData);
+ // console.log('Commission Per Customer Calculated Data:', calculatedData);
 
   return { calculatedData };
 };
@@ -194,7 +194,7 @@ const fetchCompanyCommissionData = (
     }
   });
 
-  console.log('Company Totals for Current Year:', companyTotals);
+ // console.log('Company Totals for Current Year:', companyTotals);
 
   return companyTotals;
 };

@@ -99,7 +99,7 @@ function useSalesData(selectedAgentId: string, selectedWorkerIdFilter: string, s
 if (selectedAgentId && selectedAgentId !== 'all') {
     salesQuery = query(salesQuery, where('AgentId', '==', selectedAgentId));
 }
-console.log("selectedAgentId in salesQewry: " + selectedAgentId);
+//console.log("selectedAgentId in salesQewry: " + selectedAgentId);
  
         if (selectedWorkerIdFilter) salesQuery = query(salesQuery, where('workerId', '==', selectedWorkerIdFilter));
         if (selectedCompany) salesQuery = query(salesQuery, where('company', '==', selectedCompany));
