@@ -120,6 +120,11 @@ const useFetchGraphData = (
 // Fetch Data for New Customers Graph
 const fetchNewCustomerData = async (filters: { selectedAgentId: string | null; selectedWorkerIdFilter: string }) => {
   const { selectedAgentId, selectedWorkerIdFilter } = filters;
+  const currentDate = new Date();
+  const currentYear = currentDate.getFullYear(); // Current year (e.g., 2024)
+  const currentMonth = currentDate.getMonth() + 1; // Current month (1-12)
+  const yearString = String(currentYear).slice(2); // Last two digits of the year (e.g., "24")
+ 
   let salesQuery = query(
     collection(db, 'sales'),
     where('statusPolicy', 'in', ['פעילה', 'הצעה'])
@@ -132,7 +137,6 @@ const fetchNewCustomerData = async (filters: { selectedAgentId: string | null; s
   if (selectedWorkerIdFilter) {
     salesQuery = query(salesQuery, where('workerId', '==', selectedWorkerIdFilter));
   }
-
 
   const querySnapshot = await getDocs(salesQuery);
 
@@ -147,17 +151,33 @@ const fetchNewCustomerData = async (filters: { selectedAgentId: string | null; s
       const month = data.mounth.slice(0, 7);
       const formattedMonth = `${month.slice(5, 7)}/${month.slice(2, 4)}`;
 
-      if (!customerFirstMonth[customer] || customerFirstMonth[customer] > formattedMonth) {
-        customerFirstMonth[customer] = formattedMonth;
+      if (
+        formattedMonth.endsWith(`/${yearString}`) && // Only include months from the current year
+        parseInt(formattedMonth.split('/')[0]) <= currentMonth // Only include months up to the current month
+      ) {
+        if (!customerFirstMonth[customer] || customerFirstMonth[customer] > formattedMonth) {
+          customerFirstMonth[customer] = formattedMonth;
+        }
+        distinctCustomers.add(customer);
       }
-      distinctCustomers.add(customer);
     }
   });
+
   const newCustomerCounts: Record<string, number> = {};
   Object.values(customerFirstMonth).forEach((month) => {
     newCustomerCounts[month] = (newCustomerCounts[month] || 0) + 1;
   });
 
+ // Ensure all months up to the current month are present in `newCustomerCounts`
+ const monthsUpToNow = Array.from(
+  { length: currentMonth },
+  (_, i) => `${String(i + 1).padStart(2, '0')}/${yearString}`
+);
+monthsUpToNow.forEach((month) => {
+  if (!newCustomerCounts[month]) {
+    newCustomerCounts[month] = 0;
+  }
+});
   const distinctCustomerCounts: Record<string, number> = {};
   let cumulativeCount = 0;
 
@@ -165,7 +185,7 @@ const fetchNewCustomerData = async (filters: { selectedAgentId: string | null; s
     cumulativeCount += newCustomerCounts[month];
     distinctCustomerCounts[month] = cumulativeCount;
   });
-
+console.log('newCustomerCounts', newCustomerCounts);
   return { newCustomerCounts, distinctCustomerCounts };
 };
 
@@ -175,7 +195,7 @@ const fetchCommissionPerCustomerData = async (
   monthlyTotals: Record<string, MonthlyTotal>
 ) => {
   const { distinctCustomerCounts } = await fetchNewCustomerData(filters);
-
+console.log('distinctCustomerCounts', distinctCustomerCounts);
   const calculatedData: Record<string, number> = {};
   let cumulativeCommission = 0; // To keep track of cumulative commission
 
