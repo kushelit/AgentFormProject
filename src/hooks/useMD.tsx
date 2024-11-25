@@ -6,7 +6,8 @@ import { db } from '@/lib/firebase/firebase';
 
 
 
-const useFetchMD = () => {
+const useFetchMD = (selectedAgentId:string) => {
+
 
 
     const [companies, setCompanies] = useState<string[]>([]); 
@@ -24,6 +25,8 @@ const useFetchMD = () => {
     const [selectedProductFilter, setSelectedProductFilter] = useState('');
     const [selectedProductGroupFilter, setSelectedProductGroupFilter] = useState('');
     const [selectedStatusPolicyFilter, setSelectedStatusPolicyFilter] = useState('');
+
+    const [statusLeadMap, SetStatusLeadMap] = useState<any[]>([]);
 
 
     interface ProductGroup {
@@ -167,6 +170,63 @@ const useFetchMD = () => {
     fetchStatusPolicies();
   }, []);
 
+useEffect(() => {
+  const fetchStatusLeadForAgentAndDefault = async (selectedAgentId: string) => {
+    try {
+      // Query 1: Fetch statuses specific to the agent where `statusLeadList = true`
+      const agentQuery = query(
+        collection(db, 'statusLeadList'),
+        where('AgentId', '==', selectedAgentId),
+        where('statusLeadList', '==', true)
+      );
+      const agentQuerySnapshot = await getDocs(agentQuery);
+
+      // Query 2: Fetch default statuses where `defaultStatusLead = true` and `statusLeadList = true`
+      const defaultQuery = query(
+        collection(db, 'statusLeadList'),
+        where('defaultStatusLead', '==', true),
+        where('statusLeadList', '==', true)
+      );
+      const defaultQuerySnapshot = await getDocs(defaultQuery);
+      // Extract data from both queries
+      const agentStatuses = agentQuerySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+  
+      const defaultStatuses = defaultQuerySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+  
+      // Combine the results and remove duplicates
+      const allStatuses = [...agentStatuses, ...defaultStatuses];
+      const uniqueStatuses = Array.from(
+        new Map(allStatuses.map(item => [item.id, item])).values()
+      );
+  
+      SetStatusLeadMap(uniqueStatuses); // Set the combined unique statuses
+      console.log('SetStatusLeadMap:', uniqueStatuses);
+    } catch (error) {
+      console.error('Error fetching status leads:', error);
+    }
+  };
+fetchStatusLeadForAgentAndDefault(selectedAgentId);
+}, [selectedAgentId]);
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
       
    return {
 
@@ -189,7 +249,8 @@ const useFetchMD = () => {
     setSelectedProductGroupFilter,
     selectedStatusPolicyFilter, 
     setSelectedStatusPolicyFilter,
-    productMap, isLoading
+    productMap, isLoading,statusLeadMap
+    
   };
   
   
