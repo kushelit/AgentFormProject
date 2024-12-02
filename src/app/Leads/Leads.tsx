@@ -65,12 +65,15 @@ const Leads = () => {
     lastNameCustomer: string;
     IDCustomer: string;
     returnDate: string;
-    lastCallDate: string;
+    lastContactDate: string;
     phone: string;
     mail: string;
     address: string;
     sourceValue: string;
     selectedStatusLead: string;
+    workerId: string;
+    notes: string;
+    workerName: string;
   };
 
 
@@ -81,7 +84,12 @@ const Leads = () => {
     selectedAgentName,
     workers, 
     handleWorkerChange,
-    selectedWorkerId
+    selectedWorkerId,
+    selectedWorkerName, 
+    setSelectedWorkerName,
+    workerNameMap,
+    setSelectedWorkerId, 
+
   } = useFetchAgentData();
 
 
@@ -160,20 +168,32 @@ const Leads = () => {
     setMail(item.mail || '');
     setAddress(item.address || '');
     setSourceValue(item.sourceValue || '');
-   
+    setSelectedStatusLead(item.selectedStatusLead || '');
+    const workerName = workerNameMap[item.workerId];
+    if (workerName) {
+        setSelectedWorkerId(item.workerId);
+        setSelectedWorkerName(workerName);
+    } else {
+        // Handle case where the worker is not found - maybe clear or set default values
+        setSelectedWorkerId('');
+        setSelectedWorkerName('Unknown Worker');
+    }
+    
   };
 
 
   // delete function ***
   const handleDelete = async () => {
     if (selectedRow && selectedRow.id) {
-      await deleteDoc(doc(db, 'customer', selectedRow.id));
+      await deleteDoc(doc(db, 'leads', selectedRow.id));
       setSelectedRow(null); // Reset selection
       resetForm();
       setIsEditing(false);
       if (selectedAgentId) {
         fetchLeadsForAgent(selectedAgentId);
       }
+      setFilteredData([]);
+
     } else {
       console.log("No selected row or row ID is undefined");
     }
@@ -181,7 +201,7 @@ const Leads = () => {
   const handleEdit = async () => {
     if (selectedRow && selectedRow.id) {
       try {
-        const docRef = doc(db, 'customer', selectedRow.id);
+        const docRef = doc(db, 'leads', selectedRow.id);
         await updateDoc(docRef, {
           firstNameCustomer,
           lastNameCustomer,
@@ -194,11 +214,13 @@ const Leads = () => {
           address,
           sourceValue,
           lastUpdateDate: serverTimestamp(),
-          selectedStatusLead
+          selectedStatusLead,
+          workerId: selectedWorkerId,// id new
         });
         console.log("Document successfully updated");
         setSelectedRow(null);
         resetForm();
+        setFilteredData([]);
         if (selectedAgentId) {
           fetchLeadsForAgent(selectedAgentId);
         }
@@ -225,6 +247,8 @@ const Leads = () => {
     setSourceValue('');
     setSuggestions([]);
     setSelectedStatusLead('');
+    setSelectedWorkerId('');
+    setSelectedWorkerName('');
   };
 
 
@@ -244,9 +268,9 @@ const Leads = () => {
           lastContactDate,       
           sourceValue,
           createdAt: serverTimestamp(),
-          lastUpdateDate: serverTimestamp(), // Also set at creation
-          selectedStatusLead
-
+          lastUpdateDate: serverTimestamp(), 
+          selectedStatusLead,
+          workerId: selectedWorkerId,
         });
         alert('ליד חדש התווסף בהצלחה');
       resetForm();
@@ -457,10 +481,13 @@ const Leads = () => {
                 <th>כתובת</th>
                 <th>מקור ליד</th>
                 <th>סטטוס ליד</th>
+                <th>שם נציג</th>
               </tr>
             </thead>
             <tbody>
-              {filteredData.map((item) => (
+            {filteredData.map((item) => {
+  const statusLeadName = statusLeadMap.find(status => status.id === item.selectedStatusLead)?.statusLeadName || 'לא נבחר';
+               return (
                 <tr key={item.id}
                   onClick={() => handleRowClick(item)}
                   onMouseEnter={() => setHoveredRowId(item.id)}
@@ -470,14 +497,16 @@ const Leads = () => {
                   <td>{item.lastNameCustomer}</td>
                   <td>{item.IDCustomer}</td>
                   <td>{item.returnDate}</td>
-                  <td>{item.lastCallDate}</td>
+                  <td>{item.lastContactDate}</td>
                   <td>{item.phone}</td>
                   <td>{item.mail}</td>
                   <td>{item.address}</td>
                   <td>{item.sourceValue}</td>
-                  <td>{item.selectedStatusLead}</td>
-                </tr>
-              ))}
+                  <td>{statusLeadName}</td>
+                  <td>{(workerNameMap[item.workerId] || 'Unknown Worker')}</td>
+                  </tr>
+              );
+            })}
             </tbody>
           </table>
         </div>

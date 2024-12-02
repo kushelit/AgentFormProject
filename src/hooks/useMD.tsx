@@ -6,7 +6,7 @@ import { db } from '@/lib/firebase/firebase';
 
 
 
-const useFetchMD = (selectedAgentId:string) => {
+const useFetchMD = (selectedAgentId?:string) => {
 
 
 
@@ -170,17 +170,19 @@ const useFetchMD = (selectedAgentId:string) => {
     fetchStatusPolicies();
   }, []);
 
-useEffect(() => {
-  const fetchStatusLeadForAgentAndDefault = async (selectedAgentId: string) => {
+
+  useEffect(() => {
+  const fetchStatusLeadForAgentAndDefault = async (selectedAgentId?: string) => {
     try {
       // Query 1: Fetch statuses specific to the agent where `statusLeadList = true`
+     
       const agentQuery = query(
         collection(db, 'statusLeadList'),
         where('AgentId', '==', selectedAgentId),
         where('statusLeadList', '==', true)
       );
       const agentQuerySnapshot = await getDocs(agentQuery);
-
+    
       // Query 2: Fetch default statuses where `defaultStatusLead = true` and `statusLeadList = true`
       const defaultQuery = query(
         collection(db, 'statusLeadList'),
@@ -214,17 +216,6 @@ useEffect(() => {
 fetchStatusLeadForAgentAndDefault(selectedAgentId);
 }, [selectedAgentId]);
   
-
-
-
-
-
-
-
-
-
-
-
 
 
       

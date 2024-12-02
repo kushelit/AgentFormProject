@@ -196,7 +196,7 @@ const {
         setSelectedRowStatusLead(item); 
         setStatusLeadName(item.statusLeadName || '');
         setStatusLeadList(item.statusLeadList || '');
-        setDefaultStatusLead(item.defultStatusLead || '');
+        setDefaultStatusLead(item.defaultStatusLead || '');
       };
     
       const handleDeleteStatusLead = async () => {
@@ -375,10 +375,10 @@ const {
                     </tr> 
                     <tr>
                     <td>
-                        <label htmlFor="defultStatusLead">סטאטוס מערכת</label>
+                        <label htmlFor="defaultStatusLead">סטאטוס מערכת</label>
                     </td>
                     <td>
-                        <input type="checkbox" id="defultStatusLead" name="defultStatusLead" checked={defaultStatusLead} onChange={(e) => setDefaultStatusLead(e.target.checked)} />
+                        <input type="checkbox" id="defaultStatusLead" name="deafultStatusLead" checked={defaultStatusLead} onChange={(e) => setDefaultStatusLead(e.target.checked)} />
                     </td>
                 </tr>
                     <tr>
