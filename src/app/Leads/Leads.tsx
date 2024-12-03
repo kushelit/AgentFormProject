@@ -50,7 +50,9 @@ const Leads = () => {
   const [sourceLeadList, setSourceLeadList] = useState<any[]>([]);
   const handleReturnDate = (e: React.ChangeEvent<HTMLInputElement>) => setReturnDate(e.target.value);
 
-  
+  const [editingRowId, setEditingRowId] = useState<string | null>(null);
+const [newStatusLead, setNewStatusLead] = useState<string>('');
+
 
 
   interface Suggestion {
@@ -317,6 +319,32 @@ const Leads = () => {
     setSourceValue(event.target.value);
   };
 
+  const handleStatusChange = async (rowId: string, newValue: string) => {
+    try {
+      const docRef = doc(db, 'leads', rowId);
+      await updateDoc(docRef, {
+        selectedStatusLead: newValue,
+        lastUpdateDate: serverTimestamp(), // Optional: Update timestamp
+      });
+  
+      // Update the local state or refetch data to reflect changes
+      setLeadsData((prev) =>
+        prev.map((lead) =>
+          lead.id === rowId
+            ? { ...lead, selectedStatusLead: newValue }
+            : lead
+        )
+      );
+  
+   //   alert('סטטוס עודכן בהצלחה');
+      setEditingRowId(null); // Exit editing mode
+    } catch (error) {
+      console.error('Error updating statusLead:', error);
+    }
+  };
+  
+
+
   return (
     <div className="content-container">
       <div className="form-container">
@@ -473,15 +501,12 @@ const Leads = () => {
                 {showSelect && <th>Select</th>}
                 <th>שם פרטי</th>
                 <th>שם משפחה</th>
-                <th>תז</th>
                 <th>תאריך חזרה</th>
-                <th>תאריך פניה אחרונה</th>
                 <th>טלפון</th>
-                <th>מייל</th>
-                <th>כתובת</th>
-                <th>מקור ליד</th>
                 <th>סטטוס ליד</th>
                 <th>שם נציג</th>
+                <th>מקור ליד</th>
+                <th>תאריך פניה אחרונה</th>
               </tr>
             </thead>
             <tbody>
@@ -495,15 +520,36 @@ const Leads = () => {
                   className={`${selectedCustomers.has(item.id) ? 'selected-row' : ''} ${hoveredRowId === item.id ? 'hovered-row' : ''}`}>
                   <td>{item.firstNameCustomer}</td>
                   <td>{item.lastNameCustomer}</td>
-                  <td>{item.IDCustomer}</td>
                   <td>{item.returnDate}</td>
-                  <td>{item.lastContactDate}</td>
                   <td>{item.phone}</td>
-                  <td>{item.mail}</td>
-                  <td>{item.address}</td>
-                  <td>{item.sourceValue}</td>
-                  <td>{statusLeadName}</td>
+                  
+                  <td>
+  <select
+    value={item.selectedStatusLead}
+    onChange={(e) => handleStatusChange(item.id, e.target.value)}
+    style={{
+      appearance: 'none', // Ensures consistent dropdown arrow across browsers
+      cursor: 'pointer',
+      background: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='currentColor' class='bi bi-chevron-down' viewBox='0 0 16 16'%3E%3Cpath fill-rule='evenodd' d='M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z'/%3E%3C/svg%3E") no-repeat right center`,
+      paddingRight: '20px', // Space for the dropdown arrow
+      border: '1px solid #ccc',
+      borderRadius: '4px',
+    }}
+  >
+    <option value="">בחר סטטוס</option>
+    {statusLeadMap.map((status) => (
+      <option key={status.id} value={status.id}>
+        {status.statusLeadName}
+      </option>
+    ))}
+  </select>
+</td>
+
+
                   <td>{(workerNameMap[item.workerId] || 'Unknown Worker')}</td>
+                  <td>{item.sourceValue}</td>
+                  <td>{item.lastContactDate}</td>
+
                   </tr>
               );
             })}
