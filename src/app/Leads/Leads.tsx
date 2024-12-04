@@ -52,6 +52,7 @@ const Leads = () => {
 
   const [editingRowId, setEditingRowId] = useState<string | null>(null);
 const [newStatusLead, setNewStatusLead] = useState<string>('');
+const [selectedStatusLeadFilter, setSelectedStatusLeadFilter] = useState('');
 
 
 
@@ -91,7 +92,7 @@ const [newStatusLead, setNewStatusLead] = useState<string>('');
     setSelectedWorkerName,
     workerNameMap,
     setSelectedWorkerId, 
-
+    selectedWorkerIdFilter,
   } = useFetchAgentData();
 
 
@@ -123,14 +124,19 @@ const [newStatusLead, setNewStatusLead] = useState<string>('');
 
   useEffect(() => {
     let data = leadsData.filter(item => {
-      return (
-        item.IDCustomer.includes(idCustomerFilter)) &&
-        (item.firstNameCustomer.includes(firstNameCustomerFilter)) &&
-        (item.lastNameCustomer.includes(lastNameCustomerFilter)) 
-
-    });
+        const matchesIdCustomer = item.IDCustomer.includes(idCustomerFilter);
+        const matchesFirstName = item.firstNameCustomer.includes(firstNameCustomerFilter);
+        const matchesLastName = item.lastNameCustomer.includes(lastNameCustomerFilter);
+        const matchesWorkerId =  item.workerId.includes(selectedWorkerIdFilter);
+        const matchesStatusLead =
+          !selectedStatusLeadFilter || item.selectedStatusLead === selectedStatusLeadFilter;
+  
+        return matchesIdCustomer && matchesFirstName && matchesLastName && matchesStatusLead && matchesWorkerId;
+      });
     setFilteredData(data);
-  }, [leadsData, idCustomerFilter, firstNameCustomerFilter, lastNameCustomerFilter]);
+  }, [leadsData, idCustomerFilter, firstNameCustomerFilter, lastNameCustomerFilter,
+    selectedStatusLeadFilter,selectedWorkerIdFilter
+  ]);
 
 
 
@@ -343,6 +349,55 @@ const [newStatusLead, setNewStatusLead] = useState<string>('');
     }
   };
   
+  const handleWorkerChangeInRow = async (rowId: string, newWorkerId: string) => {
+    try {
+      const docRef = doc(db, 'leads', rowId);
+      await updateDoc(docRef, {
+        workerId: newWorkerId,
+        lastUpdateDate: serverTimestamp(), // Optional: Update the timestamp
+      });
+  
+      // Update the local state or refetch the data to reflect changes
+      setLeadsData((prev) =>
+        prev.map((lead) =>
+          lead.id === rowId
+            ? { ...lead, workerId: newWorkerId }
+            : lead
+        )
+      );
+  
+      alert('נציג עודכן בהצלחה');
+    } catch (error) {
+      console.error('Error updating worker:', error);
+    }
+  };
+  
+
+  const handleSourceValueChange = async (rowId: string, newSourceValue: string) => {
+    try {
+      const docRef = doc(db, 'leads', rowId);
+      await updateDoc(docRef, {
+        sourceValue: newSourceValue,
+        lastUpdateDate: serverTimestamp(), // Optional: Update the timestamp
+      });
+  
+      // Update the local state or refetch the data to reflect changes
+      setLeadsData((prev) =>
+        prev.map((lead) =>
+          lead.id === rowId
+            ? { ...lead, sourceValue: newSourceValue }
+            : lead
+        )
+      );
+  
+      alert('מקור עודכן בהצלחה');
+    } catch (error) {
+      console.error('Error updating sourceValue:', error);
+    }
+  };
+  
+
+
 
 
   return (
@@ -491,6 +546,25 @@ const [newStatusLead, setNewStatusLead] = useState<string>('');
             value={idCustomerFilter}
             onChange={(e) => setIdCustomerFilter(e.target.value)}
           />
+   <select id="worker-select" value={selectedWorkerIdFilter} 
+       onChange={(e) => handleWorkerChange(e, 'filter')}>
+        <option value="">כל העובדים</option>
+        {workers.map(worker => (
+          <option key={worker.id} value={worker.id}>{worker.name}</option>
+        ))}
+      </select>
+
+      <select
+      id="statusLead-Select"
+      value={selectedStatusLeadFilter}
+      onChange={(e) => setSelectedStatusLeadFilter(e.target.value)}>
+     <option value="">בחר סטטוס</option>
+    {statusLeadMap.map((status) => (
+      <option key={status.id} value={status.id}>
+        {status.statusLeadName}
+      </option>
+       ))}
+       </select>
         </div>
         {/* First Frame 
         {agentData.length > 0 ? (*/}
@@ -499,8 +573,7 @@ const [newStatusLead, setNewStatusLead] = useState<string>('');
             <thead>
               <tr>
                 {showSelect && <th>Select</th>}
-                <th>שם פרטי</th>
-                <th>שם משפחה</th>
+                <th>שם</th>
                 <th>תאריך חזרה</th>
                 <th>טלפון</th>
                 <th>סטטוס ליד</th>
@@ -510,49 +583,113 @@ const [newStatusLead, setNewStatusLead] = useState<string>('');
               </tr>
             </thead>
             <tbody>
-            {filteredData.map((item) => {
-  const statusLeadName = statusLeadMap.find(status => status.id === item.selectedStatusLead)?.statusLeadName || 'לא נבחר';
-               return (
-                <tr key={item.id}
-                  onClick={() => handleRowClick(item)}
-                  onMouseEnter={() => setHoveredRowId(item.id)}
-                  onMouseLeave={() => setHoveredRowId(null)}
-                  className={`${selectedCustomers.has(item.id) ? 'selected-row' : ''} ${hoveredRowId === item.id ? 'hovered-row' : ''}`}>
-                  <td>{item.firstNameCustomer}</td>
-                  <td>{item.lastNameCustomer}</td>
-                  <td>{item.returnDate}</td>
-                  <td>{item.phone}</td>
-                  
-                  <td>
-  <select
-    value={item.selectedStatusLead}
-    onChange={(e) => handleStatusChange(item.id, e.target.value)}
-    style={{
-      appearance: 'none', // Ensures consistent dropdown arrow across browsers
-      cursor: 'pointer',
-      background: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='currentColor' class='bi bi-chevron-down' viewBox='0 0 16 16'%3E%3Cpath fill-rule='evenodd' d='M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z'/%3E%3C/svg%3E") no-repeat right center`,
-      paddingRight: '20px', // Space for the dropdown arrow
-      border: '1px solid #ccc',
-      borderRadius: '4px',
-    }}
-  >
-    <option value="">בחר סטטוס</option>
-    {statusLeadMap.map((status) => (
-      <option key={status.id} value={status.id}>
-        {status.statusLeadName}
-      </option>
-    ))}
-  </select>
-</td>
+            {filteredData
+  .sort((a, b) => {
+    // 1. Handle rows with "לא מעוניין" first
+    const statusA = statusLeadMap.find(status => status.id === a.selectedStatusLead)?.statusLeadName || '';
+    const statusB = statusLeadMap.find(status => status.id === b.selectedStatusLead)?.statusLeadName || '';
 
+    if (statusA === 'לא מעוניין' && statusB !== 'לא מעוניין') {
+      return 1; // Move "לא מעוניין" to the bottom
+    }
+    if (statusA !== 'לא מעוניין' && statusB === 'לא מעוניין') {
+      return -1; // Keep other rows above "לא מעוניין"
+    }
 
-                  <td>{(workerNameMap[item.workerId] || 'Unknown Worker')}</td>
-                  <td>{item.sourceValue}</td>
-                  <td>{item.lastContactDate}</td>
+    // 2. Sort remaining rows by `returnDate` in descending order
+    const dateA = a.returnDate ? new Date(a.returnDate).getTime() : -Infinity; // Treat missing dates as far past
+    const dateB = b.returnDate ? new Date(b.returnDate).getTime() : -Infinity;
 
-                  </tr>
-              );
-            })}
+    return dateA - dateB; // Sort by ascending date
+  })
+  .map((item) => {
+    const statusLeadName = statusLeadMap.find(status => status.id === item.selectedStatusLead)?.statusLeadName || 'לא נבחר';
+    return (
+      <tr
+        key={item.id}
+        onClick={() => handleRowClick(item)}
+        onMouseEnter={() => setHoveredRowId(item.id)}
+        onMouseLeave={() => setHoveredRowId(null)}
+        className={`${selectedCustomers.has(item.id) ? 'selected-row' : ''} ${hoveredRowId === item.id ? 'hovered-row' : ''}`}
+      >
+        <td className="medium-column">{`${item.firstNameCustomer || ''} ${item.lastNameCustomer || ''}`.trim()}</td>
+        <td className="medium-column" style={{
+            fontWeight: 'bold',
+             color: item.returnDate && new Date(item.returnDate) < new Date() ? 'red' : 'black', // Red if date has passed
+  }}
+>
+  {item.returnDate}
+</td>        
+<td className="medium-column" style={{ fontWeight: 'bold' }}>{item.phone}</td>
+        <td>
+          <select
+            value={item.selectedStatusLead}
+            onChange={(e) => handleStatusChange(item.id, e.target.value)}
+            style={{
+              appearance: 'none',
+              cursor: 'pointer',
+              background: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='currentColor' class='bi bi-chevron-down' viewBox='0 0 16 16'%3E%3Cpath fill-rule='evenodd' d='M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z'/%3E%3C/svg%3E") no-repeat right center`,
+              paddingRight: '20px',
+              border: '1px solid #ccc',
+              borderRadius: '4px',
+              fontWeight: 'bold',
+            }}
+          >
+            <option value="">בחר סטטוס</option>
+            {statusLeadMap.map((status) => (
+              <option key={status.id} value={status.id}>
+                {status.statusLeadName}
+              </option>
+            ))}
+          </select>
+        </td>
+        <td>
+          <select
+            value={item.workerId || ''}
+            onChange={(e) => handleWorkerChangeInRow(item.id, e.target.value)}
+            style={{
+              appearance: 'none',
+              cursor: 'pointer',
+              background: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='currentColor' class='bi bi-chevron-down' viewBox='0 0 16 16'%3E%3Cpath fill-rule='evenodd' d='M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z'/%3E%3C/svg%3E") no-repeat right center`,
+              paddingRight: '20px',
+              border: '1px solid #ccc',
+              borderRadius: '4px',
+            }}
+          >
+            <option value="">בחר נציג</option>
+            {workers.map((worker) => (
+              <option key={worker.id} value={worker.id}>
+                {worker.name}
+              </option>
+            ))}
+          </select>
+        </td>
+        <td>
+          <select
+            value={item.sourceValue || ''}
+            onChange={(e) => handleSourceValueChange(item.id, e.target.value)}
+            style={{
+              appearance: 'none',
+              cursor: 'pointer',
+              background: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='currentColor' class='bi bi-chevron-down' viewBox='0 0 16 16'%3E%3Cpath fill-rule='evenodd' d='M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z'/%3E%3C/svg%3E") no-repeat right center`,
+              paddingRight: '20px',
+              border: '1px solid #ccc',
+              borderRadius: '4px',
+            }}
+          >
+            <option value="">בחר מקור</option>
+            {sourceLeadList.map((source) => (
+              <option key={source.id} value={source.sourceLead}>
+                {source.sourceLead}
+              </option>
+            ))}
+          </select>
+        </td>
+        <td className="medium-column">{item.lastContactDate}</td>
+      </tr>
+    );
+  })}
+
             </tbody>
           </table>
         </div>

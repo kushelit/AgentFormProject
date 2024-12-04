@@ -187,3 +187,16 @@ tr {
   justify-content: flex-start; /* Aligns buttons to the left */
   gap: 10px; /* Optional: adds space between buttons */
 }
+
+
+.wide-column {
+  width: 20%;
+}
+
+.medium-column {
+  width: 15%;
+}
+
+.narrow-column {
+  width: 10%;
+}

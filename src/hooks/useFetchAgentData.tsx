@@ -248,7 +248,7 @@ const useFetchAgentData = () => {
   useEffect(() => {
     const fetchCompanies = async () => {
       const querySnapshot = await getDocs(collection(db, 'company'));
-      const companiesList = querySnapshot.docs.map(doc => doc.data().companyName); // Assuming the field name is 'companyName'
+      const companiesList = querySnapshot.docs.map(doc => doc.data().companyName); 
       setCompanies(companiesList);
     };
 
