@@ -15,7 +15,7 @@ const [isEditing, setIsEditing] = useState(false);
 const [hoveredRowId, setHoveredRowId] = useState<string | null>(null);
 const [sourceLead, setSourceLead] = useState<string | null>(null);
 const [statusLead, setStatusLead] =  useState(false);
-const [sourceLeadList, SetSourceLeadList] = useState<any[]>([]);
+//const [sourceLeadList, SetSourceLeadList] = useState<any[]>([]);
 
 //const [statusLeadMap, SetStatusLeadMap] = useState<any[]>([]);
 const [statusLeadName, setStatusLeadName] = useState<string | null>(null);
@@ -34,31 +34,35 @@ const {
 
  
   const { 
-    statusLeadMap
+    statusLeadMap,
+    sourceLeadList,
+    SetSourceLeadList,
+    fetchSourceLeadForAgent,
+    fetchStatusLeadForAgentAndDefault
   } = useFetchMD(selectedAgentId);
 
 
     
-  useEffect(() => {
-    if (selectedAgentId) {
-        fetchSourceLeadForAgent(selectedAgentId);
-     //   fetchStatusLeadForAgentAndDefault(selectedAgentId);
-    }
-  }, [selectedAgentId]); 
+  // useEffect(() => {
+  //   if (selectedAgentId) {
+  //       fetchSourceLeadForAgent(selectedAgentId);
+  //    //   fetchStatusLeadForAgentAndDefault(selectedAgentId);
+  //   }
+  // }, [selectedAgentId]); 
   
-  const fetchSourceLeadForAgent = async (UserAgentId: string) => {
-    const q = query(
-      collection(db, 'sourceLead'), 
-      where('AgentId', '==', selectedAgentId)
-    );
-    const querySnapshot = await getDocs(q);
-    const data = querySnapshot.docs.map(doc => ({
-        id: doc.id, 
-        ...doc.data() 
-      }));
-      SetSourceLeadList(data);
-      console.log('SetSourceLeadList '+ SetSourceLeadList)
-    };
+  // const fetchSourceLeadForAgent = async (UserAgentId: string) => {
+  //   const q = query(
+  //     collection(db, 'sourceLead'), 
+  //     where('AgentId', '==', selectedAgentId)
+  //   );
+  //   const querySnapshot = await getDocs(q);
+  //   const data = querySnapshot.docs.map(doc => ({
+  //       id: doc.id, 
+  //       ...doc.data() 
+  //     }));
+  //     SetSourceLeadList(data);
+  //     console.log('SetSourceLeadList '+ SetSourceLeadList)
+  //   };
 
 
   //handle row selected function **
@@ -69,9 +73,6 @@ const {
   };
 
 
-
-  
-
   // delete function ***
   const handleDelete = async () => {
     if (selectedRow && selectedRow.id) {
@@ -80,7 +81,8 @@ const {
       resetForm();
       setIsEditing(false);
       if (selectedAgentId) {
-        fetchSourceLeadForAgent(selectedAgentId);
+     //   fetchSourceLeadForAgent(selectedAgentId);
+     await fetchSourceLeadForAgent(selectedAgentId); 
       }
     } else {
       console.log("No selected row or row ID is undefined");
@@ -101,7 +103,8 @@ const {
         setSelectedRow(null); 
         resetForm();         
         if (selectedAgentId) {
-            fetchSourceLeadForAgent(selectedAgentId);
+       //     fetchSourceLeadForAgent(selectedAgentId);
+       fetchSourceLeadForAgent
           }
       } catch (error) {
         console.error("Error updating document:", error);     
@@ -140,7 +143,8 @@ const {
       resetForm(); 
       setIsEditing(false);
       if (selectedAgentId) {
-        fetchSourceLeadForAgent(selectedAgentId);
+      //  fetchSourceLeadForAgent(selectedAgentId);
+      fetchSourceLeadForAgent
       }
       
     } catch (error) {
@@ -189,8 +193,6 @@ const {
   //   }
   // };
   
-  
-  
 
       const handleRowClickStatusLead = (item: any) => {
         setSelectedRowStatusLead(item); 
@@ -209,19 +211,20 @@ const {
         const userRole = detail?.role; 
       
         if (isDefaultStatus && userRole !== 'admin') {
+          alert('רק מנהל יכול למחוק סטאטוס מערכת');
           console.log("Only admin users can delete default statuses");
           return;
-        }
-      
+        }   
         try {
           await deleteDoc(doc(db, 'statusLeadList', selectedRowStatusLead.id));
           setSelectedRowStatusLead(null);
           resetFormStatusLead();
           setIsEditingStatusLead(false);
       
-          if (selectedAgentId) {
-        //    fetchStatusLeadForAgentAndDefault(selectedAgentId);
-          }
+    //      if (selectedAgentId) {
+            fetchStatusLeadForAgentAndDefault(selectedAgentId);
+    //    statusLeadMap
+    //      }
         } catch (error) {
           console.error("Error deleting status lead:", error);
         }
@@ -236,10 +239,10 @@ const {
         const userRole = detail?.role; // Assuming you get the user role from `detail`
       
         if (isDefaultStatus && userRole !== 'admin') {
+          alert('רק מנהל יכול לערוך סטאטוס מערכת');
           console.log("Only admin users can edit default statuses");
           return;
-        }
-      
+        }     
         try {
           const docRef = doc(db, 'statusLeadList', selectedRowStatusLead.id);
           await updateDoc(docRef, {
@@ -250,9 +253,10 @@ const {
           setSelectedRowStatusLead(null);
           resetFormStatusLead();
       
-          if (selectedAgentId) {
-      //      fetchStatusLeadForAgentAndDefault(selectedAgentId);
-          }
+    //      if (selectedAgentId) {
+            fetchStatusLeadForAgentAndDefault(selectedAgentId);
+      //    statusLeadMap
+     //     }
         } catch (error) {
           console.error("Error updating document:", error);
         }
@@ -272,9 +276,9 @@ const {
           alert('סטאטוס ליד התווסף בהצלחה');
           resetFormStatusLead(); 
           setIsEditingStatusLead(false);
-          if (selectedAgentId) {
-      //      fetchStatusLeadForAgentAndDefault(selectedAgentId);
-          }
+       //   if (selectedAgentId) {
+           fetchStatusLeadForAgentAndDefault(selectedAgentId);    
+          //      }
         } catch (error) {
           console.error('Error adding document:', error);
         }
@@ -339,7 +343,8 @@ const {
           onClick={() => handleRowClick(item)}
           onMouseEnter={() => setHoveredRowId(item.id)}
           onMouseLeave={() => setHoveredRowId(null)}
-          className={`${selectedRow && selectedRow.id === item.id ? 'selected-row' : ''} ${hoveredRowId === item.id ? 'hovered-row' : ''}`}>
+          className={`${selectedRow && selectedRow.id === item.id ? 'selected-row' : ''} ${hoveredRowId === item.id ? 'hovered-row' : ''}`} 
+          >
               <td>{item.sourceLead}</td>
               <td>{item.statusLead? 'כן' : 'לא'}</td>
           </tr>

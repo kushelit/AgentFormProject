@@ -28,6 +28,7 @@ const useFetchMD = (selectedAgentId?:string) => {
 
     const [statusLeadMap, SetStatusLeadMap] = useState<any[]>([]);
 
+    const [sourceLeadList, SetSourceLeadList] = useState<any[]>([]);
 
 
 
@@ -173,7 +174,6 @@ const useFetchMD = (selectedAgentId?:string) => {
   }, []);
 
 
-  useEffect(() => {
   const fetchStatusLeadForAgentAndDefault = async (selectedAgentId?: string) => {
     try {
       // Query 1: Fetch statuses specific to the agent where `statusLeadList = true`
@@ -215,10 +215,32 @@ const useFetchMD = (selectedAgentId?:string) => {
       console.error('Error fetching status leads:', error);
     }
   };
-fetchStatusLeadForAgentAndDefault(selectedAgentId);
-}, [selectedAgentId]);
-  
 
+  
+ 
+useEffect(() => {
+  if (selectedAgentId) {
+      fetchSourceLeadForAgent(selectedAgentId);
+      fetchStatusLeadForAgentAndDefault(selectedAgentId);
+  }
+}, [selectedAgentId]); 
+
+
+
+
+const fetchSourceLeadForAgent = async (UserAgentId: string) => {
+  const q = query(
+    collection(db, 'sourceLead'), 
+    where('AgentId', '==', selectedAgentId)
+  );
+  const querySnapshot = await getDocs(q);
+  const data = querySnapshot.docs.map(doc => ({
+      id: doc.id, 
+      ...doc.data() 
+    }));
+    SetSourceLeadList(data);
+    console.log('SetSourceLeadList '+ SetSourceLeadList)
+  };
 
       
    return {
@@ -242,7 +264,9 @@ fetchStatusLeadForAgentAndDefault(selectedAgentId);
     setSelectedProductGroupFilter,
     selectedStatusPolicyFilter, 
     setSelectedStatusPolicyFilter,
-    productMap, isLoading,statusLeadMap
+    productMap, isLoading,statusLeadMap,sourceLeadList,SetSourceLeadList,
+    fetchSourceLeadForAgent,fetchStatusLeadForAgentAndDefault
+    
     
   };
   

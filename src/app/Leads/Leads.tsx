@@ -24,7 +24,7 @@ const Leads = () => {
   const [lastNameCustomerFilter, setlastNameCustomerFilter] = useState('');
   const [filteredData, setFilteredData] = useState<LeadsType[]>([]);
   const [leadsData, setLeadsData] = useState<LeadsType[]>([]);
-    const [selectedStatusLead, setSelectedStatusLead] = useState<string>('');
+  const [selectedStatusLead, setSelectedStatusLead] = useState<string>('');
 
   const [showSelect, setShowSelect] = useState(false);
   const [selectedCustomers, setSelectedCustomers] = useState(new Set<string>());
@@ -37,7 +37,6 @@ const Leads = () => {
   const [address, setAddress] = useState('');
 
   
-
   const handleLastContactDate = (e: React.ChangeEvent<HTMLInputElement>) => setLastContactDate(e.target.value);
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => setPhone(e.target.value);
   const handleMailChange = (e: React.ChangeEvent<HTMLInputElement>) => setMail(e.target.value);
@@ -47,7 +46,7 @@ const Leads = () => {
   const [sourceValue, setSourceValue] = useState<string | null>('');
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
 
-  const [sourceLeadList, setSourceLeadList] = useState<any[]>([]);
+  //const [sourceLeadList, setSourceLeadList] = useState<any[]>([]);
   const handleReturnDate = (e: React.ChangeEvent<HTMLInputElement>) => setReturnDate(e.target.value);
 
   const [editingRowId, setEditingRowId] = useState<string | null>(null);
@@ -58,7 +57,7 @@ const [selectedStatusLeadFilter, setSelectedStatusLeadFilter] = useState('');
 
   interface Suggestion {
     id: string;
-    source: string; // or any other properties you need
+    source: string; 
   }
 
 
@@ -104,8 +103,10 @@ const [selectedStatusLeadFilter, setSelectedStatusLeadFilter] = useState('');
   }, [selectedAgentId]);
 
   const { 
-    statusLeadMap
+    statusLeadMap,
+    sourceLeadList
   } = useFetchMD(selectedAgentId);
+
 
 
   const fetchLeadsForAgent = async (UserAgentId: string) => {
@@ -121,23 +122,28 @@ const [selectedStatusLeadFilter, setSelectedStatusLeadFilter] = useState('');
     setLeadsData(data); 
   };
 
-
   useEffect(() => {
     let data = leadsData.filter(item => {
-        const matchesIdCustomer = item.IDCustomer.includes(idCustomerFilter);
-        const matchesFirstName = item.firstNameCustomer.includes(firstNameCustomerFilter);
-        const matchesLastName = item.lastNameCustomer.includes(lastNameCustomerFilter);
-        const matchesWorkerId =  item.workerId.includes(selectedWorkerIdFilter);
-        const matchesStatusLead =
-          !selectedStatusLeadFilter || item.selectedStatusLead === selectedStatusLeadFilter;
+      const matchesIdCustomer = item.IDCustomer.includes(idCustomerFilter);
+      const fullName = `${item.firstNameCustomer || ''} ${item.lastNameCustomer || ''}`.trim();
+      const filterFullName = `${firstNameCustomerFilter} ${lastNameCustomerFilter}`.trim();
+      const matchesName = fullName.includes(filterFullName);
+      const matchesWorkerId = item.workerId.includes(selectedWorkerIdFilter);
+      const matchesStatusLead =
+        !selectedStatusLeadFilter || item.selectedStatusLead === selectedStatusLeadFilter;
   
-        return matchesIdCustomer && matchesFirstName && matchesLastName && matchesStatusLead && matchesWorkerId;
-      });
+      return matchesIdCustomer && matchesName && matchesStatusLead && matchesWorkerId;
+    });
     setFilteredData(data);
-  }, [leadsData, idCustomerFilter, firstNameCustomerFilter, lastNameCustomerFilter,
-    selectedStatusLeadFilter,selectedWorkerIdFilter
+  }, [
+    leadsData,
+    idCustomerFilter,
+    firstNameCustomerFilter,
+    lastNameCustomerFilter,
+    selectedStatusLeadFilter,
+    selectedWorkerIdFilter,
   ]);
-
+  
 
 
   const handleFirstNameChange: ChangeEventHandler<HTMLInputElement> = (event) => {
@@ -299,27 +305,27 @@ const [selectedStatusLeadFilter, setSelectedStatusLeadFilter] = useState('');
   ]);
 
 
-  useEffect(() => {
-    const fetchSourceLeadForAgent = async () => {
-      if (!selectedAgentId) return; 
-      const q = query(
-        collection(db, 'sourceLead'),
-        where('AgentId', '==', selectedAgentId),
-        where('statusLead', '==', true)
-      );
-      try {
-        const querySnapshot = await getDocs(q);
-        const data = querySnapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        }));
-        setSourceLeadList(data); 
-      } catch (error) {
-        console.error('Error fetching source leads:', error);
-      }
-    };
-    fetchSourceLeadForAgent();
-  }, [selectedAgentId]); 
+  // useEffect(() => {
+  //   const fetchSourceLeadForAgent = async () => {
+  //     if (!selectedAgentId) return; 
+  //     const q = query(
+  //       collection(db, 'sourceLead'),
+  //       where('AgentId', '==', selectedAgentId),
+  //       where('statusLead', '==', true)
+  //     );
+  //     try {
+  //       const querySnapshot = await getDocs(q);
+  //       const data = querySnapshot.docs.map(doc => ({
+  //         id: doc.id,
+  //         ...doc.data()
+  //       }));
+  //       setSourceLeadList(data); 
+  //     } catch (error) {
+  //       console.error('Error fetching source leads:', error);
+  //     }
+  //   };
+  //   fetchSourceLeadForAgent();
+  // }, [selectedAgentId]); 
 
   const handleSelectChange = (event: { target: { value: SetStateAction<string | null>; }; }) => {
     setSourceValue(event.target.value);
@@ -366,7 +372,7 @@ const [selectedStatusLeadFilter, setSelectedStatusLeadFilter] = useState('');
         )
       );
   
-      alert('נציג עודכן בהצלחה');
+  //    alert('נציג עודכן בהצלחה');
     } catch (error) {
       console.error('Error updating worker:', error);
     }
@@ -390,7 +396,7 @@ const [selectedStatusLeadFilter, setSelectedStatusLeadFilter] = useState('');
         )
       );
   
-      alert('מקור עודכן בהצלחה');
+  //    alert('מקור עודכן בהצלחה');
     } catch (error) {
       console.error('Error updating sourceValue:', error);
     }
@@ -528,18 +534,17 @@ const [selectedStatusLeadFilter, setSelectedStatusLeadFilter] = useState('');
       </div>
       <div className="data-container">
         <div className="select-container" >
-          <input
-            type="text"
-            placeholder="שם פרטי"
-            value={firstNameCustomerFilter}
-            onChange={(e) => setfirstNameCustomerFilter(e.target.value)}
-          />
-          <input
-            type="text"
-            placeholder="שם משפחה"
-            value={lastNameCustomerFilter}
-            onChange={(e) => setlastNameCustomerFilter(e.target.value)}
-          />
+        <input
+        type="text"
+        placeholder="שם"
+       value={`${firstNameCustomerFilter} ${lastNameCustomerFilter}`.trim()}
+       onChange={(e) => {
+     const fullName = e.target.value.trim();
+    const [firstName, ...lastNameParts] = fullName.split(' ');
+    setfirstNameCustomerFilter(firstName || ''); // First word as first name
+    setlastNameCustomerFilter(lastNameParts.join(' ') || ''); // Remaining words as last name
+  }}
+/>
           <input
             type="text"
             placeholder="תז לקוח"
@@ -568,8 +573,15 @@ const [selectedStatusLeadFilter, setSelectedStatusLeadFilter] = useState('');
         </div>
         {/* First Frame 
         {agentData.length > 0 ? (*/}
-        <div className="table-container flex" style={{ overflowX: 'auto', maxHeight: '300px' }}>
-          <table className="flex-grow">
+        <div className="table-container flex" style={{ overflowX: 'auto', maxHeight: '800px'
+          ,minWidth: '900px',fontSize: '16px'}}>
+          <table className="flex-grow"
+          style={{
+            minWidth: '100%',
+            fontSize: '16px' 
+          }}
+          
+          >
             <thead>
               <tr>
                 {showSelect && <th>Select</th>}
@@ -615,7 +627,7 @@ const [selectedStatusLeadFilter, setSelectedStatusLeadFilter] = useState('');
         <td className="medium-column">{`${item.firstNameCustomer || ''} ${item.lastNameCustomer || ''}`.trim()}</td>
         <td className="medium-column" style={{
             fontWeight: 'bold',
-             color: item.returnDate && new Date(item.returnDate) < new Date() ? 'red' : 'black', // Red if date has passed
+            color: item.returnDate && new Date(item.returnDate) < new Date() ? 'red' : 'black', // Red if date has passed
   }}
 >
   {item.returnDate}
@@ -630,9 +642,8 @@ const [selectedStatusLeadFilter, setSelectedStatusLeadFilter] = useState('');
               cursor: 'pointer',
               background: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='currentColor' class='bi bi-chevron-down' viewBox='0 0 16 16'%3E%3Cpath fill-rule='evenodd' d='M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z'/%3E%3C/svg%3E") no-repeat right center`,
               paddingRight: '20px',
-              border: '1px solid #ccc',
+              border: 'none',
               borderRadius: '4px',
-              fontWeight: 'bold',
             }}
           >
             <option value="">בחר סטטוס</option>
@@ -652,7 +663,7 @@ const [selectedStatusLeadFilter, setSelectedStatusLeadFilter] = useState('');
               cursor: 'pointer',
               background: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='currentColor' class='bi bi-chevron-down' viewBox='0 0 16 16'%3E%3Cpath fill-rule='evenodd' d='M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z'/%3E%3C/svg%3E") no-repeat right center`,
               paddingRight: '20px',
-              border: '1px solid #ccc',
+              border: 'none',
               borderRadius: '4px',
             }}
           >
@@ -673,8 +684,9 @@ const [selectedStatusLeadFilter, setSelectedStatusLeadFilter] = useState('');
               cursor: 'pointer',
               background: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='currentColor' class='bi bi-chevron-down' viewBox='0 0 16 16'%3E%3Cpath fill-rule='evenodd' d='M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z'/%3E%3C/svg%3E") no-repeat right center`,
               paddingRight: '20px',
-              border: '1px solid #ccc',
+              border: 'none',
               borderRadius: '4px',
+              fontSize: '16px',
             }}
           >
             <option value="">בחר מקור</option>
@@ -689,17 +701,8 @@ const [selectedStatusLeadFilter, setSelectedStatusLeadFilter] = useState('');
       </tr>
     );
   })}
-
             </tbody>
           </table>
-        </div>
-        <div className="table-container flex flex-col" style={{ overflowX: 'auto', maxHeight: '300px' }}>
-          <div className="buttons-container">
-          
-          </div>
-          <div className="flex">
-           
-          </div>
         </div>
 
       </div>

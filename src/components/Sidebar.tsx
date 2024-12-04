@@ -5,7 +5,6 @@ import { useAuth } from "@/lib/firebase/AuthContext";
 import { usePathname } from 'next/navigation'
 import { useState } from 'react';
 
-
 type SidebarProps = {
   className?: string;
 };
@@ -16,31 +15,34 @@ const pages = [
   { href: '/summaryTable', label: 'דף מרכז' },
   { href: '/ManageWorkers', label: 'ניהול עובדים' },
   { href: '/Goals', label: 'ניהול יעדים ומבצעים' },
-  { href: '/ContractsHub', label: 'עמלות' , submenu: [
-    { href: '/ContractsHub/ManageContracts', label: 'ניהול עמלות' },
-    { href: '/ContractsHub/Simulation', label: 'סימולטור' }
-  ]
-},
+  {
+    href: '/ContractsHub', label: 'עמלות', submenu: [
+      { href: '/ContractsHub/ManageContracts', label: 'ניהול עמלות' },
+      { href: '/ContractsHub/Simulation', label: 'סימולטור' }
+    ]
+  },
   { href: '/Enviorment', label: 'הגדרות מערכת' },
   { href: '/ManageSimulation', label: 'ניהול סימולטור' },
   { href: '/Log', label: 'לוג מערכת' },
-  { href: '/Leads', label: 'לידים' },
 ];
-  
+
+const bottomPage = { href: '/Leads', label: 'Flow' };
+
 const Sidebar: React.FC<SidebarProps> = ({ className }) => {
-  const { user } = useAuth(); // Destructure to get the user object
-  const pathname = usePathname()
+  const { user } = useAuth();
+  const pathname = usePathname();
   const [openSubmenu, setOpenSubmenu] = useState<string | null>(null);
+
   const handleToggle = (event: React.MouseEvent, href: string) => {
-    // If this item has a submenu, we'll prevent navigation and toggle the submenu instead
-    event.preventDefault(); // Stop the link from navigating
-    setOpenSubmenu(openSubmenu === href ? null : href); // Toggle the submenu visibility
+    event.preventDefault();
+    setOpenSubmenu(openSubmenu === href ? null : href);
   };
 
   return (
-    <div className={`${className ?? ''} relative max-w-40 min-w-40 bg-custom-blue`}>
+    <div className={`${className ?? ''} relative max-w-40 min-w-40 bg-custom-blue h-screen`}>
       {user ? (
-        <nav className="fixed max-w-40 min-w-40">
+        <nav className="h-full flex flex-col overflow-y-auto">
+          {/* Main Pages */}
           <ul className="flex flex-col">
             {pages.map((page) => (
               <li key={page.href} className={`px-2 py-2 ${pathname === page.href ? 'bg-white/10' : ''}`}>
@@ -68,6 +70,22 @@ const Sidebar: React.FC<SidebarProps> = ({ className }) => {
                 )}
               </li>
             ))}
+          </ul>
+
+          {/* Bottom Page (Leads) */}
+          <ul className="mt-auto mb-20"> {/* Larger margin to push it further down */}
+            <li
+              key={bottomPage.href}
+              className={`px-2 py-2 ${pathname === bottomPage.href ? 'bg-white/10' : ''}`}
+            >
+              <Link
+                href={bottomPage.href}
+                className="text-custom-white text-2xl italic font-semibold" // Increased font size and added boldness
+                style={{ transform: 'skew(-25deg)' }} // Skew effect
+              >
+                {bottomPage.label}
+              </Link>
+            </li>
           </ul>
         </nav>
       ) : (
