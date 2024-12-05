@@ -47,12 +47,15 @@ const Leads = () => {
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
 
   //const [sourceLeadList, setSourceLeadList] = useState<any[]>([]);
-  const handleReturnDate = (e: React.ChangeEvent<HTMLInputElement>) => setReturnDate(e.target.value);
-
+  const handleReturnDate = (event: { target: { value: string; }; }) => {
+    const newDateTime = event.target.value.replace("T", " "); // Replace "T" with a space
+    setReturnDate(newDateTime); // Update state in the desired format
+  };
   const [editingRowId, setEditingRowId] = useState<string | null>(null);
 const [newStatusLead, setNewStatusLead] = useState<string>('');
 const [selectedStatusLeadFilter, setSelectedStatusLeadFilter] = useState('');
 
+const [editingRowIdTime, setEditingRowIdTime] = useState<string | null>(null);
 
 
   interface Suggestion {
@@ -77,6 +80,7 @@ const [selectedStatusLeadFilter, setSelectedStatusLeadFilter] = useState('');
     notes: string;
     workerName: string;
   };
+
 
 
   const {
@@ -402,6 +406,31 @@ const [selectedStatusLeadFilter, setSelectedStatusLeadFilter] = useState('');
     }
   };
   
+  const handleReturnDateChange = async (id: string, newReturnDate: string) => {
+    try {
+      // Update the local state
+      setLeadsData((prevLeads) =>
+        prevLeads.map((lead) =>
+          lead.id === id ? { ...lead, returnDate: newReturnDate } : lead
+        )
+      );
+  
+      // Update the database
+      const docRef = doc(db, "leads", id);
+      await updateDoc(docRef, {
+        returnDate: newReturnDate,
+        lastUpdateDate: serverTimestamp(), // Optionally update the last modified timestamp
+      });
+    } catch (error) {
+      console.error("Error updating returnDate:", error);
+    }
+  };
+  
+  const formatPhoneNumber = (phone: string): string => {
+    // Format phone numbers with one dash, e.g., "0527795177" -> "052-7795177"
+    return phone.replace(/(\d{3})(\d+)/, "$1-$2");
+  };
+  
 
 
 
@@ -462,9 +491,17 @@ const [selectedStatusLeadFilter, setSelectedStatusLeadFilter] = useState('');
                 <td><input type="text" id="address" name="address" value={address} onChange={handleAddressChange} /></td>
               </tr>
               <tr>
-                <td><label htmlFor="returnDate" >תאריך חזרה</label></td>
-                <td><input type="date" id="returnDate" name="returnDate" value={returnDate} onChange={handleReturnDate} /></td>
-              </tr>
+  <td><label htmlFor="returnDate">תאריך ושעה</label></td>
+  <td>
+    <input
+      type="datetime-local"
+      id="returnDate"
+      name="returnDate"
+      value={returnDate.replace(" ", "T")} // Convert "2024-12-04 14:30" to "2024-12-04T14:30" for input compatibility
+      onChange={handleReturnDate}
+    />
+  </td>
+</tr>
               <tr>
                 <td><label htmlFor="lastContactDate">תאריך פניה אחרונה</label></td>
                 <td><input type="date" id="lastContactDate" name="lastContactDate" value={lastContactDate} onChange={handleLastContactDate} /></td>
@@ -625,14 +662,37 @@ const [selectedStatusLeadFilter, setSelectedStatusLeadFilter] = useState('');
         className={`${selectedCustomers.has(item.id) ? 'selected-row' : ''} ${hoveredRowId === item.id ? 'hovered-row' : ''}`}
       >
         <td className="medium-column">{`${item.firstNameCustomer || ''} ${item.lastNameCustomer || ''}`.trim()}</td>
-        <td className="medium-column" style={{
-            fontWeight: 'bold',
-            color: item.returnDate && new Date(item.returnDate) < new Date() ? 'red' : 'black', // Red if date has passed
-  }}
->
-  {item.returnDate}
-</td>        
-<td className="medium-column" style={{ fontWeight: 'bold' }}>{item.phone}</td>
+        <td className="medium-column">
+  {editingRowIdTime === item.id ? (
+    <input
+      type="datetime-local"
+      value={item.returnDate ? item.returnDate.replace(" ", "T") : ""}
+      onChange={(e) =>
+        handleReturnDateChange(item.id, e.target.value.replace("T", " "))
+      }
+      onBlur={() => setEditingRowIdTime(null)} // Exit edit mode on blur
+    />
+  ) : (
+    <span
+      onClick={() => setEditingRowIdTime(item.id)} // Enter edit mode
+      style={{
+        fontWeight: "bold",
+        color:
+          item.returnDate && new Date(item.returnDate) < new Date()
+            ? "red"
+            : "black",
+      }}
+    >
+      {item.returnDate || "בחר תאריך"}
+    </span>
+  )}
+</td>
+
+
+
+<td className="medium-column" style={{ fontWeight: 'bold' }}>
+  {formatPhoneNumber(item.phone)}
+</td>
         <td>
           <select
             value={item.selectedStatusLead}
@@ -675,28 +735,7 @@ const [selectedStatusLeadFilter, setSelectedStatusLeadFilter] = useState('');
             ))}
           </select>
         </td>
-        <td>
-          <select
-            value={item.sourceValue || ''}
-            onChange={(e) => handleSourceValueChange(item.id, e.target.value)}
-            style={{
-              appearance: 'none',
-              cursor: 'pointer',
-              background: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='currentColor' class='bi bi-chevron-down' viewBox='0 0 16 16'%3E%3Cpath fill-rule='evenodd' d='M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z'/%3E%3C/svg%3E") no-repeat right center`,
-              paddingRight: '20px',
-              border: 'none',
-              borderRadius: '4px',
-              fontSize: '16px',
-            }}
-          >
-            <option value="">בחר מקור</option>
-            {sourceLeadList.map((source) => (
-              <option key={source.id} value={source.sourceLead}>
-                {source.sourceLead}
-              </option>
-            ))}
-          </select>
-        </td>
+        <td>{item.sourceValue}</td>
         <td className="medium-column">{item.lastContactDate}</td>
       </tr>
     );

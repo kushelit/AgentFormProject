@@ -200,3 +200,9 @@ tr {
 .narrow-column {
   width: 10%;
 }
+
+.medium-column input {
+  font-size: inherit;
+  font-weight: bold;
+  color: black;
+}
