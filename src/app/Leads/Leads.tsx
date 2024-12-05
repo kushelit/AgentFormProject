@@ -431,7 +431,19 @@ const [editingRowIdTime, setEditingRowIdTime] = useState<string | null>(null);
     return phone.replace(/(\d{3})(\d+)/, "$1-$2");
   };
   
-
+  const formatIsraeliDate = (dateString: string): string => {
+    if (!dateString) return ''; // Handle empty or undefined dates
+    const date = new Date(dateString.replace(" ", "T")); // Convert to Date object
+    const options: Intl.DateTimeFormatOptions = {
+      hour: '2-digit',
+      minute: '2-digit',
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+    };
+    return new Intl.DateTimeFormat('he-IL', options).format(date); // Format to Israeli locale
+  };
+  
 
 
 
@@ -479,9 +491,22 @@ const [editingRowIdTime, setEditingRowIdTime] = useState<string | null>(null);
                 </td>
               </tr>
               <tr>
-                <td><label htmlFor="phone">טלפון</label></td>
-                <td><input type="tel" id="phone" name="phone" value={phone} onChange={handlePhoneChange} /></td>
-              </tr>
+  <td>
+    <label htmlFor="phone">
+      טלפון<span style={{ color: 'red', marginLeft: '5px' }}>*</span>
+    </label>
+  </td>
+  <td>
+    <input
+      type="tel"
+      id="phone"
+      name="phone"
+      value={phone}
+      onChange={handlePhoneChange}
+    />
+  </td>
+</tr>
+
               <tr>
                 <td><label htmlFor="mail">דואר אלקטרוני</label></td>
                 <td><input type="email" id="mail" name="mail" value={mail} onChange={handleMailChange} /></td>
@@ -556,7 +581,19 @@ const [editingRowIdTime, setEditingRowIdTime] = useState<string | null>(null);
                   <label htmlFor="notes">הערות</label>
                 </td>
                 <td>
-                  <input type="text" id="notes" name="notes" value={notes} onChange={(e) => setNotes(e.target.value)} />
+                  <textarea
+                   id="notes" name="notes" 
+                  value={notes} onChange={(e) => setNotes(e.target.value)} 
+                  style={{
+                   // width: '300px',  // Adjust width
+                    height: '100px', // Adjust height
+                    resize: 'vertical', // Allow resizing vertically
+                   padding: '10px', // Internal padding for better spacing
+                  fontSize: '12px', // Increase font size for readability
+                   overflowY: 'auto', // Enable vertical scrolling for long text
+                   textAlign: 'start', // Ensure text starts at the top-left
+                  }}
+                  />
                 </td>
               </tr>
             </tbody>
@@ -662,7 +699,7 @@ const [editingRowIdTime, setEditingRowIdTime] = useState<string | null>(null);
         className={`${selectedCustomers.has(item.id) ? 'selected-row' : ''} ${hoveredRowId === item.id ? 'hovered-row' : ''}`}
       >
         <td className="medium-column">{`${item.firstNameCustomer || ''} ${item.lastNameCustomer || ''}`.trim()}</td>
-        <td className="medium-column">
+        <td className="medium-column" style={{ fontWeight: 'bold' }}>
   {editingRowIdTime === item.id ? (
     <input
       type="datetime-local"
@@ -683,11 +720,10 @@ const [editingRowIdTime, setEditingRowIdTime] = useState<string | null>(null);
             : "black",
       }}
     >
-      {item.returnDate || "בחר תאריך"}
+      {formatIsraeliDate(item.returnDate)}
     </span>
   )}
 </td>
-
 
 
 <td className="medium-column" style={{ fontWeight: 'bold' }}>
