@@ -51,7 +51,7 @@ const Leads = () => {
     const newDateTime = event.target.value.replace("T", " "); // Replace "T" with a space
     setReturnDate(newDateTime); // Update state in the desired format
   };
-  const [editingRowId, setEditingRowId] = useState<string | null>(null);
+const [editingRowId, setEditingRowId] = useState<string | null>(null);
 const [newStatusLead, setNewStatusLead] = useState<string>('');
 const [selectedStatusLeadFilter, setSelectedStatusLeadFilter] = useState('');
 
@@ -108,7 +108,8 @@ const [editingRowIdTime, setEditingRowIdTime] = useState<string | null>(null);
 
   const { 
     statusLeadMap,
-    sourceLeadList
+    sourceLeadList,
+    formatIsraeliDateOnly
   } = useFetchMD(selectedAgentId);
 
 
@@ -445,8 +446,6 @@ const [editingRowIdTime, setEditingRowIdTime] = useState<string | null>(null);
   };
   
 
-
-
   return (
     <div className="content-container">
       <div className="form-container">
@@ -772,8 +771,9 @@ const [editingRowIdTime, setEditingRowIdTime] = useState<string | null>(null);
           </select>
         </td>
         <td>{item.sourceValue}</td>
-        <td className="medium-column">{item.lastContactDate}</td>
-      </tr>
+        <td className="medium-column">
+  {item.lastContactDate ? formatIsraeliDateOnly(item.lastContactDate) : ""}
+</td>      </tr>
     );
   })}
             </tbody>

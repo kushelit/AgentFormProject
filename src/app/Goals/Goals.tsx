@@ -6,6 +6,8 @@ import Link from "next/link";
 import './Goals.css';
 import useFetchAgentData from "@/hooks/useFetchAgentData"; 
 import useGoalsMD from "@/hooks/useGoalsMD"; 
+import useFetchMD from "@/hooks/useMD"; 
+
 
 const Goals: React.FC = () => {
 
@@ -39,6 +41,13 @@ const [promotionListForStars, setPromotionListForStars] = useState<PromotionMapp
 const handlePromotionStartDate = (e: React.ChangeEvent<HTMLInputElement>) => setPromotionStartDate(e.target.value);
 const handlePromotionEndDate = (e: React.ChangeEvent<HTMLInputElement>) => setPromotionEndDate(e.target.value)
 
+const [sortCriteria] = useState<'worker' | 'promotion' | 'startDate'>('startDate'); // Default: Start Date
+const [sortOrder] = useState<'asc' | 'desc'>('asc'); // Default: Ascending
+
+
+const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+const [searchQuery, setSearchQuery] = useState('');
+
 
 
 const { 
@@ -51,7 +60,11 @@ const {
     setSelectedWorkerName,
     setSelectedWorkerId, 
     fetchWorkersForSelectedAgent,
-    workerNameMap
+    workerNameMap,
+    companies, selectedCompany, 
+    selectedCompanies,
+    setSelectedCompanies,
+    setSelectedCompany
 
   } = useFetchAgentData();
 
@@ -64,8 +77,30 @@ const {
     handleSelectGoalsType,
     goalsTypeValue,
     setGoalsTypeValue,
-    goalsTypeMap
+    goalsTypeMap,
+    duplicateGoalsForNextMonth
 } = useGoalsMD();
+
+
+const {
+  formatIsraeliDateOnly
+} = useFetchMD();
+
+
+// Filter companies based on the search query
+const filteredCompanies = companies.filter(company =>
+  company.toLowerCase().includes(searchQuery.toLowerCase())
+);
+
+const handleCompanyToggle = (company: string) => {
+  if (selectedCompanies.includes(company)) {
+    setSelectedCompanies(selectedCompanies.filter((c) => c !== company));
+  } else {
+    setSelectedCompanies([...selectedCompanies, company]);
+  }
+};
+
+
 
 interface PromotionData {
   promotionName: string;
@@ -204,25 +239,83 @@ const fetchGoalsSuccessForAgent = async (UserAgentId: string) => {
   };
 
 
+  // const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
+  //   try {
+  //   event.preventDefault();
+  //       const docRef = await addDoc(collection(db, 'goalsSuccess'), {
+  //       AgentId: selectedAgentId,
+  //       workerId: selectedWorkerId,
+  //       promotionId: promotionValue,
+  //       goalsTypeId: goalsTypeValue,
+  //       amaunt: amaunt || 0,
+  //       status: status
+  //       });
+  //     alert('התווסף בהצלחה');
+  //     console.log('Document written with ID:', docRef.id);
+  //     resetForm(); 
+  //     setIsEditing(false);
+  //     if (selectedAgentId) {
+  //       fetchGoalsSuccessForAgent(selectedAgentId);
+  //     }
+      
+  //   } catch (error) {
+  //     console.error('Error adding document:', error);
+  //   }
+  // };
+  
   const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
     try {
-    event.preventDefault();
-        const docRef = await addDoc(collection(db, 'goalsSuccess'), {
-        AgentId: selectedAgentId,
-        workerId: selectedWorkerId,
-        promotionId: promotionValue,
-        goalsTypeId: goalsTypeValue,
+      event.preventDefault();
+  
+      if (!promotionValue) {
+        alert('Please select a promotion.');
+        return; // Prevent submission if no promotion is selected
+      }
+  
+      const promotionRef = doc(db, 'promotion', promotionValue);
+      const promotionDoc = await getDoc(promotionRef);
+  
+      if (!promotionDoc.exists()) {
+        alert('Promotion not found!');
+        return;
+      }
+  
+      const promotionData = promotionDoc.data();
+  
+      const newGoal: any = {
+        AgentId: selectedAgentId || '', 
+        workerId: selectedWorkerId || '',
+        promotionId: promotionValue, 
+        goalsTypeId: goalsTypeValue || '',
         amaunt: amaunt || 0,
-        status: status
-        });
-      alert('התווסף בהצלחה');
+        status: status || 'pending',
+      };
+      if (promotionData.promotionMonthlyRepeat) {
+        const now = new Date(); // Current local date
+      
+        // Calculate the first and last day of the current month
+        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1); // First day of the month
+        const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0); // Last day of the month
+      
+        // Format the date as YYYY-MM-DD to avoid time zone issues
+        const formatDate = (date: Date) =>
+          `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+      
+        // Assign the formatted start and end dates to the new goal
+        newGoal.startDate = formatDate(startOfMonth); // e.g., "2024-12-01"
+        newGoal.endDate = formatDate(endOfMonth); // e.g., "2024-12-31"
+      }
+  
+      const docRef = await addDoc(collection(db, 'goalsSuccess'), newGoal);
+  
+      alert('Goal added successfully!');
       console.log('Document written with ID:', docRef.id);
-      resetForm(); 
+  
+      resetForm();
       setIsEditing(false);
       if (selectedAgentId) {
         fetchGoalsSuccessForAgent(selectedAgentId);
       }
-      
     } catch (error) {
       console.error('Error adding document:', error);
     }
@@ -252,6 +345,7 @@ setPromotionStatus(item.promotionStatus || '');
 setPromotionMonthlyRepeat(item.promotionMonthlyRepeat || '');
 setPromotionStartDate(item.promotionStartDate || '');
 setPromotionEndDate(item.promotionEndDate || '');
+setSelectedCompanies(item.companies || []); // Store the selected companies
 };
 
 
@@ -311,7 +405,8 @@ try {
     promotionStatus:!!promotionStatus,
     promotionMonthlyRepeat:!!promotionMonthlyRepeat,
     promotionStartDate,
-    promotionEndDate
+    promotionEndDate,
+    companies: selectedCompanies
   });
   console.log("Document successfully updated");
   setSelectedRowPromotion(null); 
@@ -359,6 +454,7 @@ setPromotionStatus(false);
 setPromotionMonthlyRepeat(false);
 setPromotionStartDate('');
 setPromotionEndDate('');
+setSelectedCompanies([]); // Clear selected companies
 };
 
 
@@ -381,6 +477,7 @@ event.preventDefault();
   promotionMonthlyRepeat: promotionMonthlyRepeat,
   promotionStartDate: promotionStartDate,
   promotionEndDate : promotionEndDate,
+  companies: selectedCompanies, 
 });
 alert('מבצע  התווסף בהצלחה');
 console.log('Document written with ID:', docRef.id);
@@ -431,6 +528,49 @@ useEffect(() => {
 }, [selectedAgentId]); 
 
 
+const [isProcessing, setIsProcessing] = useState(false); // Track loading state
+  const [message, setMessage] = useState<string | null>(null); // Track success/error message
+
+  const handleDuplicateGoals = async () => {
+    setIsProcessing(true);
+    setMessage(null); // Clear previous messages
+
+    try {
+      await duplicateGoalsForNextMonth(selectedAgentId); // Call your function
+      setMessage('Goals successfully duplicated for the next month!');
+    } catch (error) {
+      console.error('Error duplicating goals:', error);
+      setMessage('An error occurred while duplicating goals.');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const sortedGoalsSuccessList = [...goalsSuccessList].sort((a, b) => {
+    const orderMultiplier = sortOrder === 'asc' ? 1 : -1;
+
+    switch (sortCriteria) {
+      case 'worker':
+        const workerA = a.workerId === 'all-agency' ? 'כל הסוכנות' : workerNameMap[a.workerId] || 'Unknown Worker';
+        const workerB = b.workerId === 'all-agency' ? 'כל הסוכנות' : workerNameMap[b.workerId] || 'Unknown Worker';
+        return workerA.localeCompare(workerB) * orderMultiplier;
+
+      case 'promotion':
+        const promotionA = promotionListForStars[a.promotionId] || 'Unknown Promotion';
+        const promotionB = promotionListForStars[b.promotionId] || 'Unknown Promotion';
+        return promotionA.localeCompare(promotionB) * orderMultiplier;
+
+      case 'startDate':
+        if (!a.startDate && !b.startDate) return 0; // Both N/A
+        if (!a.startDate) return 1 * orderMultiplier; // N/A goes to the bottom
+        if (!b.startDate) return -1 * orderMultiplier; // N/A goes to the bottom
+        return a.startDate.localeCompare(b.startDate) * orderMultiplier;
+
+      default:
+        return 0; // Default: no sorting
+    }
+  });
+
   return (
     <div className="content-container">
       <div className="form-container">
@@ -451,20 +591,19 @@ useEffect(() => {
                     </td>
                 </tr>   
                 <tr>
-                    <td>
-                        <label htmlFor="worker">עובד</label>
+                  <td>
+                   <label htmlFor="worker">עובד</label>
                     </td>
                     <td>
-                    <select id="worker-select" value={selectedWorkerId} 
+                  <select id="worker-select" value={selectedWorkerId} 
                    onChange={(e) => handleWorkerChange(e, 'insert')}>
                  <option value="">כל העובדים</option>
                  <option value="all-agency">כל הסוכנות</option>
                  {workers.map(worker => (
-          <option key={worker.id} value={worker.id}>{worker.name}</option>
-        ))}
+                  <option key={worker.id} value={worker.id}>{worker.name}</option> ))}
       </select>
-                    </td>
-                    </tr> 
+             </td>
+                </tr> 
                     <tr>
                     <td>
                         <label htmlFor="promotion">שם מבצע </label>
@@ -476,7 +615,6 @@ useEffect(() => {
           <option key={promotionId} value={promotionId}>{promotionName}</option>
           ))}
             </select>
-
                     </td>
                     </tr>
                     <tr>
@@ -489,8 +627,7 @@ useEffect(() => {
                      {goalsTypeList.map((item) => (
         <option key={item.id} value={item.id}>{item.name}</option>
     ))}
-</select>
-
+              </select>
                     </td>
                     </tr>
                     <tr>
@@ -526,11 +663,13 @@ useEffect(() => {
           <th>עובד</th>
           <th>סוג יעד</th>
           <th>סכום</th>
+          <th>תאריך התחלה</th>
+          <th>תאריך סיום</th>
           <th>פעיל</th>
         </tr>
       </thead>
       <tbody>
-        {goalsSuccessList.map((item) => (
+        {sortedGoalsSuccessList.map((item) => (
           <tr key={item.id}
           onClick={() => handleRowClick(item)}
           onMouseEnter={() => setHoveredRowId(item.id)}
@@ -540,6 +679,8 @@ useEffect(() => {
         <td>{item.workerId === 'all-agency' ? 'כל הסוכנות' : (workerNameMap[item.workerId] || 'Unknown Worker')}</td>
         <td>{goalsTypeMap[item.goalsTypeId] || 'Unknown goalsType'}</td>         
           <td>{item.amaunt ? item.amaunt.toLocaleString(): 'N/A'}</td>
+          <td>{item.startDate ? formatIsraeliDateOnly(item.startDate) : ""}</td>
+          <td>{item.endDate ? formatIsraeliDateOnly(item.endDate) : ""}</td>
           <td>{item.status? 'כן' : 'לא'}</td>
         </tr>
         ))}
@@ -563,7 +704,7 @@ useEffect(() => {
                             ))}
                         </select>
                     </td>
-                </tr>   
+                </tr>  
                 <tr>
                     <td>
                         <label htmlFor="sourceLead">שם מבצע</label>
@@ -571,10 +712,78 @@ useEffect(() => {
                     <td>
                     <input type="text" id="promotionName" name="promotionName" value={promotionName || ''}  onChange={(e) => setPromotionName(e.target.value)} />
                     </td>
-                    </tr> 
+                    </tr>  
+                <tr>
+                <td>
+                <label htmlFor="companies">בחר חברות</label> 
+              </td>
+              <td>
+  <span style={{ position: 'relative', display: 'inline-block', width: '100%' }}>
+    {/* Dropdown Trigger */}
+    <span
+      onClick={() => setIsDropdownOpen((prev) => !prev)}
+      style={{
+        border: '1px solid #ccc',
+        borderRadius: '4px',
+        padding: '5px',
+        cursor: 'pointer',
+        backgroundColor: '#fff',
+        display: 'inline-block',
+      }}
+    >
+      {selectedCompanies.length > 0 ? selectedCompanies.join(', ') : 'בחר חברות'}
+      <span style={{ float: 'right', transform: isDropdownOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}>▼</span>
+    </span>
+    {/* Dropdown Content */}
+    {isDropdownOpen && (
+      <span
+        style={{
+          position: 'absolute',
+          zIndex: 10,
+          border: '1px solid #ccc',
+          borderRadius: '4px',
+          backgroundColor: '#fff',
+          maxHeight: '200px',
+          overflowY: 'auto',
+          width: '300px',
+          display: 'block',
+        }}
+      >
+        {companies.map((company, index) => (
+          <label
+            key={index}
+            style={{
+              display: 'flex',
+              alignItems: 'center', // Ensure alignment
+              padding: '2px 0', // Reduce vertical padding
+              cursor: 'pointer',
+              fontSize: '14px', // Smaller font
+              margin: '0', // Remove default margins
+            }}
+          >
+            <input
+              type="checkbox"
+              value={company}
+              checked={selectedCompanies.includes(company)}
+              onChange={() => handleCompanyToggle(company)}
+              style={{
+                margin: '0 5px 0 0', // Tight spacing to the right of the checkbox
+                padding: '0', // Ensure no extra padding
+                width: '15px', // Smaller checkbox
+                height: '15px',
+              }}
+            />
+            <span style={{ margin: '0', padding: '0' }}>{company}</span> {/* Ensure no extra space */}
+          </label>
+        ))}
+      </span>
+    )}
+  </span>
+</td>
+         </tr>     
                     <tr>
                     <td>
-                        <label htmlFor="notes">מתחדש</label>
+                        <label htmlFor="notes">מתחדש חודשי</label>
                     </td>
                     <td>
                         <input type="checkbox" id="promotionMonthlyRepeat" name="promotionMonthlyRepeat" checked={promotionMonthlyRepeat} onChange={(e) => setPromotionMonthlyRepeat(e.target.checked)} />
@@ -610,6 +819,7 @@ useEffect(() => {
          <thead>
          <tr>
          <th>שם מבצע</th>
+         <th>חברות</th>
           <th>מתחדש</th>
           <th>תאריך התחלה</th>
           <th>תאריך סיום</th>
@@ -624,11 +834,11 @@ useEffect(() => {
           onMouseLeave={() => setHoveredRowId(null)}
           className={`${selectedRowPromotion && selectedRowPromotion.id === item.id ? 'selected-row' : ''} ${hoveredRowId === item.id ? 'hovered-row' : ''}`}>
               <td>{item.promotionName}</td>
+              <td>{item.companies?.join(', ') || 'N/A'}</td>
               <td>{item.promotionMonthlyRepeat? 'כן' : 'לא'}</td>
               <td>{item.promotionStartDate}</td>
               <td>{item.promotionEndDate}</td>
               <td>{item.promotionStatus? 'כן' : 'לא'}</td>            
-
           </tr>
         ))}
       </tbody>
@@ -720,20 +930,21 @@ useEffect(() => {
         <td>{promotionListForStars[item.promotionId] || 'Unknown Promotion'}</td>
         <td>{item.insuranceStar ? item.insuranceStar.toLocaleString(): 'N/A'}</td>
               <td>{item.pensiaStar ? item.pensiaStar.toLocaleString(): 'N/A'}</td>
-              <td>{item.finansimStar ? item.finansimStar.toLocaleString(): 'N/A'}</td>
-                
+              <td>{item.finansimStar ? item.finansimStar.toLocaleString(): 'N/A'}</td>                
           </tr>
         ))}
       </tbody>
     </table>
  </div>
+ <div>
+      <button onClick={handleDuplicateGoals} disabled={isProcessing}>
+        {isProcessing ? 'Processing...' : 'Duplicate Goals for Next Month'}
+      </button>
+      {message && <p>{message}</p>}
+    </div>
       </div>
-
-
-
         </div>
 </div>
-      </div>
-    
+      </div>    
 );}
 export default Goals;

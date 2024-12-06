@@ -505,6 +505,7 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
      IDCustomer.trim() !== '' &&
      selectedCompany.trim() !== '' &&
      selectedProduct.trim() !== '' &&
+     selectedStatusPolicy.trim() !== '' &&
     mounth.trim() !== ''
   ), [selectedAgentId, selectedWorkerId, firstNameCustomer, lastNameCustomer, IDCustomer, 
     selectedCompany, selectedProduct, mounth]);
@@ -742,7 +743,7 @@ useEffect(() => {
           <tbody>
             <tr>
               <td>
-               <label htmlFor="agentSelect">סוכנות</label>
+               <label htmlFor="agentSelect">סוכנות <span style={{ color: 'red', marginLeft: '5px' }}>*</span></label>
              </td>
              <td>
               <select onChange={handleAgentChange} value={selectedAgentId}>
@@ -756,7 +757,7 @@ useEffect(() => {
                 </tr>
                 <tr>
                     <td>
-                        <label htmlFor="workerSelect">עובד</label>
+                        <label htmlFor="workerSelect">עובד <span style={{ color: 'red', marginLeft: '5px' }}>*</span></label>
                     </td>
                     <td>
                         <select id="workerSelect" value={selectedWorkerId} 
@@ -770,7 +771,7 @@ useEffect(() => {
                 </tr>
                 <tr>
                     <td>
-                        <label>שם פרטי</label>
+                        <label>שם פרטי <span style={{ color: 'red', marginLeft: '5px' }}>*</span></label>
                     </td>
                     <td>
                         <input type="text" value={firstNameCustomer} onChange={handleFirstNameChange} title="הזן אותיות בלבד" />
@@ -778,7 +779,7 @@ useEffect(() => {
                 </tr>
                 <tr>
                     <td>
-                        <label>שם משפחה</label>
+                        <label>שם משפחה <span style={{ color: 'red', marginLeft: '5px' }}>*</span></label>
                     </td>
                     <td>
                         <input type="text" value={lastNameCustomer} onChange={handleLastNameChange} title="הזן אותיות בלבד" />
@@ -786,7 +787,7 @@ useEffect(() => {
                 </tr>
                 <tr>
                     <td>
-                        <label htmlFor="IDCustomer">תז</label>
+                        <label htmlFor="IDCustomer">תז <span style={{ color: 'red', marginLeft: '5px' }}>*</span></label>
                     </td>
                     <td>
                         <input type="text" 
@@ -798,7 +799,7 @@ useEffect(() => {
                 </tr>
                 <tr>
                     <td>
-                        <label htmlFor="companySelect">חברה</label>
+                        <label htmlFor="companySelect">חברה <span style={{ color: 'red', marginLeft: '5px' }}>*</span></label>
                     </td>
                     <td>
                         <select id="companySelect" value={selectedCompany} onChange={(e) => setSelectedCompany(e.target.value)}>
@@ -811,7 +812,7 @@ useEffect(() => {
                 </tr>
                 <tr>
                     <td>
-                        <label htmlFor="productSelect">מוצר</label>
+                        <label htmlFor="productSelect">מוצר <span style={{ color: 'red', marginLeft: '5px' }}>*</span></label>
                     </td>
                     <td>
                         <select id="productSelect" value={selectedProduct} onChange={(e) => setSelectedProduct(e.target.value)}>
@@ -864,7 +865,7 @@ useEffect(() => {
                 </tr>
                 <tr>
                     <td>
-                        <label htmlFor="expiryDate">תאריך תפוקה (MM/YY)</label>
+                        <label htmlFor="expiryDate">תאריך תפוקה <span style={{ color: 'red', marginLeft: '5px' }}>*</span></label>
                     </td>
                     <td>
                         <input type="date" id="expiryDate" name="expiryDate" value={mounth} onChange={handleExpiryDateChange} />
@@ -872,7 +873,7 @@ useEffect(() => {
                 </tr>
                 <tr>
                     <td>
-                        <label htmlFor="statusPolicySelect">סטאטוס פוליסה</label>
+                        <label htmlFor="statusPolicySelect">סטאטוס פוליסה <span style={{ color: 'red', marginLeft: '5px' }}>*</span></label>
                     </td>
                     <td>
                         <select id="statusPolicySelect" value={selectedStatusPolicy} onChange={(e) => setSelectedStatusPolicy(e.target.value)}>

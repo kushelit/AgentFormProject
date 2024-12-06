@@ -49,6 +49,7 @@ const useFetchAgentData = () => {
   const [workerNameMap, setWorkerNameMap] = useState<WorkerNameMap>({});
   const [isLoadingAgent, setIsLoadingAgent] = useState(false);
 
+  const [selectedCompanies, setSelectedCompanies] = useState<string[]>([]); // Selected companies
 
  // const { fetchDataGoalsForWorker} = useCalculateSalesData();
 
@@ -289,7 +290,9 @@ const useFetchAgentData = () => {
   selectedWorkerNameGoal, 
   setSelectedWorkerNameGoal,
   isLoadingAgent,
-  setIsLoadingAgent
+  setIsLoadingAgent,
+  selectedCompanies,
+  setSelectedCompanies
   //handleCalculate
   // Any other states or functions you might be using
 };

@@ -36,7 +36,12 @@ interface Product {
 
 
   
-function useSalesData(selectedAgentId: string, selectedWorkerIdFilter: string, selectedCompany: string, selectedProduct: string, selectedStatusPolicy: string) {
+function useSalesData(selectedAgentId: string, selectedWorkerIdFilter: string,
+     selectedCompany: string, selectedProduct: string, 
+     selectedStatusPolicy: string,
+     selectedYear: number // Add selectedYear as a parameter
+    
+    ) {
     const [monthlyTotals, setMonthlyTotals] = useState<MonthlyTotals>({});
     const [overallTotals, setOverallTotals] = useState<MonthlyTotal>({ finansimTotal: 0, pensiaTotal: 0, insuranceTotal: 0, niudPensiaTotal: 0, commissionHekefTotal: 0, commissionNifraimTotal: 0 });
     const [contracts, setContracts] = useState<Contract[]>([]);
@@ -82,9 +87,13 @@ function useSalesData(selectedAgentId: string, selectedWorkerIdFilter: string, s
 
     const createSalesQuery = (filterMinuySochen  = false) => {
 
-        const currentYear = new Date().getFullYear();
-        const startOfYear = `${currentYear}-01-01`;
-        const endOfYear = `${currentYear}-12-31`;
+       // const currentYear = new Date().getFullYear();
+       // const startOfYear = `${currentYear}-01-01`;
+       // const endOfYear = `${currentYear}-12-31`;
+
+       const startOfYear = `${selectedYear}-01-01`;
+       const endOfYear = `${selectedYear}-12-31`;
+
 
         let salesQuery = query(collection(db, 'sales'), 
         where('statusPolicy', 'in', ['פעילה', 'הצעה']),
@@ -153,8 +162,18 @@ if (selectedAgentId && selectedAgentId !== 'all') {
                 generalQuerySnapshot.forEach(doc => {
                 const data = doc.data();
                 const date = new Date(data.mounth);
-                const month = `${date.getMonth() + 1}`.padStart(2, '0') + '/' + date.getFullYear().toString().slice(2);
-           
+
+                const year = date.getFullYear();
+
+                // Filter out entries not matching the selected year
+                if (year !== selectedYear) return;
+
+
+
+             //   const month = `${date.getMonth() + 1}`.padStart(2, '0') + '/' + date.getFullYear().toString().slice(2);
+              const month = `${date.getMonth() + 1}`.padStart(2, '0') + '/' + year.toString().slice(2);
+
+
                 if (!newMonthlyTotals[month]) {
                         newMonthlyTotals[month] = { finansimTotal: 0, pensiaTotal: 0, insuranceTotal: 0, niudPensiaTotal: 0, commissionHekefTotal: 0, commissionNifraimTotal: 0 };
                     }
@@ -164,8 +183,16 @@ if (selectedAgentId && selectedAgentId !== 'all') {
                 commissionQuerySnapshot.forEach(doc => {
                 const data = doc.data();
                 const date = new Date(data.mounth);
-                const month = `${date.getMonth() + 1}`.padStart(2, '0') + '/' + date.getFullYear().toString().slice(2);
-                if (newMonthlyTotals[month]) {
+
+
+                const year = date.getFullYear();
+                if (year !== selectedYear) return;
+
+            //    const month = `${date.getMonth() + 1}`.padStart(2, '0') + '/' + date.getFullYear().toString().slice(2);
+            const month = `${date.getMonth() + 1}`.padStart(2, '0') + '/' + year.toString().slice(2);
+
+            
+            if (newMonthlyTotals[month]) {
                         updateCommissions(data, newMonthlyTotals[month], productMap[data.product], newCompanyCommissions);
                     }
                 });
@@ -183,7 +210,8 @@ if (selectedAgentId && selectedAgentId !== 'all') {
      
         fetchData();
    
-    }, [loading,selectedAgentId, selectedWorkerIdFilter, selectedCompany, selectedProduct, selectedStatusPolicy
+    }, [loading,selectedAgentId, selectedWorkerIdFilter, selectedCompany, 
+        selectedProduct, selectedStatusPolicy,selectedYear
 
     ]);
 

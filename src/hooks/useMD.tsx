@@ -243,6 +243,19 @@ const fetchSourceLeadForAgent = async (UserAgentId: string) => {
   };
 
       
+
+  const formatIsraeliDateOnly = (dateString: string): string => {
+    if (!dateString) return ""; // Handle empty or undefined dates
+    const date = new Date(dateString); // Convert to Date object
+    const options: Intl.DateTimeFormatOptions = {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    };
+    return new Intl.DateTimeFormat("he-IL", options).format(date); // Format to Israeli locale
+  };
+
+
    return {
 
     companies,
@@ -265,7 +278,8 @@ const fetchSourceLeadForAgent = async (UserAgentId: string) => {
     selectedStatusPolicyFilter, 
     setSelectedStatusPolicyFilter,
     productMap, isLoading,statusLeadMap,sourceLeadList,SetSourceLeadList,
-    fetchSourceLeadForAgent,fetchStatusLeadForAgentAndDefault
+    fetchSourceLeadForAgent,fetchStatusLeadForAgentAndDefault,
+    formatIsraeliDateOnly
     
     
   };

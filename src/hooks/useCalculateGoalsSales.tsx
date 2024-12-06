@@ -76,6 +76,7 @@ function useCalculateSalesData() {
             name: string;
             startDate: Date;
             endDate: Date;
+            companies: string[];
         };
     };
 
@@ -88,7 +89,9 @@ function useCalculateSalesData() {
             promotions[doc.id] = {
                 name: data.promotionName,
                 startDate: data.promotionStartDate,
-                endDate: data.promotionEndDate
+                endDate: data.promotionEndDate,
+                companies: data.companies || [], // Handle missing `companies` field
+
             };
         });
       //  console.log('startDate:', promotions);
@@ -160,6 +163,11 @@ function useCalculateSalesData() {
                 where('statusPolicy', 'in', ['פעילה', 'הצעה'])
             
             );
+
+            // Add a filter for companies if defined in the promotion
+            if (promotion.companies && promotion.companies.length > 0) {
+              salesQuery = query(salesQuery, where('company', 'in', promotion.companies));
+                }
             if (workerId && workerId !== 'all-agency') {
                 salesQuery = query(salesQuery, where('workerId', '==', workerId));
             }
@@ -334,6 +342,10 @@ function isGoalData(item: GoalData | null): item is GoalData {
             where('minuySochen', '==', false),
             where('statusPolicy', 'in', ['פעילה', 'הצעה']));
 
+            // Add a filter for companies if defined in the promotion
+                if (promotion.companies && promotion.companies.length > 0) {
+              salesQuery = query(salesQuery, where('company', 'in', promotion.companies));
+            }
             if (workerId && workerId !== 'all-agency') {
                 salesQuery = query(salesQuery, where('workerId', '==', workerId));
              }
@@ -374,6 +386,7 @@ function isGoalData(item: GoalData | null): item is GoalData {
         };
     };
 
+    
 
   return { goalData,setGoalData, calculateTotalPremia, fetchDataGoalsForWorker,calculateDays  };
 }

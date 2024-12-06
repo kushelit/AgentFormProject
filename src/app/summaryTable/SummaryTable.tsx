@@ -21,7 +21,7 @@ const SummaryTable = () => {
   const { workers, agents, selectedAgentId,setSelectedAgentId, handleAgentChange, handleWorkerChange, selectedWorkerId ,
     companies, selectedCompany, selectedWorkerIdFilter,
     setSelectedCompany,isLoadingAgent } = useFetchAgentData();
-    
+    const [selectedYear, setSelectedYear] = useState(new Date().getFullYear()); // Default to the current year
     const [selectedGraph, setSelectedGraph] = useState('newCustomers');
 
     const {
@@ -34,7 +34,7 @@ const SummaryTable = () => {
       statusPolicies
     } = useFetchMD();
 
-    const { monthlyTotals, overallTotals, isLoadingData, companyCommissions } = useSalesData(selectedAgentId, selectedWorkerIdFilter, selectedCompany, selectedProduct, selectedStatusPolicy);
+  const { monthlyTotals, overallTotals, isLoadingData, companyCommissions } = useSalesData(selectedAgentId, selectedWorkerIdFilter, selectedCompany, selectedProduct, selectedStatusPolicy,selectedYear);
 
   const monthsCount = Object.keys(monthlyTotals).length;
 
@@ -69,6 +69,10 @@ const averageInsurance = Math.round(overallTotals.insuranceTotal / monthsCount);
 const averageNiudPensia = Math.round(overallTotals.niudPensiaTotal / monthsCount);
 const averageCommissionHekef = Math.round(overallTotals.commissionHekefTotal / monthsCount);
 const averageCommissionNifraim = Math.round(overallTotals.commissionNifraimTotal / monthsCount);
+
+
+
+
 
 
   return (
@@ -114,6 +118,18 @@ const averageCommissionNifraim = Math.round(overallTotals.commissionNifraimTotal
                                 <option key={index} value={status}>{status}</option>
        ))}
        </select>
+  <select
+    id="yearPicker"
+    value={selectedYear}
+    onChange={(e) => setSelectedYear(parseInt(e.target.value))}
+  >
+     <option value="">בחר שנה</option>
+    {Array.from({ length: 10 }, (_, i) => new Date().getFullYear() - i).map((year) => (
+      <option key={year} value={year}>
+        {year}
+      </option>
+    ))}
+  </select>
 
       </div>
 

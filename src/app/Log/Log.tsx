@@ -58,10 +58,11 @@ function Log() {
     setSelectedProductFilter,
     selectedStatusPolicyFilter, 
     setSelectedStatusPolicyFilter, 
-    productGroupMap
+    productGroupMap,
+    formatIsraeliDateOnly
   } = useFetchMD();
 
-
+ 
 
 
 const [agentData, setAgentData] = useState<any[]>([]);
@@ -303,7 +304,7 @@ console.log("selectedAgentId "+ selectedAgentId)
     setFilteredData(data);
   }, [selectedAgentId, selectedWorkerIdFilter, selectedCompanyFilter, selectedProductFilter, selectedStatusPolicyFilter, agentData, idCustomerFilter, firstNameCustomerFilter, lastNameCustomerFilter, minuySochenFilter, expiryDateFilter]);
 
-
+  
 
   return (
     <div className="frame-container bg-custom-white" style={{ maxWidth: '1000px', margin: '0 auto', padding: '10px 20px 20px 20px', border: '1px solid #ccc', borderRadius: '8px', marginTop: '10px' }}>
@@ -404,7 +405,7 @@ console.log("selectedAgentId "+ selectedAgentId)
                   <td>{Number(item.pensiaZvira).toLocaleString('en-US')}</td>
                   <td>{Number(item.finansimPremia).toLocaleString('en-US')}</td>
                   <td>{Number(item.finansimZvira).toLocaleString('en-US')}</td>
-                  <td className="narrow-column">{item.mounth}</td>
+                  <td className="narrow-column">{item.mounth ? formatIsraeliDateOnly(item.mounth) : ""}</td>
                   <td>{item.statusPolicy}</td>
                   <td>{item.minuySochen ? 'כן' : 'לא'}</td>
                   <td>{item.workerName}</td>
