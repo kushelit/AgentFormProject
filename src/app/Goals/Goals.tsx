@@ -579,16 +579,16 @@ const [isProcessing, setIsProcessing] = useState(false); // Track loading state
           <tbody>
           <tr>
             <td>
-               <label htmlFor="agentSelect">סוכנות</label>
+             <label htmlFor="agentSelect">סוכנות</label>
              </td>
              <td>
               <select onChange={handleAgentChange} value={selectedAgentId}>
-                            {detail?.role === 'admin' && <option value="">בחר סוכן</option>}
-                            {agents.map(agent => (
-                                <option key={agent.id} value={agent.id}>{agent.name}</option>
-                            ))}
-                        </select>
-                    </td>
+              {detail?.role === 'admin' && <option value="">בחר סוכן</option>}
+              {agents.map(agent => (
+               <option key={agent.id} value={agent.id}>{agent.name}</option>
+               ))}
+               </select>
+                 </td>
                 </tr>   
                 <tr>
                   <td>
@@ -596,17 +596,17 @@ const [isProcessing, setIsProcessing] = useState(false); // Track loading state
                     </td>
                     <td>
                   <select id="worker-select" value={selectedWorkerId} 
-                   onChange={(e) => handleWorkerChange(e, 'insert')}>
+                  onChange={(e) => handleWorkerChange(e, 'insert')}>
                  <option value="">כל העובדים</option>
                  <option value="all-agency">כל הסוכנות</option>
                  {workers.map(worker => (
-                  <option key={worker.id} value={worker.id}>{worker.name}</option> ))}
-      </select>
+                  <option key={worker.id} value={worker.id}>{worker.name}</option>))}
+             </select>
              </td>
                 </tr> 
                     <tr>
                     <td>
-                        <label htmlFor="promotion">שם מבצע </label>
+                       <label htmlFor="promotion">שם מבצע</label>
                     </td>
                     <td>
           <select id="promotionValue" value={promotionValue || ''} onChange={handleSelectPromotion}>
@@ -626,16 +626,16 @@ const [isProcessing, setIsProcessing] = useState(false); // Track loading state
                      <option value="">בחר סוג יעד</option>
                      {goalsTypeList.map((item) => (
         <option key={item.id} value={item.id}>{item.name}</option>
-    ))}
-              </select>
-                    </td>
-                    </tr>
-                    <tr>
+         ))}
+           </select>
+             </td>
+            </tr>
+             <tr>
                 <td>
                   <label htmlFor="amount">סכום</label>
                 </td>
                 <td>
-                  <input type="number" id="amount" name="amount" value={amaunt|| 0} onChange={(e) => setAmaunt(parseInt(e.target.value))} />
+                  <input type="number" id="amount" name="amount" value={amaunt|| 0} onChange={(e) => setAmaunt(parseInt(e.target.value))}/>
                 </td>
               </tr>
                     <tr>
@@ -643,7 +643,7 @@ const [isProcessing, setIsProcessing] = useState(false); // Track loading state
                         <label htmlFor="status">פעיל</label>
                     </td>
                     <td>
-                        <input type="checkbox" id="status" name="status" checked={status} onChange={(e) => setStatus(e.target.checked)} />
+                        <input type="checkbox" id="status" name="status" checked={status} onChange={(e) => setStatus(e.target.checked)}/>
                     </td>
                 </tr>
           </tbody>       
@@ -687,6 +687,11 @@ const [isProcessing, setIsProcessing] = useState(false); // Track loading state
       </tbody>
     </table>
  </div>
+ <div>
+      <button onClick={handleDuplicateGoals} disabled={isProcessing}>
+        {isProcessing ? 'בתהליך...' : 'שכפל יעדים לחודש הבא'}
+      </button>
+    </div>
       </div>  
       <div className="data-container">
       <form onSubmit={handleSubmitPromotion}>
@@ -706,11 +711,11 @@ const [isProcessing, setIsProcessing] = useState(false); // Track loading state
                     </td>
                 </tr>  
                 <tr>
-                    <td>
-                        <label htmlFor="sourceLead">שם מבצע</label>
+                  <td>
+                     <label htmlFor="sourceLead">שם מבצע</label>
                     </td>
                     <td>
-                    <input type="text" id="promotionName" name="promotionName" value={promotionName || ''}  onChange={(e) => setPromotionName(e.target.value)} />
+                    <input type="text" id="promotionName" name="promotionName" value={promotionName || ''}  onChange={(e) => setPromotionName(e.target.value)}/>
                     </td>
                     </tr>  
                 <tr>
@@ -719,7 +724,6 @@ const [isProcessing, setIsProcessing] = useState(false); // Track loading state
               </td>
               <td>
   <span style={{ position: 'relative', display: 'inline-block', width: '100%' }}>
-    {/* Dropdown Trigger */}
     <span
       onClick={() => setIsDropdownOpen((prev) => !prev)}
       style={{
@@ -729,12 +733,10 @@ const [isProcessing, setIsProcessing] = useState(false); // Track loading state
         cursor: 'pointer',
         backgroundColor: '#fff',
         display: 'inline-block',
-      }}
-    >
-      {selectedCompanies.length > 0 ? selectedCompanies.join(', ') : 'בחר חברות'}
+      }}>
+      {selectedCompanies.length > 0 ? selectedCompanies.join(', ') : 'כל החברות'}
       <span style={{ float: 'right', transform: isDropdownOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}>▼</span>
     </span>
-    {/* Dropdown Content */}
     {isDropdownOpen && (
       <span
         style={{
@@ -743,12 +745,11 @@ const [isProcessing, setIsProcessing] = useState(false); // Track loading state
           border: '1px solid #ccc',
           borderRadius: '4px',
           backgroundColor: '#fff',
-          maxHeight: '200px',
+          maxHeight: '100px',
           overflowY: 'auto',
           width: '300px',
           display: 'block',
-        }}
-      >
+        }}>
         {companies.map((company, index) => (
           <label
             key={index}
@@ -759,8 +760,7 @@ const [isProcessing, setIsProcessing] = useState(false); // Track loading state
               cursor: 'pointer',
               fontSize: '14px', // Smaller font
               margin: '0', // Remove default margins
-            }}
-          >
+            }}>
             <input
               type="checkbox"
               value={company}
@@ -771,31 +771,30 @@ const [isProcessing, setIsProcessing] = useState(false); // Track loading state
                 padding: '0', // Ensure no extra padding
                 width: '15px', // Smaller checkbox
                 height: '15px',
-              }}
-            />
-            <span style={{ margin: '0', padding: '0' }}>{company}</span> {/* Ensure no extra space */}
+              }}/>
+            <span style={{ margin: '0', padding: '0' }}>{company}</span>
           </label>
         ))}
       </span>
     )}
   </span>
 </td>
-         </tr>     
-                    <tr>
-                    <td>
-                        <label htmlFor="notes">מתחדש חודשי</label>
-                    </td>
-                    <td>
-                        <input type="checkbox" id="promotionMonthlyRepeat" name="promotionMonthlyRepeat" checked={promotionMonthlyRepeat} onChange={(e) => setPromotionMonthlyRepeat(e.target.checked)} />
-                    </td>
-                </tr>
-                <tr>
-                <td><label htmlFor="promotionStartDate">תאריך התחלה</label></td>
-                <td><input type="date" id="promotionStartDate" name="promotionStartDate" value={promotionStartDate} onChange={handlePromotionStartDate} /></td>
+   </tr>     
+     <tr>
+      <td>
+        <label htmlFor="notes">מתחדש חודשי</label>
+       </td>
+        <td>
+           <input type="checkbox" id="promotionMonthlyRepeat" name="promotionMonthlyRepeat" checked={promotionMonthlyRepeat} onChange={(e) => setPromotionMonthlyRepeat(e.target.checked)}/>
+         </td>
+        </tr>
+        <tr>
+          <td><label htmlFor="promotionStartDate">תאריך התחלה</label></td>
+           <td><input type="date" id="promotionStartDate" name="promotionStartDate" value={promotionStartDate} onChange={handlePromotionStartDate}/></td>
               </tr>
               <tr>
                 <td><label htmlFor="promotionEndDate">תאריך סיום</label></td>
-                <td><input type="date" id="promotionEndDate" name="promotionEndDate" value={promotionEndDate} onChange={handlePromotionEndDate} /></td>
+                <td><input type="date" id="promotionEndDate" name="promotionEndDate" value={promotionEndDate} onChange={handlePromotionEndDate}/></td>
               </tr>
                     <tr>
                     <td>
@@ -814,7 +813,7 @@ const [isProcessing, setIsProcessing] = useState(false); // Track loading state
             <button type="button" onClick={resetFormPromotion}>נקה</button>
           </div>        
        </form>
-       <div className="select-container" >        
+       <div className="select-container">        
         <table>
          <thead>
          <tr>
@@ -836,9 +835,9 @@ const [isProcessing, setIsProcessing] = useState(false); // Track loading state
               <td>{item.promotionName}</td>
               <td>{item.companies?.join(', ') || 'N/A'}</td>
               <td>{item.promotionMonthlyRepeat? 'כן' : 'לא'}</td>
-              <td>{item.promotionStartDate}</td>
-              <td>{item.promotionEndDate}</td>
-              <td>{item.promotionStatus? 'כן' : 'לא'}</td>            
+              <td>{item.promotionStartDate ? formatIsraeliDateOnly(item.promotionStartDate) : ""}</td>
+              <td>{item.promotionEndDate ? formatIsraeliDateOnly(item.promotionEndDate) : ""}</td>
+              <td>{item.promotionStatus? 'כן' : 'לא'}</td>  
           </tr>
         ))}
       </tbody>
@@ -882,7 +881,7 @@ const [isProcessing, setIsProcessing] = useState(false); // Track loading state
                   <label htmlFor="insuranceStar">שווי כוכב ביטוח</label>
                 </td>
                 <td>
-                  <input type="number" id="insuranceStar" name="insuranceStar" value={insuranceStar || 0} onChange={(e) => setInsuranceStar(parseInt(e.target.value))} />
+                  <input type="number" id="insuranceStar" name="insuranceStar" value={insuranceStar || 0} onChange={(e) => setInsuranceStar(parseInt(e.target.value))}/>
                 </td>
               </tr>
               <tr>
@@ -890,7 +889,7 @@ const [isProcessing, setIsProcessing] = useState(false); // Track loading state
                   <label htmlFor="pensiaStar">שווי כוכב פנסיה</label>
                 </td>
                 <td>
-                  <input type="number" id="pensiaStar" name="pensiaStar" value={pensiaStar || 0} onChange={(e) => setPensiaStar(parseInt(e.target.value))} />
+                  <input type="number" id="pensiaStar" name="pensiaStar" value={pensiaStar || 0} onChange={(e) => setPensiaStar(parseInt(e.target.value))}/>
                 </td>
               </tr>
               <tr>
@@ -898,7 +897,7 @@ const [isProcessing, setIsProcessing] = useState(false); // Track loading state
                   <label htmlFor="finansimStar">שווי כוכב פיננסים</label>
                 </td>
                 <td>
-                  <input type="number" id="finansimStar" name="finansimStar" value={finansimStar || 0} onChange={(e) => setFinansimStar(parseInt(e.target.value))} />
+                <input type="number" id="finansimStar" name="finansimStar" value={finansimStar || 0} onChange={(e) => setFinansimStar(parseInt(e.target.value))}/>
                 </td>
               </tr>
           </tbody>       
@@ -910,7 +909,7 @@ const [isProcessing, setIsProcessing] = useState(false); // Track loading state
             <button type="button" onClick={resetFormStars}>נקה</button>
           </div>        
        </form>
-       <div className="select-container" >        
+       <div className="select-container">        
         <table>
          <thead>
          <tr>
@@ -936,12 +935,6 @@ const [isProcessing, setIsProcessing] = useState(false); // Track loading state
       </tbody>
     </table>
  </div>
- <div>
-      <button onClick={handleDuplicateGoals} disabled={isProcessing}>
-        {isProcessing ? 'Processing...' : 'Duplicate Goals for Next Month'}
-      </button>
-      {message && <p>{message}</p>}
-    </div>
       </div>
         </div>
 </div>

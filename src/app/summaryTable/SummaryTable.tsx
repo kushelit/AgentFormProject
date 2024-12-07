@@ -40,10 +40,11 @@ const SummaryTable = () => {
 
   const filters = useMemo(() => {
     return {
-      selectedAgentId: selectedAgentId || null, // Pass null explicitly if no agent is selected
+      selectedAgentId: selectedAgentId || null, 
       selectedWorkerIdFilter,
+      selectedYear,
     };
-  }, [selectedAgentId, selectedWorkerIdFilter]);
+  }, [selectedAgentId, selectedWorkerIdFilter, selectedYear]);
 
 
 
@@ -58,7 +59,6 @@ const SummaryTable = () => {
     if (detail?.role === 'admin' && (selectedAgentId === null || selectedAgentId === undefined)) {
         setSelectedAgentId('select'); // Set to "All Agents" on admin login
     }
-   // console.log("SelectedAgentId set to  " + selectedAgentId);
 }, [detail, selectedAgentId]);
 
 
@@ -73,14 +73,10 @@ const averageCommissionNifraim = Math.round(overallTotals.commissionNifraimTotal
 
 
 
-
-
   return (
     <div className="frame-container bg-custom-white" style={{ maxWidth: '1000px', margin: '0 auto', padding: '10px 20px 20px 20px', border: '1px solid #ccc', borderRadius: '8px', marginTop: '10px',minHeight: '800px' }}>
 
        <div style={{ marginTop: '20px', width: '90%', margin: '0 auto', overflowX: 'auto' }}>
-
-
        <div className="select-container" >
       <select id="agent-select" value={selectedAgentId} onChange={handleAgentChange}>
       {detail?.role === 'admin' && <option value="">בחר סוכן</option>}
@@ -96,7 +92,6 @@ const averageCommissionNifraim = Math.round(overallTotals.commissionNifraimTotal
           <option key={worker.id} value={worker.id}>{worker.name}</option>
         ))}
       </select>
-
       <select id="companySelect" value={selectedCompany} onChange={(e) => setSelectedCompany(e.target.value)}>
         <option value="">בחר חברה</option>
          {companies.map((companyName, index) => (
@@ -121,8 +116,7 @@ const averageCommissionNifraim = Math.round(overallTotals.commissionNifraimTotal
   <select
     id="yearPicker"
     value={selectedYear}
-    onChange={(e) => setSelectedYear(parseInt(e.target.value))}
-  >
+    onChange={(e) => setSelectedYear(parseInt(e.target.value))}>
      <option value="">בחר שנה</option>
     {Array.from({ length: 10 }, (_, i) => new Date().getFullYear() - i).map((year) => (
       <option key={year} value={year}>
@@ -130,10 +124,7 @@ const averageCommissionNifraim = Math.round(overallTotals.commissionNifraimTotal
       </option>
     ))}
   </select>
-
       </div>
-
-      {/*   {defaultContracts.length > 0 ? ( */}
           <div className="table-container" style={{ width: '100%' }}>
             <table style={{ width: '100%'  }}></table>
           { isLoadingData  && (
@@ -141,8 +132,7 @@ const averageCommissionNifraim = Math.round(overallTotals.commissionNifraimTotal
     <div className="spinner"></div>
   </div>
 )} 
-
-      <table className="table-style">
+   <table className="table-style">
         <thead>
           <tr>
             <th>חודש תפוקה</th>
@@ -168,7 +158,6 @@ const averageCommissionNifraim = Math.round(overallTotals.commissionNifraimTotal
               <td>{totals.niudPensiaTotal.toLocaleString()}</td>
               <td>{totals.commissionHekefTotal.toLocaleString()}</td>
               <td>{totals.commissionNifraimTotal.toLocaleString()}</td>
-
             </tr>
           ))}
           <tr>
@@ -179,7 +168,6 @@ const averageCommissionNifraim = Math.round(overallTotals.commissionNifraimTotal
             <td><strong>{overallTotals.niudPensiaTotal.toLocaleString()}</strong></td>
             <td><strong>{overallTotals.commissionHekefTotal.toLocaleString()}</strong></td>
             <td><strong>{overallTotals.commissionNifraimTotal.toLocaleString()}</strong></td>
-
           </tr>
           <tr>
         <td><strong>ממוצע</strong></td>
@@ -191,16 +179,12 @@ const averageCommissionNifraim = Math.round(overallTotals.commissionNifraimTotal
         <td><strong>{averageCommissionNifraim.toLocaleString()}</strong></td>
       </tr>
         </tbody>
-      </table>
-      
-
+      </table>     
     </div>
     </div>
-  
     {/*  <div className="graph-container" style={{ width: '100%', height: '400px' }}>
   <CommissionGraph data={monthlyTotals} /> 
 </div> */}
-
 <div>
 <div style={{ margin: '20px' }}>
   {/* Graph Selection */}
@@ -209,7 +193,6 @@ const averageCommissionNifraim = Math.round(overallTotals.commissionNifraimTotal
     <option value="commissionPerMonth">ממוצע נפרעים ללקוח</option>
     <option value="companyCommissionPie">סך היקף לחברה</option>
   </select>
-
   {/* Render Graph */}
   <div>
     {(loading || isLoadingData) && <p>Loading...</p>}
@@ -222,12 +205,8 @@ const averageCommissionNifraim = Math.round(overallTotals.commissionNifraimTotal
     )}
   </div>
 </div>
-
 </div>
-
 </div>
-
   );
 };
-
 export default SummaryTable;

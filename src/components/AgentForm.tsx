@@ -69,8 +69,12 @@ function AgentForm() {
     setSelectedProductFilter,
     selectedStatusPolicyFilter, 
     setSelectedStatusPolicyFilter, 
-    productGroupMap
+    productGroupMap,
+    formatIsraeliDateOnly
   } = useFetchMD();
+
+
+  
 
   const {  goalData ,setGoalData, fetchDataGoalsForWorker,calculateDays } = useCalculateSalesData();
 
@@ -876,10 +880,15 @@ useEffect(() => {
                         <label htmlFor="statusPolicySelect">סטאטוס פוליסה <span style={{ color: 'red', marginLeft: '5px' }}>*</span></label>
                     </td>
                     <td>
-                        <select id="statusPolicySelect" value={selectedStatusPolicy} onChange={(e) => setSelectedStatusPolicy(e.target.value)}>
+                        <select id="statusPolicySelect" value={selectedStatusPolicy} 
+                      
+                      onChange={(e) => {
+                        console.log('Selected Status:', e.target.value); // Debug log
+                        setSelectedStatusPolicy(e.target.value);
+                      }} >
                             <option value="">בחר סטאטוס פוליסה</option>
                             {statusPolicies.map((status, index) => (
-                                <option key={index} value={status}>{status}</option>
+                            <option key={index} value={status}>{status}</option>
                             ))}
                         </select>
                     </td>
@@ -1152,7 +1161,7 @@ useEffect(() => {
                   <td>{Number(item.pensiaZvira).toLocaleString('en-US')}</td>
                   <td>{Number(item.finansimPremia).toLocaleString('en-US')}</td>
                   <td>{Number(item.finansimZvira).toLocaleString('en-US')}</td>
-                  <td className="narrow-column">{item.mounth}</td>
+                  <td className="narrow-column">{item.mounth ? formatIsraeliDateOnly(item.mounth) : ""}</td>
                   <td>{item.statusPolicy}</td>
                   <td>{item.minuySochen ? 'כן' : 'לא'}</td>
                   <td>{item.workerName}</td>

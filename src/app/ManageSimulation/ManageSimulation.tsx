@@ -225,13 +225,11 @@ const canSubmit1 = useMemo(() => (
 
 return (
   <div>
-    {/* First Frame */}
     <div className="frame-container bg-custom-white " style={{ maxWidth: '1000px', margin: '0 auto', padding: '10px 20px 20px 20px', border: '1px solid #ccc', borderRadius: '8px', marginTop: '10px' }}>
       <h2 style={{ textAlign: 'center' , marginBottom: '10px', fontSize:'12px' }}>ניהול סימולטור</h2>    
-      <div style={{ marginTop: '20px', width: '90%', margin: '0 auto', overflowX: 'auto' }}>
-      {/*   {defaultContracts.length > 0 ? ( */}
+      <div style={{ marginTop: '20px', width: '90%', margin: '0 auto', overflowX:'auto' }}>
           <div className="table-container" style={{ width: '100%' }}>
-          <div className="select-container" >
+          <div className="select-container">
           <select id="company-Select" value={selectedCompanyFilter} onChange={(e) => setSelectedCompanyFilter(e.target.value)}>
         <option value="">בחר חברה</option>
          {companies.map((companyName, index) => (
@@ -260,29 +258,26 @@ return (
             {companies.map((companyName, index) => (
     <option key={index} value={companyName}>{companyName}</option>
     ))}
-          </select>
+    </select>
           </td>
           <td>
           <input type="text" 
           inputMode="numeric" 
           value={lowPrem} 
-          onChange={handleLowPremChange} 
-               />
-             </td>
+          onChange={handleLowPremChange} />
+          </td>
           <td>
           <input type="text" 
           inputMode="numeric" 
           value={highPrem} 
-          onChange={handleHighPremChange} 
-               />
-          </td>
-      
+          onChange={handleHighPremChange}/>
+          </td>     
         <td>
           <input type="text" 
           id="cuttingPercent" 
           value={cuttingPercent} 
           onChange={handleCuttingPercent} 
-          style={{ width: '100%' }} />
+          style={{ width: '100%' }}/>
         </td>
       </tr>
         {defaultSimulation.map((item) => (
@@ -291,35 +286,23 @@ return (
                   onMouseEnter={() => setHoveredRowId(item.id)}
                   onMouseLeave={() => setHoveredRowId(null)}
                   className={`${selectedRow && selectedRow.id === item.id ? 'selected-row' : ''} ${hoveredRowId === item.id ? 'hovered-row' : ''}`}>
-                    <td>{item.company}</td> {/* Use the map for fast lookup */}
+                    <td>{item.company}</td>
                     <td>{item.lowPrem}</td>
                     <td>{item.highPrem}</td>
                     <td>{item.cuttingPercent}</td>
                   </tr>
-                ))}
-              
-  
+                ))} 
               </tbody>
             </table>
           </div>
-     {/*    ) : (
-          <p>No data available for the selected agent.</p>
-        )
-        
-    }*/}
       </div>
-      <div className="form-group button-group" >
+      <div className="form-group button-group">
          <button type="button" onClick={handleSubmit} disabled={!canSubmit1 || isEditing1}>הזן</button>      
           <button type="button" disabled={selectedRow === null} onClick={handleDelete} >מחק</button>
           <button type="button" disabled={selectedRow === null} onClick={handleEdit}>עדכן</button>
           <button type="button" onClick={resetForm}>נקה</button>
         </div>
-      </div>
-       
-    {/* Second Frame */}
-   
-      </div>
-      
-  
+      </div>       
+      </div> 
 );};
 export default ManageSimulation;

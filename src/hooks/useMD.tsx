@@ -21,7 +21,7 @@ const useFetchMD = (selectedAgentId?:string) => {
     const [products, setProducts] = useState<Product[]>([]);
     const [productGroupsDB, setProductGroupsDB] = useState<ProductGroup[]>([]);
     const [statusPolicies, setStatusPolicies] = useState<string[]>([]);
-    const [selectedStatusPolicy, setSelectedStatusPolicy] = useState('');
+    const [selectedStatusPolicy, setSelectedStatusPolicy] =useState<string>('');
     const [selectedProductFilter, setSelectedProductFilter] = useState('');
     const [selectedProductGroupFilter, setSelectedProductGroupFilter] = useState('');
     const [selectedStatusPolicyFilter, setSelectedStatusPolicyFilter] = useState('');

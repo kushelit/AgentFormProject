@@ -114,6 +114,11 @@ const Customer = () => {
     selectedAgentName,
   } = useFetchAgentData();
 
+  const {
+    formatIsraeliDateOnly
+  } = useFetchMD();
+  
+
 
   useEffect(() => {
     if (selectedAgentId) {
@@ -1125,7 +1130,7 @@ const Customer = () => {
                   <td>{item.lastNameCustomer}</td>
                   <td>{item.IDCustomer}</td>
                   <td>{item.parentFullName || ''}</td>
-                  <td>{item.birthday}</td>
+                  <td>{item.birthday ? formatIsraeliDateOnly(item.birthday) : ""}</td>
                   <td>{item.phone}</td>
                   <td>{item.mail}</td>
                   <td>{item.address}</td>
@@ -1179,7 +1184,7 @@ const Customer = () => {
                     <td>{sale.IDCustomer}</td>
                     <td>{sale.product}</td>
                     <td>{sale.company}</td>
-                    <td>{sale.month}</td>
+                    <td>{sale.month ? formatIsraeliDateOnly(sale.month) : ""}</td>
                     {detail?.role !== 'worker' && <td>{sale.sumPremia?.toLocaleString()}</td>}
                     {detail?.role !== 'worker' && <td>{sale.sumTzvira?.toLocaleString()}</td>}
                     {detail?.role !== 'worker' && <td>{sale.commissionHekef?.toLocaleString()}</td>}
