@@ -109,7 +109,8 @@ const [editingRowIdTime, setEditingRowIdTime] = useState<string | null>(null);
   const { 
     statusLeadMap,
     sourceLeadList,
-    formatIsraeliDateOnly
+    formatIsraeliDateOnly,
+    sourceLeadMap
   } = useFetchMD(selectedAgentId);
 
 
@@ -285,7 +286,7 @@ const [editingRowIdTime, setEditingRowIdTime] = useState<string | null>(null);
           notes,
           returnDate,
           lastContactDate,       
-          sourceValue,
+          sourceLeadId: sourceValue,
           createdAt: serverTimestamp(),
           lastUpdateDate: serverTimestamp(), 
           selectedStatusLead,
@@ -536,12 +537,12 @@ const [editingRowIdTime, setEditingRowIdTime] = useState<string | null>(null);
                   <label htmlFor="sourceLeadSelect">מקור ליד</label>
                 </td>
                 <td>
-                  <select id="sourceLeadSelect" value={sourceValue || ''} onChange={handleSelectChange}>
-                    <option value="">בחר מקור ליד</option>
-                    {sourceLeadList.map((item, index) => (
-                      <option key={index} value={item.sourceLead}>{item.sourceLead}</option>
-                    ))}
-                  </select>
+                <select id="sourceLeadSelect" value={sourceValue || ''} onChange={handleSelectChange}>
+              <option value="">בחר מקור ליד</option>
+             {sourceLeadList.map((item) => (
+            <option key={item.id} value={item.id}>{item.sourceLead}</option>
+             ))}
+            </select>
                 </td>
               </tr>
               <tr>
@@ -770,7 +771,7 @@ const [editingRowIdTime, setEditingRowIdTime] = useState<string | null>(null);
             ))}
           </select>
         </td>
-        <td>{item.sourceValue}</td>
+        <td>{sourceLeadMap[item.sourceValue] || "לא נבחר"}</td>
         <td className="medium-column">
   {item.lastContactDate ? formatIsraeliDateOnly(item.lastContactDate) : ""}
 </td>      </tr>

@@ -29,6 +29,7 @@ const useFetchMD = (selectedAgentId?:string) => {
     const [statusLeadMap, SetStatusLeadMap] = useState<any[]>([]);
 
     const [sourceLeadList, SetSourceLeadList] = useState<any[]>([]);
+    const [sourceLeadMap, setSourceLeadMap] = useState<{ [key: string]: string }>({});
 
 
 
@@ -242,7 +243,27 @@ const fetchSourceLeadForAgent = async (UserAgentId: string) => {
     console.log('SetSourceLeadList '+ SetSourceLeadList)
   };
 
-      
+  const fetchSourceLeadMap = async (agentId: string) => {
+    try {
+      const q = query(collection(db, "sourceLead"), where("AgentId", "==", agentId));
+      const querySnapshot = await getDocs(q);
+      const sourceMap = querySnapshot.docs.reduce((map, doc) => {
+        map[doc.id] = doc.data().sourceLead || "Unknown Source";
+        return map;
+      }, {} as { [key: string]: string });
+      setSourceLeadMap(sourceMap);
+      console.log("Populated sourceLeadMap:", sourceMap); // Debugging
+    } catch (error) {
+      console.error("Error fetching source leads:", error);
+    }
+  };
+  
+  useEffect(() => {
+    if (selectedAgentId) {
+      fetchSourceLeadMap(selectedAgentId);
+    }
+  }, [selectedAgentId]);
+  
 
   const formatIsraeliDateOnly = (dateString: string): string => {
     if (!dateString) return ""; // Handle empty or undefined dates
@@ -279,11 +300,11 @@ const fetchSourceLeadForAgent = async (UserAgentId: string) => {
     setSelectedStatusPolicyFilter,
     productMap, isLoading,statusLeadMap,sourceLeadList,SetSourceLeadList,
     fetchSourceLeadForAgent,fetchStatusLeadForAgentAndDefault,
-    formatIsraeliDateOnly
+    formatIsraeliDateOnly,sourceLeadMap,fetchSourceLeadMap
     
     
   };
   
-  
+
 };
   export default useFetchMD;

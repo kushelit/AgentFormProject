@@ -24,6 +24,7 @@ const pages = [
   { href: '/Enviorment', label: 'הגדרות מערכת' },
   { href: '/ManageSimulation', label: 'ניהול סימולטור' },
   { href: '/Log', label: 'לוג מערכת' },
+  { href: '/RequestStatus', label: 'סטאטוס API' },
 ];
 
 const bottomPage = { href: '/Leads', label: 'Flow' };

@@ -115,7 +115,9 @@ const Customer = () => {
   } = useFetchAgentData();
 
   const {
-    formatIsraeliDateOnly
+    formatIsraeliDateOnly,
+    sourceLeadMap,
+    fetchSourceLeadMap
   } = useFetchMD();
   
 
@@ -126,6 +128,7 @@ const Customer = () => {
       setSalesData(null);
       setTotalCommissions({ totalCommissionHekef: 0, totalCommissionNifraim: 0 });
       resetForm();
+      fetchSourceLeadMap(selectedAgentId);
     }
   }, [selectedAgentId]);
 
@@ -177,6 +180,7 @@ const Customer = () => {
         item.parentFullName.toLowerCase().includes(parentFullNameFilter.toLowerCase()); // Assuming the data includes a parentFullName field
 
     });
+    console.log("Filtered Data:", data); // Log filtered data
     setFilteredData(data);
   }, [customerData, idCustomerFilter, firstNameCustomerFilter, lastNameCustomerFilter, parentFullNameFilter]);
 
@@ -346,7 +350,7 @@ const Customer = () => {
           phone,
           mail,
           address,
-          sourceValue,
+          sourceLead: sourceValue,
           createdAt: serverTimestamp(),
           lastUpdateDate: serverTimestamp() // Also set at creation
 
@@ -949,9 +953,8 @@ const Customer = () => {
     fetchSourceLeadForAgent();
   }, [selectedAgentId]); // Ensures the effect runs when selectedAgentId changes
 
-  const handleSelectChange = (event: { target: { value: SetStateAction<string | null>; }; }) => {
-    console.log("Selected value:", event.target.value);
-    setSourceValue(event.target.value);
+  const handleSelectChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
+    setSourceValue(event.target.value); // Save the selected `id`
   };
 
   return (
@@ -1035,13 +1038,19 @@ const Customer = () => {
                   <label htmlFor="sourceLeadSelect">מקור ליד</label>
                 </td>
                 <td>
-                  <select id="sourceLeadSelect" value={sourceValue || ''} onChange={handleSelectChange}>
-                    <option value="">בחר מקור ליד</option>
-                    {sourceLeadList.map((item, index) => (
-                      <option key={index} value={item.sourceLead}>{item.sourceLead}</option>
-                    ))}
-                  </select>
-                </td>
+  <select
+    id="sourceLeadSelect"
+    value={sourceValue || ''}
+    onChange={handleSelectChange}
+  >
+    <option value="">בחר מקור ליד</option>
+    {sourceLeadList.map((item, index) => (
+      <option key={index} value={item.id}>
+        {item.sourceLead} {/* Display the name */}
+      </option>
+    ))}
+  </select>
+</td>
               </tr>
               <tr>
                 <td>
@@ -1134,7 +1143,8 @@ const Customer = () => {
                   <td>{item.phone}</td>
                   <td>{item.mail}</td>
                   <td>{item.address}</td>
-                  <td>{item.sourceValue}</td>
+                  
+                  <td>{sourceLeadMap[item.sourceValue] || "לא נבחר"}</td>
                 </tr>
               ))}
             </tbody>
