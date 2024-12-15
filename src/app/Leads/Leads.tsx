@@ -1,5 +1,5 @@
 import { ChangeEventHandler, FormEventHandler, SetStateAction, useEffect, useMemo, useState } from "react";
-import { collection, query, setDoc, where, getDocs, getDoc, addDoc, deleteDoc, doc, updateDoc, DocumentSnapshot, DocumentData, serverTimestamp } from "firebase/firestore";
+import { collection, query, setDoc, where, getDocs, getDoc, addDoc, deleteDoc, doc, updateDoc, DocumentSnapshot, DocumentData, serverTimestamp, Timestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase/firebase"; // Ensure this path matches your project structure
 import { useAuth } from '@/lib/firebase/AuthContext';
 import useFetchMD from "@/hooks/useMD";
@@ -37,12 +37,20 @@ const Leads = () => {
   const [address, setAddress] = useState('');
 
   
+  const [birthday, setBirthday] = useState('');
+  const [availableFunds, setAvailableFunds] = useState('');
+  const [retirementFunds, setRetirementFunds] = useState('');
+  const [consentForInformationRequest, setConsentForInformationRequest] = useState(false);
+
+  
+
+
   const handleLastContactDate = (e: React.ChangeEvent<HTMLInputElement>) => setLastContactDate(e.target.value);
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => setPhone(e.target.value);
   const handleMailChange = (e: React.ChangeEvent<HTMLInputElement>) => setMail(e.target.value);
   const handleAddressChange = (e: React.ChangeEvent<HTMLInputElement>) => setAddress(e.target.value);
+  const handleBirthdayChange = (e: React.ChangeEvent<HTMLInputElement>) => setBirthday(e.target.value);
 
- 
   const [sourceValue, setSourceValue] = useState<string | null>('');
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
 
@@ -79,6 +87,11 @@ const [editingRowIdTime, setEditingRowIdTime] = useState<string | null>(null);
     workerId: string;
     notes: string;
     workerName: string;
+    birthday: string;
+    availableFunds: string;
+    retirementFunds: string;
+    consentForInformationRequest: boolean;
+    createDate: Timestamp;
   };
 
 
@@ -116,6 +129,7 @@ const [editingRowIdTime, setEditingRowIdTime] = useState<string | null>(null);
 
 
   const fetchLeadsForAgent = async (UserAgentId: string) => {
+    console.log('fetchLeadsForAgent', UserAgentId);
     const q = query(collection(db, 'leads'), where('AgentId', '==', UserAgentId));
     const querySnapshot = await getDocs(q);
     const data = await Promise.all(querySnapshot.docs.map(async (docSnapshot) => {
@@ -126,32 +140,33 @@ const [editingRowIdTime, setEditingRowIdTime] = useState<string | null>(null);
       };
     }));
     setLeadsData(data); 
+    console.log('fetchLeadsForAgentData', data);
   };
 
   useEffect(() => {
-    let data = leadsData.filter(item => {
-      const matchesIdCustomer = item.IDCustomer.includes(idCustomerFilter);
+    // Apply filters to the leads data
+    const data = leadsData.filter(item => {
+      const matchesIdCustomer = idCustomerFilter ? item.IDCustomer?.includes(idCustomerFilter) : true;  
       const fullName = `${item.firstNameCustomer || ''} ${item.lastNameCustomer || ''}`.trim();
       const filterFullName = `${firstNameCustomerFilter} ${lastNameCustomerFilter}`.trim();
-      const matchesName = fullName.includes(filterFullName);
-      const matchesWorkerId = item.workerId.includes(selectedWorkerIdFilter);
-      const matchesStatusLead =
-        !selectedStatusLeadFilter || item.selectedStatusLead === selectedStatusLeadFilter;
-  
-      return matchesIdCustomer && matchesName && matchesStatusLead && matchesWorkerId;
+      const matchesName = firstNameCustomerFilter || lastNameCustomerFilter
+        ? fullName.includes(filterFullName)
+        : true;  
+      const matchesWorkerId = selectedWorkerIdFilter ? item.workerId?.includes(selectedWorkerIdFilter) : true;
+      const matchesStatusLead = selectedStatusLeadFilter ? item.selectedStatusLead === selectedStatusLeadFilter : true;
+        return matchesIdCustomer && matchesName && matchesStatusLead && matchesWorkerId;
     });
-    setFilteredData(data);
+      setFilteredData(data);
+    console.log("Filtered Data:", data);
   }, [
     leadsData,
     idCustomerFilter,
     firstNameCustomerFilter,
     lastNameCustomerFilter,
-    selectedStatusLeadFilter,
     selectedWorkerIdFilter,
+    selectedStatusLeadFilter,
   ]);
   
-
-
   const handleFirstNameChange: ChangeEventHandler<HTMLInputElement> = (event) => {
     const value = event.target.value;
     const hebrewRegex = /^[\u0590-\u05FF ]+$/;
@@ -189,6 +204,10 @@ const [editingRowIdTime, setEditingRowIdTime] = useState<string | null>(null);
     setAddress(item.address || '');
     setSourceValue(item.sourceValue || '');
     setSelectedStatusLead(item.selectedStatusLead || '');
+    setAvailableFunds(item.availableFunds || '');
+    setRetirementFunds(item.retirementFunds || '');
+    setConsentForInformationRequest(item.consentForInformationRequest || false);
+    setBirthday(item.birthday || '');
     const workerName = workerNameMap[item.workerId];
     if (workerName) {
         setSelectedWorkerId(item.workerId);
@@ -235,6 +254,10 @@ const [editingRowIdTime, setEditingRowIdTime] = useState<string | null>(null);
           sourceValue,
           lastUpdateDate: serverTimestamp(),
           selectedStatusLead,
+          availableFunds,
+          retirementFunds,
+          consentForInformationRequest,
+          birthday,
           workerId: selectedWorkerId,// id new
         });
         console.log("Document successfully updated");
@@ -269,6 +292,10 @@ const [editingRowIdTime, setEditingRowIdTime] = useState<string | null>(null);
     setSelectedStatusLead('');
     setSelectedWorkerId('');
     setSelectedWorkerName('');
+    setAvailableFunds('');
+    setRetirementFunds('');
+    setConsentForInformationRequest(false);
+    setBirthday('');
   };
 
 
@@ -287,10 +314,14 @@ const [editingRowIdTime, setEditingRowIdTime] = useState<string | null>(null);
           returnDate,
           lastContactDate,       
           sourceLeadId: sourceValue,
-          createdAt: serverTimestamp(),
           lastUpdateDate: serverTimestamp(), 
           selectedStatusLead,
           workerId: selectedWorkerId,
+          birthday,
+          availableFunds,
+          retirementFunds,
+          consentForInformationRequest,
+          createDate: serverTimestamp(),
         });
         alert('ליד חדש התווסף בהצלחה');
       resetForm();
@@ -471,7 +502,7 @@ const [editingRowIdTime, setEditingRowIdTime] = useState<string | null>(null);
                   <label>שם פרטי</label>
                 </td>
                 <td>
-                  <input type="text" value={firstNameCustomer} onChange={handleFirstNameChange} title="הזן אותיות בלבד" />
+                  <input type="text" value={firstNameCustomer} onChange={handleFirstNameChange} title="הזן אותיות בלבד"/>
                 </td>
               </tr>
               <tr>
@@ -479,7 +510,7 @@ const [editingRowIdTime, setEditingRowIdTime] = useState<string | null>(null);
                   <label>שם משפחה</label>
                 </td>
                 <td>
-                  <input type="text" value={lastNameCustomer} onChange={handleLastNameChange} title="הזן אותיות בלבד" />
+                <input type="text" value={lastNameCustomer} onChange={handleLastNameChange} title="הזן אותיות בלבד"/>
                 </td>
               </tr>
               <tr>
@@ -487,11 +518,15 @@ const [editingRowIdTime, setEditingRowIdTime] = useState<string | null>(null);
                   <label htmlFor="IDCustomer">תז</label>
                 </td>
                 <td>
-                  <input type="text" inputMode="numeric" maxLength={9} value={IDCustomer} onChange={handleIDChange} />
+                  <input type="text" inputMode="numeric" maxLength={9} value={IDCustomer} onChange={handleIDChange}/>
                 </td>
               </tr>
               <tr>
-  <td>
+                <td><label htmlFor="birthday">תאריך לידה</label></td>
+                <td><input type="date" id="birthday" name="birthday" value={birthday} onChange={handleBirthdayChange} /></td>
+              </tr>
+              <tr>
+             <td>
     <label htmlFor="phone">
       טלפון<span style={{ color: 'red', marginLeft: '5px' }}>*</span>
     </label>
@@ -502,18 +537,16 @@ const [editingRowIdTime, setEditingRowIdTime] = useState<string | null>(null);
       id="phone"
       name="phone"
       value={phone}
-      onChange={handlePhoneChange}
-    />
+      onChange={handlePhoneChange}/>
   </td>
 </tr>
-
-              <tr>
-                <td><label htmlFor="mail">דואר אלקטרוני</label></td>
-                <td><input type="email" id="mail" name="mail" value={mail} onChange={handleMailChange} /></td>
+     <tr>
+          <td><label htmlFor="mail">דואר אלקטרוני</label></td>
+                <td><input type="email" id="mail" name="mail" value={mail} onChange={handleMailChange}/></td>
               </tr>
               <tr>
                 <td><label htmlFor="address">כתובת</label></td>
-                <td><input type="text" id="address" name="address" value={address} onChange={handleAddressChange} /></td>
+                <td><input type="text" id="address" name="address" value={address} onChange={handleAddressChange}/></td>
               </tr>
               <tr>
   <td><label htmlFor="returnDate">תאריך ושעה</label></td>
@@ -523,15 +556,13 @@ const [editingRowIdTime, setEditingRowIdTime] = useState<string | null>(null);
       id="returnDate"
       name="returnDate"
       value={returnDate.replace(" ", "T")} // Convert "2024-12-04 14:30" to "2024-12-04T14:30" for input compatibility
-      onChange={handleReturnDate}
-    />
+      onChange={handleReturnDate}/>
   </td>
 </tr>
-              <tr>
-                <td><label htmlFor="lastContactDate">תאריך פניה אחרונה</label></td>
-                <td><input type="date" id="lastContactDate" name="lastContactDate" value={lastContactDate} onChange={handleLastContactDate} /></td>
-              </tr>
-             
+    <tr>
+         <td><label htmlFor="lastContactDate">תאריך פניה אחרונה</label></td>
+           <td><input type="date" id="lastContactDate" name="lastContactDate" value={lastContactDate} onChange={handleLastContactDate}/></td>
+              </tr>            
               <tr>
                 <td>
                   <label htmlFor="sourceLeadSelect">מקור ליד</label>
@@ -551,8 +582,7 @@ const [editingRowIdTime, setEditingRowIdTime] = useState<string | null>(null);
                   <select
                     id="statusLeadSelect"
                     value={selectedStatusLead}
-                    onChange={(e) => setSelectedStatusLead(e.target.value)}
-                  >
+                    onChange={(e) => setSelectedStatusLead(e.target.value)}>
                     <option value="">בחר סטטוס</option>
                     {statusLeadMap.map((status) => (
                       <option key={status.id} value={status.id}>
@@ -563,8 +593,32 @@ const [editingRowIdTime, setEditingRowIdTime] = useState<string | null>(null);
                 </td>
               </tr>
               <tr>
+                <td>
+                  <label htmlFor="availableFunds">סכום זמין להשקעה</label>
+                </td>
+                <td>
+                <input type="text" id="availableFunds" name="availableFunds"  value={availableFunds} onChange={(e) => setAvailableFunds(e.target.value)}/>
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <label htmlFor="retirementFunds">גמל והשתלמות</label>
+                </td>
+                <td>
+                <input type="text" id="retirementFunds" name="retirementFunds"  value={retirementFunds} onChange={(e) => setRetirementFunds(e.target.value)}/>
+                </td>
+              </tr>
+              <tr>
                     <td>
-                        <label htmlFor="workerSelect">נציג</label>
+                        <label htmlFor="consentForInformationRequest" className="checkbox-label">אישור הזמנת מסלקה</label>
+                    </td>
+                    <td>
+                        <input type="checkbox" id="consentForInformationRequest" name="consentForInformationRequest" checked={consentForInformationRequest} onChange={(e) => setConsentForInformationRequest(e.target.checked)} />
+                    </td>
+                </tr>
+              <tr>
+                 <td>
+                   <label htmlFor="workerSelect">נציג</label>
                     </td>
                     <td>
                         <select id="workerSelect" value={selectedWorkerId} 
@@ -585,15 +639,13 @@ const [editingRowIdTime, setEditingRowIdTime] = useState<string | null>(null);
                    id="notes" name="notes" 
                   value={notes} onChange={(e) => setNotes(e.target.value)} 
                   style={{
-                   // width: '300px',  // Adjust width
                     height: '100px', // Adjust height
                     resize: 'vertical', // Allow resizing vertically
                    padding: '10px', // Internal padding for better spacing
                   fontSize: '12px', // Increase font size for readability
                    overflowY: 'auto', // Enable vertical scrolling for long text
                    textAlign: 'start', // Ensure text starts at the top-left
-                  }}
-                  />
+                  }}/>
                 </td>
               </tr>
             </tbody>
@@ -607,7 +659,7 @@ const [editingRowIdTime, setEditingRowIdTime] = useState<string | null>(null);
         </form>
       </div>
       <div className="data-container">
-        <div className="select-container" >
+        <div className="select-container">
         <input
         type="text"
         placeholder="שם"
@@ -615,16 +667,14 @@ const [editingRowIdTime, setEditingRowIdTime] = useState<string | null>(null);
        onChange={(e) => {
      const fullName = e.target.value.trim();
     const [firstName, ...lastNameParts] = fullName.split(' ');
-    setfirstNameCustomerFilter(firstName || ''); // First word as first name
-    setlastNameCustomerFilter(lastNameParts.join(' ') || ''); // Remaining words as last name
-  }}
-/>
-          <input
+    setfirstNameCustomerFilter(firstName || ''); 
+    setlastNameCustomerFilter(lastNameParts.join(' ') || ''); 
+  }}/>
+       <input
             type="text"
             placeholder="תז לקוח"
             value={idCustomerFilter}
-            onChange={(e) => setIdCustomerFilter(e.target.value)}
-          />
+            onChange={(e) => setIdCustomerFilter(e.target.value)}/>
    <select id="worker-select" value={selectedWorkerIdFilter} 
        onChange={(e) => handleWorkerChange(e, 'filter')}>
         <option value="">כל העובדים</option>
@@ -632,7 +682,6 @@ const [editingRowIdTime, setEditingRowIdTime] = useState<string | null>(null);
           <option key={worker.id} value={worker.id}>{worker.name}</option>
         ))}
       </select>
-
       <select
       id="statusLead-Select"
       value={selectedStatusLeadFilter}
@@ -645,17 +694,13 @@ const [editingRowIdTime, setEditingRowIdTime] = useState<string | null>(null);
        ))}
        </select>
         </div>
-        {/* First Frame 
-        {agentData.length > 0 ? (*/}
         <div className="table-container flex" style={{ overflowX: 'auto', maxHeight: '800px'
           ,minWidth: '900px',fontSize: '16px'}}>
           <table className="flex-grow"
           style={{
             minWidth: '100%',
             fontSize: '16px' 
-          }}
-          
-          >
+          }}>
             <thead>
               <tr>
                 {showSelect && <th>Select</th>}
@@ -666,6 +711,7 @@ const [editingRowIdTime, setEditingRowIdTime] = useState<string | null>(null);
                 <th>שם נציג</th>
                 <th>מקור ליד</th>
                 <th>תאריך פניה אחרונה</th>
+                <th>תאריך יצירה</th>
               </tr>
             </thead>
             <tbody>
@@ -674,18 +720,15 @@ const [editingRowIdTime, setEditingRowIdTime] = useState<string | null>(null);
     // 1. Handle rows with "לא מעוניין" first
     const statusA = statusLeadMap.find(status => status.id === a.selectedStatusLead)?.statusLeadName || '';
     const statusB = statusLeadMap.find(status => status.id === b.selectedStatusLead)?.statusLeadName || '';
-
     if (statusA === 'לא מעוניין' && statusB !== 'לא מעוניין') {
       return 1; // Move "לא מעוניין" to the bottom
     }
     if (statusA !== 'לא מעוניין' && statusB === 'לא מעוניין') {
       return -1; // Keep other rows above "לא מעוניין"
     }
-
     // 2. Sort remaining rows by `returnDate` in descending order
     const dateA = a.returnDate ? new Date(a.returnDate).getTime() : -Infinity; // Treat missing dates as far past
     const dateB = b.returnDate ? new Date(b.returnDate).getTime() : -Infinity;
-
     return dateA - dateB; // Sort by ascending date
   })
   .map((item) => {
@@ -696,8 +739,7 @@ const [editingRowIdTime, setEditingRowIdTime] = useState<string | null>(null);
         onClick={() => handleRowClick(item)}
         onMouseEnter={() => setHoveredRowId(item.id)}
         onMouseLeave={() => setHoveredRowId(null)}
-        className={`${selectedCustomers.has(item.id) ? 'selected-row' : ''} ${hoveredRowId === item.id ? 'hovered-row' : ''}`}
-      >
+        className={`${selectedCustomers.has(item.id) ? 'selected-row' : ''} ${hoveredRowId === item.id ? 'hovered-row' : ''}`}>
         <td className="medium-column">{`${item.firstNameCustomer || ''} ${item.lastNameCustomer || ''}`.trim()}</td>
         <td className="medium-column" style={{ fontWeight: 'bold' }}>
   {editingRowIdTime === item.id ? (
@@ -705,8 +747,7 @@ const [editingRowIdTime, setEditingRowIdTime] = useState<string | null>(null);
       type="datetime-local"
       value={item.returnDate ? item.returnDate.replace(" ", "T") : ""}
       onChange={(e) =>
-        handleReturnDateChange(item.id, e.target.value.replace("T", " "))
-      }
+        handleReturnDateChange(item.id, e.target.value.replace("T", " "))}
       onBlur={() => setEditingRowIdTime(null)} // Exit edit mode on blur
     />
   ) : (
@@ -718,18 +759,15 @@ const [editingRowIdTime, setEditingRowIdTime] = useState<string | null>(null);
           item.returnDate && new Date(item.returnDate) < new Date()
             ? "red"
             : "black",
-      }}
-    >
+      }}>
       {formatIsraeliDate(item.returnDate)}
     </span>
   )}
 </td>
-
-
 <td className="medium-column" style={{ fontWeight: 'bold' }}>
   {formatPhoneNumber(item.phone)}
 </td>
-        <td>
+   <td>
           <select
             value={item.selectedStatusLead}
             onChange={(e) => handleStatusChange(item.id, e.target.value)}
@@ -740,8 +778,7 @@ const [editingRowIdTime, setEditingRowIdTime] = useState<string | null>(null);
               paddingRight: '20px',
               border: 'none',
               borderRadius: '4px',
-            }}
-          >
+            }}>
             <option value="">בחר סטטוס</option>
             {statusLeadMap.map((status) => (
               <option key={status.id} value={status.id}>
@@ -761,8 +798,7 @@ const [editingRowIdTime, setEditingRowIdTime] = useState<string | null>(null);
               paddingRight: '20px',
               border: 'none',
               borderRadius: '4px',
-            }}
-          >
+            }}>
             <option value="">בחר נציג</option>
             {workers.map((worker) => (
               <option key={worker.id} value={worker.id}>
@@ -774,13 +810,14 @@ const [editingRowIdTime, setEditingRowIdTime] = useState<string | null>(null);
         <td>{sourceLeadMap[item.sourceValue] || "לא נבחר"}</td>
         <td className="medium-column">
   {item.lastContactDate ? formatIsraeliDateOnly(item.lastContactDate) : ""}
-</td>      </tr>
+  </td>
+  <td>{item.createDate ? item.createDate.toDate().toLocaleDateString() : 'N/A'}</td>
+</tr>
     );
   })}
-            </tbody>
+   </tbody>
           </table>
         </div>
-
       </div>
     </div>
   );

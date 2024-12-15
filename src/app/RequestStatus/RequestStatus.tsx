@@ -1,40 +1,65 @@
-import React from "react";
-import { useRequestStatus } from "@/hooks/useRequestStatus";
+import React, { useEffect, useState } from "react";
+import { db } from "@/lib/firebase/firebase";
+import { collection, getDocs } from "firebase/firestore";
+
+interface RequestLog {
+  id: string;
+  status: "failure" | "success";
+  message: string;
+  payload?: Record<string, any>;
+  timestamp: string;
+}
 
 const RequestStatusPage = () => {
-  const { requests, logRequest } = useRequestStatus();
+  const [logs, setLogs] = useState<RequestLog[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Example of logging a new request
-  const handleLogRequest = () => {
-    logRequest({
-      id: "123",
-      status: "success",
-      message: "Request completed successfully!",
-    });
-  };
+  useEffect(() => {
+    const fetchLogs = async () => {
+      try {
+        const querySnapshot = await getDocs(collection(db, "requestLogs"));
+        const fetchedLogs = querySnapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        })) as RequestLog[];
+        setLogs(fetchedLogs);
+      } catch (error) {
+        console.error("Error fetching logs:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchLogs();
+  }, []);
 
   return (
     <div>
       <h1>Request Status</h1>
-      <button onClick={handleLogRequest}>Log a Request</button>
-      <table>
-        <thead>
-          <tr>
-            <th>ID</th>
-            <th>Status</th>
-            <th>Message</th>
-          </tr>
-        </thead>
-        <tbody>
-          {requests.map((req) => (
-            <tr key={req.id}>
-              <td>{req.id}</td>
-              <td>{req.status}</td>
-              <td>{req.message}</td>
+      {isLoading ? (
+        <p>Loading...</p>
+      ) : (
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Status</th>
+              <th>Message</th>
+              <th>Timestamp</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {logs.map((log) => (
+              <tr key={log.id}>
+                <td>{log.id}</td>
+                <td>{log.status}</td>
+                <td>{log.message}</td>
+                <td>{log.timestamp}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
     </div>
   );
 };
