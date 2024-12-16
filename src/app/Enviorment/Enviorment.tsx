@@ -422,7 +422,6 @@ const {
               <td>{item.statusLeadName}</td>
               <td>{item.defaultStatusLead? 'כן' : 'לא'}</td>
              <td>{item.statusLeadList? 'כן' : 'לא'}</td>            
-
           </tr>
         ))}
       </tbody>
@@ -436,12 +435,8 @@ const {
        <div className="select-container" >              
  </div>
       </div>
-
-
-
         </div>
 </div>
-      </div>
-    
+      </div>   
 );}
 export default Enviorment;

@@ -42,7 +42,8 @@ const Leads = () => {
   const [retirementFunds, setRetirementFunds] = useState('');
   const [consentForInformationRequest, setConsentForInformationRequest] = useState(false);
 
-  
+  const [campaign, setCampaign] = useState('');
+
 
 
   const handleLastContactDate = (e: React.ChangeEvent<HTMLInputElement>) => setLastContactDate(e.target.value);
@@ -92,6 +93,7 @@ const [editingRowIdTime, setEditingRowIdTime] = useState<string | null>(null);
     retirementFunds: string;
     consentForInformationRequest: boolean;
     createDate: Timestamp;
+    campaign: string;
   };
 
 
@@ -208,6 +210,7 @@ const [editingRowIdTime, setEditingRowIdTime] = useState<string | null>(null);
     setRetirementFunds(item.retirementFunds || '');
     setConsentForInformationRequest(item.consentForInformationRequest || false);
     setBirthday(item.birthday || '');
+    setCampaign(item.campaign || '');
     const workerName = workerNameMap[item.workerId];
     if (workerName) {
         setSelectedWorkerId(item.workerId);
@@ -259,6 +262,7 @@ const [editingRowIdTime, setEditingRowIdTime] = useState<string | null>(null);
           consentForInformationRequest,
           birthday,
           workerId: selectedWorkerId,// id new
+          campaign,
         });
         console.log("Document successfully updated");
         setSelectedRow(null);
@@ -296,6 +300,7 @@ const [editingRowIdTime, setEditingRowIdTime] = useState<string | null>(null);
     setRetirementFunds('');
     setConsentForInformationRequest(false);
     setBirthday('');
+    setCampaign('');
   };
 
 
@@ -322,6 +327,7 @@ const [editingRowIdTime, setEditingRowIdTime] = useState<string | null>(null);
           retirementFunds,
           consentForInformationRequest,
           createDate: serverTimestamp(),
+          campaign,
         });
         alert('ליד חדש התווסף בהצלחה');
       resetForm();
@@ -577,6 +583,14 @@ const [editingRowIdTime, setEditingRowIdTime] = useState<string | null>(null);
                 </td>
               </tr>
               <tr>
+                <td>
+                  <label htmlFor="campaign">קמפיין</label>
+                </td>
+                <td>
+                <input type="text" id="campaign" name="campaign"  value={campaign} onChange={(e) => setCampaign(e.target.value)}/>
+                </td>
+              </tr>
+              <tr>
                 <td><label htmlFor="statusLeadSelect">סטטוס ליד</label></td>
                 <td>
                   <select
@@ -710,6 +724,7 @@ const [editingRowIdTime, setEditingRowIdTime] = useState<string | null>(null);
                 <th>סטטוס ליד</th>
                 <th>שם נציג</th>
                 <th>מקור ליד</th>
+                <th>שם קמפיין</th>
                 <th>תאריך פניה אחרונה</th>
                 <th>תאריך יצירה</th>
               </tr>
@@ -808,6 +823,7 @@ const [editingRowIdTime, setEditingRowIdTime] = useState<string | null>(null);
           </select>
         </td>
         <td>{sourceLeadMap[item.sourceValue] || "לא נבחר"}</td>
+        <td>{item.campaign}</td>
         <td className="medium-column">
   {item.lastContactDate ? formatIsraeliDateOnly(item.lastContactDate) : ""}
   </td>
