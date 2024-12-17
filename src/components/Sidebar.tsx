@@ -25,6 +25,8 @@ const pages = [
   { href: '/ManageSimulation', label: 'ניהול סימולטור' },
   { href: '/Log', label: 'לוג מערכת' },
   { href: '/RequestStatus', label: 'סטאטוס API' },
+  { href: '/ManagePoolAgents', label: 'ניהול פול ליד' },
+  
 ];
 
 const bottomPage = { href: '/Leads', label: 'Flow' };

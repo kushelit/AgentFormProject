@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/firebase/firebase';
-import { collection, addDoc, doc , getDoc} from 'firebase/firestore';
+import { collection, addDoc, doc , getDoc, updateDoc} from 'firebase/firestore';
 import { saveRequestLogToDB, RequestLog } from "@/utils/saveRequestLogToDB";
 
 
@@ -86,8 +86,19 @@ if (leadData.birthday) {
 
 
     const sourceData = sourceDoc.data();
-    const agentId = sourceData.AgentId; 
+    let agentId = sourceData.AgentId; 
 
+    let agentsPool = sourceData.agentsPool || []; // פול הסוכנים
+
+    if (agentsPool.length > 0) {
+      // אם יש פול סוכנים, בחר סוכן בצורה מעגלית
+      const lastAssignedIndex = sourceData.lastAssignedIndex || 0;
+      const nextAgentIndex = (lastAssignedIndex + 1) % agentsPool.length;
+      agentId = agentsPool[nextAgentIndex];
+
+      // עדכון ה-index במסמך המקור ליד
+      await updateDoc(sourceDocRef, { lastAssignedIndex: nextAgentIndex });
+    }
     // if (!agentId) {
     //   const log: RequestLog = {
     //     id: "N/A",

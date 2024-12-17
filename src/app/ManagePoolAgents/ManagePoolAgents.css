@@ -16,21 +16,19 @@
 }
 
 
-.form-container th,
-.form-container td {
-  border: none;
-}
 
 .table-container {
   max-height: 300px; /* Adjust based on your preference */
-  overflow-y: auto;
+  /* overflow-y: auto;*/
   border: 1px solid #ccc;
   margin-bottom:6px;
+  
+
 }
 
 table {
   width: 100%;
-  border-radius: 8px;
+
 }
 
 
@@ -123,7 +121,9 @@ button:disabled {
 
 
 .form-container input,
- .form-container select {
+ .form-container select,
+ .data-container input,
+ .data-container select {
   width: 100%; /* Reduce width to make inputs/selects shorter */
   padding: 0.25em 0.5em; /* Adjust padding as needed */
   font-size: 12px; /* Maintain the font size or adjust as necessary */
@@ -169,52 +169,3 @@ tr {
   text-align: center; /* Center text inside the inputs/selects */
   height:30px; /* Adjust height to better fit in the table row, can adjust as needed */
 }
-.buttons-container {
-  display: flex;
-  justify-content: space-between; /* Ensures that there is space between the two button groups */
-  align-items: center; /* Centers the buttons vertically */
-  padding: 10px; /* Optional: Adds padding around the container */
-}
-
-.right-buttons {
-  display: flex;
-  justify-content: flex-end; /* Aligns buttons to the right */
-  gap: 10px; /* Optional: adds space between buttons */
-}
-
-.left-buttons {
-  display: flex;
-  justify-content: flex-start; /* Aligns buttons to the left */
-  gap: 10px; /* Optional: adds space between buttons */
-}
-
-
-.wide-column {
-  width: 20%;
-}
-
-.medium-column {
-  width: 15%;
-}
-
-.narrow-column {
-  width: 10%;
-}
-
-.medium-column input {
-  font-size: inherit;
-  font-weight: bold;
-  color: black;
-}
-
-
-.selected-row {
-  background-color: #e0f7fa !important; /* צבע שורה נבחרת */
-  font-weight: bold;
-}
-
-.hovered-row {
-  background-color: #f1f1f1 !important; /* צבע מעבר עכבר */
-  font-weight: bold;
-}
-

@@ -483,7 +483,28 @@ const [editingRowIdTime, setEditingRowIdTime] = useState<string | null>(null);
     return new Intl.DateTimeFormat('he-IL', options).format(date); // Format to Israeli locale
   };
   
+  const [seourceAllLeadMap, setSourceAllLeadMap] = useState<{ [key: string]: string }>({});
 
+  
+  // שליפת כל מקורות הליד ליצירת מפה
+  const fetchAllSourceLeads = async () => {
+    try {
+      const querySnapshot = await getDocs(collection(db, "sourceLead"));
+      const sourceMap = querySnapshot.docs.reduce((map, doc) => {
+        map[doc.id] = doc.data().sourceLead || "מקור לא ידוע";
+        return map;
+      }, {} as { [key: string]: string });
+      setSourceAllLeadMap(sourceMap);
+      console.log("Fetched all source leads:", sourceMap);
+    } catch (error) {
+      console.error("Error fetching source leads:", error);
+    }
+  };
+
+  useEffect(() => {
+    fetchAllSourceLeads();
+  }, []);
+  
   return (
     <div className="content-container">
       <div className="form-container">
@@ -747,14 +768,29 @@ const [editingRowIdTime, setEditingRowIdTime] = useState<string | null>(null);
     return dateA - dateB; // Sort by ascending date
   })
   .map((item) => {
+    console.log("sourceLeadMap:", sourceLeadMap[item.sourceValue]);
+    console.log("seourceAllLeadMap:", seourceAllLeadMap[item.sourceValue]);
+    console.log("item.sourceValue:", item.sourceValue);
+
     const statusLeadName = statusLeadMap.find(status => status.id === item.selectedStatusLead)?.statusLeadName || 'לא נבחר';
+      // בדיקות צבעים
+      const isNotAssigned = !sourceLeadMap[item.sourceValue]; // לא משויך לסוכן
+      const isNotExistAtAll = !seourceAllLeadMap[item.sourceValue]; // לא קיים בכלל
+      console.log("item.sourceValue:", item.sourceValue);
+console.log("sourceLeadMap:", sourceLeadMap[item.sourceValue]);
+console.log("seourceAllLeadMap:", seourceAllLeadMap[item.sourceValue]);
+console.log("isNotExistAtAll:", isNotExistAtAll);
+console.log("isNotAssigned:", isNotAssigned);
+
     return (
       <tr
-        key={item.id}
-        onClick={() => handleRowClick(item)}
-        onMouseEnter={() => setHoveredRowId(item.id)}
-        onMouseLeave={() => setHoveredRowId(null)}
-        className={`${selectedCustomers.has(item.id) ? 'selected-row' : ''} ${hoveredRowId === item.id ? 'hovered-row' : ''}`}>
+  key={item.id}
+  className={`${selectedCustomers.has(item.id) ? "selected-row" : ""} 
+              ${hoveredRowId === item.id ? "hovered-row" : ""}`}
+  onClick={() => handleRowClick(item)}
+  onMouseEnter={() => setHoveredRowId(item.id)}
+  onMouseLeave={() => setHoveredRowId(null)}
+>
         <td className="medium-column">{`${item.firstNameCustomer || ''} ${item.lastNameCustomer || ''}`.trim()}</td>
         <td className="medium-column" style={{ fontWeight: 'bold' }}>
   {editingRowIdTime === item.id ? (
@@ -822,7 +858,24 @@ const [editingRowIdTime, setEditingRowIdTime] = useState<string | null>(null);
             ))}
           </select>
         </td>
-        <td>{sourceLeadMap[item.sourceValue] || "לא נבחר"}</td>
+        <td
+  className="medium-column"
+  style={{
+    fontWeight: "bold",
+    backgroundColor: 
+      sourceLeadMap[item.sourceValue] // משויך לסוכן
+        ? "#ffffff" // לבן - מבטל כל רקע קודם
+        : seourceAllLeadMap[item.sourceValue] // קיים אבל לא משויך
+        ? "#fff3cd" // צהוב
+        : "#f8d7da", // אדום - לא קיים כלל
+  }}
+>
+  {sourceLeadMap[item.sourceValue]
+    ? sourceLeadMap[item.sourceValue]
+    : seourceAllLeadMap[item.sourceValue] || (
+        <span style={{ color: "red" }}>מקור לא קיים</span>
+      )}
+</td>
         <td>{item.campaign}</td>
         <td className="medium-column">
   {item.lastContactDate ? formatIsraeliDateOnly(item.lastContactDate) : ""}
