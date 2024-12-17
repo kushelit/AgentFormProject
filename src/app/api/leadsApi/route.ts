@@ -7,7 +7,8 @@ import { saveRequestLogToDB, RequestLog } from "@/utils/saveRequestLogToDB";
 // Handle POST requests
 export async function POST(req: Request) {
 
-
+//http://localhost:3000/api/leadsApi
+//https://agent-form-project.vercel.app/api/leadsApi
 
   try {
     const apiKey = req.headers.get('Authorization')?.split('Bearer ')[1];
@@ -34,7 +35,16 @@ export async function POST(req: Request) {
       leadData.sourceValue = leadData.source; // Map source to sourceValue
       delete leadData.source; // Remove the redundant source field
     }
-
+// הוספת הלוגיקה לפני שמירת הליד ב-DB
+if (leadData.birthday) {
+  const isValidDate = !isNaN(Date.parse(leadData.birthday));
+  if (!isValidDate) {
+    leadData.notes = leadData.notes
+      ? `${leadData.notes} | תאריך לידה: ${leadData.birthday}`
+      : `תאריך לידה: ${leadData.birthday}`;
+    delete leadData.birthday;
+  }
+}
 
     // Validate required fields
     if (!leadData.firstNameCustomer || !leadData.phone || !leadData.lastNameCustomer || !leadData.sourceValue) {
