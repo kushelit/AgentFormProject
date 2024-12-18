@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/firebase/firebase';
-import { collection, addDoc, doc , getDoc, updateDoc} from 'firebase/firestore';
+import { collection, addDoc, doc , getDoc, updateDoc, serverTimestamp} from 'firebase/firestore';
 import { saveRequestLogToDB, RequestLog } from "@/utils/saveRequestLogToDB";
 
 
@@ -36,12 +36,26 @@ export async function POST(req: Request) {
       delete leadData.source; // Remove the redundant source field
     }
 // הוספת הלוגיקה לפני שמירת הליד ב-DB
+// if (leadData.birthday) {
+//   const isValidDate = !isNaN(Date.parse(leadData.birthday));
+//   if (!isValidDate) {
+//     leadData.notes = leadData.notes
+//       ? `${leadData.notes} | תאריך לידה: ${leadData.birthday}`
+//       : `תאריך לידה: ${leadData.birthday}`;
+//     delete leadData.birthday;
+//   }
+// }
+
 if (leadData.birthday) {
-  const isValidDate = !isNaN(Date.parse(leadData.birthday));
-  if (!isValidDate) {
+  const normalizedDate = new Date(leadData.birthday);
+  if (!isNaN(normalizedDate.getTime())) {
+    // אם תקין, שמור בפורמט ISO
+    leadData.birthday = normalizedDate.toISOString().split('T')[0];
+  } else {
+    // אם לא תקין, שמור ב-notes
     leadData.notes = leadData.notes
-      ? `${leadData.notes} | תאריך לידה: ${leadData.birthday}`
-      : `תאריך לידה: ${leadData.birthday}`;
+      ? `${leadData.notes} | תאריך לידה לא תקין: ${leadData.birthday}`
+      : `תאריך לידה לא תקין: ${leadData.birthday}`;
     delete leadData.birthday;
   }
 }
@@ -121,7 +135,7 @@ if (leadData.birthday) {
       ConsentForInformationRequest, 
       AgentId: agentId,
       workerID: leadData.workerID || null,
-      createDate: new Date(),
+      createDate: serverTimestamp(),
       selectedStatusLead: 'JVhM7nnBrwNBfvrb4zH5',
     });
 

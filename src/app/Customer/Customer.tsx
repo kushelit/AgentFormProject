@@ -1142,8 +1142,7 @@ const Customer = () => {
                   <td>{item.birthday ? formatIsraeliDateOnly(item.birthday) : ""}</td>
                   <td>{item.phone}</td>
                   <td>{item.mail}</td>
-                  <td>{item.address}</td>
-                  
+                  <td>{item.address}</td>                
                   <td>{sourceLeadMap[item.sourceValue] || "לא נבחר"}</td>
                 </tr>
               ))}

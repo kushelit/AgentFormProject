@@ -1,5 +1,5 @@
 import { ChangeEventHandler, FormEventHandler, SetStateAction, useEffect, useMemo, useState } from "react";
-import { collection, query, setDoc, where, getDocs, getDoc, addDoc, deleteDoc, doc, updateDoc, DocumentSnapshot, DocumentData, serverTimestamp, Timestamp } from "firebase/firestore";
+import { collection, query, setDoc, where, getDocs, getDoc, addDoc, deleteDoc, doc, updateDoc, DocumentSnapshot, DocumentData, serverTimestamp, Timestamp, Query } from "firebase/firestore";
 import { db } from "@/lib/firebase/firebase"; // Ensure this path matches your project structure
 import { useAuth } from '@/lib/firebase/AuthContext';
 import useFetchMD from "@/hooks/useMD";
@@ -44,6 +44,7 @@ const Leads = () => {
 
   const [campaign, setCampaign] = useState('');
 
+  const [selectedAgentIdInRow, setSelectedAgentIdInRow] = useState<string | null>(null);
 
 
   const handleLastContactDate = (e: React.ChangeEvent<HTMLInputElement>) => setLastContactDate(e.target.value);
@@ -94,6 +95,8 @@ const [editingRowIdTime, setEditingRowIdTime] = useState<string | null>(null);
     consentForInformationRequest: boolean;
     createDate: Timestamp;
     campaign: string;
+    AgentId: string;
+    agentName?: string;
   };
 
 
@@ -128,23 +131,48 @@ const [editingRowIdTime, setEditingRowIdTime] = useState<string | null>(null);
     sourceLeadMap
   } = useFetchMD(selectedAgentId);
 
-
-
-  const fetchLeadsForAgent = async (UserAgentId: string) => {
-    console.log('fetchLeadsForAgent', UserAgentId);
-    const q = query(collection(db, 'leads'), where('AgentId', '==', UserAgentId));
-    const querySnapshot = await getDocs(q);
-    const data = await Promise.all(querySnapshot.docs.map(async (docSnapshot) => {
-      const LeadsData = docSnapshot.data() as LeadsType; 
-           return {
-        ...LeadsData,
-        id: docSnapshot.id,
-      };
-    }));
-    setLeadsData(data); 
-    console.log('fetchLeadsForAgentData', data);
+  const fetchLeadsForAgent = async (UserAgentId: string | null) => {
+    console.log("fetchLeadsForAgent", UserAgentId);
+    let salesQuery: Query<DocumentData> = collection(db, "leads"); // בסיס השאילתה
+  
+    // הוספת תנאי סינון אם AgentId מסופק ואינו 'all'
+    if (UserAgentId && UserAgentId !== "all") {
+      salesQuery = query(salesQuery, where("AgentId", "==", UserAgentId));
+    }
+    try {
+      const querySnapshot = await getDocs(salesQuery); 
+      const data = await Promise.all(
+        querySnapshot.docs.map(async (docSnapshot) => {
+          const LeadsData = docSnapshot.data() as LeadsType;
+          let agentName = "סוכן לא נמצא";
+  
+          // בדיקה אם AgentId קיים עבור הליד
+          if (LeadsData.AgentId) {
+            const agentDocRef = doc(db, "users", LeadsData.AgentId);
+            const agentDocSnap = await getDoc(agentDocRef);
+  
+            if (agentDocSnap.exists()) {
+              const agentData = agentDocSnap.data();
+              agentName = agentData?.name || "ללא שם";
+            }
+          }
+  
+          return {
+            ...LeadsData,
+            id: docSnapshot.id,
+            agentName, // הוספת שם הסוכן
+          };
+        })
+      );
+  
+      setLeadsData(data);
+      console.log("fetchLeadsForAgentData", data);
+    } catch (error) {
+      console.error("Error fetching leads:", error);
+    }
   };
-
+   
+  
   useEffect(() => {
     // Apply filters to the leads data
     const data = leadsData.filter(item => {
@@ -211,6 +239,7 @@ const [editingRowIdTime, setEditingRowIdTime] = useState<string | null>(null);
     setConsentForInformationRequest(item.consentForInformationRequest || false);
     setBirthday(item.birthday || '');
     setCampaign(item.campaign || '');
+    setSelectedAgentIdInRow(item.AgentId || '');
     const workerName = workerNameMap[item.workerId];
     if (workerName) {
         setSelectedWorkerId(item.workerId);
@@ -263,6 +292,7 @@ const [editingRowIdTime, setEditingRowIdTime] = useState<string | null>(null);
           birthday,
           workerId: selectedWorkerId,// id new
           campaign,
+          AgentId: selectedAgentIdInRow || '', // עדכון AgentId
         });
         console.log("Document successfully updated");
         setSelectedRow(null);
@@ -301,6 +331,7 @@ const [editingRowIdTime, setEditingRowIdTime] = useState<string | null>(null);
     setConsentForInformationRequest(false);
     setBirthday('');
     setCampaign('');
+    setSelectedAgentIdInRow(null);
   };
 
 
@@ -513,10 +544,10 @@ const [editingRowIdTime, setEditingRowIdTime] = useState<string | null>(null);
             <tbody>
               <tr>
                 <td>
-                  <label htmlFor="agentSelect">סוכנות</label>
+                  <label htmlFor="editAgentSelect">סוכנות</label>
                 </td>
                 <td>
-                  <select onChange={handleAgentChange} value={selectedAgentId}>
+                  <select onChange={(e) => setSelectedAgentIdInRow(e.target.value)} value={selectedAgentIdInRow || ''}>
                     {detail?.role === 'admin' && <option value="">בחר סוכן</option>}
                     {agents.map(agent => (
                       <option key={agent.id} value={agent.id}>{agent.name}</option>
@@ -695,6 +726,13 @@ const [editingRowIdTime, setEditingRowIdTime] = useState<string | null>(null);
       </div>
       <div className="data-container">
         <div className="select-container">
+        <select onChange={handleAgentChange} value={selectedAgentId}>
+                    {detail?.role === 'admin' && <option value="">בחר סוכן</option>}
+                    {detail?.role === 'admin' && <option value="all">כל הסוכנות</option>}
+                    {agents.map(agent => (
+                      <option key={agent.id} value={agent.id}>{agent.name}</option>
+                    ))}
+          </select>
         <input
         type="text"
         placeholder="שם"
@@ -739,6 +777,7 @@ const [editingRowIdTime, setEditingRowIdTime] = useState<string | null>(null);
             <thead>
               <tr>
                 {showSelect && <th>Select</th>}
+                <th>סוכן</th>
                 <th>שם</th>
                 <th>תאריך חזרה</th>
                 <th>טלפון</th>
@@ -768,30 +807,21 @@ const [editingRowIdTime, setEditingRowIdTime] = useState<string | null>(null);
     return dateA - dateB; // Sort by ascending date
   })
   .map((item) => {
-    console.log("sourceLeadMap:", sourceLeadMap[item.sourceValue]);
-    console.log("seourceAllLeadMap:", seourceAllLeadMap[item.sourceValue]);
-    console.log("item.sourceValue:", item.sourceValue);
-
     const statusLeadName = statusLeadMap.find(status => status.id === item.selectedStatusLead)?.statusLeadName || 'לא נבחר';
       // בדיקות צבעים
       const isNotAssigned = !sourceLeadMap[item.sourceValue]; // לא משויך לסוכן
       const isNotExistAtAll = !seourceAllLeadMap[item.sourceValue]; // לא קיים בכלל
-      console.log("item.sourceValue:", item.sourceValue);
-console.log("sourceLeadMap:", sourceLeadMap[item.sourceValue]);
-console.log("seourceAllLeadMap:", seourceAllLeadMap[item.sourceValue]);
-console.log("isNotExistAtAll:", isNotExistAtAll);
-console.log("isNotAssigned:", isNotAssigned);
-
     return (
       <tr
   key={item.id}
   className={`${selectedCustomers.has(item.id) ? "selected-row" : ""} 
               ${hoveredRowId === item.id ? "hovered-row" : ""}`}
   onClick={() => handleRowClick(item)}
-  onMouseEnter={() => setHoveredRowId(item.id)}
-  onMouseLeave={() => setHoveredRowId(null)}
+  //onMouseEnter={() => setHoveredRowId(item.id)}
+  //onMouseLeave={() => setHoveredRowId(null)}
 >
-        <td className="medium-column">{`${item.firstNameCustomer || ''} ${item.lastNameCustomer || ''}`.trim()}</td>
+<td className="medium-column">{item.agentName}</td>      
+<td className="medium-column">{`${item.firstNameCustomer || ''} ${item.lastNameCustomer || ''}`.trim()}</td>
         <td className="medium-column" style={{ fontWeight: 'bold' }}>
   {editingRowIdTime === item.id ? (
     <input
@@ -818,8 +848,9 @@ console.log("isNotAssigned:", isNotAssigned);
 <td className="medium-column" style={{ fontWeight: 'bold' }}>
   {formatPhoneNumber(item.phone)}
 </td>
-   <td>
-          <select
+   <td  className="narrow-column"
+   >
+          <select 
             value={item.selectedStatusLead}
             onChange={(e) => handleStatusChange(item.id, e.target.value)}
             style={{
@@ -838,7 +869,8 @@ console.log("isNotAssigned:", isNotAssigned);
             ))}
           </select>
         </td>
-        <td>
+        <td  className="narrow-column"
+        >
           <select
             value={item.workerId || ''}
             onChange={(e) => handleWorkerChangeInRow(item.id, e.target.value)}
@@ -880,7 +912,11 @@ console.log("isNotAssigned:", isNotAssigned);
         <td className="medium-column">
   {item.lastContactDate ? formatIsraeliDateOnly(item.lastContactDate) : ""}
   </td>
-  <td>{item.createDate ? item.createDate.toDate().toLocaleDateString() : 'N/A'}</td>
+  <td>
+  {item.createDate
+    ? item.createDate.toDate().toLocaleDateString() // Adjust locale as needed
+    : 'N/A'}
+</td>
 </tr>
     );
   })}

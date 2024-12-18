@@ -253,15 +253,11 @@ useEffect(() => {
 };
 
   useEffect(() => {
-
-
      // Log selectedAgentId to ensure it's empty when "כל הסוכנים" is selected
   console.log("selectedAgentId: ", selectedAgentId);
-
   // Ensure agentData contains all agents' data
   console.log("agentData: ", agentData);
     let data = agentData.filter(item => {
-
     const matchesAgent = selectedAgentId !== '' ? item.AgentId === selectedAgentId : true;
     const matchesWorker = selectedWorkerIdFilter ? item.workerId === selectedWorkerIdFilter : true;
     const matchesCompany = selectedCompanyFilter ? item.company === selectedCompanyFilter : true;
@@ -272,7 +268,6 @@ useEffect(() => {
     const matchesMinuySochen = (minuySochenFilter === '' || item.minuySochen.toString() === minuySochenFilter);
     const matchesMonth = item.mounth.includes(expiryDateFilter);
     const matchesStatusPolicy = selectedStatusPolicyFilter ? item.statusPolicy === selectedStatusPolicyFilter : true;
-
     // Return true if all conditions match
     return (
       matchesAgent &&
@@ -307,17 +302,14 @@ console.log("selectedAgentId "+ selectedAgentId)
   
 
   return (
-    <div className="frame-container bg-custom-white" style={{ maxWidth: '1000px', margin: '0 auto', padding: '10px 20px 20px 20px', border: '1px solid #ccc', borderRadius: '8px', marginTop: '10px' }}>
-                  
+    <div className="frame-container bg-custom-white" style={{ maxWidth: '1000px', margin: '0 auto', padding: '10px 20px 20px 20px', border: '1px solid #ccc', borderRadius: '8px', marginTop: '10px' }}>                
    <div style={{ marginTop: '20px', width: '90%', margin: '0 auto', overflowX: 'auto' }}>
-   <div className="select-container" style={{ overflowX: 'auto', maxHeight: '300px' }}>      
- 
+   <div className="select-container" style={{ overflowX: 'auto', maxHeight: '300px' }}>       
  <select value={timeRange} onChange={(e) => setTimeRange(e.target.value)}>
   <option value="יום">יום אחרון</option>
   <option value="שבוע">שבוע אחרון</option>
   <option value="all">הכל</option>
 </select>
- 
  <select id="agent-select" value={selectedAgentId} onChange={handleAgentChange}>
         {detail?.role === 'admin' && <option value="">כל הסוכנות</option>}
         {agents.map(agent => (
@@ -350,7 +342,6 @@ console.log("selectedAgentId "+ selectedAgentId)
         maxLength={5} 
         value={expiryDateFilter} 
         onChange={(e) => setExpiryDateFilter(e.target.value)} />
-
         <select
       id="status-PolicySelect"
       value={selectedStatusPolicyFilter}
@@ -367,7 +358,6 @@ console.log("selectedAgentId "+ selectedAgentId)
   </select>
         </div>
    <div className="table-container" style={{ width: '100%' }}>
-
    <table style={{ width: '100%'  }}>
             <thead>
               <tr>
@@ -386,13 +376,11 @@ console.log("selectedAgentId "+ selectedAgentId)
                 <th> סטאטוס</th>
                 <th>מינוי סוכן</th>
                 <th>שם עובד</th>
-                {/* Add more titles as necessary */}
               </tr>
             </thead>
             <tbody>
               {filteredData.map((item) => (
-                <tr key={item.id}
-      
+                <tr key={item.id} 
                  >
                    <td>{item.createdAt ? item.createdAt.toDate().toLocaleDateString() : 'N/A'}</td>
                   <td>{item.firstNameCustomer}</td>
@@ -409,13 +397,10 @@ console.log("selectedAgentId "+ selectedAgentId)
                   <td>{item.statusPolicy}</td>
                   <td>{item.minuySochen ? 'כן' : 'לא'}</td>
                   <td>{item.workerName}</td>
-                  {/* Add more data fields as necessary */}
                 </tr>
               ))}
             </tbody>
           </table>
-     
-
       </div>
       </div>
       </div>
