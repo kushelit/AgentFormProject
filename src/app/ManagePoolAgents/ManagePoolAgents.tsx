@@ -20,7 +20,9 @@ const ManagePoolAgents = () => {
 
   const fetchActiveSourceLeads = async () => {
     try {
-      const q = query(collection(db, "sourceLead"), where("statusLead", "==", true));
+      const q = query(collection(db, "sourceLead"), where("statusLead", "==", true)
+      , where("isAPILead", "==", true)
+    );
       const querySnapshot = await getDocs(q);
   
       const sourceLeadList = await Promise.all(

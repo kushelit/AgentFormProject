@@ -22,6 +22,7 @@ const [statusLeadName, setStatusLeadName] = useState<string | null>(null);
 const [statusLeadList, setStatusLeadList] = useState(false);
 const [defaultStatusLead, setDefaultStatusLead] = useState(false);
 const [isEditingStatusLead, setIsEditingStatusLead] = useState(false);
+const [isAPILead, setIsAPILead] = useState(false);
 const [hoveredRowIdStatusLead, setHoveredRowIdStatusLead] = useState<string | null>(null);
 const [selectedRowStatusLead, setSelectedRowStatusLead] = useState<any | null>(null);
 
@@ -70,6 +71,7 @@ const {
     setSelectedRow(item); // Store the selected row's data
     setSourceLead(item.sourceLead || '');
     setStatusLead(item.statusLead || '');
+    setIsAPILead(item.isAPILead || '');
   };
 
 
@@ -98,6 +100,7 @@ const {
         await updateDoc(docRef, {        
           sourceLead,
           statusLead:!!statusLead,
+          isAPILead:!!isAPILead,
         });
         console.log("Document successfully updated");
         setSelectedRow(null); 
@@ -120,6 +123,7 @@ const {
   const resetForm = () => {
     setSourceLead(''); 
     setStatusLead(false);
+    setIsAPILead(false);
   };
 
  const resetFormStatusLead = () => {
@@ -137,6 +141,7 @@ const {
         AgentId: selectedAgentId,
         sourceLead,
         statusLead,
+        isAPILead,
       });
       alert('מקור ליד התווסף בהצלחה');
       console.log('Document written with ID:', docRef.id);
@@ -314,6 +319,14 @@ const {
                     </tr> 
                     <tr>
                     <td>
+                        <label htmlFor="isAPILead">API</label>
+                    </td>
+                    <td>
+                        <input type="checkbox" id="isAPILead" name="isAPILead" checked={isAPILead} onChange={(e) => setIsAPILead(e.target.checked)} />
+                    </td>
+                </tr>
+                    <tr>
+                    <td>
                         <label htmlFor="statusLead">פעיל</label>
                     </td>
                     <td>
@@ -334,6 +347,7 @@ const {
          <thead>
          <tr>
          <th>מקור ליד </th>
+          <th>API</th>
           <th>סטאטוס</th>
         </tr>
       </thead>
@@ -346,6 +360,7 @@ const {
           className={`${selectedRow && selectedRow.id === item.id ? 'selected-row' : ''} ${hoveredRowId === item.id ? 'hovered-row' : ''}`} 
           >
               <td>{item.sourceLead}</td>
+              <td>{item.isAPILead? 'כן' : 'לא'}</td>
               <td>{item.statusLead? 'כן' : 'לא'}</td>
           </tr>
         ))}
