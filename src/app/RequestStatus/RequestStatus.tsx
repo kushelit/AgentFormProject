@@ -4,7 +4,7 @@ import { collection, getDocs } from "firebase/firestore";
 
 interface RequestLog {
   id: string;
-  status: "failure" | "success";
+  status: "success" | "failure" | "partial-success"; 
   message: string;
   payload?: Record<string, any>;
   timestamp: string;

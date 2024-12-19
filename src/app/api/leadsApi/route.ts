@@ -4,6 +4,25 @@ import { collection, addDoc, doc , getDoc, updateDoc, serverTimestamp} from 'fir
 import { saveRequestLogToDB, RequestLog } from "@/utils/saveRequestLogToDB";
 
 
+const sendEmail = async (to: string, subject: string, text: string, html: string): Promise<{ success: boolean; error?: string }> => {
+  try {
+
+    const response = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/sendEmail`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ to, subject, text, html }),
+    });
+    if (!response.ok) {
+      const errorData = await response.json();
+      return { success: false, error: errorData.error || 'Unknown error' };
+    }
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+  }
+};
+
+
 // Handle POST requests
 export async function POST(req: Request) {
 
@@ -35,16 +54,6 @@ export async function POST(req: Request) {
       leadData.sourceValue = leadData.source; // Map source to sourceValue
       delete leadData.source; // Remove the redundant source field
     }
-// הוספת הלוגיקה לפני שמירת הליד ב-DB
-// if (leadData.birthday) {
-//   const isValidDate = !isNaN(Date.parse(leadData.birthday));
-//   if (!isValidDate) {
-//     leadData.notes = leadData.notes
-//       ? `${leadData.notes} | תאריך לידה: ${leadData.birthday}`
-//       : `תאריך לידה: ${leadData.birthday}`;
-//     delete leadData.birthday;
-//   }
-// }
 
 if (leadData.birthday) {
   const normalizedDate = new Date(leadData.birthday);
@@ -78,25 +87,20 @@ if (leadData.birthday) {
     }
 
 
-    // Fetch the AgentId related to the sourceValue
-    const sourceDocRef = doc(db, "sourceLead", leadData.sourceValue);
-    const sourceDoc = await getDoc(sourceDocRef);
-
-    if (!sourceDoc.exists()) {
-      const log: RequestLog = {
-        id: "N/A",
-        status: "failure",
-        message: "Invalid sourceValue: No matching document found in sourceLead",
-        payload: { sourceValue: leadData.sourceValue },
-        timestamp: new Date().toISOString(),
-      };
-      await saveRequestLogToDB(log);
-
-      return NextResponse.json(
-        { error: "Invalid sourceValue: No matching document found in sourceLead" },
-        { status: 404 }
-      );
-    }
+   // Fetch AgentId
+   const sourceDocRef = doc(db, "sourceLead", leadData.sourceValue);
+   const sourceDoc = await getDoc(sourceDocRef);
+   if (!sourceDoc.exists()) {
+     await saveRequestLogToDB({
+       id: "N/A",
+       status: "failure",
+       message: "Invalid sourceValue: No matching document",
+       payload: { sourceValue: leadData.sourceValue },
+       timestamp: new Date().toISOString(),
+     });
+     return NextResponse.json({ error: "Invalid sourceValue" }, { status: 404 });
+   }
+    
 
 
     const sourceData = sourceDoc.data();
@@ -113,21 +117,7 @@ if (leadData.birthday) {
       // עדכון ה-index במסמך המקור ליד
       await updateDoc(sourceDocRef, { lastAssignedIndex: nextAgentIndex });
     }
-    // if (!agentId) {
-    //   const log: RequestLog = {
-    //     id: "N/A",
-    //     status: "failure",
-    //     message: "Invalid sourceValue: Missing AgentId in sourceLead document",
-    //     payload: { sourceValue: leadData.sourceValue },
-    //     timestamp: new Date().toISOString(),
-    //   };
-    //   await saveRequestLogToDB(log);
-
-    //   return NextResponse.json(
-    //     { error: "Invalid sourceValue: Missing AgentId in sourceLead document" },
-    //     { status: 400 }
-    //   );
-    // }
+   
 
     // Add lead to Firestore
     const newLeadRef = await addDoc(collection(db, 'leads'), {
@@ -139,27 +129,58 @@ if (leadData.birthday) {
       selectedStatusLead: 'JVhM7nnBrwNBfvrb4zH5',
     });
 
-    const log: RequestLog = {
-      id: newLeadRef.id,
-      status: "success",
-      message: "Lead created successfully",
-      payload: leadData,
-      timestamp: new Date().toISOString(),
-    };
-    await saveRequestLogToDB(log);
 
+ let emailSent = false;
+ let emailError = null;
+
+ if (agentId) {
+  const agentDocRef = doc(db, "users", agentId);
+  const agentDoc = await getDoc(agentDocRef);
+
+  if (agentDoc.exists()) {
+    const agentData = agentDoc.data();
+    const agentEmail = agentData?.email;
+    if (agentEmail) {
+      const emailResult = await sendEmail(
+        agentEmail,
+        'ליד חדש הוקצה לך',
+        `ליד חדש עם השם ${leadData.firstNameCustomer} ${leadData.lastNameCustomer} הוקצה אליך. לצפייה בלידים: https://agent-form-project.vercel.app/Leads`,
+        `<p>ליד חדש עם השם <strong>${leadData.firstNameCustomer} ${leadData.lastNameCustomer}</strong> הוקצה אליך.</p>
+         <p><a href="https://agent-form-project.vercel.app/Leads" target="_blank">לחץ כאן לצפייה בלידים</a></p>`
+      );
+      emailSent = emailResult.success;
+      emailError = emailResult.error;
+    }
+  }
+}
+    
+await saveRequestLogToDB({
+  id: newLeadRef.id,
+  status: emailSent ? "success" : "partial-success", // שימוש בסטטוס המתאים
+  message: emailSent
+    ? "Lead created and email sent successfully"
+    : "Lead created but email failed",
+  payload: {
+    ...leadData,
+    emailSent,
+    ...(emailError !== undefined && { emailError }), // הוספת emailError רק אם הוא מוגדר
+  },
+  timestamp: new Date().toISOString(),
+});
 
 return NextResponse.json({ message: "Lead created successfully!", id: newLeadRef.id }, { status: 201 });
-  } catch (error: unknown) {
-    const log: RequestLog = {
-      id: "N/A",
-      status: "failure",
-      message: "Internal Server Error",
-      payload: { error: (error as Error).message },
-      timestamp: new Date().toISOString(),
-    };
-    await saveRequestLogToDB(log);
+} catch (error: unknown) {
+  const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+  console.error('Error:', errorMessage);
 
-    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
-  }
+  await saveRequestLogToDB({
+    id: "N/A",
+    status: "failure",
+    message: "Internal Server Error",
+    payload: { error: errorMessage },
+    timestamp: new Date().toISOString(),
+  });
+
+  return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+}
 }
