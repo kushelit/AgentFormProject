@@ -22,7 +22,7 @@ export async function POST(req) {
 
     const msg = {
       to,
-      from: 'kushelit@gmail.com', 
+      from: 'magicSaleApp@gmail.com', 
       subject,
       text,
       html,

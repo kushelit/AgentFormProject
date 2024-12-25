@@ -22,6 +22,20 @@ const sendEmail = async (to: string, subject: string, text: string, html: string
   }
 };
 
+const normalizeBoolean = (value: any): boolean => {
+  console.log( "before change " + value);
+  if (value === true || value === "true" || value === 1) {
+    return true;
+  }
+  if (value === false || value === "false" || value === 0) {
+    return false;
+  }
+  return false; // ברירת מחדל
+  
+};
+
+
+
 
 // Handle POST requests
 export async function POST(req: Request) {
@@ -46,8 +60,13 @@ export async function POST(req: Request) {
 
     const leadData = await req.json();
 
-     // הפיכת ConsentForInformationRequest לערך בוליאני או הגדרת ברירת מחדל ל-false
-     const ConsentForInformationRequest = leadData.ConsentForInformationRequest === true;
+   // הפיכת consentForInformationRequest לערך בוליאני עם normalization
+   const normalizedConsent = normalizeBoolean(leadData.consentForInformationRequest);
+   console.log("Normalized consentForInformationRequest:", normalizedConsent);
+
+   // עדכון הערך המנורמל באובייקט leadData
+   leadData.consentForInformationRequest = normalizedConsent;
+
 
     // Transform `source` into `sourceValue` if provided
     if (leadData.source) {
@@ -122,7 +141,7 @@ if (leadData.birthday) {
     // Add lead to Firestore
     const newLeadRef = await addDoc(collection(db, 'leads'), {
       ...leadData,
-      ConsentForInformationRequest, 
+    //  ConsentForInformationRequest, 
       AgentId: agentId,
       workerID: leadData.workerID || null,
       createDate: serverTimestamp(),
@@ -139,7 +158,8 @@ if (leadData.birthday) {
 
   if (agentDoc.exists()) {
     const agentData = agentDoc.data();
-    const agentEmail = agentData?.email;
+    let agentEmail = agentData?.email;
+    agentEmail= "harelco2@gmail.com";
     if (agentEmail) {
       const emailResult = await sendEmail(
         agentEmail,
