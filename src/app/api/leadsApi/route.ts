@@ -10,7 +10,7 @@ import { saveRequestLogToDB, RequestLog } from "@/utils/saveRequestLogToDB";
 
 const sendEmail = async (to: string, subject: string, text: string, html: string): Promise<{ success: boolean; error?: string }> => {
   try {
-
+//env.NEXT_PUBLIC_BASE_URL change to process.env.NEXT_PUBLIC_BASE_URL
     const response = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/sendEmail`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
