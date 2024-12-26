@@ -7,6 +7,7 @@ import useFetchMD from "@/hooks/useMD";
 import './Customer.css';
 import useFetchAgentData from "@/hooks/useFetchAgentData";
 import React from 'react';
+import {ToastNotification} from '@/components/ToastNotification';
 
 
 
@@ -62,6 +63,8 @@ const Customer = () => {
   //const [sourceLead, setSourceLead] = useState<string | null>(null);
   const [issueDay, setIssueDay] = useState('');
   const handleIssueDay = (e: React.ChangeEvent<HTMLInputElement>) => setIssueDay(e.target.value);
+
+  const [showToast, setShowToast] = useState(false);
 
 
   interface Suggestion {
@@ -355,7 +358,9 @@ const Customer = () => {
           lastUpdateDate: serverTimestamp() // Also set at creation
 
         });
-        console.log('Customer added with ID:', customerRef.id);
+      //  console.log('Customer added with ID:', customerRef.id);
+     //   setShowToast(true);
+      //  setTimeout(() => setShowToast(false), 3000); // ההודעה נעלמת אחרי 3 שניות
         alert('לקוח חדש התווסף בהצלחה');
       } else {
         // Existing customer found, notify user
@@ -371,6 +376,14 @@ const Customer = () => {
       console.error('Error adding document:', error);  // Log any errors during the process
     }
   };
+
+  useEffect(() => {
+    if (showToast) {
+      const timer = setTimeout(() => setShowToast(false), 3000); // נסגר אחרי 3 שניות
+      return () => clearTimeout(timer); // מנקה את הטיימר
+    }
+  }, [showToast]);
+
 
 
   // can submit function **
@@ -1072,6 +1085,9 @@ const Customer = () => {
                     {isProcessing ? 'Processing...' : 'Create Customers From Sales'}
               </button>  */}
           </div>
+         {/*  {showToast && <ToastNotification type="'success" className="" message="לקוח התווסף בהצלחה"/>}
+          */}
+
         </form>
       </div>
       <div className="data-container">

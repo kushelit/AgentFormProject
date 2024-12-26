@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import sgMail from '@sendgrid/mail';
 import { captureRejectionSymbol } from 'events';
 
+//https://agent-form-project.vercel.app/api/sendEmail
+
 // הוסיפי את מפתח ה-API שקיבלת מ-SendGrid
 sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
@@ -22,7 +24,10 @@ export async function POST(req) {
 
     const msg = {
       to,
-      from: 'magicSaleApp@gmail.com', 
+      from: {
+        email: 'admin@magicsale.co.il',
+        name: 'MagicSale' 
+      },
       subject,
       text,
       html,

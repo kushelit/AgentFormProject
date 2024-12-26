@@ -4,6 +4,10 @@ import { collection, addDoc, doc , getDoc, updateDoc, serverTimestamp} from 'fir
 import { saveRequestLogToDB, RequestLog } from "@/utils/saveRequestLogToDB";
 
 
+
+//https://agent-form-project.vercel.app/api/leadsApi
+//http://localhost:3000/api/leadsApi
+
 const sendEmail = async (to: string, subject: string, text: string, html: string): Promise<{ success: boolean; error?: string }> => {
   try {
 
@@ -51,9 +55,10 @@ export async function POST(req: Request) {
     const body = await req.json();
     const { id, consentForInformationRequest, ...leadData } = body;
 
+    // Normalize `consentForInformationRequest`
     const normalizedConsent = consentForInformationRequest !== undefined
       ? normalizeBoolean(consentForInformationRequest)
-      : undefined;
+      : false; // ברירת מחדל לערך false אם לא נשלח
 
     if (id) {
       // Update existing lead
@@ -85,7 +90,7 @@ export async function POST(req: Request) {
    if (agentDoc.exists()) {
      const agentData = agentDoc.data();
      let agentEmail = agentData?.email;
-     agentEmail= "harelco2@gmail.com";
+     //agentEmail= "harelco2@gmail.com";
      if (agentEmail) {
        const emailResult = await sendEmail(
          agentEmail,
@@ -136,10 +141,8 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
       }
 
-// Normalize `consentForInformationRequest`
-if (normalizedConsent !== undefined) {
-  leadData.consentForInformationRequest = normalizedConsent;
-}
+      leadData.consentForInformationRequest = normalizedConsent;
+
 
 
       const sourceDocRef = doc(db, "sourceLead", leadData.sourceValue);
@@ -176,13 +179,13 @@ if (normalizedConsent !== undefined) {
        if (agentDoc.exists()) {
          const agentData = agentDoc.data();
          let agentEmail = agentData?.email;
-         agentEmail= "harelco2@gmail.com";
+        // agentEmail= "harelco2@gmail.com";
          if (agentEmail) {
            const emailResult = await sendEmail(
              agentEmail,
              'ליד חדש הוקצה לך',
-             `ליד חדש עם השם ${leadData.firstNameCustomer} ${leadData.lastNameCustomer} הוקצה אליך. לצפייה בלידים: https://agent-form-project.vercel.app/Leads`,
-             `<p>ליד חדש עם השם <strong>${leadData.firstNameCustomer} ${leadData.lastNameCustomer}</strong> הוקצה אליך.</p>
+             `ליד חדש עם השם ${leadData.firstNameCustomer} ${leadData.lastNameCustomer} והטלפון ${leadData.phone} הוקצה אליך. לצפייה בלידים: https://agent-form-project.vercel.app/Leads`,
+             `<p>ליד חדש עם השם <strong>${leadData.firstNameCustomer} ${leadData.lastNameCustomer}</strong> והטלפון <strong>${leadData.phone}</strong> הוקצה אליך.</p>
               <p><a href="https://agent-form-project.vercel.app/Leads" target="_blank">לחץ כאן לצפייה בלידים</a></p>`
            );
      
