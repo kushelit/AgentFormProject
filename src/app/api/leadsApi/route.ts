@@ -38,6 +38,10 @@ const normalizeBoolean = (value: any): boolean => {
   
 };
 
+const sanitizeString = (value: string): string => {
+  return value.replace(/["]/g, '').trim(); // מסיר מרכאות כפולות ומסיר רווחים מסביב
+};
+
 
 export async function POST(req: Request) {
   try {
@@ -54,6 +58,13 @@ export async function POST(req: Request) {
 
     const body = await req.json();
     const { id, consentForInformationRequest, ...leadData } = body;
+
+/// ניקוי תווים מיוחדים מכל השדות ב-`leadData`
+Object.keys(leadData).forEach((key) => {
+  if (typeof leadData[key] === 'string') {
+    leadData[key] = sanitizeString(leadData[key]);
+  }
+});
 
     // Normalize `consentForInformationRequest`
     const normalizedConsent = consentForInformationRequest !== undefined

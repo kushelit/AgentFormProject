@@ -23,11 +23,11 @@ export const ToastNotification = ({ type, className , message}) => {
         <Clear className="clear-instance" clear="/img/clear-4.png" />
       </div>
 
-      {type === "success" && (
+      {/* {type === "success" && (
         <img className="frame-5" alt="Frame" src="/img/frame-25.svg" />
-      )}
+      )} */}
 
-      {["error", "warning"].includes(type) && (
+      {["error", "warning", "success"].includes(type) && (
         <div className="frame-6">
           <div className="text-2" data-03-components-colors-mode="light">
             <div className="frame-wrapper-3">

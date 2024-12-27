@@ -359,8 +359,8 @@ const Customer = () => {
 
         });
       //  console.log('Customer added with ID:', customerRef.id);
-     //   setShowToast(true);
-      //  setTimeout(() => setShowToast(false), 3000); // ההודעה נעלמת אחרי 3 שניות
+       // setShowToast(true);
+       // setTimeout(() => setShowToast(false), 3000); // ההודעה נעלמת אחרי 3 שניות
         alert('לקוח חדש התווסף בהצלחה');
       } else {
         // Existing customer found, notify user
@@ -1085,9 +1085,9 @@ const Customer = () => {
                     {isProcessing ? 'Processing...' : 'Create Customers From Sales'}
               </button>  */}
           </div>
-         {/*  {showToast && <ToastNotification type="'success" className="" message="לקוח התווסף בהצלחה"/>}
-          */}
-
+           {/* {showToast && <ToastNotification type="success" className="" message="לקוח התווסף בהצלחה"/>}
+         
+*/}
         </form>
       </div>
       <div className="data-container">
