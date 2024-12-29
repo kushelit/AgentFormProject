@@ -8,10 +8,13 @@ import './Customer.css';
 import useFetchAgentData from "@/hooks/useFetchAgentData";
 import React from 'react';
 import {ToastNotification} from '@/components/ToastNotification';
+import { useDesignFlag } from  "@/hooks/useDesignFlag";
 
 
 
 const Customer = () => {
+
+  const isNewDesignEnabled = useDesignFlag();
 
   const [firstNameCustomer, setfirstNameCustomer] = useState('');
   const [lastNameCustomer, setlastNameCustomer] = useState('');
@@ -65,7 +68,8 @@ const Customer = () => {
   const handleIssueDay = (e: React.ChangeEvent<HTMLInputElement>) => setIssueDay(e.target.value);
 
   const [showToast, setShowToast] = useState(false);
-
+  const [toastType, setToastType] = useState('');
+  const [toastMessage, setToastMessage] = useState('');
 
   interface Suggestion {
     id: string;
@@ -168,7 +172,7 @@ const Customer = () => {
       };
     }));
     setCustomerData(data);  // Assuming you have a useState to hold this data
-    console.log('data:', data);
+//    console.log('data:', data);
   };
 
 
@@ -183,13 +187,11 @@ const Customer = () => {
         item.parentFullName.toLowerCase().includes(parentFullNameFilter.toLowerCase()); // Assuming the data includes a parentFullName field
 
     });
-    console.log("Filtered Data:", data); // Log filtered data
+  //  console.log("Filtered Data:", data); // Log filtered data
     setFilteredData(data);
   }, [customerData, idCustomerFilter, firstNameCustomerFilter, lastNameCustomerFilter, parentFullNameFilter]);
 
 
-
-  //handle  fields function **
   const handleFirstNameChange: ChangeEventHandler<HTMLInputElement> = (event) => {
     const value = event.target.value;
     // Allow Hebrew letters and spaces, but prevent leading or trailing spaces
@@ -201,7 +203,6 @@ const Customer = () => {
     // Otherwise, do not update the state, effectively rejecting the input
   };
 
-  //handle  fields function **
   const handleLastNameChange: ChangeEventHandler<HTMLInputElement> = (event) => {
     const value = event.target.value;
     // Allow Hebrew letters and spaces, but prevent leading or trailing spaces
@@ -212,7 +213,6 @@ const Customer = () => {
     }
   };
 
-  //handle  fields function **
   const handleIDChange: ChangeEventHandler<HTMLInputElement> = (e) => {
     const value = e.target.value;
     // Allow only numbers
@@ -220,7 +220,6 @@ const Customer = () => {
     setIDCustomer(onlyNums);
   };
 
-  //handle row selected function **
   const handleRowClick = (item: any) => {
     setSalesData([]);
     setTotalCommissions({ totalCommissionHekef: 0, totalCommissionNifraim: 0 }); // Resetting totalCommissions
@@ -238,7 +237,7 @@ const Customer = () => {
     setMail(item.mail || '');
     setAddress(item.address || '');
     setSourceValue(item.sourceValue || '');
-    console.log('SourceValue set' + sourceValue)
+    //console.log('SourceValue set' + sourceValue)
     //   if (item.parentID) {
     //     fetchFamilySales();
     //      }
@@ -297,7 +296,6 @@ const Customer = () => {
     }
   };
 
-  //reset function **
   const resetForm = () => {
     setfirstNameCustomer('');
     setlastNameCustomer('');
@@ -324,7 +322,6 @@ const Customer = () => {
     updateFullName();
   }, [firstNameCustomer, lastNameCustomer]);
 
-  // submit **
   const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
     event.preventDefault();
     try {
@@ -359,14 +356,26 @@ const Customer = () => {
 
         });
       //  console.log('Customer added with ID:', customerRef.id);
-       // setShowToast(true);
-       // setTimeout(() => setShowToast(false), 3000); // ההודעה נעלמת אחרי 3 שניות
+      if (isNewDesignEnabled) {
+        // עיצוב חדש - הצגת Toast Notification
+        setToastType('success');
+        setToastMessage('לקוח התווסף בהצלחה');
+        setShowToast(true);
+        } else {
+        // עיצוב ישן - הצגת הודעת alert
         alert('לקוח חדש התווסף בהצלחה');
+       }
       } else {
         // Existing customer found, notify user
-        console.log('Customer already exists with ID:', customerSnapshot.docs[0].id);
-        alert('לא ניתן להוסיף - לקוח קיים במערכת');
+        if (isNewDesignEnabled) {
+          setToastType('error');
+          setToastMessage('לא ניתן להוסיף - לקוח קיים במערכת');
+          setShowToast(true);
+       //   console.log('Customer already exists with ID:', customerSnapshot.docs[0].id);
+      } else {
+        alert('לא ניתן להוסיף - לקוח קיים במערכת');        
       }
+    }
       resetForm();
       setIsEditing(false);
       if (selectedAgentId) {
@@ -377,16 +386,14 @@ const Customer = () => {
     }
   };
 
-  useEffect(() => {
-    if (showToast) {
-      const timer = setTimeout(() => setShowToast(false), 3000); // נסגר אחרי 3 שניות
-      return () => clearTimeout(timer); // מנקה את הטיימר
-    }
-  }, [showToast]);
+  // useEffect(() => {
+  //   if (showToast) {
+  //     const timer = setTimeout(() => setShowToast(false), 3000); // נסגר אחרי 3 שניות
+  //     return () => clearTimeout(timer); // מנקה את הטיימר
+  //   }
+  // }, [showToast]);
 
 
-
-  // can submit function **
   const canSubmit = useMemo(() => (
     selectedAgentId.trim() !== '' &&
     firstNameCustomer.trim() !== '' &&
@@ -571,7 +578,6 @@ const Customer = () => {
 
 
 
-
   const fetchPrivateSales = async () => {
     if (!selectedRow) {
       console.log("No selected row available");
@@ -614,19 +620,31 @@ const Customer = () => {
         return { ...data, ...commissions, ...calcPrem };
       }));
       if (salesWithNames.length === 0) {
+        if (isNewDesignEnabled) {
+          setToastType('warning');
+          setToastMessage('ללקוח זה אין מכירות');
+          setShowToast(true);
+         } else {
         alert("ללקוח זה אין מכירות");
+          }
         setSalesData(null);
+
       } else {
         setSalesData(salesWithNames);
         setTotalCommissions({ totalCommissionHekef, totalCommissionNifraim });
         console.log('totalCommissionHekef ' + totalCommissionHekef)
         console.log('totalCommissionNifraim ' + totalCommissionNifraim)
-
-
       }
     } catch (error) {
       console.error("Error fetching private sales data:", error);
+      if (isNewDesignEnabled) {
+        setToastType('error');
+        setToastMessage('כשלון בקבלת נתוני מכירות פרטיות');
+        setShowToast(true);
+      } else
+       {
       alert("Failed to fetch private sales data.");
+    }
     }
   };
 
@@ -648,49 +666,59 @@ const Customer = () => {
       let totalCommissionNifraim = 0;
       const salesWithNames = await Promise.all(salesSnapshot.docs.map(async (salesDoc) => {
         const salesData = salesDoc.data();
+   // Query the customer document for each sale to get the actual customer names
 
-        // Query the customer document for each sale to get the actual customer names
+   const customerQuery = query(collection(db, 'customer'), where('IDCustomer', '==', salesData.IDCustomer));
+   const customerSnapshot = await getDocs(customerQuery);
+   const customerData = customerSnapshot.docs[0]?.data();
 
-        const customerQuery = query(collection(db, 'customer'), where('IDCustomer', '==', salesData.IDCustomer));
-        const customerSnapshot = await getDocs(customerQuery);
-        const customerData = customerSnapshot.docs[0]?.data();
+   const data: Sale = {
+     ...salesData,
+     firstNameCustomer: customerData ? customerData.firstNameCustomer : "Unknown",
+     lastNameCustomer: customerData ? customerData.lastNameCustomer : "Unknown",
+     IDCustomer: salesData.IDCustomer,
+     product: salesData.product,
+     company: salesData.company,
+     month: salesData.mounth,
+     status: salesData.status,
+     insPremia: salesData.insPremia,
+     pensiaPremia: salesData.pensiaPremia,
+     pensiaZvira: salesData.pensiaZvira,
+     finansimPremia: salesData.finansimPremia,
+     finansimZvira: salesData.finansimZvira
+   };
+   
+   const contractMatch = contracts.find(contract => contract.agentId === selectedAgentId && contract.product === data.product && contract.company === data.company && (contract.minuySochen === data.minuySochen || (contract.minuySochen === undefined && !data.minuySochen)));
+   const commissions = calculateCommissions(data, contractMatch);
+   totalCommissionHekef += commissions.commissionHekef;
+   totalCommissionNifraim += commissions.commissionNifraim;
+   const calcPrem = calculatePremiaAndTzvira(data);
+   return { ...data, ...commissions, ...calcPrem };
+ }));
 
-        const data: Sale = {
-          ...salesData,
-          firstNameCustomer: customerData ? customerData.firstNameCustomer : "Unknown",
-          lastNameCustomer: customerData ? customerData.lastNameCustomer : "Unknown",
-          IDCustomer: salesData.IDCustomer,
-          product: salesData.product,
-          company: salesData.company,
-          month: salesData.mounth,
-          status: salesData.status,
-          insPremia: salesData.insPremia,
-          pensiaPremia: salesData.pensiaPremia,
-          pensiaZvira: salesData.pensiaZvira,
-          finansimPremia: salesData.finansimPremia,
-          finansimZvira: salesData.finansimZvira
-        };
-
-        const contractMatch = contracts.find(contract => contract.agentId === selectedAgentId && contract.product === data.product && contract.company === data.company && (contract.minuySochen === data.minuySochen || (contract.minuySochen === undefined && !data.minuySochen)));
-        const commissions = calculateCommissions(data, contractMatch);
-        totalCommissionHekef += commissions.commissionHekef;
-        totalCommissionNifraim += commissions.commissionNifraim;
-        const calcPrem = calculatePremiaAndTzvira(data);
-        return { ...data, ...commissions, ...calcPrem };
-      }));
-
-      if (salesWithNames.length === 0) {
-        alert("לללקוח זה אין מכירות");
+ if (salesWithNames.length === 0) {
+    if (isNewDesignEnabled) {
+      setToastType('warning');
+      setToastMessage('ללקוח זה אין מכירות');
+      setShowToast(true);
       } else {
-        setSalesData(salesWithNames);
-        setTotalCommissions({ totalCommissionHekef, totalCommissionNifraim });
-      }
-    } catch (error) {
-      console.error("Error fetching family sales data:", error);
-      alert("Failed to fetch family sales data.");
+   alert("לללקוח זה אין מכירות");
     }
-  };
-
+ } else {
+   setSalesData(salesWithNames);
+   setTotalCommissions({ totalCommissionHekef, totalCommissionNifraim });
+ }
+} catch (error) {
+ console.error("Error fetching family sales data:", error);
+  if (isNewDesignEnabled) {
+    setToastType('error');
+    setToastMessage('כשלון בקבלת נתוני מכירות משפחתיות');
+    setShowToast(true);
+  } else {
+ alert("Failed to fetch family sales data.");
+}
+}
+};
 
 
   // one time update db customer from sales function **
@@ -962,7 +990,6 @@ const Customer = () => {
         console.error('Error fetching source leads:', error);
       }
     };
-
     fetchSourceLeadForAgent();
   }, [selectedAgentId]); // Ensures the effect runs when selectedAgentId changes
 
@@ -1085,9 +1112,9 @@ const Customer = () => {
                     {isProcessing ? 'Processing...' : 'Create Customers From Sales'}
               </button>  */}
           </div>
-           {/* {showToast && <ToastNotification type="success" className="" message="לקוח התווסף בהצלחה"/>}
-         
-*/}
+          {isNewDesignEnabled && showToast && (
+    <ToastNotification type={toastType} className="" message={toastMessage} />
+)}
         </form>
       </div>
       <div className="data-container">

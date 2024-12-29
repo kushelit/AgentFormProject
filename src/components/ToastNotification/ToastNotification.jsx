@@ -8,6 +8,7 @@ import React from "react";
 import { Clear } from "../Clear";
 import { Error } from "../Error";
 import { Warning } from "../Warning";
+import { Success } from "../Success";
 import "./style.css";
 
 export const ToastNotification = ({ type, className , message}) => {
@@ -20,7 +21,7 @@ export const ToastNotification = ({ type, className , message}) => {
       data-03-components-colors-mode="light"
     >
       <div className="clear-wrapper">
-        <Clear className="clear-instance" clear="/img/clear-4.png" />
+        <Clear className="clear-instance" clear="/static/img/clear-4.png" />
       </div>
 
       {/* {type === "success" && (
@@ -32,7 +33,8 @@ export const ToastNotification = ({ type, className , message}) => {
           <div className="text-2" data-03-components-colors-mode="light">
             <div className="frame-wrapper-3">
               <div className="frame-7">
-                <div className={`div-7 type-1-${type}`}>
+                <div className={`div-7 type-1-${type} heading-small-bold`}>
+                {type === "success" && <>הודעת הצלחה</>}
                   {type === "warning" && <>הודעת אזהרה</>}
 
                   {type === "error" && <>הודעת שגיאה</>}
@@ -40,7 +42,7 @@ export const ToastNotification = ({ type, className , message}) => {
               </div>
             </div>
 
-            <p className="text-wrapper-6">
+            <p className="text-wrapper-6 text-regular">
             {message}
             </p>
           </div>
@@ -49,15 +51,22 @@ export const ToastNotification = ({ type, className , message}) => {
             className="notification-icon"
             data-03-components-colors-mode="light"
           >
+            {type === "success" && (
+              <Success 
+              className="instance-node-4" 
+              success="/static/img/success-1.png" />
+            )}
             {type === "warning" && (
               <Warning
                 className="instance-node-4"
-                warning="/img/warning-2.png"
+                warning="/static/img/warning-2.png"
               />
             )}
 
             {type === "error" && (
-              <Error className="instance-node-4" error="/img/error-4.png" />
+              <Error 
+              className="instance-node-4" 
+              error="/static/img/error-4.png" />
             )}
           </div>
         </div>
@@ -69,10 +78,10 @@ export const ToastNotification = ({ type, className , message}) => {
           alt="Line"
           src={
             type === "warning"
-              ? "/img/line-12-5.png"
+              ? "/static/img/line-12-5.png"
               : type === "error"
-                ? "/img/line-12-6.png"
-                : "/img/line-12-4.png"
+                ? "/static/img/line-12-6.png"
+                : "/static/img/line-12-4.png"
           }
         />
       </div>

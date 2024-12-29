@@ -914,7 +914,7 @@ const [editingRowIdTime, setEditingRowIdTime] = useState<string | null>(null);
   </td>
   <td>
   {item.createDate
-    ? item.createDate.toDate().toLocaleDateString() // Adjust locale as needed
+    ? item.createDate.toDate().toLocaleString() // Adjust locale as needed
     : 'N/A'}
 </td>
 </tr>

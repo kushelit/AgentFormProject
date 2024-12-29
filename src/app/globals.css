@@ -2,93 +2,230 @@
 @tailwind components;
 @tailwind utilities;
 
+/* משתנים חדשים שהוגדרו לפי עיצוב המעצבת */
 :root {
-    --hover:theme('colors.custom-light-blue');
+ /* הגדרת פונטים */
+ --font-family-primary: "Rubik", Helvetica, sans-serif;
+ --font-family-secondary: "Inter", Helvetica, sans-serif;
+
+ /* גדלי פונטים */
+ --font-size-heading-large: 30px;
+ --line-height-heading-large: 36px; /* 120% */
+
+ --font-size-heading-medium: 20px;
+ --line-height-heading-medium: 30px; /* 150% */
+
+ --font-size-heading-small: 14px;
+ --line-height-heading-small: 22px; /* 157.143% */
+
+ --font-size-text-regular: 12px;
+ --line-height-text-regular: 18px; /* 150% */
+
+ --font-size-text-small: 11px;
+ --line-height-text-small: 14px; /* 127.273% */
+
+ --font-size-notes: 8px;
+ --line-height-notes: normal;
+
+
+  /* צבעים חדשים */
+  --clrblack: rgba(0, 0, 0, 1);
+  --clrdarkblue1: rgba(35, 67, 96, 1);
+  --clrdarkblue2: rgba(52, 93, 130, 1);
+  --clrdarkblue3: rgba(60, 107, 150, 1);
+  --clrdarkblue4: rgba(77, 125, 168, 1);
+  --clrgray1: rgba(241, 245, 247, 1);
+  --clrgray2: rgba(235, 241, 245, 1);
+  --clrgray3: rgba(230, 238, 243, 1);
+  --clrgray4: rgba(220, 231, 238, 1);
+  --clrgray5: rgba(178, 203, 219, 1);
+  --clrgray6: rgba(162, 183, 196, 1);
+  --clrgray7: rgba(105, 105, 105, 1);
+  --clrlightblue1: rgba(245, 251, 255, 1);
+  --clrlightblue2: rgba(239, 248, 255, 1);
+  --clrlightblue3: rgba(218, 236, 251, 1);
+  --clrtransparent: rgba(255, 255, 255, 0);
+  --clrwhite: rgba(255, 255, 255, 1);
+  --status-error: rgba(241, 58, 58, 1);
+  --status-high: rgba(255, 141, 7, 1);
+  --status-low: rgba(255, 248, 147, 1);
+  --status-progress: rgba(255, 207, 35, 1);
+  --status-success: rgba(0, 166, 81, 1);
+  --colorbgcontainer: rgba(255, 255, 255, 1);
+  --colorfillalter: rgba(0, 0, 0, 0.02);
+  --colorsplit: rgba(0, 0, 0, 0.06);
+  --colortext: rgba(0, 0, 0, 0.88);
+  --colortextheading: rgba(0, 0, 0, 0.88);
+}
+
+/* משתנה hover ששימש קודם */
+:root {
+  --hover: theme('colors.custom-light-blue');
+}
+
+/* עיצובים טיפוגרפיה */
+.heading-large {
+  font-family: var(--font-family-primary);
+  font-size: var(--font-size-heading-large);
+  font-weight: 400;
+  line-height: var(--line-height-heading-large);
+  color: var(--colortext);
+  text-align: right;
+}
+
+.heading-medium {
+  font-family: var(--font-family-primary);
+  font-size: var(--font-size-heading-medium);
+  font-weight: 400;
+  line-height: var(--line-height-heading-medium);
+  color: var(--colortext);
+  text-align: right;
+}
+
+.heading-medium-bold {
+  font-family: var(--font-family-primary);
+  font-size: var(--font-size-heading-medium);
+  font-weight: 700;
+  line-height: var(--line-height-heading-medium);
+  color: var(--colortext);
+  text-align: right;
+}
+
+.heading-small {
+  font-family: var(--font-family-primary);
+  font-size: var(--font-size-heading-small);
+  font-weight: 400;
+  line-height: var(--line-height-heading-small);
+  color: var(--colortext);
+  text-align: right;
+}
+
+.heading-small-bold {
+  font-family: var(--font-family-secondary);
+  font-size: var(--font-size-heading-small);
+  font-weight: 700;
+  line-height: var(--line-height-heading-small);
+  color: var(--colortext);
+  text-align: right;
+  direction: rtl; /* כיווניות הטקסט */
+}
+
+.text-regular {
+  font-family: var(--font-family-primary);
+  font-size: var(--font-size-text-regular);
+  font-weight: 400;
+  line-height: var(--line-height-text-regular);
+  color: var(--colortext);
+  text-align: right;
+}
+
+.text-regular-bold {
+  font-family: var(--font-family-primary);
+  font-size: var(--font-size-text-regular);
+  font-weight: 700;
+  line-height: var(--line-height-text-regular);
+  color: var(--colortext);
+  text-align: right;
+}
+
+.text-small {
+  font-family: var(--font-family-primary);
+  font-size: var(--font-size-text-small);
+  font-weight: 400;
+  line-height: var(--line-height-text-small);
+  color: var(--colortext);
+  text-align: right;
+}
+
+.text-notes {
+  font-family: var(--font-family-primary);
+  font-size: var(--font-size-notes);
+  font-weight: 400;
+  line-height: var(--line-height-notes);
+  color: var(--colortext);
+  text-align: right;
+}
+
+
+
+/* עיצובים קיימים */
+table {
+  width: 5rem;
+  border-collapse: collapse;
+  border: 2px solid theme('colors.custom-light-blue');
 }
 
 table {
-    width: 5rem;
-    border-collapse: collapse;
-    border: 2px solid theme('colors.custom-light-blue');
+  border-collapse: separate;
+  border-spacing: 0;
+  border-radius: 8px;
+  overflow: hidden;
 }
 
-table {
-   border-collapse: separate; /* Use 'separate' to allow proper border-radius*/
-    border-spacing: 0; /* Remove any gap between cells*/
-    border-radius: 8px; /* Rounded corners for the outer table*/
-    overflow: hidden; /* Ensure the corners are clipped properly*/
-  }
-  
-table th,  
- table td {
-   border: 1px solid #ddd;  /*Inner cell borders */
-   padding: 2px; /* Optional padding for spacing */
-   border-radius: 0; /* Ensure no rounding on individual cells */
- }
-  
-
-
+table th,
+table td {
+  border: 1px solid #ddd;
+  padding: 2px;
+  border-radius: 0;
+}
 
 thead {
-    position: sticky;
-    top: 0;
-    background-color: #ffffff;
+  position: sticky;
+  top: 0;
+  background-color: #ffffff;
 }
 
 th,
 td {
-    padding: 8px;
-    text-align: center;
-    border-bottom: 1px solid hsl(0 0% 80%);
-    background-color: #ffffff;
+  padding: 8px;
+  text-align: center;
+  border-bottom: 1px solid hsl(0 0% 80%);
+  background-color: #ffffff;
 }
 
-
-
-.table-container tr:hover, .table-container tr:hover td 
-{  background-color: var(--hover);
-
+.table-container tr:hover,
+.table-container tr:hover td {
+  background-color: var(--hover);
 }
 
 button {
-    padding: 0.75em 0.3em;
-    border-radius: 4px;
-    border: 2px solid theme('colors.custom-green');
-    color: theme('colors.custom-green');
+  padding: 0.75em 0.3em;
+  border-radius: 4px;
+  border: 2px solid theme('colors.custom-green');
+  color: theme('colors.custom-green');
 }
 
-
-
 button {
-    background-color:theme('colors.custom-blue') !important; /* Assuming #0b2340 is the value of 'custom-blue' */
+  background-color: theme('colors.custom-blue') !important;
 }
 
 button:disabled {
-    padding: 0.75em 0.3em;
-    border-radius: 4px;
-    border: 2px solid theme('colors.custom-green');
-    background-color: theme('colors.custom-light-blue');
-    color: theme('colors.custom-green');
+  padding: 0.75em 0.3em;
+  border-radius: 4px;
+  border: 2px solid theme('colors.custom-green');
+  background-color: theme('colors.custom-light-blue');
+  color: theme('colors.custom-green');
 }
-
 
 button:hover {
-    background-color: var(--hover);
+  background-color: var(--hover);
 }
+
 .page-layout {
-    display: flex;
-    flex-direction: row-reverse; /* if the sidebar is on the right */
+  display: flex;
+  flex-direction: row-reverse;
 }
 
 .main-content {
-    flex-grow: 1;
-    margin-right: 100; /* Assuming the sidebar width is 250px */
+  flex-grow: 1;
+  margin-right: 100;
 }
+
 .header {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    width: 100%;
-    z-index: 1000; /* Ensure the header is above other content */
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  width: 100%;
+  z-index: 1000;
 }

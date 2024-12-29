@@ -1,0 +1,29 @@
+.checkbox {
+  border: 1px solid;
+  border-radius: 0.5px;
+  height: 16px;
+  width: 16px;
+}
+
+.checkbox .state-default-active {
+  height: 16px !important;
+  left: 0 !important;
+  position: absolute !important;
+  top: 0 !important;
+  width: 16px !important;
+}
+
+.checkbox.state-3-disabled {
+  background-color: var(--collection-1-clrtransparent-duplicate);
+  border-color: var(--collection-1-clrgray6-duplicate);
+}
+
+.checkbox.state-3-default {
+  background-color: var(--collection-1-clrwhite-duplicate);
+  border-color: var(--collection-1-clrdarkblue3-duplicate);
+}
+
+.checkbox.state-3-hover {
+  background-color: var(--collection-1-clrlightblue1-duplicate);
+  border-color: var(--collection-1-clrdarkblue2-duplicate);
+}

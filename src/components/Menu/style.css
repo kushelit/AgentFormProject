@@ -1,0 +1,13 @@
+.menu {
+  height: 20px;
+  position: relative;
+  width: 20px;
+}
+
+.menu .menu-8 {
+  height: 16px !important;
+  left: 0 !important;
+  position: absolute !important;
+  top: 0 !important;
+  width: 20px !important;
+}

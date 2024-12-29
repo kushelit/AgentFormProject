@@ -1,13 +1,14 @@
 .toast-notification {
   align-items: flex-start;
-  background-color: var(--collection-1-clrgray1-duplicate);
+  background-color: var(--clrgray1); /* שימוש במשתנה גלובלי */
   border: 1px solid;
-  border-color: var(--collection-1-clrgray5-duplicate);
+  border-color: var(--clrgray5); /* שימוש במשתנה גלובלי */
   box-shadow: 0px 2px 2px #00000040;
   display: flex;
   gap: 10px;
   position: relative;
   width: 468px;
+  font-family: var(--font-family); /* שימוש במשתנה גלובלי */
 }
 
 .toast-notification .clear-wrapper {
@@ -78,12 +79,13 @@
 
 .toast-notification .div-7 {
   direction: rtl;
-  font-family: var(---font-family);
-  font-size: var(---font-size);
-  font-style: var(---font-style);
-  font-weight: var(---font-weight);
-  letter-spacing: var(---letter-spacing);
-  line-height: var(---line-height);
+  text-align: right; /* יישור לימין */
+  /*font-family: var(--font-family); /* שימוש במשתנה גלובלי */
+  /*font-size: var(--font-size); /* שימוש במשתנה גלובלי */
+  /*font-style: var(--font-style); /* שימוש במשתנה גלובלי */
+  /*font-weight: var(--font-weight); /* שימוש במשתנה גלובלי */
+  /*letter-spacing: var(--letter-spacing); /* שימוש במשתנה גלובלי */
+  /*line-height: var(--line-height); /* שימוש במשתנה גלובלי */
   margin-top: -1.00px;
   position: relative;
   white-space: nowrap;
@@ -92,15 +94,16 @@
 
 .toast-notification .text-wrapper-6 {
   align-self: stretch;
-  color: var(--collection-1-clrblack-duplicate);
+  color: var(--clrblack); /* שימוש במשתנה גלובלי */
   direction: rtl;
-  font-family: "Rubik", Helvetica;
-  font-size: 12px;
-  font-weight: 400;
-  letter-spacing: 0;
-  line-height: 18px;
+  /*font-family: var(--font-family); /* שימוש במשתנה גלובלי */
+  /*font-size: var(--font-size-large, 20px); /* שימוש במשתנה גלובלי עם ערך ברירת מחדל */
+  /*font-weight: var(--font-weight-normal, 400); /* שימוש במשתנה גלובלי עם ערך ברירת מחדל */
+  /*letter-spacing: var(--letter-spacing-normal, 0); /* שימוש במשתנה גלובלי עם ערך ברירת מחדל */
+  /*line-height: var(--line-height-large, 18px); /* שימוש במשתנה גלובלי עם ערך ברירת מחדל */
   position: relative;
 }
+
 
 .toast-notification .notification-icon {
   align-items: flex-start;
@@ -133,13 +136,13 @@
 }
 
 .toast-notification .type-1-error {
-  color: var(--collection-1-status-error-duplicate);
+  color: var(--status-error); /* שימוש במשתנה גלובלי */
 }
 
 .toast-notification .type-1-warning {
-  color: var(--collection-1-status-high-duplicate);
+  color: var(--status-high); /* שימוש במשתנה גלובלי */
 }
 
 .toast-notification .type-1-success {
-  color: var(--collection-1-status-high-duplicate);
+  color: var(--status-success); /* שימוש במשתנה גלובלי */
 }
