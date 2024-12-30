@@ -1,6 +1,6 @@
 .frame {
   align-items: flex-end;
-  background-color: var(--collection-1-clrwhite-duplicate);
+  background-color: var(--clrwhite);
   border-radius: 2px;
   display: flex;
   flex-direction: column;
@@ -23,14 +23,14 @@
 }
 
 .frame .text-wrapper-3 {
-  color: var(--collection-1-clrgray7-duplicate);
+  color: var(--clrgray7);
   direction: rtl;
-  font-family: var(---font-family);
-  font-size: var(---font-size);
-  font-style: var(---font-style);
-  font-weight: var(---font-weight);
-  letter-spacing: var(---letter-spacing);
-  line-height: var(---line-height);
+  font-family: var(--font-family);
+  font-size: var(--font-size);
+  font-style: var(--font-style);
+  font-weight: var(--font-weight);
+  letter-spacing: var(--letter-spacing);
+  line-height: var(--line-height);
   margin-bottom: -2.00px;
   margin-top: -4.00px;
   position: relative;
@@ -72,9 +72,9 @@
 .frame .input-field {
   align-items: center;
   align-self: stretch;
-  background-color: var(--collection-1-clrwhite-duplicate);
+  background-color: var(--clrwhite);
   border: 1px solid;
-  border-color: var(--collection-1-clrgray5-duplicate);
+  border-color: var(--clrgray5);
   border-radius: 2px;
   display: flex;
   gap: 10px;
@@ -111,13 +111,13 @@
 }
 
 .frame .label-5 {
-  color: var(--collection-1-clrgray6-duplicate);
+  color: var(--clrgray6);
   direction: rtl;
-  font-family: var(---font-family);
-  font-size: var(---font-size);
-  font-style: var(---font-style);
-  font-weight: var(---font-weight);
-  letter-spacing: var(---letter-spacing);
+  font-family: var(--font-family);
+  font-size: var(--font-size);
+  font-style: var(--font-style);
+  font-weight: var(--font-weight);
+  letter-spacing: var(--letter-spacing);
   line-height: var(---line-height);
   margin-top: -1.00px;
   position: relative;
@@ -129,9 +129,9 @@
 .frame .table-2 {
   align-items: flex-end;
   align-self: stretch;
-  background-color: var(--collection-1-clrwhite-duplicate);
+  background-color: var(--clrwhite);
   border: 1px solid;
-  border-color: var(--collection-1-clrgray5-duplicate);
+  border-color: var(--clrgray5);
   display: flex;
   flex: 1;
   flex-direction: column;
@@ -154,10 +154,10 @@
 
 .frame .table-header {
   align-items: center;
-  background-color: var(--collection-1-clrgray3-duplicate);
+  background-color: var(--clrgray3);
   border-bottom-style: solid;
   border-bottom-width: 1px;
-  border-color: var(--collection-1-clrgray4-duplicate);
+  border-color: var(--clrgray4);
   display: flex;
   flex: 1;
   flex-grow: 1;
@@ -171,16 +171,16 @@
 .frame .title-2 {
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 1;
-  color: var(--collection-1-clrdarkblue3-duplicate);
+  color: var(--clrdarkblue3);
   direction: rtl;
   display: -webkit-box;
   flex: 1;
-  font-family: var(---font-family);
-  font-size: var(---font-size);
-  font-style: var(---font-style);
-  font-weight: var(---font-weight);
-  letter-spacing: var(---letter-spacing);
-  line-height: var(---line-height);
+  font-family: var(--font-family);
+  font-size: var(--font-size);
+  font-style: var(--font-style);
+  font-weight: var(--font-weight);
+  letter-spacing: var(--letter-spacing);
+  line-height: var(--line-height);
   overflow: hidden;
   position: relative;
   text-overflow: ellipsis;

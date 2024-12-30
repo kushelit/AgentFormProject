@@ -8,6 +8,8 @@ import './Customer.css';
 import useFetchAgentData from "@/hooks/useFetchAgentData";
 import React from 'react';
 import {ToastNotification} from '@/components/ToastNotification';
+import {Dialog} from '@/components/Dialog';
+
 import { useDesignFlag } from  "@/hooks/useDesignFlag";
 
 
@@ -70,6 +72,10 @@ const Customer = () => {
   const [showToast, setShowToast] = useState(false);
   const [toastType, setToastType] = useState('');
   const [toastMessage, setToastMessage] = useState('');
+
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [dialogType, setDialogType] = useState('');
+  const [dialogContent, setDialogContent] = useState('');
 
   interface Suggestion {
     id: string;
@@ -780,13 +786,29 @@ const Customer = () => {
   const startLinkingProcess = () => {
     setMode('linking');
     setShowSelect(true);
-    alert("בחר מבוטח ראשי");
+    if (isNewDesignEnabled) {
+      // עיצוב חדש - הצגת Dialog
+      setDialogType('info'); // סוג הדיאלוג
+      setDialogContent('בחר מבוטח ראשי'); // תוכן הדיאלוג
+      setIsDialogOpen(true); // הצגת הדיאלוג
+      } else {
+      // עיצוב ישן - הצגת הודעת alert
+      alert('בחר מבוטח ראשי');
+     }
   };
 
   const startDisconnectionProcess = () => {
     setMode('disconnecting');
     setShowSelect(true);
+    if (isNewDesignEnabled) {
+      // עיצוב חדש - הצגת Dialog
+      setDialogType('info'); // סוג הדיאלוג
+      setDialogContent('בחר מבוטח לניתוק קשר'); // תוכן הדיאלוג
+      setIsDialogOpen(true); // הצגת הדיאלוג
+      } else {
+      // עיצוב ישן - הצגת הודעת alert
     alert("בחר מבוטח לניתוק קשר");
+    }
   };
 
   // confirm disconnect function **

@@ -1,0 +1,16 @@
+.dialog-header {
+  height: 4px;
+  width: 360px;
+}
+
+.dialog-header.type-0-error {
+  background-color: var(--collection-1-status-error-duplicate);
+}
+
+.dialog-header.type-0-warning {
+  background-color: var(--collection-1-status-high-duplicate);
+}
+
+.dialog-header.type-0-success {
+  background-color: var(--collection-1-status-success-duplicate);
+}

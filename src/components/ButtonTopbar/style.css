@@ -1,0 +1,60 @@
+.button-topbar {
+  align-items: center;
+  border-radius: 2px;
+  display: inline-flex;
+  gap: 5px;
+  height: 30px;
+  justify-content: center;
+  min-width: 60px;
+  padding: 0px 10px;
+  position: relative;
+}
+
+.button-topbar .text-wrapper {
+  all: unset;
+  box-sizing: border-box;
+  direction: rtl;
+  font-family: var(--font-family);
+  font-size: var(--font-size);
+  font-style: var(--font-style);
+  font-weight: var(--font-weight);
+  letter-spacing: var(--letter-spacing);
+  line-height: var(--line-height);
+  position: relative;
+  text-align: left;
+  white-space: nowrap;
+  width: fit-content;
+}
+
+.button-topbar .class {
+  background-image: url(/static/img/union-1.png) !important;
+  height: 18px !important;
+  position: relative !important;
+  width: 18px !important;
+}
+
+.button-topbar .class-2 {
+  background-image: url(/static/img/union-2.png) !important;
+  height: 18px !important;
+  position: relative !important;
+  width: 18px !important;
+}
+
+.button-topbar .class-3 {
+  background-image: url(/static/img/union-4.png) !important;
+  height: 18px !important;
+  position: relative !important;
+  width: 18px !important;
+}
+
+.button-topbar .disabled {
+  color: var(--clrdarkblue4);
+}
+
+.button-topbar .default {
+  color: var(--clrgray3);
+}
+
+.button-topbar .hover {
+  color: var(--clrwhite);
+}

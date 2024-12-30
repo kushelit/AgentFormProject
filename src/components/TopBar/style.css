@@ -1,0 +1,65 @@
+.top-bar {
+  display: flex;
+  justify-content: space-between; /* מרווח בין הלוגו לתוכן */
+  align-items: center; /* יישור אנכי */
+  background-color: var(--clrdarkblue1);
+  height: 60px; /* גובה ה-TopBar */
+  padding: 0 20px; /* ריווח פנימי */
+  width: 100%; /* התאמה למסך מלא */
+  max-width: 1790px; /* הגבלת רוחב למסכים גדולים */
+  margin: 0 auto; /* מרכז את ה-TopBar */
+}
+
+
+.top-bar .frame {
+  align-items: center;
+  display: inline-flex;
+  flex: 0 0 auto;
+  gap: 10px;
+  position: relative;
+}
+
+.top-bar .design-component-instance-node {
+  flex: 0 0 auto !important;
+}
+
+.top-bar .line {
+  height: 20px;
+  object-fit: cover;
+  position: relative;
+  width: 1px;
+}
+
+.top-bar .button-instance {
+  color: var(--clrgray3) !important;
+  font-family: var(--font-family) !important;
+  font-size: var(--font-size) !important;
+  font-style: var(--font-style) !important;
+  font-weight: var(--font-weight) !important;
+  letter-spacing: var(--letter-spacing) !important;
+  line-height: var(--line-height) !important;
+  margin-top: -2.00px !important;
+}
+
+.top-bar .logo-instance {
+  background-image: url(/static/img/union-6.png) !important;
+  height: 28px !important;
+  position: relative !important;
+  width: 142px !important;
+  margin-left: auto; /* הלוגו יעבור לצד שמאל */
+
+}
+.logo {
+  width: 192px; /* מידות התמונה */
+  height: 64px;
+  background-image: url('/magicSale.jpeg'); /* אותו נתיב כמו ב-<Image> */
+  background-size: cover; /* מתאים את התמונה למידות */
+  background-position: center;
+  background-repeat: no-repeat; /* מונע חזרות */
+}
+
+.frame {
+  display: flex;
+  align-items: center; /* יישור אנכי */
+  gap: 10px; /* ריווח בין הכפתורים */
+}

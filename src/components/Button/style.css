@@ -1,0 +1,141 @@
+.button {
+  align-items: center;
+  border-radius: 2px;
+  display: inline-flex;
+  gap: 5px;
+  justify-content: center;
+  min-width: 60px;
+  padding: 0px 10px;
+  position: relative;
+}
+
+.button .div {
+  all: unset;
+  box-sizing: border-box;
+  direction: rtl;
+  font-family: "Rubik", Helvetica;
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0;
+  line-height: 18px;
+  position: relative;
+  text-align: left;
+  white-space: nowrap;
+  width: fit-content;
+}
+
+.button .text-wrapper-2 {
+  all: unset;
+  box-sizing: border-box;
+  direction: rtl;
+  font-family: "Rubik", Helvetica;
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0;
+  line-height: 18px;
+  position: relative;
+  text-align: left;
+  white-space: nowrap;
+  width: fit-content;
+}
+
+.button .add-instance {
+  left: unset !important;
+  position: relative !important;
+  top: unset !important;
+  width: 16px !important;
+}
+
+.button.secondary {
+  border: 1px solid;
+  height: 30px;
+}
+
+.button.primary {
+  height: 30px;
+}
+
+.button.tertiary {
+  height: 20px;
+}
+
+.button.state-default.secondary {
+  border-color: var(--collection-1-clrdarkblue3-duplicate);
+}
+
+.button.state-hover.primary {
+  background-color: var(--collection-1-clrdarkblue2-duplicate);
+}
+
+.button.state-disabled.primary {
+  background-color: var(--collection-1-clrgray6-duplicate);
+}
+
+.button.state-hover.secondary {
+  background-color: var(--collection-1-clrlightblue1-duplicate);
+  border-color: var(--collection-1-clrdarkblue2-duplicate);
+}
+
+.button.state-default.primary {
+  background-color: var(--collection-1-clrdarkblue3-duplicate);
+}
+
+.button.state-disabled.secondary {
+  border-color: var(--collection-1-clrgray6-duplicate);
+}
+
+.button.primary .div {
+  color: var(--collection-1-clrwhite-duplicate);
+}
+
+.button.state-default.secondary .div {
+  color: var(--collection-1-clrdarkblue3-duplicate);
+}
+
+.button.tertiary.state-disabled .div {
+  color: var(--collection-1-clrgray6-duplicate);
+}
+
+.button.state-hover.secondary .div {
+  color: var(--collection-1-clrdarkblue2-duplicate);
+}
+
+.button.state-default.tertiary .div {
+  color: var(--collection-1-clrdarkblue3-duplicate);
+}
+
+.button.state-disabled.secondary .div {
+  color: var(--collection-1-clrgray6-duplicate);
+}
+
+.button.state-hover.tertiary .div {
+  color: var(--collection-1-clrdarkblue2-duplicate);
+}
+
+.button.primary .text-wrapper-2 {
+  color: var(--collection-1-clrwhite-duplicate);
+}
+
+.button.state-default.secondary .text-wrapper-2 {
+  color: var(--collection-1-clrdarkblue3-duplicate);
+}
+
+.button.tertiary.state-disabled .text-wrapper-2 {
+  color: var(--collection-1-clrgray6-duplicate);
+}
+
+.button.state-hover.secondary .text-wrapper-2 {
+  color: var(--collection-1-clrdarkblue2-duplicate);
+}
+
+.button.state-default.tertiary .text-wrapper-2 {
+  color: var(--collection-1-clrdarkblue3-duplicate);
+}
+
+.button.state-disabled.secondary .text-wrapper-2 {
+  color: var(--collection-1-clrgray6-duplicate);
+}
+
+.button.state-hover.tertiary .text-wrapper-2 {
+  color: var(--collection-1-clrdarkblue2-duplicate);
+}

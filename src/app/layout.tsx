@@ -6,8 +6,11 @@ import Header from "@/components/Header";
 import React from 'react';
 import { SelectedAgentProvider } from '../context/SelectedAgentContext';
 import Sidebar from "@/components/Sidebar"; // Import Sidebar component
+import {TopBar} from "@/components/TopBar";
+import { useDesignFlag } from  "@/hooks/useDesignFlag";
 
 
+const isNewDesignEnabled = useDesignFlag();
 const font = Rubik({ subsets: ["latin"] });
 
 
@@ -25,8 +28,13 @@ export default function RootLayout({
     <html lang="he" dir="rtl">
       <body className={font.className}>
         <AuthContextProvider>
-          <div className="flex flex-col min-h-screen relative">
-            <Header /> {/* Header at the top */}
+        <div className="flex flex-col min-h-screen relative">
+            {/* בחירת TopBar או Header לפי ה-flag */}
+            {isNewDesignEnabled ? (
+              <TopBar className="bg-custom-blue p-4" />
+            ) : (
+              <Header />
+            )}
             <div className="flex flex-grow">
               <Sidebar />
               <div className="flex-grow" style={{ backgroundColor: '#C6CFD4'  }}> {/* Adapt this if sidebar width changes */}
