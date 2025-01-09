@@ -4,13 +4,24 @@ import { useAuth } from "@/lib/firebase/AuthContext";
 import Link from "next/link";
 import { usePathname } from 'next/navigation';
 import Image from 'next/image';
+import { useRouter } from "next/navigation"; // ייבוא useRouter
+
 
 
 export default function Header() {
   const { user, detail, logOut } = useAuth();
  // console.log(user?.uid)
- 
+ const router = useRouter(); // יצירת מופע של router
 
+ // פונקציה שמנהלת את ההתנתקות
+ const handleLogout = async () => {
+  try {
+    await logOut(); // ביצוע התנתקות
+    router.push("/auth/log-in"); // ניתוב לדף התחברות
+  } catch (error) {
+    console.error("Logout failed:", error);
+  }
+};
 
   return (
     <>
@@ -25,7 +36,7 @@ export default function Header() {
             <>
             <span>{detail?.name}</span>
             <span>|</span>
-            <button onClick={logOut}>יציאה</button> 
+            <button onClick={handleLogout}>יציאה</button> 
    
           </>
           ) : (

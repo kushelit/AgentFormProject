@@ -1,0 +1,13 @@
+.delete {
+  height: 16px;
+  position: relative;
+  width: 20px;
+}
+
+.delete .vector {
+  height: 16px;
+  left: 2px;
+  position: absolute;
+  top: 0;
+  width: 16px;
+}

@@ -63,3 +63,11 @@
   align-items: center; /* יישור אנכי */
   gap: 10px; /* ריווח בין הכפתורים */
 }
+.user-name {
+  color: var(--clrgray3);
+  font-size: 14px; /* גודל טקסט מתאים */
+  font-family: var(--font-family);
+  font-size: var(--font-size);
+  font-style: var(--font-style);
+  font-weight: var(--font-weight);
+}

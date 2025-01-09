@@ -1,0 +1,14 @@
+.navbar {
+  align-items: flex-start;
+  background-color: var(--clrdarkblue3);
+  display: flex;
+  flex-direction: column;
+  height: 770px;
+  position: relative;
+  width: 230px;
+}
+
+.navbar .navbar-item-instance {
+  align-self: stretch !important;
+  width: 100% !important;
+}

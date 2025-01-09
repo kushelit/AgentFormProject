@@ -1,37 +1,42 @@
-/*
-We're constantly improving the code you see. 
-Please share your feedback here: https://form.asana.com/?k=uvp-HPgd3_hyoXRBw1IcNg&d=1152665201300829
-*/
+"use client";
 
 import PropTypes from "prop-types";
 import React from "react";
-import { Button } from "../Button";
 import { ButtonTopbar } from "../ButtonTopbar";
 import { Logo } from "../Logo";
 import "./style.css";
+import { useAuth } from "@/lib/firebase/AuthContext";
+import Link from "next/link";
 
 export const TopBar = ({ prop = true, className }) => {
+  const { user, detail, logOut } = useAuth();
+
   return (
     <div className={`top-bar ${className}`}>
-     <Logo className="logo-instance" /> {/* לוגו בצד שמאל */}
-      {prop && (
+    <Link href="/">
+          < Logo className="logo-instance" />
+     </Link> {prop && (
         <div className="frame">
-          <ButtonTopbar
-            className="design-component-instance-node"
-            state="default"
-          />
-          <img className="line" alt="Line" src="/static/img/line-2.png" />
-          <Button
-            buttonClassName="button-instance"
-            className="design-component-instance-node"
-            icon="off"
-            state="default"
-            text="הראל כהן"
-            type="tertiary"
-          />
+          {user ? (
+            <>
+              {/* שם המשתמש */}
+              <span className="user-name">{detail?.name}</span>
+              <img className="line" alt="Line" src="/static/img/line-2.png" />
+              {/* כפתור יציאה */}
+              <ButtonTopbar
+                className="design-component-instance-node"
+                state="default"
+                logOut={logOut}
+              />
+            </>
+          ) : (
+            <>
+              {/* קישור התחברות */}
+              <Link href="/auth/log-in">התחבר</Link>
+            </>
+          )}
         </div>
       )}
-      
     </div>
   );
 };

@@ -1,0 +1,176 @@
+.navbar {
+  display: flex;
+  flex-direction: column;
+  padding: 10px;
+  align-items: flex-start;
+  height: 770px;
+  position: relative;
+  width: 230px;
+}
+
+.navbar-item:last-child {
+  margin-bottom: 0; /* הסר את הרווח עבור הפריט האחרון */
+}
+
+.navbar-item .collapse-2 {
+  flex: 0 0 auto !important;
+  height: unset !important;
+  left: unset !important;
+  position: relative !important;
+  top: unset !important;
+  width: unset !important;
+}
+
+.navbar-item-content {
+  color: var(--clrwhite); /* צבע טקסט */
+  direction: rtl; /* כיווניות מימין לשמאל */
+  font-family: var(--font-family); /* משפחת גופן */
+  font-size: var(--font-size); /* גודל טקסט */
+  font-style: var(--font-style); /* סגנון גופן */
+  font-weight: var(--font-weight); /* משקל גופן */
+  letter-spacing: var(--letter-spacing); /* ריווח אותיות */
+  line-height: var(--line-height); /* גובה שורה */
+  display: flex;
+  justify-content: space-between; /* ריווח בין טקסט לאייקון */
+  align-items: center; /* יישור אנכי */
+  width: 100%;
+  position: relative; /* עבור אייקונים */
+}
+
+.navbar-link {
+    display: block; /* תופס את כל הרוחב */
+  width: 100%; /* ודא שהרקע תופס את כל השורה */
+  text-decoration: none; /* הסר קו תחתון */
+  color: inherit; /* ירושה מצבע ההורה */
+  font: inherit; /* ירושה מלאה של הגדרות טיפוגרפיה */
+  direction: inherit; /* ירושה מכיווניות ההורה */
+  flex: 1; /* השתמש במרחב הפנוי */
+}
+
+.navbar-item-content .navbar-link {
+  color: var(--clrwhite) !important; /* עדיפות גבוהה */
+  font-family: var(--font-family) !important;
+  font-size: var(--font-size) !important;
+  font-style: var(--font-style);
+  font-weight: var(--font-weight);
+  line-height: var(--line-height) !important;
+}
+
+.navbar-link:hover {
+  background-color: var(--clrdarkblue2); /* רקע בעת ריחוף */
+}
+
+.navbar-item .expand-instance {
+  flex: 0 0 auto !important;
+  height: unset !important;
+  left: unset !important;
+  position: relative !important;
+  top: unset !important;
+  transform: unset !important;
+  width: unset !important;
+}
+
+.navbar-item.state-12-selected {
+  background-color: var(--clrdarkblue4);
+}
+
+.navbar-item.type-1-default {
+  justify-content: flex-start; /* הטקסט יישאר בצד ימין */
+  gap: 10px; /* רווח מינימלי בין המלל לאייקון */
+  padding: 0; /* הסרת ה-padding */
+}
+
+.navbar-item.state-12-hover {
+  background-color: var(--clrdarkblue2);
+}
+
+
+.navbar-item.state-12-default {
+  background-color: var(--clrdarkblue3);
+}
+
+.navbar-item.type-1-collapse {
+  justify-content: space-between;
+  padding: 6px 20px 6px 10px;
+}
+
+.navbar-item.type-1-expand {
+  justify-content: space-between;
+  padding: 6px 20px 6px 10px;
+}
+.submenu-toggle {
+  margin-left: auto; /* דוחף את האייקון לסוף */
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  flex-shrink: 0; /* מונע מהאייקון להתכווץ */
+}
+
+.collapse-icon,
+.expand-icon {
+  width: 20px; /* גודל האייקון */
+  height: 20px;
+}
+.navbar-item-content {
+  position: relative; /* יוצר הקשר יחסי לאייקון */
+  display: flex;
+  flex-direction: row; /* אלמנטים בשורה אחת */
+  justify-content: space-between; /* יישר את המלל לימין */
+  align-items: center; /* יישור אנכי */
+  width: 100%; /* שימוש ברוחב מלא */
+}
+.menu-label {
+  flex-grow: 1; /* מאפשר לטקסט לתפוס את כל המקום */
+  text-align: right; /* יישור הטקסט לימין */
+}
+
+.navbar-item {
+  padding: 6px 20px; /* ריווח בין המלל לגבול הימני */
+  text-align: right; /* יישור לימין */
+  margin-bottom: 10px; /* מרווח ברירת מחדל */
+  position: relative;
+  width: 100%; /* ודא שהפריט תופס את כל רוחב השורה */
+}
+
+.navbar-item.type-secondary {
+  padding: 6px 35px 6px 10px; /* ריווח פנימי גדול יותר */
+  text-align: right; /* יישור לימין */
+}
+
+.submenu {
+  margin-left: 20px; /* הזחה פנימה */
+  padding-left: 15px; /* ריווח פנימי */
+  text-align: right; /* שמור על יישור לימין */
+  width: calc(100% - 20px); /* התאם את הרוחב */
+}
+
+.submenu-item {
+  padding: 5px 30px; /* ריווח פנימה גם בפריטי המשנה */
+  margin-bottom: 5px; /* ריווח בין פריטים */
+}
+
+.navbar-bottom {
+  margin-top: 60%; /* העלה את ה-Flow חצי מהדרך */
+  padding: 10px; /* מרווח פנימי */
+  text-align: center; /* יישר את התוכן למרכז */
+  margin-bottom: 0; /* מנע מרווח נוסף למטה */
+}
+
+.bottom-item {
+  color: var(--clrwhite);
+  text-decoration: none;
+  font-family: var(--font-family) !important;
+  font-size: var(--font-size) !important;
+  font-style: var(--font-style);
+  font-weight: var(--font-weight);
+}
+
+.bottom-item :hover {
+  background-color: var(--clrdarkblue2); /* רקע בעת ריחוף */
+}
+.navbar-item.selected,
+.submenu-item.selected {
+  background-color: var(--cclrdarkblue4); /* רקע בולט */
+  color: var(--clrwhite); /* צבע טקסט לבן */
+  font-weight: bold; /* טקסט מודגש */
+}

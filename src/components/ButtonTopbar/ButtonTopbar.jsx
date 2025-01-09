@@ -1,14 +1,9 @@
-/*
-We're constantly improving the code you see. 
-Please share your feedback here: https://form.asana.com/?k=uvp-HPgd3_hyoXRBw1IcNg&d=1152665201300829
-*/
-
 import PropTypes from "prop-types";
 import React from "react";
 import { Logout } from "../Logout";
 import "./style.css";
 
-export const ButtonTopbar = ({ state, className }) => {
+export const ButtonTopbar = ({ state, className, logOut }) => {
   return (
     <div
       className={`button-topbar ${className}`}
@@ -17,12 +12,19 @@ export const ButtonTopbar = ({ state, className }) => {
       <button
         className={`text-wrapper ${state}`}
         data-03-components-colors-mode="light"
+        onClick={logOut} // חיבור לפונקציית logOut
       >
         התנתק
       </button>
 
       <Logout
-        className={`${state === "hover" ? "class" : (state === "disabled") ? "class-2" : "class-3"}`}
+        className={`${
+          state === "hover"
+            ? "class"
+            : state === "disabled"
+            ? "class-2"
+            : "class-3"
+        }`}
       />
     </div>
   );
@@ -30,4 +32,6 @@ export const ButtonTopbar = ({ state, className }) => {
 
 ButtonTopbar.propTypes = {
   state: PropTypes.oneOf(["disabled", "hover", "default"]),
+  className: PropTypes.string,
+  logOut: PropTypes.func.isRequired, // דרישה לפונקציית logOut
 };

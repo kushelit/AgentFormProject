@@ -1,0 +1,13 @@
+.menu {
+  height: 40px; /* גובה מתאים לאייקון */
+  width: 40px; /* רוחב מתאים לאייקון */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.menu .menu-8 {
+  height: 24px;
+  width: 24px;
+  object-fit: contain;
+}

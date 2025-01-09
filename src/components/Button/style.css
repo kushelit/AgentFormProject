@@ -60,82 +60,82 @@
 }
 
 .button.state-default.secondary {
-  border-color: var(--collection-1-clrdarkblue3-duplicate);
+  border-color: var(--clrdarkblue3);
 }
 
 .button.state-hover.primary {
-  background-color: var(--collection-1-clrdarkblue2-duplicate);
+  background-color: var(--clrdarkblue2);
 }
 
 .button.state-disabled.primary {
-  background-color: var(--collection-1-clrgray6-duplicate);
+  background-color: var(--clrgray6);
 }
 
 .button.state-hover.secondary {
-  background-color: var(--collection-1-clrlightblue1-duplicate);
-  border-color: var(--collection-1-clrdarkblue2-duplicate);
+  background-color: var(--clrlightblue1);
+  border-color: var(--clrdarkblue2);
 }
 
 .button.state-default.primary {
-  background-color: var(--collection-1-clrdarkblue3-duplicate);
+  background-color: var(--clrdarkblue3);
 }
 
 .button.state-disabled.secondary {
-  border-color: var(--collection-1-clrgray6-duplicate);
+  border-color: var(--clrgray6);
 }
 
 .button.primary .div {
-  color: var(--collection-1-clrwhite-duplicate);
+  color: var(--clrwhite);
 }
 
 .button.state-default.secondary .div {
-  color: var(--collection-1-clrdarkblue3-duplicate);
+  color: var(--clrdarkblue3);
 }
 
 .button.tertiary.state-disabled .div {
-  color: var(--collection-1-clrgray6-duplicate);
+  color: var(--clrgray6);
 }
 
 .button.state-hover.secondary .div {
-  color: var(--collection-1-clrdarkblue2-duplicate);
+  color: var(--clrdarkblue2);
 }
 
 .button.state-default.tertiary .div {
-  color: var(--collection-1-clrdarkblue3-duplicate);
+  color: var(--clrdarkblue3);
 }
 
 .button.state-disabled.secondary .div {
-  color: var(--collection-1-clrgray6-duplicate);
+  color: var(--clrgray6);
 }
 
 .button.state-hover.tertiary .div {
-  color: var(--collection-1-clrdarkblue2-duplicate);
+  color: var(--clrdarkblue2);
 }
 
 .button.primary .text-wrapper-2 {
-  color: var(--collection-1-clrwhite-duplicate);
+  color: var(--clrwhite);
 }
 
 .button.state-default.secondary .text-wrapper-2 {
-  color: var(--collection-1-clrdarkblue3-duplicate);
+  color: var(--clrdarkblue3);
 }
 
 .button.tertiary.state-disabled .text-wrapper-2 {
-  color: var(--collection-1-clrgray6-duplicate);
+  color: var(--clrgray6);
 }
 
 .button.state-hover.secondary .text-wrapper-2 {
-  color: var(--collection-1-clrdarkblue2-duplicate);
+  color: var(--clrdarkblue2);
 }
 
 .button.state-default.tertiary .text-wrapper-2 {
-  color: var(--collection-1-clrdarkblue3-duplicate);
+  color: var(--clrdarkblue3);
 }
 
 .button.state-disabled.secondary .text-wrapper-2 {
-  color: var(--collection-1-clrgray6-duplicate);
+  color: var(--clrgray6);
 }
 
 .button.state-hover.tertiary .text-wrapper-2 {
-  color: var(--collection-1-clrdarkblue2-duplicate);
+  color: var(--clrdarkblue2);
 }

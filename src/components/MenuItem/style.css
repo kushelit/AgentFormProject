@@ -1,0 +1,77 @@
+.menu-item {
+  align-items: center;
+  border-bottom-style: solid;
+  border-bottom-width: 1px;
+  border-color: var(--collection-1-clrgray4-duplicate);
+  display: flex;
+  gap: 10px;
+  height: 30px;
+  justify-content: flex-end;
+  padding: 10px 6px;
+  position: relative;
+  width: 200px;
+}
+
+.menu-item .label-18 {
+  align-items: center;
+  display: inline-flex;
+  flex: 0 0 auto;
+  gap: 5px;
+  justify-content: flex-end;
+  margin-bottom: -4.00px;
+  margin-top: -4.00px;
+  position: relative;
+}
+
+.menu-item .label-19 {
+  direction: rtl;
+  font-family: "Rubik", Helvetica;
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0;
+  line-height: 18px;
+  margin-top: -1.00px;
+  position: relative;
+  text-align: left;
+  white-space: nowrap;
+  width: fit-content;
+}
+
+.menu-item .add-2 {
+  left: unset !important;
+  position: relative !important;
+  top: unset !important;
+  width: 16px !important;
+}
+
+.menu-item.state-22-selected {
+  background-color: var(--clrlightblue2);
+}
+
+.menu-item.state-22-disabled {
+  background-color: var(--clrwhite);
+}
+
+.menu-item.state-22-default {
+  background-color: var(--clrwhite);
+}
+
+.menu-item.state-22-hover {
+  background-color: var(--clrlightblue1);
+}
+
+.menu-item.state-22-selected .label-19 {
+  color: var(--clrdarkblue2);
+}
+
+.menu-item.state-22-disabled .label-19 {
+  color: var(--clrgray6);
+}
+
+.menu-item.state-22-default .label-19 {
+  color: var(--clrblack);
+}
+
+.menu-item.state-22-hover .label-19 {
+  color: var(--clrblack);
+}

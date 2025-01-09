@@ -229,3 +229,9 @@ button:hover {
   width: 100%;
   z-index: 1000;
 }
+
+/* עיצובים קיימים */
+/*body {
+  direction: rtl;
+  text-align: right;
+}*/
