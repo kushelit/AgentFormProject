@@ -261,7 +261,7 @@ body {
     justify-content: space-between; /* הכותרת מימין והכפתור משמאל */
     padding: 8px 16px;
   }
-  * עיצוב הכותרת */
+ 
   .table-header .table-title {
     all: unset;
     font-family: "Rubik-Regular", Helvetica, sans-serif !important;
