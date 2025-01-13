@@ -1,0 +1,16 @@
+.table-footer {
+  align-items: center;
+  background-color: var(--clrgray4);
+  border-color: var(--clrgray4);
+  border-top-style: solid;
+  border-top-width: 1px;
+  display: flex;
+  gap: 10px;
+  height: 40px;
+  padding: 10px;
+  position: relative;
+}
+
+.table-footer .pagination-instance {
+  flex: 0 0 auto !important;
+}

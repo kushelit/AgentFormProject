@@ -1,21 +1,21 @@
-/*
-We're constantly improving the code you see. 
-Please share your feedback here: https://form.asana.com/?k=uvp-HPgd3_hyoXRBw1IcNg&d=1152665201300829
-*/
-
 import PropTypes from "prop-types";
 import React from "react";
 import "./style.css";
 
-export const PaginationArrows = ({ type, state, className }) => {
+export const PaginationArrows = ({ type, state, className, onClick }) => {
   return (
     <div
-      className={`pagination-arrows state-1-${state} ${type} ${className}`}
-    />
+      className={`pagination-arrows state-6-${state} ${type} ${className}`}
+      onClick={state !== "disabled" ? onClick : undefined}
+      style={{ cursor: state === "disabled" ? "not-allowed" : "pointer" }}
+    >
+      {type === "back" ? "<" : ">"}
+    </div>
   );
 };
 
 PaginationArrows.propTypes = {
   type: PropTypes.oneOf(["back", "next"]),
   state: PropTypes.oneOf(["disabled", "hover", "selected", "default"]),
+  onClick: PropTypes.func,
 };

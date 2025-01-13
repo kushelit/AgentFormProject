@@ -1,51 +1,42 @@
-/*
-We're constantly improving the code you see. 
-Please share your feedback here: https://form.asana.com/?k=uvp-HPgd3_hyoXRBw1IcNg&d=1152665201300829
-*/
-
 import React from "react";
-import { PaginationArrows } from "../PaginationArrows";
-import { PaginationNumbers } from "../PaginationNumbers";
+import { PaginationArrows } from "../PaginationArrows/PaginationArrows";
 import "./style.css";
 
-export const Pagination = ({ className }) => {
+const Pagination = ({ currentPage, totalPages, onPageChange }) => {
+  const handleNext = () => {
+    if (currentPage < totalPages) {
+      onPageChange(currentPage + 1);
+    }
+  };
+
+  const handleBack = () => {
+    if (currentPage > 1) {
+      onPageChange(currentPage - 1);
+    }
+  };
+
   return (
-    <div className={`pagination ${className}`}>
+    <div className="pagination">
+      {/* כפתור אחורה */}
       <PaginationArrows
-        className="pagination-arrows-instance"
-        state="default"
         type="back"
-      />
-      <div className="div-wrapper">
-        <div className="element-2">1</div>
-      </div>
-
-      <PaginationNumbers
-        divClassName="pagination-numbers-instance"
-        state="selected"
-        text="2"
-      />
-      <div className="div-wrapper">
-        <div className="element-3">3</div>
-      </div>
-
-      <div className="div-wrapper">
-        <div className="element-3">4</div>
-      </div>
-
-      <div className="div-wrapper">
-        <div className="element-4">...</div>
-      </div>
-
-      <div className="div-wrapper">
-        <div className="text-wrapper-2">23</div>
-      </div>
-
-      <PaginationArrows
+        state={currentPage === 1 ? "disabled" : "default"}
+        onClick={handleBack}
         className="pagination-arrows-instance"
-        state="default"
+      />
+
+      {/* מספר עמוד */}
+      <span className="pagination-number">{currentPage}</span>
+
+      {/* כפתור קדימה */}
+      <PaginationArrows
         type="next"
+        state={currentPage === totalPages ? "disabled" : "default"}
+        onClick={handleNext}
+        className="pagination-arrows-instance"
       />
     </div>
   );
 };
+
+export default Pagination;

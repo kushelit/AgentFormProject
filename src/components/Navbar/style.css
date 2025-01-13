@@ -6,9 +6,35 @@
   height: 770px;
   position: relative;
   width: 230px;
+  min-width: 230px; /* שמירה על רוחב קבוע */
+  max-width: 230px; /* הגבלת הרוחב המקסימלי */
 }
 
 .navbar .navbar-item-instance {
   align-self: stretch !important;
   width: 100% !important;
 }
+.navbar-link {
+  white-space: nowrap; /* מונע שבירת שורה */
+  overflow: hidden; /* מסתיר טקסט חורג */
+  text-overflow: ellipsis; /* מוסיף שלוש נקודות אם יש טקסט חורג */
+  width: 100%; /* תופס את כל הרוחב */
+  display: block;
+}
+.navbar-item {
+  width: 100%; /* הבטחת גודל קבוע של הפריטים */
+  text-align: right; /* יישור המלל לימין */
+}
+
+.navbar-item-content {
+  width: 100%; /* תופס את כל הרוחב */
+  display: flex;
+  justify-content: space-between;
+}
+.navbar-bottom {
+  width: 100%;
+  min-width: 230px;
+  text-align: center;
+  padding: 10px;
+}
+

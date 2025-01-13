@@ -1,10 +1,8 @@
 /* eslint-disable react/jsx-no-comment-textnodes */
-"use client"
+
 import React, { useState, useEffect, FormEventHandler, ChangeEventHandler, ChangeEvent, useMemo, useCallback } from 'react';
 import { db } from '@/lib/firebase/firebase';
 import { collection, query, where, getDocs, doc, addDoc, deleteDoc, updateDoc, getDoc, serverTimestamp } from 'firebase/firestore';
-import './AgentForm.css';
-import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useAuth } from '@/lib/firebase/AuthContext';
 import useFetchAgentData from "@/hooks/useFetchAgentData"; 
@@ -12,14 +10,24 @@ import useSalesData from "@/hooks/useSalesData";
 import useFetchMD from "@/hooks/useMD"; 
 import useCalculateSalesData from "@/hooks/useCalculateGoalsSales"; 
 import confetti from 'canvas-confetti';
-
-
-
+import { useDesignFlag } from  "@/hooks/useDesignFlag";
+import MenuWrapper from "@/components/MenuWrapper/MenuWrapper";
+import Edit from '@/components/icons/Edit/Edit'; 
+import Delete  from '@/components/icons/Delete/Delete'; 
+import TableFooter from "@/components/TableFooter/TableFooter";
+import Search from "@/components/Search/Search";
+import './NewAgentForm.css';
+import { Button } from "@/components/Button/Button";
+import {ProgressBar} from "@/components/ProgressBar/ProgressBar";
 
 //useFetchAgentData
 
-function AgentForm() {
+const NewAgentForm: React.FC = () => {
   const { user, detail } = useAuth();
+ 
+  const isNewDesignEnabled = useDesignFlag();
+  const [showOpenNewDeal, setShowOpenNewDeal] = useState(false);
+
   const { 
     agents, 
     selectedAgentId, 
@@ -106,6 +114,29 @@ const [isLoading, setIsLoading] = useState(false);  // Loading state
 const [submitDisabled, setSubmitDisabled] = useState(false);
 const[isActiveGoals, setIsActiveGoals] = useState(true);
 
+
+const [menuOpen, setMenuOpen] = useState<string | null>(null);
+const [editingRow, setEditingRow] = useState<string | null>(null);
+const [editData, setEditData] = useState<Partial<AgentDataType>>({}); 
+const [filteredData, setFilteredData] = useState<AgentDataType[]>([]);
+
+const [openMenuRow, setOpenMenuRow] = useState(null);
+
+// ניהול העמוד הנוכחי
+const [currentPage, setCurrentPage] = useState(1);
+const rowsPerPage = 10; // מספר השורות בעמוד
+
+// חישוב הנתונים לעמוד הנוכחי
+const indexOfLastRow = currentPage * rowsPerPage;
+const indexOfFirstRow = indexOfLastRow - rowsPerPage;
+const currentRows = filteredData.slice(indexOfFirstRow, indexOfLastRow);
+
+// שינוי עמוד
+const handlePageChange = (pageNumber: number) => {
+  setCurrentPage(pageNumber);
+};
+
+
 interface Customer {
   id: string;
   AgentId: string;
@@ -182,7 +213,37 @@ type AgentDataTypeForFetching = {
  
 };
 
-const [filteredData, setFilteredData] = useState<AgentDataType[]>([]);
+
+const handleEditRow = (id: string) => {
+  setEditingRow(id);
+  const rowData = filteredData.find((item) => item.id === id);
+  if (rowData) {
+    setEditData({ ...rowData });
+  }
+  setMenuOpen(null); // סגירת התפריט
+};
+
+const handleDeleteRow = (id: string) => {
+  const updatedData = filteredData.filter((item) => item.id !== id);
+  setFilteredData(updatedData);
+  setMenuOpen(null); // סגירת התפריט
+};
+
+const saveChanges = () => {
+  const updatedData = filteredData.map((item) =>
+    item.id === editingRow ? { ...item, ...editData } : item
+  );
+  setFilteredData(updatedData);
+  setEditingRow(null); // יציאה ממצב עריכה
+};
+
+const handleEditChange = (field: keyof AgentDataType, value: string | number | boolean) => {
+  setEditData((prev) => ({
+    ...prev,
+    [field]: value,
+  }));
+};
+
 
 
 
@@ -501,33 +562,6 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
 
   };
 
-  const [errors, setErrors] = useState({
-    selectedAgentId: false,
-    selectedWorkerId: false,
-    firstNameCustomer: false,
-    lastNameCustomer: false,
-    IDCustomer: false,
-    selectedCompany: false,
-    selectedProduct: false,
-    selectedStatusPolicy: false,
-    mounth: false,
-  });
-
-  const validateFields = () => {
-    setErrors({
-      selectedAgentId: selectedAgentId.trim() === '',
-      selectedWorkerId: selectedWorkerId.trim() === '',
-      firstNameCustomer: firstNameCustomer.trim() === '',
-      lastNameCustomer: lastNameCustomer.trim() === '',
-      IDCustomer: IDCustomer.trim() === '',
-      selectedCompany: selectedCompany.trim() === '',
-      selectedProduct: selectedProduct.trim() === '',
-      selectedStatusPolicy: selectedStatusPolicy.trim() === '',
-      mounth: mounth.trim() === '',
-    });
-  };
-  
-  
   const canSubmit = useMemo(() => (
      selectedAgentId.trim() !== '' &&
      selectedWorkerId.trim() !== '' &&
@@ -588,14 +622,7 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
     setmounth(formattedValue);
   };
 
-  const handleExpiryDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    if (value.trim() !== '') {
-      setmounth(value);
-    } else {
-      setmounth('');
-    }
-  };
+  const handleExpiryDateChange = (e: React.ChangeEvent<HTMLInputElement>) => setmounth(e.target.value);
   
   useEffect(() => {
     resetForm(); 
@@ -762,14 +789,497 @@ useEffect(() => {
   }
 }, [handleCalculate, detail, user, selectedWorkerIdGoals]);
  
+const menuItems = (rowId:string) => [
+  {
+    label: "ערוך",
+    onClick: () => handleEditRow(rowId),
+    Icon: Edit,
+  },
+  {
+    label: "מחק",
+    onClick: () => handleDeleteRow(rowId),
+    Icon: Delete,
+  },
+];
+;
 
   return (
-    <div className="content-container-AgentForm">
+<div className="content-container-NewAgentForm">  
+<div className={`table-container-AgentForm-new-design`}>
+<div className="table-header">
+  <div className="table-title">ניהול עסקאות</div>
+  <Button
+    onClick={() => setShowOpenNewDeal(true)}
+    text="הוסף עסקה"
+    type="primary"
+    icon="on"
+    state="default"
+  />
+</div>
+      <div className="filter-inputs-container-new">
+             <div className="filter-select-container">
+             <select onChange={handleAgentChange} value={selectedAgentId} className="select-input">
+              {detail?.role === 'admin' && <option value="">בחר סוכן</option>}
+              {detail?.role === 'admin' && <option value="all">כל הסוכנות</option>}
+              {agents.map(agent => (
+               <option key={agent.id} value={agent.id}>{agent.name}</option>
+                ))}
+             </select>
+               </div>
+               <div className="filter-select-container">
+              <select id="worker-select" value={selectedWorkerIdFilter} 
+              onChange={(e) => handleWorkerChange(e, 'filter')}  className="select-input">
+              <option value="">כל העובדים</option>
+             {workers.map(worker => (
+                 <option key={worker.id} value={worker.id}>{worker.name}</option>
+               ))}
+             </select>   
+              </div>
+              <div className="filter-select-container">
+             <select id="company-Select" value={selectedCompanyFilter} onChange={(e) => setSelectedCompanyFilter(e.target.value)} className="select-input">
+               <option value="">בחר חברה</option>
+               {companies.map((companyName, index) => (
+               <option key={index} value={companyName}>{companyName}</option>
+               ))}
+              </select>
+             </div>
+             <div className="filter-select-container">
+              <select id="product-Select" value={selectedProductFilter} onChange={(e) => setSelectedProductFilter(e.target.value)} className="select-input">
+               <option value="">בחר מוצר</option>
+              {products.map(product => (
+             <option key={product.id} value={product.name}>{product.name}</option>
+                ))}
+               </select>
+             </div>
+             <div className="filter-select-container">
+        <select
+           id="status-PolicySelect"
+            value={selectedStatusPolicyFilter}
+            onChange={(e) => setSelectedStatusPolicyFilter(e.target.value)} className="select-input">
+            <option value=""> סטאטוס פוליסה</option>
+                            {statusPolicies.map((status, index) => (
+                                <option key={index} value={status}>{status}</option>
+               ))}
+               </select>
+              </div>
+             <div className="filter-input-container">
+              <Search className="filter-input-icon" />
+              <input
+             type="text"
+               placeholder="שם פרטי"
+                value={firstNameCustomerFilter}
+               onChange={(e) => setfirstNameCustomerFilter(e.target.value)}
+               className="filter-input"
+                />
+              </div>
+            <div className="filter-input-container">
+            <Search className="filter-input-icon" />
+              <input
+             type="text"
+              placeholder="שם משפחה"
+               value={lastNameCustomerFilter}
+             onChange={(e) => setlastNameCustomerFilter(e.target.value)}
+              className="filter-input"
+                />
+               </div>
+             <div className="filter-input-container">
+              <Search className="filter-input-icon" />
+              <input
+             type="text"
+              placeholder="תז לקוח"
+              value={idCustomerFilter}
+              onChange={(e) => setIdCustomerFilter(e.target.value)}
+              className="filter-input"
+               />
+             </div>
+               <div className="filter-datePicker-container">
+                <input
+              type="date"
+              id="expiry-Date"
+            name="expiry-Date"
+            value={expiryDateFilter}
+             onChange={(e) => setExpiryDateFilter(e.target.value)}
+            className="datePicker-input"
+             />
+           </div>
+              <div className="filter-checkbox-container">
+              <label>
+             <input
+               type="checkbox"
+              checked={minuySochenFilter === "true"}
+              onChange={(e) => setMinuySochenFilter(e.target.checked ? "true" : "")}
+             className="checkbox-input"
+               />
+               מינוי סוכן
+                </label>
+                </div> 
+      </div>
+      <div  className="table-Deal-container">
+        {isLoadingAgent && (
+                   <div className="spinner-overlay">
+                      <div className="spinner"></div>
+                  </div>
+                )}
+       <div className={`table-Data-AgentForm ${isNewDesignEnabled ? 'is-new-design' : ''}`}>
+                <table>
+                  <thead>
+                    <tr>
+                 <th className="medium-column">שם פרטי </th>
+                   <th className="medium-column">שם משפחה</th>
+                    <th className="medium-column">תז</th>
+                  <th className="medium-column">חברה</th>
+                    <th className="medium-column">מוצר</th>
+                  <th className="medium-column">פרמיה ביטוח</th>
+                 <th className="medium-column">פרמיה פנסיה</th>
+                  <th className="medium-column">צבירה פנסיה</th>
+                 <th className="medium-column">פרמיה פיננסים</th>
+                 <th className="medium-column">צבירה פיננסים</th>
+                <th className="medium-column">חודש תפוקה</th>
+                 <th className="medium-column">סטאטוס</th>
+                  <th className="narrow-column">מינוי סוכן</th>
+                  <th className="narrow-column">שם עובד</th>
+                  <th className="medium-column">הערות</th>
+                 <th className="narrow-cell">🔧</th>
+               </tr>
+            </thead>
+                  <tbody>
+                {currentRows.map((item) => (
+             <tr key={item.id}>
+            <td className="narrow-column">
+               {editingRow === item.id ? (
+                <input
+                 type="text"
+            value={editData.firstNameCustomer || ""}
+            onChange={(e) => handleEditChange("firstNameCustomer", e.target.value)}
+                />
+              ) : (
+             item.firstNameCustomer
+           )}
+            </td>
+            <td className="narrow-column">
+               {editingRow === item.id ? (
+          <input
+            type="text"
+            value={editData.lastNameCustomer || ""}
+            onChange={(e) => handleEditChange("lastNameCustomer", e.target.value)}
+          />
+        ) : (
+          item.lastNameCustomer
+        )}
+      </td>
+      <td className="narrow-column">
+        {editingRow === item.id ? (
+          <input
+            type="text"
+            value={editData.IDCustomer || ""}
+            onChange={(e) => handleEditChange("IDCustomer", e.target.value)}
+          />
+        ) : (
+          item.IDCustomer
+        )}
+      </td>
+      <td className="narrow-column">
+        {editingRow === item.id ? (
+          <select
+            value={editData.company || ""}
+            onChange={(e) => handleEditChange("company", e.target.value)}
+          >
+            <option value="">בחר חברה</option>
+            {companies.map((company) => (
+              <option key={company} value={company}>
+                {company}
+              </option>
+            ))}
+          </select>
+        ) : (
+          item.company
+        )}
+      </td>
+      <td className="narrow-column">
+        {editingRow === item.id ? (
+          <select
+            value={editData.product || ""}
+            onChange={(e) => handleEditChange("product", e.target.value)}
+          >
+            <option value="">בחר מוצר</option>
+            {products.map((product) => (
+              <option key={product.id} value={product.name}>
+                {product.name}
+              </option>
+            ))}
+          </select>
+        ) : (
+          item.product
+        )}
+      </td>
+      <td className="narrow-column">
+        {editingRow === item.id ? (
+          <input
+            type="number"
+            value={editData.insPremia || 0}
+            onChange={(e) => handleEditChange("insPremia", Number(e.target.value))}
+          />
+        ) : (
+          item.insPremia
+        )}
+      </td>
+      <td className="narrow-column">
+        {editingRow === item.id ? (
+          <input
+            type="number"
+            value={editData.pensiaPremia || 0}
+            onChange={(e) => handleEditChange("pensiaPremia", Number(e.target.value))}
+          />
+        ) : (
+          item.pensiaPremia
+        )}
+      </td>
+      <td className="narrow-column">
+        {editingRow === item.id ? (
+          <input
+            type="number"
+            value={editData.pensiaZvira || 0}
+            onChange={(e) => handleEditChange("pensiaZvira", Number(e.target.value))}
+          />
+        ) : (
+          item.pensiaZvira
+        )}
+      </td>
+      <td className="narrow-column">
+        {editingRow === item.id ? (
+          <input
+            type="number"
+            value={editData.finansimPremia || 0}
+            onChange={(e) => handleEditChange("finansimPremia", Number(e.target.value))}
+          />
+        ) : (
+          item.finansimPremia
+        )}
+      </td>
+      <td className="narrow-column">
+        {editingRow === item.id ? (
+          <input
+            type="number"
+            value={editData.finansimZvira || 0}
+            onChange={(e) => handleEditChange("finansimZvira", Number(e.target.value))}
+          />
+        ) : (
+          item.finansimZvira
+        )}
+      </td>
+      <td className="medium-column">
+        {editingRow === item.id ? (
+          <input
+            type="date"
+            value={editData.mounth || ""}
+            onChange={(e) => handleEditChange("mounth", e.target.value)}
+          />
+        ) : (
+          item.mounth
+        )}
+      </td>
+      <td className="narrow-column">
+        {editingRow === item.id ? (
+          <select
+            value={editData.statusPolicy || ""}
+            onChange={(e) => handleEditChange("statusPolicy", e.target.value)}
+          >
+            <option value="">בחר סטטוס</option>
+            {statusPolicies.map((status) => (
+              <option key={status} value={status}>
+                {status}
+              </option>
+            ))}
+          </select>
+        ) : (
+          item.statusPolicy
+        )}
+      </td>
+      <td className="small-column">
+        {editingRow === item.id ? (
+          <input
+            type="checkbox"
+            checked={editData.minuySochen || false}
+            onChange={(e) => handleEditChange("minuySochen", e.target.checked)}
+          />
+        ) : (
+          item.minuySochen ? "כן" : "לא"
+        )}
+      </td>
+      <td className="narrow-column">
+  {editingRow === item.id ? (
+    <select
+      value={editData.workerName || ""}
+      onChange={(e) => handleEditChange("workerName", e.target.value)}
+    >
+      <option value="">בחר עובד</option>
+      {workers.map((worker) => (
+        <option key={worker.id} value={worker.name}>
+          {worker.name}
+        </option>
+      ))}
+    </select>
+  ) : (
+    item.workerName
+  )}
+</td>
+<td className="notes-column">
+  <span className="tooltip-text">{item.notes}</span>
+  {editingRow === item.id ? (
+    <input
+      type="text"
+      value={editData.notes || ""}
+      onChange={(e) => handleEditChange("notes", e.target.value)}
+    />
+  ) : (
+    item.notes
+  )}
+</td>
+<td className="narrow-cell">
+<MenuWrapper
+  rowId={item.id}
+  openMenuRow={openMenuRow}
+  setOpenMenuRow={setOpenMenuRow}
+  menuItems={menuItems(item.id)} 
+/>
+</td>
+    </tr>
+  ))}
+</tbody>
+<tfoot>
+      <tr>
+      <td colSpan={16}>
+              <TableFooter
+                currentPage={currentPage}
+                totalPages={Math.ceil(filteredData.length / rowsPerPage)}
+                onPageChange={handlePageChange}
+              />
+               </td>
+              </tr>
+           </tfoot>
+           </table>
+         </div>
+      </div>
+      </div> 
+      <div className="data-container-Goals">
+  {/* כותרת */}
+  <div className="table-header-Goal" style={{ textAlign: 'right' }}>
+    <div>עמידה ביעדים</div>
+  </div>
 
-      <div className="form-container-AgentForm">
-        <form onSubmit={handleSubmit}>
-        <table>
-          <thead>
+  {/* בחירת עובד */}
+  <div className="goal-Worker">
+    <select
+      id="worker-select-goals"
+      value={selectedWorkerIdGoals}
+      onChange={(e) => handleWorkerChange(e, 'goal')}
+      disabled={!!(detail && detail.role === 'worker')}
+    >
+      <option value="">בחר עובד</option>
+      <option value="all-agency">כל הסוכנות</option>
+      {workers.map((worker) => (
+        <option key={worker.id} value={worker.id}>
+          {worker.name}
+        </option>
+      ))}
+    </select>
+  </div>
+
+  {/* צ'קבוקס של יעדים פעילים */}
+  <div className="goalActive">
+    <input
+      type="checkbox"
+      id="active-goals"
+      name="active-goals"
+      checked={isActiveGoals}
+      onChange={(e) => setIsActiveGoals(e.target.checked)}
+    />
+    <label htmlFor="active-goals">יעדים פעילים</label>
+  </div>
+  {/* יעדים */}
+  <div className="goals-container">
+    {isLoading ? (
+      <p>Loading...</p>
+    ) : goalData.length > 0 ? (
+      goalData.map((item, index) => (
+        <div className="goal-card" key={index}>
+          {/* כותרת היעד */}
+          <h3>{item.promotionName}</h3>
+          <p><strong>יעד:</strong> {`${item.amaunt.toLocaleString()} - ${item.goalTypeName}`}</p>
+
+          {/* ביצועים */}
+          <div className="goal-performance">
+            <p><strong>ביצוע:</strong></p>
+            {item.goalTypeName === "כוכבים" ? (
+              <div>{item.totalStars ? `${item.totalStars}` : 'N/A'}</div>
+            ) : item.totalPremia && Object.keys(item.totalPremia).length > 0 ? (
+              Object.entries(item.totalPremia).map(([groupId, total]) => (
+                <div key={groupId}>
+                  {typeof total === 'number'
+                    ? new Intl.NumberFormat('he-IL').format(Math.floor(total))
+                    : 'Invalid data'}
+                </div>
+              ))
+            ) : (
+              <div>No Data</div>
+            )}
+          </div>
+
+          {/* אחוז עמידה */}
+          <div className="goal-progress">
+            {item.achievementRate !== undefined ? (
+              <>
+                <ProgressBar
+                  state={item.achievementRate >= 100 ? "complete" : item.achievementRate >= 50 ? "progress" : "low"}
+                  graff={true}
+                  prop={true}
+                  className="achievement-bar"
+                />
+                <div>
+                  {item.achievementRate.toFixed(2)}%
+                </div>
+              </>
+            ) : (
+              <div>No Data</div>
+            )}
+          </div>
+
+          {/* זמן עבר */}
+          <div className="goal-time">
+            {item.daysPassed !== undefined && item.totalDuration !== undefined && item.totalDuration > 0 ? (
+              <>
+                <ProgressBar
+                  state={(item.daysPassed / item.totalDuration) >= 1 ? "high" : "time"}
+                  graff={true}
+                  prop={true}
+                  className="time-bar"
+                />
+                <div>
+                  {Math.min((item.daysPassed / item.totalDuration) * 100, 100).toFixed(2)}%
+                </div>
+              </>
+            ) : (
+              <div>No Data</div>
+            )}
+          </div>
+        </div>
+      ))
+    ) : (
+      <p>No Data</p>
+    )}
+  </div>
+</div>
+        {showOpenNewDeal && (
+<div className="modal-overlay" onClick={() => setShowOpenNewDeal(false)}>
+   <div
+          className="modal-content"
+          onClick={(e) => e.stopPropagation()} // Prevent closing when clicking inside the modal
+        >
+   <div className="form-container-AgentForm">
+            <form onSubmit={handleSubmit}>
+              <table>
+                {/* כל תוכן הטופס */}
+                <thead>
             <tr>
             <th colSpan={2}>
                 <div className="scrollable-tbody">
@@ -784,20 +1294,13 @@ useEffect(() => {
                <label htmlFor="agentSelect">סוכנות <span style={{ color: 'red', marginLeft: '5px' }}>*</span></label>
              </td>
              <td>
-              <select 
-             onChange={(e) => {
-              handleAgentChange(e);
-              validateFields();
-            }}
-              value={selectedAgentId} 
-              onBlur={validateFields}
-              className={errors.selectedAgentId ? 'input-error' : ''}
-              >
+              <select onChange={handleAgentChange} value={selectedAgentId}>
                             {detail?.role === 'admin' && <option value="">בחר סוכן</option>}
                             {agents.map(agent => (
-                              <option key={agent.id} value={agent.id}>{agent.name}</option>
+                                <option key={agent.id} value={agent.id}>{agent.name}</option>
                             ))}
                         </select>              
+
                     </td>
                 </tr>
                 <tr>
@@ -805,14 +1308,8 @@ useEffect(() => {
                         <label htmlFor="workerSelect">עובד <span style={{ color: 'red', marginLeft: '5px' }}>*</span></label>
                     </td>
                     <td>
-                     <select id="workerSelect" value={selectedWorkerId} 
-                      onChange={(e) => {
-                      handleWorkerChange(e, 'insert') ;
-                      validateFields();
-                    }}
-                      onBlur={validateFields}
-                      className={errors.selectedWorkerId ? 'input-error' : ''}
->
+                        <select id="workerSelect" value={selectedWorkerId} 
+                      onChange={(e) => handleWorkerChange(e, 'insert')}>
                             <option value="">בחר עובד</option>
                             {workers.map(worker => (
                                 <option key={worker.id} value={worker.id}>{worker.name}</option>
@@ -825,16 +1322,7 @@ useEffect(() => {
                         <label>שם פרטי <span style={{ color: 'red', marginLeft: '5px' }}>*</span></label>
                     </td>
                     <td>
-                        <input type="text" 
-                        value={firstNameCustomer} 
-                        onChange={(e) => {
-                          handleFirstNameChange(e);
-                          validateFields();
-                        }}
-                        onBlur={validateFields}
-                        title="הזן אותיות בלבד"  
-                        className={errors.firstNameCustomer ? 'input-error' : ''}
-                        />
+                        <input type="text" value={firstNameCustomer} onChange={handleFirstNameChange} title="הזן אותיות בלבד" />
                     </td>
                 </tr>
                 <tr>
@@ -842,16 +1330,7 @@ useEffect(() => {
                         <label>שם משפחה <span style={{ color: 'red', marginLeft: '5px' }}>*</span></label>
                     </td>
                     <td>
-                        <input type="text" 
-                        value={lastNameCustomer} 
-                        onChange={(e) => {
-                          handleLastNameChange(e);
-                          validateFields();
-                        }}
-                        onBlur={validateFields}
-                        title="הזן אותיות בלבד"   
-                        className={errors.lastNameCustomer ? 'input-error' : ''}
-                        />
+                        <input type="text" value={lastNameCustomer} onChange={handleLastNameChange} title="הזן אותיות בלבד" />
                     </td>
                 </tr>
                 <tr>
@@ -862,14 +1341,8 @@ useEffect(() => {
                         <input type="text" 
                         inputMode="numeric" maxLength={9} 
                         value={IDCustomer} 
-                        onChange={(e) => {
-                          handleIDChange(e);
-                          validateFields();
-                        }}
-                        onBlur={validateFields}
-                        disabled={isEditing} 
-                        className={errors.IDCustomer ? 'input-error' : ''}
-                        />
+                        onChange={handleIDChange} 
+                        disabled={isEditing}  />
                     </td>
                 </tr>
                 <tr>
@@ -877,14 +1350,7 @@ useEffect(() => {
                         <label htmlFor="companySelect">חברה <span style={{ color: 'red', marginLeft: '5px' }}>*</span></label>
                     </td>
                     <td>
-                        <select id="companySelect" 
-                        value={selectedCompany} 
-                        onChange={(e) => {
-                          setSelectedCompany(e.target.value);
-                          validateFields();
-                        }}
-                        onBlur={validateFields}
-                        className={errors.selectedCompany ? 'input-error' : ''}>
+                        <select id="companySelect" value={selectedCompany} onChange={(e) => setSelectedCompany(e.target.value)}>
                             <option value="">בחר חברה</option>
                             {companies.map((companyName, index) => (
                                 <option key={index} value={companyName}>{companyName}</option>
@@ -897,13 +1363,7 @@ useEffect(() => {
                         <label htmlFor="productSelect">מוצר <span style={{ color: 'red', marginLeft: '5px' }}>*</span></label>
                     </td>
                     <td>
-                        <select id="productSelect" value={selectedProduct} 
-                        onChange={(e) => {
-                          setSelectedProduct(e.target.value);
-                          validateFields();
-                        }}
-                        onBlur={validateFields}
-                        className={errors.selectedProduct ? 'input-error' : ''}>
+                        <select id="productSelect" value={selectedProduct} onChange={(e) => setSelectedProduct(e.target.value)}>
                             <option value="">בחר מוצר</option>
                             {products.map(product => (
                                 <option key={product.id} value={product.name}>{product.name}</option>
@@ -956,15 +1416,7 @@ useEffect(() => {
                         <label htmlFor="expiryDate">תאריך תפוקה <span style={{ color: 'red', marginLeft: '5px' }}>*</span></label>
                     </td>
                     <td>
-                        <input type="date" id="expiryDate" name="expiryDate"
-                         value={mounth} 
-                         onChange={(e) => {
-                          handleExpiryDateChange(e);
-                          validateFields();
-                        }}
-                        onBlur={validateFields}
-                        className={errors.mounth ? 'input-error' : ''}
-                      />
+                        <input type="date" id="expiryDate" name="expiryDate" value={mounth} onChange={handleExpiryDateChange} />
                     </td>
                 </tr>
                 <tr>
@@ -972,13 +1424,12 @@ useEffect(() => {
                         <label htmlFor="statusPolicySelect">סטאטוס פוליסה <span style={{ color: 'red', marginLeft: '5px' }}>*</span></label>
                     </td>
                     <td>
-                        <select id="statusPolicySelect" value={selectedStatusPolicy}              
+                        <select id="statusPolicySelect" value={selectedStatusPolicy} 
+                      
                       onChange={(e) => {
+                        console.log('Selected Status:', e.target.value); // Debug log
                         setSelectedStatusPolicy(e.target.value);
-                        validateFields();
-                      }}
-                      onBlur={validateFields}
-                      className={errors.selectedStatusPolicy ? 'input-error' : ''}>
+                      }} >
                             <option value="">בחר סטאטוס פוליסה</option>
                             {statusPolicies.map((status, index) => (
                             <option key={index} value={status}>{status}</option>
@@ -1002,8 +1453,6 @@ useEffect(() => {
                         <input type="text" id="notes" name="notes" value={notes} onChange={(e) => setNotes(e.target.value)} />
                     </td>
                 </tr>
-
-
                 <tr>
               <td colSpan={2}>
                 <div className="form-group button-group" style={{ display: 'flex' }}>
@@ -1034,241 +1483,17 @@ useEffect(() => {
               </td>
             </tr>
           </tbody>
-        </table>
-      </form>
-    </div>
-  
-      <div className="data-container-AgentForm">
-      <h2>עמידה ביעדים</h2>
-    <div className = "goalActive" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-      <select id="worker-select-goals" value={selectedWorkerIdGoals} 
-       onChange={(e) => handleWorkerChange(e, 'goal')} disabled={!!(detail && detail.role === 'worker')}>
-        <option value="">בחר עובד</option>
-        <option value="all-agency">כל הסוכנות</option>
-        {workers.map(worker => (
-          <option key={worker.id} value={worker.id}>{worker.name}</option>
-        ))}
-      </select>
-      <input type="checkbox" id="active-goals" name="active-goals"  
-      checked={isActiveGoals} onChange={(e) => setIsActiveGoals(e.target.checked)} />
-      <label htmlFor="active-goals">יעדים פעילים</label>
-         </div>   
-      <div className="select-container-AgentForm" >
-            <table>
-    <thead>
-        <tr>
-            <th>מבצע</th>
-            <th>יעד</th>
-            <th>ביצוע</th>
-            <th>אחוז עמידה</th> 
-           {/**  <th>זמן נותר</th>**/}
-            <th>זמן עבר</th>
-        </tr>
-    </thead>
-    <tbody>
-        {isLoading ? (
-            <tr>
-                <td  colSpan={5}>Loading...</td>
-            </tr>
-        ) : goalData.length > 0 ? (
-            goalData.map((item, index) => (
-              
-                <tr key={index}>
-                    <td>{item.promotionName}</td>
-                    <td>{`${item.amaunt.toLocaleString()} - ${item.goalTypeName}`}</td>
-                    <td>
-                      
-                        {item.goalTypeName === "כוכבים" ?
-                            <div>{item.totalStars ? `${item.totalStars}` : 'N/A'}
-                            
-                            </div> :
-                            (item.totalPremia && Object.keys(item.totalPremia).length > 0 ?
-                                Object.entries(item.totalPremia).map(([groupId, total]) => 
-                                    <div key={groupId} >
-                                  {typeof total === 'number' ? 
-                        new Intl.NumberFormat('he-IL').format(Math.floor(total)) :
-                                   'Invalid data'}
-                                   </div>
-                                ) : <div>No Data</div>
-                            )
-                        }
-                    </td>
-                    <td>
-                        {item.achievementRate !== undefined ? (
-                            <div style={{ width: '100%', backgroundColor: '#ddd' }}>
-                                <div style={{
-                                    height: '20px',
-                                    width: `${Math.min(item.achievementRate, 100)}%`, // Cap the width at 100%
-                                    backgroundColor: item.achievementRate >= 100 ? 'green' : 'orange',
-                                    textAlign: 'center',
-                                    lineHeight: '20px',
-                                    color: 'white'
-                                }}>
-                                    {item.achievementRate.toFixed(2)}%
-                                </div>
-                            </div>
-                        ) : 'N/A'}
-                    </td>
-                  {/**  <td>{item.daysLeft ?? 'No Data'}</td>*/}
-                    <td>
-    {/* Ensure calculateDays returns totalDuration and it's properly handled */}
-    {item.daysPassed !== undefined &&  (item.totalDuration ?? 0) > 0 ? (
-        <div style={{ width: '100%', backgroundColor: '#eee' }}
-             title={`תאריך התחלה: ${item.startDate?.toLocaleDateString()} - תאריך סיום: ${item.endDate?.toLocaleDateString()}`}>
-            <div style={{
-                height: '20px',
-                width: `${Math.min((item.daysPassed / (item.totalDuration ?? 0)) * 100, 100)}%`, // Cap at 100% width
-                backgroundColor: item.daysPassed / (item.totalDuration ?? 0) >= 1 ? 'orange' : 'green', // Green if time passed exceeds or equals 100%, orange otherwise
-                textAlign: 'center',
-                lineHeight: '20px',
-                color: 'white'
-            }}>
-                {Math.min((item.daysPassed /  (item.totalDuration ?? 0)) * 100, 100).toFixed(2)}% 
+              </table>
+            </form>
+            <button onClick={() => setShowOpenNewDeal(false)}>סגור</button>
             </div>
-        </div>
-    ) : 'No Data'}
-</td>
-       </tr>
-            ))
-        ) : (
-            <tr>
-                <td colSpan={5}>No Data</td>
-            </tr>
-        )}
-    </tbody>
-</table> 
-       
-      </div>
-       {/* First Frame 
-        {agentData.length > 0 ? (*/}
-          <div className="table-header" style={{ textAlign: 'right' }}>
-       <h2>עסקאות</h2>
-       </div>
-         {/*        ) : <p>No data available for the selected agent.</p>} */}
-           <div className="table-container-AgentForm" style={{ overflowX: 'auto', maxHeight: '300px' }}>
-           <input
-       type="text"
-       placeholder="שם פרטי"
-       value={firstNameCustomerFilter}
-       onChange={(e) => setfirstNameCustomerFilter(e.target.value)}
-       />
-        <input
-       type="text"
-       placeholder="שם משפחה"
-       value={lastNameCustomerFilter}
-       onChange={(e) => setlastNameCustomerFilter(e.target.value)}
-       />
-      <input
-       type="text"
-       placeholder="תז לקוח"
-       value={idCustomerFilter}
-       onChange={(e) => setIdCustomerFilter(e.target.value)}
-       />
-      
-
-      <select id="company-Select" value={selectedCompanyFilter} onChange={(e) => setSelectedCompanyFilter(e.target.value)}>
-        <option value="">בחר חברה</option>
-         {companies.map((companyName, index) => (
-         <option key={index} value={companyName}>{companyName}</option>
-    ))}
-     </select>
-     <select id="product-Select" value={selectedProductFilter} onChange={(e) => setSelectedProductFilter(e.target.value)}>
-               <option value="">בחר מוצר</option>
-              {products.map(product => (
-             <option key={product.id} value={product.name}>{product.name}</option>
-         ))}
-        </select>
-        <input type="text" 
-        id="expiry-Date" 
-        name="expiry-Date" 
-        placeholder="MM/YY" 
-        maxLength={5} 
-        value={expiryDateFilter} 
-        onChange={(e) => setExpiryDateFilter(e.target.value)} />
-
-        <select
-      id="status-PolicySelect"
-      value={selectedStatusPolicyFilter}
-      onChange={(e) => setSelectedStatusPolicyFilter(e.target.value)}>
-     <option value=""> סטאטוס פוליסה</option>
-                            {statusPolicies.map((status, index) => (
-                                <option key={index} value={status}>{status}</option>
-       ))}
-       </select>
-       <select value={minuySochenFilter} onChange={(e) => setMinuySochenFilter(e.target.value)}>
-    <option value="">מינוי סוכן </option>
-    <option value="true">כן</option>
-    <option value="false">לא</option>
-  </select>
-
-       <select id="worker-select" value={selectedWorkerIdFilter} 
-       onChange={(e) => handleWorkerChange(e, 'filter')}>
-        <option value="">כל העובדים</option>
-        {workers.map(worker => (
-          <option key={worker.id} value={worker.id}>{worker.name}</option>
-        ))}
-      </select>
-              
-        
-</div>
-<div style={{ overflowX: 'auto', maxHeight: '300px' }}>
-{isLoadingAgent && (
-  <div className="spinner-overlay">
-    <div className="spinner"></div>
-  </div>
-)}
-<table>
-            <thead>
-              <tr>
-                <th>שם פרטי </th>
-                <th>שם משפחה </th>
-                <th>תז </th>
-                <th>חברה</th>
-                <th>מוצר</th>
-                <th>פרמיה ביטוח</th>
-                <th>פרמיה פנסיה</th>
-                <th>צבירה פנסיה</th>
-                <th>פרמיה פיננסים</th>
-                <th>צבירה פיננסים</th>
-                <th className="narrow-column">חודש תפוקה</th>
-                <th> סטאטוס</th>
-                <th>מינוי סוכן</th>
-                <th>שם עובד</th>
-                {/* Add more titles as necessary */}
-              </tr>
-            </thead>
-            <tbody>
-              {filteredData.map((item) => (
-                <tr key={item.id}
-                  onClick={() => handleRowClick(item)}
-                  onMouseEnter={() => setHoveredRowId(item.id)}
-                  onMouseLeave={() => setHoveredRowId(null)}
-                  className={`${selectedRow && selectedRow.id === item.id ? 'selected-row' : ''} ${hoveredRowId === item.id ? 'hovered-row' : ''}`}>
-                  <td>{item.firstNameCustomer}</td>
-                  <td>{item.lastNameCustomer}</td>
-                  <td>{item.IDCustomer}</td>
-                  <td>{item.company}</td>
-                  <td>{item.product}</td>
-                  <td>{Number(item.insPremia).toLocaleString('en-US')}</td>
-                  <td>{Number(item.pensiaPremia).toLocaleString('en-US')}</td>
-                  <td>{Number(item.pensiaZvira).toLocaleString('en-US')}</td>
-                  <td>{Number(item.finansimPremia).toLocaleString('en-US')}</td>
-                  <td>{Number(item.finansimZvira).toLocaleString('en-US')}</td>
-                  <td className="narrow-column">{item.mounth ? formatIsraeliDateOnly(item.mounth) : ""}</td>
-                  <td>{item.statusPolicy}</td>
-                  <td>{item.minuySochen ? 'כן' : 'לא'}</td>
-                  <td>{item.workerName}</td>
-                  {/* Add more data fields as necessary */}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        
-        </div>
-       
       </div>
     </div>
-    );
-        }
-export default AgentForm;
+    )}
+   
+    </div>
+    
+  );
+}
 
+export default NewAgentForm;

@@ -1,0 +1,243 @@
+.progress-bar {
+  background-color: var(--collection-1-clrgray1-duplicate);
+  border: 1px solid;
+  border-radius: 3px;
+  height: 20px;
+  position: relative;
+  width: 180px;
+}
+
+.progress-bar .indicator {
+  border-radius: 2px;
+  height: 16px;
+  position: relative;
+}
+
+.progress-bar .element-5 {
+  font-family: "Rubik", Helvetica;
+  font-size: 11px;
+  font-weight: 400;
+  height: 14px;
+  letter-spacing: 0;
+  line-height: 14px;
+  position: absolute;
+  text-align: right;
+  top: 2px;
+  white-space: nowrap;
+}
+
+.progress-bar .text-5 {
+  align-items: center;
+  display: flex;
+  flex: 1;
+  flex-grow: 1;
+  gap: 3px;
+  height: 16px;
+  justify-content: center;
+  position: relative;
+}
+
+.progress-bar .div-9 {
+  direction: rtl;
+  font-family: "Rubik", Helvetica;
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 0;
+  line-height: 14px;
+  position: relative;
+  white-space: nowrap;
+  width: fit-content;
+}
+
+.progress-bar .instance-node-5 {
+  height: 8px !important;
+  left: unset !important;
+  position: relative !important;
+  top: unset !important;
+  width: 8px !important;
+}
+
+.progress-bar.state-complete {
+  align-items: center;
+  border-color: var(--collection-1-clrgray4-duplicate);
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  padding: 2px;
+}
+
+.progress-bar.state-didn-t-start {
+  border-color: var(--collection-1-clrgray4-duplicate);
+}
+
+.progress-bar.state-time {
+  align-items: center;
+  border-color: var(--collection-1-clrgray4-duplicate);
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  padding: 2px;
+}
+
+.progress-bar.state-progress {
+  align-items: center;
+  border-color: var(--collection-1-clrgray4-duplicate);
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  padding: 2px;
+}
+
+.progress-bar.state-high {
+  align-items: center;
+  border-color: var(--collection-1-clrgray4-duplicate);
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  padding: 2px;
+}
+
+.progress-bar.state-low {
+  align-items: center;
+  border-color: var(--collection-1-clrgray4-duplicate);
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  padding: 2px;
+}
+
+.progress-bar.state-error {
+  align-items: center;
+  border-color: var(--collection-1-status-error-duplicate);
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  padding: 2px;
+}
+
+.progress-bar.state-complete .indicator {
+  background-color: var(--collection-1-status-low-duplicate);
+  width: 82px;
+}
+
+.progress-bar.state-didn-t-start .indicator {
+  background-color: var(--collection-1-status-low-duplicate);
+  width: 82px;
+}
+
+.progress-bar.state-time .indicator {
+  background-color: var(--collection-1-clrdarkblue3-duplicate);
+  width: 82px;
+}
+
+.progress-bar.state-progress .indicator {
+  background-color: var(--collection-1-status-progress-duplicate);
+  width: 82px;
+}
+
+.progress-bar.state-high .indicator {
+  background-color: var(--collection-1-status-high-duplicate);
+  width: 163px;
+}
+
+.progress-bar.state-low .indicator {
+  background-color: var(--collection-1-status-low-duplicate);
+  width: 21px;
+}
+
+.progress-bar.state-error .indicator {
+  background-color: var(--collection-1-status-low-duplicate);
+  width: 82px;
+}
+
+.progress-bar.state-complete .element-5 {
+  color: var(--collection-1-clrwhite-duplicate);
+  left: 152px;
+}
+
+.progress-bar.state-didn-t-start .element-5 {
+  color: var(--collection-1-clrgray6-duplicate);
+  left: 159px;
+}
+
+.progress-bar.state-time .element-5 {
+  color: var(--collection-1-clrwhite-duplicate);
+  left: 152px;
+}
+
+.progress-bar.state-progress .element-5 {
+  color: var(--collection-1-clrwhite-duplicate);
+  left: 152px;
+}
+
+.progress-bar.state-high .element-5 {
+  color: var(--collection-1-clrwhite-duplicate);
+  left: 153px;
+}
+
+.progress-bar.state-low .element-5 {
+  color: var(--collection-1-clrgray6-duplicate);
+  left: 155px;
+}
+
+.progress-bar.state-error .element-5 {
+  color: var(--collection-1-clrwhite-duplicate);
+  left: 152px;
+}
+
+.progress-bar.state-complete .text-5 {
+  background-color: var(--collection-1-status-success-duplicate);
+  border-radius: 2px;
+}
+
+.progress-bar.state-didn-t-start .text-5 {
+  border-radius: 2px;
+}
+
+.progress-bar.state-time .text-5 {
+  border-radius: 2px;
+}
+
+.progress-bar.state-progress .text-5 {
+  border-radius: 2px;
+}
+
+.progress-bar.state-high .text-5 {
+  border-radius: 2px;
+}
+
+.progress-bar.state-low .text-5 {
+  border-radius: 2px;
+}
+
+.progress-bar.state-error .text-5 {
+  border-radius: 1px;
+}
+
+.progress-bar.state-complete .div-9 {
+  color: var(--collection-1-clrwhite-duplicate);
+}
+
+.progress-bar.state-didn-t-start .div-9 {
+  color: var(--collection-1-status-error-duplicate);
+}
+
+.progress-bar.state-time .div-9 {
+  color: var(--collection-1-status-error-duplicate);
+}
+
+.progress-bar.state-progress .div-9 {
+  color: var(--collection-1-status-error-duplicate);
+}
+
+.progress-bar.state-high .div-9 {
+  color: var(--collection-1-status-error-duplicate);
+}
+
+.progress-bar.state-low .div-9 {
+  color: var(--collection-1-status-error-duplicate);
+}
+
+.progress-bar.state-error .div-9 {
+  color: var(--collection-1-status-error-duplicate);
+}

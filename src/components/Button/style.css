@@ -1,3 +1,4 @@
+
 .button {
   align-items: center;
   border-radius: 2px;
@@ -64,11 +65,11 @@
 }
 
 .button.state-hover.primary {
-  background-color: var(--clrdarkblue2);
+  background-color: var(--clrdarkblue2) !important;
 }
 
 .button.state-disabled.primary {
-  background-color: var(--clrgray6);
+  background-color: var(--clrgray6) !important;
 }
 
 .button.state-hover.secondary {

@@ -1,80 +1,23 @@
-.pagination {
-  align-items: center;
+.pagination-arrows {
   display: inline-flex;
-  gap: 10px;
-  position: relative;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+  border-radius: 50%;
+  transition: opacity 0.3s ease;
+  font-size: 18px;
 }
 
-.pagination .pagination-arrows-instance {
-  position: relative !important;
+.pagination-arrows.state-6-disabled {
+  opacity: 0.5;
+  pointer-events: none;
 }
 
-.pagination .div-wrapper {
-  height: 20px;
-  position: relative;
-  width: 20px;
+.pagination-arrows.state-6-hover:hover {
+  background-color: var(--clrgray4);
 }
 
-.pagination .element-2 {
-  color: var(--collection-1-clrgray7-duplicate);
-  font-family: var(---font-family);
-  font-size: var(---font-size);
-  font-style: var(---font-style);
-  font-weight: var(---font-weight);
-  left: 8px;
-  letter-spacing: var(---letter-spacing);
-  line-height: var(---line-height);
-  position: absolute;
-  text-align: center;
-  top: 2px;
-  white-space: nowrap;
-}
-
-.pagination .pagination-numbers-instance {
-  left: 7px !important;
-}
-
-.pagination .element-3 {
-  color: var(--collection-1-clrgray7-duplicate);
-  font-family: var(---font-family);
-  font-size: var(---font-size);
-  font-style: var(---font-style);
-  font-weight: var(---font-weight);
-  left: 7px;
-  letter-spacing: var(---letter-spacing);
-  line-height: var(---line-height);
-  position: absolute;
-  text-align: center;
-  top: 2px;
-  white-space: nowrap;
-}
-
-.pagination .element-4 {
-  color: var(--collection-1-clrgray7-duplicate);
-  font-family: var(---font-family);
-  font-size: var(---font-size);
-  font-style: var(---font-style);
-  font-weight: var(---font-weight);
-  left: 6px;
-  letter-spacing: var(---letter-spacing);
-  line-height: var(---line-height);
-  position: absolute;
-  text-align: center;
-  top: 2px;
-  white-space: nowrap;
-}
-
-.pagination .text-wrapper-2 {
-  color: var(--collection-1-clrgray7-duplicate);
-  font-family: var(---font-family);
-  font-size: var(---font-size);
-  font-style: var(---font-style);
-  font-weight: var(---font-weight);
-  left: 3px;
-  letter-spacing: var(---letter-spacing);
-  line-height: var(---line-height);
-  position: absolute;
-  text-align: center;
-  top: 2px;
-  white-space: nowrap;
+.pagination-number {
+  font-weight: bold;
+  padding: 0 10px;
 }

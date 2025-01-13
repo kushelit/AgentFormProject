@@ -1,13 +1,8 @@
-/*
-We're constantly improving the code you see. 
-Please share your feedback here: https://form.asana.com/?k=uvp-HPgd3_hyoXRBw1IcNg&d=1152665201300829
-*/
 
 import PropTypes from "prop-types";
 import React from "react";
 import { Add } from "../Add";
 import "./style.css";
-
 export const Button = ({
   type,
   icon,
@@ -15,6 +10,7 @@ export const Button = ({
   className,
   buttonClassName,
   text = "כפתור",
+  onClick,
 }) => {
   return (
     <div
@@ -24,6 +20,7 @@ export const Button = ({
       {icon === "off" && (
         <button
           className={`div ${buttonClassName}`}
+          onClick={onClick} // הוספת אירוע onClick לכפתור
           data-03-components-colors-mode="light"
         >
           {text}
@@ -34,6 +31,7 @@ export const Button = ({
         <>
           <button
             className="text-wrapper-2"
+            onClick={onClick} // הוספת אירוע onClick גם כאן
             data-03-components-colors-mode="light"
           >
             {text}
@@ -42,13 +40,13 @@ export const Button = ({
           <Add
             add={
               type === "primary"
-                ? "/img/add-7.png"
+                ? "/static/img/add-7.png"
                 : state === "hover" && ["secondary", "tertiary"].includes(type)
-                  ? "/img/add-18.png"
-                  : state === "disabled" &&
-                      ["secondary", "tertiary"].includes(type)
-                    ? "/img/add-16.png"
-                    : "/img/add-2.png"
+                ? "/static/img/add-18.png"
+                : state === "disabled" &&
+                  ["secondary", "tertiary"].includes(type)
+                ? "/static/img/add-16.png"
+                : "/static/img/add-2.png"
             }
             className="add-instance"
           />
@@ -58,9 +56,13 @@ export const Button = ({
   );
 };
 
+
 Button.propTypes = {
   type: PropTypes.oneOf(["primary", "secondary", "tertiary"]),
   icon: PropTypes.oneOf(["off", "on"]),
   state: PropTypes.oneOf(["disabled", "hover", "default"]),
   text: PropTypes.string,
+  className: PropTypes.string,
+  buttonClassName: PropTypes.string,
+  onClick: PropTypes.func, // הוספת onClick
 };

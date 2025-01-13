@@ -1,0 +1,14 @@
+.back {
+  height: 20px;
+  position: relative;
+  width: 20px;
+}
+
+.back .img {
+  height: 11px;
+  left: 7px;
+  position: absolute;
+  top: 4px;
+  transform: rotate(-90.00deg);
+  width: 6px;
+}
