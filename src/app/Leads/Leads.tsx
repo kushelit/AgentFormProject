@@ -64,6 +64,7 @@ const Leads = () => {
 const [editingRowId, setEditingRowId] = useState<string | null>(null);
 const [newStatusLead, setNewStatusLead] = useState<string>('');
 const [selectedStatusLeadFilter, setSelectedStatusLeadFilter] = useState('');
+const [selectedSourceLeadFilter, setSelectedSourceLeadFilter] = useState('');
 
 const [editingRowIdTime, setEditingRowIdTime] = useState<string | null>(null);
 
@@ -184,7 +185,8 @@ const [editingRowIdTime, setEditingRowIdTime] = useState<string | null>(null);
         : true;  
       const matchesWorkerId = selectedWorkerIdFilter ? item.workerId?.includes(selectedWorkerIdFilter) : true;
       const matchesStatusLead = selectedStatusLeadFilter ? item.selectedStatusLead === selectedStatusLeadFilter : true;
-        return matchesIdCustomer && matchesName && matchesStatusLead && matchesWorkerId;
+      const matchesSourceLead = selectedSourceLeadFilter ? item.sourceValue === selectedSourceLeadFilter : true;
+        return matchesIdCustomer && matchesName && matchesStatusLead && matchesWorkerId && matchesSourceLead;
     });
       setFilteredData(data);
     console.log("Filtered Data:", data);
@@ -195,6 +197,7 @@ const [editingRowIdTime, setEditingRowIdTime] = useState<string | null>(null);
     lastNameCustomerFilter,
     selectedWorkerIdFilter,
     selectedStatusLeadFilter,
+    selectedSourceLeadFilter
   ]);
   
   const handleFirstNameChange: ChangeEventHandler<HTMLInputElement> = (event) => {
@@ -766,6 +769,17 @@ const [editingRowIdTime, setEditingRowIdTime] = useState<string | null>(null);
       </option>
        ))}
        </select>
+       <select
+  id="sourceLeadSelect"
+  value={selectedSourceLeadFilter}
+  onChange={(e) => setSelectedSourceLeadFilter(e.target.value)}>
+  <option value="">בחר מקור ליד</option>
+  {sourceLeadList.map((item) => (
+    <option key={item.id} value={item.id}>
+      {item.sourceLead}
+    </option>
+  ))}
+</select>
         </div>
         <div className="table-container flex" style={{ overflowX: 'auto', maxHeight: '800px'
           ,minWidth: '900px',fontSize: '16px'}}>

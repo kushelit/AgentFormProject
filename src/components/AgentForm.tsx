@@ -527,20 +527,18 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
     });
   };
   
-  
   const canSubmit = useMemo(() => (
-     selectedAgentId.trim() !== '' &&
-     selectedWorkerId.trim() !== '' &&
-     firstNameCustomer.trim() !== '' &&
-     lastNameCustomer.trim() !== '' &&
-     IDCustomer.trim() !== '' &&
-     selectedCompany.trim() !== '' &&
-     selectedProduct.trim() !== '' &&
-     selectedStatusPolicy.trim() !== '' &&
+    selectedAgentId.trim() !== '' &&
+    selectedWorkerId.trim() !== '' &&
+    firstNameCustomer.trim() !== '' &&
+    lastNameCustomer.trim() !== '' &&
+    IDCustomer.trim() !== '' &&
+    selectedCompany !== '' &&
+    selectedProduct !== '' &&
+    selectedStatusPolicy !== '' &&
     mounth.trim() !== ''
-  ), [selectedAgentId, selectedWorkerId, firstNameCustomer, lastNameCustomer, IDCustomer, 
-    selectedCompany, selectedProduct, mounth]);
-
+  ), [selectedAgentId, selectedWorkerId, firstNameCustomer, lastNameCustomer, IDCustomer, selectedCompany, selectedProduct, selectedStatusPolicy, mounth]);
+  
 
   const handleFinansimZviraChange: ChangeEventHandler<HTMLInputElement> = (e) => {
    const value = e.target.value
@@ -590,13 +588,35 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
 
   const handleExpiryDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
-    if (value.trim() !== '') {
+    if (value.trim() !== '') {;
       setmounth(value);
     } else {
       setmounth('');
     }
   };
+
+  const handleCompanyChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const value = e.target.value;
+    setSelectedCompany(value);
   
+    // בדיקה מחודשת של canSubmit אחרי שינוי הערך
+    if (value !== '') {
+      validateFields();
+    }
+  };
+  
+
+  const handleProductChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const value = e.target.value;
+    setSelectedProduct(value);
+  
+    // בדיקה מחודשת של canSubmit אחרי שינוי הערך
+    if (value !== '') {
+      validateFields();
+    }
+  };
+  
+
   useEffect(() => {
     resetForm(); 
     if (selectedAgentId) {
@@ -877,19 +897,18 @@ useEffect(() => {
                         <label htmlFor="companySelect">חברה <span style={{ color: 'red', marginLeft: '5px' }}>*</span></label>
                     </td>
                     <td>
-                        <select id="companySelect" 
-                        value={selectedCompany} 
-                        onChange={(e) => {
-                          setSelectedCompany(e.target.value);
-                          validateFields();
-                        }}
-                        onBlur={validateFields}
-                        className={errors.selectedCompany ? 'input-error' : ''}>
-                            <option value="">בחר חברה</option>
-                            {companies.map((companyName, index) => (
-                                <option key={index} value={companyName}>{companyName}</option>
-                            ))}
-                        </select>
+                       <select
+  id="companySelect"
+  value={selectedCompany}
+  onChange={handleCompanyChange}
+  className={errors.selectedCompany ? 'input-error' : ''}>
+  <option value="">בחר חברה</option>
+  {companies.map((companyName, index) => (
+    <option key={index} value={companyName}>
+      {companyName}
+    </option>
+  ))}
+</select>
                     </td>
                 </tr>
                 <tr>
@@ -897,18 +916,18 @@ useEffect(() => {
                         <label htmlFor="productSelect">מוצר <span style={{ color: 'red', marginLeft: '5px' }}>*</span></label>
                     </td>
                     <td>
-                        <select id="productSelect" value={selectedProduct} 
-                        onChange={(e) => {
-                          setSelectedProduct(e.target.value);
-                          validateFields();
-                        }}
-                        onBlur={validateFields}
-                        className={errors.selectedProduct ? 'input-error' : ''}>
-                            <option value="">בחר מוצר</option>
-                            {products.map(product => (
-                                <option key={product.id} value={product.name}>{product.name}</option>
-                            ))}
-                        </select>
+                    <select
+  id="productSelect"
+  value={selectedProduct}
+  onChange={handleProductChange}
+  className={errors.selectedProduct ? 'input-error' : ''}>
+  <option value="">בחר מוצר</option>
+  {products.map((product) => (
+    <option key={product.id} value={product.name}>
+      {product.name}
+    </option>
+  ))}
+</select>
                     </td>
                 </tr>
                 <tr>
