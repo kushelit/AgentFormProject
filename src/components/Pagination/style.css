@@ -8,16 +8,26 @@
   font-size: 18px;
 }
 
-.pagination-arrows.state-6-disabled {
+.pagination-arrows.state-disabled {
   opacity: 0.5;
   pointer-events: none;
 }
 
-.pagination-arrows.state-6-hover:hover {
+.pagination-arrows:hover {
   background-color: var(--clrgray4);
 }
 
 .pagination-number {
   font-weight: bold;
   padding: 0 10px;
+  text-align: center; /* יישור מרכזי */
+}
+
+.pagination {
+  display: flex; /* שימוש ב-Flexbox */
+  justify-content: flex-end; /* יישור האלמנטים לשמאל */
+  align-items: center; /* יישור אנכי למרכז */
+  gap: 8px; /* רווח בין האלמנטים */
+  text-align: left; /* לוודא שהטקסט מיושר לשמאל */
+  width: 100%; /* תופס את כל הרוחב */
 }

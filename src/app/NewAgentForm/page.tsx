@@ -15,7 +15,7 @@ const NewAgentFormPage = () => {
   let content;
 
   if (user) {
-    if (detail?.role == 'admin') {
+    if (detail?.role !== 'worker') {
       // If the user is logged in and their role is not 'worker'
     //  console.log(" a admin");
       content = (

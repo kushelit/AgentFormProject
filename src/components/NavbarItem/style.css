@@ -25,7 +25,7 @@
   color: var(--clrwhite); /* צבע טקסט */
   direction: rtl; /* כיווניות מימין לשמאל */
   font-family: var(--font-family); /* משפחת גופן */
-  font-size: var(--font-size); /* גודל טקסט */
+  font-size: var(--font-size-text-regular); /* גודל טקסט */
   font-style: var(--font-style); /* סגנון גופן */
   font-weight: var(--font-weight); /* משקל גופן */
   letter-spacing: var(--letter-spacing); /* ריווח אותיות */
@@ -50,7 +50,7 @@
 .navbar-item-content .navbar-link {
   color: var(--clrwhite) !important; /* עדיפות גבוהה */
   font-family: var(--font-family) !important;
-  font-size: var(--font-size) !important;
+  font-size: var(--font-size-heading-small) !important;
   font-style: var(--font-style);
   font-weight: var(--font-weight);
   line-height: var(--line-height) !important;

@@ -124,7 +124,7 @@ const [openMenuRow, setOpenMenuRow] = useState(null);
 
 // ניהול העמוד הנוכחי
 const [currentPage, setCurrentPage] = useState(1);
-const rowsPerPage = 10; // מספר השורות בעמוד
+const rowsPerPage = 8; // מספר השורות בעמוד
 
 // חישוב הנתונים לעמוד הנוכחי
 const indexOfLastRow = currentPage * rowsPerPage;
@@ -803,6 +803,21 @@ const menuItems = (rowId:string) => [
 ];
 ;
 
+const [openModalId, setOpenModalId] = useState<string | number | null>(null);
+const [modalContent, setModalContent] = useState<string | null>(null);
+
+const handleShowMore = (fullText: string, id: string | number): void => {
+  setModalContent(fullText); // כעת טיפוס תואם
+  setOpenModalId(id); // טיפוס תואם
+};
+
+const closeModal = (): void => {
+  setModalContent(null); // מאפס את התוכן
+  setOpenModalId(null); // מאפס את המודאל
+};
+
+
+
   return (
 <div className="content-container-NewAgentForm">  
 <div className={`table-container-AgentForm-new-design`}>
@@ -856,7 +871,7 @@ const menuItems = (rowId:string) => [
            id="status-PolicySelect"
             value={selectedStatusPolicyFilter}
             onChange={(e) => setSelectedStatusPolicyFilter(e.target.value)} className="select-input">
-            <option value=""> סטאטוס פוליסה</option>
+            <option value="">סטאטוס פוליסה</option>
                             {statusPolicies.map((status, index) => (
                                 <option key={index} value={status}>{status}</option>
                ))}
@@ -926,7 +941,7 @@ const menuItems = (rowId:string) => [
                     <tr>
                  <th className="medium-column">שם פרטי </th>
                    <th className="medium-column">שם משפחה</th>
-                    <th className="medium-column">תז</th>
+                    <th className="wide-column">תז</th>
                   <th className="medium-column">חברה</th>
                     <th className="medium-column">מוצר</th>
                   <th className="medium-column">פרמיה ביטוח</th>
@@ -934,11 +949,11 @@ const menuItems = (rowId:string) => [
                   <th className="medium-column">צבירה פנסיה</th>
                  <th className="medium-column">פרמיה פיננסים</th>
                  <th className="medium-column">צבירה פיננסים</th>
-                <th className="medium-column">חודש תפוקה</th>
+                <th className="wide-column">חודש תפוקה</th>
                  <th className="medium-column">סטאטוס</th>
                   <th className="narrow-column">מינוי סוכן</th>
                   <th className="narrow-column">שם עובד</th>
-                  <th className="medium-column">הערות</th>
+                  <th className="wide-column">הערות</th>
                  <th className="narrow-cell">🔧</th>
                </tr>
             </thead>
@@ -1073,11 +1088,13 @@ const menuItems = (rowId:string) => [
             type="date"
             value={editData.mounth || ""}
             onChange={(e) => handleEditChange("mounth", e.target.value)}
-          />
-        ) : (
-          item.mounth
-        )}
-      </td>
+            />
+          ) : item.mounth ? (
+            formatIsraeliDateOnly(item.mounth)
+          ) : (
+            ""
+          )}
+        </td>
       <td className="narrow-column">
         {editingRow === item.id ? (
           <select
@@ -1123,16 +1140,32 @@ const menuItems = (rowId:string) => [
     item.workerName
   )}
 </td>
-<td className="notes-column">
-  <span className="tooltip-text">{item.notes}</span>
-  {editingRow === item.id ? (
+<td className="notes-column wide-column">
+  <span className="notes-preview">
+    {item.notes.length > 5 ? `${item.notes.substring(0, 5)}...` : item.notes}
+  </span>
+  {item.notes.length > 5 && (
+    <button
+    className="show-more-btn"
+    onClick={() => handleShowMore(item.notes, item.id)}
+  >
+    הצג עוד
+  </button>
+  )}
+  {editingRow === item.id && (
     <input
       type="text"
       value={editData.notes || ""}
       onChange={(e) => handleEditChange("notes", e.target.value)}
     />
-  ) : (
-    item.notes
+  )}
+  {openModalId === item.id && (
+    <div className="inline-modal">
+      <p>{modalContent}</p>
+      <button className="close-btn" onClick={closeModal}>
+  סגור
+</button>
+    </div>
   )}
 </td>
 <td className="narrow-cell">
@@ -1164,9 +1197,8 @@ const menuItems = (rowId:string) => [
       <div className="data-container-Goals">
   {/* כותרת */}
   <div className="table-header-Goal" style={{ textAlign: 'right' }}>
-    <div>עמידה ביעדים</div>
+    <div className="table-Goal-title">עמידה ביעדים</div>
   </div>
-
   {/* בחירת עובד */}
   <div className="goal-Worker">
     <select
@@ -1184,7 +1216,6 @@ const menuItems = (rowId:string) => [
       ))}
     </select>
   </div>
-
   {/* צ'קבוקס של יעדים פעילים */}
   <div className="goalActive">
     <input
@@ -1205,11 +1236,13 @@ const menuItems = (rowId:string) => [
         <div className="goal-card" key={index}>
           {/* כותרת היעד */}
           <h3>{item.promotionName}</h3>
-          <p><strong>יעד:</strong> {`${item.amaunt.toLocaleString()} - ${item.goalTypeName}`}</p>
-
+          <p>
+  <span className="goal-label">יעד:</span>
+  <div>{`${item.amaunt.toLocaleString()} - ${item.goalTypeName}`}</div>
+</p>
           {/* ביצועים */}
           <div className="goal-performance">
-            <p><strong>ביצוע:</strong></p>
+            <p><span className="goal-label">ביצוע:</span> </p>
             {item.goalTypeName === "כוכבים" ? (
               <div>{item.totalStars ? `${item.totalStars}` : 'N/A'}</div>
             ) : item.totalPremia && Object.keys(item.totalPremia).length > 0 ? (
@@ -1221,51 +1254,40 @@ const menuItems = (rowId:string) => [
                 </div>
               ))
             ) : (
-              <div>No Data</div>
+              <div>אין מידע</div>
             )}
           </div>
-
-          {/* אחוז עמידה */}
-          <div className="goal-progress">
-            {item.achievementRate !== undefined ? (
-              <>
-                <ProgressBar
-                  state={item.achievementRate >= 100 ? "complete" : item.achievementRate >= 50 ? "progress" : "low"}
-                  graff={true}
-                  prop={true}
-                  className="achievement-bar"
-                />
-                <div>
-                  {item.achievementRate.toFixed(2)}%
-                </div>
-              </>
-            ) : (
-              <div>No Data</div>
-            )}
-          </div>
-
-          {/* זמן עבר */}
-          <div className="goal-time">
-            {item.daysPassed !== undefined && item.totalDuration !== undefined && item.totalDuration > 0 ? (
-              <>
-                <ProgressBar
-                  state={(item.daysPassed / item.totalDuration) >= 1 ? "high" : "time"}
-                  graff={true}
-                  prop={true}
-                  className="time-bar"
-                />
-                <div>
-                  {Math.min((item.daysPassed / item.totalDuration) * 100, 100).toFixed(2)}%
-                </div>
-              </>
-            ) : (
-              <div>No Data</div>
-            )}
-          </div>
+        {/* אחוז עמידה */}
+<div className="goal-progress">
+<h4>אחוז עמידה</h4>
+  {item.achievementRate !== undefined ? (
+    <ProgressBar
+      state={item.achievementRate >= 100 ? "complete" : item.achievementRate >= 50 ? "progress" : "low"}
+      percentage={Math.min(item.achievementRate, 100)}
+      className="achievement-bar"
+    />
+  ) : (
+    <div>אין מידע</div>
+  )}
+</div>
+{/* זמן עבר */}
+<div className="goal-time">
+<h4>זמן עבר</h4>
+     {/* state={(item.daysPassed / item.totalDuration) >= 1 ? "high" : "time"}*/}
+  {item.daysPassed !== undefined && item.totalDuration !== undefined && item.totalDuration > 0 ? (
+    <ProgressBar
+      state="time" // תמיד יהיה כחול כהה
+      percentage={Math.min((item.daysPassed / item.totalDuration) * 100, 100)}
+      className="time-bar"
+    />
+  ) : (
+    <div>אין מידע</div>
+  )}
+</div>
         </div>
       ))
     ) : (
-      <p>No Data</p>
+      <p>אין מידע</p>
     )}
   </div>
 </div>

@@ -8,11 +8,12 @@
 }
 
 .menu-wrapper svg {
-  width: 24px;
-  height: 24px;
-  object-fit: contain;
-  display: block;
+  width: 24px; /* גודל האייקון */
+  height: 24px; /* גובה האייקון */
+  display: block; /* מוודא שאייקון מתפקד כמו בלוק */
+  object-fit: contain; /* התאמת האייקון למרחב */
 }
+
 .menu-options {
   position: absolute;
   top: calc(100% - 20px); 

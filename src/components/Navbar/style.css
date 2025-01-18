@@ -3,11 +3,13 @@
   background-color: var(--clrdarkblue3);
   display: flex;
   flex-direction: column;
-  height: 770px;
+  height: 100vh;
+  width: 210px;
+  min-width: 210px; /* שמירה על רוחב קבוע */
+  max-width: 210px; /* הגבלת הרוחב המקסימלי */
+  box-sizing: border-box;
+  overflow: hidden; /* מניעת גלילה מיותרת */
   position: relative;
-  width: 230px;
-  min-width: 230px; /* שמירה על רוחב קבוע */
-  max-width: 230px; /* הגבלת הרוחב המקסימלי */
 }
 
 .navbar .navbar-item-instance {

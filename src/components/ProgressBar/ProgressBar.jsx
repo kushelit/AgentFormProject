@@ -1,60 +1,22 @@
-
 import PropTypes from "prop-types";
 import React from "react";
-import { Checkmark } from "../Checkmark";
-import { ErrorWrapper } from "../ErrorWrapper";
 import "./style.css";
 
-export const ProgressBar = ({
-  graff = true,
-  prop = true,
-  state,
-  className,
-}) => {
+export const ProgressBar = ({ percentage = 0, state, className }) => {
   return (
     <div className={`progress-bar state-${state} ${className}`}>
-      {["high", "low", "progress", "time"].includes(state) && (
-        <>
-          <>{graff && <div className="indicator" />}</>
-        </>
-      )}
+      <div
+        className="indicator"
+        style={{ width: `${percentage}%` }}
+      ></div>
 
-      {["didn-t-start", "high", "low", "progress", "time"].includes(state) && (
-        <>
-          <>
-            {prop && (
-              <div className="element-5">
-                {state === "low" && <>15%</>}
-
-                {["progress", "time"].includes(state) && <>40%</>}
-
-                {state === "high" && <>95%</>}
-
-                {state === "didn-t-start" && <>0%</>}
-              </div>
-            )}
-          </>
-        </>
-      )}
-
-      {["complete", "error"].includes(state) && (
-        <div className="text-5">
-          <div className="div-9">
-            {state === "error" && <>שגיאה</>}
-
-            {state === "complete" && <>עמדת ביעד</>}
-          </div>
-
-          {state === "complete" && (
-            <Checkmark
-              checkmark="/img/checkmark.png"
-              className="instance-node-5"
-            />
-          )}
-
-          {state === "error" && (
-            <ErrorWrapper className="instance-node-5" error="/img/error.png" />
-          )}
+      {/* הצגת המלל "עמדת ביעד ✔" רק עבור אחוז עמידה (state === "complete") */}
+      {state === "complete" && percentage >= 100 ? (
+        <div className="status-text">עמדת ביעד ✔</div>
+      ) : (
+        // הצגת אחוזים עבור כל שאר המצבים
+        <div className="progress-text">
+          {percentage.toFixed(2)}%
         </div>
       )}
     </div>
@@ -62,8 +24,7 @@ export const ProgressBar = ({
 };
 
 ProgressBar.propTypes = {
-  graff: PropTypes.bool,
-  prop: PropTypes.bool,
+  percentage: PropTypes.number,
   state: PropTypes.oneOf([
     "low",
     "didn-t-start",

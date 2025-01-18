@@ -193,7 +193,7 @@ button {
   border-radius: 4px;
   border: 2px solid theme('colors.custom-green');
   color: theme('colors.custom-green');
-  background-color: theme('colors.custom-blue') !important;
+  background-color: theme('colors.custom-blue') ;
 }
 
 

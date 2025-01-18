@@ -58,8 +58,8 @@ const MenuWrapper = ({ className, menuItems, rowId , openMenuRow, setOpenMenuRow
   
   return (
     <div
-      className={`menu-wrapper ${className}`}
-      onMouseEnter={() => setMenuState("hover")}
+    className={`menu-wrapper ${className || ""}`}
+    onMouseEnter={() => setMenuState("hover")}
       onMouseLeave={() => setMenuState(openMenuRow ? "active" : "default")}
     >
       <div className="custom-menu-button" onClick={() => toggleMenu(rowId)}>
