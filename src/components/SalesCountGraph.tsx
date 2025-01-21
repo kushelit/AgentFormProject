@@ -1,10 +1,19 @@
 import React from 'react';
-import { Line } from 'react-chartjs-2';
-import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend } from 'chart.js';
+import { Chart } from 'react-chartjs-2';
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  BarElement,
+  Tooltip,
+  Legend,
+  ChartData,
+} from 'chart.js';
 
 // Register the required components for the chart
-ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend);
-//ChartJS.defaults.plugins.datalabels = undefined;
+ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, Tooltip, Legend);
 
 interface SalesCountGraphProps {
   data: {
@@ -19,9 +28,8 @@ const SalesCountGraph: React.FC<SalesCountGraphProps> = ({ data }) => {
   const options = {
     responsive: true,
     animation: {
-      duration: 500, // Shorten the animation duration (default is 1000ms)
+      duration: 500,
     },
-
     plugins: {
       legend: {
         position: 'top' as const,
@@ -39,30 +47,35 @@ const SalesCountGraph: React.FC<SalesCountGraphProps> = ({ data }) => {
   };
 
   // Generate labels from the data keys and sort them chronologically
-  const labels = Object.keys(newCustomerCounts || {}).sort((a, b) => {
-    return new Date(a).getTime() - new Date(b).getTime();
-  });
-  // Prepare the datasets for the chart
-  const dataset = {
+  const labels = Object.keys(newCustomerCounts || {}).sort(
+    (a, b) => new Date(a).getTime() - new Date(b).getTime()
+  );
+
+  // Define the datasets with explicit types
+  const dataset: ChartData<'bar', number[], string> = {
     labels,
     datasets: [
       {
+        type: 'bar', // Define this dataset as a bar chart
         label: 'סה"כ לקוחות חדשים',
         data: labels.map((label) => newCustomerCounts[label] || 0),
-        borderColor: 'rgb(53, 162, 235)',
         backgroundColor: 'rgba(53, 162, 235, 0.5)',
+        borderColor: 'rgb(53, 162, 235)',
+        borderWidth: 1,
       },
       {
+        type: 'line', // Define this dataset as a line chart
         label: 'סה"כ לקוחות',
         data: labels.map((label) => distinctCustomerCounts[label] || 0),
         borderColor: 'rgb(75, 192, 192)',
         backgroundColor: 'rgba(75, 192, 192, 0.5)',
-        borderDash: [5, 5], // Dashed line for distinction
+        borderDash: [5, 5],
       },
     ],
   };
 
-  return <Line options={options} data={dataset} />;
+  // Use the `Chart` component with type "bar" to allow mixed chart types
+  return <Chart type="bar" options={options} data={dataset} />;
 };
 
 export default SalesCountGraph;

@@ -1,0 +1,296 @@
+
+.spinner-overlay {
+  position: fixed; /* Stays fixed relative to the viewport */
+  top: 0;
+  left: 0;
+  width: 100vw; /* Full width of the viewport */
+  height: 100vh; /* Full height of the viewport */
+  display: flex; /* Use flexbox to center the spinner */
+  justify-content: center; /* Horizontally center */
+  align-items: center; /* Vertically center */
+  z-index: 9999; /* Ensure it is on top of all other elements */
+  pointer-events: none; /* Allows you to interact with the content below the spinner */
+}
+
+.spinner {
+  border: 8px solid #f3f3f3; /* Light grey */
+  border-top: 8px solid #3498db; /* Blue */
+  border-radius: 50%;
+  width: 60px;
+  height: 60px;
+  animation: spin 2s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+
+/* הגדרת מסגרת כללית עם מניעת גלילה אופקית */
+body {
+  overflow-x: hidden;
+  font-family: var(--font-family-primary);
+  font-size: var(--font-size-text-regular);
+  line-height: var(--line-height-text-regular);
+  font-weight: var(--font-weight-regular);
+}
+
+
+.content-container-NewAgentForm {
+  display: flex;
+  flex-direction: column; /* מחלק את התוכן אנכית */
+  height: 100vh; /* גובה הדף המלא */
+  max-width: 1280px; /* רוחב מקסימלי */
+  margin: 0 auto; /* מיקום במרכז */
+  gap: 8px; /* רווח בין הטבלה לגרף */
+}
+  
+.table-container-AgentForm-new-design {
+  box-shadow: var(--m3-elevation-light-1);
+  background-color: var(--clrwhite);
+  border-radius: 8px;
+  padding: 8px;
+  box-sizing: border-box;
+  margin-bottom : 20px;
+}
+
+.graf {
+  background-color: var(--clrwhite);
+  border-color: var(--clrgray5);
+  margin-top: 20px;
+}
+
+
+.table-Data-AgentForm.is-new-design table {
+    table-layout: fixed;
+    width: 100%;
+    border-collapse: collapse;
+    border: none !important;
+    margin: 0 auto; /* מיקום במרכז */
+}
+  
+  .table-Data-AgentForm.is-new-design {
+    overflow: visible !important;
+  }
+  
+  
+  .table-Data-AgentForm.is-new-design td,
+  .table-Data-AgentForm.is-new-design th {
+      padding: 4px;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      overflow: visible;
+      max-width: 150px; /* הגבלת רוחב עמודה */
+
+  }
+  
+  
+  .table-Data-AgentForm.is-new-design td {
+    overflow: visible;
+    padding: 4px;
+    text-overflow: ellipsis;
+    color: var(--clrblack);
+    direction: rtl;
+    white-space: normal; /* מאפשר שבירת שורות */
+    text-overflow: clip; /* מסיר את ה-"..." */
+    word-break: break-word; /* שוברת מילים ארוכות */
+   
+ 
+}
+
+  .table-Data-AgentForm.is-new-design th {
+    background-color: var(--clrgray3);
+    color: var(--clrdarkblue3);
+    font-weight: bold;
+    border-color: var(--clrgray4);
+    white-space: normal; /* מאפשר שבירת שורות */
+  text-overflow: clip; /* מסיר את ה-"..." */
+  word-break: break-word; /* שוברת מילים ארוכות */
+  text-align: center;
+    direction: rtl;
+  }
+  
+  .table-Data-AgentForm.is-new-design tr {
+    height: 10px;
+  }
+  
+
+  .filter-inputs-container-new {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+    padding: 4px 4px; /* ריווח פנימי קטן יותר */
+    border-radius: 4px;
+    width: 100%;
+    max-height: 40px; /* מעט נמוך יותר */
+    overflow: hidden;
+    box-shadow: var(--m3-elevation-light-1); /* אם את רוצה הוספת צל */
+}
+
+  
+  
+  .filter-select-container
+   {
+    flex: 1;
+    max-width: 150px;
+    min-width: 90px;
+    position: relative;
+  }
+  
+.select-input
+ {
+  flex: 1;
+    height: 28px; /* גובה אחיד וקטן יותר */
+    padding: 4px 4px;
+    font-size: var(--font-size-text-small); /* שימוש בפונט קטן יותר */
+    width: 100%;
+    border: 1px solid var(--clrgray5);
+    border-radius: 4px;
+    box-sizing: border-box;
+}
+/* יישור הטקסט בתוך השדות לימין */
+.filter-input,
+.select-input
+ {
+    text-align: right;
+    direction: rtl;
+}
+
+/* יישור התוויות (placeholders) לימין */
+.filter-input::placeholder
+ {
+    text-align: right;
+    direction: rtl;
+}
+
+
+/* סגנון ל-placeholder של input */
+input::placeholder {
+  color: rgba(0, 0, 0, 0.5); /* צבע אפור שקוף */
+  font-style: italic; /* אופציונלי */
+}
+
+/* סגנון ל-placeholder של select */
+select option {
+  color: rgba(0, 0, 0, 0.5); /* צבע אפור שקוף */
+}
+
+
+.table-graf-title {
+  width: 94px;
+  height: 22px;
+  color: #3b6a95;
+  font-size: 14px;
+  font-weight: 700;
+  font-family: "Rubik-Regular", Helvetica, sans-serif !important;
+}
+
+.graf-Type select {
+  width: 150px !important;
+  height: 32px !important;
+  padding: 6px 12px !important;
+  border: 1px solid var(--clrgray5) !important;
+  border-radius: 4px !important;
+  font-size: var(--font-size-text-regular) !important;
+  color: var(--clrblack) !important;
+  background-color: var(--clrwhite) !important;
+  box-sizing: border-box !important;
+  text-align: right !important;
+  direction: rtl !important;
+}
+
+.graf-Type {
+  display: flex;
+  justify-content: flex-start; /* יישור לימין */
+  text-align: right; /* יישור הטקסט והתוכן לימין */
+  margin-bottom: 10px; /* רווח תחתון */
+}
+
+
+
+  .table-header {
+    display: flex;
+    align-items: center; /* מוודא שהם יהיו באותו גובה */
+    justify-content: space-between; /* הכותרת מימין והכפתור משמאל */
+    padding: 8px 16px;
+  }
+ 
+  .table-header .table-title {
+    all: unset;
+    font-family: "Rubik-Regular", Helvetica, sans-serif !important;
+    font-size: 30px !important;
+    font-weight: 400 !important;
+    color: var(--clrdarkblue3) !important;
+    text-align: right !important;
+    line-height: 36px;
+  }
+
+  .filter-input-icon {
+    position: absolute;
+    top: 50%;
+    left: 8px;
+    transform: translateY(-50%);
+    width: 12px;
+    height: 12px;
+}
+  
+
+.filter-inputs-container-new select {
+  appearance: none; /* מסיר את העיצוב הדפדפני המובנה */
+  direction: rtl; /* יישור המלל לימין */
+  text-align: right; /* המלל מיושר לימין */
+  padding-right: 2px; /* הוספת ריווח לימין */
+  padding-left: 20px; /* מספיק מקום לחץ בצד שמאל */
+  background: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMiIgaGVpZ2h0PSIxMiIgdmlld0JveD0iMCAwIDEyIDEyIj4gPHBhdGggZmlsbD0iI0I0QjRCNCIgZD0iTTEwLjU3IDMuNTlsLTEuMTctMS4xN2MtLjMxLS4zMS0uODEtLjMxLTEuMTIgMGwtMy4yOSAzLjI5LTMuMjktMy4yOWMtLjMxLS4zMS0uODEtLjMxLTEuMTIgMGwtMS4xNyAxLjE3Yy0uMzEuMzEtLjMxLjgxIDAgMS4xMWw0LjQzIDQuNDNjLjMxLjMxLjgxLjMxIDEuMTIgMGw0LjQzLTQuNDNjLjMxLS4zLjMxLS44MS4wMS0xLjEyWiIgLz48L3N2Zz4=")
+    no-repeat;
+  background-position: left 10px center; /* ממקם את החץ בצד שמאל */
+  background-size: 12px; /* גודל החץ */
+ /* border: 1px solid var(--clrgray5); /* גבול התיבה */
+  /*border-radius: 4px; /* פינות מעוגלות */
+  /*font-size: 14px; /* גודל פונט */
+  /*height: 32px; /* גובה אחיד */
+ /* box-sizing: border-box;*/
+}
+
+.filter-inputs-container-new select:focus {
+  outline: none; /* הסרת המסגרת של הפוקוס */
+  border-color: var(--clrprimary); /* צבע גבול בזמן פוקוס */
+}
+
+
+.wide-column {
+  width: 20%;
+}
+
+.medium-column {
+  width: 15%;
+}
+
+.narrow-column {
+  width: 10%;
+}
+
+
+/* עיצוב שדות העריכה */
+.table-Data-AgentForm.is-new-design td input,
+.table-Data-AgentForm.is-new-design td select {
+  width: 100%; /* התאמה לרוחב התא */
+  height: 36px; /* גובה השדה */
+  box-sizing: border-box; /* כולל padding בגודל הכולל */
+  font-size: 14px; /* התאמת גודל הטקסט */
+  padding: 4px; /* ריווח פנימי */
+  border: 1px solid #ccc; /* מסגרת עדינה */
+  border-radius: 4px; /* פינות מעוגלות */
+  background-color: #fff; /* רקע לבן */
+}
+
+
+/* עיצוב שדות עם חצים לבחירה (select) */
+.table-Data-AgentForm.is-new-design td select {
+  appearance: none; /* הסתרת עיצוב ברירת מחדל */
+  padding-right: 8px; /* התאמת רווח פנימי */
+}
+
+
+

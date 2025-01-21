@@ -212,30 +212,63 @@ type AgentDataTypeForFetching = {
   notes: string; 
  
 };
+const isSaveDisabled = !editingRow || JSON.stringify(filteredData.find((item) => item.id === editingRow)) === JSON.stringify(editData);
 
 
 const handleEditRow = (id: string) => {
-  setEditingRow(id);
+  setEditingRow(id); // מזהה את השורה לעריכה
   const rowData = filteredData.find((item) => item.id === id);
   if (rowData) {
-    setEditData({ ...rowData });
+    setEditData({ ...rowData }); // שמירת נתוני השורה
   }
-  setMenuOpen(null); // סגירת התפריט
+  setMenuOpen(null); // סגירת התפריט, אם פתוח
 };
 
-const handleDeleteRow = (id: string) => {
-  const updatedData = filteredData.filter((item) => item.id !== id);
-  setFilteredData(updatedData);
-  setMenuOpen(null); // סגירת התפריט
+
+const handleDeleteRow = async (id: string) => {
+  const isConfirmed = window.confirm("האם אתה בטוח שברצונך למחוק את השורה?");
+  
+  if (!isConfirmed) {
+    return; // אם המשתמש לחץ על "ביטול", עצור את הפונקציה
+  }
+
+  try {
+    // מחיקה מהממשק המקומי
+    const updatedData = filteredData.filter((item) => item.id !== id);
+    setFilteredData(updatedData);
+    setMenuOpen(null); // סגירת התפריט
+
+    // מחיקה מה-DB
+    await deleteDoc(doc(db, 'sales', id));
+    console.log("Row deleted successfully");
+  } catch (error) {
+    console.error("Error deleting row:", error);
+  }
 };
 
-const saveChanges = () => {
-  const updatedData = filteredData.map((item) =>
-    item.id === editingRow ? { ...item, ...editData } : item
-  );
-  setFilteredData(updatedData);
-  setEditingRow(null); // יציאה ממצב עריכה
+const saveChanges = async () => {
+  try {
+    // עדכון ה-State המקומי
+    const updatedData = filteredData.map((item) =>
+      item.id === editingRow ? { ...item, ...editData } : item
+    );
+    setFilteredData(updatedData);
+    setEditingRow(null); // יציאה ממצב עריכה
+
+    // עדכון מסמך ב-Firestore
+    if (editingRow) {
+      const docRef = doc(db, 'sales', editingRow); // מסמך ספציפי
+      await updateDoc(docRef, {
+        ...editData, // עדכון הנתונים
+        lastUpdateDate: serverTimestamp(), // עדכון חותמת זמן
+      });
+    }
+    console.log("Row updated successfully");
+  } catch (error) {
+    console.error("Error updating row:", error);
+  }
 };
+
 
 const handleEditChange = (field: keyof AgentDataType, value: string | number | boolean) => {
   setEditData((prev) => ({
@@ -823,6 +856,14 @@ const closeModal = (): void => {
 <div className={`table-container-AgentForm-new-design`}>
 <div className="table-header">
   <div className="table-title">ניהול עסקאות</div>
+  <div className="button-container">
+  <Button
+    onClick={() => saveChanges()}
+    text="שמור שינויים"
+    type="primary"
+    icon="off"
+    state={isSaveDisabled ? "disabled" : "default"} // קביעת מצב הכפתור
+    />
   <Button
     onClick={() => setShowOpenNewDeal(true)}
     text="הוסף עסקה"
@@ -830,6 +871,7 @@ const closeModal = (): void => {
     icon="on"
     state="default"
   />
+  </div>
 </div>
       <div className="filter-inputs-container-new">
              <div className="filter-select-container">
@@ -946,8 +988,8 @@ const closeModal = (): void => {
                     <th className="medium-column">מוצר</th>
                   <th className="medium-column">פרמיה ביטוח</th>
                  <th className="medium-column">פרמיה פנסיה</th>
-                  <th className="medium-column">צבירה פנסיה</th>
-                 <th className="medium-column">פרמיה פיננסים</th>
+                 <th className="medium-column">צבירה פנסיה</th>
+                 <th className="medium-column">פרמיה פיננסים</th>             
                  <th className="medium-column">צבירה פיננסים</th>
                 <th className="wide-column">חודש תפוקה</th>
                  <th className="medium-column">סטאטוס</th>
@@ -1292,229 +1334,178 @@ const closeModal = (): void => {
   </div>
 </div>
         {showOpenNewDeal && (
-<div className="modal-overlay" onClick={() => setShowOpenNewDeal(false)}>
-   <div
-          className="modal-content"
-          onClick={(e) => e.stopPropagation()} // Prevent closing when clicking inside the modal
-        >
-   <div className="form-container-AgentForm">
-            <form onSubmit={handleSubmit}>
-              <table>
-                {/* כל תוכן הטופס */}
-                <thead>
-            <tr>
-            <th colSpan={2}>
-                <div className="scrollable-tbody">
-                  <h3></h3>
-                </div>
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td>
-               <label htmlFor="agentSelect">סוכנות <span style={{ color: 'red', marginLeft: '5px' }}>*</span></label>
-             </td>
-             <td>
-              <select onChange={handleAgentChange} value={selectedAgentId}>
-                            {detail?.role === 'admin' && <option value="">בחר סוכן</option>}
-                            {agents.map(agent => (
-                                <option key={agent.id} value={agent.id}>{agent.name}</option>
-                            ))}
-                        </select>              
-
-                    </td>
-                </tr>
-                <tr>
-                    <td>
-                        <label htmlFor="workerSelect">עובד <span style={{ color: 'red', marginLeft: '5px' }}>*</span></label>
-                    </td>
-                    <td>
-                        <select id="workerSelect" value={selectedWorkerId} 
-                      onChange={(e) => handleWorkerChange(e, 'insert')}>
-                            <option value="">בחר עובד</option>
-                            {workers.map(worker => (
-                                <option key={worker.id} value={worker.id}>{worker.name}</option>
-                            ))}
-                        </select>
-                    </td>
-                </tr>
-                <tr>
-                    <td>
-                        <label>שם פרטי <span style={{ color: 'red', marginLeft: '5px' }}>*</span></label>
-                    </td>
-                    <td>
-                        <input type="text" value={firstNameCustomer} onChange={handleFirstNameChange} title="הזן אותיות בלבד" />
-                    </td>
-                </tr>
-                <tr>
-                    <td>
-                        <label>שם משפחה <span style={{ color: 'red', marginLeft: '5px' }}>*</span></label>
-                    </td>
-                    <td>
-                        <input type="text" value={lastNameCustomer} onChange={handleLastNameChange} title="הזן אותיות בלבד" />
-                    </td>
-                </tr>
-                <tr>
-                    <td>
-                        <label htmlFor="IDCustomer">תז <span style={{ color: 'red', marginLeft: '5px' }}>*</span></label>
-                    </td>
-                    <td>
-                        <input type="text" 
-                        inputMode="numeric" maxLength={9} 
-                        value={IDCustomer} 
-                        onChange={handleIDChange} 
-                        disabled={isEditing}  />
-                    </td>
-                </tr>
-                <tr>
-                    <td>
-                        <label htmlFor="companySelect">חברה <span style={{ color: 'red', marginLeft: '5px' }}>*</span></label>
-                    </td>
-                    <td>
-                        <select id="companySelect" value={selectedCompany} onChange={(e) => setSelectedCompany(e.target.value)}>
-                            <option value="">בחר חברה</option>
-                            {companies.map((companyName, index) => (
-                                <option key={index} value={companyName}>{companyName}</option>
-                            ))}
-                        </select>
-                    </td>
-                </tr>
-                <tr>
-                    <td>
-                        <label htmlFor="productSelect">מוצר <span style={{ color: 'red', marginLeft: '5px' }}>*</span></label>
-                    </td>
-                    <td>
-                        <select id="productSelect" value={selectedProduct} onChange={(e) => setSelectedProduct(e.target.value)}>
-                            <option value="">בחר מוצר</option>
-                            {products.map(product => (
-                                <option key={product.id} value={product.name}>{product.name}</option>
-                            ))}
-                        </select>
-                    </td>
-                </tr>
-                <tr>
-                    <td>
-                        <label htmlFor="insPremia">פרמיה ביטוח</label>
-                    </td>
-                    <td>
-                        <input type="text" inputMode="numeric" value={insPremia} onChange={handleinsPremia} disabled={selectedProductGroup === '1' || selectedProductGroup === '4'} />
-                    </td>
-                </tr>
-                <tr>
-                    <td>
-                        <label htmlFor="pensiaPremia">פרמיה פנסיה</label>
-                    </td>
-                    <td>
-                        <input type="text" inputMode="numeric" value={pensiaPremia} onChange={handlepensiaPremia} disabled={selectedProductGroup === '3' || selectedProductGroup === '4'} />
-                    </td>
-                </tr>
-                <tr>
-                    <td>
-                        <label htmlFor="pensiaZvira">צבירה פנסיה</label>
-                    </td>
-                    <td>
-                        <input type="text" inputMode="numeric" value={pensiaZvira} onChange={handlePensiaZvira} disabled={selectedProductGroup === '3' || selectedProductGroup === '4'} />
-                    </td>
-                </tr>
-                <tr>
-                    <td>
-                        <label htmlFor="finansimPremia">פרמיה פיננסים</label>
-                    </td>
-                    <td>
-                        <input type="text" inputMode="numeric" value={finansimPremia} onChange={handleFinansimPremia} disabled={selectedProductGroup === '1' || selectedProductGroup === '3'} />
-                    </td>
-                </tr>
-                <tr>
-                    <td>
-                        <label htmlFor="finansimZvira">צבירה פיננסים</label>
-                    </td>
-                    <td>
-                        <input type="text" inputMode="numeric" value={finansimZvira} onChange={handleFinansimZviraChange} disabled={selectedProductGroup === '1' || selectedProductGroup === '3'} />
-                    </td>
-                </tr>
-                <tr>
-                    <td>
-                        <label htmlFor="expiryDate">תאריך תפוקה <span style={{ color: 'red', marginLeft: '5px' }}>*</span></label>
-                    </td>
-                    <td>
-                        <input type="date" id="expiryDate" name="expiryDate" value={mounth} onChange={handleExpiryDateChange} />
-                    </td>
-                </tr>
-                <tr>
-                    <td>
-                        <label htmlFor="statusPolicySelect">סטאטוס פוליסה <span style={{ color: 'red', marginLeft: '5px' }}>*</span></label>
-                    </td>
-                    <td>
-                        <select id="statusPolicySelect" value={selectedStatusPolicy} 
-                      
-                      onChange={(e) => {
-                        console.log('Selected Status:', e.target.value); // Debug log
-                        setSelectedStatusPolicy(e.target.value);
-                      }} >
-                            <option value="">בחר סטאטוס פוליסה</option>
-                            {statusPolicies.map((status, index) => (
-                            <option key={index} value={status}>{status}</option>
-                            ))}
-                        </select>
-                    </td>
-                </tr>
-                <tr>
-                    <td>
-                        <label htmlFor="minuySochen" className="checkbox-label">מינוי סוכן</label>
-                    </td>
-                    <td>
-                        <input type="checkbox" id="minuySochen" name="minuySochen" checked={minuySochen} onChange={(e) => setMinuySochen(e.target.checked)} />
-                    </td>
-                </tr>
-                <tr>
-                    <td>
-                        <label htmlFor="notes">הערות</label>
-                    </td>
-                    <td>
-                        <input type="text" id="notes" name="notes" value={notes} onChange={(e) => setNotes(e.target.value)} />
-                    </td>
-                </tr>
-                <tr>
-              <td colSpan={2}>
-                <div className="form-group button-group" style={{ display: 'flex' }}>
-                  <button
-                    type="submit"
-                    disabled={!canSubmit || isEditing || submitDisabled}
-                  >
-                    הזן
-                  </button>
-                  <button
-                    type="button"
-                    disabled={selectedRow === null}
-                    onClick={handleDelete}
-                  >
-                    מחק
-                  </button>
-                  <button
-                    type="button"
-                    disabled={selectedRow === null}
-                    onClick={handleEdit}
-                  >
-                    עדכן
-                  </button>
-                  <button type="button" onClick={resetForm}>
-                    נקה
-                  </button>
-                </div>
-              </td>
-            </tr>
-          </tbody>
-              </table>
-            </form>
-            <button onClick={() => setShowOpenNewDeal(false)}>סגור</button>
+    <div className="modal-overlay" onClick={() => setShowOpenNewDeal(false)}>
+    <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+      <form className="form-container" onSubmit={handleSubmit}>
+        <h2 className="form-title">עסקה חדשה</h2>
+        {/* פרטים אישיים */}
+        <section className="form-section">
+          <h3 className="section-title">פרטים אישיים</h3>
+          <div className="form-grid">
+            <div className="form-group">
+              <label htmlFor="agentSelect">סוכנות <span className="required">*</span></label>
+              <select id="agentSelect" value={selectedAgentId} onChange={handleAgentChange}>
+                <option value="">בחר סוכן</option>
+                {agents.map(agent => (
+                  <option key={agent.id} value={agent.id}>{agent.name}</option>
+                ))}
+              </select>
             </div>
+            <div className="form-group">
+              <label htmlFor="workerSelect">עובד <span className="required">*</span></label>
+              <select id="workerSelect" value={selectedWorkerId} onChange={(e) => handleWorkerChange(e, 'insert')}>
+                <option value="">בחר עובד</option>
+                {workers.map(worker => (
+                  <option key={worker.id} value={worker.id}>{worker.name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="form-group">
+              <label htmlFor="firstName">שם פרטי <span className="required">*</span></label>
+              <input type="text" id="firstName" value={firstNameCustomer} onChange={handleFirstNameChange} />
+            </div>
+            <div className="form-group">
+              <label htmlFor="lastName">שם משפחה <span className="required">*</span></label>
+              <input type="text" id="lastName" value={lastNameCustomer} onChange={handleLastNameChange} />
+            </div>
+            <div className="form-group">
+              <label htmlFor="IDCustomer">תעודת זהות <span className="required">*</span></label>
+              <input type="text" id="IDCustomer" value={IDCustomer} maxLength={9} onChange={handleIDChange} disabled={isEditing} />
+            </div>
+          </div>
+        </section> 
+        {/* פרטי עסקה */}
+        <section className="form-section">
+          <h3 className="section-title">פרטי עסקה</h3>
+          <div className="form-grid">
+            <div className="form-group">
+              <label htmlFor="companySelect">חברה <span className="required">*</span></label>
+              <select id="companySelect" value={selectedCompany} onChange={(e) => setSelectedCompany(e.target.value)}>
+                <option value="">בחר חברה</option>
+                {companies.map((companyName, index) => (
+                  <option key={index} value={companyName}>{companyName}</option>
+                ))}
+              </select>
+            </div>  
+            <div className="form-group">
+              <label htmlFor="productSelect">מוצר <span className="required">*</span></label>
+              <select id="productSelect" value={selectedProduct} onChange={(e) => setSelectedProduct(e.target.value)}>
+                <option value="">בחר מוצר</option>
+                {products.map(product => (
+                  <option key={product.id} value={product.name}>{product.name}</option>
+                ))}
+              </select>
+            </div>
+            {selectedProduct && (
+  <>
+    {selectedProductGroup !== '1' && selectedProductGroup !== '4' && (
+      <div className="form-group">
+        <label htmlFor="insPremia">פרמיה ביטוח</label>
+        <input
+          type="number"
+          id="insPremia"
+          value={insPremia}
+          onChange={handleinsPremia}
+        />
       </div>
-    </div>
     )}
-   
+
+    {selectedProductGroup !== '3' && selectedProductGroup !== '4' && (
+      <div className="form-group">
+        <label htmlFor="pensiaPremia">פרמיה פנסיה</label>
+        <input
+          type="number"
+          id="pensiaPremia"
+          value={pensiaPremia}
+          onChange={handlepensiaPremia}
+        />
+      </div>
+    )}
+
+    {selectedProductGroup !== '3' && selectedProductGroup !== '4' && (
+      <div className="form-group">
+        <label htmlFor="pensiaZvira">צבירה פנסיה</label>
+        <input
+          type="number"
+          id="pensiaZvira"
+          value={pensiaZvira}
+          onChange={handlePensiaZvira}
+        />
+      </div>
+    )}
+
+    {selectedProductGroup !== '1' && selectedProductGroup !== '3' && (
+      <div className="form-group">
+        <label htmlFor="finansimPremia">פרמיה פיננסים</label>
+        <input
+          type="number"
+          id="finansimPremia"
+          value={finansimPremia}
+          onChange={handleFinansimPremia}
+        />
+      </div>
+    )}
+
+    {selectedProductGroup !== '1' && selectedProductGroup !== '3' && (
+      <div className="form-group">
+        <label htmlFor="finansimZvira">צבירה פיננסים</label>
+        <input
+          type="number"
+          id="finansimZvira"
+          value={finansimZvira}
+          onChange={handleFinansimZviraChange}
+        />
+      </div>
+    )}
+  </>
+)}
+            <div className="form-group">
+              <label htmlFor="expiryDate">תאריך תפוקה <span className="required">*</span></label>
+              <input type="date" id="expiryDate" value={mounth} onChange={handleExpiryDateChange} />
+            </div>
+            <div className="form-group">
+      <label htmlFor="statusPolicySelect">סטאטוס פוליסה <span className="required">*</span></label>
+      <select id="statusPolicySelect" value={selectedStatusPolicy} 
+        onChange={(e) => setSelectedStatusPolicy(e.target.value)}>
+        <option value="">בחר סטאטוס פוליסה</option>
+        {statusPolicies.map((status, index) => (
+          <option key={index} value={status}>{status}</option>
+        ))}
+      </select>
     </div>
-    
+    <div className="form-group">
+      <label htmlFor="minuySochen" className="checkbox-label">מינוי סוכן</label>
+      <input type="checkbox" id="minuySochen" name="minuySochen" checked={minuySochen} onChange={(e) => setMinuySochen(e.target.checked)} />
+    </div>
+    <div className="form-group textarea-group">
+    <label htmlFor="notes">הערות</label>
+              <textarea id="notes" value={notes} onChange={(e) => setNotes(e.target.value)}></textarea>
+            </div>
+          </div>
+        </section>
+  
+        {/* כפתורי פעולה */}
+        <div className="form-actions">
+        <Button
+    onClick={() => {}}
+    text="שמור"
+    type="submit" 
+    icon="off"
+    state={isSaveDisabled ? "disabled" : "default"} // קביעת מצב הכפתור
+    />
+       <Button
+    onClick={() => setShowOpenNewDeal(false)}
+    text="סגור"
+    type="secondary"
+    icon="off"
+    state={isSaveDisabled ? "disabled" : "default"} // קביעת מצב הכפתור
+    />
+        </div>
+      </form>
+    </div>
+  </div>
+    )}
+    </div>
   );
 }
 

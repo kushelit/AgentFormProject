@@ -18,6 +18,9 @@ const pages = [
   { href: '/RequestStatus', label: 'סטאטוס API' },
   { href: '/ManagePoolAgents', label: 'ניהול פול ליד' },
   { href: '/NewAgentForm', label: 'סוכנים חדש' },
+  { href: '/NewSummaryTable', label: 'דף מרכז חדש' },
+  { href: '/NewGoals', label: 'ניהול יעדים חדש' },
+
 ];
 
 const bottomPage = { href: '/Leads', label: 'Flow' };

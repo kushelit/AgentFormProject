@@ -1,0 +1,150 @@
+.content-container {
+  position: relative; /* קובע שה-Tabs יהיו יחסיים להורה */
+  padding-top: 60px; /* מפנה מקום ל-Tabs */
+}
+
+
+.selected-row {
+  background-color: hsl(200 70% 90%);
+  /* Light blue, for example */
+}
+
+
+.tabs {
+  display: flex;
+  justify-content: flex-start;
+  border-bottom: 2px solid #ccc;
+  margin-bottom: 10px;
+}
+
+
+.tab-content {
+  padding: 10px;
+  margin-top: 60px; /* מפנה מקום ל-Tabs */
+}
+
+.tab-content > div {
+  display: none;
+}
+.tab-content > div.active {
+  display: block; /* מציג את הלשונית הפעילה */
+}
+/* ביטול עיצוב button גלובלי */
+.tabs button {
+  all: unset; /* מסיר את כל עיצוב ברירת המחדל */
+}
+
+.tabs {
+  position: absolute; /* מאפשר מיקום יחסית להורה */
+  top: 0; /* ממקם בקצה העליון */
+  right: 0; /* ממקם בקצה הימני */
+  display: flex; /* מסדר את ה-Tabs בשורה */
+  justify-content: flex-start; /* מסדר את ה-Tabs משמאל לימין */
+  gap: 10px; /* מרווחים בין הכפתורים */
+  padding: 10px 20px; /* רווח פנימי עבור הכפתורים */
+  background-color: var(--clrblue, #003366);
+  border-radius: 5px;
+  color: var(--clrgray7);
+  border-bottom: 2px solid #ccc; /* קו תחתון */
+  z-index: 100; /* מבטיח שה-Tabs יהיו מעל תוכן אחר */
+}
+
+.tab {
+  display: inline-flex;
+  align-items: center; /* טקסט באמצע */
+  justify-content: center; /* טקסט במרכז */
+  padding: 10px 20px; /* ריווח פנימי */
+  cursor: pointer; /* מצביע לחיץ */
+  font-family: var(--font-family, Arial, sans-serif);
+  font-size: var(--font-size, 16px);
+  color: var(--clrgray7, #000); /* צבע ברירת מחדל */
+  background-color: transparent; /* רקע שקוף */
+  border-bottom: 3px solid transparent; /* קו תחתון שקוף */
+  transition: all 0.3s; /* אפקט מעבר */
+}
+
+.tab.default {
+  color: var(--clrgray7, #b0b0b0); /* צבע ללשונית שלא נבחרה */
+}
+
+.tab.selected {
+  color: var(--clrdarkblue3, #003366); /* צבע ללשונית שנבחרה */
+  border-bottom-color: var(--clrdarkblue3, #003366); /* קו תחתון מודגש */
+  font-weight: bold;
+}
+
+.tab:hover:not(.disabled) {
+  color: var(--clrdarkblue3, #003366); /* צבע בעת מעבר עכבר */
+  background-color: rgba(0, 51, 102, 0.1); /* רקע קל בעת מעבר עכבר */
+}
+
+.tab.disabled {
+  color: var(--clrgray6, #808080); /* צבע ללשונית מושבתת */
+  cursor: not-allowed; /* סמן מושבת */
+  opacity: 0.6; /* שקיפות ללשונית מושבתת */
+}
+
+
+.tab .text-wrapper {
+  font-family: var(--font-family, Arial, sans-serif);
+  font-size: var(--font-size, 16px);
+  font-style: var(--font-style, normal);
+  font-weight: var(--font-weight, 400);
+  letter-spacing: var(--letter-spacing, 0.5px);
+  line-height: var(--line-height, 1.5);
+  direction: rtl;
+}
+
+
+table {
+  table-layout: fixed;
+  width: 100%;
+  border-collapse: collapse;
+  border: none !important;
+  margin: 0 auto; /* מיקום במרכז */
+}
+
+.table-Data-AgentForm.is-new-design {
+  overflow: visible !important;
+}
+
+
+table td,
+table  th {
+    padding: 4px;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    overflow: visible;
+    max-width: 150px; /* הגבלת רוחב עמודה */
+
+}
+
+
+table  td {
+  overflow: visible;
+  padding: 4px;
+  text-overflow: ellipsis;
+  color: var(--clrblack);
+  direction: rtl;
+  white-space: normal; /* מאפשר שבירת שורות */
+  text-overflow: clip; /* מסיר את ה-"..." */
+  word-break: break-word; /* שוברת מילים ארוכות */
+ 
+
+}
+
+table th {
+  background-color: var(--clrgray3);
+  color: var(--clrdarkblue3);
+  font-weight: bold;
+  border-color: var(--clrgray4);
+  white-space: normal; /* מאפשר שבירת שורות */
+text-overflow: clip; /* מסיר את ה-"..." */
+word-break: break-word; /* שוברת מילים ארוכות */
+text-align: center;
+  direction: rtl;
+}
+
+table tr {
+  height: 10px;
+}
