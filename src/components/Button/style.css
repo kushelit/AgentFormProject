@@ -106,7 +106,7 @@
 }
 
 .button.state-disabled.secondary .div {
-  color: var(--clrgray6);
+  color: #6c757d; /* אפור כהה יותר */
 }
 
 .button.state-hover.tertiary .div {
@@ -139,4 +139,21 @@
 
 .button.state-hover.tertiary .text-wrapper-2 {
   color: var(--clrdarkblue2);
+}
+
+.button.state-disabled.primary {
+  background-color: var(--clrgray6); /* צבע רקע אפור */
+  color: var(--clrwhite); /* צבע טקסט */
+  cursor: not-allowed; /* סמן מתאים */
+  opacity: 0.7; /* שקיפות */
+  pointer-events: none; /* ביטול כל האירועים */
+  border: none; /* הסרת גבול */
+}
+.button.state-disabled.secondary {
+  background-color: var(--clrgray6); /* צבע רקע אפור */
+  color: var(--clrwhite); /* צבע טקסט */
+  border: 1px solid var(--clrgray5); /* גבול מותאם */
+  cursor: not-allowed; /* סמן מתאים */
+  opacity: 0.7; /* שקיפות */
+  pointer-events: none; /* ביטול כל האירועים */
 }

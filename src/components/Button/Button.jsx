@@ -3,55 +3,30 @@ import PropTypes from "prop-types";
 import React from "react";
 import { Add } from "../Add";
 import "./style.css";
+
 export const Button = ({
-  type,
-  icon,
-  state,
-  className,
-  buttonClassName,
+  type = "primary", // ברירת מחדל לסוג הכפתור
+  icon = "off", // ברירת מחדל לאייקון
+  state = "default", // ברירת מחדל ל-state
+  className = "",
+  buttonClassName = "",
   text = "כפתור",
   onClick,
+  disabled = false, // ברירת מחדל ל-disabled
 }) => {
   return (
     <div
       className={`button ${type} state-${state} ${className}`}
       data-03-components-colors-mode="light"
     >
-      {icon === "off" && (
-        <button
-          className={`div ${buttonClassName}`}
-          onClick={onClick} // הוספת אירוע onClick לכפתור
-          data-03-components-colors-mode="light"
-        >
-          {text}
-        </button>
-      )}
-
-      {icon === "on" && (
-        <>
-          <button
-            className="text-wrapper-2"
-            onClick={onClick} // הוספת אירוע onClick גם כאן
-            data-03-components-colors-mode="light"
-          >
-            {text}
-          </button>
-
-          <Add
-            add={
-              type === "primary"
-                ? "/static/img/add-7.png"
-                : state === "hover" && ["secondary", "tertiary"].includes(type)
-                ? "/static/img/add-18.png"
-                : state === "disabled" &&
-                  ["secondary", "tertiary"].includes(type)
-                ? "/static/img/add-16.png"
-                : "/static/img/add-2.png"
-            }
-            className="add-instance"
-          />
-        </>
-      )}
+      <button
+        className={`div ${buttonClassName}`}
+        onClick={onClick}
+        disabled={disabled} // שימוש בפרמטר disabled
+        data-03-components-colors-mode="light"
+      >
+        {text}
+      </button>
     </div>
   );
 };
@@ -65,4 +40,5 @@ Button.propTypes = {
   className: PropTypes.string,
   buttonClassName: PropTypes.string,
   onClick: PropTypes.func, // הוספת onClick
+  disabled: PropTypes.bool, // פרופס חדש
 };
