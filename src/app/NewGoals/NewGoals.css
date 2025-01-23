@@ -1,26 +1,18 @@
 .content-container {
   position: relative; /* קובע שה-Tabs יהיו יחסיים להורה */
-  padding-top: 60px; /* מפנה מקום ל-Tabs */
+  padding-top: 10px; /* מפנה מקום ל-Tabs */
+}
+
+
+.tab-content {
+  padding: 10px;
+  margin-top:10px; /* מפנה מקום ל-Tabs */
 }
 
 
 .selected-row {
   background-color: hsl(200 70% 90%);
   /* Light blue, for example */
-}
-
-
-.tabs {
-  display: flex;
-  justify-content: flex-start;
-  border-bottom: 2px solid #ccc;
-  margin-bottom: 10px;
-}
-
-
-.tab-content {
-  padding: 10px;
-  margin-top: 60px; /* מפנה מקום ל-Tabs */
 }
 
 .tab-content > div {
@@ -35,17 +27,16 @@
 }
 
 .tabs {
-  position: absolute; /* מאפשר מיקום יחסית להורה */
-  top: 0; /* ממקם בקצה העליון */
-  right: 0; /* ממקם בקצה הימני */
+  position: relative; /* משנה את המיקום ליחסי */
   display: flex; /* מסדר את ה-Tabs בשורה */
-  justify-content: flex-start; /* מסדר את ה-Tabs משמאל לימין */
+  justify-content: center; /* ממרכז את ה-Tabs */
   gap: 10px; /* מרווחים בין הכפתורים */
-  padding: 10px 20px; /* רווח פנימי עבור הכפתורים */
-  background-color: var(--clrblue, #003366);
-  border-radius: 5px;
-  color: var(--clrgray7);
-  border-bottom: 2px solid #ccc; /* קו תחתון */
+  padding: 10px 20px; /* רווח פנימי */
+  border-radius: 2px; /* פינות מעוגלות */
+  color: var(--clrgray7); /* צבע טקסט */
+  width: fit-content; /* הרוחב יתאים לתוכן */
+  height: 45px; /* גובה הטאבים */
+  margin-top: 20px; /* מרווח מתחת לכותרת */
   z-index: 100; /* מבטיח שה-Tabs יהיו מעל תוכן אחר */
 }
 
@@ -57,42 +48,33 @@
   cursor: pointer; /* מצביע לחיץ */
   font-family: var(--font-family, Arial, sans-serif);
   font-size: var(--font-size, 16px);
-  color: var(--clrgray7, #000); /* צבע ברירת מחדל */
-  background-color: transparent; /* רקע שקוף */
+  background-color: var(--clrtransparent); /* רקע שקוף */
   border-bottom: 3px solid transparent; /* קו תחתון שקוף */
   transition: all 0.3s; /* אפקט מעבר */
 }
 
 .tab.default {
-  color: var(--clrgray7, #b0b0b0); /* צבע ללשונית שלא נבחרה */
+  color: var(--clrgray7); /* צבע ללשונית שלא נבחרה */
 }
 
 .tab.selected {
-  color: var(--clrdarkblue3, #003366); /* צבע ללשונית שנבחרה */
-  border-bottom-color: var(--clrdarkblue3, #003366); /* קו תחתון מודגש */
-  font-weight: bold;
+  border-bottom-style: solid; /* קו תחתון מודגש */
+  border-bottom-width: 2px; /* רוחב הקו */
+  border-color: var(--clrdarkblue3); /* צבע קו תחתון ללשונית שנבחרה */
+  justify-content: center;
+  color: var(--clrdarkblue3);
+
 }
 
 .tab:hover:not(.disabled) {
-  color: var(--clrdarkblue3, #003366); /* צבע בעת מעבר עכבר */
-  background-color: rgba(0, 51, 102, 0.1); /* רקע קל בעת מעבר עכבר */
+  color: var(--clrdarkblue3); /* צבע בעת מעבר עכבר */
+
 }
 
 .tab.disabled {
-  color: var(--clrgray6, #808080); /* צבע ללשונית מושבתת */
+  color: var(--clrgray6); /* צבע ללשונית מושבתת */
   cursor: not-allowed; /* סמן מושבת */
   opacity: 0.6; /* שקיפות ללשונית מושבתת */
-}
-
-
-.tab .text-wrapper {
-  font-family: var(--font-family, Arial, sans-serif);
-  font-size: var(--font-size, 16px);
-  font-style: var(--font-style, normal);
-  font-weight: var(--font-weight, 400);
-  letter-spacing: var(--letter-spacing, 0.5px);
-  line-height: var(--line-height, 1.5);
-  direction: rtl;
 }
 
 
@@ -108,6 +90,11 @@ table {
   overflow: visible !important;
 }
 
+td, th {
+  border-right: none !important; /* מסיר קווים אנכיים בין התאים */
+  border-left: none !important; /* מסיר קווים אנכיים בין התאים */
+}
+
 
 table td,
 table  th {
@@ -116,7 +103,6 @@ table  th {
     text-overflow: ellipsis;
     overflow: visible;
     max-width: 150px; /* הגבלת רוחב עמודה */
-
 }
 
 
@@ -129,8 +115,6 @@ table  td {
   white-space: normal; /* מאפשר שבירת שורות */
   text-overflow: clip; /* מסיר את ה-"..." */
   word-break: break-word; /* שוברת מילים ארוכות */
- 
-
 }
 
 table th {
@@ -139,9 +123,9 @@ table th {
   font-weight: bold;
   border-color: var(--clrgray4);
   white-space: normal; /* מאפשר שבירת שורות */
-text-overflow: clip; /* מסיר את ה-"..." */
-word-break: break-word; /* שוברת מילים ארוכות */
-text-align: center;
+  text-overflow: clip; /* מסיר את ה-"..." */
+  word-break: break-word; /* שוברת מילים ארוכות */
+  text-align: center;
   direction: rtl;
 }
 
@@ -149,82 +133,59 @@ table tr {
   height: 10px;
 }
 
-
 .modal {
   position: fixed;
-  top: 0;
+  top: 50px; /* מוסיף רווח של 50px מלמעלה */
   left: 0;
   right: 0;
   bottom: 0;
   background: rgba(0, 0, 0, 0.5); /* רקע כהה חצי שקוף */
   display: flex;
   justify-content: center;
-  align-items: center;
+  align-items: flex-start;
   z-index: 1000; /* מבטיח שהמודל יופיע מעל התוכן */
 }
 
-/* עיצוב התוכן של ה-Modal */
+
 .modal-content {
-  width: 400px; /* או ערך קבוע שאתה רוצה */
-  max-height: 90vh; /* כדי להימנע מחריגה מהמסך */
-  overflow-y: auto; /* אפשר גלילה אם התוכן חורג */
-  padding: 20px;
-  border-radius: 4px;
-  box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.1);
-  background-color: var(--clrgray1);
+  width: 350px;
+  max-width: 90%; /* התאמה למסכים קטנים */
+  background-color: var(--clrgray3); /* צבע הרקע מפיגמה */
+  border-radius: 8px; /* פינות מעוגלות */
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2); /* צל עדין */
+  padding: 20px; /* ריווח פנימי */
+  font-family: "Arial", sans-serif;
+  box-shadow: none !important; /* מסיר צל */
+  border: none !important; /* מסיר גבולות */
 }
 
-
-.form-container {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
+.modal-content th, .modal-content td {
+  background-color: var(--clrgray3) !important; /* רקע מותאם */
 }
 
-.form-section {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
+.modal-content td,
+.modal-content th {
+  border: none; /* מסיר גבולות */
+  box-shadow: none; /* מסיר צללים */
 }
 
-/* חלוקת שדות לטופס עם שתי עמודות */
-.form-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr); /* שתי עמודות */
-  row-gap: 10px; /* רווח בין השורות */
-  column-gap: 20px; /* רווח בין העמודות */
-  margin-bottom: 10px; /* רווח תחתון */
-}
-
-.form-group {
-  display: flex;
-  flex-direction: column;
-}
-
-
-.form-title {
-  height: 22px;
-  width: 79px;color: #3b6a95;
+.modal-content .title {
+  height: auto; /* מאפשר התאמה אוטומטית לגובה */
+  width: auto; /* מאפשר התאמה אוטומטית לרוחב */
+  color: #3b6a95;
   direction: rtl;
   font-family: "Inter-Bold", Helvetica;
-  font-size: 12px;
+  font-size: 14px; /* גודל טקסט גדול יותר */
   font-weight: 700;
-  left: 0;
   letter-spacing: 0;
   line-height: 22px;
-  position: fixed;
-  top: 0;
-  white-space: nowrap;
-}
-
-/* עיצוב הכותרות של הטופס */
-.form-section-title {
-  font-size: 14px;
-  font-weight: bold;
-  color: #333;
-  margin-bottom: 10px;
-  border-bottom: 1px solid #ddd;
-  padding-bottom: 5px;
+  position: relative; /* משנה את המיקום ליחסי להורה */
+  top: auto; /* מסיר את המיקום המוחלט */
+  left: auto;
+  white-space: nowrap; /* מונע שבירת שורות */
+  margin-bottom: 10px; /* מוסיף ריווח תחתון */
+  border-bottom: 1px solid #ddd; /* קו תחתון לכותרת */
+  padding-bottom: 5px; /* ריווח תחתון לפני הקו */
 }
 
 
@@ -245,8 +206,13 @@ table tr {
   border: 1px solid #ccc; /* מסגרת אחידה */
   border-radius: 4px; /* פינות עגולות */
   box-sizing: border-box; /* כולל Padding בתוך ה-Width */
-  background-color: #fff; /* צבע רקע אחיד */
+  background-color: var(--clrgray3); /* צבע הרקע מפיגמה */
 }
+
+.modal-content td span {
+  background-color: var(--clrgray3) !important;
+}
+
 
 .modal-content select {
   appearance: none; /* הסרת עיצוב ברירת מחדל לדפדפן */
@@ -281,53 +247,38 @@ table tr {
   justify-content: space-between;
 }
 
-
-
-.filter-select-container select {
-  appearance: none; /* מסיר את העיצוב הדפדפני המובנה */
-  direction: rtl; /* יישור המלל לימין */
-  text-align: right; /* המלל מיושר לימין */
-  padding-right: 2px; /* הוספת ריווח לימין */
-  padding-left: 20px; /* מספיק מקום לחץ בצד שמאל */
-  background: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMiIgaGVpZ2h0PSIxMiIgdmlld0JveD0iMCAwIDEyIDEyIj4gPHBhdGggZmlsbD0iI0I0QjRCNCIgZD0iTTEwLjU3IDMuNTlsLTEuMTctMS4xN2MtLjMxLS4zMS0uODEtLjMxLTEuMTIgMGwtMy4yOSAzLjI5LTMuMjktMy4yOWMtLjMxLS4zMS0uODEtLjMxLTEuMTIgMGwtMS4xNyAxLjE3Yy0uMzEuMzEtLjMxLjgxIDAgMS4xMWw0LjQzIDQuNDNjLjMxLjMxLjgxLjMxIDEuMTIgMGw0LjQzLTQuNDNjLjMxLS4zLjMxLS44MS4wMS0xLjEyWiIgLz48L3N2Zz4=")
-    no-repeat;
-  background-position: left 10px center; /* ממקם את החץ בצד שמאל */
-  background-size: 12px; /* גודל החץ */
- /* border: 1px solid var(--clrgray5); /* גבול התיבה */
-  /*border-radius: 4px; /* פינות מעוגלות */
-  /*font-size: 14px; /* גודל פונט */
-  /*height: 32px; /* גובה אחיד */
- /* box-sizing: border-box;*/
-}
-  
-
-.filter-select-container
- {
+.filter-select-container {
   flex: 1;
-  max-width: 150px;
-  min-width: 90px;
   position: relative;
-  margin-bottom: 20px;
+  margin-bottom: 2px; /* הקטנת הרווח מתחת ל-select */
+  left: -20px; /* מזיז את השדה שמאלה */
 }
 
-
-.select-input
- {
-  height: 28px; /* גובה אחיד וקטן יותר */
-  padding: 4px 8px;
-  font-size: var(--font-size-text-small); /* שימוש בפונט קטן יותר */
+.select-input {
+  height: 28px; /* גובה שדה select */
+  padding: 2px 6px; /* צמצום הריווח הפנימי */
+  font-size: var(--font-size-text-small); /* גודל פונט קטן */
   width: 100%;
   border: 1px solid var(--clrgray5);
   border-radius: 4px;
   box-sizing: border-box;
+  margin-bottom: 0; /* מבטל רווחים מיותרים */
 }
-/* יישור הטקסט בתוך השדות לימין */
 
-.select-input
- {
-  text-align: right;
+.filter-select-container select {
+  appearance: none;
   direction: rtl;
+  text-align: center; /* יישור התוכן בתוך השדה למרכז */
+  padding-right: 10px; /* התאמת רווחים מימין */
+  padding-left: 10px; /* התאמת רווחים משמאל */
+  background-position: left 10px center; /* ממקם את החץ */
+  background-size: 10px; /* התאמת גודל החץ */
+  margin-bottom: 0; /* ביטול רווח תחתון */
+  width: auto; /* רוחב אוטומטי */
+  min-width: 150px; /* רוחב מינימלי */
+  max-width: 300px; /* מגביל את הרוחב המקסימלי */
 }
+
 
 input[type="checkbox"] {
   z-index: 100; /* ודא שהאלמנט מעל */
@@ -336,4 +287,106 @@ input[type="checkbox"] {
 }
 div, label, input {
   pointer-events: auto !important; /* אפשר אינטראקציה */
+}
+.table-header .table-title {
+  all: unset;
+  font-family: "Rubik-Regular", Helvetica, sans-serif !important;
+  font-size: 30px !important;
+  font-weight: 400 !important;
+  color: var(--clrdarkblue3) !important;
+  text-align: right !important;
+  line-height: 36px;
+}
+.newGoalButton, .newStarButton, .newGoalButton{
+  display: flex; /* מסדר את הכפתורים בשורה */
+  justify-content: flex-end; /* מיישר את הכפתורים לשמאל */
+  gap: 10px; /* מוסיף רווח בין הכפתורים */
+  margin-bottom: 10px;
+ 
+}
+
+.newStarButton{
+  margin-top: 10px;
+}
+.form-container {
+  display: flex;
+  flex-direction: column;
+  gap: 15px; /* רווח בין כל קבוצת שדות */
+  border-color: var(--clrgray5);
+
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column; /* מוודא שה-Label נמצא מעל השדה */
+}
+
+.form-group label {
+  font-size: 14px;
+  font-weight: bold;
+  margin-bottom: 5px;
+  text-align: right; /* יישור לימין */
+  color: var(--clrgray7);
+}
+
+.form-group input,
+.form-group select {
+  width: 100%;
+  padding: 10px;
+  font-size: 14px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  box-sizing: border-box;
+}
+
+.form-group input,
+.form-group select {
+  align-items: center;
+  align-self: stretch;
+  background-color: var(--clrwhite);
+  border: 1px solid;
+  border-color: var(--clrgray5);
+  border-radius: 2px;
+  display: flex;
+  gap: 10px;
+  height: 30px;
+  justify-content: flex-end;
+  padding: 10px 6px;
+  position: relative;
+  width: 100%;
+}
+
+
+
+
+.dropdown-container {
+  position: relative;
+}
+
+.dropdown-header {
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  padding: 10px;
+  cursor: pointer;
+  background-color: #fff;
+}
+
+.dropdown-list {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 10;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background-color: #fff;
+  max-height: 150px;
+  overflow-y: auto;
+  width: 100%;
+}
+
+.dropdown-item {
+  display: flex;
+  align-items: center;
+  padding: 5px;
+  cursor: pointer;
 }

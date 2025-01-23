@@ -105,6 +105,12 @@ body {
     direction: rtl;
   }
   
+  .table-Data-AgentForm.is-new-design td, th {
+    border-right: none !important; /* מסיר קווים אנכיים בין התאים */
+    border-left: none !important; /* מסיר קווים אנכיים בין התאים */
+  }
+  
+
   .table-Data-AgentForm.is-new-design tr {
     height: 40px;
   }

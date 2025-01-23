@@ -1392,7 +1392,6 @@ const closeModal = (): void => {
         />
       </div>
     )}
-
     {selectedProductGroup !== '3' && selectedProductGroup !== '4' && (
       <div className="form-group">
         <label htmlFor="pensiaZvira">צבירה פנסיה</label>
@@ -1404,7 +1403,6 @@ const closeModal = (): void => {
         />
       </div>
     )}
-
     {selectedProductGroup !== '1' && selectedProductGroup !== '3' && (
       <div className="form-group">
         <label htmlFor="finansimPremia">פרמיה פיננסים</label>
@@ -1416,7 +1414,6 @@ const closeModal = (): void => {
         />
       </div>
     )}
-
     {selectedProductGroup !== '1' && selectedProductGroup !== '3' && (
       <div className="form-group">
         <label htmlFor="finansimZvira">צבירה פיננסים</label>

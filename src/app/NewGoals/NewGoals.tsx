@@ -28,7 +28,6 @@ const [selectedRow, setSelectedRow] = useState<any | null>(null);
 
 const [isEditing, setIsEditing] = useState(false);
 const [goalsSuccessList, setGoalsSuccessList] = useState<GoalDataType[]>([]);
-const [goalsTypeId, setGoalsTypeId] = useState<string | null>(null);
 
 const [status, setStatus] =  useState(false);
 const [amaunt, setAmaunt] = useState<number>(0);  
@@ -43,7 +42,6 @@ const [promotionMonthlyRepeat, setPromotionMonthlyRepeat] =  useState(false);
 const [promotionStartDate, setPromotionStartDate] =  useState('');
 const [promotionEndDate, setPromotionEndDate] =  useState('');
 const [promotionList, SetPromotionList] = useState<any[]>([]);
-const [starsList,setStarsList ] = useState<any[]>([]);
 const [insuranceStar, setInsuranceStar] = useState<number | null>(null);
 const [pensiaStar, setPensiaStar] = useState<number | null>(null);
 const [finansimStar, setFinansimStar] = useState<number | null>(null);
@@ -59,8 +57,6 @@ const [sortOrder] = useState<'asc' | 'desc'>('asc'); // Default: Ascending
 
 const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 const [openDropdownRow, setOpenDropdownRow] = useState<string | null>(null);
-
-const [searchQuery, setSearchQuery] = useState('');
 
 const [activeTab, setActiveTab] = useState("goalsMD");
 
@@ -182,18 +178,19 @@ const handleEditCompanyToggle = (company: string) => {
   handleEditPromotionChange("companies", updatedCompanies);
 }
 
-// תפריט דינמי כללי ל MENU 
 const menuItems = (
   rowId: string,
   handleEditRow: (id: string) => void,
   handleDeleteRow: (id: string) => void
 ) => [
   {
+    key: `edit-${rowId}`, // מפתח ייחודי לעריכה
     label: "ערוך",
     onClick: () => handleEditRow(rowId),
     Icon: Edit,
   },
   {
+    key: `delete-${rowId}`, // מפתח ייחודי למחיקה
     label: "מחק",
     onClick: () => handleDeleteRow(rowId),
     Icon: Delete,
@@ -274,77 +271,77 @@ const fetchPromotions = async () => {
 
 
 
-  const handleRowClick = (item: any) => {
-    setSelectedRow(item); 
-    if (item.workerId === 'all-agency') {
-      setSelectedWorkerId('all-agency');
-      setSelectedWorkerName('כל הסוכנות');  
-  } else {
-    const workerName = workerNameMap[item.workerId];
-    if (workerName) {
-        setSelectedWorkerId(item.workerId);
-        setSelectedWorkerName(workerName);
-    } else {
-        // Handle case where the worker is not found - maybe clear or set default values
-        setSelectedWorkerId('');
-        setSelectedWorkerName('Unknown Worker');
-    }
-  }
-    const promotionValue = promotionListForStars[item.promotionId]; 
-    if (promotionValue) {
-        setPromotionValue(item.promotionId);
-    } else {
-        setPromotionValue('');
-    }
-    const goalsTypeValue = goalsTypeMap[item.goalsTypeId];
-    if (goalsTypeValue) {
-        setGoalsTypeValue(item.goalsTypeId);
-    } else {
-        setGoalsTypeValue('');
-    } 
-    setStatus(item.status || false);
-    setAmaunt(item.amaunt || 0);
-  };
+  // const handleRowClick = (item: any) => {
+  //   setSelectedRow(item); 
+  //   if (item.workerId === 'all-agency') {
+  //     setSelectedWorkerId('all-agency');
+  //     setSelectedWorkerName('כל הסוכנות');  
+  // } else {
+  //   const workerName = workerNameMap[item.workerId];
+  //   if (workerName) {
+  //       setSelectedWorkerId(item.workerId);
+  //       setSelectedWorkerName(workerName);
+  //   } else {
+  //       // Handle case where the worker is not found - maybe clear or set default values
+  //       setSelectedWorkerId('');
+  //       setSelectedWorkerName('Unknown Worker');
+  //   }
+  // }
+  //   const promotionValue = promotionListForStars[item.promotionId]; 
+  //   if (promotionValue) {
+  //       setPromotionValue(item.promotionId);
+  //   } else {
+  //       setPromotionValue('');
+  //   }
+  //   const goalsTypeValue = goalsTypeMap[item.goalsTypeId];
+  //   if (goalsTypeValue) {
+  //       setGoalsTypeValue(item.goalsTypeId);
+  //   } else {
+  //       setGoalsTypeValue('');
+  //   } 
+  //   setStatus(item.status || false);
+  //   setAmaunt(item.amaunt || 0);
+  // };
 
   
-  const handleDelete = async () => {
-    if (selectedRow && selectedRow.id) {
-      await deleteDoc(doc(db, 'goalsSuccess', selectedRow.id));
-      setSelectedRow(null); // Reset selection
-      resetForm();
-      setIsEditing(false);
-      if (selectedAgentId) {
-        fetchGoalsSuccessForAgent(selectedAgentId);
-      }
-    } else {
-      console.log("No selected row or row ID is undefined");
-    }
-  };
+  // const handleDelete = async () => {
+  //   if (selectedRow && selectedRow.id) {
+  //     await deleteDoc(doc(db, 'goalsSuccess', selectedRow.id));
+  //     setSelectedRow(null); // Reset selection
+  //     resetForm();
+  //     setIsEditing(false);
+  //     if (selectedAgentId) {
+  //       fetchGoalsSuccessForAgent(selectedAgentId);
+  //     }
+  //   } else {
+  //     console.log("No selected row or row ID is undefined");
+  //   }
+  // };
 
-  const handleEdit = async () => {
-    if (selectedRow && selectedRow.id) {
-      try {
-        const docRef = doc(db, 'goalsSuccess', selectedRow.id); 
-        await updateDoc(docRef, {        
-          workerId: selectedWorkerId,
-          promotionId: promotionValue,
-          goalsTypeId: goalsTypeValue,
-          amaunt: amaunt,
-          status: status
-        });
-        console.log("Document successfully updated");
-        setSelectedRow(null); 
-        resetForm();         
-        if (selectedAgentId) {
-            fetchGoalsSuccessForAgent(selectedAgentId);
-          }
-      } catch (error) {
-        console.error("Error updating document:", error);     
-      }
-    } else {
-      console.log("No row selected or missing document ID");
-    }
-  };
+  // const handleEdit = async () => {
+  //   if (selectedRow && selectedRow.id) {
+  //     try {
+  //       const docRef = doc(db, 'goalsSuccess', selectedRow.id); 
+  //       await updateDoc(docRef, {        
+  //         workerId: selectedWorkerId,
+  //         promotionId: promotionValue,
+  //         goalsTypeId: goalsTypeValue,
+  //         amaunt: amaunt,
+  //         status: status
+  //       });
+  //       console.log("Document successfully updated");
+  //       setSelectedRow(null); 
+  //       resetForm();         
+  //       if (selectedAgentId) {
+  //           fetchGoalsSuccessForAgent(selectedAgentId);
+  //         }
+  //     } catch (error) {
+  //       console.error("Error updating document:", error);     
+  //     }
+  //   } else {
+  //     console.log("No row selected or missing document ID");
+  //   }
+  // };
 
 
   const resetForm = () => {
@@ -388,17 +385,13 @@ const fetchPromotions = async () => {
         alert('Please select a promotion.');
         return; // Prevent submission if no promotion is selected
       }
-  
       const promotionRef = doc(db, 'promotion', promotionValue);
       const promotionDoc = await getDoc(promotionRef);
-  
       if (!promotionDoc.exists()) {
         alert('Promotion not found!');
         return;
       }
-  
       const promotionData = promotionDoc.data();
-  
       const newGoal: any = {
         AgentId: selectedAgentId || '', 
         workerId: selectedWorkerId || '',
@@ -485,86 +478,86 @@ const fetchPromotions = async () => {
 
 
 
-const handleDeletePromotion = async () => {
-if (selectedRowPromotion && selectedRowPromotion.id) {
-await deleteDoc(doc(db, 'promotion', selectedRowPromotion.id));
-setSelectedRowPromotion(null); // Reset selection
-resetFormPromotion();
-setIsEditingPromotion(false);
-if (selectedAgentId) {
-  fetchPromotionsForAgent(selectedAgentId);
-}
-} else {
-console.log("No selected row or row ID is undefined");
-}
-};
+// const handleDeletePromotion = async () => {
+// if (selectedRowPromotion && selectedRowPromotion.id) {
+// await deleteDoc(doc(db, 'promotion', selectedRowPromotion.id));
+// setSelectedRowPromotion(null); // Reset selection
+// resetFormPromotion();
+// setIsEditingPromotion(false);
+// if (selectedAgentId) {
+//   fetchPromotionsForAgent(selectedAgentId);
+// }
+// } else {
+// console.log("No selected row or row ID is undefined");
+// }
+// };
 
-const handleDeleteStars = async () => {
-if (selectedRowStars && selectedRowStars.id) {
-await deleteDoc(doc(db, 'stars', selectedRowStars.id));
-setSelectedRowStars(null); // Reset selection
-resetFormStars();
-setIsEditingStars(false);
-if (selectedAgentId) {
-  fetchStarsForAgent(selectedAgentId);
-}
-} else {
-console.log("No selected row or row ID is undefined");
-}
-};
-
-
-
-const handleEditPromotion = async () => {
-if (selectedRowPromotion && selectedRowPromotion.id) {
-try {
-  const docRef = doc(db, 'promotion', selectedRowPromotion.id); 
-  await updateDoc(docRef, {        
-    promotionName,
-    promotionStatus:!!promotionStatus,
-    promotionMonthlyRepeat:!!promotionMonthlyRepeat,
-    promotionStartDate,
-    promotionEndDate,
-    companies: selectedCompanies
-  });
-  console.log("Document successfully updated");
-  setSelectedRowPromotion(null); 
-  resetFormPromotion();         
-  if (selectedAgentId) {
-      fetchPromotionsForAgent(selectedAgentId);
-    }
-} catch (error) {
-  console.error("Error updating document:", error);     
-}
-} else {
-console.log("No row selected or missing document ID");
-}
-};
+// const handleDeleteStars = async () => {
+// if (selectedRowStars && selectedRowStars.id) {
+// await deleteDoc(doc(db, 'stars', selectedRowStars.id));
+// setSelectedRowStars(null); // Reset selection
+// resetFormStars();
+// setIsEditingStars(false);
+// if (selectedAgentId) {
+//   fetchStarsForAgent(selectedAgentId);
+// }
+// } else {
+// console.log("No selected row or row ID is undefined");
+// }
+// };
 
 
-const handleEditStars = async () => {
-if (selectedRowStars && selectedRowStars.id) {
-try {
-  const docRef = doc(db, 'stars', selectedRowStars.id); 
-  await updateDoc(docRef, {        
-    insuranceStar,
-    pensiaStar,
-    finansimStar,
-    promotionId: promotionValue
-  });
-  console.log("Document successfully updated");
-  setSelectedRowStars(null); 
-  resetFormStars();         
-  if (selectedAgentId) {
-      fetchStarsForAgent(selectedAgentId);
-    }
-} catch (error) {
-  console.error("Error updating document:", error);     
-}
-} else {
-console.log("No row selected or missing document ID");
-}
-};
+
+// const handleEditPromotion = async () => {
+// if (selectedRowPromotion && selectedRowPromotion.id) {
+// try {
+//   const docRef = doc(db, 'promotion', selectedRowPromotion.id); 
+//   await updateDoc(docRef, {        
+//     promotionName,
+//     promotionStatus:!!promotionStatus,
+//     promotionMonthlyRepeat:!!promotionMonthlyRepeat,
+//     promotionStartDate,
+//     promotionEndDate,
+//     companies: selectedCompanies
+//   });
+//   console.log("Document successfully updated");
+//   setSelectedRowPromotion(null); 
+//   resetFormPromotion();         
+//   if (selectedAgentId) {
+//       fetchPromotionsForAgent(selectedAgentId);
+//     }
+// } catch (error) {
+//   console.error("Error updating document:", error);     
+// }
+// } else {
+// console.log("No row selected or missing document ID");
+// }
+// };
+
+
+// const handleEditStars = async () => {
+// if (selectedRowStars && selectedRowStars.id) {
+// try {
+//   const docRef = doc(db, 'stars', selectedRowStars.id); 
+//   await updateDoc(docRef, {        
+//     insuranceStar,
+//     pensiaStar,
+//     finansimStar,
+//     promotionId: promotionValue
+//   });
+//   console.log("Document successfully updated");
+//   setSelectedRowStars(null); 
+//   resetFormStars();         
+//   if (selectedAgentId) {
+//       fetchStarsForAgent(selectedAgentId);
+//     }
+// } catch (error) {
+//   console.error("Error updating document:", error);     
+// }
+// } else {
+// console.log("No row selected or missing document ID");
+// }
+// };
 
 
 const resetFormPromotion = () => {
@@ -599,14 +592,11 @@ const handleSubmitPromotion: FormEventHandler<HTMLFormElement> = async (event) =
       promotionEndDate: promotionEndDate,
       companies: selectedCompanies,
     });
-
     alert('מבצע התווסף בהצלחה');
     console.log('Document written with ID:', docRef.id);
-
     // איפוס הטופס
     resetFormPromotion();
     setIsEditingPromotion(false);
-
     // קריאה לעדכון הנתונים ב-Hook
     if (selectedAgentId) {
       reloadPromotionsData(selectedAgentId); // קריאה ל-Hook לעדכון הטבלה
@@ -645,14 +635,12 @@ console.error('Error adding document:', error);
 useEffect(() => {
   const fetchData = async () => {
     if (!selectedAgentId) return;
-
     try {
       // שליפת קידומים
       const promotions = await fetchPromotionsForAgent(selectedAgentId);
       SetPromotionList(promotions); // עדכון רשימת הקידומים
       const promotionsMap = createPromotionsMap(promotions); // יצירת מפת הקידומים
       setPromotionListForStars(promotionsMap); // עדכון מפת הקידומים
-
       // שליפת כוכבים
       await fetchStarsForAgent(selectedAgentId);
       // שליפת יעדים שהושגו
@@ -688,7 +676,6 @@ const [isProcessing, setIsProcessing] = useState(false); // Track loading state
       setIsProcessing(false);
     }
   };
-
   const sortedGoalsSuccessList = [...goalsSuccessList].sort((a, b) => {
     const orderMultiplier = sortOrder === 'asc' ? 1 : -1;
 
@@ -756,17 +743,18 @@ const [isProcessing, setIsProcessing] = useState(false); // Track loading state
 
   return (
     <div className="content-container">
-      {/* לשוניות */}
-      <div className="tabs">
+      <div className="table-header">
+        <div className="table-title">ניהול יעדים ומבצעים</div>
+        <div className="tabs">
         <button
           className={`tab  ${activeTab === "goalsMD" ? "selected" : "default"}`}
           onClick={() => {
             console.log("Switching to goalsMD");
             setActiveTab("goalsMD");
           }}
-        >
-          הגדרת יעדים
-        </button>
+         >
+          הגדרת יעדים ומבצעים
+                  </button>
         <button
           className={`tab  ${activeTab === "GoalsWorkers" ? "selected" : "default"}`}
           onClick={() => {
@@ -774,14 +762,10 @@ const [isProcessing, setIsProcessing] = useState(false); // Track loading state
             setActiveTab("GoalsWorkers");
           }}
         >
-          הקצאת יעדים
+          הקצאת יעדים ומבצעים לעובד
         </button>
       </div>
-      {/* תוכן הלשוניות */}
-      <div className="tab-content">
-        {activeTab === "goalsMD" && (
-          <div id="goals-tab" className={activeTab === "goalsMD" ? "active" : ""}>
-              <div className="filter-select-container">
+      <div className="filter-select-container">
              <select onChange={handleAgentChange} value={selectedAgentId} className="select-input">
               {detail?.role === 'admin' && <option value="">בחר סוכן</option>}
               {detail?.role === 'admin' && <option value="all">כל הסוכנות</option>}
@@ -790,13 +774,18 @@ const [isProcessing, setIsProcessing] = useState(false); // Track loading state
                 ))}
              </select>
                </div>
+        </div>
+      {/* תוכן הלשוניות */}
+      <div className="tab-content">
+        {activeTab === "goalsMD" && (
+          <div id="goals-tab" className={activeTab === "goalsMD" ? "active" : ""}>
             {/* תוכן לשונית הקצאת יעדים */}
             <div className="NewGoalsMD">
   {/* כפתור לפתיחת המודל */}
   <div className="newGoalButton">
   <Button
     onClick={handleOpenModalNewGoal}
-    text="סוג יעד חדש"
+    text="צור יעד חדש"
     type="primary"
     icon="on"
     state="default"
@@ -815,202 +804,133 @@ const [isProcessing, setIsProcessing] = useState(false); // Track loading state
   {isModalOpenNewGoal && (
     <div className="modal">
       <div className="modal-content">
-      <Button
-        onClick={handleCloseModalNewGoal}
-        text="✖"
-        type="secondary"
-        icon="off"
-        state="default"
-      />
-        <h2>סוג יעד חדש</h2>
-        <form onSubmit={handleSubmitPromotion}>
-          <table>
-            <tbody>
-              <tr>
-                <td>
-                  <label htmlFor="agentSelect">סוכנות</label>
-                </td>
-                <td>
-                  <select onChange={handleAgentChange} value={selectedAgentId}>
-                    {detail?.role === "admin" && <option value="">בחר סוכן</option>}
-                    {agents.map((agent) => (
-                      <option key={agent.id} value={agent.id}>
-                        {agent.name}
-                      </option>
-                    ))}
-                  </select>
-                </td>
-              </tr>
-              <tr>
-                <td>
-                  <label htmlFor="sourceLead">שם מבצע</label>
-                </td>
-                <td>
-                  <input
-                    type="text"
-                    id="promotionName"
-                    name="promotionName"
-                    value={promotionName || ""}
-                    onChange={(e) => setPromotionName(e.target.value)}
-                  />
-                </td>
-              </tr>
-              <tr>
-                <td>
-                  <label htmlFor="companies">בחר חברות</label>
-                </td>
-                <td>
-                  <span style={{ position: "relative", display: "inline-block", width: "100%" }}>
-                    <span
-                      onClick={() => setIsDropdownOpen((prev) => !prev)}
-                      style={{
-                        border: "1px solid #ccc",
-                        borderRadius: "4px",
-                        padding: "5px",
-                        cursor: "pointer",
-                        backgroundColor: "#fff",
-                        display: "inline-block",
-                      }}
-                    >
-                      {selectedCompanies.length > 0
-                        ? selectedCompanies.join(", ")
-                        : "כל החברות"}
-                      <span
-                        style={{
-                          float: "right",
-                          transform: isDropdownOpen ? "rotate(180deg)" : "rotate(0deg)",
-                        }}
-                      >
-                        ▼
-                      </span>
-                    </span>
-                    {isDropdownOpen && (
-                      <span
-                        style={{
-                          position: "absolute",
-                          zIndex: 10,
-                          border: "1px solid #ccc",
-                          borderRadius: "4px",
-                          backgroundColor: "#fff",
-                          maxHeight: "100px",
-                          overflowY: "auto",
-                          width: "300px",
-                          display: "block",
-                        }}
-                      >
-                        {companies.map((company, index) => (
-                          <label
-                            key={index}
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              padding: "2px 0",
-                              cursor: "pointer",
-                              fontSize: "14px",
-                              margin: "0",
-                            }}
-                          >
-                            <input
-                              type="checkbox"
-                              value={company}
-                              checked={selectedCompanies.includes(company)}
-                              onChange={() => handleCompanyToggle(company)}
-                              style={{
-                                margin: "0 5px 0 0",
-                                padding: "0",
-                                width: "15px",
-                                height: "15px",
-                              }}
-                            />
-                            <span style={{ margin: "0", padding: "0" }}>{company}</span>
-                          </label>
-                        ))}
-                      </span>
-                    )}
-                  </span>
-                </td>
-              </tr>
-              <tr>
-                <td>
-                  <label htmlFor="notes">מתחדש חודשי</label>
-                </td>
-                <td>
-                  <input
-                    type="checkbox"
-                    id="promotionMonthlyRepeat"
-                    name="promotionMonthlyRepeat"
-                    checked={promotionMonthlyRepeat}
-                    onChange={(e) => setPromotionMonthlyRepeat(e.target.checked)}
-                  />
-                </td>
-              </tr>
-              <tr>
-                <td>
-                  <label htmlFor="promotionStartDate">תאריך התחלה</label>
-                </td>
-                <td>
-                  <input
-                    type="date"
-                    id="promotionStartDate"
-                    name="promotionStartDate"
-                    value={promotionStartDate}
-                    onChange={handlePromotionStartDate}
-                  />
-                </td>
-              </tr>
-              <tr>
-                <td>
-                  <label htmlFor="promotionEndDate">תאריך סיום</label>
-                </td>
-                <td>
-                  <input
-                    type="date"
-                    id="promotionEndDate"
-                    name="promotionEndDate"
-                    value={promotionEndDate}
-                    onChange={handlePromotionEndDate}
-                  />
-                </td>
-              </tr>
-              <tr>
-                <td>
-                  <label htmlFor="promotionStatus">פעיל</label>
-                </td>
-                <td>
-                  <input
-                    type="checkbox"
-                    id="promotionStatus"
-                    name="promotionStatus"
-                    checked={promotionStatus}
-                    onChange={(e) => setPromotionStatus(e.target.checked)}
-                  />
-                </td>
-              </tr>
-            </tbody>
-          </table>
-          <div className="form-group button-group" style={{ display: "flex" }}>
-            <button type="submit" disabled={isEditingPromotion}>
-              הזן
-            </button>
-            <button
-              type="button"
-              disabled={selectedRowPromotion === null}
-              onClick={handleDeletePromotion}
-            >
-              מחק
-            </button>
-            <button
-              type="button"
-              disabled={selectedRowPromotion === null}
-              onClick={handleEditPromotion}
-            >
-              עדכן
-            </button>
-            <button type="button" onClick={resetFormPromotion}>
-              נקה
-            </button>
-          </div>
-        </form>
+        <div className="title">יעד חדש</div>
+        <form onSubmit={handleSubmitPromotion} className="form-container">
+  <div className="form-group">
+    <label htmlFor="agentSelect">סוכנות</label>
+    <select
+      id="agentSelect"
+      onChange={handleAgentChange}
+      value={selectedAgentId}
+    >
+      {detail?.role === "admin" && <option value="">בחר סוכן</option>}
+      {agents.map((agent) => (
+        <option key={agent.id} value={agent.id}>
+          {agent.name}
+        </option>
+      ))}
+    </select>
+  </div>
+
+  <div className="form-group">
+    <label htmlFor="promotionName">שם המבצע</label>
+    <input
+      type="text"
+      id="promotionName"
+      name="promotionName"
+      value={promotionName || ""}
+      onChange={(e) => setPromotionName(e.target.value)}
+    />
+  </div>
+
+  <div className="form-group">
+    <label>בחר חברות</label>
+    <div className="dropdown-container">
+      <span
+        className="dropdown-header"
+        onClick={() => setIsDropdownOpen((prev) => !prev)}
+      >
+        {selectedCompanies.length > 0
+          ? selectedCompanies.join(", ")
+          : "כל החברות"}
+        <span
+          className={`dropdown-arrow ${
+            isDropdownOpen ? "open" : "closed"
+          }`}
+        >
+          ▼
+        </span>
+      </span>
+      {isDropdownOpen && (
+        <div className="dropdown-list">
+          {companies.map((company, index) => (
+            <label key={index} className="dropdown-item">
+              <input
+                type="checkbox"
+                value={company}
+                checked={selectedCompanies.includes(company)}
+                onChange={() => handleCompanyToggle(company)}
+              />
+              {company}
+            </label>
+          ))}
+        </div>
+      )}
+    </div>
+  </div>
+
+  <div className="form-group">
+    <label htmlFor="promotionMonthlyRepeat">מתחדש חודשי</label>
+    <input
+      type="checkbox"
+      id="promotionMonthlyRepeat"
+      name="promotionMonthlyRepeat"
+      checked={promotionMonthlyRepeat}
+      onChange={(e) => setPromotionMonthlyRepeat(e.target.checked)}
+    />
+  </div>
+
+  <div className="form-group">
+    <label htmlFor="promotionStartDate">תאריך התחלה</label>
+    <input
+      type="date"
+      id="promotionStartDate"
+      name="promotionStartDate"
+      value={promotionStartDate}
+      onChange={handlePromotionStartDate}
+    />
+  </div>
+
+  <div className="form-group">
+    <label htmlFor="promotionEndDate">תאריך סיום</label>
+    <input
+      type="date"
+      id="promotionEndDate"
+      name="promotionEndDate"
+      value={promotionEndDate}
+      onChange={handlePromotionEndDate}
+    />
+  </div>
+
+  <div className="form-group">
+    <label htmlFor="promotionStatus">פעיל</label>
+    <input
+      type="checkbox"
+      id="promotionStatus"
+      name="promotionStatus"
+      checked={promotionStatus}
+      onChange={(e) => setPromotionStatus(e.target.checked)}
+    />
+  </div>
+
+  <div className="button-group">
+    <Button
+      onClick={handleSubmitPromotion}
+      text="הזן"
+      type="primary"
+      icon="on"
+      state={isEditingPromotion ? "disabled" : "default"}
+      disabled={isEditingPromotion}
+    />
+    <Button
+      onClick={handleCloseModalNewGoal}
+      text="בטל"
+      type="secondary"
+      icon="off"
+      state="default"
+    />
+  </div>
+</form>
       </div>
     </div>
   )}
@@ -1113,73 +1033,87 @@ const [isProcessing, setIsProcessing] = useState(false); // Track loading state
     </div>
   ) : (
     // מצב רגיל: חברות מופרדות בפסיק או "N/A"
-    item.companies?.join(", ") || "N/A"
+    item.companies?.join(", ") || " "
   )}
 </td>
       {/* מתחדש חודשי */}
       <td>
         {editingPromotionRow === item.id ? (
-          <select
-            value={editPromotionData.promotionMonthlyRepeat ? "yes" : "no"}
+          <input
+            type="checkbox"
+            checked={editPromotionData.promotionMonthlyRepeat || false}
             onChange={(e) =>
               handleEditPromotionChange(
                 "promotionMonthlyRepeat",
-                e.target.value === "yes"
+                e.target.checked
               )
             }
           >
-            <option value="yes">כן</option>
-            <option value="no">לא</option>
-          </select>
+          </input>
         ) : (
-          item.promotionMonthlyRepeat ? "כן" : "לא"
+          item.promotionMonthlyRepeat ? "✔️" : "❌"
         )}
       </td>
       {/* תאריך התחלה */}
       <td>
-        {editingPromotionRow === item.id ? (
-          <input
-            type="date"
-            value={editPromotionData.promotionStartDate || ""}
-            onChange={(e) =>
-              handleEditPromotionChange("promotionStartDate", e.target.value)
-            }
-          />
-        ) : (
-          item.promotionStartDate || ""
-        )}
-      </td>
+  {editingPromotionRow === item.id ? (
+    <input
+      type="date"
+      value={
+        editPromotionData.promotionStartDate
+          ? new Date(editPromotionData.promotionStartDate)
+              .toISOString()
+              .split("T")[0] // מתאם את הפורמט ל-YYYY-MM-DD עבור input
+          : ""
+      }
+      onChange={(e) =>
+        handleEditPromotionChange("promotionStartDate", e.target.value)
+      }
+    />
+  ) : item.promotionStartDate ? (
+    formatIsraeliDateOnly(item.promotionStartDate) // מציג בפורמט ישראלי בתצוגה
+  ) : (
+    ""
+  )}
+</td>
       {/* תאריך סיום */}
       <td>
-        {editingPromotionRow === item.id ? (
-          <input
-            type="date"
-            value={editPromotionData.promotionEndDate || ""}
-            onChange={(e) =>
-              handleEditPromotionChange("promotionEndDate", e.target.value)
-            }
-          />
-        ) : (
-          item.promotionEndDate || ""
-        )}
-      </td>
+  {editingPromotionRow === item.id ? (
+    <input
+      type="date"
+      value={
+        editPromotionData.promotionEndDate
+          ? new Date(editPromotionData.promotionEndDate)
+              .toISOString()
+              .split("T")[0] // מתאם את הפורמט ל-YYYY-MM-DD עבור input
+          : ""
+      }
+      onChange={(e) =>
+        handleEditPromotionChange("promotionEndDate", e.target.value)
+      }
+    />
+  ) : item.promotionEndDate ? (
+    formatIsraeliDateOnly(item.promotionEndDate) // מציג בפורמט ישראלי בתצוגה
+  ) : (
+    ""
+  )}
+</td>
       {/* סטטוס */}
       <td>
         {editingPromotionRow === item.id ? (
-          <select
-            value={editPromotionData.promotionStatus ? "active" : "inactive"}
+          <input
+          type="checkbox"
+          checked={editPromotionData.promotionStatus || false}
             onChange={(e) =>
               handleEditPromotionChange(
                 "promotionStatus",
-                e.target.value === "active"
+                e.target.checked
               )
             }
           >
-            <option value="active">כן</option>
-            <option value="inactive">לא</option>
-          </select>
+          </input>
         ) : (
-          item.promotionStatus ? "כן" : "לא"
+          item.promotionStatus ? "✔️" : "❌"
         )}
       </td>
       <td className="narrow-cell">
@@ -1222,86 +1156,89 @@ const [isProcessing, setIsProcessing] = useState(false); // Track loading state
       {/* המודל */}
       {isModalOpenNewStars && (
         <div className="modal">
-          <div className="modal-content">
-          <Button
-        onClick={handleCloseModalNewStars}
-        text="✖"
-        type="secondary"
-        icon="off"
-        state="default"
+       <div className="modal-content">
+  <Button
+    onClick={handleCloseModalNewStars}
+    text="✖"
+    type="secondary"
+    icon="off"
+    state="default"
+  />
+  <h2>כוכב חדש</h2>
+  <form onSubmit={handleSubmitStars} className="form-container">
+    <div className="form-group">
+      <label htmlFor="agentSelect">סוכנות</label>
+      <select onChange={handleAgentChange} value={selectedAgentId}>
+        {detail?.role === "admin" && <option value="">בחר סוכן</option>}
+        {agents.map((agent) => (
+          <option key={agent.id} value={agent.id}>
+            {agent.name}
+          </option>
+        ))}
+      </select>
+    </div>
+
+    <div className="form-group">
+      <label htmlFor="promotionValue">שם מבצע</label>
+      <select
+        id="promotionValue"
+        value={promotionValue || ""}
+        onChange={handleSelectPromotion}
+      >
+        <option value="">בחר מבצע</option>
+        {Object.entries(promotionListForStars).map(
+          ([promotionId, promotionName]) => (
+            <option key={promotionId} value={promotionId}>
+              {promotionName}
+            </option>
+          )
+        )}
+      </select>
+    </div>
+
+    <div className="form-group">
+      <label htmlFor="insuranceStar">שווי כוכב ביטוח</label>
+      <input
+        type="number"
+        id="insuranceStar"
+        name="insuranceStar"
+        value={insuranceStar || 0}
+        onChange={(e) => setInsuranceStar(parseInt(e.target.value))}
       />
-            <h2>כוכב חדש</h2>
-            <form onSubmit={handleSubmitStars}>
-            <table>    
-          <tbody>
-          <tr>
-            <td>
-               <label htmlFor="agentSelect">סוכנות</label>
-             </td>
-             <td>
-              <select onChange={handleAgentChange} value={selectedAgentId}>
-                            {detail?.role === 'admin' && <option value="">בחר סוכן</option>}
-                            {agents.map(agent => (
-                                <option key={agent.id} value={agent.id}>{agent.name}</option>
-                            ))}
-                        </select>
-                    </td>
-                </tr>   
-                <tr>
-                <td>
-                  <label htmlFor="promotionValue">שם מבצע </label>
-                </td>
-                <td>
-                <select id="promotionValue" value={promotionValue || ''} onChange={handleSelectPromotion}>
-           <option value="">בחר מבצע</option>
-            {Object.entries(promotionListForStars).map(([promotionId, promotionName]) => (
-          <option key={promotionId} value={promotionId}>{promotionName}</option>
-          ))}
-            </select>
-                </td>
-              </tr>
-              <tr>
-                <td>
-                  <label htmlFor="insuranceStar">שווי כוכב ביטוח</label>
-                </td>
-                <td>
-                  <input type="number" id="insuranceStar" name="insuranceStar" value={insuranceStar || 0} onChange={(e) => setInsuranceStar(parseInt(e.target.value))}/>
-                </td>
-              </tr>
-              <tr>
-                <td>
-                  <label htmlFor="pensiaStar">שווי כוכב פנסיה</label>
-                </td>
-                <td>
-                  <input type="number" id="pensiaStar" name="pensiaStar" value={pensiaStar || 0} onChange={(e) => setPensiaStar(parseInt(e.target.value))}/>
-                </td>
-              </tr>
-              <tr>
-                <td>
-                  <label htmlFor="finansimStar">שווי כוכב פיננסים</label>
-                </td>
-                <td>
-                <input type="number" id="finansimStar" name="finansimStar" value={finansimStar || 0} onChange={(e) => setFinansimStar(parseInt(e.target.value))}/>
-                </td>
-              </tr>
-          </tbody>       
-        </table>
-              <div className="form-group button-group" style={{ display: "flex" }}>
-                <button type="submit" disabled={isEditingStars}>
+    </div>
+
+    <div className="form-group">
+      <label htmlFor="pensiaStar">שווי כוכב פנסיה</label>
+      <input
+        type="number"
+        id="pensiaStar"
+        name="pensiaStar"
+        value={pensiaStar || 0}
+        onChange={(e) => setPensiaStar(parseInt(e.target.value))}
+      />
+    </div>
+
+    <div className="form-group">
+      <label htmlFor="finansimStar">שווי כוכב פיננסים</label>
+      <input
+        type="number"
+        id="finansimStar"
+        name="finansimStar"
+        value={finansimStar || 0}
+        onChange={(e) => setFinansimStar(parseInt(e.target.value))}
+      />
+    </div>
+
+    <div className="form-group button-group">
+    <button type="submit" disabled={isEditingStars}>
                   הזן
-                </button>
-                <button type="button" disabled={selectedRowStars === null} onClick={handleDeleteStars}>
-                  מחק
-                </button>
-                <button type="button" disabled={selectedRowStars === null} onClick={handleEditStars}>
-                  עדכן
                 </button>
                 <button type="button" onClick={resetFormStars}>
                   נקה
                 </button>
-              </div>
-            </form>
-          </div>
+    </div>
+  </form>
+</div>
         </div>
       )}
        <div className="tableStars">        
@@ -1406,10 +1343,11 @@ const [isProcessing, setIsProcessing] = useState(false); // Track loading state
           <div id="promotions-tab" className={activeTab === "GoalsWorkers" ? "active" : ""}>
             {/* תוכן לשונית מבצעים */}
             <div className="NewGoalsWorkers">
+              <div className="newGoalButton">
       {/* כפתור לפתיחת המודל */}
-      <Button
+ <Button
   onClick={handleOpenModalGoalWorker}
-  text="יעד חדש"
+  text="הקצאה חדשה"
   type="primary"
   icon="on"
   state="default"
@@ -1422,6 +1360,7 @@ const [isProcessing, setIsProcessing] = useState(false); // Track loading state
   state={editingGoalRow ? "default" : "disabled"} // כפתור פעיל רק כשיש שורה שנערכת
   disabled={!editingGoalRow} // מנוטרל כשאין שורה שנערכת
 />
+</div>
    {/* המודל */}
       {isModalOpenGoalWorker && (
         <div className="modal">
@@ -1434,87 +1373,101 @@ const [isProcessing, setIsProcessing] = useState(false); // Track loading state
         state="default"
       />
             <h2>יעד חדש</h2>
-            <form onSubmit={handleSubmit}>
-      <table>    
-          <tbody>
-          <tr>
-            <td>
-             <label htmlFor="agentSelect">סוכנות</label>
-             </td>
-             <td>
-              <select onChange={handleAgentChange} value={selectedAgentId}>
-              {detail?.role === 'admin' && <option value="">בחר סוכן</option>}
-              {agents.map(agent => (
-               <option key={agent.id} value={agent.id}>{agent.name}</option>
-               ))}
-               </select>
-                 </td>
-                </tr>   
-                <tr>
-                  <td>
-                   <label htmlFor="worker">עובד</label>
-                    </td>
-                    <td>
-                  <select id="worker-select" value={selectedWorkerId} 
-                  onChange={(e) => handleWorkerChange(e, 'insert')}>
-                 <option value="">כל העובדים</option>
-                 <option value="all-agency">כל הסוכנות</option>
-                 {workers.map(worker => (
-                  <option key={worker.id} value={worker.id}>{worker.name}</option>))}
-             </select>
-             </td>
-                </tr> 
-                    <tr>
-                    <td>
-                       <label htmlFor="promotion">שם מבצע</label>
-                    </td>
-                    <td>
-          <select id="promotionValue" value={promotionValue || ''} onChange={handleSelectPromotion}>
-           <option value="">בחר מבצע</option>
-            {Object.entries(promotionListForStars).map(([promotionId, promotionName]) => (
-          <option key={promotionId} value={promotionId}>{promotionName}</option>
-          ))}
-            </select>
-                    </td>
-                    </tr>
-                    <tr>
-                    <td>
-                        <label htmlFor="goalsType">סוג יעד</label>
-                    </td>
-                    <td>
-                    <select id="goalsType" value={goalsTypeValue || ''} onChange={handleSelectGoalsType}>
-                     <option value="">בחר סוג יעד</option>
-                     {goalsTypeList.map((item) => (
-        <option key={item.id} value={item.id}>{item.name}</option>
-         ))}
-           </select>
-             </td>
-            </tr>
-             <tr>
-                <td>
-                  <label htmlFor="amount">סכום</label>
-                </td>
-                <td>
-                  <input type="number" id="amount" name="amount" value={amaunt|| 0} onChange={(e) => setAmaunt(parseInt(e.target.value))}/>
-                </td>
-              </tr>
-                    <tr>
-                    <td>
-                        <label htmlFor="status">פעיל</label>
-                    </td>
-                    <td>
-                        <input type="checkbox" id="status" name="status" checked={status} onChange={(e) => setStatus(e.target.checked)}/>
-                    </td>
-                </tr>
-          </tbody>       
-        </table>
-           <div className="form-group button-group" style={{ display: 'flex' }}>
-            <button type="submit" disabled={isEditing}> הזן</button>                
-            <button type="button" disabled={selectedRow === null} onClick={handleDelete} >מחק</button>
-            <button type="button" disabled={selectedRow === null} onClick={handleEdit}>עדכן</button>
-            <button type="button" onClick={resetForm}>נקה</button>
-          </div>        
-       </form>
+            <form onSubmit={handleSubmit} className="form-container">
+  <div className="form-group">
+    <label htmlFor="agentSelect">סוכנות</label>
+    <select onChange={handleAgentChange} value={selectedAgentId}>
+      {detail?.role === "admin" && <option value="">בחר סוכן</option>}
+      {agents.map((agent) => (
+        <option key={agent.id} value={agent.id}>
+          {agent.name}
+        </option>
+      ))}
+    </select>
+  </div>
+
+  <div className="form-group">
+    <label htmlFor="worker">עובד</label>
+    <select
+      id="worker-select"
+      value={selectedWorkerId}
+      onChange={(e) => handleWorkerChange(e, "insert")}
+    >
+      <option value="">כל העובדים</option>
+      <option value="all-agency">כל הסוכנות</option>
+      {workers.map((worker) => (
+        <option key={worker.id} value={worker.id}>
+          {worker.name}
+        </option>
+      ))}
+    </select>
+  </div>
+
+  <div className="form-group">
+    <label htmlFor="promotion">שם מבצע</label>
+    <select
+      id="promotionValue"
+      value={promotionValue || ""}
+      onChange={handleSelectPromotion}
+    >
+      <option value="">בחר מבצע</option>
+      {Object.entries(promotionListForStars).map(
+        ([promotionId, promotionName]) => (
+          <option key={promotionId} value={promotionId}>
+            {promotionName}
+          </option>
+        )
+      )}
+    </select>
+  </div>
+
+  <div className="form-group">
+    <label htmlFor="goalsType">סוג יעד</label>
+    <select
+      id="goalsType"
+      value={goalsTypeValue || ""}
+      onChange={handleSelectGoalsType}
+    >
+      <option value="">בחר סוג יעד</option>
+      {goalsTypeList.map((item) => (
+        <option key={item.id} value={item.id}>
+          {item.name}
+        </option>
+      ))}
+    </select>
+  </div>
+
+  <div className="form-group">
+    <label htmlFor="amount">סכום</label>
+    <input
+      type="number"
+      id="amount"
+      name="amount"
+      value={amaunt || 0}
+      onChange={(e) => setAmaunt(parseInt(e.target.value))}
+    />
+  </div>
+
+  <div className="form-group">
+    <label htmlFor="status">פעיל</label>
+    <input
+      type="checkbox"
+      id="status"
+      name="status"
+      checked={status}
+      onChange={(e) => setStatus(e.target.checked)}
+    />
+  </div>
+
+  <div className="form-group button-group">
+    <button type="submit" disabled={isEditing}>
+      הזן
+    </button>
+    <button type="button" onClick={resetForm}>
+      נקה
+    </button>
+  </div>
+</form>
           </div>
         </div>
       )}
@@ -1645,18 +1598,16 @@ const [isProcessing, setIsProcessing] = useState(false); // Track loading state
       </td>
       {/* עמודת סטטוס */}
       <td>
-        {editingGoalRow === item.id ? (
-          <input
-            type="checkbox"
-            checked={editGoalData.status || false}
-            onChange={(e) => handleEditGoalChange('status', e.target.checked)}
-          />
-        ) : item.status ? (
-          'כן'
-        ) : (
-          'לא'
-        )}
-      </td>
+  {editingGoalRow === item.id ? (
+    <input
+      type="checkbox"
+      checked={!!editGoalData.status} // מבטיח שזה תמיד boolean
+      onChange={(e) => handleEditGoalChange("status", e.target.checked)}
+    />
+  ) : (
+    item.status ? "✔️" : "❌"
+  )}
+</td>
       <td className="narrow-cell">
   <MenuWrapper
     rowId={item.id}
