@@ -50,6 +50,7 @@
 .button.secondary {
   border: 1px solid;
   height: 30px;
+  border: none; /* הסרת הגבול */
 }
 
 .button.primary {
@@ -62,6 +63,7 @@
 
 .button.state-default.secondary {
   border-color: var(--clrdarkblue3);
+  border: none; /* הסרת הגבול */
 }
 
 .button.state-hover.primary {
@@ -119,6 +121,7 @@
 
 .button.state-default.secondary .text-wrapper-2 {
   color: var(--clrdarkblue3);
+  border: none; /* הסרת הגבול */
 }
 
 .button.tertiary.state-disabled .text-wrapper-2 {
@@ -156,4 +159,5 @@
   cursor: not-allowed; /* סמן מתאים */
   opacity: 0.7; /* שקיפות */
   pointer-events: none; /* ביטול כל האירועים */
+  border: none; /* הסרת הגבול */
 }

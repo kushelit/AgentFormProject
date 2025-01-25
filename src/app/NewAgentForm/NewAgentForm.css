@@ -620,6 +620,8 @@ select option {
   border-radius: 4px;
   box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.1);
   background-color: var(--clrgray1);
+  margin: auto; /* מרכז את התוכן */
+  transform: translateY(0); /* מנטרל תזוזות מיותרות */
 }
 
 
@@ -727,5 +729,55 @@ select option {
 .form-actions {
   display: flex;
   justify-content: space-between;
+}
+
+
+.form-container .title {
+  height: auto; /* מאפשר התאמה אוטומטית לגובה */
+  width: auto; /* מאפשר התאמה אוטומטית לרוחב */
+  color: #3b6a95;
+  direction: rtl;
+  font-family: "Inter-Bold", Helvetica;
+  font-size: 14px; /* גודל טקסט גדול יותר */
+  font-weight: 700;
+  letter-spacing: 0;
+  line-height: 22px;
+  position: relative; /* משנה את המיקום ליחסי להורה */
+  top: auto; /* מסיר את המיקום המוחלט */
+  left: auto;
+  white-space: nowrap; /* מונע שבירת שורות */
+  margin-bottom: 10px; /* מוסיף ריווח תחתון */
+  border-bottom: 1px solid #ddd; /* קו תחתון לכותרת */
+  padding-bottom: 5px; /* ריווח תחתון לפני הקו */
+  margin-bottom: 20px; /* ריווח תחתון לאחר הקו */
+}
+.modal-content .close-button {
+  position: absolute; /* למיקום בפינה השמאלית העליונה */
+  top: 10px; /* רווח מהחלק העליון */
+  left: 10px; /* רווח מהחלק השמאלי */
+  background: transparent; /* רקע שקוף */
+  border: none !important; /* ללא מסגרת */
+  font-size: 20px; /* גודל טקסט */
+  cursor: pointer; /* מצביע לחיץ */
+  color: var(--clrdarkblue); /* צבע הטקסט */
+  z-index: 10; /* ודא שהכפתור מעל ה-title */
+}
+
+.close-button .button {
+  all: unset; /* מסיר עיצוב מובנה */
+  display: flex; /* כדי ליישר את התוכן */
+  align-items: center; /* יישור אנכי */
+  justify-content: center; /* יישור אופקי */
+}
+.button {
+  cursor: pointer; /* מצביע לחיץ */
+}
+.button:hover {
+  opacity: 0.8; /* אפקט שקיפות קטן */
+  transition: all 0.2s ease-in-out; /* אנימציה חלקה */
+}
+.button.state-disabled {
+  cursor: not-allowed; /* מצביע של מצב לא פעיל */
+  opacity: 0.5; /* שקיפות */
 }
 

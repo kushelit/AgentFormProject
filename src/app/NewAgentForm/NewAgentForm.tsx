@@ -145,6 +145,7 @@ const {
   handleDeleteRow,       // פונקציה למחיקת שורה
   saveChanges,           // פונקציה לשמירת השינויים
   reloadData,            // פונקציה לטעינת נתונים מחדש
+  cancelEdit,            // פונקציה לביטול עריכה  
 } = useEditableTable<CombinedData>({
   dbCollection: 'sales', // שם האוסף ב-Firebase
   agentId: selectedAgentId, // מזהה הסוכן
@@ -790,20 +791,27 @@ useEffect(() => {
   }
 }, [handleCalculate, detail, user, selectedWorkerIdGoals]);
  
-
-const menuItems = (rowId:string) => [
+const menuItems = (
+  rowId: string,
+  closeMenu: () => void // פונקציה לסגירת התפריט
+) => [
   {
     label: "ערוך",
-    onClick: () => handleEditRow(rowId),
+    onClick: () => {
+      handleEditRow(rowId); // פעולה לעריכה
+      closeMenu(); // סגירת התפריט
+    },
     Icon: Edit,
   },
   {
     label: "מחק",
-    onClick: () => handleDeleteRow(rowId),
+    onClick: () => {
+      handleDeleteRow(rowId); // פעולה למחיקה
+      closeMenu(); // סגירת התפריט
+    },
     Icon: Delete,
   },
 ];
-;
 
 const [openModalId, setOpenModalId] = useState<string | number | null>(null);
 const [modalContent, setModalContent] = useState<string | null>(null);
@@ -840,6 +848,14 @@ const closeModal = (): void => {
     icon="on"
     state="default"
   />
+  <Button
+  onClick={cancelEdit}
+  text="בטל"
+  type="secondary"
+  icon="off"
+  state="default"
+/>
+
   </div>
 </div>
       <div className="filter-inputs-container-new">
@@ -1184,9 +1200,12 @@ const closeModal = (): void => {
 <td className="narrow-cell">
 <MenuWrapper
   rowId={item.id}
-  openMenuRow={openMenuRow}
-  setOpenMenuRow={setOpenMenuRow}
-  menuItems={menuItems(item.id)} 
+  openMenuRow={openMenuRow} // סטייט לפתיחת התפריט
+  setOpenMenuRow={setOpenMenuRow} // פונקציה לעדכון סטייט
+  menuItems={menuItems(
+    item.id,
+    () => setOpenMenuRow(null) // פונקציה לסגירת התפריט
+  )}
 />
 </td>
     </tr>
@@ -1307,8 +1326,16 @@ const closeModal = (): void => {
         {showOpenNewDeal && (
     <div className="modal-overlay" onClick={() => setShowOpenNewDeal(false)}>
     <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+    <Button
+  onClick={() => setShowOpenNewDeal(false)}
+  text="✖"
+  type="secondary"
+  icon="off"
+  state="default"
+  className="close-button"
+/>
       <form className="form-container" onSubmit={handleSubmit}>
-        <h2 className="form-title">עסקה חדשה</h2>
+          <div className="title">עסקה חדשה</div>
         {/* פרטים אישיים */}
         <section className="form-section">
           <h3 className="section-title">פרטים אישיים</h3>
@@ -1451,22 +1478,21 @@ const closeModal = (): void => {
             </div>
           </div>
         </section>
-  
         {/* כפתורי פעולה */}
-        <div className="form-actions">
+  <div className="form-actions">
         <Button
-    onClick={() => {}}
-    text="שמור"
-    type="submit" 
-    icon="off"
+    onClick={handleSubmit} 
+    text="הזן"
+    type="primary"
+    icon="on"
     state={isSaveDisabled ? "disabled" : "default"} // קביעת מצב הכפתור
     />
        <Button
     onClick={() => setShowOpenNewDeal(false)}
-    text="סגור"
+    text="בטל"
     type="secondary"
     icon="off"
-    state={isSaveDisabled ? "disabled" : "default"} // קביעת מצב הכפתור
+    state="default"
     />
         </div>
       </form>

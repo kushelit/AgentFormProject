@@ -123,6 +123,7 @@ const {
   handleDeleteRow: handleDeletePromotionRow,
   saveChanges: savePromotionChanges,
   reloadData: reloadPromotionsData,
+  cancelEdit: cancelEditPromotion, // פונקציה חדשה
 } = useEditableTable({
   dbCollection: "promotion",
   agentId: selectedAgentId,
@@ -138,6 +139,7 @@ const {
   handleDeleteRow: handleDeleteStarRow,
   saveChanges: saveStarChanges,
   reloadData: reloadStarsData,
+  cancelEdit: cancelEditStar, // פונקציה חדשה
 } = useEditableTable<StarDataType>({
   dbCollection: "stars",
   agentId: selectedAgentId,
@@ -153,6 +155,7 @@ const {
   handleDeleteRow: handleDeleteGoalRow,
   saveChanges: saveGoalChanges,
   reloadData: reloadGoalsData,
+  cancelEdit: cancelEditGoal, // פונקציה חדשה
 } = useEditableTable<GoalDataType>({
   dbCollection: 'goalsSuccess',
   agentId: selectedAgentId,
@@ -181,18 +184,25 @@ const handleEditCompanyToggle = (company: string) => {
 const menuItems = (
   rowId: string,
   handleEditRow: (id: string) => void,
-  handleDeleteRow: (id: string) => void
+  handleDeleteRow: (id: string) => void,
+  closeMenu: () => void // פונקציה לסגירת התפריט
 ) => [
   {
     key: `edit-${rowId}`, // מפתח ייחודי לעריכה
     label: "ערוך",
-    onClick: () => handleEditRow(rowId),
+    onClick: () => {
+      handleEditRow(rowId); // מבצע עריכה
+      closeMenu(); // סוגר את התפריט
+    },
     Icon: Edit,
   },
   {
     key: `delete-${rowId}`, // מפתח ייחודי למחיקה
     label: "מחק",
-    onClick: () => handleDeleteRow(rowId),
+    onClick: () => {
+      handleDeleteRow(rowId); // מבצע מחיקה
+      closeMenu(); // סוגר את התפריט
+    },
     Icon: Delete,
   },
 ];
@@ -799,11 +809,27 @@ const [isProcessing, setIsProcessing] = useState(false); // Track loading state
     state={editingPromotionRow ? "default" : "disabled"}
     disabled={!editingPromotionRow}
   />
+  <Button
+  onClick={cancelEditPromotion}
+  text=" בטל"
+  type="secondary"
+  icon="off"
+  state="default"
+/>
 </div>
   {/* המודל */}
   {isModalOpenNewGoal && (
     <div className="modal">
       <div className="modal-content">
+      <div className="close-button">
+      <Button
+    onClick={handleCloseModalNewGoal}
+    text="✖"
+    type="secondary"
+    icon="off"
+    state="default"
+  />
+</div>
         <div className="title">יעד חדש</div>
         <form onSubmit={handleSubmitPromotion} className="form-container">
   <div className="form-group">
@@ -821,7 +847,6 @@ const [isProcessing, setIsProcessing] = useState(false); // Track loading state
       ))}
     </select>
   </div>
-
   <div className="form-group">
     <label htmlFor="promotionName">שם המבצע</label>
     <input
@@ -832,7 +857,6 @@ const [isProcessing, setIsProcessing] = useState(false); // Track loading state
       onChange={(e) => setPromotionName(e.target.value)}
     />
   </div>
-
   <div className="form-group">
     <label>בחר חברות</label>
     <div className="dropdown-container">
@@ -868,18 +892,16 @@ const [isProcessing, setIsProcessing] = useState(false); // Track loading state
       )}
     </div>
   </div>
-
   <div className="form-group">
-    <label htmlFor="promotionMonthlyRepeat">מתחדש חודשי</label>
+  <div className="checkbox-container">
     <input
       type="checkbox"
       id="promotionMonthlyRepeat"
       name="promotionMonthlyRepeat"
-      checked={promotionMonthlyRepeat}
-      onChange={(e) => setPromotionMonthlyRepeat(e.target.checked)}
     />
+    <label htmlFor="promotionMonthlyRepeat">מתחדש חודשי</label>
   </div>
-
+</div>
   <div className="form-group">
     <label htmlFor="promotionStartDate">תאריך התחלה</label>
     <input
@@ -890,7 +912,6 @@ const [isProcessing, setIsProcessing] = useState(false); // Track loading state
       onChange={handlePromotionStartDate}
     />
   </div>
-
   <div className="form-group">
     <label htmlFor="promotionEndDate">תאריך סיום</label>
     <input
@@ -901,9 +922,8 @@ const [isProcessing, setIsProcessing] = useState(false); // Track loading state
       onChange={handlePromotionEndDate}
     />
   </div>
-
   <div className="form-group">
-    <label htmlFor="promotionStatus">פעיל</label>
+  <div className="checkbox-container">
     <input
       type="checkbox"
       id="promotionStatus"
@@ -911,8 +931,9 @@ const [isProcessing, setIsProcessing] = useState(false); // Track loading state
       checked={promotionStatus}
       onChange={(e) => setPromotionStatus(e.target.checked)}
     />
+    <label htmlFor="promotionStatus">פעיל</label>
   </div>
-
+</div>
   <div className="button-group">
     <Button
       onClick={handleSubmitPromotion}
@@ -1124,7 +1145,8 @@ const [isProcessing, setIsProcessing] = useState(false); // Track loading state
     menuItems={menuItems(
       item.id,
       handleEditPromotionRow,
-      handleDeletePromotionRow
+      handleDeletePromotionRow,
+      () => setOpenMenuRowPromotions(null) // פונקציה לסגירת התפריט
     )}
   />
 </td>
@@ -1152,11 +1174,19 @@ const [isProcessing, setIsProcessing] = useState(false); // Track loading state
   state={editingStarRow ? "default" : "disabled"}
   disabled={!editingStarRow} // הכפתור יהיה פעיל רק אם יש שורה שנערכת
 />
+<Button
+  onClick={cancelEditStar}
+  text="בטל"
+  type="secondary"
+  icon="off"
+  state="default"  
+  />     
 </div>
       {/* המודל */}
       {isModalOpenNewStars && (
         <div className="modal">
        <div className="modal-content">
+       <div className="close-button">
   <Button
     onClick={handleCloseModalNewStars}
     text="✖"
@@ -1164,8 +1194,9 @@ const [isProcessing, setIsProcessing] = useState(false); // Track loading state
     icon="off"
     state="default"
   />
-  <h2>כוכב חדש</h2>
-  <form onSubmit={handleSubmitStars} className="form-container">
+</div>
+<div className="title">כוכב חדש</div>
+<form onSubmit={handleSubmitStars} className="form-container">
     <div className="form-group">
       <label htmlFor="agentSelect">סוכנות</label>
       <select onChange={handleAgentChange} value={selectedAgentId}>
@@ -1177,7 +1208,6 @@ const [isProcessing, setIsProcessing] = useState(false); // Track loading state
         ))}
       </select>
     </div>
-
     <div className="form-group">
       <label htmlFor="promotionValue">שם מבצע</label>
       <select
@@ -1195,7 +1225,6 @@ const [isProcessing, setIsProcessing] = useState(false); // Track loading state
         )}
       </select>
     </div>
-
     <div className="form-group">
       <label htmlFor="insuranceStar">שווי כוכב ביטוח</label>
       <input
@@ -1206,7 +1235,6 @@ const [isProcessing, setIsProcessing] = useState(false); // Track loading state
         onChange={(e) => setInsuranceStar(parseInt(e.target.value))}
       />
     </div>
-
     <div className="form-group">
       <label htmlFor="pensiaStar">שווי כוכב פנסיה</label>
       <input
@@ -1217,7 +1245,6 @@ const [isProcessing, setIsProcessing] = useState(false); // Track loading state
         onChange={(e) => setPensiaStar(parseInt(e.target.value))}
       />
     </div>
-
     <div className="form-group">
       <label htmlFor="finansimStar">שווי כוכב פיננסים</label>
       <input
@@ -1228,14 +1255,21 @@ const [isProcessing, setIsProcessing] = useState(false); // Track loading state
         onChange={(e) => setFinansimStar(parseInt(e.target.value))}
       />
     </div>
-
-    <div className="form-group button-group">
-    <button type="submit" disabled={isEditingStars}>
-                  הזן
-                </button>
-                <button type="button" onClick={resetFormStars}>
-                  נקה
-                </button>
+    <div className="button-group">
+    <Button
+    onClick={handleSubmitStars}
+    text="הזן"
+    type="primary"
+    icon="on"
+    state={isEditingStars ? "disabled" : "default"}
+    disabled={isEditingStars}
+  /> <Button
+  onClick={handleCloseModalNewStars}
+  text="בטל"
+  type="secondary"
+  icon="off"
+  state="default"
+/>
     </div>
   </form>
 </div>
@@ -1274,7 +1308,6 @@ const [isProcessing, setIsProcessing] = useState(false); // Track loading state
           promotionListForStars[item.promotionId] || "Unknown Promotion"
         )}
       </td>
-
       {/* עמודת כוכב ביטוח */}
       <td>
         {editingStarRow === item.id ? (
@@ -1303,7 +1336,6 @@ const [isProcessing, setIsProcessing] = useState(false); // Track loading state
           item.pensiaStar?.toLocaleString() || "N/A"
         )}
       </td>
-
       {/* עמודת כוכב פיננסים */}
       <td>
         {editingStarRow === item.id ? (
@@ -1320,16 +1352,17 @@ const [isProcessing, setIsProcessing] = useState(false); // Track loading state
       </td>
       {/* עמודת תפריט */}
       <td className="narrow-cell">
-  <MenuWrapper
-    rowId={item.id}
-    openMenuRow={openMenuRowStars} // סטייט עבור הטבלה הזו
-    setOpenMenuRow={setOpenMenuRowStars} // עדכון סטייט
-    menuItems={menuItems(
-      item.id,
-      handleEditStarRow, // פונקציית עריכה
-      handleDeleteStarRow // פונקציית מחיקה
-    )}
-  />
+      <MenuWrapper
+  rowId={item.id}
+  openMenuRow={openMenuRowStars} // סטייט עבור הטבלה הזו
+  setOpenMenuRow={setOpenMenuRowStars} // עדכון סטייט
+  menuItems={menuItems(
+    item.id,
+    handleEditStarRow, // פונקציית עריכה
+    handleDeleteStarRow, // פונקציית מחיקה
+    () => setOpenMenuRowStars(null) // פונקציה לסגירת התפריט
+  )}
+/>
 </td>
     </tr>
   ))}
@@ -1360,11 +1393,19 @@ const [isProcessing, setIsProcessing] = useState(false); // Track loading state
   state={editingGoalRow ? "default" : "disabled"} // כפתור פעיל רק כשיש שורה שנערכת
   disabled={!editingGoalRow} // מנוטרל כשאין שורה שנערכת
 />
+<Button
+  onClick={cancelEditGoal}
+  text="בטל"
+  type="secondary"
+  icon="off"
+  state="default"
+/>
 </div>
    {/* המודל */}
       {isModalOpenGoalWorker && (
         <div className="modal">
           <div className="modal-content">
+          <div className="close-button">
           <Button
         onClick={handleCloseModalGoalWorker}
         text="✖"
@@ -1372,8 +1413,9 @@ const [isProcessing, setIsProcessing] = useState(false); // Track loading state
         icon="off"
         state="default"
       />
-            <h2>יעד חדש</h2>
-            <form onSubmit={handleSubmit} className="form-container">
+          </div>
+          <div className="title">יעד חדש</div>
+          <form onSubmit={handleSubmit} className="form-container">
   <div className="form-group">
     <label htmlFor="agentSelect">סוכנות</label>
     <select onChange={handleAgentChange} value={selectedAgentId}>
@@ -1385,7 +1427,6 @@ const [isProcessing, setIsProcessing] = useState(false); // Track loading state
       ))}
     </select>
   </div>
-
   <div className="form-group">
     <label htmlFor="worker">עובד</label>
     <select
@@ -1402,7 +1443,6 @@ const [isProcessing, setIsProcessing] = useState(false); // Track loading state
       ))}
     </select>
   </div>
-
   <div className="form-group">
     <label htmlFor="promotion">שם מבצע</label>
     <select
@@ -1447,9 +1487,8 @@ const [isProcessing, setIsProcessing] = useState(false); // Track loading state
       onChange={(e) => setAmaunt(parseInt(e.target.value))}
     />
   </div>
-
   <div className="form-group">
-    <label htmlFor="status">פעיל</label>
+  <div className="checkbox-container">
     <input
       type="checkbox"
       id="status"
@@ -1457,15 +1496,25 @@ const [isProcessing, setIsProcessing] = useState(false); // Track loading state
       checked={status}
       onChange={(e) => setStatus(e.target.checked)}
     />
+    <label htmlFor="status">פעיל</label>
   </div>
-
-  <div className="form-group button-group">
-    <button type="submit" disabled={isEditing}>
-      הזן
-    </button>
-    <button type="button" onClick={resetForm}>
-      נקה
-    </button>
+</div>
+  <div className="button-group">
+  <Button
+    onClick={handleSubmit} 
+    text="הזן"
+    type="primary"
+    icon="on"
+    state={isEditing ? "disabled" : "default"}
+    disabled={isEditing}
+  />
+    <Button
+    onClick={handleCloseModalGoalWorker}
+    text="בטל"
+    type="secondary"
+    icon="off"
+    state="default"
+  />
   </div>
 </form>
           </div>
@@ -1609,16 +1658,17 @@ const [isProcessing, setIsProcessing] = useState(false); // Track loading state
   )}
 </td>
       <td className="narrow-cell">
-  <MenuWrapper
-    rowId={item.id}
-    openMenuRow={openMenuRowGoals} // סטייט עבור הטבלה של היעדים
-    setOpenMenuRow={setOpenMenuRowGoals} // עדכון סטייט
-    menuItems={menuItems(
-      item.id,
-      handleEditGoalRow, // פונקציית עריכה עבור יעדים
-      handleDeleteGoalRow // פונקציית מחיקה עבור יעדים
-    )}
-  />
+      <MenuWrapper
+  rowId={item.id}
+  openMenuRow={openMenuRowGoals} // סטייט עבור הטבלה של היעדים
+  setOpenMenuRow={setOpenMenuRowGoals} // עדכון סטייט
+  menuItems={menuItems(
+    item.id,
+    handleEditGoalRow, // פונקציית עריכה עבור יעדים
+    handleDeleteGoalRow, // פונקציית מחיקה עבור יעדים
+    () => setOpenMenuRowGoals(null) // פונקציה לסגירת התפריט
+  )}
+/>
 </td>
     </tr>
   ))}

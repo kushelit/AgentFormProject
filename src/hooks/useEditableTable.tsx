@@ -27,6 +27,7 @@ type UseTableActionsResult<T> = {
   saveChanges: () => Promise<void>;
   handleEditChange: (field: keyof T, value: T[keyof T]) => void;
   reloadData: (agentId: string) => Promise<void>;
+  cancelEdit: () => void;
 };
 
 function useEditableTable<T extends { id: string }>({
@@ -113,6 +114,11 @@ function useEditableTable<T extends { id: string }>({
     }
   };
 
+  const cancelEdit = () => {
+    setEditingRow(null); // איפוס השורה הנערכת
+    setEditData({}); // איפוס הנתונים ששונו
+  };
+
   return {
     data,
     isLoadingHookEdit,
@@ -123,6 +129,7 @@ function useEditableTable<T extends { id: string }>({
     handleDeleteRow,
     saveChanges,
     reloadData,
+    cancelEdit,
   };
 }
 
