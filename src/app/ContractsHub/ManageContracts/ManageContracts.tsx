@@ -238,6 +238,7 @@ const canSubmit1 = useMemo(() => (
       if (selectedProductFilter.trim() !== '') {
         q = query(q, where('product', '==', selectedProductFilter));
       }
+      console.log("minuySochenFilter2" + minuySochenFilter2);
       if (minuySochenFilter2.trim() !== '') {
         q = query(q, where('minuySochen', '==', minuySochenFilter2));
       }
@@ -269,6 +270,7 @@ const canSubmit1 = useMemo(() => (
     if (selectedProductGroupFilter.trim() !== '') {
       diffContractsQuery = query(diffContractsQuery, where('productsGroup', '==', selectedProductGroupFilter));
     }
+    console.log("minuySochenFilter1" + minuySochenFilter1);
     if (minuySochenFilter1.trim() !== '') {
       diffContractsQuery = query(diffContractsQuery, where('minuySochen', '==', minuySochenFilter1));
     }

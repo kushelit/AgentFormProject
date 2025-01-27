@@ -3,6 +3,7 @@
 import { useEffect, useState, ChangeEvent  } from 'react';
 import { query, collection, where, getDocs, getDoc, doc } from 'firebase/firestore';
 import { db } from '@/lib/firebase/firebase';
+import { Lead, StatusLead } from '@/types/Enviorment';
 
 
 
@@ -173,27 +174,22 @@ const useFetchMD = (selectedAgentId?:string) => {
     };
     fetchStatusPolicies();
   }, []);
-
-
-  const fetchStatusLeadForAgentAndDefault = async (selectedAgentId?: string) => {
+  const fetchStatusLeadForAgentAndDefault = async (selectedAgentId?: string): Promise<StatusLead[]> => {
     try {
-      // Query 1: Fetch statuses specific to the agent where `statusLeadList = true`
-     
       const agentQuery = query(
         collection(db, 'statusLeadList'),
         where('AgentId', '==', selectedAgentId),
         where('statusLeadList', '==', true)
       );
       const agentQuerySnapshot = await getDocs(agentQuery);
-    
-      // Query 2: Fetch default statuses where `defaultStatusLead = true` and `statusLeadList = true`
+  
       const defaultQuery = query(
         collection(db, 'statusLeadList'),
         where('defaultStatusLead', '==', true),
         where('statusLeadList', '==', true)
       );
       const defaultQuerySnapshot = await getDocs(defaultQuery);
-      // Extract data from both queries
+  
       const agentStatuses = agentQuerySnapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data(),
@@ -204,19 +200,17 @@ const useFetchMD = (selectedAgentId?:string) => {
         ...doc.data(),
       }));
   
-      // Combine the results and remove duplicates
       const allStatuses = [...agentStatuses, ...defaultStatuses];
       const uniqueStatuses = Array.from(
         new Map(allStatuses.map(item => [item.id, item])).values()
       );
   
-      SetStatusLeadMap(uniqueStatuses); // Set the combined unique statuses
-      console.log('SetStatusLeadMap:', uniqueStatuses);
+      return uniqueStatuses as StatusLead[]; // המרת התוצאה ל-StatusLead[]
     } catch (error) {
       console.error('Error fetching status leads:', error);
+      return []; // במקרה של שגיאה, החזר רשימה ריקה
     }
   };
-
   
  
 useEffect(() => {
@@ -228,20 +222,21 @@ useEffect(() => {
 
 
 
-
-const fetchSourceLeadForAgent = async (UserAgentId: string) => {
+const fetchSourceLeadForAgent = async (UserAgentId: string): Promise<Lead[]> => {
   const q = query(
     collection(db, 'sourceLead'), 
-    where('AgentId', '==', selectedAgentId)
+    where('AgentId', '==', UserAgentId)
   );
+
   const querySnapshot = await getDocs(q);
   const data = querySnapshot.docs.map(doc => ({
-      id: doc.id, 
-      ...doc.data() 
-    }));
-    SetSourceLeadList(data);
-    console.log('SetSourceLeadList '+ SetSourceLeadList)
-  };
+    id: doc.id,
+    ...doc.data()
+  })) as Lead[];
+
+  SetSourceLeadList(data); // עדכון ה-state אם נדרש
+  return data; // החזרת הנתונים
+};
 
   const fetchSourceLeadMap = async (agentId: string) => {
     try {

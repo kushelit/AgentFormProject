@@ -830,6 +830,131 @@ const closeModal = (): void => {
 
   return (
 <div className="content-container-NewAgentForm">  
+<div className="data-container-Goals">
+  {/* כותרת */}
+  <div className="table-header-Goal" style={{ textAlign: 'right' }}>
+    <div className="table-Goal-title">עמידה ביעדים</div>
+  </div>
+
+  {/* בחירת עובד */}
+  <div className="goal-Worker">
+    <select
+      id="worker-select-goals"
+      value={selectedWorkerIdGoals}
+      onChange={(e) => handleWorkerChange(e, 'goal')}
+      disabled={!!(detail && detail.role === 'worker')}
+    >
+      <option value="">בחר עובד</option>
+      <option value="all-agency">כל הסוכנות</option>
+      {workers.map((worker) => (
+        <option key={worker.id} value={worker.id}>
+          {worker.name}
+        </option>
+      ))}
+    </select>
+  </div>
+
+  {/* צ'קבוקס של יעדים פעילים */}
+  <div className="goalActive">
+    <input
+      type="checkbox"
+      id="active-goals"
+      name="active-goals"
+      checked={isActiveGoals}
+      onChange={(e) => setIsActiveGoals(e.target.checked)}
+    />
+    <label htmlFor="active-goals">יעדים פעילים</label>
+  </div>
+  {/* יעדים */}
+  <div className="goals-container">
+  {isLoading ? (
+    <p>Loading...</p>
+  ) : goalData.length > 0 ? (
+    goalData.map((item, index) => (
+      <div className="goal-card" key={index}>
+        {/* כותרת היעד */}
+        <div className="goal-title">
+          {item.promotionName || "אין שם יעד"}
+        </div>
+        {/* יעד וביצוע */}
+        <div className="goal-grid">
+          {/* יעד */}
+          <div className="goal-field">
+            <label className="goal-label">יעד:</label>
+            <span className="goal-value">
+              {item.amaunt !== undefined && item.goalTypeName ? (
+                `${item.amaunt.toLocaleString()} - ${item.goalTypeName}`
+              ) : (
+                "אין מידע"
+              )}
+            </span>
+          </div>
+          {/* ביצוע */}
+          <div className="goal-field">
+            <label className="goal-label">ביצוע:</label>
+            {item.goalTypeName === "כוכבים" ? (
+              <span className="goal-value">
+                {item.totalStars ? `${item.totalStars}` : "אין מידע"}
+              </span>
+            ) : item.totalPremia && Object.keys(item.totalPremia).length > 0 ? (
+              Object.entries(item.totalPremia).map(([groupId, total]) => (
+                <span className="goal-value" key={groupId}>
+                  {typeof total === "number"
+                    ? new Intl.NumberFormat("he-IL").format(Math.floor(total))
+                    : "אין מידע"}
+                </span>
+              ))
+            ) : (
+              <span className="goal-value">אין מידע</span>
+            )}
+          </div>
+          {/* אחוז עמידה */}
+          <div className="goal-field">
+            <label className="goal-label">אחוז עמידה:</label>
+            {item.achievementRate !== undefined ? (
+              <ProgressBar
+                state={
+                  item.achievementRate >= 100
+                    ? "complete"
+                    : item.achievementRate >= 50
+                    ? "progress"
+                    : "low"
+                }
+                percentage={Math.min(item.achievementRate, 100)}
+                className="achievement-bar"
+              />
+            ) : (
+              <span className="goal-value">אין מידע</span>
+            )}
+          </div>
+
+          {/* זמן עבר */}
+          <div className="goal-field">
+            <label className="goal-label">זמן עבר:</label>
+            {item.daysPassed !== undefined &&
+            item.totalDuration !== undefined &&
+            item.totalDuration > 0 ? (
+              <ProgressBar
+                state="time"
+                percentage={Math.min(
+                  (item.daysPassed / item.totalDuration) * 100,
+                  100
+                )}
+                className="time-bar"
+              />
+            ) : (
+              <span className="goal-value">אין מידע</span>
+            )}
+          </div>
+        </div>
+      </div> // סגירה של goal-card
+    ))
+  ) : (
+    <p>אין מידע</p>
+  )}
+</div>
+</div> 
+
 <div className={`table-container-AgentForm-new-design`}>
 <div className="table-header">
   <div className="table-title">ניהול עסקאות</div>
@@ -1226,103 +1351,7 @@ const closeModal = (): void => {
          </div>
       </div>
       </div> 
-      <div className="data-container-Goals">
-  {/* כותרת */}
-  <div className="table-header-Goal" style={{ textAlign: 'right' }}>
-    <div className="table-Goal-title">עמידה ביעדים</div>
-  </div>
-  {/* בחירת עובד */}
-  <div className="goal-Worker">
-    <select
-      id="worker-select-goals"
-      value={selectedWorkerIdGoals}
-      onChange={(e) => handleWorkerChange(e, 'goal')}
-      disabled={!!(detail && detail.role === 'worker')}
-    >
-      <option value="">בחר עובד</option>
-      <option value="all-agency">כל הסוכנות</option>
-      {workers.map((worker) => (
-        <option key={worker.id} value={worker.id}>
-          {worker.name}
-        </option>
-      ))}
-    </select>
-  </div>
-  {/* צ'קבוקס של יעדים פעילים */}
-  <div className="goalActive">
-    <input
-      type="checkbox"
-      id="active-goals"
-      name="active-goals"
-      checked={isActiveGoals}
-      onChange={(e) => setIsActiveGoals(e.target.checked)}
-    />
-    <label htmlFor="active-goals">יעדים פעילים</label>
-  </div>
-  {/* יעדים */}
-  <div className="goals-container">
-    {isLoading ? (
-      <p>Loading...</p>
-    ) : goalData.length > 0 ? (
-      goalData.map((item, index) => (
-        <div className="goal-card" key={index}>
-          {/* כותרת היעד */}
-          <h3>{item.promotionName}</h3>
-          <p>
-  <span className="goal-label">יעד:</span>
-  <div>{`${item.amaunt.toLocaleString()} - ${item.goalTypeName}`}</div>
-</p>
-          {/* ביצועים */}
-          <div className="goal-performance">
-            <p><span className="goal-label">ביצוע:</span> </p>
-            {item.goalTypeName === "כוכבים" ? (
-              <div>{item.totalStars ? `${item.totalStars}` : 'N/A'}</div>
-            ) : item.totalPremia && Object.keys(item.totalPremia).length > 0 ? (
-              Object.entries(item.totalPremia).map(([groupId, total]) => (
-                <div key={groupId}>
-                  {typeof total === 'number'
-                    ? new Intl.NumberFormat('he-IL').format(Math.floor(total))
-                    : 'Invalid data'}
-                </div>
-              ))
-            ) : (
-              <div>אין מידע</div>
-            )}
-          </div>
-        {/* אחוז עמידה */}
-<div className="goal-progress">
-<h4>אחוז עמידה</h4>
-  {item.achievementRate !== undefined ? (
-    <ProgressBar
-      state={item.achievementRate >= 100 ? "complete" : item.achievementRate >= 50 ? "progress" : "low"}
-      percentage={Math.min(item.achievementRate, 100)}
-      className="achievement-bar"
-    />
-  ) : (
-    <div>אין מידע</div>
-  )}
-</div>
-{/* זמן עבר */}
-<div className="goal-time">
-<h4>זמן עבר</h4>
-     {/* state={(item.daysPassed / item.totalDuration) >= 1 ? "high" : "time"}*/}
-  {item.daysPassed !== undefined && item.totalDuration !== undefined && item.totalDuration > 0 ? (
-    <ProgressBar
-      state="time" // תמיד יהיה כחול כהה
-      percentage={Math.min((item.daysPassed / item.totalDuration) * 100, 100)}
-      className="time-bar"
-    />
-  ) : (
-    <div>אין מידע</div>
-  )}
-</div>
-        </div>
-      ))
-    ) : (
-      <p>אין מידע</p>
-    )}
-  </div>
-</div>
+     
         {showOpenNewDeal && (
     <div className="modal-overlay" onClick={() => setShowOpenNewDeal(false)}>
     <div className="modal-content" onClick={(e) => e.stopPropagation()}>

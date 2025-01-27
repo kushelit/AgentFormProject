@@ -18,8 +18,11 @@ const pages = [
   { href: '/RequestStatus', label: 'סטאטוס API' },
   { href: '/ManagePoolAgents', label: 'ניהול פול ליד' },
   { href: '/NewAgentForm', label: 'סוכנים חדש' },
+  { href: '/NewCustomer', label: 'לקוחות חדש' },
   { href: '/NewSummaryTable', label: 'דף מרכז חדש' },
   { href: '/NewGoals', label: 'ניהול יעדים חדש' },
+  { href: '/NewEnviorment', label: 'הגדרות מערכת חדש' },
+  { href: '/NewManageContracts', label: 'ניהול עמלות' },
 
 ];
 

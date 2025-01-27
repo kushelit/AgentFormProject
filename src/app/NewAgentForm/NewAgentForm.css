@@ -21,6 +21,7 @@ body {
 }
 .content-container-NewAgentForm {
     display: flex;
+    flex-direction: column; /* Stack sections vertically */
     max-width: 1280px; /* גבול רוחב מקסימלי */
     margin: 0 auto;
     padding: 8px 0; /* הקטנת הרווחים העליונים והתחתונים */
@@ -29,14 +30,13 @@ body {
 
 /* עיצוב יעד המטרות */
 .data-container-Goals {
-    width: 25%;
-    max-width: 370px;
-    height: calc(100vh - 120px);
+    width: 100%;
+    max-width: none;
+    height: auto; /* Let the height adjust based on content */
     overflow-y: auto;
-    padding:8px;
+    padding:16px;
     box-shadow: var(--m3-elevation-light-1);
     box-sizing: border-box;
-    margin-right: 4px; /* הוספת מרווח קטן בלבד */
     background-color: unset !important;
   }
 
@@ -48,10 +48,9 @@ body {
   
 .table-container-AgentForm-new-design {
   flex-grow: 1; /* תופס את כל הרוחב הזמין */
-  max-width: calc(100% - 210px); /* התאמת הרוחב לפי גודל ה-NAVBAR */
+  max-width: 100%; /* Use the full width available */
   overflow-x: hidden;
-  padding: 8px 8px 0 8px; /* הסרת רווח תחתון והשארת רווח בצדדים */
-  margin-top: -8px; /* צמצום הרווח העליון */    background-color: var(--clrwhite);
+  padding: 16px; /* Add consistent padding */
   box-shadow: var(--m3-elevation-light-1);
  box-sizing: border-box;
 }
@@ -199,6 +198,30 @@ select option {
   color: rgba(0, 0, 0, 0.5); /* צבע אפור שקוף */
 }
 
+
+.goal-Worker select {
+  appearance: none;
+  direction: rtl;
+  text-align: center; /* יישור התוכן בתוך השדה למרכז */
+  padding-right: 10px; /* התאמת רווחים מימין */
+  padding-left: 10px; /* התאמת רווחים משמאל */
+  background-position: left 10px center; /* ממקם את החץ */
+  background-size: 10px; /* התאמת גודל החץ */
+  margin-bottom: 0; /* ביטול רווח תחתון */
+  width: auto; /* רוחב אוטומטי */
+  min-width: 150px; /* רוחב מינימלי */
+}
+
+#worker-select-goals {
+  height: 28px; /* גובה שדה select */
+  padding: 2px 6px; /* צמצום הריווח הפנימי */
+  font-size: var(--font-size-text-small); /* גודל פונט קטן */
+  border: 1px solid var(--clrgray5);
+  border-radius: 4px;
+  box-sizing: border-box;
+  margin-bottom: 0; /* מבטל רווחים מיותרים */
+}
+
   .checkbox-input {
     width: 18px;
     height: 18px;
@@ -290,51 +313,6 @@ select option {
     align-items: center;
 }
 
-.goals-container {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  padding: 2px;
-}
-
-.goal-card {
-  background-color: var(--clrwhite);
-  border: 1px solid;
-  border-color: var(--clrgray3);
-  border-radius: 2px;
-  width: 100%; /* קחי רוחב מלא */
-  box-sizing: border-box;
-  max-width: 300px; /* מגביל את הרוחב */
-  margin: 0 auto; /* ממקם את הכרטיס במרכז */
-  box-sizing: border-box;
-  gap: 8px; /* צמצום המרווחים בין האלמנטים */
-  padding: 12px; /* שמירה על מרווח פנימי בתוך הכרטיס */
-}
-
-.table-Goal-title {
-  width: 94px;
-  height: 22px;
-  color: #3b6a95;
-  font-size: 14px;
-  font-weight: 700;
-  font-family: "Rubik-Regular", Helvetica, sans-serif !important;
-}
-
-.goal-Worker select {
-  width: 100% !important;
-  height: 32px !important;
-  padding: 6px 12px !important;
-  border: 1px solid var(--clrgray5) !important;
-  border-radius: 4px !important;
-  font-size: var(--font-size-text-regular) !important;
-  color: var(--clrblack) !important;
-  background-color: var(--clrwhite) !important;
-  box-sizing: border-box !important;
-  text-align: right !important;
-  direction: rtl !important;
-}
-
-
   .table-header {
     display: flex;
     align-items: center; /* מוודא שהם יהיו באותו גובה */
@@ -364,122 +342,120 @@ select option {
     margin-left: 16px;
   }
 
-.goal-progress,
-.goal-time {
-  margin-top: 12px;
-  padding: 0;
-}
-
-.achievement-bar, .time-bar {
-  width: 100%;
-  height: 20px;
-  background-color: var(--clrgray1);
-  border-radius: 4px;
-  overflow: hidden;
-  position: relative;
-  direction: rtl; /* כיוון מימין לשמאל */
-}
-  
-.achievement-bar .indicator, .time-bar .indicator {
-  height: 100%;
-  background-color: var(--clrdarkblue3);
-  border-radius: 4px;
-  transition: width 0.3s ease-in-out;
-  float: right; /* מתחיל מימין */
-}
-
-.progress-text {
-  position: absolute;
-  right: 10px;
-  top: 50%;
-  transform: translateY(-50%);
-  font-family: "Rubik", Helvetica, sans-serif;
-  font-size: 12px;
-  color: var(--clrwhite);
-  font-weight: 700;
-  text-align: right;
-}
-
-.progress-bar.state-complete .progress-text {
-  text-align: center; /* מרכז את הטקסט במצב "עמדת ביעד" */
-  width: 100%; /* מוודא שהטקסט ממורכז */
-}
-
-
-.goal-card h3 {
-  margin-bottom: 6px; /* צמצום המרווח מתחת לכותרת */
-  color: var(--clrdarkblue3);
-  font-weight: bold;
-}
-.goal-label {
-  color: #686868;
-  font-family: "Rubik-Regular", Helvetica;
-  font-size: 14px;
-  font-weight: 500;
-}
-
-.goal-performance p {
-  margin-top: 8px; /* מרווח בין היעד לביצוע */
-}
-
-.goal-card p {
-  margin: 0; /* הסרת מרווחים פנימיים מיותרים */
-  line-height: 1.4; /* התאמת גובה השורה לקריאות טובה יותר */
-}
-
-.goal-progress {
-  margin-bottom: 12px;
-}
-
-.goal-progress,
-.goal-time {
-  margin-top: 8px; /* צמצום המרווח בין החלקים של הפרוגרס בר */
-}
-
-.goal-progress h4,
-.goal-time h4 {
-  margin-bottom: 4px; /* צמצום המרווח מתחת לכותרות */
-  font-size: 14px;
-  color: #686868;
-}
-
-.goal-performance p,
-.goal-progress div,
-.goal-time div {
-  margin: 0;
-  font-size: 14px;
-  padding: 0;
-}
-
-.goal-progress div,
-.goal-time div {
-  border-radius: 4px;
-  width: 100%;
-  height: 20px;
-}
-
-  .goal-card h3,
-  .goal-card p,
-  .goal-progress h4,
-  .goal-time h4 {
-    font-family: "Rubik-Regular", Helvetica, sans-serif;
-    font-size: 14px; /* גודל פונט אחיד */
-    color: var(--clrdarkblue3); /* צבע אחיד */
-    font-weight: 400; /* משקל פונט אחיד */
-    margin: 0 0 8px; /* ריווח אחיד מתחת לכל כותרת */
+  .goals-container {
+    display: flex;
+    flex-wrap: wrap; /* מאפשר שבירה לשורות */
+    gap: 8px; /* רווח בין הכרטיסים */
+    justify-content: flex-start; /* יישור הכרטיסים לימין */
   }
-  .goal-progress h4,
-.goal-time h4 {
-  margin-bottom: 4px; /* ריווח מתחת לכותרות זמן עבר ואחוז עמידה */
+  
+  .goal-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr); /* ארבע עמודות */
+    gap: 12px; /* רווח בין עמודות */
+    text-align: right; /* יישור כל התוכן לימין */
+  }
+  
+  .goal-field {
+    display: flex;
+    flex-direction: column; /* שמירה על יישור אנכי */
+    align-items: flex-start; /* יישור של תוכן פנימי לימין */
+    gap: 4px; /* רווח בין הלייבל לבר */
+    width: 100%; /* ודא שהשדה תופס את כל הרוחב */
+  }
+
+  .goal-field .progress-bar {
+    max-width: 100%; /* הגבלת רוחב מקסימלית */
+    width: 90%; /* הרוחב יתפוס 90% מהקונטיינר */
+    margin: 0 auto; /* מרכז את ה-ProgressBar */
+  }
+  
+  .goal-label {
+    direction: rtl; /* הגדרת כיוון מימין לשמאל */
+    text-align: right; /* יישור לימין */
+  }
+  
+.goal-label,
+.goal-value {
+  white-space: nowrap; /* מונע שבירת שורות */
+  overflow: hidden; /* מונע גלילה אופקית במקרה של תוכן ארוך */
+  display: inline-block; /* הופך את האלמנט לאינליין עם בלוק */
 }
 
-.goalActive {
-  display: flex;
-  align-items: center;
-  gap: 8px; /* רווח בין הצ'קבוקס לטקסט */
-  margin-bottom: 8px; /* רווח מתחת לצ'קבוקס */
-  margin-top: 8px; /* רווח מעל לכל הכרטיס */
-}
+  .goal-value {
+    font-size: 14px;
+    font-weight: bold;
+    color: var(--clrgray9);
+    text-align: right; /* יישור הערכים לימין */
+  }
+  .achievement-bar,
+  .time-bar {
+    display: block; /* ודא שהבר תופס שורה מלאה */
+    width: calc(100% - 16px); /* תופס כמעט את כל הרוחב */
+    max-width: 100%; /* לא מגביל את הרוחב */
+    height: 14px; /* גובה הבר */
+    background-color: var(--clrgray1); /* צבע רקע */
+    border-radius: 6px; /* פינות עגולות */
+    overflow: hidden; /* מניעת גלישה */
+    position: relative; /* מאפשר מיקום של טקסט */
+    margin: 4px 0; /* רווח קטן מעל ומתחת */
+  }
+  
+  
+  .achievement-bar .indicator,
+  .time-bar .indicator {
+    height: 100%;
+    background-color: var(--clrdarkblue3); /* צבע ההתקדמות */
+    transition: width 0.3s ease-in-out; /* אנימציה בעת שינוי אחוזים */
+  }
+  .progress-bar {
+    width: 100%; /* הבר יתפרס על כל הרוחב הזמין */
+    height: 20px; /* גובה סטנדרטי */
+    background-color: var(--clrgray1); /* צבע רקע */
+    border-radius: 2px; /* פינות עגולות */
+    position: relative;
+    direction: rtl; /* כיוון מימין לשמאל */
+    margin-top: 4px; /* ריווח קטן מעל ה-Progress Bar */
+  }
+  
+  .progress-text {
+    position: absolute;
+    right: 8px; /* מיקום הטקסט בתוך הבר */
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 12px;
+    color: var(--clrwhite);
+    font-weight: bold;
+    white-space: nowrap; /* מניעת ירידת טקסט שורה */
+    text-align: right;
+    overflow: hidden; /* מניעת גלישה מעבר לגבולות */
+  }
+  .goal-card {
+    flex: 0 0 calc(50% - 16px); /* כל כרטיס תופס 50% עם רווח */
+    margin: 4px; /* רווח בין הכרטיסים */
+    max-width: calc(50% - 16px); /* הגבלה לרוחב מקסימלי */
+    box-sizing: border-box; /* ודאות שהריווחים נכנסים בחישוב */
+    padding: 12px; /* ריווח פנימי */
+    background-color: var(--clrwhite);
+    border: 1px solid var(--clrgray3);
+    border-radius: 8px;
+    box-shadow: var(--m3-elevation-light-1);
+    text-align: right; /* יישור לימין */
+  }
+  @media (max-width: 768px) {
+    .goal-card {
+      flex: 0 0 100%; /* כרטיס אחד בשורה במסכים קטנים */
+      max-width: 100%; /* שימוש מלא ברוחב */
+    }
+  
+    .goals-container {
+      gap: 12px; /* רווח גדול יותר בין כרטיסים במסכים קטנים */
+    }
+  }
+  
+  
+  
+  
 
 .filter-inputs-container-new select {
   appearance: none; /* מסיר את העיצוב הדפדפני המובנה */
@@ -649,6 +625,16 @@ select option {
 .form-group {
   display: flex;
   flex-direction: column;
+}
+.goal-title {
+  color: #3b6a95;
+  direction: rtl; /* כיוון הטקסט מימין לשמאל */
+  position: relative; /* שומר את המיקום היחסי בתוך ה-card */
+  text-align: right; /* יישור לימין */
+  margin-bottom: 8px; /* ריווח מתחת לכותרת */
+  white-space: nowrap; /* מונע ירידת טקסט לשורה חדשה */
+  font-size: 16px; /* גודל פונט מתאים */
+  font-weight: bold; /* כותרת מודגשת */
 }
 
 

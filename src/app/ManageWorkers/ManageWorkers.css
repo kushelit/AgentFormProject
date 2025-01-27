@@ -1,20 +1,80 @@
+
+.table-container td,
+.table-container th {
+    padding: 8px;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    overflow: visible;
+    max-width: 150px; /* הגבלת רוחב עמודה */
+
+}
+
+
+.table-container td {
+  overflow: visible;
+  padding: 8px;
+  text-overflow: ellipsis;
+  color: var(--clrblack);
+  direction: rtl;
+  white-space: normal; /* מאפשר שבירת שורות */
+  text-overflow: clip; /* מסיר את ה-"..." */
+  word-break: break-word; /* שוברת מילים ארוכות */
+ 
+
+}
+
+.table-container th {
+  background-color: var(--clrgray3);
+  color: var(--clrdarkblue3);
+  font-weight: bold;
+  border-color: var(--clrgray4);
+  white-space: normal; /* מאפשר שבירת שורות */
+text-overflow: clip; /* מסיר את ה-"..." */
+word-break: break-word; /* שוברת מילים ארוכות */
+text-align: right;
+  direction: rtl;
+}
+
+.table-container td, th {
+  border-right: none !important; /* מסיר קווים אנכיים בין התאים */
+  border-left: none !important; /* מסיר קווים אנכיים בין התאים */
+}
+
+
+.table-container tr {
+  height: 40px;
+}
+
+.table-header {
+  display: flex;
+  align-items: center; /* מוודא שהם יהיו באותו גובה */
+  justify-content: space-between; /* הכותרת מימין והכפתור משמאל */
+  padding: 8px 16px;
+}
+
+.table-title{
+  all: unset;
+  font-family: "Rubik-Regular", Helvetica, sans-serif !important;
+  font-size: 30px !important;
+  font-weight: 400 !important;
+  color: var(--clrdarkblue3) !important;
+  text-align: right !important;
+  line-height: 36px;
+}
+
 .table-container table {
-    width: 100%; /* Adjusts the width of the table to fill the container */
-    border-collapse: collapse; /* Eliminates space between borders */
-    font-size: 12px; /* Reduces the font size for all text within the table */
-  }
-  
-  .table-container th, .table-container td {
-    padding: 3px; /* Reduces padding inside each cell */
-    text-align: center; /* Aligns text to the left; adjust as needed */
-    border-bottom: 1px solid #ccc; /* Adds a subtle line between rows */
-  }
-  
-  .table-container th {
-    font-weight: bold; /* Makes header text bold */
-  }
-  
-  .table-container {
-    overflow-x: auto; /* Allows scrolling on x-axis if the table is too wide */
-  }
-  
+  table-layout: fixed;
+  border-collapse: collapse;
+  border: none !important;
+      margin-right: 20px;  
+}
+
+.text-custom-link {
+  color: var(--clrdarkblue3);
+  text-decoration: none; /* אם תרצי להסתיר את הקו התחתון */
+  margin-right: 20px;  
+}
+
+.text-custom-link:hover {
+  text-decoration: underline; /* הוספת קו תחתון במעבר עכבר (אופציונלי) */
+}

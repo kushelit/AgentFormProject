@@ -40,12 +40,12 @@ const ManageWorkers: React.FC = () => {
   }, [detail]);
 
   return (
-    <div className="frame-container bg-custom-white " style={{ maxWidth: '1000px', margin: '0 auto', padding: '10px 20px 20px 20px', border: '1px solid #ccc', borderRadius: '8px', marginTop: '10px' }}>
-    <h2 style={{ textAlign: 'center' , marginBottom: '10px', fontSize:'12px' }}>ניהול עובדים  </h2>    
-    <div style={{ marginTop: '20px', width: '90%', margin: '0 auto', overflowX: 'auto' }}>
-    {/*   {defaultContracts.length > 0 ? ( */}
-        <div className="table-container" style={{ width: '100%' }}>
-          <table style={{ width: '100%'  }}>
+    <div className="frame-container">
+      <div className="table-header">
+      <div className="table-title">ניהול עובדים</div>
+      </div>
+        <div className="table-container">
+          <table>
         <thead>
           <tr>
             <th> שם עובד</th>
@@ -60,10 +60,10 @@ const ManageWorkers: React.FC = () => {
         </tbody>
       </table>
       </div>
-      <div  style={{ textAlign: 'right' , paddingRight: '20px' }}> {detail?.role === 'agent' ? (
-        <Link href={`/auth/sign-up/${user?.uid}`} className="text-custom-green">צור עובד חדש</Link>
-      ) : null}</div>
-    </div>
+      <div className="add_worker"> {detail?.role === 'agent' ? (
+        <Link href={`/auth/sign-up/${user?.uid}`} className="text-custom-link">צור עובד חדש</Link>
+      ) : null}
+      </div>
     </div>
   );
 };
