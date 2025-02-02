@@ -3,7 +3,7 @@
 import { useAuth } from "@/lib/firebase/AuthContext";
 import { FormEventHandler, useEffect, useState } from "react";
 import { redirect } from 'next/navigation';
-import "../auth.css";
+import './LogIn.css';
 import Link from 'next/link';
 
 export default function LogInPage() {
@@ -37,25 +37,38 @@ export default function LogInPage() {
         setError(err.code);
       });
   }
-
   return (
-    <div className="form-auth">
-      <form onSubmit={handleLogIn}>
-        <div  className="content-auth">
-          <label htmlFor="email" >כתובת מייל</label>
-          <input type="email" id="email" name="email" required />
-        </div>
-        <div className="content-auth">
-          <label htmlFor="password">סיסמא</label>
-          <input type="password" id="password" name="password" required />
-        </div>
-        {error && <p className="text-red-500">{error}</p>}
-        <button className="button-container"  type="submit">כניסה</button>
-
-        <p>
-        <Link href="/auth/reset-password" style={{ color: 'white' }}>שכחת סיסמא?</Link>
-</p>
-      </form>
+    <div className="login-container">
+      <div className="login-card">
+        {/* כותרת */}
+        <h1 className="form-title">התחברות</h1>
+  
+        {/* טופס */}
+        <form onSubmit={handleLogIn} className="login-form">
+          {/* כתובת מייל */}
+          <div className="form-group">
+            <label htmlFor="email" className="form-label">כתובת מייל</label>
+            <input type="email" id="email" name="email" required className="form-input" />
+          </div>
+  
+          {/* סיסמא */}
+          <div className="form-group">
+            <label htmlFor="password" className="form-label">סיסמא</label>
+            <input type="password" id="password" name="password" required className="form-input" />
+          </div>
+  
+          {/* שכחת סיסמא */}
+          <div className="forgot-password-container">
+            <Link href="/auth/reset-password" className="forgot-password-link">שכחת סיסמא?</Link>
+          </div>
+  
+          {/* הודעות שגיאה */}
+          {error && <p className="error-text">{error}</p>}
+  
+          {/* כפתור כניסה */}
+          <button className="login-button" type="submit">כניסה</button>
+        </form>
+      </div>
     </div>
-  )
+  );  
 }

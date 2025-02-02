@@ -1,0 +1,139 @@
+.page-container {
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.form-panel {
+  max-width: 300px; /* צמצום רוחב המודל */
+  background-color: var(--clrgray1);
+  border-color: var(--clrgray5);
+  padding: 20px;
+  box-shadow: -2px 0 5px rgba(0, 0, 0, 0.1);
+  width: 220px;
+}
+
+.form-title {
+  font-size: 1.5rem;
+  margin-bottom: 20px;
+}
+
+.form-container {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.form-group label {
+  margin-bottom: 5px;
+  font-weight: bold;
+}
+
+.form-group input,
+.form-group select {
+  appearance: none;
+  direction: rtl;
+  text-align: center; /* יישור התוכן בתוך השדה למרכז */
+  background-position: left 10px center; /* ממקם את החץ */
+  background-size: 10px; /* התאמת גודל החץ */
+  margin-bottom: 0; /* ביטול רווח תחתון */
+  width: auto; /* רוחב אוטומטי */
+  padding: 2px 6px; /* צמצום הריווח הפנימי */
+  font-size: var(--font-size-text-small); /* גודל פונט קטן */
+  border: 1px solid var(--clrgray5);
+  border-radius: 4px;
+  box-sizing: border-box;
+  margin-bottom: 0; /* מבטל רווחים מיותרים */
+  height: 30px; /* גובה */
+}
+
+.button-group {
+  display: flex;
+  justify-content: center; /* מפזר את הכפתורים לשני צידי השורה */
+  gap: 10px; /* רווח בין הכפתורים */
+  margin-top: 20px; /* מרחק למעלה */}
+
+.button {
+  cursor: pointer; /* מצביע לחיץ */
+}
+.button:hover {
+  opacity: 0.8; /* אפקט שקיפות קטן */
+  transition: all 0.2s ease-in-out; /* אנימציה חלקה */
+}
+.button.state-disabled {
+  cursor: not-allowed; /* מצביע של מצב לא פעיל */
+  opacity: 0.5; /* שקיפות */
+}
+
+
+.form-group label {
+  font-size: 14px;
+  font-weight: bold;
+  margin-bottom: 5px;
+  text-align: right; /* יישור לימין */
+  color: var(--clrgray7);
+}
+
+
+
+.table-panel {
+  flex: 1;
+  padding: 20px;
+  overflow: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  border: none !important;
+}
+
+table td,
+table th {
+    padding: 8px;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    overflow: visible;
+    max-width: 150px; /* הגבלת רוחב עמודה */
+}
+
+
+table td {
+  overflow: visible;
+  padding: 8px;
+  text-overflow: ellipsis;
+  color: var(--clrblack);
+  direction: rtl;
+  white-space: normal; /* מאפשר שבירת שורות */
+  text-overflow: clip; /* מסיר את ה-"..." */
+  word-break: break-word; /* שוברת מילים ארוכות */
+ 
+
+}
+
+table th {
+  background-color: var(--clrgray3);
+  color: var(--clrdarkblue3);
+  font-weight: bold;
+  border-color: var(--clrgray4);
+  white-space: normal; /* מאפשר שבירת שורות */
+text-overflow: clip; /* מסיר את ה-"..." */
+word-break: break-word; /* שוברת מילים ארוכות */
+text-align: center;
+  direction: rtl;
+}
+
+table td, th {
+  border-right: none !important; /* מסיר קווים אנכיים בין התאים */
+  border-left: none !important; /* מסיר קווים אנכיים בין התאים */
+}
+
+
+table tr {
+  height: 10px;
+}

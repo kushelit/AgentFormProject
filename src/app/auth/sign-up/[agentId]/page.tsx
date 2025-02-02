@@ -78,66 +78,57 @@ export default function WorkerSignUpPage({ params }: { params: { agentId: string
   if (!agent) {
     return <div>Loading...</div>;
   }
-
   return (
-
-<div className="frame-container bg-custom-white " style={{ maxWidth: '500px', margin: '0 auto', padding: '10px 20px 20px 20px', border: '1px solid #ccc', borderRadius: '8px', marginTop: '10px' ,textAlign: 'center', direction: 'rtl'  }}>
-{/*<h1 style={{ paddingTop: '4rem', fontSize: '24px' }}>רישום עובד עבור סוכן <span className="font-bold">{agent.name}</span></h1>*/}
-<div style={{ marginTop: '20px', width: '90%', margin: '0 auto', overflowX: 'auto' }}>
-<div className="table-container" style={{ width: '100%' }}>
-
-        <form onSubmit={handleSignUp}>
-        <table style={{ width: '100%'  }}>
-          <tbody>
-          <tr>
-                    <td>
-                    <label htmlFor="name">שם עובד</label>
-                    </td>
-                    <td>
-                    <input type="text" id="name" name="name" required />
-                    </td>
-            </tr>
-
-            <tr>
-                    <td>
-                    <label htmlFor="email">אימייל</label>
-                    </td>
-                    <td>
-                    <input type="email" id="email" name="email" required />
-                    </td>
-            </tr>
-            <tr>
-                    <td>
-                    <label htmlFor="password">סיסמא</label>
-                    </td>
-                    <td>
-                    <input type="password" id="password" name="password" required />
-                    </td>
-            </tr>
-
-            <tr>
-                    <td>
-                    <label htmlFor="password-confirm"> אימות סיסמא</label>
-                    </td>
-                    <td>
-                    <input type="password" id="password-confirm" name="password-confirm" required />
-                    </td>
-            </tr>
-            </tbody>
-           
-            </table>
-
-      <div className="button-group" >
-      <button type="submit">הוסף עובד</button>
-      </div>
+    <div className="form-container">
+      <form onSubmit={handleSignUp} className="auth-form">
+        <h2 className="form-title">רישום עובד</h2>
+  
+        {/* שם עובד */}
+        <div className="form-group">
+          <label htmlFor="name" className="form-label">
+            שם עובד <span className="required">*</span>
+          </label>
+          <input type="text" id="name" name="name" required className="form-input" />
+        </div>
+  
+        {/* אימייל */}
+        <div className="form-group">
+          <label htmlFor="email" className="form-label">
+            אימייל <span className="required">*</span>
+          </label>
+          <input type="email" id="email" name="email" required className="form-input" />
+        </div>
+  
+        {/* סיסמא */}
+        <div className="form-group">
+          <label htmlFor="password" className="form-label">
+            סיסמא <span className="required">*</span>
+          </label>
+          <input type="password" id="password" name="password" required className="form-input" />
+        </div>
+  
+        {/* אימות סיסמא */}
+        <div className="form-group">
+          <label htmlFor="password-confirm" className="form-label">
+            אימות סיסמא <span className="required">*</span>
+          </label>
+          <input
+            type="password"
+            id="password-confirm"
+            name="password-confirm"
+            required
+            className="form-input"
+          />
+        </div>
+  
+        {/* כפתור הוספה */}
+        <button type="submit" className="form-button">
+          הוסף עובד
+        </button>
+  
+        {/* הודעות שגיאה */}
+        {error && <p className="error-text">{error}</p>}
       </form>
-      {/* Error message displayed here, outside the form but inside the overall container */}
-      {error && <p className="text-red-500">{error}</p>}
-      
     </div>
-    </div>
-    
-    </div>
-  )
-
+  );  
 }

@@ -3,6 +3,8 @@
 
 import { useState } from 'react';
 import { getAuth, sendPasswordResetEmail } from 'firebase/auth';
+import './ResetPass.css';
+
 
 export default function ResetPasswordPage() {
   const [email, setEmail] = useState('');
@@ -25,9 +27,13 @@ export default function ResetPasswordPage() {
 
   return (
     <div className="form-auth">
-      <form onSubmit={handleResetPassword}>
-        <div className="content-auth">
-          <label htmlFor="email">כתובת מייל
+      <form onSubmit={handleResetPassword} className="auth-form">
+        <h2 className="form-title">איפוס סיסמה</h2>
+  
+        {/* שדה כתובת מייל */}
+        <div className="form-group">
+          <label htmlFor="email" className="form-label">
+            כתובת מייל <span className="required">*</span>
           </label>
           <input
             type="email"
@@ -36,13 +42,19 @@ export default function ResetPasswordPage() {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
+            className="form-input"
           />
         </div>
-        {message && <p className="text-green-500">{message}</p>}
-        {error && <p className="text-red-500">{error}</p>}
-        <button className="button-container" type="submit">
-איפוס סיסמא </button>
+  
+        {/* הודעות שגיאה/הצלחה */}
+        {message && <p className="success-text">{message}</p>}
+        {error && <p className="error-text">{error}</p>}
+  
+        {/* כפתור איפוס סיסמא */}
+        <button className="form-button" type="submit">
+          שלח סיסמא למייל
+        </button>
       </form>
     </div>
-  );
+  );  
 }

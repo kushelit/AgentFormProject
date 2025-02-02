@@ -4,6 +4,8 @@ import { User, onAuthStateChanged, signOut, signInWithEmailAndPassword, createUs
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { auth, db } from "./firebase";
 import { doc, getDoc } from "firebase/firestore";
+import useFetchAgentData from "@/hooks/useFetchAgentData"; 
+
 
 type AuthContextType = {
   user: User | null;
@@ -26,6 +28,9 @@ export const AuthContext = createContext<AuthContextType>();
 export const AuthContextProvider = (props: any) => {
   const [user, setUser] = useState<User | null>(null);
   const [detail, setDetail] = useState<UserDetail | null>(null);
+
+  // const { resetSelectedAgentId } = useFetchAgentData();
+
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
@@ -56,6 +61,7 @@ export const AuthContextProvider = (props: any) => {
   }
 
   const logOut = async () => {
+    // resetSelectedAgentId(); // אפס את selectedAgentId ל-null
     return signOut(auth);
   };
 

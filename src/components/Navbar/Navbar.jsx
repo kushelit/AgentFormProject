@@ -4,10 +4,19 @@ import { NavbarItem } from "../NavbarItem";
 import "./style.css";
 import { Expand } from "../Expand";
 import { Collapse } from "../Collapse";
+import useFetchAgentData from "@/hooks/useFetchAgentData"; 
+
 
 export const Navbar = ({ items, bottomPage, className }) => {
   const [openSubmenu, setOpenSubmenu] = useState(null);
   const [selectedTab, setSelectedTab] = useState(null);
+
+
+
+  const { 
+    selectedAgentId, 
+  } = useFetchAgentData();
+
 
   // שחזור המצב מ-localStorage בעת טעינת הקומפוננטה
   useEffect(() => {
@@ -87,44 +96,54 @@ export const Navbar = ({ items, bottomPage, className }) => {
 
   return (
     <div className={`navbar ${className}`}>
-      {Array.isArray(items) &&
-        items.map((item) => (
-          <React.Fragment key={item.href}>
-            {renderNavbarItem(item)}
-            {item.submenu &&
-              openSubmenu === item.href && (
-                <div className="submenu">
-                  {item.submenu.map((submenuItem) => (
-                    <NavbarItem
-                      key={submenuItem.href}
-                      className="submenu-item"
-                      state="default"
-                    >
-                      <a
-                        href={submenuItem.href}
-                        className="navbar-link"
-                        onClick={(e) => {
-                          e.stopPropagation(); // מנע סגירה של התפריט
-                          handleTabClick(submenuItem.href); // בחר את הטאב
-                        }}
-                      >
-                        {submenuItem.label}
-                      </a>
-                    </NavbarItem>
-                  ))}
-                </div>
-              )}
-            </React.Fragment>
-        ))}
-      {/* Bottom page */}
-      {bottomPage && (
-        <div className="navbar-bottom">
-          <NavbarItem key={bottomPage.href} state="default" className="bottom-item">
-            <a href={bottomPage.href} className="navbar-link">
-              {bottomPage.label}
-            </a>
-          </NavbarItem>
-        </div>
+      {selectedAgentId ? ( // הצגת ה-Navbar רק אם יש `selectedAgentId`
+        <>
+          {Array.isArray(items) &&
+            items.map((item) => (
+              <React.Fragment key={item.href}>
+                {renderNavbarItem(item)}
+                {item.submenu &&
+                  openSubmenu === item.href && (
+                    <div className="submenu">
+                      {item.submenu.map((submenuItem) => (
+                        <NavbarItem
+                          key={submenuItem.href}
+                          className="submenu-item"
+                          state="default"
+                        >
+                          <a
+                            href={submenuItem.href}
+                            className="navbar-link"
+                            onClick={(e) => {
+                              e.stopPropagation(); // מנע סגירה של התפריט
+                              handleTabClick(submenuItem.href); // בחר את הטאב
+                            }}
+                          >
+                            {submenuItem.label}
+                          </a>
+                        </NavbarItem>
+                      ))}
+                    </div>
+                  )}
+              </React.Fragment>
+            ))}
+          {/* Bottom page */}
+          {bottomPage && (
+            <div className="navbar-bottom">
+              <NavbarItem
+                key={bottomPage.href}
+                state="default"
+                className="bottom-item"
+              >
+                <a href={bottomPage.href} className="navbar-link">
+                  {bottomPage.label}
+                </a>
+              </NavbarItem>
+            </div>
+          )}
+        </>
+      ) : (
+        <p>נא לבחור סוכן</p> // הודעה במקרה שאין `selectedAgentId`
       )}
     </div>
   );

@@ -1,18 +1,18 @@
 /* מיכל מרכזי */
-.form-container {
+.login-container {
   display: flex;
   justify-content: center;
   align-items: center;
-  height: 100vh; /* גובה מלא */
+  height: 100vh; /* גובה מלא של הדף */
   background-color: #f7f9fc;
 }
 
-/* טופס */
-.auth-form {
+/* כרטיס */
+.login-card {
   max-width: 400px;
-  width: 90%;
+  width: 90%; /* גמישות ברוחב */
   padding: 20px;
-  background-color: #fff;
+  background-color: white;
   border-radius: 8px;
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
   text-align: center;
@@ -26,12 +26,18 @@
   margin-bottom: 20px;
 }
 
+/* טופס */
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
 /* קבוצת שדות */
 .form-group {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  margin-bottom: 15px;
 }
 
 /* לייבלים */
@@ -50,8 +56,8 @@
   border-radius: 5px;
 }
 
-/* כפתור */
-.form-button {
+/* כפתור כניסה */
+.login-button {
   width: 100%;
   padding: 10px;
   font-size: 16px;
@@ -63,18 +69,27 @@
   transition: background-color 0.3s;
 }
 
-.form-button:hover {
+.login-button:hover {
   background-color: #005bb5;
+}
+
+/* שכחת סיסמא */
+.forgot-password-container {
+  text-align: right;
+}
+
+.forgot-password-link {
+  color: #005bb5;
+  font-size: 14px;
+  text-decoration: none;
+}
+
+.forgot-password-link:hover {
+  text-decoration: underline;
 }
 
 /* הודעות שגיאה */
 .error-text {
   color: red;
   font-size: 14px;
-  margin-top: 10px;
-}
-
-/* כוכביות */
-.required {
-  color: red;
 }

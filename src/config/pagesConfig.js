@@ -23,6 +23,7 @@ const pages = [
   { href: '/NewGoals', label: 'ניהול יעדים חדש' },
   { href: '/NewEnviorment', label: 'הגדרות מערכת חדש' },
   { href: '/NewManageContracts', label: 'ניהול עמלות' },
+  { href: '/NewSimulation', label: 'ניהול סימולטור' },
 
 ];
 

@@ -1,20 +1,22 @@
-/* מיכל מרכזי */
-.form-container {
+/* מיכל עוטף */
+.form-auth {
   display: flex;
   justify-content: center;
   align-items: center;
-  height: 100vh; /* גובה מלא */
+  min-height: 100vh;
   background-color: #f7f9fc;
+  padding: 20px;
 }
 
 /* טופס */
 .auth-form {
   max-width: 400px;
-  width: 90%;
-  padding: 20px;
+  width: 100%;
+  padding: 30px;
   background-color: #fff;
   border-radius: 8px;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+  border: 1px solid #e5e5e5;
   text-align: center;
 }
 
@@ -41,6 +43,11 @@
   color: #333;
 }
 
+/* כוכביות */
+.required {
+  color: red;
+}
+
 /* שדות קלט */
 .form-input {
   width: 100%;
@@ -48,13 +55,21 @@
   font-size: 14px;
   border: 1px solid #ccc;
   border-radius: 5px;
+  transition: border-color 0.3s, box-shadow 0.3s;
+}
+
+.form-input:focus {
+  border-color: #003366;
+  box-shadow: 0 0 5px rgba(0, 51, 102, 0.3);
+  outline: none;
 }
 
 /* כפתור */
 .form-button {
   width: 100%;
-  padding: 10px;
+  padding: 12px;
   font-size: 16px;
+  font-weight: bold;
   background-color: #003366;
   color: white;
   border: none;
@@ -67,14 +82,15 @@
   background-color: #005bb5;
 }
 
-/* הודעות שגיאה */
-.error-text {
-  color: red;
+/* הודעות הצלחה/שגיאה */
+.success-text {
+  color: green;
   font-size: 14px;
   margin-top: 10px;
 }
 
-/* כוכביות */
-.required {
+.error-text {
   color: red;
+  font-size: 14px;
+  margin-top: 10px;
 }

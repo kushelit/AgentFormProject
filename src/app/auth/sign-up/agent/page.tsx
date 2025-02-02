@@ -5,6 +5,8 @@ import { FormEventHandler, useEffect, useState } from "react";
 import { redirect } from 'next/navigation';
 import { db } from "@/lib/firebase/firebase";
 import { collection, doc, setDoc } from "firebase/firestore";
+import './agentSignup.css';
+
 
 export default function AgentSignUpPage() {
   const { user, signUp } = useAuth();
@@ -53,55 +55,67 @@ export default function AgentSignUpPage() {
     });
 }
 
+return (
+  <div className="form-auth-container">
+    <form onSubmit={handleSignUp} className="auth-form">
+      <h2 className="form-title">יצירת משתמש</h2>
 
-  return (
-    <div className="frame-container bg-custom-white" style={{ maxWidth: '500px', margin: '0 auto', padding: '10px 20px 20px 20px', border: '1px solid #ccc', borderRadius: '8px', marginTop: '10px', textAlign: 'center', direction: 'rtl' }}>
-      <div style={{ marginTop: '20px', width: '90%', margin: '0 auto', overflowX: 'auto' }}>
-        <div className="table-container" style={{ width: '100%' }}>
-          <form onSubmit={handleSignUp}>
-            <table style={{ width: '100%' }}>
-              <tbody>
-                <tr>
-                  <td>
-                    <label htmlFor="name">שם סוכן</label>
-                  </td>
-                  <td>
-                    <input type="text" id="name" name="name" required />
-                  </td>
-                </tr>
-                <tr>
-                  <td>
-                    <label htmlFor="email">אימייל</label>
-                  </td>
-                  <td>
-                    <input type="email" id="email" name="email" required />
-                  </td>
-                </tr>
-                <tr>
-                  <td>
-                    <label htmlFor="password">סיסמא</label>
-                  </td>
-                  <td>
-                    <input type="password" id="password" name="password" required />
-                  </td>
-                </tr>
-                <tr>
-                  <td>
-                    <label htmlFor="password-confirm">אימות סיסמא</label>
-                  </td>
-                  <td>
-                    <input type="password" id="password-confirm" name="password-confirm" required />
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-            <div className="button-group">
-              <button type="submit">הרשם</button>
-            </div>
-          </form>
-          {error && <p className="text-red-500">{error}</p>}
-        </div>
+      {/* שם סוכן */}
+      <div className="form-group">
+        <label htmlFor="name" className="form-label">
+          שם הסוכן <span className="required">*</span>
+        </label>
+        <input type="text" id="name" name="name" required className="form-input" />
       </div>
-    </div>
-  );
+
+      {/* כתובת מייל */}
+      <div className="form-group">
+        <label htmlFor="email" className="form-label">
+          כתובת מייל <span className="required">*</span>
+        </label>
+        <input type="email" id="email" name="email" required className="form-input" />
+      </div>
+
+      {/* סיסמא */}
+      <div className="form-group">
+        <label htmlFor="password" className="form-label">
+          סיסמא <span className="required">*</span>
+        </label>
+        <input type="password" id="password" name="password" required className="form-input" />
+      </div>
+
+      {/* אימות סיסמא */}
+      <div className="form-group">
+        <label htmlFor="password-confirm" className="form-label">
+          אימות סיסמא <span className="required">*</span>
+        </label>
+        <input
+          type="password"
+          id="password-confirm"
+          name="password-confirm"
+          required
+          className="form-input"
+        />
+      </div>
+
+      {/* כפתור הרשמה */}
+      <button type="submit" className="form-button">
+        הרשמה
+      </button>
+
+      {/* הודעות שגיאה */}
+      {error && <p className="error-text">{error}</p>}
+
+      {/* קישור להתחברות */}
+      <div className="form-footer">
+        <div className="form-footer-line">
+          <span>או</span>
+        </div>
+        <a href="/auth/log-in" className="form-link">
+          התחברות
+        </a>
+      </div>
+    </form>
+  </div>
+);
 }

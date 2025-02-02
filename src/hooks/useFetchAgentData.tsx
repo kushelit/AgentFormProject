@@ -256,6 +256,9 @@ const useFetchAgentData = () => {
     fetchCompanies();
   }, []);
 
+  const resetSelectedAgentId = () => {
+    setSelectedAgentId(null);
+  };
 
 
 

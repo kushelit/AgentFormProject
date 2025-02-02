@@ -32,7 +32,8 @@ export const TopBar = ({ prop = true, className }) => {
           ) : (
             <>
               {/* קישור התחברות */}
-              <Link href="/auth/log-in">התחבר</Link>
+              <Link href="/auth/sign-up/agent" className="user-name">הרשם</Link>
+              <Link href="/auth/log-in" className="user-name">התחבר</Link>
             </>
           )}
         </div>
