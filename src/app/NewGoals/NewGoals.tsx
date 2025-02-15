@@ -59,6 +59,13 @@ const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 const [openDropdownRow, setOpenDropdownRow] = useState<string | null>(null);
 
 const [activeTab, setActiveTab] = useState("goalsMD");
+const [goals, setGoals] = useState<GoalDataType[]>([]);
+
+
+
+const [openMenuRowPromotions, setOpenMenuRowPromotions] = useState<string | null>(null);
+const [openMenuRowStars, setOpenMenuRowStars] = useState<string | null>(null);
+const [openMenuRowGoals, setOpenMenuRowGoals] = useState<string | null>(null);
 
 
 const { 
@@ -112,8 +119,6 @@ const handleCompanyToggle = (company: string) => {
   }
 };
 
-
-
 const {
   data: promotionsData,
   editingRow: editingPromotionRow,
@@ -155,22 +160,31 @@ const {
   handleDeleteRow: handleDeleteGoalRow,
   saveChanges: saveGoalChanges,
   reloadData: reloadGoalsData,
-  cancelEdit: cancelEditGoal, // פונקציה חדשה
+  cancelEdit: cancelEditGoal, 
 } = useEditableTable<GoalDataType>({
   dbCollection: 'goalsSuccess',
   agentId: selectedAgentId,
   fetchData: async (agentId) => {
-    const data = await fetchGoalsSuccessForAgent(agentId);
-    setGoalsSuccessList(data);
+    const data = await fetchGoalsSuccessForAgent(agentId); // ✅ כאן אנו משתמשים בפונקציה
+    console.log("✅ GoalsData received in useEditableTable:", data);
     return data;
   },
 });
 
+useEffect(() => {
+  if (!selectedAgentId) return;
+  
+  console.log("🔄 Fetching goals data for selectedAgentId:", selectedAgentId);
+  reloadGoalsData(selectedAgentId); // ריענון הנתונים בכל פעם שסוכן נבחר
+}, [selectedAgentId]);
 
+useEffect(() => {
+  console.log("🧐 Updating goals state with goalsData:", goalsData);
+  if (goalsData && goalsData.length > 0) {
+    setGoals(goalsData); // מעדכן את הסטייט
+  }
+}, [goalsData]); // ירוץ כל פעם שהנתונים יתעדכנו
 
-const [openMenuRowPromotions, setOpenMenuRowPromotions] = useState<string | null>(null);
-const [openMenuRowStars, setOpenMenuRowStars] = useState<string | null>(null);
-const [openMenuRowGoals, setOpenMenuRowGoals] = useState<string | null>(null);
 
 //עבור עריכת חברות בטבלת יעדים
 const handleEditCompanyToggle = (company: string) => {
@@ -672,10 +686,10 @@ useEffect(() => {
 const [isProcessing, setIsProcessing] = useState(false); // Track loading state
   const [message, setMessage] = useState<string | null>(null); // Track success/error message
 
+
   const handleDuplicateGoals = async () => {
     setIsProcessing(true);
     setMessage(null); // Clear previous messages
-
     try {
       await duplicateGoalsForNextMonth(selectedAgentId); // Call your function
       setMessage('Goals successfully duplicated for the next month!');
@@ -686,30 +700,31 @@ const [isProcessing, setIsProcessing] = useState(false); // Track loading state
       setIsProcessing(false);
     }
   };
-  const sortedGoalsSuccessList = [...goalsSuccessList].sort((a, b) => {
-    const orderMultiplier = sortOrder === 'asc' ? 1 : -1;
 
-    switch (sortCriteria) {
-      case 'worker':
-        const workerA = a.workerId === 'all-agency' ? 'כל הסוכנות' : workerNameMap[a.workerId] || 'Unknown Worker';
-        const workerB = b.workerId === 'all-agency' ? 'כל הסוכנות' : workerNameMap[b.workerId] || 'Unknown Worker';
-        return workerA.localeCompare(workerB) * orderMultiplier;
+  // const sortedGoalsSuccessList = [...goalsSuccessList].sort((a, b) => {
+  //   const orderMultiplier = sortOrder === 'asc' ? 1 : -1;
 
-      case 'promotion':
-        const promotionA = promotionListForStars[a.promotionId] || 'Unknown Promotion';
-        const promotionB = promotionListForStars[b.promotionId] || 'Unknown Promotion';
-        return promotionA.localeCompare(promotionB) * orderMultiplier;
+  //   switch (sortCriteria) {
+  //     case 'worker':
+  //       const workerA = a.workerId === 'all-agency' ? 'כל הסוכנות' : workerNameMap[a.workerId] || 'Unknown Worker';
+  //       const workerB = b.workerId === 'all-agency' ? 'כל הסוכנות' : workerNameMap[b.workerId] || 'Unknown Worker';
+  //       return workerA.localeCompare(workerB) * orderMultiplier;
 
-      case 'startDate':
-        if (!a.startDate && !b.startDate) return 0; // Both N/A
-        if (!a.startDate) return 1 * orderMultiplier; // N/A goes to the bottom
-        if (!b.startDate) return -1 * orderMultiplier; // N/A goes to the bottom
-        return a.startDate.localeCompare(b.startDate) * orderMultiplier;
+  //     case 'promotion':
+  //       const promotionA = promotionListForStars[a.promotionId] || 'Unknown Promotion';
+  //       const promotionB = promotionListForStars[b.promotionId] || 'Unknown Promotion';
+  //       return promotionA.localeCompare(promotionB) * orderMultiplier;
 
-      default:
-        return 0; // Default: no sorting
-    }
-  });
+  //     case 'startDate':
+  //       if (!a.startDate && !b.startDate) return 0; // Both N/A
+  //       if (!a.startDate) return 1 * orderMultiplier; // N/A goes to the bottom
+  //       if (!b.startDate) return -1 * orderMultiplier; // N/A goes to the bottom
+  //       return a.startDate.localeCompare(b.startDate) * orderMultiplier;
+
+  //     default:
+  //       return 0; // Default: no sorting
+  //   }
+  // });
 
   const [isModalOpenNewGoal, setIsModalOpenNewGoal] = useState(false);
 
@@ -750,11 +765,17 @@ const [isProcessing, setIsProcessing] = useState(false); // Track loading state
   // };
 
 
+// ✅ בדיקה לפני הרינדור
+if (!goals || goals.length === 0) {
+  console.log("⏳ Waiting for goals to load...");
+  return <p>טוען נתונים...</p>;
+}
 
   return (
     <div className="content-container">
       <div className="table-header">
         <div className="table-title">ניהול יעדים ומבצעים</div>
+        <div className="tabs-container">
         <div className="tabs">
         <button
           className={`tab  ${activeTab === "goalsMD" ? "selected" : "default"}`}
@@ -775,15 +796,7 @@ const [isProcessing, setIsProcessing] = useState(false); // Track loading state
           הקצאת יעדים ומבצעים לעובד
         </button>
       </div>
-      <div className="filter-select-container">
-             <select onChange={handleAgentChange} value={selectedAgentId} className="select-input">
-              {detail?.role === 'admin' && <option value="">בחר סוכן</option>}
-              {detail?.role === 'admin' && <option value="all">כל הסוכנות</option>}
-              {agents.map(agent => (
-               <option key={agent.id} value={agent.id}>{agent.name}</option>
-                ))}
-             </select>
-               </div>
+        </div>
         </div>
       {/* תוכן הלשוניות */}
       <div className="tab-content">
@@ -791,11 +804,19 @@ const [isProcessing, setIsProcessing] = useState(false); // Track loading state
           <div id="goals-tab" className={activeTab === "goalsMD" ? "active" : ""}>
             {/* תוכן לשונית הקצאת יעדים */}
             <div className="NewGoalsMD">
-  {/* כפתור לפתיחת המודל */}
   <div className="newGoalButton">
+  <div className="filter-select-container">
+             <select onChange={handleAgentChange} value={selectedAgentId} className="select-input">
+              {detail?.role === 'admin' && <option value="">בחר סוכן</option>}
+              {detail?.role === 'admin' && <option value="all">כל הסוכנות</option>}
+              {agents.map(agent => (
+               <option key={agent.id} value={agent.id}>{agent.name}</option>
+                ))}
+             </select>
+      </div>
   <Button
     onClick={handleOpenModalNewGoal}
-    text="צור יעד חדש"
+    text="יעד חדש"
     type="primary"
     icon="on"
     state="default"
@@ -814,7 +835,8 @@ const [isProcessing, setIsProcessing] = useState(false); // Track loading state
   text=" בטל"
   type="secondary"
   icon="off"
-  state="default"
+  state={editingPromotionRow ? "default" : "disabled"}
+  disabled={!editingPromotionRow}
 />
 </div>
   {/* המודל */}
@@ -1179,7 +1201,9 @@ const [isProcessing, setIsProcessing] = useState(false); // Track loading state
   text="בטל"
   type="secondary"
   icon="off"
-  state="default"  
+  state={editingStarRow ? "default" : "disabled"}
+  disabled={!editingStarRow} // הכפתור יהיה פעיל רק אם יש שורה שנערכת
+
   />     
 </div>
       {/* המודל */}
@@ -1377,6 +1401,15 @@ const [isProcessing, setIsProcessing] = useState(false); // Track loading state
             {/* תוכן לשונית מבצעים */}
             <div className="NewGoalsWorkers">
               <div className="newGoalButton">
+              <div className="filter-select-container">
+             <select onChange={handleAgentChange} value={selectedAgentId} className="select-input">
+              {detail?.role === 'admin' && <option value="">בחר סוכן</option>}
+              {detail?.role === 'admin' && <option value="all">כל הסוכנות</option>}
+              {agents.map(agent => (
+               <option key={agent.id} value={agent.id}>{agent.name}</option>
+                ))}
+             </select>
+      </div>
       {/* כפתור לפתיחת המודל */}
  <Button
   onClick={handleOpenModalGoalWorker}
@@ -1398,7 +1431,8 @@ const [isProcessing, setIsProcessing] = useState(false); // Track loading state
   text="בטל"
   type="secondary"
   icon="off"
-  state="default"
+  state={editingGoalRow ? "default" : "disabled"} // כפתור פעיל רק כשיש שורה שנערכת
+  disabled={!editingGoalRow} // מנוטרל כשאין שורה שנערכת
 />
 </div>
    {/* המודל */}
@@ -1460,7 +1494,6 @@ const [isProcessing, setIsProcessing] = useState(false); // Track loading state
       )}
     </select>
   </div>
-
   <div className="form-group">
     <label htmlFor="goalsType">סוג יעד</label>
     <select
@@ -1476,7 +1509,6 @@ const [isProcessing, setIsProcessing] = useState(false); // Track loading state
       ))}
     </select>
   </div>
-
   <div className="form-group">
     <label htmlFor="amount">סכום</label>
     <input
@@ -1536,144 +1568,123 @@ const [isProcessing, setIsProcessing] = useState(false); // Track loading state
         </tr>
       </thead>
       <tbody>
-  {goalsData.map((item) => (
-    <tr
-      key={item.id}
-      onMouseEnter={() => setHoveredRowId(item.id)}
-      onMouseLeave={() => setHoveredRowId(null)}
-      className={`${
-        editingGoalRow === item.id ? 'selected-row' : ''
-      } ${hoveredRowId === item.id ? 'hovered-row' : ''}`}
-    >
-      {/* עמודת קידום */}
-      <td>
-        {editingGoalRow === item.id ? (
-          <select
-            value={editGoalData.promotionId || ''}
-            onChange={(e) =>
-              handleEditGoalChange('promotionId', e.target.value)
-            }
-          >
-            <option value="">בחר מבצע</option>
-            {Object.entries(promotionListForStars).map(([id, name]) => (
-              <option key={id} value={id}>
-                {name}
-              </option>
-            ))}
-          </select>
-        ) : (
-          promotionListForStars[item.promotionId] || 'Unknown Promotion'
-        )}
-      </td>
-      {/* עמודת עובד */}
-      <td>
-        {editingGoalRow === item.id ? (
-          <select
-            value={editGoalData.workerId || ''}
-            onChange={(e) => handleEditGoalChange('workerId', e.target.value)}
-          >
-            <option value="all-agency">כל הסוכנות</option>
-            {Object.entries(workerNameMap).map(([id, name]) => (
-              <option key={id} value={id}>
-                {name}
-              </option>
-            ))}
-          </select>
-        ) : item.workerId === 'all-agency' ? (
-          'כל הסוכנות'
-        ) : (
-          workerNameMap[item.workerId] || 'Unknown Worker'
-        )}
-      </td>
-      {/* עמודת סוג מטרה */}
-      <td>
-        {editingGoalRow === item.id ? (
-          <select
-            value={editGoalData.goalsTypeId || ''}
-            onChange={(e) => handleEditGoalChange('goalsTypeId', e.target.value)}
-          >
-            <option value="">בחר סוג מטרה</option>
-            {Object.entries(goalsTypeMap).map(([id, name]) => (
-              <option key={id} value={id}>
-                {name}
-              </option>
-            ))}
-          </select>
-        ) : (
-          goalsTypeMap[item.goalsTypeId] || 'Unknown goalsType'
-        )}
-      </td>
-      {/* עמודת כמות */}
-      <td>
-        {editingGoalRow === item.id ? (
-          <input
-            type="number"
-            value={editGoalData.amaunt || ''}
-            onChange={(e) =>
-              handleEditGoalChange('amaunt', parseFloat(e.target.value))
-            }
-          />
-        ) : (
-          item.amaunt ? item.amaunt.toLocaleString() : 'N/A'
-        )}
-      </td>
-      {/* עמודת תאריך התחלה */}
-      <td>
-        {editingGoalRow === item.id ? (
-          <input
-            type="date"
-            value={editGoalData.startDate || ''}
-            onChange={(e) => handleEditGoalChange('startDate', e.target.value)}
-          />
-        ) : item.startDate ? (
-          formatIsraeliDateOnly(item.startDate)
-        ) : (
-          ''
-        )}
-      </td>
-      {/* עמודת תאריך סיום */}
-      <td>
-        {editingGoalRow === item.id ? (
-          <input
-            type="date"
-            value={editGoalData.endDate || ''}
-            onChange={(e) => handleEditGoalChange('endDate', e.target.value)}
-          />
-        ) : item.endDate ? (
-          formatIsraeliDateOnly(item.endDate)
-        ) : (
-          ''
-        )}
-      </td>
-      {/* עמודת סטטוס */}
-      <td>
-  {editingGoalRow === item.id ? (
-    <input
-      type="checkbox"
-      checked={!!editGoalData.status} // מבטיח שזה תמיד boolean
-      onChange={(e) => handleEditGoalChange("status", e.target.checked)}
-    />
-  ) : (
-    item.status ? "✔️" : "❌"
-  )}
-</td>
-      <td className="narrow-cell">
-      <MenuWrapper
-  rowId={item.id}
-  openMenuRow={openMenuRowGoals} // סטייט עבור הטבלה של היעדים
-  setOpenMenuRow={setOpenMenuRowGoals} // עדכון סטייט
-  menuItems={menuItems(
-    item.id,
-    handleEditGoalRow, // פונקציית עריכה עבור יעדים
-    handleDeleteGoalRow, // פונקציית מחיקה עבור יעדים
-    () => setOpenMenuRowGoals(null) // פונקציה לסגירת התפריט
-  )}
-/>
-</td>
-    </tr>
-  ))}
-</tbody>
+  {goals.length > 0 ? (
+    goals.map((item, index) => {
+      const uniqueKey = item.id ? item.id : `goal-${index}`; // 🔹 מוודא key ייחודי
+      return (
+        <tr key={uniqueKey}> 
+          <td>
+            {editingGoalRow === item.id ? (
+              <select
+                value={editGoalData.promotionId ?? ""}
+                onChange={(e) =>
+                  handleEditGoalChange("promotionId", e.target.value)
+                }
+              >
+                <option value="">בחר מבצע</option>
+                {promotionListForStars &&
+                  Object.entries(promotionListForStars).map(([id, name]) => (
+                    <option key={`${id}-${name}`} value={id}> {/* ✅ מוודא key ייחודי */}
+                      {name}
+                    </option>
+                  ))}
+              </select>
+            ) : (
+              promotionListForStars?.[item.promotionId] || "Unknown Promotion"
+            )}
+          </td>
 
+          <td>
+            {editingGoalRow === item.id ? (
+              <select
+                value={editGoalData.workerId ?? ""}
+                onChange={(e) =>
+                  handleEditGoalChange("workerId", e.target.value)
+                }
+              >
+                <option value="all-agency">כל הסוכנות</option>
+                {workerNameMap &&
+                  Object.entries(workerNameMap).map(([id, name]) => (
+                    <option key={`${id}-${name}`} value={id}> {/* ✅ ייחודיות */}
+                      {name}
+                    </option>
+                  ))}
+              </select>
+            ) : (
+              workerNameMap?.[item.workerId] || "Unknown Worker"
+            )}
+          </td>
+
+          <td>
+            {editingGoalRow === item.id ? (
+              <select
+                value={editGoalData.goalsTypeId ?? ""}
+                onChange={(e) =>
+                  handleEditGoalChange("goalsTypeId", e.target.value)
+                }
+              >
+                <option value="">בחר סוג יעד</option>
+                {goalsTypeMap &&
+                  Object.entries(goalsTypeMap).map(([id, name]) => (
+                    <option key={`${id}-${name}`} value={id}> {/* ✅ תיקון key */}
+                      {name}
+                    </option>
+                  ))}
+              </select>
+            ) : (
+              goalsTypeMap?.[item.goalsTypeId] || "Unknown goalsType"
+            )}
+          </td>
+
+          <td>{editingGoalRow === item.id ? (
+              <input type="number" value={editGoalData.amaunt ?? 0} onChange={(e) => handleEditGoalChange("amaunt", parseFloat(e.target.value))} />
+            ) : (
+              item.amaunt ? item.amaunt.toLocaleString() : "N/A"
+            )}
+          </td>
+
+          <td>{editingGoalRow === item.id ? (
+              <input type="date" value={editGoalData.startDate ?? ""} onChange={(e) => handleEditGoalChange("startDate", e.target.value)} />
+            ) : item.startDate ? (
+              formatIsraeliDateOnly(item.startDate)
+            ) : (
+              ""
+            )}
+          </td>
+
+          <td>{editingGoalRow === item.id ? (
+              <input type="date" value={editGoalData.endDate ?? ""} onChange={(e) => handleEditGoalChange("endDate", e.target.value)} />
+            ) : item.endDate ? (
+              formatIsraeliDateOnly(item.endDate)
+            ) : (
+              ""
+            )}
+          </td>
+
+          <td>{editingGoalRow === item.id ? (
+              <input type="checkbox" checked={!!editGoalData.status} onChange={(e) => handleEditGoalChange("status", e.target.checked)} />
+            ) : (
+              item.status ? "✔️" : "❌"
+            )}
+          </td>
+
+          <td className="narrow-cell">
+            <MenuWrapper
+              rowId={item.id}
+              openMenuRow={openMenuRowGoals}
+              setOpenMenuRow={setOpenMenuRowGoals}
+              menuItems={menuItems(item.id, handleEditGoalRow, handleDeleteGoalRow, () => setOpenMenuRowGoals(null))}
+            />
+          </td>
+        </tr>
+      );
+    })
+  ) : (
+    <tr>
+      <td colSpan={7}>אין נתונים להצגה</td>
+    </tr>
+  )}
+</tbody>
     </table>
  </div>
  <div>

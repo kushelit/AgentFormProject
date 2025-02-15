@@ -5,9 +5,11 @@
   display: inline-flex;
   gap: 5px;
   justify-content: center;
-  min-width: 60px;
   padding: 0px 10px;
   position: relative;
+    /* קביעת רוחב וגובה קבועים */
+    height: 40px; /* הגובה הקבוע */
+    width: 120px; /* הרוחב הקבוע */
 }
 
 .button .div {
@@ -50,7 +52,7 @@
 .button.secondary {
   border: 1px solid;
   height: 30px;
-  border: none; /* הסרת הגבול */
+  /*border: none; /* הסרת הגבול */
 }
 
 .button.primary {
@@ -62,8 +64,10 @@
 }
 
 .button.state-default.secondary {
-  border-color: var(--clrdarkblue3);
-  border: none; /* הסרת הגבול */
+  border-color: var(--clrgray6);
+  color: black;
+  font-size: 12px;
+  /*border: none; /* הסרת הגבול */
 }
 
 .button.state-hover.primary {

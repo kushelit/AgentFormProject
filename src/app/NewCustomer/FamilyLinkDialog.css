@@ -1,0 +1,129 @@
+/* מבנה כללי של המודל */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  .modal-container {
+    background: #f9f9f9;
+    border-color: var(--clrgray5);
+    border-radius: 2px;
+    padding: 20px;
+    width: 600px;
+    max-width: 90%;
+    max-height: 500px; /* קובע גובה קבוע המאפשר עד 4-5 שורות */
+    overflow-y: auto; /* גלילה במקרה של יותר מדי לקוחות */
+    box-shadow: 0px 5px 10px rgba(0, 0, 0, 0.2);
+  }
+  
+  /* רשימת הלקוחות */
+  .customer-list {
+    max-height: 500px; /* גובה מקסימלי לרשימה */
+    overflow-y: auto;
+  }
+  
+  /* סגנון של כל לקוח */
+  .customer-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px; /* פחות רווח אנכי */
+    border: 1px solid #ddd;
+    background: white;
+    gap: 10px;
+    min-height: 70px; /* שורה נמוכה יותר */
+    margin-bottom: 10px;
+    border-radius: 2px 0px 0px 2px;
+  }
+  /* בחירת לקוח ראשי */
+  .customer-row.selected {
+    background-color: var(--clrgray4); 
+    border: 2px solid var(--clrgray1);
+
+  }
+  
+  /* קבוצה של נתוני הלקוח */
+  .customer-info {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr); /* ארבעה פריטים בשורה */
+    gap: 10px;
+    flex-grow: 1;
+    padding: 10px;
+  }
+  
+  /* כל צמד של תווית וערך */
+  .info-item {
+    display: flex;
+    flex-direction: column;
+    padding: 5px; /* פחות ריווח פנימי */
+    text-align: center;
+    width: auto;
+    height: auto;
+  }
+  
+  /* עיצוב התוויות */
+  .info-item label {
+    font-weight: bold;
+    font-size: 12px;
+    color: #666;
+    margin-bottom: 2px; /* פחות מרווח בין הכותרת לערך */
+  }
+
+  /* עיצוב הערכים */
+  .info-item span {
+  font-size: 14px;
+  color: #333;
+}
+  /* מיכל של רדיו */
+  .radio-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 40px; /* מוודא שיש מספיק מקום */
+    padding-left: 10px;
+  }
+  .radio-container input[type="radio"] {
+    transform: scale(1.3);
+  }
+  
+  /* סגנון לכפתורים */
+  .button-group {
+    display: flex;
+    justify-content: space-between; /* מפזר את הכפתורים לשני צידי השורה */
+    align-items: center; /* יישור אנכי */
+    padding: 10px 0; /* רווח פנימי */
+  }
+  
+  .button {
+    cursor: pointer; /* מצביע לחיץ */
+  }
+  .button:hover {
+    opacity: 0.8; /* אפקט שקיפות קטן */
+    transition: all 0.2s ease-in-out; /* אנימציה חלקה */
+  }
+  .button.state-disabled {
+    cursor: not-allowed; /* מצביע של מצב לא פעיל */
+    opacity: 0.5; /* שקיפות */
+  }
+  
+  
+.modal-container .title {
+    height: auto; /* מאפשר התאמה אוטומטית לגובה */
+    width: auto; /* מאפשר התאמה אוטומטית לרוחב */
+    direction: rtl;
+    font-family: "Inter-Bold", Helvetica;
+    font-size: 14px; /* גודל טקסט גדול יותר */
+    font-weight: 700;
+    letter-spacing: 0;
+    line-height: 22px;
+    left: auto;
+    margin-bottom: 10px; /* מוסיף ריווח תחתון */
+  }
+  

@@ -339,8 +339,12 @@ const {
       
 
   return (
-    <div className="content-container">
-       <div className="filter-select-container">
+    <div className="content-container"> 
+    <div className="first-table">
+    <div className="table-header">
+    <div className="table-title">ניהול מקורות ליד</div>
+    <div className="header-actions">
+    <div className="filter-select-container">
              <select onChange={handleAgentChange} value={selectedAgentId} className="select-input">
               {detail?.role === 'admin' && <option value="">בחר סוכן</option>}
               {detail?.role === 'admin' && <option value="all">כל הסוכנות</option>}
@@ -349,9 +353,6 @@ const {
                 ))}
              </select>
                </div>
-    <div className="first-table">
-    <div className="table-header">
-    <div className="table-title">ניהול מקורות ליד</div>
     <div className="newLeadButton">
   {/* כפתור לפתיחת מודל יצירת ליד חדש */}
   <Button
@@ -379,6 +380,7 @@ const {
     state={editingLeadRow ? "default" : "disabled"}
     disabled={!editingLeadRow}
   />
+</div>
 </div>
 </div>
       {/* תצוגת המודל ליצירת ליד חדש */}  
@@ -477,8 +479,8 @@ const {
         </tr>
       </thead>
       <tbody>
-  {leadsData.map((item) => (
-    <tr key={item.id}>
+      {leadsData.map((item) => (
+  <tr key={item.id}>
       {/* מקור ליד */}
       <td>
         {editingLeadRow === item.id ? (
@@ -668,8 +670,8 @@ const {
         </tr>
       </thead>
       <tbody>
-  {statusLeadData.map((item) => (
-    <tr key={item.id}>
+      {statusLeadData.map((item) => (
+  <tr key={item.id}>
       <td>
         {editingRowStatusLead === item.id ? (
           <input

@@ -1,6 +1,8 @@
 .content-container {
   position: relative; /* קובע שה-Tabs יהיו יחסיים להורה */
   padding-top: 10px; /* מפנה מקום ל-Tabs */
+  padding: 10px; 
+  
 }
 
 table {
@@ -317,4 +319,11 @@ table tr {
   gap: 2px; /* רווח בין הכפתורים */
   margin-top: 10px; /* רווח מעל הקונטיינר */
   margin-bottom: 10px; /* רווח מתחת לקונטיינר */  
+}
+.newCustomerFormButton{
+  margin-bottom: 20px; /* רווח מתחת לקונטיינר */
+}
+
+.buttons-container {
+  gap: 2px;
 }

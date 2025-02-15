@@ -16,17 +16,29 @@
 
 .menu-options {
   position: absolute;
-  top: calc(100% - 20px); 
-  left: calc(100% - 8px); 
+  /* top: calc(100% - 20px); 
+  left: calc(100% - 8px);  */
   background: white;
   border: 1px solid #ddd;
   border-radius: 4px;
   box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.1);
-  z-index: 10;
+  z-index: 9999;
   display: block;
   min-width: 160px;
   padding: 8px 0;
   white-space: nowrap;
+}
+
+
+/* Dynamically adjust menu position */
+.menu-options.above-button {
+  bottom: 100%; /* תפריט מעל הכפתור */
+  margin-bottom: 8px;
+}
+
+.menu-options.below-button {
+  top: 100%; /* תפריט מתחת לכפתור */
+  margin-top: 8px;
 }
 
 .menu-item {

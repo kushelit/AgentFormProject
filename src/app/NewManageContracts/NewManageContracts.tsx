@@ -489,6 +489,7 @@ const [isModalOpenAgent, setIsModalOpenAgent] =  useState(false);
   ];
 
 
+
 return (
   <div className="content-container">
         <div className="table-header">
@@ -565,7 +566,7 @@ return (
   text="בטל"
   type="secondary"
   icon="off"
-  state="default"
+  state={editingRowDefaultContracts ? "default" : "disabled"} // כפתור פעיל רק כשיש שורה שנערכת
 />
   </div>
   {isModalOpenCommission && (
@@ -621,7 +622,7 @@ return (
             />
           </div>
           <div className="form-group">
-            <label htmlFor="priceInputNifraim1">אחוז נפראים</label>
+            <label htmlFor="priceInputNifraim1">אחוז נפרעים</label>
             <input
               type="text"
               id="priceInputNifraim1"
@@ -832,7 +833,7 @@ return (
   text="בטל"
   type="secondary"
   icon="off"
-  state="default"
+  state={editingRowContracts ? "default" : "disabled"} // כפתור פעיל רק כשיש שורה שנערכת
 />
       </div>
       {isModalOpenAgent && (

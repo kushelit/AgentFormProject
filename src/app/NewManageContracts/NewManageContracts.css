@@ -329,6 +329,7 @@ div, label, input {
   color: var(--clrdarkblue3) !important;
   text-align: right !important;
   line-height: 36px;
+  margin-right: 20px; /* מרווח מימין */
 }
 .newGoalButton, .newStarButton, .newGoalButton{
   display: flex; /* מסדר את הכפתורים בשורה */
@@ -458,4 +459,11 @@ div, label, input {
 .button.state-disabled {
   cursor: not-allowed; /* מצביע של מצב לא פעיל */
   opacity: 0.5; /* שקיפות */
+}
+.newcontractsDefaultButton,
+.newcontractAgentButton {
+  display: flex; /* מסדר את הכפתורים בשורה */
+  justify-content: flex-end; /* מיישר את הכפתורים לשמאל */
+  gap: 2px; /* מוסיף רווח בין הכפתורים */
+  margin-bottom: 10px; /* רווח מתחת לכפתורים */
 }

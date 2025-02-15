@@ -11,7 +11,7 @@
   width: 100%;
   border-collapse: collapse;
   border: none !important;
-
+  position: relative;
 }
 
 
@@ -206,6 +206,7 @@ table tr {
 .form-actions {
   display: flex;
   justify-content: space-between;
+  gap: 16px; /* ריווח בין האלמנטים */
 }
 
 .table-header {
@@ -213,6 +214,7 @@ table tr {
   align-items: center; /* מוודא שהם יהיו באותו גובה */
   justify-content: space-between; /* הכותרת מימין והכפתור משמאל */
   padding: 8px 16px;
+  margin-top: 20px; /* רווח מלמעלה */
 }
 
 .table-header .table-title {
@@ -267,37 +269,61 @@ table tr {
   cursor: not-allowed; /* מצביע של מצב לא פעיל */
   opacity: 0.5; /* שקיפות */
 }
-
+.header-actions {
+  display: flex;
+  align-items: center; /* יישור הכפתורים והסלקט באותו קו */
+  gap: 16px; /* ריווח בין האלמנטים */
+}
 
 .filter-select-container {
   flex: 1;
   position: relative;
-  margin-bottom: 2px; /* הקטנת הרווח מתחת ל-select */
-  left: -20px; /* מזיז את השדה שמאלה */
-  margin-top: 10px; /* מגדיל את הרווח מלמעלה */
+  margin-bottom: 10px; /* הקטנת הרווח מתחת ל-select */
+  margin-right: 16px; /* רווח בין ה-<select> לשאר הכפתורים */
 }
 
 .select-input {
-  height: 28px; /* גובה שדה select */
+  height: 32px; /* גובה שדה select */
   padding: 2px 6px; /* צמצום הריווח הפנימי */
   font-size: var(--font-size-text-small); /* גודל פונט קטן */
   width: 100%;
   border: 1px solid var(--clrgray5);
   border-radius: 4px;
   box-sizing: border-box;
-  margin-bottom: 0; /* מבטל רווחים מיותרים */
 }
 
 .filter-select-container select {
   appearance: none;
   direction: rtl;
   text-align: center; /* יישור התוכן בתוך השדה למרכז */
-  padding-right: 10px; /* התאמת רווחים מימין */
-  padding-left: 10px; /* התאמת רווחים משמאל */
   background-position: left 10px center; /* ממקם את החץ */
   background-size: 10px; /* התאמת גודל החץ */
-  margin-bottom: 0; /* ביטול רווח תחתון */
   width: auto; /* רוחב אוטומטי */
   min-width: 150px; /* רוחב מינימלי */
   max-width: 300px; /* מגביל את הרוחב המקסימלי */
+}
+
+.newStatusLeadButton
+{
+  display: flex; /* מסדר את הכפתורים בשורה */
+  justify-content: flex-end; /* מיישר את הכפתורים לשמאל */
+  gap: 2px; /* מוסיף רווח בין הכפתורים */
+  margin-bottom: 10px;
+}
+
+.newLeadButton  {
+  display: flex; /* מסדר את הכפתורים בשורה */
+  justify-content: flex-end; /* מיישר את הכפתורים לשמאל */
+  gap: 2px; /* מוסיף רווח בין הכפתורים */
+}
+
+.first-table{
+  position: relative; /* מבטיח מיקום יחסי */
+  overflow: visible; /* מאפשר לתפריט להופיע מחוץ לטבלה */
+  z-index: 1; /* מבטיח שהתוכן ייראה */
+}
+
+
+.second-container table {
+  margin-top: 16px; /* מוסיף רווח מעל לטבלה */
 }

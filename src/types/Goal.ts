@@ -25,14 +25,15 @@ export interface StarDataType {
   finansimStar: number;
 }
 
+
 export interface GoalDataType {
   id: string;
   promotionId: string;
   workerId: string;
   goalsTypeId: string;
-  amaunt: number | null;
-  startDate: string | null;
-  endDate: string | null;
+  amaunt: number;
+  startDate: string;
+  endDate: string;
   status: boolean;
+  AgentId: string;
 }
-

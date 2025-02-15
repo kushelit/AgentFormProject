@@ -174,43 +174,49 @@ const useFetchMD = (selectedAgentId?:string) => {
     };
     fetchStatusPolicies();
   }, []);
+  
   const fetchStatusLeadForAgentAndDefault = async (selectedAgentId?: string): Promise<StatusLead[]> => {
     try {
-      const agentQuery = query(
-        collection(db, 'statusLeadList'),
-        where('AgentId', '==', selectedAgentId),
-        where('statusLeadList', '==', true)
-      );
-      const agentQuerySnapshot = await getDocs(agentQuery);
-  
-      const defaultQuery = query(
-        collection(db, 'statusLeadList'),
-        where('defaultStatusLead', '==', true),
-        where('statusLeadList', '==', true)
-      );
-      const defaultQuerySnapshot = await getDocs(defaultQuery);
-  
-      const agentStatuses = agentQuerySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
-  
-      const defaultStatuses = defaultQuerySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
-  
-      const allStatuses = [...agentStatuses, ...defaultStatuses];
-      const uniqueStatuses = Array.from(
-        new Map(allStatuses.map(item => [item.id, item])).values()
-      );
-  
-      return uniqueStatuses as StatusLead[]; // המרת התוצאה ל-StatusLead[]
+        const agentQuery = query(
+            collection(db, 'statusLeadList'),
+            where('AgentId', '==', selectedAgentId),
+            where('statusLeadList', '==', true)
+        );
+        const agentQuerySnapshot = await getDocs(agentQuery);
+
+        const defaultQuery = query(
+            collection(db, 'statusLeadList'),
+            where('defaultStatusLead', '==', true),
+            where('statusLeadList', '==', true)
+        );
+        const defaultQuerySnapshot = await getDocs(defaultQuery);
+
+        const agentStatuses = agentQuerySnapshot.docs.map(doc => ({
+          id: doc.id, // מזהה מסמך קיים בכל מסמך
+          ...doc.data(),
+        }));
+        
+        const defaultStatuses = defaultQuerySnapshot.docs.map(doc => ({
+          id: doc.id, // מזהה מסמך קיים בכל מסמך
+          ...doc.data(),
+        }));
+
+        const allStatuses = [...agentStatuses, ...defaultStatuses];
+
+        // הסרת כפילויות לפי ID
+        const uniqueStatuses = Array.from(
+            new Map(allStatuses.map(item => [item.id, item])).values()
+        );
+
+        console.log("✅ Fetched Status Leads:", uniqueStatuses);
+
+        return uniqueStatuses as StatusLead[];
     } catch (error) {
-      console.error('Error fetching status leads:', error);
-      return []; // במקרה של שגיאה, החזר רשימה ריקה
+        console.error('❌ Error fetching status leads:', error);
+        return [];
     }
-  };
+};
+
   
  
 useEffect(() => {
@@ -222,21 +228,39 @@ useEffect(() => {
 
 
 
+// const fetchSourceLeadForAgent = async (UserAgentId: string): Promise<Lead[]> => {
+//   const q = query(
+//     collection(db, 'sourceLead'), 
+//     where('AgentId', '==', UserAgentId)
+//   );
+//   const querySnapshot = await getDocs(q);
+//   const data = querySnapshot.docs.map(doc => ({
+//     id: doc.id,
+//     ...doc.data()
+//   })) as Lead[];
+//   SetSourceLeadList(data); // עדכון ה-state אם נדרש
+//   return data; // החזרת הנתונים
+// };
 const fetchSourceLeadForAgent = async (UserAgentId: string): Promise<Lead[]> => {
-  const q = query(
-    collection(db, 'sourceLead'), 
-    where('AgentId', '==', UserAgentId)
-  );
+  try {
+    const q = query(collection(db, "sourceLead"), where("AgentId", "==", UserAgentId));
+    const querySnapshot = await getDocs(q);
 
-  const querySnapshot = await getDocs(q);
-  const data = querySnapshot.docs.map(doc => ({
-    id: doc.id,
-    ...doc.data()
-  })) as Lead[];
+    // יצירת המערך של המסמכים עם ID
+    const data = querySnapshot.docs.map((doc) => ({
+      id: doc.id, // מזהה קיים תמיד
+      ...doc.data(),
+    })) as Lead[];
 
-  SetSourceLeadList(data); // עדכון ה-state אם נדרש
-  return data; // החזרת הנתונים
+    console.log("✅ נתונים שהתקבלו:", data);
+    SetSourceLeadList(data);
+    return data;
+  } catch (error) {
+    console.error("❌ שגיאה בשליפת נתוני מקור ליד:", error);
+    return [];
+  }
 };
+
 
   const fetchSourceLeadMap = async (agentId: string) => {
     try {

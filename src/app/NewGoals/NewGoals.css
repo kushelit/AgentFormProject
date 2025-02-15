@@ -26,6 +26,11 @@
   all: unset; /* מסיר את כל עיצוב ברירת המחדל */
 }
 
+.tabs-container {
+  width: 100%; /* מבטיח שהטאבים יתפרסו לכל הרוחב */
+}
+
+
 .tabs {
   position: relative; /* משנה את המיקום ליחסי */
   display: flex; /* מסדר את ה-Tabs בשורה */
@@ -36,9 +41,10 @@
   color: var(--clrgray7); /* צבע טקסט */
   width: fit-content; /* הרוחב יתאים לתוכן */
   height: 45px; /* גובה הטאבים */
-  margin-top: 20px; /* מרווח מתחת לכותרת */
   z-index: 100; /* מבטיח שה-Tabs יהיו מעל תוכן אחר */
 }
+
+
 
 .tab {
   display: inline-flex;
@@ -273,44 +279,34 @@ table tr {
   border-radius: 4px;
   box-sizing: border-box;
 }
-
+/* 
 .form-actions {
   display: flex;
   justify-content: space-between;
-}
+} */
 
-.filter-select-container {
-  flex: 1;
-  position: relative;
-  margin-bottom: 2px; /* הקטנת הרווח מתחת ל-select */
-  left: -20px; /* מזיז את השדה שמאלה */
-}
+
 
 .select-input {
-  height: 28px; /* גובה שדה select */
+  height: 32px; /* גובה שדה select */
   padding: 2px 6px; /* צמצום הריווח הפנימי */
   font-size: var(--font-size-text-small); /* גודל פונט קטן */
   width: 100%;
   border: 1px solid var(--clrgray5);
   border-radius: 4px;
   box-sizing: border-box;
-  margin-bottom: 0; /* מבטל רווחים מיותרים */
 }
 
 .filter-select-container select {
   appearance: none;
   direction: rtl;
   text-align: center; /* יישור התוכן בתוך השדה למרכז */
-  padding-right: 10px; /* התאמת רווחים מימין */
-  padding-left: 10px; /* התאמת רווחים משמאל */
   background-position: left 10px center; /* ממקם את החץ */
   background-size: 10px; /* התאמת גודל החץ */
-  margin-bottom: 0; /* ביטול רווח תחתון */
   width: auto; /* רוחב אוטומטי */
   min-width: 150px; /* רוחב מינימלי */
   max-width: 300px; /* מגביל את הרוחב המקסימלי */
 }
-
 
 input[type="checkbox"] {
   z-index: 100; /* ודא שהאלמנט מעל */
@@ -321,22 +317,40 @@ input[type="checkbox"] {
 div, label, input {
   pointer-events: auto !important; /* אפשר אינטראקציה */
 }
-.table-header .table-title {
-  all: unset;
-  font-family: "Rubik-Regular", Helvetica, sans-serif !important;
-  font-size: 30px !important;
-  font-weight: 400 !important;
-  color: var(--clrdarkblue3) !important;
-  text-align: right !important;
-  line-height: 36px;
+
+.table-header {
+  display: flex;
+  flex-direction: column; /* מסדר את הילדים בטור */
+  align-items: flex-start; /* יישור לפי צד ימין (ב-RTL) */
+  padding: 16px;
+  gap: 10px; /* מרווח בין הכותרת לטאבים */
 }
-.newGoalButton, .newStarButton, .newGoalButton{
+
+.table-header .table-title {
+  font-family: "Rubik-Regular", Helvetica, sans-serif;
+  font-size: 30px;
+  font-weight: 400;
+  color: var(--clrdarkblue3);
+  text-align: right;
+  line-height: 36px;
+  margin-bottom: 10px; /* מוסיף רווח מתחת לכותרת */
+}
+
+.newStarButton {
   display: flex; /* מסדר את הכפתורים בשורה */
   justify-content: flex-end; /* מיישר את הכפתורים לשמאל */
   gap: 10px; /* מוסיף רווח בין הכפתורים */
   margin-bottom: 10px;
- 
 }
+
+.newGoalButton  {
+  display: flex; /* מסדר את הכפתורים בשורה */
+  justify-content: flex-end; /* מיישר את הכפתורים לשמאל */
+  gap: 10px; /* מוסיף רווח בין הכפתורים */
+  margin-bottom: 10px;
+  align-items: center; /* יישור הכפתורים והסלקט באותו קו */
+}
+
 
 .newStarButton{
   margin-top: 10px;
@@ -458,4 +472,8 @@ div, label, input {
 .button.state-disabled {
   cursor: not-allowed; /* מצביע של מצב לא פעיל */
   opacity: 0.5; /* שקיפות */
+}
+
+.select-container{
+  margin-bottom: 20px !important;
 }

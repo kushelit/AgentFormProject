@@ -4,6 +4,7 @@ import { Menu8 } from "../icons/Menu8";
 import "./style.css";
 
 
+
 const MenuWrapper = ({ className, menuItems, rowId , openMenuRow, setOpenMenuRow}) => {
   const [menuState, setMenuState] = useState("default");
   const menuRef = useRef();
@@ -36,26 +37,47 @@ const MenuWrapper = ({ className, menuItems, rowId , openMenuRow, setOpenMenuRow
     };
   }, [setOpenMenuRow]);
 
-  // Adjust menu position to prevent overflow
   useEffect(() => {
-    if (openMenuRow && menuRef.current) {
-      const rect = menuRef.current.getBoundingClientRect();
-      if (rect.left < 0) {
-        menuRef.current.style.left = "auto";
-        menuRef.current.style.right = "0";
+    if (menuRef.current) {
+      const menuRect = menuRef.current.getBoundingClientRect();
+      const table = menuRef.current.closest('table');
+      const tableRect = table?.getBoundingClientRect();
+      const nextTable = table?.nextElementSibling?.closest('table');
+      const spaceToNextTable = nextTable ? nextTable.getBoundingClientRect().top - menuRect.bottom : window.innerHeight - menuRect.bottom;
+      
+      if (spaceToNextTable < 100) {
+        menuRef.current.style.cssText = `
+          position: absolute;
+          top: auto;
+          bottom: 100%;
+          right: -30px; // Increased from -15px
+          margin-bottom: 15px; // Increased from 8px
+          z-index: 1001;
+        `;
+      } else {
+        menuRef.current.style.cssText = `
+          position: absolute;
+          top: 0;
+          right: -30px; // Increased from -15px
+          margin-top: 15px; // Added margin-top
+          z-index: 1001;
+        `;
       }
     }
   }, [openMenuRow]);
 
+  
   const toggleMenu = () => {
     if (openMenuRow === rowId) {
+      console.log("Closing menu for row:", rowId);
       setOpenMenuRow(null); // סוגר את התפריט
     } else {
+      console.log("Opening menu for row:", rowId);
       setOpenMenuRow(rowId); // פותח את התפריט של השורה הנוכחית
     }
   };
   
-  
+
   return (
     <div
     className={`menu-wrapper ${className || ""}`}
@@ -91,6 +113,8 @@ MenuWrapper.propTypes = {
     })
   ).isRequired,
   rowId: PropTypes.oneOfType([PropTypes.string, PropTypes.number]).isRequired,
+  // openMenuRow: PropTypes.string,
+  // setOpenMenuRow: PropTypes.func.isRequired,
 };
 
 export default MenuWrapper;

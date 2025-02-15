@@ -17,6 +17,8 @@ import Delete  from '@/components/icons/Delete/Delete';
 import useEditableTable from "@/hooks/useEditableTable";
 import { CustomersTypeForFetching } from '@/types/Customer';
 import TableFooter from "@/components/TableFooter/TableFooter";
+import { FamilyLinkDialog, startLinkingProcess,handleConfirmFamilyLink,disconnectCustomers} from "./FamilyLinkDialog"; // עדכני את הנתיב בהתאם למיקום הקובץ
+import {fetchCustomersForAgent} from '@/services/fetchCustomersForAgent'; // פונקציות
 
 
 const NewCustomer = () => {
@@ -43,7 +45,6 @@ const NewCustomer = () => {
   const [totalCommissions, setTotalCommissions] = useState({ totalCommissionHekef: 0, totalCommissionNifraim: 0 });
 
   const [showSelect, setShowSelect] = useState(false);
-  const [selectedCustomers, setSelectedCustomers] = useState(new Set<string>());
 
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [productMap, setProductMap] = useState<Record<string, string>>({});
@@ -80,7 +81,13 @@ const NewCustomer = () => {
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [dialogType, setDialogType] = useState('');
-  const [dialogContent, setDialogContent] = useState('');
+  //  const [dialogContent, setDialogContent] = useState('');
+
+  const [dialogMessage, setDialogMessage] = useState<string>(""); // למחרוזות הודעה
+  const [dialogCustomers, setDialogCustomers] = useState<CustomersTypeForFetching[]>([]); // למערך לקוחות
+  
+  const [selectedCustomers, setSelectedCustomers] = useState<CustomersTypeForFetching[]>([]);
+  const [customers, setCustomers] = useState<CustomersTypeForFetching[]>([]);
 
 
 // ניהול העמוד הנוכחי
@@ -176,38 +183,37 @@ useEffect(() => {
 
 
 
- const fetchCustomersForAgent = async (UserAgentId: string): Promise<CustomersTypeForFetching[]> => {
-  const q = query(collection(db, 'customer'), where('AgentId', '==', UserAgentId));
-  const querySnapshot = await getDocs(q);
+//  const fetchCustomersForAgent = async (UserAgentId: string): Promise<CustomersTypeForFetching[]> => {
+//   const q = query(collection(db, 'customer'), where('AgentId', '==', UserAgentId));
+//   const querySnapshot = await getDocs(q);
 
-  const data = await Promise.all(
-    querySnapshot.docs.map(async (docSnapshot) => {
-      const customerData = docSnapshot.data() as CustomersTypeForFetching;
+//   const data = await Promise.all(
+//     querySnapshot.docs.map(async (docSnapshot) => {
+//       const customerData = docSnapshot.data() as CustomersTypeForFetching;
 
-      let parentFullName = '';
-      if (customerData.parentID) {
-        if (customerData.parentID === docSnapshot.id) {
-          parentFullName = `${customerData.firstNameCustomer || ''} ${customerData.lastNameCustomer || ''}`.trim();
-        } else {
-          const parentRef = doc(db, 'customer', customerData.parentID);
-          const parentDoc = await getDoc(parentRef);
-          if (parentDoc.exists()) {
-            const parentData = parentDoc.data() as CustomersTypeForFetching;
-            parentFullName = `${parentData.firstNameCustomer || ''} ${parentData.lastNameCustomer || ''}`.trim();
-          }
-        }
-      }
+//       let parentFullName = '';
+//       if (customerData.parentID) {
+//         if (customerData.parentID === docSnapshot.id) {
+//           parentFullName = `${customerData.firstNameCustomer || ''} ${customerData.lastNameCustomer || ''}`.trim();
+//         } else {
+//           const parentRef = doc(db, 'customer', customerData.parentID);
+//           const parentDoc = await getDoc(parentRef);
+//           if (parentDoc.exists()) {
+//             const parentData = parentDoc.data() as CustomersTypeForFetching;
+//             parentFullName = `${parentData.firstNameCustomer || ''} ${parentData.lastNameCustomer || ''}`.trim();
+//           }
+//         }
+//       }
 
-      return {
-        ...customerData,
-        id: docSnapshot.id,
-        parentFullName,
-      };
-    })
-  );
-
-  return data; // הפונקציה מחזירה את המידע שה-hook משתמש בו
-};
+//       return {
+//         ...customerData,
+//         id: docSnapshot.id,
+//         parentFullName,
+//       };
+//     })
+//   );
+//   return data; // הפונקציה מחזירה את המידע שה-hook משתמש בו
+// };
 
   
 
@@ -242,6 +248,12 @@ useEffect(() => {
   // עדכון הנתונים המסוננים
   setFilteredData(data);
 }, [customerData, idCustomerFilter, firstNameCustomerFilter, lastNameCustomerFilter, parentFullNameFilter]);
+
+
+useEffect(() => {
+  setFilteredData(customers); // עדכון `filteredData` אחרי כל שינוי ב-`customers`
+}, [customers]);
+
 
 
   const handleFirstNameChange: ChangeEventHandler<HTMLInputElement> = (event) => {
@@ -629,20 +641,19 @@ useEffect(() => {
   }
 
   const fetchPrivateSales = async () => {
-    if (!selectedCustomer) {
+    if (!selectedCustomers) {
       console.log("No selected customer available");
       return;
     }
-  
     const salesRef = collection(db, "sales");
     const salesQuery = query(
       salesRef,
-      where("IDCustomer", "==", selectedCustomer.IDCustomer),
+      where("IDCustomer", "==", selectedCustomers[0]?.IDCustomer),
       where("AgentId", "==", selectedAgentId),
       where("statusPolicy", "in", ["פעילה", "הצעה"])
     );
   
-    console.log("selectedAgentId:", selectedAgentId, "selectedCustomer.IDCustomer:", selectedCustomer.IDCustomer);
+    console.log("selectedAgentId:", selectedAgentId, "selectedCustomer.IDCustomer:", selectedCustomers[0]?.IDCustomer);
   
     try {
       const salesSnapshot = await getDocs(salesQuery);
@@ -714,14 +725,14 @@ useEffect(() => {
   };
   
   const fetchFamilySales = async () => {
-    if (!selectedCustomer || !selectedCustomer.parentID) {
+    if (!selectedCustomers ) {
       console.log("No selected customer or parent ID available");
       return;
     }
   
     try {
       const customerRef = collection(db, "customer");
-      const customerQuery = query(customerRef, where("parentID", "==", selectedCustomer.parentID));
+      const customerQuery = query(customerRef, where("parentID", "==", selectedCustomers[0]?.parentID));
       const customerSnapshot = await getDocs(customerQuery);
       const customerIDs = customerSnapshot.docs.map(doc => doc.data().IDCustomer);
   
@@ -850,192 +861,190 @@ useEffect(() => {
     }
   };
 
-
-  //starting function to handle family connection **
   const cancelProcess = () => {
-    setSelectedCustomers(new Set());  // Clear the selection
-    setShowSelect(false);             // Hide the selection UI
-    setIsMainCustomerSelected(false); // Reset this if you're tracking the main customer status
-    setMode('normal');                // Reset to normal mode, assuming 'mode' is used to track the current UI state
+    setSelectedCustomers([]);  // מנקה את רשימת הלקוחות שנבחרו
+    setShowSelect(false);      // מחביא את אפשרות הבחירה
+    setIsMainCustomerSelected(false); // מאפס את הסטטוס של המבוטח הראשי
+    setMode('normal');         // מחזיר את המצב למצב רגיל
   };
 
-  const startLinkingProcess = () => {
-    setMode('linking');
-    setShowSelect(true);
-    if (isNewDesignEnabled) {
-      // עיצוב חדש - הצגת Dialog
-      setDialogType('info'); // סוג הדיאלוג
-      setDialogContent('בחר מבוטח ראשי'); // תוכן הדיאלוג
-      setIsDialogOpen(true); // הצגת הדיאלוג
-      } else {
-      // עיצוב ישן - הצגת הודעת alert
-      alert('בחר מבוטח ראשי');
-     }
-  };
+  // const startLinkingProcessOld = () => {
+  //   setMode('linking');
+  //   setShowSelect(true);
+  //   if (isNewDesignEnabled) {
+  //     // עיצוב חדש - הצגת Dialog
+  //     setDialogType('info'); // סוג הדיאלוג
+  //     setDialogContent('בחר מבוטח ראשי'); // תוכן הדיאלוג
+  //     setIsDialogOpen(true); // הצגת הדיאלוג
+  //     } else {
+  //     // עיצוב ישן - הצגת הודעת alert
+  //     alert('בחר מבוטח ראשי');
+  //    }
+  // };
 
-  const startDisconnectionProcess = () => {
-    setMode('disconnecting');
-    setShowSelect(true);
-    if (isNewDesignEnabled) {
-      // עיצוב חדש - הצגת Dialog
-      setDialogType('info'); // סוג הדיאלוג
-      setDialogContent('בחר מבוטח לניתוק קשר'); // תוכן הדיאלוג
-      setIsDialogOpen(true); // הצגת הדיאלוג
-      } else {
-      // עיצוב ישן - הצגת הודעת alert
-    alert("בחר מבוטח לניתוק קשר");
-    }
-  };
+  // const startDisconnectionProcess = () => {
+  //   setMode('disconnecting');
+  //   setShowSelect(true);
+  //   if (isNewDesignEnabled) {
+  //     // עיצוב חדש - הצגת Dialog
+  //     setDialogType('info'); // סוג הדיאלוג
+  //   //  setDialogContent('בחר מבוטח לניתוק קשר'); // תוכן הדיאלוג
+  //     setIsDialogOpen(true); // הצגת הדיאלוג
+  //     } else {
+  //     // עיצוב ישן - הצגת הודעת alert
+  //   alert("בחר מבוטח לניתוק קשר");
+  //   }
+  // };
 
-  // confirm disconnect function **
-  const confirmDisconnection = (customerId: string): void => {
-    const confirmAction = window.confirm("האם לבטל קשר משפחתי ?");
-    if (confirmAction) {
-      disconnectCustomer(customerId);
-    }
-  }
+  // // confirm disconnect function **
+  // const confirmDisconnection = (customerId: string): void => {
+  //   const confirmAction = window.confirm("האם לבטל קשר משפחתי ?");
+  //   if (confirmAction) {
+  //     disconnectCustomer(customerId);
+  //   }
+  // }
 
   //disconnect function **
-  const disconnectCustomer = async (customerId: string): Promise<void> => {
-    try {
-      const customerDocRef = doc(db, 'customer', customerId);
-      await updateDoc(customerDocRef, {
-        parentID: customerId  // Resetting their parentID to their own ID effectively disconnects them.
-      });
-      alert("קשר משפחתי  נותק בהצלחה");
-    } catch (error) {
-      console.error("Failed to disconnect customer:", error);
-      alert("כשלון בניתוק קשר משפחתי");
-    } finally {
-      setSelectedCustomers(new Set());  // Clear any selected customer ID
-      fetchCustomersForAgent(selectedAgentId);  // Refresh the customer list
-      setShowSelect(false);  // Optionally hide the selection UI
-      // Reset any additional states or flags related to the process if necessary
-      setMode('normal');  // Assuming you might have a mode state that needs to be reset
-    }
-  }
+  // const disconnectCustomer = async (customerId: string): Promise<void> => {
+  //   try {
+  //     const customerDocRef = doc(db, 'customer', customerId);
+  //     await updateDoc(customerDocRef, {
+  //       parentID: customerId  // Resetting their parentID to their own ID effectively disconnects them.
+  //     });
+  //     alert("קשר משפחתי  נותק בהצלחה");
+  //   } catch (error) {
+  //     console.error("Failed to disconnect customer:", error);
+  //     alert("כשלון בניתוק קשר משפחתי");
+  //   } finally {
+  //     setSelectedCustomers(new Set());  // Clear any selected customer ID
+  //     fetchCustomersForAgent(selectedAgentId);  // Refresh the customer list
+  //     setShowSelect(false);  // Optionally hide the selection UI
+  //     // Reset any additional states or flags related to the process if necessary
+  //     setMode('normal');  // Assuming you might have a mode state that needs to be reset
+  //   }
+  // }
   //handle function **
-  const handleSelectCustomer = (id: string) => {
-    const newSelection = new Set(selectedCustomers);
-    if (mode === 'disconnecting') {
-      setSelectedCustomers(new Set([id]));  // Directly select only one for disconnection
-      confirmDisconnection(id);  // Optionally ask for confirmation right after selection
-    } else if (mode === 'linking') {
+  // const handleSelectCustomerOld = (id: string) => {
+  //   const newSelection = new Set(selectedCustomers);
+  //   if (mode === 'disconnecting') {
+  //     setSelectedCustomers(new Set([id]));  // Directly select only one for disconnection
+  //     confirmDisconnection(id);  // Optionally ask for confirmation right after selection
+  //   } else if (mode === 'linking') {
 
-      // If the main customer is not yet selected, or the selected ID is the current main customer
-      if (!isMainCustomerSelected || id === mainCustomerId) {
-        if (isMainCustomerSelected && id === mainCustomerId) {
-          // If the main customer is clicked again, offer to deselect or switch main customer
-          const confirmDeselect = confirm('זהו לקוח ראשי, האם אתה רוצה לבטל את הבחירה?');
-          if (confirmDeselect) {
-            newSelection.clear(); // Clear all selections
-            setIsMainCustomerSelected(false); // No main customer is selected now
-            setMainCustomerId(null); // Clear the main customer ID
-            setSelectedCustomers(newSelection); // Update the state
-            return; // Exit the function after resetting
-          }
-        } else {
-          // Set the clicked customer as the main customer
-          newSelection.clear(); // Clear previous selections which might include old secondary selections
-          newSelection.add(id); // Add this as the main customer
-          setMainCustomerId(id); // Set the main customer ID
-          setIsMainCustomerSelected(true); // A main customer is now selected
-          alert('מבוטח ראשי הוגדר, כעת בחר מבוטחים משניים');
-        }
-      } else {
-        // Handling secondary customers
-        if (newSelection.has(id)) {
-          newSelection.delete(id); // Deselect if already selected
-        } else {
-          newSelection.add(id); // Select if not already selected
-        }
-      }
-      setSelectedCustomers(newSelection); // Update the selected customers state
-    };
-  }
+  //     // If the main customer is not yet selected, or the selected ID is the current main customer
+  //     if (!isMainCustomerSelected || id === mainCustomerId) {
+  //       if (isMainCustomerSelected && id === mainCustomerId) {
+  //         // If the main customer is clicked again, offer to deselect or switch main customer
+  //         const confirmDeselect = confirm('זהו לקוח ראשי, האם אתה רוצה לבטל את הבחירה?');
+  //         if (confirmDeselect) {
+  //           newSelection.clear(); // Clear all selections
+  //           setIsMainCustomerSelected(false); // No main customer is selected now
+  //           setMainCustomerId(null); // Clear the main customer ID
+  //           setSelectedCustomers(newSelection); // Update the state
+  //           return; // Exit the function after resetting
+  //         }
+  //       } else {
+  //         // Set the clicked customer as the main customer
+  //         newSelection.clear(); // Clear previous selections which might include old secondary selections
+  //         newSelection.add(id); // Add this as the main customer
+  //         setMainCustomerId(id); // Set the main customer ID
+  //         setIsMainCustomerSelected(true); // A main customer is now selected
+  //         alert('מבוטח ראשי הוגדר, כעת בחר מבוטחים משניים');
+  //       }
+  //     } else {
+  //       // Handling secondary customers
+  //       if (newSelection.has(id)) {
+  //         newSelection.delete(id); // Deselect if already selected
+  //       } else {
+  //         newSelection.add(id); // Select if not already selected
+  //       }
+  //     }
+  //     setSelectedCustomers(newSelection); // Update the selected customers state
+  //   };
+  // }
 
   //// link function ***
-  const linkSelectedCustomers = async () => {
-    const ids = Array.from(selectedCustomers);
-    if (ids.length > 0) {
-      const mainCustomerId = ids[0];
-      let familyConflict = false;
-      let conflictingCustomerName = "";
-      const mainCustomerDocRef = doc(db, 'customer', mainCustomerId);
-      const mainCustomerDoc = await getDoc(mainCustomerDocRef);
+  // const linkSelectedCustomers = async () => {
+  //   const ids = Array.from(selectedCustomers);
+  //   if (ids.length > 0) {
+  //     const mainCustomerId = ids[0];
+  //     let familyConflict = false;
+  //     let conflictingCustomerName = "";
+  //     const mainCustomerDocRef = doc(db, 'customer', mainCustomerId);
+  //     const mainCustomerDoc = await getDoc(mainCustomerDocRef);
 
-      if (mainCustomerDoc.exists()) {
-        const mainCustomerData = mainCustomerDoc.data();
-        // Check if the main customer is already part of another family link
-        if (mainCustomerData.parentID !== mainCustomerId) {
-          alert(`הלקוח ${mainCustomerData.firstNameCustomer} כבר חלק מחיבור משפחתי אחר. יש לנתק את החיבור הקיים לפני הפיכתו ללקוח ראשי בחיבור חדש.`);
-          console.log("Operation canceled due to existing parental connection.");
-          return;  // Exit the function if the main customer is already linked
-        }
-      }
+  //     if (mainCustomerDoc.exists()) {
+  //       const mainCustomerData = mainCustomerDoc.data();
+  //       // Check if the main customer is already part of another family link
+  //       if (mainCustomerData.parentID !== mainCustomerId) {
+  //         alert(`הלקוח ${mainCustomerData.firstNameCustomer} כבר חלק מחיבור משפחתי אחר. יש לנתק את החיבור הקיים לפני הפיכתו ללקוח ראשי בחיבור חדש.`);
+  //         console.log("Operation canceled due to existing parental connection.");
+  //         return;  // Exit the function if the main customer is already linked
+  //       }
+  //     }
 
-      // Check each secondary customer to ensure they are not already a main parent to other customers
-      for (const customerId of ids.slice(1)) {  // Exclude the main customer
-        const customerDocRef = doc(db, 'customer', customerId);
-        const customerDoc = await getDoc(customerDocRef);
-        if (customerDoc.exists()) {
-          const customerData = customerDoc.data();
-          const childCheckQuery = query(
-            collection(db, 'customer'),
-            where('AgentId', '==', customerData.AgentId),
-            where('parentID', '==', customerId)  // Check if they are listed as a parent to other customers
-          );
-          const childCheckSnapshot = await getDocs(childCheckQuery);
-          childCheckSnapshot.forEach((doc) => {
-            if (doc.id !== customerId) {  // Ensure the document isn't the customer being their own parent
-              familyConflict = true;
-              conflictingCustomerName = customerData.firstNameCustomer;
-              alert(`לא ניתן לחבר את הלקוח ${conflictingCustomerName} כלקוח משני מאחר שהוא כבר משמש כהורה בחיבור אחר.`);
-              console.log("Operation canceled due to existing parental connection.");
-              return;  // Exit from forEach and skip further processing
-            }
-          });
-          if (familyConflict) {
-            return;  // Exit the function if a conflict was found
-          }
-        }
-      }
-      for (const customerId of ids.slice(1)) { // Check secondary customers
-        const customerDocRef = doc(db, 'customer', customerId);
-        const customerDoc = await getDoc(customerDocRef);
+  //     // Check each secondary customer to ensure they are not already a main parent to other customers
+  //     for (const customerId of ids.slice(1)) {  // Exclude the main customer
+  //       const customerDocRef = doc(db, 'customer', customerId);
+  //       const customerDoc = await getDoc(customerDocRef);
+  //       if (customerDoc.exists()) {
+  //         const customerData = customerDoc.data();
+  //         const childCheckQuery = query(
+  //           collection(db, 'customer'),
+  //           where('AgentId', '==', customerData.AgentId),
+  //           where('parentID', '==', customerId)  // Check if they are listed as a parent to other customers
+  //         );
+  //         const childCheckSnapshot = await getDocs(childCheckQuery);
+  //         childCheckSnapshot.forEach((doc) => {
+  //           if (doc.id !== customerId) {  // Ensure the document isn't the customer being their own parent
+  //             familyConflict = true;
+  //             conflictingCustomerName = customerData.firstNameCustomer;
+  //             alert(`לא ניתן לחבר את הלקוח ${conflictingCustomerName} כלקוח משני מאחר שהוא כבר משמש כהורה בחיבור אחר.`);
+  //             console.log("Operation canceled due to existing parental connection.");
+  //             return;  // Exit from forEach and skip further processing
+  //           }
+  //         });
+  //         if (familyConflict) {
+  //           return;  // Exit the function if a conflict was found
+  //         }
+  //       }
+  //     }
+  //     for (const customerId of ids.slice(1)) { // Check secondary customers
+  //       const customerDocRef = doc(db, 'customer', customerId);
+  //       const customerDoc = await getDoc(customerDocRef);
 
-        if (customerDoc.exists()) {
-          const customerData = customerDoc.data();
-          if (customerData.parentID && customerData.parentID !== customerId && customerData.parentID !== mainCustomerId) {
-            familyConflict = true;
-            conflictingCustomerName = customerData.firstNameCustomer;
-            break;
-          }
-        }
-      }
-      if (familyConflict) {
-        const confirmTransfer = confirm(`הלקוח ${conflictingCustomerName} כבר מקושר למשפחה אחרת. האם ברצונך להעביר את כולם למשפחה חדשה?`);
-        if (!confirmTransfer) {
-          console.log("Operation canceled by the user.");
-          return;
-        }
-      }
-      for (const customerId of ids) {
-        const customerDocRef = doc(db, 'customer', customerId);
-        await updateDoc(customerDocRef, {
-          parentID: mainCustomerId
-        });
-      }
-      alert('קשר משפחתי הוגדר בהצלחה');
-      setSelectedCustomers(new Set());
-      setShowSelect(false);
-      setIsMainCustomerSelected(false); // Reset the main customer selection flag
-      setMainCustomerId(null); // Reset the main customer ID
-      if (selectedAgentId) {
-        fetchCustomersForAgent(selectedAgentId);
-      }
-    }
-  };
+  //       if (customerDoc.exists()) {
+  //         const customerData = customerDoc.data();
+  //         if (customerData.parentID && customerData.parentID !== customerId && customerData.parentID !== mainCustomerId) {
+  //           familyConflict = true;
+  //           conflictingCustomerName = customerData.firstNameCustomer;
+  //           break;
+  //         }
+  //       }
+  //     }
+  //     if (familyConflict) {
+  //       const confirmTransfer = confirm(`הלקוח ${conflictingCustomerName} כבר מקושר למשפחה אחרת. האם ברצונך להעביר את כולם למשפחה חדשה?`);
+  //       if (!confirmTransfer) {
+  //         console.log("Operation canceled by the user.");
+  //         return;
+  //       }
+  //     }
+  //     for (const customerId of ids) {
+  //       const customerDocRef = doc(db, 'customer', customerId);
+  //       await updateDoc(customerDocRef, {
+  //         parentID: mainCustomerId
+  //       });
+  //     }
+  //     alert('קשר משפחתי הוגדר בהצלחה');
+  //     setSelectedCustomers(new Set());
+  //     setShowSelect(false);
+  //     setIsMainCustomerSelected(false); // Reset the main customer selection flag
+  //     setMainCustomerId(null); // Reset the main customer ID
+  //     if (selectedAgentId) {
+  //       fetchCustomersForAgent(selectedAgentId);
+  //     }
+  //   }
+  // };
 
   //   const fetchSuggestions = async (currentInputValue: unknown) => {
   // Assert that currentInputValue is a string
@@ -1137,12 +1146,131 @@ const menuItems = (
   },
 ];
 
-const [selectedCustomer, setSelectedCustomer] = useState<CustomersTypeForFetching | null>(null);
+
 
 const handleNewSelectCustomer = (id: string) => {
-  const customer = filteredData.find((item) => item.id === id);
-  setSelectedCustomer(customer || null);
+  setSelectedCustomers((prevSelected) => {
+    const newSelection = [...prevSelected];
+    const customer = filteredData.find((customer) => customer.id === id);
+
+    if (!customer) return prevSelected; // אם הלקוח לא נמצא, החזר את הרשימה הקיימת
+
+    const existingIndex = newSelection.findIndex((c) => c.id === id);
+
+    if (existingIndex !== -1) {
+      newSelection.splice(existingIndex, 1); // הסר אם כבר מסומן
+    } else {
+      newSelection.push(customer); // הוסף אם לא מסומן
+    }
+
+    console.log("Updated selectedCustomers:", newSelection);
+    return newSelection;
+  });
 };
+
+// new 
+
+// const handleSelectCustomer = (id: string) => {
+//   setSelectedCustomers((prevSelected) => {
+//     const newSelection = new Set(prevSelected);
+//     if (newSelection.has(id)) {
+//       newSelection.delete(id); // הסרה אם נבחר שוב
+//     } else {
+//       newSelection.add(id); // הוספה אם לא נבחר
+//     }
+//     return newSelection;
+//   });
+// };
+
+// const handleLinkCustomers = () => {
+//   console.log("handleLinkCustomers called!");
+//   if (selectedCustomers.size === 0) {
+//     alert("בחר לפחות לקוח אחד לטובת הקישור.");
+//     return;
+//   }
+//   // הדפסת נתוני הלקוחות שנבחרו
+//   console.log("Selected Customers IDs:", Array.from(selectedCustomers));
+//   // שליפת פרטי הלקוחות מתוך `filteredData`
+//   const customersToShow = Array.from(selectedCustomers)
+//     .map((id) => filteredData.find((customer) => customer.id === id))
+//     .filter(Boolean) as CustomersTypeForFetching[]; // הסרת ערכים ריקים
+//   console.log("Customers to Show in Modal:", customersToShow);
+//   setDialogCustomers(customersToShow); // עדכון המודל עם הנתונים
+//   console.log("Dialog Customers:", dialogCustomers);
+//   setIsDialogOpen(true);
+// };
+
+
+
+// const handleConfirmFamilyLink = async (mainCustomerId: string) => {
+//   const ids = Array.from(selectedCustomers);
+
+//   if (!mainCustomerId) {
+//     alert("יש לבחור מבוטח ראשי לפני יצירת החיבור.");
+//     return;
+//   }
+
+//   let familyConflict = false;
+//   let conflictingCustomerName = "";
+
+//   const mainCustomerDocRef = doc(db, 'customer', mainCustomerId);
+//   const mainCustomerDoc = await getDoc(mainCustomerDocRef);
+
+//   if (mainCustomerDoc.exists()) {
+//     const mainCustomerData = mainCustomerDoc.data();
+//     if (mainCustomerData.parentID !== mainCustomerId) {
+//       alert(`הלקוח ${mainCustomerData.firstNameCustomer} כבר חלק מחיבור משפחתי אחר. יש לנתק את החיבור הקיים לפני הפיכתו ללקוח ראשי בחיבור חדש.`);
+//       return;
+//     }
+//   }
+
+//   for (const customerId of ids) {
+//     if (customerId === mainCustomerId) continue;
+//     const customerDocRef = doc(db, 'customer', customerId);
+//     const customerDoc = await getDoc(customerDocRef);
+
+//     if (customerDoc.exists()) {
+//       const customerData = customerDoc.data();
+//       const childCheckQuery = query(
+//         collection(db, 'customer'),
+//         where('AgentId', '==', customerData.AgentId),
+//         where('parentID', '==', customerId)  // Check if they are listed as a parent to other customers
+//       );
+//       const childCheckSnapshot = await getDocs(childCheckQuery);
+//       childCheckSnapshot.forEach((doc) => {
+//         if (doc.id !== customerId) {
+//           familyConflict = true;
+//           conflictingCustomerName = customerData.firstNameCustomer;
+//           alert(`לא ניתן לחבר את הלקוח ${conflictingCustomerName} כלקוח משני מאחר שהוא כבר משמש כהורה בחיבור אחר.`);
+//           return;
+//         }
+//       });
+//       if (familyConflict) {
+//         return;
+//       }
+//     }
+//   }
+//   if (familyConflict) {
+//     const confirmTransfer = confirm(`הלקוח ${conflictingCustomerName} כבר מקושר למשפחה אחרת. האם ברצונך להעביר את כולם למשפחה חדשה?`);
+//     if (!confirmTransfer) {
+//       return;
+//     }
+//   }
+//   for (const customerId of ids) {
+//     const customerDocRef = doc(db, 'customer', customerId);
+//     await updateDoc(customerDocRef, {
+//       parentID: mainCustomerId
+//     });
+//   }
+//   alert('קשר משפחתי הוגדר בהצלחה');
+//   setSelectedCustomers(new Set());
+//   setIsDialogOpen(false);
+//   setIsMainCustomerSelected(false);
+//   setMainCustomerId(null);
+//   if (selectedAgentId) {
+//     fetchCustomersForAgent(selectedAgentId);
+//   }
+// };
 
 
 
@@ -1290,6 +1418,7 @@ const handleNewSelectCustomer = (id: string) => {
             text="הזן"
             onClick={handleSubmit}
             state="default"
+             icon="off"
             disabled={!canSubmit || isEditing}
           />
         </div>
@@ -1381,15 +1510,12 @@ const handleNewSelectCustomer = (id: string) => {
       key={item.id}
       onMouseEnter={() => setHoveredRowId(item.id)}
       onMouseLeave={() => setHoveredRowId(null)}
-      className={`${selectedCustomers.has(item.id) ? 'selected-row' : ''} ${
-        hoveredRowId === item.id ? 'hovered-row' : ''
-      }`}
     >
     {/*  {showSelect && (*/}
     <td>
   <input
     type="checkbox"
-    checked={selectedCustomer?.id === item.id}
+    checked={selectedCustomers.some(customer => customer.IDCustomer === item.IDCustomer)}
     onChange={() => handleNewSelectCustomer(item.id)}
   />
 </td>
@@ -1551,33 +1677,62 @@ const handleNewSelectCustomer = (id: string) => {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center"}}>
         {/* כפתורי קשר משפחתי */}
         <div className="buttons-container" style={{ display: "flex"}}>
-          <Button
-            onClick={() => (showSelect ? cancelProcess() : startLinkingProcess())}
-            text={showSelect ? "בטל קשר משפחתי" : "הוסף קשר משפחתי"}
-            type="primary"
-            icon={showSelect ? "off" : "link"}
-            state="default"
-          />
-          <Button
-            onClick={() => (showSelect ? cancelProcess() : startDisconnectionProcess())}
-            text={showSelect ? "בטל ניתוק קשר משפחתי" : "נתק קשר משפחתי"}
-            type="primary"
-            icon={showSelect ? "off" : "unlink"}
-            state="default"
-          />
-          {showSelect && (
-            <>
-              <Button
-                onClick={linkSelectedCustomers}
-                text="אשר חיבור"
-                type="secondary"
-                icon="link"
-                state={selectedCustomers.size > 0 ? "default" : "disabled"}
-                disabled={selectedCustomers.size === 0}
-              />
-            </>
-          )}
-        </div>
+        <Button
+  onClick={() => startLinkingProcess(
+    setMode, 
+    setShowSelect, 
+    isNewDesignEnabled, 
+    setDialogType, 
+    setDialogMessage, 
+    setIsDialogOpen, 
+    setDialogCustomers, // מילוי הנתונים במודל
+    selectedCustomers,
+    filteredData,
+    setCustomers, // ✅ נוסיף את זה
+    setFilteredData // ✅ נוסיף גם את זה
+  )}
+  text="הוסף קשר משפחתי"
+  type="primary"
+  icon="off"
+  state={selectedCustomers.length > 0 ? "default" : "disabled"} // שינוי ל-`length`
+  disabled={selectedCustomers.length === 0} 
+/>
+<Button
+    onClick={() => disconnectCustomers(selectedCustomers, setSelectedCustomers, setCustomers, selectedAgentId, fetchCustomersForAgent)}
+    text="נתק קשר משפחתי"
+    type="primary"
+    icon="off"
+    state={selectedCustomers.length > 0 ? "default" : "disabled"}
+    disabled={selectedCustomers.length === 0}
+/>
+  {/* הצגת המודל בתוך ה- return */}
+  {dialogMessage && <p>{dialogMessage}</p>} {/* הצגת הודעה אם יש טקסט */}
+  {isDialogOpen && (
+ <FamilyLinkDialog
+ isOpen={isDialogOpen}
+ onClose={() => setIsDialogOpen(false)}
+ customers={dialogCustomers} // הלקוחות שמועברים למודל
+ onConfirm={(mainCustomerId) =>
+  handleConfirmFamilyLink(
+    mainCustomerId,
+    selectedCustomers,
+    setSelectedCustomers,
+    setIsDialogOpen,
+    selectedAgentId,
+    fetchCustomersForAgent,
+    setCustomers, // ✅ מעבירים את הפונקציה שמעדכנת
+    setFilteredData // ✅ מעבירים גם את רשימת המסוננים
+  )
+}
+ setSelectedCustomers={setSelectedCustomers} 
+ setIsDialogOpen={setIsDialogOpen}
+ selectedAgentId={selectedAgentId} // הוספת הפרופ החסר
+ fetchCustomersForAgent={fetchCustomersForAgent} // מעבירים את הפונקציה עם הטיפוס הנכון
+ setCustomers={setCustomers} // ✅ לוודא שזה נשלח
+  setFilteredData={setFilteredData} // ✅ לוודא שזה נשלח
+/>
+)}
+</div>
         {/* רכיב הניווט */}
         <TableFooter
           currentPage={currentPage}
@@ -1597,16 +1752,16 @@ const handleNewSelectCustomer = (id: string) => {
   text="הפק דוח אישי"
   type="primary"
   icon="on"
-  state={selectedCustomer ? "default" : "disabled"}
-  disabled={!selectedCustomer}
+  state={selectedCustomers ? "default" : "disabled"}
+  disabled={!selectedCustomers}
 />
 <Button
   onClick={fetchFamilySales}
   text="הפק דוח משפחתי"
   type="primary"
   icon="on"
-  state={selectedCustomer && selectedCustomer.parentID ? "default" : "disabled"}
-  disabled={!selectedCustomer || !selectedCustomer.parentID}
+  state={selectedCustomers /* && selectedCustomers.parentID */ ? "default" : "disabled"}
+  disabled={!selectedCustomers /* || !selectedCustomers.parentID*/}
 />
             </div>
           </div>

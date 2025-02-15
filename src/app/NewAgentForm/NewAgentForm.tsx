@@ -960,13 +960,6 @@ const closeModal = (): void => {
   <div className="table-title">ניהול עסקאות</div>
   <div className="button-container">
   <Button
-    onClick={() => saveChanges()}
-    text="שמור שינויים"
-    type="primary"
-    icon="off"
-    state={isSaveDisabled ? "disabled" : "default"} // קביעת מצב הכפתור
-    />
-  <Button
     onClick={() => setShowOpenNewDeal(true)}
     text="הוסף עסקה"
     type="primary"
@@ -974,11 +967,19 @@ const closeModal = (): void => {
     state="default"
   />
   <Button
+    onClick={() => saveChanges()}
+    text="שמור שינויים"
+    type="primary"
+    icon="off"
+    state={isSaveDisabled ? "disabled" : "default"} // קביעת מצב הכפתור
+    />
+  <Button
   onClick={cancelEdit}
   text="בטל"
   type="secondary"
   icon="off"
-  state="default"
+  state={isEditing ? "default" : "disabled"} // קביעת מצב הכפתור
+  // state="default"
 />
 
   </div>
