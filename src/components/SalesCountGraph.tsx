@@ -52,7 +52,7 @@ const SalesCountGraph: React.FC<SalesCountGraphProps> = ({ data }) => {
   );
 
   // Define the datasets with explicit types
-  const dataset: ChartData<'bar', number[], string> = {
+  const dataset: ChartData<'bar' | 'line', number[], string> = {
     labels,
     datasets: [
       {
