@@ -979,6 +979,7 @@ if (!goals || goals.length === 0) {
   )}
   {/* טבלת היעדים */}
   <div className="tableGoalsMD">
+     
     <table>
       <thead>
         <tr>
@@ -991,6 +992,7 @@ if (!goals || goals.length === 0) {
           <th className="narrow-cell">🔧</th>
         </tr>
       </thead>
+    
       <tbody>
   {promotionsData.map((item) => (
     <tr key={item.id}>
@@ -1008,7 +1010,6 @@ if (!goals || goals.length === 0) {
       <td>
   {editingPromotionRow === item.id ? (
     <div style={{ position: "relative" }}>
-      {/* כפתור לפתיחת התפריט */}
       <div
         onClick={() =>
           setOpenDropdownRow(item.id === openDropdownRow ? null : item.id)
@@ -1021,7 +1022,6 @@ if (!goals || goals.length === 0) {
           backgroundColor: "#fff",
         }}
       >
-        {/* חברות נבחרות */}
         {(editPromotionData.companies || []).length > 0
           ? (editPromotionData.companies || []).join(", ")
           : "בחר חברות"}
@@ -1034,7 +1034,6 @@ if (!goals || goals.length === 0) {
           ▼
         </span>
       </div>
-      {/* תפריט הבחירה */}
       {openDropdownRow === item.id && (
         <div
           style={{
@@ -1079,7 +1078,6 @@ if (!goals || goals.length === 0) {
     item.companies?.join(", ") || " "
   )}
 </td>
-      {/* מתחדש חודשי */}
       <td>
         {editingPromotionRow === item.id ? (
           <input
@@ -1097,7 +1095,6 @@ if (!goals || goals.length === 0) {
           item.promotionMonthlyRepeat ? "✔️" : "❌"
         )}
       </td>
-      {/* תאריך התחלה */}
       <td>
   {editingPromotionRow === item.id ? (
     <input
@@ -1119,7 +1116,6 @@ if (!goals || goals.length === 0) {
     ""
   )}
 </td>
-      {/* תאריך סיום */}
       <td>
   {editingPromotionRow === item.id ? (
     <input
@@ -1141,7 +1137,6 @@ if (!goals || goals.length === 0) {
     ""
   )}
 </td>
-      {/* סטטוס */}
       <td>
         {editingPromotionRow === item.id ? (
           <input
@@ -1172,10 +1167,11 @@ if (!goals || goals.length === 0) {
     )}
   />
 </td>
-    </tr>
+     </tr>
   ))}
 </tbody>
-    </table>
+    </table>  
+  
   </div>
 </div>
 <div className="NewGoalsStars">
@@ -1311,10 +1307,9 @@ if (!goals || goals.length === 0) {
         </tr>
       </thead>
       <tbody>
-  {starsData.map((item) => (
-    <tr
-       onMouseEnter={() => setHoveredRowId(item.id)}
-       onMouseLeave={() => setHoveredRowId(null)} >
+      {starsData?.length > 0 ? (
+    starsData.map((item, index) => (
+      <tr key={item.id ?? `star-${index}`}>
       <td>
         {editingStarRow === item.id ? (
           <select
@@ -1332,7 +1327,6 @@ if (!goals || goals.length === 0) {
           promotionListForStars[item.promotionId] || "Unknown Promotion"
         )}
       </td>
-      {/* עמודת כוכב ביטוח */}
       <td>
         {editingStarRow === item.id ? (
           <input
@@ -1346,7 +1340,6 @@ if (!goals || goals.length === 0) {
           item.insuranceStar?.toLocaleString() || "N/A"
         )}
       </td>
-      {/* עמודת כוכב פנסיה */}
       <td>
         {editingStarRow === item.id ? (
           <input
@@ -1360,7 +1353,6 @@ if (!goals || goals.length === 0) {
           item.pensiaStar?.toLocaleString() || "N/A"
         )}
       </td>
-      {/* עמודת כוכב פיננסים */}
       <td>
         {editingStarRow === item.id ? (
           <input
@@ -1374,7 +1366,6 @@ if (!goals || goals.length === 0) {
           item.finansimStar?.toLocaleString() || "N/A"
         )}
       </td>
-      {/* עמודת תפריט */}
       <td className="narrow-cell">
       <MenuWrapper
   rowId={item.id}
@@ -1389,9 +1380,15 @@ if (!goals || goals.length === 0) {
 />
 </td>
     </tr>
-  ))}
+  ))
+) : (
+  // שורה שמוצגת אם אין נתונים
+  <tr>
+    <td colSpan={5} style={{ textAlign: "center" }}>אין נתונים להצגה</td>
+  </tr>
+)}
 </tbody>
-    </table>
+</table>
  </div>
 </div>
 </div>
@@ -1553,7 +1550,7 @@ if (!goals || goals.length === 0) {
         </div>
       )}
     </div>
-       <div className="select-container" >        
+       <div className="select-container" >      
         <table>
          <thead>
          <tr>
@@ -1584,7 +1581,7 @@ if (!goals || goals.length === 0) {
                 <option value="">בחר מבצע</option>
                 {promotionListForStars &&
                   Object.entries(promotionListForStars).map(([id, name]) => (
-                    <option key={`${id}-${name}`} value={id}> {/* ✅ מוודא key ייחודי */}
+                    <option key={`${id}-${name}`} value={id}> 
                       {name}
                     </option>
                   ))}
@@ -1593,7 +1590,6 @@ if (!goals || goals.length === 0) {
               promotionListForStars?.[item.promotionId] || "Unknown Promotion"
             )}
           </td>
-
           <td>
             {editingGoalRow === item.id ? (
               <select
@@ -1605,7 +1601,7 @@ if (!goals || goals.length === 0) {
                 <option value="all-agency">כל הסוכנות</option>
                 {workerNameMap &&
                   Object.entries(workerNameMap).map(([id, name]) => (
-                    <option key={`${id}-${name}`} value={id}> {/* ✅ ייחודיות */}
+                    <option key={`${id}-${name}`} value={id}> 
                       {name}
                     </option>
                   ))}
@@ -1614,7 +1610,6 @@ if (!goals || goals.length === 0) {
               workerNameMap?.[item.workerId] || "Unknown Worker"
             )}
           </td>
-
           <td>
             {editingGoalRow === item.id ? (
               <select
@@ -1626,7 +1621,7 @@ if (!goals || goals.length === 0) {
                 <option value="">בחר סוג יעד</option>
                 {goalsTypeMap &&
                   Object.entries(goalsTypeMap).map(([id, name]) => (
-                    <option key={`${id}-${name}`} value={id}> {/* ✅ תיקון key */}
+                    <option key={`${id}-${name}`} value={id}> 
                       {name}
                     </option>
                   ))}
@@ -1685,7 +1680,7 @@ if (!goals || goals.length === 0) {
     </tr>
   )}
 </tbody>
-    </table>
+    </table> 
  </div>
  <div>
  <Button
