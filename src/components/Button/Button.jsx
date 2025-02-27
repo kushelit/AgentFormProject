@@ -18,10 +18,10 @@ export const Button = ({
     <div
       className={`button ${type} state-${state} ${className}`}
       data-03-components-colors-mode="light"
+      onClick={onClick}
     >
       <button
         className={`div ${buttonClassName}`}
-        onClick={onClick}
         disabled={disabled} // שימוש בפרמטר disabled
         data-03-components-colors-mode="light"
       >

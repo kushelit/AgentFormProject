@@ -30,7 +30,7 @@ export const NavbarItem = ({
       onClick && onClick(e); // קרא ל-onClick אם קיים
     }}
   >
-      <div className="navbar-item-content">
+      <div className="navbar-item-content" onClick={onClick}>
       <span className="menu-label">{children}</span>
          {hasSubmenu && (
           <span

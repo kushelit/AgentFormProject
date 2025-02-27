@@ -22,9 +22,8 @@ body {
 .content-container-NewAgentForm {
     display: flex;
     flex-direction: column; /* Stack sections vertically */
-    max-width: 1280px; /* גבול רוחב מקסימלי */
     margin: 0 auto;
-    padding: 8px 0; /* הקטנת הרווחים העליונים והתחתונים */
+    padding: 10px;
     gap: 4px;
 }
 
@@ -52,7 +51,7 @@ body {
   overflow-x: hidden;
   padding: 16px; /* Add consistent padding */
   box-shadow: var(--m3-elevation-light-1);
- box-sizing: border-box;
+  box-sizing: border-box;
 }
 
 .table-Data-AgentForm.is-new-design table {
@@ -123,9 +122,9 @@ body {
     padding: 6px 8px; /* ריווח פנימי קטן יותר */
     border-radius: 4px;
     width: 100%;
-    max-height: 48px; /* מעט נמוך יותר */
+    max-height: 48px; 
     overflow: hidden;
-    box-shadow: var(--m3-elevation-light-1); /* אם את רוצה הוספת צל */
+    box-shadow: var(--m3-elevation-light-1); 
 }
 
   
@@ -137,7 +136,7 @@ body {
     min-width: 90px;
     position: relative;
   }
-  
+
 .filter-input,
 .select-input,
 .datePicker-input {
@@ -153,14 +152,29 @@ body {
 .filter-input,
 .select-input,
 .datePicker-input {
-    text-align: right;
+    text-align: center !important;
+    align-items: center !important; /* ממקם טקסט במרכז אנכי */
     direction: rtl;
+    background-color: #fff;
 }
+
+
+.filter-select-container, .form-section select {
+  appearance: none;
+  direction: rtl;
+  text-align: center; /* יישור התוכן בתוך השדה למרכז */
+  align-items: center !important; /* ממקם טקסט במרכז אנכי */
+  background-position: left 10px center; /* ממקם את החץ */
+  background-size: 10px; /* התאמת גודל החץ */
+  text-align-last: center; /* ממקם את הטקסט באמצע */
+}
+
+
 
 /* יישור התוויות (placeholders) לימין */
 .filter-input::placeholder,
 .datePicker-input::placeholder {
-    text-align: right;
+    text-align: center;
     direction: rtl;
 }
 
@@ -193,11 +207,6 @@ input::placeholder {
   font-style: italic; /* אופציונלי */
 }
 
-/* סגנון ל-placeholder של select */
-select option {
-  color: rgba(0, 0, 0, 0.5); /* צבע אפור שקוף */
-}
-
 
 .goal-Worker select {
   appearance: none;
@@ -210,6 +219,7 @@ select option {
   margin-bottom: 0; /* ביטול רווח תחתון */
   width: auto; /* רוחב אוטומטי */
   min-width: 150px; /* רוחב מינימלי */
+  padding: 6px 8px; /* ריווח פנימי קטן יותר */
 }
 
 #worker-select-goals {
@@ -220,6 +230,7 @@ select option {
   border-radius: 4px;
   box-sizing: border-box;
   margin-bottom: 0; /* מבטל רווחים מיותרים */
+  margin-top: 10px; /* רווח מעל השדה */
 }
 
   .checkbox-input {
@@ -330,6 +341,20 @@ select option {
     line-height: 36px;
   }
 
+  .table-Goal-title{
+    all: unset;
+    font-family: "Rubik-Regular", Helvetica, sans-serif !important;
+    font-size: 30px !important;
+    font-weight: 400 !important;
+    color: var(--clrdarkblue3) !important;
+    text-align: right !important;
+    line-height: 36px;
+    margin-bottom: 20px;
+    padding: 6px 8px; /* ריווח פנימי קטן יותר */
+  }
+
+
+
   .filter-input-icon {
     position: absolute;
     top: 50%;
@@ -354,6 +379,7 @@ select option {
     grid-template-columns: repeat(4, 1fr); /* ארבע עמודות */
     gap: 12px; /* רווח בין עמודות */
     text-align: right; /* יישור כל התוכן לימין */
+    align-items: center;
   }
   
   .goal-field {
@@ -455,31 +481,6 @@ select option {
   
   
   
-  
-
-.filter-inputs-container-new select {
-  appearance: none; /* מסיר את העיצוב הדפדפני המובנה */
-  direction: rtl; /* יישור המלל לימין */
-  text-align: right; /* המלל מיושר לימין */
-  padding-right: 2px; /* הוספת ריווח לימין */
-  padding-left: 20px; /* מספיק מקום לחץ בצד שמאל */
-  background: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMiIgaGVpZ2h0PSIxMiIgdmlld0JveD0iMCAwIDEyIDEyIj4gPHBhdGggZmlsbD0iI0I0QjRCNCIgZD0iTTEwLjU3IDMuNTlsLTEuMTctMS4xN2MtLjMxLS4zMS0uODEtLjMxLTEuMTIgMGwtMy4yOSAzLjI5LTMuMjktMy4yOWMtLjMxLS4zMS0uODEtLjMxLTEuMTIgMGwtMS4xNyAxLjE3Yy0uMzEuMzEtLjMxLjgxIDAgMS4xMWw0LjQzIDQuNDNjLjMxLjMxLjgxLjMxIDEuMTIgMGw0LjQzLTQuNDNjLjMxLS4zLjMxLS44MS4wMS0xLjEyWiIgLz48L3N2Zz4=")
-    no-repeat;
-  background-position: left 10px center; /* ממקם את החץ בצד שמאל */
-  background-size: 12px; /* גודל החץ */
- /* border: 1px solid var(--clrgray5); /* גבול התיבה */
-  /*border-radius: 4px; /* פינות מעוגלות */
-  /*font-size: 14px; /* גודל פונט */
-  /*height: 32px; /* גובה אחיד */
- /* box-sizing: border-box;*/
-}
-
-.filter-inputs-container-new select:focus {
-  outline: none; /* הסרת המסגרת של הפוקוס */
-  border-color: var(--clrprimary); /* צבע גבול בזמן פוקוס */
-}
-
-
 .wide-column {
   width: 20%;
 }
@@ -508,7 +509,6 @@ select option {
   text-align: center; /* גיבוי ליישור אופקי */
   vertical-align: middle; /* גיבוי ליישור אנכי */
   padding: 0;
-  background-color: transparent;
   justify-content: center;
   align-items: center;
   overflow: visible; /* מונע תוכן מחוץ לגבולות התא */
@@ -520,53 +520,7 @@ select option {
   border-color: var(--clrgray4);
 }
 
-/* עיצוב שדות העריכה */
-.table-Data-AgentForm.is-new-design td input,
-.table-Data-AgentForm.is-new-design td select {
-  width: 100%; /* התאמה לרוחב התא */
-  height: 36px; /* גובה השדה */
-  box-sizing: border-box; /* כולל padding בגודל הכולל */
-  font-size: 14px; /* התאמת גודל הטקסט */
-  padding: 4px; /* ריווח פנימי */
-  border: 1px solid #ccc; /* מסגרת עדינה */
-  border-radius: 4px; /* פינות מעוגלות */
-  background-color: #fff; /* רקע לבן */
-}
 
-/* עיצוב ספציפי לשדות תאריך */
-.table-Data-AgentForm.is-new-design td input[type="date"] {
-  text-align: center; /* יישור הטקסט */
-}
-
-/* עיצוב שדות עם חצים לבחירה (select) */
-.table-Data-AgentForm.is-new-design td select {
-  appearance: none; /* הסתרת עיצוב ברירת מחדל */
-  padding-right: 8px; /* התאמת רווח פנימי */
-}
-
-/* התמקדות בשדה עריכה */
-.table-Data-AgentForm.is-new-design td input:focus,
-.table-Data-AgentForm.is-new-design td select:focus {
-  border-color: var(--clrdarkblue3); /* הדגשת מסגרת בעת התמקדות */
-  outline: none; /* ביטול המסגרת הכחולה של הדפדפן */
-}
-
-/* שדות עריכה מספריים */
-.table-Data-AgentForm.is-new-design td input[type="number"] {
-  text-align: right; /* יישור לימין */
-  width: 100%; /* התאמת רוחב */
-}
-
-/* שדות עריכה טקסטואליים */
-.table-Data-AgentForm.is-new-design td input[type="text"] {
-  text-align: left; /* יישור לשמאל */
-}
-
-/* עיצוב שדות תאריך */
-.table-Data-AgentForm.is-new-design td input[type="date"] {
-  text-align: center; /* יישור הטקסט במרכז */
-  font-size: 14px; /* גודל טקסט סטנדרטי */
-}
 .button-container {
   display: flex;
   gap: 8px; /* רווח בין הכפתורים */
@@ -591,13 +545,15 @@ select option {
 .modal-content {
   width: 400px; /* או ערך קבוע שאתה רוצה */
   max-height: 90vh; /* כדי להימנע מחריגה מהמסך */
+  overflow: hidden; /* מניעת סקרול פנימי */
   overflow-y: auto; /* אפשר גלילה אם התוכן חורג */
   padding: 20px;
   border-radius: 4px;
   box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.1);
   background-color: var(--clrgray1);
-  margin: auto; /* מרכז את התוכן */
-  transform: translateY(0); /* מנטרל תזוזות מיותרות */
+  position: relative; /* שומר על המבנה */
+  transform: none; /* הסרת translateY(0) */
+  margin-top: 8vh; /* מרחק מהחלק העליון של המסך */
 }
 
 
@@ -626,6 +582,8 @@ select option {
   display: flex;
   flex-direction: column;
 }
+
+
 .goal-title {
   color: #3b6a95;
   direction: rtl; /* כיוון הטקסט מימין לשמאל */
@@ -635,32 +593,6 @@ select option {
   white-space: nowrap; /* מונע ירידת טקסט לשורה חדשה */
   font-size: 16px; /* גודל פונט מתאים */
   font-weight: bold; /* כותרת מודגשת */
-}
-
-
-.form-title {
-  height: 22px;
-  width: 79px;color: #3b6a95;
-  direction: rtl;
-  font-family: "Inter-Bold", Helvetica;
-  font-size: 12px;
-  font-weight: 700;
-  left: 0;
-  letter-spacing: 0;
-  line-height: 22px;
-  position: fixed;
-  top: 0;
-  white-space: nowrap;
-}
-
-/* עיצוב הכותרות של הטופס */
-.form-section-title {
-  font-size: 14px;
-  font-weight: bold;
-  color: #333;
-  margin-bottom: 10px;
-  border-bottom: 1px solid #ddd;
-  padding-bottom: 5px;
 }
 
 
@@ -677,22 +609,11 @@ select option {
   width: 100%; /* תופס את כל הרוחב הזמין */
   height: 30px; /* גובה אחיד */
   padding: 6px; /* רווח פנימי */
-  font-size: 14px; /* גודל טקסט אחיד */
+  font-size: 12px; /* גודל טקסט אחיד */
   border: 1px solid #ccc; /* מסגרת אחידה */
   border-radius: 4px; /* פינות עגולות */
   box-sizing: border-box; /* כולל Padding בתוך ה-Width */
   background-color: #fff; /* צבע רקע אחיד */
-}
-
-.form-group select {
-  appearance: none; /* הסרת עיצוב ברירת מחדל לדפדפן */
-  -webkit-appearance: none; /* תמיכה ב-Chrome/Safari */
-  -moz-appearance: none; /* תמיכה ב-Firefox */
-  background-image: url("data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' width='24' height='24'%3E%3Cpath fill='none' d='M0 0h24v24H0z'/%3E%3Cpath d='M7 10l5 5 5-5z' fill='%23ccc'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 10px center;
-  background-size: 12px;
-  padding-right: 30px; /* רווח לתפריט הנפתח */
 }
 
 .form-group.textarea-group {
@@ -715,8 +636,33 @@ select option {
 .form-actions {
   display: flex;
   justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  align-items: center;
+  padding-top: 10px;
 }
 
+.right-buttons,
+.left-buttons {
+  display: flex;
+  justify-content: space-between;
+  flex: 1; /* שני החלקים יקבלו שטח שווה */
+  max-width: 500px; /* נגביל את הרוחב כדי שהכפתורים לא יהיו רחבים מדי */
+}
+
+.right-buttons {
+  justify-content: flex-start;
+  gap: 10px;
+}
+
+.left-buttons {
+  justify-content: flex-end;
+}
+
+.right-buttons .button,
+.left-buttons .button {
+  width: 100px !important; /* רוחב קבוע לכל הכפתורים */
+}
 
 .form-container .title {
   height: auto; /* מאפשר התאמה אוטומטית לגובה */
@@ -737,24 +683,8 @@ select option {
   padding-bottom: 5px; /* ריווח תחתון לפני הקו */
   margin-bottom: 20px; /* ריווח תחתון לאחר הקו */
 }
-.modal-content .close-button {
-  position: absolute; /* למיקום בפינה השמאלית העליונה */
-  top: 10px; /* רווח מהחלק העליון */
-  left: 10px; /* רווח מהחלק השמאלי */
-  background: transparent; /* רקע שקוף */
-  border: none !important; /* ללא מסגרת */
-  font-size: 20px; /* גודל טקסט */
-  cursor: pointer; /* מצביע לחיץ */
-  color: var(--clrdarkblue); /* צבע הטקסט */
-  z-index: 10; /* ודא שהכפתור מעל ה-title */
-}
 
-.close-button .button {
-  all: unset; /* מסיר עיצוב מובנה */
-  display: flex; /* כדי ליישר את התוכן */
-  align-items: center; /* יישור אנכי */
-  justify-content: center; /* יישור אופקי */
-}
+
 .button {
   cursor: pointer; /* מצביע לחיץ */
 }
@@ -767,3 +697,101 @@ select option {
   opacity: 0.5; /* שקיפות */
 }
 
+.goalActive{
+  display: flex;
+  align-items: center; /* ליישור אנכי */
+  margin-top: 10px;
+  margin-bottom: 10px;
+  gap: 4px;
+}
+
+/* עיצוב אחיד לכל השדות בטבלה */
+table input[type="text"],
+table input[type="number"],
+table input[type="date"],
+table input[type="email"],
+table input[type="tel"],
+table select {
+  font-size: 14px;
+  padding: 5px;
+  width: 100%;
+  height: 30px; /* התאמת גובה לשאר השדות */
+  box-sizing: border-box;
+  border: 1px solid #ccc;
+  background-color: #f8f8f8;
+  text-align: right;
+  border-radius: 4px;
+  appearance: none;
+  transition: all 0.2s ease-in-out;
+  max-width: 150px; /* קביעת רוחב מקסימלי */
+}
+
+/* התאמה מיוחדת לשדות עם מספרים כדי שיישארו קטנים יחסית */
+table input[type="number"] {
+  text-align: right;
+  max-width: 100px; /* מספרים לא צריכים להיות גדולים מדי */
+}
+
+/* התאמה מיוחדת לתאריך */
+table input[type="date"] {
+  max-width: 120px;
+}
+
+/* התאמה מיוחדת לרשימה נפתחת */
+table select {
+  max-width: 130px;
+  text-align: right;
+  white-space: nowrap; /* מונע שבירת שורות */
+}
+
+/* התאמת התאים בטבלה כך שלא יהיו צרים מדי */
+table td {
+  min-width: 80px; /* מונע תאים צרים מדי */
+  white-space: nowrap; /* מונע שבירה של טקסט */
+}
+
+/* הגדרת תאים צרים יותר לשדות כמו checkbox */
+table td.narrow-column {
+  min-width: 50px;
+  text-align: center;
+}
+
+.checkbox-group {
+  display: flex;
+  justify-content: flex-end; /* יישור התוכן לימין */
+  gap: 8px; /* רווח בין הטקסט ל-checkbox */
+}
+.checkbox-label {
+  display: flex;
+  align-items: center; /* מוודא שהטקסט וה-checkbox יהיו באותו קו */
+  font-size: 14px; /* גודל טקסט קצת יותר ברור */
+  cursor: pointer;
+}
+
+.checkbox-label input {
+  width: 16px; /* התאמת גודל ה-checkbox */
+  height: 16px;
+}
+
+.checkbox-label span {
+  margin-right: 5px; /* רווח מימין לטקסט */
+}
+
+.full-width {
+  grid-column: span 2; /* שהשדה יתפרס על שני טורים */
+  width: 100%; /* רוחב מלא */
+}
+
+.full-width textarea {
+  width: 100%;
+  min-height: 80px;
+  padding: 8px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  resize: vertical; /* לאפשר שינוי גובה */
+}
+
+.section-title
+{
+  font-weight: bold;
+}

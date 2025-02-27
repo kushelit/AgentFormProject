@@ -825,7 +825,7 @@ if (!goals || goals.length === 0) {
   <Button
     onClick={savePromotionChanges}
     text="שמור שינויים"
-    type="secondary"
+    type="primary"
     icon="off"
     state={editingPromotionRow ? "default" : "disabled"}
     disabled={!editingPromotionRow}
@@ -833,7 +833,7 @@ if (!goals || goals.length === 0) {
   <Button
   onClick={cancelEditPromotion}
   text=" בטל"
-  type="secondary"
+  type="primary"
   icon="off"
   state={editingPromotionRow ? "default" : "disabled"}
   disabled={!editingPromotionRow}
@@ -843,15 +843,9 @@ if (!goals || goals.length === 0) {
   {isModalOpenNewGoal && (
     <div className="modal">
       <div className="modal-content">
-      <div className="close-button">
-      <Button
-    onClick={handleCloseModalNewGoal}
-    text="✖"
-    type="secondary"
-    icon="off"
-    state="default"
-  />
-</div>
+      <button className="close-button" onClick={() => setIsModalOpenNewGoal(false)}>
+    ✖
+  </button>
         <div className="title">יעד חדש</div>
         <form onSubmit={handleSubmitPromotion} className="form-container">
   <div className="form-group">
@@ -968,7 +962,7 @@ if (!goals || goals.length === 0) {
     <Button
       onClick={handleCloseModalNewGoal}
       text="בטל"
-      type="secondary"
+      type="primary"
       icon="off"
       state="default"
     />
@@ -991,11 +985,10 @@ if (!goals || goals.length === 0) {
           <th>סטאטוס</th>
           <th className="narrow-cell">🔧</th>
         </tr>
-      </thead>
-    
+      </thead>    
       <tbody>
   {promotionsData.map((item) => (
-    <tr key={item.id}>
+        <tr key={item.id} className={editingPromotionRow === item.id ? "editing-row" : ""}>
       <td>
         {editingPromotionRow === item.id ? (
           <input
@@ -1010,41 +1003,52 @@ if (!goals || goals.length === 0) {
       <td>
   {editingPromotionRow === item.id ? (
     <div style={{ position: "relative" }}>
+      {/* תיבה עם רקע ומסגרת תואמים */}
       <div
         onClick={() =>
           setOpenDropdownRow(item.id === openDropdownRow ? null : item.id)
         }
         style={{
-          border: "1px solid #ccc",
+          border: openDropdownRow === item.id ? "1px solid #007bff" : "1px solid #ccc",
           borderRadius: "4px",
           padding: "5px",
           cursor: "pointer",
-          backgroundColor: "#fff",
+          backgroundColor: "#f8f8f8", // רקע תואם לשאר השדות
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          height: "32px",
         }}
       >
-        {(editPromotionData.companies || []).length > 0
-          ? (editPromotionData.companies || []).join(", ")
-          : "בחר חברות"}
+        <span style={{ textAlign: "right", flexGrow: 1 }}>
+          {(editPromotionData.companies || []).length > 0
+            ? (editPromotionData.companies || []).join(", ")
+            : "בחר חברות"}
+        </span>
         <span
           style={{
-            float: "right",
+            fontSize: "10px", // הקטנת החץ
+            marginLeft: "10px",
             transform: openDropdownRow === item.id ? "rotate(180deg)" : "rotate(0deg)",
           }}
         >
           ▼
         </span>
       </div>
+
+      {/* רשימת האפשרויות */}
       {openDropdownRow === item.id && (
         <div
           style={{
             position: "absolute",
             border: "1px solid #ccc",
             borderRadius: "4px",
-            backgroundColor: "#fff",
+            backgroundColor: "#f8f8f8",
             maxHeight: "150px",
             overflowY: "auto",
             zIndex: 10,
             width: "100%",
+            boxShadow: "0px 2px 5px rgba(0,0,0,0.2)",
           }}
         >
           {companies.map((company, index) => (
@@ -1064,6 +1068,7 @@ if (!goals || goals.length === 0) {
                 onChange={() => handleEditCompanyToggle(company)}
                 style={{
                   marginRight: "10px",
+                  transform: "scale(0.9)", // הקטנת ה-checkbox
                   cursor: "pointer",
                 }}
               />
@@ -1074,7 +1079,7 @@ if (!goals || goals.length === 0) {
       )}
     </div>
   ) : (
-    // מצב רגיל: חברות מופרדות בפסיק או "N/A"
+    // מצב רגיל: חברות מופרדות בפסיק או ריק
     item.companies?.join(", ") || " "
   )}
 </td>
@@ -1187,7 +1192,7 @@ if (!goals || goals.length === 0) {
 <Button
   onClick={saveStarChanges} // קורא לפונקציה מתוך useEditableTable
   text="שמור שינויים"
-  type="secondary"
+  type="primary"
   icon="off"
   state={editingStarRow ? "default" : "disabled"}
   disabled={!editingStarRow} // הכפתור יהיה פעיל רק אם יש שורה שנערכת
@@ -1195,7 +1200,7 @@ if (!goals || goals.length === 0) {
 <Button
   onClick={cancelEditStar}
   text="בטל"
-  type="secondary"
+  type="primary"
   icon="off"
   state={editingStarRow ? "default" : "disabled"}
   disabled={!editingStarRow} // הכפתור יהיה פעיל רק אם יש שורה שנערכת
@@ -1206,15 +1211,9 @@ if (!goals || goals.length === 0) {
       {isModalOpenNewStars && (
         <div className="modal">
        <div className="modal-content">
-       <div className="close-button">
-  <Button
-    onClick={handleCloseModalNewStars}
-    text="✖"
-    type="secondary"
-    icon="off"
-    state="default"
-  />
-</div>
+       <button className="close-button" onClick={() => setIsModalOpenNewStars(false)}>
+    ✖
+  </button>
 <div className="title">כוכב חדש</div>
 <form onSubmit={handleSubmitStars} className="form-container">
     <div className="form-group">
@@ -1309,8 +1308,10 @@ if (!goals || goals.length === 0) {
       <tbody>
       {starsData?.length > 0 ? (
     starsData.map((item, index) => (
-      <tr key={item.id ?? `star-${index}`}>
-      <td>
+<tr 
+  key={item.id ?? `star-${index}`} 
+  className={editingStarRow === item.id ? "editing-row" : ""}
+>      <td>
         {editingStarRow === item.id ? (
           <select
             value={editStarData.promotionId || ""}
@@ -1418,7 +1419,7 @@ if (!goals || goals.length === 0) {
 <Button
   onClick={saveGoalChanges} // פונקציית שמירת שינויים
   text="שמור שינויים"
-  type="secondary"
+  type="primary"
   icon="off"
   state={editingGoalRow ? "default" : "disabled"} // כפתור פעיל רק כשיש שורה שנערכת
   disabled={!editingGoalRow} // מנוטרל כשאין שורה שנערכת
@@ -1426,7 +1427,7 @@ if (!goals || goals.length === 0) {
 <Button
   onClick={cancelEditGoal}
   text="בטל"
-  type="secondary"
+  type="primary"
   icon="off"
   state={editingGoalRow ? "default" : "disabled"} // כפתור פעיל רק כשיש שורה שנערכת
   disabled={!editingGoalRow} // מנוטרל כשאין שורה שנערכת
@@ -1436,15 +1437,9 @@ if (!goals || goals.length === 0) {
       {isModalOpenGoalWorker && (
         <div className="modal">
           <div className="modal-content">
-          <div className="close-button">
-          <Button
-        onClick={handleCloseModalGoalWorker}
-        text="✖"
-        type="secondary"
-        icon="off"
-        state="default"
-      />
-          </div>
+          <button className="close-button" onClick={() => setIsModalOpenGoalWorker(false)}>
+    ✖
+  </button>
           <div className="title">יעד חדש</div>
           <form onSubmit={handleSubmit} className="form-container">
   <div className="form-group">
@@ -1569,7 +1564,10 @@ if (!goals || goals.length === 0) {
     goals.map((item, index) => {
       const uniqueKey = item.id ? item.id : `goal-${index}`; // 🔹 מוודא key ייחודי
       return (
-        <tr key={uniqueKey}> 
+<tr 
+  key={uniqueKey} 
+  className={editingGoalRow === item.id ? "editing-row" : ""}
+>
           <td>
             {editingGoalRow === item.id ? (
               <select

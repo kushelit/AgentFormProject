@@ -429,7 +429,7 @@ div, label, input {
   /* עיצוב החץ הנפתח */
   background-image: url("data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' width='24' height='24'%3E%3Cpath fill='none' d='M0 0h24v24H0z'/%3E%3Cpath d='M7 10l5 5 5-5z' fill='%23ccc'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
-  background-position: right 10px center;
+  background-position: left 10px center;
   background-size: 12px;
 }
 .close-button .button {
@@ -477,3 +477,4 @@ div, label, input {
 .select-container{
   margin-bottom: 20px !important;
 }
+

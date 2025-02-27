@@ -187,7 +187,7 @@ td {
 .table-container tr:hover td {
   background-color: var(--hover);
 }
-
+/* 
 button {
   padding: 0.75em 0.3em;
   border-radius: 4px;
@@ -207,7 +207,7 @@ button:disabled {
 
 button:hover {
   background-color: var(--hover);
-}
+} */
 
 .page-layout {
   display: flex;
@@ -234,4 +234,90 @@ button:hover {
   text-align: right;
 }*/
 
+
+
+.close-button {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  background: transparent !important; /* מסיר רקע */
+  border: none !important;
+  outline: none !important; /* מסיר מסגרת בלחיצה */
+  font-size: 14px;
+  font-weight: normal;
+  cursor: pointer;
+  color: rgba(0, 0, 0, 0.3);
+  z-index: 1010;
+  transition: color 0.2s ease, transform 0.2s ease;
+}
+
+/* בעת מעבר עם העכבר */
+.close-button:hover {
+  color: rgba(0, 0, 0, 0.6); /* משנה צבע */
+  transform: scale(1.2); /* הגדלה קלה */
+  background: transparent !important; /* מסיר רקע */
+}
+
+/* מסיר מסגרת כשנמצא בפוקוס (לחיצה) */
+.close-button:focus {
+  outline: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+
+table input[type="text"],
+table input[type="number"],
+table input[type="date"],
+table input[type="email"],
+table input[type="tel"],
+table select {
+  font-size: 14px;
+  padding: 5px;
+  width: 100%;
+  height: 32px; /* התאמת גובה כדי להתאים לשאר הטבלה */
+  box-sizing: border-box;
+  border: 1px solid #ccc;
+  background-color: #f8f8f8; /* שמירה על רקע אחיד */
+  text-align: right; /* יישור לימין */
+  border-radius: 4px; /* פינות מעוגלות קלות */
+  appearance: none; /* מסיר עיצוב ברירת מחדל של הדפדפן */
+  transition: all 0.2s ease-in-out;
+}
+
+/* הדגשה כאשר השדה מקבל פוקוס */
+table input:focus,
+table select:focus {
+  border: 1px solid #007bff; /* שינוי מסגרת בפוקוס */
+  outline: none;
+  background-color: #fff; /* רקע לבן כדי להדגיש */
+}
+
+table input[type="number"] {
+  text-align: right;
+}
+
+table select {
+  font-size: 14px;
+  padding: 5px;
+  width: 100%;
+  height: 32px; /* התאמת גובה לשדות אחרים */
+  box-sizing: border-box;
+  border: 1px solid #ccc;
+  background-color: #f8f8f8; /* רקע כמו ב-input */
+  text-align: right; /* יישור לימין */
+  border-radius: 4px; /* פינות מעוגלות קלות */
+  appearance: none; /* מסיר עיצוב ברירת מחדל של הדפדפן */
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' width='14' height='14'><path fill='%23000000' d='M7 10l5 5 5-5H7z'/></svg>"); /* חץ קטן */
+  background-repeat: no-repeat;
+  background-position: left 10px center; /* ממקם את החץ בצד שמאל */
+  background-size: 12px; /* גודל החץ */
+  padding-left: 25px; /* ריווח מהחץ לטקסט */
+}
+
+/* עיצוב כשהשדה בפוקוס */
+table select:focus {
+  border: 1px solid #007bff; /* מסגרת כחולה */
+  outline: none;
+}
 

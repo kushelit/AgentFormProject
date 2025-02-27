@@ -3,6 +3,7 @@
   display: flex;
   flex-direction: column; /* כדי למקם את הטבלאות אחת מתחת לשנייה */
   gap: 20px; /* רווח אנכי בין הטבלאות */
+  padding: 10px; /* ריווח פנימי */
 }
 
 
@@ -71,7 +72,7 @@ table tr {
   background: rgba(0, 0, 0, 0.5); /* רקע כהה חצי שקוף */
   display: flex;
   justify-content: center;
-  align-items: flex-start;
+  align-items: center;
   z-index: 1000; /* מבטיח שהמודל יופיע מעל התוכן */
 }
 
@@ -271,7 +272,6 @@ table tr {
 }
 .header-actions {
   display: flex;
-  align-items: center; /* יישור הכפתורים והסלקט באותו קו */
   gap: 16px; /* ריווח בין האלמנטים */
 }
 
@@ -318,6 +318,7 @@ table tr {
 }
 
 .first-table{
+  margin-top: 20px; /* מוסיף רווח מלמעלה */
   position: relative; /* מבטיח מיקום יחסי */
   overflow: visible; /* מאפשר לתפריט להופיע מחוץ לטבלה */
   z-index: 1; /* מבטיח שהתוכן ייראה */

@@ -31,6 +31,9 @@ const [isEditingStatusLead, setIsEditingStatusLead] = useState(false);
 const [isAPILead, setIsAPILead] = useState(false);
 const [hoveredRowIdStatusLead, setHoveredRowIdStatusLead] = useState<string | null>(null);
 const [selectedRowStatusLead, setSelectedRowStatusLead] = useState<any | null>(null);
+const [isSubmitting, setIsSubmitting] = useState(false);
+const [isSubmittingLead, setIsSubmittingLead] = useState(false);
+
 
 
 const { 
@@ -72,186 +75,212 @@ const {
   //   };
 
 
-  //handle row selected function **
-  const handleRowClick = (item: any) => {
-    setSelectedRow(item); // Store the selected row's data
-    setSourceLead(item.sourceLead || '');
-    setStatusLead(item.statusLead || '');
-    setIsAPILead(item.isAPILead || '');
-  };
+  // //handle row selected function **
+  // const handleRowClick = (item: any) => {
+  //   setSelectedRow(item); // Store the selected row's data
+  //   setSourceLead(item.sourceLead || '');
+  //   setStatusLead(item.statusLead || '');
+  //   setIsAPILead(item.isAPILead || '');
+  // };
 
 
-  // delete function ***
-  const handleDelete = async () => {
-    if (selectedRow && selectedRow.id) {
-      await deleteDoc(doc(db, 'sourceLead', selectedRow.id));
-      setSelectedRow(null); // Reset selection
-      resetForm();
-      setIsEditing(false);
-      if (selectedAgentId) {
-     //   fetchSourceLeadForAgent(selectedAgentId);
-     await fetchSourceLeadForAgent(selectedAgentId); 
-      }
-    } else {
-      console.log("No selected row or row ID is undefined");
-    }
-  };
-
-
-
-  const handleEdit = async () => {
-    if (selectedRow && selectedRow.id) {
-      try {
-        const docRef = doc(db, 'sourceLead', selectedRow.id); 
-        await updateDoc(docRef, {        
-          sourceLead,
-          statusLead:!!statusLead,
-          isAPILead:!!isAPILead,
-        });
-        console.log("Document successfully updated");
-        setSelectedRow(null); 
-        resetForm();         
-        if (selectedAgentId) {
-       //     fetchSourceLeadForAgent(selectedAgentId);
-       fetchSourceLeadForAgent
-          }
-      } catch (error) {
-        console.error("Error updating document:", error);     
-      }
-    } else {
-      console.log("No row selected or missing document ID");
-    }
-  };
+  // // delete function ***
+  // const handleDelete = async () => {
+  //   if (selectedRow && selectedRow.id) {
+  //     await deleteDoc(doc(db, 'sourceLead', selectedRow.id));
+  //     setSelectedRow(null); // Reset selection
+  //     setIsEditing(false);
+  //     if (selectedAgentId) {
+  //    //   fetchSourceLeadForAgent(selectedAgentId);
+  //    await fetchSourceLeadForAgent(selectedAgentId); 
+  //     }
+  //   } else {
+  //     console.log("No selected row or row ID is undefined");
+  //   }
+  // };
 
 
 
-//reset function **
-  const resetForm = () => {
-    setSourceLead(''); 
-    setStatusLead(false);
-    setIsAPILead(false);
-  };
-
- const resetFormStatusLead = () => {
-    setStatusLeadName(''); 
-    setStatusLeadList(false);
-    setDefaultStatusLead(false);
-  }
+  // const handleEdit = async () => {
+  //   if (selectedRow && selectedRow.id) {
+  //     try {
+  //       const docRef = doc(db, 'sourceLead', selectedRow.id); 
+  //       await updateDoc(docRef, {        
+  //         sourceLead,
+  //         statusLead:!!statusLead,
+  //         isAPILead:!!isAPILead,
+  //       });
+  //       console.log("Document successfully updated");
+  //       setSelectedRow(null); 
+  //       resetForm();         
+  //       if (selectedAgentId) {
+  //      //     fetchSourceLeadForAgent(selectedAgentId);
+  //      fetchSourceLeadForAgent
+  //         }
+  //     } catch (error) {
+  //       console.error("Error updating document:", error);     
+  //     }
+  //   } else {
+  //     console.log("No row selected or missing document ID");
+  //   }
+  // };
 
   
-
-  const handleSubmitLead: FormEventHandler<HTMLFormElement> = async (event) => {
-    try {
-    event.preventDefault();
-        const docRef = await addDoc(collection(db, 'sourceLead'), {
-        AgentId: selectedAgentId,
-        sourceLead,
-        statusLead,
-        isAPILead,
-      });
-      alert('מקור ליד התווסף בהצלחה');
-      console.log('Document written with ID:', docRef.id);
-      resetForm(); 
-      setIsEditing(false);
-      if (selectedAgentId) {
-      //  fetchSourceLeadForAgent(selectedAgentId);
-      fetchSourceLeadForAgent
-      }
-      
-    } catch (error) {
-      console.error('Error adding document:', error);
-    }
-  };
-  
-      const handleRowClickStatusLead = (item: any) => {
-        setSelectedRowStatusLead(item); 
-        setStatusLeadName(item.statusLeadName || '');
-        setStatusLeadList(item.statusLeadList || '');
-        setDefaultStatusLead(item.defaultStatusLead || '');
-      };
+    //   const handleRowClickStatusLead = (item: any) => {
+    //     setSelectedRowStatusLead(item); 
+    //     setStatusLeadName(item.statusLeadName || '');
+    //     setStatusLeadList(item.statusLeadList || '');
+    //     setDefaultStatusLead(item.defaultStatusLead || '');
+    //   };
     
-      const handleDeleteStatusLead = async () => {
-        if (!selectedRowStatusLead || !selectedRowStatusLead.id) {
-          console.log("No selected row or row ID is undefined");
-          return;
+
+
+    //   const handleDeleteStatusLead = async () => {
+    //     if (!selectedRowStatusLead || !selectedRowStatusLead.id) {
+    //       console.log("No selected row or row ID is undefined");
+    //       return;
+    //     }
+    //     const isDefaultStatus = selectedRowStatusLead.defaultStatusLead === true; // Check if it's a default status
+    //     const userRole = detail?.role; 
+    //     if (isDefaultStatus && userRole !== 'admin') {
+    //       alert('רק מנהל יכול למחוק סטאטוס מערכת');
+    //       console.log("Only admin users can delete default statuses");
+    //       return;
+    //     }   
+    //     try {
+    //       await deleteDoc(doc(db, 'statusLeadList', selectedRowStatusLead.id));
+    //       setSelectedRowStatusLead(null);
+    //       setIsEditingStatusLead(false);
+    // //      if (selectedAgentId) {
+    //         fetchStatusLeadForAgentAndDefault(selectedAgentId);
+    // //    statusLeadMap
+    // //      }
+    //     } catch (error) {
+    //       console.error("Error deleting status lead:", error);
+    //     }
+    //   };
+      
+
+    //   const handleEditStatusLead = async () => {
+    //     if (!selectedRowStatusLead || !selectedRowStatusLead.id) {
+    //       console.log("No row selected or missing document ID");
+    //       return;
+    //     }  
+    //     const isDefaultStatus = selectedRowStatusLead.defaultStatusLead === true; // Check if it's a default status
+    //     const userRole = detail?.role; // Assuming you get the user role from `detail`
+      
+    //     if (isDefaultStatus && userRole !== 'admin') {
+    //       alert('רק מנהל יכול לערוך סטאטוס מערכת');
+    //       console.log("Only admin users can edit default statuses");
+    //       return;
+    //     }     
+    //     try {
+    //       const docRef = doc(db, 'statusLeadList', selectedRowStatusLead.id);
+    //       await updateDoc(docRef, {
+    //         statusLeadName,
+    //         statusLeadList,
+    //         defaultStatusLead: !!selectedRowStatusLead.defaultStatusLead, // Ensure boolean value is stored
+    //       });
+    //       setSelectedRowStatusLead(null);
+      
+    // //      if (selectedAgentId) {
+    //         fetchStatusLeadForAgentAndDefault(selectedAgentId);
+    //   //    statusLeadMap
+    //  //     }
+    //     } catch (error) {
+    //       console.error("Error updating document:", error);
+    //     }
+    //   };
+      
+      const handleDeleteStatus = (id: string) => {
+        // מציאת השורה המתאימה
+        const rowToDelete = statusLeadData.find((item) => item.id === id);
+        if (!rowToDelete) {
+            console.log("❌ שורה לא נמצאה למחיקה");
+            return;
         }
-      
-        const isDefaultStatus = selectedRowStatusLead.defaultStatusLead === true; // Check if it's a default status
-        const userRole = detail?.role; 
-      
-        if (isDefaultStatus && userRole !== 'admin') {
-          alert('רק מנהל יכול למחוק סטאטוס מערכת');
-          console.log("Only admin users can delete default statuses");
-          return;
-        }   
-        try {
-          await deleteDoc(doc(db, 'statusLeadList', selectedRowStatusLead.id));
-          setSelectedRowStatusLead(null);
-          resetFormStatusLead();
-          setIsEditingStatusLead(false);
-      
-    //      if (selectedAgentId) {
-            fetchStatusLeadForAgentAndDefault(selectedAgentId);
-    //    statusLeadMap
-    //      }
-        } catch (error) {
-          console.error("Error deleting status lead:", error);
+    
+        // בדיקת הרשאה רק לטבלת הסטאטוסים
+        if (rowToDelete.defaultStatusLead && detail?.role !== 'admin') {
+            alert('רק מנהל יכול למחוק סטאטוס מערכת');
+            console.log("❌ רק משתמשי admin יכולים למחוק סטאטוס מערכת");
+            return;
         }
-      };
-      
-      const handleEditStatusLead = async () => {
-        if (!selectedRowStatusLead || !selectedRowStatusLead.id) {
-          console.log("No row selected or missing document ID");
+    
+        // קריאה לפונקציה הכללית אחרי שעברנו את הבדיקות
+        handleDeleteStatusLeadRow(id);
+    };
+
+
+    const handleEditStatusLead = (id: string) => {
+      // מציאת השורה המתאימה
+      const rowToEdit = statusLeadData.find((item) => item.id === id);
+      if (!rowToEdit) {
+          console.log("❌ שורה לא נמצאה לעריכה");
           return;
-        }  
-        const isDefaultStatus = selectedRowStatusLead.defaultStatusLead === true; // Check if it's a default status
-        const userRole = detail?.role; // Assuming you get the user role from `detail`
-      
-        if (isDefaultStatus && userRole !== 'admin') {
+      }
+      // בדיקת הרשאה - רק מנהל יכול לערוך סטאטוס מערכת
+      if (rowToEdit.defaultStatusLead && detail?.role !== 'admin') {
           alert('רק מנהל יכול לערוך סטאטוס מערכת');
-          console.log("Only admin users can edit default statuses");
+          console.log("❌ רק משתמשי admin יכולים לערוך סטאטוס מערכת");
           return;
-        }     
-        try {
-          const docRef = doc(db, 'statusLeadList', selectedRowStatusLead.id);
-          await updateDoc(docRef, {
-            statusLeadName,
-            statusLeadList,
-            defaultStatusLead: !!selectedRowStatusLead.defaultStatusLead, // Ensure boolean value is stored
-          });
-          setSelectedRowStatusLead(null);
-          resetFormStatusLead();
-      
-    //      if (selectedAgentId) {
-            fetchStatusLeadForAgentAndDefault(selectedAgentId);
-      //    statusLeadMap
-     //     }
-        } catch (error) {
-          console.error("Error updating document:", error);
-        }
-      };
-      
-      
+      }
   
-      const handleSubmitStatusLead: FormEventHandler<HTMLFormElement> = async (event) => {
-        try {
-        event.preventDefault();
-            const docRef = await addDoc(collection(db, 'statusLeadList'), {
+      // קריאה לפונקציה הכללית לאחר הבדיקה
+      handleEditStatusLeadRow(id);
+  };
+  
+
+
+
+    const handleSubmitLead: FormEventHandler<HTMLFormElement> = async (event) => {
+      event.preventDefault();
+      if (isSubmittingLead) return; // מונע לחיצות כפולות
+      try {
+      event.preventDefault();
+          const docRef = await addDoc(collection(db, 'sourceLead'), {
+          AgentId: selectedAgentId,
+          sourceLead,
+          statusLead,
+          isAPILead,
+        });
+        alert('מקור ליד התווסף בהצלחה');
+        console.log('Document written with ID:', docRef.id);
+        setIsEditing(false);
+        reloadLeadsData(selectedAgentId);
+        setIsModalOpenNewLead(false);
+      } catch (error) {
+        console.error('Error adding document:', error);
+      } finally {
+        setIsSubmittingLead(false); // מפעיל מחדש את הכפתור אחרי סיום
+    }
+    };
+
+
+
+const handleSubmitStatusLead: FormEventHandler<HTMLFormElement> = async (event) => {
+    event.preventDefault();
+    if (isSubmitting) return; // מונע לחיצות כפולות
+
+    try {
+        setIsSubmitting(true); // משבית את הכפתור
+        const docRef = await addDoc(collection(db, 'statusLeadList'), {
             AgentId: selectedAgentId,
             statusLeadName,
             statusLeadList,
             defaultStatusLead,
-          });
-          alert('סטאטוס ליד התווסף בהצלחה');
-          resetFormStatusLead(); 
-          setIsEditingStatusLead(false);
-       //   if (selectedAgentId) {
-           fetchStatusLeadForAgentAndDefault(selectedAgentId);    
-          //      }
-        } catch (error) {
-          console.error('Error adding document:', error);
-        }
-      };
+        });
+        alert('סטאטוס ליד התווסף בהצלחה');
+        setIsEditingStatusLead(false);
+        reloadStatusLeadData(selectedAgentId);
+        setIsModalOpenNewStatusLead(false);
+    } catch (error) {
+        console.error('Error adding document:', error);
+    } finally {
+        setIsSubmitting(false); // מפעיל מחדש את הכפתור אחרי סיום
+    }
+};
+
   
       const [isModalOpenNewLead, setIsModalOpenNewLead] = useState(false);
       const [openMenuRowLeads, setOpenMenuRowLeads] = useState<string | null>(null);
@@ -366,7 +395,7 @@ const {
   <Button
     onClick={saveLeadChanges}
     text="שמור שינויים"
-    type="secondary"
+    type="primary"
     icon="off"
     state={editingLeadRow ? "default" : "disabled"}
     disabled={!editingLeadRow}
@@ -375,7 +404,7 @@ const {
   <Button
     onClick={cancelEditLead}
     text="בטל"
-    type="secondary"
+    type="primary"
     icon="off"
     state={editingLeadRow ? "default" : "disabled"}
     disabled={!editingLeadRow}
@@ -387,15 +416,9 @@ const {
     {isModalOpenNewLead && (
   <div className="modal">
     <div className="modal-content">
-      <div className="close-button">
-        <Button
-          onClick={handleCloseModalNewLead}
-          text="✖"
-          type="secondary"
-          icon="off"
-          state="default"
-        />
-      </div>
+    <button className="close-button" onClick={() => setIsModalOpenNewLead(false)}>
+    ✖
+  </button>
       <div className="modal_title">ליד חדש</div>
       <form onSubmit={handleSubmitLead} className="form-container">
         <div className="form-group">
@@ -480,7 +503,7 @@ const {
       </thead>
       <tbody>
       {leadsData.map((item) => (
-  <tr key={item.id}>
+  <tr key={item.id} className={editLeadData === item.id ? "editing-row" : ""}>
       {/* מקור ליד */}
       <td>
         {editingLeadRow === item.id ? (
@@ -557,7 +580,7 @@ const {
   <Button
     onClick={saveStatusLeadChanges}
     text="שמור שינויים"
-    type="secondary"
+    type="primary"
     icon="off"
     state={editingRowStatusLead ? "default" : "disabled"}
     disabled={!editingRowStatusLead}
@@ -565,7 +588,7 @@ const {
   <Button
     onClick={cancelEditStatusLead}
     text="בטל"
-    type="secondary"
+    type="primary"
     icon="off"
     state={editingRowStatusLead ? "default" : "disabled"}
     disabled={!editingRowStatusLead}
@@ -576,15 +599,9 @@ const {
   <div className="modal">
     <div className="modal-content">
       {/* כפתור לסגירת המודל */}
-      <div className="close-button">
-        <Button
-          onClick={handleCloseModalNewStatusLead}
-          text="✖"
-          type="secondary"
-          icon="off"
-          state="default"
-        />
-      </div>
+      <button className="close-button" onClick={() => setIsModalOpenNewStatusLead(false)}>
+    ✖
+  </button>
       {/* כותרת המודל */}
       <div className="modal_title">סטטוס ליד חדש</div>
       {/* הטופס */}
@@ -644,8 +661,8 @@ const {
             text="הזן"
             type="primary"
             icon="on"
-            state={isEditingStatusLead ? "disabled" : "default"}
-            disabled={isEditingStatusLead}
+            state={isSubmitting ? "disabled" : "default"}
+            disabled={isSubmitting}
           />
           <Button
             onClick={handleCloseModalNewStatusLead}
@@ -671,8 +688,8 @@ const {
       </thead>
       <tbody>
       {statusLeadData.map((item) => (
-  <tr key={item.id}>
-      <td>
+        <tr key={item.id} className={editingRowStatusLead === item.id ? "editing-row" : ""}>
+        <td>
         {editingRowStatusLead === item.id ? (
           <input
             type="text"
@@ -728,8 +745,8 @@ const {
           setOpenMenuRow={setOpenMenuRowStatusLead}
           menuItems={menuItems(
             item.id,
-            handleEditStatusLeadRow,
-            handleDeleteStatusLeadRow,
+            handleEditStatusLead,
+            handleDeleteStatus,
             () => setOpenMenuRowStatusLead(null)
           )}
         />  

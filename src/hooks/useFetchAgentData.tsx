@@ -59,43 +59,61 @@ const useFetchAgentData = () => {
     [key: string]: string;
   }
 
+  useEffect(() => {
+    console.log("🔍 user changed:", user);
+    console.log("🔍 detail changed:", detail);
+  }, [user, detail]);
+
+
 
 
   useEffect(() => {
+    if (!user || !detail || agents.length > 0) return; // ✅ אם כבר יש נתונים, לא טוענים שוב!
+  
     const fetchAgentData = async () => {
-      setIsLoadingAgent(true); // Start loading
+      setIsLoadingAgent(true);
+      console.log("🔄 Fetching agents...");
+  
       try {
-      if (user && detail?.role === 'admin') {
-        const agentsQuery = query(collection(db, 'users'), where('role', '==', 'agent'));
-        const querySnapshot = await getDocs(agentsQuery);
-        const agentsList = querySnapshot.docs.map(doc => ({
-          id: doc.id,
-          name: doc.data().name as string,
-        }));
-        setAgents(agentsList);
-      } else if (detail?.agentId) {
-        const agentDocRef = doc(db, 'users', detail.agentId);
-        const agentDocSnap = await getDoc(agentDocRef);
-        if (agentDocSnap.exists()) {
-          const agent = { id: agentDocSnap.id, name: agentDocSnap.data().name as string };
-          setAgents([agent]);
-          setSelectedAgentId(agent.id); 
-          setSelectedAgentName(agent.name)
-          await fetchWorkersForSelectedAgent(detail.agentId);
-        } else {
-          console.log("No such Agent!");
-          setAgents([]); // Clear agents if none found
-
+        if (detail.role === 'admin') {
+          console.log("👤 User is admin, fetching all agents.");
+          const agentsQuery = query(collection(db, 'users'), where('role', '==', 'agent'));
+          const querySnapshot = await getDocs(agentsQuery);
+          const agentsList = querySnapshot.docs.map(doc => ({
+            id: doc.id,
+            name: doc.data().name as string,
+          }));
+          console.log("✅ Agents loaded:", agentsList);
+          setAgents(agentsList);
+        } else if (detail.agentId) {
+          console.log("🔎 Fetching specific agent:", detail.agentId);
+          const agentDocRef = doc(db, 'users', detail.agentId);
+          const agentDocSnap = await getDoc(agentDocRef);
+  
+          if (agentDocSnap.exists()) {
+            const agent = { id: agentDocSnap.id, name: agentDocSnap.data().name as string };
+            console.log("✅ Agent found:", agent);
+            setAgents([agent]);
+            setSelectedAgentId(agent.id);
+            setSelectedAgentName(agent.name);
+            await fetchWorkersForSelectedAgent(detail.agentId);
+          } else {
+            console.warn("❌ No such Agent!");
+            setAgents([]); // אם אין נתונים, מאפסים
+          }
         }
+      } catch (error) {
+        console.error("⚠️ Failed to fetch agents:", error);
+        setAgents([]);
+      } finally {
+        setIsLoadingAgent(false);
       }
-    } catch (error) {
-      console.error('Failed to fetch agents:', error);
-      setAgents([]); // Handle error by clearing the agent list
-  }
-  setIsLoadingAgent(false); // End loading
     };
+  
     fetchAgentData();
-  }, [user, detail]);
+  }, [user, detail]); // ✅ הקריאה ל-DB לא תקרה שוב אם `agents` כבר מלאים!
+  
+
 
 
   const fetchWorkersForSelectedAgent = async (agentId: string) => {
@@ -266,7 +284,6 @@ const useFetchAgentData = () => {
   selectedWorkerId,
   setSelectedWorkerName,
   setSelectedWorkerId,
-  
   handleAgentChange,
   handleWorkerChange,
   selectedAgentName,

@@ -61,14 +61,6 @@ body {
   margin-top: 20px;
 }
 
-
-.table-Data-AgentForm.is-new-design table {
-    table-layout: fixed;
-    width: 100%;
-    border-collapse: collapse;
-    border: none !important;
-    margin: 0 auto; /* מיקום במרכז */
-}
   
   .table-Data-AgentForm.is-new-design {
     overflow: visible !important;
@@ -128,33 +120,35 @@ body {
     box-shadow: var(--m3-elevation-light-1); /* אם את רוצה הוספת צל */
 }
 
-  
-  
-  .filter-select-container
-   {
-    flex: 1;
-    max-width: 150px;
-    min-width: 90px;
-    position: relative;
-  }
-  
-.select-input
- {
-  flex: 1;
-    height: 28px; /* גובה אחיד וקטן יותר */
-    padding: 4px 4px;
-    font-size: var(--font-size-text-small); /* שימוש בפונט קטן יותר */
-    width: 100%;
-    border: 1px solid var(--clrgray5);
-    border-radius: 4px;
-    box-sizing: border-box;
+
+.graf-Type select {
+  width: 150px !important;
+  height: 32px !important;
+  background-position: left 10px center; /* ממקם את החץ */
+  background-size: 10px; /* התאמת גודל החץ */
+  text-align: center; /* יישור התוכן בתוך השדה למרכז */
 }
-/* יישור הטקסט בתוך השדות לימין */
-.filter-input,
-.select-input
- {
-    text-align: right;
-    direction: rtl;
+
+  
+.select-input, .graf-Type select {
+  height: 32px; /* גובה שדה select */
+  padding: 2px 6px; /* צמצום הריווח הפנימי */
+  font-size: var(--font-size-text-small); /* גודל פונט קטן */
+  width: 100%;
+  border: 1px solid var(--clrgray5);
+  border-radius: 4px;
+  box-sizing: border-box;
+}
+
+.filter-select-container select {
+  appearance: none;
+  direction: rtl;
+  text-align: center; /* יישור התוכן בתוך השדה למרכז */
+  background-position: left 10px center; /* ממקם את החץ */
+  background-size: 10px; /* התאמת גודל החץ */
+  width: auto; /* רוחב אוטומטי */
+  min-width: 150px; /* רוחב מינימלי */
+  max-width: 300px; /* מגביל את הרוחב המקסימלי */
 }
 
 /* יישור התוויות (placeholders) לימין */
@@ -171,11 +165,6 @@ input::placeholder {
   font-style: italic; /* אופציונלי */
 }
 
-/* סגנון ל-placeholder של select */
-select option {
-  color: rgba(0, 0, 0, 0.5); /* צבע אפור שקוף */
-}
-
 
 .table-graf-title {
   width: 94px;
@@ -186,19 +175,6 @@ select option {
   font-family: "Rubik-Regular", Helvetica, sans-serif !important;
 }
 
-.graf-Type select {
-  width: 150px !important;
-  height: 32px !important;
-  padding: 6px 12px !important;
-  border: 1px solid var(--clrgray5) !important;
-  border-radius: 4px !important;
-  font-size: var(--font-size-text-regular) !important;
-  color: var(--clrblack) !important;
-  background-color: var(--clrwhite) !important;
-  box-sizing: border-box !important;
-  text-align: right !important;
-  direction: rtl !important;
-}
 
 .graf-Type {
   display: flex;
@@ -234,29 +210,6 @@ select option {
     width: 12px;
     height: 12px;
 }
-  
-
-.filter-inputs-container-new select {
-  appearance: none; /* מסיר את העיצוב הדפדפני המובנה */
-  direction: rtl; /* יישור המלל לימין */
-  text-align: right; /* המלל מיושר לימין */
-  padding-right: 2px; /* הוספת ריווח לימין */
-  padding-left: 20px; /* מספיק מקום לחץ בצד שמאל */
-  background: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMiIgaGVpZ2h0PSIxMiIgdmlld0JveD0iMCAwIDEyIDEyIj4gPHBhdGggZmlsbD0iI0I0QjRCNCIgZD0iTTEwLjU3IDMuNTlsLTEuMTctMS4xN2MtLjMxLS4zMS0uODEtLjMxLTEuMTIgMGwtMy4yOSAzLjI5LTMuMjktMy4yOWMtLjMxLS4zMS0uODEtLjMxLTEuMTIgMGwtMS4xNyAxLjE3Yy0uMzEuMzEtLjMxLjgxIDAgMS4xMWw0LjQzIDQuNDNjLjMxLjMxLjgxLjMxIDEuMTIgMGw0LjQzLTQuNDNjLjMxLS4zLjMxLS44MS4wMS0xLjEyWiIgLz48L3N2Zz4=")
-    no-repeat;
-  background-position: left 10px center; /* ממקם את החץ בצד שמאל */
-  background-size: 12px; /* גודל החץ */
- /* border: 1px solid var(--clrgray5); /* גבול התיבה */
-  /*border-radius: 4px; /* פינות מעוגלות */
-  /*font-size: 14px; /* גודל פונט */
-  /*height: 32px; /* גובה אחיד */
- /* box-sizing: border-box;*/
-}
-
-.filter-inputs-container-new select:focus {
-  outline: none; /* הסרת המסגרת של הפוקוס */
-  border-color: var(--clrprimary); /* צבע גבול בזמן פוקוס */
-}
 
 
 .wide-column {
@@ -286,11 +239,17 @@ select option {
 }
 
 
-/* עיצוב שדות עם חצים לבחירה (select) */
-.table-Data-AgentForm.is-new-design td select {
-  appearance: none; /* הסתרת עיצוב ברירת מחדל */
-  padding-right: 8px; /* התאמת רווח פנימי */
+
+table {
+  table-layout: fixed;
+  width: 100%;
+  border-collapse: collapse;
+  border: none !important;
+  margin: 0 auto; /* מיקום במרכז */
 }
 
 
-
+td, th {
+  border-right: none !important; /* מסיר קווים אנכיים בין התאים */
+  border-left: none !important; /* מסיר קווים אנכיים בין התאים */
+}

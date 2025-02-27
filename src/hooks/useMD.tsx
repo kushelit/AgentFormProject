@@ -125,17 +125,46 @@ const useFetchMD = (selectedAgentId?:string) => {
       const [isLoading, setIsLoading] = useState(true);
 
     
+      // useEffect(() => {
+      //   const fetchProductsMap = async () => {
+      //     setIsLoading(true);
+      //     try {
+      //       const querySnapshot = await getDocs(collection(db, 'product'));
+      //       const productMap: ProductMap = {};
+      //       querySnapshot.forEach(doc => {
+      //         const data = doc.data();
+      //         productMap[data.productName] = data.productGroup; 
+      //       });
+      //       setProductMap(productMap);
+      //     } catch (error) {
+      //       console.error("Failed to fetch products:", error);
+      //     } finally {
+      //       setIsLoading(false);
+      //     }
+      //   };
+      
+      //   fetchProductsMap();
+      // }, []);
+
       useEffect(() => {
         const fetchProductsMap = async () => {
           setIsLoading(true);
           try {
-            const querySnapshot = await getDocs(collection(db, 'product'));
+            const querySnapshot = await getDocs(collection(db, "product"));
             const productMap: ProductMap = {};
-            querySnapshot.forEach(doc => {
+            const productGroupMap: ProductGroupMap = {}; // ✅ נוסיף גם את המפה לקבוצות
+      
+            querySnapshot.forEach((doc) => {
               const data = doc.data();
               productMap[data.productName] = data.productGroup; 
+              if (data.productGroup) {
+                productGroupMap[data.productName] = data.productGroup; // ✅ נוסיף את הקבוצה
+              }
             });
+            console.log("📌 Fetched Product Group Map:", productGroupMap); // 🔍 בדיקה בקונסול
             setProductMap(productMap);
+            setProductGroupMap(productGroupMap); // ✅ שמירת קבוצות המוצרים
+      
           } catch (error) {
             console.error("Failed to fetch products:", error);
           } finally {
@@ -145,8 +174,7 @@ const useFetchMD = (selectedAgentId?:string) => {
       
         fetchProductsMap();
       }, []);
-
-
+      
       
       interface Product {
         id: string;

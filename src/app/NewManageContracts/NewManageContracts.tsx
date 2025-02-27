@@ -556,7 +556,7 @@ return (
     <Button
   onClick={saveDefaultContractChanges} // פונקציית שמירת שינויים
   text="שמור שינויים"
-  type="secondary"
+  type="primary"
   icon="off"
   state={editingRowDefaultContracts ? "default" : "disabled"} // כפתור פעיל רק כשיש שורה שנערכת
   disabled={!editingRowDefaultContracts} // מנוטרל כשאין שורה שנערכת
@@ -564,7 +564,7 @@ return (
 <Button
   onClick={cancelEditDefaultContract}
   text="בטל"
-  type="secondary"
+  type="primary"
   icon="off"
   state={editingRowDefaultContracts ? "default" : "disabled"} // כפתור פעיל רק כשיש שורה שנערכת
 />
@@ -573,15 +573,9 @@ return (
     <div className="modal">
       <div className="modal-content">
         {/* כפתור לסגירת המודל */}
-        <div className="close-button">
-          <Button
-            onClick={handleCloseModalCommission}
-            text="✖"
-            type="secondary"
-            icon="off"
-            state="default"
-          />
-        </div>
+        <button className="close-button" onClick={() => setIsModalOpenCommission(false)}>
+    ✖
+  </button>
         {/* כותרת המודל */}
         <div className="modal-title">הזנת עמלות</div>
         {/* טופס המודל */}
@@ -707,10 +701,8 @@ return (
               handleEditDefaultContractChange("minuySochen", e.target.checked)
             }
           />
-        ) : item.minuySochen ? (
-          "✔️"
         ) : (
-          "❌"
+          item.minuySochen ? "כן" : "לא"
         )}
       </td>
 
@@ -823,7 +815,7 @@ return (
         <Button
   onClick={saveContractChanges} // פונקציית שמירת שינויים
   text="שמור שינויים"
-  type="secondary"
+  type="primary"
   icon="off"
   state={editingRowContracts ? "default" : "disabled"} // כפתור פעיל רק כשיש שורה שנערכת
   disabled={!editingRowContracts} // מנוטרל כשאין שורה שנערכת
@@ -831,7 +823,7 @@ return (
 <Button
   onClick={cancelEditContract}
   text="בטל"
-  type="secondary"
+  type="primary"
   icon="off"
   state={editingRowContracts ? "default" : "disabled"} // כפתור פעיל רק כשיש שורה שנערכת
 />
@@ -840,15 +832,9 @@ return (
   <div className="modal">
     <div className="modal-content">
       {/* כפתור לסגירת המודל */}
-      <div className="close-button">
-        <Button
-          onClick={handleCloseModalAgent}
-          text="✖"
-          type="secondary"
-          icon="off"
-          state="default"
-        />
-      </div>
+      <button className="close-button" onClick={() => setIsModalOpenAgent(false)}>
+    ✖
+  </button>
       {/* כותרת המודל */}
       <div className="modal-title">הוספת נתונים לחברה</div>
       {/* טופס המודל */}
@@ -1008,10 +994,8 @@ return (
               handleEditContractChange("minuySochen", e.target.checked)
             }
           />
-        ) : item.minuySochen ? (
-          "✔️"
         ) : (
-          "❌"
+          item.minuySochen ? "כן" : "לא"
         )}
       </td>
 
@@ -1029,8 +1013,6 @@ return (
           `${item.commissionHekef}%`
         )}
       </td>
-
-      {/* אחוז נפראים */}
       <td>
         {editingRowContracts === item.id ? (
           <input

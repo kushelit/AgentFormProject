@@ -5,11 +5,13 @@ import "./style.css";
 import { Expand } from "../Expand";
 import { Collapse } from "../Collapse";
 import useFetchAgentData from "@/hooks/useFetchAgentData"; 
+import { useAuth } from '@/lib/firebase/AuthContext';
 
 
 export const Navbar = ({ items, bottomPage, className }) => {
   const [openSubmenu, setOpenSubmenu] = useState(null);
   const [selectedTab, setSelectedTab] = useState(null);
+  const { user } = useAuth(); // קבלת מידע על המשתמש המחובר
 
 
 
@@ -96,7 +98,7 @@ export const Navbar = ({ items, bottomPage, className }) => {
 
   return (
     <div className={`navbar ${className}`}>
-      {selectedAgentId ? ( // הצגת ה-Navbar רק אם יש `selectedAgentId`
+      {user ? ( // הצגת ה-Navbar רק אם יש משתמש מחובר
         <>
           {Array.isArray(items) &&
             items.map((item) => (
@@ -143,7 +145,7 @@ export const Navbar = ({ items, bottomPage, className }) => {
           )}
         </>
       ) : (
-        <p>נא לבחור סוכן</p> // הודעה במקרה שאין `selectedAgentId`
+        <p>נא התחבר למערכת</p> // הודעה במקרה שאין `selectedAgentId`
       )}
     </div>
   );

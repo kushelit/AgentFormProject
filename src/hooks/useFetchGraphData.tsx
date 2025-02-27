@@ -202,19 +202,148 @@ const useFetchGraphData = (
 //   return { newCustomerCounts, distinctCustomerCounts };
 // };
 
+// const fetchNewCustomerData = async (filters: { selectedAgentId: string | null; selectedWorkerIdFilter: string; selectedYear: number }) => {
+//   const { selectedAgentId, selectedWorkerIdFilter, selectedYear } = filters;
+//   const currentDate = new Date();
+//   const currentYear = currentDate.getFullYear();
+//   const currentMonth = currentDate.getMonth() + 1;
+//   const yearString = String(selectedYear).slice(2);
+
+//   // יצירת רשימת חודשים לשנה המסוננת
+//   const monthsToInclude = selectedYear === currentYear ? currentMonth : 12;
+//   const monthsUpToNow = Array.from(
+//     { length: monthsToInclude },
+//     (_, i) => `${String(i + 1).padStart(2, '0')}/${yearString}`
+//   );
+//   console.log('Months to process for selected year:', monthsUpToNow);
+
+//   // יצירת השאילתה
+//   let salesQuery = query(
+//     collection(db, 'sales'),
+//     where('statusPolicy', 'in', ['פעילה', 'הצעה'])
+//   );
+
+//   if (selectedAgentId && selectedAgentId !== 'all') {
+//     salesQuery = query(salesQuery, where('AgentId', '==', selectedAgentId));
+//   }
+//   if (selectedWorkerIdFilter) {
+//     salesQuery = query(salesQuery, where('workerId', '==', selectedWorkerIdFilter));
+//   }
+
+//   const querySnapshot = await getDocs(salesQuery);
+
+//   // ניתוח הנתונים
+//   const customerFirstMonth: Record<string, string> = {};
+//   querySnapshot.forEach((doc) => {
+//     const data = doc.data();
+//     if (data.IDCustomer && data.mounth && typeof data.mounth === 'string') {
+//       const customer = data.IDCustomer;
+//       const month = data.mounth.slice(0, 7);
+//       const formattedMonth = `${month.slice(5, 7)}/${month.slice(2, 4)}`;
+//       if (!customerFirstMonth[customer] || customerFirstMonth[customer] > formattedMonth) {
+//         customerFirstMonth[customer] = formattedMonth;
+//       }
+//     }
+//   });
+//   console.log('Customer first month mapping:', customerFirstMonth);
+
+//   // חישוב מבוטחים חדשים
+//   const newCustomerCounts: Record<string, number> = {};
+//   Object.values(customerFirstMonth).forEach((month) => {
+//     newCustomerCounts[month] = (newCustomerCounts[month] || 0) + 1;
+//   });
+//   console.log('New customer counts (all years):', newCustomerCounts);
+
+//   // חישוב מצטבר כולל
+//   const distinctCustomerCounts: Record<string, number> = {};
+//   let cumulativeCount = 0;
+
+//   // מיון כרונולוגי וחישוב מצטבר לכל השנים
+//   Object.keys(newCustomerCounts)
+//     .sort((a, b) => {
+//       const [monthA, yearA] = a.split('/').map(Number);
+//       const [monthB, yearB] = b.split('/').map(Number);
+//       return yearA - yearB || monthA - monthB;
+//     })
+//     .forEach((month) => {
+//       cumulativeCount += newCustomerCounts[month];
+//       distinctCustomerCounts[month] = cumulativeCount;
+
+//       console.log(`Month: ${month}, Cumulative Total: ${cumulativeCount}`);
+
+//     });
+//     console.log('Distinct customer counts (cumulative, all years):', distinctCustomerCounts);
+
+//     const previousYearMonths = Object.keys(distinctCustomerCounts)
+//     .filter((month) => {
+//       const [monthNum, year] = month.split('/').map(Number);
+//       return year === selectedYear - 1; // חודשים של השנה הקודמת בלבד
+//     });
+  
+//   console.log('Previous Year Months:', previousYearMonths);
+  
+
+
+// // קבלת הערך המצטבר האחרון מהחודש האחרון של השנה הקודמת בלבד
+// const previousCumulativeCount = Object.keys(distinctCustomerCounts)
+//   .filter((month) => {
+//     const [monthNum, year] = month.split('/').map(Number);
+//     return year === selectedYear - 1; // חודשים של השנה הקודמת בלבד
+//   })
+//   .reduce((lastValue, month) => {
+//     console.log(`Previous Year Month: ${month}, Cumulative: ${distinctCustomerCounts[month]}`);
+//     return distinctCustomerCounts[month]; // תמיד לוקחים את הערך האחרון של השנה הקודמת
+//   }, 0);
+
+// console.log('Corrected Previous Cumulative Count (last month of previous year):', previousCumulativeCount);
+
+// // חישוב ערכים לשנה המסוננת בלבד
+// const filteredDistinctCustomerCounts: Record<string, number> = {};
+// let cumulativeForYear = previousCumulativeCount; // הערך המצטבר מתחילת השנה המסוננת
+
+// monthsUpToNow.forEach((month, index) => {
+//   const currentNewCustomerCount = newCustomerCounts[month] || 0;
+
+//   if (index === 0 && cumulativeForYear === 0) {
+//     // לוג נוסף לוודא שהמצטבר מתחיל מהערך של השנה הקודמת
+//     console.error(
+//       `מצטבר בתחילת השנה (${month}): צפי ${previousCumulativeCount}, קיבל ${cumulativeForYear}`
+//     );
+//   }
+
+//   cumulativeForYear += currentNewCustomerCount; // הוספה מצטברת של לקוחות חדשים
+//   filteredDistinctCustomerCounts[month] = cumulativeForYear;
+
+//   console.log(
+//     `Month: ${month}, New Customers: ${currentNewCustomerCount}, Cumulative for Year: ${cumulativeForYear}`
+//   );
+// });
+
+// const filteredNewCustomerCounts = Object.fromEntries(
+//   monthsUpToNow.map((month) => [month, newCustomerCounts[month] || 0])
+// );
+
+// console.log('Filtered new customer counts:', filteredNewCustomerCounts);
+// console.log('Filtered distinct customer counts:', filteredDistinctCustomerCounts);
+
+// return { newCustomerCounts: filteredNewCustomerCounts, distinctCustomerCounts: filteredDistinctCustomerCounts };
+
+// };
+
+
+//**new  */
+
 const fetchNewCustomerData = async (filters: { selectedAgentId: string | null; selectedWorkerIdFilter: string; selectedYear: number }) => {
   const { selectedAgentId, selectedWorkerIdFilter, selectedYear } = filters;
-  const currentDate = new Date();
-  const currentYear = currentDate.getFullYear();
-  const currentMonth = currentDate.getMonth() + 1;
+
   const yearString = String(selectedYear).slice(2);
 
   // יצירת רשימת חודשים לשנה המסוננת
-  const monthsToInclude = selectedYear === currentYear ? currentMonth : 12;
   const monthsUpToNow = Array.from(
-    { length: monthsToInclude },
+    { length: 12 },
     (_, i) => `${String(i + 1).padStart(2, '0')}/${yearString}`
   );
+
   console.log('Months to process for selected year:', monthsUpToNow);
 
   // יצירת השאילתה
@@ -232,7 +361,7 @@ const fetchNewCustomerData = async (filters: { selectedAgentId: string | null; s
 
   const querySnapshot = await getDocs(salesQuery);
 
-  // ניתוח הנתונים
+  // מיפוי החודש הראשון של כל מבוטח
   const customerFirstMonth: Record<string, string> = {};
   querySnapshot.forEach((doc) => {
     const data = doc.data();
@@ -245,90 +374,71 @@ const fetchNewCustomerData = async (filters: { selectedAgentId: string | null; s
       }
     }
   });
+
   console.log('Customer first month mapping:', customerFirstMonth);
 
-  // חישוב מבוטחים חדשים
+  // חישוב כמות לקוחות חדשים לכל חודש
   const newCustomerCounts: Record<string, number> = {};
   Object.values(customerFirstMonth).forEach((month) => {
     newCustomerCounts[month] = (newCustomerCounts[month] || 0) + 1;
   });
+
   console.log('New customer counts (all years):', newCustomerCounts);
 
-  // חישוב מצטבר כולל
+  // **חישוב המצטבר לכל שנה ושמירת ערכי סוף שנה קודמת**
   const distinctCustomerCounts: Record<string, number> = {};
   let cumulativeCount = 0;
+  const yearlyCumulative: Record<number, number> = {}; // שמירה על מצטבר לכל שנה
 
-  // מיון כרונולוגי וחישוב מצטבר לכל השנים
-  Object.keys(newCustomerCounts)
-    .sort((a, b) => {
-      const [monthA, yearA] = a.split('/').map(Number);
-      const [monthB, yearB] = b.split('/').map(Number);
-      return yearA - yearB || monthA - monthB;
-    })
-    .forEach((month) => {
-      cumulativeCount += newCustomerCounts[month];
-      distinctCustomerCounts[month] = cumulativeCount;
+  const sortedMonths = Object.keys(newCustomerCounts).sort((a, b) => {
+    const [monthA, yearA] = a.split('/').map(Number);
+    const [monthB, yearB] = b.split('/').map(Number);
+    return yearA - yearB || monthA - monthB;
+  });
 
-      console.log(`Month: ${month}, Cumulative Total: ${cumulativeCount}`);
+  sortedMonths.forEach((month) => {
+    const [, year] = month.split('/').map(Number);
+    cumulativeCount += newCustomerCounts[month];
+    distinctCustomerCounts[month] = cumulativeCount;
+    yearlyCumulative[year] = cumulativeCount; // שמירת המצטבר של השנה האחרונה
+  });
 
-    });
-    console.log('Distinct customer counts (cumulative, all years):', distinctCustomerCounts);
+  console.log('Distinct customer counts (cumulative, all years):', distinctCustomerCounts);
+  console.log('Yearly cumulative snapshot:', yearlyCumulative);
 
-    const previousYearMonths = Object.keys(distinctCustomerCounts)
-    .filter((month) => {
-      const [monthNum, year] = month.split('/').map(Number);
-      return year === selectedYear - 1; // חודשים של השנה הקודמת בלבד
-    });
-  
-  console.log('Previous Year Months:', previousYearMonths);
-  
+  // **מציאת המצטבר של סוף השנה הקודמת - ניקח את דצמבר של השנה האחרונה**
+  let cumulativeTotalBeforeYear = 0;
+  const prevYear = selectedYear - 1;
+  const prevYearDecember = `12/${String(prevYear).slice(2)}`;
 
-
-// קבלת הערך המצטבר האחרון מהחודש האחרון של השנה הקודמת בלבד
-const previousCumulativeCount = Object.keys(distinctCustomerCounts)
-  .filter((month) => {
-    const [monthNum, year] = month.split('/').map(Number);
-    return year === selectedYear - 1; // חודשים של השנה הקודמת בלבד
-  })
-  .reduce((lastValue, month) => {
-    console.log(`Previous Year Month: ${month}, Cumulative: ${distinctCustomerCounts[month]}`);
-    return distinctCustomerCounts[month]; // תמיד לוקחים את הערך האחרון של השנה הקודמת
-  }, 0);
-
-console.log('Corrected Previous Cumulative Count (last month of previous year):', previousCumulativeCount);
-
-// חישוב ערכים לשנה המסוננת בלבד
-const filteredDistinctCustomerCounts: Record<string, number> = {};
-let cumulativeForYear = previousCumulativeCount; // הערך המצטבר מתחילת השנה המסוננת
-
-monthsUpToNow.forEach((month, index) => {
-  const currentNewCustomerCount = newCustomerCounts[month] || 0;
-
-  if (index === 0 && cumulativeForYear === 0) {
-    // לוג נוסף לוודא שהמצטבר מתחיל מהערך של השנה הקודמת
-    console.error(
-      `מצטבר בתחילת השנה (${month}): צפי ${previousCumulativeCount}, קיבל ${cumulativeForYear}`
-    );
+  if (distinctCustomerCounts[prevYearDecember]) {
+    cumulativeTotalBeforeYear = distinctCustomerCounts[prevYearDecember];
   }
 
-  cumulativeForYear += currentNewCustomerCount; // הוספה מצטברת של לקוחות חדשים
-  filteredDistinctCustomerCounts[month] = cumulativeForYear;
+  console.log(`Cumulative count from last December (${prevYearDecember}):`, cumulativeTotalBeforeYear);
 
-  console.log(
-    `Month: ${month}, New Customers: ${currentNewCustomerCount}, Cumulative for Year: ${cumulativeForYear}`
+  // **מצטבר לכל חודש בשנת הבחירה בלבד, כולל מה שהיה לפני**
+  let cumulativeForYear = cumulativeTotalBeforeYear;
+  const filteredDistinctCustomerCounts: Record<string, number> = {};
+
+  monthsUpToNow.forEach((month) => {
+    const currentNewCustomerCount = newCustomerCounts[month] || 0;
+    cumulativeForYear += currentNewCustomerCount;
+    filteredDistinctCustomerCounts[month] = cumulativeForYear;
+  });
+
+  // **לקוחות חדשים רק לשנה הנבחרת**
+  const filteredNewCustomerCounts = Object.fromEntries(
+    monthsUpToNow.map((month) => [month, newCustomerCounts[month] || 0])
   );
-});
 
-const filteredNewCustomerCounts = Object.fromEntries(
-  monthsUpToNow.map((month) => [month, newCustomerCounts[month] || 0])
-);
+  console.log('Filtered new customer counts:', filteredNewCustomerCounts);
+  console.log('Filtered distinct customer counts:', filteredDistinctCustomerCounts);
 
-console.log('Filtered new customer counts:', filteredNewCustomerCounts);
-console.log('Filtered distinct customer counts:', filteredDistinctCustomerCounts);
-
-return { newCustomerCounts: filteredNewCustomerCounts, distinctCustomerCounts: filteredDistinctCustomerCounts };
-
+  return { newCustomerCounts: filteredNewCustomerCounts, distinctCustomerCounts: filteredDistinctCustomerCounts };
 };
+
+
 
 
 // Fetch Data for Commission Per Customer Graph

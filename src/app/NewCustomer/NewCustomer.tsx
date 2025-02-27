@@ -18,7 +18,7 @@ import useEditableTable from "@/hooks/useEditableTable";
 import { CustomersTypeForFetching } from '@/types/Customer';
 import TableFooter from "@/components/TableFooter/TableFooter";
 import { FamilyLinkDialog, startLinkingProcess,handleConfirmFamilyLink,disconnectCustomers} from "./FamilyLinkDialog"; // עדכני את הנתיב בהתאם למיקום הקובץ
-import {fetchCustomersForAgent} from '@/services/fetchCustomersForAgent'; // פונקציות
+import {fetchCustomersForAgent} from '@/services/fetchCustomerDetails'; // פונקציות
 
 
 const NewCustomer = () => {
@@ -1114,10 +1114,6 @@ const handleOpenModalCustomerForm = () => {
   setIsModalOpen(true);
 }
 
-const handleCloseModal = () => {
-  setIsModalOpen(false);
-}
-
 
 
 const menuItems = (
@@ -1283,15 +1279,9 @@ const handleNewSelectCustomer = (id: string) => {
   <div className="modal">
     <div className="modal-content">
       {/* כפתור לסגירת המודל */}
-      <div className="close-button">
-        <Button
-          onClick={handleCloseModal}
-          text="✖"
-          type="secondary"
-          icon="off"
-          state="default"
-        />
-      </div>
+      <button className="close-button" onClick={() =>  setIsModalOpen(false) }>
+    ✖
+  </button>
       {/* כותרת המודל */}
       <div className="modal-title">פרטי לקוח</div>
       {/* טופס המודל */}
@@ -1471,7 +1461,7 @@ const handleNewSelectCustomer = (id: string) => {
   <Button
     onClick={saveCustomerChanges}
     text="שמור שינויים"
-    type="secondary"
+    type="primary"
     icon="off"
     state={editingRowCustomer ? "default" : "disabled"} // כפתור פעיל רק כשיש שורה שנערכת
     disabled={!editingRowCustomer} // מנוטרל אם אין שורה שנערכת
@@ -1480,7 +1470,7 @@ const handleNewSelectCustomer = (id: string) => {
   <Button
     onClick={cancelEditCustomer}
     text="בטל"
-    type="secondary"
+    type="primary"
     icon="off"
     state={editingRowCustomer ? "default" : "disabled"} // כפתור פעיל רק כשיש שורה שנערכת
     disabled={!editingRowCustomer} // מנוטרל אם אין שורה שנערכת
@@ -1506,8 +1496,7 @@ const handleNewSelectCustomer = (id: string) => {
             </thead>
             <tbody>
   {currentRows.map((item) => (
-    <tr
-      key={item.id}
+    <tr key={item.id} className={editingRowCustomer === item.id ? "editing-row" : ""}
       onMouseEnter={() => setHoveredRowId(item.id)}
       onMouseLeave={() => setHoveredRowId(null)}
     >

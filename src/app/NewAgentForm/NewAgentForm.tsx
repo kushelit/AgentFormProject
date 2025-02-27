@@ -1,6 +1,6 @@
 /* eslint-disable react/jsx-no-comment-textnodes */
 
-import React, { useState, useEffect, FormEventHandler, ChangeEventHandler, ChangeEvent, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, FormEventHandler, ChangeEventHandler, ChangeEvent, useMemo, useCallback, FormEvent } from 'react';
 import { db } from '@/lib/firebase/firebase';
 import { collection, query, where, getDocs, doc, addDoc, deleteDoc, updateDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 import { useSearchParams } from 'next/navigation';
@@ -22,6 +22,7 @@ import {ProgressBar} from "@/components/ProgressBar/ProgressBar";
 import useEditableTable from "@/hooks/useEditableTable";
 import  fetchDataForAgent from '@/services/fetchDataForAgent';
 import { Customer, Sale, CombinedData, AgentDataType } from '@/types/Sales';
+import  fetchCustomerBelongToAgent from '@/services/fetchCustomerBelongToAgent';
 
 
 //useFetchAgentData
@@ -74,6 +75,7 @@ const NewAgentForm: React.FC = () => {
     selectedProduct,
     setSelectedProduct,
     selectedProductGroup, 
+    setSelectedProductGroup,
     setSelectedStatusPolicy, 
     selectedStatusPolicy, 
     statusPolicies,
@@ -135,6 +137,49 @@ const indexOfLastRow = currentPage * rowsPerPage;
 const indexOfFirstRow = indexOfLastRow - rowsPerPage;
 const currentRows = filteredData.slice(indexOfFirstRow, indexOfLastRow);
 
+
+const resetForm = (clearCustomerFields: boolean = false) => {
+  console.log("🔄 Reset form, clearCustomerFields:", clearCustomerFields);
+
+  const resetField = (field: keyof CombinedData, value: any) => {
+    handleEditChange(field, value);
+  };
+
+  if (clearCustomerFields) {
+    resetField("workerId", "");
+    resetField("firstNameCustomer", "");
+    resetField("lastNameCustomer", "");
+    resetField("IDCustomer", "");
+    resetField("company", "");
+    resetField("product", "");
+    resetField("insPremia", "");
+    resetField("pensiaPremia", "");
+    resetField("pensiaZvira", "");
+    resetField("finansimPremia", "");
+    resetField("finansimZvira", "");
+    resetField("mounth", "");
+    resetField("minuySochen", false);
+    resetField("statusPolicy", "");
+    resetField("notes", "");
+  }
+   else
+   {
+  resetField("company", "");
+  resetField("product", "");
+  resetField("insPremia", "");
+  resetField("pensiaPremia", "");
+  resetField("pensiaZvira", "");
+  resetField("finansimPremia", "");
+  resetField("finansimZvira", "");
+  resetField("mounth", "");
+  resetField("minuySochen", false);
+  resetField("statusPolicy", "");
+  resetField("notes", "");
+   }
+   setIsEditing(false);
+   };
+
+
 const {
   data,                  // הנתונים הנוכחיים של הטבלה
   isLoadingHookEdit,     // האם הנתונים עדיין בטעינה
@@ -150,6 +195,8 @@ const {
   dbCollection: 'sales', // שם האוסף ב-Firebase
   agentId: selectedAgentId, // מזהה הסוכן
   fetchData: fetchDataForAgent, // פונקציה לטעינת הנתונים
+  onCloseModal: () => setShowOpenNewDeal(false), // ✅ נסגור את המודל
+  resetForm, // ✅ שולחים את הפונקציה של resetForm מהדף הספציפי
 });
 
 
@@ -158,7 +205,12 @@ const handlePageChange = (pageNumber: number) => {
   setCurrentPage(pageNumber);
 };
 
-
+useEffect(() => {
+  if (!editData.AgentId && selectedAgentId) {
+    handleEditChange("AgentId", selectedAgentId);
+    console.log("🔄 Setting default AgentId:", selectedAgentId);
+  }
+}, [selectedAgentId, editData.AgentId]);
 
 const isSaveDisabled = !editingRow || JSON.stringify(filteredData.find((item) => item.id === editingRow)) === JSON.stringify(editData);
 
@@ -264,6 +316,7 @@ const isSaveDisabled = !editingRow || JSON.stringify(filteredData.find((item) =>
 //   }));
 // };
 
+
 useEffect(() => {
   const resetFormAndLoadData = async () => {
     // איפוס הטופס
@@ -281,7 +334,6 @@ useEffect(() => {
     setMinuySochen(false);
     setSelectedStatusPolicy('');
     setNotes('');
-
     // טעינת הנתונים לסוכן שנבחר
     if (selectedAgentId) {
       try {
@@ -294,7 +346,6 @@ useEffect(() => {
       setAgentData([]); // איפוס הסטייט אם אין סוכן
     }
   };
-
   resetFormAndLoadData(); // קריאה לפונקציה האסינכרונית
 }, [selectedAgentId]); // תלות במזהה הסוכן
 
@@ -352,78 +403,97 @@ useEffect(() => {
 
   //   }
   // };
-  const handleEdit = async () => {
-    if (selectedRow && selectedRow.id) { 
-      try {
-        const docRef = doc(db, 'sales', selectedRow.id); // Reference to the Firestore document
-        await updateDoc(docRef, {
-         // worker: selectedWorkerName,
-          workerId: selectedWorkerId,// id new
-          workerName:selectedWorkerName,
-          firstNameCustomer,
-          lastNameCustomer,
-          IDCustomer,
-          company: selectedCompany,
-          product: selectedProduct,
-          insPremia,
-          pensiaPremia,
-          pensiaZvira,
-          finansimPremia,
-          finansimZvira,
-          mounth,
-          minuySochen: !!minuySochen,
-          statusPolicy: selectedStatusPolicy,
-          notes: notes || '',
-          lastUpdateDate: serverTimestamp()
+
+
+  // const handleEdit = async () => {
+  //   if (selectedRow && selectedRow.id) { 
+  //     try {
+  //       const docRef = doc(db, 'sales', selectedRow.id); // Reference to the Firestore document
+  //       await updateDoc(docRef, {
+  //        // worker: selectedWorkerName,
+  //         workerId: selectedWorkerId,// id new
+  //         workerName:selectedWorkerName,
+  //         firstNameCustomer,
+  //         lastNameCustomer,
+  //         IDCustomer,
+  //         company: selectedCompany,
+  //         product: selectedProduct,
+  //         insPremia,
+  //         pensiaPremia,
+  //         pensiaZvira,
+  //         finansimPremia,
+  //         finansimZvira,
+  //         mounth,
+  //         minuySochen: !!minuySochen,
+  //         statusPolicy: selectedStatusPolicy,
+  //         notes: notes || '',
+  //         lastUpdateDate: serverTimestamp()
         
-        });
-        const customerQuery = query(collection(db, 'customer'), where('IDCustomer', '==', IDCustomer));
-        const customerSnapshot = await getDocs(customerQuery);
-        if (!customerSnapshot.empty) {
-            const customerDocRef = customerSnapshot.docs[0].ref;
-            await updateDoc(customerDocRef, {
-                firstNameCustomer,
-                lastNameCustomer,
-            });
-        }
-      //  console.log("Sales and customer documents successfully updated");
-        setSelectedRow(null); 
-        resetForm();         
-     //   if (selectedAgentId) {
-          fetchDataForAgent(selectedAgentId);
-    //    }
-      } catch (error) {
-        console.error("Error updating document:", error);     
-      }
-    } else {
-      console.log("No row selected or missing document ID");
-    }
-  };
-
+  //       });
+  //       const customerQuery = query(collection(db, 'customer'), where('IDCustomer', '==', IDCustomer));
+  //       const customerSnapshot = await getDocs(customerQuery);
+  //       if (!customerSnapshot.empty) {
+  //           const customerDocRef = customerSnapshot.docs[0].ref;
+  //           await updateDoc(customerDocRef, {
+  //               firstNameCustomer,
+  //               lastNameCustomer,
+  //           });
+  //       }
+  //     //  console.log("Sales and customer documents successfully updated");
+  //       setSelectedRow(null); 
+  //       resetForm();         
+  //    //   if (selectedAgentId) {
+  //         fetchDataForAgent(selectedAgentId);
+  //   //    }
+  //     } catch (error) {
+  //       console.error("Error updating document:", error);     
+  //     }
+  //   } else {
+  //     console.log("No row selected or missing document ID");
+  //   }
+  // };
   
-  const resetForm = () => {
-    setSelectedWorkerId('');
-    setfirstNameCustomer(''); 
-    setfirstNameCustomer(''); 
-    setfirstNameCustomer(''); 
-    setlastNameCustomer(''); 
-    setIDCustomer(''); 
-    setSelectedCompany(''); 
-    setSelectedProduct(''); 
-    setinsPremia('');
-    setpensiaPremia(''); 
-    setPensiaZvira('');
-    setfinansimPremia(''); 
-    setFinansimZvira('');
-    setmounth(''); 
-    setSelectedRow(null); 
-    setMinuySochen(false);
-    setSelectedStatusPolicy('');
-    setIsEditing(false);
-    setNotes('');
-  };
-
-
+  // const resetForm = (clearCustomerFields: boolean = false) => {
+  //   console.log("clearCustomerFields: "+clearCustomerFields);
+   
+  //   if (clearCustomerFields) {
+  //     setSelectedWorkerId('');
+  //     setfirstNameCustomer('');
+  //     setlastNameCustomer('');
+  //     setIDCustomer('');
+  //   setSelectedCompany('');
+  //   setSelectedProduct('');
+  //   setinsPremia('');
+  //   setpensiaPremia('');
+  //   setPensiaZvira('');
+  //   setfinansimPremia('');
+  //   setFinansimZvira('');
+  //   setmounth('');
+  //   setSelectedRow(null);
+  //   setMinuySochen(false);
+  //   setSelectedStatusPolicy('');
+  //   setIsEditing(false);
+  //   setNotes('');
+  // }
+  // else
+  // {
+  //   setSelectedCompany('');
+  //   setSelectedProduct('');
+  //   setinsPremia('');
+  //   setpensiaPremia('');
+  //   setPensiaZvira('');
+  //   setfinansimPremia('');
+  //   setFinansimZvira('');
+  //   setmounth('');
+  //   setSelectedRow(null);
+  //   setMinuySochen(false);
+  //   setSelectedStatusPolicy('');
+  //   setIsEditing(false);
+  //   setNotes('');
+  // }
+  // };
+  
+  
 
     // Prepare the audio
     const celebrationSound = new Audio('/assets/sounds/soundEffect.mp3');
@@ -442,8 +512,11 @@ useEffect(() => {
       scalar: 1.8         // Larger pieces of confetti
     });
 };
+
+
+
  
-const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
+const handleSubmit = async (event: FormEvent<HTMLFormElement>, closeAfterSubmit = false) => {
   event.preventDefault();
   if (submitDisabled) return; // מניעת שליחה כפולה של הטופס
   setSubmitDisabled(true); // מניעת שליחות נוספות במהלך העיבוד
@@ -451,20 +524,19 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
     // בדיקת קיום לקוח
     const customerQuery = query(
       collection(db, 'customer'),
-      where('IDCustomer', '==', IDCustomer),
+      where('IDCustomer', '==', editData.IDCustomer),
       where('AgentId', '==', selectedAgentId)
     );
     const customerSnapshot = await getDocs(customerQuery);
-
     let customerDocRef;
     if (customerSnapshot.empty) {
       // יצירת רשומת לקוח חדשה אם הלקוח אינו קיים
-      customerDocRef = await addDoc(collection(db, 'customer'), {
-        AgentId: selectedAgentId,
-        firstNameCustomer,
-        lastNameCustomer,
-        IDCustomer,
-        parentID: '', // ייכנס לאחר מכן
+      customerDocRef = await addDoc(collection(db, "customer"), {
+        AgentId: editData.AgentId || selectedAgentId,
+        firstNameCustomer: editData.firstNameCustomer || "",
+        lastNameCustomer: editData.lastNameCustomer || "",
+        IDCustomer: editData.IDCustomer || "",
+        parentID: "", // ייכנס לאחר מכן
       });
       // עדכון `parentID` של הלקוח שנוצר
       await updateDoc(customerDocRef, { parentID: customerDocRef.id });
@@ -473,27 +545,27 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
       customerDocRef = customerSnapshot.docs[0].ref;
     }
     // יצירת מסמך בעסקאות
-    const docRef = await addDoc(collection(db, 'sales'), {
-      agent: selectedAgentName,
-      AgentId: selectedAgentId,
-      workerId: selectedWorkerId,
-      workerName: selectedWorkerName,
-      firstNameCustomer,
-      lastNameCustomer,
-      IDCustomer,
-      company: selectedCompany,
-      product: selectedProduct,
-      insPremia,
-      pensiaPremia,
-      pensiaZvira,
-      finansimPremia,
-      finansimZvira,
-      mounth,
-      minuySochen,
-      statusPolicy: selectedStatusPolicy,
-      notes,
-      createdAt: serverTimestamp(),
-      lastUpdateDate: serverTimestamp(),
+  const docRef = await addDoc(collection(db, 'sales'), {
+  agent:  selectedAgentName,
+  AgentId: editData.AgentId || selectedAgentId,
+  workerId: editData.workerId || selectedWorkerId,
+  workerName: selectedWorkerName,
+  firstNameCustomer: editData.firstNameCustomer || "",
+  lastNameCustomer: editData.lastNameCustomer || "",
+  IDCustomer: editData.IDCustomer || "",
+  company: editData.company || selectedCompany,
+  product: editData.product || selectedProduct,
+  insPremia: editData.insPremia || 0,
+  pensiaPremia: editData.pensiaPremia || 0,
+  pensiaZvira: editData.pensiaZvira || 0,
+  finansimPremia: editData.finansimPremia || 0,
+  finansimZvira: editData.finansimZvira || 0,
+  mounth: editData.mounth || "",
+  minuySochen: editData.minuySochen || false,
+  statusPolicy: editData.statusPolicy || selectedStatusPolicy,
+  notes: editData.notes || "",
+  createdAt: serverTimestamp(),
+  lastUpdateDate: serverTimestamp(),
     });
     alert('יש!!! עוד עסקה נוספה');
     // קריאה לפונקציית `fetchDataForAgent` לעדכון הנתונים
@@ -505,7 +577,11 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
     triggerConfetti();
     celebrationSound.play();
     // איפוס הטופס
-    resetForm();
+    resetForm(closeAfterSubmit); // אם נלחץ "הזן וסיים" – נאפס את הכל כולל פרטי הלקוח
+ // 🔹 אם המשתמש לחץ על "הזן וסיים" – סגירת המודל
+    if (closeAfterSubmit) {
+      setShowOpenNewDeal(false);
+    }
     setIsEditing(false);
   } catch (error) {
     console.error('Error adding document:', error);
@@ -538,80 +614,99 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
 
 
 
-  const handleIDChange: ChangeEventHandler<HTMLInputElement> = (e) => {
-    const value = e.target.value;
-    // Allow only numbers
-    const onlyNums = value.replace(/[^0-9]/g, '').slice(0, 9);
-    setIDCustomer(onlyNums);
+  // const handleIDChange: ChangeEventHandler<HTMLInputElement> = (e) => {
+  //   const value = e.target.value;
+  //   // Allow only numbers
+  //   const onlyNums = value.replace(/[^0-9]/g, '').slice(0, 9);
+  //   setIDCustomer(onlyNums);
 
-  };
+  // };
 
-  const canSubmit = useMemo(() => (
-     selectedAgentId.trim() !== '' &&
-     selectedWorkerId.trim() !== '' &&
-     firstNameCustomer.trim() !== '' &&
-     lastNameCustomer.trim() !== '' &&
-     IDCustomer.trim() !== '' &&
-     selectedCompany.trim() !== '' &&
-     selectedProduct.trim() !== '' &&
-     selectedStatusPolicy.trim() !== '' &&
-    mounth.trim() !== ''
-  ), [selectedAgentId, selectedWorkerId, firstNameCustomer, lastNameCustomer, IDCustomer, 
-    selectedCompany, selectedProduct, mounth]);
-
-
-  const handleFinansimZviraChange: ChangeEventHandler<HTMLInputElement> = (e) => {
-   const value = e.target.value
-   const onlyNums = value.replace(/[^0-9]/g, '').slice(0, 9);
-    setFinansimZvira(onlyNums);
-  };
-
-  const handleFinansimPremia: ChangeEventHandler<HTMLInputElement> = (e) => {
-    const value = e.target.value
-    const onlyNums = value.replace(/[^0-9]/g, '').slice(0, 9);
-    setfinansimPremia(onlyNums);
-  };
-
-  const handlePensiaZvira: ChangeEventHandler<HTMLInputElement> = (e) => {
-    const value = e.target.value
-    const onlyNums = value.replace(/[^0-9]/g, '').slice(0, 9);
-    setPensiaZvira(onlyNums);
-  };
-
-  const handlepensiaPremia: ChangeEventHandler<HTMLInputElement> = (e) => {
-    const value = e.target.value;
-    const onlyNums = value.replace(/[^0-9]/g, '').slice(0, 9);
-    setpensiaPremia(onlyNums);
-};
-
-
-  const handleinsPremia: ChangeEventHandler<HTMLInputElement> = (e) => {
-    const value = e.target.value; // Use 0 as a fallback if conversion fails
-    const onlyNums = value.replace(/[^0-9]/g, '').slice(0, 9);
-    setinsPremia(onlyNums);
-  };
-
-
-  const handleExpiryDateChange = (e: React.ChangeEvent<HTMLInputElement>) => setmounth(e.target.value);
+  const canSubmit = useMemo(() => {
+    const isValid =
+    (editData.AgentId || "").trim() !== "" &&
+    (editData.workerId || "").trim() !== "" &&
+    (editData.firstNameCustomer || "").trim() !== "" &&
+    (editData.lastNameCustomer || "").trim() !== "" &&
+    (editData.IDCustomer || "").trim() !== "" &&
+    (editData.company || "").trim() !== "" &&
+    (editData.product || "").trim() !== "" &&
+    (editData.statusPolicy || "").trim() !== "" &&
+    (editData.mounth || "").trim() !== "";
+    return isValid;
+  }, [
+    editData.AgentId,
+    editData.workerId,
+    editData.firstNameCustomer,
+    editData.lastNameCustomer,
+    editData.IDCustomer,
+    editData.company,
+    editData.product,
+    editData.statusPolicy,
+    editData.mounth,
+  ]);
   
+  
+
+//   const handleFinansimZviraChange: ChangeEventHandler<HTMLInputElement> = (e) => {
+//    const value = e.target.value
+//    const onlyNums = value.replace(/[^0-9]/g, '').slice(0, 9);
+//     setFinansimZvira(onlyNums);
+//   };
+
+//   const handleFinansimPremia: ChangeEventHandler<HTMLInputElement> = (e) => {
+//     const value = e.target.value
+//     const onlyNums = value.replace(/[^0-9]/g, '').slice(0, 9);
+//     setfinansimPremia(onlyNums);
+//   };
+
+//   const handlePensiaZvira: ChangeEventHandler<HTMLInputElement> = (e) => {
+//     const value = e.target.value
+//     const onlyNums = value.replace(/[^0-9]/g, '').slice(0, 9);
+//     setPensiaZvira(onlyNums);
+//   };
+
+//   const handlepensiaPremia: ChangeEventHandler<HTMLInputElement> = (e) => {
+//     const value = e.target.value;
+//     const onlyNums = value.replace(/[^0-9]/g, '').slice(0, 9);
+//     setpensiaPremia(onlyNums);
+// };
+
+
+//   const handleinsPremia: ChangeEventHandler<HTMLInputElement> = (e) => {
+//     const value = e.target.value; // Use 0 as a fallback if conversion fails
+//     const onlyNums = value.replace(/[^0-9]/g, '').slice(0, 9);
+//     setinsPremia(onlyNums);
+//   };
+
+
+  // const handleExpiryDateChange = (e: React.ChangeEvent<HTMLInputElement>) => setmounth(e.target.value);
+  
+  // useEffect(() => {
+  //   const loadData = async () => {
+  //     resetForm(); // איפוס הטופס
+  //     if (selectedAgentId) {
+  //       try {
+  //         const data = await fetchDataForAgent(selectedAgentId); // קריאה ל-`fetchDataForAgent`
+  //         setAgentData(data); // עדכון הסטייט עם הנתונים
+  //       } catch (error) {
+  //         console.error('Error fetching data:', error);
+  //       }
+  //     } else {
+  //       setAgentData([]); // אם אין סוכן נבחר, איפוס הנתונים
+  //     }
+  //   };
+  
+  //   loadData(); // קריאה לפונקציה האסינכרונית
+  // }, [selectedAgentId]); // תלות ב-`selectedAgentId`
+  
+
   useEffect(() => {
-    const loadData = async () => {
-      resetForm(); // איפוס הטופס
-      if (selectedAgentId) {
-        try {
-          const data = await fetchDataForAgent(selectedAgentId); // קריאה ל-`fetchDataForAgent`
-          setAgentData(data); // עדכון הסטייט עם הנתונים
-        } catch (error) {
-          console.error('Error fetching data:', error);
-        }
-      } else {
-        setAgentData([]); // אם אין סוכן נבחר, איפוס הנתונים
-      }
-    };
+    console.log("🔄 עדכון agentData לאחר טעינה מחדש", data);
+    setAgentData(data);
+  }, [data]); // ✅ מבטיח שברגע שהנתונים נטענים, הם יכנסו ל-agentData
   
-    loadData(); // קריאה לפונקציה האסינכרונית
-  }, [selectedAgentId]); // תלות ב-`selectedAgentId`
-  
+
   
   useEffect(() => {
     const now = new Date();
@@ -632,6 +727,7 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
         }
     }
  // שלב ה-map: הבטחת ערכים חוקיים
+ console.log("🔄 עדכון הנתונים בטבלה, agentData:", agentData);
  let data = agentData.map((item) => ({
   ...item,
   mounth: item.mounth ?? '', // חובה
@@ -684,6 +780,7 @@ data = data.filter((item) => {
   minuySochenFilter,
   expiryDateFilter,
 ]);
+
 
 
 //   useEffect(() => {
@@ -793,25 +890,34 @@ useEffect(() => {
  
 const menuItems = (
   rowId: string,
-  closeMenu: () => void // פונקציה לסגירת התפריט
+  closeMenu: () => void
 ) => [
   {
     label: "ערוך",
     onClick: () => {
-      handleEditRow(rowId); // פעולה לעריכה
-      closeMenu(); // סגירת התפריט
+      handleEditRowModal(rowId); // שימוש בפונקציה החדשה
+      closeMenu(); // סוגר את התפריט
     },
     Icon: Edit,
   },
   {
     label: "מחק",
     onClick: () => {
-      handleDeleteRow(rowId); // פעולה למחיקה
-      closeMenu(); // סגירת התפריט
+      handleDeleteRow(rowId);
+      closeMenu();
     },
     Icon: Delete,
   },
 ];
+
+
+const handleEditRowModal = (id: string) => {
+  handleEditRow(id); // קריאה לפונקציה הכללית
+  setShowOpenNewDeal(true); // פתיחת המודל
+};
+
+
+
 
 const [openModalId, setOpenModalId] = useState<string | number | null>(null);
 const [modalContent, setModalContent] = useState<string | null>(null);
@@ -825,6 +931,50 @@ const closeModal = (): void => {
   setModalContent(null); // מאפס את התוכן
   setOpenModalId(null); // מאפס את המודאל
 };
+
+const handleIDBlur = async () => {
+  console.log("🔵 handleIDBlur started...");
+
+  if (!editData.IDCustomer) {
+    console.warn("❌ No IDCustomer provided, skipping fetch.");
+    return;
+  }
+
+  console.log("🔍 Checking customer by ID:", editData.IDCustomer, "Agent:", selectedAgentId);
+
+  const customerData: Customer | null = await fetchCustomerBelongToAgent(
+    editData.IDCustomer,
+    selectedAgentId
+  );
+
+  if (customerData) {
+    console.log("✅ Customer found:", customerData);
+    handleEditChange("firstNameCustomer", customerData.firstNameCustomer || "");
+    handleEditChange("lastNameCustomer", customerData.lastNameCustomer || "");
+  } else {
+    console.warn("❌ No customer found for this ID.");
+  }
+};
+
+useEffect(() => {
+  if (selectedProduct && productGroupMap[selectedProduct]) {
+    setSelectedProductGroup(productGroupMap[selectedProduct]); // ✅ עדכון קבוצה בהתאם למוצר
+  } else {
+    setSelectedProductGroup(""); // ✅ אם לא נבחר מוצר - ריק
+  }
+}, [selectedProduct, productGroupMap]);
+
+useEffect(() => {
+  if (editData.product && productGroupMap[editData.product]) {
+    console.log("🔄 Updating selectedProductGroup:", productGroupMap[editData.product]);
+    setSelectedProductGroup(productGroupMap[editData.product]); // עדכון הקבוצה בהתאם למוצר
+  } else {
+    console.log("⚠️ No group found for product:", editData.product);
+    setSelectedProductGroup(""); // אם אין קבוצה, ננקה את השדה
+  }
+}, [editData.product, productGroupMap]); 
+
+
 
 
 
@@ -974,14 +1124,12 @@ const closeModal = (): void => {
     state={isSaveDisabled ? "disabled" : "default"} // קביעת מצב הכפתור
     />
   <Button
-  onClick={cancelEdit}
+  onClick={() => cancelEdit(true)} // ✅ פונקציה חיצונית שמפעילה את cancelEdit
   text="בטל"
-  type="secondary"
+  type="primary"
   icon="off"
   state={isEditing ? "default" : "disabled"} // קביעת מצב הכפתור
-  // state="default"
 />
-
   </div>
 </div>
       <div className="filter-inputs-container-new">
@@ -994,7 +1142,7 @@ const closeModal = (): void => {
                 ))}
              </select>
                </div>
-               <div className="filter-select-container">
+             <div className="filter-select-container">
               <select id="worker-select" value={selectedWorkerIdFilter} 
               onChange={(e) => handleWorkerChange(e, 'filter')}  className="select-input">
               <option value="">כל העובדים</option>
@@ -1070,16 +1218,12 @@ const closeModal = (): void => {
             className="datePicker-input"
              />
            </div>
-              <div className="filter-checkbox-container">
-              <label>
-             <input
-               type="checkbox"
-              checked={minuySochenFilter === "true"}
-              onChange={(e) => setMinuySochenFilter(e.target.checked ? "true" : "")}
-             className="checkbox-input"
-               />
-               מינוי סוכן
-                </label>
+          <div className="filter-checkbox-container">
+       <select value={minuySochenFilter} onChange={(e) => setMinuySochenFilter(e.target.value)} className="select-input">
+    <option value="">מינוי סוכן </option>
+    <option value="true">כן</option>
+    <option value="false">לא</option>
+  </select>
                 </div> 
       </div>
       <div  className="table-Deal-container">
@@ -1112,7 +1256,7 @@ const closeModal = (): void => {
             </thead>
                   <tbody>
                 {currentRows.map((item) => (
-             <tr key={item.id}>
+                <tr key={item.id} className={editingRow === item.id ? "editing-row" : ""}>
             <td className="narrow-column">
                {editingRow === item.id ? (
                 <input
@@ -1279,18 +1423,18 @@ const closeModal = (): void => {
       <td className="narrow-column">
   {editingRow === item.id ? (
     <select
-      value={editData.workerName || ""}
+      value={editData.workerId || ""}
       onChange={(e) => handleEditChange("workerName", e.target.value)}
     >
       <option value="">בחר עובד</option>
       {workers.map((worker) => (
-        <option key={worker.id} value={worker.name}>
+        <option key={worker.id} value={worker.id}>
           {worker.name}
         </option>
       ))}
     </select>
   ) : (
-    item.workerName
+    workerNameMap[item.workerId ?? ""] || "לא נמצא"
   )}
 </td>
 <td className="notes-column wide-column">
@@ -1353,35 +1497,41 @@ const closeModal = (): void => {
       </div>
       </div> 
      
-        {showOpenNewDeal && (
-    <div className="modal-overlay" onClick={() => setShowOpenNewDeal(false)}>
+      {showOpenNewDeal && (
+  <div className="modal-overlay" onClick={() => setShowOpenNewDeal(false)}>
     <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-    <Button
-  onClick={() => setShowOpenNewDeal(false)}
-  text="✖"
-  type="secondary"
-  icon="off"
-  state="default"
-  className="close-button"
-/>
-      <form className="form-container" onSubmit={handleSubmit}>
-          <div className="title">עסקה חדשה</div>
+      <button className="close-button" 
+      onClick={() => {
+        cancelEdit(true);
+      }} 
+      >✖</button>
+      <form className="form-container" onSubmit={(e) => e.preventDefault()}>
+        <div className="title">{editingRow ? "עריכת עסקה" : "עסקה חדשה"}</div>
+
         {/* פרטים אישיים */}
         <section className="form-section">
           <h3 className="section-title">פרטים אישיים</h3>
           <div className="form-grid">
             <div className="form-group">
-              <label htmlFor="agentSelect">סוכנות <span className="required">*</span></label>
-              <select id="agentSelect" value={selectedAgentId} onChange={handleAgentChange}>
-                <option value="">בחר סוכן</option>
+              <label>סוכנות *</label>
+              <select value={editData.AgentId || ""} 
+              onChange={(e) => {
+              handleEditChange("AgentId", e.target.value)
+              console.log( canSubmit +"🔄 AgentId:", e.target.value);
+              }}>
+              {detail?.role === 'admin' && <option value="">בחר סוכן</option>}
                 {agents.map(agent => (
                   <option key={agent.id} value={agent.id}>{agent.name}</option>
                 ))}
               </select>
             </div>
             <div className="form-group">
-              <label htmlFor="workerSelect">עובד <span className="required">*</span></label>
-              <select id="workerSelect" value={selectedWorkerId} onChange={(e) => handleWorkerChange(e, 'insert')}>
+              <label>עובד *</label>
+              <select value={editData.workerId || ""} 
+              onChange={(e) => {
+              handleEditChange("workerId", e.target.value)
+              console.log( canSubmit + "🔄 workerId:", e.target.value);
+              }}>
                 <option value="">בחר עובד</option>
                 {workers.map(worker => (
                   <option key={worker.id} value={worker.id}>{worker.name}</option>
@@ -1389,146 +1539,233 @@ const closeModal = (): void => {
               </select>
             </div>
             <div className="form-group">
-              <label htmlFor="firstName">שם פרטי <span className="required">*</span></label>
-              <input type="text" id="firstName" value={firstNameCustomer} onChange={handleFirstNameChange} />
+              <label>תעודת זהות *</label>
+              <input
+  type="text"
+  value={editData.IDCustomer || ""}
+  onChange={(e) => {
+    handleEditChange("IDCustomer", e.target.value)
+    console.log( canSubmit +"🟢 IDCustomer changed:", e.target.value);
+  }}
+  onFocus={() => console.log("🟢 Input focused")}
+  onBlur={() => {
+    console.log("🔵 Blur manually triggered");
+    handleIDBlur();
+  }}
+/>
             </div>
             <div className="form-group">
-              <label htmlFor="lastName">שם משפחה <span className="required">*</span></label>
-              <input type="text" id="lastName" value={lastNameCustomer} onChange={handleLastNameChange} />
+              <label>שם פרטי *</label>
+              <input type="text" value={editData.firstNameCustomer || ""}
+               onChange={(e) =>{ handleEditChange("firstNameCustomer", e.target.value)
+                console.log( canSubmit +"🟢 firstNameCustomer changed:", e.target.value);
+               }} />
             </div>
             <div className="form-group">
-              <label htmlFor="IDCustomer">תעודת זהות <span className="required">*</span></label>
-              <input type="text" id="IDCustomer" value={IDCustomer} maxLength={9} onChange={handleIDChange} disabled={isEditing} />
+              <label>שם משפחה *</label>
+              <input type="text" value={editData.lastNameCustomer || ""}
+              onChange={(e) =>{ handleEditChange("lastNameCustomer", e.target.value)
+                console.log( canSubmit +"🟢 lastNameCustomer changed:", e.target.value);
+              } 
+            }/>
+            </div>
+            <div className="form-group">
+              <label>טלפון</label>
+              <input type="tel" value={editData.phone || ""} onChange={(e) => handleEditChange("phone", e.target.value)} />
+            </div>
+            <div className="form-group">
+              <label>דואר אלקטרוני</label>
+              <input type="email" value={editData.mail || ""} onChange={(e) => handleEditChange("mail", e.target.value)} />
+            </div>
+            <div className="form-group">
+              <label>כתובת</label>
+              <input type="text" value={editData.address || ""} onChange={(e) => handleEditChange("address", e.target.value)} />
             </div>
           </div>
-        </section> 
+        </section>
+
         {/* פרטי עסקה */}
         <section className="form-section">
           <h3 className="section-title">פרטי עסקה</h3>
           <div className="form-grid">
             <div className="form-group">
-              <label htmlFor="companySelect">חברה <span className="required">*</span></label>
-              <select id="companySelect" value={selectedCompany} onChange={(e) => setSelectedCompany(e.target.value)}>
+              <label>חברה *</label>
+              <select value={editData.company || ""} 
+              onChange={(e) => {
+              handleEditChange("company", e.target.value)
+              console.log( canSubmit +"🟢 company changed:", e.target.value);
+              }}>
                 <option value="">בחר חברה</option>
                 {companies.map((companyName, index) => (
                   <option key={index} value={companyName}>{companyName}</option>
                 ))}
               </select>
-            </div>  
+            </div>
             <div className="form-group">
-              <label htmlFor="productSelect">מוצר <span className="required">*</span></label>
-              <select id="productSelect" value={selectedProduct} onChange={(e) => setSelectedProduct(e.target.value)}>
+              <label>מוצר *</label>
+              <select value={editData.product || ""} 
+              onChange={(e) => {
+                console.log( canSubmit +"🔄 Product:", e.target.value);
+                handleEditChange("product", e.target.value);
+              }}>
                 <option value="">בחר מוצר</option>
                 {products.map(product => (
                   <option key={product.id} value={product.name}>{product.name}</option>
                 ))}
               </select>
             </div>
-            {selectedProduct && (
-  <>
-    {selectedProductGroup !== '1' && selectedProductGroup !== '4' && (
-      <div className="form-group">
-        <label htmlFor="insPremia">פרמיה ביטוח</label>
-        <input
-          type="number"
-          id="insPremia"
-          value={insPremia}
-          onChange={handleinsPremia}
-        />
-      </div>
-    )}
+            {/* פרטי פרמיה */}
+            {selectedProductGroup && selectedProductGroup !== "1" && selectedProductGroup !== "4" && (
+  <div className="form-group">
+    <label htmlFor="insPremia">פרמיה ביטוח</label>
+    <input
+      type="number"
+      id="insPremia"
+      value={editData.insPremia || ""}
+      onChange={(e) => handleEditChange("insPremia", e.target.value)}
+    />
+  </div>
+)}
 
-    {selectedProductGroup !== '3' && selectedProductGroup !== '4' && (
-      <div className="form-group">
-        <label htmlFor="pensiaPremia">פרמיה פנסיה</label>
-        <input
-          type="number"
-          id="pensiaPremia"
-          value={pensiaPremia}
-          onChange={handlepensiaPremia}
-        />
-      </div>
-    )}
-    {selectedProductGroup !== '3' && selectedProductGroup !== '4' && (
-      <div className="form-group">
-        <label htmlFor="pensiaZvira">צבירה פנסיה</label>
-        <input
-          type="number"
-          id="pensiaZvira"
-          value={pensiaZvira}
-          onChange={handlePensiaZvira}
-        />
-      </div>
-    )}
-    {selectedProductGroup !== '1' && selectedProductGroup !== '3' && (
-      <div className="form-group">
-        <label htmlFor="finansimPremia">פרמיה פיננסים</label>
-        <input
-          type="number"
-          id="finansimPremia"
-          value={finansimPremia}
-          onChange={handleFinansimPremia}
-        />
-      </div>
-    )}
-    {selectedProductGroup !== '1' && selectedProductGroup !== '3' && (
-      <div className="form-group">
-        <label htmlFor="finansimZvira">צבירה פיננסים</label>
-        <input
-          type="number"
-          id="finansimZvira"
-          value={finansimZvira}
-          onChange={handleFinansimZviraChange}
-        />
-      </div>
-    )}
-  </>
+{selectedProductGroup && selectedProductGroup !== "3" && selectedProductGroup !== "4" && (
+  <div className="form-group">
+    <label htmlFor="pensiaPremia">פרמיה פנסיה</label>
+    <input
+      type="number"
+      id="pensiaPremia"
+      value={editData.pensiaPremia || ""}
+      onChange={(e) => handleEditChange("pensiaPremia", e.target.value)}
+    />
+  </div>
+)}
+
+{selectedProductGroup && selectedProductGroup !== "3" && selectedProductGroup !== "4" && (
+  <div className="form-group">
+    <label htmlFor="pensiaZvira">צבירה פנסיה</label>
+    <input
+      type="number"
+      id="pensiaZvira"
+      value={editData.pensiaZvira || ""}
+      onChange={(e) => handleEditChange("pensiaZvira", e.target.value)}
+    />
+  </div>
+)}
+
+{selectedProductGroup && selectedProductGroup !== "1" && selectedProductGroup !== "3" && (
+  <div className="form-group">
+    <label htmlFor="finansimPremia">פרמיה פיננסים</label>
+    <input
+      type="number"
+      id="finansimPremia"
+      value={editData.finansimPremia || ""}
+      onChange={(e) => handleEditChange("finansimPremia", e.target.value)}
+    />
+  </div>
+)}
+
+{selectedProductGroup && selectedProductGroup !== "1" && selectedProductGroup !== "3" && (
+  <div className="form-group">
+    <label htmlFor="finansimZvira">צבירה פיננסים</label>
+    <input
+      type="number"
+      id="finansimZvira"
+      value={editData.finansimZvira || ""}
+      onChange={(e) => handleEditChange("finansimZvira", e.target.value)}
+    />
+  </div>
 )}
             <div className="form-group">
-              <label htmlFor="expiryDate">תאריך תפוקה <span className="required">*</span></label>
-              <input type="date" id="expiryDate" value={mounth} onChange={handleExpiryDateChange} />
+              <label>סטטוס עסקה</label>
+              <select value={editData.statusPolicy || ""} 
+              onChange={(e) => {
+              handleEditChange("statusPolicy", e.target.value)
+              console.log( canSubmit +"🔄 statusPolicy:", e.target.value);
+
+      }}>
+                <option value="">בחר סטאטוס</option>
+                {statusPolicies.map((status, index) => (
+                  <option key={index} value={status}>{status}</option>
+                ))}
+              </select>
             </div>
             <div className="form-group">
-      <label htmlFor="statusPolicySelect">סטאטוס פוליסה <span className="required">*</span></label>
-      <select id="statusPolicySelect" value={selectedStatusPolicy} 
-        onChange={(e) => setSelectedStatusPolicy(e.target.value)}>
-        <option value="">בחר סטאטוס פוליסה</option>
-        {statusPolicies.map((status, index) => (
-          <option key={index} value={status}>{status}</option>
-        ))}
-      </select>
-    </div>
-    <div className="form-group">
-      <label htmlFor="minuySochen" className="checkbox-label">מינוי סוכן</label>
-      <input type="checkbox" id="minuySochen" name="minuySochen" checked={minuySochen} onChange={(e) => setMinuySochen(e.target.checked)} />
-    </div>
-    <div className="form-group textarea-group">
-    <label htmlFor="notes">הערות</label>
-              <textarea id="notes" value={notes} onChange={(e) => setNotes(e.target.value)}></textarea>
+              <label>תאריך תפוקה *</label>
+              <input type="date" value={editData.mounth || ""} 
+              onChange={(e) =>{
+               handleEditChange("mounth", e.target.value)
+               console.log( canSubmit +"🔄 mounth:", e.target.value);
+      }} />
             </div>
+   <div className="form-group checkbox-group">
+  <label className="checkbox-label">
+    <input 
+      type="checkbox" 
+      checked={editData.minuySochen || false} 
+      onChange={(e) => handleEditChange("minuySochen", e.target.checked)} 
+    />
+  <span>מינוי סוכן</span>
+  </label>
+</div>
+
+<div className="form-group full-width">
+  <label>הערות</label>
+  <textarea value={editData.notes || ""} 
+            onChange={(e) => handleEditChange("notes", e.target.value)}
+            rows={4}></textarea>
+      </div>
           </div>
         </section>
+
         {/* כפתורי פעולה */}
-  <div className="form-actions">
-        <Button
-    onClick={handleSubmit} 
-    text="הזן"
-    type="primary"
-    icon="on"
-    state={isSaveDisabled ? "disabled" : "default"} // קביעת מצב הכפתור
-    />
-       <Button
-    onClick={() => setShowOpenNewDeal(false)}
-    text="בטל"
-    type="secondary"
-    icon="off"
-    state="default"
-    />
+        <div className="form-actions">
+          {editingRow ? (
+            <div className="right-buttons">
+              <Button
+                onClick={saveChanges} 
+                text="שמור שינויים"
+                type="primary"
+                icon="on"
+                disabled={!editingRow}
+              />
+            </div>
+          ) : (
+            <div className="right-buttons">
+              <Button
+                onClick={(e) => handleSubmit(e, false)}
+                text="הזן"
+                type="primary"
+                icon="on"
+                disabled={!canSubmit || submitDisabled}
+                state={!canSubmit ? "disabled" : "default"}
+              />
+              {/* {!canSubmit && <p style={{ color: "red" }}>⚠️ יש למלא את כל השדות!</p>} */}
+              <Button
+                onClick={(e) => handleSubmit(e, true)}
+                text="הזן וסיים"
+                type="primary"
+                icon="on"
+                disabled={!canSubmit || submitDisabled}
+                state={!canSubmit ? "disabled" : "default"}
+              />
+            </div>
+          )}
+          <div className="left-buttons">
+            <Button
+              onClick={() => {
+                console.log("🟠 כפתור בטל נלחץ, מפעיל cancelEdit...");
+                cancelEdit(true);
+              }} 
+              text="בטל"
+              type="secondary"
+              icon="off"
+              state="default"
+            />
+          </div>
         </div>
       </form>
     </div>
   </div>
-    )}
+)}
     </div>
   );
 }

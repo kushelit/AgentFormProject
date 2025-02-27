@@ -29,7 +29,11 @@ export interface Sale {
   export interface CombinedData extends Sale {
     firstNameCustomer: string;
     lastNameCustomer: string;
+    phone?: string;
+    mail?: string; // אולי חסר?
+    address?: string; // אולי חסר?
   }
+
   export type AgentDataType = {
     id: string;
     firstNameCustomer: string;

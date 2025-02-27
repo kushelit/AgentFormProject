@@ -112,6 +112,9 @@ interface Customer {
   firstNameCustomer: string;
   lastNameCustomer: string;
   IDCustomer: string;
+  phone?: string;
+  mail?: string;
+  address?: string;
   // Add other customer fields as necessary
 }
 
@@ -138,6 +141,9 @@ interface Sale {
 interface CombinedData extends Sale {
   firstNameCustomer: string;
   lastNameCustomer: string;
+  phone?: string;
+  mail?: string;
+  address?: string;
 }
 
 type AgentDataType = {
@@ -196,7 +202,8 @@ const fetchDataForAgent = async (UserAgentId: string) => {
   const customerSnapshot = await getDocs(customerQuery);
   const customers: Customer[] = customerSnapshot.docs.map(doc => ({
     ...doc.data() as Customer, 
-    id: doc.id 
+    id: doc.id ,
+    address: doc.data().address || "",  // הוספת `address` עם ערך ברירת מחדל
   }));
 
   const salesQuery = query(collection(db, 'sales'), where('AgentId', '==', UserAgentId));
@@ -212,6 +219,9 @@ const fetchDataForAgent = async (UserAgentId: string) => {
       ...sale, 
       firstNameCustomer: customer ? customer.firstNameCustomer : 'Unknown',
       lastNameCustomer: customer ? customer.lastNameCustomer : 'Unknown',
+      phone: customer ? customer.phone : '',  // הוספת טלפון
+      mail: customer ? customer.mail : '',    // הוספת אימייל
+      address: customer ? customer.address : '' // הוספת כתובת
     };
   });
 

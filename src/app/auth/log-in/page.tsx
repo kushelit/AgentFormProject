@@ -2,18 +2,19 @@
 
 import { useAuth } from "@/lib/firebase/AuthContext";
 import { FormEventHandler, useEffect, useState } from "react";
-import { redirect } from 'next/navigation';
+import { redirect, useRouter } from 'next/navigation';
 import './LogIn.css';
 import Link from 'next/link';
 
 export default function LogInPage() {
   const { user, logIn } = useAuth();
   const [error, setError] = useState('');
+  const router = useRouter(); // ✅ שימוש ב- useRouter כדי לבצע הפניה
 
 
   useEffect(() => {
     if (user) {
-      redirect('/');
+      router.push('/NewAgentForm'); // ✅ מפנה לדף לאחר התחברות
     };
   }, [user]);
 
@@ -30,7 +31,7 @@ export default function LogInPage() {
 
     logIn(email, password)
       .then(() => {
-        redirect('/');
+        router.push('/NewAgentForm'); // ✅ מפנה מיד אחרי התחברות
       })
       .catch((err) => {
         console.error({err});
