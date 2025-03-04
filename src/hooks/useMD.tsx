@@ -63,38 +63,45 @@ const useFetchMD = (selectedAgentId?:string) => {
       
           fetchCommissionTypes();
         }, []);
+        
       
-  
-     useEffect(() => {
-      const fetchProductsGroupsFromDB = async () => {
-        const querySnapshot = await getDocs(collection(db, 'productsGroup'));
-        const groupsList: ProductGroup[] = querySnapshot.docs.map(doc => ({
-          id: doc.id,
-          name: doc.data().productsGroupName as string 
-        }));
-        setProductGroupsDB(groupsList);
-      //  console.log('the PG is ' + productGroupsDB)
-      };
-    
-      fetchProductsGroupsFromDB();
-    }, []);
+        useEffect(() => {
+          const fetchProductsGroupsFromMap = async () => {
+            const querySnapshot = await getDocs(collection(db, 'productsGroup'));
+            const groupsMap: ProductGroupMap = {}; 
+        
+            querySnapshot.forEach(doc => {
+              const data = doc.data();
+              groupsMap[doc.id] = data.productsGroupName as string; // כאן המיפוי הוא ממספר לשם
+            });
+        
+            console.log("🔍 בדיקה productGroupMap:", groupsMap);
+            setProductGroupMap(groupsMap);
+          };
+        
+          fetchProductsGroupsFromMap();
+        }, []);
+        
+
+        useEffect(() => {
+          const fetchProductsGroupsFromDB = async () => {
+            const querySnapshot = await getDocs(collection(db, 'productsGroup'));
+            const groupsList: ProductGroup[] = querySnapshot.docs.map(doc => ({
+              id: doc.id,
+              name: doc.data().productsGroupName as string 
+            }));
+            setProductGroupsDB(groupsList);
+          //  console.log('the PG is ' + productGroupsDB)
+          };
+        
+          fetchProductsGroupsFromDB();
+        }, []);
+
+
+
 
 
     const [productGroupMap, setProductGroupMap] = useState<ProductGroupMap>({});
-
-    useEffect(() => {
-      const fetchProductsGroupsFromDB = async () => {
-        const querySnapshot = await getDocs(collection(db, 'productsGroup'));
-        const groupsMap: ProductGroupMap = {}; 
-        querySnapshot.forEach(doc => {
-          const data = doc.data();
-          groupsMap[doc.id] = data.productsGroupName as string; // Ensure you cast or ensure the type here if necessary
-        });
-        setProductGroupMap(groupsMap);
-      };
-    
-      fetchProductsGroupsFromDB();
-    }, []);
 
 
 
@@ -157,13 +164,13 @@ const useFetchMD = (selectedAgentId?:string) => {
             querySnapshot.forEach((doc) => {
               const data = doc.data();
               productMap[data.productName] = data.productGroup; 
-              if (data.productGroup) {
-                productGroupMap[data.productName] = data.productGroup; // ✅ נוסיף את הקבוצה
-              }
+              // if (data.productGroup) {
+              //   productGroupMap[data.productName] = data.productGroup; // ✅ נוסיף את הקבוצה
+              // }
             });
             console.log("📌 Fetched Product Group Map:", productGroupMap); // 🔍 בדיקה בקונסול
             setProductMap(productMap);
-            setProductGroupMap(productGroupMap); // ✅ שמירת קבוצות המוצרים
+            // setProductGroupMap(productGroupMap); // ✅ שמירת קבוצות המוצרים
       
           } catch (error) {
             console.error("Failed to fetch products:", error);

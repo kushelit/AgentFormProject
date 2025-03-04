@@ -9,10 +9,13 @@
     display: flex;
     align-items: center;
     justify-content: center;
+    z-index: 9999; /* ודאי שהמודל נמצא מעל כל האלמנטים */
   }
   
   .modal-container {
+    position: relative; /* שומר את המודל בקדמה */
     background: #f9f9f9;
+    z-index: 10000; /* ודא שהוא מעל ה-footer */
     border-color: var(--clrgray5);
     border-radius: 2px;
     padding: 20px;
@@ -127,3 +130,47 @@
     margin-bottom: 10px; /* מוסיף ריווח תחתון */
   }
   
+.close-button .button {
+  background-color: transparent !important; /* רקע שקוף */
+  border: none !important; /* ביטול מסגרת */
+  font-size: 14px; /* גודל טקסט */
+  cursor: pointer; /* מצביע לחיץ */
+  padding: 5px; /* ריווח פנימי */
+  box-shadow: none !important; /* ביטול הצללה */
+  display: flex; /* יישור נכון */
+  align-items: center; /* יישור אנכי */
+  justify-content: center; /* יישור אופקי */
+}
+
+.close-button .button .div {
+  all: unset; /* מסיר את כל הסטייל המובנה */
+  display: flex; /* מבטיח שהטקסט או האייקון יישארו בפנים */
+}
+
+.close-button {
+  position: absolute; /* למקם את הכפתור ביחס ל-modal */
+  top: 5px; /* רווח מהחלק העליון */
+  left: 10px; /* רווח קצת יותר גדול מהחלק השמאלי */
+  z-index: 10; /* להבטיח שהכפתור יהיה מעל */
+}
+
+
+.modal-container .title {
+  height: auto; /* מאפשר התאמה אוטומטית לגובה */
+  width: auto; /* מאפשר התאמה אוטומטית לרוחב */
+  color: #3b6a95;
+  direction: rtl;
+  font-family: "Inter-Bold", Helvetica;
+  font-size: 14px; /* גודל טקסט גדול יותר */
+  font-weight: 700;
+  letter-spacing: 0;
+  line-height: 22px;
+  position: relative; /* משנה את המיקום ליחסי להורה */
+  top: auto; /* מסיר את המיקום המוחלט */
+  left: auto;
+  white-space: nowrap; /* מונע שבירת שורות */
+  margin-bottom: 10px; /* מוסיף ריווח תחתון */
+  border-bottom: 1px solid #ddd; /* קו תחתון לכותרת */
+  padding-bottom: 5px; /* ריווח תחתון לפני הקו */
+  margin-bottom: 20px; /* ריווח תחתון לאחר הקו */
+}

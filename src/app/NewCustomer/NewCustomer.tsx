@@ -233,6 +233,14 @@ const {
   fetchData: fetchCustomersForAgent,
 });
 
+const removeCustomerFromList = (id: string) => {
+  setSelectedCustomers((prevSelected) => {
+    const updatedList = prevSelected.filter((customer) => customer.IDCustomer !== id);
+    console.log("🗑️ לקוח הוסר מהסטייט", updatedList);
+    return updatedList;
+  });
+};
+
 
 useEffect(() => {
   if (!customerData) return; // בדיקה שהנתונים קיימים
@@ -679,7 +687,7 @@ useEffect(() => {
             IDCustomer: salesData.IDCustomer,
             product: salesData.product,
             company: salesData.company,
-            month: salesData.month,
+            month: salesData.mounth,
             status: salesData.status,
             insPremia: salesData.insPremia,
             pensiaPremia: salesData.pensiaPremia,
@@ -1119,7 +1127,7 @@ const handleOpenModalCustomerForm = () => {
 const menuItems = (
   rowId: string,
   handleEditRow: (id: string) => void,
-  handleDeleteRow: (id: string) => void,
+  handleDeleteRow: (id: string, isCustomerPage?: boolean, updateSelectedCustomers?: (id: string) => void) => void,
   closeMenu: () => void // פונקציה לסגירת התפריט
 ) => [
   {
@@ -1135,7 +1143,7 @@ const menuItems = (
     key: `delete-${rowId}`, // מפתח ייחודי למחיקה
     label: "מחק",
     onClick: () => {
-      handleDeleteRow(rowId); // מבצע מחיקה
+      handleDeleteRow(rowId, true, removeCustomerFromList); // 🔹 מעבירים את הפונקציה לעדכון הסטייט
       closeMenu(); // סוגר את התפריט
     },
     Icon: Delete,

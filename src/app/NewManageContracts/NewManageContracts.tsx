@@ -71,6 +71,10 @@ import { Contract, ContractAgent } from '@/types/Contract'; // טיפוסים
   } = useFetchAgentData();
 
 
+  useEffect(() => {
+    console.log("🔄 productGroupMap השתנה:", productGroupMap);
+  }, [productGroupMap]);
+
   const handlecommissionPercentHekef1: ChangeEventHandler<HTMLInputElement> = (e) => {
     const value = e.target.value;
     // Allow numbers and one dot for decimal places
@@ -291,6 +295,8 @@ const canSubmit1 = useMemo(() => (
           id: doc.id,
           ...doc.data(),
         } as Contract));
+
+
       } catch (error) {
         console.error("Error fetching contracts data:", error);
         return [];
@@ -443,7 +449,8 @@ const [isModalOpenAgent, setIsModalOpenAgent] =  useState(false);
     fetchData: fetchdefaultContracts, // Fetch עבור ברירות מחדל
   });
   
-  
+
+
   const {
     data: contractsData,
     editingRow: editingRowContracts,
@@ -671,26 +678,26 @@ return (
     <tr key={item.id}>
       {/* קבוצת מוצר */}
       <td>
-        {editingRowDefaultContracts === item.id ? (
-          <select
-            id={`productGroupSelect-${item.id}`}
-            value={editDefaultContractData.productsGroup || ""}
-            onChange={(e) =>
-              handleEditDefaultContractChange("productsGroup", e.target.value)
-            }
-          >
-            <option value="">בחר קבוצת מוצר</option>
-            {productGroupsDB.map((group) => (
-              <option key={group.id} value={group.id}>
-                {group.name}
-              </option>
-            ))}
-          </select>
-        ) : (
-          productGroupMap[item.productsGroup] || "N/A"
-        )}
-      </td>
-
+  {editingRowDefaultContracts === item.id ? (
+    <select
+      id={`productGroupSelect-${item.id}`}
+      value={editDefaultContractData.productsGroup || ""}
+      onChange={(e) =>
+        handleEditDefaultContractChange("productsGroup", e.target.value)
+      }
+    >
+      <option value="">בחר קבוצת מוצר</option>
+      {productGroupsDB.map((group) => (
+        <option key={group.id} value={group.id}>
+          {group.name}
+        </option>
+      ))}
+    </select>
+  ) : (
+    console.log("productsGroupPage " + Number(item.productsGroup)),
+    productGroupMap[Number(item.productsGroup)] || "N/A"
+  )}
+</td>
       {/* מינוי סוכן */}
       <td>
         {editingRowDefaultContracts === item.id ? (

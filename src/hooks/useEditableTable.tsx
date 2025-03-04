@@ -110,7 +110,10 @@ function useEditableTable<T extends { id: string }>({
   //   }
   // };
 
-  const handleDeleteRow = async (id: string) => {
+  const handleDeleteRow = async (id: string
+    , isCustomerPage: boolean = false,
+    updateSelectedCustomers?: (id: string) => void
+  ) => {
     const isConfirmed = window.confirm('האם אתה בטוח שברצונך למחוק את השורה?');
     if (!isConfirmed) return;
   
@@ -119,6 +122,11 @@ function useEditableTable<T extends { id: string }>({
       await deleteDoc(docRef);
       console.log("✅ שורה נמחקה בהצלחה מה-DB:", id);
   
+     // 🔹 עדכון מידי של הסטייט אם זו טבלת לקוחות
+     if (isCustomerPage && updateSelectedCustomers) {
+      updateSelectedCustomers(id);
+    }
+
       // 🔹 קריאה לרענון הנתונים מהשרת
       if (agentId) {
         await reloadData(agentId);

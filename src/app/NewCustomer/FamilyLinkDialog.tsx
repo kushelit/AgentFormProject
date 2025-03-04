@@ -31,18 +31,14 @@ export const FamilyLinkDialog = ({
   const [mainCustomer, setMainCustomer] = useState<string | null>(null);
   if (!isOpen) return null;
 
+
   return (
     <div className="modal-overlay">
       <div className="modal-container">
         {/* כפתור לסגירת הדיאלוג */}
-        <div className="modal-headerButton">
-        <Button
-          onClick={onClose}
-          text="✖"
-          type="secondary"
-          icon="off"
-          state="default"
-        />        </div>  
+        <button className="close-button" onClick={() => {onClose} }>
+    ✖
+  </button>
         {/* כותרת הדיאלוג */}
         <div className="title">הגדר מבוטח ראשי של המשפחה</div>
         <div className="customer-list">

@@ -584,6 +584,7 @@ const Customer = () => {
 
 
   const fetchPrivateSales = async () => {
+    console.log("🚀 הפונקציה fetchPrivateSales הופעלה!");
     if (!selectedRow) {
       console.log("No selected row available");
       return;
@@ -597,6 +598,9 @@ const Customer = () => {
       let totalCommissionNifraim = 0;
       const salesWithNames = await Promise.all(salesSnapshot.docs.map(async (salesDoc) => {
         const salesData = salesDoc.data();
+
+        console.log("🔎 בדיקת נתוני מכירה מה-DB:", salesData); // נוסיף בדיקה
+
         // const customerRef = doc(db, 'customer', salesData.IDCustomer);
         const customerQuery = query(collection(db, 'customer'), where('IDCustomer', '==', salesData.IDCustomer));
         const customerSnapshot = await getDocs(customerQuery);
@@ -617,6 +621,9 @@ const Customer = () => {
           finansimPremia: salesData.finansimPremia,
           finansimZvira: salesData.finansimZvira
         };
+
+        console.log("🔎 אחרי עיבוד הנתונים:", data); // בדיקה לאחר הכנסת הנתונים
+
         const contractMatch = contracts.find(contract => contract.agentId === selectedAgentId && contract.product === data.product && contract.company === data.company && (contract.minuySochen === data.minuySochen || (contract.minuySochen === undefined && !data.minuySochen)));
         const commissions = calculateCommissions(data, contractMatch);
         totalCommissionHekef += commissions.commissionHekef;
