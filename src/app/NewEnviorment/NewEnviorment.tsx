@@ -386,7 +386,7 @@ const handleSubmitStatusLead: FormEventHandler<HTMLFormElement> = async (event) 
   {/* כפתור לפתיחת מודל יצירת ליד חדש */}
   <Button
     onClick={handleOpenModalNewLead}
-    text="צור ליד חדש"
+    text="צור מקור ליד חדש"
     type="primary"
     icon="on"
     state="default"
@@ -419,7 +419,7 @@ const handleSubmitStatusLead: FormEventHandler<HTMLFormElement> = async (event) 
     <button className="close-button" onClick={() => setIsModalOpenNewLead(false)}>
     ✖
   </button>
-      <div className="modal_title">ליד חדש</div>
+      <div className="modal_title" >מקור ליד חדש</div>
       <form onSubmit={handleSubmitLead} className="form-container">
         <div className="form-group">
           <label htmlFor="agentSelect">סוכנות</label>
@@ -437,7 +437,7 @@ const handleSubmitStatusLead: FormEventHandler<HTMLFormElement> = async (event) 
           </select>
         </div>
         <div className="form-group">
-          <label htmlFor="sourceLead">מקור ליד</label>
+          <label htmlFor="sourceLead">שם מקור ליד</label>
           <input
             type="text"
             id="sourceLead"

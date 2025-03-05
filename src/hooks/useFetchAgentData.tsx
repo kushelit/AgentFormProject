@@ -32,9 +32,6 @@ const useFetchAgentData = () => {
 // });
   
 
-
-
-
   const [selectedAgentName, setSelectedAgentName] = useState("");
   const [workers, setWorkers] = useState<Worker[]>([]);
   const [selectedWorkerId, setSelectedWorkerId] = useState("");
@@ -86,21 +83,10 @@ const useFetchAgentData = () => {
           console.log("✅ Agents loaded:", agentsList);
           setAgents(agentsList);
         } else if (detail.agentId) {
-          console.log("🔎 Fetching specific agent:", detail.agentId);
-          const agentDocRef = doc(db, 'users', detail.agentId);
-          const agentDocSnap = await getDoc(agentDocRef);
-  
-          if (agentDocSnap.exists()) {
-            const agent = { id: agentDocSnap.id, name: agentDocSnap.data().name as string };
-            console.log("✅ Agent found:", agent);
-            setAgents([agent]);
-            setSelectedAgentId(agent.id);
-            setSelectedAgentName(agent.name);
-            await fetchWorkersForSelectedAgent(detail.agentId);
-          } else {
-            console.warn("❌ No such Agent!");
-            setAgents([]); // אם אין נתונים, מאפסים
-          }
+          setAgents([{ id: detail.agentId, name: detail.name }]);
+          setSelectedAgentId(detail.agentId);
+          setSelectedAgentName(detail.name);
+          await fetchWorkersForSelectedAgent(detail.agentId);
         }
       } catch (error) {
         console.error("⚠️ Failed to fetch agents:", error);

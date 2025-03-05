@@ -10,7 +10,9 @@ import { TopBar } from "@/components/TopBar";
 import { useDesignFlag } from "@/hooks/useDesignFlag";
 import { Navbar } from "@/components/Navbar";
 import pages, { bottomPage } from '@/config/pagesConfig';
+// import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
+// const queryClient = new QueryClient()
 
 const font = Rubik({ subsets: ["latin"] });
 
@@ -26,9 +28,12 @@ export default function RootLayout({
 }>) {
   const isNewDesignEnabled = useDesignFlag(); // קריאה ל-hook בתוך גוף הקומפוננטה
 
+
+
   return (
     <html lang="he" dir="rtl">
       <body className={font.className}>
+      {/* <QueryClientProvider client={queryClient}> */}
         <AuthContextProvider>
           <div className="flex flex-col min-h-screen relative">
             {/* בחירת TopBar או Header לפי ה-flag */}
@@ -58,6 +63,7 @@ export default function RootLayout({
             </div>
           </div>
         </AuthContextProvider>
+        {/* </QueryClientProvider> */}
       </body>
     </html>
   );

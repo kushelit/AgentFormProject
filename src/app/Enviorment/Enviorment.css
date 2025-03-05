@@ -169,3 +169,25 @@ tr {
   text-align: center; /* Center text inside the inputs/selects */
   height:30px; /* Adjust height to better fit in the table row, can adjust as needed */
 }
+
+
+
+.modal-content .modal_title {
+  height: auto; /* מאפשר התאמה אוטומטית לגובה */
+  width: auto; /* מאפשר התאמה אוטומטית לרוחב */
+  color: #3b6a95 !important;
+  direction: rtl;
+  font-family: "Inter-Bold", Helvetica;
+  font-size: 14px; /* גודל טקסט גדול יותר */
+  font-weight: 700;
+  letter-spacing: 0;
+  line-height: 22px;
+  position: relative; /* משנה את המיקום ליחסי להורה */
+  top: auto; /* מסיר את המיקום המוחלט */
+  left: auto;
+  white-space: nowrap; /* מונע שבירת שורות */
+  margin-bottom: 10px; /* מוסיף ריווח תחתון */
+  border-bottom: 1px solid #ddd; /* קו תחתון לכותרת */
+  padding-bottom: 5px; /* ריווח תחתון לפני הקו */
+  margin-bottom: 20px; /* ריווח תחתון לאחר הקו */
+}

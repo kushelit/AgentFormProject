@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@sendgrid/mail": "^8.1.4",
+    "@tanstack/react-query": "^5.67.1",
     "axios": "^1.7.9",
     "canvas-confetti": "^1.9.3",
     "chart.js": "^4.4.3",

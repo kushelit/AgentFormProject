@@ -155,7 +155,7 @@ table tr {
 
 .modal-content {
   position: relative; /* מיקום יחסי */
-  width: 350px;
+  width: 300px;
   max-width: 90%; /* התאמה למסכים קטנים */
   background-color: var(--clrgray3); /* צבע הרקע מפיגמה */
   border-radius: 4px; /* פינות מעוגלות */
@@ -164,6 +164,7 @@ table tr {
   font-family: "Arial", sans-serif;
   box-shadow: none !important; /* מסיר צל */
   border: none !important; /* מסיר גבולות */
+  margin-top: 20px; /* מרווח מלמעלה */
 }
 
 .modal-content th, .modal-content td {
@@ -204,18 +205,39 @@ table tr {
   margin-bottom: 0px;
   display: block;
 }
+
 .modal-content input,
-.modal-content textarea {
-  width: 100%; /* תופס את כל הרוחב */
-  height: 40px; /* גובה אחיד ונוח */
-  padding: 8px 12px; /* ריווח פנימי */
-  font-size: 14px; /* גודל טקסט אחיד */
-  color: #000; /* צבע טקסט ברור */
-  background-color: var(--clrwhite); /* צבע רקע לבן */
-  border: 1px solid var(--clrgray5); /* מסגרת אחידה */
+.modal-content select
+ {
+  width: 100%; /* תופס את כל הרוחב הזמין */
+  height: 32px; /* גובה אחיד */
+  padding: 6px; /* רווח פנימי */
+  font-size: 12px; /* גודל טקסט אחיד */
+  border: 1px solid #ccc; /* מסגרת אחידה */
   border-radius: 4px; /* פינות עגולות */
   box-sizing: border-box; /* כולל Padding בתוך ה-Width */
+  background-color: #fff; /* צבע רקע אחיד */
 }
+
+
+.modal-content select {
+  appearance: none;
+  direction: rtl;
+  text-align: center; /* יישור התוכן בתוך השדה למרכז */
+  background-position: left 10px center; /* ממקם את החץ */
+  background-size: 10px; /* התאמת גודל החץ */
+}
+
+
+/* עיצוב תוויות */
+.modal-content label {
+  font-size: 12px;
+  color: #444;
+  margin-bottom: 0px;
+  display: block;
+}
+
+
 
 /* התאמה מיוחדת עבור checkbox */
 .modal-content input[type="checkbox"] {
@@ -262,28 +284,6 @@ table tr {
   background-color: var(--clrgray3) !important;
 }
 
-
-
-.modal-content.textarea-group {
-  grid-column: span 2; /* תופס שתי עמודות */
-}
-
-.modal-contenttextarea {
-  width: 100%; /* תופס את כל רוחב הטופס */
-  height: 90px; /* מגדיר גובה קבוע */
-  resize: none; /* מונע שינוי גודל */
-  overflow: auto; /* מאפשר גלילה פנימית במקרה הצורך */
-  padding: 10px;
-  font-size: 12px;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-  box-sizing: border-box;
-}
-/* 
-.form-actions {
-  display: flex;
-  justify-content: space-between;
-} */
 
 
 
@@ -380,27 +380,53 @@ div, label, input {
 
 .dropdown-container {
   position: relative;
+  width: 100%; /* יתאים לרוחב של input רגיל */
+
 }
 
 .dropdown-header {
   border: 1px solid #ccc;
   border-radius: 4px;
-  padding: 10px;
+  padding: 8px 12px;
   cursor: pointer;
   background-color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  font-size: 14px;
+  height: 38px; /* גובה סטנדרטי */
+  box-sizing: border-box; /* מונע חיתוך של הקונטנט */
+}
+
+/* התאמת עיצוב החץ לכל ה-dropdownים המותאמים אישית */
+.dropdown-arrow {
+  display: inline-block;
+  width: 12px; /* גודל מתאים */
+  height: 12px;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' width='14' height='14'><path fill='%23000000' d='M7 10l5 5 5-5H7z'/></svg>"); /* חץ תואם */
+  background-size: contain;
+  background-repeat: no-repeat;
+  transition: transform 0.3s ease; /* אנימציה */
+}
+
+/* כאשר ה-dropdown פתוח - הפוך את החץ */
+.dropdown-arrow.open {
+  transform: rotate(180deg);
 }
 
 .dropdown-list {
   position: absolute;
+  z-index: 9999; /* ערך גבוה כדי להיות מעל אלמנטים אחרים */
   top: 100%;
   left: 0;
-  z-index: 10;
   border: 1px solid #ccc;
   border-radius: 4px;
   background-color: #fff;
   max-height: 150px;
   overflow-y: auto;
   width: 100%;
+  box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.1); /* הצללה כדי להבדיל */
 }
 
 .dropdown-item {
@@ -410,28 +436,6 @@ div, label, input {
   cursor: pointer;
 }
 
-.modal-content select {
-  width: 100%;
-  height: 40px; /* גובה אחיד */
-  padding: 8px 12px 8px 30px; /* רווח פנימי והשארת מקום לאייקון */
-  font-size: 14px;
-  color: #000; /* צבע טקסט */
-  background-color: var(--clrwhite); /* צבע רקע */
-  border: 1px solid var(--clrgray5); /* מסגרת */
-  border-radius: 4px; /* פינות מעוגלות */
-  box-sizing: border-box; /* כולל padding */
-  direction: rtl; /* יישור לימין */
-  text-align: right; /* יישור טקסט לימין */
-  /* ביטול עיצוב ברירת מחדל של הדפדפן */
-  appearance: none;
-  -webkit-appearance: none;
-  -moz-appearance: none;
-  /* עיצוב החץ הנפתח */
-  background-image: url("data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' width='24' height='24'%3E%3Cpath fill='none' d='M0 0h24v24H0z'/%3E%3Cpath d='M7 10l5 5 5-5z' fill='%23ccc'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: left 10px center;
-  background-size: 12px;
-}
 .close-button .button {
   background-color: transparent !important; /* רקע שקוף */
   border: none !important; /* ביטול מסגרת */
@@ -452,7 +456,7 @@ div, label, input {
 .close-button {
   position: absolute; /* למקם את הכפתור ביחס ל-modal */
   top: 5px; /* רווח מהחלק העליון */
-  left: 2px; /* רווח קצת יותר גדול מהחלק השמאלי */
+  left: 4x; /* רווח קצת יותר גדול מהחלק השמאלי */
   z-index: 10; /* להבטיח שהכפתור יהיה מעל */
 }
 .button-group {
@@ -478,3 +482,19 @@ div, label, input {
   margin-bottom: 20px !important;
 }
 
+
+.tableGoalsMD tr :hover,
+.tableGoalsMD tr:hover td {
+ background-color: var(--clrgray3);
+} 
+
+.tableStars tr :hover,
+.tableStars tr:hover td {
+ background-color: var(--clrgray3);
+} 
+
+
+.select-container tr :hover,
+.select-container tr:hover td {
+ background-color: var(--clrgray3);
+} 

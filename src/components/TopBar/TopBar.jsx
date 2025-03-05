@@ -26,7 +26,9 @@ export const TopBar = ({ prop = true, className }) => {
               <ButtonTopbar
                 className="design-component-instance-node"
                 state="default"
-                logOut={logOut}
+                logOut={() => {
+                  logOut().then(() => window.location.reload())
+                }}
               />
             </>
           ) : (

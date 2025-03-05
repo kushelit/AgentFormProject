@@ -79,7 +79,7 @@ table tr {
 
 .modal-content {
   position: relative; /* מיקום יחסי */
-  width: 350px;
+  width: 250px;
   max-width: 90%; /* התאמה למסכים קטנים */
   background-color: var(--clrgray3); /* צבע הרקע מפיגמה */
   border-radius: 4px; /* פינות מעוגלות */
@@ -88,6 +88,10 @@ table tr {
   font-family: "Arial", sans-serif;
   box-shadow: none !important; /* מסיר צל */
   border: none !important; /* מסיר גבולות */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
 }
 
 .modal-content th, .modal-content td {
@@ -100,7 +104,7 @@ table tr {
   box-shadow: none; /* מסיר צללים */
 }
 
-.modal-content .title {
+.modal-content .modal_title {
   height: auto; /* מאפשר התאמה אוטומטית לגובה */
   width: auto; /* מאפשר התאמה אוטומטית לרוחב */
   color: #3b6a95;
@@ -127,18 +131,6 @@ table tr {
   color: #444;
   margin-bottom: 0px;
   display: block;
-}
-.modal-content input,
-.modal-content textarea {
-  width: 100%; /* תופס את כל הרוחב */
-  height: 40px; /* גובה אחיד ונוח */
-  padding: 8px 12px; /* ריווח פנימי */
-  font-size: 14px; /* גודל טקסט אחיד */
-  color: #000; /* צבע טקסט ברור */
-  background-color: var(--clrwhite); /* צבע רקע לבן */
-  border: 1px solid var(--clrgray5); /* מסגרת אחידה */
-  border-radius: 4px; /* פינות עגולות */
-  box-sizing: border-box; /* כולל Padding בתוך ה-Width */
 }
 
 /* התאמה מיוחדת עבור checkbox */
@@ -173,6 +165,10 @@ table tr {
   display: flex;
   align-items: center; /* יישור אנכי */
   gap: 8px; /* רווח בין ה-checkbox לתווית */
+  justify-self: flex-start;
+  width: 100%; /* מאפשר להם לקחת את כל השורה */
+margin-right: 25px; /* רווח מימין */
+margin-top: 10px; /* רווח מלמעלה */
 }
 .checkbox-container input[type="checkbox"] {
   margin: 0; /* ביטול רווחים מיותרים */
@@ -184,30 +180,6 @@ table tr {
 }
 .modal-content td span {
   background-color: var(--clrgray3) !important;
-}
-
-
-
-.modal-content.textarea-group {
-  grid-column: span 2; /* תופס שתי עמודות */
-}
-
-.modal-contenttextarea {
-  width: 100%; /* תופס את כל רוחב הטופס */
-  height: 90px; /* מגדיר גובה קבוע */
-  resize: none; /* מונע שינוי גודל */
-  overflow: auto; /* מאפשר גלילה פנימית במקרה הצורך */
-  padding: 10px;
-  font-size: 12px;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-  box-sizing: border-box;
-}
-
-.form-actions {
-  display: flex;
-  justify-content: space-between;
-  gap: 16px; /* ריווח בין האלמנטים */
 }
 
 .table-header {
@@ -249,14 +221,15 @@ table tr {
 .close-button {
   position: absolute; /* למקם את הכפתור ביחס ל-modal */
   top: 5px; /* רווח מהחלק העליון */
-  left: 2px; /* רווח קצת יותר גדול מהחלק השמאלי */
+  left: 4px; /* רווח קצת יותר גדול מהחלק השמאלי */
   z-index: 10; /* להבטיח שהכפתור יהיה מעל */
 }
 .button-group {
   display: flex;
-  justify-content: space-between; /* מפזר את הכפתורים לשני צידי השורה */
+  justify-content: center; /* מפזר את הכפתורים לשני צידי השורה */
   align-items: center; /* יישור אנכי */
   padding: 10px 0; /* רווח פנימי */
+  gap: 10px; /* רווח בין הכפתורים */
 }
 
 .button {
@@ -270,6 +243,13 @@ table tr {
   cursor: not-allowed; /* מצביע של מצב לא פעיל */
   opacity: 0.5; /* שקיפות */
 }
+
+
+.button-group .button
+ {
+  width: 100px !important; /* רוחב קבוע לכל הכפתורים */
+}
+
 .header-actions {
   display: flex;
   gap: 16px; /* ריווח בין האלמנטים */
@@ -292,7 +272,7 @@ table tr {
   box-sizing: border-box;
 }
 
-.filter-select-container select {
+.filter-select-container select, .form-container select {
   appearance: none;
   direction: rtl;
   text-align: center; /* יישור התוכן בתוך השדה למרכז */
@@ -328,3 +308,43 @@ table tr {
 .second-container table {
   margin-top: 16px; /* מוסיף רווח מעל לטבלה */
 }
+
+
+.form-group input,
+.form-group select
+ {
+  width: 100%; /* תופס את כל הרוחב הזמין */
+  height: 32px; /* גובה אחיד */
+  padding: 6px; /* רווח פנימי */
+  font-size: 12px; /* גודל טקסט אחיד */
+  border: 1px solid #ccc; /* מסגרת אחידה */
+  border-radius: 4px; /* פינות עגולות */
+  box-sizing: border-box; /* כולל Padding בתוך ה-Width */
+  background-color: #fff; /* צבע רקע אחיד */
+}
+
+
+.form-group select
+ {
+margin-bottom: 10px; /* רווח מתחת ל-select */
+}
+
+
+/* עיצוב תוויות */
+.form-group label {
+  font-size: 12px;
+  color: #444;
+  margin-bottom: 0px;
+  display: block;
+}
+
+
+.first-container-tableHeader tr :hover,
+.first-container-tableHeader tr:hover td {
+ background-color: var(--clrgray3);
+} 
+
+.secondTable-container tr :hover,
+.secondTable-container tr:hover td {
+ background-color: var(--clrgray3);
+} 

@@ -1420,7 +1420,7 @@ useEffect(() => {
           item.minuySochen ? "כן" : "לא"
         )}
       </td>
-      <td className="narrow-column">
+      <td className="medium-column">
   {editingRow === item.id ? (
     <select
       value={editData.workerId || ""}
@@ -1439,18 +1439,16 @@ useEffect(() => {
 </td>
 <td className="notes-column wide-column">
   <span className="notes-preview">
-    {item.notes && item.notes.length > 5
-      ? `${item.notes.substring(0, 5)}...`
-      : item.notes || 'אין הערות'}
+      {item.notes}
   </span>
-  {item.notes && item.notes.length > 5 && (
+  {/* {item.notes && item.notes.length > 5 && (
     <button
       className="show-more-btn"
       onClick={() => handleShowMore(item.notes || '', item.id)}
     >
       הצג עוד
     </button>
-  )}
+  )} */}
   {editingRow === item.id && (
     <input
       type="text"
@@ -1458,14 +1456,11 @@ useEffect(() => {
       onChange={(e) => handleEditChange('notes', e.target.value)}
     />
   )}
-  {openModalId === item.id && (
+  {item.notes ? (
     <div className="inline-modal">
-      <p>{modalContent}</p>
-      <button className="close-btn" onClick={closeModal}>
-        סגור
-      </button>
+      <p>{item.notes}</p>
     </div>
-  )}
+  ) : null}
 </td>
 <td className="narrow-cell">
 <MenuWrapper

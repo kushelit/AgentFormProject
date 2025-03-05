@@ -44,7 +44,6 @@ body {
     box-shadow: var(--m3-elevation-light-1);
   }
   
-  
 .table-container-AgentForm-new-design {
   flex-grow: 1; /* תופס את כל הרוחב הזמין */
   max-width: 100%; /* Use the full width available */
@@ -52,6 +51,16 @@ body {
   padding: 16px; /* Add consistent padding */
   box-shadow: var(--m3-elevation-light-1);
   box-sizing: border-box;
+}
+
+.notes-preview {
+  text-wrap: wrap;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  /* width: 100%; */
 }
 
 .table-Data-AgentForm.is-new-design table {
@@ -266,8 +275,12 @@ input::placeholder {
     position: relative; /* מאפשר מיקום יחסי */
 }
 
+.notes-column:hover .inline-modal {
+  visibility: visible;
+}
 
 .inline-modal {
+  visibility: hidden;
   position: absolute;
   top: 100%; /* המודאל מתחת לתא */
   left: 0;
@@ -277,6 +290,7 @@ input::placeholder {
   z-index: 999; /* לוודא שהמודאל מעל אלמנטים אחרים */
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
   border-radius: 4px;
+  width: max-content;
   max-width: 300px; /* הגבלת רוחב המודאל */
   text-align: right;
   word-break: break-word; /* שבירת טקסט במקרה שהוא ארוך */
@@ -286,6 +300,7 @@ input::placeholder {
   margin: 0;
   font-size: 14px;
   color: #333;
+  text-wrap: wrap;
 }
 
 .close-btn {
@@ -795,3 +810,9 @@ table td.narrow-column {
 {
   font-weight: bold;
 }
+
+
+.table-Deal-container tr :hover,
+.table-Deal-container tr:hover td {
+ background-color: var(--clrgray3);
+} 
