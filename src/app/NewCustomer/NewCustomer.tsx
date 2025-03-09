@@ -1419,6 +1419,13 @@ const handleNewSelectCustomer = (id: string) => {
              icon="off"
             disabled={!canSubmit || isEditing}
           />
+             <Button
+                onClick={() => setIsModalOpen(false)}
+                text="בטל"
+                type="secondary"
+                icon="off"
+                state="default"
+              />
         </div>
       </form>
     </div>

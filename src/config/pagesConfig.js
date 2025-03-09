@@ -26,7 +26,7 @@ const pages = [
   { href: '/ManagePoolAgents', label: 'ניהול פול ליד' },
 ];
 
-const bottomPage = { href: '/Leads', label: 'Flow' };
+const bottomPage = { href: '/NewLeads', label: 'Flow' };
 
 export default pages;
 export { bottomPage };

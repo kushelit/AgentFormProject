@@ -888,15 +888,12 @@ useEffect(() => {
   }
 }, [handleCalculate, detail, user, selectedWorkerIdGoals]);
  
-const menuItems = (
-  rowId: string,
-  closeMenu: () => void
-) => [
+const menuItems = (rowId: string, closeMenu: () => void) => [
   {
     label: "ערוך",
     onClick: () => {
-      handleEditRowModal(rowId); // שימוש בפונקציה החדשה
-      closeMenu(); // סוגר את התפריט
+      handleEditRowModal(rowId); // שימוש בפונקציה החדשה לפתיחת המודל
+      closeMenu();
     },
     Icon: Edit,
   },
@@ -1491,7 +1488,6 @@ useEffect(() => {
          </div>
       </div>
       </div> 
-     
       {showOpenNewDeal && (
   <div className="modal-overlay" onClick={() => setShowOpenNewDeal(false)}>
     <div className="modal-content" onClick={(e) => e.stopPropagation()}>

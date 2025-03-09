@@ -183,6 +183,13 @@ function useEditableTable<T extends { id: string }>({
      if (dbCollection === 'sales' && onCloseModal) {
       onCloseModal();
     }
+
+    // ✅ סגירת המודל אם מדובר בלידים
+    if (onCloseModal) {
+      console.log("🔴 סוגר את המודל דרך onCloseModal");
+      onCloseModal();
+    }
+    
   };
   
 
