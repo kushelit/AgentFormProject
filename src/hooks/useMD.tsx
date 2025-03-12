@@ -210,6 +210,8 @@ const useFetchMD = (selectedAgentId?:string) => {
     fetchStatusPolicies();
   }, []);
   
+
+
   const fetchStatusLeadForAgentAndDefault = async (selectedAgentId?: string): Promise<StatusLead[]> => {
     try {
         const agentQuery = query(
@@ -242,6 +244,7 @@ const useFetchMD = (selectedAgentId?:string) => {
         const uniqueStatuses = Array.from(
             new Map(allStatuses.map(item => [item.id, item])).values()
         );
+      SetStatusLeadMap(uniqueStatuses); // Set the combined unique statuses
 
         console.log("✅ Fetched Status Leads:", uniqueStatuses);
 

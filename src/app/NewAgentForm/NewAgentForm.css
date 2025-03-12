@@ -816,3 +816,8 @@ table td.narrow-column {
 .table-Deal-container tr:hover td {
  background-color: var(--clrgray3);
 } 
+
+.align-left {
+  display: block;
+  margin-left: auto;
+}

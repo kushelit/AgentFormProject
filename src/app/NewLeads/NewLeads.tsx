@@ -12,6 +12,7 @@ import Edit from '@/components/icons/Edit/Edit';
 import Delete  from '@/components/icons/Delete/Delete'; 
 import useEditableTable from "@/hooks/useEditableTable";
 import { LeadsType } from '@/types/LeadsType ';
+import { useSortableTable } from "@/hooks/useSortableTable";
 
 
 const NewLeads = () => {
@@ -72,6 +73,8 @@ const [selectedStatusLeadFilter, setSelectedStatusLeadFilter] = useState('');
 const [selectedSourceLeadFilter, setSelectedSourceLeadFilter] = useState('');
 
 const [editingRowIdTime, setEditingRowIdTime] = useState<string | null>(null);
+const { sortedData, sortColumn, sortOrder, handleSort } = useSortableTable(filteredData);
+
 
 
   interface Suggestion {
@@ -257,95 +260,95 @@ const [editingRowIdTime, setEditingRowIdTime] = useState<string | null>(null);
     setIDCustomer(onlyNums);
   };
 
-  const handleRowClick = (item: any) => {
-   // setSalesData([]);
-    setSelectedRow(item); // Store the selected row's data
-    setfirstNameCustomer(item.firstNameCustomer || '');
-    setlastNameCustomer(item.lastNameCustomer || '');
-    setIDCustomer(item.IDCustomer || '');
-    setIsEditing(true);
-    setNotes(item.notes || '');
-    setReturnDate(item.returnDate || '');
-    setLastContactDate(item.lastContactDate || '');
-    setPhone(item.phone || '');
-    setMail(item.mail || '');
-    setAddress(item.address || '');
-    setSourceValue(item.sourceValue || '');
-    setSelectedStatusLead(item.selectedStatusLead || '');
-    setAvailableFunds(item.availableFunds || '');
-    setRetirementFunds(item.retirementFunds || '');
-    setConsentForInformationRequest(item.consentForInformationRequest || false);
-    setBirthday(item.birthday || '');
-    setCampaign(item.campaign || '');
-    setSelectedAgentIdInRow(item.AgentId || '');
-    const workerName = workerNameMap[item.workerId];
-    if (workerName) {
-        setSelectedWorkerId(item.workerId);
-        setSelectedWorkerName(workerName);
-    } else {
-        // Handle case where the worker is not found - maybe clear or set default values
-        setSelectedWorkerId('');
-        setSelectedWorkerName('Unknown Worker');
-    }
+  // const handleRowClick = (item: any) => {
+  //  // setSalesData([]);
+  //   setSelectedRow(item); // Store the selected row's data
+  //   setfirstNameCustomer(item.firstNameCustomer || '');
+  //   setlastNameCustomer(item.lastNameCustomer || '');
+  //   setIDCustomer(item.IDCustomer || '');
+  //   setIsEditing(true);
+  //   setNotes(item.notes || '');
+  //   setReturnDate(item.returnDate || '');
+  //   setLastContactDate(item.lastContactDate || '');
+  //   setPhone(item.phone || '');
+  //   setMail(item.mail || '');
+  //   setAddress(item.address || '');
+  //   setSourceValue(item.sourceValue || '');
+  //   setSelectedStatusLead(item.selectedStatusLead || '');
+  //   setAvailableFunds(item.availableFunds || '');
+  //   setRetirementFunds(item.retirementFunds || '');
+  //   setConsentForInformationRequest(item.consentForInformationRequest || false);
+  //   setBirthday(item.birthday || '');
+  //   setCampaign(item.campaign || '');
+  //   setSelectedAgentIdInRow(item.AgentId || '');
+  //   const workerName = workerNameMap[item.workerId];
+  //   if (workerName) {
+  //       setSelectedWorkerId(item.workerId);
+  //       setSelectedWorkerName(workerName);
+  //   } else {
+  //       // Handle case where the worker is not found - maybe clear or set default values
+  //       setSelectedWorkerId('');
+  //       setSelectedWorkerName('Unknown Worker');
+  //   }
     
-  };
+  // };
 
 
-  // delete function ***
-  const handleDelete = async () => {
-    if (selectedRow && selectedRow.id) {
-      await deleteDoc(doc(db, 'leads', selectedRow.id));
-      setSelectedRow(null); // Reset selection
-      resetForm();
-      setIsEditing(false);
-      if (selectedAgentId) {
-        fetchLeadsForAgent(selectedAgentId);
-      }
-      setFilteredData([]);
+  // // delete function ***
+  // const handleDelete = async () => {
+  //   if (selectedRow && selectedRow.id) {
+  //     await deleteDoc(doc(db, 'leads', selectedRow.id));
+  //     setSelectedRow(null); // Reset selection
+  //     resetForm();
+  //     setIsEditing(false);
+  //     if (selectedAgentId) {
+  //       fetchLeadsForAgent(selectedAgentId);
+  //     }
+  //     setFilteredData([]);
 
-    } else {
-      console.log("No selected row or row ID is undefined");
-    }
-  };
-  const handleEdit = async () => {
-    if (selectedRow && selectedRow.id) {
-      try {
-        const docRef = doc(db, 'leads', selectedRow.id);
-        await updateDoc(docRef, {
-          firstNameCustomer,
-          lastNameCustomer,
-          IDCustomer,
-          notes: notes || '',
-          returnDate,
-          lastContactDate,
-          phone,
-          mail,
-          address,
-          sourceValue,
-          lastUpdateDate: serverTimestamp(),
-          selectedStatusLead,
-          availableFunds,
-          retirementFunds,
-          consentForInformationRequest,
-          birthday,
-          workerId: selectedWorkerId,// id new
-          campaign,
-          AgentId: selectedAgentIdInRow || '', // עדכון AgentId
-        });
-        console.log("Document successfully updated");
-        setSelectedRow(null);
-        resetForm();
-        setFilteredData([]);
-        if (selectedAgentId) {
-          fetchLeadsForAgent(selectedAgentId);
-        }
-      } catch (error) {
-        console.error("Error updating document:", error);
-      }
-    } else {
-      console.log("No row selected or missing document ID");
-    }
-  };
+  //   } else {
+  //     console.log("No selected row or row ID is undefined");
+  //   }
+  // };
+  // const handleEdit = async () => {
+  //   if (selectedRow && selectedRow.id) {
+  //     try {
+  //       const docRef = doc(db, 'leads', selectedRow.id);
+  //       await updateDoc(docRef, {
+  //         firstNameCustomer,
+  //         lastNameCustomer,
+  //         IDCustomer,
+  //         notes: notes || '',
+  //         returnDate,
+  //         lastContactDate,
+  //         phone,
+  //         mail,
+  //         address,
+  //         sourceValue,
+  //         lastUpdateDate: serverTimestamp(),
+  //         selectedStatusLead,
+  //         availableFunds,
+  //         retirementFunds,
+  //         consentForInformationRequest,
+  //         birthday,
+  //         workerId: selectedWorkerId,// id new
+  //         campaign,
+  //         AgentId: selectedAgentIdInRow || '', // עדכון AgentId
+  //       });
+  //       console.log("Document successfully updated");
+  //       setSelectedRow(null);
+  //       resetForm();
+  //       setFilteredData([]);
+  //       if (selectedAgentId) {
+  //         fetchLeadsForAgent(selectedAgentId);
+  //       }
+  //     } catch (error) {
+  //       console.error("Error updating document:", error);
+  //     }
+  //   } else {
+  //     console.log("No row selected or missing document ID");
+  //   }
+  // };
 
   const resetForm = () => {
     setfirstNameCustomer('');
@@ -582,16 +585,124 @@ const [editingRowIdTime, setEditingRowIdTime] = useState<string | null>(null);
     }
   }, [editingLeadRow]);
   
+ 
+
+  // const [sortColumn, setSortColumn] = useState<string | null>(null);
+  // const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
+  
+
+  // const handleSort = (column: keyof LeadsType) => {
+  //   const newSortOrder = sortColumn === column && sortOrder === "asc" ? "desc" : "asc";
+  //   setSortColumn(column);
+  //   setSortOrder(newSortOrder);
+  
+  //   const sorted = [...filteredData].sort((a, b) => {
+  //     let valueA: string | boolean | Timestamp | undefined = a[column];
+  //     let valueB: string | boolean | Timestamp | undefined = b[column];
+  
+  //     // ✅ אם הערכים `undefined` או `null`, נשתמש במחרוזת ריקה למניעת שגיאות
+  //     if (valueA == null) valueA = "";
+  //     if (valueB == null) valueB = "";
+  
+  //     // ✅ אם הערכים הם `boolean`, נמיר אותם למחרוזת לצורך השוואה
+  //     if (typeof valueA === "boolean") valueA = valueA ? "1" : "0";
+  //     if (typeof valueB === "boolean") valueB = valueB ? "1" : "0";
+  
+  //     // ✅ אם הערכים הם Firebase `Timestamp`, נמיר אותם ל- `Date` רק כאשר נדרש
+  //     if (valueA instanceof Timestamp) valueA = valueA.toDate().toISOString();
+  //     if (valueB instanceof Timestamp) valueB = valueB.toDate().toISOString();
+  
+  //     // ✅ אם הערכים הם מחרוזות של תאריכים, נמיר למספר כדי שניתן יהיה למיין לפי זמן
+  //     if (typeof valueA === "string" && column.toLowerCase().includes("date")) {
+  //       const parsedA = Date.parse(valueA);
+  //       if (!isNaN(parsedA)) valueA = String(parsedA);
+  //     }
+  //     if (typeof valueB === "string" && column.toLowerCase().includes("date")) {
+  //       const parsedB = Date.parse(valueB);
+  //       if (!isNaN(parsedB)) valueB = String(parsedB);
+  //     }
+  
+  //     // ✅ מיון טקסטים
+  //     return newSortOrder === "asc"
+  //       ? String(valueA).localeCompare(String(valueB), "he")
+  //       : String(valueB).localeCompare(String(valueA), "he");
+  //   });
+  
+  //   console.log("✅ נתונים אחרי מיון:", sorted);
+  //   setFilteredData(sorted);
+  // };
   
 
 
-
-  
   return (
     <div className="content-container">
-    <button onClick={handleNewLead} className="open-modal-button">
-      הזמנת ליד חדש
-    </button>
+    <div className="table-title">ניהול לידים</div>
+    <div className="data-container">
+    <div className="header-actions">
+    <div className="filter-select-container">
+        <select onChange={handleAgentChange} value={selectedAgentId} className="select-input">
+                    {detail?.role === 'admin' && <option value="">בחר סוכן</option>}
+                    {detail?.role === 'admin' && <option value="all">כל הסוכנות</option>}
+                    {agents.map(agent => (
+                      <option key={agent.id} value={agent.id}>{agent.name}</option>
+                    ))}
+          </select>
+        <input className="filter-input"
+        type="text"
+        placeholder="שם"
+       value={`${firstNameCustomerFilter} ${lastNameCustomerFilter}`.trim()}
+       onChange={(e) => {
+     const fullName = e.target.value.trim();
+    const [firstName, ...lastNameParts] = fullName.split(' ');
+    setfirstNameCustomerFilter(firstName || ''); 
+    setlastNameCustomerFilter(lastNameParts.join(' ') || ''); 
+  }}/>
+       <input  className="filter-input"
+            type="text"
+            placeholder="תז לקוח"
+            value={idCustomerFilter}
+            onChange={(e) => setIdCustomerFilter(e.target.value)}/>
+   <select id="worker-select" value={selectedWorkerIdFilter} 
+       onChange={(e) => handleWorkerChange(e, 'filter')} className="select-input">
+        <option value="">כל העובדים</option>
+        {workers.map(worker => (
+          <option key={worker.id} value={worker.id}>{worker.name}</option>
+        ))}
+      </select>
+      <select
+      id="statusLead-Select"
+      value={selectedStatusLeadFilter}
+      onChange={(e) => setSelectedStatusLeadFilter(e.target.value)} className="select-input">
+     <option value="">בחר סטטוס</option>
+    {statusLeadMap.map((status) => (
+      <option key={status.id} value={status.id}>
+        {status.statusLeadName}
+      </option>
+       ))}
+       </select>
+       <select
+  id="sourceLeadSelect"
+  value={selectedSourceLeadFilter}
+  onChange={(e) => setSelectedSourceLeadFilter(e.target.value)} className="select-input">
+  <option value="">בחר מקור ליד</option>
+  {sourceLeadList.map((item) => (
+    <option key={item.id} value={item.id}>
+      {item.sourceLead}
+    </option>
+  ))}
+</select>
+        </div>
+        <div className="newLeadButton">
+        <Button
+  onClick={handleNewLead}
+  text="הזמנת ליד חדש"
+  type="primary"
+  icon="on"
+  state="default"
+  className="align-left"
+/>
+    </div>
+        </div>
     {showOpenNewLead && (
   <div className="modal-overlay" onClick={() => setShowOpenNewLead(false)}>
     <div className="modal-content" onClick={(e) => e.stopPropagation()}>
@@ -729,78 +840,23 @@ const [editingRowIdTime, setEditingRowIdTime] = useState<string | null>(null);
           </form>
         </div>
       </div>
-    )}
-      <div className="data-container">
-        <div className="select-container">
-        <select onChange={handleAgentChange} value={selectedAgentId}>
-                    {detail?.role === 'admin' && <option value="">בחר סוכן</option>}
-                    {detail?.role === 'admin' && <option value="all">כל הסוכנות</option>}
-                    {agents.map(agent => (
-                      <option key={agent.id} value={agent.id}>{agent.name}</option>
-                    ))}
-          </select>
-        <input
-        type="text"
-        placeholder="שם"
-       value={`${firstNameCustomerFilter} ${lastNameCustomerFilter}`.trim()}
-       onChange={(e) => {
-     const fullName = e.target.value.trim();
-    const [firstName, ...lastNameParts] = fullName.split(' ');
-    setfirstNameCustomerFilter(firstName || ''); 
-    setlastNameCustomerFilter(lastNameParts.join(' ') || ''); 
-  }}/>
-       <input
-            type="text"
-            placeholder="תז לקוח"
-            value={idCustomerFilter}
-            onChange={(e) => setIdCustomerFilter(e.target.value)}/>
-   <select id="worker-select" value={selectedWorkerIdFilter} 
-       onChange={(e) => handleWorkerChange(e, 'filter')}>
-        <option value="">כל העובדים</option>
-        {workers.map(worker => (
-          <option key={worker.id} value={worker.id}>{worker.name}</option>
-        ))}
-      </select>
-      <select
-      id="statusLead-Select"
-      value={selectedStatusLeadFilter}
-      onChange={(e) => setSelectedStatusLeadFilter(e.target.value)}>
-     <option value="">בחר סטטוס</option>
-    {statusLeadMap.map((status) => (
-      <option key={status.id} value={status.id}>
-        {status.statusLeadName}
-      </option>
-       ))}
-       </select>
-       <select
-  id="sourceLeadSelect"
-  value={selectedSourceLeadFilter}
-  onChange={(e) => setSelectedSourceLeadFilter(e.target.value)}>
-  <option value="">בחר מקור ליד</option>
-  {sourceLeadList.map((item) => (
-    <option key={item.id} value={item.id}>
-      {item.sourceLead}
-    </option>
-  ))}
-</select>
-        </div>
-        <div className="table-container flex" style={{ overflowX: 'auto', maxHeight: '800px'
-          ,minWidth: '900px',fontSize: '16px'}}>
+    )}       
+      <div className="table-container flex" >
     <table className="leads-table">
               <thead>
-                <tr>
-                  <th>סוכן</th>
-                  <th>שם</th>
-                  <th>תאריך חזרה</th>
-                  <th>טלפון</th>
-                  <th>סטטוס ליד</th>
-                  <th>שם נציג</th>
-                  <th>מקור ליד</th>
-                  <th>שם קמפיין</th>
-                  <th>תאריך פניה אחרונה</th>
-                  <th>תאריך יצירה</th>
-                  <th>🔧</th>
-                </tr>
+              <tr>
+    <th onClick={() => handleSort("agentName")}>סוכן {sortColumn === "agentName" ? (sortOrder === "asc" ? "▲" : "▼") : ""}</th>
+    <th onClick={() => handleSort("firstNameCustomer")}>שם {sortColumn === "firstNameCustomer" ? (sortOrder === "asc" ? "▲" : "▼") : ""}</th>
+    <th onClick={() => handleSort("returnDate")}>תאריך חזרה {sortColumn === "returnDate" ? (sortOrder === "asc" ? "▲" : "▼") : ""}</th>
+    <th onClick={() => handleSort("phone")}>טלפון {sortColumn === "phone" ? (sortOrder === "asc" ? "▲" : "▼") : ""}</th>
+    <th onClick={() => handleSort("selectedStatusLead")}>סטטוס ליד {sortColumn === "selectedStatusLead" ? (sortOrder === "asc" ? "▲" : "▼") : ""}</th>
+    <th onClick={() => handleSort("workerId")}>שם נציג {sortColumn === "workerId" ? (sortOrder === "asc" ? "▲" : "▼") : ""}</th>
+    <th onClick={() => handleSort("sourceValue")}>מקור ליד {sortColumn === "sourceValue" ? (sortOrder === "asc" ? "▲" : "▼") : ""}</th>
+    <th onClick={() => handleSort("campaign")}>שם קמפיין {sortColumn === "campaign" ? (sortOrder === "asc" ? "▲" : "▼") : ""}</th>
+    <th onClick={() => handleSort("lastContactDate")}>תאריך פניה אחרונה {sortColumn === "lastContactDate" ? (sortOrder === "asc" ? "▲" : "▼") : ""}</th>
+    <th onClick={() => handleSort("createDate")}>תאריך יצירה {sortColumn === "createDate" ? (sortOrder === "asc" ? "▲" : "▼") : ""}</th>
+    <th>🔧</th>
+  </tr>
               </thead>
               <tbody>
                 {filteredData.map((item) => (
@@ -869,7 +925,7 @@ const [editingRowIdTime, setEditingRowIdTime] = useState<string | null>(null);
             </table>
         </div>
       </div>
-    </div>
+      </div>
   );
 }
 export default NewLeads
