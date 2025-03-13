@@ -16,8 +16,8 @@
 
 .menu-options {
   position: absolute;
-  /* top: calc(100% - 20px); 
-  left: calc(100% - 8px);  */
+  right: -100px !important; /* הגדלת ההיסט ימינה */
+  top: 100% !important;
   background: white;
   border: 1px solid #ddd;
   border-radius: 4px;

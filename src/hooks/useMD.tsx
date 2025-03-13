@@ -164,9 +164,9 @@ const useFetchMD = (selectedAgentId?:string) => {
             querySnapshot.forEach((doc) => {
               const data = doc.data();
               productMap[data.productName] = data.productGroup; 
-              // if (data.productGroup) {
-              //   productGroupMap[data.productName] = data.productGroup; // ✅ נוסיף את הקבוצה
-              // }
+              if (data.productGroup) {
+                productGroupMap[data.productName] = data.productGroup; // ✅ נוסיף את הקבוצה
+              }
             });
             console.log("📌 Fetched Product Group Map:", productGroupMap); // 🔍 בדיקה בקונסול
             setProductMap(productMap);

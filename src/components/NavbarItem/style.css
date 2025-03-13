@@ -50,11 +50,19 @@
 .navbar-item-content .navbar-link {
   color: var(--clrwhite) !important; /* עדיפות גבוהה */
   font-family: var(--font-family) !important;
-  font-size: var(--font-size-heading-small) !important;
+  font-size: 14px !important;
   font-style: var(--font-style);
   font-weight: var(--font-weight);
   line-height: var(--line-height) !important;
 }
+.navbar-item-content .navbar-link:lang(en) {
+  font-size: 20px !important; /* גודל מותאם לאנגלית */
+  font-family: "שם הפונט המדויק", sans-serif; /* כאן תכניס את שם הפונט המדויק */
+  font-style: italic;
+  font-weight: 600; /* אם זה היה מודגש */
+}
+
+
 
 .navbar-link:hover {
   background-color: var(--clrdarkblue2); /* רקע בעת ריחוף */

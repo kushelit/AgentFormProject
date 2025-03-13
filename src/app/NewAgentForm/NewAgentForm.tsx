@@ -953,13 +953,15 @@ const handleIDBlur = async () => {
   }
 };
 
-useEffect(() => {
-  if (selectedProduct && productGroupMap[selectedProduct]) {
-    setSelectedProductGroup(productGroupMap[selectedProduct]); // ✅ עדכון קבוצה בהתאם למוצר
-  } else {
-    setSelectedProductGroup(""); // ✅ אם לא נבחר מוצר - ריק
-  }
-}, [selectedProduct, productGroupMap]);
+// useEffect(() => {
+//   console.log("🔄 Updating selectedProductGroup:", productGroupMap[selectedProduct]);
+//   if (selectedProduct && productGroupMap[selectedProduct]) {
+//     setSelectedProductGroup(productGroupMap[selectedProduct]); // ✅ עדכון קבוצה בהתאם למוצר
+//   } else {
+//     setSelectedProductGroup(""); // ✅ אם לא נבחר מוצר - ריק
+//   }
+// }, [selectedProduct, productGroupMap]);
+
 
 useEffect(() => {
   if (editData.product && productGroupMap[editData.product]) {
@@ -967,6 +969,7 @@ useEffect(() => {
     setSelectedProductGroup(productGroupMap[editData.product]); // עדכון הקבוצה בהתאם למוצר
   } else {
     console.log("⚠️ No group found for product:", editData.product);
+    console.log("🔄 Clearing selectedProductGroup "+ selectedProductGroup);
     setSelectedProductGroup(""); // אם אין קבוצה, ננקה את השדה
   }
 }, [editData.product, productGroupMap]); 
@@ -1113,7 +1116,7 @@ useEffect(() => {
     icon="on"
     state="default"
   />
-  <Button
+  {/* <Button
     onClick={() => saveChanges()}
     text="שמור שינויים"
     type="primary"
@@ -1126,7 +1129,7 @@ useEffect(() => {
   type="primary"
   icon="off"
   state={isEditing ? "default" : "disabled"} // קביעת מצב הכפתור
-/>
+/> */}
   </div>
 </div>
       <div className="filter-inputs-container-new">
@@ -1617,7 +1620,6 @@ useEffect(() => {
     />
   </div>
 )}
-
 {selectedProductGroup && selectedProductGroup !== "3" && selectedProductGroup !== "4" && (
   <div className="form-group">
     <label htmlFor="pensiaPremia">פרמיה פנסיה</label>

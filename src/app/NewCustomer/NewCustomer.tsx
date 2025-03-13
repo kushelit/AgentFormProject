@@ -1283,6 +1283,66 @@ const handleNewSelectCustomer = (id: string) => {
     <div className="first-table">
     <div className="table-header">
     <div className="table-title">ניהול לקוחות</div>
+   <div className="newCustomerFormButton">
+  <Button
+    onClick={handleOpenModalCustomerForm}
+    text="הזנת פרטי לקוח"
+    type="primary"
+    icon="on"
+    state="default"
+  />
+  <Button
+    onClick={saveCustomerChanges}
+    text="שמור שינויים"
+    type="primary"
+    icon="off"
+    state={editingRowCustomer ? "default" : "disabled"} // כפתור פעיל רק כשיש שורה שנערכת
+    disabled={!editingRowCustomer} // מנוטרל אם אין שורה שנערכת
+  />
+  {/* כפתור לביטול עריכה */}
+  <Button
+    onClick={cancelEditCustomer}
+    text="בטל"
+    type="primary"
+    icon="off"
+    state={editingRowCustomer ? "default" : "disabled"} // כפתור פעיל רק כשיש שורה שנערכת
+    disabled={!editingRowCustomer} // מנוטרל אם אין שורה שנערכת
+  />
+</div>
+</div>
+<div className="filter-select-container">
+             <select onChange={handleAgentChange} value={selectedAgentId} className="select-input">
+              {detail?.role === 'admin' && <option value="">בחר סוכן</option>}
+              {detail?.role === 'admin' && <option value="all">כל הסוכנות</option>}
+              {agents.map(agent => (
+               <option key={agent.id} value={agent.id}>{agent.name}</option>
+                ))}
+             </select>
+          <input className="filter-input"
+            type="text"
+            placeholder="שם פרטי"
+            value={firstNameCustomerFilter}
+            onChange={(e) => setfirstNameCustomerFilter(e.target.value)}
+          />
+          <input className="filter-input"
+            type="text"
+            placeholder="שם משפחה"
+            value={lastNameCustomerFilter}
+            onChange={(e) => setlastNameCustomerFilter(e.target.value)}
+          />
+          <input className="filter-input"
+            type="text"
+            placeholder="תז לקוח"
+            value={idCustomerFilter}
+            onChange={(e) => setIdCustomerFilter(e.target.value)}
+          />
+          <input className="filter-input"
+            type="text"
+            placeholder="מבוטח אב"
+            value={parentFullNameFilter}
+            onChange={(e) => setParentFullNameFilter(e.target.value)}
+          />
+        </div>
       {isModalOpen && (
   <div className="modal">
     <div className="modal-content">
@@ -1290,10 +1350,13 @@ const handleNewSelectCustomer = (id: string) => {
       <button className="close-button" onClick={() =>  setIsModalOpen(false) }>
     ✖
   </button>
+  <form onSubmit={handleSubmit} className="form-container">
       {/* כותרת המודל */}
       <div className="modal-title">פרטי לקוח</div>
+      <section className="form-section">
+      <h3 className="section-title">פרטים אישיים</h3>
+      <div className="form-grid">
       {/* טופס המודל */}
-      <form onSubmit={handleSubmit} className="form-container">
         <div className="form-group">
           <label htmlFor="agentSelect">סוכנות</label>
           <select
@@ -1354,6 +1417,12 @@ const handleNewSelectCustomer = (id: string) => {
             onChange={handleBirthdayChange}
           />
         </div>
+        </div>
+        </section>
+{/* פרטי ליד */}
+<section className="form-section">
+  <h3 className="section-title">פרטי התקשרות</h3>
+  <div className="form-grid">
         <div className="form-group">
           <label htmlFor="phone">טלפון</label>
           <input
@@ -1399,25 +1468,26 @@ const handleNewSelectCustomer = (id: string) => {
             ))}
           </select>
         </div>
-        <div className="form-group">
+        <div className="form-group full-width">
           <label htmlFor="notes">הערות</label>
-          <input
-            type="text"
+          <textarea
             id="notes"
             name="notes"
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
-          />
+            rows={4}></textarea>
         </div>
+        </div>
+        </section>
         {/* כפתורי הפעולה */}
         <div className="button-group">
           <Button
-            type="submit"
+            type="primary"
             text="הזן"
             onClick={handleSubmit}
-            state="default"
              icon="off"
             disabled={!canSubmit || isEditing}
+             state={canSubmit && !isEditing ? "default" : "disabled"}
           />
              <Button
                 onClick={() => setIsModalOpen(false)}
@@ -1431,66 +1501,7 @@ const handleNewSelectCustomer = (id: string) => {
     </div>
   </div>
 )}
-      </div>
-      <div className="filter-select-container">
-             <select onChange={handleAgentChange} value={selectedAgentId} className="select-input">
-              {detail?.role === 'admin' && <option value="">בחר סוכן</option>}
-              {detail?.role === 'admin' && <option value="all">כל הסוכנות</option>}
-              {agents.map(agent => (
-               <option key={agent.id} value={agent.id}>{agent.name}</option>
-                ))}
-             </select>
-          <input className="filter-input"
-            type="text"
-            placeholder="שם פרטי"
-            value={firstNameCustomerFilter}
-            onChange={(e) => setfirstNameCustomerFilter(e.target.value)}
-          />
-          <input className="filter-input"
-            type="text"
-            placeholder="שם משפחה"
-            value={lastNameCustomerFilter}
-            onChange={(e) => setlastNameCustomerFilter(e.target.value)}
-          />
-          <input className="filter-input"
-            type="text"
-            placeholder="תז לקוח"
-            value={idCustomerFilter}
-            onChange={(e) => setIdCustomerFilter(e.target.value)}
-          />
-          <input className="filter-input"
-            type="text"
-            placeholder="מבוטח אב"
-            value={parentFullNameFilter}
-            onChange={(e) => setParentFullNameFilter(e.target.value)}
-          />
-        </div>
-   <div className="newCustomerFormButton">
-  <Button
-    onClick={handleOpenModalCustomerForm}
-    text="הזנת פרטי לקוח"
-    type="primary"
-    icon="on"
-    state="default"
-  />
-  <Button
-    onClick={saveCustomerChanges}
-    text="שמור שינויים"
-    type="primary"
-    icon="off"
-    state={editingRowCustomer ? "default" : "disabled"} // כפתור פעיל רק כשיש שורה שנערכת
-    disabled={!editingRowCustomer} // מנוטרל אם אין שורה שנערכת
-  />
-  {/* כפתור לביטול עריכה */}
-  <Button
-    onClick={cancelEditCustomer}
-    text="בטל"
-    type="primary"
-    icon="off"
-    state={editingRowCustomer ? "default" : "disabled"} // כפתור פעיל רק כשיש שורה שנערכת
-    disabled={!editingRowCustomer} // מנוטרל אם אין שורה שנערכת
-  />
-</div>
+
         <div className="firstTableData" >
           <table>
             <thead>

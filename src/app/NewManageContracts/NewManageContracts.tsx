@@ -43,6 +43,14 @@ import { Contract, ContractAgent } from '@/types/Contract'; // טיפוסים
   const [minuySochen1, setMinuySochen1] = useState(false);
   const [minuySochen2, setMinuySochen2] = useState(false);
 
+  const { 
+    agents, 
+    selectedAgentId, 
+    handleAgentChange, 
+  } = useFetchAgentData();
+
+ 
+
 
   //const [date, setDate] = useState('');
 
@@ -67,7 +75,7 @@ import { Contract, ContractAgent } from '@/types/Contract'; // טיפוסים
   const { 
     selectedCompanyFilter,
     setSelectedCompanyFilter,
-    selectedAgentId,
+    // selectedAgentId,
   } = useFetchAgentData();
 
 
@@ -529,6 +537,13 @@ return (
             {/* תוכן לשונית הקצאת יעדים */}
             <div className="NewcontractsDefaultMD">
             <div className="filter-select-container">
+             <select onChange={handleAgentChange} value={selectedAgentId} className="select-input">
+              {detail?.role === 'admin' && <option value="">בחר סוכן</option>}
+              {detail?.role === 'admin' && <option value="all">כל הסוכנות</option>}
+              {agents.map(agent => (
+               <option key={agent.id} value={agent.id}>{agent.name}</option>
+                ))}
+             </select>
           <select className="select-input" 
           value={selectedProductGroupFilter}
           onChange={(e) => {

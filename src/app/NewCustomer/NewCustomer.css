@@ -75,6 +75,7 @@ table tr {
   position: relative; /* מיקום יחסי */
   width: 350px;
   max-width: 90%; /* התאמה למסכים קטנים */
+  max-height: 90vh; /* כדי להימנע מחריגה מהמסך */
   background-color: var(--clrgray3); /* צבע הרקע מפיגמה */
   border-radius: 4px; /* פינות מעוגלות */
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2); /* צל עדין */
@@ -82,6 +83,7 @@ table tr {
   font-family: "Arial", sans-serif;
   box-shadow: none !important; /* מסיר צל */
   border: none !important; /* מסיר גבולות */
+  margin-top: 8vh; /* מרחק מהחלק העליון של המסך */
 }
 
 .modal-content th, .modal-content td {
@@ -94,7 +96,7 @@ table tr {
   box-shadow: none; /* מסיר צללים */
 }
 
-.modal-content .title {
+.modal-content .modal-title {
   height: auto; /* מאפשר התאמה אוטומטית לגובה */
   width: auto; /* מאפשר התאמה אוטומטית לרוחב */
   color: #3b6a95;
@@ -311,6 +313,7 @@ table tr {
   display: flex; /* מסדר את הילדים של הקונטיינר בצורה אופקית */
   justify-content: flex-end; /* מיישר את התוכן לשמאל */
   gap: 2px; /* רווח בין הכפתורים */
+  margin-top: 20px;
 }
 
 .left-buttons{
@@ -339,3 +342,124 @@ table tr {
 .DataTableReport tr:hover td {
  background-color: var(--clrgray3);
 } 
+
+
+
+.form-container .title {
+  height: auto; /* מאפשר התאמה אוטומטית לגובה */
+  width: auto; /* מאפשר התאמה אוטומטית לרוחב */
+  color: #3b6a95;
+  direction: rtl;
+  font-family: "Inter-Bold", Helvetica;
+  font-size: 14px; /* גודל טקסט גדול יותר */
+  font-weight: 700;
+  letter-spacing: 0;
+  line-height: 22px;
+  position: relative; /* משנה את המיקום ליחסי להורה */
+  top: auto; /* מסיר את המיקום המוחלט */
+  left: auto;
+  white-space: nowrap; /* מונע שבירת שורות */
+  margin-bottom: 10px; /* מוסיף ריווח תחתון */
+  border-bottom: 1px solid #ddd; /* קו תחתון לכותרת */
+  padding-bottom: 5px; /* ריווח תחתון לפני הקו */
+  margin-bottom: 20px; /* ריווח תחתון לאחר הקו */
+}
+
+.section-title {
+  font-weight: bold;
+}
+
+
+/* עיצוב תוויות */
+.form-group label {
+  font-size: 12px;
+  color: #444;
+  margin-bottom: 0px;
+  display: block;
+}
+.form-group input,
+.form-group select,
+.form-group textarea {
+  width: 100%; /* תופס את כל הרוחב הזמין */
+  height: 30px; /* גובה אחיד */
+  padding: 6px; /* רווח פנימי */
+  font-size: 12px; /* גודל טקסט אחיד */
+  border: 1px solid #ccc; /* מסגרת אחידה */
+  border-radius: 4px; /* פינות עגולות */
+  box-sizing: border-box; /* כולל Padding בתוך ה-Width */
+  background-color: #fff; /* צבע רקע אחיד */
+}
+
+.form-group.textarea-group {
+  grid-column: span 2; /* תופס שתי עמודות */
+}
+
+.form-group textarea {
+  width: 100%; /* תופס את כל רוחב הטופס */
+  height: 90px; /* מגדיר גובה קבוע */
+  resize: none; /* מונע שינוי גודל */
+  overflow: auto; /* מאפשר גלילה פנימית במקרה הצורך */
+  padding: 10px;
+  font-size: 12px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  box-sizing: border-box;
+}
+
+
+.form-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  align-items: center;
+  padding-top: 10px;
+}
+
+/* חלוקת שדות לטופס עם שתי עמודות */
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr); /* שתי עמודות */
+  row-gap: 10px; /* רווח בין השורות */
+  column-gap: 20px; /* רווח בין העמודות */
+  margin-bottom: 10px; /* רווח תחתון */
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+}
+
+
+.checkbox-input {
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  border: 1px solid var(--clrgray5);
+  background-color: var(--clrwhite);
+  cursor: pointer;
+  appearance: none;
+  vertical-align: middle; /* מוודא שהצ'קבוקס מיושר עם המלל */
+  margin-left: 8px; /* מוסיף ריווח בין הצ'קבוקס למלל */
+}
+
+.checkbox-input:checked {
+  background-color: var(--clrprimary);
+  border-color: var(--clrprimary);
+}
+
+.full-width {
+  grid-column: span 2; /* שהשדה יתפרס על שני טורים */
+  width: 100%; /* רוחב מלא */
+}
+
+
+.form-section select {
+  appearance: none;
+  direction: rtl;
+  text-align: center; /* יישור התוכן בתוך השדה למרכז */
+  align-items: center !important; /* ממקם טקסט במרכז אנכי */
+  background-position: left 10px center; /* ממקם את החץ */
+  background-size: 10px; /* התאמת גודל החץ */
+  text-align-last: center; /* ממקם את הטקסט באמצע */
+}

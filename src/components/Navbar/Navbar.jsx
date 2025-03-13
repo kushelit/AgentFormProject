@@ -137,7 +137,7 @@ export const Navbar = ({ items, bottomPage, className }) => {
                 state="default"
                 className="bottom-item"
               >
-                <a href={bottomPage.href} className="navbar-link">
+                <a href={bottomPage.href} className="navbar-link" lang="en">
                   {bottomPage.label}
                 </a>
               </NavbarItem>

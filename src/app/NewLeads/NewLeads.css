@@ -453,3 +453,14 @@ input::placeholder {
   background-color: var(--clrprimary);
   border-color: var(--clrprimary);
 }
+
+
+ .form-section select {
+  appearance: none;
+  direction: rtl;
+  text-align: center; /* יישור התוכן בתוך השדה למרכז */
+  align-items: center !important; /* ממקם טקסט במרכז אנכי */
+  background-position: left 10px center; /* ממקם את החץ */
+  background-size: 10px; /* התאמת גודל החץ */
+  text-align-last: center; /* ממקם את הטקסט באמצע */
+}
