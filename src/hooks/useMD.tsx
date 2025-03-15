@@ -152,37 +152,86 @@ const useFetchMD = (selectedAgentId?:string) => {
       
       //   fetchProductsMap();
       // }, []);
+// /// is needed??? **************
+//       useEffect(() => {
+//         const fetchProductsMap = async () => {
+//           setIsLoading(true);
+//           try {
+//             const querySnapshot = await getDocs(collection(db, "product"));
+//             const productMap: ProductMap = {};
+//             const productGroupMap: ProductGroupMap = {}; // ✅ נוסיף גם את המפה לקבוצות
+      
+//             querySnapshot.forEach((doc) => {
+//               const data = doc.data();
+//               productMap[data.productName] = data.productGroup; 
+//               // if (data.productGroup) {
+//               //   productGroupMap[data.productName] = data.productGroup; // ✅ נוסיף את הקבוצה
+//               // }
+//             });
+//             console.log("📌 Fetched Product Group Map:", productGroupMap); // 🔍 בדיקה בקונסול
+//             setProductMap(productMap);
+//             // setProductGroupMap(productGroupMap); // ✅ שמירת קבוצות המוצרים
+      
+//           } catch (error) {
+//             console.error("Failed to fetch products:", error);
+//           } finally {
+//             setIsLoading(false);
+//           }
+//         };
+      
+//         fetchProductsMap();
+//       }, []);
 
-      useEffect(() => {
-        const fetchProductsMap = async () => {
-          setIsLoading(true);
-          try {
-            const querySnapshot = await getDocs(collection(db, "product"));
-            const productMap: ProductMap = {};
-            const productGroupMap: ProductGroupMap = {}; // ✅ נוסיף גם את המפה לקבוצות
-      
-            querySnapshot.forEach((doc) => {
-              const data = doc.data();
-              productMap[data.productName] = data.productGroup; 
-              if (data.productGroup) {
-                productGroupMap[data.productName] = data.productGroup; // ✅ נוסיף את הקבוצה
-              }
-            });
-            console.log("📌 Fetched Product Group Map:", productGroupMap); // 🔍 בדיקה בקונסול
-            setProductMap(productMap);
-            // setProductGroupMap(productGroupMap); // ✅ שמירת קבוצות המוצרים
-      
-          } catch (error) {
-            console.error("Failed to fetch products:", error);
-          } finally {
-            setIsLoading(false);
-          }
-        };
-      
-        fetchProductsMap();
-      }, []);
-      
-      
+
+type ProductToGroupMap = {
+  [productName: string]: string; // שם מוצר → ID של קבוצת מוצר
+};
+
+
+const [productToGroupMap, setProductToGroupMap] = useState<ProductToGroupMap>({});
+
+useEffect(() => {
+  const fetchProductsMap = async () => {
+    setIsLoading(true);
+    try {
+      const querySnapshot = await getDocs(collection(db, "product"));
+
+      const productMap: ProductMap = {}; // מפה של מוצר -> ID קבוצת מוצר
+      const productToGroupMap: ProductToGroupMap = {}; // מפה של מוצר -> ID קבוצת מוצר (עם הטיפוס הנכון)
+
+      querySnapshot.forEach((doc) => {
+        const data = doc.data();
+        console.log("🛠 Fetching product:", data);
+
+        // שמירת המוצר עם ה-ID של קבוצת המוצר
+        if (data.productName && data.productGroup) {
+          productMap[data.productName.trim()] = data.productGroup;
+          productToGroupMap[data.productName.trim()] = data.productGroup; // ✅ עדכון המפה עם טיפוס נכון
+        }
+      });
+
+      console.log("📌 Final productToGroupMap:", productToGroupMap);
+
+      // שמירת הנתונים בסטייט
+      setProductMap(productMap);
+      setProductToGroupMap(productToGroupMap);
+
+    } catch (error) {
+      console.error("❌ Failed to fetch products:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  fetchProductsMap();
+}, []);
+
+
+
+
+
+
+
       interface Product {
         id: string;
         name: string;
@@ -357,7 +406,7 @@ const fetchSourceLeadForAgent = async (UserAgentId: string): Promise<Lead[]> => 
     setSelectedStatusPolicyFilter,
     productMap, isLoading,statusLeadMap,sourceLeadList,SetSourceLeadList,
     fetchSourceLeadForAgent,fetchStatusLeadForAgentAndDefault,
-    formatIsraeliDateOnly,sourceLeadMap,fetchSourceLeadMap
+    formatIsraeliDateOnly,sourceLeadMap,fetchSourceLeadMap, productToGroupMap
     
     
   };

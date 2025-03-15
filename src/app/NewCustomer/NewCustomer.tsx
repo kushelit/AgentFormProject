@@ -19,6 +19,7 @@ import { CustomersTypeForFetching } from '@/types/Customer';
 import TableFooter from "@/components/TableFooter/TableFooter";
 import { FamilyLinkDialog, startLinkingProcess,handleConfirmFamilyLink,disconnectCustomers} from "./FamilyLinkDialog"; // עדכני את הנתיב בהתאם למיקום הקובץ
 import {fetchCustomersForAgent} from '@/services/fetchCustomerDetails'; // פונקציות
+import {useSortableTable}  from "@/hooks/useSortableTable";
 
 
 const NewCustomer = () => {
@@ -89,6 +90,7 @@ const NewCustomer = () => {
   const [selectedCustomers, setSelectedCustomers] = useState<CustomersTypeForFetching[]>([]);
   const [customers, setCustomers] = useState<CustomersTypeForFetching[]>([]);
 
+  const { sortedData, sortColumn, sortOrder, handleSort, setSortedData } = useSortableTable(filteredData);
 
 // ניהול העמוד הנוכחי
 const [currentPage, setCurrentPage] = useState(1);
@@ -97,7 +99,7 @@ const rowsPerPage = 8; // מספר השורות בעמוד
 // חישוב הנתונים לעמוד הנוכחי
 const indexOfLastRow = currentPage * rowsPerPage;
 const indexOfFirstRow = indexOfLastRow - rowsPerPage;
-const currentRows = filteredData.slice(indexOfFirstRow, indexOfLastRow);
+const currentRows = sortedData.slice(indexOfFirstRow, indexOfLastRow);
 
 // שינוי עמוד
 const handlePageChange = (pageNumber: number) => {
@@ -240,6 +242,14 @@ const removeCustomerFromList = (id: string) => {
     return updatedList;
   });
 };
+
+const handleRemoveCustomer = (customerId: string) => {
+  setSelectedCustomers((prev) => prev.filter((c) => c.id !== customerId));
+};
+
+
+
+
 
 
 useEffect(() => {
@@ -1166,7 +1176,8 @@ const handleNewSelectCustomer = (id: string) => {
     } else {
       newSelection.push(customer); // הוסף אם לא מסומן
     }
-
+    setSalesData(null);
+    setTotalCommissions({ totalCommissionHekef: 0, totalCommissionNifraim: 0 });
     console.log("Updated selectedCustomers:", newSelection);
     return newSelection;
   });
@@ -1504,22 +1515,39 @@ const handleNewSelectCustomer = (id: string) => {
 
         <div className="firstTableData" >
           <table>
-            <thead>
-              <tr>
-               {/* {showSelect && <th>Select</th>}*/}
-               <th>בחר</th>
-                <th>שם פרטי</th>
-                <th>שם משפחה</th>
-                <th>תז</th>
-                <th>מבוטח אב</th>
-                <th>תאריך לידה</th>
-                <th>טלפון</th>
-                <th>מייל</th>
-                <th>כתובת</th>
-                <th>מקור ליד</th>
-                <th className="narrow-cell">🔧</th>
-              </tr>
-            </thead>
+          <thead>
+  <tr>
+    <th>בחר</th> {/* לא ממוין */}
+    <th onClick={() => handleSort("firstNameCustomer" as keyof CustomersTypeForFetching)}>
+      שם פרטי {sortColumn && sortColumn === "firstNameCustomer" ? (sortOrder === "asc" ? "▲" : "▼") : ""}
+    </th>
+    <th onClick={() => handleSort("lastNameCustomer" as keyof CustomersTypeForFetching)}>
+      שם משפחה {sortColumn && sortColumn === "lastNameCustomer" ? (sortOrder === "asc" ? "▲" : "▼") : ""}
+    </th>
+    <th onClick={() => handleSort("IDCustomer" as keyof CustomersTypeForFetching)}>
+      תז {sortColumn && sortColumn === "IDCustomer" ? (sortOrder === "asc" ? "▲" : "▼") : ""}
+    </th>
+    <th onClick={() => handleSort("parentFullName" as keyof CustomersTypeForFetching)}>
+      מבוטח אב {sortColumn && sortColumn === "parentFullName" ? (sortOrder === "asc" ? "▲" : "▼") : ""}
+    </th>
+    <th onClick={() => handleSort("birthday" as keyof CustomersTypeForFetching)}>
+      תאריך לידה {sortColumn && sortColumn === "birthday" ? (sortOrder === "asc" ? "▲" : "▼") : ""}
+    </th>
+    <th onClick={() => handleSort("phone" as keyof CustomersTypeForFetching)}>
+      טלפון {sortColumn && sortColumn === "phone" ? (sortOrder === "asc" ? "▲" : "▼") : ""}
+    </th>
+    <th onClick={() => handleSort("mail" as keyof CustomersTypeForFetching)}>
+      מייל {sortColumn && sortColumn === "mail" ? (sortOrder === "asc" ? "▲" : "▼") : ""}
+    </th>
+    <th onClick={() => handleSort("address" as keyof CustomersTypeForFetching)}>
+      כתובת {sortColumn && sortColumn === "address" ? (sortOrder === "asc" ? "▲" : "▼") : ""}
+    </th>
+    <th onClick={() => handleSort("sourceValue" as keyof CustomersTypeForFetching)}>
+      מקור ליד {sortColumn && sortColumn === "sourceValue" ? (sortOrder === "asc" ? "▲" : "▼") : ""}
+    </th>
+    <th className="narrow-cell">🔧</th> {/* לא ממוין */}
+  </tr>
+</thead>
             <tbody>
   {currentRows.map((item) => (
     <tr key={item.id} className={editingRowCustomer === item.id ? "editing-row" : ""}
@@ -1746,6 +1774,20 @@ const handleNewSelectCustomer = (id: string) => {
  setCustomers={setCustomers} // ✅ לוודא שזה נשלח
   setFilteredData={setFilteredData} // ✅ לוודא שזה נשלח
 />
+)}
+{selectedCustomers.length > 0 && (
+  <div className="selected-customers-container">
+    <strong>לקוחות שנבחרו:</strong>
+    <ul>
+      {selectedCustomers.map((customer) => (
+        <li key={customer.id}>
+          {customer.firstNameCustomer} {customer.lastNameCustomer} 
+          <button onClick={() => handleRemoveCustomer(customer.id)}>❌</button>
+        </li>
+      ))}
+    </ul>
+    <button onClick={() => setSelectedCustomers([])}>נקה בחירה</button>
+  </div>
 )}
 </div>
         {/* רכיב הניווט */}

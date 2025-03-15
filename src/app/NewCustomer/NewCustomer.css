@@ -463,3 +463,36 @@ table tr {
   background-size: 10px; /* התאמת גודל החץ */
   text-align-last: center; /* ממקם את הטקסט באמצע */
 }
+
+.selected-customers-container {
+  background: #e3ebf0;
+  padding: 10px;
+  border-radius: 5px;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap; /* מאפשר שבירה לשורה נוספת אם אין מקום */
+  gap: 10px; /* ריווח בין השמות */
+}
+
+.selected-customers-container ul {
+  list-style: none;
+  padding: 0;
+  display: flex;
+  gap: 10px; /* רווח בין הפריטים */
+  flex-wrap: wrap; /* עובר לשורה חדשה אם אין מספיק מקום */
+}
+
+.selected-customers-container li {
+  display: flex;
+  align-items: center;
+  gap: 5px; /* מרחק בין האייקון לשם */
+}
+
+.selected-customers-container button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 16px;
+  color: red;
+}

@@ -36,6 +36,7 @@ export interface Sale {
 
   export type AgentDataType = {
     id: string;
+    AgentId: string;
     firstNameCustomer: string;
     lastNameCustomer: string;
     IDCustomer: string;

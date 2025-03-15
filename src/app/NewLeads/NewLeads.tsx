@@ -12,7 +12,7 @@ import Edit from '@/components/icons/Edit/Edit';
 import Delete  from '@/components/icons/Delete/Delete'; 
 import useEditableTable from "@/hooks/useEditableTable";
 import { LeadsType } from '@/types/LeadsType ';
-// import  useSort  from "@/hooks/useSort";
+ import {useSortableTable}  from "@/hooks/useSortableTable";
 
 
 const NewLeads = () => {
@@ -587,51 +587,55 @@ const [editingRowIdTime, setEditingRowIdTime] = useState<string | null>(null);
   
  
 
-  const [sortColumn, setSortColumn] = useState<string | null>(null);
-  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
+  // const [sortColumn, setSortColumn] = useState<string | null>(null);
+  // const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
   
 
-  const handleSort = (column: keyof LeadsType) => {
-    const newSortOrder = sortColumn === column && sortOrder === "asc" ? "desc" : "asc";
-    setSortColumn(column);
-    setSortOrder(newSortOrder);
+  // const handleSort = (column: keyof LeadsType) => {
+  //   const newSortOrder = sortColumn === column && sortOrder === "asc" ? "desc" : "asc";
+  //   setSortColumn(column);
+  //   setSortOrder(newSortOrder);
   
-    const sorted = [...filteredData].sort((a, b) => {
-      let valueA: string | boolean | Timestamp | undefined = a[column];
-      let valueB: string | boolean | Timestamp | undefined = b[column];
+  //   const sorted = [...filteredData].sort((a, b) => {
+  //     let valueA: string | boolean | Timestamp | undefined = a[column];
+  //     let valueB: string | boolean | Timestamp | undefined = b[column];
   
-      // ✅ אם הערכים `undefined` או `null`, נשתמש במחרוזת ריקה למניעת שגיאות
-      if (valueA == null) valueA = "";
-      if (valueB == null) valueB = "";
+  //     // ✅ אם הערכים `undefined` או `null`, נשתמש במחרוזת ריקה למניעת שגיאות
+  //     if (valueA == null) valueA = "";
+  //     if (valueB == null) valueB = "";
   
-      // ✅ אם הערכים הם `boolean`, נמיר אותם למחרוזת לצורך השוואה
-      if (typeof valueA === "boolean") valueA = valueA ? "1" : "0";
-      if (typeof valueB === "boolean") valueB = valueB ? "1" : "0";
+  //     // ✅ אם הערכים הם `boolean`, נמיר אותם למחרוזת לצורך השוואה
+  //     if (typeof valueA === "boolean") valueA = valueA ? "1" : "0";
+  //     if (typeof valueB === "boolean") valueB = valueB ? "1" : "0";
   
-      // ✅ אם הערכים הם Firebase `Timestamp`, נמיר אותם ל- `Date` רק כאשר נדרש
-      if (valueA instanceof Timestamp) valueA = valueA.toDate().toISOString();
-      if (valueB instanceof Timestamp) valueB = valueB.toDate().toISOString();
+  //     // ✅ אם הערכים הם Firebase `Timestamp`, נמיר אותם ל- `Date` רק כאשר נדרש
+  //     if (valueA instanceof Timestamp) valueA = valueA.toDate().toISOString();
+  //     if (valueB instanceof Timestamp) valueB = valueB.toDate().toISOString();
   
-      // ✅ אם הערכים הם מחרוזות של תאריכים, נמיר למספר כדי שניתן יהיה למיין לפי זמן
-      if (typeof valueA === "string" && column.toLowerCase().includes("date")) {
-        const parsedA = Date.parse(valueA);
-        if (!isNaN(parsedA)) valueA = String(parsedA);
-      }
-      if (typeof valueB === "string" && column.toLowerCase().includes("date")) {
-        const parsedB = Date.parse(valueB);
-        if (!isNaN(parsedB)) valueB = String(parsedB);
-      }
+  //     // ✅ אם הערכים הם מחרוזות של תאריכים, נמיר למספר כדי שניתן יהיה למיין לפי זמן
+  //     if (typeof valueA === "string" && column.toLowerCase().includes("date")) {
+  //       const parsedA = Date.parse(valueA);
+  //       if (!isNaN(parsedA)) valueA = String(parsedA);
+  //     }
+  //     if (typeof valueB === "string" && column.toLowerCase().includes("date")) {
+  //       const parsedB = Date.parse(valueB);
+  //       if (!isNaN(parsedB)) valueB = String(parsedB);
+  //     }
   
-      // ✅ מיון טקסטים
-      return newSortOrder === "asc"
-        ? String(valueA).localeCompare(String(valueB), "he")
-        : String(valueB).localeCompare(String(valueA), "he");
-    });
+  //     // ✅ מיון טקסטים
+  //     return newSortOrder === "asc"
+  //       ? String(valueA).localeCompare(String(valueB), "he")
+  //       : String(valueB).localeCompare(String(valueA), "he");
+  //   });
   
-    console.log("✅ נתונים אחרי מיון:", sorted);
-    setFilteredData(sorted);
-  };
+  //   console.log("✅ נתונים אחרי מיון:", sorted);
+  //   setFilteredData(sorted);
+  // };
   
+
+
+
+  const { sortedData, sortColumn, sortOrder, handleSort, setSortedData } = useSortableTable(filteredData);
 
 
   return (
@@ -859,7 +863,7 @@ const [editingRowIdTime, setEditingRowIdTime] = useState<string | null>(null);
   </tr>
               </thead>
               <tbody>
-                {filteredData.map((item) => (
+                {sortedData.map((item) => (
                   <tr key={item.id}>
                     <td>{item.agentName}</td>
                     <td>{`${item.firstNameCustomer || ''} ${item.lastNameCustomer || ''}`.trim()}</td>

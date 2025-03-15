@@ -23,6 +23,7 @@ import useEditableTable from "@/hooks/useEditableTable";
 import  fetchDataForAgent from '@/services/fetchDataForAgent';
 import { Customer, Sale, CombinedData, AgentDataType } from '@/types/Sales';
 import  fetchCustomerBelongToAgent from '@/services/fetchCustomerBelongToAgent';
+import {useSortableTable}  from "@/hooks/useSortableTable";
 
 
 //useFetchAgentData
@@ -63,8 +64,6 @@ const NewAgentForm: React.FC = () => {
     setIsLoadingAgent
   } = useFetchAgentData();
 
-
-
   const 
   { monthlyTotals,
     overallFinansimTotal, overallPensiaTotal, overallInsuranceTotal, overallNiudPensiaTotal
@@ -84,7 +83,7 @@ const NewAgentForm: React.FC = () => {
     selectedStatusPolicyFilter, 
     setSelectedStatusPolicyFilter, 
     productGroupMap,
-    formatIsraeliDateOnly
+    formatIsraeliDateOnly, productToGroupMap
   } = useFetchMD();
 
   
@@ -128,6 +127,11 @@ const [filteredData, setFilteredData] = useState<AgentDataType[]>([]);
 
 const [openMenuRow, setOpenMenuRow] = useState(null);
 
+
+
+const { sortedData, sortColumn, sortOrder, handleSort } = useSortableTable<CombinedData>(filteredData);
+
+
 // ניהול העמוד הנוכחי
 const [currentPage, setCurrentPage] = useState(1);
 const rowsPerPage = 8; // מספר השורות בעמוד
@@ -135,7 +139,7 @@ const rowsPerPage = 8; // מספר השורות בעמוד
 // חישוב הנתונים לעמוד הנוכחי
 const indexOfLastRow = currentPage * rowsPerPage;
 const indexOfFirstRow = indexOfLastRow - rowsPerPage;
-const currentRows = filteredData.slice(indexOfFirstRow, indexOfLastRow);
+const currentRows = sortedData.slice(indexOfFirstRow, indexOfLastRow);
 
 
 const resetForm = (clearCustomerFields: boolean = false) => {
@@ -706,56 +710,119 @@ const handleSubmit = async (event: FormEvent<HTMLFormElement>, closeAfterSubmit 
     setAgentData(data);
   }, [data]); // ✅ מבטיח שברגע שהנתונים נטענים, הם יכנסו ל-agentData
   
-
+  const formatDateForComparison = (dateString: string) => {
+    if (!dateString) return "";
+    const [year, month, day] = dateString.split("-");
+    return `${day}.${month}.${year}`; // הופך 2025-02-23 ל- 23.02.2025
+  };
   
-  useEffect(() => {
-    const now = new Date();
-    const currentYear = now.getFullYear();
-    const currentMonth = (now.getMonth() + 1).toString().padStart(2, '0');
-    const startOfMonth = `${currentYear}-${currentMonth}-01`;
-    const endOfMonth = new Date(currentYear, now.getMonth() + 1, 0).toISOString().slice(0, 10);
+  
+
+
+//   useEffect(() => {
+//     const now = new Date();
+//     const currentYear = now.getFullYear();
+//     const currentMonth = (now.getMonth() + 1).toString().padStart(2, '0');
+//     const startOfMonth = `${currentYear}-${currentMonth}-01`;
+//     const endOfMonth = new Date(currentYear, now.getMonth() + 1, 0).toISOString().slice(0, 10);
     
-    let expiryStart: string | undefined;
-    let expiryEnd: string | undefined;
+//     let expiryStart: string | undefined;
+//     let expiryEnd: string | undefined;
 
-    if (expiryDateFilter) {
-        const [filterMonth, filterYear] = expiryDateFilter.split('/');
-        if (filterMonth && filterYear) {
-            const fullYear = `20${filterYear}`; // Convert 'YY' to 'YYYY'
-            expiryStart = `${fullYear}-${filterMonth}-01`;
-            expiryEnd = new Date(Number(fullYear), Number(filterMonth), 0).toISOString().slice(0, 10); // Last day of the selected month
-        }
-    }
- // שלב ה-map: הבטחת ערכים חוקיים
- console.log("🔄 עדכון הנתונים בטבלה, agentData:", agentData);
- let data = agentData.map((item) => ({
-  ...item,
-  mounth: item.mounth ?? '', // חובה
-  statusPolicy: item.statusPolicy ?? '', // חובה
-  firstNameCustomer: item.firstNameCustomer ?? '', // חובה
-  lastNameCustomer: item.lastNameCustomer ?? '', // חובה
-  IDCustomer: item.IDCustomer ?? '', // חובה
-  company: item.company ?? '', // חובה
-  product: item.product ?? '', // חובה
-}));
-// שלב ה-filter: סינון לפי הקריטריונים
-data = data.filter((item) => {
-  const itemMonth = item.mounth.slice(0, 7); // Extract "YYYY-MM" from "YYYY-MM-DD"
+//     if (expiryDateFilter) {
+//       const newFilteredData = filteredData.filter((item) => {
+//         const itemDate = item.mounth ? item.mounth.toString() : ""; // הפיכת התאריך למחרוזת
+//         return itemDate.includes(expiryDateFilter);
+//       });
+    
+//       setFilteredData(newFilteredData); // ✅ עדכון ה-state במקום שינוי ישיר
+//     }
+    
+//  // שלב ה-map: הבטחת ערכים חוקיים
+//  console.log("🔄 עדכון הנתונים בטבלה, agentData:", agentData);
+//  let data = agentData.map((item) => ({
+//   ...item,
+//   mounth: item.mounth ?? '', // חובה
+//   statusPolicy: item.statusPolicy ?? '', // חובה
+//   firstNameCustomer: item.firstNameCustomer ?? '', // חובה
+//   lastNameCustomer: item.lastNameCustomer ?? '', // חובה
+//   IDCustomer: item.IDCustomer ?? '', // חובה
+//   company: item.company ?? '', // חובה
+//   product: item.product ?? '', // חובה
+// }));
+// // שלב ה-filter: סינון לפי הקריטריונים
+// data = data.filter((item) => {
+//   const itemMonth = item.mounth.slice(0, 7); // Extract "YYYY-MM" from "YYYY-MM-DD"
 
-  return (
-    (selectedWorkerIdFilter ? item.workerId === selectedWorkerIdFilter : true) &&
-    (selectedCompanyFilter ? item.company === selectedCompanyFilter : true) &&
-    (selectedProductFilter ? item.product === selectedProductFilter : true) &&
-    item.IDCustomer.includes(idCustomerFilter) &&
-    item.firstNameCustomer.includes(firstNameCustomerFilter) &&
-    item.lastNameCustomer.includes(firstNameCustomerFilter) &&
-    (minuySochenFilter === '' || item.minuySochen?.toString() === minuySochenFilter) &&
-    (!expiryDateFilter ||
-      (expiryStart && expiryEnd && item.mounth >= expiryStart && item.mounth <= expiryEnd)) &&
-    (selectedStatusPolicyFilter ? item.statusPolicy === selectedStatusPolicyFilter : true)
-  );
-});
-      // שלב ה-sort: מיון התוצאות
+//   return (
+//     (selectedWorkerIdFilter ? item.workerId === selectedWorkerIdFilter : true) &&
+//     (selectedCompanyFilter ? item.company === selectedCompanyFilter : true) &&
+//     (selectedProductFilter ? item.product === selectedProductFilter : true) &&
+//     item.IDCustomer.includes(idCustomerFilter) &&
+//     item.firstNameCustomer.includes(firstNameCustomerFilter) &&
+//     item.lastNameCustomer.includes(firstNameCustomerFilter) &&
+//     (minuySochenFilter === '' || item.minuySochen?.toString() === minuySochenFilter) &&
+//     (!expiryDateFilter ||
+//       (expiryStart && expiryEnd && item.mounth >= expiryStart && item.mounth <= expiryEnd)) &&
+//     (selectedStatusPolicyFilter ? item.statusPolicy === selectedStatusPolicyFilter : true)
+//   );
+// });
+//       // שלב ה-sort: מיון התוצאות
+//   data.sort((a, b) => {
+//     const dateA = new Date(a.mounth).getTime();
+//     const dateB = new Date(b.mounth).getTime();
+
+//     if (dateA !== dateB) {
+//       return dateB - dateA;
+//     } else {
+//       return a.IDCustomer.localeCompare(b.IDCustomer);
+//     }
+//   });
+//   // עדכון הסטייט
+//   setFilteredData(data);
+// }, [
+//   selectedWorkerIdFilter,
+//   selectedCompanyFilter,
+//   selectedProductFilter,
+//   selectedStatusPolicyFilter,
+//   agentData,
+//   idCustomerFilter,
+//   firstNameCustomerFilter,
+//   lastNameCustomerFilter,
+//   minuySochenFilter,
+//   expiryDateFilter,
+// ]);
+
+
+useEffect(() => {
+  let data = agentData.map((item) => ({
+    ...item,
+    mounth: item.mounth ?? '', // חובה
+    statusPolicy: item.statusPolicy ?? '', // חובה
+    firstNameCustomer: item.firstNameCustomer ?? '', // חובה
+    lastNameCustomer: item.lastNameCustomer ?? '', // חובה
+    IDCustomer: item.IDCustomer ?? '', // חובה
+    company: item.company ?? '', // חובה
+    product: item.product ?? '', // חובה
+  }));
+
+  // שלב ה-filter: סינון לפי הקריטריונים
+  data = data.filter((item) => {
+    const itemDate = item.mounth ? formatDateForComparison(item.mounth) : ""; // המרת התאריך לפורמט תואם מסך
+    return (
+      (selectedWorkerIdFilter ? item.workerId === selectedWorkerIdFilter : true) &&
+      (selectedCompanyFilter ? item.company === selectedCompanyFilter : true) &&
+      (selectedProductFilter ? item.product === selectedProductFilter : true) &&
+      item.IDCustomer.includes(idCustomerFilter) &&
+      item.firstNameCustomer.includes(firstNameCustomerFilter) &&
+      item.lastNameCustomer.includes(firstNameCustomerFilter) &&
+      (minuySochenFilter === '' || item.minuySochen?.toString() === minuySochenFilter) &&
+      (!expiryDateFilter || itemDate.includes(expiryDateFilter)) && // ✅ חיפוש חלקי בתאריך
+      (selectedStatusPolicyFilter ? item.statusPolicy === selectedStatusPolicyFilter : true)
+    );
+  });
+
+  // שלב ה-sort: מיון התוצאות
   data.sort((a, b) => {
     const dateA = new Date(a.mounth).getTime();
     const dateB = new Date(b.mounth).getTime();
@@ -766,6 +833,7 @@ data = data.filter((item) => {
       return a.IDCustomer.localeCompare(b.IDCustomer);
     }
   });
+
   // עדכון הסטייט
   setFilteredData(data);
 }, [
@@ -780,6 +848,9 @@ data = data.filter((item) => {
   minuySochenFilter,
   expiryDateFilter,
 ]);
+
+
+
 
 
 
@@ -962,18 +1033,19 @@ const handleIDBlur = async () => {
 //   }
 // }, [selectedProduct, productGroupMap]);
 
-
 useEffect(() => {
-  if (editData.product && productGroupMap[editData.product]) {
-    console.log("🔄 Updating selectedProductGroup:", productGroupMap[editData.product]);
-    setSelectedProductGroup(productGroupMap[editData.product]); // עדכון הקבוצה בהתאם למוצר
-  } else {
-    console.log("⚠️ No group found for product:", editData.product);
-    console.log("🔄 Clearing selectedProductGroup "+ selectedProductGroup);
-    setSelectedProductGroup(""); // אם אין קבוצה, ננקה את השדה
+  if (!editData.product) {
+    console.log("⚠️ No product selected.");
+    setSelectedProductGroup(""); // אם אין מוצר, ננקה את הקבוצה
+    return;
   }
-}, [editData.product, productGroupMap]); 
 
+  // חיפוש ה-ID של קבוצת המוצר מתוך `productToGroupMap`
+  const selectedGroupId = productToGroupMap[editData.product.trim()] || "";
+  console.log("📌 Found Product Group ID:", selectedGroupId);
+
+  setSelectedProductGroup(selectedGroupId);
+}, [editData.product, productToGroupMap]); // ירוץ בכל שינוי של המוצר או הנתונים
 
 
 
@@ -1208,16 +1280,18 @@ useEffect(() => {
               className="filter-input"
                />
              </div>
-               <div className="filter-datePicker-container">
-                <input
-              type="date"
-              id="expiry-Date"
-            name="expiry-Date"
-            value={expiryDateFilter}
-             onChange={(e) => setExpiryDateFilter(e.target.value)}
-            className="datePicker-input"
-             />
-           </div>
+             <div className="filter-input-container">
+             <Search className="filter-input-icon" />
+  <input
+    type="text"
+    id="expiry-Date"
+    name="expiry-Date"
+    value={expiryDateFilter}
+    onChange={(e) => setExpiryDateFilter(e.target.value)}
+    placeholder="חפש לפי תאריך"
+    className="filter-input"
+    />
+</div>
           <div className="filter-checkbox-container">
        <select value={minuySochenFilter} onChange={(e) => setMinuySochenFilter(e.target.value)} className="select-input">
     <option value="">מינוי סוכן </option>
@@ -1234,26 +1308,56 @@ useEffect(() => {
                 )}
        <div className={`table-Data-AgentForm ${isNewDesignEnabled ? 'is-new-design' : ''}`}>
                 <table>
-                  <thead>
-                    <tr>
-                 <th className="medium-column">שם פרטי </th>
-                   <th className="medium-column">שם משפחה</th>
-                    <th className="wide-column">תז</th>
-                  <th className="medium-column">חברה</th>
-                    <th className="medium-column">מוצר</th>
-                  <th className="medium-column">פרמיה ביטוח</th>
-                 <th className="medium-column">פרמיה פנסיה</th>
-                 <th className="medium-column">צבירה פנסיה</th>
-                 <th className="medium-column">פרמיה פיננסים</th>             
-                 <th className="medium-column">צבירה פיננסים</th>
-                <th className="wide-column">חודש תפוקה</th>
-                 <th className="medium-column">סטאטוס</th>
-                  <th className="narrow-column">מינוי סוכן</th>
-                  <th className="narrow-column">שם עובד</th>
-                  <th className="wide-column">הערות</th>
-                 <th className="narrow-cell">🔧</th>
-               </tr>
-            </thead>
+                <thead>
+  <tr>
+    <th className="medium-column" onClick={() => handleSort("firstNameCustomer" as keyof CombinedData)}>
+      שם פרטי {sortColumn && sortColumn === "firstNameCustomer" ? (sortOrder === "asc" ? "▲" : "▼") : ""}
+    </th>
+    <th className="medium-column" onClick={() => handleSort("lastNameCustomer" as keyof CombinedData)}>
+      שם משפחה {sortColumn && sortColumn === "lastNameCustomer" ? (sortOrder === "asc" ? "▲" : "▼") : ""}
+    </th>
+    <th className="wide-column" onClick={() => handleSort("IDCustomer" as keyof CombinedData)}>
+      תז {sortColumn && sortColumn === "IDCustomer" ? (sortOrder === "asc" ? "▲" : "▼") : ""}
+    </th>
+    <th className="medium-column" onClick={() => handleSort("company" as keyof CombinedData)}>
+      חברה {sortColumn && sortColumn === "company" ? (sortOrder === "asc" ? "▲" : "▼") : ""}
+    </th>
+    <th className="medium-column" onClick={() => handleSort("product" as keyof CombinedData)}>
+      מוצר {sortColumn && sortColumn === "product" ? (sortOrder === "asc" ? "▲" : "▼") : ""}
+    </th>
+    <th className="medium-column" onClick={() => handleSort("insPremia" as keyof CombinedData)}>
+      פרמיה ביטוח {sortColumn && sortColumn === "insPremia" ? (sortOrder === "asc" ? "▲" : "▼") : ""}
+    </th>
+    <th className="medium-column" onClick={() => handleSort("pensiaPremia" as keyof CombinedData)}>
+      פרמיה פנסיה {sortColumn && sortColumn === "pensiaPremia" ? (sortOrder === "asc" ? "▲" : "▼") : ""}
+    </th>
+    <th className="medium-column" onClick={() => handleSort("pensiaZvira" as keyof CombinedData)}>
+      צבירה פנסיה {sortColumn && sortColumn === "pensiaZvira" ? (sortOrder === "asc" ? "▲" : "▼") : ""}
+    </th>
+    <th className="medium-column" onClick={() => handleSort("finansimPremia" as keyof CombinedData)}>
+      פרמיה פיננסים {sortColumn && sortColumn === "finansimPremia" ? (sortOrder === "asc" ? "▲" : "▼") : ""}
+    </th>
+    <th className="medium-column" onClick={() => handleSort("finansimZvira" as keyof CombinedData)}>
+      צבירה פיננסים {sortColumn && sortColumn === "finansimZvira" ? (sortOrder === "asc" ? "▲" : "▼") : ""}
+    </th>
+    <th className="wide-column" onClick={() => handleSort("mounth" as keyof CombinedData)}>
+      חודש תפוקה {sortColumn && sortColumn === "mounth" ? (sortOrder === "asc" ? "▲" : "▼") : ""}
+    </th>
+    <th className="medium-column" onClick={() => handleSort("statusPolicy" as keyof CombinedData)}>
+      סטאטוס {sortColumn && sortColumn === "statusPolicy" ? (sortOrder === "asc" ? "▲" : "▼") : ""}
+    </th>
+    <th className="narrow-column" onClick={() => handleSort("minuySochen" as keyof CombinedData)}>
+      מינוי סוכן {sortColumn && sortColumn === "minuySochen" ? (sortOrder === "asc" ? "▲" : "▼") : ""}
+    </th>
+    <th className="narrow-column" onClick={() => handleSort("workerName" as keyof CombinedData)}>
+      שם עובד {sortColumn && sortColumn === "workerName" ? (sortOrder === "asc" ? "▲" : "▼") : ""}
+    </th>
+    <th className="wide-column" onClick={() => handleSort("notes" as keyof CombinedData)}>
+      הערות {sortColumn && sortColumn === "notes" ? (sortOrder === "asc" ? "▲" : "▼") : ""}
+    </th>
+    <th className="narrow-cell">🔧</th>
+  </tr>
+</thead>
                   <tbody>
                 {currentRows.map((item) => (
                 <tr key={item.id} className={editingRow === item.id ? "editing-row" : ""}>
@@ -1609,7 +1713,7 @@ useEffect(() => {
               </select>
             </div>
             {/* פרטי פרמיה */}
-            {selectedProductGroup && selectedProductGroup !== "1" && selectedProductGroup !== "4" && (
+       {selectedProductGroup && selectedProductGroup !== "1" && selectedProductGroup !== "4" && (
   <div className="form-group">
     <label htmlFor="insPremia">פרמיה ביטוח</label>
     <input
