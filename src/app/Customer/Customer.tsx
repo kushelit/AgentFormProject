@@ -1140,9 +1140,9 @@ const Customer = () => {
                     {isProcessing ? 'Processing...' : 'Create Customers From Sales'}
               </button>  */}
           </div>
-          {isNewDesignEnabled && showToast && (
+          {/* {isNewDesignEnabled && showToast && (
     <ToastNotification type={toastType} className="" message={toastMessage} />
-)}
+)} */}
         </form>
       </div>
       <div className="data-container">
