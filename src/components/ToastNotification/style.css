@@ -1,3 +1,27 @@
+/* ✅ כניסה חלקה של הטוסט */
+@keyframes slide-in {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+/* ✅ יציאה חלקה של הטוסט */
+@keyframes slide-out {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+}
+
 .toast-notification {
   align-items: flex-start;
   background-color: var(--clrgray1); /* שימוש במשתנה גלובלי */
@@ -9,7 +33,18 @@
   position: relative;
   width: 468px;
   font-family: var(--font-family); /* שימוש במשתנה גלובלי */
+  position: fixed; /* שינוי מ-relative ל-fixed */
+  z-index: 1010;
+  bottom: 20px; /* ממקם את ה-toast בתחתית */
+  right: 20px; /* ממקם את ה-toast בימין */
+  animation: slide-in 0.5s ease-out;
 }
+
+
+.toast-notification.hide {
+  animation: slide-out 0.5s ease-out forwards;
+}
+
 
 .toast-notification .clear-wrapper {
   align-items: center;

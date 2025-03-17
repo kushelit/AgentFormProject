@@ -24,6 +24,9 @@ import  fetchDataForAgent from '@/services/fetchDataForAgent';
 import { Customer, Sale, CombinedData, AgentDataType } from '@/types/Sales';
 import  fetchCustomerBelongToAgent from '@/services/fetchCustomerBelongToAgent';
 import {useSortableTable}  from "@/hooks/useSortableTable";
+import {ToastNotification} from '@/components/ToastNotification';
+import { Toast } from '@/types/Toast';
+import { useToast } from "@/hooks/useToast";
 
 
 //useFetchAgentData
@@ -140,6 +143,41 @@ const rowsPerPage = 8; // מספר השורות בעמוד
 const indexOfLastRow = currentPage * rowsPerPage;
 const indexOfFirstRow = indexOfLastRow - rowsPerPage;
 const currentRows = sortedData.slice(indexOfFirstRow, indexOfLastRow);
+
+const { toasts, addToast, setToasts } = useToast();
+
+// const [showToast, setShowToast] = useState(false);
+// const [toastType, setToastType] = useState('');
+// const [toastMessage, setToastMessage] = useState('');
+// const [isHidingToast, setIsHidingToast] = useState(false);
+
+// const [toasts, setToasts] = useState<Toast[]>([]);
+
+
+// const addToast = (type: "success" | "error" | "warning", message: string, delay = 0) => {
+//   const id = Date.now() + Math.random(); // מזהה ייחודי יותר
+
+//   // 📌 השהיית הכנסת ההודעה אם צריך (למקרה שרוצים הפרש בין הודעות)
+//   setTimeout(() => {
+//     setToasts((prevToasts) => [...prevToasts, { id, type, message, isHiding: false }]);
+
+//     // 📌 יציאת הטוסט אחרי 4 שניות (לפני שמוחקים אותו)
+//     setTimeout(() => {
+//       setToasts((prevToasts) =>
+//         prevToasts.map((toast) =>
+//           toast.id === id ? { ...toast, isHiding: true } : toast
+//         )
+//       );
+//     }, 4000);
+
+//     // 🗑️ מחיקת הטוסט לחלוטין אחרי 5 שניות
+//     setTimeout(() => {
+//       setToasts((prevToasts) => prevToasts.filter((toast) => toast.id !== id));
+//     }, 5000);
+//   }, delay);
+// };
+
+
 
 
 const resetForm = (clearCustomerFields: boolean = false) => {
@@ -544,6 +582,13 @@ const handleSubmit = async (event: FormEvent<HTMLFormElement>, closeAfterSubmit 
       });
       // עדכון `parentID` של הלקוח שנוצר
       await updateDoc(customerDocRef, { parentID: customerDocRef.id });
+      // setToastType('success');
+      // setToastMessage('לקוח התווסף בהצלחה');
+      // setShowToast(true);
+
+      addToast("success", "לקוח התווסף בהצלחה");
+      await new Promise((resolve) => setTimeout(resolve, 5000));
+
     } else {
       // טיפול במקרה שבו הלקוח כבר קיים
       customerDocRef = customerSnapshot.docs[0].ref;
@@ -571,7 +616,11 @@ const handleSubmit = async (event: FormEvent<HTMLFormElement>, closeAfterSubmit 
   createdAt: serverTimestamp(),
   lastUpdateDate: serverTimestamp(),
     });
-    alert('יש!!! עוד עסקה נוספה');
+    // alert('יש!!! עוד עסקה נוספה');
+    // setToastType('success');
+    // setToastMessage('יש!!! עוד עסקה נוספה');
+    // setShowToast(true);
+    addToast("success", "יש!!! עוד עסקה נוספה");
     // קריאה לפונקציית `fetchDataForAgent` לעדכון הנתונים
     if (selectedAgentId) {
       const data = await fetchDataForAgent(selectedAgentId); // קריאה לפונקציה
@@ -794,6 +843,20 @@ const handleSubmit = async (event: FormEvent<HTMLFormElement>, closeAfterSubmit 
 // ]);
 
 
+  // useEffect(() => {
+  //   if (showToast) {
+  //     setIsHidingToast(false); // תמיד מתחיל גלוי מחדש
+  //     const hideTimer = setTimeout(() => setIsHidingToast(true), 4500); // מתחיל להיעלם אחרי 2.5 שניות
+  //     const removeTimer = setTimeout(() => setShowToast(false), 6000); // נעלם לחלוטין אחרי 3 שניות
+
+  //     return () => {
+  //       clearTimeout(hideTimer);
+  //       clearTimeout(removeTimer);
+  //     };
+  //   }
+  // }, [showToast]);
+
+
 useEffect(() => {
   let data = agentData.map((item) => ({
     ...item,
@@ -848,8 +911,6 @@ useEffect(() => {
   minuySochenFilter,
   expiryDateFilter,
 ]);
-
-
 
 
 
@@ -1049,6 +1110,7 @@ useEffect(() => {
 
 
 
+console.log("📌 Rendered Toasts on Screen:", toasts);
 
   return (
 <div className="content-container-NewAgentForm">  
@@ -1595,7 +1657,16 @@ useEffect(() => {
          </div>
       </div>
       </div> 
-      {showOpenNewDeal && (
+      {toasts.length > 0  && toasts.map((toast) => (
+  <ToastNotification 
+    key={toast.id}  
+    type={toast.type}
+    className={toast.isHiding ? "hide" : ""} 
+    message={toast.message}
+    onClose={() => setToasts((prevToasts) => prevToasts.filter((t) => t.id !== toast.id))}
+  />
+))}
+    {showOpenNewDeal && (
   <div className="modal-overlay" onClick={() => setShowOpenNewDeal(false)}>
     <div className="modal-content" onClick={(e) => e.stopPropagation()}>
       <button className="close-button" 

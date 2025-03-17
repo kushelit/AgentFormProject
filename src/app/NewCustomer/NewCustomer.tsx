@@ -438,25 +438,16 @@ useEffect(() => {
 
         });
       //  console.log('Customer added with ID:', customerRef.id);
-      if (isNewDesignEnabled) {
-        // עיצוב חדש - הצגת Toast Notification
         setToastType('success');
         setToastMessage('לקוח התווסף בהצלחה');
         setShowToast(true);
-        } else {
-        // עיצוב ישן - הצגת הודעת alert
-        alert('לקוח חדש התווסף בהצלחה');
-       }
       } else {
         // Existing customer found, notify user
-        if (isNewDesignEnabled) {
           setToastType('error');
           setToastMessage('לא ניתן להוסיף - לקוח קיים במערכת');
           setShowToast(true);
        //   console.log('Customer already exists with ID:', customerSnapshot.docs[0].id);
-      } else {
-        alert('לא ניתן להוסיף - לקוח קיים במערכת');        
-      }
+    
     }
       resetForm();
       setIsEditing(false);
@@ -808,26 +799,18 @@ useEffect(() => {
       );
   
       if (salesWithNames.length === 0) {
-        if (isNewDesignEnabled) {
           setToastType("warning");
           setToastMessage("ללקוח זה אין מכירות");
           setShowToast(true);
-        } else {
-          alert("ללקוח זה אין מכירות");
-        }
       } else {
         setSalesData(salesWithNames);
         setTotalCommissions({ totalCommissionHekef, totalCommissionNifraim });
       }
     } catch (error) {
       console.error("Error fetching family sales data:", error);
-      if (isNewDesignEnabled) {
         setToastType("error");
         setToastMessage("כשלון בקבלת נתוני מכירות משפחתיות");
         setShowToast(true);
-      } else {
-        alert("Failed to fetch family sales data.");
-      }
     }
   };
   

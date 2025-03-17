@@ -11,7 +11,7 @@ import { Warning } from "../Warning";
 import { Success } from "../Success";
 import "./style.css";
 
-export const ToastNotification = ({ type, className , message}) => {
+export const ToastNotification = ({ type, className , message, onClose}) => {
 
   console.log("Received props:", { type, className, message });
 
@@ -20,7 +20,7 @@ export const ToastNotification = ({ type, className , message}) => {
       className={`toast-notification ${className}`}
       data-03-components-colors-mode="light"
     >
-      <div className="clear-wrapper">
+      <div className="clear-wrapper"  onClick={onClose} style={{ cursor: "pointer" }}>
         <Clear className="clear-instance" clear="/static/img/clear-4.png" />
       </div>
 
