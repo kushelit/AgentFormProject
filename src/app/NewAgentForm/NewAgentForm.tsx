@@ -25,7 +25,6 @@ import { Customer, Sale, CombinedData, AgentDataType } from '@/types/Sales';
 import  fetchCustomerBelongToAgent from '@/services/fetchCustomerBelongToAgent';
 import {useSortableTable}  from "@/hooks/useSortableTable";
 import {ToastNotification} from '@/components/ToastNotification';
-import { Toast } from '@/types/Toast';
 import { useToast } from "@/hooks/useToast";
 
 
@@ -1108,9 +1107,6 @@ useEffect(() => {
   setSelectedProductGroup(selectedGroupId);
 }, [editData.product, productToGroupMap]); // ירוץ בכל שינוי של המוצר או הנתונים
 
-
-
-console.log("📌 Rendered Toasts on Screen:", toasts);
 
   return (
 <div className="content-container-NewAgentForm">  

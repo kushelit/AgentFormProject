@@ -17,6 +17,8 @@ import fetchPromotionsForAgent from '@/services/fetchPromotionsForAgent'; // פ�
 import { createPromotionsMap } from "@/services/createPromotionsMap";
 import fetchStarsForAgent from '@/services/fetchStarsForAgent'; // פונקציות
 import {fetchGoalsSuccessForAgent} from '@/services/fetchGoalsSuccessForAgent'; // פונקציות
+import {ToastNotification} from '@/components/ToastNotification';
+import { useToast } from "@/hooks/useToast";
 
 
 
@@ -67,6 +69,7 @@ const [openMenuRowPromotions, setOpenMenuRowPromotions] = useState<string | null
 const [openMenuRowStars, setOpenMenuRowStars] = useState<string | null>(null);
 const [openMenuRowGoals, setOpenMenuRowGoals] = useState<string | null>(null);
 
+const { toasts, addToast, setToasts } = useToast();
 
 const { 
     agents, 
@@ -406,13 +409,17 @@ const fetchPromotions = async () => {
       event.preventDefault();
   
       if (!promotionValue) {
-        alert('Please select a promotion.');
+        addToast("warning", "בחר יעד לפני השלמת הטופס");
+
+        // alert('Please select a promotion.');
         return; // Prevent submission if no promotion is selected
       }
       const promotionRef = doc(db, 'promotion', promotionValue);
       const promotionDoc = await getDoc(promotionRef);
       if (!promotionDoc.exists()) {
-        alert('Promotion not found!');
+        addToast("error", "Promotion not found!");
+
+        // alert('Promotion not found!');
         return;
       }
       const promotionData = promotionDoc.data();
@@ -441,14 +448,15 @@ const fetchPromotions = async () => {
       }
   
       const docRef = await addDoc(collection(db, 'goalsSuccess'), newGoal);
-  
-      alert('Goal added successfully!');
+      addToast("success", "יעד הוקצה לעובד בהצלחה");
+
+      // alert('Goal added successfully!');
       console.log('Document written with ID:', docRef.id);
-  
+  setIsModalOpenGoalWorker(false);
       resetForm();
       setIsEditing(false);
       if (selectedAgentId) {
-        fetchGoalsSuccessForAgent(selectedAgentId);
+        reloadGoalsData(selectedAgentId);
       }
     } catch (error) {
       console.error('Error adding document:', error);
@@ -616,11 +624,14 @@ const handleSubmitPromotion: FormEventHandler<HTMLFormElement> = async (event) =
       promotionEndDate: promotionEndDate,
       companies: selectedCompanies,
     });
-    alert('מבצע התווסף בהצלחה');
+    addToast("success", "מבצע התווסף בהצלחה");
+
+    // alert('מבצע התווסף בהצלחה');
     console.log('Document written with ID:', docRef.id);
     // איפוס הטופס
     resetFormPromotion();
     setIsEditingPromotion(false);
+    setIsModalOpenNewGoal(false);
     // קריאה לעדכון הנתונים ב-Hook
     if (selectedAgentId) {
       reloadPromotionsData(selectedAgentId); // קריאה ל-Hook לעדכון הטבלה
@@ -642,12 +653,15 @@ event.preventDefault();
   finansimStar: finansimStar,
 });
 console.log('promotionValue:',promotionValue);
-alert('התווסף בהצלחה');
+addToast("success", "הגדרת כוכבים למבצע בוצע בהצלחה");
+
+// alert('התווסף בהצלחה');
 console.log('Document written with ID:', docRef.id);
 resetFormStars(); 
 setIsEditingStars(false);
+setIsModalOpenNewStars(false);
 if (selectedAgentId) {
-  fetchStarsForAgent(selectedAgentId);
+  reloadStarsData(selectedAgentId);
 }
 
 } catch (error) {
@@ -692,10 +706,14 @@ const [isProcessing, setIsProcessing] = useState(false); // Track loading state
     setMessage(null); // Clear previous messages
     try {
       await duplicateGoalsForNextMonth(selectedAgentId); // Call your function
-      setMessage('Goals successfully duplicated for the next month!');
+      addToast("success", "שכפול יעדים בוצע בהצלחה");
+
+      // setMessage('Goals successfully duplicated for the next month!');
     } catch (error) {
       console.error('Error duplicating goals:', error);
-      setMessage('An error occurred while duplicating goals.');
+      addToast("error", "שכפול יעדים נכשל");
+
+      // setMessage('An error occurred while duplicating goals.');
     } finally {
       setIsProcessing(false);
     }
@@ -1392,6 +1410,15 @@ if (!goals || goals.length === 0) {
 </table>
  </div>
 </div>
+{toasts.length > 0  && toasts.map((toast) => (
+  <ToastNotification 
+    key={toast.id}  
+    type={toast.type}
+    className={toast.isHiding ? "hide" : ""} 
+    message={toast.message}
+    onClose={() => setToasts((prevToasts) => prevToasts.filter((t) => t.id !== toast.id))}
+  />
+))}
 </div>
      )}
         {activeTab === "GoalsWorkers" && (
@@ -1689,8 +1716,18 @@ if (!goals || goals.length === 0) {
   state={isProcessing ? "disabled" : "default"}
 />
     </div>
+    {toasts.length > 0  && toasts.map((toast) => (
+  <ToastNotification 
+    key={toast.id}  
+    type={toast.type}
+    className={toast.isHiding ? "hide" : ""} 
+    message={toast.message}
+    onClose={() => setToasts((prevToasts) => prevToasts.filter((t) => t.id !== toast.id))}
+  />
+))}
               </div>
         )}
+      
       </div>
     </div>);
   };

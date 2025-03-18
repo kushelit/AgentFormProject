@@ -132,7 +132,7 @@
   color: var(--clrblack); /* שימוש במשתנה גלובלי */
   direction: rtl;
   /*font-family: var(--font-family); /* שימוש במשתנה גלובלי */
-  /*font-size: var(--font-size-large, 20px); /* שימוש במשתנה גלובלי עם ערך ברירת מחדל */
+  font-size: var(--font-size-normal, 16px); /* שימוש במשתנה גלובלי עם ערך ברירת מחדל */
   /*font-weight: var(--font-weight-normal, 400); /* שימוש במשתנה גלובלי עם ערך ברירת מחדל */
   /*letter-spacing: var(--letter-spacing-normal, 0); /* שימוש במשתנה גלובלי עם ערך ברירת מחדל */
   /*line-height: var(--line-height-large, 18px); /* שימוש במשתנה גלובלי עם ערך ברירת מחדל */

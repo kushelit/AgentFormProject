@@ -7,7 +7,6 @@ import useFetchMD from "@/hooks/useMD";
 import './NewCustomer.css';
 import useFetchAgentData from "@/hooks/useFetchAgentData";
 import React from 'react';
-import {ToastNotification} from '@/components/ToastNotification';
 import {Dialog} from '@/components/Dialog';
 import { useDesignFlag } from  "@/hooks/useDesignFlag";
 import { Button } from "@/components/Button/Button";
@@ -20,7 +19,8 @@ import TableFooter from "@/components/TableFooter/TableFooter";
 import { FamilyLinkDialog, startLinkingProcess,handleConfirmFamilyLink,disconnectCustomers} from "./FamilyLinkDialog"; // עדכני את הנתיב בהתאם למיקום הקובץ
 import {fetchCustomersForAgent} from '@/services/fetchCustomerDetails'; // פונקציות
 import {useSortableTable}  from "@/hooks/useSortableTable";
-
+import {ToastNotification} from '@/components/ToastNotification';
+import { useToast } from "@/hooks/useToast";
 
 const NewCustomer = () => {
 
@@ -100,6 +100,8 @@ const rowsPerPage = 8; // מספר השורות בעמוד
 const indexOfLastRow = currentPage * rowsPerPage;
 const indexOfFirstRow = indexOfLastRow - rowsPerPage;
 const currentRows = sortedData.slice(indexOfFirstRow, indexOfLastRow);
+
+const { toasts, addToast, setToasts } = useToast();
 
 // שינוי עמוד
 const handlePageChange = (pageNumber: number) => {
@@ -438,22 +440,22 @@ useEffect(() => {
 
         });
       //  console.log('Customer added with ID:', customerRef.id);
-        setToastType('success');
-        setToastMessage('לקוח התווסף בהצלחה');
-        setShowToast(true);
+      addToast("success", "לקוח התווסף בהצלחה");
+
       } else {
+        addToast("error", "לא ניתן להוסיף - לקוח קיים במערכת");
+
         // Existing customer found, notify user
-          setToastType('error');
-          setToastMessage('לא ניתן להוסיף - לקוח קיים במערכת');
-          setShowToast(true);
+          // setToastType('error');
+          // setToastMessage('לא ניתן להוסיף - לקוח קיים במערכת');
+          // setShowToast(true);
        //   console.log('Customer already exists with ID:', customerSnapshot.docs[0].id);
     
     }
       resetForm();
       setIsEditing(false);
-      if (selectedAgentId) {
-        fetchCustomersForAgent(selectedAgentId);
-      }
+      setIsModalOpen (false);
+      reloadCustomerData(selectedAgentId);
     } catch (error) {
       console.error('Error adding document:', error);  // Log any errors during the process
     }
@@ -717,9 +719,11 @@ useEffect(() => {
       );
   
       if (salesWithNames.length === 0) {
-        setToastType("warning");
-        setToastMessage("ללקוח זה אין מכירות");
-        setShowToast(true);
+        addToast("warning", "לקוח זה אין מכירות");
+
+        // setToastType("warning");
+        // setToastMessage("ללקוח זה אין מכירות");
+        // setShowToast(true);
         setSalesData(null);
       } else {
         setSalesData(salesWithNames);
@@ -727,9 +731,11 @@ useEffect(() => {
       }
     } catch (error) {
       console.error("Error fetching private sales data:", error);
-      setToastType("error");
-      setToastMessage("כשלון בקבלת נתוני מכירות פרטיות");
-      setShowToast(true);
+      addToast("error", "כשלון בקבלת נתוני מכירות פרטיות");
+
+      // setToastType("error");
+      // setToastMessage("כשלון בקבלת נתוני מכירות פרטיות");
+      // setShowToast(true);
     }
   };
   
@@ -799,18 +805,19 @@ useEffect(() => {
       );
   
       if (salesWithNames.length === 0) {
-          setToastType("warning");
-          setToastMessage("ללקוח זה אין מכירות");
-          setShowToast(true);
+        addToast("warning", "לקוח זה אין מכירות");
+
       } else {
         setSalesData(salesWithNames);
         setTotalCommissions({ totalCommissionHekef, totalCommissionNifraim });
       }
     } catch (error) {
       console.error("Error fetching family sales data:", error);
-        setToastType("error");
-        setToastMessage("כשלון בקבלת נתוני מכירות משפחתיות");
-        setShowToast(true);
+      addToast("error", "כשלון בקבלת נתוני מכירות משפחתיות");
+
+        // setToastType("error");
+        // setToastMessage("כשלון בקבלת נתוני מכירות משפחתיות");
+        // setShowToast(true);
     }
   };
   
@@ -1846,6 +1853,15 @@ const handleNewSelectCustomer = (id: string) => {
               </tbody>
             </table>
           </div>
+          {toasts.length > 0  && toasts.map((toast) => (
+  <ToastNotification 
+    key={toast.id}  
+    type={toast.type}
+    className={toast.isHiding ? "hide" : ""} 
+    message={toast.message}
+    onClose={() => setToasts((prevToasts) => prevToasts.filter((t) => t.id !== toast.id))}
+  />
+))}
         </div>
       </div>
   );

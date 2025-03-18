@@ -12,7 +12,9 @@ import Edit from '@/components/icons/Edit/Edit';
 import Delete  from '@/components/icons/Delete/Delete'; 
 import useEditableTable from "@/hooks/useEditableTable";
 import { LeadsType } from '@/types/LeadsType ';
- import {useSortableTable}  from "@/hooks/useSortableTable";
+import {useSortableTable}  from "@/hooks/useSortableTable";
+import {ToastNotification} from '@/components/ToastNotification';
+import { useToast } from "@/hooks/useToast";
 
 
 const NewLeads = () => {
@@ -51,6 +53,7 @@ const NewLeads = () => {
   const [campaign, setCampaign] = useState('');
 
   const [selectedAgentIdInRow, setSelectedAgentIdInRow] = useState<string | null>(null);
+  const [submitDisabled, setSubmitDisabled] = useState(false);
 
 
   const handleLastContactDate = (e: React.ChangeEvent<HTMLInputElement>) => setLastContactDate(e.target.value);
@@ -73,6 +76,7 @@ const [selectedStatusLeadFilter, setSelectedStatusLeadFilter] = useState('');
 const [selectedSourceLeadFilter, setSelectedSourceLeadFilter] = useState('');
 
 const [editingRowIdTime, setEditingRowIdTime] = useState<string | null>(null);
+const { toasts, addToast, setToasts } = useToast();
 
 
 
@@ -401,24 +405,42 @@ const [editingRowIdTime, setEditingRowIdTime] = useState<string | null>(null);
           createDate: serverTimestamp(),
           campaign,
         });
-        alert('ליד חדש התווסף בהצלחה');
+        // alert('ליד חדש התווסף בהצלחה');
+        addToast("success", "ליד חדש התווסף בהצלחה");
+
       resetForm();
       setIsEditing(false);
-      if (selectedAgentId) {
-        fetchLeadsForAgent(selectedAgentId);
-      }
+      setShowOpenNewLead(false);
+      reloadLeadsData(selectedAgentId);
+      // if (selectedAgentId) {
+      //   fetchLeadsForAgent(selectedAgentId);
+      // }
     } catch (error) {
       console.error('Error adding document:', error);  // Log any errors during the process
     }
   };
 
 
-  const canSubmit = useMemo(() => (
-  selectedAgentId.trim() !== '' &&
-  phone.trim() !== '' 
-  ), [selectedAgentId, phone
-  ]);
+  // const canSubmit = useMemo(() => (
+  // selectedAgentId.trim() !== '' &&
+  // phone.trim() !== '' 
+  // ), [selectedAgentId, phone
+  // ]);
 
+  const canSubmit = useMemo(() => {
+    const isPhoneValid = (editLeadData.phone || "").trim() !== "";
+    const isAgentValid = (editLeadData.AgentId || "").trim() !== "";
+    
+    // אם המשתמש הוא אדמין, עליו לבחור סוכן
+    if (detail?.role === "admin") {
+      return isAgentValid && isPhoneValid;
+    }
+  
+    // אם המשתמש הוא סוכן, מספיק טלפון תקין
+    return isPhoneValid;
+  }, [editLeadData.AgentId, editLeadData.phone, detail?.role]);
+  
+  
 
   // useEffect(() => {
   //   const fetchSourceLeadForAgent = async () => {
@@ -728,15 +750,15 @@ const [editingRowIdTime, setEditingRowIdTime] = useState<string | null>(null);
               </select>
             </div>
             <div className="form-group">
-              <label>שם פרטי *</label>
+              <label>שם פרטי</label>
               <input type="text" value={editLeadData?.firstNameCustomer || ""} onChange={(e) => handleEditLeadChange("firstNameCustomer", e.target.value)} />
             </div>
             <div className="form-group">
-              <label>שם משפחה *</label>
+              <label>שם משפחה</label>
               <input type="text" value={editLeadData?.lastNameCustomer || ""} onChange={(e) => handleEditLeadChange("lastNameCustomer", e.target.value)} />
             </div>
             <div className="form-group">
-              <label>תעודת זהות *</label>
+              <label>תעודת זהות</label>
               <input type="text" value={editLeadData?.IDCustomer || ""} onChange={(e) => handleEditLeadChange("IDCustomer", e.target.value)} />
             </div>
             <div className="form-group">
@@ -824,14 +846,14 @@ const [editingRowIdTime, setEditingRowIdTime] = useState<string | null>(null);
             {isEditing ? (
     <Button onClick={saveLeadChanges} text="שמור שינויים" type="primary" icon="on" disabled={!editingLeadRow} />
   ) : (
-              <Button
-                onClick={handleSubmit}
-                text="הזן"
-                type="primary"
-                icon="on"
-                disabled={!canSubmit || isEditing}
-                state={!canSubmit ? "disabled" : "default"}
-              />
+             <Button
+  onClick={(e) => handleSubmit(e)}
+  text="הזן"
+  type="primary"
+  icon="on"
+  disabled={!canSubmit || submitDisabled}
+  state={!canSubmit ? "disabled" : "default"}
+/>
             )}
               <Button
                 onClick={() => setShowOpenNewLead(false)}
@@ -928,6 +950,15 @@ const [editingRowIdTime, setEditingRowIdTime] = useState<string | null>(null);
               </tbody>
             </table>
         </div>
+        {toasts.length > 0  && toasts.map((toast) => (
+  <ToastNotification 
+    key={toast.id}  
+    type={toast.type}
+    className={toast.isHiding ? "hide" : ""} 
+    message={toast.message}
+    onClose={() => setToasts((prevToasts) => prevToasts.filter((t) => t.id !== toast.id))}
+  />
+))}
       </div>
       </div>
   );

@@ -12,7 +12,8 @@ import Edit from '@/components/icons/Edit/Edit';
 import Delete  from '@/components/icons/Delete/Delete'; 
 import useEditableTable from "@/hooks/useEditableTable";
 import { Contract, ContractAgent } from '@/types/Contract'; // טיפוסים
-
+import {ToastNotification} from '@/components/ToastNotification';
+import { useToast } from "@/hooks/useToast";
 
 
   const NewManageContracts: React.FC = () => {
@@ -42,6 +43,9 @@ import { Contract, ContractAgent } from '@/types/Contract'; // טיפוסים
   const [minuySochenFilter2, setMinuySochenFilter2] = useState('');
   const [minuySochen1, setMinuySochen1] = useState(false);
   const [minuySochen2, setMinuySochen2] = useState(false);
+
+  const { toasts, addToast, setToasts } = useToast();
+
 
   const { 
     agents, 
@@ -153,8 +157,15 @@ const canSubmit1 = useMemo(() => (
   const handleSubmitDiffultValue = async () => {
   //  event.preventDefault();
     try {
-     
-        if (!detail || !detail.agentId) return;
+      console.log("🚀 התחלת ביצוע handleSubmitDiffultValue");
+
+      if (!detail || !detail.agentId) {
+        console.log("❌ אין משתמש מחובר או `AgentId` חסר.");
+        return;
+      }
+  
+      console.log("✅ AgentId:", detail.agentId);
+      console.log("🔍 בודק אם קיים הסכם עם אותם פרטים...");
 
         const existingContractQuery = query(collection(db, 'contracts'), 
         where('AgentId', '==', detail.agentId),
@@ -164,30 +175,37 @@ const canSubmit1 = useMemo(() => (
   
       const querySnapshot = await getDocs(existingContractQuery);
       if (!querySnapshot.empty) {
-        console.log('A contract with the same details already exists.');
-        alert('לא ניתן להזין הסכם זהה להסכם קיים'); 
+        console.log("❌ קיים כבר הסכם עם אותם פרטים. לא נכניס אותו שוב.");
+        addToast("error", "לא ניתן להזין הסכם זהה להסכם קיים");
+        // alert('לא ניתן להזין הסכם זהה להסכם קיים'); 
         return; 
       }
-        console.log("got here");
-        const docRef = await addDoc(collection(db, 'contracts'), {
+
+      console.log("✅ לא נמצא הסכם קיים, ממשיכים להזין...");
+      const docRef = await addDoc(collection(db, 'contracts'), {
         AgentId: detail.agentId,
         company: '',
         productsGroup: selectedProductGroup,
         product: '',
-        commissionHekef:commissionPercentHekef1,
-        commissionNifraim:commissionPercentNifraim1,
-        commissionNiud:commissionPercentNiud1,
-        minuySochen:minuySochen1
+        commissionHekef: commissionPercentHekef1?.trim() || "0",
+        commissionNifraim: commissionPercentNifraim1?.trim() || "0",
+        commissionNiud: commissionPercentNiud1?.trim() || "0",
+        minuySochen: minuySochen1 || false 
 
       });      
-      console.log('Document written with ID:', docRef.id);
+      console.log("🎉 ההסכם הוזן בהצלחה עם ID:", docRef.id);
+      addToast("success", "הסכם עמלות הוזן בהצלחה");
+
       resetFormDefault(); 
-   //   if (selectedAgent) {
-    console.log("got here");
-    fetchdefaultContracts(detail?.agentId || "");
-    //  }
+    console.log("📢 מנסה לסגור את המודל...");
+    
+    setIsModalOpenCommission(false);
+    console.log("🔄 מרענן את הנתונים...");
+
+    reloadDefaultContractsData(selectedAgentId);
+
     } catch (error) {
-      console.error('Error adding document:', error);
+      console.error("❌ שגיאה בהוספת המסמך:", error);
     }
   };
 
@@ -218,27 +236,32 @@ const canSubmit1 = useMemo(() => (
     const querySnapshot = await getDocs(existingContractQuery);
     if (!querySnapshot.empty) {
       console.log('A contract with the same details already exists.');
-      alert('לא ניתן להזין הסכם זהה להסכם קיים'); 
+      addToast("error", "לא ניתן להזין הסכם זהה להסכם קיים");
+
+      // alert('לא ניתן להזין הסכם זהה להסכם קיים'); 
       return; 
     }
           console.log("got here");
           const docRef = await addDoc(collection(db, 'contracts'), {
-          AgentId: detail.agentId,
-          company: selectedCompany,
-          productsGroup: '',
-          product: selectedProduct,
-          commissionHekef:commissionPercentHekef2,
-          commissionNifraim:commissionPercentNifraim2,
-          commissionNiud:commissionPercentNiud2,
-          minuySochen:minuySochen2
-       
+            AgentId: detail.agentId,
+            company: selectedCompany || "",
+            productsGroup: "",
+            product: selectedProduct || "",
+            commissionHekef: commissionPercentHekef2?.trim() !== "" ? commissionPercentHekef2.trim() : "0",
+            commissionNifraim: commissionPercentNifraim2?.trim() !== "" ? commissionPercentNifraim2.trim() : "0",
+            commissionNiud: commissionPercentNiud2?.trim() !== "" ? commissionPercentNiud2.trim() : "0",
+            minuySochen: minuySochen2 || false            
         });      
         console.log('Document written with ID:', docRef.id);
+        addToast("success", "הסכם עמלות הוזן בהצלחה");
+
         resetFormContracts(); 
      //   setIsEditing(false);
      //   if (selectedAgent) {
-      fetchContracts(detail?.agentId || "");
+      // fetchContracts(detail?.agentId || "");
       //  }
+      setIsModalOpenAgent(false);
+      reloadContractsData(selectedAgentId);
       } catch (error) {
         console.error('Error adding document:', error);
       }
@@ -263,7 +286,6 @@ const canSubmit1 = useMemo(() => (
         const boolValue = minuySochenFilter2 === "true"; // המרה ל-boolean
         q = query(q, where("minuySochen", "==", boolValue));
       }
-      
     
       try {
         const querySnapshot = await getDocs(q);
@@ -795,6 +817,15 @@ return (
 </tbody>
             </table>
           </div>
+          {toasts.length > 0  && toasts.map((toast) => (
+            <ToastNotification 
+    key={toast.id}  
+    type={toast.type}
+    className={toast.isHiding ? "hide" : ""} 
+    message={toast.message}
+    onClose={() => setToasts((prevToasts) => prevToasts.filter((t) => t.id !== toast.id))}
+  />
+))}
       </div>
       </div>  
            )}
@@ -1083,6 +1114,15 @@ return (
 </tbody>
   </table>
             </div>
+            {toasts.length > 0  && toasts.map((toast) => (
+            <ToastNotification 
+    key={toast.id}  
+    type={toast.type}
+    className={toast.isHiding ? "hide" : ""} 
+    message={toast.message}
+    onClose={() => setToasts((prevToasts) => prevToasts.filter((t) => t.id !== toast.id))}
+  />
+))}
           </div>
         </div>
         )}

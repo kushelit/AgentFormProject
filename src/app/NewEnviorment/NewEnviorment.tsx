@@ -12,6 +12,8 @@ import Edit from '@/components/icons/Edit/Edit';
 import Delete  from '@/components/icons/Delete/Delete'; 
 import useEditableTable from "@/hooks/useEditableTable";
 import { Lead, StatusLead } from '@/types/Enviorment';
+import {ToastNotification} from '@/components/ToastNotification';
+import { useToast } from "@/hooks/useToast";
 
 
 const NewEnviorment: React.FC = () => {
@@ -34,6 +36,7 @@ const [selectedRowStatusLead, setSelectedRowStatusLead] = useState<any | null>(n
 const [isSubmitting, setIsSubmitting] = useState(false);
 const [isSubmittingLead, setIsSubmittingLead] = useState(false);
 
+const { toasts, addToast, setToasts } = useToast();
 
 
 const { 
@@ -202,7 +205,8 @@ const {
     
         // בדיקת הרשאה רק לטבלת הסטאטוסים
         if (rowToDelete.defaultStatusLead && detail?.role !== 'admin') {
-            alert('רק מנהל יכול למחוק סטאטוס מערכת');
+            // alert('רק מנהל יכול למחוק סטאטוס מערכת');
+            addToast("error", "רק מנהל יכול למחוק סטאטוס מערכת");
             console.log("❌ רק משתמשי admin יכולים למחוק סטאטוס מערכת");
             return;
         }
@@ -221,7 +225,8 @@ const {
       }
       // בדיקת הרשאה - רק מנהל יכול לערוך סטאטוס מערכת
       if (rowToEdit.defaultStatusLead && detail?.role !== 'admin') {
-          alert('רק מנהל יכול לערוך סטאטוס מערכת');
+          // alert('רק מנהל יכול לערוך סטאטוס מערכת');
+          addToast("error", "רק מנהל יכול לערוך סטאטוס מערכת");
           console.log("❌ רק משתמשי admin יכולים לערוך סטאטוס מערכת");
           return;
       }
@@ -244,7 +249,9 @@ const {
           statusLead,
           isAPILead,
         });
-        alert('מקור ליד התווסף בהצלחה');
+        // alert('מקור ליד התווסף בהצלחה');
+        addToast("success", "מקור ליד התווסף בהצלחה");
+
         console.log('Document written with ID:', docRef.id);
         setIsEditing(false);
         reloadLeadsData(selectedAgentId);
@@ -270,7 +277,9 @@ const handleSubmitStatusLead: FormEventHandler<HTMLFormElement> = async (event) 
             statusLeadList,
             defaultStatusLead,
         });
-        alert('סטאטוס ליד התווסף בהצלחה');
+        // alert('סטאטוס ליד התווסף בהצלחה');
+        addToast("success", "סטאטוס ליד התווסף בהצלחה");
+
         setIsEditingStatusLead(false);
         reloadStatusLeadData(selectedAgentId);
         setIsModalOpenNewStatusLead(false);
@@ -756,6 +765,15 @@ const handleSubmitStatusLead: FormEventHandler<HTMLFormElement> = async (event) 
 </tbody>
     </table>
  </div>
+ {toasts.length > 0  && toasts.map((toast) => (
+  <ToastNotification 
+    key={toast.id}  
+    type={toast.type}
+    className={toast.isHiding ? "hide" : ""} 
+    message={toast.message}
+    onClose={() => setToasts((prevToasts) => prevToasts.filter((t) => t.id !== toast.id))}
+  />
+))}
       </div>
       </div>   
 );}
