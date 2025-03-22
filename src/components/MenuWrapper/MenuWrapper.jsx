@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import PropTypes from "prop-types";
 import { Menu8 } from "../icons/Menu8";
+import { createPortal } from "react-dom";
 import "./style.css";
 
 
@@ -37,36 +38,53 @@ const MenuWrapper = ({ className, menuItems, rowId , openMenuRow, setOpenMenuRow
     };
   }, [setOpenMenuRow]);
 
-  useEffect(() => {
-    if (menuRef.current) {
-      const menuRect = menuRef.current.getBoundingClientRect();
-      const table = menuRef.current.closest('table');
-      const tableRect = table?.getBoundingClientRect();
-      const nextTable = table?.nextElementSibling?.closest('table');
-      const spaceToNextTable = nextTable ? nextTable.getBoundingClientRect().top - menuRect.bottom : window.innerHeight - menuRect.bottom;
+  // useEffect(() => {
+  //   if (menuRef.current) {
+  //     const menuRect = menuRef.current.getBoundingClientRect();
+  //     const table = menuRef.current.closest('table');
+  //     const tableRect = table?.getBoundingClientRect();
+  //     const nextTable = table?.nextElementSibling?.closest('table');
+  //     const spaceToNextTable = nextTable ? nextTable.getBoundingClientRect().top - menuRect.bottom : window.innerHeight - menuRect.bottom;
       
-      if (spaceToNextTable < 100) {
-        menuRef.current.style.cssText = `
-          position: absolute;
-          top: auto;
-          bottom: 100%;
-          right: -30px; // Increased from -15px
-          margin-bottom: 15px; // Increased from 8px
-          z-index: 1001;
-        `;
-      } else {
-        menuRef.current.style.cssText = `
-          position: absolute;
-          top: 0;
-          right: -30px; // Increased from -15px
-          margin-top: 15px; // Added margin-top
-          z-index: 1001;
-        `;
-      }
-    }
-  }, [openMenuRow]);
-
+  //     if (spaceToNextTable < 100) {
+  //       menuRef.current.style.cssText = `
+  //         position: absolute;
+  //         top: auto;
+  //         bottom: 100%;
+  //         right: -30px; // Increased from -15px
+  //         margin-bottom: 15px; // Increased from 8px
+  //         z-index: 1001;
+  //       `;
+  //     } else {
+  //       menuRef.current.style.cssText = `
+  //         position: absolute;
+  //         top: 0;
+  //         right: -30px; // Increased from -15px
+  //         margin-top: 15px; // Added margin-top
+  //         z-index: 1001;
+  //       `;
+  //     }
+  //   }
+  // }, [openMenuRow]);
+  useEffect(() => {
+    if (openMenuRow === rowId && menuRef.current) {
+      const button = document.querySelector(`.custom-menu-button[data-row-id="${rowId}"]`); 
+      if (!button) return;
   
+      const rect = button.getBoundingClientRect(); // מקבל את המיקום של הכפתור שנלחץ
+      menuRef.current.style.position = "fixed";
+      menuRef.current.style.top = `${rect.bottom + 5}px`; // מתחת לכפתור
+      menuRef.current.style.left = `${rect.left}px`; // ליד הכפתור
+      menuRef.current.style.opacity = "1";
+      menuRef.current.style.pointerEvents = "auto";
+    } else if (menuRef.current) {
+      menuRef.current.style.opacity = "0"; 
+      menuRef.current.style.pointerEvents = "none";
+    }
+  }, [openMenuRow, rowId]);
+  
+
+
   const toggleMenu = () => {
     if (openMenuRow === rowId) {
       console.log("Closing menu for row:", rowId);
@@ -77,30 +95,37 @@ const MenuWrapper = ({ className, menuItems, rowId , openMenuRow, setOpenMenuRow
     }
   };
   
+  const menuContainer = document.getElementById("menu-portal"); // השגת האלמנט של ה-Portal
 
   return (
-    <div
-    className={`menu-wrapper ${className || ""}`}
-    onMouseEnter={() => setMenuState("hover")}
-      onMouseLeave={() => setMenuState(openMenuRow ? "active" : "default")}
-    >
-      <div className="custom-menu-button" onClick={() => toggleMenu(rowId)}>
-        <Menu8 color={getColor()} />
+    <>
+      <div
+        className={`menu-wrapper ${className || ""}`}
+        onMouseEnter={() => setMenuState("hover")}
+        onMouseLeave={() => setMenuState(openMenuRow ? "active" : "default")}
+      >
+        <div className="custom-menu-button" 
+         data-row-id={rowId} 
+        onClick={() => toggleMenu(rowId)}>
+          <Menu8 color={getColor()} />
+        </div>
       </div>
 
-      {openMenuRow === rowId ? (
-  <div className="menu-options" ref={menuRef}>
-    {menuItems.map((menuItem, index) => (
-      <div key={index} onClick={menuItem.onClick} className="menu-item">
-        <menuItem.Icon className="menu-item-icon" />
-        {menuItem.label}
-      </div>
-    ))}
-  </div>
-) : null}
-    </div>
+      {openMenuRow === rowId && menuContainer &&
+        createPortal(
+          <div className="menu-options" ref={menuRef}>
+            {menuItems.map((menuItem, index) => (
+              <div key={index} onClick={menuItem.onClick} className="menu-item">
+                <menuItem.Icon className="menu-item-icon" />
+                {menuItem.label}
+              </div>
+            ))}
+          </div>,
+          menuContainer
+        )}
+    </>
   );
-} 
+};
 
 
 MenuWrapper.propTypes = {

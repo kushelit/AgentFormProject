@@ -29,7 +29,6 @@ export default function RootLayout({
   const isNewDesignEnabled = useDesignFlag(); // קריאה ל-hook בתוך גוף הקומפוננטה
 
 
-
   return (
     <html lang="he" dir="rtl">
       <body className={font.className}>
@@ -64,6 +63,8 @@ export default function RootLayout({
           </div>
         </AuthContextProvider>
         {/* </QueryClientProvider> */}
+            {/* האלמנט של ה-Portal לתפריט */}
+            <div id="menu-portal"></div>
       </body>
     </html>
   );

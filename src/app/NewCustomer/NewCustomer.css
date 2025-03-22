@@ -331,17 +331,17 @@ table tr {
   gap: 2px;
 }
 
-
+/* 
 .firstTableData tr :hover,
 .firstTableData tr:hover td {
  background-color: var(--clrgray3);
-} 
+}  */
 
 
-.DataTableReport tr :hover,
+/* .DataTableReport tr :hover,
 .DataTableReport tr:hover td {
  background-color: var(--clrgray3);
-} 
+}  */
 
 
 

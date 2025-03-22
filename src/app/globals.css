@@ -183,14 +183,22 @@ td {
   background-color: #ffffff;
 }
 
-.table-container tr :hover,
-.table-container tr:hover td {
+/* .table-container tr :hover,
+/* .table-container tr:hover td {
+  /* background-color: var(--hover); */
+  /*background-color: var(--clrgray3);}  */ 
+
+
+tr :hover,
+tr:hover td {
   /* background-color: var(--hover); */
  background-color: var(--clrgray3);
 } 
 
-
-
+/* ❌ ביטול ההשפעה של hover של השורה על התפריט */
+tr:hover .menu-options {
+  background-color: transparent !important;
+}
 /* 
 button {
   padding: 0.75em 0.3em;
@@ -325,3 +333,11 @@ table select:focus {
   outline: none;
 }
 
+.error-message {
+  color: red;
+  font-size: 12px;
+  margin-top: 4px;
+  font-weight: bold;
+  display: block !important; /* 🔹 מוודא שהתוכן מוצג */
+  visibility: visible; /* 🔹 מוודא שהוא לא מוסתר */
+}

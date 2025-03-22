@@ -21,6 +21,8 @@ import {fetchCustomersForAgent} from '@/services/fetchCustomerDetails'; // פו�
 import {useSortableTable}  from "@/hooks/useSortableTable";
 import {ToastNotification} from '@/components/ToastNotification';
 import { useToast } from "@/hooks/useToast";
+import { useValidation, validationRules } from "@/hooks/useValidation";
+
 
 const NewCustomer = () => {
 
@@ -102,6 +104,9 @@ const indexOfFirstRow = indexOfLastRow - rowsPerPage;
 const currentRows = sortedData.slice(indexOfFirstRow, indexOfLastRow);
 
 const { toasts, addToast, setToasts } = useToast();
+
+const { errors, setErrors, handleValidatedEditChange } = useValidation();
+
 
 // שינוי עמוד
 const handlePageChange = (pageNumber: number) => {
@@ -225,6 +230,7 @@ const {
   data: customerData,
   editingRow: editingRowCustomer,
   editData: editCustomerData,
+  setEditData,
   handleEditRow: handleEditCustomerRow,
   handleEditChange: handleEditCustomerChange,
   handleDeleteRow: handleDeleteCustomerRow,
@@ -1373,31 +1379,39 @@ const handleNewSelectCustomer = (id: string) => {
         <div className="form-group">
           <label>שם פרטי</label>
           <input
-            type="text"
-            value={firstNameCustomer}
-            onChange={handleFirstNameChange}
-            title="הזן אותיות בלבד"
-          />
+  type="text"
+  value={editCustomerData.firstNameCustomer || ""}
+  onChange={(e) =>
+    handleValidatedEditChange("firstNameCustomer", e.target.value, setEditData, setErrors)
+  }
+/>
+{errors.firstNameCustomer && <div className="error-message">{errors.firstNameCustomer}</div>}
         </div>
         <div className="form-group">
           <label>שם משפחה</label>
           <input
-            type="text"
-            value={lastNameCustomer}
-            onChange={handleLastNameChange}
-            title="הזן אותיות בלבד"
-          />
+  type="text"
+  value={editCustomerData.lastNameCustomer || ""}
+  onChange={(e) =>
+    handleValidatedEditChange("lastNameCustomer", e.target.value, setEditData, setErrors)
+  }
+/>
+{errors.lastNameCustomer && <div className="error-message">{errors.lastNameCustomer}</div>}
         </div>
-        <div className="form-group">
-          <label htmlFor="IDCustomer">תז</label>
-          <input
-            type="text"
-            inputMode="numeric"
-            maxLength={9}
-            value={IDCustomer}
-            onChange={handleIDChange}
-          />
-        </div>
+       <div className="form-group">
+  <label htmlFor="IDCustomer">תעודת זהות</label>
+  <input
+  type="text"
+  inputMode="numeric"
+  maxLength={9}
+  value={editCustomerData.IDCustomer || ""}
+  onChange={(e) =>
+    handleValidatedEditChange("IDCustomer", e.target.value, setEditData, setErrors)
+  }
+/>
+  {errors.IDCustomer && <div className="error-message">{errors.IDCustomer}</div>}
+</div>
+
         <div className="form-group">
           <label htmlFor="issueDay">תאריך הנפקה תז</label>
           <input
@@ -1554,47 +1568,84 @@ const handleNewSelectCustomer = (id: string) => {
 </td>
      {/* )}
       {/* שם פרטי */}
-      <td>
-        {editingRowCustomer === item.id ? (
-          <input
-            type="text"
-            value={editCustomerData.firstNameCustomer || ""}
-            onChange={(e) =>
-              handleEditCustomerChange("firstNameCustomer", e.target.value)
-            }
-          />
-        ) : (
-          item.firstNameCustomer
-        )}
-      </td>
+    <td>
+  {editingRowCustomer === item.id ? (
+    <>
+      <input
+        type="text"
+        value={editCustomerData.firstNameCustomer || ""}
+        onChange={(e) => {
+          const newValue = e.target.value;
+          const errorMessage = validationRules["firstNameCustomer"]?.(newValue);
+          setErrors((prevErrors) => ({
+            ...prevErrors,
+            firstNameCustomer: errorMessage || "",
+          }));
+
+          if (!errorMessage) {
+            handleEditCustomerChange("firstNameCustomer", newValue);
+          }
+        }}
+      />
+      {errors.firstNameCustomer && <div className="error-message">{errors.firstNameCustomer}</div>}
+    </>
+  ) : (
+    item.firstNameCustomer
+  )}
+</td>
       {/* שם משפחה */}
       <td>
-        {editingRowCustomer === item.id ? (
-          <input
-            type="text"
-            value={editCustomerData.lastNameCustomer || ""}
-            onChange={(e) =>
-              handleEditCustomerChange("lastNameCustomer", e.target.value)
-            }
-          />
-        ) : (
-          item.lastNameCustomer
-        )}
-      </td>
+  {editingRowCustomer === item.id ? (
+    <>
+      <input
+        type="text"
+        value={editCustomerData.lastNameCustomer || ""}
+        onChange={(e) => {
+          const newValue = e.target.value;
+          const errorMessage = validationRules["lastNameCustomer"]?.(newValue);
+          setErrors((prevErrors) => ({
+            ...prevErrors,
+            lastNameCustomer: errorMessage || "",
+          }));
+
+          if (!errorMessage) {
+            handleEditCustomerChange("lastNameCustomer", newValue);
+          }
+        }}
+      />
+      {errors.lastNameCustomer && <div className="error-message">{errors.lastNameCustomer}</div>}
+    </>
+  ) : (
+    item.lastNameCustomer
+  )}
+</td>
       {/* תעודת זהות */}
       <td>
-        {editingRowCustomer === item.id ? (
-          <input
-            type="text"
-            value={editCustomerData.IDCustomer || ""}
-            onChange={(e) =>
-              handleEditCustomerChange("IDCustomer", e.target.value)
-            }
-          />
-        ) : (
-          item.IDCustomer
-        )}
-      </td>
+  {editingRowCustomer === item.id ? (
+    <>
+      <input
+        type="text"
+        value={editCustomerData.IDCustomer || ""}
+        onChange={(e) => {
+          const newValue = e.target.value.replace(/\D/g, "").slice(0, 9); // 🔹 מסיר אותיות ומגביל ל-9 ספרות
+          const errorMessage = validationRules["IDCustomer"]?.(e.target.value); // 🔍 בודק את הערך לפני העיבוד
+
+          // 🔹 עדכון השגיאה בכל מקרה
+          setErrors((prevErrors) => ({
+            ...prevErrors,
+            IDCustomer: errorMessage || "",
+          }));
+
+          // 🔹 עדכון הערך גם אם יש שגיאה, כדי שהמשתמש יראה מה הוא מקליד
+          handleEditCustomerChange("IDCustomer", newValue);
+        }}
+      />
+      {errors.IDCustomer && <div className="error-message">{errors.IDCustomer}</div>}
+    </>
+  ) : (
+    item.IDCustomer
+  )}
+</td>
       {/* שם הורה */}
       <td>
         {editingRowCustomer === item.id ? (

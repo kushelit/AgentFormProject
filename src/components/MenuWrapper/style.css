@@ -5,6 +5,8 @@
   align-items: center;
   width: 36px;
   height: 36px;
+  position: relative;
+  z-index: 1; /* רק כדי לאפשר מיקום יחסי */
 }
 
 .menu-wrapper svg {
@@ -15,18 +17,22 @@
 }
 
 .menu-options {
-  position: absolute;
+  /* position: absolute;
   right: -100px !important; /* הגדלת ההיסט ימינה */
-  top: 100% !important;
+  /* top: 100% !important; */ 
+  position: fixed !important; /* מיקום יחסי לחלון */
   background: white;
   border: 1px solid #ddd;
   border-radius: 4px;
   box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.1);
-  z-index: 9999;
+  z-index: 10000; /* חייב להיות מעל menu-wrapper */
   display: block;
   min-width: 160px;
   padding: 8px 0;
   white-space: nowrap;
+  transition: right 0.3s; /* אנימציה של התפריט */
+  pointer-events: none; /* מונע אינטראקציה כשהתפריט סגור */
+  opacity: 0; /* מתחיל מוסתר */
 }
 
 
@@ -42,11 +48,13 @@
 }
 
 .menu-item {
+  position: relative;
   padding: 8px 12px;
   display: flex;
   align-items: center;
   gap: 10px; /* ריווח בין האייקון לטקסט */
   cursor: pointer;
+  z-index: auto; /* אין צורך בערך גבוה כי הוא בתוך menu-options */
 }
 
 .menu-item:hover {
@@ -57,4 +65,20 @@
   width: 20px;
   height: 20px;
   flex-shrink: 0; /* מונע מהאייקונים להתכווץ */
+}
+
+
+.menu-wrapper:hover .menu-options {
+  display: block;
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.custom-menu-button {
+  position: relative;
+  z-index: 10; /* נמוך יותר מהתפריט */
+}
+.menu-options.show {
+  opacity: 1;
+  pointer-events: auto;
 }

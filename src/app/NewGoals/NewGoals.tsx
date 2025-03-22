@@ -782,13 +782,6 @@ const [isProcessing, setIsProcessing] = useState(false); // Track loading state
   //   console.log("Form submitted");
   // };
 
-
-// ✅ בדיקה לפני הרינדור
-if (!goals || goals.length === 0) {
-  console.log("⏳ Waiting for goals to load...");
-  return <p>טוען נתונים...</p>;
-}
-
   return (
     <div className="content-container">
       <div className="table-header">

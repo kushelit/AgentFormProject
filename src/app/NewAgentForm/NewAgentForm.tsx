@@ -26,6 +26,7 @@ import  fetchCustomerBelongToAgent from '@/services/fetchCustomerBelongToAgent';
 import {useSortableTable}  from "@/hooks/useSortableTable";
 import {ToastNotification} from '@/components/ToastNotification';
 import { useToast } from "@/hooks/useToast";
+import { useValidation } from "@/hooks/useValidation";
 
 
 //useFetchAgentData
@@ -93,6 +94,9 @@ const NewAgentForm: React.FC = () => {
 
   const {  goalData ,setGoalData, fetchDataGoalsForWorker,calculateDays } = useCalculateSalesData();
 
+  // const [errors, setErrors] = useState<Record<string, string>>({});
+  const { errors,setErrors, handleValidatedEditChange } = useValidation();
+
 
   const searchParams = useSearchParams();
   const [selectedAgent, setSelectedAgent] = useState('');
@@ -129,10 +133,7 @@ const [filteredData, setFilteredData] = useState<AgentDataType[]>([]);
 
 const [openMenuRow, setOpenMenuRow] = useState(null);
 
-
-
 const { sortedData, sortColumn, sortOrder, handleSort } = useSortableTable<CombinedData>(filteredData);
-
 
 // ניהול העמוד הנוכחי
 const [currentPage, setCurrentPage] = useState(1);
@@ -225,7 +226,8 @@ const {
   data,                  // הנתונים הנוכחיים של הטבלה
   isLoadingHookEdit,     // האם הנתונים עדיין בטעינה
   editingRow,            // מזהה השורה הנערכת
-  editData,              // הנתונים הנערכים כרגע
+  editData,   
+  setEditData, 
   handleEditRow,         // פונקציה להפעלת עריכה
   handleEditChange,      // פונקציה לעדכון שדות בעריכה
   handleDeleteRow,       // פונקציה למחיקת שורה
@@ -254,6 +256,58 @@ useEffect(() => {
 }, [selectedAgentId, editData.AgentId]);
 
 const isSaveDisabled = !editingRow || JSON.stringify(filteredData.find((item) => item.id === editingRow)) === JSON.stringify(editData);
+
+// const validationRules: Record<string, (value: string) => string | null> = {
+//   firstNameCustomer: (value) => {
+//     const hebrewRegex = /^[\u0590-\u05FF ]+$/;
+//     return !value || hebrewRegex.test(value.trim())
+//       ? null
+//       : "שם פרטי חייב להכיל רק אותיות בעברית ורווחים";
+//   },
+//   lastNameCustomer: (value) => {
+//     const hebrewRegex = /^[\u0590-\u05FF ]+$/;
+//     return !value || hebrewRegex.test(value.trim())
+//       ? null
+//       : "שם משפחה חייב להכיל רק אותיות בעברית ורווחים";
+//   },
+//   IDCustomer: (value) => {
+//     if (/\D/.test(value)) return "תעודת זהות יכולה להכיל רק ספרות"; // 🔹 בדיקה לפני המחיקה
+//     if (value.length > 9) return "תעודת זהות לא יכולה להכיל יותר מ-9 ספרות";
+//     return null;
+//   },
+// };
+
+
+// const handleValidatedEditChange = (field: keyof CombinedData, value: any) => {
+//   let newValue = value;
+
+//   if (field === "IDCustomer") {
+//     if (/\D/.test(value)) { // 🔍 אם הוזנה אות (כל דבר שאינו מספר)
+//       setErrors((prevErrors) => ({
+//         ...prevErrors,
+//         [field]: "תעודת זהות יכולה להכיל רק ספרות",
+//       }));
+//       return; // ❌ לא נעדכן את הנתון
+//     }
+
+//     newValue = value.replace(/\D/g, "").slice(0, 9); // 🔹 מסירים אותיות ומגבילים ל-9 ספרות
+//   }
+
+//   const errorMessage = validationRules[field]?.(newValue);
+
+//   setErrors((prevErrors) => ({
+//     ...prevErrors,
+//     [field]: errorMessage || "", // ✅ אם הערך תקין – מוחקים את השגיאה
+//   }));
+
+//   if (errorMessage) return; // ❌ אם יש שגיאה, לא נעדכן את הנתון
+
+//   setEditData((prev) => ({
+//     ...prev,
+//     [field]: newValue, // ✅ עדכון הנתונים אם אין שגיאה
+//   }));
+// };
+
 
 
 // const handleEditRow = (id: string) => {
@@ -561,6 +615,8 @@ const handleSubmit = async (event: FormEvent<HTMLFormElement>, closeAfterSubmit 
   event.preventDefault();
   if (submitDisabled) return; // מניעת שליחה כפולה של הטופס
   setSubmitDisabled(true); // מניעת שליחות נוספות במהלך העיבוד
+
+
   try {
     // בדיקת קיום לקוח
     const customerQuery = query(
@@ -649,9 +705,10 @@ const handleSubmit = async (event: FormEvent<HTMLFormElement>, closeAfterSubmit 
     const hebrewRegex = /^[\u0590-\u05FF ]+$/;
     // Trim leading and trailing spaces for the test to prevent validation errors from extra spaces
     if (value === '' || hebrewRegex.test(value.trim())) {
-      setfirstNameCustomer(value);
+      setfirstNameCustomer(value); // מעדכן את ה-state רק אם הערך חוקי
+    } else {
+      addToast("error", "שם פרטי חייב להכיל רק אותיות בעברית ורווחים");
     }
-    // Otherwise, do not update the state, effectively rejecting the input
   };
 
   const handleLastNameChange: ChangeEventHandler<HTMLInputElement> = (event) => {
@@ -1419,17 +1476,17 @@ useEffect(() => {
                   <tbody>
                 {currentRows.map((item) => (
                 <tr key={item.id} className={editingRow === item.id ? "editing-row" : ""}>
-            <td className="narrow-column">
+    <td className="narrow-column">
                {editingRow === item.id ? (
-                <input
-                 type="text"
+          <input
+            type="text"
             value={editData.firstNameCustomer || ""}
             onChange={(e) => handleEditChange("firstNameCustomer", e.target.value)}
-                />
-              ) : (
-             item.firstNameCustomer
-           )}
-            </td>
+          />
+        ) : (
+          item.firstNameCustomer
+        )}
+      </td>
             <td className="narrow-column">
                {editingRow === item.id ? (
           <input
@@ -1704,36 +1761,37 @@ useEffect(() => {
               </select>
             </div>
             <div className="form-group">
-              <label>תעודת זהות *</label>
-              <input
-  type="text"
-  value={editData.IDCustomer || ""}
-  onChange={(e) => {
-    handleEditChange("IDCustomer", e.target.value)
-    console.log( canSubmit +"🟢 IDCustomer changed:", e.target.value);
-  }}
-  onFocus={() => console.log("🟢 Input focused")}
-  onBlur={() => {
-    console.log("🔵 Blur manually triggered");
-    handleIDBlur();
-  }}
-/>
-            </div>
-            <div className="form-group">
-              <label>שם פרטי *</label>
-              <input type="text" value={editData.firstNameCustomer || ""}
-               onChange={(e) =>{ handleEditChange("firstNameCustomer", e.target.value)
-                console.log( canSubmit +"🟢 firstNameCustomer changed:", e.target.value);
-               }} />
-            </div>
-            <div className="form-group">
-              <label>שם משפחה *</label>
-              <input type="text" value={editData.lastNameCustomer || ""}
-              onChange={(e) =>{ handleEditChange("lastNameCustomer", e.target.value)
-                console.log( canSubmit +"🟢 lastNameCustomer changed:", e.target.value);
-              } 
-            }/>
-            </div>
+  <label>תעודת זהות *</label>
+  <input
+    type="text"
+    value={editData.IDCustomer || ""}
+    onChange={(e) => handleValidatedEditChange("IDCustomer", e.target.value, setEditData, setErrors)}
+    onFocus={() => console.log("🟢 Input focused")}
+    onBlur={() => {
+      console.log("🔵 Blur manually triggered");
+      handleIDBlur();
+    }}
+  />
+  {errors.IDCustomer && <div className="error-message">{errors.IDCustomer}</div>}
+</div>
+  <div className="form-group">
+  <label>שם פרטי *</label>
+  <input
+    type="text"
+    value={editData.firstNameCustomer || ""}
+    onChange={(e) => handleValidatedEditChange("firstNameCustomer", e.target.value, setEditData, setErrors)}
+  />
+  {errors.firstNameCustomer && <div className="error-message">{errors.firstNameCustomer}</div>}
+</div>
+<div className="form-group">
+  <label>שם משפחה *</label>
+  <input
+    type="text"
+    value={editData.lastNameCustomer || ""}
+    onChange={(e) => handleValidatedEditChange("lastNameCustomer", e.target.value, setEditData, setErrors)}
+  />
+  {errors.lastNameCustomer && <div className="error-message">{errors.lastNameCustomer}</div>}
+</div>
             <div className="form-group">
               <label>טלפון</label>
               <input type="tel" value={editData.phone || ""} onChange={(e) => handleEditChange("phone", e.target.value)} />

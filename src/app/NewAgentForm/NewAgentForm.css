@@ -516,6 +516,7 @@ input::placeholder {
   padding: 0; /* מסיר רווחים מיותרים */
   position: relative; /* מאפשר אלמנטים יחסיים */
   border: 1px solid #ddd;
+  overflow: visible !important;
 }
 
 .table-Data-AgentForm.is-new-design .narrow-cell {
@@ -821,3 +822,4 @@ table td.narrow-column {
   display: block;
   margin-left: auto;
 }
+

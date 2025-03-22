@@ -28,6 +28,7 @@ type UseTableActionsResult<T> = {
   isLoadingHookEdit: boolean;
   editingRow: string | null;
   editData: Partial<T>;
+  setEditData: React.Dispatch<React.SetStateAction<Partial<T>>>; // ✅ הוספה של setEditData
   handleEditRow: (id: string) => void;
   handleDeleteRow: (id: string) => Promise<void>;
   saveChanges: () => Promise<void>;
@@ -240,13 +241,12 @@ function useEditableTable<T extends { id: string }>({
   };
   
 
-
-
   return {
     data,
     isLoadingHookEdit,
     editingRow,
     editData,
+    setEditData,
     handleEditRow,
     handleEditChange,
     handleDeleteRow,

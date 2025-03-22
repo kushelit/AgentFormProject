@@ -1,4 +1,4 @@
-import { ChangeEventHandler, FormEventHandler, useEffect, useMemo, useState } from "react";
+import { ChangeEventHandler, FormEvent, FormEventHandler, useEffect, useMemo, useState } from "react";
 import { collection, query, where, getDocs, addDoc, deleteDoc, doc, updateDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase/firebase"; // Ensure this path matches your project structure
 import { useAuth } from '@/lib/firebase/AuthContext';
@@ -86,23 +86,19 @@ import { useToast } from "@/hooks/useToast";
   useEffect(() => {
     console.log("🔄 productGroupMap השתנה:", productGroupMap);
   }, [productGroupMap]);
-
   const handlecommissionPercentHekef1: ChangeEventHandler<HTMLInputElement> = (e) => {
-    const value = e.target.value;
-    // Allow numbers and one dot for decimal places
-    const onlyNumsAndDot = value.replace(/[^0-9.]/g, '').replace(/(\..*?)\..*/g, '$1');
-    setCommissionPercentHekef1(onlyNumsAndDot);
+    const value = e.target.value.replace(/[^0-9.]/g, '').replace(/(\..*?)\..*/g, '$1');
+    setCommissionPercentHekef1(value || "0"); // אם השדה ריק, ישים "0"
 };
+
 const handlecommissionPercentNifraim1: ChangeEventHandler<HTMLInputElement> = (e) => {
-  const value = e.target.value;
-  const onlyNumsAndDot = value.replace(/[^0-9.]/g, '').replace(/(\..*?)\..*/g, '$1');
-  setCommissionPercentNifraim1(onlyNumsAndDot);
+    const value = e.target.value.replace(/[^0-9.]/g, '').replace(/(\..*?)\..*/g, '$1');
+    setCommissionPercentNifraim1(value || "0"); // אם השדה ריק, ישים "0"
 };
 
 const handlecommissionPercentNiud1: ChangeEventHandler<HTMLInputElement> = (e) => {
-  const value = e.target.value;
-  const onlyNumsAndDot = value.replace(/[^0-9.]/g, '').replace(/(\..*?)\..*/g, '$1');
-  setCommissionPercentNiud1(onlyNumsAndDot);
+    const value = e.target.value.replace(/[^0-9.]/g, '').replace(/(\..*?)\..*/g, '$1');
+    setCommissionPercentNiud1(value || "0"); // אם השדה ריק, ישים "0"
 };
 
 const handlecommissionPercentHekef2: ChangeEventHandler<HTMLInputElement> = (e) => {
@@ -145,27 +141,19 @@ const resetFormContracts = () => {
 };
 
 const canSubmit1 = useMemo(() => (
-  selectedProductGroup.trim() !== '' &&
-  commissionPercentHekef1.trim() !== '' &&
-  commissionPercentNifraim1.trim() !== '' &&
-  commissionPercentNiud1.trim() !== '' 
-), [selectedProductGroup, commissionPercentHekef1, commissionPercentNifraim1, commissionPercentNiud1 
- ]);
+  selectedProductGroup?.trim() !== '' &&
+  commissionPercentHekef1?.trim() !== '' &&
+  commissionPercentNifraim1?.trim() !== '' &&
+  commissionPercentNiud1?.trim() !== '' &&
+  minuySochen1 !== null && minuySochen1 !== undefined
+), [selectedProductGroup, commissionPercentHekef1, commissionPercentNifraim1, commissionPercentNiud1, minuySochen1]);
 
+ const handleSubmitDiffultValue =async (event: FormEvent<HTMLFormElement>) => {
+  if (event) event.preventDefault(); // ✅ מונע רענון דף במקרה של `<form>`
 
-
-  const handleSubmitDiffultValue = async () => {
-  //  event.preventDefault();
     try {
-      console.log("🚀 התחלת ביצוע handleSubmitDiffultValue");
-
-      if (!detail || !detail.agentId) {
-        console.log("❌ אין משתמש מחובר או `AgentId` חסר.");
-        return;
-      }
-  
-      console.log("✅ AgentId:", detail.agentId);
-      console.log("🔍 בודק אם קיים הסכם עם אותם פרטים...");
+     
+        if (!detail || !detail.agentId) return;
 
         const existingContractQuery = query(collection(db, 'contracts'), 
         where('AgentId', '==', detail.agentId),
@@ -175,37 +163,29 @@ const canSubmit1 = useMemo(() => (
   
       const querySnapshot = await getDocs(existingContractQuery);
       if (!querySnapshot.empty) {
-        console.log("❌ קיים כבר הסכם עם אותם פרטים. לא נכניס אותו שוב.");
+        console.log('A contract with the same details already exists.');
         addToast("error", "לא ניתן להזין הסכם זהה להסכם קיים");
-        // alert('לא ניתן להזין הסכם זהה להסכם קיים'); 
         return; 
       }
-
-      console.log("✅ לא נמצא הסכם קיים, ממשיכים להזין...");
-      const docRef = await addDoc(collection(db, 'contracts'), {
+        const docRef = await addDoc(collection(db, 'contracts'), {
         AgentId: detail.agentId,
         company: '',
         productsGroup: selectedProductGroup,
         product: '',
-        commissionHekef: commissionPercentHekef1?.trim() || "0",
-        commissionNifraim: commissionPercentNifraim1?.trim() || "0",
-        commissionNiud: commissionPercentNiud1?.trim() || "0",
-        minuySochen: minuySochen1 || false 
+        commissionHekef:commissionPercentHekef1,
+        commissionNifraim:commissionPercentNifraim1,
+        commissionNiud:commissionPercentNiud1,
+        minuySochen:minuySochen1
 
       });      
-      console.log("🎉 ההסכם הוזן בהצלחה עם ID:", docRef.id);
+      console.log('Document written with ID:', docRef.id);
       addToast("success", "הסכם עמלות הוזן בהצלחה");
 
       resetFormDefault(); 
-    console.log("📢 מנסה לסגור את המודל...");
-    
-    setIsModalOpenCommission(false);
-    console.log("🔄 מרענן את הנתונים...");
-
-    reloadDefaultContractsData(selectedAgentId);
-
+  setIsModalOpenCommission(false);
+  reloadDefaultContractsData(selectedAgentId);
     } catch (error) {
-      console.error("❌ שגיאה בהוספת המסמך:", error);
+      console.error('Error adding document:', error);
     }
   };
 
@@ -220,8 +200,8 @@ const canSubmit1 = useMemo(() => (
    ]);
   
 
-  const handleSubmitFullValuesCommission = async () => {
-    //  event.preventDefault();
+  const handleSubmitFullValuesCommission = async (event: FormEvent<HTMLFormElement>) => {
+    if (event) event.preventDefault();
       try {    
           if (!detail || !detail.agentId) return;
 
@@ -230,7 +210,6 @@ const canSubmit1 = useMemo(() => (
       where('company', '==', selectedCompany),
       where('product', '==', selectedProduct),
       where('minuySochen', '==', minuySochen2)
-
     );
 
     const querySnapshot = await getDocs(existingContractQuery);
@@ -244,13 +223,13 @@ const canSubmit1 = useMemo(() => (
           console.log("got here");
           const docRef = await addDoc(collection(db, 'contracts'), {
             AgentId: detail.agentId,
-            company: selectedCompany || "",
-            productsGroup: "",
-            product: selectedProduct || "",
-            commissionHekef: commissionPercentHekef2?.trim() !== "" ? commissionPercentHekef2.trim() : "0",
-            commissionNifraim: commissionPercentNifraim2?.trim() !== "" ? commissionPercentNifraim2.trim() : "0",
-            commissionNiud: commissionPercentNiud2?.trim() !== "" ? commissionPercentNiud2.trim() : "0",
-            minuySochen: minuySochen2 || false            
+          company: selectedCompany,
+          productsGroup: '',
+          product: selectedProduct,
+          commissionHekef:commissionPercentHekef2,
+          commissionNifraim:commissionPercentNifraim2,
+          commissionNiud:commissionPercentNiud2,
+          minuySochen:minuySochen2
         });      
         console.log('Document written with ID:', docRef.id);
         addToast("success", "הסכם עמלות הוזן בהצלחה");
@@ -623,7 +602,8 @@ return (
         {/* כותרת המודל */}
         <div className="modal-title">הזנת עמלות</div>
         {/* טופס המודל */}
-        <form onSubmit={handleSubmitDiffultValue} className="form-container">
+        <form onSubmit={(e) => { e.preventDefault(); handleSubmitDiffultValue(e); }} 
+             className="form-container">
           <div className="form-group">
             <label htmlFor="productGroupSelect1">קבוצת מוצר</label>
             <select
@@ -684,7 +664,8 @@ return (
               text="הזן"
               type="primary"
               icon="on"
-              state="default"
+              state={canSubmit1 ? "default" : "disabled"}
+              disabled={!canSubmit1} 
             />
             <Button
               onClick={handleCloseModalCommission}
@@ -891,7 +872,8 @@ return (
       {/* כותרת המודל */}
       <div className="modal-title">הוספת נתונים לחברה</div>
       {/* טופס המודל */}
-      <form onSubmit={handleSubmitFullValuesCommission} className="form-container">
+      <form onSubmit={(e) => { e.preventDefault(); handleSubmitFullValuesCommission(e); }}
+      className="form-container">
         <div className="form-group">
           <label htmlFor="companySelect2">בחר חברה</label>
           <select
@@ -943,7 +925,7 @@ return (
           />
         </div>
         <div className="form-group">
-          <label htmlFor="priceInputNifraim2">אחוז נפראים</label>
+          <label htmlFor="priceInputNifraim2">אחוז נפרעים</label>
           <input
             type="text"
             id="priceInputNifraim2"
@@ -967,7 +949,8 @@ return (
             text="הזן"
             type="primary"
             icon="on"
-            state="default"
+            state={canSubmit2 ? "default" : "disabled"}
+            disabled={!canSubmit2} 
           />
           <Button
             onClick={handleCloseModalAgent}
