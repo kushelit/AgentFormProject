@@ -6,13 +6,14 @@ import { Expand } from "../Expand";
 import { Collapse } from "../Collapse";
 import useFetchAgentData from "@/hooks/useFetchAgentData"; 
 import { useAuth } from '@/lib/firebase/AuthContext';
-
+import ContactFormModal from "@/components/ContactFormModal/ContactFormModal";
 
 export const Navbar = ({ items, bottomPage, className }) => {
   const [openSubmenu, setOpenSubmenu] = useState(null);
   const [selectedTab, setSelectedTab] = useState(null);
-  const { user } = useAuth(); // קבלת מידע על המשתמש המחובר
+  const {  user, detail } = useAuth(); // קבלת מידע על המשתמש המחובר
 
+  const [isContactOpen, setIsContactOpen] = useState(false);
 
 
   const { 
@@ -140,6 +141,15 @@ export const Navbar = ({ items, bottomPage, className }) => {
                 <a href={bottomPage.href} className="navbar-link" lang="en">
                   {bottomPage.label}
                 </a>
+                <button onClick={() => setIsContactOpen(true)}>📩 צור קשר</button>
+
+{isContactOpen && (
+  <ContactFormModal
+    onClose={() => setIsContactOpen(false)}
+    userEmail={detail?.email || ""}
+    userName={detail?.name || "משתמש אנונימי"} 
+    />
+)}
               </NavbarItem>
             </div>
           )}
