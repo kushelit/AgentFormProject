@@ -66,8 +66,8 @@ const ContactFormModal: React.FC<ContactFormModalProps> = ({ onClose, userEmail 
   return (
     <div className="modal-overlay">
       <div className="modal-content">
-        <button className="close-button" onClick={onClose}>✖</button>
-        <h2>פניות לשירות התמיכה</h2>
+      <button className="cancelButton" onClick={onClose}>✖</button> 
+      <div className="titleModal">פניות לשירות התמיכה</div>
         <form onSubmit={handleSubmit}>
           <textarea
             value={message}

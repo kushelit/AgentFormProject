@@ -1,12 +1,12 @@
 "use client";
 import React, { useState, useEffect } from "react";
 import { NavbarItem } from "../NavbarItem";
-import "./style.css";
 import { Expand } from "../Expand";
 import { Collapse } from "../Collapse";
 import useFetchAgentData from "@/hooks/useFetchAgentData"; 
 import { useAuth } from '@/lib/firebase/AuthContext';
 import ContactFormModal from "@/components/ContactFormModal/ContactFormModal";
+import "./Navbar.css";
 
 export const Navbar = ({ items, bottomPage, className }) => {
   const [openSubmenu, setOpenSubmenu] = useState(null);
@@ -141,7 +141,14 @@ export const Navbar = ({ items, bottomPage, className }) => {
                 <a href={bottomPage.href} className="navbar-link" lang="en">
                   {bottomPage.label}
                 </a>
-                <button onClick={() => setIsContactOpen(true)}>📩 צור קשר</button>
+                </NavbarItem>
+                </div>
+                )}
+         <div className="contact-container">
+  <a href="#" className="contact-link" onClick={(e) => { e.preventDefault(); setIsContactOpen(true); }}>
+    📩 צור קשר
+  </a>
+</div>
 
 {isContactOpen && (
   <ContactFormModal
@@ -150,9 +157,6 @@ export const Navbar = ({ items, bottomPage, className }) => {
     userName={detail?.name || "משתמש אנונימי"} 
     />
 )}
-              </NavbarItem>
-            </div>
-          )}
         </>
       ) : (
         <p>נא התחבר למערכת</p> // הודעה במקרה שאין `selectedAgentId`

@@ -23,7 +23,7 @@
     align-items: center;
   }
   
-  .modal-content h2 {
+  .titleModal {
     margin-bottom: 10px;
     font-size: 20px; 
     color: #333;
@@ -44,14 +44,24 @@
     outline: none;
   }
   
-  .close-button {
-    position: absolute;
-    top: 10px;
-    right: 10px;
-    background: none;
-    border: none;
-    font-size: 20px;
-    cursor: pointer;
+  .cancelButton {
+    padding: 0 !important; /* מבטל את כל הריווחים הפנימיים */
+    margin: 0 !important; /* מבטל ריווח חיצוני אם קיים */
+    position: absolute !important;
+    margin-top: 0px  !important;
+    left: 10px !important;
+    background: transparent !important; /* מסיר רקע */
+    border: none !important;
+    border-radius: 0% !important;
+    outline: none !important; /* מסיר מסגרת בלחיצה */
+    font-size: 14px !important;
+    font-weight: normal !important;
+    cursor: pointer !important;
+    color: rgba(0, 0, 0, 0.3) !important;
+    z-index: 1010 !important;
+    transition: color 0.2s ease, transform 0.2s ease !important;
+    text-align: left !important;
+    width: auto !important;
   }
   
   .modal-content button {

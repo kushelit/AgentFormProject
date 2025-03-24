@@ -13,6 +13,7 @@
   position: fixed;
   top: 60px; /* מתחיל בדיוק מתחת ל-TopBar */
   z-index: 999; /* נמוך מה-TopBar */
+
 }
 
 .navbar .navbar-item-instance {
@@ -32,14 +33,41 @@
 }
 
 .navbar-item-content {
-  width: 100%; /* תופס את כל הרוחב */
+  /*width: 100%; /* תופס את כל הרוחב */
   display: flex;
   justify-content: space-between;
 }
+
+
+/* Flow - נמצא בתוך navbar-bottom */
 .navbar-bottom {
-  width: 100%;
-  min-width: 230px;
-  text-align: center;
-  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-bottom: 20px;
 }
 
+/* 🔹 צור קשר - מוצמד לתחתית ה-NAVBAR */
+.contact-container {
+  position: absolute; /* ייתכן שגם fixed יתאים, אם ה-navbar לא בגובה דינמי */
+  bottom: 80px; /* תני לו מרווח מלמטה */
+  left: 63%;
+  transform: translateX(-50%);
+  text-align: center;
+  width: max-content;
+}
+
+.contact-link {
+  display: inline-block;
+  background: none;
+  text-decoration: none;
+  font-size: 16px;
+  font-weight: bold;
+  color: white;
+  padding: 10px 16px;
+  transition: color 0.3s ease;
+}
+
+.contact-link:hover {
+  color: #ffcc00;
+}
