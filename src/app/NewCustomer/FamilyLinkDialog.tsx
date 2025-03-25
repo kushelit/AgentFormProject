@@ -197,7 +197,7 @@ export const handleConfirmFamilyLink = async (
 export const startLinkingProcess = (
     setMode: (mode: string) => void,
     setShowSelect: (show: boolean) => void,
-    isNewDesignEnabled: boolean,
+    // isNewDesignEnabled: boolean,
     setDialogType: (type: string) => void,
     setDialogMessage: (message: string) => void,
     setIsDialogOpen: (open: boolean) => void,

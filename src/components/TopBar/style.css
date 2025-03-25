@@ -74,3 +74,9 @@
   font-style: var(--font-style);
   font-weight: var(--font-weight);
 }
+
+.help-button{
+  color: var(--clrgray3);
+  font-size: 14px; /* גודל טקסט מתאים */
+  font-size: var(--font-size);
+}

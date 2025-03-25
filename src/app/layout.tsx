@@ -7,7 +7,6 @@ import Header from "@/components/Header";
 import React from "react";
 import Sidebar from "@/components/Sidebar";
 import { TopBar } from "@/components/TopBar";
-import { useDesignFlag } from "@/hooks/useDesignFlag";
 import { Navbar } from "@/components/Navbar";
 import pages, { bottomPage } from '@/config/pagesConfig';
 // import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -26,46 +25,42 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const isNewDesignEnabled = useDesignFlag(); // קריאה ל-hook בתוך גוף הקומפוננטה
 
 
   return (
     <html lang="he" dir="rtl">
       <body className={font.className}>
-      {/* <QueryClientProvider client={queryClient}> */}
+        {/* <QueryClientProvider client={queryClient}> */}
         <AuthContextProvider>
           <div className="flex flex-col min-h-screen relative">
-            {/* בחירת TopBar או Header לפי ה-flag */}
-            {isNewDesignEnabled ? (
-              <TopBar className="bg-custom-blue p-4 fixed top-0 right-0 w-full h-16 z-10" />
-            ) : (
-              <Header />
-            )}
+            {/* הצגת ה-TopBar */}
+            <TopBar className="bg-custom-blue p-4 fixed top-0 right-0 w-full h-16 z-10" />
+  
             <div className="flex flex-grow">
-              {isNewDesignEnabled ? (
-             <Navbar items={pages} bottomPage={bottomPage} 
-             className="custom-navbar fixed top-16 right-0 h-[calc(100vh-64px)] w-52 z-10 bg-custom-blue shadow-lg"
-             />
-) : (
-                <Sidebar />
-              )}
+              {/* הצגת ה-Navbar */}
+              <Navbar
+                items={pages}
+                bottomPage={bottomPage}
+                className="custom-navbar fixed top-16 right-0 h-[calc(100vh-64px)] w-52 z-10 bg-custom-blue shadow-lg"
+              />
+  
               <div
-  className="flex-grow"
-  style={{
-    marginRight: "210px", // התאמה דינמית למרווח ה-Navbar
-    marginTop: "60px", // ריווח מה-TopBar
-    backgroundColor: isNewDesignEnabled ? "var(--clrgray1)" : "#C6CFD4",
-  }}
->
-  {children}
-</div>
+                className="flex-grow"
+                style={{
+                  marginRight: "210px", // התאמה דינמית למרווח ה-Navbar
+                  marginTop: "60px", // ריווח מה-TopBar
+                  backgroundColor: "var(--clrgray1)",
+                }}
+              >
+                {children}
+              </div>
             </div>
           </div>
         </AuthContextProvider>
         {/* </QueryClientProvider> */}
-            {/* האלמנט של ה-Portal לתפריט */}
-            <div id="menu-portal"></div>
+        {/* האלמנט של ה-Portal לתפריט */}
+        <div id="menu-portal"></div>
       </body>
     </html>
   );
-}
+  }

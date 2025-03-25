@@ -2,7 +2,6 @@ import { ChangeEventHandler, FormEventHandler, SetStateAction, useEffect, useSta
 import { collection, query,setDoc, where, getDocs,getDoc, addDoc, deleteDoc, doc, updateDoc,DocumentSnapshot, DocumentData } from "firebase/firestore";
 import { db } from "@/lib/firebase/firebase"; // Ensure this path matches your project structure
 import { useAuth } from '@/lib/firebase/AuthContext';
-import Link from "next/link";
 import './NewEnviorment.css';
 import useFetchAgentData from "@/hooks/useFetchAgentData"; 
 import useFetchMD from "@/hooks/useMD";

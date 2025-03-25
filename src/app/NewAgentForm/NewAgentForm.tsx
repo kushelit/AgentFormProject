@@ -10,7 +10,6 @@ import useSalesData from "@/hooks/useSalesData";
 import useFetchMD from "@/hooks/useMD"; 
 import useCalculateSalesData from "@/hooks/useCalculateGoalsSales"; 
 import confetti from 'canvas-confetti';
-import { useDesignFlag } from  "@/hooks/useDesignFlag";
 import MenuWrapper from "@/components/MenuWrapper/MenuWrapper";
 import Edit from '@/components/icons/Edit/Edit'; 
 import Delete  from '@/components/icons/Delete/Delete'; 
@@ -34,7 +33,6 @@ import { useValidation } from "@/hooks/useValidation";
 const NewAgentForm: React.FC = () => {
   const { user, detail } = useAuth();
  
-  const isNewDesignEnabled = useDesignFlag();
   const [showOpenNewDeal, setShowOpenNewDeal] = useState(false);
 
   const { 
@@ -1421,7 +1419,7 @@ useEffect(() => {
                       <div className="spinner"></div>
                   </div>
                 )}
-       <div className={`table-Data-AgentForm ${isNewDesignEnabled ? 'is-new-design' : ''}`}>
+       <div className={`table-Data-AgentForm ${'is-new-design'}`}>
                 <table>
                 <thead>
   <tr>

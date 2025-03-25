@@ -1765,7 +1765,7 @@ const handleNewSelectCustomer = (id: string) => {
   onClick={() => startLinkingProcess(
     setMode, 
     setShowSelect, 
-    isNewDesignEnabled, 
+    // isNewDesignEnabled, 
     setDialogType, 
     setDialogMessage, 
     setIsDialogOpen, 
