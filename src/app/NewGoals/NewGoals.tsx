@@ -1339,18 +1339,21 @@ const [isProcessing, setIsProcessing] = useState(false); // Track loading state
         )}
       </td>
       <td>
-        {editingStarRow === item.id ? (
-          <input
-            type="number"
-            value={editStarData.insuranceStar || ""}
-            onChange={(e) =>
-              handleEditStarChange("insuranceStar", parseFloat(e.target.value))
-            }
-          />
-        ) : (
-          item.insuranceStar?.toLocaleString() || "N/A"
-        )}
-      </td>
+  {editingStarRow === item.id ? (
+    <input
+      type="number"
+      value={editStarData.insuranceStar !== null && editStarData.insuranceStar !== undefined ? editStarData.insuranceStar.toString() : ""}
+      onChange={(e) =>
+        handleEditStarChange(
+          "insuranceStar",
+          e.target.value === "" ? "" : parseFloat(e.target.value)
+        )
+      }
+    />
+  ) : (
+    item.insuranceStar != null ? item.insuranceStar.toLocaleString() : ""
+  )}
+</td>
       <td>
         {editingStarRow === item.id ? (
           <input
@@ -1361,7 +1364,7 @@ const [isProcessing, setIsProcessing] = useState(false); // Track loading state
             }
           />
         ) : (
-          item.pensiaStar?.toLocaleString() || "N/A"
+          item.pensiaStar?.toLocaleString() || ""
         )}
       </td>
       <td>
@@ -1374,7 +1377,7 @@ const [isProcessing, setIsProcessing] = useState(false); // Track loading state
             }
           />
         ) : (
-          item.finansimStar?.toLocaleString() || "N/A"
+          item.finansimStar?.toLocaleString() || ""
         )}
       </td>
       <td className="narrow-cell">

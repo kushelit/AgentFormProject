@@ -1,0 +1,50 @@
+.help-navigation {
+    margin-top: 24px;
+    margin-bottom: 24px;
+  }
+  
+  .help-toggle {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 18px;
+    font-weight: bold;
+    color: #333;
+    margin-bottom: 8px;
+  }
+  
+  /* מעטפת שעושה את האנימציה */
+  .help-links-wrapper {
+    overflow: hidden;
+    max-height: 0;
+    transition: max-height 0.5s ease;
+  }
+  
+  /* מצב פתוח */
+  .help-links-wrapper.open {
+    max-height: 1000px; /* מספיק גדול לכל הקישורים */
+  }
+  
+  .help-links {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(150px, 1fr));
+    gap: 12px 16px;
+    margin-top: 8px;
+  }
+  
+  .help-link {
+    color: #0070f3;
+    text-decoration: none;
+    font-weight: normal;
+  }
+  
+  .help-link:hover {
+    text-decoration: underline;
+  }
+  
+  .active-link {
+    color: #003366;
+    font-weight: bold;
+    text-decoration: underline;
+  }
+  

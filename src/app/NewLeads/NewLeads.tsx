@@ -176,7 +176,7 @@ const { toasts, addToast, setToasts } = useToast();
   const {
     data: leadsData,
     editingRow: editingLeadRow,
-    editData: editLeadData,
+    editData,
     handleEditRow: handleEditLeadRow,
     handleEditChange: handleEditLeadChange,
     handleDeleteRow: handleDeleteLeadRow,
@@ -194,8 +194,8 @@ const { toasts, addToast, setToasts } = useToast();
   });
   
   useEffect(() => {
-    console.log("🧐 תוכן editLeadData בתוך המודל:", editLeadData);
-  }, [editLeadData]);
+    console.log("🧐 תוכן editLeadData בתוך המודל:", editData);
+  }, [editData]);
   
 
   // const { sortedData, sortColumn, sortOrder, handleSort } = useSort(leadsData);
@@ -380,45 +380,66 @@ const { toasts, addToast, setToasts } = useToast();
   };
 
 
+  // const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
+  //   event.preventDefault();
+  //   try {   
+  //       const docRef = await addDoc(collection(db, 'leads'), {
+  //         AgentId: selectedAgentId,
+  //         firstNameCustomer,
+  //         lastNameCustomer,
+  //         IDCustomer,
+  //         phone,
+  //         mail,
+  //         address,
+  //         notes,
+  //         returnDate,
+  //         lastContactDate,       
+  //         sourceLeadId: sourceValue,
+  //         lastUpdateDate: serverTimestamp(), 
+  //         selectedStatusLead,
+  //         workerId: selectedWorkerId,
+  //         birthday,
+  //         availableFunds,
+  //         retirementFunds,
+  //         consentForInformationRequest,
+  //         createDate: serverTimestamp(),
+  //         campaign,
+  //       });
+  //       // alert('ליד חדש התווסף בהצלחה');
+  //       addToast("success", "ליד חדש התווסף בהצלחה");
+
+  //     resetForm();
+  //     setIsEditing(false);
+  //     setShowOpenNewLead(false);
+  //     reloadLeadsData(selectedAgentId);
+  //     // if (selectedAgentId) {
+  //     //   fetchLeadsForAgent(selectedAgentId);
+  //     // }
+  //   } catch (error) {
+  //     console.error('Error adding document:', error);  // Log any errors during the process
+  //   }
+  // };
+
   const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
     event.preventDefault();
-    try {   
-        const docRef = await addDoc(collection(db, 'leads'), {
-          AgentId: selectedAgentId,
-          firstNameCustomer,
-          lastNameCustomer,
-          IDCustomer,
-          phone,
-          mail,
-          address,
-          notes,
-          returnDate,
-          lastContactDate,       
-          sourceLeadId: sourceValue,
-          lastUpdateDate: serverTimestamp(), 
-          selectedStatusLead,
-          workerId: selectedWorkerId,
-          birthday,
-          availableFunds,
-          retirementFunds,
-          consentForInformationRequest,
-          createDate: serverTimestamp(),
-          campaign,
-        });
-        // alert('ליד חדש התווסף בהצלחה');
-        addToast("success", "ליד חדש התווסף בהצלחה");
-
+    try {
+      const docRef = await addDoc(collection(db, 'leads'), {
+        ...editData, // כל הערכים החדשים בטופס נמצאים כאן!!
+        AgentId: selectedAgentId,
+        lastUpdateDate: serverTimestamp(),
+        createDate: serverTimestamp(),
+      });
+  
+      addToast("success", "ליד חדש התווסף בהצלחה");
       resetForm();
       setIsEditing(false);
       setShowOpenNewLead(false);
       reloadLeadsData(selectedAgentId);
-      // if (selectedAgentId) {
-      //   fetchLeadsForAgent(selectedAgentId);
-      // }
     } catch (error) {
-      console.error('Error adding document:', error);  // Log any errors during the process
+      console.error('Error adding document:', error);
     }
   };
+  
 
 
   // const canSubmit = useMemo(() => (
@@ -428,8 +449,8 @@ const { toasts, addToast, setToasts } = useToast();
   // ]);
 
   const canSubmit = useMemo(() => {
-    const isPhoneValid = (editLeadData.phone || "").trim() !== "";
-    const isAgentValid = (editLeadData.AgentId || "").trim() !== "";
+    const isPhoneValid = (editData.phone || "").trim() !== "";
+    const isAgentValid = (editData.AgentId || "").trim() !== "";
     
     // אם המשתמש הוא אדמין, עליו לבחור סוכן
     if (detail?.role === "admin") {
@@ -438,7 +459,7 @@ const { toasts, addToast, setToasts } = useToast();
   
     // אם המשתמש הוא סוכן, מספיק טלפון תקין
     return isPhoneValid;
-  }, [editLeadData.AgentId, editLeadData.phone, detail?.role]);
+  }, [editData.AgentId, editData.phone, detail?.role]);
   
   
 
@@ -561,7 +582,7 @@ const { toasts, addToast, setToasts } = useToast();
   
     // מחכים מעט כדי לוודא שהנתונים נטענו
     setTimeout(() => {
-      console.log("🧐 נתוני עריכה לאחר handleEditLeadRow:", editLeadData);
+      console.log("🧐 נתוני עריכה לאחר handleEditLeadRow:", editData);
       setShowOpenNewLead(true); // נפתח רק אם יש מידע
     }, 200);
   };
@@ -576,9 +597,9 @@ const { toasts, addToast, setToasts } = useToast();
   
   useEffect(() => {
     if (showOpenNewLead && isEditing) {
-      console.log("📢 מודל בעריכה נטען עם הנתונים:", editLeadData);
+      console.log("📢 מודל בעריכה נטען עם הנתונים:", editData);
     }
-  }, [editLeadData, showOpenNewLead]);
+  }, [editData, showOpenNewLead]);
 
   
 
@@ -733,7 +754,15 @@ const { toasts, addToast, setToasts } = useToast();
   <div className="modal-overlay" onClick={() => setShowOpenNewLead(false)}>
     <div className="modal-content" onClick={(e) => e.stopPropagation()}>
       <button className="close-button" onClick={() => setShowOpenNewLead(false)}>✖</button>
-      <form className="form-container" onSubmit={isEditing ? saveLeadChanges : handleSubmit}>
+      <form className="form-container" 
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (isEditing) {
+          saveLeadChanges();
+        } else {
+          handleSubmit(e);
+        }
+      }}>
         <div className="title">{isEditing ? "עריכת ליד" : "הזמנת ליד חדש"}</div>
 
         {/* פרטים אישיים */}
@@ -742,7 +771,7 @@ const { toasts, addToast, setToasts } = useToast();
           <div className="form-grid">
             <div className="form-group">
               <label>סוכנות *</label>
-              <select value={editLeadData?.AgentId || ""} onChange={(e) => handleEditLeadChange("AgentId", e.target.value)}>
+              <select value={editData?.AgentId || ""} onChange={(e) => handleEditLeadChange("AgentId", e.target.value)}>
                 {detail?.role === 'admin' && <option value="">בחר סוכן</option>}
                 {agents.map(agent => (
                   <option key={agent.id} value={agent.id}>{agent.name}</option>
@@ -751,31 +780,31 @@ const { toasts, addToast, setToasts } = useToast();
             </div>
             <div className="form-group">
               <label>שם פרטי</label>
-              <input type="text" value={editLeadData?.firstNameCustomer || ""} onChange={(e) => handleEditLeadChange("firstNameCustomer", e.target.value)} />
+              <input type="text" value={editData?.firstNameCustomer || ""} onChange={(e) => handleEditLeadChange("firstNameCustomer", e.target.value)} />
             </div>
             <div className="form-group">
               <label>שם משפחה</label>
-              <input type="text" value={editLeadData?.lastNameCustomer || ""} onChange={(e) => handleEditLeadChange("lastNameCustomer", e.target.value)} />
+              <input type="text" value={editData?.lastNameCustomer || ""} onChange={(e) => handleEditLeadChange("lastNameCustomer", e.target.value)} />
             </div>
             <div className="form-group">
               <label>תעודת זהות</label>
-              <input type="text" value={editLeadData?.IDCustomer || ""} onChange={(e) => handleEditLeadChange("IDCustomer", e.target.value)} />
+              <input type="text" value={editData?.IDCustomer || ""} onChange={(e) => handleEditLeadChange("IDCustomer", e.target.value)} />
             </div>
             <div className="form-group">
               <label>תאריך לידה</label>
-              <input type="date" value={editLeadData?.birthday || ""} onChange={(e) => handleEditLeadChange("birthday", e.target.value)} />
+              <input type="date" value={editData?.birthday || ""} onChange={(e) => handleEditLeadChange("birthday", e.target.value)} />
             </div>
             <div className="form-group">
               <label>טלפון *</label>
-              <input type="tel" value={editLeadData?.phone || ""} onChange={(e) => handleEditLeadChange("phone", e.target.value)} />
+              <input type="tel" value={editData?.phone || ""} onChange={(e) => handleEditLeadChange("phone", e.target.value)} />
             </div>
             <div className="form-group">
               <label>דואר אלקטרוני</label>
-              <input type="email" value={editLeadData?.mail || ""} onChange={(e) => handleEditLeadChange("mail", e.target.value)} />
+              <input type="email" value={editData?.mail || ""} onChange={(e) => handleEditLeadChange("mail", e.target.value)} />
             </div>
             <div className="form-group">
               <label>כתובת</label>
-              <input type="text" value={editLeadData?.address || ""} onChange={(e) => handleEditLeadChange("address", e.target.value)} />
+              <input type="text" value={editData?.address || ""} onChange={(e) => handleEditLeadChange("address", e.target.value)} />
             </div>
           </div>
         </section>
@@ -786,15 +815,15 @@ const { toasts, addToast, setToasts } = useToast();
           <div className="form-grid">
             <div className="form-group">
               <label>תאריך ושעה</label>
-              <input type="datetime-local" value={editLeadData?.returnDate?.replace(" ", "T") || ""} onChange={(e) => handleEditLeadChange("returnDate", e.target.value.replace("T", " "))} />
+              <input type="datetime-local" value={editData?.returnDate?.replace(" ", "T") || ""} onChange={(e) => handleEditLeadChange("returnDate", e.target.value.replace("T", " "))} />
             </div>
             <div className="form-group">
               <label>תאריך פניה אחרונה</label>
-              <input type="date" value={editLeadData?.lastContactDate || ""} onChange={(e) => handleEditLeadChange("lastContactDate", e.target.value)} />
+              <input type="date" value={editData?.lastContactDate || ""} onChange={(e) => handleEditLeadChange("lastContactDate", e.target.value)} />
             </div>
             <div className="form-group">
               <label>מקור ליד</label>
-              <select value={editLeadData?.sourceValue || ""} onChange={(e) => handleEditLeadChange("sourceValue", e.target.value)}>
+              <select value={editData?.sourceValue || ""} onChange={(e) => handleEditLeadChange("sourceValue", e.target.value)}>
                 <option value="">בחר מקור ליד</option>
                 {sourceLeadList.map((item) => (
                   <option key={item.id} value={item.id}>{item.sourceLead}</option>
@@ -803,7 +832,7 @@ const { toasts, addToast, setToasts } = useToast();
             </div>
             <div className="form-group">
               <label>סטטוס ליד</label>
-              <select value={editLeadData?.selectedStatusLead || ""} onChange={(e) => handleEditLeadChange("selectedStatusLead", e.target.value)}>
+              <select value={editData?.selectedStatusLead || ""} onChange={(e) => handleEditLeadChange("selectedStatusLead", e.target.value)}>
                 <option value="">בחר סטטוס</option>
                 {statusLeadMap.map((status) => (
                   <option key={status.id} value={status.id}>{status.statusLeadName}</option>
@@ -812,23 +841,23 @@ const { toasts, addToast, setToasts } = useToast();
             </div>
             <div className="form-group">
               <label>קמפיין</label>
-              <input type="text" value={editLeadData?.campaign || ""} onChange={(e) => handleEditLeadChange("campaign", e.target.value)} />
+              <input type="text" value={editData?.campaign || ""} onChange={(e) => handleEditLeadChange("campaign", e.target.value)} />
             </div>
             <div className="form-group">
               <label>סכום זמין להשקעה</label>
-              <input type="text" value={editLeadData?.availableFunds || ""} onChange={(e) => handleEditLeadChange("availableFunds", e.target.value)} />
+              <input type="text" value={editData?.availableFunds || ""} onChange={(e) => handleEditLeadChange("availableFunds", e.target.value)} />
             </div>
             <div className="form-group">
               <label>גמל והשתלמות</label>
-              <input type="text" value={editLeadData?.retirementFunds || ""} onChange={(e) => handleEditLeadChange("retirementFunds", e.target.value)} />
+              <input type="text" value={editData?.retirementFunds || ""} onChange={(e) => handleEditLeadChange("retirementFunds", e.target.value)} />
             </div>
             <div className="form-group">
               <label>אישור הזמנת מסלקה</label>
-              <input type="checkbox" checked={editLeadData?.consentForInformationRequest || false} onChange={(e) => handleEditLeadChange("consentForInformationRequest", e.target.checked)} />
+              <input type="checkbox" checked={editData?.consentForInformationRequest || false} onChange={(e) => handleEditLeadChange("consentForInformationRequest", e.target.checked)} />
             </div>
             <div className="form-group">
               <label>נציג</label>
-              <select value={editLeadData?.workerId || ""} onChange={(e) => handleEditLeadChange("workerId", e.target.value)}>
+              <select value={editData?.workerId || ""} onChange={(e) => handleEditLeadChange("workerId", e.target.value)}>
                 <option value="">בחר נציג</option>
                 {workers.map(worker => (
                   <option key={worker.id} value={worker.id}>{worker.name}</option>
@@ -837,7 +866,7 @@ const { toasts, addToast, setToasts } = useToast();
             </div>
             <div className="form-group">
               <label>הערות</label>
-              <textarea value={editLeadData?.notes || ""} onChange={(e) => handleEditLeadChange("notes", e.target.value)} rows={4}></textarea>
+              <textarea value={editData?.notes || ""} onChange={(e) => handleEditLeadChange("notes", e.target.value)} rows={4}></textarea>
             </div>
           </div>
         </section>

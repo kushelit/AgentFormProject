@@ -496,3 +496,10 @@ table tr {
   font-size: 16px;
   color: red;
 }
+.fixed-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  height: 50px;
+  width: 50px;
+}

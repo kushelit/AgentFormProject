@@ -1,0 +1,83 @@
+.help-container {
+    max-width: 800px;
+    margin: 40px auto;
+    padding: 24px;
+    background: white;
+    border-radius: 10px;
+    box-shadow: 0px 4px 12px rgba(0, 0, 0, 0.1);
+    direction: rtl;
+    text-align: right;
+    font-family: 'Arial', sans-serif;
+  }
+  
+  .help-container h1, 
+  .help-container h2, 
+  .help-container h3, 
+  .help-container p {
+    color: #2c3e50;
+    text-align: right;
+  }
+  
+  .cards-container {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin: 24px 0;
+  }
+  
+  .card {
+    background-color: #f9f9f9;
+    border-radius: 10px;
+    padding: 16px;
+    text-align: right;
+    box-shadow: 0px 2px 5px rgba(0, 0, 0, 0.05);
+  }
+  .card-header {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 8px;
+    text-align: right;
+    direction: rtl;
+  }
+  
+  
+  .inline-image-text {
+    display: inline-flex;
+    flex-direction: row-reverse;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 10px;
+    margin-bottom: 10px;
+  }
+  
+  .help-container img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 8px;
+    margin-top: 16px;
+    margin-bottom: 16px;
+  }
+ 
+  .bullet-with-icon {
+    display: flex;
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 8px;
+    direction: rtl;
+    text-align: right;
+    margin-bottom: 12px;
+  }
+  
+  .bullet-with-icon .icon {
+    flex-shrink: 0;
+    font-size: 22px; /* גודל יפה לאייקון */
+  }
+  
+  .bullet-with-icon span.text {
+    flex: 1; /* תופס את כל שאר המקום */
+    white-space: normal; /* מאפשר שבירת שורות רגילה */
+    word-break: break-word; /* מונע גלישה החוצה */
+  }

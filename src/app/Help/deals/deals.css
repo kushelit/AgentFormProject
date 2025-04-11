@@ -5,46 +5,54 @@
   background: white;
   border-radius: 10px;
   box-shadow: 0px 4px 12px rgba(0, 0, 0, 0.1);
-  line-height: 1.8; /* מרווחים בין השורות */
-  font-size: 18px; /* הגדלת הפונט */
+  line-height: 1.8;
+  font-size: 18px;
+  direction: rtl;
+  text-align: right;
 }
 
-.help-container h1 {
+.help-container h1, .help-container h2, .help-container h3 {
   color: #2c3e50;
-  font-size: 28px; /* כותרת ראשית בגודל בולט */
-  margin-bottom: 16px;
-  text-align: center;
-}
-
-.help-container h2 {
-  color: #34495e;
-  font-size: 24px; /* כותרות משנה */
-  margin-bottom: 12px;
-  border-bottom: 2px solid #ddd; /* קו תחתון דקורטיבי */
-  padding-bottom: 6px;
 }
 
 .help-container ul {
-  padding-left: 24px;
+  padding-right: 24px;
+  list-style: none;
 }
 
 .help-container li {
-  margin-bottom: 10px;
-  font-size: 18px; /* טקסט ברור יותר */
-}
-
-.help-container img {
-  display: block;
-  margin: 20px auto; /* ממרכז את התמונה */
-  border-radius: 10px;
-  max-width: 100%;
-  border: 3px solid #3498db; /* סימון התמונה עם מסגרת כחולה */
-  padding: 4px;
+  margin-bottom: 12px;
+  display: flex;
+  flex-direction: row-reverse;
+  align-items: center;
+  gap: 8px;
 }
 
 .help-container p {
-  font-size: 18px; /* מוודא שהטקסט ברור */
-  color: #2c3e50;
-  margin-bottom: 12px;
+  margin-bottom: 16px;
 }
 
+.inline-image-text {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.help-container img {
+  margin-top: 20px;
+  margin-bottom: 20px;
+  border-radius: 8px;
+  max-width: 100%;
+  height: auto;
+}
+.inline-image-text {
+  display: inline-flex;
+  flex-direction: row-reverse;
+  align-items: center;
+  direction: rtl;
+  text-align: right;
+  gap: 8px;
+  margin-bottom: 16px;
+}

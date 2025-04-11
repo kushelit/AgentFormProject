@@ -10,10 +10,15 @@ const HelpCenter = () => {
     <div className="help-container">
       <h1>מרכז העזרה - MagicSale</h1>
       <ul>
-        <li><Link href="/Help/deals">ניהול עסקאות ועמידה ביעדים</Link></li>
-        <li><Link href="/Help/clients">ניהול לקוחות</Link></li>
-        <li><Link href="/Help/commissions">עמלות</Link></li>
-        <li><Link href="/Help/reports">דוחות</Link></li>
+      <li><Link href="/Help/deals">💼 ניהול עסקאות ועמידה ביעדים</Link></li>
+        <li><Link href="/Help/clients">🧑‍💼 ניהול לקוחות</Link></li>
+        <li><Link href="/Help/commissions">💰 עמלות</Link></li>
+        {/* <li><Link href="/Help/reports">📈 דוחות</Link></li> */}
+        <li><Link href="/Help/simulator">🧮 סימולטור עמלות</Link></li>
+        <li><Link href="/Help/targets">🎯 ניהול יעדים ומבצעים</Link></li>
+        <li><Link href="/Help/flow">🔄 Flow - ניהול לידים</Link></li>
+        <li><Link href="/Help/mdflow">🔄 Flow - ניהול הגדרות לידים</Link></li>
+
       </ul>
     </div>
   );

@@ -1521,7 +1521,7 @@ const handleNewSelectCustomer = (id: string) => {
           <table>
           <thead>
   <tr>
-    <th>בחר</th> {/* לא ממוין */}
+    <th className="fixed-header">בחר</th> {/* לא ממוין */}
     <th onClick={() => handleSort("firstNameCustomer" as keyof CustomersTypeForFetching)}>
       שם פרטי {sortColumn && sortColumn === "firstNameCustomer" ? (sortOrder === "asc" ? "▲" : "▼") : ""}
     </th>
