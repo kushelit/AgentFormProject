@@ -53,9 +53,9 @@ const DealsHelp = () => {
         <div className="card">
           <div className="card-header">➕ הוספת עסקה חדשה</div>
           <div className="inline-image-text">
-          <Image src="/static/img/adddeal.png" alt="הוספת עסקה" width={100} height={60} />
-            <p>באמצעות לחיצה על כפתור "הוסף עסקה" </p>
-          </div>
+  <Image src="/static/img/adddeal.png" alt="הוספת עסקה" width={100} height={60} />
+  <p>באמצעות לחיצה על כפתור "הוסף עסקה"</p>
+</div>
         </div>
 
         <div className="card">

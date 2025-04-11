@@ -25,15 +25,14 @@ const ClientsHelp = () => {
           <p>אפשר ללחוץ על כותרת ולמיין כל עמודה.</p>
         </div>
         <div className="card">
-          <div className="card-header">✏️ <strong>עריכת לקוח</strong></div>
-          <p>פתיחת השדות לעריכה, ובסיום יש ללחוץ על <strong>"שמור שינויים"</strong>.</p>
-        </div>
-        <div className="card">
-          <div className="card-header">❌ <strong>ביטול שינויים</strong></div>
-          <p>לחיצה על <strong>"בטל"</strong> תחזיר את הנתונים למצב המקורי.</p>
-        </div>
+  <div className="card-header">✏️ <strong>עריכת לקוח</strong></div>
+  <p>פתיחת השדות לעריכה, ובסיום יש ללחוץ על <strong>"שמור שינויים"</strong>.</p>
+</div>
+<div className="card">
+  <div className="card-header">❌ <strong>ביטול שינויים</strong></div>
+  <p>לחיצה על <strong>"בטל"</strong> תחזיר את הנתונים למצב המקורי.</p>
+</div>
       </div>
-
       <h3>📌 דוגמא לתהליך עריכת איש קשר:</h3>
       <Image src="/static/img/editcustomer.png" alt="עריכת לקוח" width={800} height={100} />
 
