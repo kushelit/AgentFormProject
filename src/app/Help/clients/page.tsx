@@ -26,11 +26,11 @@ const ClientsHelp = () => {
         </div>
         <div className="card">
   <div className="card-header">✏️ <strong>עריכת לקוח</strong></div>
-  <p>פתיחת השדות לעריכה, ובסיום יש ללחוץ על <strong>"שמור שינויים"</strong>.</p>
+  <p>פתיחת השדות לעריכה, ובסיום יש ללחוץ על <strong>&quot;שמור שינויים&quot;</strong>.</p>
 </div>
 <div className="card">
   <div className="card-header">❌ <strong>ביטול שינויים</strong></div>
-  <p>לחיצה על <strong>"בטל"</strong> תחזיר את הנתונים למצב המקורי.</p>
+  <p>לחיצה על <strong>&quot;בטל&quot;</strong> תחזיר את הנתונים למצב המקורי.</p>
 </div>
       </div>
       <h3>📌 דוגמא לתהליך עריכת איש קשר:</h3>
