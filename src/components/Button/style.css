@@ -28,21 +28,6 @@
   white-space: nowrap;
   width: fit-content;
 }
-/* 
-.button .text-wrapper-2 {
-  all: unset;
-  box-sizing: border-box;
-  direction: rtl;
-  font-family: "Rubik", Helvetica;
-  font-size: 12px;
-  font-weight: 400;
-  letter-spacing: 0;
-  line-height: 18px;
-  position: relative;
-  text-align: left;
-  white-space: nowrap;
-  width: fit-content;
-} */
 
 .button .add-instance {
   left: unset !important;
@@ -133,34 +118,7 @@
   color: var(--clrdarkblue2);
 }
 
-/* .button.primary .text-wrapper-2 {
-  color: var(--clrwhite);
-} */
 
-/* .button.state-default.secondary .text-wrapper-2 {
-  color: var(--clrdarkblue3);
-  border: none; /* הסרת הגבול */
-
-
-.button.tertiary.state-disabled .text-wrapper-2 {
-  color: var(--clrgray6);
-} */
-
-/* .button.state-hover.secondary .text-wrapper-2 {
-  color: var(--clrdarkblue2);
-} */
-
-/* .button.state-default.tertiary .text-wrapper-2 {
-  color: var(--clrdarkblue3);
-}
-
-.button.state-disabled.secondary .text-wrapper-2 {
-  color: var(--clrgray6);
-}
-
-.button.state-hover.tertiary .text-wrapper-2 {
-  color: var(--clrdarkblue2);
-} */
 
 .button.state-disabled.primary {
   background-color: var(--clrgray6); /* צבע רקע אפור */
@@ -170,6 +128,7 @@
   pointer-events: none; /* ביטול כל האירועים */
   border: none; /* הסרת גבול */
 }
+
 .button.state-disabled.secondary {
   background-color: var(--clrgray6); /* צבע רקע אפור */
   color: var(--clrwhite); /* צבע טקסט */
