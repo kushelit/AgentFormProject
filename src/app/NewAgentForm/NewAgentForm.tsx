@@ -932,7 +932,7 @@ useEffect(() => {
       (selectedProductFilter ? item.product === selectedProductFilter : true) &&
       item.IDCustomer.includes(idCustomerFilter) &&
       item.firstNameCustomer.includes(firstNameCustomerFilter) &&
-      item.lastNameCustomer.includes(firstNameCustomerFilter) &&
+      item.lastNameCustomer.includes(lastNameCustomerFilter) &&
       (minuySochenFilter === '' || item.minuySochen?.toString() === minuySochenFilter) &&
       (!expiryDateFilter || itemDate.includes(expiryDateFilter)) && // ✅ חיפוש חלקי בתאריך
       (selectedStatusPolicyFilter ? item.statusPolicy === selectedStatusPolicyFilter : true)
@@ -1134,6 +1134,9 @@ const handleIDBlur = async () => {
     console.log("✅ Customer found:", customerData);
     handleEditChange("firstNameCustomer", customerData.firstNameCustomer || "");
     handleEditChange("lastNameCustomer", customerData.lastNameCustomer || "");
+    handleEditChange("phone", customerData.phone || "");
+    handleEditChange("mail", customerData.mail || "");
+    handleEditChange("address", customerData.address || "");
   } else {
     console.warn("❌ No customer found for this ID.");
   }
@@ -1295,7 +1298,14 @@ useEffect(() => {
   <div className="table-title">ניהול עסקאות</div>
   <div className="button-container">
   <Button
-    onClick={() => setShowOpenNewDeal(true)}
+    // onClick={() => setShowOpenNewDeal(true)}
+    onClick={() => {
+      setEditData((prev) => ({
+        ...prev,
+        AgentId: selectedAgentId || "", // אם יש סוכן נבחר, נשתמש בו, אחרת ריק
+      }));
+      setShowOpenNewDeal(true);
+    }}
     text="הוסף עסקה"
     type="primary"
     icon="on"

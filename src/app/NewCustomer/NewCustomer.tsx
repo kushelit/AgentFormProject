@@ -658,8 +658,8 @@ useEffect(() => {
   }
 
   const fetchPrivateSales = async () => {
-    if (!selectedCustomers) {
-      console.log("No selected customer available");
+    if (!selectedCustomers?.length) {
+      addToast("error", "לא נבחר לקוח, נא לבחור לקוח לפני הפקת דוח");
       return;
     }
     const salesRef = collection(db, "sales");
@@ -746,8 +746,8 @@ useEffect(() => {
   };
   
   const fetchFamilySales = async () => {
-    if (!selectedCustomers ) {
-      console.log("No selected customer or parent ID available");
+    if (!selectedCustomers?.length) {
+      addToast("error", "לא נבחר לקוח, נא לבחור לקוח לפני הפקת דוח");
       return;
     }
   

@@ -1,16 +1,22 @@
 .table-footer {
-  align-items: center;
-  background-color: var(--clrgray4);
-  border-color: var(--clrgray4);
-  border-top-style: solid;
-  border-top-width: 1px;
   display: flex;
-  gap: 10px;
-  height: 40px;
+  flex-direction: row; /* נשאר בשורה */
+  align-items: center;
+  justify-content: flex-end; /* הצד הימני */
+  background-color: var(--clrgray4);
+  border-top: 1px solid var(--clrgray4);
   padding: 10px;
-  position: relative;
+  height: 50px;
+  gap: 20px;
+  direction: rtl;
 }
 
-.table-footer .pagination-instance {
-  flex: 0 0 auto !important;
+.pagination-info {
+  font-size: 14px;
+  color: #555;
+  white-space: nowrap; /* 👈 מונע ירידת שורה */
+}
+
+.pagination-instance {
+  flex: 0 0 auto;
 }

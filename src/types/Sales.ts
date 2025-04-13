@@ -3,6 +3,9 @@ export interface Customer {
   AgentId?: string; // אופציונלי
   firstNameCustomer?: string;
   lastNameCustomer?: string;
+  phone?: string;
+  mail?: string;
+  address?: string;
   IDCustomer?: string;
 }
 

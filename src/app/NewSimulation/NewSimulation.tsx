@@ -5,6 +5,8 @@ import { useAuth } from '@/lib/firebase/AuthContext';
 import './NewSimulation.css';
 import useFetchAgentData from "@/hooks/useFetchAgentData";
 import { Button } from "@/components/Button/Button";
+import {ToastNotification} from '@/components/ToastNotification';
+import { useToast } from "@/hooks/useToast";
 
 
 interface Company {
@@ -66,6 +68,9 @@ const NewSimulation: React.FC = () => {
   const [niud, setNiud] = useState(0);
   const [results, setResults] = useState<CalculatedResult[]>([]);
   const [loading, setLoading] = useState(false);
+
+  const { toasts, addToast, setToasts } = useToast();
+
 
   const {
     agents,
@@ -134,6 +139,14 @@ const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
         const companySnapshot = await fetchCompanyData();  
         const simData = await fetchSimulationData(companySnapshot, productivity);  
         const contractData = await fetchContractData(companySnapshot, selectedAgentId);  
+        console.log("contractData", contractData);
+
+if (!contractData || contractData.flat().length === 0) {
+          addToast("error", "לא מוגדרים הסכמי עמלות לסוכן זה");
+          setIsEditing(false); // להפסיק מצב עריכה
+          return; // לעצור את המשך הטיפול
+        }
+
         const processedResults = processResults(companySnapshot, simData, contractData);  
         setResults(processedResults);  
     } catch (error) {
@@ -370,6 +383,15 @@ const fetchContractData = async (
   />
 </div>
         </form>
+        {toasts.length > 0  && toasts.map((toast) => (
+  <ToastNotification 
+    key={toast.id}  
+    type={toast.type}
+    className={toast.isHiding ? "hide" : ""} 
+    message={toast.message}
+    onClose={() => setToasts((prevToasts) => prevToasts.filter((t) => t.id !== toast.id))}
+  />
+))}
       </div>
   
       {/* טבלה בצד השמאלי */}
