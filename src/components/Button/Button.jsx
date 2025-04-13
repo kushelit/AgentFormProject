@@ -1,36 +1,27 @@
-
 import PropTypes from "prop-types";
 import React from "react";
-import { Add } from "../Add";
 import "./style.css";
 
 export const Button = ({
-  type = "primary", // ברירת מחדל לסוג הכפתור
-  icon = "off", // ברירת מחדל לאייקון
-  state = "default", // ברירת מחדל ל-state
+  type = "primary", // ברירת מחדל
+  icon = "off",
+  state = "default",
   className = "",
-  buttonClassName = "",
   text = "כפתור",
   onClick,
-  disabled = false, // ברירת מחדל ל-disabled
+  disabled = false,
 }) => {
   return (
-    <div
+    <button
       className={`button ${type} state-${state} ${className}`}
-      data-03-components-colors-mode="light"
+      // data-03-components-colors-mode="light"
       onClick={onClick}
+      disabled={disabled}
     >
-      <button
-        className={`div ${buttonClassName}`}
-        disabled={disabled} // שימוש בפרמטר disabled
-        data-03-components-colors-mode="light"
-      >
-        {text}
-      </button>
-    </div>
+      {text}
+    </button>
   );
 };
-
 
 Button.propTypes = {
   type: PropTypes.oneOf(["primary", "secondary", "tertiary"]),
@@ -38,7 +29,6 @@ Button.propTypes = {
   state: PropTypes.oneOf(["disabled", "hover", "default"]),
   text: PropTypes.string,
   className: PropTypes.string,
-  buttonClassName: PropTypes.string,
-  onClick: PropTypes.func, // הוספת onClick
-  disabled: PropTypes.bool, // פרופס חדש
+  onClick: PropTypes.func,
+  disabled: PropTypes.bool,
 };

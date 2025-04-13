@@ -285,8 +285,6 @@ table tr {
 }
 
 
-
-
 .select-input {
   height: 32px; /* גובה שדה select */
   padding: 2px 6px; /* צמצום הריווח הפנימי */
@@ -461,9 +459,10 @@ div, label, input {
 }
 .button-group {
   display: flex;
-  justify-content: space-between; /* מפזר את הכפתורים לשני צידי השורה */
+  justify-content: flex-start; /* כולם בתחילת השורה */
   align-items: center; /* יישור אנכי */
   padding: 10px 0; /* רווח פנימי */
+  gap: 8px; /* רווח של 8px ביניהם */
 }
 
 .button {

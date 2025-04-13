@@ -63,6 +63,7 @@
   --hover: theme('colors.custom-light-blue');
 }
 
+
 /* עיצובים טיפוגרפיה */
 .heading-large {
   font-family: var(--font-family-primary);
@@ -297,13 +298,13 @@ table select {
   transition: all 0.2s ease-in-out;
 }
 
-/* הדגשה כאשר השדה מקבל פוקוס */
+/* הדגשה כאשר השדה מקבל פוקוס
 table input:focus,
 table select:focus {
   border: 1px solid #007bff; /* שינוי מסגרת בפוקוס */
-  outline: none;
-  background-color: #fff; /* רקע לבן כדי להדגיש */
-}
+ /* outline: none;
+ /* background-color: #fff; /* רקע לבן כדי להדגיש */
+/*} */
 
 table input[type="number"] {
   text-align: right;
@@ -340,4 +341,20 @@ table select:focus {
   font-weight: bold;
   display: block !important; /* 🔹 מוודא שהתוכן מוצג */
   visibility: visible; /* 🔹 מוודא שהוא לא מוסתר */
+}
+
+button {
+  background-color: transparent; /* לא צבע כחול דיפולטי */
+  color: inherit; /* צבע טקסט לפי מה שההורה הגדיר */
+  border: none; /* לא מסגרת דיפולטית */
+  padding: 0; /* לא ריווח דיפולטי */
+  font: inherit; /* אותו פונט כמו האלמנט ההורה */
+  cursor: pointer; /* שהעכבר יראה יד כשמרחפים */
+}
+.modal-content input:focus, 
+.modal-content select:focus, 
+.modal-content textarea:focus {
+  background-color: var(--clrgray1); /* או כל צבע רקע אחר שאת רוצה */
+  outline: none; 
+  border: 1px solid var(--clrgray5); /* או לפי העיצוב שלך */
 }

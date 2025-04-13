@@ -11,11 +11,12 @@ const HelpNavigation = () => {
   const links = [
     { href: "/Help/deals", label: "💼 ניהול עסקאות ויעדים" },
     { href: "/Help/clients", label: "🧑‍💼 ניהול לקוחות" },
+    { href: "/Help/central", label: "🏢 דף מרכז" },
     { href: "/Help/commissions", label: "💰 ניהול עמלות" },
-    { href: "/Help/flow", label: "🔄 ניהול לידים - FLOW" },
-    { href: "/Help/mdflow", label: "🧮 ניהול הגדרות לידים" },
-    { href: "/Help/targets", label: "🎯 ניהול יעדים ומבצעים" },
     { href: "/Help/simulator", label: "🧮 סימולטור" },
+    { href: "/Help/targets", label: "🎯 ניהול יעדים ומבצעים" },
+    { href: "/Help/flow", label: "🔄 Flow - ניהול לידים" },
+    { href: "/Help/mdflow", label: "🧩 Flow - ניהול הגדרות לידים" },
     // { href: "/Help/reports", label: "📈 דוחות" },
   ];
 

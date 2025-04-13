@@ -823,3 +823,7 @@ table td.narrow-column {
   margin-left: auto;
 }
 
+.select-input{
+  background-position: left 10px center; /* ממקם את החץ */
+  background-size: 10px; /* התאמת גודל החץ */
+}

@@ -1317,6 +1317,7 @@ const handleNewSelectCustomer = (id: string) => {
   />
 </div>
 </div>
+<div className="filter-inputs-container">
 <div className="filter-select-container">
              <select onChange={handleAgentChange} value={selectedAgentId} className="select-input">
               {detail?.role === 'admin' && <option value="">בחר סוכן</option>}
@@ -1325,30 +1326,39 @@ const handleNewSelectCustomer = (id: string) => {
                <option key={agent.id} value={agent.id}>{agent.name}</option>
                 ))}
              </select>
+   </div>
+   <div className="filter-select-container">
           <input className="filter-input"
             type="text"
             placeholder="שם פרטי"
             value={firstNameCustomerFilter}
             onChange={(e) => setfirstNameCustomerFilter(e.target.value)}
           />
+          </div>
+          <div className="filter-select-container">
           <input className="filter-input"
             type="text"
             placeholder="שם משפחה"
             value={lastNameCustomerFilter}
             onChange={(e) => setlastNameCustomerFilter(e.target.value)}
           />
+          </div>
+          <div className="filter-select-container">
           <input className="filter-input"
             type="text"
             placeholder="תז לקוח"
             value={idCustomerFilter}
             onChange={(e) => setIdCustomerFilter(e.target.value)}
           />
+          </div>
+          <div className="filter-select-container">
           <input className="filter-input"
             type="text"
             placeholder="מבוטח אב"
             value={parentFullNameFilter}
             onChange={(e) => setParentFullNameFilter(e.target.value)}
           />
+          </div>
         </div>
       {isModalOpen && (
   <div className="modal">

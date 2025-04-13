@@ -135,14 +135,14 @@ table tr {
 
 .modal {
   position: fixed;
-  top: 50px; /* מוסיף רווח של 50px מלמעלה */
+  top: 0; /* במקום 50px */
   left: 0;
   right: 0;
   bottom: 0;
   background: rgba(0, 0, 0, 0.5); /* רקע כהה חצי שקוף */
   display: flex;
   justify-content: center;
-  align-items: flex-start;
+  align-items: center; /* ממרכז אנכית */
   z-index: 1000; /* מבטיח שהמודל יופיע מעל התוכן */
 }
 
@@ -442,11 +442,13 @@ div, label, input {
   left: 2px; /* רווח קצת יותר גדול מהחלק השמאלי */
   z-index: 10; /* להבטיח שהכפתור יהיה מעל */
 }
+
 .button-group {
   display: flex;
-  justify-content: space-between; /* מפזר את הכפתורים לשני צידי השורה */
+  justify-content: flex-start; /* כולם בתחילת השורה */
   align-items: center; /* יישור אנכי */
   padding: 10px 0; /* רווח פנימי */
+  gap: 8px; /* רווח של 8px ביניהם */
 }
 
 .button {

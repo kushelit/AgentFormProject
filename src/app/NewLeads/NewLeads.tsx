@@ -742,7 +742,7 @@ const { toasts, addToast, setToasts } = useToast();
         <div className="newLeadButton">
         <Button
   onClick={handleNewLead}
-  text="הזמנת ליד חדש"
+  text="הוספת ליד חדש"
   type="primary"
   icon="on"
   state="default"

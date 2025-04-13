@@ -504,7 +504,7 @@ const handleSubmitStatusLead: FormEventHandler<HTMLFormElement> = async (event) 
          <thead>
          <tr>
          <th>מקור ליד </th>
-          <th>API</th>
+          <th>קמפיין</th>
           <th>סטאטוס</th>
           <th className="narrow-cell">🔧</th>
         </tr>

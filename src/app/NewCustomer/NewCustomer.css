@@ -223,29 +223,14 @@ table tr {
 }
 
 
-.close-button .button {
-  background-color: transparent !important; /* רקע שקוף */
-  border: none !important; /* ביטול מסגרת */
-  font-size: 14px; /* גודל טקסט */
-  cursor: pointer; /* מצביע לחיץ */
-  padding: 5px; /* ריווח פנימי */
-  box-shadow: none !important; /* ביטול הצללה */
-  display: flex; /* יישור נכון */
-  align-items: center; /* יישור אנכי */
-  justify-content: center; /* יישור אופקי */
-}
-
-.close-button .button .div {
-  all: unset; /* מסיר את כל הסטייל המובנה */
-  display: flex; /* מבטיח שהטקסט או האייקון יישארו בפנים */
-}
-
 .close-button {
-  position: absolute; /* למקם את הכפתור ביחס ל-modal */
-  top: 5px; /* רווח מהחלק העליון */
-  left: 2px; /* רווח קצת יותר גדול מהחלק השמאלי */
-  z-index: 10; /* להבטיח שהכפתור יהיה מעל */
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 10;
 }
+
+
 .button-group {
   display: flex;
   justify-content: space-between; /* מפזר את הכפתורים לשני צידי השורה */
@@ -253,61 +238,15 @@ table tr {
   padding: 10px 0; /* רווח פנימי */
 }
 
-.button {
-  cursor: pointer; /* מצביע לחיץ */
-}
+/* .button {
+  cursor: pointer;} /* מצביע לחיץ */
+
+/*  
 .button:hover {
   opacity: 0.8; /* אפקט שקיפות קטן */
-  transition: all 0.2s ease-in-out; /* אנימציה חלקה */
-}
-.button.state-disabled {
-  cursor: not-allowed; /* מצביע של מצב לא פעיל */
-  opacity: 0.5; /* שקיפות */
-}
+ /* transition: all 0.2s ease-in-out;}/* אנימציה חלקה */
 
 
-.filter-select-container {
-  flex: 1;
-  position: relative;
-  margin-bottom: 2px; /* הקטנת הרווח מתחת ל-select */
-  left: -20px; /* מזיז את השדה שמאלה */
-  margin-top: 10px; /* מגדיל את הרווח מלמעלה */
-  margin-bottom: 10px; /* מגדיל את הרווח מלמטה */
-}
-
-.filter-input , .select-input {
-  height: 28px; /* גובה שדה select */
-  padding: 2px 6px; /* צמצום הריווח הפנימי */
-  font-size: var(--font-size-text-small); /* גודל פונט קטן */
-  width: 100%;
-  border: 1px solid var(--clrgray5);
-  border-radius: 4px;
-  box-sizing: border-box;
-  margin-bottom: 0; /* מבטל רווחים מיותרים */
-}
-
-
-.select-input {
-  width: 120px; /* רוחב קבוע */
-  background-position: left 10px center; /* ממקם את החץ */
-  background-size: 10px; /* התאמת גודל החץ */
-  text-align: center; /* יישור התוכן בתוך השדה למרכז */
-
-}
-
-.filter-select-container input {
-  appearance: none;
-  direction: rtl;
-  text-align: center; /* יישור התוכן בתוך השדה למרכז */
-  padding-right: 10px; /* התאמת רווחים מימין */
-  padding-left: 10px; /* התאמת רווחים משמאל */
-  background-position: left 10px center; /* ממקם את החץ */
-  background-size: 10px; /* התאמת גודל החץ */
-  margin-bottom: 0; /* ביטול רווח תחתון */
-  width: auto; /* רוחב אוטומטי */
-  min-width: 150px; /* רוחב מינימלי */
-  max-width: 300px; /* מגביל את הרוחב המקסימלי */
-}
 
 .newCustomerFormButton {
   display: flex; /* מסדר את הילדים של הקונטיינר בצורה אופקית */
@@ -502,4 +441,40 @@ table tr {
   z-index: 10;
   height: 50px;
   width: 50px;
+}
+
+.filter-inputs-container {
+  display: flex;
+  flex-wrap: wrap; /* לא חובה, אבל טוב שיהיה אם תוסיפי שדות */
+  gap: 8px; /* רווח קטן אחיד */
+  justify-content: flex-start; /* מצמיד את הכל לימין */
+  align-items: center;
+  padding: 8px;
+  width: 100%;
+  box-shadow: var(--m3-elevation-light-1);
+}
+
+.filter-select-container {
+  flex: none; /* שלא ימתח סתם */
+  max-width: 180px;
+  min-width: 120px;
+  width: auto;
+}
+
+.filter-input,
+.select-input {
+  height: 32px;
+  padding: 4px 8px;
+  font-size: 13px;
+  border: 1px solid var(--clrgray5);
+  border-radius: 4px;
+  box-sizing: border-box;
+  text-align: center; /* יישור טקסט לימין */
+  direction: rtl;
+  width: 100%;
+}
+
+.select-input{
+  background-position: left 10px center; /* ממקם את החץ */
+  background-size: 10px; /* התאמת גודל החץ */
 }

@@ -8,12 +8,14 @@
   padding: 0px 10px;
   position: relative;
     /* קביעת רוחב וגובה קבועים */
-    height: 40px; /* הגובה הקבוע */
+   /*  height: 40px; /* הגובה הקבוע */
     width: 120px; /* הרוחב הקבוע */
+    cursor: pointer;
+    transition: background-color 0.3s, color 0.3s, border-color 0.3s;
 }
 
-.button .div {
-  all: unset;
+.button  {
+  /* all: unset; */
   box-sizing: border-box;
   direction: rtl;
   font-family: "Rubik", Helvetica;
@@ -26,7 +28,7 @@
   white-space: nowrap;
   width: fit-content;
 }
-
+/* 
 .button .text-wrapper-2 {
   all: unset;
   box-sizing: border-box;
@@ -40,7 +42,7 @@
   text-align: left;
   white-space: nowrap;
   width: fit-content;
-}
+} */
 
 .button .add-instance {
   left: unset !important;
@@ -65,6 +67,7 @@
 
 .button.state-default.secondary {
   border-color: var(--clrgray6);
+  background-color: var(--clrgray1); /* ✅ רקע לבן קבוע */
   color: black;
   font-size: 12px;
   /*border: none; /* הסרת הגבול */
@@ -76,67 +79,78 @@
 
 .button.state-disabled.primary {
   background-color: var(--clrgray6) !important;
+  height: 30px; /* הגובה הקבוע */
+  width: 120px; /* הרוחב הקבוע */
 }
 
 .button.state-hover.secondary {
   background-color: var(--clrlightblue1);
+  color: var(--clrdarkblue2); /* טקסט כחול כהה */
   border-color: var(--clrdarkblue2);
 }
 
 .button.state-default.primary {
   background-color: var(--clrdarkblue3);
+  height: 30px; /* הגובה הקבוע */
+  width: 120px; /* הרוחב הקבוע */
 }
 
 .button.state-disabled.secondary {
   border-color: var(--clrgray6);
+  height: 30px; /* הגובה הקבוע */
+  width: 120px; /* הרוחב הקבוע */
 }
 
-.button.primary .div {
+.button.primary  {
   color: var(--clrwhite);
+  height: 30px; /* הגובה הקבוע */
+  width: 120px; /* הרוחב הקבוע */
 }
 
-.button.state-default.secondary .div {
+.button.state-default.secondary {
   color: var(--clrdarkblue3);
+  height: 30px; /* הגובה הקבוע */
+  width: 120px; /* הרוחב הקבוע */
 }
 
-.button.tertiary.state-disabled .div {
+.button.tertiary.state-disabled  {
   color: var(--clrgray6);
 }
 
-.button.state-hover.secondary .div {
+.button.state-hover.secondary {
   color: var(--clrdarkblue2);
 }
 
-.button.state-default.tertiary .div {
+.button.state-default.tertiary {
   color: var(--clrdarkblue3);
 }
 
-.button.state-disabled.secondary .div {
+.button.state-disabled.secondary  {
   color: #6c757d; /* אפור כהה יותר */
 }
 
-.button.state-hover.tertiary .div {
+.button.state-hover.tertiary  {
   color: var(--clrdarkblue2);
 }
 
-.button.primary .text-wrapper-2 {
+/* .button.primary .text-wrapper-2 {
   color: var(--clrwhite);
-}
+} */
 
-.button.state-default.secondary .text-wrapper-2 {
+/* .button.state-default.secondary .text-wrapper-2 {
   color: var(--clrdarkblue3);
   border: none; /* הסרת הגבול */
-}
+
 
 .button.tertiary.state-disabled .text-wrapper-2 {
   color: var(--clrgray6);
-}
+} */
 
-.button.state-hover.secondary .text-wrapper-2 {
+/* .button.state-hover.secondary .text-wrapper-2 {
   color: var(--clrdarkblue2);
-}
+} */
 
-.button.state-default.tertiary .text-wrapper-2 {
+/* .button.state-default.tertiary .text-wrapper-2 {
   color: var(--clrdarkblue3);
 }
 
@@ -146,7 +160,7 @@
 
 .button.state-hover.tertiary .text-wrapper-2 {
   color: var(--clrdarkblue2);
-}
+} */
 
 .button.state-disabled.primary {
   background-color: var(--clrgray6); /* צבע רקע אפור */
@@ -164,4 +178,9 @@
   opacity: 0.7; /* שקיפות */
   pointer-events: none; /* ביטול כל האירועים */
   border: none; /* הסרת הגבול */
+}
+.button.secondary:hover {
+  background-color: var(--clrlightblue1);
+  color: var(--clrdarkblue2);
+  border-color: var(--clrdarkblue2);
 }

@@ -972,7 +972,7 @@ const [isProcessing, setIsProcessing] = useState(false); // Track loading state
     <Button
       onClick={handleCloseModalNewGoal}
       text="בטל"
-      type="primary"
+      type="secondary"
       icon="off"
       state="default"
     />
