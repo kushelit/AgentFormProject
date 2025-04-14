@@ -15,6 +15,7 @@ import { LeadsType } from '@/types/LeadsType ';
 import {useSortableTable}  from "@/hooks/useSortableTable";
 import {ToastNotification} from '@/components/ToastNotification';
 import { useToast } from "@/hooks/useToast";
+import { useValidation } from "@/hooks/useValidation";
 
 
 const NewLeads = () => {
@@ -78,6 +79,7 @@ const [selectedSourceLeadFilter, setSelectedSourceLeadFilter] = useState('');
 const [editingRowIdTime, setEditingRowIdTime] = useState<string | null>(null);
 const { toasts, addToast, setToasts } = useToast();
 
+const { errors,setErrors, handleValidatedEditChange } = useValidation();
 
 
   interface Suggestion {
@@ -177,6 +179,7 @@ const { toasts, addToast, setToasts } = useToast();
     data: leadsData,
     editingRow: editingLeadRow,
     editData,
+    setEditData,
     handleEditRow: handleEditLeadRow,
     handleEditChange: handleEditLeadChange,
     handleDeleteRow: handleDeleteLeadRow,
@@ -779,17 +782,36 @@ const { toasts, addToast, setToasts } = useToast();
               </select>
             </div>
             <div className="form-group">
-              <label>שם פרטי</label>
-              <input type="text" value={editData?.firstNameCustomer || ""} onChange={(e) => handleEditLeadChange("firstNameCustomer", e.target.value)} />
-            </div>
-            <div className="form-group">
-              <label>שם משפחה</label>
-              <input type="text" value={editData?.lastNameCustomer || ""} onChange={(e) => handleEditLeadChange("lastNameCustomer", e.target.value)} />
-            </div>
-            <div className="form-group">
-              <label>תעודת זהות</label>
-              <input type="text" value={editData?.IDCustomer || ""} onChange={(e) => handleEditLeadChange("IDCustomer", e.target.value)} />
-            </div>
+  <label>שם פרטי</label>
+  <input
+    type="text"
+    value={editData?.firstNameCustomer || ""}
+    onChange={(e) => handleValidatedEditChange("firstNameCustomer", e.target.value, setEditData, setErrors)}
+    className={errors.firstNameCustomer ? "input-error" : ""}
+  />
+  {errors.firstNameCustomer && <div className="error-message">{errors.firstNameCustomer}</div>}
+</div>
+<div className="form-group">
+  <label>שם משפחה</label>
+  <input
+    type="text"
+    value={editData?.lastNameCustomer || ""}
+    onChange={(e) => handleValidatedEditChange("lastNameCustomer", e.target.value, setEditData, setErrors)}
+    className={errors.lastNameCustomer ? "input-error" : ""}
+  />
+  {errors.lastNameCustomer && <div className="error-message">{errors.lastNameCustomer}</div>}
+</div>
+
+<div className="form-group">
+  <label>תעודת זהות</label>
+  <input
+    type="text"
+    value={editData?.IDCustomer || ""}
+    onChange={(e) => handleValidatedEditChange("IDCustomer", e.target.value, setEditData, setErrors)}
+    className={errors.IDCustomer ? "input-error" : ""}
+  />
+  {errors.IDCustomer && <div className="error-message">{errors.IDCustomer}</div>}
+</div>
             <div className="form-group">
               <label>תאריך לידה</label>
               <input type="date" value={editData?.birthday || ""} onChange={(e) => handleEditLeadChange("birthday", e.target.value)} />

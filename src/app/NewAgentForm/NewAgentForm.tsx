@@ -241,6 +241,47 @@ const {
 });
 
 
+const [validateAllFields, setValidateAllFields] = useState(false);
+const [invalidFields, setInvalidFields] = useState<string[]>([]);
+
+const validateAllRequiredFields = (newData?: typeof editData) => {
+  const dataToValidate = newData || editData;
+  const missingFields: string[] = [];
+
+  if (!dataToValidate.AgentId?.trim()) missingFields.push("AgentId");
+  if (!dataToValidate.workerId?.trim()) missingFields.push("workerId");
+  if (!dataToValidate.firstNameCustomer?.trim()) missingFields.push("firstNameCustomer");
+  if (!dataToValidate.lastNameCustomer?.trim()) missingFields.push("lastNameCustomer");
+  if (!dataToValidate.IDCustomer?.trim()) missingFields.push("IDCustomer");
+  if (!dataToValidate.company?.trim()) missingFields.push("company");
+  if (!dataToValidate.product?.trim()) missingFields.push("product");
+  if (!dataToValidate.statusPolicy?.trim()) missingFields.push("statusPolicy");
+  if (!dataToValidate.mounth?.trim()) missingFields.push("mounth");
+
+  setInvalidFields(missingFields);
+};
+
+
+const handleDealEditChange = (field: keyof CombinedData, value: CombinedData[keyof CombinedData]) => {
+  handleEditChange(field, value);
+  if (validateAllFields) {
+    validateAllRequiredFields();
+  }
+};
+
+useEffect(() => {
+  console.log("useEffect fired - validateAllFields:", validateAllFields, "editData:", editData);
+  if (validateAllFields) {
+    validateAllRequiredFields(); // בודק שדות רגילים
+    const requiredTextFields: (keyof CombinedData)[] = ["firstNameCustomer", "lastNameCustomer", "IDCustomer"];
+    requiredTextFields.forEach((field) => {
+      const fieldValue = editData[field as keyof CombinedData] ?? "";
+      handleValidatedEditChange(field as string, fieldValue as string, setEditData, setErrors);
+    });
+  }
+}, [validateAllFields, editData]);
+
+
 // שינוי עמוד
 const handlePageChange = (pageNumber: number) => {
   setCurrentPage(pageNumber);
@@ -697,27 +738,27 @@ const handleSubmit = async (event: FormEvent<HTMLFormElement>, closeAfterSubmit 
 };
 
 
-  const handleFirstNameChange: ChangeEventHandler<HTMLInputElement> = (event) => {
-    const value = event.target.value;
-    // Allow Hebrew letters and spaces, but prevent leading or trailing spaces
-    const hebrewRegex = /^[\u0590-\u05FF ]+$/;
-    // Trim leading and trailing spaces for the test to prevent validation errors from extra spaces
-    if (value === '' || hebrewRegex.test(value.trim())) {
-      setfirstNameCustomer(value); // מעדכן את ה-state רק אם הערך חוקי
-    } else {
-      addToast("error", "שם פרטי חייב להכיל רק אותיות בעברית ורווחים");
-    }
-  };
+  // const handleFirstNameChange: ChangeEventHandler<HTMLInputElement> = (event) => {
+  //   const value = event.target.value;
+  //   // Allow Hebrew letters and spaces, but prevent leading or trailing spaces
+  //   const hebrewRegex = /^[\u0590-\u05FF ]+$/;
+  //   // Trim leading and trailing spaces for the test to prevent validation errors from extra spaces
+  //   if (value === '' || hebrewRegex.test(value.trim())) {
+  //     setfirstNameCustomer(value); // מעדכן את ה-state רק אם הערך חוקי
+  //   } else {
+  //     addToast("error", "שם פרטי חייב להכיל רק אותיות בעברית ורווחים");
+  //   }
+  // };
 
-  const handleLastNameChange: ChangeEventHandler<HTMLInputElement> = (event) => {
-    const value = event.target.value;
-    // Allow Hebrew letters and spaces, but prevent leading or trailing spaces
-    const hebrewRegex = /^[\u0590-\u05FF ]+$/;
-    // Trim leading and trailing spaces for the test to prevent validation errors from extra spaces
-    if (value === '' || hebrewRegex.test(value.trim())) {
-      setlastNameCustomer(value);
-    }
-  };
+  // const handleLastNameChange: ChangeEventHandler<HTMLInputElement> = (event) => {
+  //   const value = event.target.value;
+  //   // Allow Hebrew letters and spaces, but prevent leading or trailing spaces
+  //   const hebrewRegex = /^[\u0590-\u05FF ]+$/;
+  //   // Trim leading and trailing spaces for the test to prevent validation errors from extra spaces
+  //   if (value === '' || hebrewRegex.test(value.trim())) {
+  //     setlastNameCustomer(value);
+  //   }
+  // };
 
 
 
@@ -1165,6 +1206,7 @@ useEffect(() => {
   setSelectedProductGroup(selectedGroupId);
 }, [editData.product, productToGroupMap]); // ירוץ בכל שינוי של המוצר או הנתונים
 
+console.log("🚨 invalidFields:", invalidFields); // ✅ כאן מחוץ ל-HTML
 
   return (
 <div className="content-container-NewAgentForm">  
@@ -1759,14 +1801,19 @@ useEffect(() => {
               <label>עובד *</label>
               <select value={editData.workerId || ""} 
               onChange={(e) => {
-              handleEditChange("workerId", e.target.value)
+              handleDealEditChange("workerId", e.target.value)
               console.log( canSubmit + "🔄 workerId:", e.target.value);
-              }}>
+              }}
+              className={invalidFields.includes("workerId") ? "input-error" : ""}
+              >
                 <option value="">בחר עובד</option>
                 {workers.map(worker => (
                   <option key={worker.id} value={worker.id}>{worker.name}</option>
                 ))}
               </select>
+              {invalidFields.includes("workerId") && (
+    <div className="error-message">חובה לבחור עובד</div>
+  )}
             </div>
             <div className="form-group">
   <label>תעודת זהות *</label>
@@ -1779,6 +1826,7 @@ useEffect(() => {
       console.log("🔵 Blur manually triggered");
       handleIDBlur();
     }}
+    className={errors.IDCustomer ? "input-error" : ""}
   />
   {errors.IDCustomer && <div className="error-message">{errors.IDCustomer}</div>}
 </div>
@@ -1788,7 +1836,15 @@ useEffect(() => {
     type="text"
     value={editData.firstNameCustomer || ""}
     onChange={(e) => handleValidatedEditChange("firstNameCustomer", e.target.value, setEditData, setErrors)}
-  />
+    onBlur={(e) => {
+      handleValidatedEditChange("firstNameCustomer", e.target.value, setEditData, setErrors);
+      if (validateAllFields) {
+        validateAllRequiredFields(); // ✅ שיהיה גם כאן
+      }
+    }}
+    className={errors.firstNameCustomer ? "input-error" : ""}
+
+ />
   {errors.firstNameCustomer && <div className="error-message">{errors.firstNameCustomer}</div>}
 </div>
 <div className="form-group">
@@ -1796,8 +1852,16 @@ useEffect(() => {
   <input
     type="text"
     value={editData.lastNameCustomer || ""}
-    onChange={(e) => handleValidatedEditChange("lastNameCustomer", e.target.value, setEditData, setErrors)}
-  />
+    onChange={(e) => handleValidatedEditChange("lastNameCustomer", e.target.value, setEditData, setErrors)} 
+    onBlur={(e) => {
+      handleValidatedEditChange("lastNameCustomer", e.target.value, setEditData, setErrors);
+      if (validateAllFields) {
+        validateAllRequiredFields(); // ✅ שיהיה גם כאן
+      }
+    }}
+    className={errors.lastNameCustomer ? "input-error" : ""}
+
+ />
   {errors.lastNameCustomer && <div className="error-message">{errors.lastNameCustomer}</div>}
 </div>
             <div className="form-group">
@@ -1823,27 +1887,37 @@ useEffect(() => {
               <label>חברה *</label>
               <select value={editData.company || ""} 
               onChange={(e) => {
-              handleEditChange("company", e.target.value)
+                handleDealEditChange("company", e.target.value)
               console.log( canSubmit +"🟢 company changed:", e.target.value);
-              }}>
+              }}
+              className={invalidFields.includes("company") ? "input-error" : ""}
+              >
                 <option value="">בחר חברה</option>
                 {companies.map((companyName, index) => (
                   <option key={index} value={companyName}>{companyName}</option>
                 ))}
               </select>
+              {invalidFields.includes("company") && (
+    <div className="error-message">חובה לבחור חברה</div>
+  )}
             </div>
             <div className="form-group">
               <label>מוצר *</label>
               <select value={editData.product || ""} 
               onChange={(e) => {
                 console.log( canSubmit +"🔄 Product:", e.target.value);
-                handleEditChange("product", e.target.value);
-              }}>
+                handleDealEditChange("product", e.target.value);
+              }}
+              className={invalidFields.includes("product") ? "input-error" : ""}
+              >
                 <option value="">בחר מוצר</option>
                 {products.map(product => (
                   <option key={product.id} value={product.name}>{product.name}</option>
                 ))}
               </select>
+              {invalidFields.includes("product") && (
+    <div className="error-message">חובה לבחור מוצר</div>
+  )}
             </div>
             {/* פרטי פרמיה */}
        {selectedProductGroup && selectedProductGroup !== "1" && selectedProductGroup !== "4" && (
@@ -1905,26 +1979,39 @@ useEffect(() => {
   </div>
 )}
             <div className="form-group">
-              <label>סטטוס עסקה</label>
+              <label>סטטוס עסקה *</label>
               <select value={editData.statusPolicy || ""} 
               onChange={(e) => {
-              handleEditChange("statusPolicy", e.target.value)
+                handleDealEditChange("statusPolicy", e.target.value)
               console.log( canSubmit +"🔄 statusPolicy:", e.target.value);
 
-      }}>
+      }}
+      className={invalidFields.includes("statusPolicy") ? "input-error" : ""}
+      >
                 <option value="">בחר סטאטוס</option>
                 {statusPolicies.map((status, index) => (
                   <option key={index} value={status}>{status}</option>
                 ))}
               </select>
+              {invalidFields.includes("product") && (
+    <div className="error-message">חובה לבחור מוצר</div>
+  )}
             </div>
             <div className="form-group">
               <label>תאריך תפוקה *</label>
-              <input type="date" value={editData.mounth || ""} 
+              <input type="date" 
+              value={editData.mounth || ""} 
               onChange={(e) =>{
-               handleEditChange("mounth", e.target.value)
+                handleDealEditChange("mounth", e.target.value)
                console.log( canSubmit +"🔄 mounth:", e.target.value);
-      }} />
+      }}
+      onBlur={(e) => {
+        console.log("📌 יציאה משדה mounth");
+        setValidateAllFields(true);
+        validateAllRequiredFields(); // ✅ בודק גם את ה-inputים החכמים
+      }}
+      className={invalidFields.includes("mounth") ? "input-error" : ""}
+      />
             </div>
    <div className="form-group checkbox-group">
   <label className="checkbox-label">

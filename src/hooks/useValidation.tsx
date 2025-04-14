@@ -3,12 +3,14 @@ import { useState } from "react";
 export const validationRules: Record<string, (value: string) => string | null> = {
   firstNameCustomer: (value) => {
     const hebrewRegex = /^[\u0590-\u05FF ]+$/;
+    if (!value.trim()) return "חובה להזין שם פרטי"; // ✅ חובה לא להשאיר ריק
     return !value || hebrewRegex.test(value.trim())
       ? null
       : "שם פרטי חייב להכיל רק אותיות בעברית ורווחים";
   },
   lastNameCustomer: (value) => {
     const hebrewRegex = /^[\u0590-\u05FF ]+$/;
+    if (!value.trim()) return "חובה להזין שם משפחה"; // ✅ חובה לא להשאיר ריק
     return !value || hebrewRegex.test(value.trim())
       ? null
       : "שם משפחה חייב להכיל רק אותיות בעברית ורווחים";
@@ -16,6 +18,7 @@ export const validationRules: Record<string, (value: string) => string | null> =
   IDCustomer: (value) => {
     if (/\D/.test(value)) return "תעודת זהות יכולה להכיל רק ספרות";
     if (value.length > 9) return "תעודת זהות לא יכולה להכיל יותר מ-9 ספרות";
+    if (!value.trim()) return "חובה להזין תעודת זהות "; // ✅ חובה לא להשאיר ריק
     return null;
   },
 };

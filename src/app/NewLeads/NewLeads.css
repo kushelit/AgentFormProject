@@ -464,3 +464,8 @@ input::placeholder {
   background-size: 10px; /* התאמת גודל החץ */
   text-align-last: center; /* ממקם את הטקסט באמצע */
 }
+
+.input-error {
+  border: 1px solid red !important;
+  background-color: #ffe6e6 !important;
+}
