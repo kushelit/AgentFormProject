@@ -10,6 +10,8 @@ import { TopBar } from "@/components/TopBar";
 import { Navbar } from "@/components/Navbar";
 import pages, { bottomPage } from '@/config/pagesConfig';
 // import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+// import GlobalAnnouncementPopup from "@/components/announcements/GlobalAnnouncementPopup"; // הוסיפי שורת ייבוא
+
 
 // const queryClient = new QueryClient()
 
@@ -33,6 +35,8 @@ export default function RootLayout({
         {/* <QueryClientProvider client={queryClient}> */}
         <AuthContextProvider>
           <div className="flex flex-col min-h-screen relative">
+              {/* ✅ הפופאפ שלך */}
+          {/* <GlobalAnnouncementPopup /> */}
             {/* הצגת ה-TopBar */}
             <TopBar className="bg-custom-blue p-4 fixed top-0 right-0 w-full h-16 z-10" />
   

@@ -10,6 +10,7 @@ import useFetchAgentData from "@/hooks/useFetchAgentData";
 type AuthContextType = {
   user: User | null;
   detail: UserDetail | null;
+  isLoading: boolean; // ✅ הוספה
   logIn: (email: string, password: string) => Promise<UserCredential>;
   signUp: (email: string, password: string) => Promise<UserCredential>;
   logOut: () => Promise<void>;
@@ -23,31 +24,53 @@ type UserDetail = {
 };
 
 // @ts-ignore
-export const AuthContext = createContext<AuthContextType>();
+// export const AuthContext = createContext<AuthContextType>();
+
+export const AuthContext = createContext<AuthContextType>({
+  user: null,
+  detail: null,
+  isLoading: true, // ✅ חובה פה!
+  logIn: async () => {
+    throw new Error("logIn not implemented");
+  },
+  signUp: async () => {
+    throw new Error("signUp not implemented");
+  },
+  logOut: async () => {
+    throw new Error("logOut not implemented");
+  },
+});
+
 
 export const AuthContextProvider = (props: any) => {
   const [user, setUser] = useState<User | null>(null);
   const [detail, setDetail] = useState<UserDetail | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   // const { resetSelectedAgentId } = useFetchAgentData();
-
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
-
+  
       if (currentUser) {
         const docRef = doc(db, 'users', currentUser.uid);
         getDoc(docRef)
           .then((doc) => {
-            const data = doc.data() as UserDetail;
+            const data = doc.data();
             setDetail(data as UserDetail);
+            setIsLoading(false); // ✅ סיום טעינה
           });
+      } else {
+        setDetail(null);
+        setIsLoading(false); // ✅ גם כאן!
       }
     });
-
+  
     return () => unsubscribe();
   }, []);
+
+
 
   const logIn = async (email: string, password: string) => {
     return setPersistence(auth, browserSessionPersistence)
@@ -68,7 +91,7 @@ export const AuthContextProvider = (props: any) => {
   return (
     <AuthContext.Provider
       {...props}
-      value={{ user, detail, logIn, logOut, signUp }}
+      value={{ user, detail, isLoading, logIn, logOut, signUp }}
     />
   )
 }

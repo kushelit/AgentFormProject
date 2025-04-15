@@ -1,15 +1,13 @@
 import './AccessDenied.css';
 
-
-
 const AccessDenied = () => {
-    return (
-      <div  className="form-auth" style={{ paddingTop: '6rem' }} dir="rtl" >
-      <div className="access-denied">
-        <p> משתמש יקר, אינך מורשה לצפיה בעמוד זה</p>
+  return (
+    <div className="access-denied-wrapper" dir="rtl">
+      <div className="access-denied-box">
+        <p>משתמש יקר, אינך מורשה לצפיה בעמוד זה.</p>
       </div>
-       </div>
-    );
-  }
-  
-  export default AccessDenied;
+    </div>
+  );
+};
+
+export default AccessDenied;

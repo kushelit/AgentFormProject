@@ -1,43 +1,53 @@
 'use client';
 
-import { Suspense } from "react";
+import { Suspense, useEffect, useState } from "react";
 import NewAgentForm from "../NewAgentForm/NewAgentForm";
-import Link from "next/link"; // Import Link for navigation
 import { useAuth } from "@/lib/firebase/AuthContext";
 import AccessDenied from "@/components/AccessDenied";
-
-
-
+import GlobalAnnouncementPopup from "@/components/announcements/GlobalAnnouncementPopup";
 
 const NewAgentFormPage = () => {
-  const { user, detail } = useAuth(); // Destructure to get both user and detail objects
+  const { user, detail, isLoading } = useAuth();
+  const [ready, setReady] = useState(false);
 
-  let content;
+  // ממתין מעט לפני שמרנדר את התוכן
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setReady(true);
+    }, 300); // ⏳ ממתין 300ms כדי לוודא שהמידע התייצב
 
-  if (user) {
-    if (detail?.role !== 'worker') {
-      // If the user is logged in and their role is not 'worker'
-    //  console.log(" a admin");
-      content = (
-        <Suspense fallback={<div>Loading...</div>}>
-          <NewAgentForm />
-        </Suspense>
-      );
-    } else {
-      // If the user is a 'worker'
-      return <AccessDenied />;
-      console.log("User is a worker, showing access denied message");
+    return () => clearTimeout(timer);
+  }, []);
 
-    }
-  } else {
-    // If the user is not logged in
-    content = <div className="text-custom-white px-4 py-2 rounded-lg">נדרש להתחבר למערכת כדי לגשת לדף זה.</div>;
-      console.log("User is not logged in, asking to log in");
-
+  if (isLoading) {
+    return <div className="p-4 text-gray-600">⏳ טוען מידע...</div>; // או spinner
   }
 
-  return <div>{content}</div>;
-};
 
+  if (!ready || user === undefined || detail === undefined) {
+    return null; // או Loader
+  }
+
+  if (!user) {
+    return (
+      <div className="text-custom-white px-4 py-2 rounded-lg">
+        נדרש להתחבר למערכת כדי לגשת לדף זה.
+      </div>
+    );
+  }
+
+  if (user && detail === null) {
+    return <AccessDenied />;
+  }
+
+  return (
+    <>
+      <GlobalAnnouncementPopup />
+      <Suspense fallback={<div>Loading...</div>}>
+        <NewAgentForm />
+      </Suspense>
+    </>
+  );
+};
 
 export default NewAgentFormPage;

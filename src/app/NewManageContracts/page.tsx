@@ -1,38 +1,48 @@
 'use client';
 
-import { Suspense } from "react";
+import { Suspense, useEffect, useState } from "react";
 import NewManageContracts from "./NewManageContracts";
 import { useAuth } from "@/lib/firebase/AuthContext";
 import AccessDenied from "@/components/AccessDenied";
 
 const ManageContractsPage = () => {
-  const { user, detail } = useAuth(); // Destructure to get both user and detail objects
-  
-  let content;
+  const { user, detail, isLoading } = useAuth();
+  const [ready, setReady] = useState(false);
 
-  if (user) {
-    if (detail?.role !== 'worker') {
-      // If the user is logged in and their role is not 'worker'
-      console.log("Not a worker, showing SummaryTable");
-      content = (
-        <Suspense fallback={<div>Loading...</div>}>
-          <NewManageContracts />
-        </Suspense>
-      );
-    } else {
-      // If the user is a 'worker'
-      return <AccessDenied />;
-      console.log("User is a worker, showing access denied message");
+  useEffect(() => {
+    const timer = setTimeout(() => setReady(true), 300);
+    return () => clearTimeout(timer);
+  }, []);
 
-    }
-  } else {
-    // If the user is not logged in
-    content = <div className="text-custom-white px-4 py-2 rounded-lg">נדרש להתחבר למערכת כדי לגשת לדף זה.</div>;
-      console.log("User is not logged in, asking to log in");
-
+  // אם עדיין טוען מידע – מחכים
+  if (isLoading || !ready || user === undefined || detail === undefined) {
+    return (
+      <div className="p-4 text-gray-600">
+        ⏳ טוען מידע...
+      </div>
+    );
   }
 
-  return <div>{content}</div>;
+  // אם אין משתמש מחובר
+  if (!user) {
+    return (
+      <div className="text-custom-white px-4 py-2 rounded-lg">
+        נדרש להתחבר למערכת כדי לגשת לדף זה.
+      </div>
+    );
+  }
+
+  // אם המשתמש הוא 'worker' – אין גישה
+  if (detail?.role === 'worker') {
+    return <AccessDenied />;
+  }
+
+  // אם הכול תקין – הצג את הרכיב
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <NewManageContracts />
+    </Suspense>
+  );
 };
 
 export default ManageContractsPage;

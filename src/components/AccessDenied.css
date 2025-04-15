@@ -1,29 +1,27 @@
-.access-denied {
-    font-size: 12px;
-    height: auto;
-    box-sizing: border-box;
-    border-radius: 4px;
-    display: flex; 
-    flex-direction: row;
-    align-items: center;
-    text-align: center;
-    justify-content: center;
-    color: #dee2e2;
-    background-color: #002A5C;
-    border: 2px solid #90de3d; /* Confirm color, previously mentioned as red */
-    padding: 2rem;
-    width: 80%;
-    max-width: 500px;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-  }
+.access-denied-wrapper {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding-top: 6rem;
+  min-height: calc(100vh - 6rem);
+  background-color: var(--clrgray1);
+}
 
+.access-denied-box {
+  background-color: #ffffff;
+  border: 1px solid #d0d0d0; /* אפור רגוע במקום אדום */
+  padding: 24px 32px;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  max-width: 480px;
+  text-align: center;
+  font-size: 1.1rem;
+  color: #333;
+  font-weight: 500;
+  animation: fadeIn 0.3s ease-in-out;
+}
 
-.form-auth {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    min-height: 100vh;
-    padding-top: 6rem;
-    direction: rtl;
-    background-color: #C6CFD4;
-  }
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: translateY(0); }
+}

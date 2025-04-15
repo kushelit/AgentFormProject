@@ -1,43 +1,45 @@
 'use client';
 
-import { Suspense } from "react";
+import { Suspense, useEffect, useState } from "react";
 import ManageWorkers from "./ManageWorkers";
-import Link from "next/link"; // Import Link for navigation
 import { useAuth } from "@/lib/firebase/AuthContext";
 import AccessDenied from "@/components/AccessDenied";
 
-
-
-
 const ManageWorkersPage = () => {
-  const { user, detail } = useAuth(); // Destructure to get both user and detail objects
+  const { user, detail, isLoading } = useAuth();
+  const [ready, setReady] = useState(false);
 
-  let content;
+  useEffect(() => {
+    const timer = setTimeout(() => setReady(true), 300);
+    return () => clearTimeout(timer);
+  }, []);
 
-  if (user) {
-    if (detail?.role !== 'worker') {
-      // If the user is logged in and their role is not 'worker'
-      console.log("Not a worker, showing SummaryTable");
-      content = (
-        <Suspense fallback={<div>Loading...</div>}>
-          <ManageWorkers />
-        </Suspense>
-      );
-    } else {
-      // If the user is a 'worker'
-      return <AccessDenied />;
-      console.log("User is a worker, showing access denied message");
-
-    }
-  } else {
-    // If the user is not logged in
-    content = <div className="text-custom-white px-4 py-2 rounded-lg">נדרש להתחבר למערכת כדי לגשת לדף זה.</div>;
-      console.log("User is not logged in, asking to log in");
-
+  // עדיין טוען נתונים – מונע מהבהובים
+  if (isLoading || !ready || user === undefined || detail === undefined) {
+    return (
+      <div className="p-4 text-gray-600">
+        ⏳ טוען מידע...
+      </div>
+    );
   }
 
-  return <div>{content}</div>;
-};
+  if (!user) {
+    return (
+      <div className="text-custom-white px-4 py-2 rounded-lg">
+        נדרש להתחבר למערכת כדי לגשת לדף זה.
+      </div>
+    );
+  }
 
+  if (detail?.role === 'worker') {
+    return <AccessDenied />;
+  }
+
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <ManageWorkers />
+    </Suspense>
+  );
+};
 
 export default ManageWorkersPage;

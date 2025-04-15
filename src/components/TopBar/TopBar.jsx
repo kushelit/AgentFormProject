@@ -16,8 +16,8 @@ export const TopBar = ({ prop = true, className }) => {
 
   return (
     <div className={`top-bar ${className}`}>
-    <Link href="/">
-          < Logo className="logo-instance" />
+<Link href="/NewAgentForm">
+< Logo className="logo-instance" />
      </Link> {prop && (
         <div className="frame">
           {user ? (

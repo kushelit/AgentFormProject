@@ -1,0 +1,78 @@
+.announcement-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.4);
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    direction: rtl;
+  }
+  
+  .announcement-box {
+    position: relative; /* ✨ חשוב בשביל שה-close-button יתמקם נכון */
+    background: white;
+    border-radius: 16px;
+    padding: 32px 40px;
+    max-width: 650px;
+    width: 100%;
+    text-align: right;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+    line-height: 1.8;
+    font-size: 1.1rem; /* ⬅️ הוגדל מברירת מחדל */
+  }
+  
+  .announcement-title {
+    font-size: 2rem; /* ⬆️ היה 1.75rem */
+    font-weight: 800;
+    margin-bottom: 24px;
+    color: #111;
+  }
+  
+  .announcement-box ul {
+    padding-right: 20px;
+    margin-bottom: 24px;
+  }
+  
+  .announcement-box ul li {
+    margin-bottom: 8px;
+  }
+  
+  .announcement-box p {
+    margin-bottom: 12px;
+  }
+  
+  .acknowledge-button {
+    margin-top: 24px;
+    background-color: #0077cc;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    padding: 10px 20px;
+    cursor: pointer;
+    font-size: 15px;
+    transition: background-color 0.2s ease-in-out;
+  }
+  
+  .acknowledge-button:hover {
+    background-color: #005fa3;
+  }
+  
+  .close-button {
+    position: absolute;
+    top: 16px;
+    left: 16px;
+    background: transparent;
+    border: none;
+    font-size: 20px;
+    cursor: pointer;
+    color: #0077cc;
+    transition: color 0.2s, transform 0s; /* מבטל שינויים בגודל */
+    transform: none; /* מונע גדילה מראש */
+  }
+  
+  .close-button:hover {
+    color: #005fa3;
+    transform: none !important; /* 🔒 מבטל כל scale חיצוני */
+  }

@@ -25,6 +25,22 @@ const DealsHelp = () => {
           <div className="card-header">🔹 עובד</div>
           <p>רואה רק את היעדים של עצמו.</p>
         </div>
+        <div className="card">
+          <div className="card-header">🎨 צבעי סטטוס היעד</div>
+          <p>
+            בטבלת היעדים, צבע הרקע של אחוז ההתקדמות מייצג את מצב ההתקדמות:
+          </p>
+          <ul>
+            <li><strong style={{ color: 'green' }}>ירוק:</strong> עמידה מלאה ביעד (100%)</li>
+            <li><strong style={{ color: 'orange' }}>כתום:</strong> התקדמות חלקית ביעד</li>
+            <li><strong style={{ color: '#FFD700' }}>צהוב:</strong> התחלה או אחוז נמוך של עמידה ביעד</li>
+          </ul>
+        </div>
+        <div style={{ display: 'flex', gap: '12px', marginTop: '8px' }}>
+  <div style={{ width: '20px', height: '20px', backgroundColor: 'green', borderRadius: '4px' }} title="עמד ביעד" />
+  <div style={{ width: '20px', height: '20px', backgroundColor: 'orange', borderRadius: '4px' }} title="בהתקדמות" />
+  <div style={{ width: '20px', height: '20px', backgroundColor: '#FFD700', borderRadius: '4px' }} title="התחלה" />
+</div>
       </div>
 
       <Image src="/static/img/goalimg.png" alt="סטטוס יעדים" width={800} height={400} />

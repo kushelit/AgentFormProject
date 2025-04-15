@@ -1,38 +1,50 @@
 'use client';
 
-import { Suspense } from "react";
+import { Suspense, useEffect, useState } from "react";
 import NewSummaryTable from "./NewSummaryTable";
 import { useAuth } from "@/lib/firebase/AuthContext";
 import AccessDenied from "@/components/AccessDenied";
 
 const NewSummaryTablePage = () => {
-  const { user, detail } = useAuth(); // Destructure to get both user and detail objects
-  
-  let content;
+  const { user, detail, isLoading } = useAuth();
+  const [ready, setReady] = useState(false);
 
-  if (user) {
-    if (detail?.role !== 'worker') {
-      // If the user is logged in and their role is not 'worker'
-   //   console.log("Not a worker, showing SummaryTable");
-      content = (
-        <Suspense fallback={<div>Loading...</div>}>
-          <NewSummaryTable />
-        </Suspense>
-      );
-    } else {
-      // If the user is a 'worker'
-      return <AccessDenied />;
-     // console.log("User is a worker, showing access denied message");
+  // השהיה קצרה כדי להבטיח שהכל נטען כראוי לפני הצגה
+  useEffect(() => {
+    const timer = setTimeout(() => setReady(true), 300);
+    return () => clearTimeout(timer);
+  }, []);
 
-    }
-  } else {
-    // If the user is not logged in
-    content = <div className="text-custom-white px-4 py-2 rounded-lg">נדרש להתחבר למערכת כדי לגשת לדף זה.</div>;
-    //  console.log("User is not logged in, asking to log in");
+ // במקום `return null`
+if (isLoading || !ready || user === undefined || detail === undefined) {
+  return (
+    <div className="p-4 text-gray-600">
+      ⏳ טוען מידע...
+    </div>
+  );
+}
 
+
+  // לא מחובר
+  if (!user) {
+    return (
+      <div className="text-custom-white px-4 py-2 rounded-lg">
+        נדרש להתחבר למערכת כדי לגשת לדף זה.
+      </div>
+    );
   }
 
-  return <div>{content}</div>;
+  // משתמש מחובר אבל הוא worker
+  if (detail?.role === 'worker') {
+    return <AccessDenied />;
+  }
+
+  // משתמש מחובר ומורשה
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <NewSummaryTable />
+    </Suspense>
+  );
 };
 
 export default NewSummaryTablePage;
