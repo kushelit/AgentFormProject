@@ -18,6 +18,8 @@ const pages = [
   { href: '/Log', label: 'לוג מערכת' },
   { href: '/RequestStatus', label: 'סטאטוס API' },
   { href: '/ManagePoolAgents', label: 'ניהול פול ליד' },
+  { href: '/ManageManager', label: 'ניהול מנהל סוכנים' },
+
 ];
 
 const bottomPage = { href: '/NewLeads', label: 'Flow' };
