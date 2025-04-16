@@ -463,7 +463,7 @@ const handleSubmitStatusLead: FormEventHandler<HTMLFormElement> = async (event) 
               checked={isAPILead}
               onChange={(e) => setIsAPILead(e.target.checked)}
             />
-            <label htmlFor="isAPILead">API</label>
+            <label htmlFor="isAPILead">קמפיין</label>
           </div>
         </div>
         <div className="form-group">

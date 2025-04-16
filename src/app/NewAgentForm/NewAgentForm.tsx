@@ -1225,7 +1225,7 @@ console.log("🚨 invalidFields:", invalidFields); // ✅ כאן מחוץ ל-HTM
       disabled={!!(detail && detail.role === 'worker')}
     >
       <option value="">בחר עובד</option>
-      <option value="all-agency">כל הסוכנות</option>
+      {/* <option value="all-agency">כל הסוכנות</option> */}
       {workers.map((worker) => (
         <option key={worker.id} value={worker.id}>
           {worker.name}

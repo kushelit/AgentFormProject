@@ -65,7 +65,7 @@
   }
   
   .modal-content button:not(.close-button) {
-    background-color: #007bff;
+    background-color: var(--clrdarkblue3); /* או החלפה ישירה בקוד */
     color: white;
     font-size: 16px; 
     padding: 10px 20px;
@@ -78,7 +78,7 @@
   }
   
   .modal-content button:hover {
-    background-color: #0056b3;
+    background-color: var(--clrdarkblue2); /* צבע hover רך ולא קונטרסטי מדי */
   }
   
  

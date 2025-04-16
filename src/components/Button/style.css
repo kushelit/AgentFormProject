@@ -39,6 +39,7 @@
 .button.secondary {
   border: 1px solid;
   height: 30px;
+
   /*border: none; /* הסרת הגבול */
 }
 
@@ -51,9 +52,9 @@
 }
 
 .button.state-default.secondary {
-  border-color: var(--clrgray6);
-  background-color: var(--clrgray1); /* ✅ רקע לבן קבוע */
-  color: black;
+  background-color: transparent;
+  color: #333; /* צבע טקסט כהה ונעים */
+  border: 1px solid #ccc; /* גבול אפור בהיר */
   font-size: 12px;
   /*border: none; /* הסרת הגבול */
 }
