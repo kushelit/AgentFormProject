@@ -1,43 +1,52 @@
 'use client';
 
-import { Suspense } from "react";
+import { Suspense, useEffect, useState } from "react";
 import ManageManager from "./ManageManager";
-import Link from "next/link"; // Import Link for navigation
 import { useAuth } from "@/lib/firebase/AuthContext";
 import AccessDenied from "@/components/AccessDenied";
-
-
-
+import { usePermission } from "@/hooks/usePermission";
 
 const ManageManagerPage = () => {
-  const { user, detail } = useAuth(); // Destructure to get both user and detail objects
+  const { user, isLoading } = useAuth();
+  const [ready, setReady] = useState(false);
 
-  let content;
+  // השהייה קצרה לטעינה חלקה
+  useEffect(() => {
+    const timer = setTimeout(() => setReady(true), 300);
+    return () => clearTimeout(timer);
+  }, []);
 
-  if (user) {
-    if (detail?.role == 'admin') {
-      // If the user is logged in and their role is not 'worker'
-    //  console.log(" a admin");
-      content = (
-        <Suspense fallback={<div>Loading...</div>}>
-          <ManageManager />
-        </Suspense>
-      );
-    } else {
-      // If the user is a 'worker'
-      return <AccessDenied />;
-      console.log("User is a worker, showing access denied message");
+  const { canAccess, isChecking } = usePermission("access_manageManager");
 
-    }
-  } else {
-    // If the user is not logged in
-    content = <div className="text-custom-white px-4 py-2 rounded-lg">נדרש להתחבר למערכת כדי לגשת לדף זה.</div>;
-      console.log("User is not logged in, asking to log in");
-
+  // טוען מידע כללי או הרשאות
+  if (isLoading || !ready || isChecking || user === undefined) {
+    return (
+      <div className="p-4 text-gray-600">
+        ⏳ טוען מידע...
+      </div>
+    );
   }
 
-  return <div>{content}</div>;
-};
+  // לא מחובר
+  if (!user) {
+    return (
+      <div className="text-custom-white px-4 py-2 rounded-lg">
+        נדרש להתחבר למערכת כדי לגשת לדף זה.
+      </div>
+    );
+  }
 
+  // אין הרשאה לדף
+  if (!canAccess) {
+    return <AccessDenied />;
+  }
+
+  // הצגת הדף בפועל
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <ManageManager />
+    </Suspense>
+  );
+};
 
 export default ManageManagerPage;

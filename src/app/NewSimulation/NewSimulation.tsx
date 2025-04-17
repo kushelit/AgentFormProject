@@ -7,6 +7,7 @@ import useFetchAgentData from "@/hooks/useFetchAgentData";
 import { Button } from "@/components/Button/Button";
 import {ToastNotification} from '@/components/ToastNotification';
 import { useToast } from "@/hooks/useToast";
+import { usePermission } from "@/hooks/usePermission";
 
 
 interface Company {
@@ -70,6 +71,7 @@ const NewSimulation: React.FC = () => {
   const [loading, setLoading] = useState(false);
 
   const { toasts, addToast, setToasts } = useToast();
+  const { canAccess: canViewCommissions } = usePermission("view_commissions_field");
 
 
   const {
@@ -400,30 +402,30 @@ const fetchContractData = async (
           <thead>
             <tr>
               <th>חברה</th>
-              {detail!.role !== 'worker' && <th>אחוז קיטום</th>}
-              {detail!.role !== 'worker' && <th>היקף</th>}
-              {detail!.role !== 'worker' && <th>ניוד</th>}
-              {detail!.role !== 'worker' && <th>חד פעמי</th>}
-              {detail!.role !== 'worker' && <th>נפרעים</th>}
+              {canViewCommissions && <th>אחוז קיטום</th>}
+              {canViewCommissions && <th>היקף</th>}
+              {canViewCommissions && <th>ניוד</th>}
+              {canViewCommissions && <th>חד פעמי</th>}
+              {canViewCommissions && <th>נפרעים</th>}
             </tr>
           </thead>
           <tbody>
             {results.map((item, index) => (
               <tr key={index}>
                 <td>{item.company}</td>
-                {detail?.role !== 'worker' && (
+                {canViewCommissions && (
                   <td>{item.cuttingPercent}%</td>
                 )}
-                {detail?.role !== 'worker' && (
+                {canViewCommissions && (
                   <td>{item.calculatedProductivityHekef.toLocaleString()}</td>
                 )}
-                {detail?.role !== 'worker' && (
+                {canViewCommissions && (
                   <td>{item.calculatedNiud.toLocaleString()}</td>
                 )}
-                {detail?.role !== 'worker' && (
+                {canViewCommissions && (
                   <td>{item.onceHekefNiud.toLocaleString()}</td>
                 )}
-                {detail?.role !== 'worker' && (
+                {canViewCommissions && (
                   <td>{item.calculatedProductivityNifraim.toLocaleString()}</td>
                 )}
               </tr>

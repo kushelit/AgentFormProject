@@ -22,6 +22,7 @@ import {useSortableTable}  from "@/hooks/useSortableTable";
 import {ToastNotification} from '@/components/ToastNotification';
 import { useToast } from "@/hooks/useToast";
 import { useValidation, validationRules } from "@/hooks/useValidation";
+import { usePermission } from "@/hooks/usePermission";
 
 
 const NewCustomer = () => {
@@ -106,6 +107,7 @@ const currentRows = sortedData.slice(indexOfFirstRow, indexOfLastRow);
 const { toasts, addToast, setToasts } = useToast();
 
 const { errors, setErrors, handleValidatedEditChange } = useValidation();
+const { canAccess: canViewCommissions } = usePermission("view_commissions_field");
 
 
 // שינוי עמוד
@@ -1883,10 +1885,10 @@ const handleNewSelectCustomer = (id: string) => {
                   <th>מוצר</th>
                   <th>חברה</th>
                   <th>חודש תוקף</th>
-                  {detail!.role !== 'worker' && <th>פרמיה</th>}
-                  {detail!.role !== 'worker' && <th>צבירה</th>}
-                  {detail!.role !== 'worker' && <th>היקף</th>}
-                  {detail!.role !== 'worker' && <th>נפרעים</th>}
+                  {canViewCommissions && <th>פרמיה</th>}
+                  {canViewCommissions && <th>צבירה</th>}
+                  {canViewCommissions && <th>היקף</th>}
+                  {canViewCommissions && <th>נפרעים</th>}
                 </tr>
               </thead>
               <tbody>
@@ -1898,13 +1900,13 @@ const handleNewSelectCustomer = (id: string) => {
                     <td>{sale.product}</td>
                     <td>{sale.company}</td>
                     <td>{sale.month ? formatIsraeliDateOnly(sale.month) : ""}</td>
-                    {detail?.role !== 'worker' && <td>{sale.sumPremia?.toLocaleString()}</td>}
-                    {detail?.role !== 'worker' && <td>{sale.sumTzvira?.toLocaleString()}</td>}
-                    {detail?.role !== 'worker' && <td>{sale.commissionHekef?.toLocaleString()}</td>}
-                    {detail?.role !== 'worker' && <td>{sale.commissionNifraim?.toLocaleString()}</td>}
+                    {canViewCommissions && <td>{sale.sumPremia?.toLocaleString()}</td>}
+                    {canViewCommissions && <td>{sale.sumTzvira?.toLocaleString()}</td>}
+                    {canViewCommissions && <td>{sale.commissionHekef?.toLocaleString()}</td>}
+                    {canViewCommissions && <td>{sale.commissionNifraim?.toLocaleString()}</td>}
                   </tr>
                 ))}
-                {detail?.role !== 'worker' && (
+                {canViewCommissions && (
                   <tr>
                     <td colSpan={8} style={{ fontWeight: 'bold', textAlign: 'left' }} >סיכום עמלות</td>
                     <td style={{ fontWeight: 'bold' }}>{totalCommissions.totalCommissionHekef.toLocaleString()} </td>

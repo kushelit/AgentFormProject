@@ -4,17 +4,20 @@ import { Suspense, useEffect, useState } from "react";
 import NewEnviorment from "./NewEnviorment";
 import { useAuth } from "@/lib/firebase/AuthContext";
 import AccessDenied from "@/components/AccessDenied";
+import { usePermission } from "@/hooks/usePermission";
 
 const NewEnviormentPage = () => {
-  const { user, detail, isLoading } = useAuth();
+  const { user, isLoading } = useAuth();
   const [ready, setReady] = useState(false);
+
+  const { canAccess, isChecking } = usePermission("access_manageEnviorment");
 
   useEffect(() => {
     const timer = setTimeout(() => setReady(true), 300);
     return () => clearTimeout(timer);
   }, []);
 
-  if (isLoading || !ready || user === undefined || detail === undefined) {
+  if (isLoading || !ready || isChecking || user === undefined) {
     return <div className="p-4 text-gray-600">⏳ טוען מידע...</div>;
   }
 
@@ -26,7 +29,7 @@ const NewEnviormentPage = () => {
     );
   }
 
-  if (!detail || detail.role === "worker") {
+  if (!canAccess) {
     return <AccessDenied />;
   }
 

@@ -1,39 +1,43 @@
 'use client';
 
-import { Suspense } from "react";
-import ManageContracts from "./ManageSimulation";
+import { Suspense, useEffect, useState } from "react";
+import ManageSimulation from "./ManageSimulation";
 import { useAuth } from "@/lib/firebase/AuthContext";
 import AccessDenied from "@/components/AccessDenied";
-import ManageSimulation from "./ManageSimulation";
+import { usePermission } from "@/hooks/usePermission";
 
 const ManageSimulationPage = () => {
-  const { user, detail } = useAuth(); // Destructure to get both user and detail objects
-  
-  let content;
+  const { user, isLoading } = useAuth();
+  const [ready, setReady] = useState(false);
 
-  if (user) {
-    if (detail?.role == 'admin') {
-      // If the user is logged in and their role is not 'worker'
-      console.log("admin, showing SummaryTable");
-      content = (
-        <Suspense fallback={<div>Loading...</div>}>
-          <ManageSimulation />
-        </Suspense>
-      );
-    } else {
-      // If the user is not a 'admin  '
-      return <AccessDenied />;
-      console.log("User is a worker, showing access denied message");
+  useEffect(() => {
+    const timer = setTimeout(() => setReady(true), 300);
+    return () => clearTimeout(timer);
+  }, []);
 
-    }
-  } else {
-    // If the user is not logged in
-    content = <div className="text-custom-white px-4 py-2 rounded-lg">נדרש להתחבר למערכת כדי לגשת לדף זה.</div>;
-      console.log("User is not logged in, asking to log in");
+  const { canAccess, isChecking } = usePermission("access_manageSimulation");
 
+  if (isLoading || !ready || isChecking || user === undefined) {
+    return <div className="p-4 text-gray-600">⏳ טוען מידע...</div>;
   }
 
-  return <div>{content}</div>;
+  if (!user) {
+    return (
+      <div className="text-custom-white px-4 py-2 rounded-lg">
+        נדרש להתחבר למערכת כדי לגשת לדף זה.
+      </div>
+    );
+  }
+
+  if (!canAccess) {
+    return <AccessDenied />;
+  }
+
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <ManageSimulation />
+    </Suspense>
+  );
 };
 
 export default ManageSimulationPage;

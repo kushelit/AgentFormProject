@@ -4,9 +4,10 @@ import { Suspense, useEffect, useState } from "react";
 import ManageWorkers from "./ManageWorkers";
 import { useAuth } from "@/lib/firebase/AuthContext";
 import AccessDenied from "@/components/AccessDenied";
+import { usePermission } from "@/hooks/usePermission";
 
 const ManageWorkersPage = () => {
-  const { user, detail, isLoading } = useAuth();
+  const { user, isLoading } = useAuth();
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
@@ -14,13 +15,10 @@ const ManageWorkersPage = () => {
     return () => clearTimeout(timer);
   }, []);
 
-  // עדיין טוען נתונים – מונע מהבהובים
-  if (isLoading || !ready || user === undefined || detail === undefined) {
-    return (
-      <div className="p-4 text-gray-600">
-        ⏳ טוען מידע...
-      </div>
-    );
+  const { canAccess, isChecking } = usePermission("access_manageWorkers");
+
+  if (isLoading || !ready || isChecking || user === undefined) {
+    return <div className="p-4 text-gray-600">⏳ טוען מידע...</div>;
   }
 
   if (!user) {
@@ -31,7 +29,7 @@ const ManageWorkersPage = () => {
     );
   }
 
-  if (detail?.role === 'worker') {
+  if (!canAccess) {
     return <AccessDenied />;
   }
 

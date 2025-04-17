@@ -66,7 +66,6 @@ const useFetchAgentData = () => {
 
   useEffect(() => {
     if (!user || !detail || agents.length > 0) return; // ✅ אם כבר יש נתונים, לא טוענים שוב!
-  
     const fetchAgentData = async () => {
       setIsLoadingAgent(true);
       console.log("🔄 Fetching agents...");
@@ -95,7 +94,6 @@ const useFetchAgentData = () => {
         setIsLoadingAgent(false);
       }
     };
-  
     fetchAgentData();
   }, [user, detail]); // ✅ הקריאה ל-DB לא תקרה שוב אם `agents` כבר מלאים!
   

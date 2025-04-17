@@ -4,18 +4,20 @@ import { Suspense, useEffect, useState } from "react";
 import NewSimulation from "./NewSimulation";
 import { useAuth } from "@/lib/firebase/AuthContext";
 import AccessDenied from "@/components/AccessDenied";
+import { usePermission } from "@/hooks/usePermission";
 
 const NewSimulationPage = () => {
-  const { user, detail, isLoading } = useAuth();
+  const { user, isLoading } = useAuth();
   const [ready, setReady] = useState(false);
+
+  const { canAccess, isChecking } = usePermission("access_simulation");
 
   useEffect(() => {
     const timer = setTimeout(() => setReady(true), 300);
     return () => clearTimeout(timer);
   }, []);
 
-  // אם עדיין טוען מידע – הצג טעינה
-  if (isLoading || !ready || user === undefined || detail === undefined) {
+  if (isLoading || !ready || isChecking || user === undefined) {
     return (
       <div className="p-4 text-gray-600">
         ⏳ טוען מידע...
@@ -23,7 +25,6 @@ const NewSimulationPage = () => {
     );
   }
 
-  // אם אין משתמש מחובר
   if (!user) {
     return (
       <div className="text-custom-white px-4 py-2 rounded-lg">
@@ -32,12 +33,10 @@ const NewSimulationPage = () => {
     );
   }
 
-  // אם אין הרשאות
-  if (!detail) {
+  if (!canAccess) {
     return <AccessDenied />;
   }
 
-  // הצג את הדף אם הכול תקין
   return (
     <Suspense fallback={<div>Loading...</div>}>
       <NewSimulation />

@@ -4,23 +4,23 @@ import { Suspense, useEffect, useState } from "react";
 import NewLeads from "./NewLeads";
 import { useAuth } from "@/lib/firebase/AuthContext";
 import AccessDenied from "@/components/AccessDenied";
+import { usePermission } from "@/hooks/usePermission";
 
 const NewLeadsPage = () => {
-  const { user, detail, isLoading } = useAuth();
+  const { user, isLoading } = useAuth();
   const [ready, setReady] = useState(false);
 
-  // מוסיפים השהייה קצרה למניעת הבזק שגוי
+  const { canAccess, isChecking } = usePermission("access_flow"); 
+
   useEffect(() => {
     const timer = setTimeout(() => setReady(true), 300);
     return () => clearTimeout(timer);
   }, []);
 
-  // במצב טעינה – לא להציג כלום
-  if (isLoading || !ready || user === undefined || detail === undefined) {
-    return null; // או אפשר spinner בעתיד
+  if (isLoading || !ready || isChecking || user === undefined) {
+    return null; // אפשר גם לשים טוען או סקרול בהמשך
   }
 
-  // לא מחובר
   if (!user) {
     return (
       <div className="text-custom-white px-4 py-2 rounded-lg">
@@ -29,12 +29,10 @@ const NewLeadsPage = () => {
     );
   }
 
-  // אין הרשאות
-  if (!detail) {
+  if (!canAccess) {
     return <AccessDenied />;
   }
 
-  // תקין – הצג תוכן
   return (
     <Suspense fallback={<div>Loading...</div>}>
       <NewLeads />

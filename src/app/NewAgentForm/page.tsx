@@ -5,29 +5,29 @@ import NewAgentForm from "../NewAgentForm/NewAgentForm";
 import { useAuth } from "@/lib/firebase/AuthContext";
 import AccessDenied from "@/components/AccessDenied";
 import GlobalAnnouncementPopup from "@/components/announcements/GlobalAnnouncementPopup";
+import { usePermission } from "@/hooks/usePermission";
 
 const NewAgentFormPage = () => {
-  const { user, detail, isLoading } = useAuth();
+  const { user, isLoading } = useAuth();
   const [ready, setReady] = useState(false);
+
+  const { canAccess, isChecking } = usePermission("access_agentForm");
 
   // ממתין מעט לפני שמרנדר את התוכן
   useEffect(() => {
     const timer = setTimeout(() => {
       setReady(true);
-    }, 300); // ⏳ ממתין 300ms כדי לוודא שהמידע התייצב
+    }, 300);
 
     return () => clearTimeout(timer);
   }, []);
 
-  if (isLoading) {
-    return <div className="p-4 text-gray-600">⏳ טוען מידע...</div>; // או spinner
+  // שלבי טעינה
+  if (isLoading || !ready || isChecking || user === undefined) {
+    return <div className="p-4 text-gray-600">⏳ טוען מידע...</div>;
   }
 
-
-  if (!ready || user === undefined || detail === undefined) {
-    return null; // או Loader
-  }
-
+  // לא מחובר
   if (!user) {
     return (
       <div className="text-custom-white px-4 py-2 rounded-lg">
@@ -36,10 +36,12 @@ const NewAgentFormPage = () => {
     );
   }
 
-  if (user && detail === null) {
+  // אין הרשאה
+  if (!canAccess) {
     return <AccessDenied />;
   }
 
+  // הכל תקין – מציג טופס וסרגל הודעות
   return (
     <>
       <GlobalAnnouncementPopup />
