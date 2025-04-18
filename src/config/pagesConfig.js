@@ -19,6 +19,7 @@ const pages = [
   { href: '/RequestStatus', label: 'סטאטוס API' },
   { href: '/ManagePoolAgents', label: 'ניהול פול ליד' },
   { href: '/ManageManager', label: 'ניהול מנהל סוכנים' },
+  { href: '/TeamPermissionsTable', label: 'ניהול הרשאות' },
 
 ];
 
