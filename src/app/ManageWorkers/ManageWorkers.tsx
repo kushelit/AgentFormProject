@@ -39,33 +39,37 @@ const ManageWorkers: React.FC = () => {
     fetchWorkers();
   }, [detail]);
 
+  const isAgentOrManager = detail?.role === 'agent' || detail?.role === 'manager';
+
   return (
     <div className="frame-container">
       <div className="table-header">
-      <div className="table-title">ניהול עובדים</div>
+        <div className="table-title">ניהול עובדים</div>
       </div>
-        <div className="table-container">
-          <table>
-        <thead>
-          <tr>
-            <th> שם עובד</th>
-          </tr>
-        </thead>
-        <tbody>
-          {workers.map((worker) => (
-            <tr key={worker.id}> {/* Use worker.id as key for React elements */}
-              <td>{worker.name}</td>
+      <div className="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>שם עובד</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {workers.map((worker) => (
+              <tr key={worker.id}>
+                <td>{worker.name}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
-      <div className="add_worker"> {detail?.role === 'agent' ? (
-        <Link href={`/auth/sign-up/${user?.uid}`} className="text-custom-link">צור עובד חדש</Link>
-      ) : null}
-      </div>
+      {isAgentOrManager && (
+        <div className="add_worker">
+          <Link href={`/auth/sign-up/${user?.uid}`} className="text-custom-link">
+            צור עובד חדש
+          </Link>
+        </div>
+      )}
     </div>
   );
 };
-
 export default ManageWorkers;

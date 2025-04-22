@@ -4,6 +4,7 @@ import { db } from "@/lib/firebase/firebase";
 import { useAuth } from '@/lib/firebase/AuthContext';
 import { useRouter } from 'next/router';
 //import useCalculateSalesData from "@/hooks/useCalculateGoalsSales"; 
+import { hasPermission } from '@/lib/permissions/hasPermission';
 
 
 interface Agent {
@@ -64,27 +65,189 @@ const useFetchAgentData = () => {
 
 
 
+  // useEffect(() => {
+  //   if (!user || !detail || agents.length > 0) return; // ✅ אם כבר יש נתונים, לא טוענים שוב!
+  //   const fetchAgentData = async () => {
+  //     setIsLoadingAgent(true);
+  //     console.log("🔄 Fetching agents...");
+  
+  //     try {
+  //       if (detail.role === 'admin') {
+  //         console.log("👤 User is admin, fetching all agents.");
+  //         const agentsQuery = query(collection(db, 'users'), where('role', '==', 'agent'));
+  //         const querySnapshot = await getDocs(agentsQuery);
+  //         const agentsList = querySnapshot.docs.map(doc => ({
+  //           id: doc.id,
+  //           name: doc.data().name as string,
+  //         }));
+  //         console.log("✅ Agents loaded:", agentsList);
+  //         setAgents(agentsList);
+  //       } else if (detail.agentId) {
+  //         setAgents([{ id: detail.agentId, name: detail.name }]);
+  //         setSelectedAgentId(detail.agentId);
+  //         setSelectedAgentName(detail.name);
+  //         await fetchWorkersForSelectedAgent(detail.agentId);
+  //       }
+  //     } catch (error) {
+  //       console.error("⚠️ Failed to fetch agents:", error);
+  //       setAgents([]);
+  //     } finally {
+  //       setIsLoadingAgent(false);
+  //     }
+  //   };
+  //   fetchAgentData();
+  // }, [user, detail]); // ✅ הקריאה ל-DB לא תקרה שוב אם `agents` כבר מלאים!
+  
+
+  // useEffect(() => {
+  //   if (!user || !detail || agents.length > 0) return;
+  
+  //   const fetchAgentData = async () => {
+  //     setIsLoadingAgent(true);
+  //     try {
+  //       if (detail.role === 'admin') {
+  //         const agentsQuery = query(
+  //           collection(db, 'users'),
+  //           where('role', 'in', ['agent', 'manager'])
+  //         );
+  //         const querySnapshot = await getDocs(agentsQuery);
+  //         const agentsList = querySnapshot.docs.map(doc => ({
+  //           id: doc.id,
+  //           name: doc.data().name as string,
+  //         }));
+  //         setAgents(agentsList);
+  //       } else if (detail.role === 'manager') {
+  //         // שלוף סוכנים שה-managerId שלהם שווה למזהה המשתמש
+  //         const agentsQuery = query(
+  //           collection(db, 'users'),
+  //           where('role', '==', 'agent'),
+  //           where('managerId', '==', detail.agentId)
+  //         );
+  //         const querySnapshot = await getDocs(agentsQuery);
+  //         const agentsList = querySnapshot.docs.map(doc => ({
+  //           id: doc.id,
+  //           name: doc.data().name as string,
+  //         }));
+  // console.log("agentsList manager", agentsList);
+  //         setAgents([
+  //           { id: detail.agentId, name: detail.name }, // המנג'ר עצמו ראשון
+  //           ...agentsList
+  //         ]);
+  
+  //         setSelectedAgentId(detail.agentId);
+  //         setSelectedAgentName(detail.name);
+  //         await fetchWorkersForSelectedAgent(detail.agentId);
+  //       } else {
+  //         // Worker רגיל - שלוף את הסוכן לפי agentId
+  //         const agentDoc = await getDoc(doc(db, 'users', detail.agentId));
+  //         const agentName = agentDoc.exists() ? agentDoc.data().name : 'לא נמצא';
+        
+  //         setAgents([{ id: detail.agentId, name: agentName }]);
+  //         setSelectedAgentId(detail.agentId);
+  //         setSelectedAgentName(agentName);
+  //         await fetchWorkersForSelectedAgent(detail.agentId);
+  //       }        
+  //     } catch (error) {
+  //       console.error("⚠️ Failed to fetch agents:", error);
+  //       setAgents([]);
+  //     } finally {
+  //       setIsLoadingAgent(false);
+  //     }
+  //   };
+  
+  //   fetchAgentData();
+  // }, [user, detail]);
+  
   useEffect(() => {
-    if (!user || !detail || agents.length > 0) return; // ✅ אם כבר יש נתונים, לא טוענים שוב!
+    if (!user || !detail || agents.length > 0) return;
+  
     const fetchAgentData = async () => {
       setIsLoadingAgent(true);
-      console.log("🔄 Fetching agents...");
-  
       try {
+        const currentUser = {
+          ...user,
+          permissionOverrides: detail.permissionOverrides || {}
+        };
+  
+        // טען את ההרשאות לפי התפקיד הנוכחי של המשתמש
+        const roleDoc = await getDoc(doc(db, 'roles', detail.role));
+        const rolePerms = roleDoc.exists() ? roleDoc.data().permissions || [] : [];
+  
+        const hasExpandedAccess = hasPermission({
+          user: currentUser,
+          permission: 'access_all_agents_under_manager',
+          rolePermissions: rolePerms
+        });
+  
         if (detail.role === 'admin') {
-          console.log("👤 User is admin, fetching all agents.");
-          const agentsQuery = query(collection(db, 'users'), where('role', '==', 'agent'));
+          const agentsQuery = query(
+            collection(db, 'users'),
+            where('role', 'in', ['agent', 'manager'])
+          );
           const querySnapshot = await getDocs(agentsQuery);
           const agentsList = querySnapshot.docs.map(doc => ({
             id: doc.id,
             name: doc.data().name as string,
           }));
-          console.log("✅ Agents loaded:", agentsList);
           setAgents(agentsList);
-        } else if (detail.agentId) {
-          setAgents([{ id: detail.agentId, name: detail.name }]);
+        } else if (detail.role === 'manager') {
+          const agentsQuery = query(
+            collection(db, 'users'),
+            where('role', '==', 'agent'),
+            where('managerId', '==', detail.agentId)
+          );
+          const querySnapshot = await getDocs(agentsQuery);
+          const agentsList = querySnapshot.docs.map(doc => ({
+            id: doc.id,
+            name: doc.data().name as string,
+          }));
+  
+          setAgents([
+            { id: detail.agentId, name: detail.name },
+            ...agentsList
+          ]);
           setSelectedAgentId(detail.agentId);
           setSelectedAgentName(detail.name);
+          await fetchWorkersForSelectedAgent(detail.agentId);
+        } else if ((detail.role === 'agent' || detail.role === 'worker') && hasExpandedAccess) {
+          const agentDoc = await getDoc(doc(db, 'users', detail.agentId));
+          const agentData = agentDoc.exists() ? agentDoc.data() : null;
+  
+          // אם הסוכן של המשתמש הוא בעצמו מנג'ר
+          const isAgentManager = agentData?.role === 'manager';
+          const managerId = isAgentManager ? detail.agentId : agentData?.managerId;
+  
+          const managerDoc = managerId ? await getDoc(doc(db, 'users', managerId)) : null;
+          const managerData = managerDoc?.exists() ? managerDoc.data() : null;
+  
+          const agentsQuery = query(
+            collection(db, 'users'),
+            where('role', '==', 'agent'),
+            where('managerId', '==', managerId)
+          );
+          const querySnapshot = await getDocs(agentsQuery);
+          const agentsList = querySnapshot.docs.map(doc => ({
+            id: doc.id,
+            name: doc.data().name as string,
+          }));
+  
+          const fullList = [
+            ...(managerId && managerData ? [{ id: managerId, name: managerData.name }] : []),
+            ...(agentDoc.exists() && !isAgentManager ? [{ id: agentDoc.id, name: agentData.name }] : []),
+            ...agentsList.filter(a => a.id !== agentDoc.id)
+          ];
+  
+          setAgents(fullList);
+          setSelectedAgentId(detail.agentId);
+          setSelectedAgentName(agentData?.name || 'לא נמצא');
+          await fetchWorkersForSelectedAgent(detail.agentId);
+        } else {
+          const agentDoc = await getDoc(doc(db, 'users', detail.agentId));
+          const agentName = agentDoc.exists() ? agentDoc.data().name : 'לא נמצא';
+  
+          setAgents([{ id: detail.agentId, name: agentName }]);
+          setSelectedAgentId(detail.agentId);
+          setSelectedAgentName(agentName);
           await fetchWorkersForSelectedAgent(detail.agentId);
         }
       } catch (error) {
@@ -94,11 +257,10 @@ const useFetchAgentData = () => {
         setIsLoadingAgent(false);
       }
     };
-    fetchAgentData();
-  }, [user, detail]); // ✅ הקריאה ל-DB לא תקרה שוב אם `agents` כבר מלאים!
   
-
-
+    fetchAgentData();
+  }, [user, detail]);
+  
 
   const fetchWorkersForSelectedAgent = async (agentId: string) => {
     if (!agentId) {
@@ -198,6 +360,7 @@ const useFetchAgentData = () => {
 
         if (selectedAgent) {
             setSelectedAgentId(selectedAgent.id);
+            console.log("Selected agent ID:", selectedAgent.id);
             setSelectedAgentName(selectedAgent.name);
             setSelectedWorkerIdFilter('');
         }

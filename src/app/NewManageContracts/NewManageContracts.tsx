@@ -168,7 +168,7 @@ const canSubmit1 = useMemo(() => (
         return; 
       }
         const docRef = await addDoc(collection(db, 'contracts'), {
-        AgentId: detail.agentId,
+        AgentId: selectedAgentId,
         company: '',
         productsGroup: selectedProductGroup,
         product: '',
@@ -222,7 +222,7 @@ const canSubmit1 = useMemo(() => (
     }
           console.log("got here");
           const docRef = await addDoc(collection(db, 'contracts'), {
-            AgentId: detail.agentId,
+            AgentId: selectedAgentId,
           company: selectedCompany,
           productsGroup: '',
           product: selectedProduct,

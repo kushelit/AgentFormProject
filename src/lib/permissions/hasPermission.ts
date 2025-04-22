@@ -1,3 +1,5 @@
+import { Contrail_One } from "next/font/google";
+
 type User = {
     uid: string;
     role: string;
@@ -25,6 +27,7 @@ type User = {
     const allow = user?.permissionOverrides?.allow || [];
     if (allow.includes(permission)) return true;
   
+    console.log("📌 rolePermissions ▶", rolePermissions);
     // שלב 3: אם אין rolePermissions – חסום
     if (!rolePermissions) return false;
   

@@ -21,6 +21,10 @@ type UserDetail = {
   email: string;
   agentId: string;
   role: 'agent' | 'worker'| 'admin' | 'manager';
+  permissionOverrides?: {
+    allow?: string[];
+    deny?: string[];
+  };
 };
 
 // @ts-ignore

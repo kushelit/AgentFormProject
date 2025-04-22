@@ -20,6 +20,12 @@ interface ExtendedWorker {
   [key: string]: any;
 }
 
+interface PermissionData {
+  id: string;
+  name: string;
+  restricted?: boolean;
+}
+
 const TeamPermissionsTable = () => {
   const { user, detail } = useAuth();
   const {
@@ -31,32 +37,59 @@ const TeamPermissionsTable = () => {
 
   const [loading, setLoading] = useState(true);
   const [workers, setWorkers] = useState<ExtendedWorker[]>([]);
-  const [allPermissions, setAllPermissions] = useState<string[]>([]);
+  const [allPermissions, setAllPermissions] = useState<PermissionData[]>([]);
+  const [restrictedPermissions, setRestrictedPermissions] = useState<string[]>([]);
   const [rolePermissionsMap, setRolePermissionsMap] = useState<Record<string, string[]>>({});
   const [selectedAgentName, setSelectedAgentName] = useState('');
   const { toasts, addToast, setToasts } = useToast();
 
+  const rolePerms = rolePermissionsMap[detail?.role || ''] ?? [];
+  const currentUser = {
+    ...user,
+    permissionOverrides: detail?.permissionOverrides || {}
+  };
   const canEditPermissions = hasPermission({
-    user,
+    user: currentUser,
     permission: 'edit_permissions',
-    rolePermissions: ['*']
+    rolePermissions: rolePerms
   });
+
+  const canTogglePermission = (permission: string): boolean => {
+    if (!canEditPermissions) return false;
+    if (permission === '*') return false;
+    if (restrictedPermissions.includes(permission) && detail?.role !== 'admin') return false;
+    return true;
+  };
 
   useEffect(() => {
     const fetchAllPermissions = async () => {
-      const snapshot = await getDocs(collection(db, 'roles'));
+      const rolesSnapshot = await getDocs(collection(db, 'roles'));
+      const permsSnapshot = await getDocs(collection(db, 'permissions'));
       const permissionSet = new Set<string>();
+      const restricted: string[] = [];
+      const allPerms: PermissionData[] = [];
 
-      snapshot.forEach((doc) => {
+      permsSnapshot.forEach(doc => {
         const data = doc.data();
-        (data.permissions || []).forEach((perm: string) => permissionSet.add(perm));
+        if (data.restricted) restricted.push(doc.id);
+        allPerms.push({ id: doc.id, name: data.name || doc.id, restricted: data.restricted });
       });
 
-      setAllPermissions(Array.from(permissionSet).sort());
+      rolesSnapshot.forEach((doc) => {
+        const data = doc.data();
+        (data.permissions || []).forEach((perm: string) => {
+          if (perm === '*' && detail?.role !== 'admin') return;
+          permissionSet.add(perm);
+        });
+      });
+
+      const filtered = allPerms.filter(p => permissionSet.has(p.id));
+      setAllPermissions(filtered.sort((a, b) => a.name.localeCompare(b.name)));
+      setRestrictedPermissions(restricted);
     };
 
     fetchAllPermissions();
-  }, []);
+  }, [detail?.role]);
 
   useEffect(() => {
     const fetchWorkersForAgent = async () => {
@@ -64,9 +97,17 @@ const TeamPermissionsTable = () => {
       setLoading(true);
 
       const baseQuery = collection(db, 'users');
-      const workersQuery = selectedAgentId && selectedAgentId !== 'all'
-        ? query(baseQuery, where('agentId', '==', selectedAgentId), where('role', 'in', ['worker', 'agent']))
-        : query(baseQuery, where('role', 'in', ['worker', 'agent']));
+      const isManager = detail?.role === 'manager';
+      const isAgent = detail?.role === 'agent';
+
+      let workersQuery;
+      if ((isAgent || isManager) && selectedAgentId && selectedAgentId !== 'all') {
+        workersQuery = query(baseQuery, where('agentId', '==', selectedAgentId));
+      } else if (detail?.role === 'admin' && selectedAgentId && selectedAgentId !== 'all') {
+        workersQuery = query(baseQuery, where('agentId', '==', selectedAgentId));
+      } else {
+        workersQuery = query(baseQuery, where('role', 'in', ['worker', 'agent', 'manager']));
+      }
 
       try {
         const querySnapshot = await getDocs(workersQuery);
@@ -81,6 +122,15 @@ const TeamPermissionsTable = () => {
             permissionOverrides: data.permissionOverrides || {}
           });
         });
+
+        // if (isManager) {
+        //   workersData.unshift({
+        //     id: detail.agentId,
+        //     name: detail.name,
+        //     role: detail.role,
+        //     permissionOverrides: detail.permissionOverrides || {}
+        //   });
+        // }
 
         setWorkers(workersData);
       } catch (error) {
@@ -126,6 +176,8 @@ const TeamPermissionsTable = () => {
   }, [selectedAgentId, agents]);
 
   const togglePermission = async (workerId: string, permission: string, has: boolean) => {
+    if (!canTogglePermission(permission)) return;
+
     const userRef = doc(db, 'users', workerId);
     const worker = workers.find(w => w.id === workerId);
     const rolePerms = rolePermissionsMap[worker?.role || ''] ?? [];
@@ -205,32 +257,39 @@ const TeamPermissionsTable = () => {
         </thead>
         <tbody>
           {allPermissions.map((perm) => (
-            <tr key={perm}>
-              <td className="border px-2 py-1 font-semibold whitespace-nowrap">{perm}</td>
+            <tr key={perm.id}>
+              <td
+                className="border px-2 py-1 font-semibold whitespace-nowrap"
+                title={perm.id}
+              >
+                {perm.name}
+              </td>
               {workers.map((worker) => {
                 const rolePerms = rolePermissionsMap[worker.role || ''] ?? [];
                 const has = hasPermission({
                   user: worker,
-                  permission: perm,
+                  permission: perm.id,
                   rolePermissions: rolePerms
                 });
 
                 const isOverridden =
-                  worker.permissionOverrides?.allow?.includes(perm) ||
-                  worker.permissionOverrides?.deny?.includes(perm);
+                  worker.permissionOverrides?.allow?.includes(perm.id) ||
+                  worker.permissionOverrides?.deny?.includes(perm.id);
+
+                const canToggle = canTogglePermission(perm.id);
 
                 return (
                   <td
-                    key={worker.id + perm}
-                    className={`border px-2 py-1 text-center ${canEditPermissions ? 'cursor-pointer hover:bg-blue-100' : 'text-gray-400 cursor-not-allowed'} ${isOverridden ? 'bg-yellow-100' : ''}`}
-                    onClick={() => canEditPermissions && togglePermission(worker.id, perm, has)}
+                    key={worker.id + perm.id}
+                    className={`border px-2 py-1 text-center ${canToggle ? 'cursor-pointer hover:bg-blue-100' : 'text-gray-400 cursor-not-allowed'} ${isOverridden ? 'bg-yellow-100' : ''}`}
+                    onClick={() => canToggle && togglePermission(worker.id, perm.id, has)}
                     title={
-                      canEditPermissions
+                      canToggle
                         ? `לחץ כדי ${has ? 'לבטל הרשאה' : 'לאפשר הרשאה'}`
                         : 'אין לך הרשאת עריכה'
                     }
                   >
-                    {has ? '✅' : '❌'}{isOverridden && ' *'}{canEditPermissions && <span className="ml-1 text-gray-400">✏️</span>}
+                    {has ? '✅' : '❌'}{isOverridden && ' *'}
                   </td>
                 );
               })}

@@ -21,7 +21,7 @@ export default function WorkerSignUpPage({ params }: { params: { agentId: string
     .then((doc) => {
       if (doc.exists()) {
         const data = doc.data();
-        if (data.role !== 'agent') {
+        if  (data.role !== 'agent' && data.role !== 'manager') {
           notFound();
           return;
         }

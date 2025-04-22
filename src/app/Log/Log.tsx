@@ -87,6 +87,7 @@ interface Customer {
 interface Sale {
   id: string;
   AgentId: string;
+  agent: string;
   IDCustomer: string;
   company: string;
   product: string;
@@ -112,6 +113,7 @@ interface CombinedData extends Sale {
 
 type AgentDataType = {
   id: string;
+  agent: string;
   firstNameCustomer: string;
   lastNameCustomer: string;
   IDCustomer: string;
@@ -375,7 +377,7 @@ console.log("selectedAgentId "+ selectedAgentId)
                 <th className="narrow-column">חודש תפוקה</th>
                 <th> סטאטוס</th>
                 <th>מינוי סוכן</th>
-                <th>שם עובד</th>
+                <th>שם סוכן</th>
               </tr>
             </thead>
             <tbody>
@@ -396,7 +398,7 @@ console.log("selectedAgentId "+ selectedAgentId)
                   <td className="narrow-column">{item.mounth ? formatIsraeliDateOnly(item.mounth) : ""}</td>
                   <td>{item.statusPolicy}</td>
                   <td>{item.minuySochen ? 'כן' : 'לא'}</td>
-                  <td>{item.workerName}</td>
+                  <td>{item.agent}</td>
                 </tr>
               ))}
             </tbody>
