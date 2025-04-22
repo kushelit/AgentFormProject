@@ -204,7 +204,7 @@ const useFetchAgentData = () => {
   
           setAgents([
             { id: detail.agentId, name: detail.name },
-            ...agentsList
+            ...agentsList.filter(a => a.id !== detail.agentId)
           ]);
           setSelectedAgentId(detail.agentId);
           setSelectedAgentName(detail.name);
@@ -213,19 +213,25 @@ const useFetchAgentData = () => {
           const agentDoc = await getDoc(doc(db, 'users', detail.agentId));
           const agentData = agentDoc.exists() ? agentDoc.data() : null;
   
-          // אם הסוכן של המשתמש הוא בעצמו מנג'ר
-          const isAgentManager = agentData?.role === 'manager';
-          const managerId = isAgentManager ? detail.agentId : agentData?.managerId;
+          if (!agentData) {
+            setAgents([]);
+            setIsLoadingAgent(false);
+            return;
+          }
+  
+          const isAgentManager = agentData.role === 'manager';
+          const managerId = isAgentManager ? detail.agentId : agentData.managerId;
   
           const managerDoc = managerId ? await getDoc(doc(db, 'users', managerId)) : null;
           const managerData = managerDoc?.exists() ? managerDoc.data() : null;
   
-          const agentsQuery = query(
+          const agentsQuery = managerId ? query(
             collection(db, 'users'),
             where('role', '==', 'agent'),
             where('managerId', '==', managerId)
-          );
-          const querySnapshot = await getDocs(agentsQuery);
+          ) : null;
+  
+          const querySnapshot = agentsQuery ? await getDocs(agentsQuery) : { docs: [] };
           const agentsList = querySnapshot.docs.map(doc => ({
             id: doc.id,
             name: doc.data().name as string,
@@ -233,13 +239,13 @@ const useFetchAgentData = () => {
   
           const fullList = [
             ...(managerId && managerData ? [{ id: managerId, name: managerData.name }] : []),
-            ...(agentDoc.exists() && !isAgentManager ? [{ id: agentDoc.id, name: agentData.name }] : []),
-            ...agentsList.filter(a => a.id !== agentDoc.id)
+            ...(agentDoc.exists() && agentData && agentDoc.id !== managerId ? [{ id: agentDoc.id, name: agentData.name }] : []),
+            ...agentsList.filter(a => a.id !== agentDoc.id && a.id !== managerId)
           ];
   
           setAgents(fullList);
           setSelectedAgentId(detail.agentId);
-          setSelectedAgentName(agentData?.name || 'לא נמצא');
+          setSelectedAgentName(agentData.name || 'לא נמצא');
           await fetchWorkersForSelectedAgent(detail.agentId);
         } else {
           const agentDoc = await getDoc(doc(db, 'users', detail.agentId));
