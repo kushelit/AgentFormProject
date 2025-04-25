@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { getDocs, collection, updateDoc, doc, deleteField } from 'firebase/firestore';
+import { getDocs, collection, updateDoc, doc, deleteField, addDoc, deleteDoc, where, query, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase/firebase';
 import { UserData, ManagerData } from '@/types/User';
 import { ToastNotification } from '@/components/ToastNotification';
@@ -43,35 +43,59 @@ setAgentsToPromote(agentUsers);
   };
 
   const demoteToAgent = async (managerId: string) => {
-    const linkedAgents = await fetchAgentsByManager(managerId);
-    if (linkedAgents.length > 0) {
-      const confirmUnlink = confirm("לא ניתן להפוך את המנהל לסוכן כל עוד יש סוכנים מקושרים, האם ברצונך להמשיך ולנתק את הסוכנים?");
-
-      if (!confirmUnlink) return;
-
-      // ניתוק כל הסוכנים המשויכים
-      try {
-        await Promise.all(linkedAgents.map(agent =>
-          updateDoc(doc(db, 'users', agent.id), { managerId: deleteField() })
-        ));
-        addToast('success', 'כל הסוכנים נותקו בהצלחה');
-      } catch (error) {
-        console.error('שגיאה בניתוק הסוכנים:', error);
-        addToast('error', 'אירעה שגיאה בניתוק הסוכנים');
+    try {
+      const managerDoc = await getDoc(doc(db, 'users', managerId));
+      const managerData = managerDoc.exists() ? managerDoc.data() : null;
+      const agentGroupId = managerData?.agentGroupId;
+  
+      if (!agentGroupId) {
+        console.error('❌ למנהל אין groupId מוגדר');
+        addToast('error', 'לא נמצא מזהה קבוצת סוכנים.');
         return;
       }
-    }
-    try {
+  
+      // שלוף את כל הסוכנים בקבוצה
+      const querySnapshot = await getDocs(
+        query(collection(db, 'users'), where('agentGroupId', '==', agentGroupId))
+      );
+      const agentsInGroup = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+  
+      if (agentsInGroup.length > 0) {
+        const confirmUnlink = confirm("לא ניתן להפוך את המנהל לסוכן כל עוד יש סוכנים מקושרים, האם ברצונך להמשיך ולנתק את הסוכנים?");
+        if (!confirmUnlink) return;
+  
+        // מחק לכל הסוכנים את ה־managerId וה־agentGroupId
+        await Promise.all(agentsInGroup.map(agent =>
+          updateDoc(doc(db, 'users', agent.id), {
+            managerId: deleteField(),
+            agentGroupId: deleteField()
+          })
+        ));
+  
+        addToast('success', 'כל הסוכנים נותקו בהצלחה');
+      }
+  
+      // מחק את קבוצת הסוכנים מהטבלה
+      await deleteDoc(doc(db, 'agentsGroup', agentGroupId));
+  
+      // עדכן את המנהל עצמו
       await updateDoc(doc(db, 'users', managerId), {
         role: 'agent',
+        agentGroupId: deleteField()
       });
+  
       setManagers(prev => prev.filter(m => m.id !== managerId));
       addToast('success', 'המנהל הוחזר לסוכן בהצלחה');
+  
     } catch (error) {
-      console.error('שגיאה בעדכון:', error);
-      addToast('error', 'אירעה שגיאה');
+      console.error('❌ שגיאה בניתוק או בעדכון:', error);
+      addToast('error', 'אירעה שגיאה בתהליך הורדת המנהל');
     }
   };
+  
 
   const ManagerCard = ({ manager }: { manager: ManagerData }) => {
     const [linkedAgents, setLinkedAgents] = useState<UserData[]>([]);
@@ -103,21 +127,23 @@ setAgentsToPromote(agentUsers);
       try {
         await updateDoc(doc(db, 'users', agentId), {
           managerId: deleteField(),
+          agentGroupId: deleteField()
         });
-
+    
         setLinkedAgents(prev => prev.filter(a => a.id !== agentId));
-        addToast('success', 'הסוכן נותק בהצלחה מהמנהל');
+        addToast('success', 'הסוכן נותק בהצלחה מהמנהל והקבוצה');
       } catch (error) {
         console.error('שגיאה בניתוק הסוכן:', error);
         addToast('error', 'אירעה שגיאה בעת ניתוק הסוכן');
       }
     };
-
+    
     const handleAssignAgents = async () => {
       try {
         const batchUpdates = selectedAgents.map(agentId =>
           updateDoc(doc(db, 'users', agentId), {
             managerId: manager.id,
+            agentGroupId: manager.agentGroupId
           })
         );
 
@@ -237,29 +263,45 @@ setAgentsToPromote(agentUsers);
     ))}
   </select>
   <button
-    className="bg-blue-700 text-white px-4 py-1 rounded hover:bg-blue-800"
-    onClick={async () => {
+  className="bg-blue-700 text-white px-4 py-1 rounded hover:bg-blue-800"
+  onClick={async () => {
     if (!selectedAgentId) {
       addToast('error', 'נא לבחור סוכן לפני לחיצה על הכפתור');
       return;
     }
     const selectedAgent = agentsToPromote.find(a => a.id === selectedAgentId);
     if (!selectedAgent) return;
+
     try {
+      // הפוך לסוכן ל-מנהל
       await updateDoc(doc(db, 'users', selectedAgentId), { role: 'manager' });
-      setManagers(prev => [...prev, { ...selectedAgent, role: 'manager' }]);
+
+      // צור קבוצת סוכנים חדשה
+      const agentsGroupRef = await addDoc(collection(db, 'agentsGroup'), {
+        managerId: selectedAgentId,
+        createdAt: new Date(),
+        // agencyId: selectedAgent.agencyId || null // אם יש סוכנות, לשמור
+      });
+
+      // עדכן את המנהל עם groupId
+      await updateDoc(doc(db, 'users', selectedAgentId), {
+        agentGroupId: agentsGroupRef.id
+      });
+
+      // עדכן סטייטים
+      setManagers(prev => [...prev, { ...selectedAgent, role: 'manager', agentGroupId: agentsGroupRef.id }]);
       setAgentsToPromote(prev => prev.filter(a => a.id !== selectedAgentId));
       setSelectedAgentId('');
-      addToast('success', 'הסוכן עודכן למנהל');
+      addToast('success', 'הסוכן עודכן למנהל וקבוצת סוכנים נוצרה בהצלחה');
     } catch (error) {
       console.error('שגיאה בשדרוג הסוכן:', error);
       addToast('error', 'אירעה שגיאה בעת הפיכת הסוכן למנהל');
     }
   }}
   disabled={!selectedAgentId}
-  >
-    הפוך למנהל
-  </button>
+>
+  הפוך למנהל
+</button>
 </div>
 
       <h2 className="text-xl font-bold mb-4">מנהלים קיימים</h2>

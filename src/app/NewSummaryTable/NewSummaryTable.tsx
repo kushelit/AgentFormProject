@@ -14,6 +14,7 @@ import { useMemo } from 'react';
 import CommissionPerCustomerGraph from '@/components/CommissionPerCustomerGraph';
 import PieChartGraph from '@/components/CompanyCommissionPie';
 import { useDesignFlag } from  "@/hooks/useDesignFlag";
+import { usePermission } from "@/hooks/usePermission";
 
 
 
@@ -74,6 +75,7 @@ const averageCommissionHekef = Math.round(overallTotals.commissionHekefTotal / m
 const averageCommissionNifraim = Math.round(overallTotals.commissionNifraimTotal / monthsCount);
 
 
+const { canAccess: canViewCommissions } = usePermission("view_commissions_field");
 
 
   return (
@@ -157,8 +159,8 @@ const averageCommissionNifraim = Math.round(overallTotals.commissionNifraimTotal
             <th>סך פנסיה</th>
             <th>סך ביטוח</th>
             <th>ניוד פנסיה</th>
-            <th>עמלת היקף</th>
-            <th>עמלת נפרעים</th>
+            {canViewCommissions &&<th>עמלת היקף</th>}
+             {canViewCommissions &&<th>עמלת נפרעים</th>}
           </tr>
         </thead>
         <tbody>
@@ -173,8 +175,8 @@ const averageCommissionNifraim = Math.round(overallTotals.commissionNifraimTotal
               <td>{totals.pensiaTotal.toLocaleString()}</td>
               <td>{totals.insuranceTotal.toLocaleString()}</td>
               <td>{totals.niudPensiaTotal.toLocaleString()}</td>
-              <td>{totals.commissionHekefTotal.toLocaleString()}</td>
-              <td>{totals.commissionNifraimTotal.toLocaleString()}</td>
+              {canViewCommissions && <td>{totals.commissionHekefTotal.toLocaleString()}</td>}
+              {canViewCommissions && <td>{totals.commissionNifraimTotal.toLocaleString()}</td>}
             </tr>
           ))}
           <tr>
@@ -183,8 +185,8 @@ const averageCommissionNifraim = Math.round(overallTotals.commissionNifraimTotal
             <td><strong>{overallTotals.pensiaTotal.toLocaleString()}</strong></td>
             <td><strong>{overallTotals.insuranceTotal.toLocaleString()}</strong></td>
             <td><strong>{overallTotals.niudPensiaTotal.toLocaleString()}</strong></td>
-            <td><strong>{overallTotals.commissionHekefTotal.toLocaleString()}</strong></td>
-            <td><strong>{overallTotals.commissionNifraimTotal.toLocaleString()}</strong></td>
+            {canViewCommissions &&   <td><strong>{overallTotals.commissionHekefTotal.toLocaleString()}</strong></td>}
+            {canViewCommissions &&  <td><strong>{overallTotals.commissionNifraimTotal.toLocaleString()}</strong></td>}
           </tr>
           <tr>
         <td><strong>ממוצע</strong></td>
@@ -192,8 +194,8 @@ const averageCommissionNifraim = Math.round(overallTotals.commissionNifraimTotal
         <td><strong>{averagePensia.toLocaleString()}</strong></td>
         <td><strong>{averageInsurance.toLocaleString()}</strong></td>
         <td><strong>{averageNiudPensia.toLocaleString()}</strong></td>
-        <td><strong>{averageCommissionHekef.toLocaleString()}</strong></td>
-        <td><strong>{averageCommissionNifraim.toLocaleString()}</strong></td>
+        {canViewCommissions && <td><strong>{averageCommissionHekef.toLocaleString()}</strong></td>}
+        {canViewCommissions && <td><strong>{averageCommissionNifraim.toLocaleString()}</strong></td>}
       </tr>
         </tbody>
       </table>     
@@ -203,8 +205,8 @@ const averageCommissionNifraim = Math.round(overallTotals.commissionNifraimTotal
     <div className="graf-Type">
   <select value={selectedGraph} onChange={(e) => setSelectedGraph(e.target.value)}>
     <option value="newCustomers">לקוחות חדשים</option>
-    <option value="commissionPerMonth">ממוצע נפרעים ללקוח</option>
-    <option value="companyCommissionPie">סך היקף לחברה</option>
+    {canViewCommissions && <option value="commissionPerMonth">ממוצע נפרעים ללקוח</option>}
+     {canViewCommissions && <option value="companyCommissionPie">סך היקף לחברה</option>}
   </select>
   </div>
   {/* Render Graph */}

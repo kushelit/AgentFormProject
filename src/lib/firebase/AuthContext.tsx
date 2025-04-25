@@ -20,6 +20,7 @@ type UserDetail = {
   name: string;
   email: string;
   agentId: string;
+  agencyId : string;
   role: 'agent' | 'worker'| 'admin' | 'manager';
   permissionOverrides?: {
     allow?: string[];

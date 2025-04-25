@@ -7,7 +7,7 @@ import AccessDenied from "@/components/AccessDenied";
 import { usePermission } from "@/hooks/usePermission";
 
 const NewSummaryTablePage = () => {
-  const { user, isLoading } = useAuth();
+  const { user, isLoading,detail } = useAuth();
   const [ready, setReady] = useState(false);
 
   const { canAccess, isChecking } = usePermission("access_summaryTable");
@@ -18,7 +18,7 @@ const NewSummaryTablePage = () => {
     return () => clearTimeout(timer);
   }, []);
 
-  if (isLoading || !ready || isChecking || user === undefined) {
+  if (isLoading || isChecking || !ready || !user || !detail) {
     return (
       <div className="p-4 text-gray-600">
         ⏳ טוען מידע...
@@ -34,9 +34,11 @@ const NewSummaryTablePage = () => {
     );
   }
 
-  if (!canAccess) {
+   // אין הרשאה – תנאי מדויק
+   if (canAccess === false) {
     return <AccessDenied />;
   }
+
 
   return (
     <Suspense fallback={<div>Loading...</div>}>

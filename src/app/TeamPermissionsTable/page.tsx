@@ -7,7 +7,7 @@ import AccessDenied from "@/components/AccessDenied";
 import { usePermission } from "@/hooks/usePermission";
 
 const TeamPermissionsTablePage = () => {
-  const { user, isLoading } = useAuth();
+  const { user, isLoading,detail } = useAuth();
   const [ready, setReady] = useState(false);
 
   // השהייה קצרה לטעינה חלקה
@@ -19,7 +19,7 @@ const TeamPermissionsTablePage = () => {
   const { canAccess, isChecking } = usePermission("access_teamPermissionsTable");
 
   // טוען מידע כללי או הרשאות
-  if (isLoading || !ready || isChecking || user === undefined) {
+  if (isLoading || isChecking || !ready || !user || !detail) {
     return (
       <div className="p-4 text-gray-600">
         ⏳ טוען מידע...
@@ -36,11 +36,9 @@ const TeamPermissionsTablePage = () => {
     );
   }
 
-  // אין הרשאה לדף
-  if (!canAccess) {
+  if (canAccess === false) {
     return <AccessDenied />;
   }
-
   // הצגת הדף בפועל
   return (
     <Suspense fallback={<div>Loading...</div>}>

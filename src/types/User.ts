@@ -7,6 +7,7 @@ export interface UserData   {
   name: string;
   role: 'worker' | 'agent' | 'manager' | 'admin';
   managerId?: string;
+  agentGroupId?: string;
 }
 
 export interface ManagerData    {
@@ -14,4 +15,5 @@ export interface ManagerData    {
   name: string;
   email: string;
   role: 'manager';
+  agentGroupId: string;
 }

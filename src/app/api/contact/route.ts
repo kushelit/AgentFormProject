@@ -12,9 +12,13 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'שדה ההודעה ריק' }, { status: 400 });
     }
 
+    // if (!userEmail) {
+    //   return NextResponse.json({ error: 'שדה האימייל ריק' }, { status: 400 });
+    // }
     const msg = {
       to: "admin@magicsale.co.il",
       from: { email: "admin@magicsale.co.il", name: "MagicSale - פניות משתמשים" },
+      ...(userEmail ? { replyTo: userEmail } : {}), // ✅ רק אם יש אימייל
       subject: `פנייה חדשה מאת ${userName || "משתמש לא ידוע"}`,
       text: `משתמש ${userName || "משתמש לא ידוע"} (${userEmail || "ללא אימייל"}) שלח הודעה:\n\n${message}`,
       html: `<p><strong>משתמש:</strong> ${userName || "משתמש לא ידוע"} (${userEmail || "ללא אימייל"})</p>

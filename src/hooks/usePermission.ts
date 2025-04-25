@@ -23,16 +23,12 @@ export function usePermission(permission: string): {
   const isChecking = isLoading || !user || !detail || !rolePermissions;
 
   const canAccess = useMemo(() => {
-    if (isChecking) return null;
-
-    const result = hasPermission({
+    if (isChecking || rolePermissions === null || rolePermissions.length === 0) return null; // 🔁 חכי לטעינה מלאה
+    return hasPermission({
       user: fullUser,
       permission,
       rolePermissions,
     });
-
-    console.log("📌 usePermission ▶", { role, canAccess: result, user, detail });
-    return result;
   }, [isChecking, fullUser, permission, rolePermissions]);
 
   return { canAccess, isChecking };

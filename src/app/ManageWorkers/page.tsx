@@ -7,7 +7,7 @@ import AccessDenied from "@/components/AccessDenied";
 import { usePermission } from "@/hooks/usePermission";
 
 const ManageWorkersPage = () => {
-  const { user, isLoading } = useAuth();
+  const { user, isLoading,detail } = useAuth();
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
@@ -17,7 +17,7 @@ const ManageWorkersPage = () => {
 
   const { canAccess, isChecking } = usePermission("access_manageWorkers");
 
-  if (isLoading || !ready || isChecking || user === undefined) {
+  if (isLoading || isChecking || !ready || !user || !detail) {
     return <div className="p-4 text-gray-600">⏳ טוען מידע...</div>;
   }
 
@@ -29,9 +29,10 @@ const ManageWorkersPage = () => {
     );
   }
 
-  if (!canAccess) {
+  if (canAccess === false) {
     return <AccessDenied />;
   }
+
 
   return (
     <Suspense fallback={<div>Loading...</div>}>

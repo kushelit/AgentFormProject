@@ -20,7 +20,7 @@ interface Worker {
 // Assuming User and Detail interfaces are correctly imported or defined above
 
 const useFetchAgentData = () => {
-  const { user, detail } = useAuth(); // Assuming useAuth() hook correctly provides User | null and Detail | null
+  const { user, detail,isLoading } = useAuth(); // Assuming useAuth() hook correctly provides User | null and Detail | null
   const [agents, setAgents] = useState<{id: string, name: string}[]>([]);
   const [selectedAgentId, setSelectedAgentId] = useState<string>('');
   
@@ -158,116 +158,96 @@ const useFetchAgentData = () => {
   //   fetchAgentData();
   // }, [user, detail]);
   
-  useEffect(() => {
-    if (!user || !detail || agents.length > 0) return;
-  
-    const fetchAgentData = async () => {
-      setIsLoadingAgent(true);
-      try {
-        const currentUser = {
-          ...user,
-          permissionOverrides: detail.permissionOverrides || {}
-        };
-  
-        // טען את ההרשאות לפי התפקיד הנוכחי של המשתמש
-        const roleDoc = await getDoc(doc(db, 'roles', detail.role));
-        const rolePerms = roleDoc.exists() ? roleDoc.data().permissions || [] : [];
-  
-        const hasExpandedAccess = hasPermission({
-          user: currentUser,
-          permission: 'access_all_agents_under_manager',
-          rolePermissions: rolePerms
-        });
-  
-        if (detail.role === 'admin') {
-          const agentsQuery = query(
-            collection(db, 'users'),
-            where('role', 'in', ['agent', 'manager'])
-          );
-          const querySnapshot = await getDocs(agentsQuery);
-          const agentsList = querySnapshot.docs.map(doc => ({
-            id: doc.id,
-            name: doc.data().name as string,
-          }));
-          setAgents(agentsList);
-        } else if (detail.role === 'manager') {
-          const agentsQuery = query(
-            collection(db, 'users'),
-            where('role', '==', 'agent'),
-            where('managerId', '==', detail.agentId)
-          );
-          const querySnapshot = await getDocs(agentsQuery);
-          const agentsList = querySnapshot.docs.map(doc => ({
-            id: doc.id,
-            name: doc.data().name as string,
-          }));
-  
-          setAgents([
-            { id: detail.agentId, name: detail.name },
-            ...agentsList.filter(a => a.id !== detail.agentId)
-          ]);
-          setSelectedAgentId(detail.agentId);
-          setSelectedAgentName(detail.name);
-          await fetchWorkersForSelectedAgent(detail.agentId);
-        } else if ((detail.role === 'agent' || detail.role === 'worker') && hasExpandedAccess) {
-          const agentDoc = await getDoc(doc(db, 'users', detail.agentId));
-          const agentData = agentDoc.exists() ? agentDoc.data() : null;
-  
-          if (!agentData) {
-            setAgents([]);
-            setIsLoadingAgent(false);
-            return;
-          }
-  
-          const isAgentManager = agentData.role === 'manager';
-          const managerId = isAgentManager ? detail.agentId : agentData.managerId;
-  
-          const managerDoc = managerId ? await getDoc(doc(db, 'users', managerId)) : null;
-          const managerData = managerDoc?.exists() ? managerDoc.data() : null;
-  
-          const agentsQuery = managerId ? query(
-            collection(db, 'users'),
-            where('role', '==', 'agent'),
-            where('managerId', '==', managerId)
-          ) : null;
-  
-          const querySnapshot = agentsQuery ? await getDocs(agentsQuery) : { docs: [] };
-          const agentsList = querySnapshot.docs.map(doc => ({
-            id: doc.id,
-            name: doc.data().name as string,
-          }));
-  
-          const fullList = [
-            ...(managerId && managerData ? [{ id: managerId, name: managerData.name }] : []),
-            ...(agentDoc.exists() && agentData && agentDoc.id !== managerId ? [{ id: agentDoc.id, name: agentData.name }] : []),
-            ...agentsList.filter(a => a.id !== agentDoc.id && a.id !== managerId)
-          ];
-  
-          setAgents(fullList);
-          setSelectedAgentId(detail.agentId);
-          setSelectedAgentName(agentData.name || 'לא נמצא');
-          await fetchWorkersForSelectedAgent(detail.agentId);
-        } else {
-          const agentDoc = await getDoc(doc(db, 'users', detail.agentId));
-          const agentName = agentDoc.exists() ? agentDoc.data().name : 'לא נמצא';
-  
-          setAgents([{ id: detail.agentId, name: agentName }]);
-          setSelectedAgentId(detail.agentId);
-          setSelectedAgentName(agentName);
-          await fetchWorkersForSelectedAgent(detail.agentId);
-        }
-      } catch (error) {
-        console.error("⚠️ Failed to fetch agents:", error);
-        setAgents([]);
-      } finally {
-        setIsLoadingAgent(false);
-      }
-    };
-  
-    fetchAgentData();
-  }, [user, detail]);
-  
+ /// from here
 
+ useEffect(() => {
+  if (!user || !detail || agents.length > 0 || isLoading) return;
+
+  const fetchAgentData = async () => {
+    setIsLoadingAgent(true);
+    try {
+      const currentUser = {
+        ...user,
+        permissionOverrides: detail.permissionOverrides || {}
+      };
+
+      const roleDoc = await getDoc(doc(db, 'roles', detail.role));
+      const rolePerms = roleDoc.exists() ? roleDoc.data().permissions || [] : [];
+
+      const hasAccessAgentGroup = hasPermission({
+        user: currentUser,
+        permission: 'access_all_agents_in_group',
+        rolePermissions: rolePerms
+      });
+
+      let agentsList = [];
+
+      if (detail.role === 'admin') {
+        const snapshot = await getDocs(query(
+          collection(db, 'users'),
+          where('role', 'in', ['agent', 'manager'])
+        ));
+        agentsList = snapshot.docs.map(doc => ({
+          id: doc.id,
+          name: doc.data().name as string
+        }));
+      } else if (hasAccessAgentGroup) {
+        const agentDoc = await getDoc(doc(db, 'users', detail.agentId));
+        const agentData = agentDoc.exists() ? agentDoc.data() : null;
+
+        if (agentData?.agentGroupId) {
+          const snapshot = await getDocs(query(
+            collection(db, 'users'),
+            where('agentGroupId', '==', agentData.agentGroupId),
+            where('role', 'in', ['agent', 'manager'])
+          ));
+          agentsList = snapshot.docs.map(doc => ({
+            id: doc.id,
+            name: doc.data().name as string
+          }));
+        } else {
+          const agentName = agentDoc.exists() ? agentDoc.data().name : 'לא נמצא';
+          agentsList = [{
+            id: detail.agentId,
+            name: agentName
+          }];
+        }
+      } else {
+        const agentDoc = await getDoc(doc(db, 'users', detail.agentId));
+        const agentName = agentDoc.exists() ? agentDoc.data().name : 'לא נמצא';
+        agentsList = [{
+          id: detail.agentId,
+          name: agentName
+        }];
+      }
+      setAgents(agentsList);
+      if (detail.role !== 'admin') {
+        setSelectedAgentId(detail.agentId);
+        setSelectedAgentName(
+          agentsList.find(a => a.id === detail.agentId)?.name || 'לא נמצא'
+        );
+        // await fetchWorkersForSelectedAgent(detail.agentId);
+      }
+    } catch (error) {
+      console.error("⚠️ Failed to fetch agents:", error);
+      setAgents([]);
+    } finally {
+      setTimeout(() => setIsLoadingAgent(false), 150);
+    }
+  };
+
+  fetchAgentData();
+}, [user, detail, isLoading]);
+
+ 
+useEffect(() => {
+  if (!selectedAgentId) return;
+  fetchWorkersForSelectedAgent(selectedAgentId);
+}, [selectedAgentId]);
+
+
+ // untill here
+  
   const fetchWorkersForSelectedAgent = async (agentId: string) => {
     if (!agentId) {
       console.log("Agent ID is undefined");
@@ -460,7 +440,7 @@ const useFetchAgentData = () => {
   isLoadingAgent,
   setIsLoadingAgent,
   selectedCompanies,
-  setSelectedCompanies
+  setSelectedCompanies,
   //handleCalculate
   // Any other states or functions you might be using
 };
