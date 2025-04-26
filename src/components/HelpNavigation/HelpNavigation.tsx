@@ -17,6 +17,9 @@ const HelpNavigation = () => {
     { href: "/Help/targets", label: "🎯 ניהול יעדים ומבצעים" },
     { href: "/Help/flow", label: "🔄 Flow - ניהול לידים" },
     { href: "/Help/mdflow", label: "🧩 Flow - ניהול הגדרות לידים" },
+    { href: "/Help/TeamPermissions", label: "🛡️ ניהול הרשאות" },
+
+    
     // { href: "/Help/reports", label: "📈 דוחות" },
   ];
 

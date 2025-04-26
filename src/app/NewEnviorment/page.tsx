@@ -7,7 +7,7 @@ import AccessDenied from "@/components/AccessDenied";
 import { usePermission } from "@/hooks/usePermission";
 
 const NewEnviormentPage = () => {
-  const { user, isLoading,detail } = useAuth();
+  const { user, isLoading } = useAuth();
   const [ready, setReady] = useState(false);
 
   const { canAccess, isChecking } = usePermission("access_manageEnviorment");
@@ -17,10 +17,12 @@ const NewEnviormentPage = () => {
     return () => clearTimeout(timer);
   }, []);
 
-  if (isLoading || isChecking || !ready || !user || !detail) {
+  // שלב טעינה
+  if (isLoading || isChecking || !ready || user === undefined) {
     return <div className="p-4 text-gray-600">⏳ טוען מידע...</div>;
   }
 
+  // אין יוזר
   if (!user) {
     return (
       <div className="text-custom-white px-4 py-2 rounded-lg">
@@ -29,12 +31,12 @@ const NewEnviormentPage = () => {
     );
   }
 
-   // אין הרשאה – תנאי מדויק
-   if (canAccess === false) {
+  // אין הרשאה
+  if (!canAccess) {
     return <AccessDenied />;
   }
 
-
+  // מוכן להציג
   return (
     <Suspense fallback={<div>Loading...</div>}>
       <NewEnviorment />

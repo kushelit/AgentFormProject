@@ -19,6 +19,7 @@ const HelpCenter = () => {
       <li><Link href="/Help/targets">🎯 ניהול יעדים ומבצעים</Link></li>
       <li><Link href="/Help/flow">🔄 Flow - ניהול לידים</Link></li>
       <li><Link href="/Help/mdflow">🧩 Flow - ניהול הגדרות לידים</Link></li>
+      <li><Link href="/Help/TeamPermissions">🛡️ ניהול הרשאות</Link></li>
       </ul>
     </div>
   );

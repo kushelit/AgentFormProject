@@ -61,3 +61,11 @@
   direction: rtl;
   text-align: right;
 }
+
+.image-text-vertical {
+  display: flex;
+  flex-direction: column; /* ✅ תמונה למעלה, טקסט מתחת */
+  align-items: flex-start; /* ✅ יישור לימין */
+  text-align: right;
+  gap: 8px;
+}

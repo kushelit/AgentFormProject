@@ -2,12 +2,10 @@ import { ChangeEventHandler, FormEventHandler, SetStateAction, useEffect, useMem
 import { collection, query, setDoc, where, getDocs, getDoc, addDoc, deleteDoc, doc, updateDoc, DocumentSnapshot, DocumentData, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase/firebase"; // Ensure this path matches your project structure
 import { useAuth } from '@/lib/firebase/AuthContext';
-import Link from "next/link";
 import useFetchMD from "@/hooks/useMD";
 import './NewCustomer.css';
 import useFetchAgentData from "@/hooks/useFetchAgentData";
 import React from 'react';
-import {Dialog} from '@/components/Dialog';
 import { useDesignFlag } from  "@/hooks/useDesignFlag";
 import { Button } from "@/components/Button/Button";
 import MenuWrapper from "@/components/MenuWrapper/MenuWrapper";

@@ -1,0 +1,16 @@
+
+
+.mb-4 select {
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' width='14' height='14'><path fill='%23000000' d='M7 10l5 5 5-5H7z'/></svg>"); /* חץ קטן */
+    background-repeat: no-repeat;
+    background-position: left 10px center; /* ממקם את החץ בצד שמאל */
+    background-size: 12px; /* גודל החץ */
+    padding-left: 25px; /* ריווח מהחץ לטקסט */
+  }
+
+  .special-permission-row td {
+    border: 1px solid #e57373; /* אדום בהיר ועדין */
+    background-color: #fff8f8; /* ורדרד ממש קל */
+    border-radius: 4px;
+  }
+  

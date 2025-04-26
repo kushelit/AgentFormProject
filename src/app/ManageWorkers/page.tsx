@@ -7,20 +7,22 @@ import AccessDenied from "@/components/AccessDenied";
 import { usePermission } from "@/hooks/usePermission";
 
 const ManageWorkersPage = () => {
-  const { user, isLoading,detail } = useAuth();
+  const { user, isLoading } = useAuth();
   const [ready, setReady] = useState(false);
+
+  const { canAccess, isChecking } = usePermission("access_manageWorkers");
 
   useEffect(() => {
     const timer = setTimeout(() => setReady(true), 300);
     return () => clearTimeout(timer);
   }, []);
 
-  const { canAccess, isChecking } = usePermission("access_manageWorkers");
-
-  if (isLoading || isChecking || !ready || !user || !detail) {
+  // שלב טעינה
+  if (isLoading || isChecking || !ready || user === undefined) {
     return <div className="p-4 text-gray-600">⏳ טוען מידע...</div>;
   }
 
+  // אין יוזר
   if (!user) {
     return (
       <div className="text-custom-white px-4 py-2 rounded-lg">
@@ -29,11 +31,12 @@ const ManageWorkersPage = () => {
     );
   }
 
-  if (canAccess === false) {
+  // אין הרשאה
+  if (!canAccess) {
     return <AccessDenied />;
   }
 
-
+  // מוכן להציג
   return (
     <Suspense fallback={<div>Loading...</div>}>
       <ManageWorkers />

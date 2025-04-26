@@ -170,7 +170,7 @@ setAgentsToPromote(agentUsers);
             onClick={() => demoteToAgent(manager.id)}
             className="bg-blue-700 text-white px-4 py-1 rounded hover:bg-blue-800"
           >
-            הפוך לסוכן
+            הפוך חזרה לסוכן
           </button>
         </div>
 
@@ -300,7 +300,7 @@ setAgentsToPromote(agentUsers);
   }}
   disabled={!selectedAgentId}
 >
-  הפוך למנהל
+  הפוך למנהל קבוצת סוכנים
 </button>
 </div>
 

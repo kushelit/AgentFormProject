@@ -1,0 +1,112 @@
+.dialog-notification-wrapper {
+  background-color: rgba(0, 0, 0, 0.5);
+  position: fixed;
+  inset: 0;
+  z-index: 1010;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dialog-notification {
+  background-color: #fff;
+  border: 1px solid #E0E0E0;
+  border-radius: 6px;
+  padding: 20px 24px;
+  width: 400px;
+  max-width: 90%;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0px 4px 10px rgba(0,0,0,0.1);
+  font-family: "Rubik", sans-serif;
+  text-align: right;
+  direction: rtl;
+}
+
+.dialog-header-bar {
+  height: 4px;
+  width: 100%;
+  background-color: var(--clrgray5); /* ברירת מחדל אפור */
+  border-top-left-radius: 6px;
+  border-top-right-radius: 6px;
+}
+
+.dialog-header-bar.type-success {
+  background-color: var(--status-success);
+}
+
+.dialog-header-bar.type-warning {
+  background-color: var(--status-high);
+}
+
+.dialog-header-bar.type-error {
+  background-color: var(--status-error);
+}
+
+.dialog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 16px;
+}
+
+.dialog-icon {
+  flex: 0 0 auto;
+}
+
+.dialog-title {
+  flex-grow: 1;
+  font-size: 18px;
+  font-weight: bold;
+  margin-right: 10px;
+  color: #2C2C2C;
+}
+
+.dialog-title.type-success {
+  color: var(--status-success);
+}
+
+.dialog-title.type-warning {
+  color: var(--status-high);
+}
+
+.dialog-title.type-error {
+  color: var(--status-error);
+}
+
+.dialog-close {
+  cursor: pointer;
+  padding: 2px;
+}
+
+.dialog-message {
+  font-size: 14px;
+  color: #333;
+  margin: 16px 0;
+  line-height: 1.5;
+}
+
+.dialog-buttons {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+}
+
+.dialog-button {
+  min-width: 100px;
+  padding: 8px 12px;
+  border-radius: 4px;
+  font-weight: bold;
+  border: 1px solid var(--clrprimary);
+  background-color: #fff;
+  color: var(--clrprimary);
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.dialog-button.confirm:hover,
+.dialog-button.cancel:hover {
+  background-color: var(--clrprimary);
+  color: #fff;
+}

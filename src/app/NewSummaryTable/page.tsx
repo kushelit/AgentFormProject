@@ -7,18 +7,18 @@ import AccessDenied from "@/components/AccessDenied";
 import { usePermission } from "@/hooks/usePermission";
 
 const NewSummaryTablePage = () => {
-  const { user, isLoading,detail } = useAuth();
+  const { user, isLoading } = useAuth();
   const [ready, setReady] = useState(false);
 
   const { canAccess, isChecking } = usePermission("access_summaryTable");
 
-  // השהיה קצרה כדי לוודא שהכל טעון
   useEffect(() => {
     const timer = setTimeout(() => setReady(true), 300);
     return () => clearTimeout(timer);
   }, []);
 
-  if (isLoading || isChecking || !ready || !user || !detail) {
+  // שלב טעינה
+  if (isLoading || isChecking || !ready || user === undefined) {
     return (
       <div className="p-4 text-gray-600">
         ⏳ טוען מידע...
@@ -26,6 +26,7 @@ const NewSummaryTablePage = () => {
     );
   }
 
+  // אין יוזר
   if (!user) {
     return (
       <div className="text-custom-white px-4 py-2 rounded-lg">
@@ -34,12 +35,12 @@ const NewSummaryTablePage = () => {
     );
   }
 
-   // אין הרשאה – תנאי מדויק
-   if (canAccess === false) {
+  // אין הרשאה
+  if (!canAccess) {
     return <AccessDenied />;
   }
 
-
+  // מוכן להציג
   return (
     <Suspense fallback={<div>Loading...</div>}>
       <NewSummaryTable />

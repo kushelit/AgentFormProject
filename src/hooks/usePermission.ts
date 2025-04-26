@@ -11,19 +11,18 @@ export function usePermission(permission: string): {
   isChecking: boolean;
 } {
   const { user, detail, isLoading } = useAuth();
-
   const role = detail?.role ?? null;
-  const rolePermissions = useRolePermissions(role && detail ? role : null);
+  const rolePermissions = useRolePermissions(role); // ⬅️ כאן השתמשנו בגרסה החדשה
 
   const fullUser = useMemo(() => ({
     ...user,
     permissionOverrides: detail?.permissionOverrides || {}
   }), [user, detail]);
 
-  const isChecking = isLoading || !user || !detail || !rolePermissions;
+  const isChecking = isLoading || !user || !detail || rolePermissions.length === 0;
 
   const canAccess = useMemo(() => {
-    if (isChecking || rolePermissions === null || rolePermissions.length === 0) return null; // 🔁 חכי לטעינה מלאה
+    if (isChecking) return null; // עדיין בטעינה
     return hasPermission({
       user: fullUser,
       permission,
