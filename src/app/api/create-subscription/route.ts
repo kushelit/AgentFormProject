@@ -44,7 +44,10 @@ export async function POST(req: NextRequest) {
     );
 
     clearTimeout(timeout);
-    console.log('✅ Response from Meshulam:', data);
+    console.log('✅ Response from Meshulam:', JSON.stringify(data, null, 2));
+    console.log('🔎 status:', data?.status);
+    console.log('🔎 url:', data?.url);
+    console.log('🔎 err:', data?.err);
 
     if (data?.status === '1' && data?.url) {
       console.log('🔗 Redirecting to:', data.url);
