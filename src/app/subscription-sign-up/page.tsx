@@ -1,76 +1,74 @@
 'use client';
 
 import { useState } from 'react';
+import axios from 'axios';
 import { useRouter } from 'next/navigation';
-import axios from 'axios'; // חשוב: מותקן במערכת שלך
 
 export default function SubscriptionSignUpPage() {
-  const router = useRouter();
+  const [fullName, setFullName] = useState('');
+  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
   const [error, setError] = useState('');
+  const router = useRouter();
 
-  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const values = new FormData(event.currentTarget);
-    const fullName = values.get("fullName") as string | null;
-    const email = values.get("email") as string | null;
-    const phone = values.get("phone") as string | null;
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
 
     if (!fullName || !email || !phone) {
-      setError('אנא מלא/י את כל השדות');
+      setError('אנא מלא/י את כל השדות הנדרשים');
       return;
     }
 
     try {
-      // קריאה לשרת שלך שמכין בקשת תשלום מול Grow
-      const response = await axios.post('/api/create-subscription', {
-        fullName,
-        email,
-        phone,
-      });
-
-      const paymentUrl = response.data?.paymentUrl;
-      if (paymentUrl) {
-        router.push(paymentUrl); // מפנה את המשתמש לעמוד התשלום
-      } else {
-        setError('שגיאה ביצירת תשלום');
-      }
+      const res = await axios.post('/api/create-subscription', { fullName, email, phone });
+      const { paymentUrl } = res.data;
+      router.push(paymentUrl);
     } catch (err) {
       console.error(err);
-      setError('שגיאה בתהליך התשלום');
+      setError('אירעה שגיאה. אנא נסה/י שוב או פנה/י לתמיכה.');
     }
   };
 
   return (
-    <div className="form-auth-container">
-      <form onSubmit={handleSubmit} className="auth-form">
-        <h2 className="form-title">הרשמה למנוי</h2>
-
-        <div className="form-group">
-          <label htmlFor="fullName" className="form-label">
-            שם מלא <span className="required">*</span>
-          </label>
-          <input type="text" id="fullName" name="fullName" required className="form-input" />
+    <div className="max-w-md mx-auto mt-10 bg-white shadow-lg rounded-xl p-6 text-right">
+      <h2 className="text-2xl font-bold mb-4">הרשמה למנוי</h2>
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div>
+          <label className="block mb-1 font-semibold">שם מלא *</label>
+          <input
+            type="text"
+            value={fullName}
+            onChange={(e) => setFullName(e.target.value)}
+            className="w-full border border-gray-300 rounded px-3 py-2 text-right"
+          />
+        </div>
+        <div>
+          <label className="block mb-1 font-semibold">אימייל *</label>
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="w-full border border-gray-300 rounded px-3 py-2 text-right"
+          />
+        </div>
+        <div>
+          <label className="block mb-1 font-semibold">טלפון *</label>
+          <input
+            type="tel"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            className="w-full border border-gray-300 rounded px-3 py-2 text-right"
+          />
         </div>
 
-        <div className="form-group">
-          <label htmlFor="email" className="form-label">
-            אימייל <span className="required">*</span>
-          </label>
-          <input type="email" id="email" name="email" required className="form-input" />
-        </div>
+        {error && <p className="text-red-600 text-sm">{error}</p>}
 
-        <div className="form-group">
-          <label htmlFor="phone" className="form-label">
-            טלפון <span className="required">*</span>
-          </label>
-          <input type="tel" id="phone" name="phone" required className="form-input" />
-        </div>
-
-        <button type="submit" className="form-button">
+        <button
+          type="submit"
+          className="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700 transition"
+        >
           המשך לתשלום
         </button>
-
-        {error && <p className="error-text">{error}</p>}
       </form>
     </div>
   );
