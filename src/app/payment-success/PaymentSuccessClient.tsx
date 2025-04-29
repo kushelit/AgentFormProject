@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { db } from '@/lib/firebase/firebase';
+import { db, auth } from '@/lib/firebase/firebase';
 import { collection, doc, setDoc } from 'firebase/firestore';
+import { createUserWithEmailAndPassword } from 'firebase/auth';
 
 export default function PaymentSuccessClient() {
   const searchParams = useSearchParams();
@@ -11,38 +12,42 @@ export default function PaymentSuccessClient() {
   const [status, setStatus] = useState('מעבד תשלום...');
 
   useEffect(() => {
-    const subscriptionId = searchParams.get('subscriptionId');
-    const fullName = searchParams.get('fullName');
+    const processId = searchParams.get('processId');
+    const name = searchParams.get('fullName');
     const email = searchParams.get('email');
     const phone = searchParams.get('phone');
-    const customField = searchParams.get('customField') || `MAGICSALE-${email}`; // ✅ שמירה אחידה
+    const customField = searchParams.get('customField') || `MAGICSALE-${email}`;
 
-    if (!subscriptionId || !fullName || !email || !phone || !customField) {
+    if (!processId || !name || !email || !phone || !customField) {
       setStatus('חסרים פרטי תשלום, נא לפנות לשירות לקוחות.');
       return;
     }
 
     const saveUser = async () => {
       try {
+        const tempPassword = Math.random().toString(36).slice(-8);
+        await createUserWithEmailAndPassword(auth, email, tempPassword);
+
         const userDoc = doc(collection(db, 'users'));
         await setDoc(userDoc, {
-          fullName,
+          name,
           email,
           phone,
-          subscriptionId,
+          subscriptionId: processId,
           subscriptionStatus: 'active',
           subscriptionStart: new Date(),
           nextBillingDate: null,
-          role: 'subscriber',
-          customField, // ✅ שמירה עקבית
+          role: 'agent', // 🔁 שינוי לרול סוכן
+          agentId: processId, // ✅ הגדרת ה-agentId כמזהה המנוי
+          customField,
         });
 
-        setStatus('🎉 תשלום בוצע בהצלחה! חשבונך נוצר.');
+        setStatus('🎉 תשלום בוצע בהצלחה! חשבון סוכן נוצר. סיסמה זמנית נשלחה למייל.');
         setTimeout(() => {
           router.push('/auth/log-in');
-        }, 3000);
+        }, 5000);
       } catch (error) {
-        console.error('שגיאה בשמירת המשתמש:', error);
+        console.error('שגיאה בשמירת המשתמש או יצירת חשבון:', error);
         setStatus('שגיאה בשמירת חשבון. אנא פנה לתמיכה.');
       }
     };
