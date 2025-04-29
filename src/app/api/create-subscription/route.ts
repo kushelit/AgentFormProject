@@ -46,12 +46,12 @@ export async function POST(req: NextRequest) {
     clearTimeout(timeout);
     console.log('✅ Response from Meshulam:', JSON.stringify(data, null, 2));
     console.log('🔎 status:', data?.status);
-    console.log('🔎 url:', data?.url);
+    console.log('🔎 url:', data?.data?.url);
     console.log('🔎 err:', data?.err);
 
-    if (data?.status === '1' && data?.url) {
-      console.log('🔗 Redirecting to:', data.url);
-      return NextResponse.json({ paymentUrl: data.url });
+    if (data?.status === '1' && data?.data?.url) {
+      console.log('🔗 Redirecting to:', data.data.url);
+      return NextResponse.json({ paymentUrl: data.data.url });
     } else {
       console.error('❌ API Error from Meshulam:', data);
       return NextResponse.json({ error: 'Payment creation failed' }, { status: 500 });

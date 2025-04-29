@@ -31,14 +31,19 @@ export default function SubscriptionSignUpPage() {
         headers: { 'Content-Type': 'application/json' },
       });
 
-      const { paymentUrl } = res.data;
+      console.log('📥 Response from server:', res.data);
+
+      const { paymentUrl, error: serverError } = res.data;
 
       if (paymentUrl) {
         console.log('✅ Redirecting to payment URL:', paymentUrl);
-        window.location.href = paymentUrl; // 👈 כאן משתמשים ב-window.location.href ולא ב-router.push
+        window.location.href = paymentUrl;
+      } else if (serverError) {
+        console.error('❌ Server returned error:', serverError);
+        setError('שגיאה משרת התשלום: ' + serverError);
       } else {
-        console.error('❌ No payment URL received:', res.data);
-        setError('אירעה שגיאה בקבלת קישור לתשלום. נסה/י שוב.');
+        console.error('❌ Unknown error - missing paymentUrl');
+        setError('אירעה שגיאה לא צפויה. נסה/י שוב.');
       }
 
     } catch (err: any) {
