@@ -15,15 +15,16 @@ export default function PaymentSuccessClient() {
     const fullName = searchParams.get('fullName');
     const email = searchParams.get('email');
     const phone = searchParams.get('phone');
+    const customField = searchParams.get('customField') || `MAGICSALE-${email}`; // ✅ שמירה אחידה
 
-    if (!subscriptionId || !fullName || !email || !phone) {
+    if (!subscriptionId || !fullName || !email || !phone || !customField) {
       setStatus('חסרים פרטי תשלום, נא לפנות לשירות לקוחות.');
       return;
     }
 
     const saveUser = async () => {
       try {
-        const userDoc = doc(collection(db, 'users')); // דוק חדש עם ID אוטומטי
+        const userDoc = doc(collection(db, 'users'));
         await setDoc(userDoc, {
           fullName,
           email,
@@ -33,7 +34,7 @@ export default function PaymentSuccessClient() {
           subscriptionStart: new Date(),
           nextBillingDate: null,
           role: 'subscriber',
-          customField: `MAGICSALE-${email}`, // ✅ הוספנו את זה! הכי חשוב!
+          customField, // ✅ שמירה עקבית
         });
 
         setStatus('🎉 תשלום בוצע בהצלחה! חשבונך נוצר.');

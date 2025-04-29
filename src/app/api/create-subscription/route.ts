@@ -46,8 +46,8 @@ export async function POST(req: NextRequest) {
     clearTimeout(timeout);
     console.log('✅ Response from Meshulam:', data);
 
-    if (data?.status === '1' && data?.url) {
-      return NextResponse.json({ paymentUrl: data.url });
+    if (data?.status === '1' && data?.data?.url) {
+      return NextResponse.json({ paymentUrl: data.data.url }); 
     } else {
       console.error('❌ API Error from Meshulam:', data);
       return NextResponse.json({ error: 'Payment creation failed' }, { status: 500 });
