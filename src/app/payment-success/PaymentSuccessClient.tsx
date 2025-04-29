@@ -33,6 +33,7 @@ export default function PaymentSuccessClient() {
           subscriptionStart: new Date(),
           nextBillingDate: null,
           role: 'subscriber',
+          customField: `MAGICSALE-${email}`, // ✅ הוספנו את זה! הכי חשוב!
         });
 
         setStatus('🎉 תשלום בוצע בהצלחה! חשבונך נוצר.');

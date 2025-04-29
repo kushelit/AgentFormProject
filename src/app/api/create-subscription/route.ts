@@ -10,30 +10,25 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Missing fields' }, { status: 400 });
     }
 
-    // קריאה ל-Grow (משולם) כדי ליצור קישור תשלום
-    const paymentRequest = {
-      sum: 120, // סכום החיוב החודשי בשקלים
-      description: "דמי מנוי חודשי למערכת MagicSale",
-      first_payment: true,
-      interval: 1,
-      period: "MONTH", // חודש
-      recurring_description: "מנוי חודשי MagicSale",
-      custom_field: `MAGICSALE-${email}`, // זיהוי ייחודי
-      email,
-      phone,
-      full_name: fullName,
-      success_url: `https://test.magicsale.co.il/payment-success?fullName=${encodeURIComponent(fullName)}&email=${encodeURIComponent(email)}&phone=${encodeURIComponent(phone)}&subscriptionId=PLACEHOLDER`,
-      error_url: `https://test.magicsale.co.il/payment-failed`,
-    };
+    const formData = new URLSearchParams();
+    formData.append('pageCode', '2097a1a9413e');
+    formData.append('userId', '8f215caa9b2a3903');
+    formData.append('sum', '120');
+    formData.append('successUrl', `https://test.magicsale.co.il/payment-success?fullName=${encodeURIComponent(fullName)}&email=${encodeURIComponent(email)}&phone=${encodeURIComponent(phone)}`);
+    formData.append('cancelUrl', `https://test.magicsale.co.il/payment-failed`);
+    formData.append('description', 'תשלום עבור מנוי חודשי למערכת MagicSale');
+    formData.append('pageField[fullName]', fullName);
+    formData.append('pageField[phone]', phone);
+    formData.append('pageField[email]', email);
+    formData.append('cField1', `MAGICSALE-${email}`);
 
-    const { data } = await axios.post('https://secure.meshulam.co.il/api/recurring_charge', paymentRequest, {
-      headers: {
-        Authorization: `Bearer YOUR_API_KEY`, // כאן לשים את ה-API KEY האמיתי שתקבלי
-        'Content-Type': 'application/json',
-      }
-    });
+    const { data } = await axios.post(
+      'https://sandbox.meshulam.co.il/api/light/server/1.0/createPaymentProcess',
+      formData,
+      { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
+    );
 
-    if (data?.status === 'success') {
+    if (data?.status === '1' && data?.url) {
       return NextResponse.json({ paymentUrl: data.url });
     } else {
       console.error('API Error:', data);

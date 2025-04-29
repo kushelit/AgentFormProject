@@ -13,31 +13,23 @@ export async function POST(req: NextRequest) {
   try {
     const payload = await req.json();
 
-    console.log('✅ Webhook received:', JSON.stringify(payload, null, 2));
+    console.log('✅ Webhook payload from Grow:', JSON.stringify(payload, null, 2));
 
-    const { status, subscriptionId, custom_field, paymentDate } = payload;
+    const paymentData = payload?.[0]?.data;
+    const status = paymentData?.status;
+    const customField = paymentData?.cField1;
+    const paymentDate = new Date(); // Grow לא שולחים תאריך מדויק — נשתמש בנוכחי
 
-    if (!status || (!subscriptionId && !custom_field)) {
-      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+    if (!status || !customField) {
+      return NextResponse.json({ error: 'Missing status or cField1' }, { status: 400 });
     }
 
-    // חיפוש המשתמש לפי subscriptionId או custom_field
     const usersRef = collection(db, 'users');
-    const conditions = [];
-
-    if (subscriptionId) {
-      conditions.push(where('subscriptionId', '==', subscriptionId));
-    }
-
-    if (custom_field) {
-      conditions.push(where('customField', '==', custom_field));
-    }
-
-    const q = query(usersRef, ...conditions);
+    const q = query(usersRef, where('customField', '==', customField));
     const querySnapshot = await getDocs(q);
 
     if (querySnapshot.empty) {
-      console.warn('⚠️ No user found for:', { subscriptionId, custom_field });
+      console.warn('⚠️ No user found with customField:', customField);
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
@@ -45,11 +37,11 @@ export async function POST(req: NextRequest) {
     const userRef = doc(db, 'users', userDoc.id);
 
     await updateDoc(userRef, {
-      subscriptionStatus: status, // לדוגמה: 'paid', 'failed', 'canceled'
-      lastPaymentDate: paymentDate ? new Date(paymentDate) : new Date(),
+      subscriptionStatus: status,
+      lastPaymentDate: paymentDate,
     });
 
-    console.log(`✅ Updated user ${userDoc.id} with status: ${status}`);
+    console.log(`✅ User ${userDoc.id} updated with status: ${status}`);
     return NextResponse.json({ success: true });
 
   } catch (error: any) {
