@@ -1,12 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useEffect, useState, Suspense } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { db } from '@/lib/firebase/firebase';
 import { collection, doc, setDoc } from 'firebase/firestore';
-import { useRouter } from 'next/navigation';
 
-export default function PaymentSuccessPage() {
+function SuccessHandler() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const [status, setStatus] = useState('מעבד תשלום...');
@@ -24,7 +23,7 @@ export default function PaymentSuccessPage() {
 
     const saveUser = async () => {
       try {
-        const userDoc = doc(collection(db, 'users')); // יוצר דוק חדש עם ID אוטומטי
+        const userDoc = doc(collection(db, 'users'));
         await setDoc(userDoc, {
           fullName,
           email,
@@ -32,14 +31,13 @@ export default function PaymentSuccessPage() {
           subscriptionId,
           subscriptionStatus: 'active',
           subscriptionStart: new Date(),
-          nextBillingDate: null, // אפשר לעדכן לפי המידע ש-Grow מחזירה
+          nextBillingDate: null,
           role: 'subscriber',
         });
 
         setStatus('תשלום בוצע בהצלחה! חשבונך נוצר.');
-        
         setTimeout(() => {
-          router.push('/auth/log-in'); // אחרי כמה שניות, להפנות להתחברות
+          router.push('/auth/log-in');
         }, 3000);
       } catch (error) {
         console.error('שגיאה בשמירת המשתמש:', error);
@@ -54,5 +52,13 @@ export default function PaymentSuccessPage() {
     <div className="success-container">
       <h1>{status}</h1>
     </div>
+  );
+}
+
+export default function PaymentSuccessPage() {
+  return (
+    <Suspense fallback={<div>טוען נתונים...</div>}>
+      <SuccessHandler />
+    </Suspense>
   );
 }
