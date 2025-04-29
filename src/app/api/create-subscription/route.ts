@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
     const formData = new URLSearchParams();
     formData.append('pageCode', '2097a1a9413e');
     formData.append('userId', '8f215caa9b2a3903');
-    formData.append('sum', '120');
+    formData.append('sum', '1');
     formData.append('successUrl', successUrl);
     formData.append('cancelUrl', cancelUrl);
     formData.append('description', 'תשלום עבור מנוי חודשי למערכת MagicSale');
@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
     console.log('🔎 url:', data?.data?.url);
     console.log('🔎 err:', data?.err);
 
-    if (data?.status === '1' && data?.data?.url) {
+    if (data?.status === 1 && data?.data?.url) {
       console.log('🔗 Redirecting to:', data.data.url);
       return NextResponse.json({ paymentUrl: data.data.url });
     } else {
