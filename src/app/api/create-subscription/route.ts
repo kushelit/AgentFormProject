@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
     console.log('🚀 Sending request to Meshulam with:', Object.fromEntries(formData));
 
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 9000); // 9 שניות
+    const timeout = setTimeout(() => controller.abort(), 9000);
 
     const { data } = await axios.post(
       'https://sandbox.meshulam.co.il/api/light/server/1.0/createPaymentProcess',
@@ -46,8 +46,9 @@ export async function POST(req: NextRequest) {
     clearTimeout(timeout);
     console.log('✅ Response from Meshulam:', data);
 
-    if (data?.status === '1' && data?.data?.url) {
-      return NextResponse.json({ paymentUrl: data.data.url }); 
+    if (data?.status === '1' && data?.url) {
+      console.log('🔗 Redirecting to:', data.url);
+      return NextResponse.json({ paymentUrl: data.url });
     } else {
       console.error('❌ API Error from Meshulam:', data);
       return NextResponse.json({ error: 'Payment creation failed' }, { status: 500 });
