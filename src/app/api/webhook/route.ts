@@ -13,16 +13,23 @@ import { createUserWithEmailAndPassword } from 'firebase/auth';
 
 export async function POST(req: NextRequest) {
   try {
-    const payload = await req.json();
-    console.log('✅ Webhook payload from Grow:', JSON.stringify(payload, null, 2));
+    const formData = await req.formData(); // 📌 שינוי חשוב במקום req.json()
 
-    const paymentData = payload?.[0]?.data;
-    const status = paymentData?.status;
-    const customField = paymentData?.cField1;
-    const fullName = paymentData?.pageField?.fullName;
-    const phone = paymentData?.pageField?.phone;
-    const email = paymentData?.pageField?.email;
-    const processId = paymentData?.processId;
+    const status = formData.get('status');
+    const fullName = formData.get('fullName') || formData.get('payerFullName'); // בהתאם למה שהם שולחים
+    const email = formData.get('payerEmail');
+    const phone = formData.get('payerPhone');
+    const processId = formData.get('processId');
+    const customField = formData.get('customFields[cField1]');
+
+    console.log('✅ Webhook received with:', {
+      status,
+      fullName,
+      email,
+      phone,
+      processId,
+      customField,
+    });
 
     const paymentDate = new Date();
 
@@ -30,7 +37,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
-    // בדיקה אם כבר יש משתמש כזה
     const usersRef = collection(db, 'users');
     const q = query(usersRef, where('customField', '==', customField));
     const querySnapshot = await getDocs(q);
@@ -50,7 +56,7 @@ export async function POST(req: NextRequest) {
 
     // משתמש לא קיים — ניצור חדש
     const tempPassword = Math.random().toString(36).slice(-8);
-    const newUser = await createUserWithEmailAndPassword(auth, email, tempPassword);
+    const newUser = await createUserWithEmailAndPassword(auth, email as string, tempPassword);
 
     const newUserRef = doc(db, 'users', newUser.user.uid);
     await setDoc(newUserRef, {
