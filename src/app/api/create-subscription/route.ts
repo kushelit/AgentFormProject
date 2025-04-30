@@ -49,10 +49,21 @@ export async function POST(req: NextRequest) {
     console.log('🔎 url:', data?.data?.url);
     console.log('🔎 err:', data?.err);
 
-    if (data?.status === 1 && data?.data?.url) {
-      console.log('🔗 Redirecting to:', data.data.url);
-      return NextResponse.json({ paymentUrl: data.data.url });
-    } else {
+    if (data?.status === 1 && data?.data?.url && data?.data?.processId) {
+      const processId = data.data.processId;
+    
+      const redirectUrl = new URL(data.data.url); // URL הבסיסי מ-Grow
+      redirectUrl.searchParams.set('processId', processId);
+      redirectUrl.searchParams.set('fullName', fullName);
+      redirectUrl.searchParams.set('email', email);
+      redirectUrl.searchParams.set('phone', phone);
+      redirectUrl.searchParams.set('customField', customField);
+    
+      console.log('🔗 Redirecting to:', redirectUrl.toString());
+    
+      return NextResponse.json({ paymentUrl: redirectUrl.toString() });
+    }
+     else {
       console.error('❌ API Error from Meshulam:', data);
       return NextResponse.json({ error: 'Payment creation failed' }, { status: 500 });
     }
