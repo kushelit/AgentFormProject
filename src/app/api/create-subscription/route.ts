@@ -32,38 +32,47 @@ export async function POST(req: NextRequest) {
     console.log('🚀 Sending request to Meshulam with:', Object.fromEntries(formData));
 
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 9000);
+    const timeout = setTimeout(() => controller.abort(), 15000); // ⏱ הגדלנו ל־15 שניות
 
-    const { data } = await axios.post(
-      'https://sandbox.meshulam.co.il/api/light/server/1.0/createPaymentProcess',
-      formData,
-      {
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        signal: controller.signal
+    let data;
+    try {
+      const response = await axios.post(
+        'https://sandbox.meshulam.co.il/api/light/server/1.0/createPaymentProcess',
+        formData,
+        {
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          signal: controller.signal
+        }
+      );
+      data = response.data;
+    } catch (error: any) {
+      clearTimeout(timeout);
+      if (error.code === 'ERR_CANCELED') {
+        console.error('🛑 Request to Grow was canceled (timeout)');
+        return NextResponse.json({ error: 'Timeout contacting payment provider' }, { status: 504 });
       }
-    );
+
+      console.error('❌ Error during request to Meshulam:', error.message || error);
+      return NextResponse.json({ error: 'Failed to contact payment provider' }, { status: 502 });
+    }
 
     clearTimeout(timeout);
     console.log('✅ Response from Meshulam:', JSON.stringify(data, null, 2));
-    console.log('🔎 status:', data?.status);
-    console.log('🔎 url:', data?.data?.url);
-    console.log('🔎 err:', data?.err);
 
     if (data?.status === 1 && data?.data?.url && data?.data?.processId) {
       const processId = data.data.processId;
-    
-      const redirectUrl = new URL(data.data.url); // URL הבסיסי מ-Grow
+
+      const redirectUrl = new URL(data.data.url);
       redirectUrl.searchParams.set('processId', processId);
       redirectUrl.searchParams.set('fullName', fullName);
       redirectUrl.searchParams.set('email', email);
       redirectUrl.searchParams.set('phone', phone);
       redirectUrl.searchParams.set('customField', customField);
-    
+
       console.log('🔗 Redirecting to:', redirectUrl.toString());
-    
+
       return NextResponse.json({ paymentUrl: redirectUrl.toString() });
-    }
-     else {
+    } else {
       console.error('❌ API Error from Meshulam:', data);
       return NextResponse.json({ error: 'Payment creation failed' }, { status: 500 });
     }
