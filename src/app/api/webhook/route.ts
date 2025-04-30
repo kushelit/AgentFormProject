@@ -60,6 +60,8 @@ export async function POST(req: NextRequest) {
     }
 
     const tempPassword = Math.random().toString(36).slice(-8);
+    console.log('🧾 Creating new user with:', { email, fullName, phone, customField });
+
     const newUser = await createUserWithEmailAndPassword(auth, email as string, tempPassword);
 
     const newUserRef = doc(db, 'users', newUser.user.uid);
