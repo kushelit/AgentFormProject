@@ -38,6 +38,7 @@ export async function POST(req: NextRequest) {
     formData.append('pageField[phone]', phone);
     formData.append('pageField[email]', normalizedEmail);
     formData.append('cField1', customField);
+    formData.append('notifyUrl', 'https://test.magicsale.co.il/api/webhook'); // 🔔 קריטי!
 
     console.log('🚀 Sending request to Meshulam with:', Object.fromEntries(formData));
 
