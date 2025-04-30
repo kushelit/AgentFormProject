@@ -11,12 +11,15 @@ import {
 } from 'firebase/firestore';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0; // 🔒 ביטול cache למניעת בעיות auth
+
 export async function POST(req: NextRequest) {
   try {
-    const formData = await req.formData(); // 📌 שינוי חשוב במקום req.json()
+    const formData = await req.formData();
 
     const status = formData.get('status');
-    const fullName = formData.get('fullName') || formData.get('payerFullName'); // בהתאם למה שהם שולחים
+    const fullName = formData.get('fullName') || formData.get('payerFullName');
     const email = formData.get('payerEmail');
     const phone = formData.get('payerPhone');
     const processId = formData.get('processId');
@@ -54,7 +57,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: true });
     }
 
-    // משתמש לא קיים — ניצור חדש
     const tempPassword = Math.random().toString(36).slice(-8);
     const newUser = await createUserWithEmailAndPassword(auth, email as string, tempPassword);
 
