@@ -8,13 +8,23 @@ export async function POST(req: NextRequest) {
 
     console.log('📥 Received subscription request with:', body);
 
+    // 🧪 אימותים בסיסיים
     if (!fullName || !email || !phone) {
-      console.warn('⚠️ Missing required fields');
-      return NextResponse.json({ error: 'Missing fields' }, { status: 400 });
+      return NextResponse.json({ error: 'אנא מלא/י את כל השדות הנדרשים' }, { status: 400 });
     }
 
-    const customField = `MAGICSALE-${email}`;
-    const successUrl = `https://test.magicsale.co.il/payment-success?fullName=${encodeURIComponent(fullName)}&email=${encodeURIComponent(email)}&phone=${encodeURIComponent(phone)}&customField=${encodeURIComponent(customField)}`;
+    const words = fullName.trim().split(/\s+/);
+    if (words.length < 2) {
+      return NextResponse.json({ error: 'אנא הזן/י שם מלא (לפחות שני חלקים)' }, { status: 400 });
+    }
+
+    if (!/^05\d{8}$/.test(phone)) {
+      return NextResponse.json({ error: 'מספר טלפון לא תקין' }, { status: 400 });
+    }
+
+    const normalizedEmail = email.toLowerCase();
+    const customField = `MAGICSALE-${normalizedEmail}`;
+    const successUrl = `https://test.magicsale.co.il/payment-success?fullName=${encodeURIComponent(fullName)}&email=${encodeURIComponent(normalizedEmail)}&phone=${encodeURIComponent(phone)}&customField=${encodeURIComponent(customField)}`;
     const cancelUrl = `https://test.magicsale.co.il/payment-failed`;
 
     const formData = new URLSearchParams();
@@ -26,13 +36,13 @@ export async function POST(req: NextRequest) {
     formData.append('description', 'תשלום עבור מנוי חודשי למערכת MagicSale');
     formData.append('pageField[fullName]', fullName);
     formData.append('pageField[phone]', phone);
-    formData.append('pageField[email]', email);
+    formData.append('pageField[email]', normalizedEmail);
     formData.append('cField1', customField);
 
     console.log('🚀 Sending request to Meshulam with:', Object.fromEntries(formData));
 
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 15000); // ⏱ הגדלנו ל־15 שניות
+    const timeout = setTimeout(() => controller.abort(), 15000);
 
     let data;
     try {
@@ -47,13 +57,19 @@ export async function POST(req: NextRequest) {
       data = response.data;
     } catch (error: any) {
       clearTimeout(timeout);
+
+      if (error.response?.status === 503) {
+        console.error('⚠️ Grow unavailable (503)');
+        return NextResponse.json({ error: 'ספק התשלומים לא זמין כעת. נסו שוב בעוד כמה דקות.' }, { status: 503 });
+      }
+
       if (error.code === 'ERR_CANCELED') {
         console.error('🛑 Request to Grow was canceled (timeout)');
-        return NextResponse.json({ error: 'Timeout contacting payment provider' }, { status: 504 });
+        return NextResponse.json({ error: 'פנייה לספק התשלומים נקטעה. נסו שוב.' }, { status: 504 });
       }
 
       console.error('❌ Error during request to Meshulam:', error.message || error);
-      return NextResponse.json({ error: 'Failed to contact payment provider' }, { status: 502 });
+      return NextResponse.json({ error: 'שגיאה בתקשורת עם ספק התשלומים' }, { status: 502 });
     }
 
     clearTimeout(timeout);
@@ -65,7 +81,7 @@ export async function POST(req: NextRequest) {
       const redirectUrl = new URL(data.data.url);
       redirectUrl.searchParams.set('processId', processId);
       redirectUrl.searchParams.set('fullName', fullName);
-      redirectUrl.searchParams.set('email', email);
+      redirectUrl.searchParams.set('email', normalizedEmail);
       redirectUrl.searchParams.set('phone', phone);
       redirectUrl.searchParams.set('customField', customField);
 
@@ -74,11 +90,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ paymentUrl: redirectUrl.toString() });
     } else {
       console.error('❌ API Error from Meshulam:', data);
-      return NextResponse.json({ error: 'Payment creation failed' }, { status: 500 });
+      return NextResponse.json({ error: 'יצירת תשלום נכשלה' }, { status: 500 });
     }
 
   } catch (error: any) {
     console.error('❌ Internal Server Error:', error.message);
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    return NextResponse.json({ error: 'שגיאה פנימית בשרת' }, { status: 500 });
   }
 }

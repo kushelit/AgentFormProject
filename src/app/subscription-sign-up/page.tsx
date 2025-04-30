@@ -9,20 +9,15 @@ export default function SubscriptionSignUpPage() {
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [error, setError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<{ fullName?: string; email?: string; phone?: string }>({});
   const router = useRouter();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-
-    if (!fullName || !email || !phone) {
-      setError('אנא מלא/י את כל השדות הנדרשים');
-      return;
-    }
+    setFieldErrors({});
 
     try {
-      console.log('📨 Sending subscription request:', { fullName, email, phone });
-
       const res = await axios.post('/api/create-subscription', {
         fullName,
         email,
@@ -31,24 +26,33 @@ export default function SubscriptionSignUpPage() {
         headers: { 'Content-Type': 'application/json' },
       });
 
-      console.log('📥 Response from server:', res.data);
-
-      const { paymentUrl, error: serverError } = res.data;
-
+      const { paymentUrl } = res.data;
       if (paymentUrl) {
-        console.log('✅ Redirecting to payment URL:', paymentUrl);
         window.location.href = paymentUrl;
-      } else if (serverError) {
-        console.error('❌ Server returned error:', serverError);
-        setError('שגיאה משרת התשלום: ' + serverError);
       } else {
-        console.error('❌ Unknown error - missing paymentUrl');
-        setError('אירעה שגיאה לא צפויה. נסה/י שוב.');
+        setError('אירעה שגיאה לא צפויה.');
       }
 
     } catch (err: any) {
-      console.error('❌ Subscription request failed:', err.message || err);
-      setError('אירעה שגיאה. אנא נסה/י שוב או פנה/י לתמיכה.');
+      const msg = err?.response?.data?.error || 'שגיאה כללית';
+      const status = err?.response?.status;
+
+      console.error('❌ Error:', msg, 'Status:', status);
+
+      // שגיאות לפי קוד HTTP
+      if (status === 400) {
+        if (msg.includes('שם מלא')) {
+          setFieldErrors(prev => ({ ...prev, fullName: msg }));
+        } else if (msg.includes('טלפון')) {
+          setFieldErrors(prev => ({ ...prev, phone: msg }));
+        } else {
+          setError(msg);
+        }
+      } else if (status === 503 || status === 504) {
+        setError(msg);
+      } else {
+        setError('אירעה שגיאה. אנא נסו שוב או פנו לתמיכה.');
+      }
     }
   };
 
@@ -65,6 +69,7 @@ export default function SubscriptionSignUpPage() {
             className="w-full border border-gray-300 rounded px-3 py-2 text-right"
             required
           />
+          {fieldErrors.fullName && <p className="text-red-600 text-sm">{fieldErrors.fullName}</p>}
         </div>
         <div>
           <label className="block mb-1 font-semibold">אימייל *</label>
@@ -85,9 +90,10 @@ export default function SubscriptionSignUpPage() {
             className="w-full border border-gray-300 rounded px-3 py-2 text-right"
             required
           />
+          {fieldErrors.phone && <p className="text-red-600 text-sm">{fieldErrors.phone}</p>}
         </div>
 
-        {error && <p className="text-red-600 text-sm">{error}</p>}
+        {error && <p className="text-red-600 text-sm font-semibold">{error}</p>}
 
         <button
           type="submit"
