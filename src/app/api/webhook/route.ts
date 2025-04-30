@@ -14,6 +14,8 @@ import { createUserWithEmailAndPassword } from 'firebase/auth';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0; // 🔒 ביטול cache למניעת בעיות auth
 
+console.log('🔔 Webhook route triggered');
+
 export async function POST(req: NextRequest) {
   try {
     const formData = await req.formData();
