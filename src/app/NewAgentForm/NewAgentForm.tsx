@@ -59,10 +59,10 @@ const NewAgentForm: React.FC = () => {
     isLoadingAgent,
   } = useFetchAgentData();
 
-  const 
-  { monthlyTotals,
-    overallFinansimTotal, overallPensiaTotal, overallInsuranceTotal, overallNiudPensiaTotal
-   } = useSalesData(selectedAgentId, selectedWorkerId);
+  // const 
+  // { monthlyTotals,
+  //   overallFinansimTotal, overallPensiaTotal, overallInsuranceTotal, overallNiudPensiaTotal
+  //  } = useSalesData(selectedAgentId, selectedWorkerId);
 
    const {
     products,
