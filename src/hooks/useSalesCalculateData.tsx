@@ -35,12 +35,13 @@ interface Product {
   }
 
 
-  
-function useSalesData(selectedAgentId: string, selectedWorkerIdFilter: string,
+function useSalesData(
+    selectedAgentId: string, 
+    selectedWorkerIdFilter: string,
      selectedCompany: string, selectedProduct: string, 
      selectedStatusPolicy: string,
-     selectedYear: number // Add selectedYear as a parameter
-    
+     selectedYear: number, // Add selectedYear as a parameter
+     includePreviousDecember: boolean = false // 🆕 פרמטר חדש
     ) {
     const [monthlyTotals, setMonthlyTotals] = useState<MonthlyTotals>({});
     const [overallTotals, setOverallTotals] = useState<MonthlyTotal>({ finansimTotal: 0, pensiaTotal: 0, insuranceTotal: 0, niudPensiaTotal: 0, commissionHekefTotal: 0, commissionNifraimTotal: 0 });
@@ -49,7 +50,6 @@ function useSalesData(selectedAgentId: string, selectedWorkerIdFilter: string,
     const { user, detail } = useAuth(); // Assuming useAuth() hook provides user and detail context
     const [loading, setLoading] = useState(true);  // Add loading state here
     const [isLoadingData, setIsLoadingData] = useState(false);
-
     const [companyCommissions, setCompanyCommissions] = useState<Record<string, number>>({});
 
     useEffect(() => {
@@ -84,45 +84,59 @@ function useSalesData(selectedAgentId: string, selectedWorkerIdFilter: string,
     }, [selectedAgentId]);
 
     
-
-    const createSalesQuery = (filterMinuySochen  = false) => {
-
-       // const currentYear = new Date().getFullYear();
-       // const startOfYear = `${currentYear}-01-01`;
-       // const endOfYear = `${currentYear}-12-31`;
-
-       const startOfYear = `${selectedYear}-01-01`;
-       const endOfYear = `${selectedYear}-12-31`;
-
-
-        let salesQuery = query(collection(db, 'sales'), 
-        where('statusPolicy', 'in', ['פעילה', 'הצעה']),
-        where('mounth', '>=', startOfYear),
-        where('mounth', '<=', endOfYear)
-    );
-        // if (selectedAgentId) {
-        //     salesQuery = query(salesQuery, where('AgentId', '==', selectedAgentId));
-        // }
-
-//new to test 
-if (selectedAgentId && selectedAgentId !== 'all') {
-    salesQuery = query(salesQuery, where('AgentId', '==', selectedAgentId));
-}
-//console.log("selectedAgentId in salesQewry: " + selectedAgentId);
- 
-        if (selectedWorkerIdFilter) salesQuery = query(salesQuery, where('workerId', '==', selectedWorkerIdFilter));
-        if (selectedCompany) salesQuery = query(salesQuery, where('company', '==', selectedCompany));
-        if (selectedProduct) salesQuery = query(salesQuery, where('product', '==', selectedProduct));
-        if (selectedStatusPolicy) salesQuery = query(salesQuery, where('statusPolicy', '==', selectedStatusPolicy));
-        // Include the minuySochen condition only if includeMinuySochen is true
-        // console.log("filterMinuySochen:", filterMinuySochen);
-        if (filterMinuySochen ) {
-            salesQuery = query(salesQuery, where('minuySochen', '==', false));
-     //       console.log("filterMinuySochen:", filterMinuySochen.toString() + salesQuery);
+    const createSalesQuery = (filterMinuySochen = false) => {
+        const currentDate = new Date();
+        const currentYear = currentDate.getFullYear();
+        const currentMonth = String(currentDate.getMonth() + 1).padStart(2, '0');
+        const endOfYear = `${selectedYear}-12-31`;
+        const endOfCurrentMonth = `${selectedYear}-${currentMonth}-31`;
+      
+        const endDate = selectedYear === currentYear ? endOfCurrentMonth : endOfYear;
+      
+        // 🟡 פה השינוי – נשתמש ב־startDate רק אם לא מדובר בגרף נפרעים ללקוח
+        let salesQuery;
+      console.log("includePreviousDecember: " + includePreviousDecember);
+        if (includePreviousDecember) {
+          // מצטבר – נביא מהעבר, בלי הגבלה של התחלה
+          salesQuery = query(
+            collection(db, 'sales'),
+            where('statusPolicy', 'in', ['פעילה', 'הצעה']),
+            where('mounth', '<=', endDate)
+          );
+        } else {
+          // רגיל – רק השנה הנבחרת
+          const startOfYear = `${selectedYear}-01-01`;
+          salesQuery = query(
+            collection(db, 'sales'),
+            where('statusPolicy', 'in', ['פעילה', 'הצעה']),
+            where('mounth', '>=', startOfYear),
+            where('mounth', '<=', endDate)
+          );
         }
-    //console.log("salesQuery: " + salesQuery);
+      
+        // סינונים נוספים...
+        if (selectedAgentId && selectedAgentId !== 'all') {
+          salesQuery = query(salesQuery, where('AgentId', '==', selectedAgentId));
+        }
+        if (selectedWorkerIdFilter) {
+          salesQuery = query(salesQuery, where('workerId', '==', selectedWorkerIdFilter));
+        }
+        if (selectedCompany) {
+          salesQuery = query(salesQuery, where('company', '==', selectedCompany));
+        }
+        if (selectedProduct) {
+          salesQuery = query(salesQuery, where('product', '==', selectedProduct));
+        }
+        if (selectedStatusPolicy) {
+          salesQuery = query(salesQuery, where('statusPolicy', '==', selectedStatusPolicy));
+        }
+        if (filterMinuySochen) {
+          salesQuery = query(salesQuery, where('minuySochen', '==', false));
+        }
+      
         return salesQuery;
-    };
+      };
+      
 
     useEffect(() => {
         async function fetchData() {
@@ -161,34 +175,41 @@ if (selectedAgentId && selectedAgentId !== 'all') {
 
                 generalQuerySnapshot.forEach(doc => {
                 const data = doc.data();
+                console.log("📦 תאריך מהממסמך:", data.mounth); // 🔍 הוספת שורת בדיקה
+
                 const date = new Date(data.mounth);
-
+                if (isNaN(date.getTime())) {
+                    console.warn("❌ תאריך לא תקני:", data.mounth);
+                    return;
+                  }
                 const year = date.getFullYear();
+                const monthNumber = date.getMonth() + 1;
+                const formattedMonth = `${String(monthNumber).padStart(2, '0')}/${String(year).slice(2)}`;
 
-                // Filter out entries not matching the selected year
-                if (year !== selectedYear) return;
-
-
-
+                if (!includePreviousDecember && year !== selectedYear) {
+                    return; // סנן כל מה שלא בשנה הנבחרת
+                  }
+                                    
              //   const month = `${date.getMonth() + 1}`.padStart(2, '0') + '/' + date.getFullYear().toString().slice(2);
-              const month = `${date.getMonth() + 1}`.padStart(2, '0') + '/' + year.toString().slice(2);
+            //   const month = `${date.getMonth() + 1}`.padStart(2, '0') + '/' + year.toString().slice(2);
 
-
-                if (!newMonthlyTotals[month]) {
-                        newMonthlyTotals[month] = { finansimTotal: 0, pensiaTotal: 0, insuranceTotal: 0, niudPensiaTotal: 0, commissionHekefTotal: 0, commissionNifraimTotal: 0 };
+                if (!newMonthlyTotals[formattedMonth]) {
+                        newMonthlyTotals[formattedMonth] = { finansimTotal: 0, pensiaTotal: 0, insuranceTotal: 0, niudPensiaTotal: 0, commissionHekefTotal: 0, commissionNifraimTotal: 0 };
                     }
-                    updateTotalsForMonth(data, newMonthlyTotals[month], data.minuySochen);
+                    updateTotalsForMonth(data, newMonthlyTotals[formattedMonth], data.minuySochen);
                                 
                 });
                 commissionQuerySnapshot.forEach(doc => {
                 const data = doc.data();
                 const date = new Date(data.mounth);
-
-
                 const year = date.getFullYear();
-                if (year !== selectedYear) return;
 
-            //    const month = `${date.getMonth() + 1}`.padStart(2, '0') + '/' + date.getFullYear().toString().slice(2);
+
+        //    if (year !== selectedYear) return;
+
+        if (!includePreviousDecember && year !== selectedYear) return;
+        
+            //   const month = `${date.getMonth() + 1}`.padStart(2, '0') + '/' + date.getFullYear().toString().slice(2);
             const month = `${date.getMonth() + 1}`.padStart(2, '0') + '/' + year.toString().slice(2);
 
             
@@ -211,8 +232,7 @@ if (selectedAgentId && selectedAgentId !== 'all') {
         fetchData();
    
     }, [loading,selectedAgentId, selectedWorkerIdFilter, selectedCompany, 
-        selectedProduct, selectedStatusPolicy,selectedYear
-
+        selectedProduct, selectedStatusPolicy,selectedYear,  includePreviousDecember 
     ]);
 
   
@@ -272,8 +292,6 @@ if (selectedAgentId && selectedAgentId !== 'all') {
   }
 
     }
-
-
 
 
     function aggregateOverallTotals(monthlyTotals: MonthlyTotals) {

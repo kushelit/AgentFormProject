@@ -38,7 +38,13 @@ const NewSummaryTable = () => {
       statusPolicies
     } = useFetchMD();
 
-  const { monthlyTotals, overallTotals, isLoadingData, companyCommissions } = useSalesData(selectedAgentId, selectedWorkerIdFilter, selectedCompany, selectedProduct, selectedStatusPolicy,selectedYear);
+  const { monthlyTotals, overallTotals, isLoadingData, companyCommissions } =
+   useSalesData
+   (selectedAgentId, selectedWorkerIdFilter, 
+    selectedCompany, selectedProduct, 
+    selectedStatusPolicy,selectedYear,
+    selectedGraph === 'commissionPerMonth' // ✅ הוספנו פרמטר חדש
+);
 
   const monthsCount = Object.keys(monthlyTotals).length;
 

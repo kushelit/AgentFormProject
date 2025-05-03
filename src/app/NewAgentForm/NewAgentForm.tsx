@@ -1,6 +1,6 @@
 /* eslint-disable react/jsx-no-comment-textnodes */
 
-import React, { useState, useEffect, FormEventHandler, ChangeEventHandler, ChangeEvent, useMemo, useCallback, FormEvent } from 'react';
+import React, { useState, useEffect,useRef, FormEventHandler, ChangeEventHandler, ChangeEvent, useMemo, useCallback, FormEvent } from 'react';
 import { db } from '@/lib/firebase/firebase';
 import { collection, query, where, getDocs, doc, addDoc, deleteDoc, updateDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 import { useSearchParams } from 'next/navigation';
@@ -28,8 +28,6 @@ import { useToast } from "@/hooks/useToast";
 import { useValidation } from "@/hooks/useValidation";
 
 
-//useFetchAgentData
-
 const NewAgentForm: React.FC = () => {
   const { user, detail } = useAuth();
  
@@ -47,7 +45,6 @@ const NewAgentForm: React.FC = () => {
     selectedAgentName,
     handleWorkerChange , 
     companies,
-    setCompanies,
     selectedCompany, 
     setSelectedCompany,
     selectedWorkerIdFilter,
@@ -59,10 +56,7 @@ const NewAgentForm: React.FC = () => {
     workerNameMap,
     selectedWorkerIdGoals,
     setSelectedWorkerIdGoals,
-    selectedWorkerNameGoal, 
-    setSelectedWorkerNameGoal,
     isLoadingAgent,
-    setIsLoadingAgent
   } = useFetchAgentData();
 
   const 
@@ -87,18 +81,11 @@ const NewAgentForm: React.FC = () => {
     formatIsraeliDateOnly, productToGroupMap
   } = useFetchMD();
 
-  
-
 
   const {  goalData ,setGoalData, fetchDataGoalsForWorker,calculateDays } = useCalculateSalesData();
-
-  // const [errors, setErrors] = useState<Record<string, string>>({});
   const { errors,setErrors, handleValidatedEditChange } = useValidation();
-
-
   const searchParams = useSearchParams();
   const [selectedAgent, setSelectedAgent] = useState('');
- // const [selectedWorker, setSelectedWorker]  = useState('');
   const [firstNameCustomer, setfirstNameCustomer] = useState('');
   const [lastNameCustomer, setlastNameCustomer] = useState('');
   const [IDCustomer, setIDCustomer] = useState('');
@@ -124,13 +111,8 @@ const [submitDisabled, setSubmitDisabled] = useState(false);
 const[isActiveGoals, setIsActiveGoals] = useState(true);
 
 
-const [menuOpen, setMenuOpen] = useState<string | null>(null);
-// const [editingRow, setEditingRow] = useState<string | null>(null);
-// const [editData, setEditData] = useState<Partial<AgentDataType>>({}); 
 const [filteredData, setFilteredData] = useState<AgentDataType[]>([]);
-
 const [openMenuRow, setOpenMenuRow] = useState(null);
-
 const { sortedData, sortColumn, sortOrder, handleSort } = useSortableTable<CombinedData>(filteredData);
 
 // ניהול העמוד הנוכחי
@@ -143,39 +125,6 @@ const indexOfFirstRow = indexOfLastRow - rowsPerPage;
 const currentRows = sortedData.slice(indexOfFirstRow, indexOfLastRow);
 
 const { toasts, addToast, setToasts } = useToast();
-
-// const [showToast, setShowToast] = useState(false);
-// const [toastType, setToastType] = useState('');
-// const [toastMessage, setToastMessage] = useState('');
-// const [isHidingToast, setIsHidingToast] = useState(false);
-
-// const [toasts, setToasts] = useState<Toast[]>([]);
-
-
-// const addToast = (type: "success" | "error" | "warning", message: string, delay = 0) => {
-//   const id = Date.now() + Math.random(); // מזהה ייחודי יותר
-
-//   // 📌 השהיית הכנסת ההודעה אם צריך (למקרה שרוצים הפרש בין הודעות)
-//   setTimeout(() => {
-//     setToasts((prevToasts) => [...prevToasts, { id, type, message, isHiding: false }]);
-
-//     // 📌 יציאת הטוסט אחרי 4 שניות (לפני שמוחקים אותו)
-//     setTimeout(() => {
-//       setToasts((prevToasts) =>
-//         prevToasts.map((toast) =>
-//           toast.id === id ? { ...toast, isHiding: true } : toast
-//         )
-//       );
-//     }, 4000);
-
-//     // 🗑️ מחיקת הטוסט לחלוטין אחרי 5 שניות
-//     setTimeout(() => {
-//       setToasts((prevToasts) => prevToasts.filter((toast) => toast.id !== id));
-//     }, 5000);
-//   }, delay);
-// };
-
-
 
 
 const resetForm = (clearCustomerFields: boolean = false) => {
@@ -201,6 +150,9 @@ const resetForm = (clearCustomerFields: boolean = false) => {
     resetField("minuySochen", false);
     resetField("statusPolicy", "");
     resetField("notes", "");
+    resetField("phone", "");
+    resetField("mail", "");
+    resetField("address", "");
   }
    else
    {
@@ -216,6 +168,8 @@ const resetForm = (clearCustomerFields: boolean = false) => {
   resetField("statusPolicy", "");
   resetField("notes", "");
    }
+   setInvalidFields([]);
+  setErrors({});
    setIsEditing(false);
    };
 
@@ -269,17 +223,26 @@ const handleDealEditChange = (field: keyof CombinedData, value: CombinedData[key
   }
 };
 
+const [shouldValidate, setShouldValidate] = useState(false);
+
+
 useEffect(() => {
-  console.log("useEffect fired - validateAllFields:", validateAllFields, "editData:", editData);
+  if (!shouldValidate) return;
+  const requiredTextFields: (keyof CombinedData)[] = ["firstNameCustomer", "lastNameCustomer", "IDCustomer"];
+  requiredTextFields.forEach((field) => {
+    const fieldValue = editData[field as keyof CombinedData] ?? "";
+    handleValidatedEditChange(field as string, fieldValue as string, setEditData, setErrors);
+  });
+  setShouldValidate(false); // לא לרוץ שוב
+}, [shouldValidate]);
+
+// ואז במקום ב־useEffect ההוא:
+useEffect(() => {
   if (validateAllFields) {
-    validateAllRequiredFields(); // בודק שדות רגילים
-    const requiredTextFields: (keyof CombinedData)[] = ["firstNameCustomer", "lastNameCustomer", "IDCustomer"];
-    requiredTextFields.forEach((field) => {
-      const fieldValue = editData[field as keyof CombinedData] ?? "";
-      handleValidatedEditChange(field as string, fieldValue as string, setEditData, setErrors);
-    });
+    validateAllRequiredFields();
+    setShouldValidate(true);
   }
-}, [validateAllFields, editData]);
+}, [validateAllFields]);
 
 
 // שינוי עמוד
@@ -293,162 +256,6 @@ useEffect(() => {
     console.log("🔄 Setting default AgentId:", selectedAgentId);
   }
 }, [selectedAgentId, editData.AgentId]);
-
-const isSaveDisabled = !editingRow || JSON.stringify(filteredData.find((item) => item.id === editingRow)) === JSON.stringify(editData);
-
-// const validationRules: Record<string, (value: string) => string | null> = {
-//   firstNameCustomer: (value) => {
-//     const hebrewRegex = /^[\u0590-\u05FF ]+$/;
-//     return !value || hebrewRegex.test(value.trim())
-//       ? null
-//       : "שם פרטי חייב להכיל רק אותיות בעברית ורווחים";
-//   },
-//   lastNameCustomer: (value) => {
-//     const hebrewRegex = /^[\u0590-\u05FF ]+$/;
-//     return !value || hebrewRegex.test(value.trim())
-//       ? null
-//       : "שם משפחה חייב להכיל רק אותיות בעברית ורווחים";
-//   },
-//   IDCustomer: (value) => {
-//     if (/\D/.test(value)) return "תעודת זהות יכולה להכיל רק ספרות"; // 🔹 בדיקה לפני המחיקה
-//     if (value.length > 9) return "תעודת זהות לא יכולה להכיל יותר מ-9 ספרות";
-//     return null;
-//   },
-// };
-
-
-// const handleValidatedEditChange = (field: keyof CombinedData, value: any) => {
-//   let newValue = value;
-
-//   if (field === "IDCustomer") {
-//     if (/\D/.test(value)) { // 🔍 אם הוזנה אות (כל דבר שאינו מספר)
-//       setErrors((prevErrors) => ({
-//         ...prevErrors,
-//         [field]: "תעודת זהות יכולה להכיל רק ספרות",
-//       }));
-//       return; // ❌ לא נעדכן את הנתון
-//     }
-
-//     newValue = value.replace(/\D/g, "").slice(0, 9); // 🔹 מסירים אותיות ומגבילים ל-9 ספרות
-//   }
-
-//   const errorMessage = validationRules[field]?.(newValue);
-
-//   setErrors((prevErrors) => ({
-//     ...prevErrors,
-//     [field]: errorMessage || "", // ✅ אם הערך תקין – מוחקים את השגיאה
-//   }));
-
-//   if (errorMessage) return; // ❌ אם יש שגיאה, לא נעדכן את הנתון
-
-//   setEditData((prev) => ({
-//     ...prev,
-//     [field]: newValue, // ✅ עדכון הנתונים אם אין שגיאה
-//   }));
-// };
-
-
-
-// const handleEditRow = (id: string) => {
-//   setEditingRow(id); // מזהה את השורה לעריכה
-//   const rowData = filteredData.find((item) => item.id === id);
-//   if (rowData) {
-//     setEditData({ ...rowData }); // שמירת נתוני השורה
-//   }
-//   setMenuOpen(null); // סגירת התפריט, אם פתוח
-// };
-
-
-// const handleDeleteRow = async (id: string) => {
-//   const isConfirmed = window.confirm("האם אתה בטוח שברצונך למחוק את השורה?");
-  
-//   if (!isConfirmed) {
-//     return; // אם המשתמש לחץ על "ביטול", עצור את הפונקציה
-//   }
-
-//   try {
-//     // מחיקה מהממשק המקומי
-//     const updatedData = filteredData.filter((item) => item.id !== id);
-//     setFilteredData(updatedData);
-//     setMenuOpen(null); // סגירת התפריט
-
-//     // מחיקה מה-DB
-//     await deleteDoc(doc(db, 'sales', id));
-//     console.log("Row deleted successfully");
-//   } catch (error) {
-//     console.error("Error deleting row:", error);
-//   }
-// };
-
-// const saveChanges = async () => {
-//   try {
-//     // עדכון ה-State המקומי
-//     const updatedData = filteredData.map((item) =>
-//       item.id === editingRow ? { ...item, ...editData } : item
-//     );
-//     setFilteredData(updatedData);
-//     setEditingRow(null); // יציאה ממצב עריכה
-
-//     // עדכון מסמך ב-Firestore
-//     if (editingRow) {
-//       const docRef = doc(db, 'sales', editingRow); // מסמך ספציפי
-//       await updateDoc(docRef, {
-//         ...editData, // עדכון הנתונים
-//         lastUpdateDate: serverTimestamp(), // עדכון חותמת זמן
-//       });
-//     }
-//     console.log("Row updated successfully");
-//   } catch (error) {
-//     console.error("Error updating row:", error);
-//   }
-// };
-
-
-// const handleEditChange = (field: keyof AgentDataType, value: string | number | boolean) => {
-//   setEditData((prev) => ({
-//     ...prev,
-//     [field]: value,
-//   }));
-// };
-
-
-
-
-// const fetchDataForAgent = async (UserAgentId: string) => {
-//   if (!UserAgentId) {
-//     console.log('No agent selected for admin, skipping data fetch.');
-//     setAgentData([]); // Clear the table data when no agent is selected
-//     return;
-//   }
-//   const customerQuery = query(collection(db, 'customer'), where('AgentId', '==', UserAgentId));
-//   const customerSnapshot = await getDocs(customerQuery);
-//   const customers: Customer[] = customerSnapshot.docs.map(doc => ({
-//     ...doc.data() as Customer, 
-//     id: doc.id 
-//   }));
-
-//   const salesQuery = query(collection(db, 'sales'), where('AgentId', '==', UserAgentId));
-//   const salesSnapshot = await getDocs(salesQuery);
-//   const sales: Sale[] = salesSnapshot.docs.map(doc => ({
-//     ...doc.data() as Sale, 
-//     id: doc.id 
-//   }));
-
-//   const combinedData: CombinedData[] = sales.map(sale => {
-//     const customer = customers.find(customer => customer.IDCustomer === sale.IDCustomer);
-//     return {
-//       ...sale, 
-//       firstNameCustomer: customer ? customer.firstNameCustomer : 'Unknown',
-//       lastNameCustomer: customer ? customer.lastNameCustomer : 'Unknown',
-//     };
-//   });
-
-//   setAgentData(combinedData.sort((a, b) => {
-//     const [monthA, yearA] = a.mounth.split('/').map(Number);
-//     const [monthB, yearB] = b.mounth.split('/').map(Number);
-//     return (yearB + 2000) - (yearA + 2000) || monthB - monthA; // Adjust sort for descending order
-//   }));
-// };
 
 
 useEffect(() => {
@@ -484,149 +291,6 @@ useEffect(() => {
 }, [selectedAgentId]); // תלות במזהה הסוכן
 
 
-  const [hoveredRowId, setHoveredRowId] = useState<string | null>(null);
-  const handleRowClick = (item: any) => {
-    setSelectedRow(item); // Store the selected row's data
-   // setSelectedWorkerId(item.workerId);
-    //setSelectedWorkerName(item.workerName);
-    setfirstNameCustomer(item.firstNameCustomer);
-    setlastNameCustomer(item.lastNameCustomer);
-    setIDCustomer(item.IDCustomer);
-    setSelectedCompany(item.company);
-    setSelectedProduct(item.product);
-    setinsPremia(item.insPremia);
-    setPensiaZvira(item.pensiaZvira);
-    setpensiaPremia(item.pensiaPremia);
-    setfinansimPremia(item.finansimPremia);
-    setFinansimZvira(item.finansimZvira);
-    setmounth(item.mounth);
-    setMinuySochen(item.minuySochen);
-    setSelectedStatusPolicy(item.statusPolicy);
-    setIsEditing(true);
-    setNotes(item.notes);
-    const workerName = workerNameMap[item.workerId];
-    if (workerName) {
-        setSelectedWorkerId(item.workerId);
-        setSelectedWorkerName(workerName);
-    } else {
-        // Handle case where the worker is not found - maybe clear or set default values
-        setSelectedWorkerId('');
-        setSelectedWorkerName('Unknown Worker');
-    }
-    
-  //  fetchWorkersForSelectedAgent(item.agentId).then(() => {
-   //   const worker = workers.find(w => w.id === item.workerId);
-   //   if (worker) {
-   //     setSelectedWorkerId(worker.id);
-   //     setSelectedWorkerName(worker.name);
-  //    }
- //   }  );
-  };
-
-  // const handleDelete = async () => {
-  //   if (selectedRow && selectedRow.id) {
-  //     await deleteDoc(doc(db, 'sales', selectedRow.id));
-  //     setSelectedRow(null); // Reset selection
-  //     resetForm();
-  //     setIsEditing(false);
-  //     if (selectedAgentId) {
-  //       fetchDataForAgent(selectedAgentId);
-  //     }
-  //   } else {
-  //     console.log("No selected row or row ID is undefined");
-
-  //   }
-  // };
-
-
-  // const handleEdit = async () => {
-  //   if (selectedRow && selectedRow.id) { 
-  //     try {
-  //       const docRef = doc(db, 'sales', selectedRow.id); // Reference to the Firestore document
-  //       await updateDoc(docRef, {
-  //        // worker: selectedWorkerName,
-  //         workerId: selectedWorkerId,// id new
-  //         workerName:selectedWorkerName,
-  //         firstNameCustomer,
-  //         lastNameCustomer,
-  //         IDCustomer,
-  //         company: selectedCompany,
-  //         product: selectedProduct,
-  //         insPremia,
-  //         pensiaPremia,
-  //         pensiaZvira,
-  //         finansimPremia,
-  //         finansimZvira,
-  //         mounth,
-  //         minuySochen: !!minuySochen,
-  //         statusPolicy: selectedStatusPolicy,
-  //         notes: notes || '',
-  //         lastUpdateDate: serverTimestamp()
-        
-  //       });
-  //       const customerQuery = query(collection(db, 'customer'), where('IDCustomer', '==', IDCustomer));
-  //       const customerSnapshot = await getDocs(customerQuery);
-  //       if (!customerSnapshot.empty) {
-  //           const customerDocRef = customerSnapshot.docs[0].ref;
-  //           await updateDoc(customerDocRef, {
-  //               firstNameCustomer,
-  //               lastNameCustomer,
-  //           });
-  //       }
-  //     //  console.log("Sales and customer documents successfully updated");
-  //       setSelectedRow(null); 
-  //       resetForm();         
-  //    //   if (selectedAgentId) {
-  //         fetchDataForAgent(selectedAgentId);
-  //   //    }
-  //     } catch (error) {
-  //       console.error("Error updating document:", error);     
-  //     }
-  //   } else {
-  //     console.log("No row selected or missing document ID");
-  //   }
-  // };
-  
-  // const resetForm = (clearCustomerFields: boolean = false) => {
-  //   console.log("clearCustomerFields: "+clearCustomerFields);
-   
-  //   if (clearCustomerFields) {
-  //     setSelectedWorkerId('');
-  //     setfirstNameCustomer('');
-  //     setlastNameCustomer('');
-  //     setIDCustomer('');
-  //   setSelectedCompany('');
-  //   setSelectedProduct('');
-  //   setinsPremia('');
-  //   setpensiaPremia('');
-  //   setPensiaZvira('');
-  //   setfinansimPremia('');
-  //   setFinansimZvira('');
-  //   setmounth('');
-  //   setSelectedRow(null);
-  //   setMinuySochen(false);
-  //   setSelectedStatusPolicy('');
-  //   setIsEditing(false);
-  //   setNotes('');
-  // }
-  // else
-  // {
-  //   setSelectedCompany('');
-  //   setSelectedProduct('');
-  //   setinsPremia('');
-  //   setpensiaPremia('');
-  //   setPensiaZvira('');
-  //   setfinansimPremia('');
-  //   setFinansimZvira('');
-  //   setmounth('');
-  //   setSelectedRow(null);
-  //   setMinuySochen(false);
-  //   setSelectedStatusPolicy('');
-  //   setIsEditing(false);
-  //   setNotes('');
-  // }
-  // };
-  
   
 
     // Prepare the audio
@@ -647,14 +311,19 @@ useEffect(() => {
     });
 };
 
+const celebrationSoundRef = useRef<HTMLAudioElement | null>(null);
+
+useEffect(() => {
+  const audio = new Audio('/assets/sounds/soundEffect.mp3');
+  audio.preload = 'auto';
+  celebrationSoundRef.current = audio;
+}, []);
 
 
- 
 const handleSubmit = async (event: FormEvent<HTMLFormElement>, closeAfterSubmit = false) => {
   event.preventDefault();
   if (submitDisabled) return; // מניעת שליחה כפולה של הטופס
   setSubmitDisabled(true); // מניעת שליחות נוספות במהלך העיבוד
-
 
   try {
     // בדיקת קיום לקוח
@@ -676,10 +345,6 @@ const handleSubmit = async (event: FormEvent<HTMLFormElement>, closeAfterSubmit 
       });
       // עדכון `parentID` של הלקוח שנוצר
       await updateDoc(customerDocRef, { parentID: customerDocRef.id });
-      // setToastType('success');
-      // setToastMessage('לקוח התווסף בהצלחה');
-      // setShowToast(true);
-
       addToast("success", "לקוח התווסף בהצלחה");
       await new Promise((resolve) => setTimeout(resolve, 5000));
 
@@ -710,10 +375,6 @@ const handleSubmit = async (event: FormEvent<HTMLFormElement>, closeAfterSubmit 
   createdAt: serverTimestamp(),
   lastUpdateDate: serverTimestamp(),
     });
-    // alert('יש!!! עוד עסקה נוספה');
-    // setToastType('success');
-    // setToastMessage('יש!!! עוד עסקה נוספה');
-    // setShowToast(true);
     addToast("success", "יש!!! עוד עסקה נוספה");
     // קריאה לפונקציית `fetchDataForAgent` לעדכון הנתונים
     if (selectedAgentId) {
@@ -722,7 +383,10 @@ const handleSubmit = async (event: FormEvent<HTMLFormElement>, closeAfterSubmit 
     }
     // הפעלת קונפטי וקול הצלחה
     triggerConfetti();
-    celebrationSound.play();
+    // celebrationSound.play();
+    celebrationSoundRef.current?.play().catch((err) => {
+      console.warn("שגיאה בהשמעת הצליל", err);
+    });
     // איפוס הטופס
     resetForm(closeAfterSubmit); // אם נלחץ "הזן וסיים" – נאפס את הכל כולל פרטי הלקוח
  // 🔹 אם המשתמש לחץ על "הזן וסיים" – סגירת המודל
@@ -736,39 +400,6 @@ const handleSubmit = async (event: FormEvent<HTMLFormElement>, closeAfterSubmit 
     setSubmitDisabled(false); // הפעלת כפתור שליחה מחדש
   }
 };
-
-
-  // const handleFirstNameChange: ChangeEventHandler<HTMLInputElement> = (event) => {
-  //   const value = event.target.value;
-  //   // Allow Hebrew letters and spaces, but prevent leading or trailing spaces
-  //   const hebrewRegex = /^[\u0590-\u05FF ]+$/;
-  //   // Trim leading and trailing spaces for the test to prevent validation errors from extra spaces
-  //   if (value === '' || hebrewRegex.test(value.trim())) {
-  //     setfirstNameCustomer(value); // מעדכן את ה-state רק אם הערך חוקי
-  //   } else {
-  //     addToast("error", "שם פרטי חייב להכיל רק אותיות בעברית ורווחים");
-  //   }
-  // };
-
-  // const handleLastNameChange: ChangeEventHandler<HTMLInputElement> = (event) => {
-  //   const value = event.target.value;
-  //   // Allow Hebrew letters and spaces, but prevent leading or trailing spaces
-  //   const hebrewRegex = /^[\u0590-\u05FF ]+$/;
-  //   // Trim leading and trailing spaces for the test to prevent validation errors from extra spaces
-  //   if (value === '' || hebrewRegex.test(value.trim())) {
-  //     setlastNameCustomer(value);
-  //   }
-  // };
-
-
-
-  // const handleIDChange: ChangeEventHandler<HTMLInputElement> = (e) => {
-  //   const value = e.target.value;
-  //   // Allow only numbers
-  //   const onlyNums = value.replace(/[^0-9]/g, '').slice(0, 9);
-  //   setIDCustomer(onlyNums);
-
-  // };
 
   const canSubmit = useMemo(() => {
     const isValid =
@@ -795,60 +426,6 @@ const handleSubmit = async (event: FormEvent<HTMLFormElement>, closeAfterSubmit 
   ]);
   
   
-
-//   const handleFinansimZviraChange: ChangeEventHandler<HTMLInputElement> = (e) => {
-//    const value = e.target.value
-//    const onlyNums = value.replace(/[^0-9]/g, '').slice(0, 9);
-//     setFinansimZvira(onlyNums);
-//   };
-
-//   const handleFinansimPremia: ChangeEventHandler<HTMLInputElement> = (e) => {
-//     const value = e.target.value
-//     const onlyNums = value.replace(/[^0-9]/g, '').slice(0, 9);
-//     setfinansimPremia(onlyNums);
-//   };
-
-//   const handlePensiaZvira: ChangeEventHandler<HTMLInputElement> = (e) => {
-//     const value = e.target.value
-//     const onlyNums = value.replace(/[^0-9]/g, '').slice(0, 9);
-//     setPensiaZvira(onlyNums);
-//   };
-
-//   const handlepensiaPremia: ChangeEventHandler<HTMLInputElement> = (e) => {
-//     const value = e.target.value;
-//     const onlyNums = value.replace(/[^0-9]/g, '').slice(0, 9);
-//     setpensiaPremia(onlyNums);
-// };
-
-
-//   const handleinsPremia: ChangeEventHandler<HTMLInputElement> = (e) => {
-//     const value = e.target.value; // Use 0 as a fallback if conversion fails
-//     const onlyNums = value.replace(/[^0-9]/g, '').slice(0, 9);
-//     setinsPremia(onlyNums);
-//   };
-
-
-  // const handleExpiryDateChange = (e: React.ChangeEvent<HTMLInputElement>) => setmounth(e.target.value);
-  
-  // useEffect(() => {
-  //   const loadData = async () => {
-  //     resetForm(); // איפוס הטופס
-  //     if (selectedAgentId) {
-  //       try {
-  //         const data = await fetchDataForAgent(selectedAgentId); // קריאה ל-`fetchDataForAgent`
-  //         setAgentData(data); // עדכון הסטייט עם הנתונים
-  //       } catch (error) {
-  //         console.error('Error fetching data:', error);
-  //       }
-  //     } else {
-  //       setAgentData([]); // אם אין סוכן נבחר, איפוס הנתונים
-  //     }
-  //   };
-  
-  //   loadData(); // קריאה לפונקציה האסינכרונית
-  // }, [selectedAgentId]); // תלות ב-`selectedAgentId`
-  
-
   useEffect(() => {
     console.log("🔄 עדכון agentData לאחר טעינה מחדש", data);
     setAgentData(data);
@@ -861,96 +438,6 @@ const handleSubmit = async (event: FormEvent<HTMLFormElement>, closeAfterSubmit 
   };
   
   
-
-
-//   useEffect(() => {
-//     const now = new Date();
-//     const currentYear = now.getFullYear();
-//     const currentMonth = (now.getMonth() + 1).toString().padStart(2, '0');
-//     const startOfMonth = `${currentYear}-${currentMonth}-01`;
-//     const endOfMonth = new Date(currentYear, now.getMonth() + 1, 0).toISOString().slice(0, 10);
-    
-//     let expiryStart: string | undefined;
-//     let expiryEnd: string | undefined;
-
-//     if (expiryDateFilter) {
-//       const newFilteredData = filteredData.filter((item) => {
-//         const itemDate = item.mounth ? item.mounth.toString() : ""; // הפיכת התאריך למחרוזת
-//         return itemDate.includes(expiryDateFilter);
-//       });
-    
-//       setFilteredData(newFilteredData); // ✅ עדכון ה-state במקום שינוי ישיר
-//     }
-    
-//  // שלב ה-map: הבטחת ערכים חוקיים
-//  console.log("🔄 עדכון הנתונים בטבלה, agentData:", agentData);
-//  let data = agentData.map((item) => ({
-//   ...item,
-//   mounth: item.mounth ?? '', // חובה
-//   statusPolicy: item.statusPolicy ?? '', // חובה
-//   firstNameCustomer: item.firstNameCustomer ?? '', // חובה
-//   lastNameCustomer: item.lastNameCustomer ?? '', // חובה
-//   IDCustomer: item.IDCustomer ?? '', // חובה
-//   company: item.company ?? '', // חובה
-//   product: item.product ?? '', // חובה
-// }));
-// // שלב ה-filter: סינון לפי הקריטריונים
-// data = data.filter((item) => {
-//   const itemMonth = item.mounth.slice(0, 7); // Extract "YYYY-MM" from "YYYY-MM-DD"
-
-//   return (
-//     (selectedWorkerIdFilter ? item.workerId === selectedWorkerIdFilter : true) &&
-//     (selectedCompanyFilter ? item.company === selectedCompanyFilter : true) &&
-//     (selectedProductFilter ? item.product === selectedProductFilter : true) &&
-//     item.IDCustomer.includes(idCustomerFilter) &&
-//     item.firstNameCustomer.includes(firstNameCustomerFilter) &&
-//     item.lastNameCustomer.includes(firstNameCustomerFilter) &&
-//     (minuySochenFilter === '' || item.minuySochen?.toString() === minuySochenFilter) &&
-//     (!expiryDateFilter ||
-//       (expiryStart && expiryEnd && item.mounth >= expiryStart && item.mounth <= expiryEnd)) &&
-//     (selectedStatusPolicyFilter ? item.statusPolicy === selectedStatusPolicyFilter : true)
-//   );
-// });
-//       // שלב ה-sort: מיון התוצאות
-//   data.sort((a, b) => {
-//     const dateA = new Date(a.mounth).getTime();
-//     const dateB = new Date(b.mounth).getTime();
-
-//     if (dateA !== dateB) {
-//       return dateB - dateA;
-//     } else {
-//       return a.IDCustomer.localeCompare(b.IDCustomer);
-//     }
-//   });
-//   // עדכון הסטייט
-//   setFilteredData(data);
-// }, [
-//   selectedWorkerIdFilter,
-//   selectedCompanyFilter,
-//   selectedProductFilter,
-//   selectedStatusPolicyFilter,
-//   agentData,
-//   idCustomerFilter,
-//   firstNameCustomerFilter,
-//   lastNameCustomerFilter,
-//   minuySochenFilter,
-//   expiryDateFilter,
-// ]);
-
-
-  // useEffect(() => {
-  //   if (showToast) {
-  //     setIsHidingToast(false); // תמיד מתחיל גלוי מחדש
-  //     const hideTimer = setTimeout(() => setIsHidingToast(true), 4500); // מתחיל להיעלם אחרי 2.5 שניות
-  //     const removeTimer = setTimeout(() => setShowToast(false), 6000); // נעלם לחלוטין אחרי 3 שניות
-
-  //     return () => {
-  //       clearTimeout(hideTimer);
-  //       clearTimeout(removeTimer);
-  //     };
-  //   }
-  // }, [showToast]);
-
 
 useEffect(() => {
   let data = agentData.map((item) => ({
@@ -1006,75 +493,6 @@ useEffect(() => {
   minuySochenFilter,
   expiryDateFilter,
 ]);
-
-
-
-
-//   useEffect(() => {
-//     const now = new Date();
-//   const currentYear = now.getFullYear();
-//   const currentMonth = (now.getMonth() + 1).toString().padStart(2, '0');
-//   const startOfMonth = `${currentYear}-${currentMonth}-01`;
-//   const endOfMonth = new Date(currentYear, now.getMonth() + 1, 0).toISOString().slice(0, 10);
-
-//   // Parse expiryDateFilter if provided in MM/YY or MM format
-//   let expiryStart: string | undefined = undefined;
-//   let expiryEnd: string | undefined = undefined;
-//   let filterMonth: string | undefined = undefined;
-//   let filterYear: string | undefined = undefined;
-
-//   if (expiryDateFilter) {
-//       const parts = expiryDateFilter.split('/');
-      
-//       // If user entered MM/YY
-//       if (parts.length === 2) {
-//           filterMonth = parts[0].padStart(2, '0'); // Ensure MM format
-//           filterYear = `20${parts[1]}`; // Assuming YY format like "24"
-//           expiryStart = `${filterYear}-${filterMonth}-01`;
-//           expiryEnd = new Date(Number(filterYear), Number(filterMonth), 0).toISOString().slice(0, 10);
-//       } 
-//       // If user entered only MM
-//       else if (parts.length === 1) {
-//           filterMonth = parts[0].padStart(2, '0');
-//       }
-//   }
-//   let data = agentData.filter(item => {
-
-//     const itemMonth = item.mounth.slice(0, 7); // Extract "YYYY-MM" from "YYYY-MM-DD"
-//     // Default to current month if no expiryDateFilter is provided
-//     const matchesDateFilter = expiryStart && expiryEnd 
-//     ? item.mounth >= expiryStart && item.mounth <= expiryEnd // Filter by expiryStart and expiryEnd if both are defined
-//     : filterMonth 
-//         ? item.mounth.slice(5, 7) === filterMonth  // Match only the month, ignoring the year
-//         : item.mounth >= startOfMonth && item.mounth <= endOfMonth; // Default to current month 
- 
-//     return (
-//       (selectedWorkerIdFilter ? item.workerId === selectedWorkerIdFilter : true) &&
-//       (selectedCompanyFilter ? item.company === selectedCompanyFilter : true) &&
-//       (selectedProductFilter ? item.product === selectedProductFilter : true) &&
-//       item.IDCustomer.includes(idCustomerFilter) &&
-//       item.firstNameCustomer.includes(firstNameCustomerFilter) &&
-//       item.lastNameCustomer.includes(lastNameCustomerFilter) &&
-//       (minuySochenFilter === '' || item.minuySochen.toString() === minuySochenFilter) &&
-//       matchesDateFilter &&
-//       (selectedStatusPolicyFilter ? item.statusPolicy === selectedStatusPolicyFilter : true)
-//     );
-//   });
-//   data.sort((a, b) => {
-//     const dateA = new Date(a.mounth).getTime();  
-//     const dateB = new Date(b.mounth).getTime();  
-    
-//     if (dateA !== dateB) {
-//       return dateB - dateA;
-//     } else {
-//       return a.IDCustomer.localeCompare(b.IDCustomer);
-//     }
-//   });   
-//   setFilteredData(data);
-// }, [selectedWorkerIdFilter, selectedCompanyFilter, selectedProductFilter, selectedStatusPolicyFilter, agentData, idCustomerFilter, firstNameCustomerFilter, lastNameCustomerFilter, minuySochenFilter, expiryDateFilter]);
-
-
-
 
   const handleCalculate = useCallback(async () => {
     if (!selectedAgentId || selectedAgentId.trim() === '') {
@@ -1146,16 +564,6 @@ const handleEditRowModal = (id: string) => {
 const [openModalId, setOpenModalId] = useState<string | number | null>(null);
 const [modalContent, setModalContent] = useState<string | null>(null);
 
-const handleShowMore = (fullText: string, id: string | number): void => {
-  setModalContent(fullText); // כעת טיפוס תואם
-  setOpenModalId(id); // טיפוס תואם
-};
-
-const closeModal = (): void => {
-  setModalContent(null); // מאפס את התוכן
-  setOpenModalId(null); // מאפס את המודאל
-};
-
 const handleIDBlur = async () => {
   console.log("🔵 handleIDBlur started...");
 
@@ -1182,15 +590,6 @@ const handleIDBlur = async () => {
     console.warn("❌ No customer found for this ID.");
   }
 };
-
-// useEffect(() => {
-//   console.log("🔄 Updating selectedProductGroup:", productGroupMap[selectedProduct]);
-//   if (selectedProduct && productGroupMap[selectedProduct]) {
-//     setSelectedProductGroup(productGroupMap[selectedProduct]); // ✅ עדכון קבוצה בהתאם למוצר
-//   } else {
-//     setSelectedProductGroup(""); // ✅ אם לא נבחר מוצר - ריק
-//   }
-// }, [selectedProduct, productGroupMap]);
 
 useEffect(() => {
   if (!editData.product) {

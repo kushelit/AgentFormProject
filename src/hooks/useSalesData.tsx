@@ -1,10 +1,7 @@
 import { useState, useEffect } from 'react';
-import { collection, getDocs, query, where, QueryDocumentSnapshot, DocumentData } from 'firebase/firestore'; // Adjust imports as necessary
+import { collection, getDocs, query, where, QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
 import { db } from "@/lib/firebase/firebase";
 import { useAuth } from '@/lib/firebase/AuthContext';
-
-
-
 
 interface MonthlyTotals {
   [key: string]: {
@@ -15,17 +12,19 @@ interface MonthlyTotals {
   };
 }
 
-
-function useSalesData(selectedAgentId: string, selectedWorkerId: string
-  
+function useSalesData(
+  selectedAgentId: string,
+  selectedWorkerId: string,
+  selectedYear: number,
+  includePreviousDecember: boolean = false
 ) {
   const [monthlyTotals, setMonthlyTotals] = useState<MonthlyTotals>({});
   const [overallFinansimTotal, setOverallFinansimTotal] = useState<number>(0);
   const [overallPensiaTotal, setOverallPensiaTotal] = useState<number>(0);
   const [overallInsuranceTotal, setOverallInsuranceTotal] = useState<number>(0);
   const [overallNiudPensiaTotal, setOverallNiudPensiaTotal] = useState<number>(0);
-  
-  const { user, detail } = useAuth(); // Assuming useAuth() hook correctly provides User | null and Detail | null
+
+  const { user, detail } = useAuth();
 
   useEffect(() => {
     const fetchData = async () => {
@@ -50,21 +49,27 @@ function useSalesData(selectedAgentId: string, selectedWorkerId: string
 
       querySnapshot.forEach((doc: QueryDocumentSnapshot<DocumentData>) => {
         const data = doc.data();
-        const month = data.month; // Ensure the correct field name for month
+        const date = new Date(data.mounth);
+        const year = date.getFullYear();
+        const month = date.getMonth() + 1; // 1-based
+        const formattedMonth = `${String(month).padStart(2, '0')}/${String(year).slice(2)}`;
 
-        if (!initialMonthlyTotals[month]) {
-          initialMonthlyTotals[month] = { finansimTotal: 0, pensiaTotal: 0, insuranceTotal: 0, niudPensiaTotal: 0 };
+        // 🟡 תנאי לכלול רק חודשים רלוונטיים
+        if (!includePreviousDecember && year !== selectedYear) return;
+        if (includePreviousDecember && !(year === selectedYear || (year === selectedYear - 1 && month === 12))) return;
+
+        if (!initialMonthlyTotals[formattedMonth]) {
+          initialMonthlyTotals[formattedMonth] = { finansimTotal: 0, pensiaTotal: 0, insuranceTotal: 0, niudPensiaTotal: 0 };
         }
 
-        initialMonthlyTotals[month].finansimTotal += parseInt(data.finansimZvira) || 0;
-        initialMonthlyTotals[month].insuranceTotal += (parseInt(data.insPremia) || 0) * 12;
-        initialMonthlyTotals[month].pensiaTotal += (parseInt(data.pensiaPremia) || 0) * 12;
-        initialMonthlyTotals[month].niudPensiaTotal += parseInt(data.pensiaZvira) || 0;
+        initialMonthlyTotals[formattedMonth].finansimTotal += parseInt(data.finansimZvira) || 0;
+        initialMonthlyTotals[formattedMonth].insuranceTotal += (parseInt(data.insPremia) || 0) * 12;
+        initialMonthlyTotals[formattedMonth].pensiaTotal += (parseInt(data.pensiaPremia) || 0) * 12;
+        initialMonthlyTotals[formattedMonth].niudPensiaTotal += parseInt(data.pensiaZvira) || 0;
       });
 
       setMonthlyTotals(initialMonthlyTotals);
 
-      // Calculations for overall totals should be outside of the forEach loop
       let finansimTotal = 0;
       let pensiaTotal = 0;
       let insuranceTotal = 0;
@@ -84,9 +89,15 @@ function useSalesData(selectedAgentId: string, selectedWorkerId: string
     };
 
     fetchData();
-  }, [selectedAgentId, selectedWorkerId]);
+  }, [selectedAgentId, selectedWorkerId, selectedYear, includePreviousDecember]);
 
-  return { monthlyTotals, overallFinansimTotal, overallPensiaTotal, overallInsuranceTotal, overallNiudPensiaTotal };
+  return {
+    monthlyTotals,
+    overallFinansimTotal,
+    overallPensiaTotal,
+    overallInsuranceTotal,
+    overallNiudPensiaTotal,
+  };
 }
 
 export default useSalesData;
