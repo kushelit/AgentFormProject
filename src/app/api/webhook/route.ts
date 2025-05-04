@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { admin } from '@/lib/firebase/firebase-admin';
+import { parse } from 'querystring'; // חשוב!
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -9,18 +10,21 @@ const auth = admin.auth();
 
 export async function POST(req: NextRequest) {
   try {
-    const formData = await req.formData(); // ✅ לא req.json()!
+    const rawText = await req.text(); // 🟡 Grow שולחים POST כ-text
+    const body = parse(rawText); // 🟢 ממיר ל־object כמו JSON
 
-    const status = formData.get('status')?.toString();
-    const fullName = formData.get('fullName')?.toString() || formData.get('payerFullName')?.toString();
-    const email = formData.get('payerEmail')?.toString();
-    const phone = formData.get('payerPhone')?.toString();
-    const processId = formData.get('processId')?.toString();
-    const customField = formData.get('customFields[cField1]')?.toString();
+    const status = body.status?.toString();
+    const fullName = body.fullName?.toString() || body.payerFullName?.toString();
+    const email = body.payerEmail?.toString();
+    const phone = body.payerPhone?.toString();
+    const processId = body.processId?.toString();
+    const customField = body['customFields[cField1]']?.toString(); // אם יש לך כזה שדה
 
     const paymentDate = new Date();
 
-    if (!status || !customField || !email || !fullName || !phone || !processId) {
+    console.log('✅ Webhook from Grow:', { status, fullName, email, phone, processId, customField });
+
+    if (!status || !email || !fullName || !phone || !processId) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
@@ -33,7 +37,7 @@ export async function POST(req: NextRequest) {
         subscriptionStatus: status,
         lastPaymentDate: paymentDate,
       });
-      return NextResponse.json({ success: true });
+      return NextResponse.json({ success: true, updated: true });
     }
 
     const tempPassword = Math.random().toString(36).slice(-8);
@@ -55,10 +59,10 @@ export async function POST(req: NextRequest) {
       nextBillingDate: null,
       role: 'agent',
       agentId: processId,
-      customField,
+      customField: customField || '',
     });
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, created: true });
 
   } catch (error: any) {
     console.error('❌ Webhook error:', error.message || error);
