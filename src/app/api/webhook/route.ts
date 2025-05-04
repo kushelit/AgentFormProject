@@ -1,20 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db, auth } from '@/lib/firebase/firebase';
-import {
-  collection,
-  query,
-  where,
-  getDocs,
-  doc,
-  setDoc,
-  updateDoc,
-} from 'firebase/firestore';
-import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { admin } from '@/lib/firebase/firebase-admin';
 
 export const dynamic = 'force-dynamic';
-export const revalidate = 0; // 🔒 ביטול cache למניעת בעיות auth
+export const revalidate = 0; // ביטול cache למניעת בעיות auth
 
-console.log('🔔 Webhook route triggered');
+const db = admin.firestore();
+const auth = admin.auth();
 
 export async function POST(req: NextRequest) {
   try {
@@ -42,30 +33,30 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
-    const usersRef = collection(db, 'users');
-    const q = query(usersRef, where('customField', '==', customField));
-    const querySnapshot = await getDocs(q);
+    const usersRef = db.collection('users');
+    const snapshot = await usersRef.where('customField', '==', customField).get();
 
-    if (!querySnapshot.empty) {
-      const userDoc = querySnapshot.docs[0];
-      const userRef = doc(db, 'users', userDoc.id);
-
-      await updateDoc(userRef, {
+    if (!snapshot.empty) {
+      const existingDoc = snapshot.docs[0];
+      await existingDoc.ref.update({
         subscriptionStatus: status,
         lastPaymentDate: paymentDate,
       });
 
-      console.log(`🔄 Updated existing user ${userDoc.id} with status ${status}`);
+      console.log(`🔄 Updated existing user ${existingDoc.id} with status ${status}`);
       return NextResponse.json({ success: true });
     }
 
     const tempPassword = Math.random().toString(36).slice(-8);
-    console.log('🧾 Creating new user with:', { email, fullName, phone, customField });
 
-    const newUser = await createUserWithEmailAndPassword(auth, email as string, tempPassword);
+    const newUser = await auth.createUser({
+      email: email as string,
+      password: tempPassword,
+      displayName: fullName as string,
+      phoneNumber: phone as string,
+    });
 
-    const newUserRef = doc(db, 'users', newUser.user.uid);
-    await setDoc(newUserRef, {
+    await db.collection('users').doc(newUser.uid).set({
       name: fullName,
       email,
       phone,
@@ -78,11 +69,11 @@ export async function POST(req: NextRequest) {
       customField,
     });
 
-    console.log(`✅ Created new user ${newUser.user.uid}`);
+    console.log(`✅ Created new user ${newUser.uid}`);
     return NextResponse.json({ success: true });
 
   } catch (error: any) {
-    console.error('❌ Webhook error:', error.message);
+    console.error('❌ Webhook error:', error.message || error);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }
