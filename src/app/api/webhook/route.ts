@@ -20,11 +20,11 @@ console.log("📦 Webhook payload (raw):", data);
 const parsedData = typeof data.data === 'string' ? JSON.parse(data.data) : {};
 
 const status = data.status?.toString();
-const fullName = parsedData.fullName || parsedData.payerFullName;
-const email = parsedData.payerEmail;
-const phone = parsedData.payerPhone;
-const processId = parsedData.processId;
-const customField = parsedData?.customFields?.cField1 || '';
+const fullName = data['data[fullName]']?.toString() || data['payerFullName']?.toString();
+const email = data['data[payerEmail]']?.toString();
+const phone = data['data[payerPhone]']?.toString();
+const processId = data['data[processId]']?.toString();
+const customField = data['data[customFields][cField1]']?.toString() ?? '';
 
 
     if (!status || !email || !fullName || !phone || !processId) {
