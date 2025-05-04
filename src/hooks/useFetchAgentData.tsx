@@ -256,7 +256,7 @@ useEffect(() => {
       return;
     }
   
-    const workersQuery = query(collection(db, 'users'), where('agentId', '==', agentId), where('role', 'in', ['worker', 'agent']));
+    const workersQuery = query(collection(db, 'users'), where('agentId', '==', agentId), where('role', 'in', ['worker', 'agent', 'manager']));
     try {
       const querySnapshot = await getDocs(workersQuery);
       const workersData: Worker[] = [];
