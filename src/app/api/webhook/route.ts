@@ -4,6 +4,14 @@ import { admin } from '@/lib/firebase/firebase-admin';
 
 export const dynamic = 'force-dynamic';
 
+const formatPhone = (phone?: string) => {
+  if (!phone) return undefined;
+  if (phone.startsWith('0')) {
+    return '+972' + phone.slice(1);
+  }
+  return phone;
+};
+
 export async function POST(req: NextRequest) {
   try {
     const contentType = req.headers.get('content-type') || '';
@@ -12,20 +20,16 @@ export async function POST(req: NextRequest) {
     }
 
     const rawBody = await req.text();
-const data = parse(rawBody);
+    const data = parse(rawBody);
 
-console.log("📦 Webhook payload (raw):", data);
+    console.log("📦 Webhook payload (raw):", data);
 
-// Grow שולחים את כל הפרטים בתוך data.data — שהיא מחרוזת JSON
-const parsedData = typeof data.data === 'string' ? JSON.parse(data.data) : {};
-
-const status = data.status?.toString();
-const fullName = data['data[fullName]']?.toString() || data['payerFullName']?.toString();
-const email = data['data[payerEmail]']?.toString();
-const phone = data['data[payerPhone]']?.toString();
-const processId = data['data[processId]']?.toString();
-const customField = data['data[customFields][cField1]']?.toString() ?? '';
-
+    const status = data.status?.toString();
+    const fullName = (data['data[fullName]'] ?? data.payerFullName)?.toString();
+    const email = (data['data[payerEmail]'] ?? data.payerEmail)?.toString();
+    const phone = (data['data[payerPhone]'] ?? data.payerPhone)?.toString();
+    const processId = (data['data[processId]'] ?? data.processId)?.toString();
+    const customField = (data['data[customFields][cField1]'] ?? data['customFields[cField1]'])?.toString() ?? '';
 
     if (!status || !email || !fullName || !phone || !processId) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
@@ -33,7 +37,6 @@ const customField = data['data[customFields][cField1]']?.toString() ?? '';
 
     const db = admin.firestore();
     const auth = admin.auth();
-
     const usersRef = db.collection('users');
     const snapshot = await usersRef.where('customField', '==', customField).get();
 
@@ -53,7 +56,7 @@ const customField = data['data[customFields][cField1]']?.toString() ?? '';
       email,
       password: tempPassword,
       displayName: fullName,
-      phoneNumber: phone,
+      phoneNumber: formatPhone(phone), // 💡 כאן השינוי
     });
 
     await db.collection('users').doc(newUser.uid).set({
