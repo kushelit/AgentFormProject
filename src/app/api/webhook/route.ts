@@ -12,16 +12,20 @@ export async function POST(req: NextRequest) {
     }
 
     const rawBody = await req.text();
-    const data = parse(rawBody);
+const data = parse(rawBody);
 
-    console.log("📦 Webhook payload:", data);
+console.log("📦 Webhook payload (raw):", data);
 
-    const status = data.status?.toString();
-    const fullName = data.fullName?.toString() || data.payerFullName?.toString();
-    const email = data.payerEmail?.toString();
-    const phone = data.payerPhone?.toString();
-    const processId = data.processId?.toString();
-    const customField = data['customFields[cField1]']?.toString() ?? '';
+// Grow שולחים את כל הפרטים בתוך data.data — שהיא מחרוזת JSON
+const parsedData = typeof data.data === 'string' ? JSON.parse(data.data) : {};
+
+const status = data.status?.toString();
+const fullName = parsedData.fullName || parsedData.payerFullName;
+const email = parsedData.payerEmail;
+const phone = parsedData.payerPhone;
+const processId = parsedData.processId;
+const customField = parsedData?.customFields?.cField1 || '';
+
 
     if (!status || !email || !fullName || !phone || !processId) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
