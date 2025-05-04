@@ -233,21 +233,30 @@ useEffect(() => {
   useEffect(() => {
     updateFullName();
   }, [firstNameCustomer, lastNameCustomer]);
-
   const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
     event.preventDefault();
     try {
       console.log("Preparing to submit...");
+  
+      const {
+        firstNameCustomer = "",
+        lastNameCustomer = "",
+        IDCustomer = ""
+      } = editCustomerData;
+  
+      const fullNameCustomer = `${firstNameCustomer} ${lastNameCustomer}`.trim();
+  
       // Check for existing customer with the same IDCustomer and AgentId
-      const customerQuery = query(collection(db, 'customer'),
+      const customerQuery = query(
+        collection(db, 'customer'),
         where('IDCustomer', '==', IDCustomer),
-        where('AgentId', '==', selectedAgentId));
+        where('AgentId', '==', selectedAgentId)
+      );
       const customerSnapshot = await getDocs(customerQuery);
-
+  
       if (customerSnapshot.empty) {
-        // No existing customer found, proceed with creation
         const customerRef = doc(collection(db, 'customer'));
-        // Create new customer document with self-referencing parentID
+  
         await setDoc(customerRef, {
           agent: selectedAgentName,
           AgentId: selectedAgentId,
@@ -255,7 +264,7 @@ useEffect(() => {
           lastNameCustomer,
           fullNameCustomer,
           IDCustomer,
-          parentID: customerRef.id,  // Self-reference the document's ID
+          parentID: customerRef.id,
           notes,
           issueDay,
           birthday,
@@ -264,33 +273,30 @@ useEffect(() => {
           address,
           sourceLead: sourceValue,
           createdAt: serverTimestamp(),
-          lastUpdateDate: serverTimestamp() // Also set at creation
-
+          lastUpdateDate: serverTimestamp()
         });
-      //  console.log('Customer added with ID:', customerRef.id);
-      addToast("success", "לקוח התווסף בהצלחה");
-
+  
+        addToast("success", "לקוח התווסף בהצלחה");
       } else {
         addToast("error", "לא ניתן להוסיף - לקוח קיים במערכת");
-    
-    }
+      }
+  
       resetForm();
       setIsEditing(false);
-      setIsModalOpen (false);
+      setIsModalOpen(false);
       reloadCustomerData(selectedAgentId);
     } catch (error) {
-      console.error('Error adding document:', error);  // Log any errors during the process
+      console.error('Error adding document:', error);
     }
   };
-
+  
   const canSubmit = useMemo(() => (
     selectedAgentId.trim() !== '' &&
-    firstNameCustomer.trim() !== '' &&
-    lastNameCustomer.trim() !== '' &&
-    IDCustomer.trim() !== ''
-  ), [selectedAgentId, firstNameCustomer, lastNameCustomer, IDCustomer,
-  ]);
-
+    (editCustomerData.firstNameCustomer || '').trim() !== '' &&
+    (editCustomerData.lastNameCustomer || '').trim() !== '' &&
+    (editCustomerData.IDCustomer || '').trim() !== ''
+  ), [selectedAgentId, editCustomerData]);
+  
 
   interface Contract {
     id: string;
@@ -744,6 +750,7 @@ const handleNewSelectCustomer = (id: string) => {
   });
 };
 
+console.log("selectedAgentId:", selectedAgentId);
 
   return (
     <div className="content-container">
