@@ -2,22 +2,18 @@ import { NextRequest, NextResponse } from 'next/server';
 import { admin } from '@/lib/firebase/firebase-admin';
 import { parse } from 'querystring';
 
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
-
 const db = admin.firestore();
 const auth = admin.auth();
 
 export async function POST(req: NextRequest) {
   try {
     const contentType = req.headers.get('content-type') || '';
-
     if (!contentType.includes('application/x-www-form-urlencoded')) {
       return NextResponse.json({ error: 'Unsupported Content-Type' }, { status: 415 });
     }
 
-    const rawBody = await req.text(); // Grow שולחים טקסט פשוט (urlencoded)
-    const data = parse(rawBody); // הפיכת טקסט לאובייקט
+    const bodyText = await req.text();
+    const data = parse(bodyText);
 
     const status = data.status?.toString();
     const fullName = data.fullName?.toString() || data.payerFullName?.toString();
@@ -26,16 +22,13 @@ export async function POST(req: NextRequest) {
     const processId = data.processId?.toString();
     const customField = data['customFields[cField1]']?.toString();
 
-    console.log('✅ Webhook Payload:', { status, fullName, email, phone, processId, customField });
-
-    if (!status || !email || !fullName || !phone || !processId) {
+    if (!status || !email || !fullName || !phone || !processId || !customField) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
+    const paymentDate = new Date();
     const usersRef = db.collection('users');
     const snapshot = await usersRef.where('customField', '==', customField).get();
-
-    const paymentDate = new Date();
 
     if (!snapshot.empty) {
       const existingDoc = snapshot.docs[0];
@@ -43,13 +36,10 @@ export async function POST(req: NextRequest) {
         subscriptionStatus: status,
         lastPaymentDate: paymentDate,
       });
-
-      console.log(`🔄 Updated user ${existingDoc.id}`);
       return NextResponse.json({ updated: true });
     }
 
     const tempPassword = Math.random().toString(36).slice(-8);
-
     const newUser = await auth.createUser({
       email,
       password: tempPassword,
@@ -70,7 +60,6 @@ export async function POST(req: NextRequest) {
       customField,
     });
 
-    console.log(`✅ Created user ${newUser.uid}`);
     return NextResponse.json({ created: true });
 
   } catch (error: any) {
