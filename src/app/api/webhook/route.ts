@@ -1,3 +1,5 @@
+// app/api/webhook/route.ts
+
 import { NextRequest, NextResponse } from 'next/server';
 import { admin } from '@/lib/firebase/firebase-admin';
 import { parse } from 'querystring';
@@ -5,13 +7,21 @@ import { parse } from 'querystring';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
+// ✅ חובה למנוע parsing אוטומטי של JSON (כי Grow שולחים form-urlencoded)
+export const config = {
+  api: {
+    bodyParser: false,
+  },
+};
+
 const db = admin.firestore();
 const auth = admin.auth();
 
 export async function POST(req: NextRequest) {
   try {
-    const raw = await req.text(); // 🟡 Grow שולחים ב־x-www-form-urlencoded
-    const data = parse(raw);      // 🟢 ניתוח כמו JSON
+    // ✅ Grow שולחים application/x-www-form-urlencoded ולכן קוראים כטקסט
+    const raw = await req.text();
+    const data = parse(raw);
 
     const status = data.status?.toString();
     const fullName = data.fullName?.toString() || data.payerFullName?.toString();
@@ -23,6 +33,7 @@ export async function POST(req: NextRequest) {
     console.log('✅ Webhook Payload:', { status, fullName, email, phone, processId, customField });
 
     if (!status || !email || !fullName || !phone || !processId) {
+      console.warn('⚠️ Missing fields');
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
