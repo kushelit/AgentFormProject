@@ -9,20 +9,20 @@ const auth = admin.auth();
 
 export async function POST(req: NextRequest) {
   try {
-    const formData = await req.formData();
+    const body = await req.json();
 
-    const status = formData.get('status');
-    const fullName = formData.get('fullName') || formData.get('payerFullName');
-    const email = formData.get('payerEmail');
-    const phone = formData.get('payerPhone');
-    const processId = formData.get('processId');
-    const customField = formData.get('customFields[cField1]');
+    const status = body.status;
+    const fullName = body.fullName || body.payerFullName;
+    const email = body.payerEmail;
+    const phone = body.payerPhone;
+    const processId = body.processId;
+    const customField = body.customFields?.cField1;
 
     console.log('✅ Webhook received with:', {
       status,
       fullName,
       email,
-      phone,
+      phoneNumber: phone ? (phone as string) : undefined,
       processId,
       customField,
     });
