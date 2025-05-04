@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { admin } from '@/lib/firebase/firebase-admin';
-import { parse } from 'querystring'; // חשוב!
+import { parse } from 'querystring';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -10,19 +10,17 @@ const auth = admin.auth();
 
 export async function POST(req: NextRequest) {
   try {
-    const rawText = await req.text(); // 🟡 Grow שולחים POST כ-text
-    const body = parse(rawText); // 🟢 ממיר ל־object כמו JSON
+    const raw = await req.text(); // 🟡 Grow שולחים ב־x-www-form-urlencoded
+    const data = parse(raw);      // 🟢 ניתוח כמו JSON
 
-    const status = body.status?.toString();
-    const fullName = body.fullName?.toString() || body.payerFullName?.toString();
-    const email = body.payerEmail?.toString();
-    const phone = body.payerPhone?.toString();
-    const processId = body.processId?.toString();
-    const customField = body['customFields[cField1]']?.toString(); // אם יש לך כזה שדה
+    const status = data.status?.toString();
+    const fullName = data.fullName?.toString() || data.payerFullName?.toString();
+    const email = data.payerEmail?.toString();
+    const phone = data.payerPhone?.toString();
+    const processId = data.processId?.toString();
+    const customField = data['customFields[cField1]']?.toString() ?? '';
 
-    const paymentDate = new Date();
-
-    console.log('✅ Webhook from Grow:', { status, fullName, email, phone, processId, customField });
+    console.log('✅ Webhook Payload:', { status, fullName, email, phone, processId, customField });
 
     if (!status || !email || !fullName || !phone || !processId) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
@@ -31,13 +29,16 @@ export async function POST(req: NextRequest) {
     const usersRef = db.collection('users');
     const snapshot = await usersRef.where('customField', '==', customField).get();
 
+    const paymentDate = new Date();
+
     if (!snapshot.empty) {
       const existingDoc = snapshot.docs[0];
       await existingDoc.ref.update({
         subscriptionStatus: status,
         lastPaymentDate: paymentDate,
       });
-      return NextResponse.json({ success: true, updated: true });
+      console.log(`🔄 Updated user ${existingDoc.id}`);
+      return NextResponse.json({ updated: true });
     }
 
     const tempPassword = Math.random().toString(36).slice(-8);
@@ -59,10 +60,11 @@ export async function POST(req: NextRequest) {
       nextBillingDate: null,
       role: 'agent',
       agentId: processId,
-      customField: customField || '',
+      customField,
     });
 
-    return NextResponse.json({ success: true, created: true });
+    console.log(`✅ Created user ${newUser.uid}`);
+    return NextResponse.json({ created: true });
 
   } catch (error: any) {
     console.error('❌ Webhook error:', error.message || error);
