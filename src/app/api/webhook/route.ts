@@ -1,5 +1,3 @@
-// src/app/api/webhook/route.ts
-
 import { NextRequest, NextResponse } from 'next/server';
 import { admin } from '@/lib/firebase/firebase-admin';
 import { parse } from 'querystring';
@@ -12,21 +10,25 @@ const auth = admin.auth();
 
 export async function POST(req: NextRequest) {
   try {
-    // Grow שולחים x-www-form-urlencoded, לכן נשתמש ב־text ונפענח עם querystring
-    const raw = await req.text();
-    const data = parse(raw);
+    const contentType = req.headers.get('content-type') || '';
+
+    if (!contentType.includes('application/x-www-form-urlencoded')) {
+      return NextResponse.json({ error: 'Unsupported Content-Type' }, { status: 415 });
+    }
+
+    const rawBody = await req.text(); // Grow שולחים טקסט פשוט (urlencoded)
+    const data = parse(rawBody); // הפיכת טקסט לאובייקט
 
     const status = data.status?.toString();
     const fullName = data.fullName?.toString() || data.payerFullName?.toString();
     const email = data.payerEmail?.toString();
     const phone = data.payerPhone?.toString();
     const processId = data.processId?.toString();
-    const customField = data['customFields[cField1]']?.toString() ?? '';
+    const customField = data['customFields[cField1]']?.toString();
 
     console.log('✅ Webhook Payload:', { status, fullName, email, phone, processId, customField });
 
     if (!status || !email || !fullName || !phone || !processId) {
-      console.warn('⚠️ Missing fields');
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
@@ -41,6 +43,7 @@ export async function POST(req: NextRequest) {
         subscriptionStatus: status,
         lastPaymentDate: paymentDate,
       });
+
       console.log(`🔄 Updated user ${existingDoc.id}`);
       return NextResponse.json({ updated: true });
     }
