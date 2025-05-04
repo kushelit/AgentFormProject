@@ -1,4 +1,4 @@
-// app/api/webhook/route.ts
+// src/app/api/webhook/route.ts
 
 import { NextRequest, NextResponse } from 'next/server';
 import { admin } from '@/lib/firebase/firebase-admin';
@@ -7,19 +7,12 @@ import { parse } from 'querystring';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-// ✅ חובה למנוע parsing אוטומטי של JSON (כי Grow שולחים form-urlencoded)
-export const config = {
-  api: {
-    bodyParser: false,
-  },
-};
-
 const db = admin.firestore();
 const auth = admin.auth();
 
 export async function POST(req: NextRequest) {
   try {
-    // ✅ Grow שולחים application/x-www-form-urlencoded ולכן קוראים כטקסט
+    // Grow שולחים x-www-form-urlencoded, לכן נשתמש ב־text ונפענח עם querystring
     const raw = await req.text();
     const data = parse(raw);
 
