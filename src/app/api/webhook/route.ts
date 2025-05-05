@@ -24,14 +24,18 @@ export async function POST(req: NextRequest) {
 
     console.log("📦 Webhook payload (raw):", data);
 
-    const status = data.status?.toString();
+    // קלטים מה-webhook
+    const statusCode = data['data[statusCode]']?.toString();
+    const paymentStatus = statusCode === '2' ? 'success' : 'failed';
+    const subscriptionStatus = statusCode === '2' ? 'active' : 'failed';
+
     const fullName = (data['data[fullName]'] ?? data.payerFullName)?.toString();
     const email = (data['data[payerEmail]'] ?? data.payerEmail)?.toString();
     const phone = (data['data[payerPhone]'] ?? data.payerPhone)?.toString();
     const processId = (data['data[processId]'] ?? data.processId)?.toString();
     const customField = (data['data[customFields][cField1]'] ?? data['customFields[cField1]'])?.toString() ?? '';
 
-    if (!status || !email || !fullName || !phone || !processId) {
+    if (!statusCode || !email || !fullName || !phone || !processId) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
@@ -42,17 +46,16 @@ export async function POST(req: NextRequest) {
 
     const paymentDate = new Date();
 
-    // אם המשתמש כבר קיים - עדכון סטטוס בלבד
     if (!snapshot.empty) {
       const docRef = snapshot.docs[0].ref;
       await docRef.update({
-        subscriptionStatus: status,
+        subscriptionStatus,
+        lastPaymentStatus: paymentStatus,
         lastPaymentDate: paymentDate,
       });
       return NextResponse.json({ updated: true });
     }
 
-    // יצירת סיסמה זמנית ויוזר חדש
     const tempPassword = Math.random().toString(36).slice(-8);
     const newUser = await auth.createUser({
       email,
@@ -63,44 +66,34 @@ export async function POST(req: NextRequest) {
 
     const resetLink = await auth.generatePasswordResetLink(email);
 
-    // שליחת מייל ברוך הבא עם קישור לאיפוס סיסמה
-    try {
-      const emailResponse = await fetch('https://test.magicsale.co.il/api/sendEmail', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          to: email,
-          subject: 'ברוך הבא ל-MagicSale – הגדרת סיסמה',
-          html: `
-            שלום ${fullName},<br><br>
-            תודה על ההרשמה למערכת MagicSale!<br>
-            להשלמת ההרשמה והתחברות ראשונה, נא לקבוע סיסמה דרך הקישור הבא:<br>
-            <a href="${resetLink}">קביעת סיסמה</a><br><br>
-            לאחר מכן, תוכלי להתחבר כאן: <a href="https://test.magicsale.co.il/auth/log-in">כניסה למערכת</a><br><br>
-            בהצלחה!<br>
-            צוות MagicSale
-          `
-        }),
-      });
+    await fetch('https://test.magicsale.co.il/api/sendEmail', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        to: email,
+        subject: 'ברוך הבא ל-MagicSale – הגדרת סיסמה',
+        html: `
+          שלום ${fullName},<br><br>
+          תודה על ההרשמה למערכת MagicSale!<br>
+          להשלמת ההרשמה והתחברות ראשונה, נא לקבוע סיסמה דרך הקישור הבא:<br>
+          <a href="${resetLink}">קביעת סיסמה</a><br><br>
+          לאחר מכן, תוכלי להתחבר כאן: <a href="https://test.magicsale.co.il/auth/log-in">כניסה למערכת</a><br><br>
+          בהצלחה!<br>
+          צוות MagicSale
+        `
+      })
+    });
 
-      if (!emailResponse.ok) {
-        console.warn('⚠️ שליחת המייל נכשלה:', await emailResponse.text());
-      }
-    } catch (emailErr) {
-      console.error('❌ שגיאה בשליחת מייל איפוס סיסמה:', emailErr);
-    }
-
-    // שמירת פרטי המשתמש במסד הנתונים
     await db.collection('users').doc(newUser.uid).set({
       name: fullName,
       email,
       phone,
       subscriptionId: processId,
-      subscriptionStatus: status,
-      subscriptionStart: paymentDate,
-      nextBillingDate: null,
+      subscriptionStatus,
+      lastPaymentStatus: paymentStatus,
+      lastPaymentDate: paymentDate,
       role: 'agent',
-      agentId: newUser.uid, // חשוב!
+      agentId: newUser.uid,
       customField,
     });
 
