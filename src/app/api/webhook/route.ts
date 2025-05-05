@@ -42,6 +42,7 @@ export async function POST(req: NextRequest) {
 
     const paymentDate = new Date();
 
+    // אם המשתמש כבר קיים - עדכון סטטוס בלבד
     if (!snapshot.empty) {
       const docRef = snapshot.docs[0].ref;
       await docRef.update({
@@ -51,14 +52,45 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ updated: true });
     }
 
+    // יצירת סיסמה זמנית ויוזר חדש
     const tempPassword = Math.random().toString(36).slice(-8);
     const newUser = await auth.createUser({
       email,
       password: tempPassword,
       displayName: fullName,
-      phoneNumber: formatPhone(phone), // 💡 כאן השינוי
+      phoneNumber: formatPhone(phone),
     });
 
+    const resetLink = await auth.generatePasswordResetLink(email);
+
+    // שליחת מייל ברוך הבא עם קישור לאיפוס סיסמה
+    try {
+      const emailResponse = await fetch('https://test.magicsale.co.il/api/sendEmail', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to: email,
+          subject: 'ברוך הבא ל-MagicSale – הגדרת סיסמה',
+          html: `
+            שלום ${fullName},<br><br>
+            תודה על ההרשמה למערכת MagicSale!<br>
+            להשלמת ההרשמה והתחברות ראשונה, נא לקבוע סיסמה דרך הקישור הבא:<br>
+            <a href="${resetLink}">קביעת סיסמה</a><br><br>
+            לאחר מכן, תוכלי להתחבר כאן: <a href="https://test.magicsale.co.il/auth/log-in">כניסה למערכת</a><br><br>
+            בהצלחה!<br>
+            צוות MagicSale
+          `
+        }),
+      });
+
+      if (!emailResponse.ok) {
+        console.warn('⚠️ שליחת המייל נכשלה:', await emailResponse.text());
+      }
+    } catch (emailErr) {
+      console.error('❌ שגיאה בשליחת מייל איפוס סיסמה:', emailErr);
+    }
+
+    // שמירת פרטי המשתמש במסד הנתונים
     await db.collection('users').doc(newUser.uid).set({
       name: fullName,
       email,
@@ -68,7 +100,7 @@ export async function POST(req: NextRequest) {
       subscriptionStart: paymentDate,
       nextBillingDate: null,
       role: 'agent',
-      agentId: processId,
+      agentId: newUser.uid, // חשוב!
       customField,
     });
 

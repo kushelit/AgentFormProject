@@ -14,16 +14,22 @@ export default function PaymentSuccessClient() {
     const customField = searchParams.get('customField');
 
     if (!name || !email || !phone || !customField) {
-      setStatus('חסרים פרטי תשלום, נא לפנות לשירות לקוחות.');
+      setStatus('⚠️ חסרים פרטי תשלום. נא לפנות לשירות הלקוחות.');
       return;
     }
 
-    setStatus('🎉 תודה! אם התשלום עבר בהצלחה, החשבון שלך ייפתח תוך מספר דקות. אנא בדוק/י את הדוא"ל להתחברות.');
+    setStatus(`🎉 תודה על התשלום, ${name}! 
+    החשבון שלך נוצר כעת, ונשלח אליך מייל עם קישור להגדרת סיסמה.
+
+    ⚠️ אם לא התקבל מייל תוך מספר דקות, בדוק/י בתיקיית הספאם.
+
+    ✉️ ניתן גם לאפס סיסמה ישירות כאן: 
+    https://test.magicsale.co.il/auth/reset-password`);
   }, [searchParams]);
 
   return (
-    <div style={{ padding: '2rem', textAlign: 'center' }}>
-      <h1>{status}</h1>
+    <div style={{ padding: '2rem', textAlign: 'center', lineHeight: '2' }}>
+      <h1 style={{ whiteSpace: 'pre-line' }}>{status}</h1>
     </div>
   );
 }
