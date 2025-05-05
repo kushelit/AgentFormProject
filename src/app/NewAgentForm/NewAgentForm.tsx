@@ -315,7 +315,6 @@ const celebrationSoundRef = useRef<HTMLAudioElement | null>(null);
 
 useEffect(() => {
   const audio = new Audio('/assets/sounds/soundEffect.mp3');
-  audio.preload = 'auto';
   celebrationSoundRef.current = audio;
 }, []);
 
