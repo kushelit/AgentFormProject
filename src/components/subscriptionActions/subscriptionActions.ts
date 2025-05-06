@@ -8,7 +8,6 @@ export interface CancelSubscriptionParams {
 }
 
 // File: /components/subscriptionActions.ts
-
 export async function cancelSubscription(id: string, subscriptionId?: string) {
   try {
     const res = await fetch('/api/cancelSubscription', {
@@ -19,7 +18,14 @@ export async function cancelSubscription(id: string, subscriptionId?: string) {
 
     const data = await res.json();
 
-    if (!res.ok) throw new Error(data.error || 'כשל בביטול המנוי');
+    if (!res.ok) {
+      const message =
+        typeof data.error === 'string'
+          ? data.error
+          : JSON.stringify(data.error || 'כשל בביטול המנוי');
+      throw new Error(message);
+    }
+
     return data;
   } catch (error) {
     console.error('❌ cancelSubscription error:', error);
@@ -29,9 +35,14 @@ export async function cancelSubscription(id: string, subscriptionId?: string) {
 
 export const getAllSubscriptions = async () => {
   const res = await fetch('/api/subscriptions');
-  if (!res.ok) throw new Error('שגיאה בשליפת מנויים');
+  if (!res.ok) {
+    const errorText = await res.text();
+    console.error('❌ שגיאת API:', res.status, errorText);
+    throw new Error(`שגיאה בשליפת מנויים: ${res.status}`);
+  }
   return res.json();
 };
+
 
 export const sendFailureEmail = async (email: string, fullName: string) => {
   const response = await axios.post('/api/sendEmail', {

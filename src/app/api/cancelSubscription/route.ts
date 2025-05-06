@@ -1,4 +1,3 @@
-// File: /app/api/cancelSubscription/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { admin } from '@/lib/firebase/firebase-admin';
 import axios from 'axios';
@@ -24,11 +23,20 @@ export async function POST(req: NextRequest) {
       console.log('🔁 Grow cancel result:', data);
 
       if (data?.status !== '1') {
-        return NextResponse.json({ error: data?.err || 'Grow cancellation failed' }, { status: 500 });
+        let errorMsg = data?.err || data?.message || 'Grow cancellation failed';
+
+        // אם השגיאה מכילה את transactionId
+        if (typeof errorMsg === 'object' && errorMsg?.message?.includes('transactionId')) {
+          errorMsg = 'חסרים נתונים לביטול המנוי (transactionId)';
+        } else if (typeof errorMsg !== 'string') {
+          errorMsg = JSON.stringify(errorMsg);
+        }
+
+        return NextResponse.json({ error: errorMsg }, { status: 500 });
       }
     }
 
-    // שלב 2: עדכון המשתמש במסד הנתונים
+    // שלב 2: עדכון במסד הנתונים
     let userDocRef = null;
     let userEmail = '';
     let userName = '';
@@ -49,12 +57,12 @@ export async function POST(req: NextRequest) {
         userEmail = userData.email;
         userName = userData.name;
       } else {
-        return NextResponse.json({ error: 'User not found for subscriptionId' }, { status: 404 });
+        return NextResponse.json({ error: 'לא נמצא משתמש עבור המנוי' }, { status: 404 });
       }
     }
 
     if (!userDocRef) {
-      return NextResponse.json({ error: 'Missing user ID or subscriptionId' }, { status: 400 });
+      return NextResponse.json({ error: 'חסר מזהה משתמש או מזהה מנוי' }, { status: 400 });
     }
 
     await userDocRef.update({
@@ -64,7 +72,7 @@ export async function POST(req: NextRequest) {
       ...(updates || {})
     });
 
-    // שלב 3: שליחת מייל ביטול במידת הצורך
+    // שליחת מייל ביטול אם נדרש
     if (sendCancelEmail && userEmail) {
       await fetch('https://test.magicsale.co.il/api/sendCancelEmail', {
         method: 'POST',
@@ -74,8 +82,19 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json({ success: true });
+
   } catch (err: any) {
-    console.error('❌ CancelSubscription error:', err.message);
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    console.error('❌ CancelSubscription error:', err?.message || err);
+
+    let errorMessage =
+      typeof err?.message === 'string'
+        ? err.message
+        : JSON.stringify(err) || 'שגיאה פנימית';
+
+    if (errorMessage.includes('transactionId')) {
+      errorMessage = 'חסרים נתונים לביטול המנוי (transactionId)';
+    }
+
+    return NextResponse.json({ error: errorMessage }, { status: 500 });
   }
 }

@@ -27,9 +27,20 @@ export default function SubscriptionsTable() {
 
   const handleCancel = async (id: string, subscriptionId: string) => {
     if (!confirm('האם אתה בטוח שברצונך לבטל את המנוי?')) return;
-    await cancelSubscription(id, subscriptionId);
-    setSubscriptions(subs => subs.map(sub => sub.id === id ? { ...sub, subscriptionStatus: 'canceled', isActive: false } : sub));
+  
+    try {
+      await cancelSubscription(id, subscriptionId);
+      setSubscriptions(subs =>
+        subs.map(sub =>
+          sub.id === id ? { ...sub, subscriptionStatus: 'canceled', isActive: false } : sub
+        )
+      );
+      alert('המנוי בוטל בהצלחה');
+    } catch (error: any) {
+      alert(error.message || 'אירעה שגיאה בעת ביטול המנוי');
+    }
   };
+  
 
   if (loading) return <div className="p-4">⏳ טוען מנויים...</div>;
 
@@ -45,6 +56,7 @@ export default function SubscriptionsTable() {
             <th className="border px-2 py-1">תאריך תשלום אחרון</th>
             <th className="border px-2 py-1">סטטוס תשלום</th>
             <th className="border px-2 py-1">סטטוס מנוי</th>
+            <th className="border px-2 py-1">מספר עסקה</th>
             <th className="border px-2 py-1">פעולות</th>
           </tr>
         </thead>
@@ -54,9 +66,12 @@ export default function SubscriptionsTable() {
               <td className="border px-2 py-1">{sub.name}</td>
               <td className="border px-2 py-1">{sub.email}</td>
               <td className="border px-2 py-1">{sub.phone}</td>
-              <td className="border px-2 py-1">{sub.lastPaymentDate ? new Date(sub.lastPaymentDate.toDate()).toLocaleDateString() : '-'}</td>
+              <td className="border px-2 py-1">{sub.lastPaymentDate || '-'}</td>
               <td className="border px-2 py-1">{sub.lastPaymentStatus}</td>
               <td className="border px-2 py-1">{sub.subscriptionStatus}</td>
+              <td className="border px-2 py-1 font-mono text-xs break-all">
+                   {sub.transactionId || '-'}
+              </td>
               <td className="border px-2 py-1 text-sm space-x-2">
                 <button
                   className="bg-yellow-300 px-2 py-1 rounded"

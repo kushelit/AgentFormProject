@@ -34,6 +34,9 @@ export async function POST(req: NextRequest) {
     const phone = (data['data[payerPhone]'] ?? data.payerPhone)?.toString();
     const processId = (data['data[processId]'] ?? data.processId)?.toString();
     const customField = (data['data[customFields][cField1]'] ?? data['customFields[cField1]'])?.toString() ?? '';
+    const transactionId = (data['data[transactionId]'] ?? data.transactionId)?.toString();
+
+    console.log("💳 Transaction ID:", transactionId);
 
     if (!statusCode || !email || !fullName || !phone || !processId) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
@@ -52,6 +55,7 @@ export async function POST(req: NextRequest) {
         subscriptionStatus,
         lastPaymentStatus: paymentStatus,
         lastPaymentDate: paymentDate,
+        ...(transactionId ? { transactionId } : {})
       });
       return NextResponse.json({ updated: true });
     }
@@ -89,6 +93,7 @@ export async function POST(req: NextRequest) {
       email,
       phone,
       subscriptionId: processId,
+      transactionId: transactionId || null,
       subscriptionStatus,
       lastPaymentStatus: paymentStatus,
       lastPaymentDate: paymentDate,
