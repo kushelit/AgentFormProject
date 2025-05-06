@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic'; // 🧠 מונע קאשינג אוטומטי
+
 import { NextResponse } from 'next/server';
 import { admin } from '@/lib/firebase/firebase-admin';
 
