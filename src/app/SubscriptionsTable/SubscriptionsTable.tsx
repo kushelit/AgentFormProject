@@ -45,8 +45,13 @@ export default function SubscriptionsTable() {
         addToast('success', 'המנוי בוטל במערכת');
       }
     } catch (error: any) {
-      addToast('error', error.message || '❌ אירעה שגיאה בעת ביטול המנוי');
-    }
+      addToast(
+        'error',
+        typeof error.message === 'string'
+          ? error.message
+          : error.message?.message || '❌ שגיאה כללית לא צפויה'
+      );
+          }
   };
 
   const filteredSubscriptions = subscriptions.filter(sub => {
