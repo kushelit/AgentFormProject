@@ -100,6 +100,7 @@ export async function POST(req: NextRequest) {
       role: 'agent',
       agentId: newUser.uid,
       customField,
+      isActive: true,
     });
 
     return NextResponse.json({ created: true });

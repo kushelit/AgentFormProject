@@ -7,31 +7,24 @@ export interface CancelSubscriptionParams {
   updates?: Record<string, any>;
 }
 
-// File: /components/subscriptionActions.ts
-export async function cancelSubscription(id: string, subscriptionId?: string) {
+export async function cancelSubscription(id: string, subscriptionId?: string, transactionId?: string) {
   try {
     const res = await fetch('/api/cancelSubscription', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, subscriptionId }),
+      body: JSON.stringify({ id, subscriptionId, transactionId }),
     });
 
     const data = await res.json();
 
-    if (!res.ok) {
-      const message =
-        typeof data.error === 'string'
-          ? data.error
-          : JSON.stringify(data.error || 'כשל בביטול המנוי');
-      throw new Error(message);
-    }
-
+    if (!res.ok) throw new Error(data.error || 'כשל בביטול המנוי');
     return data;
   } catch (error) {
     console.error('❌ cancelSubscription error:', error);
     throw error;
   }
 }
+
 
 export const getAllSubscriptions = async () => {
   const res = await fetch('/api/subscriptions');

@@ -1,46 +1,18 @@
+// File: /app/api/cancelSubscription/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { admin } from '@/lib/firebase/firebase-admin';
 import axios from 'axios';
 
 export async function POST(req: NextRequest) {
   try {
-    const { id, subscriptionId, updates, sendCancelEmail } = await req.json();
+    const { id, subscriptionId, transactionId, updates, sendCancelEmail } = await req.json();
     const db = admin.firestore();
 
-    // שלב 1: ביטול הוראת קבע ב-Grow אם קיים subscriptionId
-    if (subscriptionId) {
-      const formData = new URLSearchParams();
-      formData.append('userId', '8f215caa9b2a3903');
-      formData.append('directDebitId', subscriptionId);
-      formData.append('action', 'cancel');
-
-      const { data } = await axios.post(
-        'https://sandbox.meshulam.co.il/api/light/server/1.0/updateDirectDebit',
-        formData,
-        { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
-      );
-
-      console.log('🔁 Grow cancel result:', data);
-
-      if (data?.status !== '1') {
-        let errorMsg = data?.err || data?.message || 'Grow cancellation failed';
-
-        // אם השגיאה מכילה את transactionId
-        if (typeof errorMsg === 'object' && errorMsg?.message?.includes('transactionId')) {
-          errorMsg = 'חסרים נתונים לביטול המנוי (transactionId)';
-        } else if (typeof errorMsg !== 'string') {
-          errorMsg = JSON.stringify(errorMsg);
-        }
-
-        return NextResponse.json({ error: errorMsg }, { status: 500 });
-      }
-    }
-
-    // שלב 2: עדכון במסד הנתונים
     let userDocRef = null;
     let userEmail = '';
     let userName = '';
 
+    // שליפת פרטי המשתמש
     if (id) {
       userDocRef = db.collection('users').doc(id);
       const userSnap = await userDocRef.get();
@@ -57,14 +29,42 @@ export async function POST(req: NextRequest) {
         userEmail = userData.email;
         userName = userData.name;
       } else {
-        return NextResponse.json({ error: 'לא נמצא משתמש עבור המנוי' }, { status: 404 });
+        return NextResponse.json({ error: 'User not found for subscriptionId' }, { status: 404 });
       }
     }
 
     if (!userDocRef) {
-      return NextResponse.json({ error: 'חסר מזהה משתמש או מזהה מנוי' }, { status: 400 });
+      return NextResponse.json({ error: 'Missing user ID or subscriptionId' }, { status: 400 });
     }
 
+    // ניסיון ביטול ב־Grow אם יש transactionId
+    let growCanceled = false;
+    let growMessage = '';
+
+    if (transactionId) {
+      const formData = new URLSearchParams();
+      formData.append('userId', '8f215caa9b2a3903');
+      formData.append('directDebitId', transactionId);
+      formData.append('action', 'cancel');
+
+      const { data } = await axios.post(
+        'https://sandbox.meshulam.co.il/api/light/server/1.0/updateDirectDebit',
+        formData,
+        { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
+      );
+
+      console.log('🔁 Grow cancel result:', data);
+
+      if (data?.status === '1') {
+        growCanceled = true;
+      } else {
+        growMessage = data?.err || 'Grow cancellation failed';
+      }
+    } else {
+      growMessage = 'המנוי בוטל אצלנו, אך לא ב־Grow (חסר transactionId)';
+    }
+
+    // עדכון Firestore
     await userDocRef.update({
       subscriptionStatus: 'canceled',
       isActive: false,
@@ -72,7 +72,7 @@ export async function POST(req: NextRequest) {
       ...(updates || {})
     });
 
-    // שליחת מייל ביטול אם נדרש
+    // שליחת מייל ביטול אם רלוונטי
     if (sendCancelEmail && userEmail) {
       await fetch('https://test.magicsale.co.il/api/sendCancelEmail', {
         method: 'POST',
@@ -81,20 +81,13 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    return NextResponse.json({ success: true });
-
+    return NextResponse.json({
+      success: true,
+      growCanceled,
+      message: growMessage || 'המנוי בוטל בהצלחה'
+    });
   } catch (err: any) {
-    console.error('❌ CancelSubscription error:', err?.message || err);
-
-    let errorMessage =
-      typeof err?.message === 'string'
-        ? err.message
-        : JSON.stringify(err) || 'שגיאה פנימית';
-
-    if (errorMessage.includes('transactionId')) {
-      errorMessage = 'חסרים נתונים לביטול המנוי (transactionId)';
-    }
-
-    return NextResponse.json({ error: errorMessage }, { status: 500 });
+    console.error('❌ CancelSubscription error:', err.message);
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }
