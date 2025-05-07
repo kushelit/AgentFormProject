@@ -26,6 +26,7 @@ export async function GET() {
           subscriptionId: data.subscriptionId || '',
           transactionId: data.transactionId || '',
           transactionToken : data.transactionToken || '',
+          asmachta: data.asmachta || '',
         };
       })
       // ✂️ סינון: רק משתמשים עם subscriptionId לא ריק

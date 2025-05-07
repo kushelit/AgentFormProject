@@ -27,12 +27,12 @@ export default function SubscriptionsTable() {
   };
 
   const handleCancel = async (id: string, subscriptionId: string,
-     transactionToken?: string ,transactionId?: string) => {
-    console.log('📦 ביטול מנוי:', { id, subscriptionId, transactionToken });
+     transactionToken?: string ,transactionId?: string, asmachta?: string) => {
+    console.log('📦 ביטול מנוי:', { id, subscriptionId, transactionToken,asmachta});
     if (!confirm('האם אתה בטוח שברצונך לבטל את המנוי?')) return;
 
     try {
-      const result = await cancelSubscription(id, subscriptionId, transactionToken, transactionId );
+      const result = await cancelSubscription(id, subscriptionId, transactionToken, transactionId, asmachta);
       setSubscriptions(subs =>
         subs.map(sub =>
           sub.id === id ? { ...sub, subscriptionStatus: 'canceled', isActive: false } : sub
@@ -132,7 +132,7 @@ export default function SubscriptionsTable() {
                 </button>
                 <button
                   className="bg-red-400 px-2 py-1 rounded text-white"
-                  onClick={() => handleCancel(sub.id, sub.subscriptionId, sub.transactionToken, sub.transactionId)}
+                  onClick={() => handleCancel(sub.id, sub.subscriptionId, sub.transactionToken, sub.transactionId, sub.asmachta)}
                   disabled={sub.subscriptionStatus === 'canceled'}
                 >
                   סגור מנוי
