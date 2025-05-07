@@ -25,6 +25,7 @@ export async function GET() {
           isActive: data.isActive ?? true,
           subscriptionId: data.subscriptionId || '',
           transactionId: data.transactionId || '',
+          transactionToken : data.transactionToken || '',
         };
       })
       // ✂️ סינון: רק משתמשים עם subscriptionId לא ריק

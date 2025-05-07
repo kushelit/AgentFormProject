@@ -5,7 +5,7 @@ import axios from 'axios';
 
 export async function POST(req: NextRequest) {
   try {
-    const { id, subscriptionId, transactionId, updates, sendCancelEmail } = await req.json();
+    const { id, subscriptionId, transactionToken, updates, sendCancelEmail } = await req.json();
     const db = admin.firestore();
 
     let userDocRef = null;
@@ -41,11 +41,27 @@ export async function POST(req: NextRequest) {
     let growCanceled = false;
     let growMessage = '';
 
-    if (transactionId) {
+    
+    console.log('Sending to Grow:', {
+      transactionToken : transactionToken ,
+      userId: '8f215caa9b2a3903',
+      action: 'cancel',
+    });
+    
+
+    if (transactionToken ) {
       const formData = new URLSearchParams();
       formData.append('userId', '8f215caa9b2a3903');
-      formData.append('directDebitId', transactionId);
+      formData.append('transactionToken', transactionToken);
       formData.append('action', 'cancel');
+
+
+// שלב הדפסה מלאה של formData
+console.log('🔍 Params sent to Grow:');
+formData.forEach((value, key) => {
+  console.log(`${key} = ${value}`);
+});
+
 
       const { data } = await axios.post(
         'https://sandbox.meshulam.co.il/api/light/server/1.0/updateDirectDebit',
@@ -58,10 +74,12 @@ export async function POST(req: NextRequest) {
       if (data?.status === '1') {
         growCanceled = true;
       } else {
-        growMessage = data?.err || 'Grow cancellation failed';
-      }
+        growMessage = typeof data?.err === 'string'
+        ? data.err
+        : data?.err?.message || 'Grow cancellation failed';
+            }
     } else {
-      growMessage = 'המנוי בוטל אצלנו, אך לא ב־Grow (חסר transactionId)';
+      growMessage = 'המנוי בוטל אצלנו, אך לא ב־Grow (חסר transactionToken)';
     }
 
     // עדכון Firestore

@@ -26,11 +26,12 @@ export default function SubscriptionsTable() {
     addToast('success', `המייל נשלח ל־${name}`);
   };
 
-  const handleCancel = async (id: string, subscriptionId: string, transactionId?: string) => {
+  const handleCancel = async (id: string, subscriptionId: string, transactionToken?: string) => {
+    console.log('📦 ביטול מנוי:', { id, subscriptionId, transactionToken });
     if (!confirm('האם אתה בטוח שברצונך לבטל את המנוי?')) return;
 
     try {
-      const result = await cancelSubscription(id, subscriptionId, transactionId);
+      const result = await cancelSubscription(id, subscriptionId, transactionToken );
       setSubscriptions(subs =>
         subs.map(sub =>
           sub.id === id ? { ...sub, subscriptionStatus: 'canceled', isActive: false } : sub
@@ -40,8 +41,13 @@ export default function SubscriptionsTable() {
       if (result?.growCanceled) {
         addToast('success', 'המנוי בוטל גם במערכת וגם ב־Grow');
       } else if (result?.message) {
-        addToast('warning', result.message);
-      } else {
+        addToast(
+          'warning',
+          typeof result.message === 'string'
+            ? result.message
+            : JSON.stringify(result.message)
+        );
+              } else {
         addToast('success', 'המנוי בוטל במערכת');
       }
     } catch (error: any) {
@@ -125,7 +131,7 @@ export default function SubscriptionsTable() {
                 </button>
                 <button
                   className="bg-red-400 px-2 py-1 rounded text-white"
-                  onClick={() => handleCancel(sub.id, sub.subscriptionId, sub.transactionId)}
+                  onClick={() => handleCancel(sub.id, sub.subscriptionId, sub.transactionToken)}
                   disabled={sub.subscriptionStatus === 'canceled'}
                 >
                   סגור מנוי

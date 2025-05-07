@@ -35,6 +35,7 @@ export async function POST(req: NextRequest) {
     const processId = (data['data[processId]'] ?? data.processId)?.toString();
     const customField = (data['data[customFields][cField1]'] ?? data['customFields[cField1]'])?.toString() ?? '';
     const transactionId = (data['data[transactionId]'] ?? data.transactionId)?.toString();
+    const transactionToken = (data['data[subscription][transactionToken]'] ?? data.transactionToken)?.toString();
 
     console.log("💳 Transaction ID:", transactionId);
 
@@ -55,7 +56,8 @@ export async function POST(req: NextRequest) {
         subscriptionStatus,
         lastPaymentStatus: paymentStatus,
         lastPaymentDate: paymentDate,
-        ...(transactionId ? { transactionId } : {})
+        ...(transactionId ? { transactionId } : {}),
+        ...(transactionToken ? { transactionToken } : {})
       });
       return NextResponse.json({ updated: true });
     }
@@ -94,6 +96,7 @@ export async function POST(req: NextRequest) {
       phone,
       subscriptionId: processId,
       transactionId: transactionId || null,
+      transactionToken: transactionToken || null,
       subscriptionStatus,
       lastPaymentStatus: paymentStatus,
       lastPaymentDate: paymentDate,

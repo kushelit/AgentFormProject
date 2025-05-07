@@ -114,9 +114,10 @@ const TeamPermissionsTable = () => {
       const baseQuery = collection(db, 'users');
       const isManager = detail?.role === 'manager';
       const isAgent = detail?.role === 'agent';
+      const isWorker = detail?.role === 'worker';
 
       let workersQuery;
-      if ((isAgent || isManager) && selectedAgentId && selectedAgentId !== 'all') {
+      if ((isAgent || isManager || isWorker) && selectedAgentId && selectedAgentId !== 'all') {
         workersQuery = query(baseQuery, where('agentId', '==', selectedAgentId));
       } else if (detail?.role === 'admin' && selectedAgentId && selectedAgentId !== 'all') {
         workersQuery = query(baseQuery, where('agentId', '==', selectedAgentId));

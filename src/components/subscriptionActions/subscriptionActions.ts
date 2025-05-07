@@ -7,12 +7,12 @@ export interface CancelSubscriptionParams {
   updates?: Record<string, any>;
 }
 
-export async function cancelSubscription(id: string, subscriptionId?: string, transactionId?: string) {
+export async function cancelSubscription(id: string, subscriptionId?: string, transactionToken?: string) {
   try {
     const res = await fetch('/api/cancelSubscription', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, subscriptionId, transactionId }),
+      body: JSON.stringify({ id, subscriptionId, transactionToken  }),
     });
 
     const data = await res.json();
