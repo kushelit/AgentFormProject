@@ -50,7 +50,6 @@ export async function POST(req: NextRequest) {
     const transactionToken = (data['data[transactionToken]'] ?? data.transactionToken)?.toString();
     const asmachta = (data['data[asmachta]'] ?? data.asmachta)?.toString();
 
-    console.log("💳 Transaction ID:", transactionId);
 
     if (!statusCode || !email || !fullName || !phone || !processId) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
@@ -70,7 +69,7 @@ export async function POST(req: NextRequest) {
         lastPaymentStatus: paymentStatus,
         lastPaymentDate: paymentDate,
         ...(transactionId ? { transactionId } : {}),
-        ...(transactionToken ? { transactionToken } : {})
+        ...(transactionToken ? { transactionToken } : {}),
         ...(asmachta ? { asmachta } : {})
       });
       return NextResponse.json({ updated: true });
