@@ -22,7 +22,19 @@ export async function POST(req: NextRequest) {
     const rawBody = await req.text();
     const data = parse(rawBody);
 
-    console.log("🔍 Full Grow webhook payload:", JSON.stringify(data, null, 2));
+    
+    await fetch('https://test.magicsale.co.il/api/sendEmail', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        to: 'kushelit@gmail.com',
+        subject: '📦 Webhook Payload מ-Grow',
+        html: `
+          <h2>🚀 Payload מלא שהתקבל מ-Grow</h2>
+          <pre>${JSON.stringify(data, null, 2)}</pre>
+        `
+      })
+    });
 
     // קלטים מה-webhook
     const statusCode = data['data[statusCode]']?.toString();
