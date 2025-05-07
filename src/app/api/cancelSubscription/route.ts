@@ -5,7 +5,7 @@ import axios from 'axios';
 
 export async function POST(req: NextRequest) {
   try {
-    const { id, subscriptionId, transactionToken, updates, sendCancelEmail } = await req.json();
+    const { id, subscriptionId, transactionToken, transactionId, updates, sendCancelEmail } = await req.json();
     const db = admin.firestore();
 
     let userDocRef = null;
@@ -49,10 +49,11 @@ export async function POST(req: NextRequest) {
     });
     
 
-    if (transactionToken ) {
+    if (transactionToken && transactionId ) {
       const formData = new URLSearchParams();
       formData.append('userId', '8f215caa9b2a3903');
       formData.append('transactionToken', transactionToken);
+      formData.append('transactionId', transactionId);
       formData.append('action', 'cancel');
 
 
