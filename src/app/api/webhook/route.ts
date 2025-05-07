@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
     const rawBody = await req.text();
     const data = parse(rawBody);
 
-    console.log("📦 Webhook payload (raw):", data);
+    console.log("🔍 Full Grow webhook payload:", JSON.stringify(data, null, 2));
 
     // קלטים מה-webhook
     const statusCode = data['data[statusCode]']?.toString();
