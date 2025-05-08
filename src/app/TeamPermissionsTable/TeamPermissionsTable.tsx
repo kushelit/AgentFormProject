@@ -17,6 +17,7 @@ interface ExtendedWorker {
   name: string;
   role: string;
   subscriptionId?: string;
+  subscriptionType?: string;
   permissionOverrides?: {
     allow?: string[];
     deny?: string[];
@@ -154,6 +155,7 @@ const TeamPermissionsTable = () => {
             name: data.name,
             role: data.role,
             subscriptionId: data.subscriptionId || '',
+            subscriptionType: data.subscriptionType || '',
             permissionOverrides: data.permissionOverrides || {}
           });
         });

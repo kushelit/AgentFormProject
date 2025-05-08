@@ -2,6 +2,7 @@ type User = {
   uid: string;
   role: string;
   subscriptionId?: string;
+  subscriptionType?: string;
   permissionOverrides?: {
     allow?: string[];
     deny?: string[];
@@ -27,20 +28,14 @@ export function hasPermission({
 
   if (!rolePermissions) return false;
 
-  const hasFullRole = rolePermissions.includes("*");
-
-  // נבדוק הרשאות מנוי רק אם יש למשתמש subscriptionId
-  const subscriptionId = user.subscriptionId;
-  const subscriptionPerms = subscriptionId
-    ? subscriptionPermissionsMap?.[subscriptionId] || []
-    : null;
-
-  const hasFullSub = subscriptionPerms?.includes("*") ?? true;
-
-  if (hasFullRole && hasFullSub) return true;
+  const hasSub = !!user.subscriptionId && !!user.subscriptionType;
+  const subscriptionPerms =
+  user.subscriptionType && subscriptionPermissionsMap
+    ? subscriptionPermissionsMap[user.subscriptionType] || []
+    : [];
 
   const roleHas = rolePermissions.includes(permission);
-  const subHas = subscriptionPerms ? subscriptionPerms.includes(permission) : true;
+  const subHas = hasSub ? subscriptionPerms?.includes(permission) : true;
 
   return roleHas && subHas;
 }

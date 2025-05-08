@@ -11,6 +11,7 @@ type FullUser = {
   uid: string;
   role: string;
   subscriptionId?: string;
+  subscriptionType?: string;  
   permissionOverrides?: {
     allow?: string[];
     deny?: string[];
@@ -30,7 +31,7 @@ export function usePermission(permission: string): {
 
   useEffect(() => {
     const fetchSubscriptionPermissions = async () => {
-      const snapshot = await getDocs(collection(db, 'subscriptions'));
+      const snapshot = await getDocs(collection(db, 'subscriptions_permissions'));
       const result: Record<string, string[]> = {};
       snapshot.forEach((doc) => {
         const data = doc.data();
@@ -51,6 +52,7 @@ export function usePermission(permission: string): {
     uid: user?.uid || '',
     role: detail?.role || '',
     subscriptionId,
+    subscriptionType: detail?.subscriptionType || '',
     permissionOverrides: detail?.permissionOverrides || {},
     ...user,
   }), [user, detail, subscriptionId]);

@@ -22,20 +22,6 @@ export async function POST(req: NextRequest) {
     const rawBody = await req.text();
     const data = parse(rawBody);
 
-    
-    await fetch('https://test.magicsale.co.il/api/sendEmail', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        to: 'kushelit@gmail.com',
-        subject: '📦 Webhook Payload מ-Grow',
-        html: `
-          <h2>🚀 Payload מלא שהתקבל מ-Grow</h2>
-          <pre>${JSON.stringify(data, null, 2)}</pre>
-        `
-      })
-    });
-
     // קלטים מה-webhook
     const statusCode = data['data[statusCode]']?.toString();
     const paymentStatus = statusCode === '2' ? 'success' : 'failed';
@@ -46,10 +32,10 @@ export async function POST(req: NextRequest) {
     const phone = (data['data[payerPhone]'] ?? data.payerPhone)?.toString();
     const processId = (data['data[processId]'] ?? data.processId)?.toString();
     const customField = (data['data[customFields][cField1]'] ?? data['customFields[cField1]'])?.toString() ?? '';
+    const subscriptionType = (data['data[customFields][cField2]'] ?? data['customFields[cField2]'])?.toString() ?? '';
     const transactionId = (data['data[transactionId]'] ?? data.transactionId)?.toString();
     const transactionToken = (data['data[transactionToken]'] ?? data.transactionToken)?.toString();
     const asmachta = (data['data[asmachta]'] ?? data.asmachta)?.toString();
-
 
     if (!statusCode || !email || !fullName || !phone || !processId) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
@@ -66,11 +52,12 @@ export async function POST(req: NextRequest) {
       const docRef = snapshot.docs[0].ref;
       await docRef.update({
         subscriptionStatus,
+        subscriptionType,
         lastPaymentStatus: paymentStatus,
         lastPaymentDate: paymentDate,
         ...(transactionId ? { transactionId } : {}),
         ...(transactionToken ? { transactionToken } : {}),
-        ...(asmachta ? { asmachta } : {})
+        ...(asmachta ? { asmachta } : {}),
       });
       return NextResponse.json({ updated: true });
     }
@@ -99,8 +86,8 @@ export async function POST(req: NextRequest) {
           לאחר מכן, תוכלי להתחבר כאן: <a href="https://test.magicsale.co.il/auth/log-in">כניסה למערכת</a><br><br>
           בהצלחה!<br>
           צוות MagicSale
-        `
-      })
+        `,
+      }),
     });
 
     await db.collection('users').doc(newUser.uid).set({
@@ -112,6 +99,7 @@ export async function POST(req: NextRequest) {
       transactionToken: transactionToken || null,
       asmachta: asmachta || null,
       subscriptionStatus,
+      subscriptionType,
       lastPaymentStatus: paymentStatus,
       lastPaymentDate: paymentDate,
       role: 'agent',
@@ -121,9 +109,8 @@ export async function POST(req: NextRequest) {
     });
 
     return NextResponse.json({ created: true });
-
   } catch (err: any) {
-    console.error("❌ Webhook error:", err);
+    console.error('❌ Webhook error:', err);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }

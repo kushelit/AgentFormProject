@@ -31,6 +31,7 @@ type UserDetail = {
   agencyId: string;
   role: 'agent' | 'worker' | 'admin' | 'manager';
   subscriptionId?: string;
+  subscriptionType?: string;
   permissionOverrides?: {
     allow?: string[];
     deny?: string[];
