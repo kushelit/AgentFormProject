@@ -89,6 +89,7 @@ formData.forEach((value, key) => {
       subscriptionStatus: 'canceled',
       isActive: false,
       cancellationDate: new Date(),
+      growCancellationStatus: growCanceled ? 'success' : 'failed',
       ...(updates || {})
     });
 

@@ -1,54 +1,77 @@
 'use client';
 
 import PropTypes from "prop-types";
-import React , {useState} from "react";
+import React, { useState } from "react";
 import { ButtonTopbar } from "../ButtonTopbar";
 import { Logo } from "../Logo";
 import "./style.css";
 import { useAuth } from "@/lib/firebase/AuthContext";
 import Link from "next/link";
-import { redirect, useRouter } from 'next/navigation';
+import { useRouter } from 'next/navigation';
+import { UserSubscriptionPopup } from "@/components/UserSubscriptionPopup/UserSubscriptionPopup";
 
 export const TopBar = ({ prop = true, className }) => {
   const { user, detail, logOut } = useAuth();
-  const router = useRouter(); // ✅ הגדרת router
-
+  const router = useRouter();
+  const [showPopup, setShowPopup] = useState(false);
 
   return (
-    <div className={`top-bar ${className}`}>
-<Link href="/NewAgentForm">
-< Logo className="logo-instance" />
-     </Link> {prop && (
-        <div className="frame">
-          {user ? (
-            <>
-              {/* שם המשתמש */}
-              <button onClick={() => router.push('/Help')} className="help-button">
-                📖 עזרה
-              </button>
-             <img className="line" alt="Line" src="/static/img/line-2.png" />
+    <>
+      <div className={`top-bar ${className}`}>
+        <Link href="/NewAgentForm">
+          <Logo className="logo-instance" />
+        </Link>
 
-              <span className="user-name">{detail?.name}</span>
-              <img className="line" alt="Line" src="/static/img/line-2.png" />
-              {/* כפתור יציאה */}
-              <ButtonTopbar
-                className="design-component-instance-node"
-                state="default"
-                logOut={() => {
-                  logOut().then(() => window.location.reload())
-                }}
-              />
-            </>
-          ) : (
-            <>
-              {/* קישור התחברות */}
-              <Link href="/auth/sign-up/agent" className="user-name">הרשם</Link>
-              <Link href="/auth/log-in" className="user-name">התחבר</Link>
-            </>
-          )}
-        </div>
+        {prop && (
+          <div className="frame">
+            {user ? (
+              <>
+                <button onClick={() => router.push('/Help')} className="help-button">
+                  📖 עזרה
+                </button>
+                <img className="line" alt="Line" src="/static/img/line-2.png" />
+                <span
+                  className="user-name"
+                  onClick={() => setShowPopup(true)}
+                  style={{ cursor: "pointer" }}
+                >
+                  {detail?.name}
+                </span>
+                <img className="line" alt="Line" src="/static/img/line-2.png" />
+                <ButtonTopbar
+                  className="design-component-instance-node"
+                  state="default"
+                  logOut={() => logOut().then(() => window.location.reload())}
+                />
+              </>
+            ) : (
+              <>
+                <Link href="/auth/sign-up/agent" className="user-name">הרשם</Link>
+                <Link href="/auth/log-in" className="user-name">התחבר</Link>
+              </>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* הפופאפ מחוץ ל-top-bar */}
+      {user && showPopup && (
+        <UserSubscriptionPopup
+          name={detail?.name}
+          email={detail?.email}
+          phone={detail?.phone}
+          subscriptionStatus={detail?.subscriptionStatus}
+          transactionId={detail?.transactionId}
+          transactionToken={detail?.transactionToken}
+          asmachta={detail?.asmachta}
+          onCancel={() => {
+            // כאן אפשר להוסיף קריאה לפונקציית הביטול בעתיד
+            setShowPopup(false);
+          }}
+          onClose={() => setShowPopup(false)}
+        />
       )}
-    </div>
+    </>
   );
 };
 

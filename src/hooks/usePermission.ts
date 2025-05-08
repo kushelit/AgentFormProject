@@ -1,23 +1,59 @@
 import { useAuth } from "@/lib/firebase/AuthContext";
-import { useRolePermissions } from "./useRolePermissions";
 import { hasPermission } from "@/lib/permissions/hasPermission";
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { collection, getDocs } from "firebase/firestore";
+import { db } from "@/lib/firebase/firebase";
 
 /**
  * Hook שמחזיר האם למשתמש יש הרשאה, וגם האם עדיין בטעינה
  */
+type FullUser = {
+  uid: string;
+  role: string;
+  subscriptionId?: string;
+  permissionOverrides?: {
+    allow?: string[];
+    deny?: string[];
+  };
+  [key: string]: any;
+};
+
 export function usePermission(permission: string): {
   canAccess: boolean | null;
   isChecking: boolean;
 } {
-  const { user, detail, isLoading } = useAuth();
-  const role = detail?.role ?? null;
-  const rolePermissions = useRolePermissions(role); // ⬅️ כאן השתמשנו בגרסה החדשה
+  const { user, detail, isLoading, rolesPermissions } = useAuth();
+  const role = detail?.role;
+  const subscriptionId = detail?.subscriptionId || '';
 
-  const fullUser = useMemo(() => ({
+  const [subscriptionPermissionsMap, setSubscriptionPermissionsMap] = useState<Record<string, string[]>>({});
+
+  useEffect(() => {
+    const fetchSubscriptionPermissions = async () => {
+      const snapshot = await getDocs(collection(db, 'subscriptions'));
+      const result: Record<string, string[]> = {};
+      snapshot.forEach((doc) => {
+        const data = doc.data();
+        result[doc.id] = data.permissions || [];
+      });
+      setSubscriptionPermissionsMap(result);
+    };
+
+    fetchSubscriptionPermissions();
+  }, []);
+
+  const rolePermissions = useMemo(() => {
+    if (!role) return [];
+    return rolesPermissions[role] || [];
+  }, [rolesPermissions, role]);
+
+  const fullUser: FullUser = useMemo(() => ({
+    uid: user?.uid || '',
+    role: detail?.role || '',
+    subscriptionId,
+    permissionOverrides: detail?.permissionOverrides || {},
     ...user,
-    permissionOverrides: detail?.permissionOverrides || {}
-  }), [user, detail]);
+  }), [user, detail, subscriptionId]);
 
   const isChecking = isLoading || !user || !detail || rolePermissions.length === 0;
 
@@ -27,8 +63,9 @@ export function usePermission(permission: string): {
       user: fullUser,
       permission,
       rolePermissions,
+      subscriptionPermissionsMap,
     });
-  }, [isChecking, fullUser, permission, rolePermissions]);
+  }, [isChecking, fullUser, permission, rolePermissions, subscriptionPermissionsMap]);
 
   return { canAccess, isChecking };
 }
