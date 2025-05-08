@@ -55,7 +55,8 @@ export async function POST(req: NextRequest) {
       formData.append('transactionToken', transactionToken);
       formData.append('transactionId', transactionId);
       formData.append('asmachta', asmachta);
-      formData.append('action', 'cancel');
+      // formData.append('action', 'cancel');
+      formData.append('changeStatus', '2');
 
 
 // שלב הדפסה מלאה של formData
