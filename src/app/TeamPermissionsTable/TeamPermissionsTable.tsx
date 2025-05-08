@@ -15,7 +15,7 @@ interface ExtendedWorker {
   id: string;
   uid: string;
   name: string;
-  role?: string;
+  role: string;
   subscriptionId?: string;
   permissionOverrides?: {
     allow?: string[];
@@ -62,7 +62,8 @@ const TeamPermissionsTable = () => {
 
   const rolePerms = rolePermissionsMap[detail?.role || ''] ?? [];
   const currentUser = {
-    ...user,
+    uid: user?.uid || '',
+    role: detail?.role || '',
     subscriptionId: detail?.subscriptionId || '',
     permissionOverrides: detail?.permissionOverrides || {}
   };
@@ -107,7 +108,6 @@ const TeamPermissionsTable = () => {
       });
 
       const filtered = allPerms.filter(p => permissionSet.has(p.id));
-
       const specialPermissionId = 'view_commissions_field';
       const normalPermissions = filtered.filter(p => p.id !== specialPermissionId);
       const specialPermission = filtered.find(p => p.id === specialPermissionId);
@@ -284,7 +284,7 @@ const TeamPermissionsTable = () => {
         <thead>
           <tr className="bg-gray-100">
             <th className="border px-2 py-1">הרשאה</th>
-            {[...workers].sort((a, b) => (a.role === 'agent' ? -1 : 1)).map((worker) => (
+            {workers.map((worker) => (
               <th key={worker.id} className="border px-2 py-1 whitespace-nowrap">
                 {worker.name}<br />({worker.role || 'ללא תפקיד'})
               </th>
@@ -295,7 +295,7 @@ const TeamPermissionsTable = () => {
           {allPermissions.map((perm) => (
             <tr key={perm.id} className={perm.id === 'view_commissions_field' ? 'special-permission-row' : ''}>
               <td className="border px-2 py-1 font-semibold whitespace-nowrap" title={perm.id}>{perm.name}</td>
-              {[...workers].sort((a, b) => (a.role === 'agent' ? -1 : 1)).map((worker) => {
+              {workers.map((worker) => {
                 const rolePerms = rolePermissionsMap[worker.role || ''] ?? [];
                 const has = hasPermission({
                   user: worker,
