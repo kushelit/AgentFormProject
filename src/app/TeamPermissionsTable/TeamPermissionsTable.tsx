@@ -13,6 +13,7 @@ import DialogNotification from "@/components/DialogNotification";
 
 interface ExtendedWorker {
   id: string;
+  uid: string;
   name: string;
   role?: string;
   subscriptionId?: string;
@@ -149,6 +150,7 @@ const TeamPermissionsTable = () => {
           const data = docSnap.data();
           workersData.push({
             id: docSnap.id,
+            uid: docSnap.id,
             name: data.name,
             role: data.role,
             subscriptionId: data.subscriptionId || '',
