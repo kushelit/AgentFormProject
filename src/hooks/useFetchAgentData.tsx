@@ -23,7 +23,8 @@ const useFetchAgentData = () => {
   const { user, detail,isLoading } = useAuth(); // Assuming useAuth() hook correctly provides User | null and Detail | null
   const [agents, setAgents] = useState<{id: string, name: string}[]>([]);
   const [selectedAgentId, setSelectedAgentId] = useState<string>('');
-  
+  const [subscriptionPermissionsMap, setSubscriptionPermissionsMap] = useState<Record<string, string[]>>({});
+
   
 //  const [selectedAgentId, setSelectedAgentId] = useState<string>(() => {
 //   if (detail?.role === 'admin') {
@@ -167,9 +168,12 @@ const useFetchAgentData = () => {
     setIsLoadingAgent(true);
     try {
       const currentUser = {
-        ...user,
-        permissionOverrides: detail.permissionOverrides || {}
+        uid: user?.uid || '',
+        role: detail?.role || '',
+        subscriptionId: detail?.subscriptionId || '',
+        permissionOverrides: detail?.permissionOverrides || {},
       };
+      
 
       const roleDoc = await getDoc(doc(db, 'roles', detail.role));
       const rolePerms = roleDoc.exists() ? roleDoc.data().permissions || [] : [];
@@ -177,8 +181,10 @@ const useFetchAgentData = () => {
       const hasAccessAgentGroup = hasPermission({
         user: currentUser,
         permission: 'access_all_agents_in_group',
-        rolePermissions: rolePerms
+        rolePermissions: rolePerms,
+        subscriptionPermissionsMap, // ✅ הוספת תמיכה בהרשאות לפי מנוי
       });
+      
 
       let agentsList = [];
 
