@@ -90,9 +90,21 @@ export const ChangePlanModal: React.FC<ChangePlanModalProps> = ({
         </div>
         <div className="modal-actions">
           <button onClick={onClose}>ביטול</button>
-          <button onClick={handleUpgrade} disabled={!selectedPlan || loading}>
-            {loading ? 'טוען...' : 'החלף תוכנית'}
-          </button>
+          <button
+  onClick={() => {
+    console.log("📤 נשלחת בקשת החלפת תוכנית עם:", {
+      selectedPlan,
+      userId,
+      transactionToken,
+      transactionId,
+      asmachta,
+    });
+    handleUpgrade();
+  }}
+  disabled={!selectedPlan || loading}
+>
+  {loading ? 'טוען...' : 'החלף תוכנית'}
+</button>
         </div>
       </div>
     </div>

@@ -56,7 +56,7 @@ export async function POST(req: NextRequest) {
 
     console.log('✅ Grow response:', data);
 
-    if (data?.status !== '1') {
+    if (data?.status !== 1) {
       return NextResponse.json({ error: 'Grow update failed', details: data }, { status: 502 });
     }
 

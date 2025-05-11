@@ -64,6 +64,7 @@ export const TopBar = ({ prop = true, className }) => {
           transactionId={detail?.transactionId}
           transactionToken={detail?.transactionToken}
           asmachta={detail?.asmachta}
+          userId={user?.uid || ''}
           onCancel={() => {
             // כאן אפשר להוסיף קריאה לפונקציית הביטול בעתיד
             setShowPopup(false);

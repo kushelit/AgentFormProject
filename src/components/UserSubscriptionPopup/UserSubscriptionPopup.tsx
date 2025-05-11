@@ -2,7 +2,8 @@
 
 import React, { useState } from 'react';
 import { ChangePlanModal } from '../ChangePlanModal/ChangePlanModal';
-import "./UserSubscriptionPopup.css";
+import './UserSubscriptionPopup.css';
+import axios from 'axios';
 
 interface UserSubscriptionPopupProps {
   name?: string;
@@ -32,6 +33,7 @@ export const UserSubscriptionPopup: React.FC<UserSubscriptionPopupProps> = ({
   userId,
 }) => {
   const [showChangeModal, setShowChangeModal] = useState(false);
+  const [isCancelling, setIsCancelling] = useState(false);
 
   const renderInfoRow = (label: string, value?: string | null) => (
     <div className="info-row">
@@ -39,6 +41,34 @@ export const UserSubscriptionPopup: React.FC<UserSubscriptionPopupProps> = ({
       <span className="value">{value || '-'}</span>
     </div>
   );
+
+  const handleCancelSubscription = async () => {
+    if (!userId || !transactionToken || !transactionId || !asmachta) return;
+    setIsCancelling(true);
+
+    try {
+      const res = await axios.post('/api/cancel-subscription', {
+        id: userId,
+        transactionToken,
+        transactionId,
+        asmachta,
+        sendCancelEmail: true,
+      });
+
+      if (res.data.success) {
+        alert('המנוי בוטל בהצלחה');
+        onCancel();
+        onClose();
+      } else {
+        alert('שגיאה בביטול המנוי: ' + (res.data.message || res.data.error));
+      }
+    } catch (err) {
+      console.error('שגיאה בביטול:', err);
+      alert('אירעה שגיאה בביטול המנוי');
+    } finally {
+      setIsCancelling(false);
+    }
+  };
 
   return (
     <div className="popup-overlay">
@@ -55,8 +85,22 @@ export const UserSubscriptionPopup: React.FC<UserSubscriptionPopupProps> = ({
         {renderInfoRow('אסמכתא', asmachta)}
 
         <div className="buttons">
-          <button className="cancel-button" onClick={onCancel}>בטל מנוי</button>
-          <button className="upgrade-button" onClick={() => setShowChangeModal(true)}>שנה תוכנית</button>
+          <button
+            className="cancel-button"
+            onClick={handleCancelSubscription}
+            disabled={isCancelling}
+          >
+            {isCancelling ? 'מבטל...' : 'בטל מנוי'}
+          </button>
+          <button
+            className="upgrade-button"
+            onClick={() => {
+              console.log('✅ נלחץ כפתור שינוי תוכנית');
+              setShowChangeModal(true);
+            }}
+          >
+            שנה תוכנית
+          </button>
           <button className="closeButton" onClick={onClose}>סגור</button>
         </div>
       </div>
@@ -68,7 +112,10 @@ export const UserSubscriptionPopup: React.FC<UserSubscriptionPopupProps> = ({
           transactionToken={transactionToken || ''}
           asmachta={asmachta || ''}
           currentPlan={subscriptionType || ''}
-          onClose={() => setShowChangeModal(false)}
+          onClose={() => {
+            console.log('🔒 נסגר מודל שינוי תוכנית');
+            setShowChangeModal(false);
+          }}
         />
       )}
     </div>
