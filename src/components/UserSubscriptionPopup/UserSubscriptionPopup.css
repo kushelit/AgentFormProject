@@ -1,4 +1,4 @@
-/* UserSubscriptionPopup.css */
+/* UserSubscriptionPopup.css - עיצוב תואם לדף בחירת מסלול */
 
 .popup-overlay {
   position: fixed;
@@ -11,64 +11,185 @@
 }
 
 .subscription-popup {
-  background-color: #fff;
-  border-radius: 12px;
-  padding: 24px;
+  background-color: #ffffff;
+  border-radius: 16px;
+  padding: 32px;
   width: 100%;
-  max-width: 420px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
-  position: relative;
-  font-family: 'Arial', sans-serif;
+  max-width: 620px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+  font-family: 'Segoe UI', sans-serif;
   direction: rtl;
-  border-top: 4px solid #0d47a1; /* כחול כהה בראש */
+  position: relative;
+  border: 1px solid #e2e8f0;
 }
 
-.subscription-popup h2 {
-  font-size: 20px;
+.popup-title {
+  font-size: 26px;
   font-weight: bold;
-  margin-bottom: 16px;
-  color: #0d47a1;
-  text-align: right;
+  margin-bottom: 24px;
+  color: #1d4ed8;
+  text-align: center;
 }
 
 .info-row {
-  margin-bottom: 8px;
-  text-align: right;
-  font-size: 14px;
+  display: flex;
+  justify-content: space-between;
+  font-size: 16px;
+  padding: 12px 0;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.info-row .label {
+  font-weight: bold;
+  color: #1e40af;
+}
+
+.info-row .value {
+  color: #0f172a;
 }
 
 .buttons {
   display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-  margin-top: 24px;
-}
-
-.closeButton {
-  background-color: #cfd8dc;
-  color: #000;
-  padding: 8px 16px;
-  border-radius: 8px;
-  border: none;
-  cursor: pointer;
+  justify-content: center;
+  gap: 16px;
+  margin-top: 32px;
 }
 
 .cancel-button {
-  background-color: #ef5350;
-  color: #fff;
-  padding: 8px 16px;
+  background-color: #dc2626;
+  color: white;
+  padding: 12px 28px;
   border-radius: 8px;
   border: none;
+  font-weight: bold;
+  font-size: 16px;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+.upgrade-button {
+  background-color: #2563eb;
+  color: white;
+  padding: 12px 28px;
+  border-radius: 8px;
+  border: none;
+  font-weight: bold;
+  font-size: 16px;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+.closeButton {
+  background-color: #e2e8f0;
+  color: #1e293b;
+  padding: 12px 28px;
+  border-radius: 8px;
+  border: none;
+  font-weight: bold;
+  font-size: 16px;
   cursor: pointer;
 }
 
 .popup-close-button {
   position: absolute;
-  top: 8px;
-  left: 12px;
+  top: 12px;
+  left: 16px;
   background: none;
   border: none;
   font-size: 22px;
-  color: #333;
+  color: #4b5563;
   cursor: pointer;
+}
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+}
+
+.modal-content {
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 32px;
+  max-width: 620px;
+  width: 100%;
+  text-align: right;
+  direction: rtl;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
+  border: 1px solid #e2e8f0;
+}
+
+.modal-title {
+  font-size: 24px;
+  font-weight: bold;
+  color: #1d4ed8;
+  margin-bottom: 24px;
+  text-align: center;
+}
+
+.plans-grid {
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  gap: 24px;
+  flex-wrap: wrap;
+  margin-bottom: 24px;
+}
+
+.plan-card {
+  flex: 1;
+  min-width: 260px;
+  border: 1px solid #d1d5db;
+  padding: 24px;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background-color: #f9fafb;
+  text-align: right;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+}
+
+.plan-card:hover {
+  background-color: #eff6ff;
+  border-color: #3b82f6;
+}
+
+.plan-card.selected {
+  border: 2px solid #2563eb;
+  background-color: #dbeafe;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+  margin-top: 32px;
+}
+
+.modal-actions button {
+  padding: 12px 28px;
+  border-radius: 8px;
+  font-weight: bold;
+  font-size: 16px;
+  cursor: pointer;
+  border: none;
+}
+
+.modal-actions button:first-child {
+  background-color: #f3f4f6;
+  color: #334155;
+}
+
+.modal-actions button:last-child {
+  background-color: #2563eb;
+  color: white;
+}
+
+.modal-actions button:last-child:disabled {
+  background-color: #93c5fd;
+  cursor: not-allowed;
 }
