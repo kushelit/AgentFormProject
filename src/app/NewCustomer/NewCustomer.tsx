@@ -95,12 +95,20 @@ const NewCustomer = () => {
 
 // ניהול העמוד הנוכחי
 const [currentPage, setCurrentPage] = useState(1);
-const rowsPerPage = 8; // מספר השורות בעמוד
+// const rowsPerPage = 8; // מספר השורות בעמוד
+
+const [rowsPerPage, setRowsPerPage] = useState(10);
+const totalPages = Math.ceil(filteredData.length / rowsPerPage);
 
 // חישוב הנתונים לעמוד הנוכחי
 const indexOfLastRow = currentPage * rowsPerPage;
 const indexOfFirstRow = indexOfLastRow - rowsPerPage;
 const currentRows = sortedData.slice(indexOfFirstRow, indexOfLastRow);
+
+
+useEffect(() => {
+  setCurrentPage(1);
+}, [rowsPerPage]);
 
 const { toasts, addToast, setToasts } = useToast();
 
@@ -1313,10 +1321,12 @@ console.log("selectedAgentId:", selectedAgentId);
 </div>
         {/* רכיב הניווט */}
         <TableFooter
-          currentPage={currentPage}
-          totalPages={Math.ceil(filteredData.length / rowsPerPage)}
-          onPageChange={handlePageChange}
-        />
+  currentPage={currentPage}
+  totalPages={totalPages}
+  onPageChange={handlePageChange}
+  rowsPerPage={rowsPerPage}
+  onRowsPerPageChange={setRowsPerPage}
+/>
       </div>
     </td>
   </tr>
