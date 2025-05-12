@@ -65,6 +65,7 @@ export default function WorkerSignUpPage({ params }: { params: { agentId: string
           email,
           role: 'worker',
           agentId: params.agentId,
+          isActive: true,
         });
 
         redirect('/');

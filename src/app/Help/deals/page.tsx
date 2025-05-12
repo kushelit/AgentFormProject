@@ -98,6 +98,16 @@ const DealsHelp = () => {
           <Image src="/static/img/notes.png" alt="הערות" width={200} height={100} />
             <p>מאפשר לצפות בטקסט המלא בחלונית באמצעות עמידה על השדה </p>
           </div>
+          <div className="card">
+  <div className="card-header" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+    <Image src="/static/img/excel-icon.svg" alt="Excel Icon" width={20} height={20} />
+    <span>📤 ייצוא לאקסל</span>
+  </div>
+  <div className="inline-image-text">
+    <Image src="/static/img/excel-icon.svg" alt="ייצוא לאקסל" width={100} height={60} />
+    <p>ניתן לסנן את העסקאות לפי הצורך ולייצא את הנתונים לקובץ אקסל באמצעות לחיצה על כפתור הייצוא.</p>
+  </div>
+</div>
         </div>
       </div>
 

@@ -154,6 +154,7 @@ const TeamPermissionsTable = () => {
             uid: docSnap.id,
             name: data.name,
             role: data.role,
+            isActive: data.isActive ?? true,
             subscriptionId: data.subscriptionId || '',
             subscriptionType: data.subscriptionType || '',
             permissionOverrides: data.permissionOverrides || {}
@@ -264,11 +265,11 @@ const TeamPermissionsTable = () => {
           ⚠️ אין לך הרשאה לערוך הרשאות. ניתן רק לצפות.
         </div>
       )}
-
+  
       <h2 className="text-xl font-bold mb-4">
         הרשאות עובדים של {detail?.role === 'admin' ? selectedAgentName || detail?.name : detail?.name}
       </h2>
-
+  
       {detail?.role === 'admin' && (
         <div className="mb-4">
           <label className="mr-2 font-semibold">בחר סוכן:</label>
@@ -281,7 +282,7 @@ const TeamPermissionsTable = () => {
           </select>
         </div>
       )}
-
+  
       <table className="min-w-max border text-right">
         <thead>
           <tr className="bg-gray-100">
@@ -307,7 +308,7 @@ const TeamPermissionsTable = () => {
                 });
                 const isOverridden = worker.permissionOverrides?.allow?.includes(perm.id) || worker.permissionOverrides?.deny?.includes(perm.id);
                 const canToggle = canTogglePermission(perm.id);
-
+  
                 return (
                   <td
                     key={worker.id + perm.id}
@@ -321,9 +322,45 @@ const TeamPermissionsTable = () => {
               })}
             </tr>
           ))}
+  
+  <tr className="bg-gray-50 border-t-4 border-gray-400">
+  <td className="border-t-4 border-gray-400 px-2 py-3 font-bold whitespace-nowrap text-center bg-white">
+  סטטוס משתמש
+  </td>
+            {workers.map((worker) => {
+              const canEdit = canEditPermissions;
+              const toggleActiveStatus = async (workerId: string, currentStatus: boolean) => {
+                try {
+                  const userRef = doc(db, 'users', workerId);
+                  await updateDoc(userRef, {
+                    isActive: !currentStatus
+                  });
+                  setWorkers(prev => prev.map(w => w.id === workerId ? {
+                    ...w,
+                    isActive: !currentStatus
+                  } : w));
+                  addToast('success', 'סטטוס עודכן בהצלחה');
+                } catch (err) {
+                  console.error(err);
+                  addToast('error', 'שגיאה בעדכון סטטוס');
+                }
+              };
+  
+              return (
+                <td
+                  key={worker.id + '-isActive'}
+                  className={`border-t-4 border-gray-400 px-2 py-3 text-center font-semibold bg-white ${canEdit ? 'cursor-pointer hover:bg-blue-100' : 'text-gray-400 cursor-not-allowed'}`}
+                  onClick={() => canEdit && toggleActiveStatus(worker.id, worker.isActive)}
+                  title={canEdit ? 'לחץ לשינוי סטטוס פעיל' : 'אין הרשאה לעריכה'}
+                >
+                  {worker.isActive ? '🟢 פעיל' : '⛔ לא פעיל'}
+                </td>
+              );
+            })}
+          </tr>
         </tbody>
       </table>
-
+  
       {toasts.length > 0 && toasts.map((toast) => (
         <ToastNotification
           key={toast.id}
@@ -333,7 +370,7 @@ const TeamPermissionsTable = () => {
           onClose={() => setToasts((prevToasts) => prevToasts.filter((t) => t.id !== toast.id))}
         />
       ))}
-
+  
       {dialogOpen && dialogData && (
         <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
           <DialogNotification
@@ -352,6 +389,7 @@ const TeamPermissionsTable = () => {
       )}
     </div>
   );
+  
 };
 
 export default TeamPermissionsTable;

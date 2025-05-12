@@ -4,6 +4,9 @@ import React, { useState } from 'react';
 import { ChangePlanModal } from '../ChangePlanModal/ChangePlanModal';
 import './UserSubscriptionPopup.css';
 import axios from 'axios';
+import {ToastNotification} from '@/components/ToastNotification';
+import { useToast } from "@/hooks/useToast";
+
 
 interface UserSubscriptionPopupProps {
   name?: string;
@@ -56,19 +59,22 @@ export const UserSubscriptionPopup: React.FC<UserSubscriptionPopupProps> = ({
       });
 
       if (res.data.success) {
-        alert('המנוי בוטל בהצלחה');
+        addToast("success", "המנוי בוטל בהצלחה");
         onCancel();
         onClose();
       } else {
-        alert('שגיאה בביטול המנוי: ' + (res.data.message || res.data.error));
+        addToast("error", "שגיאה בביטול המנוי");
+
       }
     } catch (err) {
       console.error('שגיאה בביטול:', err);
-      alert('אירעה שגיאה בביטול המנוי');
+      addToast("error", "שגיאה בביטול המנוי");
     } finally {
       setIsCancelling(false);
     }
   };
+
+  const { toasts, addToast, setToasts } = useToast();
 
   return (
     <div className="popup-overlay">
@@ -103,6 +109,15 @@ export const UserSubscriptionPopup: React.FC<UserSubscriptionPopupProps> = ({
           </button>
           <button className="closeButton" onClick={onClose}>סגור</button>
         </div>
+        {toasts.length > 0  && toasts.map((toast) => (
+  <ToastNotification 
+    key={toast.id}  
+    type={toast.type}
+    className={toast.isHiding ? "hide" : ""} 
+    message={toast.message}
+    onClose={() => setToasts((prevToasts) => prevToasts.filter((t) => t.id !== toast.id))}
+  />
+))}
       </div>
 
       {showChangeModal && (

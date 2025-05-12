@@ -5,6 +5,10 @@ import { FormEventHandler, useEffect, useState } from "react";
 import { redirect, useRouter } from 'next/navigation';
 import './LogIn.css';
 import Link from 'next/link';
+import { getDoc, doc } from 'firebase/firestore';
+import { db } from '@/lib/firebase/firebase'; // הנתיב שלך אל firestore
+
+
 
 export default function LogInPage() {
   const { user, logIn } = useAuth();
@@ -29,14 +33,38 @@ export default function LogInPage() {
       return;
     }
 
+    // logIn(email, password)
+    //   .then(() => {
+    //     router.push('/NewAgentForm'); // ✅ מפנה מיד אחרי התחברות
+    //   })
+    //   .catch((err) => {
+    //     console.error({err});
+    //     setError(err.code);
+    //   });
+
     logIn(email, password)
-      .then(() => {
-        router.push('/NewAgentForm'); // ✅ מפנה מיד אחרי התחברות
-      })
-      .catch((err) => {
-        console.error({err});
-        setError(err.code);
-      });
+    .then(async (userCredential) => {
+      const userId = userCredential.user.uid;
+      const userDoc = await getDoc(doc(db, 'users', userId));
+  
+      if (!userDoc.exists()) {
+        throw new Error('המשתמש לא נמצא במערכת');
+      }
+  
+      const userData = userDoc.data();
+      if (userData?.isActive === false) {
+        throw new Error('המנוי שלך אינו פעיל');
+      }
+  
+      router.push('/NewAgentForm');
+    })
+    .catch((err) => {
+      console.error({ err });
+      setError(err.message); // אפשר להציג גם בתרגום אם נרצה
+    });
+  
+
+
   }
   return (
     <div className="login-container">

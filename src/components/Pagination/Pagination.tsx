@@ -2,7 +2,20 @@ import React from "react";
 import { PaginationArrows } from "../PaginationArrows/PaginationArrows";
 import "./style.css";
 
-const Pagination = ({ currentPage, totalPages, onPageChange }) => {
+// הגדרת טיפוסים לפרופס
+interface PaginationProps {
+  currentPage: number;
+  totalPages: number;
+  onPageChange: (page: number) => void;
+  className?: string;
+}
+
+const Pagination: React.FC<PaginationProps> = ({
+  currentPage,
+  totalPages,
+  onPageChange,
+  className = ""
+}) => {
   const handleNext = () => {
     if (currentPage < totalPages) {
       onPageChange(currentPage + 1);
@@ -16,7 +29,7 @@ const Pagination = ({ currentPage, totalPages, onPageChange }) => {
   };
 
   return (
-    <div className="pagination">
+    <div className={`pagination ${className}`}>
       {/* כפתור אחורה */}
       <PaginationArrows
         type="back"

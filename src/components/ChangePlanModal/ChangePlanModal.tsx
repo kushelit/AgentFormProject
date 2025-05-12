@@ -2,6 +2,8 @@
 
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import {ToastNotification} from '@/components/ToastNotification';
+import { useToast } from "@/hooks/useToast";
 
 interface Plan {
   id: string;
@@ -30,6 +32,7 @@ export const ChangePlanModal: React.FC<ChangePlanModalProps> = ({
   const [plans, setPlans] = useState<Plan[]>([]);
   const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const { toasts, addToast, setToasts } = useToast();
 
   useEffect(() => {
     const fetchPlans = async () => {
@@ -57,15 +60,15 @@ export const ChangePlanModal: React.FC<ChangePlanModalProps> = ({
       });
 
       if (res.data.success) {
-        alert('המנוי עודכן בהצלחה');
+        addToast("success", "המנוי עודכן בהצלחה");
         onClose();
         window.location.reload();
       } else {
-        alert('שגיאה: ' + (res.data.message || res.data.error));
+        addToast("error", "שגיאה בעדכון התוכנית");
       }
     } catch (err) {
       console.error('שגיאה בעת ניסיון לשדרג את התוכנית:', err);
-      alert('שגיאה כללית בעדכון התוכנית');
+      addToast("error", "שגיאה בעדכון התוכנית");
     } finally {
       setLoading(false);
     }
@@ -107,6 +110,15 @@ export const ChangePlanModal: React.FC<ChangePlanModalProps> = ({
 </button>
         </div>
       </div>
+      {toasts.length > 0  && toasts.map((toast) => (
+  <ToastNotification 
+    key={toast.id}  
+    type={toast.type}
+    className={toast.isHiding ? "hide" : ""} 
+    message={toast.message}
+    onClose={() => setToasts((prevToasts) => prevToasts.filter((t) => t.id !== toast.id))}
+  />
+))}
     </div>
   );
 };

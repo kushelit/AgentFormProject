@@ -26,6 +26,9 @@ import {useSortableTable}  from "@/hooks/useSortableTable";
 import {ToastNotification} from '@/components/ToastNotification';
 import { useToast } from "@/hooks/useToast";
 import { useValidation } from "@/hooks/useValidation";
+import * as XLSX from "xlsx";
+import { saveAs } from "file-saver";
+import { FaFileExcel } from 'react-icons/fa';
 
 
 const NewAgentForm: React.FC = () => {
@@ -117,14 +120,54 @@ const { sortedData, sortColumn, sortOrder, handleSort } = useSortableTable<Combi
 
 // ניהול העמוד הנוכחי
 const [currentPage, setCurrentPage] = useState(1);
-const rowsPerPage = 8; // מספר השורות בעמוד
 
-// חישוב הנתונים לעמוד הנוכחי
+const [rowsPerPage, setRowsPerPage] = useState(10);
 const indexOfLastRow = currentPage * rowsPerPage;
 const indexOfFirstRow = indexOfLastRow - rowsPerPage;
 const currentRows = sortedData.slice(indexOfFirstRow, indexOfLastRow);
 
+
+// // const rowsPerPage = 8; // מספר השורות בעמוד
+
+// // חישוב הנתונים לעמוד הנוכחי
+// const indexOfLastRow = currentPage * rowsPerPage;
+// const indexOfFirstRow = indexOfLastRow - rowsPerPage;
+// const currentRows = sortedData.slice(indexOfFirstRow, indexOfLastRow);
+
 const { toasts, addToast, setToasts } = useToast();
+
+
+const translatedData = filteredData.map(item => ({
+  "שם פרטי": item.firstNameCustomer,
+  "שם משפחה": item.lastNameCustomer,
+  "תעודת זהות": item.IDCustomer,
+  "חברה": item.company,
+  "מוצר": item.product,
+  "פרמיה ביטוח": item.insPremia,
+  "פרמיה פנסיה": item.pensiaPremia,
+  "צבירה פנסיה": item.pensiaZvira,
+  "פרמיה פיננסים": item.finansimPremia,
+  "צבירה פיננסים": item.finansimZvira,
+  "חודש תפוקה": item.mounth,
+  "סטאטוס": item.statusPolicy,
+  "מינוי סוכן": item.minuySochen ? "כן" : "לא",
+  "שם עובד": workerNameMap[item.workerId ?? ""] ?? "",
+  "הערות": item.notes ?? ""
+}));
+
+
+const exportToExcel = () => {
+  if (!filteredData.length) return;
+
+  const worksheet = XLSX.utils.json_to_sheet(translatedData);
+  worksheet["!rtl"] = true; // 👈 הופך את הגיליון לימין-לשמאל
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, "עסקאות מסוננות");
+
+  const excelBuffer = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
+  const blob = new Blob([excelBuffer], { type: "application/octet-stream" });
+  saveAs(blob, "עסקאות_מסוננות.xlsx");
+};
 
 
 const resetForm = (clearCustomerFields: boolean = false) => {
@@ -751,6 +794,14 @@ console.log("🚨 invalidFields:", invalidFields); // ✅ כאן מחוץ ל-HTM
     icon="on"
     state="default"
   />
+ <button
+  onClick={exportToExcel}
+  className="excel-icon-button"
+  title="ייצוא לאקסל"
+>
+<img src="/static/img/excel-icon.svg" alt="ייצוא לאקסל" width={24} height={24} />
+</button>
+
   {/* <Button
     onClick={() => saveChanges()}
     text="שמור שינויים"
@@ -1146,11 +1197,16 @@ console.log("🚨 invalidFields:", invalidFields); // ✅ כאן מחוץ ל-HTM
 <tfoot>
       <tr>
       <td colSpan={16}>
-              <TableFooter
-                currentPage={currentPage}
-                totalPages={Math.ceil(filteredData.length / rowsPerPage)}
-                onPageChange={handlePageChange}
-              />
+      <TableFooter
+  currentPage={currentPage}
+  totalPages={Math.ceil(filteredData.length / rowsPerPage)}
+  onPageChange={handlePageChange}
+  rowsPerPage={rowsPerPage}
+  onRowsPerPageChange={(value) => {
+    setRowsPerPage(value);
+    setCurrentPage(1); // חזרה לעמוד ראשון כשמשנים כמות רשומות
+  }}
+/>
                </td>
               </tr>
            </tfoot>

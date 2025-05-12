@@ -27,7 +27,7 @@ export function hasPermission({
   if (allow.includes(permission)) return true;
 
   if (!rolePermissions) return false;
-
+  if (rolePermissions.includes("*")) return true;
   const hasSub = !!user.subscriptionId && !!user.subscriptionType;
   const subscriptionPerms =
   user.subscriptionType && subscriptionPermissionsMap

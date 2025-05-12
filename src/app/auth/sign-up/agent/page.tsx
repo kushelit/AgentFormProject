@@ -46,6 +46,7 @@ export default function AgentSignUpPage() {
         email,
         role: 'agent',
         agentId: userCredential.user.uid,
+        isActive: true,
       });
       redirect('/auth/log-in');
     })

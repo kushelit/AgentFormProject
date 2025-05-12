@@ -93,7 +93,14 @@ formData.forEach((value, key) => {
       growCancellationStatus: growCanceled ? 'success' : 'failed',
       ...(updates || {})
     });
-
+    
+    try {
+      await admin.auth().updateUser(id, { disabled: true });
+      console.log('🔒 המשתמש הושבת ב־Firebase Auth');
+    } catch (authError) {
+      console.error('❌ שגיאה בהשבתת המשתמש:', authError);
+    }
+    
     // שליחת מייל ביטול אם רלוונטי
     if (sendCancelEmail && userEmail) {
       await fetch('https://test.magicsale.co.il/api/sendCancelEmail', {
