@@ -40,16 +40,16 @@ const TeamPermissions = () => {
           </p>
         </div>
         <div className="card">
-        <div className="card-header">📌 הרשאת "סטטוס משתמש"</div>
-        <p>
-           הרשאה  בשם <strong>"סטטוס משתמש"</strong> מאפשרת לצפות ולעדכן את סטטוס הפעילות של כל עובד.
-        </p>
-        <ul style={{ paddingRight: '20px' }}>
-          <li>🟢 עובד חדש שנוסף למערכת מוקם אוטומטית כ<strong>פעיל</strong>.</li>
-          <li>🔴 ניתן לעדכן את העובד כ<strong>לא פעיל</strong> במידה והסתיים שיתוף הפעולה איתו.</li>
-          <li>⚙️ שינוי הסטטוס נעשה דרך עמוד ניהול ההרשאות, אם קיימת הרשאה מתאימה.</li>
-        </ul>
-      </div>
+  <div className="card-header">📌 הרשאת &quot;סטטוס משתמש&quot;</div>
+  <p>
+    הרשאה בשם <strong>&quot;סטטוס משתמש&quot;</strong> מאפשרת לצפות ולעדכן את סטטוס הפעילות של כל עובד.
+  </p>
+  <ul style={{ paddingRight: '20px' }}>
+    <li>🟢 עובד חדש שנוסף למערכת מוקם אוטומטית כ<strong>פעיל</strong>.</li>
+    <li>🔴 ניתן לעדכן את העובד כ<strong>לא פעיל</strong> במידה והסתיים שיתוף הפעולה איתו.</li>
+    <li>⚙️ שינוי הסטטוס נעשה דרך עמוד ניהול ההרשאות, אם קיימת הרשאה מתאימה.</li>
+  </ul>
+</div>
         <div className="card">
           <div className="card-header"> הגבלות עריכה של הרשאות</div>
           <p>
