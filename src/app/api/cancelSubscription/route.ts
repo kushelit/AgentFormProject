@@ -106,7 +106,7 @@ formData.forEach((value, key) => {
       await fetch('https://test.magicsale.co.il/api/sendCancelEmail', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ to: userEmail, name: userName })
+        body: JSON.stringify({ email: userEmail, name: userName })
       });
     }
 

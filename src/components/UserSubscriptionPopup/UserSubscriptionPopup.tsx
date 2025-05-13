@@ -6,6 +6,8 @@ import './UserSubscriptionPopup.css';
 import axios from 'axios';
 import {ToastNotification} from '@/components/ToastNotification';
 import { useToast } from "@/hooks/useToast";
+import { useAuth } from "@/lib/firebase/AuthContext";
+import { useRouter } from "next/navigation";
 
 
 interface UserSubscriptionPopupProps {
@@ -38,6 +40,10 @@ export const UserSubscriptionPopup: React.FC<UserSubscriptionPopupProps> = ({
   const [showChangeModal, setShowChangeModal] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
 
+  const { logOut } = useAuth();
+  const router = useRouter();
+  
+
   const renderInfoRow = (label: string, value?: string | null) => (
     <div className="info-row">
       <span className="label">{label}:</span>
@@ -50,7 +56,7 @@ export const UserSubscriptionPopup: React.FC<UserSubscriptionPopupProps> = ({
     setIsCancelling(true);
 
     try {
-      const res = await axios.post('/api/cancel-subscription', {
+      const res = await axios.post('/api/cancelSubscription', {
         id: userId,
         transactionToken,
         transactionId,
@@ -60,8 +66,10 @@ export const UserSubscriptionPopup: React.FC<UserSubscriptionPopupProps> = ({
 
       if (res.data.success) {
         addToast("success", "המנוי בוטל בהצלחה");
+        await logOut(); // 🚪 התנתקות
         onCancel();
         onClose();
+        router.refresh();
       } else {
         addToast("error", "שגיאה בביטול המנוי");
 

@@ -137,30 +137,37 @@ const currentRows = sortedData.slice(indexOfFirstRow, indexOfLastRow);
 const { toasts, addToast, setToasts } = useToast();
 
 
-const translatedData = filteredData.map(item => ({
-  "שם פרטי": item.firstNameCustomer,
-  "שם משפחה": item.lastNameCustomer,
-  "תעודת זהות": item.IDCustomer,
-  "חברה": item.company,
-  "מוצר": item.product,
-  "פרמיה ביטוח": item.insPremia,
-  "פרמיה פנסיה": item.pensiaPremia,
-  "צבירה פנסיה": item.pensiaZvira,
-  "פרמיה פיננסים": item.finansimPremia,
-  "צבירה פיננסים": item.finansimZvira,
-  "חודש תפוקה": item.mounth,
-  "סטאטוס": item.statusPolicy,
-  "מינוי סוכן": item.minuySochen ? "כן" : "לא",
-  "שם עובד": workerNameMap[item.workerId ?? ""] ?? "",
-  "הערות": item.notes ?? ""
-}));
-
-
 const exportToExcel = () => {
   if (!filteredData.length) return;
 
+  const translatedData = filteredData.map(item => ({
+    "שם פרטי": item.firstNameCustomer,
+    "שם משפחה": item.lastNameCustomer,
+    "תעודת זהות": item.IDCustomer,
+    "חברה": item.company,
+    "מוצר": item.product,
+    "פרמיה ביטוח": item.insPremia,
+    "פרמיה פנסיה": item.pensiaPremia,
+    "צבירה פנסיה": item.pensiaZvira,
+    "פרמיה פיננסים": item.finansimPremia,
+    "צבירה פיננסים": item.finansimZvira,
+    "חודש תפוקה": item.mounth,
+    "סטאטוס": item.statusPolicy,
+    "מינוי סוכן": item.minuySochen ? "כן" : "לא",
+    "הערות": item.notes ?? ""
+  }));
+
+  // יצירת גיליון
   const worksheet = XLSX.utils.json_to_sheet(translatedData);
-  worksheet["!rtl"] = true; // 👈 הופך את הגיליון לימין-לשמאל
+
+  // יישור ימין לשמאל
+  worksheet["!rtl"] = true;
+
+  // חישוב טווח ידני – מוודא שאקסל מבין את גודל הגיליון
+  const range = XLSX.utils.decode_range(worksheet['!ref'] || '');
+  worksheet['!ref'] = XLSX.utils.encode_range(range);
+
+  // יצירת חוברת ושמירה
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, worksheet, "עסקאות מסוננות");
 
@@ -168,6 +175,7 @@ const exportToExcel = () => {
   const blob = new Blob([excelBuffer], { type: "application/octet-stream" });
   saveAs(blob, "עסקאות_מסוננות.xlsx");
 };
+
 
 
 const resetForm = (clearCustomerFields: boolean = false) => {
@@ -603,8 +611,8 @@ const handleEditRowModal = (id: string) => {
 
 
 
-const [openModalId, setOpenModalId] = useState<string | number | null>(null);
-const [modalContent, setModalContent] = useState<string | null>(null);
+// const [openModalId, setOpenModalId] = useState<string | number | null>(null);
+// const [modalContent, setModalContent] = useState<string | null>(null);
 
 const handleIDBlur = async () => {
   console.log("🔵 handleIDBlur started...");
