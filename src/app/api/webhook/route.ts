@@ -71,13 +71,22 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ updated: true });
     }
 
-    const tempPassword = Math.random().toString(36).slice(-8);
+
+    let existingUser: any = null;
+    try {
+      existingUser = await auth.getUserByEmail(email);
+      return NextResponse.json({ error: 'User already exists', uid: existingUser.uid }, { status: 409 });
+    } catch (e) {
+      // ממשיך רק אם לא קיים
+    }
+
     const newUser = await auth.createUser({
       email,
-      password: tempPassword,
+      password: Math.random().toString(36).slice(-8),
       displayName: fullName,
-      phoneNumber: formatPhone(phone),
+      // phoneNumber: formatPhone(phone), // אופציונלי
     });
+    
 
     const resetLink = await auth.generatePasswordResetLink(email);
 
