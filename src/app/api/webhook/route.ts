@@ -36,6 +36,9 @@ export async function POST(req: NextRequest) {
     const transactionId = (data['data[transactionId]'] ?? data.transactionId)?.toString();
     const transactionToken = (data['data[transactionToken]'] ?? data.transactionToken)?.toString();
     const asmachta = (data['data[asmachta]'] ?? data.asmachta)?.toString();
+    const addOnsRaw = data['data[customFields][cField3]'] || data['customFields[cField3]'];
+    const addOns = addOnsRaw ? JSON.parse(addOnsRaw.toString()) : {};
+    console.log('🧪 Raw cField3:', addOnsRaw);
 
     if (!statusCode || !email || !fullName || !phone || !processId) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
@@ -58,6 +61,12 @@ export async function POST(req: NextRequest) {
         ...(transactionId ? { transactionId } : {}),
         ...(transactionToken ? { transactionToken } : {}),
         ...(asmachta ? { asmachta } : {}),
+        ...(addOns ? {
+          addOns: {
+            leadsModule: !!addOns.leadsModule,
+            extraWorkers: addOns.extraWorkers || 0,
+          }
+        } : {}),
       });
       return NextResponse.json({ updated: true });
     }
@@ -100,6 +109,10 @@ export async function POST(req: NextRequest) {
       asmachta: asmachta || null,
       subscriptionStatus,
       subscriptionType,
+      addOns: {
+        leadsModule: !!addOns.leadsModule,
+        extraWorkers: addOns.extraWorkers || 0,
+      },
       lastPaymentStatus: paymentStatus,
       lastPaymentDate: paymentDate,
       role: 'agent',

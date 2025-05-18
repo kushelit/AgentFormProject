@@ -5,7 +5,7 @@ import axios from 'axios';
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { fullName, email, phone, plan } = body;
+    const { fullName, email, phone, plan, addOns } = body;
 
     if (!fullName || !email || !phone || !plan) {
       return NextResponse.json({ error: 'אנא מלא/י את כל השדות הנדרשים' }, { status: 400 });
@@ -19,8 +19,10 @@ export async function POST(req: NextRequest) {
     }
 
     const planData = planDoc.data();
-    const price = planData?.price || 1;
-    const normalizedEmail = email.toLowerCase();
+    const basePrice = planData?.price || 1;
+    const leadsPrice = addOns?.leadsModule ? 29 : 0;
+    const extraWorkersPrice = addOns?.extraWorkers ? addOns.extraWorkers * 49 : 0;
+    const totalPrice = basePrice + leadsPrice + extraWorkersPrice;    const normalizedEmail = email.toLowerCase();
     const customField = `MAGICSALE-${normalizedEmail}`;
 
     const successUrl = `https://test.magicsale.co.il/payment-success?fullName=${encodeURIComponent(fullName)}&email=${encodeURIComponent(normalizedEmail)}&phone=${encodeURIComponent(phone)}&customField=${encodeURIComponent(customField)}&plan=${plan}`;
@@ -29,7 +31,7 @@ export async function POST(req: NextRequest) {
     const formData = new URLSearchParams();
     formData.append('pageCode', '2097a1a9413e');
     formData.append('userId', '8f215caa9b2a3903');
-    formData.append('sum', price.toString());
+    formData.append('sum', totalPrice.toString());
     formData.append('successUrl', successUrl);
     formData.append('cancelUrl', cancelUrl);
     formData.append('description', `תשלום עבור מסלול ${plan}`);
@@ -38,6 +40,7 @@ export async function POST(req: NextRequest) {
     formData.append('pageField[email]', normalizedEmail);
     formData.append('cField1', customField);
     formData.append('cField2', plan);
+    formData.append('cField3', JSON.stringify(addOns || {}));
     formData.append('notifyUrl', 'https://test.magicsale.co.il/api/webhook');
 
     const controller = new AbortController();

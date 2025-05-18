@@ -18,6 +18,8 @@ export default function SubscriptionSignUpPage() {
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
+  const [withLeadsModule, setWithLeadsModule] = useState(false);
+  const [extraWorkers, setExtraWorkers] = useState(0);
   const [error, setError] = useState('');
   const [fieldErrors, setFieldErrors] = useState<{ fullName?: string; email?: string; phone?: string }>({});
   const router = useRouter();
@@ -38,6 +40,13 @@ export default function SubscriptionSignUpPage() {
     fetchPlans();
   }, []);
 
+  const calculateTotal = () => {
+    const base = plans.find(p => p.id === selectedPlan)?.price || 0;
+    const leadsPrice = withLeadsModule ? 29 : 0;
+    const workersPrice = selectedPlan === 'pro' ? extraWorkers * 49 : 0;
+    return base + leadsPrice + workersPrice;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -49,6 +58,10 @@ export default function SubscriptionSignUpPage() {
         email,
         phone,
         plan: selectedPlan,
+        addOns: {
+          leadsModule: withLeadsModule,
+          extraWorkers: selectedPlan === 'pro' ? extraWorkers : 0
+        },
       }, {
         headers: { 'Content-Type': 'application/json' },
       });
@@ -135,6 +148,26 @@ export default function SubscriptionSignUpPage() {
           {fieldErrors.phone && <p className="text-red-600 text-sm">{fieldErrors.phone}</p>}
         </div>
 
+        <div className="mt-6 space-y-2">
+          <label className="flex items-center gap-2">
+            <input type="checkbox" checked={withLeadsModule} onChange={(e) => setWithLeadsModule(e.target.checked)} />
+            מודול לידים (₪29)
+          </label>
+
+          <label className={`flex items-center gap-2 ${selectedPlan !== 'pro' ? 'opacity-50' : ''}`}>
+            עובדים נוספים (₪49 לעובד):
+            <input
+              type="number"
+              value={extraWorkers}
+              min={0}
+              disabled={selectedPlan !== 'pro'}
+              onChange={(e) => setExtraWorkers(Number(e.target.value))}
+              className="w-20 border rounded px-2 py-1 text-right"
+            />
+          </label>
+        </div>
+
+        <div className="font-bold text-lg">סה"כ לתשלום: ₪{calculateTotal()}</div>
         {error && <p className="text-red-600 text-sm font-semibold">{error}</p>}
 
         <button
