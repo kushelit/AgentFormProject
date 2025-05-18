@@ -167,7 +167,7 @@ export default function SubscriptionSignUpPage() {
           </label>
         </div>
 
-        <div className="font-bold text-lg">סה"כ לתשלום: ₪{calculateTotal()}</div>
+        <div className="font-bold text-lg">סה&quot;כ לתשלום : ₪{calculateTotal()}</div>
         {error && <p className="text-red-600 text-sm font-semibold">{error}</p>}
 
         <button
