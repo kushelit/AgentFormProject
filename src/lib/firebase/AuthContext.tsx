@@ -36,6 +36,10 @@ type UserDetail = {
     allow?: string[];
     deny?: string[];
   };
+  addOns?: {
+    leadsModule?: boolean;
+    extraWorkers?: number;
+  };
 };
 
 type RolesPermissionsMap = {

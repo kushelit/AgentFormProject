@@ -49,7 +49,7 @@ const TeamPermissionsTable = () => {
 
   useEffect(() => {
     const fetchSubscriptionPermissions = async () => {
-      const snapshot = await getDocs(collection(db, 'subscriptions'));
+      const snapshot = await getDocs(collection(db, 'subscriptions_permissions'));
       const result: Record<string, string[]> = {};
       snapshot.forEach((doc) => {
         const data = doc.data();
@@ -157,7 +157,8 @@ const TeamPermissionsTable = () => {
             isActive: data.isActive ?? true,
             subscriptionId: data.subscriptionId || '',
             subscriptionType: data.subscriptionType || '',
-            permissionOverrides: data.permissionOverrides || {}
+            permissionOverrides: data.permissionOverrides || {},
+            addOns: data.addOns || {},
           });
         });
 

@@ -16,6 +16,10 @@ type FullUser = {
     allow?: string[];
     deny?: string[];
   };
+  addOns?: {
+    leadsModule?: boolean;
+    extraWorkers?: number;
+  };
   [key: string]: any;
 };
 
@@ -54,6 +58,7 @@ export function usePermission(permission: string): {
     subscriptionId,
     subscriptionType: detail?.subscriptionType || '',
     permissionOverrides: detail?.permissionOverrides || {},
+    addOns: detail?.addOns || {},
     ...user,
   }), [user, detail, subscriptionId]);
 
