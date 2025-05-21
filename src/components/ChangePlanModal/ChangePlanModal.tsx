@@ -2,8 +2,8 @@
 
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import {ToastNotification} from '@/components/ToastNotification';
-import { useToast } from "@/hooks/useToast";
+import { ToastNotification } from '@/components/ToastNotification';
+import { useToast } from '@/hooks/useToast';
 
 interface Plan {
   id: string;
@@ -31,6 +31,8 @@ export const ChangePlanModal: React.FC<ChangePlanModalProps> = ({
 }) => {
   const [plans, setPlans] = useState<Plan[]>([]);
   const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
+  const [withLeadsModule, setWithLeadsModule] = useState(false);
+  const [extraWorkers, setExtraWorkers] = useState(0);
   const [loading, setLoading] = useState(false);
   const { toasts, addToast, setToasts } = useToast();
 
@@ -46,6 +48,12 @@ export const ChangePlanModal: React.FC<ChangePlanModalProps> = ({
     fetchPlans();
   }, []);
 
+  const calculateTotal = () => {
+    const plan = plans.find(p => p.id === selectedPlan);
+    const base = plan?.price || 0;
+    return base + (withLeadsModule ? 29 : 0) + (extraWorkers * 49);
+  };
+
   const handleUpgrade = async () => {
     if (!selectedPlan || !transactionToken || !transactionId || !asmachta || !userId) return;
     setLoading(true);
@@ -57,6 +65,10 @@ export const ChangePlanModal: React.FC<ChangePlanModalProps> = ({
         transactionId,
         asmachta,
         newPlanId: selectedPlan,
+        addOns: {
+          leadsModule: withLeadsModule,
+          extraWorkers,
+        }
       });
 
       if (res.data.success) {
@@ -91,34 +103,63 @@ export const ChangePlanModal: React.FC<ChangePlanModalProps> = ({
             </div>
           ))}
         </div>
+
+        <div className="addon-section">
+          <label>
+            <input
+              type="checkbox"
+              checked={withLeadsModule}
+              onChange={() => setWithLeadsModule(!withLeadsModule)}
+            />
+            הוסף מודול לידים (+₪29)
+          </label>
+
+          <div className="worker-addon">
+            <label>עובדים נוספים:</label>
+            <input
+              type="number"
+              min={0}
+              value={extraWorkers}
+              onChange={(e) => setExtraWorkers(parseInt(e.target.value) || 0)}
+            />
+            <span> × ₪49</span>
+          </div>
+        </div>
+
+        <div className="total-summary">סה"כ לתשלום: ₪{calculateTotal()}</div>
+
         <div className="modal-actions">
           <button onClick={onClose}>ביטול</button>
           <button
-  onClick={() => {
-    console.log("📤 נשלחת בקשת החלפת תוכנית עם:", {
-      selectedPlan,
-      userId,
-      transactionToken,
-      transactionId,
-      asmachta,
-    });
-    handleUpgrade();
-  }}
-  disabled={!selectedPlan || loading}
->
-  {loading ? 'טוען...' : 'החלף תוכנית'}
-</button>
+            onClick={() => {
+              console.log("📤 נשלחת בקשת החלפת תוכנית עם:", {
+                selectedPlan,
+                userId,
+                transactionToken,
+                transactionId,
+                asmachta,
+                addOns: {
+                  leadsModule: withLeadsModule,
+                  extraWorkers,
+                }
+              });
+              handleUpgrade();
+            }}
+            disabled={!selectedPlan || loading}
+          >
+            {loading ? 'טוען...' : 'החלף תוכנית'}
+          </button>
         </div>
       </div>
-      {toasts.length > 0  && toasts.map((toast) => (
-  <ToastNotification 
-    key={toast.id}  
-    type={toast.type}
-    className={toast.isHiding ? "hide" : ""} 
-    message={toast.message}
-    onClose={() => setToasts((prevToasts) => prevToasts.filter((t) => t.id !== toast.id))}
-  />
-))}
+      {toasts.length > 0 && toasts.map((toast) => (
+        <ToastNotification
+          key={toast.id}
+          type={toast.type}
+          className={toast.isHiding ? "hide" : ""}
+          message={toast.message}
+          onClose={() => setToasts((prevToasts) => prevToasts.filter((t) => t.id !== toast.id))}
+        />
+      ))}
     </div>
   );
 };

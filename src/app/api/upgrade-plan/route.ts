@@ -4,7 +4,7 @@ import axios from 'axios';
 
 export async function POST(req: NextRequest) {
   try {
-    const { id, subscriptionId, transactionToken, transactionId, asmachta, newPlanId } = await req.json();
+    const { id, subscriptionId, transactionToken, transactionId, asmachta, newPlanId, addOns } = await req.json();
     const db = admin.firestore();
 
     let userDocRef = null;
@@ -28,23 +28,25 @@ export async function POST(req: NextRequest) {
     const userEmail = userData?.email || '';
     const userName = userData?.name || '';
 
-    // שליפת פרטי המסלול החדש
     const planSnap = await db.collection('subscriptions_permissions').doc(newPlanId).get();
     if (!planSnap.exists) {
       return NextResponse.json({ error: 'New plan not found' }, { status: 404 });
     }
 
     const planData = planSnap.data();
-    const newPrice = planData?.price;
-    const newPermissions = planData?.permissions || [];
+    const basePrice = planData?.price || 0;
+    const leadsPrice = addOns?.leadsModule ? 29 : 0;
+    const extraWorkersPrice = addOns?.extraWorkers ? addOns.extraWorkers * 49 : 0;
+    const totalPrice = basePrice + leadsPrice + extraWorkersPrice;
 
     const formData = new URLSearchParams();
     formData.append('userId', '8f215caa9b2a3903');
     formData.append('transactionToken', transactionToken);
     formData.append('transactionId', transactionId);
     formData.append('asmachta', asmachta);
-    formData.append('changeStatus', '1'); // 1 = שדרוג
-    formData.append('sum', newPrice.toString());
+    formData.append('changeStatus', '1');
+    formData.append('sum', totalPrice.toString());
+    formData.append('cField3', JSON.stringify(addOns || {}));
 
     formData.forEach((value, key) => console.log(`🔧 ${key}: ${value}`));
 
@@ -60,11 +62,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Grow update failed', details: data }, { status: 502 });
     }
 
-    // עדכון במסד נתונים
     await userDocRef.update({
       subscriptionType: newPlanId,
-      lastPrice: newPrice,
+      lastPrice: totalPrice,
       lastPlanChangeDate: new Date(),
+      ...(addOns ? { addOns } : {})
     });
 
     return NextResponse.json({ success: true });
