@@ -126,7 +126,7 @@ export const ChangePlanModal: React.FC<ChangePlanModalProps> = ({
           </div>
         </div>
 
-        <div className="total-summary">סה"כ לתשלום: ₪{calculateTotal()}</div>
+        <div className="total-summary">סה&quot;כ לתשלום: ₪{calculateTotal()}</div>
 
         <div className="modal-actions">
           <button onClick={onClose}>ביטול</button>
