@@ -7,19 +7,23 @@ import AccessDenied from "@/components/AccessDenied";
 import { usePermission } from "@/hooks/usePermission";
 
 const ManageManagerPage = () => {
-  const { user, isLoading } = useAuth();
+  const { user, isLoading, detail } = useAuth();
+  const { canAccess, isChecking } = usePermission("access_manageManager");
+
+  const [isClient, setIsClient] = useState(false);
   const [ready, setReady] = useState(false);
 
-  // השהייה קצרה לטעינה חלקה
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
+
   useEffect(() => {
     const timer = setTimeout(() => setReady(true), 300);
     return () => clearTimeout(timer);
   }, []);
 
-  const { canAccess, isChecking } = usePermission("access_manageManager");
-
-  // טוען מידע כללי או הרשאות
-  if (isLoading || !ready || isChecking || user === undefined) {
+  // טעינה / המתנה לרנדר בצד לקוח
+  if (!isClient || isLoading || isChecking || !ready || user === undefined || detail === undefined) {
     return (
       <div className="p-4 text-gray-600">
         ⏳ טוען מידע...
@@ -27,7 +31,6 @@ const ManageManagerPage = () => {
     );
   }
 
-  // לא מחובר
   if (!user) {
     return (
       <div className="text-custom-white px-4 py-2 rounded-lg">
@@ -36,12 +39,10 @@ const ManageManagerPage = () => {
     );
   }
 
-  // אין הרשאה לדף
   if (!canAccess) {
     return <AccessDenied />;
   }
 
-  // הצגת הדף בפועל
   return (
     <Suspense fallback={<div>Loading...</div>}>
       <ManageManager />

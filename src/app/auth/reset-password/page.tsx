@@ -26,35 +26,36 @@ export default function ResetPasswordPage() {
   };
 
   return (
-    <div className="form-auth">
-      <form onSubmit={handleResetPassword} className="auth-form">
-        <h2 className="form-title">איפוס סיסמה</h2>
+    <form
+    onSubmit={handleResetPassword}
+    className="space-y-4 max-w-md w-full mx-auto p-6 bg-white rounded shadow mt-10"
+  >
+    <h2 className="text-2xl font-bold text-center text-blue-900">איפוס סיסמה</h2>
   
-        {/* שדה כתובת מייל */}
-        <div className="form-group">
-          <label htmlFor="email" className="form-label">
-            כתובת מייל <span className="required">*</span>
-          </label>
-          <input
-            type="email"
-            id="email"
-            name="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-            className="form-input"
-          />
-        </div>
-  
-        {/* הודעות שגיאה/הצלחה */}
-        {message && <p className="success-text">{message}</p>}
-        {error && <p className="error-text">{error}</p>}
-  
-        {/* כפתור איפוס סיסמא */}
-        <button className="form-button" type="submit">
-          שלח סיסמא למייל
-        </button>
-      </form>
+    <div>
+      <label htmlFor="email" className="block text-sm font-medium">
+        כתובת מייל <span className="text-red-500">*</span>
+      </label>
+      <input
+        type="email"
+        id="email"
+        name="email"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        required
+        className="w-full border border-gray-300 rounded px-3 py-2"
+      />
     </div>
-  );  
+  
+    {message && <p className="text-green-600 text-sm">{message}</p>}
+    {error && <p className="text-red-600 text-sm">{error}</p>}
+  
+    <button
+      type="submit"
+      className="w-full bg-blue-900 text-white py-2 rounded hover:bg-blue-800"
+    >
+      שלח סיסמא למייל
+    </button>
+  </form>
+   );  
 }

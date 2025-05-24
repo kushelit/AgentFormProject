@@ -6,32 +6,29 @@ import { useAuth } from "@/lib/firebase/AuthContext";
 import AccessDenied from "@/components/AccessDenied";
 import GlobalAnnouncementPopup from "@/components/announcements/GlobalAnnouncementPopup";
 import { usePermission } from "@/hooks/usePermission";
-import useFetchAgentData from "@/hooks/useFetchAgentData"; // 👈 הוסיפי את זה
-
 
 const NewAgentFormPage = () => {
-  const { user, isLoading, detail} = useAuth();
+  const { user, isLoading, detail } = useAuth();
   const [ready, setReady] = useState(false);
-
-  const shouldCheckPermissions = !isLoading && !!user && !!detail;
+  const [isClient, setIsClient] = useState(false);
 
   const { canAccess, isChecking } = usePermission("access_agentForm");
 
-  // const { isLoadingAgent } = useFetchAgentData(); // 👈 קבלי את המשתנה מה-hook
-
-  // ממתין מעט לפני שמרנדר את התוכן
   useEffect(() => {
+    setIsClient(true);
     const timer = setTimeout(() => {
       setReady(true);
     }, 300);
-
     return () => clearTimeout(timer);
   }, []);
 
- // שלבי טעינה
- if (isLoading || isChecking  || !ready || !user || !detail) {
-  return <div className="p-4 text-gray-600">⏳ טוען מידע...</div>;
-}
+  // מניעת hydration error
+  if (!isClient) return null;
+
+  // שלבי טעינה
+  if (isLoading || isChecking || !ready || !user || !detail) {
+    return <div className="p-4 text-gray-600">⏳ טוען מידע...</div>;
+  }
 
   // לא מחובר
   if (!user) {
@@ -42,11 +39,10 @@ const NewAgentFormPage = () => {
     );
   }
 
-// אין הרשאה
-if (canAccess === false) {
-  return <AccessDenied />;
-}
-
+  // אין הרשאה
+  if (canAccess === false) {
+    return <AccessDenied />;
+  }
 
   // הכל תקין – מציג טופס וסרגל הודעות
   return (

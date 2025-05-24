@@ -358,3 +358,13 @@ button {
   outline: none; 
   border: 1px solid var(--clrgray5); /* או לפי העיצוב שלך */
 }
+
+/* התאמה לכל הרמות */
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  min-height: 100vh;
+  overflow-x: hidden;
+  background-color: #f9fafb; /* תואם bg-gray-50 */
+}

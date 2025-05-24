@@ -1,9 +1,20 @@
-import React from "react";
+'use client';
+
+import React, { useEffect, useState } from "react";
 import Image from "next/image";
 import './commissions.css';
 import HelpNavigation from "@/components/HelpNavigation/HelpNavigation";
 
 const CommissionsHelp = () => {
+
+  const [isClient, setIsClient] = useState(false);
+
+useEffect(() => {
+  setIsClient(true);
+}, []);
+
+if (!isClient) return null;
+
   return (
     <div className="help-container">
       <h1>📖 ניהול עמלות</h1>

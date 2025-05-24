@@ -14,13 +14,13 @@ const pages = [
   },
   { href: '/NewGoals', label: 'ניהול יעדים' },
   { href: '/NewEnviorment', label: 'ניהול הגדרות לידים' },
-  { href: '/ManageSimulation', label: 'ניהול סימולטור' },
   { href: '/TeamPermissionsTable', label: 'ניהול הרשאות' },
   {
     href: '/AdminHub', // או כל דף ראשי שתבחרי
     label: 'ניהול אדמין',
     submenu: [
       { href: '/Log', label: 'לוג מערכת' },
+      { href: '/ManageSimulation', label: 'ניהול סימולטור' },
       { href: '/RequestStatus', label: 'סטאטוס API' },
       { href: '/ManagePoolAgents', label: 'ניהול פול ליד' },
       { href: '/ManageManager', label: 'ניהול קבוצות סוכנים' },

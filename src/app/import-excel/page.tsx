@@ -7,17 +7,22 @@ import AccessDenied from "@/components/AccessDenied";
 import { usePermission } from "@/hooks/usePermission";
 
 const ImportExcelPage = () => {
-  const { user, isLoading } = useAuth();
+  const { user, isLoading, detail } = useAuth(); // הוספתי גם detail ליתר בטחון
+  const { canAccess, isChecking } = usePermission("import_excel");
+
+  const [isClient, setIsClient] = useState(false);
   const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
 
   useEffect(() => {
     const timer = setTimeout(() => setReady(true), 300);
     return () => clearTimeout(timer);
   }, []);
 
-  const { canAccess, isChecking } = usePermission("import_excel");
-
-  if (isLoading || !ready || isChecking || user === undefined) {
+  if (!isClient || isLoading || isChecking || !ready || user === undefined || detail === undefined) {
     return <div className="p-4 text-gray-600">⏳ טוען מידע...</div>;
   }
 

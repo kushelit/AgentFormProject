@@ -3,20 +3,23 @@
   display: flex;
   justify-content: center;
   align-items: center;
-  height: 100vh; /* גובה מלא של הדף */
+  min-height: 100vh;
   background-color: #f7f9fc;
+  padding: 16px;
 }
 
-/* כרטיס */
+
 .login-card {
-  max-width: 400px;
-  width: 90%; /* גמישות ברוחב */
-  padding: 20px;
+  max-width: 480px; /* הגדלה קלה בלבד */
+  width: 100%;
+  padding: 24px;
   background-color: white;
   border-radius: 8px;
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
   text-align: center;
 }
+
+
 
 /* כותרת */
 .form-title {

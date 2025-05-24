@@ -815,6 +815,13 @@ return (
             {/* תוכן לשונית מבצעים */}
          <div className="NewcontractAgent">
               <div className="filter-select-container">
+              <select onChange={handleAgentChange} value={selectedAgentId} className="select-input">
+              {detail?.role === 'admin' && <option value="">בחר סוכן</option>}
+              {detail?.role === 'admin' && <option value="all">כל הסוכנות</option>}
+              {agents.map(agent => (
+               <option key={agent.id} value={agent.id}>{agent.name}</option>
+                ))}
+             </select>
         <select className="select-input" value={selectedCompanyFilter} onChange={(e) => setSelectedCompanyFilter(e.target.value)}>
         <option value="">בחר חברה</option>
          {companies.map((companyName, index) => (

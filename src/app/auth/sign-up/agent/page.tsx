@@ -4,14 +4,13 @@ import { useAuth } from "@/lib/firebase/AuthContext";
 import { FormEventHandler, useEffect, useState } from "react";
 import { redirect } from 'next/navigation';
 import { db } from "@/lib/firebase/firebase";
-import { collection, doc, setDoc } from "firebase/firestore";
-import './agentSignup.css';
+import { doc, setDoc } from "firebase/firestore";
+import Link from 'next/link';
 
 
 export default function AgentSignUpPage() {
   const { user, signUp } = useAuth();
   const [error, setError] = useState('');
-
 
   useEffect(() => {
     if (user) {
@@ -29,94 +28,75 @@ export default function AgentSignUpPage() {
     const confirmPassword = values.get("password-confirm") as string | null;
 
     if (!email || !password || !name || !confirmPassword) {
-      setError('Please fill in all fields');
+      setError('אנא מלא/י את כל השדות');
       return;
     }
 
     if (password !== confirmPassword) {
-      setError('Passwords do not match');
+      setError('הסיסמאות לא תואמות');
       return;
     }
 
     signUp(email, password)
-    .then((userCredential) => {
-      const docRef = doc(db, 'users', userCredential.user.uid);
-      setDoc(docRef, {
-        name,
-        email,
-        role: 'agent',
-        agentId: userCredential.user.uid,
-        isActive: true,
+      .then((userCredential) => {
+        const docRef = doc(db, 'users', userCredential.user.uid);
+        setDoc(docRef, {
+          name,
+          email,
+          role: 'agent',
+          agentId: userCredential.user.uid,
+          isActive: true,
+        });
+        redirect('/auth/log-in');
+      })
+      .catch((err) => {
+        console.error({ err });
+        setError(err.code);
       });
-      redirect('/auth/log-in');
-    })
-    .catch((err) => {
-      console.error({err});
-      setError(err.code);
-    });
-}
+  };
 
-return (
-  <div className="form-auth-container">
-    <form onSubmit={handleSignUp} className="auth-form">
-      <h2 className="form-title">יצירת משתמש</h2>
+  return (
+    <form onSubmit={handleSignUp} className="space-y-4 max-w-md w-full mx-auto p-6 bg-white rounded shadow">
+      <h2 className="text-2xl font-bold text-center text-blue-900">יצירת משתמש</h2>
 
-      {/* שם סוכן */}
-      <div className="form-group">
-        <label htmlFor="name" className="form-label">
-          שם הסוכן <span className="required">*</span>
+      <div>
+        <label htmlFor="name" className="block text-sm font-medium">
+          שם הסוכן <span className="text-red-500">*</span>
         </label>
-        <input type="text" id="name" name="name" required className="form-input" />
+        <input type="text" id="name" name="name" required className="w-full border border-gray-300 rounded px-3 py-2" />
       </div>
 
-      {/* כתובת מייל */}
-      <div className="form-group">
-        <label htmlFor="email" className="form-label">
-          כתובת מייל <span className="required">*</span>
+      <div>
+        <label htmlFor="email" className="block text-sm font-medium">
+          כתובת מייל <span className="text-red-500">*</span>
         </label>
-        <input type="email" id="email" name="email" required className="form-input" />
+        <input type="email" id="email" name="email" required className="w-full border border-gray-300 rounded px-3 py-2" />
       </div>
 
-      {/* סיסמא */}
-      <div className="form-group">
-        <label htmlFor="password" className="form-label">
-          סיסמא <span className="required">*</span>
+      <div>
+        <label htmlFor="password" className="block text-sm font-medium">
+          סיסמא <span className="text-red-500">*</span>
         </label>
-        <input type="password" id="password" name="password" required className="form-input" />
+        <input type="password" id="password" name="password" required className="w-full border border-gray-300 rounded px-3 py-2" />
       </div>
 
-      {/* אימות סיסמא */}
-      <div className="form-group">
-        <label htmlFor="password-confirm" className="form-label">
-          אימות סיסמא <span className="required">*</span>
+      <div>
+        <label htmlFor="password-confirm" className="block text-sm font-medium">
+          אימות סיסמא <span className="text-red-500">*</span>
         </label>
-        <input
-          type="password"
-          id="password-confirm"
-          name="password-confirm"
-          required
-          className="form-input"
-        />
+        <input type="password" id="password-confirm" name="password-confirm" required className="w-full border border-gray-300 rounded px-3 py-2" />
       </div>
 
-      {/* כפתור הרשמה */}
-      <button type="submit" className="form-button">
+      {error && <p className="text-red-600 text-sm">{error}</p>}
+
+      <button type="submit" className="w-full bg-blue-900 text-white py-2 rounded hover:bg-blue-800">
         הרשמה
       </button>
 
-      {/* הודעות שגיאה */}
-      {error && <p className="error-text">{error}</p>}
-
-      {/* קישור להתחברות */}
-      <div className="form-footer">
-        <div className="form-footer-line">
-          <span>או</span>
+      <div className="border-t pt-4 text-center text-sm text-gray-600">
+        <span className="px-2">או</span>
+        <Link href="/auth/log-in" className="text-blue-600 hover:underline">התחברות</Link>
         </div>
-        <a href="/auth/log-in" className="form-link">
-          התחברות
-        </a>
-      </div>
     </form>
-  </div>
-);
+  );
 }

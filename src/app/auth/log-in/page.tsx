@@ -1,103 +1,70 @@
 'use client';
 
 import { useAuth } from "@/lib/firebase/AuthContext";
-import { FormEventHandler, useEffect, useState } from "react";
-import { redirect, useRouter } from 'next/navigation';
-import './LogIn.css';
+import { FormEventHandler, useState } from "react";
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { getDoc, doc } from 'firebase/firestore';
-import { db } from '@/lib/firebase/firebase'; // הנתיב שלך אל firestore
-
-
+import { db } from '@/lib/firebase/firebase';
 
 export default function LogInPage() {
-  const { user, logIn } = useAuth();
+  const { logIn } = useAuth();
   const [error, setError] = useState('');
-  const router = useRouter(); // ✅ שימוש ב- useRouter כדי לבצע הפניה
+  const router = useRouter();
 
-
-  useEffect(() => {
-    if (user) {
-      router.push('/NewAgentForm'); // ✅ מפנה לדף לאחר התחברות
-    };
-  }, [user]);
-
-  const handleLogIn: FormEventHandler<HTMLFormElement> = (event) => {
+  const handleLogIn: FormEventHandler<HTMLFormElement> = async (event) => {
     event.preventDefault();
 
     const values = new FormData(event.currentTarget);
     const email = values.get("email") as string | null;
     const password = values.get("password") as string | null;
 
-    if (!email || !password) {
-      return;
-    }
+    if (!email || !password) return;
 
-    // logIn(email, password)
-    //   .then(() => {
-    //     router.push('/NewAgentForm'); // ✅ מפנה מיד אחרי התחברות
-    //   })
-    //   .catch((err) => {
-    //     console.error({err});
-    //     setError(err.code);
-    //   });
-
-    logIn(email, password)
-    .then(async (userCredential) => {
+    try {
+      const userCredential = await logIn(email, password);
       const userId = userCredential.user.uid;
       const userDoc = await getDoc(doc(db, 'users', userId));
-  
+
       if (!userDoc.exists()) {
         throw new Error('המשתמש לא נמצא במערכת');
       }
-  
+
       const userData = userDoc.data();
       if (userData?.isActive === false) {
         throw new Error('המנוי שלך אינו פעיל');
       }
-  
+
       router.push('/NewAgentForm');
-    })
-    .catch((err) => {
+    } catch (err: any) {
       console.error({ err });
-      setError(err.message); // אפשר להציג גם בתרגום אם נרצה
-    });
-  
+      setError(err.message || 'אירעה שגיאה בעת ההתחברות');
+    }
+  };
 
-
-  }
   return (
-    <div className="login-container">
-      <div className="login-card">
-        {/* כותרת */}
-        <h1 className="form-title">התחברות</h1>
+    <div className="max-w-md w-full mx-auto p-6 bg-white rounded shadow">
+      <form onSubmit={handleLogIn} className="space-y-4">
+        <h1 className="text-2xl font-bold text-center text-blue-900">התחברות</h1>
   
-        {/* טופס */}
-        <form onSubmit={handleLogIn} className="login-form">
-          {/* כתובת מייל */}
-          <div className="form-group">
-            <label htmlFor="email" className="form-label">כתובת מייל</label>
-            <input type="email" id="email" name="email" required className="form-input" />
-          </div>
+        <div>
+          <label htmlFor="email" className="block text-sm font-medium">כתובת מייל</label>
+          <input type="email" id="email" name="email" required className="w-full border border-gray-300 rounded px-3 py-2" />
+        </div>
   
-          {/* סיסמא */}
-          <div className="form-group">
-            <label htmlFor="password" className="form-label">סיסמא</label>
-            <input type="password" id="password" name="password" required className="form-input" />
-          </div>
+        <div>
+          <label htmlFor="password" className="block text-sm font-medium">סיסמא</label>
+          <input type="password" id="password" name="password" required className="w-full border border-gray-300 rounded px-3 py-2" />
+        </div>
   
-          {/* שכחת סיסמא */}
-          <div className="forgot-password-container">
-            <Link href="/auth/reset-password" className="forgot-password-link">שכחת סיסמא?</Link>
-          </div>
+        <div className="text-sm text-right">
+          <Link href="/auth/reset-password" className="text-blue-600 hover:underline">שכחת סיסמא?</Link>
+        </div>
   
-          {/* הודעות שגיאה */}
-          {error && <p className="error-text">{error}</p>}
+        {error && <p className="text-red-600 text-sm">{error}</p>}
   
-          {/* כפתור כניסה */}
-          <button className="login-button" type="submit">כניסה</button>
-        </form>
-      </div>
+        <button type="submit" className="w-full bg-blue-900 text-white py-2 rounded hover:bg-blue-800">כניסה</button>
+      </form>
     </div>
   );  
 }

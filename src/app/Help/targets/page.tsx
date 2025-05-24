@@ -1,10 +1,23 @@
-import React from "react";
+'use client';
+
+import React, { useEffect, useState } from "react";
 import Image from "next/image";
 // import './targets.css';
 import "../HelpPages.css";
 import HelpNavigation from "@/components/HelpNavigation/HelpNavigation";
 
 const TargetsHelp = () => {
+
+  const [isClient, setIsClient] = useState(false);
+
+useEffect(() => {
+  setIsClient(true);
+}, []);
+
+if (!isClient) return null;
+
+
+
   return (
     <div className="help-container">
       <h1>📖 ניהול יעדים ומבצעים</h1>

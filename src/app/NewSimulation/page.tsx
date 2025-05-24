@@ -7,22 +7,25 @@ import AccessDenied from "@/components/AccessDenied";
 import { usePermission } from "@/hooks/usePermission";
 
 const NewSimulationPage = () => {
-  const { user, isLoading,detail } = useAuth();
-  const [ready, setReady] = useState(false);
-
+  const { user, isLoading, detail } = useAuth();
   const { canAccess, isChecking } = usePermission("access_simulation");
 
+  const [isClient, setIsClient] = useState(false);
+  const [ready, setReady] = useState(false);
+
+  // ודא שרק בקליינט מרנדר
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
+
+  // השהיה קלה לטעינה חלקה
   useEffect(() => {
     const timer = setTimeout(() => setReady(true), 300);
     return () => clearTimeout(timer);
   }, []);
 
-  if (isLoading || isChecking || !ready || !user || !detail) {
-    return (
-      <div className="p-4 text-gray-600">
-        ⏳ טוען מידע...
-      </div>
-    );
+  if (!isClient || isLoading || isChecking || !ready || user === undefined || detail === undefined) {
+    return <div className="p-4 text-gray-600">⏳ טוען מידע...</div>;
   }
 
   if (!user) {

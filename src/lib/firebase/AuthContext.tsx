@@ -1,19 +1,20 @@
 'use client';
 
-import { 
-  User, 
-  onAuthStateChanged, 
-  signOut, 
-  signInWithEmailAndPassword, 
-  createUserWithEmailAndPassword, 
-  UserCredential, 
-  browserSessionPersistence, 
-  setPersistence 
+import {
+  User,
+  onAuthStateChanged,
+  signOut,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  UserCredential,
+  browserSessionPersistence,
+  setPersistence,
 } from "firebase/auth";
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { auth, db } from "./firebase";
 import { doc, getDoc } from "firebase/firestore";
 
+// טיפוסים
 type AuthContextType = {
   user: User | null;
   detail: UserDetail | null;
@@ -30,6 +31,7 @@ type UserDetail = {
   agentId: string;
   agencyId: string;
   role: 'agent' | 'worker' | 'admin' | 'manager';
+  isActive?: boolean;
   subscriptionId?: string;
   subscriptionType?: string;
   permissionOverrides?: {
@@ -46,82 +48,103 @@ type RolesPermissionsMap = {
   [role: string]: string[];
 };
 
-export const AuthContext = createContext<AuthContextType>({
-  user: null,
-  detail: null,
-  isLoading: true,
-  rolesPermissions: {},
-  logIn: async () => { throw new Error("logIn not implemented"); },
-  signUp: async () => { throw new Error("signUp not implemented"); },
-  logOut: async () => { throw new Error("logOut not implemented"); },
-});
+// קונטקסט
+export const AuthContext = createContext<AuthContextType | null>(null);
 
-export const AuthContextProvider = (props: any) => {
+// פרוביידר
+export const AuthContextProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [detail, setDetail] = useState<UserDetail | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [rolesPermissions, setRolesPermissions] = useState<RolesPermissionsMap>({});
+  const [isClient, setIsClient] = useState(false);
+
+  // מזהה שאנחנו ב-client
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
+    if (!isClient) return;
 
-      if (currentUser) {
-        const docRef = doc(db, 'users', currentUser.uid);
-        getDoc(docRef)
-          .then(async (docSnap) => {
-            const data = docSnap.data();
-            setDetail(data as UserDetail);
-
-            const rolesToFetch = ['agent', 'worker', 'admin', 'manager'];
-            const rolesData: RolesPermissionsMap = {};
-
-            await Promise.all(
-              rolesToFetch.map(async (role) => {
-                const roleDoc = await getDoc(doc(db, 'roles', role));
-                if (roleDoc.exists()) {
-                  rolesData[role] = roleDoc.data().permissions || [];
-                } else {
-                  rolesData[role] = [];
-                }
-              })
-            );
-
-            setRolesPermissions(rolesData);
-            setIsLoading(false);
-          });
-      } else {
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      if (!currentUser) {
+        setUser(null);
         setDetail(null);
         setIsLoading(false);
+        return;
       }
+
+      const docRef = doc(db, 'users', currentUser.uid);
+      const docSnap = await getDoc(docRef);
+
+      if (!docSnap.exists()) {
+        setUser(null);
+        setDetail(null);
+        setIsLoading(false);
+        return;
+      }
+
+      const data = docSnap.data() as UserDetail;
+
+      if (data?.isActive === false) {
+        setUser(null);
+        setDetail(null);
+        setIsLoading(false);
+        return;
+      }
+
+      setUser(currentUser);
+      setDetail(data);
+
+      const rolesToFetch = ['agent', 'worker', 'admin', 'manager'];
+      const rolesData: RolesPermissionsMap = {};
+
+      await Promise.all(
+        rolesToFetch.map(async (role) => {
+          const roleDoc = await getDoc(doc(db, 'roles', role));
+          rolesData[role] = roleDoc.exists() ? roleDoc.data().permissions || [] : [];
+        })
+      );
+
+      setRolesPermissions(rolesData);
+      setIsLoading(false);
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [isClient]);
 
-  const logIn = async (email: string, password: string) => {
-    return setPersistence(auth, browserSessionPersistence)
-      .then(() => {
-        return signInWithEmailAndPassword(auth, email, password);
-      });
-  };
-
-  const signUp = async (email: string, password: string) => {
-    return createUserWithEmailAndPassword(auth, email, password);
-  };
-
-  const logOut = async () => {
-    return signOut(auth);
-  };
+  // מניעת רינדור אם לא ב-client
+  if (!isClient) return null;
 
   return (
     <AuthContext.Provider
-      {...props}
       value={{ user, detail, isLoading, rolesPermissions, logIn, signUp, logOut }}
-    />
+    >
+      {children}
+    </AuthContext.Provider>
   );
 };
 
-export function useAuth() {
-  return useContext(AuthContext);
-}
+// פונקציית hook
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error("useAuth must be used within an AuthContextProvider");
+  }
+  return context;
+};
+
+// פעולות התחברות/התנתקות
+const logIn = async (email: string, password: string) => {
+  await setPersistence(auth, browserSessionPersistence);
+  return signInWithEmailAndPassword(auth, email, password);
+};
+
+const signUp = async (email: string, password: string) => {
+  return createUserWithEmailAndPassword(auth, email, password);
+};
+
+const logOut = async () => {
+  return signOut(auth);
+};

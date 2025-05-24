@@ -8,21 +8,31 @@ import { usePermission } from "@/hooks/usePermission";
 
 const NewGoalsPage = () => {
   const { user, isLoading } = useAuth();
-  const [ready, setReady] = useState(false);
-
   const { canAccess, isChecking } = usePermission("access_manageGoals");
 
+  const [ready, setReady] = useState(false);
+  const [isClient, setIsClient] = useState(false);
+
+  // זיהוי צד לקוח בלבד
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
+
+  // השהיית הצגה חלקה
   useEffect(() => {
     const timer = setTimeout(() => setReady(true), 300);
     return () => clearTimeout(timer);
   }, []);
 
-  // שלב טעינה
+  // מניעת hydration error
+  if (!isClient) return null;
+
+  // שלבי טעינה
   if (isLoading || isChecking || !ready || user === undefined) {
     return <div className="p-4 text-gray-600">⏳ טוען מידע...</div>;
   }
 
-  // אין יוזר
+  // לא מחובר
   if (!user) {
     return (
       <div className="text-custom-white px-4 py-2 rounded-lg">
@@ -36,7 +46,7 @@ const NewGoalsPage = () => {
     return <AccessDenied />;
   }
 
-  // מוכן להציג
+  // הכל תקין – מציג את הרכיב
   return (
     <Suspense fallback={<div>Loading...</div>}>
       <NewGoals />

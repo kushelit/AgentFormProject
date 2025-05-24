@@ -7,17 +7,29 @@ import AccessDenied from "@/components/AccessDenied";
 import { usePermission } from "@/hooks/usePermission";
 
 const RequestStatusPage = () => {
-  const { user, isLoading } = useAuth();
+  const { user, isLoading, detail } = useAuth();
+  const { canAccess, isChecking } = usePermission("access_requestStatusApi");
+
+  const [isClient, setIsClient] = useState(false);
   const [ready, setReady] = useState(false);
 
-  const { canAccess, isChecking } = usePermission("access_requestStatusApi");
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
 
   useEffect(() => {
     const timer = setTimeout(() => setReady(true), 300);
     return () => clearTimeout(timer);
   }, []);
 
-  if (isLoading || !ready || isChecking || user === undefined) {
+  if (
+    !isClient ||
+    isLoading ||
+    isChecking ||
+    !ready ||
+    user === undefined ||
+    detail === undefined
+  ) {
     return <div className="p-4 text-gray-600">⏳ טוען מידע...</div>;
   }
 
@@ -29,7 +41,7 @@ const RequestStatusPage = () => {
     );
   }
 
-  if (!canAccess) {
+  if (canAccess === false) {
     return <AccessDenied />;
   }
 

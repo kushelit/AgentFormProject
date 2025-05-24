@@ -1,9 +1,9 @@
-"use client";
+'use client';
 import React, { useState, useEffect } from "react";
 import { NavbarItem } from "../NavbarItem";
 import { Expand } from "../Expand";
 import { Collapse } from "../Collapse";
-import useFetchAgentData from "@/hooks/useFetchAgentData"; 
+import useFetchAgentData from "@/hooks/useFetchAgentData";
 import { useAuth } from '@/lib/firebase/AuthContext';
 import ContactFormModal from "@/components/ContactFormModal/ContactFormModal";
 import "./Navbar.css";
@@ -11,45 +11,37 @@ import "./Navbar.css";
 export const Navbar = ({ items, bottomPage, className }) => {
   const [openSubmenu, setOpenSubmenu] = useState(null);
   const [selectedTab, setSelectedTab] = useState(null);
-  const {  user, detail } = useAuth(); // קבלת מידע על המשתמש המחובר
-
   const [isContactOpen, setIsContactOpen] = useState(false);
+  const [isClient, setIsClient] = useState(false);
 
+  const { user, detail } = useAuth();
+  const { selectedAgentId } = useFetchAgentData();
 
-  const { 
-    selectedAgentId, 
-  } = useFetchAgentData();
-
-
-  // שחזור המצב מ-localStorage בעת טעינת הקומפוננטה
+  // זיהוי רנדר בצד לקוח
   useEffect(() => {
+    setIsClient(true);
+  }, []);
+
+  // שחזור מ-localStorage רק בקליינט
+  useEffect(() => {
+    if (!isClient) return;
     const savedTab = localStorage.getItem("selectedTab");
     const savedOpenSubmenu = localStorage.getItem("openSubmenu");
 
-    if (savedTab) {
-      setSelectedTab(savedTab); // שחזור הטאב שנבחר
-    }
+    if (savedTab) setSelectedTab(savedTab);
+    if (savedOpenSubmenu) setOpenSubmenu(null);
+  }, [isClient]);
 
-    // נוודא שהמצב נשמר אך לא נפתח אוטומטית
-    if (savedOpenSubmenu) {
-      setOpenSubmenu(null); // לא פותחים אוטומטית
-    }
-  }, []);
-
-  // עדכון הטאב שנבחר
   const handleTabClick = (href) => {
     setSelectedTab(href);
     localStorage.setItem("selectedTab", href);
   };
 
-  // פתיחה וסגירה של תפריט המשנה
   const handleToggle = (href) => {
     if (openSubmenu === href) {
-      // אם התפריט פתוח, נסגור אותו
       setOpenSubmenu(null);
       localStorage.removeItem("openSubmenu");
     } else {
-      // אם התפריט סגור, נפתח אותו
       setOpenSubmenu(href);
       localStorage.setItem("openSubmenu", href);
     }
@@ -68,10 +60,10 @@ export const Navbar = ({ items, bottomPage, className }) => {
           onClick={(e) => {
             if (item.submenu) {
               e.preventDefault();
-              handleToggle(item.href); // נהל פתיחה/סגירה של תפריט המשנה
+              handleToggle(item.href);
             } else {
-              setOpenSubmenu(null); // סגור תפריטים פתוחים
-              handleTabClick(item.href); // עדכן את הטאב הנבחר
+              setOpenSubmenu(null);
+              handleTabClick(item.href);
             }
           }}
         >
@@ -82,7 +74,7 @@ export const Navbar = ({ items, bottomPage, className }) => {
             className="submenu-toggle"
             onClick={(e) => {
               e.preventDefault();
-              handleToggle(item.href); // פתיחה/סגירה של תפריט המשנה
+              handleToggle(item.href);
             }}
             aria-expanded={openSubmenu === item.href}
           >
@@ -99,7 +91,7 @@ export const Navbar = ({ items, bottomPage, className }) => {
 
   return (
     <div className={`navbar ${className}`}>
-      {user ? ( // הצגת ה-Navbar רק אם יש משתמש מחובר
+      {user ? (
         <>
           {Array.isArray(items) &&
             items.map((item) => (
@@ -118,8 +110,8 @@ export const Navbar = ({ items, bottomPage, className }) => {
                             href={submenuItem.href}
                             className="navbar-link"
                             onClick={(e) => {
-                              e.stopPropagation(); // מנע סגירה של התפריט
-                              handleTabClick(submenuItem.href); // בחר את הטאב
+                              e.stopPropagation();
+                              handleTabClick(submenuItem.href);
                             }}
                           >
                             {submenuItem.label}
@@ -130,7 +122,7 @@ export const Navbar = ({ items, bottomPage, className }) => {
                   )}
               </React.Fragment>
             ))}
-          {/* Bottom page */}
+
           {bottomPage && (
             <div className="navbar-bottom">
               <NavbarItem
@@ -141,25 +133,33 @@ export const Navbar = ({ items, bottomPage, className }) => {
                 <a href={bottomPage.href} className="navbar-link" lang="en">
                   {bottomPage.label}
                 </a>
-                </NavbarItem>
-                </div>
-                )}
-         <div className="contact-container">
-  <a href="#" className="contact-link" onClick={(e) => { e.preventDefault(); setIsContactOpen(true); }}>
-    📩 צור קשר
-  </a>
-</div>
+              </NavbarItem>
+            </div>
+          )}
 
-{isContactOpen && (
-  <ContactFormModal
-    onClose={() => setIsContactOpen(false)}
-    userEmail={detail?.email || ""}
-    userName={detail?.name || "משתמש אנונימי"} 
-    />
-)}
+          <div className="contact-container">
+            <a
+              href="#"
+              className="contact-link"
+              onClick={(e) => {
+                e.preventDefault();
+                setIsContactOpen(true);
+              }}
+            >
+              📩 צור קשר
+            </a>
+          </div>
+
+          {isContactOpen && (
+            <ContactFormModal
+              onClose={() => setIsContactOpen(false)}
+              userEmail={detail?.email || ""}
+              userName={detail?.name || "משתמש אנונימי"}
+            />
+          )}
         </>
       ) : (
-        <p>נא התחבר למערכת</p> // הודעה במקרה שאין `selectedAgentId`
+        <p>נא התחבר למערכת</p>
       )}
     </div>
   );
