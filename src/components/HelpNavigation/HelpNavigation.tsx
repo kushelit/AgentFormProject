@@ -19,9 +19,7 @@ const HelpNavigation = () => {
     { href: "/Help/mdflow", label: "🧩 Flow - ניהול הגדרות לידים" },
     { href: "/Help/TeamPermissions", label: "🛡️ ניהול הרשאות" },
 
-    
-    // { href: "/Help/reports", label: "📈 דוחות" },
-  ];
+    ];
 
   // סגירת הרשימה אוטומטית בעת שינוי נתיב
   useEffect(() => {

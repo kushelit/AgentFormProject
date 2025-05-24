@@ -16,7 +16,6 @@ const HelpCenter = () => {
       <li><Link href="/Help/clients">🧑‍💼 ניהול לקוחות</Link></li>
       <li><Link href="/Help/central">🏢 דף מרכז</Link></li>
       <li><Link href="/Help/commissions">💰 ניהול עמלות</Link></li>
-{/* <li><Link href="/Help/reports">📈 דוחות</Link></li> */}
       <li><Link href="/Help/simulator">🧮 סימולטור</Link></li>
       <li><Link href="/Help/targets">🎯 ניהול יעדים ומבצעים</Link></li>
       <li><Link href="/Help/flow">🔄 Flow - ניהול לידים</Link></li>
