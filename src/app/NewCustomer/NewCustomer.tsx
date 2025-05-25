@@ -21,7 +21,8 @@ import {ToastNotification} from '@/components/ToastNotification';
 import { useToast } from "@/hooks/useToast";
 import { useValidation, validationRules } from "@/hooks/useValidation";
 import { usePermission } from "@/hooks/usePermission";
-
+import * as XLSX from "xlsx";
+import { saveAs } from "file-saver";
 
 const NewCustomer = () => {
 
@@ -758,7 +759,38 @@ const handleNewSelectCustomer = (id: string) => {
   });
 };
 
-console.log("selectedAgentId:", selectedAgentId);
+
+
+ const exportCustomersToExcel = (filteredCustomers: any[]) => {
+  if (!filteredCustomers.length) return;
+
+  const translatedCustomers = filteredCustomers.map((item) => ({
+    "שם פרטי": item.firstNameCustomer || "",
+    "שם משפחה": item.lastNameCustomer || "",
+    "תעודת זהות": item.IDCustomer || "",
+    "מבוטח אב": item.parentFullName || "",
+    "תאריך לידה": item.birthday || "",
+    "טלפון": item.phone || "",
+    "מייל": item.mail || "",
+    "כתובת": item.address || "",
+    "מקור ליד": item.sourceValue || ""
+  }));
+
+  const worksheet = XLSX.utils.json_to_sheet(translatedCustomers);
+  worksheet["!rtl"] = true;
+
+  const range = XLSX.utils.decode_range(worksheet['!ref'] || '');
+  worksheet['!ref'] = XLSX.utils.encode_range(range);
+
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, "לקוחות");
+
+  const excelBuffer = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
+  const blob = new Blob([excelBuffer], { type: "application/octet-stream" });
+  saveAs(blob, "לקוחות.xlsx");
+};
+
+
 
   return (
     <div className="content-container">
@@ -790,6 +822,9 @@ console.log("selectedAgentId:", selectedAgentId);
     state={editingRowCustomer ? "default" : "disabled"} // כפתור פעיל רק כשיש שורה שנערכת
     disabled={!editingRowCustomer} // מנוטרל אם אין שורה שנערכת
   />
+  <button onClick={() => exportCustomersToExcel(filteredData)}>
+  <img src="/static/img/excel-icon.svg" alt="ייצוא לקוחות" width={24} height={24} />
+</button>
 </div>
 </div>
 <div className="filter-inputs-container">
@@ -1004,7 +1039,6 @@ console.log("selectedAgentId:", selectedAgentId);
     </div>
   </div>
 )}
-
         <div className="firstTableData" >
           <table>
           <thead>

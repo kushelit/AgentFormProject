@@ -73,8 +73,10 @@ export const ChangePlanModal: React.FC<ChangePlanModalProps> = ({
 
       if (res.data.success) {
         addToast("success", "המנוי עודכן בהצלחה");
-        onClose();
-        window.location.reload();
+        setTimeout(() => {
+          onClose();
+          window.location.reload();
+        }, 2000); // 2 שניות
       } else {
         addToast("error", "שגיאה בעדכון התוכנית");
       }
