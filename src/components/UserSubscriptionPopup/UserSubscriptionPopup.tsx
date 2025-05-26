@@ -2,13 +2,12 @@
 
 import React, { useState } from 'react';
 import { ChangePlanModal } from '../ChangePlanModal/ChangePlanModal';
-import './UserSubscriptionPopup.css';
 import axios from 'axios';
-import {ToastNotification} from '@/components/ToastNotification';
+import { ToastNotification } from '@/components/ToastNotification';
 import { useToast } from "@/hooks/useToast";
 import { useAuth } from "@/lib/firebase/AuthContext";
 import { useRouter } from "next/navigation";
-
+import DialogNotification from '@/components/DialogNotification';
 
 interface UserSubscriptionPopupProps {
   name?: string;
@@ -22,6 +21,10 @@ interface UserSubscriptionPopupProps {
   onCancel: () => void;
   onClose: () => void;
   userId: string;
+  addOns?: {
+    leadsModule?: boolean;
+    extraWorkers?: number;
+  };
 }
 
 export const UserSubscriptionPopup: React.FC<UserSubscriptionPopupProps> = ({
@@ -36,18 +39,25 @@ export const UserSubscriptionPopup: React.FC<UserSubscriptionPopupProps> = ({
   onCancel,
   onClose,
   userId,
+  addOns,
 }) => {
   const [showChangeModal, setShowChangeModal] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
+  const [showCancelDialog, setShowCancelDialog] = useState(false);
 
   const { logOut } = useAuth();
   const router = useRouter();
-  
+  const { toasts, addToast, setToasts } = useToast();
+
+  const planNames: { [key: string]: string } = {
+    basic: 'מנוי בסיסי',
+    pro: 'מנוי מקצועי',
+  };
 
   const renderInfoRow = (label: string, value?: string | null) => (
-    <div className="info-row">
-      <span className="label">{label}:</span>
-      <span className="value">{value || '-'}</span>
+    <div className="flex justify-between border-b py-1">
+      <span className="font-semibold text-gray-600">{label}:</span>
+      <span className="text-gray-800">{value || '-'}</span>
     </div>
   );
 
@@ -66,81 +76,105 @@ export const UserSubscriptionPopup: React.FC<UserSubscriptionPopupProps> = ({
 
       if (res.data.success) {
         addToast("success", "המנוי בוטל בהצלחה");
-        await logOut(); // 🚪 התנתקות
+        await logOut();
         onCancel();
         onClose();
         router.refresh();
       } else {
         addToast("error", "שגיאה בביטול המנוי");
-
       }
     } catch (err) {
       console.error('שגיאה בביטול:', err);
       addToast("error", "שגיאה בביטול המנוי");
     } finally {
       setIsCancelling(false);
+      setShowCancelDialog(false);
     }
   };
 
-  const { toasts, addToast, setToasts } = useToast();
-
   return (
-    <div className="popup-overlay">
-      <div className="subscription-popup">
-        <button className="popup-close-button" onClick={onClose}>×</button>
-        <h2 className="popup-title">פרטי המנוי שלך</h2>
+    <div className="fixed inset-0 bg-black bg-opacity-30 z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-xl shadow-xl max-w-xl w-full p-6 text-right relative">
+        <button
+          className="absolute top-3 left-3 text-gray-500 hover:text-black text-2xl font-bold"
+          onClick={onClose}
+        >
+          ×
+        </button>
 
-        {renderInfoRow('שם', name)}
-        {renderInfoRow('אימייל', email)}
-        {renderInfoRow('טלפון', phone)}
-        {renderInfoRow('סטטוס מנוי', subscriptionStatus)}
-        {renderInfoRow('מסלול נוכחי', subscriptionType)}
-        {renderInfoRow('מספר עסקה', transactionId)}
-        {renderInfoRow('אסמכתא', asmachta)}
+        <h2 className="text-2xl font-bold mb-6 text-blue-800">פרטי המנוי שלך</h2>
 
-        <div className="buttons">
+        <div className="space-y-3 text-sm">
+          {renderInfoRow('שם', name)}
+          {renderInfoRow('אימייל', email)}
+          {renderInfoRow('טלפון', phone)}
+          {renderInfoRow('סטטוס מנוי', subscriptionStatus)}
+          {renderInfoRow('מסלול נוכחי', planNames[subscriptionType ?? ''] || '-')}
+          {renderInfoRow('מספר עסקה', transactionId)}
+          {renderInfoRow('אסמכתא', asmachta)}
+        </div>
+
+        <div className="flex justify-end mt-6 gap-3">
           <button
-            className="cancel-button"
-            onClick={handleCancelSubscription}
+            className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 transition"
+            onClick={() => setShowCancelDialog(true)}
             disabled={isCancelling}
           >
             {isCancelling ? 'מבטל...' : 'בטל מנוי'}
           </button>
+
           <button
-            className="upgrade-button"
-            onClick={() => {
-              console.log('✅ נלחץ כפתור שינוי תוכנית');
-              setShowChangeModal(true);
-            }}
+            className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition"
+            onClick={() => setShowChangeModal(true)}
           >
             שנה תוכנית
           </button>
-          <button className="closeButton" onClick={onClose}>סגור</button>
-        </div>
-        {toasts.length > 0  && toasts.map((toast) => (
-  <ToastNotification 
-    key={toast.id}  
-    type={toast.type}
-    className={toast.isHiding ? "hide" : ""} 
-    message={toast.message}
-    onClose={() => setToasts((prevToasts) => prevToasts.filter((t) => t.id !== toast.id))}
-  />
-))}
-      </div>
 
-      {showChangeModal && (
-        <ChangePlanModal
-          userId={userId}
-          transactionId={transactionId || ''}
-          transactionToken={transactionToken || ''}
-          asmachta={asmachta || ''}
-          currentPlan={subscriptionType || ''}
-          onClose={() => {
-            console.log('🔒 נסגר מודל שינוי תוכנית');
-            setShowChangeModal(false);
-          }}
-        />
-      )}
+          <button
+            className="bg-gray-200 text-gray-700 px-4 py-2 rounded hover:bg-gray-300 transition"
+            onClick={onClose}
+          >
+            סגור
+          </button>
+        </div>
+
+        {toasts.length > 0 &&
+          toasts.map((toast) => (
+            <ToastNotification
+              key={toast.id}
+              type={toast.type}
+              className={toast.isHiding ? 'hide' : ''}
+              message={toast.message}
+              onClose={() =>
+                setToasts((prevToasts) => prevToasts.filter((t) => t.id !== toast.id))
+              }
+            />
+          ))}
+
+        {showChangeModal && (
+          <ChangePlanModal
+            userId={userId}
+            transactionId={transactionId || ''}
+            transactionToken={transactionToken || ''}
+            asmachta={asmachta || ''}
+            currentPlan={subscriptionType || ''}
+            currentAddOns={addOns}
+            onClose={() => setShowChangeModal(false)}
+          />
+        )}
+
+        {showCancelDialog && (
+          <DialogNotification
+            type="warning"
+            title="אישור ביטול מנוי"
+            message="האם את בטוחה שברצונך לבטל את המנוי? פעולה זו תנתק אותך ותסיים את ההרשאות."
+            onConfirm={handleCancelSubscription}
+            onCancel={() => setShowCancelDialog(false)}
+            confirmText="כן, בטל מנוי"
+            cancelText="חזרה"
+          />
+        )}
+      </div>
     </div>
   );
 };

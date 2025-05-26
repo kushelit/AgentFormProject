@@ -154,6 +154,7 @@ const exportToExcel = () => {
     "חודש תפוקה": item.mounth,
     "סטאטוס": item.statusPolicy,
     "מינוי סוכן": item.minuySochen ? "כן" : "לא",
+"שם עובד": workerNameMap[item.workerId ?? ""] || "",
     "הערות": item.notes ?? ""
   }));
 

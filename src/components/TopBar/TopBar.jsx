@@ -56,21 +56,23 @@ export const TopBar = ({ prop = true, className }) => {
 
       {/* הפופאפ מחוץ ל-top-bar */}
       {user && showPopup && detail?.subscriptionId && (
-        <UserSubscriptionPopup
-          name={detail?.name}
-          email={detail?.email}
-          phone={detail?.phone}
-          subscriptionStatus={detail?.subscriptionStatus}
-          transactionId={detail?.transactionId}
-          transactionToken={detail?.transactionToken}
-          asmachta={detail?.asmachta}
-          userId={user?.uid || ''}
-          onCancel={() => {
-            // כאן אפשר להוסיף קריאה לפונקציית הביטול בעתיד
-            setShowPopup(false);
-          }}
-          onClose={() => setShowPopup(false)}
-        />
+     <UserSubscriptionPopup
+     name={detail?.name}
+     email={detail?.email}
+     phone={detail?.phone}
+     subscriptionStatus={detail?.subscriptionStatus}
+     subscriptionType={detail?.subscriptionType}
+     transactionId={detail?.transactionId}
+     transactionToken={detail?.transactionToken}
+     asmachta={detail?.asmachta}
+     userId={user?.uid || ''}
+     addOns={{
+       leadsModule: detail?.addOns?.leadsModule || false,
+       extraWorkers: detail?.addOns?.extraWorkers || 0
+     }}
+     onCancel={() => setShowPopup(false)}
+     onClose={() => setShowPopup(false)}
+   />   
       )}
     </>
   );

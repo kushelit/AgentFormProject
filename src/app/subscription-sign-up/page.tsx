@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -10,7 +9,19 @@ interface Plan {
   name: string;
   price: number;
   description: string;
+  permissions: string[];
+  maxUsers: number;
 }
+
+const permissionLabels: { [key: string]: string } = {
+  access_agentForm: 'גישה מלאה לדף עסקאות',
+  access_customer: 'גישה מלאה לדף לקוחות',
+  access_summaryTable: 'גישה מלאה לדף ניהול עמלות',
+  access_goals: 'גישה מלאה לדף ניהול יעדים',
+  access_leads: 'גישה מלאה לדף ניהול לידים',
+  access_workers: 'גישה מלאה לדף ניהול עובדים',
+  access_permissions: 'גישנ מלאה לדף ניהול הרשאות',
+};
 
 export default function SubscriptionSignUpPage() {
   const [plans, setPlans] = useState<Plan[]>([]);
@@ -27,18 +38,31 @@ export default function SubscriptionSignUpPage() {
   useEffect(() => {
     const fetchPlans = async () => {
       try {
-        const res = await axios.get('/api/subscription-plans'); // צריך לבנות API שמחזיר את הנתונים מ־Firestore
+        const res = await axios.get('/api/subscription-plans');
+  
+        // ✅ בדיקה לכל תוכנית
+        res.data.forEach((plan: any, index: number) => {
+          if (!plan.permissions || !Array.isArray(plan.permissions)) {
+            console.warn(`⚠️ תוכנית [${plan.name || plan.id || index}] חסרה שדה permissions או שהוא לא מערך`);
+          }
+  
+          if (typeof plan.name !== 'string' || typeof plan.price !== 'number') {
+            console.warn(`⚠️ תוכנית [${plan.id || index}] עם שדות name או price לא תקינים`);
+          }
+        });
+  
         setPlans(res.data);
         if (res.data.length > 0) {
-          setSelectedPlan(res.data[0].id); // בחר את המסלול הראשון כברירת מחדל
+          setSelectedPlan(res.data[0].id);
         }
       } catch (err) {
         console.error('שגיאה בטעינת מסלולים', err);
       }
     };
-
+  
     fetchPlans();
   }, []);
+  
 
   const calculateTotal = () => {
     const base = plans.find(p => p.id === selectedPlan)?.price || 0;
@@ -99,18 +123,30 @@ export default function SubscriptionSignUpPage() {
     <div className="max-w-4xl mx-auto mt-10 bg-white shadow-lg rounded-xl p-6 text-right">
       <h2 className="text-2xl font-bold mb-6">הרשמה למנוי</h2>
       <form onSubmit={handleSubmit} className="space-y-6">
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {plans.map((plan) => (
             <div
               key={plan.id}
               onClick={() => setSelectedPlan(plan.id)}
-              className={`cursor-pointer rounded-lg border p-4 shadow-md transition hover:shadow-xl text-right ${
+              className={`cursor-pointer rounded-lg border p-4 shadow-md transition hover:shadow-xl text-right flex flex-col justify-between ${
                 selectedPlan === plan.id ? 'border-blue-500 bg-blue-50' : 'border-gray-300'
               }`}
             >
-              <h3 className="text-lg font-bold mb-2">{plan.name}</h3>
-              <p className="text-sm text-gray-600 mb-3">{plan.description}</p>
-              <p className="text-xl font-bold">₪{plan.price}</p>
+              <div>
+                <h3 className="text-lg font-bold mb-2">{plan.name}</h3>
+                <p className="text-sm text-gray-600 mb-3">
+  כולל {plan.permissions?.length || 0} הרשאות, עד {plan.maxUsers || 1} משתמשים
+</p>
+                <ul className="text-sm text-gray-700 space-y-1 mt-2 pr-2">
+                  {plan.permissions?.map((perm, index) => (
+                    <li key={index} className="flex items-center gap-2">
+                      <span className="text-green-600 font-bold">✓</span>
+                      <span>{permissionLabels[perm] || perm}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <p className="text-xl font-bold mt-4">₪{plan.price}</p>
             </div>
           ))}
         </div>
@@ -167,7 +203,7 @@ export default function SubscriptionSignUpPage() {
           </label>
         </div>
 
-        <div className="font-bold text-lg">סה&quot;כ לתשלום : ₪{calculateTotal()}</div>
+        <div className="font-bold text-lg">סה"כ לתשלום : ₪{calculateTotal()}</div>
         {error && <p className="text-red-600 text-sm font-semibold">{error}</p>}
 
         <button
