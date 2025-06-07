@@ -25,7 +25,7 @@ type AuthContextType = {
   logOut: () => Promise<void>;
 };
 
-type UserDetail = {
+export type UserDetail = {
   name: string;
   email: string;
   agentId: string;

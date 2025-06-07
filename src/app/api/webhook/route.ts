@@ -75,10 +75,31 @@ export async function POST(req: NextRequest) {
     let existingUser: any = null;
     try {
       existingUser = await auth.getUserByEmail(email);
-      return NextResponse.json({ error: 'User already exists', uid: existingUser.uid }, { status: 409 });
+    
+      // אם קיים אבל מושבת – נאפשר אותו מחדש
+      await auth.updateUser(existingUser.uid, { disabled: false });
+    
+      await db.collection('users').doc(existingUser.uid).update({
+        isActive: true,
+        subscriptionStatus,
+        subscriptionType,
+        lastPaymentStatus: paymentStatus,
+        lastPaymentDate: paymentDate,
+        ...(transactionId ? { transactionId } : {}),
+        ...(transactionToken ? { transactionToken } : {}),
+        ...(asmachta ? { asmachta } : {}),
+        ...(addOns ? {
+          addOns: {
+            leadsModule: !!addOns.leadsModule,
+            extraWorkers: addOns.extraWorkers || 0,
+          }
+        } : {}),
+      });
+    
+      return NextResponse.json({ reactivated: true });
     } catch (e) {
-      // ממשיך רק אם לא קיים
-    }
+      // ממשיך ליצירת יוזר חדש
+    }    
 
     const newUser = await auth.createUser({
       email,

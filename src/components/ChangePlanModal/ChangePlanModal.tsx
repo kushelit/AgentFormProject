@@ -43,6 +43,7 @@ export const ChangePlanModal: React.FC<ChangePlanModalProps> = ({
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const { toasts, addToast, setToasts } = useToast();
 
+
   useEffect(() => {
     const fetchPlans = async () => {
       try {

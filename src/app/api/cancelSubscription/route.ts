@@ -101,6 +101,39 @@ formData.forEach((value, key) => {
       console.error('❌ שגיאה בהשבתת המשתמש:', authError);
     }
     
+    // 🔁 השבתת כל העובדים של הסוכן
+try {
+  const workersSnap = await db.collection('users')
+    .where('agentId', '==', id)
+    .where('role', '==', 'worker')
+    .get();
+
+  const disablePromises: Promise<any>[] = [];
+
+  workersSnap.forEach(workerDoc => {
+    const workerId = workerDoc.id;
+
+    // עדכון Firestore
+    disablePromises.push(
+      workerDoc.ref.update({ isActive: false })
+    );
+
+    // עדכון Firebase Auth
+    disablePromises.push(
+      admin.auth().updateUser(workerId, { disabled: true }).catch((e) => {
+        console.error(`❌ שגיאה בהשבתת עובד ${workerId}:`, e.message);
+      })
+    );
+  });
+
+  await Promise.all(disablePromises);
+  console.log(`🔒 הושבתו ${workersSnap.size} עובדים של הסוכן`);
+
+} catch (e: any) {
+  console.error('❌ שגיאה באיתור או השבתת העובדים:', e.message);
+}
+
+
     // שליחת מייל ביטול אם רלוונטי
     if (sendCancelEmail && userEmail) {
       await fetch('https://test.magicsale.co.il/api/sendCancelEmail', {

@@ -55,7 +55,7 @@ export const TopBar = ({ prop = true, className }) => {
       </div>
 
       {/* הפופאפ מחוץ ל-top-bar */}
-      {user && showPopup && detail?.subscriptionId && (
+      {user && showPopup && detail?.subscriptionId && detail?.role !== 'worker' && (
      <UserSubscriptionPopup
      name={detail?.name}
      email={detail?.email}

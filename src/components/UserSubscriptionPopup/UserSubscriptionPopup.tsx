@@ -64,7 +64,7 @@ export const UserSubscriptionPopup: React.FC<UserSubscriptionPopupProps> = ({
   const handleCancelSubscription = async () => {
     if (!userId || !transactionToken || !transactionId || !asmachta) return;
     setIsCancelling(true);
-
+  
     try {
       const res = await axios.post('/api/cancelSubscription', {
         id: userId,
@@ -73,15 +73,19 @@ export const UserSubscriptionPopup: React.FC<UserSubscriptionPopupProps> = ({
         asmachta,
         sendCancelEmail: true,
       });
-
+  
       if (res.data.success) {
-        addToast("success", "המנוי בוטל בהצלחה");
+        addToast("success", res.data.message || "✅ המנוי בוטל בהצלחה. חשבונך הושהה.");
+  
+        // המתנה 3 שניות לפני התנתקות
+        await new Promise(resolve => setTimeout(resolve, 3000));
+  
         await logOut();
-        onCancel();
-        onClose();
+        onCancel?.();
+        onClose?.();
         router.refresh();
       } else {
-        addToast("error", "שגיאה בביטול המנוי");
+        addToast("error", res.data.message || "שגיאה בביטול המנוי");
       }
     } catch (err) {
       console.error('שגיאה בביטול:', err);
@@ -91,7 +95,8 @@ export const UserSubscriptionPopup: React.FC<UserSubscriptionPopupProps> = ({
       setShowCancelDialog(false);
     }
   };
-
+  
+  
   return (
     <div className="fixed inset-0 bg-black bg-opacity-30 z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-xl shadow-xl max-w-xl w-full p-6 text-right relative">

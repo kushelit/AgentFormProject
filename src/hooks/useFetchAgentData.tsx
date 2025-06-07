@@ -191,9 +191,11 @@ const useFetchAgentData = () => {
       if (detail.role === 'admin') {
         const snapshot = await getDocs(query(
           collection(db, 'users'),
-          where('role', 'in', ['agent', 'manager'])
+          where('role', 'in', ['agent', 'manager']) 
         ));
-        agentsList = snapshot.docs.map(doc => ({
+        agentsList = snapshot.docs
+        .filter(doc => doc.data().isActive !== false) // ✅ רק סוכנים פעילים
+        .map(doc => ({
           id: doc.id,
           name: doc.data().name as string
         }));
@@ -207,7 +209,9 @@ const useFetchAgentData = () => {
             where('agentGroupId', '==', agentData.agentGroupId),
             where('role', 'in', ['agent', 'manager'])
           ));
-          agentsList = snapshot.docs.map(doc => ({
+          agentsList = snapshot.docs
+          .filter(doc => doc.data().isActive !== false) // ✅ רק סוכנים פעילים
+          .map(doc => ({
             id: doc.id,
             name: doc.data().name as string
           }));

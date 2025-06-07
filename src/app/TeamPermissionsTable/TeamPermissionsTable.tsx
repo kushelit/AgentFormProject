@@ -10,6 +10,10 @@ import { ToastNotification } from '@/components/ToastNotification';
 import { useToast } from '@/hooks/useToast';
 import './TeamPermissionsTable.css';
 import DialogNotification from "@/components/DialogNotification";
+import type { UserDetail } from '@/lib/firebase/AuthContext';
+import { PAID_PERMISSION_ADDONS, PaidPermission } from '@/utils/paidPermissions';
+import type { MinimalUser } from '@/lib/permissions/hasPermission';
+
 
 interface ExtendedWorker {
   id: string;
@@ -46,7 +50,9 @@ const TeamPermissionsTable = () => {
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [dialogData, setDialogData] = useState<{ workerId: string; permission: string; has: boolean } | null>(null);
-
+ 
+  
+  
   useEffect(() => {
     const fetchSubscriptionPermissions = async () => {
       const snapshot = await getDocs(collection(db, 'subscriptions_permissions'));
@@ -62,29 +68,66 @@ const TeamPermissionsTable = () => {
   }, []);
 
   const rolePerms = rolePermissionsMap[detail?.role || ''] ?? [];
-  const currentUser = {
+
+  const currentUser: MinimalUser = {
     uid: user?.uid || '',
     role: detail?.role || '',
-    subscriptionId: detail?.subscriptionId || '',
-    permissionOverrides: detail?.permissionOverrides || {}
+    subscriptionId: detail?.subscriptionId,
+    subscriptionType: detail?.subscriptionType,
+    permissionOverrides: detail?.permissionOverrides,
+    addOns: detail?.addOns,
   };
-
+  
   const canEditPermissions = useMemo(() => {
-    if (!rolePerms.length) return null;
+    if (!rolePerms.length || !detail || !user?.uid) return null;
+  
+    const currentUser: MinimalUser = {
+      uid: user.uid,
+      role: detail.role,
+      subscriptionId: detail.subscriptionId,
+      subscriptionType: detail.subscriptionType,
+      permissionOverrides: detail.permissionOverrides,
+      addOns: detail.addOns,
+    };
+  
     return hasPermission({
       user: currentUser,
       permission: 'edit_permissions',
       rolePermissions: rolePerms,
       subscriptionPermissionsMap,
     });
-  }, [currentUser, rolePerms, subscriptionPermissionsMap]);
-
-  const canTogglePermission = (permission: string): boolean => {
+  }, [detail, user?.uid, rolePerms, subscriptionPermissionsMap]);
+  
+  const canTogglePermission = (permission: string, _worker: ExtendedWorker): boolean => {
     if (!canEditPermissions) return false;
     if (permission === '*') return false;
     if (restrictedPermissions.includes(permission) && detail?.role !== 'admin') return false;
-    return true;
+  
+    // רק המשתמש המחובר רלוונטי כאן
+    const rolePerms = rolePermissionsMap[detail?.role || ''] ?? [];
+    const hasFromRole = rolePerms.includes(permission);
+  
+    const isSubscriber = !!detail?.subscriptionId && !!detail?.subscriptionType;
+  
+    const subscriptionPerms = isSubscriber && detail.subscriptionType
+      ? subscriptionPermissionsMap[detail.subscriptionType] || []
+      : [];
+  
+    const hasFromSubscription = subscriptionPerms.includes(permission);
+  
+    const isPaidPermission = permission in PAID_PERMISSION_ADDONS;
+    const addonKey = isPaidPermission ? PAID_PERMISSION_ADDONS[permission as PaidPermission] : undefined;
+    const hasAddon = addonKey ? detail?.addOns?.[addonKey] === true : false;
+  
+    if (isSubscriber) {
+      return (hasFromRole && hasFromSubscription) || hasAddon;
+    }
+  
+    return hasFromRole;
   };
+  
+  
+  
 
   useEffect(() => {
     const fetchAllPermissions = async () => {
@@ -206,54 +249,71 @@ const TeamPermissionsTable = () => {
   }, [selectedAgentId, agents]);
 
   const togglePermission = async (workerId: string, permission: string, has: boolean) => {
-    if (!canTogglePermission(permission)) return;
-
+    const worker = workers.find(w => w.id === workerId);
+    if (!worker) return;
+  
+    if (!canTogglePermission(permission, worker)) return;
+  
     if (permission === 'view_commissions_field') {
       setDialogData({ workerId, permission, has });
       setDialogOpen(true);
       return;
     }
-
+  
     await updatePermission(workerId, permission, has);
   };
-
   const updatePermission = async (workerId: string, permission: string, has: boolean) => {
     const userRef = doc(db, 'users', workerId);
     const worker = workers.find(w => w.id === workerId);
-    const rolePerms = rolePermissionsMap[worker?.role || ''] ?? [];
-    const isInherited = rolePerms.includes(permission);
-
+    if (!worker) return;
+  
+    // ✅ בדיקת הרשאה לפי המשתמש שמחובר (לא לפי העובד)
+    const canToggle = canTogglePermission(permission, worker);
+    if (!canToggle) {
+      addToast('error', 'אין לך הרשאה לערוך הרשאה זו');
+      return;
+    }
+  
+    const rolePerms = rolePermissionsMap[worker.role || ''] ?? [];
+    const isInherited = rolePerms.includes(permission); // נרשמה לפי תפקיד העובד
+  
     const update: any = {};
-
+  
     if (has) {
       if (!isInherited) {
-        update[`permissionOverrides.allow`] = arrayRemove(permission);
+        update['permissionOverrides.allow'] = arrayRemove(permission);
       } else {
-        update[`permissionOverrides.deny`] = arrayUnion(permission);
+        update['permissionOverrides.deny'] = arrayUnion(permission);
       }
     } else {
       if (!isInherited) {
-        update[`permissionOverrides.allow`] = arrayUnion(permission);
-        update[`permissionOverrides.deny`] = arrayRemove(permission);
+        update['permissionOverrides.allow'] = arrayUnion(permission);
+        update['permissionOverrides.deny'] = arrayRemove(permission);
       } else {
-        update[`permissionOverrides.deny`] = arrayRemove(permission);
+        update['permissionOverrides.deny'] = arrayRemove(permission);
       }
     }
-
+  
     try {
       await updateDoc(userRef, update);
       const refreshed = await getDoc(userRef);
-      setWorkers(prev => prev.map(w => w.id === workerId ? {
-        ...w,
-        permissionOverrides: refreshed.data()?.permissionOverrides || {}
-      } : w));
-
+      setWorkers(prev =>
+        prev.map(w =>
+          w.id === workerId
+            ? {
+                ...w,
+                permissionOverrides: refreshed.data()?.permissionOverrides || {},
+              }
+            : w
+        )
+      );
       addToast('success', 'העדכון בוצע בהצלחה');
     } catch (error) {
       console.error('שגיאה בעדכון הרשאה:', error);
       addToast('error', 'שגיאה בעדכון ההרשאה');
     }
   };
+  
 
   if (loading) {
     return <div className="p-4">⏳ טוען נתוני עובדים...</div>;
@@ -296,34 +356,70 @@ const TeamPermissionsTable = () => {
           </tr>
         </thead>
         <tbody>
-          {allPermissions.map((perm) => (
-            <tr key={perm.id} className={perm.id === 'view_commissions_field' ? 'special-permission-row' : ''}>
-              <td className="border px-2 py-1 font-semibold whitespace-nowrap" title={perm.id}>{perm.name}</td>
-              {workers.map((worker) => {
-                const rolePerms = rolePermissionsMap[worker.role || ''] ?? [];
-                const has = hasPermission({
-                  user: worker,
-                  permission: perm.id,
-                  rolePermissions: rolePerms,
-                  subscriptionPermissionsMap,
-                });
-                const isOverridden = worker.permissionOverrides?.allow?.includes(perm.id) || worker.permissionOverrides?.deny?.includes(perm.id);
-                const canToggle = canTogglePermission(perm.id);
-  
-                return (
-                  <td
-                    key={worker.id + perm.id}
-                    className={`border px-2 py-1 text-center ${canToggle ? 'cursor-pointer hover:bg-blue-100' : 'text-gray-400 cursor-not-allowed'} ${isOverridden ? 'bg-yellow-100' : ''}`}
-                    onClick={() => canToggle && togglePermission(worker.id, perm.id, has)}
-                    title={canToggle ? `לחץ כדי ${has ? 'לבטל הרשאה' : 'לאפשר הרשאה'}` : 'אין לך הרשאת עריכה'}
-                  >
-                    {has ? '✅' : '❌'}{isOverridden && ' *'}
-                  </td>
-                );
-              })}
-            </tr>
-          ))}
-  
+  {allPermissions.map((perm) => (
+    <tr key={perm.id} className={perm.id === 'view_commissions_field' ? 'special-permission-row' : ''}>
+      <td className="border px-2 py-1 font-semibold whitespace-nowrap" title={perm.id}>
+        {perm.name}
+      </td>
+      {workers.map((worker) => {
+        const rolePerms = rolePermissionsMap[worker.role || ''] ?? [];
+        const has = hasPermission({
+          user: {
+            uid: worker.uid,
+            role: worker.role,
+            subscriptionId: worker.subscriptionId,
+            subscriptionType: worker.subscriptionType,
+            permissionOverrides: worker.permissionOverrides,
+            addOns: worker.addOns,
+          },
+          permission: perm.id,
+          rolePermissions: rolePerms,
+          subscriptionPermissionsMap,
+        });        
+        const isOverridden =
+          worker.permissionOverrides?.allow?.includes(perm.id) ||
+          worker.permissionOverrides?.deny?.includes(perm.id);
+
+        const canToggle = canTogglePermission(perm.id, worker);
+
+        return (
+          <td
+            key={worker.id + perm.id}
+            className={`border px-2 py-1 text-center ${
+              canToggle ? 'cursor-pointer hover:bg-blue-100' : 'text-gray-400 cursor-not-allowed'
+            } ${isOverridden ? 'bg-yellow-100' : ''}`}
+            onClick={() => {
+              if (!canToggle) {
+                const addonKey = PAID_PERMISSION_ADDONS[perm.id as PaidPermission];
+            
+                if (
+                  detail?.subscriptionId &&
+                  perm.id in PAID_PERMISSION_ADDONS &&
+                  !detail?.addOns?.[addonKey]
+                ) {
+                  addToast('error', 'על מנת לשנות הרשאה זו יש לרכוש את התוסף המתאים');
+                }
+                return;
+              }
+              togglePermission(worker.id, perm.id, has);
+            }}            
+            title={
+              !canToggle
+                ? detail?.subscriptionId &&
+                  perm.id in PAID_PERMISSION_ADDONS &&
+                  !detail?.addOns?.[PAID_PERMISSION_ADDONS[perm.id as PaidPermission]]
+                  ? '⚠️ אין לך את התוסף המתאים לערוך הרשאה זו'
+                  : 'אין לך הרשאה לערוך'
+                : `לחץ כדי ${has ? 'לבטל הרשאה' : 'לאפשר הרשאה'}`
+            }            
+          >
+            {has ? '✅' : '❌'}
+            {isOverridden && ' *'}
+          </td>
+        );
+      })}
+    </tr>
+  ))}
   <tr className="bg-gray-50 border-t-4 border-gray-400">
   <td className="border-t-4 border-gray-400 px-2 py-3 font-bold whitespace-nowrap text-center bg-white">
   סטטוס משתמש
@@ -332,20 +428,31 @@ const TeamPermissionsTable = () => {
               const canEdit = canEditPermissions;
               const toggleActiveStatus = async (workerId: string, currentStatus: boolean) => {
                 try {
+                  const newStatus = !currentStatus;
+              
+                  // 1. עדכון ב־Firestore
                   const userRef = doc(db, 'users', workerId);
-                  await updateDoc(userRef, {
-                    isActive: !currentStatus
+                  await updateDoc(userRef, { isActive: newStatus });
+              
+                  // 2. עדכון ב־Firebase Auth דרך API
+                  await fetch('/api/updateUserStatus', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ uid: workerId, disabled: !newStatus }),
                   });
-                  setWorkers(prev => prev.map(w => w.id === workerId ? {
-                    ...w,
-                    isActive: !currentStatus
-                  } : w));
+              
+                  // 3. עדכון ב־state מקומי
+                  setWorkers(prev =>
+                    prev.map(w => w.id === workerId ? { ...w, isActive: newStatus } : w)
+                  );
+              
                   addToast('success', 'סטטוס עודכן בהצלחה');
                 } catch (err) {
                   console.error(err);
                   addToast('error', 'שגיאה בעדכון סטטוס');
                 }
               };
+              
   
               return (
                 <td

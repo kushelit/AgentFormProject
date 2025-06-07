@@ -66,22 +66,41 @@ export default function WorkerSignUpPage({ params }: { params: { agentId: string
       setError('הסיסמאות אינן תואמות');
       return;
     }
-
     try {
       const userCredential = await signUp(email, password);
       const docRef = doc(db, 'users', userCredential.user.uid);
-      await setDoc(docRef, {
+    
+      const newWorkerData: Record<string, any> = {
         name,
         email,
         role: 'worker',
         agentId: params.agentId,
         isActive: true,
-      });
-      redirect('/');
-    } catch (err: any) {
-      console.error({ err });
-      setError(err.code || 'שגיאה בעת רישום עובד');
-    }
+      };
+      
+      // if (agent.subscriptionId) {
+      //   newWorkerData.subscriptionId =agent.subscriptionId;
+      // }
+      
+      if (agent.subscriptionType) {
+        newWorkerData.subscriptionType = agent.subscriptionType;
+      }
+      
+      // if (agent.addOns) {
+      //   newWorkerData.addOns = agent.addOns;
+      // }
+            await setDoc(docRef, newWorkerData);
+            console.log("המשתמש נוצר בהצלחה, מנסה לבצע הפניה...");
+            try {
+              redirect('/');
+            } catch (redirectErr) {
+              console.error("שגיאה בעת הפניה:", redirectErr);
+              setError('המשתמש נוצר אך לא ניתן להפנות אותך הלאה');
+            }
+          } catch (err: any) {
+            console.error("שגיאה ברישום העובד:", err);
+            setError(err.code || 'שגיאה בעת רישום עובד');
+          }
   };
 
   if (!agent) return <div className="text-center py-10 text-gray-600">טוען נתוני סוכן...</div>;

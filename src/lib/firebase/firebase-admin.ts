@@ -1,4 +1,6 @@
-import admin from 'firebase-admin';
+// import admin from 'firebase-admin';
+import * as admin from 'firebase-admin'; // ✅ תקני לפי התקן של CommonJS ו־TypeScript
+
 
 if (!admin.apps.length) {
   let serviceAccount = {};
