@@ -103,6 +103,8 @@ export async function POST(req: NextRequest) {
 
       await db.collection('users').doc(existingUser.uid).update({
         isActive: true,
+        cancellationDate: admin.firestore.FieldValue.delete(),
+        growCancellationStatus: admin.firestore.FieldValue.delete(),
         subscriptionStatus,
         subscriptionType,
         lastPaymentStatus: paymentStatus,
@@ -117,7 +119,23 @@ export async function POST(req: NextRequest) {
           }
         } : {}),
       });
-
+      console.log('🔥 Updating user document with data:', {
+        isActive: true,
+        subscriptionStatus,
+        subscriptionType,
+        lastPaymentStatus: paymentStatus,
+        lastPaymentDate: paymentDate,
+        ...(transactionId ? { transactionId } : {}),
+        ...(transactionToken ? { transactionToken } : {}),
+        ...(asmachta ? { asmachta } : {}),
+        ...(addOns ? {
+          addOns: {
+            leadsModule: !!addOns.leadsModule,
+            extraWorkers: addOns.extraWorkers || 0,
+          }
+        } : {}),
+      });
+      
       console.log('✅ Firestore user reactivated');
 
       return NextResponse.json({ reactivated: true });
