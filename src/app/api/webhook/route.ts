@@ -73,33 +73,46 @@ export async function POST(req: NextRequest) {
 
 
     let existingUser: any = null;
+
     try {
       existingUser = await auth.getUserByEmail(email);
+      console.log('🔍 User already exists:', existingUser.uid);
     
-      // אם קיים אבל מושבת – נאפשר אותו מחדש
-      await auth.updateUser(existingUser.uid, { disabled: false });
+      try {
+        await auth.updateUser(existingUser.uid, { disabled: false });
+        console.log('✅ Firebase Auth user enabled');
+      } catch (authError) {
+        console.error('❌ שגיאה בהפעלה מחדש של המשתמש ב־Auth:', authError);
+      }
     
-      await db.collection('users').doc(existingUser.uid).update({
-        isActive: true,
-        subscriptionStatus,
-        subscriptionType,
-        lastPaymentStatus: paymentStatus,
-        lastPaymentDate: paymentDate,
-        ...(transactionId ? { transactionId } : {}),
-        ...(transactionToken ? { transactionToken } : {}),
-        ...(asmachta ? { asmachta } : {}),
-        ...(addOns ? {
-          addOns: {
-            leadsModule: !!addOns.leadsModule,
-            extraWorkers: addOns.extraWorkers || 0,
-          }
-        } : {}),
-      });
+      try {
+        await db.collection('users').doc(existingUser.uid).update({
+          isActive: true,
+          subscriptionStatus,
+          subscriptionType,
+          lastPaymentStatus: paymentStatus,
+          lastPaymentDate: paymentDate,
+          ...(transactionId ? { transactionId } : {}),
+          ...(transactionToken ? { transactionToken } : {}),
+          ...(asmachta ? { asmachta } : {}),
+          ...(addOns ? {
+            addOns: {
+              leadsModule: !!addOns.leadsModule,
+              extraWorkers: addOns.extraWorkers || 0,
+            }
+          } : {}),
+        });
+        console.log('✅ Firestore user reactivated');
+      } catch (dbError) {
+        console.error('❌ שגיאה בעדכון פרטי המשתמש ב־Firestore:', dbError);
+      }
     
       return NextResponse.json({ reactivated: true });
     } catch (e) {
-      // ממשיך ליצירת יוזר חדש
-    }    
+      // ממשיך ליצירת משתמש חדש
+      console.log('ℹ️ לא נמצא משתמש קיים לפי אימייל – נוצר יוזר חדש');
+    }
+      
 
     const newUser = await auth.createUser({
       email,
