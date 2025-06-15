@@ -6,9 +6,7 @@ export const dynamic = 'force-dynamic';
 
 const formatPhone = (phone?: string) => {
   if (!phone) return undefined;
-  if (phone.startsWith('0')) {
-    return '+972' + phone.slice(1);
-  }
+  if (phone.startsWith('0')) return '+972' + phone.slice(1);
   return phone;
 };
 
@@ -20,9 +18,10 @@ export async function POST(req: NextRequest) {
     }
 
     const rawBody = await req.text();
+    console.log('📩 Raw body:', rawBody);
     const data = parse(rawBody);
 
-    // קלטים מה-webhook
+    // ניתוח שדות
     const statusCode = data['data[statusCode]']?.toString();
     const paymentStatus = statusCode === '2' ? 'success' : 'failed';
     const subscriptionStatus = statusCode === '2' ? 'active' : 'failed';
@@ -38,9 +37,12 @@ export async function POST(req: NextRequest) {
     const asmachta = (data['data[asmachta]'] ?? data.asmachta)?.toString();
     const addOnsRaw = data['data[customFields][cField3]'] || data['customFields[cField3]'];
     const addOns = addOnsRaw ? JSON.parse(addOnsRaw.toString()) : {};
+
     console.log('🧪 Raw cField3:', addOnsRaw);
+    console.log('📬 Email:', email);
 
     if (!statusCode || !email || !fullName || !phone || !processId) {
+      console.warn('⚠️ Missing required fields');
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
@@ -53,6 +55,7 @@ export async function POST(req: NextRequest) {
 
     if (!snapshot.empty) {
       const docRef = snapshot.docs[0].ref;
+      console.log('🔁 Updating existing user by customField');
       await docRef.update({
         subscriptionStatus,
         subscriptionType,
@@ -65,26 +68,26 @@ export async function POST(req: NextRequest) {
           addOns: {
             leadsModule: !!addOns.leadsModule,
             extraWorkers: addOns.extraWorkers || 0,
-          }
+          },
         } : {}),
       });
       return NextResponse.json({ updated: true });
     }
 
-
+    // 🔍 בדיקה אם המשתמש קיים ב־Auth לפי אימייל
     let existingUser: any = null;
-
     try {
+      if (!email) throw new Error('Missing email before getUserByEmail');
       existingUser = await auth.getUserByEmail(email);
-      console.log('🔍 User already exists:', existingUser.uid);
-    
+      console.log('🔍 User already exists in Firebase Auth:', existingUser.uid);
+
       try {
         await auth.updateUser(existingUser.uid, { disabled: false });
         console.log('✅ Firebase Auth user enabled');
       } catch (authError) {
         console.error('❌ שגיאה בהפעלה מחדש של המשתמש ב־Auth:', authError);
       }
-    
+
       try {
         await db.collection('users').doc(existingUser.uid).update({
           isActive: true,
@@ -99,28 +102,25 @@ export async function POST(req: NextRequest) {
             addOns: {
               leadsModule: !!addOns.leadsModule,
               extraWorkers: addOns.extraWorkers || 0,
-            }
+            },
           } : {}),
         });
         console.log('✅ Firestore user reactivated');
       } catch (dbError) {
         console.error('❌ שגיאה בעדכון פרטי המשתמש ב־Firestore:', dbError);
       }
-    
+
       return NextResponse.json({ reactivated: true });
-    } catch (e) {
-      // ממשיך ליצירת משתמש חדש
+    } catch (authLookupError) {
       console.log('ℹ️ לא נמצא משתמש קיים לפי אימייל – נוצר יוזר חדש');
     }
-      
 
+    // 🔧 יצירת משתמש חדש
     const newUser = await auth.createUser({
       email,
       password: Math.random().toString(36).slice(-8),
       displayName: fullName,
-      // phoneNumber: formatPhone(phone), // אופציונלי
     });
-    
 
     const resetLink = await auth.generatePasswordResetLink(email);
 
@@ -164,9 +164,10 @@ export async function POST(req: NextRequest) {
       isActive: true,
     });
 
+    console.log('🎉 New user created:', newUser.uid);
     return NextResponse.json({ created: true });
   } catch (err: any) {
-    console.error('❌ Webhook error:', err);
+    console.error('❌ Webhook error:', err.message || err);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }
