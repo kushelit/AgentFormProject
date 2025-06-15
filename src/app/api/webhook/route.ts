@@ -59,6 +59,11 @@ export async function POST(req: NextRequest) {
     if (!snapshot.empty) {
       const docRef = snapshot.docs[0].ref;
       await docRef.update({
+        isActive: true,
+        cancellationDate: admin.firestore.FieldValue.delete(),
+        growCancellationStatus: admin.firestore.FieldValue.delete(),
+        'permissionOverrides.allow': admin.firestore.FieldValue.delete(),
+        'permissionOverrides.deny': admin.firestore.FieldValue.delete(),
         subscriptionStatus,
         subscriptionType,
         lastPaymentStatus: paymentStatus,
@@ -73,6 +78,7 @@ export async function POST(req: NextRequest) {
           }
         } : {}),
       });
+      
 
       console.log('🟢 Updated user in Firestore');
 
@@ -105,6 +111,8 @@ export async function POST(req: NextRequest) {
         isActive: true,
         cancellationDate: admin.firestore.FieldValue.delete(),
         growCancellationStatus: admin.firestore.FieldValue.delete(),
+        'permissionOverrides.allow': admin.firestore.FieldValue.delete(),
+  'permissionOverrides.deny': admin.firestore.FieldValue.delete(),
         subscriptionStatus,
         subscriptionType,
         lastPaymentStatus: paymentStatus,
