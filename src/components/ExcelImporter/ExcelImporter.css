@@ -1,0 +1,499 @@
+.content-container {
+  position: relative; /* קובע שה-Tabs יהיו יחסיים להורה */
+  padding-top: 10px; /* מפנה מקום ל-Tabs */
+}
+
+
+.tab-content {
+  padding: 10px;
+  margin-top:10px; /* מפנה מקום ל-Tabs */
+}
+
+
+.selected-row {
+  background-color: hsl(200 70% 90%);
+  /* Light blue, for example */
+}
+
+.tab-content > div {
+  display: none;
+}
+.tab-content > div.active {
+  display: block; /* מציג את הלשונית הפעילה */
+}
+/* ביטול עיצוב button גלובלי */
+.tabs button {
+  all: unset; /* מסיר את כל עיצוב ברירת המחדל */
+}
+
+.tabs-container {
+  width: 100%; /* מבטיח שהטאבים יתפרסו לכל הרוחב */
+}
+
+
+.tabs {
+  position: relative; /* משנה את המיקום ליחסי */
+  display: flex; /* מסדר את ה-Tabs בשורה */
+  justify-content: center; /* ממרכז את ה-Tabs */
+  gap: 10px; /* מרווחים בין הכפתורים */
+  padding: 10px 20px; /* רווח פנימי */
+  border-radius: 2px; /* פינות מעוגלות */
+  color: var(--clrgray7); /* צבע טקסט */
+  width: fit-content; /* הרוחב יתאים לתוכן */
+  height: 45px; /* גובה הטאבים */
+  z-index: 100; /* מבטיח שה-Tabs יהיו מעל תוכן אחר */
+}
+
+
+
+.tab {
+  display: inline-flex;
+  align-items: center; /* טקסט באמצע */
+  justify-content: center; /* טקסט במרכז */
+  padding: 10px 20px; /* ריווח פנימי */
+  cursor: pointer; /* מצביע לחיץ */
+  font-family: var(--font-family, Arial, sans-serif);
+  font-size: var(--font-size, 16px);
+  background-color: var(--clrtransparent); /* רקע שקוף */
+  border-bottom: 3px solid transparent; /* קו תחתון שקוף */
+  transition: all 0.3s; /* אפקט מעבר */
+}
+
+.tab.default {
+  color: var(--clrgray7); /* צבע ללשונית שלא נבחרה */
+}
+
+.tab.selected {
+  border-bottom-style: solid; /* קו תחתון מודגש */
+  border-bottom-width: 2px; /* רוחב הקו */
+  border-color: var(--clrdarkblue3); /* צבע קו תחתון ללשונית שנבחרה */
+  justify-content: center;
+  color: var(--clrdarkblue3);
+
+}
+
+.tab:hover:not(.disabled) {
+  color: var(--clrdarkblue3); /* צבע בעת מעבר עכבר */
+
+}
+
+.tab.disabled {
+  color: var(--clrgray6); /* צבע ללשונית מושבתת */
+  cursor: not-allowed; /* סמן מושבת */
+  opacity: 0.6; /* שקיפות ללשונית מושבתת */
+}
+
+
+table {
+  table-layout: fixed;
+  width: 100%;
+  border-collapse: collapse;
+  border: none !important;
+  margin: 0 auto; /* מיקום במרכז */
+}
+
+.table-Data-AgentForm.is-new-design {
+  overflow: visible !important;
+}
+
+td, th {
+  border-right: none !important; /* מסיר קווים אנכיים בין התאים */
+  border-left: none !important; /* מסיר קווים אנכיים בין התאים */
+}
+
+
+table td,
+table  th {
+    padding: 4px;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    overflow: visible;
+    max-width: 150px; /* הגבלת רוחב עמודה */
+}
+
+
+table  td {
+  overflow: visible;
+  padding: 4px;
+  text-overflow: ellipsis;
+  color: var(--clrblack);
+  direction: rtl;
+  white-space: normal; /* מאפשר שבירת שורות */
+  text-overflow: clip; /* מסיר את ה-"..." */
+  word-break: break-word; /* שוברת מילים ארוכות */
+}
+
+table th {
+  background-color: var(--clrgray3);
+  color: var(--clrdarkblue3);
+  font-weight: bold;
+  border-color: var(--clrgray4);
+  white-space: normal; /* מאפשר שבירת שורות */
+  text-overflow: clip; /* מסיר את ה-"..." */
+  word-break: break-word; /* שוברת מילים ארוכות */
+  text-align: center;
+  direction: rtl;
+}
+
+table tr {
+  height: 10px;
+}
+
+.modal {
+  position: fixed;
+  top: 50px; /* מוסיף רווח של 50px מלמעלה */
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5); /* רקע כהה חצי שקוף */
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  z-index: 1000; /* מבטיח שהמודל יופיע מעל התוכן */
+}
+
+
+.modal-content {
+  position: relative; /* מיקום יחסי */
+  width: 300px;
+  max-width: 90%; /* התאמה למסכים קטנים */
+  background-color: var(--clrgray3); /* צבע הרקע מפיגמה */
+  border-radius: 4px; /* פינות מעוגלות */
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2); /* צל עדין */
+  padding: 20px; /* ריווח פנימי */
+  font-family: "Arial", sans-serif;
+  box-shadow: none !important; /* מסיר צל */
+  border: none !important; /* מסיר גבולות */
+  margin-top: 20px; /* מרווח מלמעלה */
+}
+
+.modal-content th, .modal-content td {
+  background-color: var(--clrgray3) !important; /* רקע מותאם */
+}
+
+.modal-content td,
+.modal-content th {
+  border: none; /* מסיר גבולות */
+  box-shadow: none; /* מסיר צללים */
+}
+
+.modal-content .title {
+  height: auto; /* מאפשר התאמה אוטומטית לגובה */
+  width: auto; /* מאפשר התאמה אוטומטית לרוחב */
+  color: #3b6a95;
+  direction: rtl;
+  font-family: "Inter-Bold", Helvetica;
+  font-size: 14px; /* גודל טקסט גדול יותר */
+  font-weight: 700;
+  letter-spacing: 0;
+  line-height: 22px;
+  position: relative; /* משנה את המיקום ליחסי להורה */
+  top: auto; /* מסיר את המיקום המוחלט */
+  left: auto;
+  white-space: nowrap; /* מונע שבירת שורות */
+  margin-bottom: 10px; /* מוסיף ריווח תחתון */
+  border-bottom: 1px solid #ddd; /* קו תחתון לכותרת */
+  padding-bottom: 5px; /* ריווח תחתון לפני הקו */
+  margin-bottom: 20px; /* ריווח תחתון לאחר הקו */
+}
+
+
+/* עיצוב תוויות */
+.modal-content label {
+  font-size: 12px;
+  color: #444;
+  margin-bottom: 0px;
+  display: block;
+}
+
+.modal-content input,
+.modal-content select
+ {
+  width: 100%; /* תופס את כל הרוחב הזמין */
+  height: 32px; /* גובה אחיד */
+  padding: 6px; /* רווח פנימי */
+  font-size: 12px; /* גודל טקסט אחיד */
+  border: 1px solid #ccc; /* מסגרת אחידה */
+  border-radius: 4px; /* פינות עגולות */
+  box-sizing: border-box; /* כולל Padding בתוך ה-Width */
+  background-color: #fff; /* צבע רקע אחיד */
+}
+
+
+.modal-content select {
+  appearance: none;
+  direction: rtl;
+  text-align: center; /* יישור התוכן בתוך השדה למרכז */
+  background-position: left 10px center; /* ממקם את החץ */
+  background-size: 10px; /* התאמת גודל החץ */
+}
+
+
+/* עיצוב תוויות */
+.modal-content label {
+  font-size: 12px;
+  color: #444;
+  margin-bottom: 0px;
+  display: block;
+}
+
+
+
+/* התאמה מיוחדת עבור checkbox */
+.modal-content input[type="checkbox"] {
+  height: 20px; /* גובה מותאם */
+  width: 20px; /* רוחב מותאם */
+  margin: 0; /* ביטול רווחים */
+  padding: 0; /* אין ריווח פנימי */
+  display: inline-block; /* שמירה על גודל טבעי */
+  background-color: var(--clrwhite); /* צבע רקע לבן */
+  border: 1px solid var(--clrgray5); /* מסגרת אחידה */
+  cursor: pointer;
+  transition: background-color 0.2s, border-color 0.2s;
+
+}
+
+.checkbox-container input[type="checkbox"]:checked {
+  background-color: var(--clrdarkblue);
+  border-color: var(--clrdarkblue);
+}
+
+.checkbox-container input[type="checkbox"]:checked::before {
+  content: "✔";
+  color: #000; /* צבע טקסט */
+  font-size: 14px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.form-group .checkbox-container {
+  display: flex;
+  align-items: center; /* יישור אנכי */
+  gap: 8px; /* רווח בין ה-checkbox לתווית */
+}
+.checkbox-container input[type="checkbox"] {
+  margin: 0; /* ביטול רווחים מיותרים */
+}
+
+.checkbox-container label {
+  margin: 0 !important ; /* ביטול רווחים מיותרים */
+  display: inline !important; /* מבטיח שהתווית תהיה בשורה אחת */
+}
+.modal-content td span {
+  background-color: var(--clrgray3) !important;
+}
+
+
+.select-input {
+  height: 32px; /* גובה שדה select */
+  padding: 2px 6px; /* צמצום הריווח הפנימי */
+  font-size: var(--font-size-text-small); /* גודל פונט קטן */
+  width: 100%;
+  border: 1px solid var(--clrgray5);
+  border-radius: 4px;
+  box-sizing: border-box;
+}
+
+.filter-select-container select {
+  appearance: none;
+  direction: rtl;
+  text-align: center; /* יישור התוכן בתוך השדה למרכז */
+  background-position: left 10px center; /* ממקם את החץ */
+  background-size: 10px; /* התאמת גודל החץ */
+  width: auto; /* רוחב אוטומטי */
+  min-width: 150px; /* רוחב מינימלי */
+  max-width: 300px; /* מגביל את הרוחב המקסימלי */
+}
+
+input[type="checkbox"] {
+  z-index: 100; /* ודא שהאלמנט מעל */
+  position: relative; /* חשוב כדי שז-index יעבוד */
+  pointer-events: auto; /* אפשר לחיצה על האלמנט */
+}
+
+div, label, input {
+  pointer-events: auto !important; /* אפשר אינטראקציה */
+}
+
+.table-header {
+  display: flex;
+  flex-direction: column; /* מסדר את הילדים בטור */
+  align-items: flex-start; /* יישור לפי צד ימין (ב-RTL) */
+  padding: 16px;
+  gap: 10px; /* מרווח בין הכותרת לטאבים */
+}
+
+.table-header .table-title {
+  font-family: "Rubik-Regular", Helvetica, sans-serif;
+  font-size: 30px;
+  font-weight: 400;
+  color: var(--clrdarkblue3);
+  text-align: right;
+  line-height: 36px;
+  margin-bottom: 10px; /* מוסיף רווח מתחת לכותרת */
+}
+
+.newStarButton {
+  display: flex; /* מסדר את הכפתורים בשורה */
+  justify-content: flex-end; /* מיישר את הכפתורים לשמאל */
+  gap: 10px; /* מוסיף רווח בין הכפתורים */
+  margin-bottom: 10px;
+}
+
+.newGoalButton  {
+  display: flex; /* מסדר את הכפתורים בשורה */
+  justify-content: flex-end; /* מיישר את הכפתורים לשמאל */
+  gap: 10px; /* מוסיף רווח בין הכפתורים */
+  margin-bottom: 10px;
+  align-items: center; /* יישור הכפתורים והסלקט באותו קו */
+}
+
+
+.newStarButton{
+  margin-top: 10px;
+}
+.form-container {
+  display: flex;
+  flex-direction: column;
+  gap: 15px; /* רווח בין כל קבוצת שדות */
+  border-color: var(--clrgray5);
+
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column; /* מוודא שה-Label נמצא מעל השדה */
+}
+
+.form-group label {
+  font-size: 14px;
+  font-weight: bold;
+  margin-bottom: 5px;
+  text-align: right; /* יישור לימין */
+  color: var(--clrgray7);
+}
+
+
+
+.dropdown-container {
+  position: relative;
+  width: 100%; /* יתאים לרוחב של input רגיל */
+
+}
+
+.dropdown-header {
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  padding: 8px 12px;
+  cursor: pointer;
+  background-color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  font-size: 14px;
+  height: 38px; /* גובה סטנדרטי */
+  box-sizing: border-box; /* מונע חיתוך של הקונטנט */
+}
+
+/* התאמת עיצוב החץ לכל ה-dropdownים המותאמים אישית */
+.dropdown-arrow {
+  display: inline-block;
+  width: 12px; /* גודל מתאים */
+  height: 12px;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' width='14' height='14'><path fill='%23000000' d='M7 10l5 5 5-5H7z'/></svg>"); /* חץ תואם */
+  background-size: contain;
+  background-repeat: no-repeat;
+  transition: transform 0.3s ease; /* אנימציה */
+}
+
+/* כאשר ה-dropdown פתוח - הפוך את החץ */
+.dropdown-arrow.open {
+  transform: rotate(180deg);
+}
+
+.dropdown-list {
+  position: absolute;
+  z-index: 9999; /* ערך גבוה כדי להיות מעל אלמנטים אחרים */
+  top: 100%;
+  left: 0;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background-color: #fff;
+  max-height: 150px;
+  overflow-y: auto;
+  width: 100%;
+  box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.1); /* הצללה כדי להבדיל */
+}
+
+.dropdown-item {
+  display: flex;
+  align-items: center;
+  padding: 5px;
+  cursor: pointer;
+}
+
+.close-button .button {
+  background-color: transparent !important; /* רקע שקוף */
+  border: none !important; /* ביטול מסגרת */
+  font-size: 14px; /* גודל טקסט */
+  cursor: pointer; /* מצביע לחיץ */
+  padding: 5px; /* ריווח פנימי */
+  box-shadow: none !important; /* ביטול הצללה */
+  display: flex; /* יישור נכון */
+  align-items: center; /* יישור אנכי */
+  justify-content: center; /* יישור אופקי */
+}
+
+.close-button .button .div {
+  all: unset; /* מסיר את כל הסטייל המובנה */
+  display: flex; /* מבטיח שהטקסט או האייקון יישארו בפנים */
+}
+
+.close-button {
+  position: absolute; /* למקם את הכפתור ביחס ל-modal */
+  top: 5px; /* רווח מהחלק העליון */
+  left: 4x; /* רווח קצת יותר גדול מהחלק השמאלי */
+  z-index: 10; /* להבטיח שהכפתור יהיה מעל */
+}
+.button-group {
+  display: flex;
+  justify-content: flex-start; /* כולם בתחילת השורה */
+  align-items: center; /* יישור אנכי */
+  padding: 10px 0; /* רווח פנימי */
+  gap: 8px; /* רווח של 8px ביניהם */
+}
+
+.button {
+  cursor: pointer; /* מצביע לחיץ */
+}
+.button:hover {
+  opacity: 0.8; /* אפקט שקיפות קטן */
+  transition: all 0.2s ease-in-out; /* אנימציה חלקה */
+}
+.button.state-disabled {
+  cursor: not-allowed; /* מצביע של מצב לא פעיל */
+  opacity: 0.5; /* שקיפות */
+}
+
+.select-container{
+  margin-bottom: 20px !important;
+}
+
+
+.tableGoalsMD tr :hover,
+.tableGoalsMD tr:hover td {
+ background-color: var(--clrgray3);
+} 
+
+.tableStars tr :hover,
+.tableStars tr:hover td {
+ background-color: var(--clrgray3);
+} 
+
+
+.select-container tr :hover,
+.select-container tr:hover td {
+ background-color: var(--clrgray3);
+} 

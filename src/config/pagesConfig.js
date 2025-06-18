@@ -25,7 +25,7 @@ const pages = [
       { href: '/ManagePoolAgents', label: 'ניהול פול ליד' },
       { href: '/ManageManager', label: 'ניהול קבוצות סוכנים' },
       // { href: '/SubscriptionsTable', label: 'ניהול מנויים ' },
-      // { href: 'import-excel', label: 'ייבוא אקסל עסקאות' },
+       { href: 'import-excel', label: 'ייבוא אקסל עסקאות' },
 
     ],
   }
