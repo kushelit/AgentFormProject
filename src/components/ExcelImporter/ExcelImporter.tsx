@@ -145,36 +145,33 @@ const ExcelImporter: React.FC = () => {
     return undefined;
   };
   useEffect(() => {
-    if (!pendingExcelData || Object.keys(mapping).length === 0) return;
-  
-    // חובה לוודא שהשדה 'mounth' כבר מופה
-    const excelFieldForMounth = Object.keys(mapping).find(
-      (col) => mapping[col] === "mounth"
-    );
-    if (!excelFieldForMounth) return; // עצירה מוקדמת אם עוד לא מופה
+    if (!pendingExcelData || !areAllRequiredFieldsMapped) return;
   
     const parsedData = pendingExcelData.map((row) => {
       const newRow = { ...row };
   
-      // ניתוח שדה תאריך
-      const rawDate = row[excelFieldForMounth];
-      const parsedDate = parseMounthField(rawDate);
-      if (parsedDate) {
-        newRow[excelFieldForMounth] = parsedDate;
+      // עיבוד שדה תאריך
+      const excelFieldForMounth = Object.keys(mapping).find(
+        (col) => mapping[col] === "mounth"
+      );
+      if (excelFieldForMounth) {
+        const rawDate = row[excelFieldForMounth];
+        const parsedDate = parseMounthField(rawDate);
+        if (parsedDate) {
+          newRow[excelFieldForMounth] = parsedDate;
+        }
       }
   
-      // ברירת מחדל לשדה מינוי
+      // ברירת מחדל למינוי סוכן
       applyDefaultMinuySochen(newRow, mapping);
   
       return newRow;
     });
   
-    console.log("✅ Parsed rows:", parsedData);
     setRows(parsedData);
     setPendingExcelData(null);
   }, [pendingExcelData, mapping]);
   
-
 
 
 const applyDefaultMinuySochen = (row: any, mapping: Record<string, string>): void => {
@@ -196,6 +193,7 @@ const requiredFields = systemFieldsDisplay
 const areAllRequiredFieldsMapped = requiredFields.every((fieldKey) =>
   Object.values(mapping).includes(fieldKey)
 );
+
 
 
   useEffect(() => {
@@ -270,7 +268,14 @@ const areAllRequiredFieldsMapped = requiredFields.every((fieldKey) =>
     setErrors(invalids);
   };
   
+  useEffect(() => {
+    console.log("שורות תקינות:", validRows);
+  }, [errors, rows]);
   
+  useEffect(() => {
+    console.log("🔍 שורות עם שגיאות (errors):", errors);
+  }, [errors]);
+
   
   const handleFieldChange = (rowIdx: number, field: string, value: string) => {
     const updatedRows = [...rows];
@@ -427,6 +432,7 @@ if (fileInputRef.current) {
 
   const validRows = rows.filter((_, idx) => !errors.includes(idx));
 
+
   return (
     <div className="table-header">
       <h2 className="table-title">ייבוא קובץ Excel</h2>
@@ -513,8 +519,13 @@ if (fileInputRef.current) {
   </tbody>
 </table>
         </div>
-      )}
-      {rows.length > 0 && (
+      )}  
+      { headers.length > 0 && !areAllRequiredFieldsMapped && (
+  <p className="text-red-600 mt-4 font-semibold">
+    יש למפות את כל שדות החובה כדי להציג את הטבלה.
+  </p>
+)} 
+{rows.length > 0 && areAllRequiredFieldsMapped && (
         <div>
           <h3 className="font-semibold mb-2">כל הנתונים ({rows.length} שורות)</h3>
           <table border={1} className="w-full text-sm text-right">
@@ -642,7 +653,7 @@ if (fileInputRef.current) {
             </tbody>
           </table>
 
-          {Object.keys(mapping).length > 0 && validRows.length > 0 && (
+          {Object.keys(mapping).length > 0 && validRows.length > 0 ? (
             <div className="mt-6">
               <h3 className="font-semibold mb-2">תצוגה מקדימה של הנתונים התקינים שייטענו ({validRows.length} שורות)</h3>
               <table border={1} className="w-full text-sm text-right">
@@ -664,6 +675,9 @@ if (fileInputRef.current) {
                 </tbody>
               </table>
             </div>
+          ) : (
+            <p className="text-gray-600 mt-4">לא נמצאו נתונים תקינים לטעינה.</p>
+      
           )}
 
           {errors.length > 0 && <p className="text-red-600 mt-2">יש שורות עם שגיאות – תקני או מחקי אותן לפני טעינה.</p>}
