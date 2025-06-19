@@ -104,82 +104,100 @@ const ExcelImporter: React.FC = () => {
     }
   };
   
+
+  const parseMounthField = (value: any): string | undefined => {
+    if (value instanceof Date) {
+      return value.toISOString().split("T")[0];
+    }
+  
+    if (typeof value === "number" && !isNaN(value)) {
+      const rawStr = value.toString();
+      if (/^\d{8}$/.test(rawStr)) {
+        const day = rawStr.slice(0, 2);
+        const month = rawStr.slice(2, 4);
+        const year = rawStr.slice(4, 8);
+        return `${year}-${month}-${day}`;
+      }
+      const excelDate = XLSX.SSF.parse_date_code(value);
+      if (excelDate) {
+        const jsDate = new Date(Date.UTC(excelDate.y, excelDate.m - 1, excelDate.d));
+        return jsDate.toISOString().split("T")[0];
+      }
+    }
+  
+    if (typeof value === "string") {
+      const cleaned = value.trim();
+      if (/^\d{8}$/.test(cleaned)) {
+        const day = cleaned.slice(0, 2);
+        const month = cleaned.slice(2, 4);
+        const year = cleaned.slice(4, 8);
+        return `${year}-${month}-${day}`;
+      }
+      if (/^\d{2}\/\d{2}\/\d{4}$/.test(cleaned)) {
+        const [day, month, year] = cleaned.split("/");
+        return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+      }
+      if (/^\d{4}-\d{2}-\d{2}$/.test(cleaned)) {
+        return cleaned;
+      }
+    }
+  
+    return undefined;
+  };
   useEffect(() => {
     if (!pendingExcelData || Object.keys(mapping).length === 0) return;
   
-    const mappedFieldNames = Object.values(mapping);
+    // חובה לוודא שהשדה 'mounth' כבר מופה
     const excelFieldForMounth = Object.keys(mapping).find(
       (col) => mapping[col] === "mounth"
     );
+    if (!excelFieldForMounth) return; // עצירה מוקדמת אם עוד לא מופה
   
     const parsedData = pendingExcelData.map((row) => {
       const newRow = { ...row };
   
-      if (excelFieldForMounth) {
-        const rawDate = row[excelFieldForMounth];
-        let parsedDate: string | undefined = undefined;
-  
-        if (rawDate instanceof Date) {
-          parsedDate = rawDate.toISOString().split("T")[0];
-        } else if (typeof rawDate === "number" && !isNaN(rawDate)) {
-          const rawStr = rawDate.toString();
-          if (/^\d{8}$/.test(rawStr)) {
-            const day = rawStr.slice(0, 2);
-            const month = rawStr.slice(2, 4);
-            const year = rawStr.slice(4, 8);
-            parsedDate = `${year}-${month}-${day}`;
-          } else {
-            const excelDate = XLSX.SSF.parse_date_code(rawDate);
-            if (excelDate) {
-              const jsDate = new Date(Date.UTC(excelDate.y, excelDate.m - 1, excelDate.d));
-              parsedDate = jsDate.toISOString().split("T")[0];
-            }
-          }
-        } else if (typeof rawDate === "string") {
-          const cleaned = rawDate.trim();
-          if (/^\d{8}$/.test(cleaned)) {
-            const day = cleaned.slice(0, 2);
-            const month = cleaned.slice(2, 4);
-            const year = cleaned.slice(4, 8);
-            parsedDate = `${year}-${month}-${day}`;
-          } else if (/^\d{2}\/\d{2}\/\d{4}$/.test(cleaned)) {
-            const [day, month, year] = cleaned.split("/");
-            parsedDate = `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
-          } else if (/^\d{4}-\d{2}-\d{2}$/.test(cleaned)) {
-            parsedDate = cleaned;
-          }
-        }
-  
-        if (parsedDate) {
-          newRow[excelFieldForMounth] = parsedDate;
-        }
+      // ניתוח שדה תאריך
+      const rawDate = row[excelFieldForMounth];
+      const parsedDate = parseMounthField(rawDate);
+      if (parsedDate) {
+        newRow[excelFieldForMounth] = parsedDate;
       }
   
-          // ברירת מחדל למינוי סוכן אם הוא ריק
-    const excelFieldForMinuy = Object.keys(mapping).find(
-      (col) => mapping[col] === "minuySochen"
-    );
-    if (
-      excelFieldForMinuy &&
-      (newRow[excelFieldForMinuy] === undefined ||
-        newRow[excelFieldForMinuy] === null ||
-        newRow[excelFieldForMinuy] === "")
-    ) {
-      newRow[excelFieldForMinuy] = "לא";
-    }
-
+      // ברירת מחדל לשדה מינוי
+      applyDefaultMinuySochen(newRow, mapping);
+  
       return newRow;
     });
   
-    console.log("✅ FINAL PARSED mounths:", parsedData.map((r) => {
-      const col = Object.keys(mapping).find((k) => mapping[k] === "mounth") || "";
-      return r[col];
-    }));
-  
+    console.log("✅ Parsed rows:", parsedData);
     setRows(parsedData);
     setPendingExcelData(null);
   }, [pendingExcelData, mapping]);
   
+
+
+
+const applyDefaultMinuySochen = (row: any, mapping: Record<string, string>): void => {
+  const minuyField = Object.keys(mapping).find(col => mapping[col] === "minuySochen");
+  if (
+    minuyField &&
+    (row[minuyField] === undefined ||
+      row[minuyField] === null ||
+      row[minuyField] === "")
+  ) {
+    row[minuyField] = "לא";
+  }
+};
+
+const requiredFields = systemFieldsDisplay
+  .filter((field) => field.required)
+  .map((field) => field.key);
+
+const areAllRequiredFieldsMapped = requiredFields.every((fieldKey) =>
+  Object.values(mapping).includes(fieldKey)
+);
+
+
   useEffect(() => {
     if (rows.length > 0 && Object.keys(mapping).length > 0) {
       checkAllRows(rows, mapping);
@@ -266,134 +284,6 @@ const ExcelImporter: React.FC = () => {
     setRows(updatedRows);
     checkAllRows(updatedRows, mapping);
   };
-
-  // const handleImport = async () => {
-  //   const required = [
-  //     "firstNameCustomer",
-  //     "lastNameCustomer",
-  //     "IDCustomer",
-  //     "company",
-  //     "product",
-  //     "mounth",
-  //     "statusPolicy"
-  //   ];
-  //   const reverseMap = Object.fromEntries(Object.entries(mapping).map(([k, v]) => [v, k]));
-  //   const allRequiredMapped = required.every((key) => reverseMap[key]);
-  
-  //   if (!allRequiredMapped) {
-  //     addToast("error", "יש שדות חובה שלא מופו – אנא השלימי את המיפוי לפני טעינה.");
-  //     // alert("יש שדות חובה שלא מופו – אנא השלימי את המיפוי לפני טעינה.");
-  //     return;
-  //   }
-  
-  //   if (errors.length > 0) {
-  //     addToast("error", "יש שורות עם שגיאות. תקני או מחקי אותן לפני טעינה");
-  //     // alert("יש שורות עם שגיאות. תקני או מחקי אותן לפני טעינה.");
-  //     return;
-  //   }
-  
-  //   if (!selectedAgentId || selectedAgentId === "all") {
-  //     addToast("warning", "בחר סוכן לפני טעינה");
-  //     // alert("בחרי סוכן לפני טעינה");
-  //     return;
-  //   }
-  
-  //   // ✅ אישור לפני טעינה
-  //   const validRows = rows.filter((_, i) => !errors.includes(i));
-  //   const validRowsCount = validRows.length;
-    
-  //   const confirmMessage = `עומדות להיטען ${validRowsCount} עסקאות למערכת.\nהאם לאשר?`;
-  //   const confirmed = window.confirm(confirmMessage);
-  //   if (!confirmed) return;
-
- 
-  //   // ✅ התחלת טעינה
-  //   const selectedAgent = agents.find((agent) => agent.id === selectedAgentId);
-  //   const selectedAgentName = selectedAgent?.name || "";
-  
-  //   let successCount = 0;
-  //   const failedRows: { index: number; error: any }[] = [];
-  
-  //   for (let i = 0; i < rows.length; i++) {
-  //     if (errors.includes(i)) continue;
-  
-  //     const originalRow = rows[i];
-  //     const mappedRow: any = {};
-  //     for (const [excelCol, systemField] of Object.entries(mapping)) {
-  //       mappedRow[systemField] = String(originalRow[excelCol] ?? "").trim();
-  //     }
-  
-  //     try {
-  //       const customerQuery = query(
-  //         collection(db, 'customer'),
-  //         where('IDCustomer', '==', mappedRow.IDCustomer),
-  //         where('AgentId', '==', selectedAgentId)
-  //       );
-  //       const customerSnapshot = await getDocs(customerQuery);
-  
-  //       let customerDocRef;
-  //       if (customerSnapshot.empty) {
-  //         customerDocRef = await addDoc(collection(db, "customer"), {
-  //           AgentId: selectedAgentId,
-  //           firstNameCustomer: mappedRow.firstNameCustomer || "",
-  //           lastNameCustomer: mappedRow.lastNameCustomer || "",
-  //           IDCustomer: String(mappedRow.IDCustomer || ""),
-  //           parentID: "",
-  //           sourceApp: "importExcel",
-  //         });
-  //         await updateDoc(customerDocRef, { parentID: customerDocRef.id });
-  //       }
-  
-  //       await addDoc(collection(db, 'sales'), {
-  //         agent: selectedAgentName,
-  //         AgentId: selectedAgentId,
-  //         workerId: mappedRow.workerId || "",
-  //         workerName: mappedRow.workerName || "",
-  //         firstNameCustomer: mappedRow.firstNameCustomer || "",
-  //         lastNameCustomer: mappedRow.lastNameCustomer || "",
-  //         IDCustomer: mappedRow.IDCustomer || "",
-  //         company: mappedRow.company || "",
-  //         product: mappedRow.product || "",
-  //         insPremia: mappedRow.insPremia || 0,
-  //         pensiaPremia: mappedRow.pensiaPremia || 0,
-  //         pensiaZvira: mappedRow.pensiaZvira || 0,
-  //         finansimPremia: mappedRow.finansimPremia || 0,
-  //         finansimZvira: mappedRow.finansimZvira || 0,
-  //         mounth: mappedRow.mounth || "",
-  //         minuySochen: String(mappedRow.minuySochen || "").trim() === "כן",
-  //         statusPolicy: mappedRow.statusPolicy || "",
-  //         notes: mappedRow.notes || "",
-  //         createdAt: serverTimestamp(),
-  //         lastUpdateDate: serverTimestamp(),
-  //         sourceApp: "importExcel",
-  //       });
-  
-  //       successCount++;
-  //     } catch (error) {
-  //       console.error(`❌ שגיאה בשורה ${i + 1}:`, error);
-  //       failedRows.push({ index: i + 1, error });
-  //     }
-  //   }
-  
-  //   // ✅ הודעת סיכום
-  //   if (failedRows.length > 0) {
-  //     const errorSummary = failedRows
-  //       .map((row) => `שורה ${row.index}: ${row.error?.message || "שגיאה לא ידועה"}`)
-  //       .join("\n");
-    
-  //     addToast("warning", `טעינה הסתיימה:\n✅ ${successCount} עסקאות הוזנו\n❌ ${failedRows.length} נכשלו. בדקי בלוג.`);
-    
-  //     // הצגה בקונסול למפתחת (פירוט שגיאות מלא)
-  //     console.group("❌ פירוט שורות שנכשלו");
-  //     failedRows.forEach((row) => {
-  //       console.error(`שורה ${row.index}:`, row.error);
-  //     });
-  //     console.groupEnd();
-  //   } else {
-  //     addToast("success", `✅ כל ${successCount} העסקאות הוזנו בהצלחה!`);
-  //   }
-    
-  // };
 
   const handleImport = async () => {
     const required = [
