@@ -738,13 +738,16 @@ const formatHebrewDate = (date: Date) =>
             <div className="mt-6">
               <h3 className="font-semibold mb-2">תצוגה מקדימה של הנתונים התקינים שייטענו ({validRows.length} שורות)</h3>
               <table border={1} className="w-full text-sm text-right">
-                <thead>
-                  <tr>
-                    {Object.values(mapping).map((mappedField) => (
-                      <th key={mappedField}>{mappedField}</th>
-                    ))}
-                  </tr>
-                </thead>
+              <thead>
+  <tr>
+    {Object.values(mapping).map((mappedField) => {
+      const fieldLabel = systemFieldsDisplay.find(f => f.key === mappedField)?.label || mappedField;
+      return (
+        <th key={mappedField}>{fieldLabel}</th>
+      );
+    })}
+  </tr>
+</thead>
                 <tbody>
                   {validRows.map((row, idx) => (
                     <tr key={idx}>

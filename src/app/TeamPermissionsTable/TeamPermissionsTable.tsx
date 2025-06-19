@@ -105,8 +105,9 @@ const TeamPermissionsTable = () => {
   
     // רק המשתמש המחובר רלוונטי כאן
     const rolePerms = rolePermissionsMap[detail?.role || ''] ?? [];
-    const hasFromRole = rolePerms.includes(permission);
-  
+    // const hasFromRole = rolePerms.includes(permission);
+    const hasFromRole = rolePerms.includes('*') || rolePerms.includes(permission);
+
     const isSubscriber = !!detail?.subscriptionId && !!detail?.subscriptionType;
   
     const subscriptionPerms = isSubscriber && detail.subscriptionType

@@ -15,6 +15,7 @@ const pages = [
   { href: '/NewGoals', label: 'ניהול יעדים' },
   { href: '/NewEnviorment', label: 'ניהול הגדרות לידים' },
   { href: '/TeamPermissionsTable', label: 'ניהול הרשאות' },
+  { href: 'import-excel', label: 'ייבוא אקסל עסקאות' },
   {
     href: '/AdminHub', // או כל דף ראשי שתבחרי
     label: 'ניהול אדמין',
@@ -24,9 +25,7 @@ const pages = [
       { href: '/RequestStatus', label: 'סטאטוס API' },
       { href: '/ManagePoolAgents', label: 'ניהול פול ליד' },
       { href: '/ManageManager', label: 'ניהול קבוצות סוכנים' },
-      // { href: '/SubscriptionsTable', label: 'ניהול מנויים ' },
-       { href: 'import-excel', label: 'ייבוא אקסל עסקאות' },
-
+      { href: '/SubscriptionsTable', label: 'ניהול מנויים ' },
     ],
   }
 
