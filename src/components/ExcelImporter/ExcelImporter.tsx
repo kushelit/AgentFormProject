@@ -64,34 +64,6 @@ const ExcelImporter: React.FC = () => {
   const handleFileButtonClick = () => {
     fileInputRef.current?.click(); // ✅ כאן
   };
-  // const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-  //   const file = e.target.files?.[0];
-  //   if (!file) return;
-  
-  //   const reader = new FileReader();
-  //   reader.onload = (evt) => {
-  //     const arrayBuffer = evt.target?.result;
-  //     if (!arrayBuffer) return;
-  
-  //     const wb = XLSX.read(arrayBuffer, { type: "array" });
-  //     const wsname = wb.SheetNames[0];
-  //     const ws = wb.Sheets[wsname];
-  //     const jsonData: Record<string, any>[] = XLSX.utils.sheet_to_json(ws, { defval: "" });
-  
-  //     // 🔍 הדפסת כותרות
-  //     if (jsonData.length > 0) {
-  //       console.log("🔎 Headers from Excel:", Object.keys(jsonData[0]));
-  //     }
-  
-  //     if (jsonData.length > 0) {
-  //       setHeaders(Object.keys(jsonData[0]));
-  //       setPendingExcelData(jsonData); // שמירה גולמית, בלי המרות
-  //       setErrors([]);
-  //     }      
-  //   };
-  
-  //   reader.readAsArrayBuffer(file); // ✅ שימוש במתודה מודרנית
-  // };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -120,7 +92,18 @@ const ExcelImporter: React.FC = () => {
     reader.readAsArrayBuffer(file);
   };
   
-
+  const clearFile = () => {
+    setSelectedFileName("");
+    setPendingExcelData(null);
+    setHeaders([]);
+    setRows([]);
+    setMapping({});
+    setErrors([]);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+  
   useEffect(() => {
     if (!pendingExcelData || Object.keys(mapping).length === 0) return;
   
@@ -532,6 +515,17 @@ const ExcelImporter: React.FC = () => {
     } else {
       addToast("success", `✅ כל ${successCount} העסקאות הוזנו בהצלחה!`);
     }
+// 🧹 איפוס המצב לאחר הטעינה
+setSelectedFileName("");
+setHeaders([]);
+setRows([]);
+setMapping({});
+setErrors([]);
+setPendingExcelData(null);
+if (fileInputRef.current) {
+  fileInputRef.current.value = ""; // איפוס הקובץ שבחרו
+}
+
   };
   
   
@@ -580,11 +574,18 @@ const ExcelImporter: React.FC = () => {
       state="default"
       onClick={handleFileButtonClick}
     />
-    {selectedFileName && (
-      <p className="text-sm text-gray-600 mt-1 flex items-center gap-1">
-        <span>{selectedFileName}</span> <span>📁</span>
-      </p>
-    )}
+   {selectedFileName && (
+  <div className="flex items-center gap-2 mt-1 text-sm text-gray-600">
+    <span className="truncate max-w-[200px]">📁 {selectedFileName}</span>
+    <button
+      onClick={clearFile}
+      className="text-red-500 hover:text-red-700 text-xs font-bold"
+      title="נקה קובץ"
+    >
+      ✖
+    </button>
+  </div>
+)}
   </div>
 </div>
       {headers.length > 0 && (
