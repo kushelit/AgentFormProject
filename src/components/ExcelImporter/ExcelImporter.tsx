@@ -36,8 +36,6 @@ const systemFieldsDisplay = [
 ];
 
 
-
-
 const numericFields = [
   "insPremia", "pensiaPremia", "pensiaZvira", "finansimPremia", "finansimZvira"
 ];
@@ -64,6 +62,18 @@ const ExcelImporter: React.FC = () => {
   const handleFileButtonClick = () => {
     fileInputRef.current?.click(); // ✅ כאן
   };
+
+
+
+  const [importSummary, setImportSummary] = useState<{
+    count: number;
+    uniqueCustomers: number;
+    dateRange: [Date, Date];
+    companies: string[];
+    products: string[];
+    agentName: string;
+  } | null>(null);
+  
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -290,40 +300,42 @@ const areAllRequiredFieldsMapped = requiredFields.every((fieldKey) =>
     checkAllRows(updatedRows, mapping);
   };
 
-  const handleImport = async () => {
-    const required = [
-      "firstNameCustomer",
-      "lastNameCustomer",
-      "IDCustomer",
-      "company",
-      "product",
-      "mounth",
-      "statusPolicy"
-    ];
+//   const handleImport = async () => {
+//     const required = [
+//       "firstNameCustomer",
+//       "lastNameCustomer",
+//       "IDCustomer",
+//       "company",
+//       "product",
+//       "mounth",
+//       "statusPolicy",
+//     ];
   
-    const reverseMap = Object.fromEntries(Object.entries(mapping).map(([k, v]) => [v, k]));
-    const allRequiredMapped = required.every((key) => reverseMap[key]);
+//     const reverseMap = Object.fromEntries(Object.entries(mapping).map(([k, v]) => [v, k]));
+//     const allRequiredMapped = required.every((key) => reverseMap[key]);
   
-    if (!allRequiredMapped) {
-      addToast("error", "יש שדות חובה שלא מופו – אנא השלימי את המיפוי לפני טעינה.");
-      return;
-    }
+//     if (!allRequiredMapped) {
+//       addToast("error", "יש שדות חובה שלא מופו – אנא השלימי את המיפוי לפני טעינה.");
+//       return;
+//     }
   
-    if (errors.length > 0) {
-      addToast("error", "יש שורות עם שגיאות. תקני או מחקי אותן לפני טעינה");
-      return;
-    }
+//     if (errors.length > 0) {
+//       addToast("error", "יש שורות עם שגיאות. תקני או מחקי אותן לפני טעינה");
+//       return;
+//     }
   
-    if (!selectedAgentId || selectedAgentId === "all") {
-      addToast("warning", "בחר סוכן לפני טעינה");
-      return;
-    }
+//     // if (!selectedAgentId || selectedAgentId === "all") {
+//       if (!selectedAgentId ) {
+
+//       addToast("warning", "בחר סוכן לפני טעינה");
+//       return;
+//     }
   
-    const validRows = rows.filter((_, i) => !errors.includes(i));
-    setValidRowsCount(validRows.length);
-    setImportDialogOpen(true); // זה פותח את הדיאלוג
-    return;
-  };
+//     const validRows = rows.filter((_, i) => !errors.includes(i));
+//     setValidRowsCount(validRows.length);
+//     setImportDialogOpen(true); // זה פותח את הדיאלוג
+//     return;
+//   };
   
   const continueImport = async () => {
     setImportDialogOpen(false);
@@ -423,6 +435,75 @@ if (fileInputRef.current) {
 
   };
   
+const handleImport = async () => {
+  const required = [
+    "firstNameCustomer",
+    "lastNameCustomer",
+    "IDCustomer",
+    "company",
+    "product",
+    "mounth",
+    "statusPolicy"
+  ];
+
+  const reverseMap = Object.fromEntries(Object.entries(mapping).map(([k, v]) => [v, k]));
+  const allRequiredMapped = required.every((key) => reverseMap[key]);
+
+  if (!allRequiredMapped) {
+    addToast("error", "יש שדות חובה שלא מופו – אנא השלימי את המיפוי לפני טעינה.");
+    return;
+  }
+
+  if (errors.length > 0) {
+    addToast("error", "יש שורות עם שגיאות. תקני או מחקי אותן לפני טעינה");
+    return;
+  }
+
+  if (!selectedAgentId || selectedAgentId === "all") {
+    addToast("warning", "בחר סוכן לפני טעינה");
+    return;
+  }
+
+  const validRows = rows.filter((_, i) => !errors.includes(i));
+  setValidRowsCount(validRows.length);
+
+  const idField = mappingKeyFor("IDCustomer");
+  const dateField = mappingKeyFor("mounth");
+  const companyField = mappingKeyFor("company");
+  const productField = mappingKeyFor("product");
+
+  const uniqueIDs = new Set(validRows.map((row) => row[idField]));
+  const mounthDates = validRows.map((row) => new Date(row[dateField]));
+  const minDate = new Date(Math.min(...mounthDates.map(d => d.getTime())));
+const maxDate = new Date(Math.max(...mounthDates.map(d => d.getTime())));
+  const uniqueCompanies = [...new Set(validRows.map((row) => row[companyField]))];
+  const uniqueProducts = [...new Set(validRows.map((row) => row[productField]))];
+  const agentName = agents.find((a) => a.id === selectedAgentId)?.name || "";
+
+  setImportSummary({
+    count: validRows.length,
+    uniqueCustomers: uniqueIDs.size,
+    dateRange: [minDate, maxDate],
+    companies: uniqueCompanies,
+    products: uniqueProducts,
+    agentName,
+  });
+
+  setImportDialogOpen(true);
+};
+
+// עזר: שליפה מהירה של מפתח ממיפוי
+const mappingKeyFor = (field: string): string =>
+  Object.entries(mapping).find(([, v]) => v === field)?.[0] || "";
+
+
+const formatHebrewDate = (date: Date) =>
+  date.toLocaleDateString("he-IL", {
+    year: "numeric",
+    month: "long"
+  });
+
+
   
   useEffect(() => {
     if (rows.length > 0 && Object.keys(mapping).length > 0) {
@@ -689,12 +770,22 @@ if (fileInputRef.current) {
           >
             אשר טעינה
           </button>
-          {importDialogOpen && (
+          {importDialogOpen && importSummary && (
   <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
     <DialogNotification
       type="warning"
       title="אישור טעינה"
-      message={`עומדות להיטען ${validRowsCount} עסקאות למערכת.\nהאם לאשר?`}
+      message={
+        `⚠️ פעולה משמעותית לפניך!\n\n` +
+        `אתה עומד להעלות ${importSummary.count} עסקאות חדשות לסוכן: "${importSummary.agentName}"\n\n` +
+        `📅 טווח חודשים: ${formatHebrewDate(importSummary.dateRange[0])} – ${formatHebrewDate(importSummary.dateRange[1])}\n` +
+        `👥 לקוחות שונים: ${importSummary.uniqueCustomers}\n` +
+        `🏢 חברות: ${importSummary.companies.join(", ")}\n` +
+        `📦 מוצרים: ${importSummary.products.join(", ")}\n\n` +
+        `🔒 ודא כי הנתונים נכונים ומסוננים לפני ביצוע הפעולה.\n` +
+        `❗️ לאחר טעינה – לא ניתן לבטל.\n\n` +
+        `האם להמשיך?`
+      }
       onConfirm={continueImport}
       onCancel={() => setImportDialogOpen(false)}
       confirmText="אשר טעינה"

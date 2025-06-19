@@ -44,9 +44,8 @@ const DialogNotification = ({
 
         {/* הודעה */}
         <div className="dialog-message">
-          {message}
-        </div>
-
+  <pre className="dialog-message-pre">{message}</pre>
+</div>
         {/* שני כפתורים */}
         <div className="dialog-buttons">
         <Button
