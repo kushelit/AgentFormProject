@@ -68,27 +68,45 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ skipped: true });
       }
       const docRef = snapshot.docs[0].ref;
-      await docRef.update({
-        isActive: true,
-        cancellationDate: admin.firestore.FieldValue.delete(),
-        growCancellationStatus: admin.firestore.FieldValue.delete(),
-        'permissionOverrides.allow': admin.firestore.FieldValue.delete(),
-        'permissionOverrides.deny': admin.firestore.FieldValue.delete(),
-        subscriptionStatus,
-        subscriptionType,
-        lastPaymentStatus: paymentStatus,
-        lastPaymentDate: paymentDate,
-        ...(transactionId ? { transactionId } : {}),
-        ...(transactionToken ? { transactionToken } : {}),
-        ...(asmachta ? { asmachta } : {}),
-        ...(addOns ? {
-          addOns: {
-            leadsModule: !!addOns.leadsModule,
-            extraWorkers: addOns.extraWorkers || 0,
-          }
-        } : {}),
-      });
-      
+     // קריאה לדאטה קיים
+const userSnap = await docRef.get();
+const userData = userSnap.data();
+const updateFields: any = {
+  isActive: true,
+  cancellationDate: admin.firestore.FieldValue.delete(),
+  growCancellationStatus: admin.firestore.FieldValue.delete(),
+  'permissionOverrides.allow': admin.firestore.FieldValue.delete(),
+  'permissionOverrides.deny': admin.firestore.FieldValue.delete(),
+  subscriptionStatus,
+  lastPaymentStatus: paymentStatus,
+  lastPaymentDate: paymentDate,
+};
+
+// עדכון רק אם יש שינוי בפועל
+if (transactionId && transactionId !== userData?.transactionId) {
+  updateFields.transactionId = transactionId;
+}
+if (transactionToken && transactionToken !== userData?.transactionToken) {
+  updateFields.transactionToken = transactionToken;
+}
+if (asmachta && asmachta !== userData?.asmachta) {
+  updateFields.asmachta = asmachta;
+}
+if (processId && processId !== userData?.subscriptionId) {
+  updateFields.subscriptionId = processId;
+}
+if (subscriptionType && subscriptionType !== userData?.subscriptionType) {
+  updateFields.subscriptionType = subscriptionType;
+}
+if (addOns && JSON.stringify(addOns) !== JSON.stringify(userData?.addOns)) {
+  updateFields.addOns = {
+    leadsModule: !!addOns.leadsModule,
+    extraWorkers: addOns.extraWorkers || 0,
+  };
+}
+
+await docRef.update(updateFields);
+
 
       console.log('🟢 Updated user in Firestore');
 
@@ -122,26 +140,44 @@ export async function POST(req: NextRequest) {
       await auth.updateUser(existingUser.uid, { disabled: false });
       console.log('✅ Firebase Auth user re-enabled');
 
-      await db.collection('users').doc(existingUser.uid).update({
+      const userRef = db.collection('users').doc(existingUser.uid);
+      const userSnap = await userRef.get();
+      const userData = userSnap.data();
+      const updateFields: any = {
         isActive: true,
         cancellationDate: admin.firestore.FieldValue.delete(),
         growCancellationStatus: admin.firestore.FieldValue.delete(),
         'permissionOverrides.allow': admin.firestore.FieldValue.delete(),
-  'permissionOverrides.deny': admin.firestore.FieldValue.delete(),
+        'permissionOverrides.deny': admin.firestore.FieldValue.delete(),
         subscriptionStatus,
-        subscriptionType,
         lastPaymentStatus: paymentStatus,
         lastPaymentDate: paymentDate,
-        ...(transactionId ? { transactionId } : {}),
-        ...(transactionToken ? { transactionToken } : {}),
-        ...(asmachta ? { asmachta } : {}),
-        ...(addOns ? {
-          addOns: {
-            leadsModule: !!addOns.leadsModule,
-            extraWorkers: addOns.extraWorkers || 0,
-          }
-        } : {}),
-      });
+      };
+      
+      if (transactionId && transactionId !== userData?.transactionId) {
+        updateFields.transactionId = transactionId;
+      }
+      if (transactionToken && transactionToken !== userData?.transactionToken) {
+        updateFields.transactionToken = transactionToken;
+      }
+      if (asmachta && asmachta !== userData?.asmachta) {
+        updateFields.asmachta = asmachta;
+      }
+      if (processId && processId !== userData?.subscriptionId) {
+        updateFields.subscriptionId = processId;
+      }
+      if (subscriptionType && subscriptionType !== userData?.subscriptionType) {
+        updateFields.subscriptionType = subscriptionType;
+      }
+      if (addOns && JSON.stringify(addOns) !== JSON.stringify(userData?.addOns)) {
+        updateFields.addOns = {
+          leadsModule: !!addOns.leadsModule,
+          extraWorkers: addOns.extraWorkers || 0,
+        };
+      }
+      
+      await userRef.update(updateFields);
+      
       console.log('🔥 Updating user document with data:', {
         isActive: true,
         subscriptionStatus,
