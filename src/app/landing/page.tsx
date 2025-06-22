@@ -7,6 +7,8 @@ import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { Sparkles, LayoutDashboard, Users, ShieldCheck, BarChart3 } from 'lucide-react';
 import { GraphsSection } from '@/components/FeatureCard';
+import { ContactSection } from '@/components/FeatureCard';
+
 
 
 const features = [
@@ -194,6 +196,56 @@ export default function LandingPage() {
         ))}
       </section>
       <GraphsSection />
+      <section id="pricing" className="py-20 bg-white text-right">
+  <div className="max-w-7xl mx-auto px-6">
+    <h2 className="text-3xl font-bold text-blue-800 mb-12 text-center">בחרו את התוכנית שמתאימה לכם</h2>
+    <div className="grid md:grid-cols-3 gap-8">
+      {/* תוכנית בסיסית */}
+      <div className="bg-blue-50 rounded-2xl p-8 shadow hover:shadow-lg transition">
+        <h3 className="text-xl font-bold mb-2 text-blue-900">עד 10 משתמשים</h3>
+        <p className="text-sm text-gray-600 mb-4">135 ₪ לחודש / למשתמש</p>
+        <ul className="text-gray-700 space-y-2 text-sm leading-relaxed mb-6">
+          <li>✔ דף בית לבחירה</li>
+          <li>✔ ניהול תפקידים והרשאות</li>
+          <li>✔ חיבור לדפי נחיתה</li>
+          <li>✔ GB1 אחסון מידע למשתמש</li>
+        </ul>
+        <button className="bg-yellow-400 hover:bg-yellow-500 text-white font-bold py-2 px-4 rounded-full w-full">
+          14 ימים ראשונים – חינם
+        </button>
+      </div>
+
+      {/* תוכנית ביניים */}
+      <div className="bg-white border-2 border-indigo-600 rounded-2xl p-8 shadow-lg scale-105">
+        <h3 className="text-xl font-bold mb-2 text-indigo-900">11–50 משתמשים</h3>
+        <p className="text-sm text-gray-600 mb-4">117 ₪ לחודש / למשתמש</p>
+        <ul className="text-gray-700 space-y-2 text-sm leading-relaxed mb-6">
+          <li>✔ כולל לוח שנה</li>
+          <li>✔ הרשאות מותאמות לפי תפקיד</li>
+          <li>✔ אפשרויות חיפוש מתקדמות</li>
+          <li>✔ חיבור ל־CRM ולמערכת ניתוחים</li>
+        </ul>
+        <button className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-full w-full">
+          14 ימים חינם
+        </button>
+      </div>
+
+      {/* תוכנית מתקדמת */}
+      <div className="bg-blue-50 rounded-2xl p-8 shadow hover:shadow-lg transition">
+        <h3 className="text-xl font-bold mb-2 text-blue-900">50 משתמשים ומעלה</h3>
+        <p className="text-sm text-gray-600 mb-4">99 ₪ לחודש / למשתמש</p>
+        <ul className="text-gray-700 space-y-2 text-sm leading-relaxed mb-6">
+          <li>✔ כל האפשרויות + התאמות לפי ארגון</li>
+          <li>✔ חיבור מלא למערכות קיימות</li>
+          <li>✔ תמיכה ישירה וניהול מתקדם</li>
+        </ul>
+        <button className="bg-yellow-400 hover:bg-yellow-500 text-white font-bold py-2 px-4 rounded-full w-full">
+          דברו איתנו
+        </button>
+      </div>
+    </div>
+  </div>
+</section>
       <section id="faq" className="bg-white py-20 px-4">
         <div className="max-w-4xl mx-auto">
           <h2 className="text-3xl font-bold text-blue-800 text-center mb-10">שאלות נפוצות</h2>
@@ -221,9 +273,10 @@ export default function LandingPage() {
           onClick={() => router.push('/subscription-sign-up')}
           className="bg-white text-indigo-900 font-bold px-8 py-3 rounded-full shadow hover:shadow-lg hover:bg-indigo-100 transition"
         >
-          קבעו הדגמה
-        </button>
+התחילו עכשיו  
+      </button>
       </section>
+      <ContactSection />
     </div>
   );
 }
