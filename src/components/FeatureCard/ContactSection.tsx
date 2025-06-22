@@ -97,7 +97,7 @@ export default function ContactSection() {
           <p className="mb-4">השאירו פרטים ונשמח לחזור אליכם!</p>
           <p><strong>טלפון:</strong> 052-6582656</p>
           <p><strong>כתובת:</strong>  שרגא רפאלי 20, פתח תקווה</p>
-          <p><strong>שעות פעילות:</strong> ימים א'-ה' בין 09:00 ל־17:00</p>
+          <p><strong>שעות פעילות:</strong> ימים א&apos;-ה&apos; בין 09:00 ל־17:00</p>
         </div>
       </div>
     </section>
