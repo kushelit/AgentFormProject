@@ -67,7 +67,7 @@ export async function POST(req: NextRequest) {
         console.log('⏭ Skipping webhook update due to manual upgrade');
         return NextResponse.json({ skipped: true });
       }
-      const docRef = snapshot.docs[0].ref;
+ const docRef = snapshot.docs[0].ref;
      // קריאה לדאטה קיים
 const userSnap = await docRef.get();
 const userData = userSnap.data();
@@ -104,6 +104,9 @@ if (addOns && JSON.stringify(addOns) !== JSON.stringify(userData?.addOns)) {
     extraWorkers: addOns.extraWorkers || 0,
   };
 }
+const planChanged =
+(subscriptionType && subscriptionType !== userData?.subscriptionType) ||
+(addOns && JSON.stringify(addOns) !== JSON.stringify(userData?.addOns));
 
 await docRef.update(updateFields);
 
@@ -114,9 +117,6 @@ await docRef.update(updateFields);
         const user = await auth.getUserByEmail(email);
 
         // שליחת מייל על עדכון תוכנית רק אם שונה subscriptionType או addOns והיוזר לא הוחייה עכשיו
-const planChanged =
-(subscriptionType && subscriptionType !== userData?.subscriptionType) ||
-(addOns && JSON.stringify(addOns) !== JSON.stringify(userData?.addOns));
 
 if (planChanged && !user.disabled) {
 await fetch('https://test.magicsale.co.il/api/sendEmail', {
