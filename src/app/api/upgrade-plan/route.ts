@@ -47,6 +47,8 @@ export async function POST(req: NextRequest) {
     formData.append('changeStatus', '1');
     formData.append('sum', totalPrice.toString());
     formData.append('cField3', JSON.stringify(addOns || {}));
+    formData.append('cField4', 'manual-upgrade');
+
 
     formData.forEach((value, key) => console.log(`🔧 ${key}: ${value}`));
 
@@ -61,6 +63,14 @@ export async function POST(req: NextRequest) {
     if (data?.status !== 1) {
       return NextResponse.json({ error: 'Grow update failed', details: data }, { status: 502 });
     }
+
+    console.log('🔥 updateDoc called with:', {
+      userId: userSnap.id,
+      subscriptionType: newPlanId,
+      lastPrice: totalPrice,
+      lastPlanChangeDate: new Date(),
+      addOns: addOns || {}
+    });
 
     await userDocRef.update({
       subscriptionType: newPlanId,

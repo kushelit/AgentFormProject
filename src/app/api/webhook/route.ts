@@ -24,6 +24,9 @@ export async function POST(req: NextRequest) {
     const rawBody = await req.text();
     const data = parse(rawBody);
 
+    console.log('📩 Raw Grow webhook payload:\n', JSON.stringify(data, null, 2));
+
+
     const statusCode = data['data[statusCode]']?.toString();
     const paymentStatus = statusCode === '2' ? 'success' : 'failed';
     const subscriptionStatus = statusCode === '2' ? 'active' : 'failed';
@@ -38,6 +41,7 @@ export async function POST(req: NextRequest) {
     const transactionToken = (data['data[transactionToken]'] ?? data.transactionToken)?.toString();
     const asmachta = (data['data[asmachta]'] ?? data.asmachta)?.toString();
     const addOnsRaw = data['data[customFields][cField3]'] || data['customFields[cField3]'];
+    const source = (data['data[customFields][cField4]'] ?? data['customFields[cField4]'])?.toString() ?? '';
     const addOns = addOnsRaw ? JSON.parse(addOnsRaw.toString()) : {};
 
     console.log('📦 Debug fields:', {
@@ -55,8 +59,14 @@ export async function POST(req: NextRequest) {
 
     const paymentDate = new Date();
 
+    
+  
     // ✳️ אם קיים משתמש לפי customField – עדכון והחייאה
     if (!snapshot.empty) {
+      if (source === 'manual-upgrade') {
+        console.log('⏭ Skipping webhook update due to manual upgrade');
+        return NextResponse.json({ skipped: true });
+      }
       const docRef = snapshot.docs[0].ref;
       await docRef.update({
         isActive: true,
@@ -103,6 +113,11 @@ export async function POST(req: NextRequest) {
     try {
       existingUser = await auth.getUserByEmail(email);
       console.log('🔍 User already exists in Auth:', existingUser.uid);
+
+      if (source === 'manual-upgrade') {
+        console.log('⏭ Skipping webhook update for existing Auth user due to manual upgrade');
+        return NextResponse.json({ skipped: true });
+      }
 
       await auth.updateUser(existingUser.uid, { disabled: false });
       console.log('✅ Firebase Auth user re-enabled');
