@@ -107,17 +107,65 @@ if (addOns && JSON.stringify(addOns) !== JSON.stringify(userData?.addOns)) {
 
 await docRef.update(updateFields);
 
+ console.log('🟢 Updated user in Firestore');
 
-      console.log('🟢 Updated user in Firestore');
 
       try {
         const user = await auth.getUserByEmail(email);
+
+        // שליחת מייל על עדכון תוכנית רק אם שונה subscriptionType או addOns והיוזר לא הוחייה עכשיו
+const planChanged =
+(subscriptionType && subscriptionType !== userData?.subscriptionType) ||
+(addOns && JSON.stringify(addOns) !== JSON.stringify(userData?.addOns));
+
+if (planChanged && !user.disabled) {
+await fetch('https://test.magicsale.co.il/api/sendEmail', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    to: email,
+    subject: 'עדכון תוכנית במערכת MagicSale',
+    html: `
+      שלום ${fullName},<br><br>
+      תוכנית המנוי שלך עודכנה בהצלחה במערכת MagicSale.<br>
+      סוג מנוי נוכחי: <strong>${subscriptionType}</strong><br><br>
+      תוכל להתחבר למערכת כאן:<br>
+      <a href="https://test.magicsale.co.il/auth/log-in">כניסה למערכת</a><br><br>
+      בברכה,<br>
+      צוות MagicSale
+    `,
+  }),
+});
+}
+
         if (user.disabled) {
           await auth.updateUser(user.uid, { disabled: false });
           console.log('✅ Firebase Auth user re-enabled');
         } else {
           console.log('ℹ️ Firebase user already active');
         }
+ // ✅ יצירת לינק איפוס סיסמה
+ const resetLink = await auth.generatePasswordResetLink(email);
+
+ // ✅ שליחת מייל
+ await fetch('https://test.magicsale.co.il/api/sendEmail', {
+   method: 'POST',
+   headers: { 'Content-Type': 'application/json' },
+   body: JSON.stringify({
+     to: email,
+     subject: 'איפוס סיסמה לאחר חידוש מנוי',
+     html: `
+       שלום ${fullName},<br><br>
+       המנוי שלך במערכת MagicSale חודש בהצלחה!<br>
+       אם ברצונך להיכנס, באפשרותך לאפס את הסיסמה שלך כאן:<br>
+       <a href="${resetLink}">איפוס סיסמה</a><br><br>
+       בהצלחה,<br>
+       צוות MagicSale
+     `,
+   }),
+ });
+
+
       } catch (e) {
         console.warn('⚠️ Firebase user not found for email');
       }
@@ -197,7 +245,30 @@ await docRef.update(updateFields);
       
       console.log('✅ Firestore user reactivated');
 
-      return NextResponse.json({ reactivated: true });
+// ✅ יצירת לינק איפוס סיסמה
+const resetLink = await auth.generatePasswordResetLink(email);
+
+// ✅ שליחת מייל
+await fetch('https://test.magicsale.co.il/api/sendEmail', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    to: email,
+    subject: 'איפוס סיסמה לאחר חידוש מנוי',
+    html: `
+      שלום ${fullName},<br><br>
+      המנוי שלך במערכת MagicSale חודש בהצלחה!<br>
+      אם ברצונך להיכנס, באפשרותך לאפס את הסיסמה שלך כאן:<br>
+      <a href="${resetLink}">איפוס סיסמה</a><br><br>
+      בהצלחה!<br>
+      צוות MagicSale
+    `,
+  }),
+});
+
+return NextResponse.json({ reactivated: true });
+
+
     } catch (e) {
       console.log('ℹ️ No Auth user found – creating new user');
     }
