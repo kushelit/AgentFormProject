@@ -43,6 +43,7 @@ export async function POST(req: NextRequest) {
     const addOnsRaw = data['data[customFields][cField3]'] || data['customFields[cField3]'];
     const source = (data['data[customFields][cField4]'] ?? data['customFields[cField4]'])?.toString() ?? '';
     const addOns = addOnsRaw ? JSON.parse(addOnsRaw.toString()) : {};
+    const couponCode = (data['data[customFields][cField5]'] ?? data['customFields[cField5]'])?.toString() ?? '';
 
     console.log('📦 Debug fields:', {
       statusCode, email, fullName, phone, processId, customField, subscriptionType
@@ -81,6 +82,9 @@ const updateFields: any = {
   lastPaymentStatus: paymentStatus,
   lastPaymentDate: paymentDate,
 };
+if (couponCode) {
+  updateFields.usedCouponCode = couponCode;
+}
 
 // עדכון רק אם יש שינוי בפועל
 if (transactionId && transactionId !== userData?.transactionId) {

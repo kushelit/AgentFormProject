@@ -13,3 +13,7 @@ export const PAID_PERMISSION_ADDONS: Record<PaidPermission, keyof NonNullable<Us
   access_flow: 'leadsModule',
   // access_permissions: 'permissionsModule', // לדוגמה בעתיד
 };
+
+export function isPaidPermission(permission: string): permission is PaidPermission {
+  return permission in PAID_PERMISSION_ADDONS;
+}

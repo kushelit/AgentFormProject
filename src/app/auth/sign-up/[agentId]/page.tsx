@@ -78,14 +78,16 @@ export default function WorkerSignUpPage({ params }: { params: { agentId: string
         isActive: true,
       };
       
-      // if (agent.subscriptionId) {
-      //   newWorkerData.subscriptionId =agent.subscriptionId;
-      // }
+       if (agent.subscriptionId) {
+         newWorkerData.subscriptionId =agent.subscriptionId;
+       }
       
       if (agent.subscriptionType) {
         newWorkerData.subscriptionType = agent.subscriptionType;
       }
       
+      console.log("🧾 נתוני עובד לפני שמירה:", newWorkerData);
+
       // if (agent.addOns) {
       //   newWorkerData.addOns = agent.addOns;
       // }

@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -8,7 +8,7 @@ import { motion } from 'framer-motion';
 import { Sparkles, LayoutDashboard, Users, ShieldCheck, BarChart3 } from 'lucide-react';
 import { GraphsSection } from '@/components/FeatureCard';
 import { ContactSection } from '@/components/FeatureCard';
-
+import { usePathname, useSearchParams } from 'next/navigation';
 
 
 const features = [
@@ -78,11 +78,28 @@ const faqs = [
 ];
 
 
-
-
-
 export default function LandingPage() {
   const router = useRouter();
+
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const hash = window.location.hash;
+      if (hash === '#contact') {
+        const el = document.getElementById('contact');
+        if (el) {
+          setTimeout(() => {
+            el.scrollIntoView({ behavior: 'smooth' });
+          }, 300);
+        }
+      }
+    }
+  }, []);
+  
+
 
   return (
     <div className="relative bg-gray-50 text-right">
@@ -200,46 +217,65 @@ export default function LandingPage() {
   <div className="max-w-7xl mx-auto px-6">
     <h2 className="text-3xl font-bold text-blue-800 mb-12 text-center">בחרו את התוכנית שמתאימה לכם</h2>
     <div className="grid md:grid-cols-3 gap-8">
-      {/* תוכנית בסיסית */}
-      <div className="bg-blue-50 rounded-2xl p-8 shadow hover:shadow-lg transition">
-        <h3 className="text-xl font-bold mb-2 text-blue-900">עד 10 משתמשים</h3>
-        <p className="text-sm text-gray-600 mb-4">135 ₪ לחודש / למשתמש</p>
+      {/* תוכנית BASIC */}
+      <div className="relative bg-blue-50 rounded-2xl p-8 shadow hover:shadow-lg transition flex flex-col justify-between min-h-[480px]">
+        <h3 className="text-xl font-bold mb-2 text-blue-900">מנוי בסיסי</h3>
+        <p className="text-sm text-gray-600 mb-4">89 ₪ לחודש </p>
         <ul className="text-gray-700 space-y-2 text-sm leading-relaxed mb-6">
-          <li>✔ דף בית לבחירה</li>
-          <li>✔ ניהול תפקידים והרשאות</li>
-          <li>✔ חיבור לדפי נחיתה</li>
-          <li>✔ GB1 אחסון מידע למשתמש</li>
+          <li>✔ ניהול עסקאות ולקוחות</li>
+          <li>✔ מעקב עמלות בסיסי</li>
+          <li>✔ סימולציה והפקת דוחות</li>
+          <li>✔ ניהול משתמשים והרשאות בסיסיות</li>
         </ul>
-        <button className="bg-yellow-400 hover:bg-yellow-500 text-white font-bold py-2 px-4 rounded-full w-full">
-          14 ימים ראשונים – חינם
-        </button>
+        <Link
+  href="/subscription-sign-up"
+  className="bg-yellow-400 hover:bg-yellow-500 text-white font-bold py-2 px-4 rounded-full w-full text-center"
+>
+  התחילו עכשיו
+</Link>
       </div>
 
-      {/* תוכנית ביניים */}
-      <div className="bg-white border-2 border-indigo-600 rounded-2xl p-8 shadow-lg scale-105">
-        <h3 className="text-xl font-bold mb-2 text-indigo-900">11–50 משתמשים</h3>
-        <p className="text-sm text-gray-600 mb-4">117 ₪ לחודש / למשתמש</p>
+      {/* תוכנית PRO */}
+      <div className="relative bg-white border-2 border-indigo-600 rounded-2xl p-8 shadow-lg scale-105 flex flex-col justify-between min-h-[480px]">
+        <div className="absolute top-2 left-2 bg-yellow-400 text-white text-xs font-bold px-2 py-1 rounded shadow">
+          הכי פופולרי ⭐
+        </div>
+        <h3 className="text-xl font-bold mb-2 text-indigo-900">מנוי מקצועי </h3>
+        <p className="text-sm text-gray-600 mb-4">185 ₪ לחודש</p>
         <ul className="text-gray-700 space-y-2 text-sm leading-relaxed mb-6">
-          <li>✔ כולל לוח שנה</li>
-          <li>✔ הרשאות מותאמות לפי תפקיד</li>
-          <li>✔ אפשרויות חיפוש מתקדמות</li>
-          <li>✔ חיבור ל־CRM ולמערכת ניתוחים</li>
+          <li>✔ כל מה שיש ב־Basic, ובנוסף:</li>
+          <li>✔ ניהול עובדים והרשאות מתקדמות</li>
+          <li>✔ יעד אישי ובונוסים</li>
+          <li>✔ יבוא אקסל ומעקב גרפים</li>
+          <li>✔ הוספת עובדים לפי צורך</li>
         </ul>
-        <button className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-full w-full">
-          14 ימים חינם
-        </button>
+        <Link
+  href="/subscription-sign-up"
+  className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-full w-full text-center"
+>
+  התחילו עכשיו 
+</Link>
+
       </div>
 
-      {/* תוכנית מתקדמת */}
-      <div className="bg-blue-50 rounded-2xl p-8 shadow hover:shadow-lg transition">
-        <h3 className="text-xl font-bold mb-2 text-blue-900">50 משתמשים ומעלה</h3>
-        <p className="text-sm text-gray-600 mb-4">99 ₪ לחודש / למשתמש</p>
+      {/* תוכנית ENTERPRISE */}
+      <div className="relative bg-purple-50 border border-purple-300 rounded-2xl p-8 shadow hover:shadow-lg transition flex flex-col justify-between min-h-[480px]">
+        <div className="absolute top-2 left-2 bg-purple-600 text-white text-xs font-bold px-2 py-1 rounded shadow">
+          מותאם לארגונים
+        </div>
+        <h3 className="text-xl font-bold mb-2 text-purple-900">מנוי לבתי סוכן</h3>
+        <p className="text-sm text-gray-600 mb-4">בהתאמה אישית</p>
         <ul className="text-gray-700 space-y-2 text-sm leading-relaxed mb-6">
-          <li>✔ כל האפשרויות + התאמות לפי ארגון</li>
-          <li>✔ חיבור מלא למערכות קיימות</li>
-          <li>✔ תמיכה ישירה וניהול מתקדם</li>
+          <li>✔ כל האפשרויות של Pro</li>
+          <li>✔ ניהול קבוצות וסוכנויות</li>
+          <li>✔ התאמות לארגונים גדולים</li>
+          <li>✔ חיבורים למערכות קיימות</li>
+          <li>✔ תמיכה טכנית מורחבת</li>
         </ul>
-        <button className="bg-yellow-400 hover:bg-yellow-500 text-white font-bold py-2 px-4 rounded-full w-full">
+        <button
+          onClick={() => router.push('/landing#contact')}
+          className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-full w-full"
+        >
           דברו איתנו
         </button>
       </div>
@@ -277,6 +313,13 @@ export default function LandingPage() {
       </button>
       </section>
       <ContactSection />
+      <footer className="bg-gray-100 text-center py-6 text-sm text-gray-600">
+  <p>© {new Date().getFullYear()} MagicSale. כל הזכויות שמורות.</p>
+  <div className="flex justify-center gap-4 mt-2 text-blue-600">
+    <Link href="/terms">תנאי שימוש</Link>
+    <Link href="/privacy">מדיניות פרטיות</Link>
+  </div>
+</footer>
     </div>
   );
 }

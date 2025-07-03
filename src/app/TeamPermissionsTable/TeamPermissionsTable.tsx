@@ -35,6 +35,7 @@ interface PermissionData {
   restricted?: boolean;
 }
 
+
 const TeamPermissionsTable = () => {
   const { user, detail } = useAuth();
   const { agents, selectedAgentId, setSelectedAgentId, handleAgentChange } = useFetchAgentData();
@@ -52,6 +53,18 @@ const TeamPermissionsTable = () => {
   const [dialogData, setDialogData] = useState<{ workerId: string; permission: string; has: boolean } | null>(null);
  
   
+
+const detailAsMinimalUser: MinimalUser | null = detail && user
+? {
+    uid: user.uid,
+    role: detail.role,
+    subscriptionId: detail.subscriptionId,
+    subscriptionType: detail.subscriptionType,
+    permissionOverrides: detail.permissionOverrides,
+    addOns: detail.addOns,
+  }
+: null;
+
   
   useEffect(() => {
     const fetchSubscriptionPermissions = async () => {
@@ -116,9 +129,23 @@ const TeamPermissionsTable = () => {
   
     const hasFromSubscription = subscriptionPerms.includes(permission);
   
-    const isPaidPermission = permission in PAID_PERMISSION_ADDONS;
-    const addonKey = isPaidPermission ? PAID_PERMISSION_ADDONS[permission as PaidPermission] : undefined;
-    const hasAddon = addonKey ? detail?.addOns?.[addonKey] === true : false;
+    let hasAddon = false;
+
+    if (permission in PAID_PERMISSION_ADDONS) {
+      const addonKey = PAID_PERMISSION_ADDONS[permission as keyof typeof PAID_PERMISSION_ADDONS];
+      hasAddon = !!detail?.addOns?.[addonKey];
+    }
+    
+    
+    // ✅ לוגיקה מיוחדת – רק אם מנוי ויש leadsModule => access_manageEnviorment
+    if (
+      isSubscriber &&
+      detail?.addOns?.leadsModule &&
+      (permission === 'access_manageEnviorment' || permission === 'access_flow')
+    ) {
+      hasAddon = true;
+    }
+    
   
     if (isSubscriber) {
       return (hasFromRole && hasFromSubscription) || hasAddon;
@@ -263,12 +290,12 @@ const TeamPermissionsTable = () => {
   
     await updatePermission(workerId, permission, has);
   };
+  
   const updatePermission = async (workerId: string, permission: string, has: boolean) => {
     const userRef = doc(db, 'users', workerId);
     const worker = workers.find(w => w.id === workerId);
     if (!worker) return;
   
-    // ✅ בדיקת הרשאה לפי המשתמש שמחובר (לא לפי העובד)
     const canToggle = canTogglePermission(permission, worker);
     if (!canToggle) {
       addToast('error', 'אין לך הרשאה לערוך הרשאה זו');
@@ -276,22 +303,44 @@ const TeamPermissionsTable = () => {
     }
   
     const rolePerms = rolePermissionsMap[worker.role || ''] ?? [];
-    const isInherited = rolePerms.includes(permission); // נרשמה לפי תפקיד העובד
+
+    const isInheritedFromRole = rolePerms.includes(permission);
+    const isInheritedFromSubscriptionOrAddon =
+    hasPermission({
+      user: worker,
+      permission,
+      rolePermissions: rolePerms,
+      subscriptionPermissionsMap,
+    }) ||
+    (detailAsMinimalUser &&
+      hasPermission({
+        user: detailAsMinimalUser,
+        permission,
+        rolePermissions: rolePermissionsMap[detailAsMinimalUser.role || ''] ?? [],
+        subscriptionPermissionsMap,
+      }));
+  
+  
+  
+
   
     const update: any = {};
   
-    if (has) {
-      if (!isInherited) {
-        update['permissionOverrides.allow'] = arrayRemove(permission);
-      } else {
-        update['permissionOverrides.deny'] = arrayUnion(permission);
-      }
-    } else {
-      if (!isInherited) {
+    if (!has) {
+      // מוסיפים הרשאה
+      if (!isInheritedFromRole && !isInheritedFromSubscriptionOrAddon) {
         update['permissionOverrides.allow'] = arrayUnion(permission);
         update['permissionOverrides.deny'] = arrayRemove(permission);
       } else {
+        // אם ההרשאה כבר קיימת ממסלול או תפקיד – רק מסירים deny אם קיים
         update['permissionOverrides.deny'] = arrayRemove(permission);
+      }
+    } else {
+      // מסירים הרשאה
+      if (!isInheritedFromRole && !isInheritedFromSubscriptionOrAddon) {
+        update['permissionOverrides.allow'] = arrayRemove(permission);
+      } else {
+        update['permissionOverrides.deny'] = arrayUnion(permission);
       }
     }
   
@@ -314,6 +363,7 @@ const TeamPermissionsTable = () => {
       addToast('error', 'שגיאה בעדכון ההרשאה');
     }
   };
+  
   
 
   if (loading) {
@@ -385,38 +435,42 @@ const TeamPermissionsTable = () => {
 
         return (
           <td
-            key={worker.id + perm.id}
-            className={`border px-2 py-1 text-center ${
-              canToggle ? 'cursor-pointer hover:bg-blue-100' : 'text-gray-400 cursor-not-allowed'
-            } ${isOverridden ? 'bg-yellow-100' : ''}`}
-            onClick={() => {
-              if (!canToggle) {
-                const addonKey = PAID_PERMISSION_ADDONS[perm.id as PaidPermission];
-            
-                if (
-                  detail?.subscriptionId &&
-                  perm.id in PAID_PERMISSION_ADDONS &&
-                  !detail?.addOns?.[addonKey]
-                ) {
-                  addToast('error', 'על מנת לשנות הרשאה זו יש לרכוש את התוסף המתאים');
-                }
-                return;
+          key={worker.id + perm.id}
+          className={`border px-2 py-1 text-center ${
+            canToggle ? 'cursor-pointer hover:bg-blue-100' : 'text-gray-400 cursor-not-allowed'
+          } ${isOverridden ? 'bg-yellow-100' : ''}`}
+          onClick={() => {
+            if (!canToggle) {
+              const isPaid = perm.id in PAID_PERMISSION_ADDONS;
+              const addonKey = isPaid ? PAID_PERMISSION_ADDONS[perm.id as PaidPermission] : null;
+              const isMissingAddon = isPaid && addonKey && !detail?.addOns?.[addonKey];
+        
+              if (isMissingAddon) {
+                addToast('error', 'על מנת לשנות הרשאה זו יש לרכוש את התוסף המתאים');
               }
-              togglePermission(worker.id, perm.id, has);
-            }}            
-            title={
-              !canToggle
-                ? detail?.subscriptionId &&
-                  perm.id in PAID_PERMISSION_ADDONS &&
-                  !detail?.addOns?.[PAID_PERMISSION_ADDONS[perm.id as PaidPermission]]
-                  ? '⚠️ אין לך את התוסף המתאים לערוך הרשאה זו'
-                  : 'אין לך הרשאה לערוך'
-                : `לחץ כדי ${has ? 'לבטל הרשאה' : 'לאפשר הרשאה'}`
-            }            
-          >
-            {has ? '✅' : '❌'}
-            {isOverridden && ' *'}
-          </td>
+        
+              return;
+            }
+        
+            togglePermission(worker.id, perm.id, has);
+          }}
+          title={
+            !canToggle
+              ? (() => {
+                  const isPaid = perm.id in PAID_PERMISSION_ADDONS;
+                  const addonKey = isPaid ? PAID_PERMISSION_ADDONS[perm.id as PaidPermission] : null;
+                  const isMissingAddon = isPaid && addonKey && !detail?.addOns?.[addonKey];
+        
+                  return isMissingAddon
+                    ? '⚠️ אין לך את התוסף המתאים לערוך הרשאה זו'
+                    : 'אין לך הרשאה לערוך';
+                })()
+              : `לחץ כדי ${has ? 'לבטל הרשאה' : 'לאפשר הרשאה'}`
+          }
+        >
+          {has ? '✅' : '❌'}
+          {isOverridden && ' *'}
+        </td>        
         );
       })}
     </tr>

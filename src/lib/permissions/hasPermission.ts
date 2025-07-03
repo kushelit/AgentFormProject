@@ -1,7 +1,7 @@
 // src/lib/permissions/hasPermission.ts
 
 import type { UserDetail } from '@/lib/firebase/AuthContext';
-import { PAID_PERMISSION_ADDONS, PaidPermission } from '@/utils/paidPermissions';
+import { PAID_PERMISSION_ADDONS, PaidPermission, isPaidPermission } from '@/utils/paidPermissions';
 
 // type User = UserDetail;
 
@@ -43,11 +43,8 @@ export function hasPermission({
   if (!rolePermissions) return false;
   if (rolePermissions.includes('*')) return true;
 
-  const isPaidPermission = permission in PAID_PERMISSION_ADDONS;
-  const addonKey = isPaidPermission ? PAID_PERMISSION_ADDONS[permission as PaidPermission] : undefined;
-  const hasAddon: boolean = !!(addonKey && user.addOns?.[addonKey]);
-
   const isSubscriber = !!user.subscriptionId && !!user.subscriptionType;
+
   const subscriptionPerms =
     isSubscriber && subscriptionPermissionsMap && user.subscriptionType
       ? subscriptionPermissionsMap[user.subscriptionType] || []
@@ -56,11 +53,28 @@ export function hasPermission({
   const hasFromRole = rolePermissions.includes(permission);
   const hasFromSubscription = subscriptionPerms.includes(permission);
 
-  // 🧾 למנויים – רק אם במסלול או בתוסף
+  let hasAddon = false;
+
+  // ✳️ בדיקת תוספים רגילים
+  if (
+    isSubscriber &&
+    isPaidPermission(permission)
+  ) {
+    const addonKey = PAID_PERMISSION_ADDONS[permission];
+    hasAddon = !!user.addOns?.[addonKey];
+  }
+  if (
+    isSubscriber &&
+    user.addOns?.leadsModule &&
+    (permission === 'access_manageEnviorment' || permission === 'access_flow')
+  ) {
+    hasAddon = true;
+  }
+  // 🧾 מנוי – צריך גם במסלול וגם בתפקיד, או תוסף
   if (isSubscriber) {
     return (hasFromRole && hasFromSubscription) || hasAddon;
   }
 
-  // 🆓 למשתמש רגיל – רק לפי role
+  // 🆓 לא מנוי – רק לפי תפקיד
   return hasFromRole;
 }

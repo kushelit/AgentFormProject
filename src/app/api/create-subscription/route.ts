@@ -5,13 +5,34 @@ import axios from 'axios';
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { fullName, email, phone, plan, addOns } = body;
+    const { fullName, email, phone, plan, couponCode, addOns } = body;
 
     if (!fullName || !email || !phone || !plan) {
       return NextResponse.json({ error: 'אנא מלא/י את כל השדות הנדרשים' }, { status: 400 });
     }
 
     const db = admin.firestore();
+
+    let discountAmount = 0;
+    let couponData = null;
+    
+    if (couponCode) {
+      const couponSnap = await db.collection('coupons')
+        .where('code', '==', couponCode)
+        .where('isActive', '==', true)
+        .limit(1)
+        .get();
+    
+      if (!couponSnap.empty) {
+        const doc = couponSnap.docs[0];
+        const data = doc.data();
+    
+        if (!data.planId || data.planId === plan) {
+          couponData = data;
+        }
+      }
+    }
+    
     const planDoc = await db.collection('subscriptions_permissions').doc(plan).get();
 
     if (!planDoc.exists) {
@@ -22,7 +43,19 @@ export async function POST(req: NextRequest) {
     const basePrice = planData?.price || 1;
     const leadsPrice = addOns?.leadsModule ? 29 : 0;
     const extraWorkersPrice = addOns?.extraWorkers ? addOns.extraWorkers * 49 : 0;
-    const totalPrice = basePrice + leadsPrice + extraWorkersPrice;    const normalizedEmail = email.toLowerCase();
+    let  totalPrice = basePrice + leadsPrice + extraWorkersPrice;  
+
+    if (couponData) {
+      const discountPercent = couponData.discount || 0;
+      const discountAmount = totalPrice * (discountPercent / 100);
+      totalPrice -= discountAmount;
+    }
+
+    // ✅ אם המחיר הסופי הוא 0, שלחי 1 ש"ח כדי ש-Grow יקבלו את הבקשה
+    if (totalPrice <= 0) {
+      totalPrice = 1;
+      }
+     const normalizedEmail = email.toLowerCase();
     const customField = `MAGICSALE-${normalizedEmail}`;
 
     const successUrl = `https://test.magicsale.co.il/payment-success?fullName=${encodeURIComponent(fullName)}&email=${encodeURIComponent(normalizedEmail)}&phone=${encodeURIComponent(phone)}&customField=${encodeURIComponent(customField)}&plan=${plan}`;
@@ -41,6 +74,9 @@ export async function POST(req: NextRequest) {
     formData.append('cField1', customField);
     formData.append('cField2', plan);
     formData.append('cField3', JSON.stringify(addOns || {}));
+    if (couponCode) {
+      formData.append('cField5', couponCode);
+    }    
     formData.append('notifyUrl', 'https://test.magicsale.co.il/api/webhook');
 
     const controller = new AbortController();
