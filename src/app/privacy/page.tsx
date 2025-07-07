@@ -26,7 +26,7 @@ export default function PrivacyPolicyPage() {
 
       <h2 className="text-xl font-semibold mt-6 mb-2 text-indigo-700">3. שירותים חיצוניים</h2>
       <p className="mb-4">
-        אנו משתמשים בשירותים חיצוניים כגון Firebase (לאימות, אחסון והרשאות) ו־Grow (לתשלומים מאובטחים). המידע האישי מועבר אליהם אך ורק לצורך מתן השירות, בהתאם למדיניות הפרטיות שלהם.
+        אנו משתמשים בשירותים חיצוניים כגון Firebase (לאימות, אחסון והרשאות) ו&ndash;Grow (לתשלומים מאובטחים). המידע האישי מועבר אליהם אך ורק לצורך מתן השירות, בהתאם למדיניות הפרטיות שלהם.
       </p>
 
       <h2 className="text-xl font-semibold mt-6 mb-2 text-indigo-700">4. שיתוף מידע</h2>
@@ -51,7 +51,7 @@ export default function PrivacyPolicyPage() {
 
       <h2 className="text-xl font-semibold mt-6 mb-2 text-indigo-700">8. מימוש זכויות המשתמש</h2>
       <p className="mb-4">
-        בהתאם לחוק, המשתמש רשאי לבקש לעיין, לעדכן או למחוק את המידע האישי שנשמר עליו. ניתן לפנות אלינו בדוא"ל: <a className="text-blue-600 underline" href="mailto:admin@magicsale.co.il">admin@magicsale.co.il</a>.
+        בהתאם לחוק, המשתמש רשאי לבקש לעיין, לעדכן או למחוק את המידע האישי שנשמר עליו. ניתן לפנות אלינו בדוא&quot;ל: <a className="text-blue-600 underline" href="mailto:admin@magicsale.co.il">admin@magicsale.co.il</a>.
       </p>
 
       <h2 className="text-xl font-semibold mt-6 mb-2 text-indigo-700">9. שינויים במדיניות הפרטיות</h2>
