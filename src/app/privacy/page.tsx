@@ -31,7 +31,7 @@ export default function PrivacyPolicyPage() {
 
       <h2 className="text-xl font-semibold mt-6 mb-2 text-indigo-700">4. שיתוף מידע</h2>
       <p className="mb-4">
-        איננו משתפים את המידע שלכם עם צדדים שלישיים אלא אם הדבר נדרש לצורך הפעלת השירות או עפ"י חובה חוקית.
+        איננו משתפים את המידע שלכם עם צדדים שלישיים אלא אם הדבר נדרש לצורך הפעלת השירות או עפ&quot;י חובה חוקית.
       </p>
 
       <h2 className="text-xl font-semibold mt-6 mb-2 text-indigo-700">5. Cookies וטכנולוגיות מעקב</h2>
