@@ -135,7 +135,6 @@ const CommissionComparison = () => {
       String(row2?.customerId || '').includes(term)
     );
   }, [searchTerm, comparisonRows]);
-  
 
   const total1 = filteredRows.reduce((sum, r) => sum + (r.row1?.commissionAmount || 0), 0);
   const total2 = filteredRows.reduce((sum, r) => sum + (r.row2?.commissionAmount || 0), 0);
@@ -143,7 +142,7 @@ const CommissionComparison = () => {
   const handleExport = () => {
     const exportData = filteredRows.map(({ policyNumber, row1, row2, status }) => ({
       'מספר פוליסה': policyNumber,
-      'ת"ז לקוח': row1?.customerId || row2?.customerId || '',
+      'ת&quot;ז לקוח': row1?.customerId || row2?.customerId || '',
       'עמלה חודש ראשון': row1?.commissionAmount ?? '',
       'עמלה חודש שני': row2?.commissionAmount ?? '',
       'סטטוס': status === 'added' ? 'פוליסה נוספה' : status === 'removed' ? 'פוליסה נמחקה' : status === 'changed' ? 'עמלה שונה' : 'ללא שינוי'
@@ -159,7 +158,6 @@ const CommissionComparison = () => {
     <div className="p-6 max-w-6xl mx-auto text-right">
       <h1 className="text-2xl font-bold mb-4">השוואת עמלות בין חודשים</h1>
 
-      {/* טפסים עליונים */}
       <div className="mb-4">
         <label className="block mb-1 font-semibold">בחר סוכן:</label>
         <select value={selectedAgentId} onChange={handleAgentChange} className="select-input w-full">
@@ -195,12 +193,11 @@ const CommissionComparison = () => {
         {isLoading ? 'טוען...' : 'השווה'}
       </button>
 
-      {/* שורת חיפוש + ייצוא */}
       {comparisonRows.length > 0 && (
         <div className="flex flex-col sm:flex-row justify-between items-center gap-4 mb-4">
           <input
             type="text"
-            placeholder="חיפוש לפי מספר פוליסה או ת״ז"
+            placeholder="חיפוש לפי מספר פוליסה או ת&quot;ז"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="input w-full sm:w-1/2"
@@ -209,13 +206,12 @@ const CommissionComparison = () => {
         </div>
       )}
 
-      {/* טבלה */}
       {filteredRows.length > 0 ? (
         <table className="w-full text-sm border">
           <thead>
             <tr className="bg-gray-200 text-right">
               <th className="border p-2">מספר פוליסה</th>
-              <th className="border p-2">ת"ז לקוח</th>
+              <th className="border p-2">ת&quot;ז לקוח</th>
               <th className="border p-2">עמלה חודש ראשון</th>
               <th className="border p-2">עמלה חודש שני</th>
               <th className="border p-2">סטטוס</th>
@@ -236,10 +232,8 @@ const CommissionComparison = () => {
                 </td>
               </tr>
             ))}
-
-            {/* שורת סה"כ */}
             <tr className="font-bold bg-blue-50">
-              <td className="border p-2 text-right">סה״כ</td>
+              <td className="border p-2 text-right">סה&quot;כ</td>
               <td className="border p-2"></td>
               <td className="border p-2">{total1.toFixed(2)}</td>
               <td className="border p-2">{total2.toFixed(2)}</td>
