@@ -8,51 +8,60 @@ export default function PrivacyPolicyPage() {
         אנו ב־<strong>MagicSale</strong> מחויבים לשמור על פרטיות המשתמשים שלנו. מטרת מדיניות זו היא להסביר כיצד אנו אוספים, שומרים, משתמשים ומשתפים את המידע שאתם מוסרים לנו.
       </p>
 
-      <h2 className="text-xl font-semibold mt-6 mb-2 text-indigo-700">איזה מידע אנחנו אוספים?</h2>
+      <h2 className="text-xl font-semibold mt-6 mb-2 text-indigo-700">1. איזה מידע אנחנו אוספים?</h2>
       <ul className="list-disc pr-6 mb-4">
         <li>מידע שאתם מוסרים לנו בטפסים כמו שם, טלפון, מייל והודעה</li>
         <li>מידע על השימוש שלכם במערכת (כגון תאריך התחברות, סוג מנוי וכדומה)</li>
         <li>מידע טכני לצרכי אבטחה, שיפור חוויית המשתמש וביצוע ניתוחים</li>
+        <li>מידע שנאסף באמצעות Cookies או טכנולוגיות דומות</li>
       </ul>
 
-      <h2 className="text-xl font-semibold mt-6 mb-2 text-indigo-700">כיצד אנו משתמשים במידע?</h2>
+      <h2 className="text-xl font-semibold mt-6 mb-2 text-indigo-700">2. כיצד אנו משתמשים במידע?</h2>
+      <ul className="list-disc pr-6 mb-4">
+        <li>הפעלה תקינה של השירותים</li>
+        <li>תמיכה ושירות לקוחות</li>
+        <li>שיפור חוויית המשתמש והתאמת המערכת לצרכים האישיים</li>
+        <li>שליחת עדכונים חשובים והודעות על שדרוגים או שינויים בשירות</li>
+      </ul>
+
+      <h2 className="text-xl font-semibold mt-6 mb-2 text-indigo-700">3. שירותים חיצוניים</h2>
       <p className="mb-4">
-        המידע משמש אך ורק לצורך:
-        <ul className="list-disc pr-6">
-          <li>הפעלה תקינה של השירותים</li>
-          <li>תמיכה ושירות לקוחות</li>
-          <li>שליחת עדכונים חשובים והודעות על שדרוגים</li>
-        </ul>
+        אנו משתמשים בשירותים חיצוניים כגון Firebase (לאימות, אחסון והרשאות) ו־Grow (לתשלומים מאובטחים). המידע האישי מועבר אליהם אך ורק לצורך מתן השירות, בהתאם למדיניות הפרטיות שלהם.
       </p>
 
-      <h2 className="text-xl font-semibold mt-6 mb-2 text-indigo-700">שירותים חיצוניים</h2>
+      <h2 className="text-xl font-semibold mt-6 mb-2 text-indigo-700">4. שיתוף מידע</h2>
       <p className="mb-4">
-        המערכת עושה שימוש בשירותים חיצוניים לצורך תפעול תקין:
-        <ul className="list-disc pr-6">
-          <li><strong>Firebase</strong> – לאחסון נתונים, אימות משתמשים וניהול הרשאות</li>
-          <li><strong>Grow</strong> – לצורך חיוב ותשלומים מקוונים מאובטחים</li>
-        </ul>
-        נתונים אישיים שהוזנו במערכת עשויים להישלח לגורמים אלו לצורך מתן השירות בלבד, בהתאם למדיניות הפרטיות שלהם.
+        איננו משתפים את המידע שלכם עם צדדים שלישיים אלא אם הדבר נדרש לצורך הפעלת השירות או עפ"י חובה חוקית.
       </p>
 
-      <h2 className="text-xl font-semibold mt-6 mb-2 text-indigo-700">שיתוף מידע</h2>
+      <h2 className="text-xl font-semibold mt-6 mb-2 text-indigo-700">5. Cookies וטכנולוגיות מעקב</h2>
       <p className="mb-4">
-        איננו משתפים את המידע האישי שלכם עם צדדים שלישיים ללא הסכמתכם, למעט כאשר נדרש על פי חוק, או כאשר השירות מחייב שיתוף עם ספק תשלום כמו Grow.
+        אנו משתמשים בעוגיות (Cookies) לשם תפעול, התאמה אישית, ניתוח ביצועים ושיווק. המשתמש יכול לשנות את הגדרות השימוש בעוגיות דרך דפדפן האינטרנט שלו.
       </p>
 
-      <h2 className="text-xl font-semibold mt-6 mb-2 text-indigo-700">אבטחת מידע</h2>
+      <h2 className="text-xl font-semibold mt-6 mb-2 text-indigo-700">6. אבטחת מידע</h2>
       <p className="mb-4">
-        אנו נוקטים באמצעים טכנולוגיים וארגוניים סבירים כדי לשמור על המידע שלכם מוגן.
+        אנו מיישמים אמצעים טכנולוגיים וארגוניים מתקדמים, בהתאם לתקנות הגנת הפרטיות בישראל, כדי להגן על המידע האישי ולצמצם סיכוני גישה לא מורשית. יחד עם זאת, אין באפשרותנו להבטיח הגנה מוחלטת.
       </p>
 
-      <h2 className="text-xl font-semibold mt-6 mb-2 text-indigo-700">השימוש למבוגרים בלבד</h2>
+      <h2 className="text-xl font-semibold mt-6 mb-2 text-indigo-700">7. שמירת מידע</h2>
       <p className="mb-4">
-        השימוש במערכת מיועד למשתמשים בגיל 18 ומעלה בלבד. המערכת פונה לסוכני ביטוח בלבד, אשר נדרשים לעמוד בתנאי החוק הישראלי לקבלת רישיון סוכן ביטוח, לרבות גיל מינימלי.
+        המידע נשמר במסדי נתונים מאובטחים עם גישה מוגבלת. אין גישה שוטפת למידע מצד צוות MagicSale, אלא רק לצורך מתן שירות טכני או חוקי.
       </p>
 
-      <h2 className="text-xl font-semibold mt-6 mb-2 text-indigo-700">יצירת קשר</h2>
+      <h2 className="text-xl font-semibold mt-6 mb-2 text-indigo-700">8. מימוש זכויות המשתמש</h2>
+      <p className="mb-4">
+        בהתאם לחוק, המשתמש רשאי לבקש לעיין, לעדכן או למחוק את המידע האישי שנשמר עליו. ניתן לפנות אלינו בדוא"ל: <a className="text-blue-600 underline" href="mailto:admin@magicsale.co.il">admin@magicsale.co.il</a>.
+      </p>
+
+      <h2 className="text-xl font-semibold mt-6 mb-2 text-indigo-700">9. שינויים במדיניות הפרטיות</h2>
+      <p className="mb-4">
+        אנו שומרים לעצמנו את הזכות לשנות את המדיניות לפי הצורך. במקרה של שינוי מהותי תישלח הודעה מתאימה ויפורסם תאריך העדכון האחרון.
+      </p>
+
+      <h2 className="text-xl font-semibold mt-6 mb-2 text-indigo-700">10. יצירת קשר</h2>
       <p>
-        אם יש לכם שאלות או בקשות לגבי מדיניות הפרטיות, אנא צרו קשר בכתובת <strong>admin@magicsale.co.il</strong> או דרך טופס <a href="/landing#contact" className="text-blue-600 underline">צור קשר</a>.
+        לשאלות, בירורים או בקשות, ניתן לפנות אלינו לכתובת: <a className="text-blue-600 underline" href="mailto:admin@magicsale.co.il">admin@magicsale.co.il</a> או בטופס <a href="/landing#contact" className="text-blue-600 underline">צור קשר</a>.
       </p>
     </div>
   );

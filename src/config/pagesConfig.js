@@ -17,6 +17,14 @@ const pages = [
   { href: '/TeamPermissionsTable', label: 'ניהול הרשאות' },
   { href: 'import-excel', label: 'ייבוא אקסל עסקאות' },
   {
+    href: '/importCommissionHub',
+    label: 'טעינת קבצי עמלות',
+    submenu: [
+      { href: '/ExcelCommissionImporter', label: 'קליטת קבצים' },
+      { href: '/CommissionComparison', label: ' השוואת טעינות' },
+    ],
+  },
+  {
     href: '/AdminHub', // או כל דף ראשי שתבחרי
     label: 'ניהול אדמין',
     submenu: [
@@ -26,6 +34,8 @@ const pages = [
       { href: '/ManagePoolAgents', label: 'ניהול פול ליד' },
       { href: '/ManageManager', label: 'ניהול קבוצות סוכנים' },
       { href: '/SubscriptionsTable', label: 'ניהול מנויים ' },
+
+      
     ],
   }
 
