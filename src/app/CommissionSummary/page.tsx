@@ -124,8 +124,12 @@ const CommissionSummaryPage = () => {
         <Spinner />
       ) : (
         <div className="space-y-6">
-          <Button onClick={handleExportToExcel} text="📥 ייצוא לאקסל" type="secondary" icon={<Download size={16} />} />
-
+          <Button 
+          onClick={handleExportToExcel} 
+          text="📥 ייצוא לאקסל" 
+          type="secondary" 
+          icon="off"
+          />
           {Object.entries(summaryByCompanyAndCode).map(([company, codes]) => {
             const allMonths = Array.from(
               new Set(Object.values(codes).flatMap(months => Object.keys(months)))
