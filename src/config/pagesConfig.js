@@ -22,6 +22,9 @@ const pages = [
     submenu: [
       { href: '/ExcelCommissionImporter', label: 'קליטת קבצים' },
       { href: '/CommissionComparison', label: ' השוואת טעינות' },
+      { href: '/CommissionSummary', label: ' דף מסכם עמלות' },
+      { href: '/CompareRealToReported', label: ' השוואה לעמלה בפועל' },
+
     ],
   },
   {

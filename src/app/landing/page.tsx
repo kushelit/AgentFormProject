@@ -72,9 +72,9 @@ const faqs = [
     answer: 'בהחלט. ניתן לשלוט בכל עובד אילו דפים הוא רואה ומה מותר לו לעשות.'
   },
   {
-    question: 'האם קיימת גרסה עתידית לנייד?',
-    answer: 'כרגע המערכת מותאמת לדסקטופ בלבד, אך גרסה מותאמת לנייד נמצאת בתכנון.'
-  }
+    question: 'האם יש תקופת ניסיון?',
+    answer: 'בהחלט! אנחנו מציעים 14 ימי התנסות חינם וללא התחייבות. תוכלו לבטל בלחיצה אחת בכל שלב במהלך התקופה. – ניתן לבטל בכל עת בתקופה זו, ללא התחייבות וללא קנס ביטול.'
+  },
 ];
 
 
@@ -126,8 +126,8 @@ export default function LandingPage() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 1, delay: 0.4 }}
         >
-          ניהול עסק חכם לסוכני ביטוח: עמלות, לידים, לקוחות, גרפים, יעדים והרשאות – במקום אחד.
-        </motion.p>
+          ניהול עסק חכם לסוכני ביטוח: עמלות, לידים, לקוחות, גרפים, יעדים והרשאות – במקום אחד. כולל 14 ימי ניסיון חינם ללא התחייבות.
+          </motion.p>
         <motion.button
           onClick={() => router.push('/subscription-sign-up')}
           whileHover={{ scale: 1.05 }}
@@ -151,6 +151,11 @@ export default function LandingPage() {
           <a href="#faq" className="hover:underline">שאלות נפוצות</a>
         </nav>
       </section>
+      <section className="bg-blue-100 text-blue-900 text-center py-6 px-4 border-t border-b border-blue-300">
+  <p className="text-lg font-semibold">
+    ⭐ נסו אותנו ל-14 ימים – התנסות חינם וללא התחייבות. בטלו בכל עת בלחיצה פשוטה. ⭐
+  </p>
+</section>
       <section className="py-16 bg-blue-50 text-right">
   <motion.div
     initial={{ opacity: 0, y: 30 }}
@@ -222,11 +227,15 @@ export default function LandingPage() {
         <h3 className="text-xl font-bold mb-2 text-blue-900">מנוי בסיסי</h3>
         <p className="text-sm text-gray-600 mb-4">89 ₪ לחודש </p>
         <ul className="text-gray-700 space-y-2 text-sm leading-relaxed mb-6">
-          <li>✔ ניהול עסקאות ולקוחות</li>
-          <li>✔ מעקב עמלות בסיסי</li>
-          <li>✔ סימולציה והפקת דוחות</li>
-          <li>✔ ניהול משתמשים והרשאות בסיסיות</li>
-        </ul>
+  <li>✔ ניהול עסקאות ולקוחות</li>
+  <li>✔ מעקב עמלות</li>
+  <li>✔ סימולציה והפקת דוחות</li>
+  <li>✔ ניהול יעדים אישיים וקבוצתיים</li>
+  <li>✔ ניהול לידים</li>
+  <li>✔ קבלת לידים מממשקים חיצוניים</li>
+  <li>✔ יבוא קבצי אקסל עסקאות</li>
+  <li>✔ מעקב גרפי אחר ביצועים</li>
+</ul>
         <Link
   href="/subscription-sign-up"
   className="bg-yellow-400 hover:bg-yellow-500 text-white font-bold py-2 px-4 rounded-full w-full text-center"
@@ -243,12 +252,18 @@ export default function LandingPage() {
         <h3 className="text-xl font-bold mb-2 text-indigo-900">מנוי מקצועי </h3>
         <p className="text-sm text-gray-600 mb-4">185 ₪ לחודש</p>
         <ul className="text-gray-700 space-y-2 text-sm leading-relaxed mb-6">
-          <li>✔ כל מה שיש ב־Basic, ובנוסף:</li>
-          <li>✔ ניהול עובדים והרשאות מתקדמות</li>
-          <li>✔ יעד אישי ובונוסים</li>
-          <li>✔ יבוא אקסל ומעקב גרפים</li>
-          <li>✔ הוספת עובדים לפי צורך</li>
-        </ul>
+  <li>✔ ניהול עסקאות ולקוחות</li>
+  <li>✔ מעקב עמלות</li>
+  <li>✔ סימולציה והפקת דוחות</li>
+  <li>✔ ניהול משתמשים והרשאות בסיסיות</li>
+  <li>✔ ניהול עובדים והרשאות מתקדמות</li>
+  <li>✔ ניהול יעדים אישיים וקבוצתיים</li>
+  <li>✔ ניהול לידים</li>
+  <li>✔ קבלת לידים מממשקים חיצוניים</li>
+  <li>✔ יבוא קבצי אקסל עסקאות</li>
+  <li>✔ מעקב גרפי אחר ביצועים</li>
+  <li>✔ הוספת עובדים לפי צורך</li>
+</ul>
         <Link
   href="/subscription-sign-up"
   className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-full w-full text-center"
@@ -266,12 +281,23 @@ export default function LandingPage() {
         <h3 className="text-xl font-bold mb-2 text-purple-900">מנוי לבתי סוכן</h3>
         <p className="text-sm text-gray-600 mb-4">בהתאמה אישית</p>
         <ul className="text-gray-700 space-y-2 text-sm leading-relaxed mb-6">
-          <li>✔ כל האפשרויות של Pro</li>
-          <li>✔ ניהול קבוצות וסוכנויות</li>
-          <li>✔ התאמות לארגונים גדולים</li>
-          <li>✔ חיבורים למערכות קיימות</li>
-          <li>✔ תמיכה טכנית מורחבת</li>
-        </ul>
+  <li>✔ ניהול עסקאות ולקוחות</li>
+  <li>✔ ניהול</li>
+  <li>✔ מעקב עמלות</li>
+  <li>✔ סימולציה והפקת דוחות</li>
+  <li>✔ ניהול משתמשים והרשאות בסיסיות</li>
+  <li>✔ ניהול עובדים והרשאות מתקדמות</li>
+  <li>✔ ניהול יעדים אישיים וקבוצתיים</li>
+  <li>✔ ניהול לידים</li>
+  <li>✔ קבלת לידים מממשקים חיצוניים</li>
+  <li>✔ יבוא קבצי אקסל עסקאות</li>
+  <li>✔ מעקב גרפי אחר ביצועים</li>
+  <li>✔ הוספת עובדים לפי צורך</li>
+  <li>✔ ניהול קבוצות וסוכנויות</li>
+  <li>✔ התאמות מותאמות לארגונים גדולים</li>
+  <li>✔ חיבור למערכות קיימות (API)</li>
+  <li>✔ תמיכה טכנית מורחבת</li>
+</ul>
         <button
           onClick={() => router.push('/landing#contact')}
           className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-full w-full"

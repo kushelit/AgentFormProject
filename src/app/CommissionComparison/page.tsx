@@ -14,10 +14,28 @@ interface CommissionData {
   [key: string]: any;
 }
 
+interface Agent {
+  id: string;
+  name: string;
+  agentCodes?: string[];
+}
+
+const statusOptions = [
+  { value: '', label: 'הצג הכל' },
+  { value: 'added', label: 'פוליסה נוספה' },
+  { value: 'removed', label: 'פוליסה נמחקה' },
+  { value: 'changed', label: 'עמלה שונתה' },
+  { value: 'unchanged', label: 'ללא שינוי' }
+];
+
 const CommissionComparison = () => {
   const { detail } = useAuth();
-  const { agents, selectedAgentId, handleAgentChange } = useFetchAgentData();
-
+  const { agents, selectedAgentId, handleAgentChange }: {
+    agents: { id: string; name: string; agentCodes?: string[] }[];
+    selectedAgentId: string;
+    handleAgentChange: (e: React.ChangeEvent<HTMLSelectElement>) => void;
+  } = useFetchAgentData();
+  
   const [templateId, setTemplateId] = useState('');
   const [templateOptions, setTemplateOptions] = useState<{ id: string; companyName: string; type: string }[]>([]);
   const [month1, setMonth1] = useState('');
@@ -25,6 +43,17 @@ const CommissionComparison = () => {
   const [comparisonRows, setComparisonRows] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [agentCodeFilter, setAgentCodeFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+  const [agentCodes, setAgentCodes] = useState<string[]>([]);
+
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchTerm(e.target.value);
+  };
+
+  const handleAgentCodeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    setAgentCodeFilter(e.target.value);
+  };
 
   useEffect(() => {
     const fetchTemplates = async () => {
@@ -41,16 +70,30 @@ const CommissionComparison = () => {
             companyName = doc.data().companyName || '';
           });
         }
-        templates.push({
-          id: docSnap.id,
-          companyName,
-          type: data.type || ''
-        });
+        templates.push({ id: docSnap.id, companyName, type: data.type || '' });
       }
       setTemplateOptions(templates);
     };
     fetchTemplates();
   }, []);
+
+  useEffect(() => {
+    const now = new Date();
+    const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1);
+    const prevMonth = new Date(now.getFullYear(), now.getMonth() - 2);
+    const format = (d: Date) => d.toISOString().slice(0, 7);
+    setMonth1(format(prevMonth));
+    setMonth2(format(lastMonth));
+  }, []);
+
+  useEffect(() => {
+    const agent = agents.find((a: Agent) => a.id === selectedAgentId);
+    if (agent?.agentCodes) {
+      setAgentCodes(agent.agentCodes);
+    } else {
+      setAgentCodes([]);
+    }
+  }, [selectedAgentId, agents]);
 
   const handleCompare = async () => {
     if (!selectedAgentId || !templateId || !month1 || !month2) {
@@ -113,39 +156,13 @@ const CommissionComparison = () => {
     setIsLoading(false);
   };
 
-  const getRowColor = (status: string) => {
-    switch (status) {
-      case 'added':
-        return 'bg-green-100 border-green-300';
-      case 'removed':
-        return 'bg-red-100 border-red-300';
-      case 'changed':
-        return 'bg-yellow-100 border-yellow-300';
-      default:
-        return 'bg-white border-gray-200';
-    }
-  };
-
-  const filteredRows = useMemo(() => {
-    const term = searchTerm.trim();
-    if (!term) return comparisonRows;
-    return comparisonRows.filter(({ policyNumber, row1, row2 }) =>
-      policyNumber.includes(term) ||
-      String(row1?.customerId || '').includes(term) ||
-      String(row2?.customerId || '').includes(term)
-    );
-  }, [searchTerm, comparisonRows]);
-
-  const total1 = filteredRows.reduce((sum, r) => sum + (r.row1?.commissionAmount || 0), 0);
-  const total2 = filteredRows.reduce((sum, r) => sum + (r.row2?.commissionAmount || 0), 0);
-
   const handleExport = () => {
-    const exportData = filteredRows.map(({ policyNumber, row1, row2, status }) => ({
+    const exportData = comparisonRows.map(({ policyNumber, row1, row2, status }) => ({
       'מספר פוליסה': policyNumber,
-      'ת&quot;ז לקוח': row1?.customerId || row2?.customerId || '',
+      'ת"ז לקוח': row1?.customerId || row2?.customerId || '',
       'עמלה חודש ראשון': row1?.commissionAmount ?? '',
       'עמלה חודש שני': row2?.commissionAmount ?? '',
-      'סטטוס': status === 'added' ? 'פוליסה נוספה' : status === 'removed' ? 'פוליסה נמחקה' : status === 'changed' ? 'עמלה שונה' : 'ללא שינוי'
+      'סטטוס': statusOptions.find(s => s.value === status)?.label || ''
     }));
 
     const ws = XLSX.utils.json_to_sheet(exportData);
@@ -153,6 +170,25 @@ const CommissionComparison = () => {
     XLSX.utils.book_append_sheet(wb, ws, 'השוואת עמלות');
     XLSX.writeFile(wb, 'השוואת_עמלות.xlsx');
   };
+
+  const filteredRows = useMemo(() => {
+    return comparisonRows.filter(({ policyNumber, row1, row2, status }) => {
+      const matchesTerm = !searchTerm || policyNumber.includes(searchTerm) ||
+        String(row1?.customerId || '').includes(searchTerm) ||
+        String(row2?.customerId || '').includes(searchTerm);
+
+        const matchesAgentCode = !agentCodeFilter ||
+        String(row1?.agentCode ?? '') === agentCodeFilter ||
+        String(row2?.agentCode ?? '') === agentCodeFilter;
+      
+      const matchesStatus = !statusFilter || status === statusFilter;
+
+      return matchesTerm && matchesAgentCode && matchesStatus;
+    });
+  }, [searchTerm, agentCodeFilter, statusFilter, comparisonRows]);
+
+  const total1 = filteredRows.reduce((sum, r) => sum + (r.row1?.commissionAmount || 0), 0);
+  const total2 = filteredRows.reduce((sum, r) => sum + (r.row2?.commissionAmount || 0), 0);
 
   return (
     <div className="p-6 max-w-6xl mx-auto text-right">
@@ -193,25 +229,44 @@ const CommissionComparison = () => {
         {isLoading ? 'טוען...' : 'השווה'}
       </button>
 
-      {comparisonRows.length > 0 && (
-        <div className="flex flex-col sm:flex-row justify-between items-center gap-4 mb-4">
-          <input
-            type="text"
-            placeholder="חיפוש לפי מספר פוליסה או ת&quot;ז"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="input w-full sm:w-1/2"
-          />
-          <button onClick={handleExport} className="btn btn-secondary">ייצוא לאקסל</button>
-        </div>
-      )}
+      <div className="flex flex-col sm:flex-row justify-between items-center gap-4 mb-4">
+        <input
+          type="text"
+          placeholder="חיפוש לפי מספר פוליסה או ת"
+          value={searchTerm}
+          onChange={handleSearchChange}
+          className="input w-full sm:w-1/2"
+        />
+        {agentCodes.length > 0 && (
+          <select
+            value={agentCodeFilter}
+            onChange={handleAgentCodeChange}
+            className="select-input w-full sm:w-1/2"
+          >
+            <option value="">סינון לפי קוד סוכן</option>
+            {agentCodes.map((code) => (
+              <option key={code} value={code}>{code}</option>
+            ))}
+          </select>
+        )}
+        <select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value)}
+          className="select-input w-full sm:w-1/2"
+        >
+          {statusOptions.map(opt => (
+            <option key={opt.value} value={opt.value}>{opt.label}</option>
+          ))}
+        </select>
+        <button onClick={handleExport} className="btn btn-secondary">ייצוא לאקסל</button>
+      </div>
 
       {filteredRows.length > 0 ? (
         <table className="w-full text-sm border">
           <thead>
             <tr className="bg-gray-200 text-right">
               <th className="border p-2">מספר פוליסה</th>
-              <th className="border p-2">ת&quot;ז לקוח</th>
+              <th className="border p-2">ת"ז לקוח</th>
               <th className="border p-2">עמלה חודש ראשון</th>
               <th className="border p-2">עמלה חודש שני</th>
               <th className="border p-2">סטטוס</th>
@@ -219,21 +274,16 @@ const CommissionComparison = () => {
           </thead>
           <tbody>
             {filteredRows.map(({ policyNumber, row1, row2, status }) => (
-              <tr key={policyNumber} className={`${getRowColor(status)} border`}>
+              <tr key={policyNumber} className="border">
                 <td className="border p-2">{policyNumber}</td>
                 <td className="border p-2">{row1?.customerId || row2?.customerId || '-'}</td>
                 <td className="border p-2">{row1?.commissionAmount ?? '-'}</td>
                 <td className="border p-2">{row2?.commissionAmount ?? '-'}</td>
-                <td className="border p-2 font-bold">
-                  {status === 'added' && <span className="text-green-700">נוספה</span>}
-                  {status === 'removed' && <span className="text-red-700">נמחקה</span>}
-                  {status === 'changed' && <span className="text-yellow-700">שונתה</span>}
-                  {status === 'unchanged' && <span className="text-gray-600">ללא שינוי</span>}
-                </td>
+                <td className="border p-2 font-bold">{statusOptions.find(s => s.value === status)?.label || 'ללא'}</td>
               </tr>
             ))}
             <tr className="font-bold bg-blue-50">
-              <td className="border p-2 text-right">סה&quot;כ</td>
+              <td className="border p-2 text-right">סה"כ</td>
               <td className="border p-2"></td>
               <td className="border p-2">{total1.toFixed(2)}</td>
               <td className="border p-2">{total2.toFixed(2)}</td>

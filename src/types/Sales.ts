@@ -58,3 +58,27 @@ export interface Sale {
     notes?: string; // גם notes אופציונלי
   };
   
+
+  export type SalesToCompareCommissions = {
+    firstNameCustomer: string;
+    lastNameCustomer: string;
+    IDCustomer: string;
+    product: string;
+    company: string;
+    month: string;
+    status: string;
+    insPremia: string;
+    pensiaPremia: string;
+    pensiaZvira: string;
+    finansimPremia: string;
+    finansimZvira: string;
+    commissionHekef?: number;
+    commissionNifraim?: number;
+    sumPremia?: number;
+    sumTzvira?: number;
+    totalCommissionHekef?: number;
+    totalCommissionNifraim?: number;
+    minuySochen?: boolean;
+    policyNumber: string;
+  };
+  

@@ -9,33 +9,60 @@ export async function POST(req: NextRequest) {
     const db = admin.firestore();
 
     let userDocRef = null;
-    let userEmail = '';
-    let userName = '';
+    // let userEmail = '';
+    // let userName = '';
 
+    // // שליפת פרטי המשתמש
+    // if (id) {
+    //   userDocRef = db.collection('users').doc(id);
+    //   const userSnap = await userDocRef.get();
+    //   const userData = userSnap.data();
+    //   if (userData) {
+    //     userEmail = userData.email;
+    //     userName = userData.name;
+    //   }
+    // } else if (subscriptionId) {
+    //   const snapshot = await db.collection('users').where('subscriptionId', '==', subscriptionId).get();
+    //   if (!snapshot.empty) {
+    //     userDocRef = snapshot.docs[0].ref;
+    //     const userData = snapshot.docs[0].data();
+    //     userEmail = userData.email;
+    //     userName = userData.name;
+    //   } else {
+    //     return NextResponse.json({ error: 'User not found for subscriptionId' }, { status: 404 });
+    //   }
+    // }
+
+    // if (!userDocRef) {
+    //   return NextResponse.json({ error: 'Missing user ID or subscriptionId' }, { status: 400 });
+    // }
     // שליפת פרטי המשתמש
-    if (id) {
-      userDocRef = db.collection('users').doc(id);
-      const userSnap = await userDocRef.get();
-      const userData = userSnap.data();
-      if (userData) {
-        userEmail = userData.email;
-        userName = userData.name;
-      }
-    } else if (subscriptionId) {
-      const snapshot = await db.collection('users').where('subscriptionId', '==', subscriptionId).get();
-      if (!snapshot.empty) {
-        userDocRef = snapshot.docs[0].ref;
-        const userData = snapshot.docs[0].data();
-        userEmail = userData.email;
-        userName = userData.name;
-      } else {
-        return NextResponse.json({ error: 'User not found for subscriptionId' }, { status: 404 });
-      }
-    }
+let userData = null;
 
-    if (!userDocRef) {
-      return NextResponse.json({ error: 'Missing user ID or subscriptionId' }, { status: 400 });
-    }
+if (id) {
+  userDocRef = db.collection('users').doc(id);
+  const userSnap = await userDocRef.get();
+  userData = userSnap.data();
+} else if (subscriptionId) {
+  const snapshot = await db.collection('users').where('subscriptionId', '==', subscriptionId).get();
+  if (!snapshot.empty) {
+    userDocRef = snapshot.docs[0].ref;
+    userData = snapshot.docs[0].data();
+  } else {
+    return NextResponse.json({ error: 'User not found for subscriptionId' }, { status: 404 });
+  }
+}
+
+if (!userDocRef || !userData) {
+  return NextResponse.json({ error: 'Missing user data' }, { status: 400 });
+}
+
+// --- שליפת שדות נלווים ---
+const userEmail = userData.email;
+const userName = userData.name;
+const subscriptionStartDate = userData?.subscriptionStartDate?.toDate?.() || null;
+const totalCharged = userData?.totalCharged || null;
+
 
     // ניסיון ביטול ב־Grow אם יש transactionId
     let growCanceled = false;
@@ -65,6 +92,12 @@ formData.forEach((value, key) => {
   console.log(`${key} = ${value}`);
 });
 
+let shouldRefund = false;
+
+if (subscriptionStartDate && totalCharged) {
+  const daysSinceStart = (Date.now() - subscriptionStartDate.getTime()) / (1000 * 60 * 60 * 24);
+  shouldRefund = daysSinceStart > 1 && daysSinceStart <= 14;
+}
 
       const { data } = await axios.post(
         'https://sandbox.meshulam.co.il/api/light/server/1.0/updateDirectDebit',
@@ -76,6 +109,28 @@ formData.forEach((value, key) => {
 
       if (data?.status === '1') {
         growCanceled = true;
+
+ // ✅ שלב ההחזר - רק אם בתוך 14 יום מההרשמה
+ if (shouldRefund && transactionToken && transactionId) {
+  const refundForm = new URLSearchParams();
+  refundForm.append('userId', '8f215caa9b2a3903');
+  refundForm.append('transactionToken', transactionToken);
+  refundForm.append('transactionId', transactionId);
+  refundForm.append('refundSum', totalCharged.toString()); // באגורות
+  refundForm.append('stopDirectDebit', '1');
+
+  try {
+    const refundRes = await axios.post(
+      'https://sandbox.meshulam.co.il/api/light/server/1.0/refundTransaction',
+      refundForm,
+      { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
+    );
+    console.log('🔁 Grow refund result:', refundRes.data);
+  } catch (e: any) {
+    console.error('❌ שגיאה בביצוע החזר מול Grow:', e.message);
+  }
+}
+
       } else {
         growMessage = typeof data?.err === 'string'
         ? data.err

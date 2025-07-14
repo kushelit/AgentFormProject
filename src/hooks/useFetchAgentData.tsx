@@ -10,6 +10,7 @@ import { hasPermission } from '@/lib/permissions/hasPermission';
 interface Agent {
   id: string;
   name: string;
+  agentCodes?: string[];
 }
 
 interface Worker {
@@ -21,7 +22,7 @@ interface Worker {
 
 const useFetchAgentData = () => {
   const { user, detail,isLoading } = useAuth(); // Assuming useAuth() hook correctly provides User | null and Detail | null
-  const [agents, setAgents] = useState<{id: string, name: string}[]>([]);
+  const [agents, setAgents] = useState<Agent[]>([]);
   const [selectedAgentId, setSelectedAgentId] = useState<string>('');
   const [subscriptionPermissionsMap, setSubscriptionPermissionsMap] = useState<Record<string, string[]>>({});
 
@@ -50,7 +51,6 @@ const useFetchAgentData = () => {
 
   const [selectedCompanies, setSelectedCompanies] = useState<string[]>([]); // Selected companies
 
- // const { fetchDataGoalsForWorker} = useCalculateSalesData();
 
 
 
@@ -65,101 +65,6 @@ const useFetchAgentData = () => {
 
 
 
-
-  // useEffect(() => {
-  //   if (!user || !detail || agents.length > 0) return; // ✅ אם כבר יש נתונים, לא טוענים שוב!
-  //   const fetchAgentData = async () => {
-  //     setIsLoadingAgent(true);
-  //     console.log("🔄 Fetching agents...");
-  
-  //     try {
-  //       if (detail.role === 'admin') {
-  //         console.log("👤 User is admin, fetching all agents.");
-  //         const agentsQuery = query(collection(db, 'users'), where('role', '==', 'agent'));
-  //         const querySnapshot = await getDocs(agentsQuery);
-  //         const agentsList = querySnapshot.docs.map(doc => ({
-  //           id: doc.id,
-  //           name: doc.data().name as string,
-  //         }));
-  //         console.log("✅ Agents loaded:", agentsList);
-  //         setAgents(agentsList);
-  //       } else if (detail.agentId) {
-  //         setAgents([{ id: detail.agentId, name: detail.name }]);
-  //         setSelectedAgentId(detail.agentId);
-  //         setSelectedAgentName(detail.name);
-  //         await fetchWorkersForSelectedAgent(detail.agentId);
-  //       }
-  //     } catch (error) {
-  //       console.error("⚠️ Failed to fetch agents:", error);
-  //       setAgents([]);
-  //     } finally {
-  //       setIsLoadingAgent(false);
-  //     }
-  //   };
-  //   fetchAgentData();
-  // }, [user, detail]); // ✅ הקריאה ל-DB לא תקרה שוב אם `agents` כבר מלאים!
-  
-
-  // useEffect(() => {
-  //   if (!user || !detail || agents.length > 0) return;
-  
-  //   const fetchAgentData = async () => {
-  //     setIsLoadingAgent(true);
-  //     try {
-  //       if (detail.role === 'admin') {
-  //         const agentsQuery = query(
-  //           collection(db, 'users'),
-  //           where('role', 'in', ['agent', 'manager'])
-  //         );
-  //         const querySnapshot = await getDocs(agentsQuery);
-  //         const agentsList = querySnapshot.docs.map(doc => ({
-  //           id: doc.id,
-  //           name: doc.data().name as string,
-  //         }));
-  //         setAgents(agentsList);
-  //       } else if (detail.role === 'manager') {
-  //         // שלוף סוכנים שה-managerId שלהם שווה למזהה המשתמש
-  //         const agentsQuery = query(
-  //           collection(db, 'users'),
-  //           where('role', '==', 'agent'),
-  //           where('managerId', '==', detail.agentId)
-  //         );
-  //         const querySnapshot = await getDocs(agentsQuery);
-  //         const agentsList = querySnapshot.docs.map(doc => ({
-  //           id: doc.id,
-  //           name: doc.data().name as string,
-  //         }));
-  // console.log("agentsList manager", agentsList);
-  //         setAgents([
-  //           { id: detail.agentId, name: detail.name }, // המנג'ר עצמו ראשון
-  //           ...agentsList
-  //         ]);
-  
-  //         setSelectedAgentId(detail.agentId);
-  //         setSelectedAgentName(detail.name);
-  //         await fetchWorkersForSelectedAgent(detail.agentId);
-  //       } else {
-  //         // Worker רגיל - שלוף את הסוכן לפי agentId
-  //         const agentDoc = await getDoc(doc(db, 'users', detail.agentId));
-  //         const agentName = agentDoc.exists() ? agentDoc.data().name : 'לא נמצא';
-        
-  //         setAgents([{ id: detail.agentId, name: agentName }]);
-  //         setSelectedAgentId(detail.agentId);
-  //         setSelectedAgentName(agentName);
-  //         await fetchWorkersForSelectedAgent(detail.agentId);
-  //       }        
-  //     } catch (error) {
-  //       console.error("⚠️ Failed to fetch agents:", error);
-  //       setAgents([]);
-  //     } finally {
-  //       setIsLoadingAgent(false);
-  //     }
-  //   };
-  
-  //   fetchAgentData();
-  // }, [user, detail]);
-  
- /// from here
 
  useEffect(() => {
   if (!user || !detail || agents.length > 0 || isLoading) return;
@@ -197,7 +102,8 @@ const useFetchAgentData = () => {
         .filter(doc => doc.data().isActive !== false) // ✅ רק סוכנים פעילים
         .map(doc => ({
           id: doc.id,
-          name: doc.data().name as string
+          name: doc.data().name as string,
+          agentCodes: doc.data().agentCodes || []
         }));
       } else if (hasAccessAgentGroup) {
         const agentDoc = await getDoc(doc(db, 'users', detail.agentId));
@@ -213,13 +119,16 @@ const useFetchAgentData = () => {
           .filter(doc => doc.data().isActive !== false) // ✅ רק סוכנים פעילים
           .map(doc => ({
             id: doc.id,
-            name: doc.data().name as string
+            name: doc.data().name as string,
+            agentCodes: doc.data().agentCodes || []
           }));
         } else {
           const agentName = agentDoc.exists() ? agentDoc.data().name : 'לא נמצא';
+          const agentCodes = agentDoc.exists() ? agentDoc.data().agentCodes || [] : [];
           agentsList = [{
             id: detail.agentId,
-            name: agentName
+            name: agentName,
+            agentCodes
           }];
         }
       } else {
@@ -288,15 +197,6 @@ useEffect(() => {
   };
 
 
-  // useEffect(() => {
-  //   if (selectedAgentId) {
-  //     fetchWorkersForSelectedAgent(selectedAgentId);
-  //   } else {
-  //     setWorkers([]);
-  //   }
-  // }, [selectedAgentId]);
-
-
   useEffect(() => {
     if (selectedAgentId) {
       // Fetch workers for the selected agent
@@ -313,28 +213,6 @@ useEffect(() => {
 
 
 
-
-  // const handleAgentChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
-  //   const { value } = event.target;
-  
-  //   if (value === '') {
-  //     // If "All Agents" is selected, set selectedAgentId to ''
-  //     setSelectedAgentId(''); 
-  //     setSelectedAgentName('כל הסוכנים');
-  //     setWorkers([]); // Clear workers list
-  //   } else {
-  //     // Otherwise, set the selected agent's ID
-  //     const selectedAgent = agents.find(agent => agent.id === value);
-  
-  //     if (selectedAgent) {
-  //       setSelectedAgentId(selectedAgent.id);
-  //       setSelectedAgentName(selectedAgent.name);
-
-  //       // Clear the worker selection after the agent is changed
-  //     setSelectedWorkerIdFilter('');
-  //     }
-  //   }
-  // };
 
 
   const handleAgentChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
@@ -383,27 +261,6 @@ useEffect(() => {
       setSelectedWorkerNameGoal(selectedOption.text);
     }
   };
-
-
- // const handleCalculate = async () => {
- //   if (!selectedAgentId) {
-  //      console.error('No agent selected');
-  //      return;
-   // }
-
-   // if (selectedWorkerIdFilter) {
-        // If a specific worker is selected, fetch data for that worker
-    //    console.log(`Fetching data for worker ${selectedWorkerIdFilter}`);
-      //  await fetchDataGoalsForWorker(selectedAgentId, selectedWorkerIdFilter);
-   // } else {
-        // If no worker is selected, fetch data for all workers under the selected agent
-    //    console.log('Fetching data for all workers under the selected agent');
-   //     await fetchDataGoalsForWorker(selectedAgentId);
- //   }
-  //  console.log('Data fetched and table data should be updated now');
-//};
-
-
 
 
 

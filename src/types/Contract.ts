@@ -19,3 +19,14 @@ export interface ContractAgent {
   commissionNiud: number;
   minuySochen: boolean;
 }
+export interface ContractForCompareCommissions {
+  id: string;
+  company: string;
+  product: string;
+  productsGroup: string;
+  AgentId: string;
+  commissionNifraim: number;
+  commissionHekef: number;
+  commissionNiud: number;
+  minuySochen: boolean;
+}
