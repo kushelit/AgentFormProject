@@ -12,7 +12,7 @@ export const fetchContracts = async (): Promise<ContractForCompareCommissions[]>
     company: doc.data().company,
     product: doc.data().product,
     productsGroup: doc.data().productsGroup,
-    agentId: doc.data().AgentId,
+    AgentId: doc.data().AgentId,
     commissionNifraim: doc.data().commissionNifraim,
     commissionHekef: doc.data().commissionHekef,
     commissionNiud: doc.data().commissionNiud,
