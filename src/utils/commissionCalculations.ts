@@ -32,7 +32,7 @@ export function calculateCommissions(
       const productGroup = productMap[sale.product];
       const groupMatch = contracts.find(contract =>
         contract.productsGroup === productGroup &&
-        contract.agentId === selectedAgentId &&
+        contract.AgentId === selectedAgentId &&
         (contract.minuySochen === sale.minuySochen || (contract.minuySochen === undefined && !sale.minuySochen))
       );
   
