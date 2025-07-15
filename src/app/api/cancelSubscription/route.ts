@@ -77,7 +77,7 @@ export async function POST(req: NextRequest) {
 
       console.log('🔁 Grow cancel result:', data);
 console.log('🔁 data status:', data?.status);
-      if (data?.status === '1') {
+      if (data?.status === 1) {
         console.log('✅ Grow cancellation successful');
         growCanceled = true;
 
