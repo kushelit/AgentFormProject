@@ -5,99 +5,67 @@ import axios from 'axios';
 
 export async function POST(req: NextRequest) {
   try {
-    const { id, subscriptionId, transactionToken, transactionId, asmachta, updates, sendCancelEmail } = await req.json();
+    const {
+      id,
+      subscriptionId,
+      transactionToken,
+      transactionId,
+      asmachta,
+      updates,
+      sendCancelEmail
+    } = await req.json();
+
     const db = admin.firestore();
-
     let userDocRef = null;
-    // let userEmail = '';
-    // let userName = '';
+    let userData = null;
 
-    // // שליפת פרטי המשתמש
-    // if (id) {
-    //   userDocRef = db.collection('users').doc(id);
-    //   const userSnap = await userDocRef.get();
-    //   const userData = userSnap.data();
-    //   if (userData) {
-    //     userEmail = userData.email;
-    //     userName = userData.name;
-    //   }
-    // } else if (subscriptionId) {
-    //   const snapshot = await db.collection('users').where('subscriptionId', '==', subscriptionId).get();
-    //   if (!snapshot.empty) {
-    //     userDocRef = snapshot.docs[0].ref;
-    //     const userData = snapshot.docs[0].data();
-    //     userEmail = userData.email;
-    //     userName = userData.name;
-    //   } else {
-    //     return NextResponse.json({ error: 'User not found for subscriptionId' }, { status: 404 });
-    //   }
-    // }
-
-    // if (!userDocRef) {
-    //   return NextResponse.json({ error: 'Missing user ID or subscriptionId' }, { status: 400 });
-    // }
     // שליפת פרטי המשתמש
-let userData = null;
+    if (id) {
+      userDocRef = db.collection('users').doc(id);
+      const userSnap = await userDocRef.get();
+      userData = userSnap.data();
+    } else if (subscriptionId) {
+      const snapshot = await db.collection('users').where('subscriptionId', '==', subscriptionId).get();
+      if (!snapshot.empty) {
+        userDocRef = snapshot.docs[0].ref;
+        userData = snapshot.docs[0].data();
+      } else {
+        return NextResponse.json({ error: 'User not found for subscriptionId' }, { status: 404 });
+      }
+    }
 
-if (id) {
-  userDocRef = db.collection('users').doc(id);
-  const userSnap = await userDocRef.get();
-  userData = userSnap.data();
-} else if (subscriptionId) {
-  const snapshot = await db.collection('users').where('subscriptionId', '==', subscriptionId).get();
-  if (!snapshot.empty) {
-    userDocRef = snapshot.docs[0].ref;
-    userData = snapshot.docs[0].data();
-  } else {
-    return NextResponse.json({ error: 'User not found for subscriptionId' }, { status: 404 });
-  }
-}
+    if (!userDocRef || !userData) {
+      return NextResponse.json({ error: 'Missing user data' }, { status: 400 });
+    }
 
-if (!userDocRef || !userData) {
-  return NextResponse.json({ error: 'Missing user data' }, { status: 400 });
-}
+    const userEmail = userData.email;
+    const userName = userData.name;
+    const subscriptionStartDate = userData?.subscriptionStartDate?.toDate?.() || null;
+    const totalCharged = userData?.totalCharged || null;
 
-// --- שליפת שדות נלווים ---
-const userEmail = userData.email;
-const userName = userData.name;
-const subscriptionStartDate = userData?.subscriptionStartDate?.toDate?.() || null;
-const totalCharged = userData?.totalCharged || null;
-
-
-    // ניסיון ביטול ב־Grow אם יש transactionId
     let growCanceled = false;
     let growMessage = '';
 
-    
-    console.log('Sending to Grow:', {
-      transactionToken : transactionToken ,
-      userId: '8f215caa9b2a3903',
-      action: 'cancel',
-    });
-    
+    // קביעת החזרים לפי טווח ימים
+    let shouldRefund = false;
+    let shouldCancelDirectDebit = false;
 
-    if (transactionToken && transactionId && asmachta) {
+    if (subscriptionStartDate && totalCharged) {
+      const daysSinceStart = (Date.now() - subscriptionStartDate.getTime()) / (1000 * 60 * 60 * 24);
+      shouldRefund = daysSinceStart >= 0 && daysSinceStart <= 14;
+      shouldCancelDirectDebit = true;
+    }
+
+    if (transactionToken && transactionId && asmachta && shouldCancelDirectDebit) {
       const formData = new URLSearchParams();
       formData.append('userId', '8f215caa9b2a3903');
       formData.append('transactionToken', transactionToken);
       formData.append('transactionId', transactionId);
       formData.append('asmachta', asmachta);
-      // formData.append('action', 'cancel');
       formData.append('changeStatus', '2');
 
-
-// שלב הדפסה מלאה של formData
-console.log('🔍 Params sent to Grow:');
-formData.forEach((value, key) => {
-  console.log(`${key} = ${value}`);
-});
-
-let shouldRefund = false;
-
-if (subscriptionStartDate && totalCharged) {
-  const daysSinceStart = (Date.now() - subscriptionStartDate.getTime()) / (1000 * 60 * 60 * 24);
-  shouldRefund = daysSinceStart > 1 && daysSinceStart <= 14;
-}
+      console.log('🔍 Params sent to Grow (DirectDebit Cancel):');
+      formData.forEach((value, key) => console.log(`${key} = ${value}`));
 
       const { data } = await axios.post(
         'https://sandbox.meshulam.co.il/api/light/server/1.0/updateDirectDebit',
@@ -110,32 +78,38 @@ if (subscriptionStartDate && totalCharged) {
       if (data?.status === '1') {
         growCanceled = true;
 
- // ✅ שלב ההחזר - רק אם בתוך 14 יום מההרשמה
- if (shouldRefund && transactionToken && transactionId) {
-  const refundForm = new URLSearchParams();
-  refundForm.append('userId', '8f215caa9b2a3903');
-  refundForm.append('transactionToken', transactionToken);
-  refundForm.append('transactionId', transactionId);
-  refundForm.append('refundSum', totalCharged.toString()); // באגורות
-  refundForm.append('stopDirectDebit', '1');
+        if (shouldRefund && totalCharged) {
+          const refundForm = new URLSearchParams();
+          refundForm.append('userId', '8f215caa9b2a3903');
+          refundForm.append('transactionToken', transactionToken);
+          refundForm.append('transactionId', transactionId);
+          refundForm.append('refundSum', totalCharged.toString());
+          refundForm.append('stopDirectDebit', '1');
 
-  try {
-    const refundRes = await axios.post(
-      'https://sandbox.meshulam.co.il/api/light/server/1.0/refundTransaction',
-      refundForm,
-      { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
-    );
-    console.log('🔁 Grow refund result:', refundRes.data);
-  } catch (e: any) {
-    console.error('❌ שגיאה בביצוע החזר מול Grow:', e.message);
-  }
-}
+          try {
+            const refundRes = await axios.post(
+              'https://sandbox.meshulam.co.il/api/light/server/1.0/refundTransaction',
+              refundForm,
+              { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
+            );
+            console.log('🔁 Grow refund result:', refundRes.data);
 
+            
+  // 🔽 עדכון סטטוס זיכוי במסד
+  await userDocRef.update({
+    wasRefunded: true,
+    refundDate: new Date(),
+  });
+          } catch (e: unknown) {
+            const err = e as any;
+            console.error('❌ שגיאה בביצוע החזר מול Grow:', err.message);
+          }
+        }
       } else {
         growMessage = typeof data?.err === 'string'
-        ? data.err
-        : data?.err?.message || 'Grow cancellation failed';
-            }
+          ? data.err
+          : data?.err?.message || 'Grow cancellation failed';
+      }
     } else {
       growMessage = 'המנוי בוטל אצלנו, אך לא ב־Grow (חסר נתונים)';
     }
@@ -148,46 +122,41 @@ if (subscriptionStartDate && totalCharged) {
       growCancellationStatus: growCanceled ? 'success' : 'failed',
       ...(updates || {})
     });
-    
+
+    // השבתת המשתמש הראשי
     try {
       await admin.auth().updateUser(id, { disabled: true });
       console.log('🔒 המשתמש הושבת ב־Firebase Auth');
-    } catch (authError) {
-      console.error('❌ שגיאה בהשבתת המשתמש:', authError);
+    } catch (authError: unknown) {
+      const err = authError as any;
+      console.error('❌ שגיאה בהשבתת המשתמש:', err.message);
     }
-    
-    // 🔁 השבתת כל העובדים של הסוכן
-try {
-  const workersSnap = await db.collection('users')
-    .where('agentId', '==', id)
-    .where('role', '==', 'worker')
-    .get();
 
-  const disablePromises: Promise<any>[] = [];
+    // השבתת עובדים של הסוכן
+    try {
+      const workersSnap = await db.collection('users')
+        .where('agentId', '==', id)
+        .where('role', '==', 'worker')
+        .get();
 
-  workersSnap.forEach(workerDoc => {
-    const workerId = workerDoc.id;
+      const disablePromises: Promise<any>[] = [];
 
-    // עדכון Firestore
-    disablePromises.push(
-      workerDoc.ref.update({ isActive: false })
-    );
+      workersSnap.forEach(workerDoc => {
+        const workerId = workerDoc.id;
+        disablePromises.push(workerDoc.ref.update({ isActive: false }));
+        disablePromises.push(
+          admin.auth().updateUser(workerId, { disabled: true }).catch((e: any) => {
+            console.error(`❌ שגיאה בהשבתת עובד ${workerId}:`, e.message);
+          })
+        );
+      });
 
-    // עדכון Firebase Auth
-    disablePromises.push(
-      admin.auth().updateUser(workerId, { disabled: true }).catch((e) => {
-        console.error(`❌ שגיאה בהשבתת עובד ${workerId}:`, e.message);
-      })
-    );
-  });
-
-  await Promise.all(disablePromises);
-  console.log(`🔒 הושבתו ${workersSnap.size} עובדים של הסוכן`);
-
-} catch (e: any) {
-  console.error('❌ שגיאה באיתור או השבתת העובדים:', e.message);
-}
-
+      await Promise.all(disablePromises);
+      console.log(`🔒 הושבתו ${workersSnap.size} עובדים של הסוכן`);
+    } catch (e: unknown) {
+      const err = e as any;
+      console.error('❌ שגיאה באיתור או השבתת העובדים:', err.message);
+    }
 
     // שליחת מייל ביטול אם רלוונטי
     if (sendCancelEmail && userEmail) {
@@ -203,8 +172,9 @@ try {
       growCanceled,
       message: growMessage || 'המנוי בוטל בהצלחה'
     });
-  } catch (err: any) {
-    console.error('❌ CancelSubscription error:', err.message);
+  } catch (err: unknown) {
+    const error = err as any;
+    console.error('❌ CancelSubscription error:', error.message);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }
