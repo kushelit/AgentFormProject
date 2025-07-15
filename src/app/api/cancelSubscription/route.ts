@@ -54,7 +54,7 @@ export async function POST(req: NextRequest) {
       const daysSinceStart = (Date.now() - subscriptionStartDate.getTime()) / (1000 * 60 * 60 * 24);
       shouldRefund = daysSinceStart >= 0 && daysSinceStart <= 14;
       console.log('📆 Days since subscription started:', daysSinceStart);
-
+      console.log('💰 totalCharged:', totalCharged);
       shouldCancelDirectDebit = true;
     }
 
