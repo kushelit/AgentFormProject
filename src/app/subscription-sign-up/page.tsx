@@ -203,6 +203,7 @@ export default function SubscriptionSignUpPage() {
           leadsModule: withLeadsModule,
           extraWorkers: selectedPlan === 'pro' ? extraWorkers : 0
         },
+        total: calculateTotal(), 
       }, {
         headers: { 'Content-Type': 'application/json' },
       });
