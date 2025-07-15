@@ -76,11 +76,13 @@ export async function POST(req: NextRequest) {
       );
 
       console.log('🔁 Grow cancel result:', data);
-
+console.log('🔁 data status:', data?.status);
       if (data?.status === '1') {
+        console.log('✅ Grow cancellation successful');
         growCanceled = true;
 
         if (shouldRefund && totalCharged) {
+          console.log('💸 Processing refund for Grow subscription');
           const refundForm = new URLSearchParams();
           refundForm.append('userId', '8f215caa9b2a3903');
           refundForm.append('transactionToken', transactionToken);
