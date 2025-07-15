@@ -83,14 +83,21 @@ export async function POST(req: NextRequest) {
           refundForm.append('userId', '8f215caa9b2a3903');
           refundForm.append('transactionToken', transactionToken);
           refundForm.append('transactionId', transactionId);
-          refundForm.append('refundSum', totalCharged.toString());
+          refundForm.append('refundSum', (totalCharged * 100).toString());
           refundForm.append('stopDirectDebit', '1');
 
           try {
+            console.log('🧾 Sending refund to Grow:', {
+              transactionToken,
+              transactionId,
+              refundSum: Math.round(totalCharged * 100).toString(),
+            });
+            
             const refundRes = await axios.post(
               'https://sandbox.meshulam.co.il/api/light/server/1.0/refundTransaction',
               refundForm,
               { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
+              
             );
             console.log('🔁 Grow refund result:', refundRes.data);
 
