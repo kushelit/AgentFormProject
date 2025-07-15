@@ -44,8 +44,11 @@ export async function POST(req: NextRequest) {
     const source = (data['data[customFields][cField4]'] ?? data['customFields[cField4]'])?.toString() ?? '';
     const addOns = addOnsRaw ? JSON.parse(addOnsRaw.toString()) : {};
     const couponCode = (data['data[customFields][cField5]'] ?? data['customFields[cField5]'])?.toString() ?? '';
-    const totalCharged = Number(data['customField6'] || 0);
-
+    const totalCharged = Number(
+      data['data[customFields][cField6]'] || 
+      0
+    );
+    
     console.log('📦 Debug fields:', {
       statusCode, email, fullName, phone, processId, customField, subscriptionType
     });
