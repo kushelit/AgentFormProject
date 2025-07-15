@@ -87,14 +87,14 @@ console.log('🔁 data status:', data?.status);
           refundForm.append('userId', '8f215caa9b2a3903');
           refundForm.append('transactionToken', transactionToken);
           refundForm.append('transactionId', transactionId);
-          refundForm.append('refundSum', (totalCharged * 100).toString());
+          refundForm.append('refundSum', totalCharged.toString()); // ללא הכפלה
           refundForm.append('stopDirectDebit', '1');
 
           try {
             console.log('🧾 Sending refund to Grow:', {
               transactionToken,
               transactionId,
-              refundSum: Math.round(totalCharged * 100).toString(),
+              refundSum: Math.round(totalCharged).toString(),
             });
             
             const refundRes = await axios.post(
