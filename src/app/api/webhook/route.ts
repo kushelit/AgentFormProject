@@ -86,7 +86,10 @@ const updateFields: any = {
   growCancellationStatus: admin.firestore.FieldValue.delete(),
   'permissionOverrides.allow': admin.firestore.FieldValue.delete(),
   'permissionOverrides.deny': admin.firestore.FieldValue.delete(),
+  'futureChargeAmount': admin.firestore.FieldValue.delete(), 
   subscriptionStatus,
+  totalCharged,
+  subscriptionStartDate: new Date(), 
   lastPaymentStatus: paymentStatus,
   lastPaymentDate: paymentDate,
 };

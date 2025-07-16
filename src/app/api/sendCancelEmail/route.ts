@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
       subject: 'ביטול המנוי שלך במערכת MagicSale',
       html: `
         שלום ${name},<br><br>
-        המנוי שלך במערכת MagicSale בוטל בהצלחה.<br>
+        המנוי שלך במערכת MagicSale בוטל בהצלחה.${refundMessage}<br>
         אם זה נעשה בטעות או ברצונך לחדש את המנוי, אנא צרו קשר עם צוות התמיכה.<br><br>
         בברכה,<br>
         צוות MagicSale
