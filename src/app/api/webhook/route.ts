@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
     const rawSum = data['data[sum]'];
     const sumStr = Array.isArray(rawSum) ? rawSum[0] : rawSum || '0';
     const totalCharged = parseFloat(sumStr.replace(',', '.'));  
-    
+
     console.log('📦 Debug fields:', {
       statusCode, email, fullName, phone, processId, customField, subscriptionType
     });
@@ -212,6 +212,8 @@ await fetch('https://test.magicsale.co.il/api/sendEmail', {
         subscriptionStatus,
         lastPaymentStatus: paymentStatus,
         lastPaymentDate: paymentDate,
+        totalCharged,
+        subscriptionStartDate: new Date(), // עדכון תאריך התחלה
       };
       
       if (transactionId && transactionId !== userData?.transactionId) {

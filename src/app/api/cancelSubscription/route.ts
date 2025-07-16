@@ -42,6 +42,7 @@ export async function POST(req: NextRequest) {
     const userName = userData.name;
     const subscriptionStartDate = userData?.subscriptionStartDate?.toDate?.() || null;
     const totalCharged = userData?.totalCharged || null;
+    const wasRefundedBefore = userData?.wasRefunded === true;
 
     let growCanceled = false;
     let growMessage = '';
@@ -52,7 +53,7 @@ export async function POST(req: NextRequest) {
 
     if (subscriptionStartDate && totalCharged) {
       const daysSinceStart = (Date.now() - subscriptionStartDate.getTime()) / (1000 * 60 * 60 * 24);
-      shouldRefund = daysSinceStart >= 0 && daysSinceStart <= 14;
+      shouldRefund = daysSinceStart >= 0 && daysSinceStart <= 14 && !wasRefundedBefore;
       console.log('📆 Days since subscription started:', daysSinceStart);
       console.log('💰 totalCharged:', totalCharged);
       shouldCancelDirectDebit = true;
@@ -174,7 +175,7 @@ console.log('🔁 data status:', data?.status);
       await fetch('https://test.magicsale.co.il/api/sendCancelEmail', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: userEmail, name: userName })
+        body: JSON.stringify({ email: userEmail, name: userName , refunded: shouldRefund})
       });
     }
 

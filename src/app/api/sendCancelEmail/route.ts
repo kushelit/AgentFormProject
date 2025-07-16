@@ -7,11 +7,14 @@ sgMail.setApiKey(process.env.SENDGRID_API_KEY!);
 
 export async function POST(req: NextRequest) {
   try {
-    const { email, name } = await req.json();
+    const { email, name , refunded} = await req.json();
 
     if (!email || !name) {
       return NextResponse.json({ error: 'Missing email or name' }, { status: 400 });
     }
+    const refundMessage = refunded
+    ? `<br>לאחר בדיקה אושרה החזרת תשלום בהתאם למדיניות הביטולים.`
+    : ``;
 
     const msg = {
       to: email,
