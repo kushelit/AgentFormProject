@@ -90,6 +90,7 @@ console.log('🔁 data status:', data?.status);
           refundForm.append('transactionId', transactionId);
           refundForm.append('refundSum', totalCharged.toString()); // ללא הכפלה
           refundForm.append('stopDirectDebit', '1');
+          refundForm.append('cField4', 'manual-upgrade'); // ✅ סימון המקור
 
           try {
             console.log('🧾 Sending refund to Grow:', {
@@ -106,12 +107,17 @@ console.log('🔁 data status:', data?.status);
             );
             console.log('🔁 Grow refund result:', refundRes.data);
 
-            
+
+            const growRefundResponse = refundRes.data;
+   
   // 🔽 עדכון סטטוס זיכוי במסד
-  await userDocRef.update({
-    wasRefunded: true,
-    refundDate: new Date(),
-  });
+  if (growRefundResponse?.status === 1) {
+    await userDocRef.update({
+      wasRefunded: true,
+      refundDate: new Date()
+    });
+  }
+
           } catch (e: unknown) {
             const err = e as any;
             console.error('❌ שגיאה בביצוע החזר מול Grow:', err.message);

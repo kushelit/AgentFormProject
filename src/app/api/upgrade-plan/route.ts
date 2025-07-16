@@ -67,14 +67,14 @@ export async function POST(req: NextRequest) {
     console.log('🔥 updateDoc called with:', {
       userId: userSnap.id,
       subscriptionType: newPlanId,
-      totalCharged: totalPrice,
+      futureChargeAmount: totalPrice,
       lastPlanChangeDate: new Date(),
       addOns: addOns || {}
     });
 
     await userDocRef.update({
       subscriptionType: newPlanId,
-      totalCharged: totalPrice,
+      futureChargeAmount: totalPrice,
       lastPlanChangeDate: new Date(),
       ...(addOns ? { addOns } : {})
     });
