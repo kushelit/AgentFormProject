@@ -17,7 +17,7 @@ export const approveTransaction = async (transactionId: string, transactionToken
   console.log('🧾 פרמטרים שנשלחו:', { transactionId, transactionToken });
 
   try {
-    const res = await fetch('https://sandbox.meshulam.co.il/api/light-server/1.0/ApproveTransaction', {
+    const res = await fetch('https://sandbox.meshulam.co.il/api/light/server/1.0/approveTransaction', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ transactionId, transactionToken }),
