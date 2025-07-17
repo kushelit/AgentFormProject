@@ -370,6 +370,32 @@ if (userDocRef) {
   await userDocRef.update(updateFields);
   console.log('🟢 Updated user in Firestore');
 
+
+// 🆕 ✅ הוספת ApproveTransaction כאן:
+if (statusCode === '2' && transactionId && transactionToken) {
+  try {
+    const approveRes = await fetch('https://payments.grow.co.il/api/light-server/1.0/ApproveTransaction', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        transactionId,
+        transactionToken,
+      }),
+    });
+
+    if (!approveRes.ok) {
+      console.error('❌ שגיאה בקריאה ל־ApproveTransaction:', await approveRes.text());
+    } else {
+      console.log('✅ ApproveTransaction בוצע בהצלחה');
+    }
+  } catch (err) {
+    console.error('⚠️ שגיאה בביצוע ApproveTransaction:', err);
+  }
+}
+
+
   try {
     const user = await auth.getUserByEmail(email);
 
@@ -461,6 +487,30 @@ if (userDocRef) {
     });
 
     console.log('🆕 Created new user');
+
+    // 🆕 ✅ הוספת ApproveTransaction כאן:
+if (statusCode === '2' && transactionId && transactionToken) {
+  try {
+    const approveRes = await fetch('https://payments.grow.co.il/api/light-server/1.0/ApproveTransaction', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        transactionId,
+        transactionToken,
+      }),
+    });
+
+    if (!approveRes.ok) {
+      console.error('❌ שגיאה בקריאה ל־ApproveTransaction:', await approveRes.text());
+    } else {
+      console.log('✅ ApproveTransaction בוצע בהצלחה');
+    }
+  } catch (err) {
+    console.error('⚠️ שגיאה בביצוע ApproveTransaction:', err);
+  }
+}
 
     return NextResponse.json({ created: true });
   } catch (err: any) {
