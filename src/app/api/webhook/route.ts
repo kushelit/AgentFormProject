@@ -12,7 +12,7 @@ const formatPhone = (phone?: string) => {
   return phone;
 };
 
-export const approveTransaction = async (transactionId: string, transactionToken: string) => {
+ const approveTransaction = async (transactionId: string, transactionToken: string) => {
   console.log('📤 ApproveTransaction – התחלה');
   console.log('🧾 פרמטרים שנשלחו:', { transactionId, transactionToken });
 
