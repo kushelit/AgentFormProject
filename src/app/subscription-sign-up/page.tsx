@@ -74,12 +74,13 @@ export default function SubscriptionSignUpPage() {
   const [withLeadsModule, setWithLeadsModule] = useState(false);
   const [extraWorkers, setExtraWorkers] = useState(0);
   const [error, setError] = useState('');
-  const [fieldErrors, setFieldErrors] = useState<{ fullName?: string; email?: string; phone?: string }>({});
+  const [fieldErrors, setFieldErrors] = useState<{ fullName?: string; email?: string; phone?: string; idNumber?: string }>({});
   const router = useRouter();
   const [couponCode, setCouponCode] = useState('');
   const [couponError, setCouponError] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [acceptTerms, setAcceptTerms] = useState(false);
+  const [idNumber, setIdNumber] = useState('');
 
 
   useEffect(() => {
@@ -197,6 +198,7 @@ export default function SubscriptionSignUpPage() {
         fullName,
         email,
         phone,
+        idNumber,
         plan: selectedPlan,
         couponCode, 
         addOns: {
@@ -324,6 +326,17 @@ if (isLoading || plans.length === 0) {
             />
           </label>
         </div>
+        <div>
+        <label className="block mb-1 font-semibold">ת"ז / ח.פ *</label>
+        <input
+    type="text"
+    value={idNumber}
+    onChange={(e) => setIdNumber(e.target.value)}
+    className="w-full border border-gray-300 rounded px-3 py-2 text-right"
+    required
+  />
+  {fieldErrors.idNumber && <p className="text-red-600 text-sm">{fieldErrors.idNumber}</p>}
+</div>
         <div>
           <label className="block mb-1 font-semibold">שם מלא *</label>
           <input

@@ -5,9 +5,9 @@ import axios from 'axios';
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { fullName, email, phone, plan, couponCode, addOns, total } = body;
+    const { fullName, email, phone, idNumber, plan, couponCode, addOns, total } = body;
 
-    if (!fullName || !email || !phone || !plan) {
+    if (!fullName || !email || !phone || !idNumber  || !plan) {
       return NextResponse.json({ error: 'אנא מלא/י את כל השדות הנדרשים' }, { status: 400 });
     }
 
@@ -73,6 +73,7 @@ export async function POST(req: NextRequest) {
     formData.append('pageField[email]', normalizedEmail);
     formData.append('cField1', customField);
     formData.append('cField6', total?.toString() || totalPrice.toString()); // שליחה ל-Grow
+    formData.append('cField7', idNumber); /
     formData.append('cField2', plan);
     formData.append('cField3', JSON.stringify(addOns || {}));
     if (couponCode) {

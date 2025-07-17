@@ -44,6 +44,7 @@ export async function POST(req: NextRequest) {
     const source = (data['data[customFields][cField4]'] ?? data['customFields[cField4]'])?.toString() ?? '';
     const addOns = addOnsRaw ? JSON.parse(addOnsRaw.toString()) : {};
     const couponCode = (data['data[customFields][cField5]'] ?? data['customFields[cField5]'])?.toString() ?? '';
+    const idNumber = (data['data[customFields][cField7]'] ?? data['customFields[cField7]'])?.toString() ?? '';
     // const totalCharged = Number(
     //   data['data[customFields][cField6]'] || 
     //   0
@@ -64,232 +65,343 @@ export async function POST(req: NextRequest) {
     const db = admin.firestore();
     const auth = admin.auth();
     const usersRef = db.collection('users');
-    const snapshot = await usersRef.where('customField', '==', customField).get();
 
-    const paymentDate = new Date();
-
-    
+//     const snapshot = await usersRef.where('customField', '==', customField).get();
+//     const paymentDate = new Date();  
   
-    // ✳️ אם קיים משתמש לפי customField – עדכון והחייאה
-    if (!snapshot.empty) {
-      if (source === 'manual-upgrade') {
-        console.log('⏭ Skipping webhook update due to manual upgrade');
-        return NextResponse.json({ skipped: true });
-      }
- const docRef = snapshot.docs[0].ref;
-     // קריאה לדאטה קיים
-const userSnap = await docRef.get();
-const userData = userSnap.data();
-const updateFields: any = {
-  isActive: true,
-  cancellationDate: admin.firestore.FieldValue.delete(),
-  growCancellationStatus: admin.firestore.FieldValue.delete(),
-  'permissionOverrides.allow': admin.firestore.FieldValue.delete(),
-  'permissionOverrides.deny': admin.firestore.FieldValue.delete(),
-  'futureChargeAmount': admin.firestore.FieldValue.delete(), 
-  subscriptionStatus,
-  totalCharged,
-  subscriptionStartDate: new Date(), 
-  lastPaymentStatus: paymentStatus,
-  lastPaymentDate: paymentDate,
-};
-if (couponCode) {
-  updateFields.usedCouponCode = couponCode;
+//     // ✳️ אם קיים משתמש לפי customField – עדכון והחייאה
+//     if (!snapshot.empty) {
+//       if (source === 'manual-upgrade') {
+//         console.log('⏭ Skipping webhook update due to manual upgrade');
+//         return NextResponse.json({ skipped: true });
+//       }
+//  const docRef = snapshot.docs[0].ref;
+//      // קריאה לדאטה קיים
+// const userSnap = await docRef.get();
+// const userData = userSnap.data();
+// const updateFields: any = {
+//   isActive: true,
+//   cancellationDate: admin.firestore.FieldValue.delete(),
+//   growCancellationStatus: admin.firestore.FieldValue.delete(),
+//   'permissionOverrides.allow': admin.firestore.FieldValue.delete(),
+//   'permissionOverrides.deny': admin.firestore.FieldValue.delete(),
+//   'futureChargeAmount': admin.firestore.FieldValue.delete(), 
+//   subscriptionStatus,
+//   totalCharged,
+//   subscriptionStartDate: new Date(), 
+//   lastPaymentStatus: paymentStatus,
+//   lastPaymentDate: paymentDate,
+// };
+// if (couponCode) {
+//   updateFields.usedCouponCode = couponCode;
+// }
+
+// // עדכון רק אם יש שינוי בפועל
+// if (transactionId && transactionId !== userData?.transactionId) {
+//   updateFields.transactionId = transactionId;
+// }
+// if (transactionToken && transactionToken !== userData?.transactionToken) {
+//   updateFields.transactionToken = transactionToken;
+// }
+// if (asmachta && asmachta !== userData?.asmachta) {
+//   updateFields.asmachta = asmachta;
+// }
+// if (processId && processId !== userData?.subscriptionId) {
+//   updateFields.subscriptionId = processId;
+// }
+// if (subscriptionType && subscriptionType !== userData?.subscriptionType) {
+//   updateFields.subscriptionType = subscriptionType;
+// }
+// if (idNumber && idNumber !== userData?.idNumber) {
+//   updateFields.idNumber = idNumber;
+// }
+// if (addOns && JSON.stringify(addOns) !== JSON.stringify(userData?.addOns)) {
+//   updateFields.addOns = {
+//     leadsModule: !!addOns.leadsModule,
+//     extraWorkers: addOns.extraWorkers || 0,
+//   };
+// }
+// const planChanged =
+// (subscriptionType && subscriptionType !== userData?.subscriptionType) ||
+// (addOns && JSON.stringify(addOns) !== JSON.stringify(userData?.addOns));
+
+// await docRef.update(updateFields);
+
+//  console.log('🟢 Updated user in Firestore');
+
+
+//       try {
+//         const user = await auth.getUserByEmail(email);
+
+//         // שליחת מייל על עדכון תוכנית רק אם שונה subscriptionType או addOns והיוזר לא הוחייה עכשיו
+
+// if (planChanged && !user.disabled) {
+// await fetch('https://test.magicsale.co.il/api/sendEmail', {
+//   method: 'POST',
+//   headers: { 'Content-Type': 'application/json' },
+//   body: JSON.stringify({
+//     to: email,
+//     subject: 'עדכון תוכנית במערכת MagicSale',
+//     html: `
+//       שלום ${fullName},<br><br>
+//       תוכנית המנוי שלך עודכנה בהצלחה במערכת MagicSale.<br>
+//       סוג מנוי נוכחי: <strong>${subscriptionType}</strong><br><br>
+//       תוכל להתחבר למערכת כאן:<br>
+//       <a href="https://test.magicsale.co.il/auth/log-in">כניסה למערכת</a><br><br>
+//       בברכה,<br>
+//       צוות MagicSale
+//     `,
+//   }),
+// });
+// }
+
+//         if (user.disabled) {
+//           await auth.updateUser(user.uid, { disabled: false });
+//           console.log('✅ Firebase Auth user re-enabled');
+//         } else {
+//           console.log('ℹ️ Firebase user already active');
+//         }
+//  // ✅ יצירת לינק איפוס סיסמה
+//  const resetLink = await auth.generatePasswordResetLink(email);
+
+//  // ✅ שליחת מייל
+//  await fetch('https://test.magicsale.co.il/api/sendEmail', {
+//    method: 'POST',
+//    headers: { 'Content-Type': 'application/json' },
+//    body: JSON.stringify({
+//      to: email,
+//      subject: 'איפוס סיסמה לאחר חידוש מנוי',
+//      html: `
+//        שלום ${fullName},<br><br>
+//        המנוי שלך במערכת MagicSale חודש בהצלחה!<br>
+//        אם ברצונך להיכנס, באפשרותך לאפס את הסיסמה שלך כאן:<br>
+//        <a href="${resetLink}">איפוס סיסמה</a><br><br>
+//        בהצלחה,<br>
+//        צוות MagicSale
+//      `,
+//    }),
+//  });
+
+
+//       } catch (e) {
+//         console.warn('⚠️ Firebase user not found for email');
+//       }
+
+//       return NextResponse.json({ updated: true });
+//     }
+
+//     // ✳️ לא קיים לפי customField – נבדוק אם קיים ב־Auth לפי אימייל
+//     let existingUser: any = null;
+
+//     try {
+//       existingUser = await auth.getUserByEmail(email);
+//       console.log('🔍 User already exists in Auth:', existingUser.uid);
+
+//       if (source === 'manual-upgrade') {
+//         console.log('⏭ Skipping webhook update for existing Auth user due to manual upgrade');
+//         return NextResponse.json({ skipped: true });
+//       }
+
+//       await auth.updateUser(existingUser.uid, { disabled: false });
+//       console.log('✅ Firebase Auth user re-enabled');
+
+//       const userRef = db.collection('users').doc(existingUser.uid);
+//       const userSnap = await userRef.get();
+//       const userData = userSnap.data();
+//       const updateFields: any = {
+//         isActive: true,
+//         cancellationDate: admin.firestore.FieldValue.delete(),
+//         growCancellationStatus: admin.firestore.FieldValue.delete(),
+//         'permissionOverrides.allow': admin.firestore.FieldValue.delete(),
+//         'permissionOverrides.deny': admin.firestore.FieldValue.delete(),
+//         subscriptionStatus,
+//         lastPaymentStatus: paymentStatus,
+//         lastPaymentDate: paymentDate,
+//         totalCharged,
+//         subscriptionStartDate: new Date(), // עדכון תאריך התחלה
+//       };
+      
+//       if (transactionId && transactionId !== userData?.transactionId) {
+//         updateFields.transactionId = transactionId;
+//       }
+//       if (transactionToken && transactionToken !== userData?.transactionToken) {
+//         updateFields.transactionToken = transactionToken;
+//       }
+//       if (asmachta && asmachta !== userData?.asmachta) {
+//         updateFields.asmachta = asmachta;
+//       }
+//       if (processId && processId !== userData?.subscriptionId) {
+//         updateFields.subscriptionId = processId;
+//       }
+//       if (subscriptionType && subscriptionType !== userData?.subscriptionType) {
+//         updateFields.subscriptionType = subscriptionType;
+//       }
+//       if (idNumber && idNumber !== userData?.idNumber) {
+//         updateFields.idNumber = idNumber;
+//       }      
+//       if (addOns && JSON.stringify(addOns) !== JSON.stringify(userData?.addOns)) {
+//         updateFields.addOns = {
+//           leadsModule: !!addOns.leadsModule,
+//           extraWorkers: addOns.extraWorkers || 0,
+//         };
+//       }
+      
+//       await userRef.update(updateFields);
+      
+//       console.log('🔥 Updating user document with data:', {
+//         isActive: true,
+//         subscriptionStatus,
+//         subscriptionType,
+//         lastPaymentStatus: paymentStatus,
+//         lastPaymentDate: paymentDate,
+//         ...(transactionId ? { transactionId } : {}),
+//         ...(transactionToken ? { transactionToken } : {}),
+//         ...(asmachta ? { asmachta } : {}),
+//         ...(addOns ? {
+//           addOns: {
+//             leadsModule: !!addOns.leadsModule,
+//             extraWorkers: addOns.extraWorkers || 0,
+//           }
+//         } : {}),
+//       });
+      
+//       console.log('✅ Firestore user reactivated');
+
+// // ✅ יצירת לינק איפוס סיסמה
+// const resetLink = await auth.generatePasswordResetLink(email);
+
+// // ✅ שליחת מייל
+// await fetch('https://test.magicsale.co.il/api/sendEmail', {
+//   method: 'POST',
+//   headers: { 'Content-Type': 'application/json' },
+//   body: JSON.stringify({
+//     to: email,
+//     subject: 'איפוס סיסמה לאחר חידוש מנוי',
+//     html: `
+//       שלום ${fullName},<br><br>
+//       המנוי שלך במערכת MagicSale חודש בהצלחה!<br>
+//       אם ברצונך להיכנס, באפשרותך לאפס את הסיסמה שלך כאן:<br>
+//       <a href="${resetLink}">איפוס סיסמה</a><br><br>
+//       בהצלחה!<br>
+//       צוות MagicSale
+//     `,
+//   }),
+// });
+
+// return NextResponse.json({ reactivated: true });
+
+
+//     } catch (e) {
+//       console.log('ℹ️ No Auth user found – creating new user');
+//     }
+
+
+const snapshot = await db.collection('users').where('customField', '==', customField).get();
+const paymentDate = new Date();
+
+let userDocRef = null;
+let userData = null;
+
+if (!snapshot.empty) {
+  userDocRef = snapshot.docs[0].ref;
+  const userSnap = await userDocRef.get();
+  userData = userSnap.data();
+} else {
+  // ננסה לפי email
+  try {
+    const existingUser = await auth.getUserByEmail(email);
+    console.log('🔍 User found in Auth:', existingUser.uid);
+
+    userDocRef = db.collection('users').doc(existingUser.uid);
+    const userSnap = await userDocRef.get();
+
+    if (userSnap.exists) {
+      userData = userSnap.data();
+    }
+  } catch {
+    console.log('ℹ️ No existing user found – will create new user');
+  }
 }
 
-// עדכון רק אם יש שינוי בפועל
-if (transactionId && transactionId !== userData?.transactionId) {
-  updateFields.transactionId = transactionId;
-}
-if (transactionToken && transactionToken !== userData?.transactionToken) {
-  updateFields.transactionToken = transactionToken;
-}
-if (asmachta && asmachta !== userData?.asmachta) {
-  updateFields.asmachta = asmachta;
-}
-if (processId && processId !== userData?.subscriptionId) {
-  updateFields.subscriptionId = processId;
-}
-if (subscriptionType && subscriptionType !== userData?.subscriptionType) {
-  updateFields.subscriptionType = subscriptionType;
-}
-if (addOns && JSON.stringify(addOns) !== JSON.stringify(userData?.addOns)) {
-  updateFields.addOns = {
-    leadsModule: !!addOns.leadsModule,
-    extraWorkers: addOns.extraWorkers || 0,
+if (userDocRef) {
+  if (source === 'manual-upgrade') {
+    console.log('⏭ Skipping webhook update due to manual upgrade');
+    return NextResponse.json({ skipped: true });
+  }
+
+  const updateFields: any = {
+    isActive: true,
+    cancellationDate: admin.firestore.FieldValue.delete(),
+    growCancellationStatus: admin.firestore.FieldValue.delete(),
+    'permissionOverrides.allow': admin.firestore.FieldValue.delete(),
+    'permissionOverrides.deny': admin.firestore.FieldValue.delete(),
+    'futureChargeAmount': admin.firestore.FieldValue.delete(),
+    subscriptionStatus,
+    totalCharged,
+    subscriptionStartDate: new Date(),
+    lastPaymentStatus: paymentStatus,
+    lastPaymentDate: paymentDate,
   };
-}
-const planChanged =
-(subscriptionType && subscriptionType !== userData?.subscriptionType) ||
-(addOns && JSON.stringify(addOns) !== JSON.stringify(userData?.addOns));
 
-await docRef.update(updateFields);
+  if (couponCode) updateFields.usedCouponCode = couponCode;
+  if (transactionId && transactionId !== userData?.transactionId) updateFields.transactionId = transactionId;
+  if (transactionToken && transactionToken !== userData?.transactionToken) updateFields.transactionToken = transactionToken;
+  if (asmachta && asmachta !== userData?.asmachta) updateFields.asmachta = asmachta;
+  if (processId && processId !== userData?.subscriptionId) updateFields.subscriptionId = processId;
+  if (subscriptionType && subscriptionType !== userData?.subscriptionType) updateFields.subscriptionType = subscriptionType;
+  if (idNumber && idNumber !== userData?.idNumber) updateFields.idNumber = idNumber;
+  if (addOns && JSON.stringify(addOns) !== JSON.stringify(userData?.addOns)) {
+    updateFields.addOns = {
+      leadsModule: !!addOns.leadsModule,
+      extraWorkers: addOns.extraWorkers || 0,
+    };
+  }
 
- console.log('🟢 Updated user in Firestore');
+  const planChanged =
+    (subscriptionType && subscriptionType !== userData?.subscriptionType) ||
+    (addOns && JSON.stringify(addOns) !== JSON.stringify(userData?.addOns));
 
+  await userDocRef.update(updateFields);
+  console.log('🟢 Updated user in Firestore');
 
-      try {
-        const user = await auth.getUserByEmail(email);
+  try {
+    const user = await auth.getUserByEmail(email);
 
-        // שליחת מייל על עדכון תוכנית רק אם שונה subscriptionType או addOns והיוזר לא הוחייה עכשיו
-
-if (planChanged && !user.disabled) {
-await fetch('https://test.magicsale.co.il/api/sendEmail', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({
-    to: email,
-    subject: 'עדכון תוכנית במערכת MagicSale',
-    html: `
-      שלום ${fullName},<br><br>
-      תוכנית המנוי שלך עודכנה בהצלחה במערכת MagicSale.<br>
-      סוג מנוי נוכחי: <strong>${subscriptionType}</strong><br><br>
-      תוכל להתחבר למערכת כאן:<br>
-      <a href="https://test.magicsale.co.il/auth/log-in">כניסה למערכת</a><br><br>
-      בברכה,<br>
-      צוות MagicSale
-    `,
-  }),
-});
-}
-
-        if (user.disabled) {
-          await auth.updateUser(user.uid, { disabled: false });
-          console.log('✅ Firebase Auth user re-enabled');
-        } else {
-          console.log('ℹ️ Firebase user already active');
-        }
- // ✅ יצירת לינק איפוס סיסמה
- const resetLink = await auth.generatePasswordResetLink(email);
-
- // ✅ שליחת מייל
- await fetch('https://test.magicsale.co.il/api/sendEmail', {
-   method: 'POST',
-   headers: { 'Content-Type': 'application/json' },
-   body: JSON.stringify({
-     to: email,
-     subject: 'איפוס סיסמה לאחר חידוש מנוי',
-     html: `
-       שלום ${fullName},<br><br>
-       המנוי שלך במערכת MagicSale חודש בהצלחה!<br>
-       אם ברצונך להיכנס, באפשרותך לאפס את הסיסמה שלך כאן:<br>
-       <a href="${resetLink}">איפוס סיסמה</a><br><br>
-       בהצלחה,<br>
-       צוות MagicSale
-     `,
-   }),
- });
-
-
-      } catch (e) {
-        console.warn('⚠️ Firebase user not found for email');
-      }
-
-      return NextResponse.json({ updated: true });
-    }
-
-    // ✳️ לא קיים לפי customField – נבדוק אם קיים ב־Auth לפי אימייל
-    let existingUser: any = null;
-
-    try {
-      existingUser = await auth.getUserByEmail(email);
-      console.log('🔍 User already exists in Auth:', existingUser.uid);
-
-      if (source === 'manual-upgrade') {
-        console.log('⏭ Skipping webhook update for existing Auth user due to manual upgrade');
-        return NextResponse.json({ skipped: true });
-      }
-
-      await auth.updateUser(existingUser.uid, { disabled: false });
-      console.log('✅ Firebase Auth user re-enabled');
-
-      const userRef = db.collection('users').doc(existingUser.uid);
-      const userSnap = await userRef.get();
-      const userData = userSnap.data();
-      const updateFields: any = {
-        isActive: true,
-        cancellationDate: admin.firestore.FieldValue.delete(),
-        growCancellationStatus: admin.firestore.FieldValue.delete(),
-        'permissionOverrides.allow': admin.firestore.FieldValue.delete(),
-        'permissionOverrides.deny': admin.firestore.FieldValue.delete(),
-        subscriptionStatus,
-        lastPaymentStatus: paymentStatus,
-        lastPaymentDate: paymentDate,
-        totalCharged,
-        subscriptionStartDate: new Date(), // עדכון תאריך התחלה
-      };
-      
-      if (transactionId && transactionId !== userData?.transactionId) {
-        updateFields.transactionId = transactionId;
-      }
-      if (transactionToken && transactionToken !== userData?.transactionToken) {
-        updateFields.transactionToken = transactionToken;
-      }
-      if (asmachta && asmachta !== userData?.asmachta) {
-        updateFields.asmachta = asmachta;
-      }
-      if (processId && processId !== userData?.subscriptionId) {
-        updateFields.subscriptionId = processId;
-      }
-      if (subscriptionType && subscriptionType !== userData?.subscriptionType) {
-        updateFields.subscriptionType = subscriptionType;
-      }
-      if (addOns && JSON.stringify(addOns) !== JSON.stringify(userData?.addOns)) {
-        updateFields.addOns = {
-          leadsModule: !!addOns.leadsModule,
-          extraWorkers: addOns.extraWorkers || 0,
-        };
-      }
-      
-      await userRef.update(updateFields);
-      
-      console.log('🔥 Updating user document with data:', {
-        isActive: true,
-        subscriptionStatus,
-        subscriptionType,
-        lastPaymentStatus: paymentStatus,
-        lastPaymentDate: paymentDate,
-        ...(transactionId ? { transactionId } : {}),
-        ...(transactionToken ? { transactionToken } : {}),
-        ...(asmachta ? { asmachta } : {}),
-        ...(addOns ? {
-          addOns: {
-            leadsModule: !!addOns.leadsModule,
-            extraWorkers: addOns.extraWorkers || 0,
-          }
-        } : {}),
+    if (planChanged && !user.disabled) {
+      await fetch('https://test.magicsale.co.il/api/sendEmail', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to: email,
+          subject: 'עדכון תוכנית במערכת MagicSale',
+          html: `שלום ${fullName},<br><br>תוכנית המנוי שלך עודכנה בהצלחה במערכת MagicSale.<br>סוג מנוי נוכחי: <strong>${subscriptionType}</strong><br><br>תוכל להתחבר למערכת כאן:<br><a href="https://test.magicsale.co.il/auth/log-in">כניסה למערכת</a><br><br>בברכה,<br>צוות MagicSale`,
+        }),
       });
-      
-      console.log('✅ Firestore user reactivated');
-
-// ✅ יצירת לינק איפוס סיסמה
-const resetLink = await auth.generatePasswordResetLink(email);
-
-// ✅ שליחת מייל
-await fetch('https://test.magicsale.co.il/api/sendEmail', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({
-    to: email,
-    subject: 'איפוס סיסמה לאחר חידוש מנוי',
-    html: `
-      שלום ${fullName},<br><br>
-      המנוי שלך במערכת MagicSale חודש בהצלחה!<br>
-      אם ברצונך להיכנס, באפשרותך לאפס את הסיסמה שלך כאן:<br>
-      <a href="${resetLink}">איפוס סיסמה</a><br><br>
-      בהצלחה!<br>
-      צוות MagicSale
-    `,
-  }),
-});
-
-return NextResponse.json({ reactivated: true });
-
-
-    } catch (e) {
-      console.log('ℹ️ No Auth user found – creating new user');
     }
 
+    if (user.disabled) {
+      await auth.updateUser(user.uid, { disabled: false });
+      console.log('✅ Firebase Auth user re-enabled');
+    }
+
+    const resetLink = await auth.generatePasswordResetLink(email);
+
+    await fetch('https://test.magicsale.co.il/api/sendEmail', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        to: email,
+        subject: 'איפוס סיסמה לאחר חידוש מנוי',
+        html: `שלום ${fullName},<br><br>המנוי שלך במערכת MagicSale חודש בהצלחה!<br>אם ברצונך להיכנס, באפשרותך לאפס את הסיסמה שלך כאן:<br><a href="${resetLink}">איפוס סיסמה</a><br><br>בהצלחה,<br>צוות MagicSale`,
+      }),
+    });
+  } catch {
+    console.log('⚠️ Firebase Auth user not found');
+  }
+
+  return NextResponse.json({ updated: true });
+}
+// אם לא נמצא משתמש קיים, ניצור משתמש חדש
     // ✳️ יצירת משתמש חדש
     const newUser = await auth.createUser({
       email,
@@ -319,6 +431,7 @@ return NextResponse.json({ reactivated: true });
 
     await db.collection('users').doc(newUser.uid).set({
       name: fullName,
+      idNumber,
       email,
       phone,
       subscriptionId: processId,
