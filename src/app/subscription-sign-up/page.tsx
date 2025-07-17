@@ -177,6 +177,35 @@ export default function SubscriptionSignUpPage() {
     return Math.round(total);
   };
   
+ // בדיקת תקינות ת"ז / ח.פ
+const isValidIsraeliIdOrCorp = (id: string) => {
+  const cleanId = id.trim();
+  if (!/^\d{5,10}$/.test(cleanId)) return false;
+
+  const paddedId = cleanId.padStart(9, '0');
+  let sum = 0;
+
+  for (let i = 0; i < 9; i++) {
+    let digit = Number(paddedId[i]) * ((i % 2) + 1);
+    if (digit > 9) digit -= 9;
+    sum += digit;
+  }
+
+  return sum % 10 === 0;
+};
+
+// בדיקת תקינות טלפון סלולרי ישראלי
+const isValidIsraeliPhone = (phone: string) => {
+  const cleanPhone = phone.replace(/\D/g, '');
+  return /^05[0-9]{8}$/.test(cleanPhone);
+};
+
+const isValidFullName = (name: string) => {
+  const parts = name.trim().split(/\s+/); // מחלק לפי רווחים
+  return parts.length >= 2 && parts.every(part => part.length >= 2);
+};
+
+
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -192,7 +221,22 @@ export default function SubscriptionSignUpPage() {
       setError('יש לאשר את תנאי השימוש לפני המשך התשלום.');
       return;
     }
+
+    if (!isValidIsraeliIdOrCorp(idNumber)) {
+      setFieldErrors(prev => ({ ...prev, idNumber: 'מספר ת"ז / ח.פ אינו תקין' }));
+      return;
+    }
     
+    if (!isValidIsraeliPhone(phone)) {
+      setFieldErrors(prev => ({ ...prev, phone: 'מספר טלפון נייד לא תקין' }));
+      return;
+    }
+    if (!isValidFullName(fullName)) {
+      setFieldErrors(prev => ({ ...prev, fullName: 'יש להזין שם מלא – לפחות שם פרטי ושם משפחה.' }));
+      return;
+    }
+    
+  
     try {
       const res = await axios.post('/api/create-subscription', {
         fullName,
