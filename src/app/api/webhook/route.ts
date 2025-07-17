@@ -324,6 +324,12 @@ if (!snapshot.empty) {
 }
 
 if (userDocRef) {
+  // בדיקת כפילות ב-transactionId
+  if (transactionId && transactionId === userData?.transactionId) {
+    console.log('⏭ Webhook skipped – duplicate transactionId');
+    return NextResponse.json({ skipped: true, reason: 'duplicate transactionId' });
+  }
+
   if (source === 'manual-upgrade') {
     console.log('⏭ Skipping webhook update due to manual upgrade');
     return NextResponse.json({ skipped: true });
