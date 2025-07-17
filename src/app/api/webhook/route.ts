@@ -12,6 +12,32 @@ const formatPhone = (phone?: string) => {
   return phone;
 };
 
+export const approveTransaction = async (transactionId: string, transactionToken: string) => {
+  console.log('📤 ApproveTransaction – התחלה');
+  console.log('🧾 פרמטרים שנשלחו:', { transactionId, transactionToken });
+
+  try {
+    const res = await fetch('https://sandbox.meshulam.co.il/api/light-server/1.0/ApproveTransaction', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ transactionId, transactionToken }),
+    });
+
+    const responseText = await res.text();
+
+    console.log('📬 תשובת Grow:', responseText);
+
+    if (!res.ok) {
+      console.error('❌ Grow החזיר שגיאה:', res.status, res.statusText);
+    } else {
+      console.log('✅ ApproveTransaction הצליח ✔️');
+    }
+  } catch (err) {
+    console.error('⚠️ שגיאה בתקשורת עם Grow:', err);
+  }
+};
+
+
 export async function POST(req: NextRequest) {
   try {
     console.log('📥 Webhook triggered');
@@ -66,234 +92,6 @@ export async function POST(req: NextRequest) {
     const auth = admin.auth();
     const usersRef = db.collection('users');
 
-//     const snapshot = await usersRef.where('customField', '==', customField).get();
-//     const paymentDate = new Date();  
-  
-//     // ✳️ אם קיים משתמש לפי customField – עדכון והחייאה
-//     if (!snapshot.empty) {
-//       if (source === 'manual-upgrade') {
-//         console.log('⏭ Skipping webhook update due to manual upgrade');
-//         return NextResponse.json({ skipped: true });
-//       }
-//  const docRef = snapshot.docs[0].ref;
-//      // קריאה לדאטה קיים
-// const userSnap = await docRef.get();
-// const userData = userSnap.data();
-// const updateFields: any = {
-//   isActive: true,
-//   cancellationDate: admin.firestore.FieldValue.delete(),
-//   growCancellationStatus: admin.firestore.FieldValue.delete(),
-//   'permissionOverrides.allow': admin.firestore.FieldValue.delete(),
-//   'permissionOverrides.deny': admin.firestore.FieldValue.delete(),
-//   'futureChargeAmount': admin.firestore.FieldValue.delete(), 
-//   subscriptionStatus,
-//   totalCharged,
-//   subscriptionStartDate: new Date(), 
-//   lastPaymentStatus: paymentStatus,
-//   lastPaymentDate: paymentDate,
-// };
-// if (couponCode) {
-//   updateFields.usedCouponCode = couponCode;
-// }
-
-// // עדכון רק אם יש שינוי בפועל
-// if (transactionId && transactionId !== userData?.transactionId) {
-//   updateFields.transactionId = transactionId;
-// }
-// if (transactionToken && transactionToken !== userData?.transactionToken) {
-//   updateFields.transactionToken = transactionToken;
-// }
-// if (asmachta && asmachta !== userData?.asmachta) {
-//   updateFields.asmachta = asmachta;
-// }
-// if (processId && processId !== userData?.subscriptionId) {
-//   updateFields.subscriptionId = processId;
-// }
-// if (subscriptionType && subscriptionType !== userData?.subscriptionType) {
-//   updateFields.subscriptionType = subscriptionType;
-// }
-// if (idNumber && idNumber !== userData?.idNumber) {
-//   updateFields.idNumber = idNumber;
-// }
-// if (addOns && JSON.stringify(addOns) !== JSON.stringify(userData?.addOns)) {
-//   updateFields.addOns = {
-//     leadsModule: !!addOns.leadsModule,
-//     extraWorkers: addOns.extraWorkers || 0,
-//   };
-// }
-// const planChanged =
-// (subscriptionType && subscriptionType !== userData?.subscriptionType) ||
-// (addOns && JSON.stringify(addOns) !== JSON.stringify(userData?.addOns));
-
-// await docRef.update(updateFields);
-
-//  console.log('🟢 Updated user in Firestore');
-
-
-//       try {
-//         const user = await auth.getUserByEmail(email);
-
-//         // שליחת מייל על עדכון תוכנית רק אם שונה subscriptionType או addOns והיוזר לא הוחייה עכשיו
-
-// if (planChanged && !user.disabled) {
-// await fetch('https://test.magicsale.co.il/api/sendEmail', {
-//   method: 'POST',
-//   headers: { 'Content-Type': 'application/json' },
-//   body: JSON.stringify({
-//     to: email,
-//     subject: 'עדכון תוכנית במערכת MagicSale',
-//     html: `
-//       שלום ${fullName},<br><br>
-//       תוכנית המנוי שלך עודכנה בהצלחה במערכת MagicSale.<br>
-//       סוג מנוי נוכחי: <strong>${subscriptionType}</strong><br><br>
-//       תוכל להתחבר למערכת כאן:<br>
-//       <a href="https://test.magicsale.co.il/auth/log-in">כניסה למערכת</a><br><br>
-//       בברכה,<br>
-//       צוות MagicSale
-//     `,
-//   }),
-// });
-// }
-
-//         if (user.disabled) {
-//           await auth.updateUser(user.uid, { disabled: false });
-//           console.log('✅ Firebase Auth user re-enabled');
-//         } else {
-//           console.log('ℹ️ Firebase user already active');
-//         }
-//  // ✅ יצירת לינק איפוס סיסמה
-//  const resetLink = await auth.generatePasswordResetLink(email);
-
-//  // ✅ שליחת מייל
-//  await fetch('https://test.magicsale.co.il/api/sendEmail', {
-//    method: 'POST',
-//    headers: { 'Content-Type': 'application/json' },
-//    body: JSON.stringify({
-//      to: email,
-//      subject: 'איפוס סיסמה לאחר חידוש מנוי',
-//      html: `
-//        שלום ${fullName},<br><br>
-//        המנוי שלך במערכת MagicSale חודש בהצלחה!<br>
-//        אם ברצונך להיכנס, באפשרותך לאפס את הסיסמה שלך כאן:<br>
-//        <a href="${resetLink}">איפוס סיסמה</a><br><br>
-//        בהצלחה,<br>
-//        צוות MagicSale
-//      `,
-//    }),
-//  });
-
-
-//       } catch (e) {
-//         console.warn('⚠️ Firebase user not found for email');
-//       }
-
-//       return NextResponse.json({ updated: true });
-//     }
-
-//     // ✳️ לא קיים לפי customField – נבדוק אם קיים ב־Auth לפי אימייל
-//     let existingUser: any = null;
-
-//     try {
-//       existingUser = await auth.getUserByEmail(email);
-//       console.log('🔍 User already exists in Auth:', existingUser.uid);
-
-//       if (source === 'manual-upgrade') {
-//         console.log('⏭ Skipping webhook update for existing Auth user due to manual upgrade');
-//         return NextResponse.json({ skipped: true });
-//       }
-
-//       await auth.updateUser(existingUser.uid, { disabled: false });
-//       console.log('✅ Firebase Auth user re-enabled');
-
-//       const userRef = db.collection('users').doc(existingUser.uid);
-//       const userSnap = await userRef.get();
-//       const userData = userSnap.data();
-//       const updateFields: any = {
-//         isActive: true,
-//         cancellationDate: admin.firestore.FieldValue.delete(),
-//         growCancellationStatus: admin.firestore.FieldValue.delete(),
-//         'permissionOverrides.allow': admin.firestore.FieldValue.delete(),
-//         'permissionOverrides.deny': admin.firestore.FieldValue.delete(),
-//         subscriptionStatus,
-//         lastPaymentStatus: paymentStatus,
-//         lastPaymentDate: paymentDate,
-//         totalCharged,
-//         subscriptionStartDate: new Date(), // עדכון תאריך התחלה
-//       };
-      
-//       if (transactionId && transactionId !== userData?.transactionId) {
-//         updateFields.transactionId = transactionId;
-//       }
-//       if (transactionToken && transactionToken !== userData?.transactionToken) {
-//         updateFields.transactionToken = transactionToken;
-//       }
-//       if (asmachta && asmachta !== userData?.asmachta) {
-//         updateFields.asmachta = asmachta;
-//       }
-//       if (processId && processId !== userData?.subscriptionId) {
-//         updateFields.subscriptionId = processId;
-//       }
-//       if (subscriptionType && subscriptionType !== userData?.subscriptionType) {
-//         updateFields.subscriptionType = subscriptionType;
-//       }
-//       if (idNumber && idNumber !== userData?.idNumber) {
-//         updateFields.idNumber = idNumber;
-//       }      
-//       if (addOns && JSON.stringify(addOns) !== JSON.stringify(userData?.addOns)) {
-//         updateFields.addOns = {
-//           leadsModule: !!addOns.leadsModule,
-//           extraWorkers: addOns.extraWorkers || 0,
-//         };
-//       }
-      
-//       await userRef.update(updateFields);
-      
-//       console.log('🔥 Updating user document with data:', {
-//         isActive: true,
-//         subscriptionStatus,
-//         subscriptionType,
-//         lastPaymentStatus: paymentStatus,
-//         lastPaymentDate: paymentDate,
-//         ...(transactionId ? { transactionId } : {}),
-//         ...(transactionToken ? { transactionToken } : {}),
-//         ...(asmachta ? { asmachta } : {}),
-//         ...(addOns ? {
-//           addOns: {
-//             leadsModule: !!addOns.leadsModule,
-//             extraWorkers: addOns.extraWorkers || 0,
-//           }
-//         } : {}),
-//       });
-      
-//       console.log('✅ Firestore user reactivated');
-
-// // ✅ יצירת לינק איפוס סיסמה
-// const resetLink = await auth.generatePasswordResetLink(email);
-
-// // ✅ שליחת מייל
-// await fetch('https://test.magicsale.co.il/api/sendEmail', {
-//   method: 'POST',
-//   headers: { 'Content-Type': 'application/json' },
-//   body: JSON.stringify({
-//     to: email,
-//     subject: 'איפוס סיסמה לאחר חידוש מנוי',
-//     html: `
-//       שלום ${fullName},<br><br>
-//       המנוי שלך במערכת MagicSale חודש בהצלחה!<br>
-//       אם ברצונך להיכנס, באפשרותך לאפס את הסיסמה שלך כאן:<br>
-//       <a href="${resetLink}">איפוס סיסמה</a><br><br>
-//       בהצלחה!<br>
-//       צוות MagicSale
-//     `,
-//   }),
-// });
-
-// return NextResponse.json({ reactivated: true });
-
-
-//     } catch (e) {
-//       console.log('ℹ️ No Auth user found – creating new user');
-//     }
 
 
 const snapshot = await db.collection('users').where('customField', '==', customField).get();
@@ -373,26 +171,8 @@ if (userDocRef) {
 
 // 🆕 ✅ הוספת ApproveTransaction כאן:
 if (statusCode === '2' && transactionId && transactionToken) {
-  try {
-    const approveRes = await fetch('https://sandbox.meshulam.co.il/api/light-server/1.0/ApproveTransaction', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        transactionId,
-        transactionToken,
-      }),
-    });
-
-    if (!approveRes.ok) {
-      console.error('❌ שגיאה בקריאה ל־ApproveTransaction:', await approveRes.text());
-    } else {
-      console.log('✅ ApproveTransaction בוצע בהצלחה');
-    }
-  } catch (err) {
-    console.error('⚠️ שגיאה בביצוע ApproveTransaction:', err);
-  }
+  console.log('📌 תנאים ל־ApproveTransaction מולאו – מתחיל קריאה ל־Grow');
+  await approveTransaction(transactionId, transactionToken);
 }
 
 
@@ -490,26 +270,8 @@ if (statusCode === '2' && transactionId && transactionToken) {
 
     // 🆕 ✅ הוספת ApproveTransaction כאן:
 if (statusCode === '2' && transactionId && transactionToken) {
-  try {
-    const approveRes = await fetch('https://sandbox.meshulam.co.il/api/light-server/1.0/ApproveTransaction', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        transactionId,
-        transactionToken,
-      }),
-    });
-
-    if (!approveRes.ok) {
-      console.error('❌ שגיאה בקריאה ל־ApproveTransaction:', await approveRes.text());
-    } else {
-      console.log('✅ ApproveTransaction בוצע בהצלחה');
-    }
-  } catch (err) {
-    console.error('⚠️ שגיאה בביצוע ApproveTransaction:', err);
-  }
+  console.log('📌 תנאים ל־ApproveTransaction מולאו – מתחיל קריאה ל־Grow');
+  await approveTransaction(transactionId, transactionToken);
 }
 
     return NextResponse.json({ created: true });
