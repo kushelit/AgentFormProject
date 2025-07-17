@@ -374,7 +374,7 @@ if (userDocRef) {
 // 🆕 ✅ הוספת ApproveTransaction כאן:
 if (statusCode === '2' && transactionId && transactionToken) {
   try {
-    const approveRes = await fetch('https://payments.grow.co.il/api/light-server/1.0/ApproveTransaction', {
+    const approveRes = await fetch('https://sandbox.meshulam.co.il/api/light-server/1.0/ApproveTransaction', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -491,7 +491,7 @@ if (statusCode === '2' && transactionId && transactionToken) {
     // 🆕 ✅ הוספת ApproveTransaction כאן:
 if (statusCode === '2' && transactionId && transactionToken) {
   try {
-    const approveRes = await fetch('https://payments.grow.co.il/api/light-server/1.0/ApproveTransaction', {
+    const approveRes = await fetch('https://sandbox.meshulam.co.il/api/light-server/1.0/ApproveTransaction', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
