@@ -327,7 +327,7 @@ if (isLoading || plans.length === 0) {
           </label>
         </div>
         <div>
-        <label className="block mb-1 font-semibold">ת"ז / ח.פ *</label>
+        <label className="block mb-1 font-semibold">ת&apos;ז / ח.פ *</label>
         <input
     type="text"
     value={idNumber}
