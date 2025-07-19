@@ -41,6 +41,26 @@ const ExcelCommissionImporter: React.FC = () => {
   const [summaryByAgentCode, setSummaryByAgentCode] = useState<any[]>([]);
   const [showSummaryDialog, setShowSummaryDialog] = useState(false);
 
+
+  const findHeaderRowIndex = (sheet: XLSX.WorkSheet, expectedHeaders: string[]): number => {
+    const range = XLSX.utils.decode_range(sheet['!ref']!);
+    for (let row = range.s.r; row <= range.e.r; row++) {
+      const rowValues: string[] = [];
+      for (let col = range.s.c; col <= range.e.c; col++) {
+        const cell = sheet[XLSX.utils.encode_cell({ r: row, c: col })];
+        rowValues.push(cell?.v?.toString().trim() || '');
+      }
+      const matches = expectedHeaders.filter(header => rowValues.includes(header));
+      if (matches.length >= expectedHeaders.length * 0.5) {
+        return row; // שורת כותרת מתאימה
+      }
+    }
+    return 0; // ברירת מחדל - שורה ראשונה
+  };
+  
+  
+
+
   useEffect(() => {
     setShowConfirmDelete(false);
   }, []);
@@ -169,12 +189,12 @@ const ExcelCommissionImporter: React.FC = () => {
     if (!file || !templateId || !selectedAgentId) return;
     setSelectedFileName(file.name);
     setIsLoading(true);
-
+  
     const reader = new FileReader();
     reader.onload = async (evt) => {
       const arrayBuffer = evt.target?.result as ArrayBuffer;
       let jsonData: Record<string, any>[] = [];
-
+  
       if (file.name.endsWith('.csv')) {
         const decoder = new TextDecoder('windows-1255');
         const text = decoder.decode(arrayBuffer);
@@ -186,10 +206,19 @@ const ExcelCommissionImporter: React.FC = () => {
         const wb = XLSX.read(arrayBuffer, { type: "array" });
         const wsname = wb.SheetNames[0];
         const ws = wb.Sheets[wsname];
-        jsonData = XLSX.utils.sheet_to_json(ws, { defval: "" });
+      
+        // זיהוי שורת כותרת
+        const expectedHeaders = Object.keys(mapping);
+        const headerRowIndex = findHeaderRowIndex(ws, expectedHeaders);
+  
+        jsonData = XLSX.utils.sheet_to_json(ws, {
+          defval: "",
+          range: headerRowIndex
+        });
       }
-
+  
       if (jsonData.length > 0) {
+        
         const standardized = jsonData.map((row) => {
           const result: any = {
             agentId: selectedAgentId,
@@ -210,43 +239,21 @@ const ExcelCommissionImporter: React.FC = () => {
           }
           return result;
         });
+  
         setStandardizedRows(standardized);
+  
         const reportMonth = standardized[0]?.reportMonth;
         if (reportMonth) {
           await checkExistingData(selectedAgentId, templateId, reportMonth);
         }
       }
+  
       setIsLoading(false);
     };
+  
     reader.readAsArrayBuffer(file);
   };
-
-  // const handleImport = async () => {
-  //   if (!selectedAgentId || standardizedRows.length === 0) return;
-  //   setIsLoading(true);
-
-  //   const reportMonth = standardizedRows[0]?.reportMonth;
-  //   if (existingDocs.length > 0) {
-  //     alert('❌ קובץ כבר קיים לחודש זה ולסוכן זה. מחק אותו קודם כדי לטעון מחדש.');
-  //     setIsLoading(false);
-  //     return;
-  //   }
-
-  //   try {
-  //     for (const row of standardizedRows) {
-  //       await addDoc(collection(db, 'externalCommissions'), row);
-  //     }
-  //     alert('✅ כל השורות נטענו למסד הנתונים!');
-  //     setStandardizedRows([]);
-  //     setSelectedFileName('');
-  //     setExistingDocs([]);
-  //   } catch (error) {
-  //     console.error('שגיאה בעת טעינה:', error);
-  //     alert('❌ שגיאה בעת טעינה למסד. בדוק קונסול.');
-  //   } finally {
-  //     setIsLoading(false);
-  //   }
-  // };
+  
 
   
   const handleImport = async () => {

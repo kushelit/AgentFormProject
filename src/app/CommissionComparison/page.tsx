@@ -225,14 +225,13 @@ const CommissionComparison = () => {
         </div>
       </div>
 
-      <button onClick={handleCompare} className="btn btn-primary mb-4" disabled={isLoading}>
-        {isLoading ? 'טוען...' : 'השווה'}
-      </button>
-
+      <button onClick={handleCompare} className="btn btn-primary mb-4 font-bold text-lg" disabled={isLoading}>
+  {isLoading ? 'טוען...' : 'השווה'}
+</button>
       <div className="flex flex-col sm:flex-row justify-between items-center gap-4 mb-4">
         <input
           type="text"
-          placeholder="חיפוש לפי מספר פוליסה או ת"
+          placeholder="חיפוש לפי מספר פוליסה או ת&quot;ז"
           value={searchTerm}
           onChange={handleSearchChange}
           className="input w-full sm:w-1/2"

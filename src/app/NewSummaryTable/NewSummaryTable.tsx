@@ -79,6 +79,8 @@ const averageInsurance = Math.round(overallTotals.insuranceTotal / monthsCount);
 const averageNiudPensia = Math.round(overallTotals.niudPensiaTotal / monthsCount);
 const averageCommissionHekef = Math.round(overallTotals.commissionHekefTotal / monthsCount);
 const averageCommissionNifraim = Math.round(overallTotals.commissionNifraimTotal / monthsCount);
+const averageInsuranceTravel = Math.round(overallTotals.insuranceTravelTotal / monthsCount);
+const averagePrishaMyadit = Math.round(overallTotals.prishaMyaditTotal / monthsCount);
 
 
 const { canAccess: canViewCommissions } = usePermission("view_commissions_field");
@@ -165,6 +167,8 @@ const { canAccess: canViewCommissions } = usePermission("view_commissions_field"
             <th>סך פנסיה</th>
             <th>סך ביטוח</th>
             <th>ניוד פנסיה</th>
+            <th>סך נסיעות חול</th>
+            <th>סך פרישה מיידית</th>       
             {canViewCommissions &&<th>עמלת היקף</th>}
              {canViewCommissions &&<th>עמלת נפרעים</th>}
           </tr>
@@ -181,6 +185,8 @@ const { canAccess: canViewCommissions } = usePermission("view_commissions_field"
               <td>{totals.pensiaTotal.toLocaleString()}</td>
               <td>{totals.insuranceTotal.toLocaleString()}</td>
               <td>{totals.niudPensiaTotal.toLocaleString()}</td>
+              <td>{totals.insuranceTravelTotal?.toLocaleString() || '0'}</td>
+              <td>{totals.prishaMyaditTotal?.toLocaleString() || '0'}</td>
               {canViewCommissions && <td>{totals.commissionHekefTotal.toLocaleString()}</td>}
               {canViewCommissions && <td>{totals.commissionNifraimTotal.toLocaleString()}</td>}
             </tr>
@@ -191,6 +197,8 @@ const { canAccess: canViewCommissions } = usePermission("view_commissions_field"
             <td><strong>{overallTotals.pensiaTotal.toLocaleString()}</strong></td>
             <td><strong>{overallTotals.insuranceTotal.toLocaleString()}</strong></td>
             <td><strong>{overallTotals.niudPensiaTotal.toLocaleString()}</strong></td>
+            <td><strong>{overallTotals.insuranceTravelTotal.toLocaleString()}</strong></td>
+            <td><strong>{overallTotals.prishaMyaditTotal.toLocaleString()}</strong></td>
             {canViewCommissions &&   <td><strong>{overallTotals.commissionHekefTotal.toLocaleString()}</strong></td>}
             {canViewCommissions &&  <td><strong>{overallTotals.commissionNifraimTotal.toLocaleString()}</strong></td>}
           </tr>
@@ -200,6 +208,8 @@ const { canAccess: canViewCommissions } = usePermission("view_commissions_field"
         <td><strong>{averagePensia.toLocaleString()}</strong></td>
         <td><strong>{averageInsurance.toLocaleString()}</strong></td>
         <td><strong>{averageNiudPensia.toLocaleString()}</strong></td>
+        <td><strong>{averageInsuranceTravel.toLocaleString()}</strong></td>
+        <td><strong>{averagePrishaMyadit.toLocaleString()}</strong></td>
         {canViewCommissions && <td><strong>{averageCommissionHekef.toLocaleString()}</strong></td>}
         {canViewCommissions && <td><strong>{averageCommissionNifraim.toLocaleString()}</strong></td>}
       </tr>

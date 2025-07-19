@@ -1383,7 +1383,7 @@ console.log("🚨 invalidFields:", invalidFields); // ✅ כאן מחוץ ל-HTM
   )}
             </div>
             {/* פרטי פרמיה */}
-       {selectedProductGroup && selectedProductGroup !== "1" && selectedProductGroup !== "4" && (
+       {selectedProductGroup && selectedProductGroup !== "1" && selectedProductGroup !== "4" && selectedProductGroup !== "6" && (
   <div className="form-group">
     <label htmlFor="insPremia">פרמיה ביטוח</label>
     <input
@@ -1394,7 +1394,7 @@ console.log("🚨 invalidFields:", invalidFields); // ✅ כאן מחוץ ל-HTM
     />
   </div>
 )}
-{selectedProductGroup && selectedProductGroup !== "3" && selectedProductGroup !== "4" && (
+{selectedProductGroup && selectedProductGroup !== "3" && selectedProductGroup !== "4" && selectedProductGroup !== "5" && selectedProductGroup !== "6"&& (
   <div className="form-group">
     <label htmlFor="pensiaPremia">פרמיה פנסיה</label>
     <input
@@ -1406,7 +1406,7 @@ console.log("🚨 invalidFields:", invalidFields); // ✅ כאן מחוץ ל-HTM
   </div>
 )}
 
-{selectedProductGroup && selectedProductGroup !== "3" && selectedProductGroup !== "4" && (
+{selectedProductGroup && selectedProductGroup !== "3" && selectedProductGroup !== "4" && selectedProductGroup !== "5" && (
   <div className="form-group">
     <label htmlFor="pensiaZvira">צבירה פנסיה</label>
     <input
@@ -1418,7 +1418,7 @@ console.log("🚨 invalidFields:", invalidFields); // ✅ כאן מחוץ ל-HTM
   </div>
 )}
 
-{selectedProductGroup && selectedProductGroup !== "1" && selectedProductGroup !== "3" && (
+{selectedProductGroup && selectedProductGroup !== "1" && selectedProductGroup !== "3" && selectedProductGroup !== "5" && selectedProductGroup !== "6" && (
   <div className="form-group">
     <label htmlFor="finansimPremia">פרמיה פיננסים</label>
     <input
@@ -1430,7 +1430,7 @@ console.log("🚨 invalidFields:", invalidFields); // ✅ כאן מחוץ ל-HTM
   </div>
 )}
 
-{selectedProductGroup && selectedProductGroup !== "1" && selectedProductGroup !== "3" && (
+{selectedProductGroup && selectedProductGroup !== "1" && selectedProductGroup !== "3" && selectedProductGroup !== "5" && selectedProductGroup !== "6" && (
   <div className="form-group">
     <label htmlFor="finansimZvira">צבירה פיננסים</label>
     <input

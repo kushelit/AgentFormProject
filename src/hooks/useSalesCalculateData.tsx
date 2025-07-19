@@ -10,6 +10,8 @@ type MonthlyTotal = {
     niudPensiaTotal: number;
     commissionHekefTotal: number;
     commissionNifraimTotal: number;
+    insuranceTravelTotal: number;     
+  prishaMyaditTotal: number;       
 };
 
 type MonthlyTotals = {
@@ -31,8 +33,8 @@ interface Contract {
 interface Product {
     productName: string;
     productGroup: string;
-    // Add other fields as necessary
-  }
+    isOneTimeCommission?: boolean; // שדה חדש – האם העמלה חד־פעמית
+}
 
 
 function useSalesData(
@@ -44,9 +46,9 @@ function useSalesData(
      includePreviousDecember: boolean = false // 🆕 פרמטר חדש
     ) {
     const [monthlyTotals, setMonthlyTotals] = useState<MonthlyTotals>({});
-    const [overallTotals, setOverallTotals] = useState<MonthlyTotal>({ finansimTotal: 0, pensiaTotal: 0, insuranceTotal: 0, niudPensiaTotal: 0, commissionHekefTotal: 0, commissionNifraimTotal: 0 });
+    const [overallTotals, setOverallTotals] = useState<MonthlyTotal>({ finansimTotal: 0, pensiaTotal: 0, insuranceTotal: 0, niudPensiaTotal: 0, commissionHekefTotal: 0, commissionNifraimTotal: 0  , insuranceTravelTotal: 0, prishaMyaditTotal: 0 }); // הוספת שדה חדש
     const [contracts, setContracts] = useState<Contract[]>([]);
-    const [productMap, setProductMap] = useState<Record<string, string>>({});
+const [productMap, setProductMap] = useState<Record<string, Product>>({});
     const { user, detail } = useAuth(); // Assuming useAuth() hook provides user and detail context
     const [loading, setLoading] = useState(true);  // Add loading state here
     const [isLoadingData, setIsLoadingData] = useState(false);
@@ -54,9 +56,9 @@ function useSalesData(
 
     useEffect(() => {
         async function fetchContractsAndProducts() {
-            // console.log("before 6 - loading: " + loading);
             const contractsSnapshot = await getDocs(collection(db, 'contracts'));
             const productsSnapshot = await getDocs(collection(db, 'product'));
+    
             const fetchedContracts: Contract[] = contractsSnapshot.docs.map(doc => ({
                 id: doc.id,
                 company: doc.data().company,
@@ -68,21 +70,27 @@ function useSalesData(
                 commissionNiud: doc.data().commissionNiud,
                 minuySochen: doc.data().minuySochen,
             }));
-            const newProductMap: Record<string, string> = {};
+    
+            const newProductMap: Record<string, Product> = {};
             productsSnapshot.forEach(doc => {
-                newProductMap[doc.data().productName] = doc.data().productGroup;
+                const data = doc.data();
+                newProductMap[data.productName] = {
+                    productName: data.productName,
+                    productGroup: data.productGroup,
+                    isOneTimeCommission: data.isOneTime || false, // שדה חדש
+                };
             });
+    
             setContracts(fetchedContracts);
             setProductMap(newProductMap);
             setLoading(false);
-            // console.log("after 6 - loading: " + loading);
         }
-
+    
         if (selectedAgentId || detail?.role === 'admin') {
             fetchContractsAndProducts();
         }
     }, [selectedAgentId]);
-
+    
     
     const createSalesQuery = (filterMinuySochen = false) => {
         const currentDate = new Date();
@@ -152,6 +160,8 @@ function useSalesData(
                         niudPensiaTotal: 0,
                         commissionHekefTotal: 0,
                         commissionNifraimTotal: 0,
+                        insuranceTravelTotal: 0,
+                        prishaMyaditTotal: 0, // הוספת שדה חדש
                     });
                     return;
                 }
@@ -194,9 +204,10 @@ function useSalesData(
             //   const month = `${date.getMonth() + 1}`.padStart(2, '0') + '/' + year.toString().slice(2);
 
                 if (!newMonthlyTotals[formattedMonth]) {
-                        newMonthlyTotals[formattedMonth] = { finansimTotal: 0, pensiaTotal: 0, insuranceTotal: 0, niudPensiaTotal: 0, commissionHekefTotal: 0, commissionNifraimTotal: 0 };
-                    }
-                    updateTotalsForMonth(data, newMonthlyTotals[formattedMonth], data.minuySochen);
+                        newMonthlyTotals[formattedMonth] = { finansimTotal: 0, pensiaTotal: 0, insuranceTotal: 0, niudPensiaTotal: 0, commissionHekefTotal: 0, commissionNifraimTotal: 0,insuranceTravelTotal: 0, prishaMyaditTotal: 0,
+                    };
+                }
+                    updateTotalsForMonth(data, newMonthlyTotals[formattedMonth], data.minuySochen, productMap[data.product]);
                                 
                 });
                 commissionQuerySnapshot.forEach(doc => {
@@ -211,11 +222,12 @@ function useSalesData(
         
             //   const month = `${date.getMonth() + 1}`.padStart(2, '0') + '/' + date.getFullYear().toString().slice(2);
             const month = `${date.getMonth() + 1}`.padStart(2, '0') + '/' + year.toString().slice(2);
+            const product = productMap[data.product]; // זה כל אובייקט המוצר
 
             
             if (newMonthlyTotals[month]) {
-                        updateCommissions(data, newMonthlyTotals[month], productMap[data.product], newCompanyCommissions);
-                    }
+                updateCommissions(data, newMonthlyTotals[month], product, newCompanyCommissions);
+              }
                 });
 
                 setMonthlyTotals(newMonthlyTotals);
@@ -238,29 +250,38 @@ function useSalesData(
   
 
 
-    function updateTotalsForMonth(data: any, monthTotals: MonthlyTotal, includeMinuySochen: boolean) {  
-        if (!includeMinuySochen ) {       
-        monthTotals.finansimTotal += parseInt(data.finansimZvira) || 0;
-        monthTotals.insuranceTotal += (parseInt(data.insPremia) || 0) * 12;
-        monthTotals.pensiaTotal += (parseInt(data.pensiaPremia) || 0) * 12;
-        monthTotals.niudPensiaTotal += parseInt(data.pensiaZvira) || 0;
-    }
-    }
+    function updateTotalsForMonth(data: any, monthTotals: MonthlyTotal, includeMinuySochen: boolean, product?: Product) {  
+        if (!includeMinuySochen) {
+            const isOneTime = product?.isOneTimeCommission ?? false;
+          
+            if (isOneTime) {
+              // נפרדים לקטגוריות חד־פעמיות
+              monthTotals.insuranceTravelTotal = (monthTotals.insuranceTravelTotal || 0) + (parseInt(data.insPremia) || 0);
+              monthTotals.prishaMyaditTotal = (monthTotals.prishaMyaditTotal || 0) + (parseInt(data.pensiaZvira) || 0);
+            } else {
+              // מצטברים רגילים
+              monthTotals.finansimTotal += parseInt(data.finansimZvira) || 0;
+              monthTotals.insuranceTotal += (parseInt(data.insPremia) || 0) * 12;
+              monthTotals.pensiaTotal += (parseInt(data.pensiaPremia) || 0) * 12;
+              monthTotals.niudPensiaTotal += parseInt(data.pensiaZvira) || 0;
+            }
+          }
+        }
 
-    function updateCommissions(data: any, monthTotals: MonthlyTotal, productGroup: string,
+    function updateCommissions(data: any, monthTotals: MonthlyTotal,   product: Product | undefined,
         companyCommissions: Record<string, number> // Pass an object to track per-company commissions
     ) {  
-       // contracts.forEach(contract => {       
-        // });
+        const productGroup = product?.productGroup;
+
         const contractMatch = contracts.find(contract => contract.agentId === data.AgentId && contract.product === data.product && contract.company === data.company &&   (contract.minuySochen === data.minuySochen || (contract.minuySochen === undefined && data.minuySochen === false)));
        
         if (contractMatch) {
-            calculateCommissions(monthTotals, data, contractMatch, companyCommissions);
+            calculateCommissions(monthTotals, data, contractMatch, product , companyCommissions);
         } else {
             const groupMatch = contracts.find(contract => contract.productsGroup === productGroup && contract.agentId === data.AgentId &&  (contract.minuySochen === data.minuySochen || (contract.minuySochen === undefined && data.minuySochen === false)));
             
             if (groupMatch) {
-                calculateCommissions(monthTotals, data, groupMatch, companyCommissions);
+                calculateCommissions(monthTotals, data, groupMatch, product , companyCommissions);
             } else {
                 // console.log('No Match Found' , data.productGroup);
             }
@@ -268,20 +289,28 @@ function useSalesData(
     }
 
     function calculateCommissions(monthTotals: MonthlyTotal, data: any, contract: Contract,
-        companyCommissions: Record<string, number> // Add company-specific commission tracking
+        product: Product | undefined, companyCommissions: Record<string, number> // Add company-specific commission tracking
+    ) 
+    {
 
-    ) {
-        const hekef = ((parseInt(data.insPremia) || 0) * contract.commissionHekef / 100 * 12) + 
-                     ((parseInt(data.pensiaPremia) || 0) * contract.commissionHekef / 100 * 12) + 
+        const isOneTime = product?.isOneTimeCommission ?? false;
+        const multiplier = isOneTime ? 1 : 12;
+
+
+        const hekef = ((parseInt(data.insPremia) || 0) * contract.commissionHekef / 100 * multiplier) + 
+                     ((parseInt(data.pensiaPremia) || 0) * contract.commissionHekef / 100 * multiplier) + 
                      ((parseInt(data.pensiaZvira) || 0) * contract.commissionNiud / 100) + 
-                     ((parseInt(data.finansimPremia) || 0) * contract.commissionHekef / 100 * 12) + 
+                     ((parseInt(data.finansimPremia) || 0) * contract.commissionHekef / 100 * multiplier) + 
                      ((parseInt(data.finansimZvira) || 0) * contract.commissionNiud / 100);
     
       
-    const nifraim = ((parseInt(data.insPremia) || 0) * contract.commissionNifraim / 100) + 
-    ((parseInt(data.pensiaPremia) || 0) * contract.commissionNifraim / 100) + 
-    ((parseInt(data.finansimZvira) || 0) * contract.commissionNifraim / 100 / 12);
-
+  // 🛑 אם מדובר במוצר חד-פעמי, נוותר על חישוב נפרעים
+const nifraim = isOneTime ? 0 : (
+    ((parseInt(data.insPremia) || 0) * contract.commissionNifraim / 100) +
+    ((parseInt(data.pensiaPremia) || 0) * contract.commissionNifraim / 100) +
+    ((parseInt(data.finansimZvira) || 0) * contract.commissionNifraim / 100 / 12)
+  );
+  
         monthTotals.commissionHekefTotal += Math.round(hekef);
         monthTotals.commissionNifraimTotal += Math.round(nifraim);
 
@@ -293,19 +322,32 @@ function useSalesData(
 
     }
 
-
     function aggregateOverallTotals(monthlyTotals: MonthlyTotals) {
-        let totals: MonthlyTotal = { finansimTotal: 0, pensiaTotal: 0, insuranceTotal: 0, niudPensiaTotal: 0, commissionHekefTotal: 0, commissionNifraimTotal: 0 };
+        let totals: MonthlyTotal = {
+          finansimTotal: 0,
+          pensiaTotal: 0,
+          insuranceTotal: 0,
+          niudPensiaTotal: 0,
+          commissionHekefTotal: 0,
+          commissionNifraimTotal: 0,
+          insuranceTravelTotal: 0,
+          prishaMyaditTotal: 0,
+        };
+      
         Object.values(monthlyTotals).forEach(month => {
-            totals.finansimTotal += month.finansimTotal;
-            totals.pensiaTotal += month.pensiaTotal;
-            totals.insuranceTotal += month.insuranceTotal;
-            totals.niudPensiaTotal += month.niudPensiaTotal;
-            totals.commissionHekefTotal += month.commissionHekefTotal;
-            totals.commissionNifraimTotal += month.commissionNifraimTotal;
+          totals.finansimTotal += month.finansimTotal;
+          totals.pensiaTotal += month.pensiaTotal;
+          totals.insuranceTotal += month.insuranceTotal;
+          totals.niudPensiaTotal += month.niudPensiaTotal;
+          totals.commissionHekefTotal += month.commissionHekefTotal;
+          totals.commissionNifraimTotal += month.commissionNifraimTotal;
+          totals.insuranceTravelTotal += month.insuranceTravelTotal || 0;
+          totals.prishaMyaditTotal += month.prishaMyaditTotal || 0;
         });
+      
         setOverallTotals(totals);
-    }
+      }
+      
 
     return {
         monthlyTotals,

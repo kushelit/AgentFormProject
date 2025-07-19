@@ -17,6 +17,13 @@ export type ExternalCommissionRow = {
   company: string;
 };
 
+interface Product {
+  productName: string;
+  productGroup: string;
+  isOneTimeCommission?: boolean;
+}
+
+
 const CompareRealToReported = () => {
   const { detail } = useAuth();
   const { agents, selectedAgentId, handleAgentChange } = useFetchAgentData();
@@ -102,10 +109,15 @@ const CompareRealToReported = () => {
       const contractsData = contractsSnap.docs.map(doc => doc.data() as ContractForCompareCommissions);
       setContracts(contractsData);
 
-      const productMap: Record<string, string> = {};
+      const productMap: Record<string, Product> = {};
       contractsData.forEach(contract => {
         contract.productsGroup?.split(',').forEach(prod => {
-          productMap[prod.trim()] = contract.productsGroup;
+          const trimmed = prod.trim();
+          productMap[trimmed] = {
+            productName: trimmed,
+            productGroup: contract.productsGroup,
+            isOneTimeCommission: false // או true אם צריך לפי לוגיקה כלשהי
+          };
         });
       });
 

@@ -50,7 +50,7 @@ const NewCustomer = () => {
   const [showSelect, setShowSelect] = useState(false);
 
   const [contracts, setContracts] = useState<Contract[]>([]);
-  const [productMap, setProductMap] = useState<Record<string, string>>({});
+  const [productMap, setProductMap] = useState<Record<string, Product>>({});
 
   const [birthday, setBirthday] = useState('');
   const [phone, setPhone] = useState('');
@@ -323,6 +323,7 @@ useEffect(() => {
   interface Product {
     productName: string;
     productGroup: string;
+    isOneTime?: boolean; 
   }
 
 
@@ -346,20 +347,26 @@ useEffect(() => {
     fetchContracts();
   }, []);
 
-
   useEffect(() => {
     const fetchProducts = async () => {
       const querySnapshot = await getDocs(collection(db, 'product'));
-      const productMapping: Record<string, string> = {}; // More specific type than {}
+      const productMapping: Record<string, Product> = {}; // ⬅️ שינוי כאן
+  
       querySnapshot.forEach((doc) => {
         const productData = doc.data() as Product;
-        productMapping[productData.productName] = productData.productGroup;
+        productMapping[productData.productName] = {
+          productName: productData.productName,
+          productGroup: productData.productGroup,
+          isOneTime: productData.isOneTime || false, // ⬅️ נלקח מה-DB
+        };
       });
+  
       setProductMap(productMapping);
     };
-
+  
     fetchProducts();
   }, []);
+  
 
 
   interface Sale {
@@ -390,51 +397,64 @@ useEffect(() => {
   function calculateCommissions(sale: Sale, contractMatch: any) {
     let commissionHekef = 0;
     let commissionNifraim = 0;
-
+  
+    const product = productMap[sale.product];
+    const isOneTime = product?.isOneTime ?? false;
+    const multiplier = isOneTime ? 1 : 12;
+  
     if (contractMatch) {
       commissionHekef = (
-        ((parseInt(sale.insPremia) || 0) * contractMatch.commissionHekef / 100 * 12) +
-        ((parseInt(sale.pensiaPremia) || 0) * contractMatch.commissionHekef / 100 * 12) +
+        ((parseInt(sale.insPremia) || 0) * contractMatch.commissionHekef / 100 * multiplier) +
+        ((parseInt(sale.pensiaPremia) || 0) * contractMatch.commissionHekef / 100 * multiplier) +
         ((parseInt(sale.pensiaZvira) || 0) * contractMatch.commissionNiud / 100) +
-        ((parseInt(sale.finansimPremia) || 0) * contractMatch.commissionHekef / 100 * 12) +
+        ((parseInt(sale.finansimPremia) || 0) * contractMatch.commissionHekef / 100 * multiplier) +
         ((parseInt(sale.finansimZvira) || 0) * contractMatch.commissionNiud / 100)
       );
-
-      commissionNifraim = (
-        ((parseInt(sale.insPremia) || 0) * contractMatch.commissionNifraim / 100) +
-        ((parseInt(sale.pensiaPremia) || 0) * contractMatch.commissionNifraim / 100) +
-        ((parseInt(sale.finansimZvira) || 0) * contractMatch.commissionNifraim / 100 / 12)
-      );
+  
+      if (!isOneTime) {
+        commissionNifraim = (
+          ((parseInt(sale.insPremia) || 0) * contractMatch.commissionNifraim / 100) +
+          ((parseInt(sale.pensiaPremia) || 0) * contractMatch.commissionNifraim / 100) +
+          ((parseInt(sale.finansimZvira) || 0) * contractMatch.commissionNifraim / 100 / 12)
+        );
+      }
+  
     } else {
-      const productGroup = productMap[sale.product];
       const groupMatch = contracts.find(contract =>
-        contract.productsGroup === productGroup &&
-        contract.agentId === selectedAgentId && (contract.minuySochen === sale.minuySochen || (contract.minuySochen === undefined && !sale.minuySochen))
+        contract.productsGroup === product?.productGroup &&
+        contract.agentId === selectedAgentId &&
+        (contract.minuySochen === sale.minuySochen || (contract.minuySochen === undefined && !sale.minuySochen))
       );
+  
       if (groupMatch) {
         commissionHekef = (
-          ((parseInt(sale.insPremia) || 0) * groupMatch.commissionHekef / 100 * 12) +
-          ((parseInt(sale.pensiaPremia) || 0) * groupMatch.commissionHekef / 100 * 12) +
+          ((parseInt(sale.insPremia) || 0) * groupMatch.commissionHekef / 100 * multiplier) +
+          ((parseInt(sale.pensiaPremia) || 0) * groupMatch.commissionHekef / 100 * multiplier) +
           ((parseInt(sale.pensiaZvira) || 0) * groupMatch.commissionNiud / 100) +
-          ((parseInt(sale.finansimPremia) || 0) * groupMatch.commissionHekef / 100 * 12) +
+          ((parseInt(sale.finansimPremia) || 0) * groupMatch.commissionHekef / 100 * multiplier) +
           ((parseInt(sale.finansimZvira) || 0) * groupMatch.commissionNiud / 100)
         );
-
-        commissionNifraim = (
-          ((parseInt(sale.insPremia) || 0) * groupMatch.commissionNifraim / 100) +
-          ((parseInt(sale.pensiaPremia) || 0) * groupMatch.commissionNifraim / 100) +
-          ((parseInt(sale.finansimZvira) || 0) * groupMatch.commissionNifraim / 100 / 12)
-        );
+  
+        if (!isOneTime) {
+          commissionNifraim = (
+            ((parseInt(sale.insPremia) || 0) * groupMatch.commissionNifraim / 100) +
+            ((parseInt(sale.pensiaPremia) || 0) * groupMatch.commissionNifraim / 100) +
+            ((parseInt(sale.finansimZvira) || 0) * groupMatch.commissionNifraim / 100 / 12)
+          );
+        }
+  
       } else {
-        commissionNifraim = 0;
         commissionHekef = 0;
+        commissionNifraim = 0;
       }
     }
+  
     return {
       commissionHekef: Math.round(commissionHekef),
       commissionNifraim: Math.round(commissionNifraim)
     };
   }
+  
 
 
   function calculatePremiaAndTzvira(sale: Sale) {

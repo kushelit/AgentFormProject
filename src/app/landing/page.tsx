@@ -73,8 +73,9 @@ const faqs = [
   },
   {
     question: 'האם יש תקופת ניסיון?',
-    answer: 'בהחלט! אנחנו מציעים 14 ימי התנסות חינם וללא התחייבות. תוכלו לבטל בלחיצה אחת בכל שלב במהלך התקופה. – ניתן לבטל בכל עת בתקופה זו, ללא התחייבות וללא קנס ביטול.'
+    answer: 'כן, תוכלו להתנסות במערכת במשך 14 יום ולקבל החזר מלא אם תחליטו לבטל – בלי התחייבות ובלי קנס.'
   },
+  
 ];
 
 
@@ -126,8 +127,7 @@ export default function LandingPage() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 1, delay: 0.4 }}
         >
-          ניהול עסק חכם לסוכני ביטוח: עמלות, לידים, לקוחות, גרפים, יעדים והרשאות – במקום אחד. כולל 14 ימי ניסיון חינם ללא התחייבות.
-          </motion.p>
+כל מה שסוכן ביטוח צריך – במקום אחד: עמלות, לידים, לקוחות, גרפים והרשאות. בטלו תוך 14 יום ותקבלו החזר מלא.          </motion.p>
         <motion.button
           onClick={() => router.push('/subscription-sign-up')}
           whileHover={{ scale: 1.05 }}
@@ -153,8 +153,8 @@ export default function LandingPage() {
       </section>
       <section className="bg-blue-100 text-blue-900 text-center py-6 px-4 border-t border-b border-blue-300">
   <p className="text-lg font-semibold">
-    ⭐ נסו אותנו ל-14 ימים – התנסות חינם וללא התחייבות. בטלו בכל עת בלחיצה פשוטה. ⭐
-  </p>
+  ⭐ נסו את MagicSale בראש שקט – החזר מלא אם תבטלו בתוך 14 יום ⭐
+</p>
 </section>
       <section className="py-16 bg-blue-50 text-right">
   <motion.div
