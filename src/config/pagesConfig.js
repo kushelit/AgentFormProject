@@ -15,18 +15,17 @@ const pages = [
   { href: '/NewGoals', label: 'ניהול יעדים' },
   { href: '/NewEnviorment', label: 'ניהול הגדרות לידים' },
   { href: '/TeamPermissionsTable', label: 'ניהול הרשאות' },
-  { href: 'import-excel', label: 'ייבוא אקסל עסקאות' },
-  {
-    href: '/importCommissionHub',
-    label: 'טעינת קבצי עמלות',
-    submenu: [
-      { href: '/ExcelCommissionImporter', label: 'קליטת קבצים' },
-      { href: '/CommissionComparison', label: ' השוואת טעינות' },
-      { href: '/CommissionSummary', label: ' דף מסכם עמלות' },
-      { href: '/CompareRealToReported', label: ' השוואה לעמלה בפועל' },
+  // {
+  //   href: '/importCommissionHub',
+  //   label: 'טעינת קבצי עמלות',
+  //   submenu: [
+  //     { href: '/ExcelCommissionImporter', label: 'קליטת קבצים' },
+  //     { href: '/CommissionComparison', label: ' השוואת טעינות' },
+  //     { href: '/CommissionSummary', label: ' דף מסכם עמלות' },
+  //     { href: '/CompareRealToReported', label: ' השוואה לעמלה בפועל' },
 
-    ],
-  },
+  //   ],
+  // },
   {
     href: '/AdminHub', // או כל דף ראשי שתבחרי
     label: 'ניהול אדמין',
@@ -37,6 +36,7 @@ const pages = [
       { href: '/ManagePoolAgents', label: 'ניהול פול ליד' },
       { href: '/ManageManager', label: 'ניהול קבוצות סוכנים' },
       { href: '/SubscriptionsTable', label: 'ניהול מנויים ' },
+      { href: '/import-excel', label: 'ייבוא אקסל עסקאות' },
 
       
     ],
