@@ -213,7 +213,7 @@ const ExcelCommissionImporter: React.FC = () => {
     reader.onload = async (evt) => {
       const arrayBuffer = evt.target?.result as ArrayBuffer;
       let jsonData: Record<string, any>[] = [];
-  
+    
       if (file.name.endsWith('.csv')) {
         const decoder = new TextDecoder('windows-1255');
         const text = decoder.decode(arrayBuffer);
@@ -223,118 +223,85 @@ const ExcelCommissionImporter: React.FC = () => {
         jsonData = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
       } else {
         const wb = XLSX.read(arrayBuffer, { type: "array" });
-        const wsname = wb.SheetNames[0];
+        let wsname = wb.SheetNames[0];
+        let headerRowIndex = 0;
+    
+        if (templateId === 'menura_insurance') {
+          const foundSheet = wb.SheetNames.find(name => name.includes('דוח עמלות'));
+          if (foundSheet) {
+            wsname = foundSheet;
+            headerRowIndex = 29; // שורה 30
+            console.log('📄 לשונית שנבחרה:', wsname);
+          } else {
+            alert('❌ לא נמצאה לשונית בשם דוח עמלות');
+            setIsLoading(false);
+            return;
+          }
+        }
+    
         const ws = wb.Sheets[wsname];
-  
-        const expectedHeaders = Object.keys(mapping);
-        const headerRowIndex = findHeaderRowIndex(ws, expectedHeaders);
-  
+    
+        for (let i = headerRowIndex; i < headerRowIndex + 1; i++) {
+          const rowLog: any[] = [];
+          for (let j = 0; j < 20; j++) {
+            const cellAddress = XLSX.utils.encode_cell({ r: i, c: j });
+            const cell = ws[cellAddress];
+            rowLog.push(cell?.v ?? '');
+          }
+          console.log(`🧾 שורת כותרת (index ${i}):`, rowLog);
+        }
+    
+        if (templateId !== 'menura_insurance') {
+          const expectedHeaders = Object.keys(mapping);
+          headerRowIndex = findHeaderRowIndex(ws, expectedHeaders);
+        }
+    
         jsonData = XLSX.utils.sheet_to_json(ws, {
           defval: "",
           range: headerRowIndex
         });
       }
-  
+    
       if (jsonData.length > 0) {
-        const standardized = jsonData.map((row) => {
-          const result: any = {
-            agentId: selectedAgentId,
-            templateId,
-            sourceFileName: file.name,
-            uploadDate: serverTimestamp()
-          };
-          for (const [excelCol, systemField] of Object.entries(mapping)) {
-            const value = row[excelCol];
-            if (systemField === 'validMonth' || systemField === 'reportMonth') {
-              const parsed = parseHebrewMonth(value);
-              result[systemField] = parsed || value;
-            } else if (systemField === 'commissionAmount') {
-              result[systemField] = value ? parseFloat(value.toString().replace(/,/g, '')) || 0 : 0;
-            } else {
-              result[systemField] = value;
+        const agentCodeColumn = Object.entries(mapping).find(([, field]) => field === 'agentCode')?.[0];
+    
+        const standardized = jsonData
+          .filter((row) => {
+            const agentCodeVal = agentCodeColumn ? row[agentCodeColumn] : null;
+            return agentCodeVal && agentCodeVal.toString().trim() !== '';
+          })
+          .map((row) => {
+            const result: any = {
+              agentId: selectedAgentId,
+              templateId,
+              sourceFileName: file.name,
+              uploadDate: serverTimestamp()
+            };
+            for (const [excelCol, systemField] of Object.entries(mapping)) {
+              const value = row[excelCol];
+              if (systemField === 'validMonth' || systemField === 'reportMonth') {
+                const parsed = parseHebrewMonth(value);
+                result[systemField] = parsed || value;
+              } else if (systemField === 'commissionAmount') {
+                result[systemField] = value ? parseFloat(value.toString().replace(/,/g, '')) || 0 : 0;
+              } else {
+                result[systemField] = value;
+              }
             }
-          }
-          return result;
-        });
-  
+            return result;
+          });
+    
         setStandardizedRows(standardized);
-  
+    
         const reportMonth = standardized[0]?.reportMonth;
         if (reportMonth) {
           await checkExistingData(selectedAgentId, templateId, reportMonth);
         }
       }
-  
+    
       setIsLoading(false);
     };
-  reader.onload = async (evt) => {
-  const arrayBuffer = evt.target?.result as ArrayBuffer;
-  let jsonData: Record<string, any>[] = [];
-
-  if (file.name.endsWith('.csv')) {
-    const decoder = new TextDecoder('windows-1255');
-    const text = decoder.decode(arrayBuffer);
-    const workbook = XLSX.read(text, { type: 'string' });
-    const firstSheet = workbook.SheetNames[0];
-    const worksheet = workbook.Sheets[firstSheet];
-    jsonData = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
-  } else {
-    const wb = XLSX.read(arrayBuffer, { type: "array" });
-    const wsname = wb.SheetNames[0];
-    const ws = wb.Sheets[wsname];
-
-    // זיהוי שורת כותרת
-    const expectedHeaders = Object.keys(mapping);
-    const headerRowIndex = findHeaderRowIndex(ws, expectedHeaders);
-
-    jsonData = XLSX.utils.sheet_to_json(ws, {
-      defval: "",
-      range: headerRowIndex
-    });
-  }
-
-  if (jsonData.length > 0) {
-    // 🧩 זיהוי עמודת ה-agentCode בקובץ
-    const agentCodeColumn = Object.entries(mapping).find(([, field]) => field === 'agentCode')?.[0];
-
-    // 🧠 סינון שורות ריקות או סיכום – לפי agentCode בלבד
-    const standardized = jsonData
-      .filter((row) => {
-        const agentCodeVal = agentCodeColumn ? row[agentCodeColumn] : null;
-        return agentCodeVal && agentCodeVal.toString().trim() !== '';
-      })
-      .map((row) => {
-        const result: any = {
-          agentId: selectedAgentId,
-          templateId,
-          sourceFileName: file.name,
-          uploadDate: serverTimestamp()
-        };
-        for (const [excelCol, systemField] of Object.entries(mapping)) {
-          const value = row[excelCol];
-          if (systemField === 'validMonth' || systemField === 'reportMonth') {
-            const parsed = parseHebrewMonth(value);
-            result[systemField] = parsed || value;
-          } else if (systemField === 'commissionAmount') {
-            result[systemField] = value ? parseFloat(value.toString().replace(/,/g, '')) || 0 : 0;
-          } else {
-            result[systemField] = value;
-          }
-        }
-        return result;
-      });
-
-    setStandardizedRows(standardized);
-
-    const reportMonth = standardized[0]?.reportMonth;
-    if (reportMonth) {
-      await checkExistingData(selectedAgentId, templateId, reportMonth);
-    }
-  }
-
-  setIsLoading(false);
-};
-
+    
     reader.readAsArrayBuffer(file);
   };
   
