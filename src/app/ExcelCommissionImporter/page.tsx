@@ -214,6 +214,28 @@ const ExcelCommissionImporter: React.FC = () => {
       const arrayBuffer = evt.target?.result as ArrayBuffer;
       let jsonData: Record<string, any>[] = [];
     
+      const extractReportMonthFromFilename = (filename: string): string | undefined => {
+        // שלב 1: ניקוי סיומת (למשל .xlsx)
+        const nameWithoutExtension = filename.replace(/\.[^/.]+$/, '');
+      
+        // שלב 2: חיפוש תבנית תאריך גמישה — גם עם רווחים וסוגריים
+        const match = nameWithoutExtension.match(/(?:^|[^0-9])(\d{2})[_\-](\d{4})(?:[^0-9]|$)/);
+      
+        if (match) {
+          const [, month, year] = match;
+          return `${year}-${month}`;
+        }
+      
+        return undefined;
+      };
+      
+      let fallbackReportMonth: string | undefined;
+      if (templateId === 'mor_insurance') {
+        fallbackReportMonth = extractReportMonthFromFilename(file.name);
+
+console.log('🧪 שם קובץ מקורי:', file.name);
+console.log('📅 reportMonth שחולץ:', fallbackReportMonth);      }
+    
       if (file.name.endsWith('.csv')) {
         const decoder = new TextDecoder('windows-1255');
         const text = decoder.decode(arrayBuffer);
@@ -241,16 +263,6 @@ const ExcelCommissionImporter: React.FC = () => {
     
         const ws = wb.Sheets[wsname];
     
-        for (let i = headerRowIndex; i < headerRowIndex + 1; i++) {
-          const rowLog: any[] = [];
-          for (let j = 0; j < 20; j++) {
-            const cellAddress = XLSX.utils.encode_cell({ r: i, c: j });
-            const cell = ws[cellAddress];
-            rowLog.push(cell?.v ?? '');
-          }
-          console.log(`🧾 שורת כותרת (index ${i}):`, rowLog);
-        }
-    
         if (templateId !== 'menura_insurance') {
           const expectedHeaders = Object.keys(mapping);
           headerRowIndex = findHeaderRowIndex(ws, expectedHeaders);
@@ -261,7 +273,12 @@ const ExcelCommissionImporter: React.FC = () => {
           range: headerRowIndex
         });
       }
-    
+      if (jsonData.length === 0) {
+        alert('⚠️ הקובץ לא מכיל שורות נתונים. ודאי שהעלית קובץ עם תוכן.');
+        setIsLoading(false);
+        return;
+      }
+      
       if (jsonData.length > 0) {
         const agentCodeColumn = Object.entries(mapping).find(([, field]) => field === 'agentCode')?.[0];
     
@@ -271,16 +288,23 @@ const ExcelCommissionImporter: React.FC = () => {
             return agentCodeVal && agentCodeVal.toString().trim() !== '';
           })
           .map((row) => {
-            const result: any = {
+ const result: any = {
               agentId: selectedAgentId,
               templateId,
               sourceFileName: file.name,
               uploadDate: serverTimestamp()
             };
+    
             for (const [excelCol, systemField] of Object.entries(mapping)) {
               const value = row[excelCol];
               if (systemField === 'validMonth' || systemField === 'reportMonth') {
-                const parsed = parseHebrewMonth(value);
+                let parsed = parseHebrewMonth(value);
+    
+                // 📦 במור – נחלץ משם הקובץ אם חסר
+                if (!parsed && systemField === 'reportMonth' && fallbackReportMonth) {
+                  parsed = fallbackReportMonth;
+                }
+    
                 result[systemField] = parsed || value;
               } else if (systemField === 'commissionAmount') {
                 result[systemField] = value ? parseFloat(value.toString().replace(/,/g, '')) || 0 : 0;
@@ -288,6 +312,7 @@ const ExcelCommissionImporter: React.FC = () => {
                 result[systemField] = value;
               }
             }
+    
             return result;
           });
     
@@ -300,7 +325,7 @@ const ExcelCommissionImporter: React.FC = () => {
       }
     
       setIsLoading(false);
-    };
+    };    
     
     reader.readAsArrayBuffer(file);
   };
