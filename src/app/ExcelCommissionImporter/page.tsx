@@ -41,7 +41,6 @@ const ExcelCommissionImporter: React.FC = () => {
   const [summaryByAgentCode, setSummaryByAgentCode] = useState<any[]>([]);
   const [showSummaryDialog, setShowSummaryDialog] = useState(false);
 
-
   const findHeaderRowIndex = (sheet: XLSX.WorkSheet, expectedHeaders: string[]): number => {
     const range = XLSX.utils.decode_range(sheet['!ref']!);
     for (let row = range.s.r; row <= range.e.r; row++) {
@@ -52,14 +51,12 @@ const ExcelCommissionImporter: React.FC = () => {
       }
       const matches = expectedHeaders.filter(header => rowValues.includes(header));
       if (matches.length >= expectedHeaders.length * 0.5) {
-        return row; // שורת כותרת מתאימה
+        return row;
       }
     }
-    return 0; // ברירת מחדל - שורה ראשונה
+    return 0; // ברירת מחדל - אם לא מצאנו התאמה
   };
   
-  
-
 
   useEffect(() => {
     setShowConfirmDelete(false);
@@ -105,15 +102,13 @@ const ExcelCommissionImporter: React.FC = () => {
 
   const parseHebrewMonth = (value: any): string | undefined => {
     if (!value) return;
+  
     const monthMap: Record<string, string> = {
       'ינו': '01', 'פבר': '02', 'מרץ': '03', 'אפר': '04', 'מאי': '05', 'יונ': '06',
       'יול': '07', 'אוג': '08', 'ספט': '09', 'אוק': '10', 'נוב': '11', 'דצמ': '12'
     };
-    if (value instanceof Date) {
-      const month = (value.getMonth() + 1).toString().padStart(2, '0');
-      const year = value.getFullYear();
-      return `${year}-${month}`;
-    }
+  
+    // אם התאריך מגיע כ-Excel date מספרי
     if (typeof value === 'number') {
       const excelDate = XLSX.SSF.parse_date_code(value);
       if (!excelDate) return;
@@ -121,16 +116,39 @@ const ExcelCommissionImporter: React.FC = () => {
       const month = excelDate.m.toString().padStart(2, '0');
       return `${year}-${month}`;
     }
+  
+    // אם מגיע כאובייקט Date
+    if (value instanceof Date) {
+      const month = (value.getMonth() + 1).toString().padStart(2, '0');
+      const year = value.getFullYear();
+      return `${year}-${month}`;
+    }
+  
+    // אם מגיע כמחרוזת – לטפל במיוחד במקרה של 'menura_insurance'
     const str = value.toString();
+  
+    // תבנית מיוחדת של מנורה – תאריך לפי מספר עמודה, כמו 44272 (Excel Date)
+    if (templateId === 'menura_insurance' && /^\d{5}$/.test(str)) {
+      const numeric = parseInt(str, 10);
+      const excelDate = XLSX.SSF.parse_date_code(numeric);
+      if (!excelDate) return;
+      const year = excelDate.y;
+      const month = excelDate.m.toString().padStart(2, '0');
+      return `${year}-${month}`;
+    }
+  
+    // פורמטים עם שם חודש בעברית וקיצור שנה
     let match = str.match(/([\u0590-\u05FF]{3})[- ]?(\d{2})/);
     if (!match) match = str.match(/(\d{2})[- ]?([\u0590-\u05FF]{3})/);
     if (!match) return;
+  
     const [, a, b] = match;
     const [hebMonth, yearSuffix] = monthMap[a] ? [a, b] : [b, a];
     const month = monthMap[hebMonth];
     const year = '20' + yearSuffix;
     return month ? `${year}-${month}` : undefined;
   };
+  
 
   const checkExistingData = async (agentId: string, templateId: string, reportMonth: string) => {
     const q = query(
@@ -184,6 +202,7 @@ const ExcelCommissionImporter: React.FC = () => {
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
+
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !templateId || !selectedAgentId) return;
@@ -206,8 +225,7 @@ const ExcelCommissionImporter: React.FC = () => {
         const wb = XLSX.read(arrayBuffer, { type: "array" });
         const wsname = wb.SheetNames[0];
         const ws = wb.Sheets[wsname];
-      
-        // זיהוי שורת כותרת
+  
         const expectedHeaders = Object.keys(mapping);
         const headerRowIndex = findHeaderRowIndex(ws, expectedHeaders);
   
@@ -218,7 +236,6 @@ const ExcelCommissionImporter: React.FC = () => {
       }
   
       if (jsonData.length > 0) {
-        
         const standardized = jsonData.map((row) => {
           const result: any = {
             agentId: selectedAgentId,
@@ -250,7 +267,74 @@ const ExcelCommissionImporter: React.FC = () => {
   
       setIsLoading(false);
     };
-  
+  reader.onload = async (evt) => {
+  const arrayBuffer = evt.target?.result as ArrayBuffer;
+  let jsonData: Record<string, any>[] = [];
+
+  if (file.name.endsWith('.csv')) {
+    const decoder = new TextDecoder('windows-1255');
+    const text = decoder.decode(arrayBuffer);
+    const workbook = XLSX.read(text, { type: 'string' });
+    const firstSheet = workbook.SheetNames[0];
+    const worksheet = workbook.Sheets[firstSheet];
+    jsonData = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
+  } else {
+    const wb = XLSX.read(arrayBuffer, { type: "array" });
+    const wsname = wb.SheetNames[0];
+    const ws = wb.Sheets[wsname];
+
+    // זיהוי שורת כותרת
+    const expectedHeaders = Object.keys(mapping);
+    const headerRowIndex = findHeaderRowIndex(ws, expectedHeaders);
+
+    jsonData = XLSX.utils.sheet_to_json(ws, {
+      defval: "",
+      range: headerRowIndex
+    });
+  }
+
+  if (jsonData.length > 0) {
+    // 🧩 זיהוי עמודת ה-agentCode בקובץ
+    const agentCodeColumn = Object.entries(mapping).find(([, field]) => field === 'agentCode')?.[0];
+
+    // 🧠 סינון שורות ריקות או סיכום – לפי agentCode בלבד
+    const standardized = jsonData
+      .filter((row) => {
+        const agentCodeVal = agentCodeColumn ? row[agentCodeColumn] : null;
+        return agentCodeVal && agentCodeVal.toString().trim() !== '';
+      })
+      .map((row) => {
+        const result: any = {
+          agentId: selectedAgentId,
+          templateId,
+          sourceFileName: file.name,
+          uploadDate: serverTimestamp()
+        };
+        for (const [excelCol, systemField] of Object.entries(mapping)) {
+          const value = row[excelCol];
+          if (systemField === 'validMonth' || systemField === 'reportMonth') {
+            const parsed = parseHebrewMonth(value);
+            result[systemField] = parsed || value;
+          } else if (systemField === 'commissionAmount') {
+            result[systemField] = value ? parseFloat(value.toString().replace(/,/g, '')) || 0 : 0;
+          } else {
+            result[systemField] = value;
+          }
+        }
+        return result;
+      });
+
+    setStandardizedRows(standardized);
+
+    const reportMonth = standardized[0]?.reportMonth;
+    if (reportMonth) {
+      await checkExistingData(selectedAgentId, templateId, reportMonth);
+    }
+  }
+
+  setIsLoading(false);
+};
+
     reader.readAsArrayBuffer(file);
   };
   
