@@ -220,7 +220,7 @@ const detailAsMinimalUser: MinimalUser | null = detail && user
       return result;
     }
   
-    const final = hasFromRole || hasExplicitAllow || detail?.role === 'agent';
+    const final = hasFromRole || ['agent', 'manager'].includes(detail?.role || '');
     console.log('🔍 return:', final, '← לפי תפקיד או override');
     return final;
     

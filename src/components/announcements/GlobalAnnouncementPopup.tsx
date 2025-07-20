@@ -5,7 +5,7 @@ import {
   hasSeenAnnouncement,
   markAnnouncementSeen,
 } from "@/services/announcementService";
-import AnnouncementV2 from "./messages/Announcement_v3";
+import AnnouncementV4 from "./messages/Announcement_v4";
 
 const GlobalAnnouncementPopup = () => {
   const { user } = useAuth();
@@ -14,7 +14,7 @@ const GlobalAnnouncementPopup = () => {
   useEffect(() => {
     const checkSeen = async () => {
       if (user?.uid) {
-        const seen = await hasSeenAnnouncement(user.uid, "v3");
+        const seen = await hasSeenAnnouncement(user.uid, "v4");
         setShow(!seen); // רק אם לא ראה – נציג את הפופאפ
       }
     };
@@ -35,7 +35,7 @@ const GlobalAnnouncementPopup = () => {
   if (!show) return null;
 
   return (
-    <AnnouncementV2
+    <AnnouncementV4
       onAcknowledge={handleAcknowledge}
       onClose={handleClose}
     />

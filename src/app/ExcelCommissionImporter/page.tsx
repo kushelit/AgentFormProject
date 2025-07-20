@@ -41,6 +41,9 @@ const ExcelCommissionImporter: React.FC = () => {
   const [summaryByAgentCode, setSummaryByAgentCode] = useState<any[]>([]);
   const [showSummaryDialog, setShowSummaryDialog] = useState(false);
 
+  const roundTo2 = (num: number) => Math.round(num * 100) / 100;
+
+  
   const findHeaderRowIndex = (sheet: XLSX.WorkSheet, expectedHeaders: string[]): number => {
     const range = XLSX.utils.decode_range(sheet['!ref']!);
     for (let row = range.s.r; row <= range.e.r; row++) {
@@ -307,8 +310,16 @@ console.log('📅 reportMonth שחולץ:', fallbackReportMonth);      }
     
                 result[systemField] = parsed || value;
               } else if (systemField === 'commissionAmount') {
-                result[systemField] = value ? parseFloat(value.toString().replace(/,/g, '')) || 0 : 0;
-              } else {
+ // ✅ כאן נטפל במקרה של תבנית Ayalon:
+ if (templateId === 'ayalon_insurance') {
+  const val1 = row['סך עמלת סוכן'];
+  const val2 = row['סך דמי גביה'];
+  const sum = (parseFloat(val1?.toString().replace(/,/g, '')) || 0) +
+              (parseFloat(val2?.toString().replace(/,/g, '')) || 0);
+              result[systemField] = roundTo2(val1 + val2);
+            } else {
+  result[systemField] = value ? parseFloat(value.toString().replace(/,/g, '')) || 0 : 0;
+}              } else {
                 result[systemField] = value;
               }
             }
