@@ -12,15 +12,22 @@ const formatPhone = (phone?: string) => {
   return phone;
 };
 
- const approveTransaction = async (transactionId: string, transactionToken: string, pageCode: string) => {
+const approveTransaction = async (transactionId: string, transactionToken: string, pageCode: string) => {
   console.log('📤 ApproveTransaction – התחלה');
   console.log('🧾 פרמטרים שנשלחו:', { transactionId, transactionToken, pageCode });
 
   try {
+    const formData = new URLSearchParams();
+    formData.append('transactionId', transactionId);
+    formData.append('transactionToken', transactionToken);
+    formData.append('pageCode', pageCode);
+
     const res = await fetch('https://sandbox.meshulam.co.il/api/light/server/1.0/approveTransaction', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ transactionId, transactionToken, pageCode }),
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: formData.toString(),
     });
 
     const responseText = await res.text();
@@ -36,7 +43,6 @@ const formatPhone = (phone?: string) => {
     console.error('⚠️ שגיאה בתקשורת עם Grow:', err);
   }
 };
-
 
 export async function POST(req: NextRequest) {
   try {
