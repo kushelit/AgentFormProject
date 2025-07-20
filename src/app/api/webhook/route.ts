@@ -12,15 +12,15 @@ const formatPhone = (phone?: string) => {
   return phone;
 };
 
- const approveTransaction = async (transactionId: string, transactionToken: string) => {
+ const approveTransaction = async (transactionId: string, transactionToken: string, pageCode: string) => {
   console.log('📤 ApproveTransaction – התחלה');
-  console.log('🧾 פרמטרים שנשלחו:', { transactionId, transactionToken });
+  console.log('🧾 פרמטרים שנשלחו:', { transactionId, transactionToken, pageCode });
 
   try {
     const res = await fetch('https://sandbox.meshulam.co.il/api/light/server/1.0/approveTransaction', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ transactionId, transactionToken }),
+      body: JSON.stringify({ transactionId, transactionToken, pageCode }),
     });
 
     const responseText = await res.text();
@@ -71,6 +71,9 @@ export async function POST(req: NextRequest) {
     const addOns = addOnsRaw ? JSON.parse(addOnsRaw.toString()) : {};
     const couponCode = (data['data[customFields][cField5]'] ?? data['customFields[cField5]'])?.toString() ?? '';
     const idNumber = (data['data[customFields][cField7]'] ?? data['customFields[cField7]'])?.toString() ?? '';
+    const rawPageCode = data['data[customFields][cField8]'] ?? data['customFields[cField8]'];
+    const pageCode = Array.isArray(rawPageCode) ? rawPageCode[0] : rawPageCode?.toString() ?? '';
+
     // const totalCharged = Number(
     //   data['data[customFields][cField6]'] || 
     //   0
@@ -154,6 +157,9 @@ if (userDocRef) {
   if (processId && processId !== userData?.subscriptionId) updateFields.subscriptionId = processId;
   if (subscriptionType && subscriptionType !== userData?.subscriptionType) updateFields.subscriptionType = subscriptionType;
   if (idNumber && idNumber !== userData?.idNumber) updateFields.idNumber = idNumber;
+  if (pageCode && pageCode !== userData?.pageCode) {
+    updateFields.pageCode = pageCode;
+  }
   if (addOns && JSON.stringify(addOns) !== JSON.stringify(userData?.addOns)) {
     updateFields.addOns = {
       leadsModule: !!addOns.leadsModule,
@@ -170,9 +176,9 @@ if (userDocRef) {
 
 
 // 🆕 ✅ הוספת ApproveTransaction כאן:
-if (statusCode === '2' && transactionId && transactionToken) {
+if (statusCode === '2' && transactionId && transactionToken && pageCode) {
   console.log('📌 תנאים ל־ApproveTransaction מולאו – מתחיל קריאה ל־Grow');
-  await approveTransaction(transactionId, transactionToken);
+  await approveTransaction(transactionId, transactionToken, pageCode);
 }
 
 
@@ -263,15 +269,16 @@ if (statusCode === '2' && transactionId && transactionToken) {
       role: 'agent',
       agentId: newUser.uid,
       customField,
+      pageCode: pageCode || null,
       isActive: true,
     });
 
     console.log('🆕 Created new user');
 
     // 🆕 ✅ הוספת ApproveTransaction כאן:
-if (statusCode === '2' && transactionId && transactionToken) {
+if (statusCode === '2' && transactionId && transactionToken && pageCode) {
   console.log('📌 תנאים ל־ApproveTransaction מולאו – מתחיל קריאה ל־Grow');
-  await approveTransaction(transactionId, transactionToken);
+  await approveTransaction(transactionId, transactionToken, pageCode);
 }
 
     return NextResponse.json({ created: true });

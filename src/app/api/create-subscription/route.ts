@@ -74,6 +74,7 @@ export async function POST(req: NextRequest) {
     formData.append('cField1', customField);
     formData.append('cField6', total?.toString() || totalPrice.toString()); // שליחה ל-Grow
     formData.append('cField7', idNumber); 
+    formData.append('cField8', '2097a1a9413e'); // ← שדה ייעודי ל־pageCode
     formData.append('cField2', plan);
     formData.append('cField3', JSON.stringify(addOns || {}));
     if (couponCode) {
