@@ -22,7 +22,8 @@
         "name": "next"
       }
     ],
-    "downlevelIteration": true
+    "downlevelIteration": true,
+    "types": ["node"]
   },
   "include": [
     "next-env.d.ts",
