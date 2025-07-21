@@ -1,6 +1,6 @@
 import React, { useState, useEffect,useRef  } from "react";
 import * as XLSX from "xlsx";
-import { addDoc, collection, getDocs, query, serverTimestamp, updateDoc, where } from "firebase/firestore";
+import { addDoc, collection, getDocs, query, serverTimestamp, setDoc, updateDoc, where } from "firebase/firestore";
 import { db } from "@/lib/firebase/firebase";
 import { useAuth } from '@/lib/firebase/AuthContext';
 import useFetchAgentData from "@/hooks/useFetchAgentData";
@@ -10,6 +10,7 @@ import { useToast } from "@/hooks/useToast";
 import DialogNotification from "@/components/DialogNotification";
 import './ExcelImporter.css';
 import { Button } from "@/components/Button/Button";
+import { doc } from "firebase/firestore";
 
 
 const systemFields = [
@@ -344,8 +345,11 @@ const areAllRequiredFieldsMapped = requiredFields.every((fieldKey) =>
     const selectedAgentName = selectedAgent?.name || "";
   
     let successCount = 0;
+    let newCustomerCount = 0;
+
     const failedRows: { index: number; error: any }[] = [];
-  
+    const runId = doc(collection(db, "importRuns")).id; // ✅ יצירת מזהה ריצה
+
     for (let i = 0; i < rows.length; i++) {
       if (errors.includes(i)) continue;
   
@@ -364,9 +368,11 @@ const areAllRequiredFieldsMapped = requiredFields.every((fieldKey) =>
         const customerSnapshot = await getDocs(customerQuery);
   
         let customerDocRef;
+
         if (customerSnapshot.empty) {
           customerDocRef = await addDoc(collection(db, "customer"), {
             AgentId: selectedAgentId,
+            runId,
             firstNameCustomer: mappedRow.firstNameCustomer || "",
             lastNameCustomer: mappedRow.lastNameCustomer || "",
             IDCustomer: String(mappedRow.IDCustomer || ""),
@@ -374,10 +380,13 @@ const areAllRequiredFieldsMapped = requiredFields.every((fieldKey) =>
             sourceApp: "importExcel",
           });
           await updateDoc(customerDocRef, { parentID: customerDocRef.id });
+          newCustomerCount++; // כאן נרשום ספירה
+
         }
   
         await addDoc(collection(db, 'sales'), {
           agent: selectedAgentName,
+          runId,
           AgentId: selectedAgentId,
           workerId: mappedRow.workerId || "",
           workerName: mappedRow.workerName || "",
@@ -406,6 +415,19 @@ const areAllRequiredFieldsMapped = requiredFields.every((fieldKey) =>
         failedRows.push({ index: i + 1, error });
       }
     }
+
+    // אחרי שהסתיימה הלולאה והמשתנים successCount וכו' מעודכנים
+
+    await setDoc(doc(db, "importRuns", runId), {
+      runId,
+      createdAt: serverTimestamp(),
+      agentId: selectedAgentId,
+      agentName: selectedAgentName,
+      createdBy: user?.email || user?.uid,
+      customersCount: newCustomerCount, // תחשבי כמה באמת נוצרו
+      salesCount: successCount,
+    });
+    
   
     if (failedRows.length > 0) {
       const errorSummary = failedRows

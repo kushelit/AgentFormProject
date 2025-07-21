@@ -23,7 +23,7 @@ const GlobalAnnouncementPopup = () => {
 
   const handleAcknowledge = async () => {
     if (user?.uid) {
-      await markAnnouncementSeen(user.uid, "v3");
+      await markAnnouncementSeen(user.uid, "v4");
     }
     setShow(false); // סגירה אחרי אישור
   };
