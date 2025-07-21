@@ -74,7 +74,7 @@ const ImportRuns = () => {
               <thead>
                 <tr className="bg-gray-100">
                   <th className="border p-1">שם לקוח</th>
-                  <th className="border p-1">ת"ז</th>
+                  <th className="border p-1">ת&quot;ז</th>
                 </tr>
               </thead>
               <tbody>
