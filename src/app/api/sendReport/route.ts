@@ -1,51 +1,51 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { ReportRequest } from '@/app/Reports/types';
-import { sendEmailWithAttachment } from '@/utils/email';
+// import { NextRequest, NextResponse } from 'next/server';
+// import { ReportRequest } from '@/app/Reports/types';
+// import { sendEmailWithAttachment } from '@/utils/email';
 
-import { generateClientPremiumReport } from '@/app/Reports/generators/generateClientPremiumReport';
-
-
+// import { generateClientPremiumReport } from '@/app/Reports/generators/generateClientPremiumReport';
 
 
-export async function POST(req: NextRequest) {
-  try {
-    const body: ReportRequest = await req.json();
-    const { reportType, emailTo } = body;
 
-    if (!reportType || !emailTo) {
-      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
-    }
 
-    let reportBuffer: Buffer;
-    let filename = '';
-    let subject = '';
-    let description = '';
+// export async function POST(req: NextRequest) {
+//   try {
+//     const body: ReportRequest = await req.json();
+//     const { reportType, emailTo } = body;
 
-    switch (reportType) {
-      case 'clientPremiumSummary':
-        ({ buffer: reportBuffer, filename, subject, description } = await generateClientPremiumReport(body));
-        break;
+//     if (!reportType || !emailTo) {
+//       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+//     }
 
-      // בעתיד:
-      // case 'agentSalesReport':
-      //   ({ buffer, filename, ... } = await generateAgentSalesReport(body));
-      //   break;
+//     let reportBuffer: Buffer;
+//     let filename = '';
+//     let subject = '';
+//     let description = '';
 
-      default:
-        return NextResponse.json({ error: 'Unsupported report type' }, { status: 400 });
-    }
+//     switch (reportType) {
+//       case 'clientPremiumSummary':
+//         ({ buffer: reportBuffer, filename, subject, description } = await generateClientPremiumReport(body));
+//         break;
 
-    await sendEmailWithAttachment({
-      to: emailTo,
-      subject,
-      text: description,
-      filename,
-      fileBuffer: reportBuffer,
-    });
+//       // בעתיד:
+//       // case 'agentSalesReport':
+//       //   ({ buffer, filename, ... } = await generateAgentSalesReport(body));
+//       //   break;
 
-    return NextResponse.json({ success: true });
-  } catch (error) {
-    console.error('Error generating or sending report:', error);
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
-  }
-}
+//       default:
+//         return NextResponse.json({ error: 'Unsupported report type' }, { status: 400 });
+//     }
+
+//     await sendEmailWithAttachment({
+//       to: emailTo,
+//       subject,
+//       text: description,
+//       filename,
+//       fileBuffer: reportBuffer,
+//     });
+
+//     return NextResponse.json({ success: true });
+//   } catch (error) {
+//     console.error('Error generating or sending report:', error);
+//     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+//   }
+// }
