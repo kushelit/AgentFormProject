@@ -15,6 +15,8 @@ const pages = [
   { href: '/NewGoals', label: 'ניהול יעדים' },
   { href: '/NewEnviorment', label: 'ניהול הגדרות לידים' },
   { href: '/TeamPermissionsTable', label: 'ניהול הרשאות' },
+  { href: '/Reports', label: 'דוחות' },
+
   // {
   //   href: '/importCommissionHub',
   //   label: 'טעינת קבצי עמלות',
