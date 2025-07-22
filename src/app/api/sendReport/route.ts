@@ -8,7 +8,7 @@ import { admin } from '@/lib/firebase/firebase-admin';
 export async function POST(req: NextRequest) {
   try {
     const body: ReportRequest = await req.json();
-    console.log('📥 Got body:', body);
+    console.log('📥 Got body:', JSON.stringify(body, null, 2));
 
     const { reportType, emailTo, uid } = body;
 
@@ -53,13 +53,14 @@ export async function POST(req: NextRequest) {
     });
 
     return NextResponse.json({ success: true });
-
   } catch (error: unknown) {
+    console.error('❌ Full error object:', error);
+
     if (error instanceof Error) {
       console.error('❌ Error generating or sending report:', error.message);
       console.error('🔎 Stack trace:', error.stack);
     } else {
-      console.error('❌ Unknown error:', error);
+      console.error('❌ Unknown non-Error object thrown:', JSON.stringify(error));
     }
 
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });

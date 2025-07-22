@@ -10,10 +10,24 @@ export async function generateInsurancePremiumReport(params: ReportRequest) {
   const productsSnapshot = await getDocs(
     query(collection(db, 'product'), where('productGroup', '==', '3'))
   );
-  const insuranceProductNames = productsSnapshot.docs.map(doc => doc.data().productName?.trim());
+  const insuranceProductNames = productsSnapshot.docs.map(doc =>
+    doc.data().productName?.trim()
+  );
 
-  if (product && !insuranceProductNames.includes(product)) {
-    console.log(`🚫 המוצר "${product}" לא שייך לקבוצת ביטוח - הדוח יהיה ריק.`);
+  const cleanedAgentId = agentId?.trim();
+  const cleanedProducts = Array.isArray(product)
+    ? product.map(p => p.trim())
+    : [];
+  const cleanedCompanies = Array.isArray(company)
+    ? company.map(c => c.trim())
+    : [];
+
+  // סינון מוצר – אם נבחר מוצר שלא שייך לקבוצת ביטוח → החזר דוח ריק
+  if (
+    cleanedProducts.length > 0 &&
+    !cleanedProducts.some(p => insuranceProductNames.includes(p))
+  ) {
+    console.log(`🚫 המוצרים שבחרת אינם שייכים לקבוצת ביטוח - הדוח יהיה ריק.`);
     return generateEmptyReport();
   }
 
@@ -40,18 +54,18 @@ export async function generateInsurancePremiumReport(params: ReportRequest) {
   }
 
   // סינון לפי סוכן
-  if (agentId && agentId !== 'all') {
-    filtered = filtered.filter(row => row.AgentId === agentId);
+  if (cleanedAgentId && cleanedAgentId !== 'all') {
+    filtered = filtered.filter(row => row.AgentId === cleanedAgentId);
   }
 
-  // סינון לפי חברה
-  if (company) {
-    filtered = filtered.filter(row => row.company === company);
+  // סינון לפי חברות
+  if (cleanedCompanies.length > 0) {
+    filtered = filtered.filter(row => cleanedCompanies.includes(row.company));
   }
 
-  // סינון לפי מוצר נבחר
-  if (product) {
-    filtered = filtered.filter(row => row.product === product);
+  // סינון לפי מוצרים
+  if (cleanedProducts.length > 0) {
+    filtered = filtered.filter(row => cleanedProducts.includes(row.product));
   }
 
   // בניית שורות לדוח
@@ -78,17 +92,19 @@ function generateEmptyReport() {
 // פונקציית עזר לבניית קובץ Excel
 function buildExcelReport(rows: any[], sheetName: string) {
   const worksheet = XLSX.utils.json_to_sheet(
-    rows.length ? rows : [{
-      "שם פרטי": '',
-      "שם משפחה": '',
-      "תז": '',
-      "חברה": '',
-      "מוצר": '',
-      "סטטוס": '',
-      "פרמיה": '',
-      "סוכן": '',
-      "חודש תפוקה": '',
-    }]
+    rows.length
+      ? rows
+      : [{
+          "שם פרטי": '',
+          "שם משפחה": '',
+          "תז": '',
+          "חברה": '',
+          "מוצר": '',
+          "סטטוס": '',
+          "פרמיה": '',
+          "סוכן": '',
+          "חודש תפוקה": '',
+        }]
   );
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);

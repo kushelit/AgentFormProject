@@ -6,6 +6,6 @@ export interface ReportRequest {
   uid?: string;
   agentId?: string;
   agentName?: string;
-  company?: string;
-  product?: string;
+  company?: string[]; // ← במקום string
+  product?: string[]; // ← במקום string
 }
