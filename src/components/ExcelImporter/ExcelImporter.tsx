@@ -785,132 +785,141 @@ const formatHebrewDate = (date: Date) =>
                 <th>מחיקה</th>
               </tr>
             </thead>
-            <tbody>
-              {rows.map((row, idx) => {
-                const rowIsError = errors.includes(idx);
-                return (
-                  <tr key={idx} style={{ backgroundColor: rowIsError ? '#ffd6d6' : 'inherit' }}>
-                    {headers.map((h) => {
-                      const field = mapping[h];
-                      const rawValue = row[h];
-                      const value = String(rawValue || "").trim().toLowerCase();
-                      const isInvalidCompany = field === "company" && !companyNames.includes(value);
-                      const isInvalidProduct = field === "product" && !productNames.includes(value);
-                      const isInvalidID = field === "IDCustomer" && !/^\d{5,9}$/.test(value);
-                      const inputStyle = {
-                        width: '100%',
-                        backgroundColor: (isInvalidCompany || isInvalidProduct || isInvalidID) ? '#ffe6e6' : undefined,
-                      };
-                                            return (
-                                              <td key={h}>
-                                              {(() => {
-                                                const rawValue = row[h];
-                                                const value = String(rawValue || "").trim().toLowerCase();
-                                                const field = mapping[h];
-                                            
-                                                const isInvalidCompany = field === "company" && !companyNames.includes(value);
-                                                const isInvalidProduct = field === "product" && !productNames.includes(value);
-                                                const isInvalidID = field === "IDCustomer" && !/^\d{5,9}$/.test(value);
-                                                const isInvalidFirstName = field === "firstNameCustomer" && !isValidHebrewName(rawValue);
-                                                const isInvalidLastName = field === "lastNameCustomer" && !isValidHebrewName(rawValue);
-                                                const isNumericField = numericFields.includes(field);
-                                                const isInvalidNumber = isNumericField && isNaN(Number(rawValue));
-                                                const isInvalidStatus = field === "statusPolicy" && !statusPolicies.includes(String(rawValue || "").trim());
-                                            
-                                                const inputStyle = {
-                                                  width: '100%',
-                                                  backgroundColor: (
-                                                    isInvalidCompany ||
-                                                    isInvalidProduct ||
-                                                    isInvalidID ||
-                                                    isInvalidFirstName ||
-                                                    isInvalidLastName ||
-                                                    isInvalidNumber ||
-                                                    isInvalidStatus
-                                                  ) ? '#ffe6e6' : undefined,
-                                                };
-                                                if (field === "mounth") {
-                                                  const error = row["_mounthError"];
-                                                  const value = row["mounth"] || "";
-                                                
-                                                  return (
-                                                    <div>
-                                                      <input
-                                                        type="date"
-                                                        value={value}
-                                                        style={{
-                                                          ...inputStyle,
-                                                          backgroundColor: error ? '#ffe6e6' : inputStyle.backgroundColor,
-                                                        }}
-                                                        onChange={(e) => handleFieldChange(idx, "mounth", e.target.value)}
-                                                      />
-                                                      {error && (
-                                                        <div style={{ color: 'red', fontSize: '0.75rem' }}>{error}</div>
-                                                      )}
-                                                    </div>
-                                                  );
-                                                }
-                                                                        
-                                                if (isInvalidCompany) {
-                                                  return (
-                                                    <select value={row[h]} onChange={(e) => handleFieldChange(idx, h, e.target.value)} style={inputStyle}>
-                                                      <option value="">בחר חברה</option>
-                                                      {companies.map((c) => <option key={c} value={c}>{c}</option>)}
-                                                    </select>
-                                                  );
-                                                }
-                                            
-                                                if (isInvalidProduct) {
-                                                  return (
-                                                    <select value={row[h]} onChange={(e) => handleFieldChange(idx, h, e.target.value)} style={inputStyle}>
-                                                      <option value="">בחר מוצר</option>
-                                                      {products.map((p) => <option key={p.name} value={p.name}>{p.name}</option>)}
-                                                    </select>
-                                                  );
-                                                }
-                                            
-                                                if (isInvalidStatus) {
-                                                  return (
-                                                    <select value={row[h]} onChange={(e) => handleFieldChange(idx, h, e.target.value)} style={inputStyle}>
-                                                      <option value="">בחר סטטוס</option>
-                                                      {statusPolicies.map((s, i) => (
-                                                        <option key={i} value={s}>{s}</option>
-                                                      ))}
-                                                    </select>
-                                                  );
-                                                }
-                                                if (field === "minuySochen") {
-                                                  return (
-                                                    <select
-                                                      value={row[h] || ""}
-                                                      onChange={(e) => handleFieldChange(idx, h, e.target.value)}
-                                                      style={inputStyle}
-                                                    >
-                                                      <option value="">---</option>
-                                                      <option value="כן">כן</option>
-                                                      <option value="לא">לא</option>
-                                                    </select>
-                                                  );
-                                                }
-                                                
-                                                return (
-                                                  <input
-                                                    type={isNumericField ? "number" : "text"}
-                                                    value={row[h]}
-                                                    style={inputStyle}
-                                                    onChange={(e) => handleFieldChange(idx, h, e.target.value)}
-                                                    maxLength={field === "IDCustomer" ? 9 : undefined}
-                                                  />
-                                                );
-                                              })()}
-                                            </td>                                                                                                                                                                                       
-                      );
-                    })}
-                    <td><button onClick={() => handleDeleteRow(idx)}>X</button></td>
-                  </tr>
+<tbody>
+  {rows.map((row, idx) => {
+    const rowIsError = errors.includes(idx);
+    return (
+      <tr key={idx} style={{ backgroundColor: rowIsError ? '#ffd6d6' : 'inherit' }}>
+        {headers.map((h) => {
+          return (
+            <td key={h}>
+              {(() => {
+                const rawValue = row[h];
+                const value = String(rawValue || '').trim().toLowerCase();
+                const field = mapping[h];
+
+                const isInvalidCompany = field === 'company' && !companyNames.includes(value);
+                const isInvalidProduct = field === 'product' && !productNames.includes(value);
+                const isInvalidID = field === 'IDCustomer' && !/^\d{5,9}$/.test(value);
+                const isInvalidFirstName = field === 'firstNameCustomer' && !isValidHebrewName(rawValue);
+                const isInvalidLastName = field === 'lastNameCustomer' && !isValidHebrewName(rawValue);
+                const isNumericField = numericFields.includes(field);
+                const isInvalidNumber = isNumericField && isNaN(Number(rawValue));
+                const isInvalidStatus = field === 'statusPolicy' && !statusPolicies.includes(String(rawValue || '').trim());
+
+                const inputStyle = {
+                  width: '100%',
+                  backgroundColor:
+                    isInvalidCompany || isInvalidProduct || isInvalidID ||
+                    isInvalidFirstName || isInvalidLastName || isInvalidNumber || isInvalidStatus
+                      ? '#ffe6e6'
+                      : undefined,
+                };
+
+                const renderError = (message: string) => (
+                  <div style={{ color: 'red', fontSize: '0.75rem' }}>{message}</div>
                 );
-              })}
-            </tbody>
+
+                if (field === 'mounth') {
+                  const error = row['_mounthError'];
+                  const value = row['mounth'] || '';
+
+                  return (
+                    <div>
+                      <input
+                        type="date"
+                        value={value}
+                        style={{
+                          ...inputStyle,
+                          backgroundColor: error ? '#ffe6e6' : inputStyle.backgroundColor,
+                        }}
+                        onChange={(e) => handleFieldChange(idx, 'mounth', e.target.value)}
+                      />
+                      {error && renderError(error)}
+                    </div>
+                  );
+                }
+
+                if (isInvalidCompany) {
+                  return (
+                    <div>
+                      <select value={row[h]} onChange={(e) => handleFieldChange(idx, h, e.target.value)} style={inputStyle}>
+                        <option value="">בחר חברה</option>
+                        {companies.map((c) => (
+                          <option key={c} value={c}>{c}</option>
+                        ))}
+                      </select>
+                      {renderError(`חברה לא מזוהה: ${row[h]}`)}
+                    </div>
+                  );
+                }
+
+                if (isInvalidProduct) {
+                  return (
+                    <div>
+                      <select value={row[h]} onChange={(e) => handleFieldChange(idx, h, e.target.value)} style={inputStyle}>
+                        <option value="">בחר מוצר</option>
+                        {products.map((p) => (
+                          <option key={p.name} value={p.name}>{p.name}</option>
+                        ))}
+                      </select>
+                      {renderError(`מוצר לא מזוהה: ${row[h]}`)}
+                    </div>
+                  );
+                }
+
+                if (isInvalidStatus) {
+                  return (
+                    <div>
+                      <select value={row[h]} onChange={(e) => handleFieldChange(idx, h, e.target.value)} style={inputStyle}>
+                        <option value="">בחר סטטוס</option>
+                        {statusPolicies.map((s, i) => (
+                          <option key={i} value={s}>{s}</option>
+                        ))}
+                      </select>
+                      {renderError(`סטטוס לא תקין: ${row[h]}`)}
+                    </div>
+                  );
+                }
+
+                if (field === 'minuySochen') {
+                  return (
+                    <select
+                      value={row[h] || ''}
+                      onChange={(e) => handleFieldChange(idx, h, e.target.value)}
+                      style={inputStyle}
+                    >
+                      <option value="">---</option>
+                      <option value="כן">כן</option>
+                      <option value="לא">לא</option>
+                    </select>
+                  );
+                }
+
+                return (
+                  <div>
+                    <input
+                      type={isNumericField ? 'number' : 'text'}
+                      value={row[h]}
+                      style={inputStyle}
+                      onChange={(e) => handleFieldChange(idx, h, e.target.value)}
+                      maxLength={field === 'IDCustomer' ? 9 : undefined}
+                    />
+                    {isInvalidID && renderError(`ת"ז לא תקינה: ${row[h]}`)}
+                    {isInvalidFirstName && renderError(`שם פרטי לא תקין: ${row[h]}`)}
+                    {isInvalidLastName && renderError(`שם משפחה לא תקין: ${row[h]}`)}
+                    {isInvalidNumber && renderError(`ערך לא מספרי: ${row[h]}`)}
+                  </div>
+                );
+              })()}
+            </td>
+          );
+        })}
+        <td><button onClick={() => handleDeleteRow(idx)}>X</button></td>
+      </tr>
+    );
+  })}
+</tbody>
           </table>
           {rows.length > 0 && areAllRequiredFieldsMapped ? (
   (() => {
