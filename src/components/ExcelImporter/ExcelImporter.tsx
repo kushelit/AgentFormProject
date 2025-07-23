@@ -958,7 +958,7 @@ const formatHebrewDate = (date: Date) =>
           ) : (
             <p className="text-gray-600 mt-4">לא נמצאו נתונים תקינים לטעינה.</p>
       
-          )}
+          )
 
           {errors.length > 0 && <p className="text-red-600 mt-2">יש שורות עם שגיאות – תקני או מחקי אותן לפני טעינה.</p>}
 
