@@ -313,9 +313,9 @@ const requiredFields = systemFieldsDisplay
     const validFirstName = !reverseMap["firstNameCustomer"] || isValidHebrewName(row[reverseMap["firstNameCustomer"]]);
     const validLastName = !reverseMap["lastNameCustomer"] || isValidHebrewName(row[reverseMap["lastNameCustomer"]]);
   
-    const mounthValue = String(row[reverseMap["mounth"]] || "").trim();
-    const validMounth = !reverseMap["mounth"] || /^\d{4}-\d{2}-\d{2}$/.test(mounthValue);
-  
+    const mounthValue = String(row["mounth"] || "").trim();
+const validMounth = /^\d{4}-\d{2}-\d{2}$/.test(mounthValue);
+
     const statusValue = String(row[reverseMap["statusPolicy"]] || "").trim();
     const validStatus = !reverseMap["statusPolicy"] || statusPolicies.includes(statusValue);
   
@@ -941,15 +941,24 @@ const formatHebrewDate = (date: Date) =>
         <tbody>
           {validRows.map((row, idx) => (
             <tr key={idx}>
-              {previewFields.map((fieldKey) => {
-                // אם זה שדה שמופה ישירות לעמודת Excel
-                const excelCol = Object.entries(mapping).find(
-                  ([, systemField]) => systemField === fieldKey
-                )?.[0];
+           {previewFields.map((fieldKey) => {
+  const excelCol = Object.entries(mapping).find(
+    ([, systemField]) => systemField === fieldKey
+  )?.[0];
 
-                const value = excelCol ? row[excelCol] : row[fieldKey]; // או שנשלף מהשדה שנוסף ידנית
-                return <td key={fieldKey}>{value}</td>;
-              })}
+  // ✨ פתרון – טיפול מיוחד בשדה mounth
+  let value;
+  if (fieldKey === "mounth") {
+    value = row["mounth"];
+  } else if (excelCol) {
+    value = row[excelCol];
+  } else {
+    value = row[fieldKey];
+  }
+
+  return <td key={fieldKey}>{value}</td>;
+})}
+
             </tr>
           ))}
         </tbody>
