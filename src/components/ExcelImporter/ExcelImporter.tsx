@@ -22,6 +22,7 @@ const systemFields = [
 const systemFieldsDisplay = [
   { key: "firstNameCustomer", label: "שם פרטי", required: true },
   { key: "lastNameCustomer", label: "שם משפחה", required: true },
+  { key: "fullName", label: "שם מלא", required: false }, // ✅ חדש
   { key: "IDCustomer", label: "ת״ז", required: true },
   { key: "company", label: "חברה", required: true },
   { key: "product", label: "מוצר", required: true },
@@ -64,6 +65,7 @@ const ExcelImporter: React.FC = () => {
     fileInputRef.current?.click(); // ✅ כאן
   };
 
+  const [fullNameStructure, setFullNameStructure] = useState<"firstNameFirst" | "lastNameFirst">("firstNameFirst");
 
 
   const [importSummary, setImportSummary] = useState<{
@@ -114,11 +116,14 @@ const ExcelImporter: React.FC = () => {
       fileInputRef.current.value = "";
     }
   };
+  type ParsedDateResult = {
+    value?: string;
+    error?: string;
+  };
   
-
-  const parseMounthField = (value: any): string | undefined => {
+  const parseMounthField = (value: any): ParsedDateResult => {
     if (value instanceof Date) {
-      return value.toISOString().split("T")[0];
+      return { value: value.toISOString().split("T")[0] };
     }
   
     if (typeof value === "number" && !isNaN(value)) {
@@ -127,12 +132,12 @@ const ExcelImporter: React.FC = () => {
         const day = rawStr.slice(0, 2);
         const month = rawStr.slice(2, 4);
         const year = rawStr.slice(4, 8);
-        return `${year}-${month}-${day}`;
+        return { value: `${year}-${month}-${day}` };
       }
       const excelDate = XLSX.SSF.parse_date_code(value);
       if (excelDate) {
         const jsDate = new Date(Date.UTC(excelDate.y, excelDate.m - 1, excelDate.d));
-        return jsDate.toISOString().split("T")[0];
+        return { value: jsDate.toISOString().split("T")[0] };
       }
     }
   
@@ -142,46 +147,93 @@ const ExcelImporter: React.FC = () => {
         const day = cleaned.slice(0, 2);
         const month = cleaned.slice(2, 4);
         const year = cleaned.slice(4, 8);
-        return `${year}-${month}-${day}`;
+        return { value: `${year}-${month}-${day}` };
       }
       if (/^\d{2}\/\d{2}\/\d{4}$/.test(cleaned)) {
         const [day, month, year] = cleaned.split("/");
-        return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+        return { value: `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}` };
       }
       if (/^\d{4}-\d{2}-\d{2}$/.test(cleaned)) {
-        return cleaned;
+        return { value: cleaned };
       }
+      return { error: `תאריך לא תקין: ${value}` };
     }
   
-    return undefined;
+    return { error: `תאריך לא מזוהה: ${String(value)}` };
   };
+  
   useEffect(() => {
+    console.log("📌 useEffect triggered", { pendingExcelData, areAllRequiredFieldsMapped });
+    console.log("📌 required fields missing?", {
+      requiredFields,
+      mapping,
+      fullNameMapped,
+      areAllRequiredFieldsMapped
+    });
+    
     if (!pendingExcelData || !areAllRequiredFieldsMapped) return;
   
     const parsedData = pendingExcelData.map((row) => {
       const newRow = { ...row };
-  
-      // עיבוד שדה תאריך
-      const excelFieldForMounth = Object.keys(mapping).find(
-        (col) => mapping[col] === "mounth"
-      );
-      if (excelFieldForMounth) {
-        const rawDate = row[excelFieldForMounth];
-        const parsedDate = parseMounthField(rawDate);
-        if (parsedDate) {
-          newRow[excelFieldForMounth] = parsedDate;
+      // ✅ פיצול שם מלא לפי רווח ראשון/אחרון
+      const fullNameField = Object.keys(mapping).find((col) => mapping[col] === "fullName");
+      if (fullNameField) {
+        const fullNameRaw = row[fullNameField]?.trim() || "";
+        const parts = fullNameRaw.split(" ").filter(Boolean);
+      
+        if (parts.length === 1) {
+          newRow["firstNameCustomer"] = parts[0];
+          newRow["lastNameCustomer"] = "";
+        } else if (parts.length === 2) {
+          if (fullNameStructure === "firstNameFirst") {
+            newRow["firstNameCustomer"] = parts[0];
+            newRow["lastNameCustomer"] = parts[1];
+          } else {
+            newRow["firstNameCustomer"] = parts[1];
+            newRow["lastNameCustomer"] = parts[0];
+          }
+        } else if (parts.length === 3) {
+          if (fullNameStructure === "firstNameFirst") {
+            newRow["firstNameCustomer"] = parts[0];
+            newRow["lastNameCustomer"] = parts.slice(1).join(" ");
+          } else {
+            newRow["firstNameCustomer"] = parts[2];
+            newRow["lastNameCustomer"] = parts.slice(0, 2).join(" ");
+          }
+        } else {
+          newRow["firstNameCustomer"] = parts[0];
+          newRow["lastNameCustomer"] = parts.slice(1).join(" ");
         }
-      }
+      }      
+    // עיבוד שדה תאריך
+const excelFieldForMounth = Object.keys(mapping).find(
+  (col) => mapping[col] === "mounth"
+);
+
+if (excelFieldForMounth) {
+  const rawDate = row[excelFieldForMounth];
+  const parsedDate = parseMounthField(rawDate);
   
+  // שמירה של ערך תקני או raw (כפי שנכתב בקובץ)
+  newRow[excelFieldForMounth] = parsedDate.value || rawDate;
+
+  // שמירה של שגיאה אם קיימת (תוצג אחר כך בעיצוב)
+  if (parsedDate.error) {
+    newRow["_mounthError"] = parsedDate.error;
+  }
+}
       // ברירת מחדל למינוי סוכן
       applyDefaultMinuySochen(newRow, mapping);
-  
+
       return newRow;
     });
-  
+    console.log("🔍 fullNameStructure at parse time:", fullNameStructure);
+
     setRows(parsedData);
+    console.log("✅ parsedData:", parsedData);
+
     setPendingExcelData(null);
-  }, [pendingExcelData, mapping]);
+  }, [pendingExcelData, mapping, fullNameStructure]);
   
 
 
@@ -201,10 +253,15 @@ const requiredFields = systemFieldsDisplay
   .filter((field) => field.required)
   .map((field) => field.key);
 
-const areAllRequiredFieldsMapped = requiredFields.every((fieldKey) =>
-  Object.values(mapping).includes(fieldKey)
-);
+  const fullNameMapped = Object.values(mapping).includes("fullName");
 
+  const areAllRequiredFieldsMapped = requiredFields.every((fieldKey) => {
+    if (["firstNameCustomer", "lastNameCustomer"].includes(fieldKey) && fullNameMapped) {
+      return true; // אם יש מיפוי ל־fullName – אל תדרשי מיפוי נפרד
+    }
+    return Object.values(mapping).includes(fieldKey);
+  });
+  
 
 
   useEffect(() => {
@@ -232,17 +289,18 @@ const areAllRequiredFieldsMapped = requiredFields.every((fieldKey) =>
     return hebrewRegex.test(str);
   };
   
-
-  const validateRow = (row: any, map: Record<string, string>) => {
-    const reverseMap = Object.fromEntries(Object.entries(map).map(([k, v]) => [v, k]));
+  const validateRow = (
+    row: any,
+    map: Record<string, string>,
+    reverseMap: Record<string, string>
+  ) => {
     const required = ["firstNameCustomer", "lastNameCustomer", "IDCustomer", "company", "product", "mounth", "statusPolicy"];
   
     const hasRequired = required.every((key) => {
       const source = reverseMap[key];
-      if (!source) return true; // אם לא מופה, לא נבדוק עדיין
+      if (!source) return true;
       return row[source] !== undefined && String(row[source]).trim() !== "";
     });
-    
   
     const companyValue = String(row[reverseMap["company"]] || "").toLowerCase().trim();
     const productValue = String(row[reverseMap["product"]] || "").toLowerCase().trim();
@@ -250,34 +308,34 @@ const areAllRequiredFieldsMapped = requiredFields.every((fieldKey) =>
   
     const validCompany = !reverseMap["company"] || companyNames.includes(companyValue);
     const validProduct = !reverseMap["product"] || productNames.includes(productValue);
-    const validID = !reverseMap["IDCustomer"] || (/^\d{5,9}$/.test(idValue));
+    const validID = !reverseMap["IDCustomer"] || /^\d{5,9}$/.test(idValue);
   
     const validFirstName = !reverseMap["firstNameCustomer"] || isValidHebrewName(row[reverseMap["firstNameCustomer"]]);
     const validLastName = !reverseMap["lastNameCustomer"] || isValidHebrewName(row[reverseMap["lastNameCustomer"]]);
-    
+  
     const mounthValue = String(row[reverseMap["mounth"]] || "").trim();
     const validMounth = !reverseMap["mounth"] || /^\d{4}-\d{2}-\d{2}$/.test(mounthValue);
-    
+  
     const statusValue = String(row[reverseMap["statusPolicy"]] || "").trim();
     const validStatus = !reverseMap["statusPolicy"] || statusPolicies.includes(statusValue);
   
     const minuyValue = String(row[reverseMap["minuySochen"]] || "").trim();
-    const validMinuySochen =
-      !reverseMap["minuySochen"] || minuyValue === "" || ["כן", "לא"].includes(minuyValue);    
-
+    const validMinuySochen = !reverseMap["minuySochen"] || minuyValue === "" || ["כן", "לא"].includes(minuyValue);
+  
     return hasRequired && validCompany && validProduct && validID && validFirstName && validLastName && validMounth && validStatus && validMinuySochen;
   };
-
+  
   const checkAllRows = (data: any[], map: Record<string, string>) => {
     const reverseMap = Object.fromEntries(Object.entries(map).map(([k, v]) => [v, k]));
   
     const invalids = data.reduce<number[]>((acc, row, idx) => {
-      if (!validateRow(row, map)) acc.push(idx);
+      if (!validateRow(row, map, reverseMap)) acc.push(idx);
       return acc;
     }, []);
   
     setErrors(invalids);
   };
+  
   
   useEffect(() => {
     console.log("שורות תקינות:", validRows);
@@ -287,14 +345,28 @@ const areAllRequiredFieldsMapped = requiredFields.every((fieldKey) =>
     console.log("🔍 שורות עם שגיאות (errors):", errors);
   }, [errors]);
 
-  
   const handleFieldChange = (rowIdx: number, field: string, value: string) => {
     const updatedRows = [...rows];
-    updatedRows[rowIdx][field] = value;
+    const row = updatedRows[rowIdx];
+  
+    row[field] = value;
+  
+    // 🔍 אם מדובר בתאריך - נפרש ונעדכן שגיאה בהתאם
+    if (field === "mounth") {
+      const parsed = parseMounthField(value);
+      row[field] = parsed.value || value;
+    
+      if (parsed.error) {
+        row["_mounthError"] = parsed.error;
+      } else {
+        delete row["_mounthError"]; // זהו החלק הקריטי
+      }
+    }
     setRows(updatedRows);
     checkAllRows(updatedRows, mapping);
   };
-
+  
+  
   const handleDeleteRow = (rowIdx: number) => {
     const updatedRows = rows.filter((_, idx) => idx !== rowIdx);
     setRows(updatedRows);
@@ -358,6 +430,10 @@ const areAllRequiredFieldsMapped = requiredFields.every((fieldKey) =>
       for (const [excelCol, systemField] of Object.entries(mapping)) {
         mappedRow[systemField] = String(originalRow[excelCol] ?? "").trim();
       }
+      // הוספת שדות שייתכן ונוצרו ידנית ולא הגיעו מהמיפוי
+mappedRow["firstNameCustomer"] ??= originalRow["firstNameCustomer"];
+mappedRow["lastNameCustomer"] ??= originalRow["lastNameCustomer"];
+
   
       try {
         const customerQuery = query(
@@ -469,8 +545,13 @@ const handleImport = async () => {
   ];
 
   const reverseMap = Object.fromEntries(Object.entries(mapping).map(([k, v]) => [v, k]));
-  const allRequiredMapped = required.every((key) => reverseMap[key]);
-
+  const allRequiredMapped = required.every((key) => {
+    if (["firstNameCustomer", "lastNameCustomer"].includes(key)) {
+      return reverseMap[key] || reverseMap["fullName"];
+    }
+    return reverseMap[key];
+  });
+  
   if (!allRequiredMapped) {
     addToast("error", "יש שדות חובה שלא מופו – אנא השלימי את המיפוי לפני טעינה.");
     return;
@@ -621,6 +702,67 @@ const formatHebrewDate = (date: Date) =>
     })}
   </tbody>
 </table>
+{Object.values(mapping).includes("fullName") && (
+  <div className="mt-4 text-right border border-gray-300 rounded p-3 bg-gray-50">
+  <label className="block font-semibold mb-1">מה מופיע ראשון בשם המלא?</label>
+<div className="flex flex-col gap-2 text-sm text-gray-700 bg-gray-50 border border-gray-200 rounded p-3">
+  <label>
+    <input
+      type="radio"
+      name="fullNameStructure"
+      value="firstNameFirst"
+      checked={fullNameStructure === "firstNameFirst"}
+      onChange={() => setFullNameStructure("firstNameFirst")}
+    />
+    {" "}
+    שם פרטי ראשון (למשל: <b>כהן מלכה</b>) → <b>שם פרטי:</b> כהן, <b>שם משפחה:</b> מלכה
+  </label>
+  <label>
+    <input
+      type="radio"
+      name="fullNameStructure"
+      value="lastNameFirst"
+      checked={fullNameStructure === "lastNameFirst"}
+      onChange={() => setFullNameStructure("lastNameFirst")}
+    />
+    {" "}
+    שם משפחה ראשון (למשל: <b>כהן מלכה</b>) → <b>שם משפחה:</b> כהן, <b>שם פרטי:</b> מלכה
+  </label>
+</div>
+    {(() => {
+  const fullNameColEntry = Object.entries(mapping).find(([, v]) => v === "fullName");
+  const fullNameCol = fullNameColEntry?.[0];
+
+  if (!fullNameCol || !rows?.[0]) return null;
+
+  const fullNameValue = rows[0][fullNameCol] || "";
+  const parts = fullNameValue.split(" ");
+
+  const firstSplit = {
+    firstName: parts[0] || "",
+    lastName: parts.slice(1).join(" "),
+  };
+
+  const lastSplit = {
+    firstName: parts.slice(0, -1).join(" "),
+    lastName: parts.slice(-1).join(" "),
+  };
+
+  return (
+    fullNameValue && (
+      <div className="mt-3 text-sm text-gray-700 bg-white border border-gray-200 rounded p-2">
+        <div>🔍 דוגמה מתוך הקובץ: <b>{fullNameValue}</b></div>
+        <div className="mt-1">
+          📌 רווח ראשון → שם פרטי: <b>{firstSplit.firstName}</b>, שם משפחה: <b>{firstSplit.lastName}</b><br />
+          📌 רווח אחרון → שם פרטי: <b>{lastSplit.firstName}</b>, שם משפחה: <b>{lastSplit.lastName}</b>
+        </div>
+      </div>
+    )
+  );
+})()}
+
+  </div>
+)}
         </div>
       )}  
       { headers.length > 0 && !areAllRequiredFieldsMapped && (
@@ -682,18 +824,28 @@ const formatHebrewDate = (date: Date) =>
                                                     isInvalidStatus
                                                   ) ? '#ffe6e6' : undefined,
                                                 };
-                                            
                                                 if (field === "mounth") {
+                                                  const error = row["_mounthError"];
+                                                  const value = row["mounth"] || "";
+                                                
                                                   return (
-                                                    <input
-                                                      type="date"
-                                                      value={row[h]}
-                                                      style={inputStyle}
-                                                      onChange={(e) => handleFieldChange(idx, h, e.target.value)}
-                                                    />
+                                                    <div>
+                                                      <input
+                                                        type="date"
+                                                        value={value}
+                                                        style={{
+                                                          ...inputStyle,
+                                                          backgroundColor: error ? '#ffe6e6' : inputStyle.backgroundColor,
+                                                        }}
+                                                        onChange={(e) => handleFieldChange(idx, "mounth", e.target.value)}
+                                                      />
+                                                      {error && (
+                                                        <div style={{ color: 'red', fontSize: '0.75rem' }}>{error}</div>
+                                                      )}
+                                                    </div>
                                                   );
                                                 }
-                                            
+                                                                        
                                                 if (isInvalidCompany) {
                                                   return (
                                                     <select value={row[h]} onChange={(e) => handleFieldChange(idx, h, e.target.value)} style={inputStyle}>
@@ -756,31 +908,53 @@ const formatHebrewDate = (date: Date) =>
             </tbody>
           </table>
 
-          {Object.keys(mapping).length > 0 && validRows.length > 0 ? (
-            <div className="mt-6">
-              <h3 className="font-semibold mb-2">תצוגה מקדימה של הנתונים התקינים שייטענו ({validRows.length} שורות)</h3>
-              <table border={1} className="w-full text-sm text-right">
-              <thead>
-  <tr>
-    {Object.values(mapping).map((mappedField) => {
-      const fieldLabel = systemFieldsDisplay.find(f => f.key === mappedField)?.label || mappedField;
-      return (
-        <th key={mappedField}>{fieldLabel}</th>
-      );
-    })}
-  </tr>
-</thead>
-                <tbody>
-                  {validRows.map((row, idx) => (
-                    <tr key={idx}>
-                      {Object.entries(mapping).map(([excelHeader, systemField]) => (
-                        <td key={systemField}>{row[excelHeader]}</td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+          {(() => {
+  // 1. כל עמודות ה-Excel שמופו לשדות במערכת
+  const mappedColumns = Object.entries(mapping); // [excelColName, systemField]
+
+  // 2. הוספה ידנית של firstNameCustomer ו-lastNameCustomer אם fullName מופה
+  const extraFields = fullNameMapped
+    ? ["firstNameCustomer", "lastNameCustomer"]
+    : [];
+
+  // 3. כותרות לתצוגה - לפי סדר systemFieldsDisplay
+  const previewFields = [
+    ...mappedColumns.map(([excelCol, systemField]) => systemField),
+    ...extraFields,
+  ].sort((a, b) => {
+    const order = systemFieldsDisplay.map((f) => f.key);
+    return order.indexOf(a) - order.indexOf(b);
+  });
+
+  return (
+    <table border={1} className="w-full text-sm text-right">
+      <thead>
+        <tr>
+          {previewFields.map((fieldKey) => {
+            const label =
+              systemFieldsDisplay.find((f) => f.key === fieldKey)?.label || fieldKey;
+            return <th key={fieldKey}>{label}</th>;
+          })}
+        </tr>
+      </thead>
+      <tbody>
+        {validRows.map((row, idx) => (
+          <tr key={idx}>
+            {previewFields.map((fieldKey) => {
+              // אם זה שדה שמופה ישירות לעמודת Excel
+              const excelCol = Object.entries(mapping).find(
+                ([, systemField]) => systemField === fieldKey
+              )?.[0];
+
+              const value = excelCol ? row[excelCol] : row[fieldKey]; // או שנשלף מהשדה שנוסף ידנית
+              return <td key={fieldKey}>{value}</td>;
+            })}
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+})()}
           ) : (
             <p className="text-gray-600 mt-4">לא נמצאו נתונים תקינים לטעינה.</p>
       
