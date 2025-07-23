@@ -907,58 +907,58 @@ const formatHebrewDate = (date: Date) =>
               })}
             </tbody>
           </table>
+          {rows.length > 0 && areAllRequiredFieldsMapped ? (
+  (() => {
+    // 1. כל עמודות ה-Excel שמופו לשדות במערכת
+    const mappedColumns = Object.entries(mapping); // [excelColName, systemField]
 
-          {(() => {
-  // 1. כל עמודות ה-Excel שמופו לשדות במערכת
-  const mappedColumns = Object.entries(mapping); // [excelColName, systemField]
+    // 2. הוספה ידנית של firstNameCustomer ו-lastNameCustomer אם fullName מופה
+    const extraFields = fullNameMapped
+      ? ["firstNameCustomer", "lastNameCustomer"]
+      : [];
 
-  // 2. הוספה ידנית של firstNameCustomer ו-lastNameCustomer אם fullName מופה
-  const extraFields = fullNameMapped
-    ? ["firstNameCustomer", "lastNameCustomer"]
-    : [];
+    // 3. כותרות לתצוגה - לפי סדר systemFieldsDisplay
+    const previewFields = [
+      ...mappedColumns.map(([excelCol, systemField]) => systemField),
+      ...extraFields,
+    ].sort((a, b) => {
+      const order = systemFieldsDisplay.map((f) => f.key);
+      return order.indexOf(a) - order.indexOf(b);
+    });
 
-  // 3. כותרות לתצוגה - לפי סדר systemFieldsDisplay
-  const previewFields = [
-    ...mappedColumns.map(([excelCol, systemField]) => systemField),
-    ...extraFields,
-  ].sort((a, b) => {
-    const order = systemFieldsDisplay.map((f) => f.key);
-    return order.indexOf(a) - order.indexOf(b);
-  });
-
-  return (
-    <table border={1} className="w-full text-sm text-right">
-      <thead>
-        <tr>
-          {previewFields.map((fieldKey) => {
-            const label =
-              systemFieldsDisplay.find((f) => f.key === fieldKey)?.label || fieldKey;
-            return <th key={fieldKey}>{label}</th>;
-          })}
-        </tr>
-      </thead>
-      <tbody>
-        {validRows.map((row, idx) => (
-          <tr key={idx}>
+    return (
+      <table border={1} className="w-full text-sm text-right">
+        <thead>
+          <tr>
             {previewFields.map((fieldKey) => {
-              // אם זה שדה שמופה ישירות לעמודת Excel
-              const excelCol = Object.entries(mapping).find(
-                ([, systemField]) => systemField === fieldKey
-              )?.[0];
-
-              const value = excelCol ? row[excelCol] : row[fieldKey]; // או שנשלף מהשדה שנוסף ידנית
-              return <td key={fieldKey}>{value}</td>;
+              const label =
+                systemFieldsDisplay.find((f) => f.key === fieldKey)?.label ||
+                fieldKey;
+              return <th key={fieldKey}>{label}</th>;
             })}
           </tr>
-        ))}
-      </tbody>
-    </table>
-  );
-})()}
-          ) : (
-            <p className="text-gray-600 mt-4">לא נמצאו נתונים תקינים לטעינה.</p>
-      
-          )
+        </thead>
+        <tbody>
+          {validRows.map((row, idx) => (
+            <tr key={idx}>
+              {previewFields.map((fieldKey) => {
+                // אם זה שדה שמופה ישירות לעמודת Excel
+                const excelCol = Object.entries(mapping).find(
+                  ([, systemField]) => systemField === fieldKey
+                )?.[0];
+
+                const value = excelCol ? row[excelCol] : row[fieldKey]; // או שנשלף מהשדה שנוסף ידנית
+                return <td key={fieldKey}>{value}</td>;
+              })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    );
+  })()
+) : (
+  <p className="text-gray-600 mt-4">לא נמצאו נתונים תקינים לטעינה.</p>
+)}
 
           {errors.length > 0 && <p className="text-red-600 mt-2">יש שורות עם שגיאות – תקני או מחקי אותן לפני טעינה.</p>}
 
