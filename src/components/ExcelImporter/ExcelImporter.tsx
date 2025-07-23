@@ -428,8 +428,13 @@ const validMounth = /^\d{4}-\d{2}-\d{2}$/.test(mounthValue);
       const originalRow = rows[i];
       const mappedRow: any = {};
       for (const [excelCol, systemField] of Object.entries(mapping)) {
-        mappedRow[systemField] = String(originalRow[excelCol] ?? "").trim();
-      }
+        if (systemField === "mounth") {
+          // ✨ נשתמש בגרסה המעודכנת ששמורה ישירות תחת row["mounth"]
+          mappedRow[systemField] = String(originalRow["mounth"] ?? "").trim();
+        } else {
+          mappedRow[systemField] = String(originalRow[excelCol] ?? "").trim();
+        }
+      }      
       // הוספת שדות שייתכן ונוצרו ידנית ולא הגיעו מהמיפוי
 mappedRow["firstNameCustomer"] ??= originalRow["firstNameCustomer"];
 mappedRow["lastNameCustomer"] ??= originalRow["lastNameCustomer"];
