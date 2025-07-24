@@ -179,6 +179,71 @@ useEffect(() => {
     return { error: `תאריך לא מזוהה: ${String(value)}` };
   };
 
+
+  const splitFullName = (
+    fullNameRaw: string,
+    structure: "firstNameFirst" | "lastNameFirst"
+  ) => {
+    const parts = fullNameRaw.trim().split(" ").filter(Boolean);
+    let firstName = "";
+    let lastName = "";
+  
+    if (parts.length === 1) {
+      firstName = parts[0];
+      lastName = "";
+    } else if (parts.length === 2) {
+      if (structure === "firstNameFirst") {
+        firstName = parts[0];
+        lastName = parts[1];
+      } else {
+        firstName = parts[1];
+        lastName = parts[0];
+      }
+    } else if (parts.length === 3) {
+      if (structure === "firstNameFirst") {
+        firstName = parts[0];
+        lastName = parts.slice(1).join(" ");
+      } else {
+        firstName = parts.slice(2).join(" ");
+        lastName = parts.slice(0, 2).join(" ");
+      }
+    } else {
+      // 4 מילים ומעלה
+      if (structure === "firstNameFirst") {
+        firstName = parts[0];
+        lastName = parts.slice(1).join(" ");
+      } else {
+        firstName = parts.slice(-1).join(" ");
+        lastName = parts.slice(0, -1).join(" ");
+      }
+    }
+    console.log(`💡 Full name "${fullNameRaw}" split as → First: ${firstName}, Last: ${lastName}`);
+
+    return { firstName, lastName };
+  };
+  
+  useEffect(() => {
+    if (!rows.length || !Object.values(mapping).includes("fullName")) return;
+  
+    const updatedRows = rows.map((row) => {
+      const fullNameField = Object.keys(mapping).find((col) => mapping[col] === "fullName");
+      if (!fullNameField) return row;
+  
+      const fullNameRaw = row[fullNameField]?.trim() || "";
+      const { firstName, lastName } = splitFullName(fullNameRaw, fullNameStructure);
+  
+      return {
+        ...row,
+        firstNameCustomer: firstName,
+        lastNameCustomer: lastName,
+      };
+    });
+  
+    setRows(updatedRows);
+  }, [fullNameStructure]);
+  
+
+
   useEffect(() => {
     console.log("📌 useEffect triggered", { pendingExcelData, areAllRequiredFieldsMapped });
     console.log("📌 required fields missing?", {
@@ -192,37 +257,13 @@ useEffect(() => {
 
     const parsedData = pendingExcelData.map((row) => {
       const newRow = { ...row };
-      // פיצול שם מלא לפי רווח ראשון/אחרון
       const fullNameField = Object.keys(mapping).find((col) => mapping[col] === "fullName");
       if (fullNameField) {
         const fullNameRaw = row[fullNameField]?.trim() || "";
-        const parts = fullNameRaw.split(" ").filter(Boolean);
-
-        if (parts.length === 1) {
-          newRow["firstNameCustomer"] = parts[0];
-          newRow["lastNameCustomer"] = "";
-        } else if (parts.length === 2) {
-          if (fullNameStructure === "firstNameFirst") {
-            newRow["firstNameCustomer"] = parts[0];
-            newRow["lastNameCustomer"] = parts[1];
-          } else {
-            newRow["firstNameCustomer"] = parts[1];
-            newRow["lastNameCustomer"] = parts[0];
-          }
-        } else if (parts.length === 3) {
-          if (fullNameStructure === "firstNameFirst") {
-            newRow["firstNameCustomer"] = parts[0];
-            newRow["lastNameCustomer"] = parts.slice(1).join(" ");
-          } else {
-            newRow["firstNameCustomer"] = parts[2];
-            newRow["lastNameCustomer"] = parts.slice(0, 2).join(" ");
-          }
-        } else {
-          newRow["firstNameCustomer"] = parts[0];
-          newRow["lastNameCustomer"] = parts.slice(1).join(" ");
-        }
+        const { firstName, lastName } = splitFullName(fullNameRaw, fullNameStructure);
+        newRow["firstNameCustomer"] = firstName;
+        newRow["lastNameCustomer"] = lastName;
       }
-
       // עיבוד שדה תאריך
       const excelFieldForMounth = Object.keys(mapping).find(
         (col) => mapping[col] === "mounth"
