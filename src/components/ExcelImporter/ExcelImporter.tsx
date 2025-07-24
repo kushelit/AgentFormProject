@@ -11,11 +11,13 @@ import DialogNotification from "@/components/DialogNotification";
 import './ExcelImporter.css';
 import { Button } from "@/components/Button/Button";
 import { doc } from "firebase/firestore";
+import { fetchSourceLeadsForAgent } from '@/services/sourceLeadService';
+
 
 const systemFields = [
   "firstNameCustomer", "lastNameCustomer", "IDCustomer", "company", "product",
   "insPremia", "pensiaPremia", "pensiaZvira", "finansimPremia", "finansimZvira",
-  "mounth", "statusPolicy", "minuySochen", "notes", "workerName"
+  "mounth", "statusPolicy", "minuySochen", "notes", "workerName", "sourceLeadName"
 ];
 
 const systemFieldsDisplay = [
@@ -35,6 +37,8 @@ const systemFieldsDisplay = [
   { key: "finansimPremia", label: "פרמיית פיננסים", required: false },
   { key: "finansimZvira", label: "צבירה פיננסים", required: false },
   { key: "workerName", label: "עובד", required: true },
+  { key: "sourceLeadName", label: "מקור ליד", required: false }, // ← הוסף
+
 ];
 
 const numericFields = [
@@ -76,6 +80,19 @@ const ExcelImporter: React.FC = () => {
     workers: string[];
     agentName: string;
   } | null>(null);
+
+
+  const [sourceLeads, setSourceLeads] = useState<string[]>([]);
+
+useEffect(() => {
+  const fetchLeads = async () => {
+    if (!selectedAgentId) return;
+    const data = await fetchSourceLeadsForAgent(selectedAgentId);
+    setSourceLeads(data.map(item => String(item.sourceLead || "").toLowerCase().trim()));
+  };
+  fetchLeads();
+}, [selectedAgentId]);
+
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -233,6 +250,15 @@ const ExcelImporter: React.FC = () => {
           newRow["_workerError"] = `עובד לא מזוהה: ${workerName}`;
         }
       }
+      // עיבוד שדה מקור ליד
+const sourceLeadField = Object.keys(mapping).find(col => mapping[col] === "sourceLeadName");
+if (sourceLeadField) {
+  const leadName = String(row[sourceLeadField] || "").trim();
+  newRow[sourceLeadField] = leadName;
+  if (!sourceLeads.includes(leadName.toLowerCase())) {
+    newRow["_sourceLeadError"] = `מקור ליד לא מזוהה: ${leadName}`;
+  }
+}
 
       applyDefaultMinuySochen(newRow, mapping);
       return newRow;
@@ -307,13 +333,14 @@ const ExcelImporter: React.FC = () => {
     const companyValue = String(row[reverseMap["company"]] || "").toLowerCase().trim();
     const productValue = String(row[reverseMap["product"]] || "").toLowerCase().trim();
     const idValue = String(row[reverseMap["IDCustomer"]] || "").trim();
-    const workerValue = String(row[reverseMap["workerName"]] || "").toLowerCase().trim();
+    const workerValue = String(row[reverseMap["workerName"]] || "").trim().toLowerCase();
+    const sourceLeadValue = String(row[reverseMap["sourceLeadName"]] || "").toLowerCase().trim(); // ← הוסף
 
     const validCompany = !reverseMap["company"] || companyNames.includes(companyValue);
     const validProduct = !reverseMap["product"] || productNames.includes(productValue);
     const validID = !reverseMap["IDCustomer"] || /^\d{5,9}$/.test(idValue);
     const validWorker = !reverseMap["workerName"] || workerNames.includes(workerValue);
-
+    const validSourceLead = !reverseMap["sourceLeadName"] || sourceLeadValue === "" || sourceLeads.includes(sourceLeadValue); // מאפשר ערך ריק
     const validFirstName = !reverseMap["firstNameCustomer"] || isValidHebrewName(row[reverseMap["firstNameCustomer"]]);
     const validLastName = !reverseMap["lastNameCustomer"] || isValidHebrewName(row[reverseMap["lastNameCustomer"]]);
 
@@ -326,7 +353,7 @@ const ExcelImporter: React.FC = () => {
     const minuyValue = String(row[reverseMap["minuySochen"]] || "").trim();
     const validMinuySochen = !reverseMap["minuySochen"] || minuyValue === "" || ["כן", "לא"].includes(minuyValue);
 
-    return hasRequired && validCompany && validProduct && validID && validFirstName && validLastName && validMounth && validStatus && validMinuySochen && validWorker;
+    return hasRequired && validCompany && validProduct && validID && validFirstName && validLastName && validMounth && validStatus && validMinuySochen && validWorker && validSourceLead;
   };
 
   const checkAllRows = (data: any[], map: Record<string, string>) => {
@@ -350,34 +377,67 @@ const ExcelImporter: React.FC = () => {
 
   const handleFieldChange = (rowIdx: number, field: string, value: string) => {
     const updatedRows = [...rows];
-    const row = updatedRows[rowIdx];
-
-    row[field] = value;
-
+    const originalRow = updatedRows[rowIdx];
+    const updatedRow = { ...originalRow };
+  
+    // עדכון גם לשם השדה במערכת וגם לעמודה המקורית מהאקסל
+    const excelField = Object.entries(mapping).find(([, v]) => v === field)?.[0];
+    if (excelField) {
+      updatedRow[excelField] = value;
+    }
+    updatedRow[field] = value;
+  
+    // mounth – תאריך
     if (field === "mounth") {
       const parsed = parseMounthField(value);
-      row[field] = parsed.value || value;
+      updatedRow["mounth"] = parsed.value || value;
       if (parsed.error) {
-        row["_mounthError"] = parsed.error;
+        updatedRow["_mounthError"] = parsed.error;
       } else {
-        delete row["_mounthError"];
+        delete updatedRow["_mounthError"];
       }
     }
-
+  
+    // עובד
     if (field === "workerName") {
-      const worker = workers.find(w => w.name.toLowerCase() === value.toLowerCase());
+      const worker = workers.find(w => w.name.toLowerCase() === value.trim().toLowerCase());
       if (worker) {
-        row["workerId"] = worker.id;
-        row["workerName"] = worker.name;
-        delete row["_workerError"];
+        updatedRow["workerId"] = worker.id;
+        updatedRow["workerName"] = worker.name;
+    
+        if (excelField) {
+          updatedRow[excelField] = worker.name; // זה המפתח!
+        }
+    
+        delete updatedRow["_workerError"];
       } else {
-        row["_workerError"] = `עובד לא מזוהה: ${value}`;
+        updatedRow["_workerError"] = `עובד לא מזוהה: ${value}`;
       }
     }
+    
+  
+    // מקור ליד
+  // מקור ליד
+if (field === "sourceLeadName") {
+  const name = value.trim();
+  updatedRow["sourceLeadName"] = name;
 
+  if (excelField) {
+    updatedRow[excelField] = name;
+  }
+
+  if (name === "" || sourceLeads.includes(name.toLowerCase())) {
+    delete updatedRow["_sourceLeadError"];
+  } else {
+    updatedRow["_sourceLeadError"] = `מקור ליד לא מזוהה: ${name}`;
+  }
+}
+  
+    updatedRows[rowIdx] = updatedRow;
     setRows(updatedRows);
     checkAllRows(updatedRows, mapping);
   };
+  
 
   const handleDeleteRow = (rowIdx: number) => {
     const updatedRows = rows.filter((_, idx) => idx !== rowIdx);
@@ -497,6 +557,7 @@ const ExcelImporter: React.FC = () => {
             lastNameCustomer: mappedRow.lastNameCustomer || "",
             IDCustomer: String(mappedRow.IDCustomer || ""),
             parentID: "",
+            sourceLeadName: mappedRow.sourceLeadName || "", // ← חדש
             sourceApp: "importExcel",
           });
           await updateDoc(customerDocRef, { parentID: customerDocRef.id });
@@ -768,14 +829,16 @@ const ExcelImporter: React.FC = () => {
                             const isNumericField = numericFields.includes(field);
                             const isInvalidNumber = isNumericField && isNaN(Number(rawValue));
                             const isInvalidStatus = field === 'statusPolicy' && !statusPolicies.includes(String(rawValue || '').trim());
-                            const isInvalidWorker = field === 'workerName' && !workerNames.includes(value);
-
+                            const isInvalidWorker = field === 'workerName' &&
+                            !!value &&
+                            !workers.find(w => w.name.toLowerCase().trim() === value.toLowerCase().trim());
+                          const isInvalidSourceLead = field === 'sourceLeadName' && !!value && !sourceLeads.includes(value);
                             const inputStyle = {
                               width: '100%',
                               backgroundColor:
                                 isInvalidCompany || isInvalidProduct || isInvalidID ||
                                 isInvalidFirstName || isInvalidLastName || isInvalidNumber ||
-                                isInvalidStatus || isInvalidWorker
+                                isInvalidStatus || isInvalidWorker || isInvalidSourceLead
                                   ? '#ffe6e6'
                                   : undefined,
                             };
@@ -806,11 +869,21 @@ const ExcelImporter: React.FC = () => {
 
                             if (field === 'workerName') {
                               const error = row['_workerError'];
+                              console.log("🧩 workerName render debug", {
+                                rowIdx: idx,
+                                field,
+                                excelHeader: h,
+                                valueInRowH: row[h],
+                                workerNameInRow: row["workerName"],
+                                matchingWorker: workers.find(w => w.name === row[h]),
+                                allWorkers: workers.map(w => w.name),
+                              });
+                              
                               return (
                                 <div>
                                   <select
                                     value={row[h] || ''}
-                                    onChange={(e) => handleFieldChange(idx, h, e.target.value)}
+                                    onChange={(e) => handleFieldChange(idx, 'workerName', e.target.value)}
                                     style={{
                                       ...inputStyle,
                                       backgroundColor: error ? '#ffe6e6' : inputStyle.backgroundColor,
@@ -827,7 +900,28 @@ const ExcelImporter: React.FC = () => {
                                 </div>
                               );
                             }
-
+                            if (field === 'sourceLeadName') {
+                              const error = row['_sourceLeadError'];
+                              return (
+                                <div>
+                                  <select
+                                    value={row[h] || ''}
+                                    onChange={(e) => handleFieldChange(idx, h, e.target.value)}
+                                    style={{
+                                      ...inputStyle,
+                                      backgroundColor: error ? '#ffe6e6' : inputStyle.backgroundColor,
+                                    }}
+                                  >
+                                    <option value="">בחר מקור ליד</option>
+                                    {sourceLeads.map((name, i) => (
+                                      <option key={i} value={name}>{name}</option>
+                                    ))}
+                                  </select>
+                                  {error && renderError(error)}
+                                </div>
+                              );
+                            }
+                            
                             if (isInvalidCompany) {
                               return (
                                 <div>
