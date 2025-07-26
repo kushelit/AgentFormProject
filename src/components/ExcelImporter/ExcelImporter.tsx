@@ -36,7 +36,7 @@ const systemFieldsDisplay = [
   { key: "pensiaZvira", label: "צבירה פנסיה", required: false },
   { key: "finansimPremia", label: "פרמיית פיננסים", required: false },
   { key: "finansimZvira", label: "צבירה פיננסים", required: false },
-  { key: "workerName", label: "עובד", required: true },
+  { key: "workerName", label: "עובד", required: false },
   { key: "sourceLeadName", label: "מקור ליד", required: false }, // ← הוסף
 
 ];
@@ -363,7 +363,7 @@ if (sourceLeadField) {
     map: Record<string, string>,
     reverseMap: Record<string, string>
   ) => {
-    const required = ["firstNameCustomer", "lastNameCustomer", "IDCustomer", "company", "product", "mounth", "statusPolicy", "workerName"];
+    const required = ["firstNameCustomer", "lastNameCustomer", "IDCustomer", "company", "product", "mounth", "statusPolicy"];
 
     const hasRequired = required.every((key) => {
       const source = reverseMap[key];
@@ -456,9 +456,7 @@ if (sourceLeadField) {
       }
     }
     
-  
     // מקור ליד
-  // מקור ליד
 if (field === "sourceLeadName") {
   const name = value.trim();
   updatedRow["sourceLeadName"] = name;
@@ -473,7 +471,8 @@ if (field === "sourceLeadName") {
     updatedRow["_sourceLeadError"] = `מקור ליד לא מזוהה: ${name}`;
   }
 }
-  
+
+
     updatedRows[rowIdx] = updatedRow;
     setRows(updatedRows);
     checkAllRows(updatedRows, mapping);
@@ -495,7 +494,7 @@ if (field === "sourceLeadName") {
       "product",
       "mounth",
       "statusPolicy",
-      "workerName"
+      // "workerName"
     ];
 
     const reverseMap = Object.fromEntries(Object.entries(mapping).map(([k, v]) => [v, k]));
@@ -738,8 +737,8 @@ if (field === "sourceLeadName") {
 
       {headers.length > 0 && (
         <div className="mb-6">
-          <h3 className="font-semibold mb-2">מיפוי שדות</h3>
-          <table border={1} className="w-full text-right">
+<h3 className="font-semibold mb-2">מיפוי שדות מערכת מתוך קובץ Excel</h3>
+<table border={1} className="w-full text-right">
             <thead>
               <tr>
                 <th>שדה במערכת</th>
@@ -770,6 +769,34 @@ if (field === "sourceLeadName") {
               })}
             </tbody>
           </table>
+          {(() => {
+  const mappedFields = Object.values(mapping);
+  const hasFullName = mappedFields.includes("fullName");
+  const hasFirstAndLast = mappedFields.includes("firstNameCustomer") && mappedFields.includes("lastNameCustomer");
+
+  if (!hasFullName && !hasFirstAndLast) {
+    return (
+      <div className="mt-4 p-3 border border-red-400 bg-red-50 text-red-800 rounded text-sm">
+        ⚠️ חובה למפות שדות של שם לקוח. יש למפות או:
+        <ul className="list-disc pr-5 mt-2">
+          <li><b>שם פרטי</b> ו־<b>שם משפחה</b> – כל אחד לעמודה נפרדת</li>
+          <li>או עמודת <b>שם מלא</b> אחת</li>
+        </ul>
+      </div>
+    );
+  }
+
+  if (hasFullName) {
+    return (
+      <div className="mt-4 p-3 border border-yellow-400 bg-yellow-50 text-yellow-800 rounded text-sm">
+        ⚠️ מופה שדה <b>שם מלא</b>. אנא צייני מה הסדר בתוך השדה (שם פרטי קודם או שם משפחה קודם) כדי שנפצל נכון.
+      </div>
+    );
+  }
+
+  return null;
+})()}
+
           {Object.values(mapping).includes("fullName") && (
             <div className="mt-4 text-right border border-gray-300 rounded p-3 bg-gray-50">
               <label className="block font-semibold mb-1">מה מופיע ראשון בשם המלא?</label>
@@ -783,7 +810,7 @@ if (field === "sourceLeadName") {
                     onChange={() => setFullNameStructure("firstNameFirst")}
                   />
                   {" "}
-                  שם פרטי ראשון (למשל: <b>כהן מלכה</b>) → <b>שם פרטי:</b> כהן, <b>שם משפחה:</b> מלכה
+                  שם פרטי ראשון (למשל: <b>מלכה כהן</b>) → <b>שם פרטי:</b> מלכה, <b>שם משפחה:</b> כהן
                 </label>
                 <label>
                   <input
@@ -797,7 +824,7 @@ if (field === "sourceLeadName") {
                   שם משפחה ראשון (למשל: <b>כהן מלכה</b>) → <b>שם משפחה:</b> כהן, <b>שם פרטי:</b> מלכה
                 </label>
               </div>
-              {(() => {
+              {/* {(() => {
                 const fullNameColEntry = Object.entries(mapping).find(([, v]) => v === "fullName");
                 const fullNameCol = fullNameColEntry?.[0];
 
@@ -828,6 +855,7 @@ if (field === "sourceLeadName") {
                   )
                 );
               })()}
+               */}
             </div>
           )}
         </div>
@@ -873,7 +901,18 @@ if (field === "sourceLeadName") {
                             const isInvalidWorker = field === 'workerName' &&
                             !!value &&
                             !workers.find(w => w.name.toLowerCase().trim() === value.toLowerCase().trim());
-                          const isInvalidSourceLead = field === 'sourceLeadName' && !!value && !sourceLeads.includes(value);
+                            const isInvalidSourceLead = field === 'sourceLeadName' &&
+                            !!value &&
+                            !sourceLeads.some((s) => s.toLowerCase().trim() === value.toLowerCase().trim());                          
+                            console.log("🧪 DEBUG sourceLead", {
+                              field,
+                              value,
+                              trimmedValue: value.trim(),
+                              sourceLeads,
+                              includes: sourceLeads.includes(value.trim()),
+                              includesIgnoreCase: sourceLeads.some(name => name.toLowerCase() === value.trim().toLowerCase())
+                            });
+                            
                             const inputStyle = {
                               width: '100%',
                               backgroundColor:
@@ -943,11 +982,15 @@ if (field === "sourceLeadName") {
                             }
                             if (field === 'sourceLeadName') {
                               const error = row['_sourceLeadError'];
+                              const currentValue = row[h] || '';
+                            
+                              const validValue = sourceLeads.includes(currentValue);
+                            
                               return (
                                 <div>
                                   <select
-                                    value={row[h] || ''}
-                                    onChange={(e) => handleFieldChange(idx, h, e.target.value)}
+                                    value={validValue ? currentValue : ''}
+                                    onChange={(e) => handleFieldChange(idx, 'sourceLeadName', e.target.value)}
                                     style={{
                                       ...inputStyle,
                                       backgroundColor: error ? '#ffe6e6' : inputStyle.backgroundColor,
@@ -961,7 +1004,7 @@ if (field === "sourceLeadName") {
                                   {error && renderError(error)}
                                 </div>
                               );
-                            }
+                            }                                                 
                             
                             if (isInvalidCompany) {
                               return (
