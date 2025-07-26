@@ -2,6 +2,11 @@ import { useState, useEffect } from 'react';
 import { collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from "@/lib/firebase/firebase";
 import { useAuth } from '@/lib/firebase/AuthContext';
+import { CommissionSplit } from '@/types/CommissionSplit';
+import {  CombinedData } from '../types/Sales';
+import { fetchSplits } from '@/services/splitsService';
+import  fetchDataForAgent from '@/services/fetchDataForAgent';
+
 
 type MonthlyTotal = {
     finansimTotal: number;
@@ -43,7 +48,8 @@ function useSalesData(
      selectedCompany: string, selectedProduct: string, 
      selectedStatusPolicy: string,
      selectedYear: number, // Add selectedYear as a parameter
-     includePreviousDecember: boolean = false // 🆕 פרמטר חדש
+     includePreviousDecember: boolean = false, // 🆕 פרמטר חדש
+     isCommissionSplitEnabled: boolean
     ) {
     const [monthlyTotals, setMonthlyTotals] = useState<MonthlyTotals>({});
     const [overallTotals, setOverallTotals] = useState<MonthlyTotal>({ finansimTotal: 0, pensiaTotal: 0, insuranceTotal: 0, niudPensiaTotal: 0, commissionHekefTotal: 0, commissionNifraimTotal: 0  , insuranceTravelTotal: 0, prishaMyaditTotal: 0 }); // הוספת שדה חדש
@@ -53,6 +59,30 @@ const [productMap, setProductMap] = useState<Record<string, Product>>({});
     const [loading, setLoading] = useState(true);  // Add loading state here
     const [isLoadingData, setIsLoadingData] = useState(false);
     const [companyCommissions, setCompanyCommissions] = useState<Record<string, number>>({});
+
+
+    const [commissionSplits, setCommissionSplits] = useState<CommissionSplit[]>([]);
+    const [customers, setCustomers] = useState<CombinedData[]>([]);
+
+
+    useEffect(() => {
+      const fetchAllData = async () => {
+        const [splits, customerData] = await Promise.all([
+          fetchSplits(selectedAgentId),
+          fetchDataForAgent(selectedAgentId),
+        ]);
+        
+        setCommissionSplits(splits);
+        setCustomers(customerData); // כאן customerData הוא מסוג CustomersTypeForFetching[]
+        
+      };
+    
+      if (selectedAgentId) {
+        fetchAllData();
+      }
+    }, [selectedAgentId]);
+    
+
 
     useEffect(() => {
         async function fetchContractsAndProducts() {
@@ -226,7 +256,13 @@ const [productMap, setProductMap] = useState<Record<string, Product>>({});
 
             
             if (newMonthlyTotals[month]) {
-                updateCommissions(data, newMonthlyTotals[month], product, newCompanyCommissions);
+                updateCommissions(data, newMonthlyTotals[month], product,
+                  newCompanyCommissions,
+                  commissionSplits,
+                  customers,
+                  isCommissionSplitEnabled
+
+                );
               }
                 });
 
@@ -244,11 +280,10 @@ const [productMap, setProductMap] = useState<Record<string, Product>>({});
         fetchData();
    
     }, [loading,selectedAgentId, selectedWorkerIdFilter, selectedCompany, 
-        selectedProduct, selectedStatusPolicy,selectedYear,  includePreviousDecember 
+        selectedProduct, selectedStatusPolicy,selectedYear,  includePreviousDecember, isCommissionSplitEnabled
     ]);
 
   
-
 
     function updateTotalsForMonth(data: any, monthTotals: MonthlyTotal, includeMinuySochen: boolean, product?: Product) {  
         if (!includeMinuySochen) {
@@ -268,36 +303,59 @@ const [productMap, setProductMap] = useState<Record<string, Product>>({});
           }
         }
 
-    function updateCommissions(data: any, monthTotals: MonthlyTotal,   product: Product | undefined,
-        companyCommissions: Record<string, number> // Pass an object to track per-company commissions
+    function updateCommissions(data: any, monthTotals: MonthlyTotal, 
+       product: Product | undefined,
+        companyCommissions: Record<string, number>,
+        commissionSplits: CommissionSplit[],
+      customers: CombinedData[],
+     isCommissionSplitEnabled: boolean
     ) {  
         const productGroup = product?.productGroup;
 
         const contractMatch = contracts.find(contract => contract.agentId === data.AgentId && contract.product === data.product && contract.company === data.company &&   (contract.minuySochen === data.minuySochen || (contract.minuySochen === undefined && data.minuySochen === false)));
        
         if (contractMatch) {
-            calculateCommissions(monthTotals, data, contractMatch, product , companyCommissions);
+            calculateCommissions(monthTotals, data, contractMatch, product , 
+              companyCommissions,
+               commissionSplits,
+            customers,
+             isCommissionSplitEnabled
+            );
         } else {
             const groupMatch = contracts.find(contract => contract.productsGroup === productGroup && contract.agentId === data.AgentId &&  (contract.minuySochen === data.minuySochen || (contract.minuySochen === undefined && data.minuySochen === false)));
             
             if (groupMatch) {
-                calculateCommissions(monthTotals, data, groupMatch, product , companyCommissions);
+                calculateCommissions(monthTotals, data, groupMatch, product ,
+                   companyCommissions,
+                   commissionSplits,
+                   customers,
+                   isCommissionSplitEnabled
+                  
+                  );
             } else {
                 // console.log('No Match Found' , data.productGroup);
             }
         }
     }
 
-    function calculateCommissions(monthTotals: MonthlyTotal, data: any, contract: Contract,
-        product: Product | undefined, companyCommissions: Record<string, number> // Add company-specific commission tracking
+    function calculateCommissions(monthTotals: MonthlyTotal, 
+      data: any, 
+      contract: Contract,
+       product: Product | undefined, 
+      companyCommissions: Record<string, number>,
+      commissionSplits: CommissionSplit[],
+      customers: CombinedData[], // ✅ חדש
+      isCommissionSplitEnabled: boolean // ✅ FLAG
     ) 
     {
-
+      console.log("📌 calculateCommissions called for", data.IDCustomer);
+      console.log("✅ isCommissionSplitEnabled:", isCommissionSplitEnabled);
+      
         const isOneTime = product?.isOneTimeCommission ?? false;
         const multiplier = isOneTime ? 1 : 12;
 
 
-        const hekef = ((parseInt(data.insPremia) || 0) * contract.commissionHekef / 100 * multiplier) + 
+        let  hekef = ((parseInt(data.insPremia) || 0) * contract.commissionHekef / 100 * multiplier) + 
                      ((parseInt(data.pensiaPremia) || 0) * contract.commissionHekef / 100 * multiplier) + 
                      ((parseInt(data.pensiaZvira) || 0) * contract.commissionNiud / 100) + 
                      ((parseInt(data.finansimPremia) || 0) * contract.commissionHekef / 100 * multiplier) + 
@@ -305,12 +363,48 @@ const [productMap, setProductMap] = useState<Record<string, Product>>({});
     
       
   // 🛑 אם מדובר במוצר חד-פעמי, נוותר על חישוב נפרעים
-const nifraim = isOneTime ? 0 : (
+  let  nifraim = isOneTime ? 0 : (
     ((parseInt(data.insPremia) || 0) * contract.commissionNifraim / 100) +
     ((parseInt(data.pensiaPremia) || 0) * contract.commissionNifraim / 100) +
     ((parseInt(data.finansimZvira) || 0) * contract.commissionNifraim / 100 / 12)
   );
-  
+  // 🟢 בדיקת פיצול עמלות רק אם הופעל הדגל
+if (isCommissionSplitEnabled) {
+  console.log("🔁 בדיקת פיצול הופעלה עבור לקוח:", data.IDCustomer, "וסוכן:", data.AgentId);
+
+  const customer = customers.find(
+    cust => cust.IDCustomer === data.IDCustomer && cust.AgentId === data.AgentId
+  );
+
+  console.log("🧍‍♂️ לקוח שנמצא:", customer);
+
+  if (customer?.sourceValue) {
+    console.log("📌 sourceValue שנמצא:", customer.sourceValue);
+
+    const splitAgreement = commissionSplits.find(
+      split => split.agentId === data.AgentId && split.sourceLeadId === customer.sourceValue
+
+    );
+
+    console.log("📄 הסכם פיצול שנמצא:", splitAgreement);
+
+    if (splitAgreement) {
+      const percentToAgent = splitAgreement.percentToAgent;
+      console.log(`💰 אחוז לסוכן לפי הסכם הפיצול: ${percentToAgent}%`);
+
+      hekef *= (percentToAgent / 100);
+      nifraim *= (percentToAgent / 100);
+
+      console.log("✅ עמלה לאחר פיצול - היקף:", hekef, "| נפרעים:", nifraim);
+    } else {
+      console.log("⚠️ לא נמצא הסכם פיצול ל-sourceLead:", customer.sourceValue);
+    }
+  } else {
+    console.log("🚫 ללקוח אין sourceValue – אין פיצול");
+  }
+}
+
+
         monthTotals.commissionHekefTotal += Math.round(hekef);
         monthTotals.commissionNifraimTotal += Math.round(nifraim);
 

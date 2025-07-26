@@ -51,6 +51,7 @@ const fetchDataForAgent = async (UserAgentId: string): Promise<CombinedData[]> =
       ...sale,
       firstNameCustomer: customer?.firstNameCustomer || 'Unknown',
       lastNameCustomer: customer?.lastNameCustomer || 'Unknown',
+      sourceValue: customer?.sourceValue || '', // ← זה חשוב לחישוב הפיצול
     };
   });
 

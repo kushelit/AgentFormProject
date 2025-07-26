@@ -1,5 +1,6 @@
 export type CustomersTypeForFetching = {
   id: string; // הוסף את השדה 'id'
+  AgentId: string;
   parentID: string;
   parentFullName?: string;
   firstNameCustomer: string;
@@ -12,7 +13,7 @@ export type CustomersTypeForFetching = {
   phone: string;
   mail: string;
   address: string;
-  sourceValue: string;
+  sourceValue?: string;
 };
 
 

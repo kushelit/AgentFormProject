@@ -14,6 +14,9 @@ import useEditableTable from "@/hooks/useEditableTable";
 import { Contract, ContractAgent } from '@/types/Contract'; // טיפוסים
 import {ToastNotification} from '@/components/ToastNotification';
 import { useToast } from "@/hooks/useToast";
+import { fetchSourceLeadsForAgent } from '@/services/sourceLeadService';
+import { SourceLead } from '@/types/SourceLead'; // טיפוס SourceLead
+import { fetchSplits } from '@/services/splitsService';
 
 
   const NewManageContracts: React.FC = () => {
@@ -45,7 +48,7 @@ import { useToast } from "@/hooks/useToast";
   const [minuySochen2, setMinuySochen2] = useState(false);
 
   const { toasts, addToast, setToasts } = useToast();
-
+  
 
   const { 
     agents, 
@@ -139,6 +142,14 @@ const resetFormContracts = () => {
   setSelectedRow(null); 
   setMinuySochen2(false);
 };
+
+const resetFormSplit = () => {
+  setSelectedSourceLeadId('');
+  setPercentToAgent('');
+  setPercentToSourceLead('');
+  setIsEditing2(false);
+  setSelectedRow(null); 
+}
 
 const canSubmit1 = useMemo(() => (
   selectedProductGroup?.trim() !== '' &&
@@ -317,114 +328,6 @@ const canSubmit1 = useMemo(() => (
     }, [selectedProductGroupFilter, minuySochenFilter1, detail?.agentId]); // מעקב אחרי שינוי פרמטרים
     
 
-//   const handleRowClick = (item: any) => {
-//     setSelectedRow(item); // Store the selected row's data
-//     setSelectedProductGroup(item.productsGroup );  
-//     setCommissionPercentHekef1(item.commissionHekef);
-//     setCommissionPercentNifraim1(item.commissionNifraim);
-//     setCommissionPercentNiud1(item.commissionNiud);
-//     setIsEditing1(true);
-//     setMinuySochen1(item.minuySochen || false); // Reset or set new value, assuming false if undefined
-// console.log(item.commissionNifraim + '  ');
-// console.log(commissionPercentNifraim1);
-// };
-
-// const handleRowClick2 = (item: any) => {
-//   setSelectedRow(item); // Store the selected row's data
-//   setSelectedCompany(item.company ); 
-//   setSelectedProduct(item.product ); 
-//   setCommissionPercentHekef2(item.commissionHekef);
-//   setCommissionPercentNifraim2(item.commissionNifraim);
-//   setCommissionPercentNiud2(item.commissionNiud);
-//   setMinuySochen2(item.minuySochen || false); // Reset or set new value, assuming false if undefined
-//   setIsEditing2(true);
-
-// console.log(item.commissionNifraim + '  ');
-// console.log(commissionPercentNifraim1);
-
-//   };
-
-  // const handleDelete1 = async () => {
-  //   if (selectedRow && selectedRow.id) {
-  //     await deleteDoc(doc(db, 'contracts', selectedRow.id));
-  //     setSelectedRow(null); // Reset selection
-  //     resetFormDefault();
-  //     console.log('defaultContracts' + defaultContracts)
-  //     fetchdefaultContracts(detail?.agentId || "");
-  //   } else {
-  //     console.log("No selected row or row ID is undefined");
-
-  //     // Fetch data again or remove the item from `agentData` state to update UI
-  //   }
-  // };
-
-  // const handleDelete2 = async () => {
-  //   if (selectedRow && selectedRow.id) {
-  //     console.log('selected row is ' + selectedRow + selectedRow.id);
-  //     await deleteDoc(doc(db, 'contracts', selectedRow.id));
-  //     setSelectedRow(null); // Reset selection
-  //     resetFormContracts();
-  //     fetchContracts(detail?.agentId || "");
-  //   } else {
-  //     console.log("No selected row or row ID is undefined");
-
-  //     // Fetch data again or remove the item from `agentData` state to update UI
-  //   }
-  // };
-
-  // const handleEdit1 = async () => {
-  //   if (selectedRow && selectedRow.id) { // Ensure selectedRow has an 'id' property
-  //     try {
-  //       const docRef = doc(db, 'contracts', selectedRow.id); // Reference to the Firestore document
-  //       await updateDoc(docRef, {
-  //      // company: '',
-  //       productsGroup: selectedProductGroup,
-  //     //  product: '',
-  //       commissionHekef:commissionPercentHekef1,
-  //       commissionNifraim:commissionPercentNifraim1,
-  //       commissionNiud:commissionPercentNiud1,
-  //       minuySochen: !!minuySochen1,
-
-  //         });
-  //       console.log("Document successfully updated");
-  //       setSelectedRow(null); 
-  //       resetFormDefault();             
-  //       fetchdefaultContracts(detail?.agentId || "");
-      
-  //     } catch (error) {
-  //       console.error("Error updating document:", error);     
-  //     }
-  //   } else {
-  //     console.log("No row selected or missing document ID");
-  //   }
-  // };
-
-  // const handleEdit2 = async () => {
-  //   if (selectedRow && selectedRow.id) { // Ensure selectedRow has an 'id' property
-  //     try {
-  //       const docRef = doc(db, 'contracts', selectedRow.id); // Reference to the Firestore document
-  //       await updateDoc(docRef, {
-  //       company: selectedCompany,
-  //       //productsGroup: '',
-  //       product: selectedProduct,
-  //       commissionHekef:commissionPercentHekef2,
-  //       commissionNifraim:commissionPercentNifraim2,
-  //       commissionNiud:commissionPercentNiud2,
-  //       minuySochen: !!minuySochen2, 
-  //       });
-  //       console.log("Document successfully updated");
-  //       setSelectedRow(null); 
-  //       resetFormContracts();               
-  //       fetchContracts();
-      
-  //     } catch (error) {
-  //       console.error("Error updating document:", error);     
-  //     }
-  //   } else {
-  //     console.log("No row selected or missing document ID");
-  //   }
-  // };
-
   const [activeTab, setActiveTab] = useState("contractDefault");
   const [isModalOpenCommission, setIsModalOpenCommission] = useState(false);
   const [openMenuRowContracts, setOpenMenuRowContracts] = useState<string | null>(null);
@@ -506,30 +409,99 @@ const [isModalOpenAgent, setIsModalOpenAgent] =  useState(false);
 
 
 
+  const [isModalOpenSplit, setIsModalOpenSplit] = useState(false);
+  const [selectedSourceLeadId, setSelectedSourceLeadId] = useState('');
+  const [percentToAgent, setPercentToAgent] = useState('');
+  const [percentToSourceLead, setPercentToSourceLead] = useState('');
+  const [sourceLeads, setSourceLeads] = useState<SourceLead[]>([]);
+  const [openMenuRowCommissionSplit, setOpenMenuRowCommissionSplit] = useState<string | null>(null);
+
+  
+  const handleSubmitSplitForm = async (e: any) => {
+    e.preventDefault();
+    if (!selectedAgentId || !selectedSourceLeadId) return;
+    await addDoc(collection(db, 'commissionSplits'), {
+      agentId: selectedAgentId,
+      sourceLeadId: selectedSourceLeadId,
+      percentToAgent: Number(percentToAgent),
+      percentToSourceLead: Number(percentToSourceLead),
+    });
+    
+    resetFormSplit(); 
+    setIsModalOpenSplit(false);
+    reloadCommissionSplits(selectedAgentId);
+    // fetchSplits();
+  };
+  
+
+  
+  // const fetchSplits = async (): Promise<CommissionSplit[]> => {
+  //   if (!selectedAgentId) return [];
+  //   const q = query(collection(db, 'commissionSplits'), where('agentId', '==', selectedAgentId));
+  //   try {
+  //     const snapshot = await getDocs(q);
+  //     return snapshot.docs.map(doc => ({
+  //       id: doc.id,
+  //       ...doc.data(),
+  //     })) as CommissionSplit[];
+  //   } catch (error) {
+  //     console.error('שגיאה בשליפת פיצולים:', error);
+  //     addToast("error", "שגיאה בשליפת פיצולים");
+  //     return [];
+  //   }
+  // };
+  
+  
+  useEffect(() => {
+    if (!selectedAgentId) return;
+    console.log("📌 agentId לשליפת לידים:", selectedAgentId);
+    fetchSourceLeadsForAgent(selectedAgentId).then(setSourceLeads);
+    fetchSplits (selectedAgentId);
+  }, [selectedAgentId]);
+  
+
+
+  const {
+    data: commissionSplits,
+    editingRow: editingRowCommissionSplit,
+    editData: editCommissionSplitData,
+    handleEditRow: handleEditCommissionSplitRow,
+    handleEditChange: handleEditCommissionSplitChange,
+    handleDeleteRow: handleDeleteCommissionSplitRow,
+    saveChanges: saveSplitAgreementChanges,
+    reloadData: reloadCommissionSplits,
+    cancelEdit: cancelEditSplitAgreement,
+  } = useEditableTable({
+    dbCollection: "commissionSplits",
+    agentId: selectedAgentId,
+    fetchData: fetchSplits ,
+  });
+  
+
 return (
   <div className="content-container">
         <div className="table-header">
             <div className="table-title">ניהול עמלות</div>
-             <div className="tabs">
-              <button
-               className={`tab  ${activeTab === "contractDefault" ? "selected" : "default"}`}
-                onClick={() => {
-                 console.log("Switching to contractDefault");
-                 setActiveTab("contractDefault");
-                  }}
-                   >
-                  הגדרת עמלות ברירת מחדל 
-              </button>
-              <button
-                className={`tab  ${activeTab === "contractAgent" ? "selected" : "default"}`}
-              onClick={() => {
-                console.log("Switching to contractAgent");
-               setActiveTab("contractAgent");
-              }}
-                >
-               הגדרת עמלות למוצר
-             </button>
-          </div>
+            <div className="tabs">
+  <button
+    className={`tab ${activeTab === "contractDefault" ? "selected" : "default"}`}
+    onClick={() => setActiveTab("contractDefault")}
+  >
+    הגדרת עמלות ברירת מחדל
+  </button>
+  <button
+    className={`tab ${activeTab === "contractAgent" ? "selected" : "default"}`}
+    onClick={() => setActiveTab("contractAgent")}
+  >
+    הגדרת עמלות למוצר
+  </button>
+  <button
+    className={`tab ${activeTab === "commissionSplit" ? "selected" : "default"}`}
+    onClick={() => setActiveTab("commissionSplit")}
+  >
+    פיצול עמלות
+  </button>
+</div>
       </div>
           {/* תוכן הלשוניות */}
           <div className="tab-content">
@@ -1116,6 +1088,190 @@ return (
           </div>
         </div>
         )}
+        {activeTab === "commissionSplit" && (
+  <div id="commissionSplit-tab" className="active">
+    <div className="filter-select-container">
+      <select
+        onChange={handleAgentChange}
+        value={selectedAgentId}
+        className="select-input"
+      >
+        {detail?.role === 'admin' && <option value="">בחר סוכן</option>}
+        {agents.map(agent => (
+          <option key={agent.id} value={agent.id}>{agent.name}</option>
+        ))}
+      </select>
+      </div>
+      <div className="newSplitCommissionButton">
+      <Button
+        onClick={() => setIsModalOpenSplit(true)}
+        text="הוספת הסכם פיצול"
+        type="primary"
+        icon="on"
+        state="default"
+      />
+      {/* כפתורי פעולה לשמירה וביטול */}
+  <Button
+    onClick={saveSplitAgreementChanges}
+    text="שמור שינויים"
+    type="primary"
+    icon="off"
+    state={editingRowCommissionSplit ? "default" : "disabled"}
+    disabled={!editingRowCommissionSplit}
+  />
+  <Button
+    onClick={cancelEditSplitAgreement}
+    text="בטל"
+    type="primary"
+    icon="off"
+    state={editingRowCommissionSplit ? "default" : "disabled"}
+    disabled={!editingRowCommissionSplit}
+  />
+    </div>
+
+    {/* טבלה עם הסכמי פיצול */}
+    <div className="tableCommissionSplit">
+      <table>
+        <thead>
+          <tr>
+            <th>מקור ליד</th>
+            <th>אחוז לסוכן</th>
+            <th>אחוז למקור ליד</th>
+            <th>פעולות</th>
+          </tr>
+        </thead>
+        <tbody>
+  {commissionSplits.map((item) => {
+    const lead = sourceLeads.find(l => l.id === item.sourceLeadId);
+    return (
+      <tr key={item.id}>
+        {/* מקור ליד */}
+        <td>
+          {editingRowCommissionSplit === item.id ? (
+            <select
+              value={editCommissionSplitData.sourceLeadId || ''}
+              onChange={(e) =>
+                handleEditCommissionSplitChange("sourceLeadId", e.target.value)
+              }
+            >
+              <option value="">בחר מקור ליד</option>
+              {sourceLeads.map((lead) => (
+                <option key={lead.id} value={lead.id}>{lead.sourceLead}</option>
+              ))}
+            </select>
+          ) : (
+            lead?.sourceLead || '—'
+          )}
+        </td>
+
+        {/* אחוז לסוכן */}
+        <td>
+          {editingRowCommissionSplit === item.id ? (
+            <input
+              type="number"
+              value={editCommissionSplitData.percentToAgent ?? ''}
+              onChange={(e) =>
+                handleEditCommissionSplitChange("percentToAgent", Number(e.target.value))
+              }
+            />
+          ) : (
+            `${item.percentToAgent}%`
+          )}
+        </td>
+
+        {/* אחוז למקור ליד */}
+        <td>
+          {editingRowCommissionSplit === item.id ? (
+            <input
+              type="number"
+              value={editCommissionSplitData.percentToSourceLead ?? ''}
+              onChange={(e) =>
+                handleEditCommissionSplitChange("percentToSourceLead", Number(e.target.value))
+              }
+            />
+          ) : (
+            `${item.percentToSourceLead}%`
+          )}
+        </td>
+
+        {/* פעולות */}
+        <td>
+          <MenuWrapper
+            rowId={item.id}
+            openMenuRow={openMenuRowCommissionSplit}
+            setOpenMenuRow={setOpenMenuRowCommissionSplit}
+            menuItems={menuItems(
+              item.id,
+              handleEditCommissionSplitRow,
+              handleDeleteCommissionSplitRow,
+              () => setOpenMenuRowCommissionSplit(null)
+            )}
+          />
+        </td>
+      </tr>
+    );
+  })}
+</tbody>
+      </table>
+    </div>
+
+    {/* מודל להזנה */}
+    {isModalOpenSplit && (
+      <div className="modal">
+        <div className="modal-content">
+          <button className="close-button" onClick={() => setIsModalOpenSplit(false)}>✖</button>
+          <div className="modal-title">הוספת הסכם פיצול</div>
+          <form onSubmit={handleSubmitSplitForm} className="form-container">
+            <div className="form-group">
+              <label>מקור ליד</label>
+              <select
+                value={selectedSourceLeadId}
+                onChange={(e) => setSelectedSourceLeadId(e.target.value)}
+              >
+                <option value="">בחר מקור ליד</option>
+                {sourceLeads.map((lead) => (
+                  <option key={lead.id} value={lead.id}>{lead.sourceLead}</option>
+                ))}
+              </select>
+            </div>
+            <div className="form-group">
+              <label>אחוז לסוכן</label>
+              <input
+                type="number"
+                value={percentToAgent}
+                onChange={(e) => setPercentToAgent(e.target.value)}
+              />
+            </div>
+            <div className="form-group">
+              <label>אחוז למקור ליד</label>
+              <input
+                type="number"
+                value={percentToSourceLead}
+                onChange={(e) => setPercentToSourceLead(e.target.value)}
+              />
+            </div>
+            <div className="button-group">
+              <Button
+                onClick={handleSubmitSplitForm}
+                text="שמור"
+                type="primary"
+                icon="on"
+                state="default"
+              />
+              <Button
+                onClick={() => setIsModalOpenSplit(false)}
+                text="בטל"
+                type="secondary"
+                icon="off"
+                state="default"
+              />
+            </div>
+          </form>
+        </div>
+      </div>
+    )}
+  </div>
+)} 
       </div>
     </div>
 

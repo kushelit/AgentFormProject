@@ -18,6 +18,7 @@ import { usePermission } from "@/hooks/usePermission";
 
 
 
+
 const NewSummaryTable = () => {
   const { user, detail } = useAuth();
   const { workers, agents, selectedAgentId,setSelectedAgentId, handleAgentChange, handleWorkerChange, selectedWorkerId ,
@@ -27,6 +28,8 @@ const NewSummaryTable = () => {
     const [selectedGraph, setSelectedGraph] = useState('newCustomers');
 
     const isNewDesignEnabled = useDesignFlag();
+    const [isCommissionSplitEnabled, setIsCommissionSplitEnabled] = useState(false);
+
 
     const {
       products,
@@ -43,7 +46,8 @@ const NewSummaryTable = () => {
    (selectedAgentId, selectedWorkerIdFilter, 
     selectedCompany, selectedProduct, 
     selectedStatusPolicy,selectedYear,
-    selectedGraph === 'commissionPerMonth' // ✅ הוספנו פרמטר חדש
+    selectedGraph === 'commissionPerMonth',
+    isCommissionSplitEnabled 
 );
 
   const monthsCount = Object.keys(monthlyTotals).length;
@@ -84,6 +88,8 @@ const averagePrishaMyadit = Math.round(overallTotals.prishaMyaditTotal / monthsC
 
 
 const { canAccess: canViewCommissions } = usePermission("view_commissions_field");
+
+
 
 
   return (
@@ -151,6 +157,23 @@ const { canAccess: canViewCommissions } = usePermission("view_commissions_field"
     ))}
   </select>
       </div>
+
+
+    <div dir="rtl" className="flex items-center gap-2">
+  <span className="text-sm">חשב עם פיצול עמלות</span>
+  <label className="relative inline-flex items-center cursor-pointer">
+    <input
+      type="checkbox"
+      className="sr-only peer"
+      checked={isCommissionSplitEnabled}
+      onChange={() => setIsCommissionSplitEnabled(!isCommissionSplitEnabled)}
+    />
+    <div className="w-11 h-6 bg-gray-300 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-500 rounded-full peer peer-checked:bg-blue-600 transition-all duration-200"></div>
+    <div className="absolute left-0.5 top-0.5 bg-white w-5 h-5 rounded-full transition-transform duration-200 peer-checked:translate-x-5"></div>
+  </label>
+</div>
+
+
       </div>
           <div className="table-container" style={{ width: '100%' }}>
           { isLoadingData  && (

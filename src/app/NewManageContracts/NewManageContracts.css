@@ -463,7 +463,8 @@ div, label, input {
   opacity: 0.5; /* שקיפות */
 }
 .newcontractsDefaultButton,
-.newcontractAgentButton {
+.newcontractAgentButton,
+.newSplitCommissionButton {
   display: flex; /* מסדר את הכפתורים בשורה */
   justify-content: flex-end; /* מיישר את הכפתורים לשמאל */
   gap: 2px; /* מוסיף רווח בין הכפתורים */

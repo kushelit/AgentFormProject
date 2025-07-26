@@ -23,6 +23,10 @@ import { useValidation, validationRules } from "@/hooks/useValidation";
 import { usePermission } from "@/hooks/usePermission";
 import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
+import { CommissionSplit } from '@/types/CommissionSplit';
+import { fetchSplits } from '@/services/splitsService';
+
+
 
 const NewCustomer = () => {
 
@@ -106,6 +110,9 @@ const indexOfLastRow = currentPage * rowsPerPage;
 const indexOfFirstRow = indexOfLastRow - rowsPerPage;
 const currentRows = sortedData.slice(indexOfFirstRow, indexOfLastRow);
 
+const [commissionSplits, setCommissionSplits] = useState<CommissionSplit[]>([]);
+
+const [isCommissionSplitEnabled, setIsCommissionSplitEnabled] = useState(false);
 
 useEffect(() => {
   setCurrentPage(1);
@@ -158,7 +165,19 @@ useEffect(() => {
     }
   }, [selectedAgentId]);
 
-
+  useEffect(() => {
+    const loadSplits = async () => {
+      if (selectedAgentId) {
+        const splits = await fetchSplits(selectedAgentId);
+        setCommissionSplits(splits);
+      } else {
+        setCommissionSplits([]); // ריק אם אין סוכן
+      }
+    };
+  
+    loadSplits();
+  }, [selectedAgentId]);
+  
 
 const {
   data: customerData,
@@ -508,6 +527,8 @@ useEffect(() => {
           const customerSnapshot = await getDocs(customerQuery);
           const customerData = customerSnapshot.docs[0]?.data();
   
+          const sourceValue = customerData?.sourceValue || '';
+
           const data: Sale = {
             ...salesData,
             firstNameCustomer: customerData?.firstNameCustomer || "Unknown",
@@ -534,6 +555,20 @@ useEffect(() => {
           );
   
           const commissions = calculateCommissions(data, contractMatch);
+
+          if (isCommissionSplitEnabled && sourceValue) {
+            const splitAgreement = commissionSplits.find(
+              (split) =>
+                split.agentId === selectedAgentId &&
+                split.sourceLeadId === sourceValue
+            );
+          
+            if (splitAgreement) {
+              commissions.commissionHekef = Math.round(commissions.commissionHekef * (splitAgreement.percentToAgent / 100));
+              commissions.commissionNifraim = Math.round(commissions.commissionNifraim * (splitAgreement.percentToAgent / 100));
+            }
+          }
+
           totalCommissionHekef += commissions.commissionHekef;
           totalCommissionNifraim += commissions.commissionNifraim;
   
@@ -556,6 +591,10 @@ useEffect(() => {
     }
   };
   
+  useEffect(() => {
+    console.log("🔁 isCommissionSplitEnabled changed:", isCommissionSplitEnabled);
+  }, [isCommissionSplitEnabled]);
+
   const fetchFamilySales = async () => {
     if (!selectedCustomers?.length) {
       addToast("error", "לא נבחר לקוח, נא לבחור לקוח לפני הפקת דוח");
@@ -612,8 +651,28 @@ useEffect(() => {
                 (contract.minuySochen === undefined && !data.minuySochen))
           );
   
-          const commissions = calculateCommissions(data, contractMatch);
-          totalCommissionHekef += commissions.commissionHekef;
+          const commissionsRaw = calculateCommissions(data, contractMatch);
+
+          let commissions = { ...commissionsRaw };
+          
+          // 🧠 כאן בודקים האם מופעל פיצול ומהו ערך ה־sourceValue
+          const sourceValue = customerData?.sourceValue || '';
+          
+          if (isCommissionSplitEnabled && sourceValue) {
+            const splitAgreement = commissionSplits.find(
+              (split) =>
+                split.agentId === selectedAgentId &&
+                split.sourceLeadId === sourceValue
+            );
+          
+            if (splitAgreement) {
+              commissions = {
+                commissionHekef: Math.round(commissionsRaw.commissionHekef * (splitAgreement.percentToAgent / 100)),
+                commissionNifraim: Math.round(commissionsRaw.commissionNifraim * (splitAgreement.percentToAgent / 100)),
+              };
+            }
+          }
+                    totalCommissionHekef += commissions.commissionHekef;
           totalCommissionNifraim += commissions.commissionNifraim;
           const calcPrem = calculatePremiaAndTzvira(data);
   
@@ -1277,7 +1336,7 @@ const handleNewSelectCustomer = (id: string) => {
             ))}
           </select>
         ) : (
-          sourceLeadMap[item.sourceValue] || "לא נבחר"
+          item.sourceValue && sourceLeadMap[item.sourceValue] ? sourceLeadMap[item.sourceValue] : "לא נבחר"
         )}
       </td>
       {/* פעולות */}
@@ -1405,6 +1464,20 @@ const handleNewSelectCustomer = (id: string) => {
   state={selectedCustomers /* && selectedCustomers.parentID */ ? "default" : "disabled"}
   disabled={!selectedCustomers /* || !selectedCustomers.parentID*/}
 />
+<div dir="rtl" className="flex items-center gap-2">
+  <span className="text-sm">חשב עם פיצול עמלות</span>
+  <label className="relative inline-flex items-center cursor-pointer">
+    <input
+      type="checkbox"
+      className="sr-only peer"
+      checked={isCommissionSplitEnabled}
+      onChange={() => setIsCommissionSplitEnabled(!isCommissionSplitEnabled)}
+    />
+    <div className="w-11 h-6 bg-gray-300 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-500 rounded-full peer peer-checked:bg-blue-600 transition-all duration-200"></div>
+    <div className="absolute left-0.5 top-0.5 bg-white w-5 h-5 rounded-full transition-transform duration-200 peer-checked:translate-x-5"></div>
+  </label>
+</div>
+
             </div>
           </div>
           <div className="DataTableReport">

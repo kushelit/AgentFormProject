@@ -7,6 +7,7 @@ export interface Customer {
   mail?: string;
   address?: string;
   IDCustomer?: string;
+  sourceValue?: string; // ← תוסיפי את זה כאן
 }
 
 
@@ -35,6 +36,7 @@ export interface Sale {
     phone?: string;
     mail?: string; // אולי חסר?
     address?: string; // אולי חסר?
+    sourceValue?: string; // שדה אופציונלי
   }
 
   export type AgentDataType = {
