@@ -1,7 +1,7 @@
 'use client';
 
 import { Suspense } from "react";
-import SummaryTable from "./SummaryTable";
+import SummaryTable from "./SummaryTable.tsx.bak";
 import { useAuth } from "@/lib/firebase/AuthContext";
 import AccessDenied from "@/components/AccessDenied";
 
