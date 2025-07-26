@@ -1,7 +1,7 @@
 'use client';
 
 import { Suspense } from "react";
-import Customer from "./Customer.tsx.bak";
+// import Customer from "./Customer.tsx.bak";
 import { useAuth } from "@/lib/firebase/AuthContext";
 import AccessDenied from "@/components/AccessDenied";
 
@@ -17,7 +17,7 @@ const CustomerPage = () => {
    //   console.log("Not a worker, showing Customer");
       content = (
         <Suspense fallback={<div>Loading...</div>}>
-          <Customer />
+          {/* <Customer /> */}
         </Suspense>
       );
     } else {
