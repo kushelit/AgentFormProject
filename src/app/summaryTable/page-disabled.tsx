@@ -1,7 +1,7 @@
 'use client';
 
 import { Suspense } from "react";
-import SummaryTable from "./SummaryTable.tsx.bak";
+// import SummaryTable from "./SummaryTable.tsx.bak";
 import { useAuth } from "@/lib/firebase/AuthContext";
 import AccessDenied from "@/components/AccessDenied";
 
@@ -16,7 +16,7 @@ const SummaryTablePage = () => {
    //   console.log("Not a worker, showing SummaryTable");
       content = (
         <Suspense fallback={<div>Loading...</div>}>
-          <SummaryTable />
+          {/* <SummaryTable /> */}
         </Suspense>
       );
     } else {
