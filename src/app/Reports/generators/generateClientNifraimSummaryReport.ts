@@ -99,23 +99,23 @@ export async function generateClientNifraimSummaryReport(params: ReportRequest) 
   );
   const customerSnapshot = await getDocs(customerQuery);
   console.log('📋 בדיקת לקוחות מטבלת customer:');
-  customerSnapshot.forEach((doc) => {
-    const customer = doc.data();
-    const id = customer.IDCustomer;
-    const agentMatch = customer.AgentId === agentId;
-    const relevant = customerIds.has(id);
-  
-    if (!id) return;
-  
-    console.log(`👁 ת"ז: ${id} | AgentId=${customer.AgentId} | מתאים לסוכן? ${agentMatch} | מופיע ב-nifraim? ${relevant}`);
-  
-    if (agentMatch && relevant) {
-      phoneMap[id] = customer.phone || '';
-      console.log(`✅ טלפון נשמר: ${customer.phone}`);
-    }
-  });
-  console.log('📋 סיום בדיקת לקוחות מטבלת customer');
-  
+for (const doc of customerSnapshot.docs) {
+  const customer = doc.data();
+  const id = customer.IDCustomer;
+  const agentMatch = customer.AgentId === agentId;
+  const relevant = customerIds.has(id);
+
+  if (!id) continue;
+
+  console.log(`👁 ת"ז: ${id} | AgentId=${customer.AgentId} | מתאים לסוכן? ${agentMatch} | מופיע ב-nifraim? ${relevant}`);
+
+  if (agentMatch && relevant) {
+    phoneMap[id] = customer.phone || '';
+    console.log(`✅ טלפון נשמר: ${customer.phone}`);
+  }
+}
+console.log('📋 סיום בדיקת לקוחות מטבלת customer');
+
   const rows = Object.entries(nifraimByCustomer).map(([id, sumNifraim]) => {
     const info = customerInfoMap[id] || {};
     const phone = phoneMap[id] || '';
