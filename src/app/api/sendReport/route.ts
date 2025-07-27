@@ -4,6 +4,7 @@ import { sendEmailWithAttachment } from '@/utils/email';
 
 import { generateInsurancePremiumReport } from '@/app/Reports/generators/generateInsurancePremiumReport';
 import { generateClientPoliciesReport } from '@/app/Reports/generators/generateClientPoliciesReport';
+import { generateClientNifraimSummaryReport } from '@/app/Reports/generators/generateClientNifraimSummaryReport';
 
 
 import { admin } from '@/lib/firebase/firebase-admin';
@@ -35,7 +36,13 @@ export async function POST(req: NextRequest) {
         case 'clientPoliciesReport':
           ({ buffer: reportBuffer, filename, subject, description } = await generateClientPoliciesReport(body));
           break;
-        
+      
+          case 'clientNifraimSummaryReport':
+            console.log('📊 Generating clientNifraimSummaryReport...');
+            ({ buffer: reportBuffer, filename, subject, description } = await generateClientNifraimSummaryReport(body));
+            console.log('✅ clientNifraimSummaryReport generated');
+            break;
+          
       default:
         console.warn('⚠️ Unsupported report type:', reportType);
         return NextResponse.json({ error: 'Unsupported report type' }, { status: 400 });

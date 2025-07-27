@@ -19,7 +19,9 @@ interface ReportProductGroup {
 
 const REPORTS = [
   { value: 'insurancePremiumReport', label: 'דוח פרמיית ביטוח ללקוח' },
-  { value: 'clientPoliciesReport', label: 'דוח פוליסות ללקוח' }, // ✅ חדש
+  { value: 'clientPoliciesReport', label: 'דוח פוליסות ללקוח' }, 
+  { value: 'clientNifraimSummaryReport', label: 'דוח נפרעים לפי לקוח' },
+
 
 ];
 
