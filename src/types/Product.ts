@@ -1,6 +1,7 @@
 
 export interface Product  {
   id: string;
-  name: string;
+  productName: string;
   productGroup: string; 
+  isOneTime?: boolean;  // האם חד פעמי
 }

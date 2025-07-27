@@ -3,6 +3,9 @@ import { ReportRequest } from '@/types';
 import { sendEmailWithAttachment } from '@/utils/email';
 
 import { generateInsurancePremiumReport } from '@/app/Reports/generators/generateInsurancePremiumReport';
+import { generateClientPoliciesReport } from '@/app/Reports/generators/generateClientPoliciesReport';
+
+
 import { admin } from '@/lib/firebase/firebase-admin';
 
 export async function POST(req: NextRequest) {
@@ -28,7 +31,11 @@ export async function POST(req: NextRequest) {
         ({ buffer: reportBuffer, filename, subject, description } = await generateInsurancePremiumReport(body));
         console.log('✅ Report generated');
         break;
-
+        
+        case 'clientPoliciesReport':
+          ({ buffer: reportBuffer, filename, subject, description } = await generateClientPoliciesReport(body));
+          break;
+        
       default:
         console.warn('⚠️ Unsupported report type:', reportType);
         return NextResponse.json({ error: 'Unsupported report type' }, { status: 400 });

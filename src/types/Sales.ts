@@ -84,3 +84,25 @@ export interface Sale {
     policyNumber: string;
   };
   
+  export interface ClientPolicyRow {
+    id: string;
+    AgentId: string;
+    IDCustomer: string;
+    firstNameCustomer: string;
+    lastNameCustomer: string;
+    company: string;
+    product: string;
+    month: string;
+    status: string;
+    policyNumber: string;
+    workerId?: string;
+    workerName?: string;
+    minuySochen?: boolean;
+    notes?: string;
+    insPremia: string;
+    pensiaPremia: string;
+    pensiaZvira: string;
+    finansimPremia: string;
+    finansimZvira: string;
+  }
+  

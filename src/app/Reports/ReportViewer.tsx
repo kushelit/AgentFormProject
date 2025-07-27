@@ -19,6 +19,8 @@ interface ReportProductGroup {
 
 const REPORTS = [
   { value: 'insurancePremiumReport', label: 'דוח פרמיית ביטוח ללקוח' },
+  { value: 'clientPoliciesReport', label: 'דוח פוליסות ללקוח' }, // ✅ חדש
+
 ];
 
 const ReportsPage: React.FC = () => {

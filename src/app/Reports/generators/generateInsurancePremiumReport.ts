@@ -81,6 +81,7 @@ export async function generateInsurancePremiumReport(params: ReportRequest) {
     "חודש תפוקה": row.mounth || '',
   }));
 
+  rows.sort((a, b) => (a["תז"] || '').localeCompare(b["תז"] || ''));
   return buildExcelReport(rows, 'פרמיית ביטוח');
 }
 
