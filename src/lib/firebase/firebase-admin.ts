@@ -26,5 +26,5 @@ if (!admin.apps.length) {
     credential: admin.credential.cert(serviceAccount),
   });
 }
-// ✅ ייבוא   admin מ־firebase-admin
+// ✅ ייבוא   admin מ־firebase
 export { admin };
