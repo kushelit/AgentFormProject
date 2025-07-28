@@ -158,22 +158,32 @@ const { canAccess: canViewCommissions } = usePermission("view_commissions_field"
   </select>
       </div>
 
-
-    <div dir="rtl" className="flex items-center gap-2">
-  <span className="text-sm">חשב עם פיצול עמלות</span>
-  <label className="relative inline-flex items-center cursor-pointer">
-    <input
-      type="checkbox"
-      className="sr-only peer"
-      checked={isCommissionSplitEnabled}
-      onChange={() => setIsCommissionSplitEnabled(!isCommissionSplitEnabled)}
-    />
-    <div className="w-11 h-6 bg-gray-300 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-500 rounded-full peer peer-checked:bg-blue-600 transition-all duration-200"></div>
-    <div className="absolute left-0.5 top-0.5 bg-white w-5 h-5 rounded-full transition-transform duration-200 peer-checked:translate-x-5"></div>
-  </label>
+      <div dir="rtl" className="flex items-center gap-2">
+  <div className="flex bg-blue-100 rounded-full p-0.5 text-xs">
+    <button
+      type="button"
+      onClick={() => setIsCommissionSplitEnabled(false)}
+      className={`px-3 py-0.5 rounded-full transition-all duration-200 ${
+        !isCommissionSplitEnabled
+          ? 'bg-white text-blue-800 font-bold'
+          : 'text-gray-500'
+      }`}
+    >
+      ללא פיצול עמלות
+    </button>
+    <button
+      type="button"
+      onClick={() => setIsCommissionSplitEnabled(true)}
+      className={`px-3 py-0.5 rounded-full transition-all duration-200 ${
+        isCommissionSplitEnabled
+          ? 'bg-white text-blue-800 font-bold'
+          : 'text-gray-500'
+      }`}
+    >
+      עם פיצול עמלות
+    </button>
+  </div>
 </div>
-
-
       </div>
           <div className="table-container" style={{ width: '100%' }}>
           { isLoadingData  && (
