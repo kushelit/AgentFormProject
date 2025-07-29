@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { parse } from 'querystring';
 import { admin } from '@/lib/firebase/firebase-admin';
+import { GROW_BASE_URL, APP_BASE_URL } from '@/lib/env';
+
 
 export const dynamic = 'force-dynamic';
 
@@ -22,7 +24,9 @@ const approveTransaction = async (transactionId: string, transactionToken: strin
     formData.append('transactionToken', transactionToken);
     formData.append('pageCode', pageCode);
 
-    const res = await fetch('https://sandbox.meshulam.co.il/api/light/server/1.0/approveTransaction', {
+    // const res = await fetch('https://sandbox.meshulam.co.il/api/light/server/1.0/approveTransaction', {
+
+      const res = await fetch(`${GROW_BASE_URL}/approveTransaction`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
@@ -192,13 +196,14 @@ if (statusCode === '2' && transactionId && transactionToken && pageCode) {
     const user = await auth.getUserByEmail(email);
 
     if (planChanged && !user.disabled) {
-      await fetch('https://test.magicsale.co.il/api/sendEmail', {
+      // await fetch('https://test.magicsale.co.il/api/sendEmail', {
+        await fetch(`${APP_BASE_URL}/api/sendEmail`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           to: email,
           subject: 'עדכון תוכנית במערכת MagicSale',
-          html: `שלום ${fullName},<br><br>תוכנית המנוי שלך עודכנה בהצלחה במערכת MagicSale.<br>סוג מנוי נוכחי: <strong>${subscriptionType}</strong><br><br>תוכל להתחבר למערכת כאן:<br><a href="https://test.magicsale.co.il/auth/log-in">כניסה למערכת</a><br><br>בברכה,<br>צוות MagicSale`,
+          html: `שלום ${fullName},<br><br>תוכנית המנוי שלך עודכנה בהצלחה במערכת MagicSale.<br>סוג מנוי נוכחי: <strong>${subscriptionType}</strong><br><br>תוכל להתחבר למערכת כאן:<br><a href="${APP_BASE_URL}/auth/log-in">כניסה למערכת</a><br><br>בברכה,<br>צוות MagicSale`,
         }),
       });
     }
@@ -210,7 +215,8 @@ if (statusCode === '2' && transactionId && transactionToken && pageCode) {
 
     const resetLink = await auth.generatePasswordResetLink(email);
 
-    await fetch('https://test.magicsale.co.il/api/sendEmail', {
+    // await fetch('https://test.magicsale.co.il/api/sendEmail', {
+      await fetch(`${APP_BASE_URL}/api/sendEmail`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -235,7 +241,8 @@ if (statusCode === '2' && transactionId && transactionToken && pageCode) {
 
     const resetLink = await auth.generatePasswordResetLink(email);
 
-    await fetch('https://test.magicsale.co.il/api/sendEmail', {
+    // await fetch('https://test.magicsale.co.il/api/sendEmail', {
+      await fetch(`${APP_BASE_URL}/api/sendEmail`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -246,7 +253,7 @@ if (statusCode === '2' && transactionId && transactionToken && pageCode) {
           תודה על ההרשמה למערכת MagicSale!<br>
           להשלמת ההרשמה והתחברות ראשונה, נא לקבוע סיסמה דרך הקישור הבא:<br>
           <a href="${resetLink}">קביעת סיסמה</a><br><br>
-          לאחר מכן, תוכלי להתחבר כאן: <a href="https://test.magicsale.co.il/auth/log-in">כניסה למערכת</a><br><br>
+          ולאחר מכן להתחבר כאן: <a href="${APP_BASE_URL}/auth/log-in">כניסה למערכת</a><br><br>
           בהצלחה!<br>
           צוות MagicSale
         `,

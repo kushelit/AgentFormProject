@@ -2,6 +2,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { admin } from '@/lib/firebase/firebase-admin';
 import axios from 'axios';
+import { GROW_ENDPOINTS } from '@/lib/growApi';
+import { APP_BASE_URL, GROW_USER_ID } from '@/lib/env';
+
 
 export async function POST(req: NextRequest) {
   try {
@@ -61,7 +64,8 @@ export async function POST(req: NextRequest) {
 
     if (transactionToken && transactionId && asmachta && shouldCancelDirectDebit) {
       const formData = new URLSearchParams();
-      formData.append('userId', '8f215caa9b2a3903');
+      // formData.append('userId', '8f215caa9b2a3903');
+      formData.append('userId', GROW_USER_ID);
       formData.append('transactionToken', transactionToken);
       formData.append('transactionId', transactionId);
       formData.append('asmachta', asmachta);
@@ -71,7 +75,8 @@ export async function POST(req: NextRequest) {
       formData.forEach((value, key) => console.log(`${key} = ${value}`));
 
       const { data } = await axios.post(
-        'https://sandbox.meshulam.co.il/api/light/server/1.0/updateDirectDebit',
+        // 'https://sandbox.meshulam.co.il/api/light/server/1.0/updateDirectDebit',
+        GROW_ENDPOINTS.updateDirectDebit,
         formData,
         { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
       );
@@ -85,7 +90,8 @@ console.log('🔁 data status:', data?.status);
         if (shouldRefund && totalCharged) {
           console.log('💸 Processing refund for Grow subscription');
           const refundForm = new URLSearchParams();
-          refundForm.append('userId', '8f215caa9b2a3903');
+          // refundForm.append('userId', '8f215caa9b2a3903');
+          refundForm.append('userId', GROW_USER_ID);
           refundForm.append('transactionToken', transactionToken);
           refundForm.append('transactionId', transactionId);
           refundForm.append('refundSum', totalCharged.toString()); // ללא הכפלה
@@ -100,7 +106,8 @@ console.log('🔁 data status:', data?.status);
             });
             
             const refundRes = await axios.post(
-              'https://sandbox.meshulam.co.il/api/light/server/1.0/refundTransaction',
+              // 'https://sandbox.meshulam.co.il/api/light/server/1.0/refundTransaction',
+              GROW_ENDPOINTS.refundTransaction,
               refundForm,
               { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
               
@@ -178,7 +185,8 @@ console.log('🔁 data status:', data?.status);
 
     // שליחת מייל ביטול אם רלוונטי
     if (sendCancelEmail && userEmail) {
-      await fetch('https://test.magicsale.co.il/api/sendCancelEmail', {
+      // await fetch('https://test.magicsale.co.il/api/sendCancelEmail', {
+        await fetch(`${APP_BASE_URL}/api/sendCancelEmail`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: userEmail, name: userName , refunded: shouldRefund})

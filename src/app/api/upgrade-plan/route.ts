@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { admin } from '@/lib/firebase/firebase-admin';
 import axios from 'axios';
+import { GROW_ENDPOINTS } from '@/lib/growApi';
+import { GROW_USER_ID } from '@/lib/env';
 
 export async function POST(req: NextRequest) {
   try {
@@ -40,7 +42,8 @@ export async function POST(req: NextRequest) {
     const totalPrice = basePrice + leadsPrice + extraWorkersPrice;
 
     const formData = new URLSearchParams();
-    formData.append('userId', '8f215caa9b2a3903');
+    // formData.append('userId', '8f215caa9b2a3903');
+    formData.append('userId', GROW_USER_ID); // ✅ שימוש במשתנה סביבה
     formData.append('transactionToken', transactionToken);
     formData.append('transactionId', transactionId);
     formData.append('asmachta', asmachta);
@@ -53,7 +56,8 @@ export async function POST(req: NextRequest) {
     formData.forEach((value, key) => console.log(`🔧 ${key}: ${value}`));
 
     const { data } = await axios.post(
-      'https://sandbox.meshulam.co.il/api/light/server/1.0/updateDirectDebit',
+      // 'https://sandbox.meshulam.co.il/api/light/server/1.0/updateDirectDebit',
+      GROW_ENDPOINTS.updateDirectDebit, // ✅ שימוש מהקובץ growApi.ts
       formData,
       { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
     );
