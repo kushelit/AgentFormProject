@@ -22,7 +22,7 @@ table th {
     white-space: nowrap;
     text-overflow: ellipsis;
     overflow: visible;
-    max-width: 150px; /* הגבלת רוחב עמודה */
+    max-width: 150px; 
 
 }
 
