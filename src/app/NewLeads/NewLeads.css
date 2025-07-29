@@ -33,7 +33,7 @@ table td {
   text-overflow: ellipsis;
   color: var(--clrblack);
   direction: rtl;
-  white-space: normal; /* מאפשר שבירת שורות */
+  white-space: normal; 
   text-overflow: clip; /* מסיר את ה-"..." */
   word-break: break-word; /* שוברת מילים ארוכות */
  
