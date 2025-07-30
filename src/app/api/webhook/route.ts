@@ -158,8 +158,11 @@ if (userDocRef) {
     subscriptionStartDate: new Date(),
     lastPaymentStatus: paymentStatus,
     lastPaymentDate: paymentDate,
+    
   };
-
+  if (couponCode === 'complete2025') {
+    updateFields.agencies = '1';
+  }
   if (couponCode) updateFields.usedCouponCode = couponCode;
   if (transactionId && transactionId !== userData?.transactionId) updateFields.transactionId = transactionId;
   if (transactionToken && transactionToken !== userData?.transactionToken) updateFields.transactionToken = transactionToken;
@@ -284,6 +287,7 @@ if (statusCode === '2' && transactionId && transactionToken && pageCode) {
       customField,
       pageCode: pageCode || null,
       isActive: true,
+      agencies: couponCode === 'complete2025' ? '1' : undefined, // ➕ כאן!
     });
 
     console.log('🆕 Created new user');

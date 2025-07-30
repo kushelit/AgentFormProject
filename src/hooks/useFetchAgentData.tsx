@@ -99,7 +99,10 @@ const useFetchAgentData = () => {
           where('role', 'in', ['agent', 'manager']) 
         ));
         agentsList = snapshot.docs
-        .filter(doc => doc.data().isActive !== false) // ✅ רק סוכנים פעילים
+        .filter(doc => {
+          const data = doc.data();
+          return data.isActive !== false && data.agencies === '1'; // ✅ סוכנים פעילים עם agencies = '1'
+        })       
         .map(doc => ({
           id: doc.id,
           name: doc.data().name as string,

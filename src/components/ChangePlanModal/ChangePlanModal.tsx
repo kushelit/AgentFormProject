@@ -124,7 +124,7 @@ export const ChangePlanModal: React.FC<ChangePlanModalProps> = ({
         <div className="mb-6 bg-blue-50 border border-blue-200 p-3 rounded text-sm text-blue-800">
           <p className="font-semibold mb-1">מה יהיה כלול לאחר השינוי:</p>
           {selectedPlanName && <p>✔ תוכנית: {selectedPlanName}</p>}
-          {withLeadsModule && <p>✔ מודול לידים</p>}
+          {/* {withLeadsModule && <p>✔ מודול לידים</p>} */}
           {selectedPlan === 'pro' && extraWorkers > 0 && <p>✔ {extraWorkers} עובדים נוספים</p>}
           {!withLeadsModule && (selectedPlan !== 'pro' || extraWorkers === 0) && <p>אין תוספים נוספים</p>}
         </div>
@@ -146,14 +146,14 @@ export const ChangePlanModal: React.FC<ChangePlanModalProps> = ({
         </div>
 
         <div className="mt-6 space-y-2">
-          <label className="flex items-center gap-2">
+          {/* <label className="flex items-center gap-2">
             <input
               type="checkbox"
               checked={withLeadsModule}
               onChange={(e) => setWithLeadsModule(e.target.checked)}
             />
             מודול לידים (₪29)
-          </label>
+          </label> */}
 
           <label className={`flex items-center gap-2 ${selectedPlan !== 'pro' ? 'opacity-50' : ''}`}>
             עובדים נוספים (₪49 לעובד):
