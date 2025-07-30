@@ -6,6 +6,7 @@ import { redirect, notFound } from 'next/navigation';
 import { db } from "@/lib/firebase/firebase";
 import { collection, doc, setDoc, getDoc, query, where, getDocs } from "firebase/firestore";
 
+
 export default function WorkerSignUpPage({ params }: { params: { agentId: string } }) {
   const { user, signUp } = useAuth();
   const [error, setError] = useState('');
@@ -40,71 +41,128 @@ export default function WorkerSignUpPage({ params }: { params: { agentId: string
     fetchAgentAndWorkers();
   }, [params.agentId]);
 
+  // const handleSignUp: FormEventHandler<HTMLFormElement> = async (event) => {
+  //   event.preventDefault();
+  //   setError('');
+
+  //   if (!agent) return;
+
+  //   if (agent.subscriptionId && workerStats && workerStats.current >= workerStats.totalAllowed) {
+  //     setError('חרגת מהמכסה המותרת של עובדים במנוי שלך. לשדרוג פנה אלינו.');
+  //     return;
+  //   }
+
+  //   const values = new FormData(event.currentTarget);
+  //   const name = values.get("name") as string | null;
+  //   const email = values.get("email") as string | null;
+  //   const password = values.get("password") as string | null;
+  //   const confirmPassword = values.get("password-confirm") as string | null;
+
+  //   if (!email || !password || !name || !confirmPassword) {
+  //     setError('נא למלא את כל השדות');
+  //     return;
+  //   }
+
+  //   if (password !== confirmPassword) {
+  //     setError('הסיסמאות אינן תואמות');
+  //     return;
+  //   }
+  //   try {
+  //     const userCredential = await signUp(email, password);
+  //     const docRef = doc(db, 'users', userCredential.user.uid);
+    
+  //     const newWorkerData: Record<string, any> = {
+  //       name,
+  //       email,
+  //       role: 'worker',
+  //       agentId: params.agentId,
+  //       isActive: true,
+  //     };
+      
+  //      if (agent.subscriptionId) {
+  //        newWorkerData.subscriptionId =agent.subscriptionId;
+  //      }
+      
+  //     if (agent.subscriptionType) {
+  //       newWorkerData.subscriptionType = agent.subscriptionType;
+  //     }
+      
+  //     console.log("🧾 נתוני עובד לפני שמירה:", newWorkerData);
+
+  //     // if (agent.addOns) {
+  //     //   newWorkerData.addOns = agent.addOns;
+  //     // }
+  //           await setDoc(docRef, newWorkerData);
+  //           console.log("המשתמש נוצר בהצלחה, מנסה לבצע הפניה...");
+  //           try {
+  //             redirect('/');
+  //           } catch (redirectErr) {
+  //             console.error("שגיאה בעת הפניה:", redirectErr);
+  //             setError('המשתמש נוצר אך לא ניתן להפנות אותך הלאה');
+  //           }
+  //         } catch (err: any) {
+  //           console.error("שגיאה ברישום העובד:", err);
+  //           setError(err.code || 'שגיאה בעת רישום עובד');
+  //         }
+  // };
+
+
   const handleSignUp: FormEventHandler<HTMLFormElement> = async (event) => {
     event.preventDefault();
     setError('');
-
+  
     if (!agent) return;
-
+  
     if (agent.subscriptionId && workerStats && workerStats.current >= workerStats.totalAllowed) {
       setError('חרגת מהמכסה המותרת של עובדים במנוי שלך. לשדרוג פנה אלינו.');
       return;
     }
-
+  
     const values = new FormData(event.currentTarget);
     const name = values.get("name") as string | null;
     const email = values.get("email") as string | null;
     const password = values.get("password") as string | null;
     const confirmPassword = values.get("password-confirm") as string | null;
-
+  
     if (!email || !password || !name || !confirmPassword) {
       setError('נא למלא את כל השדות');
       return;
     }
-
+  
     if (password !== confirmPassword) {
       setError('הסיסמאות אינן תואמות');
       return;
     }
+  
     try {
-      const userCredential = await signUp(email, password);
-      const docRef = doc(db, 'users', userCredential.user.uid);
-    
-      const newWorkerData: Record<string, any> = {
-        name,
-        email,
-        role: 'worker',
-        agentId: params.agentId,
-        isActive: true,
-      };
-      
-       if (agent.subscriptionId) {
-         newWorkerData.subscriptionId =agent.subscriptionId;
-       }
-      
-      if (agent.subscriptionType) {
-        newWorkerData.subscriptionType = agent.subscriptionType;
+      const res = await fetch('/api/reviveWorker', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name,
+          email,
+          password,
+          agentId: params.agentId,
+          subscriptionId: agent.subscriptionId || null,
+          subscriptionType: agent.subscriptionType || null,
+        }),
+      });
+  
+      const result = await res.json();
+  
+      if (!res.ok) {
+        setError(result.error || 'שגיאה בעת יצירת המשתמש');
+        return;
       }
-      
-      console.log("🧾 נתוני עובד לפני שמירה:", newWorkerData);
-
-      // if (agent.addOns) {
-      //   newWorkerData.addOns = agent.addOns;
-      // }
-            await setDoc(docRef, newWorkerData);
-            console.log("המשתמש נוצר בהצלחה, מנסה לבצע הפניה...");
-            try {
-              redirect('/');
-            } catch (redirectErr) {
-              console.error("שגיאה בעת הפניה:", redirectErr);
-              setError('המשתמש נוצר אך לא ניתן להפנות אותך הלאה');
-            }
-          } catch (err: any) {
-            console.error("שגיאה ברישום העובד:", err);
-            setError(err.code || 'שגיאה בעת רישום עובד');
-          }
+  
+      console.log("🎉 עובד נשמר או חודש בהצלחה");
+      redirect('/');
+    } catch (err: any) {
+      console.error("שגיאה בעת שליחת הבקשה ל-reviveWorker:", err);
+      setError('שגיאה לא צפויה בעת רישום עובד');
+    }
   };
-
+  
   if (!agent) return <div className="text-center py-10 text-gray-600">טוען נתוני סוכן...</div>;
 
   return (

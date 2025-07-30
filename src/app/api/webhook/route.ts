@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { parse } from 'querystring';
 import { admin } from '@/lib/firebase/firebase-admin';
 import { GROW_BASE_URL, APP_BASE_URL } from '@/lib/env';
+import { logRegistrationIssue } from '@/services/logRegistrationIssue';
+import { SubscriptionType, AddOnType } from '@/enums/subscription';
+
 
 
 export const dynamic = 'force-dynamic';
@@ -174,13 +177,21 @@ if (userDocRef) {
   if (fullName && fullName !== userData?.name) {
     updateFields.name = fullName;
   }  
-  // if (couponCode === 'complete2025') {
-  //   updateFields.agencies = '1';
-  // }
-  // if (couponCode) updateFields.usedCouponCode = couponCode;
+
  
-  if (agenciesValue) updateFields.agencies = agenciesValue;
-  if (couponCode) updateFields.usedCouponCode = couponCode;
+  // if (agenciesValue) updateFields.agencies = agenciesValue;
+  // if (couponCode) updateFields.usedCouponCode = couponCode;
+  // ניהול couponCode ו-agencies
+if (couponCode) {
+  updateFields.usedCouponCode = couponCode;
+  if (agenciesValue !== undefined) {
+    updateFields.agencies = agenciesValue;
+  }
+} else {
+  updateFields.usedCouponCode = admin.firestore.FieldValue.delete();
+  updateFields.agencies = admin.firestore.FieldValue.delete();
+}
+
   if (transactionId && transactionId !== userData?.transactionId) updateFields.transactionId = transactionId;
   if (transactionToken && transactionToken !== userData?.transactionToken) updateFields.transactionToken = transactionToken;
   if (asmachta && asmachta !== userData?.asmachta) updateFields.asmachta = asmachta;
@@ -320,6 +331,26 @@ await db.collection('users').doc(newUser.uid).set(newUserData);
 
     console.log('🆕 Created new user');
 
+    // 📌 אם התשלום לא מאושר – נרשום בעיה
+if (statusCode !== '2') {
+  await logRegistrationIssue({
+    email,
+    phone,
+    name: fullName,
+    source: 'webhook',
+    reason: 'disabled',
+    type: 'agent', // או 'worker'
+    subscriptionType,
+    addOns,
+    transactionId,
+    processId,
+    pageCode,
+    couponCode,
+    idNumber,
+  });
+  
+}
+
     // 🆕 ✅ הוספת ApproveTransaction כאן:
 if (statusCode === '2' && transactionId && transactionToken && pageCode) {
   console.log('📌 תנאים ל־ApproveTransaction מולאו – מתחיל קריאה ל־Grow');
@@ -329,6 +360,7 @@ if (statusCode === '2' && transactionId && transactionToken && pageCode) {
     return NextResponse.json({ created: true });
   } catch (err: any) {
     console.error('❌ Webhook error:', err);
+    
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }
