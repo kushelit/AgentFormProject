@@ -439,7 +439,9 @@ if (isLoading || plans.length === 0) {
     אני מאשר/ת שקראתי את <Link href="/terms" className="text-blue-700 underline">תנאי השימוש</Link>
   </label>
 </div>
-<div className="font-bold text-lg">סה"כ לתשלום : ₪{calculateTotal().toFixed(2)}</div>
+<div className="font-bold text-lg">
+  סה&quot;כ לתשלום : ₪{calculateTotal().toFixed(2)}
+</div>
         {discount > 0 && (
   <p className="text-green-700 text-sm font-medium">
     קופון הנחה של {discount}% הופעל
