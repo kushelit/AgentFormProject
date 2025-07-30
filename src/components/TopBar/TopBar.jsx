@@ -46,7 +46,7 @@ export const TopBar = ({ prop = true, className }) => {
               </>
             ) : (
               <>
-                <Link href="/auth/sign-up/agent" className="user-name">הרשם</Link>
+                {/* <Link href="/auth/sign-up/agent" className="user-name">הרשם</Link> */}
                 <Link href="/auth/log-in" className="user-name">התחבר</Link>
               </>
             )}
