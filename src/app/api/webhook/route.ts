@@ -103,9 +103,20 @@ export async function POST(req: NextRequest) {
 
     const db = admin.firestore();
     const auth = admin.auth();
-    const usersRef = db.collection('users');
+    // const usersRef = db.collection('users');
 
-
+    let agenciesValue;
+    if (couponCode) {
+      try {
+        const couponSnap = await db.collection('coupons').doc(couponCode).get();
+        if (couponSnap.exists) {
+          const couponData = couponSnap.data();
+          agenciesValue = couponData?.agencies;
+        }
+      } catch (err) {
+        console.error('⚠️ שגיאה בשליפת הקופון:', err);
+      }
+    }
 
 const snapshot = await db.collection('users').where('customField', '==', customField).get();
 const paymentDate = new Date();
@@ -160,9 +171,15 @@ if (userDocRef) {
     lastPaymentDate: paymentDate,
     
   };
-  if (couponCode === 'complete2025') {
-    updateFields.agencies = '1';
-  }
+  if (fullName && fullName !== userData?.name) {
+    updateFields.name = fullName;
+  }  
+  // if (couponCode === 'complete2025') {
+  //   updateFields.agencies = '1';
+  // }
+  // if (couponCode) updateFields.usedCouponCode = couponCode;
+ 
+  if (agenciesValue) updateFields.agencies = agenciesValue;
   if (couponCode) updateFields.usedCouponCode = couponCode;
   if (transactionId && transactionId !== userData?.transactionId) updateFields.transactionId = transactionId;
   if (transactionToken && transactionToken !== userData?.transactionToken) updateFields.transactionToken = transactionToken;
@@ -287,7 +304,8 @@ if (statusCode === '2' && transactionId && transactionToken && pageCode) {
       customField,
       pageCode: pageCode || null,
       isActive: true,
-      agencies: couponCode === 'complete2025' ? '1' : undefined, // ➕ כאן!
+      agencies: agenciesValue || undefined,
+      usedCouponCode: couponCode || undefined,
     });
 
     console.log('🆕 Created new user');
