@@ -280,7 +280,8 @@ if (statusCode === '2' && transactionId && transactionToken && pageCode) {
       }),
     });
 
-    await db.collection('users').doc(newUser.uid).set({
+    // await db.collection('users').doc(newUser.uid).set({
+      const newUserData: any = {
       name: fullName,
       idNumber,
       email,
@@ -304,9 +305,18 @@ if (statusCode === '2' && transactionId && transactionToken && pageCode) {
       customField,
       pageCode: pageCode || null,
       isActive: true,
-      agencies: agenciesValue || undefined,
-      usedCouponCode: couponCode || undefined,
-    });
+    };
+
+    
+// רק אם יש ערך - נוסיף לשדה
+if (agenciesValue !== undefined) {
+  newUserData.agencies = agenciesValue;
+}
+if (couponCode) {
+  newUserData.usedCouponCode = couponCode;
+}
+
+await db.collection('users').doc(newUser.uid).set(newUserData);
 
     console.log('🆕 Created new user');
 
