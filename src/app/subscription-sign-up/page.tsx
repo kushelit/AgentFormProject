@@ -174,7 +174,7 @@ export default function SubscriptionSignUpPage() {
     // Grow לא מקבלים 0 – אם סה"כ יוצא אפס, מחייבים 1
     if (total <= 0) total = 1;
   
-    return Math.round(total);
+    return parseFloat(total.toFixed(2)); // ✅ שמירה על 2 ספרות אחרי הנקודה
   };
   
  // בדיקת תקינות ת"ז / ח.פ
@@ -439,7 +439,7 @@ if (isLoading || plans.length === 0) {
     אני מאשר/ת שקראתי את <Link href="/terms" className="text-blue-700 underline">תנאי השימוש</Link>
   </label>
 </div>
-        <div className="font-bold text-lg">סה&quot;כ לתשלום : ₪{calculateTotal()}</div>
+<div className="font-bold text-lg">סה"כ לתשלום : ₪{calculateTotal().toFixed(2)}</div>
         {discount > 0 && (
   <p className="text-green-700 text-sm font-medium">
     קופון הנחה של {discount}% הופעל
