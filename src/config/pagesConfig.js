@@ -3,7 +3,7 @@ const pages = [
   { href: '/NewAgentForm', label: 'ניהול עסקאות' },
   { href: '/NewCustomer', label: 'ניהול לקוחות' },
   { href: '/NewSummaryTable', label: 'דף מרכז' },
-  { href: '/ManageWorkers', label: 'ניהול עובדים' },
+  // { href: '/ManageWorkers', label: 'ניהול עובדים' },
   {
     href: '/ContractsHub',
     label: 'עמלות',

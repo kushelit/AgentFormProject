@@ -13,4 +13,9 @@
     background-color: #fff8f8; /* ורדרד ממש קל */
     border-radius: 4px;
   }
-  
+  /* TeamPermissionsTable.css */
+.add_worker {
+  margin-top: 1.5rem;
+  font-weight: bold;
+  text-align: right;
+}

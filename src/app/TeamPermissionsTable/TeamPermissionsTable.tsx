@@ -13,6 +13,7 @@ import DialogNotification from "@/components/DialogNotification";
 import type { UserDetail } from '@/lib/firebase/AuthContext';
 import { PAID_PERMISSION_ADDONS, PaidPermission } from '@/utils/paidPermissions';
 import type { MinimalUser } from '@/lib/permissions/hasPermission';
+import { Link } from 'lucide-react';
 
 
 interface ExtendedWorker {
@@ -52,7 +53,8 @@ const TeamPermissionsTable = () => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [dialogData, setDialogData] = useState<{ workerId: string; permission: string; has: boolean } | null>(null);
  
-  
+  const isAgentOrManager = detail?.role === 'agent' || detail?.role === 'manager';
+
 
 const detailAsMinimalUser: MinimalUser | null = detail && user
 ? {
@@ -588,7 +590,6 @@ const detailAsMinimalUser: MinimalUser | null = detail && user
           </tr>
         </tbody>
       </table>
-  
       {toasts.length > 0 && toasts.map((toast) => (
         <ToastNotification
           key={toast.id}
@@ -615,6 +616,29 @@ const detailAsMinimalUser: MinimalUser | null = detail && user
           />
         </div>
       )}
+      {isAgentOrManager && (
+ <a
+ href={`/auth/sign-up/${user?.uid}`}
+ style={{
+   display: 'inline-block',
+   marginTop: '2rem', // ריווח מעל הטבלה
+   backgroundColor: '#3b82f6', // כחול רך (Tailwind: blue-500)
+   color: '#ffffff',
+   padding: '10px 20px',
+   borderRadius: '999px', // כפתור עגול ואלגנטי
+   textDecoration: 'none',
+   fontWeight: 500,
+   fontSize: '1rem',
+   boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
+   transition: 'background-color 0.3s ease'
+ }}
+ onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#2563eb')} // כחול מעט כהה
+ onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#3b82f6')}
+>
+ ➕ צור עובד חדש
+</a>
+
+)}
     </div>
   );
   

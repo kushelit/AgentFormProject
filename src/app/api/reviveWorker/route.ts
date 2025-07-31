@@ -1,116 +1,91 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { admin } from '@/lib/firebase/firebase-admin';
 import { APP_BASE_URL } from '@/lib/env';
-import { logRegistrationIssue } from '@/services/logRegistrationIssue';
-
 
 export async function POST(req: NextRequest) {
   try {
-    const {
-      email,
-      name,
-      agentId,
-      password,
-      subscriptionType,
-      subscriptionId,
-    } = await req.json();
-
-    if (!email || !name || !agentId) {
-      return NextResponse.json({ error: 'Missing fields' }, { status: 400 });
-    }
+    const { name, email, agentId, subscriptionId, subscriptionType } = await req.json();
 
     const db = admin.firestore();
     const auth = admin.auth();
-
-    let uid = '';
-    let userRecord;
-    let existsInFirestore = false;
+    let userId = '';
+    let isNew = false;
 
     try {
-      // 🔍 ננסה למצוא את המשתמש לפי אימייל
-      userRecord = await auth.getUserByEmail(email);
-      uid = userRecord.uid;
+      // ניסיון להביא את המשתמש לפי אימייל
+      const userRecord = await auth.getUserByEmail(email);
 
-      const firestoreSnap = await db.collection('users').doc(uid).get();
-      existsInFirestore = firestoreSnap.exists;
-
-      // ❗ אם המשתמש לא disabled או קיים כבר במסד – זה מצב בעייתי
-      if (!userRecord.disabled || existsInFirestore) {
-        await logRegistrationIssue({
-            email,
-            name,
-            type: 'worker',
-            agentId,
-            reason: 'alreadyExists',
-            source: 'signUpForm',
-            additionalInfo: {
-              subscriptionType,
-              subscriptionId,
-              existsInFirestore,
-              disabled: userRecord.disabled === true ? true : false,
-            },
-          });
+      // 🛑 אם המשתמש פעיל – עצירה מיידית
+      if (!userRecord.disabled) {
         return NextResponse.json({
-          error:
-            'עובד עם אימייל זה כבר קיים חלקית במערכת. יש לפנות לתמיכה לעזרה בשחזור/הסרה.',
+          error: 'משתמש זה כבר קיים ופעיל במערכת',
         }, { status: 400 });
       }
 
-      // ✅ המשתמש disabled – מחיים אותו
-      await auth.updateUser(uid, { disabled: false });
-      console.log('✅ המשתמש הוחזר לפעולה');
-    } catch (err: any) {
-      if (err.code === 'auth/user-not-found') {
-        // 🆕 יצירת משתמש חדש ב־Auth
-        const newUser = await auth.createUser({
-          email,
-          password,
-          displayName: name,
-        });
-        uid = newUser.uid;
-        userRecord = newUser;
-        console.log('🆕 נוצר משתמש חדש ב־Auth');
-      } else {
-        console.error('⚠️ שגיאה בבדיקת המשתמש:', err);
-        return NextResponse.json({ error: 'Auth error' }, { status: 500 });
-      }
+      // ✅ המשתמש מושבת – נבצע החייאה
+      userId = userRecord.uid;
+
+      await auth.updateUser(userId, {
+        displayName: name,
+        disabled: false,
+      });
+
+      await db.collection('users').doc(userId).update({
+        name,
+        agentId,
+        role: 'worker',
+        isActive: true,
+        subscriptionId: subscriptionId || null,
+        subscriptionType: subscriptionType || null,
+      });
+
+      console.log('🔄 עובד מחודש');
+    } catch {
+      // 👤 משתמש חדש – ניצור אותו
+      const newUser = await auth.createUser({
+        email,
+        password: Math.random().toString(36).slice(-8), // סיסמה זמנית
+        displayName: name,
+      });
+
+      userId = newUser.uid;
+      isNew = true;
+
+      await db.collection('users').doc(userId).set({
+        name,
+        email,
+        agentId,
+        role: 'worker',
+        isActive: true,
+        subscriptionId: subscriptionId || null,
+        subscriptionType: subscriptionType || null,
+      });
+
+      console.log('🆕 עובד חדש נוצר');
     }
 
-    const newWorkerData = {
-      name,
-      email,
-      role: 'worker',
-      agentId,
-      isActive: true,
-      subscriptionId,
-      subscriptionType,
-    };
-
-    await db.collection('users').doc(uid).set(newWorkerData, { merge: true });
-    console.log('📁 נשמרו נתוני העובד במסד');
-
+    // ✉️ שליחת מייל לאיפוס סיסמה
     const resetLink = await auth.generatePasswordResetLink(email);
-
     await fetch(`${APP_BASE_URL}/api/sendEmail`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         to: email,
-        subject: 'הגדרת סיסמה למערכת MagicSale',
+        subject: 'הוזמנת למערכת MagicSale',
         html: `
           שלום ${name},<br><br>
-          חשבונך במערכת MagicSale הופעל או נוצר.<br>
-          נא להגדיר סיסמה בקישור הבא:<br>
+          ${isNew ? 'נוצר עבורך משתמש חדש' : 'המשתמש שלך חודש'} במערכת MagicSale.<br>
+          להשלמת ההתחברות, לחץ על הקישור הבא כדי לקבוע סיסמה:<br>
           <a href="${resetLink}">הגדרת סיסמה</a><br><br>
-          בהצלחה!<br>
+          בברכה,<br>
           צוות MagicSale
         `,
       }),
     });
 
-    return NextResponse.json({ success: true });
-  } catch (err) {
-    console.error('❌ reviveWorker error:', err);
-    return NextResponse.json({ error: 'שגיאה פנימית. אנא נסה שוב.' }, { status: 500 });
+    return NextResponse.json({ success: true, created: isNew, revived: !isNew });
+  } catch (err: any) {
+    console.error('❌ שגיאה בהקמה/החייאה:', err);
+    return NextResponse.json({ error: 'שגיאה בעת יצירת העובד' }, { status: 500 });
   }
 }
