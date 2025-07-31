@@ -83,6 +83,7 @@ const ExcelImporter: React.FC = () => {
 
 
   const [sourceLeads, setSourceLeads] = useState<string[]>([]);
+  const [isParsing, setIsParsing] = useState(false);
 
 useEffect(() => {
   const fetchLeads = async () => {
@@ -98,13 +99,16 @@ useEffect(() => {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    setIsParsing(true); // ← התחלת טעינה
     setSelectedFileName(file.name);
 
     const reader = new FileReader();
     reader.onload = (evt) => {
       const arrayBuffer = evt.target?.result;
-      if (!arrayBuffer) return;
-
+      if (!arrayBuffer) {
+        setIsParsing(false); // ← סיום גם במקרה שגיאה
+        return;
+      }
       const wb = XLSX.read(arrayBuffer, { type: "array" });
       const wsname = wb.SheetNames[0];
       const ws = wb.Sheets[wsname];
@@ -116,6 +120,8 @@ useEffect(() => {
         setPendingExcelData(jsonData);
         setErrors([]);
       }
+      setIsParsing(false); // ← סיום הטעינה
+
     };
 
     reader.readAsArrayBuffer(file);
@@ -257,6 +263,13 @@ useEffect(() => {
 
     const parsedData = pendingExcelData.map((row) => {
       const newRow = { ...row };
+
+      // Trim all string fields
+  Object.keys(newRow).forEach((key) => {
+    if (typeof newRow[key] === "string") {
+      newRow[key] = newRow[key].trim();
+    }
+  });
       const fullNameField = Object.keys(mapping).find((col) => mapping[col] === "fullName");
       if (fullNameField) {
         const fullNameRaw = row[fullNameField]?.trim() || "";
@@ -272,7 +285,8 @@ useEffect(() => {
       if (excelFieldForMounth) {
         const rawDate = row[excelFieldForMounth];
         const parsedDate = parseMounthField(rawDate);
-        newRow[excelFieldForMounth] = parsedDate.value || rawDate;
+        newRow[excelFieldForMounth] = parsedDate.value || rawDate
+        newRow["mounth"] = parsedDate.value || rawDate; 
         if (parsedDate.error) {
           newRow["_mounthError"] = parsedDate.error;
         }
@@ -304,10 +318,11 @@ if (sourceLeadField) {
       applyDefaultMinuySochen(newRow, mapping);
       return newRow;
     });
-
-    console.log("🔍 fullNameStructure at parse time:", fullNameStructure);
+    // console.log("🔍 fullNameStructure at parse time:", fullNameStructure);
     setRows(parsedData);
-    console.log("✅ parsedData:", parsedData);
+    checkAllRows(parsedData, mapping);
+    console.log("🔍 parsedData example (first row):", parsedData[0]);
+    // console.log("✅ parsedData:", parsedData);
     setPendingExcelData(null);
   }, [pendingExcelData, mapping, fullNameStructure, workers]);
 
@@ -357,51 +372,99 @@ if (sourceLeadField) {
     const hebrewRegex = /^[\u0590-\u05FF ]+$/;
     return hebrewRegex.test(str);
   };
-
   const validateRow = (
     row: any,
     map: Record<string, string>,
     reverseMap: Record<string, string>
   ) => {
+    console.log("🔎 Validating row:", row);
+  
     const required = ["firstNameCustomer", "lastNameCustomer", "IDCustomer", "company", "product", "mounth", "statusPolicy"];
-
+  
     const hasRequired = required.every((key) => {
       const source = reverseMap[key];
       if (!source) return true;
       return row[source] !== undefined && String(row[source]).trim() !== "";
     });
-
+  
     const companyValue = String(row[reverseMap["company"]] || "").toLowerCase().trim();
     const productValue = String(row[reverseMap["product"]] || "").toLowerCase().trim();
     const idValue = String(row[reverseMap["IDCustomer"]] || "").trim();
-    const workerValue = String(row[reverseMap["workerName"]] || "").trim().toLowerCase();
-    const sourceLeadValue = String(row[reverseMap["sourceLeadName"]] || "").toLowerCase().trim(); // ← הוסף
-
+    const workerValue = reverseMap["workerName"] ? String(row[reverseMap["workerName"]] || "").trim().toLowerCase() : "";
+    const sourceLeadValue = reverseMap["sourceLeadName"] ? String(row[reverseMap["sourceLeadName"]] || "").trim().toLowerCase() : "";
+    const statusValue = String(row[reverseMap["statusPolicy"]] || "").trim();
+    const firstNameValue = String(row[reverseMap["firstNameCustomer"]] || "").trim();
+    const lastNameValue = String(row[reverseMap["lastNameCustomer"]] || "").trim();
+    const minuyValue = reverseMap["minuySochen"] ? String(row[reverseMap["minuySochen"]] || "").trim() : "";
+  
     const validCompany = !reverseMap["company"] || companyNames.includes(companyValue);
     const validProduct = !reverseMap["product"] || productNames.includes(productValue);
     const validID = !reverseMap["IDCustomer"] || /^\d{5,9}$/.test(idValue);
     const validWorker = !reverseMap["workerName"] || workerNames.includes(workerValue);
-    const validSourceLead = !reverseMap["sourceLeadName"] || sourceLeadValue === "" || sourceLeads.includes(sourceLeadValue); // מאפשר ערך ריק
-    const validFirstName = !reverseMap["firstNameCustomer"] || isValidHebrewName(row[reverseMap["firstNameCustomer"]]);
-    const validLastName = !reverseMap["lastNameCustomer"] || isValidHebrewName(row[reverseMap["lastNameCustomer"]]);
-
-    const mounthValue = String(row["mounth"] || "").trim();
-    const validMounth = /^\d{4}-\d{2}-\d{2}$/.test(mounthValue);
-
-    const statusValue = String(row[reverseMap["statusPolicy"]] || "").trim();
+    const validSourceLead = !reverseMap["sourceLeadName"] || sourceLeadValue === "" || sourceLeads.includes(sourceLeadValue);
+    const validFirstName = !reverseMap["firstNameCustomer"] || isValidHebrewName(firstNameValue);
+    const validLastName = !reverseMap["lastNameCustomer"] || isValidHebrewName(lastNameValue);
+    const validMounth = /^\d{4}-\d{2}-\d{2}$/.test(String(row["mounth"] || "").trim());
     const validStatus = !reverseMap["statusPolicy"] || statusPolicies.includes(statusValue);
-
-    const minuyValue = String(row[reverseMap["minuySochen"]] || "").trim();
     const validMinuySochen = !reverseMap["minuySochen"] || minuyValue === "" || ["כן", "לא"].includes(minuyValue);
-
-    return hasRequired && validCompany && validProduct && validID && validFirstName && validLastName && validMounth && validStatus && validMinuySochen && validWorker && validSourceLead;
+  
+    console.log("🧪 תוצאה:", {
+      hasRequired,
+      validCompany,
+      validProduct,
+      validID,
+      validFirstName,
+      validLastName,
+      validMounth,
+      validStatus,
+      validMinuySochen,
+      validWorker,
+      validSourceLead
+    });
+  
+    let isValid = hasRequired &&
+      validCompany &&
+      validProduct &&
+      validID &&
+      validFirstName &&
+      validLastName &&
+      validMounth &&
+      validStatus;
+  
+    if (reverseMap["minuySochen"]) {
+      isValid = isValid && validMinuySochen;
+    }
+  
+    if (reverseMap["workerName"]) {
+      isValid = isValid && validWorker;
+    }
+  
+    if (reverseMap["sourceLeadName"]) {
+      isValid = isValid && validSourceLead;
+    }
+    if (!isValid) {
+      console.warn("❌ שורה לא תקינה – הגורמים האפשריים:", {
+        firstNameValue,
+        lastNameValue,
+        idValue,
+        companyValue,
+        productValue,
+        statusValue,
+        minuyValue,
+        workerValue,
+        sourceLeadValue
+      });
+    }
+    
+    return isValid;
   };
-
+  
   const checkAllRows = (data: any[], map: Record<string, string>) => {
     const reverseMap = Object.fromEntries(Object.entries(map).map(([k, v]) => [v, k]));
 
     const invalids = data.reduce<number[]>((acc, row, idx) => {
       if (!validateRow(row, map, reverseMap)) acc.push(idx);
+      
       return acc;
     }, []);
 
@@ -687,7 +750,11 @@ if (field === "sourceLeadName") {
   return (
     <div className="table-header">
       <h2 className="table-title">ייבוא קובץ Excel</h2>
-
+      {isParsing && (
+  <div className="mt-4 p-3 bg-yellow-100 text-yellow-800 rounded text-center font-semibold text-sm">
+    ⏳ טוען קובץ... אנא המתן, העיבוד עשוי להימשך מספר שניות.
+  </div>
+)}
       <div className="flex justify-end gap-4 mb-6 items-start text-right">
         <div className="filter-select-container">
           <select
@@ -904,14 +971,14 @@ if (field === "sourceLeadName") {
                             const isInvalidSourceLead = field === 'sourceLeadName' &&
                             !!value &&
                             !sourceLeads.some((s) => s.toLowerCase().trim() === value.toLowerCase().trim());                          
-                            console.log("🧪 DEBUG sourceLead", {
-                              field,
-                              value,
-                              trimmedValue: value.trim(),
-                              sourceLeads,
-                              includes: sourceLeads.includes(value.trim()),
-                              includesIgnoreCase: sourceLeads.some(name => name.toLowerCase() === value.trim().toLowerCase())
-                            });
+                            // console.log("🧪 DEBUG sourceLead", {
+                            //   field,
+                            //   value,
+                            //   trimmedValue: value.trim(),
+                            //   sourceLeads,
+                            //   includes: sourceLeads.includes(value.trim()),
+                            //   includesIgnoreCase: sourceLeads.some(name => name.toLowerCase() === value.trim().toLowerCase())
+                            // });
                             
                             const inputStyle = {
                               width: '100%',
@@ -1145,13 +1212,14 @@ if (field === "sourceLeadName") {
 
           {errors.length > 0 && <p className="text-red-600 mt-2">יש שורות עם שגיאות – תקני או מחקי אותן לפני טעינה.</p>}
 
-          <button
-            className="mt-4 px-4 py-2 bg-blue-600 text-white rounded disabled:bg-gray-400"
-            onClick={handleImport}
-            disabled={errors.length > 0}
-          >
-            אשר טעינה
-          </button>
+          <Button
+  text="אשר טעינה"
+  type="primary"
+  icon="upload" // או כל אייקון שתרצי
+  state={isParsing || errors.length > 0 ? "disabled" : "default"}
+  onClick={handleImport}
+  disabled={isParsing}
+/>
           {importDialogOpen && importSummary && (
             <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
               <DialogNotification
