@@ -5,7 +5,7 @@ export async function POST(req: NextRequest) {
   try {
     const { couponCode, plan } = await req.json();
 
-    if (!couponCode) {
+    if (!couponCode || !plan) {
       return NextResponse.json({ valid: false }, { status: 400 });
     }
 
@@ -17,17 +17,25 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ valid: false, reason: 'לא נמצא' });
     }
 
-    const data = snap.data()!; // ← זה הפתרון להערת TypeScript
+    const data = snap.data()!;
 
-    // בדיקת תקינות והאם פעיל
-    if (!data.isActive || (data.planId && data.planId !== plan)) {
-      return NextResponse.json({ valid: false, reason: 'לא פעיל או לא מתאים למסלול' });
+    // בדיקה אם פעיל
+    if (!data.isActive) {
+      return NextResponse.json({ valid: false, reason: 'הקופון אינו פעיל' });
+    }
+
+    // שליפת ההנחה הספציפית למסלול הנבחר
+    const discount = data.planDiscounts?.[plan];
+
+    if (typeof discount !== 'number' || discount <= 0) {
+      return NextResponse.json({ valid: false, reason: 'הקופון לא תקף למסלול שנבחר' });
     }
 
     return NextResponse.json({
       valid: true,
-      discount: data.discount || 0,
+      discount,
     });
+
   } catch (err) {
     console.error('❌ validate-coupon error:', err);
     return NextResponse.json({ valid: false, error: 'שגיאה בשרת' }, { status: 500 });

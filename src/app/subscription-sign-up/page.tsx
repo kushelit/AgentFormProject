@@ -152,12 +152,6 @@ export default function SubscriptionSignUpPage() {
   }, [couponCode, selectedPlan]);
   
   
-  // const calculateTotal = () => {
-  //   const base = plans.find(p => p.id === selectedPlan)?.price || 0;
-  //   const leadsPrice = withLeadsModule ? 29 : 0;
-  //   const workersPrice = selectedPlan === 'pro' ? extraWorkers * 49 : 0;
-  //   return base + leadsPrice + workersPrice;
-  // };
 
   const calculateTotal = () => {
     const base = plans.find(p => p.id === selectedPlan)?.price || 0;
