@@ -247,7 +247,7 @@ export const ChangePlanModal: React.FC<ChangePlanModalProps> = ({
           </div>
         </div>
 
-        <p className="font-bold text-lg mt-4">סה\"כ לתשלום : ₪{calculateTotal()}</p>
+        <p className="font-bold text-lg mt-4">סה&quot;כ לתשלום : ₪{calculateTotal()}</p>
 
         <div className="flex justify-end gap-4 mt-6">
           <button
