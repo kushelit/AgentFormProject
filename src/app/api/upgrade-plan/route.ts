@@ -6,7 +6,17 @@ import { GROW_USER_ID } from '@/lib/env';
 
 export async function POST(req: NextRequest) {
   try {
-    const { id, subscriptionId, transactionToken, transactionId, asmachta, newPlanId, addOns } = await req.json();
+    const {
+      id,
+      subscriptionId,
+      transactionToken,
+      transactionId,
+      asmachta,
+      newPlanId,
+      addOns,
+      couponCode, // ✅ תוספת חדשה
+    } = await req.json();
+
     const db = admin.firestore();
 
     let userDocRef = null;
@@ -27,8 +37,6 @@ export async function POST(req: NextRequest) {
 
     const userSnap = await userDocRef.get();
     const userData = userSnap.data();
-    const userEmail = userData?.email || '';
-    const userName = userData?.name || '';
 
     const planSnap = await db.collection('subscriptions_permissions').doc(newPlanId).get();
     if (!planSnap.exists) {
@@ -39,11 +47,32 @@ export async function POST(req: NextRequest) {
     const basePrice = planData?.price || 0;
     const leadsPrice = addOns?.leadsModule ? 29 : 0;
     const extraWorkersPrice = addOns?.extraWorkers ? addOns.extraWorkers * 49 : 0;
-    const totalPrice = basePrice + leadsPrice + extraWorkersPrice;
+
+    let totalPrice = basePrice + leadsPrice + extraWorkersPrice;
+    let appliedDiscount = 0;
+    let appliedCouponId: string | null = null;
+
+    // ✅ בדיקת קופון אם קיים
+    if (couponCode) {
+      const couponSnap = await db.collection('coupons').doc(couponCode.trim()).get();
+      if (couponSnap.exists) {
+        const couponData = couponSnap.data();
+        const planDiscount = couponData?.planDiscounts?.[newPlanId];
+        const isActive = couponData?.isActive;
+
+        if (typeof planDiscount === 'number' && isActive) {
+          appliedDiscount = planDiscount;
+          totalPrice -= totalPrice * (planDiscount / 100);
+          appliedCouponId = couponSnap.id;
+        }
+      }
+    }
+
+    if (totalPrice <= 0) totalPrice = 1;
+    totalPrice = parseFloat(totalPrice.toFixed(2));
 
     const formData = new URLSearchParams();
-    // formData.append('userId', '8f215caa9b2a3903');
-    formData.append('userId', GROW_USER_ID); // ✅ שימוש במשתנה סביבה
+    formData.append('userId', GROW_USER_ID);
     formData.append('transactionToken', transactionToken);
     formData.append('transactionId', transactionId);
     formData.append('asmachta', asmachta);
@@ -51,40 +80,38 @@ export async function POST(req: NextRequest) {
     formData.append('sum', totalPrice.toString());
     formData.append('cField3', JSON.stringify(addOns || {}));
     formData.append('cField4', 'manual-upgrade');
-
-
-    formData.forEach((value, key) => console.log(`🔧 ${key}: ${value}`));
-
+    if (couponCode) {
+      formData.append('cField5', couponCode); 
+    }
+    
     const { data } = await axios.post(
-      // 'https://sandbox.meshulam.co.il/api/light/server/1.0/updateDirectDebit',
-      GROW_ENDPOINTS.updateDirectDebit, // ✅ שימוש מהקובץ growApi.ts
+      GROW_ENDPOINTS.updateDirectDebit,
       formData,
       { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
     );
-
-    console.log('✅ Grow response:', data);
 
     if (data?.status !== 1) {
       return NextResponse.json({ error: 'Grow update failed', details: data }, { status: 502 });
     }
 
-    console.log('🔥 updateDoc called with:', {
-      userId: userSnap.id,
+    const updateData: any = {
       subscriptionType: newPlanId,
       futureChargeAmount: totalPrice,
       lastPlanChangeDate: new Date(),
-      addOns: addOns || {}
-    });
+      ...(addOns ? { addOns } : {}),
+    };
 
-    await userDocRef.update({
-      subscriptionType: newPlanId,
-      futureChargeAmount: totalPrice,
-      lastPlanChangeDate: new Date(),
-      ...(addOns ? { addOns } : {})
-    });
+    if (appliedCouponId) {
+      updateData.couponUsed = {
+        code: appliedCouponId,
+        discount: appliedDiscount,
+        date: new Date(),
+      };
+    }
+
+    await userDocRef.update(updateData);
 
     return NextResponse.json({ success: true });
-
   } catch (err: any) {
     console.error('❌ Upgrade error:', err.message);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });

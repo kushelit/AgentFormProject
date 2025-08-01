@@ -1,3 +1,4 @@
+// ✅ ChangePlanModal.tsx - עם שדה קופון, חישוב הנחה, ועדכון בשרת
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -71,6 +72,9 @@ export const ChangePlanModal: React.FC<ChangePlanModalProps> = ({
   const [selectedPlan, setSelectedPlan] = useState<string | null>(currentPlan || null);
   const [withLeadsModule, setWithLeadsModule] = useState(currentAddOns?.leadsModule ?? false);
   const [extraWorkers, setExtraWorkers] = useState(currentAddOns?.extraWorkers ?? 0);
+  const [couponCode, setCouponCode] = useState('');
+  const [discount, setDiscount] = useState(0);
+  const [couponError, setCouponError] = useState('');
   const [loading, setLoading] = useState(false);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const { toasts, addToast, setToasts } = useToast();
@@ -80,7 +84,6 @@ export const ChangePlanModal: React.FC<ChangePlanModalProps> = ({
       try {
         const res = await axios.get('/api/subscription-plans');
         setPlans(res.data);
-
         if (currentPlan && res.data.find((plan: Plan) => plan.id === currentPlan)) {
           setSelectedPlan(currentPlan);
         } else if (res.data.length > 0) {
@@ -90,7 +93,6 @@ export const ChangePlanModal: React.FC<ChangePlanModalProps> = ({
         console.error('שגיאה בטעינת מסלולים', err);
       }
     };
-
     fetchPlans();
   }, [currentPlan]);
 
@@ -100,11 +102,40 @@ export const ChangePlanModal: React.FC<ChangePlanModalProps> = ({
     }
   }, [selectedPlan]);
 
+  useEffect(() => {
+    if (couponCode && selectedPlan) {
+      checkCoupon(couponCode, selectedPlan);
+    }
+  }, [couponCode, selectedPlan]);
+
+  const checkCoupon = async (code: string, plan: string) => {
+    try {
+      const res = await axios.post('/api/validate-coupon', {
+        couponCode: code.trim(),
+        plan,
+      });
+      if (res.data.valid) {
+        setDiscount(res.data.discount);
+        setCouponError('');
+      } else {
+        setDiscount(0);
+        setCouponError(res.data.reason || 'קוד קופון לא תקף');
+      }
+    } catch {
+      setDiscount(0);
+      setCouponError('שגיאה בעת אימות קוד הקופון');
+    }
+  };
+
   const calculateTotal = () => {
     const base = plans.find(p => p.id === selectedPlan)?.price || 0;
     const leadsPrice = withLeadsModule ? 29 : 0;
     const workersPrice = selectedPlan === 'pro' ? extraWorkers * 49 : 0;
-    return base + leadsPrice + workersPrice;
+    let total = base + leadsPrice + workersPrice;
+    if (discount > 0) {
+      total -= total * (discount / 100);
+    }
+    return Math.max(1, parseFloat(total.toFixed(2)));
   };
 
   const handleConfirmUpgrade = async () => {
@@ -117,12 +148,12 @@ export const ChangePlanModal: React.FC<ChangePlanModalProps> = ({
         transactionId,
         asmachta,
         newPlanId: selectedPlan,
+        couponCode,
         addOns: {
           leadsModule: withLeadsModule,
           extraWorkers: selectedPlan === 'pro' ? extraWorkers : 0,
         },
       });
-
       if (res.data.success) {
         addToast('success', 'המנוי עודכן בהצלחה');
         setTimeout(() => {
@@ -168,7 +199,6 @@ export const ChangePlanModal: React.FC<ChangePlanModalProps> = ({
             >
               <h3 className="text-lg font-bold mb-2">{plan.name}</h3>
               <p className="text-sm text-gray-600 mb-3">{planDescriptions[plan.id]}</p>
-
               <ul className="text-sm text-gray-700 space-y-1 mt-2 pr-2">
                 {planFeatures[plan.id]?.map((feature, index) => (
                   <li key={index} className="flex items-center gap-2">
@@ -179,7 +209,6 @@ export const ChangePlanModal: React.FC<ChangePlanModalProps> = ({
                   </li>
                 ))}
               </ul>
-
               {plan.id !== 'enterprise' && (
                 <p className="text-xl font-bold mt-4">₪{plan.price}</p>
               )}
@@ -187,7 +216,7 @@ export const ChangePlanModal: React.FC<ChangePlanModalProps> = ({
           ))}
         </div>
 
-        <div className="mt-6 space-y-2">
+        <div className="space-y-3">
           <label className={`flex items-center gap-2 ${selectedPlan !== 'pro' ? 'opacity-50' : ''}`}>
             עובדים נוספים (₪49 לעובד):
             <input
@@ -199,9 +228,26 @@ export const ChangePlanModal: React.FC<ChangePlanModalProps> = ({
               className="w-20 border rounded px-2 py-1 text-right"
             />
           </label>
+
+          <div>
+            <label className="block mb-1 font-semibold">קוד קופון</label>
+            <input
+              type="text"
+              value={couponCode}
+              onChange={(e) => setCouponCode(e.target.value)}
+              className="w-full border border-gray-300 rounded px-3 py-2 text-right"
+              placeholder="יש לך קופון?"
+            />
+            {couponError && <p className="text-red-600 text-sm mt-1">{couponError}</p>}
+            {discount > 0 && (
+              <p className="text-green-700 text-sm font-medium mt-1">
+                קופון הנחה של {discount}% הופעל
+              </p>
+            )}
+          </div>
         </div>
 
-        <p className="font-bold text-lg mt-4">סה&quot;כ לתשלום : ₪{calculateTotal()}</p>
+        <p className="font-bold text-lg mt-4">סה\"כ לתשלום : ₪{calculateTotal()}</p>
 
         <div className="flex justify-end gap-4 mt-6">
           <button
