@@ -151,25 +151,23 @@ export default function SubscriptionSignUpPage() {
     checkCoupon(couponCode, selectedPlan);
   }, [couponCode, selectedPlan]);
   
-  
-
-  const calculateTotal = () => {
+  const calculateTotal = (discountValue: number = discount) => {
     const base = plans.find(p => p.id === selectedPlan)?.price || 0;
     const leadsPrice = withLeadsModule ? 29 : 0;
     const workersPrice = selectedPlan === 'pro' ? extraWorkers * 49 : 0;
   
     let total = base + leadsPrice + workersPrice;
   
-    if (discount > 0) {
-      const discountAmount = total * (discount / 100);
+    if (discountValue > 0) {
+      const discountAmount = total * (discountValue / 100);
       total -= discountAmount;
     }
   
-    // Grow לא מקבלים 0 – אם סה"כ יוצא אפס, מחייבים 1
     if (total <= 0) total = 1;
   
-    return parseFloat(total.toFixed(2)); // ✅ שמירה על 2 ספרות אחרי הנקודה
+    return parseFloat(total.toFixed(2));
   };
+  
   
  // בדיקת תקינות ת"ז / ח.פ
 const isValidIsraeliIdOrCorp = (id: string) => {
@@ -232,6 +230,17 @@ const isValidFullName = (name: string) => {
     
   
     try {
+
+      const couponRes = await axios.post('/api/validate-coupon', {
+        couponCode: couponCode.trim(),
+        plan: selectedPlan,
+      });
+  
+      const finalDiscount = couponRes.data?.valid ? couponRes.data.discount : 0;
+  
+      // ⬇️ חישוב מחיר לפי ההנחה שהתקבלה הרגע
+      const total = calculateTotal(finalDiscount);
+
       const res = await axios.post('/api/create-subscription', {
         fullName,
         email,
@@ -243,7 +252,7 @@ const isValidFullName = (name: string) => {
           leadsModule: withLeadsModule,
           extraWorkers: selectedPlan === 'pro' ? extraWorkers : 0
         },
-        total: calculateTotal(), 
+        total: calculateTotal(finalDiscount),
       }, {
         headers: { 'Content-Type': 'application/json' },
       });
