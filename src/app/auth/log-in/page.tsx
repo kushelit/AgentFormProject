@@ -64,6 +64,14 @@ export default function LogInPage() {
         {error && <p className="text-red-600 text-sm">{error}</p>}
   
         <button type="submit" className="w-full bg-blue-900 text-white py-2 rounded hover:bg-blue-800">כניסה</button>
+      
+        <div className="text-center mt-4 text-sm">
+  <span>אינך רשום למערכת? </span>
+  <Link href="/subscription-sign-up" className="text-blue-600 font-semibold hover:underline">
+    להרשמה
+  </Link>
+</div>
+
       </form>
     </div>
   );  

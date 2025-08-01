@@ -20,7 +20,9 @@ export default function RootLayout({
   // תנאים לוגיים
   const isAuthPage = pathname.startsWith('/auth');
   const isHomePage = pathname === '/home';
-  const isLandingPage = pathname === '/' || pathname === '/landing';
+  const isLandingPage = pathname === '/' || pathname === '/landing' 
+  // || pathname === '/subscription-sign-up'
+  ;
   const isMainPage = !isAuthPage && !isHomePage && !isLandingPage;
 
   const showTopBar = isMainPage || isAuthPage || isHomePage;
