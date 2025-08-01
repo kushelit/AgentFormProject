@@ -26,6 +26,38 @@ interface ChangePlanModalProps {
   onClose: () => void;
 }
 
+const planDescriptions: { [key: string]: string } = {
+  basic: 'מנוי לסוכן אחד בלבד',
+  pro: 'מנוי לסוכן + 2 עובדים, ניתן להוסיף עובדים נוספים בתשלום',
+  enterprise: 'מנוי מותאם אישית – יטופל בנפרד',
+};
+
+const planFeatures: { [key: string]: string[] } = {
+  basic: [
+    '✔️ ניהול עסקאות בצורה פשוטה ונוחה',
+    '✔️ יצירה ועדכון של לקוחות ומשפחות',
+    '✔️ צפייה בעמלות חודשיות וסיכומים כלליים',
+    '✔️ שימוש בסימולטור לחישוב רווחים צפויים',
+  ],
+  pro: [
+    '✔️ כל מה שכלול בתוכנית Basic, ובנוסף:',
+    '✔️ ניהול עובדים, כולל שיוך לסוכנים',
+    '✔️ הקצאת והרשאות לפי תפקידים',
+    '✔️ טבלת עמלות מתקדמת לפי עובדים וסוכנים',
+    '✔️ ניהול יעדים חודשיים ובונוסים',
+    '✔️ יבוא נתונים מקובצי אקסל',
+    '✔️ אפשרות להוספת עובדים נוספים לפי צורך',
+  ],
+  enterprise: [
+    '✔️ כל מה שכלול בתוכנית Pro, ובנוסף:',
+    '✔️ ניהול מתקדם של קבוצות וסוכנויות משנה',
+    '✔️ התאמות מיוחדות לפי צרכי הארגון',
+    '✔️ תמיכה טכנית מורחבת ומנהל לקוח אישי',
+    '✔️ אפשרויות אינטגרציה מתקדמות למערכות חיצוניות',
+    '📞 להצעת מחיר מותאמת – צרו איתנו קשר',
+  ],
+};
+
 export const ChangePlanModal: React.FC<ChangePlanModalProps> = ({
   userId,
   transactionToken,
@@ -42,7 +74,6 @@ export const ChangePlanModal: React.FC<ChangePlanModalProps> = ({
   const [loading, setLoading] = useState(false);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const { toasts, addToast, setToasts } = useToast();
-
 
   useEffect(() => {
     const fetchPlans = async () => {
@@ -110,8 +141,6 @@ export const ChangePlanModal: React.FC<ChangePlanModalProps> = ({
     }
   };
 
-  const selectedPlanName = plans.find(p => p.id === selectedPlan)?.name;
-
   if (!plans.length) {
     return <div className="p-6 text-center text-gray-500">⏳ טוען מסלולים...</div>;
   }
@@ -123,8 +152,7 @@ export const ChangePlanModal: React.FC<ChangePlanModalProps> = ({
 
         <div className="mb-6 bg-blue-50 border border-blue-200 p-3 rounded text-sm text-blue-800">
           <p className="font-semibold mb-1">מה יהיה כלול לאחר השינוי:</p>
-          {selectedPlanName && <p>✔ תוכנית: {selectedPlanName}</p>}
-          {/* {withLeadsModule && <p>✔ מודול לידים</p>} */}
+          {selectedPlan && <p>✔ תוכנית: {plans.find(p => p.id === selectedPlan)?.name}</p>}
           {selectedPlan === 'pro' && extraWorkers > 0 && <p>✔ {extraWorkers} עובדים נוספים</p>}
           {!withLeadsModule && (selectedPlan !== 'pro' || extraWorkers === 0) && <p>אין תוספים נוספים</p>}
         </div>
@@ -139,22 +167,27 @@ export const ChangePlanModal: React.FC<ChangePlanModalProps> = ({
               }`}
             >
               <h3 className="text-lg font-bold mb-2">{plan.name}</h3>
-              <p className="text-sm text-gray-600 mb-3">{plan.description}</p>
-              <p className="text-xl font-bold">₪{plan.price}</p>
+              <p className="text-sm text-gray-600 mb-3">{planDescriptions[plan.id]}</p>
+
+              <ul className="text-sm text-gray-700 space-y-1 mt-2 pr-2">
+                {planFeatures[plan.id]?.map((feature, index) => (
+                  <li key={index} className="flex items-center gap-2">
+                    <span className="text-green-600 font-bold">
+                      {feature.startsWith('📞') ? '📞' : '✔️'}
+                    </span>
+                    <span>{feature.replace(/^✔️ |^📞 /, '')}</span>
+                  </li>
+                ))}
+              </ul>
+
+              {plan.id !== 'enterprise' && (
+                <p className="text-xl font-bold mt-4">₪{plan.price}</p>
+              )}
             </div>
           ))}
         </div>
 
         <div className="mt-6 space-y-2">
-          {/* <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={withLeadsModule}
-              onChange={(e) => setWithLeadsModule(e.target.checked)}
-            />
-            מודול לידים (₪29)
-          </label> */}
-
           <label className={`flex items-center gap-2 ${selectedPlan !== 'pro' ? 'opacity-50' : ''}`}>
             עובדים נוספים (₪49 לעובד):
             <input
@@ -167,7 +200,9 @@ export const ChangePlanModal: React.FC<ChangePlanModalProps> = ({
             />
           </label>
         </div>
-        <p className="font-bold text-lg mt-4">סה&quot;כ לתשלום : ₪{calculateTotal()}</p>
+
+        <p className="font-bold text-lg mt-4">סה"כ לתשלום : ₪{calculateTotal()}</p>
+
         <div className="flex justify-end gap-4 mt-6">
           <button
             onClick={() => setShowConfirmDialog(true)}
@@ -185,18 +220,15 @@ export const ChangePlanModal: React.FC<ChangePlanModalProps> = ({
           </button>
         </div>
 
-        {toasts.length > 0 &&
-          toasts.map((toast) => (
-            <ToastNotification
-              key={toast.id}
-              type={toast.type}
-              className={toast.isHiding ? 'hide' : ''}
-              message={toast.message}
-              onClose={() =>
-                setToasts((prevToasts) => prevToasts.filter((t) => t.id !== toast.id))
-              }
-            />
-          ))}
+        {toasts.map((toast) => (
+          <ToastNotification
+            key={toast.id}
+            type={toast.type}
+            className={toast.isHiding ? 'hide' : ''}
+            message={toast.message}
+            onClose={() => setToasts((prev) => prev.filter((t) => t.id !== toast.id))}
+          />
+        ))}
 
         {showConfirmDialog && (
           <DialogNotification
