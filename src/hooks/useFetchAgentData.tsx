@@ -64,103 +64,113 @@ const useFetchAgentData = () => {
   }, [user, detail]);
 
 
-
-
- useEffect(() => {
-  if (!user || !detail || agents.length > 0 || isLoading) return;
-
-  const fetchAgentData = async () => {
-    setIsLoadingAgent(true);
-    try {
-      const currentUser = {
-        uid: user?.uid || '',
-        role: detail?.role || '',
-        subscriptionId: detail?.subscriptionId || '',
-        permissionOverrides: detail?.permissionOverrides || {},
-      };
-      
-
-      const roleDoc = await getDoc(doc(db, 'roles', detail.role));
-      const rolePerms = roleDoc.exists() ? roleDoc.data().permissions || [] : [];
-
-      const hasAccessAgentGroup = hasPermission({
-        user: currentUser,
-        permission: 'access_all_agents_in_group',
-        rolePermissions: rolePerms,
-        subscriptionPermissionsMap, // ✅ הוספת תמיכה בהרשאות לפי מנוי
-      });
-      
-
-      let agentsList = [];
-
-      if (detail.role === 'admin') {
-        const snapshot = await getDocs(query(
-          collection(db, 'users'),
-          where('role', 'in', ['agent', 'manager']) 
-        ));
-        agentsList = snapshot.docs
-        .filter(doc => {
-          const data = doc.data();
-          return data.isActive !== false && data.agencies === '1'; // ✅ סוכנים פעילים עם agencies = '1'
-        })       
-        .map(doc => ({
-          id: doc.id,
-          name: doc.data().name as string,
-          agentCodes: doc.data().agentCodes || []
-        }));
-      } else if (hasAccessAgentGroup) {
-        const agentDoc = await getDoc(doc(db, 'users', detail.agentId));
-        const agentData = agentDoc.exists() ? agentDoc.data() : null;
-
-        if (agentData?.agentGroupId) {
+  useEffect(() => {
+    if (!user || !detail || agents.length > 0 || isLoading) return;
+  
+    const fetchAgentData = async () => {
+      setIsLoadingAgent(true);
+      try {
+        const currentUser = {
+          uid: user?.uid || '',
+          role: detail?.role || '',
+          subscriptionId: detail?.subscriptionId || '',
+          permissionOverrides: detail?.permissionOverrides || {},
+        };
+  
+        const roleDoc = await getDoc(doc(db, 'roles', detail.role));
+        const rolePerms = roleDoc.exists() ? roleDoc.data().permissions || [] : [];
+  
+        const hasAccessAgentGroup = hasPermission({
+          user: currentUser,
+          permission: 'access_all_agents_in_group',
+          rolePermissions: rolePerms,
+          subscriptionPermissionsMap, // ✅ תמיכה בהרשאות לפי מנוי
+        });
+  
+        let agentsList = [];
+  
+        if (detail.role === 'admin') {
+          // נשלוף את מסמך האדמין כדי לבדוק מה ערך agencies שלו
+          const adminDoc = await getDoc(doc(db, 'users', user.uid));
+          const adminData = adminDoc.exists() ? adminDoc.data() : null;
+          const adminAgency = adminData?.agencies;
+        
           const snapshot = await getDocs(query(
             collection(db, 'users'),
-            where('agentGroupId', '==', agentData.agentGroupId),
             where('role', 'in', ['agent', 'manager'])
           ));
+        
           agentsList = snapshot.docs
-          .filter(doc => doc.data().isActive !== false) // ✅ רק סוכנים פעילים
-          .map(doc => ({
-            id: doc.id,
-            name: doc.data().name as string,
-            agentCodes: doc.data().agentCodes || []
-          }));
+            .filter(doc => {
+              const data = doc.data();
+              return data.isActive !== false && data.agencies === adminAgency;
+            })
+            .map(doc => {
+              const data = doc.data();
+              return {
+                id: doc.id,
+                name: data.name as string,
+                agentCodes: data.agentCodes || []
+              };
+            })
+            .sort((a, b) => a.name.localeCompare(b.name));
+        }        
+        else if (hasAccessAgentGroup) {
+          const agentDoc = await getDoc(doc(db, 'users', detail.agentId));
+          const agentData = agentDoc.exists() ? agentDoc.data() : null;
+  
+          if (agentData?.agentGroupId) {
+            const snapshot = await getDocs(query(
+              collection(db, 'users'),
+              where('agentGroupId', '==', agentData.agentGroupId),
+              where('role', 'in', ['agent', 'manager'])
+            ));
+            agentsList = snapshot.docs
+              .filter(doc => doc.data().isActive !== false) // ✅ רק סוכנים פעילים
+              .map(doc => ({
+                id: doc.id,
+                name: doc.data().name as string,
+                agentCodes: doc.data().agentCodes || []
+              }))
+              .sort((a, b) => a.name.localeCompare(b.name)); // ✅ מיון לפי שם
+          } else {
+            const agentName = agentDoc.exists() ? agentDoc.data().name : 'לא נמצא';
+            const agentCodes = agentDoc.exists() ? agentDoc.data().agentCodes || [] : [];
+            agentsList = [{
+              id: detail.agentId,
+              name: agentName,
+              agentCodes
+            }].sort((a, b) => a.name.localeCompare(b.name)); // ✅ מיון גם אם יש רק אחד
+          }
         } else {
+          const agentDoc = await getDoc(doc(db, 'users', detail.agentId));
           const agentName = agentDoc.exists() ? agentDoc.data().name : 'לא נמצא';
-          const agentCodes = agentDoc.exists() ? agentDoc.data().agentCodes || [] : [];
           agentsList = [{
             id: detail.agentId,
-            name: agentName,
-            agentCodes
-          }];
+            name: agentName
+          }].sort((a, b) => a.name.localeCompare(b.name)); // ✅ מיון גם כאן
         }
-      } else {
-        const agentDoc = await getDoc(doc(db, 'users', detail.agentId));
-        const agentName = agentDoc.exists() ? agentDoc.data().name : 'לא נמצא';
-        agentsList = [{
-          id: detail.agentId,
-          name: agentName
-        }];
+  
+        setAgents(agentsList);
+  
+        if (detail.role !== 'admin') {
+          setSelectedAgentId(detail.agentId);
+          setSelectedAgentName(
+            agentsList.find(a => a.id === detail.agentId)?.name || 'לא נמצא'
+          );
+          // await fetchWorkersForSelectedAgent(detail.agentId);
+        }
+      } catch (error) {
+        console.error("⚠️ Failed to fetch agents:", error);
+        setAgents([]);
+      } finally {
+        setTimeout(() => setIsLoadingAgent(false), 150);
       }
-      setAgents(agentsList);
-      if (detail.role !== 'admin') {
-        setSelectedAgentId(detail.agentId);
-        setSelectedAgentName(
-          agentsList.find(a => a.id === detail.agentId)?.name || 'לא נמצא'
-        );
-        // await fetchWorkersForSelectedAgent(detail.agentId);
-      }
-    } catch (error) {
-      console.error("⚠️ Failed to fetch agents:", error);
-      setAgents([]);
-    } finally {
-      setTimeout(() => setIsLoadingAgent(false), 150);
-    }
-  };
-
-  fetchAgentData();
-}, [user, detail, isLoading]);
-
+    };
+  
+    fetchAgentData();
+  }, [user, detail, isLoading]);
+  
  
 useEffect(() => {
   if (!selectedAgentId) return;
