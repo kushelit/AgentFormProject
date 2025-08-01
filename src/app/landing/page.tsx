@@ -104,14 +104,33 @@ export default function LandingPage() {
 
   return (
     <div className="relative bg-gray-50 text-right">
-      <motion.div
-        className="absolute top-4 right-6 z-50"
-        initial={{ opacity: 0, y: -10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6 }}
-      >
-        <Image src="/static/img/landingImg/union-5.png" alt="MagicSale Logo" width={140} height={40} />
-      </motion.div>
+    <motion.div
+  className="absolute top-4 w-full px-6 flex justify-between items-center z-50"
+  initial={{ opacity: 0, y: -10 }}
+  animate={{ opacity: 1, y: 0 }}
+  transition={{ duration: 0.6 }}
+>
+  {/* צד ימין – הלוגו */}
+  <div>
+    <Image src="/static/img/landingImg/union-5.png" alt="MagicSale Logo" width={140} height={40} />
+  </div>
+
+  {/* צד שמאל – כפתורים */}
+  <div className="flex items-center gap-4">
+    <Link
+      href="/auth/log-in"
+      className="text-white border border-white rounded-full px-4 py-1 text-sm hover:bg-white hover:text-indigo-900 transition"
+    >
+      כניסה למערכת
+    </Link>
+    <Link
+      href="/subscription-sign-up"
+      className="text-white border border-white rounded-full px-4 py-1 text-sm hover:bg-white hover:text-indigo-900 transition"
+    >
+      הרשמה
+    </Link>
+  </div>
+</motion.div>
       <section className="relative min-h-[70vh] flex flex-col justify-center items-center bg-gradient-to-br from-indigo-900 to-blue-800 text-white text-center overflow-hidden">
         <motion.h1 
           className="text-5xl md:text-6xl font-extrabold mb-4 z-10 relative leading-tight"
