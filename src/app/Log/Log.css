@@ -11,7 +11,7 @@
 
 .select-container {
   display: flex;
-  justify-content: center; /* Centers buttons horizontally */
+  justify-content: center; 
   align-items: center; /* Aligns buttons vertically */
   padding: 10px 0; /* Padding above and below the button row */
   position: sticky
