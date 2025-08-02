@@ -7,6 +7,8 @@ import { TopBar } from '@/components/TopBar';
 import { Navbar } from '@/components/Navbar';
 import pages, { bottomPage } from '@/config/pagesConfig';
 import '@/app/globals.css';
+import Script from 'next/script'; // ✅ חדש
+
 
 const font = Rubik({ subsets: ['latin'] });
 
@@ -31,6 +33,23 @@ export default function RootLayout({
 
   return (
     <html lang="he" dir="rtl">
+         <head>
+        {/* ✅ Google Analytics */}
+        <Script
+          src={`https://www.googletagmanager.com/gtag/js?id=G-S97DHBQ7EM`}
+          strategy="afterInteractive"
+        />
+        <Script id="google-analytics" strategy="afterInteractive">
+          {`
+            window.dataLayer = window.dataLayer || [];
+            function gtag(){dataLayer.push(arguments);}
+            gtag('js', new Date());
+            gtag('config', 'G-S97DHBQ7EM', {
+              page_path: window.location.pathname,
+            });
+          `}
+        </Script>
+      </head>
       <body className={font.className}>
         <AuthContextProvider>
           {showTopBar && (
