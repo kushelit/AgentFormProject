@@ -76,3 +76,16 @@
     color: #005fa3;
     transform: none !important; /* 🔒 מבטל כל scale חיצוני */
   }
+
+  .announcement-box a {
+    color: #1a73e8; /* צבע כחול בולט */
+    text-decoration: underline;
+    font-weight: 500;
+    cursor: pointer;
+  }
+  
+  .announcement-box a:hover {
+    color: #0b53c1;
+    text-decoration: none;
+  }
+  
