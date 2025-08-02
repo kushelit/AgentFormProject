@@ -252,8 +252,8 @@ const isValidFullName = (name: string) => {
           leadsModule: withLeadsModule,
           extraWorkers: selectedPlan === 'pro' ? extraWorkers : 0
         },
-        total: calculateTotal(finalDiscount),
-      }, {
+        total,
+            }, {
         headers: { 'Content-Type': 'application/json' },
       });
 

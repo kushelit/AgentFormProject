@@ -9,32 +9,39 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { fullName, email, phone, idNumber, plan, couponCode, addOns, total } = body;
 
-    if (!fullName || !email || !phone || !idNumber  || !plan) {
+    if (!fullName || !email || !phone || !idNumber || !plan) {
       return NextResponse.json({ error: 'אנא מלא/י את כל השדות הנדרשים' }, { status: 400 });
     }
 
     const db = admin.firestore();
 
-    let discountAmount = 0;
     let couponData = null;
-    
+
     if (couponCode) {
-      const couponSnap = await db.collection('coupons')
-        .where('code', '==', couponCode)
-        .where('isActive', '==', true)
-        .limit(1)
-        .get();
-    
-      if (!couponSnap.empty) {
-        const doc = couponSnap.docs[0];
-        const data = doc.data();
-    
-        if (!data.planId || data.planId === plan) {
-          couponData = data;
-        }
-      }
-    }
-    
+      const couponSnap = await db
+  .collection('coupons')
+  .where('code', '==', couponCode)
+  .get();
+
+if (!couponSnap.empty) {
+  const doc = couponSnap.docs[0];
+  const data = doc.data();
+  console.log('🎟 קופון שנמצא ב־Firestore:', data); // ← לוג מרכזי
+
+  if (!data.planId || data.planId === plan) {
+    console.log('✅ קופון תקף עבור התוכנית:', plan);
+    couponData = data;
+  } else {
+    console.warn('⚠️ קופון לא תואם את התוכנית:', {
+      planFromRequest: plan,
+      planIdInCoupon: data.planId,
+    });
+  }
+} else {
+  console.warn('❌ לא נמצא קופון עם הקוד:', couponCode);
+}
+ }
+
     const planDoc = await db.collection('subscriptions_permissions').doc(plan).get();
 
     if (!planDoc.exists) {
@@ -42,38 +49,57 @@ export async function POST(req: NextRequest) {
     }
 
     const planData = planDoc.data();
-    const basePrice = planData?.price || 1;
+    const basePrice = planData?.price || 0;
     const leadsPrice = addOns?.leadsModule ? 29 : 0;
     const extraWorkersPrice = addOns?.extraWorkers ? addOns.extraWorkers * 49 : 0;
-    let  totalPrice = basePrice + leadsPrice + extraWorkersPrice;  
+
+    // חישוב סכום צפוי בשרת
+    let calculatedTotal = basePrice + leadsPrice + extraWorkersPrice;
 
     if (couponData) {
-      const discountPercent = couponData.discount || 0;
-      const discountAmount = totalPrice * (discountPercent / 100);
-      totalPrice -= discountAmount;
+      const discountPercent =
+        couponData.planDiscounts?.[plan] ?? couponData.discount ?? 0;
+    
+      if (discountPercent > 0) {
+        const discountAmount = calculatedTotal * (discountPercent / 100);
+        calculatedTotal -= discountAmount;
+        console.log(`🎯 שימוש בהנחה של ${discountPercent}% למסלול "${plan}"`);
+      } else {
+        console.log(`ℹ️ אין הנחה תקפה לקופון עבור המסלול "${plan}"`);
+      }
+    }
+    
+    calculatedTotal = parseFloat(calculatedTotal.toFixed(2));
+    if (calculatedTotal <= 0) calculatedTotal = 1;
+
+    // בדיקת התאמה מול total מהפרונט
+    let totalPrice = calculatedTotal;
+
+    if (typeof total === 'number') {
+      const normalizedTotal = parseFloat(Number(total).toFixed(2));
+      const difference = Math.abs(normalizedTotal - calculatedTotal);
+
+      if (difference <= 0.01) {
+        totalPrice = normalizedTotal; // ✅ סומכים על מה שהגיע מהפרונט
+      } else {
+        console.warn('⚠️ סכום מהפרונט שונה מהחישוב בשרת – משתמשים בחישוב מהשרת', {
+          fromFrontend: normalizedTotal,
+          fromBackend: calculatedTotal,
+        });
+      }
+    } else {
+      console.warn('⚠️ שדה total מהפרונט לא היה מספר – משתמשים בחישוב מהשרת.');
     }
 
-    // ✅ אם המחיר הסופי הוא 0, שלחי 1 ש"ח כדי ש-Grow יקבלו את הבקשה
-    if (totalPrice <= 0) {
-      totalPrice = 1;
-      }
-     const normalizedEmail = email.toLowerCase();
+    const normalizedEmail = email.toLowerCase();
     const customField = `MAGICSALE-${normalizedEmail}`;
-
-    // const successUrl = `https://test.magicsale.co.il/payment-success?fullName=${encodeURIComponent(fullName)}&email=${encodeURIComponent(normalizedEmail)}&phone=${encodeURIComponent(phone)}&customField=${encodeURIComponent(customField)}&plan=${plan}`;
-    // const cancelUrl = `https://test.magicsale.co.il/payment-failed`;
-
-
     const successUrl = `${APP_BASE_URL}/payment-success?fullName=${encodeURIComponent(fullName)}&email=${encodeURIComponent(normalizedEmail)}&phone=${encodeURIComponent(phone)}&customField=${encodeURIComponent(customField)}&plan=${plan}`;
     const cancelUrl = `${APP_BASE_URL}/payment-failed`;
 
     const formData = new URLSearchParams();
-    // formData.append('pageCode', '2097a1a9413e');
-    // formData.append('userId', '8f215caa9b2a3903');
-
     formData.append('pageCode', GROW_PAGE_CODE);
     formData.append('userId', GROW_USER_ID);
-    formData.append('sum', totalPrice.toString());
+    formData.append('sum', totalPrice.toString()); // ✅ הסכום שייגבה בפועל
     formData.append('successUrl', successUrl);
     formData.append('cancelUrl', cancelUrl);
     formData.append('description', `תשלום עבור מסלול ${plan}`);
@@ -81,35 +107,24 @@ export async function POST(req: NextRequest) {
     formData.append('pageField[phone]', phone);
     formData.append('pageField[email]', normalizedEmail);
     formData.append('cField1', customField);
-    formData.append('cField6', total?.toString() || totalPrice.toString()); // שליחה ל-Grow
-    formData.append('cField7', idNumber); 
-   
-    // formData.append('cField8', '2097a1a9413e'); // ← שדה ייעודי ל־pageCode
+    formData.append('cField6', total?.toString() || totalPrice.toString()); // לצרכים פנימיים
+    formData.append('cField7', idNumber);
     formData.append('cField8', GROW_PAGE_CODE);
-
-
     formData.append('cField2', plan);
     formData.append('cField3', JSON.stringify(addOns || {}));
     if (couponCode) {
       formData.append('cField5', couponCode);
-    }    
-
-    // formData.append('notifyUrl', 'https://test.magicsale.co.il/api/webhook');
+    }
     formData.append('notifyUrl', `${APP_BASE_URL}/api/webhook`);
-
 
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 15000);
+ 
+    console.log('📤 שליחה ל־Grow – פרטי הבקשה:');
+formData.forEach((value, key) => {
+  console.log(`→ ${key}: ${value}`);
+});
 
-    // try {
-    //   const response = await axios.post(
-    //     'https://sandbox.meshulam.co.il/api/light/server/1.0/createPaymentProcess',
-    //     formData,
-    //     {
-    //       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    //       signal: controller.signal
-    //     }
-    //   );
 
     try {
       const response = await axios.post(GROW_ENDPOINTS.createPayment, formData, {
@@ -117,8 +132,9 @@ export async function POST(req: NextRequest) {
         signal: controller.signal,
       });
 
-      const data = response.data;
       clearTimeout(timeout);
+
+      const data = response.data;
 
       if (data?.status === 1 && data?.data?.url && data?.data?.processId) {
         const redirectUrl = new URL(data.data.url);
