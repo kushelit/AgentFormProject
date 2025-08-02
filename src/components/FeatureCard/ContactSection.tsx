@@ -96,10 +96,10 @@ export default function ContactSection() {
           <h3 className="text-3xl font-bold mb-4 border-b-2 inline-block border-indigo-500 pb-1">צרו איתנו קשר</h3>
           <p className="mb-4">השאירו פרטים ונשמח לחזור אליכם!</p>
           <p><strong className="text-indigo-600">טלפון:</strong> 052-6582656</p>
-          <p><strong className="text-indigo-600">כתובת:</strong> שרגא רפאלי 20, פתח תקווה</p>
+          <p><strong className="text-indigo-600">כתובת:</strong> עזרא גבאי 3 פתח תקוה</p>
           <p><strong className="text-indigo-600">שעות פעילות:</strong> ימים א׳–ה׳ בין 09:00 ל־17:00</p>
           <p className="text-sm mt-6 text-gray-500">
-            MagicSale – מערכת לניהול סוכני ביטוח | עוסק מורשה: 123456789
+            MagicSale – מערכת לניהול סוכני ביטוח | עוסק מורשה: 35780790
           </p>
         </div>
       </div>

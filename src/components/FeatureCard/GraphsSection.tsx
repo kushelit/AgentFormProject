@@ -8,7 +8,8 @@ const graphs = [
   {
     title: 'פיצול לפי חברת ביטוח',
     description: 'ניתוח הסכומים שהוזנו לפי חברות – כדי לראות איפה אתם מרוויחים יותר.',
-    image: '/static/img/landingImg/graph-import-1.png'
+    image: '/static/img/landingImg/graph-import-3.png'
+
   },
   {
     title: 'ממוצע הכנסות ללקוח',
@@ -18,7 +19,7 @@ const graphs = [
   {
     title: 'גיוס לקוחות חדשים',
     description: 'מעקב קל אחר גידול בלקוחות חדשים והצטברות חודשית.',
-    image: '/static/img/landingImg/graph-import-3.png'
+    image: '/static/img/landingImg/graph-import-1.png'
   }
 ];
 
