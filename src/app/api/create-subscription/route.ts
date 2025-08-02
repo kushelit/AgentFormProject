@@ -90,6 +90,24 @@ if (!couponSnap.empty) {
     } else {
       console.warn('⚠️ שדה total מהפרונט לא היה מספר – משתמשים בחישוב מהשרת.');
     }
+    // בדיקה אם המשתמש כבר קיים בפיירבייס Auth
+try {
+  const existingUser = await admin.auth().getUserByEmail(email.toLowerCase());
+
+  if (!existingUser.disabled) {
+    return NextResponse.json(
+      { error: 'משתמש עם כתובת אימייל זו כבר קיים במערכת.' },
+      { status: 400 }
+    );
+  }
+} catch (error: any) {
+  if (error.code !== 'auth/user-not-found') {
+    console.error('⚠️ שגיאה בבדיקת המשתמש ב־Auth:', error);
+    return NextResponse.json({ error: 'שגיאה בבדיקת קיום המשתמש' }, { status: 500 });
+  }
+  // אם המשתמש לא קיים, נמשיך כרגיל
+}
+
 
     const normalizedEmail = email.toLowerCase();
     const customField = `MAGICSALE-${normalizedEmail}`;
