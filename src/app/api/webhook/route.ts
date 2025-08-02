@@ -107,19 +107,36 @@ export async function POST(req: NextRequest) {
     const db = admin.firestore();
     const auth = admin.auth();
     // const usersRef = db.collection('users');
-
     let agenciesValue;
+    let couponUsed: {
+      code: string;
+      discount: number;
+      date: FirebaseFirestore.Timestamp;
+    } | undefined;
+    
     if (couponCode) {
       try {
-        const couponSnap = await db.collection('coupons').doc(couponCode).get();
+        const couponSnap = await db.collection('coupons').doc(couponCode.trim()).get();
         if (couponSnap.exists) {
           const couponData = couponSnap.data();
           agenciesValue = couponData?.agencies;
+    
+          const discount = couponData?.planDiscounts?.[subscriptionType]; // ← הכי חשוב
+          const isActive = couponData?.isActive;
+    
+          if (typeof discount === 'number' && isActive) {
+            couponUsed = {
+              code: couponCode,
+              discount,
+              date: admin.firestore.Timestamp.now(),
+            };
+          }
         }
       } catch (err) {
         console.error('⚠️ שגיאה בשליפת הקופון:', err);
       }
     }
+    
 
 const snapshot = await db.collection('users').where('customField', '==', customField).get();
 const paymentDate = new Date();
@@ -187,9 +204,13 @@ if (couponCode) {
   if (agenciesValue !== undefined) {
     updateFields.agencies = agenciesValue;
   }
+  if (couponUsed) {
+    updateFields.couponUsed = couponUsed;
+  }
 } else {
   updateFields.usedCouponCode = admin.firestore.FieldValue.delete();
   updateFields.agencies = admin.firestore.FieldValue.delete();
+  updateFields.couponUsed = admin.firestore.FieldValue.delete();
 }
 
   if (transactionId && transactionId !== userData?.transactionId) updateFields.transactionId = transactionId;
@@ -326,6 +347,10 @@ if (agenciesValue !== undefined) {
 if (couponCode) {
   newUserData.usedCouponCode = couponCode;
 }
+if (couponUsed) {
+  newUserData.couponUsed = couponUsed;
+}
+
 
 await db.collection('users').doc(newUser.uid).set(newUserData);
 
