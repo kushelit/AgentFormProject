@@ -8,6 +8,7 @@ import { Navbar } from '@/components/Navbar';
 import pages, { bottomPage } from '@/config/pagesConfig';
 import '@/app/globals.css';
 import Script from 'next/script'; // ✅ חדש
+import AnalyticsTracker from '@/components/AnalyticsTracker';
 
 
 const font = Rubik({ subsets: ['latin'] });
@@ -52,6 +53,7 @@ export default function RootLayout({
       </head>
       <body className={font.className}>
         <AuthContextProvider>
+        <AnalyticsTracker /> {/* ✅ חדש */}
           {showTopBar && (
             <TopBar className="bg-custom-blue p-4 fixed top-0 right-0 w-full h-16 z-10" />
           )}
