@@ -135,6 +135,10 @@ export const ChangePlanModal: React.FC<ChangePlanModalProps> = ({
     if (discount > 0) {
       total -= total * (discount / 100);
     }
+
+    const VAT_RATE = 0.18;
+    total *= (1 + VAT_RATE);
+
     return Math.max(1, parseFloat(total.toFixed(2)));
   };
 
@@ -210,7 +214,7 @@ export const ChangePlanModal: React.FC<ChangePlanModalProps> = ({
                 ))}
               </ul>
               {plan.id !== 'enterprise' && (
-                <p className="text-xl font-bold mt-4">₪{plan.price}</p>
+                <p className="text-xl font-bold mt-4">₪{plan.price} + מע&quot;מ</p>
               )}
             </div>
           ))}
@@ -247,7 +251,7 @@ export const ChangePlanModal: React.FC<ChangePlanModalProps> = ({
           </div>
         </div>
 
-        <p className="font-bold text-lg mt-4">סה&quot;כ לתשלום : ₪{calculateTotal()}</p>
+<p className="font-bold text-lg mt-4">סה&quot;כ לתשלום (כולל מע&quot;מ): ₪{calculateTotal()}</p>
 
         <div className="flex justify-end gap-4 mt-6">
           <button

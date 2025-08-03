@@ -69,6 +69,10 @@ export async function POST(req: NextRequest) {
     }
 
     if (totalPrice <= 0) totalPrice = 1;
+
+    const VAT_RATE = 0.18;
+    totalPrice *= 1 + VAT_RATE;
+
     totalPrice = parseFloat(totalPrice.toFixed(2));
 
     const formData = new URLSearchParams();

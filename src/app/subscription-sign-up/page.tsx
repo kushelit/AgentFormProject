@@ -164,6 +164,8 @@ export default function SubscriptionSignUpPage() {
     }
   
     if (total <= 0) total = 1;
+    const VAT_RATE = 0.18; // 18% מע״מ
+    total = total * (1 + VAT_RATE);
   
     return parseFloat(total.toFixed(2));
   };
@@ -349,7 +351,7 @@ if (isLoading || plans.length === 0) {
        
          {/* מחיר */}
          {plan.id !== 'enterprise' && (
-           <p className="text-xl font-bold mt-4">₪{plan.price}</p>
+          <p className="text-xl font-bold mt-4">₪{plan.price} + מע&quot;מ</p>
          )}
        </div>       
           ))}
@@ -443,7 +445,7 @@ if (isLoading || plans.length === 0) {
   </label>
 </div>
 <div className="font-bold text-lg">
-  סה&quot;כ לתשלום : ₪{calculateTotal().toFixed(2)}
+סה&quot;כ לתשלום (כולל מע&quot;מ): ₪{calculateTotal().toFixed(2)}
 </div>
         {discount > 0 && (
   <p className="text-green-700 text-sm font-medium">

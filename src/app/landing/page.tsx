@@ -244,7 +244,7 @@ export default function LandingPage() {
       {/* תוכנית BASIC */}
       <div className="relative bg-blue-50 rounded-2xl p-8 shadow hover:shadow-lg transition flex flex-col justify-between min-h-[480px]">
         <h3 className="text-xl font-bold mb-2 text-blue-900">מנוי בסיסי</h3>
-        <p className="text-sm text-gray-600 mb-4">89 ₪ לחודש </p>
+        <p className="text-sm text-gray-600 mb-4">₪89 לחודש + מע&quot;מ</p>
         <ul className="text-gray-700 space-y-2 text-sm leading-relaxed mb-6">
   <li>✔ ניהול עסקאות ולקוחות</li>
   <li>✔ מעקב עמלות</li>
@@ -269,7 +269,7 @@ export default function LandingPage() {
           הכי פופולרי ⭐
         </div>
         <h3 className="text-xl font-bold mb-2 text-indigo-900">מנוי מקצועי </h3>
-        <p className="text-sm text-gray-600 mb-4">185 ₪ לחודש</p>
+        <p className="text-sm text-gray-600 mb-4">₪185 לחודש + מע&quot;מ</p>
         <ul className="text-gray-700 space-y-2 text-sm leading-relaxed mb-6">
   <li>✔ ניהול עסקאות ולקוחות</li>
   <li>✔ מעקב עמלות</li>

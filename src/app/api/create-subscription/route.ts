@@ -53,6 +53,8 @@ if (!couponSnap.empty) {
     const leadsPrice = addOns?.leadsModule ? 29 : 0;
     const extraWorkersPrice = addOns?.extraWorkers ? addOns.extraWorkers * 49 : 0;
 
+    const VAT_RATE = 0.18;
+
     // חישוב סכום צפוי בשרת
     let calculatedTotal = basePrice + leadsPrice + extraWorkersPrice;
 
@@ -68,7 +70,9 @@ if (!couponSnap.empty) {
         console.log(`ℹ️ אין הנחה תקפה לקופון עבור המסלול "${plan}"`);
       }
     }
-    
+    // הוספת מע"מ
+calculatedTotal = calculatedTotal * (1 + VAT_RATE);
+
     calculatedTotal = parseFloat(calculatedTotal.toFixed(2));
     if (calculatedTotal <= 0) calculatedTotal = 1;
 
