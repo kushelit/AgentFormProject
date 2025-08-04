@@ -15,7 +15,7 @@ export async function generateClientNifraimSummaryReport(params: ReportRequest) 
   const salesQuery = query(
     collection(db, 'sales'),
     where('AgentId', '==', agentId),
-    where('statusPolicy', 'in', ['פעילה', 'הצעה'])
+    // where('statusPolicy', 'in', ['פעילה', 'הצעה'])
   );
 
   const salesSnapshot = await getDocs(salesQuery);
@@ -125,9 +125,10 @@ console.log('📋 סיום בדיקת לקוחות מטבלת customer');
       "שם פרטי": info.firstName || '',
       "שם משפחה": info.lastName || '',
       "טלפון": phone,
-      "סה\"כ נפרעים": sumNifraim.toFixed(2),
+      "סה\"כ נפרעים": Number(sumNifraim.toFixed(2)),
     };
   });
+  rows.sort((a, b) => b["סה\"כ נפרעים"] - a["סה\"כ נפרעים"]);
 
   return buildExcelReport(rows, 'סיכום נפרעים לפי לקוח');
 }

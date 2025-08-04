@@ -1,0 +1,129 @@
+<html><head>
+    <meta name="robots" content="noindex,nofollow">
+    <title>מגדל - ביטוח, פנסיה, חיסכון אישי ופיננסים בשפה שכולם מבינים</title>
+    <link rel="stylesheet" type="text/css" href="/public/include/css/apm.css">
+    <script src="/public/include/js/common.js" language="javascript"></script>
+    <script src="/public/include/js/u_plugin.js" language="javascript"></script>
+    
+    <script language="javascript">
+      function InsertActivexControl(clsid, params)
+      {
+          var container = document.getElementById("logoutActivexContainer");
+          
+          if (navigator.appName == "Microsoft Internet Explorer") {
+              var paramsCode = "";
+              for (var item in params) {
+                  paramsCode += "<param name='" + item + "' value='" + params[item] + "'>";
+              }
+              
+              container.innerHTML = 
+                  "<center><object classId=CLSID:" + clsid + " border=0 width=1 height=1>" +
+                  paramsCode + "</object></center>";
+          }
+          else {
+              var pluginHost = new UPluginHost("", container);
+              var control = {"clsid": clsid, "width": 1, "height": 1};
+              pluginHost.hostControl(control, params);
+          }
+      }
+	  
+      function OnLoad()
+      {
+        var isBrowserControl = false;
+        try {
+            isBrowserControl = ("undefined" != typeof(window.external))
+                && ("unknown" != typeof(window.external))
+                && ("undefined" != typeof(window.external.WebLogonNotifyUser))
+                && ("unknown" != typeof(window.external.WebLogonNotifyUser));
+        }
+        catch(e) {}
+
+        var display_session = get_cookie("LastMRH_Session");
+//        if(null != display_session) {
+//          document.getElementById("sessionDIV").innerHTML = '<BR>מזהה שיחה &nbsp;' + display_session + '<BR><BR>';
+//          document.getElementById("sessionDIV").style.visibility = "visible";
+//        }
+
+        if(isBrowserControl) {
+            window.external.WebLogonNotifyUser();
+        }
+        if(!isBrowserControl) {
+            document.getElementById("newSessionDIV").style.visibility = "visible";
+        }
+
+        try
+        {
+            if (get_cookie("F5_PWS") == "1")
+            {
+                document.cookie = "F5_PWS=0; path=/; expires=Fri, 01-Jan-1970 00:00:01 GMT";
+                var pwsClassId = "7E73BE8F-FD87-44EC-8E22-023D5FF960FF";
+                InsertActivexControl(pwsClassId, {"command": "exit"} );
+            }
+        }catch (e) {};
+      }
+    </script>
+  </head>
+
+<body onload="OnLoad();">
+<script>
+try{
+
+    if(window.external && window.external.WebLogonOnAuthFailure) {
+        window.external.WebLogonOnAuthFailure();
+    }
+}catch(e){};
+    try {
+        window.external.OnHostClose();
+    } catch(e) { }
+</script>
+<meta name="viewport" id="viewport" content="width=device-width, initial-scale=1.0">       
+<meta name="robots" context="noindex,nofollow">
+<script language="javascript">
+//orientation toolbox
+function setViewport(){
+    document.getElementById("viewport").setAttribute('content', Math.abs(window.orientation) == 90 ? 'width=device-height, initial-scale=1' : 'width=device-width, initial-scale=1.0' );
+}
+setViewport();
+window.onorientationchange = function() {
+    setViewport();
+}    
+</script>
+<table id="page_header">
+  <tbody><tr>
+    <td id="header_leftcell"></td>             
+    <td id="header_rightcell"></td>
+  </tr>
+  <tr>
+     <td></td>
+     <td id="maxTimeoutTd"><span id="maxTimeoutTag" title=""></span></td>
+  </tr>
+</tbody></table>
+<noscript>
+<div id="noscript_warning_red">JavaScript לא מאופשר. אנא אפשר את היכולת בדפדן</div>
+<div id="noscript_warning_newsession">על מנת להשלים תהליך כניסה, <A href="/">לחץ כאן</A></div>
+</noscript>
+<table id="main_table" class="logout_page">
+<tbody><tr>
+        <td id="main_table_info_cell">
+        <table style="margin-right: 24%; width: 413px" id="interaction_table">
+            <tbody><tr>
+                <td id="interaction_table_header">חיבורך הסתיים</td>
+            </tr>
+            <tr>
+                <td style="padding-top: 17px" class="interaction_table_option_cell">
+                    <!--<font color=red><font color=white>לא נמצא מזהה שיחה</font></font><br>-->
+                    <br>תודה על השימוש בפורטל סוכנים<br><br>
+                    <div id="newSessionDIV" style="visibility: visible;">על מנת להשלים את תהליך הכניסה<br> <a href="/"></a><br><a href="[SESSION_RESTART_URL]">לחץ כאן</a></div>                </td>
+            </tr>
+            <tr>
+                <td class="interaction_table_footer"></td>
+            </tr>
+        </tbody></table>
+    </td>
+    </tr>
+</tbody></table>
+<div id="page_footer"><div><a style="background-color: white;color:rgba(13, 45, 110, 1);text-decoration: none;text-align: center;font-size: 20px;" href="https://lpsplatformp.migdal.co.il/LPS_SiteWeb/#/index/meggie2">לדיווח על תקלה מרחוק 'לחץ כאן' ונציגי השירות יחזרו אליך</a></div></div>
+<div id="logoutActivexContainer" class="inspectionHostDIVSmall"></div>
+
+
+</body></html>

@@ -3,14 +3,14 @@ import { collection, getDocs, query, where } from 'firebase/firestore';
 import * as XLSX from 'xlsx';
 import { ReportRequest } from '@/types';
 
-export async function generateInsurancePremiumSummaryReport(params: ReportRequest) {
+export async function generateFinancialAccumulationReport(params: ReportRequest) {
   const { fromDate, toDate, agentId, company, product, statusPolicy, minuySochen } = params;
 
-  // שלב 1: שליפת שמות המוצרים מקבוצת ביטוח
+  // שלב 1: שליפת שמות המוצרים מקבוצת פיננסים
   const productsSnapshot = await getDocs(
-    query(collection(db, 'product'), where('productGroup', '==', '3'))
+    query(collection(db, 'product'), where('productGroup', '==', '4'))
   );
-  const insuranceProductNames = productsSnapshot.docs.map(doc =>
+  const financialProductNames = productsSnapshot.docs.map(doc =>
     doc.data().productName?.trim()
   );
 
@@ -25,7 +25,7 @@ export async function generateInsurancePremiumSummaryReport(params: ReportReques
   // סינון לפי כל התנאים
   const filtered = sales.filter((row) => {
     if (!row.IDCustomer) return false;
-    if (!insuranceProductNames.includes(row.product)) return false;
+    if (!financialProductNames.includes(row.product)) return false;
     if (fromDate && row.mounth < fromDate) return false;
     if (toDate && row.mounth > toDate) return false;
     if (cleanedAgentId && cleanedAgentId !== 'all' && row.AgentId !== cleanedAgentId) return false;
@@ -36,16 +36,16 @@ export async function generateInsurancePremiumSummaryReport(params: ReportReques
     return true;
   });
 
-  // שלב 3: קיבוץ לפי ת"ז וצבירה
-  const premiaByCustomer: Record<string, number> = {};
+  // שלב 3: קיבוץ לפי ת"ז וצבירה פיננסית
+  const accumulationByCustomer: Record<string, number> = {};
   const customerInfoMap: Record<string, { firstName: string; lastName: string }> = {};
 
   for (const row of filtered) {
     const customerId = row.IDCustomer;
-    const premia = Number(row.insPremia || 0);
+    const accumulation = Number(row.finansimZvira || 0);
 
-    if (!premiaByCustomer[customerId]) premiaByCustomer[customerId] = 0;
-    premiaByCustomer[customerId] += premia;
+    if (!accumulationByCustomer[customerId]) accumulationByCustomer[customerId] = 0;
+    accumulationByCustomer[customerId] += accumulation;
 
     if (!customerInfoMap[customerId]) {
       customerInfoMap[customerId] = {
@@ -56,7 +56,7 @@ export async function generateInsurancePremiumSummaryReport(params: ReportReques
   }
 
   // שלב 4: שליפת טלפונים מטבלת customer
-  const customerIds = new Set(Object.keys(premiaByCustomer));
+  const customerIds = new Set(Object.keys(accumulationByCustomer));
   const phoneMap: Record<string, string> = {};
 
   const customerQuery = query(
@@ -79,7 +79,7 @@ export async function generateInsurancePremiumSummaryReport(params: ReportReques
   }
 
   // שלב 5: בניית שורות ל־Excel
-  const rows = Object.entries(premiaByCustomer).map(([id, sumPremia]) => {
+  const rows = Object.entries(accumulationByCustomer).map(([id, sum]) => {
     const info = customerInfoMap[id] || {};
     const phone = phoneMap[id] || '';
     return {
@@ -87,17 +87,12 @@ export async function generateInsurancePremiumSummaryReport(params: ReportReques
       "שם פרטי": info.firstName,
       "שם משפחה": info.lastName,
       "טלפון": phone,
-"סה\"כ פרמיה": Number(sumPremia.toFixed(2)),
+      "סה\"כ צבירה פיננסית": Number(sum.toFixed(2)),
     };
   });
-  rows.sort((a, b) => b["סה\"כ פרמיה"] - a["סה\"כ פרמיה"]);
+  rows.sort((a, b) => b["סה\"כ צבירה פיננסית"] - a["סה\"כ צבירה פיננסית"]);
 
-  return buildExcelReport(rows, 'סיכום פרמיה לפי לקוח');
-}
-
-// דוח ריק
-function generateEmptyReport() {
-  return buildExcelReport([], 'סיכום פרמיה לפי לקוח');
+  return buildExcelReport(rows, 'סיכום צבירה פיננסית לפי לקוח');
 }
 
 // יצירת Excel
@@ -108,10 +103,9 @@ function buildExcelReport(rows: any[], sheetName: string) {
       "שם פרטי": '',
       "שם משפחה": '',
       "טלפון": '',
-      "סה\"כ פרמיה": '',
+      "סה\"כ צבירה פיננסית": '',
     }]
   );
-
 
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
@@ -119,8 +113,8 @@ function buildExcelReport(rows: any[], sheetName: string) {
 
   return {
     buffer,
-    filename: 'סיכום_פרמיה_לפי_לקוח.xlsx',
-    subject: 'סיכום פרמיה ללקוחות ממערכת MagicSale',
-    description: 'מצורף דוח Excel המסכם את סך הפרמיות ללקוח מתוך כל הפוליסות.',
+    filename: 'סיכום_צבירה_פיננסית_לפי_לקוח.xlsx',
+    subject: 'סיכום צבירה פיננסית ללקוחות ממערכת MagicSale',
+    description: 'מצורף דוח Excel המסכם את סך הצבירה הפיננסית לפי לקוח.',
   };
 }

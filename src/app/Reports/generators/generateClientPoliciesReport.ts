@@ -18,7 +18,7 @@ export async function generateClientPoliciesReport(params: ReportRequest) {
   const salesQuery = query(
     collection(db, 'sales'),
     where('AgentId', '==', agentId),
-    where('statusPolicy', 'in', ['פעילה', 'הצעה'])
+    // where('statusPolicy', 'in', ['פעילה', 'הצעה'])
   );
 
   const salesSnapshot = await getDocs(salesQuery);

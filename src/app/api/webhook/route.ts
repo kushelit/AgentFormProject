@@ -92,6 +92,8 @@ export async function POST(req: NextRequest) {
     //   0
     // );
 
+    const formattedPhone = formatPhone(phone);
+
     const rawSum = data['data[sum]'];
     const sumStr = Array.isArray(rawSum) ? rawSum[0] : rawSum || '0';
     const totalCharged = parseFloat(sumStr.replace(',', '.'));  
@@ -179,6 +181,7 @@ if (userDocRef) {
 
   const updateFields: any = {
     isActive: true,
+    phone: formattedPhone,
     cancellationDate: admin.firestore.FieldValue.delete(),
     growCancellationStatus: admin.firestore.FieldValue.delete(),
     'permissionOverrides.allow': admin.firestore.FieldValue.delete(),
@@ -317,7 +320,7 @@ if (statusCode === '2' && transactionId && transactionToken && pageCode) {
       name: fullName,
       idNumber,
       email,
-      phone,
+      phone: formattedPhone,
       subscriptionId: processId,
       transactionId: transactionId || null,
       transactionToken: transactionToken || null,

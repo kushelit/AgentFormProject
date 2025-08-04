@@ -8,4 +8,6 @@ export interface ReportRequest {
   agentName?: string;
   company?: string[]; // ← במקום string
   product?: string[]; // ← במקום string
+  statusPolicy?: string[]; // ✅ חדש - רשימת סטאטוסים
+  minuySochen?: boolean; // ✅ חדש - האם יש מינוי סוכן
 }

@@ -24,12 +24,24 @@ import {
 import { Button } from '@/components/Button/Button';
 import DialogNotification from '@/components/DialogNotification';
 
+
+
+interface CommissionTemplateOption {
+  id: string;
+  companyName: string;
+  type: string;
+  companyId?: string;
+  Name?: string;
+  automationClass?: string; 
+}
+
 const ExcelCommissionImporter: React.FC = () => {
   const { detail } = useAuth();
   const { agents, selectedAgentId, handleAgentChange } = useFetchAgentData();
 
   const [templateId, setTemplateId] = useState('');
-  const [templateOptions, setTemplateOptions] = useState<{ id: string; companyName: string; type: string }[]>([]);
+  const [templateOptions, setTemplateOptions] = useState<CommissionTemplateOption[]>([]);
+  const selectedTemplate = templateOptions.find(opt => opt.id === templateId);
   const [mapping, setMapping] = useState<Record<string, string>>({});
   const [selectedFileName, setSelectedFileName] = useState("");
   const [standardizedRows, setStandardizedRows] = useState<any[]>([]);
@@ -41,9 +53,23 @@ const ExcelCommissionImporter: React.FC = () => {
   const [summaryByAgentCode, setSummaryByAgentCode] = useState<any[]>([]);
   const [showSummaryDialog, setShowSummaryDialog] = useState(false);
 
+
+  const automationApiByTemplate = (template: {
+    companyId: string;
+    type: string;
+    name: string;
+  }) => {
+    if (template.companyId === '2' && template.name === 'משולמים לסוכן') {
+      return '/api/commissionImport/migdal/payments';
+    }
+  
+    // future: כלל, הראל, וכו'
+    return null;
+  };
+  
+
   const roundTo2 = (num: number) => Math.round(num * 100) / 100;
 
-  
   const findHeaderRowIndex = (sheet: XLSX.WorkSheet, expectedHeaders: string[]): number => {
     const range = XLSX.utils.decode_range(sheet['!ref']!);
     for (let row = range.s.r; row <= range.e.r; row++) {
@@ -68,7 +94,7 @@ const ExcelCommissionImporter: React.FC = () => {
   useEffect(() => {
     const fetchTemplates = async () => {
       const snapshot = await getDocs(collection(db, 'commissionTemplates'));
-      const templates: { id: string; companyName: string; type: string }[] = [];
+      const templates: CommissionTemplateOption[] = [];
 
       for (const docSnap of snapshot.docs) {
         const data = docSnap.data();
@@ -81,7 +107,9 @@ const ExcelCommissionImporter: React.FC = () => {
         templates.push({
           id: docSnap.id,
           companyName,
-          type: data.type || ''
+          type: data.type || '',
+          Name: data.Name || '',
+          automationClass: data.automationClass || ''
         });
       }
 
@@ -466,6 +494,62 @@ console.log('📅 reportMonth שחולץ:', fallbackReportMonth);      }
       setIsLoading(false);
     }
   };
+
+  const handleAutoRunByTemplate = async () => {
+    if (!selectedTemplate?.id || !selectedAgentId) {
+      alert('יש לבחור תבנית וסוכן לפני הפעלת אוטומציה');
+      return;
+    }
+  
+    try {
+      setIsLoading(true);
+  
+      // // שלב בסיסי לאיסוף נתונים — אפשר לשנות לטופס בעתיד
+      // const idNumber = prompt('📱 הכנס ת״ז של הסוכן:');
+      // const password = prompt('🔒 הכנס סיסמה של הסוכן:');
+  
+      // if (!idNumber || !password) {
+      //   alert('❌ חובה להזין ת״ז וסיסמה כדי להתחיל את האוטומציה');
+      //   return;
+      // }
+      // console.log('🚀 שולחת:', {
+      //   templateId: selectedTemplate.id,
+      //   options: {
+      //     idNumber,
+      //     password,
+      //     agentId: selectedAgentId
+      //   }
+      // });
+      
+      const res = await fetch('/api/automation/run-template', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          templateId: selectedTemplate.id,
+          options: {
+            // idNumber,
+            // password,
+            agentId: selectedAgentId,
+            templateId: selectedTemplate.id,
+          }
+        }),
+      });
+  
+      const data = await res.json();
+  
+      if (!res.ok) {
+        throw new Error(data.error || 'שגיאה כללית בהרצת האוטומציה');
+      }
+  
+      alert('✅ האוטומציה הופעלה בהצלחה! המתן להשלמת הפעולה');
+    } catch (err) {
+      console.error('❌ שגיאה באוטומציה:', err);
+      alert('❌ שגיאה בהפעלת האוטומציה');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
   
   return (
     <div className="p-6 max-w-4xl mx-auto text-right">
@@ -501,7 +585,12 @@ console.log('📅 reportMonth שחולץ:', fallbackReportMonth);      }
           ))}
         </select>
       </div>
-  
+      <Button
+  text="הפעל אוטומציה לפי תבנית"
+  type="secondary"
+  onClick={handleAutoRunByTemplate}
+  disabled={isLoading || !selectedTemplate}
+/>
       {/* בחירת קובץ */}
       <div className="mb-4">
         <label className="block font-semibold mb-1">בחר קובץ:</label>

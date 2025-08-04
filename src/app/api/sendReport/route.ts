@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { ReportRequest } from '@/types';
 import { sendEmailWithAttachment } from '@/utils/email';
 
-import { generateInsurancePremiumReport } from '@/app/Reports/generators/generateInsurancePremiumReport';
+import { generateInsurancePremiumSummaryReport  } from '@/app/Reports/generators/generateInsurancePremiumReport';
 import { generateClientPoliciesReport } from '@/app/Reports/generators/generateClientPoliciesReport';
 import { generateClientNifraimSummaryReport } from '@/app/Reports/generators/generateClientNifraimSummaryReport';
+import { generateFinancialAccumulationReport } from '@/app/Reports/generators/generateFinancialAccumulationReport';
 
 
 import { admin } from '@/lib/firebase/firebase-admin';
@@ -29,7 +30,7 @@ export async function POST(req: NextRequest) {
     switch (reportType) {
       case 'insurancePremiumReport':
         console.log('📄 Generating insurancePremiumReport...');
-        ({ buffer: reportBuffer, filename, subject, description } = await generateInsurancePremiumReport(body));
+        ({ buffer: reportBuffer, filename, subject, description } = await generateInsurancePremiumSummaryReport (body));
         console.log('✅ Report generated');
         break;
         
@@ -42,7 +43,12 @@ export async function POST(req: NextRequest) {
             ({ buffer: reportBuffer, filename, subject, description } = await generateClientNifraimSummaryReport(body));
             console.log('✅ clientNifraimSummaryReport generated');
             break;
-          
+            case 'clientFinancialAccumulationReport':
+              console.log('📊 Generating clientFinancialAccumulationReport...');
+              ({ buffer: reportBuffer, filename, subject, description } = await generateFinancialAccumulationReport(body));
+              console.log('✅ clientFinancialAccumulationReport generated');
+              break;
+            
       default:
         console.warn('⚠️ Unsupported report type:', reportType);
         return NextResponse.json({ error: 'Unsupported report type' }, { status: 400 });

@@ -11,6 +11,14 @@ import Select from 'react-select';
 import { db } from '@/lib/firebase/firebase';
 import { collection, getDocs, query, where } from 'firebase/firestore';
 // import { Product } from '@/types';
+import DatePicker from 'react-datepicker';
+import 'react-datepicker/dist/react-datepicker.css';
+import { registerLocale } from 'react-datepicker';
+import { he } from 'date-fns/locale/he'; // ✅ נכון
+
+
+registerLocale('he', he);
+
 
 interface ReportProductGroup {
   reportType: string;
@@ -19,8 +27,9 @@ interface ReportProductGroup {
 
 const REPORTS = [
   { value: 'insurancePremiumReport', label: 'דוח פרמיית ביטוח ללקוח' },
-  { value: 'clientPoliciesReport', label: 'דוח פוליסות ללקוח' }, 
+  { value: 'clientPoliciesReport', label: 'דוח עסקאות לתקופה' }, 
   { value: 'clientNifraimSummaryReport', label: 'דוח נפרעים לפי לקוח' },
+  { value: 'clientFinancialAccumulationReport', label: 'דוח צבירה פיננסית ללקוח' },
 ];
 
 const ReportsPage: React.FC = () => {
@@ -36,7 +45,13 @@ const ReportsPage: React.FC = () => {
     setSelectedCompanyFilter,
   } = useFetchAgentData();
 
-  const { products, productToGroupMap, productGroupMap } = useFetchMD();
+  const { products, productToGroupMap, productGroupMap, statusPolicies
+  } = useFetchMD();
+
+  const DEFAULT_STATUS = ['פעילה', 'הצעה'];
+  const [selectedStatusPolicyFilter, setSelectedStatusPolicyFilter] = useState<string[]>(DEFAULT_STATUS);
+  const [minuySochenFilter, setMinuySochenFilter] = useState<string | null>(null);
+
 
   const [reportType, setReportType] = useState(REPORTS[0].value);
   const [fromDate, setFromDate] = useState('');
@@ -46,6 +61,12 @@ const ReportsPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [reportProductGroups, setReportProductGroups] = useState<Record<string, string[]>>({});
   const [selectedCompanies, setSelectedCompanies] = useState<{ value: string; label: string }[]>([]);
+
+  const minuySochenOptions = [
+    { value: 'true', label: 'כן' },
+    { value: 'false', label: 'לא' },
+  ];
+  
 
   useEffect(() => {
     const fetchReportGroups = async () => {
@@ -96,6 +117,12 @@ const ReportsPage: React.FC = () => {
           agentName: clean(selectedAgentName),
           company: selectedCompanies.length > 0 ? selectedCompanies.map(c => c.value) : undefined,
           product: selectedProducts.length > 0 ? selectedProducts.map(p => p.value) : undefined,
+          statusPolicy: selectedStatusPolicyFilter.length > 0
+    ? selectedStatusPolicyFilter
+    : undefined, 
+    minuySochen: minuySochenFilter !== null
+    ? minuySochenFilter === 'true'
+    : undefined,
         })
       });
 
@@ -128,14 +155,40 @@ const ReportsPage: React.FC = () => {
         </select>
       </div>
 
-      <div className="mb-4">
+      {/* <div className="mb-4">
         <label className="block font-semibold mb-1">טווח תאריכים:</label>
         <div className="flex gap-2">
           <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="input w-full" />
           <input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="input w-full" />
         </div>
-      </div>
-
+      </div> */}
+      <div className="mb-4">
+  <label className="block font-semibold mb-1">טווח תאריכי חודש תפוקה:</label>
+  <div className="flex gap-2">
+    <DatePicker
+      selected={fromDate ? new Date(fromDate) : null}
+      onChange={(date: Date | null) =>
+        setFromDate(date ? date.toISOString().split('T')[0] : '')
+      }
+      placeholderText="מתאריך"
+      className="input w-full"
+      locale="he"
+      dateFormat="dd/MM/yyyy"
+      isClearable
+    />
+    <DatePicker
+      selected={toDate ? new Date(toDate) : null}
+      onChange={(date: Date | null) =>
+        setToDate(date ? date.toISOString().split('T')[0] : '')
+      }
+      placeholderText="עד תאריך"
+      className="input w-full"
+      locale="he"
+      dateFormat="dd/MM/yyyy"
+      isClearable
+    />
+  </div>
+</div>
       <div className="mb-4">
         <label className="block font-semibold mb-1">בחר סוכן:</label>
         <select onChange={handleAgentChange} value={selectedAgentId} className="select-input w-full">
@@ -170,7 +223,32 @@ const ReportsPage: React.FC = () => {
           classNamePrefix="select"
         />
       </div>
-
+      <div className="mb-4">
+  <label className="block font-semibold mb-1">סטאטוס פוליסה:</label>
+  <Select
+    isMulti
+    options={statusPolicies.map((status) => ({ value: status, label: status }))}
+    value={selectedStatusPolicyFilter.map((status) => ({ value: status, label: status }))}
+    onChange={(selectedOptions) =>
+      setSelectedStatusPolicyFilter(selectedOptions.map((opt) => opt.value))
+    }
+    placeholder="בחר סטאטוס"
+    className="basic-multi-select"
+    classNamePrefix="select"
+  />
+</div>
+<div className="mb-4">
+  <label className="block font-semibold mb-1">מינוי סוכן:</label>
+  <Select
+    isClearable
+    options={minuySochenOptions}
+    value={minuySochenOptions.find(opt => opt.value === minuySochenFilter) || null}
+    onChange={(selectedOption) => setMinuySochenFilter(selectedOption ? selectedOption.value : null)}
+    placeholder="בחר מינוי סוכן"
+    className="basic-single-select"
+    classNamePrefix="select"
+  />
+</div>
       <div className="mb-4">
         <label className="block font-semibold mb-1">כתובת מייל למשלוח:</label>
         <input

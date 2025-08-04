@@ -114,6 +114,21 @@ export const AuthContextProvider = ({ children }: { children: React.ReactNode })
     return () => unsubscribe();
   }, [isClient]);
 
+  
+// פעולות התחברות/התנתקות
+const logIn = async (email: string, password: string) => {
+  await setPersistence(auth, browserSessionPersistence);
+  return signInWithEmailAndPassword(auth, email, password);
+};
+
+const signUp = async (email: string, password: string) => {
+  return createUserWithEmailAndPassword(auth, email, password);
+};
+
+const logOut = async () => {
+  return signOut(auth);
+};
+
   // מניעת רינדור אם לא ב-client
   if (!isClient) return null;
 
@@ -133,18 +148,4 @@ export const useAuth = () => {
     throw new Error("useAuth must be used within an AuthContextProvider");
   }
   return context;
-};
-
-// פעולות התחברות/התנתקות
-const logIn = async (email: string, password: string) => {
-  await setPersistence(auth, browserSessionPersistence);
-  return signInWithEmailAndPassword(auth, email, password);
-};
-
-const signUp = async (email: string, password: string) => {
-  return createUserWithEmailAndPassword(auth, email, password);
-};
-
-const logOut = async () => {
-  return signOut(auth);
 };
