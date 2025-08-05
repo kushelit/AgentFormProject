@@ -15,7 +15,7 @@ const pages = [
   { href: '/NewGoals', label: 'ניהול יעדים' },
   { href: '/NewEnviorment', label: 'ניהול הגדרות לידים' },
   { href: '/TeamPermissionsTable', label: 'ניהול הרשאות' },
-  // { href: '/Reports', label: 'דוחות' },
+  { href: '/Reports', label: 'דוחות' },
 
   // {
   //   href: '/importCommissionHub',
@@ -39,9 +39,7 @@ const pages = [
       { href: '/ManageManager', label: 'ניהול קבוצות סוכנים' },
       { href: '/SubscriptionsTable', label: 'ניהול מנויים ' },
       { href: '/import-excel', label: 'ייבוא אקסל עסקאות' },
-      { href: '/Admin-ImportExcelruns', label: 'ניהול טעינת קבצי עסקאות' },
-      { href: '/Reports', label: 'דוחות' },
-      
+      { href: '/Admin-ImportExcelruns', label: 'ניהול טעינת קבצי עסקאות' },      
     ],
   }
 

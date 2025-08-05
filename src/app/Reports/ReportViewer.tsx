@@ -139,7 +139,7 @@ const ReportsPage: React.FC = () => {
 
   return (
     <div className="p-6 max-w-4xl mx-auto text-right">
-      <h2 className="text-2xl font-bold mb-4">שליחת דוח</h2>
+      <h2 className="text-2xl font-bold mb-4">דוחות</h2>
       <p className="text-gray-600 mb-6">בחר את סוג הדוח, טווח התאריכים, סוכן, חברה ומוצר</p>
 
       <div className="mb-4">

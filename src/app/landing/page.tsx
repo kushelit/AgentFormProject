@@ -45,6 +45,14 @@ const features = [
     icon: BarChart3
   },
   {
+    id: 'commission-split',
+    title: 'פיצול עמלות',
+    description: 'כלי חדש לניהול שיתופי פעולה בין סוכנים ומקורות לידים.',
+    extraText: 'המערכת מאפשרת לקבוע אחוזי פיצול מדויקים בין גורמים שונים בעסקה – בצורה שקופה, אוטומטית ולפי הסכמים קיימים.',
+    image: '/static/img/landingImg/commissionSplit.png',
+    icon: BarChart3
+  },  
+  {
     id: 'permissions',
     title: 'ניהול הרשאות',
     description: 'שליטה מלאה בהרשאות לסוכן ולעובדים.',
