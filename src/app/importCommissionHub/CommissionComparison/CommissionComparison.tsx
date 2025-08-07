@@ -406,7 +406,7 @@ return (
       <thead>
         <tr className="bg-gray-200 text-right">
           <th className="border p-2">מספר פוליסה</th>
-          <th className="border p-2">ת"ז לקוח</th>
+          <th className="border p-2">ת&quot;ז לקוח</th>
           <th className="border p-2">{`עמלה ${formatMonth(month1) || 'חודש ראשון'}`}</th>
           <th className="border p-2">{`עמלה ${formatMonth(month2) || 'חודש שני'}`}</th>
           <th className="border p-2">סטטוס</th>
@@ -425,8 +425,8 @@ return (
           </tr>
         ))}
         <tr className="font-bold bg-blue-50">
-          <td className="border p-2 text-right">סה"כ</td>
-          <td className="border p-2"></td>
+        <td className="border p-2 text-right">סה&quot;כ</td>
+        <td className="border p-2"></td>
           <td className="border p-2">{total1.toFixed(2)}</td>
           <td className="border p-2">{total2.toFixed(2)}</td>
           <td className="border p-2"></td>
