@@ -23,14 +23,14 @@ import {
 } from 'firebase/firestore';
 import { Button } from '@/components/Button/Button';
 import DialogNotification from '@/components/DialogNotification';
-
+import './ExcelCommissionImporter.css';
 
 
 interface CommissionTemplateOption {
   id: string;
   companyName: string;
   type: string;
-  companyId?: string;
+  companyId: string;
   Name?: string;
   automationClass?: string; 
 }
@@ -53,6 +53,7 @@ const ExcelCommissionImporter: React.FC = () => {
   const [summaryByAgentCode, setSummaryByAgentCode] = useState<any[]>([]);
   const [showSummaryDialog, setShowSummaryDialog] = useState(false);
 
+  const [selectedCompanyId, setSelectedCompanyId] = useState('');
 
   const automationApiByTemplate = (template: {
     companyId: string;
@@ -67,7 +68,17 @@ const ExcelCommissionImporter: React.FC = () => {
     return null;
   };
   
+  const uniqueCompanies = Array.from(
+    new Map(
+      templateOptions.map(t => [t.companyId, { id: t.companyId, name: t.companyName }])
+    ).values()
+  );
+  
 
+  const filteredTemplates = templateOptions.filter(
+    t => t.companyId === selectedCompanyId
+  );
+  
   const roundTo2 = (num: number) => Math.round(num * 100) / 100;
 
   const findHeaderRowIndex = (sheet: XLSX.WorkSheet, expectedHeaders: string[]): number => {
@@ -85,6 +96,15 @@ const ExcelCommissionImporter: React.FC = () => {
     }
     return 0; // ברירת מחדל - אם לא מצאנו התאמה
   };
+  
+
+  useEffect(() => {
+    if (isLoading) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+  }, [isLoading]);
   
 
   useEffect(() => {
@@ -107,6 +127,7 @@ const ExcelCommissionImporter: React.FC = () => {
         templates.push({
           id: docSnap.id,
           companyName,
+          companyId,
           type: data.type || '',
           Name: data.Name || '',
           automationClass: data.automationClass || ''
@@ -131,53 +152,67 @@ const ExcelCommissionImporter: React.FC = () => {
     fetchTemplateMapping();
   }, [templateId]);
 
-  const parseHebrewMonth = (value: any): string | undefined => {
-    if (!value) return;
+  const parseHebrewMonth = (value: any, templateId?: string): string => {
+    if (!value) return '';
   
     const monthMap: Record<string, string> = {
       'ינו': '01', 'פבר': '02', 'מרץ': '03', 'אפר': '04', 'מאי': '05', 'יונ': '06',
       'יול': '07', 'אוג': '08', 'ספט': '09', 'אוק': '10', 'נוב': '11', 'דצמ': '12'
     };
   
-    // אם התאריך מגיע כ-Excel date מספרי
+    // 🟡 Excel מספרי
     if (typeof value === 'number') {
       const excelDate = XLSX.SSF.parse_date_code(value);
-      if (!excelDate) return;
-      const year = excelDate.y;
-      const month = excelDate.m.toString().padStart(2, '0');
-      return `${year}-${month}`;
+      if (excelDate) {
+        const year = excelDate.y;
+        const month = excelDate.m.toString().padStart(2, '0');
+        return `${year}-${month}`;
+      }
     }
   
-    // אם מגיע כאובייקט Date
+    // 🟡 Date רגיל
     if (value instanceof Date) {
-      const month = (value.getMonth() + 1).toString().padStart(2, '0');
       const year = value.getFullYear();
+      const month = (value.getMonth() + 1).toString().padStart(2, '0');
       return `${year}-${month}`;
     }
   
-    // אם מגיע כמחרוזת – לטפל במיוחד במקרה של 'menura_insurance'
-    const str = value.toString();
+    const str = value.toString().trim();
   
-    // תבנית מיוחדת של מנורה – תאריך לפי מספר עמודה, כמו 44272 (Excel Date)
+    // 🟡 תבנית מנורה – תאריך ממספר עמודה
     if (templateId === 'menura_insurance' && /^\d{5}$/.test(str)) {
       const numeric = parseInt(str, 10);
       const excelDate = XLSX.SSF.parse_date_code(numeric);
-      if (!excelDate) return;
-      const year = excelDate.y;
-      const month = excelDate.m.toString().padStart(2, '0');
-      return `${year}-${month}`;
+      if (excelDate) {
+        const year = excelDate.y;
+        const month = excelDate.m.toString().padStart(2, '0');
+        return `${year}-${month}`;
+      }
     }
   
-    // פורמטים עם שם חודש בעברית וקיצור שנה
+    // 🟡 פורמטים עם חודש בעברית + שנה
     let match = str.match(/([\u0590-\u05FF]{3})[- ]?(\d{2})/);
     if (!match) match = str.match(/(\d{2})[- ]?([\u0590-\u05FF]{3})/);
-    if (!match) return;
+    if (match) {
+      const [, a, b] = match;
+      const [hebMonth, yearSuffix] = monthMap[a] ? [a, b] : [b, a];
+      const month = monthMap[hebMonth];
+      const year = '20' + yearSuffix;
+      if (month) return `${year}-${month}`;
+    }
   
-    const [, a, b] = match;
-    const [hebMonth, yearSuffix] = monthMap[a] ? [a, b] : [b, a];
-    const month = monthMap[hebMonth];
-    const year = '20' + yearSuffix;
-    return month ? `${year}-${month}` : undefined;
+    // 🟡 תאריכים בפורמט כללי עם ספרות בלבד (כמו "06-2025" או "2025/06")
+    const parts: string[] | null = str.match(/\d+/g);
+    if (parts && parts.length >= 2) {
+      const year = parts.find((p: string) => p.length === 4);
+      const month = parts.find((p: string) => p.length === 2 || p.length === 1);
+      if (year && month) {
+        return `${year}-${month.padStart(2, '0')}`;
+      }
+    }
+  
+    // 🔚 אם שום דבר לא עבד – ננסה למצוא חודש ושנה בצורה חופשית ולנרמל
+    return str.replace(/\//g, '-');
   };
   
 
@@ -216,6 +251,14 @@ const ExcelCommissionImporter: React.FC = () => {
       }
   
       setExistingDocs([]);
+      setStandardizedRows([]); // ✅ ריקון שורות הטבלה
+      setSelectedFileName(''); // אופציונלי: לרוקן את שם הקובץ שהוצג
+     
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+  
+     
       alert('✅ כל הרשומות וגם הסיכומים נמחקו. כעת ניתן לטעון קובץ חדש.');
     } catch (err) {
       console.error(err);
@@ -224,15 +267,17 @@ const ExcelCommissionImporter: React.FC = () => {
       setIsLoading(false);
     }
   };
-  
   const handleClearSelections = () => {
     setSelectedFileName('');
     setStandardizedRows([]);
     setTemplateId('');
     setExistingDocs([]);
     if (fileInputRef.current) fileInputRef.current.value = '';
+  
+    // 💥 רענון מלא של הדף
+    window.location.reload();
   };
-
+  
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -329,7 +374,7 @@ console.log('📅 reportMonth שחולץ:', fallbackReportMonth);      }
             for (const [excelCol, systemField] of Object.entries(mapping)) {
               const value = row[excelCol];
               if (systemField === 'validMonth' || systemField === 'reportMonth') {
-                let parsed = parseHebrewMonth(value);
+                let parsed = parseHebrewMonth(value, templateId);
     
                 // 📦 במור – נחלץ משם הקובץ אם חסר
                 if (!parsed && systemField === 'reportMonth' && fallbackReportMonth) {
@@ -373,6 +418,12 @@ console.log('📅 reportMonth שחולץ:', fallbackReportMonth);      }
   
   const handleImport = async () => {
     if (!selectedAgentId || standardizedRows.length === 0) return;
+    // תיקון פורמט reportMonth ו־validMonth עם תמיכה בעברית ובפורמטים שונים
+    standardizedRows.forEach(row => {
+      row.reportMonth = parseHebrewMonth(row.reportMonth, row.templateId);
+      row.validMonth = parseHebrewMonth(row.validMonth, row.templateId);
+    });
+    
     setIsLoading(true);
   
     const reportMonth = standardizedRows[0]?.reportMonth;
@@ -422,7 +473,9 @@ console.log('📅 reportMonth שחולץ:', fallbackReportMonth);      }
       }>();
       
       for (const row of standardizedRows) {
-        const key = `${row.agentId}_${row.agentCode}_${row.reportMonth}_${row.templateId}`;
+        // const key = `${row.agentId}_${row.agentCode}_${row.reportMonth}_${row.templateId}`;
+        const sanitizedMonth = row.reportMonth?.toString().replace(/\//g, '-') || '';
+const key = `${row.agentId}_${row.agentCode}_${sanitizedMonth}_${row.templateId}`;
         if (!summariesMap.has(key)) {
           summariesMap.set(key, {
             agentId: row.agentId,
@@ -439,7 +492,10 @@ console.log('📅 reportMonth שחולץ:', fallbackReportMonth);      }
       
       // שמירה לטבלה החדשה
       for (const summary of summariesMap.values()) {
-        const docId = `${summary.agentId}_${summary.agentCode}_${summary.reportMonth}_${summary.templateId}`;
+        // const docId = `${summary.agentId}_${summary.agentCode}_${summary.reportMonth}_${summary.templateId}`;
+        const sanitizedMonth = summary.reportMonth?.toString().replace(/\//g, '-') || '';
+        const docId = `${summary.agentId}_${summary.agentCode}_${sanitizedMonth}_${summary.templateId}`;
+        
         await setDoc(doc(db, "commissionSummaries", docId), {
           ...summary,
           updatedAt: serverTimestamp(), // מוסיף תאריך עדכון
@@ -558,6 +614,14 @@ console.log('📅 reportMonth שחולץ:', fallbackReportMonth);      }
   
       {/* בחירת סוכן */}
       <div className="mb-4">
+      {isLoading && (
+  <div className="fixed inset-0 bg-white bg-opacity-70 z-50 flex items-center justify-center">
+    <div className="text-center">
+      <div className="loader mb-4"></div>
+      <p className="text-lg font-semibold text-gray-700">⏳ טוען נתונים... אנא המתן</p>
+    </div>
+  </div>
+)}
         <label className="block font-semibold mb-1">בחר סוכן:</label>
         <select
           value={selectedAgentId}
@@ -571,7 +635,7 @@ console.log('📅 reportMonth שחולץ:', fallbackReportMonth);      }
         </select>
       </div>
   
-      {/* בחירת תבנית */}
+      {/* בחירת תבנית
       <div className="mb-4">
         <label className="block font-semibold mb-1">בחר תבנית:</label>
         <select
@@ -584,7 +648,44 @@ console.log('📅 reportMonth שחולץ:', fallbackReportMonth);      }
             <option key={opt.id} value={opt.id}>{opt.companyName} – {opt.type}</option>
           ))}
         </select>
-      </div>
+      </div> */}
+
+{/* בחירת חברה */}
+<div className="mb-4">
+  <label className="block font-semibold mb-1">בחר חברה:</label>
+  <select
+    value={selectedCompanyId}
+    onChange={(e) => {
+      setSelectedCompanyId(e.target.value);
+      setTemplateId(''); // איפוס תבנית אם שינו חברה
+    }}
+    className="select-input w-full"
+  >
+    <option value="">בחר חברה</option>
+    {uniqueCompanies.map(company => (
+      <option key={company.id} value={company.id}>{company.name}</option>
+    ))}
+  </select>
+</div>
+
+{/* בחירת תבנית */}
+{selectedCompanyId && (
+  <div className="mb-4">
+    <label className="block font-semibold mb-1">בחר תבנית:</label>
+    <select
+      value={templateId}
+      onChange={e => setTemplateId(e.target.value)}
+      className="select-input w-full"
+    >
+      <option value="">בחר תבנית</option>
+      {filteredTemplates.map(opt => (
+        <option key={opt.id} value={opt.id}>
+          {opt.Name || opt.type}
+        </option>
+      ))}
+    </select>
+  </div>
+)}
       <Button
   text="הפעל אוטומציה לפי תבנית"
   type="secondary"

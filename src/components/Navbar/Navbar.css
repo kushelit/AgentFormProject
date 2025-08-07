@@ -71,3 +71,13 @@
 .contact-link:hover {
   color: #ffcc00;
 }
+
+
+.submenu-toggle {
+  font-size: 18px;         /* ✅ הגדלה לגודל בולט יותר */
+  margin-right: 8px;       /* טיפה מרווח מהטקסט */
+  font-weight: bold;       /* ✅ החץ נראה חזק יותר */
+  color: white;          /* ✅ צבע צהוב כהה – מושך תשומת לב */
+  cursor: pointer;
+  flex-shrink: 0;
+}

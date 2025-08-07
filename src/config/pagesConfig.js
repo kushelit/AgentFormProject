@@ -16,18 +16,16 @@ const pages = [
   { href: '/NewEnviorment', label: 'ניהול הגדרות לידים' },
   { href: '/TeamPermissionsTable', label: 'ניהול הרשאות' },
   { href: '/Reports', label: 'דוחות' },
-
-  // {
-  //   href: '/importCommissionHub',
-  //   label: 'טעינת קבצי עמלות',
-  //   submenu: [
-  //     { href: '/ExcelCommissionImporter', label: 'קליטת קבצים' },
-  //     { href: '/CommissionComparison', label: ' השוואת טעינות' },
-  //     { href: '/CommissionSummary', label: ' דף מסכם עמלות' },
-  //     { href: '/CompareRealToReported', label: ' השוואה לעמלה בפועל' },
-
-  //   ],
-  // },
+  {
+    href: '#import-commissions',
+    label: 'טעינת עמלות',
+    submenu: [
+      { href: '/importCommissionHub/ExcelCommissionImporter', label: 'קליטת קבצים' },
+      { href: '/importCommissionHub/CommissionComparison', label: 'השוואת טעינות' },
+      { href: '/importCommissionHub/CommissionSummary', label: 'דף מסכם עמלות' },
+      { href: '/importCommissionHub/CompareRealToReported', label: 'השוואה לעמלה בפועל' },
+    ],
+  },
   {
     href: '/AdminHub', // או כל דף ראשי שתבחרי
     label: 'ניהול אדמין',

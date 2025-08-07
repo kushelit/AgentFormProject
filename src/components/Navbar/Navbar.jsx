@@ -37,6 +37,8 @@ export const Navbar = ({ items, bottomPage, className }) => {
     localStorage.setItem("selectedTab", href);
   };
 
+
+
   const handleToggle = (href) => {
     if (openSubmenu === href) {
       setOpenSubmenu(null);
@@ -70,21 +72,17 @@ export const Navbar = ({ items, bottomPage, className }) => {
           {item.label}
         </a>
         {item.submenu && (
-          <span
-            className="submenu-toggle"
-            onClick={(e) => {
-              e.preventDefault();
-              handleToggle(item.href);
-            }}
-            aria-expanded={openSubmenu === item.href}
-          >
-            {openSubmenu === item.href ? (
-              <Collapse className="collapse-icon" />
-            ) : (
-              <Expand className="expand-icon" />
-            )}
-          </span>
-        )}
+  <span
+    className="submenu-toggle"
+    onClick={(e) => {
+      e.preventDefault();
+      handleToggle(item.href);
+    }}
+    aria-expanded={openSubmenu === item.href}
+  >
+    {openSubmenu === item.href ? '▾' : '▸'}
+  </span>
+)}
       </div>
     </NavbarItem>
   );
