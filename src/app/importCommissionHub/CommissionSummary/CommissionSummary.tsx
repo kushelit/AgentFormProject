@@ -145,24 +145,50 @@ export default function CommissionSummaryPage() {
               {allCompanies.map(company => (
                 <th key={company} className="border px-2 py-1">{company}</th>
               ))}
+                  <th className="border px-2 py-1 font-bold bg-gray-50">סה"כ לחודש</th> 
             </tr>
           </thead>
           <tbody>
-            {allMonths.map(month => (
-              <tr key={month}>
-                <td className="border px-2 py-1 font-semibold">{month}</td>
-                {allCompanies.map(company => (
-                  <td
-                    key={company}
-                    className="border px-2 py-1 cursor-pointer hover:bg-gray-100"
-                    onClick={() => handleToggleExpand(month, company)}
-                  >
-                    {summaryByMonthCompany[month]?.[company]?.toLocaleString() ?? '-'}
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
+  {allMonths.map(month => {
+    const monthTotal = allCompanies.reduce((sum, company) => {
+      return sum + (summaryByMonthCompany[month]?.[company] || 0);
+    }, 0);
+    return (
+      <tr key={month}>
+        <td className="border px-2 py-1 font-semibold">{month}</td>
+        {allCompanies.map(company => (
+          <td
+            key={company}
+            className="border px-2 py-1 cursor-pointer hover:bg-gray-100"
+            onClick={() => handleToggleExpand(month, company)}
+          >
+            {summaryByMonthCompany[month]?.[company]?.toLocaleString() ?? '-'}
+          </td>
+        ))}
+        <td className="border px-2 py-1 font-bold bg-gray-100">{monthTotal.toLocaleString()}</td>
+      </tr>
+    );
+  })}
+
+  {/* שורת סיכום לכל חברה */}
+  <tr className="bg-gray-200 font-bold">
+    <td className="border px-2 py-1">סה"כ</td>
+    {allCompanies.map(company => {
+      const total = allMonths.reduce((sum, month) => {
+        return sum + (summaryByMonthCompany[month]?.[company] || 0);
+      }, 0);
+      return (
+        <td key={company} className="border px-2 py-1">{total.toLocaleString()}</td>
+      );
+    })}
+    <td className="border px-2 py-1">
+      {allMonths.reduce((sum, month) =>
+        sum + allCompanies.reduce((innerSum, company) =>
+          innerSum + (summaryByMonthCompany[month]?.[company] || 0), 0)
+      , 0).toLocaleString()}
+    </td>
+  </tr>
+</tbody>
         </table>
       )}
 
@@ -177,24 +203,48 @@ export default function CommissionSummaryPage() {
                 {Object.keys(summaryByCompanyAgentMonth[selectedCompany] || {}).sort().map(agentCode => (
                   <th key={agentCode} className="border px-2 py-1">{agentCode}</th>
                 ))}
+                    <th className="border px-2 py-1 font-bold bg-gray-50">סה"כ לחודש</th> 
               </tr>
             </thead>
             <tbody>
-              {Array.from(
-                new Set(
-                  Object.values(summaryByCompanyAgentMonth[selectedCompany] || {}).flatMap(m => Object.keys(m))
-                )
-              ).sort().map(month => (
-                <tr key={month}>
-                  <td className="border px-2 py-1 font-semibold">{month}</td>
-                  {Object.keys(summaryByCompanyAgentMonth[selectedCompany] || {}).sort().map(agentCode => (
-                    <td key={agentCode} className="border px-2 py-1">
-                      {summaryByCompanyAgentMonth[selectedCompany]?.[agentCode]?.[month]?.toLocaleString() ?? '-'}
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
+  {Array.from(
+    new Set(
+      Object.values(summaryByCompanyAgentMonth[selectedCompany] || {}).flatMap(m => Object.keys(m))
+    )
+  ).sort().map(month => {
+    const rowTotal = Object.keys(summaryByCompanyAgentMonth[selectedCompany] || {}).reduce((sum, agentCode) => {
+      return sum + (summaryByCompanyAgentMonth[selectedCompany]?.[agentCode]?.[month] || 0);
+    }, 0);
+
+    return (
+      <tr key={month}>
+        <td className="border px-2 py-1 font-semibold">{month}</td>
+        {Object.keys(summaryByCompanyAgentMonth[selectedCompany] || {}).sort().map(agentCode => (
+          <td key={agentCode} className="border px-2 py-1">
+            {summaryByCompanyAgentMonth[selectedCompany]?.[agentCode]?.[month]?.toLocaleString() ?? '-'}
+          </td>
+        ))}
+        <td className="border px-2 py-1 font-bold bg-gray-100">{rowTotal.toLocaleString()}</td>
+      </tr>
+    );
+  })}
+
+  {/* שורת סיכום לפי מספר סוכן */}
+  <tr className="bg-gray-200 font-bold">
+    <td className="border px-2 py-1">סה"כ</td>
+    {Object.keys(summaryByCompanyAgentMonth[selectedCompany] || {}).sort().map(agentCode => {
+      const total = Object.values(summaryByCompanyAgentMonth[selectedCompany]?.[agentCode] || {}).reduce((sum, val) => sum + val, 0);
+      return (
+        <td key={agentCode} className="border px-2 py-1">{total.toLocaleString()}</td>
+      );
+    })}
+    <td className="border px-2 py-1">
+      {Object.values(summaryByCompanyAgentMonth[selectedCompany] || {}).reduce((sum, agentData) => {
+        return sum + Object.values(agentData).reduce((s, v) => s + v, 0);
+      }, 0).toLocaleString()}
+    </td>
+  </tr>
+</tbody>
           </table>
         </div>
       )}

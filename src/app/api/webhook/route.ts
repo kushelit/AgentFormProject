@@ -250,6 +250,14 @@ if (statusCode === '2' && transactionId && transactionToken && pageCode) {
   try {
     const user = await auth.getUserByEmail(email);
 
+    if (formattedPhone && user.phoneNumber !== formattedPhone) {
+      await auth.updateUser(user.uid, {
+        phoneNumber: formattedPhone
+      });
+      console.log('📞 Updated phone number in Firebase Auth');
+    }
+
+
     if (planChanged && !user.disabled) {
       // await fetch('https://test.magicsale.co.il/api/sendEmail', {
         await fetch(`${APP_BASE_URL}/api/sendEmail`, {
@@ -292,6 +300,7 @@ if (statusCode === '2' && transactionId && transactionToken && pageCode) {
       email,
       password: Math.random().toString(36).slice(-8),
       displayName: fullName,
+      phoneNumber: formattedPhone
     });
 
     const resetLink = await auth.generatePasswordResetLink(email);

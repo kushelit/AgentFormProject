@@ -42,7 +42,7 @@ const CommissionComparison = () => {
   // const [templateOptions, setTemplateOptions] = useState<{ id: string; companyName: string; type: string }[]>([]);
   const [month1, setMonth1] = useState('');
   const [month2, setMonth2] = useState('');
-  const [comparisonRows, setComparisonRows] = useState<any[]>([]);
+  const [comparisonRows, setComparisonRows] = useState<ComparisonRow[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [agentCodeFilter, setAgentCodeFilter] = useState('');
@@ -67,6 +67,14 @@ const CommissionComparison = () => {
     companyName: string;
     type: string;
     Name?: string;
+  }
+  
+
+  interface ComparisonRow {
+    policyNumber: string;
+    row1: CommissionData | null;
+    row2: CommissionData | null;
+    status: string;
   }
   
   const [templateOptions, setTemplateOptions] = useState<TemplateOption[]>([]);
@@ -197,21 +205,33 @@ const CommissionComparison = () => {
     setComparisonRows(result);
     setIsLoading(false);
   };
-
   const handleExport = () => {
-    const exportData = comparisonRows.map(({ policyNumber, row1, row2, status }) => ({
+    const exportData = visibleRows.map(({ policyNumber, row1, row2, status }: ComparisonRow) => ({
       'מספר פוליסה': policyNumber,
       'ת"ז לקוח': row1?.customerId || row2?.customerId || '',
-      'עמלה חודש ראשון': row1?.commissionAmount ?? '',
-      'עמלה חודש שני': row2?.commissionAmount ?? '',
-      'סטטוס': statusOptions.find(s => s.value === status)?.label || ''
+      'מספר סוכן': row1?.agentCode || row2?.agentCode || '',
+      [`עמלה ${formatMonth(month1)}`]: typeof row1?.commissionAmount === 'number' ? row1.commissionAmount.toFixed(2) : '',
+      [`עמלה ${formatMonth(month2)}`]: typeof row2?.commissionAmount === 'number' ? row2.commissionAmount.toFixed(2) : '',
+      'סטטוס': statusOptions.find(s => s.value === status)?.label || status
     }));
-
+  
+    // הוספת שורת סה"כ עם שדות מלאים (ולא רק חלקיים)
+    exportData.push({
+      'מספר פוליסה': 'סה"כ',
+      'ת"ז לקוח': '',
+      'מספר סוכן': '',
+      [`עמלה ${formatMonth(month1)}`]: total1.toFixed(2),
+      [`עמלה ${formatMonth(month2)}`]: total2.toFixed(2),
+      'סטטוס': ''
+    });
+  
     const ws = XLSX.utils.json_to_sheet(exportData);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'השוואת עמלות');
     XLSX.writeFile(wb, 'השוואת_עמלות.xlsx');
   };
+  
+
 
   const filteredRows = useMemo(() => {
     return comparisonRows.filter(({ policyNumber, row1, row2, status }) => {
@@ -219,9 +239,11 @@ const CommissionComparison = () => {
         String(row1?.customerId || '').includes(searchTerm) ||
         String(row2?.customerId || '').includes(searchTerm);
 
-        const matchesAgentCode = !agentCodeFilter ||
-        String(row1?.agentCode ?? '') === agentCodeFilter ||
-        String(row2?.agentCode ?? '') === agentCodeFilter;
+
+        const matchesAgentCode = !agentCodeFilter || (
+          (row1?.agentCode && String(row1.agentCode) === agentCodeFilter) ||
+          (row2?.agentCode && String(row2.agentCode) === agentCodeFilter)
+        );
       
       const matchesStatus = !statusFilter || status === statusFilter;
 
@@ -229,8 +251,7 @@ const CommissionComparison = () => {
     });
   }, [searchTerm, agentCodeFilter, statusFilter, comparisonRows]);
 
-  const total1 = filteredRows.reduce((sum, r) => sum + (r.row1?.commissionAmount || 0), 0);
-  const total2 = filteredRows.reduce((sum, r) => sum + (r.row2?.commissionAmount || 0), 0);
+
 
   const formatMonth = (value: string) => {
     if (!value) return '';
@@ -239,11 +260,11 @@ const CommissionComparison = () => {
   };
   
   const statusSummary = useMemo(() => {
-    return filteredRows.reduce((acc, row) => {
+    return comparisonRows.reduce((acc, row) => {
       acc[row.status] = (acc[row.status] || 0) + 1;
       return acc;
     }, {} as Record<string, number>);
-  }, [filteredRows]);
+  }, [comparisonRows]);
   
 
 const visibleRows = useMemo(() => {
@@ -251,6 +272,16 @@ const visibleRows = useMemo(() => {
     ? filteredRows.filter(row => row.status === drillStatus)
     : filteredRows;
 }, [filteredRows, drillStatus]);
+
+const total1 = visibleRows.reduce((sum, r) =>
+  typeof r.row1?.commissionAmount === 'number' ? sum + r.row1.commissionAmount : sum
+, 0);
+
+const total2 = visibleRows.reduce((sum, r) =>
+  typeof r.row2?.commissionAmount === 'number' ? sum + r.row2.commissionAmount : sum
+, 0);
+
+
 return (
   <div className="p-6 max-w-6xl mx-auto text-right">
     <h1 className="text-2xl font-bold mb-4">השוואת עמלות בין חודשים</h1>
@@ -351,42 +382,11 @@ return (
               ))}
           </tbody>
         </table>
+        {filteredRows.length > 0 && !drillStatus && (
+  <p className="text-gray-500 mt-4">בחר סטטוס להצגת פירוט.</p>
+)}
       </>
     )}
-
-    {/* חיפוש וסינון */}
-    <div className="flex flex-col sm:flex-row justify-between items-center gap-4 mb-4">
-      <input
-        type="text"
-        placeholder='חיפוש לפי מספר פוליסה או ת"ז'
-        value={searchTerm}
-        onChange={handleSearchChange}
-        className="input w-full sm:w-1/2"
-      />
-      {agentCodes.length > 0 && (
-        <select
-          value={agentCodeFilter}
-          onChange={handleAgentCodeChange}
-          className="select-input w-full sm:w-1/2"
-        >
-          <option value="">סינון לפי קוד סוכן</option>
-          {agentCodes.map((code) => (
-            <option key={code} value={code}>{code}</option>
-          ))}
-        </select>
-      )}
-      <select
-        value={statusFilter}
-        onChange={(e) => setStatusFilter(e.target.value)}
-        className="select-input w-full sm:w-1/2"
-      >
-        {statusOptions.map(opt => (
-          <option key={opt.value} value={opt.value}>{opt.label}</option>
-        ))}
-      </select>
-      <button onClick={handleExport} className="btn btn-secondary">ייצוא לאקסל</button>
-    </div>
-
     {/* חזור מכל Drilldown */}
    {/* טבלה מפורטת רק אם drillStatus קיים */}
 {drillStatus ? (
@@ -397,16 +397,47 @@ return (
     >
       חזור לכל הסטאטוסים
     </button>
-
+  {/* חיפוש וסינון */}  <div className="flex flex-col sm:flex-row justify-between items-center gap-4 mb-4">
+      <input
+        type="text"
+        placeholder='מספר פוליסה או ת"ז'
+        value={searchTerm}
+        onChange={handleSearchChange}
+        className="input w-full sm:w-1/2"
+      />
+      {agentCodes.length > 0 && (
+        <select
+          value={agentCodeFilter}
+          onChange={handleAgentCodeChange}
+          className="select-input w-full sm:w-1/2"
+        >
+          <option value="">מספר סוכן</option>
+          {agentCodes.map((code) => (
+            <option key={code} value={code}>{code}</option>
+          ))}
+        </select>
+      )}
+      {/* <select
+        value={statusFilter}
+        onChange={(e) => setStatusFilter(e.target.value)}
+        className="select-input w-full sm:w-1/2"
+      >
+        {statusOptions.map(opt => (
+          <option key={opt.value} value={opt.value}>{opt.label}</option>
+        ))}
+      </select> */}
+      <button onClick={handleExport} className="btn btn-secondary">ייצוא לאקסל</button>
+    </div>
     <h2 className="text-xl font-bold mb-2">
-      פירוט לסטטוס: {statusOptions.find(s => s.value === drillStatus)?.label || drillStatus}
-    </h2>
-
+  פירוט לסטטוס: {statusOptions.find(s => s.value === drillStatus)?.label || drillStatus}
+  {' '}({visibleRows.length} שורות)
+</h2>
     <table className="w-full text-sm border">
       <thead>
         <tr className="bg-gray-200 text-right">
           <th className="border p-2">מספר פוליסה</th>
           <th className="border p-2">ת&quot;ז לקוח</th>
+          <th className="border p-2">מספר סוכן</th>
           <th className="border p-2">{`עמלה ${formatMonth(month1) || 'חודש ראשון'}`}</th>
           <th className="border p-2">{`עמלה ${formatMonth(month2) || 'חודש שני'}`}</th>
           <th className="border p-2">סטטוס</th>
@@ -417,26 +448,37 @@ return (
           <tr key={policyNumber} className="border">
             <td className="border p-2">{policyNumber}</td>
             <td className="border p-2">{row1?.customerId || row2?.customerId || '-'}</td>
-            <td className="border p-2">{row1?.commissionAmount ?? '-'}</td>
-            <td className="border p-2">{row2?.commissionAmount ?? '-'}</td>
+            <td className="border p-2">{row1?.agentCode || row2?.agentCode || '-'}</td>
+            <td className="border p-2">
+  {typeof row1?.commissionAmount === 'number' ? row1.commissionAmount.toFixed(2) : '-'}
+</td>
+<td className="border p-2">
+  {typeof row2?.commissionAmount === 'number' ? row2.commissionAmount.toFixed(2) : '-'}
+</td>
             <td className="border p-2 font-bold">
               {statusOptions.find(s => s.value === status)?.label || 'ללא'}
             </td>
           </tr>
         ))}
-        <tr className="font-bold bg-blue-50">
-        <td className="border p-2 text-right">סה&quot;כ</td>
-        <td className="border p-2"></td>
-          <td className="border p-2">{total1.toFixed(2)}</td>
-          <td className="border p-2">{total2.toFixed(2)}</td>
-          <td className="border p-2"></td>
-        </tr>
+        {visibleRows.length === 0 && (
+  <tr>
+    <td colSpan={6} className="text-center py-4 text-gray-500">
+      לא נמצאו שורות תואמות לסינון הנבחר.
+    </td>
+  </tr>
+)}<tr className="font-bold bg-blue-50">
+<td className="border p-2 text-right">סה&quot;כ</td>     {/* 1: מספר פוליסה */}
+<td className="border p-2"></td>                        {/* 2: ת"ז לקוח */}
+<td className="border p-2"></td>                        {/* 3: מספר סוכן */}
+<td className="border p-2">{total1.toFixed(2)}</td>     {/* 4: עמלה חודש 1 */}
+<td className="border p-2">{total2.toFixed(2)}</td>     {/* 5: עמלה חודש 2 */}
+<td className="border p-2"></td>                        {/* 6: סטטוס */}
+</tr>
+
       </tbody>
     </table>
   </>
-) : (
-  <p className="text-gray-500 mt-4">בחר סטטוס להצגת פירוט.</p>
-)}
+) : null}
   </div>
 );
 };
