@@ -145,8 +145,8 @@ export default function CommissionSummaryPage() {
               {allCompanies.map(company => (
                 <th key={company} className="border px-2 py-1">{company}</th>
               ))}
-                  <th className="border px-2 py-1 font-bold bg-gray-50">סה"כ לחודש</th> 
-            </tr>
+<th className="border px-2 py-1 font-bold bg-gray-50">סה&quot;כ לחודש</th>
+</tr>
           </thead>
           <tbody>
   {allMonths.map(month => {
@@ -172,8 +172,8 @@ export default function CommissionSummaryPage() {
 
   {/* שורת סיכום לכל חברה */}
   <tr className="bg-gray-200 font-bold">
-    <td className="border px-2 py-1">סה"כ</td>
-    {allCompanies.map(company => {
+  <td className="border px-2 py-1">סה&quot;כ</td>
+  {allCompanies.map(company => {
       const total = allMonths.reduce((sum, month) => {
         return sum + (summaryByMonthCompany[month]?.[company] || 0);
       }, 0);
@@ -203,8 +203,8 @@ export default function CommissionSummaryPage() {
                 {Object.keys(summaryByCompanyAgentMonth[selectedCompany] || {}).sort().map(agentCode => (
                   <th key={agentCode} className="border px-2 py-1">{agentCode}</th>
                 ))}
-                    <th className="border px-2 py-1 font-bold bg-gray-50">סה"כ לחודש</th> 
-              </tr>
+<th className="border px-2 py-1 font-bold bg-gray-50">סה&quot;כ לחודש</th>
+</tr>
             </thead>
             <tbody>
   {Array.from(
@@ -231,8 +231,8 @@ export default function CommissionSummaryPage() {
 
   {/* שורת סיכום לפי מספר סוכן */}
   <tr className="bg-gray-200 font-bold">
-    <td className="border px-2 py-1">סה"כ</td>
-    {Object.keys(summaryByCompanyAgentMonth[selectedCompany] || {}).sort().map(agentCode => {
+  <td className="border px-2 py-1">סה&quot;כ</td>
+  {Object.keys(summaryByCompanyAgentMonth[selectedCompany] || {}).sort().map(agentCode => {
       const total = Object.values(summaryByCompanyAgentMonth[selectedCompany]?.[agentCode] || {}).reduce((sum, val) => sum + val, 0);
       return (
         <td key={agentCode} className="border px-2 py-1">{total.toLocaleString()}</td>
