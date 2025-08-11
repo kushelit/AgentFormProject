@@ -1,249 +1,340 @@
 'use client';
-import { useAuth } from "@/lib/firebase/AuthContext";
-import { FormEventHandler, useState } from "react";
-import { useRouter } from 'next/navigation';
-import Link from 'next/link';
-import { getDoc, doc } from 'firebase/firestore';
-import { db } from '@/lib/firebase/firebase';
-import { RecaptchaVerifier, signInWithPhoneNumber, ConfirmationResult } from 'firebase/auth';
-import { auth } from '@/lib/firebase/firebase';
 
-declare global {
-  interface Window {
-    recaptchaVerifier?: RecaptchaVerifier;
-    confirmationResult?: ConfirmationResult;
-  }
-}
+import React, { FormEventHandler, useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import {
+  signInWithEmailAndPassword,
+  RecaptchaVerifier,
+  PhoneAuthProvider,
+  getMultiFactorResolver,
+  PhoneMultiFactorGenerator,
+  multiFactor,
+  MultiFactorResolver,
+} from 'firebase/auth';
+import { doc, getDoc } from 'firebase/firestore';
+import { auth, db } from '@/lib/firebase/firebase';
+
+type Step = 'login' | 'mfa' | 'enroll';
 
 export default function LogInPage() {
-  const { logIn } = useAuth();
-  const [error, setError] = useState('');
-  const [step, setStep] = useState<'login' | 'sms'>('login');
-  const [phoneNumber, setPhoneNumber] = useState('');
-  const [userCredential, setUserCredential] = useState<any>(null);
   const router = useRouter();
 
-  const handleLogIn: FormEventHandler<HTMLFormElement> = async (event) => {
-    event.preventDefault();
-    const values = new FormData(event.currentTarget);
-    const email = values.get("email") as string | null;
-    const password = values.get("password") as string | null;
+  // UI
+  const [step, setStep] = useState<Step>('login');
+  const [loading, setLoading] = useState(false);
+  const [smsLoading, setSmsLoading] = useState(false);
+  const [error, setError] = useState('');
 
-    if (!email || !password) return;
+  // MFA state
+  const recaptchaRef = useRef<RecaptchaVerifier | null>(null);
+  const [verificationId, setVerificationId] = useState<string | null>(null);
+  const [resolverState, setResolverState] = useState<MultiFactorResolver | null>(null);
+  const [phoneForMfa, setPhoneForMfa] = useState<string>('');
 
-    try {
-      const credential = await logIn(email, password);
-      const userId = credential.user.uid;
-      
-      const userDoc = await getDoc(doc(db, 'users', userId));
-      if (!userDoc.exists()) {
-        throw new Error('המשתמש לא נמצא במערכת');
+  // ניקוי reCAPTCHA והקונטיינר ב-unmount
+  useEffect(() => {
+    return () => {
+      try {
+        recaptchaRef.current?.clear();
+      } catch {}
+      try {
+        const el = document.getElementById('recaptcha-container');
+        if (el && el.parentElement) el.parentElement.removeChild(el);
+      } catch {}
+      recaptchaRef.current = null;
+    };
+  }, []);
+
+  // יוצר/מחזיר RecaptchaVerifier יחיד ומרנדר אותו (חשוב!)
+  const ensureRecaptcha = async () => {
+    if (!recaptchaRef.current) {
+      // יצירת קונטיינר דינמית (לא מוסיפים div ב-JSX!)
+      let el = document.getElementById('recaptcha-container');
+      if (!el) {
+        el = document.createElement('div');
+        el.id = 'recaptcha-container';
+        el.style.minHeight = '48px';
+        // מיקום בגוף הדף — לא בתוך קומפוננטה שעלולה להתחלף
+        document.body.appendChild(el);
       }
 
-      const userData = userDoc.data();
-      if (userData?.isActive === false) {
-        throw new Error('המנוי שלך אינו פעיל');
-      }
-
-      if (userData?.mfaRequired === true) {
-        const userPhoneNumber = userData?.phone;
-        console.log('User phone:', userPhoneNumber);
-        
-        if (!userPhoneNumber) {
-          throw new Error('לא נמצא מספר טלפון עבור המשתמש');
-        }
-
-        if (!userPhoneNumber.startsWith('+')) {
-          throw new Error('מספר הטלפון חייב להיות בפורמט בינלאומי (מתחיל ב-+)');
-        }
-
-        setUserCredential(credential);
-        setPhoneNumber(userPhoneNumber);
-        
-        if (window.recaptchaVerifier) {
-          try {
-            window.recaptchaVerifier.clear();
-            delete window.recaptchaVerifier;
-          } catch (e) {
-            console.log('Error clearing recaptcha:', e);
-          }
-        }
-
-        const recaptchaContainer = document.getElementById('recaptcha-container');
-        if (recaptchaContainer) {
-          recaptchaContainer.innerHTML = '';
-        }
-
-        window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
+      // חתימה נכונה של SDK מודולרי: auth → container → params
+      recaptchaRef.current = new RecaptchaVerifier(
+        auth,
+        'recaptcha-container',
+        {
           size: 'invisible',
-          callback: (response: any) => {
-            console.log('reCAPTCHA solved:', response);
+          callback: (token: string) => {
+            // דיבוג — אפשר להשאיר/להסיר
+            console.log('✅ reCAPTCHA solved. Token:', token);
           },
-          'expired-callback': () => {
-            console.log('reCAPTCHA expired');
-          }
-        });
+        }
+      );
 
+      await recaptchaRef.current.render();
+    }
+    return recaptchaRef.current!;
+  };
+
+  // אתגר MFA (כשכבר יש פקטור רשום)
+  const startMfaChallenge = async (resolver: MultiFactorResolver) => {
+    const verifier = await ensureRecaptcha();
+
+    // דואגים ל-token לפני הקריאה (מונע MISSING_RECAPTCHA_TOKEN)
+    await verifier.verify().catch(() => null);
+
+    const provider = new PhoneAuthProvider(auth);
+    const hint = resolver.hints.find((h) => 'phoneNumber' in h) ?? resolver.hints[0];
+
+    const id = await provider.verifyPhoneNumber(
+      { multiFactorHint: hint, session: resolver.session },
+      verifier
+    );
+
+    setVerificationId(id);
+    setResolverState(resolver);
+    setStep('mfa');
+  };
+
+  // Enrollment (כשדורשים MFA אבל אין פקטור למשתמש)
+  const startEnroll = async (phoneE164: string) => {
+    const user = auth.currentUser!;
+    const mfaUser = multiFactor(user);
+    const verifier = await ensureRecaptcha();
+
+    // דואגים ל-token לפני הקריאה
+    await verifier.verify().catch(() => null);
+
+    const session = await mfaUser.getSession();
+    const provider = new PhoneAuthProvider(auth);
+
+    const id = await provider.verifyPhoneNumber(
+      { phoneNumber: phoneE164, session },
+      verifier
+    );
+
+    setVerificationId(id);
+    setStep('enroll');
+  };
+
+  // שלב 1: לוגין בסיסי
+  const handleLogIn: FormEventHandler<HTMLFormElement> = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+
+    const values = new FormData(e.currentTarget);
+    const email = (values.get('email') as string) ?? '';
+    const password = (values.get('password') as string) ?? '';
+
+    try {
+      const cred = await signInWithEmailAndPassword(auth, email, password);
+
+      // בדיקת משתמש ב-Firestore
+      const snap = await getDoc(doc(db, 'users', cred.user.uid));
+      if (!snap.exists()) throw new Error('המשתמש לא נמצא במערכת');
+      const data = snap.data() as any;
+
+      if (data?.isActive === false) throw new Error('המנוי שלך אינו פעיל');
+
+      const requireMfa = !!data?.mfaRequired;
+      const phone = (data?.phone as string) || '';
+      setPhoneForMfa(phone);
+
+      // אם דורשים MFA ועדיין אין פקטור → הרשמה (Enrollment)
+      if (requireMfa && auth.currentUser && multiFactor(auth.currentUser).enrolledFactors.length === 0) {
+        if (!phone || !phone.startsWith('+')) throw new Error('מספר טלפון לא תקין בנתוני המשתמש');
+        await startEnroll(phone);
+        return;
+      }
+
+      // בלי MFA
+      router.push('/NewAgentForm');
+    } catch (err: any) {
+      if (err?.code === 'auth/multi-factor-auth-required') {
         try {
-          const confirmResult = await signInWithPhoneNumber(auth, userPhoneNumber, window.recaptchaVerifier);
-          window.confirmationResult = confirmResult;
-          setStep('sms');
-        } catch (smsError: any) {
-          console.error('SMS Error details:', smsError);
-          if (smsError.code === 'auth/invalid-app-credential') {
-            throw new Error('שגיאה בהגדרות האימות. נסה שוב מאוחר יותר.');
-          }
-          if (smsError.code === 'auth/too-many-requests') {
-            throw new Error('יותר מדי ניסיונות. נסה שוב בעוד כמה דקות.');
-          }
-          throw smsError;
+          const resolver = getMultiFactorResolver(auth, err);
+          await startMfaChallenge(resolver);
+          return;
+        } catch (inner: any) {
+          setError(inner?.message || 'שגיאה בהפעלת MFA');
         }
       } else {
-        router.push('/NewAgentForm');
+        setError(err?.message || 'שגיאה בהתחברות');
       }
-
-    } catch (err: any) {
-      console.error({ err });
-      setError(err.message || 'אירעה שגיאה בעת ההתחברות');
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleSMSVerification: FormEventHandler<HTMLFormElement> = async (event) => {
-    event.preventDefault();
-    const values = new FormData(event.currentTarget);
-    const smsCode = values.get("smsCode") as string | null;
+  // שלב 2א: אימות קוד לאתגר MFA
+  const handleVerifyMfa: FormEventHandler<HTMLFormElement> = async (e) => {
+    e.preventDefault();
+    setSmsLoading(true);
+    setError('');
 
-    if (!smsCode || !window.confirmationResult) return;
+    const values = new FormData(e.currentTarget);
+    const code = (values.get('smsCode') as string) ?? '';
 
     try {
-      const result = await window.confirmationResult.confirm(smsCode);
-      
-      console.log('SMS verification successful!');
-      console.log('User UID:', result.user.uid);
-      console.log('Original user UID:', userCredential?.user.uid);
-      
-      setTimeout(() => {
-        console.log('🚀 Redirecting to NewAgentForm...');
-        router.push('/NewAgentForm');
-      }, 1000);
-      
+      if (!verificationId || !resolverState) throw new Error('אין מזהה אימות פעיל');
+      const cred = PhoneAuthProvider.credential(verificationId, code);
+      const assertion = PhoneMultiFactorGenerator.assertion(cred);
+
+      await resolverState.resolveSignIn(assertion);
+      router.push('/NewAgentForm');
     } catch (err: any) {
-      console.error('SMS verification error:', { err });
-      if (err.code === 'auth/invalid-verification-code') {
-        setError('קוד SMS שגוי');
-      } else if (err.code === 'auth/code-expired') {
-        setError('קוד SMS פג תוקף');
-      } else {
-        setError('קוד SMS שגוי או פג תוקף');
-      }
+      let msg = 'קוד שגוי או פג תוקף';
+      if (err?.code === 'auth/too-many-requests') msg = 'יותר מדי ניסיונות. נסה/י מאוחר יותר';
+      setError(msg);
+    } finally {
+      setSmsLoading(false);
     }
   };
 
-  const resendSMS = async () => {
-    if (!phoneNumber) return;
-    
+  // שלב 2ב: אימות קוד ל-Enroll
+  const handleVerifyEnroll: FormEventHandler<HTMLFormElement> = async (e) => {
+    e.preventDefault();
+    setSmsLoading(true);
+    setError('');
+
+    const values = new FormData(e.currentTarget);
+    const code = (values.get('smsCode') as string) ?? '';
+
     try {
-      if (window.recaptchaVerifier) {
-        window.recaptchaVerifier.clear();
-      }
+      if (!verificationId || !auth.currentUser) throw new Error('אין מזהה אימות פעיל');
+      const cred = PhoneAuthProvider.credential(verificationId, code);
+      const assertion = PhoneMultiFactorGenerator.assertion(cred);
 
-      const recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
-        size: 'normal',
-        callback: (response: any) => {
-          console.log('reCAPTCHA solved:', response);
-        }
-      });
-
-      const confirmResult = await signInWithPhoneNumber(auth, phoneNumber, recaptchaVerifier);
-      window.confirmationResult = confirmResult;
-      setError('');
+      await multiFactor(auth.currentUser).enroll(assertion, 'Main phone');
+      router.push('/NewAgentForm');
     } catch (err: any) {
-      console.error({ err });
-      setError('שגיאה בשליחת SMS חוזרת');
+      let msg = 'קוד שגוי או פג תוקף';
+      if (err?.code === 'auth/too-many-requests') msg = 'יותר מדי ניסיונות. נסה/י מאוחר יותר';
+      setError(msg);
+    } finally {
+      setSmsLoading(false);
     }
   };
 
-  if (step === 'sms') {
+  // ===== RENDERS =====
+
+  if (step === 'mfa') {
     return (
       <div className="max-w-md w-full mx-auto p-6 bg-white rounded shadow">
-        <form onSubmit={handleSMSVerification} className="space-y-4">
+        <form onSubmit={handleVerifyMfa} className="space-y-4">
           <h1 className="text-2xl font-bold text-center text-blue-900">אימות SMS</h1>
-          
-          <p className="text-sm text-gray-600 text-center">
-            נשלח קוד אימות למספר: {phoneNumber}
-          </p>
+          <p className="text-center text-sm text-gray-600">הזיני את הקוד שנשלח אלייך</p>
 
-          <div>
-            <label htmlFor="smsCode" className="block text-sm font-medium">קוד אימות</label>
-            <input 
-              type="text" 
-              id="smsCode" 
-              name="smsCode" 
-              required 
-              maxLength={6}
-              className="w-full border border-gray-300 rounded px-3 py-2 text-center text-lg"
-              placeholder="הכנס קוד בן 6 ספרות"
-            />
-          </div>
+          <input
+            name="smsCode"
+            maxLength={6}
+            pattern="[0-9]{6}"
+            required
+            disabled={smsLoading}
+            className="w-full border border-gray-300 rounded px-3 py-3 text-center text-xl font-mono"
+            placeholder="123456"
+            autoComplete="one-time-code"
+          />
 
-          {error && <p className="text-red-600 text-sm">{error}</p>}
+          {error && <div className="bg-red-50 border border-red-200 rounded p-3 text-red-700 text-sm">{error}</div>}
 
-          <button type="submit" className="w-full bg-blue-900 text-white py-2 rounded hover:bg-blue-800">
-            אמת קוד
-          </button>
-
-          <button 
-            type="button" 
-            onClick={resendSMS}
-            className="w-full bg-gray-500 text-white py-2 rounded hover:bg-gray-600"
+          <button
+            type="submit"
+            disabled={smsLoading}
+            className="w-full bg-blue-900 text-white py-3 rounded hover:bg-blue-800 disabled:bg-gray-400"
           >
-            שלח קוד מחדש
-          </button>
-
-          <button 
-            type="button" 
-            onClick={() => setStep('login')}
-            className="w-full bg-gray-300 text-gray-700 py-2 rounded hover:bg-gray-400"
-          >
-            חזור להתחברות
+            {smsLoading ? 'מאמת...' : 'אמת קוד'}
           </button>
         </form>
-        
-        <div id="recaptcha-container"></div>
       </div>
     );
   }
 
+  if (step === 'enroll') {
+    return (
+      <div className="max-w-md w-full mx-auto p-6 bg-white rounded shadow">
+        <form onSubmit={handleVerifyEnroll} className="space-y-4">
+          <h1 className="text-2xl font-bold text-center text-blue-900">רישום אימות דו־שלבי</h1>
+          <p className="text-center text-sm text-gray-600">
+            נשלח קוד למספר: <span className="font-semibold">{phoneForMfa}</span>
+          </p>
+
+          <input
+            name="smsCode"
+            maxLength={6}
+            pattern="[0-9]{6}"
+            required
+            disabled={smsLoading}
+            className="w-full border border-gray-300 rounded px-3 py-3 text-center text-xl font-mono"
+            placeholder="123456"
+            autoComplete="one-time-code"
+          />
+
+          {error && <div className="bg-red-50 border border-red-200 rounded p-3 text-red-700 text-sm">{error}</div>}
+
+          <button
+            type="submit"
+            disabled={smsLoading}
+            className="w-full bg-blue-900 text-white py-3 rounded hover:bg-blue-800 disabled:bg-gray-400"
+          >
+            {smsLoading ? 'מאמת...' : 'אמת וסיים רישום'}
+          </button>
+        </form>
+      </div>
+    );
+  }
+
+  // Login
   return (
     <div className="max-w-md w-full mx-auto p-6 bg-white rounded shadow">
       <form onSubmit={handleLogIn} className="space-y-4">
         <h1 className="text-2xl font-bold text-center text-blue-900">התחברות</h1>
 
         <div>
-          <label htmlFor="email" className="block text-sm font-medium">כתובת מייל</label>
-          <input type="email" id="email" name="email" required className="w-full border border-gray-300 rounded px-3 py-2" />
+          <label htmlFor="email" className="block text-sm font-medium mb-2">כתובת מייל</label>
+          <input
+            id="email"
+            name="email"
+            type="email"
+            required
+            disabled={loading}
+            autoComplete="email"
+            className="w-full border border-gray-300 rounded px-3 py-2 disabled:bg-gray-100"
+          />
         </div>
 
         <div>
-          <label htmlFor="password" className="block text-sm font-medium">סיסמא</label>
-          <input type="password" id="password" name="password" required className="w-full border border-gray-300 rounded px-3 py-2" />
+          <label htmlFor="password" className="block text-sm font-medium mb-2">סיסמה</label>
+          <input
+            id="password"
+            name="password"
+            type="password"
+            required
+            disabled={loading}
+            autoComplete="current-password"
+            className="w-full border border-gray-300 rounded px-3 py-2 disabled:bg-gray-100"
+          />
         </div>
 
         <div className="text-sm text-right">
-          <Link href="/auth/reset-password" className="text-blue-600 hover:underline">שכחת סיסמא?</Link>
+          <Link href="/auth/reset-password" className="text-blue-600 hover:underline">שכחת סיסמה?</Link>
         </div>
 
-        {error && <p className="text-red-600 text-sm">{error}</p>}
+        {error && <div className="bg-red-50 border border-red-200 rounded p-3 text-red-700 text-sm">{error}</div>}
 
-        <div id="recaptcha-container" className="flex justify-center"></div>
+        <button
+          type="submit"
+          disabled={loading}
+          className="w-full bg-blue-900 text-white py-3 rounded hover:bg-blue-800 disabled:bg-gray-400"
+        >
+          {loading ? 'מתחבר/ת...' : 'כניסה'}
+        </button>
 
-        <button type="submit" className="w-full bg-blue-900 text-white py-2 rounded hover:bg-blue-800">כניסה</button>
-      
         <div className="text-center mt-4 text-sm">
-          <span>אינך רשום למערכת? </span>
-          <Link href="/subscription-sign-up" className="text-blue-600 font-semibold hover:underline">
-            להרשמה
-          </Link>
+          <span>אינך רשום/ה? </span>
+          <Link href="/subscription-sign-up" className="text-blue-600 font-semibold hover:underline">להרשמה</Link>
         </div>
       </form>
     </div>
