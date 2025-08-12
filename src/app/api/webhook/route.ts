@@ -10,19 +10,12 @@ import { SubscriptionType, AddOnType } from '@/enums/subscription';
 export const dynamic = 'force-dynamic';
 
 async function ensureMfaPhone(uid: string, phoneE164?: string) {
-  if (!phoneE164 || !phoneE164.startsWith('+')) return;
-
-  const user = await admin.auth().getUser(uid);
-  const current = user.multiFactor?.enrolledFactors ?? [];
-
-  // אם יש גורם שאינו טלפון — לא נוגעים (כדי לא "למחוק" אותו בשוגג)
-  const hasNonPhone = current.some((f: any) => f?.factorId !== 'phone');
-  if (hasNonPhone) {
-    console.log('[ensureMfaPhone] skip: user has non-phone MFA factors');
+  if (!phoneE164 || !phoneE164.startsWith('+')) {
+    console.log('[ensureMfaPhone] skip: invalid phone', phoneE164);
     return;
   }
-
-  // קיים כבר אותו מספר כ-MFA? צא
+  const before = await admin.auth().getUser(uid);
+  const current = before.multiFactor?.enrolledFactors ?? [];
   const already = current.find((f: any) => f?.factorId === 'phone' && f?.phoneNumber === phoneE164);
   if (already) return;
 
@@ -35,24 +28,33 @@ async function ensureMfaPhone(uid: string, phoneE164?: string) {
       factorId: 'phone' as const,
     }));
 
-  const updatedList = [
-    ...keepPhones,
-    { phoneNumber: phoneE164, displayName: 'Main phone', factorId: 'phone' as const },
-  ];
-
-  await admin.auth().updateUser(uid, { multiFactor: { enrolledFactors: updatedList } });
+  const updated = await admin.auth().updateUser(uid, {
+    multiFactor: { enrolledFactors: [...keepPhones, { phoneNumber: phoneE164, displayName: 'Main phone', factorId: 'phone' as const }] }
+  });
+  console.log('[ensureMfaPhone] after:', updated.multiFactor?.enrolledFactors?.map(f => (f as any).phoneNumber));
   await admin.auth().revokeRefreshTokens(uid);
 }
 
 
 
+// מחזירה +972XXXXXXXXX או undefined אם לא מצליחים לנרמל
+const formatPhone = (raw?: string) => {
+  if (!raw) return undefined;
+  let s = raw.replace(/[\s\-()]/g, '').trim(); // הורדת רווחים/מקפים/סוגריים
 
-const formatPhone = (phone?: string) => {
-  if (!phone) return undefined;
-  if (phone.startsWith('0')) {
-    return '+972' + phone.slice(1);
+  if (s.startsWith('00')) s = '+' + s.slice(2); // 00 -> +
+  if (s.startsWith('+972')) return s;
+  if (s.startsWith('972')) return '+' + s;      // 972 -> +972
+
+  if (s.startsWith('0')) return '+972' + s.slice(1); // מקומי -> +972...
+
+  if (s.startsWith('+')) return s; // מדינות אחרות – נשאיר
+
+  if (/^\d{9,10}$/.test(s)) {      // ספרות בלבד
+    if (s.length === 10 && s.startsWith('0')) s = s.slice(1);
+    return '+972' + s;
   }
-  return phone;
+  return undefined;
 };
 
 const approveTransaction = async (transactionId: string, transactionToken: string, pageCode: string) => {
