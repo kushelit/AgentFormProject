@@ -9,6 +9,44 @@ import { SubscriptionType, AddOnType } from '@/enums/subscription';
 
 export const dynamic = 'force-dynamic';
 
+async function ensureMfaPhone(uid: string, phoneE164?: string) {
+  if (!phoneE164 || !phoneE164.startsWith('+')) return;
+
+  const user = await admin.auth().getUser(uid);
+  const current = user.multiFactor?.enrolledFactors ?? [];
+
+  // אם יש גורם שאינו טלפון — לא נוגעים (כדי לא "למחוק" אותו בשוגג)
+  const hasNonPhone = current.some((f: any) => f?.factorId !== 'phone');
+  if (hasNonPhone) {
+    console.log('[ensureMfaPhone] skip: user has non-phone MFA factors');
+    return;
+  }
+
+  // קיים כבר אותו מספר כ-MFA? צא
+  const already = current.find((f: any) => f?.factorId === 'phone' && f?.phoneNumber === phoneE164);
+  if (already) return;
+
+  const keepPhones = current
+    .filter((f: any) => f?.factorId === 'phone')
+    .map((f: any) => ({
+      uid: f.uid,
+      phoneNumber: f.phoneNumber,
+      displayName: f.displayName ?? undefined,
+      factorId: 'phone' as const,
+    }));
+
+  const updatedList = [
+    ...keepPhones,
+    { phoneNumber: phoneE164, displayName: 'Main phone', factorId: 'phone' as const },
+  ];
+
+  await admin.auth().updateUser(uid, { multiFactor: { enrolledFactors: updatedList } });
+  await admin.auth().revokeRefreshTokens(uid);
+}
+
+
+
+
 const formatPhone = (phone?: string) => {
   if (!phone) return undefined;
   if (phone.startsWith('0')) {
@@ -257,7 +295,12 @@ if (statusCode === '2' && transactionId && transactionToken && pageCode) {
       console.log('📞 Updated phone number in Firebase Auth');
     }
 
-
+    // ✅ להבטיח MFA פעיל למספר
+    try {
+      await ensureMfaPhone(user.uid, formattedPhone);
+    } catch (e) {
+      console.warn('[ensureMfaPhone] skipped:', (e as any)?.message || e);
+    }
     if (planChanged && !user.disabled) {
       // await fetch('https://test.magicsale.co.il/api/sendEmail', {
         await fetch(`${APP_BASE_URL}/api/sendEmail`, {
@@ -294,7 +337,6 @@ if (statusCode === '2' && transactionId && transactionToken && pageCode) {
 
   return NextResponse.json({ updated: true });
 }
-// אם לא נמצא משתמש קיים, ניצור משתמש חדש
     // ✳️ יצירת משתמש חדש
     const newUser = await auth.createUser({
       email,
@@ -303,6 +345,12 @@ if (statusCode === '2' && transactionId && transactionToken && pageCode) {
       phoneNumber: formattedPhone
     });
 
+    // ✅ להבטיח MFA פעיל למספר
+    try {
+      await ensureMfaPhone(newUser.uid, formattedPhone);
+    } catch (e) {
+      console.warn('[ensureMfaPhone] skipped:', (e as any)?.message || e);
+    }
     const resetLink = await auth.generatePasswordResetLink(email);
 
     // await fetch('https://test.magicsale.co.il/api/sendEmail', {

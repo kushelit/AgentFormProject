@@ -37,7 +37,9 @@ const pages = [
       { href: '/ManageManager', label: 'ניהול קבוצות סוכנים' },
       { href: '/SubscriptionsTable', label: 'ניהול מנויים ' },
       { href: '/import-excel', label: 'ייבוא אקסל עסקאות' },
-      { href: '/Admin-ImportExcelruns', label: 'ניהול טעינת קבצי עסקאות' },      
+      { href: '/Admin-ImportExcelruns', label: 'ניהול טעינת קבצי עסקאות' },  
+      { href: '/admin/mfa', label: 'ניהול MFA' },      
+  
     ],
   }
 

@@ -17,6 +17,25 @@ import { auth, db } from '@/lib/firebase/firebase';
 
 type Step = 'login' | 'mfa' | 'enroll';
 
+// === PATCH: helpers ===
+const normalizeE164 = (raw: string) => raw.replace(/\s|-/g, '');
+
+const mapSmsErr = (code?: string) => {
+  switch (code) {
+    case 'auth/too-many-requests': return 'יותר מדי ניסיונות. נסי שוב מאוחר יותר.';
+    case 'auth/invalid-phone-number': return 'מספר טלפון לא תקין.';
+    case 'auth/quota-exceeded': return 'חריגה ממכסת SMS. פנו לתמיכה.';
+    case 'auth/code-expired': return 'הקוד פג תוקף. בקשי קוד חדש.';
+    default: return 'שגיאה בשליחת/אימות הקוד.';
+  }
+};
+
+const maskPhone = (e164?: string) => {
+  if (!e164) return '';
+  // +97250*****67
+  return e164.replace(/^(\+\d{2,3}\d{2})(\d+)(\d{2})$/, (_m, a, mid, z) => `${a}${'*'.repeat(mid.length)}${z}`);
+};
+
 export default function LogInPage() {
   const router = useRouter();
 
@@ -35,9 +54,7 @@ export default function LogInPage() {
   // ניקוי reCAPTCHA והקונטיינר ב-unmount
   useEffect(() => {
     return () => {
-      try {
-        recaptchaRef.current?.clear();
-      } catch {}
+      try { recaptchaRef.current?.clear(); } catch {}
       try {
         const el = document.getElementById('recaptcha-container');
         if (el && el.parentElement) el.parentElement.removeChild(el);
@@ -46,10 +63,14 @@ export default function LogInPage() {
     };
   }, []);
 
-  // יוצר/מחזיר RecaptchaVerifier יחיד ומרנדר אותו (חשוב!)
+  const resetRecaptcha = () => {
+    try { recaptchaRef.current?.clear(); } catch {}
+    recaptchaRef.current = null;
+  };
+
+  // === PATCH: stronger ensureRecaptcha with expired-callback ===
   const ensureRecaptcha = async () => {
     if (!recaptchaRef.current) {
-      // יצירת קונטיינר דינמית (לא מוסיפים div ב-JSX!)
       let el = document.getElementById('recaptcha-container');
       if (!el) {
         el = document.createElement('div');
@@ -59,33 +80,39 @@ export default function LogInPage() {
         document.body.appendChild(el);
       }
 
-      // חתימה נכונה של SDK מודולרי: auth → container → params
       recaptchaRef.current = new RecaptchaVerifier(
         auth,
         'recaptcha-container',
         {
           size: 'invisible',
           callback: (token: string) => {
-            // דיבוג — אפשר להשאיר/להסיר
-            console.log('✅ reCAPTCHA solved. Token:', token);
+            console.log('✅ reCAPTCHA solved:', token);
+          },
+          'expired-callback': () => {
+            console.log('♻️ reCAPTCHA expired, resetting…');
+            try { recaptchaRef.current?.clear(); } catch {}
+            recaptchaRef.current = null;
           },
         }
       );
 
       await recaptchaRef.current.render();
     }
+    // “לחימום” אסימון (אם נכשל, verifyPhoneNumber יטפל שוב)
+    try { await recaptchaRef.current.verify(); } catch {}
     return recaptchaRef.current!;
   };
 
   // אתגר MFA (כשכבר יש פקטור רשום)
   const startMfaChallenge = async (resolver: MultiFactorResolver) => {
     const verifier = await ensureRecaptcha();
-
-    // דואגים ל-token לפני הקריאה (מונע MISSING_RECAPTCHA_TOKEN)
-    await verifier.verify().catch(() => null);
+    try { await verifier.verify(); } catch {}
 
     const provider = new PhoneAuthProvider(auth);
     const hint = resolver.hints.find((h) => 'phoneNumber' in h) ?? resolver.hints[0];
+
+    // שמירת המספר לתצוגה (עם מסכה ב‑UI)
+    setPhoneForMfa((hint as any)?.phoneNumber || '');
 
     const id = await provider.verifyPhoneNumber(
       { multiFactorHint: hint, session: resolver.session },
@@ -102,9 +129,7 @@ export default function LogInPage() {
     const user = auth.currentUser!;
     const mfaUser = multiFactor(user);
     const verifier = await ensureRecaptcha();
-
-    // דואגים ל-token לפני הקריאה
-    await verifier.verify().catch(() => null);
+    try { await verifier.verify(); } catch {}
 
     const session = await mfaUser.getSession();
     const provider = new PhoneAuthProvider(auth);
@@ -144,12 +169,16 @@ export default function LogInPage() {
 
       // אם דורשים MFA ועדיין אין פקטור → הרשמה (Enrollment)
       if (requireMfa && auth.currentUser && multiFactor(auth.currentUser).enrolledFactors.length === 0) {
-        if (!phone || !phone.startsWith('+')) throw new Error('מספר טלפון לא תקין בנתוני המשתמש');
-        await startEnroll(phone);
+        const normalized = normalizeE164(phone);
+        if (!normalized || !normalized.startsWith('+')) {
+          throw new Error('מספר טלפון לא תקין בנתוני המשתמש');
+        }
+        await startEnroll(normalized);
         return;
       }
 
       // בלי MFA
+      resetRecaptcha();
       router.push('/NewAgentForm');
     } catch (err: any) {
       if (err?.code === 'auth/multi-factor-auth-required') {
@@ -183,11 +212,10 @@ export default function LogInPage() {
       const assertion = PhoneMultiFactorGenerator.assertion(cred);
 
       await resolverState.resolveSignIn(assertion);
+      resetRecaptcha();
       router.push('/NewAgentForm');
     } catch (err: any) {
-      let msg = 'קוד שגוי או פג תוקף';
-      if (err?.code === 'auth/too-many-requests') msg = 'יותר מדי ניסיונות. נסה/י מאוחר יותר';
-      setError(msg);
+      setError(mapSmsErr(err?.code));
     } finally {
       setSmsLoading(false);
     }
@@ -208,14 +236,48 @@ export default function LogInPage() {
       const assertion = PhoneMultiFactorGenerator.assertion(cred);
 
       await multiFactor(auth.currentUser).enroll(assertion, 'Main phone');
+      resetRecaptcha();
       router.push('/NewAgentForm');
     } catch (err: any) {
-      let msg = 'קוד שגוי או פג תוקף';
-      if (err?.code === 'auth/too-many-requests') msg = 'יותר מדי ניסיונות. נסה/י מאוחר יותר';
-      setError(msg);
+      setError(mapSmsErr(err?.code));
     } finally {
       setSmsLoading(false);
     }
+  };
+
+  // === PATCH: resend flows ===
+  const resendMfaCode = async () => {
+    if (!resolverState) return;
+    setError('');
+    const verifier = await ensureRecaptcha();
+    try { await verifier.verify(); } catch {}
+
+    const provider = new PhoneAuthProvider(auth);
+    const hint = resolverState.hints.find((h) => 'phoneNumber' in h) ?? resolverState.hints[0];
+
+    const id = await provider.verifyPhoneNumber(
+      { multiFactorHint: hint, session: resolverState.session },
+      verifier
+    );
+    setVerificationId(id);
+  };
+
+  const resendEnrollCode = async () => {
+    const user = auth.currentUser;
+    if (!user || !phoneForMfa) return;
+    setError('');
+    const mfaUser = multiFactor(user);
+    const verifier = await ensureRecaptcha();
+    try { await verifier.verify(); } catch {}
+
+    const session = await mfaUser.getSession();
+    const provider = new PhoneAuthProvider(auth);
+
+    const id = await provider.verifyPhoneNumber(
+      { phoneNumber: normalizeE164(phoneForMfa), session },
+      verifier
+    );
+    setVerificationId(id);
   };
 
   // ===== RENDERS =====
@@ -225,7 +287,9 @@ export default function LogInPage() {
       <div className="max-w-md w-full mx-auto p-6 bg-white rounded shadow">
         <form onSubmit={handleVerifyMfa} className="space-y-4">
           <h1 className="text-2xl font-bold text-center text-blue-900">אימות SMS</h1>
-          <p className="text-center text-sm text-gray-600">הזיני את הקוד שנשלח אלייך</p>
+          <p className="text-center text-sm text-gray-600">
+            שולחים קוד ל: <span className="font-semibold">{maskPhone(phoneForMfa)}</span>
+          </p>
 
           <input
             name="smsCode"
@@ -240,13 +304,23 @@ export default function LogInPage() {
 
           {error && <div className="bg-red-50 border border-red-200 rounded p-3 text-red-700 text-sm">{error}</div>}
 
-          <button
-            type="submit"
-            disabled={smsLoading}
-            className="w-full bg-blue-900 text-white py-3 rounded hover:bg-blue-800 disabled:bg-gray-400"
-          >
-            {smsLoading ? 'מאמת...' : 'אמת קוד'}
-          </button>
+          <div className="flex gap-2">
+            <button
+              type="submit"
+              disabled={smsLoading}
+              className="flex-1 bg-blue-900 text-white py-3 rounded hover:bg-blue-800 disabled:bg-gray-400"
+            >
+              {smsLoading ? 'מאמת...' : 'אמת קוד'}
+            </button>
+            <button
+              type="button"
+              onClick={resendMfaCode}
+              disabled={smsLoading}
+              className="flex-1 border border-gray-300 py-3 rounded hover:bg-gray-50"
+            >
+              שלחי שוב קוד
+            </button>
+          </div>
         </form>
       </div>
     );
@@ -274,13 +348,23 @@ export default function LogInPage() {
 
           {error && <div className="bg-red-50 border border-red-200 rounded p-3 text-red-700 text-sm">{error}</div>}
 
-          <button
-            type="submit"
-            disabled={smsLoading}
-            className="w-full bg-blue-900 text-white py-3 rounded hover:bg-blue-800 disabled:bg-gray-400"
-          >
-            {smsLoading ? 'מאמת...' : 'אמת וסיים רישום'}
-          </button>
+          <div className="flex gap-2">
+            <button
+              type="submit"
+              disabled={smsLoading}
+              className="flex-1 bg-blue-900 text-white py-3 rounded hover:bg-blue-800 disabled:bg-gray-400"
+            >
+              {smsLoading ? 'מאמת...' : 'אמת וסיים רישום'}
+            </button>
+            <button
+              type="button"
+              onClick={resendEnrollCode}
+              disabled={smsLoading}
+              className="flex-1 border border-gray-300 py-3 rounded hover:bg-gray-50"
+            >
+              שלחי שוב קוד
+            </button>
+          </div>
         </form>
       </div>
     );
