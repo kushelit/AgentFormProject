@@ -233,29 +233,47 @@ const isValidFullName = (name: string) => {
   
     try {
 
-      const couponRes = await axios.post('/api/validate-coupon', {
-        couponCode: couponCode.trim(),
-        plan: selectedPlan,
-      });
-  
-      const finalDiscount = couponRes.data?.valid ? couponRes.data.discount : 0;
-  
+       // אימות קופון רק אם באמת הוזן קוד
+    let finalDiscount = 0;
+    const trimmedCoupon = couponCode.trim();
+
+    if (trimmedCoupon) {
+      try {
+        const couponRes = await axios.post('/api/validate-coupon', {
+          couponCode: trimmedCoupon,
+          plan: selectedPlan,
+        });
+        finalDiscount = couponRes.data?.valid ? couponRes.data.discount : 0;
+        setCouponError(
+          couponRes.data?.valid ? '' : (couponRes.data?.reason || 'קוד הקופון אינו תקף')
+        );
+      } catch (e: any) {
+        // לא מפילים את התשלום בגלל קופון – ממשיכים בלי הנחה
+        finalDiscount = 0;
+        setCouponError(e?.response?.data?.error || 'שגיאה בעת אימות קוד הקופון');
+      }
+    }
       // ⬇️ חישוב מחיר לפי ההנחה שהתקבלה הרגע
       const total = calculateTotal(finalDiscount);
 
-      const res = await axios.post('/api/create-subscription', {
+      // לא שולחים couponCode אם הוא ריק
+      const payload: any = {
         fullName,
         email,
         phone,
         idNumber,
         plan: selectedPlan,
-        couponCode, 
         addOns: {
           leadsModule: withLeadsModule,
-          extraWorkers: selectedPlan === 'pro' ? extraWorkers : 0
+          extraWorkers: selectedPlan === 'pro' ? extraWorkers : 0,
         },
         total,
-            }, {
+      };
+      if (trimmedCoupon) {
+        payload.couponCode = trimmedCoupon;
+      }
+  
+      const res = await axios.post('/api/create-subscription', payload, {
         headers: { 'Content-Type': 'application/json' },
       });
 
