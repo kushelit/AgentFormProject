@@ -5,9 +5,20 @@ export async function POST(req: NextRequest) {
   try {
     const { couponCode, plan } = await req.json();
 
-    if (!couponCode || !plan) {
-      return NextResponse.json({ valid: false }, { status: 400 });
+    if (!couponCode?.trim()) {
+      return NextResponse.json(
+        { valid: false, reason: 'לא הוזן קוד קופון' },
+        { status: 200 }
+      );
     }
+    
+    if (!plan) {
+      return NextResponse.json(
+        { valid: false, reason: 'לא הוזן מסלול' },
+        { status: 400 }
+      );
+    }
+    
 
     const db = admin.firestore();
     const ref = db.collection('coupons').doc(couponCode.trim());
