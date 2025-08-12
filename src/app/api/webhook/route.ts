@@ -9,16 +9,28 @@ import { SubscriptionType, AddOnType } from '@/enums/subscription';
 
 export const dynamic = 'force-dynamic';
 
+// מוודאת שלמשתמש יש גורם MFA מסוג טלפון (Idempotent) + לוגים עוזרים
 async function ensureMfaPhone(uid: string, phoneE164?: string) {
+  console.log('[ensureMfaPhone] start', { uid, phoneE164 });
   if (!phoneE164 || !phoneE164.startsWith('+')) {
     console.log('[ensureMfaPhone] skip: invalid phone', phoneE164);
     return;
   }
+
   const before = await admin.auth().getUser(uid);
   const current = before.multiFactor?.enrolledFactors ?? [];
-  const already = current.find((f: any) => f?.factorId === 'phone' && f?.phoneNumber === phoneE164);
-  if (already) return;
+  console.log('[ensureMfaPhone] before factors:',
+    current.map(f => ({ factorId: (f as any).factorId, phone: (f as any).phoneNumber }))
+  );
 
+  // אם כבר קיים אותו מספר — אין מה לעשות
+  const already = current.find((f: any) => f?.factorId === 'phone' && f?.phoneNumber === phoneE164);
+  if (already) {
+    console.log('[ensureMfaPhone] already enrolled with this phone');
+    return;
+  }
+
+  // משמרים גורמי טלפון קיימים
   const keepPhones = current
     .filter((f: any) => f?.factorId === 'phone')
     .map((f: any) => ({
@@ -29,9 +41,18 @@ async function ensureMfaPhone(uid: string, phoneE164?: string) {
     }));
 
   const updated = await admin.auth().updateUser(uid, {
-    multiFactor: { enrolledFactors: [...keepPhones, { phoneNumber: phoneE164, displayName: 'Main phone', factorId: 'phone' as const }] }
+    multiFactor: {
+      enrolledFactors: [
+        ...keepPhones,
+        { phoneNumber: phoneE164, displayName: 'Main phone', factorId: 'phone' as const },
+      ],
+    },
   });
-  console.log('[ensureMfaPhone] after:', updated.multiFactor?.enrolledFactors?.map(f => (f as any).phoneNumber));
+
+  console.log('[ensureMfaPhone] after factors:',
+    updated.multiFactor?.enrolledFactors?.map(f => ({ factorId: (f as any).factorId, phone: (f as any).phoneNumber }))
+  );
+
   await admin.auth().revokeRefreshTokens(uid);
 }
 
@@ -290,6 +311,15 @@ if (statusCode === '2' && transactionId && transactionToken && pageCode) {
   try {
     const user = await auth.getUserByEmail(email);
 
+// 📧 ודאי אימות מייל לפני רישום MFA (נדרש ע"י Admin SDK)
+if (!user.emailVerified) {
+  await auth.updateUser(user.uid, { emailVerified: true });
+  console.log('📧 emailVerified set true for', user.uid);
+}
+
+
+// 📞 עדכון טלפון ב-Auth אם השתנה
+
     if (formattedPhone && user.phoneNumber !== formattedPhone) {
       await auth.updateUser(user.uid, {
         phoneNumber: formattedPhone
@@ -303,6 +333,7 @@ if (statusCode === '2' && transactionId && transactionToken && pageCode) {
     } catch (e) {
       console.warn('[ensureMfaPhone] skipped:', (e as any)?.message || e);
     }
+
     if (planChanged && !user.disabled) {
       // await fetch('https://test.magicsale.co.il/api/sendEmail', {
         await fetch(`${APP_BASE_URL}/api/sendEmail`, {
@@ -344,7 +375,8 @@ if (statusCode === '2' && transactionId && transactionToken && pageCode) {
       email,
       password: Math.random().toString(36).slice(-8),
       displayName: fullName,
-      phoneNumber: formattedPhone
+      phoneNumber: formattedPhone,
+      emailVerified: true, // 📧 חשוב: מאפשר רישום MFA דרך Admin SDK
     });
 
     // ✅ להבטיח MFA פעיל למספר
