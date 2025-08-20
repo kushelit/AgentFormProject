@@ -8,6 +8,8 @@ import useFetchAgentData from '@/hooks/useFetchAgentData';
 import { useAuth } from '@/lib/firebase/AuthContext';
 import { Spinner } from '@/components/Spinner';
 import { Button } from '@/components/Button/Button';
+import { ChevronRight } from 'lucide-react';
+
 
 interface CommissionSummary {
   agentId: string;
@@ -37,6 +39,13 @@ export default function CommissionSummaryPage() {
   const [loading, setLoading] = useState(false);
   const [expanded, setExpanded] = useState<{ month: string; company: string } | null>(null);
 
+
+  const handleToggleExpandCompany = (company: string) => {
+    setExpanded(prev =>
+      prev?.company === company ? null : { month: 'ALL', company }
+    );
+  };
+  
   useEffect(() => {
     const fetchSummaries = async () => {
       if (!selectedAgentId) return;
@@ -139,15 +148,32 @@ export default function CommissionSummaryPage() {
 
       {loading ? <Spinner /> : (
         <table className="table-auto w-full border text-sm text-right mt-6">
-          <thead className="bg-gray-100">
-            <tr>
-              <th className="border px-2 py-1">חודש</th>
-              {allCompanies.map(company => (
-                <th key={company} className="border px-2 py-1">{company}</th>
-              ))}
-<th className="border px-2 py-1 font-bold bg-gray-50">סה&quot;כ לחודש</th>
-</tr>
-          </thead>
+        <thead className="bg-gray-100">
+  <tr>
+    <th className="border px-2 py-1">חודש</th>
+    {allCompanies.map(company => {
+      const isOpen = expanded?.company === company;
+      return (
+        <th key={company} className="border px-2 py-1">
+          <button
+            type="button"
+            className="w-full flex items-center justify-between gap-2 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-400 rounded px-1 py-0.5"
+            onClick={() => handleToggleExpandCompany(company)}
+            title="לחצי כדי להציג פירוט לפי מספרי סוכן לחברה זו"
+            aria-expanded={isOpen}
+          >
+            <span>{company}</span>
+            <ChevronRight
+              className={`h-4 w-4 transition-transform ${isOpen ? 'rotate-90' : ''}`}
+              aria-hidden="true"
+            />
+          </button>
+        </th>
+      );
+    })}
+    <th className="border px-2 py-1 font-bold bg-gray-50">סה&quot;כ לחודש</th>
+  </tr>
+</thead>
           <tbody>
   {allMonths.map(month => {
     const monthTotal = allCompanies.reduce((sum, company) => {
@@ -171,7 +197,7 @@ export default function CommissionSummaryPage() {
   })}
 
   {/* שורת סיכום לכל חברה */}
-  <tr className="bg-gray-200 font-bold">
+  {/* <tr className="bg-gray-200 font-bold">
   <td className="border px-2 py-1">סה&quot;כ</td>
   {allCompanies.map(company => {
       const total = allMonths.reduce((sum, month) => {
@@ -187,7 +213,7 @@ export default function CommissionSummaryPage() {
           innerSum + (summaryByMonthCompany[month]?.[company] || 0), 0)
       , 0).toLocaleString()}
     </td>
-  </tr>
+  </tr> */}
 </tbody>
         </table>
       )}
@@ -230,7 +256,7 @@ export default function CommissionSummaryPage() {
   })}
 
   {/* שורת סיכום לפי מספר סוכן */}
-  <tr className="bg-gray-200 font-bold">
+  {/* <tr className="bg-gray-200 font-bold">
   <td className="border px-2 py-1">סה&quot;כ</td>
   {Object.keys(summaryByCompanyAgentMonth[selectedCompany] || {}).sort().map(agentCode => {
       const total = Object.values(summaryByCompanyAgentMonth[selectedCompany]?.[agentCode] || {}).reduce((sum, val) => sum + val, 0);
@@ -243,7 +269,7 @@ export default function CommissionSummaryPage() {
         return sum + Object.values(agentData).reduce((s, v) => s + v, 0);
       }, 0).toLocaleString()}
     </td>
-  </tr>
+  </tr> */}
 </tbody>
           </table>
         </div>

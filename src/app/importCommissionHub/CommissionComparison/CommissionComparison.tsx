@@ -7,6 +7,7 @@ import useFetchAgentData from '@/hooks/useFetchAgentData';
 import { useAuth } from '@/lib/firebase/AuthContext';
 import * as XLSX from 'xlsx';
 import { Button } from '@/components/Button/Button';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 
 interface CommissionData {
@@ -79,6 +80,21 @@ const CommissionComparison = () => {
   
   const [templateOptions, setTemplateOptions] = useState<TemplateOption[]>([]);
   
+  const todayYm = new Date().toISOString().slice(0, 7);
+
+const addMonths = (ym: string, delta: number) => {
+  const base = ym && /^\d{4}-\d{2}$/.test(ym) ? ym : todayYm;
+  const [y, m] = base.split('-').map(Number);
+  const d = new Date(y, (m - 1) + delta, 1);
+  const yy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  return `${yy}-${mm}`;
+};
+
+useEffect(() => {
+  if (month1 && month2 && month2 < month1) setMonth2(month1);
+}, [month1]); 
+
   
   const fetchTemplates = async () => {
     const snapshot = await getDocs(collection(db, 'commissionTemplates'));
@@ -126,15 +142,18 @@ const CommissionComparison = () => {
     t => t.companyId === selectedCompanyId
   );
   
-  
   useEffect(() => {
+    const fmt = (d: Date) => d.toISOString().slice(0, 7); // YYYY-MM
     const now = new Date();
-    const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1);
-    const prevMonth = new Date(now.getFullYear(), now.getMonth() - 2);
-    const format = (d: Date) => d.toISOString().slice(0, 7);
-    setMonth1(format(prevMonth));
-    setMonth2(format(lastMonth));
+  
+    // לקבע ליום 1 כדי להימנע מגלישות/אזורי זמן
+    const thisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const prevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  
+    setMonth1(fmt(prevMonth));  // קובע ליולי אם עכשיו אוגוסט
+    setMonth2(fmt(thisMonth));  // קובע לאוגוסט (החודש הנוכחי)
   }, []);
+  
 
   useEffect(() => {
     const agent = agents.find((a: Agent) => a.id === selectedAgentId);
@@ -282,6 +301,47 @@ const total2 = visibleRows.reduce((sum, r) =>
 , 0);
 
 
+const MonthStepper: React.FC<{
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+}> = ({ label, value, onChange }) => {
+  return (
+    <div>
+      <label className="block mb-1 font-semibold">{label}</label>
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          className="p-1 rounded border hover:bg-gray-100"
+          aria-label="חודש קודם"
+          title="חודש קודם"
+          onClick={() => onChange(addMonths(value, -1))}
+        >
+  <ChevronRight className="h-4 w-4" /> {/* היה ChevronLeft */}
+  </button>
+
+        <input
+          type="month"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className="input w-full"
+        />
+
+        <button
+          type="button"
+          className="p-1 rounded border hover:bg-gray-100"
+          aria-label="חודש הבא"
+          title="חודש הבא"
+          onClick={() => onChange(addMonths(value, +1))}
+        >
+  <ChevronLeft className="h-4 w-4" /> {/* היה ChevronRight */}
+  </button>
+      </div>
+    </div>
+  );
+};
+
+
 return (
   <div className="p-6 max-w-6xl mx-auto text-right">
     <h1 className="text-2xl font-bold mb-4">השוואת עמלות בין חודשים</h1>
@@ -334,17 +394,20 @@ return (
       </div>
     )}
 
-    {/* חודשים */}
-    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-      <div>
-        <label className="block mb-1 font-semibold">חודש ראשון:</label>
-        <input type="month" value={month1} onChange={(e) => setMonth1(e.target.value)} className="input w-full" />
-      </div>
-      <div>
-        <label className="block mb-1 font-semibold">חודש שני:</label>
-        <input type="month" value={month2} onChange={(e) => setMonth2(e.target.value)} className="input w-full" />
-      </div>
-    </div>
+  {/* חודשים */}
+<div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+  <MonthStepper
+    label="חודש ראשון:"
+    value={month1}
+    onChange={setMonth1}
+  />
+  <MonthStepper
+    label="חודש שני:"
+    value={month2}
+    onChange={setMonth2}
+  />
+</div>
+
 
     <Button
       text={isLoading ? 'טוען...' : 'השווה'}

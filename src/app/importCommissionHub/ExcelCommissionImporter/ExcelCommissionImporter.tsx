@@ -54,6 +54,7 @@ const ExcelCommissionImporter: React.FC = () => {
   const [showSummaryDialog, setShowSummaryDialog] = useState(false);
 
   const [selectedCompanyId, setSelectedCompanyId] = useState('');
+  const canChooseFile = Boolean(selectedAgentId && selectedCompanyId && templateId);
 
   const automationApiByTemplate = (template: {
     companyId: string;
@@ -281,7 +282,7 @@ const ExcelCommissionImporter: React.FC = () => {
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !templateId || !selectedAgentId) return;
+    if (!file || !templateId || !selectedAgentId || !selectedCompanyId) return;
     setSelectedFileName(file.name);
     setIsLoading(true);
   
@@ -703,12 +704,21 @@ const key = `${row.agentId}_${row.agentCode}_${sanitizedMonth}_${row.templateId}
           className="hidden"
         />
         <div className="flex gap-2">
-          <Button text="בחר קובץ" type="primary" onClick={() => fileInputRef.current?.click()} />
+        <Button
+  text="בחר קובץ"
+  type="primary"
+  onClick={() => { if (canChooseFile) fileInputRef.current?.click(); }}
+  disabled={!canChooseFile}
+/>
           <Button text="נקה בחירה" type="secondary" onClick={handleClearSelections} />
         </div>
         {selectedFileName && <p className="mt-2 text-sm text-gray-600">📁 {selectedFileName}</p>}
       </div>
-  
+      {!canChooseFile && (
+  <p className="mt-2 text-sm text-gray-500">
+    ⚠️ לפני בחירת קובץ יש לבחור סוכן, חברה ותבנית.
+  </p>
+)}
       {/* הודעה אם הקובץ כבר קיים */}
       {existingDocs.length > 0 && (
         <div className="bg-red-100 border border-red-300 text-red-800 p-3 rounded mb-4">
