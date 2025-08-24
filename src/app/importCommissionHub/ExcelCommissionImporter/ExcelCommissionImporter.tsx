@@ -35,6 +35,18 @@ interface CommissionTemplateOption {
   automationClass?: string; 
 }
 
+
+interface CommissionSummary {
+  agentId: string;
+  agentCode: string;
+  reportMonth: string;
+  templateId: string;
+  companyId: string;      // ✅ חדש
+  company: string;        // ✅ חדש (שם החברה)
+  totalCommissionAmount: number;
+}
+
+
 const ExcelCommissionImporter: React.FC = () => {
   const { detail } = useAuth();
   const { agents, selectedAgentId, handleAgentChange } = useFetchAgentData();
@@ -56,6 +68,7 @@ const ExcelCommissionImporter: React.FC = () => {
   const [selectedCompanyId, setSelectedCompanyId] = useState('');
   const canChooseFile = Boolean(selectedAgentId && selectedCompanyId && templateId);
 
+  
   const automationApiByTemplate = (template: {
     companyId: string;
     type: string;
@@ -153,6 +166,25 @@ const ExcelCommissionImporter: React.FC = () => {
     fetchTemplateMapping();
   }, [templateId]);
 
+  const selectedCompanyName = React.useMemo(
+    () => uniqueCompanies.find(c => c.id === selectedCompanyId)?.name || '',
+    [selectedCompanyId, uniqueCompanies]
+  );
+  
+// שומר תמיד כמחרוזת 9 ספרות (מוסיף אפסים מובילים אם צריך)
+const normalizeCustomerId = (v: any): string => {
+  const digits = String(v ?? '').replace(/\D/g, '');
+  if (!digits) return '';
+  return digits.padStart(9, '0'); // אם זה לא ת״ז – אפשר להשאיר בלי pad
+};
+
+const normalizePolicyNumber = (v: any): string =>
+  String(v ?? '').trim();
+
+const normCompany = (v: any): string =>
+  String(v ?? '').trim().replace(/\s+/g, ' ');
+
+
   const parseHebrewMonth = (value: any, templateId?: string): string => {
     if (!value) return '';
   
@@ -217,12 +249,16 @@ const ExcelCommissionImporter: React.FC = () => {
   };
   
 
-  const checkExistingData = async (agentId: string, templateId: string, reportMonth: string) => {
+  const checkExistingData = async (agentId: string, templateId: string,
+    reportMonth: string,
+    companyId: string
+  ) => {
     const q = query(
       collection(db, 'externalCommissions'),
       where('agentId', '==', agentId),
       where('templateId', '==', templateId),
-      where('reportMonth', '==', reportMonth)
+      where('reportMonth', '==', reportMonth),
+      where('companyId', '==', companyId)
     );
     const snapshot = await getDocs(q);
     setExistingDocs(snapshot.docs);
@@ -371,7 +407,11 @@ console.log('📅 reportMonth שחולץ:', fallbackReportMonth);      }
               sourceFileName: file.name,
               uploadDate: serverTimestamp()
             };
-    
+// ✅ תמיד מחתימים מהבחירה במסך
+result.companyId = selectedCompanyId;
+result.company   = selectedCompanyName;
+
+
             for (const [excelCol, systemField] of Object.entries(mapping)) {
               const value = row[excelCol];
               if (systemField === 'validMonth' || systemField === 'reportMonth') {
@@ -393,7 +433,17 @@ console.log('📅 reportMonth שחולץ:', fallbackReportMonth);      }
               result[systemField] = roundTo2(val1 + val2);
             } else {
   result[systemField] = value ? parseFloat(value.toString().replace(/,/g, '')) || 0 : 0;
-}              } else {
+              }     
+           } 
+             // ✅ שדה מזהה לקוח – לשמור תמיד כמחרוזת
+  else if (systemField === 'customerId' || systemField === 'IDCustomer') {
+    result[systemField] = normalizeCustomerId(value);
+  }
+            // אופציונלי: גם מספר פוליסה תמיד כמחרוזת
+  else if (systemField === 'policyNumber') {
+    result[systemField] = String(value ?? '').trim();
+  }
+           else {
                 result[systemField] = value;
               }
             }
@@ -405,7 +455,7 @@ console.log('📅 reportMonth שחולץ:', fallbackReportMonth);      }
     
         const reportMonth = standardized[0]?.reportMonth;
         if (reportMonth) {
-          await checkExistingData(selectedAgentId, templateId, reportMonth);
+          await checkExistingData(selectedAgentId, templateId, reportMonth, selectedCompanyId);
         }
       }
     
@@ -417,17 +467,152 @@ console.log('📅 reportMonth שחולץ:', fallbackReportMonth);      }
   
 
   
+  // const handleImport = async () => {
+  //   if (!selectedAgentId || standardizedRows.length === 0) return;
+  //   // תיקון פורמט reportMonth ו־validMonth עם תמיכה בעברית ובפורמטים שונים
+  //   standardizedRows.forEach(row => {
+  //     row.reportMonth = parseHebrewMonth(row.reportMonth, row.templateId);
+  //     row.validMonth = parseHebrewMonth(row.validMonth, row.templateId);
+  //   });
+    
+  //   setIsLoading(true);
+  
+  //   const reportMonth = standardizedRows[0]?.reportMonth;
+  //   if (existingDocs.length > 0) {
+  //     alert('❌ קובץ כבר קיים לחודש זה ולסוכן זה. מחק אותו קודם כדי לטעון מחדש.');
+  //     setIsLoading(false);
+  //     return;
+  //   }
+  
+  //   try {
+  //     // שלב 1: איסוף כל הקודים מהקובץ
+  //     const uniqueAgentCodes = new Set<string>();
+  //     for (const row of standardizedRows) {
+  //       if (row.agentCode) {
+  //         uniqueAgentCodes.add(row.agentCode.toString().trim());
+  //       }
+  //     }
+  
+  //     // שלב 2: עדכון שדה agentCodes ביוזר (אם חסר – ניצור אותו)
+  //     const userRef = doc(db, 'users', selectedAgentId);
+  //     const userSnap = await getDoc(userRef);
+  //     if (userSnap.exists()) {
+  //       const userData = userSnap.data();
+  //       const existingCodes: string[] = userData.agentCodes || [];
+  
+  //       const codesToAdd = Array.from(uniqueAgentCodes).filter(
+  //         code => !existingCodes.includes(code)
+  //       );
+  
+  //       if (codesToAdd.length > 0) {
+  //         await updateDoc(userRef, {
+  //           agentCodes: arrayUnion(...codesToAdd)
+  //         });
+  //       }
+  //     }
+  
+  //     // שלב 3: טעינת הנתונים לטבלת externalCommissions
+  //     for (const row of standardizedRows) {
+  //       await addDoc(collection(db, 'externalCommissions'), row);
+  //     }
+  //     const summariesMap = new Map<string, CommissionSummary>();
+
+      
+  //     for (const row of standardizedRows) {
+  //       // const key = `${row.agentId}_${row.agentCode}_${row.reportMonth}_${row.templateId}`;
+  //       const sanitizedMonth = row.reportMonth?.toString().replace(/\//g, '-') || '';
+  //       const key = `${row.agentId}_${row.agentCode}_${sanitizedMonth}_${row.templateId}_${row.companyId}`; // ✅
+  //       if (!summariesMap.has(key)) {
+  //         summariesMap.set(key, {
+  //           agentId: row.agentId,
+  //           agentCode: row.agentCode,
+  //           reportMonth: row.reportMonth,
+  //           templateId: row.templateId,
+  //           totalCommissionAmount: 0,
+  //           companyId: row.companyId,           
+  //           company: row.company || '', 
+  //         });
+  //       }
+  //       const summary = summariesMap.get(key)!;
+  //       const commission = parseFloat(row.commissionAmount || '0');
+  //       summary.totalCommissionAmount += isNaN(commission) ? 0 : commission;
+  //     }
+      
+  //     // שמירה לטבלה החדשה
+  //     for (const summary of summariesMap.values()) {
+  //       // const docId = `${summary.agentId}_${summary.agentCode}_${summary.reportMonth}_${summary.templateId}`;
+  //       const sanitizedMonth = summary.reportMonth?.toString().replace(/\//g, '-') || '';
+  //       const docId = `${summary.agentId}_${summary.agentCode}_${sanitizedMonth}_${summary.templateId}_${summary.companyId}`;
+        
+  //       await setDoc(doc(db, "commissionSummaries", docId), {
+  //         ...summary,
+  //         updatedAt: serverTimestamp(), // מוסיף תאריך עדכון
+  //       });
+  //       // חישוב סיכומים להצגה
+  //       const grouped: Record<string, {
+  //         count: number;
+  //         uniqueCustomers: Set<string>;
+  //         totalCommission: number;
+  //       }> = {};
+        
+  //       for (const row of standardizedRows) {
+  //         const code = row.agentCode;
+  //         if (!code) continue;
+        
+  //         if (!grouped[code]) {
+  //           grouped[code] = {
+  //             count: 0,
+  //             uniqueCustomers: new Set(),
+  //             totalCommission: 0,
+  //           };
+  //         }
+        
+  //         grouped[code].count += 1;
+        
+  //         if (row.customerId) {
+  //           grouped[code].uniqueCustomers.add(row.customerId);
+  //         }
+        
+  //         grouped[code].totalCommission += parseFloat(row.commissionAmount || '0') || 0;
+  //       }
+        
+  //       // יצירת מערך לסיכום
+  //       const summaryArray = Object.entries(grouped).map(([agentCode, data]) => ({
+  //         agentCode,
+  //         count: data.count,
+  //         totalInsured: data.uniqueCustomers.size,
+  //         totalCommission: data.totalCommission,
+  //       }));
+        
+  //       setSummaryByAgentCode(summaryArray);
+  //       setShowSummaryDialog(true);        
+  // }
+  //     // alert('✅ כל השורות נטענו למסד הנתונים!');
+  //     setStandardizedRows([]);
+  //     setSelectedFileName('');
+  //     setExistingDocs([]);
+  //   } catch (error) {
+  //     console.error('שגיאה בעת טעינה:', error);
+  //     alert('❌ שגיאה בעת טעינה למסד. בדוק קונסול.');
+  //   } finally {
+  //     setIsLoading(false);
+  //   }
+  // };
+
   const handleImport = async () => {
     if (!selectedAgentId || standardizedRows.length === 0) return;
-    // תיקון פורמט reportMonth ו־validMonth עם תמיכה בעברית ובפורמטים שונים
+  
+    // 🔹 תיקון פורמט reportMonth ו־validMonth עם תמיכה בעברית ובפורמטים שונים
     standardizedRows.forEach(row => {
       row.reportMonth = parseHebrewMonth(row.reportMonth, row.templateId);
       row.validMonth = parseHebrewMonth(row.validMonth, row.templateId);
     });
-    
+  
     setIsLoading(true);
   
     const reportMonth = standardizedRows[0]?.reportMonth;
+  
+    // 🔹 בדיקה אם כבר יש קובץ קיים לחודש+סוכן+חברה+תבנית
     if (existingDocs.length > 0) {
       alert('❌ קובץ כבר קיים לחודש זה ולסוכן זה. מחק אותו קודם כדי לטעון מחדש.');
       setIsLoading(false);
@@ -435,7 +620,7 @@ console.log('📅 reportMonth שחולץ:', fallbackReportMonth);      }
     }
   
     try {
-      // שלב 1: איסוף כל הקודים מהקובץ
+      // --- שלב 1: איסוף agentCodes מהקובץ ---
       const uniqueAgentCodes = new Set<string>();
       for (const row of standardizedRows) {
         if (row.agentCode) {
@@ -443,7 +628,7 @@ console.log('📅 reportMonth שחולץ:', fallbackReportMonth);      }
         }
       }
   
-      // שלב 2: עדכון שדה agentCodes ביוזר (אם חסר – ניצור אותו)
+      // --- שלב 2: עדכון שדה agentCodes ביוזר (אם חסר – נוסיף) ---
       const userRef = doc(db, 'users', selectedAgentId);
       const userSnap = await getDoc(userRef);
       if (userSnap.exists()) {
@@ -461,22 +646,22 @@ console.log('📅 reportMonth שחולץ:', fallbackReportMonth);      }
         }
       }
   
-      // שלב 3: טעינת הנתונים לטבלת externalCommissions
-      for (const row of standardizedRows) {
+      // --- שלב 3: לפני כתיבה למסד → pre-link ---
+      // כאן אנחנו בודקים policyLinkIndex ואם נמצא saleId מתאים
+      // נעדכן לכל שורה את linkedSaleId כדי שתגיע למסד כבר "משויכת"
+      const rowsWithLinks = await preResolveLinks(standardizedRows, selectedAgentId);
+  
+      // --- שלב 4: כתיבת הנתונים לטבלת externalCommissions ---
+      for (const row of rowsWithLinks) {
         await addDoc(collection(db, 'externalCommissions'), row);
       }
-      const summariesMap = new Map<string, {
-        agentId: string;
-        agentCode: string;
-        reportMonth: string;
-        templateId: string;
-        totalCommissionAmount: number;
-      }>();
-      
-      for (const row of standardizedRows) {
-        // const key = `${row.agentId}_${row.agentCode}_${row.reportMonth}_${row.templateId}`;
+  
+      // --- שלב 5: חישוב סיכומים לפי agentCode ---
+      const summariesMap = new Map<string, CommissionSummary>();
+      for (const row of rowsWithLinks) {
         const sanitizedMonth = row.reportMonth?.toString().replace(/\//g, '-') || '';
-const key = `${row.agentId}_${row.agentCode}_${sanitizedMonth}_${row.templateId}`;
+        const key = `${row.agentId}_${row.agentCode}_${sanitizedMonth}_${row.templateId}_${row.companyId}`;
+  
         if (!summariesMap.has(key)) {
           summariesMap.set(key, {
             agentId: row.agentId,
@@ -484,66 +669,65 @@ const key = `${row.agentId}_${row.agentCode}_${sanitizedMonth}_${row.templateId}
             reportMonth: row.reportMonth,
             templateId: row.templateId,
             totalCommissionAmount: 0,
+            companyId: row.companyId,
+            company: row.company || '',
           });
         }
         const summary = summariesMap.get(key)!;
         const commission = parseFloat(row.commissionAmount || '0');
         summary.totalCommissionAmount += isNaN(commission) ? 0 : commission;
       }
-      
-      // שמירה לטבלה החדשה
+  
+      // --- שלב 6: שמירת הסיכומים לטבלת commissionSummaries ---
       for (const summary of summariesMap.values()) {
-        // const docId = `${summary.agentId}_${summary.agentCode}_${summary.reportMonth}_${summary.templateId}`;
         const sanitizedMonth = summary.reportMonth?.toString().replace(/\//g, '-') || '';
-        const docId = `${summary.agentId}_${summary.agentCode}_${sanitizedMonth}_${summary.templateId}`;
-        
+        const docId = `${summary.agentId}_${summary.agentCode}_${sanitizedMonth}_${summary.templateId}_${summary.companyId}`;
+  
         await setDoc(doc(db, "commissionSummaries", docId), {
           ...summary,
-          updatedAt: serverTimestamp(), // מוסיף תאריך עדכון
+          updatedAt: serverTimestamp(),
         });
-        // חישוב סיכומים להצגה
-        const grouped: Record<string, {
-          count: number;
-          uniqueCustomers: Set<string>;
-          totalCommission: number;
-        }> = {};
-        
-        for (const row of standardizedRows) {
-          const code = row.agentCode;
-          if (!code) continue;
-        
-          if (!grouped[code]) {
-            grouped[code] = {
-              count: 0,
-              uniqueCustomers: new Set(),
-              totalCommission: 0,
-            };
-          }
-        
-          grouped[code].count += 1;
-        
-          if (row.customerId) {
-            grouped[code].uniqueCustomers.add(row.customerId);
-          }
-        
-          grouped[code].totalCommission += parseFloat(row.commissionAmount || '0') || 0;
+      }
+  
+      // --- שלב 7: חישוב נתוני סיכום להצגה במסך ---
+      const grouped: Record<string, {
+        count: number;
+        uniqueCustomers: Set<string>;
+        totalCommission: number;
+      }> = {};
+  
+      for (const row of rowsWithLinks) {
+        const code = row.agentCode;
+        if (!code) continue;
+  
+        if (!grouped[code]) {
+          grouped[code] = {
+            count: 0,
+            uniqueCustomers: new Set(),
+            totalCommission: 0,
+          };
         }
-        
-        // יצירת מערך לסיכום
-        const summaryArray = Object.entries(grouped).map(([agentCode, data]) => ({
-          agentCode,
-          count: data.count,
-          totalInsured: data.uniqueCustomers.size,
-          totalCommission: data.totalCommission,
-        }));
-        
-        setSummaryByAgentCode(summaryArray);
-        setShowSummaryDialog(true);        
-  }
-      // alert('✅ כל השורות נטענו למסד הנתונים!');
+  
+        grouped[code].count += 1;
+        if (row.customerId) grouped[code].uniqueCustomers.add(row.customerId);
+        grouped[code].totalCommission += parseFloat(row.commissionAmount || '0') || 0;
+      }
+  
+      const summaryArray = Object.entries(grouped).map(([agentCode, data]) => ({
+        agentCode,
+        count: data.count,
+        totalInsured: data.uniqueCustomers.size,
+        totalCommission: data.totalCommission,
+      }));
+  
+      setSummaryByAgentCode(summaryArray);
+      setShowSummaryDialog(true);
+  
+      // --- שלב 8: ניקוי state אחרי טעינה ---
       setStandardizedRows([]);
       setSelectedFileName('');
       setExistingDocs([]);
+  
     } catch (error) {
       console.error('שגיאה בעת טעינה:', error);
       alert('❌ שגיאה בעת טעינה למסד. בדוק קונסול.');
@@ -551,6 +735,10 @@ const key = `${row.agentId}_${row.agentCode}_${sanitizedMonth}_${row.templateId}
       setIsLoading(false);
     }
   };
+  
+
+
+
 
   const handleAutoRunByTemplate = async () => {
     if (!selectedTemplate?.id || !selectedAgentId) {
@@ -607,6 +795,78 @@ const key = `${row.agentId}_${row.agentCode}_${sanitizedMonth}_${row.templateId}
     }
   };
   
+/** לפני שמוסיפים למסד: משייכים אוטומטית ע"פ policyLinkIndex + אימות לקוח */
+const preResolveLinks = async (rows: any[], agentId: string) => {
+  // בונים key עבור כל שורה שיש לה policyNumber + company
+  const keys = Array.from(
+    new Set(
+      rows
+        .map(r => {
+          const policyNumber = normalizePolicyNumber(r.policyNumber);
+          const company = normCompany(r.company);
+          return policyNumber && company ? `${agentId}::${company}::${policyNumber}` : '';
+        })
+        .filter(Boolean)
+    )
+  );
+
+  if (keys.length === 0) return rows;
+
+  // שליפת policyLinkIndex ב‑batch
+  const idxDocs = await Promise.all(
+    keys.map(k => getDoc(doc(db, 'policyLinkIndex', k)))
+  );
+
+  // saleIds שנמצאו באינדקס
+  const keyToSaleId = new Map<string, string>();
+  const saleIds = new Set<string>();
+  idxDocs.forEach((snap, i) => {
+    if (!snap.exists()) return;
+    const saleId = (snap.data() as any)?.saleId;
+    if (saleId) {
+      keyToSaleId.set(keys[i], saleId);
+      saleIds.add(saleId);
+    }
+  });
+
+  if (saleIds.size === 0) return rows;
+
+  // שליפת ה‑sales הדרושים לאימות customerId
+  const saleSnaps = await Promise.all(
+    Array.from(saleIds).map(sid => getDoc(doc(db, 'sales', sid)))
+  );
+  const saleMap = new Map<string, any>();
+  saleSnaps.forEach(s => {
+    if (s.exists()) saleMap.set(s.id, s.data());
+  });
+
+  // החלת הקישור רק אם גם הלקוח תואם (agentId + company + customerId + policyNumber)
+  const updated = rows.map(r => {
+    const policyNumber = normalizePolicyNumber(r.policyNumber);
+    const company = normCompany(r.company);
+    const key = policyNumber && company ? `${agentId}::${company}::${policyNumber}` : '';
+
+    const saleId = key ? keyToSaleId.get(key) : undefined;
+    if (!saleId) return r;
+
+    const sale = saleMap.get(saleId);
+    if (!sale) return r;
+
+    // אימות customerId (מאוד חשוב)
+    const rowCustomerId = normalizeCustomerId(r.customerId);
+    const saleCustomerId = sale?.IDCustomer ? String(sale.IDCustomer).padStart(9, '0') : '';
+
+    if (rowCustomerId && saleCustomerId && rowCustomerId === saleCustomerId) {
+      return { ...r, linkedSaleId: saleId }; // ✅ משייכים ברמת ה‑row
+    }
+    // לא תואם לקוח → לא משייכים
+    return r;
+  });
+
+  return updated;
+};
+
+
   
   return (
     <div className="p-6 max-w-4xl mx-auto text-right">

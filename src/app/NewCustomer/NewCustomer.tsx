@@ -25,8 +25,9 @@ import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
 import { CommissionSplit } from '@/types/CommissionSplit';
 import { fetchSplits } from '@/services/splitsService';
-
-
+import { fetchExternalForCustomers } from '@/services/externalQueries';
+import { useRouter } from 'next/navigation';
+import CustomerExternalOverview from '@/components/CustomerExternalOverview';
 
 const NewCustomer = () => {
 
@@ -48,6 +49,7 @@ const NewCustomer = () => {
   const [filteredData, setFilteredData] = useState<CustomersTypeForFetching[]>([]);
   const [parentFullNameFilter, setParentFullNameFilter] = useState("");
  // const [customerData, setCustomerData] = useState<any[]>([]);
+ const router = useRouter();
 
   const [totalCommissions, setTotalCommissions] = useState({ totalCommissionHekef: 0, totalCommissionNifraim: 0 });
 
@@ -145,6 +147,9 @@ useEffect(() => {
     selectedAgentId,
     handleAgentChange,
     selectedAgentName,
+    companies,
+    selectedCompanyFilter,
+    setSelectedCompanyFilter,
   } = useFetchAgentData();
 
   const {
@@ -870,6 +875,214 @@ const handleNewSelectCustomer = (id: string) => {
 };
 
 
+const familyIds = useMemo(() => {
+  if (!selectedCustomers.length) return [];
+  const parent = selectedCustomers[0]?.parentID;
+  const inFamily = parent
+    ? filteredData.filter(c => c.parentID === parent)
+    : selectedCustomers;
+  return Array.from(new Set(inFamily.map(c => c.IDCustomer).filter(Boolean)));
+}, [selectedCustomers, filteredData]);
+
+/// compare Commissions
+
+// חודש הדיווח (reportMonth) – ברירת מחדל: החודש הנוכחי
+const repYmDefault = new Date().toISOString().slice(0,7);
+const [repYm, setRepYm] = useState(repYmDefault);
+
+const normCompany = (s?: string|null) => String(s ?? '').trim();
+
+
+// סיכום/פירוט והתאמות
+// const [showDetails, setShowDetails] = useState(false);
+// const [showReconcile, setShowReconcile] = useState(false);
+
+// טבלת הסיכום
+type FamilySummaryRow = {
+  customerId: string;
+  customerName: string;
+  company: string;
+  policyMonth: string;   // YYYY-MM (validMonth ⇔ mounth)
+  magicNifraim: number;  // MAGIC נפרעים (מחושב)
+  externalNifraim: number; // EXTERNAL commissionAmount
+  delta: number;         // external - magic
+};
+const [familySummary, setFamilySummary] = useState<FamilySummaryRow[]>([]);
+const [sumLoading, setSumLoading] = useState(false);
+
+// עוזרים מקומיים (שמות ייחודיים למניעת התנגשות)
+const toYm2  = (s?: string|null) => (s || '').toString().slice(0,7);
+const norm2  = (v?: string|null) => String(v ?? '').trim();
+
+
+// מיפוי ID → שם לקוח להצגה
+const customerNameById = useMemo(() => {
+  const map = new Map<string,string>();
+  filteredData.forEach(c => {
+    if (c.IDCustomer) map.set(c.IDCustomer, `${c.firstNameCustomer ?? ''} ${c.lastNameCustomer ?? ''}`.trim());
+  });
+  return map;
+}, [filteredData]);
+
+
+// async function loadFamilySummaryByReportMonth() {
+//   if (!selectedAgentId || familyIds.length === 0) {
+//     addToast("error", "בחרי לקוח/משפחה לפני הפקת סיכום");
+//     return;
+//   }
+//   setSumLoading(true);
+
+//   try {
+//     // === A) MAGIC: נפרעים מחושבים on-the-fly לפי (לקוח, חברה, חודש-פוליסה) ===
+//     const magicAgg = new Map<string, number>(); // key: cust__comp__policyYm → sum
+//     const customerCache = new Map<string, any>();
+
+//     for (let i = 0; i < familyIds.length; i += 10) {
+//       const chunk = familyIds.slice(i, i+10);
+//       const qSales = query(
+//         collection(db, 'sales'),
+//         where('AgentId', '==', selectedAgentId),
+//         where('IDCustomer', 'in', chunk),
+//         where('statusPolicy', 'in', ['פעילה','הצעה'])
+//       );
+//       const snap = await getDocs(qSales);
+
+//       for (const d of snap.docs) {
+//         const s: any = d.data();
+
+//         const policyYm = toYm2(s.month || s.mounth);
+//         if (!policyYm) continue;
+
+//         const comp = normCompany(s.company) || '-';
+//         if (selectedCompanyFilter && normCompany(selectedCompanyFilter) !== comp) continue;
+        
+
+//         // לקוח (לקבלת sourceValue) עם קאש
+//         let custDoc = customerCache.get(s.IDCustomer);
+//         if (!custDoc) {
+//           const cq = query(collection(db, 'customer'), where('IDCustomer', '==', s.IDCustomer));
+//           const cs = await getDocs(cq);
+//           custDoc = cs.docs[0]?.data() || null;
+//           customerCache.set(s.IDCustomer, custDoc);
+//         }
+//         const sourceValue = custDoc?.sourceValue || '';
+
+//         // חוזה תואם (אם קיים)
+//         const contractMatch = contracts.find(
+//           (contract) =>
+//             contract.agentId === selectedAgentId &&
+//             contract.product === s.product &&
+//             contract.company === s.company &&
+//             (contract.minuySochen === s.minuySochen ||
+//              (contract.minuySochen === undefined && !s.minuySochen))
+//         );
+
+//         // חישוב עמלות
+//         const saleForCalc = { ...s, month: s.mounth };
+//         const commissionsRaw = calculateCommissions(saleForCalc as any, contractMatch);
+
+//         // פיצול עמלות (אם מופעל ויש התאמה)
+//         let commissions = { ...commissionsRaw };
+//         if (isCommissionSplitEnabled && sourceValue) {
+//           const splitAgreement = commissionSplits.find(
+//             (split) =>
+//               split.agentId === selectedAgentId &&
+//               split.sourceLeadId === sourceValue
+//           );
+//           if (splitAgreement) {
+//             commissions = {
+//               commissionHekef: Math.round(commissionsRaw.commissionHekef * (splitAgreement.percentToAgent / 100)),
+//               commissionNifraim: Math.round(commissionsRaw.commissionNifraim * (splitAgreement.percentToAgent / 100)),
+//             };
+//           }
+//         }
+
+//         const val = Number(commissions.commissionNifraim || 0); // ← נפרעים בלבד
+//         const key = `${s.IDCustomer}__${comp}__${policyYm}`;
+//         magicAgg.set(key, (magicAgg.get(key) || 0) + val);
+//       }
+//     }
+
+//     // === B) EXTERNAL: מסונן לפי reportMonth; סכימה לפי (לקוח, חברה, validMonth) ===
+//     const extBuckets = await fetchExternalForCustomers({
+//       agentId: selectedAgentId,
+//       customerIds: familyIds,
+//       reportFromYm: repYm,          // ← חודש דיווח יחיד
+//       reportToYm:   repYm,          // ← אותו חודש
+//       company: selectedCompanyFilter || undefined, // ← סינון חברה (אם נבחר)
+//     });
+
+//     const externalAgg = new Map<string, number>(); // cust__comp__policyYm → sum(commissionAmount)
+//     for (const b of extBuckets) {
+//       for (const row of b.rows) {
+//         const cust = row.customerId || '';
+//         const comp = norm2(row.company) || '-';
+//         const policyYm = toYm2(row.validMonth); // ← מפתח מול SALE
+//         if (!cust || !policyYm) continue;
+
+//         const amt = typeof row.commissionAmount === 'number'
+//           ? row.commissionAmount
+//           : Number(row.commissionAmount || 0);
+
+//         const key = `${cust}__${comp}__${policyYm}`;
+//         externalAgg.set(key, (externalAgg.get(key) || 0) + (amt || 0));
+//       }
+//     }
+
+//     // === C) איחוד לטבלת תצוגה ===
+//     const allKeys = new Set<string>([...magicAgg.keys(), ...externalAgg.keys()]);
+//     const rows: FamilySummaryRow[] = [];
+//     allKeys.forEach(key => {
+//       const [cust, comp, policyYm] = key.split('__');
+//       const magicNifraim    = Math.round(magicAgg.get(key) || 0);
+//       const externalNifraim = Math.round(externalAgg.get(key) || 0);
+//       rows.push({
+//         customerId: cust,
+//         customerName: customerNameById.get(cust) || cust,
+//         company: comp,
+//         policyMonth: policyYm,
+//         magicNifraim,
+//         externalNifraim,
+//         delta: externalNifraim - magicNifraim,
+//       });
+//     });
+
+//     rows.sort((a,b) => {
+//       if (a.policyMonth !== b.policyMonth) return a.policyMonth.localeCompare(b.policyMonth);
+//       if (a.company !== b.company) return a.company.localeCompare(b.company);
+//       return a.customerName.localeCompare(b.customerName);
+//     });
+
+//     setFamilySummary(rows);
+//   } catch (e) {
+//     console.error(e);
+//     addToast("error", "כשל בטעינת טבלת הסיכום");
+//   } finally {
+//     setSumLoading(false);
+//   }
+// }
+
+
+// סיכומי מספרים לכרטיס
+const totals = useMemo(() => {
+  const magic = familySummary.reduce((a, r) => a + (r.magicNifraim || 0), 0);
+  const external = familySummary.reduce((a, r) => a + (r.externalNifraim || 0), 0);
+  const delta = familySummary.reduce((a, r) => a + (r.delta || 0), 0); // זה כבר external - magic לכל שורה
+  return { magic, external, delta };
+}, [familySummary]);
+
+// // קפיצה למסך השיוכים
+// function openReconcilePage() {
+//   if (!selectedAgentId || familyIds.length === 0) return;
+//   const params = new URLSearchParams({
+//     agentId: selectedAgentId,
+//     customerIds: familyIds.join(','), // תא משפחתי
+//     repYm,
+//   });
+//   if (selectedCompanyFilter) params.set('company', selectedCompanyFilter);
+//   router.push(`/reconcile?${params.toString()}`);
+// }
+
 
   return (
     <div className="content-container">
@@ -1531,17 +1744,23 @@ const handleNewSelectCustomer = (id: string) => {
                   </tr>
                 )}
               </tbody>
-            </table>
+            </table>           
           </div>
-          {toasts.length > 0  && toasts.map((toast) => (
-  <ToastNotification 
-    key={toast.id}  
-    type={toast.type}
-    className={toast.isHiding ? "hide" : ""} 
-    message={toast.message}
-    onClose={() => setToasts((prevToasts) => prevToasts.filter((t) => t.id !== toast.id))}
-  />
-))}
+          <CustomerExternalOverview
+  agentId={selectedAgentId}
+  customerIds={familyIds}
+  companies={companies}
+  initialCompany={selectedCompanyFilter || ''}
+  initialRepYm={repYm}
+  initialSplitEnabled={isCommissionSplitEnabled}
+  contracts={contracts}
+  productMap={productMap}
+  onParamsChange={({ company, repYm, splitEnabled }) => {
+    setSelectedCompanyFilter(company);
+    setRepYm(repYm);
+    setIsCommissionSplitEnabled(splitEnabled);
+  }}
+/>
         </div>
       </div>
   );

@@ -28,5 +28,5 @@ export interface ContractForCompareCommissions {
   commissionNifraim: number;
   commissionHekef: number;
   commissionNiud: number;
-  minuySochen: boolean;
+  minuySochen?: boolean;
 }
