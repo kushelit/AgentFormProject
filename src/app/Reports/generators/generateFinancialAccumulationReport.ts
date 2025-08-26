@@ -1,96 +1,115 @@
-import { db } from '@/lib/firebase/firebase';
-import { collection, getDocs, query, where } from 'firebase/firestore';
+// app/Reports/generators/generateFinancialAccumulationReport.ts  ✅ SERVER ONLY
+import { admin } from '@/lib/firebase/firebase-admin';
 import * as XLSX from 'xlsx';
 import { ReportRequest } from '@/types';
 
 export async function generateFinancialAccumulationReport(params: ReportRequest) {
   const { fromDate, toDate, agentId, company, product, statusPolicy, minuySochen } = params;
 
-  // שלב 1: שליפת שמות המוצרים מקבוצת פיננסים
-  const productsSnapshot = await getDocs(
-    query(collection(db, 'product'), where('productGroup', '==', '4'))
-  );
-  const financialProductNames = productsSnapshot.docs.map(doc =>
-    doc.data().productName?.trim()
-  );
+  const db = admin.firestore();
+
+  // 1) שליפת מוצרי קבוצה "פיננסים" (ודאי שם קולקציה: 'product' או 'products')
+  const productsSnap = await db
+    .collection('product')              // ← אם אצלך זה 'products', החליפי כאן ובכל הקוד
+    .where('productGroup', '==', '4')
+    .get();
+
+  const financialProductNames = productsSnap.docs
+    .map(d => String((d.data() as any).productName || '').trim())
+    .filter(Boolean);
 
   const cleanedAgentId = agentId?.trim();
   const cleanedProducts = Array.isArray(product) ? product.map(p => p.trim()) : [];
   const cleanedCompanies = Array.isArray(company) ? company.map(c => c.trim()) : [];
 
-  // שלב 2: שליפת כל המכירות
-  const salesSnapshot = await getDocs(collection(db, 'sales'));
-  const sales = salesSnapshot.docs.map(doc => doc.data());
+  // 2) שליפת מכירות — עדיף לצמצם כבר ב-query כשאפשר
+  let salesRef: FirebaseFirestore.Query = db.collection('sales');
 
-  // סינון לפי כל התנאים
+  if (cleanedAgentId && cleanedAgentId !== 'all') {
+    salesRef = salesRef.where('AgentId', '==', cleanedAgentId);
+  }
+  // אם mounth נשמר כ-YYYY-MM או YYYY-MM-DD (מחרוזת ISO) אפשר סינון לקסיקוגרפי:
+  if (fromDate) salesRef = salesRef.where('mounth', '>=', fromDate);
+  if (toDate)   salesRef = salesRef.where('mounth', '<=', toDate);
+
+  const salesSnap = await salesRef.get();
+  const sales = salesSnap.docs.map(d => d.data() as any);
+
+  // 3) סינון מקומי (למה שלא ניתן לסנן ב-query עצמו)
   const filtered = sales.filter((row) => {
     if (!row.IDCustomer) return false;
-    if (!financialProductNames.includes(row.product)) return false;
-    if (fromDate && row.mounth < fromDate) return false;
-    if (toDate && row.mounth > toDate) return false;
-    if (cleanedAgentId && cleanedAgentId !== 'all' && row.AgentId !== cleanedAgentId) return false;
-    if (cleanedCompanies.length > 0 && !cleanedCompanies.includes(row.company)) return false;
-    if (cleanedProducts.length > 0 && !cleanedProducts.includes(row.product)) return false;
+    if (!financialProductNames.includes((row.product || '').trim())) return false;
+
+    if (cleanedCompanies.length > 0 && !cleanedCompanies.includes((row.company || '').trim())) return false;
+    if (cleanedProducts.length > 0 && !cleanedProducts.includes((row.product || '').trim())) return false;
+
     if (Array.isArray(statusPolicy) && statusPolicy.length > 0 && !statusPolicy.includes(row.statusPolicy)) return false;
     if (typeof minuySochen === 'boolean' && row.minuySochen !== minuySochen) return false;
+
     return true;
   });
 
-  // שלב 3: קיבוץ לפי ת"ז וצבירה פיננסית
+  // 4) קיבוץ לפי ת"ז וצבירה פיננסית
   const accumulationByCustomer: Record<string, number> = {};
   const customerInfoMap: Record<string, { firstName: string; lastName: string }> = {};
 
   for (const row of filtered) {
-    const customerId = row.IDCustomer;
+    const id = row.IDCustomer;
     const accumulation = Number(row.finansimZvira || 0);
 
-    if (!accumulationByCustomer[customerId]) accumulationByCustomer[customerId] = 0;
-    accumulationByCustomer[customerId] += accumulation;
+    accumulationByCustomer[id] = (accumulationByCustomer[id] || 0) + accumulation;
 
-    if (!customerInfoMap[customerId]) {
-      customerInfoMap[customerId] = {
+    if (!customerInfoMap[id]) {
+      customerInfoMap[id] = {
         firstName: row.firstNameCustomer || '',
         lastName: row.lastNameCustomer || '',
       };
     }
   }
 
-  // שלב 4: שליפת טלפונים מטבלת customer
-  const customerIds = new Set(Object.keys(accumulationByCustomer));
+  // 5) שליפת טלפונים מטבלת customer (מסונן לפי AgentId)
   const phoneMap: Record<string, string> = {};
+  const customerIds = new Set(Object.keys(accumulationByCustomer));
 
-  const customerQuery = query(
-    collection(db, 'customer'),
-    where('AgentId', '==', cleanedAgentId)
-  );
-  const customerSnapshot = await getDocs(customerQuery);
+  if (cleanedAgentId && cleanedAgentId !== 'all') {
+    const custSnap = await db
+      .collection('customer')
+      .where('AgentId', '==', cleanedAgentId)
+      .get();
 
-  for (const doc of customerSnapshot.docs) {
-    const customer = doc.data();
-    const id = customer.IDCustomer;
-    const agentMatch = customer.AgentId === cleanedAgentId;
-    const relevant = customerIds.has(id);
-
-    if (!id) continue;
-
-    if (agentMatch && relevant) {
-      phoneMap[id] = customer.phone || '';
+    for (const doc of custSnap.docs) {
+      const c = doc.data() as any;
+      const id = c.IDCustomer;
+      if (id && customerIds.has(id)) {
+        phoneMap[id] = c.phone || '';
+      }
+    }
+  } else {
+    // אם בחרת "כל הסוכנות" – נשלוף כל הלקוחות ואז נסנן מקומית (אפשר גם לפצל לשאילתות לפי חברות/agentId אם יש הרבה)
+    const custSnap = await db.collection('customer').get();
+    for (const doc of custSnap.docs) {
+      const c = doc.data() as any;
+      const id = c.IDCustomer;
+      if (id && customerIds.has(id)) {
+        phoneMap[id] = c.phone || '';
+      }
     }
   }
 
-  // שלב 5: בניית שורות ל־Excel
+  // 6) בניית שורות ל-Excel
   const rows = Object.entries(accumulationByCustomer).map(([id, sum]) => {
-    const info = customerInfoMap[id] || {};
+    const info = customerInfoMap[id] || { firstName: '', lastName: '' };
     const phone = phoneMap[id] || '';
     return {
-      "תז": id,
-      "שם פרטי": info.firstName,
-      "שם משפחה": info.lastName,
-      "טלפון": phone,
-      "סה\"כ צבירה פיננסית": Number(sum.toFixed(2)),
+      'תז': id,
+      'שם פרטי': info.firstName,
+      'שם משפחה': info.lastName,
+      'טלפון': phone,
+      'סה"כ צבירה פיננסית': Number(sum.toFixed(2)),
     };
   });
-  rows.sort((a, b) => b["סה\"כ צבירה פיננסית"] - a["סה\"כ צבירה פיננסית"]);
+
+  rows.sort((a, b) => b['סה"כ צבירה פיננסית'] - a['סה"כ צבירה פיננסית']);
 
   return buildExcelReport(rows, 'סיכום צבירה פיננסית לפי לקוח');
 }
@@ -98,21 +117,22 @@ export async function generateFinancialAccumulationReport(params: ReportRequest)
 // יצירת Excel
 function buildExcelReport(rows: any[], sheetName: string) {
   const worksheet = XLSX.utils.json_to_sheet(
-    rows.length ? rows : [{
-      "תז": '',
-      "שם פרטי": '',
-      "שם משפחה": '',
-      "טלפון": '',
-      "סה\"כ צבירה פיננסית": '',
-    }]
+    rows.length
+      ? rows
+      : [{
+          'תז': '',
+          'שם פרטי': '',
+          'שם משפחה': '',
+          'טלפון': '',
+          'סה"כ צבירה פיננסית': '',
+        }]
   );
-
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
   const buffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
 
   return {
-    buffer,
+    buffer: buffer as Buffer,
     filename: 'סיכום_צבירה_פיננסית_לפי_לקוח.xlsx',
     subject: 'סיכום צבירה פיננסית ללקוחות ממערכת MagicSale',
     description: 'מצורף דוח Excel המסכם את סך הצבירה הפיננסית לפי לקוח.',
