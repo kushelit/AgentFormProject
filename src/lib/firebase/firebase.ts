@@ -1,6 +1,8 @@
 import { initializeApp, getApps } from "firebase/app";
 import { getAuth } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
+import { getFirestore,setLogLevel } from "firebase/firestore";
+
+
 
 export const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -17,3 +19,5 @@ export const firebaseApp =
 export const auth = getAuth(firebaseApp);
 
 export const db = getFirestore(firebaseApp);
+// 🟢 מוסיפים כאן – יראה בקונסול את כל השאילתות והשגיאות
+// setLogLevel("debug");

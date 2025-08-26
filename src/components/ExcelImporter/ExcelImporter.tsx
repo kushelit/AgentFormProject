@@ -17,7 +17,7 @@ import { fetchSourceLeadsForAgent } from '@/services/sourceLeadService';
 const systemFields = [
   "firstNameCustomer", "lastNameCustomer", "IDCustomer", "company", "product",
   "insPremia", "pensiaPremia", "pensiaZvira", "finansimPremia", "finansimZvira",
-  "mounth", "statusPolicy", "minuySochen", "notes", "workerName", "sourceLeadName"
+  "mounth", "statusPolicy", "minuySochen", "notes", "workerName", "sourceLeadName", "cancellationDate"
 ];
 
 const systemFieldsDisplay = [
@@ -37,7 +37,8 @@ const systemFieldsDisplay = [
   { key: "finansimPremia", label: "פרמיית פיננסים", required: false },
   { key: "finansimZvira", label: "צבירה פיננסים", required: false },
   { key: "workerName", label: "עובד", required: false },
-  { key: "sourceLeadName", label: "מקור ליד", required: false }, // ← הוסף
+  { key: "sourceLeadName", label: "מקור ליד", required: false }, 
+  { key: "cancellationDate", label: "תאריך ביטול", required: false }, 
 
 ];
 
@@ -139,51 +140,111 @@ useEffect(() => {
     }
   };
 
-  type ParsedDateResult = {
-    value?: string;
-    error?: string;
-  };
 
-  const parseMounthField = (value: any): ParsedDateResult => {
-    if (value instanceof Date) {
-      return { value: value.toISOString().split("T")[0] };
+
+  // type ParsedDateResult = {
+  //   value?: string;
+  //   error?: string;
+  // };
+
+  // const parseMounthField = (value: any): ParsedDateResult => {
+  //   if (value instanceof Date) {
+  //     return { value: value.toISOString().split("T")[0] };
+  //   }
+
+  //   if (typeof value === "number" && !isNaN(value)) {
+  //     const rawStr = value.toString();
+  //     if (/^\d{8}$/.test(rawStr)) {
+  //       const day = rawStr.slice(0, 2);
+  //       const month = rawStr.slice(2, 4);
+  //       const year = rawStr.slice(4, 8);
+  //       return { value: `${year}-${month}-${day}` };
+  //     }
+  //     const excelDate = XLSX.SSF.parse_date_code(value);
+  //     if (excelDate) {
+  //       const jsDate = new Date(Date.UTC(excelDate.y, excelDate.m - 1, excelDate.d));
+  //       return { value: jsDate.toISOString().split("T")[0] };
+  //     }
+  //   }
+
+  //   if (typeof value === "string") {
+  //     const cleaned = value.trim();
+  //     if (/^\d{8}$/.test(cleaned)) {
+  //       const day = cleaned.slice(0, 2);
+  //       const month = cleaned.slice(2, 4);
+  //       const year = cleaned.slice(4, 8);
+  //       return { value: `${year}-${month}-${day}` };
+  //     }
+  //     if (/^\d{2}\/\d{2}\/\d{4}$/.test(cleaned)) {
+  //       const [day, month, year] = cleaned.split("/");
+  //       return { value: `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}` };
+  //     }
+  //     if (/^\d{4}-\d{2}-\d{2}$/.test(cleaned)) {
+  //       return { value: cleaned };
+  //     }
+  //     return { error: `תאריך לא תקין: ${value}` };
+  //   }
+
+  //   return { error: `תאריך לא מזוהה: ${String(value)}` };
+  // };
+
+
+  type ParsedDateResult = { value?: string; error?: string };
+
+const parseDateField = (value: any): ParsedDateResult => {
+  if (value instanceof Date) {
+    return { value: value.toISOString().split("T")[0] }; // YYYY-MM-DD
+  }
+
+  if (typeof value === "number" && !isNaN(value)) {
+    const rawStr = value.toString();
+
+    //  DDMMYYYY כטקסט מספרי בן 8 ספרות
+    if (/^\d{8}$/.test(rawStr)) {
+      const day = rawStr.slice(0, 2);
+      const month = rawStr.slice(2, 4);
+      const year = rawStr.slice(4, 8);
+      return { value: `${year}-${month}-${day}` };
     }
 
-    if (typeof value === "number" && !isNaN(value)) {
-      const rawStr = value.toString();
-      if (/^\d{8}$/.test(rawStr)) {
-        const day = rawStr.slice(0, 2);
-        const month = rawStr.slice(2, 4);
-        const year = rawStr.slice(4, 8);
-        return { value: `${year}-${month}-${day}` };
-      }
-      const excelDate = XLSX.SSF.parse_date_code(value);
-      if (excelDate) {
-        const jsDate = new Date(Date.UTC(excelDate.y, excelDate.m - 1, excelDate.d));
-        return { value: jsDate.toISOString().split("T")[0] };
-      }
+    // Excel serial number
+    const excelDate = XLSX.SSF.parse_date_code(value);
+    if (excelDate) {
+      const jsDate = new Date(Date.UTC(excelDate.y, excelDate.m - 1, excelDate.d));
+      return { value: jsDate.toISOString().split("T")[0] };
+    }
+  }
+
+  if (typeof value === "string") {
+    const cleaned = value.trim();
+
+    // DDMMYYYY
+    if (/^\d{8}$/.test(cleaned)) {
+      const day = cleaned.slice(0, 2);
+      const month = cleaned.slice(2, 4);
+      const year = cleaned.slice(4, 8);
+      return { value: `${year}-${month}-${day}` };
     }
 
-    if (typeof value === "string") {
-      const cleaned = value.trim();
-      if (/^\d{8}$/.test(cleaned)) {
-        const day = cleaned.slice(0, 2);
-        const month = cleaned.slice(2, 4);
-        const year = cleaned.slice(4, 8);
-        return { value: `${year}-${month}-${day}` };
-      }
-      if (/^\d{2}\/\d{2}\/\d{4}$/.test(cleaned)) {
-        const [day, month, year] = cleaned.split("/");
-        return { value: `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}` };
-      }
-      if (/^\d{4}-\d{2}-\d{2}$/.test(cleaned)) {
-        return { value: cleaned };
-      }
-      return { error: `תאריך לא תקין: ${value}` };
+    // DD/MM/YYYY
+    if (/^\d{2}\/\d{2}\/\d{4}$/.test(cleaned)) {
+      const [day, month, year] = cleaned.split("/");
+      return { value: `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}` };
     }
 
-    return { error: `תאריך לא מזוהה: ${String(value)}` };
-  };
+    // YYYY-MM-DD
+    if (/^\d{4}-\d{2}-\d{2}$/.test(cleaned)) {
+      return { value: cleaned };
+    }
+
+    return { error: `תאריך לא תקין: ${value}` };
+  }
+
+  return { error: `תאריך לא מזוהה: ${String(value)}` };
+};
+
+// לשימור תאימות אחורה (אם פונקציות אחרות משתמשות בשם הישן):
+const parseMounthField = parseDateField;
 
 
   const splitFullName = (
@@ -291,7 +352,20 @@ useEffect(() => {
           newRow["_mounthError"] = parsedDate.error;
         }
       }
-
+// ... בתוך ה-map של parsedData
+// עיבוד שדה תאריך "cancellationDate"
+const excelFieldForCancellation = Object.keys(mapping).find(
+  (col) => mapping[col] === "cancellationDate"
+);
+if (excelFieldForCancellation) {
+  const rawCancelDate = row[excelFieldForCancellation];
+  const parsedCancel = parseDateField(rawCancelDate);
+  newRow[excelFieldForCancellation] = parsedCancel.value ?? rawCancelDate;
+  newRow["cancellationDate"] = parsedCancel.value ?? rawCancelDate; // לשמירה תקנית
+  if (parsedCancel.error) {
+    newRow["_cancellationDateError"] = parsedCancel.error;
+  }
+}
       // עיבוד שדה עובד
       const workerField = Object.keys(mapping).find((col) => mapping[col] === "workerName");
       if (workerField) {
@@ -407,7 +481,13 @@ if (sourceLeadField) {
     const validMounth = /^\d{4}-\d{2}-\d{2}$/.test(String(row["mounth"] || "").trim());
     const validStatus = !reverseMap["statusPolicy"] || statusPolicies.includes(statusValue);
     const validMinuySochen = !reverseMap["minuySochen"] || minuyValue === "" || ["כן", "לא"].includes(minuyValue);
-  
+    const validCancellationDate =
+    !reverseMap["cancellationDate"] ||
+    String(row[reverseMap["cancellationDate"]] || "").trim() === "" ||
+    /^\d{4}-\d{2}-\d{2}$/.test(
+      String(row["cancellationDate"] || row[reverseMap["cancellationDate"]] || "").trim()
+    );
+
     console.log("🧪 תוצאה:", {
       hasRequired,
       validCompany,
@@ -419,7 +499,8 @@ if (sourceLeadField) {
       validStatus,
       validMinuySochen,
       validWorker,
-      validSourceLead
+      validSourceLead,
+      validCancellationDate,
     });
   
     let isValid = hasRequired &&
@@ -442,6 +523,10 @@ if (sourceLeadField) {
     if (reverseMap["sourceLeadName"]) {
       isValid = isValid && validSourceLead;
     }
+
+    if (reverseMap["cancellationDate"]) {
+      isValid = isValid && validCancellationDate;
+    }
     if (!isValid) {
       console.warn("❌ שורה לא תקינה – הגורמים האפשריים:", {
         firstNameValue,
@@ -452,7 +537,9 @@ if (sourceLeadField) {
         statusValue,
         minuyValue,
         workerValue,
-        sourceLeadValue
+        sourceLeadValue,
+        cancellationDate: row["cancellationDate"],
+        mounth: row["mounth"],
       });
     }
     
@@ -501,7 +588,19 @@ if (sourceLeadField) {
         delete updatedRow["_mounthError"];
       }
     }
-  
+    if (field === "cancellationDate") {
+      const parsed = parseDateField(value);
+      updatedRow["cancellationDate"] = parsed.value || value;
+      if (excelField) {
+        updatedRow[excelField] = parsed.value || value;
+      }
+      if (parsed.error) {
+        updatedRow["_cancellationDateError"] = parsed.error;
+      } else {
+        delete updatedRow["_cancellationDateError"];
+      }
+    }
+    
     // עובד
     if (field === "workerName") {
       const worker = workers.find(w => w.name.toLowerCase() === value.trim().toLowerCase());
@@ -633,8 +732,9 @@ if (field === "sourceLeadName") {
       for (const [excelCol, systemField] of Object.entries(mapping)) {
         if (systemField === "mounth") {
           mappedRow[systemField] = String(originalRow["mounth"] ?? "").trim();
-        } else {
-          mappedRow[systemField] = String(originalRow[excelCol] ?? "").trim();
+        } else if (systemField === "cancellationDate") {
+          mappedRow[systemField] = String(originalRow["cancellationDate"] ?? "").trim(); // ← חדש
+        } else {          mappedRow[systemField] = String(originalRow[excelCol] ?? "").trim();
         }
       }
 
@@ -685,6 +785,7 @@ if (field === "sourceLeadName") {
           finansimZvira: mappedRow.finansimZvira || 0,
           mounth: mappedRow.mounth || "",
           minuySochen: String(mappedRow.minuySochen || "").trim() === "כן",
+          cancellationDate: mappedRow.cancellationDate || "",  // ← חדש
           statusPolicy: mappedRow.statusPolicy || "",
           notes: mappedRow.notes || "",
           createdAt: serverTimestamp(),
@@ -1013,7 +1114,34 @@ if (field === "sourceLeadName") {
                                 </div>
                               );
                             }
-
+                            if (field === 'cancellationDate') {
+                              const error = row['_cancellationDateError'];
+                              const value = row['cancellationDate'] || '';
+                            
+                              const isInvalidFormat =
+                                value && !/^\d{4}-\d{2}-\d{2}$/.test(String(value).trim());
+                            
+                              return (
+                                <div>
+                                  <input
+                                    type="date"
+                                    value={value}
+                                    style={{
+                                      ...inputStyle,
+                                      backgroundColor: error || isInvalidFormat ? '#ffe6e6' : inputStyle.backgroundColor,
+                                    }}
+                                    onChange={(e) => handleFieldChange(idx, 'cancellationDate', e.target.value)}
+                                  />
+                                  {error && <div style={{ color: 'red', fontSize: '0.75rem' }}>{error}</div>}
+                                  {isInvalidFormat && !error && (
+                                    <div style={{ color: 'red', fontSize: '0.75rem' }}>
+                                      פורמט תאריך לא תקין (ציפינו YYYY-MM-DD)
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            }                            
+                            
                             if (field === 'workerName') {
                               const error = row['_workerError'];
                               console.log("🧩 workerName render debug", {
@@ -1051,12 +1179,13 @@ if (field === "sourceLeadName") {
                               const error = row['_sourceLeadError'];
                               const currentValue = row[h] || '';
                             
-                              const validValue = sourceLeads.includes(currentValue);
-                            
+                              // const validValue = sourceLeads.includes(currentValue);
+                              const validValue = !!currentValue && sourceLeads.includes(currentValue.toLowerCase().trim());
+
                               return (
                                 <div>
                                   <select
-                                    value={validValue ? currentValue : ''}
+                                    value={validValue ? currentValue : ''} // משאיר את הערך המקורי אם הוא תקין
                                     onChange={(e) => handleFieldChange(idx, 'sourceLeadName', e.target.value)}
                                     style={{
                                       ...inputStyle,
@@ -1068,10 +1197,10 @@ if (field === "sourceLeadName") {
                                       <option key={i} value={name}>{name}</option>
                                     ))}
                                   </select>
-                                  {error && renderError(error)}
+                                  {error && <div style={{ color: 'red', fontSize: '0.75rem' }}>{error}</div>}
                                 </div>
                               );
-                            }                                                 
+                            }                                    
                             
                             if (isInvalidCompany) {
                               return (
@@ -1192,6 +1321,8 @@ if (field === "sourceLeadName") {
                           let value;
                           if (fieldKey === "mounth") {
                             value = row["mounth"];
+                          } else if (fieldKey === "cancellationDate") {
+                            value = row["cancellationDate"]; // ← חדש
                           } else if (excelCol) {
                             value = row[excelCol];
                           } else {

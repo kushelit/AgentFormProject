@@ -23,7 +23,7 @@ const pages = [
       { href: '/importCommissionHub/ExcelCommissionImporter', label: 'קליטת קבצים' },
       { href: '/importCommissionHub/CommissionComparison', label: 'השוואת טעינות' },
       { href: '/importCommissionHub/CommissionSummary', label: 'דף מסכם עמלות' },
-      { href: '/importCommissionHub/CompareRealToReported', label: 'השוואה לעמלה בפועל' },
+      // { href: '/importCommissionHub/CompareRealToReported', label: 'השוואה לעמלה בפועל' },
     ],
   },
   {

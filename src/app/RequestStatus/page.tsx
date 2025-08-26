@@ -8,7 +8,7 @@ import { usePermission } from "@/hooks/usePermission";
 
 const RequestStatusPage = () => {
   const { user, isLoading, detail } = useAuth();
-  const { canAccess, isChecking } = usePermission("access_requestStatusApi");
+  const { canAccess, isChecking } = usePermission(user ? "access_requestStatusApi" : null);
 
   const [isClient, setIsClient] = useState(false);
   const [ready, setReady] = useState(false);
@@ -27,8 +27,8 @@ const RequestStatusPage = () => {
     isLoading ||
     isChecking ||
     !ready ||
-    user === undefined ||
-    detail === undefined
+    !user ||
+    !detail
   ) {
     return <div className="p-4 text-gray-600">⏳ טוען מידע...</div>;
   }

@@ -8,7 +8,7 @@ import { usePermission } from "@/hooks/usePermission";
 
 const NewCustomerPage = () => {
   const { user, isLoading, detail } = useAuth();
-  const { canAccess, isChecking } = usePermission("access_customer");
+  const { canAccess, isChecking } = usePermission(user ? "access_customer" : null);
 
   const [ready, setReady] = useState(false);
   const [isClient, setIsClient] = useState(false);

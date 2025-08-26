@@ -8,7 +8,7 @@ import AccessDenied from '@/components/AccessDenied';
 
 const ReportsPage = () => {
   const { user, isLoading, detail } = useAuth();
-  const { canAccess, isChecking } = usePermission('access_reports'); // או כל הרשאה שתגדירי לדוחות
+  const { canAccess, isChecking } = usePermission(user ? 'access_reports' : null); 
 
   const [ready, setReady] = useState(false);
   const [isClient, setIsClient] = useState(false);

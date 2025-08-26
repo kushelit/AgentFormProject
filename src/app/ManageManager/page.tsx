@@ -8,7 +8,7 @@ import { usePermission } from "@/hooks/usePermission";
 
 const ManageManagerPage = () => {
   const { user, isLoading, detail } = useAuth();
-  const { canAccess, isChecking } = usePermission("access_manageManager");
+  const { canAccess, isChecking } = usePermission(user ? "access_manageManager" : null);
 
   const [isClient, setIsClient] = useState(false);
   const [ready, setReady] = useState(false);
@@ -23,7 +23,7 @@ const ManageManagerPage = () => {
   }, []);
 
   // טעינה / המתנה לרנדר בצד לקוח
-  if (!isClient || isLoading || isChecking || !ready || user === undefined || detail === undefined) {
+  if (!isClient || isLoading || isChecking || !ready || !user || !detail) {
     return (
       <div className="p-4 text-gray-600">
         ⏳ טוען מידע...

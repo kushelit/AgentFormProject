@@ -1,5 +1,3 @@
-// app/Commission/ExcelCommissionImporterPage.tsx
-
 'use client';
 
 import { Suspense, useEffect, useState } from "react";
@@ -9,18 +7,13 @@ import AccessDenied from "@/components/AccessDenied";
 import { usePermission } from "@/hooks/usePermission";
 
 const ExcelCommissionImporterPage = () => {
-  const { user, isLoading } = useAuth();
-  const { canAccess, isChecking } = usePermission("access_commissionImport");
+  const { user, isLoading, detail } = useAuth();
+  const { canAccess, isChecking } = usePermission(user ? "access_commission_import" : null);
 
   const [ready, setReady] = useState(false);
   const [isClient, setIsClient] = useState(false);
 
-  // זיהוי צד לקוח בלבד
-  useEffect(() => {
-    setIsClient(true);
-  }, []);
-
-  // השהיית הצגה חלקה
+  useEffect(() => { setIsClient(true); }, []);
   useEffect(() => {
     const timer = setTimeout(() => setReady(true), 300);
     return () => clearTimeout(timer);
@@ -28,7 +21,7 @@ const ExcelCommissionImporterPage = () => {
 
   if (!isClient) return null;
 
-  if (isLoading || isChecking || !ready || user === undefined) {
+  if (isLoading || isChecking || !ready || !user || !detail) {
     return <div className="p-4 text-gray-600">⏳ טוען מידע...</div>;
   }
 
@@ -40,7 +33,7 @@ const ExcelCommissionImporterPage = () => {
     );
   }
 
-  if (!canAccess) {
+  if (canAccess === false) {
     return <AccessDenied />;
   }
 

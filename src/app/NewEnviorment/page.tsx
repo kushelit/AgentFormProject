@@ -8,7 +8,7 @@ import { usePermission } from "@/hooks/usePermission";
 
 const NewEnviormentPage = () => {
   const { user, isLoading } = useAuth();
-  const { canAccess, isChecking } = usePermission("access_manageEnviorment");
+  const { canAccess, isChecking } = usePermission(user ? "access_manageEnviorment" : null);
 
   const [ready, setReady] = useState(false);
   const [isClient, setIsClient] = useState(false);
@@ -28,7 +28,7 @@ const NewEnviormentPage = () => {
   if (!isClient) return null;
 
   // שלבי טעינה
-  if (isLoading || isChecking || !ready || user === undefined) {
+  if (isLoading || isChecking || !ready || !user) {
     return <div className="p-4 text-gray-600">⏳ טוען מידע...</div>;
   }
 

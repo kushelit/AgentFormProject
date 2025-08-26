@@ -126,9 +126,17 @@ const signUp = async (email: string, password: string) => {
 };
 
 const logOut = async () => {
-  return signOut(auth);
+  try {
+    // קודם כל נקה את הסטייט מיד
+    setUser(null);
+    setDetail(null);
+    
+    // עכשיו התנתק מFirebase
+    await signOut(auth);
+  } catch (error) {
+    console.error('Error signing out:', error);
+  }
 };
-
   // מניעת רינדור אם לא ב-client
   if (!isClient) return null;
 

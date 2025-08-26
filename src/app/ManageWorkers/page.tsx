@@ -10,7 +10,7 @@ const ManageWorkersPage = () => {
   const { user, isLoading } = useAuth();
   const [ready, setReady] = useState(false);
 
-  const { canAccess, isChecking } = usePermission("access_manageWorkers");
+  const { canAccess, isChecking } = usePermission(user ? "access_manageWorkers" : null);
 
   useEffect(() => {
     const timer = setTimeout(() => setReady(true), 300);
@@ -18,7 +18,7 @@ const ManageWorkersPage = () => {
   }, []);
 
   // שלב טעינה
-  if (isLoading || isChecking || !ready || user === undefined) {
+  if (isLoading || isChecking || !ready || !user) {
     return <div className="p-4 text-gray-600">⏳ טוען מידע...</div>;
   }
 

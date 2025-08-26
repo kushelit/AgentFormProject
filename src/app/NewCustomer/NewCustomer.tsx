@@ -31,6 +31,7 @@ import CustomerExternalOverview from '@/components/CustomerExternalOverview';
 
 const NewCustomer = () => {
 
+
   const isNewDesignEnabled = useDesignFlag();
 
   const [firstNameCustomer, setfirstNameCustomer] = useState('');
@@ -50,6 +51,12 @@ const NewCustomer = () => {
   const [parentFullNameFilter, setParentFullNameFilter] = useState("");
  // const [customerData, setCustomerData] = useState<any[]>([]);
  const router = useRouter();
+
+
+ const {
+  canAccess: canSeeExternalOverview,
+  isChecking: isCheckingExternalOverview
+} = usePermission(user ? 'access_commission_import' : null);
 
   const [totalCommissions, setTotalCommissions] = useState({ totalCommissionHekef: 0, totalCommissionNifraim: 0 });
 
@@ -1746,21 +1753,23 @@ const totals = useMemo(() => {
               </tbody>
             </table>           
           </div>
-          <CustomerExternalOverview
-  agentId={selectedAgentId}
-  customerIds={familyIds}
-  companies={companies}
-  initialCompany={selectedCompanyFilter || ''}
-  initialRepYm={repYm}
-  initialSplitEnabled={isCommissionSplitEnabled}
-  contracts={contracts}
-  productMap={productMap}
-  onParamsChange={({ company, repYm, splitEnabled }) => {
-    setSelectedCompanyFilter(company);
-    setRepYm(repYm);
-    setIsCommissionSplitEnabled(splitEnabled);
-  }}
-/>
+          {!isCheckingExternalOverview && canSeeExternalOverview ? (
+  <CustomerExternalOverview
+    agentId={selectedAgentId}
+    customerIds={familyIds}
+    companies={companies}
+    initialCompany={selectedCompanyFilter || ''}
+    initialRepYm={repYm}
+    initialSplitEnabled={isCommissionSplitEnabled}
+    contracts={contracts}
+    productMap={productMap}
+    onParamsChange={({ company, repYm, splitEnabled }) => {
+      setSelectedCompanyFilter(company);
+      setRepYm(repYm);
+      setIsCommissionSplitEnabled(splitEnabled);
+    }}
+  />
+) : null}
         </div>
       </div>
   );

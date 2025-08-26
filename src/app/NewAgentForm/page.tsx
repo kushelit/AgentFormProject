@@ -12,7 +12,7 @@ const NewAgentFormPage = () => {
   const [ready, setReady] = useState(false);
   const [isClient, setIsClient] = useState(false);
 
-  const { canAccess, isChecking } = usePermission("access_agentForm");
+  const { canAccess, isChecking } = usePermission(user ? "access_agentForm" : null);
 
   useEffect(() => {
     setIsClient(true);

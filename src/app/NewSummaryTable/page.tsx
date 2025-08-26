@@ -8,7 +8,7 @@ import { usePermission } from "@/hooks/usePermission";
 
 const NewSummaryTablePage = () => {
   const { user, isLoading, detail } = useAuth();
-  const { canAccess, isChecking } = usePermission("access_summaryTable");
+  const { canAccess, isChecking } = usePermission(user ? "access_summaryTable" : null);
 
   const [isClient, setIsClient] = useState(false);
   const [ready, setReady] = useState(false);
@@ -22,7 +22,7 @@ const NewSummaryTablePage = () => {
     return () => clearTimeout(timer);
   }, []);
 
-  if (!isClient || isLoading || isChecking || !ready || user === undefined || detail === undefined) {
+  if (!isClient || isLoading || isChecking || !ready ||!user || !detail) {
     return <div className="p-4 text-gray-600">⏳ טוען מידע...</div>;
   }
 

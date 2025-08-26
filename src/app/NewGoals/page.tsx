@@ -8,7 +8,7 @@ import { usePermission } from "@/hooks/usePermission";
 
 const NewGoalsPage = () => {
   const { user, isLoading } = useAuth();
-  const { canAccess, isChecking } = usePermission("access_manageGoals");
+  const { canAccess, isChecking } = usePermission(user ? "access_manageGoals" : null);
 
   const [ready, setReady] = useState(false);
   const [isClient, setIsClient] = useState(false);
@@ -28,7 +28,7 @@ const NewGoalsPage = () => {
   if (!isClient) return null;
 
   // שלבי טעינה
-  if (isLoading || isChecking || !ready || user === undefined) {
+  if (isLoading || isChecking || !ready || !user) {
     return <div className="p-4 text-gray-600">⏳ טוען מידע...</div>;
   }
 

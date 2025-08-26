@@ -10,7 +10,7 @@ const ManageContractsPage = () => {
   const { user, isLoading } = useAuth();
   const [ready, setReady] = useState(false);
 
-  const { canAccess, isChecking } = usePermission("access_manageContracts");
+  const { canAccess, isChecking } = usePermission(user ? "access_manageContracts" : null);
 
   useEffect(() => {
     const timer = setTimeout(() => setReady(true), 300);
@@ -18,7 +18,7 @@ const ManageContractsPage = () => {
   }, []);
 
   // שלב טעינה
-  if (isLoading || isChecking || !ready || user === undefined) {
+  if (isLoading || isChecking || !ready || !user) {
     return (
       <div className="p-4 text-gray-600">
         ⏳ טוען מידע...

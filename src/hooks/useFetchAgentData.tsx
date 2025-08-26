@@ -64,6 +64,8 @@ const useFetchAgentData = () => {
   }, [user, detail]);
 
 
+
+
   useEffect(() => {
     if (!user || !detail || agents.length > 0 || isLoading) return;
   
@@ -188,7 +190,8 @@ useEffect(() => {
       return;
     }
   
-    const workersQuery = query(collection(db, 'users'), where('agentId', '==', agentId), where('role', 'in', ['worker', 'agent', 'manager']));
+    const workersQuery = query(collection(db, 'users'), where('agentId', '==', agentId),
+     where('role', 'in', ['worker', 'agent', 'manager']));
     try {
       const querySnapshot = await getDocs(workersQuery);
       const workersData: Worker[] = [];
@@ -275,17 +278,27 @@ useEffect(() => {
     }
   };
 
-
-
   useEffect(() => {
+    // בדיקת user לפני קריאת Firebase
+    if (!user || !user.uid) {
+      console.log("No user - skipping companies fetch");
+      setCompanies([]);
+      return;
+    }
+  
     const fetchCompanies = async () => {
-      const querySnapshot = await getDocs(collection(db, 'company'));
-      const companiesList = querySnapshot.docs.map(doc => doc.data().companyName); 
-      setCompanies(companiesList);
+      try {
+        const querySnapshot = await getDocs(collection(db, 'company'));
+        const companiesList = querySnapshot.docs.map(doc => doc.data().companyName); 
+        setCompanies(companiesList);
+      } catch (error) {
+        console.error('Failed to fetch companies:', error);
+        setCompanies([]);
+      }
     };
-
+  
     fetchCompanies();
-  }, []);
+  }, [user]); // user כתלות
 
  
 

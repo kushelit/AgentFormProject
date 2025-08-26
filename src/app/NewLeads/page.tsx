@@ -8,7 +8,7 @@ import { usePermission } from "@/hooks/usePermission";
 
 const NewLeadsPage = () => {
   const { user, isLoading, detail } = useAuth();
-  const { canAccess, isChecking } = usePermission("access_flow");
+  const { canAccess, isChecking } = usePermission(user ? "access_flow" : null);
 
   const [ready, setReady] = useState(false);
   const [isClient, setIsClient] = useState(false);

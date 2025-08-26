@@ -212,6 +212,17 @@ const normCompany = (v: any): string =>
   
     const str = value.toString().trim();
   
+
+    // 🔹 קודם כל: DD/MM/YYYY או D/M/YYYY (כולל נקודות ומקפים)
+let m = str.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{2}|\d{4})$/);
+if (m) {
+  let [, _day, mm, yy] = m;
+  const yyyy = yy.length === 2
+    ? (parseInt(yy, 10) < 50 ? `20${yy}` : `19${yy}`)
+    : yy;
+  return `${yyyy}-${mm.padStart(2, '0')}`;
+}
+
     // 🟡 תבנית מנורה – תאריך ממספר עמודה
     if (templateId === 'menura_insurance' && /^\d{5}$/.test(str)) {
       const numeric = parseInt(str, 10);

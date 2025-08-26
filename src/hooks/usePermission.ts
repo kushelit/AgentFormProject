@@ -23,7 +23,7 @@ type FullUser = {
   [key: string]: any;
 };
 
-export function usePermission(permission: string): {
+export function usePermission(permission: string | null): {
   canAccess: boolean | null;
   isChecking: boolean;
 } {
@@ -33,19 +33,32 @@ export function usePermission(permission: string): {
 
   const [subscriptionPermissionsMap, setSubscriptionPermissionsMap] = useState<Record<string, string[]>>({});
 
+  
   useEffect(() => {
+    // בדיקת user לפני קריאת Firebase
+    if (!user || !user.uid || !permission) {
+      console.log("No user or permission - clearing subscription permissions");
+      setSubscriptionPermissionsMap({});
+      return;
+    }
+  
     const fetchSubscriptionPermissions = async () => {
-      const snapshot = await getDocs(collection(db, 'subscriptions_permissions'));
-      const result: Record<string, string[]> = {};
-      snapshot.forEach((doc) => {
-        const data = doc.data();
-        result[doc.id] = data.permissions || [];
-      });
-      setSubscriptionPermissionsMap(result);
+      try {
+        const snapshot = await getDocs(collection(db, 'subscriptions_permissions'));
+        const result: Record<string, string[]> = {};
+        snapshot.forEach((doc) => {
+          const data = doc.data();
+          result[doc.id] = data.permissions || [];
+        });
+        setSubscriptionPermissionsMap(result);
+      } catch (error) {
+        console.error('Failed to fetch subscription permissions:', error);
+        setSubscriptionPermissionsMap({});
+      }
     };
-
+  
     fetchSubscriptionPermissions();
-  }, []);
+  }, [user, permission]);
 
   const rolePermissions = useMemo(() => {
     if (!role) return [];
@@ -62,13 +75,16 @@ export function usePermission(permission: string): {
     ...user,
   }), [user, detail, subscriptionId]);
 
-  const isChecking = isLoading || !user || !detail || rolePermissions.length === 0;
+  const isChecking = isLoading || !user || !detail  || !permission|| rolePermissions.length === 0;
 
   const canAccess = useMemo(() => {
+
+    if (!user || !permission) return false;
+
     if (isChecking) return null; // עדיין בטעינה
     return hasPermission({
       user: fullUser,
-      permission,
+      permission: permission,
       rolePermissions,
       subscriptionPermissionsMap,
     });

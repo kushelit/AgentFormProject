@@ -15,9 +15,9 @@ const ManagePoolAgentsPage = () => {
     return () => clearTimeout(timer);
   }, []);
 
-  const { canAccess, isChecking } = usePermission("access_managePoolAgents");
+  const { canAccess, isChecking } = usePermission( user ? "access_managePoolAgents" : null );
 
-  if (isLoading || !ready || isChecking || user === undefined) {
+  if (isLoading || !ready || isChecking || !user) {
     return <div className="p-4 text-gray-600">⏳ טוען מידע...</div>;
   }
 

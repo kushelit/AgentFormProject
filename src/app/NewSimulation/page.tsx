@@ -8,7 +8,7 @@ import { usePermission } from "@/hooks/usePermission";
 
 const NewSimulationPage = () => {
   const { user, isLoading, detail } = useAuth();
-  const { canAccess, isChecking } = usePermission("access_simulation");
+  const { canAccess, isChecking } = usePermission(user ? "access_simulation" : null);
 
   const [isClient, setIsClient] = useState(false);
   const [ready, setReady] = useState(false);
@@ -24,7 +24,7 @@ const NewSimulationPage = () => {
     return () => clearTimeout(timer);
   }, []);
 
-  if (!isClient || isLoading || isChecking || !ready || user === undefined || detail === undefined) {
+  if (!isClient || isLoading || isChecking || !ready || !user || !detail ) {
     return <div className="p-4 text-gray-600">⏳ טוען מידע...</div>;
   }
 
