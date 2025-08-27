@@ -1,4 +1,4 @@
-// ✅ ChangePlanModal.tsx - עם שדה קופון, חישוב הנחה, ועדכון בשרת
+// ✅ ChangePlanModal.tsx – עדכני
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -12,28 +12,37 @@ interface Plan {
   name: string;
   price: number;
   description: string;
+  // אופציונלי אם מגיע מה-API שלך:
+  permissions?: string[];
+  maxUsers?: number;
 }
 
 interface ChangePlanModalProps {
   userId: string;
-  transactionToken: string;
-  transactionId: string;
-  asmachta: string;
+  transactionToken?: string;
+  transactionId?: string;
+  asmachta?: string;
   currentPlan?: string;
   currentAddOns?: {
     leadsModule?: boolean;
     extraWorkers?: number;
   };
+  prefill?: {
+    name?: string;
+    email?: string;
+    phone?: string;
+    idNumber?: string;
+  };
   onClose: () => void;
 }
 
-const planDescriptions: { [key: string]: string } = {
+const planDescriptions: Record<string, string> = {
   basic: 'מנוי לסוכן אחד בלבד',
   pro: 'מנוי לסוכן + 2 עובדים, ניתן להוסיף עובדים נוספים בתשלום',
   enterprise: 'מנוי מותאם אישית – יטופל בנפרד',
 };
 
-const planFeatures: { [key: string]: string[] } = {
+const planFeatures: Record<string, string[]> = {
   basic: [
     '✔️ ניהול עסקאות בצורה פשוטה ונוחה',
     '✔️ יצירה ועדכון של לקוחות ומשפחות',
@@ -66,25 +75,42 @@ export const ChangePlanModal: React.FC<ChangePlanModalProps> = ({
   asmachta,
   currentPlan,
   currentAddOns,
+  prefill,
   onClose,
 }) => {
   const [plans, setPlans] = useState<Plan[]>([]);
   const [selectedPlan, setSelectedPlan] = useState<string | null>(currentPlan || null);
-  const [withLeadsModule, setWithLeadsModule] = useState(currentAddOns?.leadsModule ?? false);
-  const [extraWorkers, setExtraWorkers] = useState(currentAddOns?.extraWorkers ?? 0);
-  const [couponCode, setCouponCode] = useState('');
-  const [discount, setDiscount] = useState(0);
-  const [couponError, setCouponError] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [withLeadsModule, setWithLeadsModule] = useState<boolean>(currentAddOns?.leadsModule ?? false);
+  const [extraWorkers, setExtraWorkers] = useState<number>(currentAddOns?.extraWorkers ?? 0);
+
+  const [couponCode, setCouponCode] = useState<string>('');
+  const [discount, setDiscount] = useState<number>(0);
+  const [couponError, setCouponError] = useState<string>('');
+
+  const [loading, setLoading] = useState<boolean>(false);
+  const [showConfirmDialog, setShowConfirmDialog] = useState<boolean>(false);
+
   const { toasts, addToast, setToasts } = useToast();
+
+  // האם יש הוראת קבע קיימת? (זרימה 2)
+  const hasGrow = Boolean(transactionToken && transactionId && asmachta);
+
+  // שדות השלמה לפופאפ (רק כשאין הוראת קבע קיימת)
+  const [idNumberInput, setIdNumberInput] = useState<string>(prefill?.idNumber ?? '');
+  const [phoneInput, setPhoneInput] = useState<string>(prefill?.phone ?? '');
+
+  // שמירה על סנכרון אם ה-prefill השתנה
+  useEffect(() => {
+    setIdNumberInput(prefill?.idNumber ?? '');
+    setPhoneInput(prefill?.phone ?? '');
+  }, [prefill?.idNumber, prefill?.phone]);
 
   useEffect(() => {
     const fetchPlans = async () => {
       try {
         const res = await axios.get('/api/subscription-plans');
         setPlans(res.data);
-        if (currentPlan && res.data.find((plan: Plan) => plan.id === currentPlan)) {
+        if (currentPlan && res.data.find((p: Plan) => p.id === currentPlan)) {
           setSelectedPlan(currentPlan);
         } else if (res.data.length > 0) {
           setSelectedPlan(res.data[0].id);
@@ -97,15 +123,11 @@ export const ChangePlanModal: React.FC<ChangePlanModalProps> = ({
   }, [currentPlan]);
 
   useEffect(() => {
-    if (selectedPlan !== 'pro') {
-      setExtraWorkers(0);
-    }
+    if (selectedPlan !== 'pro') setExtraWorkers(0);
   }, [selectedPlan]);
 
   useEffect(() => {
-    if (couponCode && selectedPlan) {
-      checkCoupon(couponCode, selectedPlan);
-    }
+    if (couponCode && selectedPlan) checkCoupon(couponCode, selectedPlan);
   }, [couponCode, selectedPlan]);
 
   const checkCoupon = async (code: string, plan: string) => {
@@ -128,47 +150,66 @@ export const ChangePlanModal: React.FC<ChangePlanModalProps> = ({
   };
 
   const calculateTotal = () => {
-    const base = plans.find(p => p.id === selectedPlan)?.price || 0;
+    const base = plans.find((p) => p.id === selectedPlan)?.price || 0;
     const leadsPrice = withLeadsModule ? 29 : 0;
     const workersPrice = selectedPlan === 'pro' ? extraWorkers * 49 : 0;
     let total = base + leadsPrice + workersPrice;
-    if (discount > 0) {
-      total -= total * (discount / 100);
-    }
-
+    if (discount > 0) total -= total * (discount / 100);
     const VAT_RATE = 0.18;
-    total *= (1 + VAT_RATE);
-
+    total *= 1 + VAT_RATE;
     return Math.max(1, parseFloat(total.toFixed(2)));
   };
 
   const handleConfirmUpgrade = async () => {
-    if (!selectedPlan || !transactionToken || !transactionId || !asmachta || !userId) return;
+    if (!selectedPlan || !userId) return;
     setLoading(true);
     try {
-      const res = await axios.post('/api/upgrade-plan', {
-        id: userId,
-        transactionToken,
-        transactionId,
-        asmachta,
-        newPlanId: selectedPlan,
-        couponCode,
-        addOns: {
-          leadsModule: withLeadsModule,
-          extraWorkers: selectedPlan === 'pro' ? extraWorkers : 0,
-        },
-      });
-      if (res.data.success) {
+      if (hasGrow) {
+        // זרימה 2 – עדכון הוראת קבע קיימת
+        const res = await axios.post('/api/upgrade-plan', {
+          id: userId,
+          transactionToken,
+          transactionId,
+          asmachta,
+          newPlanId: selectedPlan,
+          couponCode,
+          addOns: {
+            leadsModule: withLeadsModule,
+            extraWorkers: selectedPlan === 'pro' ? extraWorkers : 0,
+          },
+        });
+        if (!res.data?.success) throw new Error('Grow update failed');
         addToast('success', 'המנוי עודכן בהצלחה');
         setTimeout(() => {
           onClose();
           window.location.reload();
-        }, 2000);
+        }, 1500);
       } else {
-        addToast('error', 'שגיאה בעדכון התוכנית');
+        // זרימה 3 – יצירת הוראת קבע חדשה למשתמש קיים (UID קיים)
+        const { data } = await axios.post('/api/create-subscription', {
+          existingUserUid: userId,                // ⭐ מקשר ל-UID הקיים
+          source: 'existing-user-upgrade',        // ⭐ שה-webhook יידע לא ליצור יוזר
+          plan: selectedPlan,
+          addOns: {
+            leadsModule: withLeadsModule,
+            extraWorkers: selectedPlan === 'pro' ? extraWorkers : 0,
+          },
+          couponCode: couponCode?.trim() || undefined,
+          // דואגים שהטופס של Grow יתמלא; השם יילקח מ-prefill בצד שרת
+          fullName: prefill?.name,
+          email: prefill?.email,
+          phone: phoneInput || prefill?.phone,
+          idNumber: idNumberInput || prefill?.idNumber,
+        });
+
+        if (data?.paymentUrl) {
+          window.location.href = data.paymentUrl; // מעבר לתשלום ב-Grow
+          return;
+        }
+        throw new Error('Missing paymentUrl');
       }
     } catch (err) {
-      console.error('שגיאה בעת ניסיון לשדרג את התוכנית:', err);
+      console.error('שגיאה בעת שינוי התוכנית:', err);
       addToast('error', 'שגיאה בעדכון התוכנית');
     } finally {
       setLoading(false);
@@ -187,7 +228,7 @@ export const ChangePlanModal: React.FC<ChangePlanModalProps> = ({
 
         <div className="mb-6 bg-blue-50 border border-blue-200 p-3 rounded text-sm text-blue-800">
           <p className="font-semibold mb-1">מה יהיה כלול לאחר השינוי:</p>
-          {selectedPlan && <p>✔ תוכנית: {plans.find(p => p.id === selectedPlan)?.name}</p>}
+          {selectedPlan && <p>✔ תוכנית: {plans.find((p) => p.id === selectedPlan)?.name}</p>}
           {selectedPlan === 'pro' && extraWorkers > 0 && <p>✔ {extraWorkers} עובדים נוספים</p>}
           {!withLeadsModule && (selectedPlan !== 'pro' || extraWorkers === 0) && <p>אין תוספים נוספים</p>}
         </div>
@@ -204,18 +245,14 @@ export const ChangePlanModal: React.FC<ChangePlanModalProps> = ({
               <h3 className="text-lg font-bold mb-2">{plan.name}</h3>
               <p className="text-sm text-gray-600 mb-3">{planDescriptions[plan.id]}</p>
               <ul className="text-sm text-gray-700 space-y-1 mt-2 pr-2">
-                {planFeatures[plan.id]?.map((feature, index) => (
-                  <li key={index} className="flex items-center gap-2">
-                    <span className="text-green-600 font-bold">
-                      {feature.startsWith('📞') ? '📞' : '✔️'}
-                    </span>
+                {planFeatures[plan.id]?.map((feature, i) => (
+                  <li key={i} className="flex items-center gap-2">
+                    <span className="text-green-600 font-bold">{feature.startsWith('📞') ? '📞' : '✔️'}</span>
                     <span>{feature.replace(/^✔️ |^📞 /, '')}</span>
                   </li>
                 ))}
               </ul>
-              {plan.id !== 'enterprise' && (
-                <p className="text-xl font-bold mt-4">₪{plan.price} + מע&quot;מ</p>
-              )}
+              {plan.id !== 'enterprise' && <p className="text-xl font-bold mt-4">₪{plan.price} + מע&quot;מ</p>}
             </div>
           ))}
         </div>
@@ -243,15 +280,38 @@ export const ChangePlanModal: React.FC<ChangePlanModalProps> = ({
               placeholder="יש לך קופון?"
             />
             {couponError && <p className="text-red-600 text-sm mt-1">{couponError}</p>}
-            {discount > 0 && (
-              <p className="text-green-700 text-sm font-medium mt-1">
-                קופון הנחה של {discount}% הופעל
-              </p>
-            )}
+            {discount > 0 && <p className="text-green-700 text-sm font-medium mt-1">קופון הנחה של {discount}% הופעל</p>}
           </div>
         </div>
 
-<p className="font-bold text-lg mt-4">סה&quot;כ לתשלום (כולל מע&quot;מ): ₪{calculateTotal()}</p>
+        {/* השלמת פרטים רק כשאין הוראת קבע קיימת */}
+        {!hasGrow && (
+          <div className="space-y-3 mt-6 border rounded p-3 bg-gray-50">
+            <p className="text-sm text-gray-700 font-semibold">השלמת פרטים לפתיחת הוראת קבע</p>
+
+            <label className="block">
+              <span className="block mb-1 font-semibold">ת״ז / ח״פ *</span>
+              <input
+                value={idNumberInput}
+                onChange={(e) => setIdNumberInput(e.target.value)}
+                className="w-full border rounded px-3 py-2 text-right"
+                required
+              />
+            </label>
+
+            <label className="block">
+              <span className="block mb-1 font-semibold">טלפון נייד *</span>
+              <input
+                value={phoneInput}
+                onChange={(e) => setPhoneInput(e.target.value)}
+                className="w-full border rounded px-3 py-2 text-right"
+                required
+              />
+            </label>
+          </div>
+        )}
+
+        <p className="font-bold text-lg mt-4">סה&quot;כ לתשלום (כולל מע&quot;מ): ₪{calculateTotal()}</p>
 
         <div className="flex justify-end gap-4 mt-6">
           <button
@@ -261,22 +321,18 @@ export const ChangePlanModal: React.FC<ChangePlanModalProps> = ({
           >
             {loading ? 'טוען...' : 'החלף תוכנית'}
           </button>
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300 transition"
-          >
+          <button type="button" onClick={onClose} className="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300 transition">
             סגור
           </button>
         </div>
 
-        {toasts.map((toast) => (
+        {toasts.map((t) => (
           <ToastNotification
-            key={toast.id}
-            type={toast.type}
-            className={toast.isHiding ? 'hide' : ''}
-            message={toast.message}
-            onClose={() => setToasts((prev) => prev.filter((t) => t.id !== toast.id))}
+            key={t.id}
+            type={t.type}
+            className={t.isHiding ? 'hide' : ''}
+            message={t.message}
+            onClose={() => setToasts((prev) => prev.filter((x) => x.id !== t.id))}
           />
         ))}
 

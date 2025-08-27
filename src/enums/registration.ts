@@ -6,7 +6,8 @@ export const REGISTRATION_REASONS = [
   'alreadyExists',
   'disabled',
   'invalidCoupon',
-  'unknown'
+  'unknown',
+  'existing-user-not-found'
 ] as const;
 
 export type RegistrationSource = typeof REGISTRATION_SOURCES[number];

@@ -25,6 +25,8 @@ interface UserSubscriptionPopupProps {
     leadsModule?: boolean;
     extraWorkers?: number;
   };
+  // מומלץ להוסיף אם יש לך ת"ז ב-DB ורוצה להעביר הלאה ל-ChangePlanModal
+  idNumber?: string;
 }
 
 export const UserSubscriptionPopup: React.FC<UserSubscriptionPopupProps> = ({
@@ -40,18 +42,26 @@ export const UserSubscriptionPopup: React.FC<UserSubscriptionPopupProps> = ({
   onClose,
   userId,
   addOns,
+  idNumber,
 }) => {
   const [showChangeModal, setShowChangeModal] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
   const [showCancelDialog, setShowCancelDialog] = useState(false);
 
-  const { logOut } = useAuth();
+  const { user, logOut } = useAuth(); // ← נביא גם את user כדי להשתמש כפולבק
   const router = useRouter();
   const { toasts, addToast, setToasts } = useToast();
+
+  // Fallbacks לתצוגה במקרה שההורה לא העביר props
+  const displayName  = name  ?? (user as any)?.name ?? user?.displayName ?? '-';
+  const displayEmail = email ?? user?.email ?? '-';
+  const displayPhone = phone ?? (user as any)?.phone ?? (user as any)?.phoneNumber ?? '-';
+  const displayIdNum = idNumber ?? (user as any)?.idNumber; // לא חובה לתצוגה, כן מועיל כ-prefill
 
   const planNames: { [key: string]: string } = {
     basic: 'מנוי בסיסי',
     pro: 'מנוי מקצועי',
+    enterprise: 'Enterprise', // ליתר בטחון
   };
 
   const renderInfoRow = (label: string, value?: string | null) => (
@@ -64,7 +74,6 @@ export const UserSubscriptionPopup: React.FC<UserSubscriptionPopupProps> = ({
   const handleCancelSubscription = async () => {
     if (!userId || !transactionToken || !transactionId || !asmachta) return;
     setIsCancelling(true);
-  
     try {
       const res = await axios.post('/api/cancelSubscription', {
         id: userId,
@@ -73,13 +82,9 @@ export const UserSubscriptionPopup: React.FC<UserSubscriptionPopupProps> = ({
         asmachta,
         sendCancelEmail: true,
       });
-  
       if (res.data.success) {
         addToast("success", res.data.message || "✅ המנוי בוטל בהצלחה. חשבונך הושהה.");
-  
-        // המתנה 3 שניות לפני התנתקות
-        await new Promise(resolve => setTimeout(resolve, 3000));
-  
+        await new Promise(r => setTimeout(r, 3000));
         await logOut();
         onCancel?.();
         onClose?.();
@@ -95,8 +100,7 @@ export const UserSubscriptionPopup: React.FC<UserSubscriptionPopupProps> = ({
       setShowCancelDialog(false);
     }
   };
-  
-  
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-30 z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-xl shadow-xl max-w-xl w-full p-6 text-right relative">
@@ -110,13 +114,13 @@ export const UserSubscriptionPopup: React.FC<UserSubscriptionPopupProps> = ({
         <h2 className="text-2xl font-bold mb-6 text-blue-800">פרטי המנוי שלך</h2>
 
         <div className="space-y-3 text-sm">
-          {renderInfoRow('שם', name)}
-          {renderInfoRow('אימייל', email)}
-          {renderInfoRow('טלפון', phone)}
-          {renderInfoRow('סטטוס מנוי', subscriptionStatus)}
-          {renderInfoRow('מסלול נוכחי', planNames[subscriptionType ?? ''] || '-')}
-          {renderInfoRow('מספר עסקה', transactionId)}
-          {renderInfoRow('אסמכתא', asmachta)}
+          {renderInfoRow('שם', displayName)}
+          {renderInfoRow('אימייל', displayEmail)}
+          {renderInfoRow('טלפון', displayPhone)}
+          {renderInfoRow('סטטוס מנוי', subscriptionStatus ?? (user as any)?.subscriptionStatus)}
+          {renderInfoRow('מסלול נוכחי', planNames[subscriptionType ?? (user as any)?.subscriptionType ?? ''] || '-')}
+          {renderInfoRow('מספר עסקה', transactionId ?? (user as any)?.transactionId)}
+          {renderInfoRow('אסמכתא', asmachta ?? (user as any)?.asmachta)}
         </div>
 
         <div className="flex justify-end mt-6 gap-3">
@@ -143,27 +147,30 @@ export const UserSubscriptionPopup: React.FC<UserSubscriptionPopupProps> = ({
           </button>
         </div>
 
-        {toasts.length > 0 &&
-          toasts.map((toast) => (
-            <ToastNotification
-              key={toast.id}
-              type={toast.type}
-              className={toast.isHiding ? 'hide' : ''}
-              message={toast.message}
-              onClose={() =>
-                setToasts((prevToasts) => prevToasts.filter((t) => t.id !== toast.id))
-              }
-            />
-          ))}
+        {toasts.map((toast) => (
+          <ToastNotification
+            key={toast.id}
+            type={toast.type}
+            className={toast.isHiding ? 'hide' : ''}
+            message={toast.message}
+            onClose={() => setToasts((prev) => prev.filter((t) => t.id !== toast.id))}
+          />
+        ))}
 
         {showChangeModal && (
           <ChangePlanModal
             userId={userId}
-            transactionId={transactionId || ''}
-            transactionToken={transactionToken || ''}
-            asmachta={asmachta || ''}
-            currentPlan={subscriptionType || ''}
-            currentAddOns={addOns}
+            transactionId={transactionId || (user as any)?.transactionId || ''}
+            transactionToken={transactionToken || (user as any)?.transactionToken || ''}
+            asmachta={asmachta || (user as any)?.asmachta || ''}
+            currentPlan={subscriptionType || (user as any)?.subscriptionType || ''}
+            currentAddOns={addOns || (user as any)?.addOns}
+            prefill={{
+              name: displayName,
+              email: displayEmail,
+              phone: displayPhone,
+              idNumber: displayIdNum,
+            }}
             onClose={() => setShowChangeModal(false)}
           />
         )}

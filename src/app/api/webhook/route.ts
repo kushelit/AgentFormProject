@@ -1,36 +1,23 @@
+// /api/webhook/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { parse } from 'querystring';
 import { admin } from '@/lib/firebase/firebase-admin';
 import { GROW_BASE_URL, APP_BASE_URL } from '@/lib/env';
 import { logRegistrationIssue } from '@/services/logRegistrationIssue';
-import { SubscriptionType, AddOnType } from '@/enums/subscription';
-
-
 
 export const dynamic = 'force-dynamic';
 
-// מוודאת שלמשתמש יש גורם MFA מסוג טלפון (Idempotent) + לוגים עוזרים
+// ---- Utils ----
 async function ensureMfaPhone(uid: string, phoneE164?: string) {
   console.log('[ensureMfaPhone] start', { uid, phoneE164 });
-  if (!phoneE164 || !phoneE164.startsWith('+')) {
-    console.log('[ensureMfaPhone] skip: invalid phone', phoneE164);
-    return;
-  }
+  if (!phoneE164 || !phoneE164.startsWith('+')) return;
 
   const before = await admin.auth().getUser(uid);
   const current = before.multiFactor?.enrolledFactors ?? [];
-  console.log('[ensureMfaPhone] before factors:',
-    current.map(f => ({ factorId: (f as any).factorId, phone: (f as any).phoneNumber }))
-  );
 
-  // אם כבר קיים אותו מספר — אין מה לעשות
   const already = current.find((f: any) => f?.factorId === 'phone' && f?.phoneNumber === phoneE164);
-  if (already) {
-    console.log('[ensureMfaPhone] already enrolled with this phone');
-    return;
-  }
+  if (already) return;
 
-  // משמרים גורמי טלפון קיימים
   const keepPhones = current
     .filter((f: any) => f?.factorId === 'phone')
     .map((f: any) => ({
@@ -41,12 +28,7 @@ async function ensureMfaPhone(uid: string, phoneE164?: string) {
     }));
 
   const updated = await admin.auth().updateUser(uid, {
-    multiFactor: {
-      enrolledFactors: [
-        ...keepPhones,
-        { phoneNumber: phoneE164, displayName: 'Main phone', factorId: 'phone' as const },
-      ],
-    },
+    multiFactor: { enrolledFactors: [...keepPhones, { phoneNumber: phoneE164, displayName: 'Main phone', factorId: 'phone' as const }] },
   });
 
   console.log('[ensureMfaPhone] after factors:',
@@ -56,22 +38,15 @@ async function ensureMfaPhone(uid: string, phoneE164?: string) {
   await admin.auth().revokeRefreshTokens(uid);
 }
 
-
-
-// מחזירה +972XXXXXXXXX או undefined אם לא מצליחים לנרמל
 const formatPhone = (raw?: string) => {
   if (!raw) return undefined;
-  let s = raw.replace(/[\s\-()]/g, '').trim(); // הורדת רווחים/מקפים/סוגריים
-
-  if (s.startsWith('00')) s = '+' + s.slice(2); // 00 -> +
+  let s = raw.replace(/[\s\-()]/g, '').trim();
+  if (s.startsWith('00')) s = '+' + s.slice(2);
   if (s.startsWith('+972')) return s;
-  if (s.startsWith('972')) return '+' + s;      // 972 -> +972
-
-  if (s.startsWith('0')) return '+972' + s.slice(1); // מקומי -> +972...
-
-  if (s.startsWith('+')) return s; // מדינות אחרות – נשאיר
-
-  if (/^\d{9,10}$/.test(s)) {      // ספרות בלבד
+  if (s.startsWith('972')) return '+' + s;
+  if (s.startsWith('0')) return '+972' + s.slice(1);
+  if (s.startsWith('+')) return s;
+  if (/^\d{9,10}$/.test(s)) {
     if (s.length === 10 && s.startsWith('0')) s = s.slice(1);
     return '+972' + s;
   }
@@ -79,54 +54,36 @@ const formatPhone = (raw?: string) => {
 };
 
 const approveTransaction = async (transactionId: string, transactionToken: string, pageCode: string) => {
-  console.log('📤 ApproveTransaction – התחלה');
-  console.log('🧾 פרמטרים שנשלחו:', { transactionId, transactionToken, pageCode });
-
   try {
     const formData = new URLSearchParams();
     formData.append('transactionId', transactionId);
     formData.append('transactionToken', transactionToken);
     formData.append('pageCode', pageCode);
 
-    // const res = await fetch('https://sandbox.meshulam.co.il/api/light/server/1.0/approveTransaction', {
-
-      const res = await fetch(`${GROW_BASE_URL}/approveTransaction`, {
+    const res = await fetch(`${GROW_BASE_URL}/approveTransaction`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: formData.toString(),
     });
-
     const responseText = await res.text();
-
-    console.log('📬 תשובת Grow:', responseText);
-
-    if (!res.ok) {
-      console.error('❌ Grow החזיר שגיאה:', res.status, res.statusText);
-    } else {
-      console.log('✅ ApproveTransaction הצליח ✔️');
-    }
+    console.log('📬 Grow approveTransaction response:', responseText);
   } catch (err) {
-    console.error('⚠️ שגיאה בתקשורת עם Grow:', err);
+    console.error('⚠️ approveTransaction error:', err);
   }
 };
 
+// ---- Webhook ----
 export async function POST(req: NextRequest) {
   try {
-    console.log('📥 Webhook triggered');
-
-    const contentType = req.headers.get('content-type') || '';
-    if (!contentType.includes('application/x-www-form-urlencoded')) {
+    if (!(req.headers.get('content-type') || '').includes('application/x-www-form-urlencoded')) {
       return NextResponse.json({ error: 'Invalid content type' }, { status: 400 });
     }
 
     const rawBody = await req.text();
     const data = parse(rawBody);
-
     console.log('📩 Raw Grow webhook payload:\n', JSON.stringify(data, null, 2));
 
-
+    // Base fields
     const statusCode = data['data[statusCode]']?.toString();
     const paymentStatus = statusCode === '2' ? 'success' : 'failed';
     const subscriptionStatus = statusCode === '2' ? 'active' : 'failed';
@@ -135,33 +92,30 @@ export async function POST(req: NextRequest) {
     const email = (data['data[payerEmail]'] ?? data.payerEmail)?.toString();
     const phone = (data['data[payerPhone]'] ?? data.payerPhone)?.toString();
     const processId = (data['data[processId]'] ?? data.processId)?.toString();
+
     const customField = (data['data[customFields][cField1]'] ?? data['customFields[cField1]'])?.toString() ?? '';
     const subscriptionType = (data['data[customFields][cField2]'] ?? data['customFields[cField2]'])?.toString() ?? '';
+    const addOnsRaw = (data['data[customFields][cField3]'] ?? data['customFields[cField3]']);
+    const source = (data['data[customFields][cField4]'] ?? data['customFields[cField4]'])?.toString() ?? '';
+    const couponCode = (data['data[customFields][cField5]'] ?? data['customFields[cField5]'])?.toString() ?? '';
+    const idNumber = (data['data[customFields][cField7]'] ?? data['customFields[cField7]'])?.toString() ?? '';
+    const rawPageCode = (data['data[customFields][cField8]'] ?? data['customFields[cField8]']);
+    const pageCode = Array.isArray(rawPageCode) ? rawPageCode[0] : rawPageCode?.toString() ?? '';
+
+    // ⭐️ חדש: UID של משתמש קיים
+    const rawUid = (data['data[customFields][cField9]'] ?? data['customFields[cField9]']);
+    const existingUid = Array.isArray(rawUid) ? rawUid[0] : rawUid?.toString() ?? '';
+
     const transactionId = (data['data[transactionId]'] ?? data.transactionId)?.toString();
     const transactionToken = (data['data[transactionToken]'] ?? data.transactionToken)?.toString();
     const asmachta = (data['data[asmachta]'] ?? data.asmachta)?.toString();
-    const addOnsRaw = data['data[customFields][cField3]'] || data['customFields[cField3]'];
-    const source = (data['data[customFields][cField4]'] ?? data['customFields[cField4]'])?.toString() ?? '';
-    const addOns = addOnsRaw ? JSON.parse(addOnsRaw.toString()) : {};
-    const couponCode = (data['data[customFields][cField5]'] ?? data['customFields[cField5]'])?.toString() ?? '';
-    const idNumber = (data['data[customFields][cField7]'] ?? data['customFields[cField7]'])?.toString() ?? '';
-    const rawPageCode = data['data[customFields][cField8]'] ?? data['customFields[cField8]'];
-    const pageCode = Array.isArray(rawPageCode) ? rawPageCode[0] : rawPageCode?.toString() ?? '';
 
-    // const totalCharged = Number(
-    //   data['data[customFields][cField6]'] || 
-    //   0
-    // );
-
+    const addOns = addOnsRaw ? JSON.parse((Array.isArray(addOnsRaw) ? addOnsRaw[0] : addOnsRaw).toString()) : {};
     const formattedPhone = formatPhone(phone);
 
     const rawSum = data['data[sum]'];
     const sumStr = Array.isArray(rawSum) ? rawSum[0] : rawSum || '0';
-    const totalCharged = parseFloat(sumStr.replace(',', '.'));  
-
-    console.log('📦 Debug fields:', {
-      statusCode, email, fullName, phone, processId, customField, subscriptionType
-    });
+    const totalCharged = parseFloat(sumStr.replace(',', '.'));
 
     if (!statusCode || !email || !fullName || !phone || !processId) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
@@ -169,245 +123,231 @@ export async function POST(req: NextRequest) {
 
     const db = admin.firestore();
     const auth = admin.auth();
-    // const usersRef = db.collection('users');
-    let agenciesValue;
-    let couponUsed: {
-      code: string;
-      discount: number;
-      date: FirebaseFirestore.Timestamp;
-    } | undefined;
-    
+
+    // --- קופון (לוגים/אג׳נסי/שימוש) ---
+    let agenciesValue: any;
+    let couponUsed:
+      | { code: string; discount: number; date: FirebaseFirestore.Timestamp }
+      | undefined;
+
     if (couponCode) {
       try {
-        const couponSnap = await db.collection('coupons').doc(couponCode.trim()).get();
+        // אם אתה מנהל לפי docId=code:
+        let couponSnap = await db.collection('coupons').doc(couponCode.trim()).get();
+        if (!couponSnap.exists) {
+          // fallback אם מנהלים כ־code field
+          const byCode = await db.collection('coupons').where('code', '==', couponCode.trim()).limit(1).get();
+          if (!byCode.empty) couponSnap = byCode.docs[0];
+        }
+
         if (couponSnap.exists) {
-          const couponData = couponSnap.data();
+          const couponData = couponSnap.data()!;
           agenciesValue = couponData?.agencies;
-    
-          const discount = couponData?.planDiscounts?.[subscriptionType]; // ← הכי חשוב
+          const discount = couponData?.planDiscounts?.[subscriptionType];
           const isActive = couponData?.isActive;
-    
           if (typeof discount === 'number' && isActive) {
-            couponUsed = {
-              code: couponCode,
-              discount,
-              date: admin.firestore.Timestamp.now(),
-            };
+            couponUsed = { code: couponCode, discount, date: admin.firestore.Timestamp.now() };
           }
         }
       } catch (err) {
-        console.error('⚠️ שגיאה בשליפת הקופון:', err);
+        console.error('⚠️ coupon fetch error:', err);
       }
     }
-    
 
-const snapshot = await db.collection('users').where('customField', '==', customField).get();
-const paymentDate = new Date();
+    // --- מציאת משתמש יעד ---
+    const usersCol = db.collection('users');
+    let userDocRef: FirebaseFirestore.DocumentReference | null = null;
+    let userData: any = null;
 
-let userDocRef = null;
-let userData = null;
-
-if (!snapshot.empty) {
-  userDocRef = snapshot.docs[0].ref;
-  const userSnap = await userDocRef.get();
-  userData = userSnap.data();
-} else {
-  // ננסה לפי email
-  try {
-    const existingUser = await auth.getUserByEmail(email);
-    console.log('🔍 User found in Auth:', existingUser.uid);
-
-    userDocRef = db.collection('users').doc(existingUser.uid);
-    const userSnap = await userDocRef.get();
-
-    if (userSnap.exists) {
-      userData = userSnap.data();
+    // 1) אם הגיע UID קיים — ננסה קודם לפיו
+    if (existingUid) {
+      const docRef = usersCol.doc(existingUid);
+      const docSnap = await docRef.get();
+      if (docSnap.exists) {
+        userDocRef = docRef;
+        userData = docSnap.data();
+      } else {
+        console.warn('⚠️ cField9 provided but user not found:', existingUid);
+      }
     }
-  } catch {
-    console.log('ℹ️ No existing user found – will create new user');
-  }
-}
 
-if (userDocRef) {
-  // בדיקת כפילות ב-transactionId
-  if (transactionId && transactionId === userData?.transactionId) {
-    console.log('⏭ Webhook skipped – duplicate transactionId');
-    return NextResponse.json({ skipped: true, reason: 'duplicate transactionId' });
-  }
+    // 2) אם עדיין לא מצאנו — customField
+    if (!userDocRef && customField) {
+      const byCustom = await usersCol.where('customField', '==', customField).limit(1).get();
+      if (!byCustom.empty) {
+        userDocRef = byCustom.docs[0].ref;
+        userData = (await userDocRef.get()).data();
+      }
+    }
 
-  if (source === 'manual-upgrade') {
-    console.log('⏭ Skipping webhook update due to manual upgrade');
-    return NextResponse.json({ skipped: true });
-  }
+    // 3) אם עדיין לא — לפי email דרך Auth
+    if (!userDocRef) {
+      try {
+        const authUser = await auth.getUserByEmail(email);
+        const ref = usersCol.doc(authUser.uid);
+        const snap = await ref.get();
+        if (snap.exists) {
+          userDocRef = ref;
+          userData = snap.data();
+        }
+      } catch {
+        // ignore
+      }
+    }
 
-  const updateFields: any = {
-    isActive: true,
-    phone: formattedPhone,
-    cancellationDate: admin.firestore.FieldValue.delete(),
-    growCancellationStatus: admin.firestore.FieldValue.delete(),
-    'permissionOverrides.allow': admin.firestore.FieldValue.delete(),
-    'permissionOverrides.deny': admin.firestore.FieldValue.delete(),
-    'futureChargeAmount': admin.firestore.FieldValue.delete(),
-    subscriptionStatus,
-    totalCharged,
-    subscriptionStartDate: new Date(),
-    lastPaymentStatus: paymentStatus,
-    lastPaymentDate: paymentDate,
-    
-  };
-  if (fullName && fullName !== userData?.name) {
-    updateFields.name = fullName;
-  }  
+    // ⛔️ זרימה 2: manual-upgrade → ה-webhook מדלג
+    if (source === 'manual-upgrade') {
+      console.log('⏭ Skipping webhook update due to manual-upgrade');
+      return NextResponse.json({ skipped: true, reason: 'manual-upgrade' });
+    }
 
- 
-  // if (agenciesValue) updateFields.agencies = agenciesValue;
-  // if (couponCode) updateFields.usedCouponCode = couponCode;
-  // ניהול couponCode ו-agencies
-if (couponCode) {
-  updateFields.usedCouponCode = couponCode;
-  if (agenciesValue !== undefined) {
-    updateFields.agencies = agenciesValue;
-  }
-  if (couponUsed) {
-    updateFields.couponUsed = couponUsed;
-  }
-} else {
-  updateFields.usedCouponCode = admin.firestore.FieldValue.delete();
-  updateFields.agencies = admin.firestore.FieldValue.delete();
-  updateFields.couponUsed = admin.firestore.FieldValue.delete();
-}
-
-  if (transactionId && transactionId !== userData?.transactionId) updateFields.transactionId = transactionId;
-  if (transactionToken && transactionToken !== userData?.transactionToken) updateFields.transactionToken = transactionToken;
-  if (asmachta && asmachta !== userData?.asmachta) updateFields.asmachta = asmachta;
-  if (processId && processId !== userData?.subscriptionId) updateFields.subscriptionId = processId;
-  if (subscriptionType && subscriptionType !== userData?.subscriptionType) updateFields.subscriptionType = subscriptionType;
-  if (idNumber && idNumber !== userData?.idNumber) updateFields.idNumber = idNumber;
-  if (pageCode && pageCode !== userData?.pageCode) {
-    updateFields.pageCode = pageCode;
-  }
-  if (addOns && JSON.stringify(addOns) !== JSON.stringify(userData?.addOns)) {
-    updateFields.addOns = {
-      leadsModule: !!addOns.leadsModule,
-      extraWorkers: addOns.extraWorkers || 0,
-    };
-  }
-
-  const planChanged =
-    (subscriptionType && subscriptionType !== userData?.subscriptionType) ||
-    (addOns && JSON.stringify(addOns) !== JSON.stringify(userData?.addOns));
-
-  await userDocRef.update(updateFields);
-  console.log('🟢 Updated user in Firestore');
-
-
-// 🆕 ✅ הוספת ApproveTransaction כאן:
-if (statusCode === '2' && transactionId && transactionToken && pageCode) {
-  console.log('📌 תנאים ל־ApproveTransaction מולאו – מתחיל קריאה ל־Grow');
-  await approveTransaction(transactionId, transactionToken, pageCode);
-}
-
-
-  try {
-    const user = await auth.getUserByEmail(email);
-
-// 📧 ודאי אימות מייל לפני רישום MFA (נדרש ע"י Admin SDK)
-if (!user.emailVerified) {
-  await auth.updateUser(user.uid, { emailVerified: true });
-  console.log('📧 emailVerified set true for', user.uid);
-}
-
-
-// 📞 עדכון טלפון ב-Auth אם השתנה
-
-    if (formattedPhone && user.phoneNumber !== formattedPhone) {
-      await auth.updateUser(user.uid, {
-        phoneNumber: formattedPhone
+    // ⛔️ זרימה 3: אם מדובר ב-existing-user-upgrade ואין יוזר — לא יוצרים חדש
+    if (!userDocRef && source === 'existing-user-upgrade') {
+      console.error('❌ existing-user-upgrade but user not found; not creating a new user');
+      await logRegistrationIssue({
+        email,
+        phone,
+        name: fullName,
+        source: 'webhook',
+        reason: 'existing-user-not-found',
+        type: 'agent',
+        subscriptionType,
+        addOns,
+        transactionId,
+        processId,
+        pageCode,
+        couponCode,
+        idNumber,
       });
-      console.log('📞 Updated phone number in Firebase Auth');
+      return NextResponse.json({ skipped: true, reason: 'existing-user-not-found' });
     }
 
-    // ✅ להבטיח MFA פעיל למספר
-    try {
-      await ensureMfaPhone(user.uid, formattedPhone);
-    } catch (e) {
-      console.warn('[ensureMfaPhone] skipped:', (e as any)?.message || e);
-    }
+    const paymentDate = new Date();
 
-    if (planChanged && !user.disabled) {
-      // await fetch('https://test.magicsale.co.il/api/sendEmail', {
+    if (userDocRef) {
+      // הגנה מכפילויות
+      if (transactionId && transactionId === userData?.transactionId) {
+        console.log('⏭ duplicate transactionId, skipping');
+        return NextResponse.json({ skipped: true, reason: 'duplicate transactionId' });
+      }
+
+      // עדכון
+      const updateFields: any = {
+        isActive: true,
+        phone: formattedPhone,
+        cancellationDate: admin.firestore.FieldValue.delete(),
+        growCancellationStatus: admin.firestore.FieldValue.delete(),
+        'permissionOverrides.allow': admin.firestore.FieldValue.delete(),
+        'permissionOverrides.deny': admin.firestore.FieldValue.delete(),
+        futureChargeAmount: admin.firestore.FieldValue.delete(),
+        subscriptionStatus,
+        totalCharged,
+        subscriptionStartDate: new Date(),
+        lastPaymentStatus: paymentStatus,
+        lastPaymentDate: paymentDate,
+      };
+
+      if (fullName && fullName !== userData?.name) updateFields.name = fullName;
+      if (couponCode) {
+        updateFields.usedCouponCode = couponCode;
+        if (agenciesValue !== undefined) updateFields.agencies = agenciesValue;
+        if (couponUsed) updateFields.couponUsed = couponUsed;
+      } else {
+        updateFields.usedCouponCode = admin.firestore.FieldValue.delete();
+        updateFields.agencies = admin.firestore.FieldValue.delete();
+        updateFields.couponUsed = admin.firestore.FieldValue.delete();
+      }
+
+      if (transactionId && transactionId !== userData?.transactionId) updateFields.transactionId = transactionId;
+      if (transactionToken && transactionToken !== userData?.transactionToken) updateFields.transactionToken = transactionToken;
+      if (asmachta && asmachta !== userData?.asmachta) updateFields.asmachta = asmachta;
+      if (processId && processId !== userData?.subscriptionId) updateFields.subscriptionId = processId;
+      if (subscriptionType && subscriptionType !== userData?.subscriptionType) updateFields.subscriptionType = subscriptionType;
+      if (idNumber && idNumber !== userData?.idNumber) updateFields.idNumber = idNumber;
+      if (pageCode && pageCode !== userData?.pageCode) updateFields.pageCode = pageCode;
+
+      if (addOns && JSON.stringify(addOns) !== JSON.stringify(userData?.addOns)) {
+        updateFields.addOns = {
+          leadsModule: !!addOns.leadsModule,
+          extraWorkers: addOns.extraWorkers || 0,
+        };
+      }
+
+      const planChanged =
+        (subscriptionType && subscriptionType !== userData?.subscriptionType) ||
+        (addOns && JSON.stringify(addOns) !== JSON.stringify(userData?.addOns));
+
+      await userDocRef.update(updateFields);
+      console.log('🟢 Updated user in Firestore');
+
+      // Auto-approve grow when success
+      if (statusCode === '2' && transactionId && transactionToken && pageCode) {
+        await approveTransaction(transactionId, transactionToken, pageCode);
+      }
+
+      // עדכוני Auth ותקשורת
+      try {
+        const user = await auth.getUserByEmail(email);
+        if (!user.emailVerified) await auth.updateUser(user.uid, { emailVerified: true });
+        if (formattedPhone && user.phoneNumber !== formattedPhone) {
+          await auth.updateUser(user.uid, { phoneNumber: formattedPhone });
+        }
+        try { await ensureMfaPhone(user.uid, formattedPhone); } catch (e) { console.warn('[ensureMfaPhone] skipped:', (e as any)?.message || e); }
+
+        if (planChanged && !user.disabled) {
+          await fetch(`${APP_BASE_URL}/api/sendEmail`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              to: email,
+              subject: 'עדכון תוכנית במערכת MagicSale',
+              html: `שלום ${fullName},<br><br>תוכנית המנוי שלך עודכנה בהצלחה במערכת MagicSale.<br>סוג מנוי נוכחי: <strong>${subscriptionType}</strong><br><br>תוכל להתחבר כאן: <a href="${APP_BASE_URL}/auth/log-in">כניסה למערכת</a>`,
+            }),
+          });
+        }
+
+        if (user.disabled) await auth.updateUser(user.uid, { disabled: false });
+
+        const resetLink = await auth.generatePasswordResetLink(email);
         await fetch(`${APP_BASE_URL}/api/sendEmail`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          to: email,
-          subject: 'עדכון תוכנית במערכת MagicSale',
-          html: `שלום ${fullName},<br><br>תוכנית המנוי שלך עודכנה בהצלחה במערכת MagicSale.<br>סוג מנוי נוכחי: <strong>${subscriptionType}</strong><br><br>תוכל להתחבר למערכת כאן:<br><a href="${APP_BASE_URL}/auth/log-in">כניסה למערכת</a><br><br>בברכה,<br>צוות MagicSale`,
-        }),
-      });
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            to: email,
+            subject: 'איפוס סיסמה לאחר חידוש מנוי',
+            html: `שלום ${fullName},<br><br>המנוי שלך חודש בהצלחה.<br>לאיפוס סיסמה: <a href="${resetLink}">לחצי כאן</a>`,
+          }),
+        });
+      } catch {
+        console.log('⚠️ Firebase Auth user not found for update');
+      }
+
+      return NextResponse.json({ updated: true });
     }
 
-    if (user.disabled) {
-      await auth.updateUser(user.uid, { disabled: false });
-      console.log('✅ Firebase Auth user re-enabled');
-    }
-
-    const resetLink = await auth.generatePasswordResetLink(email);
-
-    // await fetch('https://test.magicsale.co.il/api/sendEmail', {
-      await fetch(`${APP_BASE_URL}/api/sendEmail`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        to: email,
-        subject: 'איפוס סיסמה לאחר חידוש מנוי',
-        html: `שלום ${fullName},<br><br>המנוי שלך במערכת MagicSale חודש בהצלחה!<br>אם ברצונך להיכנס, באפשרותך לאפס את הסיסמה שלך כאן:<br><a href="${resetLink}">איפוס סיסמה</a><br><br>בהצלחה,<br>צוות MagicSale`,
-      }),
-    });
-  } catch {
-    console.log('⚠️ Firebase Auth user not found');
-  }
-
-  return NextResponse.json({ updated: true });
-}
-    // ✳️ יצירת משתמש חדש
+    // --- Public signup (אין userDocRef) → יצירת משתמש חדש ---
     const newUser = await auth.createUser({
       email,
       password: Math.random().toString(36).slice(-8),
       displayName: fullName,
       phoneNumber: formattedPhone,
-      emailVerified: true, // 📧 חשוב: מאפשר רישום MFA דרך Admin SDK
+      emailVerified: true,
     });
 
-    // ✅ להבטיח MFA פעיל למספר
-    try {
-      await ensureMfaPhone(newUser.uid, formattedPhone);
-    } catch (e) {
-      console.warn('[ensureMfaPhone] skipped:', (e as any)?.message || e);
-    }
-    const resetLink = await auth.generatePasswordResetLink(email);
+    try { await ensureMfaPhone(newUser.uid, formattedPhone); } catch (e) { console.warn('[ensureMfaPhone] skipped:', (e as any)?.message || e); }
 
-    // await fetch('https://test.magicsale.co.il/api/sendEmail', {
-      await fetch(`${APP_BASE_URL}/api/sendEmail`, {
+    const resetLink = await auth.generatePasswordResetLink(email);
+    await fetch(`${APP_BASE_URL}/api/sendEmail`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         to: email,
-        subject: 'ברוך הבא ל-MagicSale – הגדרת סיסמה',
-        html: `
-          שלום ${fullName},<br><br>
-          תודה על ההרשמה למערכת MagicSale!<br>
-          להשלמת ההרשמה והתחברות ראשונה, נא לקבוע סיסמה דרך הקישור הבא:<br>
-          <a href="${resetLink}">קביעת סיסמה</a><br><br>
-          ולאחר מכן להתחבר כאן: <a href="${APP_BASE_URL}/auth/log-in">כניסה למערכת</a><br><br>
-          בהצלחה!<br>
-          צוות MagicSale
-        `,
+        subject: 'ברוך/ה הבא/ה ל-MagicSale – הגדרת סיסמה',
+        html: `שלום ${fullName},<br>תודה על ההרשמה! לקביעת סיסמה: <a href="${resetLink}">לחצו כאן</a>`,
       }),
     });
 
-    // await db.collection('users').doc(newUser.uid).set({
-      const newUserData: any = {
+    const newUserData: any = {
       name: fullName,
       idNumber,
       email,
@@ -418,14 +358,11 @@ if (!user.emailVerified) {
       asmachta: asmachta || null,
       subscriptionStatus,
       subscriptionType,
-      addOns: {
-        leadsModule: !!addOns.leadsModule,
-        extraWorkers: addOns.extraWorkers || 0,
-      },
+      addOns: { leadsModule: !!addOns.leadsModule, extraWorkers: addOns.extraWorkers || 0 },
       lastPaymentStatus: paymentStatus,
-      lastPaymentDate: paymentDate,
+      lastPaymentDate: new Date(),
       totalCharged,
-      subscriptionStartDate: new Date(), 
+      subscriptionStartDate: new Date(),
       role: 'agent',
       agentId: newUser.uid,
       customField,
@@ -433,53 +370,38 @@ if (!user.emailVerified) {
       isActive: true,
     };
 
-    
-// רק אם יש ערך - נוסיף לשדה
-if (agenciesValue !== undefined) {
-  newUserData.agencies = agenciesValue;
-}
-if (couponCode) {
-  newUserData.usedCouponCode = couponCode;
-}
-if (couponUsed) {
-  newUserData.couponUsed = couponUsed;
-}
+    if (typeof agenciesValue !== 'undefined') newUserData.agencies = agenciesValue;
+    if (couponCode) newUserData.usedCouponCode = couponCode;
+    if (couponUsed) newUserData.couponUsed = couponUsed;
 
-
-await db.collection('users').doc(newUser.uid).set(newUserData);
-
+    await db.collection('users').doc(newUser.uid).set(newUserData);
     console.log('🆕 Created new user');
 
-    // 📌 אם התשלום לא מאושר – נרשום בעיה
-if (statusCode !== '2') {
-  await logRegistrationIssue({
-    email,
-    phone,
-    name: fullName,
-    source: 'webhook',
-    reason: 'disabled',
-    type: 'agent', // או 'worker'
-    subscriptionType,
-    addOns,
-    transactionId,
-    processId,
-    pageCode,
-    couponCode,
-    idNumber,
-  });
-  
-}
+    if (statusCode !== '2') {
+      await logRegistrationIssue({
+        email,
+        phone,
+        name: fullName,
+        source: 'webhook',
+        reason: 'disabled',
+        type: 'agent',
+        subscriptionType,
+        addOns,
+        transactionId,
+        processId,
+        pageCode,
+        couponCode,
+        idNumber,
+      });
+    }
 
-    // 🆕 ✅ הוספת ApproveTransaction כאן:
-if (statusCode === '2' && transactionId && transactionToken && pageCode) {
-  console.log('📌 תנאים ל־ApproveTransaction מולאו – מתחיל קריאה ל־Grow');
-  await approveTransaction(transactionId, transactionToken, pageCode);
-}
+    if (statusCode === '2' && transactionId && transactionToken && pageCode) {
+      await approveTransaction(transactionId, transactionToken, pageCode);
+    }
 
     return NextResponse.json({ created: true });
   } catch (err: any) {
     console.error('❌ Webhook error:', err);
-    
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }

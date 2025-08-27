@@ -55,24 +55,33 @@ export const TopBar = ({ prop = true, className }) => {
       </div>
 
       {/* הפופאפ מחוץ ל-top-bar */}
-      {user && showPopup && detail?.subscriptionId && detail?.role !== 'worker' && (
-     <UserSubscriptionPopup
-     name={detail?.name}
-     email={detail?.email}
-     phone={detail?.phone}
-     subscriptionStatus={detail?.subscriptionStatus}
-     subscriptionType={detail?.subscriptionType}
-     transactionId={detail?.transactionId}
-     transactionToken={detail?.transactionToken}
-     asmachta={detail?.asmachta}
-     userId={user?.uid || ''}
-     addOns={{
-       leadsModule: detail?.addOns?.leadsModule || false,
-       extraWorkers: detail?.addOns?.extraWorkers || 0
-     }}
-     onCancel={() => setShowPopup(false)}
-     onClose={() => setShowPopup(false)}
-   />   
+      {/* {user && showPopup && detail?.subscriptionId && detail?.role !== 'worker' && ( */}
+      {user && showPopup && detail?.role !== 'worker' && (
+    <UserSubscriptionPopup
+    subscriptionStatus={detail?.subscriptionStatus}
+    subscriptionType={detail?.subscriptionType}
+    transactionId={detail?.transactionId}
+    transactionToken={detail?.transactionToken}
+    asmachta={detail?.asmachta}
+    userId={user?.uid || ''}
+  
+    addOns={{
+      leadsModule: detail?.addOns?.leadsModule || false,
+      extraWorkers: detail?.addOns?.extraWorkers || 0
+    }}
+  
+    // מקור אמת יחיד לערכי ברירת־מחדל בפופאפ
+    prefill={{
+      name:      detail?.name      ?? user?.name,
+      email:     detail?.email     ?? user?.email,
+      phone:     detail?.phone     ?? user?.phone,
+      idNumber:  detail?.idNumber  ?? user?.idNumber,
+    }}
+  
+    onCancel={() => setShowPopup(false)}
+    onClose={() => setShowPopup(false)}
+  />
+  
       )}
     </>
   );
