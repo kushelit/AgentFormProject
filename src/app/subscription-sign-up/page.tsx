@@ -52,6 +52,7 @@ const planFeatures: { [key: string]: string[] } = {
     '✔️ ניהול יעדים חודשיים ובונוסים',
     '✔️ יבוא נתונים מקובצי אקסל',
     '✔️ אפשרות להוספת עובדים נוספים לפי צורך',
+    '✔️  מודול אינטיליגנטי לטעינת והשוואת עמלות מחברות הביטוח',
   ],
   enterprise: [
     '✔️ כל מה שכלול בתוכנית Pro, ובנוסף:',
@@ -352,7 +353,7 @@ if (isLoading || plans.length === 0) {
            <h3 className="text-lg font-bold mb-2">{plan.name}</h3>
            <p className="text-sm text-gray-600 mb-3">
   {plan.id === 'basic' && 'מנוי לסוכן אחד בלבד'}
-  {plan.id === 'pro' && 'מנוי לסוכן + 2 עובדים, ניתן להוסיף עובדים נוספים בתשלום'}
+  {plan.id === 'pro' && 'מנוי לסוכן + עובד, ניתן להוסיף עובדים נוספים בתשלום'}
   {plan.id === 'enterprise' && 'מנוי מותאם אישית – יטופל בנפרד'}
 </p>
            <ul className="text-sm text-gray-700 space-y-1 mt-2 pr-2">

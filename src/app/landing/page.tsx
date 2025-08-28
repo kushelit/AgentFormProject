@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
-import { Sparkles, LayoutDashboard, Users, ShieldCheck, BarChart3 } from 'lucide-react';
+import { Sparkles, LayoutDashboard, Users, ShieldCheck, BarChart3,FileSpreadsheet } from 'lucide-react';
 import { GraphsSection } from '@/components/FeatureCard';
 import { ContactSection } from '@/components/FeatureCard';
 import { usePathname, useSearchParams } from 'next/navigation';
@@ -53,6 +53,16 @@ const features = [
     icon: BarChart3
   },  
   {
+    id: 'commission-import',
+    title: 'טעינת עמלות מחברות הביטוח',
+    description: 'ייבוא דוחות נפרעים מכל החברות, השוואה בין חודשים ומציאת פערים.',
+    extraText:
+      'מודול אינטיליגנטי שמאפשר לראות כמה מגיע לכם בפועל, כמה שולם על ידי החברות, ומהם הפערים – כולל השוואה לחישובי העמלות במערכת MagicSale.',
+    image: '/static/img/landingImg/commissionImport.png',
+    icon: FileSpreadsheet
+  },
+  
+  {
     id: 'permissions',
     title: 'ניהול הרשאות',
     description: 'שליטה מלאה בהרשאות לסוכן ולעובדים.',
@@ -82,6 +92,11 @@ const faqs = [
   {
     question: 'האם יש תקופת ניסיון?',
     answer: 'כן, תוכלו להתנסות במערכת במשך 14 יום ולקבל החזר מלא אם תחליטו לבטל – בלי התחייבות ובלי קנס.'
+  },
+  {
+    question: 'איך המודול של טעינת עמלות עוזר לי?',
+    answer:
+      'המודול מאפשר לייבא דוחות נפרעים מכל חברות הביטוח, להשוות בין חודשים שונים, לזהות פערים ולבדוק מול חישובי העמלות ב-MagicSale. כך תדעו בדיוק כמה מגיע לכם וכמה שולם בפועל – בצורה אינטיליגנטית ושקופה.'
   },
   
 ];
@@ -277,7 +292,7 @@ export default function LandingPage() {
           הכי פופולרי ⭐
         </div>
         <h3 className="text-xl font-bold mb-2 text-indigo-900">מנוי מקצועי </h3>
-        <p className="text-sm text-gray-600 mb-4">₪185 לחודש + מע&quot;מ</p>
+        <p className="text-sm text-gray-600 mb-4">₪285 לחודש + מע&quot;מ</p>
         <ul className="text-gray-700 space-y-2 text-sm leading-relaxed mb-6">
   <li>✔ ניהול עסקאות ולקוחות</li>
   <li>✔ מעקב עמלות</li>
@@ -290,6 +305,7 @@ export default function LandingPage() {
   <li>✔ יבוא קבצי אקסל עסקאות</li>
   <li>✔ מעקב גרפי אחר ביצועים</li>
   <li>✔ הוספת עובדים לפי צורך</li>
+  <li>✔ מודול אינטיליגנטי לטעינת והשוואת עמלות מחברות הביטוח</li>
 </ul>
         <Link
   href="/subscription-sign-up"
@@ -311,6 +327,7 @@ export default function LandingPage() {
   <li>✔ ניהול עסקאות ולקוחות</li>
   <li>✔ ניהול</li>
   <li>✔ מעקב עמלות</li>
+  <li>✔ מודול אינטיליגנטי לטעינת והשוואת עמלות מחברות הביטוח</li>
   <li>✔ סימולציה והפקת דוחות</li>
   <li>✔ ניהול משתמשים והרשאות בסיסיות</li>
   <li>✔ ניהול עובדים והרשאות מתקדמות</li>
