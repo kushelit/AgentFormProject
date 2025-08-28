@@ -29,7 +29,7 @@ const pages = [
   {
     href: '/AdminHub', // או כל דף ראשי שתבחרי
     label: 'ניהול אדמין',
-    submenu: [
+    onlyRoles: ['admin'],     submenu: [
       { href: '/Log', label: 'לוג מערכת' },
       { href: '/ManageSimulation', label: 'ניהול סימולטור' },
       { href: '/RequestStatus', label: 'סטאטוס API' },

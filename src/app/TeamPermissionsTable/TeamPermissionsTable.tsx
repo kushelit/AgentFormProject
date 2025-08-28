@@ -113,119 +113,85 @@ const detailAsMinimalUser: MinimalUser | null = detail && user
     });
   }, [detail, user?.uid, rolePerms, subscriptionPermissionsMap]);
   
-  // const canTogglePermission = (permission: string, _worker: ExtendedWorker): boolean => {
-  //   if (!canEditPermissions) return false;
-  //   if (permission === '*') return false;
-  //   if (restrictedPermissions.includes(permission) && detail?.role !== 'admin') return false;
-  
-  //   // רק המשתמש המחובר רלוונטי כאן
-  //   const rolePerms = rolePermissionsMap[detail?.role || ''] ?? [];
-  //   // const hasFromRole = rolePerms.includes(permission);
-  //   const hasFromRole = rolePerms.includes('*') || rolePerms.includes(permission);
+ 
 
-  //   const isSubscriber = !!detail?.subscriptionId && !!detail?.subscriptionType;
   
-  //   const subscriptionPerms = isSubscriber && detail.subscriptionType
+  // const canTogglePermission = (permission: string, _worker: ExtendedWorker): boolean => {
+  //   console.log('--- בדיקת canTogglePermission ---');
+  //   console.log('🔒 permission:', permission);
+  //   console.log('👤 current role:', detail?.role);
+  //   console.log('🔐 canEditPermissions:', canEditPermissions);
+  
+  //   if (!canEditPermissions) {
+  //     console.log('⛔ חסר הרשאת עריכה בסיסית');
+  //     return false;
+  //   }
+  
+  //   if (permission === '*') {
+  //     console.log('⛔ לא ניתן לערוך הרשאת כוכבית');
+  //     return false;
+  //   }
+  
+  //   if (restrictedPermissions.includes(permission) && detail?.role !== 'admin') {
+  //     console.log('⛔ ההרשאה מוגדרת כמוגבלת, ואת לא אדמין');
+  //     return false;
+  //   }
+  
+  //   const rolePerms = rolePermissionsMap[detail?.role || ''] ?? [];
+  //   const hasFromRole = rolePerms.includes('*') || rolePerms.includes(permission);
+  //   console.log('📦 rolePerms:', rolePerms);
+  //   console.log('✅ hasFromRole:', hasFromRole);
+
+  //   const hasExplicitAllow = detail?.permissionOverrides?.allow?.includes(permission) ?? false;
+  //     console.log('🟢 hasExplicitAllow:', hasExplicitAllow);
+
+  
+  //   const isSubscriber = !!detail?.subscriptionId && !!detail?.subscriptionType;
+  //   console.log('📄 isSubscriber:', isSubscriber);
+  //   console.log('🧾 subscriptionType:', detail?.subscriptionType);
+  
+  //   const subscriptionPerms = isSubscriber && detail?.subscriptionType
   //     ? subscriptionPermissionsMap[detail.subscriptionType] || []
   //     : [];
   
   //   const hasFromSubscription = subscriptionPerms.includes(permission);
+  //   console.log('🎫 subscriptionPerms:', subscriptionPerms);
+  //   console.log('✅ hasFromSubscription:', hasFromSubscription);
   
   //   let hasAddon = false;
-
+  
   //   if (permission in PAID_PERMISSION_ADDONS) {
   //     const addonKey = PAID_PERMISSION_ADDONS[permission as keyof typeof PAID_PERMISSION_ADDONS];
   //     hasAddon = !!detail?.addOns?.[addonKey];
+  //     console.log('💎 addOn:', addonKey, '=>', hasAddon);
   //   }
-    
-    
-  //   // ✅ לוגיקה מיוחדת – רק אם מנוי ויש leadsModule => access_manageEnviorment
+  
   //   if (
   //     isSubscriber &&
   //     detail?.addOns?.leadsModule &&
   //     (permission === 'access_manageEnviorment' || permission === 'access_flow')
   //   ) {
   //     hasAddon = true;
+  //     console.log('🎯 לוגיקה מיוחדת - leadsModule מוסיף את ההרשאה הזו');
   //   }
-    
   
   //   if (isSubscriber) {
-  //     return (hasFromRole && hasFromSubscription) || hasAddon;
+  //     const result = (hasFromRole && hasFromSubscription) || hasAddon;
+  //     console.log('🔍 return:', result, '← לפי מנוי ותפקיד');
+  //     return result;
   //   }
   
-  //   return hasFromRole || detail?.role === 'agent';
+  //   const final = hasFromRole || ['agent', 'manager'].includes(detail?.role || '');
+  //   console.log('🔍 return:', final, '← לפי תפקיד או override');
+  //   return final;
+    
   // };
   
-  
   const canTogglePermission = (permission: string, _worker: ExtendedWorker): boolean => {
-    console.log('--- בדיקת canTogglePermission ---');
-    console.log('🔒 permission:', permission);
-    console.log('👤 current role:', detail?.role);
-    console.log('🔐 canEditPermissions:', canEditPermissions);
-  
-    if (!canEditPermissions) {
-      console.log('⛔ חסר הרשאת עריכה בסיסית');
-      return false;
-    }
-  
-    if (permission === '*') {
-      console.log('⛔ לא ניתן לערוך הרשאת כוכבית');
-      return false;
-    }
-  
-    if (restrictedPermissions.includes(permission) && detail?.role !== 'admin') {
-      console.log('⛔ ההרשאה מוגדרת כמוגבלת, ואת לא אדמין');
-      return false;
-    }
-  
-    const rolePerms = rolePermissionsMap[detail?.role || ''] ?? [];
-    const hasFromRole = rolePerms.includes('*') || rolePerms.includes(permission);
-    console.log('📦 rolePerms:', rolePerms);
-    console.log('✅ hasFromRole:', hasFromRole);
-
-    const hasExplicitAllow = detail?.permissionOverrides?.allow?.includes(permission) ?? false;
-      console.log('🟢 hasExplicitAllow:', hasExplicitAllow);
-
-  
-    const isSubscriber = !!detail?.subscriptionId && !!detail?.subscriptionType;
-    console.log('📄 isSubscriber:', isSubscriber);
-    console.log('🧾 subscriptionType:', detail?.subscriptionType);
-  
-    const subscriptionPerms = isSubscriber && detail?.subscriptionType
-      ? subscriptionPermissionsMap[detail.subscriptionType] || []
-      : [];
-  
-    const hasFromSubscription = subscriptionPerms.includes(permission);
-    console.log('🎫 subscriptionPerms:', subscriptionPerms);
-    console.log('✅ hasFromSubscription:', hasFromSubscription);
-  
-    let hasAddon = false;
-  
-    if (permission in PAID_PERMISSION_ADDONS) {
-      const addonKey = PAID_PERMISSION_ADDONS[permission as keyof typeof PAID_PERMISSION_ADDONS];
-      hasAddon = !!detail?.addOns?.[addonKey];
-      console.log('💎 addOn:', addonKey, '=>', hasAddon);
-    }
-  
-    if (
-      isSubscriber &&
-      detail?.addOns?.leadsModule &&
-      (permission === 'access_manageEnviorment' || permission === 'access_flow')
-    ) {
-      hasAddon = true;
-      console.log('🎯 לוגיקה מיוחדת - leadsModule מוסיף את ההרשאה הזו');
-    }
-  
-    if (isSubscriber) {
-      const result = (hasFromRole && hasFromSubscription) || hasAddon;
-      console.log('🔍 return:', result, '← לפי מנוי ותפקיד');
-      return result;
-    }
-  
-    const final = hasFromRole || ['agent', 'manager'].includes(detail?.role || '');
-    console.log('🔍 return:', final, '← לפי תפקיד או override');
-    return final;
-    
+    if (!canEditPermissions) return false;            // חייב יכולת עריכה כללית
+    if (permission === '*') return false;             // אסור לגעת בכוכבית
+    if (restrictedPermissions.includes(permission) && detail?.role !== 'admin') return false;
+    return true;                                      // תני ל-override לעבוד
   };
   
 
@@ -377,8 +343,13 @@ const detailAsMinimalUser: MinimalUser | null = detail && user
   
     const rolePerms = rolePermissionsMap[worker.role || ''] ?? [];
 
-    const isInheritedFromRole = rolePerms.includes(permission);
-    const isInheritedFromSubscriptionOrAddon = hasPermission({
+
+    const isSubscriberAgent =
+  worker.role === 'agent' && !!worker.subscriptionId && !!worker.subscriptionType;
+
+const isInheritedFromRole = !isSubscriberAgent && rolePerms.includes(permission);
+
+const isInheritedFromSubscriptionOrAddon = hasPermission({
       user: worker,
       permission,
       rolePermissions: rolePerms,

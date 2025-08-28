@@ -17,6 +17,17 @@ export const Navbar = ({ items, bottomPage, className }) => {
   const { user, detail } = useAuth();
   const { selectedAgentId } = useFetchAgentData();
 
+
+  const isItemVisible = (item) => {
+    // עד שטעון ה-role – לא להציג (גם מונע הבהוב)
+    if (!detail?.role) return false;
+  
+    if (Array.isArray(item.onlyRoles) && item.onlyRoles.length > 0) {
+      return item.onlyRoles.includes(detail.role);
+    }
+    return true;
+  };
+
   // זיהוי רנדר בצד לקוח
   useEffect(() => {
     setIsClient(true);
@@ -91,36 +102,35 @@ export const Navbar = ({ items, bottomPage, className }) => {
     <div className={`navbar ${className}`}>
       {user ? (
         <>
-          {Array.isArray(items) &&
-            items.map((item) => (
-              <React.Fragment key={item.href}>
-                {renderNavbarItem(item)}
-                {item.submenu &&
-                  openSubmenu === item.href && (
-                    <div className="submenu">
-                      {item.submenu.map((submenuItem) => (
-                        <NavbarItem
-                          key={submenuItem.href}
-                          className="submenu-item"
-                          state="default"
-                        >
-                          <a
-                            href={submenuItem.href}
-                            className="navbar-link"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleTabClick(submenuItem.href);
-                            }}
-                          >
-                            {submenuItem.label}
-                          </a>
-                        </NavbarItem>
-                      ))}
-                    </div>
-                  )}
-              </React.Fragment>
-            ))}
-
+       {Array.isArray(items) &&
+  items
+    .filter(isItemVisible)                      // ← סינון פריטים ראשיים
+    .map((item) => (
+      <React.Fragment key={item.href}>
+        {renderNavbarItem(item)}
+        {item.submenu && openSubmenu === item.href && (
+          <div className="submenu">
+            {item.submenu
+              .filter(isItemVisible)            // ← סינון גם לתת-פריטים
+              .map((submenuItem) => (
+                <NavbarItem key={submenuItem.href} className="submenu-item" state="default">
+                  <a
+                    href={submenuItem.href}
+                    className="navbar-link"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleTabClick(submenuItem.href);
+                    }}
+                  >
+                    {submenuItem.label}
+                  </a>
+                </NavbarItem>
+              ))}
+          </div>
+        )}
+      </React.Fragment>
+    ))
+}
           {bottomPage && (
             <div className="navbar-bottom">
               <NavbarItem

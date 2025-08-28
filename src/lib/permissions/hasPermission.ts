@@ -1,21 +1,17 @@
 // src/lib/permissions/hasPermission.ts
 
-import type { UserDetail } from '@/lib/firebase/AuthContext';
-import { PAID_PERMISSION_ADDONS, PaidPermission, isPaidPermission } from '@/utils/paidPermissions';
-
-// type User = UserDetail;
-
+import { PAID_PERMISSION_ADDONS, isPaidPermission } from '@/utils/paidPermissions';
 
 interface HasPermissionParams {
   user: MinimalUser;
   permission: string;
-  rolePermissions: string[] | null;
+  rolePermissions: string[] | null; // ה־role של המשתמש שערוכים עליו/שבודקים עבורו
   subscriptionPermissionsMap?: Record<string, string[]>;
 }
 
 export type MinimalUser = {
   uid: string;
-  role: string;
+  role: 'agent' | 'manager' | 'admin' | 'worker' | string;
   subscriptionId?: string;
   subscriptionType?: string;
   permissionOverrides?: {
@@ -25,6 +21,7 @@ export type MinimalUser = {
   addOns?: {
     leadsModule?: boolean;
     extraWorkers?: number;
+    // ... נוספים
   };
 };
 
@@ -34,47 +31,49 @@ export function hasPermission({
   rolePermissions,
   subscriptionPermissionsMap,
 }: HasPermissionParams): boolean {
+  // 1) overrides
   const deny = user.permissionOverrides?.deny || [];
   if (deny.includes(permission)) return false;
 
   const allow = user.permissionOverrides?.allow || [];
   if (allow.includes(permission)) return true;
 
+  // 2) admin role "*" תמיד
+  if (rolePermissions?.includes('*')) return true;
+
+  // 3) זיהוי סטטוס "סוכן עם/בלי מנוי"
+  const isAgent = user.role === 'agent';
+  const isSubscriberAgent =
+    isAgent && !!user.subscriptionId && !!user.subscriptionType;
+
+  // 4) בניית מקורות הרשאה לפי הכלל החדש
+  let hasFromSource = false;
+
+  if (isSubscriberAgent) {
+    // משתמש מסוג סוכן עם מנוי → אך ורק הרשאות ממנוי (לא roles)
+    const subscriptionPerms =
+      subscriptionPermissionsMap?.[user.subscriptionType!] || [];
+    hasFromSource = subscriptionPerms.includes(permission);
+
+    // תוספים מאפשרים להרחיב מעל המסלול
+    let hasAddon = false;
+    if (isPaidPermission(permission)) {
+      const addonKey = PAID_PERMISSION_ADDONS[permission];
+      hasAddon = !!user.addOns?.[addonKey];
+    }
+    if (
+      user.addOns?.leadsModule &&
+      (permission === 'access_manageEnviorment' || permission === 'access_flow')
+    ) {
+      hasAddon = true;
+    }
+
+    return hasFromSource || hasAddon;
+  }
+
+  // 5) שאר המצבים:
+  //    - agent בלי מנוי → לפי roles בלבד
+  //    - manager/admin/worker → תמיד לפי roles בלבד
   if (!rolePermissions) return false;
-  if (rolePermissions.includes('*')) return true;
-
-  const isSubscriber = !!user.subscriptionId && !!user.subscriptionType;
-
-  const subscriptionPerms =
-    isSubscriber && subscriptionPermissionsMap && user.subscriptionType
-      ? subscriptionPermissionsMap[user.subscriptionType] || []
-      : [];
-
-  const hasFromRole = rolePermissions.includes(permission);
-  const hasFromSubscription = subscriptionPerms.includes(permission);
-
-  let hasAddon = false;
-
-  // ✳️ בדיקת תוספים רגילים
-  if (
-    isSubscriber &&
-    isPaidPermission(permission)
-  ) {
-    const addonKey = PAID_PERMISSION_ADDONS[permission];
-    hasAddon = !!user.addOns?.[addonKey];
-  }
-  if (
-    isSubscriber &&
-    user.addOns?.leadsModule &&
-    (permission === 'access_manageEnviorment' || permission === 'access_flow')
-  ) {
-    hasAddon = true;
-  }
-  // 🧾 מנוי – צריך גם במסלול וגם בתפקיד, או תוסף
-  if (isSubscriber) {
-    return (hasFromRole && hasFromSubscription) || hasAddon;
-  }
-
-  // 🆓 לא מנוי – רק לפי תפקיד
-  return hasFromRole;
+  return rolePermissions.includes(permission);
 }
