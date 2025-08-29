@@ -11,7 +11,7 @@ type FullUser = {
   uid: string;
   role: string;
   subscriptionId?: string;
-  subscriptionType?: string;  
+  subscriptionType?: string;
   permissionOverrides?: {
     allow?: string[];
     deny?: string[];
@@ -29,62 +29,74 @@ export function usePermission(permission: string | null): {
 } {
   const { user, detail, isLoading, rolesPermissions } = useAuth();
   const role = detail?.role;
-  const subscriptionId = detail?.subscriptionId || '';
 
-  const [subscriptionPermissionsMap, setSubscriptionPermissionsMap] = useState<Record<string, string[]>>({});
+  // AGENT / MANAGER → לפי מסלול (plan-based)
+  const isPlanBased = role === "agent" || role === "manager";
+  const needsRolePerms = !isPlanBased;
 
-  
+  const [subscriptionPermissionsMap, setSubscriptionPermissionsMap] =
+    useState<Record<string, string[]>>({});
+
+  // טוען את מפת ההרשאות של כל המסלולים (כולל OLD)
   useEffect(() => {
-    // בדיקת user לפני קריאת Firebase
-    if (!user || !user.uid || !permission) {
-      console.log("No user or permission - clearing subscription permissions");
+    if (!user || !permission) {
       setSubscriptionPermissionsMap({});
       return;
     }
-  
-    const fetchSubscriptionPermissions = async () => {
+    (async () => {
       try {
-        const snapshot = await getDocs(collection(db, 'subscriptions_permissions'));
+        const snapshot = await getDocs(collection(db, "subscriptions_permissions"));
         const result: Record<string, string[]> = {};
         snapshot.forEach((doc) => {
           const data = doc.data();
           result[doc.id] = data.permissions || [];
         });
         setSubscriptionPermissionsMap(result);
-      } catch (error) {
-        console.error('Failed to fetch subscription permissions:', error);
+      } catch {
         setSubscriptionPermissionsMap({});
       }
-    };
-  
-    fetchSubscriptionPermissions();
+    })();
   }, [user, permission]);
 
+  // אם זה plan-based לא צריך rolePermissions בכלל
   const rolePermissions = useMemo(() => {
-    if (!role) return [];
+    if (!needsRolePerms || !role) return [];
     return rolesPermissions[role] || [];
-  }, [rolesPermissions, role]);
+  }, [rolesPermissions, role, needsRolePerms]);
 
-  const fullUser: FullUser = useMemo(() => ({
-    uid: user?.uid || '',
-    role: detail?.role || '',
-    subscriptionId,
-    subscriptionType: detail?.subscriptionType || '',
-    permissionOverrides: detail?.permissionOverrides || {},
-    addOns: detail?.addOns || {},
-    ...user,
-  }), [user, detail, subscriptionId]);
+  const fullUser: FullUser = useMemo(
+    () => ({
+      uid: user?.uid || "",
+      role: detail?.role || "",
+      subscriptionId: detail?.subscriptionId || "",
+      subscriptionType: detail?.subscriptionType || "", // לכל AGENT/MANAGER יש ערך (כולל 'OLD')
+      permissionOverrides: detail?.permissionOverrides || {},
+      addOns: detail?.addOns || {},
+      ...user,
+    }),
+    [user, detail]
+  );
 
-  const isChecking = isLoading || !user || !detail  || !permission|| rolePermissions.length === 0;
+  // נטענו מפות מסלולים?
+  const subsLoaded = Object.keys(subscriptionPermissionsMap).length > 0;
+
+  // מצב טעינה:
+  // - ל-plan-based (agent/manager): מחכים רק למפות המסלולים
+  // - לאחרים: מחכים ל-rolePermissions
+  const isChecking =
+    isLoading ||
+    !user ||
+    !detail ||
+    !permission ||
+    (needsRolePerms && rolePermissions.length === 0) ||
+    (isPlanBased && !subsLoaded);
 
   const canAccess = useMemo(() => {
-
     if (!user || !permission) return false;
-
     if (isChecking) return null; // עדיין בטעינה
     return hasPermission({
       user: fullUser,
-      permission: permission,
+      permission,
       rolePermissions,
       subscriptionPermissionsMap,
     });

@@ -94,7 +94,7 @@ const detailAsMinimalUser: MinimalUser | null = detail && user
   };
   
   const canEditPermissions = useMemo(() => {
-    if (!rolePerms.length || !detail || !user?.uid) return null;
+    if (!detail || !user?.uid) return null;
   
     const currentUser: MinimalUser = {
       uid: user.uid,
@@ -114,78 +114,6 @@ const detailAsMinimalUser: MinimalUser | null = detail && user
   }, [detail, user?.uid, rolePerms, subscriptionPermissionsMap]);
   
  
-
-  
-  // const canTogglePermission = (permission: string, _worker: ExtendedWorker): boolean => {
-  //   console.log('--- בדיקת canTogglePermission ---');
-  //   console.log('🔒 permission:', permission);
-  //   console.log('👤 current role:', detail?.role);
-  //   console.log('🔐 canEditPermissions:', canEditPermissions);
-  
-  //   if (!canEditPermissions) {
-  //     console.log('⛔ חסר הרשאת עריכה בסיסית');
-  //     return false;
-  //   }
-  
-  //   if (permission === '*') {
-  //     console.log('⛔ לא ניתן לערוך הרשאת כוכבית');
-  //     return false;
-  //   }
-  
-  //   if (restrictedPermissions.includes(permission) && detail?.role !== 'admin') {
-  //     console.log('⛔ ההרשאה מוגדרת כמוגבלת, ואת לא אדמין');
-  //     return false;
-  //   }
-  
-  //   const rolePerms = rolePermissionsMap[detail?.role || ''] ?? [];
-  //   const hasFromRole = rolePerms.includes('*') || rolePerms.includes(permission);
-  //   console.log('📦 rolePerms:', rolePerms);
-  //   console.log('✅ hasFromRole:', hasFromRole);
-
-  //   const hasExplicitAllow = detail?.permissionOverrides?.allow?.includes(permission) ?? false;
-  //     console.log('🟢 hasExplicitAllow:', hasExplicitAllow);
-
-  
-  //   const isSubscriber = !!detail?.subscriptionId && !!detail?.subscriptionType;
-  //   console.log('📄 isSubscriber:', isSubscriber);
-  //   console.log('🧾 subscriptionType:', detail?.subscriptionType);
-  
-  //   const subscriptionPerms = isSubscriber && detail?.subscriptionType
-  //     ? subscriptionPermissionsMap[detail.subscriptionType] || []
-  //     : [];
-  
-  //   const hasFromSubscription = subscriptionPerms.includes(permission);
-  //   console.log('🎫 subscriptionPerms:', subscriptionPerms);
-  //   console.log('✅ hasFromSubscription:', hasFromSubscription);
-  
-  //   let hasAddon = false;
-  
-  //   if (permission in PAID_PERMISSION_ADDONS) {
-  //     const addonKey = PAID_PERMISSION_ADDONS[permission as keyof typeof PAID_PERMISSION_ADDONS];
-  //     hasAddon = !!detail?.addOns?.[addonKey];
-  //     console.log('💎 addOn:', addonKey, '=>', hasAddon);
-  //   }
-  
-  //   if (
-  //     isSubscriber &&
-  //     detail?.addOns?.leadsModule &&
-  //     (permission === 'access_manageEnviorment' || permission === 'access_flow')
-  //   ) {
-  //     hasAddon = true;
-  //     console.log('🎯 לוגיקה מיוחדת - leadsModule מוסיף את ההרשאה הזו');
-  //   }
-  
-  //   if (isSubscriber) {
-  //     const result = (hasFromRole && hasFromSubscription) || hasAddon;
-  //     console.log('🔍 return:', result, '← לפי מנוי ותפקיד');
-  //     return result;
-  //   }
-  
-  //   const final = hasFromRole || ['agent', 'manager'].includes(detail?.role || '');
-  //   console.log('🔍 return:', final, '← לפי תפקיד או override');
-  //   return final;
-    
-  // };
   
   const canTogglePermission = (permission: string, _worker: ExtendedWorker): boolean => {
     if (!canEditPermissions) return false;            // חייב יכולת עריכה כללית
@@ -199,39 +127,99 @@ const detailAsMinimalUser: MinimalUser | null = detail && user
     const fetchAllPermissions = async () => {
       const rolesSnapshot = await getDocs(collection(db, 'roles'));
       const permsSnapshot = await getDocs(collection(db, 'permissions'));
-      const permissionSet = new Set<string>();
+  
+      // קטלוג permissions (label + restricted)
+      const allPermsMap = new Map<string, PermissionData>();
       const restricted: string[] = [];
-      const allPerms: PermissionData[] = [];
-
-      permsSnapshot.forEach(doc => {
-        const data = doc.data();
-        if (data.restricted) restricted.push(doc.id);
-        allPerms.push({ id: doc.id, name: data.name || doc.id, restricted: data.restricted });
+      permsSnapshot.forEach((docSnap) => {
+        const data = docSnap.data();
+        const perm: PermissionData = {
+          id: docSnap.id,
+          name: data.name || docSnap.id,
+          restricted: !!data.restricted,
+        };
+        allPermsMap.set(docSnap.id, perm);
+        if (perm.restricted) restricted.push(docSnap.id);
       });
-
-      rolesSnapshot.forEach((doc) => {
-        const data = doc.data();
-        (data.permissions || []).forEach((perm: string) => {
-          if (perm === '*' && detail?.role !== 'admin') return;
-          permissionSet.add(perm);
+  
+      // ===== אדמין רואה הכל =====
+      if (detail?.role === 'admin') {
+        const displayIds = new Set<string>();
+  
+        // 1) כל מה שבקטלוג permissions
+        allPermsMap.forEach((_, id) => displayIds.add(id));
+  
+        // 2) כל מה שמופיע ב-roles (למעט '*')
+        rolesSnapshot.forEach((roleDoc) => {
+          (roleDoc.data().permissions || []).forEach((p: string) => {
+            if (p !== '*') displayIds.add(p);
+          });
         });
+  
+        // 3) כל מה שמופיע בכל המסלולים
+        Object.values(subscriptionPermissionsMap).forEach((arr) => {
+          (arr || []).forEach((p) => displayIds.add(p));
+        });
+  
+        // 4) כל הרשאות ה-Add-ons
+        Object.keys(PAID_PERMISSION_ADDONS).forEach((p) => displayIds.add(p));
+  
+        const specialPermissionId = 'view_commissions_field';
+        const list: PermissionData[] = [];
+        displayIds.forEach((id) => list.push(allPermsMap.get(id) ?? { id, name: id }));
+  
+        const normal = list
+          .filter((p) => p.id !== specialPermissionId)
+          .sort((a, b) => a.name.localeCompare(b.name));
+        const special = list.find((p) => p.id === specialPermissionId);
+        const finalPermissions = special ? [...normal, special] : normal;
+  
+        setAllPermissions(finalPermissions);
+        setRestrictedPermissions(restricted);
+        return;
+      }
+  
+      // ===== לא-אדמין (agent/manager/worker) =====
+      const relevantPlans = new Set<string>();
+  
+      if (detail?.subscriptionType) relevantPlans.add(detail.subscriptionType);
+      workers.forEach((w) => {
+        if (w.subscriptionType) relevantPlans.add(w.subscriptionType);
       });
-
-      const filtered = allPerms.filter(p => permissionSet.has(p.id));
+  
+      const displayIds = new Set<string>();
+      relevantPlans.forEach((plan) => {
+        (subscriptionPermissionsMap[plan] || []).forEach((permId) => displayIds.add(permId));
+      });
+  
+      // ✅ הוספת הרשאות שקיבלתי ב-ALLOW, רק אם לא מוגדרות כ-restricted
+      // (אם תרצי להגביל רק ל-agent/manager, עטפי ב-if על detail.role)
+      const myAllows = (detail?.permissionOverrides?.allow || []).filter(
+        (p) => !restricted.includes(p)
+      );
+      myAllows.forEach((p) => displayIds.add(p));
+  
+      // Add-ons להצגה תמיד (גם לשדרוג)
+      Object.keys(PAID_PERMISSION_ADDONS).forEach((permId) => displayIds.add(permId));
+  
       const specialPermissionId = 'view_commissions_field';
-      const normalPermissions = filtered.filter(p => p.id !== specialPermissionId);
-      const specialPermission = filtered.find(p => p.id === specialPermissionId);
-
-      const finalPermissions = specialPermission
-        ? [...normalPermissions.sort((a, b) => a.name.localeCompare(b.name)), specialPermission]
-        : normalPermissions.sort((a, b) => a.name.localeCompare(b.name));
-
+      const list: PermissionData[] = [];
+      displayIds.forEach((id) => list.push(allPermsMap.get(id) ?? { id, name: id }));
+  
+      const normal = list
+        .filter((p) => p.id !== specialPermissionId)
+        .sort((a, b) => a.name.localeCompare(b.name));
+      const special = list.find((p) => p.id === specialPermissionId);
+      const finalPermissions = special ? [...normal, special] : normal;
+  
       setAllPermissions(finalPermissions);
       setRestrictedPermissions(restricted);
     };
-
+  
     fetchAllPermissions();
-  }, [detail?.role]);
+  }, [detail?.role, detail?.subscriptionType, workers, subscriptionPermissionsMap]);
+  
+
 
   useEffect(() => {
     const fetchWorkersForAgent = async () => {
@@ -309,6 +297,21 @@ const detailAsMinimalUser: MinimalUser | null = detail && user
     }
   }, [workers]);
 
+
+  useEffect(() => {
+    // לסוכן – לבחור את עצמו כברירת מחדל
+    if (detail?.role === 'agent' && user?.uid && !selectedAgentId) {
+      setSelectedAgentId(user.uid);
+    }
+  
+    // למנהל – אם יש בדיוק סוכן אחד זמין, לבחור אותו אוטומטית
+    if (detail?.role === 'manager' && agents.length === 1 && !selectedAgentId) {
+      setSelectedAgentId(agents[0].id);
+    }
+  }, [detail?.role, user?.uid, agents, selectedAgentId, setSelectedAgentId]);
+  
+
+
   useEffect(() => {
     const selected = agents.find(agent => agent.id === selectedAgentId);
     setSelectedAgentName(selected?.name || (selectedAgentId === 'all' ? 'כל הסוכנות' : ''));
@@ -328,7 +331,6 @@ const detailAsMinimalUser: MinimalUser | null = detail && user
   
     await updatePermission(workerId, permission, has);
   };
-  
   const updatePermission = async (workerId: string, permission: string, has: boolean) => {
     console.log('🔄 עדכון הרשאה:');
     const userRef = doc(db, 'users', workerId);
@@ -342,45 +344,57 @@ const detailAsMinimalUser: MinimalUser | null = detail && user
     }
   
     const rolePerms = rolePermissionsMap[worker.role || ''] ?? [];
-
-
-    const isSubscriberAgent =
-  worker.role === 'agent' && !!worker.subscriptionId && !!worker.subscriptionType;
-
-const isInheritedFromRole = !isSubscriberAgent && rolePerms.includes(permission);
-
-const isInheritedFromSubscriptionOrAddon = hasPermission({
-      user: worker,
+  
+    // AGENT/MANAGER = plan-based (ללא ירושה מ-role)
+    const isPlanBased = (worker.role === 'agent' || worker.role === 'manager');
+  
+    // 🔎 בודקים ירושה בסיסית *בלי* overrides (כדי לא ליפול ל"מצב שלישי")
+    const baseUser = {
+      ...worker,
+      permissionOverrides: { allow: [], deny: [] }, // מנקים overrides לבדיקה
+    };
+  
+    // ירושה מ-role (רק ללא plan-based)
+    const hasFromRoleBase = !isPlanBased && (rolePerms.includes('*') || rolePerms.includes(permission));
+  
+    // ירושה ממסלול/תוסף (רק ל-plan-based)
+    const hasFromPlanOrAddonBase = isPlanBased ? hasPermission({
+      user: baseUser,
       permission,
-      rolePermissions: rolePerms,
+      rolePermissions: rolePerms, // לא רלוונטי ל-plan-based, אבל נשאיר חתימה אחידה
       subscriptionPermissionsMap,
-    });
-
+    }) : false;
+  
+    const isInheritedFromBase = hasFromRoleBase || hasFromPlanOrAddonBase;
+  
     const update: any = {};
     const isExplicitlyAllowed = worker.permissionOverrides?.allow?.includes(permission);
-
+  
     if (!has) {
-      // מוסיפים הרשאה
-      if (!isInheritedFromRole && !isInheritedFromSubscriptionOrAddon) {
-        console.log('➕ מוסיפה ל־allow');
+      // המשתמש כרגע *לא* מחזיק בהרשאה → נלחץ כדי להוסיף
+      if (!isInheritedFromBase) {
+        // אין מקור בסיס → צריך ALLOW מפורש
+        console.log('➕ מוסיפה ל־allow (אין מקור בסיס)');
         update['permissionOverrides.allow'] = arrayUnion(permission);
         update['permissionOverrides.deny'] = arrayRemove(permission);
       } else {
-        console.log('🧹 רק מסירה מ־deny');
+        // יש מקור בסיס (מסלול/תוסף/role) → מספיק להסיר DENY
+        console.log('🧹 הסרת deny בלבד (יש מקור בסיס)');
         update['permissionOverrides.deny'] = arrayRemove(permission);
+        // ניקוי מיותר: אם בטעות נשאר ALLOW היסטורי, ננקה (כי יש ירושה בסיסית)
+        update['permissionOverrides.allow'] = arrayRemove(permission);
       }
     } else {
-      // מסירים הרשאה
+      // המשתמש כרגע *כן* מחזיק בהרשאה → נלחץ כדי להסיר
       if (isExplicitlyAllowed) {
-        console.log('➖ מסירה מ־allow בלבד');
+        console.log('➖ מסירה מ־allow (הייתה מפורשת)');
         update['permissionOverrides.allow'] = arrayRemove(permission);
-        update['permissionOverrides.deny'] = arrayRemove(permission); // ליתר ביטחון
+        update['permissionOverrides.deny'] = arrayRemove(permission); // ניקוי ביטחון
       } else {
-        console.log('⛔ חסימה עם deny');
+        console.log('⛔ מוסיפה ל־deny (חוסם מעל הבסיס)');
         update['permissionOverrides.deny'] = arrayUnion(permission);
       }
     }
-    
   
     try {
       await updateDoc(userRef, update);
@@ -402,7 +416,6 @@ const isInheritedFromSubscriptionOrAddon = hasPermission({
     }
   };
   
-  
 
   if (loading) {
     return <div className="p-4">⏳ טוען נתוני עובדים...</div>;
@@ -419,20 +432,26 @@ const isInheritedFromSubscriptionOrAddon = hasPermission({
       <h2 className="text-xl font-bold mb-4">
         הרשאות עובדים של {detail?.role === 'admin' ? selectedAgentName || detail?.name : detail?.name}
       </h2>
-  
-      {detail?.role === 'admin' && (
-        <div className="mb-4">
-          <label className="mr-2 font-semibold">בחר סוכן:</label>
-          <select onChange={handleAgentChange} value={selectedAgentId} className="select-input border px-2 py-1">
-            <option value="">בחר סוכן</option>
-            <option value="all">כל הסוכנות</option>
-            {agents.map(agent => (
-              <option key={agent.id} value={agent.id}>{agent.name}</option>
-            ))}
-          </select>
-        </div>
-      )}
-  
+      {(detail?.role === 'admin' || detail?.role === 'manager') && (
+  <div className="mb-4">
+    <label className="mr-2 font-semibold">בחר סוכן:</label>
+    <select
+      onChange={handleAgentChange}
+      value={selectedAgentId}
+      className="select-input border px-2 py-1"
+    >
+      <option value="">בחר סוכן</option>
+
+      {/* רק לאדמין יש "כל הסוכנות" */}
+      {detail?.role === 'admin' && <option value="all">כל הסוכנות</option>}
+
+      {agents.map(agent => (
+        <option key={agent.id} value={agent.id}>{agent.name}</option>
+      ))}
+    </select>
+  </div>
+)}
+
       <table className="min-w-max border text-right">
         <thead>
           <tr className="bg-gray-100">
