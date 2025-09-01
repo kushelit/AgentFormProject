@@ -1753,7 +1753,7 @@ const totals = useMemo(() => {
               </tbody>
             </table>           
           </div>
-          {!isCheckingExternalOverview && canSeeExternalOverview ? (
+          {/* {!isCheckingExternalOverview && canSeeExternalOverview ? (
   <CustomerExternalOverview
     agentId={selectedAgentId}
     customerIds={familyIds}
@@ -1769,7 +1769,7 @@ const totals = useMemo(() => {
       setIsCommissionSplitEnabled(splitEnabled);
     }}
   />
-) : null}
+) : null} */}
         </div>
       </div>
   );
