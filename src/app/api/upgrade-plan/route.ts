@@ -52,6 +52,8 @@ export async function POST(req: NextRequest) {
     let appliedDiscount = 0;
     let appliedCouponId: string | null = null;
 
+    let agenciesValue: any = undefined;
+
     // ✅ בדיקת קופון אם קיים
     if (couponCode) {
       const couponSnap = await db.collection('coupons').doc(couponCode.trim()).get();
@@ -59,6 +61,10 @@ export async function POST(req: NextRequest) {
         const couponData = couponSnap.data();
         const planDiscount = couponData?.planDiscounts?.[newPlanId];
         const isActive = couponData?.isActive;
+
+        if (typeof couponData?.agencies !== 'undefined') {
+          agenciesValue = couponData.agencies;
+        }
 
         if (typeof planDiscount === 'number' && isActive) {
           appliedDiscount = planDiscount;
@@ -113,6 +119,9 @@ export async function POST(req: NextRequest) {
       };
     }
 
+    if (typeof agenciesValue !== 'undefined') {
+      updateData.agencies = agenciesValue;
+    }
     await userDocRef.update(updateData);
 
     return NextResponse.json({ success: true });

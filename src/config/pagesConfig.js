@@ -16,6 +16,7 @@ const pages = [
   { href: '/NewEnviorment', label: 'ניהול הגדרות לידים' },
   { href: '/TeamPermissionsTable', label: 'ניהול הרשאות' },
   { href: '/Reports', label: 'דוחות' },
+  { href: '/import-excel', label: 'ייבוא אקסל עסקאות' },
   {
     href: '#import-commissions',
     label: 'טעינת עמלות',
@@ -36,7 +37,6 @@ const pages = [
       { href: '/ManagePoolAgents', label: 'ניהול פול ליד' },
       { href: '/ManageManager', label: 'ניהול קבוצות סוכנים' },
       { href: '/SubscriptionsTable', label: 'ניהול מנויים ' },
-      { href: '/import-excel', label: 'ייבוא אקסל עסקאות' },
       { href: '/Admin-ImportExcelruns', label: 'ניהול טעינת קבצי עסקאות' },  
       { href: '/admin/mfa', label: 'ניהול MFA' },      
   
