@@ -68,7 +68,19 @@ const ExcelCommissionImporter: React.FC = () => {
   const [selectedCompanyId, setSelectedCompanyId] = useState('');
   const canChooseFile = Boolean(selectedAgentId && selectedCompanyId && templateId);
 
+  const [showTemplateMismatch, setShowTemplateMismatch] = useState(false);
+
+  const headersAtRow = (sheet: XLSX.WorkSheet, headerRowIndex: number): string[] => {
+    const range = XLSX.utils.decode_range(sheet['!ref']!);
+    const headers: string[] = [];
+    for (let c = range.s.c; c <= range.e.c; c++) {
+      const cell = sheet[XLSX.utils.encode_cell({ r: headerRowIndex, c })];
+      headers.push(cell?.v?.toString().trim() || '');
+    }
+    return headers;
+  };
   
+
   const automationApiByTemplate = (template: {
     companyId: string;
     type: string;
@@ -392,6 +404,28 @@ console.log('📅 reportMonth שחולץ:', fallbackReportMonth);      }
           headerRowIndex = findHeaderRowIndex(ws, expectedHeaders);
         }
     
+// אם אין מיפוי/שגוי — הודעה כללית ועצירה
+if (!mapping || Object.keys(mapping).length === 0) {
+  setIsLoading(false);
+  setShowTemplateMismatch(true);
+  return;
+}
+
+// בדיקת התאמה בסיסית בין הכותרות בקובץ לבין הכותרות שמוגדרות בתבנית (מה-DB)
+const expectedExcelColumns = Object.keys(mapping);
+const foundHeaders = headersAtRow(ws, headerRowIndex);
+
+// חישוב שיעור התאמה (כמה מהכותרות שהוגדרו בתבנית נמצאות בפועל)
+const intersectCount = expectedExcelColumns.filter(h => foundHeaders.includes(h)).length;
+const coverage = expectedExcelColumns.length ? (intersectCount / expectedExcelColumns.length) : 1;
+
+// סף פשוט: אם פחות מ-50% מהכותרות נמצאו — נניח שהתבנית לא מתאימה לקובץ
+if (coverage < 0.5) {
+  setIsLoading(false);
+  setShowTemplateMismatch(true);
+  return;
+}
+
         jsonData = XLSX.utils.sheet_to_json(ws, {
           defval: "",
           range: headerRowIndex
@@ -1072,6 +1106,16 @@ const preResolveLinks = async (rows: any[], agentId: string) => {
           hideCancel={true}
         />
       )}
+      {showTemplateMismatch && (
+  <DialogNotification
+    type="warning"
+    title="התבנית לא מתאימה לקובץ"
+    message="הדוח שנבחר לא מתאים לקובץ הנטען. אנא בחר תבנית תואמת או העלה קובץ מתאים."
+    onConfirm={() => setShowTemplateMismatch(false)}
+    onCancel={() => setShowTemplateMismatch(false)}
+    hideCancel={true}
+  />
+)}
     </div>
   );  
 };
