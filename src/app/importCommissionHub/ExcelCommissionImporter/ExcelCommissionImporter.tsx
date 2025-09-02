@@ -24,6 +24,7 @@ import {
 import { Button } from '@/components/Button/Button';
 import DialogNotification from '@/components/DialogNotification';
 import './ExcelCommissionImporter.css';
+import { writeBatch } from 'firebase/firestore';
 
 
 interface CommissionTemplateOption {
@@ -286,39 +287,46 @@ if (m) {
     const snapshot = await getDocs(q);
     setExistingDocs(snapshot.docs);
   };
-
   const handleDeleteExisting = async () => {
     setShowConfirmDelete(false);
     setIsLoading(true);
   
     try {
-      // שלב 1: חילוץ מזהים ייחודיים לשורות סיכום
-      const summaryKeys = new Set<string>();
+      const batch = writeBatch(db);
+  
+      // 1) מחיקה של כל הרשומות מהקובץ (externalCommissions)
+      const summaryIds = new Set<string>();
+  
       for (const docSnap of existingDocs) {
         const data = docSnap.data();
-        const key = `${data.agentId}_${data.agentCode}_${data.reportMonth}_${data.templateId}`;
-        summaryKeys.add(key);
+        const agentId: string = data.agentId || '';
+        const agentCode: string = (data.agentCode || '').toString();
+        const templateId: string = data.templateId || '';
+        const companyId: string = data.companyId || ''; // ✅ חובה
+        const sanitizedMonth: string = (data.reportMonth || '')
+          .toString()
+          .replace(/\//g, '-'); // ✅ ליישר לפורמט השמירה
+  
+        // אותו docId בדיוק כמו בשמירה ב-handleImport
+        const summaryDocId = `${agentId}_${agentCode}_${sanitizedMonth}_${templateId}_${companyId}`;
+        summaryIds.add(summaryDocId);
+  
+        // מחיקת הרשומה מהטבלה החיצונית
+        batch.delete(docSnap.ref);
       }
   
-      // שלב 2: מחיקת כל שורות הקובץ
-      for (const docSnap of existingDocs) {
-        await deleteDoc(docSnap.ref);
+      // 2) מחיקת סיכומים מתאימים (commissionSummaries)
+      for (const id of summaryIds) {
+        batch.delete(doc(db, 'commissionSummaries', id));
       }
   
-      // שלב 3: מחיקת שורות סיכום תואמות
-      for (const key of summaryKeys) {
-        await deleteDoc(doc(db, "commissionSummaries", key));
-      }
+      await batch.commit();
   
       setExistingDocs([]);
-      setStandardizedRows([]); // ✅ ריקון שורות הטבלה
-      setSelectedFileName(''); // אופציונלי: לרוקן את שם הקובץ שהוצג
-     
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
+      setStandardizedRows([]);
+      setSelectedFileName('');
+      if (fileInputRef.current) fileInputRef.current.value = '';
   
-     
       alert('✅ כל הרשומות וגם הסיכומים נמחקו. כעת ניתן לטעון קובץ חדש.');
     } catch (err) {
       console.error(err);
@@ -327,6 +335,8 @@ if (m) {
       setIsLoading(false);
     }
   };
+
+
   const handleClearSelections = () => {
     setSelectedFileName('');
     setStandardizedRows([]);
@@ -475,7 +485,7 @@ result.company   = selectedCompanyName;
   const val2 = row['סך דמי גביה'];
   const sum = (parseFloat(val1?.toString().replace(/,/g, '')) || 0) +
               (parseFloat(val2?.toString().replace(/,/g, '')) || 0);
-              result[systemField] = roundTo2(val1 + val2);
+              result[systemField] = roundTo2(sum);
             } else {
   result[systemField] = value ? parseFloat(value.toString().replace(/,/g, '')) || 0 : 0;
               }     
@@ -992,12 +1002,12 @@ const preResolveLinks = async (rows: any[], agentId: string) => {
     </select>
   </div>
 )}
-      <Button
+      {/* <Button
   text="הפעל אוטומציה לפי תבנית"
   type="secondary"
   onClick={handleAutoRunByTemplate}
   disabled={isLoading || !selectedTemplate}
-/>
+/> */}
       {/* בחירת קובץ */}
       <div className="mb-4">
         <label className="block font-semibold mb-1">בחר קובץ:</label>
