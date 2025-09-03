@@ -24,7 +24,7 @@ import {
 import { Button } from '@/components/Button/Button';
 import DialogNotification from '@/components/DialogNotification';
 import './ExcelCommissionImporter.css';
-import { writeBatch } from 'firebase/firestore';
+import { writeBatch} from 'firebase/firestore';
 
 
 interface CommissionTemplateOption {
@@ -184,19 +184,6 @@ const ExcelCommissionImporter: React.FC = () => {
     [selectedCompanyId, uniqueCompanies]
   );
   
-// שומר תמיד כמחרוזת 9 ספרות (מוסיף אפסים מובילים אם צריך)
-const normalizeCustomerId = (v: any): string => {
-  const digits = String(v ?? '').replace(/\D/g, '');
-  if (!digits) return '';
-  return digits.padStart(9, '0'); // אם זה לא ת״ז – אפשר להשאיר בלי pad
-};
-
-const normalizePolicyNumber = (v: any): string =>
-  String(v ?? '').trim();
-
-const normCompany = (v: any): string =>
-  String(v ?? '').trim().replace(/\s+/g, ' ');
-
 
   const parseHebrewMonth = (value: any, templateId?: string): string => {
     if (!value) return '';
@@ -520,154 +507,18 @@ result.company   = selectedCompanyName;
     reader.readAsArrayBuffer(file);
   };
   
-
-  
-  // const handleImport = async () => {
-  //   if (!selectedAgentId || standardizedRows.length === 0) return;
-  //   // תיקון פורמט reportMonth ו־validMonth עם תמיכה בעברית ובפורמטים שונים
-  //   standardizedRows.forEach(row => {
-  //     row.reportMonth = parseHebrewMonth(row.reportMonth, row.templateId);
-  //     row.validMonth = parseHebrewMonth(row.validMonth, row.templateId);
-  //   });
-    
-  //   setIsLoading(true);
-  
-  //   const reportMonth = standardizedRows[0]?.reportMonth;
-  //   if (existingDocs.length > 0) {
-  //     alert('❌ קובץ כבר קיים לחודש זה ולסוכן זה. מחק אותו קודם כדי לטעון מחדש.');
-  //     setIsLoading(false);
-  //     return;
-  //   }
-  
-  //   try {
-  //     // שלב 1: איסוף כל הקודים מהקובץ
-  //     const uniqueAgentCodes = new Set<string>();
-  //     for (const row of standardizedRows) {
-  //       if (row.agentCode) {
-  //         uniqueAgentCodes.add(row.agentCode.toString().trim());
-  //       }
-  //     }
-  
-  //     // שלב 2: עדכון שדה agentCodes ביוזר (אם חסר – ניצור אותו)
-  //     const userRef = doc(db, 'users', selectedAgentId);
-  //     const userSnap = await getDoc(userRef);
-  //     if (userSnap.exists()) {
-  //       const userData = userSnap.data();
-  //       const existingCodes: string[] = userData.agentCodes || [];
-  
-  //       const codesToAdd = Array.from(uniqueAgentCodes).filter(
-  //         code => !existingCodes.includes(code)
-  //       );
-  
-  //       if (codesToAdd.length > 0) {
-  //         await updateDoc(userRef, {
-  //           agentCodes: arrayUnion(...codesToAdd)
-  //         });
-  //       }
-  //     }
-  
-  //     // שלב 3: טעינת הנתונים לטבלת externalCommissions
-  //     for (const row of standardizedRows) {
-  //       await addDoc(collection(db, 'externalCommissions'), row);
-  //     }
-  //     const summariesMap = new Map<string, CommissionSummary>();
-
-      
-  //     for (const row of standardizedRows) {
-  //       // const key = `${row.agentId}_${row.agentCode}_${row.reportMonth}_${row.templateId}`;
-  //       const sanitizedMonth = row.reportMonth?.toString().replace(/\//g, '-') || '';
-  //       const key = `${row.agentId}_${row.agentCode}_${sanitizedMonth}_${row.templateId}_${row.companyId}`; // ✅
-  //       if (!summariesMap.has(key)) {
-  //         summariesMap.set(key, {
-  //           agentId: row.agentId,
-  //           agentCode: row.agentCode,
-  //           reportMonth: row.reportMonth,
-  //           templateId: row.templateId,
-  //           totalCommissionAmount: 0,
-  //           companyId: row.companyId,           
-  //           company: row.company || '', 
-  //         });
-  //       }
-  //       const summary = summariesMap.get(key)!;
-  //       const commission = parseFloat(row.commissionAmount || '0');
-  //       summary.totalCommissionAmount += isNaN(commission) ? 0 : commission;
-  //     }
-      
-  //     // שמירה לטבלה החדשה
-  //     for (const summary of summariesMap.values()) {
-  //       // const docId = `${summary.agentId}_${summary.agentCode}_${summary.reportMonth}_${summary.templateId}`;
-  //       const sanitizedMonth = summary.reportMonth?.toString().replace(/\//g, '-') || '';
-  //       const docId = `${summary.agentId}_${summary.agentCode}_${sanitizedMonth}_${summary.templateId}_${summary.companyId}`;
-        
-  //       await setDoc(doc(db, "commissionSummaries", docId), {
-  //         ...summary,
-  //         updatedAt: serverTimestamp(), // מוסיף תאריך עדכון
-  //       });
-  //       // חישוב סיכומים להצגה
-  //       const grouped: Record<string, {
-  //         count: number;
-  //         uniqueCustomers: Set<string>;
-  //         totalCommission: number;
-  //       }> = {};
-        
-  //       for (const row of standardizedRows) {
-  //         const code = row.agentCode;
-  //         if (!code) continue;
-        
-  //         if (!grouped[code]) {
-  //           grouped[code] = {
-  //             count: 0,
-  //             uniqueCustomers: new Set(),
-  //             totalCommission: 0,
-  //           };
-  //         }
-        
-  //         grouped[code].count += 1;
-        
-  //         if (row.customerId) {
-  //           grouped[code].uniqueCustomers.add(row.customerId);
-  //         }
-        
-  //         grouped[code].totalCommission += parseFloat(row.commissionAmount || '0') || 0;
-  //       }
-        
-  //       // יצירת מערך לסיכום
-  //       const summaryArray = Object.entries(grouped).map(([agentCode, data]) => ({
-  //         agentCode,
-  //         count: data.count,
-  //         totalInsured: data.uniqueCustomers.size,
-  //         totalCommission: data.totalCommission,
-  //       }));
-        
-  //       setSummaryByAgentCode(summaryArray);
-  //       setShowSummaryDialog(true);        
-  // }
-  //     // alert('✅ כל השורות נטענו למסד הנתונים!');
-  //     setStandardizedRows([]);
-  //     setSelectedFileName('');
-  //     setExistingDocs([]);
-  //   } catch (error) {
-  //     console.error('שגיאה בעת טעינה:', error);
-  //     alert('❌ שגיאה בעת טעינה למסד. בדוק קונסול.');
-  //   } finally {
-  //     setIsLoading(false);
-  //   }
-  // };
-
   const handleImport = async () => {
     if (!selectedAgentId || standardizedRows.length === 0) return;
   
-    // 🔹 תיקון פורמט reportMonth ו־validMonth עם תמיכה בעברית ובפורמטים שונים
+    // 🔹 נרמול חודשי דו"ח לפני כתיבה (תמיכה בעברית/פורמטים שונים)
     standardizedRows.forEach(row => {
       row.reportMonth = parseHebrewMonth(row.reportMonth, row.templateId);
-      row.validMonth = parseHebrewMonth(row.validMonth, row.templateId);
+      row.validMonth  = parseHebrewMonth(row.validMonth,  row.templateId);
     });
   
     setIsLoading(true);
   
-    const reportMonth = standardizedRows[0]?.reportMonth;
-  
-    // 🔹 בדיקה אם כבר יש קובץ קיים לחודש+סוכן+חברה+תבנית
+    // 🔹 בדיקה אם כבר יש קובץ קיים לחודש+סוכן+חברה+תבנית (מנועת כפילות)
     if (existingDocs.length > 0) {
       alert('❌ קובץ כבר קיים לחודש זה ולסוכן זה. מחק אותו קודם כדי לטעון מחדש.');
       setIsLoading(false);
@@ -678,40 +529,36 @@ result.company   = selectedCompanyName;
       // --- שלב 1: איסוף agentCodes מהקובץ ---
       const uniqueAgentCodes = new Set<string>();
       for (const row of standardizedRows) {
-        if (row.agentCode) {
-          uniqueAgentCodes.add(row.agentCode.toString().trim());
-        }
+        if (row.agentCode) uniqueAgentCodes.add(row.agentCode.toString().trim());
       }
   
-      // --- שלב 2: עדכון שדה agentCodes ביוזר (אם חסר – נוסיף) ---
+      // --- שלב 2: עדכון users.agentCodes (אם צריך) ---
       const userRef = doc(db, 'users', selectedAgentId);
       const userSnap = await getDoc(userRef);
       if (userSnap.exists()) {
-        const userData = userSnap.data();
-        const existingCodes: string[] = userData.agentCodes || [];
-  
-        const codesToAdd = Array.from(uniqueAgentCodes).filter(
-          code => !existingCodes.includes(code)
-        );
-  
+        const existingCodes: string[] = userSnap.data().agentCodes || [];
+        const codesToAdd = Array.from(uniqueAgentCodes).filter(code => !existingCodes.includes(code));
         if (codesToAdd.length > 0) {
-          await updateDoc(userRef, {
-            agentCodes: arrayUnion(...codesToAdd)
-          });
+          await updateDoc(userRef, { agentCodes: arrayUnion(...codesToAdd) });
         }
       }
   
-      // --- שלב 3: לפני כתיבה למסד → pre-link ---
-      // כאן אנחנו בודקים policyLinkIndex ואם נמצא saleId מתאים
-      // נעדכן לכל שורה את linkedSaleId כדי שתגיע למסד כבר "משויכת"
-      const rowsWithLinks = await preResolveLinks(standardizedRows, selectedAgentId);
+      // --- שלב 3: קישור אוטומטי לפני כתיבה למסד (batched + אימות לקוח) ---
+      // מוסיף לכל שורה גם policyNumberKey ו-customerIdPadded
+      const rowsWithLinks = await preResolveLinks(
+        standardizedRows,
+        selectedAgentId,
+        selectedCompanyId // ← צמצום השאילתה לפי חברה
+      );
   
-      // --- שלב 4: כתיבת הנתונים לטבלת externalCommissions ---
-      for (const row of rowsWithLinks) {
-        await addDoc(collection(db, 'externalCommissions'), row);
-      }
+      // (אופציונלי) חיווי כמה קושרו אוטומטית
+      const autoLinkedCount = rowsWithLinks.filter(r => !!r.linkedSaleId).length;
+      console.log(`🔗 Auto-linked rows: ${autoLinkedCount}/${rowsWithLinks.length}`);
   
-      // --- שלב 5: חישוב סיכומים לפי agentCode ---
+      // --- שלב 4: כתיבה לטבלת externalCommissions בבאצ'ים ---
+      await writeExternalRowsInChunks(rowsWithLinks);
+  
+      // --- שלב 5: בניית מפה לסיכומים ---
       const summariesMap = new Map<string, CommissionSummary>();
       for (const row of rowsWithLinks) {
         const sanitizedMonth = row.reportMonth?.toString().replace(/\//g, '-') || '';
@@ -733,36 +580,17 @@ result.company   = selectedCompanyName;
         summary.totalCommissionAmount += isNaN(commission) ? 0 : commission;
       }
   
-      // --- שלב 6: שמירת הסיכומים לטבלת commissionSummaries ---
-      for (const summary of summariesMap.values()) {
-        const sanitizedMonth = summary.reportMonth?.toString().replace(/\//g, '-') || '';
-        const docId = `${summary.agentId}_${summary.agentCode}_${sanitizedMonth}_${summary.templateId}_${summary.companyId}`;
+      // --- שלב 6: כתיבת commissionSummaries בבאצ'ים ---
+      await writeSummariesInBatch(Array.from(summariesMap.values()));
   
-        await setDoc(doc(db, "commissionSummaries", docId), {
-          ...summary,
-          updatedAt: serverTimestamp(),
-        });
-      }
-  
-      // --- שלב 7: חישוב נתוני סיכום להצגה במסך ---
-      const grouped: Record<string, {
-        count: number;
-        uniqueCustomers: Set<string>;
-        totalCommission: number;
-      }> = {};
-  
+      // --- שלב 7: חישוב נתוני סיכום למסך ---
+      const grouped: Record<string, { count: number; uniqueCustomers: Set<string>; totalCommission: number; }> = {};
       for (const row of rowsWithLinks) {
         const code = row.agentCode;
         if (!code) continue;
-  
         if (!grouped[code]) {
-          grouped[code] = {
-            count: 0,
-            uniqueCustomers: new Set(),
-            totalCommission: 0,
-          };
+          grouped[code] = { count: 0, uniqueCustomers: new Set(), totalCommission: 0 };
         }
-  
         grouped[code].count += 1;
         if (row.customerId) grouped[code].uniqueCustomers.add(row.customerId);
         grouped[code].totalCommission += parseFloat(row.commissionAmount || '0') || 0;
@@ -774,11 +602,10 @@ result.company   = selectedCompanyName;
         totalInsured: data.uniqueCustomers.size,
         totalCommission: data.totalCommission,
       }));
-  
       setSummaryByAgentCode(summaryArray);
       setShowSummaryDialog(true);
   
-      // --- שלב 8: ניקוי state אחרי טעינה ---
+      // --- שלב 8: ניקוי מצב אחרי טעינה ---
       setStandardizedRows([]);
       setSelectedFileName('');
       setExistingDocs([]);
@@ -792,134 +619,202 @@ result.company   = selectedCompanyName;
   };
   
 
-
-
-
-  const handleAutoRunByTemplate = async () => {
-    if (!selectedTemplate?.id || !selectedAgentId) {
-      alert('יש לבחור תבנית וסוכן לפני הפעלת אוטומציה');
-      return;
-    }
-  
-    try {
-      setIsLoading(true);
-  
-      // // שלב בסיסי לאיסוף נתונים — אפשר לשנות לטופס בעתיד
-      // const idNumber = prompt('📱 הכנס ת״ז של הסוכן:');
-      // const password = prompt('🔒 הכנס סיסמה של הסוכן:');
-  
-      // if (!idNumber || !password) {
-      //   alert('❌ חובה להזין ת״ז וסיסמה כדי להתחיל את האוטומציה');
-      //   return;
-      // }
-      // console.log('🚀 שולחת:', {
-      //   templateId: selectedTemplate.id,
-      //   options: {
-      //     idNumber,
-      //     password,
-      //     agentId: selectedAgentId
-      //   }
-      // });
-      
-      const res = await fetch('/api/automation/run-template', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          templateId: selectedTemplate.id,
-          options: {
-            // idNumber,
-            // password,
-            agentId: selectedAgentId,
-            templateId: selectedTemplate.id,
-          }
-        }),
-      });
-  
-      const data = await res.json();
-  
-      if (!res.ok) {
-        throw new Error(data.error || 'שגיאה כללית בהרצת האוטומציה');
+  async function writeExternalRowsInChunks(rows: any[]) {
+    const CHUNK = 450;
+    for (let i = 0; i < rows.length; i += CHUNK) {
+      const slice = rows.slice(i, i + CHUNK);
+      const batch = writeBatch(db);
+      for (const r of slice) {
+        const ref = doc(collection(db, 'externalCommissions')); // יוצר id מראש
+        batch.set(ref, r);
       }
-  
-      alert('✅ האוטומציה הופעלה בהצלחה! המתן להשלמת הפעולה');
-    } catch (err) {
-      console.error('❌ שגיאה באוטומציה:', err);
-      alert('❌ שגיאה בהפעלת האוטומציה');
-    } finally {
-      setIsLoading(false);
+      await batch.commit();
     }
-  };
+  }
+
+async function writeSummariesInBatch(summaries: CommissionSummary[]) {
+  const CHUNK = 450;
+  for (let i = 0; i < summaries.length; i += CHUNK) {
+    const slice = summaries.slice(i, i + CHUNK);
+    const batch = writeBatch(db);
+    for (const s of slice) {
+      const sanitized = (s.reportMonth ?? '').toString().replace(/\//g,'-');
+      const id = `${s.agentId}_${s.agentCode}_${sanitized}_${s.templateId}_${s.companyId}`;
+      batch.set(doc(db, 'commissionSummaries', id), {
+        ...s,
+        updatedAt: serverTimestamp(),
+      });
+    }
+    await batch.commit();
+  }
+}
+
+// עזר לפיצול מערך לצ'אנקים (ל־IN עד 30 ערכים)
+const chunk = <T,>(arr: T[], size: number) =>
+  Array.from({ length: Math.ceil(arr.length / size) }, (_, i) => arr.slice(i * size, i * size + size));
+
+// מספר פוליסה "למפתח" — ללא רווחים
+const normalizePolicyKey = (v: any) =>
+  String(v ?? '').trim().replace(/\s+/g, '');
+
+// ת"ז מרומללת ל־9 ספרות (אם כבר מוגדר אצלך, אפשר להשאיר את הקיים)
+const normalizeCustomerId = (v: any): string => {
+  const digits = String(v ?? '').replace(/\D/g, '');
+  return digits ? digits.padStart(9, '0') : '';
+};
+
+
+
+  // const handleAutoRunByTemplate = async () => {
+  //   if (!selectedTemplate?.id || !selectedAgentId) {
+  //     alert('יש לבחור תבנית וסוכן לפני הפעלת אוטומציה');
+  //     return;
+  //   }
   
-/** לפני שמוסיפים למסד: משייכים אוטומטית ע"פ policyLinkIndex + אימות לקוח */
-const preResolveLinks = async (rows: any[], agentId: string) => {
-  // בונים key עבור כל שורה שיש לה policyNumber + company
-  const keys = Array.from(
+  //   try {
+  //     setIsLoading(true);
+  
+  //     // // שלב בסיסי לאיסוף נתונים — אפשר לשנות לטופס בעתיד
+  //     // const idNumber = prompt('📱 הכנס ת״ז של הסוכן:');
+  //     // const password = prompt('🔒 הכנס סיסמה של הסוכן:');
+  
+  //     // if (!idNumber || !password) {
+  //     //   alert('❌ חובה להזין ת״ז וסיסמה כדי להתחיל את האוטומציה');
+  //     //   return;
+  //     // }
+  //     // console.log('🚀 שולחת:', {
+  //     //   templateId: selectedTemplate.id,
+  //     //   options: {
+  //     //     idNumber,
+  //     //     password,
+  //     //     agentId: selectedAgentId
+  //     //   }
+  //     // });
+      
+  //     const res = await fetch('/api/automation/run-template', {
+  //       method: 'POST',
+  //       headers: { 'Content-Type': 'application/json' },
+  //       body: JSON.stringify({
+  //         templateId: selectedTemplate.id,
+  //         options: {
+  //           // idNumber,
+  //           // password,
+  //           agentId: selectedAgentId,
+  //           templateId: selectedTemplate.id,
+  //         }
+  //       }),
+  //     });
+  
+  //     const data = await res.json();
+  
+  //     if (!res.ok) {
+  //       throw new Error(data.error || 'שגיאה כללית בהרצת האוטומציה');
+  //     }
+  
+  //     alert('✅ האוטומציה הופעלה בהצלחה! המתן להשלמת הפעולה');
+  //   } catch (err) {
+  //     console.error('❌ שגיאה באוטומציה:', err);
+  //     alert('❌ שגיאה בהפעלת האוטומציה');
+  //   } finally {
+  //     setIsLoading(false);
+  //   }
+  // };
+  
+/**
+ * לפני שמוסיפים למסד: משייכים אוטומטית לפי policyLinkIndex (batch, IN up to 30),
+ * מאמתים לקוח מול customerIdPadded מהאינדקס, ומעשירים כל שורה לשמירה.
+ * דורש אינדקס מרוכב על agentId==, companyId==, policyNumberKey IN (ב־policyLinkIndex).
+ */
+const preResolveLinks = async (
+  rows: any[],
+  agentId: string,
+  companyId?: string // מומלץ להעביר
+) => {
+  // 1) בניית רשימת policyNumberKey ייחודיים מכל השורות
+  const policyKeys = Array.from(
     new Set(
       rows
-        .map(r => {
-          const policyNumber = normalizePolicyNumber(r.policyNumber);
-          const company = normCompany(r.company);
-          return policyNumber && company ? `${agentId}::${company}::${policyNumber}` : '';
-        })
+        .map(r => normalizePolicyKey(r.policyNumber))
         .filter(Boolean)
     )
   );
 
-  if (keys.length === 0) return rows;
+  if (policyKeys.length === 0) {
+    // גם כשאין מפתחות, נחזיר שורות מועשרות לשמירה קלה
+    return rows.map(r => ({
+      ...r,
+      policyNumberKey: normalizePolicyKey(r.policyNumber),
+      customerIdPadded: normalizeCustomerId(r.customerId),
+    }));
+  }
 
-  // שליפת policyLinkIndex ב‑batch
-  const idxDocs = await Promise.all(
-    keys.map(k => getDoc(doc(db, 'policyLinkIndex', k)))
-  );
+  // 2) שליפה בצ'אנקים של עד 30 ערכים ב-IN
+  const keyToIndexData = new Map<string, { saleId: string; customerIdPadded: string }>();
+  const chunks = chunk(policyKeys, 30);
 
-  // saleIds שנמצאו באינדקס
-  const keyToSaleId = new Map<string, string>();
-  const saleIds = new Set<string>();
-  idxDocs.forEach((snap, i) => {
-    if (!snap.exists()) return;
-    const saleId = (snap.data() as any)?.saleId;
-    if (saleId) {
-      keyToSaleId.set(keys[i], saleId);
-      saleIds.add(saleId);
+  for (const part of chunks) {
+    // שאילתה: agentId + (אופציונלי) companyId + policyNumberKey IN
+    let q = query(
+      collection(db, 'policyLinkIndex'),
+      where('agentId', '==', agentId),
+      where('policyNumberKey', 'in', part)
+    );
+
+    if (companyId) {
+      q = query(
+        collection(db, 'policyLinkIndex'),
+        where('agentId', '==', agentId),
+        where('companyId', '==', companyId),
+        where('policyNumberKey', 'in', part)
+      );
     }
-  });
 
-  if (saleIds.size === 0) return rows;
+    const snap = await getDocs(q);
+    snap.forEach(docSnap => {
+      const d = docSnap.data() as any;
+      if (d?.saleId && d?.customerIdPadded && d?.policyNumberKey) {
+        keyToIndexData.set(String(d.policyNumberKey), {
+          saleId: String(d.saleId),
+          customerIdPadded: String(d.customerIdPadded),
+        });
+      }
+    });
+  }
 
-  // שליפת ה‑sales הדרושים לאימות customerId
-  const saleSnaps = await Promise.all(
-    Array.from(saleIds).map(sid => getDoc(doc(db, 'sales', sid)))
-  );
-  const saleMap = new Map<string, any>();
-  saleSnaps.forEach(s => {
-    if (s.exists()) saleMap.set(s.id, s.data());
-  });
-
-  // החלת הקישור רק אם גם הלקוח תואם (agentId + company + customerId + policyNumber)
+  // 3) החלת קישור + העשרה לכל שורה
   const updated = rows.map(r => {
-    const policyNumber = normalizePolicyNumber(r.policyNumber);
-    const company = normCompany(r.company);
-    const key = policyNumber && company ? `${agentId}::${company}::${policyNumber}` : '';
-
-    const saleId = key ? keyToSaleId.get(key) : undefined;
-    if (!saleId) return r;
-
-    const sale = saleMap.get(saleId);
-    if (!sale) return r;
-
-    // אימות customerId (מאוד חשוב)
+    const policyKey = normalizePolicyKey(r.policyNumber);
     const rowCustomerId = normalizeCustomerId(r.customerId);
-    const saleCustomerId = sale?.IDCustomer ? String(sale.IDCustomer).padStart(9, '0') : '';
 
-    if (rowCustomerId && saleCustomerId && rowCustomerId === saleCustomerId) {
-      return { ...r, linkedSaleId: saleId }; // ✅ משייכים ברמת ה‑row
+    // תמיד מעשירים לשמירה נוחה וחיפושים עתידיים
+    const enriched = {
+      ...r,
+      policyNumberKey: policyKey,
+      customerIdPadded: rowCustomerId,
+    };
+
+    // אין מפתח → אין ניסיון קישור
+    if (!policyKey) return enriched;
+
+    const idx = keyToIndexData.get(policyKey);
+    if (!idx) return enriched;
+
+    // אימות לקוח מול האינדקס (ללא קריאה ל-sales)
+    if (rowCustomerId && idx.customerIdPadded && rowCustomerId === idx.customerIdPadded) {
+      return {
+        ...enriched,
+        linkedSaleId: idx.saleId,
+        linkSource: 'policyIndex',
+        linkConfidence: 1.0,
+      };
     }
-    // לא תואם לקוח → לא משייכים
-    return r;
+
+    return enriched;
   });
 
   return updated;
 };
+
 
 
   
