@@ -6,17 +6,23 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: 16px; 
 }
 
 .dialog-notification {
   background-color: #fff;
   border: 1px solid #E0E0E0;
   border-radius: 6px;
-  padding: 20px 24px;
-  width: 400px;
-  max-width: 90%;
+  /* ---- גדלים רספונסיביים ---- */
+  width: 92vw;        /* NEW – נוח לנייד */
+  max-width: 640px;   /* NEW – גג בדסקטופ */
+  max-height: 90vh;   /* NEW – המודאל לא יעבור את גובה המסך */
+  /* ---- פריסה ---- */
   display: flex;
   flex-direction: column;
+  overflow: hidden;   /* NEW – שנגלול רק את הגוף, לא את כל הקופסה */
+  /* ---- עיצוב קיים ---- */
+  padding: 20px 24px;
   box-shadow: 0px 4px 10px rgba(0,0,0,0.1);
   font-family: "Rubik", sans-serif;
   text-align: right;
@@ -48,6 +54,8 @@
   align-items: center;
   justify-content: space-between;
   margin-top: 16px;
+  border-bottom: 1px solid #eee; /* NEW – הפרדה חזותית מעל התוכן הגולל */
+  padding-bottom: 8px;            /* NEW */
 }
 
 .dialog-icon {
@@ -82,16 +90,21 @@
 .dialog-message {
   font-size: 14px;
   color: #333;
-  margin: 16px 0;
   line-height: 1.5;
+  margin: 16px 0;
+  flex: 1;            /* NEW – תופס את כל הגובה הפנוי */
+  min-height: 0;      /* NEW – מאפשר גלילה תקינה ב-flex */
+  overflow-y: auto;   /* NEW – גלילה פנימית */
 }
 
 .dialog-buttons {
   display: flex;
   justify-content: center;
   gap: 12px;
+  border-top: 1px solid #eee; /* NEW */
+  padding-top: 12px;          /* NEW */
+  background: #fff;           /* NEW – שכבת בסיס כשגוללים מאחור */
 }
-
 .dialog-button {
   min-width: 100px;
   padding: 8px 12px;
@@ -111,7 +124,8 @@
   color: #fff;
 }
 .dialog-message-pre {
-  white-space: pre-line;
+  white-space: pre-wrap;  /* היה pre-line – עדיף pre-wrap לצירוף שברים */
+  word-break: break-word; /* NEW – שבר מלים ארוכות */
   font-family: inherit;
   font-size: 14px;
   line-height: 1.8;
