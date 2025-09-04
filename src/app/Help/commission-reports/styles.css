@@ -1,0 +1,52 @@
+/* גלילה חלקה במסמכי עזרה */
+html { scroll-behavior: smooth; }
+
+/* קיזוז עוגנים כשיש Navbar קבוע למעלה (התאימי אם צריך) */
+.company-section, .report, .page-title, .company-title, .report-title {
+  scroll-margin-top: 96px; /* navbar height + מרווח */
+}
+
+.help-container {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 24px;
+  line-height: 1.7;
+}
+
+/* כותרת ראשית */
+.page-title {
+  font-size: clamp(1.8rem, 3.2vw, 2.4rem);
+  margin: 0 0 4px 0;
+  font-weight: 800;
+}
+.page-subtitle { margin: 0 0 16px 0; color: #333; }
+
+/* תוכן עניינים */
+.toc-title { margin: 8px 0 6px; }
+.toc-level-1, .toc-level-2 { margin: 0; padding: 0 1.25rem 0 0; }
+.toc-level-1 > li { margin: 6px 0; }
+.toc-level-2 > li { margin: 2px 0; }
+.toc-company-link, .toc-report-link { text-decoration: underline; }
+.toc-company-link:hover, .toc-report-link:hover { text-decoration: none; }
+
+/* חברות ודוחות */
+.company-section { margin: 28px 0; }
+.company-title {
+  font-size: clamp(1.3rem, 2.2vw, 1.6rem);
+  margin: 0 0 10px 0;
+  font-weight: 800;
+}
+.report { margin: 18px 0 26px; }
+.report-title {
+  font-size: clamp(1.05rem, 1.8vw, 1.25rem);
+  margin: 0 0 6px 0;
+  font-weight: 800;
+}
+
+.steps p { margin: 6px 0; }
+.steps ol { margin: 8px 0 0 0; padding-right: 1rem; }
+
+/* חזרה לרשימה */
+.back { margin-top: 10px; }
+.back-link { text-decoration: underline; }
+.back-link:hover { text-decoration: none; }

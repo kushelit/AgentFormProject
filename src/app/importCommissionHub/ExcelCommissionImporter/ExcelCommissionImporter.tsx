@@ -22,6 +22,7 @@ import { Button } from '@/components/Button/Button';
 import DialogNotification from '@/components/DialogNotification';
 import './ExcelCommissionImporter.css';
 import { writeBatch } from 'firebase/firestore';
+import Link from 'next/link';
 
 // ===============================
 // Types
@@ -1025,7 +1026,15 @@ const toPadded9 = (v: any): string => {
           </select>
         </div>
       )}
-
+<div className="mb-2 text-sm">
+  <Link
+    href="/Help/commission-reports#top"
+    target="_blank"
+    className="underline hover:no-underline text-blue-600"
+  >
+    ❓ מדריך דוחות עמלות – איך להפיק ולייצא מכל חברה
+  </Link>
+</div>
       {/* בחירת קובץ */}
       <div className="mb-4">
         <label className="block font-semibold mb-1">בחר קובץ:</label>
@@ -1137,19 +1146,31 @@ const toPadded9 = (v: any): string => {
         />
       )}
 
-      {/* דיאלוגים כלליים */}
-      {showTemplateMismatch && (
-        <DialogNotification
-          type="warning"
-          title="התבנית לא מתאימה לקובץ"
-          message="הדוח שנבחר לא מתאים לקובץ הנטען. אנא בחר תבנית תואמת או העלה קובץ מתאים."
-          onConfirm={() => setShowTemplateMismatch(false)}
-          onCancel={() => setShowTemplateMismatch(false)}
-          hideCancel={true}
-        />
-      )}
-
-      {errorDialog && (
+{showTemplateMismatch && (
+  <DialogNotification
+    type="warning"
+    title="התבנית לא מתאימה לקובץ"
+    message={
+      <>
+        הדוח שנבחר לא מתאים לקובץ הנטען. נסי לבחור תבנית אחרת
+        או להפיק מחדש לפי ההנחיות במדריך.
+        <div className="mt-2">
+          <Link
+            href="/Help/commission-reports#top"
+            target="_blank"
+            className="underline hover:no-underline text-blue-600"
+          >
+            לפתיחת מדריך דוחות העמלות
+          </Link>
+        </div>
+      </>
+    }
+    onConfirm={() => setShowTemplateMismatch(false)}
+    onCancel={() => setShowTemplateMismatch(false)}
+    hideCancel={true}
+  />
+)}
+    {errorDialog && (
         <DialogNotification
           type="warning"
           title={errorDialog.title}
