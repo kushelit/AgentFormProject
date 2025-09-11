@@ -358,8 +358,9 @@ const CommissionComparisonByPolicy: React.FC = () => {
 
   return (
     <div className="p-6 max-w-6xl mx-auto text-right">
-      <h1 className="text-2xl font-bold mb-4">השוואת עמלות בין חודשים (סה"כ לפר פוליסה)</h1>
-
+<h1 className="text-2xl font-bold mb-4">
+  השוואת עמלות בין חודשים (סה&quot;כ לפר פוליסה)
+</h1>
       {/* Agent */}
       <div className="mb-4">
         <label className="block mb-1 font-semibold">בחר סוכן:</label>
@@ -448,7 +449,7 @@ const CommissionComparisonByPolicy: React.FC = () => {
             <thead>
               <tr className="bg-gray-200 text-right">
                 <th className="border p-2">מס׳ פוליסה (key)</th>
-                <th className="border p-2">ת"ז לקוח</th>
+                <th className="border p-2">ת&quot;ז לקוח</th>
                 <th className="border p-2">מס׳ סוכן</th>
                 <th className="border p-2">מוצר</th>
                 <th className="border p-2">{`עמלה ${formatMonthDisplay(month1)}`}</th>
@@ -484,8 +485,8 @@ const CommissionComparisonByPolicy: React.FC = () => {
               )}
 
               <tr className="font-bold bg-blue-50">
-                <td className="border p-2 text-right">סה\"כ</td>
-                <td className="border p-2" colSpan={2}></td>
+              <td className="border p-2 text-right">סה&quot;כ</td>
+              <td className="border p-2" colSpan={2}></td>
                 <td className="border p-2"></td>
                 <td className="border p-2">{totals.c1.toFixed(2)}</td>
                 <td className="border p-2">{totals.p1.toFixed(2)}</td>
