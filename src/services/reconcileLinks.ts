@@ -4,182 +4,227 @@
 import { db } from '@/lib/firebase/firebase';
 import {
   collection,
-  query,
-  where,
-  getDocs,
   doc,
+  addDoc,
   setDoc,
   getDoc,
-  deleteDoc,
+  getDocs,
   updateDoc,
+  deleteDoc,
   serverTimestamp,
+  query,
+  where,
 } from 'firebase/firestore';
-import { ym } from '@/utils/reconcile';
+import { makeCompanyCanonical } from '@/utils/reconcile';
 
-/**
- * helper ליצירת מפתח האינדקס הקבוע לשיוך לפי מספר פוליסה
- * policyLinkIndex documentId = `${agentId}::${company}::${policyNumber}`
- */
-const policyKey = (agentId: string, company?: string, policyNumber?: string) =>
-  `${agentId}::${company || ''}::${policyNumber || ''}`;
+/* ───────── utils ───────── */
+const normalizePolicyKey = (v: any) => String(v ?? '').trim().replace(/\s+/g, '');
+const policyIndexKey = (agentId: string, companyCanon: string, policyNumberKey: string) =>
+  `${agentId}::${companyCanon}::${policyNumberKey}`;
 
-/** 🔎 כמו שהיה – אין שינוי (השאירי את המימוש שלך אם קיים) */
-export async function fetchDrillForKey(/* ... */) {
-  /* כפי שהיה */
+/** YYYY-MM → YYYY-MM-01 ; אחרת מחזיר '' */
+function ymToStartDate(ym?: string | null): string {
+  const s = String(ym || '').trim().slice(0, 7);
+  return /^\d{4}-\d{2}$/.test(s) ? `${s}-01` : '';
 }
 
-/**
- * ✅ קישור EXTERNAL -> SALE
- * - מעדכן externalCommissions.{extId} בשדות: linkedSaleId, linkedAt, linkSource, policyMonth (+reportMonth אם קיים)
- * - צורב לוג ב-commissionLinks (מפתח = extId)
- * - מעדכן sales.{saleId}: linkedExternalId, ואם policyNumber חסר – משלים מהקובץ/פרמטר
- * - יוצר/מעדכן policyLinkIndex[agentId::company::policyNumber] = { saleId }
- *
- * Idempotent: אם כבר משויך לאותו saleId, נעשה רק merge ועדכוני מטא-דאטה.
- */
-export async function linkExternalToSale(meta: {
-  extId: string;
+/** ניסיון עדין להתאים מוצר חיצוני לקטלוג ה-SALE. אם לא מצליחים → '' ושומרים את המקור ב-productExternal */
+function resolveProductForSale(externalProduct?: string | null, catalogKeys: string[] = []): string {
+  const raw = String(externalProduct || '').trim();
+  if (!raw) return '';
+  const norm = (x: string) => x.toLowerCase().replace(/[\s\-_/.,'"`]+/g, '');
+
+  // 1) התאמה מדויקת
+  if (catalogKeys.includes(raw)) return raw;
+
+  // 2) התאמה לפי נרמול
+  const target = norm(raw);
+  const byNorm = catalogKeys.find((k) => norm(k) === target);
+  if (byNorm) return byNorm;
+
+  // 3) התאמה חלקית זהירה
+  const partial = catalogKeys.find((k) => norm(k).includes(target) || target.includes(norm(k)));
+  return partial || '';
+}
+
+/* ───────── customer ensure ───────── */
+/** מאשר שקיים לקוח (AgentId + IDCustomer). אם אין — מקים מינימלי ומחזיר מזהה. */
+async function ensureCustomer(params: {
+  agentId: string;
+  IDCustomer: string;
+  firstNameCustomer?: string;
+  lastNameCustomer?: string;
+}) {
+  const { agentId, IDCustomer, firstNameCustomer = '', lastNameCustomer = '' } = params;
+
+  const qCust = query(
+    collection(db, 'customer'),
+    where('AgentId', '==', String(agentId)),
+    where('IDCustomer', '==', String(IDCustomer))
+  );
+  const snap = await getDocs(qCust);
+  if (!snap.empty) return snap.docs[0].id;
+
+  const ref = await addDoc(collection(db, 'customer'), {
+    AgentId: String(agentId),
+    firstNameCustomer,
+    lastNameCustomer,
+    IDCustomer: String(IDCustomer),
+    parentID: '',
+    sourceApp: 'reconcile',
+    createdAt: serverTimestamp(),
+  });
+  await updateDoc(ref, { parentID: ref.id });
+  return ref.id;
+}
+
+/* ───────── אינדקס קבוע: policyNumber → SALE ───────── */
+export async function linkPolicyNumberToSale(params: {
   saleId: string;
   agentId: string;
   customerId: string;
-  company: string;
-  policyMonth: string; // YYYY-MM
-  reportMonth?: string; // YYYY-MM (לא חובה, נשמר ללוג/trace)
-  policyNumber?: string; // לשיוך קבוע (מומלץ מאוד)
-  linkSource?: 'manual' | 'index' | 'fallback';
+  company: string;          // raw
+  policyNumber: string;     // חובה
 }) {
-  const {
-    extId,
-    saleId,
-    agentId,
-    customerId,
-    company,
-    policyMonth,
-    reportMonth,
-    policyNumber: pnFromParam,
-    linkSource = 'manual',
-  } = meta;
+  const { saleId, agentId, customerId, company, policyNumber } = params;
+  const companyCanon = makeCompanyCanonical(company);
+  const key = normalizePolicyKey(policyNumber);
+  if (!key) throw new Error('policyNumber is required');
 
-  // נביא את ה-external כדי לשאוב policyNumber אם לא סופק
-  const extRef = doc(db, 'externalCommissions', extId);
-  const extSnap = await getDoc(extRef);
-  if (!extSnap.exists()) throw new Error('external row not found');
-  const ext = extSnap.data() as any;
-
-  // policyNumber עדיפות: פרמטר -> external -> (לבסוף sale בהמשך אם נדרש)
-  const finalPolicyNumber = String(pnFromParam || ext?.policyNumber || '').trim() || undefined;
-
-  // 1) לוג קישור מרכזי (1:1 מול external) — commissionLinks/{extId}
   await setDoc(
-    doc(db, 'commissionLinks', extId),
+    doc(db, 'policyLinkIndex', policyIndexKey(agentId, companyCanon, key)),
     {
-      extId,
-      saleId,
       agentId,
+      company: companyCanon,
+      policyNumberKey: key,
+      saleId,
       customerId,
-      company,
-      policyMonth,
-      ...(reportMonth ? { reportMonth } : {}),
-      policyNumber: finalPolicyNumber || null,
-      linkSource,
-      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
     },
     { merge: true }
   );
 
-  // 2) עדכון ה-external שיראה שהוא מקושר
-  const externalUpdate: Record<string, any> = {
-    linkedSaleId: saleId,
-    linkedAt: serverTimestamp(),
-    linkSource,
-    policyMonth,
-  };
-  if (reportMonth) externalUpdate.reportMonth = reportMonth;
-
-  await updateDoc(extRef, externalUpdate);
-
-  // 3) עדכון ה-SALE: נצרוב את ה-extId, ואם חסר policyNumber – נשלים
+  // אם ל-SALE אין עדיין policyNumber – נשלים אותו
   const saleRef = doc(db, 'sales', saleId);
   const saleSnap = await getDoc(saleRef);
   if (saleSnap.exists()) {
-    const sale = saleSnap.data() as any;
-    const updates: Record<string, any> = { linkedExternalId: extId };
-
-    // נשלים policyNumber רק אם חסר/ריק
-    const salePolicy = (sale.policyNumber ?? '').toString().trim();
-    if (!salePolicy && finalPolicyNumber) {
-      updates.policyNumber = finalPolicyNumber;
+    const cur = String((saleSnap.data() as any).policyNumber || '').trim();
+    if (!cur) {
+      await updateDoc(saleRef, { policyNumber });
     }
-
-    await updateDoc(saleRef, updates);
-  }
-
-  // 4) אינדקס לפוליסה – אם יש policyNumber סופי, נשמור שיוך קבוע
-  if (finalPolicyNumber) {
-    const idxRef = doc(db, 'policyLinkIndex', policyKey(agentId, company, finalPolicyNumber));
-    await setDoc(idxRef, { saleId, updatedAt: serverTimestamp() }, { merge: true });
   }
 }
 
+/** ביטול שיוך באינדקס (לא נוגעים ב-external) */
+export async function unlinkPolicyIndex(params: {
+  agentId: string;
+  company: string;      // raw
+  policyNumber: string;
+}) {
+  const { agentId, company, policyNumber } = params;
+  const companyCanon = makeCompanyCanonical(company);
+  const key = normalizePolicyKey(policyNumber);
+  if (!key) return;
+
+  const idxRef = doc(db, 'policyLinkIndex', policyIndexKey(agentId, companyCanon, key));
+  const snap = await getDoc(idxRef);
+  if (snap.exists()) {
+    await deleteDoc(idxRef);
+  }
+}
+
+/* ───────── יצירה: “צור SALE וקשר” ───────── */
 /**
- * ✅ ניתוק שיוך:
- * - מוחק commissionLinks/{extId}
- * - מנקה externalCommissions.{extId}.linkedSaleId
- * - מנקה sales.{saleId}.linkedExternalId (אם מצביע על extId הזה)
- * - מנסה לנקות policyLinkIndex אם קיים ורלוונטי (אותו saleId)
+ * יוצר SALE חדש מתוך נתוני טעינה ומקשר באינדקס לפי policyNumber.
+ * לא כותב ולא משנה כלום ב-externalCommissions / policyCommissionSummaries.
  */
-export async function unlinkExternalLink(extId: string) {
-  // נאתר את ה-saleId מ-doc הקישור
-  const linkRef = doc(db, 'commissionLinks', extId);
-  const linkSnap = await getDoc(linkRef);
-  const link = linkSnap.exists() ? (linkSnap.data() as any) : null;
-  const saleId = link?.saleId || null;
+export async function createSaleAndLinkFromExternal(meta: {
+  external: {
+    agentId: string;
+    customerId: string;             // ת"ז
+    company: string;                // raw
+    product?: string | null;
+    policyNumber: string;           // חובה
+    validMonth?: string | null;     // YYYY-MM
+    // אופציונלי בלבד — אם ידוע לך השם: יישמרו ב-customer אם נדרש להקים
+    firstNameCustomer?: string;
+    lastNameCustomer?: string;
+  };
+  reportYm?: string;                // YYYY-MM – fallback אם אין validMonth
+  catalogProducts?: string[];       // אופציונלי: מפתחות מוצר לקטלוג SALE
+}) {
+  const { external, reportYm, catalogProducts = [] } = meta;
+  const {
+    agentId,
+    customerId,
+    company,
+    product,
+    policyNumber,
+    validMonth,
+    firstNameCustomer = '',
+    lastNameCustomer = '',
+  } = external;
 
-  // נביא גם את ה-external כדי להשיג agentId/company/policyNumber לצורך ניקוי האינדקס
-  const extRef = doc(db, 'externalCommissions', extId);
-  const extSnap = await getDoc(extRef);
-  const ext = extSnap.exists() ? (extSnap.data() as any) : null;
-
-  // 1) מחיקת הקישור המרכזי (לוג)
-  if (linkSnap.exists()) {
-    await deleteDoc(linkRef);
+  if (!agentId || !customerId || !company || !policyNumber) {
+    throw new Error('חסר מידע: agentId / customerId / company / policyNumber');
   }
 
-  // 2) ניקוי דגל ב-external
-  if (extSnap.exists()) {
-    await setDoc(
-      extRef,
-      { linkedSaleId: null, linkSource: null, linkedAt: null }, // אופציונלי לאפס מטאדאטה
-      { merge: true }
-    );
+  const companyCanon = makeCompanyCanonical(company);
+  const policyKey = normalizePolicyKey(policyNumber);
+  if (!policyKey) throw new Error('policyNumber is invalid');
+
+  // מניעת כפילות: אם כבר קיים אינדקס שמצביע ל-SALE – לא נקים עוד אחד
+  const idxRef = doc(db, 'policyLinkIndex', policyIndexKey(agentId, companyCanon, policyKey));
+  const idxSnap = await getDoc(idxRef);
+  if (idxSnap.exists() && (idxSnap.data() as any)?.saleId) {
+    throw new Error('הפוליסה כבר מקושרת ל-SALE אחר');
   }
 
-  // 3) ניקוי דגל ב-sale (רק אם קיים ומתאים extId הזה)
-  if (saleId) {
-    const saleRef = doc(db, 'sales', saleId);
-    const saleSnap = await getDoc(saleRef);
-    if (saleSnap.exists()) {
-      const sale = saleSnap.data() as any;
-      if (sale.linkedExternalId === extId) {
-        await setDoc(saleRef, { linkedExternalId: null }, { merge: true });
-      }
-    }
-  }
+  // ודא/הקם לקוח
+  await ensureCustomer({
+    agentId,
+    IDCustomer: customerId,
+    firstNameCustomer,
+    lastNameCustomer,
+  });
 
-  // 4) ניקוי policyLinkIndex (זהירות: רק אם האינדקס מצביע לאותו saleId כדי לא להרוס שיוך אחר)
-  const agentId = ext?.agentId ? String(ext.agentId) : null;
-  const company = ext?.company ? String(ext.company) : null;
-  const policyNumber = ext?.policyNumber ? String(ext.policyNumber) : null;
+  // month/mounth: היום הראשון בחודש ה-VALID; אם אין – לפי reportYm; אחרת ריק
+  const saleStart = ymToStartDate(validMonth) || ymToStartDate(reportYm) || '';
 
-  if (agentId && company && policyNumber) {
-    const idxRef = doc(db, 'policyLinkIndex', policyKey(agentId, company, policyNumber));
-    const idxSnap = await getDoc(idxRef);
-    if (idxSnap.exists()) {
-      const idxData = idxSnap.data() as { saleId?: string };
-      if (!idxData.saleId || (saleId && idxData.saleId === saleId)) {
-        // אם מצביע לאותו saleId (או חסר), נוכל למחוק כדי למנוע שיוך עתידי אוטומטי שגוי
-        await deleteDoc(idxRef);
-      }
-    }
-  }
+  // product: ניסיון התאמה; אם לא הצליח – נשמור ריק ונשמר מקור בשדה productExternal
+  const resolvedProduct = resolveProductForSale(product, catalogProducts);
+
+  // יצירת SALE
+  const saleDoc = {
+    AgentId: String(agentId),
+    IDCustomer: String(customerId),
+    company: String(company || ''),
+    product: resolvedProduct,                    // יכול להיות '' אם לא זוהה
+    productExternal: (product || '').trim() || null,
+    month: saleStart,                            // חלק מהמסכים עובדים עם "month"
+    mounth: saleStart,                           // אצלכם ב-DB
+    policyNumber: String(policyNumber || ''),
+    statusPolicy: 'פעילה',
+    createdAt: serverTimestamp(),
+    lastUpdateDate: serverTimestamp(),
+    sourceApp: 'reconcile',
+  };
+
+  const saleRef = await addDoc(collection(db, 'sales'), saleDoc);
+
+  // קישור באינדקס – הדבר המכריע לעתיד
+  await setDoc(
+    idxRef,
+    {
+      agentId,
+      company: companyCanon,
+      policyNumberKey: policyKey,
+      saleId: saleRef.id,
+      customerId: String(customerId),
+      updatedAt: serverTimestamp(),
+    },
+    { merge: true }
+  );
+
+  return saleRef.id;
 }

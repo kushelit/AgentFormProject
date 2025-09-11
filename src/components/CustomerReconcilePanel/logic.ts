@@ -3,7 +3,9 @@
 
 import { db } from '@/lib/firebase/firebase';
 import { collection, query, where, getDocs } from 'firebase/firestore';
+import { makeCompanyCanonical } from '@/utils/reconcile';
 
+/* ---------- Types ---------- */
 export type ExternalRow = {
   id: string;
   agentId: string;
@@ -14,7 +16,7 @@ export type ExternalRow = {
   reportMonth: string;             // YYYY-MM
   validMonth?: string | null;      // YYYY-MM
   commissionAmount?: number | null;
-  linkedSaleId?: string | null;    // ⬅️ משויך?
+  linkedSaleId?: string | null;    // ← שדה מ-EXTERNAL (אם קיים)
 };
 
 export type SaleRow = {
@@ -39,7 +41,7 @@ export type Breakdown = {
 
 export type Candidate = {
   extId: string;
-  policyNumber?: string | null;    // ⬅️ חדש — להצגה וגם אינדוקציה
+  policyNumber?: string | null;
   company?: string | null;
   reportMonth: string;
   validMonth?: string | null;
@@ -50,20 +52,49 @@ export type Candidate = {
   linkedSaleId?: string | null;
 };
 
-/** Helpers */
-export function norm(v?: string | null): string {
-  return String(v ?? '')
-    .trim()
-    .replace(/^["']+|["']+$/g, '')
-    .replace(/\s+/g, ' ');
+/* ---------- Helpers ---------- */
+
+// key אחיד בלי רווחים
+const normalizePolicyKey = (v?: string | null) => String(v ?? '').trim().replace(/\s+/g, '');
+
+// policyLinkIndex: agentId + policyNumberKey → saleId/customerId/company
+async function lookupPolicyLinks(
+  agentId: string,
+  keys: string[] = []
+): Promise<Map<string, { saleId: string; customerId?: string; company?: string }>> {
+  const out = new Map<string, { saleId: string; customerId?: string; company?: string }>();
+  const uniq = Array.from(new Set(keys.filter(Boolean)));
+
+  for (let i = 0; i < uniq.length; i += 10) {
+    const part = uniq.slice(i, i + 10);
+    const qy = query(
+      collection(db, 'policyLinkIndex'),
+      where('agentId', '==', agentId),
+      where('policyNumberKey', 'in', part)
+    );
+    const snap = await getDocs(qy);
+    snap.forEach((d) => {
+      const x = d.data() as any;
+      if (x?.saleId && x?.policyNumberKey) {
+        out.set(String(x.policyNumberKey), {
+          saleId: String(x.saleId),
+          customerId: x.customerId ? String(x.customerId) : undefined,
+          company: x.company ? String(x.company) : undefined, // כבר קנוני
+        });
+      }
+    });
+  }
+  return out;
 }
 
+export function norm(v?: string | null): string {
+  return String(v ?? '').trim().replace(/^["']+|["']+$/g, '').replace(/\s+/g, ' ');
+}
 export function toYm(v?: string | null): string {
   if (!v) return '';
   const s = String(v).slice(0, 7);
   return /^\d{4}-\d{2}$/.test(s) ? s : '';
 }
-
 export function monthDiff(a?: string | null, b?: string | null): number {
   const ay = toYm(a), by = toYm(b);
   if (!ay || !by) return Infinity;
@@ -72,7 +103,7 @@ export function monthDiff(a?: string | null, b?: string | null): number {
   return Math.abs((ayr - byr) * 12 + (amo - bmo));
 }
 
-/** Scoring breakdown */
+/* ---------- Scoring ---------- */
 export function buildBreakdown(ext: ExternalRow, s: SaleRow): Breakdown {
   const companyMatch =
     !!norm(ext.company) && !!norm(s.company) && norm(ext.company) === norm(s.company);
@@ -92,7 +123,6 @@ export function buildBreakdown(ext: ExternalRow, s: SaleRow): Breakdown {
 }
 
 export function scoreMatch(ext: ExternalRow, s: SaleRow) {
-  // משקולות: לקוח/חברה עיקריים, חודש משני
   const W = { customer: 60, company: 30, month: 10 };
   const b = buildBreakdown(ext, s);
   let score = 0;
@@ -102,12 +132,12 @@ export function scoreMatch(ext: ExternalRow, s: SaleRow) {
   return { score, breakdown: b };
 }
 
-/** Build candidates per SALE */
+/* ---------- Build candidates per SALE ---------- */
 export async function buildCandidates(params: {
   agentId: string;
   customerIds: string[];
   company?: string;
-  repYm?: string; // YYYY-MM, אופציונלי לסינון EXTERNAL לפי חודש דיווח
+  repYm?: string; // YYYY-MM
 }): Promise<{ bySale: Map<string, Candidate[]>; stats: any }> {
   const { agentId, customerIds, company, repYm } = params;
 
@@ -142,6 +172,28 @@ export async function buildCandidates(params: {
     return okComp && okRep;
   });
 
+  // policyNumberKey→saleId (מה־index)
+  const keys = Array.from(new Set(externals.map(e => normalizePolicyKey(e.policyNumber)).filter(Boolean)));
+  const idxMap = await lookupPolicyLinks(agentId, keys);
+
+  // saleId→policyNumberKey (מי "תפוס")
+  const saleTakenByKey = new Map<string, string>();
+  idxMap.forEach((v, k) => { saleTakenByKey.set(v.saleId, k); });
+
+  // הזרקת linkedSaleId מן האינדקס (אימות "רך" לקוח/חברה)
+  externals = externals.map(e => {
+    if (e.linkedSaleId) return e; // כבר משויך במסד
+    const key = normalizePolicyKey(e.policyNumber);
+    if (!key) return e;
+    const idx = idxMap.get(key);
+    if (!idx) return e;
+
+    const custOk = idx.customerId ? String(e.customerId || '') === idx.customerId : true;
+    const compOk = idx.company ? makeCompanyCanonical(e.company || '') === String(idx.company) : true;
+
+    return (custOk && compOk) ? { ...e, linkedSaleId: idx.saleId } : e;
+  });
+
   /* SALES */
   const qSales = query(collection(db, 'sales'), where('AgentId', '==', agentId));
   const salesSnap = await getDocs(qSales);
@@ -162,16 +214,19 @@ export async function buildCandidates(params: {
   for (const s of sales) {
     const candidates: Candidate[] = externals
       .map((ext) => {
-        // אם כבר משויך לרשומה אחרת – לא מציעים תחת SALE זה
+        // 1) אם ה-EXTERNAL כבר משויך ל-SALE אחר — לא מציעים תחת SALE זה
         if (ext.linkedSaleId && ext.linkedSaleId !== s.id) return null;
 
-        const { score, breakdown } = scoreMatch(ext, s);
-        const finalScore = ext.linkedSaleId === s.id ? 100 : score;
+        // 2) אם SALE תפוס ע"י key אחר — לא מציעים
+        const extKey = normalizePolicyKey(ext.policyNumber);
+        const takenKey = saleTakenByKey.get(s.id);
+        if (takenKey && extKey && takenKey !== extKey) return null;
 
-        const extAmt =
-          typeof ext.commissionAmount === 'number'
-            ? ext.commissionAmount
-            : Number(ext.commissionAmount || 0);
+        const { score, breakdown } = scoreMatch(ext, s);
+        const isExactFromIndex = takenKey && extKey && takenKey === extKey;
+        const finalScore = (ext.linkedSaleId === s.id || isExactFromIndex) ? 100 : score;
+
+        const extAmt = typeof ext.commissionAmount === 'number' ? ext.commissionAmount : Number(ext.commissionAmount || 0);
         const saleAmt = typeof s.commissionNifraim === 'number' ? s.commissionNifraim : 0;
 
         return {
@@ -184,7 +239,7 @@ export async function buildCandidates(params: {
           score: finalScore,
           breakdown,
           deltas: { amountDiff: (extAmt || 0) - (saleAmt || 0) },
-          linkedSaleId: ext.linkedSaleId ?? null,
+          linkedSaleId: ext.linkedSaleId ?? (isExactFromIndex ? s.id : null),
         } as Candidate;
       })
       .filter((x): x is Candidate => !!x && x.score > 0)

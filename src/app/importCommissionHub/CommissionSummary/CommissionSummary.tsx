@@ -1,14 +1,14 @@
 // CommissionSummaryPage.tsx
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState ,useRef} from 'react';
 import { collection, doc, getDoc, getDocs, query, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase/firebase';
 import useFetchAgentData from '@/hooks/useFetchAgentData';
 import { useAuth } from '@/lib/firebase/AuthContext';
 import { Spinner } from '@/components/Spinner';
 import { Button } from '@/components/Button/Button';
-import { ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 
 interface CommissionSummary {
@@ -38,6 +38,7 @@ export default function CommissionSummaryPage() {
   const [companyMap, setCompanyMap] = useState<CompanyMap>({});
   const [loading, setLoading] = useState(false);
   const [expanded, setExpanded] = useState<{ month: string; company: string } | null>(null);
+  const drillScrollerRef = useRef<HTMLDivElement>(null);
 
 
   const handleToggleExpandCompany = (company: string) => {
@@ -220,60 +221,92 @@ export default function CommissionSummaryPage() {
 
       {/* טבלת דריל דאון */}
       {selectedCompany && (
-        <div className="mt-10">
-          <h3 className="text-xl font-semibold mb-2">פירוט עבור חברה: {selectedCompany}</h3>
-          <table className="table-auto border w-full text-sm text-right">
-            <thead className="bg-gray-100">
-              <tr>
-                <th className="border px-2 py-1">חודש</th>
-                {Object.keys(summaryByCompanyAgentMonth[selectedCompany] || {}).sort().map(agentCode => (
-                  <th key={agentCode} className="border px-2 py-1">{agentCode}</th>
-                ))}
-<th className="border px-2 py-1 font-bold bg-gray-50">סה&quot;כ לחודש</th>
-</tr>
-            </thead>
-            <tbody>
-  {Array.from(
-    new Set(
-      Object.values(summaryByCompanyAgentMonth[selectedCompany] || {}).flatMap(m => Object.keys(m))
-    )
-  ).sort().map(month => {
-    const rowTotal = Object.keys(summaryByCompanyAgentMonth[selectedCompany] || {}).reduce((sum, agentCode) => {
-      return sum + (summaryByCompanyAgentMonth[selectedCompany]?.[agentCode]?.[month] || 0);
-    }, 0);
+  <div className="mt-10">
+    <h3 className="text-xl font-semibold mb-2">פירוט עבור חברה: {selectedCompany}</h3>
 
-    return (
-      <tr key={month}>
-        <td className="border px-2 py-1 font-semibold">{month}</td>
-        {Object.keys(summaryByCompanyAgentMonth[selectedCompany] || {}).sort().map(agentCode => (
-          <td key={agentCode} className="border px-2 py-1">
-            {summaryByCompanyAgentMonth[selectedCompany]?.[agentCode]?.[month]?.toLocaleString() ?? '-'}
-          </td>
-        ))}
-        <td className="border px-2 py-1 font-bold bg-gray-100">{rowTotal.toLocaleString()}</td>
-      </tr>
-    );
-  })}
+    {/* חיצים לגלילה אופקית */}
+    <div className="flex items-center gap-2 mb-2">
+      <button
+        type="button"
+        className="p-2 rounded border hover:bg-gray-100"
+        title="גלול ימינה"
+        onClick={() => drillScrollerRef.current?.scrollBy({ left: -400, behavior: 'smooth' })}
+      >
+        {/* ב־RTL ימינה = כיוון קטן יותר של scrollLeft, לכן left:-400 */}
+        <ChevronRight className="h-4 w-4" />
+      </button>
+      <button
+        type="button"
+        className="p-2 rounded border hover:bg-gray-100"
+        title="גלול שמאלה"
+        onClick={() => drillScrollerRef.current?.scrollBy({ left: 400, behavior: 'smooth' })}
+      >
+        <ChevronLeft className="h-4 w-4" />
+      </button>
 
-  {/* שורת סיכום לפי מספר סוכן */}
-  {/* <tr className="bg-gray-200 font-bold">
-  <td className="border px-2 py-1">סה&quot;כ</td>
-  {Object.keys(summaryByCompanyAgentMonth[selectedCompany] || {}).sort().map(agentCode => {
-      const total = Object.values(summaryByCompanyAgentMonth[selectedCompany]?.[agentCode] || {}).reduce((sum, val) => sum + val, 0);
-      return (
-        <td key={agentCode} className="border px-2 py-1">{total.toLocaleString()}</td>
-      );
-    })}
-    <td className="border px-2 py-1">
-      {Object.values(summaryByCompanyAgentMonth[selectedCompany] || {}).reduce((sum, agentData) => {
-        return sum + Object.values(agentData).reduce((s, v) => s + v, 0);
-      }, 0).toLocaleString()}
-    </td>
-  </tr> */}
-</tbody>
-          </table>
-        </div>
-      )}
+      <span className="text-xs text-gray-500 mr-auto">
+        אפשר לגרור עם העכבר או להשתמש בחיצים לגלילה אופקית
+      </span>
+    </div>
+
+    {/* מְכל גלילה אופקית */}
+    <div
+      ref={drillScrollerRef}
+      className="overflow-x-auto border rounded"
+      // כדי למנוע שבירת שורות בכותרות/תאים רחבים
+    >
+      <table className="table-auto min-w-max w-full text-sm text-right whitespace-nowrap">
+        <thead className="bg-gray-100">
+          <tr>
+            {/* עמודה ראשונה דביקה (אופציונלי, נוח מאד) */}
+            <th className="border px-2 py-1 sticky right-0 z-10 bg-gray-100">חודש</th>
+
+            {Object.keys(summaryByCompanyAgentMonth[selectedCompany] || {})
+              .sort()
+              .map(agentCode => (
+                <th key={agentCode} className="border px-2 py-1">{agentCode}</th>
+              ))}
+
+            <th className="border px-2 py-1 font-bold bg-gray-50">סה&quot;כ לחודש</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          {Array.from(
+            new Set(
+              Object
+                .values(summaryByCompanyAgentMonth[selectedCompany] || {})
+                .flatMap(m => Object.keys(m))
+            )
+          )
+          .sort()
+          .map(month => {
+            const rowTotal = Object.keys(summaryByCompanyAgentMonth[selectedCompany] || {})
+              .reduce((sum, agentCode) =>
+                sum + (summaryByCompanyAgentMonth[selectedCompany]?.[agentCode]?.[month] || 0), 0);
+
+            return (
+              <tr key={month}>
+                {/* דביק גם בגוף הטבלה */}
+                <td className="border px-2 py-1 font-semibold sticky right-0 z-10 bg-white">{month}</td>
+
+                {Object.keys(summaryByCompanyAgentMonth[selectedCompany] || {})
+                  .sort()
+                  .map(agentCode => (
+                    <td key={agentCode} className="border px-2 py-1">
+                      {summaryByCompanyAgentMonth[selectedCompany]?.[agentCode]?.[month]?.toLocaleString() ?? '-'}
+                    </td>
+                  ))}
+
+                <td className="border px-2 py-1 font-bold bg-gray-100">{rowTotal.toLocaleString()}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  </div>
+)}
     </div>
   );
 }

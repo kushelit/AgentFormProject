@@ -1,9 +1,16 @@
-// ExcelCommissionImporter.tsx - כולל תמיכה ב-ZIP + בחירה, חישובי עמלות מיוחדים, ומניעת קריסות
+// ExcelCommissionImporter.tsx – טעינת דוחות עמלות (מהיר), תמיכה ב-ZIP/CSV/XLSX,
+// סיכומי סוכן/פוליסה, פרמיה/שיעור עמלה, וללא קישור מוקדם לטבלאות שיוך (Importer קריאה/כתיבה בלבד).
 
 'use client';
 
-import React, { useState, useEffect, useRef } from "react";
-import * as XLSX from "xlsx";
+import React, {
+  useState,
+  useEffect,
+  useRef,
+  useMemo,
+  startTransition,
+} from 'react';
+import * as XLSX from 'xlsx';
 import { useAuth } from '@/lib/firebase/AuthContext';
 import useFetchAgentData from '@/hooks/useFetchAgentData';
 import { db } from '@/lib/firebase/firebase';
@@ -17,11 +24,11 @@ import {
   where,
   updateDoc,
   arrayUnion,
+  writeBatch,
 } from 'firebase/firestore';
 import { Button } from '@/components/Button/Button';
 import DialogNotification from '@/components/DialogNotification';
 import './ExcelCommissionImporter.css';
-import { writeBatch } from 'firebase/firestore';
 import Link from 'next/link';
 
 // ===============================
@@ -44,6 +51,24 @@ interface CommissionSummary {
   companyId: string;
   company: string;
   totalCommissionAmount: number;
+  totalPremiumAmount: number; // ✅
+  commissionRate: number; // ✅
+}
+
+interface PolicyCommissionSummary {
+  agentId: string;
+  agentCode: string;
+  reportMonth: string; // YYYY-MM
+  companyId: string;
+  company: string;
+  policyNumberKey: string; // מנורמל ללא רווחים
+  customerId: string; // 9 ספרות מרופד
+  templateId: string;
+  totalCommissionAmount: number;
+  totalPremiumAmount: number; // ✅
+  commissionRate: number; // ✅
+  rowsCount: number;
+  product?: string; // ✅ מידע (לא חלק מהמפתח)
 }
 
 // ===============================
@@ -53,26 +78,34 @@ const ExcelCommissionImporter: React.FC = () => {
   const { detail } = useAuth();
   const { agents, selectedAgentId, handleAgentChange } = useFetchAgentData();
 
+  // בחירות
   const [templateId, setTemplateId] = useState('');
   const [templateOptions, setTemplateOptions] = useState<CommissionTemplateOption[]>([]);
-  const selectedTemplate = templateOptions.find(opt => opt.id === templateId);
+  const [selectedCompanyId, setSelectedCompanyId] = useState('');
+  const selectedTemplate = templateOptions.find((opt) => opt.id === templateId);
+  const canChooseFile = Boolean(selectedAgentId && selectedCompanyId && templateId);
 
+  // מיפוי
   const [mapping, setMapping] = useState<Record<string, string>>({});
-  const [selectedFileName, setSelectedFileName] = useState("");
-  const [standardizedRows, setStandardizedRows] = useState<any[]>([]);
+
+  // תצוגה / מצבים
+  const [selectedFileName, setSelectedFileName] = useState('');
   const [existingDocs, setExistingDocs] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [showConfirmDelete, setShowConfirmDelete] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [showTemplateMismatch, setShowTemplateMismatch] = useState(false);
+  const [errorDialog, setErrorDialog] = useState<{ title: string; message: React.ReactNode } | null>(null);
 
+  // פריוויו + נתונים מלאים (שיפור ביצועים: נתונים מלאים ב-ref, פריוויו ב-state)
+  const rowsRef = useRef<any[]>([]);
+  const [previewRows, setPreviewRows] = useState<any[]>([]);
+
+  // דיאלוג סיכום
   const [summaryByAgentCode, setSummaryByAgentCode] = useState<any[]>([]);
   const [showSummaryDialog, setShowSummaryDialog] = useState(false);
 
-  const [selectedCompanyId, setSelectedCompanyId] = useState('');
-  const canChooseFile = Boolean(selectedAgentId && selectedCompanyId && templateId);
-
-  const [showTemplateMismatch, setShowTemplateMismatch] = useState(false);
-  const [errorDialog, setErrorDialog] = useState<{ title: string; message: React.ReactNode } | null>(null);
+  // קלט קובץ
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // בחירה מתוך ZIP
   const [zipChooser, setZipChooser] = useState<null | {
@@ -83,47 +116,43 @@ const ExcelCommissionImporter: React.FC = () => {
   const [selectedZipEntry, setSelectedZipEntry] = useState<string>('');
 
   // ===============================
-  // Helpers (אחידים פעם אחת)
+  // Helpers
   // ===============================
   const roundTo2 = (num: number) => Math.round(num * 100) / 100;
-
   const getExt = (n: string) => n.slice(n.lastIndexOf('.')).toLowerCase();
-
-  const readCsv = (buf: ArrayBuffer | Uint8Array): Record<string, any>[] => {
-    const u8 = buf instanceof Uint8Array ? buf : new Uint8Array(buf);
-    const text = new TextDecoder('windows-1255').decode(u8);
-    const wb = XLSX.read(text, { type: 'string' });
-    const ws = wb.Sheets[wb.SheetNames[0]];
-    return XLSX.utils.sheet_to_json<Record<string, any>>(ws, { defval: "" });
+  const defer = (fn: () => void) => {
+    // @ts-ignore
+    if (typeof window.requestIdleCallback === 'function') {
+      // @ts-ignore
+      window.requestIdleCallback(fn);
+    } else {
+      setTimeout(fn, 0);
+    }
   };
 
   const extractReportMonthFromFilename = (filename: string): string | undefined => {
     const nameWithoutExtension = filename.replace(/\.[^/.]+$/, '');
     const m = nameWithoutExtension.match(/(?:^|[^0-9])(\d{2})[_\-](\d{4})(?:[^0-9]|$)/);
-    if (m) { const [, mm, yyyy] = m; return `${yyyy}-${mm}`; }
+    if (m) {
+      const [, mm, yyyy] = m;
+      return `${yyyy}-${mm}`;
+    }
     return undefined;
   };
 
-  const headersAtRow = (sheet: XLSX.WorkSheet, headerRowIndex: number): string[] => {
-    const range = XLSX.utils.decode_range(sheet['!ref']!);
-    const headers: string[] = [];
-    for (let c = range.s.c; c <= range.e.c; c++) {
-      const cell = sheet[XLSX.utils.encode_cell({ r: headerRowIndex, c })];
-      headers.push(cell?.v?.toString().trim() || '');
-    }
-    return headers;
-  };
-
-  const findHeaderRowIndex = (sheet: XLSX.WorkSheet, expectedHeaders: string[]): number => {
-    const range = XLSX.utils.decode_range(sheet['!ref']!);
-    for (let row = range.s.r; row <= range.e.r; row++) {
-      const rowValues: string[] = [];
-      for (let col = range.s.c; col <= range.e.c; col++) {
-        const cell = sheet[XLSX.utils.encode_cell({ r: row, c: col })];
-        rowValues.push(cell?.v?.toString().trim() || '');
-      }
-      const matches = expectedHeaders.filter(header => rowValues.includes(header));
-      if (matches.length >= expectedHeaders.length * 0.5) return row;
+  // מציאת שורת כותרת מהירה (XLSX) – סריקה של עד 60 שורות עם header:1
+  const fastFindHeaderRowIndex = (ws: XLSX.WorkSheet, expectedHeaders: string[]): number => {
+    const rows = XLSX.utils.sheet_to_json<any[]>(ws, {
+      header: 1,
+      raw: true,
+      defval: '',        // ✅ ממלא תאים ריקים
+      blankrows: false,
+    }) as any[][];
+    const limit = Math.min(rows.length, 60);
+    for (let r = 0; r < limit; r++) {
+      const rowVals = (rows[r] || []).map((v) => String(v ?? '').trim());
+      const matches = expectedHeaders.filter((h) => rowVals.includes(h));
+      if (matches.length >= expectedHeaders.length * 0.5) return r;
     }
     return 0;
   };
@@ -133,7 +162,10 @@ const ExcelCommissionImporter: React.FC = () => {
     if (typeof v === 'number') return v;
     let s = v.toString().trim();
     let neg = false;
-    if (/^\(.*\)$/.test(s)) { neg = true; s = s.slice(1, -1); }
+    if (/^\(.*\)$/.test(s)) {
+      neg = true;
+      s = s.slice(1, -1);
+    }
     s = s.replace(/[,\s]/g, '');
     const n = parseFloat(s);
     return (neg ? -1 : 1) * (isNaN(n) ? 0 : n);
@@ -144,32 +176,90 @@ const ExcelCommissionImporter: React.FC = () => {
     return undefined;
   };
 
-  // חישובים מיוחדים לפי תבנית
+  // חישובי עמלה לפי תבנית
   const commissionOverrides: Record<string, (row: any) => number> = {
     ayalon_insurance: (row) =>
       toNum(pick(row, ['סך עמלת סוכן'])) + toNum(pick(row, ['סך דמי גביה', 'סך דמי גבייה'])),
-
     menura_new_nifraim: (row) =>
       toNum(pick(row, ['סוכן-סכום עמלה', 'סוכן - סכום עמלה'])) +
       toNum(pick(row, ['סוכן-דמי גביה', 'סוכן - דמי גביה', 'סוכן-דמי גבייה', 'סוכן - דמי גבייה'])),
   };
 
-  // Policy/customer helpers
+  // עזרי לקוח/פוליסה
   const chunk = <T,>(arr: T[], size: number) =>
-    Array.from({ length: Math.ceil(arr.length / size) }, (_, i) => arr.slice(i * size, i * size + size));
+    Array.from({ length: Math.ceil(arr.length / size) }, (_, i) => arr.slice(i, i + size));
 
   const normalizePolicyKey = (v: any) => String(v ?? '').trim().replace(/\s+/g, '');
-  const normalizeCustomerId = (v: any): string => {
+  const toPadded9 = (v: any): string => {
     const digits = String(v ?? '').replace(/\D/g, '');
-    return digits ? digits.padStart(9, '0') : '';
+    return digits ? digits.padStart(9, '0').slice(-9) : '';
   };
 
-// ספרות בלבד + ריפוד לשמאל ל-9 + חיתוך ל-9 => בדיוק 9 ספרות
-const toPadded9 = (v: any): string => {
-  const digits = String(v ?? '').replace(/\D/g, '');
-  return digits ? digits.padStart(9, '0').slice(-9) : '';
-};
+  const parseHebrewMonth = (value: any, templateId?: string): string => {
+    if (!value) return '';
+    const monthMap: Record<string, string> = {
+      'ינו': '01',
+      'פבר': '02',
+      'מרץ': '03',
+      'אפר': '04',
+      'מאי': '05',
+      'יונ': '06',
+      'יול': '07',
+      'אוג': '08',
+      'ספט': '09',
+      'אוק': '10',
+      'נוב': '11',
+      'דצמ': '12',
+    };
 
+    if (typeof value === 'number') {
+      const excelDate = XLSX.SSF.parse_date_code(value);
+      if (excelDate) {
+        const year = excelDate.y;
+        const month = excelDate.m.toString().padStart(2, '0');
+        return `${year}-${month}`;
+      }
+    }
+    if (value instanceof Date) {
+      const year = value.getFullYear();
+      const month = (value.getMonth() + 1).toString().padStart(2, '0');
+      return `${year}-${month}`;
+    }
+
+    const str = value.toString().trim();
+
+    let m = str.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{2}|\d{4})$/);
+    if (m) {
+      let [, _day, mm, yy] = m;
+      const yyyy = yy.length === 2 ? (parseInt(yy, 10) < 50 ? `20${yy}` : `19${yy}`) : yy;
+      return `${yyyy}-${mm.padStart(2, '0')}`;
+    }
+
+    if (templateId === 'menura_insurance' && /^\d{5}$/.test(str)) {
+      const numeric = parseInt(str, 10);
+      const ex = XLSX.SSF.parse_date_code(numeric);
+      if (ex) return `${ex.y}-${String(ex.m).padStart(2, '0')}`;
+    }
+
+    let match = str.match(/([\u0590-\u05FF]{3})[- ]?(\d{2})/);
+    if (!match) match = str.match(/(\d{2})[- ]?([\u0590-\u05FF]{3})/);
+    if (match) {
+      const [, a, b] = match;
+      const [hebMonth, yearSuffix] = monthMap[a] ? [a, b] : [b, a];
+      const month = monthMap[hebMonth];
+      const year = '20' + yearSuffix;
+      if (month) return `${year}-${month}`;
+    }
+
+    const parts: string[] | null = str.match(/\d+/g);
+    if (parts && parts.length >= 2) {
+      const year = parts.find((p: string) => p.length === 4);
+      const month = parts.find((p: string) => p.length === 2 || p.length === 1);
+      if (year && month) return `${year}-${month.padStart(2, '0')}`;
+    }
+
+    return str.replace(/\//g, '-');
+  };
 
   // ===============================
   // Effects
@@ -180,6 +270,12 @@ const toPadded9 = (v: any): string => {
 
   useEffect(() => {
     setShowConfirmDelete(false);
+  }, []);
+
+  // Preload דינמי למודולים כבדים כדי לחסוך "במכה הראשונה"
+  useEffect(() => {
+    import('jszip').catch(() => {});
+    import('papaparse').catch(() => {});
   }, []);
 
   // שליפת תבניות פעילות בלבד
@@ -208,7 +304,7 @@ const toPadded9 = (v: any): string => {
       }
 
       setTemplateOptions(templates);
-      if (templates.every(t => t.id !== templateId)) {
+      if (templates.every((t) => t.id !== templateId)) {
         setTemplateId('');
         setMapping({});
       }
@@ -219,9 +315,15 @@ const toPadded9 = (v: any): string => {
   // טעינת mapping של התבנית הנבחרת (רק אם עדיין Active)
   useEffect(() => {
     const fetchTemplateMapping = async () => {
-      if (!templateId) { setMapping({}); return; }
-      const existsInActive = templateOptions.some(t => t.id === templateId);
-      if (!existsInActive) { setMapping({}); return; }
+      if (!templateId) {
+        setMapping({});
+        return;
+      }
+      const existsInActive = templateOptions.some((t) => t.id === templateId);
+      if (!existsInActive) {
+        setMapping({});
+        return;
+      }
 
       const ref = doc(db, 'commissionTemplates', templateId);
       const snap = await getDoc(ref);
@@ -239,134 +341,92 @@ const toPadded9 = (v: any): string => {
   // Derived data
   // ===============================
   const uniqueCompanies = Array.from(
-    new Map(templateOptions.map(t => [t.companyId, { id: t.companyId, name: t.companyName }])).values()
+    new Map(templateOptions.map((t) => [t.companyId, { id: t.companyId, name: t.companyName }])).values()
   );
-
-  const filteredTemplates = templateOptions.filter(t => t.companyId === selectedCompanyId);
-
-  const selectedCompanyName = React.useMemo(
-    () => uniqueCompanies.find(c => c.id === selectedCompanyId)?.name || '',
+  const filteredTemplates = templateOptions.filter((t) => t.companyId === selectedCompanyId);
+  const selectedCompanyName = useMemo(
+    () => uniqueCompanies.find((c) => c.id === selectedCompanyId)?.name || '',
     [selectedCompanyId, uniqueCompanies]
   );
 
   // ===============================
-  // Parsing helpers
-  // ===============================
-  const parseHebrewMonth = (value: any, templateId?: string): string => {
-    if (!value) return '';
-
-    const monthMap: Record<string, string> = {
-      'ינו': '01', 'פבר': '02', 'מרץ': '03', 'אפר': '04', 'מאי': '05', 'יונ': '06',
-      'יול': '07', 'אוג': '08', 'ספט': '09', 'אוק': '10', 'נוב': '11', 'דצמ': '12'
-    };
-
-    if (typeof value === 'number') {
-      const excelDate = XLSX.SSF.parse_date_code(value);
-      if (excelDate) {
-        const year = excelDate.y;
-        const month = excelDate.m.toString().padStart(2, '0');
-        return `${year}-${month}`;
-      }
-    }
-
-    if (value instanceof Date) {
-      const year = value.getFullYear();
-      const month = (value.getMonth() + 1).toString().padStart(2, '0');
-      return `${year}-${month}`;
-    }
-
-    const str = value.toString().trim();
-
-    let m = str.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{2}|\d{4})$/);
-    if (m) {
-      let [, _day, mm, yy] = m;
-      const yyyy = yy.length === 2 ? (parseInt(yy, 10) < 50 ? `20${yy}` : `19${yy}`) : yy;
-      return `${yyyy}-${mm.padStart(2, '0')}`;
-    }
-
-    if (templateId === 'menura_insurance' && /^\d{5}$/.test(str)) {
-      const numeric = parseInt(str, 10);
-      const excelDate = XLSX.SSF.parse_date_code(numeric);
-      if (excelDate) {
-        const year = excelDate.y;
-        const month = excelDate.m.toString().padStart(2, '0');
-        return `${year}-${month}`;
-      }
-    }
-
-    let match = str.match(/([\u0590-\u05FF]{3})[- ]?(\d{2})/);
-    if (!match) match = str.match(/(\d{2})[- ]?([\u0590-\u05FF]{3})/);
-    if (match) {
-      const [, a, b] = match;
-      const [hebMonth, yearSuffix] = monthMap[a] ? [a, b] : [b, a];
-      const month = monthMap[hebMonth];
-      const year = '20' + yearSuffix;
-      if (month) return `${year}-${month}`;
-    }
-
-    const parts: string[] | null = str.match(/\d+/g);
-    if (parts && parts.length >= 2) {
-      const year = parts.find((p: string) => p.length === 4);
-      const month = parts.find((p: string) => p.length === 2 || p.length === 1);
-      if (year && month) return `${year}-${month.padStart(2, '0')}`;
-    }
-
-    return str.replace(/\//g, '-');
-  };
-
-  // ===============================
   // Firestore helpers
   // ===============================
-  const checkExistingData = async (
-    agentId: string,
-    templateId: string,
-    reportMonth: string,
-    companyId: string
-  ) => {
+  // בדיקת קיום – עכשיו ב-commissionSummaries בלבד (קל ומהיר)
+  const checkExistingData = async (agentId: string, templateId: string, reportMonth: string, companyId: string) => {
+    if (!agentId || !templateId || !reportMonth || !companyId) {
+      setExistingDocs([]);
+      return;
+    }
     const qy = query(
-      collection(db, 'externalCommissions'),
+      collection(db, 'commissionSummaries'),
       where('agentId', '==', agentId),
       where('templateId', '==', templateId),
       where('reportMonth', '==', reportMonth),
       where('companyId', '==', companyId)
     );
     const snapshot = await getDocs(qy);
-    setExistingDocs(snapshot.docs);
+    setExistingDocs(snapshot.docs); // state מהיר ודל (רק דוקי סיכומים)
   };
 
+  // מחיקת רפרנסים בצ'אנקים
+  async function deleteRefsInChunks(refs: any[]) {
+    const CHUNK = 450;
+    for (const part of chunk(refs, CHUNK)) {
+      const batch = writeBatch(db);
+      part.forEach((ref) => batch.delete(ref));
+      await batch.commit();
+    }
+  }
+
+  // מחיקה משלושת האוספים לפי פילטרים (לא תלוי במבנה existingDocs)
   const handleDeleteExisting = async () => {
     setShowConfirmDelete(false);
     setIsLoading(true);
     try {
-      const batch = writeBatch(db);
-      const summaryIds = new Set<string>();
+      const agentId = selectedAgentId!;
+      const tmplId = templateId!;
+      const companyId = selectedCompanyId!;
+      const reportMonth = (rowsRef.current[0]?.reportMonth || '').toString().replace(/\//g, '-');
 
-      for (const docSnap of existingDocs) {
-        const data = docSnap.data();
-        const agentId: string = data.agentId || '';
-        const agentCode: string = (data.agentCode || '').toString();
-        const tmplId: string = data.templateId || '';
-        const companyId: string = data.companyId || '';
-        const sanitizedMonth: string = (data.reportMonth || '').toString().replace(/\//g, '-');
-        const summaryDocId = `${agentId}_${agentCode}_${sanitizedMonth}_${tmplId}_${companyId}`;
-        summaryIds.add(summaryDocId);
-        batch.delete(docSnap.ref);
+      if (!agentId || !tmplId || !reportMonth || !companyId) {
+        alert('חסר מידע למחיקה (סוכן/חברה/תבנית/חודש).');
+        setIsLoading(false);
+        return;
       }
 
-      for (const id of summaryIds) {
-        batch.delete(doc(db, 'commissionSummaries', id));
-      }
+      const filters = [
+        where('agentId', '==', agentId),
+        where('templateId', '==', tmplId),
+        where('reportMonth', '==', reportMonth),
+        where('companyId', '==', companyId),
+      ] as const;
 
-      await batch.commit();
+      const [sumSnap, polSnap, extSnap] = await Promise.all([
+        getDocs(query(collection(db, 'commissionSummaries'), ...filters)),
+        getDocs(query(collection(db, 'policyCommissionSummaries'), ...filters)),
+        getDocs(query(collection(db, 'externalCommissions'), ...filters)),
+      ]);
 
+      const toDeleteRefs = [
+        ...sumSnap.docs.map((d) => d.ref),
+        ...polSnap.docs.map((d) => d.ref),
+        ...extSnap.docs.map((d) => d.ref),
+      ];
+
+      await deleteRefsInChunks(toDeleteRefs);
+
+      // ניקוי UI
       setExistingDocs([]);
-      setStandardizedRows([]);
+      rowsRef.current = [];
+      setPreviewRows([]);
       setSelectedFileName('');
       if (fileInputRef.current) fileInputRef.current.value = '';
-      alert('✅ כל הרשומות וגם הסיכומים נמחקו. כעת ניתן לטעון קובץ חדש.');
+
+      alert('✅ נמחקו הרשומות משלושת האוספים עבור הסוכן/חודש/תבנית/חברה.');
     } catch (err) {
       console.error(err);
-      alert('❌ שגיאה במחיקת הנתונים או הסיכומים.');
+      alert('❌ שגיאה במחיקה.');
     } finally {
       setIsLoading(false);
     }
@@ -377,221 +437,301 @@ const toPadded9 = (v: any): string => {
   // ===============================
   const handleClearSelections = () => {
     setSelectedFileName('');
-    setStandardizedRows([]);
+    rowsRef.current = [];
+    setPreviewRows([]);
     setTemplateId('');
     setExistingDocs([]);
     if (fileInputRef.current) fileInputRef.current.value = '';
     window.location.reload();
   };
 
+  // ---- קריאת CSV (מהיר, worker) ----
+  const parseCsvToJson = async (arrayBuffer: ArrayBuffer) => {
+    const Papa = (await import('papaparse')).default as any;
+    const text = new TextDecoder('windows-1255').decode(new Uint8Array(arrayBuffer));
+    const jsonData: Record<string, any>[] = await new Promise((resolve, reject) => {
+      Papa.parse(text, {
+        header: true,
+        worker: true,
+        skipEmptyLines: true,
+        complete: (res: any) => resolve(res.data as any[]),
+        error: reject,
+      });
+    });
+    return jsonData;
+  };
+
+  // ---- סטנדרטיזציה (מהירה יותר: ללא serverTimestamp, ולא נכנסת ל-state מלא) ----
+  const standardizeRows = (
+    jsonData: Record<string, any>[],
+    {
+      agentId,
+      templateId,
+      companyId,
+      companyName,
+      sourceFileName,
+      fallbackReportMonth,
+    }: {
+      agentId: string;
+      templateId: string;
+      companyId: string;
+      companyName: string;
+      sourceFileName: string;
+      fallbackReportMonth?: string;
+    }
+  ) => {
+    const agentCodeColumn = Object.entries(mapping).find(([, field]) => field === 'agentCode')?.[0];
+
+    const standardized = jsonData
+      .filter((row) => {
+        const agentCodeVal = agentCodeColumn ? (row as any)[agentCodeColumn] : null;
+        return agentCodeVal && agentCodeVal.toString().trim() !== '';
+      })
+      .map((row) => {
+        const result: any = {
+          agentId,
+          templateId,
+          sourceFileName,
+          companyId,
+          company: companyName,
+        };
+
+        for (const [excelCol, systemField] of Object.entries(mapping)) {
+          const value = (row as any)[excelCol];
+
+          if (systemField === 'validMonth' || systemField === 'reportMonth') {
+            let parsed = parseHebrewMonth(value, templateId);
+            if (!parsed && systemField === 'reportMonth' && fallbackReportMonth) parsed = fallbackReportMonth;
+            result[systemField] = parsed || value;
+          } else if (systemField === 'commissionAmount') {
+            const override = commissionOverrides[templateId];
+            result[systemField] = override ? roundTo2(override(row)) : toNum(value);
+          } else if (systemField === 'premium') {
+            result[systemField] = toNum(value);
+          } else if (systemField === 'customerId' || systemField === 'IDCustomer') {
+            const raw = String(value ?? '').trim();
+            const padded9 = toPadded9(value);
+            result.customerIdRaw = raw;
+            result.customerId = padded9;
+          } else if (systemField === 'policyNumber') {
+            result[systemField] = String(value ?? '').trim();
+          } else if (systemField === 'product') {
+            result[systemField] = String(value ?? '').trim();
+          } else {
+            result[systemField] = value;
+          }
+        }
+        return result;
+      });
+
+    return standardized;
+  };
+
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !templateId || !selectedAgentId || !selectedCompanyId) return;
-  
+
     const ext = getExt(file.name);
     const allowed = new Set(['.xlsx', '.xls', '.csv', '.zip']);
     if (!allowed.has(ext)) {
       setErrorDialog({
         title: 'סוג קובץ לא נתמך',
-        message: <>הקובץ <b>{file.name}</b> הוא {ext}. נא להעלות רק קבצי ZIP/XLSX/XLS/CSV.</>,
+        message: (
+          <>
+            הקובץ <b>{file.name}</b> הוא {ext}. נא להעלות רק קבצי ZIP/XLSX/XLS/CSV.
+          </>
+        ),
       });
       if (fileInputRef.current) fileInputRef.current.value = '';
       return;
     }
-  
+
     setSelectedFileName(file.name);
     setIsLoading(true);
-  
+
     const reader = new FileReader();
     reader.onload = async (evt) => {
-      let jsonData: Record<string, any>[] = [];
       try {
         const arrayBuffer = evt.target?.result as ArrayBuffer;
-        const fallbackReportMonth =
-          templateId === 'mor_insurance' ? extractReportMonthFromFilename(file.name) : undefined;
-  
+        const fallbackReportMonth = templateId === 'mor_insurance' ? extractReportMonthFromFilename(file.name) : undefined;
+
+        let jsonData: Record<string, any>[] = [];
+
         if (ext === '.zip') {
-          // ZIP: טוענים דינמית כדי לא לנפח bundle
-          try {
-            const mod = await import('jszip');
-            const JSZip: any = (mod as any).default ?? mod;
-            const zip = await JSZip.loadAsync(arrayBuffer);
-  
-            const entries = zip.file(/\.xlsx$|\.xls$|\.csv$/i);
-            if (entries.length === 0) throw new Error('ה-ZIP לא מכיל XLSX/XLS/CSV.');
-  
-            // אם יש כמה – נציג דיאלוג בחירה ונפסיק כאן (העיבוד יבוצע ב-processChosenZipEntry)
-            if (entries.length > 1) {
-              const names = entries.map((f: any) => f.name);
-              setZipChooser({ zip, entryNames: names, outerFileName: file.name });
-              setSelectedZipEntry(names[0]);
+          // ZIP: טוענים דינמית
+          const mod = await import('jszip');
+          const JSZip: any = (mod as any).default ?? mod;
+          const zip = await JSZip.loadAsync(arrayBuffer);
+
+          const entries = zip.file(/\.xlsx$|\.xls$|\.csv$/i);
+          if (entries.length === 0) throw new Error('ה-ZIP לא מכיל XLSX/XLS/CSV.');
+
+          // בחירה אם יש כמה
+          if (entries.length > 1) {
+            const names = entries.map((f: any) => f.name);
+            setZipChooser({ zip, entryNames: names, outerFileName: file.name });
+            setSelectedZipEntry(names[0]);
+            setIsLoading(false);
+            return;
+          }
+
+          const entry = entries[0];
+          if (/\.csv$/i.test(entry.name)) {
+            const inner = await entry.async('uint8array');
+            jsonData = await parseCsvToJson(inner.buffer);
+          } else {
+            const inner = await entry.async('arraybuffer');
+            let wb: XLSX.WorkBook;
+            try {
+              wb = XLSX.read(inner, { type: 'array', dense: true }); // ✅ dense
+            } catch (err: any) {
+              const msg = String(err?.message || err || '');
+              throw new Error(/zip/i.test(msg) ? 'ZIP בתוך ZIP. חלצי ידנית.' : 'קובץ אקסל לא נקרא.');
+            }
+
+            let wsname = wb.SheetNames[0];
+            let headerRowIndex = 0;
+
+            if (templateId === 'menura_insurance') {
+              const foundSheet = wb.SheetNames.find((name) => name.includes('דוח עמלות'));
+              if (foundSheet) {
+                wsname = foundSheet;
+                headerRowIndex = 29;
+              } else {
+                setErrorDialog({ title: 'לשונית לא נמצאה', message: <>לא נמצאה לשונית בשם <b>דוח עמלות</b>.</> });
+                setIsLoading(false);
+                return;
+              }
+            }
+            const ws = wb.Sheets[wsname];
+
+            if (templateId !== 'menura_insurance') {
+              const expectedHeaders = Object.keys(mapping);
+              headerRowIndex = fastFindHeaderRowIndex(ws, expectedHeaders);
+            }
+
+            if (!mapping || Object.keys(mapping).length === 0) {
+              setShowTemplateMismatch(true);
               setIsLoading(false);
               return;
             }
-  
-            // ערך יחיד – נמשיך לעבד אותו כאן
-            const entry = entries[0];
-            if (/\.csv$/i.test(entry.name)) {
-              const inner = await entry.async('uint8array');
-              jsonData = readCsv(inner);
-  
-              if (!mapping || Object.keys(mapping).length === 0) { setShowTemplateMismatch(true); setIsLoading(false); return; }
-              const expected = Object.keys(mapping);
-              const found = Object.keys(jsonData[0] || {});
-              const coverage = expected.length ? (expected.filter(h => found.includes(h)).length / expected.length) : 1;
-              if (coverage < 0.5) { setShowTemplateMismatch(true); setIsLoading(false); return; }
-  
-            } else {
-              const inner = await entry.async('arraybuffer');
-              let wb: XLSX.WorkBook;
-              try { wb = XLSX.read(inner, { type: 'array' }); }
-              catch (err: any) {
-                const msg = String(err?.message || err || '');
-                throw new Error(/zip/i.test(msg) ? 'ZIP בתוך ZIP. חלצי ידנית.' : 'קובץ אקסל לא נקרא.');
-              }
-  
-              let wsname = wb.SheetNames[0];
-              let headerRowIndex = 0;
-  
-              if (templateId === 'menura_insurance') {
-                const foundSheet = wb.SheetNames.find(name => name.includes('דוח עמלות'));
-                if (foundSheet) { wsname = foundSheet; headerRowIndex = 29; }
-                else { setErrorDialog({ title: 'לשונית לא נמצאה', message: <>לא נמצאה לשונית בשם <b>דוח עמלות</b>.</> }); setIsLoading(false); return; }
-              }
-              const ws = wb.Sheets[wsname];
-  
-              if (templateId !== 'menura_insurance') {
-                const expectedHeaders = Object.keys(mapping);
-                headerRowIndex = findHeaderRowIndex(ws, expectedHeaders);
-              }
-  
-              if (!mapping || Object.keys(mapping).length === 0) { setShowTemplateMismatch(true); setIsLoading(false); return; }
-  
-              const expectedExcelColumns = Object.keys(mapping);
-              const foundHeaders = headersAtRow(ws, headerRowIndex);
-              const intersectCount = expectedExcelColumns.filter(h => foundHeaders.includes(h)).length;
-              const coverage = expectedExcelColumns.length ? (intersectCount / expectedExcelColumns.length) : 1;
-              if (coverage < 0.5) { setShowTemplateMismatch(true); setIsLoading(false); return; }
-  
-              jsonData = XLSX.utils.sheet_to_json<Record<string, any>>(ws, { defval: "", range: headerRowIndex });
+
+            const foundHeaders = XLSX.utils
+              .sheet_to_json<any[]>(ws, { header: 1, raw: true, defval: '', blankrows: false })[headerRowIndex] // ✅ defval
+              ?.map((v: any) => String(v ?? '').trim()) || [];
+            const expectedExcelColumns = Object.keys(mapping);
+            const intersectCount = expectedExcelColumns.filter((h) => foundHeaders.includes(h)).length;
+            const coverage = expectedExcelColumns.length ? intersectCount / expectedExcelColumns.length : 1;
+            if (coverage < 0.5) {
+              setShowTemplateMismatch(true);
+              setIsLoading(false);
+              return;
             }
-  
-          } catch (e: any) {
-            setErrorDialog({ title: 'קובץ ZIP לא נקרא', message: <>לא ניתן לפתוח את הקובץ <b>{file.name}</b>: {String(e?.message || '')}</> });
-            setIsLoading(false);
-            if (fileInputRef.current) fileInputRef.current.value = '';
-            return;
+
+            jsonData = XLSX.utils.sheet_to_json<Record<string, any>>(ws, {
+              defval: '',
+              raw: true,
+              range: headerRowIndex,
+            });
           }
-  
         } else if (ext === '.csv') {
-          // CSV רגיל
-          jsonData = readCsv(arrayBuffer);
-  
-          if (!mapping || Object.keys(mapping).length === 0) { setShowTemplateMismatch(true); setIsLoading(false); return; }
-          const expected = Object.keys(mapping);
-          const found = Object.keys(jsonData[0] || {});
-          const coverage = expected.length ? (expected.filter(h => found.includes(h)).length / expected.length) : 1;
-          if (coverage < 0.5) { setShowTemplateMismatch(true); setIsLoading(false); return; }
-  
+          // CSV רגיל – Papa worker
+          jsonData = await parseCsvToJson(arrayBuffer);
         } else {
           // XLS/XLSX רגיל
           let wb: XLSX.WorkBook;
-          try { wb = XLSX.read(arrayBuffer, { type: "array" }); }
-          catch (err: any) {
+          try {
+            wb = XLSX.read(arrayBuffer, { type: 'array', dense: true }); // ✅ dense
+          } catch (err: any) {
             const msg = String(err?.message || err || '');
             setErrorDialog({
               title: 'שגיאה בקריאת קובץ',
-              message: <>לא ניתן לקרוא את הקובץ <b>{file.name}</b>.<br />{ /zip/i.test(msg) ? 'נראה שזה ZIP. חלצי ממנו קובץ XLSX/CSV.' : 'ודאי שהקובץ XLSX/CSV תקין.' }</>,
+              message: (
+                <>
+                  לא ניתן לקרוא את הקובץ <b>{file.name}</b>.<br />
+                  {/zip/i.test(msg) ? 'נראה שזה ZIP. חלצי ממנו קובץ XLSX/CSV.' : 'ודאי שהקובץ XLSX/CSV תקין.'}
+                </>
+              ),
             });
             setIsLoading(false);
             setSelectedFileName('');
             if (fileInputRef.current) fileInputRef.current.value = '';
             return;
           }
-  
+
           let wsname = wb.SheetNames[0];
           let headerRowIndex = 0;
-  
+
           if (templateId === 'menura_insurance') {
-            const foundSheet = wb.SheetNames.find(name => name.includes('דוח עמלות'));
-            if (foundSheet) { wsname = foundSheet; headerRowIndex = 29; }
-            else { setErrorDialog({ title: 'לשונית לא נמצאה', message: <>לא נמצאה לשונית בשם <b>דוח עמלות</b>.</> }); setIsLoading(false); return; }
+            const foundSheet = wb.SheetNames.find((name) => name.includes('דוח עמלות'));
+            if (foundSheet) {
+              wsname = foundSheet;
+              headerRowIndex = 29;
+            } else {
+              setErrorDialog({ title: 'לשונית לא נמצאה', message: <>לא נמצאה לשונית בשם <b>דוח עמלות</b>.</> });
+              setIsLoading(false);
+              return;
+            }
           }
           const ws = wb.Sheets[wsname];
-  
+
           if (templateId !== 'menura_insurance') {
             const expectedHeaders = Object.keys(mapping);
-            headerRowIndex = findHeaderRowIndex(ws, expectedHeaders);
+            headerRowIndex = fastFindHeaderRowIndex(ws, expectedHeaders);
           }
-  
-          if (!mapping || Object.keys(mapping).length === 0) { setShowTemplateMismatch(true); setIsLoading(false); return; }
-  
+
+          if (!mapping || Object.keys(mapping).length === 0) {
+            setShowTemplateMismatch(true);
+            setIsLoading(false);
+            return;
+          }
+
+          const foundHeaders = XLSX.utils
+            .sheet_to_json<any[]>(ws, { header: 1, raw: true, defval: '', blankrows: false })[headerRowIndex] // ✅ defval
+            ?.map((v: any) => String(v ?? '').trim()) || [];
           const expectedExcelColumns = Object.keys(mapping);
-          const foundHeaders = headersAtRow(ws, headerRowIndex);
-          const intersectCount = expectedExcelColumns.filter(h => foundHeaders.includes(h)).length;
-          const coverage = expectedExcelColumns.length ? (intersectCount / expectedExcelColumns.length) : 1;
-          if (coverage < 0.5) { setShowTemplateMismatch(true); setIsLoading(false); return; }
-  
-          jsonData = XLSX.utils.sheet_to_json<Record<string, any>>(ws, { defval: "", range: headerRowIndex });
-        }
-  
-        if (jsonData.length === 0) { setIsLoading(false); alert('⚠️ הקובץ לא מכיל שורות.'); return; }
-  
-        // --- סטנדרטיזציה ---
-        const agentCodeColumn = Object.entries(mapping).find(([, field]) => field === 'agentCode')?.[0];
-  
-        const standardized = jsonData
-          .filter((row) => {
-            const agentCodeVal = agentCodeColumn ? (row as any)[agentCodeColumn] : null;
-            return agentCodeVal && agentCodeVal.toString().trim() !== '';
-          })
-          .map((row) => {
-            const result: any = {
-              agentId: selectedAgentId,
-              templateId,
-              sourceFileName: file.name,
-              uploadDate: serverTimestamp(),
-              companyId: selectedCompanyId,
-              company: selectedCompanyName,
-            };
-  
-            for (const [excelCol, systemField] of Object.entries(mapping)) {
-              const value = (row as any)[excelCol];
-  
-              if (systemField === 'validMonth' || systemField === 'reportMonth') {
-                let parsed = parseHebrewMonth(value, templateId);
-                if (!parsed && systemField === 'reportMonth' && fallbackReportMonth) {
-                  parsed = fallbackReportMonth;
-                }
-                result[systemField] = parsed || value;
-  
-              } else if (systemField === 'commissionAmount') {
-                const override = commissionOverrides[templateId];
-                result[systemField] = override ? roundTo2(override(row)) : toNum(value);
-  
-              } else if (systemField === 'customerId' || systemField === 'IDCustomer') {
-                const raw = String(value ?? '').trim();
-                const padded9 = toPadded9(value);
-              
-                // שמרי את שניהם:
-                result.customerIdRaw = raw;      // כפי שבקובץ
-                result.customerId = padded9;     // הקנוני (9 ספרות) -- אם את כבר משתמשת בו במקומות אחרים
-                // result.customerIdPadded = padded9; // לשימוש עקבי בלינקים/שאילתות
-              } else if (systemField === 'policyNumber') {
-                result[systemField] = String(value ?? '').trim();
-  
-              } else {
-                result[systemField] = value;
-              }
-            }
-            return result;
+          const intersectCount = expectedExcelColumns.filter((h) => foundHeaders.includes(h)).length;
+          const coverage = expectedExcelColumns.length ? intersectCount / expectedExcelColumns.length : 1;
+          if (coverage < 0.5) {
+            setShowTemplateMismatch(true);
+            setIsLoading(false);
+            return;
+          }
+
+          jsonData = XLSX.utils.sheet_to_json<Record<string, any>>(ws, {
+            defval: '',
+            raw: true,
+            range: headerRowIndex,
           });
-  
-        setStandardizedRows(standardized);
-  
+        }
+
+        if (jsonData.length === 0) {
+          setIsLoading(false);
+          alert('⚠️ הקובץ לא מכיל שורות.');
+          return;
+        }
+
+        // --- סטנדרטיזציה (ללא serverTimestamp) ---
+        const standardized = standardizeRows(jsonData, {
+          agentId: selectedAgentId!,
+          templateId,
+          companyId: selectedCompanyId!,
+          companyName: selectedCompanyName,
+          sourceFileName: file.name,
+          fallbackReportMonth,
+        });
+
+        // שמירה ב-ref בלבד + פריוויו קליל
+        rowsRef.current = standardized;
+        startTransition(() => {
+          setPreviewRows(standardized.slice(0, 10));
+        });
+
+        // בדיקת קיום – נדחה כדי לא לחסום UI
         const reportMonth = standardized[0]?.reportMonth;
-        if (reportMonth) await checkExistingData(selectedAgentId, templateId, reportMonth, selectedCompanyId);
-  
+        if (reportMonth) {
+          defer(() => checkExistingData(selectedAgentId!, templateId, reportMonth, selectedCompanyId!));
+        }
       } catch (err: any) {
         console.error('File parse error:', err);
         setErrorDialog({
@@ -602,147 +742,112 @@ const toPadded9 = (v: any): string => {
         setIsLoading(false);
       }
     };
-  
+
     reader.readAsArrayBuffer(file);
   };
-  
 
+  // ===============================
+  // Write helpers
+  // ===============================
   const processChosenZipEntry = async () => {
-    if (!zipChooser || !selectedZipEntry) { setZipChooser(null); return; }
-  
-    // helper מקומי לחיפוש חלופי בשם עם RegExp
+    if (!zipChooser || !selectedZipEntry) {
+      setZipChooser(null);
+      return;
+    }
     const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  
+
     setIsLoading(true);
     try {
       const { zip } = zipChooser;
-  
-      // ✅ אם name הוא string: נקבל אובייקט יחיד או null (לא מערך)
+
       let entry: any = zip.file(selectedZipEntry);
-      // אם משום מה חזר מערך (אמור לקרות רק עם RegExp) — קחי את הראשון
       if (Array.isArray(entry)) entry = entry[0];
-  
-      // 🔎 ניסיון חלופי: מציאת קובץ ע"פ סוף נתיב/שם (אם ה-ZIP מכיל תיקיות)
       if (!entry) {
         const alt = zip.file(new RegExp(`${escapeRegExp(selectedZipEntry)}$`));
-        entry = Array.isArray(alt) ? alt[0] : alt; // alt יכול להיות מערך או יחיד
+        entry = Array.isArray(alt) ? alt[0] : alt;
       }
-  
-      // ❗ אם עדיין אין, או שזה בכלל תיקייה — שגיאה ידידותית
-      if (!entry || entry.dir) {
-        throw new Error('הקובץ שנבחר לא נמצא (או שהוא תיקייה) בתוך ה-ZIP.');
-      }
-  
-      // fallback לחודש משם הקובץ הפנימי (למור)
-      const fallbackReportMonth =
-        templateId === 'mor_insurance'
-          ? extractReportMonthFromFilename(selectedZipEntry)
-          : undefined;
-  
+      if (!entry || entry.dir) throw new Error('הקובץ שנבחר לא נמצא (או שהוא תיקייה) בתוך ה-ZIP.');
+
+      const fallbackReportMonth = templateId === 'mor_insurance'
+        ? extractReportMonthFromFilename(selectedZipEntry)
+        : undefined;
+
       let jsonData: Record<string, any>[] = [];
-  
-      // קריאה לפי הסיומת של הקובץ הפנימי
       const innerExt = getExt(selectedZipEntry);
-  
+
       if (innerExt === '.csv') {
         const inner = await entry.async('uint8array');
-        jsonData = readCsv(inner);
-  
-        // בדיקות מיפוי בסיסיות
-        if (!mapping || Object.keys(mapping).length === 0) { setShowTemplateMismatch(true); return; }
-        const expected = Object.keys(mapping);
-        const found = Object.keys(jsonData[0] || {});
-        const coverage = expected.length ? (expected.filter(h => found.includes(h)).length / expected.length) : 1;
-        if (coverage < 0.5) { setShowTemplateMismatch(true); return; }
-  
+        jsonData = await parseCsvToJson(inner.buffer);
       } else {
         const inner = await entry.async('arraybuffer');
-        const wb = XLSX.read(inner, { type: 'array' });
-  
+        const wb = XLSX.read(inner, { type: 'array', dense: true }); // ✅ dense
+
         let wsname = wb.SheetNames[0];
         let headerRowIndex = 0;
-  
+
         if (templateId === 'menura_insurance') {
           const foundSheet = wb.SheetNames.find((name: string) => name.includes('דוח עמלות'));
           if (foundSheet) {
             wsname = foundSheet;
-            headerRowIndex = 29; // שורה 30
+            headerRowIndex = 29;
           } else {
             setErrorDialog({ title: 'לשונית לא נמצאה', message: <>לא נמצאה לשונית בשם <b>דוח עמלות</b>.</> });
             return;
           }
         }
-  
+
         const ws = wb.Sheets[wsname];
-  
+
         if (templateId !== 'menura_insurance') {
           const expectedHeaders = Object.keys(mapping);
-          headerRowIndex = findHeaderRowIndex(ws, expectedHeaders);
+          headerRowIndex = fastFindHeaderRowIndex(ws, expectedHeaders);
         }
-  
-        if (!mapping || Object.keys(mapping).length === 0) { setShowTemplateMismatch(true); return; }
-  
+
+        if (!mapping || Object.keys(mapping).length === 0) {
+          setShowTemplateMismatch(true);
+          return;
+        }
+
+        const foundHeaders = XLSX.utils
+          .sheet_to_json<any[]>(ws, { header: 1, raw: true, defval: '', blankrows: false })[headerRowIndex] // ✅ defval
+          ?.map((v: any) => String(v ?? '').trim()) || [];
         const expectedExcelColumns = Object.keys(mapping);
-        const foundHeaders = headersAtRow(ws, headerRowIndex);
-        const intersectCount = expectedExcelColumns.filter(h => foundHeaders.includes(h)).length;
-        const coverage = expectedExcelColumns.length ? (intersectCount / expectedExcelColumns.length) : 1;
-        if (coverage < 0.5) { setShowTemplateMismatch(true); return; }
-  
-        jsonData = XLSX.utils.sheet_to_json<Record<string, any>>(ws, { defval: "", range: headerRowIndex });
-      }
-  
-      if (!jsonData.length) { alert('⚠️ לא נמצאו שורות נתונים בקובץ.'); return; }
-  
-      // --- סטנדרטיזציה ---
-      const agentCodeColumn = Object.entries(mapping).find(([, field]) => field === 'agentCode')?.[0];
-  
-      const standardized = jsonData
-        .filter((row) => {
-          const agentCodeVal = agentCodeColumn ? (row as any)[agentCodeColumn] : null;
-          return agentCodeVal && agentCodeVal.toString().trim() !== '';
-        })
-        .map((row) => {
-          const result: any = {
-            agentId: selectedAgentId,
-            templateId,
-            sourceFileName: selectedZipEntry, // שם הקובץ מתוך ה-ZIP
-            uploadDate: serverTimestamp(),
-            companyId: selectedCompanyId,
-            company: selectedCompanyName,
-          };
-  
-          for (const [excelCol, systemField] of Object.entries(mapping)) {
-            const value = (row as any)[excelCol];
-  
-            if (systemField === 'validMonth' || systemField === 'reportMonth') {
-              let parsed = parseHebrewMonth(value, templateId);
-              if (!parsed && systemField === 'reportMonth' && fallbackReportMonth) {
-                parsed = fallbackReportMonth;
-              }
-              result[systemField] = parsed || value;
-  
-            } else if (systemField === 'commissionAmount') {
-              const override = commissionOverrides[templateId];
-              result[systemField] = override ? roundTo2(override(row)) : toNum(value);
-  
-            } else if (systemField === 'customerId' || systemField === 'IDCustomer') {
-              result[systemField] = normalizeCustomerId(value);
-  
-            } else if (systemField === 'policyNumber') {
-              result[systemField] = String(value ?? '').trim();
-  
-            } else {
-              result[systemField] = value;
-            }
-          }
-          return result;
+        const intersectCount = expectedExcelColumns.filter((h) => foundHeaders.includes(h)).length;
+        const coverage = expectedExcelColumns.length ? intersectCount / expectedExcelColumns.length : 1;
+        if (coverage < 0.5) {
+          setShowTemplateMismatch(true);
+          return;
+        }
+
+        jsonData = XLSX.utils.sheet_to_json<Record<string, any>>(ws, {
+          defval: '',
+          raw: true,
+          range: headerRowIndex,
         });
-  
-      setStandardizedRows(standardized);
-  
+      }
+
+      if (!jsonData.length) {
+        alert('⚠️ לא נמצאו שורות נתונים בקובץ.');
+        return;
+      }
+
+      // סטנדרטיזציה (ללא serverTimestamp)
+      const standardized = standardizeRows(jsonData, {
+        agentId: selectedAgentId!,
+        templateId,
+        companyId: selectedCompanyId!,
+        companyName: selectedCompanyName,
+        sourceFileName: selectedZipEntry,
+        fallbackReportMonth,
+      });
+
+      rowsRef.current = standardized;
+      startTransition(() => {
+        setPreviewRows(standardized.slice(0, 10));
+      });
+
       const reportMonth = standardized[0]?.reportMonth;
-      if (reportMonth) await checkExistingData(selectedAgentId, templateId, reportMonth, selectedCompanyId);
-  
+      if (reportMonth) defer(() => checkExistingData(selectedAgentId!, templateId, reportMonth, selectedCompanyId!));
     } catch (e: any) {
       console.error(e);
       setErrorDialog({ title: 'שגיאת עיבוד קובץ', message: String(e?.message || 'שגיאה לא ידועה') });
@@ -752,11 +857,15 @@ const toPadded9 = (v: any): string => {
       setIsLoading(false);
     }
   };
-  
 
-  // ===============================
-  // Write helpers
-  // ===============================
+  function decorateRowsForWrite(rows: any[]) {
+    return rows.map(r => ({
+      ...r,
+      policyNumberKey: String(r.policyNumber ?? '').trim().replace(/\s+/g, ''),
+      customerId: toPadded9(r.customerId ?? r.customerIdRaw ?? ''),
+    }));
+  }
+
   async function writeExternalRowsInChunks(rows: any[]) {
     const CHUNK = 450;
     for (let i = 0; i < rows.length; i += CHUNK) {
@@ -764,7 +873,7 @@ const toPadded9 = (v: any): string => {
       const batch = writeBatch(db);
       for (const r of slice) {
         const ref = doc(collection(db, 'externalCommissions'));
-        batch.set(ref, r);
+        batch.set(ref, { ...r, uploadDate: serverTimestamp() }); // ✅ הוספה פה בלבד
       }
       await batch.commit();
     }
@@ -784,13 +893,28 @@ const toPadded9 = (v: any): string => {
     }
   }
 
+  async function writePolicySummariesInBatch(summaries: PolicyCommissionSummary[]) {
+    const CHUNK = 450;
+    for (let i = 0; i < summaries.length; i += CHUNK) {
+      const slice = summaries.slice(i, i + CHUNK);
+      const batch = writeBatch(db);
+      for (const s of slice) {
+        const sanitized = (s.reportMonth ?? '').toString().replace(/\//g, '-');
+        const id = `${s.agentId}_${s.agentCode}_${sanitized}_${s.companyId}_${s.policyNumberKey}_${s.customerId}_${s.templateId}`;
+        batch.set(doc(db, 'policyCommissionSummaries', id), { ...s, updatedAt: serverTimestamp() });
+      }
+      await batch.commit();
+    }
+  }
+
   // ===============================
-  // Import button
+  // Import
   // ===============================
   const handleImport = async () => {
-    if (!selectedAgentId || standardizedRows.length === 0) return;
+    if (!selectedAgentId || rowsRef.current.length === 0) return;
 
-    standardizedRows.forEach(row => {
+    // תקנון חודשים (אחרי פרסינג)
+    rowsRef.current.forEach((row) => {
       row.reportMonth = parseHebrewMonth(row.reportMonth, row.templateId);
       row.validMonth = parseHebrewMonth(row.validMonth, row.templateId);
     });
@@ -804,25 +928,26 @@ const toPadded9 = (v: any): string => {
     }
 
     try {
+      // עדכון agentCodes למשתמש
       const uniqueAgentCodes = new Set<string>();
-      for (const row of standardizedRows) {
+      for (const row of rowsRef.current) {
         if (row.agentCode) uniqueAgentCodes.add(row.agentCode.toString().trim());
       }
-
       const userRef = doc(db, 'users', selectedAgentId);
       const userSnap = await getDoc(userRef);
       if (userSnap.exists()) {
         const existingCodes: string[] = userSnap.data().agentCodes || [];
-        const codesToAdd = Array.from(uniqueAgentCodes).filter(code => !existingCodes.includes(code));
+        const codesToAdd = Array.from(uniqueAgentCodes).filter((code) => !existingCodes.includes(code));
         if (codesToAdd.length > 0) await updateDoc(userRef, { agentCodes: arrayUnion(...codesToAdd) });
       }
 
-      const rowsWithLinks = await preResolveLinks(standardizedRows, selectedAgentId, selectedCompanyId);
+      // ✨ ללא קישור מוקדם: רק דקורציה לפני כתיבה
+      const rowsPrepared = decorateRowsForWrite(rowsRef.current);
+      await writeExternalRowsInChunks(rowsPrepared);
 
-      await writeExternalRowsInChunks(rowsWithLinks);
-
+      // ===== סיכומי סוכן-חודש =====
       const summariesMap = new Map<string, CommissionSummary>();
-      for (const row of rowsWithLinks) {
+      for (const row of rowsPrepared) {
         const sanitizedMonth = row.reportMonth?.toString().replace(/\//g, '-') || '';
         const key = `${row.agentId}_${row.agentCode}_${sanitizedMonth}_${row.templateId}_${row.companyId}`;
         if (!summariesMap.has(key)) {
@@ -832,25 +957,80 @@ const toPadded9 = (v: any): string => {
             reportMonth: row.reportMonth,
             templateId: row.templateId,
             totalCommissionAmount: 0,
+            totalPremiumAmount: 0,
+            commissionRate: 0,
             companyId: row.companyId,
             company: row.company || '',
           });
         }
         const summary = summariesMap.get(key)!;
-        const commission = parseFloat(row.commissionAmount || '0');
+        const commission = toNum(row.commissionAmount);
+        const premium = toNum(row.premium);
         summary.totalCommissionAmount += isNaN(commission) ? 0 : commission;
+        summary.totalPremiumAmount += isNaN(premium) ? 0 : premium;
       }
-
+      for (const s of summariesMap.values()) {
+        s.commissionRate = s.totalPremiumAmount > 0 ? roundTo2((s.totalCommissionAmount / s.totalPremiumAmount) * 100) : 0;
+      }
       await writeSummariesInBatch(Array.from(summariesMap.values()));
 
-      const grouped: Record<string, { count: number; uniqueCustomers: Set<string>; totalCommission: number; }> = {};
-      for (const row of rowsWithLinks) {
+      // ===== סיכומי פוליסה =====
+      const policyMap = new Map<string, PolicyCommissionSummary>();
+      for (const row of rowsPrepared) {
+        const sanitizedMonth = (row.reportMonth ?? '').toString().replace(/\//g, '-');
+        const agentId = row.agentId;
+        const agentCode = (row.agentCode ?? '').toString().trim();
+        const companyId = row.companyId;
+        const company = row.company || '';
+        const templId = row.templateId || '';
+        const policyNumberKey = row.policyNumberKey || normalizePolicyKey(row.policyNumber);
+        const customerId = toPadded9(row.customerId ?? row.customerIdRaw ?? '');
+        const product = String(row.product ?? '').trim();
+
+        if (!agentId || !agentCode || !sanitizedMonth || !companyId || !policyNumberKey || !customerId) continue;
+
+        const key = `${agentId}_${agentCode}_${sanitizedMonth}_${companyId}_${policyNumberKey}_${customerId}_${templId}`;
+        if (!policyMap.has(key)) {
+          policyMap.set(key, {
+            agentId,
+            agentCode,
+            reportMonth: sanitizedMonth,
+            companyId,
+            company,
+            policyNumberKey,
+            customerId,
+            templateId: templId,
+            totalCommissionAmount: 0,
+            totalPremiumAmount: 0,
+            commissionRate: 0,
+            rowsCount: 0,
+            product: product || undefined,
+          });
+        }
+        const s = policyMap.get(key)!;
+        s.totalCommissionAmount += toNum(row.commissionAmount);
+        s.totalPremiumAmount += toNum(row.premium);
+        s.rowsCount += 1;
+        if (!s.product && product) s.product = product;
+      }
+      for (const s of policyMap.values()) {
+        s.commissionRate = s.totalPremiumAmount > 0 ? roundTo2((s.totalCommissionAmount / s.totalPremiumAmount) * 100) : 0;
+      }
+      await writePolicySummariesInBatch(Array.from(policyMap.values()));
+
+      // דיאלוג סיכום קצר לפי מספרי סוכן
+      const grouped: Record<
+        string,
+        { count: number; uniqueCustomers: Set<string>; totalCommission: number; totalPremium: number }
+      > = {};
+      for (const row of rowsPrepared) {
         const code = row.agentCode;
         if (!code) continue;
-        if (!grouped[code]) grouped[code] = { count: 0, uniqueCustomers: new Set(), totalCommission: 0 };
+        if (!grouped[code]) grouped[code] = { count: 0, uniqueCustomers: new Set(), totalCommission: 0, totalPremium: 0 };
         grouped[code].count += 1;
         if (row.customerId) grouped[code].uniqueCustomers.add(row.customerId);
-        grouped[code].totalCommission += parseFloat(row.commissionAmount || '0') || 0;
+        grouped[code].totalCommission += toNum(row.commissionAmount) || 0;
+        grouped[code].totalPremium += toNum(row.premium) || 0;
       }
 
       const summaryArray = Object.entries(grouped).map(([agentCode, data]) => ({
@@ -858,14 +1038,17 @@ const toPadded9 = (v: any): string => {
         count: data.count,
         totalInsured: data.uniqueCustomers.size,
         totalCommission: data.totalCommission,
+        totalPremium: data.totalPremium,
+        commissionRate: data.totalPremium > 0 ? roundTo2((data.totalCommission / data.totalPremium) * 100) : 0,
       }));
       setSummaryByAgentCode(summaryArray);
       setShowSummaryDialog(true);
 
-      setStandardizedRows([]);
+      // ניקוי
+      rowsRef.current = [];
+      setPreviewRows([]);
       setSelectedFileName('');
       setExistingDocs([]);
-
     } catch (error) {
       console.error('שגיאה בעת טעינה:', error);
       alert('❌ שגיאה בעת טעינה למסד. בדוק קונסול.');
@@ -874,123 +1057,33 @@ const toPadded9 = (v: any): string => {
     }
   };
 
-  /**
- * מעשיר שורות לפני כתיבה:
- * - מוסיף policyNumberKey
- * - גוזר customerIdPadded בקנון 9 ספרות
- * - מנסה לקשר linkedSaleId לפי policyNumberKey + customerIdPadded מאינדקס policyLinkIndex
- */
-  const preResolveLinks = async (
-    rows: any[],
-    agentId: string,
-    companyId?: string
-  ): Promise<any[]> => {
-    // 1) מפתחות פוליסה ייחודיים
-    const policyKeys = Array.from(
-      new Set(
-        rows.map(r => normalizePolicyKey(r.policyNumber)).filter(Boolean)
-      )
-    );
-  
-    // 2) אין מפתחות → העשרה בסיסית והחזרה
-    if (policyKeys.length === 0) {
-      return rows.map(r => ({
-        ...r,
-        policyNumberKey: normalizePolicyKey(r.policyNumber),
-        // הבטחת קיום שדה קנוני (אם מסיבה כלשהי לא נוצר בשלב ה-standardize)
-        customerId: toPadded9(r.customerId ?? r.customerIdRaw ?? ''),
-      }));
-    }
-  
-    // 3) שליפה מהאינדקס בצ'אנקים של 30
-    const keyToIndexData = new Map<string, { saleId: string; customerId: string }>();
-    const parts = chunk(policyKeys, 30);
-  
-    for (const part of parts) {
-      let q: any = query(
-        collection(db, 'policyLinkIndex'),
-        where('agentId', '==', agentId),
-        where('policyNumberKey', 'in', part)
-      );
-      if (companyId) {
-        q = query(
-          collection(db, 'policyLinkIndex'),
-          where('agentId', '==', agentId),
-          where('companyId', '==', companyId),
-          where('policyNumberKey', 'in', part)
-        );
-      }
-  
-      const snap = await getDocs(q);
-      snap.forEach(docSnap => {
-        const d: any = docSnap.data();
-        if (d?.saleId && d?.policyNumberKey) {
-          // תומך בכל וריאציה שקיימת באינדקס (customerId / customerIdRaw / customerIdPadded)
-          const idxCanonical = toPadded9(d.customerId ?? d.customerIdRaw ?? d.customerIdPadded ?? '');
-          keyToIndexData.set(String(d.policyNumberKey), {
-            saleId: String(d.saleId),
-            customerId: idxCanonical,
-          });
-        }
-      });
-    }
-  
-    // 4) העשרה + קישור בטוח לפי ת"ז קנונית
-    const updated = rows.map(r => {
-      const policyKey = normalizePolicyKey(r.policyNumber);
-      const rowCustomerId = toPadded9(r.customerId ?? r.customerIdRaw ?? '');
-  
-      const enriched = {
-        ...r,
-        policyNumberKey: policyKey,
-        customerId: rowCustomerId, // מבטיחים שהשדה הקנוני קיים על הרשומה
-      };
-  
-      if (!policyKey) return enriched;
-  
-      const idx = keyToIndexData.get(policyKey);
-      if (!idx) return enriched;
-  
-      // קישור בטוח: התאמה מלאה ב-9 ספרות קנוניות
-      if (rowCustomerId && idx.customerId && rowCustomerId === idx.customerId) {
-        return {
-          ...enriched,
-          linkedSaleId: idx.saleId,
-          linkSource: 'policyIndex',
-          linkConfidence: 1.0,
-        };
-      }
-  
-      return enriched;
-    });
-  
-    return updated;
-  };
-  
   // ===============================
   // Render
   // ===============================
   return (
     <div className="p-6 max-w-4xl mx-auto text-right">
       <h2 className="text-2xl font-bold mb-4">טעינת קובץ עמלות</h2>
-      <p className="text-gray-600 mb-6">ייבוא עמלות לפי תבנית קובץ מותאמת – טען את הקובץ, ודא שהשדות תואמים וייבא.</p>
+      <p className="text-gray-600 mb-6">ייבוא עמלות לפי תבנית קובץ מותאמת – טעני קובץ, ודאי התאמה וייבאי.</p>
+
+      {/* Loader overlay */}
+      {isLoading && (
+        <div className="fixed inset-0 bg-white bg-opacity-70 z-50 flex items-center justify-center">
+          <div className="text-center">
+            <div className="loader mb-4"></div>
+            <p className="text-lg font-semibold text-gray-700">⏳ טוען נתונים...</p>
+          </div>
+        </div>
+      )}
 
       {/* בחירת סוכן */}
       <div className="mb-4">
-        {isLoading && (
-          <div className="fixed inset-0 bg-white bg-opacity-70 z-50 flex items-center justify-center">
-            <div className="text-center">
-              <div className="loader mb-4"></div>
-              <p className="text-lg font-semibold text-gray-700">⏳ טוען נתונים... אנא המתן</p>
-            </div>
-          </div>
-        )}
-
         <label className="block font-semibold mb-1">בחר סוכן:</label>
         <select value={selectedAgentId} onChange={handleAgentChange} className="select-input w-full">
-          {detail?.role === "admin" && <option value="">בחר סוכן</option>}
-          {agents.map(agent => (
-            <option key={agent.id} value={agent.id}>{agent.name}</option>
+          {detail?.role === 'admin' && <option value="">בחר סוכן</option>}
+          {agents.map((agent) => (
+            <option key={agent.id} value={agent.id}>
+              {agent.name}
+            </option>
           ))}
         </select>
       </div>
@@ -1000,12 +1093,17 @@ const toPadded9 = (v: any): string => {
         <label className="block font-semibold mb-1">בחר חברה:</label>
         <select
           value={selectedCompanyId}
-          onChange={(e) => { setSelectedCompanyId(e.target.value); setTemplateId(''); }}
+          onChange={(e) => {
+            setSelectedCompanyId(e.target.value);
+            setTemplateId('');
+          }}
           className="select-input w-full"
         >
           <option value="">בחר חברה</option>
-          {uniqueCompanies.map(company => (
-            <option key={company.id} value={company.id}>{company.name}</option>
+          {uniqueCompanies.map((company) => (
+            <option key={company.id} value={company.id}>
+              {company.name}
+            </option>
           ))}
         </select>
       </div>
@@ -1014,65 +1112,41 @@ const toPadded9 = (v: any): string => {
       {selectedCompanyId && (
         <div className="mb-4">
           <label className="block font-semibold mb-1">בחר תבנית:</label>
-          <select
-            value={templateId}
-            onChange={e => setTemplateId(e.target.value)}
-            className="select-input w-full"
-          >
+          <select value={templateId} onChange={(e) => setTemplateId(e.target.value)} className="select-input w-full">
             <option value="">בחר תבנית</option>
-            {filteredTemplates.map(opt => (
-              <option key={opt.id} value={opt.id}>{opt.Name || opt.type}</option>
+            {filteredTemplates.map((opt) => (
+              <option key={opt.id} value={opt.id}>
+                {opt.Name || opt.type}
+              </option>
             ))}
           </select>
         </div>
       )}
-<div className="mb-2 text-sm">
-  <Link
-    href="/Help/commission-reports#top"
-    target="_blank"
-    className="underline hover:no-underline text-blue-600"
-  >
-    ❓ מדריך דוחות עמלות – איך להפיק ולייצא מכל חברה
-  </Link>
-</div>
+
+      <div className="mb-2 text-sm">
+        <Link href="/Help/commission-reports#top" target="_blank" className="underline hover:no-underline text-blue-600">
+          ❓ מדריך דוחות עמלות – איך להפיק ולייצא מכל חברה
+        </Link>
+      </div>
+
       {/* בחירת קובץ */}
       <div className="mb-4">
         <label className="block font-semibold mb-1">בחר קובץ:</label>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept=".xlsx,.xls,.csv,.zip"
-          onChange={handleFileUpload}
-          className="hidden"
-        />
+        <input ref={fileInputRef} type="file" accept=".xlsx,.xls,.csv,.zip" onChange={handleFileUpload} className="hidden" />
         <div className="flex gap-2">
-          <Button
-            text="בחר קובץ"
-            type="primary"
-            onClick={() => { if (canChooseFile) fileInputRef.current?.click(); }}
-            disabled={!canChooseFile}
-          />
+          <Button text="בחר קובץ" type="primary" onClick={() => canChooseFile && fileInputRef.current?.click()} disabled={!canChooseFile} />
           <Button text="נקה בחירה" type="secondary" onClick={handleClearSelections} />
         </div>
         {selectedFileName && <p className="mt-2 text-sm text-gray-600">📁 {selectedFileName}</p>}
       </div>
 
-      {!canChooseFile && (
-        <p className="mt-2 text-sm text-gray-500">
-          ⚠️ לפני בחירת קובץ יש לבחור סוכן, חברה ותבנית.
-        </p>
-      )}
+      {!canChooseFile && <p className="mt-2 text-sm text-gray-500">⚠️ לפני בחירת קובץ יש לבחור סוכן, חברה ותבנית.</p>}
 
-      {/* הודעה אם הקובץ כבר קיים */}
+      {/* הודעה אם כבר קיים */}
       {existingDocs.length > 0 && (
         <div className="bg-red-100 border border-red-300 text-red-800 p-3 rounded mb-4">
           קובץ כבר נטען לסוכן ולחודש זה. יש למחוק אותו לפני טעינה נוספת.
-          <Button
-            text="🗑 מחק טעינה קיימת"
-            type="danger"
-            onClick={() => setShowConfirmDelete(true)}
-            className="mt-2"
-          />
+          <Button text="🗑 מחק טעינה קיימת" type="danger" onClick={() => setShowConfirmDelete(true)} className="mt-2" />
         </div>
       )}
 
@@ -1088,23 +1162,29 @@ const toPadded9 = (v: any): string => {
       )}
 
       {/* תצוגה מקדימה */}
-      {standardizedRows.length > 0 && (
+      {previewRows.length > 0 && (
         <div className="mt-6">
-          <h3 className="font-semibold mb-2">תצוגה לאחר מיפוי ({standardizedRows.length} שורות)</h3>
+          <h3 className="font-semibold mb-2">
+            תצוגה לאחר מיפוי ({rowsRef.current.length.toLocaleString()} שורות)
+          </h3>
           <div className="overflow-x-auto border">
             <table className="table-auto w-full border-collapse text-sm text-right">
               <thead>
                 <tr className="bg-gray-100">
                   {Object.entries(mapping).map(([he, en]) => (
-                    <th key={en} className="border px-2 py-1">{he}</th>
+                    <th key={en} className="border px-2 py-1">
+                      {he}
+                    </th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {standardizedRows.slice(0, 10).map((row, i) => (
+                {previewRows.map((row, i) => (
                   <tr key={i}>
-                    {Object.entries(mapping).map(([he, en]) => (
-                      <td key={en} className="border px-2 py-1">{row[en]}</td>
+                    {Object.entries(mapping).map(([, en]) => (
+                      <td key={en} className="border px-2 py-1">
+                        {row[en]}
+                      </td>
                     ))}
                   </tr>
                 ))}
@@ -1114,7 +1194,7 @@ const toPadded9 = (v: any): string => {
           </div>
 
           <Button
-            text={isLoading ? "טוען..." : "אשר טעינה למסד הנתונים"}
+            text={isLoading ? 'טוען...' : 'אשר טעינה למסד הנתונים'}
             type="primary"
             onClick={handleImport}
             disabled={isLoading || existingDocs.length > 0}
@@ -1130,12 +1210,19 @@ const toPadded9 = (v: any): string => {
           title="סיכום טעינה לפי מספרי סוכן"
           message={
             <div>
-              {summaryByAgentCode.map((item) => (
-                <div key={item.agentCode} className="mb-2">
-                  <strong>מספר סוכן:</strong> {item.agentCode}<br />
-                  <strong>כמות פוליסות:</strong> {item.count}<br />
-                  <strong>כמות מבוטחים:</strong> {item.totalInsured}<br />
-                  <strong>סך נפרעים:</strong> {item.totalCommission.toLocaleString()} ₪
+              {summaryByAgentCode.map((item: any) => (
+                <div key={item.agentCode} className="mb-3">
+                  <strong>מספר סוכן:</strong> {item.agentCode}
+                  <br />
+                  <strong>כמות שורות:</strong> {item.count}
+                  <br />
+                  <strong>כמות מבוטחים:</strong> {item.totalInsured}
+                  <br />
+                  <strong>סך עמלות:</strong> {item.totalCommission.toLocaleString()} ₪
+                  <br />
+                  <strong>סך פרמיות:</strong> {item.totalPremium.toLocaleString()} ₪
+                  <br />
+                  <strong>שיעור עמלה:</strong> {item.commissionRate.toLocaleString()}%
                 </div>
               ))}
             </div>
@@ -1146,31 +1233,27 @@ const toPadded9 = (v: any): string => {
         />
       )}
 
-{showTemplateMismatch && (
-  <DialogNotification
-    type="warning"
-    title="התבנית לא מתאימה לקובץ"
-    message={
-      <>
-        הדוח שנבחר לא מתאים לקובץ הנטען. נסי לבחור תבנית אחרת
-        או להפיק מחדש לפי ההנחיות במדריך.
-        <div className="mt-2">
-          <Link
-            href="/Help/commission-reports#top"
-            target="_blank"
-            className="underline hover:no-underline text-blue-600"
-          >
-            לפתיחת מדריך דוחות העמלות
-          </Link>
-        </div>
-      </>
-    }
-    onConfirm={() => setShowTemplateMismatch(false)}
-    onCancel={() => setShowTemplateMismatch(false)}
-    hideCancel={true}
-  />
-)}
-    {errorDialog && (
+      {showTemplateMismatch && (
+        <DialogNotification
+          type="warning"
+          title="התבנית לא מתאימה לקובץ"
+          message={
+            <>
+              הדוח שנבחר לא מתאים לקובץ הנטען. נסי לבחור תבנית אחרת או להפיק מחדש לפי ההנחיות במדריך.
+              <div className="mt-2">
+                <Link href="/Help/commission-reports#top" target="_blank" className="underline hover:no-underline text-blue-600">
+                  לפתיחת מדריך דוחות העמלות
+                </Link>
+              </div>
+            </>
+          }
+          onConfirm={() => setShowTemplateMismatch(false)}
+          onCancel={() => setShowTemplateMismatch(false)}
+          hideCancel={true}
+        />
+      )}
+
+      {errorDialog && (
         <DialogNotification
           type="warning"
           title={errorDialog.title}
@@ -1190,20 +1273,22 @@ const toPadded9 = (v: any): string => {
             <>
               נמצאו כמה קבצים רלוונטיים בתוך ה-ZIP. בחרי אחד:
               <div className="mt-3">
-                <select
-                  className="select-input w-full"
-                  value={selectedZipEntry}
-                  onChange={(e) => setSelectedZipEntry(e.target.value)}
-                >
-                  {zipChooser.entryNames.map(n => (
-                    <option key={n} value={n}>{n}</option>
+                <select className="select-input w-full" value={selectedZipEntry} onChange={(e) => setSelectedZipEntry(e.target.value)}>
+                  {zipChooser.entryNames.map((n) => (
+                    <option key={n} value={n}>
+                      {n}
+                    </option>
                   ))}
                 </select>
               </div>
             </>
           }
           onConfirm={() => processChosenZipEntry()}
-          onCancel={() => { setZipChooser(null); setSelectedZipEntry(''); if (fileInputRef.current) fileInputRef.current.value = ''; }}
+          onCancel={() => {
+            setZipChooser(null);
+            setSelectedZipEntry('');
+            if (fileInputRef.current) fileInputRef.current.value = '';
+          }}
           hideCancel={false}
           confirmText="המשך"
           cancelText="ביטול"

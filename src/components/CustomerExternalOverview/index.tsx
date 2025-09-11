@@ -127,10 +127,17 @@ export default function CustomerExternalOverview({
   const fmt = (n?: number | null) => Number(n || 0).toLocaleString();
   const deltaTone = (v?: number | null) => (v == null || v === 0 ? 'neutral' : v > 0 ? 'warn' : 'ok');
 
-  // נקבע ערכה אחת לשווי MAGIC כדי למנוע בלבול בין valid/snapshot
-  const magicValue = hdr?.magicByValid ?? hdr?.magicSnapshot ?? 0;
+  // האם יש בכלל קובץ טעינה לחודש? נגזר ממספר השורות שנספרו בקבצי ה-external
+  const hasExternal = !!hdr && ((hdr.linked || 0) + (hdr.needsLink || 0)) > 0;
+
+  // בוחרים מה להציג:
+  // כשיש קובץ: apples-to-apples (magicByValid); כשאין: תמונת מצב (magicSnapshot)
+  const magicValue = hasExternal ? (hdr?.magicByValid ?? 0) : (hdr?.magicSnapshot ?? 0);
+  const magicSubtitle = hasExternal
+    ? 'חישוב לפי valid (Apples-to-Apples)'
+    : 'תמונת מצב (אין קובץ טעינה לחודש)';
   const externalValue = hdr?.external ?? 0;
-  const deltaValue = hdr?.deltaByValid ?? hdr?.deltaSnapshot ?? (externalValue - magicValue);
+  const deltaValue = externalValue - magicValue;
 
   /** ---------- UI ---------- */
   return (
@@ -195,7 +202,9 @@ export default function CustomerExternalOverview({
           <div className="flex md:justify-end gap-3">
             <div className="inline-flex items-center gap-2 h-10 px-3 rounded-xl border bg-gray-50 text-gray-700 text-sm">
               <span className="inline-block w-2 h-2 rounded-full bg-gray-400" />
-              {loading ? 'טוען…' : `נספרו ${fmt((hdr?.linked || 0) + (hdr?.needsLink || 0))} רשומות בקובץ`}
+              {loading
+                ? 'טוען…'
+                : `נספרו ${fmt((hdr?.linked || 0) + (hdr?.needsLink || 0))} רשומות בקובץ`}
             </div>
             <button
               type="button"
@@ -212,7 +221,7 @@ export default function CustomerExternalOverview({
 
       {/* ---------- Stats: 3 tiles ---------- */}
       <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
-        <StatCard title="שווי MAGIC" value={magicValue} subtitle="חישוב לפי valid / תמונת מצב" />
+        <StatCard title="שווי MAGIC" value={magicValue} subtitle={magicSubtitle} />
         <StatCard title="שווי קבצי טעינה" value={externalValue} />
         <StatCard
           title="דלתא (טעינה − MAGIC)"
@@ -225,6 +234,7 @@ export default function CustomerExternalOverview({
       <div className="mt-3 flex gap-3 text-sm text-gray-500">
         <Badge label={`שיוכים: ${fmt(hdr?.linked)}`} />
         <Badge label={`דורשים שיוך: ${fmt(hdr?.needsLink)}`} tone="warn" />
+        {!hasExternal && <Badge label="אין קובץ טעינה לחודש זה" tone="warn" />}
       </div>
     </section>
   );
@@ -243,7 +253,8 @@ function StatCard({
   highlight?: 'neutral' | 'warn' | 'ok';
 }) {
   const bg = highlight === 'warn' ? 'bg-orange-50' : highlight === 'ok' ? 'bg-blue-50' : 'bg-white';
-  const ring = highlight === 'warn' ? 'ring-orange-200' : highlight === 'ok' ? 'ring-blue-200' : 'ring-gray-100';
+  const ring =
+    highlight === 'warn' ? 'ring-orange-200' : highlight === 'ok' ? 'ring-blue-200' : 'ring-gray-100';
   return (
     <article className={`border rounded-2xl p-4 ${bg} ring-1 ${ring}`}>
       <div className="text-xs text-gray-500">{title}</div>
@@ -258,5 +269,9 @@ function Badge({ label, tone = 'neutral' }: { label: string; tone?: 'neutral' | 
     tone === 'warn'
       ? 'bg-orange-100 text-orange-800 border-orange-200'
       : 'bg-gray-100 text-gray-800 border-gray-200';
-  return <span className={`inline-flex items-center gap-1 px-2.5 h-7 rounded-full border text-xs ${cls}`}>{label}</span>;
+  return (
+    <span className={`inline-flex items-center gap-1 px-2.5 h-7 rounded-full border text-xs ${cls}`}>
+      {label}
+    </span>
+  );
 }

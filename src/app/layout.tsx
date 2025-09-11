@@ -9,6 +9,7 @@ import pages, { bottomPage } from '@/config/pagesConfig';
 import '@/app/globals.css';
 import Script from 'next/script'; // ✅ חדש
 import AnalyticsTracker from '@/components/AnalyticsTracker';
+import WhatsAppCta from '@/components/WhatsAppCta';
 
 
 const font = Rubik({ subsets: ['latin'] });
@@ -82,6 +83,9 @@ export default function RootLayout({
             </main>
           </div>
         </AuthContextProvider>
+                {/* ✅ כפתור וואטסאפ קבוע בכל האתר */}
+                <WhatsAppCta />
+
         <div id="menu-portal"></div>
       </body>
     </html>
