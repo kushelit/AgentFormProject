@@ -4,8 +4,8 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { buildCandidates, type Candidate } from './logic';
 
-// ⬇️ שירות שיוך
-import { linkExternalToSale } from '@/services/reconcileLinks';
+// ⬇️ שירות שיוך (דרך אינדקס policyNumber → SALE)
+import { linkPolicyNumberToSale } from '@/services/reconcileLinks';
 import { db } from '@/lib/firebase/firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import { ym } from '@/utils/reconcile';
@@ -69,26 +69,21 @@ export default function CustomerReconcilePanel({
       const s = saleSnap.data() as any;
 
       const customerId   = String(s.IDCustomer || '');
-      const policyMonth  = ym(s.month || s.mounth || ''); // YYYY-MM
       const comp         = (s.company?.toString()?.trim()) || (ext.company || '');
-      const reportMonth  = ym(ext.reportMonth || '');
       const policyNumber = String(s.policyNumber || ext.policyNumber || '');
 
-      if (!customerId || !policyMonth || !reportMonth) {
-        alert('חסר מידע לשיוך (לקוח/חודש/חודש דיווח)');
+      if (!customerId || !policyNumber) {
+        alert('חסר מידע לשיוך (לקוח/מס׳ פוליסה)');
         return;
       }
 
-      await linkExternalToSale({
-        extId: ext.extId,
+      // 🔗 קישור דרך policyLinkIndex (לא נוגעים ברשומת ה-external)
+      await linkPolicyNumberToSale({
         saleId,
         agentId,
         customerId,
         company: comp,
-        policyMonth,
-        reportMonth,
         policyNumber,
-        linkSource: 'manual', 
       });
 
       // עדכון אופטימי — נסמן כמקושר
@@ -124,7 +119,7 @@ export default function CustomerReconcilePanel({
           style={{ maxWidth: 180 }}
         />
         <div className="text-xs text-gray-500">
-          נמצאו {data.stats.sales} פוליסות במערכת ו‑{data.stats.externals} רשומות EXTERNAL
+          נמצאו {data.stats.sales} פוליסות במערכת ו-{data.stats.externals} רשומות EXTERNAL
         </div>
         <button className="ml-auto px-2 py-1 border rounded" onClick={goToReconcile}>
           מעבר למסך השוואה
@@ -149,13 +144,12 @@ export default function CustomerReconcilePanel({
               {cands.map((c) => (
                 <tr
                   key={c.extId}
-                  className={c.linkedSaleId
-                    ? 'bg-green-50'
-                    : c.score >= 80
-                      ? 'bg-green-50'
-                      : c.score >= 60
-                        ? 'bg-yellow-50'
-                        : ''}
+                  className={
+                    c.linkedSaleId ? 'bg-green-50'
+                    : c.score >= 80 ? 'bg-green-50'
+                    : c.score >= 60 ? 'bg-yellow-50'
+                    : ''
+                  }
                 >
                   <td className="p-2">{c.linkedSaleId ? '✓' : c.score}</td>
                   <td className="p-2">{c.company || '-'}</td>
