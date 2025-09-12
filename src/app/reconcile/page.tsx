@@ -1,5 +1,8 @@
 // app/reconcile/page.tsx
-import ReconcileClient from "./reconcile-client";
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
+import ReconcileClient from './reconcile-client';
 
 export default function Page({
   searchParams,
@@ -9,7 +12,7 @@ export default function Page({
   const sp: Record<string, string> = {};
   for (const k of Object.keys(searchParams)) {
     const v = searchParams[k];
-    sp[k] = Array.isArray(v) ? v[0] ?? "" : v ?? "";
+    sp[k] = Array.isArray(v) ? v[0] ?? '' : v ?? '';
   }
   return <ReconcileClient searchParams={sp} />;
 }

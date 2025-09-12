@@ -13,6 +13,7 @@ import {
 import { db } from '@/lib/firebase/firebase';
 import { linkPolicyNumberToSale, unlinkPolicyIndex, createSaleAndLinkFromExternal } from '@/services/reconcileLinks';
 import { makeCompanyCanonical, ym } from '@/utils/reconcile';
+import { useSearchParams } from 'next/navigation';
 
 /* ---------------- Types ---------------- */
 type Props = { searchParams: Record<string, string> };
@@ -126,14 +127,16 @@ async function fetchSales(agentId: string, customerIds: string[], company?: stri
 
 
 /* ---------------- Component ---------------- */
-export default function ReconcileClient({ searchParams }: Props) {
-  const agentId = searchParams.agentId || '';
-  const company = (searchParams.company || '').trim();
-  const repYmInitial = searchParams.repYm || '';
-  const customerIds = useMemo(
-    () => (searchParams.customerIds || '').split(',').map((s) => s.trim()).filter(Boolean),
-    [searchParams.customerIds]
-  );
+export default function ReconcileClient({ searchParams: spFromPage }: Props) {
+  const sp = useSearchParams();
+
+  const agentId      = spFromPage.agentId   || sp.get('agentId')   || '';
+  const company      = (spFromPage.company  || sp.get('company')   || '').trim();
+  const repYmInitial = spFromPage.repYm     || sp.get('repYm')     || '';
+  const customerIds  = useMemo(() => {
+    const s = spFromPage.customerIds || sp.get('customerIds') || '';
+    return s.split(',').map(v => v.trim()).filter(Boolean);
+  }, [spFromPage.customerIds, sp]);
 
   const [repYm, setRepYm] = useState(repYmInitial);
   const [loading, setLoading] = useState(false);
@@ -433,7 +436,7 @@ export default function ReconcileClient({ searchParams }: Props) {
                     <button
                       onClick={() => doCreateAndLink(row.ext)}
                       className="h-8 px-3 rounded-md bg-blue-600 text-white hover:bg-blue-700"
-                      title="צור SALE וקשר"
+                      // title="צור SALE וקשר"
                     >
                       צור SALE וקשר
                     </button>
