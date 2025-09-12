@@ -22,6 +22,7 @@ const pages = [
     label: 'טעינת עמלות',
     submenu: [
       { href: '/importCommissionHub/ExcelCommissionImporter', label: 'קליטת קבצים' },
+      { href: '/importCommissionHub/onboard', label: 'הקמת לקוחות מטעינה' },
       { href: '/importCommissionHub/CommissionComparison', label: 'השוואת טעינות' },
       { href: '/importCommissionHub/CommissionSummary', label: 'דף מסכם עמלות' },
       // { href: '/importCommissionHub/CompareRealToReported', label: 'השוואה לעמלה בפועל' },

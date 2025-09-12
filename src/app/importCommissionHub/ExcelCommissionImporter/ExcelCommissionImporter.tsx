@@ -63,6 +63,7 @@ interface PolicyCommissionSummary {
   company: string;
   policyNumberKey: string; // מנורמל ללא רווחים
   customerId: string; // 9 ספרות מרופד
+  fullName?: string;
   templateId: string;
   totalCommissionAmount: number;
   totalPremiumAmount: number; // ✅
@@ -986,7 +987,7 @@ const ExcelCommissionImporter: React.FC = () => {
         const policyNumberKey = row.policyNumberKey || normalizePolicyKey(row.policyNumber);
         const customerId = toPadded9(row.customerId ?? row.customerIdRaw ?? '');
         const product = String(row.product ?? '').trim();
-
+        const fullName = String(row.fullName ?? '').trim();
         if (!agentId || !agentCode || !sanitizedMonth || !companyId || !policyNumberKey || !customerId) continue;
 
         const key = `${agentId}_${agentCode}_${sanitizedMonth}_${companyId}_${policyNumberKey}_${customerId}_${templId}`;
@@ -1005,6 +1006,7 @@ const ExcelCommissionImporter: React.FC = () => {
             commissionRate: 0,
             rowsCount: 0,
             product: product || undefined,
+            fullName: fullName || undefined,
           });
         }
         const s = policyMap.get(key)!;
@@ -1012,6 +1014,7 @@ const ExcelCommissionImporter: React.FC = () => {
         s.totalPremiumAmount += toNum(row.premium);
         s.rowsCount += 1;
         if (!s.product && product) s.product = product;
+        if (!s.fullName && fullName) s.fullName = fullName;
       }
       for (const s of policyMap.values()) {
         s.commissionRate = s.totalPremiumAmount > 0 ? roundTo2((s.totalCommissionAmount / s.totalPremiumAmount) * 100) : 0;

@@ -47,16 +47,82 @@ function resolveProductForSale(externalProduct?: string | null, catalogKeys: str
   return partial || '';
 }
 
+/* ───────── name helpers (from Excel importer logic) ───────── */
+type NameOrder = 'firstNameFirst' | 'lastNameFirst';
+
+/** מפצל fullName לשם פרטי/משפחה */
+function splitFullName(fullNameRaw: string, structure: NameOrder = 'firstNameFirst') {
+  const parts = String(fullNameRaw || '').trim().split(' ').filter(Boolean);
+  let firstName = '';
+  let lastName = '';
+
+  if (parts.length === 1) {
+    firstName = parts[0];
+  } else if (parts.length === 2) {
+    if (structure === 'firstNameFirst') {
+      firstName = parts[0];
+      lastName = parts[1];
+    } else {
+      firstName = parts[1];
+      lastName = parts[0];
+    }
+  } else if (parts.length === 3) {
+    if (structure === 'firstNameFirst') {
+      firstName = parts[0];
+      lastName = parts.slice(1).join(' ');
+    } else {
+      firstName = parts.slice(2).join(' ');
+      lastName = parts.slice(0, 2).join(' ');
+    }
+  } else {
+    // 4 מילים ומעלה
+    if (structure === 'firstNameFirst') {
+      firstName = parts[0];
+      lastName = parts.slice(1).join(' ');
+    } else {
+      firstName = parts.slice(-1).join(' ');
+      lastName = parts.slice(0, -1).join(' ');
+    }
+  }
+  return { firstName, lastName };
+}
+
+/* ───────── try get fullName from policyCommissionSummaries ───────── */
+async function fetchFullNameFromPolicySummaries(agentId: string, customerId: string): Promise<string | null> {
+  const qy = query(
+    collection(db, 'policyCommissionSummaries'),
+    where('agentId', '==', String(agentId)),
+    where('customerId', '==', String(customerId))
+  );
+  const snap = await getDocs(qy);
+  for (const d of snap.docs) {
+    const x = d.data() as any;
+    const nm = x?.fullName || x?.customerName;
+    if (nm && String(nm).trim()) return String(nm).trim();
+  }
+  return null;
+}
+
 /* ───────── customer ensure ───────── */
 /** מאשר שקיים לקוח (AgentId + IDCustomer). אם אין — מקים מינימלי ומחזיר מזהה. */
 async function ensureCustomer(params: {
   agentId: string;
   IDCustomer: string;
+  /** אם לא נשלח — ננסה להביא מ-policyCommissionSummaries ולפצל */
   firstNameCustomer?: string;
   lastNameCustomer?: string;
+  /** אם השמות באים כ-fullName, באיזה סדר? (ברירת מחדל: שם פרטי קודם) */
+  nameOrder?: NameOrder;
 }) {
-  const { agentId, IDCustomer, firstNameCustomer = '', lastNameCustomer = '' } = params;
+  const {
+    agentId,
+    IDCustomer,
+    firstNameCustomer = '',
+    lastNameCustomer = '',
+    nameOrder = 'firstNameFirst',
+  } = params;
 
+  // כבר קיים?
   const qCust = query(
     collection(db, 'customer'),
     where('AgentId', '==', String(agentId)),
@@ -65,10 +131,22 @@ async function ensureCustomer(params: {
   const snap = await getDocs(qCust);
   if (!snap.empty) return snap.docs[0].id;
 
+  // אין שם מפורק? ננסה למשוך fullName מסיכומי הפוליסות ולפצל
+  let f = firstNameCustomer;
+  let l = lastNameCustomer;
+  if (!f && !l) {
+    const full = await fetchFullNameFromPolicySummaries(agentId, IDCustomer);
+    if (full) {
+      const split = splitFullName(full, nameOrder);
+      f = split.firstName;
+      l = split.lastName;
+    }
+  }
+
   const ref = await addDoc(collection(db, 'customer'), {
     AgentId: String(agentId),
-    firstNameCustomer,
-    lastNameCustomer,
+    firstNameCustomer: f || '',
+    lastNameCustomer: l || '',
     IDCustomer: String(IDCustomer),
     parentID: '',
     sourceApp: 'reconcile',
@@ -136,6 +214,7 @@ export async function unlinkPolicyIndex(params: {
 /* ───────── יצירה: “צור SALE וקשר” ───────── */
 /**
  * יוצר SALE חדש מתוך נתוני טעינה ומקשר באינדקס לפי policyNumber.
+ * דואג להקים לקוח אם חסר, ומנסה להביא fullName מה־policyCommissionSummaries ולפצל לשם פרטי/משפחה.
  * לא כותב ולא משנה כלום ב-externalCommissions / policyCommissionSummaries.
  */
 export async function createSaleAndLinkFromExternal(meta: {
@@ -146,9 +225,11 @@ export async function createSaleAndLinkFromExternal(meta: {
     product?: string | null;
     policyNumber: string;           // חובה
     validMonth?: string | null;     // YYYY-MM
-    // אופציונלי בלבד — אם ידוע לך השם: יישמרו ב-customer אם נדרש להקים
+    // אופציונלי — אם ידועות
     firstNameCustomer?: string;
     lastNameCustomer?: string;
+    /** סדר השם במקרה של fullName שמגיע מבחוץ; ברירת מחדל: 'firstNameFirst' */
+    nameOrder?: NameOrder;
   };
   reportYm?: string;                // YYYY-MM – fallback אם אין validMonth
   catalogProducts?: string[];       // אופציונלי: מפתחות מוצר לקטלוג SALE
@@ -163,6 +244,7 @@ export async function createSaleAndLinkFromExternal(meta: {
     validMonth,
     firstNameCustomer = '',
     lastNameCustomer = '',
+    nameOrder = 'firstNameFirst',
   } = external;
 
   if (!agentId || !customerId || !company || !policyNumber) {
@@ -180,12 +262,13 @@ export async function createSaleAndLinkFromExternal(meta: {
     throw new Error('הפוליסה כבר מקושרת ל-SALE אחר');
   }
 
-  // ודא/הקם לקוח
+  // ודא/הקם לקוח (כולל ניסיון למשוך fullName ולפצל אם לא סופק)
   await ensureCustomer({
     agentId,
     IDCustomer: customerId,
     firstNameCustomer,
     lastNameCustomer,
+    nameOrder,
   });
 
   // month/mounth: היום הראשון בחודש ה-VALID; אם אין – לפי reportYm; אחרת ריק
@@ -195,7 +278,7 @@ export async function createSaleAndLinkFromExternal(meta: {
   const resolvedProduct = resolveProductForSale(product, catalogProducts);
 
   // יצירת SALE
-  const saleDoc = {
+  const saleRef = await addDoc(collection(db, 'sales'), {
     AgentId: String(agentId),
     IDCustomer: String(customerId),
     company: String(company || ''),
@@ -208,9 +291,7 @@ export async function createSaleAndLinkFromExternal(meta: {
     createdAt: serverTimestamp(),
     lastUpdateDate: serverTimestamp(),
     sourceApp: 'reconcile',
-  };
-
-  const saleRef = await addDoc(collection(db, 'sales'), saleDoc);
+  } as any);
 
   // קישור באינדקס – הדבר המכריע לעתיד
   await setDoc(
