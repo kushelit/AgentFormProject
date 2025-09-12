@@ -83,9 +83,7 @@ export default function RootLayout({
             </main>
           </div>
         </AuthContextProvider>
-                {/* ✅ כפתור וואטסאפ קבוע בכל האתר */}
                 <WhatsAppCta />
-
         <div id="menu-portal"></div>
       </body>
     </html>
