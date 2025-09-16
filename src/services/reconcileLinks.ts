@@ -213,9 +213,11 @@ export async function unlinkPolicyIndex(params: {
 
 /* ───────── Template-aware product & premium mapping ───────── */
 
+type LineOfBusiness = 'insurance' | 'pensia' | 'finansim' | 'mix';
+
 type TemplateConfig = {
-  lineOfBusiness?: 'insurance' | 'pensia' | 'finansim' | 'mix';
-  defaultPremiumField?: 'insPremia' | 'pensiaPremia' | 'finansimPremia' | 'finansimZvira'| string;
+  defaultLineOfBusiness?: LineOfBusiness;
+    defaultPremiumField?: 'insPremia' | 'pensiaPremia' | 'finansimPremia' | 'finansimZvira'| string;
   fallbackProduct?: string;
   productMap?: Record<
     string,
@@ -223,6 +225,7 @@ type TemplateConfig = {
       canonicalProduct: string;
       aliases?: string[];
       premiumField?: 'insPremia' | 'pensiaPremia' | 'finansimPremia' | 'finansimZvira'| string; // אופציונלי לכל כלל
+      lineOfBusiness?: LineOfBusiness;
     }
   >;
 };
@@ -241,7 +244,7 @@ async function readTemplateConfig(templateId?: string | null): Promise<TemplateC
     if (!snap.exists()) return null;
     const d = snap.data() as any;
     return {
-      lineOfBusiness: d.lineOfBusiness || undefined,
+      defaultLineOfBusiness: d.defaultLineOfBusiness || undefined,
       defaultPremiumField: d.defaultPremiumField || undefined,
       fallbackProduct: d.fallbackProduct || undefined,
       productMap: d.productMap || undefined,
@@ -265,6 +268,7 @@ function resolveProductRule(rawProduct: string, template: TemplateConfig | null)
   return null;
 }
 
+
 function computeSaleMapping(opts: {
   rawProduct: string;
   template: TemplateConfig | null;
@@ -272,24 +276,14 @@ function computeSaleMapping(opts: {
   const { rawProduct, template } = opts;
   const rule = resolveProductRule(rawProduct, template);
 
-  // קביעת מוצר קנוני
   const product = rule?.canonicalProduct || template?.fallbackProduct || '';
+  const premiumField =
+    rule?.premiumField ??
+    template?.defaultPremiumField ??
+    undefined; // בלי ניחוש לפי LOB
 
-  // קביעת שדה פרמיה
-  let premiumField = rule?.premiumField || template?.defaultPremiumField;
-  if (!premiumField && template?.lineOfBusiness) {
-    premiumField =
-      template.lineOfBusiness === 'insurance'
-        ? 'insPremia'
-        : template.lineOfBusiness === 'finansim'
-        ? 'finansimPremia'
-        : template.lineOfBusiness === 'pensia'
-        ? 'pensiaPremia'
-        : undefined; // mix בלי ברירת-מחדל – יישאר undefined אם לא צוין
-  }
   return { product, premiumField };
 }
-
 /* ───────── יצירה: “צור SALE וקשר” ───────── */
 /**
  * יוצר SALE חדש מתוך נתוני טעינה ומקשר באינדקס לפי policyNumber.

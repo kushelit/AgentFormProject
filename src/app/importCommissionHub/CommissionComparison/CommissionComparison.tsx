@@ -65,6 +65,46 @@ interface TemplateOption {
   Name?: string;
 }
 
+type LineOfBusiness = 'insurance' | 'pensia' | 'finansim' | 'mix';
+
+type TemplateConfigLite = {
+  defaultLineOfBusiness?: LineOfBusiness;
+  productMap?: Record<string, {
+    aliases?: string[];
+    lineOfBusiness?: LineOfBusiness;
+  }>;
+};
+
+const normalizeLoose = (s: any) =>
+  String(s ?? '').toLowerCase().trim().replace(/[\s\-_/.,'"`]+/g, ' ');
+
+function resolveRuleByProduct(product: string | undefined, tpl: TemplateConfigLite | null) {
+  if (!product || !tpl?.productMap) return null;
+  const rp = normalizeLoose(product);
+  for (const key of Object.keys(tpl.productMap)) {
+    const rule = tpl.productMap[key];
+    const aliases = (rule.aliases || []).map(normalizeLoose);
+    if (aliases.some(a => a && (rp === a || rp.includes(a) || a.includes(rp)))) {
+      return rule;
+    }
+  }
+  return null;
+}
+
+function effectiveLobForProduct(product: string | undefined, tpl: TemplateConfigLite | null): LineOfBusiness | undefined {
+  const rule = resolveRuleByProduct(product, tpl);
+  return rule?.lineOfBusiness ?? tpl?.defaultLineOfBusiness;
+}
+
+/** חישוב אחוז עמלה לפי LOB */
+function calcRateByLob(commission: number, premium: number, lob?: LineOfBusiness): number {
+  if (!premium) return 0;
+  if (lob === 'finansim') return (commission * 12 / premium) * 100;
+  return (commission / premium) * 100;
+}
+
+
+
 // =============== Helpers ===============
 const toNum = (v: any): number => {
   if (v === null || v === undefined || v === '') return 0;
@@ -174,6 +214,20 @@ const CommissionComparisonByPolicy: React.FC = () => {
     const ym1 = month1.slice(0, 7);
     const ym2 = month2.slice(0, 7);
 
+
+ // 🔽 טוענים את התבנית כדי לדעת LOB ברירת-מחדל וכללי מוצר
+ let tpl: TemplateConfigLite | null = null;
+ try {
+   const tplSnap = await getDoc(doc(db, 'commissionTemplates', templateId));
+   if (tplSnap.exists()) {
+     const d = tplSnap.data() as any;
+     tpl = {
+       defaultLineOfBusiness: d.defaultLineOfBusiness || undefined,
+       productMap: d.productMap || undefined,
+     };
+   }
+ } catch { /* ignore */ }
+
     // ⚠️ ייתכן ותידרש אינדקס מרוכב בפיירסטור עבור:
     // agentId ==, templateId ==, companyId ==, reportMonth ==
     const q1 = query(
@@ -223,34 +277,39 @@ const CommissionComparisonByPolicy: React.FC = () => {
     const rows: ComparisonRow[] = Array.from(allKeys).map((k) => {
       const a = data1[k];
       const b = data2[k];
-      const sample = a || b!; // to read static fields
-
-      const row1 = a
-        ? {
-            commissionAmount: toNum(a.totalCommissionAmount),
-            premiumAmount: toNum(a.totalPremiumAmount),
-            commissionRate: toNum(a.totalPremiumAmount) ? (toNum(a.totalCommissionAmount) / toNum(a.totalPremiumAmount)) * 100 : 0,
-          }
-        : null;
-
-      const row2 = b
-        ? {
-            commissionAmount: toNum(b.totalCommissionAmount),
-            premiumAmount: toNum(b.totalPremiumAmount),
-            commissionRate: toNum(b.totalPremiumAmount) ? (toNum(b.totalCommissionAmount) / toNum(b.totalPremiumAmount)) * 100 : 0,
-          }
-        : null;
-
+      const sample = a || b!; // לקריאת שדות סטטיים (policyNumberKey וכו')
+    
+      const aCommission = a ? toNum(a.totalCommissionAmount) : 0;
+      const aPremium    = a ? toNum(a.totalPremiumAmount)    : 0;
+      const bCommission = b ? toNum(b.totalCommissionAmount) : 0;
+      const bPremium    = b ? toNum(b.totalPremiumAmount)    : 0;
+    
+      // 🔽 LOB אפקטיבי לכל צד לפי מוצר + תבנית (נופל לברירת-מחדל של התבנית אם אין כלל מתאים)
+      const lob1 = a ? effectiveLobForProduct(a.product, tpl) : undefined;
+      const lob2 = b ? effectiveLobForProduct(b.product, tpl) : undefined;
+    
+      const row1 = a ? {
+        commissionAmount: aCommission,
+        premiumAmount: aPremium,
+        commissionRate: calcRateByLob(aCommission, aPremium, lob1),
+      } : null;
+    
+      const row2 = b ? {
+        commissionAmount: bCommission,
+        premiumAmount: bPremium,
+        commissionRate: calcRateByLob(bCommission, bPremium, lob2),
+      } : null;
+    
       let status: ComparisonRow['status'] = 'unchanged';
       if (!row1 && row2) status = 'added';
       else if (row1 && !row2) status = 'removed';
       else if (
         row1 && row2 && (
           Math.round((row1.commissionAmount - row2.commissionAmount) * 100) !== 0 ||
-          Math.round((row1.premiumAmount - row2.premiumAmount) * 100) !== 0
+          Math.round((row1.premiumAmount   - row2.premiumAmount)   * 100) !== 0
         )
       ) status = 'changed';
-
+    
       return {
         policyNumberKey: sample.policyNumberKey,
         customerId: sample.customerId,
@@ -261,7 +320,7 @@ const CommissionComparisonByPolicy: React.FC = () => {
         status,
       };
     });
-
+    
     setComparisonRows(rows);
     setIsLoading(false);
   };
@@ -329,7 +388,7 @@ const CommissionComparisonByPolicy: React.FC = () => {
       [`% עמלה ${formatMonthDisplay(month1)}`]: calcRate(totals.c1, totals.p1).toFixed(2),
       [`עמלה ${formatMonthDisplay(month2)}`]: totals.c2.toFixed(2),
       [`פרמיה ${formatMonthDisplay(month2)}`]: totals.p2.toFixed(2),
-      [`% עמלה ${formatMonthDisplay(month2)}`]: calcRate(totals.c2, totals.p2).toFixed(2),
+      [`% עמלה ${formatMonthDisplay(month2)}`]: '',
       'סטטוס': '',
     } as any);
 
@@ -490,10 +549,10 @@ const CommissionComparisonByPolicy: React.FC = () => {
                 <td className="border p-2"></td>
                 <td className="border p-2">{totals.c1.toFixed(2)}</td>
                 <td className="border p-2">{totals.p1.toFixed(2)}</td>
-                <td className="border p-2">{calcRate(totals.c1, totals.p1).toFixed(2)}</td>
+                <td className="border p-2">—</td>
                 <td className="border p-2">{totals.c2.toFixed(2)}</td>
                 <td className="border p-2">{totals.p2.toFixed(2)}</td>
-                <td className="border p-2">{calcRate(totals.c2, totals.p2).toFixed(2)}</td>
+                <td className="border p-2">—</td>
                 <td className="border p-2"></td>
               </tr>
             </tbody>
