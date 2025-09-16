@@ -211,6 +211,85 @@ export async function unlinkPolicyIndex(params: {
   }
 }
 
+/* ───────── Template-aware product & premium mapping ───────── */
+
+type TemplateConfig = {
+  lineOfBusiness?: 'insurance' | 'pensia' | 'finansim' | 'mix';
+  defaultPremiumField?: 'insPremia' | 'pensiaPremia' | 'finansimPremia' | 'finansimZvira'| string;
+  fallbackProduct?: string;
+  productMap?: Record<
+    string,
+    {
+      canonicalProduct: string;
+      aliases?: string[];
+      premiumField?: 'insPremia' | 'pensiaPremia' | 'finansimPremia' | 'finansimZvira'| string; // אופציונלי לכל כלל
+    }
+  >;
+};
+
+const normalizeLoose = (s: any) =>
+  String(s ?? '')
+    .toLowerCase()
+    .trim()
+    .replace(/[\s\-_/.,'"`]+/g, ' ');
+
+async function readTemplateConfig(templateId?: string | null): Promise<TemplateConfig | null> {
+  if (!templateId) return null;
+  try {
+    const ref = doc(db, 'commissionTemplates', String(templateId));
+    const snap = await getDoc(ref);
+    if (!snap.exists()) return null;
+    const d = snap.data() as any;
+    return {
+      lineOfBusiness: d.lineOfBusiness || undefined,
+      defaultPremiumField: d.defaultPremiumField || undefined,
+      fallbackProduct: d.fallbackProduct || undefined,
+      productMap: d.productMap || undefined,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function resolveProductRule(rawProduct: string, template: TemplateConfig | null) {
+  const rp = normalizeLoose(rawProduct);
+  if (!template?.productMap) return null;
+
+  for (const key of Object.keys(template.productMap)) {
+    const rule = template.productMap[key];
+    const aliases: string[] = (rule.aliases || []).map(normalizeLoose);
+    if (aliases.some((a) => a && (rp === a || rp.includes(a) || a.includes(rp)))) {
+      return rule;
+    }
+  }
+  return null;
+}
+
+function computeSaleMapping(opts: {
+  rawProduct: string;
+  template: TemplateConfig | null;
+}): { product: string; premiumField?: string } {
+  const { rawProduct, template } = opts;
+  const rule = resolveProductRule(rawProduct, template);
+
+  // קביעת מוצר קנוני
+  const product = rule?.canonicalProduct || template?.fallbackProduct || '';
+
+  // קביעת שדה פרמיה
+  let premiumField = rule?.premiumField || template?.defaultPremiumField;
+  if (!premiumField && template?.lineOfBusiness) {
+    premiumField =
+      template.lineOfBusiness === 'insurance'
+        ? 'insPremia'
+        : template.lineOfBusiness === 'finansim'
+        ? 'finansimPremia'
+        : template.lineOfBusiness === 'pensia'
+        ? 'pensiaPremia'
+        : undefined; // mix בלי ברירת-מחדל – יישאר undefined אם לא צוין
+  }
+  return { product, premiumField };
+}
+
 /* ───────── יצירה: “צור SALE וקשר” ───────── */
 /**
  * יוצר SALE חדש מתוך נתוני טעינה ומקשר באינדקס לפי policyNumber.
@@ -230,6 +309,10 @@ export async function createSaleAndLinkFromExternal(meta: {
     lastNameCustomer?: string;
     /** סדר השם במקרה של fullName שמגיע מבחוץ; ברירת מחדל: 'firstNameFirst' */
     nameOrder?: NameOrder;
+    /** חדש: מזהה תבנית כדי לקבוע product/שדה פרמיה */
+    templateId?: string | null;
+    /** חדש: סכום פרמיה מצטבר לפוליסה */
+    totalPremiumAmount?: number | null;
   };
   reportYm?: string;                // YYYY-MM – fallback אם אין validMonth
   catalogProducts?: string[];       // אופציונלי: מפתחות מוצר לקטלוג SALE
@@ -245,6 +328,8 @@ export async function createSaleAndLinkFromExternal(meta: {
     firstNameCustomer = '',
     lastNameCustomer = '',
     nameOrder = 'firstNameFirst',
+    templateId = null,
+    totalPremiumAmount = null,
   } = external;
 
   if (!agentId || !customerId || !company || !policyNumber) {
@@ -274,15 +359,23 @@ export async function createSaleAndLinkFromExternal(meta: {
   // month/mounth: היום הראשון בחודש ה-VALID; אם אין – לפי reportYm; אחרת ריק
   const saleStart = ymToStartDate(validMonth) || ymToStartDate(reportYm) || '';
 
-  // product: ניסיון התאמה; אם לא הצליח – נשמור ריק ונשמר מקור בשדה productExternal
-  const resolvedProduct = resolveProductForSale(product, catalogProducts);
+  // ---- תבנית: קביעת product & premiumField ----
+  const template = await readTemplateConfig(templateId || undefined);
+  const { product: productFromTpl, premiumField } = computeSaleMapping({
+    rawProduct: String(product || ''),
+    template,
+  });
+
+  // product: אם יש קטלוג ל-SALE – ננסה התאמה גם אליו; אחרת נשתמש בתוצאה מהתבנית/מקור
+  const resolvedByCatalog = resolveProductForSale(productFromTpl || String(product || ''), catalogProducts);
+  const finalProduct = resolvedByCatalog || productFromTpl || '';
 
   // יצירת SALE
-  const saleRef = await addDoc(collection(db, 'sales'), {
+  const saleDoc: any = {
     AgentId: String(agentId),
     IDCustomer: String(customerId),
     company: String(company || ''),
-    product: resolvedProduct,                    // יכול להיות '' אם לא זוהה
+    product: finalProduct || '',                 // יכול להיות '' אם לא זוהה
     productExternal: (product || '').trim() || null,
     month: saleStart,                            // חלק מהמסכים עובדים עם "month"
     mounth: saleStart,                           // אצלכם ב-DB
@@ -291,7 +384,17 @@ export async function createSaleAndLinkFromExternal(meta: {
     createdAt: serverTimestamp(),
     lastUpdateDate: serverTimestamp(),
     sourceApp: 'reconcile',
-  } as any);
+  };
+
+  // שמירת totalPremiumAmount גם כשדה גנרי וגם בשדה הספציפי אם ידוע
+  if (typeof totalPremiumAmount === 'number' && !isNaN(totalPremiumAmount)) {
+    saleDoc.totalPremiumAmount = totalPremiumAmount;
+    if (premiumField) {
+      saleDoc[premiumField] = totalPremiumAmount;
+    }
+  }
+
+  const saleRef = await addDoc(collection(db, 'sales'), saleDoc);
 
   // קישור באינדקס – הדבר המכריע לעתיד
   await setDoc(

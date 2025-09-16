@@ -1,16 +1,9 @@
+// app/importCommissionHub/onboard/page.tsx  (או היכן ש-OnboardClient נמצא)
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
 import { db } from '@/lib/firebase/firebase';
-import {
-  collection,
-  getDoc,
-  doc,
-  getDocs,
-  query,
-  where,
-} from 'firebase/firestore';
-
+import { collection, getDoc, doc, getDocs, query, where } from 'firebase/firestore';
 import useFetchAgentData from '@/hooks/useFetchAgentData';
 import { useAuth } from '@/lib/firebase/AuthContext';
 import {
@@ -20,7 +13,6 @@ import {
   type NameOrder,
 } from '@/services/onboardFromReports';
 
-/* ---------- types (כמו ב-Importer) ---------- */
 type CommissionTemplateOption = {
   id: string;
   companyName: string;
@@ -36,25 +28,19 @@ export default function OnboardClient({ searchParams }: Props) {
   const { detail } = useAuth();
   const { agents, selectedAgentId, handleAgentChange } = useFetchAgentData();
 
-  /* -------- בחירות מסך -------- */
-  const [reportMonth, setReportMonth] = useState(
-    searchParams.reportMonth || searchParams.repYm || ''
-  );
-
-  // חברות + תבניות פעילות (כמו בדף הטעינה)
+  const [reportMonth, setReportMonth] = useState(searchParams.reportMonth || searchParams.repYm || '');
   const [templateOptions, setTemplateOptions] = useState<CommissionTemplateOption[]>([]);
   const [selectedCompanyId, setSelectedCompanyId] = useState(searchParams.companyId || '');
   const [templateId, setTemplateId] = useState(searchParams.templateId || '');
 
-  // סדר שם מלא לפיצול (לשירות ההקמה)
-  const [nameOrder, setNameOrder] = useState<NameOrder>('firstNameFirst');
+  // ✅ חדש: סינון לפי ת"ז
+  const [customerId, setCustomerId] = useState(searchParams.customerId || '');
 
-  /* -------- מצב ונתונים -------- */
+  const [nameOrder, setNameOrder] = useState<NameOrder>('firstNameFirst');
   const [loading, setLoading] = useState(false);
   const [proposals, setProposals] = useState<any[]>([]);
   const [missing, setMissing] = useState<any[]>([]);
 
-  /* ---------- תבניות פעילות + שם חברה (כמו ב-Importer) ---------- */
   useEffect(() => {
     (async () => {
       const qy = query(collection(db, 'commissionTemplates'), where('isactive', '==', true));
@@ -79,7 +65,6 @@ export default function OnboardClient({ searchParams }: Props) {
         });
       }
       setTemplateOptions(templates);
-      // אם templateId מה-URL לא קיים/לא פעיל – ננקה
       if (templates.every(t => t.id !== templateId)) setTemplateId('');
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -88,9 +73,7 @@ export default function OnboardClient({ searchParams }: Props) {
   const uniqueCompanies = useMemo(
     () =>
       Array.from(
-        new Map(
-          templateOptions.map(t => [t.companyId, { id: t.companyId, name: t.companyName }])
-        ).values()
+        new Map(templateOptions.map(t => [t.companyId, { id: t.companyId, name: t.companyName }])).values()
       ),
     [templateOptions]
   );
@@ -99,16 +82,13 @@ export default function OnboardClient({ searchParams }: Props) {
     [templateOptions, selectedCompanyId]
   );
 
-  /* ---------- קביעת הסוכן לפי ה-URL (אם הגיע) ---------- */
   useEffect(() => {
     if (searchParams.agentId && selectedAgentId !== searchParams.agentId) {
-      // ה-hook מצפה לאיבנט של select; זה טריק קטן “כמו בדף הטעינה”
       handleAgentChange({ target: { value: searchParams.agentId } } as any);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams.agentId]);
 
-  /* ---------- פעולות ---------- */
   async function scan() {
     if (!selectedAgentId || !reportMonth) {
       alert('יש לבחור סוכן וחודש דיווח');
@@ -121,6 +101,7 @@ export default function OnboardClient({ searchParams }: Props) {
         reportMonth,
         companyId: selectedCompanyId || undefined,
         templateId: templateId || undefined,
+        customerId: customerId ? customerId : undefined, // ✅
       });
       setProposals(all);
 
@@ -151,8 +132,6 @@ export default function OnboardClient({ searchParams }: Props) {
     setLoading(true);
     try {
       for (const p of missing) {
-        // רוצות סדרה סינכרונית לטובת סדר עדיפויות / קונפליקטים
-        // (אפשר לעבור לצ׳אנקים בעתיד)
         await createCustomerAndSalesFromProposal({ agentId: selectedAgentId!, nameOrder, proposal: p });
       }
       setMissing([]);
@@ -161,22 +140,20 @@ export default function OnboardClient({ searchParams }: Props) {
     }
   }
 
-  /* ---------- קישור ישיר עם ה-QS הנוכחי ---------- */
   const qs = useMemo(() => {
     const p = new URLSearchParams();
     if (selectedAgentId) p.set('agentId', selectedAgentId);
     if (reportMonth) p.set('reportMonth', reportMonth);
     if (selectedCompanyId) p.set('companyId', selectedCompanyId);
     if (templateId) p.set('templateId', templateId);
+    if (customerId) p.set('customerId', customerId); // ✅
     return p.toString();
-  }, [selectedAgentId, reportMonth, selectedCompanyId, templateId]);
+  }, [selectedAgentId, reportMonth, selectedCompanyId, templateId, customerId]);
 
-  /* ---------- UI ---------- */
   return (
     <div dir="rtl" className="p-6 max-w-5xl mx-auto">
       <h1 className="text-2xl font-bold mb-4">הקמת לקוחות ועסקאות מטעינות</h1>
 
-      {/* בחירות (זהה עקרונית ל-Importer) */}
       <div className="mb-4 bg-white border rounded-xl p-4 grid grid-cols-1 md:grid-cols-2 gap-3">
         {/* סוכן */}
         <label className="flex flex-col">
@@ -221,6 +198,19 @@ export default function OnboardClient({ searchParams }: Props) {
           </select>
         </label>
 
+        {/* ✅ ת"ז לקוח (אופציונלי) */}
+        <label className="flex flex-col md:col-span-2">
+          <span className="text-xs text-gray-500 mb-1">ת״ז לקוח (אופציונלי)</span>
+          <input
+            inputMode="numeric"
+            className="border rounded px-2 h-10"
+            value={customerId}
+            onChange={(e) => setCustomerId(e.target.value.replace(/\D/g, ''))}
+            placeholder="לדוגמה: 065667891"
+            maxLength={9}
+          />
+        </label>
+
         {/* סריקה + סדר שם מלא */}
         <div className="flex items-end gap-3">
           <button className="h-10 px-3 border rounded bg-blue-600 text-white" onClick={scan} disabled={loading}>
@@ -233,14 +223,12 @@ export default function OnboardClient({ searchParams }: Props) {
               <option value="lastNameFirst">שם משפחה תחילה</option>
             </select>
           </label>
-        </div>
-
-        <div className="md:col-span-2 text-xs text-gray-500">
-          קישור ישיר למצב הנוכחי: <a className="underline" href={`/onboard?${qs}`}>/onboard?{qs}</a>
+          <div className="text-xs text-gray-500">
+            קישור ישיר: <a className="underline" href={`/onboard?${qs}`}>/onboard?{qs}</a>
+          </div>
         </div>
       </div>
 
-      {/* סיכום לקוחות חסרים */}
       {missing.length > 0 && (
         <div className="mb-3 flex items-center justify-between">
           <div>נמצאו <b>{missing.length}</b> לקוחות חסרים</div>
@@ -250,7 +238,6 @@ export default function OnboardClient({ searchParams }: Props) {
         </div>
       )}
 
-      {/* טבלה */}
       <div className="bg-white border rounded-xl p-4">
         <table className="w-full text-sm border-collapse">
           <thead>

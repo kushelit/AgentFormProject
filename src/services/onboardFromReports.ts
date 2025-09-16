@@ -1,8 +1,10 @@
+// services/onboardFromReports.ts
 'use client';
 
 import { db } from '@/lib/firebase/firebase';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { createSaleAndLinkFromExternal } from '@/services/reconcileLinks';
+import { makeCompanyCanonical } from '@/utils/reconcile';
 
 export type NameOrder = 'firstNameFirst' | 'lastNameFirst';
 
@@ -21,19 +23,20 @@ export function splitFullName(fullNameRaw: string, structure: NameOrder) {
   } else if (parts.length === 3) {
     if (structure === 'firstNameFirst') { firstName = parts[0]; lastName = parts.slice(1).join(' '); }
     else { firstName = parts.slice(2).join(' '); lastName = parts.slice(0, 2).join(' '); }
-  } else if (parts.length > 3) {
+  } else {
     if (structure === 'firstNameFirst') { firstName = parts[0]; lastName = parts.slice(1).join(' '); }
     else { firstName = parts.slice(-1)[0]; lastName = parts.slice(0, -1).join(' '); }
   }
   return { firstName, lastName };
 }
 
-/** שליפת “הצעות הקמה” מתוך policyCommissionSummaries; companyId/templateId אופציונליים */
+/** שליפת “הצעות הקמה” מתוך policyCommissionSummaries; companyId/templateId/customerId אופציונליים */
 export async function fetchProposalsFromSummaries(ctx: {
   agentId: string;
   reportMonth: string;              // YYYY-MM
   companyId?: string;
   templateId?: string;
+  customerId?: string;              // ✅ חדש: סינון לפי ת"ז
 }) {
   const filters: any[] = [
     where('agentId', '==', ctx.agentId),
@@ -41,27 +44,47 @@ export async function fetchProposalsFromSummaries(ctx: {
   ];
   if (ctx.companyId)  filters.push(where('companyId', '==', ctx.companyId));
   if (ctx.templateId) filters.push(where('templateId', '==', ctx.templateId));
+  if (ctx.customerId) filters.push(where('customerId', '==', toPadded9(ctx.customerId))); // ✅
 
   const qy = query(collection(db, 'policyCommissionSummaries'), ...filters);
   const snap = await getDocs(qy);
 
-  const byCustomer = new Map<string, { fullName?: string; policies: any[] }>();
+  type Bucket = { fullName?: string; policiesByKey: Map<string, any> };
+  const byCustomer = new Map<string, Bucket>();
+
   snap.forEach(d => {
     const x = d.data() as any;
     const customerId = toPadded9(x.customerId);
     if (!customerId) return;
-    if (!byCustomer.has(customerId)) byCustomer.set(customerId, { fullName: x.fullName || '', policies: [] });
-    byCustomer.get(customerId)!.policies.push({
-      company: x.company,
-      product: x.product ?? '',
-      policyNumber: x.policyNumberKey,  // מספיק לשיוך
-      validMonth: null,                 // בתקציר לרוב אין VALID – נשתמש ב-reportMonth
-      reportMonth: x.reportMonth,
-    });
+
+    const policyNumberKey = String(x.policyNumberKey || '').trim();
+    if (!policyNumberKey) return;
+
+    const compCanon = makeCompanyCanonical(String(x.company || ''));
+    const uniqKey = `${compCanon}::${policyNumberKey}`;
+
+    if (!byCustomer.has(customerId)) {
+      byCustomer.set(customerId, { fullName: x.fullName || '', policiesByKey: new Map() });
+    }
+    const bucket = byCustomer.get(customerId)!;
+
+    if (!bucket.policiesByKey.has(uniqKey)) {
+      bucket.policiesByKey.set(uniqKey, {
+        company: x.company,
+        product: x.product ?? '',
+        policyNumber: policyNumberKey,
+        validMonth: null,
+        reportMonth: x.reportMonth,
+        templateId: x.templateId || null,
+        totalPremiumAmount: Number(x.totalPremiumAmount) || 0,
+      });
+    }
   });
 
   return Array.from(byCustomer.entries()).map(([customerId, v]) => ({
-    customerId, fullName: v.fullName, policies: v.policies
+    customerId,
+    fullName: v.fullName,
+    policies: Array.from(v.policiesByKey.values()),
   }));
 }
 
@@ -81,28 +104,52 @@ export async function fetchExistingCustomerIds(agentId: string, customerIds: str
   return exist;
 }
 
-/** הקמת לקוח (אם חסר) + SALE-ים מהצעה אחת (מניעת כפילויות ב-SALE באמצעות האינדקס) */
+export type CreateSalesResult = {
+  created: number;
+  skipped: number;
+  saleIds: string[];
+  errors: string[];
+};
+
+/** הקמת לקוח (אם חסר) + SALE-ים מהצעה אחת */
 export async function createCustomerAndSalesFromProposal(params: {
   agentId: string;
   nameOrder: NameOrder;
   proposal: { customerId: string; fullName?: string; policies: any[] };
-}) {
+}): Promise<CreateSalesResult> {
   const { agentId, nameOrder, proposal } = params;
   const { firstName, lastName } = splitFullName(proposal.fullName || '', nameOrder);
 
+  const result: CreateSalesResult = { created: 0, skipped: 0, saleIds: [], errors: [] };
+
   for (const p of proposal.policies) {
-    await createSaleAndLinkFromExternal({
-      external: {
-        agentId,
-        customerId: proposal.customerId,
-        company: p.company,
-        product: p.product || '',
-        policyNumber: p.policyNumber,
-        validMonth: p.validMonth,
-        firstNameCustomer: firstName,
-        lastNameCustomer: lastName,
-      },
-      reportYm: p.reportMonth,
-    });
+    try {
+      const saleId = await createSaleAndLinkFromExternal({
+        external: {
+          agentId,
+          customerId: proposal.customerId,
+          company: p.company,
+          product: p.product || '',
+          policyNumber: p.policyNumber,
+          validMonth: p.validMonth,
+          firstNameCustomer: firstName,
+          lastNameCustomer: lastName,
+          templateId: p.templateId || null,
+          totalPremiumAmount: typeof p.totalPremiumAmount === 'number' ? p.totalPremiumAmount : null,
+        },
+        reportYm: p.reportMonth,
+      });
+      result.created += 1;
+      result.saleIds.push(saleId);
+    } catch (e: any) {
+      const msg = String(e?.message || '');
+      if (msg.includes('כבר מקושרת') || msg.toLowerCase().includes('already')) {
+        result.skipped += 1;
+      } else {
+        result.errors.push(msg);
+      }
+    }
   }
+
+  return result;
 }
