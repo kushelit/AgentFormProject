@@ -166,10 +166,27 @@ const ExcelCommissionImporter: React.FC = () => {
   const commissionOverrides: Record<string, (row: any) => number> = {
     ayalon_insurance: (row) =>
       toNum(pick(row, ['סך עמלת סוכן'])) + toNum(pick(row, ['סך דמי גביה', 'סך דמי גבייה'])),
+
     menura_new_nifraim: (row) =>
       toNum(pick(row, ['סוכן-סכום עמלה', 'סוכן - סכום עמלה'])) +
       toNum(pick(row, ['סוכן-דמי גביה', 'סוכן - דמי גביה', 'סוכן-דמי גבייה', 'סוכן - דמי גבייה'])),
-  };
+  
+      // ✅ Fenix Gemel – עמלה לפני מע"מ (קבוע 17%) מתוך "עמלה לתשלום כולל מע"מ"
+    fenix_gemel: (row) => {
+      const VAT = 0.17;
+      const gross = toNum(
+        pick(row, [
+          'עמלה לתשלום כולל מע"מ',
+          'עמלה לתשלום כולל מעמ',
+          'עמלה לתשלום כולל מע״מ',
+        ])
+      );
+      const base = gross || toNum(pick(row, ['סכום עמלה', 'עמלה']));
+      return base ? base / (1 + VAT) : 0;
+    },
+  
+  
+    };
 
   const chunk = <T,>(arr: T[], size: number) =>
     Array.from({ length: Math.ceil(arr.length / size) }, (_, i) => arr.slice(i * size, i * size + size));
@@ -185,6 +202,28 @@ const ExcelCommissionImporter: React.FC = () => {
     // איחוד רווחים ותווים בלתי נראים
     return s.replace(/\s+/g, ' ').replace(/\u200f|\u200e/g, '');
   };
+
+
+  const normalizeFullName = (first?: any, last?: any) =>
+    [String(first ?? '').trim(), String(last ?? '').trim()]
+      .filter(Boolean)
+      .join(' ')
+      .replace(/\s+/g, ' ')
+      .replace(/\u200f|\u200e/g, '');
+  
+
+
+
+      const parseVatRate = (v: any): number => {
+        // מקבל "17", "17%", 0.17, "0.17" וכו' → מחזיר תמיד ערך בין 0..1
+        let n = toNum(v);
+        if (n > 1) n = n / 100;
+        if (!isFinite(n) || n < 0) n = 0;
+        if (n > 1) n = 1;
+        return n;
+      };
+      
+
 
   /* ==============================
      Effects
@@ -431,36 +470,125 @@ const handleDeleteExisting = async () => {
     window.location.reload();
   };
 
-  const standardizeRowWithMapping = (row: any, mapping: Record<string,string>, base: any, fallbackReportMonth?: string) => {
+  // const standardizeRowWithMapping = (row: any, mapping: Record<string,string>, base: any, fallbackReportMonth?: string) => {
+  //   const result: any = { ...base };
+  //   for (const [excelCol, systemField] of Object.entries(mapping)) {
+     
+  //     if (base.templateId === 'clal_pensia') {
+  //       // אם כבר התקבל fullName מהמיפוי, רק ננרמל
+  //       if (result.fullName) {
+  //         result.fullName = normalizeFullName(result.fullName, '');
+  //       } else {
+  //         // ננסה להרכיב מ"כותרות המקור" באקסל
+  //         const first = row['שם פרטי עמית'] ?? row['שם פרטי'] ?? row['שם פרטי מבוטח'];
+  //         const last  = row['שם משפחה עמית'] ?? row['שם משפחה'] ?? row['שם משפחה מבוטח'];
+  //         const full  = normalizeFullName(first, last);
+  //         if (full) result.fullName = full;
+  //       }
+  //     }
+     
+  //     const value = row[excelCol];
+  //     if (systemField === 'validMonth' || systemField === 'reportMonth') {
+  //       let parsed = parseHebrewMonth(value, base.templateId);
+  //       if (!parsed && systemField === 'reportMonth' && fallbackReportMonth) parsed = fallbackReportMonth;
+  //       result[systemField] = parsed || value;
+  //     } else if (systemField === 'commissionAmount' || systemField === 'premium') {
+  //       if (systemField === 'commissionAmount') {
+  //         const override = commissionOverrides[base.templateId];
+  //         result[systemField] = override ? roundTo2(override(row)) : toNum(value);
+  //       } else {
+  //         result[systemField] = toNum(value); // premium – ללא overrides
+  //       }
+  //     } else if (systemField === 'product') {
+  //       result.product = normalizeProduct(value);
+  //     } else if (systemField === 'customerId' || systemField === 'IDCustomer') {
+  //       const raw = String(value ?? '').trim();
+  //       const padded9 = toPadded9(value);
+  //       result.customerIdRaw = raw;
+  //       result.customerId = padded9;
+  //     } else if (systemField === 'policyNumber') {
+  //       result[systemField] = String(value ?? '').trim();
+  //     } else {
+  //       result[systemField] = value;
+  //     }
+  //   }
+  //   return result;
+  // };
+
+  const standardizeRowWithMapping = (
+    row: any,
+    mapping: Record<string, string>,
+    base: any,
+    fallbackReportMonth?: string
+  ) => {
     const result: any = { ...base };
+  
+    // 1) מיפוי בסיסי מכל העמודות שהוגדרו בתבנית
     for (const [excelCol, systemField] of Object.entries(mapping)) {
       const value = row[excelCol];
+  
       if (systemField === 'validMonth' || systemField === 'reportMonth') {
         let parsed = parseHebrewMonth(value, base.templateId);
         if (!parsed && systemField === 'reportMonth' && fallbackReportMonth) parsed = fallbackReportMonth;
         result[systemField] = parsed || value;
-      } else if (systemField === 'commissionAmount' || systemField === 'premium') {
-        if (systemField === 'commissionAmount') {
-          const override = commissionOverrides[base.templateId];
-          result[systemField] = override ? roundTo2(override(row)) : toNum(value);
+  
+      } else if (systemField === 'commissionAmount') {
+        const override = commissionOverrides[base.templateId];
+        result[systemField] = override ? roundTo2(override(row)) : toNum(value);
+  
+      } else if (systemField === 'premium') {
+        // ✅ לוגיקת פרמיה מיוחדת לתבנית Fenix
+        if (base.templateId === 'fenix_insurance') {
+          const sector = String(pick(row, ['ענף']) ?? '').trim();
+          const accRaw  = pick(row, ['צבירה', 'סכום צבירה']);       // וריאציות נפוצות
+          const premRaw = pick(row, ['פרמיה', 'סכום פרמיה']);
+  
+          // אם הענף "פיננסים וזמן פרישה" – נעדיף צבירה; אם חסר → ניפול לפרמיה
+          // אחרת – נשתמש בפרמיה כרגיל
+          result.premium = toNum(
+            sector === 'פיננסים וזמן פרישה'
+              ? (accRaw ?? premRaw)
+              : premRaw
+          );
         } else {
-          result[systemField] = toNum(value); // premium – ללא overrides
+          result.premium = toNum(value); // ברירת מחדל לכל שאר התבניות
         }
+  
       } else if (systemField === 'product') {
-        result.product = normalizeProduct(value);
+        const p = normalizeProduct(value);
+        if (p !== undefined) result.product = p; // הימנעות מ-undefined
+  
       } else if (systemField === 'customerId' || systemField === 'IDCustomer') {
         const raw = String(value ?? '').trim();
         const padded9 = toPadded9(value);
         result.customerIdRaw = raw;
         result.customerId = padded9;
+  
       } else if (systemField === 'policyNumber') {
         result[systemField] = String(value ?? '').trim();
+  
       } else {
         result[systemField] = value;
       }
     }
+  
+    // 2) השלמה/נרמול שם מלא עבור clal_pensia (אחרי שמיפינו הכל)
+    if (base.templateId === 'clal_pensia') {
+      if (result.fullName) {
+        // אם הגיע ממיפוי – נרמול
+        result.fullName = normalizeFullName(result.fullName, '');
+      } else {
+        // ניסיון לבנות מ"שדה פרטי עמית" + "שם משפחה עמית" או נפוצים אחרים
+        const first = row['שם פרטי עמית'] ?? row['שם פרטי'] ?? row['שם פרטי מבוטח'];
+        const last  = row['שם משפחה עמית'] ?? row['שם משפחה'] ?? row['שם משפחה מבוטח'];
+        const full  = normalizeFullName(first, last);
+        if (full) result.fullName = full;
+      }
+    }
+  
     return result;
   };
+  
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
