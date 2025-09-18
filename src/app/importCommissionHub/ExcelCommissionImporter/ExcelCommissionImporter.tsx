@@ -572,19 +572,29 @@ const handleDeleteExisting = async () => {
       }
     }
   
-    // 2) השלמה/נרמול שם מלא עבור clal_pensia (אחרי שמיפינו הכל)
-    if (base.templateId === 'clal_pensia') {
-      if (result.fullName) {
-        // אם הגיע ממיפוי – נרמול
-        result.fullName = normalizeFullName(result.fullName, '');
-      } else {
-        // ניסיון לבנות מ"שדה פרטי עמית" + "שם משפחה עמית" או נפוצים אחרים
-        const first = row['שם פרטי עמית'] ?? row['שם פרטי'] ?? row['שם פרטי מבוטח'];
-        const last  = row['שם משפחה עמית'] ?? row['שם משפחה'] ?? row['שם משפחה מבוטח'];
-        const full  = normalizeFullName(first, last);
-        if (full) result.fullName = full;
-      }
-    }
+   // 2) השלמה/נרמול שם מלא לפי תבנית (שדות מדויקים בלבד)
+if (base.templateId === 'mor_insurance') {
+  // mor_insurance: "שם פרטי", "שם משפחה"
+  if (result.fullName) {
+    result.fullName = normalizeFullName(result.fullName, '');
+  } else {
+    const first = row['שם פרטי'];
+    const last  = row['שם משפחה'];
+    const full  = normalizeFullName(first, last);
+    if (full) result.fullName = full;
+  }
+} else if (base.templateId === 'clal_pensia') {
+  // clal_pensia: "שם פרטי עמית", "שם משפחה עמית"
+  if (result.fullName) {
+    result.fullName = normalizeFullName(result.fullName, '');
+  } else {
+    const first = row['שם פרטי עמית'];
+    const last  = row['שם משפחה עמית'];
+    const full  = normalizeFullName(first, last);
+    if (full) result.fullName = full;
+  }
+}
+
   
     return result;
   };

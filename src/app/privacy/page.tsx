@@ -4,8 +4,18 @@ export default function PrivacyPolicyPage() {
   return (
     <div className="max-w-4xl mx-auto p-8 text-right leading-loose text-gray-800">
       <h1 className="text-3xl font-bold mb-6 text-blue-800">מדיניות פרטיות</h1>
+      <p className="mb-2 text-sm text-gray-500">עודכן לאחרונה: 18.9.2025</p>
+
       <p className="mb-4">
         אנו ב־<strong>MagicSale</strong> מחויבים לשמור על פרטיות המשתמשים שלנו. מטרת מדיניות זו היא להסביר כיצד אנו אוספים, שומרים, משתמשים ומשתפים את המידע שאתם מוסרים לנו.
+      </p>
+
+      {/* זהות המפעיל/האחראי לעיבוד מידע */}
+      <p className="mb-4">
+        <strong>מי אנחנו והאחראי לעיבוד מידע:</strong> MagicSale מופעלת ומפותחת ע&quot;י
+        {' '}<strong>יונמיקס פתרונות טכנולוגים בע&quot;מ</strong> (ח.פ. <strong>517213120</strong>),
+        כתובת: עזרא גבאי 3, פתח תקווה, ישראל. טלפון:{" "}
+        <a className="text-blue-600 underline" href="tel:0553001487" dir="ltr">055-300-1487</a>.
       </p>
 
       <h2 className="text-xl font-semibold mt-6 mb-2 text-indigo-700">1. איזה מידע אנחנו אוספים?</h2>
@@ -26,7 +36,8 @@ export default function PrivacyPolicyPage() {
 
       <h2 className="text-xl font-semibold mt-6 mb-2 text-indigo-700">3. שירותים חיצוניים</h2>
       <p className="mb-4">
-        אנו משתמשים בשירותים חיצוניים כגון Firebase (לאימות, אחסון והרשאות) ו&ndash;Grow (לתשלומים מאובטחים). המידע האישי מועבר אליהם אך ורק לצורך מתן השירות, בהתאם למדיניות הפרטיות שלהם.
+        אנו משתמשים בשירותים חיצוניים כגון Firebase (לאימות, אחסון והרשאות) ו&ndash;Grow (לתשלומים מאובטחים).
+        המידע האישי מועבר אליהם אך ורק לצורך מתן השירות, בהתאם למדיניות הפרטיות שלהם.
       </p>
 
       <h2 className="text-xl font-semibold mt-6 mb-2 text-indigo-700">4. שיתוף מידע</h2>
@@ -46,12 +57,14 @@ export default function PrivacyPolicyPage() {
 
       <h2 className="text-xl font-semibold mt-6 mb-2 text-indigo-700">7. שמירת מידע</h2>
       <p className="mb-4">
-        המידע נשמר במסדי נתונים מאובטחים עם גישה מוגבלת. אין גישה שוטפת למידע מצד צוות MagicSale, אלא רק לצורך מתן שירות טכני או חוקי.
+        המידע נשמר במסדי נתונים מאובטחים עם גישה מוגבלת. אין גישה שוטפת למידע מצד צוות
+        {' '}<strong>יונמיקס (MagicSale)</strong>, אלא רק לצורך מתן שירות טכני, תמיכה או עמידה בחובה חוקית/רגולטורית.
       </p>
 
       <h2 className="text-xl font-semibold mt-6 mb-2 text-indigo-700">8. מימוש זכויות המשתמש</h2>
       <p className="mb-4">
-        בהתאם לחוק, המשתמש רשאי לבקש לעיין, לעדכן או למחוק את המידע האישי שנשמר עליו. ניתן לפנות אלינו בדוא&quot;ל: <a className="text-blue-600 underline" href="mailto:admin@magicsale.co.il">admin@magicsale.co.il</a>.
+        בהתאם לחוק, המשתמש רשאי לבקש לעיין, לעדכן או למחוק את המידע האישי שנשמר עליו. ניתן לפנות אלינו בדוא&quot;ל:
+        {' '}<a className="text-blue-600 underline" href="mailto:admin@magicsale.co.il">admin@magicsale.co.il</a>.
       </p>
 
       <h2 className="text-xl font-semibold mt-6 mb-2 text-indigo-700">9. שינויים במדיניות הפרטיות</h2>
@@ -60,8 +73,14 @@ export default function PrivacyPolicyPage() {
       </p>
 
       <h2 className="text-xl font-semibold mt-6 mb-2 text-indigo-700">10. יצירת קשר</h2>
-      <p>
-        לשאלות, בירורים או בקשות, ניתן לפנות אלינו לכתובת: <a className="text-blue-600 underline" href="mailto:admin@magicsale.co.il">admin@magicsale.co.il</a> או בטופס <a href="/landing#contact" className="text-blue-600 underline">צור קשר</a>.
+      <p className="mb-1">
+        לשאלות, בירורים או בקשות, ניתן לפנות:{" "}
+        <a className="text-blue-600 underline" href="mailto:admin@magicsale.co.il">admin@magicsale.co.il</a>{" "}
+        או בטלפון <a className="text-blue-600 underline" href="tel:0553001487" dir="ltr">055-300-1487</a>.
+      </p>
+      <p className="text-sm text-gray-500">
+        כתובת למשלוח דואר: עזרא גבאי 3, פתח תקווה, ישראל. לפרטים נוספים ראו גם את{" "}
+        <a href="/terms" className="text-blue-600 underline">תנאי השימוש</a>.
       </p>
     </div>
   );
