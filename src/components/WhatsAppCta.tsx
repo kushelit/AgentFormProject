@@ -6,7 +6,7 @@ import { buildWhatsAppUrl } from '../utils/whatsapp';
 import { MessageCircle } from 'lucide-react';
 
 export default function WhatsAppCta({
-  message = 'אני מתעניינת במערכת. אפשר פרטים?',
+  message = 'אני מתעניין במערכת. אפשר פרטים?',
   ariaLabel = 'צ׳אט וואטסאפ',
 }: { message?: string; ariaLabel?: string }) {
   const href = useMemo(() => buildWhatsAppUrl({
