@@ -4,8 +4,6 @@ import axios from 'axios';
 import { GROW_ENDPOINTS } from '@/lib/growApi';
 import { GROW_USER_ID, GROW_PAGE_CODE, APP_BASE_URL } from '@/lib/env';
 
-
-
 const normalizePhoneE164 = (raw?: string) => {
   if (!raw) return undefined;
   let s = String(raw).replace(/[\s\-()]/g, '').trim();
@@ -21,9 +19,6 @@ const normalizePhoneE164 = (raw?: string) => {
   return undefined;
 };
 
-
-
-
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
@@ -38,7 +33,7 @@ export async function POST(req: NextRequest) {
       addOns,
       total,
       source,
-      existingUserUid,
+      existingUserUid, // optional incoming
     } = body;
 
     const db = admin.firestore();
@@ -53,7 +48,6 @@ export async function POST(req: NextRequest) {
     if (!phoneE164) {
       return NextResponse.json({ error: 'מספר טלפון לא תקין' }, { status: 400 });
     }
-
 
     if (existingUserUid) {
       const snap = await db.collection('users').doc(existingUserUid).get();
@@ -127,46 +121,64 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // בדיקת קיום ב-Auth — רק אם זה *לא* UID קיים
-    if (!existingUserUid) {
+    // === הכרעה מוקדמת: הרשמה חדשה / החייאה / חסימה על קונפליקט טלפון ===
+    const auth = admin.auth();
+    const emailLower = email.toLowerCase();
+
+    let resolvedSource = source || (existingUserUid ? 'existing-user-upgrade' : 'public-signup');
+    let resolvedExistingUid: string | undefined = existingUserUid;
+
+    // רק אם לא הגיע existingUserUid מבחוץ — נכריע לפי אימייל/טלפון
+    if (!resolvedExistingUid) {
+      let byEmail: admin.auth.UserRecord | null = null;
+      let byPhone: admin.auth.UserRecord | null = null;
+
+      // 1) קודם חיפוש לפי אימייל
       try {
-        const existent = await admin.auth().getUserByEmail(email.toLowerCase());
-        if (!existent.disabled) {
+        byEmail = await auth.getUserByEmail(emailLower);
+      } catch (e: any) {
+        if (e.code !== 'auth/user-not-found') {
+          console.error('⚠️ שגיאה בבדיקת אימייל ב-Auth:', e);
+          return NextResponse.json({ error: 'שגיאה בבדיקת משתמש לפי אימייל' }, { status: 500 });
+        }
+      }
+
+      // 2) אם לא נמצא אימייל – חיפוש לפי טלפון
+      if (!byEmail) {
+        try {
+          byPhone = await auth.getUserByPhoneNumber(phoneE164);
+        } catch (e: any) {
+          if (e.code !== 'auth/user-not-found') {
+            console.error('⚠️ שגיאה בבדיקת טלפון ב-Auth:', e);
+            return NextResponse.json({ error: 'שגיאה בבדיקת משתמש לפי טלפון' }, { status: 500 });
+          }
+        }
+      }
+
+      // 3) הכרעה
+      if (byEmail) {
+        // ✅ משתמש קיים לפי אימייל (גם אם Disabled) → שדרוג/החייאה
+        resolvedExistingUid = byEmail.uid;
+        resolvedSource = 'existing-user-upgrade';
+      } else if (byPhone) {
+        const ownerEmailLower = (byPhone.email || '').toLowerCase();
+        if (ownerEmailLower === emailLower) {
+          // ✅ אותו אדם (טלפון + אימייל תואמים) → שדרוג/החייאה
+          resolvedExistingUid = byPhone.uid;
+          resolvedSource = 'existing-user-upgrade';
+        } else {
+          // ⛔ מייל חדש + טלפון ששייך לחשבון אחר → עוצרים *לפני* תשלום
           return NextResponse.json(
-            { error: 'משתמש עם כתובת אימייל זו כבר קיים במערכת.' },
+            { error: 'מספר הטלפון כבר משויך לחשבון אחר בכתובת אימייל שונה. יש להתחבר לחשבון הקיים או לפנות לתמיכה להעברת המספר.' },
             { status: 400 }
           );
         }
-      } catch (error: any) {
-        if (error.code !== 'auth/user-not-found') {
-          console.error('⚠️ שגיאה בבדיקת קיום המשתמש ב-Auth:', error);
-          return NextResponse.json({ error: 'שגיאה בבדיקת קיום המשתמש' }, { status: 500 });
-        }
-        // user-not-found → מותר להמשיך
       }
-
-       // ✅ בדיקת נייד קיים
- try {
-  const byPhone = await admin.auth().getUserByPhoneNumber(phoneE164);
-  // אם הגענו לכאן – נמצא משתמש עם אותו מספר
-  if (!byPhone.disabled) {
-    return NextResponse.json(
-      { error: 'מספר הטלפון כבר קיים במערכת. התחבר/י או שחזר/י סיסמה.' },
-      { status: 400 }
-    );
-  }
-} catch (error: any) {
-  if (error.code !== 'auth/user-not-found') {
-    console.error('⚠️ שגיאה בבדיקת טלפון קיים:', error);
-    return NextResponse.json({ error: 'שגיאה בבדיקת קיום הטלפון' }, { status: 500 });
-  }
-  // user-not-found → אפשר להמשיך
-}
     }
+
     // בניית בקשה ל-Grow
-    const normalizedEmail = email.toLowerCase();
+    const normalizedEmail = emailLower;
     const customField = `MAGICSALE-${normalizedEmail}`;
-    const resolvedSource = source || (existingUserUid ? 'existing-user-upgrade' : 'public-signup');
 
     const successUrl =
       `${APP_BASE_URL}/payment-success?fullName=${encodeURIComponent(fullName)}` +
@@ -190,8 +202,8 @@ export async function POST(req: NextRequest) {
     formData.append('cField1', customField);
     formData.append('cField2', plan);
     formData.append('cField3', JSON.stringify(addOns || {}));
-    formData.append('cField4', resolvedSource);        // ⭐ מזהה זרימה
-    if (existingUserUid) formData.append('cField9', existingUserUid); // ⭐ UID קיים
+    formData.append('cField4', resolvedSource);               // ⭐ מזהה זרימה
+    if (resolvedExistingUid) formData.append('cField9', resolvedExistingUid); // ⭐ UID קיים לשדרוג/החייאה
     formData.append('cField6', total?.toString() || totalPrice.toString());
     formData.append('cField7', idNumber);
     formData.append('cField8', GROW_PAGE_CODE);
