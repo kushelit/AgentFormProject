@@ -4,6 +4,26 @@ import axios from 'axios';
 import { GROW_ENDPOINTS } from '@/lib/growApi';
 import { GROW_USER_ID, GROW_PAGE_CODE, APP_BASE_URL } from '@/lib/env';
 
+
+
+const normalizePhoneE164 = (raw?: string) => {
+  if (!raw) return undefined;
+  let s = String(raw).replace(/[\s\-()]/g, '').trim();
+  if (s.startsWith('00')) s = '+' + s.slice(2);
+  if (s.startsWith('+972')) return s;
+  if (s.startsWith('972')) return '+' + s;
+  if (s.startsWith('0')) return '+972' + s.slice(1);
+  if (s.startsWith('+')) return s;
+  if (/^\d{9,10}$/.test(s)) {
+    if (s.length === 10 && s.startsWith('0')) s = s.slice(1);
+    return '+972' + s;
+  }
+  return undefined;
+};
+
+
+
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
@@ -28,6 +48,12 @@ export async function POST(req: NextRequest) {
     let email    = (_email ?? '').toLowerCase();
     let phone    = _phone ?? '';
     let idNumber = _idNumber ?? '';
+
+    const phoneE164 = normalizePhoneE164(phone);
+    if (!phoneE164) {
+      return NextResponse.json({ error: 'מספר טלפון לא תקין' }, { status: 400 });
+    }
+
 
     if (existingUserUid) {
       const snap = await db.collection('users').doc(existingUserUid).get();
@@ -118,8 +144,25 @@ export async function POST(req: NextRequest) {
         }
         // user-not-found → מותר להמשיך
       }
-    }
 
+       // ✅ בדיקת נייד קיים
+ try {
+  const byPhone = await admin.auth().getUserByPhoneNumber(phoneE164);
+  // אם הגענו לכאן – נמצא משתמש עם אותו מספר
+  if (!byPhone.disabled) {
+    return NextResponse.json(
+      { error: 'מספר הטלפון כבר קיים במערכת. התחבר/י או שחזר/י סיסמה.' },
+      { status: 400 }
+    );
+  }
+} catch (error: any) {
+  if (error.code !== 'auth/user-not-found') {
+    console.error('⚠️ שגיאה בבדיקת טלפון קיים:', error);
+    return NextResponse.json({ error: 'שגיאה בבדיקת קיום הטלפון' }, { status: 500 });
+  }
+  // user-not-found → אפשר להמשיך
+}
+    }
     // בניית בקשה ל-Grow
     const normalizedEmail = email.toLowerCase();
     const customField = `MAGICSALE-${normalizedEmail}`;

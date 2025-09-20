@@ -102,7 +102,7 @@ export async function POST(req: NextRequest) {
     const rawPageCode = (data['data[customFields][cField8]'] ?? data['customFields[cField8]']);
     const pageCode = Array.isArray(rawPageCode) ? rawPageCode[0] : rawPageCode?.toString() ?? '';
 
-    // ⭐️ חדש: UID של משתמש קיים
+    // ⭐️ UID של משתמש קיים (אם הגיע מה-POST)
     const rawUid = (data['data[customFields][cField9]'] ?? data['customFields[cField9]']);
     const existingUid = Array.isArray(rawUid) ? rawUid[0] : rawUid?.toString() ?? '';
 
@@ -121,6 +121,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
+    const emailLower = email.toLowerCase();
     const db = admin.firestore();
     const auth = admin.auth();
 
@@ -132,14 +133,13 @@ export async function POST(req: NextRequest) {
 
     if (couponCode) {
       try {
-        // אם אתה מנהל לפי docId=code:
+        // אם מנהלים מסמכי קופון לפי docId=code:
         let couponSnap = await db.collection('coupons').doc(couponCode.trim()).get();
         if (!couponSnap.exists) {
-          // fallback אם מנהלים כ־code field
+          // fallback אם מנהלים לפי שדה code
           const byCode = await db.collection('coupons').where('code', '==', couponCode.trim()).limit(1).get();
           if (!byCode.empty) couponSnap = byCode.docs[0];
         }
-
         if (couponSnap.exists) {
           const couponData = couponSnap.data()!;
           agenciesValue = couponData?.agencies;
@@ -183,7 +183,7 @@ export async function POST(req: NextRequest) {
     // 3) אם עדיין לא — לפי email דרך Auth
     if (!userDocRef) {
       try {
-        const authUser = await auth.getUserByEmail(email);
+        const authUser = await auth.getUserByEmail(emailLower);
         const ref = usersCol.doc(authUser.uid);
         const snap = await ref.get();
         if (snap.exists) {
@@ -195,17 +195,17 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // ⛔️ זרימה 2: manual-upgrade → ה-webhook מדלג
+    // ⛔️ manual-upgrade → ה-webhook מדלג
     if (source === 'manual-upgrade') {
       console.log('⏭ Skipping webhook update due to manual-upgrade');
       return NextResponse.json({ skipped: true, reason: 'manual-upgrade' });
     }
 
-    // ⛔️ זרימה 3: אם מדובר ב-existing-user-upgrade ואין יוזר — לא יוצרים חדש
+    // ⛔️ existing-user-upgrade ללא יוזר → לא ליצור חדש
     if (!userDocRef && source === 'existing-user-upgrade') {
       console.error('❌ existing-user-upgrade but user not found; not creating a new user');
       await logRegistrationIssue({
-        email,
+        email: emailLower,
         phone,
         name: fullName,
         source: 'webhook',
@@ -222,8 +222,61 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ skipped: true, reason: 'existing-user-not-found' });
     }
 
+    // 🔹 לפני update/create: מניעת כפילות לפי טלפון
+    if (!userDocRef && formattedPhone) {
+      try {
+        const phoneOwner = await auth.getUserByPhoneNumber(formattedPhone);
+        if (phoneOwner) {
+          if (phoneOwner.email?.toLowerCase() === emailLower) {
+            // אותו חשבון → treat as existing
+            userDocRef = usersCol.doc(phoneOwner.uid);
+            const snap = await userDocRef.get();
+            if (!snap.exists) {
+              await userDocRef.set({
+                name: fullName,
+                email: emailLower,
+                phone: formattedPhone,
+                role: 'agent',
+                agentId: phoneOwner.uid,
+                customField,
+                isActive: true,
+                createdFrom: 'webhook-existing-phone',
+                subscriptionId: processId ?? null,
+              });
+            }
+            userData = (await userDocRef.get()).data();
+          } else {
+            // המספר שייך לחשבון אחר (אימייל שונה) → לא יוצרים חדש
+            await logRegistrationIssue({
+              email: emailLower,
+              phone,
+              name: fullName,
+              source: 'webhook',
+              reason: 'phone-already-exists',
+              type: 'agent',
+              subscriptionType,
+              addOns,
+              transactionId,
+              processId,
+              pageCode,
+              couponCode,
+              idNumber,
+            });
+            return NextResponse.json({ skipped: true, reason: 'phone-already-exists' });
+          }
+        }
+      } catch (e: any) {
+        if (e.code !== 'auth/user-not-found') {
+          console.error('⚠️ webhook phone lookup error:', e);
+          return NextResponse.json({ error: 'שגיאה באימות טלפון' }, { status: 500 });
+        }
+        // user-not-found → מותר להמשיך ליצירה
+      }
+    }
+
     const paymentDate = new Date();
 
+    // ----- UPDATE EXISTING USER -----
     if (userDocRef) {
       // הגנה מכפילויות
       if (transactionId && transactionId === userData?.transactionId) {
@@ -287,7 +340,7 @@ export async function POST(req: NextRequest) {
 
       // עדכוני Auth ותקשורת
       try {
-        const user = await auth.getUserByEmail(email);
+        const user = await auth.getUserByEmail(emailLower);
         if (!user.emailVerified) await auth.updateUser(user.uid, { emailVerified: true });
         if (formattedPhone && user.phoneNumber !== formattedPhone) {
           await auth.updateUser(user.uid, { phoneNumber: formattedPhone });
@@ -299,7 +352,7 @@ export async function POST(req: NextRequest) {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              to: email,
+              to: emailLower,
               subject: 'עדכון תוכנית במערכת MagicSale',
               html: `שלום ${fullName},<br><br>תוכנית המנוי שלך עודכנה בהצלחה במערכת MagicSale.<br>סוג מנוי נוכחי: <strong>${subscriptionType}</strong><br><br>תוכל להתחבר כאן: <a href="${APP_BASE_URL}/auth/log-in">כניסה למערכת</a>`,
             }),
@@ -308,12 +361,12 @@ export async function POST(req: NextRequest) {
 
         if (user.disabled) await auth.updateUser(user.uid, { disabled: false });
 
-        const resetLink = await auth.generatePasswordResetLink(email);
+        const resetLink = await auth.generatePasswordResetLink(emailLower);
         await fetch(`${APP_BASE_URL}/api/sendEmail`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            to: email,
+            to: emailLower,
             subject: 'איפוס סיסמה לאחר חידוש מנוי',
             html: `שלום ${fullName},<br><br>המנוי שלך חודש בהצלחה.<br>לאיפוס סיסמה: <a href="${resetLink}">לחצי כאן</a>`,
           }),
@@ -325,9 +378,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ updated: true });
     }
 
-    // --- Public signup (אין userDocRef) → יצירת משתמש חדש ---
+    // ----- CREATE NEW USER (רק אם אין userDocRef) -----
     const newUser = await auth.createUser({
-      email,
+      email: emailLower,
       password: Math.random().toString(36).slice(-8),
       displayName: fullName,
       phoneNumber: formattedPhone,
@@ -336,12 +389,12 @@ export async function POST(req: NextRequest) {
 
     try { await ensureMfaPhone(newUser.uid, formattedPhone); } catch (e) { console.warn('[ensureMfaPhone] skipped:', (e as any)?.message || e); }
 
-    const resetLink = await auth.generatePasswordResetLink(email);
+    const resetLink = await auth.generatePasswordResetLink(emailLower);
     await fetch(`${APP_BASE_URL}/api/sendEmail`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        to: email,
+        to: emailLower,
         subject: 'ברוך/ה הבא/ה ל-MagicSale – הגדרת סיסמה',
         html: `שלום ${fullName},<br>תודה על ההרשמה! לקביעת סיסמה: <a href="${resetLink}">לחצו כאן</a>`,
       }),
@@ -350,7 +403,7 @@ export async function POST(req: NextRequest) {
     const newUserData: any = {
       name: fullName,
       idNumber,
-      email,
+      email: emailLower,
       phone: formattedPhone,
       subscriptionId: processId,
       transactionId: transactionId || null,
@@ -379,7 +432,7 @@ export async function POST(req: NextRequest) {
 
     if (statusCode !== '2') {
       await logRegistrationIssue({
-        email,
+        email: emailLower,
         phone,
         name: fullName,
         source: 'webhook',
