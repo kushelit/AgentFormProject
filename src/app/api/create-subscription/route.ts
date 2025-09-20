@@ -121,19 +121,18 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // === הכרעה מוקדמת: הרשמה חדשה / החייאה / חסימה על קונפליקט טלפון ===
+    // === הכרעה מוקדמת: הרשמה חדשה / החייאה / חסימה על משתמש/טלפון פעיל או קונפליקט ===
     const auth = admin.auth();
     const emailLower = email.toLowerCase();
 
     let resolvedSource = source || (existingUserUid ? 'existing-user-upgrade' : 'public-signup');
     let resolvedExistingUid: string | undefined = existingUserUid;
 
-    // רק אם לא הגיע existingUserUid מבחוץ — נכריע לפי אימייל/טלפון
     if (!resolvedExistingUid) {
       let byEmail: admin.auth.UserRecord | null = null;
       let byPhone: admin.auth.UserRecord | null = null;
 
-      // 1) קודם חיפוש לפי אימייל
+      // 1) קודם לפי אימייל
       try {
         byEmail = await auth.getUserByEmail(emailLower);
       } catch (e: any) {
@@ -143,8 +142,19 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      // 2) אם לא נמצא אימייל – חיפוש לפי טלפון
-      if (!byEmail) {
+      if (byEmail) {
+        if (!byEmail.disabled) {
+          // אימייל קיים ופעיל → לא מאפשרים יציאה לתשלום מהפלואו הזה
+          return NextResponse.json(
+            { error: 'חשבון עם אימייל זה כבר פעיל. יש להתחבר למערכת ולנהל את המנוי מתוך החשבון.' },
+            { status: 400 }
+          );
+        }
+        // אימייל קיים אך מושבת → החייאה/שדרוג
+        resolvedExistingUid = byEmail.uid;
+        resolvedSource = 'existing-user-upgrade';
+      } else {
+        // 2) אם אין אימייל — בדיקת טלפון
         try {
           byPhone = await auth.getUserByPhoneNumber(phoneE164);
         } catch (e: any) {
@@ -153,25 +163,27 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'שגיאה בבדיקת משתמש לפי טלפון' }, { status: 500 });
           }
         }
-      }
 
-      // 3) הכרעה
-      if (byEmail) {
-        // ✅ משתמש קיים לפי אימייל (גם אם Disabled) → שדרוג/החייאה
-        resolvedExistingUid = byEmail.uid;
-        resolvedSource = 'existing-user-upgrade';
-      } else if (byPhone) {
-        const ownerEmailLower = (byPhone.email || '').toLowerCase();
-        if (ownerEmailLower === emailLower) {
-          // ✅ אותו אדם (טלפון + אימייל תואמים) → שדרוג/החייאה
-          resolvedExistingUid = byPhone.uid;
-          resolvedSource = 'existing-user-upgrade';
-        } else {
-          // ⛔ מייל חדש + טלפון ששייך לחשבון אחר → עוצרים *לפני* תשלום
-          return NextResponse.json(
-            { error: 'מספר הטלפון כבר משויך לחשבון אחר בכתובת אימייל שונה. יש להתחבר לחשבון הקיים או לפנות לתמיכה להעברת המספר.' },
-            { status: 400 }
-          );
+        if (byPhone) {
+          const ownerEmailLower = (byPhone.email || '').toLowerCase();
+          if (ownerEmailLower === emailLower) {
+            if (!byPhone.disabled) {
+              // טלפון ואימייל תואמים אך החשבון פעיל → חסימה
+              return NextResponse.json(
+                { error: 'חשבון עם פרטים אלו כבר פעיל. יש להתחבר למערכת ולנהל את המנוי מתוך החשבון.' },
+                { status: 400 }
+              );
+            }
+            // חשבון אותו אדם אך מושבת → החייאה/שדרוג
+            resolvedExistingUid = byPhone.uid;
+            resolvedSource = 'existing-user-upgrade';
+          } else {
+            // קונפליקט זהות: מייל חדש + טלפון של חשבון אחר
+            return NextResponse.json(
+              { error: 'מספר הטלפון משויך לחשבון אחר עם כתובת אימייל שונה. יש להתחבר לחשבון הקיים או לפנות לתמיכה להעברת המספר.' },
+              { status: 400 }
+            );
+          }
         }
       }
     }
@@ -202,8 +214,8 @@ export async function POST(req: NextRequest) {
     formData.append('cField1', customField);
     formData.append('cField2', plan);
     formData.append('cField3', JSON.stringify(addOns || {}));
-    formData.append('cField4', resolvedSource);               // ⭐ מזהה זרימה
-    if (resolvedExistingUid) formData.append('cField9', resolvedExistingUid); // ⭐ UID קיים לשדרוג/החייאה
+    formData.append('cField4', resolvedSource);               // 'existing-user-upgrade' או 'public-signup'
+    if (resolvedExistingUid) formData.append('cField9', resolvedExistingUid); // UID קיים להחייאה
     formData.append('cField6', total?.toString() || totalPrice.toString());
     formData.append('cField7', idNumber);
     formData.append('cField8', GROW_PAGE_CODE);
