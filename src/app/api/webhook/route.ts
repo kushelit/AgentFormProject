@@ -8,35 +8,22 @@ import { logRegistrationIssue } from '@/services/logRegistrationIssue';
 export const dynamic = 'force-dynamic';
 
 // ---- Utils ----
-async function ensureMfaPhone(uid: string, phoneE164?: string) {
-  console.log('[ensureMfaPhone] start', { uid, phoneE164 });
+// מינימום שינוי: משאיר רק גורם MFA מסוג phone עם המספר החדש
+async function ensureSingleMfaPhone(uid: string, phoneE164?: string) {
   if (!phoneE164 || !phoneE164.startsWith('+')) return;
 
-  const before = await admin.auth().getUser(uid);
-  const current = before.multiFactor?.enrolledFactors ?? [];
-
-  const already = current.find((f: any) => f?.factorId === 'phone' && f?.phoneNumber === phoneE164);
-  if (already) return;
-
-  const keepPhones = current
-    .filter((f: any) => f?.factorId === 'phone')
-    .map((f: any) => ({
-      uid: f.uid,
-      phoneNumber: f.phoneNumber,
-      displayName: f.displayName ?? undefined,
-      factorId: 'phone' as const,
-    }));
-
-  const updated = await admin.auth().updateUser(uid, {
-    multiFactor: { enrolledFactors: [...keepPhones, { phoneNumber: phoneE164, displayName: 'Main phone', factorId: 'phone' as const }] },
+  await admin.auth().updateUser(uid, {
+    multiFactor: {
+      enrolledFactors: [
+        { factorId: 'phone' as const, phoneNumber: phoneE164, displayName: 'Main phone' },
+      ],
+    },
   });
 
-  console.log('[ensureMfaPhone] after factors:',
-    updated.multiFactor?.enrolledFactors?.map(f => ({ factorId: (f as any).factorId, phone: (f as any).phoneNumber }))
-  );
-
+  // החלת השינוי מיידית על סשנים פתוחים
   await admin.auth().revokeRefreshTokens(uid);
 }
+
 
 const formatPhone = (raw?: string) => {
   if (!raw) return undefined;
@@ -345,7 +332,7 @@ export async function POST(req: NextRequest) {
         if (formattedPhone && user.phoneNumber !== formattedPhone) {
           await auth.updateUser(user.uid, { phoneNumber: formattedPhone });
         }
-        try { await ensureMfaPhone(user.uid, formattedPhone); } catch (e) { console.warn('[ensureMfaPhone] skipped:', (e as any)?.message || e); }
+        try { await ensureSingleMfaPhone(user.uid, formattedPhone); } catch (e) { console.warn('[ensureMfaPhone] skipped:', (e as any)?.message || e); }
 
         if (planChanged && !user.disabled) {
           await fetch(`${APP_BASE_URL}/api/sendEmail`, {
@@ -387,7 +374,7 @@ export async function POST(req: NextRequest) {
       emailVerified: true,
     });
 
-    try { await ensureMfaPhone(newUser.uid, formattedPhone); } catch (e) { console.warn('[ensureMfaPhone] skipped:', (e as any)?.message || e); }
+    try { await ensureSingleMfaPhone(newUser.uid, formattedPhone); } catch (e) { console.warn('[ensureMfaPhone] skipped:', (e as any)?.message || e); }
 
     const resetLink = await auth.generatePasswordResetLink(emailLower);
     await fetch(`${APP_BASE_URL}/api/sendEmail`, {
