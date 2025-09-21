@@ -299,7 +299,7 @@ const canSubmit1 = useMemo(() => (
       let diffContractsQuery = query(
         collection(db, "contracts"),
         where("AgentId", "==", agentId),
-        where("productsGroup", "!=", "")
+        where("productsGroup", ">", "")
       );
       if (selectedProductGroupFilter.trim() !== "") {
         diffContractsQuery = query(diffContractsQuery, where("productsGroup", "==", selectedProductGroupFilter));
@@ -324,8 +324,8 @@ const canSubmit1 = useMemo(() => (
     };
     
     useEffect(() => {
-      reloadDefaultContractsData(detail?.agentId || ""); // קריאה ל-reloadData מתוך ה-hook
-    }, [selectedProductGroupFilter, minuySochenFilter1, detail?.agentId]); // מעקב אחרי שינוי פרמטרים
+      reloadDefaultContractsData(selectedAgentId); // קריאה ל-reloadData מתוך ה-hook
+    }, [selectedProductGroupFilter, minuySochenFilter1, selectedAgentId]); // מעקב אחרי שינוי פרמטרים
     
 
   const [activeTab, setActiveTab] = useState("contractDefault");
