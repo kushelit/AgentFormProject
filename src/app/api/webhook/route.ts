@@ -95,32 +95,48 @@ async function agentHasAnyContracts(db: FirebaseFirestore.Firestore, agentId: st
 }
 
 // מזריק חוזי ברירת מחדל (מבוססי productsGroup) אם אין לסוכן שום חוזים
+// מחליף את ensureDefaultContractsForAgent הקיים – זהה לסכימה של הטופס
 async function ensureDefaultContractsForAgent(
   db: FirebaseFirestore.Firestore,
   agentId: string
 ) {
   if (!agentId) return;
 
-  const hasContracts = await agentHasAnyContracts(db, agentId);
-  if (hasContracts) return;
+  // אם כבר יש חוזים לסוכן – לא מזריקים שוב
+  const existSnap = await db.collection('contracts')
+    .where('AgentId', '==', agentId)
+    .limit(1)
+    .get();
+  if (!existSnap.empty) return;
 
-  const templates = await loadContractTemplates(db);
-  if (!templates.length) return;
+  // טען תבניות מ-default_contracts (כמו שבנית)
+  const snap = await db.collection('default_contracts').get();
 
   const batch = db.batch();
   const col = db.collection('contracts');
 
-  templates.forEach(tpl => {
-    const ref = col.doc();
-    batch.set(ref, {
+  snap.docs.forEach(d => {
+    const t = d.data() as {
+      productsGroup: string;
+      commissionHekef?: number | string;
+      commissionNifraim?: number | string;
+      commissionNiud?: number | string;
+      minuySochen?: boolean;
+    };
+
+    // 👇 בדיוק כמו בטופס: מחרוזות, ושדות company/product ריקים
+    batch.set(col.doc(), {
       AgentId: agentId,
-      company: '',                 // ברירת מחדל—לפי קבוצת מוצר בלבד
-      product: '',                 // ברירת מחדל—לפי קבוצת מוצר בלבד
-      productsGroup: tpl.productsGroup,
-      commissionHekef: tpl.commissionHekef,
-      commissionNifraim: tpl.commissionNifraim,
-      commissionNiud: tpl.commissionNiud, // 0 אם לא קיים בתבנית
-      minuySochen: tpl.minuySochen,
+      company: '',
+      product: '',
+      productsGroup: String(t.productsGroup ?? ''),
+
+      commissionHekef: String(t.commissionHekef ?? '0'),
+      commissionNifraim: String(t.commissionNifraim ?? '0'),
+      commissionNiud: String(t.commissionNiud ?? '0'),
+
+      minuySochen: Boolean(t.minuySochen ?? false),
+
       seededBy: 'webhook-defaults',
       seededAt: new Date(),
     });
@@ -128,7 +144,6 @@ async function ensureDefaultContractsForAgent(
 
   await batch.commit();
 }
-
 
 
 // ---- Webhook ----
