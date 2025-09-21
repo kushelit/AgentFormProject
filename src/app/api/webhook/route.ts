@@ -59,6 +59,78 @@ const approveTransaction = async (transactionId: string, transactionToken: strin
   }
 };
 
+// --- helpers (למעלה בקובץ /api/webhook/route.ts) ---
+
+// טוען תבניות ברירת מחדל כפי שהגדרת ב- default_contracts
+async function loadContractTemplates(db: FirebaseFirestore.Firestore) {
+  const snap = await db.collection('default_contracts').get();
+
+  return snap.docs.map(d => {
+    const data = d.data() as {
+      productsGroup: string;
+      commissionHekef?: number | string;
+      commissionNifraim?: number | string;
+      minuySochen?: boolean;
+      commissionNiud?: number | string; // לא חובה אצלך, ניפול ל-0
+    };
+
+    return {
+      id: d.id,
+      productsGroup: String(data.productsGroup || ''),
+      commissionHekef: Number(data.commissionHekef ?? 0),
+      commissionNifraim: Number(data.commissionNifraim ?? 0),
+      commissionNiud: Number(data.commissionNiud ?? 0), // אם אין—0
+      minuySochen: Boolean(data.minuySochen ?? false),
+    };
+  });
+}
+
+// האם כבר יש לסוכן חוזים (כדי לא להזריק פעמיים)
+async function agentHasAnyContracts(db: FirebaseFirestore.Firestore, agentId: string) {
+  const q = await db.collection('contracts')
+    .where('AgentId', '==', agentId)
+    .limit(1)
+    .get();
+  return !q.empty;
+}
+
+// מזריק חוזי ברירת מחדל (מבוססי productsGroup) אם אין לסוכן שום חוזים
+async function ensureDefaultContractsForAgent(
+  db: FirebaseFirestore.Firestore,
+  agentId: string
+) {
+  if (!agentId) return;
+
+  const hasContracts = await agentHasAnyContracts(db, agentId);
+  if (hasContracts) return;
+
+  const templates = await loadContractTemplates(db);
+  if (!templates.length) return;
+
+  const batch = db.batch();
+  const col = db.collection('contracts');
+
+  templates.forEach(tpl => {
+    const ref = col.doc();
+    batch.set(ref, {
+      AgentId: agentId,
+      company: '',                 // ברירת מחדל—לפי קבוצת מוצר בלבד
+      product: '',                 // ברירת מחדל—לפי קבוצת מוצר בלבד
+      productsGroup: tpl.productsGroup,
+      commissionHekef: tpl.commissionHekef,
+      commissionNifraim: tpl.commissionNifraim,
+      commissionNiud: tpl.commissionNiud, // 0 אם לא קיים בתבנית
+      minuySochen: tpl.minuySochen,
+      seededBy: 'webhook-defaults',
+      seededAt: new Date(),
+    });
+  });
+
+  await batch.commit();
+}
+
+
+
 // ---- Webhook ----
 export async function POST(req: NextRequest) {
   try {
@@ -320,6 +392,15 @@ export async function POST(req: NextRequest) {
       await userDocRef.update(updateFields);
       console.log('🟢 Updated user in Firestore');
 
+
+      try {
+        await ensureDefaultContractsForAgent(db, userDocRef.id);
+        console.log('🌱 Ensured default contracts on reactivation');
+      } catch (e) {
+        console.warn('⚠️ seeding defaults on reactivation failed:', (e as any)?.message || e);
+      }
+      
+
       // Auto-approve grow when success
       if (statusCode === '2' && transactionId && transactionToken && pageCode) {
         await approveTransaction(transactionId, transactionToken, pageCode);
@@ -416,7 +497,13 @@ export async function POST(req: NextRequest) {
 
     await db.collection('users').doc(newUser.uid).set(newUserData);
     console.log('🆕 Created new user');
-
+    try {
+      await ensureDefaultContractsForAgent(db, newUser.uid);
+      console.log('🌱 Default contracts seeded for new agent');
+    } catch (e) {
+      console.warn('⚠️ seeding defaults failed:', (e as any)?.message || e);
+    }
+    
     if (statusCode !== '2') {
       await logRegistrationIssue({
         email: emailLower,
