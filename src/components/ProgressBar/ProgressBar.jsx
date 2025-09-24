@@ -16,8 +16,8 @@ export const ProgressBar = ({ percentage = 0, state, className }) => {
       ) : (
         // הצגת אחוזים עבור כל שאר המצבים
         <div className="progress-text">
-          {percentage.toFixed(2)}%
-        </div>
+{Math.round(percentage)}%
+</div>
       )}
     </div>
   );

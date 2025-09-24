@@ -20,6 +20,14 @@
   background-color: var(--status-success);
 }
 
+/* 100% = complete (ירוק) → טקסט לבן */
+.progress-bar.state-complete .progress-text,
+.progress-bar.state-complete .status-text {
+  color: #fff;
+  text-shadow: 0 1px 0 rgba(0,0,0,0.25); /* לשיפור קריאות על ירוק */
+}
+
+
 .progress-bar.state-progress .indicator {
   background-color: var(--status-progress);
 }
@@ -34,36 +42,37 @@
 
 /* זמן עבר תמיד בצבע כחול כהה */
 .progress-bar.state-time .indicator {
-  background-color: var(--clrdarkblue3);
+  background-color: color-mix(in srgb, var(--clrdarkblue3) 40%, white 60%);
 }
-
-/* טקסט בתוך ה-ProgressBar */
+/* טקסט בתוך ה-ProgressBar – ממורכז אופקי/אנכי */
 .progress-bar .progress-text {
   position: absolute;
-  right: 10px;
-  top: 50%;
-  transform: translateY(-50%);
-  font-family: "Rubik", Helvetica, sans-serif;
-  font-size: 12px;
-  color: var(--clrwhite);
-  font-weight: 700;
+  inset: 0;                     /* top/right/bottom/left: 0 */
+  display: flex;
+  align-items: center;          /* מרכז אנכי */
+  justify-content: center;      /* מרכז אופקי */
+  transform: none;              /* מבטל translateY(-50%) הישן */
+  pointer-events: none;
+
+  font-family: inherit;
+  font-size: 14px;               /* נשאר תואם ל"ביצוע" */
+  font-weight: 400;
+  color: #111;                  /* טקסט שחור */
 }
 
-/* טקסט ממורכז עבור זמן עבר */
-.progress-bar.state-time .progress-text {
-  text-align: center;
-  width: 100%;
-}
 
-/* עיצוב של המלל "עמדת ביעד ✔" */
+/* מלל סטטוס מרכזי (עמדת ביעד ✔) – גם פה בלי top/transform */
 .progress-bar .status-text {
   position: absolute;
-  width: 100%;
-  text-align: center;
-  top: 50%;
-  transform: translateY(-50%);
-  font-family: "Rubik", Helvetica, sans-serif;
-  font-size: 14px;
-  color: var(--clrwhite);
-  font-weight: 700;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transform: none;
+  pointer-events: none;
+
+  font-family: inherit;
+  font-size: 14px;              /* או 14px אם רצוי מודגש יותר */
+  font-weight: 400;
+  color: #111;
 }
