@@ -438,6 +438,25 @@ const handleSubmit = async (event: FormEvent<HTMLFormElement>, closeAfterSubmit 
     celebrationSoundRef.current?.play().catch((err) => {
       console.warn("שגיאה בהשמעת הצליל", err);
     });
+
+    try {
+      if (!selectedAgentId) return;
+    
+      // נזהר מ-null:
+      const role = detail?.role;
+      const uid  = user?.uid;
+    
+      const workerIdToFetch =
+        role === 'worker' && !selectedWorkerIdGoals
+          ? (uid ?? null)
+          : (selectedWorkerIdGoals || null);
+    
+      if (workerIdToFetch) {
+        await fetchDataGoalsForWorker(selectedAgentId, isActiveGoals, workerIdToFetch);
+      }
+    } catch (e) {
+      console.warn('refresh goals failed', e);
+    }
     // איפוס הטופס
     resetForm(closeAfterSubmit); // אם נלחץ "הזן וסיים" – נאפס את הכל כולל פרטי הלקוח
  // 🔹 אם המשתמש לחץ על "הזן וסיים" – סגירת המודל
