@@ -217,8 +217,8 @@ export default function CommissionSummaryPage() {
                   </th>
                 );
               })}
-              <th className="border px-2 py-1 font-bold bg-gray-50">סה"כ לחודש</th>
-            </tr>
+<th className="border px-2 py-1 font-bold bg-gray-50">סה&quot;כ לחודש</th>
+</tr>
           </thead>
           <tbody>
             {allMonths.map((month) => {
@@ -248,8 +248,8 @@ export default function CommissionSummaryPage() {
         <div className="mt-10 space-y-10">
           {/* Chart 1: Monthly totals */}
           <section>
-            <h3 className="text-xl font-semibold mb-3">גרף נפרעים לפי חודש (סה"כ חודשי)</h3>
-            <div className="w-full h-80 rounded-xl border bg-white">
+          <h3 className="text-xl font-semibold mb-3">גרף נפרעים לפי חודש (סה&quot;כ חודשי)</h3>
+          <div className="w-full h-80 rounded-xl border bg-white">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={monthlyTotalsData} margin={{ top: 10, right: 64, left: 10, bottom: 28 }}>
                   <CartesianGrid strokeDasharray="3 3" />
@@ -331,7 +331,7 @@ export default function CommissionSummaryPage() {
                       </th>
                     ))}
 
-                  <th className="border px-2 py-1 font-bold bg-gray-50">סה"כ לחודש</th>
+<th className="border px-2 py-1 font-bold bg-gray-50">סה&quot;כ לחודש</th>
                 </tr>
               </thead>
 

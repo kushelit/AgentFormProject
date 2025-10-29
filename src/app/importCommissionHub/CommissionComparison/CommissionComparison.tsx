@@ -636,7 +636,7 @@ if (rows.length === 0) {
 
   return (
     <div className="p-6 max-w-7xl mx-auto text-right">
-      <h1 className="text-2xl font-bold mb-4">השוואת עמלות בין חודשים (סה"כ לפר פוליסה)</h1>
+<h1 className="text-2xl font-bold mb-4">השוואת עמלות בין חודשים (סה&quot;כ לפר פוליסה)</h1>
 
       {/* Scope */}
       <div className="mb-4">
@@ -909,8 +909,8 @@ if (rows.length === 0) {
               )}
 
               <tr className="font-bold bg-blue-50">
-                <td className="border p-2 text-right">סה"כ</td>
-                <td className="border p-2" colSpan={3}></td>
+              <td className="border p-2 text-right">סה&quot;כ</td>
+              <td className="border p-2" colSpan={3}></td>
                 <td className="border p-2"></td>
                 <td className="border p-2">{totals.c1.toFixed(2)}</td>
                 <td className="border p-2">{totals.p1.toFixed(2)}</td>
