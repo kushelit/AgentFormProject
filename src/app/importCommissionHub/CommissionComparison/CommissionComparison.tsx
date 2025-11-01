@@ -39,6 +39,7 @@ interface PolicySummaryDoc {
   totalPremiumAmount?: number;
   commissionRate?: number;
   rowsCount?: number;
+  fullName?: string;
 }
 
 interface ComparisonRow {
@@ -46,6 +47,7 @@ interface ComparisonRow {
   companyName?: string;
   policyNumberKey: string;
   customerId: string;
+  fullName?: string;
   agentCode: string;
   product?: string;
   row1: {
@@ -249,10 +251,16 @@ const saveAgentTolerance = async () => {
   // init months
   useEffect(() => {
     const nowLocal = new Date();
-    const ym2 = `${nowLocal.getFullYear()}-${String(
-      nowLocal.getMonth() + 1
-    ).padStart(2, "0")}`;
-    const ym1 = addMonths(ym2, -1);
+    const todayYm = `${nowLocal.getFullYear()}-${String(nowLocal.getMonth() + 1).padStart(2, "0")}`;
+
+    // const ym2 = `${nowLocal.getFullYear()}-${String(
+    //   nowLocal.getMonth() + 1
+    // ).padStart(2, "0")}`;
+    // const ym1 = addMonths(ym2, -1);
+    
+    const ym2 = addMonths(todayYm, -1); // לפני חודש
+    const ym1 = addMonths(todayYm, -2); // לפני חודשיים
+
     setMonth2(ym2);
     setMonth1(ym1);
   }, []);
@@ -472,7 +480,7 @@ const saveAgentTolerance = async () => {
         const amountWithin = amountDiff <= toleranceAmount;
       
         // בתוך הסף באחוז? אם toleranceRate === 0 → מתעלמים מהבדיקה (נחשב "within")
-        const rateWithin = toleranceRate <= 0 ? true : rateDiff <= toleranceRate;
+        const rateWithin = rateDiff <= toleranceRate;
       
         // אם לפחות אחת מהבדיקות חורגת → changed; אחרת unchanged
         status = (amountWithin || rateWithin) ? "unchanged" : "changed";
@@ -484,6 +492,7 @@ const saveAgentTolerance = async () => {
         companyName: sample.company,
         policyNumberKey: sample.policyNumberKey,
         customerId: sample.customerId,
+        fullName: sample.fullName || "",   
         agentCode: String(sample.agentCode || ""),
         product: sample.product,
         row1,
@@ -557,6 +566,7 @@ if (rows.length === 0) {
       "חברה": r.companyName || r.companyId,
       "מס׳ פוליסה (key)": r.policyNumberKey,
       ['ת"ז לקוח']: r.customerId,
+      ['שם לקוח']: r.fullName || "",
       "מספר סוכן": r.agentCode,
       "מוצר": r.product || "",
       [`עמלה ${formatMonthDisplay(month1)}`]: r.row1 ? r.row1.commissionAmount.toFixed(2) : "",
@@ -572,6 +582,7 @@ if (rows.length === 0) {
       "חברה": "סה\"כ",
       "מס׳ פוליסה (key)": "",
       ['ת"ז לקוח']: "",
+      ['שם לקוח']: "",
       "מספר סוכן": "",
       "מוצר": "",
       [`עמלה ${formatMonthDisplay(month1)}`]: totals.c1.toFixed(2),
@@ -880,6 +891,7 @@ if (rows.length === 0) {
           <th className="border p-2 align-bottom">חברה</th>
           <th className="border p-2 align-bottom">מס׳ פוליסה (key)</th>
           <th className="border p-2 align-bottom">ת״ז לקוח</th>
+          <th className="border p-2 align-bottom">שם לקוח</th>
           <th className="border p-2 align-bottom">מס׳ סוכן</th>
           <th className="border p-2 align-bottom">מוצר</th>
 
@@ -933,6 +945,7 @@ if (rows.length === 0) {
             <td className="border p-2">{r.companyName || r.companyId}</td>
             <td className="border p-2">{r.policyNumberKey}</td>
             <td className="border p-2">{r.customerId}</td>
+            <td className="border p-2">{r.fullName || "-"}</td>
             <td className="border p-2">{r.agentCode}</td>
             <td className="border p-2">{r.product || "-"}</td>
 
