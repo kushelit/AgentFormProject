@@ -43,15 +43,6 @@ const AnnouncementV7 = ({ onAcknowledge, onClose }: Props) => {
 
         <p>המטרה: פחות רעש, יותר תובנות — ומהר.</p>
 
-        <div className="announcement-actions">
-          <a className="secondary-link" href="/reports/commissions/compare" onClick={onAcknowledge}>
-            לפתיחת דף השוואת עמלות →
-          </a>
-          <a className="secondary-link" href="/reports/commissions/summary" onClick={onAcknowledge}>
-            לפתיחת דף סיכום עמלות →
-          </a>
-        </div>
-
         <p className="announcement-footnote">
           צריך עזרה? <a href="/support" onClick={onAcknowledge}>צור קשר</a> או בקר/י בדפי העזרה במערכת.
         </p>
