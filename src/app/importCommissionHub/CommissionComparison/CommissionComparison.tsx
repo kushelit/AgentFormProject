@@ -200,6 +200,13 @@ const CommissionComparisonByPolicy: React.FC = () => {
   
   const showFilters = comparisonRows.length > 0;
 
+
+  // אחוז שינוי בין סכומי עמלה: אם הבסיס 0 והטארגט >0 → אינסוף (כל שינוי נחשב חריגה)
+const percentChange = (prev: number, curr: number) => {
+  if (prev === 0) return curr === 0 ? 0 : Infinity;
+  return Math.abs((curr - prev) / prev) * 100;
+};
+
   const openDialog = (
     type: 'warning'|'info'|'error'|'success',
     title: string,
@@ -257,7 +264,7 @@ const saveAgentTolerance = async () => {
     //   nowLocal.getMonth() + 1
     // ).padStart(2, "0")}`;
     // const ym1 = addMonths(ym2, -1);
-    
+
     const ym2 = addMonths(todayYm, -1); // לפני חודש
     const ym1 = addMonths(todayYm, -2); // לפני חודשיים
 
@@ -458,33 +465,29 @@ const saveAgentTolerance = async () => {
           }
         : null;
 
-      let status: ComparisonRow["status"] = "unchanged";
-      // if (!row1 && row2) status = "added";
-      // else if (row1 && !row2) status = "removed";
-      // // else if (
-      //   row1 &&
-      //   row2 &&
-      //   (Math.round((row1.commissionAmount - row2.commissionAmount) * 100) !== 0 ||
-      //     Math.round((row1.premiumAmount - row2.premiumAmount) * 100) !== 0)
-      // )
-      //   status = "changed";
-      if (!row1 && row2) {
-        status = "added";
-      } else if (row1 && !row2) {
-        status = "removed";
-      } else if (row1 && row2) {
-        const amountDiff = Math.abs(row1.commissionAmount - row2.commissionAmount);
-        const rateDiff   = Math.abs(row1.commissionRate   - row2.commissionRate);
-      
-        // בתוך הסף בסכום?
-        const amountWithin = amountDiff <= toleranceAmount;
-      
-        // בתוך הסף באחוז? אם toleranceRate === 0 → מתעלמים מהבדיקה (נחשב "within")
-        const rateWithin = rateDiff <= toleranceRate;
-      
-        // אם לפחות אחת מהבדיקות חורגת → changed; אחרת unchanged
-        status = (amountWithin || rateWithin) ? "unchanged" : "changed";
-      }
+        let status: ComparisonRow["status"] = "unchanged";
+
+        if (!row1 && row2) {
+          status = "added";
+        } else if (row1 && !row2) {
+          status = "removed";
+        } else if (row1 && row2) {
+          // השוואה על בסיס סכומי "עמלה" בלבד
+          const amountDiff = Math.abs(row1.commissionAmount - row2.commissionAmount);
+        
+          // אחוז שינוי בעמלה: בסיס = חודש ראשון (month1 → row1)
+          const pctChange = percentChange(row1.commissionAmount, row2.commissionAmount);
+        
+          // בתוך סף סכום?
+          const amountWithin = amountDiff <= toleranceAmount;
+        
+          // בתוך סף אחוז שינוי? (0 אומר: לא מתירים שום שינוי)
+          const percentWithin = pctChange <= toleranceRate;
+        
+          // אם לפחות אחת מהבדיקות בתוך הסף → נשאר "ללא שינוי", אחרת "שינוי"
+          status = (amountWithin || percentWithin) ? "unchanged" : "changed";
+        }
+        
       
 
       return {
@@ -768,7 +771,9 @@ if (rows.length === 0) {
     </div>
 
     <div className="w-48">
-      <label className="block mb-1 text-sm font-medium">סף סטייה באחוז עמלה (נק׳ אחוז)</label>
+    <label className="block mb-1 text-sm font-medium">
+  סף סטייה באחוז שינוי בעמלה (%)
+</label>
       <input
         type="number"
         step="0.01"
@@ -887,54 +892,57 @@ if (rows.length === 0) {
     <table className="w-full text-sm border rounded-lg overflow-hidden">
       {/* כותרת-על לשני החודשים */}
       <thead>
-        <tr className="bg-gray-100 text-right">
-          <th className="border p-2 align-bottom">חברה</th>
-          <th className="border p-2 align-bottom">מס׳ פוליסה (key)</th>
-          <th className="border p-2 align-bottom">ת״ז לקוח</th>
-          <th className="border p-2 align-bottom">שם לקוח</th>
-          <th className="border p-2 align-bottom">מס׳ סוכן</th>
-          <th className="border p-2 align-bottom">מוצר</th>
+  {/* כותרת-על לשני החודשים */}
+  <tr className="bg-gray-100 text-right">
+    <th className="border p-2 align-bottom">חברה</th>
+    <th className="border p-2 align-bottom">מס׳ פוליסה (key)</th>
+    <th className="border p-2 align-bottom">ת״ז לקוח</th>
+    <th className="border p-2 align-bottom">שם לקוח</th>
+    <th className="border p-2 align-bottom">מס׳ סוכן</th>
+    <th className="border p-2 align-bottom">מוצר</th>
 
-          {/* קבוצה: חודש ראשון */}
-          <th className="border p-2 text-center font-bold bg-sky-50" colSpan={3}>
-            {`חודש ${formatMonthDisplay(month1)}`}
-          </th>
+    {/* חודש ראשון */}
+    <th className="border p-2 text-center font-bold bg-sky-50" colSpan={3}>
+      {`חודש ${formatMonthDisplay(month1)}`}
+    </th>
 
-          {/* מחיצת צבע עדינה באמצע */}
-          <th className="w-1 bg-sky-200/50" aria-hidden />
+    {/* מחיצה עדינה */}
+    <th className="w-1 bg-sky-200/50" aria-hidden />
 
-          {/* קבוצה: חודש שני */}
-          <th className="border p-2 text-center font-bold bg-emerald-50" colSpan={3}>
-            {`חודש ${formatMonthDisplay(month2)}`}
-          </th>
+    {/* חודש שני */}
+    <th className="border p-2 text-center font-bold bg-emerald-50" colSpan={3}>
+      {`חודש ${formatMonthDisplay(month2)}`}
+    </th>
 
-          <th className="border p-2 align-bottom">סטטוס</th>
-        </tr>
+    <th className="border p-2 align-bottom">סטטוס</th>
+  </tr>
 
-        {/* כותרות משנה לכל צד – לפי הסדר: פרמיה → עמלה → % עמלה */}
-        <tr className="bg-gray-200 text-right">
-          <th className="border p-2"></th>
-          <th className="border p-2"></th>
-          <th className="border p-2"></th>
-          <th className="border p-2"></th>
-          <th className="border p-2"></th>
+  {/* כותרות משנה: פרמיה → עמלה → % עמלה */}
+  <tr className="bg-gray-200 text-right">
+    {/* 🔹 כאן יש 6 ריקים עבור 6 העמודות הקבועות */}
+    <th className="border p-2"></th>
+    <th className="border p-2"></th>
+    <th className="border p-2"></th>
+    <th className="border p-2"></th>
+    <th className="border p-2"></th>
+    <th className="border p-2"></th>
 
-          {/* צד חודש ראשון */}
-          <th className="border p-2 bg-sky-50 text-center">פרמיה</th>
-          <th className="border p-2 bg-sky-50 text-center">עמלה</th>
-          <th className="border p-2 bg-sky-50 text-center">% עמלה</th>
+    {/* צד חודש ראשון */}
+    <th className="border p-2 bg-sky-50 text-center">פרמיה</th>
+    <th className="border p-2 bg-sky-50 text-center">עמלה</th>
+    <th className="border p-2 bg-sky-50 text-center">% עמלה</th>
 
-          {/* מחיצה */}
-          <th className="w-1 bg-sky-200/50" aria-hidden />
+    {/* מחיצה */}
+    <th className="w-1 bg-sky-200/50" aria-hidden />
 
-          {/* צד חודש שני */}
-          <th className="border p-2 bg-emerald-50 text-center">פרמיה</th>
-          <th className="border p-2 bg-emerald-50 text-center">עמלה</th>
-          <th className="border p-2 bg-emerald-50 text-center">% עמלה</th>
+    {/* צד חודש שני */}
+    <th className="border p-2 bg-emerald-50 text-center">פרמיה</th>
+    <th className="border p-2 bg-emerald-50 text-center">עמלה</th>
+    <th className="border p-2 bg-emerald-50 text-center">% עמלה</th>
 
-          <th className="border p-2"></th>
-        </tr>
-      </thead>
+    <th className="border p-2"></th>
+  </tr>
+</thead>
 
       <tbody>
         {visibleRows.map((r) => (
@@ -990,9 +998,9 @@ if (rows.length === 0) {
 
         {/* שורת סיכום – תואמת לסדר החדש */}
         <tr className="font-bold">
-          <td className="border p-2 text-right bg-blue-50">סה״כ</td>
-          <td className="border p-2 bg-blue-50" colSpan={3}></td>
-          <td className="border p-2 bg-blue-50"></td>
+        <td className="border p-2 text-right bg-blue-50">סה״כ</td>
+        <td className="border p-2 bg-blue-50" colSpan={5}></td>
+
 
           {/* חודש ראשון – פרמיה, עמלה, % */}
           <td className="border p-2 bg-sky-50 text-center">{totals.p1.toFixed(2)}</td>

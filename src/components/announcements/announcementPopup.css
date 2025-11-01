@@ -89,3 +89,49 @@
     text-decoration: none;
   }
   
+  /* תגית Badge קטנה מתחת לכותרת */
+.announcement-badge {
+  display: inline-block;
+  margin: .25rem 0 1rem;
+  background: #eef6ff;
+  color: #0b53c1;
+  padding: .25rem .5rem;
+  border-radius: .5rem;
+  font-size: .875rem;
+  font-weight: 600;
+}
+
+/* אזור קישורי פעולה (כפתורי טקסט) */
+.announcement-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 8px 0 16px;
+}
+
+.secondary-link {
+  font-weight: 600;
+  text-decoration: underline;
+}
+
+.secondary-link:hover {
+  text-decoration: none;
+}
+
+/* שיפור ריווח לרשימות מקוננות */
+.announcement-box ul ul {
+  margin-top: 8px;
+  margin-bottom: 8px;
+  padding-right: 18px;
+}
+
+/* התאמות קלות למובייל (אופציונלי) */
+@media (max-width: 480px) {
+  .announcement-box {
+    padding: 24px 20px;
+    font-size: 1rem;
+  }
+  .announcement-title {
+    font-size: 1.5rem;
+  }
+}
