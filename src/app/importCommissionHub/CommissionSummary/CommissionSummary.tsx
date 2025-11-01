@@ -243,54 +243,7 @@ export default function CommissionSummaryPage() {
         </table>
       )}
 
-      {/* ===== Charts Section ===== */}
-      {!loading && allMonths.length > 0 && (
-        <div className="mt-10 space-y-10">
-          {/* Chart 1: Monthly totals */}
-          <section>
-          <h3 className="text-xl font-semibold mb-3">גרף נפרעים לפי חודש (סה&quot;כ חודשי)</h3>
-          <div className="w-full h-80 rounded-xl border bg-white">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={monthlyTotalsData} margin={{ top: 10, right: 64, left: 10, bottom: 28 }}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="month" interval={0} angle={0} height={50} tickMargin={10} padding={{ left: 10, right: 28 }} />
-                  <YAxis tickFormatter={formatCurrency} width={80} />
-                  <Tooltip formatter={(value) => [formatCurrency(value as number), 'סה"כ']} labelFormatter={(label) => `חודש: ${label}`} />
-                  <Line type="monotone" dataKey="total" stroke={palette[0]} strokeWidth={3} dot={{ r: 3 }} name='סה"כ' />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          </section>
-
-          {/* Chart 2: Per-company over months */}
-          <section>
-            <h3 className="text-xl font-semibold mb-3">גרף נפרעים לפי חברה (התפתחות חודשית)</h3>
-            <div className="w-full h-96 rounded-xl border bg-white">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={perCompanyOverMonthsData} margin={{ top: 10, right: 64, left: 10, bottom: 28 }}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="month" interval={0} height={50} tickMargin={10} padding={{ left: 10, right: 28 }} />
-                  <YAxis tickFormatter={formatCurrency} width={80} />
-                  <Tooltip formatter={(value, key) => [formatCurrency(value as number), key as string]} labelFormatter={(label) => `חודש: ${label}`} />
-                  <Legend wrapperStyle={{ direction: 'rtl' }} />
-                  {allCompanies.map((company, idx) => (
-                    <Line
-                      key={company}
-                      type="monotone"
-                      dataKey={company}
-                      stroke={palette[idx % palette.length]}
-                      strokeWidth={2}
-                      dot={false}
-                      name={company}
-                    />
-                  ))}
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          </section>
-        </div>
-      )}
-
+   
       {/* ===== Drill-down table ===== */}
       {selectedCompany && (
         <div className="mt-10">
@@ -369,6 +322,55 @@ export default function CommissionSummaryPage() {
           </div>
         </div>
       )}
+
+         {/* ===== Charts Section ===== */}
+         {!loading && allMonths.length > 0 && (
+        <div className="mt-10 space-y-10">
+          {/* Chart 1: Monthly totals */}
+          <section>
+          <h3 className="text-xl font-semibold mb-3">גרף נפרעים לפי חודש (סה&quot;כ חודשי)</h3>
+          <div className="w-full h-80 rounded-xl border bg-white">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={monthlyTotalsData} margin={{ top: 10, right: 64, left: 10, bottom: 28 }}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="month" interval={0} angle={0} height={50} tickMargin={10} padding={{ left: 10, right: 28 }} />
+                  <YAxis tickFormatter={formatCurrency} width={80} />
+                  <Tooltip formatter={(value) => [formatCurrency(value as number), 'סה"כ']} labelFormatter={(label) => `חודש: ${label}`} />
+                  <Line type="monotone" dataKey="total" stroke={palette[0]} strokeWidth={3} dot={{ r: 3 }} name='סה"כ' />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </section>
+
+          {/* Chart 2: Per-company over months */}
+          <section>
+            <h3 className="text-xl font-semibold mb-3">גרף נפרעים לפי חברה (התפתחות חודשית)</h3>
+            <div className="w-full h-96 rounded-xl border bg-white">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={perCompanyOverMonthsData} margin={{ top: 10, right: 64, left: 10, bottom: 28 }}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="month" interval={0} height={50} tickMargin={10} padding={{ left: 10, right: 28 }} />
+                  <YAxis tickFormatter={formatCurrency} width={80} />
+                  <Tooltip formatter={(value, key) => [formatCurrency(value as number), key as string]} labelFormatter={(label) => `חודש: ${label}`} />
+                  <Legend wrapperStyle={{ direction: 'rtl' }} />
+                  {allCompanies.map((company, idx) => (
+                    <Line
+                      key={company}
+                      type="monotone"
+                      dataKey={company}
+                      stroke={palette[idx % palette.length]}
+                      strokeWidth={2}
+                      dot={false}
+                      name={company}
+                    />
+                  ))}
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </section>
+        </div>
+      )}
+
     </div>
   );
 }
