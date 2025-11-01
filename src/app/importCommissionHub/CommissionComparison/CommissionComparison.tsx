@@ -196,6 +196,8 @@ const CommissionComparisonByPolicy: React.FC = () => {
   const [dialogTitle, setDialogTitle] = useState<string>('');
   const [dialogMessage, setDialogMessage] = useState<string>('');
   
+  const showFilters = comparisonRows.length > 0;
+
   const openDialog = (
     type: 'warning'|'info'|'error'|'success',
     title: string,
@@ -473,7 +475,7 @@ const saveAgentTolerance = async () => {
         const rateWithin = toleranceRate <= 0 ? true : rateDiff <= toleranceRate;
       
         // אם לפחות אחת מהבדיקות חורגת → changed; אחרת unchanged
-        status = (amountWithin && rateWithin) ? "unchanged" : "changed";
+        status = (amountWithin || rateWithin) ? "unchanged" : "changed";
       }
       
 
@@ -738,80 +740,91 @@ if (rows.length === 0) {
         <MonthStepper label="חודש ראשון:" value={month1} onChange={setMonth1} />
         <MonthStepper label="חודש שני:" value={month2} onChange={setMonth2} />
       </div>
+{/* Tolerances + Compare */}
+<div className="mb-4">
+  <div className="flex flex-wrap items-end gap-3">
+    <div className="w-44">
+      <label className="block mb-1 text-sm font-medium">סף סטייה בסכום עמלה (₪)</label>
+      <input
+        type="number"
+        step="0.01"
+        min="0"
+        value={toleranceAmount}
+        onChange={(e) => setToleranceAmount(Number(e.target.value) || 0)}
+        className="input text-sm h-9 px-2 w-full text-right"
+        placeholder="למשל 5"
+      />
+    </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4 items-end">
-  <div>
-    <label className="block mb-1 font-semibold">סף סטייה בסכום עמלה (₪):</label>
-    <input
-      type="number"
-      step="0.01"
-      min="0"
-      value={toleranceAmount}
-      onChange={(e) => setToleranceAmount(Number(e.target.value) || 0)}
-      className="input w-full"
-      placeholder="למשל 5"
-    />
+    <div className="w-48">
+      <label className="block mb-1 text-sm font-medium">סף סטייה באחוז עמלה (נק׳ אחוז)</label>
+      <input
+        type="number"
+        step="0.01"
+        min="0"
+        value={toleranceRate}
+        onChange={(e) => setToleranceRate(Number(e.target.value) || 0)}
+        className="input text-sm h-9 px-2 w-full text-right"
+        placeholder="למשל 0.3"
+      />
+    </div>
+
+    {/* הכפתור צמוד לשדות ומיושר תחתית */}
+    <div className="self-end">
+      <Button
+        text={isLoading ? "טוען…" : "השווה"}
+        type="primary"
+        onClick={handleCompare}
+        disabled={isLoading}
+        className="h-9 px-5 text-sm font-bold rounded-lg shadow-sm"
+      />
+    </div>
   </div>
-  <div>
-    <label className="block mb-1 font-semibold">סף סטייה באחוז עמלה (נק׳ אחוז):</label>
-    <input
-      type="number"
-      step="0.01"
-      min="0"
-      value={toleranceRate}
-      onChange={(e) => setToleranceRate(Number(e.target.value) || 0)}
-      className="input w-full"
-      placeholder="למשל 0.3"
-    />
-  </div>
-  <div className="flex sm:justify-end">
-    <Button
-      text={isLoading ? "טוען…" : "השווה"}
-      type="primary"
-      onClick={handleCompare}
-      disabled={isLoading}
-      className="text-lg font-bold"
-    />
-  </div>
+
+  <p className="text-xs text-gray-500 mt-2">
+    הערכים נשמרים כברירת מחדל לסוכן, ומופעלים אוטומטית בכל ריצה.
+  </p>
 </div>
-<p className="text-xs text-gray-500 mb-6">
-  הערכים נשמרים כברירת מחדל לסוכן, ומופעלים אוטומטית בכל ריצה.
-</p>
 
-      {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-3 mb-4">
-        <input
-          type="text"
-          placeholder="חיפןש לפי תז או פוליסה"
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="input w-full sm:w-1/3"
-        />
-        <select
-          value={agentCodeFilter}
-          onChange={(e) => setAgentCodeFilter(e.target.value)}
-          className="select-input w-full sm:w-1/3"
-        >
-          <option value="">מספר סוכן</option>
-          {agentCodes.map((code) => (
-            <option key={code} value={code}>
-              {code}
-            </option>
-          ))}
-        </select>
-        <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-          className="select-input w-full sm:w-1/3"
-        >
-          {statusOptions.map((s) => (
-            <option key={s.value} value={s.value}>
-              {s.label}
-            </option>
-          ))}
-        </select>
-        <Button text="ייצוא לאקסל" type="secondary" onClick={handleExport} />
-      </div>
+
+{showFilters && (
+  <div className="flex flex-col sm:flex-row gap-3 mb-4">
+    <input
+      type="text"
+      placeholder="חיפוש לפי ת״ז או פוליסה"
+      value={searchTerm}
+      onChange={(e) => setSearchTerm(e.target.value)}
+      className="input w-full sm:w-1/3 text-right"
+    />
+
+    <select
+      value={agentCodeFilter}
+      onChange={(e) => setAgentCodeFilter(e.target.value)}
+      className="select-input w-full sm:w-1/3"
+    >
+      <option value="">מספר סוכן</option>
+      {agentCodes.map((code) => (
+        <option key={code} value={code}>
+          {code}
+        </option>
+      ))}
+    </select>
+
+    <select
+      value={statusFilter}
+      onChange={(e) => setStatusFilter(e.target.value)}
+      className="select-input w-full sm:w-1/3"
+    >
+      {statusOptions.map((s) => (
+        <option key={s.value} value={s.value}>
+          {s.label}
+        </option>
+      ))}
+    </select>
+
+    <Button text="ייצוא לאקסל" type="secondary" onClick={handleExport} />
+  </div>
+)}
 
       {/* Status summary */}
       {comparisonRows.length > 0 && (
@@ -847,83 +860,147 @@ if (rows.length === 0) {
 
       {/* Detailed table */}
       {drillStatus ? (
-        <>
-          <button
-            className="mb-4 px-4 py-2 bg-gray-500 text-white rounded"
-            onClick={() => setDrillStatus(null)}
+  <>
+    <button
+      className="mb-4 px-4 py-2 bg-gray-500 text-white rounded"
+      onClick={() => setDrillStatus(null)}
+    >
+      חזור לכל הסטטוסים
+    </button>
+
+    <h2 className="text-xl font-bold mb-2">
+      פירוט לסטטוס: {statusOptions.find((s) => s.value === drillStatus)?.label || drillStatus}{" "}
+      ({visibleRows.length} שורות)
+    </h2>
+
+    <table className="w-full text-sm border rounded-lg overflow-hidden">
+      {/* כותרת-על לשני החודשים */}
+      <thead>
+        <tr className="bg-gray-100 text-right">
+          <th className="border p-2 align-bottom">חברה</th>
+          <th className="border p-2 align-bottom">מס׳ פוליסה (key)</th>
+          <th className="border p-2 align-bottom">ת״ז לקוח</th>
+          <th className="border p-2 align-bottom">מס׳ סוכן</th>
+          <th className="border p-2 align-bottom">מוצר</th>
+
+          {/* קבוצה: חודש ראשון */}
+          <th className="border p-2 text-center font-bold bg-sky-50" colSpan={3}>
+            {`חודש ${formatMonthDisplay(month1)}`}
+          </th>
+
+          {/* מחיצת צבע עדינה באמצע */}
+          <th className="w-1 bg-sky-200/50" aria-hidden />
+
+          {/* קבוצה: חודש שני */}
+          <th className="border p-2 text-center font-bold bg-emerald-50" colSpan={3}>
+            {`חודש ${formatMonthDisplay(month2)}`}
+          </th>
+
+          <th className="border p-2 align-bottom">סטטוס</th>
+        </tr>
+
+        {/* כותרות משנה לכל צד – לפי הסדר: פרמיה → עמלה → % עמלה */}
+        <tr className="bg-gray-200 text-right">
+          <th className="border p-2"></th>
+          <th className="border p-2"></th>
+          <th className="border p-2"></th>
+          <th className="border p-2"></th>
+          <th className="border p-2"></th>
+
+          {/* צד חודש ראשון */}
+          <th className="border p-2 bg-sky-50 text-center">פרמיה</th>
+          <th className="border p-2 bg-sky-50 text-center">עמלה</th>
+          <th className="border p-2 bg-sky-50 text-center">% עמלה</th>
+
+          {/* מחיצה */}
+          <th className="w-1 bg-sky-200/50" aria-hidden />
+
+          {/* צד חודש שני */}
+          <th className="border p-2 bg-emerald-50 text-center">פרמיה</th>
+          <th className="border p-2 bg-emerald-50 text-center">עמלה</th>
+          <th className="border p-2 bg-emerald-50 text-center">% עמלה</th>
+
+          <th className="border p-2"></th>
+        </tr>
+      </thead>
+
+      <tbody>
+        {visibleRows.map((r) => (
+          <tr
+            key={`${r.companyId}|${r.policyNumberKey}|${r.customerId}|${r.agentCode}`}
+            className="border"
           >
-            חזור לכל הסטטוסים
-          </button>
+            <td className="border p-2">{r.companyName || r.companyId}</td>
+            <td className="border p-2">{r.policyNumberKey}</td>
+            <td className="border p-2">{r.customerId}</td>
+            <td className="border p-2">{r.agentCode}</td>
+            <td className="border p-2">{r.product || "-"}</td>
 
-          <h2 className="text-xl font-bold mb-2">
-            פירוט לסטטוס: {statusOptions.find((s) => s.value === drillStatus)?.label || drillStatus}
-            {" "}({visibleRows.length} שורות)
-          </h2>
+            {/* חודש ראשון: פרמיה → עמלה → % */}
+            <td className="border p-2 bg-sky-50 text-center">
+              {r.row1 ? r.row1.premiumAmount.toFixed(2) : "-"}
+            </td>
+            <td className="border p-2 bg-sky-50 text-center">
+              {r.row1 ? r.row1.commissionAmount.toFixed(2) : "-"}
+            </td>
+            <td className="border p-2 bg-sky-50 text-center">
+              {r.row1 ? r.row1.commissionRate.toFixed(2) : "-"}
+            </td>
 
-          <table className="w-full text-sm border">
-            <thead>
-              <tr className="bg-gray-200 text-right">
-                <th className="border p-2">חברה</th>
-                <th className="border p-2">מס׳ פוליסה (key)</th>
-                <th className="border p-2">ת״ז לקוח</th>
-                <th className="border p-2">מס׳ סוכן</th>
-                <th className="border p-2">מוצר</th>
-                <th className="border p-2">{`עמלה ${formatMonthDisplay(month1)}`}</th>
-                <th className="border p-2">{`פרמיה ${formatMonthDisplay(month1)}`}</th>
-                <th className="border p-2">{`% עמלה ${formatMonthDisplay(month1)}`}</th>
-                <th className="border p-2">{`עמלה ${formatMonthDisplay(month2)}`}</th>
-                <th className="border p-2">{`פרמיה ${formatMonthDisplay(month2)}`}</th>
-                <th className="border p-2">{`% עמלה ${formatMonthDisplay(month2)}`}</th>
-                <th className="border p-2">סטטוס</th>
-              </tr>
-            </thead>
-            <tbody>
-              {visibleRows.map((r) => (
-                <tr
-                  key={`${r.companyId}|${r.policyNumberKey}|${r.customerId}|${r.agentCode}`}
-                  className="border"
-                >
-                  <td className="border p-2">{r.companyName || r.companyId}</td>
-                  <td className="border p-2">{r.policyNumberKey}</td>
-                  <td className="border p-2">{r.customerId}</td>
-                  <td className="border p-2">{r.agentCode}</td>
-                  <td className="border p-2">{r.product || "-"}</td>
-                  <td className="border p-2">{r.row1 ? r.row1.commissionAmount.toFixed(2) : "-"}</td>
-                  <td className="border p-2">{r.row1 ? r.row1.premiumAmount.toFixed(2) : "-"}</td>
-                  <td className="border p-2">{r.row1 ? r.row1.commissionRate.toFixed(2) : "-"}</td>
-                  <td className="border p-2">{r.row2 ? r.row2.commissionAmount.toFixed(2) : "-"}</td>
-                  <td className="border p-2">{r.row2 ? r.row2.premiumAmount.toFixed(2) : "-"}</td>
-                  <td className="border p-2">{r.row2 ? r.row2.commissionRate.toFixed(2) : "-"}</td>
-                  <td className="border p-2 font-bold">
-                    {statusOptions.find((s) => s.value === r.status)?.label || "—"}
-                  </td>
-                </tr>
-              ))}
+            {/* מחיצה */}
+            <td className="w-1 bg-sky-200/50" aria-hidden />
 
-              {visibleRows.length === 0 && (
-                <tr>
-                  <td colSpan={12} className="text-center py-4 text-gray-500">
-                    לא נמצאו שורות תואמות.
-                  </td>
-                </tr>
-              )}
+            {/* חודש שני: פרמיה → עמלה → % */}
+            <td className="border p-2 bg-emerald-50 text-center">
+              {r.row2 ? r.row2.premiumAmount.toFixed(2) : "-"}
+            </td>
+            <td className="border p-2 bg-emerald-50 text-center">
+              {r.row2 ? r.row2.commissionAmount.toFixed(2) : "-"}
+            </td>
+            <td className="border p-2 bg-emerald-50 text-center">
+              {r.row2 ? r.row2.commissionRate.toFixed(2) : "-"}
+            </td>
 
-              <tr className="font-bold bg-blue-50">
-              <td className="border p-2 text-right">סה&quot;כ</td>
-              <td className="border p-2" colSpan={3}></td>
-                <td className="border p-2"></td>
-                <td className="border p-2">{totals.c1.toFixed(2)}</td>
-                <td className="border p-2">{totals.p1.toFixed(2)}</td>
-                <td className="border p-2">—</td>
-                <td className="border p-2">{totals.c2.toFixed(2)}</td>
-                <td className="border p-2">{totals.p2.toFixed(2)}</td>
-                <td className="border p-2">—</td>
-                <td className="border p-2"></td>
-              </tr>
-            </tbody>
-          </table>
-        </>
-      ) : null}
+            <td className="border p-2 font-bold">
+              {statusOptions.find((s) => s.value === r.status)?.label || "—"}
+            </td>
+          </tr>
+        ))}
+
+        {visibleRows.length === 0 && (
+          <tr>
+            <td colSpan={15} className="text-center py-4 text-gray-500">
+              לא נמצאו שורות תואמות.
+            </td>
+          </tr>
+        )}
+
+        {/* שורת סיכום – תואמת לסדר החדש */}
+        <tr className="font-bold">
+          <td className="border p-2 text-right bg-blue-50">סה״כ</td>
+          <td className="border p-2 bg-blue-50" colSpan={3}></td>
+          <td className="border p-2 bg-blue-50"></td>
+
+          {/* חודש ראשון – פרמיה, עמלה, % */}
+          <td className="border p-2 bg-sky-50 text-center">{totals.p1.toFixed(2)}</td>
+          <td className="border p-2 bg-sky-50 text-center">{totals.c1.toFixed(2)}</td>
+          <td className="border p-2 bg-sky-50 text-center">—</td>
+
+          {/* מחיצה */}
+          <td className="w-1 bg-sky-200/50" aria-hidden />
+
+          {/* חודש שני – פרמיה, עמלה, % */}
+          <td className="border p-2 bg-emerald-50 text-center">{totals.p2.toFixed(2)}</td>
+          <td className="border p-2 bg-emerald-50 text-center">{totals.c2.toFixed(2)}</td>
+          <td className="border p-2 bg-emerald-50 text-center">—</td>
+
+          <td className="border p-2 bg-blue-50"></td>
+        </tr>
+      </tbody>
+    </table>
+  </>
+) : null}
+
 {dialogOpen && (
   <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
     <DialogNotification
