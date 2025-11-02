@@ -34,9 +34,10 @@ export interface Sale {
     firstNameCustomer: string;
     lastNameCustomer: string;
     phone?: string;
-    mail?: string; // אולי חסר?
-    address?: string; // אולי חסר?
-    sourceValue?: string; // שדה אופציונלי
+    mail?: string; 
+    address?: string;
+    sourceValue?: string; 
+    policyNumber?: string;
   }
 
   export type AgentDataType = {
@@ -47,7 +48,7 @@ export interface Sale {
     IDCustomer: string;
     company: string;
     product: string;
-    insPremia?: number; // שדה אופציונלי
+    insPremia?: number; 
     pensiaPremia?: number;
     pensiaZvira?: number;
     finansimPremia?: number;
@@ -57,7 +58,8 @@ export interface Sale {
     minuySochen?: boolean;
     workerName?: string;
     workerId?: string;
-    notes?: string; // גם notes אופציונלי
+    notes?: string;
+    policyNumber?: string;
   };
   
 
@@ -82,6 +84,7 @@ export interface Sale {
     totalCommissionNifraim?: number;
     minuySochen?: boolean;
     policyNumber: string;
+    // AgentId: string;
   };
   
   export interface ClientPolicyRow {

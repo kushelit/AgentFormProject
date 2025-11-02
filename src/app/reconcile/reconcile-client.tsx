@@ -3,16 +3,13 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import {
-  collection,
-  query,
-  where,
-  getDocs,
-  addDoc,
-  serverTimestamp,
+  collection, query, where, getDocs,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase/firebase';
-import { linkPolicyNumberToSale, unlinkPolicyIndex, createSaleAndLinkFromExternal } from '@/services/reconcileLinks';
-import { makeCompanyCanonical, ym } from '@/utils/reconcile';
+import { linkPolicyNumberToSale, unlinkPolicyIndex } from '@/services/reconcileLinks';
+import { ym, makeCompanyCanonical } from '@/utils/reconcile';
+import { calculateCommissions } from '@/utils/commissionCalculations';
+import type { ContractForCompareCommissions } from '@/types/Contract';
 import { useSearchParams } from 'next/navigation';
 
 /* ---------------- Types ---------------- */
@@ -25,8 +22,8 @@ type ExternalRow = {
   company: string;
   product?: string | null;
   policyNumber?: string | null;
-  reportMonth: string; // YYYY-MM
-  validMonth?: string | null; // YYYY-MM
+  reportMonth: string;       // YYYY-MM
+  validMonth?: string | null;// YYYY-MM
   commissionAmount: number;
 };
 
@@ -40,60 +37,78 @@ type SaleRow = {
   mounth?: string | null;
   policyNumber?: string | null;
   statusPolicy?: string | null;
+  insPremia?: number;
+  pensiaPremia?: number;
+  pensiaZvira?: number;
+  finansimPremia?: number;
+  finansimZvira?: number;
+  minuySochen?: boolean;
 };
 
-type LinkedItem = {
-  ext: ExternalRow;
-  sale: { id: string; product?: string | null; policyMonth: string };
-};
+type Status = 'unchanged' | 'changed' | 'not_reported' | 'not_found';
 
-type PendingItem = {
-  ext: ExternalRow;
-  saleOptions: { id: string; label: string }[];
+type PickerOption = { id: string; label: string };
+
+type RowView = {
+  policyNumber: string;
+  company: string;
+  validYm: string;
+  extAmount: number;
+  magicAmount: number;
+  diff: number;
+  status: Status;
+  ext?: ExternalRow | null;
+  sale?: SaleRow | null;
+  saleOptions?: PickerOption[]; // ← לשורות שניתן לקשר
 };
 
 /* ---------------- Helpers ---------------- */
-const normalizePolicyKey = (v: any) => String(v ?? '').trim().replace(/\s+/g, '');
+const num = (v: any) => (Number.isFinite(Number(v)) ? Number(v) : 0);
+const normalize = (v: any) => String(v ?? '').trim();
+const normalizePolicyKey = (v: any) => normalize(v).replace(/\s+/g, '');
+const toSaleLabel = (s: SaleRow) => `${ym(String(s.month || s.mounth || '')) || '—'} • ${String(s.product || '') || '—'}`;
 
-function toSaleLabel(s: SaleRow) {
-  const labelMonth = ym(String(s.month || s.mounth || ''));
-  const product = String(s.product || '');
-  return `${labelMonth || '—'} • ${product || '—'}`;
+async function fetchAgentName(agentId: string) {
+  try {
+    const snap = await getDocs(query(collection(db, 'agents'), where('id', '==', agentId)));
+    const name = (snap.docs[0]?.data() as any)?.name;
+    return name ? String(name) : agentId;
+  } catch { return agentId; }
 }
 
-async function fetchClaimedSaleIds(agentId: string, company?: string) {
-  const claimed = new Set<string>();
-  const qy = query(
-    collection(db, 'policyLinkIndex'),
-    where('agentId', '==', agentId),
-    ...(company ? [where('company', '==', makeCompanyCanonical(company))] : [])
-  );
-  const snap = await getDocs(qy);
-  snap.forEach((d) => {
-    const x = d.data() as any;
-    if (x?.saleId) claimed.add(String(x.saleId));
-  });
-  return claimed;
+async function fetchCompaniesList(): Promise<string[]> {
+  const snapshot = await getDocs(collection(db, 'company'));
+  return snapshot.docs.map(d => (d.data() as any)?.companyName).filter(Boolean).sort();
 }
 
-async function lookupIndexForKeys(agentId: string, company: string | undefined, keys: string[]) {
-  const out = new Map<string, string>();
-  const uniq = Array.from(new Set(keys.filter(Boolean)));
-  for (let i = 0; i < uniq.length; i += 10) {
-    const part = uniq.slice(i, i + 10);
-    const qy = query(
-      collection(db, 'policyLinkIndex'),
+async function fetchExternalRows(agentId: string, customerIds: string[], repYm: string, company?: string) {
+  const rows: ExternalRow[] = [];
+  for (let i = 0; i < customerIds.length; i += 10) {
+    const chunk = customerIds.slice(i, i + 10);
+    const qx = query(
+      collection(db, 'externalCommissions'),
       where('agentId', '==', agentId),
-      where('policyNumberKey', 'in', part),
-      ...(company ? [where('company', '==', makeCompanyCanonical(company))] : [])
+      where('reportMonth', '==', repYm),
+      where('customerId', 'in', chunk),
+      ...(company ? [where('company', '==', company)] : []),
     );
-    const snap = await getDocs(qy);
-    snap.forEach((d) => {
+    const snap = await getDocs(qx);
+    snap.forEach(d => {
       const x = d.data() as any;
-      if (x?.policyNumberKey && x?.saleId) out.set(String(x.policyNumberKey), String(x.saleId));
+      rows.push({
+        id: d.id,
+        agentId: String(x.agentId || agentId),
+        customerId: String(x.customerId || ''),
+        company: String(x.company || ''),
+        product: x.product ?? null,
+        policyNumber: x.policyNumber ?? null,
+        reportMonth: String(x.reportMonth || ''),
+        validMonth: x.validMonth ? String(x.validMonth) : null,
+        commissionAmount: num(x.commissionAmount),
+      });
     });
   }
-  return out;
+  return rows;
 }
 
 async function fetchSales(agentId: string, customerIds: string[], company?: string) {
@@ -104,10 +119,10 @@ async function fetchSales(agentId: string, customerIds: string[], company?: stri
       collection(db, 'sales'),
       where('AgentId', '==', agentId),
       where('IDCustomer', 'in', chunk),
-      ...(company ? [where('company', '==', company)] : [])
+      ...(company ? [where('company', '==', company)] : []),
     );
     const snap = await getDocs(qy);
-    snap.forEach((d) => {
+    snap.forEach(d => {
       const x = d.data() as any;
       rows.push({
         id: d.id,
@@ -119,19 +134,45 @@ async function fetchSales(agentId: string, customerIds: string[], company?: stri
         mounth: x.mounth ?? null,
         policyNumber: x.policyNumber ?? null,
         statusPolicy: x.statusPolicy ?? null,
+        insPremia: num(x.insPremia),
+        pensiaPremia: num(x.pensiaPremia),
+        pensiaZvira: num(x.pensiaZvira),
+        finansimPremia: num(x.finansimPremia),
+        finansimZvira: num(x.finansimZvira),
+        minuySochen: !!x.minuySochen,
       });
     });
   }
-  return rows.filter((s) => !s.statusPolicy || ['פעילה', 'הצעה'].includes(String(s.statusPolicy)));
+  return rows.filter(s => !s.statusPolicy || ['פעילה', 'הצעה'].includes(String(s.statusPolicy)));
 }
 
+async function fetchContracts(agentId: string, company?: string) {
+  const qy = query(collection(db, 'contracts'), where('AgentId', '==', agentId), ...(company ? [where('company', '==', company)] : []));
+  const snap = await getDocs(qy);
+  return snap.docs.map(d => d.data() as ContractForCompareCommissions);
+}
+
+async function fetchClaimedSaleIds(agentId: string, company?: string) {
+  const claimed = new Set<string>();
+  const qy = query(
+    collection(db, 'policyLinkIndex'),
+    where('agentId', '==', agentId),
+    ...(company ? [where('company', '==', makeCompanyCanonical(company))] : []),
+  );
+  const snap = await getDocs(qy);
+  snap.forEach(d => {
+    const x = d.data() as any;
+    if (x?.saleId) claimed.add(String(x.saleId));
+  });
+  return claimed;
+}
 
 /* ---------------- Component ---------------- */
 export default function ReconcileClient({ searchParams: spFromPage }: Props) {
   const sp = useSearchParams();
 
   const agentId      = spFromPage.agentId   || sp.get('agentId')   || '';
-  const company      = (spFromPage.company  || sp.get('company')   || '').trim();
+  const companyInit  = (spFromPage.company  || sp.get('company')   || '').trim();
   const repYmInitial = spFromPage.repYm     || sp.get('repYm')     || '';
   const customerIds  = useMemo(() => {
     const s = spFromPage.customerIds || sp.get('customerIds') || '';
@@ -139,104 +180,129 @@ export default function ReconcileClient({ searchParams: spFromPage }: Props) {
   }, [spFromPage.customerIds, sp]);
 
   const [repYm, setRepYm] = useState(repYmInitial);
+  const [company, setCompany] = useState(companyInit);
+  const [agentName, setAgentName] = useState(agentId);
+  const [companies, setCompanies] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
 
-  const [linked, setLinked] = useState<LinkedItem[]>([]);
-  const [pending, setPending] = useState<PendingItem[]>([]);
+  // 0 נחשב סף (כמו שביקשת)
+  const toleranceAmount = 0;
+  const tolerancePercent = 0;
+
+  const [groups, setGroups] = useState<{ unchanged: RowView[]; changed: RowView[]; not_reported: RowView[]; not_found: RowView[]; }>({
+    unchanged: [], changed: [], not_reported: [], not_found: [],
+  });
+
+  useEffect(() => {
+    (async () => {
+      setAgentName(await fetchAgentName(agentId));
+      setCompanies(await fetchCompaniesList());
+    })();
+  }, [agentId]);
 
   useEffect(() => {
     (async () => {
       if (!agentId || customerIds.length === 0 || !repYm) {
-        setLinked([]);
-        setPending([]);
+        setGroups({ unchanged: [], changed: [], not_reported: [], not_found: [] });
         return;
       }
       setLoading(true);
       try {
-        // 1) external rows (by report month)
-        const extRows: ExternalRow[] = [];
-        for (let i = 0; i < customerIds.length; i += 10) {
-          const chunk = customerIds.slice(i, i + 10);
-          const qx = query(
-            collection(db, 'externalCommissions'),
-            where('agentId', '==', agentId),
-            where('reportMonth', '==', repYm),
-            where('customerId', 'in', chunk),
-            ...(company ? [where('company', '==', company)] : [])
-          );
-          const snap = await getDocs(qx);
-          snap.forEach((d) => {
-            const x = d.data() as any;
-            extRows.push({
-              id: d.id,
-              agentId: String(x.agentId || agentId),
-              customerId: String(x.customerId || ''),
-              company: String(x.company || ''),
-              product: x.product ?? null,
-              policyNumber: x.policyNumber ?? null,
-              reportMonth: String(x.reportMonth || ''),
-              validMonth: x.validMonth ? String(x.validMonth) : null,
-              commissionAmount:
-                typeof x.commissionAmount === 'number'
-                  ? x.commissionAmount
-                  : Number(x.commissionAmount || 0),
-            });
-          });
+        const [extRowsRaw, salesAll, contracts, claimedSet] = await Promise.all([
+          fetchExternalRows(agentId, customerIds, repYm, company || undefined),
+          fetchSales(agentId, customerIds, company || undefined),
+          fetchContracts(agentId, company || undefined),
+          fetchClaimedSaleIds(agentId, company || undefined),
+        ]);
+
+        // מפות לפי מס' פוליסה
+        const byExt = new Map<string, ExternalRow>();
+        for (const r of extRowsRaw) {
+          const key = normalize(r.policyNumber);
+          if (key) byExt.set(key, r);
+        }
+        const bySale = new Map<string, SaleRow>();
+        for (const s of salesAll) {
+          const key = normalize(s.policyNumber);
+          if (key) bySale.set(key, s);
         }
 
-        // 2) index by policy
-        const keys = Array.from(
-          new Set(extRows.map((e) => normalizePolicyKey(e.policyNumber)).filter(Boolean))
-        );
-        const idxMap = await lookupIndexForKeys(agentId, company || undefined, keys);
+        // איחוד כל הפוליסות
+        const policies = Array.from(new Set<string>([
+          ...Array.from(byExt.keys()),
+          ...Array.from(bySale.keys()),
+        ]));
 
-        // 3) sales + claimed
-        const salesAll = await fetchSales(agentId, customerIds, company || undefined);
-        const claimedSaleIds = await fetchClaimedSaleIds(agentId, company || undefined);
-        const availableSales = salesAll.filter((s) => !claimedSaleIds.has(s.id));
+        const out: RowView[] = [];
 
-        // 4) build tables
-        const _linked: LinkedItem[] = [];
-        const _pending: PendingItem[] = [];
+        for (const p of policies) {
+          const ext  = byExt.get(p)  || null;
+          const sale = bySale.get(p) || null;
 
-        for (const ext of extRows) {
-          const key = normalizePolicyKey(ext.policyNumber);
-          const saleId = key ? idxMap.get(key) : undefined;
+          const validYm = ext ? ym(ext.validMonth || ext.reportMonth) : ym(String(sale?.month || sale?.mounth || ''));
+          const extAmount = ext ? num(ext.commissionAmount) : 0;
 
-          if (saleId) {
-            const s = salesAll.find((x) => x.id === saleId);
-            _linked.push({
-              ext,
-              sale: {
-                id: saleId,
-                product: s?.product ?? null,
-                policyMonth: ym(String(s?.month || s?.mounth || '')),
-              },
-            });
-          } else {
-            const options = availableSales
-              .filter((s) => s.IDCustomer === ext.customerId && s.company === ext.company)
-              .map((s) => ({ id: s.id, label: toSaleLabel(s) }))
-              .sort((a, b) => a.label.localeCompare(b.label));
+          // MAGIC
+          let magicAmount = 0;
+          if (sale) {
+            const contractMatch =
+              contracts.find(c =>
+                c.AgentId === agentId &&
+                c.company === String(sale.company) &&
+                (c as any).product === String(sale.product) &&
+                (!!(c as any).minuySochen === !!sale.minuySochen)
+              ) || undefined;
 
-            _pending.push({ ext, saleOptions: options });
+            const commissions = calculateCommissions(sale as any, contractMatch, contracts, {} as any, agentId);
+            magicAmount = num((commissions as any)?.commissionNifraim);
           }
+
+          // סטטוס
+          let status: Status;
+          if (!ext && sale) status = 'not_reported';
+          else if (ext && !sale) status = 'not_found';
+          else {
+            const diff = magicAmount - extAmount;
+            const diffPercent = extAmount === 0 ? (magicAmount === 0 ? 0 : 100) : Math.abs(diff) / extAmount * 100;
+            status = (Math.abs(diff) <= toleranceAmount && diffPercent <= tolerancePercent) ? 'unchanged' : 'changed';
+          }
+
+          const row: RowView = {
+            policyNumber: p,
+            company: ext?.company || sale?.company || '',
+            validYm,
+            extAmount,
+            magicAmount,
+            diff: magicAmount - extAmount,
+            status,
+            ext,
+            sale,
+          };
+
+          // הצעות קישור: רק כשיש EXT ואין SALE (כלומר 'not_found')
+          if (ext && !sale) {
+            const options = salesAll
+              .filter(s => !claimedSet.has(s.id)) // לא תפוס כבר באינדקס
+              .filter(s => s.IDCustomer === ext.customerId && s.company === row.company)
+              .map(s => ({ id: s.id, label: toSaleLabel(s) }))
+              .sort((a, b) => a.label.localeCompare(b.label));
+            row.saleOptions = options;
+          }
+
+          out.push(row);
         }
 
-        setLinked(
-          _linked.sort(
-            (a, b) =>
-              a.ext.company.localeCompare(b.ext.company) ||
-              ym(a.ext.validMonth || '').localeCompare(ym(b.ext.validMonth || ''))
-          )
-        );
-        setPending(
-          _pending.sort(
-            (a, b) =>
-              a.ext.company.localeCompare(b.ext.company) ||
-              ym(a.ext.validMonth || '').localeCompare(ym(b.ext.validMonth || ''))
-          )
-        );
+        const sorter = (a: RowView, b: RowView) =>
+          a.company.localeCompare(b.company) ||
+          a.validYm.localeCompare(b.validYm) ||
+          a.policyNumber.localeCompare(b.policyNumber);
+
+        setGroups({
+          unchanged: out.filter(r => r.status === 'unchanged').sort(sorter),
+          changed: out.filter(r => r.status === 'changed').sort(sorter),
+          not_reported: out.filter(r => r.status === 'not_reported').sort(sorter),
+          not_found: out.filter(r => r.status === 'not_found').sort(sorter),
+        });
       } finally {
         setLoading(false);
       }
@@ -244,72 +310,56 @@ export default function ReconcileClient({ searchParams: spFromPage }: Props) {
   }, [agentId, customerIds.join(','), company, repYm]);
 
   /* ---------------- Actions ---------------- */
-  async function doLink(ext: ExternalRow, saleId: string) {
-    const policyNumber = String(ext.policyNumber || '').trim();
-    if (!policyNumber) return;
+  async function onLink(row: RowView, saleId: string) {
+    const pn = normalize(row.policyNumber);
+    if (!pn || !row.ext) return;
 
     await linkPolicyNumberToSale({
       saleId,
       agentId,
-      customerId: ext.customerId,
-      company: ext.company,
-      policyNumber,
+      customerId: row.ext.customerId,
+      company: row.company,
+      policyNumber: pn,
     });
 
-    setPending((prev) => prev.filter((p) => p.ext.id !== ext.id));
-    setLinked((prev) => [
-      ...prev,
-      {
-        ext,
-        sale: { id: saleId, product: '—', policyMonth: ym(ext.validMonth || ext.reportMonth) },
-      },
-    ]);
-  }
-
-  async function doCreateAndLink(ext: ExternalRow) {
-    const pn = String(ext.policyNumber || '').trim();
-    if (!pn) return;
-  
-    // יוצר SALE + מקשר באינדקס + דואג ללקוח + mounth=YYYY-MM-01 + פעילה
-    const saleId = await createSaleAndLinkFromExternal({
-      external: {
-        agentId,
-        customerId: ext.customerId,
-        company: ext.company,
-        product: ext.product || '',
-        policyNumber: pn,
-        validMonth: ext.validMonth || null,
-        // firstNameCustomer / lastNameCustomer - אפשר להעביר אם יש לך
-      },
-      reportYm: ext.reportMonth
+    // ריענון מקומי: מעבירים את השורה לקבוצה הנכונה לאחר קישור
+    setGroups(prev => {
+      const all = [...prev.unchanged, ...prev.changed, ...prev.not_reported, ...prev.not_found]
+        .map(r => (r.policyNumber === row.policyNumber ? { ...r, sale: { id: saleId } as any, saleOptions: [] } : r));
+      const sorter = (a: RowView, b: RowView) =>
+        a.company.localeCompare(b.company) ||
+        a.validYm.localeCompare(b.validYm) ||
+        a.policyNumber.localeCompare(b.policyNumber);
+      return {
+        unchanged: all.filter(r => r.status === 'unchanged').sort(sorter),
+        changed: all.filter(r => r.status === 'changed').sort(sorter),
+        not_reported: all.filter(r => r.status === 'not_reported').sort(sorter),
+        not_found: all.filter(r => r.status === 'not_found').sort(sorter),
+      };
     });
-  
-    // אין צורך לקרוא כאן שוב ל-linkPolicyNumberToSale — זה כבר נעשה בתוך ה-service
-  
-    // עדכון UI
-    setPending(prev => prev.filter(p => p.ext.id !== ext.id));
-    setLinked(prev => [
-      ...prev,
-      {
-        ext,
-        sale: {
-          id: saleId,
-          product: ext.product ?? '—',
-          // לתצוגה מספיק ה-YYYY-MM; ה־service שמר mounth כ-YYYY-MM-01
-          policyMonth: ym(ext.validMonth || ext.reportMonth),
-        },
-      },
-    ]);
   }
-  
 
-  async function doUnlink(ext: ExternalRow) {
-    const pn = String(ext.policyNumber || '').trim();
-    if (!pn) return;
-    await unlinkPolicyIndex({ agentId, company: ext.company, policyNumber: pn });
+  async function onUnlink(row: RowView) {
+    const pn = normalize(row.policyNumber);
+    if (!pn || !row.ext) return;
 
-    setLinked((prev) => prev.filter((x) => x.ext.id !== ext.id));
-    setPending((prev) => [{ ext, saleOptions: [] }, ...prev]);
+    await unlinkPolicyIndex({ agentId, company: row.company, policyNumber: pn });
+
+    // ריענון מקומי: משחררים את הקישור
+    setGroups(prev => {
+      const all = [...prev.unchanged, ...prev.changed, ...prev.not_reported, ...prev.not_found]
+        .map(r => (r.policyNumber === row.policyNumber ? { ...r, sale: null } : r));
+      const sorter = (a: RowView, b: RowView) =>
+        a.company.localeCompare(b.company) ||
+        a.validYm.localeCompare(b.validYm) ||
+        a.policyNumber.localeCompare(b.policyNumber);
+      return {
+        unchanged: all.filter(r => r.status === 'unchanged').sort(sorter),
+        changed: all.filter(r => r.status === 'changed').sort(sorter),
+        not_reported: all.filter(r => r.status === 'not_reported').sort(sorter),
+        not_found: all.filter(r => r.status === 'not_found').sort(sorter),
+      };
+    });
   }
 
   /* ---------------- UI ---------------- */
@@ -317,178 +367,156 @@ export default function ReconcileClient({ searchParams: spFromPage }: Props) {
     <div dir="rtl" className="p-6 bg-gray-100 min-h-screen">
       <h1 className="text-2xl font-bold mb-4">בדיקת התאמות ושיוך פוליסות</h1>
 
-    {/* Controls */}
-<div className="mb-4 bg-white border rounded-xl p-4 flex flex-wrap gap-4 items-end">
-  {/* חודש דיווח */}
-  <div className="flex flex-col">
-    <label className="text-xs text-gray-500 mb-1">חודש דיווח (קובץ)</label>
-    <input
-      type="month"
-      value={repYm}
-      onChange={(e) => setRepYm(e.target.value)}
-      className="h-10 border rounded-lg px-3"
-    />
-  </div>
-
-  {/* מטא: סוכן / לקוחות / חברה */}
-  <div className="flex flex-wrap items-center gap-3 text-sm text-gray-700">
-    <span className="inline-flex items-center gap-1 h-9 px-3 rounded-xl border bg-gray-50">
-      <span className="text-gray-500">סוכן:</span> <b>{agentId || '—'}</b>
-    </span>
-    <span className="inline-flex items-center gap-1 h-9 px-3 rounded-xl border bg-gray-50">
-      <span className="text-gray-500">לקוחות:</span>{' '}
-      <b>{customerIds.length ? customerIds.join(', ') : '—'}</b>
-    </span>
-    {company ? (
-      <span className="inline-flex items-center gap-1 h-9 px-3 rounded-xl border bg-gray-50">
-        <span className="text-gray-500">חברה:</span> <b>{company}</b>
-      </span>
-    ) : null}
-  </div>
-
-  {/* מצב טעינה קטן בצד ימין */}
-  <div className="ml-auto text-sm text-gray-500">{loading ? 'טוען…' : null}</div>
-</div>
-
-      {/* Linked table */}
-      <section className="mb-6 bg-white border rounded-xl p-4">
-        <h2 className="text-lg font-semibold mb-3">פוליסות משוייכות ({linked.length})</h2>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm border-collapse">
-            <thead>
-              <tr className="bg-gray-50">
-                {/* מימין לשמאל */}
-                <th className="p-2 text-right">מס׳ פוליסה</th>
-                <th className="p-2 text-right">חברה</th>
-                <th className="p-2 text-right">תאריך תחילה (valid)</th>
-                <th className="p-2 text-right">טעינה – נפרעים</th>
-                <th className="p-2 text-right">SALE</th>
-                <th className="p-2 text-right">MAGIC – נפרעים</th>
-                <th className="p-2 text-right">פעולות</th>
-              </tr>
-            </thead>
-            <tbody>
-              {linked.map((row) => (
-                <tr key={row.ext.id} className="border-t">
-                  <td className="p-2">{row.ext.policyNumber || '—'}</td>
-                  <td className="p-2">{row.ext.company || '—'}</td>
-                  <td className="p-2">{ym(row.ext.validMonth || '') || '—'}</td>
-                  <td className="p-2">{Number(row.ext.commissionAmount || 0).toLocaleString()}</td>
-                  <td className="p-2">
-                    {(row.sale.product || '—') + ' • ' + (row.sale.policyMonth || '—')}
-                  </td>
-                  <td className="p-2">—</td>
-                  <td className="p-2">
-                    <button
-                      onClick={() => doUnlink(row.ext)}
-                      className="h-8 px-3 rounded-md border text-red-600 hover:bg-red-50"
-                      title="נתק קישור"
-                    >
-                      נתק קישור
-                    </button>
-                  </td>
-                </tr>
-              ))}
-              {linked.length === 0 && (
-                <tr>
-                  <td colSpan={7} className="p-4 text-gray-500">
-                    אין רשומות משוייכות בחודש/חברה הנוכחיים.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+      {/* Controls */}
+      <div className="mb-4 bg-white border rounded-xl p-4 grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+        {/* חודש דיווח */}
+        <div className="flex flex-col">
+          <label className="text-xs text-gray-500 mb-1">חודש דיווח (קובץ)</label>
+          <input type="month" value={repYm} onChange={(e) => setRepYm(e.target.value)} className="h-10 border rounded-lg px-3" />
         </div>
-      </section>
 
-      {/* Pending table */}
-      <section className="mb-6 bg-white border rounded-xl p-4">
-        <h2 className="text-lg font-semibold mb-3">פוליסות מתוך טעינה — דורשות שיוך ({pending.length})</h2>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm border-collapse">
-            <thead>
-              <tr className="bg-gray-50">
-                {/* מימין לשמאל */}
-                <th className="p-2 text-right">מס׳ פוליסה</th>
-                <th className="p-2 text-right">חברה</th>
-                <th className="p-2 text-right">מוצר</th>
-                <th className="p-2 text-right">תאריך תחילה (valid)</th>
-                <th className="p-2 text-right">טעינה – נפרעים</th>
-                <th className="p-2 text-right">הצעות SALE</th>
-                <th className="p-2 text-right">פעולות</th>
-              </tr>
-            </thead>
-            <tbody>
-              {pending.map((row) => (
-                <tr key={row.ext.id} className="border-t">
-                  <td className="p-2">{row.ext.policyNumber || '—'}</td>
-                  <td className="p-2">{row.ext.company || '—'}</td>
-                  <td className="p-2">{row.ext.product || '—'}</td>
-                  <td className="p-2">{ym(row.ext.validMonth || '') || '—'}</td>
-                  <td className="p-2">{Number(row.ext.commissionAmount || 0).toLocaleString()}</td>
-                  <td className="p-2 w-[260px]">
-                    <SalePicker
-                      options={row.saleOptions}
-                      onPick={(saleId) => doLink(row.ext, saleId)}
-                    />
-                  </td>
-                  <td className="p-2">
-                    <button
-                      onClick={() => doCreateAndLink(row.ext)}
-                      className="h-8 px-3 rounded-md bg-blue-600 text-white hover:bg-blue-700"
-                      // title="צור SALE וקשר"
-                    >
-                      צור SALE וקשר
-                    </button>
-                  </td>
-                </tr>
-              ))}
-              {pending.length === 0 && (
-                <tr>
-                  <td colSpan={7} className="p-4 text-gray-500">
-                    אין רשומות דורשות שיוך.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+        {/* חברה */}
+        <div className="flex flex-col">
+          <label className="text-xs text-gray-500 mb-1">חברה</label>
+          <select className="h-10 border rounded-lg px-3 bg-white" value={company} onChange={(e) => setCompany(e.target.value)}>
+            <option value="">כל החברות</option>
+            {companies.map((c) => (<option key={c} value={c}>{c}</option>))}
+          </select>
         </div>
-      </section>
+
+        {/* סוכן/לקוחות */}
+        <div className="flex flex-col">
+          <label className="text-xs text-gray-500 mb-1">סוכן</label>
+          <div className="h-10 border rounded-lg px-3 flex items-center bg-gray-50">{agentName}</div>
+        </div>
+        <div className="flex flex-col">
+          <label className="text-xs text-gray-500 mb-1">לקוחות</label>
+          <div className="h-10 border rounded-lg px-3 flex items-center bg-gray-50">
+            {customerIds.length ? customerIds.join(', ') : '—'}
+          </div>
+        </div>
+      </div>
+
+      <Section title={`עם פער (${groups.changed.length})`}>
+        <RowsTable rows={groups.changed} onLink={onLink} onUnlink={onUnlink} />
+      </Section>
+
+      <Section title={`ללא פער (${groups.unchanged.length})`}>
+        <RowsTable rows={groups.unchanged} onLink={onLink} onUnlink={onUnlink} />
+      </Section>
+
+      <Section title={`לא קיים בקובץ (${groups.not_reported.length})`}>
+        <RowsTable rows={groups.not_reported} onLink={onLink} onUnlink={onUnlink} />
+      </Section>
+
+      <Section title={`לא קיים במערכת (${groups.not_found.length})`}>
+        <RowsTable rows={groups.not_found} onLink={onLink} onUnlink={onUnlink} />
+      </Section>
+
+      {loading && <p className="text-gray-500 mt-4">טוען נתונים…</p>}
     </div>
   );
 }
 
-/* ---------- Small sub-component: sale picker ---------- */
-function SalePicker({
-  options,
-  onPick,
-}: {
-  options: { id: string; label: string }[];
-  onPick: (saleId: string) => void;
-}) {
-  const [val, setVal] = useState('');
+/* ---------- presentational ---------- */
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="flex gap-2">
-      <select
-        className="h-8 border rounded-md px-2 bg-white min-w-[220px]"
-        value={val}
-        onChange={(e) => setVal(e.target.value)}
-      >
-        <option value="">בחר SALE לקישור…</option>
-        {options.map((o) => (
-          <option key={o.id} value={o.id}>
-            {o.label}
-          </option>
-        ))}
-      </select>
-      <button
-        className="h-8 px-3 rounded-md border bg-white hover:bg-gray-50 disabled:opacity-50"
-        onClick={() => val && onPick(val)}
-        disabled={!val}
-        title="קשר SALE נבחר"
-      >
-        קשר
-      </button>
+    <section className="mb-6 bg-white border rounded-xl">
+      <header className="px-4 py-2 bg-gray-50 border-b text-lg font-semibold">{title}</header>
+      <div className="p-3">{children}</div>
+    </section>
+  );
+}
+
+function RowsTable({
+  rows, onLink, onUnlink,
+}: {
+  rows: RowView[];
+  onLink: (row: RowView, saleId: string) => void;
+  onUnlink: (row: RowView) => void;
+}) {
+  if (!rows.length) return <div className="text-gray-500 px-2 py-4">אין פריטים.</div>;
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm border-collapse">
+        <thead>
+          <tr className="bg-gray-50">
+            <th className="p-2 text-right">מס׳ פוליסה</th>
+            <th className="p-2 text-right">חברה</th>
+            <th className="p-2 text-right">תאריך תחילה (valid)</th>
+            <th className="p-2 text-right bg-sky-50">עמלה (קובץ)</th>
+            <th className="p-2 text-right bg-emerald-50">עמלה (MAGIC)</th>
+            <th className="p-2 text-right">פער ₪</th>
+            <th className="p-2 text-right">פעולות</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => (
+            <tr key={`${r.policyNumber}|${r.company}`} className="border-t">
+              <td className="p-2">{r.policyNumber}</td>
+              <td className="p-2">{r.company || '—'}</td>
+              <td className="p-2">{r.validYm || '—'}</td>
+              <td className="p-2 bg-sky-50">{r.extAmount.toLocaleString()}</td>
+              <td className="p-2 bg-emerald-50">{r.magicAmount.toLocaleString()}</td>
+              <td className="p-2">{r.diff.toLocaleString()}</td>
+              <td className="p-2">
+                <RowActions row={r} onLink={onLink} onUnlink={onUnlink} />
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
+}
+
+function RowActions({
+  row, onLink, onUnlink,
+}: {
+  row: RowView;
+  onLink: (row: RowView, saleId: string) => void;
+  onUnlink: (row: RowView) => void;
+}) {
+  const [val, setVal] = useState('');
+  const canUnlink = !!row.ext && !!row.sale;
+  const canLink   = !!row.ext && !row.sale;
+
+  if (canLink) {
+    return (
+      <div className="flex gap-2">
+        <select
+          className="h-8 border rounded-md px-2 bg-white min-w-[220px]"
+          value={val}
+          onChange={(e) => setVal(e.target.value)}
+        >
+          <option value="">בחר SALE לקישור…</option>
+          {(row.saleOptions || []).map(o => (
+            <option key={o.id} value={o.id}>{o.label}</option>
+          ))}
+        </select>
+        <button
+          className="h-8 px-3 rounded-md border bg-white hover:bg-gray-50 disabled:opacity-50"
+          onClick={() => val && onLink(row, val)}
+          disabled={!val}
+          title="קשר SALE נבחר"
+        >
+          קשר
+        </button>
+      </div>
+    );
+  }
+
+  if (canUnlink) {
+    return (
+      <button
+        onClick={() => onUnlink(row)}
+        className="h-8 px-3 rounded-md border text-red-600 hover:bg-red-50"
+        title="נתק קישור"
+      >
+        נתק
+      </button>
+    );
+  }
+
+  return <span className="text-gray-400 text-xs">אין פעולות</span>;
 }

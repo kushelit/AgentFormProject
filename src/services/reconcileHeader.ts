@@ -22,6 +22,9 @@ export type HeaderTotals = {
   noCandidates: number;
 };
 
+// ✅ helper שמבטיח ש-0 לא “נבלע”
+const num = (v: any) => (Number.isFinite(Number(v)) ? Number(v) : 0);
+
 /* ------------ Policy index helpers (לוקאלי לקובץ) ------------ */
 const normalizePolicyKey = (v: any) => String(v ?? '').trim().replace(/\s+/g, '');
 
@@ -39,10 +42,7 @@ async function lookupPolicyLinksInHeader(params: {
 
   for (let i = 0; i < keys.length; i += 10) {
     const part = keys.slice(i, i + 10);
-    const base = [
-      where('agentId', '==', agentId),
-      where('policyNumberKey', 'in', part),
-    ];
+    const base = [where('agentId', '==', agentId), where('policyNumberKey', 'in', part)];
     const qy = companyCanon
       ? query(collection(db, 'policyLinkIndex'), ...base, where('company', '==', companyCanon))
       : query(collection(db, 'policyLinkIndex'), ...base);
@@ -65,8 +65,8 @@ async function lookupPolicyLinksInHeader(params: {
 async function fetchSummaryTotalsFromPolicySummaries(params: {
   agentId: string;
   customerIds: string[];
-  reportYm: string;        // YYYY-MM
-  company?: string;        // שם חברה (לא companyId)
+  reportYm: string; // YYYY-MM
+  company?: string; // שם חברה (לא companyId)
 }): Promise<{ totalCommission: number; count: number }> {
   const { agentId, customerIds, reportYm, company } = params;
 
@@ -83,28 +83,37 @@ async function fetchSummaryTotalsFromPolicySummaries(params: {
     const snap = await getDocs(q);
     snap.forEach((docSnap) => {
       const d = docSnap.data() as any;
-      rows.push({ totalCommissionAmount: Number(d.totalCommissionAmount || 0) });
+      rows.push({ totalCommissionAmount: num(d.totalCommissionAmount) });
     });
   }
 
-  const totalCommission = Math.round(
-    rows.reduce((sum, r) => sum + (r.totalCommissionAmount || 0), 0)
-  );
-
+  const totalCommission = Math.round(rows.reduce((sum, r) => sum + num(r.totalCommissionAmount), 0));
   return { totalCommission, count: rows.length };
 }
 
 /* ----------------------- MAIN ----------------------- */
-export async function buildHeaderTotals(params: {
-  agentId: string;
-  customerIds: string[];
-  company?: string;
-  reportYm: string;                 // YYYY-MM
-  isSplitOn: boolean;
-  contracts: ContractForCompareCommissions[];
-  productMap: Record<string, Product>;
-}): Promise<HeaderTotals> {
+/** 
+ * options אופציונלי – לצרכי “מצב יבש” (התאמה לקומפוננטה). 
+ * כרגע הפונקציה לא מבצעת כתיבות, אז הדגלים אינרטיים — אבל מועברים מטעמי API-compat.
+ */
+export async function buildHeaderTotals(
+  params: {
+    agentId: string;
+    customerIds: string[];
+    company?: string;
+    reportYm: string; // YYYY-MM
+    isSplitOn: boolean;
+    contracts: ContractForCompareCommissions[];
+    productMap: Record<string, Product>;
+  },
+  options?: {
+    dryRun?: boolean;
+    noAutoCreate?: boolean;
+    noAutoLink?: boolean;
+  }
+): Promise<HeaderTotals> {
   const { agentId, customerIds, company, reportYm, isSplitOn, contracts, productMap } = params;
+  void options; // currently no side-effects here; kept for interface parity
 
   // 1) סכום "קבצים" מתוך policyCommissionSummaries
   const sumRes = await fetchSummaryTotalsFromPolicySummaries({
@@ -113,7 +122,7 @@ export async function buildHeaderTotals(params: {
     reportYm,
     company,
   });
-  const external = sumRes.totalCommission;
+  const external = num(sumRes.totalCommission);
 
   // 2) שולפים את שורות ה־EXTERNAL הגולמיות (כדי לדעת validMonth ולקבוע סטטוס שיוך)
   const buckets = await fetchExternalForCustomers({
@@ -131,16 +140,13 @@ export async function buildHeaderTotals(params: {
     company: String(r.company || '').trim(),
     reportMonth: String(r.reportMonth || ''),
     validMonth: r.validMonth ? String(r.validMonth) : null,
-    policyNumber: r.policyNumber != null ? String(r.policyNumber) : null, // ← חשוב!
-    commissionAmount:
-      typeof r.commissionAmount === 'number' ? r.commissionAmount : Number(r.commissionAmount || 0),
-    linkedSaleId: null as string | null, // נחשב לפי אינדקס, לא סומכים על השדה מה-DB
+    policyNumber: r.policyNumber != null ? String(r.policyNumber) : null,
+    commissionAmount: num(r.commissionAmount),
+    linkedSaleId: null as string | null, // ייקבע לפי אינדקס, לא סומכים על שדה DB
   }));
 
   // 2.א) קובעים שיוך לפי policyLinkIndex
-  const keys = Array.from(
-    new Set(extRows.map((r) => normalizePolicyKey(r.policyNumber)).filter(Boolean))
-  );
+  const keys = Array.from(new Set(extRows.map((r) => normalizePolicyKey(r.policyNumber)).filter(Boolean)));
   const idxMap = await lookupPolicyLinksInHeader({ agentId, policyNumberKeys: keys, company });
 
   const extRowsWithLink = extRows.map((r) => {
@@ -183,9 +189,7 @@ export async function buildHeaderTotals(params: {
       );
 
     const sourceVal = nameMap[custId]?.sourceValue || '';
-    const sp = isSplitOn
-      ? splits.find((x) => x.agentId === agentId && x.sourceLeadId === sourceVal)
-      : undefined;
+    const sp = isSplitOn ? splits.find((x) => x.agentId === agentId && x.sourceLeadId === sourceVal) : undefined;
 
     const { commissionNifraim } = calculateCommissions(
       {
@@ -204,7 +208,7 @@ export async function buildHeaderTotals(params: {
       agentId,
       { splitPercent: sp?.percentToAgent }
     );
-    return commissionNifraim || 0;
+    return num(commissionNifraim);
   }
 
   // 4) MAGIC לפי validMonth (Apples-to-Apples) — נשען על extRows לדעת validMonth
@@ -250,20 +254,22 @@ export async function buildHeaderTotals(params: {
       )
     );
     const saleDocs = qs.docs.map((d) => ({ id: d.id, ...(d.data() as any) }));
-    const active = saleDocs.filter(
-      (s) => !s.statusPolicy || ['פעילה', 'הצעה'].includes(s.statusPolicy)
-    );
+    const active = saleDocs.filter((s) => !s.statusPolicy || ['פעילה', 'הצעה'].includes(s.statusPolicy));
     for (const s of active) {
       magicSnapshot += nifraimForSale(s, String(s.IDCustomer || ''));
     }
   }
 
+  const magicByValidR = Math.round(num(magicByValid));
+  const magicSnapshotR = Math.round(num(magicSnapshot));
+  const externalR = Math.round(num(external));
+
   return {
-    external,                                // מסוכם מ-policyCommissionSummaries
-    magicByValid: Math.round(magicByValid),
-    magicSnapshot: Math.round(magicSnapshot),
-    deltaByValid: Math.round(external - magicByValid),
-    deltaSnapshot: Math.round(external - magicSnapshot),
+    external: externalR,                                 // מסוכם מ-policyCommissionSummaries
+    magicByValid: magicByValidR,
+    magicSnapshot: magicSnapshotR,
+    deltaByValid: Math.round(externalR - magicByValidR),
+    deltaSnapshot: Math.round(externalR - magicSnapshotR),
     linked,
     needsLink,
     noCandidates: 0,

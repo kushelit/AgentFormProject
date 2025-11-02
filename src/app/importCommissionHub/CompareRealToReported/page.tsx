@@ -9,7 +9,7 @@ import CompareRealToReported from './CompareRealToReported';
 
 const CompareRealToReportedPage = () => {
   const { user, isLoading } = useAuth();
-  const { canAccess, isChecking } = usePermission('access_compareReportedVsReal');
+  const { canAccess, isChecking } = usePermission('access_commission_import');
 
   const [ready, setReady] = useState(false);
   const [isClient, setIsClient] = useState(false);

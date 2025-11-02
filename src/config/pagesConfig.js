@@ -25,7 +25,7 @@ const pages = [
       // { href: '/importCommissionHub/onboard', label: 'הקמת לקוחות מטעינה' },
       { href: '/importCommissionHub/CommissionSummary', label: 'דף מסכם עמלות' },
       { href: '/importCommissionHub/CommissionComparison', label: 'השוואת טעינות' },
-      // { href: '/importCommissionHub/CompareRealToReported', label: 'השוואה לעמלה בפועל' },
+      { href: '/importCommissionHub/CompareRealToReported', label: 'השוואה לעמלה בפועל' },
     ],
   },
   {

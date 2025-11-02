@@ -103,6 +103,7 @@ const NewAgentForm: React.FC = () => {
   const [minuySochen, setMinuySochen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
 const [idCustomerFilter, setIdCustomerFilter] = useState('');
+const [policyNumberFilter, setPolicyNumberFilter] = useState("");
 const [firstNameCustomerFilter, setfirstNameCustomerFilter] = useState('');
 const [lastNameCustomerFilter, setlastNameCustomerFilter] = useState('');
 const [minuySochenFilter, setMinuySochenFilter] = useState('');
@@ -144,6 +145,7 @@ const exportToExcel = () => {
     "שם פרטי": item.firstNameCustomer,
     "שם משפחה": item.lastNameCustomer,
     "תעודת זהות": item.IDCustomer,
+    "מספר פוליסה": item.policyNumber ?? "", // חדש
     "חברה": item.company,
     "מוצר": item.product,
     "פרמיה ביטוח": item.insPremia,
@@ -205,6 +207,7 @@ const resetForm = (clearCustomerFields: boolean = false) => {
     resetField("phone", "");
     resetField("mail", "");
     resetField("address", "");
+    resetField("policyNumber", "");
   }
    else
    {
@@ -219,6 +222,7 @@ const resetForm = (clearCustomerFields: boolean = false) => {
   resetField("minuySochen", false);
   resetField("statusPolicy", "");
   resetField("notes", "");
+  resetField("policyNumber", "");
    }
    setInvalidFields([]);
   setErrors({});
@@ -423,6 +427,7 @@ const handleSubmit = async (event: FormEvent<HTMLFormElement>, closeAfterSubmit 
   minuySochen: editData.minuySochen || false,
   statusPolicy: editData.statusPolicy || selectedStatusPolicy,
   notes: editData.notes || "",
+  policyNumber: editData.policyNumber || "",
   createdAt: serverTimestamp(),
   lastUpdateDate: serverTimestamp(),
     });
@@ -519,6 +524,7 @@ useEffect(() => {
     IDCustomer: item.IDCustomer ?? '', // חובה
     company: item.company ?? '', // חובה
     product: item.product ?? '', // חובה
+    policyNumber: item.policyNumber ?? "",
   }));
 
   // שלב ה-filter: סינון לפי הקריטריונים
@@ -529,6 +535,7 @@ useEffect(() => {
       (selectedCompanyFilter ? item.company === selectedCompanyFilter : true) &&
       (selectedProductFilter ? item.product === selectedProductFilter : true) &&
       item.IDCustomer.includes(idCustomerFilter) &&
+      (item.policyNumber ?? "").includes(policyNumberFilter)  &&
       item.firstNameCustomer.includes(firstNameCustomerFilter) &&
       item.lastNameCustomer.includes(lastNameCustomerFilter) &&
       (minuySochenFilter === '' || item.minuySochen?.toString() === minuySochenFilter) &&
@@ -558,6 +565,7 @@ useEffect(() => {
   selectedStatusPolicyFilter,
   agentData,
   idCustomerFilter,
+  policyNumberFilter,
   firstNameCustomerFilter,
   lastNameCustomerFilter,
   minuySochenFilter,
@@ -923,6 +931,17 @@ console.log("🚨 invalidFields:", invalidFields); // ✅ כאן מחוץ ל-HTM
                />
              </div>
              <div className="filter-input-container">
+  <Search className="filter-input-icon" />
+  <input
+    type="text"
+    placeholder="מס' פוליסה"
+    value={policyNumberFilter}
+    onChange={(e) => setPolicyNumberFilter(e.target.value)}
+    className="filter-input"
+  />
+</div>
+
+             <div className="filter-input-container">
              <Search className="filter-input-icon" />
   <input
     type="text"
@@ -1053,23 +1072,28 @@ console.log("🚨 invalidFields:", invalidFields); // ✅ כאן מחוץ ל-HTM
           item.company
         )}
       </td>
-      <td className="narrow-column">
-        {editingRow === item.id ? (
-          <select
-            value={editData.product || ""}
-            onChange={(e) => handleEditChange("product", e.target.value)}
-          >
-            <option value="">בחר מוצר</option>
-            {products.map((product) => (
-              <option key={product.id} value={product.name}>
-                {product.name}
-              </option>
-            ))}
-          </select>
-        ) : (
-          item.product
-        )}
-      </td>
+      <td className="medium-column">
+  {editingRow === item.id ? (
+    <select
+      value={editData.product || ""}
+      onChange={(e) => handleEditChange("product", e.target.value)}
+    >
+      <option value="">בחר מוצר</option>
+      {products.map((product) => (
+        <option key={product.id} value={product.name}>
+          {product.name}
+        </option>
+      ))}
+    </select>
+  ) : (
+    <div className="cell-stacked">
+      <div>{item.product}</div>
+      {item.policyNumber && (
+        <div className="subline">מס׳ פוליסה: {item.policyNumber}</div>
+      )}
+    </div>
+  )}
+</td>
       <td className="narrow-column">
         {editingRow === item.id ? (
           <input
@@ -1401,6 +1425,15 @@ console.log("🚨 invalidFields:", invalidFields); // ✅ כאן מחוץ ל-HTM
     <div className="error-message">חובה לבחור מוצר</div>
   )}
             </div>
+            <div className="form-group">
+  <label>מספר פוליסה (לא חובה)</label>
+  <input
+    type="text"
+    value={editData.policyNumber || ""}
+    onChange={(e) => handleEditChange("policyNumber", e.target.value)}
+    placeholder="לדוגמה: 1234567"
+  />
+</div>
             {/* פרטי פרמיה */}
        {selectedProductGroup && selectedProductGroup !== "1" && selectedProductGroup !== "4" && selectedProductGroup !== "6" && (
   <div className="form-group">
