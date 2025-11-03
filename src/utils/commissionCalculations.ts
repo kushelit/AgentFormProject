@@ -36,6 +36,9 @@ export function calculateCommissions(
   const isOneTime = product?.isOneTime ?? false;
   const multiplier = isOneTime ? 1 : 12;
 
+  const to2 = (v: number) => Number(v.toFixed(2));
+
+
   if (contractMatch) {
     // חישוב לפי חוזה מדויק
     commissionHekef =
@@ -79,6 +82,10 @@ export function calculateCommissions(
   // החלת פיצול בסוף (מניעת עיגול כפול)
   commissionHekef   = Math.round(commissionHekef   * splitPercent / 100);
   commissionNifraim = Math.round(commissionNifraim * splitPercent / 100);
+
+//   commissionHekef   = to2(commissionHekef   * splitPercent / 100);
+// commissionNifraim = to2(commissionNifraim * splitPercent / 100);
+
 
   return { commissionHekef, commissionNifraim };
 }

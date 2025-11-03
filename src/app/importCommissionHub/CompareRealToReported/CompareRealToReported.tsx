@@ -1,4 +1,4 @@
-// CompareReportedVsMagic.tsx
+// app/importCommissionHub/CompareRealToReported/CompareReportedVsMagic.tsx
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
@@ -10,6 +10,7 @@ import { calculateCommissions } from '@/utils/commissionCalculations';
 import type { ContractForCompareCommissions } from '@/types/Contract';
 import type { SalesToCompareCommissions } from '@/types/Sales';
 import * as XLSX from 'xlsx';
+import { useSearchParams, useRouter } from 'next/navigation';
 
 type ExternalCommissionRow = {
   policyNumber: string | number;
@@ -17,19 +18,20 @@ type ExternalCommissionRow = {
   company: string;
   reportMonth?: string;
   customerId?: string;
-  agentCode?: string; // ← מספר סוכן מהקובץ
+  agentCode?: string; // מספר סוכן מהקובץ בלבד
 };
 
 type Status = 'unchanged' | 'changed' | 'not_reported' | 'not_found';
 
 type ComparisonRow = {
   policyNumber: string;
+  company: string;
   reportedAmount: number;
   magicAmount: number;
   diff: number;
   diffPercent: number;
   status: Status;
-  agentCode?: string;  // ← מציגים רק את מספר הסוכן מהקובץ
+  agentCode?: string;  // תמיד מהקובץ
   customerId?: string;
   product?: string;
 };
@@ -62,6 +64,26 @@ export default function CompareReportedVsMagic() {
   const [toleranceAmount, setToleranceAmount] = useState<number>(0);   // ₪
   const [tolerancePercent, setTolerancePercent] = useState<number>(0); // נק' אחוז
 
+  const searchParams = useSearchParams();
+  const router = useRouter();
+
+  // --- "נעילה ללקוח" כשמגיעים מקפיצה
+  const lockedCustomerId = (searchParams.get('customerId') || '').trim();
+  const lockedToCustomer = !!lockedCustomerId;
+
+  const handleBackToCustomer = () => {
+    const ret = searchParams.get('returnTo');
+    if (ret) {
+      router.push(decodeURIComponent(ret));
+    } else {
+      const agentId = searchParams.get('agentId') || '';
+      const customerId = searchParams.get('customerId') || '';
+      const fallback = `/customers?agentId=${agentId}&highlightCustomer=${customerId}`;
+      router.push(fallback);
+    }
+  };
+
+  // טען רשימת חברות להצעה ב־select
   useEffect(() => {
     (async () => {
       const snapshot = await getDocs(collection(db, 'company'));
@@ -73,146 +95,237 @@ export default function CompareReportedVsMagic() {
     })();
   }, []);
 
+  // קבלת פרמטרים מה־URL בהגעה ראשונה
+  useEffect(() => {
+    const agentId  = searchParams.get('agentId') || '';
+    const comp     = searchParams.get('company') || '';
+    const repYm    = searchParams.get('reportMonth') || '';
+    const custId   = searchParams.get('customerId') || '';
+
+    if (agentId) {
+      // handleAgentChange מצפה לאירוע <select>
+      handleAgentChange({ target: { value: agentId } } as any);
+    }
+    if (comp) setCompany(comp);
+    if (repYm) setReportMonth(repYm);
+    if (custId) setSearchTerm(custId); // ייתן חיפוש גם בטבלה
+  }, [searchParams, handleAgentChange]);
+
   useEffect(() => {
     const fetchData = async () => {
-      if (!selectedAgentId || !company || !reportMonth) {
+      // נדרשים: סוכן וחודש-דיווח. חברה – רשות.
+      if (!selectedAgentId || !reportMonth) {
         setRows([]);
         return;
       }
 
       setIsLoading(true);
 
-      // ---- externalCommissions (מקור "מס׳ סוכן")
-      const extQ = query(
-        collection(db, 'externalCommissions'),
-        where('agentId', '==', selectedAgentId),
-        where('company', '==', company),
-        where('reportMonth', '==', reportMonth)
-      );
+      // --- externalCommissions
+      // אם יש סינון חברה – נוסיף where('company'=='...'), אחרת לא.
+      // אם נעולים ללקוח – נוסיף where('customerId'=='...') (fallback למטה אם אין אינדקס/שדה).
+      const extQ = company
+        ? (lockedToCustomer
+            ? query(
+                collection(db, 'externalCommissions'),
+                where('agentId','==',selectedAgentId),
+                where('company','==',company),
+                where('reportMonth','==',reportMonth),
+                where('customerId','==',lockedCustomerId)
+              )
+            : query(
+                collection(db, 'externalCommissions'),
+                where('agentId','==',selectedAgentId),
+                where('company','==',company),
+                where('reportMonth','==',reportMonth)
+              ))
+        : (lockedToCustomer
+            ? query(
+                collection(db, 'externalCommissions'),
+                where('agentId','==',selectedAgentId),
+                where('reportMonth','==',reportMonth),
+                where('customerId','==',lockedCustomerId)
+              )
+            : query(
+                collection(db, 'externalCommissions'),
+                where('agentId','==',selectedAgentId),
+                where('reportMonth','==',reportMonth)
+              ));
+
       const extSnap = await getDocs(extQ);
-      const externalByPolicy = new Map<string, ExternalCommissionRow>();
-      extSnap.docs.forEach(d => {
-        const raw = d.data() as any;
-        const norm: ExternalCommissionRow = {
-          policyNumber: String(raw.policyNumber ?? '').trim(),
-          commissionAmount: Number(raw.commissionAmount ?? 0),
-          company: String(raw.company ?? ''),
-          reportMonth: raw.reportMonth,
-          customerId: raw.customerId ?? raw.IDCustomer ?? undefined,
-          // מנרמלים את מספר הסוכן מהקובץ בלבד:
-          agentCode: String(raw.agentCode ?? raw.AgentCode ?? '').trim() || undefined,
-        };
-        if (norm.policyNumber) externalByPolicy.set(String(norm.policyNumber), norm);
-      });
 
-      // ---- sales (לא משתמשים ב-AgentId כ"מס׳ סוכן")
-      const salesQ = query(
-        collection(db, 'sales'),
-        where('AgentId', '==', selectedAgentId),
-        where('company', '==', company)
-      );
+      // --- sales
+      const salesQ = company
+        ? (lockedToCustomer
+            ? query(
+                collection(db, 'sales'),
+                where('AgentId','==',selectedAgentId),
+                where('company','==',company),
+                where('IDCustomer','==',lockedCustomerId)
+              )
+            : query(
+                collection(db, 'sales'),
+                where('AgentId','==',selectedAgentId),
+                where('company','==',company)
+              ))
+        : (lockedToCustomer
+            ? query(
+                collection(db, 'sales'),
+                where('AgentId','==',selectedAgentId),
+                where('IDCustomer','==',lockedCustomerId)
+              )
+            : query(
+                collection(db, 'sales'),
+                where('AgentId','==',selectedAgentId)
+              ));
+
       const salesSnap = await getDocs(salesQ);
-      const salesByPolicy = new Map<string, SalesToCompareCommissions>();
-      salesSnap.docs.forEach(d => {
-        const s = d.data() as SalesToCompareCommissions;
-        const policy = String((s as any).policyNumber ?? '').trim();
-        if (policy) salesByPolicy.set(policy, { ...s, policyNumber: policy });
-      });
 
-      // ---- contracts
-      const contractsQ = query(
-        collection(db, 'contracts'),
-        where('AgentId', '==', selectedAgentId),
-        where('company', '==', company)
-      );
+      // --- contracts (לפי סוכן; אם יש חברה – נסנן כבר בשאילתה)
+      const contractsQ = company
+        ? query(
+            collection(db, 'contracts'),
+            where('AgentId','==',selectedAgentId),
+            where('company','==',company)
+          )
+        : query(
+            collection(db, 'contracts'),
+            where('AgentId','==',selectedAgentId)
+          );
+
       const contractsSnap = await getDocs(contractsQ);
       const contracts = contractsSnap.docs.map(d => d.data() as ContractForCompareCommissions);
 
-      // ---- כל הפוליסות להצלבה
-      const allPolicies = Array.from(new Set<string>([
-        ...externalByPolicy.keys(),
-        ...salesByPolicy.keys(),
+      // --- נבנה מיפוי לפי מפתח מרוכב: company::policyNumber, כך שעובד גם ללא סינון חברה
+      const externalByKey = new Map<string, ExternalCommissionRow & { _company: string }>();
+      extSnap.docs.forEach(d => {
+        const raw = d.data() as any;
+        const comp = String(raw.company ?? '').trim();
+        const pol  = String(raw.policyNumber ?? '').trim();
+        if (!pol) return;
+        const norm: ExternalCommissionRow & { _company: string } = {
+          policyNumber: pol,
+          commissionAmount: Number(raw.commissionAmount ?? 0),
+          company: comp,
+          reportMonth: raw.reportMonth,
+          customerId: raw.customerId ?? raw.IDCustomer ?? undefined,
+          agentCode: String(raw.agentCode ?? raw.AgentCode ?? '').trim() || undefined,
+          _company: comp,
+        };
+        externalByKey.set(`${comp}::${pol}`, norm);
+      });
+
+      const salesByKey = new Map<string, SalesToCompareCommissions & { _company: string }>();
+      salesSnap.docs.forEach(d => {
+        const s = d.data() as SalesToCompareCommissions;
+        const comp = String((s as any).company ?? '').trim();
+        const pol  = String((s as any).policyNumber ?? '').trim();
+        if (!pol) return;
+        salesByKey.set(`${comp}::${pol}`, { ...s, policyNumber: pol, _company: comp });
+      });
+
+      // --- Fallback סינון ללקוח בצד-לקוח (למקרה שאין אינדקס/שדה customerId באקסטרנל)
+      if (lockedToCustomer) {
+        for (const [k, v] of externalByKey) {
+          const cid = (v.customerId || '').trim();
+          if (cid !== lockedCustomerId) externalByKey.delete(k);
+        }
+        for (const [k, v] of salesByKey) {
+          const cid = ((v as any).customerId || (v as any).IDCustomer || '').trim();
+          if (cid !== lockedCustomerId) salesByKey.delete(k);
+        }
+      }
+
+      // --- כל המפתחות
+      const allKeys = Array.from(new Set<string>([
+        ...externalByKey.keys(),
+        ...salesByKey.keys(),
       ]));
 
       const computed: ComparisonRow[] = [];
 
-      for (const policy of allPolicies) {
-        const reported = externalByPolicy.get(policy) || null;
-        const sale     = salesByPolicy.get(policy) || null;
+      for (const key of allKeys) {
+        const [comp, pol] = key.split('::');
+        const reported = externalByKey.get(key) || null;
+        const sale     = salesByKey.get(key) || null;
 
-        // אין דיווח בקובץ
-        if (!reported) {
+        // אין דיווח בקובץ (יש מכירה, אין חיצוני)
+        if (!reported && sale) {
           computed.push({
-            policyNumber: policy,
+            policyNumber: pol,
+            company: comp,
             reportedAmount: 0,
-            magicAmount: 0,
+            magicAmount: 0, // ייחשב רק כשיש חוזה — כאן הכוונה להבליט שהוא לא דווח בכלל
             diff: 0,
             diffPercent: 0,
             status: 'not_reported',
-            agentCode: undefined,                // ← לא לוקחים מ-AgentId
-            customerId: (sale as any)?.customerId,
+            agentCode: undefined,
+            customerId: (sale as any)?.customerId || (sale as any)?.IDCustomer,
             product: (sale as any)?.product,
           });
           continue;
         }
 
-        // אין מכירה במערכת
-        if (!sale) {
+        // אין מכירה במערכת (יש חיצוני, אין sale)
+        if (reported && !sale) {
           const rAmt = Number(reported.commissionAmount ?? 0);
           computed.push({
-            policyNumber: policy,
+            policyNumber: pol,
+            company: comp,
             reportedAmount: rAmt,
             magicAmount: 0,
             diff: -rAmt,
             diffPercent: rAmt === 0 ? 0 : 100,
             status: 'not_found',
-            agentCode: reported.agentCode,       // ← תמיד מהקובץ
+            agentCode: reported.agentCode,
             customerId: reported.customerId,
           });
           continue;
         }
 
-        // חישוב MAGIC
-        const contractMatch =
-          contracts.find(c =>
-            c.AgentId === selectedAgentId &&
-            c.company === company &&
-            (c as any).product === (sale as any).product &&
-            (c as any).minuySochen === (sale as any).minuySochen
-          ) || undefined;
+        // שני הצדדים קיימים → לחשב
+        if (reported && sale) {
+          const contractMatch =
+            contracts.find(c =>
+              c.AgentId === selectedAgentId &&
+              c.company === comp &&
+              (c as any).product === (sale as any).product &&
+              (c as any).minuySochen === (sale as any).minuySochen
+            ) || undefined;
 
-        const commissions = calculateCommissions(
-          sale,
-          contractMatch,
-          contracts,
-          {} as any,            // productMap לא דרוש כרגע
-          selectedAgentId
-        );
+          const commissions = calculateCommissions(
+            sale,
+            contractMatch,
+            contracts,
+            {} as any, // productMap לא נדרש כאן
+            selectedAgentId
+          );
 
-        const reportedAmount = Number(reported.commissionAmount ?? 0);
-        const magicAmount    = Number((commissions as any)?.commissionNifraim ?? 0);
-        const diff           = magicAmount - reportedAmount;
+          const reportedAmount = Number(reported.commissionAmount ?? 0);
+          const magicAmount    = Number((commissions as any)?.commissionNifraim ?? 0);
+          const diff           = magicAmount - reportedAmount;
 
-        let diffPercent = 0;
-        if (reportedAmount === 0) diffPercent = magicAmount === 0 ? 0 : 100;
-        else diffPercent = Math.abs(diff) / reportedAmount * 100;
+          let diffPercent = 0;
+          if (reportedAmount === 0) diffPercent = magicAmount === 0 ? 0 : 100;
+          else diffPercent = Math.abs(diff) / reportedAmount * 100;
 
-        // 0 נחשב → בדיקה רגילה
-        const withinAmount  = Math.abs(diff) <= toleranceAmount;
-        const withinPercent = diffPercent <= tolerancePercent;
-        const status: Status = (withinAmount && withinPercent) ? 'unchanged' : 'changed';
+          const withinAmount  = Math.abs(diff) <= toleranceAmount;
+          const withinPercent = diffPercent <= tolerancePercent;
+          const status: Status = (withinAmount && withinPercent) ? 'unchanged' : 'changed';
 
-        computed.push({
-          policyNumber: policy,
-          reportedAmount,
-          magicAmount,
-          diff,
-          diffPercent,
-          status,
-          agentCode: reported.agentCode,            // ← אך ורק מהקובץ
-          customerId: reported.customerId ?? (sale as any)?.customerId,
-          product: (sale as any)?.product,
-        });
+          computed.push({
+            policyNumber: pol,
+            company: comp,
+            reportedAmount,
+            magicAmount,
+            diff,
+            diffPercent,
+            status,
+            agentCode: reported.agentCode, // רק מהקובץ
+            customerId: reported.customerId ?? (sale as any)?.customerId ?? (sale as any)?.IDCustomer,
+            product: (sale as any)?.product,
+          });
+        }
       }
 
       setRows(computed);
@@ -220,7 +333,7 @@ export default function CompareReportedVsMagic() {
     };
 
     fetchData();
-  }, [selectedAgentId, company, reportMonth, toleranceAmount, tolerancePercent]);
+  }, [selectedAgentId, company, reportMonth, toleranceAmount, tolerancePercent, lockedToCustomer, lockedCustomerId]);
 
   // מסנן "מס' סוכן" — מתבסס רק על המספרים שהגיעו מהקובץ
   const agentCodes = useMemo(() => {
@@ -229,13 +342,7 @@ export default function CompareReportedVsMagic() {
     return Array.from(s).sort();
   }, [rows]);
 
-  const statusSummary = useMemo(() => {
-    return rows.reduce((acc, r) => {
-      acc[r.status] = (acc[r.status] || 0) + 1;
-      return acc;
-    }, {} as Record<Status, number>);
-  }, [rows]);
-
+  // ⚠️ נספר לפי filtered (התצוגה), לא לפי כל rows
   const filtered = useMemo(() => {
     return rows.filter(r => {
       const matchesTxt =
@@ -246,9 +353,19 @@ export default function CompareReportedVsMagic() {
       const matchesAgent  = !agentCodeFilter || r.agentCode === agentCodeFilter;
       const matchesStatus = !statusFilter || r.status === statusFilter;
 
-      return matchesTxt && matchesAgent && matchesStatus;
+      // אם המשתמש בחר חברה ב־select – נטמיע את הסינון גם בצד־לקוח (מקרה של “כל החברות” שמצומצם עכשיו)
+      const matchesCompany = !company || r.company === company;
+
+      return matchesTxt && matchesAgent && matchesStatus && matchesCompany;
     });
-  }, [rows, searchTerm, agentCodeFilter, statusFilter]);
+  }, [rows, searchTerm, agentCodeFilter, statusFilter, company]);
+
+  const statusSummary = useMemo(() => {
+    return filtered.reduce((acc, r) => {
+      acc[r.status] = (acc[r.status] || 0) + 1;
+      return acc;
+    }, {} as Record<Status, number>);
+  }, [filtered]);
 
   const visibleRows = useMemo(
     () => (drillStatus ? filtered.filter(r => r.status === drillStatus) : filtered),
@@ -268,6 +385,7 @@ export default function CompareReportedVsMagic() {
     );
 
     const rowsForXlsx = visibleRows.map(r => ({
+      'חברה': r.company,
       'מס׳ פוליסה': r.policyNumber,
       'ת״ז לקוח': r.customerId ?? '',
       'מס׳ סוכן (מהקובץ)': r.agentCode ?? '',
@@ -280,6 +398,7 @@ export default function CompareReportedVsMagic() {
     }));
 
     rowsForXlsx.push({
+      'חברה': '',
       'מס׳ פוליסה': 'סה״כ',
       'ת״ז לקוח': '',
       'מס׳ סוכן (מהקובץ)': '',
@@ -294,12 +413,30 @@ export default function CompareReportedVsMagic() {
     const ws = XLSX.utils.json_to_sheet(rowsForXlsx);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'השוואה קובץ מול MAGIC');
-    XLSX.writeFile(wb, `השוואת_טעינה_מול_MAGIC_${company || 'כללי'}_${reportMonth || 'חודש'}.xlsx`);
+    XLSX.writeFile(wb, `השוואת_טעינה_מול_MAGIC_${company || 'כל_החברות'}_${reportMonth || 'חודש'}.xlsx`);
   };
 
   return (
     <div className="p-6 max-w-7xl mx-auto text-right" dir="rtl">
-      <h1 className="text-2xl font-bold mb-4">השוואת טעינת עמלות (קובץ) מול MAGIC</h1>
+      <div className="flex items-center justify-between mb-4">
+        <h1 className="text-2xl font-bold">השוואת טעינת עמלות (קובץ) מול MAGIC</h1>
+        <button
+          type="button"
+          onClick={handleBackToCustomer}
+          className="px-3 py-1.5 rounded bg-gray-200 hover:bg-gray-300"
+        >
+          ← חזרה ללקוח
+        </button>
+      </div>
+
+      {/* תווית "נעול ללקוח" לנראות */}
+      {lockedToCustomer && (
+        <div className="mb-3 text-sm">
+          <span className="inline-flex items-center gap-2 px-2 py-1 bg-amber-100 rounded">
+            מסונן ללקוח: <b>{lockedCustomerId}</b>
+          </span>
+        </div>
+      )}
 
       {/* בחירות בסיס */}
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 mb-4">
@@ -314,9 +451,9 @@ export default function CompareReportedVsMagic() {
         </div>
 
         <div>
-          <label className="block mb-1 font-semibold">בחר חברה:</label>
+          <label className="block mb-1 font-semibold">בחר חברה (רשות):</label>
           <select value={company} onChange={e => setCompany(e.target.value)} className="select-input w-full">
-            <option value="">בחר חברה</option>
+            <option value="">כל החברות</option>
             {availableCompanies.map((c, i) => (
               <option key={i} value={c}>{c}</option>
             ))}
@@ -325,7 +462,12 @@ export default function CompareReportedVsMagic() {
 
         <div>
           <label className="block mb-1 font-semibold">חודש דיווח (קובץ):</label>
-          <input type="month" value={reportMonth} onChange={e => setReportMonth(e.target.value)} className="input w-full" />
+          <input
+            type="month"
+            value={reportMonth}
+            onChange={e => setReportMonth(e.target.value)}
+            className="input w-full"
+          />
         </div>
 
         <div className="flex gap-3">
@@ -400,7 +542,7 @@ export default function CompareReportedVsMagic() {
         </div>
       )}
 
-      {/* סיכום לפי סטטוס */}
+      {/* סיכום לפי סטטוס (על בסיס filtered!) */}
       {rows.length > 0 && (
         <>
           <h2 className="text-xl font-bold mb-2">סיכום לפי סטטוס</h2>
@@ -422,7 +564,7 @@ export default function CompareReportedVsMagic() {
                   >
                     <td className="border p-2">{s.label}</td>
                     <td className="border p-2 text-center text-blue-600 underline">
-                      {(rows.reduce((acc, r) => (r.status === s.value ? acc + 1 : acc), 0))}
+                      {filtered.reduce((acc, r) => (r.status === s.value ? acc + 1 : acc), 0)}
                     </td>
                   </tr>
                 ))}
@@ -432,7 +574,7 @@ export default function CompareReportedVsMagic() {
         </>
       )}
 
-      {/* טבלה מפורטת */}
+      {/* טבלת פירוט */}
       {!isLoading && visibleRows.length > 0 && (
         <div className="mt-2">
           {drillStatus && (
@@ -451,12 +593,13 @@ export default function CompareReportedVsMagic() {
           <table className="w-full border text-sm rounded-lg overflow-hidden">
             <thead>
               <tr className="bg-gray-100 text-right">
+                <th className="border p-2">חברה</th>
                 <th className="border p-2">מס׳ פוליסה</th>
                 <th className="border p-2">ת״ז לקוח</th>
                 <th className="border p-2">מס׳ סוכן (מהקובץ)</th>
                 <th className="border p-2">מוצר</th>
                 <th className="border p-2 text-center bg-sky-50">עמלה (קובץ)</th>
-                <th className="border p-2 text-center bg-emerald-50">עמלה (MAGIC)</th>
+                <th className="border p-2 text-center bg-emerלד-50">עמלה (MAGIC)</th>
                 <th className="border p-2 text-center">פער ₪</th>
                 <th className="border p-2 text-center">פער %</th>
                 <th className="border p-2">סטטוס</th>
@@ -464,7 +607,8 @@ export default function CompareReportedVsMagic() {
             </thead>
             <tbody>
               {visibleRows.map(r => (
-                <tr key={`${r.policyNumber}|${r.agentCode || ''}`}>
+                <tr key={`${r.company}|${r.policyNumber}|${r.agentCode || ''}`}>
+                  <td className="border p-2">{r.company}</td>
                   <td className="border p-2">{r.policyNumber}</td>
                   <td className="border p-2">{r.customerId ?? '-'}</td>
                   <td className="border p-2">{r.agentCode ?? '-'}</td>
@@ -480,7 +624,7 @@ export default function CompareReportedVsMagic() {
               ))}
               {visibleRows.length === 0 && (
                 <tr>
-                  <td colSpan={9} className="text-center py-4 text-gray-500">לא נמצאו שורות תואמות.</td>
+                  <td colSpan={10} className="text-center py-4 text-gray-500">לא נמצאו שורות תואמות.</td>
                 </tr>
               )}
             </tbody>

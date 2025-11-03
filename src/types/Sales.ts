@@ -84,6 +84,7 @@ export interface Sale {
     totalCommissionNifraim?: number;
     minuySochen?: boolean;
     policyNumber: string;
+    statusPolicy?: string | null;
     // AgentId: string;
   };
   
