@@ -1,7 +1,7 @@
 // app/importCommissionHub/CompareRealToReported/CompareReportedVsMagic.tsx
 'use client';
 
-import React, { useEffect, useMemo, useState, useCallback } from 'react';
+import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import { collection, getDocs, query, where, doc, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase/firebase';
 import useFetchAgentData from '@/hooks/useFetchAgentData';
@@ -18,7 +18,7 @@ type ExternalCommissionRow = {
   company: string;
   reportMonth?: string;
   customerId?: string;
-  agentCode?: string; // מהקובץ בלבד
+  agentCode?: string;
   _company?: string;
   _displayPolicy?: string;
 };
@@ -36,9 +36,8 @@ type ComparisonRow = {
   agentCode?: string;
   customerId?: string;
   product?: string;
-  // נשתמש להצגת כפתור קישור:
-  _rawKey?: string;             // מפתח פנימי לזיהוי השורה
-  _extRow?: ExternalCommissionRow | null; // מקור חיצוני
+  _rawKey?: string;
+  _extRow?: ExternalCommissionRow | null;
 };
 
 const statusOptions = [
@@ -65,39 +64,42 @@ export default function CompareReportedVsMagic() {
   const [statusFilter, setStatusFilter] = useState<Status | ''>('');
   const [drillStatus, setDrillStatus] = useState<Status | null>(null);
 
-  // ספי סטייה
-  const [toleranceAmount, setToleranceAmount] = useState<number>(0);   // ₪
-  const [tolerancePercent, setTolerancePercent] = useState<number>(0); // %
+  const [toleranceAmount, setToleranceAmount] = useState<number>(0);
+  const [tolerancePercent, setTolerancePercent] = useState<number>(0);
 
   const searchParams = useSearchParams();
   const router = useRouter();
 
-  // "נעילה ללקוח" כשמגיעים מקפיצה
+  // --- נעילת מסך ללקוח (אם הגענו מקפיצה)
   const lockedCustomerId = (searchParams.get('customerId') || '').trim();
   const lockedToCustomer = !!lockedCustomerId;
 
+  // --- “אפשר לחזור ללקוח?”
+  const retParam   = searchParams.get('returnTo') || '';
+  const cameLocked = !!(searchParams.get('customerId') || '');
+  const canGoBack  = !!retParam || cameLocked;
+
   const handleBackToCustomer = () => {
-    const ret = searchParams.get('returnTo');
+    if (!canGoBack) return;
+    const ret = retParam;
     if (ret) {
       router.push(decodeURIComponent(ret));
     } else {
-      const agentId = searchParams.get('agentId') || '';
+      const agentId    = searchParams.get('agentId') || '';
       const customerId = searchParams.get('customerId') || '';
-      const fallback = `/customers?agentId=${agentId}&highlightCustomer=${customerId}`;
-      router.push(fallback);
+      router.push(`/customers?agentId=${agentId}&highlightCustomer=${customerId}`);
     }
   };
 
-  // עוזרים
+  // --- עוזרים
   const toYm = (s?: string | null) => (s || '').toString().slice(0, 7);
   const canon = (v?: string | null) => String(v ?? '').trim();
   const normPolicy = (v: any) => String(v ?? '').trim();
 
-  // policyNumberKey אחיד
   const policyKey = (agentId: string, companyCanon: string, policyNumber: string) =>
     `${agentId}::${companyCanon}::${policyNumber}`;
 
-  // טען רשימת חברות
+  // --- טעינת רשימת חברות
   useEffect(() => {
     (async () => {
       const snapshot = await getDocs(collection(db, 'company'));
@@ -109,38 +111,67 @@ export default function CompareReportedVsMagic() {
     })();
   }, []);
 
-  // קבלת פרמטרים מה־URL בהגעה ראשונה
+  // --- הידרציית פרמטרים מה־URL: רץ פעם אחת בלבד
+  const hydratedOnce = useRef(false);
+
+// שומר/מסיר פרמטרים ב-URL מבלי לטעון דף
+const setQueryParams = (changes: Record<string, string | null | undefined>) => {
+  const usp = new URLSearchParams(window.location.search);
+  Object.entries(changes).forEach(([k, v]) => {
+    if (v && String(v).trim() !== '') usp.set(k, String(v).trim());
+    else usp.delete(k);
+  });
+  const qs = usp.toString();
+  router.replace(`${window.location.pathname}${qs ? `?${qs}` : ''}`);
+};
+
+// מסנכרן reportMonth / company / agentId ל-URL אחרי הידרציה ראשונית בלבד
+useEffect(() => {
+  if (!hydratedOnce.current) return;                 // אל תרוצי בזמן הידרציה
+  if (!selectedAgentId) return;                      // חייב סוכן
+  if (!reportMonth) return;                          // וחודש דיווח
+
+  setQueryParams({
+    agentId: selectedAgentId || null,
+    company: company || null,
+    reportMonth: reportMonth || null,
+    // אם הגעת נעולה ללקוח, נשאיר את customerId/returnTo הקיימים ב-URL (לא נוגעים)
+  });
+}, [selectedAgentId, company, reportMonth]); // eslint-disable-line
+
+
   useEffect(() => {
+    if (hydratedOnce.current) return;
+    hydratedOnce.current = true;
+
     const agentId  = searchParams.get('agentId') || '';
     const comp     = searchParams.get('company') || '';
     const repYm    = searchParams.get('reportMonth') || '';
     const custId   = searchParams.get('customerId') || '';
 
-    if (agentId) {
-      handleAgentChange({ target: { value: agentId } } as any);
-    }
+    if (agentId) handleAgentChange({ target: { value: agentId } } as any);
     if (comp) setCompany(comp);
     if (repYm) setReportMonth(repYm);
     if (custId) setSearchTerm(custId);
-  }, [searchParams, handleAgentChange]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // חשוב: ריק → לא ידרוס שינויים ידניים (כמו שינוי חודש)
 
-  // דיאלוג קישור
+  // --- דיאלוג קישור
   const [linkOpen, setLinkOpen] = useState(false);
-  const [linkTarget, setLinkTarget] = useState<ExternalCommissionRow | null>(null); // שורת הקובץ
+  const [linkTarget, setLinkTarget] = useState<ExternalCommissionRow | null>(null);
   const [linkCandidates, setLinkCandidates] = useState<Array<{ id: string; summary: string }>>([]);
   const [selectedCandidateId, setSelectedCandidateId] = useState<string>('');
   const [linkSaving, setLinkSaving] = useState(false);
 
-  // === הבאת נתונים — ב־useCallback כדי לאפשר ריענון אחרי קישור ===
+  // --- הבאת נתונים (מאפשר ריענון אחרי קישור/שינוי שדות)
   const fetchData = useCallback(async () => {
-    // חובת בחירה: סוכן + חודש דיווח
     if (!selectedAgentId || !reportMonth) {
       setRows([]);
       return;
     }
     setIsLoading(true);
 
-    // --- externalCommissions (reportMonth מדויק)
+    // externalCommissions (month מדויק)
     const extQ = company
       ? (lockedToCustomer
           ? query(
@@ -171,7 +202,7 @@ export default function CompareReportedVsMagic() {
 
     const extSnap = await getDocs(extQ);
 
-    // --- sales (נסנן בצד לקוח לפי policyYm ≤ reportMonth)
+    // sales (נסנן בצד לקוח לפי month/mounth ≤ reportMonth)
     const salesQ = company
       ? (lockedToCustomer
           ? query(
@@ -198,7 +229,7 @@ export default function CompareReportedVsMagic() {
 
     const salesSnap = await getDocs(salesQ);
 
-    // --- contracts (לפי סוכן; אם יש חברה – מסננים)
+    // contracts
     const contractsQ = company
       ? query(
           collection(db, 'contracts'),
@@ -213,7 +244,7 @@ export default function CompareReportedVsMagic() {
     const contractsSnap = await getDocs(contractsQ);
     const contracts = contractsSnap.docs.map(d => d.data() as ContractForCompareCommissions);
 
-    // --- חיצוני: מפה לפי company::policyNumber (או מפתח מדמה כשאין)
+    // external map
     const externalByKey = new Map<string, ExternalCommissionRow>();
     extSnap.docs.forEach(d => {
       const raw = d.data() as any;
@@ -232,7 +263,7 @@ export default function CompareReportedVsMagic() {
       });
     });
 
-    // --- מכירות: רק שורות שה-policyYm ≤ reportMonth
+    // sales map (bucket) עם month≤reportMonth
     type SalesBucket = {
       items: (SalesToCompareCommissions & { _company: string; _displayPolicy?: string; _docId?: string })[];
     };
@@ -256,7 +287,7 @@ export default function CompareReportedVsMagic() {
       salesByKey.set(key, bucket);
     });
 
-    // --- כל המפתחות
+    // איחוד
     const allKeys = Array.from(new Set<string>([
       ...externalByKey.keys(),
       ...salesByKey.keys(),
@@ -269,11 +300,9 @@ export default function CompareReportedVsMagic() {
       const reported = externalByKey.get(key) || null;
       const saleBucket = salesByKey.get(key) || null;
 
-      // אין דיווח בקובץ (יש מכירה)
       if (!reported && saleBucket) {
         const displayPolicy = saleBucket.items[0]?._displayPolicy || '-';
         const anySale = saleBucket.items[0] as any;
-        // מראים כ"לא דווח בקובץ" + עמלת MAGIC = 0 להצפה (ניתן לשנות אם תרצי)
         computed.push({
           policyNumber: displayPolicy,
           company: comp,
@@ -291,7 +320,6 @@ export default function CompareReportedVsMagic() {
         continue;
       }
 
-      // אין מכירה במערכת (יש חיצוני)
       if (reported && !saleBucket) {
         const rAmt = Number(reported.commissionAmount ?? 0);
         computed.push({
@@ -310,7 +338,6 @@ export default function CompareReportedVsMagic() {
         continue;
       }
 
-      // יש שני הצדדים → מחושבים (סכום MAGIC על כל פריטי המפתח)
       if (reported && saleBucket) {
         let magicAmountSum = 0;
         let productForDisplay: string | undefined = undefined;
@@ -325,7 +352,7 @@ export default function CompareReportedVsMagic() {
               (c as any).minuySochen === (sale as any).minuySochen
             ) || undefined;
 
-        const commissions = calculateCommissions(
+          const commissions = calculateCommissions(
             sale as any,
             contractMatch,
             contracts,
@@ -376,22 +403,20 @@ export default function CompareReportedVsMagic() {
     toleranceAmount,
     tolerancePercent,
     lockedToCustomer,
-    lockedCustomerId
+    lockedCustomerId,
   ]);
 
-  // הרצת הבאת הנתונים
   useEffect(() => {
     fetchData();
   }, [fetchData]);
 
-  // מסנן "מס' סוכן" — מהקובץ
+  // --- מסננים
   const agentCodes = useMemo(() => {
     const s = new Set<string>();
     rows.forEach(r => { if (r.agentCode) s.add(r.agentCode); });
     return Array.from(s).sort();
   }, [rows]);
 
-  // סינון לתצוגה (כולל חברה)
   const filtered = useMemo(() => {
     return rows.filter(r => {
       const matchesTxt =
@@ -419,14 +444,13 @@ export default function CompareReportedVsMagic() {
     [filtered, drillStatus]
   );
 
-  // === דיאלוג קישור: פתיחה ===
+  // --- פתיחת דיאלוג קישור
   const openLinkDialog = async (row: ComparisonRow) => {
     if (row.status !== 'not_found' || !row._extRow) return;
 
     const ext = row._extRow;
     setLinkTarget(ext);
 
-    // שולפים מועמדות מ-sales ללא policyNumber, תואמות חברה/לקוח, policyYm ≤ reportMonth
     const baseQ = company
       ? query(
           collection(db, 'sales'),
@@ -445,13 +469,12 @@ export default function CompareReportedVsMagic() {
       const s = d.data() as any;
       const policyYm = toYm(s.month || s.mounth);
       const hasPolicy = !!normPolicy(s.policyNumber);
-      if (!policyYm || policyYm > reportMonth) return;           // חייב להיות פעיל עד reportMonth
-      if (hasPolicy) return;                                     // נציע רק כאלו שעדיין אין להן policyNumber
+      if (!policyYm || policyYm > reportMonth) return;
+      if (hasPolicy) return;
       if (ext.customerId) {
         const cid = String(s.customerId || s.IDCustomer || '').trim();
-        if (cid && ext.customerId && cid !== ext.customerId) return; // אם יש לקוח בקובץ – נדרוש התאמה
+        if (cid && ext.customerId && cid !== ext.customerId) return;
       }
-      // התאמת חברה
       const comp = canon(s.company);
       if (comp !== ext.company) return;
 
@@ -468,7 +491,7 @@ export default function CompareReportedVsMagic() {
     setLinkOpen(true);
   };
 
-  // === דיאלוג קישור: ביצוע ===
+  // --- ביצוע קישור
   const doLink = async () => {
     if (!linkTarget || !selectedCandidateId) return;
     setLinkSaving(true);
@@ -482,20 +505,18 @@ export default function CompareReportedVsMagic() {
         policyNumberKey: policyKey(selectedAgentId, comp, pol),
       });
 
-      // סגירה וניקוי
       setLinkOpen(false);
       setSelectedCandidateId('');
       setLinkCandidates([]);
       setLinkTarget(null);
 
-      // ריענון מיידי של הנתונים (בלי F5)
-      await fetchData();
+      await fetchData(); // ריענון מידי
     } finally {
       setLinkSaving(false);
     }
   };
 
-  // ייצוא לאקסל
+  // --- ייצוא
   const handleExport = () => {
     const totals = visibleRows.reduce(
       (acc, r) => {
@@ -540,16 +561,19 @@ export default function CompareReportedVsMagic() {
   };
 
   return (
-    <div className="p-6 max-w-7xl mx-auto text-right" dir="rtl">
+    <div className="compare-page p-6 max-w-7xl mx-auto text-right" dir="rtl">
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-2xl font-bold">השוואת טעינת עמלות (קובץ) מול MAGIC</h1>
-        <button
-          type="button"
-          onClick={handleBackToCustomer}
-          className="px-3 py-1.5 rounded bg-gray-200 hover:bg-gray-300"
-        >
-          ← חזרה ללקוח
-        </button>
+
+        {canGoBack ? (
+          <button
+            type="button"
+            onClick={handleBackToCustomer}
+            className="px-3 py-1.5 rounded bg-gray-200 hover:bg-gray-300"
+          >
+            ← חזרה ללקוח
+          </button>
+        ) : null}
       </div>
 
       {lockedToCustomer && (
@@ -654,17 +678,17 @@ export default function CompareReportedVsMagic() {
           </select>
 
           <button
-            type="button"
             onClick={handleExport}
-            className="px-4 py-2 rounded bg-white border hover:bg-gray-50"
+            className="inline-flex items-center gap-2 px-3 py-2 rounded border bg-white hover:bg-gray-50"
             title="ייצוא של התצוגה המסוננת (כולל שורת סיכום)"
           >
+            <img src="/static/img/excel-icon.svg" alt="" width={18} height={18} />
             ייצוא לאקסל
           </button>
         </div>
       )}
 
-      {/* סיכום לפי סטטוס (על בסיס filtered) */}
+      {/* סיכום לפי סטטוס */}
       {rows.length > 0 && (
         <>
           <h2 className="text-xl font-bold mb-2">סיכום לפי סטטוס</h2>

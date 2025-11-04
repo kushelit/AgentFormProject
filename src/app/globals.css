@@ -368,3 +368,67 @@ html, body {
   overflow-x: hidden;
   background-color: #f9fafb; /* תואם bg-gray-50 */
 }
+
+/* FROM HERE */
+/* ===== normalize for Compare page and globally ===== */
+
+/* בסיס אחיד לכל שדות טופס */
+.input,
+.select-input,
+.filter-input {
+  width: 100%;
+  height: 32px;
+  padding: 4px 8px;
+  font-size: 13px;
+  border: 1px solid var(--clrgray5);
+  border-radius: 4px;
+  box-sizing: border-box;
+  background-color: var(--clrwhite);
+  direction: rtl;
+  text-align: center;
+  transition: border-color .15s, box-shadow .15s;
+}
+
+/* type=month ו-select שיתנהגו אחיד */
+input[type="month"].input,
+select.select-input {
+  appearance: none;
+  -webkit-appearance: none;
+  background-position: left 10px center;
+  background-repeat: no-repeat;
+}
+
+/* מראה פוקוס אחיד (התכול ה”נכון”) */
+.input:focus,
+.select-input:focus,
+.filter-input:focus {
+  outline: none;
+  border-color: var(--clrdarkblue3);
+  box-shadow: 0 0 0 3px rgba(59,106,149,.15);
+}
+
+/* אייקון calendar – ליטוש קל */
+input[type="month"].input::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: .7;
+  margin-inline-start: 6px;
+}
+input[type="month"].input:hover::-webkit-calendar-picker-indicator { opacity: 1; }
+
+/* ===== יישור קו ספציפי לעמוד ההשוואה ===== */
+.compare-page :is(input, select, textarea) {
+  font-family: var(--font-family-primary);
+}
+.compare-page input[type="text"],
+.compare-page input[type="number"],
+.compare-page input[type="month"],
+.compare-page select {
+  height: 32px; /* אחיד */
+}
+
+/* חשוב: אל תיתן ל-.modal-content לעקוף את מראה הפוקוס */
+.modal-content :is(input, select, textarea):focus {
+  border-color: var(--clrdarkblue3) !important;
+  box-shadow: 0 0 0 3px rgba(59,106,149,.15) !important;
+  background-color: var(--clrwhite) !important;
+}
