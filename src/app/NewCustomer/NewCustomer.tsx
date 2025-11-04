@@ -159,6 +159,32 @@ useEffect(() => {
     source: string; // or any other properties you need
   }
 
+// עוזר: מביא מזהי לקוחות של תא משפחתי לפי parentID מה-DB (בלי תלות במסננים)
+async function getFamilyIdsForMiniCompare(
+  agentId: string,
+  selectedCustomer: { IDCustomer?: string; parentID?: string } | null,
+  includeFamily: boolean
+): Promise<string[]> {
+  if (!selectedCustomer?.IDCustomer) return [];
+  if (!includeFamily) return [selectedCustomer.IDCustomer];
+
+  const parent = selectedCustomer.parentID;
+  if (!parent) return [selectedCustomer.IDCustomer];
+
+  const q = query(
+    collection(db, 'customer'),
+    where('AgentId', '==', agentId),
+    where('parentID', '==', parent)
+  );
+  const snap = await getDocs(q);
+  const ids = snap.docs
+    .map(d => (d.data() as any).IDCustomer)
+    .filter(Boolean) as string[];
+
+  // ביטוח כפילויות + fallback במקרה ואין תוצאות
+  const unique = Array.from(new Set(ids));
+  return unique.length ? unique : [selectedCustomer.IDCustomer];
+}
 
   const {
     agents,
@@ -1090,28 +1116,20 @@ const totals = useMemo(() => {
 }, [familySummary]);
 
 const loadCustomerMiniCompare = async () => {
-  if (!selectedAgentId) {
-    addToast("error", "בחרי סוכן");
-    return;
-  }
-  if (!selectedCustomers?.length) {
-    addToast("error", "בחרי לקוח מהרשימה");
-    return;
-  }
+  if (!selectedAgentId) { addToast("error", "בחרי סוכן"); return; }
+  if (!selectedCustomers?.length) { addToast("error", "בחרי לקוח מהרשימה"); return; }
 
   setCmpLoading(true);
   try {
-    // 1) אוסף את רשימת הלקוחות להשוואה (יחיד או תא משפחתי)
-    let ids: string[] = [];
-    if (cmpIncludeFamily) {
-      // משתמשים כבר ב-familyIds המחושבת אצלך
-      ids = [...familyIds];
-    } else {
-      ids = [selectedCustomers[0]?.IDCustomer].filter(Boolean) as string[];
-    }
+    // ⬅️ כאן השינוי: מביאים את כל בני המשפחה מה-DB לפי parentID
+    const ids = await getFamilyIdsForMiniCompare(
+      selectedAgentId,
+      selectedCustomers[0],
+      cmpIncludeFamily
+    );
     if (!ids.length) {
-      addToast("warning", "לא נמצאו מזהי לקוחות להשוואה");
-      setCmpLoading(false);
+      addToast("warning", "לא נמצאו מזהי לקוחות להשוואה"); 
+      setCmpLoading(false); 
       return;
     }
 
@@ -1221,6 +1239,10 @@ setCmpExternalSum(Number(externalTotal.toFixed(2)));
 
 
 const openFullCompareForCustomer = () => {
+  if (!canSeeExternalOverview) {
+    addToast("error", "אין לך הרשאה לפתוח את מסך ההשוואה המלא");
+    return;
+  }
   if (!selectedAgentId || !selectedCustomers?.length) return;
 
   const params = new URLSearchParams({
@@ -1935,78 +1957,84 @@ useEffect(() => {
           </div>
         </div>
 
-        {/* === כרטיסון השוואת עמלות ללקוח === */}
-<div className="mt-6 p-4 rounded-xl border bg-white shadow-sm" dir="rtl">
-  <div className="flex flex-wrap items-end gap-3">
-    <div>
-      <label className="block text-sm font-semibold mb-1">חודש דיווח (קובץ):</label>
-      <input
-        type="month"
-        value={cmpReportMonth}
-        onChange={e => setCmpReportMonth(e.target.value)}
-        className="input"
-      />
-    </div>
-
-    <div>
-      <label className="block text-sm font-semibold mb-1">חברה (רשות):</label>
-      <select
-        value={cmpCompany}
-        onChange={e => setCmpCompany(e.target.value)}
-        className="select-input min-w-[12rem]"
-      >
-        <option value="">כל החברות</option>
-        {companies.map(c => (
-          <option key={c} value={c}>{c}</option>
-        ))}
-      </select>
-    </div>
-
-    <label className="inline-flex items-center gap-2 mb-1">
-      <input
-        type="checkbox"
-        checked={cmpIncludeFamily}
-        onChange={e => setCmpIncludeFamily(e.target.checked)}
-      />
-      כולל תא משפחתי
-    </label>
-
-    <Button
-      onClick={loadCustomerMiniCompare}
-      text={cmpLoading ? "טוען..." : "חשב השוואה"}
-      type="primary"
-      icon="on"
-      state="default"
-      disabled={cmpLoading}
-    />
+    {/* === כרטיסון השוואת עמלות ללקוח (למורשי טעינת עמלות בלבד) === */}
+{isCheckingExternalOverview ? (
+  <div className="mt-6 p-4 rounded-xl border bg-white shadow-sm" dir="rtl">
+    טוען הרשאות…
   </div>
-
-  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4 text-center">
-    <div className="p-4 rounded-lg bg-emerald-50 border">
-      <div className="text-sm text-emerald-800 font-semibold">MAGIC – נפרעים</div>
-      <div className="text-2xl font-bold mt-1">{cmpMagicSum.toLocaleString()} ₪</div>
-    </div>
-    <div className="p-4 rounded-lg bg-sky-50 border">
-      <div className="text-sm text-sky-800 font-semibold">קובץ טעינה – סכום</div>
-      <div className="text-2xl font-bold mt-1">{cmpExternalSum.toLocaleString()} ₪</div>
-    </div>
-    <div className="p-4 rounded-lg bg-amber-50 border">
-      <div className="text-sm text-amber-800 font-semibold">Delta (קובץ − MAGIC)</div>
-      <div className="text-2xl font-bold mt-1">{(cmpExternalSum - cmpMagicSum).toLocaleString()} ₪</div>
-    </div>
-  </div>
-
-  <div className="mt-4 flex justify-end">
-    <Button
-      onClick={openFullCompareForCustomer}
-      text="פתח השוואה מלאה (מסך קובץ מול MAGIC)"
-      type="primary"
-      icon="on"
-      state={selectedCustomers?.length ? "default" : "disabled"}
-      disabled={!selectedCustomers?.length}
-    />
-  </div>
+) : canSeeExternalOverview ? (
+  <div className="mt-6 p-4 rounded-xl border bg-white shadow-sm" dir="rtl">
+    <div className="flex flex-wrap items-end gap-3">
+    <div className="form-group">
+  <label className="block text-sm font-semibold mb-1">חודש דיווח (קובץ):</label>
+  <input
+    type="month"
+    value={cmpReportMonth}
+    onChange={e => setCmpReportMonth(e.target.value)}
+    className="input"   // שימי את אותה מחלקה של שדות אחרים
+    dir="rtl"
+  />
 </div>
+      <div>
+        <label className="block text-sm font-semibold mb-1">חברה (רשות):</label>
+        <select
+          value={cmpCompany}
+          onChange={e => setCmpCompany(e.target.value)}
+          className="select-input min-w-[12rem]"
+        >
+          <option value="">כל החברות</option>
+          {companies.map(c => (
+            <option key={c} value={c}>{c}</option>
+          ))}
+        </select>
+      </div>
+
+      <label className="inline-flex items-center gap-2 mb-1">
+        <input
+          type="checkbox"
+          checked={cmpIncludeFamily}
+          onChange={e => setCmpIncludeFamily(e.target.checked)}
+        />
+        כולל תא משפחתי
+      </label>
+
+      <Button
+        onClick={loadCustomerMiniCompare}
+        text={cmpLoading ? "טוען..." : "חשב השוואה"}
+        type="primary"
+        icon="on"
+        state="default"
+        disabled={cmpLoading}
+      />
+    </div>
+
+    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4 text-center">
+      <div className="p-4 rounded-lg bg-emerald-50 border">
+        <div className="text-sm text-emerald-800 font-semibold">MAGIC – נפרעים</div>
+        <div className="text-2xl font-bold mt-1">{cmpMagicSum.toLocaleString()} ₪</div>
+      </div>
+      <div className="p-4 rounded-lg bg-sky-50 border">
+        <div className="text-sm text-sky-800 font-semibold">קובץ טעינה – סכום</div>
+        <div className="text-2xl font-bold mt-1">{cmpExternalSum.toLocaleString()} ₪</div>
+      </div>
+      <div className="p-4 rounded-lg bg-amber-50 border">
+        <div className="text-sm text-amber-800 font-semibold">Delta (קובץ − MAGIC)</div>
+        <div className="text-2xl font-bold mt-1">{(cmpExternalSum - cmpMagicSum).toLocaleString()} ₪</div>
+      </div>
+    </div>
+
+    <div className="mt-4 flex justify-start">
+      <Button
+        onClick={openFullCompareForCustomer}
+        text="מסך השוואה מלאה"
+        type="primary"
+        icon="on"
+        state={selectedCustomers?.length ? "default" : "disabled"}
+        disabled={!selectedCustomers?.length}
+      />
+    </div>
+  </div>
+) : null}
 
       </div>
   );

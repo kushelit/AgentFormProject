@@ -478,3 +478,43 @@ table tr {
   background-position: left 10px center; /* ממקם את החץ */
   background-size: 10px; /* התאמת גודל החץ */
 }
+
+/* בסיס אחיד לכל אינפוט כללי כמו זה של חודש הדיווח */
+.input {
+  width: 100%;
+  height: 32px;
+  padding: 4px 8px;
+  font-size: 13px;
+  border: 1px solid var(--clrgray5);
+  border-radius: 4px;
+  box-sizing: border-box;
+  background-color: #fff;
+  text-align: center;
+  direction: rtl;
+  transition: border-color .15s, box-shadow .15s;
+}
+
+/* מראה פוקוס תכול כמו שאר השדות (התאימי לצבע שלך) */
+.input:focus {
+  border-color: var(--clrdarkblue3);               /* או var(--clrprimary) */
+  box-shadow: 0 0 0 3px rgba(59,106,149, .15);      /* עדין ותואם */
+  outline: none;
+}
+
+/* התאמות ספציפיות ל-type=month כדי שייראה כמו השאר */
+input[type="month"].input {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: textfield;
+  padding-inline-end: 28px;     /* מקום לאייקון */
+}
+
+/* אייקון הקלנדר בכרום/ספארי – רק ליטוש קל */
+input[type="month"].input::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: .7;
+  margin-inline-start: 6px;
+}
+input[type="month"].input:hover::-webkit-calendar-picker-indicator {
+  opacity: 1;
+}
