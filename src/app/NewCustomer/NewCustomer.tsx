@@ -60,6 +60,12 @@ const [cmpLoading, setCmpLoading] = useState<boolean>(false);
 const [cmpMagicSum, setCmpMagicSum] = useState<number>(0);
 const [cmpExternalSum, setCmpExternalSum] = useState<number>(0);
 
+// דיבאונס לריצות אוטומטיות
+const autoRefreshTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+// מזהה ריצה למניעת מרוצים
+const runIdRef = React.useRef(0);
+
+
 const toYm = (s?: string|null) => (s || '').toString().slice(0,7);
 const normCompany = (s?: string|null) => String(s ?? '').trim();
 
@@ -928,18 +934,6 @@ const familyIds = useMemo(() => {
   return Array.from(new Set(inFamily.map(c => c.IDCustomer).filter(Boolean)));
 }, [selectedCustomers, filteredData]);
 
-/// compare Commissions
-
-// // חודש הדיווח (reportMonth) – ברירת מחדל: החודש הנוכחי
-// const repYmDefault = new Date().toISOString().slice(0,7);
-// const [repYm, setRepYm] = useState(repYmDefault);
-
-// const normCompany = (s?: string|null) => String(s ?? '').trim();
-
-
-// סיכום/פירוט והתאמות
-// const [showDetails, setShowDetails] = useState(false);
-// const [showReconcile, setShowReconcile] = useState(false);
 
 // טבלת הסיכום
 type FamilySummaryRow = {
@@ -967,144 +961,6 @@ const customerNameById = useMemo(() => {
   });
   return map;
 }, [filteredData]);
-
-
-// async function loadFamilySummaryByReportMonth() {
-//   if (!selectedAgentId || familyIds.length === 0) {
-//     addToast("error", "בחרי לקוח/משפחה לפני הפקת סיכום");
-//     return;
-//   }
-//   setSumLoading(true);
-
-//   try {
-//     // === A) MAGIC: נפרעים מחושבים on-the-fly לפי (לקוח, חברה, חודש-פוליסה) ===
-//     const magicAgg = new Map<string, number>(); // key: cust__comp__policyYm → sum
-//     const customerCache = new Map<string, any>();
-
-//     for (let i = 0; i < familyIds.length; i += 10) {
-//       const chunk = familyIds.slice(i, i+10);
-//       const qSales = query(
-//         collection(db, 'sales'),
-//         where('AgentId', '==', selectedAgentId),
-//         where('IDCustomer', 'in', chunk),
-//         where('statusPolicy', 'in', ['פעילה','הצעה'])
-//       );
-//       const snap = await getDocs(qSales);
-
-//       for (const d of snap.docs) {
-//         const s: any = d.data();
-
-//         const policyYm = toYm2(s.month || s.mounth);
-//         if (!policyYm) continue;
-
-//         const comp = normCompany(s.company) || '-';
-//         if (selectedCompanyFilter && normCompany(selectedCompanyFilter) !== comp) continue;
-        
-
-//         // לקוח (לקבלת sourceValue) עם קאש
-//         let custDoc = customerCache.get(s.IDCustomer);
-//         if (!custDoc) {
-//           const cq = query(collection(db, 'customer'), where('IDCustomer', '==', s.IDCustomer));
-//           const cs = await getDocs(cq);
-//           custDoc = cs.docs[0]?.data() || null;
-//           customerCache.set(s.IDCustomer, custDoc);
-//         }
-//         const sourceValue = custDoc?.sourceValue || '';
-
-//         // חוזה תואם (אם קיים)
-//         const contractMatch = contracts.find(
-//           (contract) =>
-//             contract.agentId === selectedAgentId &&
-//             contract.product === s.product &&
-//             contract.company === s.company &&
-//             (contract.minuySochen === s.minuySochen ||
-//              (contract.minuySochen === undefined && !s.minuySochen))
-//         );
-
-//         // חישוב עמלות
-//         const saleForCalc = { ...s, month: s.mounth };
-//         const commissionsRaw = calculateCommissions(saleForCalc as any, contractMatch);
-
-//         // פיצול עמלות (אם מופעל ויש התאמה)
-//         let commissions = { ...commissionsRaw };
-//         if (isCommissionSplitEnabled && sourceValue) {
-//           const splitAgreement = commissionSplits.find(
-//             (split) =>
-//               split.agentId === selectedAgentId &&
-//               split.sourceLeadId === sourceValue
-//           );
-//           if (splitAgreement) {
-//             commissions = {
-//               commissionHekef: Math.round(commissionsRaw.commissionHekef * (splitAgreement.percentToAgent / 100)),
-//               commissionNifraim: Math.round(commissionsRaw.commissionNifraim * (splitAgreement.percentToAgent / 100)),
-//             };
-//           }
-//         }
-
-//         const val = Number(commissions.commissionNifraim || 0); // ← נפרעים בלבד
-//         const key = `${s.IDCustomer}__${comp}__${policyYm}`;
-//         magicAgg.set(key, (magicAgg.get(key) || 0) + val);
-//       }
-//     }
-
-//     // === B) EXTERNAL: מסונן לפי reportMonth; סכימה לפי (לקוח, חברה, validMonth) ===
-//     const extBuckets = await fetchExternalForCustomers({
-//       agentId: selectedAgentId,
-//       customerIds: familyIds,
-//       reportFromYm: repYm,          // ← חודש דיווח יחיד
-//       reportToYm:   repYm,          // ← אותו חודש
-//       company: selectedCompanyFilter || undefined, // ← סינון חברה (אם נבחר)
-//     });
-
-//     const externalAgg = new Map<string, number>(); // cust__comp__policyYm → sum(commissionAmount)
-//     for (const b of extBuckets) {
-//       for (const row of b.rows) {
-//         const cust = row.customerId || '';
-//         const comp = norm2(row.company) || '-';
-//         const policyYm = toYm2(row.validMonth); // ← מפתח מול SALE
-//         if (!cust || !policyYm) continue;
-
-//         const amt = typeof row.commissionAmount === 'number'
-//           ? row.commissionAmount
-//           : Number(row.commissionAmount || 0);
-
-//         const key = `${cust}__${comp}__${policyYm}`;
-//         externalAgg.set(key, (externalAgg.get(key) || 0) + (amt || 0));
-//       }
-//     }
-
-//     // === C) איחוד לטבלת תצוגה ===
-//     const allKeys = new Set<string>([...magicAgg.keys(), ...externalAgg.keys()]);
-//     const rows: FamilySummaryRow[] = [];
-//     allKeys.forEach(key => {
-//       const [cust, comp, policyYm] = key.split('__');
-//       const magicNifraim    = Math.round(magicAgg.get(key) || 0);
-//       const externalNifraim = Math.round(externalAgg.get(key) || 0);
-//       rows.push({
-//         customerId: cust,
-//         customerName: customerNameById.get(cust) || cust,
-//         company: comp,
-//         policyMonth: policyYm,
-//         magicNifraim,
-//         externalNifraim,
-//         delta: externalNifraim - magicNifraim,
-//       });
-//     });
-
-//     rows.sort((a,b) => {
-//       if (a.policyMonth !== b.policyMonth) return a.policyMonth.localeCompare(b.policyMonth);
-//       if (a.company !== b.company) return a.company.localeCompare(b.company);
-//       return a.customerName.localeCompare(b.customerName);
-//     });
-
-//     setFamilySummary(rows);
-//   } catch (e) {
-//     console.error(e);
-//     addToast("error", "כשל בטעינת טבלת הסיכום");
-//   } finally {
-//     setSumLoading(false);
-//   }
-// }
 
 
 // סיכומי מספרים לכרטיס
@@ -1244,33 +1100,55 @@ const openFullCompareForCustomer = () => {
     return;
   }
   if (!selectedAgentId || !selectedCustomers?.length) return;
+// בתוך openFullCompareForCustomer (בדף הלקוח)
+// בתוך openFullCompareForCustomer
+const params = new URLSearchParams({
+  agentId: selectedAgentId,
+  customerId: selectedCustomers[0].IDCustomer,
+  reportMonth: cmpReportMonth,
+});
+if (cmpCompany) params.set('company', cmpCompany);
+if (cmpIncludeFamily) params.set('family', '1');        // ✅ חדש
 
-  const params = new URLSearchParams({
-    agentId: selectedAgentId,
-    customerId: selectedCustomers[0].IDCustomer,
-    reportMonth: cmpReportMonth,
-  });
-  if (cmpCompany) params.set('company', cmpCompany);
+// returnTo שומר family גם בחזרה
+const currentUrl = typeof window !== 'undefined'
+  ? window.location.pathname + window.location.search
+  : '/customers';
+const u = new URL(currentUrl, typeof window !== 'undefined' ? window.location.origin : 'https://app.example');
+u.searchParams.set('agentId', selectedAgentId);
+u.searchParams.set('highlightCustomer', selectedCustomers[0].IDCustomer);
+if (cmpCompany) u.searchParams.set('company', cmpCompany);
+if (cmpIncludeFamily) u.searchParams.set('family', '1'); // ✅ חדש
+params.set('returnTo', encodeURIComponent(u.pathname + '?' + u.searchParams.toString()));
 
-  // ה-URL הנוכחי (לקוחות) + הזרקה בטוחה של agentId + highlightCustomer
-  const currentUrl = typeof window !== 'undefined'
-    ? window.location.pathname + window.location.search
-    : '/customers';
+router.push(`/importCommissionHub/CompareRealToReported?${params.toString()}`);
 
-  const u = new URL(currentUrl, typeof window !== 'undefined' ? window.location.origin : 'https://app.example');
-  u.searchParams.set('agentId', selectedAgentId);
-  u.searchParams.set('highlightCustomer', selectedCustomers[0].IDCustomer);
-  if (cmpCompany) u.searchParams.set('company', cmpCompany);
-
-  params.set('returnTo', encodeURIComponent(u.pathname + '?' + u.searchParams.toString()));
-
-  router.push(`/importCommissionHub/CompareRealToReported?${params.toString()}`);
 };
 
 
 const searchParams = useSearchParams();
 const highlightCustomer = searchParams.get('highlightCustomer');
 const agentIdFromUrl = searchParams.get('agentId') || '';
+const familyFromUrl = searchParams.get('family') || '';
+
+
+// ליד ה-useSearchParams הקיים
+const familyParam = searchParams.get('family');
+
+// אחרי טעינת העמוד/הידרציה (useEffect שכבר בודק agents וכו')
+useEffect(() => {
+  if (!familyParam) return;
+  setCmpIncludeFamily(familyParam === '1' || familyParam.toLowerCase() === 'true');
+}, [familyParam]);
+
+
+useEffect(() => {
+  // ריענון אוטומטי כמו שביקשת – רק אם יש לקוח נבחר
+  if (selectedCustomers?.length) {
+    loadCustomerMiniCompare();
+  }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [cmpReportMonth, cmpCompany, cmpIncludeFamily, selectedAgentId]);
 
 
 useEffect(() => {
@@ -1291,6 +1169,71 @@ useEffect(() => {
     setSelectedCustomers([found]);
   }
 }, [highlightCustomer, customerData, selectedAgentId, agentIdFromUrl]);
+
+useEffect(() => {
+  if (familyFromUrl === '1') {
+    setCmpIncludeFamily(true); // מפעיל את "כולל תא משפחתי" בכרטיסון
+  }
+}, [familyFromUrl]);
+
+// למעלה: כבר יש useRouter/useSearchParams אצלך
+// ...
+
+// הידרציה ראשונית של reportMonth מה-URL
+useEffect(() => {
+  const ym = (searchParams.get('reportMonth') || '').trim();
+  if (ym) setCmpReportMonth(ym);
+  // גם company אם תרצי:
+  const cmp = (searchParams.get('company') || '').trim();
+  if (cmp) setCmpCompany(cmp);
+}, [searchParams]);
+
+// משנה גם סטייט וגם URL (כדי לאפשר חזרה מדויקת מהמסך השני)
+const onChangeReportMonth = (ym: string) => {
+  setCmpReportMonth(ym);
+  const usp = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
+  if (ym) usp.set('reportMonth', ym); else usp.delete('reportMonth');
+  router.replace(`${typeof window !== 'undefined' ? window.location.pathname : '/customers'}?${usp.toString()}`);
+};
+
+
+// מריץ את ההשוואה אוטומטית כשיש כל הנתונים הרלוונטיים
+useEffect(() => {
+  // חייבים סוכן + לקוח אחד לפחות
+  if (!selectedAgentId || !selectedCustomers?.length) return;
+  if (!cmpReportMonth) return; // חודש חובה (כמו במסך ההשוואה)
+
+  // דיבאונס קצר כדי לא לרוץ בכל הקלדה או שינוי רגעי
+  if (autoRefreshTimer.current) clearTimeout(autoRefreshTimer.current);
+
+  autoRefreshTimer.current = setTimeout(async () => {
+    // מעלה מזהה ריצה ומייצר capture
+    const myRunId = ++runIdRef.current;
+
+    setCmpLoading(true);
+    try {
+      // מריצים את אותה פונקציה קיימת
+      await loadCustomerMiniCompare();
+    } finally {
+      // רק אם זו הריצה האחרונה — נוריד את ה-loading
+      if (myRunId === runIdRef.current) setCmpLoading(false);
+    }
+  }, 400);
+
+  // ניקוי טיימר אם התלות תשתנה לפני שהדיבאונס ירוץ
+  return () => {
+    if (autoRefreshTimer.current) clearTimeout(autoRefreshTimer.current);
+  };
+  // התלויות שמביאות לרענון אוטומטי:
+}, [
+  selectedAgentId,
+  // הלקוח הראשי שנבחר (מספיק הראשון ברשימה)
+  selectedCustomers?.[0]?.IDCustomer,
+  // פרמטרי ההשוואה
+  cmpReportMonth,
+  cmpCompany,
+  cmpIncludeFamily,
+]);
 
 
   return (
@@ -1968,12 +1911,12 @@ useEffect(() => {
     <div className="form-group">
   <label className="block text-sm font-semibold mb-1">חודש דיווח (קובץ):</label>
   <input
-    type="month"
-    value={cmpReportMonth}
-    onChange={e => setCmpReportMonth(e.target.value)}
-    className="input"   // שימי את אותה מחלקה של שדות אחרים
-    dir="rtl"
-  />
+  type="month"
+  value={cmpReportMonth}
+  onChange={e => onChangeReportMonth(e.target.value)}   // ← במקום setCmpReportMonth
+  className="input"
+  dir="rtl"
+/>
 </div>
       <div>
         <label className="block text-sm font-semibold mb-1">חברה (רשות):</label>
@@ -1997,15 +1940,6 @@ useEffect(() => {
         />
         כולל תא משפחתי
       </label>
-
-      <Button
-        onClick={loadCustomerMiniCompare}
-        text={cmpLoading ? "טוען..." : "חשב השוואה"}
-        type="primary"
-        icon="on"
-        state="default"
-        disabled={cmpLoading}
-      />
     </div>
 
     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4 text-center">
