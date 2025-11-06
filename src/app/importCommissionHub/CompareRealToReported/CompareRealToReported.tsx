@@ -832,32 +832,47 @@ export default function CompareReportedVsMagic() {
 
       {/* search / status / export */}
       {rows.length > 0 && (
-        <div className="flex flex-col sm:flex-row gap-3 mb-4">
-          <input
-            type="text"
-            placeholder="חיפוש לפי מס׳ פוליסה / ת״ז"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="input w-full sm:w-1/3 text-right"
-          />
-          <select value={agentCodeFilter} onChange={(e) => setAgentCodeFilter(e.target.value)} className="select-input w-full sm:w-1/3">
-            <option value="">מס׳ סוכן (מהקובץ)</option>
-            {agentCodes.map(code => (
-              <option key={code} value={code}>{code}</option>
-            ))}
-          </select>
-          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as Status | '')} className="select-input w-full sm:w-1/3">
-            {statusOptions.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
-          </select>
-          <button
-            onClick={handleExport}
-            className="inline-flex items-center gap-2 px-3 py-2 rounded border bg-white hover:bg-gray-50"
-            title="ייצוא של התצוגה המסוננת (כולל שורת סיכום)"
-          >
-            <img src="/static/img/excel-icon.svg" alt="" width={18} height={18} />
-            ייצוא לאקסל
-          </button>
-        </div>
+      <div className="flex flex-col sm:flex-row gap-3 mb-4 items-end">
+  <input
+    type="text"
+    placeholder="חיפוש לפי מס׳ פוליסה / ת״ז"
+    value={searchTerm}
+    onChange={(e) => setSearchTerm(e.target.value)}
+    className="input w-full sm:w-1/3 text-right"
+  />
+
+  <select
+    value={agentCodeFilter}
+    onChange={(e) => setAgentCodeFilter(e.target.value)}
+    className="select-input w-full sm:w-1/3"
+  >
+    <option value="">מס׳ סוכן (מהקובץ)</option>
+    {agentCodes.map(code => (
+      <option key={code} value={code}>{code}</option>
+    ))}
+  </select>
+
+  <select
+    value={statusFilter}
+    onChange={(e) => setStatusFilter(e.target.value as Status | '')}
+    className="select-input w-full sm:w-1/3"
+  >
+    {statusOptions.map(s => (
+      <option key={s.value} value={s.value}>{s.label}</option>
+    ))}
+  </select>
+
+  {/* כפתור ייצוא מיושר לשורה */}
+  <button
+  onClick={handleExport}
+  className="h-9 w-9 rounded border bg-white hover:bg-gray-50 inline-flex items-center justify-center self-end"
+  title="ייצוא לאקסל"
+>
+  <img src="/static/img/excel-icon.svg" alt="" className="w-6 h-6" />
+</button>
+
+</div>
+
       )}
 
       {/* סיכום לפי סטטוס */}
