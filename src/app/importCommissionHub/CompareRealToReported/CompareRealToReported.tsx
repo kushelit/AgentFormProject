@@ -1,3 +1,4 @@
+// app/importCommissionHub/CompareRealToReported/CompareReportedVsMagic.tsx
 'use client';
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -29,10 +30,10 @@ type Status = 'unchanged' | 'changed' | 'not_reported' | 'not_found';
 type ComparisonRow = {
   policyNumber: string;
   company: string;
-  reportedAmount: number;
-  magicAmount: number;
-  diff: number;          // reported - magic (קובץ − MAGIC)
-  diffPercent: number;   // נגד הקובץ
+  reportedAmount: number;      // סכום בקובץ
+  magicAmount: number;         // סכום מחושב במערכת
+  diff: number;                // קובץ − MAGIC
+  diffPercent: number;         // נגד הקובץ
   status: Status;
   agentCode?: string;
   customerId?: string;
@@ -51,30 +52,29 @@ const statusOptions = [
 
 /* ---------- helpers ---------- */
 
-const toYm = (s?: string | null) => (s || '').toString().slice(0, 7);
 const canon = (v?: string | null) => String(v ?? '').trim();
 const normPolicy = (v: any) => String(v ?? '').trim();
 
-const policyKey = (agentId: string, companyCanon: string, policyNumber: string) =>
-  `${agentId}::${companyCanon}::${policyNumber}`;
-
-/* פרסור תאריך גמיש ל־YYYY-MM */
+/** YYYY-MM מכל מני פורמטים שכיחים */
 const parseToYm = (v?: string | null) => {
   const s = String(v ?? '').trim();
   if (!s) return '';
   if (/^\d{4}-\d{2}/.test(s)) return s.slice(0, 7);           // YYYY-MM[-DD]
   if (/^\d{2}\.\d{2}\.\d{4}$/.test(s)) {                       // DD.MM.YYYY
-    const [dd, mm, yyyy] = s.split('.');
+    const [, mm, yyyy] = s.split('.');
     return `${yyyy}-${mm}`;
   }
   if (/^\d{2}\/\d{2}\/\d{4}$/.test(s)) {                       // DD/MM/YYYY
-    const [dd, mm, yyyy] = s.split('/');
+    const [, mm, yyyy] = s.split('/');
     return `${yyyy}-${mm}`;
   }
   return '';
 };
 
-/* קבלת כל בני המשפחה מה-DB כשנעולים ללקוח ורוצים תא משפחתי */
+const policyKey = (agentId: string, companyCanon: string, policyNumber: string) =>
+  `${agentId}::${companyCanon}::${policyNumber}`;
+
+/** קבלת כל בני המשפחה */
 async function getFamilyIds(dbAgentId: string, lockedCustomerId: string): Promise<string[]> {
   const cq = query(
     collection(db, 'customer'),
@@ -91,33 +91,21 @@ async function getFamilyIds(dbAgentId: string, lockedCustomerId: string): Promis
     where('parentID', '==', parent)
   );
   const fSnap = await getDocs(familyQ);
-  const ids = fSnap.docs.map(d => (d.data() as any).IDCustomer).filter(Boolean);
+  const ids = fSnap.docs.map(d => (d.data() as any).IDCustomer).filter((x): x is string => Boolean(x));
   return ids.length ? Array.from(new Set(ids)) : [lockedCustomerId];
 }
 
-/* fetcher שעושה chunking ל-IN של Firestore */
-async function fetchByCustomerIn<T = any>(
-  coll: string,
-  baseWhere: Array<ReturnType<typeof where>>,
-  customerIds: string[],
-  map: (d: any, id: string) => T
-): Promise<T[]> {
-  const out: T[] = [];
-  for (let i = 0; i < customerIds.length; i += 10) {
-    const chunk = customerIds.slice(i, i + 10);
-    const q = query(
-      collection(db, coll),
-      ...baseWhere,
-      where('customerId', 'in', chunk as any)
-    );
-    const snap = await getDocs(q);
-    snap.docs.forEach(d => out.push(map(d.data(), d.id)));
-  }
-  return out;
-}
-
-/* ---------- products map (לוגיקת ברירת מחדל בחישובים) ---------- */
+/* ---------- products map ---------- */
 type Product = { productName: string; productGroup: string; isOneTime?: boolean };
+
+const normalizeMinuy = (val: any): boolean => {
+  if (typeof val === 'boolean') return val;
+  const s = String(val ?? '').trim().toLowerCase();
+  if (!s) return false;
+  return ['1', 'true', 'כן', 'y', 't', 'on'].includes(s);
+};
+
+const matchMinuy = (cMin?: any, sMin?: any) => normalizeMinuy(cMin) === normalizeMinuy(sMin);
 
 /* ---------- component ---------- */
 
@@ -128,16 +116,16 @@ export default function CompareReportedVsMagic() {
   const { agents, selectedAgentId, handleAgentChange } = useFetchAgentData();
 
   // UI/filters
-  const [company, setCompany] = useState('');
-  const [reportMonth, setReportMonth] = useState('');
+  const [company, setCompany] = useState<string>('');
+  const [reportMonth, setReportMonth] = useState<string>('');
   const [includeFamily, setIncludeFamily] = useState<boolean>(false);
 
   const [availableCompanies, setAvailableCompanies] = useState<string[]>([]);
   const [rows, setRows] = useState<ComparisonRow[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
 
-  const [searchTerm, setSearchTerm] = useState('');
-  const [agentCodeFilter, setAgentCodeFilter] = useState('');
+  const [searchTerm, setSearchTerm] = useState<string>('');
+  const [agentCodeFilter, setAgentCodeFilter] = useState<string>('');
   const [statusFilter, setStatusFilter] = useState<Status | ''>('');
   const [drillStatus, setDrillStatus] = useState<Status | null>(null);
 
@@ -153,7 +141,7 @@ export default function CompareReportedVsMagic() {
   // products map
   const [productMap, setProductMap] = useState<Record<string, Product>>({});
 
-  // read `family=1` from URL on first hydrate
+  // read `family=1` once
   const hydratedOnce = useRef(false);
 
   const handleBackToCustomer = () => {
@@ -183,20 +171,21 @@ export default function CompareReportedVsMagic() {
     (async () => {
       const snapshot = await getDocs(collection(db, 'company'));
       const companies = snapshot.docs
-        .map(d => (d.data() as any)?.companyName)
-        .filter(Boolean)
+        .map(d => (d.data() as any)?.companyName as string)
+        .filter((x): x is string => Boolean(x))
         .sort();
       setAvailableCompanies(companies);
     })();
   }, []);
 
-  /* --- load products map (חובה לחישובים תקינים) --- */
+  /* --- load products map --- */
   useEffect(() => {
     (async () => {
       const qs = await getDocs(collection(db, 'product'));
       const map: Record<string, Product> = {};
       qs.forEach(d => {
         const p = d.data() as Product;
+        if (!p?.productName) return;
         map[p.productName] = {
           productName: p.productName,
           productGroup: p.productGroup,
@@ -221,7 +210,9 @@ export default function CompareReportedVsMagic() {
     if (comp) setCompany(comp);
     if (repYm) setReportMonth(repYm);
     if (fam) setIncludeFamily(true);
-    if (lockedCustomerId) setSearchTerm(lockedCustomerId);
+
+    // אם נעולים ללקוח אך לא על תא משפחתי, הטמע חיפוש לפי ת"ז
+    if (lockedCustomerId && !fam) setSearchTerm(lockedCustomerId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -238,16 +229,60 @@ export default function CompareReportedVsMagic() {
     });
   }, [selectedAgentId, company, reportMonth, includeFamily]); // eslint-disable-line
 
+  /* --- UX: כשעוברים לתא משפחתי ננקה חיפוש שמגביל לת"ז הנעולה --- */
+  useEffect(() => {
+    if (lockedToCustomer && includeFamily && searchTerm === lockedCustomerId) {
+      setSearchTerm('');
+    }
+  }, [includeFamily, lockedToCustomer, lockedCustomerId, searchTerm]);
+
   /* --- link dialog state --- */
-  const [linkOpen, setLinkOpen] = useState(false);
+  const [linkOpen, setLinkOpen] = useState<boolean>(false);
   const [linkTarget, setLinkTarget] = useState<ExternalCommissionRow | null>(null);
   const [linkCandidates, setLinkCandidates] = useState<Array<{ id: string; summary: string }>>([]);
-  const [selectedCandidateId, setSelectedCandidateId] = useState('');
-  const [linkSaving, setLinkSaving] = useState(false);
+  const [selectedCandidateId, setSelectedCandidateId] = useState<string>('');
+  const [linkSaving, setLinkSaving] = useState<boolean>(false);
 
-  /* ---------- helpers inside fetch ---------- */
-  const matchMinuy = (cMin?: boolean, sMin?: boolean) =>
-    cMin === sMin || (cMin === undefined && !sMin);
+  /* ----- עזר למשיכת מסמכים לפי IN כפול (customerId / IDCustomer) ----- */
+  async function fetchDocsByFamilyDualFields<T>(
+    collName: string,
+    baseWheres: any[], // QueryConstraint[]
+    ids: string[],
+    mapFn: (raw: any, id: string) => T,
+    extraClientFilter?: (raw: any) => boolean
+  ): Promise<T[]> {
+    const out: T[] = [];
+    const chunks: string[][] = [];
+    for (let i = 0; i < ids.length; i += 10) chunks.push(ids.slice(i, i + 10));
+
+    for (const field of ['customerId', 'IDCustomer'] as const) {
+      for (const chunk of chunks) {
+        const qx = query(
+          collection(db, collName),
+          ...baseWheres,
+          where(field as any, 'in', chunk as any)
+        );
+        const snap = await getDocs(qx);
+        snap.docs.forEach(d => {
+          const raw = d.data();
+          if (extraClientFilter && !extraClientFilter(raw)) return;
+          out.push(mapFn(raw, d.id));
+        });
+      }
+    }
+
+    // הסרת כפילויות לפי שילוב id+hash תוכן קל
+    const seen = new Set<string>();
+    const unique: T[] = [];
+    (out as any[]).forEach((row) => {
+      const key = JSON.stringify(row);
+      if (!seen.has(key)) {
+        seen.add(key);
+        unique.push(row);
+      }
+    });
+    return unique;
+  }
 
   /* ---------- core fetch ---------- */
   const fetchData = useCallback(async () => {
@@ -274,9 +309,9 @@ export default function CompareReportedVsMagic() {
 
     let extRows: ExternalCommissionRow[] = [];
     if (scopeCustomerIds) {
-      const fetched = await fetchByCustomerIn<ExternalCommissionRow>(
+      const fetched = await fetchDocsByFamilyDualFields<ExternalCommissionRow>(
         'externalCommissions',
-        extBase as any,
+        extBase,
         scopeCustomerIds,
         (raw) => {
           const comp = canon(raw.company);
@@ -286,14 +321,39 @@ export default function CompareReportedVsMagic() {
             commissionAmount: Number(raw.commissionAmount ?? 0),
             company: comp,
             reportMonth: raw.reportMonth,
-            customerId: raw.customerId ?? raw.IDCustomer ?? undefined,
+            customerId: String(raw.customerId ?? raw.IDCustomer ?? '').trim() || undefined,
             agentCode: String(raw.agentCode ?? raw.AgentCode ?? '').trim() || undefined,
             _company: comp,
             _displayPolicy: pol || '-',
           };
         }
       );
-      extRows = fetched;
+
+      if (!fetched.length) {
+        // גיבוי: משוך את כל הדוחות של החודש והגבל למשפחה בצד לקוח
+        const qAll = query(collection(db, 'externalCommissions'), ...extBase);
+        const sAll = await getDocs(qAll);
+        const famSet = new Set(scopeCustomerIds);
+        sAll.docs.forEach(d => {
+          const raw: any = d.data();
+          const cid = String(raw.customerId ?? raw.IDCustomer ?? '').trim();
+          if (!famSet.has(cid)) return;
+          const comp = canon(raw.company);
+          const pol = normPolicy(raw.policyNumber);
+          extRows.push({
+            policyNumber: pol,
+            commissionAmount: Number(raw.commissionAmount ?? 0),
+            company: comp,
+            reportMonth: raw.reportMonth,
+            customerId: cid || undefined,
+            agentCode: String(raw.agentCode ?? raw.AgentCode ?? '').trim() || undefined,
+            _company: comp,
+            _displayPolicy: pol || '-',
+          });
+        });
+      } else {
+        extRows = fetched;
+      }
     } else {
       const qBase = query(collection(db, 'externalCommissions'), ...extBase);
       const s = await getDocs(qBase);
@@ -306,7 +366,7 @@ export default function CompareReportedVsMagic() {
           commissionAmount: Number(raw.commissionAmount ?? 0),
           company: comp,
           reportMonth: raw.reportMonth,
-          customerId: raw.customerId ?? raw.IDCustomer ?? undefined,
+          customerId: String(raw.customerId ?? raw.IDCustomer ?? '').trim() || undefined,
           agentCode: String(raw.agentCode ?? raw.AgentCode ?? '').trim() || undefined,
           _company: comp,
           _displayPolicy: pol || '-',
@@ -321,7 +381,7 @@ export default function CompareReportedVsMagic() {
       externalByKey.set(key, raw);
     });
 
-    /* ------- sales (policyYm ≤ reportMonth) ------- */
+    /* ------- sales (policyYm ≤ reportMonth, סטטוסים פעילה/הצעה) ------- */
     const salesBase: any[] = [where('AgentId', '==', selectedAgentId)];
     if (company) salesBase.push(where('company', '==', company));
 
@@ -330,36 +390,46 @@ export default function CompareReportedVsMagic() {
     };
     const salesByKey = new Map<string, SalesBucket>();
 
-    const pushSale = (d: any, id: string) => {
-      const s = d as any;
-      const comp = canon(s.company);
-      const pol = normPolicy(s.policyNumber);
-
-      // חודש תוקף לפי כל פורמט
-      const policyYm = parseToYm(s.month || s.mounth);
+    const pushSale = (raw: any, id: string) => {
+      const comp = canon(raw.company);
+      const pol = normPolicy(raw.policyNumber);
+      const policyYm = parseToYm(raw.month || raw.mounth);
       if (!policyYm || policyYm > reportMonth) return;
 
-      // ליישר לוגיקה לדף הלקוח — רק סטטוסים אלו
-      const sp = String(s.statusPolicy ?? s.status ?? '').trim();
+      const sp = String(raw.statusPolicy ?? raw.status ?? '').trim();
       if (!['פעילה', 'הצעה'].includes(sp)) return;
 
       const key = pol ? `${comp}::${pol}` : `${comp}::__NO_POLICY__:${id}`;
       const bucket = salesByKey.get(key) ?? { items: [] };
-      bucket.items.push({ ...(s as any), policyNumber: pol, _company: comp, _displayPolicy: pol || '-', _docId: id });
+      bucket.items.push({ ...(raw as any), policyNumber: pol, _company: comp, _displayPolicy: pol || '-', _docId: id });
       salesByKey.set(key, bucket);
     };
 
     if (scopeCustomerIds) {
-      // chunk by IDCustomer
-      for (let i = 0; i < scopeCustomerIds.length; i += 10) {
-        const chunk = scopeCustomerIds.slice(i, i + 10);
-        const qSales = query(
-          collection(db, 'sales'),
-          ...salesBase,
-          where('IDCustomer', 'in', chunk as any)
-        );
-        const snap = await getDocs(qSales);
-        snap.docs.forEach(d => pushSale(d.data(), d.id));
+      const fetched = await fetchDocsByFamilyDualFields<{ raw: any; id: string }>(
+        'sales',
+        salesBase,
+        scopeCustomerIds,
+        (raw, id) => ({ raw, id }),
+        (raw) => {
+          const policyYm = parseToYm(raw.month || raw.mounth);
+          if (!policyYm || policyYm > reportMonth) return false;
+          const sp = String(raw.statusPolicy ?? raw.status ?? '').trim();
+          return ['פעילה', 'הצעה'].includes(sp);
+        }
+      );
+      fetched.forEach(({ raw, id }) => pushSale(raw, id));
+
+      if (salesByKey.size === 0) {
+        const qAll = query(collection(db, 'sales'), ...salesBase);
+        const sAll = await getDocs(qAll);
+        const famSet = new Set(scopeCustomerIds);
+        sAll.docs.forEach(d => {
+          const raw: any = d.data();
+          const cid = String(raw.customerId ?? raw.IDCustomer ?? '').trim();
+          if (!famSet.has(cid)) return;
+          pushSale(raw, d.id);
+        });
       }
     } else {
       const qSales = query(collection(db, 'sales'), ...salesBase);
@@ -382,18 +452,30 @@ export default function CompareReportedVsMagic() {
 
     const computed: ComparisonRow[] = [];
 
+    // הבטחת מוצר במפה בזמן ריצה (fallback)
+    const ensureProductInMap = (productName?: string) => {
+      const p = String(productName ?? '').trim();
+      if (!p) return;
+      if (!productMap[p]) {
+        // מותר כאן (לא state set) כי זו מפה בשימוש קריאה בלבד
+        (productMap as any)[p] = { productName: p, productGroup: 'לא מסווג', isOneTime: false } as Product;
+      }
+    };
+
     for (const key of allKeys) {
       const [comp] = key.split('::');
       const reported = externalByKey.get(key) || null;
       const saleBucket = salesByKey.get(key) || null;
 
-      // אין קובץ – יש מכירה ⇒ not_reported, אבל מחשבים MAGIC כרגיל!
+      // אין קובץ – יש מכירה ⇒ not_reported (מחשבים MAGIC)
       if (!reported && saleBucket) {
         let magicAmountSum = 0;
         let productForDisplay: string | undefined;
         let customerForDisplay: string | undefined;
 
         for (const sale of saleBucket.items) {
+          ensureProductInMap((sale as any).product);
+
           const contractMatch =
             contracts.find(c =>
               c.AgentId === selectedAgentId &&
@@ -406,7 +488,7 @@ export default function CompareReportedVsMagic() {
             sale as any,
             contractMatch,
             contracts,
-            productMap,            // <<< חשוב
+            productMap,
             selectedAgentId
           );
           magicAmountSum += Number((commissions as any)?.commissionNifraim ?? 0);
@@ -418,7 +500,7 @@ export default function CompareReportedVsMagic() {
         const reportedAmount = 0;
         const magicAmount = Number(magicAmountSum);
         const diff = reportedAmount - magicAmount; // קובץ - MAGIC
-        const diffPercent = 0; // אין בסיס בקובץ
+        const diffPercent = 0;
 
         computed.push({
           policyNumber: saleBucket.items[0]?._displayPolicy || '-',
@@ -465,6 +547,8 @@ export default function CompareReportedVsMagic() {
         let customerForDisplay: string | undefined;
 
         for (const sale of saleBucket.items) {
+          ensureProductInMap((sale as any).product);
+
           const contractMatch =
             contracts.find(c =>
               c.AgentId === selectedAgentId &&
@@ -477,7 +561,7 @@ export default function CompareReportedVsMagic() {
             sale as any,
             contractMatch,
             contracts,
-            productMap,            // <<< חשוב
+            productMap,
             selectedAgentId
           );
           magicAmountSum += Number((commissions as any)?.commissionNifraim ?? 0);
@@ -524,7 +608,7 @@ export default function CompareReportedVsMagic() {
     lockedToCustomer,
     lockedCustomerId,
     includeFamily,
-    productMap, // חשוב כדי להטריע לריצה אחרי שניטען
+    productMap,
   ]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
@@ -594,7 +678,8 @@ export default function CompareReportedVsMagic() {
     }
   };
 
-  /* ---------- filtering & export ---------- */
+  /* ---------- derived data ---------- */
+
   const agentCodes = useMemo(() => {
     const s = new Set<string>();
     rows.forEach(r => { if (r.agentCode) s.add(r.agentCode); });
@@ -602,19 +687,22 @@ export default function CompareReportedVsMagic() {
   }, [rows]);
 
   const filtered = useMemo(() => {
+    const text = searchTerm.trim();
+    const isFamilyScope = lockedToCustomer && includeFamily;
+
     return rows.filter(r => {
-      const matchesTxt =
-        !searchTerm ||
-        String(r.policyNumber || '').includes(searchTerm) ||
-        String(r.customerId || '').includes(searchTerm);
+      const txtMatch =
+        !text ||
+        String(r.policyNumber || '').includes(text) ||
+        (!isFamilyScope && String(r.customerId || '').includes(text));
 
       const matchesAgent  = !agentCodeFilter || r.agentCode === agentCodeFilter;
       const matchesStatus = !statusFilter || r.status === statusFilter;
       const matchesCompany = !company || r.company === company;
 
-      return matchesTxt && matchesAgent && matchesStatus && matchesCompany;
+      return txtMatch && matchesAgent && matchesStatus && matchesCompany;
     });
-  }, [rows, searchTerm, agentCodeFilter, statusFilter, company]);
+  }, [rows, searchTerm, agentCodeFilter, statusFilter, company, includeFamily, lockedToCustomer]);
 
   const visibleRows = useMemo(
     () => (drillStatus ? filtered.filter(r => r.status === drillStatus) : filtered),
@@ -626,10 +714,10 @@ export default function CompareReportedVsMagic() {
       (acc, r) => {
         acc.reported += r.reportedAmount;
         acc.magic += r.magicAmount;
-        acc.diff += r.diff; // כבר קובץ - MAGIC
+        acc.diff += r.diff; // קובץ - MAGIC
         return acc;
       },
-      { reported: 0, magic: 0, diff: 0 }
+      { reported: 0, magic: 0, diff: 0 } as { reported: number; magic: number; diff: number }
     );
 
     const rowsForXlsx = visibleRows.map(r => ({
@@ -642,7 +730,7 @@ export default function CompareReportedVsMagic() {
       'עמלה (MAGIC)': r.magicAmount.toFixed(2),
       'פער ₪ (קובץ−MAGIC)': r.diff.toFixed(2),
       'פער %': r.diffPercent.toFixed(2),
-      'סטטוס': (statusOptions as any).find((s: any) => s.value === r.status)?.label || r.status,
+      'סטטוס': (statusOptions as readonly any[]).find((s: any) => s.value === r.status)?.label || r.status,
     }));
 
     rowsForXlsx.push({
@@ -664,13 +752,19 @@ export default function CompareReportedVsMagic() {
     XLSX.writeFile(wb, `השוואת_טעינה_מול_MAGIC_${company || 'כל_החברות'}_${reportMonth || 'חודש'}.xlsx`);
   };
 
-  /* ---------- dashboard totals ---------- */
   const totals = useMemo(() => {
     const reported = visibleRows.reduce((s, r) => s + r.reportedAmount, 0);
     const magic = visibleRows.reduce((s, r) => s + r.magicAmount, 0);
     const delta = reported - magic; // קובץ − MAGIC
     return { reported, magic, delta };
   }, [visibleRows]);
+
+  const statusSummary = useMemo(() => {
+    return filtered.reduce((acc, r) => {
+      acc[r.status] = (acc[r.status] || 0) + 1;
+      return acc;
+    }, {} as Record<Status, number>);
+  }, [filtered]);
 
   /* ---------- UI ---------- */
   return (
@@ -727,7 +821,11 @@ export default function CompareReportedVsMagic() {
           <input type="month" value={reportMonth} onChange={e => setReportMonth(e.target.value)} className="input w-full" />
         </div>
         <label className="inline-flex items-center gap-2 mt-7">
-          <input type="checkbox" checked={includeFamily} onChange={e => setIncludeFamily(e.target.checked)} />
+          <input
+            type="checkbox"
+            checked={includeFamily}
+            onChange={e => setIncludeFamily(e.target.checked)}
+          />
           תא משפחתי
         </label>
       </div>
@@ -744,7 +842,9 @@ export default function CompareReportedVsMagic() {
           />
           <select value={agentCodeFilter} onChange={(e) => setAgentCodeFilter(e.target.value)} className="select-input w-full sm:w-1/3">
             <option value="">מס׳ סוכן (מהקובץ)</option>
-            {agentCodes.map(code => <option key={code} value={code}>{code}</option>)}
+            {agentCodes.map(code => (
+              <option key={code} value={code}>{code}</option>
+            ))}
           </select>
           <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as Status | '')} className="select-input w-full sm:w-1/3">
             {statusOptions.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
@@ -758,6 +858,38 @@ export default function CompareReportedVsMagic() {
             ייצוא לאקסל
           </button>
         </div>
+      )}
+
+      {/* סיכום לפי סטטוס */}
+      {rows.length > 0 && (
+        <>
+          <h2 className="text-xl font-bold mb-2">סיכום לפי סטטוס</h2>
+          <table className="w-full text-sm border mb-6">
+            <thead>
+              <tr className="bg-gray-300 text-right font-bold">
+                <th className="border p-2">סטטוס</th>
+                <th className="border p-2">כמות</th>
+              </tr>
+            </thead>
+            <tbody>
+              {statusOptions
+                .filter(s => s.value && (statusSummary as any)[s.value as Status])
+                .map(s => (
+                  <tr
+                    key={s.value}
+                    className="hover:bg-gray-100 cursor-pointer"
+                    onClick={() => setDrillStatus(s.value as Status)}
+                  >
+                    <td className="border p-2">{s.label}</td>
+                    <td className="border p-2 text-center text-blue-600 underline">
+                      {filtered.reduce((acc, r) => (r.status === s.value ? acc + 1 : acc), 0)}
+                    </td>
+                  </tr>
+                ))}
+            </tbody>
+          </table>
+          {!drillStatus && <p className="text-gray-500">אפשר ללחוץ על סטטוס להצגת פירוט.</p>}
+        </>
       )}
 
       {/* table */}
