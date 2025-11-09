@@ -470,50 +470,6 @@ const handleDeleteExisting = async () => {
     window.location.reload();
   };
 
-  // const standardizeRowWithMapping = (row: any, mapping: Record<string,string>, base: any, fallbackReportMonth?: string) => {
-  //   const result: any = { ...base };
-  //   for (const [excelCol, systemField] of Object.entries(mapping)) {
-     
-  //     if (base.templateId === 'clal_pensia') {
-  //       // אם כבר התקבל fullName מהמיפוי, רק ננרמל
-  //       if (result.fullName) {
-  //         result.fullName = normalizeFullName(result.fullName, '');
-  //       } else {
-  //         // ננסה להרכיב מ"כותרות המקור" באקסל
-  //         const first = row['שם פרטי עמית'] ?? row['שם פרטי'] ?? row['שם פרטי מבוטח'];
-  //         const last  = row['שם משפחה עמית'] ?? row['שם משפחה'] ?? row['שם משפחה מבוטח'];
-  //         const full  = normalizeFullName(first, last);
-  //         if (full) result.fullName = full;
-  //       }
-  //     }
-     
-  //     const value = row[excelCol];
-  //     if (systemField === 'validMonth' || systemField === 'reportMonth') {
-  //       let parsed = parseHebrewMonth(value, base.templateId);
-  //       if (!parsed && systemField === 'reportMonth' && fallbackReportMonth) parsed = fallbackReportMonth;
-  //       result[systemField] = parsed || value;
-  //     } else if (systemField === 'commissionAmount' || systemField === 'premium') {
-  //       if (systemField === 'commissionAmount') {
-  //         const override = commissionOverrides[base.templateId];
-  //         result[systemField] = override ? roundTo2(override(row)) : toNum(value);
-  //       } else {
-  //         result[systemField] = toNum(value); // premium – ללא overrides
-  //       }
-  //     } else if (systemField === 'product') {
-  //       result.product = normalizeProduct(value);
-  //     } else if (systemField === 'customerId' || systemField === 'IDCustomer') {
-  //       const raw = String(value ?? '').trim();
-  //       const padded9 = toPadded9(value);
-  //       result.customerIdRaw = raw;
-  //       result.customerId = padded9;
-  //     } else if (systemField === 'policyNumber') {
-  //       result[systemField] = String(value ?? '').trim();
-  //     } else {
-  //       result[systemField] = value;
-  //     }
-  //   }
-  //   return result;
-  // };
 
   const standardizeRowWithMapping = (
     row: any,
@@ -594,7 +550,9 @@ if (base.templateId === 'mor_insurance') {
     if (full) result.fullName = full;
   }
 }
-
+if (base.templateId === 'clal_pensia' && !result.policyNumber && result.customerId) {
+  result.policyNumber = String(result.customerId).trim();
+}
   
     return result;
   };
