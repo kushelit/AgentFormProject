@@ -21,6 +21,8 @@ const HelpCenter = () => {
       <li><Link href="/Help/flow">🔄 Flow - ניהול לידים</Link></li>
       <li><Link href="/Help/mdflow">🧩 Flow - ניהול הגדרות לידים</Link></li>
       <li><Link href="/Help/TeamPermissions">🛡️ ניהול הרשאות</Link></li>
+      <li><Link href="/Help/commission-import">📊 השוואת עמלות מערכות לטעינה</Link></li>
+
       </ul>
     </div>
   );

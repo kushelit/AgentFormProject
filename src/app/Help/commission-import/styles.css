@@ -1,0 +1,92 @@
+/* תוספות ייעודיות לעמוד טעינת עמלות */
+.help-container .lead {
+  margin-top: 8px;
+  color: #445;
+}
+
+.help-container .toc {
+  margin: 18px 0 24px;
+  padding: 12px 16px;
+  background: #f7fafc;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+}
+.help-container .toc > div {
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+.help-container .toc ol {
+  margin: 0;
+  padding-inline-start: 20px;
+}
+
+.step-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+  margin: 12px 0 20px;
+}
+.step-grid figure {
+  margin: 0;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #fff;
+}
+.step-grid figcaption {
+  font-size: 0.9rem;
+  padding: 8px 10px;
+  background: #f8fafc;
+  color: #334155;
+  border-top: 1px solid #e5e7eb;
+  text-align: right;
+}
+
+.tip, .warn {
+  margin: 10px 0 16px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid;
+}
+.tip {
+  border-color: #bae6fd;
+  background: #f0f9ff;
+  color: #0c4a6e;
+}
+.warn {
+  border-color: #fde68a;
+  background: #fffbeb;
+  color: #92400e;
+}
+
+.faq {
+  padding: 10px 12px;
+  background: #f9fafb;
+  border: 1px dashed #e5e7eb;
+  border-radius: 8px;
+  margin-top: 8px;
+}
+details summary {
+  cursor: pointer;
+  font-weight: 600;
+  margin: 8px 0;
+}
+/* עימוד וריווח בין סעיפים */
+.help-container section {
+  margin-block: 40px;
+  border-top: 1px solid #e5e7eb;
+  padding-top: 28px;
+}
+.help-container h2 {
+  margin-bottom: 12px;
+  color: #1e3a8a;
+}
+.help-container p,
+.help-container ul {
+  line-height: 1.7;
+  color: #374151;
+}
+.help-container ul {
+  margin: 8px 0 16px 0;
+  padding-right: 20px;
+}

@@ -135,3 +135,31 @@
     font-size: 1.5rem;
   }
 }
+.highlight-line {
+  margin: 20px 0;
+  padding: 16px 20px;
+  border-radius: 12px;
+  background: linear-gradient(90deg, #fffaf4, #fff2e0);
+  border-right: 5px solid #ffa94d;
+  font-size: 1.1rem;
+  line-height: 1.6;
+  font-weight: 600;
+  color: #222;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(255, 180, 80, 0.15);
+}
+
+.highlight-icon {
+  font-size: 1.6rem;
+  flex-shrink: 0;
+  filter: drop-shadow(0 0 4px rgba(255, 180, 80, 0.7));
+}
+
+.highlight-text {
+  color: #d35400;
+  font-weight: 700;
+}

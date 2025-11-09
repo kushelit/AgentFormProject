@@ -38,7 +38,7 @@ interface ChangePlanModalProps {
 
 const planDescriptions: Record<string, string> = {
   basic: 'מנוי לסוכן אחד בלבד',
-  pro: 'מנוי לסוכן + 2 עובדים, ניתן להוסיף עובדים נוספים בתשלום',
+  pro: 'מנוי לסוכן +  עובד, ניתן להוסיף עובדים נוספים בתשלום',
   enterprise: 'מנוי מותאם אישית – יטופל בנפרד',
 };
 
@@ -162,6 +162,12 @@ export const ChangePlanModal: React.FC<ChangePlanModalProps> = ({
 
   const handleConfirmUpgrade = async () => {
     if (!selectedPlan || !userId) return;
+
+     // ❗ אם enterprise – לא משנים תוכנית בכלל
+  if (selectedPlan === 'enterprise') {
+    setShowConfirmDialog(false);
+    return;
+  }
     setLoading(true);
     try {
       if (hasGrow) {
@@ -217,6 +223,14 @@ export const ChangePlanModal: React.FC<ChangePlanModalProps> = ({
     }
   };
 
+
+  const order = ['basic', 'pro', 'enterprise'];
+  const orderedPlans = React.useMemo(
+    () => [...plans].sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id)),
+    [plans]
+  );
+
+
   if (!plans.length) {
     return <div className="p-6 text-center text-gray-500">⏳ טוען מסלולים...</div>;
   }
@@ -234,55 +248,86 @@ export const ChangePlanModal: React.FC<ChangePlanModalProps> = ({
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-          {plans.map((plan) => (
-            <div
-              key={plan.id}
-              onClick={() => setSelectedPlan(plan.id)}
-              className={`cursor-pointer rounded-lg border p-4 shadow-md transition hover:shadow-xl text-right ${
-                selectedPlan === plan.id ? 'border-blue-500 bg-blue-50' : 'border-gray-300'
-              }`}
-            >
-              <h3 className="text-lg font-bold mb-2">{plan.name}</h3>
-              <p className="text-sm text-gray-600 mb-3">{planDescriptions[plan.id]}</p>
-              <ul className="text-sm text-gray-700 space-y-1 mt-2 pr-2">
-                {planFeatures[plan.id]?.map((feature, i) => (
-                  <li key={i} className="flex items-center gap-2">
-                    <span className="text-green-600 font-bold">{feature.startsWith('📞') ? '📞' : '✔️'}</span>
-                    <span>{feature.replace(/^✔️ |^📞 /, '')}</span>
-                  </li>
-                ))}
-              </ul>
-              {plan.id !== 'enterprise' && <p className="text-xl font-bold mt-4">₪{plan.price} + מע&quot;מ</p>}
-            </div>
+  {orderedPlans.map((plan) => (
+    <div
+      key={plan.id}
+      onClick={() => setSelectedPlan(plan.id)}
+      className={`relative cursor-pointer rounded-lg border p-4 shadow-md transition hover:shadow-xl text-right flex flex-col justify-between min-h-[420px] ${
+        selectedPlan === plan.id ? 'border-blue-500 bg-blue-50' : 'border-gray-300'
+      }`}
+    >
+      {/* תגים למעלה */}
+      {plan.id === 'pro' && (
+        <div className="absolute top-2 left-2 bg-yellow-400 text-white text-xs font-bold px-2 py-1 rounded shadow">
+          הכי פופולרי ⭐
+        </div>
+      )}
+      {plan.id === 'enterprise' && (
+        <div className="absolute top-2 left-2 bg-purple-600 text-white text-xs font-bold px-2 py-1 rounded shadow">
+          מותאם לארגונים
+        </div>
+      )}
+
+      {/* תוכן עליון */}
+      <div>
+        <h3 className="text-lg font-bold mb-2">{plan.name}</h3>
+        <p className="text-sm text-gray-600 mb-3">
+          {plan.id === 'basic' && 'מנוי לסוכן אחד בלבד'}
+          {plan.id === 'pro' && 'מנוי לסוכן + 2 עובדים, ניתן להוסיף עובדים נוספים בתשלום'}
+          {plan.id === 'enterprise' && 'מנוי מותאם אישית – יטופל בנפרד'}
+        </p>
+
+        <ul className="text-sm text-gray-700 space-y-1 mt-2 pr-2">
+          {planFeatures[plan.id]?.map((feature, i) => (
+            <li key={i} className="flex items-center gap-2">
+              <span className="text-green-600 font-bold">
+                {feature.startsWith('📞') ? '📞' : '✔️'}
+              </span>
+              <span>{feature.replace(/^✔️ |^📞 /, '')}</span>
+            </li>
           ))}
-        </div>
+        </ul>
+      </div>
 
-        <div className="space-y-3">
-          <label className={`flex items-center gap-2 ${selectedPlan !== 'pro' ? 'opacity-50' : ''}`}>
-            עובדים נוספים (₪49 לעובד):
-            <input
-              type="number"
-              value={extraWorkers}
-              min={0}
-              disabled={selectedPlan !== 'pro'}
-              onChange={(e) => setExtraWorkers(Number(e.target.value))}
-              className="w-20 border rounded px-2 py-1 text-right"
-            />
-          </label>
+      {/* מחיר בתחתית */}
+      {plan.id !== 'enterprise' && (
+        <p className="text-xl font-bold mt-4 text-right">₪{plan.price} + מע&quot;מ</p>
+      )}
+    </div>
+  ))}
+</div>
 
-          <div>
-            <label className="block mb-1 font-semibold">קוד קופון</label>
-            <input
-              type="text"
-              value={couponCode}
-              onChange={(e) => setCouponCode(e.target.value)}
-              className="w-full border border-gray-300 rounded px-3 py-2 text-right"
-              placeholder="יש לך קופון?"
-            />
-            {couponError && <p className="text-red-600 text-sm mt-1">{couponError}</p>}
-            {discount > 0 && <p className="text-green-700 text-sm font-medium mt-1">קופון הנחה של {discount}% הופעל</p>}
-          </div>
-        </div>
+        {selectedPlan !== 'enterprise' && (
+  <div className="space-y-3">
+    <label className={`flex items-center gap-2 ${selectedPlan !== 'pro' ? 'opacity-50' : ''}`}>
+      עובדים נוספים (₪49 לעובד):
+      <input
+        type="number"
+        value={extraWorkers}
+        min={0}
+        disabled={selectedPlan !== 'pro'}
+        onChange={(e) => setExtraWorkers(Number(e.target.value))}
+        className="w-20 border rounded px-2 py-1 text-right"
+      />
+    </label>
+
+    <div>
+      <label className="block mb-1 font-semibold">קוד קופון</label>
+      <input
+        type="text"
+        value={couponCode}
+        onChange={(e) => setCouponCode(e.target.value)}
+        className="w-full border border-gray-300 rounded px-3 py-2 text-right"
+        placeholder="יש לך קופון?"
+      />
+      {couponError && <p className="text-red-600 text-sm mt-1">{couponError}</p>}
+      {discount > 0 && (
+        <p className="text-green-700 text-sm font-medium mt-1">קופון הנחה של {discount}% הופעל</p>
+      )}
+    </div>
+  </div>
+)}
+
 
         {/* השלמת פרטים רק כשאין הוראת קבע קיימת */}
         {!hasGrow && (
@@ -311,21 +356,56 @@ export const ChangePlanModal: React.FC<ChangePlanModalProps> = ({
           </div>
         )}
 
-        <p className="font-bold text-lg mt-4">סה&quot;כ לתשלום (כולל מע&quot;מ): ₪{calculateTotal()}</p>
+<p className="font-bold text-lg mt-4">
+  {selectedPlan === 'enterprise'
+    ? 'להצעת מחיר – פנו אלינו'
+    : `סה"כ לתשלום (כולל מע"מ): ₪${calculateTotal()}`}
+</p>
 
-        <div className="flex justify-end gap-4 mt-6">
-          <button
-            onClick={() => setShowConfirmDialog(true)}
-            disabled={!selectedPlan || loading}
-            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition"
-          >
-            {loading ? 'טוען...' : 'החלף תוכנית'}
-          </button>
-          <button type="button" onClick={onClose} className="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300 transition">
-            סגור
-          </button>
-        </div>
-
+<div className="flex justify-end gap-4 mt-6">
+  {selectedPlan === 'enterprise' ? (
+    <>
+      <a
+        href="https://wa.me/972553001487?text=%D7%94%D7%99%D7%99%2C%20%D7%9E%D7%A2%D7%95%D7%A0%D7%99%D7%99%D7%9F%2F%D7%AA%20%D7%91%D7%94%D7%A6%D7%A2%D7%AA%20%D7%9E%D7%97%D7%99%D7%A8%20%D7%9C%D7%AA%D7%95%D7%9B%D7%A0%D7%99%D7%AA%20Enterprise%20%D7%A9%D7%9C%20MagicSale"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition"
+      >
+        להצעת מחיר – דברו איתנו ב-WhatsApp
+      </a>
+      <a
+        href="/landing#contact"
+        className="px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 transition"
+      >
+        או – טופס יצירת קשר
+      </a>
+      <button
+        type="button"
+        onClick={onClose}
+        className="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300 transition"
+      >
+        סגור
+      </button>
+    </>
+  ) : (
+    <>
+      <button
+        onClick={() => setShowConfirmDialog(true)}
+        disabled={!selectedPlan || loading}
+        className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition disabled:opacity-60"
+      >
+        {loading ? 'טוען...' : 'החלף תוכנית'}
+      </button>
+      <button
+        type="button"
+        onClick={onClose}
+        className="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300 transition"
+      >
+        סגור
+      </button>
+    </>
+  )}
+</div>
         {toasts.map((t) => (
           <ToastNotification
             key={t.id}

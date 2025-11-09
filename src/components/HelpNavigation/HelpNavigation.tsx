@@ -18,7 +18,7 @@ const HelpNavigation = () => {
     { href: "/Help/flow", label: "🔄 Flow - ניהול לידים" },
     { href: "/Help/mdflow", label: "🧩 Flow - ניהול הגדרות לידים" },
     { href: "/Help/TeamPermissions", label: "🛡️ ניהול הרשאות" },
-
+    { href: "/Help/commission-import", label: "📊 השוואת עמלות מערכות לטעינה" },  
     ];
 
   // סגירת הרשימה אוטומטית בעת שינוי נתיב
