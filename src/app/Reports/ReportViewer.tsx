@@ -30,6 +30,8 @@ const REPORTS = [
   { value: 'clientPoliciesReport', label: 'דוח עסקאות לתקופה' }, 
   { value: 'clientNifraimSummaryReport', label: 'דוח נפרעים לפי לקוח' },
   { value: 'clientFinancialAccumulationReport', label: 'דוח צבירה פיננסית ללקוח' },
+  { value: 'clientNifraimReportedVsMagic', label: 'דוח נפרעים ללקוח – קובץ מול MagicSale' },
+
 ];
 
 const ReportsPage: React.FC = () => {
@@ -99,43 +101,51 @@ const ReportsPage: React.FC = () => {
   }));
 
   const handleSendReport = async () => {
+    setLoading(true);
     try {
-      setLoading(true);
-
       const clean = (val: any) => (val === '' ? undefined : val);
-
+  
+      const payload = {
+        reportType,
+        fromDate,
+        toDate,
+        emailTo: (emailTo || '').trim(),
+        uid: user?.uid,
+        agentId: clean(selectedAgentId),
+        agentName: clean(selectedAgentName),
+        company: selectedCompanies.length > 0 ? selectedCompanies.map(c => c.value) : undefined,
+        product: selectedProducts.length > 0 ? selectedProducts.map(p => p.value) : undefined,
+        statusPolicy:
+          selectedStatusPolicyFilter.length > 0 ? selectedStatusPolicyFilter : undefined,
+        minuySochen:
+          minuySochenFilter !== null ? minuySochenFilter === 'true' : undefined,
+      };
+  
       const res = await fetch('/api/sendReport', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          reportType,
-          fromDate,
-          toDate,
-          emailTo,
-          uid: user?.uid,
-          agentId: clean(selectedAgentId),
-          agentName: clean(selectedAgentName),
-          company: selectedCompanies.length > 0 ? selectedCompanies.map(c => c.value) : undefined,
-          product: selectedProducts.length > 0 ? selectedProducts.map(p => p.value) : undefined,
-          statusPolicy: selectedStatusPolicyFilter.length > 0
-    ? selectedStatusPolicyFilter
-    : undefined, 
-    minuySochen: minuySochenFilter !== null
-    ? minuySochenFilter === 'true'
-    : undefined,
-        })
+        body: JSON.stringify(payload),
       });
-
-      if (!res.ok) throw new Error('Report generation failed');
-
-      addToast('success', `הדוח נשלח בהצלחה לכתובת ${emailTo}`);
-    } catch (error) {
-      console.error(error);
+  
+      if (!res.ok) {
+        let msg = 'שגיאה בשליחת הדוח';
+        try {
+          const j = await res.json();
+          if (j?.error) msg = j.error;
+        } catch {/* ignore */}
+        addToast('error', msg);
+        return;
+      }
+  
+      addToast('success', `הדוח נשלח בהצלחה לכתובת ${payload.emailTo}`);
+    } catch (err) {
+      console.error(err);
       addToast('error', 'שגיאה בשליחת הדוח');
     } finally {
       setLoading(false);
     }
   };
+  
 
   return (
     <div className="p-6 max-w-4xl mx-auto text-right">

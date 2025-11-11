@@ -176,18 +176,16 @@ margin-top: 10px; /* רווח מלמעלה */
 }
 
 .filter-select-container select,
-.filter-select-container input {
-  flex: 1; /* כל אלמנט יתפוס מקום שווה */
-  min-width: 120px; /* מגביל גודל מינימלי */
-  max-width: 180px; /* מגביל גודל מקסימלי */
-  height: 32px; /* מוודא שכל האלמנטים באותו גובה */
-  padding: 4px 8px;
-  font-size: 14px;
-  text-align: center;
-  border: 1px solid var(--clrgray5);
-  border-radius: 4px;
-  box-sizing: border-box;
+.filter-select-container input{
+  flex: 0 1 140px;   /* shrinkable */
+  min-width: 100px;  /* הקטן קצת כדי שייכנסו כולם */
+  max-width: 160px;
+  height:32px;
+  padding:4px 8px;
+  text-align:center;
+  box-sizing:border-box;
 }
+
 
 .filter-select-container select {
   appearance: none; /* מסיר עיצוב ברירת מחדל של הדפדפן */
@@ -468,4 +466,13 @@ input::placeholder {
 .input-error {
   border: 1px solid red !important;
   background-color: #ffe6e6 !important;
+}
+
+.filter-select-container{
+  display:flex;
+  gap:8px;
+  align-items:center;
+  justify-content:flex-start;   /* שהשדות יידבקו לימין */
+  flex-wrap:nowrap;           /* לא לשבור שורה */
+  width:100%;
 }

@@ -2,24 +2,43 @@ import { NextRequest, NextResponse } from 'next/server';
 import { ReportRequest } from '@/types';
 import { sendEmailWithAttachment } from '@/utils/email';
 
-import { generateInsurancePremiumSummaryReport  } from '@/app/Reports/generators/generateInsurancePremiumReport';
+import { generateInsurancePremiumSummaryReport } from '@/app/Reports/generators/generateInsurancePremiumReport';
 import { generateClientPoliciesReport } from '@/app/Reports/generators/generateClientPoliciesReport';
 import { generateClientNifraimSummaryReport } from '@/app/Reports/generators/generateClientNifraimSummaryReport';
 import { generateFinancialAccumulationReport } from '@/app/Reports/generators/generateFinancialAccumulationReport';
-
+import { generateClientNifraimReportedVsMagic } from '@/app/Reports/generators/generateClientNifraimReportedVsMagic';
 
 import { admin } from '@/lib/firebase/firebase-admin';
+import { checkServerPermission } from '@/services/server/checkServerPermission';
+export const runtime = 'nodejs';
+
+const REPORTS_REQUIRING_ACCESS = new Set(['clientNifraimReportedVsMagic']);
+const REQUIRED_PERMISSION = 'access_commission_import';
 
 export async function POST(req: NextRequest) {
   try {
-    const body: ReportRequest = await req.json();
-    console.log('📥 Got body:', JSON.stringify(body, null, 2));
+    const body: any = await req.json();
+    let { reportType, emailTo, uid, userEmail } = body;
 
-    const { reportType, emailTo, uid } = body;
+    if (!reportType) return NextResponse.json({ error: 'Missing reportType' }, { status: 400 });
+    if (!emailTo)   return NextResponse.json({ error: 'Missing emailTo' }, { status: 400 });
 
-    if (!reportType || !emailTo) {
-      console.warn('⚠️ Missing fields:', { reportType, emailTo });
-      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+    emailTo = String(emailTo).trim(); // ✅ ניקוי
+
+    const isDev = process.env.NODE_ENV !== 'production';
+
+    if (REPORTS_REQUIRING_ACCESS.has(reportType)) {
+      if (isDev && !uid && !userEmail) {
+        console.warn('DEV: skipping permission check (no uid/email)');
+      } else {
+        const ok = await checkServerPermission({ permission: REQUIRED_PERMISSION, uid, userEmail });
+        if (!ok) {
+          return NextResponse.json(
+            { error: 'אין לך הרשאה לדוח זה' },
+            { status: 403 }
+          );
+        }
+      }
     }
 
     let reportBuffer: Buffer;
@@ -29,32 +48,29 @@ export async function POST(req: NextRequest) {
 
     switch (reportType) {
       case 'insurancePremiumReport':
-        console.log('📄 Generating insurancePremiumReport...');
-        ({ buffer: reportBuffer, filename, subject, description } = await generateInsurancePremiumSummaryReport (body));
-        console.log('✅ Report generated');
+        ({ buffer: reportBuffer, filename, subject, description } =
+          await generateInsurancePremiumSummaryReport(body));
         break;
-        
-        case 'clientPoliciesReport':
-          ({ buffer: reportBuffer, filename, subject, description } = await generateClientPoliciesReport(body));
-          break;
-      
-          case 'clientNifraimSummaryReport':
-            console.log('📊 Generating clientNifraimSummaryReport...');
-            ({ buffer: reportBuffer, filename, subject, description } = await generateClientNifraimSummaryReport(body));
-            console.log('✅ clientNifraimSummaryReport generated');
-            break;
-            case 'clientFinancialAccumulationReport':
-              console.log('📊 Generating clientFinancialAccumulationReport...');
-              ({ buffer: reportBuffer, filename, subject, description } = await generateFinancialAccumulationReport(body));
-              console.log('✅ clientFinancialAccumulationReport generated');
-              break;
-            
+      case 'clientPoliciesReport':
+        ({ buffer: reportBuffer, filename, subject, description } =
+          await generateClientPoliciesReport(body));
+        break;
+      case 'clientNifraimSummaryReport':
+        ({ buffer: reportBuffer, filename, subject, description } =
+          await generateClientNifraimSummaryReport(body));
+        break;
+      case 'clientFinancialAccumulationReport':
+        ({ buffer: reportBuffer, filename, subject, description } =
+          await generateFinancialAccumulationReport(body));
+        break;
+      case 'clientNifraimReportedVsMagic':
+        ({ buffer: reportBuffer, filename, subject, description } =
+          await generateClientNifraimReportedVsMagic(body));
+        break;
       default:
-        console.warn('⚠️ Unsupported report type:', reportType);
         return NextResponse.json({ error: 'Unsupported report type' }, { status: 400 });
     }
 
-    console.log('📧 Sending email...');
     await sendEmailWithAttachment({
       to: emailTo,
       subject,
@@ -62,9 +78,7 @@ export async function POST(req: NextRequest) {
       filename,
       fileBuffer: reportBuffer,
     });
-    console.log('📤 Email sent!');
 
-    console.log('📝 Writing to Firestore...');
     await admin.firestore().collection('reportLogs').add({
       reportType,
       emailTo,
@@ -73,16 +87,8 @@ export async function POST(req: NextRequest) {
     });
 
     return NextResponse.json({ success: true });
-  } catch (error: unknown) {
-    console.error('❌ Full error object:', error);
-
-    if (error instanceof Error) {
-      console.error('❌ Error generating or sending report:', error.message);
-      console.error('🔎 Stack trace:', error.stack);
-    } else {
-      console.error('❌ Unknown non-Error object thrown:', JSON.stringify(error));
-    }
-
+  } catch (err) {
+    console.error('sendReport error:', err);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }
