@@ -273,7 +273,7 @@ export const ChangePlanModal: React.FC<ChangePlanModalProps> = ({
         <h3 className="text-lg font-bold mb-2">{plan.name}</h3>
         <p className="text-sm text-gray-600 mb-3">
           {plan.id === 'basic' && 'מנוי לסוכן אחד בלבד'}
-          {plan.id === 'pro' && 'מנוי לסוכן + 2 עובדים, ניתן להוסיף עובדים נוספים בתשלום'}
+          {plan.id === 'pro' && 'מנוי לסוכן + עובד, ניתן להוסיף עובדים נוספים בתשלום'}
           {plan.id === 'enterprise' && 'מנוי מותאם אישית – יטופל בנפרד'}
         </p>
 
