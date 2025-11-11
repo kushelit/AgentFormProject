@@ -22,6 +22,9 @@ import DialogNotification from '@/components/DialogNotification';
 import './ExcelCommissionImporter.css';
 import { writeBatch } from 'firebase/firestore';
 import Link from 'next/link';
+import { useToast } from "@/hooks/useToast";
+import { add } from "date-fns";
+import {ToastNotification} from '@/components/ToastNotification';
 
 /* ==============================
    Types
@@ -33,6 +36,7 @@ interface CommissionTemplateOption {
   companyId: string;
   Name?: string;
   automationClass?: string;
+  commissionIncludesVAT?: boolean; // האם "עמלה" בקובץ כוללת מע"מ
 }
 
 interface CommissionSummary {
@@ -91,6 +95,8 @@ const ExcelCommissionImporter: React.FC = () => {
   const [showTemplateMismatch, setShowTemplateMismatch] = useState(false);
   const [errorDialog, setErrorDialog] = useState<{ title: string; message: React.ReactNode } | null>(null);
 
+  const { toasts, addToast, setToasts } = useToast();
+
   // בחירה מתוך ZIP
   const [zipChooser, setZipChooser] = useState<null | {
     zip: any;
@@ -98,6 +104,14 @@ const ExcelCommissionImporter: React.FC = () => {
     outerFileName: string;
   }>(null);
   const [selectedZipEntry, setSelectedZipEntry] = useState<string>('');
+
+
+  const selectedTemplate = React.useMemo(
+    () => templateOptions.find(t => t.id === templateId),
+    [templateId, templateOptions]
+  );
+
+  const VAT_DEFAULT = 0.17;
 
   /* ==============================
      Helpers
@@ -107,11 +121,24 @@ const ExcelCommissionImporter: React.FC = () => {
 
   const readCsv = (buf: ArrayBuffer | Uint8Array): Record<string, any>[] => {
     const u8 = buf instanceof Uint8Array ? buf : new Uint8Array(buf);
-    const text = new TextDecoder('windows-1255').decode(u8);
+    const text = pickBestDecoding(u8);
+  
     const wb = XLSX.read(text, { type: 'string' });
     const ws = wb.Sheets[wb.SheetNames[0]];
-    return XLSX.utils.sheet_to_json<Record<string, any>>(ws, { defval: "" });
+    const rows = XLSX.utils.sheet_to_json<Record<string, any>>(ws, { defval: "" });
+  
+    if (!rows.length) return rows;
+  
+    // נרמול שמות עמודות בכל השורות
+    return rows.map((row) => {
+      const fixed: any = {};
+      for (const [k, v] of Object.entries(row)) {
+        fixed[normalizeHeader(k)] = v;
+      }
+      return fixed;
+    });
   };
+  
 
   const stripUndefined = <T extends Record<string, any>>(obj: T): T =>
     Object.fromEntries(Object.entries(obj).filter(([, v]) => v !== undefined)) as T;
@@ -171,19 +198,19 @@ const ExcelCommissionImporter: React.FC = () => {
       toNum(pick(row, ['סוכן-סכום עמלה', 'סוכן - סכום עמלה'])) +
       toNum(pick(row, ['סוכן-דמי גביה', 'סוכן - דמי גביה', 'סוכן-דמי גבייה', 'סוכן - דמי גבייה'])),
   
-      // ✅ Fenix Gemel – עמלה לפני מע"מ (קבוע 17%) מתוך "עמלה לתשלום כולל מע"מ"
-    fenix_gemel: (row) => {
-      const VAT = 0.17;
-      const gross = toNum(
-        pick(row, [
-          'עמלה לתשלום כולל מע"מ',
-          'עמלה לתשלום כולל מעמ',
-          'עמלה לתשלום כולל מע״מ',
-        ])
-      );
-      const base = gross || toNum(pick(row, ['סכום עמלה', 'עמלה']));
-      return base ? base / (1 + VAT) : 0;
-    },
+    //   // ✅ Fenix Gemel – עמלה לפני מע"מ (קבוע 17%) מתוך "עמלה לתשלום כולל מע"מ"
+    // fenix_gemel: (row) => {
+    //   const VAT = 0.17;
+    //   const gross = toNum(
+    //     pick(row, [
+    //       'עמלה לתשלום כולל מע"מ',
+    //       'עמלה לתשלום כולל מעמ',
+    //       'עמלה לתשלום כולל מע״מ',
+    //     ])
+    //   );
+    //   const base = gross || toNum(pick(row, ['סכום עמלה', 'עמלה']));
+    //   return base ? base / (1 + VAT) : 0;
+    // },
   
   
     };
@@ -253,6 +280,7 @@ const ExcelCommissionImporter: React.FC = () => {
           type: data.type || '',
           Name: data.Name || '',
           automationClass: data.automationClass || '',
+          commissionIncludesVAT: !!data.commissionIncludesVAT,
         });
       }
 
@@ -299,67 +327,142 @@ const ExcelCommissionImporter: React.FC = () => {
   /* ==============================
      Parsing helpers
   ============================== */
+  // const parseHebrewMonth = (value: any, templateId?: string): string => {
+  //   if (!value) return '';
+
+  //   const monthMap: Record<string, string> = {
+  //     'ינו': '01', 'פבר': '02', 'מרץ': '03', 'אפר': '04', 'מאי': '05', 'יונ': '06',
+  //     'יול': '07', 'אוג': '08', 'ספט': '09', 'אוק': '10', 'נוב': '11', 'דצמ': '12'
+  //   };
+
+  //   if (typeof value === 'number') {
+  //     const excelDate = XLSX.SSF.parse_date_code(value);
+  //     if (excelDate) {
+  //       const year = excelDate.y;
+  //       const month = excelDate.m.toString().padStart(2, '0');
+  //       return `${year}-${month}`;
+  //     }
+  //   }
+
+  //   if (value instanceof Date) {
+  //     const year = value.getFullYear();
+  //     const month = (value.getMonth() + 1).toString().padStart(2, '0');
+  //     return `${year}-${month}`;
+  //   }
+
+  //   const str = value.toString().trim();
+
+  //   let m = str.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{2}|\d{4})$/);
+  //   if (m) {
+  //     let [, _day, mm, yy] = m;
+  //     const yyyy = yy.length === 2 ? (parseInt(yy, 10) < 50 ? `20${yy}` : `19${yy}`) : yy;
+  //     return `${yyyy}-${mm.padStart(2, '0')}`;
+  //   }
+
+  //   if (templateId === 'menura_insurance' && /^\d{5}$/.test(str)) {
+  //     const numeric = parseInt(str, 10);
+  //     const excelDate = XLSX.SSF.parse_date_code(numeric);
+  //     if (excelDate) {
+  //       const year = excelDate.y;
+  //       const month = excelDate.m.toString().padStart(2, '0');
+  //       return `${year}-${month}`;
+  //     }
+  //   }
+
+  //   let match = str.match(/([\u0590-\u05FF]{3})[- ]?(\d{2})/);
+  //   if (!match) match = str.match(/(\d{2})[- ]?([\u0590-\u05FF]{3})/);
+  //   if (match) {
+  //     const [, a, b] = match;
+  //     const [hebMonth, yearSuffix] = monthMap[a] ? [a, b] : [b, a];
+  //     const month = monthMap[hebMonth];
+  //     const year = '20' + yearSuffix;
+  //     if (month) return `${year}-${month}`;
+  //   }
+
+  //   const parts: string[] | null = str.match(/\d+/g);
+  //   if (parts && parts.length >= 2) {
+  //     const year = parts.find((p: string) => p.length === 4);
+  //     const month = parts.find((p: string) => p.length === 2 || p.length === 1);
+  //     if (year && month) return `${year}-${month.padStart(2, '0')}`;
+  //   }
+
+  //   return str.replace(/\//g, '-');
+  // };
+
   const parseHebrewMonth = (value: any, templateId?: string): string => {
     if (!value) return '';
-
+  
     const monthMap: Record<string, string> = {
-      'ינו': '01', 'פבר': '02', 'מרץ': '03', 'אפר': '04', 'מאי': '05', 'יונ': '06',
-      'יול': '07', 'אוג': '08', 'ספט': '09', 'אוק': '10', 'נוב': '11', 'דצמ': '12'
+      'ינו': '01','פבר': '02','מרץ': '03','אפר': '04','מאי': '05','יונ': '06',
+      'יול': '07','אוג': '08','ספט': '09','אוק': '10','נוב': '11','דצמ': '12'
     };
-
+  
+    // Excel serial number
     if (typeof value === 'number') {
-      const excelDate = XLSX.SSF.parse_date_code(value);
-      if (excelDate) {
-        const year = excelDate.y;
-        const month = excelDate.m.toString().padStart(2, '0');
-        return `${year}-${month}`;
-      }
+      const d = XLSX.SSF.parse_date_code(value);
+      if (d) return `${d.y}-${String(d.m).padStart(2,'0')}`;
     }
-
+  
+    // JS Date
     if (value instanceof Date) {
-      const year = value.getFullYear();
-      const month = (value.getMonth() + 1).toString().padStart(2, '0');
-      return `${year}-${month}`;
+      return `${value.getFullYear()}-${String(value.getMonth()+1).padStart(2,'0')}`;
     }
-
+  
     const str = value.toString().trim();
-
-    let m = str.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{2}|\d{4})$/);
-    if (m) {
-      let [, _day, mm, yy] = m;
-      const yyyy = yy.length === 2 ? (parseInt(yy, 10) < 50 ? `20${yy}` : `19${yy}`) : yy;
-      return `${yyyy}-${mm.padStart(2, '0')}`;
-    }
-
-    if (templateId === 'menura_insurance' && /^\d{5}$/.test(str)) {
-      const numeric = parseInt(str, 10);
-      const excelDate = XLSX.SSF.parse_date_code(numeric);
-      if (excelDate) {
-        const year = excelDate.y;
-        const month = excelDate.m.toString().padStart(2, '0');
-        return `${year}-${month}`;
+  
+    // ❗ תמיכה ב-DD/MM/YYYY HH:MM(:SS) או DD-MM-YYYY HH:MM(:SS)
+    {
+      const m = str.match(
+        /^(\d{1,2})[./-](\d{1,2})[./-](\d{2}|\d{4})(?:\s+\d{1,2}:\d{2}(?::\d{2})?)?$/ // יום/חודש/שנה + אופציונלי שעה
+      );
+      if (m) {
+        let [, dd, mm, yy] = m;
+        const yyyy = yy.length === 2 ? (parseInt(yy,10) < 50 ? `20${yy}` : `19${yy}`) : yy;
+        const monthNum = parseInt(mm, 10);
+        if (monthNum >= 1 && monthNum <= 12) {
+          return `${yyyy}-${mm.padStart(2,'0')}`;
+        }
       }
     }
-
-    let match = str.match(/([\u0590-\u05FF]{3})[- ]?(\d{2})/);
-    if (!match) match = str.match(/(\d{2})[- ]?([\u0590-\u05FF]{3})/);
-    if (match) {
-      const [, a, b] = match;
-      const [hebMonth, yearSuffix] = monthMap[a] ? [a, b] : [b, a];
-      const month = monthMap[hebMonth];
-      const year = '20' + yearSuffix;
-      if (month) return `${year}-${month}`;
+  
+    // תבנית מיוחדת של תבנית מסוימת (אם יש לך)
+    if (templateId === 'menura_insurance' && /^\d{5}$/.test(str)) {
+      const d = XLSX.SSF.parse_date_code(parseInt(str,10));
+      if (d) return `${d.y}-${String(d.m).padStart(2,'0')}`;
     }
-
-    const parts: string[] | null = str.match(/\d+/g);
-    if (parts && parts.length >= 2) {
-      const year = parts.find((p: string) => p.length === 4);
-      const month = parts.find((p: string) => p.length === 2 || p.length === 1);
-      if (year && month) return `${year}-${month.padStart(2, '0')}`;
+  
+    // חודש עברי + שנתיים (כמו "מרץ-25" או "25-מרץ")
+    {
+      let match = str.match(/([\u0590-\u05FF]{3})[- ]?(\d{2})/);
+      if (!match) match = str.match(/(\d{2})[- ]?([\u0590-\u05FF]{3})/);
+      if (match) {
+        const [, a, b] = match;
+        const [hebMonth, yearSuffix] = monthMap[a] ? [a, b] : [b, a];
+        const month = monthMap[hebMonth];
+        const year  = `20${yearSuffix}`;
+        if (month) return `${year}-${month}`;
+      }
     }
-
-    return str.replace(/\//g, '-');
+  
+    // 🔧 מסלול גיבוי חכם: שנה + חודש מתוך כל המספרים, כשהחודש חייב להיות 1..12
+    {
+      const nums: string[] = str.match(/\d+/g) || [];
+      const year = nums.find((n: string) => n.length === 4);
+      if (year) {
+        const monthCandidate = nums
+          .filter((n: string) => n.length <= 2)
+          .map((n: string) => parseInt(n, 10))
+          .find((n: number) => n >= 1 && n <= 12);
+        if (monthCandidate) {
+          return `${year}-${String(monthCandidate).padStart(2, '0')}`;
+        }
+      }      
+    }
+  
+    return str.replace(/\//g, '-'); // fallback ישן
   };
+  
+
 
   /* ==============================
      Firestore helpers
@@ -410,7 +513,8 @@ const handleDeleteExisting = async () => {
   const reportMonth = (monthFromRows || monthFromExisting || '').replace(/\//g, '-');
 
   if (!agentId || !tmplId || !companyId || !reportMonth) {
-    alert('חסר מידע למחיקה (סוכן/חברה/תבנית/חודש).');
+    // alert('חסר מידע למחיקה (סוכן/חברה/תבנית/חודש).');
+    addToast("error", "חסר מידע למחיקה");
     return;
   }
 
@@ -437,7 +541,8 @@ const handleDeleteExisting = async () => {
     ];
 
     if (toDeleteRefs.length === 0) {
-      alert('לא נמצאו רשומות למחיקה עבור הפרמטרים שנבחרו.');
+      // alert('לא נמצאו רשומות למחיקה עבור הפרמטרים שנבחרו.');
+      addToast("error", "לא נמצאו רשומות למחיקה");
       return;
     }
 
@@ -449,10 +554,15 @@ const handleDeleteExisting = async () => {
     setSelectedFileName('');
     if (fileInputRef.current) fileInputRef.current.value = '';
 
-    alert('✅ נמחקו הרשומות משלושת האוספים עבור הסוכן/החודש/התבנית/החברה.');
+    // alert('✅ נמחקו הרשומות משלושת האוספים עבור הסוכן/החודש/התבנית/החברה.');
+
+    addToast("success", "נמחקו רשומות בהצלחה");
+
   } catch (err) {
     console.error(err);
-    alert('❌ שגיאה במחיקה. בדקי קונסול.');
+    // alert('❌ שגיאה במחיקה. בדקי קונסול.');
+    addToast("error", "שגיאה במחיקת הרשומות");
+    
   } finally {
     setIsLoading(false);
   }
@@ -490,7 +600,15 @@ const handleDeleteExisting = async () => {
   
       } else if (systemField === 'commissionAmount') {
         const override = commissionOverrides[base.templateId];
-        result[systemField] = override ? roundTo2(override(row)) : toNum(value);
+        let commission = override ? override(row) : toNum(value);
+      
+        // אם בתבנית מסומן שהעמלה כוללת מע״מ – נוריד 17%
+        if (selectedTemplate?.commissionIncludesVAT) {
+          commission = commission / (1 + VAT_DEFAULT);
+        }
+      
+        result[systemField] = roundTo2(commission);
+      
   
       } else if (systemField === 'premium') {
         // ✅ לוגיקת פרמיה מיוחדת לתבנית Fenix
@@ -656,13 +774,24 @@ if (base.templateId === 'clal_pensia' && !result.policyNumber && result.customer
 
         } else if (ext === '.csv') {
           jsonData = readCsv(arrayBuffer);
-
-          if (!mapping || Object.keys(mapping).length === 0) { setShowTemplateMismatch(true); setIsLoading(false); return; }
-          const expected = Object.keys(mapping);
-          const found = Object.keys(jsonData[0] || {});
+        
+          if (!mapping || Object.keys(mapping).length === 0) {
+            setShowTemplateMismatch(true); setIsLoading(false); return;
+          }
+        
+          // 👇 DEBUG + נרמול
+          const expectedRaw = Object.keys(mapping);
+          const foundRaw    = Object.keys(jsonData[0] || {});
+          logHeadersDebug('CSV headers', expectedRaw, foundRaw);
+        
+          const expected = expectedRaw.map(normalizeHeader);
+          const found    = foundRaw.map(normalizeHeader);
           const coverage = expected.length ? (expected.filter(h => found.includes(h)).length / expected.length) : 1;
-          if (coverage < 0.5) { setShowTemplateMismatch(true); setIsLoading(false); return; }
-
+        
+          if (coverage < 0.5) {
+            setShowTemplateMismatch(true); setIsLoading(false); return;
+          }
+        
         } else {
           let wb: XLSX.WorkBook;
           try { wb = XLSX.read(arrayBuffer, { type: "array" }); }
@@ -906,7 +1035,8 @@ if (base.templateId === 'clal_pensia' && !result.policyNumber && result.customer
     setIsLoading(true);
   
     if (existingDocs.length > 0) {
-      alert('❌ קובץ כבר קיים לחודש זה ולסוכן זה. מחק אותו קודם כדי לטעון מחדש.');
+      // alert('❌ קובץ כבר קיים לחודש זה ולסוכן זה. מחק אותו קודם כדי לטעון מחדש.');
+      addToast("error", "קובץ כבר קיים לחודש זה ולסוכן זה");
       setIsLoading(false);
       return;
     }
@@ -1050,12 +1180,57 @@ if (base.templateId === 'clal_pensia' && !result.policyNumber && result.customer
       setExistingDocs([]);
     } catch (error) {
       console.error('שגיאה בעת טעינה:', error);
-      alert('❌ שגיאה בעת טעינה למסד. בדוק קונסול.');
+      // alert('❌ שגיאה בעת טעינה למסד. בדוק קונסול.');
+      addToast("error", "שגיאה בעת טעינה למסד. בדוק קונסול.");
     } finally {
       setIsLoading(false);
     }
   };
   
+
+  // דגל דיבאגר
+const DEBUG_IMPORT = true;
+
+const normalizeHeader = (s: any) =>
+  String(s ?? '')
+    .replace(/\u200f|\u200e|\ufeff/g, '')  // RTL marks + BOM
+    .replace(/\r?\n+/g, ' ')               // ירידות שורה בתא כותרת
+    .replace(/\s+/g, ' ')                  // רווח יחיד
+    .trim();
+
+function pickBestDecoding(u8: Uint8Array) {
+  const utf8 = new TextDecoder('utf-8').decode(u8);        // תומך BOM
+  const win  = new TextDecoder('windows-1255').decode(u8); // אקסל ישן/עברית
+
+  const score = (t: string) => {
+    const heb = (t.match(/[\u0590-\u05FF]/g) || []).length;
+    const mojibakePenalty = (t.match(/ן»¿|�/g) || []).length * 50; // ג'יבריש/BOM
+    const weirdQuotes = (t.match(/[׳״´`]/g) || []).length * 2;
+    return heb - mojibakePenalty - weirdQuotes;
+  };
+
+  return score(utf8) >= score(win) ? utf8 : win;
+}
+
+
+function logHeadersDebug(ctx: string, expectedRaw: string[], foundRaw: string[]) {
+  if (!DEBUG_IMPORT) return;
+  const expected = expectedRaw.map(normalizeHeader);
+  const found    = foundRaw.map(normalizeHeader);
+  const matched  = expected.filter(h => found.includes(h));
+  const missing  = expected.filter(h => !found.includes(h));
+  const coverage = expected.length ? (matched.length / expected.length) : 1;
+
+  console.groupCollapsed(`[IMPORT DEBUG] ${ctx}`);
+  console.log('Expected (mapping keys) – raw:', expectedRaw);
+  console.log('Found (file headers) – raw:', foundRaw);
+  console.log('Expected (normalized):', expected);
+  console.log('Found (normalized):   ', found);
+  console.log('Matched:', matched);
+  console.log('Missing:', missing);
+  console.log('Coverage:', Math.round(coverage * 100) + '%');
+  console.groupEnd();
+}
 
 
   /* ==============================
@@ -1304,6 +1479,16 @@ if (base.templateId === 'clal_pensia' && !result.policyNumber && result.customer
           cancelText="ביטול"
         />
       )}
+
+{toasts.length > 0  && toasts.map((toast) => (
+  <ToastNotification 
+    key={toast.id}  
+    type={toast.type}
+    className={toast.isHiding ? "hide" : ""} 
+    message={toast.message}
+    onClose={() => setToasts((prevToasts) => prevToasts.filter((t) => t.id !== toast.id))}
+  />
+))}
     </div>
   );
 };

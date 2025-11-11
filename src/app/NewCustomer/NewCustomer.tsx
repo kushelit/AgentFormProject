@@ -108,9 +108,6 @@ const normCompany = (s?: string|null) => String(s ?? '').trim();
   const [issueDay, setIssueDay] = useState('');
   const handleIssueDay = (e: React.ChangeEvent<HTMLInputElement>) => setIssueDay(e.target.value);
 
-  const [showToast, setShowToast] = useState(false);
-  const [toastType, setToastType] = useState('');
-  const [toastMessage, setToastMessage] = useState('');
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [dialogType, setDialogType] = useState('');
@@ -1969,7 +1966,15 @@ useEffect(() => {
     </div>
   </div>
 ) : null}
-
+ {toasts.length > 0  && toasts.map((toast) => (
+  <ToastNotification 
+    key={toast.id}  
+    type={toast.type}
+    className={toast.isHiding ? "hide" : ""} 
+    message={toast.message}
+    onClose={() => setToasts((prevToasts) => prevToasts.filter((t) => t.id !== toast.id))}
+  />
+))}
       </div>
   );
 }

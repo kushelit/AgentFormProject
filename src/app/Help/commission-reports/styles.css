@@ -50,3 +50,12 @@ html { scroll-behavior: smooth; }
 .back { margin-top: 10px; }
 .back-link { text-decoration: underline; }
 .back-link:hover { text-decoration: none; }
+
+.help-image {
+  display: block;
+  margin: 12px auto;
+  max-width: 90%;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+}
