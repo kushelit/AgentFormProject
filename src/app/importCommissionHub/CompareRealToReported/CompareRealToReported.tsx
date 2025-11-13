@@ -53,7 +53,12 @@ const statusOptions = [
 /* ---------- helpers ---------- */
 
 const canon = (v?: string | null) => String(v ?? '').trim();
-const normPolicy = (v: any) => String(v ?? '').trim();
+
+// ⚙️ נירמול מספר פוליסה – כמו policyNumberKey: בלי רווחים בכלל
+const normPolicy = (v: any) =>
+  String(v ?? '')
+    .trim()
+    .replace(/\s+/g, '');
 
 /** YYYY-MM מכל מני פורמטים שכיחים */
 const parseToYm = (v?: string | null) => {
@@ -335,7 +340,7 @@ export default function CompareReportedVsMagic() {
         : [lockedCustomerId];
     }
 
-    /* ------- externalCommissions ------- */
+    /* ------- policyCommissionSummaries (צד קובץ) ------- */
     const extBase: any[] = [
       where('agentId', '==', selectedAgentId),
       where('reportMonth', '==', reportMonth),
@@ -343,21 +348,23 @@ export default function CompareReportedVsMagic() {
     if (company) extBase.push(where('company', '==', company));
 
     let extRows: ExternalCommissionRow[] = [];
+
     if (scopeCustomerIds) {
+      // מצב תא משפחתי – ננסה קודם עם IN על customerId
       const fetched = await fetchDocsByFamilyDualFields<ExternalCommissionRow>(
-        'externalCommissions',
+        'policyCommissionSummaries',
         extBase,
         scopeCustomerIds,
         (raw) => {
           const comp = canon(raw.company);
-          const pol = normPolicy(raw.policyNumber);
+          const pol = normPolicy(raw.policyNumberKey ?? raw.policyNumber);
           return {
             policyNumber: pol,
-            commissionAmount: Number(raw.commissionAmount ?? 0),
+            commissionAmount: Number(raw.totalCommissionAmount ?? 0),
             company: comp,
             reportMonth: raw.reportMonth,
-            customerId: String(raw.customerId ?? raw.IDCustomer ?? '').trim() || undefined,
-            agentCode: String(raw.agentCode ?? raw.AgentCode ?? '').trim() || undefined,
+            customerId: String(raw.customerId ?? '').trim() || undefined,
+            agentCode: String(raw.agentCode ?? '').trim() || undefined,
             _company: comp,
             _displayPolicy: pol || '-',
           };
@@ -366,22 +373,23 @@ export default function CompareReportedVsMagic() {
 
       if (!fetched.length) {
         // גיבוי: משוך את כל הדוחות של החודש והגבל למשפחה בצד לקוח
-        const qAll = query(collection(db, 'externalCommissions'), ...extBase);
+        const qAll = query(collection(db, 'policyCommissionSummaries'), ...extBase);
         const sAll = await getDocs(qAll);
         const famSet = new Set(scopeCustomerIds);
         sAll.docs.forEach(d => {
           const raw: any = d.data();
-          const cid = String(raw.customerId ?? raw.IDCustomer ?? '').trim();
+          const cid = String(raw.customerId ?? '').trim();
           if (!famSet.has(cid)) return;
+
           const comp = canon(raw.company);
-          const pol = normPolicy(raw.policyNumber);
+          const pol = normPolicy(raw.policyNumberKey ?? raw.policyNumber);
           extRows.push({
             policyNumber: pol,
-            commissionAmount: Number(raw.commissionAmount ?? 0),
+            commissionAmount: Number(raw.totalCommissionAmount ?? 0),
             company: comp,
             reportMonth: raw.reportMonth,
             customerId: cid || undefined,
-            agentCode: String(raw.agentCode ?? raw.AgentCode ?? '').trim() || undefined,
+            agentCode: String(raw.agentCode ?? '').trim() || undefined,
             _company: comp,
             _displayPolicy: pol || '-',
           });
@@ -390,19 +398,20 @@ export default function CompareReportedVsMagic() {
         extRows = fetched;
       }
     } else {
-      const qBase = query(collection(db, 'externalCommissions'), ...extBase);
+      // בלי תא משפחתי – לפי סוכן + חברה + חודש
+      const qBase = query(collection(db, 'policyCommissionSummaries'), ...extBase);
       const s = await getDocs(qBase);
       extRows = s.docs.map(d => {
         const raw = d.data() as any;
         const comp = canon(raw.company);
-        const pol = normPolicy(raw.policyNumber);
+        const pol = normPolicy(raw.policyNumberKey ?? raw.policyNumber);
         return {
           policyNumber: pol,
-          commissionAmount: Number(raw.commissionAmount ?? 0),
+          commissionAmount: Number(raw.totalCommissionAmount ?? 0),
           company: comp,
           reportMonth: raw.reportMonth,
-          customerId: String(raw.customerId ?? raw.IDCustomer ?? '').trim() || undefined,
-          agentCode: String(raw.agentCode ?? raw.AgentCode ?? '').trim() || undefined,
+          customerId: String(raw.customerId ?? '').trim() || undefined,
+          agentCode: String(raw.agentCode ?? '').trim() || undefined,
           _company: comp,
           _displayPolicy: pol || '-',
         };
@@ -410,10 +419,19 @@ export default function CompareReportedVsMagic() {
     }
 
     const externalByKey = new Map<string, ExternalCommissionRow>();
+
+    // מאחדים לפי (company + policy) כמו קודם
     extRows.forEach((raw, idx) => {
       const pol = normPolicy(raw.policyNumber);
       const key = pol ? `${raw._company}::${pol}` : `${raw._company}::__NO_POLICY__:${idx}`;
-      externalByKey.set(key, raw);
+
+      const existing = externalByKey.get(key);
+      if (existing) {
+        existing.commissionAmount =
+          Number(existing.commissionAmount ?? 0) + Number(raw.commissionAmount ?? 0);
+      } else {
+        externalByKey.set(key, { ...raw });
+      }
     });
 
     /* ------- sales (policyYm ≤ reportMonth, סטטוסים פעילה/הצעה) ------- */
@@ -518,7 +536,7 @@ export default function CompareReportedVsMagic() {
               matchMinuy((c as any).minuySochen, (sale as any).minuySochen)
             ) || undefined;
 
-        const commissions = calculateCommissions(
+          const commissions = calculateCommissions(
             sale as any,
             contractMatch,
             contracts,
