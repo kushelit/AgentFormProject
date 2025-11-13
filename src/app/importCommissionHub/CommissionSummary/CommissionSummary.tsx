@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { collection, doc, getDoc, getDocs, query, where } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, query, where, orderBy } from 'firebase/firestore'; // <-- NEW: orderBy
 import { db } from '@/lib/firebase/firebase';
 import useFetchAgentData from '@/hooks/useFetchAgentData';
 import { useAuth } from '@/lib/firebase/AuthContext';
@@ -47,54 +47,86 @@ export default function CommissionSummaryPage() {
   const [expanded, setExpanded] = useState<{ month: string; company: string } | null>(null);
   const drillScrollerRef = useRef<HTMLDivElement>(null);
 
+  // ==== NEW: Month range filter state ====
+  const [startMonth, setStartMonth] = useState<string>(''); // e.g. '2025-01'
+  const [endMonth, setEndMonth] = useState<string>('');
+  const [applyTick, setApplyTick] = useState<number>(0); // trigger fetch when user clicks "החל"
+
   const handleToggleExpandCompany = (company: string) => {
     setExpanded((prev) => (prev?.company === company ? null : { month: 'ALL', company }));
   };
 
+  // ==== NEW: Validate that start<=end (or empty) ====
+  const isRangeValid = useMemo(() => {
+    if (!startMonth || !endMonth) return true;
+    return startMonth <= endMonth;
+  }, [startMonth, endMonth]);
+
+  // ==== Fetch summaries (agent + optional month range) ====
   useEffect(() => {
     const fetchSummaries = async () => {
       if (!selectedAgentId) return;
       setLoading(true);
-      const q = query(collection(db, 'commissionSummaries'), where('agentId', '==', selectedAgentId));
-      const snapshot = await getDocs(q);
-      const fetched = snapshot.docs.map((doc) => doc.data() as CommissionSummary);
-      setSummaries(fetched);
+
+      // Build query dynamically
+      const baseCol = collection(db, 'commissionSummaries');
+      const clauses: any[] = [where('agentId', '==', selectedAgentId)];
+
+      // If user provided full range, add range filters and orderBy
+      const useRange = startMonth && endMonth && isRangeValid;
+
+      let qRef;
+      if (useRange) {
+        clauses.push(where('reportMonth', '>=', startMonth));
+        clauses.push(where('reportMonth', '<=', endMonth));
+        qRef = query(baseCol, ...clauses, orderBy('reportMonth')); // Firestore requires orderBy on ranged field
+      } else {
+        qRef = query(baseCol, ...clauses);
+      }
+
+      const snapshot = await getDocs(qRef);
+      const fetched = snapshot.docs.map((d) => d.data() as CommissionSummary);
+
+      // If user set only one bound (start OR end), do client-side filter:
+      const filtered =
+        (!startMonth && !endMonth) || useRange
+          ? fetched
+          : fetched.filter((row) => {
+              if (startMonth && row.reportMonth < startMonth) return false;
+              if (endMonth && row.reportMonth > endMonth) return false;
+              return true;
+            });
+
+      setSummaries(filtered);
       setLoading(false);
     };
+    // applyTick makes sure we fetch only when user clicks "החל", not on every keystroke
     fetchSummaries();
-  }, [selectedAgentId]);
+  }, [selectedAgentId, applyTick, isRangeValid]); // eslint-disable-line
 
   useEffect(() => {
     const fetchCompanyMap = async () => {
       try {
         const templatesSnap = await getDocs(collection(db, 'commissionTemplates'));
         const map: CompanyMap = {};
-
         for (const docSnap of templatesSnap.docs) {
           const data = docSnap.data();
           const templateId = docSnap.id;
-
           if (data?.companyId) {
             const companyRef = doc(db, 'company', data.companyId);
             const companySnap = await getDoc(companyRef);
-
-            if (companySnap.exists()) {
-              const companyData = companySnap.data();
-              map[templateId] = companyData?.companyName || 'חברה ללא שם';
-            } else {
-              map[templateId] = 'חברה לא נמצאה';
-            }
+            map[templateId] = companySnap.exists()
+              ? (companySnap.data()?.companyName || 'חברה ללא שם')
+              : 'חברה לא נמצאה';
           } else {
             map[templateId] = 'לא ידוע';
           }
         }
-
         setCompanyMap(map);
       } catch (error) {
         console.error('שגיאה בעת שליפת מפת החברות:', error);
       }
     };
-
     fetchCompanyMap();
   }, []);
 
@@ -138,11 +170,9 @@ export default function CommissionSummaryPage() {
 
   const selectedCompany = expanded?.company;
 
-  // ===== Helpers for charts =====
   const formatCurrency = (v: number | string) =>
     Number(v).toLocaleString('he-IL', { maximumFractionDigits: 2 });
 
-  // Data for Chart 1: monthly totals ("גרף נפרעים לפי חודש")
   const monthlyTotalsData = useMemo(
     () =>
       allMonths.map((month) => ({
@@ -152,7 +182,6 @@ export default function CommissionSummaryPage() {
     [allMonths, allCompanies, summaryByMonthCompany]
   );
 
-  // Data for Chart 2: per-company line series over months ("גרף נפרעים לפי חברה")
   const perCompanyOverMonthsData = useMemo(() => {
     return allMonths.map((month) => {
       const row: Record<string, number | string> = { month };
@@ -163,33 +192,71 @@ export default function CommissionSummaryPage() {
     });
   }, [allMonths, allCompanies, summaryByMonthCompany]);
 
-  const palette = [
-    '#2563eb', // blue-600
-    '#16a34a', // green-600
-    '#dc2626', // red-600
-    '#7c3aed', // violet-600
-    '#f59e0b', // amber-500
-    '#0891b2', // cyan-700
-    '#fb7185', // rose-400
-    '#84cc16', // lime-500
-    '#0ea5e9', // sky-500
-    '#a855f7', // purple-500
-  ];
+  const palette = ['#2563eb','#16a34a','#dc2626','#7c3aed','#f59e0b','#0891b2','#fb7185','#84cc16','#0ea5e9','#a855f7'];
 
   return (
     <div className="p-6 max-w-6xl mx-auto text-right" dir="rtl">
       <h2 className="text-2xl font-bold mb-4">סיכום עמלות לפי חודש וחברה</h2>
 
-      <div className="mb-4">
-        <label className="block font-semibold mb-1">בחר סוכן:</label>
-        <select value={selectedAgentId} onChange={handleAgentChange} className="select-input w-full">
-          {detail?.role === 'admin' && <option value="">בחר סוכן</option>}
-          {agents.map((agent) => (
-            <option key={agent.id} value={agent.id}>
-              {agent.name}
-            </option>
-          ))}
-        </select>
+      {/* ==== Filters row (agent + month range) ==== */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4 items-end">
+        <div className="md:col-span-2">
+          <label className="block font-semibold mb-1">בחר סוכן:</label>
+          <select value={selectedAgentId} onChange={handleAgentChange} className="select-input w-full">
+            {detail?.role === 'admin' && <option value="">בחר סוכן</option>}
+            {agents.map((agent) => (
+              <option key={agent.id} value={agent.id}>
+                {agent.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <label className="block font-semibold mb-1">חודש התחלה:</label>
+          <input
+            type="month"
+            value={startMonth}
+            onChange={(e) => setStartMonth(e.target.value)}
+            className="input w-full"
+            placeholder="YYYY-MM"
+          />
+        </div>
+
+        <div>
+          <label className="block font-semibold mb-1">חודש סיום:</label>
+          <input
+            type="month"
+            value={endMonth}
+            onChange={(e) => setEndMonth(e.target.value)}
+            className="input w-full"
+            placeholder="YYYY-MM"
+          />
+        </div>
+
+        <div className="md:col-span-4 flex gap-2">
+          <button
+            type="button"
+            className="px-4 py-2 rounded bg-blue-600 text-white disabled:opacity-50"
+            disabled={!selectedAgentId || !isRangeValid}
+            onClick={() => setApplyTick((t) => t + 1)}
+            title={isRangeValid ? 'החל סינון' : 'טווח חודשים לא תקין'}
+          >
+            החל
+          </button>
+          <button
+            type="button"
+            className="px-4 py-2 rounded border"
+            onClick={() => {
+              setStartMonth('');
+              setEndMonth('');
+              setApplyTick((t) => t + 1);
+            }}
+          >
+            נקה סינון
+          </button>
+          {!isRangeValid && <span className="text-sm text-red-600 self-center">טווח חודשים לא תקין</span>}
+        </div>
       </div>
 
       {loading ? (
@@ -211,14 +278,13 @@ export default function CommissionSummaryPage() {
                       aria-expanded={isOpen}
                     >
                       <span>{company}</span>
-                      {/* In RTL, ChevronRight visually points to the scroll direction */}
                       <ChevronRight className={`h-4 w-4 transition-transform ${isOpen ? 'rotate-90' : ''}`} aria-hidden="true" />
                     </button>
                   </th>
                 );
               })}
-<th className="border px-2 py-1 font-bold bg-gray-50">סה&quot;כ לחודש</th>
-</tr>
+              <th className="border px-2 py-1 font-bold bg-gray-50">סה&quot;כ לחודש</th>
+            </tr>
           </thead>
           <tbody>
             {allMonths.map((month) => {
@@ -243,30 +309,18 @@ export default function CommissionSummaryPage() {
         </table>
       )}
 
-   
-      {/* ===== Drill-down table ===== */}
       {selectedCompany && (
         <div className="mt-10">
           <h3 className="text-xl font-semibold mb-2">פירוט עבור חברה: {selectedCompany}</h3>
-
           <div className="flex items-center gap-2 mb-2">
-            <button
-              type="button"
-              className="p-2 rounded border hover:bg-gray-100"
-              title="גלול ימינה"
-              onClick={() => drillScrollerRef.current?.scrollBy({ left: -400, behavior: 'smooth' })}
-            >
+            <button type="button" className="p-2 rounded border hover:bg-gray-100" title="גלול ימינה"
+              onClick={() => drillScrollerRef.current?.scrollBy({ left: -400, behavior: 'smooth' })}>
               <ChevronRight className="h-4 w-4" />
             </button>
-            <button
-              type="button"
-              className="p-2 rounded border hover:bg-gray-100"
-              title="גלול שמאלה"
-              onClick={() => drillScrollerRef.current?.scrollBy({ left: 400, behavior: 'smooth' })}
-            >
+            <button type="button" className="p-2 rounded border hover:bg-gray-100" title="גלול שמאלה"
+              onClick={() => drillScrollerRef.current?.scrollBy({ left: 400, behavior: 'smooth' })}>
               <ChevronLeft className="h-4 w-4" />
             </button>
-
             <span className="text-xs text-gray-500 mr-auto">אפשר לגרור עם העכבר או להשתמש בחיצים לגלילה אופקית</span>
           </div>
 
@@ -275,19 +329,14 @@ export default function CommissionSummaryPage() {
               <thead className="bg-gray-100">
                 <tr>
                   <th className="border px-2 py-1 sticky right-0 z-10 bg-gray-100">חודש</th>
-
                   {Object.keys(summaryByCompanyAgentMonth[selectedCompany] || {})
                     .sort()
                     .map((agentCode) => (
-                      <th key={agentCode} className="border px-2 py-1">
-                        {agentCode}
-                      </th>
+                      <th key={agentCode} className="border px-2 py-1">{agentCode}</th>
                     ))}
-
-<th className="border px-2 py-1 font-bold bg-gray-50">סה&quot;כ לחודש</th>
+                  <th className="border px-2 py-1 font-bold bg-gray-50">סה&quot;כ לחודש</th>
                 </tr>
               </thead>
-
               <tbody>
                 {Array.from(
                   new Set(
@@ -300,11 +349,9 @@ export default function CommissionSummaryPage() {
                       (sum, agentCode) => sum + (summaryByCompanyAgentMonth[selectedCompany]?.[agentCode]?.[month] || 0),
                       0
                     );
-
                     return (
                       <tr key={month}>
                         <td className="border px-2 py-1 font-semibold sticky right-0 z-10 bg-white">{month}</td>
-
                         {Object.keys(summaryByCompanyAgentMonth[selectedCompany] || {})
                           .sort()
                           .map((agentCode) => (
@@ -312,7 +359,6 @@ export default function CommissionSummaryPage() {
                               {summaryByCompanyAgentMonth[selectedCompany]?.[agentCode]?.[month]?.toLocaleString() ?? '-'}
                             </td>
                           ))}
-
                         <td className="border px-2 py-1 font-bold bg-gray-100">{rowTotal.toLocaleString()}</td>
                       </tr>
                     );
@@ -323,13 +369,11 @@ export default function CommissionSummaryPage() {
         </div>
       )}
 
-         {/* ===== Charts Section ===== */}
-         {!loading && allMonths.length > 0 && (
+      {!loading && allMonths.length > 0 && (
         <div className="mt-10 space-y-10">
-          {/* Chart 1: Monthly totals */}
           <section>
-          <h3 className="text-xl font-semibold mb-3">גרף נפרעים לפי חודש (סה&quot;כ חודשי)</h3>
-          <div className="w-full h-80 rounded-xl border bg-white">
+            <h3 className="text-xl font-semibold mb-3">גרף נפרעים לפי חודש (סה&quot;כ חודשי)</h3>
+            <div className="w-full h-80 rounded-xl border bg-white">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={monthlyTotalsData} margin={{ top: 10, right: 64, left: 10, bottom: 28 }}>
                   <CartesianGrid strokeDasharray="3 3" />
@@ -342,7 +386,6 @@ export default function CommissionSummaryPage() {
             </div>
           </section>
 
-          {/* Chart 2: Per-company over months */}
           <section>
             <h3 className="text-xl font-semibold mb-3">גרף נפרעים לפי חברה (התפתחות חודשית)</h3>
             <div className="w-full h-96 rounded-xl border bg-white">
@@ -370,7 +413,6 @@ export default function CommissionSummaryPage() {
           </section>
         </div>
       )}
-
     </div>
   );
 }
