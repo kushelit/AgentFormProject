@@ -325,7 +325,8 @@ export default function CompareReportedVsMagic() {
   }
 
   /* ---------- core fetch ---------- */
-  const fetchData = useCallback(async () => {
+   /* ---------- core fetch ---------- */
+   const fetchData = useCallback(async () => {
     if (!selectedAgentId || !reportMonth) {
       setRows([]);
       return;
@@ -491,11 +492,16 @@ export default function CompareReportedVsMagic() {
     }
 
     /* ------- contracts ------- */
-    const contractsQ = company
-      ? query(collection(db, 'contracts'), where('AgentId', '==', selectedAgentId), where('company', '==', company))
-      : query(collection(db, 'contracts'), where('AgentId', '==', selectedAgentId));
-    const contractsSnap = await getDocs(contractsQ);
-    const contracts = contractsSnap.docs.map(d => d.data() as ContractForCompareCommissions);
+    // תמיד מביאים את כל ההסכמים של הסוכן – כדי שברירת מחדל לפי קבוצת מוצר תעבוד גם עם סינון חברה
+    const contractsSnap = await getDocs(
+      query(collection(db, 'contracts'), where('AgentId', '==', selectedAgentId))
+    );
+    const allContracts = contractsSnap.docs.map(d => d.data() as ContractForCompareCommissions);
+
+    // להסכמים "מדויקים" לפי חברה נשתמש רק למאצ' הראשוני
+    const contractsForDirectMatch = company
+      ? allContracts.filter(c => canon((c as any).company) === canon(company))
+      : allContracts;
 
     /* ------- unify keys ------- */
     const allKeysSet = new Set<string>();
@@ -529,9 +535,9 @@ export default function CompareReportedVsMagic() {
           ensureProductInMap((sale as any).product);
 
           const contractMatch =
-            contracts.find(c =>
+            contractsForDirectMatch.find(c =>
               c.AgentId === selectedAgentId &&
-              c.company === comp &&
+              canon((c as any).company) === comp &&
               (c as any).product === (sale as any).product &&
               matchMinuy((c as any).minuySochen, (sale as any).minuySochen)
             ) || undefined;
@@ -539,7 +545,7 @@ export default function CompareReportedVsMagic() {
           const commissions = calculateCommissions(
             sale as any,
             contractMatch,
-            contracts,
+            allContracts,      // כאן חשוב – כל ההסכמים, כדי שברירת מחדל תעבוד
             productMap,
             selectedAgentId
           );
@@ -602,9 +608,9 @@ export default function CompareReportedVsMagic() {
           ensureProductInMap((sale as any).product);
 
           const contractMatch =
-            contracts.find(c =>
+            contractsForDirectMatch.find(c =>
               c.AgentId === selectedAgentId &&
-              c.company === comp &&
+              canon((c as any).company) === comp &&
               (c as any).product === (sale as any).product &&
               matchMinuy((c as any).minuySochen, (sale as any).minuySochen)
             ) || undefined;
@@ -612,7 +618,7 @@ export default function CompareReportedVsMagic() {
           const commissions = calculateCommissions(
             sale as any,
             contractMatch,
-            contracts,
+            allContracts,      // גם כאן – כל ההסכמים לפולבק
             productMap,
             selectedAgentId
           );
@@ -628,7 +634,7 @@ export default function CompareReportedVsMagic() {
         const base = reportedAmount === 0 ? 1 : reportedAmount;
         const diffPercent = Math.abs(diff) / base * 100;
 
-        // 🔸 ספי סטייה: דלול רכים — אם אחד מהספים מתקיים ⇒ ללא שינוי
+        // 🔸 ספי סטייה
         const withinAmount  = Math.abs(diff) <= toleranceAmount;
         const withinPercent = diffPercent <= tolerancePercent;
         const status: Status = (withinAmount || withinPercent) ? 'unchanged' : 'changed';
