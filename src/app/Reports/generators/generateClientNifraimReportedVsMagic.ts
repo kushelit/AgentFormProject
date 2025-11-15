@@ -46,13 +46,15 @@ const parseMinuy = (v: unknown): boolean | undefined => {
   return undefined;
 };
 
-/** KEY אחיד כמו במסך */
+/** KEY אחיד כמו במסך: חברה + פוליסה, ואם אין פוליסה – מפתח פנימי */
 const makeKey = (company: string, policy: string, docId?: string) =>
   policy ? `${company}::${policy}` : `${company}::__NO_POLICY__:${docId ?? ''}`;
 
 /** -------------------------------------------------- */
+/**   Types                                            */
+/** -------------------------------------------------- */
 
-type RowOut = {
+type PolicyRowOut = {
   'ת"ז': string;
   'שם פרטי': string;
   'שם משפחה': string;
@@ -65,9 +67,21 @@ type RowOut = {
   'פער %': number;
 };
 
+type CustomerRowOut = {
+  'ת"ז': string;
+  'שם פרטי': string;
+  'שם משפחה': string;
+  'נפרעים (קובץ)': number;
+  'נפרעים (MAGIC)': number;
+  'פער ₪ (קובץ−MAGIC)': number;
+  'פער %': number;
+};
+
 /** -------------------------------------------------- */
 
-export async function generateClientNifraimReportedVsMagic(params: ReportRequest) {
+export async function generateClientNifraimReportedVsMagic(
+  params: ReportRequest
+) {
   const { agentId, product, company, fromDate, toDate, statusPolicy } = params;
 
   if (!agentId) throw new Error('נדרש לבחור סוכן');
@@ -79,20 +93,36 @@ export async function generateClientNifraimReportedVsMagic(params: ReportRequest
   const fromYm = toYm(fromDate);
   const toYmVal = toYm(toDate);
 
-  const selectedCompanies = Array.isArray(company) ? company.map(c => canon(c)) : [];
-  const selectedProducts  = Array.isArray(product) ? product.map(p => canon(p)) : [];
-  const selectedStatuses  = Array.isArray(statusPolicy) ? statusPolicy.map(s => canon(s)) : [];
+  const selectedCompanies = Array.isArray(company)
+    ? company.map(canon)
+    : [];
+  const selectedProducts = Array.isArray(product)
+    ? product.map(canon)
+    : [];
+  const selectedStatuses = Array.isArray(statusPolicy)
+    ? statusPolicy.map(canon)
+    : [];
 
   const filterMinuy = parseMinuy((params as any).minuySochen);
 
   /** מאגרים */
-  const reportedByKey: Record<string, { ym: string; amount: number; cid: string; fullName?: string }> = {};
-  const magicByKey: Record<string, number> = {};
-  const displayNameByKey: Record<string, { first: string; last: string }> = {};
 
-  /** ---------- EXTERNAL ---------- */
+  // מהקבצים – לפי KEY
+  const reportedByKey: Record<
+    string,
+    { ym: string; amount: number; cid: string; fullName?: string }
+  > = {};
 
-  const extSnap = await db.collection('externalCommissions')
+  // מהמג'יק – לפי KEY
+  const magicByKey: Record<
+    string,
+    { amount: number; cid?: string; first?: string; last?: string }
+  > = {};
+
+  /** ---------- EXTERNAL (קבצים) ---------- */
+
+  const extSnap = await db
+    .collection('externalCommissions')
     .where('agentId', '==', agentId)
     .get();
 
@@ -107,31 +137,38 @@ export async function generateClientNifraimReportedVsMagic(params: ReportRequest
     if (selectedCompanies.length && !selectedCompanies.includes(comp)) continue;
 
     const prod = canon(r.product);
-    if (selectedProducts.length && prod && !selectedProducts.includes(prod)) continue;
+    if (selectedProducts.length && prod && !selectedProducts.includes(prod))
+      continue;
 
     if (
       typeof filterMinuy === 'boolean' &&
       typeof r.minuySochen !== 'undefined' &&
       normalizeMinuy(r.minuySochen) !== filterMinuy
-    ) continue;
+    )
+      continue;
 
     const policy = canon(r.policyNumber);
+    // כאן *כן* מדלגים על שורות בלי מספר פוליסה – הן יופיעו רק בצד המג'יק
     if (!policy) continue;
 
     const cid = canon(r.customerId || r.IDCustomer);
     const key = makeKey(comp, policy, d.id);
 
+    const fullName = canon(r.fullName || '');
+    const amount = Number(r.commissionAmount ?? 0);
+
     reportedByKey[key] = {
       ym,
       cid,
-      amount: Number(r.commissionAmount ?? 0),
-      fullName: canon(r.fullName || '')
+      amount,
+      fullName: fullName || undefined,
     };
   }
 
   /** ---------- MAGIC (sales) ---------- */
 
-  const salesSnap = await db.collection('sales')
+  const salesSnap = await db
+    .collection('sales')
     .where('AgentId', '==', agentId)
     .get();
 
@@ -139,11 +176,13 @@ export async function generateClientNifraimReportedVsMagic(params: ReportRequest
     const s: any = d.data();
 
     const comp = canon(s.company);
-    const policy = canon(s.policyNumber); // לא מדלגים גם אם ריק
+    const policy = canon(s.policyNumber); // יכול להיות ריק
 
-    const ym = toYm(s.month || s.mounth);
-    if (fromYm && ym < fromYm) continue;
-    if (toYmVal && ym > toYmVal) continue;
+    // חודש תחילת פוליסה – כמו בכרטיסון/מסך השוואה
+    const policyYm = toYm(s.month || s.mounth);
+    // לוגיקה לפי מה שסיכמנו: כל הפוליסות עד וכולל toYm
+    if (toYmVal && policyYm && policyYm > toYmVal) continue;
+    // אם אין toYm – לא מגבילים בכלל (אפשר לשנות אם תרצי)
 
     if (selectedCompanies.length && !selectedCompanies.includes(comp)) continue;
 
@@ -153,43 +192,69 @@ export async function generateClientNifraimReportedVsMagic(params: ReportRequest
     const st = canon(s.statusPolicy ?? s.status);
     if (selectedStatuses.length && !selectedStatuses.includes(st)) continue;
 
-    if (typeof filterMinuy === 'boolean' && normalizeMinuy(s.minuySochen) !== filterMinuy) continue;
+    if (
+      typeof filterMinuy === 'boolean' &&
+      normalizeMinuy(s.minuySochen) !== filterMinuy
+    )
+      continue;
 
     const key = makeKey(comp, policy, d.id);
 
     const contractMatch =
-      contracts.find(c =>
-        c.AgentId === agentId &&
-        canon(c.company) === comp &&
-        canon((c as any).product) === prod &&
-        normalizeMinuy((c as any).minuySochen) === normalizeMinuy(s.minuySochen)
+      contracts.find(
+        (c) =>
+          c.AgentId === agentId &&
+          canon(c.company) === comp &&
+          canon((c as any).product) === prod &&
+          normalizeMinuy((c as any).minuySochen) ===
+            normalizeMinuy(s.minuySochen)
       ) || undefined;
 
-    const commissions = calculateCommissions(s, contractMatch, contracts, productMap, agentId);
+    const commissions = calculateCommissions(
+      s,
+      contractMatch,
+      contracts,
+      productMap,
+      agentId
+    );
     const amount = Number((commissions as any)?.commissionNifraim ?? 0);
 
-    magicByKey[key] = (magicByKey[key] || 0) + amount;
+    const cid = canon(s.IDCustomer || s.customerId);
+    const first = canon(s.firstNameCustomer || '');
+    const last = canon(s.lastNameCustomer || '');
 
-    if (!displayNameByKey[key]) {
-      displayNameByKey[key] = {
-        first: canon(s.firstNameCustomer || ''),
-        last: canon(s.lastNameCustomer || '')
-      };
+    if (!magicByKey[key]) {
+      magicByKey[key] = { amount: 0, cid, first, last };
     }
+
+    magicByKey[key].amount += amount;
+
+    if (!magicByKey[key].cid && cid) magicByKey[key].cid = cid;
+    if (!magicByKey[key].first && first) magicByKey[key].first = first;
+    if (!magicByKey[key].last && last) magicByKey[key].last = last;
   }
 
-  /** ---------- UNION ---------- */
+  /** ---------- UNION → לשונית "נפרעים לפי פוליסה" ---------- */
 
-  const rows: RowOut[] = [];
-  const allKeys = Array.from(new Set([
-    ...Object.keys(reportedByKey),
-    ...Object.keys(magicByKey),
-  ]));
+  const policyRows: PolicyRowOut[] = [];
+
+  const allKeys = Array.from(
+    new Set([...Object.keys(reportedByKey), ...Object.keys(magicByKey)])
+  );
 
   for (const key of allKeys) {
-    const [comp, policy] = key.split('::');
+    const [comp, policyPart] = key.split('::');
+
+    // ניקוי __NO_POLICY__ להצגה
+    const policy =
+      policyPart && policyPart.startsWith('__NO_POLICY__')
+        ? ''
+        : policyPart || '';
+
     const rep = reportedByKey[key];
-    const mag = magicByKey[key] || 0;
+    const m = magicByKey[key];
+
+    const mag = m?.amount ?? 0;
 
     let cid = '';
     let ym = '';
@@ -206,10 +271,10 @@ export async function generateClientNifraimReportedVsMagic(params: ReportRequest
       }
     }
 
-    if (!rep && displayNameByKey[key]) {
-      first = displayNameByKey[key].first;
-      last = displayNameByKey[key].last;
-    }
+    // אם אין ת"ז / שם מהקובץ – לוקחים מהמג'יק
+    if (!cid && m?.cid) cid = m.cid;
+    if (!first && m?.first) first = m.first;
+    if (!last && m?.last) last = m.last;
 
     const reported = rep ? rep.amount : 0;
     const diff = reported - mag;
@@ -218,12 +283,12 @@ export async function generateClientNifraimReportedVsMagic(params: ReportRequest
     if (reported === 0 && mag !== 0) diffPct = (diff / mag) * 100;
     else if (reported !== 0) diffPct = (diff / reported) * 100;
 
-    rows.push({
+    policyRows.push({
       'ת"ז': cid,
       'שם פרטי': first,
       'שם משפחה': last,
       'חברה': comp,
-      'מס׳ פוליסה': policy || '',
+      'מס׳ פוליסה': policy,
       'חודש דיווח (קובץ)': ym,
       'נפרעים (קובץ)': Number(reported.toFixed(2)),
       'נפרעים (MAGIC)': Number(mag.toFixed(2)),
@@ -232,22 +297,78 @@ export async function generateClientNifraimReportedVsMagic(params: ReportRequest
     });
   }
 
-  rows.sort((a, b) =>
-    a['חברה'].localeCompare(b['חברה']) ||
-    a['מס׳ פוליסה'].localeCompare(b['מס׳ פוליסה']) ||
-    a['חודש דיווח (קובץ)'].localeCompare(b['חודש דיווח (קובץ)'])
+  policyRows.sort(
+    (a, b) =>
+      a['חברה'].localeCompare(b['חברה']) ||
+      a['מס׳ פוליסה'].localeCompare(b['מס׳ פוליסה']) ||
+      a['חודש דיווח (קובץ)'].localeCompare(b['חודש דיווח (קובץ)'])
   );
 
-  const ws = XLSX.utils.json_to_sheet(rows);
+  /** ---------- לשונית "נפרעים לפי מבוטח" (סיכום לפי ת"ז) ---------- */
+
+  const byCid: Record<
+    string,
+    { first: string; last: string; reported: number; magic: number }
+  > = {};
+
+  for (const r of policyRows) {
+    const cid = canon(r['ת"ז']);
+    if (!cid) continue; // אם אין ת"ז – לא נכנס לסיכום לפי מבוטח
+
+    if (!byCid[cid]) {
+      byCid[cid] = {
+        first: r['שם פרטי'],
+        last: r['שם משפחה'],
+        reported: 0,
+        magic: 0,
+      };
+    }
+
+    byCid[cid].reported += r['נפרעים (קובץ)'];
+    byCid[cid].magic += r['נפרעים (MAGIC)'];
+  }
+
+  const customerRows: CustomerRowOut[] = Object.entries(byCid).map(
+    ([cid, v]) => {
+      const reported = v.reported;
+      const mag = v.magic;
+      const diff = reported - mag;
+
+      let diffPct = 0;
+      if (reported === 0 && mag !== 0) diffPct = (diff / mag) * 100;
+      else if (reported !== 0) diffPct = (diff / reported) * 100;
+
+      return {
+        'ת"ז': cid,
+        'שם פרטי': v.first,
+        'שם משפחה': v.last,
+        'נפרעים (קובץ)': Number(reported.toFixed(2)),
+        'נפרעים (MAGIC)': Number(mag.toFixed(2)),
+        'פער ₪ (קובץ−MAGIC)': Number(diff.toFixed(2)),
+        'פער %': Number(diffPct.toFixed(2)),
+      };
+    }
+  );
+
+  customerRows.sort((a, b) => a['ת"ז'].localeCompare(b['ת"ז']));
+
+  /** ---------- יצירת קובץ אקסל עם שתי לשוניות ---------- */
+
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'נפרעים');
+
+  const wsPolicy = XLSX.utils.json_to_sheet(policyRows);
+  XLSX.utils.book_append_sheet(wb, wsPolicy, 'נפרעים לפי פוליסה');
+
+  const wsCustomer = XLSX.utils.json_to_sheet(customerRows);
+  XLSX.utils.book_append_sheet(wb, wsCustomer, 'נפרעים לפי מבוטח');
 
   const buffer = XLSX.write(wb, { bookType: 'xlsx', type: 'buffer' });
 
   return {
     buffer,
-    filename: `נפרעים_${agentId}_${fromYm}_${toYmVal}.xlsx`,
+    filename: `דוח נפרעים – קובץ מול MagicSale.xlsx`,
     subject: 'דוח נפרעים – קובץ מול MagicSale',
-    description: 'דוח השוואת נפרעים: קובץ מול MAGIC לפי פוליסה/חודש',
+    description:
+      'דוח השוואת נפרעים: קובץ מול MAGIC לפי פוליסה ולפי מבוטח (ת"ז).',
   };
 }
