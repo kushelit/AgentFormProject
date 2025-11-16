@@ -122,7 +122,7 @@ const fetchPromotionsForAgent = async (UserAgentId: string) => {
     const promotionsMap: PromotionMapping = {};
     if (querySnapshot.empty) {
       SetPromotionList([]); // Clear the state if no promotions are found
-      console.log('No promotions found for agent:', UserAgentId);
+      // console.log('No promotions found for agent:', UserAgentId);
       setPromotionListForStars({}); // Clear the state if no promotions are found
     } else {
       querySnapshot.forEach(doc => {
@@ -131,14 +131,14 @@ const fetchPromotionsForAgent = async (UserAgentId: string) => {
         if (typeof data.promotionName === 'string') {
           promotionsMap[doc.id] = data.promotionName;
         } else {
-          console.error('Promotion name missing or invalid for document:', doc.id);
+          // console.error('Promotion name missing or invalid for document:', doc.id);
         }
       });
       setPromotionListForStars(promotionsMap); // Store the mapping
-      console.log('Promotions fetched and mapped:', promotionsMap);
+      // console.log('Promotions fetched and mapped:', promotionsMap);
     }
   } catch (error) {
-    console.error('Error fetching promotions:', error);
+    // console.error('Error fetching promotions:', error);
     setPromotionListForStars({}); // Clear the state in case of error
   }
 };
@@ -200,7 +200,7 @@ const fetchGoalsSuccessForAgent = async (UserAgentId: string) => {
         fetchGoalsSuccessForAgent(selectedAgentId);
       }
     } else {
-      console.log("No selected row or row ID is undefined");
+      // console.log("No selected row or row ID is undefined");
     }
   };
 
@@ -215,17 +215,17 @@ const fetchGoalsSuccessForAgent = async (UserAgentId: string) => {
           amaunt: amaunt,
           status: status
         });
-        console.log("Document successfully updated");
+        // console.log("Document successfully updated");
         setSelectedRow(null); 
         resetForm();         
         if (selectedAgentId) {
             fetchGoalsSuccessForAgent(selectedAgentId);
           }
       } catch (error) {
-        console.error("Error updating document:", error);     
+        // console.error("Error updating document:", error);     
       }
     } else {
-      console.log("No row selected or missing document ID");
+      // console.log("No row selected or missing document ID");
     }
   };
 
@@ -309,7 +309,7 @@ const fetchGoalsSuccessForAgent = async (UserAgentId: string) => {
       const docRef = await addDoc(collection(db, 'goalsSuccess'), newGoal);
   
       alert('Goal added successfully!');
-      console.log('Document written with ID:', docRef.id);
+      // console.log('Document written with ID:', docRef.id);
   
       resetForm();
       setIsEditing(false);
@@ -317,7 +317,7 @@ const fetchGoalsSuccessForAgent = async (UserAgentId: string) => {
         fetchGoalsSuccessForAgent(selectedAgentId);
       }
     } catch (error) {
-      console.error('Error adding document:', error);
+      // console.error('Error adding document:', error);
     }
   };
   
@@ -333,7 +333,7 @@ const fetchStarsForAgent = async (UserAgentId: string) => {
       ...doc.data() 
     }));
     setStarsList(data);
-    console.log('SetStarsList '+ setStarsList)
+    // console.log('SetStarsList '+ setStarsList)
   };
 
 
@@ -376,7 +376,7 @@ if (selectedAgentId) {
   fetchPromotionsForAgent(selectedAgentId);
 }
 } else {
-console.log("No selected row or row ID is undefined");
+// console.log("No selected row or row ID is undefined");
 }
 };
 
@@ -390,7 +390,7 @@ if (selectedAgentId) {
   fetchStarsForAgent(selectedAgentId);
 }
 } else {
-console.log("No selected row or row ID is undefined");
+// console.log("No selected row or row ID is undefined");
 }
 };
 
@@ -408,17 +408,17 @@ try {
     promotionEndDate,
     companies: selectedCompanies
   });
-  console.log("Document successfully updated");
+  // console.log("Document successfully updated");
   setSelectedRowPromotion(null); 
   resetFormPromotion();         
   if (selectedAgentId) {
       fetchPromotionsForAgent(selectedAgentId);
     }
 } catch (error) {
-  console.error("Error updating document:", error);     
+  // console.error("Error updating document:", error);     
 }
 } else {
-console.log("No row selected or missing document ID");
+// console.log("No row selected or missing document ID");
 }
 };
 
@@ -433,17 +433,17 @@ try {
     finansimStar,
     promotionId: promotionValue
   });
-  console.log("Document successfully updated");
+  // console.log("Document successfully updated");
   setSelectedRowStars(null); 
   resetFormStars();         
   if (selectedAgentId) {
       fetchStarsForAgent(selectedAgentId);
     }
 } catch (error) {
-  console.error("Error updating document:", error);     
+  // console.error("Error updating document:", error);     
 }
 } else {
-console.log("No row selected or missing document ID");
+// console.log("No row selected or missing document ID");
 }
 };
 
@@ -480,7 +480,7 @@ event.preventDefault();
   companies: selectedCompanies, 
 });
 alert('מבצע  התווסף בהצלחה');
-console.log('Document written with ID:', docRef.id);
+// console.log('Document written with ID:', docRef.id);
 resetFormPromotion(); 
 setIsEditingPromotion(false);
 if (selectedAgentId) {
@@ -488,7 +488,7 @@ if (selectedAgentId) {
 }
 
 } catch (error) {
-console.error('Error adding document:', error);
+// console.error('Error adding document:', error);
 }
 };
 
@@ -503,9 +503,9 @@ event.preventDefault();
   pensiaStar: pensiaStar,
   finansimStar: finansimStar,
 });
-console.log('promotionValue:',promotionValue);
+// console.log('promotionValue:',promotionValue);
 alert('התווסף בהצלחה');
-console.log('Document written with ID:', docRef.id);
+// console.log('Document written with ID:', docRef.id);
 resetFormStars(); 
 setIsEditingStars(false);
 if (selectedAgentId) {
@@ -513,7 +513,7 @@ if (selectedAgentId) {
 }
 
 } catch (error) {
-console.error('Error adding document:', error);
+// console.error('Error adding document:', error);
 }
 };
 
@@ -523,7 +523,7 @@ useEffect(() => {
       fetchPromotionsForAgent(selectedAgentId);
       fetchStarsForAgent(selectedAgentId);
       fetchGoalsSuccessForAgent(selectedAgentId);
-      console.log('Fetching promotionsAgents for agent:', selectedAgentId);
+      // console.log('Fetching promotionsAgents for agent:', selectedAgentId);
   }
 }, [selectedAgentId]); 
 
@@ -539,7 +539,7 @@ const [isProcessing, setIsProcessing] = useState(false); // Track loading state
       await duplicateGoalsForNextMonth(selectedAgentId); // Call your function
       setMessage('Goals successfully duplicated for the next month!');
     } catch (error) {
-      console.error('Error duplicating goals:', error);
+      // console.error('Error duplicating goals:', error);
       setMessage('An error occurred while duplicating goals.');
     } finally {
       setIsProcessing(false);

@@ -49,7 +49,7 @@ setAgentsToPromote(agentUsers);
       const agentGroupId = managerData?.agentGroupId;
   
       if (!agentGroupId) {
-        console.error('❌ למנהל אין groupId מוגדר');
+        // console.error('❌ למנהל אין groupId מוגדר');
         addToast('error', 'לא נמצא מזהה קבוצת סוכנים.');
         return;
       }
@@ -91,7 +91,7 @@ setAgentsToPromote(agentUsers);
       addToast('success', 'המנהל הוחזר לסוכן בהצלחה');
   
     } catch (error) {
-      console.error('❌ שגיאה בניתוק או בעדכון:', error);
+      // console.error('❌ שגיאה בניתוק או בעדכון:', error);
       addToast('error', 'אירעה שגיאה בתהליך הורדת המנהל');
     }
   };
@@ -133,7 +133,7 @@ setAgentsToPromote(agentUsers);
         setLinkedAgents(prev => prev.filter(a => a.id !== agentId));
         addToast('success', 'הסוכן נותק בהצלחה מהמנהל והקבוצה');
       } catch (error) {
-        console.error('שגיאה בניתוק הסוכן:', error);
+        // console.error('שגיאה בניתוק הסוכן:', error);
         addToast('error', 'אירעה שגיאה בעת ניתוק הסוכן');
       }
     };
@@ -154,7 +154,7 @@ setAgentsToPromote(agentUsers);
         setAvailableAgents(prev => prev.filter(a => !selectedAgents.includes(a.id)));
         loadLinkedAgents();
       } catch (error) {
-        console.error("שגיאה בשיוך הסוכנים:", error);
+        // console.error("שגיאה בשיוך הסוכנים:", error);
         addToast("error", "אירעה שגיאה בעת השיוך");
       }
     };
@@ -294,7 +294,7 @@ setAgentsToPromote(agentUsers);
       setSelectedAgentId('');
       addToast('success', 'הסוכן עודכן למנהל וקבוצת סוכנים נוצרה בהצלחה');
     } catch (error) {
-      console.error('שגיאה בשדרוג הסוכן:', error);
+      // console.error('שגיאה בשדרוג הסוכן:', error);
       addToast('error', 'אירעה שגיאה בעת הפיכת הסוכן למנהל');
     }
   }}

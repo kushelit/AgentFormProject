@@ -28,7 +28,7 @@ export default function SubscriptionsTable() {
 
   const handleCancel = async (id: string, subscriptionId: string,
      transactionToken?: string ,transactionId?: string, asmachta?: string) => {
-    console.log('📦 ביטול מנוי:', { id, subscriptionId, transactionToken,asmachta});
+    // console.log('📦 ביטול מנוי:', { id, subscriptionId, transactionToken,asmachta});
     if (!confirm('האם אתה בטוח שברצונך לבטל את המנוי?')) return;
 
     try {

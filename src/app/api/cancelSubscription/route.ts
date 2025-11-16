@@ -57,8 +57,8 @@ export async function POST(req: NextRequest) {
     if (subscriptionStartDate && totalCharged) {
       const daysSinceStart = (Date.now() - subscriptionStartDate.getTime()) / (1000 * 60 * 60 * 24);
       shouldRefund = daysSinceStart >= 0 && daysSinceStart <= 14 && !wasRefundedBefore;
-      console.log('📆 Days since subscription started:', daysSinceStart);
-      console.log('💰 totalCharged:', totalCharged);
+      // console.log('📆 Days since subscription started:', daysSinceStart);
+      // console.log('💰 totalCharged:', totalCharged);
       shouldCancelDirectDebit = true;
     }
 
@@ -71,8 +71,8 @@ export async function POST(req: NextRequest) {
       formData.append('asmachta', asmachta);
       formData.append('changeStatus', '2');
 
-      console.log('🔍 Params sent to Grow (DirectDebit Cancel):');
-      formData.forEach((value, key) => console.log(`${key} = ${value}`));
+      // console.log('🔍 Params sent to Grow (DirectDebit Cancel):');
+      // formData.forEach((value, key) => console.log(`${key} = ${value}`));
 
       const { data } = await axios.post(
         // 'https://sandbox.meshulam.co.il/api/light/server/1.0/updateDirectDebit',
@@ -81,14 +81,14 @@ export async function POST(req: NextRequest) {
         { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
       );
 
-      console.log('🔁 Grow cancel result:', data);
-console.log('🔁 data status:', data?.status);
+//       console.log('🔁 Grow cancel result:', data);
+// console.log('🔁 data status:', data?.status);
       if (data?.status === 1) {
-        console.log('✅ Grow cancellation successful');
+        // console.log('✅ Grow cancellation successful');
         growCanceled = true;
 
         if (shouldRefund && totalCharged) {
-          console.log('💸 Processing refund for Grow subscription');
+          // console.log('💸 Processing refund for Grow subscription');
           const refundForm = new URLSearchParams();
           // refundForm.append('userId', '8f215caa9b2a3903');
           refundForm.append('userId', GROW_USER_ID);
@@ -99,11 +99,11 @@ console.log('🔁 data status:', data?.status);
           refundForm.append('cField4', 'manual-upgrade'); // ✅ סימון המקור
 
           try {
-            console.log('🧾 Sending refund to Grow:', {
-              transactionToken,
-              transactionId,
-              refundSum: Math.round(totalCharged).toString(),
-            });
+            // console.log('🧾 Sending refund to Grow:', {
+            //   transactionToken,
+            //   transactionId,
+            //   refundSum: Math.round(totalCharged).toString(),
+            // });
             
             const refundRes = await axios.post(
               // 'https://sandbox.meshulam.co.il/api/light/server/1.0/refundTransaction',
@@ -112,7 +112,7 @@ console.log('🔁 data status:', data?.status);
               { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
               
             );
-            console.log('🔁 Grow refund result:', refundRes.data);
+            // console.log('🔁 Grow refund result:', refundRes.data);
 
 
             const growRefundResponse = refundRes.data;
@@ -127,7 +127,7 @@ console.log('🔁 data status:', data?.status);
 
           } catch (e: unknown) {
             const err = e as any;
-            console.error('❌ שגיאה בביצוע החזר מול Grow:', err.message);
+            // console.error('❌ שגיאה בביצוע החזר מול Grow:', err.message);
           }
         }
       } else {
@@ -151,10 +151,10 @@ console.log('🔁 data status:', data?.status);
     // השבתת המשתמש הראשי
     try {
       await admin.auth().updateUser(id, { disabled: true });
-      console.log('🔒 המשתמש הושבת ב־Firebase Auth');
+      // console.log('🔒 המשתמש הושבת ב־Firebase Auth');
     } catch (authError: unknown) {
       const err = authError as any;
-      console.error('❌ שגיאה בהשבתת המשתמש:', err.message);
+      // console.error('❌ שגיאה בהשבתת המשתמש:', err.message);
     }
 
     // השבתת עובדים של הסוכן
@@ -171,16 +171,16 @@ console.log('🔁 data status:', data?.status);
         disablePromises.push(workerDoc.ref.update({ isActive: false }));
         disablePromises.push(
           admin.auth().updateUser(workerId, { disabled: true }).catch((e: any) => {
-            console.error(`❌ שגיאה בהשבתת עובד ${workerId}:`, e.message);
+            // console.error(`❌ שגיאה בהשבתת עובד ${workerId}:`, e.message);
           })
         );
       });
 
       await Promise.all(disablePromises);
-      console.log(`🔒 הושבתו ${workersSnap.size} עובדים של הסוכן`);
+      // console.log(`🔒 הושבתו ${workersSnap.size} עובדים של הסוכן`);
     } catch (e: unknown) {
       const err = e as any;
-      console.error('❌ שגיאה באיתור או השבתת העובדים:', err.message);
+      // console.error('❌ שגיאה באיתור או השבתת העובדים:', err.message);
     }
 
     // שליחת מייל ביטול אם רלוונטי
@@ -200,7 +200,7 @@ console.log('🔁 data status:', data?.status);
     });
   } catch (err: unknown) {
     const error = err as any;
-    console.error('❌ CancelSubscription error:', error.message);
+    // console.error('❌ CancelSubscription error:', error.message);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }

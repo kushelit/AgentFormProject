@@ -124,7 +124,7 @@ export default function CommissionSummaryPage() {
         }
         setCompanyMap(map);
       } catch (error) {
-        console.error('שגיאה בעת שליפת מפת החברות:', error);
+        // console.error('שגיאה בעת שליפת מפת החברות:', error);
       }
     };
     fetchCompanyMap();

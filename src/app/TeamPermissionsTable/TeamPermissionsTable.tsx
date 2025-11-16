@@ -363,7 +363,7 @@ const detailAsMinimalUser: MinimalUser | null = detail && user
   
         setWorkers(workersData);
       } catch (error) {
-        console.error('Failed to fetch workers:', error);
+        // console.error('Failed to fetch workers:', error);
         setWorkers([]);
       } finally {
         setLoading(false);
@@ -434,7 +434,7 @@ const detailAsMinimalUser: MinimalUser | null = detail && user
     await updatePermission(workerId, permission, has);
   };
   const updatePermission = async (workerId: string, permission: string, has: boolean) => {
-    console.log('🔄 עדכון הרשאה:');
+    // console.log('🔄 עדכון הרשאה:');
     const userRef = doc(db, 'users', workerId);
     const worker = workers.find(w => w.id === workerId);
     if (!worker) return;
@@ -476,12 +476,12 @@ const detailAsMinimalUser: MinimalUser | null = detail && user
       // המשתמש כרגע *לא* מחזיק בהרשאה → נלחץ כדי להוסיף
       if (!isInheritedFromBase) {
         // אין מקור בסיס → צריך ALLOW מפורש
-        console.log('➕ מוסיפה ל־allow (אין מקור בסיס)');
+        // console.log('➕ מוסיפה ל־allow (אין מקור בסיס)');
         update['permissionOverrides.allow'] = arrayUnion(permission);
         update['permissionOverrides.deny'] = arrayRemove(permission);
       } else {
         // יש מקור בסיס (מסלול/תוסף/role) → מספיק להסיר DENY
-        console.log('🧹 הסרת deny בלבד (יש מקור בסיס)');
+        // console.log('🧹 הסרת deny בלבד (יש מקור בסיס)');
         update['permissionOverrides.deny'] = arrayRemove(permission);
         // ניקוי מיותר: אם בטעות נשאר ALLOW היסטורי, ננקה (כי יש ירושה בסיסית)
         update['permissionOverrides.allow'] = arrayRemove(permission);
@@ -489,11 +489,11 @@ const detailAsMinimalUser: MinimalUser | null = detail && user
     } else {
       // המשתמש כרגע *כן* מחזיק בהרשאה → נלחץ כדי להסיר
       if (isExplicitlyAllowed) {
-        console.log('➖ מסירה מ־allow (הייתה מפורשת)');
+        // console.log('➖ מסירה מ־allow (הייתה מפורשת)');
         update['permissionOverrides.allow'] = arrayRemove(permission);
         update['permissionOverrides.deny'] = arrayRemove(permission); // ניקוי ביטחון
       } else {
-        console.log('⛔ מוסיפה ל־deny (חוסם מעל הבסיס)');
+        // console.log('⛔ מוסיפה ל־deny (חוסם מעל הבסיס)');
         update['permissionOverrides.deny'] = arrayUnion(permission);
       }
     }
@@ -513,7 +513,7 @@ const detailAsMinimalUser: MinimalUser | null = detail && user
       );
       addToast('success', 'העדכון בוצע בהצלחה');
     } catch (error) {
-      console.error('שגיאה בעדכון הרשאה:', error);
+      // console.error('שגיאה בעדכון הרשאה:', error);
       addToast('error', 'שגיאה בעדכון ההרשאה');
     }
   };
@@ -662,7 +662,7 @@ const detailAsMinimalUser: MinimalUser | null = detail && user
               
                   addToast('success', 'סטטוס עודכן בהצלחה');
                 } catch (err) {
-                  console.error(err);
+                  // console.error(err);
                   addToast('error', 'שגיאה בעדכון סטטוס');
                 }
               };

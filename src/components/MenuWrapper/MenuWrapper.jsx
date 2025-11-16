@@ -87,10 +87,10 @@ const MenuWrapper = ({ className, menuItems, rowId , openMenuRow, setOpenMenuRow
 
   const toggleMenu = () => {
     if (openMenuRow === rowId) {
-      console.log("Closing menu for row:", rowId);
+      // console.log("Closing menu for row:", rowId);
       setOpenMenuRow(null); // סוגר את התפריט
     } else {
-      console.log("Opening menu for row:", rowId);
+      // console.log("Opening menu for row:", rowId);
       setOpenMenuRow(rowId); // פותח את התפריט של השורה הנוכחית
     }
   };

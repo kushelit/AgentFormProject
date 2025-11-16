@@ -34,7 +34,7 @@ export async function GET() {
 
     return NextResponse.json(subscriptions);
   } catch (error) {
-    console.error('❌ שגיאה בשליפת מנויים:', error);
+    // console.error('❌ שגיאה בשליפת מנויים:', error);
     return NextResponse.json(
       { error: 'שגיאה פנימית בשליפת מנויים' },
       { status: 500 }

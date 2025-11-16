@@ -111,7 +111,7 @@ useEffect(() => {
 const duplicateGoalsForNextMonth = async (selectedAgentId: string | null) => {
  
   if (!selectedAgentId) {
-    console.log('Error: selectedAgentId is null or undefined.');
+    // console.log('Error: selectedAgentId is null or undefined.');
     alert('בחר סוכן לשכפול יעדים לחודש הבא.');
 
     return;
@@ -142,7 +142,7 @@ const duplicateGoalsForNextMonth = async (selectedAgentId: string | null) => {
     const promotionsSnapshot = await getDocs(promotionsQuery);
 
     if (promotionsSnapshot.empty) {
-      console.log('No active renewable promotions found.');
+      // console.log('No active renewable promotions found.');
       return;
     }
     
@@ -176,7 +176,7 @@ const duplicateGoalsForNextMonth = async (selectedAgentId: string | null) => {
 
       // Skip promotions ending in the current month and year
       if (currentYear === promotionEndYear && currentMonth === promotionEndMonth) {
-        console.log(`Skipping promotion ${promotionId} as it ends within the current month.`);
+        // console.log(`Skipping promotion ${promotionId} as it ends within the current month.`);
         continue;
       }
 
@@ -191,7 +191,7 @@ const duplicateGoalsForNextMonth = async (selectedAgentId: string | null) => {
       const goalsSnapshot = await getDocs(goalsQuery);
 
       if (goalsSnapshot.empty) {
-        console.log(`No goals found for promotion: ${promotionId}`);
+        // console.log(`No goals found for promotion: ${promotionId}`);
         continue;
       }
 
@@ -240,7 +240,7 @@ const duplicateGoalsForNextMonth = async (selectedAgentId: string | null) => {
 
         // Step 4: Save the new goal in the goalsSuccess table
         await addDoc(collection(db, 'goalsSuccess'), newGoal);
-        console.log('New goal created for next month:', newGoal);
+        // console.log('New goal created for next month:', newGoal);
         goalsDuplicated++;
 
       }
@@ -254,7 +254,7 @@ if (goalsDuplicated > 0) {
 
 
   } catch (error) {
-    console.error('Error duplicating goals for the next month:', error);
+    // console.error('Error duplicating goals for the next month:', error);
     alert('An error occurred while duplicating goals. Please check the console for more details.');
 
   }

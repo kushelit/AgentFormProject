@@ -48,7 +48,7 @@ export async function POST(req: NextRequest) {
     }
 
   } catch (error: any) {
-    console.error('❌ Token-only payment error:', error.message);
+    // console.error('❌ Token-only payment error:', error.message);
     return NextResponse.json({ error: 'שגיאה פנימית' }, { status: 500 });
   }
 }

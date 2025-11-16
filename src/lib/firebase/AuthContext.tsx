@@ -134,7 +134,7 @@ const logOut = async () => {
     // עכשיו התנתק מFirebase
     await signOut(auth);
   } catch (error) {
-    console.error('Error signing out:', error);
+    // console.error('Error signing out:', error);
   }
 };
   // מניעת רינדור אם לא ב-client

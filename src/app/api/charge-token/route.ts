@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
     }
 
   } catch (error: any) {
-    console.error('❌ Token charge error:', error.message);
+    // console.error('❌ Token charge error:', error.message);
     return NextResponse.json({ error: 'שגיאה בשרת בעת חיוב מהטוקן' }, { status: 500 });
   }
 }

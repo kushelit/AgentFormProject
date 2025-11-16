@@ -13,7 +13,7 @@ export async function POST(req) {
   try {
     const body = await req.json();
     const { to, subject, text, html } = body; // פרטי המייל
-    console.log("body " + body)
+    // console.log("body " + body)
     // ודא שכל השדות נשלחו
     if (!to || !subject || (!text && !html)) {
       return NextResponse.json(
@@ -38,7 +38,7 @@ export async function POST(req) {
     captureRejectionSymbol.log("Email sent successfully!")
 
   } catch (error) {
-    console.error('Error sending email:', error);
+    // console.error('Error sending email:', error);
     return NextResponse.json({ error: 'Failed to send email' }, { status: 500 });
   }
 }

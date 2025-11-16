@@ -126,11 +126,11 @@ const canSubmit1 = useMemo(() => (
         highPrem:highPrem,
         cuttingPercent:cuttingPercent,
       });      
-      console.log('Document written with ID:', docRef.id);
+      // console.log('Document written with ID:', docRef.id);
       resetForm(); 
     fetchSimulationData();
     } catch (error) {
-      console.error('Error adding document:', error);
+      // console.error('Error adding document:', error);
     }
   };
 
@@ -161,7 +161,7 @@ const canSubmit1 = useMemo(() => (
       setDefaultSimulation(simulationList);
       resetForm(); 
     } catch (error) {
-      console.error("Error fetching contracts data:", error);
+      // console.error("Error fetching contracts data:", error);
     }
   };
 
@@ -190,7 +190,7 @@ const canSubmit1 = useMemo(() => (
       resetForm();
       fetchSimulationData();
     } else {
-      console.log("No selected row or row ID is undefined");
+      // console.log("No selected row or row ID is undefined");
 
     }
   };
@@ -208,16 +208,16 @@ const canSubmit1 = useMemo(() => (
         highPrem:highPrem,
         cuttingPercent:cuttingPercent,
           });
-        console.log("Document successfully updated");
+        // console.log("Document successfully updated");
         setSelectedRow(null); 
         resetForm();             
         fetchSimulationData();
       
       } catch (error) {
-        console.error("Error updating document:", error);     
+        // console.error("Error updating document:", error);     
       }
     } else {
-      console.log("No row selected or missing document ID");
+      // console.log("No row selected or missing document ID");
     }
   };
 

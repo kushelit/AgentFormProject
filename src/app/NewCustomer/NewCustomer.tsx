@@ -251,7 +251,7 @@ const {
 const removeCustomerFromList = (id: string) => {
   setSelectedCustomers((prevSelected) => {
     const updatedList = prevSelected.filter((customer) => customer.IDCustomer !== id);
-    console.log("🗑️ לקוח הוסר מהסטייט", updatedList);
+    // console.log("🗑️ לקוח הוסר מהסטייט", updatedList);
     return updatedList;
   });
 };
@@ -316,7 +316,7 @@ useEffect(() => {
   const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
     event.preventDefault();
     try {
-      console.log("Preparing to submit...");
+      // console.log("Preparing to submit...");
   
       const {
         firstNameCustomer = "",
@@ -366,7 +366,7 @@ useEffect(() => {
       setIsModalOpen(false);
       reloadCustomerData(selectedAgentId);
     } catch (error) {
-      console.error('Error adding document:', error);
+      // console.error('Error adding document:', error);
     }
   };
   
@@ -560,7 +560,7 @@ useEffect(() => {
       where("statusPolicy", "in", ["פעילה", "הצעה"])
     );
   
-    console.log("selectedAgentId:", selectedAgentId, "selectedCustomer.IDCustomer:", selectedCustomers[0]?.IDCustomer);
+    // console.log("selectedAgentId:", selectedAgentId, "selectedCustomer.IDCustomer:", selectedCustomers[0]?.IDCustomer);
   
     try {
       const salesSnapshot = await getDocs(salesQuery);
@@ -638,13 +638,13 @@ useEffect(() => {
         setTotalCommissions({ totalCommissionHekef, totalCommissionNifraim });
       }
     } catch (error) {
-      console.error("Error fetching private sales data:", error);
+      // console.error("Error fetching private sales data:", error);
       addToast("error", "כשלון בקבלת נתוני מכירות פרטיות");
     }
   };
   
   useEffect(() => {
-    console.log("🔁 isCommissionSplitEnabled changed:", isCommissionSplitEnabled);
+    // console.log("🔁 isCommissionSplitEnabled changed:", isCommissionSplitEnabled);
   }, [isCommissionSplitEnabled]);
 
   const fetchFamilySales = async () => {
@@ -740,7 +740,7 @@ useEffect(() => {
         setTotalCommissions({ totalCommissionHekef, totalCommissionNifraim });
       }
     } catch (error) {
-      console.error("Error fetching family sales data:", error);
+      // console.error("Error fetching family sales data:", error);
       addToast("error", "כשלון בקבלת נתוני מכירות משפחתיות");
     }
   };
@@ -754,7 +754,7 @@ useEffect(() => {
       await createCustomersFromSales(); // Function that processes the sales data
       alert('Customers created successfully from sales data!');
     } catch (error) {
-      console.error('Error creating customers:', error);
+      // console.error('Error creating customers:', error);
       alert('Failed to create customers from sales data.');
     }
     setIsProcessing(false);
@@ -768,7 +768,7 @@ useEffect(() => {
     for (const doc of salesSnapshot.docs) {
       const saleData = doc.data();
       if (!saleData.AgentId) {
-        console.error('Missing AgentId for sale:', doc.id);
+        // console.error('Missing AgentId for sale:', doc.id);
         continue; // Skip this iteration if AgentId is undefined
       }
       const customerQuery = query(collection(db, 'customer'), where('IDCustomer', '==', saleData.IDCustomer),
@@ -783,11 +783,11 @@ useEffect(() => {
             IDCustomer: saleData.IDCustomer,
             parentID: ''
           });
-          console.log('Customer added with ID:', customerDocRef.id);
+          // console.log('Customer added with ID:', customerDocRef.id);
           await updateDoc(customerDocRef, { parentID: customerDocRef.id });
-          console.log('parentID updated to the new document ID');
+          // console.log('parentID updated to the new document ID');
         } catch (error) {
-          console.error('Error adding customer:', error);
+          // console.error('Error adding customer:', error);
         }
       }
     }
@@ -817,9 +817,9 @@ useEffect(() => {
           ...doc.data()
         }));
         setSourceLeadList(data); // Ensure this is the correct setter function name
-        console.log('sourceLeadList:', data);
+        // console.log('sourceLeadList:', data);
       } catch (error) {
-        console.error('Error fetching source leads:', error);
+        // console.error('Error fetching source leads:', error);
       }
     };
     fetchSourceLeadForAgent();
@@ -885,7 +885,7 @@ const handleNewSelectCustomer = (id: string) => {
     }
     setSalesData(null);
     setTotalCommissions({ totalCommissionHekef: 0, totalCommissionNifraim: 0 });
-    console.log("Updated selectedCustomers:", newSelection);
+    // console.log("Updated selectedCustomers:", newSelection);
     return newSelection;
   });
 };
@@ -1083,7 +1083,7 @@ const loadCustomerMiniCompare = async () => {
     setCmpMagicSum(Number(magicTotal.toFixed(2)));
 setCmpExternalSum(Number(externalTotal.toFixed(2)));
   } catch (e) {
-    console.error(e);
+    // console.error(e);
     addToast("error", "כשל בטעינת סיכום לקוח");
   } finally {
     setCmpLoading(false);
@@ -1254,7 +1254,6 @@ useEffect(() => {
     state={editingRowCustomer ? "default" : "disabled"} // כפתור פעיל רק כשיש שורה שנערכת
     disabled={!editingRowCustomer} // מנוטרל אם אין שורה שנערכת
   />
-  {/* כפתור לביטול עריכה */}
   <Button
     onClick={cancelEditCustomer}
     text="בטל"
@@ -1314,12 +1313,10 @@ useEffect(() => {
       {isModalOpen && (
   <div className="modal">
     <div className="modal-content">
-      {/* כפתור לסגירת המודל */}
       <button className="close-button" onClick={() =>  setIsModalOpen(false) }>
     ✖
   </button>
   <form onSubmit={handleSubmit} className="form-container">
-      {/* כותרת המודל */}
       <div className="modal-title">פרטי לקוח</div>
       <section className="form-section">
       <h3 className="section-title">פרטים אישיים</h3>
@@ -1372,7 +1369,6 @@ useEffect(() => {
 />
   {errors.IDCustomer && <div className="error-message">{errors.IDCustomer}</div>}
 </div>
-
         <div className="form-group">
           <label htmlFor="issueDay">תאריך הנפקה תז</label>
           <input
@@ -1395,7 +1391,6 @@ useEffect(() => {
         </div>
         </div>
         </section>
-{/* פרטי ליד */}
 <section className="form-section">
   <h3 className="section-title">פרטי התקשרות</h3>
   <div className="form-grid">
@@ -1455,7 +1450,6 @@ useEffect(() => {
         </div>
         </div>
         </section>
-        {/* כפתורי הפעולה */}
         <div className="button-group">
           <Button
             type="primary"
@@ -1484,7 +1478,7 @@ useEffect(() => {
           <table>
           <thead>
   <tr>
-    <th className="fixed-header">בחר</th> {/* לא ממוין */}
+    <th className="fixed-header">בחר</th> 
     <th onClick={() => handleSort("firstNameCustomer" as keyof CustomersTypeForFetching)}>
       שם פרטי {sortColumn && sortColumn === "firstNameCustomer" ? (sortOrder === "asc" ? "▲" : "▼") : ""}
     </th>
@@ -1512,16 +1506,15 @@ useEffect(() => {
     <th onClick={() => handleSort("sourceValue" as keyof CustomersTypeForFetching)}>
       מקור ליד {sortColumn && sortColumn === "sourceValue" ? (sortOrder === "asc" ? "▲" : "▼") : ""}
     </th>
-    <th className="narrow-cell">🔧</th> {/* לא ממוין */}
+    <th className="narrow-cell">🔧</th> 
   </tr>
 </thead>
-            <tbody>
+   <tbody>
   {currentRows.map((item) => (
     <tr key={item.id} className={editingRowCustomer === item.id ? "editing-row" : ""}
       onMouseEnter={() => setHoveredRowId(item.id)}
       onMouseLeave={() => setHoveredRowId(null)}
     >
-    {/*  {showSelect && (*/}
     <td>
   <input
     type="checkbox"
@@ -1529,8 +1522,6 @@ useEffect(() => {
     onChange={() => handleNewSelectCustomer(item.id)}
   />
 </td>
-     {/* )}
-      {/* שם פרטי */}
     <td>
   {editingRowCustomer === item.id ? (
     <>
@@ -1544,7 +1535,6 @@ useEffect(() => {
             ...prevErrors,
             firstNameCustomer: errorMessage || "",
           }));
-
           if (!errorMessage) {
             handleEditCustomerChange("firstNameCustomer", newValue);
           }
@@ -1556,7 +1546,6 @@ useEffect(() => {
     item.firstNameCustomer
   )}
 </td>
-      {/* שם משפחה */}
       <td>
   {editingRowCustomer === item.id ? (
     <>
@@ -1570,7 +1559,6 @@ useEffect(() => {
             ...prevErrors,
             lastNameCustomer: errorMessage || "",
           }));
-
           if (!errorMessage) {
             handleEditCustomerChange("lastNameCustomer", newValue);
           }
@@ -1582,7 +1570,6 @@ useEffect(() => {
     item.lastNameCustomer
   )}
 </td>
-      {/* תעודת זהות */}
       <td>
   {editingRowCustomer === item.id ? (
     <>
@@ -1590,16 +1577,12 @@ useEffect(() => {
         type="text"
         value={editCustomerData.IDCustomer || ""}
         onChange={(e) => {
-          const newValue = e.target.value.replace(/\D/g, "").slice(0, 9); // 🔹 מסיר אותיות ומגביל ל-9 ספרות
-          const errorMessage = validationRules["IDCustomer"]?.(e.target.value); // 🔍 בודק את הערך לפני העיבוד
-
-          // 🔹 עדכון השגיאה בכל מקרה
+          const newValue = e.target.value.replace(/\D/g, "").slice(0, 9); 
+          const errorMessage = validationRules["IDCustomer"]?.(e.target.value); 
           setErrors((prevErrors) => ({
             ...prevErrors,
             IDCustomer: errorMessage || "",
           }));
-
-          // 🔹 עדכון הערך גם אם יש שגיאה, כדי שהמשתמש יראה מה הוא מקליד
           handleEditCustomerChange("IDCustomer", newValue);
         }}
       />
@@ -1609,7 +1592,6 @@ useEffect(() => {
     item.IDCustomer
   )}
 </td>
-      {/* שם הורה */}
       <td>
         {editingRowCustomer === item.id ? (
           <input
@@ -1623,7 +1605,6 @@ useEffect(() => {
           item.parentFullName || ""
         )}
       </td>
-      {/* תאריך לידה */}
       <td>
         {editingRowCustomer === item.id ? (
           <input
@@ -1639,7 +1620,6 @@ useEffect(() => {
           ""
         )}
       </td>
-      {/* טלפון */}
       <td>
         {editingRowCustomer === item.id ? (
           <input
@@ -1653,7 +1633,6 @@ useEffect(() => {
           item.phone
         )}
       </td>
-      {/* דואר אלקטרוני */}
       <td>
         {editingRowCustomer === item.id ? (
           <input
@@ -1667,7 +1646,6 @@ useEffect(() => {
           item.mail
         )}
       </td>
-      {/* כתובת */}
       <td>
         {editingRowCustomer === item.id ? (
           <input
@@ -1681,7 +1659,6 @@ useEffect(() => {
           item.address
         )}
       </td>
-      {/* מקור ליד */}
       <td>
         {editingRowCustomer === item.id ? (
           <select
@@ -1701,7 +1678,6 @@ useEffect(() => {
           item.sourceValue && sourceLeadMap[item.sourceValue] ? sourceLeadMap[item.sourceValue] : "לא נבחר"
         )}
       </td>
-      {/* פעולות */}
       <td className="narrow-cell">
         <MenuWrapper
           rowId={item.id}
@@ -1722,7 +1698,6 @@ useEffect(() => {
   <tr>
     <td colSpan={16} style={{ textAlign: "right", backgroundColor: "var(--clrgray4)" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center"}}>
-        {/* כפתורי קשר משפחתי */}
         <div className="buttons-container" style={{ display: "flex"}}>
         <Button
   onClick={() => startLinkingProcess(
@@ -1732,16 +1707,16 @@ useEffect(() => {
     setDialogType, 
     setDialogMessage, 
     setIsDialogOpen, 
-    setDialogCustomers, // מילוי הנתונים במודל
+    setDialogCustomers, 
     selectedCustomers,
     filteredData,
-    setCustomers, // ✅ נוסיף את זה
-    setFilteredData // ✅ נוסיף גם את זה
+    setCustomers, 
+    setFilteredData 
   )}
   text="הוסף קשר משפחתי"
   type="primary"
   icon="off"
-  state={selectedCustomers.length > 0 ? "default" : "disabled"} // שינוי ל-`length`
+  state={selectedCustomers.length > 0 ? "default" : "disabled"} 
   disabled={selectedCustomers.length === 0} 
 />
 <Button
@@ -1752,13 +1727,12 @@ useEffect(() => {
     state={selectedCustomers.length > 0 ? "default" : "disabled"}
     disabled={selectedCustomers.length === 0}
 />
-  {/* הצגת המודל בתוך ה- return */}
-  {dialogMessage && <p>{dialogMessage}</p>} {/* הצגת הודעה אם יש טקסט */}
+  {dialogMessage && <p>{dialogMessage}</p>} 
   {isDialogOpen && (
  <FamilyLinkDialog
  isOpen={isDialogOpen}
  onClose={() => setIsDialogOpen(false)}
- customers={dialogCustomers} // הלקוחות שמועברים למודל
+ customers={dialogCustomers} 
  onConfirm={(mainCustomerId) =>
   handleConfirmFamilyLink(
     mainCustomerId,
@@ -1767,16 +1741,16 @@ useEffect(() => {
     setIsDialogOpen,
     selectedAgentId,
     fetchCustomersForAgent,
-    setCustomers, // ✅ מעבירים את הפונקציה שמעדכנת
-    setFilteredData // ✅ מעבירים גם את רשימת המסוננים
+    setCustomers, 
+    setFilteredData 
   )
 }
  setSelectedCustomers={setSelectedCustomers} 
  setIsDialogOpen={setIsDialogOpen}
- selectedAgentId={selectedAgentId} // הוספת הפרופ החסר
- fetchCustomersForAgent={fetchCustomersForAgent} // מעבירים את הפונקציה עם הטיפוס הנכון
- setCustomers={setCustomers} // ✅ לוודא שזה נשלח
-  setFilteredData={setFilteredData} // ✅ לוודא שזה נשלח
+ selectedAgentId={selectedAgentId} 
+ fetchCustomersForAgent={fetchCustomersForAgent} 
+ setCustomers={setCustomers} 
+  setFilteredData={setFilteredData} 
 />
 )}
 {selectedCustomers.length > 0 && (
@@ -1794,7 +1768,6 @@ useEffect(() => {
   </div>
 )}
 </div>
-        {/* רכיב הניווט */}
         <TableFooter
   currentPage={currentPage}
   totalPages={totalPages}
@@ -1823,8 +1796,8 @@ useEffect(() => {
   text="הפק דוח משפחתי"
   type="primary"
   icon="on"
-  state={selectedCustomers /* && selectedCustomers.parentID */ ? "default" : "disabled"}
-  disabled={!selectedCustomers /* || !selectedCustomers.parentID*/}
+  state={selectedCustomers  ? "default" : "disabled"}
+  disabled={!selectedCustomers }
 />
 <div dir="rtl" className="flex items-center gap-2 mt-4">
   <div className="flex bg-blue-100 rounded-full p-0.5 text-xs">
@@ -1852,7 +1825,7 @@ useEffect(() => {
     </button>
   </div>
 </div>
-            </div>
+     </div>
           </div>
           <div className="DataTableReport">
             <table >
@@ -1896,8 +1869,6 @@ useEffect(() => {
             </table>           
           </div>
         </div>
-
-    {/* === כרטיסון השוואת עמלות ללקוח (למורשי טעינת עמלות בלבד) === */}
 {isCheckingExternalOverview ? (
   <div className="mt-6 p-4 rounded-xl border bg-white shadow-sm" dir="rtl">
     טוען הרשאות…
@@ -1928,7 +1899,6 @@ useEffect(() => {
           ))}
         </select>
       </div>
-
       <label className="inline-flex items-center gap-2 mb-1">
         <input
           type="checkbox"
@@ -1938,7 +1908,6 @@ useEffect(() => {
         כולל תא משפחתי
       </label>
     </div>
-
     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4 text-center">
       <div className="p-4 rounded-lg bg-emerald-50 border">
         <div className="text-sm text-emerald-800 font-semibold">MAGIC – נפרעים</div>
@@ -1953,7 +1922,6 @@ useEffect(() => {
         <div className="text-2xl font-bold mt-1">{(cmpExternalSum - cmpMagicSum).toLocaleString()} ₪</div>
       </div>
     </div>
-
     <div className="mt-4 flex justify-start">
       <Button
         onClick={openFullCompareForCustomer}

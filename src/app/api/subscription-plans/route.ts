@@ -38,7 +38,7 @@ export async function GET() {
       },
     });
   } catch (error) {
-    console.error('🔥 Failed to load plans:', error);
+    // console.error('🔥 Failed to load plans:', error);
     return NextResponse.json(
       { error: 'Failed to load plans' },
       {

@@ -59,8 +59,8 @@ const useFetchAgentData = () => {
   }
 
   useEffect(() => {
-    console.log("🔍 user changed:", user);
-    console.log("🔍 detail changed:", detail);
+    // console.log("🔍 user changed:", user);
+    // console.log("🔍 detail changed:", detail);
   }, [user, detail]);
 
 
@@ -163,7 +163,7 @@ const useFetchAgentData = () => {
           // await fetchWorkersForSelectedAgent(detail.agentId);
         }
       } catch (error) {
-        console.error("⚠️ Failed to fetch agents:", error);
+        // console.error("⚠️ Failed to fetch agents:", error);
         setAgents([]);
       } finally {
         setTimeout(() => setIsLoadingAgent(false), 150);
@@ -184,7 +184,7 @@ useEffect(() => {
   
   const fetchWorkersForSelectedAgent = async (agentId: string) => {
     if (!agentId) {
-      console.log("Agent ID is undefined");
+      // console.log("Agent ID is undefined");
       setWorkers([]);
       setWorkerNameMap({});
       return;
@@ -206,7 +206,7 @@ useEffect(() => {
       setWorkers(workersData); // Update the workers list
       setWorkerNameMap(workersMap); // Update the map for quick lookup
     } catch (error) {
-      console.error('Failed to fetch workers:', error);
+      // console.error('Failed to fetch workers:', error);
       setWorkers([]);
       setWorkerNameMap({});
     }
@@ -250,7 +250,7 @@ useEffect(() => {
 
         if (selectedAgent) {
             setSelectedAgentId(selectedAgent.id);
-            console.log("Selected agent ID:", selectedAgent.id);
+            // console.log("Selected agent ID:", selectedAgent.id);
             setSelectedAgentName(selectedAgent.name);
             setSelectedWorkerIdFilter('');
         }
@@ -281,7 +281,7 @@ useEffect(() => {
   useEffect(() => {
     // בדיקת user לפני קריאת Firebase
     if (!user || !user.uid) {
-      console.log("No user - skipping companies fetch");
+      // console.log("No user - skipping companies fetch");
       setCompanies([]);
       return;
     }
@@ -292,7 +292,7 @@ useEffect(() => {
         const companiesList = querySnapshot.docs.map(doc => doc.data().companyName); 
         setCompanies(companiesList);
       } catch (error) {
-        console.error('Failed to fetch companies:', error);
+        // console.error('Failed to fetch companies:', error);
         setCompanies([]);
       }
     };

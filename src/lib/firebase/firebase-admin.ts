@@ -16,11 +16,11 @@ if (!admin.apps.length) {
     serviceAccount = parsed;
 
   } catch (e) {
-    console.error("❌ Failed to parse FIREBASE_ADMIN_KEY_JSON:", e);
+    // console.error("❌ Failed to parse FIREBASE_ADMIN_KEY_JSON:", e);
   }
 
-  console.log("🔍 Raw SERVICE_ACCOUNT_KEY env:", process.env.FIREBASE_ADMIN_KEY_JSON?.slice(0, 50));
-  console.log("🔍 Parsed serviceAccount keys:", Object.keys(serviceAccount));
+  // console.log("🔍 Raw SERVICE_ACCOUNT_KEY env:", process.env.FIREBASE_ADMIN_KEY_JSON?.slice(0, 50));
+  // console.log("🔍 Parsed serviceAccount keys:", Object.keys(serviceAccount));
 
   admin.initializeApp({
     credential: admin.credential.cert(serviceAccount),

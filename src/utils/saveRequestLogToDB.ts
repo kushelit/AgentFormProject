@@ -11,10 +11,10 @@ export type RequestLog = {
 
 export const saveRequestLogToDB = async (log: RequestLog) => {
   try {
-    console.log("Saving log to Firestore:", log); // בדקי מה נכנס
+    // console.log("Saving log to Firestore:", log); // בדקי מה נכנס
     await addDoc(collection(db, "requestLogs"), log);
-    console.log("Log saved successfully");
+    // console.log("Log saved successfully");
   } catch (error) {
-    console.error("Error saving log to Firestore:", error);
+    // console.error("Error saving log to Firestore:", error);
   }
 };

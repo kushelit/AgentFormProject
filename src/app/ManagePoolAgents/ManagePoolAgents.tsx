@@ -52,7 +52,7 @@ const ManagePoolAgents = () => {
   
       setSourceLeads(sourceLeadList);
     } catch (error) {
-      console.error("Error fetching active source leads:", error);
+      // console.error("Error fetching active source leads:", error);
     }
   };
 
@@ -75,9 +75,9 @@ const ManagePoolAgents = () => {
     try {
       const sourceRef = doc(db, "sourceLead", sourceId);
       await updateDoc(sourceRef, { agentsPool });
-      console.log("Agents pool updated successfully");
+      // console.log("Agents pool updated successfully");
     } catch (error) {
-      console.error("Error updating agents pool:", error);
+      // console.error("Error updating agents pool:", error);
     }
   };
 

@@ -29,7 +29,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ message: 'הפנייה נשלחה בהצלחה!' }, { status: 200 });
 
   } catch (error) {
-    console.error('Error sending email:', error);
+    // console.error('Error sending email:', error);
     return NextResponse.json({ error: 'שגיאה בשליחת המייל' }, { status: 500 });
   }
 }

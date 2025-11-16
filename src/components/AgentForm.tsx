@@ -194,7 +194,7 @@ const [filteredData, setFilteredData] = useState<AgentDataType[]>([]);
 
 const fetchDataForAgent = async (UserAgentId: string) => {
   if (!UserAgentId) {
-    console.log('No agent selected for admin, skipping data fetch.');
+    // console.log('No agent selected for admin, skipping data fetch.');
     setAgentData([]); // Clear the table data when no agent is selected
     return;
   }
@@ -305,7 +305,7 @@ const fetchDataForAgent = async (UserAgentId: string) => {
         fetchDataForAgent(selectedAgentId);
       }
     } else {
-      console.log("No selected row or row ID is undefined");
+      // console.log("No selected row or row ID is undefined");
 
     }
   };
@@ -352,10 +352,10 @@ const fetchDataForAgent = async (UserAgentId: string) => {
           fetchDataForAgent(selectedAgentId);
     //    }
       } catch (error) {
-        console.error("Error updating document:", error);     
+        // console.error("Error updating document:", error);     
       }
     } else {
-      console.log("No row selected or missing document ID");
+      // console.log("No row selected or missing document ID");
     }
   };
 
@@ -473,7 +473,7 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
     celebrationSound.play();
 
   } catch (error) {
-    console.error('Error adding document:', error);
+    // console.error('Error adding document:', error);
   } finally {
     setSubmitDisabled(false); // Re-enable the button after the process completes
   }
@@ -775,7 +775,7 @@ const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
     await fetchDataGoalsForWorker(selectedAgentId, isActiveGoals ,workerIdToFetch);
 //    console.log('Data fetched and table data should be updated now');
   } catch (error) {
-    console.error('Error during fetchDataGoalsForWorker:', error);
+    // console.error('Error during fetchDataGoalsForWorker:', error);
 } finally {
     setIsLoading(false); 
 }

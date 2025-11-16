@@ -9,7 +9,7 @@ export const fetchCustomerBelongToAgent = async (
   agentId: string
 ): Promise<CustomersTypeForFetching | null> => {
   if (!idNumber || idNumber.length < 8 || !agentId) return null;
-  console.log("🔍 Fetching customer from Firestore: ID:", idNumber, "Agent:", agentId);
+  // console.log("🔍 Fetching customer from Firestore: ID:", idNumber, "Agent:", agentId);
 
   try {
     const customerQuery = query(
@@ -27,7 +27,7 @@ export const fetchCustomerBelongToAgent = async (
       return null; // אם לא נמצא לקוח, נחזיר null
     }
   } catch (error) {
-    console.error("Error fetching customer details:", error);
+    // console.error("Error fetching customer details:", error);
     return null;
   }
 };

@@ -13,7 +13,7 @@ export const fetchSourceLeadsForAgent = async (agentId: string): Promise<SourceL
 
   try {
     const querySnapshot = await getDocs(q);
-    console.log("📥 docs received:", querySnapshot.docs.map(doc => doc.data()));
+    // console.log("📥 docs received:", querySnapshot.docs.map(doc => doc.data()));
 
     return querySnapshot.docs.map((doc) => {
       const data = doc.data();
@@ -26,7 +26,7 @@ export const fetchSourceLeadsForAgent = async (agentId: string): Promise<SourceL
       } as SourceLead;
     });
   } catch (error) {
-    console.error('❌ שגיאה בשליפת לידים:', error);
+    // console.error('❌ שגיאה בשליפת לידים:', error);
     return [];
   }
 };

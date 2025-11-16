@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
     await sgMail.send(msg);
     return NextResponse.json({ success: true });
   } catch (err) {
-    console.error('❌ Error sending cancel email:', err);
+    // console.error('❌ Error sending cancel email:', err);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }

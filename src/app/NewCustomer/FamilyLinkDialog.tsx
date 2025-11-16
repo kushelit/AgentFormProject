@@ -27,7 +27,7 @@ export const FamilyLinkDialog = ({
   setCustomers: (customers: CustomersTypeForFetching[]) => void;  // 🛠️ ✅ תיקון: הוספת הטיפוס
   setFilteredData: (customers: CustomersTypeForFetching[]) => void; // 🛠️ ✅ הוספת הטיפוס
 }) => {
-    console.log("Customers received in modal:", customers);
+    // console.log("Customers received in modal:", customers);
   const [mainCustomer, setMainCustomer] = useState<string | null>(null);
   if (!isOpen) return null;
 
@@ -56,12 +56,11 @@ export const FamilyLinkDialog = ({
                 value={customer.id}
                 checked={mainCustomer === ( customer.id)}
                 onChange={() => {
-                  console.log("בחירת מבוטח ראשי - מזהה מסמך:", customer.id); // הדפסה כדי לוודא
+                  // console.log("בחירת מבוטח ראשי - מזהה מסמך:", customer.id); // הדפסה כדי לוודא
                   setMainCustomer(customer.id);
                 }}
               />
             </div>
-
               <div className="customer-info">
                 <span className="info-item">
                   <label>ת.ז</label>
@@ -173,8 +172,8 @@ export const handleConfirmFamilyLink = async (
           return;
       }
   }
- console.log("mainCustomerId", mainCustomerId);
- console.log("selectedCustomers", selectedCustomers);
+//  console.log("mainCustomerId", mainCustomerId);
+//  console.log("selectedCustomers", selectedCustomers);
 
  for (const customer of selectedCustomers) {
       const customerDocRef = doc(db, 'customer', customer.id); // שימוש ב-id של המסמך
@@ -187,7 +186,7 @@ export const handleConfirmFamilyLink = async (
   setIsDialogOpen(false);
   if (selectedAgentId) {
     const updatedCustomers = await fetchCustomersForAgent(selectedAgentId);
-    console.log("✅ רשימת הלקוחות החדשה מה-DB:", updatedCustomers);
+    // console.log("✅ רשימת הלקוחות החדשה מה-DB:", updatedCustomers);
     setCustomers(updatedCustomers);
     setFilteredData(updatedCustomers); // עדכון רשימת המסוננים
 }
@@ -214,7 +213,7 @@ export const startLinkingProcess = (
       alert("בחר לפחות לקוח אחד לטובת הקישור.");
       return;
     }
-    console.log("Customers to Show in Modal:", selectedCustomers);
+    // console.log("Customers to Show in Modal:", selectedCustomers);
     setDialogCustomers(selectedCustomers); // נעדכן את המודל עם הרשימה
     setDialogType("info");
     // setDialogMessage("בחר מבוטח ראשי");
@@ -245,13 +244,13 @@ export const startLinkingProcess = (
             const customerDoc = await getDoc(customerDocRef);
   
             if (!customerDoc.exists()) {
-                console.warn(`הלקוח ${customer.firstNameCustomer} לא קיים במערכת.`);
+                // console.warn(`הלקוח ${customer.firstNameCustomer} לא קיים במערכת.`);
                 return;
             }
   
             const customerData = customerDoc.data();
             if (!customerData.parentID || customerData.parentID === customer.id) {
-                console.warn(`הלקוח ${customer.firstNameCustomer} כבר מנותק ממשפחתו.`);
+                // console.warn(`הלקוח ${customer.firstNameCustomer} כבר מנותק ממשפחתו.`);
                 return;
             }
   
@@ -267,12 +266,12 @@ export const startLinkingProcess = (
         // רענון רשימת כל הלקוחות ולא רק הנבחרים
         if (selectedAgentId) {
             const updatedCustomers = await fetchCustomersForAgent(selectedAgentId);
-            console.log("✅ רשימת הלקוחות החדשה מה-DB:", updatedCustomers);
+            // console.log("✅ רשימת הלקוחות החדשה מה-DB:", updatedCustomers);
             setCustomers([...updatedCustomers]); // יוצר אובייקט חדש כדי להכריח רינדור מחדש
             setSelectedCustomers([]); // מרוקן רק את הנבחרים, לא את כולם
         }
     } catch (error) {
-        console.error("Failed to disconnect customers:", error);
+        // console.error("Failed to disconnect customers:", error);
         alert("כשלון בניתוק קשר משפחתי");
     }
   };

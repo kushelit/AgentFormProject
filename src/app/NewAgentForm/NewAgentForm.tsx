@@ -182,7 +182,7 @@ const exportToExcel = () => {
 
 
 const resetForm = (clearCustomerFields: boolean = false) => {
-  console.log("🔄 Reset form, clearCustomerFields:", clearCustomerFields);
+  // console.log("🔄 Reset form, clearCustomerFields:", clearCustomerFields);
 
   const resetField = (field: keyof CombinedData, value: any) => {
     handleEditChange(field, value);
@@ -309,7 +309,7 @@ const handlePageChange = (pageNumber: number) => {
 useEffect(() => {
   if (!editData.AgentId && selectedAgentId) {
     handleEditChange("AgentId", selectedAgentId);
-    console.log("🔄 Setting default AgentId:", selectedAgentId);
+    // console.log("🔄 Setting default AgentId:", selectedAgentId);
   }
 }, [selectedAgentId, editData.AgentId]);
 
@@ -337,7 +337,7 @@ useEffect(() => {
         const data = await fetchDataForAgent(selectedAgentId); // קריאה ל-fetchDataForAgent
         setAgentData(data); // עדכון הסטייט עם הנתונים שהתקבלו
       } catch (error) {
-        console.error('Error fetching data for agent:', error);
+        // console.error('Error fetching data for agent:', error);
       }
     } else {
       setAgentData([]); // איפוס הסטייט אם אין סוכן
@@ -441,7 +441,7 @@ const handleSubmit = async (event: FormEvent<HTMLFormElement>, closeAfterSubmit 
     triggerConfetti();
     // celebrationSound.play();
     celebrationSoundRef.current?.play().catch((err) => {
-      console.warn("שגיאה בהשמעת הצליל", err);
+      // console.warn("שגיאה בהשמעת הצליל", err);
     });
 
     try {
@@ -460,7 +460,7 @@ const handleSubmit = async (event: FormEvent<HTMLFormElement>, closeAfterSubmit 
         await fetchDataGoalsForWorker(selectedAgentId, isActiveGoals, workerIdToFetch);
       }
     } catch (e) {
-      console.warn('refresh goals failed', e);
+      // console.warn('refresh goals failed', e);
     }
     // איפוס הטופס
     resetForm(closeAfterSubmit); // אם נלחץ "הזן וסיים" – נאפס את הכל כולל פרטי הלקוח
@@ -470,7 +470,7 @@ const handleSubmit = async (event: FormEvent<HTMLFormElement>, closeAfterSubmit 
     }
     setIsEditing(false);
   } catch (error) {
-    console.error('Error adding document:', error);
+    // console.error('Error adding document:', error);
   } finally {
     setSubmitDisabled(false); // הפעלת כפתור שליחה מחדש
   }
@@ -502,7 +502,7 @@ const handleSubmit = async (event: FormEvent<HTMLFormElement>, closeAfterSubmit 
   
   
   useEffect(() => {
-    console.log("🔄 עדכון agentData לאחר טעינה מחדש", data);
+    // console.log("🔄 עדכון agentData לאחר טעינה מחדש", data);
     setAgentData(data);
   }, [data]); // ✅ מבטיח שברגע שהנתונים נטענים, הם יכנסו ל-agentData
   
@@ -594,7 +594,7 @@ useEffect(() => {
     await fetchDataGoalsForWorker(selectedAgentId, isActiveGoals ,workerIdToFetch);
 //    console.log('Data fetched and table data should be updated now');
   } catch (error) {
-    console.error('Error during fetchDataGoalsForWorker:', error);
+    // console.error('Error during fetchDataGoalsForWorker:', error);
 } finally {
     setIsLoading(false); 
 }
@@ -643,14 +643,14 @@ const handleEditRowModal = (id: string) => {
 // const [modalContent, setModalContent] = useState<string | null>(null);
 
 const handleIDBlur = async () => {
-  console.log("🔵 handleIDBlur started...");
+  // console.log("🔵 handleIDBlur started...");
 
   if (!editData.IDCustomer) {
-    console.warn("❌ No IDCustomer provided, skipping fetch.");
+    // console.warn("❌ No IDCustomer provided, skipping fetch.");
     return;
   }
 
-  console.log("🔍 Checking customer by ID:", editData.IDCustomer, "Agent:", selectedAgentId);
+  // console.log("🔍 Checking customer by ID:", editData.IDCustomer, "Agent:", selectedAgentId);
 
   const customerData: Customer | null = await fetchCustomerBelongToAgent(
     editData.IDCustomer,
@@ -658,32 +658,32 @@ const handleIDBlur = async () => {
   );
 
   if (customerData) {
-    console.log("✅ Customer found:", customerData);
+    // console.log("✅ Customer found:", customerData);
     handleEditChange("firstNameCustomer", customerData.firstNameCustomer || "");
     handleEditChange("lastNameCustomer", customerData.lastNameCustomer || "");
     handleEditChange("phone", customerData.phone || "");
     handleEditChange("mail", customerData.mail || "");
     handleEditChange("address", customerData.address || "");
   } else {
-    console.warn("❌ No customer found for this ID.");
+    // console.warn("❌ No customer found for this ID.");
   }
 };
 
 useEffect(() => {
   if (!editData.product) {
-    console.log("⚠️ No product selected.");
+    // console.log("⚠️ No product selected.");
     setSelectedProductGroup(""); // אם אין מוצר, ננקה את הקבוצה
     return;
   }
 
   // חיפוש ה-ID של קבוצת המוצר מתוך `productToGroupMap`
   const selectedGroupId = productToGroupMap[editData.product.trim()] || "";
-  console.log("📌 Found Product Group ID:", selectedGroupId);
+  // console.log("📌 Found Product Group ID:", selectedGroupId);
 
   setSelectedProductGroup(selectedGroupId);
 }, [editData.product, productToGroupMap]); // ירוץ בכל שינוי של המוצר או הנתונים
 
-console.log("🚨 invalidFields:", invalidFields); // ✅ כאן מחוץ ל-HTML
+// console.log("🚨 invalidFields:", invalidFields); // ✅ כאן מחוץ ל-HTML
 
   return (
 <div className="content-container-NewAgentForm">  
@@ -1295,7 +1295,7 @@ console.log("🚨 invalidFields:", invalidFields); // ✅ כאן מחוץ ל-HTM
               <select value={editData.AgentId || ""} 
               onChange={(e) => {
               handleEditChange("AgentId", e.target.value)
-              console.log( canSubmit +"🔄 AgentId:", e.target.value);
+              // console.log( canSubmit +"🔄 AgentId:", e.target.value);
               }}>
               {detail?.role === 'admin' && <option value="">בחר סוכן</option>}
                 {agents.map(agent => (
@@ -1308,7 +1308,7 @@ console.log("🚨 invalidFields:", invalidFields); // ✅ כאן מחוץ ל-HTM
               <select value={editData.workerId || ""} 
               onChange={(e) => {
               handleDealEditChange("workerId", e.target.value)
-              console.log( canSubmit + "🔄 workerId:", e.target.value);
+              // console.log( canSubmit + "🔄 workerId:", e.target.value);
               }}
               className={invalidFields.includes("workerId") ? "input-error" : ""}
               >
@@ -1327,9 +1327,9 @@ console.log("🚨 invalidFields:", invalidFields); // ✅ כאן מחוץ ל-HTM
     type="text"
     value={editData.IDCustomer || ""}
     onChange={(e) => handleValidatedEditChange("IDCustomer", e.target.value, setEditData, setErrors)}
-    onFocus={() => console.log("🟢 Input focused")}
+    // onFocus={() => console.log("🟢 Input focused")}
     onBlur={() => {
-      console.log("🔵 Blur manually triggered");
+      // console.log("🔵 Blur manually triggered");
       handleIDBlur();
     }}
     className={errors.IDCustomer ? "input-error" : ""}
@@ -1394,7 +1394,7 @@ console.log("🚨 invalidFields:", invalidFields); // ✅ כאן מחוץ ל-HTM
               <select value={editData.company || ""} 
               onChange={(e) => {
                 handleDealEditChange("company", e.target.value)
-              console.log( canSubmit +"🟢 company changed:", e.target.value);
+              // console.log( canSubmit +"🟢 company changed:", e.target.value);
               }}
               className={invalidFields.includes("company") ? "input-error" : ""}
               >
@@ -1411,7 +1411,7 @@ console.log("🚨 invalidFields:", invalidFields); // ✅ כאן מחוץ ל-HTM
               <label>מוצר *</label>
               <select value={editData.product || ""} 
               onChange={(e) => {
-                console.log( canSubmit +"🔄 Product:", e.target.value);
+                // console.log( canSubmit +"🔄 Product:", e.target.value);
                 handleDealEditChange("product", e.target.value);
               }}
               className={invalidFields.includes("product") ? "input-error" : ""}
@@ -1498,7 +1498,7 @@ console.log("🚨 invalidFields:", invalidFields); // ✅ כאן מחוץ ל-HTM
               <select value={editData.statusPolicy || ""} 
               onChange={(e) => {
                 handleDealEditChange("statusPolicy", e.target.value)
-              console.log( canSubmit +"🔄 statusPolicy:", e.target.value);
+              // console.log( canSubmit +"🔄 statusPolicy:", e.target.value);
 
       }}
       className={invalidFields.includes("statusPolicy") ? "input-error" : ""}
@@ -1518,10 +1518,10 @@ console.log("🚨 invalidFields:", invalidFields); // ✅ כאן מחוץ ל-HTM
               value={editData.mounth || ""} 
               onChange={(e) =>{
                 handleDealEditChange("mounth", e.target.value)
-               console.log( canSubmit +"🔄 mounth:", e.target.value);
+              //  console.log( canSubmit +"🔄 mounth:", e.target.value);
       }}
       onBlur={(e) => {
-        console.log("📌 יציאה משדה mounth");
+        // console.log("📌 יציאה משדה mounth");
         setValidateAllFields(true);
         validateAllRequiredFields(); // ✅ בודק גם את ה-inputים החכמים
       }}
@@ -1584,7 +1584,7 @@ console.log("🚨 invalidFields:", invalidFields); // ✅ כאן מחוץ ל-HTM
           <div className="left-buttons">
             <Button
               onClick={() => {
-                console.log("🟠 כפתור בטל נלחץ, מפעיל cancelEdit...");
+                // console.log("🟠 כפתור בטל נלחץ, מפעיל cancelEdit...");
                 cancelEdit(true);
               }} 
               text="בטל"

@@ -234,7 +234,7 @@ useEffect(() => {
         if (typeof t.rate   !== 'undefined') setToleranceRate(Number(t.rate) || 0);
       }
     } catch (e) {
-      console.warn('loadAgentTolerance failed', e);
+      // console.warn('loadAgentTolerance failed', e);
     }
   };
   loadAgentTolerance();
@@ -251,7 +251,7 @@ const saveAgentTolerance = async () => {
       },
     });
   } catch (e) {
-    console.warn('saveAgentTolerance failed', e);
+    // console.warn('saveAgentTolerance failed', e);
   }
 };
 

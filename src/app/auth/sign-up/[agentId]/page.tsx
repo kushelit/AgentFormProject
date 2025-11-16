@@ -90,7 +90,7 @@ export default function WorkerSignUpPage({ params }: { params: { agentId: string
       addToast("success", `העובד ${name} נוסף בהצלחה!`);
       router.back();
     } catch (err: any) {
-      console.error("שגיאה בעת שליחת הבקשה ל-reviveWorker:", err);
+      // console.error("שגיאה בעת שליחת הבקשה ל-reviveWorker:", err);
       setError('שגיאה לא צפויה בעת רישום עובד');
       addToast("error", 'שגיאה לא צפויה בעת רישום עובד');
     }

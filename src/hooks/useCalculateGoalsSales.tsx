@@ -148,7 +148,7 @@ function useCalculateSalesData() {
     
                 const premiaField = premiaFieldsMap[goalDetails.productGroup];
                 if (!premiaField) {
-                    console.error(`Premia field not defined for product group ${goalDetails.productGroup}`);
+                    // console.error(`Premia field not defined for product group ${goalDetails.productGroup}`);
                     return { totals: groupTotals, totalStars, productGroup }; // Still return an object matching the type
                 }
                 const productsInGroup = Object.keys(productMap).filter(key => productMap[key] === goalDetails.productGroup);
@@ -245,7 +245,7 @@ function isGoalData(item: GoalData | null): item is GoalData {
         // Ensure promotionDetails is correctly referenced
         const promotion = promotionDetails[promotionId];
         if (!promotion) {
-            console.error('Promotion details not found for:', promotionId);
+            // console.error('Promotion details not found for:', promotionId);
             return null; // Skip this entry if promotion details are not found
         }
 
@@ -289,7 +289,7 @@ function isGoalData(item: GoalData | null): item is GoalData {
         const starRequirements: StarRequirements = {}; 
  const promotion = promotionDetails[promotionId];
  if (!promotion) {
-     console.error('Promotion details not found for:', promotionId);
+    //  console.error('Promotion details not found for:', promotionId);
      return { totals: {}, totalStarsInsideFunc: 0 };
  }
 
@@ -323,7 +323,7 @@ function isGoalData(item: GoalData | null): item is GoalData {
             const premiaField = premiaFieldsMap[group];
       //      console.log('Premia Field for group', group, ':', premiaField); // Check mapping result
             if (!premiaField) {
-                console.error(`Premia field not defined for product group ${group}`);
+                // console.error(`Premia field not defined for product group ${group}`);
        //         console.log('Skipping group:', group);
                 continue;  // Skip this group if no mapping is found
             }

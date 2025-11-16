@@ -88,7 +88,7 @@ const {
      await fetchSourceLeadForAgent(selectedAgentId); 
       }
     } else {
-      console.log("No selected row or row ID is undefined");
+      // console.log("No selected row or row ID is undefined");
     }
   };
 
@@ -103,7 +103,7 @@ const {
           statusLead:!!statusLead,
           isAPILead:!!isAPILead,
         });
-        console.log("Document successfully updated");
+        // console.log("Document successfully updated");
         setSelectedRow(null); 
         resetForm();         
         if (selectedAgentId) {
@@ -111,10 +111,10 @@ const {
        fetchSourceLeadForAgent
           }
       } catch (error) {
-        console.error("Error updating document:", error);     
+        // console.error("Error updating document:", error);     
       }
     } else {
-      console.log("No row selected or missing document ID");
+      // console.log("No row selected or missing document ID");
     }
   };
 
@@ -145,7 +145,7 @@ const {
         isAPILead,
       });
       alert('מקור ליד התווסף בהצלחה');
-      console.log('Document written with ID:', docRef.id);
+      // console.log('Document written with ID:', docRef.id);
       resetForm(); 
       setIsEditing(false);
       if (selectedAgentId) {
@@ -154,7 +154,7 @@ const {
       }
       
     } catch (error) {
-      console.error('Error adding document:', error);
+      // console.error('Error adding document:', error);
     }
   };
   
@@ -209,7 +209,7 @@ const {
     
       const handleDeleteStatusLead = async () => {
         if (!selectedRowStatusLead || !selectedRowStatusLead.id) {
-          console.log("No selected row or row ID is undefined");
+          // console.log("No selected row or row ID is undefined");
           return;
         }
       
@@ -218,7 +218,7 @@ const {
       
         if (isDefaultStatus && userRole !== 'admin') {
           alert('רק מנהל יכול למחוק סטאטוס מערכת');
-          console.log("Only admin users can delete default statuses");
+          // console.log("Only admin users can delete default statuses");
           return;
         }   
         try {
@@ -232,13 +232,13 @@ const {
     //    statusLeadMap
     //      }
         } catch (error) {
-          console.error("Error deleting status lead:", error);
+          // console.error("Error deleting status lead:", error);
         }
       };
       
       const handleEditStatusLead = async () => {
         if (!selectedRowStatusLead || !selectedRowStatusLead.id) {
-          console.log("No row selected or missing document ID");
+          // console.log("No row selected or missing document ID");
           return;
         }  
         const isDefaultStatus = selectedRowStatusLead.defaultStatusLead === true; // Check if it's a default status
@@ -246,7 +246,7 @@ const {
       
         if (isDefaultStatus && userRole !== 'admin') {
           alert('רק מנהל יכול לערוך סטאטוס מערכת');
-          console.log("Only admin users can edit default statuses");
+          // console.log("Only admin users can edit default statuses");
           return;
         }     
         try {
@@ -264,7 +264,7 @@ const {
       //    statusLeadMap
      //     }
         } catch (error) {
-          console.error("Error updating document:", error);
+          // console.error("Error updating document:", error);
         }
       };
       
@@ -286,7 +286,7 @@ const {
            fetchStatusLeadForAgentAndDefault(selectedAgentId);    
           //      }
         } catch (error) {
-          console.error('Error adding document:', error);
+          // console.error('Error adding document:', error);
         }
       };
   

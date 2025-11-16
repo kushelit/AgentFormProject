@@ -93,7 +93,7 @@ export const UserSubscriptionPopup: React.FC<UserSubscriptionPopupProps> = ({
         addToast("error", res.data.message || "שגיאה בביטול המנוי");
       }
     } catch (err) {
-      console.error('שגיאה בביטול:', err);
+      // console.error('שגיאה בביטול:', err);
       addToast("error", "שגיאה בביטול המנוי");
     } finally {
       setIsCancelling(false);

@@ -13,7 +13,7 @@ import "./style.css";
 
 export const ToastNotification = ({ type, className , message, onClose}) => {
 
-  console.log("Received props:", { type, className, message });
+  // console.log("Received props:", { type, className, message });
 
   return (
     <div

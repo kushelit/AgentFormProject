@@ -19,7 +19,7 @@ export default function Header() {
     await logOut(); // ביצוע התנתקות
     router.push("/auth/log-in"); // ניתוב לדף התחברות
   } catch (error) {
-    console.error("Logout failed:", error);
+    // console.error("Logout failed:", error);
   }
 };
 

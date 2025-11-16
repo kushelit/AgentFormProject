@@ -139,7 +139,7 @@ const ReportsPage: React.FC = () => {
   
       addToast('success', `הדוח נשלח בהצלחה לכתובת ${payload.emailTo}`);
     } catch (err) {
-      console.error(err);
+      // console.error(err);
       addToast('error', 'שגיאה בשליחת הדוח');
     } finally {
       setLoading(false);

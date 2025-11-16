@@ -24,7 +24,7 @@ const RequestStatusPage = () => {
         })) as RequestLog[];
         setLogs(fetchedLogs);
       } catch (error) {
-        console.error("Error fetching logs:", error);
+        // console.error("Error fetching logs:", error);
       } finally {
         setIsLoading(false);
       }

@@ -142,15 +142,15 @@ const ExcelCommissionImporter: React.FC = () => {
     const missing  = expected.filter(h => !found.includes(h));
     const coverage = expected.length ? (matched.length / expected.length) : 1;
 
-    console.groupCollapsed(`[IMPORT DEBUG] ${ctx}`);
-    console.log('Expected (raw):', expectedRaw);
-    console.log('Found    (raw):', foundRaw);
-    console.log('Expected (norm):', expected);
-    console.log('Found    (norm):', found);
-    console.log('Matched:', matched);
-    console.log('Missing:', missing);
-    console.log('Coverage:', Math.round(coverage * 100) + '%');
-    console.groupEnd();
+    // console.groupCollapsed(`[IMPORT DEBUG] ${ctx}`);
+    // console.log('Expected (raw):', expectedRaw);
+    // console.log('Found    (raw):', foundRaw);
+    // console.log('Expected (norm):', expected);
+    // console.log('Found    (norm):', found);
+    // console.log('Matched:', matched);
+    // console.log('Missing:', missing);
+    // console.log('Coverage:', Math.round(coverage * 100) + '%');
+    // console.groupEnd();
   }
 
   // --- בדיקת כיסוי אחידה ל-XLSX/ZIP: מחזיר true/false ומדפיס דיבאג ---
@@ -528,7 +528,7 @@ const ExcelCommissionImporter: React.FC = () => {
 
       addToast("success", "נמחקו רשומות בהצלחה");
     } catch (err) {
-      console.error(err);
+      // console.error(err);
       addToast("error", "שגיאה במחיקת הרשומות");
     } finally {
       setIsLoading(false);
@@ -875,7 +875,7 @@ const ExcelCommissionImporter: React.FC = () => {
         if (reportMonth) await checkExistingData(selectedAgentId, templateId, reportMonth, selectedCompanyId);
 
       } catch (err: any) {
-        console.error('File parse error:', err);
+        // console.error('File parse error:', err);
         setErrorDialog({
           title: 'שגיאת עיבוד קובץ',
           message: <>אירעה שגיאה בעת עיבוד הקובץ <b>{file.name}</b>.</>,
@@ -999,7 +999,7 @@ const ExcelCommissionImporter: React.FC = () => {
       if (reportMonth) await checkExistingData(selectedAgentId, templateId, reportMonth, selectedCompanyId);
 
     } catch (e: any) {
-      console.error(e);
+      // console.error(e);
       setErrorDialog({ title: 'שגיאת עיבוד קובץ', message: String(e?.message || 'שגיאה לא ידועה') });
     } finally {
       setZipChooser(null);
@@ -1203,7 +1203,7 @@ const ExcelCommissionImporter: React.FC = () => {
       setSelectedFileName('');
       setExistingDocs([]);
     } catch (error) {
-      console.error('שגיאה בעת טעינה:', error);
+      // console.error('שגיאה בעת טעינה:', error);
       addToast("error", "שגיאה בעת טעינה למסד. בדוק קונסול.");
     } finally {
       setIsLoading(false);

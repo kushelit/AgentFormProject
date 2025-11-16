@@ -133,7 +133,7 @@ const [productMap, setProductMap] = useState<Record<string, Product>>({});
       
         // 🟡 פה השינוי – נשתמש ב־startDate רק אם לא מדובר בגרף נפרעים ללקוח
         let salesQuery;
-      console.log("includePreviousDecember: " + includePreviousDecember);
+      // console.log("includePreviousDecember: " + includePreviousDecember);
         if (includePreviousDecember) {
           // מצטבר – נביא מהעבר, בלי הגבלה של התחלה
           salesQuery = query(
@@ -215,11 +215,11 @@ const [productMap, setProductMap] = useState<Record<string, Product>>({});
 
                 generalQuerySnapshot.forEach(doc => {
                 const data = doc.data();
-                console.log("📦 תאריך מהממסמך:", data.mounth); // 🔍 הוספת שורת בדיקה
+                // console.log("📦 תאריך מהממסמך:", data.mounth); // 🔍 הוספת שורת בדיקה
 
                 const date = new Date(data.mounth);
                 if (isNaN(date.getTime())) {
-                    console.warn("❌ תאריך לא תקני:", data.mounth);
+                    // console.warn("❌ תאריך לא תקני:", data.mounth);
                     return;
                   }
                 const year = date.getFullYear();
@@ -270,7 +270,7 @@ const [productMap, setProductMap] = useState<Record<string, Product>>({});
                 setCompanyCommissions(newCompanyCommissions); 
                 aggregateOverallTotals(newMonthlyTotals);
             } catch (error) {
-                console.error("7-Error fetching data:", error);
+                // console.error("7-Error fetching data:", error);
             } finally {
                setIsLoadingData(false); 
             }
@@ -348,8 +348,8 @@ const [productMap, setProductMap] = useState<Record<string, Product>>({});
       isCommissionSplitEnabled: boolean // ✅ FLAG
     ) 
     {
-      console.log("📌 calculateCommissions called for", data.IDCustomer);
-      console.log("✅ isCommissionSplitEnabled:", isCommissionSplitEnabled);
+      // console.log("📌 calculateCommissions called for", data.IDCustomer);
+      // console.log("✅ isCommissionSplitEnabled:", isCommissionSplitEnabled);
       
         const isOneTime = product?.isOneTimeCommission ?? false;
         const multiplier = isOneTime ? 1 : 12;
@@ -370,37 +370,37 @@ const [productMap, setProductMap] = useState<Record<string, Product>>({});
   );
   // 🟢 בדיקת פיצול עמלות רק אם הופעל הדגל
 if (isCommissionSplitEnabled) {
-  console.log("🔁 בדיקת פיצול הופעלה עבור לקוח:", data.IDCustomer, "וסוכן:", data.AgentId);
+  // console.log("🔁 בדיקת פיצול הופעלה עבור לקוח:", data.IDCustomer, "וסוכן:", data.AgentId);
 
   const customer = customers.find(
     cust => cust.IDCustomer === data.IDCustomer && cust.AgentId === data.AgentId
   );
 
-  console.log("🧍‍♂️ לקוח שנמצא:", customer);
+  // console.log("🧍‍♂️ לקוח שנמצא:", customer);
 
   if (customer?.sourceValue) {
-    console.log("📌 sourceValue שנמצא:", customer.sourceValue);
+    // console.log("📌 sourceValue שנמצא:", customer.sourceValue);
 
     const splitAgreement = commissionSplits.find(
       split => split.agentId === data.AgentId && split.sourceLeadId === customer.sourceValue
 
     );
 
-    console.log("📄 הסכם פיצול שנמצא:", splitAgreement);
+    // console.log("📄 הסכם פיצול שנמצא:", splitAgreement);
 
     if (splitAgreement) {
       const percentToAgent = splitAgreement.percentToAgent;
-      console.log(`💰 אחוז לסוכן לפי הסכם הפיצול: ${percentToAgent}%`);
+      // console.log(`💰 אחוז לסוכן לפי הסכם הפיצול: ${percentToAgent}%`);
 
       hekef *= (percentToAgent / 100);
       nifraim *= (percentToAgent / 100);
 
-      console.log("✅ עמלה לאחר פיצול - היקף:", hekef, "| נפרעים:", nifraim);
+      // console.log("✅ עמלה לאחר פיצול - היקף:", hekef, "| נפרעים:", nifraim);
     } else {
-      console.log("⚠️ לא נמצא הסכם פיצול ל-sourceLead:", customer.sourceValue);
+      // console.log("⚠️ לא נמצא הסכם פיצול ל-sourceLead:", customer.sourceValue);
     }
   } else {
-    console.log("🚫 ללקוח אין sourceValue – אין פיצול");
+    // console.log("🚫 ללקוח אין sourceValue – אין פיצול");
   }
 }
 

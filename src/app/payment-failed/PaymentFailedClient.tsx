@@ -26,7 +26,7 @@ export default function PaymentFailedClient() {
             failedAt: new Date(),
           });
         } catch (error) {
-          console.error('שגיאה בשמירת ניסיון כושל:', error);
+          // console.error('שגיאה בשמירת ניסיון כושל:', error);
         }
       };
 

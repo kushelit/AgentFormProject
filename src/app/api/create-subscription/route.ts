@@ -76,10 +76,10 @@ export async function POST(req: NextRequest) {
         if (!data.planId || data.planId === plan) {
           couponData = data;
         } else {
-          console.warn('⚠️ קופון לא תואם את התוכנית', { plan, planIdInCoupon: data.planId });
+          // console.warn('⚠️ קופון לא תואם את התוכנית', { plan, planIdInCoupon: data.planId });
         }
       } else {
-        console.warn('❌ לא נמצא קופון עם הקוד:', couponCode);
+        // console.warn('❌ לא נמצא קופון עם הקוד:', couponCode);
       }
     }
 
@@ -114,10 +114,10 @@ export async function POST(req: NextRequest) {
       if (Math.abs(normalizedTotal - calculatedTotal) <= 0.01) {
         totalPrice = normalizedTotal;
       } else {
-        console.warn('⚠️ total מהפרונט שונה – משתמשים בחישוב השרת', {
-          fromFrontend: normalizedTotal,
-          fromBackend: calculatedTotal,
-        });
+        // console.warn('⚠️ total מהפרונט שונה – משתמשים בחישוב השרת', {
+        //   fromFrontend: normalizedTotal,
+        //   fromBackend: calculatedTotal,
+        // });
       }
     }
 
@@ -137,7 +137,7 @@ export async function POST(req: NextRequest) {
         byEmail = await auth.getUserByEmail(emailLower);
       } catch (e: any) {
         if (e.code !== 'auth/user-not-found') {
-          console.error('⚠️ שגיאה בבדיקת אימייל ב-Auth:', e);
+          // console.error('⚠️ שגיאה בבדיקת אימייל ב-Auth:', e);
           return NextResponse.json({ error: 'שגיאה בבדיקת משתמש לפי אימייל' }, { status: 500 });
         }
       }
@@ -159,7 +159,7 @@ export async function POST(req: NextRequest) {
           byPhone = await auth.getUserByPhoneNumber(phoneE164);
         } catch (e: any) {
           if (e.code !== 'auth/user-not-found') {
-            console.error('⚠️ שגיאה בבדיקת טלפון ב-Auth:', e);
+            // console.error('⚠️ שגיאה בבדיקת טלפון ב-Auth:', e);
             return NextResponse.json({ error: 'שגיאה בבדיקת משתמש לפי טלפון' }, { status: 500 });
           }
         }
@@ -250,11 +250,11 @@ export async function POST(req: NextRequest) {
       if (error.code === 'ERR_CANCELED') {
         return NextResponse.json({ error: 'פנייה לספק נקטעה. נסו שוב.' }, { status: 504 });
       }
-      console.error('❌ Grow API error:', error.message);
+      // console.error('❌ Grow API error:', error.message);
       return NextResponse.json({ error: 'שגיאה בתקשורת עם Grow' }, { status: 502 });
     }
   } catch (error: any) {
-    console.error('❌ Internal error:', error);
+    // console.error('❌ Internal error:', error);
     return NextResponse.json({ error: 'שגיאה פנימית בשרת' }, { status: 500 });
   }
 }

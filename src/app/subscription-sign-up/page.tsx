@@ -92,11 +92,11 @@ export default function SubscriptionSignUpPage() {
         // ✅ בדיקה לכל תוכנית
         res.data.forEach((plan: any, index: number) => {
           if (!plan.permissions || !Array.isArray(plan.permissions)) {
-            console.warn(`⚠️ תוכנית [${plan.name || plan.id || index}] חסרה שדה permissions או שהוא לא מערך`);
+            // console.warn(`⚠️ תוכנית [${plan.name || plan.id || index}] חסרה שדה permissions או שהוא לא מערך`);
           }
   
           if (typeof plan.name !== 'string' || typeof plan.price !== 'number') {
-            console.warn(`⚠️ תוכנית [${plan.id || index}] עם שדות name או price לא תקינים`);
+            // console.warn(`⚠️ תוכנית [${plan.id || index}] עם שדות name או price לא תקינים`);
           }
         });
   
@@ -105,7 +105,7 @@ export default function SubscriptionSignUpPage() {
           setSelectedPlan(res.data[0].id);
         }
       } catch (err) {
-        console.error('שגיאה בטעינת מסלולים', err);
+        // console.error('שגיאה בטעינת מסלולים', err);
       } finally {
         setIsLoading(false); // חשוב! תמיד לסיים את הטעינה
       }
@@ -289,7 +289,7 @@ const isValidFullName = (name: string) => {
       const msg = err?.response?.data?.error || 'שגיאה כללית';
       const status = err?.response?.status;
 
-      console.error('❌ Error:', msg, 'Status:', status);
+      // console.error('❌ Error:', msg, 'Status:', status);
 
       if (status === 400) {
         if (msg.includes('שם מלא')) {

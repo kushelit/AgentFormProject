@@ -25,7 +25,7 @@ const ContactFormModal: React.FC<ContactFormModalProps> = ({ onClose, userEmail 
     setError("");
     setSuccess("");
   
-    console.log("📨 התחלת שליחת המייל..."); // 🔹 Debugging
+    // console.log("📨 התחלת שליחת המייל..."); // 🔹 Debugging
   
     try {
       const res = await fetch("/api/contact", {
@@ -38,7 +38,7 @@ const ContactFormModal: React.FC<ContactFormModalProps> = ({ onClose, userEmail 
         }),
       });
   
-      console.log("📩 תגובת השרת:", res); // 🔹 הדפסת תגובה
+      // console.log("📩 תגובת השרת:", res); // 🔹 הדפסת תגובה
   
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "שגיאה בשליחת הפנייה");
@@ -53,7 +53,7 @@ const ContactFormModal: React.FC<ContactFormModalProps> = ({ onClose, userEmail 
 }, 500);
 
     } catch (err) {
-      console.error("❌ שגיאה בשליחת המייל:", err);
+      // console.error("❌ שגיאה בשליחת המייל:", err);
       // setError("שגיאה בשליחת הבקשה, נסה שוב.");
       addToast("error", "שגיאה בשליחת הבקשה, נסה שוב.");
 

@@ -14,7 +14,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: true });
   } catch (err) {
-    console.error('שגיאה בעדכון Firebase Auth:', err);
+    // console.error('שגיאה בעדכון Firebase Auth:', err);
     return NextResponse.json({ error: 'שגיאה בעדכון משתמש' }, { status: 500 });
   }
 }

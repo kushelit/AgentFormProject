@@ -21,7 +21,7 @@ import { PromotionData, PromotionWithId, PromotionMapping } from '@/types/Goal';
 
     return promotions;
   } catch (error) {
-    console.error("Error fetching promotions:", error);
+    // console.error("Error fetching promotions:", error);
     return [];
   }
 };

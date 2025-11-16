@@ -75,7 +75,7 @@ const useFetchMD = (selectedAgentId?:string) => {
               groupsMap[doc.id] = data.productsGroupName as string; // כאן המיפוי הוא ממספר לשם
             });
         
-            console.log("🔍 בדיקה productGroupMap:", groupsMap);
+            // console.log("🔍 בדיקה productGroupMap:", groupsMap);
             setProductGroupMap(groupsMap);
           };
         
@@ -118,7 +118,7 @@ const useFetchMD = (selectedAgentId?:string) => {
             setProducts(productsList);
         //    console.log("Products fetched:", productsList);
           } catch (error) {
-            console.error("Failed to fetch products:", error);
+            // console.error("Failed to fetch products:", error);
           }
         };
       
@@ -201,7 +201,7 @@ useEffect(() => {
 
       querySnapshot.forEach((doc) => {
         const data = doc.data();
-        console.log("🛠 Fetching product:", data);
+        // console.log("🛠 Fetching product:", data);
 
         // שמירת המוצר עם ה-ID של קבוצת המוצר
         if (data.productName && data.productGroup) {
@@ -210,14 +210,14 @@ useEffect(() => {
         }
       });
 
-      console.log("📌 Final productToGroupMap:", productToGroupMap);
+      // console.log("📌 Final productToGroupMap:", productToGroupMap);
 
       // שמירת הנתונים בסטייט
       setProductMap(productMap);
       setProductToGroupMap(productToGroupMap);
 
     } catch (error) {
-      console.error("❌ Failed to fetch products:", error);
+      // console.error("❌ Failed to fetch products:", error);
     } finally {
       setIsLoading(false);
     }
@@ -295,11 +295,11 @@ useEffect(() => {
         );
       SetStatusLeadMap(uniqueStatuses); // Set the combined unique statuses
 
-        console.log("✅ Fetched Status Leads:", uniqueStatuses);
+        // console.log("✅ Fetched Status Leads:", uniqueStatuses);
 
         return uniqueStatuses as StatusLead[];
     } catch (error) {
-        console.error('❌ Error fetching status leads:', error);
+        // console.error('❌ Error fetching status leads:', error);
         return [];
     }
 };
@@ -339,11 +339,11 @@ const fetchSourceLeadForAgent = async (UserAgentId: string): Promise<Lead[]> => 
       ...doc.data(),
     })) as Lead[];
 
-    console.log("✅ נתונים שהתקבלו:", data);
+    // console.log("✅ נתונים שהתקבלו:", data);
     SetSourceLeadList(data);
     return data;
   } catch (error) {
-    console.error("❌ שגיאה בשליפת נתוני מקור ליד:", error);
+    // console.error("❌ שגיאה בשליפת נתוני מקור ליד:", error);
     return [];
   }
 };
@@ -358,9 +358,9 @@ const fetchSourceLeadForAgent = async (UserAgentId: string): Promise<Lead[]> => 
         return map;
       }, {} as { [key: string]: string });
       setSourceLeadMap(sourceMap);
-      console.log("Populated sourceLeadMap:", sourceMap); // Debugging
+      // console.log("Populated sourceLeadMap:", sourceMap); // Debugging
     } catch (error) {
-      console.error("Error fetching source leads:", error);
+      // console.error("Error fetching source leads:", error);
     }
   };
   

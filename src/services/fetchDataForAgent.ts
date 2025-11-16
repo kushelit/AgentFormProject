@@ -5,7 +5,7 @@ import { Customer, Sale, CombinedData , AgentDataType } from '../types/Sales';
  
 const fetchDataForAgent = async (UserAgentId: string): Promise<CombinedData[]> => {
   if (!UserAgentId) {
-    console.warn('No agent selected for admin, skipping data fetch.');
+    // console.warn('No agent selected for admin, skipping data fetch.');
     return []; // מחזיר מערך ריק אם אין מזהה סוכן
   }
 

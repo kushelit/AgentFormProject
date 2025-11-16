@@ -20,7 +20,7 @@ export async function cancelSubscription(id: string, subscriptionId?: string, tr
     if (!res.ok) throw new Error(data.error || 'כשל בביטול המנוי');
     return data;
   } catch (error) {
-    console.error('❌ cancelSubscription error:', error);
+    // console.error('❌ cancelSubscription error:', error);
     throw error;
   }
 }
@@ -30,7 +30,7 @@ export const getAllSubscriptions = async () => {
   const res = await fetch('/api/subscriptions');
   if (!res.ok) {
     const errorText = await res.text();
-    console.error('❌ שגיאת API:', res.status, errorText);
+    // console.error('❌ שגיאת API:', res.status, errorText);
     throw new Error(`שגיאה בשליפת מנויים: ${res.status}`);
   }
   return res.json();

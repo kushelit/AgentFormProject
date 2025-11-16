@@ -87,7 +87,7 @@ import { fetchSplits } from '@/services/splitsService';
 
 
   useEffect(() => {
-    console.log("🔄 productGroupMap השתנה:", productGroupMap);
+    // console.log("🔄 productGroupMap השתנה:", productGroupMap);
   }, [productGroupMap]);
   const handlecommissionPercentHekef1: ChangeEventHandler<HTMLInputElement> = (e) => {
     const value = e.target.value.replace(/[^0-9.]/g, '').replace(/(\..*?)\..*/g, '$1');
@@ -174,7 +174,7 @@ const canSubmit1 = useMemo(() => (
   
       const querySnapshot = await getDocs(existingContractQuery);
       if (!querySnapshot.empty) {
-        console.log('A contract with the same details already exists.');
+        // console.log('A contract with the same details already exists.');
         addToast("error", "לא ניתן להזין הסכם זהה להסכם קיים");
         return; 
       }
@@ -189,14 +189,14 @@ const canSubmit1 = useMemo(() => (
         minuySochen:minuySochen1
 
       });      
-      console.log('Document written with ID:', docRef.id);
+      // console.log('Document written with ID:', docRef.id);
       addToast("success", "הסכם עמלות הוזן בהצלחה");
 
       resetFormDefault(); 
   setIsModalOpenCommission(false);
   reloadDefaultContractsData(selectedAgentId);
     } catch (error) {
-      console.error('Error adding document:', error);
+      // console.error('Error adding document:', error);
     }
   };
 
@@ -225,13 +225,13 @@ const canSubmit1 = useMemo(() => (
 
     const querySnapshot = await getDocs(existingContractQuery);
     if (!querySnapshot.empty) {
-      console.log('A contract with the same details already exists.');
+      // console.log('A contract with the same details already exists.');
       addToast("error", "לא ניתן להזין הסכם זהה להסכם קיים");
 
       // alert('לא ניתן להזין הסכם זהה להסכם קיים'); 
       return; 
     }
-          console.log("got here");
+          // console.log("got here");
           const docRef = await addDoc(collection(db, 'contracts'), {
             AgentId: selectedAgentId,
           company: selectedCompany,
@@ -242,7 +242,7 @@ const canSubmit1 = useMemo(() => (
           commissionNiud:commissionPercentNiud2,
           minuySochen:minuySochen2
         });      
-        console.log('Document written with ID:', docRef.id);
+        // console.log('Document written with ID:', docRef.id);
         addToast("success", "הסכם עמלות הוזן בהצלחה");
 
         resetFormContracts(); 
@@ -253,7 +253,7 @@ const canSubmit1 = useMemo(() => (
       setIsModalOpenAgent(false);
       reloadContractsData(selectedAgentId);
       } catch (error) {
-        console.error('Error adding document:', error);
+        // console.error('Error adding document:', error);
       }
     };
     const fetchContracts = async (agentId: string): Promise<ContractAgent[]> => {
@@ -284,7 +284,7 @@ const canSubmit1 = useMemo(() => (
           ...doc.data(),
         })) as ContractAgent[];
       } catch (error) {
-        console.error("Error fetching contracts data:", error);
+        // console.error("Error fetching contracts data:", error);
         return [];
       }
     };
@@ -318,7 +318,7 @@ const canSubmit1 = useMemo(() => (
 
 
       } catch (error) {
-        console.error("Error fetching contracts data:", error);
+        // console.error("Error fetching contracts data:", error);
         return [];
       }
     };
@@ -454,7 +454,7 @@ const [isModalOpenAgent, setIsModalOpenAgent] =  useState(false);
   
   useEffect(() => {
     if (!selectedAgentId) return;
-    console.log("📌 agentId לשליפת לידים:", selectedAgentId);
+    // console.log("📌 agentId לשליפת לידים:", selectedAgentId);
     fetchSourceLeadsForAgent(selectedAgentId).then(setSourceLeads);
     fetchSplits (selectedAgentId);
   }, [selectedAgentId]);
@@ -520,7 +520,7 @@ return (
           <select className="select-input" 
           value={selectedProductGroupFilter}
           onChange={(e) => {
-            console.log("Selected Product Group:", e.target.value);
+            // console.log("Selected Product Group:", e.target.value);
             setSelectedProductGroupFilter(e.target.value);
           }}
         >
@@ -684,7 +684,7 @@ return (
       ))}
     </select>
   ) : (
-    console.log("productsGroupPage " + Number(item.productsGroup)),
+    // console.log("productsGroupPage " + Number(item.productsGroup)),
     productGroupMap[Number(item.productsGroup)] || "N/A"
   )}
 </td>

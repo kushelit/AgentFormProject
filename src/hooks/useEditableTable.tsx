@@ -56,10 +56,10 @@ function useEditableTable<T extends { id: string }>({
     setIsLoadingHookEdit(true);
     try {
       const result = await fetchData(UserAgentId);
-      console.log("🔄 נתונים נטענו מחדש מה-DB:", result);
+      // console.log("🔄 נתונים נטענו מחדש מה-DB:", result);
       setData(result);
     } catch (error) {
-      console.error('Error fetching data:', error);
+      // console.error('Error fetching data:', error);
     } finally {
       setIsLoadingHookEdit(false);
     }
@@ -86,7 +86,7 @@ function useEditableTable<T extends { id: string }>({
   
   
   const handleEditChange = (field: keyof T, value: T[keyof T]) => {
-    console.log(`✏️ Field updated: →`, value);
+    // console.log(`✏️ Field updated: →`, value);
     setEditData((prev) => ({
       ...prev,
       [field]: value,
@@ -121,7 +121,7 @@ function useEditableTable<T extends { id: string }>({
     try {
       const docRef = doc(db, dbCollection, id);
       await deleteDoc(docRef);
-      console.log("✅ שורה נמחקה בהצלחה מה-DB:", id);
+      // console.log("✅ שורה נמחקה בהצלחה מה-DB:", id);
   
      // 🔹 עדכון מידי של הסטייט אם זו טבלת לקוחות
      if (isCustomerPage && updateSelectedCustomers) {
@@ -131,13 +131,13 @@ function useEditableTable<T extends { id: string }>({
       // 🔹 קריאה לרענון הנתונים מהשרת
       if (agentId) {
         await reloadData(agentId);
-        console.log("🔄 נתונים נטענו מחדש לאחר מחיקה");
+        // console.log("🔄 נתונים נטענו מחדש לאחר מחיקה");
       } else {
-        console.warn("⚠️ Agent ID is undefined, skipping reloadData");
+        // console.warn("⚠️ Agent ID is undefined, skipping reloadData");
       }
   
     } catch (error) {
-      console.error("❌ שגיאה במחיקת השורה:", error);
+      // console.error("❌ שגיאה במחיקת השורה:", error);
     }
   };
   
@@ -160,7 +160,7 @@ function useEditableTable<T extends { id: string }>({
         lastUpdateDate: serverTimestamp(),
       });
   
-      console.log('Row updated successfully');
+      // console.log('Row updated successfully');
   
       // 🔹 אם מדובר בטבלת 'sales', עדכן גם את פרטי הלקוח
       if (dbCollection === 'sales') {
@@ -169,13 +169,13 @@ function useEditableTable<T extends { id: string }>({
   
       if (agentId) {
         await reloadData(agentId);
-        console.log("Data reloaded successfully");
+        // console.log("Data reloaded successfully");
       } else {
-        console.warn("Agent ID is undefined, skipping reloadData");
+        // console.warn("Agent ID is undefined, skipping reloadData");
       }
 
     } catch (error) {
-      console.error('Error updating row:', error);
+      // console.error('Error updating row:', error);
     } finally {
       setEditingRow(null);
       setEditData({});
@@ -187,7 +187,7 @@ function useEditableTable<T extends { id: string }>({
 
     // ✅ סגירת המודל אם מדובר בלידים
     if (onCloseModal) {
-      console.log("🔴 סוגר את המודל דרך onCloseModal");
+      // console.log("🔴 סוגר את המודל דרך onCloseModal");
       onCloseModal();
     }
     
@@ -195,24 +195,24 @@ function useEditableTable<T extends { id: string }>({
   
 
   const cancelEdit = (clearAllFields: boolean = false) => {
-    console.log("🔄 cancelEdit הופעלה | clearAllFields:", clearAllFields);
+    // console.log("🔄 cancelEdit הופעלה | clearAllFields:", clearAllFields);
 
     setEditingRow(null); // איפוס השורה הנערכת
     setEditData({}); // איפוס הנתונים ששונו
 
      // אם clearAllFields = true → איפוס מלא של השדות, אחרת חלקי
      if (resetForm) {
-      console.log("🔄 Calling resetForm with clearAllFields:", clearAllFields);
+      // console.log("🔄 Calling resetForm with clearAllFields:", clearAllFields);
       resetForm(clearAllFields); // ✅ נוודא שהפונקציה קיימת לפני הקריאה
     } else {
-      console.warn("⚠️ resetForm is not defined!");
+      // console.warn("⚠️ resetForm is not defined!");
     }
      // ✅ הוספת סגירת המודל
   if (onCloseModal) {
-    console.log("❌ סוגר את המודל...");
+    // console.log("❌ סוגר את המודל...");
     onCloseModal();
   } else {
-    console.warn("⚠️ onCloseModal לא קיים, המודל לא ייסגר!");
+    // console.warn("⚠️ onCloseModal לא קיים, המודל לא ייסגר!");
   }
     };
 
@@ -233,10 +233,10 @@ function useEditableTable<T extends { id: string }>({
           firstNameCustomer: editData.firstNameCustomer,
           lastNameCustomer: editData.lastNameCustomer,
         });
-        console.log('Customer updated successfully');
+        // console.log('Customer updated successfully');
       }
     } catch (error) {
-      console.error('Error updating customer:', error);
+      // console.error('Error updating customer:', error);
     }
   };
   

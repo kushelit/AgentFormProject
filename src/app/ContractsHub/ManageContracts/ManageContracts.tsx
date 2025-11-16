@@ -144,11 +144,11 @@ const canSubmit1 = useMemo(() => (
   
       const querySnapshot = await getDocs(existingContractQuery);
       if (!querySnapshot.empty) {
-        console.log('A contract with the same details already exists.');
+        // console.log('A contract with the same details already exists.');
         alert('לא ניתן להזין הסכם זהה להסכם קיים'); 
         return; 
       }
-        console.log("got here");
+        // console.log("got here");
         const docRef = await addDoc(collection(db, 'contracts'), {
         AgentId: detail.agentId,
         company: '',
@@ -160,14 +160,14 @@ const canSubmit1 = useMemo(() => (
         minuySochen:minuySochen1
 
       });      
-      console.log('Document written with ID:', docRef.id);
+      // console.log('Document written with ID:', docRef.id);
       resetFormDefault(); 
    //   if (selectedAgent) {
-    console.log("got here");
+    // console.log("got here");
     fetchdefaultContracts();
     //  }
     } catch (error) {
-      console.error('Error adding document:', error);
+      // console.error('Error adding document:', error);
     }
   };
 
@@ -197,11 +197,11 @@ const canSubmit1 = useMemo(() => (
 
     const querySnapshot = await getDocs(existingContractQuery);
     if (!querySnapshot.empty) {
-      console.log('A contract with the same details already exists.');
+      // console.log('A contract with the same details already exists.');
       alert('לא ניתן להזין הסכם זהה להסכם קיים'); 
       return; 
     }
-          console.log("got here");
+          // console.log("got here");
           const docRef = await addDoc(collection(db, 'contracts'), {
           AgentId: detail.agentId,
           company: selectedCompany,
@@ -213,14 +213,14 @@ const canSubmit1 = useMemo(() => (
           minuySochen:minuySochen2
        
         });      
-        console.log('Document written with ID:', docRef.id);
+        // console.log('Document written with ID:', docRef.id);
         resetFormContracts(); 
      //   setIsEditing(false);
      //   if (selectedAgent) {
       fetchContracts();
       //  }
       } catch (error) {
-        console.error('Error adding document:', error);
+        // console.error('Error adding document:', error);
       }
     };
 
@@ -238,7 +238,7 @@ const canSubmit1 = useMemo(() => (
       if (selectedProductFilter.trim() !== '') {
         q = query(q, where('product', '==', selectedProductFilter));
       }
-      console.log("minuySochenFilter2" + minuySochenFilter2);
+      // console.log("minuySochenFilter2" + minuySochenFilter2);
       if (minuySochenFilter2.trim() !== '') {
         q = query(q, where('minuySochen', '==', minuySochenFilter2));
       }
@@ -251,7 +251,7 @@ const canSubmit1 = useMemo(() => (
       setContracts(data);
       resetFormContracts(); // Reset form fields after fetching new data
     } catch (error) {
-      console.error("Error fetching contracts data:", error);
+      // console.error("Error fetching contracts data:", error);
     }
   };
   
@@ -270,7 +270,7 @@ const canSubmit1 = useMemo(() => (
     if (selectedProductGroupFilter.trim() !== '') {
       diffContractsQuery = query(diffContractsQuery, where('productsGroup', '==', selectedProductGroupFilter));
     }
-    console.log("minuySochenFilter1" + minuySochenFilter1);
+    // console.log("minuySochenFilter1" + minuySochenFilter1);
     if (minuySochenFilter1.trim() !== '') {
       diffContractsQuery = query(diffContractsQuery, where('minuySochen', '==', minuySochenFilter1));
     }
@@ -283,7 +283,7 @@ const canSubmit1 = useMemo(() => (
     setDefaultContracts(contractsList );
     resetFormDefault(); // Reset form fields after fetching new data
   } catch (error) {
-    console.error("Error fetching contracts data:", error);
+    // console.error("Error fetching contracts data:", error);
   }
 };
 
@@ -303,8 +303,8 @@ const canSubmit1 = useMemo(() => (
     setMinuySochen1(item.minuySochen || false); // Reset or set new value, assuming false if undefined
 
 
-console.log(item.commissionNifraim + '  ');
-console.log(commissionPercentNifraim1);
+// console.log(item.commissionNifraim + '  ');
+// console.log(commissionPercentNifraim1);
 
 };
 
@@ -318,8 +318,8 @@ const handleRowClick2 = (item: any) => {
   setMinuySochen2(item.minuySochen || false); // Reset or set new value, assuming false if undefined
   setIsEditing2(true);
 
-console.log(item.commissionNifraim + '  ');
-console.log(commissionPercentNifraim1);
+// console.log(item.commissionNifraim + '  ');
+// console.log(commissionPercentNifraim1);
 
   };
 
@@ -328,10 +328,10 @@ console.log(commissionPercentNifraim1);
       await deleteDoc(doc(db, 'contracts', selectedRow.id));
       setSelectedRow(null); // Reset selection
       resetFormDefault();
-      console.log('defaultContracts' + defaultContracts)
+      // console.log('defaultContracts' + defaultContracts)
       fetchdefaultContracts();
     } else {
-      console.log("No selected row or row ID is undefined");
+      // console.log("No selected row or row ID is undefined");
 
       // Fetch data again or remove the item from `agentData` state to update UI
     }
@@ -339,13 +339,13 @@ console.log(commissionPercentNifraim1);
 
   const handleDelete2 = async () => {
     if (selectedRow && selectedRow.id) {
-      console.log('selected row is ' + selectedRow + selectedRow.id);
+      // console.log('selected row is ' + selectedRow + selectedRow.id);
       await deleteDoc(doc(db, 'contracts', selectedRow.id));
       setSelectedRow(null); // Reset selection
       resetFormContracts();
       fetchContracts();
     } else {
-      console.log("No selected row or row ID is undefined");
+      // console.log("No selected row or row ID is undefined");
 
       // Fetch data again or remove the item from `agentData` state to update UI
     }
@@ -365,16 +365,16 @@ console.log(commissionPercentNifraim1);
         minuySochen: !!minuySochen1,
 
           });
-        console.log("Document successfully updated");
+        // console.log("Document successfully updated");
         setSelectedRow(null); 
         resetFormDefault();             
         fetchdefaultContracts();
       
       } catch (error) {
-        console.error("Error updating document:", error);     
+        // console.error("Error updating document:", error);     
       }
     } else {
-      console.log("No row selected or missing document ID");
+      // console.log("No row selected or missing document ID");
     }
   };
 
@@ -391,16 +391,16 @@ console.log(commissionPercentNifraim1);
         commissionNiud:commissionPercentNiud2,
         minuySochen: !!minuySochen2, 
         });
-        console.log("Document successfully updated");
+        // console.log("Document successfully updated");
         setSelectedRow(null); 
         resetFormContracts();               
         fetchContracts();
       
       } catch (error) {
-        console.error("Error updating document:", error);     
+        // console.error("Error updating document:", error);     
       }
     } else {
-      console.log("No row selected or missing document ID");
+      // console.log("No row selected or missing document ID");
     }
   };
 

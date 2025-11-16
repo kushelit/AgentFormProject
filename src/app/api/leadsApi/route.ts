@@ -196,7 +196,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ message: 'Lead created successfully!', id: newLeadRef.id }, { status: 201 });
   } catch (e: any) {
     const msg = e?.message || 'Unknown error';
-    console.error('Error:', msg);
+    // console.error('Error:', msg);
 
     await saveRequestLogToDB({
       id: 'N/A',

@@ -116,7 +116,7 @@ export const ChangePlanModal: React.FC<ChangePlanModalProps> = ({
           setSelectedPlan(res.data[0].id);
         }
       } catch (err) {
-        console.error('שגיאה בטעינת מסלולים', err);
+        // console.error('שגיאה בטעינת מסלולים', err);
       }
     };
     fetchPlans();
@@ -215,7 +215,7 @@ export const ChangePlanModal: React.FC<ChangePlanModalProps> = ({
         throw new Error('Missing paymentUrl');
       }
     } catch (err) {
-      console.error('שגיאה בעת שינוי התוכנית:', err);
+      // console.error('שגיאה בעת שינוי התוכנית:', err);
       addToast('error', 'שגיאה בעדכון התוכנית');
     } finally {
       setLoading(false);

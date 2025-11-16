@@ -4,7 +4,7 @@ import { GoalDataType } from '@/types/Goal';
 
 
 export const fetchGoalsSuccessForAgent = async (UserAgentId: string): Promise<GoalDataType[]> => {
-  console.log("📡 1 Fetching goals for AgentId:", UserAgentId);
+  // console.log("📡 1 Fetching goals for AgentId:", UserAgentId);
   const q = query(collection(db, "goalsSuccess"), where("AgentId", "==", UserAgentId));
   const querySnapshot = await getDocs(q);
   const data = querySnapshot.docs.map(doc => {
@@ -20,10 +20,10 @@ export const fetchGoalsSuccessForAgent = async (UserAgentId: string): Promise<Go
       endDate: docData.endDate ?? "",
       status: docData.status ?? false,
     };
-    console.log("📄 2 Fetched Goal:", goal);
+    // console.log("📄 2 Fetched Goal:", goal);
     return goal;
   });
 
-  console.log("✅ 3 Returning Goals Data:", data);
+  // console.log("✅ 3 Returning Goals Data:", data);
   return data;
 };

@@ -46,8 +46,8 @@ export const logRegistrationIssue = async ({
       additionalInfo,
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
     });
-    console.log(`📌 רישום בעיה מסוג '${reason}' ל-${type} נשמר בהצלחה`);
+    // console.log(`📌 רישום בעיה מסוג '${reason}' ל-${type} נשמר בהצלחה`);
   } catch (err) {
-    console.error('❌ שגיאה בשמירת רישום בעיה:', err);
+    // console.error('❌ שגיאה בשמירת רישום בעיה:', err);
   }
 };

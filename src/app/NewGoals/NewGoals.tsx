@@ -168,7 +168,7 @@ const {
   agentId: selectedAgentId,
   fetchData: async (agentId) => {
     const data = await fetchGoalsSuccessForAgent(agentId); // ✅ כאן אנו משתמשים בפונקציה
-    console.log("✅ GoalsData received in useEditableTable:", data);
+    // console.log("✅ GoalsData received in useEditableTable:", data);
     return data;
   },
 });
@@ -176,12 +176,12 @@ const {
 useEffect(() => {
   if (!selectedAgentId) return;
   
-  console.log("🔄 Fetching goals data for selectedAgentId:", selectedAgentId);
+  // console.log("🔄 Fetching goals data for selectedAgentId:", selectedAgentId);
   reloadGoalsData(selectedAgentId); // ריענון הנתונים בכל פעם שסוכן נבחר
 }, [selectedAgentId]);
 
 useEffect(() => {
-  console.log("🧐 Updating goals state with goalsData:", goalsData);
+  // console.log("🧐 Updating goals state with goalsData:", goalsData);
   if (goalsData && goalsData.length > 0) {
     setGoals(goalsData); // מעדכן את הסטייט
   }
@@ -267,7 +267,7 @@ const fetchPromotions = async () => {
     const promotionsMap = createPromotionsMap(promotions);
     setPromotionListForStars(promotionsMap); // עדכון המפה לטבלאות אחרות
   } catch (error) {
-    console.error('Error fetching promotions:', error);
+    // console.error('Error fetching promotions:', error);
     // טיפול בשגיאות
     SetPromotionList([]);
     setPromotionListForStars({});
@@ -450,7 +450,7 @@ const fetchPromotions = async () => {
       addToast("success", "יעד הוקצה לעובד בהצלחה");
 
       // alert('Goal added successfully!');
-      console.log('Document written with ID:', docRef.id);
+      // console.log('Document written with ID:', docRef.id);
   setIsModalOpenGoalWorker(false);
       resetForm();
       setIsEditing(false);
@@ -458,7 +458,7 @@ const fetchPromotions = async () => {
         reloadGoalsData(selectedAgentId);
       }
     } catch (error) {
-      console.error('Error adding document:', error);
+      // console.error('Error adding document:', error);
     }
   };
   
@@ -626,7 +626,7 @@ const handleSubmitPromotion: FormEventHandler<HTMLFormElement> = async (event) =
     addToast("success", "מבצע התווסף בהצלחה");
 
     // alert('מבצע התווסף בהצלחה');
-    console.log('Document written with ID:', docRef.id);
+    // console.log('Document written with ID:', docRef.id);
     // איפוס הטופס
     resetFormPromotion();
     setIsEditingPromotion(false);
@@ -636,7 +636,7 @@ const handleSubmitPromotion: FormEventHandler<HTMLFormElement> = async (event) =
       reloadPromotionsData(selectedAgentId); // קריאה ל-Hook לעדכון הטבלה
     }
   } catch (error) {
-    console.error('Error adding document:', error);
+    // console.error('Error adding document:', error);
   }
 };
 
@@ -651,11 +651,11 @@ event.preventDefault();
   pensiaStar: pensiaStar,
   finansimStar: finansimStar,
 });
-console.log('promotionValue:',promotionValue);
+// console.log('promotionValue:',promotionValue);
 addToast("success", "הגדרת כוכבים למבצע בוצע בהצלחה");
 
 // alert('התווסף בהצלחה');
-console.log('Document written with ID:', docRef.id);
+// console.log('Document written with ID:', docRef.id);
 resetFormStars(); 
 setIsEditingStars(false);
 setIsModalOpenNewStars(false);
@@ -664,7 +664,7 @@ if (selectedAgentId) {
 }
 
 } catch (error) {
-console.error('Error adding document:', error);
+// console.error('Error adding document:', error);
 }
 };
 
@@ -682,9 +682,9 @@ useEffect(() => {
       await fetchStarsForAgent(selectedAgentId);
       // שליפת יעדים שהושגו
       await fetchGoalsSuccessForAgent(selectedAgentId);
-      console.log('Fetching data for agent:', selectedAgentId);
+      // console.log('Fetching data for agent:', selectedAgentId);
     } catch (error) {
-      console.error('Error fetching data for agent:', error);
+      // console.error('Error fetching data for agent:', error);
       // טיפול בשגיאות אם יש צורך
       SetPromotionList([]);
       setPromotionListForStars({});
@@ -709,7 +709,7 @@ const [isProcessing, setIsProcessing] = useState(false); // Track loading state
 
       // setMessage('Goals successfully duplicated for the next month!');
     } catch (error) {
-      console.error('Error duplicating goals:', error);
+      // console.error('Error duplicating goals:', error);
       addToast("error", "שכפול יעדים נכשל");
 
       // setMessage('An error occurred while duplicating goals.');
@@ -790,7 +790,7 @@ const [isProcessing, setIsProcessing] = useState(false); // Track loading state
         <button
           className={`tab  ${activeTab === "goalsMD" ? "selected" : "default"}`}
           onClick={() => {
-            console.log("Switching to goalsMD");
+            // console.log("Switching to goalsMD");
             setActiveTab("goalsMD");
           }}
          >
@@ -799,7 +799,7 @@ const [isProcessing, setIsProcessing] = useState(false); // Track loading state
         <button
           className={`tab  ${activeTab === "GoalsWorkers" ? "selected" : "default"}`}
           onClick={() => {
-            console.log("Switching to GoalsWorkers");
+            // console.log("Switching to GoalsWorkers");
             setActiveTab("GoalsWorkers");
           }}
         >

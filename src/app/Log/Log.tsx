@@ -177,7 +177,7 @@ useEffect(() => {
   let dateRangeFilter; // Timestamp to filter based on time range
 
   // Log timeRange and UserAgentId for debugging
-  console.log("Fetching data for time range:", timeRange, "and agent ID:", UserAgentId);
+  // console.log("Fetching data for time range:", timeRange, "and agent ID:", UserAgentId);
 
   // Calculate the appropriate date range based on the selected time range
   if (timeRange === 'יום') {
@@ -185,7 +185,7 @@ useEffect(() => {
     const oneDayAgo = new Date(); // New Date object for Last Day
     oneDayAgo.setDate(oneDayAgo.getDate() - 1); // Subtract 1 day
     dateRangeFilter = Timestamp.fromDate(oneDayAgo);
-    console.log("Date range filter applied for Last Day:", dateRangeFilter);
+    // console.log("Date range filter applied for Last Day:", dateRangeFilter);
 
   } else if (timeRange === 'שבוע') {
     // Create a new Date object to avoid mutation
@@ -193,7 +193,7 @@ useEffect(() => {
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7); // Subtract 7 days
     dateRangeFilter = Timestamp.fromDate(sevenDaysAgo); // Convert to Firestore Timestamp
 
-    console.log("Date range filter applied for Last Week:", dateRangeFilter);
+    // console.log("Date range filter applied for Last Week:", dateRangeFilter);
 
     dateRangeFilter = Timestamp.fromDate(sevenDaysAgo);
   }
@@ -214,7 +214,7 @@ useEffect(() => {
       where('createdAt', '!=', null), // Ensure createdAt is not null
       where('createdAt', '>=', dateRangeFilter) // Apply date range filter
     );
-    console.log('Sales query with date filter applied:', dateRangeFilter.toDate());
+    // console.log('Sales query with date filter applied:', dateRangeFilter.toDate());
   }
 
   // Fetch customer data
@@ -232,7 +232,7 @@ useEffect(() => {
   }));
 
   // Log sales data for debugging
-  console.log("Fetched sales data:", sales);
+  // console.log("Fetched sales data:", sales);
 
   // Combine sales and customer data
   const combinedData: CombinedData[] = sales.map(sale => {
@@ -256,9 +256,9 @@ useEffect(() => {
 
   useEffect(() => {
      // Log selectedAgentId to ensure it's empty when "כל הסוכנים" is selected
-  console.log("selectedAgentId: ", selectedAgentId);
+  // console.log("selectedAgentId: ", selectedAgentId);
   // Ensure agentData contains all agents' data
-  console.log("agentData: ", agentData);
+  // console.log("agentData: ", agentData);
     let data = agentData.filter(item => {
     const matchesAgent = selectedAgentId !== '' ? item.AgentId === selectedAgentId : true;
     const matchesWorker = selectedWorkerIdFilter ? item.workerId === selectedWorkerIdFilter : true;
@@ -284,7 +284,7 @@ useEffect(() => {
       matchesStatusPolicy
     );
   });
-console.log("selectedAgentId "+ selectedAgentId)
+// console.log("selectedAgentId "+ selectedAgentId)
      // Sort the filtered data by createDate in descending order (latest first)
   data = data.sort((a, b) => {
     // Ensure createDate exists and is either a Firestore Timestamp or a Date

@@ -47,7 +47,7 @@ const useFetchGraphData = (
               distinctCustomerCounts: {},
               calculatedData: {},
             });
-            console.warn('No data available for newCustomers');
+            // console.warn('No data available for newCustomers');
             return;
           }
           setData({
@@ -62,7 +62,7 @@ const useFetchGraphData = (
               distinctCustomerCounts: {},
               calculatedData: {},
             });
-            console.warn('No data available for commissionPerMonth');
+            // console.warn('No data available for commissionPerMonth');
             return;
           }
           const result = await fetchCommissionPerCustomerData(filters, monthlyTotals);
@@ -78,7 +78,7 @@ const useFetchGraphData = (
               distinctCustomerCounts: {},
               calculatedData: {},
             });
-            console.warn('No data available for companyCommissionPie');
+            // console.warn('No data available for companyCommissionPie');
             return;
           }
           const companyTotals = fetchCompanyCommissionData(monthlyTotals, filters.selectedYear);
@@ -88,7 +88,7 @@ const useFetchGraphData = (
               distinctCustomerCounts: {},
               calculatedData: {},
             });
-            console.warn('No company commission data available');
+            // console.warn('No company commission data available');
             return;
           }
           setData({
@@ -98,7 +98,7 @@ const useFetchGraphData = (
           });
         }
       } catch (error) {
-        console.error('Error fetching graph data:', error);
+        // console.error('Error fetching graph data:', error);
         setData({
           newCustomerCounts: {},
           distinctCustomerCounts: {},
@@ -127,7 +127,7 @@ const fetchNewCustomerData = async (filters: { selectedAgentId: string | null; s
     (_, i) => `${String(i + 1).padStart(2, '0')}/${yearString}`
   );
 
-  console.log('Months to process for selected year:', monthsUpToNow);
+  // console.log('Months to process for selected year:', monthsUpToNow);
 
   // יצירת השאילתה
   let salesQuery = query(
@@ -158,7 +158,7 @@ const fetchNewCustomerData = async (filters: { selectedAgentId: string | null; s
     }
   });
 
-  console.log('Customer first month mapping:', customerFirstMonth);
+  // console.log('Customer first month mapping:', customerFirstMonth);
 
   // חישוב כמות לקוחות חדשים לכל חודש
   const newCustomerCounts: Record<string, number> = {};
@@ -166,7 +166,7 @@ const fetchNewCustomerData = async (filters: { selectedAgentId: string | null; s
     newCustomerCounts[month] = (newCustomerCounts[month] || 0) + 1;
   });
 
-  console.log('New customer counts (all years):', newCustomerCounts);
+  // console.log('New customer counts (all years):', newCustomerCounts);
 
   // **חישוב המצטבר לכל שנה ושמירת ערכי סוף שנה קודמת**
   const distinctCustomerCounts: Record<string, number> = {};
@@ -186,8 +186,8 @@ const fetchNewCustomerData = async (filters: { selectedAgentId: string | null; s
     yearlyCumulative[year] = cumulativeCount; // שמירת המצטבר של השנה האחרונה
   });
 
-  console.log('Distinct customer counts (cumulative, all years):', distinctCustomerCounts);
-  console.log('Yearly cumulative snapshot:', yearlyCumulative);
+  // console.log('Distinct customer counts (cumulative, all years):', distinctCustomerCounts);
+  // console.log('Yearly cumulative snapshot:', yearlyCumulative);
 
   // **מציאת המצטבר של סוף השנה הקודמת - ניקח את דצמבר של השנה האחרונה**
   let cumulativeTotalBeforeYear = 0;
@@ -198,7 +198,7 @@ const fetchNewCustomerData = async (filters: { selectedAgentId: string | null; s
     cumulativeTotalBeforeYear = distinctCustomerCounts[prevYearDecember];
   }
 
-  console.log(`Cumulative count from last December (${prevYearDecember}):`, cumulativeTotalBeforeYear);
+  // console.log(`Cumulative count from last December (${prevYearDecember}):`, cumulativeTotalBeforeYear);
 
   // **מצטבר לכל חודש בשנת הבחירה בלבד, כולל מה שהיה לפני**
   let cumulativeForYear = cumulativeTotalBeforeYear;
@@ -215,8 +215,8 @@ const fetchNewCustomerData = async (filters: { selectedAgentId: string | null; s
     monthsUpToNow.map((month) => [month, newCustomerCounts[month] || 0])
   );
 
-  console.log('Filtered new customer counts:', filteredNewCustomerCounts);
-  console.log('Filtered distinct customer counts:', filteredDistinctCustomerCounts);
+  // console.log('Filtered new customer counts:', filteredNewCustomerCounts);
+  // console.log('Filtered distinct customer counts:', filteredDistinctCustomerCounts);
 
   return { newCustomerCounts: filteredNewCustomerCounts, distinctCustomerCounts: filteredDistinctCustomerCounts };
 };
@@ -227,7 +227,7 @@ const fetchCommissionPerCustomerData = async (
   filters: { selectedAgentId: string | null; selectedWorkerIdFilter: string; selectedYear: number },
   monthlyTotals: Record<string, MonthlyTotal>
 ) => {
-  console.log("🔍 מפתחות monthlyTotals:", Object.keys(monthlyTotals));
+  // console.log("🔍 מפתחות monthlyTotals:", Object.keys(monthlyTotals));
 
   const { distinctCustomerCounts } = await fetchNewCustomerData(filters);
   const calculatedData: Record<string, number> = {};
@@ -247,19 +247,19 @@ const fetchCommissionPerCustomerData = async (
       const [monthB, yearB] = b.split('/').map(Number);
       return yearA - yearB || monthA - monthB;
     });
-    console.log("🧾 כל החודשים שקיימים ב־monthlyTotals:", Object.keys(monthlyTotals));
+    // console.log("🧾 כל החודשים שקיימים ב־monthlyTotals:", Object.keys(monthlyTotals));
 
   sortedMonths.forEach((month) => {
     const commission = monthlyTotals[month]?.commissionNifraimTotal || 0;
     cumulativeCommission += commission;
-    console.log("🧾cumulativeCommission:", cumulativeCommission);
+    // console.log("🧾cumulativeCommission:", cumulativeCommission);
 
 
     // 💡 רק חודשים מהשנה הנבחרת ייכנסו ל־calculatedData
     if (month.endsWith(`/${yearString}`)) {
       const distinctCustomers = distinctCustomerCounts[month] || 1;
       calculatedData[month] = cumulativeCommission / distinctCustomers;
-      console.log(`📊 חודש: ${month}, נפרעים מצטבר: ${cumulativeCommission}, לקוחות מצטברים: ${distinctCustomers}, ממוצע: ${calculatedData[month]}`);
+      // console.log(`📊 חודש: ${month}, נפרעים מצטבר: ${cumulativeCommission}, לקוחות מצטברים: ${distinctCustomers}, ממוצע: ${calculatedData[month]}`);
     }
   });
 

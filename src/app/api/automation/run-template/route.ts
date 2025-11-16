@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'שם קלאס לא תקני או חסר' }, { status: 400 });
     }
 
-    console.log(`🚀 Running automation: ${className} for template ${templateId}`);
+    // console.log(`🚀 Running automation: ${className} for template ${templateId}`);
 
     const ClassModule = await import(`@/automation/${className}`);
     if (!ClassModule?.default) {
@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('❌ שגיאה בהרצה:', error);
+    // console.error('❌ שגיאה בהרצה:', error);
     return NextResponse.json({ error: 'שגיאה כללית בהרצה' }, { status: 500 });
   }
 }

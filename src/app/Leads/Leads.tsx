@@ -133,7 +133,7 @@ const [editingRowIdTime, setEditingRowIdTime] = useState<string | null>(null);
   } = useFetchMD(selectedAgentId);
 
   const fetchLeadsForAgent = async (UserAgentId: string | null) => {
-    console.log("fetchLeadsForAgent", UserAgentId);
+    // console.log("fetchLeadsForAgent", UserAgentId);
     let salesQuery: Query<DocumentData> = collection(db, "leads"); // בסיס השאילתה
   
     // הוספת תנאי סינון אם AgentId מסופק ואינו 'all'
@@ -167,9 +167,9 @@ const [editingRowIdTime, setEditingRowIdTime] = useState<string | null>(null);
       );
   
       setLeadsData(data);
-      console.log("fetchLeadsForAgentData", data);
+      // console.log("fetchLeadsForAgentData", data);
     } catch (error) {
-      console.error("Error fetching leads:", error);
+      // console.error("Error fetching leads:", error);
     }
   };
    
@@ -189,7 +189,7 @@ const [editingRowIdTime, setEditingRowIdTime] = useState<string | null>(null);
         return matchesIdCustomer && matchesName && matchesStatusLead && matchesWorkerId && matchesSourceLead;
     });
       setFilteredData(data);
-    console.log("Filtered Data:", data);
+    // console.log("Filtered Data:", data);
   }, [
     leadsData,
     idCustomerFilter,
@@ -269,7 +269,7 @@ const [editingRowIdTime, setEditingRowIdTime] = useState<string | null>(null);
       setFilteredData([]);
 
     } else {
-      console.log("No selected row or row ID is undefined");
+      // console.log("No selected row or row ID is undefined");
     }
   };
   const handleEdit = async () => {
@@ -297,7 +297,7 @@ const [editingRowIdTime, setEditingRowIdTime] = useState<string | null>(null);
           campaign,
           AgentId: selectedAgentIdInRow || '', // עדכון AgentId
         });
-        console.log("Document successfully updated");
+        // console.log("Document successfully updated");
         setSelectedRow(null);
         resetForm();
         setFilteredData([]);
@@ -305,10 +305,10 @@ const [editingRowIdTime, setEditingRowIdTime] = useState<string | null>(null);
           fetchLeadsForAgent(selectedAgentId);
         }
       } catch (error) {
-        console.error("Error updating document:", error);
+        // console.error("Error updating document:", error);
       }
     } else {
-      console.log("No row selected or missing document ID");
+      // console.log("No row selected or missing document ID");
     }
   };
 
@@ -370,7 +370,7 @@ const [editingRowIdTime, setEditingRowIdTime] = useState<string | null>(null);
         fetchLeadsForAgent(selectedAgentId);
       }
     } catch (error) {
-      console.error('Error adding document:', error);  // Log any errors during the process
+      // console.error('Error adding document:', error);  // Log any errors during the process
     }
   };
 
@@ -428,7 +428,7 @@ const [editingRowIdTime, setEditingRowIdTime] = useState<string | null>(null);
    //   alert('סטטוס עודכן בהצלחה');
       setEditingRowId(null); // Exit editing mode
     } catch (error) {
-      console.error('Error updating statusLead:', error);
+      // console.error('Error updating statusLead:', error);
     }
   };
   
@@ -451,7 +451,7 @@ const [editingRowIdTime, setEditingRowIdTime] = useState<string | null>(null);
   
   //    alert('נציג עודכן בהצלחה');
     } catch (error) {
-      console.error('Error updating worker:', error);
+      // console.error('Error updating worker:', error);
     }
   };
   
@@ -475,7 +475,7 @@ const [editingRowIdTime, setEditingRowIdTime] = useState<string | null>(null);
   
   //    alert('מקור עודכן בהצלחה');
     } catch (error) {
-      console.error('Error updating sourceValue:', error);
+      // console.error('Error updating sourceValue:', error);
     }
   };
   
@@ -495,7 +495,7 @@ const [editingRowIdTime, setEditingRowIdTime] = useState<string | null>(null);
         lastUpdateDate: serverTimestamp(), // Optionally update the last modified timestamp
       });
     } catch (error) {
-      console.error("Error updating returnDate:", error);
+      // console.error("Error updating returnDate:", error);
     }
   };
   
@@ -529,9 +529,9 @@ const [editingRowIdTime, setEditingRowIdTime] = useState<string | null>(null);
         return map;
       }, {} as { [key: string]: string });
       setSourceAllLeadMap(sourceMap);
-      console.log("Fetched all source leads:", sourceMap);
+      // console.log("Fetched all source leads:", sourceMap);
     } catch (error) {
-      console.error("Error fetching source leads:", error);
+      // console.error("Error fetching source leads:", error);
     }
   };
 

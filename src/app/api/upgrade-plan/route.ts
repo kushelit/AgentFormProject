@@ -126,7 +126,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: true });
   } catch (err: any) {
-    console.error('❌ Upgrade error:', err.message);
+    // console.error('❌ Upgrade error:', err.message);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }

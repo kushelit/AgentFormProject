@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
         subscriptionType: subscriptionType || null,
       });
 
-      console.log('🔄 עובד מחודש');
+      // console.log('🔄 עובד מחודש');
     } catch {
       // 👤 משתמש חדש – ניצור אותו
       const newUser = await auth.createUser({
@@ -61,7 +61,7 @@ export async function POST(req: NextRequest) {
         subscriptionType: subscriptionType || null,
       });
 
-      console.log('🆕 עובד חדש נוצר');
+      // console.log('🆕 עובד חדש נוצר');
     }
 
     // ✉️ שליחת מייל לאיפוס סיסמה
@@ -85,7 +85,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: true, created: isNew, revived: !isNew });
   } catch (err: any) {
-    console.error('❌ שגיאה בהקמה/החייאה:', err);
+    // console.error('❌ שגיאה בהקמה/החייאה:', err);
     return NextResponse.json({ error: 'שגיאה בעת יצירת העובד' }, { status: 500 });
   }
 }

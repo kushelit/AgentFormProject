@@ -141,7 +141,7 @@ const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
         const companySnapshot = await fetchCompanyData();  
         const simData = await fetchSimulationData(companySnapshot, productivity);  
         const contractData = await fetchContractData(companySnapshot, selectedAgentId);  
-        console.log("contractData", contractData);
+        // console.log("contractData", contractData);
 
 if (!contractData || contractData.flat().length === 0) {
           addToast("error", "לא מוגדרים הסכמי עמלות לסוכן זה");
@@ -152,7 +152,7 @@ if (!contractData || contractData.flat().length === 0) {
         const processedResults = processResults(companySnapshot, simData, contractData);  
         setResults(processedResults);  
     } catch (error) {
-        console.error('Error handling the data fetching process:', error);
+        // console.error('Error handling the data fetching process:', error);
     }
  //   setLoading(false);
     setIsEditing(false);
@@ -188,7 +188,7 @@ if (!contractData || contractData.flat().length === 0) {
                 cuttingPercent: snapshot.data().cuttingPercent
             }));
         }).catch(error => {
-            console.error(`Error fetching simulation data for company ${company}:`, error);
+            // console.error(`Error fetching simulation data for company ${company}:`, error);
             return [];  // Handle errors appropriately, maybe return an empty array
         });
     });
@@ -196,7 +196,7 @@ if (!contractData || contractData.flat().length === 0) {
     const startTime = performance.now();  // Start timing before the requests
     const results = await Promise.all(fetchPromises);
     const endTime = performance.now();    // End timing after all requests have finished
-    console.log(`Fetched all simulation data in ${(endTime - startTime).toFixed(2)} ms`);
+    // console.log(`Fetched all simulation data in ${(endTime - startTime).toFixed(2)} ms`);
 
     return results;
 };
@@ -207,7 +207,7 @@ const fetchContractData = async (
   selectedAgentId: string
 ): Promise<ContractData[][]> => {
   const contractData: ContractData[][] = [];
-  console.log('Fetching contracts data...');
+  // console.log('Fetching contracts data...');
   const startTime = performance.now();
   const fetchPromises = companySnapshot.map(doc => {
       const company = doc.data().companyName;
@@ -247,14 +247,14 @@ const fetchContractData = async (
               }));
           }
       }).catch(error => {
-          console.error(`Error fetching contracts for company ${company}:`, error);
+          // console.error(`Error fetching contracts for company ${company}:`, error);
           return [];  // Return an empty array in case of error
       });
   });
  
   const results = await Promise.all(fetchPromises);
   const endTime = performance.now();
-  console.log(`Fetched contracts data in ${(endTime - startTime).toFixed(2)} ms`);
+  // console.log(`Fetched contracts data in ${(endTime - startTime).toFixed(2)} ms`);
   return results;
   
 };
@@ -266,7 +266,7 @@ const fetchContractData = async (
     contractData: ContractData[][]  // This should contain all contract data per company
   ): CalculatedResult[] => {
     const results: CalculatedResult[] = [];
-    console.log('Fetching results data...');
+    // console.log('Fetching results data...');
     const startTime = performance.now();
     companySnapshot.forEach((companyDoc, index) => {
       const companyInfo = companyDoc.data();
@@ -294,11 +294,11 @@ const fetchContractData = async (
       });
     });
     const endTime = performance.now();
-    console.log(`Fetched results data in ${(endTime - startTime).toFixed(2)} ms`);
+    // console.log(`Fetched results data in ${(endTime - startTime).toFixed(2)} ms`);
     results.sort((a, b) => b.onceHekefNiud - a.onceHekefNiud);
     return results;
   };
-  console.log(results); 
+  // console.log(results); 
 
   return (
     <div className="page-container">

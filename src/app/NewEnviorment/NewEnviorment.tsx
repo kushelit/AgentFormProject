@@ -198,7 +198,7 @@ const {
         // מציאת השורה המתאימה
         const rowToDelete = statusLeadData.find((item) => item.id === id);
         if (!rowToDelete) {
-            console.log("❌ שורה לא נמצאה למחיקה");
+            // console.log("❌ שורה לא נמצאה למחיקה");
             return;
         }
     
@@ -206,7 +206,7 @@ const {
         if (rowToDelete.defaultStatusLead && detail?.role !== 'admin') {
             // alert('רק מנהל יכול למחוק סטאטוס מערכת');
             addToast("error", "רק מנהל יכול למחוק סטאטוס מערכת");
-            console.log("❌ רק משתמשי admin יכולים למחוק סטאטוס מערכת");
+            // console.log("❌ רק משתמשי admin יכולים למחוק סטאטוס מערכת");
             return;
         }
     
@@ -219,14 +219,14 @@ const {
       // מציאת השורה המתאימה
       const rowToEdit = statusLeadData.find((item) => item.id === id);
       if (!rowToEdit) {
-          console.log("❌ שורה לא נמצאה לעריכה");
+          // console.log("❌ שורה לא נמצאה לעריכה");
           return;
       }
       // בדיקת הרשאה - רק מנהל יכול לערוך סטאטוס מערכת
       if (rowToEdit.defaultStatusLead && detail?.role !== 'admin') {
           // alert('רק מנהל יכול לערוך סטאטוס מערכת');
           addToast("error", "רק מנהל יכול לערוך סטאטוס מערכת");
-          console.log("❌ רק משתמשי admin יכולים לערוך סטאטוס מערכת");
+          // console.log("❌ רק משתמשי admin יכולים לערוך סטאטוס מערכת");
           return;
       }
   
@@ -251,12 +251,12 @@ const {
         // alert('מקור ליד התווסף בהצלחה');
         addToast("success", "מקור ליד התווסף בהצלחה");
 
-        console.log('Document written with ID:', docRef.id);
+        // console.log('Document written with ID:', docRef.id);
         setIsEditing(false);
         reloadLeadsData(selectedAgentId);
         setIsModalOpenNewLead(false);
       } catch (error) {
-        console.error('Error adding document:', error);
+        // console.error('Error adding document:', error);
       } finally {
         setIsSubmittingLead(false); // מפעיל מחדש את הכפתור אחרי סיום
     }
@@ -283,7 +283,7 @@ const handleSubmitStatusLead: FormEventHandler<HTMLFormElement> = async (event) 
         reloadStatusLeadData(selectedAgentId);
         setIsModalOpenNewStatusLead(false);
     } catch (error) {
-        console.error('Error adding document:', error);
+        // console.error('Error adding document:', error);
     } finally {
         setIsSubmitting(false); // מפעיל מחדש את הכפתור אחרי סיום
     }

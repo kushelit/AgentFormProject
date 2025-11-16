@@ -116,7 +116,7 @@ useEffect(() => {
       const jsonData: Record<string, any>[] = XLSX.utils.sheet_to_json(ws, { defval: "" });
 
       if (jsonData.length > 0) {
-        console.log("🔎 Headers from Excel:", Object.keys(jsonData[0]));
+        // console.log("🔎 Headers from Excel:", Object.keys(jsonData[0]));
         setHeaders(Object.keys(jsonData[0]));
         setPendingExcelData(jsonData);
         setErrors([]);
@@ -284,7 +284,7 @@ const parseMounthField = parseDateField;
         lastName = parts.slice(0, -1).join(" ");
       }
     }
-    console.log(`💡 Full name "${fullNameRaw}" split as → First: ${firstName}, Last: ${lastName}`);
+    // console.log(`💡 Full name "${fullNameRaw}" split as → First: ${firstName}, Last: ${lastName}`);
 
     return { firstName, lastName };
   };
@@ -312,13 +312,14 @@ const parseMounthField = parseDateField;
 
 
   useEffect(() => {
-    console.log("📌 useEffect triggered", { pendingExcelData, areAllRequiredFieldsMapped });
-    console.log("📌 required fields missing?", {
-      requiredFields,
-      mapping,
-      fullNameMapped,
-      areAllRequiredFieldsMapped
-    });
+  //   console.log("📌 useEffect triggered", { pendingExcelData, areAllRequiredFieldsMapped });
+  //   console.log("📌 required fields missing?", {
+  //     requiredFields,
+  //     mapping,
+  //     fullNameMapped,
+  //     areAllRequiredFieldsMapped
+  //   }
+  // );
 
     if (!pendingExcelData || !areAllRequiredFieldsMapped) return;
 
@@ -395,7 +396,7 @@ if (sourceLeadField) {
     // console.log("🔍 fullNameStructure at parse time:", fullNameStructure);
     setRows(parsedData);
     checkAllRows(parsedData, mapping);
-    console.log("🔍 parsedData example (first row):", parsedData[0]);
+    // console.log("🔍 parsedData example (first row):", parsedData[0]);
     // console.log("✅ parsedData:", parsedData);
     setPendingExcelData(null);
   }, [pendingExcelData, mapping, fullNameStructure, workers]);
@@ -451,7 +452,7 @@ if (sourceLeadField) {
     map: Record<string, string>,
     reverseMap: Record<string, string>
   ) => {
-    console.log("🔎 Validating row:", row);
+    // console.log("🔎 Validating row:", row);
   
     const required = ["firstNameCustomer", "lastNameCustomer", "IDCustomer", "company", "product", "mounth", "statusPolicy"];
   
@@ -488,20 +489,21 @@ if (sourceLeadField) {
       String(row["cancellationDate"] || row[reverseMap["cancellationDate"]] || "").trim()
     );
 
-    console.log("🧪 תוצאה:", {
-      hasRequired,
-      validCompany,
-      validProduct,
-      validID,
-      validFirstName,
-      validLastName,
-      validMounth,
-      validStatus,
-      validMinuySochen,
-      validWorker,
-      validSourceLead,
-      validCancellationDate,
-    });
+  //   console.log("🧪 תוצאה:", {
+  //     hasRequired,
+  //     validCompany,
+  //     validProduct,
+  //     validID,
+  //     validFirstName,
+  //     validLastName,
+  //     validMounth,
+  //     validStatus,
+  //     validMinuySochen,
+  //     validWorker,
+  //     validSourceLead,
+  //     validCancellationDate,
+  //   }
+  // );
   
     let isValid = hasRequired &&
       validCompany &&
@@ -528,19 +530,19 @@ if (sourceLeadField) {
       isValid = isValid && validCancellationDate;
     }
     if (!isValid) {
-      console.warn("❌ שורה לא תקינה – הגורמים האפשריים:", {
-        firstNameValue,
-        lastNameValue,
-        idValue,
-        companyValue,
-        productValue,
-        statusValue,
-        minuyValue,
-        workerValue,
-        sourceLeadValue,
-        cancellationDate: row["cancellationDate"],
-        mounth: row["mounth"],
-      });
+      // console.warn("❌ שורה לא תקינה – הגורמים האפשריים:", {
+      //   firstNameValue,
+      //   lastNameValue,
+      //   idValue,
+      //   companyValue,
+      //   productValue,
+      //   statusValue,
+      //   minuyValue,
+      //   workerValue,
+      //   sourceLeadValue,
+      //   cancellationDate: row["cancellationDate"],
+      //   mounth: row["mounth"],
+      // });
     }
     
     return isValid;
@@ -559,11 +561,11 @@ if (sourceLeadField) {
   };
 
   useEffect(() => {
-    console.log("שורות תקינות:", validRows);
+    // console.log("שורות תקינות:", validRows);
   }, [errors, rows]);
 
   useEffect(() => {
-    console.log("🔍 שורות עם שגיאות (errors):", errors);
+    // console.log("🔍 שורות עם שגיאות (errors):", errors);
   }, [errors]);
 
   const handleFieldChange = (rowIdx: number, field: string, value: string) => {
@@ -795,7 +797,7 @@ if (field === "sourceLeadName") {
 
         successCount++;
       } catch (error) {
-        console.error(`❌ שגיאה בשורה ${i + 1}:`, error);
+        // console.error(`❌ שגיאה בשורה ${i + 1}:`, error);
         failedRows.push({ index: i + 1, error });
       }
     }
@@ -817,11 +819,11 @@ if (field === "sourceLeadName") {
 
       addToast("warning", `טעינה הסתיימה:\n✅ ${successCount} עסקאות הוזנו\n❌ ${failedRows.length} נכשלו. בדקי בלוג.`);
 
-      console.group("❌ פירוט שורות שנכשלו");
+      // console.group("❌ פירוט שורות שנכשלו");
       failedRows.forEach((row) => {
-        console.error(`שורה ${row.index}:`, row.error);
+        // console.error(`שורה ${row.index}:`, row.error);
       });
-      console.groupEnd();
+      // console.groupEnd();
     } else {
       addToast("success", `✅ כל ${successCount} העסקאות הוזנו בהצלחה!`);
     }
@@ -1144,15 +1146,16 @@ if (field === "sourceLeadName") {
                             
                             if (field === 'workerName') {
                               const error = row['_workerError'];
-                              console.log("🧩 workerName render debug", {
-                                rowIdx: idx,
-                                field,
-                                excelHeader: h,
-                                valueInRowH: row[h],
-                                workerNameInRow: row["workerName"],
-                                matchingWorker: workers.find(w => w.name === row[h]),
-                                allWorkers: workers.map(w => w.name),
-                              });
+                            //   console.log("🧩 workerName render debug", {
+                            //     rowIdx: idx,
+                            //     field,
+                            //     excelHeader: h,
+                            //     valueInRowH: row[h],
+                            //     workerNameInRow: row["workerName"],
+                            //     matchingWorker: workers.find(w => w.name === row[h]),
+                            //     allWorkers: workers.map(w => w.name),
+                            //   }
+                            // );
                               
                               return (
                                 <div>

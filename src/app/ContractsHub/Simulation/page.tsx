@@ -24,13 +24,13 @@ const SimulationPage = () => {
       );
     } else {
       return <AccessDenied />;
-      console.log("User is a worker, showing access denied message");
+      // console.log("User is a worker, showing access denied message");
 
     }
   } else {
     // If the user is not logged in
     content = <div className="text-custom-white px-4 py-2 rounded-lg">נדרש להתחבר למערכת כדי לגשת לדף זה.</div>;
-      console.log("User is not logged in, asking to log in");
+      // console.log("User is not logged in, asking to log in");
 
   }
 

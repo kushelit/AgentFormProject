@@ -9,7 +9,7 @@ export function useSortableTable<T extends Record<string, any>>(initialData: T[]
 
   // ✅ עדכון `sortedData` בכל פעם שהנתונים מתעדכנים
   useEffect(() => {
-    console.log("📌 Updating sortedData with new initialData:", initialData);
+    // console.log("📌 Updating sortedData with new initialData:", initialData);
     setSortedData(initialData);
   }, [initialData]); // עכשיו `useEffect` ידע שהנתונים השתנו
 
@@ -64,7 +64,7 @@ export function useSortableTable<T extends Record<string, any>>(initialData: T[]
         : String(valueB).localeCompare(String(valueA), "he");
     });
   
-    console.log("✅ Sorted Data:", sorted);
+    // console.log("✅ Sorted Data:", sorted);
     setSortedData(sorted);
   };
   

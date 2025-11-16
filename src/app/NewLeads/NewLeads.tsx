@@ -131,7 +131,7 @@ const { errors,setErrors, handleValidatedEditChange } = useValidation();
   } = useFetchAgentData();
 
   const fetchLeadsForAgent = async (UserAgentId: string | null) => {
-    console.log("fetchLeadsForAgent", UserAgentId);
+    // console.log("fetchLeadsForAgent", UserAgentId);
     let salesQuery: Query<DocumentData> = collection(db, "leads"); // בסיס השאילתה
   
     // הוספת תנאי סינון אם AgentId מסופק ואינו 'all'
@@ -164,10 +164,10 @@ const { errors,setErrors, handleValidatedEditChange } = useValidation();
         })
       );
   
-      console.log("fetchLeadsForAgentData", data);
+      // console.log("fetchLeadsForAgentData", data);
       return data; // מחזירים את הנתונים במקום setLeadsData
     } catch (error) {
-      console.error("Error fetching leads:", error);
+      // console.error("Error fetching leads:", error);
       return []; // במקרה של שגיאה נחזיר מערך ריק
     }
   };
@@ -191,13 +191,13 @@ const { errors,setErrors, handleValidatedEditChange } = useValidation();
     agentId: selectedAgentId,
     fetchData: fetchLeadsForAgent,
     onCloseModal: () => {
-      console.log("🔴 סוגר מודל לידים!");
+      // console.log("🔴 סוגר מודל לידים!");
       setShowOpenNewLead(false);
     }, 
   });
   
   useEffect(() => {
-    console.log("🧐 תוכן editLeadData בתוך המודל:", editData);
+    // console.log("🧐 תוכן editLeadData בתוך המודל:", editData);
   }, [editData]);
   
 
@@ -234,7 +234,7 @@ const { errors,setErrors, handleValidatedEditChange } = useValidation();
         return matchesIdCustomer && matchesName && matchesStatusLead && matchesWorkerId && matchesSourceLead;
     });
       setFilteredData(data);
-    console.log("Filtered Data:", data);
+    // console.log("Filtered Data:", data);
   }, [
     leadsData,
     idCustomerFilter,
@@ -439,7 +439,7 @@ const { errors,setErrors, handleValidatedEditChange } = useValidation();
       setShowOpenNewLead(false);
       reloadLeadsData(selectedAgentId);
     } catch (error) {
-      console.error('Error adding document:', error);
+      // console.error('Error adding document:', error);
     }
   };
   
@@ -502,7 +502,7 @@ const { errors,setErrors, handleValidatedEditChange } = useValidation();
       // רענון הנתונים במקום שינוי סטייט ידני
       reloadLeadsData(selectedAgentId);
     } catch (error) {
-      console.error('Error updating statusLead:', error);
+      // console.error('Error updating statusLead:', error);
     }
   };
   
@@ -517,7 +517,7 @@ const { errors,setErrors, handleValidatedEditChange } = useValidation();
       // רענון הנתונים במקום שינוי סטייט ידני
       reloadLeadsData(selectedAgentId);
     } catch (error) {
-      console.error('Error updating worker:', error);
+      // console.error('Error updating worker:', error);
     }
   };
   
@@ -531,7 +531,7 @@ const { errors,setErrors, handleValidatedEditChange } = useValidation();
       // רענון הנתונים במקום שינוי סטייט ידני
       reloadLeadsData(selectedAgentId);
     } catch (error) {
-      console.error("Error updating returnDate:", error);
+      // console.error("Error updating returnDate:", error);
     }
   };
   
@@ -565,9 +565,9 @@ const { errors,setErrors, handleValidatedEditChange } = useValidation();
         return map;
       }, {} as { [key: string]: string });
       setSourceAllLeadMap(sourceMap);
-      console.log("Fetched all source leads:", sourceMap);
+      // console.log("Fetched all source leads:", sourceMap);
     } catch (error) {
-      console.error("Error fetching source leads:", error);
+      // console.error("Error fetching source leads:", error);
     }
   };
 
@@ -578,14 +578,14 @@ const { errors,setErrors, handleValidatedEditChange } = useValidation();
   const [showOpenNewLead, setShowOpenNewLead] = useState(false);
 
   const handleEditRowModal = (id: string) => {
-    console.log("🖊️ מנסה לערוך שורה:", id);
+    // console.log("🖊️ מנסה לערוך שורה:", id);
   
     setIsEditing(true); // מצב עריכה
     handleEditLeadRow(id); // ⬅️ זה אמור לעדכן את `editLeadData`
   
     // מחכים מעט כדי לוודא שהנתונים נטענו
     setTimeout(() => {
-      console.log("🧐 נתוני עריכה לאחר handleEditLeadRow:", editData);
+      // console.log("🧐 נתוני עריכה לאחר handleEditLeadRow:", editData);
       setShowOpenNewLead(true); // נפתח רק אם יש מידע
     }, 200);
   };
@@ -600,7 +600,7 @@ const { errors,setErrors, handleValidatedEditChange } = useValidation();
   
   useEffect(() => {
     if (showOpenNewLead && isEditing) {
-      console.log("📢 מודל בעריכה נטען עם הנתונים:", editData);
+      // console.log("📢 מודל בעריכה נטען עם הנתונים:", editData);
     }
   }, [editData, showOpenNewLead]);
 

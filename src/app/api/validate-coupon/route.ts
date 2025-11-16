@@ -48,7 +48,7 @@ export async function POST(req: NextRequest) {
     });
 
   } catch (err) {
-    console.error('❌ validate-coupon error:', err);
+    // console.error('❌ validate-coupon error:', err);
     return NextResponse.json({ valid: false, error: 'שגיאה בשרת' }, { status: 500 });
   }
 }

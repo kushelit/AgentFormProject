@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
 
     if (REPORTS_REQUIRING_ACCESS.has(reportType)) {
       if (isDev && !uid && !userEmail) {
-        console.warn('DEV: skipping permission check (no uid/email)');
+        // console.warn('DEV: skipping permission check (no uid/email)');
       } else {
         const ok = await checkServerPermission({ permission: REQUIRED_PERMISSION, uid, userEmail });
         if (!ok) {
@@ -88,7 +88,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: true });
   } catch (err) {
-    console.error('sendReport error:', err);
+    // console.error('sendReport error:', err);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }

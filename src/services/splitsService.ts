@@ -17,7 +17,7 @@ export const fetchSplits = async (selectedAgentId: string): Promise<CommissionSp
       ...doc.data(),
     })) as CommissionSplit[];
   } catch (error) {
-    console.error('שגיאה בשליפת פיצולים:', error);
+    // console.error('שגיאה בשליפת פיצולים:', error);
     return [];
   }
 };

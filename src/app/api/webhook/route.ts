@@ -53,9 +53,9 @@ const approveTransaction = async (transactionId: string, transactionToken: strin
       body: formData.toString(),
     });
     const responseText = await res.text();
-    console.log('📬 Grow approveTransaction response:', responseText);
+    // console.log('📬 Grow approveTransaction response:', responseText);
   } catch (err) {
-    console.error('⚠️ approveTransaction error:', err);
+    // console.error('⚠️ approveTransaction error:', err);
   }
 };
 
@@ -155,7 +155,7 @@ export async function POST(req: NextRequest) {
 
     const rawBody = await req.text();
     const data = parse(rawBody);
-    console.log('📩 Raw Grow webhook payload:\n', JSON.stringify(data, null, 2));
+    // console.log('📩 Raw Grow webhook payload:\n', JSON.stringify(data, null, 2));
 
     // Base fields
     const statusCode = data['data[statusCode]']?.toString();
@@ -224,7 +224,7 @@ export async function POST(req: NextRequest) {
           }
         }
       } catch (err) {
-        console.error('⚠️ coupon fetch error:', err);
+        // console.error('⚠️ coupon fetch error:', err);
       }
     }
 
@@ -241,7 +241,7 @@ export async function POST(req: NextRequest) {
         userDocRef = docRef;
         userData = docSnap.data();
       } else {
-        console.warn('⚠️ cField9 provided but user not found:', existingUid);
+        // console.warn('⚠️ cField9 provided but user not found:', existingUid);
       }
     }
 
@@ -271,13 +271,13 @@ export async function POST(req: NextRequest) {
 
     // ⛔️ manual-upgrade → ה-webhook מדלג
     if (source === 'manual-upgrade') {
-      console.log('⏭ Skipping webhook update due to manual-upgrade');
+      // console.log('⏭ Skipping webhook update due to manual-upgrade');
       return NextResponse.json({ skipped: true, reason: 'manual-upgrade' });
     }
 
     // ⛔️ existing-user-upgrade ללא יוזר → לא ליצור חדש
     if (!userDocRef && source === 'existing-user-upgrade') {
-      console.error('❌ existing-user-upgrade but user not found; not creating a new user');
+      // console.error('❌ existing-user-upgrade but user not found; not creating a new user');
       await logRegistrationIssue({
         email: emailLower,
         phone,
@@ -341,7 +341,7 @@ export async function POST(req: NextRequest) {
         }
       } catch (e: any) {
         if (e.code !== 'auth/user-not-found') {
-          console.error('⚠️ webhook phone lookup error:', e);
+          // console.error('⚠️ webhook phone lookup error:', e);
           return NextResponse.json({ error: 'שגיאה באימות טלפון' }, { status: 500 });
         }
         // user-not-found → מותר להמשיך ליצירה
@@ -354,7 +354,7 @@ export async function POST(req: NextRequest) {
     if (userDocRef) {
       // הגנה מכפילויות
       if (transactionId && transactionId === userData?.transactionId) {
-        console.log('⏭ duplicate transactionId, skipping');
+        // console.log('⏭ duplicate transactionId, skipping');
         return NextResponse.json({ skipped: true, reason: 'duplicate transactionId' });
       }
 
@@ -405,14 +405,14 @@ export async function POST(req: NextRequest) {
         (addOns && JSON.stringify(addOns) !== JSON.stringify(userData?.addOns));
 
       await userDocRef.update(updateFields);
-      console.log('🟢 Updated user in Firestore');
+      // console.log('🟢 Updated user in Firestore');
 
 
       try {
         await ensureDefaultContractsForAgent(db, userDocRef.id);
-        console.log('🌱 Ensured default contracts on reactivation');
+        // console.log('🌱 Ensured default contracts on reactivation');
       } catch (e) {
-        console.warn('⚠️ seeding defaults on reactivation failed:', (e as any)?.message || e);
+        // console.warn('⚠️ seeding defaults on reactivation failed:', (e as any)?.message || e);
       }
       
 
@@ -428,7 +428,10 @@ export async function POST(req: NextRequest) {
         if (formattedPhone && user.phoneNumber !== formattedPhone) {
           await auth.updateUser(user.uid, { phoneNumber: formattedPhone });
         }
-        try { await ensureSingleMfaPhone(user.uid, formattedPhone); } catch (e) { console.warn('[ensureMfaPhone] skipped:', (e as any)?.message || e); }
+        try { await ensureSingleMfaPhone(user.uid, formattedPhone); } 
+        catch (e) { 
+          // console.warn('[ensureMfaPhone] skipped:', (e as any)?.message || e);
+        }
 
         if (planChanged && !user.disabled) {
           await fetch(`${APP_BASE_URL}/api/sendEmail`, {
@@ -455,7 +458,7 @@ export async function POST(req: NextRequest) {
           }),
         });
       } catch {
-        console.log('⚠️ Firebase Auth user not found for update');
+        // console.log('⚠️ Firebase Auth user not found for update');
       }
 
       return NextResponse.json({ updated: true });
@@ -470,7 +473,9 @@ export async function POST(req: NextRequest) {
       emailVerified: true,
     });
 
-    try { await ensureSingleMfaPhone(newUser.uid, formattedPhone); } catch (e) { console.warn('[ensureMfaPhone] skipped:', (e as any)?.message || e); }
+    try { await ensureSingleMfaPhone(newUser.uid, formattedPhone); } catch (e) {
+      //  console.warn('[ensureMfaPhone] skipped:', (e as any)?.message || e); 
+      }
 
     const resetLink = await auth.generatePasswordResetLink(emailLower);
     await fetch(`${APP_BASE_URL}/api/sendEmail`, {
@@ -511,12 +516,12 @@ export async function POST(req: NextRequest) {
     if (couponUsed) newUserData.couponUsed = couponUsed;
 
     await db.collection('users').doc(newUser.uid).set(newUserData);
-    console.log('🆕 Created new user');
+    // console.log('🆕 Created new user');
     try {
       await ensureDefaultContractsForAgent(db, newUser.uid);
-      console.log('🌱 Default contracts seeded for new agent');
+      // console.log('🌱 Default contracts seeded for new agent');
     } catch (e) {
-      console.warn('⚠️ seeding defaults failed:', (e as any)?.message || e);
+      // console.warn('⚠️ seeding defaults failed:', (e as any)?.message || e);
     }
     
     if (statusCode !== '2') {
@@ -543,7 +548,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ created: true });
   } catch (err: any) {
-    console.error('❌ Webhook error:', err);
+    // console.error('❌ Webhook error:', err);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }
