@@ -155,6 +155,7 @@ const exportToExcel = () => {
     "צבירה פיננסים": item.finansimZvira,
     "חודש תפוקה": item.mounth,
     "סטאטוס": item.statusPolicy,
+    "תאריך ביטול": item.cancellationDate ? formatIsraeliDateOnly(item.cancellationDate) : "", 
     "מינוי סוכן": item.minuySochen ? "כן" : "לא",
 "שם עובד": workerNameMap[item.workerId ?? ""] || "",
     "הערות": item.notes ?? ""
@@ -208,6 +209,7 @@ const resetForm = (clearCustomerFields: boolean = false) => {
     resetField("mail", "");
     resetField("address", "");
     resetField("policyNumber", "");
+    resetField("cancellationDate", "");
   }
    else
    {
@@ -223,6 +225,7 @@ const resetForm = (clearCustomerFields: boolean = false) => {
   resetField("statusPolicy", "");
   resetField("notes", "");
   resetField("policyNumber", "");
+  resetField("cancellationDate", "");
    }
    setInvalidFields([]);
   setErrors({});
@@ -424,6 +427,7 @@ const handleSubmit = async (event: FormEvent<HTMLFormElement>, closeAfterSubmit 
   finansimPremia: editData.finansimPremia || 0,
   finansimZvira: editData.finansimZvira || 0,
   mounth: editData.mounth || "",
+  cancellationDate: editData.cancellationDate || "",
   minuySochen: editData.minuySochen || false,
   statusPolicy: editData.statusPolicy || selectedStatusPolicy,
   notes: editData.notes || "",
@@ -500,7 +504,11 @@ const handleSubmit = async (event: FormEvent<HTMLFormElement>, closeAfterSubmit 
     editData.mounth,
   ]);
   
-  
+  const shouldShowCancellationDate =
+  !!editData.statusPolicy &&
+  !["פעילה", "הצעה"].includes(editData.statusPolicy);
+
+
   useEffect(() => {
     // console.log("🔄 עדכון agentData לאחר טעינה מחדש", data);
     setAgentData(data);
@@ -525,6 +533,7 @@ useEffect(() => {
     company: item.company ?? '', // חובה
     product: item.product ?? '', // חובה
     policyNumber: item.policyNumber ?? "",
+    cancellationDate: item.cancellationDate ?? "",
   }));
 
   // שלב ה-filter: סינון לפי הקריטריונים
@@ -1528,6 +1537,16 @@ useEffect(() => {
       className={invalidFields.includes("mounth") ? "input-error" : ""}
       />
             </div>
+            {shouldShowCancellationDate && (   /* ✅ רק כשסטטוס ≠ פעילה/הצעה */
+  <div className="form-group">
+    <label>תאריך ביטול</label>
+    <input
+      type="date"
+      value={editData.cancellationDate || ""}
+      onChange={(e) => handleEditChange("cancellationDate", e.target.value)}
+    />
+  </div>
+)}
    <div className="form-group checkbox-group">
   <label className="checkbox-label">
     <input 

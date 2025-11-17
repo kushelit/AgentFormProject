@@ -38,6 +38,7 @@ export interface Sale {
     address?: string;
     sourceValue?: string; 
     policyNumber?: string;
+    cancellationDate?: string;
   }
 
   export type AgentDataType = {
@@ -60,6 +61,7 @@ export interface Sale {
     workerId?: string;
     notes?: string;
     policyNumber?: string;
+    cancellationDate?: string;
   };
   
 
