@@ -191,57 +191,62 @@ useEffect(() => {
 
   type ParsedDateResult = { value?: string; error?: string };
 
-const parseDateField = (value: any): ParsedDateResult => {
-  if (value instanceof Date) {
-    return { value: value.toISOString().split("T")[0] }; // YYYY-MM-DD
-  }
-
-  if (typeof value === "number" && !isNaN(value)) {
-    const rawStr = value.toString();
-
-    //  DDMMYYYY כטקסט מספרי בן 8 ספרות
-    if (/^\d{8}$/.test(rawStr)) {
-      const day = rawStr.slice(0, 2);
-      const month = rawStr.slice(2, 4);
-      const year = rawStr.slice(4, 8);
-      return { value: `${year}-${month}-${day}` };
+  const parseDateField = (value: any): ParsedDateResult => {
+    // ✅ ריק / null / undefined → מותר, בלי שגיאה
+    if (
+      value === null ||
+      value === undefined ||
+      (typeof value === "string" && value.trim() === "")
+    ) {
+      return { value: "" };
     }
-
-    // Excel serial number
-    const excelDate = XLSX.SSF.parse_date_code(value);
-    if (excelDate) {
-      const jsDate = new Date(Date.UTC(excelDate.y, excelDate.m - 1, excelDate.d));
-      return { value: jsDate.toISOString().split("T")[0] };
+  
+    if (value instanceof Date) {
+      return { value: value.toISOString().split("T")[0] }; // YYYY-MM-DD
     }
-  }
-
-  if (typeof value === "string") {
-    const cleaned = value.trim();
-
-    // DDMMYYYY
-    if (/^\d{8}$/.test(cleaned)) {
-      const day = cleaned.slice(0, 2);
-      const month = cleaned.slice(2, 4);
-      const year = cleaned.slice(4, 8);
-      return { value: `${year}-${month}-${day}` };
+  
+    if (typeof value === "number" && !isNaN(value)) {
+      const rawStr = value.toString();
+  
+      if (/^\d{8}$/.test(rawStr)) {
+        const day = rawStr.slice(0, 2);
+        const month = rawStr.slice(2, 4);
+        const year = rawStr.slice(4, 8);
+        return { value: `${year}-${month}-${day}` };
+      }
+  
+      const excelDate = XLSX.SSF.parse_date_code(value);
+      if (excelDate) {
+        const jsDate = new Date(Date.UTC(excelDate.y, excelDate.m - 1, excelDate.d));
+        return { value: jsDate.toISOString().split("T")[0] };
+      }
     }
-
-    // DD/MM/YYYY
-    if (/^\d{2}\/\d{2}\/\d{4}$/.test(cleaned)) {
-      const [day, month, year] = cleaned.split("/");
-      return { value: `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}` };
+  
+    if (typeof value === "string") {
+      const cleaned = value.trim();
+  
+      if (/^\d{8}$/.test(cleaned)) {
+        const day = cleaned.slice(0, 2);
+        const month = cleaned.slice(2, 4);
+        const year = cleaned.slice(4, 8);
+        return { value: `${year}-${month}-${day}` };
+      }
+  
+      if (/^\d{2}\/\d{2}\/\d{4}$/.test(cleaned)) {
+        const [day, month, year] = cleaned.split("/");
+        return { value: `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}` };
+      }
+  
+      if (/^\d{4}-\d{2}-\d{2}$/.test(cleaned)) {
+        return { value: cleaned };
+      }
+  
+      return { error: `תאריך לא תקין: ${value}` };
     }
-
-    // YYYY-MM-DD
-    if (/^\d{4}-\d{2}-\d{2}$/.test(cleaned)) {
-      return { value: cleaned };
-    }
-
-    return { error: `תאריך לא תקין: ${value}` };
-  }
-
-  return { error: `תאריך לא מזוהה: ${String(value)}` };
-};
+  
+    return { error: `תאריך לא מזוהה: ${String(value)}` };
+  };
+  
 
 // לשימור תאימות אחורה (אם פונקציות אחרות משתמשות בשם הישן):
 const parseMounthField = parseDateField;
@@ -398,7 +403,7 @@ if (sourceLeadField) {
     checkAllRows(parsedData, mapping);
     // console.log("🔍 parsedData example (first row):", parsedData[0]);
     // console.log("✅ parsedData:", parsedData);
-    setPendingExcelData(null);
+    // setPendingExcelData(null);
   }, [pendingExcelData, mapping, fullNameStructure, workers]);
 
   const applyDefaultMinuySochen = (row: any, mapping: Record<string, string>): void => {
@@ -482,28 +487,15 @@ if (sourceLeadField) {
     const validMounth = /^\d{4}-\d{2}-\d{2}$/.test(String(row["mounth"] || "").trim());
     const validStatus = !reverseMap["statusPolicy"] || statusPolicies.includes(statusValue);
     const validMinuySochen = !reverseMap["minuySochen"] || minuyValue === "" || ["כן", "לא"].includes(minuyValue);
-    const validCancellationDate =
-    !reverseMap["cancellationDate"] ||
-    String(row[reverseMap["cancellationDate"]] || "").trim() === "" ||
-    /^\d{4}-\d{2}-\d{2}$/.test(
-      String(row["cancellationDate"] || row[reverseMap["cancellationDate"]] || "").trim()
-    );
+    const cancellationValue = String(row["cancellationDate"] || "").trim();
 
-  //   console.log("🧪 תוצאה:", {
-  //     hasRequired,
-  //     validCompany,
-  //     validProduct,
-  //     validID,
-  //     validFirstName,
-  //     validLastName,
-  //     validMounth,
-  //     validStatus,
-  //     validMinuySochen,
-  //     validWorker,
-  //     validSourceLead,
-  //     validCancellationDate,
-  //   }
-  // );
+const validCancellationDate =
+  !reverseMap["cancellationDate"] ||      // אין מיפוי → לא בודקים
+  cancellationValue === "" ||            // ריק → תקין
+  /^\d{4}-\d{2}-\d{2}$/.test(cancellationValue); // אחרת חייב YYYY-MM-DD
+
+
+
   
     let isValid = hasRequired &&
       validCompany &&

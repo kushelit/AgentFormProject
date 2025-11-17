@@ -1,5 +1,6 @@
 // MagicSale — Commission Admin Purge Page
 // מחיקת נתוני עמלות גורפת לפי סוכן / חברה / חודש / תבנית
+// + ניהול ריצות טעינה לפי מספר טעינה / טוען
 // קובץ: app/admin/commission-purge/page.tsx
 
 'use client';
@@ -15,6 +16,7 @@ import {
   writeBatch,
   doc,
   getDoc,
+  deleteDoc,
 } from 'firebase/firestore';
 import useFetchAgentData from '@/hooks/useFetchAgentData';
 import { Button } from '@/components/Button/Button';
@@ -28,10 +30,24 @@ type DialogState = {
   message: React.ReactNode;
 };
 
+interface CommissionImportRun {
+  runId: string;
+  createdAt?: { seconds: number };
+  agentName: string;
+  agentId: string;
+  createdBy: string;
+  company: string;
+  templateName: string;
+  reportMonth?: string;
+  externalCount?: number;
+  commissionSummariesCount?: number;
+  policySummariesCount?: number;
+}
+
 export default function CommissionPurgeAdminPage() {
   const { agents, selectedAgentId, handleAgentChange } = useFetchAgentData();
 
-  // Filters
+  // ===== Filters (חלק עליון – מחיקה גורפת לפי פילטרים) =====
   const [companyId, setCompanyId] = useState('');
   const [templateId, setTemplateId] = useState('');
   const [validMonth, setValidMonth] = useState('');
@@ -41,7 +57,7 @@ export default function CommissionPurgeAdminPage() {
     { id: string; companyId: string; companyName: string; Name?: string; type?: string }[]
   >([]);
 
-  // State
+  // State – מחיקה גורפת
   const [scanRunning, setScanRunning] = useState(false);
   const [deleteRunning, setDeleteRunning] = useState(false);
   const [confirmText, setConfirmText] = useState('');
@@ -52,6 +68,19 @@ export default function CommissionPurgeAdminPage() {
     policySummariesCount: number;
     monthsFound: string[];
   } | null>(null);
+
+  // ===== State – ניהול ריצות טעינת עמלות (חלק תחתון) =====
+  const [commissionRuns, setCommissionRuns] = useState<CommissionImportRun[]>([]);
+  const [commissionRunsLoading, setCommissionRunsLoading] = useState(true);
+  const [runDeleteDialogOpen, setRunDeleteDialogOpen] = useState(false);
+  const [selectedRun, setSelectedRun] = useState<CommissionImportRun | null>(null);
+  const [runDeleteLoading, setRunDeleteLoading] = useState(false);
+
+  // פילטרים לטבלת ריצות טעינה
+  const [searchText, setSearchText] = useState('');
+  const [uploaderFilter, setUploaderFilter] = useState('');
+  const [dateFrom, setDateFrom] = useState<string>('');
+  const [dateTo, setDateTo] = useState<string>('');
 
   // Helpers
   const sanitizeMonth = (m?: string) => (m || '').replace(/\//g, '-');
@@ -80,7 +109,7 @@ export default function CommissionPurgeAdminPage() {
     }
   }
 
-  // Load templates (active)
+  // ===== Load templates (active) =====
   useEffect(() => {
     (async () => {
       const snap = await getDocs(
@@ -107,7 +136,7 @@ export default function CommissionPurgeAdminPage() {
     })();
   }, []);
 
-  // ===== Scan =====
+  // ===== Scan (חלק עליון) =====
   async function handleScan() {
     if (!selectedAgentId) {
       setDialog({ type: 'warning', title: 'חסר סוכן', message: 'יש לבחור סוכן לפני סריקה.' });
@@ -170,7 +199,7 @@ export default function CommissionPurgeAdminPage() {
     }
   }
 
-  // ===== Delete =====
+  // ===== Delete (חלק עליון) =====
   async function handleDelete() {
     if (!selectedAgentId) {
       setDialog({ type: 'warning', title: 'חסר סוכן', message: 'יש לבחור סוכן לפני מחיקה.' });
@@ -246,6 +275,128 @@ export default function CommissionPurgeAdminPage() {
     }
   }
 
+  // ===== ניהול ריצות טעינת עמלות – Fetch =====
+  const fetchCommissionRuns = async () => {
+    setCommissionRunsLoading(true);
+    const snapshot = await getDocs(collection(db, 'commissionImportRuns'));
+
+    const data: CommissionImportRun[] = snapshot.docs.map((d) => {
+      const docData = d.data() as any;
+
+      return {
+        runId: docData.runId || d.id,
+        createdAt: docData.createdAt,
+        agentName: docData.agentName || '-',
+        agentId: docData.agentId || '',
+        createdBy: docData.createdBy || '',
+        company: docData.company || '',
+        templateName: docData.templateName || '',
+        reportMonth: docData.reportMonth,
+        externalCount: docData.externalCount,
+        commissionSummariesCount: docData.commissionSummariesCount,
+        policySummariesCount: docData.policySummariesCount,
+      };
+    });
+
+    data.sort((a, b) => {
+      const aSec = a.createdAt?.seconds ?? 0;
+      const bSec = b.createdAt?.seconds ?? 0;
+      return bSec - aSec;
+    });
+
+    setCommissionRuns(data);
+    setCommissionRunsLoading(false);
+  };
+
+  // initial load for runs list
+  useEffect(() => {
+    fetchCommissionRuns();
+  }, []);
+
+  // פילטור בצד לקוח לריצות טעינה
+  const filteredCommissionRuns = useMemo(() => {
+    return commissionRuns.filter((run) => {
+      const text = searchText.trim().toLowerCase();
+      const uploader = uploaderFilter.trim().toLowerCase();
+
+      if (text) {
+        const haystack = [
+          run.runId,
+          run.agentName,
+          run.company,
+          run.templateName,
+          run.reportMonth || '',
+        ]
+          .join(' ')
+          .toLowerCase();
+        if (!haystack.includes(text)) return false;
+      }
+
+      if (uploader) {
+        if (!run.createdBy.toLowerCase().includes(uploader)) return false;
+      }
+
+      if (dateFrom) {
+        const fromTs = new Date(dateFrom + 'T00:00:00').getTime();
+        const created = run.createdAt ? run.createdAt.seconds * 1000 : 0;
+        if (created < fromTs) return false;
+      }
+
+      if (dateTo) {
+        const toTs = new Date(dateTo + 'T23:59:59').getTime();
+        const created = run.createdAt ? run.createdAt.seconds * 1000 : 0;
+        if (created > toTs) return false;
+      }
+
+      return true;
+    });
+  }, [commissionRuns, searchText, uploaderFilter, dateFrom, dateTo]);
+
+  // מחיקת ריצה ספציפית לפי runId מכל שלושת האוספים + רשומת הריצה
+  const deleteByRunIdInChunks = async (collectionName: string, runId: string) => {
+    const qy = query(collection(db, collectionName), where('runId', '==', runId));
+    const snap = await getDocs(qy);
+    if (snap.empty) return;
+
+    const CHUNK = 450;
+    const docs = snap.docs;
+
+    for (let i = 0; i < docs.length; i += CHUNK) {
+      const batch = writeBatch(db);
+      for (const d of docs.slice(i, i + CHUNK)) {
+        batch.delete(d.ref);
+      }
+      await batch.commit();
+    }
+  };
+
+  const handleRunDeleteClick = (run: CommissionImportRun) => {
+    setSelectedRun(run);
+    setRunDeleteDialogOpen(true);
+  };
+
+  const handleRunDeleteConfirm = async () => {
+    if (!selectedRun) return;
+    setRunDeleteLoading(true);
+    const { runId } = selectedRun;
+
+    try {
+      await deleteByRunIdInChunks('externalCommissions', runId);
+      await deleteByRunIdInChunks('commissionSummaries', runId);
+      await deleteByRunIdInChunks('policyCommissionSummaries', runId);
+
+      await deleteDoc(doc(db, 'commissionImportRuns', runId));
+
+      await fetchCommissionRuns();
+    } catch (err) {
+      console.error('Error deleting run by runId', err);
+    } finally {
+      setRunDeleteLoading(false);
+      setRunDeleteDialogOpen(false);
+      setSelectedRun(null);
+    }
+  };
+
   // ===== Render =====
   return (
     <AdminGuard>
@@ -256,6 +407,8 @@ export default function CommissionPurgeAdminPage() {
           המחיקה תתבצע משלושה אוספים: <code>externalCommissions</code>,{' '}
           <code>commissionSummaries</code>, <code>policyCommissionSummaries</code>.
         </p>
+
+        {/* ===== חלק עליון: מחיקה לפי סינון ===== */}
 
         {/* סוכן */}
         <div className="mb-4">
@@ -356,11 +509,15 @@ export default function CommissionPurgeAdminPage() {
               </div>
               <div className="p-3 bg-white rounded border">
                 <div className="text-gray-500">commissionSummaries</div>
-                <div className="text-xl font-bold">{scan.commissionSummariesCount.toLocaleString()}</div>
+                <div className="text-xl font-bold">
+                  {scan.commissionSummariesCount.toLocaleString()}
+                </div>
               </div>
               <div className="p-3 bg-white rounded border">
                 <div className="text-gray-500">policyCommissionSummaries</div>
-                <div className="text-xl font-bold">{scan.policySummariesCount.toLocaleString()}</div>
+                <div className="text-xl font-bold">
+                  {scan.policySummariesCount.toLocaleString()}
+                </div>
               </div>
             </div>
             {scan.monthsFound.length > 0 && (
@@ -371,7 +528,7 @@ export default function CommissionPurgeAdminPage() {
           </div>
         )}
 
-        {/* Dialog */}
+        {/* Dialog כללי */}
         {dialog && (
           <DialogNotification
             type={dialog.type}
@@ -392,6 +549,137 @@ export default function CommissionPurgeAdminPage() {
           <Link href="/Help/commission-import" className="underline text-blue-600" target="_blank">
             מדריך טעינות עמלות
           </Link>
+        </div>
+
+        {/* ===== חלק תחתון: ניהול ריצות טעינה לפי מספר טעינה / טוען ===== */}
+        <div className="mt-10 border-t pt-6">
+          <h2 className="text-xl font-bold mb-4">ריצות טעינת עמלות</h2>
+
+          {/* פילטרים */}
+          <div className="flex flex-col md:flex-row gap-3 mb-4 text-sm">
+            <div className="flex-1">
+              <label className="block mb-1">
+                חיפוש כללי (מספר טעינה / סוכן / חברה / תבנית / חודש):
+              </label>
+              <input
+                className="border rounded px-2 py-1 w-full"
+                value={searchText}
+                onChange={(e) => setSearchText(e.target.value)}
+                placeholder="הקלד/י טקסט לחיפוש..."
+              />
+            </div>
+            <div className="flex-1 md:max-w-xs">
+              <label className="block mb-1">סינון לפי יוזר טוען:</label>
+              <input
+                className="border rounded px-2 py-1 w-full"
+                value={uploaderFilter}
+                onChange={(e) => setUploaderFilter(e.target.value)}
+                placeholder="הקלד/י אימייל / שם"
+              />
+            </div>
+            <div className="flex-1 md:max-w-xs">
+              <label className="block mb-1">מתאריך:</label>
+              <input
+                type="date"
+                className="border rounded px-2 py-1 w-full"
+                value={dateFrom}
+                onChange={(e) => setDateFrom(e.target.value)}
+              />
+            </div>
+            <div className="flex-1 md:max-w-xs">
+              <label className="block mb-1">עד תאריך:</label>
+              <input
+                type="date"
+                className="border rounded px-2 py-1 w-full"
+                value={dateTo}
+                onChange={(e) => setDateTo(e.target.value)}
+              />
+            </div>
+          </div>
+
+          {commissionRunsLoading ? (
+            <p>טוען ריצות טעינה...</p>
+          ) : filteredCommissionRuns.length === 0 ? (
+            <p>לא נמצאו ריצות טעינת עמלות בהתאם לפילטרים.</p>
+          ) : (
+            <table className="w-full border text-sm text-right">
+              <thead>
+                <tr className="bg-gray-100">
+                  <th className="p-2">מספר טעינה</th>
+                  <th className="p-2">תאריך</th>
+                  <th>סוכן</th>
+                  <th>חברה</th>
+                  <th>תבנית</th>
+                  <th>חודש דיווח</th>
+                  <th>יוזר מייבא</th>
+                  <th>שורות קובץ</th>
+                  <th>סיכומי עמלות</th>
+                  <th>סיכומי פוליסות</th>
+                  <th>מחיקה</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredCommissionRuns.map((run) => (
+                  <tr key={run.runId} className="border-t hover:bg-gray-50">
+                    <td className="p-2 font-mono text-xs">{run.runId}</td>
+                    <td className="p-2">
+                      {run.createdAt
+                        ? new Date(run.createdAt.seconds * 1000).toLocaleString('he-IL')
+                        : '-'}
+                    </td>
+                    <td>{run.agentName}</td>
+                    <td>{run.company}</td>
+                    <td>{run.templateName}</td>
+                    <td>{run.reportMonth || '-'}</td>
+                    <td>{run.createdBy}</td>
+                    <td>{run.externalCount ?? '-'}</td>
+                    <td>{run.commissionSummariesCount ?? '-'}</td>
+                    <td>{run.policySummariesCount ?? '-'}</td>
+                    <td>
+                      <button
+                        onClick={() => handleRunDeleteClick(run)}
+                        className="text-red-600 hover:underline font-medium"
+                      >
+                        מחק ריצה
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+
+          {runDeleteDialogOpen && selectedRun && (
+            <DialogNotification
+              type="warning"
+              title="אישור מחיקת ריצת טעינת עמלות"
+              message={
+                <div>
+                  <p>האם למחוק את כל הנתונים של ריצה זו?</p>
+                  <ul className="list-disc pr-5 mt-2 text-sm">
+                    <li>מספר טעינה: {selectedRun.runId}</li>
+                    <li>סוכן: {selectedRun.agentName}</li>
+                    <li>חברה: {selectedRun.company}</li>
+                    <li>תבנית: {selectedRun.templateName}</li>
+                    <li>חודש דיווח: {selectedRun.reportMonth || '-'}</li>
+                    <li>שורות קובץ: {selectedRun.externalCount ?? 0}</li>
+                    <li>סיכומי עמלות: {selectedRun.commissionSummariesCount ?? 0}</li>
+                    <li>סיכומי פוליסות: {selectedRun.policySummariesCount ?? 0}</li>
+                  </ul>
+                  <p className="text-red-600 mt-3 text-sm">
+                    פעולה זו תמחק לצמיתות את כל הרשומות שנוצרו בטעינה זו (כולל תקצירי עמלות ופוליסות).
+                  </p>
+                </div>
+              }
+              onConfirm={handleRunDeleteConfirm}
+              onCancel={() => {
+                setRunDeleteDialogOpen(false);
+                setSelectedRun(null);
+              }}
+              confirmText={runDeleteLoading ? 'מוחק...' : 'מחק'}
+              cancelText="ביטול"
+            />
+          )}
         </div>
       </div>
     </AdminGuard>

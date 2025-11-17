@@ -279,16 +279,26 @@ const saveAgentTolerance = async () => {
   // fetch templates (and company names)
   useEffect(() => {
     (async () => {
-      const snap = await getDocs(collection(db, "commissionTemplates"));
+      const q = query(
+        collection(db, "commissionTemplates"),
+        where("isactive", "==", true)   // ← כאן הסינון
+      );
+  
+      const snap = await getDocs(q);
+  
       const arr: TemplateOption[] = [];
       for (const docSnap of snap.docs) {
         const data = docSnap.data() as any;
         const companyId = data.companyId || "";
         let companyName = "";
+  
         if (companyId) {
           const c = await getDoc(doc(db, "company", companyId)).catch(() => undefined);
-          if (c && c.exists()) companyName = (c.data() as any)?.companyName || "";
+          if (c && c.exists()) {
+            companyName = (c.data() as any)?.companyName || "";
+          }
         }
+  
         arr.push({
           id: docSnap.id,
           companyId,
@@ -297,10 +307,11 @@ const saveAgentTolerance = async () => {
           Name: data.Name || "",
         });
       }
+  
       setTemplateOptions(arr);
     })();
   }, []);
-
+  
   const uniqueCompanies = useMemo(() => {
     return Array.from(
       new Map(

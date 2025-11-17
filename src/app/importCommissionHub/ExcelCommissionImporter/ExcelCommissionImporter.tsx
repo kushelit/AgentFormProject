@@ -16,6 +16,7 @@ import {
   where,
   updateDoc,
   arrayUnion,
+  setDoc,
 } from 'firebase/firestore';
 import { Button } from '@/components/Button/Button';
 import DialogNotification from '@/components/DialogNotification';
@@ -48,6 +49,7 @@ interface CommissionSummary {
   company: string;
   totalCommissionAmount: number;
   totalPremiumAmount: number;
+  runId?: string;
 }
 
 interface PolicyCommissionSummary {
@@ -65,13 +67,13 @@ interface PolicyCommissionSummary {
   commissionRate: number;     // totalCommissionAmount / totalPremiumAmount * 100
   rowsCount: number;          // כמה שורות מקור אוחדו
   product?: string;
-}
+  runId?: string;  }
 
 /* ==============================
    Component
 ============================== */
 const ExcelCommissionImporter: React.FC = () => {
-  const { detail } = useAuth();
+  const { detail, user } = useAuth();
   const { agents, selectedAgentId, handleAgentChange } = useFetchAgentData();
 
   const [templateId, setTemplateId] = useState('');
@@ -1075,6 +1077,9 @@ const ExcelCommissionImporter: React.FC = () => {
     }
 
     try {
+       // יוצרים ריצה חדשה (ID ריצה אחד לכל הטעינה הזו)
+    const runRef = doc(collection(db, 'commissionImportRuns'));
+    const runId = runRef.id;
       const uniqueAgentCodes = new Set<string>();
       for (const row of standardizedRows) {
         if (row.agentCode) uniqueAgentCodes.add(String(row.agentCode).trim());
@@ -1091,6 +1096,7 @@ const ExcelCommissionImporter: React.FC = () => {
         ...r,
         policyNumberKey: String(r.policyNumber ?? '').trim().replace(/\s+/g, ''),
         customerId: toPadded9(r.customerId ?? r.customerIdRaw ?? ''),
+        runId,
       }));
 
       await writeExternalRowsInChunks(rowsPrepared);
@@ -1109,6 +1115,7 @@ const ExcelCommissionImporter: React.FC = () => {
             company: row.company || '',
             totalCommissionAmount: 0,
             totalPremiumAmount: 0,
+            runId,
           });
         }
         const s = summariesMap.get(key)!;
@@ -1133,6 +1140,7 @@ const ExcelCommissionImporter: React.FC = () => {
         rowsCount: number;
         product?: string;
         fullName?: string;
+        runId?: string;
       }>();
 
       for (const row of rowsPrepared) {
@@ -1163,6 +1171,7 @@ const ExcelCommissionImporter: React.FC = () => {
             totalCommissionAmount: 0,
             totalPremiumAmount: 0,
             rowsCount: 0,
+            runId,
           });
         }
         const s = policyMap.get(key)!;
@@ -1175,6 +1184,30 @@ const ExcelCommissionImporter: React.FC = () => {
         if (!s.fullName && fullName) s.fullName = fullName;
       }
       await writePolicySummariesInBatch(Array.from(policyMap.values()) as any);
+
+
+  // ---- יצירת דוקומנט ריצה לניהול טעינות ----
+  const firstRow = rowsPrepared[0];
+  const totalRows = rowsPrepared.length;
+  const commissionSummariesCount = summariesMap.size;
+  const policySummariesCount = policyMap.size;
+
+  await setDoc(runRef, {
+    runId,
+    createdAt: serverTimestamp(),
+    agentId: selectedAgentId,
+    agentName: agents.find(a => a.id === selectedAgentId)?.name || '',
+    createdBy: detail?.email || detail?.name || '',
+    createdByUserId: user?.uid || '',
+    companyId: selectedCompanyId,
+    company: selectedCompanyName,
+    templateId,
+    templateName: selectedTemplate?.Name || selectedTemplate?.type || '',
+    reportMonth: firstRow?.reportMonth || '',
+    externalCount: totalRows,
+    commissionSummariesCount,
+    policySummariesCount,
+  });
 
       const grouped: Record<string, {
         count: number; uniqueCustomers: Set<string>; totalCommission: number; totalPremium: number;
