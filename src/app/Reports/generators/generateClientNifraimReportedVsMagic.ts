@@ -7,6 +7,8 @@ import { ReportRequest } from '@/types';
 import { calculateCommissions } from '@/utils/commissionCalculations';
 import { fetchContractsByAgent } from '@/services/server/fetchContracts';
 import { getProductMap } from '@/services/server/productService';
+import { fetchCommissionSplits } from '@/services/server/commissionService';
+import type { CommissionSplit } from '@/types/CommissionSplit';
 
 /** -------------------------------------------------- */
 /**   Helpers                                          */
@@ -49,6 +51,36 @@ const parseMinuy = (v: unknown): boolean | undefined => {
 /** KEY אחיד כמו במסך: חברה + פוליסה, ואם אין פוליסה – מפתח פנימי */
 const makeKey = (company: string, policy: string, docId?: string) =>
   policy ? `${company}::${policy}` : `${company}::__NO_POLICY__:${docId ?? ''}`;
+
+/** מפתח ללקוח במפה (AgentId + ת"ז) */
+const getCustomerKey = (agentId: string, cid: string) =>
+  `${agentId}::${cid}`;
+
+/** למצוא הסכם פיצול רלוונטי לעסקה */
+function findSplitForSale(
+  sale: any,
+  commissionSplits: CommissionSplit[],
+  customersByKey: Map<string, any>
+): CommissionSplit | undefined {
+  const agentId = canon(sale.AgentId);
+  const cid = canon(sale.IDCustomer || sale.customerId);
+  if (!agentId || !cid) return undefined;
+
+  const customer = customersByKey.get(getCustomerKey(agentId, cid));
+  if (!customer) return undefined;
+
+  // בגלל הבאג ההיסטורי – נבדוק גם sourceValue וגם sourceLead
+  const sourceValueUnified = canon(
+    customer.sourceValue ?? customer.sourceLead ?? ''
+  );
+  if (!sourceValueUnified) return undefined;
+
+  return commissionSplits.find(
+    (split) =>
+      canon(split.agentId) === agentId &&
+      canon(split.sourceLeadId) === sourceValueUnified
+  );
+}
 
 /** -------------------------------------------------- */
 /**   Types                                            */
@@ -104,6 +136,34 @@ export async function generateClientNifraimReportedVsMagic(
     : [];
 
   const filterMinuy = parseMinuy((params as any).minuySochen);
+
+  // האם ליישם פיצול עמלות בדוח?
+  const applyCommissionSplit =
+    typeof (params as any).applyCommissionSplit === 'boolean'
+      ? (params as any).applyCommissionSplit
+      : false;
+
+  let commissionSplits: CommissionSplit[] = [];
+  const customersByKey = new Map<string, any>();
+
+  if (applyCommissionSplit) {
+    // טבלת הסכמי פיצול
+    commissionSplits = await fetchCommissionSplits(agentId);
+
+    // טבלת לקוחות – בשביל sourceValue / sourceLead
+    const customersSnap = await db
+      .collection('customer')
+      .where('AgentId', '==', agentId)
+      .get();
+
+    customersSnap.docs.forEach((doc) => {
+      const c = doc.data() as any;
+      const cid = canon(c.IDCustomer);
+      const aId = canon(c.AgentId || agentId);
+      if (!cid || !aId) return;
+      customersByKey.set(getCustomerKey(aId, cid), c);
+    });
+  }
 
   /** מאגרים */
 
@@ -182,7 +242,6 @@ export async function generateClientNifraimReportedVsMagic(
     const policyYm = toYm(s.month || s.mounth);
     // לוגיקה לפי מה שסיכמנו: כל הפוליסות עד וכולל toYm
     if (toYmVal && policyYm && policyYm > toYmVal) continue;
-    // אם אין toYm – לא מגבילים בכלל (אפשר לשנות אם תרצי)
 
     if (selectedCompanies.length && !selectedCompanies.includes(comp)) continue;
 
@@ -217,7 +276,24 @@ export async function generateClientNifraimReportedVsMagic(
       productMap,
       agentId
     );
-    const amount = Number((commissions as any)?.commissionNifraim ?? 0);
+
+    // בסיס: עמלת נפרעים מלאה
+    let amount = Number((commissions as any)?.commissionNifraim ?? 0);
+
+    // אם יש פיצול – ניישם את אחוז הסוכן
+    if (
+      applyCommissionSplit &&
+      commissionSplits.length &&
+      customersByKey.size
+    ) {
+      const split = findSplitForSale(s, commissionSplits, customersByKey);
+      if (split) {
+        const pct = Number(split.percentToAgent ?? 100);
+        if (!Number.isNaN(pct)) {
+          amount = amount * (pct / 100);
+        }
+      }
+    }
 
     const cid = canon(s.IDCustomer || s.customerId);
     const first = canon(s.firstNameCustomer || '');

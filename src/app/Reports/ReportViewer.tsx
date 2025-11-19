@@ -34,6 +34,12 @@ const REPORTS = [
 
 ];
 
+const REPORTS_WITH_SPLIT = new Set([
+  'clientNifraimSummaryReport',
+  'clientNifraimReportedVsMagic',
+]);
+
+
 const ReportsPage: React.FC = () => {
   const { user, detail } = useAuth();
   const { toasts, addToast, setToasts } = useToast();
@@ -63,12 +69,21 @@ const ReportsPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [reportProductGroups, setReportProductGroups] = useState<Record<string, string[]>>({});
   const [selectedCompanies, setSelectedCompanies] = useState<{ value: string; label: string }[]>([]);
+  const [applyCommissionSplit, setApplyCommissionSplit] = useState(false);
 
   const minuySochenOptions = [
     { value: 'true', label: 'כן' },
     { value: 'false', label: 'לא' },
   ];
   
+
+  useEffect(() => {
+    if (!REPORTS_WITH_SPLIT.has(reportType)) {
+      setApplyCommissionSplit(false);
+    }
+  }, [reportType]);
+  
+
 
   useEffect(() => {
     const fetchReportGroups = async () => {
@@ -119,6 +134,9 @@ const ReportsPage: React.FC = () => {
           selectedStatusPolicyFilter.length > 0 ? selectedStatusPolicyFilter : undefined,
         minuySochen:
           minuySochenFilter !== null ? minuySochenFilter === 'true' : undefined,
+          applyCommissionSplit: REPORTS_WITH_SPLIT.has(reportType)
+          ? applyCommissionSplit
+          : undefined,
       };
   
       const res = await fetch('/api/sendReport', {
@@ -259,6 +277,35 @@ const ReportsPage: React.FC = () => {
     classNamePrefix="select"
   />
 </div>
+{REPORTS_WITH_SPLIT.has(reportType) && (
+  <div className="mb-4">
+    <label className="block font-semibold mb-1"> פיצול עמלות:</label>
+    <div className="flex bg-blue-100 rounded-full p-0.5 text-xs w-fit">
+      <button
+        type="button"
+        onClick={() => setApplyCommissionSplit(false)}
+        className={`px-3 py-0.5 rounded-full transition-all duration-200 ${
+          !applyCommissionSplit
+            ? 'bg-white text-blue-800 font-bold'
+            : 'text-gray-500'
+        }`}
+      >
+        ללא פיצול עמלות
+      </button>
+      <button
+        type="button"
+        onClick={() => setApplyCommissionSplit(true)}
+        className={`px-3 py-0.5 rounded-full transition-all duration-200 ${
+          applyCommissionSplit
+            ? 'bg-white text-blue-800 font-bold'
+            : 'text-gray-500'
+        }`}
+      >
+        עם פיצול עמלות
+      </button>
+    </div>
+  </div>
+)}
       <div className="mb-4">
         <label className="block font-semibold mb-1">כתובת מייל למשלוח:</label>
         <input
