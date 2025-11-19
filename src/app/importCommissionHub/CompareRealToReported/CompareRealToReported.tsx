@@ -11,6 +11,7 @@ import type { SalesToCompareCommissions } from '@/types/Sales';
 import { calculateCommissions } from '@/utils/commissionCalculations';
 import * as XLSX from 'xlsx';
 import { useRouter, useSearchParams } from 'next/navigation';
+import type { CommissionSplit } from '@/types/CommissionSplit';
 
 /* ---------- types ---------- */
 
@@ -100,6 +101,43 @@ async function getFamilyIds(dbAgentId: string, lockedCustomerId: string): Promis
   return ids.length ? Array.from(new Set(ids)) : [lockedCustomerId];
 }
 
+
+function findSplitAgreementForSale(
+  sale: any,
+  commissionSplits: CommissionSplit[],
+  customers: any[]
+): CommissionSplit | undefined {
+  // מזהי לקוח וסוכן מהמכירה
+  const cid = String(sale.customerId || sale.IDCustomer || '').trim();
+  const agentId = String(sale.AgentId || sale.agentId || '').trim();
+
+  if (!cid || !agentId) return undefined;
+
+  // מחפשים את הלקוח המתאים
+  const customer = customers.find(c =>
+    String(c.IDCustomer || '').trim() === cid &&
+    String(c.AgentId || c.agentId || '').trim() === agentId
+  );
+
+  const sourceUnified = String(
+    (customer?.sourceValue || customer?.sourceLead || '')
+  ).trim();
+
+  if (!sourceUnified) return undefined;
+
+  // מחפשים הסכם פיצול שמוגדר על אותו מקור ליד
+  return commissionSplits.find(
+    split =>
+      String(split.agentId || '').trim() === agentId &&
+      String(split.sourceLeadId || '').trim() === sourceUnified
+  );
+}
+
+
+
+
+
+
 /* ---------- products map ---------- */
 type Product = { productName: string; productGroup: string; isOneTime?: boolean };
 
@@ -119,11 +157,13 @@ export default function CompareReportedVsMagic() {
   const searchParams = useSearchParams();
   const { detail } = useAuth();
   const { agents, selectedAgentId, handleAgentChange } = useFetchAgentData();
+  const agentIdFromUrl = (searchParams.get('agentId') || '').trim();
 
   // UI/filters
   const [company, setCompany] = useState<string>('');
   const [reportMonth, setReportMonth] = useState<string>('');
   const [includeFamily, setIncludeFamily] = useState<boolean>(false);
+  const [splitEnabled, setSplitEnabled] = useState<boolean>(false);
 
   const [availableCompanies, setAvailableCompanies] = useState<string[]>([]);
   const [rows, setRows] = useState<ComparisonRow[]>([]);
@@ -134,6 +174,10 @@ export default function CompareReportedVsMagic() {
   const [statusFilter, setStatusFilter] = useState<Status | ''>('');
   const [drillStatus, setDrillStatus] = useState<Status | null>(null);
 
+    // פיצולי עמלות + לקוחות לצורך מציאת מקור ליד
+    const [commissionSplits, setCommissionSplits] = useState<CommissionSplit[]>([]);
+    const [customersForSplit, setCustomersForSplit] = useState<any[]>([]);
+  
   // ספי סטייה (נשמרים/נטענים עבור הסוכן)
   const [toleranceAmount, setToleranceAmount] = useState<number>(0);
   const [tolerancePercent, setTolerancePercent] = useState<number>(0);
@@ -160,7 +204,8 @@ export default function CompareReportedVsMagic() {
       const agentId = searchParams.get('agentId') || '';
       const customerId = searchParams.get('customerId') || '';
       const fam = includeFamily ? '&family=1' : '';
-      router.push(`/customers?agentId=${agentId}&highlightCustomer=${customerId}${fam}`);
+      const split = splitEnabled ? '&split=1' : '';
+      router.push(`/customers?agentId=${agentId}&highlightCustomer=${customerId}${fam}${split}`);
     }
   };
 
@@ -245,16 +290,27 @@ export default function CompareReportedVsMagic() {
     const comp = searchParams.get('company') || '';
     const repYm = searchParams.get('reportMonth') || '';
     const fam = searchParams.get('family') === '1';
+    const split = searchParams.get('split') === '1';
 
     if (agentId) handleAgentChange({ target: { value: agentId } } as any);
     if (comp) setCompany(comp);
     if (repYm) setReportMonth(repYm);
     if (fam) setIncludeFamily(true);
+    if (split) setSplitEnabled(true);
 
     // אם נעולים ללקוח אך לא על תא משפחתי, הטמע חיפוש לפי ת"ז
     if (lockedCustomerId && !fam) setSearchTerm(lockedCustomerId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (!agents?.length) return;          // אין עדיין סוכנים
+    if (!agentIdFromUrl) return;         // אין agentId ב־URL
+    if (selectedAgentId === agentIdFromUrl) return; // כבר מסונכרן
+  
+    handleAgentChange({ target: { value: agentIdFromUrl } } as any);
+  }, [agents, agentIdFromUrl, selectedAgentId, handleAgentChange]);
+  
 
   /* --- keep URL in sync after hydrate --- */
   useEffect(() => {
@@ -266,8 +322,9 @@ export default function CompareReportedVsMagic() {
       company: company || null,
       reportMonth: reportMonth || null,
       family: includeFamily ? '1' : null,
+      split: splitEnabled ? '1' : null,
     });
-  }, [selectedAgentId, company, reportMonth, includeFamily]); // eslint-disable-line
+  }, [selectedAgentId, company, reportMonth, includeFamily,splitEnabled]); 
 
   /* --- UX: כשעוברים לתא משפחתי ננקה חיפוש שמגביל לת"ז הנעולה --- */
   useEffect(() => {
@@ -275,6 +332,78 @@ export default function CompareReportedVsMagic() {
       setSearchTerm('');
     }
   }, [includeFamily, lockedToCustomer, lockedCustomerId, searchTerm]);
+
+
+  /* --- טעינת הסכמי פיצול עמלות של הסוכן --- */
+  useEffect(() => {
+    if (!selectedAgentId) {
+      setCommissionSplits([]);
+      return;
+    }
+
+    (async () => {
+      try {
+        const qSplits = query(
+          collection(db, 'commissionSplits'),
+          where('agentId', '==', selectedAgentId)
+        );
+        const snap = await getDocs(qSplits);
+        setCommissionSplits(
+          snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }))
+        );
+      } catch {
+        // אפשר להוסיף toast אם תרצי
+      }
+    })();
+  }, [selectedAgentId]);
+  /* --- טעינת לקוחות לצורך פיצול (sourceValue / sourceLead) --- */
+  useEffect(() => {
+    if (!selectedAgentId) {
+      setCustomersForSplit([]);
+      return;
+    }
+
+    (async () => {
+      try {
+        // אם נעולים ללקוח – נטען רק אותו / את התא המשפחתי
+        if (lockedToCustomer && lockedCustomerId) {
+          const ids = includeFamily
+            ? await getFamilyIds(selectedAgentId, lockedCustomerId)
+            : [lockedCustomerId];
+
+          const chunks: string[][] = [];
+          for (let i = 0; i < ids.length; i += 10) {
+            chunks.push(ids.slice(i, i + 10));
+          }
+
+          const out: any[] = [];
+          for (const chunk of chunks) {
+            const qCust = query(
+              collection(db, 'customer'),
+              where('AgentId', '==', selectedAgentId),
+              where('IDCustomer', 'in', chunk as any)
+            );
+            const snap = await getDocs(qCust);
+            snap.docs.forEach(d => out.push(d.data()));
+          }
+          setCustomersForSplit(out);
+          return;
+        }
+
+        // אחרת – כל לקוחות הסוכן (לשימוש כללי במסך)
+        const qAll = query(
+          collection(db, 'customer'),
+          where('AgentId', '==', selectedAgentId)
+        );
+        const snapAll = await getDocs(qAll);
+        setCustomersForSplit(snapAll.docs.map(d => d.data()));
+      } catch {
+        // אפשר להוסיף toast אם תרצי
+      }
+    })();
+  }, [selectedAgentId, lockedToCustomer, lockedCustomerId, includeFamily]);
+
+
 
   /* --- link dialog state --- */
   const [linkOpen, setLinkOpen] = useState<boolean>(false);
@@ -324,7 +453,6 @@ export default function CompareReportedVsMagic() {
     return unique;
   }
 
-  /* ---------- core fetch ---------- */
    /* ---------- core fetch ---------- */
    const fetchData = useCallback(async () => {
     if (!selectedAgentId || !reportMonth) {
@@ -351,7 +479,7 @@ export default function CompareReportedVsMagic() {
     let extRows: ExternalCommissionRow[] = [];
 
     if (scopeCustomerIds) {
-      // מצב תא משפחתי – ננסה קודם עם IN על customerId
+      // מצב תא משפחתי – ננסה קודם עם IN על customerId / IDCustomer
       const fetched = await fetchDocsByFamilyDualFields<ExternalCommissionRow>(
         'policyCommissionSummaries',
         extBase,
@@ -492,13 +620,11 @@ export default function CompareReportedVsMagic() {
     }
 
     /* ------- contracts ------- */
-    // תמיד מביאים את כל ההסכמים של הסוכן – כדי שברירת מחדל לפי קבוצת מוצר תעבוד גם עם סינון חברה
     const contractsSnap = await getDocs(
       query(collection(db, 'contracts'), where('AgentId', '==', selectedAgentId))
     );
     const allContracts = contractsSnap.docs.map(d => d.data() as ContractForCompareCommissions);
 
-    // להסכמים "מדויקים" לפי חברה נשתמש רק למאצ' הראשוני
     const contractsForDirectMatch = company
       ? allContracts.filter(c => canon((c as any).company) === canon(company))
       : allContracts;
@@ -511,7 +637,6 @@ export default function CompareReportedVsMagic() {
 
     const computed: ComparisonRow[] = [];
 
-    // הבטחת מוצר במפה בזמן ריצה (fallback)
     const ensureProductInMap = (productName?: string) => {
       const p = String(productName ?? '').trim();
       if (!p) return;
@@ -525,7 +650,7 @@ export default function CompareReportedVsMagic() {
       const reported = externalByKey.get(key) || null;
       const saleBucket = salesByKey.get(key) || null;
 
-      // אין קובץ – יש מכירה ⇒ not_reported (מחשבים MAGIC)
+      // אין קובץ – יש מכירה ⇒ not_reported (מחשבים MAGIC עם פיצולים)
       if (!reported && saleBucket) {
         let magicAmountSum = 0;
         let productForDisplay: string | undefined;
@@ -545,11 +670,27 @@ export default function CompareReportedVsMagic() {
           const commissions = calculateCommissions(
             sale as any,
             contractMatch,
-            allContracts,      // כאן חשוב – כל ההסכמים, כדי שברירת מחדל תעבוד
+            allContracts,
             productMap,
             selectedAgentId
           );
-          magicAmountSum += Number((commissions as any)?.commissionNifraim ?? 0);
+
+          let magicNifraim = Number((commissions as any)?.commissionNifraim ?? 0);
+
+          if (splitEnabled) {
+            const split = findSplitAgreementForSale(
+              sale,
+              commissionSplits,
+              customersForSplit
+            );
+          
+            if (split) {
+              magicNifraim = Math.round(magicNifraim * (split.percentToAgent / 100));
+            }
+          }
+          
+
+          magicAmountSum += magicNifraim;
 
           if (!productForDisplay) productForDisplay = (sale as any)?.product;
           if (!customerForDisplay) customerForDisplay = (sale as any)?.customerId || (sale as any)?.IDCustomer;
@@ -598,7 +739,7 @@ export default function CompareReportedVsMagic() {
         continue;
       }
 
-      // שני הצדדים קיימים
+      // שני הצדדים קיימים ⇒ מחשבים MAGIC עם פיצולים
       if (reported && saleBucket) {
         let magicAmountSum = 0;
         let productForDisplay: string | undefined;
@@ -618,11 +759,28 @@ export default function CompareReportedVsMagic() {
           const commissions = calculateCommissions(
             sale as any,
             contractMatch,
-            allContracts,      // גם כאן – כל ההסכמים לפולבק
+            allContracts,
             productMap,
             selectedAgentId
           );
-          magicAmountSum += Number((commissions as any)?.commissionNifraim ?? 0);
+
+          let magicNifraim = Number((commissions as any)?.commissionNifraim ?? 0);
+
+          // 🔹 פיצול עמלות (אם קיים)
+          if (splitEnabled) {
+            const split = findSplitAgreementForSale(
+              sale,
+              commissionSplits,
+              customersForSplit
+            );
+          
+            if (split) {
+              magicNifraim = Math.round(magicNifraim * (split.percentToAgent / 100));
+            }
+          }
+          
+
+          magicAmountSum += magicNifraim;
 
           if (!productForDisplay) productForDisplay = (sale as any)?.product;
           if (!customerForDisplay) customerForDisplay = (sale as any)?.customerId || (sale as any)?.IDCustomer;
@@ -634,7 +792,6 @@ export default function CompareReportedVsMagic() {
         const base = reportedAmount === 0 ? 1 : reportedAmount;
         const diffPercent = Math.abs(diff) / base * 100;
 
-        // 🔸 ספי סטייה
         const withinAmount  = Math.abs(diff) <= toleranceAmount;
         const withinPercent = diffPercent <= tolerancePercent;
         const status: Status = (withinAmount || withinPercent) ? 'unchanged' : 'changed';
@@ -668,6 +825,9 @@ export default function CompareReportedVsMagic() {
     lockedCustomerId,
     includeFamily,
     productMap,
+    commissionSplits,
+    customersForSplit,
+    splitEnabled,
   ]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
@@ -858,37 +1018,84 @@ export default function CompareReportedVsMagic() {
       </div>
 
       {/* filters row */}
-      <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 mb-4">
-        <div>
-          <label className="block mb-1 font-semibold">בחר סוכן:</label>
-          <select value={selectedAgentId} onChange={handleAgentChange} className="select-input w-full">
-            {detail?.role === 'admin' && <option value="">בחר סוכן</option>}
-            {agents.map(a => (
-              <option key={a.id} value={a.id}>{a.name}</option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className="block mb-1 font-semibold">בחר חברה (רשות):</label>
-          <select value={company} onChange={e => setCompany(e.target.value)} className="select-input w-full">
-            <option value="">כל החברות</option>
-            {availableCompanies.map((c, i) => <option key={i} value={c}>{c}</option>)}
-          </select>
-        </div>
-        <div>
-          <label className="block mb-1 font-semibold">חודש דיווח (קובץ):</label>
-          <input type="month" value={reportMonth} onChange={e => setReportMonth(e.target.value)} className="input w-full" />
-        </div>
-        <label className="inline-flex items-center gap-2 mt-7">
-          <input
-            type="checkbox"
-            checked={includeFamily}
-            onChange={e => setIncludeFamily(e.target.checked)}
-          />
-          תא משפחתי
-        </label>
-      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-5 gap-3 mb-4 items-end">
+  {/* בחר סוכן */}
+  <div>
+    <label className="block mb-1 font-semibold">בחר סוכן:</label>
+    <select
+      value={selectedAgentId}
+      onChange={handleAgentChange}
+      className="select-input w-full"
+    >
+      {detail?.role === 'admin' && <option value="">בחר סוכן</option>}
+      {agents.map(a => (
+        <option key={a.id} value={a.id}>{a.name}</option>
+      ))}
+    </select>
+  </div>
 
+  {/* בחר חברה */}
+  <div>
+    <label className="block mb-1 font-semibold">בחר חברה (רשות):</label>
+    <select
+      value={company}
+      onChange={e => setCompany(e.target.value)}
+      className="select-input w-full"
+    >
+      <option value="">כל החברות</option>
+      {availableCompanies.map((c, i) => (
+        <option key={i} value={c}>{c}</option>
+      ))}
+    </select>
+  </div>
+
+  {/* חודש דיווח */}
+  <div>
+    <label className="block mb-1 font-semibold">חודש דיווח (קובץ):</label>
+    <input
+      type="month"
+      value={reportMonth}
+      onChange={e => setReportMonth(e.target.value)}
+      className="input w-full"
+    />
+  </div>
+
+  {/* תא משפחתי */}
+  <div className="flex items-center h-full">
+    <label className="inline-flex items-center gap-2">
+      <input
+        type="checkbox"
+        checked={includeFamily}
+        onChange={e => setIncludeFamily(e.target.checked)}
+      />
+      תא משפחתי
+    </label>
+  </div>
+
+  {/* מתג פיצול עמלות */}
+  <div className="flex items-center h-full">
+    <div className="flex bg-blue-100 rounded-full p-0.5 text-xs">
+      <button
+        type="button"
+        onClick={() => setSplitEnabled(false)}
+        className={`px-3 py-0.5 rounded-full transition-all duration-200 ${
+          !splitEnabled ? 'bg-white text-blue-800 font-bold' : 'text-gray-500'
+        }`}
+      >
+        ללא פיצול עמלות
+      </button>
+      <button
+        type="button"
+        onClick={() => setSplitEnabled(true)}
+        className={`px-3 py-0.5 rounded-full transition-all duration-200 ${
+          splitEnabled ? 'bg-white text-blue-800 font-bold' : 'text-gray-500'
+        }`}
+      >
+        עם פיצול עמלות
+      </button>
+    </div>
+  </div>
+</div>
       {/* search / status / export + ספי סטייה */}
       {rows.length > 0 && (
         <div className="flex flex-col sm:flex-row gap-3 mb-4 items-end">

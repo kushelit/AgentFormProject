@@ -37,6 +37,7 @@ export interface Sale {
     mail?: string; 
     address?: string;
     sourceValue?: string; 
+    sourceLead?: string;
     policyNumber?: string;
     cancellationDate?: string;
   }

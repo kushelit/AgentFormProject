@@ -4,4 +4,5 @@ export type CommissionSplit = {
   sourceLeadId: string;
   percentToAgent: number;
   percentToSourceLead: number;
+  splitMode: 'commission' | 'production'; 
 };

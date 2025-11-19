@@ -49,16 +49,22 @@ const NewCustomer = () => {
   const [lastNameCustomerFilter, setlastNameCustomerFilter] = useState('');
   const [filteredData, setFilteredData] = useState<CustomersTypeForFetching[]>([]);
   const [parentFullNameFilter, setParentFullNameFilter] = useState("");
+  const lastAutoCustomerIdRef = React.useRef<string | null>(null);
  // const [customerData, setCustomerData] = useState<any[]>([]);
  const router = useRouter();
 
 // ==== כרטיסון השוואה ללקוח ====
-const [cmpReportMonth, setCmpReportMonth] = useState(new Date().toISOString().slice(0,7));
+const [cmpReportMonth, setCmpReportMonth] = useState(() => {
+  const d = new Date();
+  d.setMonth(d.getMonth() - 1);
+  return d.toISOString().slice(0, 7);
+});
 const [cmpCompany, setCmpCompany] = useState<string>('');
 const [cmpIncludeFamily, setCmpIncludeFamily] = useState<boolean>(false);
 const [cmpLoading, setCmpLoading] = useState<boolean>(false);
 const [cmpMagicSum, setCmpMagicSum] = useState<number>(0);
 const [cmpExternalSum, setCmpExternalSum] = useState<number>(0);
+const [lastReportType, setLastReportType] = useState<"private" | "family" | null>(null);
 
 // דיבאונס לריצות אוטומטיות
 const autoRefreshTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -223,7 +229,7 @@ async function getFamilyIdsForMiniCompare(
         const splits = await fetchSplits(selectedAgentId);
         setCommissionSplits(splits);
       } else {
-        setCommissionSplits([]); // ריק אם אין סוכן
+        setCommissionSplits([]); 
       }
     };
   
@@ -352,6 +358,7 @@ useEffect(() => {
           mail,
           address,
           sourceLead: sourceValue,
+          sourceValue: sourceValue,
           createdAt: serverTimestamp(),
           lastUpdateDate: serverTimestamp()
         });
@@ -579,7 +586,13 @@ useEffect(() => {
           const customerSnapshot = await getDocs(customerQuery);
           const customerData = customerSnapshot.docs[0]?.data();
   
-          const sourceValue = customerData?.sourceValue || '';
+          // const sourceValue = customerData?.sourceValue || '';
+
+          const sourceValue =
+  customerData?.sourceValue ||
+  customerData?.sourceLead ||
+  '';
+
 
           const data: Sale = {
             ...salesData,
@@ -609,6 +622,8 @@ useEffect(() => {
           const commissions = calculateCommissions(data, contractMatch);
 
           if (isCommissionSplitEnabled && sourceValue) {
+            console.log("Checking split for sourceValue:", sourceValue);
+            console.log("Current commission before split:", commissions);
             const splitAgreement = commissionSplits.find(
               (split) =>
                 split.agentId === selectedAgentId &&
@@ -618,6 +633,8 @@ useEffect(() => {
             if (splitAgreement) {
               commissions.commissionHekef = Math.round(commissions.commissionHekef * (splitAgreement.percentToAgent / 100));
               commissions.commissionNifraim = Math.round(commissions.commissionNifraim * (splitAgreement.percentToAgent / 100));
+              console.log("Applied split:", splitAgreement);
+              console.log("Commission after split:", commissions);
             }
           }
 
@@ -636,6 +653,7 @@ useEffect(() => {
       } else {
         setSalesData(salesWithNames);
         setTotalCommissions({ totalCommissionHekef, totalCommissionNifraim });
+        setLastReportType("private");
       }
     } catch (error) {
       // console.error("Error fetching private sales data:", error);
@@ -708,7 +726,13 @@ useEffect(() => {
           let commissions = { ...commissionsRaw };
           
           // 🧠 כאן בודקים האם מופעל פיצול ומהו ערך ה־sourceValue
-          const sourceValue = customerData?.sourceValue || '';
+          // const sourceValue = customerData?.sourceValue || '';
+
+          const sourceValue =
+  customerData?.sourceValue ||
+  customerData?.sourceLead ||
+  '';
+
           
           if (isCommissionSplitEnabled && sourceValue) {
             const splitAgreement = commissionSplits.find(
@@ -738,12 +762,27 @@ useEffect(() => {
       } else {
         setSalesData(salesWithNames);
         setTotalCommissions({ totalCommissionHekef, totalCommissionNifraim });
+        setLastReportType("family");
       }
     } catch (error) {
       // console.error("Error fetching family sales data:", error);
       addToast("error", "כשלון בקבלת נתוני מכירות משפחתיות");
     }
   };
+  
+
+  useEffect(() => {
+    if (!selectedCustomers?.length) return;
+    if (!selectedAgentId) return;
+    if (!lastReportType) return; // עוד לא הופעל דוח
+  
+    if (lastReportType === "private") {
+      fetchPrivateSales();
+    } else if (lastReportType === "family") {
+      fetchFamilySales();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isCommissionSplitEnabled]);
   
 
   // one time update db customer from sales function **
@@ -1019,7 +1058,14 @@ const loadCustomerMiniCompare = async () => {
           custDoc = cs.docs[0]?.data() || null;
           customerCache.set(s.IDCustomer, custDoc);
         }
-        const sourceValue = custDoc?.sourceValue || '';
+        // const sourceValue = custDoc?.sourceValue || '';
+
+        const sourceValue =
+  custDoc?.sourceValue ||
+  custDoc?.sourceLead ||
+  '';
+
+        
 
         // חוזה תואם
         const contractMatch = contracts.find(
@@ -1105,7 +1151,9 @@ const params = new URLSearchParams({
   reportMonth: cmpReportMonth,
 });
 if (cmpCompany) params.set('company', cmpCompany);
-if (cmpIncludeFamily) params.set('family', '1');        // ✅ חדש
+if (cmpIncludeFamily) params.set('family', '1');    
+if (isCommissionSplitEnabled) params.set('split', '1');
+
 
 // returnTo שומר family גם בחזרה
 const currentUrl = typeof window !== 'undefined'
@@ -1115,7 +1163,8 @@ const u = new URL(currentUrl, typeof window !== 'undefined' ? window.location.or
 u.searchParams.set('agentId', selectedAgentId);
 u.searchParams.set('highlightCustomer', selectedCustomers[0].IDCustomer);
 if (cmpCompany) u.searchParams.set('company', cmpCompany);
-if (cmpIncludeFamily) u.searchParams.set('family', '1'); // ✅ חדש
+if (cmpIncludeFamily) u.searchParams.set('family', '1'); 
+if (isCommissionSplitEnabled) u.searchParams.set('split', '1');
 params.set('returnTo', encodeURIComponent(u.pathname + '?' + u.searchParams.toString()));
 
 router.push(`/importCommissionHub/CompareRealToReported?${params.toString()}`);
@@ -1139,13 +1188,13 @@ useEffect(() => {
 }, [familyParam]);
 
 
-useEffect(() => {
-  // ריענון אוטומטי כמו שביקשת – רק אם יש לקוח נבחר
-  if (selectedCustomers?.length) {
-    loadCustomerMiniCompare();
-  }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-}, [cmpReportMonth, cmpCompany, cmpIncludeFamily, selectedAgentId]);
+// useEffect(() => {
+//   // ריענון אוטומטי כמו שביקשת – רק אם יש לקוח נבחר
+//   if (selectedCustomers?.length) {
+//     loadCustomerMiniCompare();
+//   }
+//   // eslint-disable-next-line react-hooks/exhaustive-deps
+// }, [cmpReportMonth, cmpCompany, cmpIncludeFamily, selectedAgentId, isCommissionSplitEnabled, ]);
 
 
 useEffect(() => {
@@ -1230,7 +1279,53 @@ useEffect(() => {
   cmpReportMonth,
   cmpCompany,
   cmpIncludeFamily,
+  isCommissionSplitEnabled, 
 ]);
+
+useEffect(() => {
+  if (!selectedAgentId) return;
+
+  if (!selectedCustomers?.length) {
+    // ניקוי דוח אישי/משפחתי
+    setSalesData(null);
+    setTotalCommissions({ totalCommissionHekef: 0, totalCommissionNifraim: 0 });
+
+    // 🔹 ניקוי הכרטיסון למטה
+    setCmpMagicSum(0);
+    setCmpExternalSum(0);
+    setLastReportType(null);      // אופציונלי – שלא ירוץ שוב אוטומטי
+
+    lastAutoCustomerIdRef.current = null;
+    return;
+  }
+
+  const currentId = selectedCustomers[0].IDCustomer;
+  if (!currentId) return;
+  if (lastAutoCustomerIdRef.current === currentId) return;
+
+  lastAutoCustomerIdRef.current = currentId;
+  fetchPrivateSales();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [selectedCustomers, selectedAgentId]);
+
+
+
+const clearSelection = () => {
+  // מנקה לקוחות נבחרים
+  setSelectedCustomers([]);
+
+  // מנקה דוחות מכירות
+  setSalesData(null);
+  setTotalCommissions({ totalCommissionHekef: 0, totalCommissionNifraim: 0 });
+  lastAutoCustomerIdRef.current = null;
+  setLastReportType(null);
+
+  // מנקה את הכרטיסון הקטן
+  setCmpMagicSum(0);
+  setCmpExternalSum(0);
+  // אם את רוצה גם לאפס את מצב המשפחה:
+   setCmpIncludeFamily(false);
+};
 
 
   return (
@@ -1764,8 +1859,8 @@ useEffect(() => {
         </li>
       ))}
     </ul>
-    <button onClick={() => setSelectedCustomers([])}>נקה בחירה</button>
-  </div>
+    <button onClick={clearSelection}>נקה בחירה</button>
+    </div>
 )}
 </div>
         <TableFooter
@@ -1784,21 +1879,31 @@ useEffect(() => {
         <div className="SecondTable" >
             <div className="left-buttons">
             <Button
-  onClick={fetchPrivateSales}
+  onClick={() => {
+    // דוח אישי = בלי תא משפחתי בכרטיסון
+    setCmpIncludeFamily(false);
+    fetchPrivateSales();
+  }}
   text="הפק דוח אישי"
   type="primary"
   icon="on"
   state={selectedCustomers ? "default" : "disabled"}
   disabled={!selectedCustomers}
 />
+
 <Button
-  onClick={fetchFamilySales}
+  onClick={() => {
+    // דוח משפחתי = כולל תא משפחתי בכרטיסון
+    setCmpIncludeFamily(true);
+    fetchFamilySales();
+  }}
   text="הפק דוח משפחתי"
   type="primary"
   icon="on"
-  state={selectedCustomers  ? "default" : "disabled"}
-  disabled={!selectedCustomers }
+  state={selectedCustomers ? "default" : "disabled"}
+  disabled={!selectedCustomers}
 />
+
 <div dir="rtl" className="flex items-center gap-2 mt-4">
   <div className="flex bg-blue-100 rounded-full p-0.5 text-xs">
     <button
@@ -1899,14 +2004,14 @@ useEffect(() => {
           ))}
         </select>
       </div>
-      <label className="inline-flex items-center gap-2 mb-1">
+      {/* <label className="inline-flex items-center gap-2 mb-1">
         <input
           type="checkbox"
           checked={cmpIncludeFamily}
           onChange={e => setCmpIncludeFamily(e.target.checked)}
         />
         כולל תא משפחתי
-      </label>
+      </label> */}
     </div>
     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4 text-center">
       <div className="p-4 rounded-lg bg-emerald-50 border">

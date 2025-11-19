@@ -64,6 +64,32 @@ const [productMap, setProductMap] = useState<Record<string, Product>>({});
     const [commissionSplits, setCommissionSplits] = useState<CommissionSplit[]>([]);
     const [customers, setCustomers] = useState<CombinedData[]>([]);
 
+    function findSplitAgreementForSale(
+      data: any,
+      commissionSplits: CommissionSplit[],
+      customers: CombinedData[]
+    ): CommissionSplit | undefined {
+    
+      const customer = customers.find(
+        cust => cust.IDCustomer === data.IDCustomer && cust.AgentId === data.AgentId
+      );
+    
+      const sourceValueUnified =
+        customer?.sourceValue ||
+        customer?.sourceLead ||
+        '';
+    
+      if (!sourceValueUnified) return undefined;
+          
+      return commissionSplits.find(
+        split =>
+          split.agentId === data.AgentId &&
+          split.sourceLeadId === sourceValueUnified     
+      );
+    }
+    
+
+
 
     useEffect(() => {
       const fetchAllData = async () => {
@@ -237,8 +263,15 @@ const [productMap, setProductMap] = useState<Record<string, Product>>({});
                         newMonthlyTotals[formattedMonth] = { finansimTotal: 0, pensiaTotal: 0, insuranceTotal: 0, niudPensiaTotal: 0, commissionHekefTotal: 0, commissionNifraimTotal: 0,insuranceTravelTotal: 0, prishaMyaditTotal: 0,
                     };
                 }
-                    updateTotalsForMonth(data, newMonthlyTotals[formattedMonth], data.minuySochen, productMap[data.product]);
-                                
+                    updateTotalsForMonth
+                    (data, newMonthlyTotals[formattedMonth],
+
+                      data.minuySochen,
+                      productMap[data.product],
+                      commissionSplits,
+                      customers,
+                      isCommissionSplitEnabled
+                    );                     
                 });
                 commissionQuerySnapshot.forEach(doc => {
                 const data = doc.data();
@@ -285,23 +318,67 @@ const [productMap, setProductMap] = useState<Record<string, Product>>({});
 
   
 
-    function updateTotalsForMonth(data: any, monthTotals: MonthlyTotal, includeMinuySochen: boolean, product?: Product) {  
-        if (!includeMinuySochen) {
-            const isOneTime = product?.isOneTimeCommission ?? false;
+    // function updateTotalsForMonth(data: any, monthTotals: MonthlyTotal,
+    //    includeMinuySochen: boolean, 
+    //    product?: Product) {  
+    //     if (!includeMinuySochen) {
+    //         const isOneTime = product?.isOneTimeCommission ?? false;
           
-            if (isOneTime) {
-              // נפרדים לקטגוריות חד־פעמיות
-              monthTotals.insuranceTravelTotal = (monthTotals.insuranceTravelTotal || 0) + (parseInt(data.insPremia) || 0);
-              monthTotals.prishaMyaditTotal = (monthTotals.prishaMyaditTotal || 0) + (parseInt(data.pensiaZvira) || 0);
-            } else {
-              // מצטברים רגילים
-              monthTotals.finansimTotal += parseInt(data.finansimZvira) || 0;
-              monthTotals.insuranceTotal += (parseInt(data.insPremia) || 0) * 12;
-              monthTotals.pensiaTotal += (parseInt(data.pensiaPremia) || 0) * 12;
-              monthTotals.niudPensiaTotal += parseInt(data.pensiaZvira) || 0;
-            }
+    //         if (isOneTime) {
+    //           // נפרדים לקטגוריות חד־פעמיות
+    //           monthTotals.insuranceTravelTotal = (monthTotals.insuranceTravelTotal || 0) + (parseInt(data.insPremia) || 0);
+    //           monthTotals.prishaMyaditTotal = (monthTotals.prishaMyaditTotal || 0) + (parseInt(data.pensiaZvira) || 0);
+    //         } else {
+    //           // מצטברים רגילים
+    //           monthTotals.finansimTotal += parseInt(data.finansimZvira) || 0;
+    //           monthTotals.insuranceTotal += (parseInt(data.insPremia) || 0) * 12;
+    //           monthTotals.pensiaTotal += (parseInt(data.pensiaPremia) || 0) * 12;
+    //           monthTotals.niudPensiaTotal += parseInt(data.pensiaZvira) || 0;
+    //         }
+    //       }
+    //     }
+
+
+    function updateTotalsForMonth(
+      data: any,
+      monthTotals: MonthlyTotal,
+      includeMinuySochen: boolean,
+      product: Product | undefined,
+      commissionSplits: CommissionSplit[],
+      customers: CombinedData[],
+      isCommissionSplitEnabled: boolean
+    ) {
+      if (!includeMinuySochen) {
+        const isOneTime = product?.isOneTimeCommission ?? false;
+    
+        // ברירת מחדל – אין פיצול
+        let productionFactor = 1;
+    
+        if (isCommissionSplitEnabled) {
+          const splitAgreement = findSplitAgreementForSale(data, commissionSplits, customers);
+          if (splitAgreement && splitAgreement.splitMode === 'production') {
+            productionFactor = (splitAgreement.percentToAgent ?? 100) / 100;
           }
         }
+    
+        if (isOneTime) {
+          // חד-פעמי – נפרדים לקטגוריות (נסיעות / פרישה)
+          monthTotals.insuranceTravelTotal =
+            (monthTotals.insuranceTravelTotal || 0) +
+            ((parseInt(data.insPremia) || 0) * productionFactor);
+          monthTotals.prishaMyaditTotal =
+            (monthTotals.prishaMyaditTotal || 0) +
+            ((parseInt(data.pensiaZvira) || 0) * productionFactor);
+        } else {
+          // מצטברים רגילים – אבל רק חלק הסוכן אם פיצול תפוקה
+          monthTotals.finansimTotal += (parseInt(data.finansimZvira) || 0) * productionFactor;
+          monthTotals.insuranceTotal += ((parseInt(data.insPremia) || 0) * 12) * productionFactor;
+          monthTotals.pensiaTotal += ((parseInt(data.pensiaPremia) || 0) * 12) * productionFactor;
+          monthTotals.niudPensiaTotal += (parseInt(data.pensiaZvira) || 0) * productionFactor;
+        }
+      }
+    }
+    
 
     function updateCommissions(data: any, monthTotals: MonthlyTotal, 
        product: Product | undefined,
@@ -338,83 +415,156 @@ const [productMap, setProductMap] = useState<Record<string, Product>>({});
         }
     }
 
-    function calculateCommissions(monthTotals: MonthlyTotal, 
-      data: any, 
-      contract: Contract,
-       product: Product | undefined, 
-      companyCommissions: Record<string, number>,
-      commissionSplits: CommissionSplit[],
-      customers: CombinedData[], // ✅ חדש
-      isCommissionSplitEnabled: boolean // ✅ FLAG
-    ) 
-    {
-      // console.log("📌 calculateCommissions called for", data.IDCustomer);
-      // console.log("✅ isCommissionSplitEnabled:", isCommissionSplitEnabled);
+//     function calculateCommissions(monthTotals: MonthlyTotal, 
+//       data: any, 
+//       contract: Contract,
+//        product: Product | undefined, 
+//       companyCommissions: Record<string, number>,
+//       commissionSplits: CommissionSplit[],
+//       customers: CombinedData[], // ✅ חדש
+//       isCommissionSplitEnabled: boolean // ✅ FLAG
+//     ) 
+//     {
+//       // console.log("📌 calculateCommissions called for", data.IDCustomer);
+//       // console.log("✅ isCommissionSplitEnabled:", isCommissionSplitEnabled);
       
-        const isOneTime = product?.isOneTimeCommission ?? false;
-        const multiplier = isOneTime ? 1 : 12;
+//         const isOneTime = product?.isOneTimeCommission ?? false;
+//         const multiplier = isOneTime ? 1 : 12;
 
 
-        let  hekef = ((parseInt(data.insPremia) || 0) * contract.commissionHekef / 100 * multiplier) + 
-                     ((parseInt(data.pensiaPremia) || 0) * contract.commissionHekef / 100 * multiplier) + 
-                     ((parseInt(data.pensiaZvira) || 0) * contract.commissionNiud / 100) + 
-                     ((parseInt(data.finansimPremia) || 0) * contract.commissionHekef / 100 * multiplier) + 
-                     ((parseInt(data.finansimZvira) || 0) * contract.commissionNiud / 100);
+//         let  hekef = ((parseInt(data.insPremia) || 0) * contract.commissionHekef / 100 * multiplier) + 
+//                      ((parseInt(data.pensiaPremia) || 0) * contract.commissionHekef / 100 * multiplier) + 
+//                      ((parseInt(data.pensiaZvira) || 0) * contract.commissionNiud / 100) + 
+//                      ((parseInt(data.finansimPremia) || 0) * contract.commissionHekef / 100 * multiplier) + 
+//                      ((parseInt(data.finansimZvira) || 0) * contract.commissionNiud / 100);
     
       
-  // 🛑 אם מדובר במוצר חד-פעמי, נוותר על חישוב נפרעים
-  let  nifraim = isOneTime ? 0 : (
-    ((parseInt(data.insPremia) || 0) * contract.commissionNifraim / 100) +
-    ((parseInt(data.pensiaPremia) || 0) * contract.commissionNifraim / 100) +
-    ((parseInt(data.finansimZvira) || 0) * contract.commissionNifraim / 100 / 12)
-  );
-  // 🟢 בדיקת פיצול עמלות רק אם הופעל הדגל
-if (isCommissionSplitEnabled) {
-  // console.log("🔁 בדיקת פיצול הופעלה עבור לקוח:", data.IDCustomer, "וסוכן:", data.AgentId);
+//   // 🛑 אם מדובר במוצר חד-פעמי, נוותר על חישוב נפרעים
+//   let  nifraim = isOneTime ? 0 : (
+//     ((parseInt(data.insPremia) || 0) * contract.commissionNifraim / 100) +
+//     ((parseInt(data.pensiaPremia) || 0) * contract.commissionNifraim / 100) +
+//     ((parseInt(data.finansimZvira) || 0) * contract.commissionNifraim / 100 / 12)
+//   );
+//   // 🟢 בדיקת פיצול עמלות רק אם הופעל הדגל
+// if (isCommissionSplitEnabled) {
+//   // console.log("🔁 בדיקת פיצול הופעלה עבור לקוח:", data.IDCustomer, "וסוכן:", data.AgentId);
 
-  const customer = customers.find(
-    cust => cust.IDCustomer === data.IDCustomer && cust.AgentId === data.AgentId
-  );
+//   const customer = customers.find(
+//     cust => cust.IDCustomer === data.IDCustomer && cust.AgentId === data.AgentId
+//   );
 
-  // console.log("🧍‍♂️ לקוח שנמצא:", customer);
+//   // console.log("🧍‍♂️ לקוח שנמצא:", customer);
 
-  if (customer?.sourceValue) {
-    // console.log("📌 sourceValue שנמצא:", customer.sourceValue);
+//   if (customer?.sourceValue) {
+//      console.log("📌 sourceValue שנמצא:", customer.sourceValue);
 
-    const splitAgreement = commissionSplits.find(
-      split => split.agentId === data.AgentId && split.sourceLeadId === customer.sourceValue
+//     const splitAgreement = commissionSplits.find(
+//       split => split.agentId === data.AgentId && split.sourceLeadId === customer.sourceValue
 
-    );
+//     );
 
-    // console.log("📄 הסכם פיצול שנמצא:", splitAgreement);
+//      console.log("📄 הסכם פיצול שנמצא:", splitAgreement);
 
+//     if (splitAgreement) {
+//       const percentToAgent = splitAgreement.percentToAgent;
+//        console.log(`💰 אחוז לסוכן לפי הסכם הפיצול: ${percentToAgent}%`);
+
+//       hekef *= (percentToAgent / 100);
+//       nifraim *= (percentToAgent / 100);
+
+//        console.log("✅ עמלה לאחר פיצול - היקף:", hekef, "| נפרעים:", nifraim);
+//     } else {
+//        console.log("⚠️ לא נמצא הסכם פיצול ל-sourceLead:", customer.sourceValue);
+//     }
+//   } else {
+//      console.log("🚫 ללקוח אין sourceValue – אין פיצול");
+//   }
+// }
+
+
+//         monthTotals.commissionHekefTotal += Math.round(hekef);
+//         monthTotals.commissionNifraimTotal += Math.round(nifraim);
+
+//   // Update company-specific commissions
+//   if (data.company) {
+//     companyCommissions[data.company] = (companyCommissions[data.company] || 0) + Math.round(hekef);
+//   //  console.log("companyCommissions[data.company]: " + companyCommissions[data.company]);
+//   }
+
+//     }
+
+function calculateCommissions(
+  monthTotals: MonthlyTotal, 
+  data: any, 
+  contract: Contract,
+  product: Product | undefined, 
+  companyCommissions: Record<string, number>,
+  commissionSplits: CommissionSplit[],
+  customers: CombinedData[],
+  isCommissionSplitEnabled: boolean
+) {
+  const isOneTime = product?.isOneTimeCommission ?? false;
+  const multiplier = isOneTime ? 1 : 12;
+
+  let productionFactor = 1;
+  let commissionFactor = 1;
+
+  let splitMode: 'commission' | 'production' | null = null;
+
+  if (isCommissionSplitEnabled) {
+    const splitAgreement = findSplitAgreementForSale(data, commissionSplits, customers);
     if (splitAgreement) {
-      const percentToAgent = splitAgreement.percentToAgent;
-      // console.log(`💰 אחוז לסוכן לפי הסכם הפיצול: ${percentToAgent}%`);
+      splitMode = splitAgreement.splitMode || 'commission';
+      const percentToAgent = (splitAgreement.percentToAgent ?? 100) / 100;
 
-      hekef *= (percentToAgent / 100);
-      nifraim *= (percentToAgent / 100);
-
-      // console.log("✅ עמלה לאחר פיצול - היקף:", hekef, "| נפרעים:", nifraim);
-    } else {
-      // console.log("⚠️ לא נמצא הסכם פיצול ל-sourceLead:", customer.sourceValue);
+      if (splitMode === 'production') {
+        // פיצול תפוקות – גם התפוקה וגם העמלה הן חלק יחסי, אבל העמלה תיגזר מהתפוקה כבר
+        productionFactor = percentToAgent;
+        commissionFactor = 1; // העמלה כבר על התפוקה היחסית
+      } else {
+        // פיצול עמלות – התפוקה נשארת מלאה, רק העמלה נחתכת
+        productionFactor = 1;
+        commissionFactor = percentToAgent;
+      }
     }
-  } else {
-    // console.log("🚫 ללקוח אין sourceValue – אין פיצול");
+  }
+
+  // בסיסי החישוב – אחרי פיצול תפוקה (אם קיים)
+  const insPremia = (parseInt(data.insPremia) || 0) * productionFactor;
+  const pensiaPremia = (parseInt(data.pensiaPremia) || 0) * productionFactor;
+  const pensiaZvira = (parseInt(data.pensiaZvira) || 0) * productionFactor;
+  const finansimPremia = (parseInt(data.finansimPremia) || 0) * productionFactor;
+  const finansimZvira = (parseInt(data.finansimZvira) || 0) * productionFactor;
+
+  let hekef =
+    (insPremia * contract.commissionHekef / 100 * multiplier) +
+    (pensiaPremia * contract.commissionHekef / 100 * multiplier) +
+    (pensiaZvira * contract.commissionNiud / 100) +
+    (finansimPremia * contract.commissionHekef / 100 * multiplier) +
+    (finansimZvira * contract.commissionNiud / 100);
+
+  let nifraim = 0;
+
+  if (!isOneTime) {
+    nifraim =
+      (insPremia * contract.commissionNifraim / 100) +
+      (pensiaPremia * contract.commissionNifraim / 100) +
+      (finansimZvira * contract.commissionNifraim / 100 / 12);
+  }
+
+  // פיצול עמלות – אם רלוונטי
+  hekef *= commissionFactor;
+  nifraim *= commissionFactor;
+
+  monthTotals.commissionHekefTotal += Math.round(hekef);
+  monthTotals.commissionNifraimTotal += Math.round(nifraim);
+
+  if (data.company) {
+    companyCommissions[data.company] =
+      (companyCommissions[data.company] || 0) + Math.round(hekef);
   }
 }
 
-
-        monthTotals.commissionHekefTotal += Math.round(hekef);
-        monthTotals.commissionNifraimTotal += Math.round(nifraim);
-
-  // Update company-specific commissions
-  if (data.company) {
-    companyCommissions[data.company] = (companyCommissions[data.company] || 0) + Math.round(hekef);
-  //  console.log("companyCommissions[data.company]: " + companyCommissions[data.company]);
-  }
-
-    }
 
     function aggregateOverallTotals(monthlyTotals: MonthlyTotals) {
         let totals: MonthlyTotal = {

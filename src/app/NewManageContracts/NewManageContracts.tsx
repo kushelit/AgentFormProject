@@ -48,7 +48,8 @@ import { fetchSplits } from '@/services/splitsService';
   const [minuySochen2, setMinuySochen2] = useState(false);
 
   const { toasts, addToast, setToasts } = useToast();
-  
+  const [splitMode, setSplitMode] = useState<'commission' | 'production'>('commission');
+
 
   const { 
     agents, 
@@ -420,36 +421,21 @@ const [isModalOpenAgent, setIsModalOpenAgent] =  useState(false);
   const handleSubmitSplitForm = async (e: any) => {
     e.preventDefault();
     if (!selectedAgentId || !selectedSourceLeadId) return;
+  
     await addDoc(collection(db, 'commissionSplits'), {
       agentId: selectedAgentId,
       sourceLeadId: selectedSourceLeadId,
       percentToAgent: Number(percentToAgent),
       percentToSourceLead: Number(percentToSourceLead),
+      splitMode, // 🔴 נשמר את סוג ההסכם
     });
-    
+  
     resetFormSplit(); 
     setIsModalOpenSplit(false);
     reloadCommissionSplits(selectedAgentId);
-    // fetchSplits();
   };
   
-
   
-  // const fetchSplits = async (): Promise<CommissionSplit[]> => {
-  //   if (!selectedAgentId) return [];
-  //   const q = query(collection(db, 'commissionSplits'), where('agentId', '==', selectedAgentId));
-  //   try {
-  //     const snapshot = await getDocs(q);
-  //     return snapshot.docs.map(doc => ({
-  //       id: doc.id,
-  //       ...doc.data(),
-  //     })) as CommissionSplit[];
-  //   } catch (error) {
-  //     console.error('שגיאה בשליפת פיצולים:', error);
-  //     addToast("error", "שגיאה בשליפת פיצולים");
-  //     return [];
-  //   }
-  // };
   
   
   useEffect(() => {
@@ -1137,6 +1123,7 @@ return (
             <th>מקור ליד</th>
             <th>אחוז לסוכן</th>
             <th>אחוז למקור ליד</th>
+            <th>סוג הסכם</th>
             <th>פעולות</th>
           </tr>
         </thead>
@@ -1193,7 +1180,21 @@ return (
             `${item.percentToSourceLead}%`
           )}
         </td>
-
+        <td>
+          {editingRowCommissionSplit === item.id ? (
+            <select
+              value={editCommissionSplitData.splitMode || 'commission'}
+              onChange={(e) =>
+                handleEditCommissionSplitChange("splitMode", e.target.value as 'commission' | 'production')
+              }
+            >
+              <option value="commission">פיצול עמלות</option>
+              <option value="production">פיצול תפוקות</option>
+            </select>
+          ) : (
+            item.splitMode === 'production' ? 'פיצול תפוקות' : 'פיצול עמלות'
+          )}
+        </td>
         {/* פעולות */}
         <td>
           <MenuWrapper
@@ -1250,6 +1251,17 @@ return (
                 onChange={(e) => setPercentToSourceLead(e.target.value)}
               />
             </div>
+                 {/* בתוך המודל של הוספת הסכם פיצול */}
+<div className="form-group">
+  <label>סוג הסכם</label>
+  <select
+    value={splitMode}
+    onChange={(e) => setSplitMode(e.target.value as 'commission' | 'production')}
+  >
+    <option value="commission">פיצול עמלות</option>
+    <option value="production">פיצול תפוקות</option>
+  </select>
+</div>
             <div className="button-group">
               <Button
                 onClick={handleSubmitSplitForm}
