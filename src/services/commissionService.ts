@@ -17,6 +17,7 @@ export async function fetchCommissionSplits(agentId: string): Promise<Commission
   return snapshot.docs.map(doc => mapSplit(doc.id, doc.data()));
 }
 
+
 function mapSplit(id: string, data: any): CommissionSplit {
   return {
     id,
@@ -24,6 +25,7 @@ function mapSplit(id: string, data: any): CommissionSplit {
     sourceLeadId: data.sourceLeadId,
     percentToAgent: data.percentToAgent,
     percentToSourceLead: data.percentToSourceLead,
+    splitMode:data.splitMode
   };
 }
 
