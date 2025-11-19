@@ -20,6 +20,7 @@ function mapSplit(id: string, data: any): CommissionSplit {
     sourceLeadId: data.sourceLeadId,
     percentToAgent: data.percentToAgent,
     percentToSourceLead: data.percentToSourceLead,
+    splitMode: (data.splitMode as 'commission' | 'production') ?? 'commission',
   };
 }
 

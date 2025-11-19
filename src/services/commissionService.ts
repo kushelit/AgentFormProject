@@ -11,12 +11,14 @@ import type { Product } from '@/types/Product';
 ---------------------------------------------------*/
 
 export async function fetchCommissionSplits(agentId: string): Promise<CommissionSplit[]> {
-  const q = query(collection(db, 'commissionSplits'), where('agentId', '==', agentId));
+  const q = query(
+    collection(db, 'commissionSplits'),
+    where('agentId', '==', agentId)
+  );
   const snapshot = await getDocs(q);
 
   return snapshot.docs.map(doc => mapSplit(doc.id, doc.data()));
 }
-
 
 function mapSplit(id: string, data: any): CommissionSplit {
   return {
@@ -25,7 +27,8 @@ function mapSplit(id: string, data: any): CommissionSplit {
     sourceLeadId: data.sourceLeadId,
     percentToAgent: data.percentToAgent,
     percentToSourceLead: data.percentToSourceLead,
-    splitMode:data.splitMode
+    // ברירת מחדל כדי ש-TypeScript יהיה מרוצה גם אם השדה לא קיים במסד
+    splitMode: (data.splitMode as 'commission' | 'production') ?? 'commission',
   };
 }
 
@@ -53,8 +56,6 @@ export async function fetchProductMap(): Promise<Record<string, Product>> {
 
   return map;
 }
-
-
 
 /**
  * שולף את כל החוזים ואת מפת המוצרים (לפי productName)
