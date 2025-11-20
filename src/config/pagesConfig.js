@@ -33,6 +33,7 @@ const pages = [
     label: 'ניהול אדמין',
     onlyRoles: ['admin'],     submenu: [
       { href: '/Log', label: 'לוג מערכת' },
+      { href: '/admin/reports/commission-summary-matrix', label: 'דף מסכם עמלות- אדמין' },
       { href: '/ManageSimulation', label: 'ניהול סימולטור' },
       { href: '/RequestStatus', label: 'סטאטוס API' },
       { href: '/ManagePoolAgents', label: 'ניהול פול ליד' },

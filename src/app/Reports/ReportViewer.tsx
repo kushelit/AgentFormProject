@@ -10,15 +10,12 @@ import useFetchMD from '@/hooks/useMD';
 import Select from 'react-select';
 import { db } from '@/lib/firebase/firebase';
 import { collection, getDocs, query, where } from 'firebase/firestore';
-// import { Product } from '@/types';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import { registerLocale } from 'react-datepicker';
-import { he } from 'date-fns/locale/he'; // ✅ נכון
-
+import { he } from 'date-fns/locale/he';
 
 registerLocale('he', he);
-
 
 interface ReportProductGroup {
   reportType: string;
@@ -27,18 +24,59 @@ interface ReportProductGroup {
 
 const REPORTS = [
   { value: 'insurancePremiumReport', label: 'דוח פרמיית ביטוח ללקוח' },
-  { value: 'clientPoliciesReport', label: 'דוח עסקאות לתקופה' }, 
+  { value: 'clientPoliciesReport', label: 'דוח עסקאות לתקופה' },
   { value: 'clientNifraimSummaryReport', label: 'דוח נפרעים לפי לקוח' },
   { value: 'clientFinancialAccumulationReport', label: 'דוח צבירה פיננסית ללקוח' },
   { value: 'clientNifraimReportedVsMagic', label: 'דוח נפרעים ללקוח – קובץ מול MagicSale' },
-
+  { value: 'commissionSummaryMultiYear', label: 'דוח נפרעים מסוכם - מטעינת קבצים' },
 ];
 
-const REPORTS_WITH_SPLIT = new Set([
-  'clientNifraimSummaryReport',
-  'clientNifraimReportedVsMagic',
-]);
-
+const REPORT_UI_RULES: Record<
+  string,
+  {
+    showProducts: boolean;
+    showStatus: boolean;
+    showMinuySochen: boolean;
+    showCompanies: boolean;
+    showPitzul: boolean;
+  }
+> = {
+  insurancePremiumReport: {
+    showProducts: true,
+    showStatus: true,
+    showMinuySochen: true,
+    showCompanies: true,
+    showPitzul: false,
+  },
+  clientPoliciesReport: {
+    showProducts: true,
+    showStatus: true,
+    showMinuySochen: true,
+    showCompanies: true,
+    showPitzul: false,
+  },
+  clientNifraimSummaryReport: {
+    showProducts: true,
+    showStatus: true,
+    showMinuySochen: true,
+    showCompanies: true,
+    showPitzul: true,
+  },
+  clientNifraimReportedVsMagic: {
+    showProducts: true,
+    showStatus: true,
+    showMinuySochen: true,
+    showCompanies: true,
+    showPitzul: true,
+  },
+  commissionSummaryMultiYear: {
+    showProducts: false,
+    showStatus: false,
+    showMinuySochen: false,
+    showCompanies: true,
+    showPitzul: false,
+  },
+};
 
 const ReportsPage: React.FC = () => {
   const { user, detail } = useAuth();
@@ -49,45 +87,58 @@ const ReportsPage: React.FC = () => {
     handleAgentChange,
     selectedAgentName,
     companies,
-    selectedCompanyFilter,
-    setSelectedCompanyFilter,
   } = useFetchAgentData();
 
-  const { products, productToGroupMap, productGroupMap, statusPolicies
-  } = useFetchMD();
+  const { products, statusPolicies } = useFetchMD();
 
   const DEFAULT_STATUS = ['פעילה', 'הצעה'];
-  const [selectedStatusPolicyFilter, setSelectedStatusPolicyFilter] = useState<string[]>(DEFAULT_STATUS);
+  const [selectedStatusPolicyFilter, setSelectedStatusPolicyFilter] =
+    useState<string[]>(DEFAULT_STATUS);
   const [minuySochenFilter, setMinuySochenFilter] = useState<string | null>(null);
-
 
   const [reportType, setReportType] = useState(REPORTS[0].value);
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
-  const [selectedProducts, setSelectedProducts] = useState<{ value: string; label: string }[]>([]);
+  const [selectedProducts, setSelectedProducts] = useState<
+    { value: string; label: string }[]
+  >([]);
   const [emailTo, setEmailTo] = useState(user?.email || '');
   const [loading, setLoading] = useState(false);
-  const [reportProductGroups, setReportProductGroups] = useState<Record<string, string[]>>({});
-  const [selectedCompanies, setSelectedCompanies] = useState<{ value: string; label: string }[]>([]);
+  const [reportProductGroups, setReportProductGroups] = useState<
+    Record<string, string[]>
+  >({});
+  const [selectedCompanies, setSelectedCompanies] = useState<
+    { value: string; label: string }[]
+  >([]);
   const [applyCommissionSplit, setApplyCommissionSplit] = useState(false);
 
   const minuySochenOptions = [
     { value: 'true', label: 'כן' },
     { value: 'false', label: 'לא' },
   ];
-  
+
+  const rules =
+    REPORT_UI_RULES[reportType] ?? {
+      showProducts: true,
+      showStatus: true,
+      showMinuySochen: true,
+      showCompanies: true,
+      showPitzul: false,
+    };
 
   useEffect(() => {
-    if (!REPORTS_WITH_SPLIT.has(reportType)) {
+    // אם עוברים לדוח שלא תומך בפיצול – ננקה את הדגל
+    if (!rules.showPitzul) {
       setApplyCommissionSplit(false);
     }
-  }, [reportType]);
-  
-
+  }, [reportType]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const fetchReportGroups = async () => {
-      const q = query(collection(db, 'reportProductGroups'), where('isActive', '==', true));
+      const q = query(
+        collection(db, 'reportProductGroups'),
+        where('isActive', '==', true)
+      );
       const snapshot = await getDocs(q);
 
       const mapping: Record<string, string[]> = {};
@@ -109,17 +160,36 @@ const ReportsPage: React.FC = () => {
     const allowedGroups = reportProductGroups?.[reportType] ?? [];
     return allowedGroups.includes(String(groupId));
   });
-  
+
   const productOptions = filteredProducts.map((product) => ({
     value: product.name,
     label: product.name,
   }));
 
   const handleSendReport = async () => {
+    // ולידציה בסיסית לפני שליחה
+    if (!emailTo) {
+      addToast('error', 'נדרש למלא כתובת מייל למשלוח הדוח');
+      return;
+    }
+
+    // ולידציה ייחודית לדוח הרב־שנתי
+    if (reportType === 'commissionSummaryMultiYear') {
+      if (!selectedAgentId || selectedAgentId === 'all') {
+        addToast('error', 'בדוח זה יש לבחור סוכן יחיד (לא כל הסוכנות)');
+        return;
+      }
+      if (!fromDate || !toDate) {
+        addToast('error', 'נדרש לבחור טווח תאריכים (מתאריך ועד תאריך)');
+        return;
+      }
+    }
+
     setLoading(true);
     try {
       const clean = (val: any) => (val === '' ? undefined : val);
-  
+      const isMultiYear = reportType === 'commissionSummaryMultiYear';
+
       const payload = {
         reportType,
         fromDate,
@@ -128,48 +198,61 @@ const ReportsPage: React.FC = () => {
         uid: user?.uid,
         agentId: clean(selectedAgentId),
         agentName: clean(selectedAgentName),
-        company: selectedCompanies.length > 0 ? selectedCompanies.map(c => c.value) : undefined,
-        product: selectedProducts.length > 0 ? selectedProducts.map(p => p.value) : undefined,
+        company:
+          selectedCompanies.length > 0
+            ? selectedCompanies.map((c) => c.value)
+            : undefined,
+        product:
+          !isMultiYear && rules.showProducts && selectedProducts.length > 0
+            ? selectedProducts.map((p) => p.value)
+            : undefined,
         statusPolicy:
-          selectedStatusPolicyFilter.length > 0 ? selectedStatusPolicyFilter : undefined,
+          !isMultiYear && rules.showStatus && selectedStatusPolicyFilter.length > 0
+            ? selectedStatusPolicyFilter
+            : undefined,
         minuySochen:
-          minuySochenFilter !== null ? minuySochenFilter === 'true' : undefined,
-          applyCommissionSplit: REPORTS_WITH_SPLIT.has(reportType)
+          !isMultiYear && rules.showMinuySochen && minuySochenFilter !== null
+            ? minuySochenFilter === 'true'
+            : undefined,
+        applyCommissionSplit: rules.showPitzul
           ? applyCommissionSplit
           : undefined,
       };
-  
+
       const res = await fetch('/api/sendReport', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
-  
+
       if (!res.ok) {
         let msg = 'שגיאה בשליחת הדוח';
         try {
           const j = await res.json();
           if (j?.error) msg = j.error;
-        } catch {/* ignore */}
+        } catch {
+          /* ignore */
+        }
         addToast('error', msg);
         return;
       }
-  
+
       addToast('success', `הדוח נשלח בהצלחה לכתובת ${payload.emailTo}`);
     } catch (err) {
-      // console.error(err);
       addToast('error', 'שגיאה בשליחת הדוח');
     } finally {
       setLoading(false);
     }
   };
-  
 
   return (
     <div className="p-6 max-w-4xl mx-auto text-right">
       <h2 className="text-2xl font-bold mb-4">דוחות</h2>
-      <p className="text-gray-600 mb-6">בחר את סוג הדוח, טווח התאריכים, סוכן, חברה ומוצר</p>
+      <p className="text-gray-600 mb-6">
+        בחר את סוג הדוח, טווח התאריכים, סוכן, חברה ומוצר
+      </p>
 
+      {/* בחירת דוח */}
       <div className="mb-4">
         <label className="block font-semibold mb-1">בחר דוח:</label>
         <select
@@ -178,134 +261,171 @@ const ReportsPage: React.FC = () => {
           className="select-input w-full"
         >
           {REPORTS.map((report) => (
-            <option key={report.value} value={report.value}>{report.label}</option>
+            <option key={report.value} value={report.value}>
+              {report.label}
+            </option>
           ))}
         </select>
       </div>
 
-      {/* <div className="mb-4">
-        <label className="block font-semibold mb-1">טווח תאריכים:</label>
-        <div className="flex gap-2">
-          <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="input w-full" />
-          <input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="input w-full" />
-        </div>
-      </div> */}
+      {/* טווח תאריכים */}
       <div className="mb-4">
-  <label className="block font-semibold mb-1">טווח תאריכי חודש תפוקה:</label>
-  <div className="flex gap-2">
-    <DatePicker
-      selected={fromDate ? new Date(fromDate) : null}
-      onChange={(date: Date | null) =>
-        setFromDate(date ? date.toISOString().split('T')[0] : '')
-      }
-      placeholderText="מתאריך"
-      className="input w-full"
-      locale="he"
-      dateFormat="dd/MM/yyyy"
-      isClearable
-    />
-    <DatePicker
-      selected={toDate ? new Date(toDate) : null}
-      onChange={(date: Date | null) =>
-        setToDate(date ? date.toISOString().split('T')[0] : '')
-      }
-      placeholderText="עד תאריך"
-      className="input w-full"
-      locale="he"
-      dateFormat="dd/MM/yyyy"
-      isClearable
-    />
-  </div>
-</div>
+        <label className="block font-semibold mb-1">טווח תאריכי חודש תפוקה:</label>
+        <div className="flex gap-2">
+          <DatePicker
+            selected={fromDate ? new Date(fromDate) : null}
+            onChange={(date: Date | null) =>
+              setFromDate(date ? date.toISOString().split('T')[0] : '')
+            }
+            placeholderText="מתאריך"
+            className="input w-full"
+            locale="he"
+            dateFormat="dd/MM/yyyy"
+            isClearable
+          />
+          <DatePicker
+            selected={toDate ? new Date(toDate) : null}
+            onChange={(date: Date | null) =>
+              setToDate(date ? date.toISOString().split('T')[0] : '')
+            }
+            placeholderText="עד תאריך"
+            className="input w-full"
+            locale="he"
+            dateFormat="dd/MM/yyyy"
+            isClearable
+          />
+        </div>
+      </div>
+
+      {/* סוכן */}
       <div className="mb-4">
         <label className="block font-semibold mb-1">בחר סוכן:</label>
-        <select onChange={handleAgentChange} value={selectedAgentId} className="select-input w-full">
+        <select
+          onChange={handleAgentChange}
+          value={selectedAgentId}
+          className="select-input w-full"
+        >
           {detail?.role === 'admin' && <option value="">בחר סוכן</option>}
           {detail?.role === 'admin' && <option value="all">כל הסוכנות</option>}
-          {agents.map(agent => (
-            <option key={agent.id} value={agent.id}>{agent.name}</option>
+          {agents.map((agent) => (
+            <option key={agent.id} value={agent.id}>
+              {agent.name}
+            </option>
           ))}
         </select>
       </div>
-      <div className="mb-4">
-  <label className="block font-semibold mb-1">בחר חברות:</label>
-  <Select
-    isMulti
-    options={companies.map(name => ({ value: name, label: name }))}
-    value={selectedCompanies}
-    onChange={(selected) => setSelectedCompanies(selected as any)}
-    placeholder="בחר חברות"
-    className="basic-multi-select"
-    classNamePrefix="select"
-  />
-</div>
-      <div className="mb-4">
-        <label className="block font-semibold mb-1">בחר מוצר:</label>
-        <Select
-          isMulti
-          options={productOptions}
-          value={selectedProducts}
-          onChange={(selected) => setSelectedProducts(selected as any)}
-          placeholder="בחר מוצר"
-          className="basic-multi-select"
-          classNamePrefix="select"
-        />
-      </div>
-      <div className="mb-4">
-  <label className="block font-semibold mb-1">סטאטוס פוליסה:</label>
-  <Select
-    isMulti
-    options={statusPolicies.map((status) => ({ value: status, label: status }))}
-    value={selectedStatusPolicyFilter.map((status) => ({ value: status, label: status }))}
-    onChange={(selectedOptions) =>
-      setSelectedStatusPolicyFilter(selectedOptions.map((opt) => opt.value))
-    }
-    placeholder="בחר סטאטוס"
-    className="basic-multi-select"
-    classNamePrefix="select"
-  />
-</div>
-<div className="mb-4">
-  <label className="block font-semibold mb-1">מינוי סוכן:</label>
-  <Select
-    isClearable
-    options={minuySochenOptions}
-    value={minuySochenOptions.find(opt => opt.value === minuySochenFilter) || null}
-    onChange={(selectedOption) => setMinuySochenFilter(selectedOption ? selectedOption.value : null)}
-    placeholder="בחר מינוי סוכן"
-    className="basic-single-select"
-    classNamePrefix="select"
-  />
-</div>
-{REPORTS_WITH_SPLIT.has(reportType) && (
-  <div className="mb-4">
-    <label className="block font-semibold mb-1"> פיצול עמלות:</label>
-    <div className="flex bg-blue-100 rounded-full p-0.5 text-xs w-fit">
-      <button
-        type="button"
-        onClick={() => setApplyCommissionSplit(false)}
-        className={`px-3 py-0.5 rounded-full transition-all duration-200 ${
-          !applyCommissionSplit
-            ? 'bg-white text-blue-800 font-bold'
-            : 'text-gray-500'
-        }`}
-      >
-        ללא פיצול עמלות
-      </button>
-      <button
-        type="button"
-        onClick={() => setApplyCommissionSplit(true)}
-        className={`px-3 py-0.5 rounded-full transition-all duration-200 ${
-          applyCommissionSplit
-            ? 'bg-white text-blue-800 font-bold'
-            : 'text-gray-500'
-        }`}
-      >
-        עם פיצול עמלות
-      </button>
-    </div>
-  </div>
-)}
+
+      {/* חברות */}
+      {rules.showCompanies && (
+        <div className="mb-4">
+          <label className="block font-semibold mb-1">בחר חברות:</label>
+          <Select
+            isMulti
+            options={companies.map((name) => ({ value: name, label: name }))}
+            value={selectedCompanies}
+            onChange={(selected) => setSelectedCompanies(selected as any)}
+            placeholder="בחר חברות"
+            className="basic-multi-select"
+            classNamePrefix="select"
+          />
+        </div>
+      )}
+
+      {/* מוצר */}
+      {rules.showProducts && (
+        <div className="mb-4">
+          <label className="block font-semibold mb-1">בחר מוצר:</label>
+          <Select
+            isMulti
+            options={productOptions}
+            value={selectedProducts}
+            onChange={(selected) => setSelectedProducts(selected as any)}
+            placeholder="בחר מוצר"
+            className="basic-multi-select"
+            classNamePrefix="select"
+          />
+        </div>
+      )}
+
+      {/* סטאטוס פוליסה */}
+      {rules.showStatus && (
+        <div className="mb-4">
+          <label className="block font-semibold mb-1">סטאטוס פוליסה:</label>
+          <Select
+            isMulti
+            options={statusPolicies.map((status) => ({
+              value: status,
+              label: status,
+            }))}
+            value={selectedStatusPolicyFilter.map((status) => ({
+              value: status,
+              label: status,
+            }))}
+            onChange={(selectedOptions) =>
+              setSelectedStatusPolicyFilter(selectedOptions.map((opt) => opt.value))
+            }
+            placeholder="בחר סטאטוס"
+            className="basic-multi-select"
+            classNamePrefix="select"
+          />
+        </div>
+      )}
+
+      {/* מינוי סוכן */}
+      {rules.showMinuySochen && (
+        <div className="mb-4">
+          <label className="block font-semibold mb-1">מינוי סוכן:</label>
+          <Select
+            isClearable
+            options={minuySochenOptions}
+            value={
+              minuySochenOptions.find((opt) => opt.value === minuySochenFilter) ||
+              null
+            }
+            onChange={(selectedOption) =>
+              setMinuySochenFilter(
+                selectedOption ? selectedOption.value : null
+              )
+            }
+            placeholder="בחר מינוי סוכן"
+            className="basic-single-select"
+            classNamePrefix="select"
+          />
+        </div>
+      )}
+
+      {/* פיצול עמלות */}
+      {rules.showPitzul && (
+        <div className="mb-4">
+          <label className="block font-semibold mb-1">פיצול עמלות:</label>
+          <div className="flex bg-blue-100 rounded-full p-0.5 text-xs w-fit">
+            <button
+              type="button"
+              onClick={() => setApplyCommissionSplit(false)}
+              className={`px-3 py-0.5 rounded-full transition-all duration-200 ${
+                !applyCommissionSplit
+                  ? 'bg-white text-blue-800 font-bold'
+                  : 'text-gray-500'
+              }`}
+            >
+              ללא פיצול עמלות
+            </button>
+            <button
+              type="button"
+              onClick={() => setApplyCommissionSplit(true)}
+              className={`px-3 py-0.5 rounded-full transition-all duration-200 ${
+                applyCommissionSplit
+                  ? 'bg-white text-blue-800 font-bold'
+                  : 'text-gray-500'
+              }`}
+            >
+              עם פיצול עמלות
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* מייל */}
       <div className="mb-4">
         <label className="block font-semibold mb-1">כתובת מייל למשלוח:</label>
         <input
@@ -323,15 +443,20 @@ const ReportsPage: React.FC = () => {
         disabled={loading}
       />
 
-      {toasts.length > 0 && toasts.map((toast) => (
-        <ToastNotification
-          key={toast.id}
-          type={toast.type}
-          className={toast.isHiding ? 'hide' : ''}
-          message={toast.message}
-          onClose={() => setToasts((prevToasts) => prevToasts.filter((t) => t.id !== toast.id))}
-        />
-      ))}
+      {toasts.length > 0 &&
+        toasts.map((toast) => (
+          <ToastNotification
+            key={toast.id}
+            type={toast.type}
+            className={toast.isHiding ? 'hide' : ''}
+            message={toast.message}
+            onClose={() =>
+              setToasts((prevToasts) =>
+                prevToasts.filter((t) => t.id !== toast.id)
+              )
+            }
+          />
+        ))}
     </div>
   );
 };

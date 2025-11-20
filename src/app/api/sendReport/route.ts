@@ -7,13 +7,20 @@ import { generateClientPoliciesReport } from '@/app/Reports/generators/generateC
 import { generateClientNifraimSummaryReport } from '@/app/Reports/generators/generateClientNifraimSummaryReport';
 import { generateFinancialAccumulationReport } from '@/app/Reports/generators/generateFinancialAccumulationReport';
 import { generateClientNifraimReportedVsMagic } from '@/app/Reports/generators/generateClientNifraimReportedVsMagic';
+import { generateCommissionSummaryMultiYear } from '@/app/Reports/generators/generateCommissionSummaryMultiYear';
+
 
 import { admin } from '@/lib/firebase/firebase-admin';
 import { checkServerPermission } from '@/services/server/checkServerPermission';
 export const runtime = 'nodejs';
 
-const REPORTS_REQUIRING_ACCESS = new Set(['clientNifraimReportedVsMagic']);
+const REPORTS_REQUIRING_ACCESS = new Set([
+  'clientNifraimReportedVsMagic',
+  'commissionSummaryMultiYear',
+]);
+
 const REQUIRED_PERMISSION = 'access_commission_import';
+
 
 export async function POST(req: NextRequest) {
   try {
@@ -67,6 +74,10 @@ export async function POST(req: NextRequest) {
         ({ buffer: reportBuffer, filename, subject, description } =
           await generateClientNifraimReportedVsMagic(body));
         break;
+        case 'commissionSummaryMultiYear':
+        ({ buffer: reportBuffer, filename, subject, description } =
+          await generateCommissionSummaryMultiYear(body));
+        break;
       default:
         return NextResponse.json({ error: 'Unsupported report type' }, { status: 400 });
     }
@@ -87,8 +98,17 @@ export async function POST(req: NextRequest) {
     });
 
     return NextResponse.json({ success: true });
-  } catch (err) {
-    // console.error('sendReport error:', err);
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+  } catch (err: any) {
+    console.error('sendReport error:', err);
+  
+    const message =
+      err instanceof Error
+        ? err.message
+        : typeof err === 'string'
+        ? err
+        : 'Internal Server Error';
+  
+    return NextResponse.json({ error: message }, { status: 500 });
   }
+  
 }
