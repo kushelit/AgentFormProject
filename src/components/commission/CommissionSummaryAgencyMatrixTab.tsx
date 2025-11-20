@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useRef, useMemo } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/lib/firebase/AuthContext';
 import useFetchAgentData from '@/hooks/useFetchAgentData';
 import { Spinner } from '@/components/Spinner';
@@ -19,9 +19,7 @@ import {
 interface AdminMatrixResponse {
   allCompanies: string[];
   allMonths: string[];
-  // agentId -> company -> total
   totalsByAgentCompany: Record<string, Record<string, number>>;
-  // company -> agentId -> month -> total
   breakdownByCompanyAgentMonth: Record<
     string,
     Record<string, Record<string, number>>
@@ -30,7 +28,7 @@ interface AdminMatrixResponse {
 
 type AgentFilterMode = 'all' | 'custom';
 
-export default function AdminCommissionSummaryMatrixPage() {
+const CommissionSummaryAgencyMatrixTab: React.FC = () => {
   const { detail } = useAuth();
   const { agents } = useFetchAgentData();
 
@@ -49,8 +47,6 @@ export default function AdminCommissionSummaryMatrixPage() {
   const drillScrollerRef = useRef<HTMLDivElement>(null);
   const currentYear = new Date().getFullYear();
 
-
-  // ברירת מחדל: במצב "כל הסוכנים" – לבחור את כולם
   useEffect(() => {
     if (agents.length === 0) return;
     if (mode === 'all') {
@@ -58,7 +54,6 @@ export default function AdminCommissionSummaryMatrixPage() {
     }
   }, [agents, mode]);
 
-  // 🔁 קריאת API לפי שנה + סוכנים נבחרים
   useEffect(() => {
     const fetchMatrix = async () => {
       if (!selectedYear || agents.length === 0) {
@@ -118,7 +113,6 @@ export default function AdminCommissionSummaryMatrixPage() {
   const noAgentsSelected =
     !loading && agents.length > 0 && selectedAgentIds.length === 0;
 
-  // 🎨 צבעים לגרפים
   const palette = [
     '#2563eb',
     '#16a34a',
@@ -132,13 +126,11 @@ export default function AdminCommissionSummaryMatrixPage() {
     '#a855f7',
   ];
 
-  // סוכנים שמופיעים בפועל בדוח (רק הנבחרים)
   const visibleAgents = useMemo(
     () => agents.filter((a) => selectedAgentIds.includes(a.id)),
     [agents, selectedAgentIds]
   );
 
-  // סוכנים ברשימת הבחירה (מסוננים לפי חיפוש)
   const filteredAgents = useMemo(() => {
     const term = agentSearch.trim();
     if (!term) return agents;
@@ -147,7 +139,6 @@ export default function AdminCommissionSummaryMatrixPage() {
     );
   }, [agents, agentSearch]);
 
-  // 📈 גרף 1 – סה"כ עמלות לכל הסוכנים הנבחרים לפי חודש
   const monthlyTotalsData = useMemo(() => {
     if (!matrix) return [];
     const { allMonths, breakdownByCompanyAgentMonth } = matrix;
@@ -164,7 +155,6 @@ export default function AdminCommissionSummaryMatrixPage() {
     });
   }, [matrix]);
 
-  // 📈 גרף 2 – התפתחות לפי חברה (מצטבר לכל הסוכנים הנבחרים)
   const perCompanyOverMonthsData = useMemo(() => {
     if (!matrix) return [];
     const { allMonths, allCompanies, breakdownByCompanyAgentMonth } = matrix;
@@ -183,7 +173,6 @@ export default function AdminCommissionSummaryMatrixPage() {
     });
   }, [matrix]);
 
-  // 🧩 toggle של סוכן יחיד בצ'קבוקס
   const toggleAgent = (agentId: string) => {
     setSelectedAgentIds((prev) =>
       prev.includes(agentId)
@@ -200,26 +189,22 @@ export default function AdminCommissionSummaryMatrixPage() {
     setSelectedAgentIds([]);
   };
 
-
-  // 👮‍♀️ הגבלת גישה – תתאימי לפי הצורך
   if (detail && !['admin', 'manager'].includes(detail.role)) {
     return (
-      <div className="p-6 max-w-5xl mx-auto text-right" dir="rtl">
+      <div className="p-4 max-w-5xl mx-auto text-right" dir="rtl">
         אין לך הרשאה לצפות בדוח זה.
       </div>
     );
   }
 
-
   return (
-    <div className="p-6 max-w-6xl mx-auto text-right" dir="rtl">
-      <h2 className="text-2xl font-bold mb-4">
+    <div className="p-4 max-w-6xl mx-auto text-right" dir="rtl">
+      <h2 className="text-xl font-bold mb-4">
         דוח מנהל: סיכום עמלות לפי סוכן וחברה
       </h2>
 
-      {/* פילטרים: שנה + מצב סינון סוכנים */}
+      {/* פילטרים */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6 items-start">
-        {/* בחירת שנה */}
         <div className="max-w-xs">
           <label className="block font-semibold mb-1">בחר שנה:</label>
           <select
@@ -237,7 +222,6 @@ export default function AdminCommissionSummaryMatrixPage() {
           </select>
         </div>
 
-        {/* מצב סינון + בחירת סוכנים */}
         <div className="md:col-span-2 space-y-2">
           <div className="flex flex-wrap gap-4 items-center">
             <span className="font-semibold">מצב תצוגת סוכנים:</span>
@@ -331,15 +315,14 @@ export default function AdminCommissionSummaryMatrixPage() {
 
       {noAgentsAvailable && (
         <p className="mt-4 text-sm text-red-600">
-          אין לך סוכנים זמינים לפי ההרשאות שלך
-          (בדקי שהמשתמש משויך ל־agencies / קבוצת הסוכנים הנכונה).
+          אין לך סוכנים זמינים לפי ההרשאות שלך.
         </p>
       )}
 
       {noAgentsSelected && mode === 'custom' && (
-    <p className="mt-2 text-sm text-orange-600">
-    בחרי לפחות סוכן אחד להצגה או עבורי למצב &quot;כל הסוכנים&quot;.
-  </p>  
+        <p className="mt-2 text-sm text-orange-600">
+          בחרי לפחות סוכן אחד להצגה או עברי למצב &quot;כל הסוכנים&quot;.
+        </p>
       )}
 
       {!loading &&
@@ -353,7 +336,7 @@ export default function AdminCommissionSummaryMatrixPage() {
 
       {!loading && matrix && visibleAgents.length > 0 && (
         <>
-          {/* 🔢 טבלת סוכן × חברה */}
+          {/* טבלת סוכן × חברה */}
           <div className="overflow-x-auto border rounded mt-4">
             <table className="table-auto min-w-full text-sm text-right whitespace-nowrap">
               <thead className="bg-gray-100">
@@ -414,7 +397,7 @@ export default function AdminCommissionSummaryMatrixPage() {
             </table>
           </div>
 
-          {/* 🔍 דרילדאון לפי חברה */}
+          {/* דרילדאון לפי חברה */}
           {expandedCompany && (
             <div className="mt-8">
               <h3 className="text-xl font-semibold mb-2">
@@ -505,13 +488,12 @@ export default function AdminCommissionSummaryMatrixPage() {
             </div>
           )}
 
-          {/* 📊 גרפים – על כל הסוכנים הנבחרים */}
+          {/* גרפים */}
           {matrix && allMonths.length > 0 && (
             <div className="mt-10 space-y-10">
-              {/* גרף 1: סה"כ חודשי לכל הסוכנים הנבחרים */}
               <section>
                 <h3 className="text-xl font-semibold mb-3">
-                  גרף עמלות לפי חודש (סה&quot;כ חודשי – הסוכנים בתצוגה)
+                  גרף עמלות לפי חודש (סה&quot;כ חודשי – כל הסוכנים בתצוגה)
                 </h3>
                 <div className="w-full h-80 rounded-xl border bg-white">
                   <ResponsiveContainer width="100%" height="100%">
@@ -548,10 +530,9 @@ export default function AdminCommissionSummaryMatrixPage() {
                 </div>
               </section>
 
-              {/* גרף 2: לפי חברה – כל הסוכנים הנבחרים */}
               <section>
                 <h3 className="text-xl font-semibold mb-3">
-                  גרף עמלות לפי חברה (התפתחות חודשית – הסוכנים בתצוגה)
+                  גרף עמלות לפי חברה (התפתחות חודשית – כל הסוכנים בתצוגה)
                 </h3>
                 <div className="w-full h-96 rounded-xl border bg-white">
                   <ResponsiveContainer width="100%" height="100%">
@@ -597,4 +578,6 @@ export default function AdminCommissionSummaryMatrixPage() {
       )}
     </div>
   );
-}
+};
+
+export default CommissionSummaryAgencyMatrixTab;
