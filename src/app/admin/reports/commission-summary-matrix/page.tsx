@@ -49,14 +49,6 @@ export default function AdminCommissionSummaryMatrixPage() {
   const drillScrollerRef = useRef<HTMLDivElement>(null);
   const currentYear = new Date().getFullYear();
 
-  // 👮‍♀️ הגבלת גישה – תתאימי לפי הצורך
-  if (detail && !['admin', 'manager'].includes(detail.role)) {
-    return (
-      <div className="p-6 max-w-5xl mx-auto text-right" dir="rtl">
-        אין לך הרשאה לצפות בדוח זה.
-      </div>
-    );
-  }
 
   // ברירת מחדל: במצב "כל הסוכנים" – לבחור את כולם
   useEffect(() => {
@@ -208,6 +200,17 @@ export default function AdminCommissionSummaryMatrixPage() {
     setSelectedAgentIds([]);
   };
 
+
+  // 👮‍♀️ הגבלת גישה – תתאימי לפי הצורך
+  if (detail && !['admin', 'manager'].includes(detail.role)) {
+    return (
+      <div className="p-6 max-w-5xl mx-auto text-right" dir="rtl">
+        אין לך הרשאה לצפות בדוח זה.
+      </div>
+    );
+  }
+
+
   return (
     <div className="p-6 max-w-6xl mx-auto text-right" dir="rtl">
       <h2 className="text-2xl font-bold mb-4">
@@ -334,9 +337,9 @@ export default function AdminCommissionSummaryMatrixPage() {
       )}
 
       {noAgentsSelected && mode === 'custom' && (
-        <p className="mt-2 text-sm text-orange-600">
-          בחרי לפחות סוכן אחד להצגה או עבורי למצב "כל הסוכנים".
-        </p>
+    <p className="mt-2 text-sm text-orange-600">
+    בחרי לפחות סוכן אחד להצגה או עבורי למצב &quot;כל הסוכנים&quot;.
+  </p>  
       )}
 
       {!loading &&
