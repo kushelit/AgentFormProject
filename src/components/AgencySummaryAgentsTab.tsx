@@ -13,7 +13,7 @@ import useSalesData from '@/hooks/useSalesCalculateData';
 import { useDesignFlag } from '@/hooks/useDesignFlag';
 import { usePermission } from '@/hooks/usePermission';
 
-import './agencySummary.css';
+import '@/app/NewSummaryTable/NewSummaryTable.css';
 
 type MonthlyTotal = {
   finansimTotal: number;
