@@ -1,6 +1,8 @@
 // ✅ שרת בלבד — אין שימוש ב-Client SDK
+// /app/Reports/generators/generateClientNifraimSummaryReport.ts
+
 import { admin } from '@/lib/firebase/firebase-admin';
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 import { ReportRequest } from '@/types';
 import { calculateCommissions } from '@/utils/commissionCalculations';
 import { fetchContractsByAgent } from '@/services/server/fetchContracts';
@@ -19,12 +21,123 @@ type PolicyAgg = {
   amount: number;
 };
 
-export async function generateClientNifraimSummaryReport(params: ReportRequest) {
+// ---- Helpers ----
+
+const canon = (v?: any) => String(v ?? '').trim();
+
+// ממיר מחרוזת חודש ל-Date (תומך ב-YYYY-MM וב-YYYY-MM-DD)
+function monthStringToDate(value: string): Date | string {
+  const s = canon(value);
+  if (!s) return '';
+  if (/^\d{4}-\d{2}$/.test(s)) {
+    const [year, month] = s.split('-');
+    return new Date(Number(year), Number(month) - 1, 1);
+  }
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+    return new Date(s);
+  }
+  return s;
+}
+
+// כותרת – אפור כהה, טקסט לבן, bold
+function styleHeaderRow(row: ExcelJS.Row) {
+  row.height = 20;
+  row.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+
+  row.eachCell((cell) => {
+    cell.font = {
+      bold: true,
+      color: { argb: 'FFFFFFFF' },
+      size: 11,
+    };
+    cell.fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FF4D4D4D' }, // אפור כהה
+    };
+    cell.border = {
+      top: { style: 'thin', color: { argb: 'FFBFBFBF' } },
+      left: { style: 'thin', color: { argb: 'FFBFBFBF' } },
+      bottom: { style: 'thin', color: { argb: 'FFBFBFBF' } },
+      right: { style: 'thin', color: { argb: 'FFBFBFBF' } },
+    };
+  });
+}
+
+// עיצוב שורות נתונים – כולל תאריכים/מספרים
+function styleDataRows(
+  ws: ExcelJS.Worksheet,
+  headerCount: number,
+  options?: {
+    firstDataRow?: number;
+    numericCols?: number[];
+    dateCols?: number[];
+  }
+) {
+  const firstDataRow = options?.firstDataRow ?? 2;
+  const numericCols = options?.numericCols ?? [];
+  const dateCols = options?.dateCols ?? [];
+
+  for (let rowIdx = firstDataRow; rowIdx <= ws.rowCount; rowIdx++) {
+    const row = ws.getRow(rowIdx);
+
+    // זברה: שורות זוגיות ברקע אפור עדין
+    if (rowIdx % 2 === 0) {
+      row.eachCell((cell) => {
+        cell.fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FFF5F5F5' },
+        };
+      });
+    }
+
+    for (let colIdx = 1; colIdx <= headerCount; colIdx++) {
+      const cell = row.getCell(colIdx);
+
+      if (dateCols.includes(colIdx)) {
+        cell.alignment = { horizontal: 'center', vertical: 'middle' };
+        cell.numFmt = 'yyyy-mm'; // מוצג 2025-04 אבל נשמר כתאריך
+      } else if (numericCols.includes(colIdx)) {
+        cell.alignment = { horizontal: 'right', vertical: 'middle' };
+        cell.numFmt = '#,##0.00';
+      } else {
+        cell.alignment = { horizontal: 'center', vertical: 'middle' };
+      }
+    }
+  }
+}
+
+// התאמת רוחב עמודות לפי תוכן
+function autofitColumns(ws: ExcelJS.Worksheet, headerCount: number) {
+  for (let colIdx = 1; colIdx <= headerCount; colIdx++) {
+    let maxLen = 0;
+
+    ws.eachRow((row) => {
+      const cell = row.getCell(colIdx);
+      const val = cell.value;
+      if (val === null || val === undefined) return;
+      const len = String(
+        typeof val === 'object' && (val as any).richText
+          ? (val as any).richText.map((r: any) => r.text).join('')
+          : val
+      ).length;
+      if (len > maxLen) maxLen = len;
+    });
+
+    ws.getColumn(colIdx).width = Math.min(Math.max(maxLen + 2, 10), 40);
+  }
+}
+
+export async function generateClientNifraimSummaryReport(
+  params: ReportRequest
+) {
   const { agentId, product, company, fromDate, toDate } = params;
-  if (!agentId) throw new Error("נדרש לבחור סוכן");
+  if (!agentId) throw new Error('נדרש לבחור סוכן');
 
   // דגל חישוב עם/בלי פיצול – מגיע מה-UI, אופציונלי
-  const applyCommissionSplit: boolean = (params as any).applyCommissionSplit === true;
+  const applyCommissionSplit: boolean =
+    (params as any).applyCommissionSplit === true;
 
   const db = admin.firestore();
 
@@ -55,18 +168,27 @@ export async function generateClientNifraimSummaryReport(params: ReportRequest) 
   const splits = await fetchCommissionSplits(agentId);
   const productMap = await getProductMap();
 
-  const cleanedProducts = Array.isArray(product) ? product.map(p => p.trim()) : [];
-  const cleanedCompanies = Array.isArray(company) ? company.map(c => c.trim()) : [];
+  const cleanedProducts = Array.isArray(product)
+    ? product.map((p) => p.trim())
+    : [];
+  const cleanedCompanies = Array.isArray(company)
+    ? company.map((c) => c.trim())
+    : [];
 
   // סיכום לפי לקוח (כמו שהיה)
   const nifraimByCustomer: Record<string, number> = {};
-  const customerInfoMap: Record<string, { firstName: string; lastName: string }> = {};
+  const customerInfoMap: Record<
+    string,
+    { firstName: string; lastName: string }
+  > = {};
 
   // חדש: סיכום לפי פוליסה
   const nifraimByPolicy: Record<string, PolicyAgg> = {};
 
   // עזר למציאת הסכם פיצול ללקוח
-  function findSplitForCustomer(customerId: string): CommissionSplit | undefined {
+  function findSplitForCustomer(
+    customerId: string
+  ): CommissionSplit | undefined {
     const cust = customersById[customerId];
     if (!cust) return undefined;
     const unifiedSource = cust.sourceValue || cust.sourceLead;
@@ -74,8 +196,7 @@ export async function generateClientNifraimSummaryReport(params: ReportRequest) 
 
     return splits.find(
       (split) =>
-        split.agentId === agentId &&
-        split.sourceLeadId === unifiedSource
+        split.agentId === agentId && split.sourceLeadId === unifiedSource
     );
   }
 
@@ -85,8 +206,16 @@ export async function generateClientNifraimSummaryReport(params: ReportRequest) 
     // פילטרים לפי תאריכים + חברה + מוצר
     if (fromDate && raw.mounth < fromDate) continue;
     if (toDate && raw.mounth > toDate) continue;
-    if (cleanedCompanies.length > 0 && !cleanedCompanies.includes((raw.company ?? '').trim())) continue;
-    if (cleanedProducts.length > 0 && !cleanedProducts.includes((raw.product ?? '').trim())) continue;
+    if (
+      cleanedCompanies.length > 0 &&
+      !cleanedCompanies.includes((raw.company ?? '').trim())
+    )
+      continue;
+    if (
+      cleanedProducts.length > 0 &&
+      !cleanedProducts.includes((raw.product ?? '').trim())
+    )
+      continue;
 
     const customerId = raw.IDCustomer;
     if (!customerId) continue;
@@ -118,7 +247,8 @@ export async function generateClientNifraimSummaryReport(params: ReportRequest) 
         c.AgentId === agentId &&
         c.product === sale.product &&
         c.company === sale.company &&
-        (c.minuySochen === sale.minuySochen || (!c.minuySochen && !sale.minuySochen))
+        (c.minuySochen === sale.minuySochen ||
+          (!c.minuySochen && !sale.minuySochen))
     );
 
     const commissions = calculateCommissions(
@@ -137,7 +267,7 @@ export async function generateClientNifraimSummaryReport(params: ReportRequest) 
       const splitAgreement = findSplitForCustomer(customerId);
       if (splitAgreement) {
         const perc = splitAgreement.percentToAgent ?? 100;
-        nifraim = Number((nifraim * perc / 100).toFixed(2));
+        nifraim = Number(((nifraim * perc) / 100).toFixed(2));
       }
     }
 
@@ -153,12 +283,11 @@ export async function generateClientNifraimSummaryReport(params: ReportRequest) 
       };
     }
 
-    // --- חדש: סיכום לפי פוליסה (לשונית "נפרעים לפי פוליסה") ---
+    // --- סיכום לפי פוליסה (לשונית "נפרעים לפי פוליסה") ---
     const phone = phoneMap[customerId] || '';
     const companyName = sale.company || '';
     const policyNumber = sale.policyNumber || '';
 
-    // מפתח לפוליסה – כמו בדוח השני (שמור על NO_POLICY כדי להבדיל)
     const policyKey = policyNumber
       ? `${companyName}::${policyNumber}`
       : `${companyName}::__NO_POLICY__:${doc.id}`;
@@ -180,12 +309,10 @@ export async function generateClientNifraimSummaryReport(params: ReportRequest) 
         amount: 0,
       };
     } else {
-      // אם יש כבר, נעדכן חודש ל"מוקדם" יותר (סתם לוגיקה שמרנית)
       const existing = nifraimByPolicy[policyKey];
       if (!existing.month || (month && month < existing.month)) {
         existing.month = month;
       }
-      // נעדכן גם שם/טלפון אם היה חסר
       if (!existing.firstName && firstName) existing.firstName = firstName;
       if (!existing.lastName && lastName) existing.lastName = lastName;
       if (!existing.phone && phone) existing.phone = phone;
@@ -194,7 +321,7 @@ export async function generateClientNifraimSummaryReport(params: ReportRequest) 
     nifraimByPolicy[policyKey].amount += nifraim;
   }
 
-  // ---------- בניית לשונית "נפרעים לפי פוליסה" ----------
+  // ---------- לשונית "נפרעים לפי פוליסה" ----------
   const policyRows = Object.values(nifraimByPolicy).map((p) => ({
     'תז': p.customerId,
     'שם פרטי': p.firstName || '',
@@ -213,43 +340,105 @@ export async function generateClientNifraimSummaryReport(params: ReportRequest) 
       a['חודש תחילה'].localeCompare(b['חודש תחילה'])
   );
 
-  // ---------- בניית לשונית "נפרעים לפי מבוטח" (כמו שהיה, עם טלפון) ----------
-  const customerRows = Object.entries(nifraimByCustomer).map(([id, sumNifraim]) => {
-    const info = customerInfoMap[id] || {};
-    const phone = phoneMap[id] || '';
+  // ---------- לשונית "נפרעים לפי מבוטח" ----------
+  const customerRows = Object.entries(nifraimByCustomer).map(
+    ([id, sumNifraim]) => {
+      const info = customerInfoMap[id] || {};
+      const phone = phoneMap[id] || '';
 
-    return {
-      'תז': id,
-      'שם פרטי': info.firstName || '',
-      'שם משפחה': info.lastName || '',
-      'טלפון': phone,
-      'סה"כ נפרעים': Number(sumNifraim.toFixed(2)),
-    };
-  });
+      return {
+        'תז': id,
+        'שם פרטי': info.firstName || '',
+        'שם משפחה': info.lastName || '',
+        'טלפון': phone,
+        'סה"כ נפרעים': Number(sumNifraim.toFixed(2)),
+      };
+    }
+  );
 
   customerRows.sort((a, b) => b['סה"כ נפרעים'] - a['סה"כ נפרעים']);
 
-  return buildExcelReport(policyRows, customerRows);
+  return await buildExcelReport(policyRows, customerRows);
 }
 
-function buildExcelReport(policyRows: any[], customerRows: any[]) {
-  const workbook = XLSX.utils.book_new();
+// ---- יצירת קובץ אקסל מעוצב (exceljs) ----
+async function buildExcelReport(policyRows: any[], customerRows: any[]) {
+  const wb = new ExcelJS.Workbook();
+  wb.created = new Date();
 
   // לשונית 1 – נפרעים לפי פוליסה
-  const wsPolicy = XLSX.utils.json_to_sheet(policyRows.length ? policyRows : [{}]);
-  XLSX.utils.book_append_sheet(workbook, wsPolicy, 'נפרעים לפי פוליסה');
+  const policyHeaders: string[] = [
+    'תז',
+    'שם פרטי',
+    'שם משפחה',
+    'טלפון',
+    'חברה',
+    'מס׳ פוליסה',
+    'חודש תחילה',
+    'נפרעים (MAGIC)',
+  ];
+
+  const wsPolicy = wb.addWorksheet('נפרעים לפי פוליסה', {
+    views: [{ rightToLeft: true }],
+  });
+
+  wsPolicy.addRow(policyHeaders);
+  styleHeaderRow(wsPolicy.getRow(1));
+
+  policyRows.forEach((r) => {
+    const rowValues = policyHeaders.map((h) => {
+      if (h === 'חודש תחילה') {
+        return monthStringToDate(r[h]);
+      }
+      return r[h] ?? '';
+    });
+    wsPolicy.addRow(rowValues);
+  });
+
+  styleDataRows(wsPolicy, policyHeaders.length, {
+    firstDataRow: 2,
+    dateCols: [7], // "חודש תחילה"
+    numericCols: [8], // "נפרעים (MAGIC)"
+  });
+  autofitColumns(wsPolicy, policyHeaders.length);
 
   // לשונית 2 – נפרעים לפי מבוטח
-  const wsCustomer = XLSX.utils.json_to_sheet(customerRows.length ? customerRows : [{}]);
-  XLSX.utils.book_append_sheet(workbook, wsCustomer, 'נפרעים לפי מבוטח');
+  const customerHeaders: string[] = [
+    'תז',
+    'שם פרטי',
+    'שם משפחה',
+    'טלפון',
+    'סה"כ נפרעים',
+  ];
 
-  const buffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
+  const wsCustomer = wb.addWorksheet('נפרעים לפי מבוטח', {
+    views: [{ rightToLeft: true }],
+  });
+
+  wsCustomer.addRow(customerHeaders);
+  styleHeaderRow(wsCustomer.getRow(1));
+
+  customerRows.forEach((r) => {
+    const rowValues = customerHeaders.map((h) => r[h] ?? '');
+    wsCustomer.addRow(rowValues);
+  });
+
+  styleDataRows(wsCustomer, customerHeaders.length, {
+    firstDataRow: 2,
+    numericCols: [5], // "סה"כ נפרעים"
+  });
+  autofitColumns(wsCustomer, customerHeaders.length);
+
+  const excelBuffer = await wb.xlsx.writeBuffer();
+  const buffer = Buffer.isBuffer(excelBuffer)
+    ? excelBuffer
+    : Buffer.from(excelBuffer as ArrayBuffer);
 
   return {
-    buffer: buffer as Buffer,
+    buffer,
     filename: 'סיכום_נפרעים_לפי_לקוח_ופוליסה.xlsx',
     subject: 'סיכום נפרעים לפי פוליסה ולפי מבוטח ממערכת MagicSale',
     description:
-      'מצורף דוח המרכז את סכום עמלות הנפרעים לפי פוליסה וגם לפי מבוטח (ת"ז).',
+      'מצורף דוח המרכז את סכום עמלות הנפרעים לפי פוליסה וגם לפי מבוטח (ת"ז) בעיצוב אחיד.',
   };
 }

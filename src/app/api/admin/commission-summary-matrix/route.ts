@@ -27,7 +27,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json(result);
   } catch (err: any) {
-    console.error('admin commission-summary-matrix error:', err);
+    // console.error('admin commission-summary-matrix error:', err);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

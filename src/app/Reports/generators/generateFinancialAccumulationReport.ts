@@ -1,63 +1,97 @@
 // app/Reports/generators/generateFinancialAccumulationReport.ts  ✅ SERVER ONLY
 import { admin } from '@/lib/firebase/firebase-admin';
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 import { ReportRequest } from '@/types';
 
-export async function generateFinancialAccumulationReport(params: ReportRequest) {
-  const { fromDate, toDate, agentId, company, product, statusPolicy, minuySochen } = params;
+export async function generateFinancialAccumulationReport(
+  params: ReportRequest
+) {
+  const {
+    fromDate,
+    toDate,
+    agentId,
+    company,
+    product,
+    statusPolicy,
+    minuySochen,
+  } = params;
 
   const db = admin.firestore();
 
-  // 1) שליפת מוצרי קבוצה "פיננסים" (ודאי שם קולקציה: 'product' או 'products')
+  // 1) שליפת מוצרי קבוצה "פיננסים"
   const productsSnap = await db
-    .collection('product')              // ← אם אצלך זה 'products', החליפי כאן ובכל הקוד
+    .collection('product') // אם זה 'products' אצלך, להחליף כאן
     .where('productGroup', '==', '4')
     .get();
 
   const financialProductNames = productsSnap.docs
-    .map(d => String((d.data() as any).productName || '').trim())
+    .map((d) => String((d.data() as any).productName || '').trim())
     .filter(Boolean);
 
   const cleanedAgentId = agentId?.trim();
-  const cleanedProducts = Array.isArray(product) ? product.map(p => p.trim()) : [];
-  const cleanedCompanies = Array.isArray(company) ? company.map(c => c.trim()) : [];
+  const cleanedProducts = Array.isArray(product)
+    ? product.map((p) => p.trim())
+    : [];
+  const cleanedCompanies = Array.isArray(company)
+    ? company.map((c) => c.trim())
+    : [];
 
-  // 2) שליפת מכירות — עדיף לצמצם כבר ב-query כשאפשר
+  // 2) שליפת מכירות
   let salesRef: FirebaseFirestore.Query = db.collection('sales');
 
   if (cleanedAgentId && cleanedAgentId !== 'all') {
     salesRef = salesRef.where('AgentId', '==', cleanedAgentId);
   }
-  // אם mounth נשמר כ-YYYY-MM או YYYY-MM-DD (מחרוזת ISO) אפשר סינון לקסיקוגרפי:
   if (fromDate) salesRef = salesRef.where('mounth', '>=', fromDate);
-  if (toDate)   salesRef = salesRef.where('mounth', '<=', toDate);
+  if (toDate) salesRef = salesRef.where('mounth', '<=', toDate);
 
   const salesSnap = await salesRef.get();
-  const sales = salesSnap.docs.map(d => d.data() as any);
+  const sales = salesSnap.docs.map((d) => d.data() as any);
 
-  // 3) סינון מקומי (למה שלא ניתן לסנן ב-query עצמו)
+  // 3) סינון מקומי
   const filtered = sales.filter((row) => {
     if (!row.IDCustomer) return false;
-    if (!financialProductNames.includes((row.product || '').trim())) return false;
+    if (!financialProductNames.includes((row.product || '').trim()))
+      return false;
 
-    if (cleanedCompanies.length > 0 && !cleanedCompanies.includes((row.company || '').trim())) return false;
-    if (cleanedProducts.length > 0 && !cleanedProducts.includes((row.product || '').trim())) return false;
+    if (
+      cleanedCompanies.length > 0 &&
+      !cleanedCompanies.includes((row.company || '').trim())
+    )
+      return false;
 
-    if (Array.isArray(statusPolicy) && statusPolicy.length > 0 && !statusPolicy.includes(row.statusPolicy)) return false;
-    if (typeof minuySochen === 'boolean' && row.minuySochen !== minuySochen) return false;
+    if (
+      cleanedProducts.length > 0 &&
+      !cleanedProducts.includes((row.product || '').trim())
+    )
+      return false;
+
+    if (
+      Array.isArray(statusPolicy) &&
+      statusPolicy.length > 0 &&
+      !statusPolicy.includes(row.statusPolicy)
+    )
+      return false;
+
+    if (typeof minuySochen === 'boolean' && row.minuySochen !== minuySochen)
+      return false;
 
     return true;
   });
 
   // 4) קיבוץ לפי ת"ז וצבירה פיננסית
   const accumulationByCustomer: Record<string, number> = {};
-  const customerInfoMap: Record<string, { firstName: string; lastName: string }> = {};
+  const customerInfoMap: Record<
+    string,
+    { firstName: string; lastName: string }
+  > = {};
 
   for (const row of filtered) {
     const id = row.IDCustomer;
     const accumulation = Number(row.finansimZvira || 0);
 
-    accumulationByCustomer[id] = (accumulationByCustomer[id] || 0) + accumulation;
+    accumulationByCustomer[id] =
+      (accumulationByCustomer[id] || 0) + accumulation;
 
     if (!customerInfoMap[id]) {
       customerInfoMap[id] = {
@@ -67,7 +101,7 @@ export async function generateFinancialAccumulationReport(params: ReportRequest)
     }
   }
 
-  // 5) שליפת טלפונים מטבלת customer (מסונן לפי AgentId)
+  // 5) טלפונים מטבלת customer
   const phoneMap: Record<string, string> = {};
   const customerIds = new Set(Object.keys(accumulationByCustomer));
 
@@ -85,7 +119,6 @@ export async function generateFinancialAccumulationReport(params: ReportRequest)
       }
     }
   } else {
-    // אם בחרת "כל הסוכנות" – נשלוף כל הלקוחות ואז נסנן מקומית (אפשר גם לפצל לשאילתות לפי חברות/agentId אם יש הרבה)
     const custSnap = await db.collection('customer').get();
     for (const doc of custSnap.docs) {
       const c = doc.data() as any;
@@ -96,7 +129,7 @@ export async function generateFinancialAccumulationReport(params: ReportRequest)
     }
   }
 
-  // 6) בניית שורות ל-Excel
+  // 6) בניית שורות לדוח
   const rows = Object.entries(accumulationByCustomer).map(([id, sum]) => {
     const info = customerInfoMap[id] || { firstName: '', lastName: '' };
     const phone = phoneMap[id] || '';
@@ -111,30 +144,134 @@ export async function generateFinancialAccumulationReport(params: ReportRequest)
 
   rows.sort((a, b) => b['סה"כ צבירה פיננסית'] - a['סה"כ צבירה פיננסית']);
 
-  return buildExcelReport(rows, 'סיכום צבירה פיננסית לפי לקוח');
+  return await buildExcelReport(
+    rows,
+    'סיכום צבירה פיננסית לפי לקוח'
+  );
 }
 
-// יצירת Excel
-function buildExcelReport(rows: any[], sheetName: string) {
-  const worksheet = XLSX.utils.json_to_sheet(
-    rows.length
-      ? rows
-      : [{
-          'תז': '',
-          'שם פרטי': '',
-          'שם משפחה': '',
-          'טלפון': '',
-          'סה"כ צבירה פיננסית': '',
-        }]
-  );
-  const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
-  const buffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
+/* ------------ Excel helpers (עיצוב אחיד) ------------ */
+
+// כותרת אפורה
+function styleHeaderRow(row: ExcelJS.Row) {
+  row.height = 20;
+  row.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+
+  row.eachCell((cell) => {
+    cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11 };
+    cell.fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FF4D4D4D' },
+    };
+    cell.border = {
+      top: { style: 'thin', color: { argb: 'FFBFBFBF' } },
+      left: { style: 'thin', color: { argb: 'FFBFBFBF' } },
+      bottom: { style: 'thin', color: { argb: 'FFBFBFBF' } },
+      right: { style: 'thin', color: { argb: 'FFBFBFBF' } },
+    };
+  });
+}
+
+// שורות נתונים
+function styleDataRows(
+  ws: ExcelJS.Worksheet,
+  headerCount: number,
+  options: { firstDataRow?: number; numericCols?: number[] } = {}
+) {
+  const { firstDataRow = 2, numericCols = [] } = options;
+
+  for (let rowIdx = firstDataRow; rowIdx <= ws.rowCount; rowIdx++) {
+    const row = ws.getRow(rowIdx);
+
+    // זברה
+    if (rowIdx % 2 === 0) {
+      row.eachCell((cell) => {
+        cell.fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FFF5F5F5' },
+        };
+      });
+    }
+
+    for (let col = 1; col <= headerCount; col++) {
+      const cell = row.getCell(col);
+
+      if (numericCols.includes(col)) {
+        cell.numFmt = '#,##0.00';
+        cell.alignment = { horizontal: 'right', vertical: 'middle' };
+      } else {
+        cell.alignment = { horizontal: 'center', vertical: 'middle' };
+      }
+    }
+  }
+}
+
+// Auto-fit columns
+function autofitColumns(ws: ExcelJS.Worksheet, count: number) {
+  for (let i = 1; i <= count; i++) {
+    let maxLen = 0;
+
+    ws.eachRow((row) => {
+      const val = row.getCell(i).value;
+      if (!val) return;
+      const len = String(val).length;
+      if (len > maxLen) maxLen = len;
+    });
+
+    ws.getColumn(i).width = Math.min(Math.max(maxLen + 2, 10), 40);
+  }
+}
+
+// יצירת Excel עם exceljs
+async function buildExcelReport(rows: any[], sheetName: string) {
+  const wb = new ExcelJS.Workbook();
+  wb.created = new Date();
+
+  const headers = [
+    'תז',
+    'שם פרטי',
+    'שם משפחה',
+    'טלפון',
+    'סה"כ צבירה פיננסית',
+  ];
+
+  const ws = wb.addWorksheet(sheetName, {
+    views: [{ rightToLeft: true }],
+  });
+
+  // כותרת
+  ws.addRow(headers);
+  styleHeaderRow(ws.getRow(1));
+
+  // נתונים
+  if (rows.length === 0) {
+    ws.addRow(['', '', '', '', '']);
+  } else {
+    rows.forEach((r) => {
+      const rowValues = headers.map((h) => r[h] ?? '');
+      ws.addRow(rowValues);
+    });
+  }
+
+  styleDataRows(ws, headers.length, {
+    firstDataRow: 2,
+    numericCols: [5], // סה"כ צבירה פיננסית
+  });
+
+  autofitColumns(ws, headers.length);
+
+  const excelBuffer = await wb.xlsx.writeBuffer();
+  const buffer = Buffer.isBuffer(excelBuffer)
+    ? excelBuffer
+    : Buffer.from(excelBuffer as ArrayBuffer);
 
   return {
-    buffer: buffer as Buffer,
+    buffer,
     filename: 'סיכום_צבירה_פיננסית_לפי_לקוח.xlsx',
-    subject: 'סיכום צבירה פיננסית ללקוחות ממערכת MagicSale',
-    description: 'מצורף דוח Excel המסכם את סך הצבירה הפיננסית לפי לקוח.',
+  subject: 'סיכום צבירה פיננסית ללקוחות ממערכת MagicSale',
+    description:
+      'מצורף דוח Excel המסכם את סך הצבירה הפיננסית לפי לקוח, בעיצוב אחיד.',
   };
 }

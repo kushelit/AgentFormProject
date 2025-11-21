@@ -17,7 +17,7 @@ import { fetchSourceLeadsForAgent } from '@/services/sourceLeadService';
 const systemFields = [
   "firstNameCustomer", "lastNameCustomer", "IDCustomer", "company", "product",
   "insPremia", "pensiaPremia", "pensiaZvira", "finansimPremia", "finansimZvira",
-  "mounth", "statusPolicy", "minuySochen", "notes", "workerName", "sourceLeadName", "cancellationDate"
+  "mounth", "statusPolicy", "minuySochen", "notes", "workerName", "sourceValue", "cancellationDate"
 ];
 
 const systemFieldsDisplay = [
@@ -37,7 +37,8 @@ const systemFieldsDisplay = [
   { key: "finansimPremia", label: "פרמיית פיננסים", required: false },
   { key: "finansimZvira", label: "צבירה פיננסים", required: false },
   { key: "workerName", label: "עובד", required: false },
-  { key: "sourceLeadName", label: "מקור ליד", required: false }, 
+  // { key: "sourceLeadName", label: "מקור ליד", required: false }, 
+  { key: "sourceValue", label: "מקור ליד", required: false },       // ✅
   { key: "cancellationDate", label: "תאריך ביטול", required: false }, 
 
 ];
@@ -83,17 +84,28 @@ const ExcelImporter: React.FC = () => {
   } | null>(null);
 
 
-  const [sourceLeads, setSourceLeads] = useState<string[]>([]);
-  const [isParsing, setIsParsing] = useState(false);
+  // const [sourceLeads, setSourceLeads] = useState<string[]>([]);
+  type SourceLeadOption = { id: string; name: string };
+const [sourceLeads, setSourceLeads] = useState<SourceLeadOption[]>([]);
 
-useEffect(() => {
-  const fetchLeads = async () => {
-    if (!selectedAgentId) return;
-    const data = await fetchSourceLeadsForAgent(selectedAgentId);
-    setSourceLeads(data.map(item => String(item.sourceLead || "").toLowerCase().trim()));
-  };
-  fetchLeads();
-}, [selectedAgentId]);
+  const [isParsing, setIsParsing] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
+  const [importProgress, setImportProgress] = useState(0);
+
+  useEffect(() => {
+    const fetchLeads = async () => {
+      if (!selectedAgentId) return;
+      const data = await fetchSourceLeadsForAgent(selectedAgentId);
+      setSourceLeads(
+        data.map((item: any) => ({
+          id: String(item.id),
+          name: String(item.sourceLead || "").trim(),
+        }))
+      );
+    };
+    fetchLeads();
+  }, [selectedAgentId]);
+  
 
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -386,12 +398,42 @@ if (excelFieldForCancellation) {
         }
       }
       // עיבוד שדה מקור ליד
-const sourceLeadField = Object.keys(mapping).find(col => mapping[col] === "sourceLeadName");
+// const sourceLeadField = Object.keys(mapping).find(col => mapping[col] === "sourceLeadName");
+// if (sourceLeadField) {
+//   const leadName = String(row[sourceLeadField] || "").trim();
+//   newRow[sourceLeadField] = leadName;
+//   if (!sourceLeads.includes(leadName.toLowerCase())) {
+//     newRow["_sourceLeadError"] = `מקור ליד לא מזוהה: ${leadName}`;
+//   }
+// }
+// עיבוד שדה מקור ליד → sourceValue (ID)
+const sourceLeadField = Object.keys(mapping).find(
+  (col) => mapping[col] === "sourceValue"
+);
+
 if (sourceLeadField) {
-  const leadName = String(row[sourceLeadField] || "").trim();
-  newRow[sourceLeadField] = leadName;
-  if (!sourceLeads.includes(leadName.toLowerCase())) {
-    newRow["_sourceLeadError"] = `מקור ליד לא מזוהה: ${leadName}`;
+  const raw = String(row[sourceLeadField] || "").trim();
+
+  // מנסים למצוא לפי ID או לפי שם
+  const match = sourceLeads.find(
+    (sl) =>
+      sl.id === raw ||
+      sl.name.toLowerCase() === raw.toLowerCase()
+  );
+
+  if (!raw) {
+    // ריק = תקין, בלי שגיאה
+    newRow[sourceLeadField] = "";
+    newRow["sourceValue"] = "";
+  } else if (match) {
+    // שמירה של ה-ID בשורה
+    newRow[sourceLeadField] = match.id;
+    newRow["sourceValue"] = match.id;
+  } else {
+    // לא זוהה – נשמור את מה שהיה אבל נסמן כשגיאה
+    newRow[sourceLeadField] = raw;
+    newRow["sourceValue"] = raw;
+    newRow["_sourceLeadError"] = `מקור ליד לא מזוהה: ${raw}`;
   }
 }
 
@@ -404,7 +446,7 @@ if (sourceLeadField) {
     // console.log("🔍 parsedData example (first row):", parsedData[0]);
     // console.log("✅ parsedData:", parsedData);
     // setPendingExcelData(null);
-  }, [pendingExcelData, mapping, fullNameStructure, workers]);
+  }, [pendingExcelData, mapping, fullNameStructure, workers, sourceLeads]);
 
   const applyDefaultMinuySochen = (row: any, mapping: Record<string, string>): void => {
     const minuyField = Object.keys(mapping).find(col => mapping[col] === "minuySochen");
@@ -457,10 +499,10 @@ if (sourceLeadField) {
     map: Record<string, string>,
     reverseMap: Record<string, string>
   ) => {
-    // console.log("🔎 Validating row:", row);
   
     const required = ["firstNameCustomer", "lastNameCustomer", "IDCustomer", "company", "product", "mounth", "statusPolicy"];
   
+    // בדיקת שדות חובה
     const hasRequired = required.every((key) => {
       const source = reverseMap[key];
       if (!source) return true;
@@ -471,33 +513,43 @@ if (sourceLeadField) {
     const productValue = String(row[reverseMap["product"]] || "").toLowerCase().trim();
     const idValue = String(row[reverseMap["IDCustomer"]] || "").trim();
     const workerValue = reverseMap["workerName"] ? String(row[reverseMap["workerName"]] || "").trim().toLowerCase() : "";
-    const sourceLeadValue = reverseMap["sourceLeadName"] ? String(row[reverseMap["sourceLeadName"]] || "").trim().toLowerCase() : "";
     const statusValue = String(row[reverseMap["statusPolicy"]] || "").trim();
     const firstNameValue = String(row[reverseMap["firstNameCustomer"]] || "").trim();
     const lastNameValue = String(row[reverseMap["lastNameCustomer"]] || "").trim();
     const minuyValue = reverseMap["minuySochen"] ? String(row[reverseMap["minuySochen"]] || "").trim() : "";
   
+    // ⭐⭐ שימו לב – זה השדה החדש! ⭐⭐
+    const sourceValue = reverseMap["sourceValue"]
+      ? String(row[reverseMap["sourceValue"]] || "").trim()
+      : "";
+  
+    // ולידציות קיימות
     const validCompany = !reverseMap["company"] || companyNames.includes(companyValue);
     const validProduct = !reverseMap["product"] || productNames.includes(productValue);
     const validID = !reverseMap["IDCustomer"] || /^\d{5,9}$/.test(idValue);
     const validWorker = !reverseMap["workerName"] || workerNames.includes(workerValue);
-    const validSourceLead = !reverseMap["sourceLeadName"] || sourceLeadValue === "" || sourceLeads.includes(sourceLeadValue);
+  
+    // ⭐⭐ ולידציה נכונה למקור ליד (ID בלבד) ⭐⭐
+    const validSourceLead =
+      !reverseMap["sourceValue"] ||         // אין מיפוי → לא בודקים
+      sourceValue === "" ||                 // ריק → תקין
+      sourceLeads.some((sl) => sl.id === sourceValue);  // בודקים ID
+  
     const validFirstName = !reverseMap["firstNameCustomer"] || isValidHebrewName(firstNameValue);
     const validLastName = !reverseMap["lastNameCustomer"] || isValidHebrewName(lastNameValue);
     const validMounth = /^\d{4}-\d{2}-\d{2}$/.test(String(row["mounth"] || "").trim());
     const validStatus = !reverseMap["statusPolicy"] || statusPolicies.includes(statusValue);
     const validMinuySochen = !reverseMap["minuySochen"] || minuyValue === "" || ["כן", "לא"].includes(minuyValue);
-    const cancellationValue = String(row["cancellationDate"] || "").trim();
-
-const validCancellationDate =
-  !reverseMap["cancellationDate"] ||      // אין מיפוי → לא בודקים
-  cancellationValue === "" ||            // ריק → תקין
-  /^\d{4}-\d{2}-\d{2}$/.test(cancellationValue); // אחרת חייב YYYY-MM-DD
-
-
-
   
-    let isValid = hasRequired &&
+    const cancellationValue = String(row["cancellationDate"] || "").trim();
+    const validCancellationDate =
+      !reverseMap["cancellationDate"] ||
+      cancellationValue === "" ||
+      /^\d{4}-\d{2}-\d{2}$/.test(cancellationValue);
+  
+    // בדיקת כלל השורה
+    let isValid =
+      hasRequired &&
       validCompany &&
       validProduct &&
       validID &&
@@ -506,39 +558,21 @@ const validCancellationDate =
       validMounth &&
       validStatus;
   
-    if (reverseMap["minuySochen"]) {
-      isValid = isValid && validMinuySochen;
-    }
+    if (reverseMap["minuySochen"]) isValid = isValid && validMinuySochen;
+    if (reverseMap["workerName"]) isValid = isValid && validWorker;
   
-    if (reverseMap["workerName"]) {
-      isValid = isValid && validWorker;
-    }
-  
-    if (reverseMap["sourceLeadName"]) {
+    // ⭐⭐ זה התיקון ⭐⭐
+    if (reverseMap["sourceValue"]) {
       isValid = isValid && validSourceLead;
     }
-
+  
     if (reverseMap["cancellationDate"]) {
       isValid = isValid && validCancellationDate;
     }
-    if (!isValid) {
-      // console.warn("❌ שורה לא תקינה – הגורמים האפשריים:", {
-      //   firstNameValue,
-      //   lastNameValue,
-      //   idValue,
-      //   companyValue,
-      //   productValue,
-      //   statusValue,
-      //   minuyValue,
-      //   workerValue,
-      //   sourceLeadValue,
-      //   cancellationDate: row["cancellationDate"],
-      //   mounth: row["mounth"],
-      // });
-    }
-    
+  
     return isValid;
   };
+  
   
   const checkAllRows = (data: any[], map: Record<string, string>) => {
     const reverseMap = Object.fromEntries(Object.entries(map).map(([k, v]) => [v, k]));
@@ -613,18 +647,19 @@ const validCancellationDate =
     }
     
     // מקור ליד
-if (field === "sourceLeadName") {
-  const name = value.trim();
-  updatedRow["sourceLeadName"] = name;
+// מקור ליד – נשמר sourceValue (ID)
+if (field === "sourceValue") {
+  const id = value.trim();
 
+  updatedRow["sourceValue"] = id;
   if (excelField) {
-    updatedRow[excelField] = name;
+    updatedRow[excelField] = id;
   }
 
-  if (name === "" || sourceLeads.includes(name.toLowerCase())) {
+  if (!id || sourceLeads.some(sl => sl.id === id)) {
     delete updatedRow["_sourceLeadError"];
   } else {
-    updatedRow["_sourceLeadError"] = `מקור ליד לא מזוהה: ${name}`;
+    updatedRow["_sourceLeadError"] = `מקור ליד לא מזוהה: ${id}`;
   }
 }
 
@@ -715,8 +750,18 @@ if (field === "sourceLeadName") {
 
     let successCount = 0;
     let newCustomerCount = 0;
-    const failedRows: { index: number; error: any }[] = [];
+
+    type FailedRowInfo = {
+      index: number;       // מספר שורה (1-based)
+      idCustomer: string;  // ת"ז לקוח אם יש
+      error: any;          // אובייקט השגיאה המקורי
+    };
+    const failedRows: FailedRowInfo[] = [];
     const runId = doc(collection(db, "importRuns")).id;
+
+    setIsImporting(true);
+    setImportProgress(0);
+    const totalRowsToProcess = rows.filter((_, i) => !errors.includes(i)).length || 1;
 
     for (let i = 0; i < rows.length; i++) {
       if (errors.includes(i)) continue;
@@ -754,7 +799,7 @@ if (field === "sourceLeadName") {
             lastNameCustomer: mappedRow.lastNameCustomer || "",
             IDCustomer: String(mappedRow.IDCustomer || ""),
             parentID: "",
-            sourceLeadName: mappedRow.sourceLeadName || "", // ← חדש
+            sourceValue: mappedRow.sourceValue || "",
             sourceApp: "importExcel",
           });
           await updateDoc(customerDocRef, { parentID: customerDocRef.id });
@@ -789,9 +834,16 @@ if (field === "sourceLeadName") {
 
         successCount++;
       } catch (error) {
-        // console.error(`❌ שגיאה בשורה ${i + 1}:`, error);
-        failedRows.push({ index: i + 1, error });
+        // 🔹 שורה שנכשלה – נאסוף גם את ה-ID של הלקוח וגם את ההודעה
+        failedRows.push({
+          index: i + 1, // מספר שורה "אנושי"
+          idCustomer: String(mappedRow.IDCustomer || ""),
+          error,
+        });
       }
+
+      const processedCount = successCount + failedRows.length;
+      setImportProgress(Math.round((processedCount / totalRowsToProcess) * 100));
     }
 
     await setDoc(doc(db, "importRuns", runId), {
@@ -802,23 +854,32 @@ if (field === "sourceLeadName") {
       createdBy: user?.email || user?.uid,
       customersCount: newCustomerCount,
       salesCount: successCount,
+  
+      // 🔹 סיכום כישלונות בריצה
+      failedCount: failedRows.length,
+      failedCustomers: failedRows.map((row) => ({
+        rowIndex: row.index,
+        IDCustomer: row.idCustomer,
+        errorMessage: row.error?.message || String(row.error) || "",
+      })),
     });
 
     if (failedRows.length > 0) {
       const errorSummary = failedRows
-        .map((row) => `שורה ${row.index}: ${row.error?.message || "שגיאה לא ידועה"}`)
+        .map((row) => `שורה ${row.index} (ת"ז ${row.idCustomer || "לא ידוע"}): ${row.error?.message || "שגיאה לא ידועה"}`)
         .join("\n");
-
-      addToast("warning", `טעינה הסתיימה:\n✅ ${successCount} עסקאות הוזנו\n❌ ${failedRows.length} נכשלו. בדקי בלוג.`);
-
-      // console.group("❌ פירוט שורות שנכשלו");
-      failedRows.forEach((row) => {
-        // console.error(`שורה ${row.index}:`, row.error);
-      });
-      // console.groupEnd();
+  
+      addToast(
+        "warning",
+        `טעינה הסתיימה:\n✅ ${successCount} עסקאות הוזנו\n❌ ${failedRows.length} נכשלו. בדקי בלוג.`
+      );
     } else {
       addToast("success", `✅ כל ${successCount} העסקאות הוזנו בהצלחה!`);
     }
+
+
+    setIsImporting(false);
+    setImportProgress(0);
 
     setSelectedFileName("");
     setHeaders([]);
@@ -1048,24 +1109,45 @@ if (field === "sourceLeadName") {
                       return (
                         <td key={h}>
                           {(() => {
-                            const rawValue = row[h];
-                            const value = String(rawValue || '').trim().toLowerCase();
-                            const field = mapping[h];
-
-                            const isInvalidCompany = field === 'company' && !companyNames.includes(value);
-                            const isInvalidProduct = field === 'product' && !productNames.includes(value);
-                            const isInvalidID = field === 'IDCustomer' && !/^\d{5,9}$/.test(value);
-                            const isInvalidFirstName = field === 'firstNameCustomer' && !isValidHebrewName(rawValue);
-                            const isInvalidLastName = field === 'lastNameCustomer' && !isValidHebrewName(rawValue);
-                            const isNumericField = numericFields.includes(field);
-                            const isInvalidNumber = isNumericField && isNaN(Number(rawValue));
-                            const isInvalidStatus = field === 'statusPolicy' && !statusPolicies.includes(String(rawValue || '').trim());
-                            const isInvalidWorker = field === 'workerName' &&
-                            !!value &&
-                            !workers.find(w => w.name.toLowerCase().trim() === value.toLowerCase().trim());
-                            const isInvalidSourceLead = field === 'sourceLeadName' &&
-                            !!value &&
-                            !sourceLeads.some((s) => s.toLowerCase().trim() === value.toLowerCase().trim());                          
+                          const rawValue = row[h];
+                          const trimmedValue = String(rawValue || '').trim();      // ערך כמו שהוא
+                          const lowerValue = trimmedValue.toLowerCase();           // ערך באותיות קטנות
+                          const field = mapping[h];
+                          
+                          const isInvalidCompany =
+                            field === 'company' && !companyNames.includes(lowerValue);
+                          
+                          const isInvalidProduct =
+                            field === 'product' && !productNames.includes(lowerValue);
+                          
+                          const isInvalidID =
+                            field === 'IDCustomer' && !/^\d{5,9}$/.test(trimmedValue);
+                          
+                          const isInvalidFirstName =
+                            field === 'firstNameCustomer' && !isValidHebrewName(rawValue);
+                          
+                          const isInvalidLastName =
+                            field === 'lastNameCustomer' && !isValidHebrewName(rawValue);
+                          
+                          const isNumericField = numericFields.includes(field);
+                          const isInvalidNumber = isNumericField && isNaN(Number(rawValue));
+                          
+                          const isInvalidStatus =
+                            field === 'statusPolicy' &&
+                            !statusPolicies.includes(String(rawValue || '').trim());
+                          
+                          const isInvalidWorker =
+                            field === 'workerName' &&
+                            !!lowerValue &&
+                            !workers.find(
+                              (w) => w.name.toLowerCase().trim() === lowerValue
+                            );
+                          
+                          // ⭐⭐ כאן התיקון – בודקים לפי sourceValue (ID) ⭐⭐
+                          const isInvalidSourceLead =
+                            field === 'sourceValue' &&
+                            !!trimmedValue &&
+                            !sourceLeads.some((sl) => sl.id === trimmedValue);
                             // console.log("🧪 DEBUG sourceLead", {
                             //   field,
                             //   value,
@@ -1170,33 +1252,37 @@ if (field === "sourceLeadName") {
                                 </div>
                               );
                             }
-                            if (field === 'sourceLeadName') {
+                            if (field === 'sourceValue') {
                               const error = row['_sourceLeadError'];
-                              const currentValue = row[h] || '';
+                              const currentId = row[h] || row["sourceValue"] || "";
                             
-                              // const validValue = sourceLeads.includes(currentValue);
-                              const validValue = !!currentValue && sourceLeads.includes(currentValue.toLowerCase().trim());
-
+                              const isValidId = !!currentId && sourceLeads.some(sl => sl.id === currentId);
+                            
                               return (
                                 <div>
                                   <select
-                                    value={validValue ? currentValue : ''} // משאיר את הערך המקורי אם הוא תקין
-                                    onChange={(e) => handleFieldChange(idx, 'sourceLeadName', e.target.value)}
+                                    value={isValidId ? currentId : ""}
+                                    onChange={(e) => handleFieldChange(idx, 'sourceValue', e.target.value)}
                                     style={{
                                       ...inputStyle,
                                       backgroundColor: error ? '#ffe6e6' : inputStyle.backgroundColor,
                                     }}
                                   >
                                     <option value="">בחר מקור ליד</option>
-                                    {sourceLeads.map((name, i) => (
-                                      <option key={i} value={name}>{name}</option>
+                                    {sourceLeads.map((sl) => (
+                                      <option key={sl.id} value={sl.id}>
+                                        {sl.name}
+                                      </option>
                                     ))}
                                   </select>
-                                  {error && <div style={{ color: 'red', fontSize: '0.75rem' }}>{error}</div>}
+                                  {error && (
+                                    <div style={{ color: 'red', fontSize: '0.75rem' }}>
+                                      {error}
+                                    </div>
+                                  )}
                                 </div>
                               );
-                            }                                    
-                            
+                            }
                             if (isInvalidCompany) {
                               return (
                                 <div>
@@ -1338,13 +1424,13 @@ if (field === "sourceLeadName") {
 
           {errors.length > 0 && <p className="text-red-600 mt-2">יש שורות עם שגיאות – תקני או מחקי אותן לפני טעינה.</p>}
 
-          <Button
-  text="אשר טעינה"
+        <Button
+  text={isImporting ? "טוען עסקאות..." : "אשר טעינה"}
   type="primary"
-  icon="upload" // או כל אייקון שתרצי
-  state={isParsing || errors.length > 0 ? "disabled" : "default"}
+  icon="upload"
+  state={isParsing || isImporting || errors.length > 0 ? "disabled" : "default"}
   onClick={handleImport}
-  disabled={isParsing}
+  disabled={isParsing || isImporting}
 />
           {importDialogOpen && importSummary && (
             <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
@@ -1372,6 +1458,29 @@ if (field === "sourceLeadName") {
           )}
         </div>
       )}
+      {isImporting && (
+  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
+    <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-md text-center">
+      <h3 className="text-lg font-semibold mb-2">טוען נתונים...</h3>
+      <p className="text-sm text-gray-600 mb-4">
+        הטעינה בעיצומה. אפשר להמשיך לעבוד במסך אחר, אבל אין לסגור את החלון.
+      </p>
+
+      <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden mb-2">
+        <div
+          className="h-3 rounded-full"
+          style={{
+            width: `${importProgress}%`,
+            transition: "width 0.2s ease",
+            backgroundColor: "#3b82f6", // כחול נחמד, אפשר להחליף ל־CSS קלאס
+          }}
+        />
+      </div>
+
+      <div className="text-xs text-gray-500">{importProgress}%</div>
+    </div>
+  </div>
+)}
       {toasts.length > 0 && toasts.map((toast) => (
         <ToastNotification
           key={toast.id}

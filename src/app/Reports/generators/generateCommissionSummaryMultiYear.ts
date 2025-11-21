@@ -1,8 +1,7 @@
 // THIS FILE RUNS ONLY ON SERVER. DO NOT IMPORT FROM CLIENT.
 // /app/Reports/generators/generateCommissionSummaryMultiYear.ts
 
-import { admin } from '@/lib/firebase/firebase-admin';
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 import { ReportRequest } from '@/types';
 import { getCommissionSummary } from '@/services/server/commissionSummaryService';
 
@@ -26,6 +25,105 @@ const toYm = (v?: string) => {
   }
   return '';
 };
+
+// הופך מ-'YYYY-MM' ל- Date של היום הראשון בחודש
+function monthStringToDate(month: string): Date | string {
+  if (!month) return '';
+  if (!/^\d{4}-\d{2}/.test(month)) return month;
+  const year = Number(month.slice(0, 4));
+  const monthIdx = Number(month.slice(5, 7)) - 1; // 0-based
+  return new Date(year, monthIdx, 1);
+}
+
+// עיצוב כותרת (ראש טבלה) – אפור כהה, טקסט לבן, bold
+function styleHeaderRow(row: ExcelJS.Row) {
+  row.height = 20;
+  row.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+
+  row.eachCell((cell) => {
+    cell.font = {
+      bold: true,
+      color: { argb: 'FFFFFFFF' }, // לבן
+      size: 11,
+    };
+    cell.fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FF4D4D4D' }, // אפור כהה
+    };
+    cell.border = {
+      top: { style: 'thin', color: { argb: 'FFBFBFBF' } },
+      left: { style: 'thin', color: { argb: 'FFBFBFBF' } },
+      bottom: { style: 'thin', color: { argb: 'FFBFBFBF' } },
+      right: { style: 'thin', color: { argb: 'FFBFBFBF' } },
+    };
+  });
+}
+
+// עיצוב שורות נתונים – גמיש לפי סוג עמודה
+function styleDataRows(
+  ws: ExcelJS.Worksheet,
+  headerCount: number,
+  options?: {
+    firstDataRow?: number;
+    numericCols?: number[];
+    dateCols?: number[];
+  }
+) {
+  const firstDataRow = options?.firstDataRow ?? 2;
+  const numericCols = options?.numericCols ?? [];
+  const dateCols = options?.dateCols ?? [];
+
+  for (let rowIdx = firstDataRow; rowIdx <= ws.rowCount; rowIdx++) {
+    const row = ws.getRow(rowIdx);
+
+    // זברה: שורות זוגיות ברקע אפור עדין
+    if (rowIdx % 2 === 0) {
+      row.eachCell((cell) => {
+        cell.fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FFF5F5F5' }, // אפור בהיר מאוד
+        };
+      });
+    }
+
+    for (let colIdx = 1; colIdx <= headerCount; colIdx++) {
+      const cell = row.getCell(colIdx);
+
+      if (dateCols.includes(colIdx)) {
+        cell.alignment = { horizontal: 'center', vertical: 'middle' };
+        cell.numFmt = 'yyyy-mm'; // תצוגה 2025-04 אבל כ-תאריך
+      } else if (numericCols.includes(colIdx)) {
+        cell.alignment = { horizontal: 'right', vertical: 'middle' };
+        cell.numFmt = '#,##0.00';
+      } else {
+        cell.alignment = { horizontal: 'center', vertical: 'middle' };
+      }
+    }
+  }
+}
+
+// התאמת רוחב עמודות לפי התוכן
+function autofitColumns(ws: ExcelJS.Worksheet, headerCount: number) {
+  for (let colIdx = 1; colIdx <= headerCount; colIdx++) {
+    let maxLen = 0;
+
+    ws.eachRow((row) => {
+      const cell = row.getCell(colIdx);
+      const val = cell.value;
+      if (val === null || val === undefined) return;
+      const len = String(
+        typeof val === 'object' && (val as any).richText
+          ? (val as any).richText.map((r: any) => r.text).join('')
+          : val
+      ).length;
+      if (len > maxLen) maxLen = len;
+    });
+
+    ws.getColumn(colIdx).width = Math.min(Math.max(maxLen + 2, 10), 40);
+  }
+}
 
 export async function generateCommissionSummaryMultiYear(
   params: ReportRequest
@@ -58,7 +156,6 @@ export async function generateCommissionSummaryMultiYear(
     summaryByCompanyAgentMonth,
     allMonths,
     allCompanies,
-    monthlyTotalsData,
   } = await getCommissionSummary({
     agentId,
     fromMonth: fromYm,
@@ -70,7 +167,7 @@ export async function generateCommissionSummaryMultiYear(
       ? allCompanies.filter((c) => selectedCompanies.includes(canon(c)))
       : allCompanies;
 
-  /** ------------ לשונית 1: סיכום לפי חודש וחברה (טבלה כמו במסך) ------------ */
+  /** ------------ לשונית 1: סיכום לפי חודש וחברה ------------ */
 
   const summaryRows: any[] = allMonths.map((month) => {
     const row: any = { 'חודש': month };
@@ -86,7 +183,13 @@ export async function generateCommissionSummaryMultiYear(
     return row;
   });
 
-  /** ------------ לשונית 2: נתונים לפיבוט (שורה לכל חברה/קוד/חודש) ------------ */
+  const summaryHeaders: string[] = [
+    'חודש',
+    ...effectiveCompanies,
+    'סה"כ לחודש',
+  ];
+
+  /** ------------ לשונית 2: נתונים לפיבוט ------------ */
 
   const pivotRows: any[] = [];
 
@@ -111,7 +214,6 @@ export async function generateCommissionSummaryMultiYear(
     }
   }
 
-  // אפשר למיין יפה לפיבוט
   pivotRows.sort((a, b) =>
     a['שנה'] !== b['שנה']
       ? String(a['שנה']).localeCompare(String(b['שנה']))
@@ -121,33 +223,85 @@ export async function generateCommissionSummaryMultiYear(
         String(a['קוד סוכן']).localeCompare(String(b['קוד סוכן']))
   );
 
-  /** ------------ יצירת קובץ אקסל ------------ */
+  const pivotHeaders: string[] = [
+    'שנה',
+    'חודש מספר',
+    'חודש',
+    'חברה',
+    'קוד סוכן',
+    'נפרעים',
+  ];
 
-  const wb = XLSX.utils.book_new();
+  /** ------------ יצירת קובץ אקסל (exceljs) ------------ */
 
-  const wsSummary = XLSX.utils.json_to_sheet(summaryRows);
-  XLSX.utils.book_append_sheet(wb, wsSummary, 'סיכום לפי חודש וחברה');
+  const wb = new ExcelJS.Workbook();
+  wb.created = new Date();
 
-  const wsPivot = XLSX.utils.json_to_sheet(pivotRows);
-  XLSX.utils.book_append_sheet(wb, wsPivot, 'נתונים לפיבוט');
+  // -------- Sheet 1: סיכום לפי חודש וחברה --------
+  const wsSummary = wb.addWorksheet('סיכום לפי חודש וחברה', {
+    views: [{ rightToLeft: true }],
+  });
 
-  // אופציונלי: לשונית של סה"כ חודשי (אם תרצי להשתמש בה בעתיד)
-  const monthlyRows = monthlyTotalsData.map((row) => ({
-    'חודש': row.month,
-    'סה"כ נפרעים': Number(row.total.toFixed(2)),
-  }));
-  const wsMonthly = XLSX.utils.json_to_sheet(monthlyRows);
-  XLSX.utils.book_append_sheet(wb, wsMonthly, 'סה"כ חודשי');
+  wsSummary.addRow(summaryHeaders);
+  styleHeaderRow(wsSummary.getRow(1));
 
-  const buffer = XLSX.write(wb, { bookType: 'xlsx', type: 'buffer' });
+  // נתונים – "חודש" נכתב כ- Date
+  summaryRows.forEach((r) => {
+    const rowValues = summaryHeaders.map((h) => {
+      if (h === 'חודש') {
+        return monthStringToDate(r[h]);
+      }
+      return r[h] ?? '';
+    });
+    wsSummary.addRow(rowValues);
+  });
 
-  const filename = `דוח נפרעים לפי חודש וחברה ${fromYm}–${toYmVal}.xlsx`;
+  styleDataRows(wsSummary, summaryHeaders.length, {
+    firstDataRow: 2,
+    dateCols: [1],                       // עמודה 1 – תאריך חודש
+    numericCols: summaryHeaders
+      .map((_, idx) => idx + 1)
+      .filter((i) => i >= 2),           // כל העמודות מ-2 והלאה מספריות
+  });
+  autofitColumns(wsSummary, summaryHeaders.length);
+
+  // -------- Sheet 2: נתונים לפיבוט --------
+  const wsPivot = wb.addWorksheet('נתונים לפיבוט', {
+    views: [{ rightToLeft: true }],
+  });
+
+  wsPivot.addRow(pivotHeaders);
+  styleHeaderRow(wsPivot.getRow(1));
+
+  pivotRows.forEach((r) => {
+    const rowValues = pivotHeaders.map((h) => {
+      if (h === 'חודש') {
+        return monthStringToDate(r[h] as string);
+      }
+      return r[h] ?? '';
+    });
+    wsPivot.addRow(rowValues);
+  });
+
+  styleDataRows(wsPivot, pivotHeaders.length, {
+    firstDataRow: 2,
+    dateCols: [3],       // "חודש" – תאריך
+    numericCols: [2, 6], // חודש מספר, נפרעים
+  });
+  autofitColumns(wsPivot, pivotHeaders.length);
+
+  const excelBuffer = await wb.xlsx.writeBuffer();
+  const buffer = Buffer.isBuffer(excelBuffer)
+    ? excelBuffer
+    : Buffer.from(excelBuffer as ArrayBuffer);
+
+  const filename = `דוח נפרעים מסוכם מטעינה לפי חודש וחברה ${fromYm}–${toYmVal}.xlsx`;
 
   return {
     buffer,
     filename,
-    subject: 'דוח נפרעים לפי חודש וחברה (טווח שנים)',
+    subject: 'דוח נפרעים מסוכם מטעינה לפי חודש וחברה',
     description:
-      'דוח סיכום נפרעים לפי חודש וחברה, כולל לשונית נתונים לפיבוט.',
+      'דוח סיכום נפרעים לפי חודש וחברה, כולל לשונית נתונים לפיבוט – עם עמודת חודש כתאריך אמיתי.',
   };
 }

@@ -118,15 +118,15 @@ const CommissionSummaryAgentTab: React.FC = () => {
         });
 
         if (!res.ok) {
-          console.error('API /api/commission-summary failed', await res.text());
-          setSummaries([]);
-          setCompanyMap({});
-          setSummaryByMonthCompany({});
-          setSummaryByCompanyAgentMonth({});
-          setAllMonths([]);
-          setAllCompanies([]);
-          setMonthlyTotalsData([]);
-          setPerCompanyOverMonthsData([]);
+          // console.error('API /api/commission-summary failed', await res.text());
+          // setSummaries([]);
+          // setCompanyMap({});
+          // setSummaryByMonthCompany({});
+          // setSummaryByCompanyAgentMonth({});
+          // setAllMonths([]);
+          // setAllCompanies([]);
+          // setMonthlyTotalsData([]);
+          // setPerCompanyOverMonthsData([]);
           return;
         }
 
@@ -141,7 +141,7 @@ const CommissionSummaryAgentTab: React.FC = () => {
         setMonthlyTotalsData(data.monthlyTotalsData ?? []);
         setPerCompanyOverMonthsData(data.perCompanyOverMonthsData ?? []);
       } catch (err) {
-        console.error('fetchSummaries error:', err);
+        // console.error('fetchSummaries error:', err);
         setSummaries([]);
         setCompanyMap({});
         setSummaryByMonthCompany({});

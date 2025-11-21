@@ -78,10 +78,10 @@ const CommissionSummaryAgencyMatrixTab: React.FC = () => {
         });
 
         if (!res.ok) {
-          console.error(
-            'API /api/admin/commission-summary-matrix failed',
-            await res.text()
-          );
+          // console.error(
+          //   'API /api/admin/commission-summary-matrix failed',
+          //   await res.text()
+          // );
           setMatrix(null);
           return;
         }
@@ -89,7 +89,7 @@ const CommissionSummaryAgencyMatrixTab: React.FC = () => {
         const data: AdminMatrixResponse = await res.json();
         setMatrix(data);
       } catch (err) {
-        console.error('fetchMatrix error:', err);
+        // console.error('fetchMatrix error:', err);
         setMatrix(null);
       } finally {
         setLoading(false);

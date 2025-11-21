@@ -622,8 +622,8 @@ useEffect(() => {
           const commissions = calculateCommissions(data, contractMatch);
 
           if (isCommissionSplitEnabled && sourceValue) {
-            console.log("Checking split for sourceValue:", sourceValue);
-            console.log("Current commission before split:", commissions);
+            // console.log("Checking split for sourceValue:", sourceValue);
+            // console.log("Current commission before split:", commissions);
             const splitAgreement = commissionSplits.find(
               (split) =>
                 split.agentId === selectedAgentId &&
@@ -633,8 +633,8 @@ useEffect(() => {
             if (splitAgreement) {
               commissions.commissionHekef = Math.round(commissions.commissionHekef * (splitAgreement.percentToAgent / 100));
               commissions.commissionNifraim = Math.round(commissions.commissionNifraim * (splitAgreement.percentToAgent / 100));
-              console.log("Applied split:", splitAgreement);
-              console.log("Commission after split:", commissions);
+              // console.log("Applied split:", splitAgreement);
+              // console.log("Commission after split:", commissions);
             }
           }
 

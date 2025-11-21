@@ -1,34 +1,107 @@
 // app/Reports/generators/generateClientPoliciesReport.ts  ✅ SERVER ONLY
 import { admin } from '@/lib/firebase/firebase-admin';
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 import { ReportRequest } from '@/types';
 import { calculateCommissions, calculatePremiaAndTzvira } from '@/utils/commissionCalculations';
 
-// ❗ חשוב: ייבוא *גרסאות השרת* של הסרוויסים
 import { fetchContractsByAgent } from '@/services/server/fetchContracts';
 import { fetchCommissionSplits } from '@/services/server/commissionService';
 import type { ClientPolicyRow } from '@/types/Sales';
 import { getProductMap } from '@/services/server/productService';
 
-// עוזר: נירמול ערך לבוליאני (מתאים גם ל-true/false, "true"/"false", 1/0 וכו')
+/* ---------------------------- Helpers ---------------------------- */
+
 function normalizeBoolean(value: any): boolean | undefined {
   if (value === null || value === undefined || value === '') return undefined;
-
   if (typeof value === 'boolean') return value;
-
-  if (typeof value === 'number') {
-    if (value === 1) return true;
-    if (value === 0) return false;
-  }
-
+  if (typeof value === 'number') return value === 1;
   if (typeof value === 'string') {
     const v = value.trim().toLowerCase();
     if (['true', '1', 'yes', 'כן'].includes(v)) return true;
     if (['false', '0', 'no', 'לא'].includes(v)) return false;
   }
-
   return undefined;
 }
+
+// הופך מחרוזת YYYY-MM ל־Date אמיתי
+function monthStringToDate(value: string): Date | string {
+  const s = String(value ?? '').trim();
+  if (!s) return '';
+  if (/^\d{4}-\d{2}$/.test(s)) {
+    const [y, m] = s.split('-');
+    return new Date(Number(y), Number(m) - 1, 1);
+  }
+  return s;
+}
+
+// כותרת אפורה
+function styleHeaderRow(row: ExcelJS.Row) {
+  row.height = 20;
+  row.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+
+  row.eachCell((cell) => {
+    cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11 };
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4D4D4D' } };
+    cell.border = {
+      top: { style: 'thin', color: { argb: 'FFBFBFBF' } },
+      left: { style: 'thin', color: { argb: 'FFBFBFBF' } },
+      bottom: { style: 'thin', color: { argb: 'FFBFBFBF' } },
+      right: { style: 'thin', color: { argb: 'FFBFBFBF' } },
+    };
+  });
+}
+
+// שורות נתונים
+function styleDataRows(
+  ws: ExcelJS.Worksheet,
+  headerCount: number,
+  opt: { firstDataRow?: number; numericCols?: number[]; dateCols?: number[] } = {}
+) {
+  const { firstDataRow = 2, numericCols = [], dateCols = [] } = opt;
+
+  for (let rowIdx = firstDataRow; rowIdx <= ws.rowCount; rowIdx++) {
+    const row = ws.getRow(rowIdx);
+
+    // זברה
+    if (rowIdx % 2 === 0) {
+      row.eachCell((cell) => {
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF5F5F5' } };
+      });
+    }
+
+    for (let col = 1; col <= headerCount; col++) {
+      const cell = row.getCell(col);
+
+      if (dateCols.includes(col)) {
+        cell.numFmt = 'yyyy-mm';
+        cell.alignment = { horizontal: 'center' };
+      } else if (numericCols.includes(col)) {
+        cell.numFmt = '#,##0.00';
+        cell.alignment = { horizontal: 'right' };
+      } else {
+        cell.alignment = { horizontal: 'center' };
+      }
+    }
+  }
+}
+
+// Auto-fit columns
+function autofitColumns(ws: ExcelJS.Worksheet, count: number) {
+  for (let i = 1; i <= count; i++) {
+    let maxLen = 0;
+
+    ws.eachRow((row) => {
+      const val = row.getCell(i).value;
+      if (!val) return;
+      const len = String(val).length;
+      if (len > maxLen) maxLen = len;
+    });
+
+    ws.getColumn(i).width = Math.min(Math.max(maxLen + 2, 10), 40);
+  }
+}
+
+/* ---------------------------- MAIN REPORT ---------------------------- */
 
 export async function generateClientPoliciesReport(params: ReportRequest) {
   const {
@@ -48,15 +121,13 @@ export async function generateClientPoliciesReport(params: ReportRequest) {
 
   const db = admin.firestore();
 
-  // 🔎 שליפה מ־sales עם Admin SDK
+  // sales
   const salesSnap = await db
     .collection('sales')
     .where('AgentId', '==', agentId)
     .get();
 
-  // 📚 שליפות עזר (כולן בגרסאות SERVER)
   const contracts = await fetchContractsByAgent(agentId);
-  const _splits = await fetchCommissionSplits(agentId); // אם לא בשימוש אפשר להסיר
   const productMap = await getProductMap();
 
   const cleanedProducts = Array.isArray(product) ? product.map((p) => p.trim()) : [];
@@ -70,40 +141,27 @@ export async function generateClientPoliciesReport(params: ReportRequest) {
       salesSnap.docs.map(async (doc) => {
         const raw = doc.data() as any;
 
-        // 🧹 סינון לפי תאריכים (מחרוזות ISO כמו YYYY-MM או YYYY-MM-DD עובד לקסיקוגרפית)
         if (fromDate && raw.mounth < fromDate) return null;
         if (toDate && raw.mounth > toDate) return null;
 
-        // 🧹 סינון לפי חברות
         if (
-          cleanedCompanies.length > 0 &&
+          cleanedCompanies.length &&
           !cleanedCompanies.includes((raw.company ?? '').trim())
-        ) {
+        )
           return null;
-        }
 
-        // 🧹 סינון לפי מוצרים
         if (
-          cleanedProducts.length > 0 &&
+          cleanedProducts.length &&
           !cleanedProducts.includes((raw.product ?? '').trim())
-        ) {
+        )
           return null;
-        }
 
-        // 🧹 סינון לפי סטטוס פוליסה (אם נשלח)
         const saleStatus = (raw.statusPolicy ?? '').trim();
-        if (cleanedStatuses.length > 0 && !cleanedStatuses.includes(saleStatus)) {
+        if (cleanedStatuses.length && !cleanedStatuses.includes(saleStatus)) return null;
+
+        const saleMinuy = normalizeBoolean(raw.minuySochen);
+        if (typeof minuySochen === 'boolean' && saleMinuy !== minuySochen) {
           return null;
-        }
-
-        // נירמול מינוי סוכן פעם אחת
-        const saleMinuyBool = normalizeBoolean(raw.minuySochen);
-
-        // 🧹 סינון לפי מינוי סוכן (אם נשלח)
-        if (typeof minuySochen === 'boolean') {
-          if (saleMinuyBool !== minuySochen) {
-            return null;
-          }
         }
 
         const sale: ClientPolicyRow = {
@@ -114,7 +172,6 @@ export async function generateClientPoliciesReport(params: ReportRequest) {
           product: raw.product || '',
           workerId: raw.workerId || '',
           workerName: raw.workerName || '',
-          // שימי לב ל-?? במקום ||
           minuySochen: raw.minuySochen ?? '',
           notes: raw.notes || '',
           month: raw.mounth || '',
@@ -145,6 +202,7 @@ export async function generateClientPoliciesReport(params: ReportRequest) {
           productMap,
           agentId
         );
+
         const premiaData = calculatePremiaAndTzvira(sale);
 
         return {
@@ -154,9 +212,7 @@ export async function generateClientPoliciesReport(params: ReportRequest) {
           'חברה': sale.company,
           'מוצר': sale.product,
           'סטטוס': sale.status,
-          'מינוי סוכן':
-            saleMinuyBool === true ? 'כן' :
-            saleMinuyBool === false ? 'לא' : '',
+          'מינוי סוכן': saleMinuy === true ? 'כן' : saleMinuy === false ? 'לא' : '',
           'חודש תפוקה': sale.month,
           'פרמיה': premiaData.sumPremia,
           'צבירה': premiaData.sumTzvira,
@@ -164,25 +220,69 @@ export async function generateClientPoliciesReport(params: ReportRequest) {
           'נפרעים': commissions.commissionNifraim,
         };
       })
-
     )
   ).filter(Boolean) as any[];
 
-  rows.sort((a, b) => String(a['תז'] ?? '').localeCompare(String(b['תז'] ?? '')));
+  rows.sort((a, b) => String(a['תז']).localeCompare(String(b['תז'])));
 
   return buildExcelReport(rows, 'פוליסות ללקוח');
 }
 
-function buildExcelReport(rows: any[], sheetName: string) {
-  const worksheet = XLSX.utils.json_to_sheet(rows.length ? rows : [{}]);
-  const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
-  const buffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
+/* ---------------------------- Excel Builder ---------------------------- */
+
+async function buildExcelReport(rows: any[], sheetName: string) {
+  const wb = new ExcelJS.Workbook();
+  wb.created = new Date();
+
+  const headers = [
+    'שם פרטי',
+    'שם משפחה',
+    'תז',
+    'חברה',
+    'מוצר',
+    'סטטוס',
+    'מינוי סוכן',
+    'חודש תפוקה',
+    'פרמיה',
+    'צבירה',
+    'עמלת הקף',
+    'נפרעים',
+  ];
+
+  const ws = wb.addWorksheet(sheetName, {
+    views: [{ rightToLeft: true }],
+  });
+
+  // כותרת
+  ws.addRow(headers);
+  styleHeaderRow(ws.getRow(1));
+
+  // נתונים
+  rows.forEach((r) => {
+    const rowValues = headers.map((h) => {
+      if (h === 'חודש תפוקה') return monthStringToDate(r[h]);
+      return r[h] ?? '';
+    });
+    ws.addRow(rowValues);
+  });
+
+  styleDataRows(ws, headers.length, {
+    firstDataRow: 2,
+    dateCols: [8], // חודש תפוקה
+    numericCols: [9, 10, 11, 12], // פרמיה, צבירה, עמלת הקף, נפרעים
+  });
+
+  autofitColumns(ws, headers.length);
+
+  const excelBuffer = await wb.xlsx.writeBuffer();
+  const buffer = Buffer.isBuffer(excelBuffer)
+    ? excelBuffer
+    : Buffer.from(excelBuffer as ArrayBuffer);
 
   return {
-    buffer: buffer as Buffer,
+    buffer,
     filename: 'דוח_פוליסות_ללקוח.xlsx',
     subject: 'דוח פוליסות ללקוח ממערכת MagicSale',
-    description: 'מצורף דוח פוליסות עם פרמיה ועמלות',
+    description: 'מצורף דוח פוליסות עם פרמיה, עמלה, ונפרעים – בעיצוב אחיד.',
   };
 }

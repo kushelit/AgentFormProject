@@ -389,7 +389,7 @@ export default function CommissionPurgeAdminPage() {
 
       await fetchCommissionRuns();
     } catch (err) {
-      console.error('Error deleting run by runId', err);
+      // console.error('Error deleting run by runId', err);
     } finally {
       setRunDeleteLoading(false);
       setRunDeleteDialogOpen(false);
