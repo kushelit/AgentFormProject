@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import sgMail from '@sendgrid/mail';
 import { captureRejectionSymbol } from 'events';
+import { admin } from '@/lib/firebase/firebase-admin';
+
 
 //https://agent-form-project.vercel.app/api/sendEmail
 
@@ -34,6 +36,15 @@ export async function POST(req) {
     };
 
     await sgMail.send(msg);
+    const db = admin.firestore();
+await db.collection('emailLogs').add({
+  to,
+  subject,
+  html: html || null,
+  text: text || null,
+  createdAt: admin.firestore.FieldValue.serverTimestamp(),
+});
+
     return NextResponse.json({ message: 'Email sent successfully!' }, { status: 200 });
     captureRejectionSymbol.log("Email sent successfully!")
 

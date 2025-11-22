@@ -1,6 +1,8 @@
 // File: /app/api/sendCancelEmail/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import sgMail from '@sendgrid/mail';
+import { admin } from '@/lib/firebase/firebase-admin';
+
 
 sgMail.setApiKey(process.env.SENDGRID_API_KEY!);
 
@@ -33,6 +35,19 @@ export async function POST(req: NextRequest) {
     };
 
     await sgMail.send(msg);
+    const db = admin.firestore();   // ← להוסיף שורה זו
+
+    await db.collection('emailLogs').add({
+      to: email,
+      subject: 'ביטול המנוי שלך במערכת MagicSale',
+      html: msg.html,
+      meta: {
+        type: 'subscription-cancel',
+      },
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    
+    
     return NextResponse.json({ success: true });
   } catch (err) {
     // console.error('❌ Error sending cancel email:', err);

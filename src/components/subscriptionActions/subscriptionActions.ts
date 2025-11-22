@@ -38,20 +38,13 @@ export const getAllSubscriptions = async () => {
 
 
 export const sendFailureEmail = async (email: string, fullName: string) => {
-  const response = await axios.post('/api/sendEmail', {
-    to: email,
-    subject: 'הודעה על כישלון בתשלום למערכת MagicSale',
-    html: `
-      שלום ${fullName},<br><br>
-      ניסינו לגבות את התשלום שלך למערכת MagicSale אך הוא נכשל.<br>
-      אנא הסדיר/י את התשלום על מנת למנוע השעיה של החשבון שלך.<br><br>
-      במידה ונתקלת בקושי או שיש לך שאלה, אנו כאן לעזרתך.<br><br>
-      בברכה,<br>
-      צוות MagicSale
-    `,
+  const response = await axios.post('/api/sendFailureEmail', {
+    email,
+    name: fullName,
   });
   return response.data;
 };
+
 
 export const sendCancelEmail = async (email: string, fullName: string) => {
   const response = await axios.post('/api/sendEmail', {
