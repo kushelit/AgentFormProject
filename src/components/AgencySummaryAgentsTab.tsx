@@ -78,6 +78,7 @@ const AgentYearRow: React.FC<AgentRowProps> = ({
   const totals: MonthlyTotal =
     Object.keys(monthlyTotals).length === 0 ? emptyTotals : overallTotals;
 
+
   return (
     <tr>
       <td>{agentName}</td>
@@ -228,14 +229,18 @@ const AgencySummaryAgentsTab: React.FC = () => {
     setSelectedAgentIds(new Set());
   };
 
-  // 🔐 אחרי שכל ה־hooks נקראו – אפשר לבדוק הרשאה
-  if (detail && detail.role !== 'admin') {
-    return (
-      <div className="p-6 max-w-5xl mx-auto text-right" dir="rtl">
-        אין לך הרשאה לצפות בדוח זה.
-      </div>
-    );
-  }
+// 🔐 אחרי שכל ה־hooks נקראו – אפשר לבדוק הרשאה
+const canSeeAgencyTab =
+  !!detail && ['admin', 'manager'].includes(detail.role);
+
+if (!canSeeAgencyTab) {
+  return (
+    <div className="p-6 max-w-5xl mx-auto text-right" dir="rtl">
+      אין לך הרשאה לצפות בדוח זה.
+    </div>
+  );
+}
+
 
   return (
     <div className="content-container-NewAgentForm" dir="rtl">

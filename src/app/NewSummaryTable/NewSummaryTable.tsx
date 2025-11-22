@@ -86,14 +86,25 @@ const NewSummaryTable = () => {
     selectedGraph === 'commissionPerMonth' ? monthlyTotals : undefined
   );
 
+  // 🔹 מצב לשונית – דף מרכז לסוכן / סיכומי סוכנות
+  const [activeTab, setActiveTab] = useState<'agent' | 'agencyAgents'>(
+    'agent'
+  );
+
+ // מי רואה את לשונית הסוכנות?
+ const canSeeAgencyTab =
+ detail && ['admin', 'manager'].includes(detail.role);
+
+
   useEffect(() => {
     if (
-      detail?.role === 'admin' &&
+      canSeeAgencyTab &&
       (selectedAgentId === null || selectedAgentId === undefined)
     ) {
       setSelectedAgentId('select'); // ברירת מחדל
     }
-  }, [detail, selectedAgentId, setSelectedAgentId]);
+  }, [canSeeAgencyTab, selectedAgentId, setSelectedAgentId]);
+
 
   // ממוצעים חודשיים
   const averageFinansim = Math.round(
@@ -125,10 +136,7 @@ const NewSummaryTable = () => {
     'view_commissions_field'
   );
 
-  // 🔹 מצב לשונית – דף מרכז לסוכן / סיכומי סוכנות
-  const [activeTab, setActiveTab] = useState<'agent' | 'agencyAgents'>(
-    'agent'
-  );
+
 
   return (
     <div className="content-container-NewAgentForm">
@@ -137,7 +145,7 @@ const NewSummaryTable = () => {
           <div className="table-title">דף מרכז</div>
 
           {/* לשוניות – רק לאדמין מוצגת לשונית הסוכנות */}
-          {detail?.role === 'admin' && (
+          {canSeeAgencyTab && (
             <div
               dir="rtl"
               className="flex items-center gap-2 mt-2 text-xs"
@@ -175,24 +183,24 @@ const NewSummaryTable = () => {
           <>
             <div className="filter-inputs-container-new">
               <div className="filter-select-container">
-                <select
-                  id="agent-select"
-                  className="select-input"
-                  value={selectedAgentId}
-                  onChange={handleAgentChange}
-                >
-                  {detail?.role === 'admin' && (
-                    <option value="">בחר סוכן</option>
-                  )}
-                  {detail?.role === 'admin' && (
-                    <option value="all">כל הסוכנות</option>
-                  )}
-                  {agents.map((agent) => (
-                    <option key={agent.id} value={agent.id}>
-                      {agent.name}
-                    </option>
-                  ))}
-                </select>
+              <select
+  id="agent-select"
+  className="select-input"
+  value={selectedAgentId}
+  onChange={handleAgentChange}
+>
+  {detail?.role === 'admin' && (
+    <option value="">בחר סוכן</option>
+  )}
+  {detail?.role === 'admin' && (
+    <option value="all">כל הסוכנות</option>
+  )}
+  {agents.map((agent) => (
+    <option key={agent.id} value={agent.id}>
+      {agent.name}
+    </option>
+  ))}
+</select>
               </div>
               <div className="filter-select-container">
                 <select
@@ -531,7 +539,7 @@ const NewSummaryTable = () => {
         )}
 
         {/* 🔹 לשונית 2 – סיכומי סוכנות לפי סוכן (אדמין בלבד) */}
-        {activeTab === 'agencyAgents' && detail?.role === 'admin' && (
+        {activeTab === 'agencyAgents' && canSeeAgencyTab  && (
           <AgencySummaryAgentsTab />
         )}
       </div>

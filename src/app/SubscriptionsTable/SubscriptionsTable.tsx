@@ -244,6 +244,40 @@ const [couponEmailSending, setCouponEmailSending] = useState(false);
     }
   };
 
+  const handleChangePaymentMethod = async (sub: SubscriptionRow) => {
+    if (!sub.subscriptionType) {
+      addToast('error', 'לא נמצאה תוכנית למנוי הזה');
+      return;
+    }
+  
+    if (!confirm(`לפתוח תהליך עדכון אמצעי תשלום עבור ${sub.name}?`)) return;
+  
+    try {
+      // משתמשים ב־/api/create-subscription הקיים
+      const { data } = await axios.post('/api/create-subscription', {
+        existingUserUid: sub.id,              // ⭐ משתמש קיים
+        source: 'existing-user-upgrade',      // אפשר גם 'payment-method-change' אם תטפלי בזה ב-webhook
+        plan: sub.subscriptionType,           // נשאר באותה תוכנית
+        addOns: sub.addOns || {},             // אותם תוספים קיימים
+        couponCode: sub.usedCouponCode || sub.couponUsed?.code || undefined,
+  
+        // פרטי זיהוי – אם חסר משהו, ה־API שלך משלים מה-DB
+        fullName: sub.name,
+        email: sub.email,
+        phone: sub.phone,
+        idNumber: sub.idNumber,
+      });
+  
+      if (data?.paymentUrl) {
+        // מעבירים את הלקוח לעמוד של Grow לעדכון אמצעי התשלום
+        window.location.href = data.paymentUrl;
+      } else {
+        addToast('error', 'לא התקבל קישור לעדכון אמצעי התשלום');
+      }
+    } catch (e: any) {
+      addToast('error', e?.response?.data?.error || 'שגיאה בפתיחת תהליך עדכון התשלום');
+    }
+  };
   
   return (
     <AdminGuard>
@@ -415,6 +449,13 @@ const [couponEmailSending, setCouponEmailSending] = useState(false);
 >
   מייל קופון
 </button>
+<button
+  className="bg-indigo-500 text-white px-2 py-1 rounded w-full"
+  onClick={() => handleChangePaymentMethod(sub)}
+>
+  החלפת אמצעי תשלום
+</button>
+
                   </td>
                 </tr>
               ))}
