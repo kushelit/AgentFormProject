@@ -12,8 +12,11 @@ export default function CommissionSummaryTabsPage() {
   const [activeTab, setActiveTab] = useState<TabKey>('agent');
 
   // מי רואה את לשונית הסוכנות (וגם את פס הלשוניות בכלל)
-  const canSeeAgencyTab =
-    detail && ['admin', 'manager'].includes(detail.role);
+  // const canSeeAgencyTab =
+  //   detail && ['admin', 'manager'].includes(detail.role);
+
+  const canSeeAgencyTab = false;
+
 
   const changeTab = (tab: TabKey) => {
     if (tab === 'agency' && !canSeeAgencyTab) return;

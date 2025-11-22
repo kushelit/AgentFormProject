@@ -13,6 +13,7 @@ import { generateCommissionSummaryMultiYear } from '@/app/Reports/generators/gen
 import { admin } from '@/lib/firebase/firebase-admin';
 import { checkServerPermission } from '@/services/server/checkServerPermission';
 export const runtime = 'nodejs';
+export const maxDuration = 60;
 
 const REPORTS_REQUIRING_ACCESS = new Set([
   'clientNifraimReportedVsMagic',

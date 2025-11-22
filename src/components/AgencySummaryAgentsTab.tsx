@@ -12,6 +12,9 @@ import useFetchMD from '@/hooks/useMD';
 import useSalesData from '@/hooks/useSalesCalculateData';
 import { useDesignFlag } from '@/hooks/useDesignFlag';
 import { usePermission } from '@/hooks/usePermission';
+import { db } from '@/lib/firebase/firebase';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
+
 
 import '@/app/NewSummaryTable/NewSummaryTable.css';
 
@@ -60,7 +63,7 @@ const AgentYearRow: React.FC<AgentRowProps> = ({
   onTotalsChange,
   canViewCommissions,
 }) => {
-  const { monthlyTotals, overallTotals } = useSalesData(
+  const { monthlyTotals, overallTotals, isLoadingData } = useSalesData(
     agentId,
     '', // כל העובדים
     '', // כל החברות
@@ -78,6 +81,20 @@ const AgentYearRow: React.FC<AgentRowProps> = ({
   const totals: MonthlyTotal =
     Object.keys(monthlyTotals).length === 0 ? emptyTotals : overallTotals;
 
+  // כמה עמודות יהיו אחרי עמודת "סוכן"
+  const numericColumnsCount = 6 + (canViewCommissions ? 2 : 0);
+
+  // 🔹 בזמן טעינה – מציגים מצב טעינה במקום ערכים 0
+  if (isLoadingData) {
+    return (
+      <tr>
+        <td>{agentName}</td>
+        <td colSpan={numericColumnsCount} style={{ textAlign: 'center', fontSize: '0.85rem', color: '#666' }}>
+          טוען נתונים עבור הסוכן...
+        </td>
+      </tr>
+    );
+  }
 
   return (
     <tr>
@@ -98,13 +115,14 @@ const AgentYearRow: React.FC<AgentRowProps> = ({
   );
 };
 
+
 const AgencySummaryAgentsTab: React.FC = () => {
   // 🔹 כל ה־hooks למעלה, ללא תנאים
-  const { detail } = useAuth();
   const { agents } = useFetchAgentData();
   const isNewDesignEnabled = useDesignFlag();
   const { canAccess } = usePermission('view_commissions_field');
   const canViewCommissions = !!canAccess;
+  const [preferencesLoaded, setPreferencesLoaded] = useState(false);
 
   const [selectedYear, setSelectedYear] = useState<number>(
     new Date().getFullYear()
@@ -120,6 +138,7 @@ const AgencySummaryAgentsTab: React.FC = () => {
     () => new Set()
   );
   const [agentSearchTerm, setAgentSearchTerm] = useState('');
+  const { user, detail } = useAuth();
 
   // MD – מוצר / סטטוס פוליסה
   const {
@@ -143,13 +162,87 @@ const AgencySummaryAgentsTab: React.FC = () => {
     []
   );
 
+  useEffect(() => {
+    const loadPreferences = async () => {
+      if (!user) return;
+  
+      try {
+        const prefRef = doc(
+          db,
+          'userPreferences',
+          user.uid,
+          'views',
+          'agencySummaryAgents'
+        );
+  
+        const snap = await getDoc(prefRef);
+        if (snap.exists()) {
+          const data = snap.data() as any;
+          if (data.agentFilterMode === 'selected') {
+            setAgentFilterMode('selected');
+          } else {
+            setAgentFilterMode('all');
+          }
+  
+          if (Array.isArray(data.selectedAgentIds)) {
+            setSelectedAgentIds(new Set<string>(data.selectedAgentIds));
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load agency view preferences', err);
+      } finally {
+        setPreferencesLoaded(true);
+      }
+    };
+  
+    loadPreferences();
+  }, [user]);
+  
+
   // ברירת מחדל: כל הסוכנים מסומנים
   useEffect(() => {
-    if (agents && agents.length > 0) {
+    // אם יש כבר העדפות שנטענו – לא דורכים עליהן
+    if (!preferencesLoaded) return;
+  
+    // אם אין עדיין בחירה – ברירת מחדל: כל הסוכנים
+    if (agents && agents.length > 0 && selectedAgentIds.size === 0) {
       setSelectedAgentIds(new Set(agents.map((a) => a.id)));
     }
-  }, [agents]);
+  }, [agents, preferencesLoaded, selectedAgentIds.size]);
+  
 
+
+  useEffect(() => {
+    if (!user) return;
+    if (!preferencesLoaded) return; // שלא נשמור ערכים חלקיים לפני טעינת העדפות
+  
+    const savePreferences = async () => {
+      try {
+        const prefRef = doc(
+          db,
+          'userPreferences',
+          user.uid,
+          'views',
+          'agencySummaryAgents'
+        );
+  
+        await setDoc(
+          prefRef,
+          {
+            agentFilterMode,
+            selectedAgentIds: Array.from(selectedAgentIds),
+          },
+          { merge: true }
+        );
+      } catch (err) {
+        console.error('Failed to save agency view preferences', err);
+      }
+    };
+  
+    savePreferences();
+  }, [user, agentFilterMode, selectedAgentIds, preferencesLoaded]);
+
+  
   const visibleAgents = useMemo(() => agents, [agents]);
 
   const agentsMatchingSearch = useMemo(() => {

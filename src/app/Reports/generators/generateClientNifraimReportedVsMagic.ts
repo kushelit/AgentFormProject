@@ -227,6 +227,13 @@ export async function generateClientNifraimReportedVsMagic(
   const fromYm = toYm(fromDate);
   const toYmVal = toYm(toDate);
 
+  if (!fromYm || !toYmVal) {
+    throw new Error('נדרש לבחור טווח חודשים (מתאריך ועד תאריך)');
+  }
+  if (fromYm > toYmVal) {
+    throw new Error('טווח חודשים לא תקין (תאריך התחלה אחרי תאריך סיום)');
+  }
+
   const selectedCompanies = Array.isArray(company)
     ? company.map(canon)
     : [];
@@ -276,24 +283,37 @@ export async function generateClientNifraimReportedVsMagic(
     { amount: number; cid?: string; first?: string; last?: string }
   > = {};
 
-  /** ---------- EXTERNAL (קבצים) ---------- */
+  /** ---------- EXTERNAL (קובץ) מתוך policyCommissionSummaries ---------- */
 
-  const extSnap = await db
-    .collection('externalCommissions')
-    .where('agentId', '==', agentId)
-    .get();
+  // ⚠️ פה השינוי: עוברים ל-policyCommissionSummaries במקום externalCommissions
+  let extQuery: FirebaseFirestore.Query = db
+    .collection('policyCommissionSummaries')
+    .where('agentId', '==', agentId);
+
+  // טווח חודשים לפי reportMonth (פורמט YYYY-MM)
+  if (fromYm) {
+    extQuery = extQuery.where('reportMonth', '>=', fromYm);
+  }
+  if (toYmVal) {
+    extQuery = extQuery.where('reportMonth', '<=', toYmVal);
+  }
+
+  const extSnap = await extQuery.get();
 
   for (const d of extSnap.docs) {
     const r: any = d.data();
-    const comp = canon(r.company);
 
-    const ym = toYm(r.reportMonth);
+    const comp = canon(r.company);
+    const ym = canon(r.reportMonth);
+
+    if (!ym) continue;
     if (fromYm && ym < fromYm) continue;
     if (toYmVal && ym > toYmVal) continue;
 
     if (selectedCompanies.length && !selectedCompanies.includes(comp)) continue;
 
-    const prod = canon(r.product);
+    // אם יש מוצר בסיכום – נסנן לפיו, אחרת נשאיר (הדוח עדיין יהיה נכון ברמת פוליסה)
+    const prod = canon((r as any).product);
     if (selectedProducts.length && prod && !selectedProducts.includes(prod))
       continue;
 
@@ -304,14 +324,15 @@ export async function generateClientNifraimReportedVsMagic(
     )
       continue;
 
-    const policy = canon(r.policyNumber);
+    const policy = canon(r.policyNumberKey || r.policyNumber);
     if (!policy) continue;
 
     const cid = canon(r.customerId || r.IDCustomer);
     const key = makeKey(comp, policy, d.id);
 
     const fullName = canon(r.fullName || '');
-    const amount = Number(r.commissionAmount ?? 0);
+    // כאן מגיע כבר סכום העמלה הכולל מהסיכום
+    const amount = Number(r.totalCommissionAmount ?? 0);
 
     reportedByKey[key] = {
       ym,
