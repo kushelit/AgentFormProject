@@ -231,7 +231,9 @@ const CommissionSummaryAgentTab: React.FC = () => {
         <table className="table-auto w-full border text-sm text-right mt-6">
           <thead className="bg-gray-100">
             <tr>
-              <th className="border px-2 py-1">חודש</th>
+            <th className="border px-3 py-1 min-w-[90px] whitespace-nowrap">
+      חודש
+    </th>
               {allCompanies.map((company) => {
                 const isOpen = expanded?.company === company;
                 return (
@@ -268,8 +270,9 @@ const CommissionSummaryAgentTab: React.FC = () => {
               );
               return (
                 <tr key={month}>
-                  <td className="border px-2 py-1 font-semibold">{month}</td>
-                  {allCompanies.map((company) => (
+<td className="border px-3 py-1 font-semibold min-w-[90px] whitespace-nowrap">
+          {month}
+        </td>     {allCompanies.map((company) => (
                     <td
                       key={company}
                       className="border px-2 py-1 cursor-pointer hover:bg-gray-100"

@@ -193,6 +193,7 @@ type PolicyRowOut = {
   'חברה': string;
   'מס׳ פוליסה': string;
   'חודש דיווח (קובץ)': string; // נשמור כ-YYYY-MM, נמיר ל-Date בשלב האקסל
+  'חודש תחילה (קובץ)': string;
   'נפרעים (קובץ)': number;
   'נפרעים (MAGIC)': number;
   'פער ₪ (קובץ−MAGIC)': number;
@@ -274,9 +275,10 @@ export async function generateClientNifraimReportedVsMagic(
   /** מאגרים */
 
   const reportedByKey: Record<
-    string,
-    { ym: string; amount: number; cid: string; fullName?: string }
-  > = {};
+  string,
+  { ym: string; validYm?: string; amount: number; cid: string; fullName?: string }
+> = {};
+
 
   const magicByKey: Record<
     string,
@@ -305,6 +307,7 @@ export async function generateClientNifraimReportedVsMagic(
 
     const comp = canon(r.company);
     const ym = canon(r.reportMonth);
+    const validYm = canon(r.validMonth);
 
     if (!ym) continue;
     if (fromYm && ym < fromYm) continue;
@@ -328,19 +331,23 @@ export async function generateClientNifraimReportedVsMagic(
     if (!policy) continue;
 
     const cid = canon(r.customerId || r.IDCustomer);
-    const key = makeKey(comp, policy, d.id);
+   const key = makeKey(comp, policy, d.id);
 
-    const fullName = canon(r.fullName || '');
-    // כאן מגיע כבר סכום העמלה הכולל מהסיכום
-    const amount = Number(r.totalCommissionAmount ?? 0);
+const fullName = canon(r.fullName || '');
+const amount = Number(r.totalCommissionAmount ?? 0);
 
-    reportedByKey[key] = {
-      ym,
-      cid,
-      amount,
-      fullName: fullName || undefined,
-    };
-  }
+// ✅ אם אין רשומה עדיין – או שהחודש הנוכחי מאוחר יותר מהקיים – נעדכן
+const existing = reportedByKey[key];
+if (!existing || ym > existing.ym) {
+  reportedByKey[key] = {
+    ym,                     // חודש דיווח המאוחר ביותר
+    validYm,                // validMonth המתאים לאותו חודש
+    cid,
+    amount,
+    fullName: fullName || undefined,
+  };
+}
+}
 
   /** ---------- MAGIC (sales) ---------- */
 
@@ -446,12 +453,14 @@ export async function generateClientNifraimReportedVsMagic(
 
     let cid = '';
     let ym = '';
+    let validYm = ''; 
     let first = '';
     let last = '';
 
     if (rep) {
       cid = rep.cid;
       ym = rep.ym;
+      validYm = rep.validYm ?? ''; 
       if (rep.fullName) {
         const parts = rep.fullName.split(' ');
         first = parts[0] || '';
@@ -477,6 +486,7 @@ export async function generateClientNifraimReportedVsMagic(
       'חברה': comp,
       'מס׳ פוליסה': policy,
       'חודש דיווח (קובץ)': ym,
+      'חודש תחילה (קובץ)': validYm,
       'נפרעים (קובץ)': Number(reported.toFixed(2)),
       'נפרעים (MAGIC)': Number(mag.toFixed(2)),
       'פער ₪ (קובץ−MAGIC)': Number(diff.toFixed(2)),
@@ -552,6 +562,7 @@ export async function generateClientNifraimReportedVsMagic(
     'חברה',
     'מס׳ פוליסה',
     'חודש דיווח (קובץ)',
+    'חודש תחילה (קובץ)',
     'נפרעים (קובץ)',
     'נפרעים (MAGIC)',
     'פער ₪ (קובץ−MAGIC)',
@@ -567,8 +578,8 @@ export async function generateClientNifraimReportedVsMagic(
 
   policyRows.forEach((r) => {
     const rowValues = policyHeaders.map((h) => {
-      if (h === 'חודש דיווח (קובץ)') {
-        return monthStringToDate(r[h]);
+      if (h === 'חודש דיווח (קובץ)' || h === 'חודש תחילה (קובץ)') {
+     return monthStringToDate(r[h]);
       }
       return r[h] ?? '';
     });
@@ -577,8 +588,8 @@ export async function generateClientNifraimReportedVsMagic(
 
   styleDataRows(wsPolicy, policyHeaders.length, {
     firstDataRow: 2,
-    dateCols: [6], // חודש דיווח
-    numericCols: [7, 8, 9, 10],
+    dateCols: [6, 7], // חודש דיווח
+    numericCols: [8, 9, 10, 11],
   });
   autofitColumns(wsPolicy, policyHeaders.length);
 

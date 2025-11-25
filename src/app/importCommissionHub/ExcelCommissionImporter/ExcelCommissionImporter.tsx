@@ -67,8 +67,10 @@ interface PolicyCommissionSummary {
   commissionRate: number;     // totalCommissionAmount / totalPremiumAmount * 100
   rowsCount: number;          // כמה שורות מקור אוחדו
   product?: string;
-  runId?: string;  }
-
+  runId?: string; 
+  validMonth?: string;
+ }
+ 
 /* ==============================
    Component
 ============================== */
@@ -1141,10 +1143,12 @@ const ExcelCommissionImporter: React.FC = () => {
         product?: string;
         fullName?: string;
         runId?: string;
+        validMonth?: string;
       }>();
 
       for (const row of rowsPrepared) {
         const sanitizedMonth  = String(row.reportMonth ?? '').replace(/\//g, '-');
+        const validMonth      = String(row.validMonth ?? '').replace(/\//g, '-');
         const agentId         = row.agentId;
         const agentCode       = String(row.agentCode ?? '').trim();
         const companyId       = row.companyId;
@@ -1163,6 +1167,7 @@ const ExcelCommissionImporter: React.FC = () => {
             agentId,
             agentCode,
             reportMonth: sanitizedMonth,
+            validMonth,
             companyId,
             company,
             policyNumberKey,

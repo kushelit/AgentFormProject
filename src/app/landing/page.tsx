@@ -58,7 +58,7 @@ const features = [
     description: 'ייבוא דוחות נפרעים מכל החברות, השוואה בין חודשים ומציאת פערים.',
     extraText:
       'מודול אינטיליגנטי שמאפשר לראות כמה מגיע לכם בפועל, כמה שולם על ידי החברות, ומהם הפערים – כולל השוואה לחישובי העמלות במערכת MagicSale.',
-    image: '/static/img/landingImg/commissionImport.png',
+    image: '/static/img/landingImg/commissionImport1.png',
     icon: FileSpreadsheet
   },
   

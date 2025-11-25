@@ -15,7 +15,6 @@ import { usePermission } from '@/hooks/usePermission';
 import { db } from '@/lib/firebase/firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 
-
 import '@/app/NewSummaryTable/NewSummaryTable.css';
 
 type MonthlyTotal = {
@@ -41,6 +40,19 @@ const emptyTotals: MonthlyTotal = {
   insuranceTravelTotal: 0,
   prishaMyaditTotal: 0,
 };
+
+type SortColumn =
+  | 'agentName'
+  | 'finansimTotal'
+  | 'pensiaTotal'
+  | 'insuranceTotal'
+  | 'niudPensiaTotal'
+  | 'insuranceTravelTotal'
+  | 'prishaMyaditTotal'
+  | 'commissionHekefTotal'
+  | 'commissionNifraimTotal';
+
+type SortOrder = 'asc' | 'desc';
 
 interface AgentRowProps {
   agentId: string;
@@ -89,7 +101,14 @@ const AgentYearRow: React.FC<AgentRowProps> = ({
     return (
       <tr>
         <td>{agentName}</td>
-        <td colSpan={numericColumnsCount} style={{ textAlign: 'center', fontSize: '0.85rem', color: '#666' }}>
+        <td
+          colSpan={numericColumnsCount}
+          style={{
+            textAlign: 'center',
+            fontSize: '0.85rem',
+            color: '#666',
+          }}
+        >
           טוען נתונים עבור הסוכן...
         </td>
       </tr>
@@ -114,7 +133,6 @@ const AgentYearRow: React.FC<AgentRowProps> = ({
     </tr>
   );
 };
-
 
 const AgencySummaryAgentsTab: React.FC = () => {
   // 🔹 כל ה־hooks למעלה, ללא תנאים
@@ -162,10 +180,32 @@ const AgencySummaryAgentsTab: React.FC = () => {
     []
   );
 
+  // 🔹 סטייט מיון
+  const [sortColumn, setSortColumn] =
+  useState<SortColumn | null>('commissionNifraimTotal');
+const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
+
+
+const handleSort = (column: SortColumn) => {
+  if (sortColumn === column) {
+    // לוחצים שוב על אותה עמודה → רק הופכים את הכיוון
+    setSortOrder((prev) => (prev === 'asc' ? 'desc' : 'asc'));
+  } else {
+    // עמודה חדשה → עוברים אליה ומתחילים מ-asc
+    setSortColumn(column);
+    setSortOrder('asc');
+  }
+};
+
+  const sortArrow = (column: SortColumn) => {
+    if (sortColumn !== column) return '';
+    return sortOrder === 'asc' ? ' ▲' : ' ▼';
+  };
+
   useEffect(() => {
     const loadPreferences = async () => {
       if (!user) return;
-  
+
       try {
         const prefRef = doc(
           db,
@@ -174,7 +214,7 @@ const AgencySummaryAgentsTab: React.FC = () => {
           'views',
           'agencySummaryAgents'
         );
-  
+
         const snap = await getDoc(prefRef);
         if (snap.exists()) {
           const data = snap.data() as any;
@@ -183,7 +223,7 @@ const AgencySummaryAgentsTab: React.FC = () => {
           } else {
             setAgentFilterMode('all');
           }
-  
+
           if (Array.isArray(data.selectedAgentIds)) {
             setSelectedAgentIds(new Set<string>(data.selectedAgentIds));
           }
@@ -194,28 +234,25 @@ const AgencySummaryAgentsTab: React.FC = () => {
         setPreferencesLoaded(true);
       }
     };
-  
+
     loadPreferences();
   }, [user]);
-  
 
   // ברירת מחדל: כל הסוכנים מסומנים
   useEffect(() => {
     // אם יש כבר העדפות שנטענו – לא דורכים עליהן
     if (!preferencesLoaded) return;
-  
+
     // אם אין עדיין בחירה – ברירת מחדל: כל הסוכנים
     if (agents && agents.length > 0 && selectedAgentIds.size === 0) {
       setSelectedAgentIds(new Set(agents.map((a) => a.id)));
     }
   }, [agents, preferencesLoaded, selectedAgentIds.size]);
-  
-
 
   useEffect(() => {
     if (!user) return;
     if (!preferencesLoaded) return; // שלא נשמור ערכים חלקיים לפני טעינת העדפות
-  
+
     const savePreferences = async () => {
       try {
         const prefRef = doc(
@@ -225,7 +262,7 @@ const AgencySummaryAgentsTab: React.FC = () => {
           'views',
           'agencySummaryAgents'
         );
-  
+
         await setDoc(
           prefRef,
           {
@@ -238,19 +275,16 @@ const AgencySummaryAgentsTab: React.FC = () => {
         console.error('Failed to save agency view preferences', err);
       }
     };
-  
+
     savePreferences();
   }, [user, agentFilterMode, selectedAgentIds, preferencesLoaded]);
 
-  
   const visibleAgents = useMemo(() => agents, [agents]);
 
   const agentsMatchingSearch = useMemo(() => {
     const term = agentSearchTerm.trim().toLowerCase();
     if (!term) return visibleAgents;
-    return visibleAgents.filter((a) =>
-      a.name.toLowerCase().includes(term)
-    );
+    return visibleAgents.filter((a) => a.name.toLowerCase().includes(term));
   }, [visibleAgents, agentSearchTerm]);
 
   const filteredAgents = useMemo(() => {
@@ -259,6 +293,74 @@ const AgencySummaryAgentsTab: React.FC = () => {
     }
     return visibleAgents.filter((a) => selectedAgentIds.has(a.id));
   }, [visibleAgents, agentFilterMode, selectedAgentIds]);
+
+  // 🔹 מיון סוכנים לפי sortColumn + sortOrder
+  const sortedAgents = useMemo(() => {
+    if (!sortColumn) return filteredAgents;
+
+    const arr = [...filteredAgents];
+
+    arr.sort((a, b) => {
+      const totalsA = agentTotalsMap[a.id] || emptyTotals;
+      const totalsB = agentTotalsMap[b.id] || emptyTotals;
+
+      let valA: string | number;
+      let valB: string | number;
+
+      switch (sortColumn) {
+        case 'agentName':
+          valA = a.name || '';
+          valB = b.name || '';
+          break;
+        case 'finansimTotal':
+          valA = totalsA.finansimTotal;
+          valB = totalsB.finansimTotal;
+          break;
+        case 'pensiaTotal':
+          valA = totalsA.pensiaTotal;
+          valB = totalsB.pensiaTotal;
+          break;
+        case 'insuranceTotal':
+          valA = totalsA.insuranceTotal;
+          valB = totalsB.insuranceTotal;
+          break;
+        case 'niudPensiaTotal':
+          valA = totalsA.niudPensiaTotal;
+          valB = totalsB.niudPensiaTotal;
+          break;
+        case 'insuranceTravelTotal':
+          valA = totalsA.insuranceTravelTotal;
+          valB = totalsB.insuranceTravelTotal;
+          break;
+        case 'prishaMyaditTotal':
+          valA = totalsA.prishaMyaditTotal;
+          valB = totalsB.prishaMyaditTotal;
+          break;
+        case 'commissionHekefTotal':
+          valA = totalsA.commissionHekefTotal;
+          valB = totalsB.commissionHekefTotal;
+          break;
+        case 'commissionNifraimTotal':
+          valA = totalsA.commissionNifraimTotal;
+          valB = totalsB.commissionNifraimTotal;
+          break;
+        default:
+          valA = 0;
+          valB = 0;
+      }
+
+      let cmp = 0;
+      if (typeof valA === 'string' || typeof valB === 'string') {
+        cmp = String(valA).localeCompare(String(valB), 'he');
+      } else {
+        cmp = (valA as number) - (valB as number);
+      }
+
+      return sortOrder === 'asc' ? cmp : -cmp;
+    });
+
+    return arr;
+  }, [filteredAgents, sortColumn, sortOrder, agentTotalsMap]);
 
   const summaryTotals: MonthlyTotal = useMemo(() => {
     const base: MonthlyTotal = { ...emptyTotals };
@@ -322,18 +424,17 @@ const AgencySummaryAgentsTab: React.FC = () => {
     setSelectedAgentIds(new Set());
   };
 
-// 🔐 אחרי שכל ה־hooks נקראו – אפשר לבדוק הרשאה
-const canSeeAgencyTab =
-  !!detail && ['admin', 'manager'].includes(detail.role);
+  // 🔐 אחרי שכל ה־hooks נקראו – אפשר לבדוק הרשאה
+  const canSeeAgencyTab =
+    !!detail && ['admin', 'manager'].includes(detail.role);
 
-if (!canSeeAgencyTab) {
-  return (
-    <div className="p-6 max-w-5xl mx-auto text-right" dir="rtl">
-      אין לך הרשאה לצפות בדוח זה.
-    </div>
-  );
-}
-
+  if (!canSeeAgencyTab) {
+    return (
+      <div className="p-6 max-w-5xl mx-auto text-right" dir="rtl">
+        אין לך הרשאה לצפות בדוח זה.
+      </div>
+    );
+  }
 
   return (
     <div className="content-container-NewAgentForm" dir="rtl">
@@ -530,19 +631,68 @@ if (!canSeeAgencyTab) {
             <table>
               <thead>
                 <tr>
-                  <th>סוכן</th>
-                  <th>סך פיננסים (שנתי)</th>
-                  <th>סך פנסיה (שנתי)</th>
-                  <th>סך ביטוח (שנתי)</th>
-                  <th>ניוד פנסיה (שנתי)</th>
-                  <th>סך נסיעות חול (שנתי)</th>
-                  <th>סך פרישה מיידית (שנתי)</th>
-                  {canViewCommissions && <th>עמלת היקף (שנתית)</th>}
-                  {canViewCommissions && <th>עמלת נפרעים (שנתית)</th>}
+                  <th
+                    onClick={() => handleSort('agentName')}
+                    className="cursor-pointer"
+                  >
+                    סוכן{sortArrow('agentName')}
+                  </th>
+                  <th
+                    onClick={() => handleSort('finansimTotal')}
+                    className="cursor-pointer"
+                  >
+                    סך פיננסים (שנתי){sortArrow('finansimTotal')}
+                  </th>
+                  <th
+                    onClick={() => handleSort('pensiaTotal')}
+                    className="cursor-pointer"
+                  >
+                    סך פנסיה (שנתי){sortArrow('pensiaTotal')}
+                  </th>
+                  <th
+                    onClick={() => handleSort('insuranceTotal')}
+                    className="cursor-pointer"
+                  >
+                    סך ביטוח (שנתי){sortArrow('insuranceTotal')}
+                  </th>
+                  <th
+                    onClick={() => handleSort('niudPensiaTotal')}
+                    className="cursor-pointer"
+                  >
+                    ניוד פנסיה (שנתי){sortArrow('niudPensiaTotal')}
+                  </th>
+                  <th
+                    onClick={() => handleSort('insuranceTravelTotal')}
+                    className="cursor-pointer"
+                  >
+                    סך נסיעות חול (שנתי){sortArrow('insuranceTravelTotal')}
+                  </th>
+                  <th
+                    onClick={() => handleSort('prishaMyaditTotal')}
+                    className="cursor-pointer"
+                  >
+                    סך פרישה מיידית (שנתי){sortArrow('prishaMyaditTotal')}
+                  </th>
+                  {canViewCommissions && (
+                    <th
+                      onClick={() => handleSort('commissionHekefTotal')}
+                      className="cursor-pointer"
+                    >
+                      עמלת היקף (שנתית){sortArrow('commissionHekefTotal')}
+                    </th>
+                  )}
+                  {canViewCommissions && (
+                    <th
+                      onClick={() => handleSort('commissionNifraimTotal')}
+                      className="cursor-pointer"
+                    >
+                      עמלת נפרעים (שנתית){sortArrow('commissionNifraimTotal')}
+                    </th>
+                  )}
                 </tr>
               </thead>
               <tbody>
-                {filteredAgents.map((agent) => (
+                {sortedAgents.map((agent) => (
                   <AgentYearRow
                     key={agent.id}
                     agentId={agent.id}
