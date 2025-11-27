@@ -134,12 +134,17 @@ export default function LandingPage() {
   transition={{ duration: 0.6 }}
 >
   {/* צד ימין – הלוגו */}
-  <div>
-    <Image src="/static/img/landingImg/union-5.png" alt="MagicSale Logo" width={140} height={40} />
+  <div className="flex-1 flex justify-start">
+    <Image
+      src="/static/img/landingImg/union-5.png"
+      alt="MagicSale Logo"
+      width={140}
+      height={40}
+      className="w-28 md:w-36 lg:w-40 h-auto"
+    />
   </div>
-
   {/* צד שמאל – כפתורים */}
-  <div className="flex items-center gap-4">
+  <div className="flex-1 flex items-center justify-end gap-2 md:gap-4">
   <Link
     href="/auth/log-in"
     className="text-white border border-white rounded-full px-3 py-1 text-xs md:px-4 md:text-sm hover:bg-white hover:text-indigo-900 transition"
