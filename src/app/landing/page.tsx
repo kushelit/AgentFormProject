@@ -140,24 +140,26 @@ export default function LandingPage() {
 
   {/* צד שמאל – כפתורים */}
   <div className="flex items-center gap-4">
-    <Link
-      href="/auth/log-in"
-      className="text-white border border-white rounded-full px-4 py-1 text-sm hover:bg-white hover:text-indigo-900 transition"
-    >
-      כניסה למערכת
-    </Link>
-    <Link
-      href="/subscription-sign-up"
-      className="text-white border border-white rounded-full px-4 py-1 text-sm hover:bg-white hover:text-indigo-900 transition"
-    >
-      הרשמה
-    </Link>
-  </div>
+  <Link
+    href="/auth/log-in"
+    className="text-white border border-white rounded-full px-3 py-1 text-xs md:px-4 md:text-sm hover:bg-white hover:text-indigo-900 transition"
+  >
+    כניסה למערכת
+  </Link>
+  <Link
+    href="/subscription-sign-up"
+    className="text-white border border-white rounded-full px-3 py-1 text-xs md:px-4 md:text-sm hover:bg-white hover:text-indigo-900 transition"
+  >
+    הרשמה
+  </Link>
+</div>
 </motion.div>
-      <section className="relative min-h-[70vh] flex flex-col justify-center items-center bg-gradient-to-br from-indigo-900 to-blue-800 text-white text-center overflow-hidden">
+<section
+  className="relative min-h-[70vh] pt-24 md:pt-32 flex flex-col justify-center items-center bg-gradient-to-br from-indigo-900 to-blue-800 text-white text-center overflow-hidden"
+>
         <motion.h1 
-          className="text-5xl md:text-6xl font-extrabold mb-4 z-10 relative leading-tight"
-          initial={{ opacity: 0, y: -30 }}
+className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-extrabold mb-4 z-10 relative leading-tight"
+initial={{ opacity: 0, y: -30 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.9 }}
         >
