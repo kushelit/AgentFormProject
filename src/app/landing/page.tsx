@@ -127,48 +127,43 @@ export default function LandingPage() {
 
   return (
     <div className="relative bg-gray-50 text-right">
-    <motion.div
-  className="absolute top-4 w-full px-6 flex justify-between items-center z-50"
+   <motion.div
+  className="absolute top-4 w-full px-4 sm:px-6 flex flex-col-reverse items-center gap-2 sm:flex-row sm:justify-between z-50"
   initial={{ opacity: 0, y: -10 }}
   animate={{ opacity: 1, y: 0 }}
   transition={{ duration: 0.6 }}
 >
-  {/* צד ימין – הלוגו */}
-  <div className="flex-1 flex justify-start">
+  {/* צד ימין – לוגו (במובייל למעלה במרכז, בדסקטופ מימין) */}
+  <div className="flex justify-center sm:justify-start w-full sm:w-auto">
     <Image
       src="/static/img/landingImg/union-5.png"
       alt="MagicSale Logo"
       width={140}
       height={40}
-      className="w-28 md:w-36 lg:w-40 h-auto"
+      className="w-28 sm:w-36 h-auto"
     />
   </div>
-  {/* צד שמאל – כפתורים */}
-  <div className="flex items-center gap-2 md:gap-4">
-  <Link
-    href="/auth/log-in"
-    className="inline-flex items-center justify-center rounded-full border border-white
-               px-3 py-1.5 text-xs
-               md:px-5 md:py-2 md:text-sm
-               font-medium
-               text-white hover:bg-white hover:text-indigo-900 transition
-               min-w-[95px] md:min-w-[110px]"
-  >
-    כניסה למערכת
-  </Link>
 
-  <Link
-    href="/subscription-sign-up"
-    className="inline-flex items-center justify-center rounded-full border border-white
-               px-3 py-1.5 text-xs
-               md:px-5 md:py-2 md:text-sm
-               font-medium
-               text-white hover:bg-white hover:text-indigo-900 transition
-               min-w-[95px] md:min-w-[110px]"
-  >
-    הרשמה
-  </Link>
-</div>
+  {/* צד שמאל – כפתורים (במובייל מתחת ללוגו במרכז) */}
+  <div className="flex items-center justify-center sm:justify-end gap-2 sm:gap-4 w-full sm:w-auto">
+    <Link
+      href="/auth/log-in"
+      className="inline-flex items-center justify-center rounded-full border border-white
+                 px-4 py-1.5 text-xs sm:text-sm font-medium
+                 text-white hover:bg-white hover:text-indigo-900 transition"
+    >
+      כניסה למערכת
+    </Link>
+
+    <Link
+      href="/subscription-sign-up"
+      className="inline-flex items-center justify-center rounded-full border border-white
+                 px-4 py-1.5 text-xs sm:text-sm font-medium
+                 text-white hover:bg-white hover:text-indigo-900 transition"
+    >
+      הרשמה
+    </Link>
+  </div>
 </motion.div>
 <section
   className="relative min-h-[70vh] pt-24 md:pt-32 flex flex-col justify-center items-center bg-gradient-to-br from-indigo-900 to-blue-800 text-white text-center overflow-hidden"
