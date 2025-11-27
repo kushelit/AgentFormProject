@@ -127,24 +127,25 @@ export default function LandingPage() {
 
   return (
     <div className="relative bg-gray-50 text-right">
-   <motion.div
-  className="absolute top-4 w-full px-4 sm:px-6 flex flex-col-reverse items-center gap-2 sm:flex-row sm:justify-between z-50"
+  <motion.div
+  className="absolute top-4 w-full px-4 sm:px-6 flex flex-col sm:flex-row 
+             justify-between items-center sm:items-start z-50"
   initial={{ opacity: 0, y: -10 }}
   animate={{ opacity: 1, y: 0 }}
   transition={{ duration: 0.6 }}
 >
-  {/* צד ימין – לוגו (במובייל למעלה במרכז, בדסקטופ מימין) */}
-  <div className="flex justify-center sm:justify-start w-full sm:w-auto">
+  {/* לוגו */}
+  <div className="flex justify-center sm:justify-start w-full sm:w-auto mb-2 sm:mb-0">
     <Image
       src="/static/img/landingImg/union-5.png"
       alt="MagicSale Logo"
-      width={140}
+      width={150}
       height={40}
-      className="w-28 sm:w-36 h-auto"
+      className="w-32 sm:w-40 h-auto"
     />
   </div>
 
-  {/* צד שמאל – כפתורים (במובייל מתחת ללוגו במרכז) */}
+  {/* כפתורים */}
   <div className="flex items-center justify-center sm:justify-end gap-2 sm:gap-4 w-full sm:w-auto">
     <Link
       href="/auth/log-in"
