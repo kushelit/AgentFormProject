@@ -144,16 +144,27 @@ export default function LandingPage() {
     />
   </div>
   {/* צד שמאל – כפתורים */}
-  <div className="flex-1 flex items-center justify-end gap-2 md:gap-4">
+  <div className="flex items-center gap-2 md:gap-4">
   <Link
     href="/auth/log-in"
-    className="text-white border border-white rounded-full px-3 py-1 text-xs md:px-4 md:text-sm hover:bg-white hover:text-indigo-900 transition"
+    className="inline-flex items-center justify-center rounded-full border border-white
+               px-3 py-1.5 text-xs
+               md:px-5 md:py-2 md:text-sm
+               font-medium
+               text-white hover:bg-white hover:text-indigo-900 transition
+               min-w-[95px] md:min-w-[110px]"
   >
     כניסה למערכת
   </Link>
+
   <Link
     href="/subscription-sign-up"
-    className="text-white border border-white rounded-full px-3 py-1 text-xs md:px-4 md:text-sm hover:bg-white hover:text-indigo-900 transition"
+    className="inline-flex items-center justify-center rounded-full border border-white
+               px-3 py-1.5 text-xs
+               md:px-5 md:py-2 md:text-sm
+               font-medium
+               text-white hover:bg-white hover:text-indigo-900 transition
+               min-w-[95px] md:min-w-[110px]"
   >
     הרשמה
   </Link>
