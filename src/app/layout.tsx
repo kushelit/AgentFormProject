@@ -25,7 +25,7 @@ export default function RootLayout({
   const isAuthPage = pathname.startsWith('/auth');
   const isHomePage = pathname === '/home';
   const isLandingPage = pathname === '/' || pathname === '/landing' 
-  // || pathname === '/subscription-sign-up'
+   || pathname === '/subscription-sign-up'
   ;
   const isMainPage = !isAuthPage && !isHomePage && !isLandingPage;
 
