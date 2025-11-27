@@ -127,26 +127,26 @@ export default function LandingPage() {
 
   return (
     <div className="relative bg-gray-50 text-right">
-  <motion.div
+ <motion.div
   className="absolute top-4 w-full px-4 sm:px-6 flex flex-col sm:flex-row 
-             justify-between items-center sm:items-start z-50"
+             sm:justify-between sm:items-start z-50"
   initial={{ opacity: 0, y: -10 }}
   animate={{ opacity: 1, y: 0 }}
   transition={{ duration: 0.6 }}
 >
   {/* לוגו */}
-  <div className="flex justify-center sm:justify-start w-full sm:w-auto mb-2 sm:mb-0">
+  <div className="flex justify-end sm:justify-start w-full sm:w-auto">
     <Image
       src="/static/img/landingImg/union-5.png"
       alt="MagicSale Logo"
       width={150}
       height={40}
-      className="w-32 sm:w-40 h-auto"
+      className="w-28 sm:w-40 h-auto"
     />
   </div>
 
   {/* כפתורים */}
-  <div className="flex items-center justify-center sm:justify-end gap-2 sm:gap-4 w-full sm:w-auto">
+  <div className="mt-2 flex justify-start sm:justify-end w-full sm:w-auto gap-2 sm:gap-4">
     <Link
       href="/auth/log-in"
       className="inline-flex items-center justify-center rounded-full border border-white
