@@ -1,6 +1,5 @@
 import { ChangeEventHandler, FormEvent, FormEventHandler, useEffect, useMemo, useState } from "react";
-import { collection, query, where, getDocs, addDoc, 
-  deleteDoc, doc, updateDoc,writeBatch, } from "firebase/firestore";
+import { collection, query, where, getDocs, addDoc, deleteDoc, doc, updateDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase/firebase"; // Ensure this path matches your project structure
 import { useAuth } from '@/lib/firebase/AuthContext';
 import Link from "next/link";
@@ -88,236 +87,6 @@ import { fetchSplits } from '@/services/splitsService';
   } = useFetchAgentData();
 
 
-
-  type CompanyProductRow = {
-    company: string;
-    product: string;
-    minuySochen: boolean;
-    commissionHekef: string;
-    commissionNifraim: string;
-    commissionNiud: string;
-  };
-
-  // מצב העבודה בלשונית באמצעית: לפי חברה או לפי מוצר
-const [agentMode, setAgentMode] = useState<"byCompany" | "byProduct">("byCompany");
-
-// מצב 1: חברה -> מוצרים
-const [selectedCompanyForMatrix, setSelectedCompanyForMatrix] = useState<string>("");
-const [selectedProductsForCompany, setSelectedProductsForCompany] = useState<string[]>([]);
-const [rowsByCompany, setRowsByCompany] = useState<CompanyProductRow[]>([]);
-
-// מצב 2: מוצר -> חברות
-const [selectedProductForMatrix, setSelectedProductForMatrix] = useState<string>("");
-const [selectedCompaniesForProduct, setSelectedCompaniesForProduct] = useState<string[]>([]);
-const [rowsByProduct, setRowsByProduct] = useState<CompanyProductRow[]>([]);
-
-// בחירה מרובה של מוצרים (במצב "חברה -> מוצרים")
-const handleProductsForCompanyChange: React.ChangeEventHandler<HTMLSelectElement> = (e) => {
-  const options = Array.from(e.target.selectedOptions);
-  const values = options.map(o => o.value);
-  setSelectedProductsForCompany(values);
-};
-
-// בחירה מרובה של חברות (במצב "מוצר -> חברות")
-const handleCompaniesForProductChange: React.ChangeEventHandler<HTMLSelectElement> = (e) => {
-  const options = Array.from(e.target.selectedOptions);
-  const values = options.map(o => o.value);
-  setSelectedCompaniesForProduct(values);
-};
-
-useEffect(() => {
-  const loadByCompany = async () => {
-    if (!selectedAgentId || !selectedCompanyForMatrix) {
-      setRowsByCompany([]);
-      return;
-    }
-
-    // 1. שליפה מה-DB: כל ההסכמים של הסוכן לחברה הזו
-    const q = query(
-      collection(db, "contracts"),
-      where("AgentId", "==", selectedAgentId),
-      where("company", "==", selectedCompanyForMatrix)
-    );
-
-    const snap = await getDocs(q);
-    const allDocs = snap.docs.map(d => d.data() as any);
-
-    // 2. אילו מוצרים להציג?
-    //    אם בחרת מוצרים מעניינים → רק הם
-    //    אם לא בחרת → כל המוצרים שיש ב-DB לחברה הזו
-    const productsToShow: string[] =
-      selectedProductsForCompany.length > 0
-        ? selectedProductsForCompany
-        : Array.from(new Set(allDocs.map(c => c.product)));
-
-    // 3. מיפוי לפי product כדי למלא ערכים קיימים
-    const existingByProduct: Record<string, any> = {};
-    snap.forEach(docSnap => {
-      const data = docSnap.data() as any;
-      existingByProduct[data.product] = { id: docSnap.id, data };
-    });
-
-    // 4. בניית השורות – גם למה שקיים וגם למה שחדש
-    const rows: CompanyProductRow[] = productsToShow.map(productName => {
-      const existing = existingByProduct[productName];
-      return {
-        company: selectedCompanyForMatrix,
-        product: productName,
-        minuySochen: existing?.data?.minuySochen ?? false,
-        commissionHekef: existing?.data?.commissionHekef?.toString?.() ?? "",
-        commissionNifraim: existing?.data?.commissionNifraim?.toString?.() ?? "",
-        commissionNiud: existing?.data?.commissionNiud?.toString?.() ?? "",
-      };
-    });
-
-    setRowsByCompany(rows);
-  };
-
-  loadByCompany();
-}, [selectedAgentId, selectedCompanyForMatrix, selectedProductsForCompany]);
-
-
-useEffect(() => {
-  const loadByProduct = async () => {
-    if (!selectedAgentId || !selectedProductForMatrix) {
-      setRowsByProduct([]);
-      return;
-    }
-
-    const q = query(
-      collection(db, "contracts"),
-      where("AgentId", "==", selectedAgentId),
-      where("product", "==", selectedProductForMatrix)
-    );
-
-    const snap = await getDocs(q);
-    const allDocs = snap.docs.map(d => d.data() as any);
-
-    const companiesToShow: string[] =
-      selectedCompaniesForProduct.length > 0
-        ? selectedCompaniesForProduct
-        : Array.from(new Set(allDocs.map(c => c.company)));
-
-    const existingByCompany: Record<string, any> = {};
-    snap.forEach(docSnap => {
-      const data = docSnap.data() as any;
-      existingByCompany[data.company] = { id: docSnap.id, data };
-    });
-
-    const rows: CompanyProductRow[] = companiesToShow.map(companyName => {
-      const existing = existingByCompany[companyName];
-      return {
-        company: companyName,
-        product: selectedProductForMatrix,
-        minuySochen: existing?.data?.minuySochen ?? false,
-        commissionHekef: existing?.data?.commissionHekef?.toString?.() ?? "",
-        commissionNifraim: existing?.data?.commissionNifraim?.toString?.() ?? "",
-        commissionNiud: existing?.data?.commissionNiud?.toString?.() ?? "",
-      };
-    });
-
-    setRowsByProduct(rows);
-  };
-
-  loadByProduct();
-}, [selectedAgentId, selectedProductForMatrix, selectedCompaniesForProduct]);
-
-
-const updateRowByCompany = (
-  productName: string,
-  field: keyof Omit<CompanyProductRow, "company" | "product">,
-  value: string | boolean
-) => {
-  setRowsByCompany(prev =>
-    prev.map(row =>
-      row.product === productName
-        ? { ...row, [field]: value }
-        : row
-    )
-  );
-};
-
-const updateRowByProduct = (
-  companyName: string,
-  field: keyof Omit<CompanyProductRow, "company" | "product">,
-  value: string | boolean
-) => {
-  setRowsByProduct(prev =>
-    prev.map(row =>
-      row.company === companyName
-        ? { ...row, [field]: value }
-        : row
-    )
-  );
-};
-
-
-const hasAnyValues = (row: CompanyProductRow) =>
-  row.minuySochen ||
-  row.commissionHekef.trim() !== "" ||
-  row.commissionNifraim.trim() !== "" ||
-  row.commissionNiud.trim() !== "";
-
-const saveRows = async (rows: CompanyProductRow[], successMessage: string) => {
-  if (!selectedAgentId || rows.length === 0) return;
-
-  const batch = writeBatch(db);
-
-  // טוענים את כל החוזים של הסוכן כדי לדעת מה כבר קיים
-  const q = query(
-    collection(db, "contracts"),
-    where("AgentId", "==", selectedAgentId)
-  );
-  const snap = await getDocs(q);
-
-  const existingMap: Record<string, { id: string; data: any }> = {};
-  snap.forEach(docSnap => {
-    const data = docSnap.data() as any;
-    const key = `${data.company}___${data.product}`;
-    existingMap[key] = { id: docSnap.id, data };
-  });
-
-  rows.forEach(row => {
-    if (!hasAnyValues(row)) return;
-
-    const key = `${row.company}___${row.product}`;
-    const existing = existingMap[key];
-
-    const docRef = existing
-      ? doc(db, "contracts", existing.id)
-      : doc(collection(db, "contracts"));
-
-    batch.set(
-      docRef,
-      {
-        AgentId: selectedAgentId,
-        company: row.company,
-        product: row.product,
-        productsGroup: "",
-        commissionHekef: row.commissionHekef,
-        commissionNifraim: row.commissionNifraim,
-        commissionNiud: row.commissionNiud,
-        minuySochen: row.minuySochen,
-      },
-      { merge: true }
-    );
-  });
-
-  await batch.commit();
-  addToast("success", successMessage);
-};
-
-const saveByCompany = () =>
-  saveRows(rowsByCompany, "הסכמי העמלות עודכנו לפי חברה");
-
-const saveByProduct = () =>
-  saveRows(rowsByProduct, "הסכמי העמלות עודכנו לפי מוצר");
-
-
-
-
-
-//קיים//
   useEffect(() => {
     // console.log("🔄 productGroupMap השתנה:", productGroupMap);
   }, [productGroupMap]);
@@ -489,26 +258,12 @@ const canSubmit1 = useMemo(() => (
       }
     };
     const fetchContracts = async (agentId: string): Promise<ContractAgent[]> => {
-      // אם לא נבחר כלום בכלל
       if (!agentId) return [];
-    
-      // בסיס השאילתה: תמיד productsGroup == ""
-      let q;
-    
-      if (agentId === "all") {
-        // כל הסוכנות – בלי סינון AgentId
-        q = query(
-          collection(db, "contracts"),
-          where("productsGroup", "==", "")
-        );
-      } else {
-        // סוכן ספציפי
-        q = query(
-          collection(db, "contracts"),
-          where("AgentId", "==", agentId),
-          where("productsGroup", "==", "")
-        );
-      }
+      let q = query(
+        collection(db, "contracts"),
+        where("AgentId", "==", agentId),
+        where("productsGroup", "==", "")
+      );
     
       if (selectedCompanyFilter.trim() !== "") {
         q = query(q, where("company", "==", selectedCompanyFilter));
@@ -519,7 +274,7 @@ const canSubmit1 = useMemo(() => (
       }
     
       if (minuySochenFilter2.trim() !== "") {
-        const boolValue = minuySochenFilter2 === "true";
+        const boolValue = minuySochenFilter2 === "true"; // המרה ל-boolean
         q = query(q, where("minuySochen", "==", boolValue));
       }
     
@@ -535,21 +290,9 @@ const canSubmit1 = useMemo(() => (
       }
     };
     
-    
     useEffect(() => {
-      const agentIdToLoad =
-        selectedAgentId || detail?.agentId || "";
-    
-      if (!agentIdToLoad) return;
-    
-      reloadContractsData(agentIdToLoad);
-    }, [
-      selectedAgentId,
-      selectedCompanyFilter,
-      selectedProductFilter,
-      minuySochenFilter2,
-      detail?.agentId,
-    ]);
+      reloadContractsData(detail?.agentId || ""); // קריאה לפונקציית הטעינה מתוך ה-hook
+    }, [selectedCompanyFilter, selectedProductFilter, minuySochenFilter2, detail?.agentId]); // מעקב אחרי שינויים
     
 
     const fetchdefaultContracts = async (agentId: string): Promise<Contract[]> => {
@@ -1025,268 +768,312 @@ return (
       </div>
       </div>  
            )}
-      {activeTab === "contractAgent" && (
-  <div id="contractAgent-tab" className="active">
-    <div className="NewcontractAgent">
-
-      {/* בחירת סוכן למעלה */}
-      <div className="filter-select-container">
-        <select onChange={handleAgentChange} value={selectedAgentId} className="select-input">
-          {detail?.role === "admin" && <option value="">בחר סוכן</option>}
-          {detail?.role === "admin" && <option value="all">כל הסוכנות</option>}
-          {agents.map(agent => (
-            <option key={agent.id} value={agent.id}>{agent.name}</option>
-          ))}
+         {activeTab === "contractAgent" && (
+     <div id="contractAgent-tab" className={activeTab === "contractAgent" ? "active" : ""}>
+            {/* תוכן לשונית מבצעים */}
+         <div className="NewcontractAgent">
+              <div className="filter-select-container">
+              <select onChange={handleAgentChange} value={selectedAgentId} className="select-input">
+              {detail?.role === 'admin' && <option value="">בחר סוכן</option>}
+              {detail?.role === 'admin' && <option value="all">כל הסוכנות</option>}
+              {agents.map(agent => (
+               <option key={agent.id} value={agent.id}>{agent.name}</option>
+                ))}
+             </select>
+        <select className="select-input" value={selectedCompanyFilter} onChange={(e) => setSelectedCompanyFilter(e.target.value)}>
+        <option value="">בחר חברה</option>
+         {companies.map((companyName, index) => (
+         <option key={index} value={companyName}>{companyName}</option>
+    ))}
+     </select>
+     <select className="select-input" value={selectedProductFilter} onChange={(e) => setSelectedProductFilter(e.target.value)}>
+               <option value="">בחר מוצר</option>
+              {products.map(product => (
+             <option key={product.id} value={product.name}>{product.name}</option>
+         ))}
         </select>
-      </div>
-
-      {/* טאבים פנימיים: חברה -> מוצרים / מוצר -> חברות */}
-      <div className="tabs sub-tabs">
-        <button
-          className={`tab ${agentMode === "byCompany" ? "selected" : "default"}`}
-          onClick={() => setAgentMode("byCompany")}
-        >
-          חברה → כל המוצרים שלה
-        </button>
-        <button
-          className={`tab ${agentMode === "byProduct" ? "selected" : "default"}`}
-          onClick={() => setAgentMode("byProduct")}
-        >
-          מוצר → על החברות
-        </button>
-      </div>
-
-      {/* מצב 1: חברה -> מוצרים */}
-      {agentMode === "byCompany" && (
-        <>
-          <div className="filter-select-container">
-            {/* בחירת חברה */}
-            <select
+        <select
   className="select-input"
-  value={selectedCompanyForMatrix}
-  onChange={(e) => {
-    setSelectedCompanyForMatrix(e.target.value);
-    setRowsByCompany([]);
-  }}
+  value={minuySochenFilter2}
+  onChange={(e) => setMinuySochenFilter2(e.target.value)}
 >
-  <option value="">בחר חברה</option>
-  {companies.map((companyName, idx) => (
-    <option key={idx} value={companyName}>{companyName}</option>
-  ))}
+  <option value="">מינוי סוכן </option>
+  <option value="true">כן</option>
+  <option value="false">לא</option>
 </select>
-            {/* מוצרים מעניינים (multi-select) */}
-            <select
-              multiple
-              className="select-input"
-              value={selectedProductsForCompany}
-              onChange={handleProductsForCompanyChange}
-            >
-              {products.map(product => (
-                <option key={product.id} value={product.name}>{product.name}</option>
-              ))}
-            </select>
-          </div>
-
-          <div className="tableContractDefaultMD">
-            <table>
-              <thead>
-                <tr>
-                  <th>מוצר</th>
-                  <th>מינוי סוכן</th>
-                  <th>עמלת היקף</th>
-                  <th>עמלת נפרעים</th>
-                  <th>עמלת ניוד</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rowsByCompany.map(row => (
-                  <tr key={`${row.company}___${row.product}`}>
-                    <td>{row.product}</td>
-                    <td>
-                      <input
-                        type="checkbox"
-                        checked={row.minuySochen}
-                        onChange={(e) =>
-                          updateRowByCompany(row.product, "minuySochen", e.target.checked)
-                        }
-                      />
-                    </td>
-                    <td>
-                      <input
-                        type="text"
-                        value={row.commissionHekef}
-                        onChange={(e) =>
-                          updateRowByCompany(row.product, "commissionHekef", e.target.value)
-                        }
-                      />
-                    </td>
-                    <td>
-                      <input
-                        type="text"
-                        value={row.commissionNifraim}
-                        onChange={(e) =>
-                          updateRowByCompany(row.product, "commissionNifraim", e.target.value)
-                        }
-                      />
-                    </td>
-                    <td>
-                      <input
-                        type="text"
-                        value={row.commissionNiud}
-                        onChange={(e) =>
-                          updateRowByCompany(row.product, "commissionNiud", e.target.value)
-                        }
-                      />
-                    </td>
-                  </tr>
-                ))}
-                {rowsByCompany.length === 0 && (
-                  <tr>
-                    <td colSpan={5} style={{ textAlign: "center" }}>
-                      בחרי חברה ומוצרים להצגה
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          <div className="newcontractAgentButton">
-            <Button
-              onClick={saveByCompany}
-              text="שמור עמלות לחברה"
-              type="primary"
-              icon="on"
-              state={rowsByCompany.length > 0 ? "default" : "disabled"}
-              disabled={rowsByCompany.length === 0}
-            />
-          </div>
-        </>
-      )}
-
-      {/* מצב 2: מוצר -> חברות */}
-      {agentMode === "byProduct" && (
-        <>
-          <div className="filter-select-container">
-            {/* בחירת מוצר */}
-            <select
-              className="select-input"
-              value={selectedProductForMatrix}
-              onChange={(e) => {
-                setSelectedProductForMatrix(e.target.value);
-                setRowsByProduct([]);
-              }}
-            >
-              <option value="">בחר מוצר</option>
-              {products.map(product => (
-                <option key={product.id} value={product.name}>{product.name}</option>
-              ))}
-            </select>
-
-            {/* חברות מעניינות (multi-select) */}
-            <select
-              multiple
-              className="select-input"
-              value={selectedCompaniesForProduct}
-              onChange={handleCompaniesForProductChange}
-            >
-              {companies.map((companyName, idx) => (
-                <option key={idx} value={companyName}>{companyName}</option>
-              ))}
-            </select>
-          </div>
-
-          <div className="tableContractDefaultMD">
-            <table>
-              <thead>
-                <tr>
-                  <th>חברה</th>
-                  <th>מינוי סוכן</th>
-                  <th>עמלת היקף</th>
-                  <th>עמלת נפרעים</th>
-                  <th>עמלת ניוד</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rowsByProduct.map(row => (
-                  <tr key={`${row.company}___${row.product}`}>
-                    <td>{row.company}</td>
-                    <td>
-                      <input
-                        type="checkbox"
-                        checked={row.minuySochen}
-                        onChange={(e) =>
-                          updateRowByProduct(row.company, "minuySochen", e.target.checked)
-                        }
-                      />
-                    </td>
-                    <td>
-                      <input
-                        type="text"
-                        value={row.commissionHekef}
-                        onChange={(e) =>
-                          updateRowByProduct(row.company, "commissionHekef", e.target.value)
-                        }
-                      />
-                    </td>
-                    <td>
-                      <input
-                        type="text"
-                        value={row.commissionNifraim}
-                        onChange={(e) =>
-                          updateRowByProduct(row.company, "commissionNifraim", e.target.value)
-                        }
-                      />
-                    </td>
-                    <td>
-                      <input
-                        type="text"
-                        value={row.commissionNiud}
-                        onChange={(e) =>
-                          updateRowByProduct(row.company, "commissionNiud", e.target.value)
-                        }
-                      />
-                    </td>
-                  </tr>
-                ))}
-                {rowsByProduct.length === 0 && (
-                  <tr>
-                    <td colSpan={5} style={{ textAlign: "center" }}>
-                      בחרי מוצר וחברות להצגה
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          <div className="newcontractAgentButton">
-            <Button
-              onClick={saveByProduct}
-              text="שמור עמלות למוצר"
-              type="primary"
-              icon="on"
-              state={rowsByProduct.length > 0 ? "default" : "disabled"}
-              disabled={rowsByProduct.length === 0}
-            />
-          </div>
-        </>
-      )}
-
-      {toasts.length > 0 && toasts.map((toast) => (
-        <ToastNotification
-          key={toast.id}
-          type={toast.type}
-          className={toast.isHiding ? "hide" : ""}
-          message={toast.message}
-          onClose={() =>
-            setToasts(prev => prev.filter(t => t.id !== toast.id))
-          }
+        </div>
+      {/* כפתור לפתיחת המודל */}
+      <div className="newcontractAgentButton">
+        <Button
+          onClick={handleOpenModalAgent}
+          text="הזנת נתונים לסוכן"
+          type="primary"
+          icon="on"
+          state="default"
         />
-      ))}
+        <Button
+  onClick={saveContractChanges} // פונקציית שמירת שינויים
+  text="שמור שינויים"
+  type="primary"
+  icon="off"
+  state={editingRowContracts ? "default" : "disabled"} // כפתור פעיל רק כשיש שורה שנערכת
+  disabled={!editingRowContracts} // מנוטרל כשאין שורה שנערכת
+/>
+<Button
+  onClick={cancelEditContract}
+  text="בטל"
+  type="primary"
+  icon="off"
+  state={editingRowContracts ? "default" : "disabled"} // כפתור פעיל רק כשיש שורה שנערכת
+/>
+      </div>
+      {isModalOpenAgent && (
+  <div className="modal">
+    <div className="modal-content">
+      {/* כפתור לסגירת המודל */}
+      <button className="close-button" onClick={() => setIsModalOpenAgent(false)}>
+    ✖
+  </button>
+      {/* כותרת המודל */}
+      <div className="modal-title">הוספת נתונים לחברה</div>
+      {/* טופס המודל */}
+      <form onSubmit={(e) => { e.preventDefault(); handleSubmitFullValuesCommission(e); }}
+      className="form-container">
+        <div className="form-group">
+          <label htmlFor="companySelect2">בחר חברה</label>
+          <select
+            id="companySelect2"
+            value={selectedCompany}
+            onChange={(e) => setSelectedCompany(e.target.value)}
+          >
+            <option value="">בחר חברה</option>
+            {companies.map((companyName, index) => (
+              <option key={index} value={companyName}>
+                {companyName}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="form-group">
+          <label htmlFor="productSelect2">בחר מוצר</label>
+          <select
+            id="productSelect2"
+            value={selectedProduct}
+            onChange={(e) => setSelectedProduct(e.target.value)}
+          >
+            <option value="">בחר מוצר</option>
+            {products.map((product) => (
+              <option key={product.id} value={product.name}>
+                {product.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="form-group">
+          <div className="checkbox-container">
+            <input
+              type="checkbox"
+              id="minuySochen2"
+              checked={minuySochen2}
+              onChange={(e) => setMinuySochen2(e.target.checked)}
+            />
+            <label htmlFor="minuySochen2">מינוי סוכן</label>
+          </div>
+        </div>
+        <div className="form-group">
+          <label htmlFor="priceInputHekef2">אחוז היקף</label>
+          <input
+            type="text"
+            id="priceInputHekef2"
+            value={commissionPercentHekef2}
+            onChange={handlecommissionPercentHekef2}
+          />
+        </div>
+        <div className="form-group">
+          <label htmlFor="priceInputNifraim2">אחוז נפרעים</label>
+          <input
+            type="text"
+            id="priceInputNifraim2"
+            value={commissionPercentNifraim2}
+            onChange={handlecommissionPercentNifraim2}
+          />
+        </div>
+        <div className="form-group">
+          <label htmlFor="priceInputNiud2">אחוז ניוד</label>
+          <input
+            type="text"
+            id="priceInputNiud2"
+            value={commissionPercentNiud2}
+            onChange={handlecommissionPercentNiud2}
+          />
+        </div>
+        {/* כפתורים */}
+        <div className="button-group">
+          <Button
+            onClick={handleSubmitFullValuesCommission}
+            text="הזן"
+            type="primary"
+            icon="on"
+            state={canSubmit2 ? "default" : "disabled"}
+            disabled={!canSubmit2} 
+          />
+          <Button
+            onClick={handleCloseModalAgent}
+            text="בטל"
+            type="secondary"
+            icon="off"
+            state="default"
+          />
+        </div>
+      </form>
     </div>
   </div>
 )}
+ <div className="tableContractDefaultMD">
+        <table>
+              <thead>
+                <tr>
+                <th>חברה </th>
+                  <th>מוצר </th>
+                  <th>מינוי סוכן</th>
+                  <th>עמלת היקף</th>
+                  <th>עמלת נפרעים</th>
+                  <th>עמלת ניוד</th>
+                  <th className="narrow-cell">🔧</th>
+                </tr>
+              </thead>
+              <tbody>
+  {contractsData.map((item) => (
+    <tr key={item.id}>
+      {/* חברה */}
+      <td>
+        {editingRowContracts === item.id ? (
+          <select
+            id={`companySelect-${item.id}`}
+            value={editContractData.company || ""}
+            onChange={(e) => handleEditContractChange("company", e.target.value)}
+          >
+            <option value="">בחר חברה</option>
+            {companies.map((companyName, index) => (
+              <option key={index} value={companyName}>
+                {companyName}
+              </option>
+            ))}
+          </select>
+        ) : (
+          item.company
+        )}
+      </td>
+
+      {/* מוצר */}
+      <td>
+        {editingRowContracts === item.id ? (
+          <select
+            id={`productSelect-${item.id}`}
+            value={editContractData.product || ""}
+            onChange={(e) => handleEditContractChange("product", e.target.value)}
+          >
+            <option value="">בחר מוצר</option>
+            {products.map((product) => (
+              <option key={product.id} value={product.name}>
+                {product.name}
+              </option>
+            ))}
+          </select>
+        ) : (
+          item.product
+        )}
+      </td>
+
+      {/* מינוי סוכן */}
+      <td>
+        {editingRowContracts === item.id ? (
+          <input
+            type="checkbox"
+            checked={editContractData.minuySochen || false}
+            onChange={(e) =>
+              handleEditContractChange("minuySochen", e.target.checked)
+            }
+          />
+        ) : (
+          item.minuySochen ? "כן" : "לא"
+        )}
+      </td>
+
+      {/* אחוז היקף */}
+      <td>
+        {editingRowContracts === item.id ? (
+          <input
+            type="text"
+            value={editContractData.commissionHekef || ""}
+            onChange={(e) =>
+              handleEditContractChange("commissionHekef", e.target.value)
+            }
+          />
+        ) : (
+          `${item.commissionHekef}%`
+        )}
+      </td>
+      <td>
+        {editingRowContracts === item.id ? (
+          <input
+            type="text"
+            value={editContractData.commissionNifraim || ""}
+            onChange={(e) =>
+              handleEditContractChange("commissionNifraim", e.target.value)
+            }
+          />
+        ) : (
+          `${item.commissionNifraim}%`
+        )}
+      </td>
+
+      {/* אחוז ניוד */}
+      <td>
+        {editingRowContracts === item.id ? (
+          <input
+            type="text"
+            value={editContractData.commissionNiud || ""}
+            onChange={(e) =>
+              handleEditContractChange("commissionNiud", e.target.value)
+            }
+          />
+        ) : (
+          `${item.commissionNiud}%`
+        )}
+      </td>
+
+      {/* תפריט פעולות */}
+      <td className="narrow-cell">
+        <MenuWrapper
+          rowId={item.id}
+          openMenuRow={openMenuRowContracts}
+          setOpenMenuRow={setOpenMenuRowContracts}
+          menuItems={menuItems(
+            item.id,
+            handleEditContractRow,
+            handleDeleteContractRow,
+            () => setOpenMenuRowContracts(null)
+          )}
+        />
+      </td>
+    </tr>
+  ))}
+</tbody>
+  </table>
+            </div>
+            {toasts.length > 0  && toasts.map((toast) => (
+            <ToastNotification 
+    key={toast.id}  
+    type={toast.type}
+    className={toast.isHiding ? "hide" : ""} 
+    message={toast.message}
+    onClose={() => setToasts((prevToasts) => prevToasts.filter((t) => t.id !== toast.id))}
+  />
+))}
+          </div>
+        </div>
+        )}
         {activeTab === "commissionSplit" && (
   <div id="commissionSplit-tab" className="active">
     <div className="filter-select-container">
