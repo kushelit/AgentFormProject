@@ -428,7 +428,7 @@ const handleSubmit = async (event: FormEvent<HTMLFormElement>, closeAfterSubmit 
   finansimZvira: editData.finansimZvira || 0,
   mounth: editData.mounth || "",
   cancellationDate: editData.cancellationDate || "",
-  minuySochen: editData.minuySochen || false,
+  minuySochen: !!editData.minuySochen,
   statusPolicy: editData.statusPolicy || selectedStatusPolicy,
   notes: editData.notes || "",
   policyNumber: editData.policyNumber || "",
@@ -437,10 +437,14 @@ const handleSubmit = async (event: FormEvent<HTMLFormElement>, closeAfterSubmit 
     });
     addToast("success", "יש!!! עוד עסקה נוספה");
     // קריאה לפונקציית `fetchDataForAgent` לעדכון הנתונים
-    if (selectedAgentId) {
-      const data = await fetchDataForAgent(selectedAgentId); // קריאה לפונקציה
-      setAgentData(data); // עדכון הסטייט עם הנתונים החדשים
-    }
+    // if (selectedAgentId) {
+    //   const data = await fetchDataForAgent(selectedAgentId); // קריאה לפונקציה
+    //   setAgentData(data); // עדכון הסטייט עם הנתונים החדשים
+    // }
+
+    await reloadData(selectedAgentId);   // פונקציה שמגיעה מה-useEditableTable
+
+
     // הפעלת קונפטי וקול הצלחה
     triggerConfetti();
     // celebrationSound.play();
@@ -659,7 +663,7 @@ const handleIDBlur = async () => {
     return;
   }
 
-  // console.log("🔍 Checking customer by ID:", editData.IDCustomer, "Agent:", selectedAgentId);
+   console.log("🔍 Checking customer by ID:", editData.IDCustomer, "Agent:", selectedAgentId);
 
   const customerData: Customer | null = await fetchCustomerBelongToAgent(
     editData.IDCustomer,
@@ -693,6 +697,9 @@ useEffect(() => {
 }, [editData.product, productToGroupMap]); // ירוץ בכל שינוי של המוצר או הנתונים
 
 // console.log("🚨 invalidFields:", invalidFields); // ✅ כאן מחוץ ל-HTML
+
+console.log("🎨 render | minuySochen =", editData.minuySochen);
+
 
   return (
 <div className="content-container-NewAgentForm">  
@@ -1030,6 +1037,7 @@ useEffect(() => {
 </thead>
                   <tbody>
                 {currentRows.map((item) => (
+                  
                 <tr key={item.id} className={editingRow === item.id ? "editing-row" : ""}>
     <td className="narrow-column">
                {editingRow === item.id ? (
@@ -1189,21 +1197,27 @@ useEffect(() => {
         )}
       </td>
       <td className="small-column">
-        {editingRow === item.id ? (
-          <input
-            type="checkbox"
-            checked={editData.minuySochen || false}
-            onChange={(e) => handleEditChange("minuySochen", e.target.checked)}
-          />
-        ) : (
-          item.minuySochen ? "כן" : "לא"
-        )}
-      </td>
+  {editingRow === item.id ? (
+    <input
+      type="checkbox"
+      checked={!!editData.minuySochen}
+      onChange={(e) => {
+        console.log("✅ checkbox click (table)", {
+          checked: e.target.checked,
+          before: editData.minuySochen,
+        });
+        handleEditChange("minuySochen", e.target.checked);
+      }}
+    />
+  ) : (
+    item.minuySochen ? "כן" : "לא"
+  )}
+</td>
       <td className="medium-column">
   {editingRow === item.id ? (
     <select
       value={editData.workerId || ""}
-      onChange={(e) => handleEditChange("workerName", e.target.value)}
+      onChange={(e) => handleEditChange("workerId", e.target.value)}
     >
       <option value="">בחר עובד</option>
       {workers.map((worker) => (
@@ -1547,15 +1561,20 @@ useEffect(() => {
     />
   </div>
 )}
-   <div className="form-group checkbox-group">
-  <label className="checkbox-label">
+ <div className="form-group checkbox-group">
+  <div className="checkbox-container">
     <input 
-      type="checkbox" 
-      checked={editData.minuySochen || false} 
-      onChange={(e) => handleEditChange("minuySochen", e.target.checked)} 
+      type="checkbox"
+      checked={!!editData.minuySochen}
+      onChange={(e) => {
+        console.log("checkbox changed", e.target.checked);
+
+        // זה חובה — זה מה שמעדכן את המנגנון של השורה הנערכת
+        handleEditChange("minuySochen", e.target.checked);
+      }}
     />
-  <span>מינוי סוכן</span>
-  </label>
+    <label>מינוי סוכן</label>
+  </div>
 </div>
 
 <div className="form-group full-width">

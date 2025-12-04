@@ -619,7 +619,7 @@ input::placeholder {
   margin-bottom: 0px;
   display: block;
 }
-.form-group input,
+.form-group input:not([type="checkbox"]),
 .form-group select,
 .form-group textarea {
   width: 100%; /* תופס את כל הרוחב הזמין */
@@ -844,4 +844,56 @@ table td.narrow-column {
   color: #6b7280; /* אפור עדין */
   direction: rtl;
   margin-top: 2px;
+}
+
+.checkbox-container input[type="checkbox"]:checked::before {
+  content: "✔";
+}
+
+.form-group input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  padding: 0;
+  border-radius: 4px;
+  border: 1px solid var(--clrgray5);
+  background-color: var(--clrwhite);
+  cursor: pointer;
+}
+/* קונטיינר לצ'קבוקס + טקסט */
+.checkbox-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+/* === Checkbox במודל עסקאות === */
+.modal-content .checkbox-container input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  border: 1px solid var(--clrgray5);
+  background-color: var(--clrwhite);
+  cursor: pointer;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* מצב מסומן – הריבוע הכחול */
+.modal-content .checkbox-container input[type="checkbox"]:checked {
+  background-color: var(--clrdarkblue3) !important;
+  border-color: var(--clrdarkblue3) !important;
+}
+
+/* ה-✓ הלבן בפנים */
+.modal-content .checkbox-container input[type="checkbox"]:checked::before {
+  content: "✔";
+  color: #fff;
+  font-size: 12px;
+  line-height: 1;
 }
