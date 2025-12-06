@@ -663,7 +663,7 @@ const handleIDBlur = async () => {
     return;
   }
 
-   console.log("🔍 Checking customer by ID:", editData.IDCustomer, "Agent:", selectedAgentId);
+  // console.log("🔍 Checking customer by ID:", editData.IDCustomer, "Agent:", selectedAgentId);
 
   const customerData: Customer | null = await fetchCustomerBelongToAgent(
     editData.IDCustomer,
@@ -698,7 +698,7 @@ useEffect(() => {
 
 // console.log("🚨 invalidFields:", invalidFields); // ✅ כאן מחוץ ל-HTML
 
-console.log("🎨 render | minuySochen =", editData.minuySochen);
+//console.log("🎨 render | minuySochen =", editData.minuySochen);
 
 
   return (
@@ -1202,10 +1202,11 @@ console.log("🎨 render | minuySochen =", editData.minuySochen);
       type="checkbox"
       checked={!!editData.minuySochen}
       onChange={(e) => {
-        console.log("✅ checkbox click (table)", {
-          checked: e.target.checked,
-          before: editData.minuySochen,
-        });
+      //   console.log("✅ checkbox click (table)", {
+      //     checked: e.target.checked,
+      //     before: editData.minuySochen,
+      //   }
+      // );
         handleEditChange("minuySochen", e.target.checked);
       }}
     />
