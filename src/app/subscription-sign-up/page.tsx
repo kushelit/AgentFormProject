@@ -156,6 +156,11 @@ export default function SubscriptionSignUpPage() {
   }, [couponCode, selectedPlan]);
   
   const calculateTotal = (discountValue: number = discount) => {
+
+    if (selectedPlan === 'enterprise') {
+      return 0;
+    }
+    
     const base = plans.find(p => p.id === selectedPlan)?.price || 0;
     const leadsPrice = withLeadsModule ? 29 : 0;
     const workersPrice = selectedPlan === 'pro' ? extraWorkers * 49 : 0;
