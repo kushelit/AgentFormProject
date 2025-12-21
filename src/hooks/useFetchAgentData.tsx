@@ -92,31 +92,41 @@ const useFetchAgentData = () => {
         let agentsList = [];
   
         if (detail.role === 'admin') {
-          // נשלוף את מסמך האדמין כדי לבדוק מה ערך agencies שלו
-          const adminDoc = await getDoc(doc(db, 'users', user.uid));
-          const adminData = adminDoc.exists() ? adminDoc.data() : null;
-          const adminAgency = adminData?.agencies;
-        
-          const snapshot = await getDocs(query(
-            collection(db, 'users'),
-            where('role', 'in', ['agent', 'manager'])
-          ));
-        
+          const adminAgencyId = detail.agencyId; // ⭐ מגיע מ-AuthContext אחרי המיפוי agencies → agencyId
+  
+          if (!adminAgencyId) {
+            // אין סוכנות משויכת – לא נציג סוכנים
+            setAgents([]);
+            setIsLoadingAgent(false);
+            return;
+          }
+  
+          const snapshot = await getDocs(
+            query(
+              collection(db, 'users'),
+              where('role', 'in', ['agent', 'manager']),
+              where('agencies', '==', adminAgencyId) // ⭐ סינון כבר ברמת ה-DB
+            )
+          );
+  
           agentsList = snapshot.docs
-            .filter(doc => {
-              const data = doc.data();
-              return data.isActive !== false && data.agencies === adminAgency;
+            .filter((docSnap) => {
+              const data = docSnap.data();
+              return (
+                data.isActive !== false &&
+                data.agencies === adminAgencyId // 🔒 הגנה נוספת בצד לקוח – גם אם משהו ישתנה ב-DB
+              );
             })
-            .map(doc => {
-              const data = doc.data();
+            .map((docSnap) => {
+              const data = docSnap.data();
               return {
-                id: doc.id,
+                id: docSnap.id,
                 name: data.name as string,
-                agentCodes: data.agentCodes || []
+                agentCodes: data.agentCodes || [],
               };
             })
             .sort((a, b) => a.name.localeCompare(b.name));
-        }        
+        }
         else if (hasAccessAgentGroup) {
           const agentDoc = await getDoc(doc(db, 'users', detail.agentId));
           const agentData = agentDoc.exists() ? agentDoc.data() : null;

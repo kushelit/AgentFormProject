@@ -64,58 +64,133 @@ export const AuthContextProvider = ({ children }: { children: React.ReactNode })
     setIsClient(true);
   }, []);
 
-  useEffect(() => {
-    if (!isClient) return;
+  // useEffect(() => {
+  //   if (!isClient) return;
 
-    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-      if (!currentUser) {
-        setUser(null);
-        setDetail(null);
-        setIsLoading(false);
-        return;
-      }
+  //   const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+  //     if (!currentUser) {
+  //       setUser(null);
+  //       setDetail(null);
+  //       setIsLoading(false);
+  //       return;
+  //     }
 
-      const docRef = doc(db, 'users', currentUser.uid);
-      const docSnap = await getDoc(docRef);
+  //     const docRef = doc(db, 'users', currentUser.uid);
+  //     const docSnap = await getDoc(docRef);
 
-      if (!docSnap.exists()) {
-        setUser(null);
-        setDetail(null);
-        setIsLoading(false);
-        return;
-      }
+  //     if (!docSnap.exists()) {
+  //       setUser(null);
+  //       setDetail(null);
+  //       setIsLoading(false);
+  //       return;
+  //     }
 
-      const data = docSnap.data() as UserDetail;
+  //     const data = docSnap.data() as UserDetail;
 
-      if (data?.isActive === false) {
-        setUser(null);
-        setDetail(null);
-        setIsLoading(false);
-        return;
-      }
+  //     if (data?.isActive === false) {
+  //       setUser(null);
+  //       setDetail(null);
+  //       setIsLoading(false);
+  //       return;
+  //     }
 
-      setUser(currentUser);
-      setDetail(data);
+  //     setUser(currentUser);
+  //     setDetail(data);
 
-      const rolesToFetch = ['agent', 'worker', 'admin', 'manager'];
-      const rolesData: RolesPermissionsMap = {};
+  //     const rolesToFetch = ['agent', 'worker', 'admin', 'manager'];
+  //     const rolesData: RolesPermissionsMap = {};
 
-      await Promise.all(
-        rolesToFetch.map(async (role) => {
-          const roleDoc = await getDoc(doc(db, 'roles', role));
-          rolesData[role] = roleDoc.exists() ? roleDoc.data().permissions || [] : [];
-        })
-      );
+  //     await Promise.all(
+  //       rolesToFetch.map(async (role) => {
+  //         const roleDoc = await getDoc(doc(db, 'roles', role));
+  //         rolesData[role] = roleDoc.exists() ? roleDoc.data().permissions || [] : [];
+  //       })
+  //     );
 
-      setRolesPermissions(rolesData);
-      setIsLoading(false);
-    });
+  //     setRolesPermissions(rolesData);
+  //     setIsLoading(false);
+  //   });
 
-    return () => unsubscribe();
-  }, [isClient]);
+  //   return () => unsubscribe();
+  // }, [isClient]);
 
   
 // פעולות התחברות/התנתקות
+
+
+useEffect(() => {
+  if (!isClient) return;
+
+  const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+    if (!currentUser) {
+      setUser(null);
+      setDetail(null);
+      setIsLoading(false);
+      return;
+    }
+
+    const docRef = doc(db, 'users', currentUser.uid);
+    const docSnap = await getDoc(docRef);
+
+    if (!docSnap.exists()) {
+      setUser(null);
+      setDetail(null);
+      setIsLoading(false);
+      return;
+    }
+
+    // שלב 1 – raw data מה-DB
+    const raw = docSnap.data() as any;
+
+    // שלב 2 – אם המשתמש לא פעיל → חסימה
+    if (raw?.isActive === false) {
+      setUser(null);
+      setDetail(null);
+      setIsLoading(false);
+      return;
+    }
+
+    // שלב 3 – יצירת detail כולל מיפוי agencies → agencyId
+    const detail: UserDetail = {
+      name: raw.name ?? "",
+      email: raw.email ?? currentUser.email ?? "",
+      agentId: raw.agentId ?? "",
+      agencyId: raw.agencyId ?? raw.agencies ?? "",   // ⭐ המיפוי כאן
+      role: raw.role,
+      isActive: raw.isActive,
+      subscriptionId: raw.subscriptionId,
+      subscriptionType: raw.subscriptionType,
+      permissionOverrides: raw.permissionOverrides,
+      addOns: raw.addOns,
+    };
+
+    setUser(currentUser);
+    setDetail(detail);
+
+    // שלב 4 – טעינת הרשאות לרול
+    const rolesToFetch = ["agent", "worker", "admin", "manager"];
+    const rolesData: RolesPermissionsMap = {};
+
+    await Promise.all(
+      rolesToFetch.map(async (role) => {
+        const roleDoc = await getDoc(doc(db, "roles", role));
+        rolesData[role] = roleDoc.exists()
+          ? roleDoc.data().permissions || []
+          : [];
+      })
+    );
+
+    setRolesPermissions(rolesData);
+    setIsLoading(false);
+  });
+
+  return () => unsubscribe();
+}, [isClient]);
+
+
+
+
+
 const logIn = async (email: string, password: string) => {
   await setPersistence(auth, browserSessionPersistence);
   return signInWithEmailAndPassword(auth, email, password);

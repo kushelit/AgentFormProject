@@ -8,6 +8,7 @@ import { generateClientNifraimSummaryReport } from '@/app/Reports/generators/gen
 import { generateFinancialAccumulationReport } from '@/app/Reports/generators/generateFinancialAccumulationReport';
 import { generateClientNifraimReportedVsMagic } from '@/app/Reports/generators/generateClientNifraimReportedVsMagic';
 import { generateCommissionSummaryMultiYear } from '@/app/Reports/generators/generateCommissionSummaryMultiYear';
+import { generateProfitByLeadSourceReport } from '@/app/Reports/generators/generateProfitByLeadSourceReport';
 
 
 import { admin } from '@/lib/firebase/firebase-admin';
@@ -79,6 +80,11 @@ export async function POST(req: NextRequest) {
         ({ buffer: reportBuffer, filename, subject, description } =
           await generateCommissionSummaryMultiYear(body));
         break;
+        case 'profitByLeadSourceReport':
+  ({ buffer: reportBuffer, filename, subject, description } =
+    await generateProfitByLeadSourceReport(body));
+  break;
+
       default:
         return NextResponse.json({ error: 'Unsupported report type' }, { status: 400 });
     }

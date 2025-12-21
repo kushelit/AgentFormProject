@@ -29,6 +29,7 @@ const REPORTS = [
   { value: 'clientFinancialAccumulationReport', label: 'דוח צבירה פיננסית ללקוח' },
   { value: 'clientNifraimReportedVsMagic', label: 'דוח נפרעים ללקוח – קובץ מול MagicSale' },
   { value: 'commissionSummaryMultiYear', label: 'דוח נפרעים מסוכם - מטעינת קבצים' },
+  { value: 'profitByLeadSourceReport', label: 'דוח רווחיות לפי מקור ליד' },
 ];
 
 const REPORT_UI_RULES: Record<
@@ -76,6 +77,14 @@ const REPORT_UI_RULES: Record<
     showCompanies: true,
     showPitzul: false,
   },
+  profitByLeadSourceReport: {
+    showProducts: true,
+    showStatus: true,
+    showMinuySochen: true,
+    showCompanies: true,
+    showPitzul: true,
+  },
+  
 };
 
 const ReportsPage: React.FC = () => {
@@ -184,7 +193,17 @@ const ReportsPage: React.FC = () => {
         return;
       }
     }
-
+    if (reportType === 'profitByLeadSourceReport') {
+      if (!selectedAgentId || selectedAgentId === 'all') {
+        addToast('error', 'בדוח זה יש לבחור סוכן יחיד (לא כל הסוכנות)');
+        return;
+      }
+      if (!fromDate || !toDate) {
+        addToast('error', 'נדרש לבחור טווח תאריכים (מתאריך ועד תאריך)');
+        return;
+      }
+    }
+    
     setLoading(true);
     try {
       const clean = (val: any) => (val === '' ? undefined : val);

@@ -640,43 +640,76 @@ const detailAsMinimalUser: MinimalUser | null = detail && user
   </td>
             {workers.map((worker) => {
               const canEdit = canEditPermissions;
-              const toggleActiveStatus = async (workerId: string, currentStatus: boolean) => {
+              const toggleActiveStatus = async (
+                workerId: string,
+                currentStatus: boolean,
+                workerAgentId?: string
+              ) => {
                 try {
                   const newStatus = !currentStatus;
               
-                  // 1. עדכון ב־Firestore
-                  const userRef = doc(db, 'users', workerId);
-                  await updateDoc(userRef, { isActive: newStatus });
+                  // ✅ 1. מביאים Firebase ID Token של המשתמש המחובר
+                  const token = await user?.getIdToken();
+                  if (!token) {
+                    addToast('error', 'לא ניתן לאמת משתמש');
+                    return;
+                  }
               
-                  // 2. עדכון ב־Firebase Auth דרך API
-                  await fetch('/api/updateUserStatus', {
+                  // ✅ 2. קריאה אחת ל־API המאובטח
+                  const res = await fetch('/api/setWorkerActive', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ uid: workerId, disabled: !newStatus }),
+                    headers: {
+                      'Content-Type': 'application/json',
+                      Authorization: `Bearer ${token}`, // ⭐ זה החלק החשוב
+                    },
+                    body: JSON.stringify({
+                      uid: workerId,
+                      isActive: newStatus,
+                      agentId: selectedAgentId || workerAgentId,
+                    }),
                   });
               
-                  // 3. עדכון ב־state מקומי
+                  const data = await res.json();
+              
+                  if (!res.ok) {
+                    addToast('error', data.error || 'שגיאה בעדכון סטטוס');
+                    return;
+                  }
+              
+                  // ✅ 3. עדכון state מקומי
                   setWorkers(prev =>
-                    prev.map(w => w.id === workerId ? { ...w, isActive: newStatus } : w)
+                    prev.map(w => (w.id === workerId ? { ...w, isActive: newStatus } : w))
                   );
               
                   addToast('success', 'סטטוס עודכן בהצלחה');
                 } catch (err) {
-                  // console.error(err);
                   addToast('error', 'שגיאה בעדכון סטטוס');
                 }
               };
               
-  
+              const isWorkerRow = worker.role === 'worker';
+              const canToggleStatus = Boolean(canEdit) && isWorkerRow;
+
               return (
-                <td
-                  key={worker.id + '-isActive'}
-                  className={`border-t-4 border-gray-400 px-2 py-3 text-center font-semibold bg-white ${canEdit ? 'cursor-pointer hover:bg-blue-100' : 'text-gray-400 cursor-not-allowed'}`}
-                  onClick={() => canEdit && toggleActiveStatus(worker.id, worker.isActive)}
-                  title={canEdit ? 'לחץ לשינוי סטטוס פעיל' : 'אין הרשאה לעריכה'}
-                >
-                  {worker.isActive ? '🟢 פעיל' : '⛔ לא פעיל'}
-                </td>
+               <td
+  key={worker.id + '-isActive'}
+  className={`border-t-4 border-gray-400 px-2 py-3 text-center font-semibold bg-white ${
+    canToggleStatus ? 'cursor-pointer hover:bg-blue-100' : 'text-gray-400 cursor-not-allowed'
+  }`}
+  onClick={() => {
+    if (!canToggleStatus) return;
+    toggleActiveStatus(worker.id, worker.isActive, worker.agentId); // נוסיף agentId
+  }}
+  title={
+    !isWorkerRow
+      ? 'לא משנים סטטוס לסוכן/מנהל כאן'
+      : canToggleStatus
+      ? 'לחץ לשינוי סטטוס פעיל'
+      : 'אין הרשאה לעריכה'
+  }
+>
+  {worker.isActive ? '🟢 פעיל' : '⛔ לא פעיל'}
+</td>
               );
             })}
           </tr>

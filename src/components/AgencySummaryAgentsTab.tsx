@@ -1,11 +1,6 @@
 'use client';
 
-import React, {
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-} from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/lib/firebase/AuthContext';
 import useFetchAgentData from '@/hooks/useFetchAgentData';
 import useFetchMD from '@/hooks/useMD';
@@ -16,6 +11,8 @@ import { db } from '@/lib/firebase/firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 
 import '@/app/NewSummaryTable/NewSummaryTable.css';
+
+type ViewMode = 'agent' | 'agencyMargin';
 
 type MonthlyTotal = {
   finansimTotal: number;
@@ -63,6 +60,8 @@ interface AgentRowProps {
   isCommissionSplitEnabled: boolean;
   onTotalsChange: (agentId: string, totals: MonthlyTotal) => void;
   canViewCommissions: boolean;
+  viewMode: ViewMode;
+  agencyId?: string;
 }
 
 const AgentYearRow: React.FC<AgentRowProps> = ({
@@ -74,16 +73,20 @@ const AgentYearRow: React.FC<AgentRowProps> = ({
   isCommissionSplitEnabled,
   onTotalsChange,
   canViewCommissions,
+  viewMode,
+  agencyId,
 }) => {
   const { monthlyTotals, overallTotals, isLoadingData } = useSalesData(
     agentId,
-    '', // כל העובדים
-    '', // כל החברות
+    '',
+    '',
     selectedProduct,
     selectedStatusPolicy,
     selectedYear,
-    false, // includePreviousDecember – רק שנה קלנדרית
-    isCommissionSplitEnabled
+    false,
+    isCommissionSplitEnabled,
+    viewMode,
+    agencyId
   );
 
   useEffect(() => {
@@ -93,22 +96,13 @@ const AgentYearRow: React.FC<AgentRowProps> = ({
   const totals: MonthlyTotal =
     Object.keys(monthlyTotals).length === 0 ? emptyTotals : overallTotals;
 
-  // כמה עמודות יהיו אחרי עמודת "סוכן"
   const numericColumnsCount = 6 + (canViewCommissions ? 2 : 0);
 
-  // 🔹 בזמן טעינה – מציגים מצב טעינה במקום ערכים 0
   if (isLoadingData) {
     return (
       <tr>
         <td>{agentName}</td>
-        <td
-          colSpan={numericColumnsCount}
-          style={{
-            textAlign: 'center',
-            fontSize: '0.85rem',
-            color: '#666',
-          }}
-        >
+        <td colSpan={numericColumnsCount} style={{ textAlign: 'center', fontSize: '0.85rem', color: '#666' }}>
           טוען נתונים עבור הסוכן...
         </td>
       </tr>
@@ -124,41 +118,36 @@ const AgentYearRow: React.FC<AgentRowProps> = ({
       <td>{totals.niudPensiaTotal.toLocaleString()}</td>
       <td>{totals.insuranceTravelTotal?.toLocaleString() || '0'}</td>
       <td>{totals.prishaMyaditTotal?.toLocaleString() || '0'}</td>
-      {canViewCommissions && (
-        <td>{totals.commissionHekefTotal.toLocaleString()}</td>
-      )}
-      {canViewCommissions && (
-        <td>{totals.commissionNifraimTotal.toLocaleString()}</td>
-      )}
+      {canViewCommissions && <td>{totals.commissionHekefTotal.toLocaleString()}</td>}
+      {canViewCommissions && <td>{totals.commissionNifraimTotal.toLocaleString()}</td>}
     </tr>
   );
 };
 
-const AgencySummaryAgentsTab: React.FC = () => {
-  // 🔹 כל ה־hooks למעלה, ללא תנאים
+type Props = {
+  viewMode: ViewMode;
+  setViewMode: (v: ViewMode) => void;
+  agencyId?: string;
+};
+
+const AgencySummaryAgentsTab: React.FC<Props> = ({ viewMode, setViewMode, agencyId }) => {
   const { agents } = useFetchAgentData();
   const isNewDesignEnabled = useDesignFlag();
   const { canAccess } = usePermission('view_commissions_field');
   const canViewCommissions = !!canAccess;
+
   const [preferencesLoaded, setPreferencesLoaded] = useState(false);
 
-  const [selectedYear, setSelectedYear] = useState<number>(
-    new Date().getFullYear()
-  );
-  const [isCommissionSplitEnabled, setIsCommissionSplitEnabled] =
-    useState(false);
+  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
+  const [isCommissionSplitEnabled, setIsCommissionSplitEnabled] = useState(false);
 
-  // מצב תצוגת סוכנים (כמו בדף עמלות)
-  const [agentFilterMode, setAgentFilterMode] = useState<'all' | 'selected'>(
-    'all'
-  );
-  const [selectedAgentIds, setSelectedAgentIds] = useState<Set<string>>(
-    () => new Set()
-  );
+  const [agentFilterMode, setAgentFilterMode] = useState<'all' | 'selected'>('all');
+  const [selectedAgentIds, setSelectedAgentIds] = useState<Set<string>>(() => new Set());
   const [agentSearchTerm, setAgentSearchTerm] = useState('');
-  const { user, detail } = useAuth();
 
-  // MD – מוצר / סטטוס פוליסה
+  const { user, detail } = useAuth();
+  const effectiveAgencyId = agencyId ?? detail?.agencyId ?? '';
+
   const {
     products,
     selectedProduct,
@@ -170,62 +159,51 @@ const AgencySummaryAgentsTab: React.FC = () => {
 
   const [agentTotalsMap, setAgentTotalsMap] = useState<AgentTotalsMap>({});
 
-  const handleTotalsChange = useCallback(
-    (agentId: string, totals: MonthlyTotal) => {
-      setAgentTotalsMap((prev) => ({
-        ...prev,
-        [agentId]: totals,
-      }));
-    },
-    []
-  );
+  const handleTotalsChange = useCallback((agentId: string, totals: MonthlyTotal) => {
+    setAgentTotalsMap((prev) => ({ ...prev, [agentId]: totals }));
+  }, []);
 
-  // 🔹 סטייט מיון
-  const [sortColumn, setSortColumn] =
-  useState<SortColumn | null>('commissionNifraimTotal');
-const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
+  const [sortColumn, setSortColumn] = useState<SortColumn | null>('commissionNifraimTotal');
+  const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
 
-
-const handleSort = (column: SortColumn) => {
-  if (sortColumn === column) {
-    // לוחצים שוב על אותה עמודה → רק הופכים את הכיוון
-    setSortOrder((prev) => (prev === 'asc' ? 'desc' : 'asc'));
-  } else {
-    // עמודה חדשה → עוברים אליה ומתחילים מ-asc
-    setSortColumn(column);
-    setSortOrder('asc');
-  }
-};
+  const handleSort = (column: SortColumn) => {
+    if (sortColumn === column) setSortOrder((prev) => (prev === 'asc' ? 'desc' : 'asc'));
+    else {
+      setSortColumn(column);
+      setSortOrder('asc');
+    }
+  };
 
   const sortArrow = (column: SortColumn) => {
     if (sortColumn !== column) return '';
     return sortOrder === 'asc' ? ' ▲' : ' ▼';
   };
 
+  // פיצולים לא נתמכים ב-ALL/agencyMargin, אז כאן: רק אם viewMode=agent
+  const canEnableSplit = viewMode === 'agent';
+  useEffect(() => {
+    if (!canEnableSplit && isCommissionSplitEnabled) setIsCommissionSplitEnabled(false);
+  }, [canEnableSplit, isCommissionSplitEnabled]);
+
   useEffect(() => {
     const loadPreferences = async () => {
       if (!user) return;
 
       try {
-        const prefRef = doc(
-          db,
-          'userPreferences',
-          user.uid,
-          'views',
-          'agencySummaryAgents'
-        );
-
+        const prefRef = doc(db, 'userPreferences', user.uid, 'views', 'agencySummaryAgents');
         const snap = await getDoc(prefRef);
+
         if (snap.exists()) {
           const data = snap.data() as any;
-          if (data.agentFilterMode === 'selected') {
-            setAgentFilterMode('selected');
-          } else {
-            setAgentFilterMode('all');
-          }
+          setAgentFilterMode(data.agentFilterMode === 'selected' ? 'selected' : 'all');
 
           if (Array.isArray(data.selectedAgentIds)) {
             setSelectedAgentIds(new Set<string>(data.selectedAgentIds));
+          }
+
+          // ✅ אם רוצים לזכור viewMode לכל הטאבים: נשמור/נטען פה, אבל זה ה-viewMode של האב!
+          if (data.viewMode === 'agencyMargin' || data.viewMode === 'agent') {
+            setViewMode(data.viewMode);
           }
         }
       } catch (err) {
@@ -236,14 +214,10 @@ const handleSort = (column: SortColumn) => {
     };
 
     loadPreferences();
-  }, [user]);
+  }, [user, setViewMode]);
 
-  // ברירת מחדל: כל הסוכנים מסומנים
   useEffect(() => {
-    // אם יש כבר העדפות שנטענו – לא דורכים עליהן
     if (!preferencesLoaded) return;
-
-    // אם אין עדיין בחירה – ברירת מחדל: כל הסוכנים
     if (agents && agents.length > 0 && selectedAgentIds.size === 0) {
       setSelectedAgentIds(new Set(agents.map((a) => a.id)));
     }
@@ -251,23 +225,17 @@ const handleSort = (column: SortColumn) => {
 
   useEffect(() => {
     if (!user) return;
-    if (!preferencesLoaded) return; // שלא נשמור ערכים חלקיים לפני טעינת העדפות
+    if (!preferencesLoaded) return;
 
     const savePreferences = async () => {
       try {
-        const prefRef = doc(
-          db,
-          'userPreferences',
-          user.uid,
-          'views',
-          'agencySummaryAgents'
-        );
-
+        const prefRef = doc(db, 'userPreferences', user.uid, 'views', 'agencySummaryAgents');
         await setDoc(
           prefRef,
           {
             agentFilterMode,
             selectedAgentIds: Array.from(selectedAgentIds),
+            viewMode, // ✅ נשמר ה-viewMode של האב
           },
           { merge: true }
         );
@@ -277,7 +245,7 @@ const handleSort = (column: SortColumn) => {
     };
 
     savePreferences();
-  }, [user, agentFilterMode, selectedAgentIds, preferencesLoaded]);
+  }, [user, agentFilterMode, selectedAgentIds, preferencesLoaded, viewMode]);
 
   const visibleAgents = useMemo(() => agents, [agents]);
 
@@ -288,16 +256,12 @@ const handleSort = (column: SortColumn) => {
   }, [visibleAgents, agentSearchTerm]);
 
   const filteredAgents = useMemo(() => {
-    if (agentFilterMode === 'all') {
-      return visibleAgents;
-    }
+    if (agentFilterMode === 'all') return visibleAgents;
     return visibleAgents.filter((a) => selectedAgentIds.has(a.id));
   }, [visibleAgents, agentFilterMode, selectedAgentIds]);
 
-  // 🔹 מיון סוכנים לפי sortColumn + sortOrder
   const sortedAgents = useMemo(() => {
     if (!sortColumn) return filteredAgents;
-
     const arr = [...filteredAgents];
 
     arr.sort((a, b) => {
@@ -364,7 +328,6 @@ const handleSort = (column: SortColumn) => {
 
   const summaryTotals: MonthlyTotal = useMemo(() => {
     const base: MonthlyTotal = { ...emptyTotals };
-
     for (const agent of filteredAgents) {
       const t = agentTotalsMap[agent.id];
       if (!t) continue;
@@ -377,7 +340,6 @@ const handleSort = (column: SortColumn) => {
       base.insuranceTravelTotal += t.insuranceTravelTotal || 0;
       base.prishaMyaditTotal += t.prishaMyaditTotal || 0;
     }
-
     return base;
   }, [agentTotalsMap, filteredAgents]);
 
@@ -389,51 +351,28 @@ const handleSort = (column: SortColumn) => {
       pensiaTotal: Math.round(summaryTotals.pensiaTotal / agentsCount),
       insuranceTotal: Math.round(summaryTotals.insuranceTotal / agentsCount),
       niudPensiaTotal: Math.round(summaryTotals.niudPensiaTotal / agentsCount),
-      commissionHekefTotal: Math.round(
-        summaryTotals.commissionHekefTotal / agentsCount
-      ),
-      commissionNifraimTotal: Math.round(
-        summaryTotals.commissionNifraimTotal / agentsCount
-      ),
-      insuranceTravelTotal: Math.round(
-        summaryTotals.insuranceTravelTotal / agentsCount
-      ),
-      prishaMyaditTotal: Math.round(
-        summaryTotals.prishaMyaditTotal / agentsCount
-      ),
+      commissionHekefTotal: Math.round(summaryTotals.commissionHekefTotal / agentsCount),
+      commissionNifraimTotal: Math.round(summaryTotals.commissionNifraimTotal / agentsCount),
+      insuranceTravelTotal: Math.round(summaryTotals.insuranceTravelTotal / agentsCount),
+      prishaMyaditTotal: Math.round(summaryTotals.prishaMyaditTotal / agentsCount),
     };
   }, [summaryTotals, agentsCount]);
 
   const toggleAgentSelection = (agentId: string) => {
     setSelectedAgentIds((prev) => {
       const next = new Set(prev);
-      if (next.has(agentId)) {
-        next.delete(agentId);
-      } else {
-        next.add(agentId);
-      }
+      if (next.has(agentId)) next.delete(agentId);
+      else next.add(agentId);
       return next;
     });
   };
 
-  const selectAllAgents = () => {
-    setSelectedAgentIds(new Set(visibleAgents.map((a) => a.id)));
-  };
+  const selectAllAgents = () => setSelectedAgentIds(new Set(visibleAgents.map((a) => a.id)));
+  const clearAgentsSelection = () => setSelectedAgentIds(new Set());
 
-  const clearAgentsSelection = () => {
-    setSelectedAgentIds(new Set());
-  };
-
-  // 🔐 אחרי שכל ה־hooks נקראו – אפשר לבדוק הרשאה
-  const canSeeAgencyTab =
-    !!detail && ['admin', 'manager'].includes(detail.role);
-
+  const canSeeAgencyTab = !!detail && ['admin', 'manager'].includes(detail.role);
   if (!canSeeAgencyTab) {
-    return (
-      <div className="p-6 max-w-5xl mx-auto text-right" dir="rtl">
-        אין לך הרשאה לצפות בדוח זה.
-      </div>
-    );
+    return <div className="p-6 max-w-5xl mx-auto text-right" dir="rtl">אין לך הרשאה לצפות בדוח זה.</div>;
   }
 
   return (
@@ -442,27 +381,23 @@ const handleSort = (column: SortColumn) => {
         <div className="table-header">
           <div className="table-title">דף המרכז – סיכומי סוכנות לפי סוכן</div>
           <div className="text-xs text-gray-600 mt-1">
-            כל שורה מייצגת סוכן אחד – סיכום שנתי לכל אחד מסוגי התפוקה והעמלות.
+            {viewMode === 'agent'
+              ? 'כל שורה מייצגת סוכן אחד – סיכום שנתי לכל אחד מסוגי התפוקה והעמלות.'
+              : 'כל שורה מייצגת סוכן אחד – מרווח בית סוכן (בית פחות סוכן) לפי נתוני החוזים.'}
           </div>
         </div>
 
-        {/* 🔹 פילטרים כלליים */}
+        {/* פילטרים */}
         <div className="filter-inputs-container-new">
-          {/* שנה */}
           <div className="filter-select-container">
             <select
               id="yearPicker"
               className="select-input"
               value={selectedYear}
-              onChange={(e) =>
-                setSelectedYear(parseInt(e.target.value, 10))
-              }
+              onChange={(e) => setSelectedYear(parseInt(e.target.value, 10))}
             >
               <option value="">בחר שנה</option>
-              {Array.from(
-                { length: 10 },
-                (_, i) => new Date().getFullYear() - i
-              ).map((year) => (
+              {Array.from({ length: 10 }, (_, i) => new Date().getFullYear() - i).map((year) => (
                 <option key={year} value={year}>
                   {year}
                 </option>
@@ -470,7 +405,6 @@ const handleSort = (column: SortColumn) => {
             </select>
           </div>
 
-          {/* מוצר */}
           <div className="filter-select-container">
             <select
               id="productSelect"
@@ -487,7 +421,6 @@ const handleSort = (column: SortColumn) => {
             </select>
           </div>
 
-          {/* סטטוס פוליסה */}
           <div className="filter-select-container">
             <select
               id="statusPolicySelect"
@@ -504,28 +437,27 @@ const handleSort = (column: SortColumn) => {
             </select>
           </div>
 
-          {/* בלי/עם פיצול עמלות */}
+          {/* פיצול */}
           <div dir="rtl" className="flex items-center gap-2">
             <div className="flex bg-blue-100 rounded-full p-0.5 text-xs">
               <button
                 type="button"
+                disabled={!canEnableSplit}
                 onClick={() => setIsCommissionSplitEnabled(false)}
                 className={`px-3 py-0.5 rounded-full transition-all duration-200 ${
-                  !isCommissionSplitEnabled
-                    ? 'bg-white text-blue-800 font-bold'
-                    : 'text-gray-500'
-                }`}
+                  !isCommissionSplitEnabled ? 'bg-white text-blue-800 font-bold' : 'text-gray-500'
+                } ${!canEnableSplit ? 'opacity-50 cursor-not-allowed' : ''}`}
               >
                 ללא פיצול עמלות
               </button>
+
               <button
                 type="button"
+                disabled={!canEnableSplit}
                 onClick={() => setIsCommissionSplitEnabled(true)}
                 className={`px-3 py-0.5 rounded-full transition-all duration-200 ${
-                  isCommissionSplitEnabled
-                    ? 'bg-white text-blue-800 font-bold'
-                    : 'text-gray-500'
-                }`}
+                  isCommissionSplitEnabled ? 'bg-white text-blue-800 font-bold' : 'text-gray-500'
+                } ${!canEnableSplit ? 'opacity-50 cursor-not-allowed' : ''}`}
               >
                 עם פיצול עמלות
               </button>
@@ -533,7 +465,7 @@ const handleSort = (column: SortColumn) => {
           </div>
         </div>
 
-        {/* 🔹 בחירת סוכנים (כמו בעמוד עמלות) */}
+        {/* בחירת סוכנים */}
         <div className="mt-4 mb-4">
           <div className="mb-2 flex items-center gap-4 text-sm">
             <span className="font-semibold">מצב תצוגת סוכנים:</span>
@@ -584,8 +516,7 @@ const handleSort = (column: SortColumn) => {
                   נקה בחירה
                 </button>
                 <span className="text-xs text-gray-500 mr-auto">
-                  נבחרו {selectedAgentIds.size} מתוך {visibleAgents.length}{' '}
-                  סוכנים.
+                  נבחרו {selectedAgentIds.size} מתוך {visibleAgents.length} סוכנים.
                 </span>
               </div>
 
@@ -621,76 +552,56 @@ const handleSort = (column: SortColumn) => {
           )}
         </div>
 
-        {/* 🔹 טבלה – שורות של סוכנים */}
+        {/* טבלה */}
         <div className="table-container" style={{ width: '100%' }}>
-          <div
-            className={`table-Data-AgentForm ${
-              isNewDesignEnabled ? 'is-new-design' : ''
-            }`}
-          >
+          <div className={`table-Data-AgentForm ${isNewDesignEnabled ? 'is-new-design' : ''}`}>
             <table>
               <thead>
                 <tr>
-                  <th
-                    onClick={() => handleSort('agentName')}
-                    className="cursor-pointer"
-                  >
+                  <th onClick={() => handleSort('agentName')} className="cursor-pointer">
                     סוכן{sortArrow('agentName')}
                   </th>
-                  <th
-                    onClick={() => handleSort('finansimTotal')}
-                    className="cursor-pointer"
-                  >
+
+                  <th onClick={() => handleSort('finansimTotal')} className="cursor-pointer">
                     סך פיננסים (שנתי){sortArrow('finansimTotal')}
                   </th>
-                  <th
-                    onClick={() => handleSort('pensiaTotal')}
-                    className="cursor-pointer"
-                  >
+
+                  <th onClick={() => handleSort('pensiaTotal')} className="cursor-pointer">
                     סך פנסיה (שנתי){sortArrow('pensiaTotal')}
                   </th>
-                  <th
-                    onClick={() => handleSort('insuranceTotal')}
-                    className="cursor-pointer"
-                  >
+
+                  <th onClick={() => handleSort('insuranceTotal')} className="cursor-pointer">
                     סך ביטוח (שנתי){sortArrow('insuranceTotal')}
                   </th>
-                  <th
-                    onClick={() => handleSort('niudPensiaTotal')}
-                    className="cursor-pointer"
-                  >
+
+                  <th onClick={() => handleSort('niudPensiaTotal')} className="cursor-pointer">
                     ניוד פנסיה (שנתי){sortArrow('niudPensiaTotal')}
                   </th>
-                  <th
-                    onClick={() => handleSort('insuranceTravelTotal')}
-                    className="cursor-pointer"
-                  >
+
+                  <th onClick={() => handleSort('insuranceTravelTotal')} className="cursor-pointer">
                     סך נסיעות חול (שנתי){sortArrow('insuranceTravelTotal')}
                   </th>
-                  <th
-                    onClick={() => handleSort('prishaMyaditTotal')}
-                    className="cursor-pointer"
-                  >
+
+                  <th onClick={() => handleSort('prishaMyaditTotal')} className="cursor-pointer">
                     סך פרישה מיידית (שנתי){sortArrow('prishaMyaditTotal')}
                   </th>
+
                   {canViewCommissions && (
-                    <th
-                      onClick={() => handleSort('commissionHekefTotal')}
-                      className="cursor-pointer"
-                    >
-                      עמלת היקף (שנתית){sortArrow('commissionHekefTotal')}
+                    <th onClick={() => handleSort('commissionHekefTotal')} className="cursor-pointer">
+                      {viewMode === 'agencyMargin' ? 'מרווח היקף (שנתי)' : 'עמלת היקף (שנתית)'}
+                      {sortArrow('commissionHekefTotal')}
                     </th>
                   )}
+
                   {canViewCommissions && (
-                    <th
-                      onClick={() => handleSort('commissionNifraimTotal')}
-                      className="cursor-pointer"
-                    >
-                      עמלת נפרעים (שנתית){sortArrow('commissionNifraimTotal')}
+                    <th onClick={() => handleSort('commissionNifraimTotal')} className="cursor-pointer">
+                      {viewMode === 'agencyMargin' ? 'מרווח נפרעים (שנתי)' : 'עמלת נפרעים (שנתית)'}
+                      {sortArrow('commissionNifraimTotal')}
                     </th>
                   )}
                 </tr>
               </thead>
+
               <tbody>
                 {sortedAgents.map((agent) => (
                   <AgentYearRow
@@ -703,113 +614,51 @@ const handleSort = (column: SortColumn) => {
                     isCommissionSplitEnabled={isCommissionSplitEnabled}
                     onTotalsChange={handleTotalsChange}
                     canViewCommissions={canViewCommissions}
+                    viewMode={viewMode}
+                    agencyId={effectiveAgencyId}
                   />
                 ))}
 
-                {/* סיכום סוכנות */}
                 <tr>
-                  <td>
-                    <strong>סיכום סוכנות</strong>
-                  </td>
-                  <td>
-                    <strong>
-                      {summaryTotals.finansimTotal.toLocaleString()}
-                    </strong>
-                  </td>
-                  <td>
-                    <strong>
-                      {summaryTotals.pensiaTotal.toLocaleString()}
-                    </strong>
-                  </td>
-                  <td>
-                    <strong>
-                      {summaryTotals.insuranceTotal.toLocaleString()}
-                    </strong>
-                  </td>
-                  <td>
-                    <strong>
-                      {summaryTotals.niudPensiaTotal.toLocaleString()}
-                    </strong>
-                  </td>
-                  <td>
-                    <strong>
-                      {summaryTotals.insuranceTravelTotal.toLocaleString()}
-                    </strong>
-                  </td>
-                  <td>
-                    <strong>
-                      {summaryTotals.prishaMyaditTotal.toLocaleString()}
-                    </strong>
-                  </td>
+                  <td><strong>סיכום סוכנות</strong></td>
+                  <td><strong>{summaryTotals.finansimTotal.toLocaleString()}</strong></td>
+                  <td><strong>{summaryTotals.pensiaTotal.toLocaleString()}</strong></td>
+                  <td><strong>{summaryTotals.insuranceTotal.toLocaleString()}</strong></td>
+                  <td><strong>{summaryTotals.niudPensiaTotal.toLocaleString()}</strong></td>
+                  <td><strong>{summaryTotals.insuranceTravelTotal.toLocaleString()}</strong></td>
+                  <td><strong>{summaryTotals.prishaMyaditTotal.toLocaleString()}</strong></td>
                   {canViewCommissions && (
-                    <td>
-                      <strong>
-                        {summaryTotals.commissionHekefTotal.toLocaleString()}
-                      </strong>
-                    </td>
+                    <td><strong>{summaryTotals.commissionHekefTotal.toLocaleString()}</strong></td>
                   )}
                   {canViewCommissions && (
-                    <td>
-                      <strong>
-                        {summaryTotals.commissionNifraimTotal.toLocaleString()}
-                      </strong>
-                    </td>
+                    <td><strong>{summaryTotals.commissionNifraimTotal.toLocaleString()}</strong></td>
                   )}
                 </tr>
 
-                {/* ממוצע לסוכן */}
                 <tr>
-                  <td>
-                    <strong>ממוצע לסוכן</strong>
-                  </td>
-                  <td>
-                    <strong>
-                      {averagePerAgent.finansimTotal.toLocaleString()}
-                    </strong>
-                  </td>
-                  <td>
-                    <strong>
-                      {averagePerAgent.pensiaTotal.toLocaleString()}
-                    </strong>
-                  </td>
-                  <td>
-                    <strong>
-                      {averagePerAgent.insuranceTotal.toLocaleString()}
-                    </strong>
-                  </td>
-                  <td>
-                    <strong>
-                      {averagePerAgent.niudPensiaTotal.toLocaleString()}
-                    </strong>
-                  </td>
-                  <td>
-                    <strong>
-                      {averagePerAgent.insuranceTravelTotal.toLocaleString()}
-                    </strong>
-                  </td>
-                  <td>
-                    <strong>
-                      {averagePerAgent.prishaMyaditTotal.toLocaleString()}
-                    </strong>
-                  </td>
+                  <td><strong>ממוצע לסוכן</strong></td>
+                  <td><strong>{averagePerAgent.finansimTotal.toLocaleString()}</strong></td>
+                  <td><strong>{averagePerAgent.pensiaTotal.toLocaleString()}</strong></td>
+                  <td><strong>{averagePerAgent.insuranceTotal.toLocaleString()}</strong></td>
+                  <td><strong>{averagePerAgent.niudPensiaTotal.toLocaleString()}</strong></td>
+                  <td><strong>{averagePerAgent.insuranceTravelTotal.toLocaleString()}</strong></td>
+                  <td><strong>{averagePerAgent.prishaMyaditTotal.toLocaleString()}</strong></td>
                   {canViewCommissions && (
-                    <td>
-                      <strong>
-                        {averagePerAgent.commissionHekefTotal.toLocaleString()}
-                      </strong>
-                    </td>
+                    <td><strong>{averagePerAgent.commissionHekefTotal.toLocaleString()}</strong></td>
                   )}
                   {canViewCommissions && (
-                    <td>
-                      <strong>
-                        {averagePerAgent.commissionNifraimTotal.toLocaleString()}
-                      </strong>
-                    </td>
+                    <td><strong>{averagePerAgent.commissionNifraimTotal.toLocaleString()}</strong></td>
                   )}
                 </tr>
               </tbody>
             </table>
           </div>
+
+          {viewMode === 'agencyMargin' && !effectiveAgencyId && (
+            <div className="text-xs text-red-600 mt-2">
+              לא נמצא agencyId למשתמש המחובר – לא ניתן לחשב מרווח בית סוכן.
+            </div>
+          )}
         </div>
       </div>
     </div>

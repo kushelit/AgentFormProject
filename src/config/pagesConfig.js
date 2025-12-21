@@ -33,6 +33,7 @@ const pages = [
     label: 'ניהול אדמין',
     onlyRoles: ['admin'],     submenu: [
       { href: '/Log', label: 'לוג מערכת' },
+      { href: '/agency-center', label: 'הגדרת סוכנות' },    
       { href: '/ManageSimulation', label: 'ניהול סימולטור' },
       { href: '/RequestStatus', label: 'סטאטוס API' },
       { href: '/ManagePoolAgents', label: 'ניהול פול ליד' },

@@ -1,535 +1,137 @@
-import { useState, useEffect } from 'react';
-import { collection, getDocs, query, where } from 'firebase/firestore';
-import { db } from "@/lib/firebase/firebase";
+'use client';
+
+import { useEffect, useMemo, useState } from 'react';
+import {
+  collection,
+  getDocs,
+  query,
+  where,
+  QueryConstraint,
+  DocumentData,
+  Query,
+} from 'firebase/firestore';
+import { db } from '@/lib/firebase/firebase';
 import { useAuth } from '@/lib/firebase/AuthContext';
 import { CommissionSplit } from '@/types/CommissionSplit';
-import {  CombinedData } from '../types/Sales';
+import { CombinedData } from '../types/Sales';
 import { fetchSplits } from '@/services/splitsService';
-import  fetchDataForAgent from '@/services/fetchDataForAgent';
+import fetchDataForAgent from '@/services/fetchDataForAgent';
 
-
+/* =========================
+   Types
+========================= */
 type MonthlyTotal = {
-    finansimTotal: number;
-    pensiaTotal: number;
-    insuranceTotal: number;
-    niudPensiaTotal: number;
-    commissionHekefTotal: number;
-    commissionNifraimTotal: number;
-    insuranceTravelTotal: number;     
-  prishaMyaditTotal: number;       
+  finansimTotal: number;
+  pensiaTotal: number;
+  insuranceTotal: number;
+  niudPensiaTotal: number;
+  commissionHekefTotal: number;
+  commissionNifraimTotal: number;
+  insuranceTravelTotal: number;
+  prishaMyaditTotal: number;
 };
 
-type MonthlyTotals = {
-    [key: string]: MonthlyTotal;
+type MonthlyTotals = Record<string, MonthlyTotal>;
+
+type BaseContract = {
+  id: string;
+  company: string;
+  product: string;
+  productsGroup: string;
+  commissionNifraim: number;
+  commissionHekef: number;
+  commissionNiud: number;
+  minuySochen: boolean;
 };
 
-interface Contract {
-    id: string;
-    company: string;
-    product: string;
-    productsGroup: string;
-    agentId: string;
-    commissionNifraim: number;
-    commissionHekef: number;
-    commissionNiud: number;
-    minuySochen: boolean;
+export type AgentContract = BaseContract & { agentId: string };
+export type AgencyContract = BaseContract & { agencyId: string };
+
+type Product = {
+  productName: string;
+  productGroup: string;
+  isOneTimeCommission?: boolean;
+};
+
+type ViewMode = 'agent' | 'agencyMargin';
+
+type CommissionAmounts = { hekef: number; nifraim: number };
+
+/* =========================
+   Helpers
+========================= */
+const emptyMonth = (): MonthlyTotal => ({
+  finansimTotal: 0,
+  pensiaTotal: 0,
+  insuranceTotal: 0,
+  niudPensiaTotal: 0,
+  commissionHekefTotal: 0,
+  commissionNifraimTotal: 0,
+  insuranceTravelTotal: 0,
+  prishaMyaditTotal: 0,
+});
+
+const chunk = <T,>(arr: T[], size: number) => {
+  const out: T[][] = [];
+  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+  return out;
+};
+
+function formatMonthFromMounthField(mounthValue: any) {
+  const date = new Date(mounthValue);
+  if (isNaN(date.getTime())) return null;
+  const year = date.getFullYear();
+  const monthNumber = date.getMonth() + 1;
+  return `${String(monthNumber).padStart(2, '0')}/${String(year).slice(2)}`;
 }
 
-interface Product {
-    productName: string;
-    productGroup: string;
-    isOneTimeCommission?: boolean; // שדה חדש – האם העמלה חד־פעמית
+function findSplitAgreementForSale(
+  data: any,
+  commissionSplits: CommissionSplit[],
+  customers: CombinedData[]
+): CommissionSplit | undefined {
+  const customer = customers.find(
+    (cust) => cust.IDCustomer === data.IDCustomer && cust.AgentId === data.AgentId
+  );
+
+  const sourceValueUnified = customer?.sourceValue || customer?.sourceLead || '';
+  if (!sourceValueUnified) return undefined;
+
+  return commissionSplits.find(
+    (split) => split.agentId === data.AgentId && split.sourceLeadId === sourceValueUnified
+  );
 }
 
-
-function useSalesData(
-    selectedAgentId: string, 
-    selectedWorkerIdFilter: string,
-     selectedCompany: string, selectedProduct: string, 
-     selectedStatusPolicy: string,
-     selectedYear: number, // Add selectedYear as a parameter
-     includePreviousDecember: boolean = false, // 🆕 פרמטר חדש
-     isCommissionSplitEnabled: boolean
-    ) {
-    const [monthlyTotals, setMonthlyTotals] = useState<MonthlyTotals>({});
-    const [overallTotals, setOverallTotals] = useState<MonthlyTotal>({ finansimTotal: 0, pensiaTotal: 0, insuranceTotal: 0, niudPensiaTotal: 0, commissionHekefTotal: 0, commissionNifraimTotal: 0  , insuranceTravelTotal: 0, prishaMyaditTotal: 0 }); // הוספת שדה חדש
-    const [contracts, setContracts] = useState<Contract[]>([]);
-const [productMap, setProductMap] = useState<Record<string, Product>>({});
-    const { user, detail } = useAuth(); // Assuming useAuth() hook provides user and detail context
-    const [loading, setLoading] = useState(true);  // Add loading state here
-    const [isLoadingData, setIsLoadingData] = useState(false);
-    const [companyCommissions, setCompanyCommissions] = useState<Record<string, number>>({});
-
-
-    const [commissionSplits, setCommissionSplits] = useState<CommissionSplit[]>([]);
-    const [customers, setCustomers] = useState<CombinedData[]>([]);
-
-    function findSplitAgreementForSale(
-      data: any,
-      commissionSplits: CommissionSplit[],
-      customers: CombinedData[]
-    ): CommissionSplit | undefined {
-    
-      const customer = customers.find(
-        cust => cust.IDCustomer === data.IDCustomer && cust.AgentId === data.AgentId
-      );
-    
-      const sourceValueUnified =
-        customer?.sourceValue ||
-        customer?.sourceLead ||
-        '';
-    
-      if (!sourceValueUnified) return undefined;
-          
-      return commissionSplits.find(
-        split =>
-          split.agentId === data.AgentId &&
-          split.sourceLeadId === sourceValueUnified     
-      );
-    }
-    
-
-
-
-    useEffect(() => {
-      const fetchAllData = async () => {
-        const [splits, customerData] = await Promise.all([
-          fetchSplits(selectedAgentId),
-          fetchDataForAgent(selectedAgentId),
-        ]);
-        
-        setCommissionSplits(splits);
-        setCustomers(customerData); // כאן customerData הוא מסוג CustomersTypeForFetching[]
-        
-      };
-    
-      if (selectedAgentId) {
-        fetchAllData();
-      }
-    }, [selectedAgentId]);
-    
-
-
-    useEffect(() => {
-        async function fetchContractsAndProducts() {
-            const contractsSnapshot = await getDocs(collection(db, 'contracts'));
-            const productsSnapshot = await getDocs(collection(db, 'product'));
-    
-            const fetchedContracts: Contract[] = contractsSnapshot.docs.map(doc => ({
-                id: doc.id,
-                company: doc.data().company,
-                product: doc.data().product,
-                productsGroup: doc.data().productsGroup,
-                agentId: doc.data().AgentId,
-                commissionNifraim: doc.data().commissionNifraim,
-                commissionHekef: doc.data().commissionHekef,
-                commissionNiud: doc.data().commissionNiud,
-                minuySochen: doc.data().minuySochen,
-            }));
-    
-            const newProductMap: Record<string, Product> = {};
-            productsSnapshot.forEach(doc => {
-                const data = doc.data();
-                newProductMap[data.productName] = {
-                    productName: data.productName,
-                    productGroup: data.productGroup,
-                    isOneTimeCommission: data.isOneTime || false, // שדה חדש
-                };
-            });
-    
-            setContracts(fetchedContracts);
-            setProductMap(newProductMap);
-            setLoading(false);
-        }
-    
-        if (selectedAgentId || detail?.role === 'admin') {
-            fetchContractsAndProducts();
-        }
-    }, [selectedAgentId]);
-    
-    
-    const createSalesQuery = (filterMinuySochen = false) => {
-        const currentDate = new Date();
-        const currentYear = currentDate.getFullYear();
-        const currentMonth = String(currentDate.getMonth() + 1).padStart(2, '0');
-        const endOfYear = `${selectedYear}-12-31`;
-        const endOfCurrentMonth = `${selectedYear}-${currentMonth}-31`;
-      
-        const endDate = selectedYear === currentYear ? endOfCurrentMonth : endOfYear;
-      
-        // 🟡 פה השינוי – נשתמש ב־startDate רק אם לא מדובר בגרף נפרעים ללקוח
-        let salesQuery;
-      // console.log("includePreviousDecember: " + includePreviousDecember);
-        if (includePreviousDecember) {
-          // מצטבר – נביא מהעבר, בלי הגבלה של התחלה
-          salesQuery = query(
-            collection(db, 'sales'),
-            where('statusPolicy', 'in', ['פעילה', 'הצעה']),
-            where('mounth', '<=', endDate)
-          );
-        } else {
-          // רגיל – רק השנה הנבחרת
-          const startOfYear = `${selectedYear}-01-01`;
-          salesQuery = query(
-            collection(db, 'sales'),
-            where('statusPolicy', 'in', ['פעילה', 'הצעה']),
-            where('mounth', '>=', startOfYear),
-            where('mounth', '<=', endDate)
-          );
-        }
-      
-        // סינונים נוספים...
-        if (selectedAgentId && selectedAgentId !== 'all') {
-          salesQuery = query(salesQuery, where('AgentId', '==', selectedAgentId));
-        }
-        if (selectedWorkerIdFilter) {
-          salesQuery = query(salesQuery, where('workerId', '==', selectedWorkerIdFilter));
-        }
-        if (selectedCompany) {
-          salesQuery = query(salesQuery, where('company', '==', selectedCompany));
-        }
-        if (selectedProduct) {
-          salesQuery = query(salesQuery, where('product', '==', selectedProduct));
-        }
-        if (selectedStatusPolicy) {
-          salesQuery = query(salesQuery, where('statusPolicy', '==', selectedStatusPolicy));
-        }
-        if (filterMinuySochen) {
-          salesQuery = query(salesQuery, where('minuySochen', '==', false));
-        }
-      
-        return salesQuery;
-      };
-      
-
-    useEffect(() => {
-        async function fetchData() {
-            if (!loading) {
-                // Handle the case when "בחר סוכן" is selected
-                if (selectedAgentId === '') {
-                    setMonthlyTotals({});
-                    setCompanyCommissions({});
-                    setOverallTotals({
-                        finansimTotal: 0,
-                        pensiaTotal: 0,
-                        insuranceTotal: 0,
-                        niudPensiaTotal: 0,
-                        commissionHekefTotal: 0,
-                        commissionNifraimTotal: 0,
-                        insuranceTravelTotal: 0,
-                        prishaMyaditTotal: 0, // הוספת שדה חדש
-                    });
-                    return;
-                }
-                setIsLoadingData(true);
-                try {
-                    const commissionSalesQuery = createSalesQuery(); // Only minuySochen=false
-                    const generalSalesQuery = createSalesQuery(); // Including all minuySochen
-    
-                    if (!commissionSalesQuery || !generalSalesQuery) {
-                        // If the query is invalid (e.g., "בחר סוכן"), skip fetching
-                        setIsLoadingData(false);
-                        return;
-                    }
-    
-                const [generalQuerySnapshot, commissionQuerySnapshot] = await Promise.all([
-                    getDocs(generalSalesQuery),
-                    getDocs(commissionSalesQuery)
-                ]);
-                let newMonthlyTotals: MonthlyTotals = {};
-                let newCompanyCommissions: Record<string, number> = {}; 
-
-                generalQuerySnapshot.forEach(doc => {
-                const data = doc.data();
-                // console.log("📦 תאריך מהממסמך:", data.mounth); // 🔍 הוספת שורת בדיקה
-
-                const date = new Date(data.mounth);
-                if (isNaN(date.getTime())) {
-                    // console.warn("❌ תאריך לא תקני:", data.mounth);
-                    return;
-                  }
-                const year = date.getFullYear();
-                const monthNumber = date.getMonth() + 1;
-                const formattedMonth = `${String(monthNumber).padStart(2, '0')}/${String(year).slice(2)}`;
-
-                if (!includePreviousDecember && year !== selectedYear) {
-                    return; // סנן כל מה שלא בשנה הנבחרת
-                  }
-                                    
-             //   const month = `${date.getMonth() + 1}`.padStart(2, '0') + '/' + date.getFullYear().toString().slice(2);
-            //   const month = `${date.getMonth() + 1}`.padStart(2, '0') + '/' + year.toString().slice(2);
-
-                if (!newMonthlyTotals[formattedMonth]) {
-                        newMonthlyTotals[formattedMonth] = { finansimTotal: 0, pensiaTotal: 0, insuranceTotal: 0, niudPensiaTotal: 0, commissionHekefTotal: 0, commissionNifraimTotal: 0,insuranceTravelTotal: 0, prishaMyaditTotal: 0,
-                    };
-                }
-                    updateTotalsForMonth
-                    (data, newMonthlyTotals[formattedMonth],
-
-                      data.minuySochen,
-                      productMap[data.product],
-                      commissionSplits,
-                      customers,
-                      isCommissionSplitEnabled
-                    );                     
-                });
-                commissionQuerySnapshot.forEach(doc => {
-                const data = doc.data();
-                const date = new Date(data.mounth);
-                const year = date.getFullYear();
-
-
-        //    if (year !== selectedYear) return;
-
-        if (!includePreviousDecember && year !== selectedYear) return;
-        
-            //   const month = `${date.getMonth() + 1}`.padStart(2, '0') + '/' + date.getFullYear().toString().slice(2);
-            const month = `${date.getMonth() + 1}`.padStart(2, '0') + '/' + year.toString().slice(2);
-            const product = productMap[data.product]; // זה כל אובייקט המוצר
-
-            
-            if (newMonthlyTotals[month]) {
-                updateCommissions(data, newMonthlyTotals[month], product,
-                  newCompanyCommissions,
-                  commissionSplits,
-                  customers,
-                  isCommissionSplitEnabled
-
-                );
-              }
-                });
-
-                setMonthlyTotals(newMonthlyTotals);
-                setCompanyCommissions(newCompanyCommissions); 
-                aggregateOverallTotals(newMonthlyTotals);
-            } catch (error) {
-                // console.error("7-Error fetching data:", error);
-            } finally {
-               setIsLoadingData(false); 
-            }
-        }
-    }
-     
-        fetchData();
-   
-    }, [loading,selectedAgentId, selectedWorkerIdFilter, selectedCompany, 
-        selectedProduct, selectedStatusPolicy,selectedYear,  includePreviousDecember, isCommissionSplitEnabled
-    ]);
-
-  
-
-    // function updateTotalsForMonth(data: any, monthTotals: MonthlyTotal,
-    //    includeMinuySochen: boolean, 
-    //    product?: Product) {  
-    //     if (!includeMinuySochen) {
-    //         const isOneTime = product?.isOneTimeCommission ?? false;
-          
-    //         if (isOneTime) {
-    //           // נפרדים לקטגוריות חד־פעמיות
-    //           monthTotals.insuranceTravelTotal = (monthTotals.insuranceTravelTotal || 0) + (parseInt(data.insPremia) || 0);
-    //           monthTotals.prishaMyaditTotal = (monthTotals.prishaMyaditTotal || 0) + (parseInt(data.pensiaZvira) || 0);
-    //         } else {
-    //           // מצטברים רגילים
-    //           monthTotals.finansimTotal += parseInt(data.finansimZvira) || 0;
-    //           monthTotals.insuranceTotal += (parseInt(data.insPremia) || 0) * 12;
-    //           monthTotals.pensiaTotal += (parseInt(data.pensiaPremia) || 0) * 12;
-    //           monthTotals.niudPensiaTotal += parseInt(data.pensiaZvira) || 0;
-    //         }
-    //       }
-    //     }
-
-
-    function updateTotalsForMonth(
-      data: any,
-      monthTotals: MonthlyTotal,
-      includeMinuySochen: boolean,
-      product: Product | undefined,
-      commissionSplits: CommissionSplit[],
-      customers: CombinedData[],
-      isCommissionSplitEnabled: boolean
-    ) {
-      if (!includeMinuySochen) {
-        const isOneTime = product?.isOneTimeCommission ?? false;
-    
-        // ברירת מחדל – אין פיצול
-        let productionFactor = 1;
-    
-        if (isCommissionSplitEnabled) {
-          const splitAgreement = findSplitAgreementForSale(data, commissionSplits, customers);
-          if (splitAgreement && splitAgreement.splitMode === 'production') {
-            productionFactor = (splitAgreement.percentToAgent ?? 100) / 100;
-          }
-        }
-    
-        if (isOneTime) {
-          // חד-פעמי – נפרדים לקטגוריות (נסיעות / פרישה)
-          monthTotals.insuranceTravelTotal =
-            (monthTotals.insuranceTravelTotal || 0) +
-            ((parseInt(data.insPremia) || 0) * productionFactor);
-          monthTotals.prishaMyaditTotal =
-            (monthTotals.prishaMyaditTotal || 0) +
-            ((parseInt(data.pensiaZvira) || 0) * productionFactor);
-        } else {
-          // מצטברים רגילים – אבל רק חלק הסוכן אם פיצול תפוקה
-          monthTotals.finansimTotal += (parseInt(data.finansimZvira) || 0) * productionFactor;
-          monthTotals.insuranceTotal += ((parseInt(data.insPremia) || 0) * 12) * productionFactor;
-          monthTotals.pensiaTotal += ((parseInt(data.pensiaPremia) || 0) * 12) * productionFactor;
-          monthTotals.niudPensiaTotal += (parseInt(data.pensiaZvira) || 0) * productionFactor;
-        }
-      }
-    }
-    
-
-    function updateCommissions(data: any, monthTotals: MonthlyTotal, 
-       product: Product | undefined,
-        companyCommissions: Record<string, number>,
-        commissionSplits: CommissionSplit[],
-      customers: CombinedData[],
-     isCommissionSplitEnabled: boolean
-    ) {  
-        const productGroup = product?.productGroup;
-
-        const contractMatch = contracts.find(contract => contract.agentId === data.AgentId && contract.product === data.product && contract.company === data.company &&   (contract.minuySochen === data.minuySochen || (contract.minuySochen === undefined && data.minuySochen === false)));
-       
-        if (contractMatch) {
-            calculateCommissions(monthTotals, data, contractMatch, product , 
-              companyCommissions,
-               commissionSplits,
-            customers,
-             isCommissionSplitEnabled
-            );
-        } else {
-            const groupMatch = contracts.find(contract => contract.productsGroup === productGroup && contract.agentId === data.AgentId &&  (contract.minuySochen === data.minuySochen || (contract.minuySochen === undefined && data.minuySochen === false)));
-            
-            if (groupMatch) {
-                calculateCommissions(monthTotals, data, groupMatch, product ,
-                   companyCommissions,
-                   commissionSplits,
-                   customers,
-                   isCommissionSplitEnabled
-                  
-                  );
-            } else {
-                // console.log('No Match Found' , data.productGroup);
-            }
-        }
-    }
-
-//     function calculateCommissions(monthTotals: MonthlyTotal, 
-//       data: any, 
-//       contract: Contract,
-//        product: Product | undefined, 
-//       companyCommissions: Record<string, number>,
-//       commissionSplits: CommissionSplit[],
-//       customers: CombinedData[], // ✅ חדש
-//       isCommissionSplitEnabled: boolean // ✅ FLAG
-//     ) 
-//     {
-//       // console.log("📌 calculateCommissions called for", data.IDCustomer);
-//       // console.log("✅ isCommissionSplitEnabled:", isCommissionSplitEnabled);
-      
-//         const isOneTime = product?.isOneTimeCommission ?? false;
-//         const multiplier = isOneTime ? 1 : 12;
-
-
-//         let  hekef = ((parseInt(data.insPremia) || 0) * contract.commissionHekef / 100 * multiplier) + 
-//                      ((parseInt(data.pensiaPremia) || 0) * contract.commissionHekef / 100 * multiplier) + 
-//                      ((parseInt(data.pensiaZvira) || 0) * contract.commissionNiud / 100) + 
-//                      ((parseInt(data.finansimPremia) || 0) * contract.commissionHekef / 100 * multiplier) + 
-//                      ((parseInt(data.finansimZvira) || 0) * contract.commissionNiud / 100);
-    
-      
-//   // 🛑 אם מדובר במוצר חד-פעמי, נוותר על חישוב נפרעים
-//   let  nifraim = isOneTime ? 0 : (
-//     ((parseInt(data.insPremia) || 0) * contract.commissionNifraim / 100) +
-//     ((parseInt(data.pensiaPremia) || 0) * contract.commissionNifraim / 100) +
-//     ((parseInt(data.finansimZvira) || 0) * contract.commissionNifraim / 100 / 12)
-//   );
-//   // 🟢 בדיקת פיצול עמלות רק אם הופעל הדגל
-// if (isCommissionSplitEnabled) {
-//   // console.log("🔁 בדיקת פיצול הופעלה עבור לקוח:", data.IDCustomer, "וסוכן:", data.AgentId);
-
-//   const customer = customers.find(
-//     cust => cust.IDCustomer === data.IDCustomer && cust.AgentId === data.AgentId
-//   );
-
-//   // console.log("🧍‍♂️ לקוח שנמצא:", customer);
-
-//   if (customer?.sourceValue) {
-//      console.log("📌 sourceValue שנמצא:", customer.sourceValue);
-
-//     const splitAgreement = commissionSplits.find(
-//       split => split.agentId === data.AgentId && split.sourceLeadId === customer.sourceValue
-
-//     );
-
-//      console.log("📄 הסכם פיצול שנמצא:", splitAgreement);
-
-//     if (splitAgreement) {
-//       const percentToAgent = splitAgreement.percentToAgent;
-//        console.log(`💰 אחוז לסוכן לפי הסכם הפיצול: ${percentToAgent}%`);
-
-//       hekef *= (percentToAgent / 100);
-//       nifraim *= (percentToAgent / 100);
-
-//        console.log("✅ עמלה לאחר פיצול - היקף:", hekef, "| נפרעים:", nifraim);
-//     } else {
-//        console.log("⚠️ לא נמצא הסכם פיצול ל-sourceLead:", customer.sourceValue);
-//     }
-//   } else {
-//      console.log("🚫 ללקוח אין sourceValue – אין פיצול");
-//   }
-// }
-
-
-//         monthTotals.commissionHekefTotal += Math.round(hekef);
-//         monthTotals.commissionNifraimTotal += Math.round(nifraim);
-
-//   // Update company-specific commissions
-//   if (data.company) {
-//     companyCommissions[data.company] = (companyCommissions[data.company] || 0) + Math.round(hekef);
-//   //  console.log("companyCommissions[data.company]: " + companyCommissions[data.company]);
-//   }
-
-//     }
-
-function calculateCommissions(
-  monthTotals: MonthlyTotal, 
-  data: any, 
-  contract: Contract,
-  product: Product | undefined, 
-  companyCommissions: Record<string, number>,
+function calcCommissionAmounts(
+  data: any,
+  contract: BaseContract,
+  product: Product | undefined,
   commissionSplits: CommissionSplit[],
   customers: CombinedData[],
   isCommissionSplitEnabled: boolean
-) {
+): CommissionAmounts {
   const isOneTime = product?.isOneTimeCommission ?? false;
   const multiplier = isOneTime ? 1 : 12;
 
   let productionFactor = 1;
   let commissionFactor = 1;
 
-  let splitMode: 'commission' | 'production' | null = null;
-
   if (isCommissionSplitEnabled) {
     const splitAgreement = findSplitAgreementForSale(data, commissionSplits, customers);
     if (splitAgreement) {
-      splitMode = splitAgreement.splitMode || 'commission';
       const percentToAgent = (splitAgreement.percentToAgent ?? 100) / 100;
+      const splitMode = splitAgreement.splitMode || 'commission';
 
       if (splitMode === 'production') {
-        // פיצול תפוקות – גם התפוקה וגם העמלה הן חלק יחסי, אבל העמלה תיגזר מהתפוקה כבר
         productionFactor = percentToAgent;
-        commissionFactor = 1; // העמלה כבר על התפוקה היחסית
+        commissionFactor = 1;
       } else {
-        // פיצול עמלות – התפוקה נשארת מלאה, רק העמלה נחתכת
         productionFactor = 1;
         commissionFactor = percentToAgent;
       }
     }
   }
 
-  // בסיסי החישוב – אחרי פיצול תפוקה (אם קיים)
   const insPremia = (parseInt(data.insPremia) || 0) * productionFactor;
   const pensiaPremia = (parseInt(data.pensiaPremia) || 0) * productionFactor;
   const pensiaZvira = (parseInt(data.pensiaZvira) || 0) * productionFactor;
@@ -537,69 +139,561 @@ function calculateCommissions(
   const finansimZvira = (parseInt(data.finansimZvira) || 0) * productionFactor;
 
   let hekef =
-    (insPremia * contract.commissionHekef / 100 * multiplier) +
-    (pensiaPremia * contract.commissionHekef / 100 * multiplier) +
-    (pensiaZvira * contract.commissionNiud / 100) +
-    (finansimPremia * contract.commissionHekef / 100 * multiplier) +
-    (finansimZvira * contract.commissionNiud / 100);
+    insPremia * (contract.commissionHekef / 100) * multiplier +
+    pensiaPremia * (contract.commissionHekef / 100) * multiplier +
+    pensiaZvira * (contract.commissionNiud / 100) +
+    finansimPremia * (contract.commissionHekef / 100) * multiplier +
+    finansimZvira * (contract.commissionNiud / 100);
 
   let nifraim = 0;
-
   if (!isOneTime) {
     nifraim =
-      (insPremia * contract.commissionNifraim / 100) +
-      (pensiaPremia * contract.commissionNifraim / 100) +
-      (finansimZvira * contract.commissionNifraim / 100 / 12);
+      insPremia * (contract.commissionNifraim / 100) +
+      pensiaPremia * (contract.commissionNifraim / 100) +
+      finansimZvira * (contract.commissionNifraim / 100) / 12;
   }
 
-  // פיצול עמלות – אם רלוונטי
   hekef *= commissionFactor;
   nifraim *= commissionFactor;
 
-  monthTotals.commissionHekefTotal += Math.round(hekef);
-  monthTotals.commissionNifraimTotal += Math.round(nifraim);
-
-  if (data.company) {
-    companyCommissions[data.company] =
-      (companyCommissions[data.company] || 0) + Math.round(hekef);
-  }
+  return { hekef: Math.round(hekef), nifraim: Math.round(nifraim) };
 }
 
+function findBestContract(
+  contractsList: BaseContract[],
+  data: any,
+  product: Product | undefined
+): BaseContract | undefined {
+  const productGroup = product?.productGroup;
 
-    function aggregateOverallTotals(monthlyTotals: MonthlyTotals) {
-        let totals: MonthlyTotal = {
-          finansimTotal: 0,
-          pensiaTotal: 0,
-          insuranceTotal: 0,
-          niudPensiaTotal: 0,
-          commissionHekefTotal: 0,
-          commissionNifraimTotal: 0,
-          insuranceTravelTotal: 0,
-          prishaMyaditTotal: 0,
+  const exact = contractsList.find(
+    (c) =>
+      c.company === data.company &&
+      c.product === data.product &&
+      (c.minuySochen === data.minuySochen ||
+        (c.minuySochen === undefined && data.minuySochen === false))
+  );
+  if (exact) return exact;
+
+  const group = contractsList.find(
+    (c) =>
+      c.productsGroup === productGroup &&
+      (c.minuySochen === data.minuySochen ||
+        (c.minuySochen === undefined && data.minuySochen === false))
+  );
+
+  return group;
+}
+
+/* =========================
+   Hook
+========================= */
+export default function useSalesData(
+  selectedAgentId: string,
+  selectedWorkerIdFilter: string,
+  selectedCompany: string,
+  selectedProduct: string,
+  selectedStatusPolicy: string,
+  selectedYear: number,
+  includePreviousDecember: boolean = false,
+  isCommissionSplitEnabled: boolean,
+  viewMode: ViewMode,
+  agencyId?: string // מגיע מה-detail.agencyId (שהוא mapping מ-agencies)
+) {
+  const { detail } = useAuth();
+
+  const [monthlyTotals, setMonthlyTotals] = useState<MonthlyTotals>({});
+  const [overallTotals, setOverallTotals] = useState<MonthlyTotal>(emptyMonth());
+  const [companyCommissions, setCompanyCommissions] = useState<Record<string, number>>({});
+  const [isLoadingData, setIsLoadingData] = useState(false);
+
+  const [loadingMeta, setLoadingMeta] = useState(true);
+
+  const [productMap, setProductMap] = useState<Record<string, Product>>({});
+  const [agentContracts, setAgentContracts] = useState<AgentContract[]>([]);
+  const [houseContracts, setHouseContracts] = useState<AgencyContract[]>([]);
+
+  const [commissionSplits, setCommissionSplits] = useState<CommissionSplit[]>([]);
+  const [customers, setCustomers] = useState<CombinedData[]>([]);
+
+  const isAdmin = detail?.role === 'admin';
+
+  // ✅ agencyId סופי: מהפרמטר אם נשלח, אחרת מה-detail
+  const effectiveAgencyId = useMemo(() => agencyId ?? detail?.agencyId ?? '', [agencyId, detail?.agencyId]);
+
+  // -----------------------
+  // 1) fetch contracts + products (פעם/כשצריך)
+  // -----------------------
+  useEffect(() => {
+    let cancelled = false;
+
+    const fetchContractsAndProducts = async () => {
+      setLoadingMeta(true);
+
+      const [contractsSnapshot, productsSnapshot] = await Promise.all([
+        getDocs(collection(db, 'contracts')),
+        getDocs(collection(db, 'product')),
+      ]);
+
+      const fetchedContracts: AgentContract[] = contractsSnapshot.docs.map((d) => ({
+        id: d.id,
+        company: d.data().company ?? '',
+        product: d.data().product ?? '',
+        productsGroup: d.data().productsGroup ?? '',
+        agentId: d.data().AgentId ?? '',
+        commissionNifraim: Number(d.data().commissionNifraim ?? 0),
+        commissionHekef: Number(d.data().commissionHekef ?? 0),
+        commissionNiud: Number(d.data().commissionNiud ?? 0),
+        minuySochen: Boolean(d.data().minuySochen ?? false),
+      }));
+
+      const pm: Record<string, Product> = {};
+      productsSnapshot.forEach((d) => {
+        const data = d.data();
+        pm[data.productName] = {
+          productName: data.productName,
+          productGroup: data.productGroup,
+          isOneTimeCommission: data.isOneTime || false,
         };
-      
-        Object.values(monthlyTotals).forEach(month => {
-          totals.finansimTotal += month.finansimTotal;
-          totals.pensiaTotal += month.pensiaTotal;
-          totals.insuranceTotal += month.insuranceTotal;
-          totals.niudPensiaTotal += month.niudPensiaTotal;
-          totals.commissionHekefTotal += month.commissionHekefTotal;
-          totals.commissionNifraimTotal += month.commissionNifraimTotal;
-          totals.insuranceTravelTotal += month.insuranceTravelTotal || 0;
-          totals.prishaMyaditTotal += month.prishaMyaditTotal || 0;
-        });
-      
-        setOverallTotals(totals);
-      }
-      
+      });
 
-    return {
-        monthlyTotals,
-        overallTotals,
-        isLoadingData,
-        companyCommissions, 
-
+      if (cancelled) return;
+      setAgentContracts(fetchedContracts);
+      setProductMap(pm);
+      setLoadingMeta(false);
     };
-}
 
-export default useSalesData;
+    // ✅ Agent יכול לעבוד רק אם יש לו selectedAgentId, Admin יכול גם בלי
+    if (!selectedAgentId && !isAdmin) return;
+    fetchContractsAndProducts();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedAgentId, isAdmin]);
+
+  // -----------------------
+  // 2) fetch splits + customers (רק אם סוכן ספציפי נבחר, לא ALL)
+  // -----------------------
+  useEffect(() => {
+    let cancelled = false;
+
+    const run = async () => {
+      // אם זה ALL אין לנו "סוכן אחד" להביא ממנו לקוחות/פיצולים.
+      // במקרה ALL אנחנו פשוט לא מפעילים פיצולים (יישאר ריק) — זה בסדר.
+      const [splits, customerData] = await Promise.all([
+        fetchSplits(selectedAgentId),
+        fetchDataForAgent(selectedAgentId),
+      ]);
+
+      if (cancelled) return;
+      setCommissionSplits(splits);
+      setCustomers(customerData);
+    };
+
+    if (selectedAgentId && selectedAgentId !== 'all') run();
+    else {
+      setCommissionSplits([]);
+      setCustomers([]);
+    }
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedAgentId]);
+
+  // -----------------------
+  // 3) fetch house contracts (רק במצב agencyMargin, ורק לאדמין)
+  // -----------------------
+  useEffect(() => {
+    let cancelled = false;
+
+    const fetchHouseContracts = async () => {
+      if (!isAdmin || viewMode !== 'agencyMargin') {
+        setHouseContracts([]);
+        return;
+      }
+      if (!effectiveAgencyId) {
+        setHouseContracts([]);
+        return;
+      }
+
+      const snap = await getDocs(
+        collection(db, 'agencies', effectiveAgencyId, 'commissionContracts')
+      );
+
+      const arr: AgencyContract[] = snap.docs.map((d) => ({
+        id: d.id,
+        company: d.data().company ?? '',
+        product: d.data().product ?? '',
+        productsGroup: d.data().productsGroup ?? '',
+        agencyId: effectiveAgencyId,
+        commissionNifraim: Number(d.data().commissionNifraim ?? 0),
+        commissionHekef: Number(d.data().commissionHekef ?? 0),
+        commissionNiud: Number(d.data().commissionNiud ?? 0),
+        minuySochen: Boolean(d.data().minuySochen ?? false),
+      }));
+
+      if (cancelled) return;
+      setHouseContracts(arr);
+    };
+
+    fetchHouseContracts();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [viewMode, effectiveAgencyId, isAdmin]);
+
+  // -----------------------
+  // 4) fetch agency agentIds (users.agencies == agencyId)  ✅ זה הלב של ALL
+  // -----------------------
+  const [agencyAgentIds, setAgencyAgentIds] = useState<string[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const fetchAgencyAgents = async () => {
+      // only admin uses ALL / agencyMargin across agency
+      if (!isAdmin) {
+        setAgencyAgentIds([]);
+        return;
+      }
+      if (!effectiveAgencyId) {
+        setAgencyAgentIds([]);
+        return;
+      }
+
+      // 🔥 חשוב: ב-DB זה תמיד agencies
+      const qy = query(collection(db, 'users'), where('agencies', '==', effectiveAgencyId));
+      const snap = await getDocs(qy);
+
+      const ids = snap.docs
+        .map((d) => {
+          const raw = d.data() as any;
+          return (raw.agentId as string) || d.id; // לרוב זה אותו דבר
+        })
+        .filter(Boolean);
+
+      // unique
+      const uniq = Array.from(new Set(ids));
+
+      if (cancelled) return;
+      setAgencyAgentIds(uniq);
+    };
+
+    fetchAgencyAgents();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [effectiveAgencyId, isAdmin]);
+
+  // -----------------------
+  // 5) build sales queries (supports ALL via chunks)
+  // -----------------------
+  const buildBaseSalesConstraints = (filterMinuySochen: boolean): QueryConstraint[] => {
+    const currentDate = new Date();
+    const currentYear = currentDate.getFullYear();
+    const currentMonth = String(currentDate.getMonth() + 1).padStart(2, '0');
+
+    const endOfYear = `${selectedYear}-12-31`;
+    const endOfCurrentMonth = `${selectedYear}-${currentMonth}-31`;
+    const endDate = selectedYear === currentYear ? endOfCurrentMonth : endOfYear;
+
+    const constraints: QueryConstraint[] = [
+      where('statusPolicy', 'in', ['פעילה', 'הצעה']),
+      where('mounth', '<=', endDate),
+    ];
+
+    if (!includePreviousDecember) {
+      const startOfYear = `${selectedYear}-01-01`;
+      constraints.push(where('mounth', '>=', startOfYear));
+    }
+
+    if (selectedWorkerIdFilter) constraints.push(where('workerId', '==', selectedWorkerIdFilter));
+    if (selectedCompany) constraints.push(where('company', '==', selectedCompany));
+    if (selectedProduct) constraints.push(where('product', '==', selectedProduct));
+    if (selectedStatusPolicy) constraints.push(where('statusPolicy', '==', selectedStatusPolicy));
+    if (filterMinuySochen) constraints.push(where('minuySochen', '==', false));
+
+    return constraints;
+  };
+
+  const fetchSalesSnapshots = async (filterMinuySochen: boolean) => {
+    const base = buildBaseSalesConstraints(filterMinuySochen);
+
+    // case 1: single agent (normal)
+    if (selectedAgentId && selectedAgentId !== 'all') {
+      const qy = query(collection(db, 'sales'), ...base, where('AgentId', '==', selectedAgentId));
+      const snap = await getDocs(qy);
+      return snap.docs;
+    }
+
+    // case 2: ALL (admin only): all agents of agency
+    if (selectedAgentId === 'all') {
+      if (!isAdmin) return [];
+      if (!agencyAgentIds.length) return [];
+
+      const chunks = chunk(agencyAgentIds, 10);
+      const snaps = await Promise.all(
+        chunks.map((ids) => {
+          const qy = query(collection(db, 'sales'), ...base, where('AgentId', 'in', ids));
+          return getDocs(qy);
+        })
+      );
+
+      return snaps.flatMap((s) => s.docs);
+    }
+
+    // selectedAgentId is empty -> nothing
+    return [];
+  };
+
+  // -----------------------
+  // 6) 계산 helpers
+  // -----------------------
+  const updateTotalsForMonth = (
+    data: any,
+    monthTotals: MonthlyTotal,
+    includeMinuySochen: boolean,
+    product: Product | undefined
+  ) => {
+    if (includeMinuySochen) return;
+
+    const isOneTime = product?.isOneTimeCommission ?? false;
+
+    // במצב ALL אין לנו split בצורה אמינה כרגע (כי זה פר-סוכן),
+    // אז אנחנו מפעילים split רק כשיש selectedAgentId ספציפי.
+    const canSplit =
+    isCommissionSplitEnabled &&
+    selectedAgentId !== 'all' &&
+    !!selectedAgentId;
+  
+
+    let productionFactor = 1;
+
+    if (canSplit) {
+      const splitAgreement = findSplitAgreementForSale(data, commissionSplits, customers);
+      if (splitAgreement && splitAgreement.splitMode === 'production') {
+        productionFactor = (splitAgreement.percentToAgent ?? 100) / 100;
+      }
+    }
+
+    if (isOneTime) {
+      monthTotals.insuranceTravelTotal += (parseInt(data.insPremia) || 0) * productionFactor;
+      monthTotals.prishaMyaditTotal += (parseInt(data.pensiaZvira) || 0) * productionFactor;
+    } else {
+      monthTotals.finansimTotal += (parseInt(data.finansimZvira) || 0) * productionFactor;
+      monthTotals.insuranceTotal += ((parseInt(data.insPremia) || 0) * 12) * productionFactor;
+      monthTotals.pensiaTotal += ((parseInt(data.pensiaPremia) || 0) * 12) * productionFactor;
+      monthTotals.niudPensiaTotal += (parseInt(data.pensiaZvira) || 0) * productionFactor;
+    }
+  };
+
+  const updateCommissionsForMonth = (
+    data: any,
+    monthTotals: MonthlyTotal,
+    product: Product | undefined,
+    companyAgg: Record<string, number>
+  ) => {
+    // חוזה סוכן
+    const agentContractsForSale = agentContracts.filter((c) => c.agentId === data.AgentId);
+    const agentContract = findBestContract(agentContractsForSale, data, product);
+    if (!agentContract) return;
+
+    const canSplit =
+  isCommissionSplitEnabled &&
+  selectedAgentId !== 'all' &&
+  !!selectedAgentId;
+
+  
+    const agentAmounts = calcCommissionAmounts(
+      data,
+      agentContract,
+      product,
+      commissionSplits,
+      customers,
+      canSplit
+    );
+    
+
+    // מצב רגיל
+    if (viewMode !== 'agencyMargin' || !isAdmin) {
+      monthTotals.commissionHekefTotal += agentAmounts.hekef;
+      monthTotals.commissionNifraimTotal += agentAmounts.nifraim;
+
+      if (data.company) companyAgg[data.company] = (companyAgg[data.company] || 0) + agentAmounts.hekef;
+      return;
+    }
+
+    // מצב מרווח בית סוכן (admin בלבד)
+    const houseContract = findBestContract(houseContracts, data, product);
+    if (!houseContract) return;
+
+    const houseAmounts = calcCommissionAmounts(
+      data,
+      houseContract,
+      product,
+      commissionSplits,
+      customers,
+      canSplit
+    );
+
+    const marginHekef = houseAmounts.hekef - agentAmounts.hekef;
+    const marginNifraim = houseAmounts.nifraim - agentAmounts.nifraim;
+
+    monthTotals.commissionHekefTotal += marginHekef;
+    monthTotals.commissionNifraimTotal += marginNifraim;
+
+    if (data.company) companyAgg[data.company] = (companyAgg[data.company] || 0) + marginHekef;
+  };
+
+  const aggregateOverallTotals = (mt: MonthlyTotals) => {
+    const totals = emptyMonth();
+    Object.values(mt).forEach((m) => {
+      totals.finansimTotal += m.finansimTotal;
+      totals.pensiaTotal += m.pensiaTotal;
+      totals.insuranceTotal += m.insuranceTotal;
+      totals.niudPensiaTotal += m.niudPensiaTotal;
+      totals.commissionHekefTotal += m.commissionHekefTotal;
+      totals.commissionNifraimTotal += m.commissionNifraimTotal;
+      totals.insuranceTravelTotal += m.insuranceTravelTotal || 0;
+      totals.prishaMyaditTotal += m.prishaMyaditTotal || 0;
+    });
+    setOverallTotals(totals);
+  };
+
+  // -----------------------
+  // 7) MAIN fetchData
+  // -----------------------
+  useEffect(() => {
+    let cancelled = false;
+
+    const resetAll = () => {
+      setMonthlyTotals({});
+      setCompanyCommissions({});
+      setOverallTotals(emptyMonth());
+    };
+
+    const fetchData = async () => {
+      // wait for meta
+      if (loadingMeta) return;
+
+      // empty selection
+      if (!selectedAgentId) {
+        resetAll();
+        return;
+      }
+
+      // agencyMargin guard (admin only + must have house contracts loaded)
+      if (viewMode === 'agencyMargin') {
+        if (!isAdmin) {
+          // לאדמין בלבד
+          resetAll();
+          return;
+        }
+        if (!effectiveAgencyId) {
+          setIsLoadingData(false);
+          resetAll();
+          return;
+        }
+        if (houseContracts.length === 0) {
+          // עדיין נטען / אין חוזים
+          setIsLoadingData(false);
+          resetAll();
+          return;
+        }
+      }
+
+      setIsLoadingData(true);
+      resetAll();
+
+      try {
+        // נפריד: general (תפוקות) + commissions (מינוי סוכן false)
+        const [generalDocs, commissionDocs] = await Promise.all([
+          fetchSalesSnapshots(false),
+          fetchSalesSnapshots(false),
+        ]);
+
+        const newMonthly: MonthlyTotals = {};
+        const newCompany: Record<string, number> = {};
+
+        // general totals
+        generalDocs.forEach((d) => {
+          const data = d.data() as DocumentData;
+          const formatted = formatMonthFromMounthField(data.mounth);
+          if (!formatted) return;
+
+          // עוד מסנן בטיחותי לשנה הנבחרת
+          if (!includePreviousDecember) {
+            const date = new Date(data.mounth);
+            if (date.getFullYear() !== selectedYear) return;
+          }
+
+          if (!newMonthly[formatted]) newMonthly[formatted] = emptyMonth();
+
+          updateTotalsForMonth(
+            data,
+            newMonthly[formatted],
+            data.minuySochen,
+            productMap[data.product]
+          );
+        });
+
+        // commissions (hekef/nifraim)
+        commissionDocs.forEach((d) => {
+          const data = d.data() as DocumentData;
+          const formatted = formatMonthFromMounthField(data.mounth);
+          if (!formatted) return;
+
+          if (!includePreviousDecember) {
+            const date = new Date(data.mounth);
+            if (date.getFullYear() !== selectedYear) return;
+          }
+
+          if (!newMonthly[formatted]) newMonthly[formatted] = emptyMonth();
+
+          updateCommissionsForMonth(data, newMonthly[formatted], productMap[data.product], newCompany);
+        });
+
+        if (cancelled) return;
+        setMonthlyTotals(newMonthly);
+        setCompanyCommissions(newCompany);
+        aggregateOverallTotals(newMonthly);
+      } finally {
+        if (!cancelled) setIsLoadingData(false);
+      }
+    };
+
+    fetchData();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    loadingMeta,
+    selectedAgentId,
+    selectedWorkerIdFilter,
+    selectedCompany,
+    selectedProduct,
+    selectedStatusPolicy,
+    selectedYear,
+    includePreviousDecember,
+    isCommissionSplitEnabled,
+    viewMode,
+    isAdmin,
+    effectiveAgencyId,
+    agencyAgentIds.length,
+    houseContracts.length,
+    agentContracts.length,
+    productMap,
+  ]);
+
+  return {
+    monthlyTotals,
+    overallTotals,
+    isLoadingData,
+    companyCommissions,
+  };
+}
