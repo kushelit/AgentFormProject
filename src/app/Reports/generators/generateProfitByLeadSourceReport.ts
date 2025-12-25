@@ -437,6 +437,38 @@ export async function generateProfitByLeadSourceReport(params: ReportRequest) {
       );
     });
 
+
+// ✅ שורת סיכום בלשונית פירוט
+const totalHekef2 = details.reduce((sum, r) => sum + Number(r['עמלת היקף (MAGIC)'] ?? 0), 0);
+const totalNifraim2 = details.reduce((sum, r) => sum + Number(r['עמלת נפרעים (MAGIC)'] ?? 0), 0);
+
+ws2.addRow([]); // רווח קטן
+
+const sumRowValues = headers2.map((h) => {
+  if (h === 'עמלת היקף (MAGIC)') return totalHekef2;
+  if (h === 'עמלת נפרעים (MAGIC)') return totalNifraim2;
+  if (h === 'חודש תפוקה') return 'סה״כ';
+  return '';
+});
+
+const sumRow = ws2.addRow(sumRowValues);
+
+// עיצוב שורת סיכום (רקע כהה כמו כותרת, טקסט לבן)
+sumRow.height = 18;
+sumRow.eachCell((cell) => {
+  cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11 };
+  cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4D4D4D' } };
+  cell.border = {
+    top: { style: 'thin', color: { argb: 'FFBFBFBF' } },
+    left: { style: 'thin', color: { argb: 'FFBFBFBF' } },
+    bottom: { style: 'thin', color: { argb: 'FFBFBFBF' } },
+    right: { style: 'thin', color: { argb: 'FFBFBFBF' } },
+  };
+  cell.alignment = { horizontal: 'center', vertical: 'middle' };
+});
+
+
+
   // ✅ עמלות בפירוט שלמות
   styleDataRows(ws2, headers2.length, {
     firstDataRow: 2,
@@ -450,11 +482,13 @@ export async function generateProfitByLeadSourceReport(params: ReportRequest) {
     ? excelBuffer
     : Buffer.from(excelBuffer as ArrayBuffer);
 
-  return {
-    buffer,
-    filename: `דוח רווחיות לפי מקור ליד.xlsx`,
-    subject: 'דוח רווחיות לפי מקור ליד',
-    description:
-      'דוח השוואת עמלות MAGIC לפי מקור ליד: כולל עמלות היקף ונפרעים, כמות לקוחות וכמות מכירות, וכן פירוט עסקאות שנכנסו לדוח.',
-  };
+    const splitStr = applyCommissionSplit ? 'עם פיצול עמלות' : 'ללא פיצול עמלות';
+
+    return {
+      buffer,
+      filename: `דוח רווחיות לפי מקור ליד - ${splitStr}.xlsx`,
+      subject: `דוח רווחיות לפי מקור ליד (${splitStr})`,
+      description:
+        `דוח השוואת עמלות MAGIC לפי מקור ליד (${splitStr}): כולל עמלות היקף ונפרעים, כמות לקוחות וכמות מכירות, וכן פירוט עסקאות שנכנסו לדוח.`,
+    };    
 }

@@ -12,7 +12,10 @@ import CommissionPerCustomerGraph from '@/components/CommissionPerCustomerGraph'
 import PieChartGraph from '@/components/CompanyCommissionPie';
 import { useDesignFlag } from '@/hooks/useDesignFlag';
 import { usePermission } from '@/hooks/usePermission';
-
+import NifraimYoYGraph from '@/components/NifraimYoYGraph';
+import { useNifraimYoYData } from '@/hooks/useNifraimYoYData';
+import { useHekefYoYData } from '@/hooks/useHekefYoYData';
+import YoYLineGraph from '@/components/YoYLineGraph';
 // 🔹 הלשונית החדשה של סיכומי סוכנות
 import AgencySummaryAgentsTab from '@/components/AgencySummaryAgentsTab';
 
@@ -42,7 +45,7 @@ const NewSummaryTable = () => {
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
 
   const [selectedGraph, setSelectedGraph] = useState<
-    'newCustomers' | 'commissionPerMonth' | 'companyCommissionPie' | 'profitByLeadSource'
+    'newCustomers' | 'commissionPerMonth' | 'companyCommissionPie' | 'profitByLeadSource' | 'nifraimYoY' | 'hekefYoY'
   >('newCustomers');
 
   const isNewDesignEnabled = useDesignFlag();
@@ -152,7 +155,30 @@ const NewSummaryTable = () => {
     isCommissionSplitEnabled,
   });
   
-
+  const { labels: yoyLabels, series: yoySeries, loading: yoyLoading } = useNifraimYoYData({
+    selectedAgentId,
+    selectedWorkerIdFilter,
+    selectedCompany,
+    selectedProduct,
+    selectedStatusPolicy,
+    selectedYear,
+    isCommissionSplitEnabled,
+    viewMode,
+    agencyId: detail?.agencyId,
+  });
+  
+  const { labels: hekefLabels, series: hekefSeries, loading: hekefLoading } = useHekefYoYData({
+    selectedAgentId,
+    selectedWorkerIdFilter,
+    selectedCompany,
+    selectedProduct,
+    selectedStatusPolicy,
+    selectedYear,
+    isCommissionSplitEnabled,
+    viewMode,
+    agencyId: detail?.agencyId,
+  });
+  
   return (
     <div className="content-container-NewAgentForm">
       <div className={`table-container-AgentForm-new-design`}>
@@ -456,6 +482,8 @@ const NewSummaryTable = () => {
                   {canViewCommissions && selectedAgentId && selectedAgentId !== 'all' && (
   <option value="profitByLeadSource">רווחיות לפי מקור ליד</option>
 )}
+{canViewCommissions && <option value="nifraimYoY">נפרעים: השוואה לשנה קודמת</option>}
+{canViewCommissions && <option value="hekefYoY">היקף: השוואה לשנה קודמת</option>}
                 </select>
               </div>
 
@@ -468,11 +496,31 @@ const NewSummaryTable = () => {
                 {!loading && selectedGraph === 'companyCommissionPie' && (
                   <PieChartGraph data={companyCommissions || {}} />
                 )}
-                {selectedGraph === 'profitByLeadSource' && (
+          {!loading && selectedGraph === 'nifraimYoY' && (
+  <>
+    {(yoyLoading || isLoadingData) && <p>Loading...</p>}
+    {!yoyLoading && <NifraimYoYGraph labels={yoyLabels} series={yoySeries} />}
+  </>
+)}
+{!loading && selectedGraph === 'hekefYoY' && (
+  <>
+    {(hekefLoading || isLoadingData) && <p>Loading...</p>}
+    {!hekefLoading && (
+      <YoYLineGraph
+        title="היקף: חודש מול שנה קודמת"
+        yAxisLabel={viewMode === 'agencyMargin' ? 'מרווח היקף' : 'עמלת היקף'}
+        labels={hekefLabels}
+        series={hekefSeries}
+      />
+    )}
+  </>
+)}
+  {selectedGraph === 'profitByLeadSource' && (
   <>
     {(leadSourceLoading || isLoadingData) && <p>Loading...</p>}
     {!leadSourceLoading && <ProfitByLeadSourceStackedGraph rows={leadSourceRows} />}
   </>
+  
 )}
               </div>
             </div>

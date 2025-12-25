@@ -14,6 +14,7 @@ import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import { registerLocale } from 'react-datepicker';
 import { he } from 'date-fns/locale/he';
+import { fetchSourceLeadsForAgent } from '@/services/sourceLeadService';
 
 registerLocale('he', he);
 
@@ -30,6 +31,7 @@ const REPORTS = [
   { value: 'clientNifraimReportedVsMagic', label: 'דוח נפרעים ללקוח – קובץ מול MagicSale' },
   { value: 'commissionSummaryMultiYear', label: 'דוח נפרעים מסוכם - מטעינת קבצים' },
   { value: 'profitByLeadSourceReport', label: 'דוח רווחיות לפי מקור ליד' },
+  { value: 'leadSourceStatementReport', label: 'דוח למקור ליד (פירוט לתשלום)' },
 ];
 
 const REPORT_UI_RULES: Record<
@@ -40,6 +42,7 @@ const REPORT_UI_RULES: Record<
     showMinuySochen: boolean;
     showCompanies: boolean;
     showPitzul: boolean;
+    showLeadSource: boolean;
   }
 > = {
   insurancePremiumReport: {
@@ -48,6 +51,7 @@ const REPORT_UI_RULES: Record<
     showMinuySochen: true,
     showCompanies: true,
     showPitzul: false,
+    showLeadSource: false,
   },
   clientPoliciesReport: {
     showProducts: true,
@@ -55,6 +59,7 @@ const REPORT_UI_RULES: Record<
     showMinuySochen: true,
     showCompanies: true,
     showPitzul: false,
+    showLeadSource: false,
   },
   clientNifraimSummaryReport: {
     showProducts: true,
@@ -62,6 +67,7 @@ const REPORT_UI_RULES: Record<
     showMinuySochen: true,
     showCompanies: true,
     showPitzul: true,
+    showLeadSource: false,
   },
   clientNifraimReportedVsMagic: {
     showProducts: true,
@@ -69,6 +75,7 @@ const REPORT_UI_RULES: Record<
     showMinuySochen: true,
     showCompanies: true,
     showPitzul: true,
+    showLeadSource: false,
   },
   commissionSummaryMultiYear: {
     showProducts: false,
@@ -76,6 +83,7 @@ const REPORT_UI_RULES: Record<
     showMinuySochen: false,
     showCompanies: true,
     showPitzul: false,
+    showLeadSource: false,
   },
   profitByLeadSourceReport: {
     showProducts: true,
@@ -83,7 +91,17 @@ const REPORT_UI_RULES: Record<
     showMinuySochen: true,
     showCompanies: true,
     showPitzul: true,
+    showLeadSource: false,
   },
+  leadSourceStatementReport: {
+    showProducts: true,
+    showStatus: true,
+    showMinuySochen: true,
+    showCompanies: true,
+    showPitzul: false,      // ✅ תראי את הטוגל כמו נפרעים
+    showLeadSource: true,  // ✅ חדש
+  },
+  
   
 };
 
@@ -134,6 +152,39 @@ const ReportsPage: React.FC = () => {
       showCompanies: true,
       showPitzul: false,
     };
+
+
+const [sourceLeadOptions, setSourceLeadOptions] = useState<{value:string; label:string}[]>([]);
+const [selectedLeadSource, setSelectedLeadSource] = useState<{value:string; label:string} | null>(null);
+
+useEffect(() => {
+  const run = async () => {
+    if (!selectedAgentId || selectedAgentId === 'all') {
+      setSourceLeadOptions([]);
+      setSelectedLeadSource(null);
+      return;
+    }
+
+    const leads = await fetchSourceLeadsForAgent(selectedAgentId);
+    const opts = leads.map((l) => ({ value: l.id, label: l.sourceLead }));
+    setSourceLeadOptions(opts);
+
+    // אם כבר נבחר משהו, נשמור אותו אם עדיין קיים ברשימה
+    setSelectedLeadSource((prev) => {
+      if (!prev) return null;
+      return opts.find((o) => o.value === prev.value) ?? null;
+    });
+  };
+
+  run();
+}, [selectedAgentId]);
+
+useEffect(() => {
+  if (!rules.showLeadSource) {
+    setSelectedLeadSource(null);
+  }
+}, [reportType]); // או [rules.showLeadSource]
+
 
   useEffect(() => {
     // אם עוברים לדוח שלא תומך בפיצול – ננקה את הדגל
@@ -203,6 +254,16 @@ const ReportsPage: React.FC = () => {
         return;
       }
     }
+    if (reportType === 'leadSourceStatementReport') {
+      if (!selectedAgentId || selectedAgentId === 'all') {
+        addToast('error', 'בדוח זה יש לבחור סוכן יחיד');
+        return;
+      }
+      if (!selectedLeadSource?.value) {
+        addToast('error', 'נדרש לבחור מקור ליד');
+        return;
+      }
+    }
     
     setLoading(true);
     try {
@@ -236,6 +297,7 @@ const ReportsPage: React.FC = () => {
         applyCommissionSplit: rules.showPitzul
           ? applyCommissionSplit
           : undefined,
+          sourceLeadId: rules.showLeadSource ? selectedLeadSource?.value : undefined,
       };
 
       const res = await fetch('/api/sendReport', {
@@ -333,7 +395,20 @@ const ReportsPage: React.FC = () => {
           ))}
         </select>
       </div>
-
+      {rules.showLeadSource && (
+  <div className="mb-4">
+    <label className="block font-semibold mb-1">בחר מקור ליד:</label>
+    <Select
+      isClearable
+      options={sourceLeadOptions}
+      value={selectedLeadSource}
+      onChange={(opt) => setSelectedLeadSource(opt ? (opt as any) : null)}
+      placeholder="בחר מקור ליד"
+      className="basic-single-select"
+      classNamePrefix="select"
+    />
+  </div>
+)}
       {/* חברות */}
       {rules.showCompanies && (
         <div className="mb-4">
