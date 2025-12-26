@@ -1,29 +1,21 @@
 'use client';
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   Chart as ChartJS,
   CategoryScale,
   LinearScale,
-  PointElement,
-  LineElement,
+  BarElement,
   Tooltip,
   Legend,
 } from 'chart.js';
-import { Line } from 'react-chartjs-2';
+import { Bar } from 'react-chartjs-2';
 
-ChartJS.register(
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  Tooltip,
-  Legend
-);
+ChartJS.register(CategoryScale, LinearScale, BarElement, Tooltip, Legend);
 
 export type YoYSeries = {
   year: number;
-  data: Array<number | null>; // ✅ מאפשר null מה-hook
+  data: Array<number | null>;
 };
 
 interface Props {
@@ -32,48 +24,57 @@ interface Props {
 }
 
 const COLORS = [
-  { border: '#2563EB', background: 'rgba(37,99,235,0.15)' }, // שנה נבחרת
-  { border: '#16A34A', background: 'rgba(22,163,74,0.15)' }, // שנה קודמת
-  { border: '#EA580C', background: 'rgba(234,88,12,0.15)' }, // לפני שנתיים
+  { border: '#EA580C', background: 'rgba(234,88,12,0.55)' }, // הכי ישנה (משמאל)
+  { border: '#16A34A', background: 'rgba(22,163,74,0.55)' }, // אמצע
+  { border: '#2563EB', background: 'rgba(37,99,235,0.55)' }, // הכי חדשה (מימין)
 ];
 
 const NifraimYoYGraph: React.FC<Props> = ({ labels, series }) => {
-  const data = {
-    labels,
-    datasets: series.map((s, index) => ({
-      label: String(s.year),
-      // ✅ ממירים null ל-0 כדי לא "לחתוך קו"
-      data: s.data.map((v) => (v ?? 0)),
-      borderColor: COLORS[index]?.border,
-      backgroundColor: COLORS[index]?.background,
-      borderWidth: index === 0 ? 3 : 2,
-      pointRadius: 4,
-      pointHoverRadius: 6,
-      tension: 0.3,
-      fill: false,
-    })),
-  };
+  // ✅ 2023 → 2024 → 2025 (משמאל לימין)
+  const sortedSeries = useMemo(() => [...series].sort((a, b) => a.year - b.year), [series]);
 
-  const options = {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: { position: 'top' as const },
-      tooltip: {
-        callbacks: {
-          label: (ctx: any) => `${ctx.dataset.label}: ${ctx.parsed.y.toLocaleString()}`,
+  const data = useMemo(() => {
+    return {
+      labels,
+      datasets: sortedSeries.map((s, index) => ({
+        label: String(s.year),
+        data: s.data.map((v) => v ?? 0), // ✅ null => 0
+        borderColor: COLORS[index]?.border,
+        backgroundColor: COLORS[index]?.background,
+        borderWidth: 1,
+        // ✅ עמודות "צמודות" בקבוצה של החודש
+        categoryPercentage: 0.7,
+        barPercentage: 0.9,
+      })),
+    };
+  }, [labels, sortedSeries]);
+
+  const options = useMemo(() => {
+    return {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          position: 'top' as const,
+          // הסדר במקרא כבר יהיה לפי datasets (2023→2025)
+        },
+        tooltip: {
+          callbacks: {
+            label: (ctx: any) =>
+              `${ctx.dataset.label}: ${Number(ctx.parsed.y || 0).toLocaleString()}`,
+          },
         },
       },
-    },
-    scales: {
-      x: { title: { display: true, text: 'חודש' } },
-      y: { beginAtZero: true, title: { display: true, text: 'נפרעים' } },
-    },
-  };
+      scales: {
+        x: { title: { display: true, text: 'חודש' } },
+        y: { beginAtZero: true, title: { display: true, text: 'נפרעים' } },
+      },
+    };
+  }, []);
 
   return (
-    <div style={{ height: 400 }}>
-      <Line data={data} options={options} />
+    <div style={{ height: 420 }}>
+      <Bar data={data} options={options} />
     </div>
   );
 };
