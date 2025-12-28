@@ -72,8 +72,13 @@ export const UserSubscriptionPopup: React.FC<UserSubscriptionPopupProps> = ({
   );
 
   const handleCancelSubscription = async () => {
-    if (!userId || !transactionToken || !transactionId || !asmachta) return;
-    setIsCancelling(true);
+    // console.log('מבצע ביטול מנוי עבור משתמש:', userId);
+    // console.log('פרטי עסקה:', { transactionToken, transactionId, asmachta });
+    if (!userId || !transactionToken || !transactionId || !asmachta) {
+      addToast("error", "חסרים נתוני עסקה  – לא ניתן לבטל כרגע.");
+      return;
+    }
+        setIsCancelling(true);
     try {
       const res = await axios.post('/api/cancelSubscription', {
         id: userId,
@@ -179,11 +184,18 @@ export const UserSubscriptionPopup: React.FC<UserSubscriptionPopupProps> = ({
           <DialogNotification
             type="warning"
             title="אישור ביטול מנוי"
-            message="האם את בטוחה שברצונך לבטל את המנוי? פעולה זו תנתק אותך ותסיים את ההרשאות."
-            onConfirm={handleCancelSubscription}
-            onCancel={() => setShowCancelDialog(false)}
-            confirmText="כן, בטל מנוי"
+            message="האם אתה בטוח שברצונך לבטל את המנוי? פעולה זו תנתק אותך ותסיים את ההרשאות."
+            onConfirm={() => {
+              if (isCancelling) return;
+              handleCancelSubscription();
+            }}
+            onCancel={() => {
+              if (isCancelling) return;
+              setShowCancelDialog(false);
+            }}
+            confirmText={isCancelling ? "מבטל מנוי..." : "כן, בטל מנוי"}
             cancelText="חזרה"
+
           />
         )}
       </div>

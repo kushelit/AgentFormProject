@@ -1139,6 +1139,7 @@ const ExcelCommissionImporter: React.FC = () => {
         templateId: string;
         totalCommissionAmount: number;
         totalPremiumAmount: number;
+        commissionRate: number;
         rowsCount: number;
         product?: string;
         fullName?: string;
@@ -1175,6 +1176,7 @@ const ExcelCommissionImporter: React.FC = () => {
             templateId: templId,
             totalCommissionAmount: 0,
             totalPremiumAmount: 0,
+            commissionRate: 0,
             rowsCount: 0,
             runId,
           });
@@ -1188,6 +1190,16 @@ const ExcelCommissionImporter: React.FC = () => {
         if (!s.product  && product)  s.product  = product;
         if (!s.fullName && fullName) s.fullName = fullName;
       }
+
+      // ✅ חישוב commissionRate לכל פוליסה (אחוז מהקובץ)
+// חשוב: זה אחוז משוקלל ברמת פוליסה = totalCommission / totalPremium
+for (const s of policyMap.values()) {
+  const prem = Number(s.totalPremiumAmount ?? 0);
+  const comm = Number(s.totalCommissionAmount ?? 0);
+
+  (s as any).commissionRate = prem > 0 ? roundTo2((comm / prem) * 100) : 0;
+}
+
       await writePolicySummariesInBatch(Array.from(policyMap.values()) as any);
 
 
@@ -1213,6 +1225,7 @@ const ExcelCommissionImporter: React.FC = () => {
     commissionSummariesCount,
     policySummariesCount,
   });
+  addToast("success", "✅ הטעינה הושלמה בהצלחה");
 
       const grouped: Record<string, {
         count: number; uniqueCustomers: Set<string>; totalCommission: number; totalPremium: number;
@@ -1411,12 +1424,12 @@ const ExcelCommissionImporter: React.FC = () => {
           </div>
 
           <Button
-            text={isLoading ? "טוען..." : "אשר טעינה למסד הנתונים"}
-            type="primary"
-            onClick={handleImport}
-            disabled={isLoading || existingDocs.length > 0}
-            className="mt-4"
-          />
+  text={isLoading ? "⏳ טוען... נא להמתין" : "אשר טעינה למסד הנתונים"}
+  type="primary"
+  onClick={handleImport}
+  disabled={!standardizedRows.length || isLoading || existingDocs.length > 0}
+  className="mt-4"
+/>
         </div>
       )}
 

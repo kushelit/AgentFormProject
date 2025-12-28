@@ -34,6 +34,10 @@ export type UserDetail = {
   isActive?: boolean;
   subscriptionId?: string;
   subscriptionType?: string;
+  subscriptionStatus?: string;
+  transactionId?: string;
+  transactionToken?: string;
+  asmachta?: string;
   permissionOverrides?: {
     allow?: string[];
     deny?: string[];
@@ -160,6 +164,10 @@ useEffect(() => {
       isActive: raw.isActive,
       subscriptionId: raw.subscriptionId,
       subscriptionType: raw.subscriptionType,
+      subscriptionStatus: raw.subscriptionStatus,
+      transactionId: raw.transactionId,
+      transactionToken: raw.transactionToken,
+      asmachta: raw.asmachta,
       permissionOverrides: raw.permissionOverrides,
       addOns: raw.addOns,
     };

@@ -32,8 +32,16 @@ export const TopBar = ({ prop = true, className }) => {
                 <img className="line" alt="Line" src="/static/img/line-2.png" />
                 <span
                   className="user-name"
-                  onClick={() => setShowPopup(true)}
-                  style={{ cursor: "pointer" }}
+                  onClick={() => {
+                    // console.log("detail", detail);
+                    // console.log("grow fields", {
+                    //   transactionToken: detail?.transactionToken,
+                    //   transactionId: detail?.transactionId,
+                    //   asmachta: detail?.asmachta,
+                    // });
+                    setShowPopup(true);
+                  }}
+                                    style={{ cursor: "pointer" }}
                 >
                   {detail?.name}
                 </span>
@@ -63,6 +71,12 @@ export const TopBar = ({ prop = true, className }) => {
     transactionId={detail?.transactionId}
     transactionToken={detail?.transactionToken}
     asmachta={detail?.asmachta}
+
+    name={detail?.name}
+    email={detail?.email}
+    phone={detail?.phone}
+    idNumber={detail?.idNumber}
+    
     userId={user?.uid || ''}
   
     addOns={{
@@ -70,13 +84,6 @@ export const TopBar = ({ prop = true, className }) => {
       extraWorkers: detail?.addOns?.extraWorkers || 0
     }}
   
-    // מקור אמת יחיד לערכי ברירת־מחדל בפופאפ
-    prefill={{
-      name:      detail?.name      ?? user?.name,
-      email:     detail?.email     ?? user?.email,
-      phone:     detail?.phone     ?? user?.phone,
-      idNumber:  detail?.idNumber  ?? user?.idNumber,
-    }}
   
     onCancel={() => setShowPopup(false)}
     onClose={() => setShowPopup(false)}
