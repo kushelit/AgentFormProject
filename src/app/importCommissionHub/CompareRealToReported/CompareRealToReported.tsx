@@ -198,6 +198,10 @@ export default function CompareReportedVsMagic() {
   const { agents, selectedAgentId, handleAgentChange } = useFetchAgentData();
   const agentIdFromUrl = (searchParams.get('agentId') || '').trim();
 
+  const isAdmin = detail?.role === 'admin';
+const canSeeContractsTab = isAdmin; // ✅ רק אדמין
+
+
   // UI/filters
   const [company, setCompany] = useState<string>('');
   const [reportMonth, setReportMonth] = useState<string>('');
@@ -239,6 +243,9 @@ export default function CompareReportedVsMagic() {
   // read `family=1` once
   const hydratedOnce = useRef(false);
 
+
+  const SHOW_CONTRACTS_TAB = false; // ✅ זמני
+
   // ✅ Contracts hook
   const {
     rows: contractRows,
@@ -253,6 +260,15 @@ export default function CompareReportedVsMagic() {
     tolerancePercent,
     minuySochen: false,
   });
+
+
+  useEffect(() => {
+    if (!canSeeContractsTab && viewMode === 'contracts') {
+      setViewMode('sales');
+    }
+  }, [canSeeContractsTab, viewMode]);
+  
+
 
   const handleBackToCustomer = () => {
     if (!canGoBack) return;
@@ -1091,35 +1107,41 @@ export default function CompareReportedVsMagic() {
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-2xl font-bold">השוואת טעינת עמלות (קובץ) מול MAGIC</h1>
 
-        <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={() => {
-              setViewMode('sales');
-              setContractDrillStatus(null);
-              setContractStatusFilter('');
-            }}
-            className={`px-3 py-1.5 rounded ${
-              viewMode === 'sales' ? 'bg-blue-600 text-white' : 'bg-gray-200'
-            }`}
-          >
-            קובץ מול MAGIC (Sales)
-          </button>
+        {canSeeContractsTab ? (
+  <div className="flex items-center rounded-full border border-blue-200 bg-blue-50 p-1 gap-1">
+    <button
+      type="button"
+      onClick={() => {
+        setViewMode('sales');
+        setContractDrillStatus(null);
+        setContractStatusFilter('');
+      }}
+      className={`px-4 py-1.5 rounded-full text-sm font-semibold transition ${
+        viewMode === 'sales'
+          ? 'bg-white text-blue-700 shadow-sm'
+          : 'text-gray-500 hover:text-blue-700'
+      }`}
+    >
+      השוואה מול Magic 
+    </button>
 
-          <button
-            type="button"
-            onClick={() => {
-              setViewMode('contracts');
-              setDrillStatus(null);
-              setStatusFilter('');
-            }}
-            className={`px-3 py-1.5 rounded ${
-              viewMode === 'contracts' ? 'bg-blue-600 text-white' : 'bg-gray-200'
-            }`}
-          >
-            קובץ מול הסכם (Contracts)
-          </button>
-        </div>
+    <button
+      type="button"
+      onClick={() => {
+        setViewMode('contracts');
+        setDrillStatus(null);
+        setStatusFilter('');
+      }}
+      className={`px-4 py-1.5 rounded-full text-sm font-semibold transition ${
+        viewMode === 'contracts'
+          ? 'bg-white text-blue-700 shadow-sm'
+          : 'text-gray-500 hover:text-blue-700'
+      }`}
+    >
+      השוואה מול הסכם 
+    </button>
+  </div>
+) : null}
 
         {canGoBack ? (
           <button
