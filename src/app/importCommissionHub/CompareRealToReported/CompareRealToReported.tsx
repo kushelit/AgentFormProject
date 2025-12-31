@@ -198,8 +198,12 @@ export default function CompareReportedVsMagic() {
   const { agents, selectedAgentId, handleAgentChange } = useFetchAgentData();
   const agentIdFromUrl = (searchParams.get('agentId') || '').trim();
 
-  const isAdmin = detail?.role === 'admin';
-const canSeeContractsTab = isAdmin; // ✅ רק אדמין
+//   const isAdmin = detail?.role === 'admin';
+// const canSeeContractsTab = isAdmin; // ✅ רק אדמין
+
+const ENABLE_CONTRACTS_COMPARE = false; // ⛔ כרגע כבוי בייצור
+
+const canSeeContractsTab = ENABLE_CONTRACTS_COMPARE;
 
 
   // UI/filters

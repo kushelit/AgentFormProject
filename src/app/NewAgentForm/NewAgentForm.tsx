@@ -1568,7 +1568,7 @@ useEffect(() => {
       type="checkbox"
       checked={!!editData.minuySochen}
       onChange={(e) => {
-        console.log("checkbox changed", e.target.checked);
+        // console.log("checkbox changed", e.target.checked);
 
         // זה חובה — זה מה שמעדכן את המנגנון של השורה הנערכת
         handleEditChange("minuySochen", e.target.checked);
