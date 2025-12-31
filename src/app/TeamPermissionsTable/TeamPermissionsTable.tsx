@@ -34,6 +34,7 @@ interface PermissionData {
   id: string;
   name: string;
   restricted?: boolean;
+  planLocked?: boolean;
 }
 
 
@@ -55,6 +56,7 @@ const TeamPermissionsTable = () => {
  
   const isAgentOrManager = detail?.role === 'agent' || detail?.role === 'manager';
 
+  const [planLockedPermissions, setPlanLockedPermissions] = useState<string[]>([]);
 
 const detailAsMinimalUser: MinimalUser | null = detail && user
 ? {
@@ -117,7 +119,9 @@ const detailAsMinimalUser: MinimalUser | null = detail && user
   
   const canTogglePermission = (permission: string, _worker: ExtendedWorker): boolean => {
     if (!canEditPermissions) return false;            // חייב יכולת עריכה כללית
-    if (permission === '*') return false;             // אסור לגעת בכוכבית
+    if (permission === '*') return false;   // אסור לגעת בכוכבית
+     // ✅ חדש: אם ההרשאה נעולה למסלול - אף אחד לא יכול לעשות override
+  if (planLockedPermissions.includes(permission)) return false;
     if (restrictedPermissions.includes(permission) && detail?.role !== 'admin') return false;
     return true;                                      // תני ל-override לעבוד
   };
@@ -131,15 +135,19 @@ const detailAsMinimalUser: MinimalUser | null = detail && user
       // קטלוג permissions (label + restricted)
       const allPermsMap = new Map<string, PermissionData>();
       const restricted: string[] = [];
+      const planLocked: string[] = [];
+
       permsSnapshot.forEach((docSnap) => {
         const data = docSnap.data();
         const perm: PermissionData = {
           id: docSnap.id,
           name: data.name || docSnap.id,
           restricted: !!data.restricted,
+          planLocked: !!data.planLocked,
         };
         allPermsMap.set(docSnap.id, perm);
         if (perm.restricted) restricted.push(docSnap.id);
+        if (perm.planLocked) planLocked.push(docSnap.id);
       });
   
       // ===== אדמין רואה הכל =====
@@ -176,6 +184,7 @@ const detailAsMinimalUser: MinimalUser | null = detail && user
   
         setAllPermissions(finalPermissions);
         setRestrictedPermissions(restricted);
+        setPlanLockedPermissions(planLocked);
         return;
       }
   
@@ -214,6 +223,7 @@ const detailAsMinimalUser: MinimalUser | null = detail && user
   
       setAllPermissions(finalPermissions);
       setRestrictedPermissions(restricted);
+      setPlanLockedPermissions(planLocked);
     };
   
     fetchAllPermissions();
@@ -600,6 +610,13 @@ const detailAsMinimalUser: MinimalUser | null = detail && user
           } ${isOverridden ? 'bg-yellow-100' : ''}`}
           onClick={() => {
             if (!canToggle) {
+              // 🔒 קודם כל: נעול למסלול
+              if (planLockedPermissions.includes(perm.id)) {
+                addToast('error', 'הרשאה זו נקבעת לפי סוג מנוי בלבד (לא ניתנת לשינוי ידני)');
+                return;
+              }
+        
+              // 💳 בדיקת תוסף בתשלום
               const isPaid = perm.id in PAID_PERMISSION_ADDONS;
               const addonKey = isPaid ? PAID_PERMISSION_ADDONS[perm.id as PaidPermission] : null;
               const isMissingAddon = isPaid && addonKey && !detail?.addOns?.[addonKey];
@@ -615,15 +632,17 @@ const detailAsMinimalUser: MinimalUser | null = detail && user
           }}
           title={
             !canToggle
-              ? (() => {
-                  const isPaid = perm.id in PAID_PERMISSION_ADDONS;
-                  const addonKey = isPaid ? PAID_PERMISSION_ADDONS[perm.id as PaidPermission] : null;
-                  const isMissingAddon = isPaid && addonKey && !detail?.addOns?.[addonKey];
+              ? planLockedPermissions.includes(perm.id)
+                ? '🔒 הרשאה זו נקבעת לפי סוג מנוי בלבד (לא ניתנת לשינוי ידני)'
+                : (() => {
+                    const isPaid = perm.id in PAID_PERMISSION_ADDONS;
+                    const addonKey = isPaid ? PAID_PERMISSION_ADDONS[perm.id as PaidPermission] : null;
+                    const isMissingAddon = isPaid && addonKey && !detail?.addOns?.[addonKey];
         
-                  return isMissingAddon
-                    ? '⚠️ אין לך את התוסף המתאים לערוך הרשאה זו'
-                    : 'אין לך הרשאה לערוך';
-                })()
+                    return isMissingAddon
+                      ? '⚠️ אין לך את התוסף המתאים לערוך הרשאה זו'
+                      : 'אין לך הרשאה לערוך';
+                  })()
               : `לחץ כדי ${has ? 'לבטל הרשאה' : 'לאפשר הרשאה'}`
           }
         >
