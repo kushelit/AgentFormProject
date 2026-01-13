@@ -163,3 +163,12 @@
   color: #d35400;
   font-weight: 700;
 }
+
+.announcement-image-placeholder img {
+  max-width: 90%;
+  max-height: 360px;
+  margin: 16px auto;
+  display: block;
+  border-radius: 8px;
+}
+
