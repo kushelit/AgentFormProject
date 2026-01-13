@@ -219,9 +219,11 @@ export const ChangePlanModal: React.FC<ChangePlanModalProps> = ({
         }
         throw new Error('Missing paymentUrl');
       }
-    } catch (err) {
-      // console.error('שגיאה בעת שינוי התוכנית:', err);
-      addToast('error', 'שגיאה בעדכון התוכנית');
+    } catch (err: any) {
+  //     const e = err as any;
+  // console.log('upgrade status:', e?.response?.status);
+  // console.log('upgrade data:', e?.response?.data); 
+       addToast('error', 'שגיאה בעדכון התוכנית');
     } finally {
       setLoading(false);
       setShowConfirmDialog(false);

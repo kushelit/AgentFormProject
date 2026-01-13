@@ -72,7 +72,6 @@ export async function POST(req: NextRequest) {
 
     let agenciesValue: any = undefined;
 
-    // ✅ בדיקת קופון אם קיים
   // ✅ בדיקת קופון אם קיים
 if (couponCode) {
   const codeTrim = couponCode.trim();
@@ -168,25 +167,30 @@ if (couponCode) {
     if (appliedCouponCode) {
       updateData.usedCouponCode = appliedCouponCode;
     
-      updateData.couponUsed = {
-        code: appliedCouponCode,
-        discount: appliedDiscount,
+      updateData['couponUsed.code'] = appliedCouponCode;
+      updateData['couponUsed.discount'] = appliedDiscount;
     
-        // תאימות אחורה
-        date: new Date().toISOString(),
+      // תאימות אחורה
+      updateData['couponUsed.date'] = new Date().toISOString();
     
-        appliedAt: admin.firestore.Timestamp.fromDate(couponAppliedAt || new Date()),
-        ...(couponExpiresAt
-          ? { expiresAt: admin.firestore.Timestamp.fromDate(couponExpiresAt) }
-          : {}),
+      updateData['couponUsed.appliedAt'] = admin.firestore.Timestamp.fromDate(
+        couponAppliedAt || new Date()
+      );
     
-        lastNotifiedAt: admin.firestore.FieldValue.delete(),
-        notifyFlags: admin.firestore.FieldValue.delete(),
-      };
+      if (couponExpiresAt) {
+        updateData['couponUsed.expiresAt'] = admin.firestore.Timestamp.fromDate(couponExpiresAt);
+      } else {
+        updateData['couponUsed.expiresAt'] = admin.firestore.FieldValue.delete();
+      }
+    
+      // ניקוי שדות נוטיפיקציה ישנים
+      updateData['couponUsed.lastNotifiedAt'] = admin.firestore.FieldValue.delete();
+      updateData['couponUsed.notifyFlags'] = admin.firestore.FieldValue.delete();
     } else {
       updateData.usedCouponCode = admin.firestore.FieldValue.delete();
       updateData.couponUsed = admin.firestore.FieldValue.delete();
     }
+    
     
     // (כרגע לא נוגעים ב-agencies אם אין קופון חדש — לפי החלטתך)
     if (typeof agenciesValue !== 'undefined') {
@@ -198,7 +202,20 @@ if (couponCode) {
 
     return NextResponse.json({ success: true });
   } catch (err: any) {
-    // console.error('❌ Upgrade error:', err.message);
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    // console.error('❌ Upgrade error:', {
+    //   message: err?.message,
+    //   stack: err?.stack,
+    //   axiosStatus: err?.response?.status,
+    //   axiosData: err?.response?.data,
+    // });   
+    return NextResponse.json(
+      {
+        error: 'Internal Server Error',
+        message: err?.message,
+        axiosStatus: err?.response?.status,
+        axiosData: err?.response?.data,
+      },
+      { status: 500 }
+    );
   }
 }
