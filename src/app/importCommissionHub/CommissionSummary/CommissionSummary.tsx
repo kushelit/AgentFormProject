@@ -28,8 +28,6 @@ export default function CommissionSummaryTabsPage() {
       <div className="max-w-6xl mx-auto px-4 py-6">
         <div className="flex items-center justify-between mb-4">
           <h1 className="text-2xl font-bold">דף עמלות – נפרעים</h1>
-
-          {/* 🔵 פס הלשוניות – רק לאדמין/מנהל, כמו בדף המרכז */}
           {canSeeAgencyTab && (
             <div className="flex justify-start">
               <div className="flex bg-blue-100 rounded-full p-1 gap-1">
@@ -45,7 +43,6 @@ export default function CommissionSummaryTabsPage() {
                 >
                   תצוגת סוכן
                 </button>
-
                 {/* --- לשונית סוכנות (מטריצה) --- */}
                 <button
                   type="button"
@@ -62,12 +59,10 @@ export default function CommissionSummaryTabsPage() {
             </div>
           )}
         </div>
-
         {/* 🔹 תוכן הלשוניות */}
         <div className="bg-white rounded-xl shadow-sm border">
           {/* סוכן – תמיד זמין (וברירת מחדל) */}
           {activeTab === 'agent' && <CommissionSummaryAgentTab />}
-
           {/* סוכנות – רק אם יש הרשאה */}
           {activeTab === 'agency' && canSeeAgencyTab && (
             <CommissionSummaryAgencyMatrixTab />

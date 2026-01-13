@@ -57,8 +57,9 @@ const NewCustomer = () => {
 const [cmpReportMonth, setCmpReportMonth] = useState(() => {
   const d = new Date();
   d.setMonth(d.getMonth() - 1);
-  return d.toISOString().slice(0, 7);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 });
+
 const [cmpCompany, setCmpCompany] = useState<string>('');
 const [cmpIncludeFamily, setCmpIncludeFamily] = useState<boolean>(false);
 const [cmpLoading, setCmpLoading] = useState<boolean>(false);
@@ -559,30 +560,44 @@ useEffect(() => {
       addToast("error", "לא נבחר לקוח, נא לבחור לקוח לפני הפקת דוח");
       return;
     }
-    const salesRef = collection(db, "sales");
+
+    const idList = idVariants(selectedCustomers[0]?.IDCustomer);
+
     const salesQuery = query(
-      salesRef,
-      where("IDCustomer", "==", selectedCustomers[0]?.IDCustomer),
-      where("AgentId", "==", selectedAgentId),
-      where("statusPolicy", "in", ["פעילה", "הצעה"])
-    );
+  collection(db, "sales"),
+  where("AgentId", "==", selectedAgentId),
+  where("statusPolicy", "in", ["פעילה", "הצעה"]),
+  where("IDCustomer", "in", idList.slice(0, 10))
+);
   
     // console.log("selectedAgentId:", selectedAgentId, "selectedCustomer.IDCustomer:", selectedCustomers[0]?.IDCustomer);
   
     try {
       const salesSnapshot = await getDocs(salesQuery);
+      const selectedCanon = canonId(selectedCustomers[0]?.IDCustomer);
+    
+      const salesDocs = salesSnapshot.docs
+        .map(d => ({ _id: d.id, ...(d.data() as any) }))
+        .filter(s => canonId(s.IDCustomer) === selectedCanon);
+      
+        const rows = dedupeSales(salesDocs);
+
+
       let totalCommissionHekef = 0;
       let totalCommissionNifraim = 0;
   
       const salesWithNames = await Promise.all(
-        salesSnapshot.docs.map(async (salesDoc) => {
-          const salesData = salesDoc.data();
+        rows.map(async (salesData) => {
   
           // Fetch customer data
+          const cIds = idVariants(salesData.IDCustomer).slice(0, 10);
           const customerQuery = query(
             collection(db, "customer"),
-            where("IDCustomer", "==", salesData.IDCustomer)
+            where("AgentId", "==", selectedAgentId),
+            where("IDCustomer", "in", cIds as any)
           );
+          
+
           const customerSnapshot = await getDocs(customerQuery);
           const customerData = customerSnapshot.docs[0]?.data();
   
@@ -592,6 +607,7 @@ useEffect(() => {
   customerData?.sourceValue ||
   customerData?.sourceLead ||
   '';
+  const effectiveMonth = salesData.mounth || salesData.month;
 
 
           const data: Sale = {
@@ -601,7 +617,8 @@ useEffect(() => {
             IDCustomer: salesData.IDCustomer,
             product: salesData.product,
             company: salesData.company,
-            month: salesData.mounth,
+            // month: salesData.mounth,
+            month: effectiveMonth,
             status: salesData.status,
             insPremia: salesData.insPremia,
             pensiaPremia: salesData.pensiaPremia,
@@ -661,9 +678,9 @@ useEffect(() => {
     }
   };
   
-  useEffect(() => {
-    // console.log("🔁 isCommissionSplitEnabled changed:", isCommissionSplitEnabled);
-  }, [isCommissionSplitEnabled]);
+  // useEffect(() => {
+  //   // console.log("🔁 isCommissionSplitEnabled changed:", isCommissionSplitEnabled);
+  // }, [isCommissionSplitEnabled]);
 
   const fetchFamilySales = async () => {
     if (!selectedCustomers?.length) {
@@ -673,29 +690,53 @@ useEffect(() => {
   
     try {
       const customerRef = collection(db, "customer");
-      const customerQuery = query(customerRef, where("parentID", "==", selectedCustomers[0]?.parentID));
-      const customerSnapshot = await getDocs(customerQuery);
-      const customerIDs = customerSnapshot.docs.map(doc => doc.data().IDCustomer);
-  
-      const salesRef = collection(db, "sales");
-      const salesQuery = query(
-        salesRef,
-        where("IDCustomer", "in", customerIDs),
+      const customerQuery = query(
+        customerRef,
         where("AgentId", "==", selectedAgentId),
-        where("statusPolicy", "in", ["פעילה", "הצעה"])
+        where("parentID", "==", selectedCustomers[0]?.parentID)
+      );
+     const customerSnapshot = await getDocs(customerQuery);
+      // const customerIDs = customerSnapshot.docs.map(doc => doc.data().IDCustomer);
+     
+      const rawIds = customerSnapshot.docs.map(d => d.data().IDCustomer);
+      const allIds = Array.from(new Set(rawIds.flatMap(idVariants))).slice(0, 10); // שימי לב למגבלת 10
+      const salesQuery = query(
+        collection(db, "sales"),
+        where("AgentId", "==", selectedAgentId),
+        where("statusPolicy", "in", ["פעילה", "הצעה"]),
+        where("IDCustomer", "in", allIds)
       );
   
       const salesSnapshot = await getDocs(salesQuery);
+
+      // ✅ canonical של בני המשפחה (מבוסס rawIds, לפני variants)
+      const familyCanon = canonSet(rawIds);
+      
+      // ✅ הפוך את ה-snapshot לרשומות וסנן לפי canonical של המשפחה
+      const salesDocs = salesSnapshot.docs
+        .map(d => ({ _id: d.id, ...(d.data() as any) }))
+        .filter(s => familyCanon.has(canonId(s.IDCustomer)));
+      
+      // ✅ דה־דופ לפני סכימה
+      const rows = dedupeSales(salesDocs);
+      
       let totalCommissionHekef = 0;
       let totalCommissionNifraim = 0;
   
       const salesWithNames = await Promise.all(
-        salesSnapshot.docs.map(async (salesDoc) => {
-          const salesData = salesDoc.data();
-          const customerQuery = query(collection(db, "customer"), where("IDCustomer", "==", salesData.IDCustomer));
-          const customerSnapshot = await getDocs(customerQuery);
+        rows.map(async (salesData) => {            
+
+          const cIds = idVariants(salesData.IDCustomer).slice(0, 10);
+          const customerQuery = query(
+            collection(db, "customer"),
+            where("AgentId", "==", selectedAgentId),
+            where("IDCustomer", "in", cIds as any)
+          );
+         const customerSnapshot = await getDocs(customerQuery);
           const customerData = customerSnapshot.docs[0]?.data();
   
+          const effectiveMonth = salesData.mounth || salesData.month;
+
           const data: Sale = {
             ...salesData,
             firstNameCustomer: customerData ? customerData.firstNameCustomer : "Unknown",
@@ -703,7 +744,8 @@ useEffect(() => {
             IDCustomer: salesData.IDCustomer,
             product: salesData.product,
             company: salesData.company,
-            month: salesData.mounth,
+            // month: salesData.mounth,
+            month: effectiveMonth,
             status: salesData.status,
             insPremia: salesData.insPremia,
             pensiaPremia: salesData.pensiaPremia,
@@ -961,16 +1003,6 @@ const handleNewSelectCustomer = (id: string) => {
 };
 
 
-const familyIds = useMemo(() => {
-  if (!selectedCustomers.length) return [];
-  const parent = selectedCustomers[0]?.parentID;
-  const inFamily = parent
-    ? filteredData.filter(c => c.parentID === parent)
-    : selectedCustomers;
-  return Array.from(new Set(inFamily.map(c => c.IDCustomer).filter(Boolean)));
-}, [selectedCustomers, filteredData]);
-
-
 // טבלת הסיכום
 type FamilySummaryRow = {
   customerId: string;
@@ -1013,23 +1045,30 @@ const loadCustomerMiniCompare = async () => {
 
   setCmpLoading(true);
   try {
-    // ⬅️ כאן השינוי: מביאים את כל בני המשפחה מה-DB לפי parentID
     const ids = await getFamilyIdsForMiniCompare(
       selectedAgentId,
       selectedCustomers[0],
       cmpIncludeFamily
     );
     if (!ids.length) {
-      addToast("warning", "לא נמצאו מזהי לקוחות להשוואה"); 
-      setCmpLoading(false); 
+      addToast("warning", "לא נמצאו מזהי לקוחות להשוואה");
+      setCmpMagicSum(0);
+      setCmpExternalSum(0);
       return;
     }
+    
+    // ✅ 1) canonical set (לפני variants)
+    const familyCanon = canonSet(ids);
 
-    // 2) MAGIC: סכימת נפרעים לפי (לקוח → חודש הפוליסה), *לא* לפי reportMonth
+    const idsExpanded = Array.from(new Set(ids.flatMap(idVariants)));
+
     let magicTotal = 0;
-    // מפצלים ל-chunks של 10 בגלל where in
-    for (let i = 0; i < ids.length; i += 10) {
-      const chunk = ids.slice(i, i+10);
+
+      // Cache ל-customer → sourceValue (לפיצולי עמלות)
+    const customerCache = new Map<string, any>();
+
+    for (let i = 0; i < idsExpanded.length; i += 10) {
+      const chunk = idsExpanded.slice(i, i + 10);
 
       const qSales = query(
         collection(db, 'sales'),
@@ -1037,51 +1076,62 @@ const loadCustomerMiniCompare = async () => {
         where('IDCustomer', 'in', chunk),
         where('statusPolicy', 'in', ['פעילה','הצעה'])
       );
+
       const snap = await getDocs(qSales);
 
-      // Cache ל-customer → sourceValue (לפיצולי עמלות)
-      const customerCache = new Map<string, any>();
+    
 
-      for (const d of snap.docs) {
-        const s: any = d.data();
-        const policyYm = toYm(s.month || s.mounth);
+      // ✅ 2) variants רק לשליפה, canonical+dedupe לסכימה
+      const docs = snap.docs
+        .map(d => ({ _id: d.id, ...(d.data() as any) }))
+        .filter(s => familyCanon.has(canonId(s.IDCustomer)));
+
+      const rows = dedupeSales(docs);
+
+      for (const s of rows) {
+        const effectiveMonth = s.mounth || s.month;
+        const policyYm = toYm(effectiveMonth);
         if (!policyYm) continue;
 
+         // פוליסה רלוונטית רק אם התחילה בחודש הדוח או לפניו
+         if (policyYm > cmpReportMonth) continue;
         const comp = normCompany(s.company);
+
         if (cmpCompany && normCompany(cmpCompany) !== comp) continue;
 
         // חיפוש לקוח לקבלת sourceValue
         let custDoc = customerCache.get(s.IDCustomer);
         if (!custDoc) {
-          const cq = query(collection(db, 'customer'), where('IDCustomer', '==', s.IDCustomer));
+          const cIds = idVariants(s.IDCustomer).slice(0, 10);
+          const cq = query(
+            collection(db, 'customer'),
+            where('AgentId', '==', selectedAgentId),
+            where('IDCustomer', 'in', cIds as any)
+          );
           const cs = await getDocs(cq);
           custDoc = cs.docs[0]?.data() || null;
           customerCache.set(s.IDCustomer, custDoc);
         }
-        // const sourceValue = custDoc?.sourceValue || '';
 
         const sourceValue =
-  custDoc?.sourceValue ||
-  custDoc?.sourceLead ||
-  '';
+          custDoc?.sourceValue ||
+          custDoc?.sourceLead ||
+          '';
 
-        
-
-        // חוזה תואם
         const contractMatch = contracts.find(
           (contract) =>
             contract.agentId === selectedAgentId &&
             contract.product === s.product &&
             contract.company === s.company &&
             (contract.minuySochen === s.minuySochen ||
-             (contract.minuySochen === undefined && !s.minuySochen))
+              (contract.minuySochen === undefined && !s.minuySochen))
         );
 
-        // חישוב עמלות (נפרעים)
-        const commissionsRaw = calculateCommissions({ ...s, month: s.mounth } as any, contractMatch);
+        const commissionsRaw =
+          calculateCommissions({ ...s, month: effectiveMonth } as any, contractMatch);
 
-        // פיצול (אם מופעל)
         let commissions = { ...commissionsRaw };
+
         if (isCommissionSplitEnabled && sourceValue) {
           const splitAgreement = commissionSplits.find(
             (split) =>
@@ -1099,11 +1149,21 @@ const loadCustomerMiniCompare = async () => {
         magicTotal += Number(commissions.commissionNifraim || 0);
       }
     }
-
-    // 3) EXTERNAL: לפי reportMonth (קובץ), וסכימה לפי validMonth (חודש תחילת הפוליסה)
+    const toPadded9Local = (v: any): string => {
+      const digits = String(v ?? '').replace(/\D/g, '');
+      return digits ? digits.padStart(9, '0').slice(-9) : '';
+    };
+    
+    // idsExpanded כבר כולל variants
+    const idsExpandedPadded = Array.from(
+      new Set(ids.flatMap(idVariants).map(toPadded9Local))
+    ).filter(Boolean);
+    
+  
+    // --- external נשאר כמו שהוא ---
     const extBuckets = await fetchExternalForCustomers({
       agentId: selectedAgentId,
-      customerIds: ids,
+      customerIds: idsExpandedPadded,
       reportFromYm: cmpReportMonth,
       reportToYm:   cmpReportMonth,
       company: cmpCompany || undefined,
@@ -1112,7 +1172,6 @@ const loadCustomerMiniCompare = async () => {
     let externalTotal = 0;
     for (const b of extBuckets) {
       for (const row of b.rows) {
-        // בודקים שוב customerId+company
         const comp = normCompany(row.company);
         if (cmpCompany && normCompany(cmpCompany) !== comp) continue;
 
@@ -1124,18 +1183,14 @@ const loadCustomerMiniCompare = async () => {
       }
     }
 
-    // setCmpMagicSum(Math.round(magicTotal));
-    // setCmpExternalSum(Math.round(externalTotal));
     setCmpMagicSum(Number(magicTotal.toFixed(2)));
-setCmpExternalSum(Number(externalTotal.toFixed(2)));
+    setCmpExternalSum(Number(externalTotal.toFixed(2)));
   } catch (e) {
-    // console.error(e);
     addToast("error", "כשל בטעינת סיכום לקוח");
   } finally {
     setCmpLoading(false);
   }
 };
-
 
 const openFullCompareForCustomer = () => {
   if (!canSeeExternalOverview) {
@@ -1165,7 +1220,7 @@ u.searchParams.set('highlightCustomer', selectedCustomers[0].IDCustomer);
 if (cmpCompany) u.searchParams.set('company', cmpCompany);
 if (cmpIncludeFamily) u.searchParams.set('family', '1'); 
 if (isCommissionSplitEnabled) u.searchParams.set('split', '1');
-params.set('returnTo', encodeURIComponent(u.pathname + '?' + u.searchParams.toString()));
+params.set('returnTo', u.pathname + '?' + u.searchParams.toString());
 
 router.push(`/importCommissionHub/CompareRealToReported?${params.toString()}`);
 
@@ -1187,14 +1242,6 @@ useEffect(() => {
   setCmpIncludeFamily(familyParam === '1' || familyParam.toLowerCase() === 'true');
 }, [familyParam]);
 
-
-// useEffect(() => {
-//   // ריענון אוטומטי כמו שביקשת – רק אם יש לקוח נבחר
-//   if (selectedCustomers?.length) {
-//     loadCustomerMiniCompare();
-//   }
-//   // eslint-disable-next-line react-hooks/exhaustive-deps
-// }, [cmpReportMonth, cmpCompany, cmpIncludeFamily, selectedAgentId, isCommissionSplitEnabled, ]);
 
 
 useEffect(() => {
@@ -1252,19 +1299,10 @@ useEffect(() => {
   // דיבאונס קצר כדי לא לרוץ בכל הקלדה או שינוי רגעי
   if (autoRefreshTimer.current) clearTimeout(autoRefreshTimer.current);
 
-  autoRefreshTimer.current = setTimeout(async () => {
-    // מעלה מזהה ריצה ומייצר capture
-    const myRunId = ++runIdRef.current;
+ autoRefreshTimer.current = setTimeout(async () => {
+  await loadCustomerMiniCompare();
+}, 400);
 
-    setCmpLoading(true);
-    try {
-      // מריצים את אותה פונקציה קיימת
-      await loadCustomerMiniCompare();
-    } finally {
-      // רק אם זו הריצה האחרונה — נוריד את ה-loading
-      if (myRunId === runIdRef.current) setCmpLoading(false);
-    }
-  }, 400);
 
   // ניקוי טיימר אם התלות תשתנה לפני שהדיבאונס ירוץ
   return () => {
@@ -1325,6 +1363,40 @@ const clearSelection = () => {
   setCmpExternalSum(0);
   // אם את רוצה גם לאפס את מצב המשפחה:
    setCmpIncludeFamily(false);
+};
+
+
+
+const normIdDigits = (v: any) => String(v ?? '').trim().replace(/\D/g, ''); // רק ספרות
+const pad9 = (v: string) => v.padStart(9, '0');
+const stripLeadingZeros = (v: string) => v.replace(/^0+/, '');
+
+const idVariants = (v: any): string[] => {
+  const d = normIdDigits(v);
+  if (!d) return [];
+  const a = d;
+  const b = pad9(d);
+  const c = stripLeadingZeros(d);
+  return Array.from(new Set([a, b, c].filter(Boolean)));
+};
+const canonId = (v: any) => stripLeadingZeros(normIdDigits(v)); // "001234567" -> "1234567"
+const canonSet = (ids: any[]) => new Set((ids || []).map(canonId).filter(Boolean));
+
+const saleKey = (s: any) => [
+  String(s.company ?? '').trim(),
+  String(s.product ?? '').trim(),
+  String((s.mounth || s.month || '')).slice(0, 7),
+  canonId(s.IDCustomer),
+  String(s.policyNumberKey ?? s.policyNumber ?? '').trim(),
+].join('|');
+
+const dedupeSales = (rows: any[]) => {
+  const m = new Map<string, any>();
+  for (const r of rows) {
+    const k = saleKey(r);
+    if (!m.has(k)) m.set(k, r);
+  }
+  return Array.from(m.values());
 };
 
 
@@ -1549,7 +1621,6 @@ const clearSelection = () => {
           <Button
             type="primary"
             text="הזן"
-            onClick={handleSubmit}
              icon="off"
             disabled={!canSubmit || isEditing}
              state={canSubmit && !isEditing ? "default" : "disabled"}
@@ -1888,8 +1959,8 @@ const clearSelection = () => {
   type="primary"
   icon="on"
   state={selectedCustomers ? "default" : "disabled"}
-  disabled={!selectedCustomers}
-/>
+  disabled={!selectedCustomers?.length}
+  />
 
 <Button
   onClick={() => {
@@ -1901,8 +1972,8 @@ const clearSelection = () => {
   type="primary"
   icon="on"
   state={selectedCustomers ? "default" : "disabled"}
-  disabled={!selectedCustomers}
-/>
+  disabled={!selectedCustomers?.length}
+  />
 
 <div dir="rtl" className="flex items-center gap-2 mt-4">
   <div className="flex bg-blue-100 rounded-full p-0.5 text-xs">

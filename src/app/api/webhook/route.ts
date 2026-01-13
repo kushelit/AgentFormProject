@@ -202,8 +202,18 @@ export async function POST(req: NextRequest) {
     // --- קופון (לוגים/אג׳נסי/שימוש) ---
     let agenciesValue: any;
     let couponUsed:
-      | { code: string; discount: number; date: FirebaseFirestore.Timestamp }
-      | undefined;
+    | {
+        code: string;
+        discount: number;
+        // נשאיר גם date לתאימות אחורה (יש אצלך DB עם זה)
+        date?: any;
+        appliedAt: FirebaseFirestore.Timestamp;
+        expiresAt?: FirebaseFirestore.Timestamp;
+        lastNotifiedAt?: FirebaseFirestore.Timestamp;
+        notifyFlags?: { d14?: boolean; d7?: boolean; d3?: boolean; d1?: boolean; expired?: boolean };
+      }
+    | undefined;
+  
 
     if (couponCode) {
       try {
@@ -220,8 +230,32 @@ export async function POST(req: NextRequest) {
           const discount = couponData?.planDiscounts?.[subscriptionType];
           const isActive = couponData?.isActive;
           if (typeof discount === 'number' && isActive) {
-            couponUsed = { code: couponCode, discount, date: admin.firestore.Timestamp.now() };
-          }
+            const nowTs = admin.firestore.Timestamp.now();
+
+            // 👇 durationDays יגיע מהקופון עצמו (תוסיפי שדה כזה למסמך הקופון)
+            const durationDays =
+              typeof couponData?.durationDays === 'number' ? couponData.durationDays : null;
+            
+            let expiresAt: FirebaseFirestore.Timestamp | undefined = undefined;
+            
+            if (durationDays && durationDays > 0) {
+              const nowDate = nowTs.toDate();
+              const expDate = new Date(nowDate);
+              expDate.setDate(expDate.getDate() + durationDays);
+              expiresAt = admin.firestore.Timestamp.fromDate(expDate);
+            }
+            
+            couponUsed = {
+              code: couponCode.trim(),
+              discount,
+              // ✅ תאימות אחורה: date נשמר כמו פעם
+              date: nowTs,
+              // ✅ חדש:
+              appliedAt: nowTs,
+              expiresAt,
+              notifyFlags: {},
+            };
+         }
         }
       } catch (err) {
         // console.error('⚠️ coupon fetch error:', err);

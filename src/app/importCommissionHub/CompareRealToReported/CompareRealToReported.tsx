@@ -59,6 +59,21 @@ const statusOptions = [
 
 const canon = (v?: string | null) => String(v ?? '').trim();
 
+/* ---------- ID (ת"ז) helpers: canonical + variants ---------- */
+const digitsOnly = (v: any) => String(v ?? '').replace(/\D/g, '');
+const stripLeadingZeros = (s: string) => s.replace(/^0+/, '') || '';
+const canonId = (v: any) => stripLeadingZeros(digitsOnly(v));           // "2231578"
+const toPadded9Local = (v: any) => {
+  const c = canonId(v);
+  if (!c) return '';
+  return c.padStart(9, '0');                                            // "022315780"
+};
+const idVariants = (v: any) => {
+  const c = canonId(v);
+  const p = toPadded9Local(v);
+  return Array.from(new Set([c, p].filter(Boolean)));
+};
+
 // ⚙️ נירמול מספר פוליסה – כמו policyNumberKey: בלי רווחים בכלל
 const normPolicy = (v: any) =>
   String(v ?? '')
@@ -88,14 +103,18 @@ const policyKey = (agentId: string, companyCanon: string, policyNumber: string) 
 
 /** קבלת כל בני המשפחה */
 async function getFamilyIds(dbAgentId: string, lockedCustomerId: string): Promise<string[]> {
+  const lockedVariants = idVariants(lockedCustomerId);
+
   const cq = query(
     collection(db, 'customer'),
     where('AgentId', '==', dbAgentId),
-    where('IDCustomer', '==', lockedCustomerId)
+    where('IDCustomer', 'in', lockedVariants as any)
   );
   const cSnap = await getDocs(cq);
   const parent = cSnap.docs[0]?.data()?.parentID;
-  if (!parent) return [lockedCustomerId];
+
+  // אם לא מצאנו parent, נחזיר את כל הווריאנטים כדי שה-IN על מכירות/קובץ יתפוס
+  if (!parent) return Array.from(new Set(lockedVariants));
 
   const familyQ = query(
     collection(db, 'customer'),
@@ -103,9 +122,15 @@ async function getFamilyIds(dbAgentId: string, lockedCustomerId: string): Promis
     where('parentID', '==', parent)
   );
   const fSnap = await getDocs(familyQ);
-  const ids = fSnap.docs.map(d => (d.data() as any).IDCustomer).filter((x): x is string => Boolean(x));
-  return ids.length ? Array.from(new Set(ids)) : [lockedCustomerId];
+
+  const idsRaw = fSnap.docs.map(d => (d.data() as any).IDCustomer).filter((x): x is string => Boolean(x));
+
+  // חשוב: להרחיב ולרפד כדי שנתפוס גם 7/8 ספרות וגם 9 ספרות
+  const idsExpanded = Array.from(new Set(idsRaw.flatMap(idVariants).map(toPadded9Local))).filter(Boolean);
+
+  return idsExpanded.length ? idsExpanded : Array.from(new Set(lockedVariants.map(toPadded9Local))).filter(Boolean);
 }
+
 
 function findSplitAgreementForSale(
   sale: any,
@@ -121,9 +146,10 @@ function findSplitAgreementForSale(
   // מחפשים את הלקוח המתאים
   const customer = customers.find(
     c =>
-      String(c.IDCustomer || '').trim() === cid &&
+      canonId(c.IDCustomer || '') === canonId(cid) &&
       String(c.AgentId || c.agentId || '').trim() === agentId
   );
+  
 
   const sourceUnified = String(customer?.sourceValue || customer?.sourceLead || '').trim();
   if (!sourceUnified) return undefined;
@@ -446,8 +472,10 @@ const canSeeContractsTab = ENABLE_CONTRACTS_COMPARE;
       try {
         // אם נעולים ללקוח – נטען רק אותו / את התא המשפחתי
         if (lockedToCustomer && lockedCustomerId) {
-          const ids = includeFamily ? await getFamilyIds(selectedAgentId, lockedCustomerId) : [lockedCustomerId];
-
+          const ids = includeFamily
+          ? await getFamilyIds(selectedAgentId, lockedCustomerId)
+          : idVariants(lockedCustomerId);
+        
           const chunks: string[][] = [];
           for (let i = 0; i < ids.length; i += 10) chunks.push(ids.slice(i, i + 10));
 
@@ -461,6 +489,24 @@ const canSeeContractsTab = ENABLE_CONTRACTS_COMPARE;
             const snap = await getDocs(qCust);
             snap.docs.forEach(d => out.push(d.data()));
           }
+          
+          /** ✅ fallback שקט: אם לא מצאנו כלום — ננסה גם על פורמט חלופי */
+          if (out.length === 0) {
+            const altIds = Array.from(new Set(ids.flatMap(idVariants).map(toPadded9Local))).filter(Boolean);
+          
+            const altChunks: string[][] = [];
+            for (let i = 0; i < altIds.length; i += 10) altChunks.push(altIds.slice(i, i + 10));
+          
+            for (const chunk of altChunks) {
+              const qCust2 = query(
+                collection(db, 'customer'),
+                where('AgentId', '==', selectedAgentId),
+                where('IDCustomer', 'in', chunk as any)
+              );
+              const snap2 = await getDocs(qCust2);
+              snap2.docs.forEach(d => out.push(d.data()));
+            }
+          }          
           setCustomersForSplit(out);
           return;
         }
@@ -528,10 +574,18 @@ const canSeeContractsTab = ENABLE_CONTRACTS_COMPARE;
     setIsLoading(true);
 
     // family scope (when locked to customer)
-    let scopeCustomerIds: string[] | null = null;
-    if (lockedToCustomer) {
-      scopeCustomerIds = includeFamily ? await getFamilyIds(selectedAgentId, lockedCustomerId) : [lockedCustomerId];
-    }
+  // family scope (when locked to customer)
+let scopeCustomerIds: string[] | null = null;
+if (lockedToCustomer) {
+  const baseIds = includeFamily
+    ? await getFamilyIds(selectedAgentId, lockedCustomerId)
+    : idVariants(lockedCustomerId);
+
+  // מרחיבים + מרפדים ל-9 ספרות (כדי שתמיד נתפוס גם "2231578" וגם "022315780")
+  scopeCustomerIds = Array.from(new Set(baseIds.flatMap(idVariants).map(toPadded9Local)))
+    .filter(Boolean);
+}
+
 
     /* ------- policyCommissionSummaries (צד קובץ) ------- */
     const extBase: any[] = [where('agentId', '==', selectedAgentId), where('reportMonth', '==', reportMonth)];
@@ -566,9 +620,9 @@ const canSeeContractsTab = ENABLE_CONTRACTS_COMPARE;
         const famSet = new Set(scopeCustomerIds);
         sAll.docs.forEach(d => {
           const raw: any = d.data();
-          const cid = String(raw.customerId ?? '').trim();
+          const cid = toPadded9Local(raw.customerId ?? raw.IDCustomer);
           if (!famSet.has(cid)) return;
-
+          
           const comp = canon(raw.company);
           const pol = normPolicy(raw.policyNumberKey ?? raw.policyNumber);
           extRows.push({
@@ -670,10 +724,10 @@ const canSeeContractsTab = ENABLE_CONTRACTS_COMPARE;
         const famSet = new Set(scopeCustomerIds);
         sAll.docs.forEach(d => {
           const raw: any = d.data();
-          const cid = String(raw.customerId ?? raw.IDCustomer ?? '').trim();
+          const cid = toPadded9Local(raw.customerId ?? raw.IDCustomer);
           if (!famSet.has(cid)) return;
           pushSale(raw, d.id);
-        });
+        });        
       }
     } else {
       const qSales = query(collection(db, 'sales'), ...salesBase);
@@ -892,11 +946,12 @@ const canSeeContractsTab = ENABLE_CONTRACTS_COMPARE;
       const sp = String(s.statusPolicy ?? s.status ?? '').trim();
       if (!['פעילה', 'הצעה'].includes(sp)) return;
 
-      if (hasPolicy) return;
       if (ext.customerId) {
-        const cid = String(s.customerId || s.IDCustomer || '').trim();
-        if (cid && ext.customerId && cid !== ext.customerId) return;
+        const cidSale = canonId(s.customerId || s.IDCustomer || '');
+        const cidExt = canonId(ext.customerId || '');
+        if (cidSale && cidExt && cidSale !== cidExt) return;
       }
+      
       const comp = canon(s.company);
       if (comp !== ext.company) return;
 

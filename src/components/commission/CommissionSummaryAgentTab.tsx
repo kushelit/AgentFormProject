@@ -15,6 +15,7 @@ import {
   CartesianGrid,
   Legend,
 } from 'recharts';
+import * as XLSX from 'xlsx';
 
 interface CommissionSummary {
   agentId: string;
@@ -46,6 +47,7 @@ type PerCompanyRow = Record<string, string | number>;
 interface CommissionSummaryApiResponse {
   summaries: CommissionSummary[];
   companyMap: CompanyMap;
+  companyIdByName: Record<string, string>;
   summaryByMonthCompany: Record<string, Record<string, number>>;
   summaryByCompanyAgentMonth: AgentMonthMap;
   allMonths: string[];
@@ -53,6 +55,21 @@ interface CommissionSummaryApiResponse {
   monthlyTotalsData: MonthlyTotalRow[];
   perCompanyOverMonthsData: PerCompanyRow[];
 }
+
+type DrillKey = { companyId: string; agentCode: string; month: string } | null;
+
+type DrillRow = {
+  policyNumberKey: string;
+  customerId: string;
+  fullName?: string;
+  product?: string;
+  totalCommissionAmount: number;
+  totalPremiumAmount: number;
+  commissionRate?: number;
+  validMonth?: string;
+  runId?: string;
+};
+
 
 const CommissionSummaryAgentTab: React.FC = () => {
   const { detail } = useAuth();
@@ -85,11 +102,19 @@ const CommissionSummaryAgentTab: React.FC = () => {
     currentYear.toString()
   );
 
+  const [companyIdByName, setCompanyIdByName] = useState<Record<string,string>>({});
+
+
   const handleToggleExpandCompany = (company: string) => {
     setExpanded((prev) =>
       prev?.company === company ? null : { month: 'ALL', company }
     );
   };
+
+  const [drill, setDrill] = useState<DrillKey>(null);
+  const [drillRows, setDrillRows] = useState<DrillRow[]>([]);
+  const [drillLoading, setDrillLoading] = useState(false);
+
 
   useEffect(() => {
     const fetchSummaries = async () => {
@@ -118,15 +143,15 @@ const CommissionSummaryAgentTab: React.FC = () => {
         });
 
         if (!res.ok) {
-          // console.error('API /api/commission-summary failed', await res.text());
-          // setSummaries([]);
-          // setCompanyMap({});
-          // setSummaryByMonthCompany({});
-          // setSummaryByCompanyAgentMonth({});
-          // setAllMonths([]);
-          // setAllCompanies([]);
-          // setMonthlyTotalsData([]);
-          // setPerCompanyOverMonthsData([]);
+          setSummaries([]);
+  setCompanyMap({});
+  setCompanyIdByName({});
+  setSummaryByMonthCompany({});
+  setSummaryByCompanyAgentMonth({});
+  setAllMonths([]);
+  setAllCompanies([]);
+  setMonthlyTotalsData([]);
+  setPerCompanyOverMonthsData([]);
           return;
         }
 
@@ -134,6 +159,7 @@ const CommissionSummaryAgentTab: React.FC = () => {
 
         setSummaries(data.summaries ?? []);
         setCompanyMap(data.companyMap ?? {});
+        setCompanyIdByName(data.companyIdByName ?? {});
         setSummaryByMonthCompany(data.summaryByMonthCompany ?? {});
         setSummaryByCompanyAgentMonth(data.summaryByCompanyAgentMonth ?? {});
         setAllMonths(data.allMonths ?? []);
@@ -150,6 +176,7 @@ const CommissionSummaryAgentTab: React.FC = () => {
         setAllCompanies([]);
         setMonthlyTotalsData([]);
         setPerCompanyOverMonthsData([]);
+        setCompanyIdByName({});
       } finally {
         setLoading(false);
       }
@@ -184,11 +211,56 @@ const CommissionSummaryAgentTab: React.FC = () => {
     '#a855f7',
   ];
 
+
+  async function openDrill(companyId: string, agentCode: string, month: string) {
+    setDrill({ companyId, agentCode, month });
+    setDrillLoading(true);
+    setDrillRows([]);
+  
+    try {
+      const res = await fetch('/api/commission-summary-drilldown', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          agentId: selectedAgentId,
+          companyId,
+          agentCode,
+          reportMonth: month, // YYYY-MM
+        }),
+      });
+  
+      if (!res.ok) return;
+      const data = await res.json();
+      setDrillRows(data.rows ?? []);
+    } finally {
+      setDrillLoading(false);
+    }
+  }
+  
+
+  const exportDrillToExcel = () => {
+    if (!drill || drillRows.length === 0) return;
+  
+    const rowsForExcel = drillRows.map((r) => ({
+      'פוליסה': r.policyNumberKey,
+      'לקוח': r.fullName ?? r.customerId,
+      'מוצר': r.product ?? '',
+      'פרמיה': r.totalPremiumAmount,
+      'עמלה': r.totalCommissionAmount,
+      '% עמלה': r.commissionRate,
+    }));
+  
+    const ws = XLSX.utils.json_to_sheet(rowsForExcel);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'פירוט פוליסות');
+  
+    const fileName = `פירוט_פוליסות_${drill.agentCode}_${drill.month}.xlsx`;
+    XLSX.writeFile(wb, fileName);
+  };
+  
   return (
     <div className="p-4 max-w-6xl mx-auto text-right" dir="rtl">
       <h2 className="text-xl font-bold mb-4">סיכום עמלות לפי חודש וחברה</h2>
-
-      {/* פילטרים: סוכן + שנה */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4 items-end">
         <div className="md:col-span-2">
           <label className="block font-semibold mb-1">בחר סוכן:</label>
@@ -205,7 +277,6 @@ const CommissionSummaryAgentTab: React.FC = () => {
             ))}
           </select>
         </div>
-
         <div>
           <label className="block font-semibold mb-1">בחר שנה:</label>
           <select
@@ -224,7 +295,6 @@ const CommissionSummaryAgentTab: React.FC = () => {
           </select>
         </div>
       </div>
-
       {loading ? (
         <Spinner />
       ) : (
@@ -272,7 +342,8 @@ const CommissionSummaryAgentTab: React.FC = () => {
                 <tr key={month}>
 <td className="border px-3 py-1 font-semibold min-w-[90px] whitespace-nowrap">
           {month}
-        </td>     {allCompanies.map((company) => (
+        </td>    
+         {allCompanies.map((company) => (
                     <td
                       key={company}
                       className="border px-2 py-1 cursor-pointer hover:bg-gray-100"
@@ -291,7 +362,6 @@ const CommissionSummaryAgentTab: React.FC = () => {
           </tbody>
         </table>
       )}
-
       {selectedCompany && (
         <div className="mt-10">
           <h3 className="text-xl font-semibold mb-2">
@@ -328,7 +398,6 @@ const CommissionSummaryAgentTab: React.FC = () => {
               אפשר לגרור עם העכבר או להשתמש בחיצים לגלילה אופקית
             </span>
           </div>
-
           <div
             ref={drillScrollerRef}
             className="overflow-x-auto border rounded"
@@ -381,11 +450,18 @@ const CommissionSummaryAgentTab: React.FC = () => {
                         )
                           .sort()
                           .map((agentCode) => (
-                            <td key={agentCode} className="border px-2 py-1">
-                              {summaryByCompanyAgentMonth[selectedCompany]?.[
-                                agentCode
-                              ]?.[month]?.toLocaleString() ?? '-'}
-                            </td>
+                            <td
+                            key={agentCode}
+                            className="border px-2 py-1 cursor-pointer hover:bg-gray-100"
+                            onClick={() => {
+                              const companyId = companyIdByName[selectedCompany];
+                              if (!companyId) return; 
+                              openDrill(companyId, agentCode, month);
+                            }}
+         title="לחץ לפירוט פוליסות"
+                          >
+                            {summaryByCompanyAgentMonth[selectedCompany]?.[agentCode]?.[month]?.toLocaleString() ?? '-'}
+                          </td>                          
                           ))}
                         <td className="border px-2 py-1 font-bold bg-gray-100">
                           {rowTotal.toLocaleString()}
@@ -398,7 +474,6 @@ const CommissionSummaryAgentTab: React.FC = () => {
           </div>
         </div>
       )}
-
       {!loading && allMonths.length > 0 && (
         <div className="mt-10 space-y-10">
           <section>
@@ -440,7 +515,6 @@ const CommissionSummaryAgentTab: React.FC = () => {
               </ResponsiveContainer>
             </div>
           </section>
-
           <section>
             <h3 className="text-xl font-semibold mb-3">
               גרף נפרעים לפי חברה (התפתחות חודשית)
@@ -485,8 +559,74 @@ const CommissionSummaryAgentTab: React.FC = () => {
           </section>
         </div>
       )}
+      {drill && (
+  <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center" dir="rtl">
+    <div className="bg-white w-[min(1100px,95vw)] max-h-[85vh] overflow-auto rounded-xl p-4">
+    <div className="flex items-center justify-between mb-3">
+  <div className="font-bold">
+    פירוט פוליסות | חודש {drill.month} | מספר סוכן {drill.agentCode}
+  </div>
+
+  <div className="flex items-center gap-2">
+    {/* ייצוא לאקסל */}
+    <button
+      type="button"
+      onClick={exportDrillToExcel}
+      title="ייצוא לאקסל"
+      className={`p-1 rounded hover:bg-gray-100 ${
+        drillRows.length ? '' : 'opacity-50 cursor-not-allowed'
+      }`}
+      disabled={!drillRows.length}
+    >
+      <img
+        src="/static/img/excel-icon.svg"
+        alt="ייצוא לאקסל"
+        width={24}
+        height={24}
+      />
+    </button>
+
+    {/* סגירה */}
+    <button
+      className="px-3 py-1 border rounded"
+      onClick={() => setDrill(null)}
+    >
+      סגור
+    </button>
+  </div>
+</div>
+      {drillLoading ? (
+        <Spinner />
+      ) : (
+        <table className="w-full text-sm border">
+          <thead className="bg-gray-100">
+            <tr>
+              <th className="border px-2 py-1">פוליסה</th>
+              <th className="border px-2 py-1">לקוח</th>
+              <th className="border px-2 py-1">מוצר</th>
+              <th className="border px-2 py-1">פרמיה</th>
+              <th className="border px-2 py-1">עמלה</th>
+              <th className="border px-2 py-1">% עמלה</th>
+            </tr>
+          </thead>
+          <tbody>
+            {drillRows.map((r) => (
+              <tr key={`${r.policyNumberKey}_${r.customerId}`}>
+                <td className="border px-2 py-1">{r.policyNumberKey}</td>
+                <td className="border px-2 py-1">{r.fullName ?? r.customerId}</td>
+                <td className="border px-2 py-1">{r.product ?? '-'}</td>
+                <td className="border px-2 py-1">{Number(r.totalPremiumAmount ?? 0).toLocaleString()}</td>
+                <td className="border px-2 py-1 font-semibold">{Number(r.totalCommissionAmount ?? 0).toLocaleString()}</td>
+                <td className="border px-2 py-1">{Number(r.commissionRate ?? 0).toLocaleString()}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  </div>
+)}
     </div>
   );
 };
-
 export default CommissionSummaryAgentTab;

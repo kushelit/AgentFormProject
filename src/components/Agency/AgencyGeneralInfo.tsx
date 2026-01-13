@@ -33,7 +33,7 @@ const AgencyGeneralInfo: React.FC<AgencyGeneralInfoProps> = ({ agencyId }) => {
           setAgency({ name: "" });
         }
       } catch (e) {
-        console.error("Failed to load agency info", e);
+        // console.error("Failed to load agency info", e);
       } finally {
         setLoading(false);
       }
@@ -59,7 +59,7 @@ const AgencyGeneralInfo: React.FC<AgencyGeneralInfoProps> = ({ agencyId }) => {
         { merge: true }
       );
     } catch (e) {
-      console.error("Failed to save agency info", e);
+      // console.error("Failed to save agency info", e);
     } finally {
       setSaving(false);
     }

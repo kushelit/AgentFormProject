@@ -25,6 +25,16 @@ import ProfitByLeadSourceStackedGraph from '@/components/ProfitByLeadSourceStack
 
 type ViewMode = 'agent' | 'agencyMargin';
 
+
+type GraphKey =
+  | 'newCustomers'
+  | 'commissionPerMonth'
+  | 'companyCommissionPie'
+  | 'profitByLeadSource'
+  | 'nifraimYoY'
+  | 'hekefYoY';
+
+
 const NewSummaryTable = () => {
   const { user, detail } = useAuth();
   const {
@@ -44,9 +54,8 @@ const NewSummaryTable = () => {
 
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
 
-  const [selectedGraph, setSelectedGraph] = useState<
-    'newCustomers' | 'commissionPerMonth' | 'companyCommissionPie' | 'profitByLeadSource' | 'nifraimYoY' | 'hekefYoY'
-  >('newCustomers');
+const [selectedGraph, setSelectedGraph] = useState<GraphKey>('newCustomers');
+
 
   const isNewDesignEnabled = useDesignFlag();
 
@@ -156,7 +165,7 @@ const NewSummaryTable = () => {
   });
   
   const { labels: yoyLabels, series: yoySeries, loading: yoyLoading } = useNifraimYoYData({
-    selectedAgentId,
+    selectedAgentId: selectedAgentId || '',
     selectedWorkerIdFilter,
     selectedCompany,
     selectedProduct,
@@ -166,6 +175,7 @@ const NewSummaryTable = () => {
     viewMode,
     agencyId: detail?.agencyId,
   });
+  
   
   const { labels: hekefLabels, series: hekefSeries, loading: hekefLoading } = useHekefYoYData({
     selectedAgentId,
@@ -470,11 +480,7 @@ const NewSummaryTable = () => {
               <div className="graf-Type">
                 <select
                   value={selectedGraph}
-                  onChange={(e) =>
-                    setSelectedGraph(
-                      e.target.value as 'newCustomers' | 'commissionPerMonth' | 'companyCommissionPie'
-                    )
-                  }
+                  onChange={(e) => setSelectedGraph(e.target.value as GraphKey)}
                 >
                   <option value="newCustomers">לקוחות חדשים</option>
                   {canViewCommissions && <option value="commissionPerMonth">ממוצע נפרעים ללקוח</option>}

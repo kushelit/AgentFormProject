@@ -42,6 +42,11 @@ interface CommissionImportRun {
   externalCount?: number;
   commissionSummariesCount?: number;
   policySummariesCount?: number;
+  reportMonths?: string[];
+  minReportMonth?: string;
+  maxReportMonth?: string;
+  reportMonthsCount?: number;
+
 }
 
 export default function CommissionPurgeAdminPage() {
@@ -292,10 +297,15 @@ export default function CommissionPurgeAdminPage() {
         company: docData.company || '',
         templateName: docData.templateName || '',
         reportMonth: docData.reportMonth,
+        reportMonths: docData.reportMonths,
+        minReportMonth: docData.minReportMonth,
+        maxReportMonth: docData.maxReportMonth,
+        reportMonthsCount: docData.reportMonthsCount,
         externalCount: docData.externalCount,
         commissionSummariesCount: docData.commissionSummariesCount,
         policySummariesCount: docData.policySummariesCount,
       };
+      
     });
 
     data.sort((a, b) => {
@@ -402,159 +412,8 @@ export default function CommissionPurgeAdminPage() {
     <AdminGuard>
       <div className="p-6 max-w-4xl mx-auto text-right" dir="rtl">
         <h1 className="text-2xl font-bold mb-2">ניהול מחיקות קבצי עמלות</h1>
-        <p className="text-gray-600 mb-6">
-          מחיקה גורפת של טעינות עמלות לפי סוכן (חובה) ולפי חברה / חודש תוקף / תבנית (אופציונלי).
-          המחיקה תתבצע משלושה אוספים: <code>externalCommissions</code>,{' '}
-          <code>commissionSummaries</code>, <code>policyCommissionSummaries</code>.
-        </p>
-
-        {/* ===== חלק עליון: מחיקה לפי סינון ===== */}
-
-        {/* סוכן */}
-        <div className="mb-4">
-          <label className="block font-semibold mb-1">בחר סוכן (חובה):</label>
-          <select value={selectedAgentId} onChange={handleAgentChange} className="select-input w-full">
-            <option value="">בחר סוכן</option>
-            {agents.map((a) => (
-              <option key={a.id} value={a.id}>
-                {a.name}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {/* חברה */}
-        <div className="mb-4">
-          <label className="block font-semibold mb-1">חברה (אופציונלי):</label>
-          <select
-            value={companyId}
-            onChange={(e) => {
-              setCompanyId(e.target.value);
-              setTemplateId('');
-            }}
-            className="select-input w-full"
-          >
-            <option value="">כל החברות</option>
-            {uniqueCompanies.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {/* תבנית */}
-        <div className="mb-4">
-          <label className="block font-semibold mb-1">תבנית (אופציונלי):</label>
-          <select
-            value={templateId}
-            onChange={(e) => setTemplateId(e.target.value)}
-            className="select-input w-full"
-          >
-            <option value="">כל התבניות</option>
-            {filteredTemplates.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.Name || t.type || t.id}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {/* חודש תוקף */}
-        <div className="mb-6">
-          <label className="block font-semibold mb-1">חודש תוקף (אופציונלי):</label>
-          <input
-            type="month"
-            value={validMonth}
-            onChange={(e) => setValidMonth(e.target.value)}
-            className="select-input w-full"
-          />
-          <div className="text-xs text-gray-500 mt-1">
-            אם נבחר חודש תוקף, המחיקה תתבסס על <code>validMonth</code>,  
-            ובסיכומים תימחקנה הרשומות רק לחודשי <strong>reportMonth</strong> הנגזרים משם.
-          </div>
-        </div>
-
-        {/* פעולות */}
-        <div className="flex gap-2 items-center">
-          <Button
-            text={scanRunning ? 'סורק...' : 'סריקה מקדימה'}
-            type="secondary"
-            onClick={handleScan}
-            disabled={!selectedAgentId || scanRunning || deleteRunning}
-          />
-          <input
-            placeholder='הקלד/י "DELETE" לאישור'
-            value={confirmText}
-            onChange={(e) => setConfirmText(e.target.value)}
-            className="border px-3 py-2 rounded text-sm"
-            style={{ direction: 'ltr' }}
-          />
-          <Button
-            text={deleteRunning ? 'מוחק...' : 'מחק כעת'}
-            type="danger"
-            onClick={handleDelete}
-            disabled={!selectedAgentId || deleteRunning || scanRunning || confirmText !== 'DELETE'}
-          />
-        </div>
-
-        {/* תוצאות סריקה */}
-        {scan && (
-          <div className="mt-6 border rounded p-4 bg-gray-50">
-            <h3 className="font-semibold mb-2">תוצאות סריקה</h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
-              <div className="p-3 bg-white rounded border">
-                <div className="text-gray-500">externalCommissions</div>
-                <div className="text-xl font-bold">{scan.externalCount.toLocaleString()}</div>
-              </div>
-              <div className="p-3 bg-white rounded border">
-                <div className="text-gray-500">commissionSummaries</div>
-                <div className="text-xl font-bold">
-                  {scan.commissionSummariesCount.toLocaleString()}
-                </div>
-              </div>
-              <div className="p-3 bg-white rounded border">
-                <div className="text-gray-500">policyCommissionSummaries</div>
-                <div className="text-xl font-bold">
-                  {scan.policySummariesCount.toLocaleString()}
-                </div>
-              </div>
-            </div>
-            {scan.monthsFound.length > 0 && (
-              <div className="mt-3 text-xs text-gray-600">
-                חודשי reportMonth שנמצאו: {scan.monthsFound.join(', ')}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Dialog כללי */}
-        {dialog && (
-          <DialogNotification
-            type={dialog.type}
-            title={dialog.title}
-            message={dialog.message ?? ''}
-            onConfirm={() => setDialog(null)}
-            onCancel={() => setDialog(null)}
-            hideCancel
-          />
-        )}
-
-        <div className="mt-8 text-sm text-gray-500">
-          טיפ: להשמדת כלל הנתונים לסוכן — השאר את שדות החברה/תבנית/חודש ריקים,  
-          בצע סריקה מקדימה ואשר מחיקה. 🧨
-        </div>
-
-        <div className="mt-4 text-sm">
-          <Link href="/Help/commission-import" className="underline text-blue-600" target="_blank">
-            מדריך טעינות עמלות
-          </Link>
-        </div>
-
         {/* ===== חלק תחתון: ניהול ריצות טעינה לפי מספר טעינה / טוען ===== */}
         <div className="mt-10 border-t pt-6">
-          <h2 className="text-xl font-bold mb-4">ריצות טעינת עמלות</h2>
-
           {/* פילטרים */}
           <div className="flex flex-col md:flex-row gap-3 mb-4 text-sm">
             <div className="flex-1">
@@ -610,7 +469,7 @@ export default function CommissionPurgeAdminPage() {
                   <th>סוכן</th>
                   <th>חברה</th>
                   <th>תבנית</th>
-                  <th>חודש דיווח</th>
+                  <th className="p-2" style={{ minWidth: 220 }}>חודש דיווח</th>
                   <th>יוזר מייבא</th>
                   <th>שורות קובץ</th>
                   <th>סיכומי עמלות</th>
@@ -630,7 +489,16 @@ export default function CommissionPurgeAdminPage() {
                     <td>{run.agentName}</td>
                     <td>{run.company}</td>
                     <td>{run.templateName}</td>
-                    <td>{run.reportMonth || '-'}</td>
+                    <td style={{ minWidth: 220 }}>
+  {run.minReportMonth && run.maxReportMonth ? (
+    <span>
+      {run.minReportMonth} עד {run.maxReportMonth}
+      {typeof run.reportMonthsCount === 'number' ? ` (${run.reportMonthsCount} חודשים)` : ''}
+    </span>
+  ) : (
+    run.reportMonth || '-'
+  )}
+</td>
                     <td>{run.createdBy}</td>
                     <td>{run.externalCount ?? '-'}</td>
                     <td>{run.commissionSummariesCount ?? '-'}</td>
@@ -666,6 +534,23 @@ export default function CommissionPurgeAdminPage() {
                     <li>סיכומי עמלות: {selectedRun.commissionSummariesCount ?? 0}</li>
                     <li>סיכומי פוליסות: {selectedRun.policySummariesCount ?? 0}</li>
                   </ul>
+                  {(() => {
+          const total =
+            (selectedRun.externalCount ?? 0) +
+            (selectedRun.commissionSummariesCount ?? 0) +
+            (selectedRun.policySummariesCount ?? 0);
+
+          return (
+            <div className="mt-3 text-sm">
+              <div>
+                <strong>צפוי להימחק:</strong> {total.toLocaleString()} רשומות
+              </div>
+              <div className="text-gray-600">
+                מחיקה גדולה יכולה לקחת זמן.
+              </div>
+            </div>
+          );
+        })()}
                   <p className="text-red-600 mt-3 text-sm">
                     פעולה זו תמחק לצמיתות את כל הרשומות שנוצרו בטעינה זו (כולל תקצירי עמלות ופוליסות).
                   </p>

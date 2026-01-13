@@ -4,6 +4,20 @@ import axios from 'axios';
 import { GROW_ENDPOINTS } from '@/lib/growApi';
 import { GROW_USER_ID } from '@/lib/env';
 
+
+
+type CouponHistoryItem = {
+  code: string;
+  discount?: number;
+  planId?: string;         // באיזו תוכנית זה היה
+  appliedAt?: any;         // Timestamp
+  expiresAt?: any;         // Timestamp (אם יש)
+  removedAt?: any;         // Timestamp (מתי הפסיק להיות פעיל)
+  reason?: 'plan-change' | 'manual' | 'expired' | 'removed';
+  source?: 'webhook' | 'manual-upgrade' | 'admin';
+};
+
+
 export async function POST(req: NextRequest) {
   try {
     const {
@@ -50,29 +64,48 @@ export async function POST(req: NextRequest) {
 
     let totalPrice = basePrice + leadsPrice + extraWorkersPrice;
     let appliedDiscount = 0;
-    let appliedCouponId: string | null = null;
+    let appliedCouponCode: string | null = null;
+    
+    let couponAppliedAt: Date | null = null;
+    let couponExpiresAt: Date | null = null;
+    
 
     let agenciesValue: any = undefined;
 
     // ✅ בדיקת קופון אם קיים
-    if (couponCode) {
-      const couponSnap = await db.collection('coupons').doc(couponCode.trim()).get();
-      if (couponSnap.exists) {
-        const couponData = couponSnap.data();
-        const planDiscount = couponData?.planDiscounts?.[newPlanId];
-        const isActive = couponData?.isActive;
+  // ✅ בדיקת קופון אם קיים
+if (couponCode) {
+  const codeTrim = couponCode.trim();
 
-        if (typeof couponData?.agencies !== 'undefined') {
-          agenciesValue = couponData.agencies;
-        }
+  const couponSnap = await db.collection('coupons').doc(codeTrim).get();
+  if (couponSnap.exists) {
+    const couponData = couponSnap.data();
+    const planDiscount = couponData?.planDiscounts?.[newPlanId];
+    const isActive = couponData?.isActive;
 
-        if (typeof planDiscount === 'number' && isActive) {
-          appliedDiscount = planDiscount;
-          totalPrice -= totalPrice * (planDiscount / 100);
-          appliedCouponId = couponSnap.id;
-        }
+    if (typeof couponData?.agencies !== 'undefined') {
+      agenciesValue = couponData.agencies;
+    }
+
+    if (typeof planDiscount === 'number' && isActive) {
+      appliedDiscount = planDiscount;
+      appliedCouponCode = codeTrim;
+
+      totalPrice -= totalPrice * (planDiscount / 100);
+
+      // חדש
+      couponAppliedAt = new Date();
+
+      const durationDays = Number(couponData?.durationDays ?? 0); // 👈 שדה חדש במסמך קופון
+      if (durationDays > 0) {
+        const exp = new Date(couponAppliedAt);
+        exp.setDate(exp.getDate() + durationDays);
+        couponExpiresAt = exp;
       }
     }
+  }
+}
+
 
     if (totalPrice <= 0) totalPrice = 1;
 
@@ -90,9 +123,8 @@ export async function POST(req: NextRequest) {
     formData.append('sum', totalPrice.toString());
     formData.append('cField3', JSON.stringify(addOns || {}));
     formData.append('cField4', 'manual-upgrade');
-    if (couponCode) {
-      formData.append('cField5', couponCode); 
-    }
+    if (appliedCouponCode) formData.append('cField5', appliedCouponCode);
+
     
     const { data } = await axios.post(
       GROW_ENDPOINTS.updateDirectDebit,
@@ -104,25 +136,65 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Grow update failed', details: data }, { status: 502 });
     }
 
+    const prevCoupon = userData?.couponUsed || null;
+    const prevCode = prevCoupon?.code || null;
+    const nextCode = appliedCouponCode || null;
+    
     const updateData: any = {
       subscriptionType: newPlanId,
       futureChargeAmount: totalPrice,
       lastPlanChangeDate: new Date(),
       ...(addOns ? { addOns } : {}),
     };
-
-    if (appliedCouponId) {
-      updateData.couponUsed = {
-        code: appliedCouponId,
-        discount: appliedDiscount,
-        date: new Date(),
-      };
+    
+    // ✅ היסטוריה רק אם הקופון השתנה או הוסר
+    const couponChanged = !!prevCode && prevCode !== nextCode;
+    const couponRemoved = !!prevCode && !nextCode;
+    
+    if (couponChanged || couponRemoved) {
+      updateData.couponHistory = admin.firestore.FieldValue.arrayUnion({
+        code: prevCoupon.code,
+        discount: prevCoupon.discount,
+        planId: userData?.subscriptionType || null,
+        appliedAt: prevCoupon.appliedAt || prevCoupon.date || null,
+        expiresAt: prevCoupon.expiresAt || null,
+        removedAt: admin.firestore.Timestamp.now(),
+        reason: 'plan-change',
+        source: 'manual-upgrade',
+      });
     }
-
+    
+    // ✅ תמיד לפי התוצאה הנוכחית: אם יש קופון תקין -> לשמור, אחרת למחוק
+    if (appliedCouponCode) {
+      updateData.usedCouponCode = appliedCouponCode;
+    
+      updateData.couponUsed = {
+        code: appliedCouponCode,
+        discount: appliedDiscount,
+    
+        // תאימות אחורה
+        date: new Date().toISOString(),
+    
+        appliedAt: admin.firestore.Timestamp.fromDate(couponAppliedAt || new Date()),
+        ...(couponExpiresAt
+          ? { expiresAt: admin.firestore.Timestamp.fromDate(couponExpiresAt) }
+          : {}),
+    
+        lastNotifiedAt: admin.firestore.FieldValue.delete(),
+        notifyFlags: admin.firestore.FieldValue.delete(),
+      };
+    } else {
+      updateData.usedCouponCode = admin.firestore.FieldValue.delete();
+      updateData.couponUsed = admin.firestore.FieldValue.delete();
+    }
+    
+    // (כרגע לא נוגעים ב-agencies אם אין קופון חדש — לפי החלטתך)
     if (typeof agenciesValue !== 'undefined') {
       updateData.agencies = agenciesValue;
     }
+    
     await userDocRef.update(updateData);
+    
 
     return NextResponse.json({ success: true });
   } catch (err: any) {

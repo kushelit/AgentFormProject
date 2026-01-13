@@ -40,8 +40,20 @@ type SubscriptionRow = {
   refundDate?: string;
 
   usedCouponCode?: string;
-  couponUsed?: { code: string; discount: number; date?: any } | null;
-  agencies?: any;
+
+  couponUsed?: {
+    code: string;
+    discount: number;
+    // ישן - קיים אצלך היום
+    date?: any;
+    // חדש - נכניס מעכשיו
+    appliedAt?: any;
+    expiresAt?: any;
+    lastNotifiedAt?: any;
+    notifyFlags?: { d14?: boolean; d7?: boolean; d3?: boolean; d1?: boolean; expired?: boolean };
+  } | null;
+  
+    agencies?: any;
 
   transactionId?: string;
   transactionToken?: string;
@@ -51,6 +63,20 @@ type SubscriptionRow = {
 
 type FilterActive = 'all' | 'active' | 'inactive';
 type FilterSubStatus = 'all' | 'ok' | 'failed' | 'canceled';
+
+
+type FilterGrow = 'all' | 'missing';
+type FilterCoupon = 'all' | 'with';
+
+type KpiKey =
+  | 'total'
+  | 'active'
+  | 'inactive'
+  | 'failed'
+  | 'canceled'
+  | 'missingGrow'
+  | 'withCoupon';
+
 
 export default function SubscriptionsAdminPage() {
   const [subscriptions, setSubscriptions] = useState<SubscriptionRow[]>([]);
@@ -71,6 +97,13 @@ const [couponEmailTarget, setCouponEmailTarget] = useState<SubscriptionRow | nul
 const [couponEmailSubject, setCouponEmailSubject] = useState('');
 const [couponEmailBody, setCouponEmailBody] = useState('');
 const [couponEmailSending, setCouponEmailSending] = useState(false);
+
+
+
+
+const [filterGrow, setFilterGrow] = useState<FilterGrow>('all');
+const [filterCoupon, setFilterCoupon] = useState<FilterCoupon>('all');
+
 
   useEffect(() => {
     let cancelled = false;
@@ -148,12 +181,12 @@ const [couponEmailSending, setCouponEmailSending] = useState(false);
   };
 
   const filteredSubscriptions = useMemo(() => {
-    return subscriptions.filter(sub => {
-      // סינון פעיל / לא פעיל
+    return subscriptions.filter((sub) => {
+      // 1) סינון פעיל / לא פעיל
       if (filterActive === 'active' && !sub.isActive) return false;
       if (filterActive === 'inactive' && sub.isActive) return false;
-
-      // סינון סטטוס מנוי
+  
+      // 2) סינון סטטוס מנוי
       if (filterSubStatus === 'ok') {
         if (!['active', ''].includes(sub.subscriptionStatus)) return false;
       }
@@ -163,11 +196,23 @@ const [couponEmailSending, setCouponEmailSending] = useState(false);
       if (filterSubStatus === 'canceled') {
         if (sub.subscriptionStatus !== 'canceled') return false;
       }
-
-      // סינון תוכנית
+  
+      // 3) סינון תוכנית
       if (filterPlan !== 'all' && sub.subscriptionType !== filterPlan) return false;
-
-      // חיפוש
+  
+      // 4) ✅ סינון Grow
+      if (filterGrow === 'missing') {
+        const hasGrow = Boolean(sub.transactionToken && sub.transactionId && sub.asmachta);
+        if (hasGrow) return false;
+      }
+  
+      // 5) ✅ סינון קופון
+      if (filterCoupon === 'with') {
+        const hasCoupon = Boolean(sub.usedCouponCode || sub.couponUsed?.code);
+        if (!hasCoupon) return false;
+      }
+  
+      // 6) חיפוש
       if (search.trim()) {
         const s = search.trim().toLowerCase();
         const haystack = [
@@ -180,20 +225,32 @@ const [couponEmailSending, setCouponEmailSending] = useState(false);
           .filter(Boolean)
           .join(' ')
           .toLowerCase();
+  
         if (!haystack.includes(s)) return false;
       }
-
+  
       return true;
     });
-  }, [subscriptions, filterActive, filterSubStatus, filterPlan, search]);
+  }, [
+    subscriptions,
+    filterActive,
+    filterSubStatus,
+    filterPlan,
+    filterGrow,
+    filterCoupon,
+    search,
+  ]);
+  
 
-  if (loading) {
-    return (
-      <AdminGuard>
-        <div className="p-6 text-center">⏳ טוען מנויים...</div>
-      </AdminGuard>
-    );
-  }
+
+
+  const hasGrow = (sub: SubscriptionRow) =>
+    Boolean(sub.transactionToken && sub.transactionId && sub.asmachta);
+  
+  const hasCoupon = (sub: SubscriptionRow) =>
+    Boolean(sub.usedCouponCode || sub.couponUsed?.code);
+  
+
 
 
   const openCouponEmailModal = (sub: SubscriptionRow) => {
@@ -279,11 +336,239 @@ const [couponEmailSending, setCouponEmailSending] = useState(false);
     }
   };
   
+  const kpi = useMemo(() => {
+    const total = filteredSubscriptions.length;
+  
+    const active = filteredSubscriptions.filter(s => s.isActive).length;
+    const inactive = total - active;
+  
+    const failed = filteredSubscriptions.filter(s => s.lastPaymentStatus === 'failed').length;
+    const canceled = filteredSubscriptions.filter(s => s.subscriptionStatus === 'canceled').length;
+  
+    const missingGrow = filteredSubscriptions.filter(s => !hasGrow(s)).length;
+    const withCoupon = filteredSubscriptions.filter(s => hasCoupon(s)).length;
+  
+    return {
+      total,
+      active,
+      inactive,
+      failed,
+      canceled,
+      missingGrow,
+      withCoupon,
+    };
+  }, [filteredSubscriptions]);
+  
+
+
+
+const isTotalSelected =
+  filterActive === 'all' &&
+  filterSubStatus === 'all' &&
+  filterPlan === 'all' &&
+  !search.trim() &&
+  filterGrow === 'all' &&
+  filterCoupon === 'all';
+
+  const isActiveSelected = filterActive === 'active' && filterSubStatus === 'all';
+  const isInactiveSelected = filterActive === 'inactive' && filterSubStatus === 'all';  
+const isFailedSelected = filterSubStatus === 'failed';
+const isCanceledSelected = filterSubStatus === 'canceled';
+const isMissingGrowSelected = filterGrow === 'missing';
+const isWithCouponSelected = filterCoupon === 'with';
+
+const resetFilters = () => {
+  setFilterActive('all');
+  setFilterSubStatus('all');
+  setFilterPlan('all');
+  setSearch('');
+  setFilterGrow('all');
+  setFilterCoupon('all');
+};
+
+const applyKpi = (key: KpiKey) => {
+  // ✅ טוגל: אם כבר נבחר — איפוס
+  const alreadySelected =
+    (key === 'total' && isTotalSelected) ||
+    (key === 'active' && isActiveSelected) ||
+    (key === 'inactive' && isInactiveSelected) ||
+    (key === 'failed' && isFailedSelected) ||
+    (key === 'canceled' && isCanceledSelected) ||
+    (key === 'missingGrow' && isMissingGrowSelected) ||
+    (key === 'withCoupon' && isWithCouponSelected);
+
+  if (alreadySelected) {
+    resetFilters();
+    return;
+  }
+
+  // ברירת מחדל: לא לגעת בחיפוש, אבל לאפס את הפילטרים ה"מיוחדים"
+  setFilterGrow('all');
+  setFilterCoupon('all');
+
+  switch (key) {
+    case 'total':
+      resetFilters();
+      return;
+
+    case 'active':
+      setFilterActive('active');
+      setFilterSubStatus('all');
+      return;
+
+    case 'inactive':
+      setFilterActive('inactive');
+      setFilterSubStatus('all');
+      return;
+
+    case 'failed':
+      setFilterSubStatus('failed');
+      return;
+
+    case 'canceled':
+      setFilterSubStatus('canceled');
+      return;
+
+    case 'missingGrow':
+      setFilterGrow('missing');
+      return;
+
+    case 'withCoupon':
+      setFilterCoupon('with');
+      return;
+  }
+};
+
+const formatDateOnly = (value: any) => {
+  if (!value) return '';
+
+  // Firestore Timestamp
+  if (typeof value === 'object' && typeof value.toDate === 'function') {
+    return value.toDate().toLocaleDateString('he-IL');
+  }
+
+  // Date
+  if (value instanceof Date) {
+    return value.toLocaleDateString('he-IL');
+  }
+
+  // ISO string / any string
+  if (typeof value === 'string') {
+    // אם זה פורמט ישן "date,time" – נשמור את ההתנהגות שלך
+    if (value.includes(',')) return value.split(',')[0];
+
+    const d = new Date(value);
+    if (!isNaN(d.getTime())) return d.toLocaleDateString('he-IL');
+
+    return value; // fallback
+  }
+
+  // number timestamp
+  if (typeof value === 'number') {
+    const d = new Date(value);
+    if (!isNaN(d.getTime())) return d.toLocaleDateString('he-IL');
+  }
+
+  return '';
+};
+
+const getDaysLeft = (expiresAt: any) => {
+  if (!expiresAt) return null;
+
+  const exp =
+    typeof expiresAt === 'object' && typeof expiresAt.toDate === 'function'
+      ? expiresAt.toDate()
+      : expiresAt instanceof Date
+      ? expiresAt
+      : new Date(expiresAt);
+
+  if (isNaN(exp.getTime())) return null;
+
+  const diffMs = exp.getTime() - Date.now();
+  return Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+};
+
+
+
+  if (loading) {
+    return (
+      <AdminGuard>
+        <div className="p-6 text-center">⏳ טוען מנויים...</div>
+      </AdminGuard>
+    );
+  }
+
+
+
   return (
     <AdminGuard>
       <div className="p-6">
         <h1 className="text-2xl font-bold mb-4">ניהול מנויים</h1>
+{/* KPI */}
+<div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-7 gap-3 mb-5">
+  <button
+    type="button"
+    onClick={() => applyKpi('total')}
+    className={`border rounded-lg p-3 bg-white text-right hover:shadow transition ${isTotalSelected ? 'ring-2 ring-blue-500' : ''}`}
+  >
+    <div className="text-xs text-gray-500">סה״כ (בסינון)</div>
+    <div className="text-2xl font-bold">{kpi.total}</div>
+  </button>
 
+  <button
+    type="button"
+    onClick={() => applyKpi('active')}
+    className={`border rounded-lg p-3 bg-white text-right hover:shadow transition ${isActiveSelected ? 'ring-2 ring-blue-500' : ''}`}
+  >
+    <div className="text-xs text-gray-500">פעילים</div>
+    <div className="text-2xl font-bold">{kpi.active}</div>
+  </button>
+
+  <button
+    type="button"
+    onClick={() => applyKpi('inactive')}
+    className={`border rounded-lg p-3 bg-white text-right hover:shadow transition ${isInactiveSelected ? 'ring-2 ring-blue-500' : ''}`}
+  >
+    <div className="text-xs text-gray-500">לא פעילים</div>
+    <div className="text-2xl font-bold">{kpi.inactive}</div>
+  </button>
+
+  <button
+    type="button"
+    onClick={() => applyKpi('failed')}
+    className={`border rounded-lg p-3 bg-white text-right hover:shadow transition ${isFailedSelected ? 'ring-2 ring-blue-500' : ''}`}
+  >
+    <div className="text-xs text-gray-500">כשלי חיוב</div>
+    <div className="text-2xl font-bold">{kpi.failed}</div>
+  </button>
+
+  <button
+    type="button"
+    onClick={() => applyKpi('canceled')}
+    className={`border rounded-lg p-3 bg-white text-right hover:shadow transition ${isCanceledSelected ? 'ring-2 ring-blue-500' : ''}`}
+  >
+    <div className="text-xs text-gray-500">מבוטלים</div>
+    <div className="text-2xl font-bold">{kpi.canceled}</div>
+  </button>
+
+  <button
+    type="button"
+    onClick={() => applyKpi('missingGrow')}
+    className={`border rounded-lg p-3 bg-white text-right hover:shadow transition ${isMissingGrowSelected ? 'ring-2 ring-blue-500' : ''}`}
+  >
+    <div className="text-xs text-gray-500">בלי Grow</div>
+    <div className="text-2xl font-bold">{kpi.missingGrow}</div>
+  </button>
+
+  <button
+    type="button"
+    onClick={() => applyKpi('withCoupon')}
+    className={`border rounded-lg p-3 bg-white text-right hover:shadow transition ${isWithCouponSelected ? 'ring-2 ring-blue-500' : ''}`}
+  >
+    <div className="text-xs text-gray-500">עם קופון</div>
+    <div className="text-2xl font-bold">{kpi.withCoupon}</div>
+  </button>
+</div>
         {/* אזור פילטרים */}
         <div className="flex flex-wrap gap-4 mb-4 items-end">
           <div>
@@ -392,12 +677,32 @@ const [couponEmailSending, setCouponEmailSending] = useState(false);
       </span>
 
       {/* תאריך בלבד */}
-      {sub.couponUsed?.date && (
-        <span className="text-xs text-gray-500">
-          {sub.couponUsed.date.split(',')[0]} 
-          {/* split – חותך שעה */}
-        </span>
+   {/* תאריך שימוש (הישן - date) */}
+   {(() => {
+  const appliedDate = sub.couponUsed?.appliedAt || sub.couponUsed?.date;
+  if (!appliedDate) return null;
+
+  return (
+    <span className="text-xs text-gray-500">
+      הופעל: {formatDateOnly(appliedDate)}
+    </span>
+  );
+})()}
+
+{/* תאריך פקיעה (חדש - expiresAt) אם קיים */}
+{sub.couponUsed?.expiresAt && (() => {
+  const daysLeft = getDaysLeft(sub.couponUsed.expiresAt);
+  const isUrgent = typeof daysLeft === 'number' && daysLeft <= 7;
+
+  return (
+    <span className={`text-xs ${isUrgent ? 'text-red-600 font-semibold' : 'text-gray-500'}`}>
+      פוקע: {formatDateOnly(sub.couponUsed.expiresAt)}
+      {typeof daysLeft === 'number' && (
+        <> {daysLeft <= 0 ? '(פג)' : `(עוד ${daysLeft} ימים)`}</>
       )}
+    </span>
+  );
+})()}
     </div>
   ) : (
     '-'
@@ -462,7 +767,7 @@ const [couponEmailSending, setCouponEmailSending] = useState(false);
 
               {filteredSubscriptions.length === 0 && (
                 <tr>
-                  <td colSpan={11} className="text-center py-4 text-gray-500">
+                  <td colSpan={14} className="text-center py-4 text-gray-500">
                     לא נמצאו מנויים בהתאם לסינון
                   </td>
                 </tr>

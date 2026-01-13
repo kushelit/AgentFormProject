@@ -26,6 +26,7 @@ import Link from 'next/link';
 import { useToast } from "@/hooks/useToast";
 import { add } from "date-fns";
 import {ToastNotification} from '@/components/ToastNotification'
+import { deleteDoc } from 'firebase/firestore';
 
 /* ==============================
    Types
@@ -100,6 +101,13 @@ const ExcelCommissionImporter: React.FC = () => {
 
   const { toasts, addToast, setToasts } = useToast();
 
+  const [existingRunIds, setExistingRunIds] = useState<string[]>([]);
+  const [monthsInFile, setMonthsInFile] = useState<string[]>([]);
+  const [conflictingRunIds, setConflictingRunIds] = useState<string[]>([]);
+  
+  const sanitizeMonth = (m?: any) => String(m || '').replace(/\//g, '-').trim();
+
+  
   // בחירה מתוך ZIP
   const [zipChooser, setZipChooser] = useState<null | {
     zip: any;
@@ -454,17 +462,32 @@ const ExcelCommissionImporter: React.FC = () => {
     reportMonth: string,
     companyId: string
   ) => {
+    const sanitized = String(reportMonth || '').replace(/\//g, '-');
+  
     const qy = query(
       collection(db, 'externalCommissions'),
       where('agentId', '==', agentId),
       where('templateId', '==', templateId),
-      where('reportMonth', '==', reportMonth),
+      where('reportMonth', '==', sanitized),
       where('companyId', '==', companyId)
     );
+  
     const snapshot = await getDocs(qy);
+  
     setExistingDocs(snapshot.docs);
+  
+    // ✅ חדש: חילוץ runId(ים) מהמסמכים שנמצאו
+    const runIds = Array.from(
+      new Set(
+        snapshot.docs
+          .map(d => String((d.data() as any)?.runId || '').trim())
+          .filter(Boolean)
+      )
+    );
+  
+    setExistingRunIds(runIds);
   };
-
+  
   // עזר: מחיקה בצ'אנקים (להימנע מ־500 בפעימה)
   async function deleteRefsInChunks(refs: any[]) {
     const CHUNK = 450;
@@ -475,70 +498,58 @@ const ExcelCommissionImporter: React.FC = () => {
     }
   }
 
+
+  const deleteByRunIdInChunks = async (collectionName: string, runId: string) => {
+    const qy = query(collection(db, collectionName), where('runId', '==', runId));
+    const snap = await getDocs(qy);
+    if (snap.empty) return;
+  
+    const CHUNK = 450;
+    for (let i = 0; i < snap.docs.length; i += CHUNK) {
+      const batch = writeBatch(db);
+      for (const d of snap.docs.slice(i, i + CHUNK)) batch.delete(d.ref);
+      await batch.commit();
+    }
+  };
+  
+
+
   const handleDeleteExisting = async () => {
     setShowConfirmDelete(false);
-
-    const agentId   = selectedAgentId!;
-    const tmplId    = templateId!;
-    const companyId = selectedCompanyId!;
-
-    const monthFromRows =
-      standardizedRows?.[0]?.reportMonth
-        ? String(standardizedRows[0].reportMonth)
-        : '';
-    const monthFromExisting =
-      existingDocs?.[0] && typeof existingDocs[0].data === 'function'
-        ? String(existingDocs[0].data().reportMonth || '')
-        : '';
-    const reportMonth = (monthFromRows || monthFromExisting || '').replace(/\//g, '-');
-
-    if (!agentId || !tmplId || !companyId || !reportMonth) {
-      addToast("error", "חסר מידע למחיקה");
+  
+    if (!existingRunIds.length) {
+      addToast("error", "לא נמצאה טעינה קודמת למחיקה");
       return;
     }
-
+  
     setIsLoading(true);
+    const runsToDelete = [...existingRunIds]; // שומרים לפני שננקה state
+  
     try {
-      const filters = [
-        where('agentId', '==', agentId),
-        where('templateId', '==', tmplId),
-        where('reportMonth', '==', reportMonth),
-        where('companyId', '==', companyId),
-      ] as const;
-
-      const [sumSnap, polSnap, extSnap] = await Promise.all([
-        getDocs(query(collection(db, 'commissionSummaries'),       ...filters)),
-        getDocs(query(collection(db, 'policyCommissionSummaries'), ...filters)),
-        getDocs(query(collection(db, 'externalCommissions'),       ...filters)),
-      ]);
-
-      const toDeleteRefs = [
-        ...sumSnap.docs.map(d => d.ref),
-        ...polSnap.docs.map(d => d.ref),
-        ...extSnap.docs.map(d => d.ref),
-      ];
-
-      if (toDeleteRefs.length === 0) {
-        addToast("error", "לא נמצאו רשומות למחיקה");
-        return;
+      for (const runId of runsToDelete) {
+        await deleteByRunIdInChunks('externalCommissions', runId);
+        await deleteByRunIdInChunks('commissionSummaries', runId);
+        await deleteByRunIdInChunks('policyCommissionSummaries', runId);
+  
+        // מחיקת רשומת הריצה
+        await deleteDoc(doc(db, 'commissionImportRuns', runId));
       }
-
-      await deleteRefsInChunks(toDeleteRefs);
-
-      setExistingDocs([]);
+  
+      // ניקוי מצב UI
+      setExistingRunIds([]);
+      setMonthsInFile([]); // אם הוספת
       setStandardizedRows([]);
       setSelectedFileName('');
       if (fileInputRef.current) fileInputRef.current.value = '';
-
-      addToast("success", "נמחקו רשומות בהצלחה");
+  
+      addToast("success", "נמחקה טעינה קודמת בהצלחה");
     } catch (err) {
-      // console.error(err);
-      addToast("error", "שגיאה במחיקת הרשומות");
+      addToast("error", "שגיאה במחיקת הטעינה");
     } finally {
       setIsLoading(false);
     }
   };
-
+   
   /* ==============================
      UI actions
   ============================== */
@@ -655,6 +666,87 @@ const ExcelCommissionImporter: React.FC = () => {
 
     return result;
   };
+
+
+  async function checkExistingByRuns(params: {
+  agentId: string;
+  companyId: string;
+  templateId: string;
+  monthsInFile: string[];
+}) {
+  const { agentId, companyId, templateId, monthsInFile } = params;
+
+  // לוג פתיחה
+  // console.log('[checkExistingByRuns] params:', { agentId, companyId, templateId, monthsInFile });
+
+  // אם אין בכלל חודשים בקובץ – לא מחפשים קונפליקטים
+  const fileMonthsClean = monthsInFile.map(sanitizeMonth).filter(Boolean);
+  const fileSet = new Set(fileMonthsClean);
+
+  if (fileSet.size === 0) {
+    // console.log('[checkExistingByRuns] no months in file -> no conflict');
+    setExistingRunIds([]);
+    return;
+  }
+
+  const runsSnap = await getDocs(
+    query(
+      collection(db, 'commissionImportRuns'),
+      where('agentId', '==', agentId),
+      where('companyId', '==', companyId),
+      where('templateId', '==', templateId),
+    )
+  );
+
+  // console.log('[checkExistingByRuns] runsSnap.size:', runsSnap.size);
+
+  const conflictingRuns = runsSnap.docs
+    .map((d) => {
+      const data: any = d.data();
+
+      // ✅ מקור אמת ל־runId: תמיד נעדיף data.runId ואם אין אז docId
+      const runId = String(data.runId || d.id);
+
+      // ✅ חודשים של הריצה: קודם reportMonths, אחרת reportMonth
+      const runMonths: string[] = Array.isArray(data.reportMonths) && data.reportMonths.length
+        ? data.reportMonths.map(sanitizeMonth).filter(Boolean)
+        : data.reportMonth
+          ? [sanitizeMonth(data.reportMonth)].filter(Boolean)
+          : [];
+
+      // Intersection מול חודשי הקובץ
+      const intersect = runMonths.filter((m) => fileSet.has(m));
+
+      // // לוג לכל ריצה
+      // console.log('[RUN]', {
+      //   docId: d.id,
+      //   runId,
+      //   reportMonth: data.reportMonth,
+      //   reportMonths: data.reportMonths,
+      //   runMonthsComputed: runMonths,
+      //   intersectWithFile: intersect,
+      //   agentId: data.agentId,
+      //   companyId: data.companyId,
+      //   templateId: data.templateId,
+      // });
+
+      return {
+        docId: d.id,
+        runId,
+        runMonths,
+        intersect,
+      };
+    })
+    .filter((r) => r.intersect.length > 0);
+
+  const runIds = Array.from(new Set(conflictingRuns.map((r) => r.runId).filter(Boolean)));
+
+  // console.log('[checkExistingByRuns] conflictingRuns:', conflictingRuns);
+  // console.log('[checkExistingByRuns] runIds:', runIds);
+
+  setExistingRunIds(runIds);
+}
+
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -873,11 +965,32 @@ const ExcelCommissionImporter: React.FC = () => {
             }, fallbackReportMonth)
           );
 
+        // setStandardizedRows(standardized);
+
+        // const reportMonth = standardized[0]?.reportMonth;
+        // if (reportMonth) await checkExistingData(selectedAgentId, templateId, reportMonth, selectedCompanyId);
+
         setStandardizedRows(standardized);
 
-        const reportMonth = standardized[0]?.reportMonth;
-        if (reportMonth) await checkExistingData(selectedAgentId, templateId, reportMonth, selectedCompanyId);
-
+        // ✅ חישוב כל חודשי הקובץ (לא רק שורה ראשונה)
+        const fileMonths = Array.from(
+          new Set(
+            standardized
+              .map(r => sanitizeMonth(r.reportMonth))
+              .filter(Boolean)
+          )
+        ).sort();
+        
+        setMonthsInFile(fileMonths);
+        
+        // ✅ בדיקת טעינות קיימות לפי RUNS (בלי מגבלת in)
+        await checkExistingByRuns({
+          agentId: selectedAgentId,
+          companyId: selectedCompanyId,
+          templateId,
+          monthsInFile: fileMonths,
+        });
+        
       } catch (err: any) {
         // console.error('File parse error:', err);
         setErrorDialog({
@@ -997,11 +1110,32 @@ const ExcelCommissionImporter: React.FC = () => {
           }, fallbackReportMonth)
         );
 
+      // setStandardizedRows(standardized);
+
+      // const reportMonth = standardized[0]?.reportMonth;
+      // if (reportMonth) await checkExistingData(selectedAgentId, templateId, reportMonth, selectedCompanyId);
+
       setStandardizedRows(standardized);
 
-      const reportMonth = standardized[0]?.reportMonth;
-      if (reportMonth) await checkExistingData(selectedAgentId, templateId, reportMonth, selectedCompanyId);
-
+      // ✅ חישוב כל חודשי הקובץ (לא רק שורה ראשונה)
+      const fileMonths = Array.from(
+        new Set(
+          standardized
+            .map(r => sanitizeMonth(r.reportMonth))
+            .filter(Boolean)
+        )
+      ).sort();
+      
+      setMonthsInFile(fileMonths);
+      
+      // ✅ בדיקת טעינות קיימות לפי RUNS (בלי מגבלת in)
+      await checkExistingByRuns({
+        agentId: selectedAgentId,
+        companyId: selectedCompanyId,
+        templateId,
+        monthsInFile: fileMonths,
+      });
+      
     } catch (e: any) {
       // console.error(e);
       setErrorDialog({ title: 'שגיאת עיבוד קובץ', message: String(e?.message || 'שגיאה לא ידועה') });
@@ -1204,27 +1338,43 @@ for (const s of policyMap.values()) {
 
 
   // ---- יצירת דוקומנט ריצה לניהול טעינות ----
-  const firstRow = rowsPrepared[0];
-  const totalRows = rowsPrepared.length;
-  const commissionSummariesCount = summariesMap.size;
-  const policySummariesCount = policyMap.size;
+const totalRows = rowsPrepared.length;
+const commissionSummariesCount = summariesMap.size;
+const policySummariesCount = policyMap.size;
 
-  await setDoc(runRef, {
-    runId,
-    createdAt: serverTimestamp(),
-    agentId: selectedAgentId,
-    agentName: agents.find(a => a.id === selectedAgentId)?.name || '',
-    createdBy: detail?.email || detail?.name || '',
-    createdByUserId: user?.uid || '',
-    companyId: selectedCompanyId,
-    company: selectedCompanyName,
-    templateId,
-    templateName: selectedTemplate?.Name || selectedTemplate?.type || '',
-    reportMonth: firstRow?.reportMonth || '',
-    externalCount: totalRows,
-    commissionSummariesCount,
-    policySummariesCount,
-  });
+const reportMonths = Array.from(new Set(
+  rowsPrepared
+    .map(r => sanitizeMonth(r.reportMonth))
+    .filter(Boolean)
+)).sort();
+
+const minReportMonth = reportMonths[0] || '';
+const maxReportMonth = reportMonths.at(-1) || '';
+
+await setDoc(runRef, {
+  runId,
+  createdAt: serverTimestamp(),
+  agentId: selectedAgentId,
+  agentName: agents.find(a => a.id === selectedAgentId)?.name || '',
+  createdBy: detail?.email || detail?.name || '',
+  createdByUserId: user?.uid || '',
+  companyId: selectedCompanyId,
+  company: selectedCompanyName,
+  templateId,
+  templateName: selectedTemplate?.Name || selectedTemplate?.type || '',
+
+  reportMonths,
+  minReportMonth,
+  maxReportMonth,
+  reportMonthsCount: reportMonths.length,
+
+  // תאימות אחורה
+  reportMonth: minReportMonth,
+
+  externalCount: totalRows,
+  commissionSummariesCount,
+  policySummariesCount,
+});
   addToast("success", "✅ הטעינה הושלמה בהצלחה");
 
       const grouped: Record<string, {
@@ -1374,15 +1524,28 @@ for (const s of policyMap.values()) {
       )}
 
       {/* הודעה אם הקובץ כבר קיים */}
-      {existingDocs.length > 0 && (
+      {existingRunIds.length > 0 && (
         <div className="bg-red-100 border border-red-300 text-red-800 p-3 rounded mb-4">
-          קובץ כבר נטען לסוכן ולחודש זה. יש למחוק אותו לפני טעינה נוספת.
-          <Button
-            text="🗑 מחק טעינה קיימת"
-            type="danger"
-            onClick={() => setShowConfirmDelete(true)}
-            className="mt-2"
-          />
+ {/* טקסט הבעיה */}
+ <div className="font-semibold">
+      קובץ זה כבר נטען למערכת.
+    </div>
+
+    <div className="text-sm mt-1">
+      לפני טעינה מחדש יש למחוק את הטעינה הקודמת.
+    </div>
+
+    <div className="text-xs mt-2 text-red-700">
+      המחיקה תנקה את כל נתוני הטעינה הקודמת עבור סוכן / חברה / תבנית
+      (כולל כל החודשים שהיו בקובץ).
+    </div>  
+    <div className="mt-4 pt-3 border-t border-red-300 flex justify-end">
+      <Button
+        text="🗑 מחק טעינה קודמת"
+        type="danger"
+        onClick={() => setShowConfirmDelete(true)}
+      />
+    </div>
         </div>
       )}
 

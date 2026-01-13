@@ -7,7 +7,8 @@ export interface CommissionSummary {
   reportMonth: string; // YYYY-MM
   templateId: string;
   totalCommissionAmount: number;
-  company?: string;       // כבר קיים במסמכים שלך
+  company?: string;  
+  companyId?: string;
 }
 
 export interface CommissionSummaryQuery {
@@ -19,6 +20,7 @@ export interface CommissionSummaryQuery {
 export interface CommissionSummaryResult {
   summaries: CommissionSummary[];
   companyMap: Record<string, string>;
+  companyIdByName: Record<string, string>;
   summaryByMonthCompany: Record<string, Record<string, number>>;
   summaryByCompanyAgentMonth: Record<string, Record<string, Record<string, number>>>;
   allMonths: string[];
@@ -31,6 +33,7 @@ export async function getCommissionSummary(
   params: CommissionSummaryQuery
 ): Promise<CommissionSummaryResult> {
   const { agentId, fromMonth, toMonth } = params;
+  const companyIdByName: Record<string, string> = {};
 
   const db = admin.firestore();
 
@@ -60,6 +63,11 @@ export async function getCommissionSummary(
     const companyName = item.company || 'לא ידוע';
     const month = item.reportMonth;
     const agentCode = item.agentCode || '-';
+
+
+if (item.companyId && companyName !== 'לא ידוע' && !companyIdByName[companyName]) {
+  companyIdByName[companyName] = item.companyId;
+}
 
     // map לפי templateId -> שם חברה (יכול לשמש לדוחות אחרים)
     if (item.templateId && !companyMap[item.templateId]) {
@@ -113,6 +121,7 @@ export async function getCommissionSummary(
   return {
     summaries,
     companyMap,
+    companyIdByName,
     summaryByMonthCompany,
     summaryByCompanyAgentMonth,
     allMonths,

@@ -207,7 +207,7 @@ const AgencySummaryAgentsTab: React.FC<Props> = ({ viewMode, setViewMode, agency
           }
         }
       } catch (err) {
-        console.error('Failed to load agency view preferences', err);
+        // console.error('Failed to load agency view preferences', err);
       } finally {
         setPreferencesLoaded(true);
       }
@@ -240,7 +240,7 @@ const AgencySummaryAgentsTab: React.FC<Props> = ({ viewMode, setViewMode, agency
           { merge: true }
         );
       } catch (err) {
-        console.error('Failed to save agency view preferences', err);
+        // console.error('Failed to save agency view preferences', err);
       }
     };
 
