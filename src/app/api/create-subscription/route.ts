@@ -36,6 +36,7 @@ export async function POST(req: NextRequest) {
       existingUserUid, // optional incoming
     } = body;
 
+    const trimmedCoupon = (couponCode ?? '').trim();
     const db = admin.firestore();
 
     // נעדיף נתונים מהבקשה, ואם חסר—נשלים מה-DB כשיש UID קיים
@@ -44,10 +45,6 @@ export async function POST(req: NextRequest) {
     let phone    = _phone ?? '';
     let idNumber = _idNumber ?? '';
 
-    const phoneE164 = normalizePhoneE164(phone);
-    if (!phoneE164) {
-      return NextResponse.json({ error: 'מספר טלפון לא תקין' }, { status: 400 });
-    }
 
     if (existingUserUid) {
       const snap = await db.collection('users').doc(existingUserUid).get();
@@ -61,6 +58,14 @@ export async function POST(req: NextRequest) {
       idNumber = idNumber || u.idNumber || '';
     }
 
+    
+    const phoneE164 = normalizePhoneE164(phone);
+    if (!phoneE164) {
+      return NextResponse.json({ error: 'מספר טלפון לא תקין' }, { status: 400 });
+    }
+
+    phone = phoneE164;
+
     // ולידציה בסיסית
     if (!plan || !email || !phone || !fullName || !idNumber) {
       return NextResponse.json({ error: 'אנא מלא/י את כל השדות הנדרשים' }, { status: 400 });
@@ -68,8 +73,14 @@ export async function POST(req: NextRequest) {
 
     // קופון (אופציונלי)
     let couponData: any = null;
-    if (couponCode) {
-      const couponSnap = await db.collection('coupons').where('code', '==', couponCode).get();
+    if (trimmedCoupon) {
+      // const couponSnap = await db.collection('coupons').where('code', '==', trimmedCoupon).get();
+     
+      const couponSnap = await db.collection('coupons')
+      .where('code', '==', trimmedCoupon)
+      .limit(1)
+      .get();
+    
       if (!couponSnap.empty) {
         const doc = couponSnap.docs[0];
         const data = doc.data();
@@ -156,7 +167,7 @@ export async function POST(req: NextRequest) {
       } else {
         // 2) אם אין אימייל — בדיקת טלפון
         try {
-          byPhone = await auth.getUserByPhoneNumber(phoneE164);
+          byPhone = await auth.getUserByPhoneNumber(phone);
         } catch (e: any) {
           if (e.code !== 'auth/user-not-found') {
             // console.error('⚠️ שגיאה בבדיקת טלפון ב-Auth:', e);
@@ -219,17 +230,23 @@ export async function POST(req: NextRequest) {
     formData.append('cField6', total?.toString() || totalPrice.toString());
     formData.append('cField7', idNumber);
     formData.append('cField8', GROW_PAGE_CODE);
-    if (couponCode) formData.append('cField5', couponCode);
+    if (trimmedCoupon) formData.append('cField5', trimmedCoupon);
     formData.append('notifyUrl', `${APP_BASE_URL}/api/webhook`);
 
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 15_000);
 
     try {
-      const response = await axios.post(GROW_ENDPOINTS.createPayment, formData, {
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        signal: controller.signal,
-      });
+      // const response = await axios.post(GROW_ENDPOINTS.createPayment, formData, {
+      //   headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      //   signal: controller.signal,
+      // });
+      const response = await axios.post(
+        GROW_ENDPOINTS.createPayment,
+        formData.toString(),
+        { headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, signal: controller.signal }
+      );
+      
       clearTimeout(timeout);
 
       const data = response.data;
@@ -243,8 +260,22 @@ export async function POST(req: NextRequest) {
         redirectUrl.searchParams.set('plan', plan);
         return NextResponse.json({ paymentUrl: redirectUrl.toString() });
       }
+      console.error('❌ Grow createPayment unexpected:', {
+        data,
+        sent: {
+          sum: totalPrice,
+          email: normalizedEmail,
+          phone,
+          plan,
+          resolvedSource,
+          hasUid: !!resolvedExistingUid,
+          hasCoupon: !!trimmedCoupon,
+        },
+      });
+      // return NextResponse.json({ error: 'יצירת תשלום נכשלה' }, { status: 500 });
+      console.error('❌ Grow createPayment unexpected:', data);
+return NextResponse.json({ error: 'Grow createPayment unexpected', details: data }, { status: 502 });
 
-      return NextResponse.json({ error: 'יצירת תשלום נכשלה' }, { status: 500 });
     } catch (error: any) {
       clearTimeout(timeout);
       if (error.code === 'ERR_CANCELED') {
