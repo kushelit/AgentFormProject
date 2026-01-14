@@ -58,7 +58,15 @@ export async function POST(req: NextRequest) {
       idNumber = idNumber || u.idNumber || '';
     }
 
-    
+    const isFullNameOk = (s: string) => s.trim().split(/\s+/).length >= 2;
+
+if (!isFullNameOk(fullName)) {
+  return NextResponse.json(
+    { error: 'יש להזין שם מלא (שם פרטי + שם משפחה)' },
+    { status: 400 }
+  );
+}
+
     const phoneE164 = normalizePhoneE164(phone);
     if (!phoneE164) {
       return NextResponse.json({ error: 'מספר טלפון לא תקין' }, { status: 400 });
@@ -260,20 +268,21 @@ export async function POST(req: NextRequest) {
         redirectUrl.searchParams.set('plan', plan);
         return NextResponse.json({ paymentUrl: redirectUrl.toString() });
       }
-      console.error('❌ Grow createPayment unexpected:', {
-        data,
-        sent: {
-          sum: totalPrice,
-          email: normalizedEmail,
-          phone,
-          plan,
-          resolvedSource,
-          hasUid: !!resolvedExistingUid,
-          hasCoupon: !!trimmedCoupon,
-        },
-      });
+      
+      // console.error('❌ Grow createPayment unexpected:', {
+      //   data,
+      //   sent: {
+      //     sum: totalPrice,
+      //     email: normalizedEmail,
+      //     phone,
+      //     plan,
+      //     resolvedSource,
+      //     hasUid: !!resolvedExistingUid,
+      //     hasCoupon: !!trimmedCoupon,
+      //   },
+      // });
       // return NextResponse.json({ error: 'יצירת תשלום נכשלה' }, { status: 500 });
-      console.error('❌ Grow createPayment unexpected:', data);
+      // console.error('❌ Grow createPayment unexpected:', data);
 return NextResponse.json({ error: 'Grow createPayment unexpected', details: data }, { status: 502 });
 
     } catch (error: any) {
