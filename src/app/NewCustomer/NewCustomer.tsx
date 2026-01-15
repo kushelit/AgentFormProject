@@ -1387,9 +1387,8 @@ const saleKey = (s: any) => [
   String(s.product ?? '').trim(),
   String((s.mounth || s.month || '')).slice(0, 7),
   canonId(s.IDCustomer),
-  String(s.policyNumberKey ?? s.policyNumber ?? '').trim(),
+  String((s.policyNumberKey || s.policyNumber || s._id || '')).trim()
 ].join('|');
-
 const dedupeSales = (rows: any[]) => {
   const m = new Map<string, any>();
   for (const r of rows) {
