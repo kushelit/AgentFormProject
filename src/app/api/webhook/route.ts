@@ -184,8 +184,15 @@ export async function POST(req: NextRequest) {
     const transactionToken = (data['data[transactionToken]'] ?? data.transactionToken)?.toString();
     const asmachta = (data['data[asmachta]'] ?? data.asmachta)?.toString();
 
-    const addOns = addOnsRaw ? JSON.parse((Array.isArray(addOnsRaw) ? addOnsRaw[0] : addOnsRaw).toString()) : {};
-    const formattedPhone = formatPhone(phone);
+    let addOns: any = {};
+    if (addOnsRaw) {
+      try {
+        addOns = JSON.parse((Array.isArray(addOnsRaw) ? addOnsRaw[0] : addOnsRaw).toString());
+      } catch {
+        addOns = {};
+      }
+    }
+        const formattedPhone = formatPhone(phone);
 
     const rawSum = data['data[sum]'];
     const sumStr = Array.isArray(rawSum) ? rawSum[0] : rawSum || '0';
@@ -232,29 +239,30 @@ export async function POST(req: NextRequest) {
           if (typeof discount === 'number' && isActive) {
             const nowTs = admin.firestore.Timestamp.now();
 
-            // 👇 durationDays יגיע מהקופון עצמו (תוסיפי שדה כזה למסמך הקופון)
-            const durationDays =
-              typeof couponData?.durationDays === 'number' ? couponData.durationDays : null;
-            
-            let expiresAt: FirebaseFirestore.Timestamp | undefined = undefined;
-            
-            if (durationDays && durationDays > 0) {
-              const nowDate = nowTs.toDate();
-              const expDate = new Date(nowDate);
-              expDate.setDate(expDate.getDate() + durationDays);
-              expiresAt = admin.firestore.Timestamp.fromDate(expDate);
-            }
-            
-            couponUsed = {
-              code: couponCode.trim(),
-              discount,
-              // ✅ תאימות אחורה: date נשמר כמו פעם
-              date: nowTs,
-              // ✅ חדש:
-              appliedAt: nowTs,
-              expiresAt,
-              notifyFlags: {},
-            };
+const durationDays =
+  typeof couponData?.durationDays === 'number' ? couponData.durationDays : null;
+
+let expiresAt: FirebaseFirestore.Timestamp | null = null;
+
+if (durationDays && durationDays > 0) {
+  const nowDate = nowTs.toDate();
+  const expDate = new Date(nowDate);
+  expDate.setDate(expDate.getDate() + durationDays);
+  expiresAt = admin.firestore.Timestamp.fromDate(expDate);
+}
+
+couponUsed = {
+  code: couponCode.trim(),
+  discount,
+  date: nowTs,       
+  appliedAt: nowTs, 
+  notifyFlags: {},
+};
+
+if (expiresAt) {
+  (couponUsed as any).expiresAt = expiresAt;
+}
+
          }
         }
       } catch (err) {
@@ -275,7 +283,7 @@ export async function POST(req: NextRequest) {
         userDocRef = docRef;
         userData = docSnap.data();
       } else {
-        // console.warn('⚠️ cField9 provided but user not found:', existingUid);
+         console.warn('⚠️ cField9 provided but user not found:', existingUid);
       }
     }
 
@@ -395,7 +403,7 @@ export async function POST(req: NextRequest) {
       // עדכון
       const updateFields: any = {
         isActive: true,
-        phone: formattedPhone,
+        // phone: formattedPhone,
         cancellationDate: admin.firestore.FieldValue.delete(),
         growCancellationStatus: admin.firestore.FieldValue.delete(),
         'permissionOverrides.allow': admin.firestore.FieldValue.delete(),
@@ -407,18 +415,36 @@ export async function POST(req: NextRequest) {
         lastPaymentStatus: paymentStatus,
         lastPaymentDate: paymentDate,
       };
+      if (formattedPhone) {
+        updateFields.phone = formattedPhone;
+      }
 
       if (fullName && fullName !== userData?.name) updateFields.name = fullName;
       if (couponCode) {
-        updateFields.usedCouponCode = couponCode;
-        if (agenciesValue !== undefined) updateFields.agencies = agenciesValue;
-        if (couponUsed) updateFields.couponUsed = couponUsed;
+        // הוזן קופון
+        if (couponUsed) {
+
+          Object.keys(couponUsed as any).forEach((k) => {
+            if ((couponUsed as any)[k] === undefined) {
+              delete (couponUsed as any)[k];
+            }
+          });
+          updateFields.usedCouponCode = couponCode;
+          if (agenciesValue !== undefined) updateFields.agencies = agenciesValue;
+          updateFields.couponUsed = couponUsed;
+        } else {
+          // הוזן קופון אבל לא תקין/לא פעיל/לא מתאים -> לא שומרים אותו בכלל
+          updateFields.usedCouponCode = admin.firestore.FieldValue.delete();
+          updateFields.agencies = admin.firestore.FieldValue.delete();
+          updateFields.couponUsed = admin.firestore.FieldValue.delete();
+        }
       } else {
+        // לא הוזן קופון
         updateFields.usedCouponCode = admin.firestore.FieldValue.delete();
         updateFields.agencies = admin.firestore.FieldValue.delete();
         updateFields.couponUsed = admin.firestore.FieldValue.delete();
       }
-
+      
       if (transactionId && transactionId !== userData?.transactionId) updateFields.transactionId = transactionId;
       if (transactionToken && transactionToken !== userData?.transactionToken) updateFields.transactionToken = transactionToken;
       if (asmachta && asmachta !== userData?.asmachta) updateFields.asmachta = asmachta;
@@ -437,6 +463,12 @@ export async function POST(req: NextRequest) {
       const planChanged =
         (subscriptionType && subscriptionType !== userData?.subscriptionType) ||
         (addOns && JSON.stringify(addOns) !== JSON.stringify(userData?.addOns));
+
+        Object.keys(updateFields).forEach((k) => {
+          if (updateFields[k] === undefined) delete updateFields[k];
+        });
+        
+
 
       await userDocRef.update(updateFields);
       // console.log('🟢 Updated user in Firestore');
@@ -583,6 +615,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ created: true });
   } catch (err: any) {
     console.error('❌ Webhook error:', err);
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    return NextResponse.json({ ok: true });  
   }
 }
