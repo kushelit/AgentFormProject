@@ -90,6 +90,11 @@ const normCompany = (s?: string|null) => String(s ?? '').trim();
   const [productMap, setProductMap] = useState<Record<string, Product>>({});
 
   const [birthday, setBirthday] = useState('');
+
+  const [gender, setGender] = useState<'זכר' | 'נקבה' | ''>('');
+const handleGenderChange = (e: React.ChangeEvent<HTMLSelectElement>) =>
+  setGender(e.target.value as any);
+
   const [phone, setPhone] = useState('');
   const [mail, setMail] = useState('');
   const [address, setAddress] = useState('');
@@ -310,6 +315,7 @@ useEffect(() => {
     setSourceValue('');
     setSuggestions([]);
     setIsEditing(false);
+    setGender('');
   };
 
 
@@ -355,6 +361,7 @@ useEffect(() => {
           notes,
           issueDay,
           birthday,
+          gender,
           phone,
           mail,
           address,
@@ -982,6 +989,7 @@ const handleNewSelectCustomer = (id: string) => {
     "תעודת זהות": item.IDCustomer || "",
     "מבוטח אב": item.parentFullName || "",
     "תאריך לידה": item.birthday || "",
+    "מגדר": item.gender || "",
     "טלפון": item.phone || "",
     "מייל": item.mail || "",
     "כתובת": item.address || "",
@@ -1555,6 +1563,14 @@ const dedupeSales = (rows: any[]) => {
             onChange={handleBirthdayChange}
           />
         </div>
+        <div className="form-group">
+  <label htmlFor="gender">מגדר</label>
+  <select id="gender" name="gender" value={gender} onChange={handleGenderChange}>
+    <option value="">לא נבחר</option>
+    <option value="זכר">זכר</option>
+    <option value="נקבה">נקבה</option>
+  </select>
+</div>
         </div>
         </section>
 <section className="form-section">
@@ -1659,6 +1675,9 @@ const dedupeSales = (rows: any[]) => {
     <th onClick={() => handleSort("birthday" as keyof CustomersTypeForFetching)}>
       תאריך לידה {sortColumn && sortColumn === "birthday" ? (sortOrder === "asc" ? "▲" : "▼") : ""}
     </th>
+    <th onClick={() => handleSort("gender" as keyof CustomersTypeForFetching)}>
+  מגדר {sortColumn && sortColumn === "gender" ? (sortOrder === "asc" ? "▲" : "▼") : ""}
+</th>
     <th onClick={() => handleSort("phone" as keyof CustomersTypeForFetching)}>
       טלפון {sortColumn && sortColumn === "phone" ? (sortOrder === "asc" ? "▲" : "▼") : ""}
     </th>
@@ -1785,6 +1804,20 @@ const dedupeSales = (rows: any[]) => {
           ""
         )}
       </td>
+      <td>
+  {editingRowCustomer === item.id ? (
+    <select
+      value={(editCustomerData as any).gender || ""}
+      onChange={(e) => handleEditCustomerChange("gender" as any, e.target.value as any)}
+    >
+      <option value="">לא נבחר</option>
+      <option value="זכר">זכר</option>
+      <option value="נקבה">נקבה</option>
+    </select>
+  ) : (
+    (item as any).gender || ""
+  )}
+</td>
       <td>
         {editingRowCustomer === item.id ? (
           <input

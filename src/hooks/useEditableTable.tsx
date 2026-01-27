@@ -50,6 +50,8 @@ function useEditableTable<T extends { id: string }>({
   const [editData, setEditData] = useState<Partial<T>>({});
 
 
+  
+
   // פונקציה לטעינת נתונים
   const reloadData = async (UserAgentId: string) => {
     if (!fetchData || !UserAgentId) return;
@@ -94,22 +96,7 @@ function useEditableTable<T extends { id: string }>({
   };
 
  
-  
-  // const handleDeleteRow = async (id: string) => {
-  //   const isConfirmed = window.confirm('האם אתה בטוח שברצונך למחוק את השורה?');
-  //   if (!isConfirmed) return;
 
-  //   try {
-  //     const updatedData = data.filter((item) => item.id !== id);
-  //     setData(updatedData);
-
-  //     const docRef = doc(db, dbCollection, id);
-  //     await deleteDoc(docRef);
-  //     console.log("✅ שורה נמחקה בהצלחה מה-DB:", id);
-  //   } catch (error) {
-  //     console.error("❌ שגיאה במחיקת השורה:", error);
-  //   }
-  // };
 
   const handleDeleteRow = async (id: string
     , isCustomerPage: boolean = false,
@@ -142,55 +129,98 @@ function useEditableTable<T extends { id: string }>({
   };
   
 
-
-
-
+  const stripCustomerFields = (x: any) => {
+    const {
+      // ❌ לא רוצים לשמור בעסקה
+      phone,
+      mail,
+      address,
+      birthday,
+      gender,
+      sourceValue,
+      sourceLead,
+      parentID,
+  
+      // כל היתר נשאר (כולל ✅ firstNameCustomer/lastNameCustomer)
+      ...rest
+    } = x || {};
+  
+    return rest;
+  };
+  
   const saveChanges = async () => {
     try {
       if (!editingRow) return;
   
+      // ✅ לשימוש רק עבור בדיקות שינוי סטטוס + שליחה לסמווב
+      const beforeRow = data.find((x) => x.id === editingRow) as any | undefined;
+  
+      const prevStatus = String(beforeRow?.statusPolicy ?? "");
+      const nextStatus = String((editData as any)?.statusPolicy ?? prevStatus);
+      const statusChanged = prevStatus !== nextStatus;
+  
+      // ✅ מזהים לממשק (לוקחים מהשורה המקורית, לא מה-editData)
+      const agentIdToSend = String(beforeRow?.AgentId ?? "");
+      const idCustomerToSend = String(beforeRow?.IDCustomer ?? "");
+  
+      const shouldSyncSmoove =
+        dbCollection === "sales" &&
+        statusChanged &&
+        !!agentIdToSend &&
+        !!idCustomerToSend;
+  
+      // ✅ מעדכנים CUSTOMER רק אם זו עריכה מתוך SALES
+      if (dbCollection === "sales") {
+        await updateCustomerIfNeeded(editData as any, beforeRow);
+      }
+  
+      // ✅ מעדכנים SALES בלי שדות הלקוח (אבל כן משאירים first/last כמו שביקשת)
+      const patchForDb =
+        dbCollection === "sales" ? stripCustomerFields(editData) : editData;
+  
+      // עדכון UI מידי
       const updatedData = data.map((item) =>
-        item.id === editingRow ? { ...item, ...editData } : item
+        item.id === editingRow ? { ...item, ...patchForDb } : item
       );
       setData(updatedData);
   
+      // עדכון DB
       const docRef = doc(db, dbCollection, editingRow);
       await updateDoc(docRef, {
-        ...editData,
+        ...(patchForDb as any),
         lastUpdateDate: serverTimestamp(),
       });
   
-      // console.log('Row updated successfully');
-  
-      // 🔹 אם מדובר בטבלת 'sales', עדכן גם את פרטי הלקוח
-      if (dbCollection === 'sales') {
-        await updateCustomerIfNeeded(editData);
+      // ✅ שליחה לסמווב רק כשסטטוס השתנה
+      if (shouldSyncSmoove) {
+        await fetch("/api/integrations/smoove/sync-customer", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            agentId: agentIdToSend,
+            IDCustomer: idCustomerToSend,
+          }),
+        });
       }
   
+      // רענון נתונים
       if (agentId) {
         await reloadData(agentId);
-        // console.log("Data reloaded successfully");
-      } else {
-        // console.warn("Agent ID is undefined, skipping reloadData");
       }
-
     } catch (error) {
-      // console.error('Error updating row:', error);
+      // console.error("Error updating row:", error);
     } finally {
       setEditingRow(null);
       setEditData({});
     }
-     // ✅ אם זו טבלת עסקאות והפונקציה קיימת, נסגור את המודל
-     if (dbCollection === 'sales' && onCloseModal) {
+  
+    // סגירת מודל (כמו אצלך)
+    if (dbCollection === "sales" && onCloseModal) {
       onCloseModal();
     }
-
-    // ✅ סגירת המודל אם מדובר בלידים
     if (onCloseModal) {
-      // console.log("🔴 סוגר את המודל דרך onCloseModal");
       onCloseModal();
     }
-    
   };
   
 
@@ -217,30 +247,71 @@ function useEditableTable<T extends { id: string }>({
     };
 
 
-  const updateCustomerIfNeeded = async (editData: Partial<CombinedData>) => {
-    if (!editData.IDCustomer) return; // אם אין תעודת זהות - לא עושים כלום
+  // const updateCustomerIfNeeded = async (editData: Partial<CombinedData>) => {
+  //   if (!editData.IDCustomer) return; // אם אין תעודת זהות - לא עושים כלום
   
-    try {
-      const customerQuery = query(
-        collection(db, 'customer'),
-        where('IDCustomer', '==', editData.IDCustomer)
-      );
-      const customerSnapshot = await getDocs(customerQuery);
+  //   try {
+  //     const customerQuery = query(
+  //       collection(db, 'customer'),
+  //       where('IDCustomer', '==', editData.IDCustomer)
+  //     );
+  //     const customerSnapshot = await getDocs(customerQuery);
   
-      if (!customerSnapshot.empty) {
-        const customerDocRef = customerSnapshot.docs[0].ref;
-        await updateDoc(customerDocRef, {
-          firstNameCustomer: editData.firstNameCustomer,
-          lastNameCustomer: editData.lastNameCustomer,
-        });
-        // console.log('Customer updated successfully');
-      }
-    } catch (error) {
-      // console.error('Error updating customer:', error);
-    }
+  //     if (!customerSnapshot.empty) {
+  //       const customerDocRef = customerSnapshot.docs[0].ref;
+  //       await updateDoc(customerDocRef, {
+  //         firstNameCustomer: editData.firstNameCustomer,
+  //         lastNameCustomer: editData.lastNameCustomer,
+  //       });
+  //       // console.log('Customer updated successfully');
+  //     }
+  //   } catch (error) {
+  //     // console.error('Error updating customer:', error);
+  //   }
+  // };
+  
+  const updateCustomerIfNeeded = async (
+    editData: Partial<CombinedData>,
+    beforeRow?: any
+  ) => {
+    const id = String(editData.IDCustomer ?? beforeRow?.IDCustomer ?? "").trim();
+    const agentId = String(editData.AgentId ?? beforeRow?.AgentId ?? "").trim();
+  
+    if (!id || !agentId) return;
+  
+    const customerQuery = query(
+      collection(db, "customer"),
+      where("IDCustomer", "==", id),
+      where("AgentId", "==", agentId)
+    );
+  
+    const snap = await getDocs(customerQuery);
+    if (snap.empty) return;
+  
+    const ref = snap.docs[0].ref;
+  
+    const patch: any = { lastUpdateDate: serverTimestamp() };
+  
+    // שמות
+    if (editData.firstNameCustomer !== undefined) patch.firstNameCustomer = editData.firstNameCustomer;
+    if (editData.lastNameCustomer !== undefined) patch.lastNameCustomer = editData.lastNameCustomer;
+  
+    // פרטי קשר
+    if ((editData as any).phone !== undefined) patch.phone = (editData as any).phone;
+    if ((editData as any).mail !== undefined) patch.mail = (editData as any).mail;
+    if ((editData as any).address !== undefined) patch.address = (editData as any).address;
+  
+    // דמוגרפיה
+    if ((editData as any).birthday !== undefined) patch.birthday = (editData as any).birthday;
+    if ((editData as any).gender !== undefined) patch.gender = (editData as any).gender;
+  
+    // מקור ליד (select)
+    if ((editData as any).sourceValue !== undefined) patch.sourceValue = (editData as any).sourceValue;
+  
+    await updateDoc(ref, patch);
   };
   
-
+  
   return {
     data,
     isLoadingHookEdit,

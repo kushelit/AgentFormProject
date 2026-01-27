@@ -33,7 +33,7 @@ type DialogState = {
 interface CommissionImportRun {
   runId: string;
   createdAt?: { seconds: number };
-  agentName: string;
+  agentName?: string;
   agentId: string;
   createdBy: string;
   company: string;
@@ -283,40 +283,60 @@ export default function CommissionPurgeAdminPage() {
   // ===== ניהול ריצות טעינת עמלות – Fetch =====
   const fetchCommissionRuns = async () => {
     setCommissionRunsLoading(true);
+  
     const snapshot = await getDocs(collection(db, 'commissionImportRuns'));
-
-    const data: CommissionImportRun[] = snapshot.docs.map((d) => {
-      const docData = d.data() as any;
-
-      return {
-        runId: docData.runId || d.id,
-        createdAt: docData.createdAt,
-        agentName: docData.agentName || '-',
-        agentId: docData.agentId || '',
-        createdBy: docData.createdBy || '',
-        company: docData.company || '',
-        templateName: docData.templateName || '',
-        reportMonth: docData.reportMonth,
-        reportMonths: docData.reportMonths,
-        minReportMonth: docData.minReportMonth,
-        maxReportMonth: docData.maxReportMonth,
-        reportMonthsCount: docData.reportMonthsCount,
-        externalCount: docData.externalCount,
-        commissionSummariesCount: docData.commissionSummariesCount,
-        policySummariesCount: docData.policySummariesCount,
-      };
-      
-    });
-
+    const runsRaw = snapshot.docs.map(d => ({ id: d.id, ...(d.data() as any) }));
+  
+    // 1️⃣ אוספים agentIds ייחודיים
+    const agentIds = Array.from(
+      new Set(runsRaw.map(r => r.agentId).filter(Boolean))
+    );
+  
+    // 2️⃣ שולפים שמות סוכנים מ־users
+    const agentNameMap = new Map<string, string>();
+  
+    await Promise.all(
+      agentIds.map(async (uid) => {
+        const uSnap = await getDoc(doc(db, 'users', uid));
+        if (uSnap.exists()) {
+          const u = uSnap.data() as any;
+          agentNameMap.set(
+            uid,
+            u.fullName || u.displayName || u.name || ''
+          );
+        }
+      })
+    );
+  
+    // 3️⃣ בונים את הנתונים לטבלה
+    const data: CommissionImportRun[] = runsRaw.map((docData: any) => ({
+      runId: docData.runId || docData.id,
+      createdAt: docData.createdAt,
+      agentId: docData.agentId || '',
+      agentName: agentNameMap.get(docData.agentId) || '-',
+      createdBy: docData.createdBy || '',
+      company: docData.company || '',
+      templateName: docData.templateName || '',
+      reportMonth: docData.reportMonth,
+      reportMonths: docData.reportMonths,
+      minReportMonth: docData.minReportMonth,
+      maxReportMonth: docData.maxReportMonth,
+      reportMonthsCount: docData.reportMonthsCount,
+      externalCount: docData.externalCount,
+      commissionSummariesCount: docData.commissionSummariesCount,
+      policySummariesCount: docData.policySummariesCount,
+    }));
+  
     data.sort((a, b) => {
       const aSec = a.createdAt?.seconds ?? 0;
       const bSec = b.createdAt?.seconds ?? 0;
       return bSec - aSec;
     });
-
+  
     setCommissionRuns(data);
     setCommissionRunsLoading(false);
   };
+  
 
   // initial load for runs list
   useEffect(() => {

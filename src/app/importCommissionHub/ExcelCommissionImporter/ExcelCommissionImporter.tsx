@@ -106,6 +106,7 @@ const ExcelCommissionImporter: React.FC = () => {
   const [conflictingRunIds, setConflictingRunIds] = useState<string[]>([]);
   
   const sanitizeMonth = (m?: any) => String(m || '').replace(/\//g, '-').trim();
+  const [fallbackProduct, setFallbackProduct] = useState<string>('');
 
   
   // בחירה מתוך ZIP
@@ -355,7 +356,7 @@ const ExcelCommissionImporter: React.FC = () => {
   // טעינת mapping של התבנית הנבחרת
   useEffect(() => {
     const fetchTemplateMapping = async () => {
-      if (!templateId) { setMapping({}); return; }
+      if (!templateId) { setMapping({}); setFallbackProduct(''); return; }
       const existsInActive = templateOptions.some(t => t.id === templateId);
       if (!existsInActive) { setMapping({}); return; }
 
@@ -364,10 +365,11 @@ const ExcelCommissionImporter: React.FC = () => {
       if (snap.exists()) {
         const data = snap.data();
         setMapping(data.fields || {});
-      } else {
-        setMapping({});
-      }
-    };
+        setFallbackProduct(String(data.fallbackProduct || '').trim());
+      } 
+      else { setMapping({}); setFallbackProduct(''); 
+    }   
+     };
     fetchTemplateMapping();
   }, [templateId, templateOptions]);
 
@@ -394,15 +396,36 @@ const ExcelCommissionImporter: React.FC = () => {
       'יול': '07','אוג': '08','ספט': '09','אוק': '10','נוב': '11','דצמ': '12'
     };
 
+    // if (typeof value === 'number') {
+    //   const d = XLSX.SSF.parse_date_code(value);
+    //   if (d) return `${d.y}-${String(d.m).padStart(2,'0')}`;
+    // }
     if (typeof value === 'number') {
       const d = XLSX.SSF.parse_date_code(value);
-      if (d) return `${d.y}-${String(d.m).padStart(2,'0')}`;
+      if (d) {
+        // ✅ Migdal bugfix: 1/2/25,1/3/25... נשמר כ-Jan 2/3/4 ולכן החודש "יושב" ביום
+        if ((templateId === 'migdal_life' || templateId === 'migdal_gemel') && d.m === 1 && d.d >= 1 && d.d <= 12) {
+          return `${d.y}-${String(d.d).padStart(2, '0')}`;
+        }
+        return `${d.y}-${String(d.m).padStart(2,'0')}`;
+      }
     }
+    
 
+    // if (value instanceof Date) {
+    //   return `${value.getFullYear()}-${String(value.getMonth()+1).padStart(2,'0')}`;
+    // }
     if (value instanceof Date) {
-      return `${value.getFullYear()}-${String(value.getMonth()+1).padStart(2,'0')}`;
+      const y = value.getFullYear();
+      const m = value.getMonth() + 1;
+      const d = value.getDate();
+    
+      if ((templateId === 'migdal_life' || templateId === 'migdal_gemel') && m === 1 && d >= 1 && d <= 12) {
+        return `${y}-${String(d).padStart(2,'0')}`;
+      }
+      return `${y}-${String(m).padStart(2,'0')}`;
     }
-
+    
     const str = value.toString().trim();
 
     {
@@ -664,6 +687,12 @@ const ExcelCommissionImporter: React.FC = () => {
       }
     }
 
+    // ✅ fallback product from template (for templates like clal_briut without product column)
+if (!result.product || !String(result.product).trim()) {
+  if (fallbackProduct) {
+    result.product = normalizeProduct(fallbackProduct);
+  }
+}
     return result;
   };
 
@@ -808,7 +837,13 @@ const ExcelCommissionImporter: React.FC = () => {
             } else {
               const inner = await entry.async('arraybuffer');
               let wb: XLSX.WorkBook;
-              try { wb = XLSX.read(inner, { type: 'array' }); }
+              // try { wb = XLSX.read(inner, { type: 'array' }); }
+              try {
+                wb = XLSX.read(inner, {
+                  type: 'array',
+                  cellDates: true, // ✅ חשוב
+                });
+              }
               catch (err: any) {
                 const msg = String(err?.message || err || '');
                 throw new Error(/zip/i.test(msg) ? 'ZIP בתוך ZIP. חלצי ידנית.' : 'קובץ אקסל לא נקרא.');
@@ -845,7 +880,9 @@ const ExcelCommissionImporter: React.FC = () => {
               jsonData = XLSX.utils.sheet_to_json<Record<string, any>>(ws, {
                 defval: "",
                 range: headerRowIndex,
+                raw: true,
               });
+              
               
               // ⚙️ נרמול שמות עמודות – כמו ב-CSV
               if (jsonData.length) {
@@ -887,7 +924,13 @@ const ExcelCommissionImporter: React.FC = () => {
 
         } else {
           let wb: XLSX.WorkBook;
-          try { wb = XLSX.read(arrayBuffer, { type: "array" }); }
+          // try { wb = XLSX.read(arrayBuffer, { type: "array" }); }
+          try {
+            wb = XLSX.read(arrayBuffer, {
+              type: "array",
+              cellDates: true, // ✅ חשוב
+            });
+          }
           catch (err: any) {
             const msg = String(err?.message || err || '');
             setErrorDialog({
@@ -927,10 +970,10 @@ const ExcelCommissionImporter: React.FC = () => {
             'XLSX headers'
           );
           if (!ok) return;
-
           jsonData = XLSX.utils.sheet_to_json<Record<string, any>>(ws, {
             defval: "",
             range: headerRowIndex,
+            raw: true,
           });
           
           // ⚙️ נרמול שמות עמודות – כמו ב-CSV
@@ -1042,8 +1085,11 @@ const ExcelCommissionImporter: React.FC = () => {
         if (coverage < 0.5) { setShowTemplateMismatch(true); return; }
 
       } else {
+        // const inner = await entry.async('arraybuffer');
+        // const wb = XLSX.read(inner, { type: 'array' });
+
         const inner = await entry.async('arraybuffer');
-        const wb = XLSX.read(inner, { type: 'array' });
+        const wb = XLSX.read(inner, { type: 'array', cellDates: true });
 
         let wsname = wb.SheetNames[0];
         let headerRowIndex = 0;
@@ -1074,10 +1120,16 @@ const ExcelCommissionImporter: React.FC = () => {
         );
         if (!ok) return;
 
+        // jsonData = XLSX.utils.sheet_to_json<Record<string, any>>(ws, {
+        //   defval: "",
+        //   range: headerRowIndex,
+        // });
         jsonData = XLSX.utils.sheet_to_json<Record<string, any>>(ws, {
           defval: "",
           range: headerRowIndex,
+          raw: true,
         });
+        
         
         // ⚙️ נרמול שמות עמודות – כמו ב-CSV
         if (jsonData.length) {
@@ -1554,7 +1606,7 @@ await setDoc(runRef, {
         <DialogNotification
           type="warning"
           title="מחיקת טעינה קיימת"
-          message="האם את בטוחה שברצונך למחוק את כל הרשומות הקיימות עבור סוכן זה לחודש זה?"
+          message="האם למחוק את כל נתוני הטעינה הקודמת עבור סוכן/חברה/תבנית (כל חודשי הקובץ)?"
           onConfirm={handleDeleteExisting}
           onCancel={() => setShowConfirmDelete(false)}
         />
@@ -1590,7 +1642,7 @@ await setDoc(runRef, {
   text={isLoading ? "⏳ טוען... נא להמתין" : "אשר טעינה למסד הנתונים"}
   type="primary"
   onClick={handleImport}
-  disabled={!standardizedRows.length || isLoading || existingDocs.length > 0}
+  disabled={!standardizedRows.length || isLoading || existingRunIds.length > 0}
   className="mt-4"
 />
         </div>

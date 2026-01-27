@@ -7,13 +7,15 @@ export type CustomersTypeForFetching = {
   lastNameCustomer: string;
   fullNameCustomer: string;
   IDCustomer: string;
-  notes: string;
-  issueDay: string;
+  notes?: string;
+  issueDay?: string;
   birthday: string;
-  phone: string;
-  mail: string;
-  address: string;
+  gender?: 'זכר' | 'נקבה' | '';
+  phone?: string;
+  mail?: string;
+  address?: string;
   sourceValue?: string;
 };
 
 
+ 

@@ -8,8 +8,8 @@ export const fetchCustomerBelongToAgent = async (
   idNumber: string,
   agentId: string
 ): Promise<CustomersTypeForFetching | null> => {
-  if (!idNumber || idNumber.length < 8 || !agentId) return null;
-  // console.log("🔍 Fetching customer from Firestore: ID:", idNumber, "Agent:", agentId);
+  if (!idNumber || idNumber.length < 6 || !agentId) return null;
+   console.log("🔍 Fetching customer from Firestore: ID:", idNumber, "Agent:", agentId);
 
   try {
     const customerQuery = query(

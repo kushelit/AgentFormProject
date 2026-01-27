@@ -29,6 +29,7 @@ import { useValidation } from "@/hooks/useValidation";
 import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
 import { FaFileExcel } from 'react-icons/fa';
+import { useUserPreferences } from "@/hooks/useUserPreferences";
 
 
 const NewAgentForm: React.FC = () => {
@@ -81,7 +82,9 @@ const NewAgentForm: React.FC = () => {
     selectedStatusPolicyFilter, 
     setSelectedStatusPolicyFilter, 
     productGroupMap,
-    formatIsraeliDateOnly, productToGroupMap
+    formatIsraeliDateOnly, productToGroupMap,
+    sourceLeadMap,
+    fetchSourceLeadMap
   } = useFetchMD();
 
 
@@ -136,6 +139,15 @@ const currentRows = sortedData.slice(indexOfFirstRow, indexOfLastRow);
 // const currentRows = sortedData.slice(indexOfFirstRow, indexOfLastRow);
 
 const { toasts, addToast, setToasts } = useToast();
+
+const { prefs, loadingPrefs, setSoundOnSuccess } = useUserPreferences(user?.uid);
+const [openSettings, setOpenSettings] = useState(false);
+
+
+useEffect(() => {
+  fetchSourceLeadMap?.(selectedAgentId || '' );
+}, [fetchSourceLeadMap]);
+
 
 
 const exportToExcel = () => {
@@ -210,6 +222,9 @@ const resetForm = (clearCustomerFields: boolean = false) => {
     resetField("address", "");
     resetField("policyNumber", "");
     resetField("cancellationDate", "");
+    resetField("birthday" as any, "");
+    resetField("gender" as any, "");
+    resetField("sourceValue" as any, "");
   }
    else
    {
@@ -353,7 +368,7 @@ useEffect(() => {
   
 
     // Prepare the audio
-    const celebrationSound = new Audio('/assets/sounds/soundEffect.mp3');
+    // const celebrationSound = new Audio('/assets/sounds/soundEffect.mp3');
 
 
   const triggerConfetti = () => {
@@ -399,7 +414,12 @@ const handleSubmit = async (event: FormEvent<HTMLFormElement>, closeAfterSubmit 
         firstNameCustomer: editData.firstNameCustomer || "",
         lastNameCustomer: editData.lastNameCustomer || "",
         IDCustomer: editData.IDCustomer || "",
-        parentID: "", // ייכנס לאחר מכן
+        parentID: "", 
+        birthday: editData.birthday || "",
+        gender: (editData.gender as any) || "",
+        phone: editData.phone || "",
+        mail: editData.mail || "",
+        address: editData.address || "",
       });
       // עדכון `parentID` של הלקוח שנוצר
       await updateDoc(customerDocRef, { parentID: customerDocRef.id });
@@ -409,6 +429,23 @@ const handleSubmit = async (event: FormEvent<HTMLFormElement>, closeAfterSubmit 
     } else {
       // טיפול במקרה שבו הלקוח כבר קיים
       customerDocRef = customerSnapshot.docs[0].ref;
+      // ✅ NEW: update customer extra fields only if provided (avoid overwriting with empty)
+const patch: any = {};
+
+if (editData.firstNameCustomer) patch.firstNameCustomer = editData.firstNameCustomer;
+if (editData.lastNameCustomer) patch.lastNameCustomer = editData.lastNameCustomer;
+
+if (editData.phone) patch.phone = editData.phone;
+if (editData.mail) patch.mail = editData.mail;
+if (editData.address) patch.address = editData.address;
+
+if (editData.birthday) patch.birthday = editData.birthday;
+if (editData.gender) patch.gender = editData.gender;
+
+if (Object.keys(patch).length) {
+  await updateDoc(customerDocRef, patch);
+}
+
     }
     // יצירת מסמך בעסקאות
   const docRef = await addDoc(collection(db, 'sales'), {
@@ -436,6 +473,15 @@ const handleSubmit = async (event: FormEvent<HTMLFormElement>, closeAfterSubmit 
   lastUpdateDate: serverTimestamp(),
     });
     addToast("success", "יש!!! עוד עסקה נוספה");
+
+    triggerConfetti();
+
+if (prefs.soundOnSuccess) {
+  celebrationSoundRef.current?.play().catch(() => {
+    // autoplay blocked / user gesture issues — ignore
+  });
+}
+
     // קריאה לפונקציית `fetchDataForAgent` לעדכון הנתונים
     // if (selectedAgentId) {
     //   const data = await fetchDataForAgent(selectedAgentId); // קריאה לפונקציה
@@ -444,13 +490,14 @@ const handleSubmit = async (event: FormEvent<HTMLFormElement>, closeAfterSubmit 
 
     await reloadData(selectedAgentId);   // פונקציה שמגיעה מה-useEditableTable
 
-
-    // הפעלת קונפטי וקול הצלחה
-    triggerConfetti();
-    // celebrationSound.play();
-    celebrationSoundRef.current?.play().catch((err) => {
-      // console.warn("שגיאה בהשמעת הצליל", err);
-    });
+await fetch("/api/integrations/smoove/sync-customer", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({
+    agentId: editData.AgentId || selectedAgentId,
+    IDCustomer: editData.IDCustomer,
+  }),
+});
 
     try {
       if (!selectedAgentId) return;
@@ -650,6 +697,42 @@ const handleEditRowModal = (id: string) => {
 };
 
 
+useEffect(() => {
+  const run = async () => {
+    if (!showOpenNewDeal || !editingRow) return;
+
+    const idCustomer = String((editData as any)?.IDCustomer ?? "").trim();
+    const agent = String((editData as any)?.AgentId ?? selectedAgentId ?? "").trim();
+
+    console.log("AUTO-FILL start", { editingRow, idCustomer, agent });
+
+    if (!idCustomer || !agent) return;
+
+    const customerData = await fetchCustomerBelongToAgent(idCustomer, agent);
+    console.log("AUTO-FILL customerData", customerData);
+
+    if (!customerData) return;
+
+    setEditData((prev: any) => ({
+      ...prev,
+      phone: prev.phone || customerData.phone || "",
+      mail: prev.mail || customerData.mail || "",
+      address: prev.address || customerData.address || "",
+      birthday: prev.birthday || (customerData as any).birthday || "",
+      gender: prev.gender || (customerData as any).gender || "",
+      sourceValue: prev.sourceValue || (customerData as any).sourceValue || "",
+    }));
+  };
+
+  run();
+}, [
+  showOpenNewDeal,
+  editingRow,
+  selectedAgentId,
+  (editData as any)?.IDCustomer,
+  (editData as any)?.AgentId,
+]);
+
 
 
 // const [openModalId, setOpenModalId] = useState<string | number | null>(null);
@@ -677,6 +760,9 @@ const handleIDBlur = async () => {
     handleEditChange("phone", customerData.phone || "");
     handleEditChange("mail", customerData.mail || "");
     handleEditChange("address", customerData.address || "");
+    handleEditChange("birthday" as any, (customerData as any).birthday || "");
+    handleEditChange("gender" as any, (customerData as any).gender || "");
+    handleEditChange("sourceValue" as any, (customerData as any).sourceValue || "");
   } else {
     // console.warn("❌ No customer found for this ID.");
   }
@@ -696,9 +782,7 @@ useEffect(() => {
   setSelectedProductGroup(selectedGroupId);
 }, [editData.product, productToGroupMap]); // ירוץ בכל שינוי של המוצר או הנתונים
 
-// console.log("🚨 invalidFields:", invalidFields); // ✅ כאן מחוץ ל-HTML
 
-//console.log("🎨 render | minuySochen =", editData.minuySochen);
 
 
   return (
@@ -853,7 +937,15 @@ useEffect(() => {
 >
 <img src="/static/img/excel-icon.svg" alt="ייצוא לאקסל" width={24} height={24} />
 </button>
-
+<button
+  type="button"
+  onClick={() => setOpenSettings(true)}
+  className="settings-gear-btn"
+  title="הגדרות"
+  aria-label="הגדרות"
+>
+  <span className="gear-icon">⚙️</span>
+</button>
   {/* <Button
     onClick={() => saveChanges()}
     text="שמור שינויים"
@@ -1299,6 +1391,49 @@ useEffect(() => {
     onClose={() => setToasts((prevToasts) => prevToasts.filter((t) => t.id !== toast.id))}
   />
 ))}
+{openSettings && (
+  <div className="settings-overlay" onClick={() => setOpenSettings(false)}>
+    <div
+      className="settings-dialog"
+      dir="rtl"
+      onClick={(e) => e.stopPropagation()}
+    >
+      <button
+        className="settings-close"
+        onClick={() => setOpenSettings(false)}
+        aria-label="סגור"
+        type="button"
+      >
+        ✕
+      </button>
+
+      <div className="settings-header">
+        <div className="settings-title">הגדרות</div>
+        <div className="settings-subtitle">התאם את החוויה שלך</div>
+      </div>
+
+      <div className="settings-divider" />
+
+      <div className="settings-item">
+        <div className="settings-item-text">
+          <div className="settings-item-title">צליל בסיום הזנה</div>
+          <div className="settings-item-desc">כפיים/צליל אחרי שמירת עסקה</div>
+        </div>
+
+        {/* טוגל יפה במקום checkbox */}
+        <label className="ms-switch">
+          <input
+            type="checkbox"
+            checked={!!prefs.soundOnSuccess}
+            onChange={(e) => setSoundOnSuccess(e.target.checked)}
+            disabled={loadingPrefs}
+          />
+          <span className="ms-slider" />
+        </label>
+      </div>
+    </div>
+  </div>
+)}
     {showOpenNewDeal && (
   <div className="modal-overlay" onClick={() => setShowOpenNewDeal(false)}>
     <div className="modal-content" onClick={(e) => e.stopPropagation()}>
@@ -1394,6 +1529,26 @@ useEffect(() => {
  />
   {errors.lastNameCustomer && <div className="error-message">{errors.lastNameCustomer}</div>}
 </div>
+<div className="form-group">
+  <label>תאריך לידה</label>
+  <input
+    type="date"
+    value={editData.birthday || ""}
+    onChange={(e) => handleEditChange("birthday", e.target.value)}
+  />
+</div>
+
+<div className="form-group">
+  <label>מגדר</label>
+  <select
+    value={(editData.gender as any) || ""}
+    onChange={(e) => handleEditChange("gender" as any, e.target.value as any)}
+  >
+    <option value="">לא נבחר</option>
+    <option value="זכר">זכר</option>
+    <option value="נקבה">נקבה</option>
+  </select>
+</div>
             <div className="form-group">
               <label>טלפון</label>
               <input type="tel" value={editData.phone || ""} onChange={(e) => handleEditChange("phone", e.target.value)} />
@@ -1406,6 +1561,21 @@ useEffect(() => {
               <label>כתובת</label>
               <input type="text" value={editData.address || ""} onChange={(e) => handleEditChange("address", e.target.value)} />
             </div>
+            <div className="form-group">
+  <label>מקור ליד</label>
+  <select
+    value={(editData as any).sourceValue || ""}
+    onChange={(e) => handleEditChange("sourceValue" as any, e.target.value)}
+  >
+    <option value="">לא נבחר</option>
+
+    {Object.entries(sourceLeadMap || {}).map(([value, label]) => (
+      <option key={value} value={value}>
+        {label}
+      </option>
+    ))}
+  </select>
+</div>
           </div>
         </section>
 

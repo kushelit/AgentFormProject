@@ -5,6 +5,7 @@ import useFetchAgentData from '@/hooks/useFetchAgentData';
 import { useAuth } from '@/lib/firebase/AuthContext';
 import { Spinner } from '@/components/Spinner';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import AgentImportChecklist from '@/components/commission/AgentImportChecklist';
 import {
   ResponsiveContainer,
   LineChart,
@@ -103,6 +104,7 @@ const CommissionSummaryAgentTab: React.FC = () => {
   );
 
   const [companyIdByName, setCompanyIdByName] = useState<Record<string,string>>({});
+  const [showChecklist, setShowChecklist] = useState(false);
 
 
   const handleToggleExpandCompany = (company: string) => {
@@ -243,7 +245,8 @@ const CommissionSummaryAgentTab: React.FC = () => {
   
     const rowsForExcel = drillRows.map((r) => ({
       'פוליסה': r.policyNumberKey,
-      'לקוח': r.fullName ?? r.customerId,
+      'ת״ז': r.customerId ?? '', 
+      'לקוח': r.fullName ?? '',
       'מוצר': r.product ?? '',
       'פרמיה': r.totalPremiumAmount,
       'עמלה': r.totalCommissionAmount,
@@ -261,6 +264,27 @@ const CommissionSummaryAgentTab: React.FC = () => {
   return (
     <div className="p-4 max-w-6xl mx-auto text-right" dir="rtl">
       <h2 className="text-xl font-bold mb-4">סיכום עמלות לפי חודש וחברה</h2>
+      {/* 🔹 בלוק נפרד מתחת לסלקטים */}
+<div className="mb-4 px-4 py-3 text-sm text-gray-600 border rounded bg-white">
+  <button
+    type="button"
+    className="text-blue-600 underline hover:no-underline"
+    onClick={() => setShowChecklist(v => !v)}
+    disabled={!selectedAgentId}
+  >
+    בדיקת שלמות נתונים {showChecklist ? '▲' : '▼'}
+  </button>
+
+  <div className="text-xs text-gray-500 mt-1">
+    הצגת מצב טעינות לפי חברה/תבנית לשנה שנבחרה
+  </div>
+
+  {showChecklist && selectedAgentId && selectedYear && (
+    <div className="mt-3 bg-gray-50 border rounded p-3">
+      <AgentImportChecklist agentId={selectedAgentId} year={selectedYear} />
+    </div>
+  )}
+</div>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4 items-end">
         <div className="md:col-span-2">
           <label className="block font-semibold mb-1">בחר סוכן:</label>
@@ -602,6 +626,7 @@ const CommissionSummaryAgentTab: React.FC = () => {
           <thead className="bg-gray-100">
             <tr>
               <th className="border px-2 py-1">פוליסה</th>
+              <th className="border px-2 py-1">ת״ז</th>
               <th className="border px-2 py-1">לקוח</th>
               <th className="border px-2 py-1">מוצר</th>
               <th className="border px-2 py-1">פרמיה</th>
@@ -613,7 +638,8 @@ const CommissionSummaryAgentTab: React.FC = () => {
             {drillRows.map((r) => (
               <tr key={`${r.policyNumberKey}_${r.customerId}`}>
                 <td className="border px-2 py-1">{r.policyNumberKey}</td>
-                <td className="border px-2 py-1">{r.fullName ?? r.customerId}</td>
+                <td className="border px-2 py-1">{r.customerId ?? '-'}</td>
+                <td className="border px-2 py-1">{r.fullName ?? '-'}</td>
                 <td className="border px-2 py-1">{r.product ?? '-'}</td>
                 <td className="border px-2 py-1">{Number(r.totalPremiumAmount ?? 0).toLocaleString()}</td>
                 <td className="border px-2 py-1 font-semibold">{Number(r.totalCommissionAmount ?? 0).toLocaleString()}</td>

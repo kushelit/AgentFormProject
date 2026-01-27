@@ -7,7 +7,9 @@ export interface Customer {
   mail?: string;
   address?: string;
   IDCustomer?: string;
-  sourceValue?: string; // ← תוסיפי את זה כאן
+  sourceValue?: string; 
+  birthday?: string; // "YYYY-MM-DD"
+  gender?: "זכר" | "נקבה" | "";
 }
 
 
@@ -40,6 +42,8 @@ export interface Sale {
     sourceLead?: string;
     policyNumber?: string;
     cancellationDate?: string;
+    birthday?: string; // "YYYY-MM-DD"
+    gender?: "זכר" | "נקבה" | "";
   }
 
   export type AgentDataType = {

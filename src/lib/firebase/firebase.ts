@@ -1,6 +1,7 @@
 import { initializeApp, getApps } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore,setLogLevel } from "firebase/firestore";
+import { getFunctions } from "firebase/functions";
 
 
 
@@ -21,3 +22,5 @@ export const auth = getAuth(firebaseApp);
 export const db = getFirestore(firebaseApp);
 // 🟢 מוסיפים כאן – יראה בקונסול את כל השאילתות והשגיאות
 // setLogLevel("debug");
+
+export const functions = getFunctions(firebaseApp);
