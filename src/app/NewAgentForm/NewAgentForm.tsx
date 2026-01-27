@@ -420,6 +420,7 @@ const handleSubmit = async (event: FormEvent<HTMLFormElement>, closeAfterSubmit 
         phone: editData.phone || "",
         mail: editData.mail || "",
         address: editData.address || "",
+        sourceValue: (editData as any).sourceValue || "",
       });
       // עדכון `parentID` של הלקוח שנוצר
       await updateDoc(customerDocRef, { parentID: customerDocRef.id });
@@ -441,6 +442,7 @@ if (editData.address) patch.address = editData.address;
 
 if (editData.birthday) patch.birthday = editData.birthday;
 if (editData.gender) patch.gender = editData.gender;
+if ((editData as any).sourceValue) patch.sourceValue = (editData as any).sourceValue;
 
 if (Object.keys(patch).length) {
   await updateDoc(customerDocRef, patch);
