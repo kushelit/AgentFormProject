@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
       existingUserUid, // optional incoming
     } = body;
 
-    const trimmedCoupon = (couponCode ?? '').trim().toUpperCase();
+    const trimmedCoupon = (couponCode ?? '').trim();
     const db = admin.firestore();
 
     // נעדיף נתונים מהבקשה, ואם חסר—נשלים מה-DB כשיש UID קיים
