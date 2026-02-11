@@ -31,5 +31,5 @@
     "**/*.tsx",
     ".next/types/**/*.ts"
 , "src/app/summaryTable/SummaryTable.tsx.bak", "src/app/Customer/Customer.tsx.bak"  ],
-  "exclude": ["node_modules"]
+"exclude": ["node_modules", "functions", "scripts", "**/*.bak"]
 }
