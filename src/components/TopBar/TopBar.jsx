@@ -1,7 +1,7 @@
 'use client';
 
 import PropTypes from "prop-types";
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { ButtonTopbar } from "../ButtonTopbar";
 import { Logo } from "../Logo";
 import "./style.css";
@@ -14,6 +14,25 @@ export const TopBar = ({ prop = true, className }) => {
   const { user, detail, logOut } = useAuth();
   const router = useRouter();
   const [showPopup, setShowPopup] = useState(false);
+  const [showSettingsMenu, setShowSettingsMenu] = useState(false);
+
+
+  const settingsRef = useRef(null);
+
+useEffect(() => {
+  const onDown = (e) => {
+    if (!showSettingsMenu) return;
+    const el = settingsRef.current;
+    if (el && e.target && !el.contains(e.target)) {
+      setShowSettingsMenu(false);
+    }
+  };
+
+  document.addEventListener("mousedown", onDown);
+  return () => document.removeEventListener("mousedown", onDown);
+}, [showSettingsMenu]);
+
+  
 
   return (
     <>
@@ -26,6 +45,66 @@ export const TopBar = ({ prop = true, className }) => {
           <div className="frame">
             {user ? (
               <>
+              <div ref={settingsRef} style={{ position: "relative" }}>
+  <button
+    className="help-button"
+    onClick={() => setShowSettingsMenu((v) => !v)}
+    title="הגדרות"
+    style={{ marginRight: 8 }}
+  >
+    ⚙️
+  </button>
+
+  {showSettingsMenu && (
+    <div
+      style={{
+        position: "absolute",
+        top: "110%",
+        right: 0,
+        background: "#fff",
+        border: "1px solid #e5e5e5",
+        borderRadius: 10,
+        padding: 8,
+        minWidth: 200,
+        zIndex: 9999,
+        boxShadow: "0 8px 20px rgba(0,0,0,0.12)",
+      }}
+    >
+      <button
+        style={{
+          width: "100%",
+          textAlign: "right",
+          background: "transparent",
+          border: "none",
+          padding: "10px 8px",
+          cursor: "pointer",
+        }}
+        onClick={() => {
+          setShowSettingsMenu(false);
+          router.push("/Environments/portal-credentials");
+        }}
+      >
+        🔐 חיבור לפורטלים
+      </button>
+
+      <button
+        style={{
+          width: "100%",
+          textAlign: "right",
+          background: "transparent",
+          border: "none",
+          padding: "10px 8px",
+          cursor: "pointer",
+          opacity: 0.6,
+        }}
+        onClick={() => setShowSettingsMenu(false)}
+        disabled
+      >
+        👤 פרופיל סוכן (בקרוב)
+      </button>
+    </div>
+  )}
+</div>
                 <button onClick={() => router.push('/Help')} className="help-button">
                   📖 עזרה
                 </button>

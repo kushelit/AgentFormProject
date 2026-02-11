@@ -27,6 +27,12 @@ import { useToast } from "@/hooks/useToast";
 import { add } from "date-fns";
 import {ToastNotification} from '@/components/ToastNotification'
 import { deleteDoc } from 'firebase/firestore';
+import { startAutoPortalRun } from "@/lib/portalRuns/startAutoPortalRun";
+import PortalRunOtpModal from "@/components/PortalRunOtpModal";
+// import { triggerPortalRun } from "@/lib/portalRuns/triggerPortalRun";
+import PortalRunStatus from "@/components/PortalRuns/PortalRunStatus";
+// import { isCloudMode } from "@/lib/portalRuns/runnerMode";
+
 
 /* ==============================
    Types
@@ -108,7 +114,8 @@ const ExcelCommissionImporter: React.FC = () => {
   const sanitizeMonth = (m?: any) => String(m || '').replace(/\//g, '-').trim();
   const [fallbackProduct, setFallbackProduct] = useState<string>('');
 
-  
+
+
   // בחירה מתוך ZIP
   const [zipChooser, setZipChooser] = useState<null | {
     zip: any;
@@ -124,9 +131,59 @@ const ExcelCommissionImporter: React.FC = () => {
 
   const VAT_DEFAULT = 0.17;
 
+
+
+  //automaionUpload
+
+const [autoRunId, setAutoRunId] = useState<string>("");
+const [isStartingAuto, setIsStartingAuto] = useState(false);
+
+const automationClass = String(selectedTemplate?.automationClass || "").trim();
+const canStartAuto = Boolean(
+  selectedAgentId && selectedCompanyId && templateId && automationClass
+);
+
   /* ==============================
      Helpers
   ============================== */
+  const handleStartAuto = async () => {
+    if (!selectedAgentId) {
+      addToast("error", "חסר סוכן נבחר");
+      return;
+    }
+  
+    if (!canStartAuto) {
+      addToast("error", "אין אפשרות להפעיל אוטומציה בלי automationClass בתבנית");
+      return;
+    }
+  
+    setIsStartingAuto(true);
+    try {
+      // 1) create run in Firestore
+      const { runId } = await startAutoPortalRun({
+        db,
+        agentId: selectedAgentId,
+        companyId: selectedCompanyId,
+        templateId,
+        automationClass,
+        monthLabel: "previous_month",
+        source: "portalRunner",
+        triggeredFrom: "ui",
+      });
+  
+      setAutoRunId(runId);
+      addToast("success", `✅ נוצרה ריצה אוטומטית: ${runId}`);
+  
+      // 2) no trigger call. Local runner poller will pick it up.
+      addToast("success", "🖥️ הריצה תתחיל אצל ה-Runner המקומי (Local Poller)");
+    } catch (e: any) {
+      addToast("error", `שגיאה בהפעלת אוטומטציה: ${String(e?.message || e)}`);
+    } finally {
+      setIsStartingAuto(false);
+    }
+  };
+  
+
   const roundTo2 = (num: number) => Math.round(num * 100) / 100;
   const getExt = (n: string) => n.slice(n.lastIndexOf('.')).toLowerCase();
 
@@ -1536,8 +1593,38 @@ await setDoc(runRef, {
           </select>
         </div>
       )}
+      {Boolean(automationClass) && (
+  <div className="mb-4 p-3 border rounded bg-gray-50">
+    <div className="font-semibold mb-2">הורדה אוטומטית (חודש קודם)</div>
 
-      <div className="mb-2 text-sm">
+    <div className="flex gap-2">
+      <Button
+        text={isStartingAuto ? "⏳ מפעיל..." : "🚀 הפעל הורדה אוטומטית"}
+        type="primary"
+        onClick={handleStartAuto}
+        disabled={!canStartAuto || isStartingAuto}
+      />
+
+      {autoRunId && (
+        <Button
+          text="העתק RunId"
+          type="secondary"
+          onClick={() => {
+            navigator.clipboard?.writeText(autoRunId);
+            addToast("success", "RunId הועתק ללוח");
+          }}
+        />
+      )}
+    </div>
+
+    {autoRunId && (
+      <div className="text-xs text-gray-600 mt-2">
+        RunId אחרון: <b>{autoRunId}</b>
+      </div>
+    )}
+  </div>
+)}
+  <div className="mb-2 text-sm">
         <Link
           href="/Help/commission-reports#top"
           target="_blank"
@@ -1746,6 +1833,12 @@ await setDoc(runRef, {
           onClose={() => setToasts((prevToasts) => prevToasts.filter((t) => t.id !== toast.id))}
         />
       ))}
+{autoRunId && (
+  <>
+    <PortalRunStatus db={db} runId={autoRunId} />
+    <PortalRunOtpModal runId={autoRunId} />
+  </>
+)}
     </div>
   );
 };

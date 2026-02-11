@@ -1,38 +1,89 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+# =====================================================
+# ROOT DEPENDENCIES
+# =====================================================
+node_modules/
 
-# dependencies
-/node_modules
-/.pnp
+# Nested node_modules
+functions/node_modules/
+scripts/**/node_modules/
+
+.pnp
 .pnp.js
 .yarn/install-state.gz
 
-# testing
-/coverage
+# =====================================================
+# NEXT.JS
+# =====================================================
+.next/
+out/
+build/
 
-# next.js
-/.next/
-/out/
-
-# production
-/build
-
-# misc
-.DS_Store
-*.pem
-
-# debug
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
-# local env files
-.env*.local
-
-# vercel
-.vercel
-
-# typescript
+# =====================================================
+# TYPESCRIPT
+# =====================================================
 *.tsbuildinfo
 next-env.d.ts
 
+# =====================================================
+# FIREBASE
+# =====================================================
+.firebase/
+firebase-debug.log*
+*.log
+
+# Compiled Firebase Functions output
+functions/lib/
+functions/dist/
+
+# =====================================================
+# RUNNER / SCRIPTS BUILD OUTPUT
+# =====================================================
+scripts/**/dist/
+scripts/**/lib/
+
+# =====================================================
+# PLAYWRIGHT ARTIFACTS
+# =====================================================
+scripts/portalRunner/playwright-report/
+scripts/portalRunner/test-results/
+scripts/portalRunner/.cache/
+scripts/portalRunner/storageState/
+
+# =====================================================
+# RUNNER LOCAL ARTIFACTS (DO NOT COMMIT)
+# =====================================================
+scripts/portalRunner/downloads/
+scripts/portalRunner/build_log.txt
+scripts/portalRunner/curl
+scripts/portalRunner/gcloud
+
+# =====================================================
+# SECRETS / SERVICE ACCOUNTS
+# =====================================================
+scripts/**/secrets/
+scripts/**/secrets/**/*.json
+*sa.json
+*.pem
+
+# =====================================================
+# ENV FILES
+# =====================================================
+.env
+.env.*
+.env*.local
+
+# =====================================================
+# TESTING / COVERAGE
+# =====================================================
+coverage/
+
+# =====================================================
+# VERCEL
+# =====================================================
 .vercel
+
+# =====================================================
+# OS / SYSTEM FILES
+# =====================================================
+.DS_Store
+Thumbs.db
