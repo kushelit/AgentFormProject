@@ -1,5 +1,6 @@
 // scripts/portalRunner/src/types.ts
 import type admin from "firebase-admin";
+import type { FirebaseStorage } from "firebase/storage";
 
 export type MonthSpec = { kind: "month"; ym: string; label?: string };
 export type RangeSpec = { kind: "range"; fromYm: string; toYm: string; label?: string };
@@ -18,10 +19,7 @@ export type RunDoc = {
   agentId: string;
   companyId: string;
   templateId: string;
-
-  // זה מה שמחליט איזה provider לרוץ
   automationClass: string;
-
   status: RunStatus;
 
   requestedWindow?: ReportWindow;
@@ -30,11 +28,10 @@ export type RunDoc = {
 
   otp?: {
     mode?: "firestore" | "manual";
-    state?: "none" | "required"; 
+    state?: "none" | "required";
     value?: string;
     hint?: string;
   };
-  
 
   download?: {
     localPath?: string;
@@ -55,10 +52,17 @@ export type RunDoc = {
     step?: string;
     message?: string;
   };
+
+  // (לא חובה) תוצאות ריצה
+  result?: Record<string, any>;
 };
 
 export type RunnerEnv = {
   FIREBASE_ADMIN_KEY_PATH?: string;
+
+  // ✅ חדש (ללוקאל)
+  FIREBASE_STORAGE_BUCKET?: string;
+  // (אם את עדיין צריכה בקלאוד/אדמין נשאיר)
   NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET?: string;
 
   RUNNER_ID?: string;
@@ -66,13 +70,11 @@ export type RunnerEnv = {
   DOWNLOAD_DIR?: string;
 
   CLAL_PORTAL_URL?: string;
-
   CLAL_TEST_MONTH_YM?: string;
   CLAL_TEST_MONTH_LABEL?: string;
 
-  // אם תרצי בעתיד:
   MIGDAL_PORTAL_URL?: string;
-  MIGDAL_DEBUG?: string; // ✅ הוספה
+  MIGDAL_DEBUG?: string;
 };
 
 export type RunnerCtx = {
@@ -84,7 +86,15 @@ export type RunnerCtx = {
   pollOtp: (runId: string, timeoutMs?: number) => Promise<string>;
   clearOtp: (runId: string) => Promise<void>;
 
-  admin: typeof import("firebase-admin");
+  // ✅ בענן יש admin, בלוקאל אין
+  admin?: typeof import("firebase-admin") | null;
+
+  // ✅ בלוקאל יש Client SDK
+  storage?: any;
+
+  // ✅ תמיד טוב שיהיה (בלוקאל מגיע מה-login; בענן מגיע מה-run)
+  agentId?: string;
+  runnerId?: string;
 };
 
 export type RunnerHandler = (ctx: RunnerCtx) => Promise<void>;

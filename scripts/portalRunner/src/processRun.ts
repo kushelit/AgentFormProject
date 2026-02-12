@@ -52,9 +52,12 @@ export async function processRun(runId: string) {
       setStatus,
       pollOtp,
       clearOtp,
+    
       admin,
+      agentId: run.agentId,
+      runnerId,
     };
-
+    
     // 6) run provider
     await fn(ctx);
 

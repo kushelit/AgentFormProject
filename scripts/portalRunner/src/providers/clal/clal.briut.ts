@@ -3,9 +3,8 @@ import fs from "fs";
 import path from "path";
 import { chromium } from "playwright";
 import type { RunnerCtx } from "../../types";
-import { getPortalCreds } from "../../portalCredentials"; // ✅ חדש
+import { getPortalCreds } from "../../portalCredentials";
 import {
-  envBool,
   clalLogin,
   clalHandleOtp,
   gotoCommissionsPage,
@@ -16,34 +15,54 @@ import {
   exportExcelFromCurrentReport,
 } from "./clal.shared";
 
+import { uploadLocalFileToStorageClient } from "../../uploadToStorage.client";
+
 function ensureDir(p: string) {
   if (!fs.existsSync(p)) fs.mkdirSync(p, { recursive: true });
 }
 
+function guessContentType(filename: string) {
+  const lower = filename.toLowerCase();
+  if (lower.endsWith(".xlsx")) return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+  if (lower.endsWith(".csv")) return "text/csv";
+  if (lower.endsWith(".zip")) return "application/zip";
+  return "application/octet-stream";
+}
+
+function hasAdminStorage(admin: any): boolean {
+  return !!admin && typeof admin.storage === "function";
+}
+
 export async function runClalBriut(ctx: RunnerCtx) {
-  const { runId, setStatus, env, admin, run } = ctx;
+  const { runId, setStatus, env, run } = ctx;
 
   const portalUrl = env.CLAL_PORTAL_URL || "https://www.clalnet.co.il/";
-  // const headless = envBool(env.HEADLESS, false);
   const headless = false;
 
-  // ✅ קרדנצ'לים מה-Firestore (מוצפן) במקום ENV
-  const agentId = String((run as any)?.agentId || "").trim();
-  if (!agentId) throw new Error("Missing run.agentId (required to load portal credentials)");
+  // ✅ agentId חובה (לקרדנצ'לים + נתיב העלאה)
+  const agentId = String(
+    (ctx.run as any)?.agentId || ctx.agentId || ""
+  ).trim();
+  
+  if (!agentId) {
+    throw new Error("Missing agentId (neither run.agentId nor ctx.agentId)");
+  }
+  
 
-  const { username, password } = await getPortalCreds({
-    agentId,
-    portalId: "clal",
-  });
+  // ✅ creds
+  const { username, password } = await getPortalCreds({ agentId, portalId: "clal" });
 
-  // חודש לתצוגה בפורטל
+  // ✅ month label
   const resolvedLabel =
     run.resolvedWindow?.kind === "month"
       ? (run.resolvedWindow.label || run.monthLabel)
       : run.resolvedWindow?.label;
 
   const monthLabel = resolvedLabel || env.CLAL_TEST_MONTH_LABEL || "נובמבר 2025";
+
   const downloadDir = env.DOWNLOAD_DIR || "downloads";
+  const absDir = path.isAbsolute(downloadDir) ? downloadDir : path.resolve(process.cwd(), downloadDir);
+  ensureDir(absDir);
 
   await setStatus(runId, { status: "running", step: "clal_open_portal", monthLabel });
 
@@ -54,73 +73,105 @@ export async function runClalBriut(ctx: RunnerCtx) {
   });
   const page = await context.newPage();
 
-  await page.goto(portalUrl, { waitUntil: "domcontentloaded" });
+  // ✅ ctx.storage מגיע מה-poller.local.ts (בלוקאל)
+  const storage = (ctx as any).storage as any | undefined;
 
-  // Login + OTP
-  await setStatus(runId, { status: "running", step: "clal_login", monthLabel });
-  await clalLogin(page, username, password);
+  // ✅ ctx.admin קיים בענן (Cloud Run / runner with admin)
+  const admin = (ctx as any).admin as any | undefined;
+  const canAdminUpload = hasAdminStorage(admin);
 
-  await setStatus(runId, { status: "running", step: "clal_otp", monthLabel });
-  await clalHandleOtp(page, ctx);
+  // אופציונלי: רק לתיעוד
+  const bucketName = env.FIREBASE_STORAGE_BUCKET || env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || "";
+  const bucket = canAdminUpload ? admin.storage().bucket(bucketName || undefined) : null;
 
-  // עמלות
-  await setStatus(runId, { status: "running", step: "clal_goto_commissions", monthLabel });
-  const commissionsPage = await gotoCommissionsPage(page);
+  try {
+    await page.goto(portalUrl, { waitUntil: "domcontentloaded" });
 
-  await setStatus(runId, { status: "running", step: "clal_select_all_agents", monthLabel });
-  await openAgentsDropdownAndSelectAll(commissionsPage);
+    // Login + OTP
+    await setStatus(runId, { status: "running", step: "clal_login", monthLabel });
+    await clalLogin(page, username, password);
 
-  await setStatus(runId, { status: "running", step: "clal_select_month", monthLabel });
-  await selectMonthAndSearch(commissionsPage, monthLabel);
+    await setStatus(runId, { status: "running", step: "clal_otp", monthLabel });
+    await clalHandleOtp(page, ctx);
 
-  await setStatus(runId, { status: "running", step: "clal_wait_month_refresh", monthLabel });
-  await waitForMonthHeader(commissionsPage, monthLabel);
+    // עמלות
+    await setStatus(runId, { status: "running", step: "clal_goto_commissions", monthLabel });
+    const commissionsPage = await gotoCommissionsPage(page);
 
-  // ייחודי לבריאות
-  await setStatus(runId, { status: "running", step: "clal_briut_open", monthLabel });
-  await openBriutReportFromSummary(commissionsPage);
+    await setStatus(runId, { status: "running", step: "clal_select_all_agents", monthLabel });
+    await openAgentsDropdownAndSelectAll(commissionsPage);
 
-  await setStatus(runId, { status: "running", step: "clal_briut_export_excel", monthLabel });
+    await setStatus(runId, { status: "running", step: "clal_select_month", monthLabel });
+    await selectMonthAndSearch(commissionsPage, monthLabel);
 
-  // הורדה מקומית
-  const absDir = path.resolve(process.cwd(), downloadDir);
-  ensureDir(absDir);
+    await setStatus(runId, { status: "running", step: "clal_wait_month_refresh", monthLabel });
+    await waitForMonthHeader(commissionsPage, monthLabel);
 
-  const { download, filename } = await exportExcelFromCurrentReport(commissionsPage);
-  const localPath = path.join(absDir, `${Date.now()}_${filename}`);
-  await download.saveAs(localPath);
+    // ייחודי לבריאות
+    await setStatus(runId, { status: "running", step: "clal_briut_open", monthLabel });
+    await openBriutReportFromSummary(commissionsPage);
 
-  console.log("[Clal][Briut] excel saved:", localPath);
+    await setStatus(runId, { status: "running", step: "clal_briut_export_excel", monthLabel });
 
-  // העלאה ל-Storage
-  await setStatus(runId, { status: "running", step: "clal_briut_uploading", monthLabel });
+    // הורדה מקומית
+    const { download, filename } = await exportExcelFromCurrentReport(commissionsPage);
+    const localPath = path.join(absDir, `${Date.now()}_${filename}`);
+    await download.saveAs(localPath);
 
-  const bucketName = env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET;
-  if (!bucketName) throw new Error("Missing NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET in runner env");
+    console.log("[Clal][Briut] excel saved:", localPath);
 
-  const bucket = admin.storage().bucket(bucketName);
-  const storagePath = `portalRuns/${runId}/${path.basename(localPath)}`;
+    // העלאה ל-Storage (agent-scoped)
+    await setStatus(runId, { status: "running", step: "clal_briut_uploading", monthLabel });
 
-  await bucket.upload(localPath, {
-    destination: storagePath,
-    contentType: filename.toLowerCase().endsWith(".xlsx")
-      ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-      : "application/octet-stream",
-  });
+    let storagePath = "";
+    let uploadedFilename = filename;
+    let uploadVia: "client" | "admin" = "client";
 
-  await setStatus(runId, {
-    status: "file_uploaded",
-    step: "clal_briut_done",
-    monthLabel,
-    download: {
-      localPath,
-      filename,
-      storagePath,
-      bucket: bucketName,
-    },
-  });
+    // 1) Local client upload (אם קיים ctx.storage)
+    if (storage) {
+      const up = await uploadLocalFileToStorageClient({
+        storage,
+        localPath,
+        agentId,
+        runId,
+      });
 
-  console.log("[Clal][Briut] uploaded to storage:", `${bucketName}/${storagePath}`);
+      storagePath = up.storagePath;
+      uploadedFilename = up.filename || filename;
+      uploadVia = "client";
+      console.log("[Clal][Briut] uploaded (client):", storagePath);
+    } else {
+      // 2) Cloud admin upload fallback
+      if (!bucket) {
+        throw new Error("No storage available for upload (missing ctx.storage in local OR admin bucket in cloud)");
+      }
 
-  await browser.close().catch(() => {});
+      storagePath = `portalRuns/${agentId}/${runId}/${path.basename(localPath)}`;
+      await bucket.upload(localPath, {
+        destination: storagePath,
+        contentType: guessContentType(filename),
+      });
+
+      uploadVia = "admin";
+      console.log("[Clal][Briut] uploaded (admin):", `${bucketName}/${storagePath}`);
+    }
+
+    await setStatus(runId, {
+      status: "file_uploaded",
+      step: "clal_briut_done",
+      monthLabel,
+      download: {
+        localPath,
+        filename: uploadedFilename,
+        storagePath,
+        bucket: bucketName || undefined,
+      },
+      result: {
+        uploaded: true,
+        uploadVia,
+      },
+    });
+  } finally {
+    await browser.close().catch(() => {});
+  }
 }

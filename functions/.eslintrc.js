@@ -18,17 +18,24 @@ module.exports = {
     sourceType: "module",
   },
   ignorePatterns: [
-    "/lib/**/*", // Ignore built files.
-    "/generated/**/*", // Ignore generated files.
+    "/lib/**/*", // Ignore built files
+    "/generated/**/*", // Ignore generated files
   ],
   plugins: [
     "@typescript-eslint",
     "import",
   ],
+
   rules: {
     "quotes": ["error", "double"],
     "import/no-unresolved": 0,
     "indent": ["error", 2],
+
+    // ✅ Windows: אל תחסום דיפלוי בגלל CRLF
+    "linebreak-style": "off",
+
+    // ✅ התאמה ל-google style (בלי רווחים בתוך {})
+    "object-curly-spacing": ["error", "never"],
   },
 
   overrides: [
@@ -52,9 +59,9 @@ module.exports = {
       },
     },
 
-    // ✅ טריגרים + index: לא לחסום דיפלוי בגלל JSDoc / שורות ארוכות / any
+    // ✅ כל קבצי ה-src (כולל mintCustomToken וכו׳)
     {
-      files: ["src/triggers/**/*.ts", "src/index.ts"],
+      files: ["src/**/*.ts"],
       rules: {
         "require-jsdoc": "off",
         "valid-jsdoc": "off",
