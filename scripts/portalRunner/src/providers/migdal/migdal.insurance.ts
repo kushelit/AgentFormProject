@@ -61,8 +61,14 @@ export async function runMigdalInsurance(ctx: RunnerCtx) {
   }
   
 
-  const { username, password } = await getPortalCreds({ agentId, portalId: "migdal" });
-
+  const creds = await getPortalCreds({ agentId, portalId: "migdal" });
+  const username = creds.username;
+  const password = creds.password;
+  
+  if (creds.requiresPassword && !password) {
+    throw new Error("Missing password for migdal (portalCredentials)");
+  }
+  
   // ym = "YYYY-MM" (לרישום/דוח)
   const ym = String((run as any)?.resolvedWindow?.ym || (run as any)?.month || "").trim();
   if (!ym) throw new Error("Missing run.resolvedWindow.ym (expected YYYY-MM)");
@@ -185,7 +191,7 @@ export async function runMigdalInsurance(ctx: RunnerCtx) {
     await page.goto(portalUrl, { waitUntil: "domcontentloaded" });
 
     await setStatus(runId, { status: "running", step: "migdal_login" });
-    await migdalLogin(page, username, password);
+    await migdalLogin(page, username, password!);
 
     await setStatus(runId, { status: "running", step: "migdal_otp" });
     page = await migdalHandleOtp(page, context, ctx);

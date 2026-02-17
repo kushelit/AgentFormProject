@@ -1,36 +1,100 @@
-import admin from "firebase-admin";
+// scripts/portalRunner/src/portalCredentials.ts
+
 import type { EncryptOut } from "./shared/cryptoAesGcm";
 import { decryptJsonAes256Gcm } from "./shared/cryptoAesGcm";
 
 import { httpsCallable } from "firebase/functions";
 import { initFirebaseClient } from "./firebaseClient";
 
+// ✅ admin (MODULAR) כדי לא ליפול על "default app does not exist"
+import { getApp, initializeApp } from "firebase-admin/app";
+import { getFirestore } from "firebase-admin/firestore";
+
 function s(v: any) {
   return String(v ?? "").trim();
 }
 
-export async function getPortalCreds(params: { agentId: string; portalId: string }) {
-  const { agentId, portalId } = params;
+/**
+ * Menora: username + phoneNumber (+ OTP), בלי password קבוע.
+ * אחרים: username + password.
+ */
+export type PortalCreds = {
+  username: string;
+  password?: string;
+  phoneNumber?: string;
+  requiresPassword: boolean;
+};
+
+function requiresPasswordForPortal(portalId: string): boolean {
+  const p = s(portalId).toLowerCase();
+
+  // ✅ בלי סיסמה קבועה:
+  if (p === "menora") return false;
+
+  // ✅ עם סיסמה (whitelist מפורש כדי לא לשבור פורטלים עתידיים)
+  const PASSWORD_PORTALS = new Set(["migdal", "clal", "fenix"]);
+  return PASSWORD_PORTALS.has(p);
+}
+
+function ensureAdminApp() {
+  try {
+    return getApp(); // default
+  } catch {
+    return initializeApp(); // create default
+  }
+}
+
+export async function getPortalCreds(params: {
+  agentId: string;
+  portalId: string;
+}): Promise<PortalCreds> {
+  const { agentId } = params;
+  const portalId = s(params.portalId).toLowerCase(); // ✅ normalize
+  const requiresPassword = requiresPasswordForPortal(portalId);
 
   // ======== SERVER MODE (Cloud Run / admin) ========
   const keyB64 = s(process.env.PORTAL_ENC_KEY_B64);
-  if (keyB64 && admin.apps.length) {
-    const docId = `${agentId}_${portalId}`;
-    const snap = await admin.firestore().collection("portalCredentials").doc(docId).get();
-    if (!snap.exists) throw new Error(`Missing portalCredentials doc: ${docId}`);
 
-    const data: any = snap.data() || {};
-    const enc = data.enc as EncryptOut | undefined;
-    if (!enc?.ivB64 || !enc?.tagB64 || !enc?.dataB64) {
-      throw new Error(`Invalid enc payload in portalCredentials: ${docId}`);
+  // אם יש לנו מפתח הצפנה - ננסה לקרוא ישירות מהשרת (admin)
+  if (keyB64) {
+    try {
+      const app = ensureAdminApp();
+      const db = getFirestore(app);
+
+      const docId = `${agentId}_${portalId}`;
+      const snap = await db.collection("portalCredentials").doc(docId).get();
+      if (!snap.exists) throw new Error(`Missing portalCredentials doc: ${docId}`);
+
+      const data: any = snap.data() || {};
+      const enc = data.enc as EncryptOut | undefined;
+
+      if (!enc?.ivB64 || !enc?.tagB64 || !enc?.dataB64) {
+        throw new Error(`Invalid enc payload in portalCredentials: ${docId}`);
+      }
+
+      const plain = decryptJsonAes256Gcm(keyB64, enc) as any;
+
+      const username = s(plain?.username);
+      const password = s(plain?.password);
+      const phoneNumber = s(plain?.phoneNumber);
+
+      if (!username) throw new Error(`Decrypted username empty: ${docId}`);
+      if (requiresPassword && !password) {
+        throw new Error(
+          `Decrypted password empty (required) for portalId=${portalId} doc=${docId}`
+        );
+      }
+
+      return {
+        username,
+        ...(password ? { password } : {}),
+        ...(phoneNumber ? { phoneNumber } : {}),
+        requiresPassword,
+      };
+    } catch (e) {
+      // אם זה רץ בלוקאל ואין admin credentials — זה יפול פה,
+      // ואז נמשיך ל-client callable (וזה תקין).
     }
-
-    const plain = decryptJsonAes256Gcm(keyB64, enc) as { username: string; password: string };
-    const username = s(plain?.username);
-    const password = s(plain?.password);
-    if (!username || !password) throw new Error(`Decrypted creds empty: ${docId}`);
-
-    return { username, password };
   }
 
   // ======== LOCAL AGENT MODE (client auth + callable) ========
@@ -39,7 +103,6 @@ export async function getPortalCreds(params: { agentId: string; portalId: string
   if (!uid) throw new Error("Not authenticated (local runner must login first)");
 
   if (uid !== agentId) {
-    // הגנה נוספת (לא חייב, אבל טוב)
     throw new Error("Agent mismatch: local runner uid != run.agentId");
   }
 
@@ -50,7 +113,17 @@ export async function getPortalCreds(params: { agentId: string; portalId: string
 
   const username = s(data.username);
   const password = s(data.password);
-  if (!username || !password) throw new Error("Empty credentials returned from server");
+  const phoneNumber = s(data.phoneNumber);
 
-  return { username, password };
+  if (!username) throw new Error("Empty username returned from server");
+  if (requiresPassword && !password) {
+    throw new Error(`Empty password returned from server (required) for portalId=${portalId}`);
+  }
+
+  return {
+    username,
+    ...(password ? { password } : {}),
+    ...(phoneNumber ? { phoneNumber } : {}),
+    requiresPassword,
+  };
 }

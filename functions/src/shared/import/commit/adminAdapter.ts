@@ -1,6 +1,6 @@
 // functions/src/shared/import/commit/adminAdapter.ts
-import * as admin from "firebase-admin";
-import {FirestoreAdapter} from "./adapters";
+import type {FirestoreAdapter} from "./adapters";
+import {FieldValue} from "firebase-admin/firestore";
 
 export function makeAdminAdapter(db: FirebaseFirestore.Firestore): FirestoreAdapter {
   return {
@@ -10,7 +10,7 @@ export function makeAdminAdapter(db: FirebaseFirestore.Firestore): FirestoreAdap
       return idMaybe ? pathOrCollection.doc(idMaybe) : pathOrCollection.doc();
     },
 
-    serverTimestamp: () => admin.firestore.FieldValue.serverTimestamp(),
+    serverTimestamp: () => FieldValue.serverTimestamp(),
     writeBatch: () => db.batch() as any,
 
     getDoc: async (ref: any) => {
@@ -26,7 +26,7 @@ export function makeAdminAdapter(db: FirebaseFirestore.Firestore): FirestoreAdap
       await ref.set(data, opts);
     },
 
-    arrayUnion: (...items: any[]) => admin.firestore.FieldValue.arrayUnion(...items),
+    arrayUnion: (...items: any[]) => FieldValue.arrayUnion(...items),
 
     newId: () => db.collection("_").doc().id,
   };

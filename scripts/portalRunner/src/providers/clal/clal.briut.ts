@@ -50,7 +50,15 @@ export async function runClalBriut(ctx: RunnerCtx) {
   
 
   // ✅ creds
-  const { username, password } = await getPortalCreds({ agentId, portalId: "clal" });
+// ✅ creds
+const creds = await getPortalCreds({ agentId, portalId: "clal" });
+
+const username = creds.username;
+const password = creds.password;
+
+if (creds.requiresPassword && !password) {
+  throw new Error("Missing password for clal (portalCredentials)");
+}
 
   // ✅ month label
   const resolvedLabel =
@@ -89,7 +97,7 @@ export async function runClalBriut(ctx: RunnerCtx) {
 
     // Login + OTP
     await setStatus(runId, { status: "running", step: "clal_login", monthLabel });
-    await clalLogin(page, username, password);
+    await clalLogin(page, username, password!);
 
     await setStatus(runId, { status: "running", step: "clal_otp", monthLabel });
     await clalHandleOtp(page, ctx);

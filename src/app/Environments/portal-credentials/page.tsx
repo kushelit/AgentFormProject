@@ -30,10 +30,11 @@ export default function PortalCredentialsPage() {
   const [statusMap, setStatusMap] = useState<StatusMap>({});
   const [loading, setLoading] = useState(true);
 
-  // טופס
+  // form
   const [selectedPortalId, setSelectedPortalId] = useState<string>("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [phoneNumber, setPhoneNumber] = useState("");
   const [saving, setSaving] = useState(false);
 
   const agentId = user?.uid || "";
@@ -43,20 +44,22 @@ export default function PortalCredentialsPage() {
     [companies]
   );
 
+  const isMenora = selectedPortalId === "menora";
+
   useEffect(() => {
     const run = async () => {
       if (!agentId) {
         setLoading(false);
         return;
       }
-  
+
       setLoading(true);
       try {
         const qy = query(
           collection(db, "company"),
           where("automationEnabled", "==", true)
         );
-  
+
         const snap = await getDocs(qy);
         const rows: CompanyRow[] = snap.docs
           .map((d) => {
@@ -64,16 +67,15 @@ export default function PortalCredentialsPage() {
             return {
               id: d.id,
               companyName: s(data.companyName),
-              portalId: s(data.portalId),
+              portalId: s(data.portalId).toLowerCase(),
               automationEnabled: !!data.automationEnabled,
             };
           })
           .filter((r) => r.portalId && r.companyName);
-  
+
         rows.sort((a, b) => a.companyName.localeCompare(b.companyName, "he"));
         setCompanies(rows);
-  
-        // ✅ סטטוסים רק אם יש פורטלים
+
         if (rows.length) {
           const getStatus = httpsCallable(functions, "getPortalCredentialsStatus");
           const res: any = await getStatus({
@@ -92,10 +94,9 @@ export default function PortalCredentialsPage() {
         setLoading(false);
       }
     };
-  
+
     run();
   }, [agentId]);
-  
 
   const refreshStatus = async () => {
     if (!agentId) return;
@@ -107,26 +108,38 @@ export default function PortalCredentialsPage() {
     const res: any = await getStatus({ agentId, portalIds });
     setStatusMap(res?.data?.status || {});
   };
-  
 
   const onPickCompany = (portalId: string) => {
     setSelectedPortalId(portalId);
     setUsername("");
     setPassword("");
+    setPhoneNumber("");
   };
 
+  const canSave =
+    !!agentId &&
+    !!selectedPortalId &&
+    !!username &&
+    (isMenora ? !!phoneNumber : !!password) &&
+    !saving;
+
   const onSave = async () => {
-    if (!agentId || !selectedPortalId || !username || !password) return;
+    if (!canSave) return;
 
     setSaving(true);
     try {
       const saveCreds = httpsCallable(functions, "savePortalCredentials");
-      await saveCreds({
+
+      const payload: any = {
         agentId,
         portalId: selectedPortalId,
         username,
-        password,
-      });
+      };
+
+      if (isMenora) payload.phoneNumber = phoneNumber;
+      else payload.password = password;
+
+      await saveCreds(payload);
 
       await refreshStatus();
       setPassword("");
@@ -152,7 +165,9 @@ export default function PortalCredentialsPage() {
     <div className="p-6 max-w-4xl mx-auto text-right">
       <h1 className="text-2xl font-bold">🔐 חיבור לפורטלים</h1>
       <p className="mt-2 text-gray-600">
-        כאן שומרים שם משתמש וסיסמה לכל פורטל (מוצפן). זה מאפשר להריץ הורדה אוטומטית בענן.
+        כאן שומרים פרטי התחברות לכל פורטל (מוצפן). לכל פורטל יש דרישות שונות.
+        <br />
+        <b>מנורה:</b> שם משתמש + טלפון/SAPN (ללא סיסמה).
       </p>
 
       <div className="mt-4 text-sm text-gray-700">
@@ -218,7 +233,7 @@ export default function PortalCredentialsPage() {
               <label className="block font-semibold mb-1">בחר פורטל:</label>
               <select
                 value={selectedPortalId}
-                onChange={(e) => setSelectedPortalId(e.target.value)}
+                onChange={(e) => onPickCompany(String(e.target.value))}
                 className="select-input w-full"
               >
                 <option value="">בחר פורטל</option>
@@ -236,27 +251,47 @@ export default function PortalCredentialsPage() {
                 className="select-input w-full"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                placeholder="לדוגמה: ת״ז / שם משתמש בפורטל"
+                placeholder={isMenora ? "קוד משתמש / ת״ז לפורטל מנורה" : "לדוגמה: ת״ז / שם משתמש"}
               />
             </div>
 
-            <div className="mb-3">
-              <label className="block font-semibold mb-1">סיסמה:</label>
-              <input
-                className="select-input w-full"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="סיסמה לפורטל"
-              />
-            </div>
+            {/* מנורה: טלפון/SAPN */}
+            {isMenora && (
+              <div className="mb-3">
+                <label className="block font-semibold mb-1">טלפון / SAPN:</label>
+                <input
+                  className="select-input w-full"
+                  value={phoneNumber}
+                  onChange={(e) => setPhoneNumber(e.target.value)}
+                  placeholder="מספר טלפון להזדהות במנורה"
+                  inputMode="tel"
+                />
+                <div className="text-xs text-gray-500 mt-1">
+                  במנורה אין סיסמה. יש שם משתמש + טלפון ואז OTP.
+                </div>
+              </div>
+            )}
+
+            {/* אחרים: סיסמה */}
+            {!isMenora && (
+              <div className="mb-3">
+                <label className="block font-semibold mb-1">סיסמה:</label>
+                <input
+                  className="select-input w-full"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="סיסמה לפורטל"
+                />
+              </div>
+            )}
 
             <div className="flex justify-end gap-2">
               <Button
                 text={saving ? "⏳ שומר..." : "שמור"}
                 type="primary"
                 onClick={onSave}
-                disabled={!selectedPortalId || !username || !password || saving}
+                disabled={!canSave}
               />
             </div>
 

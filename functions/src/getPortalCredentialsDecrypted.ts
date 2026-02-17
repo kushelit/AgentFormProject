@@ -21,7 +21,11 @@ function isValidPortalId(portalId: string) {
 
 /**
  * getPortalCredentialsDecrypted
- * Callable: returns {username,password} for the *logged in* agent only.
+ * Callable: returns credentials for the *logged in* agent only.
+ * Returns:
+ * - username always
+ * - password optional
+ * - phoneNumber optional
  */
 export const getPortalCredentialsDecrypted = onCall(
   {region: "us-central1", secrets: [PORTAL_ENC_KEY_B64]},
@@ -30,7 +34,7 @@ export const getPortalCredentialsDecrypted = onCall(
     if (!authUid) throw new HttpsError("unauthenticated", "Login required");
 
     const body = (req.data || {}) as Partial<Input>;
-    const portalId = s(body.portalId);
+    const portalId = s(body.portalId).toLowerCase();
     if (!portalId || !isValidPortalId(portalId)) {
       throw new HttpsError("invalid-argument", "Invalid portalId");
     }
@@ -40,6 +44,7 @@ export const getPortalCredentialsDecrypted = onCall(
 
     const db = adminDb();
     const docId = `${authUid}_${portalId}`;
+
     const snap = await db.collection("portalCredentials").doc(docId).get();
     if (!snap.exists) {
       throw new HttpsError("failed-precondition", `Missing portal credentials for ${portalId}`);
@@ -51,11 +56,19 @@ export const getPortalCredentialsDecrypted = onCall(
       throw new HttpsError("internal", "Invalid enc payload");
     }
 
-    const plain = decryptJsonAes256Gcm(keyB64, enc) as { username: string; password: string };
+    const plain = decryptJsonAes256Gcm(keyB64, enc) as any;
+
     const username = s(plain?.username);
     const password = s(plain?.password);
-    if (!username || !password) throw new HttpsError("internal", "Decrypted creds empty");
+    const phoneNumber = s(plain?.phoneNumber);
 
-    return {ok: true, username, password};
+    if (!username) throw new HttpsError("internal", "Decrypted username empty");
+
+    return {
+      ok: true,
+      username,
+      ...(password ? {password} : {}),
+      ...(phoneNumber ? {phoneNumber} : {}),
+    };
   }
 );

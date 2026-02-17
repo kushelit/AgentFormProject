@@ -75,6 +75,12 @@ export type RunnerEnv = {
 
   MIGDAL_PORTAL_URL?: string;
   MIGDAL_DEBUG?: string;
+
+  FENIX_PORTAL_URL?: string;
+
+MENORA_PORTAL_URL?: string;
+MENORA_PHONE_NUMBER?: string; // אם צריך להזין מספר טלפון/סוכן בשלב SAPN
+
 };
 
 export type RunnerCtx = {

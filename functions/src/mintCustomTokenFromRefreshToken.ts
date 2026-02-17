@@ -3,16 +3,13 @@
 /* eslint-disable max-len */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import * as admin from "firebase-admin";
 import {onCall, HttpsError} from "firebase-functions/v2/https";
+import {getAuth} from "firebase-admin/auth";
+import {ensureAdminApp} from "./shared/admin";
 
 type Input = {
   refreshToken: string;
 };
-
-function ensureAdmin() {
-  if (!admin.apps.length) admin.initializeApp();
-}
 
 function s(v: any) {
   return String(v ?? "").trim();
@@ -27,7 +24,8 @@ function reqEnv(name: string) {
 export const mintCustomTokenFromRefreshToken = onCall(
   {region: "us-central1"},
   async (req) => {
-    ensureAdmin();
+    // ✅ מאתחל Default App בצורה אחידה עם שאר המערכת
+    ensureAdminApp();
 
     const body = (req.data || {}) as Partial<Input>;
     const refreshToken = s(body.refreshToken);
@@ -68,9 +66,11 @@ export const mintCustomTokenFromRefreshToken = onCall(
     const idToken = s(tokenJson.id_token);
     if (!idToken) throw new HttpsError("internal", "Missing id_token from token exchange");
 
+    const auth = getAuth();
+
     let decoded: any;
     try {
-      decoded = await admin.auth().verifyIdToken(idToken);
+      decoded = await auth.verifyIdToken(idToken);
     } catch (e: any) {
       throw new HttpsError("permission-denied", `verifyIdToken failed: ${String(e?.message || e)}`);
     }
@@ -78,7 +78,7 @@ export const mintCustomTokenFromRefreshToken = onCall(
     const uid = s(decoded?.uid);
     if (!uid) throw new HttpsError("permission-denied", "Token uid missing");
 
-    const customToken = await admin.auth().createCustomToken(uid);
+    const customToken = await auth.createCustomToken(uid);
     return {ok: true, uid, customToken};
   }
 );
