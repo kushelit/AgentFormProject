@@ -13,7 +13,8 @@ export type RunStatus =
   | "logged_in"
   | "file_uploaded"
   | "done"
-  | "error";
+  | "error"
+  | "skipped";;
 
 export type RunDoc = {
   agentId: string;
