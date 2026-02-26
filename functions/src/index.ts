@@ -10,3 +10,5 @@ export {mintCustomTokenFromRefreshToken} from "./mintCustomTokenFromRefreshToken
 
 export {enqueueCommissionImportFromPortalRun} from "./triggers/enqueuePortalRun";
 export {processCommissionImportQueue} from "./triggers/processCommissionImportQueue";
+
+export { createRunnerPairingCode, consumeRunnerPairingCode } from "./runnerPairing";

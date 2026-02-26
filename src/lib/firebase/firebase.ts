@@ -1,8 +1,7 @@
 import { initializeApp, getApps } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore,setLogLevel } from "firebase/firestore";
-import { getFunctions } from "firebase/functions";
-
+import { getFunctions, connectFunctionsEmulator } from "firebase/functions";
 
 
 export const firebaseConfig = {
@@ -14,6 +13,10 @@ export const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
 
+const FUNCTIONS_REGION =
+  process.env.NEXT_PUBLIC_FIREBASE_FUNCTIONS_REGION || "europe-west1";
+
+
 export const firebaseApp =
   getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
 
@@ -23,4 +26,4 @@ export const db = getFirestore(firebaseApp);
 // 🟢 מוסיפים כאן – יראה בקונסול את כל השאילתות והשגיאות
 // setLogLevel("debug");
 
-export const functions = getFunctions(firebaseApp);
+export const functions = getFunctions(firebaseApp, FUNCTIONS_REGION);

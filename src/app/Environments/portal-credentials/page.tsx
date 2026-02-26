@@ -46,6 +46,61 @@ export default function PortalCredentialsPage() {
 
   const isMenora = selectedPortalId === "menora";
 
+
+  const [pairing, setPairing] = useState<{ code: string; expiresAtMs: number } | null>(null);
+  const [pairingLeftSec, setPairingLeftSec] = useState<number>(0);
+const [creatingPairing, setCreatingPairing] = useState(false);
+
+  useEffect(() => {
+    if (!pairing?.expiresAtMs) return;
+    const tick = () => {
+      const left = Math.max(0, Math.ceil((pairing.expiresAtMs - Date.now()) / 1000));
+      setPairingLeftSec(left);
+      if (left <= 0) setPairing(null);
+    };
+    tick();
+    const t = setInterval(tick, 1000);
+    return () => clearInterval(t);
+  }, [pairing?.expiresAtMs]);
+
+const onCreatePairingCode = async () => {
+  if (creatingPairing) return;
+
+  setCreatingPairing(true);
+  try {
+    const fn = httpsCallable(functions, "createRunnerPairingCode");
+    const res: any = await fn({});
+
+    const code = s(res?.data?.code);
+    const expiresAtMs = Number(res?.data?.expiresAtMs || 0);
+
+    if (!code || !expiresAtMs) {
+      throw new Error("Missing code/expiresAtMs");
+    }
+
+    setPairing({ code, expiresAtMs });
+  } catch (e: any) {
+    console.error(e);
+    alert(`שגיאה ביצירת קוד חיבור: ${String(e?.message || e)}`);
+  } finally {
+    setCreatingPairing(false);
+  }
+};
+
+
+  const onCopyPairing = async () => {
+  if (!pairing?.code) return;
+
+  try {
+    await navigator.clipboard.writeText(pairing.code);
+    alert("✅ הקוד הועתק");
+  } catch {
+    // fallback אם clipboard לא נתמך
+    alert(`העתקה נכשלה. הקוד הוא:\n${pairing.code}`);
+  }
+};
+
+
   useEffect(() => {
     const run = async () => {
       if (!agentId) {
@@ -174,6 +229,34 @@ export default function PortalCredentialsPage() {
         סוכן: <b>{detail?.name || user.email}</b>
       </div>
 
+      <div className="mt-4 border rounded p-3 bg-white">
+        <div className="font-semibold mb-2">🖥️ חיבור Runner למחשב</div>
+        <div className="text-sm text-gray-600">
+          קוד חיבור חד-פעמי (10 דקות). מדביקים אותו ב-Runner בפעם הראשונה על מחשב חדש.
+        </div>
+
+        <div className="mt-3 flex justify-end gap-2">
+<Button
+  text={creatingPairing ? "⏳ יוצר..." : "צור קוד חיבור"}
+  type="primary"
+  onClick={onCreatePairingCode}
+  disabled={creatingPairing}
+/>
+          {pairing?.code && (
+            <Button text="העתק" type="secondary" onClick={onCopyPairing} />
+          )}
+        </div>
+
+        {pairing?.code && (
+          <div className="mt-3 border rounded p-3 bg-gray-50">
+            <div className="text-sm text-gray-700">קוד:</div>
+            <div className="text-2xl font-bold tracking-widest">{pairing.code}</div>
+            <div className="text-xs text-gray-500 mt-1">
+              תוקף נשאר: <b>{pairingLeftSec}</b> שניות
+            </div>
+          </div>
+        )}
+      </div>
       {loading ? (
         <div className="mt-6">טוען...</div>
       ) : (
