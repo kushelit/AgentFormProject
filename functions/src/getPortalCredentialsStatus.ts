@@ -4,6 +4,7 @@
 
 import {adminDb} from "./shared/admin";
 import {onCall, HttpsError} from "firebase-functions/v2/https";
+import { FUNCTIONS_REGION } from "./shared/region";
 
 type Input = {
   agentId: string;
@@ -19,7 +20,7 @@ function isValidPortalId(portalId: string) {
 }
 
 export const getPortalCredentialsStatus = onCall(
-  {region: "us-central1"},
+  {region: FUNCTIONS_REGION},
   async (req) => {
     const db = adminDb();
 

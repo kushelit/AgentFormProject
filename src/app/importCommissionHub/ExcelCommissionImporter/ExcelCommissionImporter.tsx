@@ -32,7 +32,7 @@ import PortalRunOtpModal from "@/components/PortalRunOtpModal";
 // import { triggerPortalRun } from "@/lib/portalRuns/triggerPortalRun";
 import PortalRunStatus from "@/components/PortalRuns/PortalRunStatus";
 // import { isCloudMode } from "@/lib/portalRuns/runnerMode";
-
+import { usePermission } from "@/hooks/usePermission";
 
 /* ==============================
    Types
@@ -114,7 +114,8 @@ const ExcelCommissionImporter: React.FC = () => {
   const sanitizeMonth = (m?: any) => String(m || '').replace(/\//g, '-').trim();
   const [fallbackProduct, setFallbackProduct] = useState<string>('');
 
-
+const { canAccess: canAutoDownload, isChecking: isCheckingAutoDownload } =
+  usePermission(user ? "access_portal_auto_download" : null);
 
   // בחירה מתוך ZIP
   const [zipChooser, setZipChooser] = useState<null | {
@@ -139,51 +140,72 @@ const [autoRunId, setAutoRunId] = useState<string>("");
 const [isStartingAuto, setIsStartingAuto] = useState(false);
 
 const automationClass = String(selectedTemplate?.automationClass || "").trim();
-const canStartAuto = Boolean(
-  selectedAgentId && selectedCompanyId && templateId && automationClass
-);
+// const canStartAuto = Boolean(
+//   selectedAgentId && selectedCompanyId && templateId && automationClass
+// );
 
   /* ==============================
      Helpers
   ============================== */
-  const handleStartAuto = async () => {
-    if (!selectedAgentId) {
-      addToast("error", "חסר סוכן נבחר");
-      return;
-    }
-  
-    if (!canStartAuto) {
-      addToast("error", "אין אפשרות להפעיל אוטומציה בלי automationClass בתבנית");
-      return;
-    }
-  
-    setIsStartingAuto(true);
-    try {
-      // 1) create run in Firestore
-      const { runId } = await startAutoPortalRun({
-        db,
-        agentId: selectedAgentId,
-        companyId: selectedCompanyId,
-        templateId,
-        automationClass,
-        monthLabel: "previous_month",
-        source: "portalRunner",
-        triggeredFrom: "ui",
-      });
-  
-      setAutoRunId(runId);
-      addToast("success", `✅ נוצרה ריצה אוטומטית: ${runId}`);
-  
-      // 2) no trigger call. Local runner poller will pick it up.
-      addToast("success", "🖥️ הריצה תתחיל אצל ה-Runner המקומי (Local Poller)");
-    } catch (e: any) {
-      addToast("error", `שגיאה בהפעלת אוטומטציה: ${String(e?.message || e)}`);
-    } finally {
-      setIsStartingAuto(false);
-    }
-  };
-  
 
+const isClal = String(selectedCompanyId) === "4";
+
+const effectiveAutomationClass = isClal
+  ? "clal_commissions_all"
+  : String(selectedTemplate?.automationClass || "").trim();
+
+const canStartAuto = Boolean(selectedAgentId && selectedCompanyId && effectiveAutomationClass);
+
+ const handleStartAuto = async () => {
+  if (!selectedAgentId) {
+    addToast("error", "חסר סוכן נבחר");
+    return;
+  }
+
+  setIsStartingAuto(true);
+  try {
+    const isClal = String(selectedCompanyId) === "4";
+
+    // ✅ כלל = תמיד ALL, אחרת לפי התבנית שנבחרה
+    const finalAutomationClass = isClal
+      ? "clal_commissions_all"
+      : effectiveAutomationClass; // ✅ במקום automationClass
+
+    const finalTemplateId = isClal
+      ? "bundle_clal_commissions" // meta בלבד (לא commissionTemplate)
+      : templateId;
+
+    if (!finalAutomationClass) {
+      addToast("error", "אין automationClass להרצה");
+      return;
+    }
+
+    // אופציונלי: אם זו לא כלל ועדיין אין תבנית — נחסום
+    if (!isClal && !finalTemplateId) {
+      addToast("error", "חסרה תבנית להרצה");
+      return;
+    }
+
+    const { runId } = await startAutoPortalRun({
+      db,
+      agentId: selectedAgentId,
+      companyId: selectedCompanyId,
+      templateId: finalTemplateId,
+      automationClass: finalAutomationClass,
+      monthLabel: "previous_month",
+      source: "portalRunner",
+      triggeredFrom: "ui",
+    });
+
+    setAutoRunId(runId);
+    addToast("success", `✅ נוצרה ריצה אוטומטית: ${runId}`);
+    addToast("success", "🖥️ הריצה תתחיל אצל ה-Runner המקומי (Local Poller)");
+  } catch (e: any) {
+    addToast("error", `שגיאה בהפעלת אוטומטציה: ${String(e?.message || e)}`);
+  } finally {
+    setIsStartingAuto(false);
+  }
+};
   const roundTo2 = (num: number) => Math.round(num * 100) / 100;
   const getExt = (n: string) => n.slice(n.lastIndexOf('.')).toLowerCase();
 
@@ -1593,7 +1615,7 @@ await setDoc(runRef, {
           </select>
         </div>
       )}
-      {Boolean(automationClass) && (
+{Boolean(effectiveAutomationClass) && canAutoDownload === true && (
   <div className="mb-4 p-3 border rounded bg-gray-50">
     <div className="font-semibold mb-2">הורדה אוטומטית (חודש קודם)</div>
 
@@ -1602,7 +1624,7 @@ await setDoc(runRef, {
         text={isStartingAuto ? "⏳ מפעיל..." : "🚀 הפעל הורדה אוטומטית"}
         type="primary"
         onClick={handleStartAuto}
-        disabled={!canStartAuto || isStartingAuto}
+        disabled={!canStartAuto || isStartingAuto || isCheckingAutoDownload}
       />
 
       {autoRunId && (

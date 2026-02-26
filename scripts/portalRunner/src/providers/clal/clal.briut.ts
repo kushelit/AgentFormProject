@@ -9,10 +9,8 @@ import {
   clalHandleOtp,
   gotoCommissionsPage,
   openAgentsDropdownAndSelectAll,
-  selectMonthAndSearch,
-  waitForMonthHeader,
-  openBriutReportFromSummary,
   exportExcelFromCurrentReport,
+  openReportFromSummaryByName,
 } from "./clal.shared";
 
 import { uploadLocalFileToStorageClient } from "../../uploadToStorage.client";
@@ -36,37 +34,26 @@ function hasAdminStorage(admin: any): boolean {
 export async function runClalBriut(ctx: RunnerCtx) {
   const { runId, setStatus, env, run } = ctx;
 
-  const portalUrl = env.CLAL_PORTAL_URL || "https://www.clalnet.co.il/";
+  const portalUrl = "https://www.clalnet.co.il/";
   const headless = false;
 
   // ✅ agentId חובה (לקרדנצ'לים + נתיב העלאה)
-  const agentId = String(
-    (ctx.run as any)?.agentId || ctx.agentId || ""
-  ).trim();
-  
-  if (!agentId) {
-    throw new Error("Missing agentId (neither run.agentId nor ctx.agentId)");
-  }
-  
+  const agentId = String((ctx.run as any)?.agentId || ctx.agentId || "").trim();
+  if (!agentId) throw new Error("Missing agentId (neither run.agentId nor ctx.agentId)");
 
   // ✅ creds
-// ✅ creds
-const creds = await getPortalCreds({ agentId, portalId: "clal" });
+  const creds = await getPortalCreds({ agentId, portalId: "clal" });
+  const username = creds.username;
+  const password = creds.password;
+  if (creds.requiresPassword && !password) throw new Error("Missing password for clal (portalCredentials)");
 
-const username = creds.username;
-const password = creds.password;
-
-if (creds.requiresPassword && !password) {
-  throw new Error("Missing password for clal (portalCredentials)");
-}
-
-  // ✅ month label
+  // ✅ month label (רק לסטטוסים/לוגים — לא משתמשים בזה לשינוי חודש בפורטל)
   const resolvedLabel =
     run.resolvedWindow?.kind === "month"
       ? (run.resolvedWindow.label || run.monthLabel)
       : run.resolvedWindow?.label;
 
-  const monthLabel = resolvedLabel || env.CLAL_TEST_MONTH_LABEL || "נובמבר 2025";
+  const monthLabel = resolvedLabel || "חודש נוכחי";
 
   const downloadDir = env.DOWNLOAD_DIR || "downloads";
   const absDir = path.isAbsolute(downloadDir) ? downloadDir : path.resolve(process.cwd(), downloadDir);
@@ -88,7 +75,6 @@ if (creds.requiresPassword && !password) {
   const admin = (ctx as any).admin as any | undefined;
   const canAdminUpload = hasAdminStorage(admin);
 
-  // אופציונלי: רק לתיעוד
   const bucketName = env.FIREBASE_STORAGE_BUCKET || env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || "";
   const bucket = canAdminUpload ? admin.storage().bucket(bucketName || undefined) : null;
 
@@ -109,15 +95,11 @@ if (creds.requiresPassword && !password) {
     await setStatus(runId, { status: "running", step: "clal_select_all_agents", monthLabel });
     await openAgentsDropdownAndSelectAll(commissionsPage);
 
-    await setStatus(runId, { status: "running", step: "clal_select_month", monthLabel });
-    await selectMonthAndSearch(commissionsPage, monthLabel);
-
-    await setStatus(runId, { status: "running", step: "clal_wait_month_refresh", monthLabel });
-    await waitForMonthHeader(commissionsPage, monthLabel);
+    // ✅ לא נוגעים בכלל בדרופדאון חודש / תאריך
 
     // ייחודי לבריאות
     await setStatus(runId, { status: "running", step: "clal_briut_open", monthLabel });
-    await openBriutReportFromSummary(commissionsPage);
+    await openReportFromSummaryByName(commissionsPage, "בריאות");
 
     await setStatus(runId, { status: "running", step: "clal_briut_export_excel", monthLabel });
 
@@ -142,10 +124,12 @@ if (creds.requiresPassword && !password) {
         localPath,
         agentId,
         runId,
-      });
+        // אם את רוצה כמו clal.all.ts לשמור בתת-תיקייה של template:
+        // subdir: "clal_briut",
+      } as any);
 
       storagePath = up.storagePath;
-      uploadedFilename = up.filename || filename;
+      uploadedFilename = (up as any).filename || filename;
       uploadVia = "client";
       console.log("[Clal][Briut] uploaded (client):", storagePath);
     } else {

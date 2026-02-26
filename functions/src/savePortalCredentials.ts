@@ -6,6 +6,7 @@ import {onCall, HttpsError} from "firebase-functions/v2/https";
 import {PORTAL_ENC_KEY_B64} from "./shared/secrets";
 import {encryptJsonAes256Gcm} from "./shared/cryptoAesGcm";
 import {adminDb, nowTs} from "./shared/admin";
+import { FUNCTIONS_REGION } from "./shared/region";
 
 type Input = {
   agentId: string;
@@ -39,7 +40,7 @@ function maskUser(u: string) {
  * - others: requires username + password
  */
 export const savePortalCredentials = onCall(
-  {region: "us-central1", secrets: [PORTAL_ENC_KEY_B64]},
+  {region: FUNCTIONS_REGION , secrets: [PORTAL_ENC_KEY_B64]},
   async (req) => {
     const authUid = req.auth?.uid;
     if (!authUid) throw new HttpsError("unauthenticated", "Login required");

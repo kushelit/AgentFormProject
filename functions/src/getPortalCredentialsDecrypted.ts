@@ -6,6 +6,7 @@ import {onCall, HttpsError} from "firebase-functions/v2/https";
 import {PORTAL_ENC_KEY_B64} from "./shared/secrets";
 import {decryptJsonAes256Gcm, type EncryptOut} from "./shared/cryptoAesGcm";
 import {adminDb} from "./shared/admin";
+import { FUNCTIONS_REGION } from "./shared/region";
 
 type Input = {
   portalId: string;
@@ -28,7 +29,7 @@ function isValidPortalId(portalId: string) {
  * - phoneNumber optional
  */
 export const getPortalCredentialsDecrypted = onCall(
-  {region: "us-central1", secrets: [PORTAL_ENC_KEY_B64]},
+  {region: FUNCTIONS_REGION , secrets: [PORTAL_ENC_KEY_B64]},
   async (req) => {
     const authUid = req.auth?.uid;
     if (!authUid) throw new HttpsError("unauthenticated", "Login required");

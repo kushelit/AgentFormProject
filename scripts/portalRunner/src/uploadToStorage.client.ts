@@ -5,9 +5,18 @@ import { ref as storageRef, uploadBytes } from "firebase/storage";
 function guessContentType(filename: string) {
   const lower = filename.toLowerCase();
   if (lower.endsWith(".zip")) return "application/zip";
-  if (lower.endsWith(".xlsx")) return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+  if (lower.endsWith(".xlsx"))
+    return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
   if (lower.endsWith(".csv")) return "text/csv";
   return "application/octet-stream";
+}
+
+function safeSegment(v: unknown) {
+  // מונעים "/../" ושאר תווים שיכולים לשבור נתיב
+  return String(v ?? "")
+    .trim()
+    .replace(/[/\\]+/g, "_")
+    .replace(/\.\.+/g, "_");
 }
 
 export async function uploadLocalFileToStorageClient(params: {
@@ -15,16 +24,22 @@ export async function uploadLocalFileToStorageClient(params: {
   localPath: string;
   agentId: string;
   runId: string;
+
+  /** למשל: templateId ("clal_briut") */
+  subdir?: string;
 }) {
-  const { storage, localPath, agentId, runId } = params;
+  const { storage, localPath, agentId, runId, subdir } = params;
 
   if (!fs.existsSync(localPath)) throw new Error(`File not found: ${localPath}`);
   const filename = path.basename(localPath);
   const bytes = fs.readFileSync(localPath);
 
-  const storagePath = `portalRuns/${agentId}/${runId}/${filename}`;
-  const r = storageRef(storage, storagePath);
+  const dir = safeSegment(subdir);
+  const storagePath = dir
+    ? `portalRuns/${agentId}/${runId}/${dir}/${filename}`
+    : `portalRuns/${agentId}/${runId}/${filename}`;
 
+  const r = storageRef(storage, storagePath);
   await uploadBytes(r, bytes, { contentType: guessContentType(filename) });
 
   return { storagePath, filename };

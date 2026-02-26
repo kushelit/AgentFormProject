@@ -1,10 +1,28 @@
-// scripts/portalRunner/src/types.ts
 import type admin from "firebase-admin";
 import type { FirebaseStorage } from "firebase/storage";
 
-export type MonthSpec = { kind: "month"; ym: string; label?: string };
-export type RangeSpec = { kind: "range"; fromYm: string; toYm: string; label?: string };
+/* ===============================
+   Window / Date Range
+================================= */
+
+export type MonthSpec = {
+  kind: "month";
+  ym: string; // YYYY-MM
+  label?: string;
+};
+
+export type RangeSpec = {
+  kind: "range";
+  fromYm: string; // YYYY-MM
+  toYm: string; // YYYY-MM
+  label?: string;
+};
+
 export type ReportWindow = MonthSpec | RangeSpec;
+
+/* ===============================
+   Run Status
+================================= */
 
 export type RunStatus =
   | "queued"
@@ -14,12 +32,46 @@ export type RunStatus =
   | "file_uploaded"
   | "done"
   | "error"
-  | "skipped";;
+  | "skipped";
+
+/* ===============================
+   Download Item (חדש)
+================================= */
+
+export type DownloadItem = {
+  /**
+   * איזה template הקובץ הזה מייצג
+   * חשוב במיוחד כשבאותה ריצה מורידים כמה קבצים
+   */
+  templateId?: string;
+
+  localPath?: string;
+  filename?: string;
+  storagePath?: string;
+  bucket?: string;
+
+  /**
+   * אופציונלי – עוזר לדיבוג / UI
+   */
+  sourceFileName?: string;
+  uploadedAt?: admin.firestore.Timestamp;
+};
+
+/* ===============================
+   Run Document (portalImportRuns)
+================================= */
 
 export type RunDoc = {
   agentId: string;
   companyId: string;
+
+  /**
+   * templateId "ראשי"
+   * בריצות multi-file זה יכול להיות bundle/meta
+   * כל קובץ בפועל נשמר ב-downloads[]
+   */
   templateId: string;
+
   automationClass: string;
   status: RunStatus;
 
@@ -34,6 +86,15 @@ export type RunDoc = {
     hint?: string;
   };
 
+  /**
+   * ✅ חדש – רשימת כל הקבצים שהורדו/הועלו בריצה
+   */
+  downloads?: DownloadItem[];
+
+  /**
+   * ⚠️ תאימות לאחור – קובץ יחיד (ישן)
+   * נשאר כדי לא לשבור UI/קוד קיים (אצלך זה “הקובץ האחרון”)
+   */
   download?: {
     localPath?: string;
     filename?: string;
@@ -54,16 +115,23 @@ export type RunDoc = {
     message?: string;
   };
 
-  // (לא חובה) תוצאות ריצה
+  /**
+   * תוצאות ריצה חופשיות (למשל result.uploaded)
+   */
   result?: Record<string, any>;
 };
+
+/* ===============================
+   Runner Environment
+================================= */
 
 export type RunnerEnv = {
   FIREBASE_ADMIN_KEY_PATH?: string;
 
-  // ✅ חדש (ללוקאל)
+  // בלוקאל
   FIREBASE_STORAGE_BUCKET?: string;
-  // (אם את עדיין צריכה בקלאוד/אדמין נשאיר)
+
+  // בקונפיג וובי אם נדרש
   NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET?: string;
 
   RUNNER_ID?: string;
@@ -79,10 +147,13 @@ export type RunnerEnv = {
 
   FENIX_PORTAL_URL?: string;
 
-MENORA_PORTAL_URL?: string;
-MENORA_PHONE_NUMBER?: string; // אם צריך להזין מספר טלפון/סוכן בשלב SAPN
-
+  MENORA_PORTAL_URL?: string;
+  MENORA_PHONE_NUMBER?: string;
 };
+
+/* ===============================
+   Runner Context
+================================= */
 
 export type RunnerCtx = {
   runId: string;
@@ -90,16 +161,16 @@ export type RunnerCtx = {
   env: RunnerEnv;
 
   setStatus: (runId: string, patch: Partial<RunDoc> & Record<string, any>) => Promise<void>;
+
   pollOtp: (runId: string, timeoutMs?: number) => Promise<string>;
   clearOtp: (runId: string) => Promise<void>;
 
-  // ✅ בענן יש admin, בלוקאל אין
+  // בענן
   admin?: typeof import("firebase-admin") | null;
 
-  // ✅ בלוקאל יש Client SDK
-  storage?: any;
+  // בלוקאל
+  storage?: FirebaseStorage | any;
 
-  // ✅ תמיד טוב שיהיה (בלוקאל מגיע מה-login; בענן מגיע מה-run)
   agentId?: string;
   runnerId?: string;
 };

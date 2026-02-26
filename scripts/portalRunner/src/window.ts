@@ -16,6 +16,11 @@ export function prevYm(now: Date) {
   return `${y}-${pad2(m - 1)}`;
 }
 
+// ✅ חדש: חודש נוכחי (זה בעצם ymFromDate, אבל נשאיר שם ברור)
+export function currentYm(now: Date) {
+  return ymFromDate(now);
+}
+
 const heMonths: Record<string, string> = {
   "01": "ינואר",
   "02": "פברואר",
@@ -39,17 +44,18 @@ export function labelFromYm(ym: string) {
 /**
  * Resolve window:
  * - אם יש requestedWindow => מכבדים
- * - אם אין => חודש קודם
- * - אם requestedWindow.kind === 'month' עם ym חסר => חודש קודם
+ * - אם אין => חודש נוכחי ✅
+ * - אם requestedWindow.kind === 'month' עם ym חסר => חודש נוכחי ✅
  */
 export function resolveWindow(now: Date, requested?: ReportWindow): ReportWindow {
+  const defaultYm = currentYm(now); // ✅ במקום prevYm(now)
+
   if (!requested) {
-    const ym = prevYm(now);
-    return { kind: "month", ym, label: labelFromYm(ym) };
+    return { kind: "month", ym: defaultYm, label: labelFromYm(defaultYm) };
   }
 
   if (requested.kind === "month") {
-    const ym = requested.ym?.trim() || prevYm(now);
+    const ym = requested.ym?.trim() || defaultYm; // ✅ במקום prevYm(now)
     return { kind: "month", ym, label: requested.label || labelFromYm(ym) };
   }
 
@@ -57,8 +63,7 @@ export function resolveWindow(now: Date, requested?: ReportWindow): ReportWindow
   const fromYm = requested.fromYm?.trim();
   const toYm = requested.toYm?.trim();
   if (!fromYm || !toYm) {
-    const ym = prevYm(now);
-    return { kind: "month", ym, label: labelFromYm(ym) };
+    return { kind: "month", ym: defaultYm, label: labelFromYm(defaultYm) };
   }
 
   return {

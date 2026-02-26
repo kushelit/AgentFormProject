@@ -1,5 +1,6 @@
 {
   "projects": {
-    "default": "magicsale-test"
+    "test": "magicsale-test",
+    "prod": "agentsale-693e8"
   }
 }

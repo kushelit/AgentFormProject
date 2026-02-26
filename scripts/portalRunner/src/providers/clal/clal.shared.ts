@@ -1,5 +1,5 @@
 // scripts/portalRunner/src/providers/clal/clal.shared.ts
-import type { Page, Download } from "playwright";
+import type { Page, Download, Locator } from "playwright";
 import type { RunnerCtx } from "../../types";
 
 export function envBool(v: string | undefined, fallback = false) {
@@ -15,6 +15,57 @@ async function softNetworkIdle(page: Page) {
   await page.waitForLoadState("networkidle").catch(() => {});
 }
 
+async function waitAngularTick(page: Page, ms = 250) {
+  await page.waitForTimeout(ms);
+  await softNetworkIdle(page);
+}
+
+export async function openReportFromSummaryByName(page: Page, linkText: string) {
+  const link = page
+    .locator(".ui-grid-cell-contents a.ng-binding, .ui-grid-cell-contents a", { hasText: linkText })
+    .first();
+
+  await link.scrollIntoViewIfNeeded().catch(() => {});
+  await link.waitFor({ state: "visible", timeout: 30_000 });
+  await link.click();
+
+  await softNetworkIdle(page);
+  console.log("[Clal] clicked report link:", linkText);
+}
+
+/**
+ * לחיצה על טאבים בתוך דוח (למשל: "עמיתים", "פוליסה")
+ * חשוב: התאמה מדויקת כדי ש"פוליסה" לא יתפוס "סוכנים בפוליסה"
+ */
+function escapeRegExp(s: string) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+export async function clickReportTabHeading(page: Page, headingText: string) {
+  const exact = new RegExp(`^\\s*${escapeRegExp(headingText)}\\s*$`);
+
+  const tabHeading = page.locator("tab-heading").filter({ hasText: exact }).first();
+  const tabAnchor = tabHeading.locator("xpath=ancestor::a[1]");
+
+  const count = await tabAnchor.count().catch(() => 0);
+  if (count > 0) {
+    await tabAnchor.scrollIntoViewIfNeeded().catch(() => {});
+    await tabAnchor.waitFor({ state: "visible", timeout: 30_000 });
+    await tabAnchor.click();
+    await waitAngularTick(page, 400);
+    console.log("[Clal] clicked tab heading (exact):", headingText);
+    return;
+  }
+
+  // fallback: גם פה exact
+  const alt = page.locator("a").filter({ hasText: exact }).first();
+  await alt.scrollIntoViewIfNeeded().catch(() => {});
+  await alt.waitFor({ state: "visible", timeout: 30_000 });
+  await alt.click();
+  await waitAngularTick(page, 400);
+  console.log("[Clal] clicked tab (fallback exact):", headingText);
+}
+
 export async function clalLogin(page: Page, username: string, password: string) {
   await page.waitForSelector("#input_1", { state: "visible", timeout: 30_000 });
   await page.fill("#input_1", username);
@@ -25,20 +76,16 @@ export async function clalLogin(page: Page, username: string, password: string) 
 }
 
 /**
- * OTP: ה-runner מחכה שתזיני otp.value ב-Firestore למסמך הריצה.
-/**
- * OTP: או מה-UI שלנו (Firestore) או ידני בפורטל (manual).
- * קבעי דרך ENV: OTP_MODE=manual | firestore  (ברירת מחדל firestore)
+ * OTP:
+ * - manual: הסוכן מקליד בפורטל
+ * - firestore: ה-UI שלנו שומר otp.value במסמך הריצה
  */
 export async function clalHandleOtp(page: Page, ctx: RunnerCtx) {
   const { runId, setStatus, pollOtp, clearOtp } = ctx;
 
-  // ✅ SaaS: mode בתוך ה-run (לא ENV)
   const otpMode = String((ctx.run as any)?.otp?.mode || "firestore").toLowerCase();
-
   const tokenSel = 'input[name="Token"]';
 
-  // נוודא שיש בכלל מסך OTP
   const tokenVisible = await page
     .locator(tokenSel)
     .first()
@@ -51,7 +98,7 @@ export async function clalHandleOtp(page: Page, ctx: RunnerCtx) {
   }
 
   // ==========================
-  // ✅ MANUAL MODE (הסוכן מזין בפורטל)
+  // MANUAL MODE
   // ==========================
   if (otpMode === "manual") {
     await setStatus(runId, {
@@ -66,23 +113,23 @@ export async function clalHandleOtp(page: Page, ctx: RunnerCtx) {
 
     console.log("[Clal] OTP manual mode: waiting for user to complete OTP in portal...");
 
-    // נחכה להתקדמות אמיתית: "התנתק" או שדה Token נעלם/מוסתר
-    await page.waitForFunction(() => {
-      // 1) אם יש "התנתק" - כניסה הצליחה
-      const logout = Array.from(document.querySelectorAll("*")).find(
-        (el) => (el as HTMLElement)?.innerText?.trim() === "התנתק"
-      );
-      if (logout) return true;
+    await page.waitForFunction(
+      () => {
+        const logout = Array.from(document.querySelectorAll("*")).find(
+          (el) => (el as HTMLElement)?.innerText?.trim() === "התנתק"
+        );
+        if (logout) return true;
 
-      // 2) אם שדה Token נעלם/מוסתר
-      const token = document.querySelector('input[name="Token"]') as HTMLInputElement | null;
-      if (!token) return true;
+        const token = document.querySelector('input[name="Token"]') as HTMLInputElement | null;
+        if (!token) return true;
 
-      const s = window.getComputedStyle(token);
-      if (s.display === "none" || s.visibility === "hidden" || Number(s.opacity) === 0) return true;
+        const s = window.getComputedStyle(token);
+        if (s.display === "none" || s.visibility === "hidden" || Number(s.opacity) === 0) return true;
 
-      return false;
-    }, { timeout: 180_000 });
+        return false;
+      },
+      { timeout: 180_000 }
+    );
 
     await softNetworkIdle(page);
 
@@ -90,13 +137,11 @@ export async function clalHandleOtp(page: Page, ctx: RunnerCtx) {
     console.log(ok ? "[Clal] logged in (found התנתק)" : "[Clal] progressed after manual OTP");
 
     await setStatus(runId, { status: "logged_in", step: "clal_logged_in" });
-
-    // ✅ לא מנקים OTP כי לא השתמשנו ב-Firestore
     return;
   }
 
   // ==========================
-  // ✅ FIRESTORE MODE (ה-UI שלנו שולח OTP)
+  // FIRESTORE MODE
   // ==========================
   await setStatus(runId, {
     status: "otp_required",
@@ -112,22 +157,15 @@ export async function clalHandleOtp(page: Page, ctx: RunnerCtx) {
 
   const btn = page.locator("#btLogin_ctl09");
   if (await btn.count().catch(() => 0)) {
-    await Promise.all([
-      page.waitForLoadState("domcontentloaded").catch(() => {}),
-      btn.click(),
-    ]);
+    await Promise.all([page.waitForLoadState("domcontentloaded").catch(() => {}), btn.click()]);
   } else {
     const submit = page.getByRole("button", { name: /המשך|אישור|כניסה|שלח/i }).first();
-    await Promise.all([
-      page.waitForLoadState("domcontentloaded").catch(() => {}),
-      submit.click(),
-    ]);
+    await Promise.all([page.waitForLoadState("domcontentloaded").catch(() => {}), submit.click()]);
   }
 
   await softNetworkIdle(page);
   console.log("[Clal] after otp url:", page.url());
 
-  // ✅ מנקים רק במצב firestore
   await clearOtp(runId);
 
   const ok = await page.getByText("התנתק").first().isVisible().catch(() => false);
@@ -145,10 +183,7 @@ export async function gotoCommissionsPage(page: Page): Promise<Page> {
   await link.waitFor({ state: "visible", timeout: 30_000 });
 
   const ctx = page.context();
-  const [newPage] = await Promise.all([
-    ctx.waitForEvent("page", { timeout: 30_000 }).catch(() => null),
-    link.click(),
-  ]);
+  const [newPage] = await Promise.all([ctx.waitForEvent("page", { timeout: 30_000 }).catch(() => null), link.click()]);
 
   const commissionsPage = newPage ?? page;
   await commissionsPage.bringToFront().catch(() => {});
@@ -174,61 +209,87 @@ export async function openAgentsDropdownAndSelectAll(page: Page) {
 }
 
 /**
- * בחירת חודש + חפש
+ * Search בלבד:
+ * - לא משנים חודש בכלל
+ * - כן לוחצים "חפש"
  */
-export async function selectMonthAndSearch(page: Page, monthLabel: string) {
+export async function selectMonthAndSearch(page: Page, _monthLabelForLogsOnly?: string) {
   await page.waitForSelector('select[ng-model="selectedMonth"]', { state: "visible", timeout: 30_000 });
-  await page.selectOption('select[ng-model="selectedMonth"]', { label: monthLabel });
 
   const searchBtn = page.locator('button[ng-click="search()"]').first();
   await searchBtn.waitFor({ state: "visible", timeout: 30_000 });
   await searchBtn.click();
 
   await softNetworkIdle(page);
-  console.log("[Clal] search clicked for month:", monthLabel);
+  console.log("[Clal] search clicked (month unchanged).");
 }
 
 /**
- * לוודא שהטבלה התרעננה עם החודש שנבחר
+ * לוודא שהטבלה התמלאה אחרי Search:
+ * - או שיש לפחות שורה אחת ב-ui-grid
+ * - או שמופיע טקסט "אין נתונים" (אם יש כזה)
+ *
+ * אם תרצי, נעדכן את הסלקטורים לפי צילום מסך אמיתי של ה-grid.
  */
-export async function waitForMonthHeader(page: Page, monthLabel: string) {
-  const header = page
-    .locator(".ui-grid-header-cell-label, [id*='uiGrid'][id*='header-text']")
-    .filter({ hasText: monthLabel })
-    .first();
+export async function waitForCommissionsGridFilled(page: Page, timeoutMs = 60_000) {
+  const rows = page.locator(".ui-grid-row");
+  const noData = page.locator(".ui-grid-empty, .ui-grid-no-row-overlay, text=/אין נתונים|לא נמצאו נתונים/i");
 
-  await header.waitFor({ state: "visible", timeout: 30_000 });
-  console.log("[Clal] month header visible:", monthLabel);
+  await Promise.race([
+    rows.first().waitFor({ state: "visible", timeout: timeoutMs }).then(() => "rows").catch(() => null),
+    noData.first().waitFor({ state: "visible", timeout: timeoutMs }).then(() => "empty").catch(() => null),
+  ]);
+
+  // לא זורקים פה שגיאה — אם לא מצאנו, לפחות לא נתקעים
+  console.log("[Clal] grid wait done (rows or empty overlay).");
 }
 
 /**
- * פתיחת דוח בריאות מתוך טבלת הסיכום (הקישור "בריאות")
+ * ייצוא לאקסל (תוקן כדי לא להיתקע על כפתור שקיים אבל hidden)
  */
-export async function openBriutReportFromSummary(page: Page) {
-  const briutLink = page.locator(".ui-grid-cell-contents a", { hasText: "בריאות" }).first();
-  await briutLink.scrollIntoViewIfNeeded().catch(() => {});
-  await briutLink.waitFor({ state: "visible", timeout: 30_000 });
-  await briutLink.click();
+function exportLocatorCandidates(page: Page): Locator[] {
+  return [
+    page.locator('a.export-btn[ng-click*="downloadExcel"]:visible').first(),
+    page.locator("a.export-btn:visible").first(),
+    page.getByRole("link", { name: /יצא לאקסל/i }).first(),
+    page.getByText(/יצא לאקסל/i).first(),
+  ];
+}
 
-  await softNetworkIdle(page);
-  console.log("[Clal] clicked briut link");
+async function pickVisibleExportButton(page: Page, timeoutMs: number): Promise<Locator> {
+  const deadline = Date.now() + timeoutMs;
+
+  while (Date.now() < deadline) {
+    for (const cand of exportLocatorCandidates(page)) {
+      const ok = await cand.isVisible().catch(() => false);
+      if (!ok) continue;
+
+      const ariaDisabled = await cand.getAttribute("aria-disabled").catch(() => null);
+      const className = (await cand.getAttribute("class").catch(() => "")) || "";
+      if (ariaDisabled === "true" || /disabled/i.test(className)) continue;
+
+      return cand;
+    }
+
+    await waitAngularTick(page, 250);
+  }
+
+  throw new Error('Export button not visible (יצא לאקסל) within timeout');
 }
 
 /**
  * ייצוא לאקסל
  */
-export async function exportExcelFromCurrentReport(
-  page: Page
-): Promise<{ download: Download; filename: string }> {
-  const exportLink = page.locator('a.export-btn[ng-click^="downloadExcel"]').first();
+export async function exportExcelFromCurrentReport(page: Page): Promise<{ download: Download; filename: string }> {
+  await waitAngularTick(page, 250);
 
-  await exportLink.waitFor({ state: "visible", timeout: 60_000 });
+  const exportBtn = await pickVisibleExportButton(page, 60_000);
+  await exportBtn.scrollIntoViewIfNeeded().catch(() => {});
+  await exportBtn.waitFor({ state: "visible", timeout: 30_000 });
 
-  const [download] = await Promise.all([
-    page.waitForEvent("download", { timeout: 90_000 }),
-    exportLink.click(),
-  ]);
+  const [download] = await Promise.all([page.waitForEvent("download", { timeout: 120_000 }), exportBtn.click()]);
 
   const filename = download.suggestedFilename();
+  console.log("[Clal] export download started:", filename);
   return { download, filename };
 }
