@@ -4,18 +4,13 @@
   "type": "commonjs",
   "scripts": {
     "dev": "tsx src/poller.local.ts",
-
     "build": "tsc -p tsconfig.json",
-
-   "start:test": "cross-env DOTENV_CONFIG_PATH=.env.runner.test DOTENV_CONFIG_OVERRIDE=true node -r dotenv/config dist/poller.local.js",
-"start:prod": "cross-env DOTENV_CONFIG_PATH=.env.runner.prod DOTENV_CONFIG_OVERRIDE=true node -r dotenv/config dist/poller.local.js",
-    "start": "npm run start:prod"
+    "start:test": "node dist/runner.js",
+    "start:prod": "node dist/runner.js",
+    "start": "node dist/runner.js"
   },
   "dependencies": {
-    "cross-env": "^10.1.0",
-    "dotenv": "^16.6.1",
     "firebase": "^12.9.0",
-    "firebase-admin": "^12.2.0",
     "jszip": "^3.10.1",
     "playwright": "^1.58.1"
   },

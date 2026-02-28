@@ -36,11 +36,14 @@ export function readSession(): RunnerSession | null {
   try {
     const raw = fs.readFileSync(file, "utf8");
     const data = JSON.parse(raw);
-    const email = String(data?.email || "").trim();
+
+    const email = String(data?.email || "").trim(); // email יכול להיות ריק
     const refreshToken = String(data?.refreshToken || "").trim();
     const savedAtMs = Number(data?.savedAtMs || 0);
 
-    if (!email || !refreshToken || !Number.isFinite(savedAtMs)) return null;
+    // 🔥 לא דורשים email יותר
+    if (!refreshToken || !Number.isFinite(savedAtMs)) return null;
+
     return { email, refreshToken, savedAtMs };
   } catch {
     return null;

@@ -1,9 +1,0 @@
-node_modules
-dist
-downloads
-secrets
-.env
-*.log
-.git
-.gitignore
-.vscode

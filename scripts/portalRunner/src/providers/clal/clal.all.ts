@@ -3,7 +3,8 @@ import fs from "fs";
 import path from "path";
 import { chromium } from "playwright";
 import type { RunnerCtx } from "../../types";
-import { getPortalCreds } from "../../portalCredentials";
+import { httpsCallable } from "firebase/functions";
+
 import {
   clalLogin,
   clalHandleOtp,
@@ -22,18 +23,6 @@ function ensureDir(p: string) {
   if (!fs.existsSync(p)) fs.mkdirSync(p, { recursive: true });
 }
 
-function guessContentType(filename: string) {
-  const lower = filename.toLowerCase();
-  if (lower.endsWith(".xlsx")) return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
-  if (lower.endsWith(".csv")) return "text/csv";
-  if (lower.endsWith(".zip")) return "application/zip";
-  return "application/octet-stream";
-}
-
-function hasAdminStorage(admin: any): boolean {
-  return !!admin && typeof admin.storage === "function";
-}
-
 type ReportSpec = {
   linkText: "בריאות" | "פנסיה" | "חיים" | "גמל";
   templateId: "clal_briut" | "clal_pensia" | "clal_life" | "clal_gemel";
@@ -48,19 +37,44 @@ const REPORTS: ReportSpec[] = [
   { linkText: "גמל", templateId: "clal_gemel", stepPrefix: "clal_gemel", preExportTabHeading: "עמיתים" },
 ];
 
+function s(v: any) {
+  return String(v ?? "").trim();
+}
+
+async function getClalCredsViaCallable(ctx: RunnerCtx, portalId: string) {
+  const functions = (ctx as any).functions;
+  if (!functions) throw new Error("Missing ctx.functions (local runner must pass functions from initFirebaseClient)");
+
+  const fn = httpsCallable(functions, "getPortalCredentialsDecrypted");
+  const res: any = await fn({ portalId });
+
+  const username = s(res?.data?.username);
+  const password = s(res?.data?.password);
+  const phoneNumber = s(res?.data?.phoneNumber);
+
+  // כלל: חייב סיסמה
+  if (!username) throw new Error(`Missing username for portalId=${portalId}`);
+  if (!password) throw new Error(`Missing password for portalId=${portalId}`);
+
+  return { username, password, phoneNumber };
+}
+
 export async function runClalAll(ctx: RunnerCtx) {
   const { runId, setStatus, env, run } = ctx;
 
   const portalUrl = "https://www.clalnet.co.il/";
   const headless = false;
 
-  const agentId = String((ctx.run as any)?.agentId || ctx.agentId || "").trim();
+  const agentId = s((ctx.run as any)?.agentId || ctx.agentId);
   if (!agentId) throw new Error("Missing agentId (neither run.agentId nor ctx.agentId)");
 
-  const creds = await getPortalCreds({ agentId, portalId: "clal" });
+  const storage = (ctx as any).storage as any | undefined;
+  if (!storage) throw new Error("Missing ctx.storage (local runner must provide Firebase Storage client)");
+
+  // ✅ credentials from server (decrypted) - for logged in agent only
+  const creds = await getClalCredsViaCallable(ctx, "clal");
   const username = creds.username;
   const password = creds.password;
-  if (creds.requiresPassword && !password) throw new Error("Missing password for clal (portalCredentials)");
 
   // monthLabel = תיוג/סטטוס בלבד (לא משנים חודש בפורטל)
   const monthLabel =
@@ -71,14 +85,6 @@ export async function runClalAll(ctx: RunnerCtx) {
   const downloadDir = env.DOWNLOAD_DIR || "downloads";
   const absDir = path.isAbsolute(downloadDir) ? downloadDir : path.resolve(process.cwd(), downloadDir);
   ensureDir(absDir);
-
-  const storage = (ctx as any).storage as any | undefined;
-
-  const admin = (ctx as any).admin as any | undefined;
-  const canAdminUpload = hasAdminStorage(admin);
-
-  const bucketName = env.FIREBASE_STORAGE_BUCKET || env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || "";
-  const bucket = canAdminUpload ? admin.storage().bucket(bucketName || undefined) : null;
 
   const appendDownload = async (item: any) => {
     const cur = (ctx.run as any)?.downloads;
@@ -100,7 +106,7 @@ export async function runClalAll(ctx: RunnerCtx) {
     await page.goto(portalUrl, { waitUntil: "domcontentloaded" });
 
     await setStatus(runId, { status: "running", step: "clal_login", monthLabel });
-    await clalLogin(page, username, password!);
+    await clalLogin(page, username, password);
 
     await setStatus(runId, { status: "running", step: "clal_otp", monthLabel });
     await clalHandleOtp(page, ctx);
@@ -118,7 +124,7 @@ export async function runClalAll(ctx: RunnerCtx) {
     await setStatus(runId, { status: "running", step: "clal_wait_grid", monthLabel });
     await waitForCommissionsGridFilled(commissionsPage, 60_000);
 
-    // ✅ Multi-file: אותו מסך, פותחים דוח -> (אם צריך) טאב פנימי -> יצוא
+    // ✅ Multi-file: אותו מסך, פותחים דוח -> (אם צריך) טאב פנימי -> יצוא -> העלאה
     for (const rep of REPORTS) {
       await setStatus(runId, { status: "running", step: `${rep.stepPrefix}_open`, monthLabel });
       await openReportFromSummaryByName(commissionsPage, rep.linkText);
@@ -140,47 +146,26 @@ export async function runClalAll(ctx: RunnerCtx) {
 
       await setStatus(runId, { status: "running", step: `${rep.stepPrefix}_uploading`, monthLabel });
 
-      let storagePath = "";
-      let uploadedFilename = filename;
-      let uploadVia: "client" | "admin" = "client";
-
-      if (storage) {
-        const up = await uploadLocalFileToStorageClient({
-          storage,
-          localPath,
-          agentId,
-          runId,
-          subdir: rep.templateId,
-        } as any);
-
-        storagePath = up.storagePath;
-        uploadedFilename = up.filename || filename;
-        uploadVia = "client";
-      } else {
-        if (!bucket) throw new Error("No storage available for upload (missing ctx.storage in local OR admin bucket in cloud)");
-
-        storagePath = `portalRuns/${agentId}/${runId}/${rep.templateId}/${path.basename(localPath)}`;
-        await bucket.upload(localPath, {
-          destination: storagePath,
-          contentType: guessContentType(filename),
-        });
-
-        uploadVia = "admin";
-      }
+      const up = await uploadLocalFileToStorageClient({
+        storage,
+        localPath,
+        agentId,
+        runId,
+        subdir: rep.templateId,
+      } as any);
 
       const item = {
         templateId: rep.templateId,
         localPath,
-        filename: uploadedFilename,
-        storagePath,
-        bucket: bucketName || undefined,
+        filename: up.filename || filename,
+        storagePath: up.storagePath,
       };
 
       await appendDownload(item);
 
       await setStatus(runId, {
-        download: item,
-        result: { ...(run.result || {}), uploadVia },
+        download: item, // תאימות לאחור: "האחרון"
+        result: { ...(run.result || {}), uploadVia: "client" },
       });
 
       await setStatus(runId, { status: "file_uploaded", step: `${rep.stepPrefix}_done`, monthLabel });

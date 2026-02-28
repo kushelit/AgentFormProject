@@ -12,6 +12,7 @@ import {
   clearSession,
   getSessionFilePath,
 } from "./sessionStore";
+import fs from "fs";
 
 function ask(q: string): Promise<string> {
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
@@ -56,6 +57,12 @@ export async function loginIfNeeded(params: { auth: any; functions: any }) {
 
   // 1) Try silent login using saved session
   const sess = readSession();
+  // 🔎 Debug session loading
+const sessionPath = getSessionFilePath();
+console.log("[Session] resolved path =", sessionPath);
+console.log("[Session] exists =", fs.existsSync(sessionPath));
+console.log("[Session] loaded =", !!sess?.refreshToken, "savedAtMs=", sess?.savedAtMs, "email=", sess?.email);
+
   if (sess?.refreshToken) {
     try {
       const fn = httpsCallable(functions, "mintCustomTokenFromRefreshToken");
@@ -72,10 +79,17 @@ export async function loginIfNeeded(params: { auth: any; functions: any }) {
       }
 
       throw new Error("Silent login succeeded but uid missing");
-    } catch (e: any) {
-      console.log("⚠️ Silent login failed, will ask for pairing. reason=", e?.message || e);
-      clearSession();
-    }
+   } catch (e: any) {
+  console.log(
+    "⚠️ Silent login failed, will ask for pairing.",
+    "\ncode=", e?.code,
+    "\nmessage=", e?.message,
+    "\ndetails=", e?.details,
+    "\nfull=", e
+  );
+  // זמנית אל תמחקי session כדי שלא תעשי pairing כל פעם בזמן דיבוג:
+  // clearSession();
+}
   }
 
   // 2) Pairing code login (once)

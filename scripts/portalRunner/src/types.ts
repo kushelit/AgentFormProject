@@ -1,5 +1,7 @@
-import type admin from "firebase-admin";
+// scripts/portalRunner/src/types.ts
 import type { FirebaseStorage } from "firebase/storage";
+import type { Timestamp } from "firebase/firestore";
+import type { Functions } from "firebase/functions";
 
 /* ===============================
    Window / Date Range
@@ -35,7 +37,7 @@ export type RunStatus =
   | "skipped";
 
 /* ===============================
-   Download Item (חדש)
+   Download Item
 ================================= */
 
 export type DownloadItem = {
@@ -54,7 +56,11 @@ export type DownloadItem = {
    * אופציונלי – עוזר לדיבוג / UI
    */
   sourceFileName?: string;
-  uploadedAt?: admin.firestore.Timestamp;
+
+  /**
+   * timestamps (client SDK compatible)
+   */
+  uploadedAt?: Timestamp;
 };
 
 /* ===============================
@@ -93,7 +99,6 @@ export type RunDoc = {
 
   /**
    * ⚠️ תאימות לאחור – קובץ יחיד (ישן)
-   * נשאר כדי לא לשבור UI/קוד קיים (אצלך זה “הקובץ האחרון”)
    */
   download?: {
     localPath?: string;
@@ -102,12 +107,12 @@ export type RunDoc = {
     bucket?: string;
   };
 
-  createdAt?: admin.firestore.Timestamp;
-  updatedAt?: admin.firestore.Timestamp;
+  createdAt?: Timestamp;
+  updatedAt?: Timestamp;
 
   runner?: {
     id?: string;
-    claimedAt?: admin.firestore.Timestamp;
+    claimedAt?: Timestamp;
   };
 
   error?: {
@@ -126,13 +131,8 @@ export type RunDoc = {
 ================================= */
 
 export type RunnerEnv = {
-  FIREBASE_ADMIN_KEY_PATH?: string;
-
-  // בלוקאל
+  // local runner bucket (optional – only if providers need it explicitly)
   FIREBASE_STORAGE_BUCKET?: string;
-
-  // בקונפיג וובי אם נדרש
-  NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET?: string;
 
   RUNNER_ID?: string;
   HEADLESS?: string;
@@ -165,14 +165,12 @@ export type RunnerCtx = {
   pollOtp: (runId: string, timeoutMs?: number) => Promise<string>;
   clearOtp: (runId: string) => Promise<void>;
 
-  // בענן
-  admin?: typeof import("firebase-admin") | null;
-
-  // בלוקאל
+  // local runner
   storage?: FirebaseStorage | any;
 
   agentId?: string;
   runnerId?: string;
+  functions?: Functions | any;
 };
 
 export type RunnerHandler = (ctx: RunnerCtx) => Promise<void>;

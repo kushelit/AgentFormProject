@@ -1,5 +1,4 @@
 // scripts/portalRunner/src/poller.local.ts
-import "dotenv/config";
 import crypto from "crypto";
 import {
   collection,
@@ -242,21 +241,39 @@ async function markTemplateMonthLockErrorClient(params: {
 }
 
 async function main() {
-  const { auth, db, storage, functions } = initFirebaseClient();
+  const { auth, db, storage, functions, runner, effectiveBucket } = initFirebaseClient();
 
   const agentId = await loginIfNeeded({ auth, functions });
 
-  const runnerId = process.env.RUNNER_ID || `local_${agentId}_${crypto.randomUUID().slice(0, 8)}`;
-  const pollMs = pickPollIntervalMs();
+  const runnerId =
+    process.env.RUNNER_ID ||
+    `local_${agentId}_${crypto.randomUUID().slice(0, 8)}`;
+
+  // poll interval: קודם קונפיג, אח"כ ENV, אח"כ default
+  const pollMsFromConfig = typeof runner?.pollIntervalMs === "number" ? runner.pollIntervalMs : undefined;
+  const pollMs = pollMsFromConfig ?? pickPollIntervalMs();
+
+  // Headless / DownloadDir: קודם קונפיג, אח"כ ENV
+  const headlessFromConfig =
+    typeof runner?.headless === "boolean" ? String(runner.headless) : undefined;
+
+  const downloadDirFromConfig =
+    typeof runner?.downloadDir === "string" && runner.downloadDir.trim()
+      ? runner.downloadDir.trim()
+      : undefined;
 
   const env: RunnerEnv = {
     RUNNER_ID: runnerId,
-    HEADLESS: process.env.HEADLESS,
-    DOWNLOAD_DIR: process.env.DOWNLOAD_DIR,
-    CLAL_PORTAL_URL: process.env.CLAL_PORTAL_URL,
-    MIGDAL_PORTAL_URL: process.env.MIGDAL_PORTAL_URL,
-    MIGDAL_DEBUG: process.env.MIGDAL_DEBUG,
-    FIREBASE_STORAGE_BUCKET: process.env.FIREBASE_STORAGE_BUCKET,
+    HEADLESS: headlessFromConfig ?? process.env.HEADLESS,
+    DOWNLOAD_DIR: downloadDirFromConfig ?? process.env.DOWNLOAD_DIR,
+
+    // אפשר כבר להעביר גם לקונפיג (מומלץ ל-EXE). כרגע: config קודם ואז ENV
+    CLAL_PORTAL_URL: (runner?.clalPortalUrl && String(runner.clalPortalUrl).trim()) || process.env.CLAL_PORTAL_URL,
+    MIGDAL_PORTAL_URL: (runner?.migdalPortalUrl && String(runner.migdalPortalUrl).trim()) || process.env.MIGDAL_PORTAL_URL,
+    MIGDAL_DEBUG:
+      runner?.migdalDebug !== undefined ? String(runner.migdalDebug) : process.env.MIGDAL_DEBUG,
+
+    FIREBASE_STORAGE_BUCKET: effectiveBucket,
   };
 
   console.log("[LocalRunner] started. agentId=", agentId, "runnerId=", runnerId, "pollMs=", pollMs);
@@ -354,11 +371,10 @@ async function main() {
             setStatus: (id, patch) => setStatusClient(db, id, patch),
             pollOtp: (id, t) => pollOtpClient(db, id, t),
             clearOtp: (id) => clearOtpClient(db, id),
-
             storage,
             agentId,
             runnerId,
-            admin: null,
+            functions,
           };
 
           await fn(ctx);
