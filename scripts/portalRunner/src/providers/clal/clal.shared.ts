@@ -1,5 +1,5 @@
 // scripts/portalRunner/src/providers/clal/clal.shared.ts
-import type { Page, Download, Locator } from "playwright";
+import type { Page, Download } from "playwright";
 import type { RunnerCtx } from "../../types";
 
 export function envBool(v: string | undefined, fallback = false) {
@@ -20,276 +20,358 @@ async function waitAngularTick(page: Page, ms = 250) {
   await softNetworkIdle(page);
 }
 
-export async function openReportFromSummaryByName(page: Page, linkText: string) {
-  const link = page
-    .locator(".ui-grid-cell-contents a.ng-binding, .ui-grid-cell-contents a", { hasText: linkText })
-    .first();
-
-  await link.scrollIntoViewIfNeeded().catch(() => {});
-  await link.waitFor({ state: "visible", timeout: 30_000 });
-  await link.click();
-
-  await softNetworkIdle(page);
-  console.log("[Clal] clicked report link:", linkText);
-}
-
-/**
- * לחיצה על טאבים בתוך דוח (למשל: "עמיתים", "פוליסה")
- * חשוב: התאמה מדויקת כדי ש"פוליסה" לא יתפוס "סוכנים בפוליסה"
- */
 function escapeRegExp(s: string) {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-export async function clickReportTabHeading(page: Page, headingText: string) {
-  const exact = new RegExp(`^\\s*${escapeRegExp(headingText)}\\s*$`);
+/**
+ * פונקציות ניווט מקוריות - הושארו כפי שהן
+ */
+export async function openReportFromSummaryByName(page: Page, linkText: string) {
+  console.log(`[Clal] Searching for report link: ${linkText} via Injection...`);
 
-  const tabHeading = page.locator("tab-heading").filter({ hasText: exact }).first();
-  const tabAnchor = tabHeading.locator("xpath=ancestor::a[1]");
+  const injection = `
+    (function(text) {
+      return new Promise((resolve) => {
+        let attempts = 0;
+        const interval = setInterval(() => {
+          attempts++;
+          const links = Array.from(document.querySelectorAll('.ui-grid-cell-contents a'));
+          const target = links.find(a => a.innerText && a.innerText.trim() === text);
 
-  const count = await tabAnchor.count().catch(() => 0);
-  if (count > 0) {
-    await tabAnchor.scrollIntoViewIfNeeded().catch(() => {});
-    await tabAnchor.waitFor({ state: "visible", timeout: 30_000 });
-    await tabAnchor.click();
-    await waitAngularTick(page, 400);
-    console.log("[Clal] clicked tab heading (exact):", headingText);
-    return;
-  }
+          if (target) {
+            clearInterval(interval);
+            target.click();
+            resolve("SUCCESS");
+          }
+          if (attempts > 60) {
+            clearInterval(interval);
+            resolve("TIMEOUT");
+          }
+        }, 500);
+      });
+    })('${linkText}')
+  `;
 
-  // fallback: גם פה exact
-  const alt = page.locator("a").filter({ hasText: exact }).first();
-  await alt.scrollIntoViewIfNeeded().catch(() => {});
-  await alt.waitFor({ state: "visible", timeout: 30_000 });
-  await alt.click();
-  await waitAngularTick(page, 400);
-  console.log("[Clal] clicked tab (fallback exact):", headingText);
+  const result = await page.evaluate(injection).catch(e => "ERROR: " + e.message);
+  console.log(`[Clal] Click report '${linkText}' result: ${result}`);
+  
+  await softNetworkIdle(page);
 }
 
-export async function clalLogin(page: Page, username: string, password: string) {
-  await page.waitForSelector("#input_1", { state: "visible", timeout: 30_000 });
-  await page.fill("#input_1", username);
-  await page.fill("#input_2", password);
+export async function clickReportTabHeading(page: Page, headingText: string) {
+  console.log(`[Clal] Switching to tab: ${headingText} via Injection...`);
 
-  await Promise.all([page.waitForLoadState("domcontentloaded"), page.click("#btLogin_ctl09")]);
-  console.log("[Clal] after login url:", page.url());
+  const injection = `
+    (function(text) {
+      return new Promise((resolve) => {
+        let attempts = 0;
+        const interval = setInterval(() => {
+          attempts++;
+          const elements = Array.from(document.querySelectorAll('tab-heading, a, span, button'));
+          const target = elements.find(el => el.innerText && el.innerText.trim() === text);
+
+          if (target) {
+            clearInterval(interval);
+            const clickable = target.closest('a') || target;
+            clickable.click();
+            resolve("SUCCESS");
+          }
+
+          if (attempts > 40) {
+            clearInterval(interval);
+            resolve("NOT_FOUND");
+          }
+        }, 500);
+      });
+    })('${headingText}')
+  `;
+
+  const result = await page.evaluate(injection).catch(e => "ERROR: " + e.message);
+  console.log(`[Clal] Tab switch '${headingText}' result: ${result}`);
+
+  // המתנה קלה לרנדור
+  await waitAngularTick(page, 500);
+}
+/**
+ * פונקציית לוגין - הזרקה נקייה (ללא TS בתוך ה-eval)
+ */
+export async function clalLogin(page: Page, username: string, password: string) {
+  console.log("[ClalLogin] Policy page detected. Injecting via String...");
+
+  const injectionCode = `
+    (function(u, p) {
+      let attempts = 0;
+      const interval = setInterval(() => {
+        attempts++;
+        const user = document.querySelector('#input_1');
+        const pass = document.querySelector('#input_2');
+        const btn = document.querySelector('#btLogin_ctl09');
+
+        if (user && pass && btn) {
+          clearInterval(interval);
+          user.value = u;
+          pass.value = p;
+          user.dispatchEvent(new Event('input', { bubbles: true }));
+          pass.dispatchEvent(new Event('input', { bubbles: true }));
+          btn.click();
+        }
+
+        if (attempts > 60) clearInterval(interval);
+      }, 500);
+    })('${username}', '${password}')
+  `;
+
+  try {
+    await page.evaluate(injectionCode);
+    await page.waitForTimeout(5000);
+    console.log("[ClalLogin] Injection script sent to browser.");
+  } catch (e: any) {
+    console.error("[ClalLogin] Execution error: " + e.message);
+  }
 }
 
 /**
- * OTP:
- * - manual: הסוכן מקליד בפורטל
- * - firestore: ה-UI שלנו שומר otp.value במסמך הריצה
+ * טיפול ב-OTP ידני - חסין ל-EXE
  */
 export async function clalHandleOtp(page: Page, ctx: RunnerCtx) {
-  const { runId, setStatus, pollOtp, clearOtp } = ctx;
+  const { runId, setStatus } = ctx;
+  console.log("[Clal] Checking for OTP requirements...");
 
-  const otpMode = String((ctx.run as any)?.otp?.mode || "firestore").toLowerCase();
-  const tokenSel = 'input[name="Token"]';
+  const isOtpVisible = await page.evaluate(`document.querySelector('input[name="Token"]') !== null`).catch(() => false);
 
-  const tokenVisible = await page
-    .locator(tokenSel)
-    .first()
-    .isVisible()
-    .catch(() => false);
-
-  if (!tokenVisible) {
-    console.log("[Clal] OTP not required");
+  if (!isOtpVisible) {
+    console.log("[Clal] No OTP field detected.");
     return;
   }
 
-  // ==========================
-  // MANUAL MODE
-  // ==========================
-  if (otpMode === "manual") {
-    await setStatus(runId, {
-      status: "otp_required",
-      step: "clal_otp_required_manual",
-      otp: {
-        mode: "manual",
-        state: "required",
-        hint: "🔐 ממתין להזנת קוד אימות בפורטל החברה...",
-      },
-    });
+  await setStatus(runId, { status: "otp_required", step: "clal_otp_required_manual" });
+  
+  console.log("--------------------------------------------------");
+  console.log("👉 ACTION REQUIRED: ENTER OTP IN THE BROWSER NOW 👈");
+  console.log("--------------------------------------------------");
 
-    console.log("[Clal] OTP manual mode: waiting for user to complete OTP in portal...");
+  const checkLoginSuccessScript = `
+    (function() {
+      const text = document.body.innerText || "";
+      return text.includes("התנתק") || text.includes("שלום,");
+    })()
+  `;
 
-    await page.waitForFunction(
-      () => {
-        const logout = Array.from(document.querySelectorAll("*")).find(
-          (el) => (el as HTMLElement)?.innerText?.trim() === "התנתק"
-        );
-        if (logout) return true;
-
-        const token = document.querySelector('input[name="Token"]') as HTMLInputElement | null;
-        if (!token) return true;
-
-        const s = window.getComputedStyle(token);
-        if (s.display === "none" || s.visibility === "hidden" || Number(s.opacity) === 0) return true;
-
-        return false;
-      },
-      { timeout: 180_000 }
-    );
-
-    await softNetworkIdle(page);
-
-    const ok = await page.getByText("התנתק").first().isVisible().catch(() => false);
-    console.log(ok ? "[Clal] logged in (found התנתק)" : "[Clal] progressed after manual OTP");
-
-    await setStatus(runId, { status: "logged_in", step: "clal_logged_in" });
-    return;
+  try {
+    await page.waitForFunction(checkLoginSuccessScript, { timeout: 180000 });
+    console.log("[Clal] OTP success detected.");
+  } catch (e) {
+    console.log("[Clal] OTP Wait timed out. Continuing anyway...");
   }
 
-  // ==========================
-  // FIRESTORE MODE
-  // ==========================
-  await setStatus(runId, {
-    status: "otp_required",
-    step: "clal_otp_required",
-    otp: { mode: "firestore", state: "required" },
-  });
-
-  const otp = await pollOtp(runId);
-  console.log("[Clal] got OTP");
-
-  await page.waitForSelector(tokenSel, { state: "visible", timeout: 30_000 });
-  await page.fill(tokenSel, otp);
-
-  const btn = page.locator("#btLogin_ctl09");
-  if (await btn.count().catch(() => 0)) {
-    await Promise.all([page.waitForLoadState("domcontentloaded").catch(() => {}), btn.click()]);
-  } else {
-    const submit = page.getByRole("button", { name: /המשך|אישור|כניסה|שלח/i }).first();
-    await Promise.all([page.waitForLoadState("domcontentloaded").catch(() => {}), submit.click()]);
-  }
-
-  await softNetworkIdle(page);
-  console.log("[Clal] after otp url:", page.url());
-
-  await clearOtp(runId);
-
-  const ok = await page.getByText("התנתק").first().isVisible().catch(() => false);
-  console.log(ok ? "[Clal] logged in (found התנתק)" : "[Clal] logged in (logout not found yet)");
-
+  await page.waitForTimeout(5000);
   await setStatus(runId, { status: "logged_in", step: "clal_logged_in" });
 }
 
 /**
- * מעבר למסך "פירוט עמלות" — לרוב זה target=_blank ולכן נפתח טאב חדש.
+ * מעבר לדף עמלות - חסין ל-EXE
  */
+
 export async function gotoCommissionsPage(page: Page): Promise<Page> {
-  const link = page.locator('a[href="../commissions"]').first();
-  await link.scrollIntoViewIfNeeded().catch(() => {});
-  await link.waitFor({ state: "visible", timeout: 30_000 });
+  console.log("[Clal] Fast-Scanning for Commissions link...");
 
-  const ctx = page.context();
-  const [newPage] = await Promise.all([ctx.waitForEvent("page", { timeout: 30_000 }).catch(() => null), link.click()]);
+  const injection = `
+    (function() {
+      return new Promise((resolve) => {
+        const interval = setInterval(() => {
+          const target = Array.from(document.querySelectorAll('a'))
+            .find(a => a.innerText.includes('לפירוט עמלות') || a.innerText.includes('עמלות והפקות'));
+          if (target) {
+            clearInterval(interval);
+            target.click();
+            resolve("SUCCESS");
+          }
+        }, 200); // בדיקה כל 200ms במקום 500ms
+      });
+    })()
+  `;
 
-  const commissionsPage = newPage ?? page;
-  await commissionsPage.bringToFront().catch(() => {});
-  await softNetworkIdle(commissionsPage);
-
-  console.log("[Clal] commissions url:", commissionsPage.url());
-  return commissionsPage;
-}
-
-/**
- * דרופדאון סוכנים -> "בחר הכל"
- */
-export async function openAgentsDropdownAndSelectAll(page: Page) {
-  await page.waitForSelector("#drpAgentsNameBtn", { state: "visible", timeout: 30_000 });
-  await page.click("#drpAgentsNameBtn");
-
-  const selectAllBtn = page.getByRole("button", { name: /בחר הכל/ }).first();
-  await selectAllBtn.waitFor({ state: "visible", timeout: 30_000 });
-  await selectAllBtn.click();
-
-  await page.keyboard.press("Escape").catch(() => {});
-  console.log("[Clal] agents: select all");
-}
-
-/**
- * Search בלבד:
- * - לא משנים חודש בכלל
- * - כן לוחצים "חפש"
- */
-export async function selectMonthAndSearch(page: Page, _monthLabelForLogsOnly?: string) {
-  await page.waitForSelector('select[ng-model="selectedMonth"]', { state: "visible", timeout: 30_000 });
-
-  const searchBtn = page.locator('button[ng-click="search()"]').first();
-  await searchBtn.waitFor({ state: "visible", timeout: 30_000 });
-  await searchBtn.click();
-
-  await softNetworkIdle(page);
-  console.log("[Clal] search clicked (month unchanged).");
-}
-
-/**
- * לוודא שהטבלה התמלאה אחרי Search:
- * - או שיש לפחות שורה אחת ב-ui-grid
- * - או שמופיע טקסט "אין נתונים" (אם יש כזה)
- *
- * אם תרצי, נעדכן את הסלקטורים לפי צילום מסך אמיתי של ה-grid.
- */
-export async function waitForCommissionsGridFilled(page: Page, timeoutMs = 60_000) {
-  const rows = page.locator(".ui-grid-row");
-  const noData = page.locator(".ui-grid-empty, .ui-grid-no-row-overlay, text=/אין נתונים|לא נמצאו נתונים/i");
-
-  await Promise.race([
-    rows.first().waitFor({ state: "visible", timeout: timeoutMs }).then(() => "rows").catch(() => null),
-    noData.first().waitFor({ state: "visible", timeout: timeoutMs }).then(() => "empty").catch(() => null),
+  const [newPage] = await Promise.all([
+    page.context().waitForEvent("page", { timeout: 60000 }),
+    page.evaluate(injection)
   ]);
 
-  // לא זורקים פה שגיאה — אם לא מצאנו, לפחות לא נתקעים
-  console.log("[Clal] grid wait done (rows or empty overlay).");
+  await newPage.bringToFront();
+  return newPage;
+}
+/**
+ * בחירת סוכנים - חסין ל-EXE (נקי מ-TypeScript ב-eval)
+ */
+// export async function openAgentsDropdownAndSelectAll(page: Page) {
+//   console.log("[Clal] Handling Agents dropdown...");
+
+//   const injection = `
+//     (function() {
+//       return new Promise((resolve) => {
+//         let attempts = 0;
+//         const interval = setInterval(() => {
+//           attempts++;
+//           const btn = document.querySelector('#drpAgentsNameBtn');
+//           if (btn) {
+//             clearInterval(interval);
+//             btn.click();
+//             setTimeout(() => {
+//               const allBtn = Array.from(document.querySelectorAll('button, a, span'))
+//                 .find(el => el.innerText && el.innerText.includes('בחר הכל'));
+//               if (allBtn) allBtn.click();
+//               resolve("SUCCESS");
+//             }, 1000);
+//           }
+//           if (attempts > 80) {
+//             clearInterval(interval);
+//             resolve("TIMEOUT");
+//           }
+//         }, 500);
+//       });
+//     })()
+//   `;
+
+//   await page.evaluate(injection).catch(e => console.error("[Clal] Dropdown Error: " + e.message));
+//   await page.keyboard.press("Escape");
+// }
+
+/**
+ * בחירת חודש וחיפוש - חסין ל-EXE (נקי מ-TypeScript ב-eval)
+//  */
+// export async function selectMonthAndSearch(page: Page, monthLabel?: string) {
+//   console.log("[Clal] Selecting month and searching...");
+
+//   const injection = `
+//     (function(label) {
+//       if (label) {
+//         const select = document.querySelector('select[ng-model="selectedMonth"]');
+//         if (select) {
+//           const options = Array.from(select.options);
+//           const option = options.find(o => o.text.includes(label));
+//           if (option) {
+//             select.value = option.value;
+//             select.dispatchEvent(new Event('change', { bubbles: true }));
+//           }
+//         }
+//       }
+//       const searchBtn = document.querySelector('button[ng-click="search()"]');
+//       if (searchBtn) searchBtn.click();
+//       return "CLICKED";
+//     })('${monthLabel || ""}')
+//   `;
+
+//   await page.evaluate(injection).catch(() => {});
+//   await softNetworkIdle(page);
+// }
+
+export async function selectMonthAndSearch(page: Page, monthLabel?: string) {
+  console.log(`[Clal] Opening Select and choosing: ${monthLabel}`);
+
+  const injection = `
+    (function(label) {
+      if (!label) return "NO_LABEL";
+      
+      const select = document.querySelector('select[ng-model="selectedMonth"]');
+      if (!select) return "SELECT_NOT_FOUND";
+
+      // 1. "עוררות" האלמנט על ידי לחיצה
+      select.click();
+      select.focus();
+
+      const options = Array.from(select.options);
+      // חיפוש האופציה (למשל "פברואר 2026")
+      const targetOption = options.find(o => o.text.trim().includes(label));
+      
+      if (targetOption) {
+        select.value = targetOption.value;
+        
+        // 2. הפעלת אירועי השינוי של Angular
+        select.dispatchEvent(new Event('input', { bubbles: true }));
+        select.dispatchEvent(new Event('change', { bubbles: true }));
+        
+        // 3. לחיצה על כפתור החיפוש לאחר השהייה קלה לרנדור
+        setTimeout(() => {
+          const searchBtn = document.querySelector('button[ng-click="search()"]');
+          if (searchBtn) searchBtn.click();
+        }, 1000);
+        
+        return "SUCCESS";
+      }
+      return "OPTION_NOT_FOUND";
+    })('${monthLabel || ""}')
+  `;
+
+  await page.evaluate(injection);
+  await waitAngularTick(page, 2000);
+}
+/**
+ * המתנה לטעינת הגריד - חסין ל-EXE
+ */
+export async function waitForCommissionsGridFilled(page: Page, timeoutMs = 60000) {
+  console.log("[Clal] Waiting for grid...");
+
+  const injection = `
+    (function(timeout) {
+      return new Promise((resolve) => {
+        const start = Date.now();
+        const interval = setInterval(() => {
+          const hasRows = document.querySelectorAll('.ui-grid-row').length > 0;
+          const noData = document.body.innerText.includes("אין נתונים") || document.querySelector('.ui-grid-empty');
+          
+          if (hasRows) { clearInterval(interval); resolve("DATA"); }
+          else if (noData) { clearInterval(interval); resolve("NO_DATA"); }
+          else if (Date.now() - start > timeout) { clearInterval(interval); resolve("TIMEOUT"); }
+        }, 1000);
+      });
+    })(${timeoutMs})
+  `;
+
+  const result = await page.evaluate(injection).catch(() => "ERROR");
+  console.log("[Clal] Grid result: " + result);
 }
 
 /**
- * ייצוא לאקסל (תוקן כדי לא להיתקע על כפתור שקיים אבל hidden)
+ * הורדת אקסל - חסין ל-EXE (נקי מ-TypeScript ב-eval)
  */
-function exportLocatorCandidates(page: Page): Locator[] {
-  return [
-    page.locator('a.export-btn[ng-click*="downloadExcel"]:visible').first(),
-    page.locator("a.export-btn:visible").first(),
-    page.getByRole("link", { name: /יצא לאקסל/i }).first(),
-    page.getByText(/יצא לאקסל/i).first(),
-  ];
-}
+export async function exportExcelFromCurrentReport(page: Page): Promise<{ download: Download | null; filename: string }> {
+  console.log("[Clal] Targeted Excel Export (Ignoring PDF)...");
 
-async function pickVisibleExportButton(page: Page, timeoutMs: number): Promise<Locator> {
-  const deadline = Date.now() + timeoutMs;
+  const injection = `
+    (function() {
+      return new Promise((resolve) => {
+        let attempts = 0;
+        const interval = setInterval(() => {
+          attempts++;
+          const elements = Array.from(document.querySelectorAll('a, button, .export-btn'));
+          
+          const btn = elements.find(el => {
+            const style = window.getComputedStyle(el);
+            const isVisible = el.offsetWidth > 0 && el.offsetHeight > 0 && style.display !== 'none';
+            const txt = (el.innerText || "").toLowerCase();
+            
+            // שינוי קריטי: חייב לכלול אקסל ושאסור שיכלול PDF
+            return isVisible && txt.includes('אקסל') && !txt.includes('pdf');
+          });
 
-  while (Date.now() < deadline) {
-    for (const cand of exportLocatorCandidates(page)) {
-      const ok = await cand.isVisible().catch(() => false);
-      if (!ok) continue;
+          if (btn) {
+            clearInterval(interval);
+            btn.click();
+            resolve("CLICKED");
+          }
+          if (attempts > 40) { clearInterval(interval); resolve("NOT_FOUND"); }
+        }, 500);
+      });
+    })()
+  `;
 
-      const ariaDisabled = await cand.getAttribute("aria-disabled").catch(() => null);
-      const className = (await cand.getAttribute("class").catch(() => "")) || "";
-      if (ariaDisabled === "true" || /disabled/i.test(className)) continue;
-
-      return cand;
-    }
-
-    await waitAngularTick(page, 250);
+  try {
+    const downloadPromise = page.waitForEvent("download", { timeout: 45000 });
+    const result = await page.evaluate(injection);
+    if (result === "NOT_FOUND") return { download: null, filename: "" };
+    const download = await downloadPromise;
+    return { download, filename: download.suggestedFilename() };
+  } catch (e) {
+    return { download: null, filename: "" };
   }
-
-  throw new Error('Export button not visible (יצא לאקסל) within timeout');
-}
-
-/**
- * ייצוא לאקסל
- */
-export async function exportExcelFromCurrentReport(page: Page): Promise<{ download: Download; filename: string }> {
-  await waitAngularTick(page, 250);
-
-  const exportBtn = await pickVisibleExportButton(page, 60_000);
-  await exportBtn.scrollIntoViewIfNeeded().catch(() => {});
-  await exportBtn.waitFor({ state: "visible", timeout: 30_000 });
-
-  const [download] = await Promise.all([page.waitForEvent("download", { timeout: 120_000 }), exportBtn.click()]);
-
-  const filename = download.suggestedFilename();
-  console.log("[Clal] export download started:", filename);
-  return { download, filename };
 }

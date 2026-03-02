@@ -2,6 +2,7 @@
 import type { FirebaseStorage } from "firebase/storage";
 import type { Timestamp } from "firebase/firestore";
 import type { Functions } from "firebase/functions";
+import { Logger } from "./logger";
 
 /* ===============================
    Window / Date Range
@@ -151,6 +152,15 @@ export type RunnerEnv = {
   MENORA_PHONE_NUMBER?: string;
 };
 
+
+export type RunnerPaths = {
+  appDataDir: string;
+  downloadsDir: string;
+  logsDir: string;
+  installDir: string;
+  pwBrowsersDir: string;
+};
+
 /* ===============================
    Runner Context
 ================================= */
@@ -161,16 +171,16 @@ export type RunnerCtx = {
   env: RunnerEnv;
 
   setStatus: (runId: string, patch: Partial<RunDoc> & Record<string, any>) => Promise<void>;
-
   pollOtp: (runId: string, timeoutMs?: number) => Promise<string>;
   clearOtp: (runId: string) => Promise<void>;
 
   // local runner
   storage?: FirebaseStorage | any;
-
   agentId?: string;
   runnerId?: string;
   functions?: Functions | any;
+  paths?: RunnerPaths;
+  log?: Logger;
 };
 
 export type RunnerHandler = (ctx: RunnerCtx) => Promise<void>;

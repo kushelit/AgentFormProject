@@ -1,5 +1,8 @@
-// scripts/portalRunner/src/poller.local.ts
+// scripts/portalRunner/src/runner.ts
 import crypto from "crypto";
+import path from "path";
+import fs from "fs";
+
 import {
   collection,
   query,
@@ -15,19 +18,14 @@ import {
 } from "firebase/firestore";
 
 import { initFirebaseClient } from "./firebaseClient";
-import { loginIfNeeded } from "./loginCli";
-import { providers } from "./providers";
 import type { RunDoc, RunnerCtx, RunnerEnv } from "./types";
 import { resolveWindow, labelFromYm } from "./window";
+import { buildRunnerPaths, setPlaywrightBrowsersPath } from "./runnerPaths";
+import { createFileLogger } from "./logger";
+import { loginIfNeeded } from "./loginCli";
 
 function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
-}
-
-function pickPollIntervalMs() {
-  const raw = Number(process.env.POLL_INTERVAL_MS || 2000);
-  if (!isFinite(raw) || raw < 500) return 2000;
-  return raw;
 }
 
 async function claimRunClient(db: any, runId: string, runnerId: string, agentId: string): Promise<boolean> {
@@ -86,8 +84,6 @@ async function clearOtpClient(db: any, runId: string) {
 
 /* =========================================================
    Template+Month Lock (LOCAL - client Firestore)
-   Collection: portalImportLocks
-   DocId: {agentId}_{templateId}_{ym}
 ========================================================= */
 
 type LockResult =
@@ -98,11 +94,9 @@ function lockDocId(agentId: string, templateId: string, ym: string) {
   return `${agentId}_${templateId}_${ym}`;
 }
 
-// מנסים לחלץ YYYY-MM גם אם resolved.kind לא בדיוק "month"
 function getYmForLock(resolved: any): string | null {
   if (resolved?.kind === "month" && typeof resolved?.ym === "string" && resolved.ym) return resolved.ym;
 
-  // אופציונלי: אם יש start/end באותו חודש
   const start = resolved?.start || resolved?.from || resolved?.fromDate;
   const end = resolved?.end || resolved?.to || resolved?.toDate;
 
@@ -126,10 +120,10 @@ async function acquireTemplateMonthLockClient(params: {
   db: any;
   agentId: string;
   templateId: string;
-  ym: string; // YYYY-MM
+  ym: string;
   runId: string;
   runnerId: string;
-  ttlMinutes?: number; // default 30
+  ttlMinutes?: number;
 }): Promise<LockResult> {
   const ttlMinutes = params.ttlMinutes ?? 30;
   const ref = doc(params.db, "portalImportLocks", lockDocId(params.agentId, params.templateId, params.ym));
@@ -148,17 +142,14 @@ async function acquireTemplateMonthLockClient(params: {
 
       const isExpired = existingExpiresAt ? existingExpiresAt.toMillis() < now.toMillis() : true;
 
-      // ✅ Block rerun after success
       if (state === "done") {
         return { ok: false as const, reason: "already_done" as const, existingRunId };
       }
 
-      // Block parallel run if not expired
       if (state === "running" && !isExpired && existingRunId && existingRunId !== params.runId) {
         return { ok: false as const, reason: "busy" as const, existingRunId };
       }
 
-      // expired / error / same run => takeover
       tx.set(
         ref,
         {
@@ -178,7 +169,6 @@ async function acquireTemplateMonthLockClient(params: {
       return { ok: true as const };
     }
 
-    // create new lock
     tx.set(ref, {
       agentId: params.agentId,
       templateId: params.templateId,
@@ -240,45 +230,78 @@ async function markTemplateMonthLockErrorClient(params: {
   });
 }
 
+function setupGracefulShutdown() {
+  let stop = false;
+  const onStop = () => {
+    stop = true;
+  };
+  process.on("SIGINT", onStop);
+  process.on("SIGTERM", onStop);
+  return () => stop;
+}
+
 async function main() {
+  const shouldStop = setupGracefulShutdown();
+
   const { auth, db, storage, functions, runner, effectiveBucket } = initFirebaseClient();
+
+  const paths = buildRunnerPaths({
+    downloadDirFromConfig: (runner?.downloadDir && String(runner.downloadDir).trim()) || null,
+  });
+
+  const log = createFileLogger({ logsDir: paths.logsDir, alsoConsole: true });
+
+  // ✅ רק ב-EXE (pkg) אנחנו קובעים PLAYWRIGHT_BROWSERS_PATH — אבל מכוונים ליד ה-EXE (לא APPDATA)
+  if ((process as any).pkg) {
+    const exeDir = path.dirname(process.execPath);
+    const pwNearExe = path.join(exeDir, "pw-browsers");
+
+    log.info("[Runner] exeDir=", exeDir);
+    log.info("[Runner] pwNearExe=", pwNearExe);
+    log.info("[Runner] pwNearExe exists=", fs.existsSync(pwNearExe));
+
+    // אם התיקייה ליד ה-EXE קיימת – נכפה אותה. אחרת ניפול חזרה לנתיב מה-paths (לוג בלבד)
+    if (fs.existsSync(pwNearExe)) {
+      setPlaywrightBrowsersPath(pwNearExe);
+    } else {
+      log.warn("[Runner] pw-browsers not found near exe. Fallback to paths.pwBrowsersDir=", paths.pwBrowsersDir);
+      setPlaywrightBrowsersPath(paths.pwBrowsersDir);
+    }
+  }
+
+  log.info("[Runner] installDir=", paths.installDir);
+  log.info("[Runner] appDataDir=", paths.appDataDir);
+  log.info("[Runner] downloadsDir=", paths.downloadsDir);
+  log.info("[Runner] logsDir=", paths.logsDir);
+  log.info("[Runner] PLAYWRIGHT_BROWSERS_PATH=", process.env.PLAYWRIGHT_BROWSERS_PATH);
+
+  // import providers AFTER playwright env set
+  const { providers } = await import("./providers");
 
   const agentId = await loginIfNeeded({ auth, functions });
 
-  const runnerId =
-    process.env.RUNNER_ID ||
-    `local_${agentId}_${crypto.randomUUID().slice(0, 8)}`;
+  const runnerId = `local_${agentId}_${crypto.randomUUID().slice(0, 8)}`;
 
-  // poll interval: קודם קונפיג, אח"כ ENV, אח"כ default
-  const pollMsFromConfig = typeof runner?.pollIntervalMs === "number" ? runner.pollIntervalMs : undefined;
-  const pollMs = pollMsFromConfig ?? pickPollIntervalMs();
+  const pollMs =
+    typeof runner?.pollIntervalMs === "number" && isFinite(runner.pollIntervalMs) && runner.pollIntervalMs >= 500
+      ? runner.pollIntervalMs
+      : 2000;
 
-  // Headless / DownloadDir: קודם קונפיג, אח"כ ENV
-  const headlessFromConfig =
-    typeof runner?.headless === "boolean" ? String(runner.headless) : undefined;
-
-  const downloadDirFromConfig =
-    typeof runner?.downloadDir === "string" && runner.downloadDir.trim()
-      ? runner.downloadDir.trim()
-      : undefined;
+  const headlessFromConfig = typeof runner?.headless === "boolean" ? String(runner.headless) : undefined;
 
   const env: RunnerEnv = {
     RUNNER_ID: runnerId,
-    HEADLESS: headlessFromConfig ?? process.env.HEADLESS,
-    DOWNLOAD_DIR: downloadDirFromConfig ?? process.env.DOWNLOAD_DIR,
-
-    // אפשר כבר להעביר גם לקונפיג (מומלץ ל-EXE). כרגע: config קודם ואז ENV
-    CLAL_PORTAL_URL: (runner?.clalPortalUrl && String(runner.clalPortalUrl).trim()) || process.env.CLAL_PORTAL_URL,
-    MIGDAL_PORTAL_URL: (runner?.migdalPortalUrl && String(runner.migdalPortalUrl).trim()) || process.env.MIGDAL_PORTAL_URL,
-    MIGDAL_DEBUG:
-      runner?.migdalDebug !== undefined ? String(runner.migdalDebug) : process.env.MIGDAL_DEBUG,
-
+    HEADLESS: headlessFromConfig,
+    DOWNLOAD_DIR: paths.downloadsDir,
+    CLAL_PORTAL_URL: (runner?.clalPortalUrl && String(runner.clalPortalUrl).trim()) || undefined,
+    MIGDAL_PORTAL_URL: (runner?.migdalPortalUrl && String(runner.migdalPortalUrl).trim()) || undefined,
+    MIGDAL_DEBUG: runner?.migdalDebug !== undefined ? String(runner.migdalDebug) : undefined,
     FIREBASE_STORAGE_BUCKET: effectiveBucket,
   };
 
-  console.log("[LocalRunner] started. agentId=", agentId, "runnerId=", runnerId, "pollMs=", pollMs);
+  log.info("[LocalRunner] started. agentId=", agentId, "runnerId=", runnerId, "pollMs=", pollMs);
 
-  while (true) {
+  while (!shouldStop()) {
     try {
       const snap = await getDocs(
         query(
@@ -296,19 +319,20 @@ async function main() {
       }
 
       for (const docSnap of snap.docs) {
+        if (shouldStop()) break;
+
         const runId = docSnap.id;
         const run = docSnap.data() as RunDoc;
 
         const ok = await claimRunClient(db, runId, runnerId, agentId);
         if (!ok) continue;
 
-        console.log("[LocalRunner] claimed run:", runId, run.automationClass);
+        log.info("[LocalRunner] claimed run:", runId, run.automationClass);
 
-        // Will be set only after we resolve month and successfully acquire lock
         let lockInfo: null | { agentId: string; templateId: string; ym: string } = null;
 
         try {
-          const fn = providers[run.automationClass];
+          const fn = (providers as any)[run.automationClass];
           if (!fn) throw new Error(`Unknown automationClass: ${run.automationClass}`);
 
           const resolved = resolveWindow(new Date(), run.requestedWindow);
@@ -320,18 +344,9 @@ async function main() {
             monthLabel: run.monthLabel || monthLabel,
           });
 
-          // ===== 4.5) Lock (BEFORE provider/OTP) =====
           const ym = getYmForLock(resolved);
 
           if (ym && run.templateId) {
-            console.log("[LocalRunner] about to acquire lock:", {
-              agentId: run.agentId,
-              templateId: run.templateId,
-              ym,
-              runId,
-              runnerId,
-            });
-
             const lock = await acquireTemplateMonthLockClient({
               db,
               agentId: run.agentId,
@@ -340,8 +355,6 @@ async function main() {
               runId,
               runnerId,
             });
-
-            console.log("[LocalRunner] lock result:", lock);
 
             if (!lock.ok) {
               await setStatusClient(db, runId, {
@@ -356,12 +369,11 @@ async function main() {
                 },
               });
 
-              continue; // ⚠️ לא נכנסים ל־OTP בכלל
+              log.warn("[LocalRunner] skipped duplicate:", runId, lock.reason, lock.existingRunId || "");
+              continue;
             }
 
             lockInfo = { agentId: run.agentId, templateId: run.templateId, ym };
-          } else {
-            console.log("[LocalRunner] lock skipped (no ym or no templateId). resolved.kind=", (resolved as any)?.kind);
           }
 
           const ctx: RunnerCtx = {
@@ -375,11 +387,12 @@ async function main() {
             agentId,
             runnerId,
             functions,
+            paths,
+            log,
           };
 
           await fn(ctx);
 
-          // mark done if not error
           const after = await getDoc(doc(db, "portalImportRuns", runId));
           const curStatus = String((after.data() as any)?.status || "");
           if (curStatus !== "error") {
@@ -390,13 +403,13 @@ async function main() {
           }
         } catch (e: any) {
           const msg = String(e?.message || e);
+          log.error("[LocalRunner] run error:", runId, msg);
 
-          // mark lock error (does NOT block retry)
           if (lockInfo) {
             try {
               await markTemplateMonthLockErrorClient({ db, ...lockInfo, runId, message: msg });
             } catch (lockErr: any) {
-              console.error("[LocalRunner] failed to mark lock error:", lockErr?.message || lockErr);
+              log.error("[LocalRunner] failed to mark lock error:", lockErr?.message || lockErr);
             }
           }
 
@@ -408,13 +421,19 @@ async function main() {
         }
       }
     } catch (e: any) {
-      console.error("[LocalRunner] poll loop error:", e?.message || e);
+      log.error("[LocalRunner] poll loop error:", e?.message || e);
       await sleep(1500);
     }
   }
+
+  log.info("[LocalRunner] stopping...");
+  if (log.flush) await log.flush();
+  process.exit(0);
 }
 
-main().catch((e) => {
-  console.error(e);
+main().catch(async (e) => {
+  try {
+    console.error(e);
+  } catch {}
   process.exit(1);
 });
