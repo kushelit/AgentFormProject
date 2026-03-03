@@ -9,12 +9,13 @@ import {
   clalLogin,
   clalHandleOtp,
   gotoCommissionsPage,
-  // openAgentsDropdownAndSelectAll,
-  selectMonthAndSearch,
+  clickSearchOnly,
   waitForCommissionsGridFilled,
+  openAgentsDropdownAndSelectAll,
   exportExcelFromCurrentReport,
   openReportFromSummaryByName,
   clickReportTabHeading,
+  waitClalLoaderGone
 } from "./clal.shared";
 
 import { uploadLocalFileToStorageClient } from "../../uploadToStorage.client";
@@ -49,7 +50,7 @@ export async function runClalAll(ctx: RunnerCtx) {
   const monthLabel = (run.resolvedWindow?.kind === "month" ? (run.resolvedWindow.label || run.monthLabel) : run.resolvedWindow?.label) || "חודש נוכחי";
 
   const appendDownload = async (item: any) => {
-    const cur = (ctx.run as any)?.downloads;
+    const cur = (ctx.run as any)?.downloads || [];
     const downloads = Array.isArray(cur) ? [...cur, item] : [item];
     (ctx.run as any).downloads = downloads;
     await setStatus(runId, { downloads });
@@ -60,7 +61,7 @@ export async function runClalAll(ctx: RunnerCtx) {
   let browser: Browser | null = null;
   let context: BrowserContext | null = null;
 
-  // איתור כרום מקומי - קריטי ל-EXE
+  // איתור כרום מקומי - קריטי ל-EXE כדי למנוע בעיות תאימות
   const standardPath = "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe";
   const x86Path = "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe";
   const localChromePath = fs.existsSync(standardPath) ? standardPath : (fs.existsSync(x86Path) ? x86Path : null);
@@ -77,7 +78,7 @@ export async function runClalAll(ctx: RunnerCtx) {
   try {
     console.log(`[Clal] Launching with executable: ${executablePath}`);
     browser = await chromium.launch({
-      headless: false, // עדיף false כדי לראות את ההזרקה קורה ב-EXE
+      headless: false, 
       executablePath: executablePath || undefined,
       args,
     });
@@ -91,88 +92,107 @@ export async function runClalAll(ctx: RunnerCtx) {
     const page = await context.newPage();
     await page.bringToFront().catch(() => {});
 
-  // בתוך clal.all.ts
-console.log("[Clal] Navigating to portal...");
-// מחכים רק ל-commit (תחילת טעינה) כדי שה-waitForURL בתוך הלוגין יעשה את העבודה
-await page.goto(portalUrl, { waitUntil: "commit", timeout: 60000 });
-await clalLogin(page, username, password);
+    console.log("[Clal] Navigating to portal...");
+    await page.goto(portalUrl, { waitUntil: "commit", timeout: 60000 });
+    
+    // הזרקת לוגין
+    await clalLogin(page, username, password);
 
     await setStatus(runId, { status: "running", step: "clal_otp", monthLabel });
     await clalHandleOtp(page, ctx);
 
+    // מעבר לדף עמלות (פתיחת טאב חדש)
     const commissionsPage = await gotoCommissionsPage(page);
-    // await openAgentsDropdownAndSelectAll(commissionsPage);
-    // await selectMonthAndSearch(commissionsPage, monthLabel);
-    const targetMonth = "פברואר 2026"; 
-await selectMonthAndSearch(commissionsPage, targetMonth);
-    await waitForCommissionsGridFilled(commissionsPage, 60000);
 
-    const REPORTS: any[] = [
-      { linkText: "בריאות", templateId: "clal_briut", stepPrefix: "clal_briut" },
-      { linkText: "חיים", templateId: "clal_life", stepPrefix: "clal_life", preExportTabHeading: "פוליסה" },
-      { linkText: "גמל", templateId: "clal_gemel", stepPrefix: "clal_gemel", preExportTabHeading: "עמיתים" },
-     { linkText: "פנסיה", templateId: "clal_pensia", stepPrefix: "clal_pensia", preExportTabHeading: "עמיתים" },
+    // המתנה קריטית: ב-EXE דף העמלות נטען לאט בגלל F5 ו-Angular
+    console.log("[Clal] Waiting for commissions page to stabilize...");
+    await commissionsPage.waitForTimeout(4000); 
+    await waitClalLoaderGone(commissionsPage, 30000);
 
-    ];
+    // בחירת סוכנים וחיפוש (לפי הזרקת String)
+    await openAgentsDropdownAndSelectAll(commissionsPage);
+    await clickSearchOnly(commissionsPage);
 
-   for (const rep of REPORTS) {
-  try {
-    // עדכון סטטוס לתחילת עבודה על הדוח הספציפי
-    await setStatus(runId, { status: "running", step: `${rep.stepPrefix}_open`, monthLabel });
-    
-    // פתיחת הדוח
-    await openReportFromSummaryByName(commissionsPage, rep.linkText);
-    
-    // מעבר לטאב אם הוגדר
-    if (rep.preExportTabHeading) {
-      await clickReportTabHeading(commissionsPage, rep.preExportTabHeading);
-    }
-
-    // המתנה לטעינת הנתונים
+    // המתנה שהגריד הראשי יתמלא
+  // ... אחרי ה-Search ...
     await waitForCommissionsGridFilled(commissionsPage, 30000);
 
-    // ניסיון הורדה (עכשיו זה מחזיר null אם לא נמצא, בלי לקרוס)
-    const { download, filename } = await exportExcelFromCurrentReport(commissionsPage);
+    const REPORTS: any[] = [
+      { linkText: "חיים", templateId: "clal_life", stepPrefix: "clal_life", preExportTabHeading: "פוליסה" },
+      { linkText: "גמל", templateId: "clal_gemel", stepPrefix: "clal_gemel", preExportTabHeading: "עמיתים" },
+    ];
 
-    if (download) {
-      const localPath = path.join(absDir, `${Date.now()}_${filename}`);
-      await download.saveAs(localPath);
+    for (const rep of REPORTS) {
+      try {
+        await setStatus(runId, { status: "running", step: `${rep.stepPrefix}_open` });
+        
+        // 1. לחיצה על הדוח (חיים) - הזרקת String
+        await openReportFromSummaryByName(commissionsPage, rep.linkText);
+        
+        // 2. במקום לחכות 4 שניות קבועות, נחכה רק שהלואדר ייעלם (אם הוא קיים)
+        await waitClalLoaderGone(commissionsPage, 10000);
+        // המתנה קצרה של שניה אחת רק לביטחון של אנגולר
+        await commissionsPage.waitForTimeout(1000); 
 
-      // העלאה לסטורג'
-      const up = await uploadLocalFileToStorageClient({ storage, localPath, agentId, runId, subdir: rep.templateId } as any);
-      
-      // רישום ההורדה במערכת
-      await appendDownload({ 
-        templateId: rep.templateId, 
-        localPath, 
-        filename: up.filename || filename, 
-        storagePath: up.storagePath 
-      });
+        if (rep.preExportTabHeading) {
+          // שימוש בפונקציית הטאב המדויקת שמונעת לחיצה על "סוכנים בפוליסה"
+          await clickReportTabHeading(commissionsPage, rep.preExportTabHeading);
+        }
 
-      await setStatus(runId, { status: "file_uploaded", step: `${rep.stepPrefix}_done` });
-      console.log(`[Clal] Successfully processed ${rep.linkText}`);
-    } else {
-      console.log(`[Clal] No download available for ${rep.linkText}, skipping.`);
+        await waitForCommissionsGridFilled(commissionsPage, 45000);
+        await commissionsPage.waitForTimeout(1000); // נשימה לפני הורדה
+        
+        // הורדת אקסל (הזרקת String)
+        const { download, filename } = await exportExcelFromCurrentReport(commissionsPage);
+
+        if (download) {
+          const localPath = path.join(absDir, `${Date.now()}_${filename}`);
+          await download.saveAs(localPath);
+          console.log(`[Clal] Saved: ${localPath}`);
+
+          // העלאה לסטורג'
+          const up = await uploadLocalFileToStorageClient({ 
+            storage, 
+            localPath, 
+            agentId, 
+            runId, 
+            subdir: rep.templateId 
+          } as any);
+          
+          if (up && up.storagePath) {
+            await appendDownload({ 
+              templateId: rep.templateId, 
+              localPath, 
+              filename: up.filename || filename, 
+              storagePath: up.storagePath 
+            });
+
+            await setStatus(runId, { status: "file_uploaded", step: `${rep.stepPrefix}_done` });
+            console.log(`[Clal] Done: ${rep.linkText}`);
+          }
+        } else {
+          console.log(`[Clal] No download found for ${rep.linkText}`);
+        }
+
+      } catch (err: any) {
+        console.error(`[Clal] Error in ${rep.linkText}: ${err.message}`);
+        await setStatus(runId, { status: "running", step: `${rep.stepPrefix}_failed`, error: err.message });
+      }
     }
 
-  } catch (err: any) {
-    // אם דוח אחד נכשל, אנחנו רק מדפיסים שגיאה וממשיכים לדוח הבא בלולאה!
-    console.error(`[Clal] Error processing report ${rep.linkText}: ${err.message}`);
-    await setStatus(runId, { status: "running", step: `${rep.stepPrefix}_failed`, error: err.message });
-  }
-}
+    await setStatus(runId, { status: "done", step: "clal_all_done", monthLabel, result: { uploaded: true } });
+    console.log("[Clal] All done!");
 
-// רק כאן, מחוץ ללולאה, אנחנו מסמנים שהכל הסתיים
-await setStatus(runId, { status: "done", step: "clal_all_done", monthLabel, result: { uploaded: true } });
   } catch (e: any) {
-    console.error("[Clal] Error:", e.message);
+    console.error("[Clal] Global Error:", e.message);
     if (context && context.pages().length > 0) {
-      const p = context.pages()[0];
+      const p = context.pages()[context.pages().length - 1];
       const screenshotPath = path.join(s(ctx.paths?.logsDir), `error_${Date.now()}.png`);
       await p.screenshot({ path: screenshotPath }).catch(() => {});
     }
     throw e;
   } finally {
+    // ב-EXE אנחנו רוצים לסגור הכל בסוף כדי לא להשאיר תהליכים פתוחים
     if (browser) await browser.close().catch(() => {});
   }
 }

@@ -25,7 +25,7 @@ function escapeRegExp(s: string) {
 }
 
 /**
- * פונקציות ניווט מקוריות - הושארו כפי שהן
+ * פתיחת דוח לפי שם (הזרקת String)
  */
 export async function openReportFromSummaryByName(page: Page, linkText: string) {
   console.log(`[Clal] Searching for report link: ${linkText} via Injection...`);
@@ -55,46 +55,11 @@ export async function openReportFromSummaryByName(page: Page, linkText: string) 
 
   const result = await page.evaluate(injection).catch(e => "ERROR: " + e.message);
   console.log(`[Clal] Click report '${linkText}' result: ${result}`);
-  
   await softNetworkIdle(page);
 }
 
-export async function clickReportTabHeading(page: Page, headingText: string) {
-  console.log(`[Clal] Switching to tab: ${headingText} via Injection...`);
-
-  const injection = `
-    (function(text) {
-      return new Promise((resolve) => {
-        let attempts = 0;
-        const interval = setInterval(() => {
-          attempts++;
-          const elements = Array.from(document.querySelectorAll('tab-heading, a, span, button'));
-          const target = elements.find(el => el.innerText && el.innerText.trim() === text);
-
-          if (target) {
-            clearInterval(interval);
-            const clickable = target.closest('a') || target;
-            clickable.click();
-            resolve("SUCCESS");
-          }
-
-          if (attempts > 40) {
-            clearInterval(interval);
-            resolve("NOT_FOUND");
-          }
-        }, 500);
-      });
-    })('${headingText}')
-  `;
-
-  const result = await page.evaluate(injection).catch(e => "ERROR: " + e.message);
-  console.log(`[Clal] Tab switch '${headingText}' result: ${result}`);
-
-  // המתנה קלה לרנדור
-  await waitAngularTick(page, 500);
-}
 /**
- * פונקציית לוגין - הזרקה נקייה (ללא TS בתוך ה-eval)
+ * פונקציית לוגין (הזרקת String)
  */
 export async function clalLogin(page: Page, username: string, password: string) {
   console.log("[ClalLogin] Policy page detected. Injecting via String...");
@@ -132,13 +97,13 @@ export async function clalLogin(page: Page, username: string, password: string) 
 }
 
 /**
- * טיפול ב-OTP ידני - חסין ל-EXE
+ * טיפול ב-OTP (הזרקת String)
  */
 export async function clalHandleOtp(page: Page, ctx: RunnerCtx) {
   const { runId, setStatus } = ctx;
   console.log("[Clal] Checking for OTP requirements...");
 
-  const isOtpVisible = await page.evaluate(`document.querySelector('input[name="Token"]') !== null`).catch(() => false);
+  const isOtpVisible = await page.evaluate(`(function(){ return document.querySelector('input[name="Token"]') !== null; })()`).catch(() => false);
 
   if (!isOtpVisible) {
     console.log("[Clal] No OTP field detected.");
@@ -146,7 +111,6 @@ export async function clalHandleOtp(page: Page, ctx: RunnerCtx) {
   }
 
   await setStatus(runId, { status: "otp_required", step: "clal_otp_required_manual" });
-  
   console.log("--------------------------------------------------");
   console.log("👉 ACTION REQUIRED: ENTER OTP IN THE BROWSER NOW 👈");
   console.log("--------------------------------------------------");
@@ -162,7 +126,7 @@ export async function clalHandleOtp(page: Page, ctx: RunnerCtx) {
     await page.waitForFunction(checkLoginSuccessScript, { timeout: 180000 });
     console.log("[Clal] OTP success detected.");
   } catch (e) {
-    console.log("[Clal] OTP Wait timed out. Continuing anyway...");
+    console.log("[Clal] OTP Wait timed out.");
   }
 
   await page.waitForTimeout(5000);
@@ -170,148 +134,118 @@ export async function clalHandleOtp(page: Page, ctx: RunnerCtx) {
 }
 
 /**
- * מעבר לדף עמלות - חסין ל-EXE
+ * מעבר לדף עמלות (הזרקת String)
  */
-
 export async function gotoCommissionsPage(page: Page): Promise<Page> {
-  console.log("[Clal] Fast-Scanning for Commissions link...");
-
-  const injection = `
-    (function() {
-      return new Promise((resolve) => {
-        const interval = setInterval(() => {
-          const target = Array.from(document.querySelectorAll('a'))
-            .find(a => a.innerText.includes('לפירוט עמלות') || a.innerText.includes('עמלות והפקות'));
-          if (target) {
-            clearInterval(interval);
-            target.click();
-            resolve("SUCCESS");
-          }
-        }, 200); // בדיקה כל 200ms במקום 500ms
-      });
-    })()
-  `;
+  console.log("[Clal] Clicking Commissions link and waiting for new tab...");
 
   const [newPage] = await Promise.all([
     page.context().waitForEvent("page", { timeout: 60000 }),
-    page.evaluate(injection)
+    page.evaluate(`
+      (function() {
+        const target = Array.from(document.querySelectorAll('a'))
+          .find(a => a.innerText.includes('לפירוט עמלות') || a.innerText.includes('עמלות והפקות'));
+        if (target) target.click();
+      })()
+    `)
   ]);
 
   await newPage.bringToFront();
+  console.log("[Clal] Verifying page header: תמונת עמלות");
+  await newPage.waitForSelector("#moduleHeaderSpan", { state: "visible", timeout: 45000 }).catch(() => {});
+
   return newPage;
 }
-/**
- * בחירת סוכנים - חסין ל-EXE (נקי מ-TypeScript ב-eval)
- */
-// export async function openAgentsDropdownAndSelectAll(page: Page) {
-//   console.log("[Clal] Handling Agents dropdown...");
 
-//   const injection = `
-//     (function() {
-//       return new Promise((resolve) => {
-//         let attempts = 0;
-//         const interval = setInterval(() => {
-//           attempts++;
-//           const btn = document.querySelector('#drpAgentsNameBtn');
-//           if (btn) {
-//             clearInterval(interval);
-//             btn.click();
-//             setTimeout(() => {
-//               const allBtn = Array.from(document.querySelectorAll('button, a, span'))
-//                 .find(el => el.innerText && el.innerText.includes('בחר הכל'));
-//               if (allBtn) allBtn.click();
-//               resolve("SUCCESS");
-//             }, 1000);
-//           }
-//           if (attempts > 80) {
-//             clearInterval(interval);
-//             resolve("TIMEOUT");
-//           }
-//         }, 500);
-//       });
-//     })()
-//   `;
+export async function waitClalLoaderGone(page: Page, timeoutMs = 15000) {
+  const loader = page.locator("#loaderDiv");
+  const exists = await loader.count().catch(() => 0);
+  if (exists === 0) return;
 
-//   await page.evaluate(injection).catch(e => console.error("[Clal] Dropdown Error: " + e.message));
-//   await page.keyboard.press("Escape");
-// }
-
-/**
- * בחירת חודש וחיפוש - חסין ל-EXE (נקי מ-TypeScript ב-eval)
-//  */
-// export async function selectMonthAndSearch(page: Page, monthLabel?: string) {
-//   console.log("[Clal] Selecting month and searching...");
-
-//   const injection = `
-//     (function(label) {
-//       if (label) {
-//         const select = document.querySelector('select[ng-model="selectedMonth"]');
-//         if (select) {
-//           const options = Array.from(select.options);
-//           const option = options.find(o => o.text.includes(label));
-//           if (option) {
-//             select.value = option.value;
-//             select.dispatchEvent(new Event('change', { bubbles: true }));
-//           }
-//         }
-//       }
-//       const searchBtn = document.querySelector('button[ng-click="search()"]');
-//       if (searchBtn) searchBtn.click();
-//       return "CLICKED";
-//     })('${monthLabel || ""}')
-//   `;
-
-//   await page.evaluate(injection).catch(() => {});
-//   await softNetworkIdle(page);
-// }
-
-export async function selectMonthAndSearch(page: Page, monthLabel?: string) {
-  console.log(`[Clal] Opening Select and choosing: ${monthLabel}`);
-
-  const injection = `
-    (function(label) {
-      if (!label) return "NO_LABEL";
-      
-      const select = document.querySelector('select[ng-model="selectedMonth"]');
-      if (!select) return "SELECT_NOT_FOUND";
-
-      // 1. "עוררות" האלמנט על ידי לחיצה
-      select.click();
-      select.focus();
-
-      const options = Array.from(select.options);
-      // חיפוש האופציה (למשל "פברואר 2026")
-      const targetOption = options.find(o => o.text.trim().includes(label));
-      
-      if (targetOption) {
-        select.value = targetOption.value;
-        
-        // 2. הפעלת אירועי השינוי של Angular
-        select.dispatchEvent(new Event('input', { bubbles: true }));
-        select.dispatchEvent(new Event('change', { bubbles: true }));
-        
-        // 3. לחיצה על כפתור החיפוש לאחר השהייה קלה לרנדור
-        setTimeout(() => {
-          const searchBtn = document.querySelector('button[ng-click="search()"]');
-          if (searchBtn) searchBtn.click();
-        }, 1000);
-        
-        return "SUCCESS";
-      }
-      return "OPTION_NOT_FOUND";
-    })('${monthLabel || ""}')
-  `;
-
-  await page.evaluate(injection);
-  await waitAngularTick(page, 2000);
+  try {
+    await loader.waitFor({ state: "hidden", timeout: timeoutMs });
+    console.log("[Clal] Loader gone ✅");
+  } catch (e) {
+    console.log("[Clal] Loader already gone or timed out.");
+  }
 }
+
 /**
- * המתנה לטעינת הגריד - חסין ל-EXE
+ * בחירת כל הסוכנים (הזרקת String - חסין שגיאות סריאליזציה)
+ */
+export async function openAgentsDropdownAndSelectAll(page: Page) {
+  console.log("[Clal] Opening agents list (Turbo Check)...");
+
+  const result = await page.evaluate(`
+    (function() {
+      return new Promise((resolve) => {
+        const btn = document.querySelector('#drpAgentsNameBtn');
+        if (!btn) return resolve("BTN_NOT_FOUND");
+        btn.click(); 
+
+        let attempts = 0;
+        const interval = setInterval(() => {
+          attempts++;
+          
+          const allBtn = document.querySelector('.helperButton'); 
+          const firstCheckbox = document.querySelector('.ui-multiselect-checkboxes li input'); 
+
+          // אם יש כפתור "בחר הכל" (סוכן גדול)
+          if (allBtn && (allBtn.offsetWidth > 0 || allBtn.offsetHeight > 0)) {
+            clearInterval(interval);
+            allBtn.click();
+            resolve("SUCCESS_SELECTED_ALL");
+          } 
+          // אם אין כפתור "בחר הכל" אבל הרשימה נטענה (סוכן יחיד)
+          else if (firstCheckbox) {
+            clearInterval(interval);
+            resolve("SUCCESS_SINGLE_AGENT_READY");
+          }
+
+          // אם עברו 5 שניות (במקום 20!) וכלום לא קרה, נמשיך הלאה
+          if (attempts > 10) { 
+            clearInterval(interval);
+            resolve("PROCEEDING_AS_IS");
+          }
+        }, 500);
+      });
+    })()
+  `);
+
+  console.log(`[Clal] Agents result: ${result}`);
+  await page.keyboard.press("Escape");
+  // קיצור ההמתנה אחרי הסגירה
+  await page.waitForTimeout(300); 
+}
+
+/**
+ * לחיצה על חיפוש (הזרקת String)
+ */
+export async function clickSearchOnly(page: Page) {
+  console.log("[Clal] Clicking Search (String injection)...");
+
+  const result = await page.evaluate(`
+    (function() {
+      const btn = document.querySelector('button[ng-click="search()"]');
+      if (btn) {
+        btn.click();
+        return "CLICKED";
+      }
+      return "NOT_FOUND";
+    })()
+  `);
+
+  console.log(`[Clal] Search click result: ${result}`);
+  await page.waitForTimeout(2000);
+}
+
+/**
+ * המתנה לטבלה (הזרקת String)
  */
 export async function waitForCommissionsGridFilled(page: Page, timeoutMs = 60000) {
   console.log("[Clal] Waiting for grid...");
 
-  const injection = `
+  const result = await page.evaluate(`
     (function(timeout) {
       return new Promise((resolve) => {
         const start = Date.now();
@@ -325,17 +259,53 @@ export async function waitForCommissionsGridFilled(page: Page, timeoutMs = 60000
         }, 1000);
       });
     })(${timeoutMs})
-  `;
+  `);
 
-  const result = await page.evaluate(injection).catch(() => "ERROR");
   console.log("[Clal] Grid result: " + result);
 }
 
 /**
- * הורדת אקסל - חסין ל-EXE (נקי מ-TypeScript ב-eval)
+ * החלפת טאב (הזרקת String - חסין שגיאות סריאליזציה)
+ */
+
+export async function clickReportTabHeading(page: Page, headingText: string) {
+  console.log(`[Clal] Switching tab to EXACT match: ${headingText}`);
+
+  const result = await page.evaluate(`
+    (function(txt) {
+      const normalize = (s) => (s || "").replace(/\\s+/g, " ").trim();
+      const targetText = normalize(txt);
+
+      const tabs = Array.from(document.querySelectorAll('tab-heading'));
+      
+      // שינוי קריטי: מחפשים התאמה מדויקת של כל הטקסט בטאב
+      const target = tabs.find(t => normalize(t.textContent) === targetText);
+
+      if (target) {
+        const li = target.closest('li');
+        if (li && li.classList.contains('active')) return "ALREADY_ACTIVE";
+        
+        const link = target.closest('a');
+        if (link) link.click();
+        else target.click();
+        return "CLICKED";
+      }
+      return "NOT_FOUND";
+    })('${headingText}')
+  `);
+
+  console.log(`[Clal] Tab Result: ${result}`);
+  
+  // המתנה קצרה שהתוכן יתחלף
+  await page.waitForTimeout(2500);
+  await waitClalLoaderGone(page);
+}
+
+/**
+ * יצוא אקסל (הזרקת String)
  */
 export async function exportExcelFromCurrentReport(page: Page): Promise<{ download: Download | null; filename: string }> {
-  console.log("[Clal] Targeted Excel Export (Ignoring PDF)...");
+  console.log("[Clal] Targeted Excel Export...");
 
   const injection = `
     (function() {
@@ -349,8 +319,6 @@ export async function exportExcelFromCurrentReport(page: Page): Promise<{ downlo
             const style = window.getComputedStyle(el);
             const isVisible = el.offsetWidth > 0 && el.offsetHeight > 0 && style.display !== 'none';
             const txt = (el.innerText || "").toLowerCase();
-            
-            // שינוי קריטי: חייב לכלול אקסל ושאסור שיכלול PDF
             return isVisible && txt.includes('אקסל') && !txt.includes('pdf');
           });
 

@@ -148,6 +148,37 @@ const automationClass = String(selectedTemplate?.automationClass || "").trim();
      Helpers
   ============================== */
 
+const [autoDownloadFlag, setAutoDownloadFlag] = useState<{ enabled: boolean; message?: string } | null>(null);
+const [isCheckingFlag, setIsCheckingFlag] = useState(false);
+
+useEffect(() => {
+  const loadFlag = async () => {
+    if (canAutoDownload !== true) {
+      setAutoDownloadFlag(null);
+      return;
+    }
+
+    setIsCheckingFlag(true);
+    try {
+      const snap = await getDoc(doc(db, "systemFlags", "automation"));
+      const data: any = snap.exists() ? snap.data() : {};
+      setAutoDownloadFlag({
+        enabled: data.autoDownloadEnabled !== false, // default true
+        message: String(data.autoDownloadMessage || "").trim(),
+      });
+    } finally {
+      setIsCheckingFlag(false);
+    }
+  };
+
+  loadFlag();
+}, [canAutoDownload]);
+
+const isAutoEnabledByFlag = autoDownloadFlag?.enabled !== false;
+const autoDisabledReason =
+  autoDownloadFlag?.message || "הדוחות עדיין לא זמינים להורדה החודש.";
+
+
 const isClal = String(selectedCompanyId) === "4";
 
 const effectiveAutomationClass = isClal
@@ -155,6 +186,13 @@ const effectiveAutomationClass = isClal
   : String(selectedTemplate?.automationClass || "").trim();
 
 const canStartAuto = Boolean(selectedAgentId && selectedCompanyId && effectiveAutomationClass);
+
+const autoButtonDisabled =
+  !canStartAuto ||
+  isStartingAuto ||
+  isCheckingAutoDownload ||
+  isCheckingFlag ||
+  !isAutoEnabledByFlag;
 
  const handleStartAuto = async () => {
   if (!selectedAgentId) {
@@ -1619,14 +1657,19 @@ await setDoc(runRef, {
   <div className="mb-4 p-3 border rounded bg-gray-50">
     <div className="font-semibold mb-2">הורדה אוטומטית (חודש קודם)</div>
 
-    <div className="flex gap-2">
+    <div className="flex gap-2 items-center">
       <Button
         text={isStartingAuto ? "⏳ מפעיל..." : "🚀 הפעל הורדה אוטומטית"}
         type="primary"
-        onClick={handleStartAuto}
-        disabled={!canStartAuto || isStartingAuto || isCheckingAutoDownload}
+        onClick={() => {
+          if (!isAutoEnabledByFlag) {
+            addToast("error", autoDisabledReason);
+            return;
+          }
+          handleStartAuto();
+        }}
+        disabled={autoButtonDisabled}
       />
-
       {autoRunId && (
         <Button
           text="העתק RunId"
@@ -1638,6 +1681,13 @@ await setDoc(runRef, {
         />
       )}
     </div>
+
+    {/* הודעה קבועה כשחסום ע"י דגל */}
+    {!isAutoEnabledByFlag && (
+      <div className="mt-2 text-sm text-orange-700">
+        ⚠️ {autoDisabledReason}
+      </div>
+    )}
 
     {autoRunId && (
       <div className="text-xs text-gray-600 mt-2">
