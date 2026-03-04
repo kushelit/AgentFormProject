@@ -11,11 +11,11 @@ export const Button = ({
   onClick,
   disabled = false,
 }) => {
+  const currentState = disabled ? "disabled" : state;
   return (
     <button
-      className={`button ${type} state-${state} ${className}`}
-      // data-03-components-colors-mode="light"
-      onClick={onClick}
+     className={`button ${type} state-${currentState} ${className}`}
+      onClick={!disabled ? onClick : undefined} // הגנה נוספת מפני לחיצות
       disabled={disabled}
     >
       {text}

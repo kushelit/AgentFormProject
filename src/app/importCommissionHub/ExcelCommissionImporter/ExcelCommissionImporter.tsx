@@ -138,6 +138,7 @@ const { canAccess: canAutoDownload, isChecking: isCheckingAutoDownload } =
 
 const [autoRunId, setAutoRunId] = useState<string>("");
 const [isStartingAuto, setIsStartingAuto] = useState(false);
+const [isAutoRunActive, setIsAutoRunActive] = useState(false);
 
 const automationClass = String(selectedTemplate?.automationClass || "").trim();
 // const canStartAuto = Boolean(
@@ -194,35 +195,19 @@ const autoButtonDisabled =
   isCheckingFlag ||
   !isAutoEnabledByFlag;
 
- const handleStartAuto = async () => {
+const handleStartAuto = async () => {
   if (!selectedAgentId) {
     addToast("error", "חסר סוכן נבחר");
     return;
   }
 
-  setIsStartingAuto(true);
+  setIsStartingAuto(true); // זה מציג את ה-"מתחיל..."
+  setIsAutoRunActive(true); // ✅ זה מה שצריך לנעול את הכפתור ל-"בביצוע"
+
   try {
     const isClal = String(selectedCompanyId) === "4";
-
-    // ✅ כלל = תמיד ALL, אחרת לפי התבנית שנבחרה
-    const finalAutomationClass = isClal
-      ? "clal_commissions_all"
-      : effectiveAutomationClass; // ✅ במקום automationClass
-
-    const finalTemplateId = isClal
-      ? "bundle_clal_commissions" // meta בלבד (לא commissionTemplate)
-      : templateId;
-
-    if (!finalAutomationClass) {
-      addToast("error", "אין automationClass להרצה");
-      return;
-    }
-
-    // אופציונלי: אם זו לא כלל ועדיין אין תבנית — נחסום
-    if (!isClal && !finalTemplateId) {
-      addToast("error", "חסרה תבנית להרצה");
-      return;
-    }
+    const finalAutomationClass = isClal ? "clal_commissions_all" : effectiveAutomationClass;
+    const finalTemplateId = isClal ? "bundle_clal_commissions" : templateId;
 
     const { runId } = await startAutoPortalRun({
       db,
@@ -236,14 +221,17 @@ const autoButtonDisabled =
     });
 
     setAutoRunId(runId);
-    addToast("success", `✅ נוצרה ריצה אוטומטית: ${runId}`);
-    addToast("success", "🖥️ הריצה תתחיל אצל ה-Runner המקומי (Local Poller)");
+    // ❌ שימי לב: אנחנו *לא* משנים פה את isAutoRunActive ל-false!
+    // הוא יישאר true עד שה-onFinished יגיד לנו שהריצה נגמרה ב-Firestore.
+
   } catch (e: any) {
-    addToast("error", `שגיאה בהפעלת אוטומטציה: ${String(e?.message || e)}`);
+    addToast("error", `שגיאה: ${String(e?.message || e)}`);
+    setIsAutoRunActive(false); // ✅ רק בשגיאה משחררים מיד
   } finally {
     setIsStartingAuto(false);
   }
 };
+
   const roundTo2 = (num: number) => Math.round(num * 100) / 100;
   const getExt = (n: string) => n.slice(n.lastIndexOf('.')).toLowerCase();
 
@@ -1597,322 +1585,275 @@ await setDoc(runRef, {
   /* ==============================
      Render
   ============================== */
-  return (
-    <div className="p-6 max-w-4xl mx-auto text-right">
-      <h2 className="text-2xl font-bold mb-4">טעינת קובץ עמלות</h2>
-      <p className="text-gray-600 mb-6">ייבוא עמלות ותנועות פוליסה לפי תבנית – כולל פרמיה ומוצר.</p>
-
-      {/* בחירת סוכן */}
-      <div className="mb-4">
-        {isLoading && (
-          <div className="fixed inset-0 bg-white bg-opacity-70 z-50 flex items-center justify-center">
-            <div className="text-center">
-              <div className="loader mb-4"></div>
-              <p className="text-lg font-semibold text-gray-700">⏳ טוען נתונים... אנא המתן</p>
-            </div>
-          </div>
-        )}
-
-        <label className="block font-semibold mb-1">בחר סוכן:</label>
-        <select value={selectedAgentId} onChange={handleAgentChange} className="select-input w-full">
-          {detail?.role === "admin" && <option value="">בחר סוכן</option>}
-          {agents.map(agent => (
-            <option key={agent.id} value={agent.id}>{agent.name}</option>
-          ))}
+ return (
+  <div className="p-6 max-w-5xl mx-auto text-right font-sans min-h-screen bg-white">
+    {/* כותרת עדינה */}
+    <header className="mb-8 flex justify-between items-center border-b pb-4">
+      <div>
+        <h2 className="text-2xl font-bold text-gray-800">מרכז טעינת עמלות</h2>
+        <p className="text-sm text-gray-500">ניהול דוחות נפרעים</p>
+      </div>
+      <Link href="/Help/commission-reports#top" target="_blank" className="text-blue-600 text-sm font-bold flex items-center gap-1 hover:underline">
+       מדריך דוחות עמלות – איך להפיק ולייצא מכל חברה ❓
+      </Link>
+    </header>
+    {/* שלב 1: בחירת סוכן וחברה */}
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6 bg-gray-50 p-4 rounded-xl border border-gray-200 shadow-inner">
+      <div className="flex flex-col gap-1">
+        <label className="text-xs font-bold text-gray-500 mr-1">1. בחר סוכן</label>
+        <select value={selectedAgentId} onChange={handleAgentChange} className="select-input w-full h-10 border-gray-300 rounded-lg">
+          {detail?.role === "admin" && <option value="">-- בחר סוכן --</option>}
+          {agents.map(agent => <option key={agent.id} value={agent.id}>{agent.name}</option>)}
         </select>
       </div>
-
-      {/* בחירת חברה */}
-      <div className="mb-4">
-        <label className="block font-semibold mb-1">בחר חברה:</label>
+      <div className="flex flex-col gap-1">
+        <label className="text-xs font-bold text-gray-500 mr-1">2. בחר חברה</label>
         <select
           value={selectedCompanyId}
           onChange={(e) => { setSelectedCompanyId(e.target.value); setTemplateId(''); }}
-          className="select-input w-full"
+          className="select-input w-full h-10 border-gray-300 rounded-lg"
         >
-          <option value="">בחר חברה</option>
-          {uniqueCompanies.map(company => (
-            <option key={company.id} value={company.id}>{company.name}</option>
-          ))}
+          <option value="">-- בחרי חברה --</option>
+          {uniqueCompanies.map(company => <option key={company.id} value={company.id}>{company.name}</option>)}
         </select>
       </div>
-
-      {/* בחירת תבנית */}
-      {selectedCompanyId && (
-        <div className="mb-4">
-          <label className="block font-semibold mb-1">בחר תבנית:</label>
-          <select
-            value={templateId}
-            onChange={e => setTemplateId(e.target.value)}
-            className="select-input w-full"
-          >
-            <option value="">בחר תבנית</option>
-            {filteredTemplates.map(opt => (
-              <option key={opt.id} value={opt.id}>{opt.Name || opt.type}</option>
-            ))}
-          </select>
-        </div>
-      )}
-{Boolean(effectiveAutomationClass) && canAutoDownload === true && (
-  <div className="mb-4 p-3 border rounded bg-gray-50">
-    <div className="font-semibold mb-2">הורדה אוטומטית (חודש קודם)</div>
-
-    <div className="flex gap-2 items-center">
-      <Button
-        text={isStartingAuto ? "⏳ מפעיל..." : "🚀 הפעל הורדה אוטומטית"}
-        type="primary"
-        onClick={() => {
-          if (!isAutoEnabledByFlag) {
-            addToast("error", autoDisabledReason);
-            return;
-          }
-          handleStartAuto();
-        }}
-        disabled={autoButtonDisabled}
-      />
-      {autoRunId && (
-        <Button
-          text="העתק RunId"
-          type="secondary"
-          onClick={() => {
-            navigator.clipboard?.writeText(autoRunId);
-            addToast("success", "RunId הועתק ללוח");
-          }}
-        />
-      )}
     </div>
-
-    {/* הודעה קבועה כשחסום ע"י דגל */}
-    {!isAutoEnabledByFlag && (
-      <div className="mt-2 text-sm text-orange-700">
-        ⚠️ {autoDisabledReason}
-      </div>
-    )}
-
-    {autoRunId && (
-      <div className="text-xs text-gray-600 mt-2">
-        RunId אחרון: <b>{autoRunId}</b>
-      </div>
-    )}
-  </div>
-)}
-  <div className="mb-2 text-sm">
-        <Link
-          href="/Help/commission-reports#top"
-          target="_blank"
-          className="underline hover:no-underline text-blue-600"
-        >
-          ❓ מדריך דוחות עמלות – איך להפיק ולייצא מכל חברה
-        </Link>
-      </div>
-
-      {/* בחירת קובץ */}
-      <div className="mb-4">
-        <label className="block font-semibold mb-1">בחר קובץ:</label>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept=".xlsx,.xls,.csv,.zip"
-          onChange={handleFileUpload}
-          className="hidden"
-        />
-        <div className="flex gap-2">
-          <Button
-            text="בחר קובץ"
-            type="primary"
-            onClick={() => { if (canChooseFile) fileInputRef.current?.click(); }}
-            disabled={!canChooseFile}
-          />
-          <Button text="נקה בחירה" type="secondary" onClick={handleClearSelections} />
-        </div>
-        {selectedFileName && <p className="mt-2 text-sm text-gray-600">📁 {selectedFileName}</p>}
-      </div>
-
-      {!canChooseFile && (
-        <p className="mt-2 text-sm text-gray-500">
-          ⚠️ לפני בחירת קובץ יש לבחור סוכן, חברה ותבנית.
-        </p>
-      )}
-
-      {/* הודעה אם הקובץ כבר קיים */}
-      {existingRunIds.length > 0 && (
-        <div className="bg-red-100 border border-red-300 text-red-800 p-3 rounded mb-4">
- {/* טקסט הבעיה */}
- <div className="font-semibold">
-      קובץ זה כבר נטען למערכת.
-    </div>
-
-    <div className="text-sm mt-1">
-      לפני טעינה מחדש יש למחוק את הטעינה הקודמת.
-    </div>
-
-    <div className="text-xs mt-2 text-red-700">
-      המחיקה תנקה את כל נתוני הטעינה הקודמת עבור סוכן / חברה / תבנית
-      (כולל כל החודשים שהיו בקובץ).
-    </div>  
-    <div className="mt-4 pt-3 border-t border-red-300 flex justify-end">
-      <Button
-        text="🗑 מחק טעינה קודמת"
-        type="danger"
-        onClick={() => setShowConfirmDelete(true)}
-      />
-    </div>
-        </div>
-      )}
-
-      {/* דיאלוג אישור מחיקה */}
-      {showConfirmDelete && (
-        <DialogNotification
-          type="warning"
-          title="מחיקת טעינה קיימת"
-          message="האם למחוק את כל נתוני הטעינה הקודמת עבור סוכן/חברה/תבנית (כל חודשי הקובץ)?"
-          onConfirm={handleDeleteExisting}
-          onCancel={() => setShowConfirmDelete(false)}
-        />
-      )}
-
-      {/* תצוגה מקדימה */}
-      {standardizedRows.length > 0 && (
-        <div className="mt-6">
-          <h3 className="font-semibold mb-2">תצוגה לאחר מיפוי ({standardizedRows.length} שורות)</h3>
-          <div className="overflow-x-auto border">
-            <table className="table-auto w-full border-collapse text-sm text-right">
-              <thead>
-                <tr className="bg-gray-100">
-                  {Object.entries(mapping).map(([he, en]) => (
-                    <th key={en} className="border px-2 py-1">{he}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {standardizedRows.slice(0, 10).map((row, i) => (
-                  <tr key={i}>
-                    {Object.entries(mapping).map(([he, en]) => (
-                      <td key={en} className="border px-2 py-1">{row[en]}</td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            <div className="text-xs text-gray-500 p-2">הצגה של 10 שורות ראשונות בלבד</div>
+    {selectedCompanyId ? (
+      <div className="space-y-4 animate-in fade-in duration-500">
+        {/* 🚀 פס אוטומציה חכם */}
+        {canAutoDownload && canStartAuto && (
+          <div className={`rounded-xl p-4 text-white shadow-lg flex items-center justify-between transition-all duration-500 ${!!autoRunId ? 'bg-indigo-700' : 'bg-blue-600'}`}>
+            <div className="flex items-center gap-3">
+              <span className={`text-2xl ${!!autoRunId ? 'animate-pulse' : ''}`}>⚡</span>
+              <div>
+                <div className="font-bold text-sm">משיכה אוטומטית מ{selectedCompanyName}</div>
+                <div className="text-xs text-blue-100 opacity-90">
+                  {!!autoRunId ? "תהליך המשיכה החל... ניתן לעקוב מטה" : "ניתן למשוך את דוחות הנפרעים של החודש הקודם בלחיצת כפתור."}
+                </div>
+              </div>
+            </div>
+            
+            <div className="flex items-center gap-2">
+           <Button
+  text={
+    isStartingAuto ? "מתחיל..." : 
+    isAutoRunActive ? "משיכה בביצוע..." : 
+    "הפעל משיכה אוטומטית"
+  }
+  className={`px-4 py-2 text-sm font-bold rounded-lg transition-all ${
+    isStartingAuto || isAutoRunActive 
+      ? "bg-blue-400 text-white cursor-not-allowed shadow-none" 
+      : "bg-white text-blue-600 hover:bg-blue-50 shadow-md"
+  }`}
+  onClick={handleStartAuto}
+  // ✅ הכפתור נחסם רק אם הריצה פעילה כרגע
+  disabled={Boolean(isStartingAuto || isAutoRunActive || autoButtonDisabled)}
+  icon={isStartingAuto ? "sync" : undefined} 
+/>
+            </div>
+          </div>
+        )}
+        {/* 📂 אזור טעינה ידנית */}
+        <div className={`bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden transition-opacity ${!!autoRunId ? 'opacity-50 pointer-events-none' : 'opacity-100'}`}>
+          <div className="p-4 bg-gray-50 border-b border-gray-100 flex justify-between items-center">
+            <h3 className="font-bold text-gray-700 flex items-center gap-2 text-sm">
+              <span>📂</span> טעינה ידנית (נפרעים)
+            </h3>
           </div>
 
-          <Button
-  text={isLoading ? "⏳ טוען... נא להמתין" : "אשר טעינה למסד הנתונים"}
-  type="primary"
-  onClick={handleImport}
-  disabled={!standardizedRows.length || isLoading || existingRunIds.length > 0}
-  className="mt-4"
-/>
-        </div>
-      )}
-
-      {/* דיאלוג סיכום */}
-      {showSummaryDialog && (
-        <DialogNotification
-          type="info"
-          title="סיכום טעינה לפי מספרי סוכן"
-          message={
-            <div>
-              {summaryByAgentCode.map((item) => (
-                <div key={item.agentCode} className="mb-2">
-                  <strong>מספר סוכן:</strong> {item.agentCode}<br />
-                  <strong>כמות פוליסות:</strong> {item.count}<br />
-                  <strong>כמות מבוטחים:</strong> {item.totalInsured}<br />
-                  <strong>סך עמלות:</strong> {Number(item.totalCommission || 0).toLocaleString()} ₪<br />
-                  <strong>סך פרמיות:</strong> {Number(item.totalPremium || 0).toLocaleString()} ₪
-                </div>
-              ))}
+          <div className="p-6 space-y-4">
+            <div className="max-w-md">
+              <label className="block text-xs font-bold text-gray-400 mb-1 uppercase tracking-wider">3. בחרי תבנית דוח</label>
+              <select
+                value={templateId}
+                onChange={e => setTemplateId(e.target.value)}
+                className="select-input w-full h-10 border-gray-200 rounded-lg"
+              >
+                <option value="">-- בחרי דוח ספציפי --</option>
+                {filteredTemplates.map(opt => (
+                  <option key={opt.id} value={opt.id}>{opt.Name || opt.type}</option>
+                ))}
+              </select>
             </div>
-          }
-          onConfirm={() => setShowSummaryDialog(false)}
-          onCancel={() => setShowSummaryDialog(false)}
-          hideCancel={true}
-        />
-      )}
+       {/* Dropzone משופר עם תמיכה בגרירה */}
+<div 
+  className={`border-2 border-dashed rounded-2xl transition-all flex flex-col items-center justify-center gap-2 ${
+    templateId ? 'border-blue-300 bg-blue-50/20 hover:border-blue-400 hover:bg-blue-50 cursor-pointer' : 'border-gray-100 opacity-40 cursor-not-allowed'
+  } ${selectedFileName ? 'p-4' : 'p-8'}`} 
+  
+  onClick={() => templateId && !existingRunIds.length && fileInputRef.current?.click()}
 
-      {showTemplateMismatch && (
-        <DialogNotification
-          type="warning"
-          title="התבנית לא מתאימה לקובץ"
-          message={
-            <>
-              הדוח שנבחר לא מתאים לקובץ הנטען. נסי לבחור תבנית אחרת
-              או להפיק מחדש לפי ההנחיות במדריך.
-              <div className="mt-2">
-                <Link
-                  href="/Help/commission-reports#top"
-                  target="_blank"
-                  className="underline hover:no-underline text-blue-600"
-                >
-                  לפתיחת מדריך דוחות העמלות
-                </Link>
+  // --- תוספת עבור הגרירה (Drag & Drop) ---
+  onDragOver={(e) => {
+    e.preventDefault(); // מונע מהדפדפן לפתוח את הקובץ
+    e.stopPropagation();
+  }}
+  onDragEnter={(e) => {
+    e.preventDefault();
+    e.stopPropagation();
+  }}
+  onDrop={(e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    // בודקים שיש תבנית נבחרת ושיש קבצים בגרירה
+    if (templateId && e.dataTransfer.files && e.dataTransfer.files[0]) {
+      const droppedFiles = e.dataTransfer.files;
+      // שליחה לפונקציית הטיפול בקובץ הקיימת שלך
+      handleFileUpload({ target: { files: droppedFiles } } as any);
+    }
+  }}
+  // ---------------------------------------
+>
+  {!selectedFileName ? (
+    <>
+      <div className="text-3xl opacity-50">📄</div>
+      <div className="text-sm font-bold text-gray-600">לחצי לבחירת קובץ או גררי לכאן</div>
+    </>
+  ) : (
+    <div className="flex items-center gap-4 bg-white p-3 px-6 rounded-xl shadow-sm border border-blue-100 animate-in zoom-in-95">
+      <div className="text-xl text-green-500">✅</div>
+      <div className="text-right">
+        <div className="text-blue-700 font-bold text-sm leading-tight">{selectedFileName}</div>
+        <div className="text-[10px] text-blue-400 font-medium">הקובץ מוכן לטעינה</div>
+      </div>
+    </div>
+  )}
+</div>
+  <div className="flex gap-3 justify-start items-center">
+              <Button
+                text={isLoading ? "מעבד..." : "אשר טעינה"}
+                type="primary"
+                className="px-8 h-10 text-sm font-bold rounded-lg"
+                onClick={handleImport}
+                disabled={Boolean(!standardizedRows.length || isLoading || existingRunIds.length > 0)}
+              />
+              <Button text="נקה" type="secondary" className="px-4 h-10 text-sm rounded-lg" onClick={handleClearSelections} />
+            </div>
+            {existingRunIds.length > 0 && (
+              <div className="p-3 bg-red-50 border border-red-100 rounded-lg text-red-800 text-xs flex items-center justify-between animate-shake">
+                <div className="flex items-center gap-2">
+                  <span>⚠️</span>
+                  <span>נמצאה טעינה קיימת לחודש זה.</span>
+                </div>
+                <button onClick={() => setShowConfirmDelete(true)} className="text-red-700 underline font-black">מחק טעינה קודמת</button>
               </div>
-            </>
+            )}
+          </div>
+        </div>
+     {/* תצוגה מקדימה לאחר מיפוי - עיצוב מותאם לשפת המערכת */}
+{standardizedRows.length > 0 && (
+  <div className="mt-8 bg-white rounded-2xl border border-blue-100 shadow-xl overflow-hidden animate-in slide-in-from-bottom-6 duration-500">
+    {/* כותרת הטבלה בכחול מותאם */}
+    <div className="bg-[#1e3a8a] p-4 text-white flex justify-between items-center border-b border-blue-800">
+      <div className="flex items-center gap-3">
+        <div className="bg-green-500/20 text-green-400 px-2 py-0.5 rounded text-[10px] font-bold border border-green-500/30">
+          LIVE
+        </div>
+        <h3 className="font-bold text-base text-white">תצוגה מקדימה של הנתונים</h3>
+      </div>
+      <div className="text-xs font-medium text-blue-100">
+        מציג 10 שורות מתוך <b>{standardizedRows.length}</b> שזוהו בקובץ
+      </div>
+    </div>
+
+    <div className="overflow-x-auto">
+      <table className="table-auto w-full text-right text-xs border-collapse">
+        <thead className="bg-blue-50/50 text-blue-900 border-b border-blue-100">
+          <tr>
+            {Object.entries(mapping).map(([he]) => (
+              <th key={he} className="px-4 py-3 font-black uppercase tracking-tight border-l border-blue-100/50 last:border-l-0">
+                {he}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-gray-100">
+          {standardizedRows.slice(0, 10).map((row, i) => (
+            <tr key={i} className="hover:bg-blue-50/30 transition-colors group">
+              {Object.entries(mapping).map(([, en]) => (
+                <td key={en} className="px-4 py-2.5 text-gray-700 font-medium group-hover:text-blue-800">
+                  {String(row[en] ?? '')}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+    <div className="p-3 bg-blue-50/30 border-t border-blue-50 flex justify-center italic text-[10px] text-blue-400 font-medium">
+      * ודאי כי העמודות והנתונים ממופים נכון לפני הלחיצה על "אשר טעינה"
+    </div>
+  </div>
+)}
+        {/* תצוגת סטטוס ריצה אוטומטית */}
+  {autoRunId && (
+  <div className="mt-4 animate-in slide-in-from-bottom-4 duration-500">
+    <div className="bg-white border border-blue-100 rounded-xl p-4 shadow-sm relative">
+      
+      {/* כפתור X קטן בפינה (אופציונלי) לניקוי הסטטוס ידנית */}
+      {!isAutoRunActive && (
+        <button 
+          onClick={() => setAutoRunId("")}
+          className="absolute top-2 left-2 text-gray-300 hover:text-gray-500 text-xs font-bold transition-colors"
+          title="נקה סטטוס"
+        >
+          ✖
+        </button>
+      )}
+
+      <PortalRunStatus 
+        db={db} 
+        runId={autoRunId} 
+        onFinished={(status) => {
+          // 🔓 משחררים רק את הכפתור בבאנר
+          setIsAutoRunActive(false);
+
+          // לא עושים setAutoRunId("") - כדי שהמשתמש יראה את התוצאה
+          if (status === 'skipped') {
+            console.log("⏭️ המשיכה דולגה (כבר קיים)");
+          } else if (status === 'done') {
+            console.log("✅ המשיכה הסתיימה בהצלחה");
           }
-          onConfirm={() => setShowTemplateMismatch(false)}
-          onCancel={() => setShowTemplateMismatch(false)}
-          hideCancel={true}
-        />
-      )}
+        }} 
+      />
+    </div>
+  </div>
+)}
+      </div>
+    ) : (
+      <div className="text-center p-20 bg-gray-50 rounded-3xl border-2 border-dashed border-gray-100 flex flex-col items-center gap-4">
+        <div className="text-5xl opacity-20">🏢</div>
+        <p className="text-gray-400 font-bold italic text-lg">אנא בחרי חברה כדי להציג את אפשרויות הטעינה</p>
+      </div>
+    )}
 
-      {errorDialog && (
-        <DialogNotification
-          type="warning"
-          title={errorDialog.title}
-          message={errorDialog.message ?? ''}
-          onConfirm={() => setErrorDialog(null)}
-          onCancel={() => setErrorDialog(null)}
-          hideCancel
-        />
-      )}
-
-      {/* בחירה מתוך ZIP */}
-      {zipChooser && (
-        <DialogNotification
-          type="info"
-          title="בחרי קובץ מתוך ה-ZIP"
-          message={
-            <>
-              נמצאו כמה קבצים רלוונטיים בתוך ה-ZIP. בחרי אחד:
-              <div className="mt-3">
-                <select
-                  className="select-input w-full"
-                  value={selectedZipEntry}
-                  onChange={(e) => setSelectedZipEntry(e.target.value)}
-                >
-                  {zipChooser.entryNames.map(n => (
-                    <option key={n} value={n}>{n}</option>
-                  ))}
-                </select>
-              </div>
-            </>
-          }
-          onConfirm={() => processChosenZipEntry()}
-          onCancel={() => { setZipChooser(null); setSelectedZipEntry(''); if (fileInputRef.current) fileInputRef.current.value = ''; }}
-          hideCancel={false}
-          confirmText="המשך"
-          cancelText="ביטול"
-        />
-      )}
-
-      {toasts.length > 0  && toasts.map((toast) => (
-        <ToastNotification
-          key={toast.id}
-          type={toast.type}
-          className={toast.isHiding ? "hide" : ""}
-          message={toast.message}
-          onClose={() => setToasts((prevToasts) => prevToasts.filter((t) => t.id !== toast.id))}
+    {/* מודלים של מערכת */}
+    <input ref={fileInputRef} type="file" accept=".xlsx,.xls,.csv,.zip" onChange={handleFileUpload} className="hidden" />
+    {/* ✅ חשוב: מודאל OTP שחייב להיות נוכח */}
+    {autoRunId && <PortalRunOtpModal runId={autoRunId} />}
+    {showConfirmDelete && (
+      <DialogNotification
+        type="warning"
+        title="מחיקת טעינה קיימת"
+        message="האם למחוק את כל נתוני הטעינה הקודמת עבור סוכן/חברה/תבנית?"
+        onConfirm={handleDeleteExisting}
+        onCancel={() => setShowConfirmDelete(false)}
+      />
+    )}
+    {/* Toasts */}
+    <div className="fixed bottom-4 left-4 z-50 flex flex-col gap-2">
+      {toasts.map((t) => (
+        <ToastNotification 
+          key={t.id} 
+          type={t.type} 
+          message={t.message} 
+          onClose={() => setToasts(prev => prev.filter(x => x.id !== t.id))} 
         />
       ))}
-{autoRunId && (
-  <>
-    <PortalRunStatus db={db} runId={autoRunId} />
-    <PortalRunOtpModal runId={autoRunId} />
-  </>
-)}
     </div>
-  );
+  </div>
+);
 };
 
 export default ExcelCommissionImporter;

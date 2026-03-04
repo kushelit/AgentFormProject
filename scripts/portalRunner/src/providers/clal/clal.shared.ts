@@ -174,7 +174,7 @@ export async function waitClalLoaderGone(page: Page, timeoutMs = 15000) {
  * בחירת כל הסוכנים (הזרקת String - חסין שגיאות סריאליזציה)
  */
 export async function openAgentsDropdownAndSelectAll(page: Page) {
-  console.log("[Clal] Opening agents list (Turbo Check)...");
+  console.log("[Clal] Opening agents list (Smart Check)...");
 
   const result = await page.evaluate(`
     (function() {
@@ -188,24 +188,23 @@ export async function openAgentsDropdownAndSelectAll(page: Page) {
           attempts++;
           
           const allBtn = document.querySelector('.helperButton'); 
+          // כאן הבדיקה של ה-input הראשון ברשימה
           const firstCheckbox = document.querySelector('.ui-multiselect-checkboxes li input'); 
 
-          // אם יש כפתור "בחר הכל" (סוכן גדול)
           if (allBtn && (allBtn.offsetWidth > 0 || allBtn.offsetHeight > 0)) {
             clearInterval(interval);
             allBtn.click();
             resolve("SUCCESS_SELECTED_ALL");
           } 
-          // אם אין כפתור "בחר הכל" אבל הרשימה נטענה (סוכן יחיד)
           else if (firstCheckbox) {
             clearInterval(interval);
+            // מצאנו לפחות סוכן אחד, אפשר להמשיך בלי לחכות 20 שניות
             resolve("SUCCESS_SINGLE_AGENT_READY");
           }
 
-          // אם עברו 5 שניות (במקום 20!) וכלום לא קרה, נמשיך הלאה
-          if (attempts > 10) { 
+          if (attempts > 20) { 
             clearInterval(interval);
-            resolve("PROCEEDING_AS_IS");
+            resolve("PROCEEDING_WITH_CURRENT_STATE");
           }
         }, 500);
       });
@@ -214,10 +213,8 @@ export async function openAgentsDropdownAndSelectAll(page: Page) {
 
   console.log(`[Clal] Agents result: ${result}`);
   await page.keyboard.press("Escape");
-  // קיצור ההמתנה אחרי הסגירה
-  await page.waitForTimeout(300); 
+  await page.waitForTimeout(500);
 }
-
 /**
  * לחיצה על חיפוש (הזרקת String)
  */

@@ -144,3 +144,34 @@
   color: var(--clrdarkblue2);
   border-color: var(--clrdarkblue2);
 }
+
+/* עיצוב כללי למצב חסום - Disabled */
+.button:disabled,
+.button.state-disabled {
+  background-color: #e0e0e0 !important; /* אפור בהיר ברור */
+  color: #a0a0a0 !important;           /* טקסט אפור חלש */
+  border-color: #d0d0d0 !important;
+  cursor: not-allowed !important;      /* סימן "אין כניסה" בעכבר */
+  opacity: 0.6;
+  box-shadow: none !important;
+  pointer-events: none;               /* מניעת אינטראקציה */
+}
+
+/* ביטול אפקט הובר כשחסום */
+.button:disabled:hover,
+.button.state-disabled:hover {
+  background-color: #e0e0e0 !important;
+  color: #a0a0a0 !important;
+}
+
+/* ספציפית ל-Primary כשהוא חסום */
+.button.primary:disabled {
+  background-color: #cccccc !important;
+  border: none;
+}
+
+/* ספציפית ל-Secondary כשהוא חסום */
+.button.secondary:disabled {
+  background-color: #f5f5f5 !important;
+  border: 1px solid #dddddd !important;
+}
