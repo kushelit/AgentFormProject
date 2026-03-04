@@ -56,7 +56,7 @@ export async function startAutoPortalRun(params: StartAutoPortalRunParams) {
 
     // 🔐 ברירת מחדל: OTP ידני בפורטל (לא מודאל במערכת)
     otp: {
-      mode: "manual", // "manual" | "firestore"
+      mode: "firestore", // "manual" | "firestore"
       state: "none",  // "none" | "required" | "manual"
     },
 

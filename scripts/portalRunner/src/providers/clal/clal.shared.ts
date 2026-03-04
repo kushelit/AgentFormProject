@@ -96,42 +96,109 @@ export async function clalLogin(page: Page, username: string, password: string) 
   }
 }
 
+
 /**
- * טיפול ב-OTP (הזרקת String)
+ * טיפול ב-OTP מתוך המערכת (Magic) - גרסה סופית ומסונכרנת
+ */
+/**
+ * טיפול ב-OTP מתוך המערכת (Magic) - הזרקה חסינה בסגנון Login
+ */
+
+/**
+ * טיפול ב-OTP - הזרקה חסינה בסגנון Login עם תיקון שליפת ה-DB
+ */
+/**
+ * טיפול ב-OTP - הזרקה חסינה בסגנון Login תוך שימוש ב-pollOtp המובנה
+ */
+
+/**
+ * טיפול ב-OTP - הזרקה חסינה בשיטת String Injection (זהה ללוגין)
+ */
+
+/**
+ * טיפול ב-OTP - גרסה חסינה לשגיאות Serialization ב-EXE
+ */
+/**
+ * טיפול ב-OTP - גרסה סופית ל-EXE: סגירת מודאל ומניעת שגיאות Serialization
+ */
+
+/**
+ * טיפול ב-OTP - גרסה סופית ל-EXE: סגירת מודאל מיידית ובדיקה גמישה
  */
 export async function clalHandleOtp(page: Page, ctx: RunnerCtx) {
-  const { runId, setStatus } = ctx;
-  console.log("[Clal] Checking for OTP requirements...");
+  const { runId, setStatus, pollOtp, clearOtp, run } = ctx;
+  const monthLabel = run?.monthLabel || "חודש נוכחי";
 
-  const isOtpVisible = await page.evaluate(`(function(){ return document.querySelector('input[name="Token"]') !== null; })()`).catch(() => false);
+  console.log("[Clal] OTP Flow: Waiting for user input in Magic...");
 
-  if (!isOtpVisible) {
-    console.log("[Clal] No OTP field detected.");
-    return;
-  }
+  // 1. מעוררים את המודאל
+  await setStatus(runId, { 
+    status: "otp_required", 
+    step: "ממתין לקוד אימות מחברת כלל", 
+    "otp.mode": "firestore",
+    monthLabel 
+  });
 
-  await setStatus(runId, { status: "otp_required", step: "clal_otp_required_manual" });
-  console.log("--------------------------------------------------");
-  console.log("👉 ACTION REQUIRED: ENTER OTP IN THE BROWSER NOW 👈");
-  console.log("--------------------------------------------------");
+  // 2. מחכים לקוד
+  const otpCode = await pollOtp(runId).catch(() => null);
+  if (!otpCode) throw new Error("OTP Timeout: הקוד לא התקבל.");
 
-  const checkLoginSuccessScript = `
-    (function() {
-      const text = document.body.innerText || "";
-      return text.includes("התנתק") || text.includes("שלום,");
-    })()
+  console.log(`[Clal] Code received: ${otpCode}.`);
+
+  // --- תיקון 1: סגירת המודאל במגיק מיד עם קבלת הקוד ---
+  // שינוי הסטטוס ל-running יגרום למודאל להיעלם מהמסך של הסוכן
+  await setStatus(runId, { 
+    status: "running", 
+    step: "הקוד התקבל, מתחבר למערכת...",
+    "otp.mode": "firestore" 
+  });
+
+  // 3. הזרקת הקוד (בדיוק כמו בלוגין)
+  const injectionScript = `
+    (function(code) {
+      let attempts = 0;
+      const interval = setInterval(() => {
+        attempts++;
+        const input = document.querySelector('input[name="Token"]'); 
+        const btn = document.querySelector('#btLogin_ctl09');
+
+        if (input && btn) {
+          clearInterval(interval);
+          input.value = code;
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+          input.dispatchEvent(new Event('change', { bubbles: true }));
+          
+          setTimeout(() => btn.click(), 100);
+        }
+        if (attempts > 40) clearInterval(interval);
+      }, 500);
+    })('${otpCode}')
   `;
 
+  await page.evaluate(injectionScript);
+
+  // --- תיקון 2: בדיקת הצלחה גמישה (Serialization-Proof) ---
+  console.log("[Clal] Waiting for navigation or dashboard elements...");
+  
   try {
-    await page.waitForFunction(checkLoginSuccessScript, { timeout: 180000 });
-    console.log("[Clal] OTP success detected.");
+    // מחכים שהשדה ייעלם או שיופיע אלמנט של דף הבית
+    // שימוש במחרוזת טקסט מונע את שגיאת ה-not well-serializable
+    await page.waitForFunction(
+      "!!document.querySelector('a[href*=\"Logout\"], a[href*=\"logout\"], #moduleHeaderSpan') || !document.querySelector('input[name=\"Token\"]')",
+      { timeout: 15000 }
+    );
+    console.log("[Clal] Dashboard detected ✅");
   } catch (e) {
-    console.log("[Clal] OTP Wait timed out.");
+    // אם עבר הזמן אבל הבוט כבר בדף הבית (כמו שתיארת), אנחנו לא רוצים לזרוק שגיאה שתעצור הכל.
+    // אנחנו פשוט נמשיך הלאה ונבדוק אם דף העמלות זמין.
+    console.log("[Clal] Verification timeout reached, but proceeding anyway to check for commissions link.");
   }
 
-  await page.waitForTimeout(5000);
+  // 4. ניקוי וסיום השלב
+  await clearOtp(runId).catch(() => {});
   await setStatus(runId, { status: "logged_in", step: "clal_logged_in" });
 }
+
 
 /**
  * מעבר לדף עמלות (הזרקת String)

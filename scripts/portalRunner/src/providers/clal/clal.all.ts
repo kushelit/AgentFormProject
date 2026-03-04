@@ -98,7 +98,17 @@ export async function runClalAll(ctx: RunnerCtx) {
     // הזרקת לוגין
     await clalLogin(page, username, password);
 
-    await setStatus(runId, { status: "running", step: "clal_otp", monthLabel });
+   // --- שלב ה-OTP: עדכון סטטוס שמפעיל את המודאל ב-Magic ---
+    console.log("[Clal] OTP stage reached. Triggering Magic Modal...");
+    
+    await setStatus(runId, { 
+      status: "otp_required", 
+      step: "ממתין להזנת קוד אימות מחברת כלל", 
+      'otp.mode': 'firestore', // מוודא שהמודאל ב-Magic לא במצב manual
+      monthLabel 
+    });
+
+    // קריאה לפונקציה שתמתין לקוד ותזריק אותו
     await clalHandleOtp(page, ctx);
 
     // מעבר לדף עמלות (פתיחת טאב חדש)
