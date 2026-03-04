@@ -1781,9 +1781,9 @@ await setDoc(runRef, {
         </tbody>
       </table>
     </div>
-    <div className="p-3 bg-blue-50/30 border-t border-blue-50 flex justify-center italic text-[10px] text-blue-400 font-medium">
-      * ודאי כי העמודות והנתונים ממופים נכון לפני הלחיצה על "אשר טעינה"
-    </div>
+  <div className="p-3 bg-blue-50/30 border-t border-blue-50 flex justify-center italic text-[10px] text-blue-400 font-medium">
+  * ודאי כי העמודות והנתונים ממופים נכון לפני הלחיצה על &quot;אשר טעינה&quot;
+</div>
   </div>
 )}
         {/* תצוגת סטטוס ריצה אוטומטית */}
