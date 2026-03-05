@@ -17,6 +17,8 @@ import {
   updateDoc,
   arrayUnion,
   setDoc,
+  orderBy,
+  limit,
 } from 'firebase/firestore';
 import { Button } from '@/components/Button/Button';
 import DialogNotification from '@/components/DialogNotification';
@@ -174,6 +176,11 @@ useEffect(() => {
 
   loadFlag();
 }, [canAutoDownload]);
+
+// --- לוגיקת ניהול ה-Runner (OTA & Download) ---
+const [latestRunnerVersion, setLatestRunnerVersion] = useState<string>("");
+const [currentRunnerVersion, setCurrentRunnerVersion] = useState<string>("");
+const INSTALLER_URL = "https://firebasestorage.googleapis.com/v0/b/magicsale-test.firebasestorage.app/o/installers%2FMagicSaleSetup.exe?alt=media&token=48eb2fc5-75d3-4ef5-988b-5c11b3c53cd9"; // הלינק מה-Storage
 
 const isAutoEnabledByFlag = autoDownloadFlag?.enabled !== false;
 const autoDisabledReason =
@@ -1582,6 +1589,77 @@ await setDoc(runRef, {
     return score(utf8) >= score(win) ? utf8 : win;
   }
 
+
+// 1. טעינת הגרסה הכי חדשה מהשרת
+useEffect(() => {
+  const fetchLatestVersion = async () => {
+    const snap = await getDoc(doc(db, "portalRunnerConfig", "global"));
+    if (snap.exists()) setLatestRunnerVersion(snap.data().latestVersion);
+  };
+  fetchLatestVersion();
+}, []);
+
+// 2. זיהוי הגרסה הנוכחית של הסוכן (לפי הריצה האחרונה שלו)
+
+// 2. זיהוי הגרסה הנוכחית - שאילתה חכמה
+useEffect(() => {
+  if (!selectedAgentId) return;
+  const fetchAgentRunnerVersion = async () => {
+    // אנחנו מביאים את 5 הריצות האחרונות כדי לוודא שנדלג על רשומות queued ללא גרסה
+    const q = query(
+      collection(db, "portalImportRuns"),
+      where("agentId", "==", selectedAgentId),
+      orderBy("createdAt", "desc"),
+      limit(5) 
+    );
+    
+    const snap = await getDocs(q);
+    if (!snap.empty) {
+      // מחפשים את המסמך הראשון (הכי חדש) שיש בו באמת מספר גרסה
+      const lastRunWithVersion = snap.docs.find(doc => doc.data().runner?.version);
+      
+      if (lastRunWithVersion) {
+        setCurrentRunnerVersion(lastRunWithVersion.data().runner.version);
+      } else {
+        // אם אין אף ריצה עם גרסה (סוכן חדש באמת)
+        setCurrentRunnerVersion(""); 
+      }
+    }
+  };
+  fetchAgentRunnerVersion();
+}, [selectedAgentId, autoRunId]);
+
+
+// 3. פונקציית שליחת פקודת העדכון (OTA)
+const handleTriggerUpdate = async () => {
+  if (!selectedAgentId) return;
+  setIsStartingAuto(true);
+  try {
+    const runRef = doc(collection(db, "portalImportRuns"));
+    await setDoc(runRef, {
+      agentId: selectedAgentId,
+      status: "queued",
+      automationClass: "self_update", // המפתח שמפעיל את הקוד ב-Runner
+      createdAt: serverTimestamp(),
+      triggeredFrom: "ui_update_button"
+    });
+    setAutoRunId(runRef.id);
+    addToast("success", "פקודת עדכון נשלחה לבוט!");
+  } catch (e) {
+    addToast("error", "נכשל בשליחת עדכון");
+  } finally {
+    setIsStartingAuto(false);
+  }
+};
+
+const isUpdateAvailable = latestRunnerVersion && currentRunnerVersion && latestRunnerVersion !== currentRunnerVersion;
+
+
+
+
+
+
+
   /* ==============================
      Render
   ============================== */
@@ -1621,38 +1699,61 @@ await setDoc(runRef, {
     {selectedCompanyId ? (
       <div className="space-y-4 animate-in fade-in duration-500">
         {/* 🚀 פס אוטומציה חכם */}
-        {canAutoDownload && canStartAuto && (
-          <div className={`rounded-xl p-4 text-white shadow-lg flex items-center justify-between transition-all duration-500 ${!!autoRunId ? 'bg-indigo-700' : 'bg-blue-600'}`}>
-            <div className="flex items-center gap-3">
-              <span className={`text-2xl ${!!autoRunId ? 'animate-pulse' : ''}`}>⚡</span>
-              <div>
-                <div className="font-bold text-sm">משיכה אוטומטית מ{selectedCompanyName}</div>
-                <div className="text-xs text-blue-100 opacity-90">
-                  {!!autoRunId ? "תהליך המשיכה החל... ניתן לעקוב מטה" : "ניתן למשוך את דוחות הנפרעים של החודש הקודם בלחיצת כפתור."}
-                </div>
-              </div>
-            </div>
-            
-            <div className="flex items-center gap-2">
-           <Button
-  text={
-    isStartingAuto ? "מתחיל..." : 
-    isAutoRunActive ? "משיכה בביצוע..." : 
-    "הפעל משיכה אוטומטית"
-  }
-  className={`px-4 py-2 text-sm font-bold rounded-lg transition-all ${
-    isStartingAuto || isAutoRunActive 
-      ? "bg-blue-400 text-white cursor-not-allowed shadow-none" 
-      : "bg-white text-blue-600 hover:bg-blue-50 shadow-md"
-  }`}
-  onClick={handleStartAuto}
-  // ✅ הכפתור נחסם רק אם הריצה פעילה כרגע
-  disabled={Boolean(isStartingAuto || isAutoRunActive || autoButtonDisabled)}
-  icon={isStartingAuto ? "sync" : undefined} 
-/>
-            </div>
-          </div>
-        )}
+   {/* 🚀 פס אוטומציה חכם עם ניהול גרסאות */}
+{canAutoDownload && (
+  <div className={`rounded-xl p-4 text-white shadow-lg flex items-center justify-between transition-all duration-500 ${isUpdateAvailable ? 'bg-orange-600' : !!autoRunId ? 'bg-indigo-700' : 'bg-blue-600'}`}>
+    <div className="flex items-center gap-3">
+      <span className={`text-2xl ${!!autoRunId ? 'animate-pulse' : ''}`}>
+        {isUpdateAvailable ? '🆙' : '⚡'}
+      </span>
+      <div>
+        <div className="font-bold text-sm">
+          {isUpdateAvailable ? 'יש עדכון גרסה זמין לבוט!' : `משיכה אוטומטית מ${selectedCompanyName}`}
+        </div>
+        <div className="text-xs text-blue-100 opacity-90">
+          {isUpdateAvailable 
+            ? `הגרסה שלך (${currentRunnerVersion}) ישנה. הגרסה החדשה היא ${latestRunnerVersion}.`
+            : !currentRunnerVersion 
+              ? "הבוט לא מותקן? לחצי על 'הורד התקנה' כדי להתחיל."
+              : "המערכת מוכנה למשיכת נתונים בלחיצת כפתור."}
+        </div>
+      </div>
+    </div>
+    
+    <div className="flex items-center gap-2">
+      {/* כפתור הורדה למשתמש חדש (או אם אין גרסה) */}
+      {!currentRunnerVersion && (
+        <a href={INSTALLER_URL} className="bg-white text-blue-600 px-4 py-2 text-sm font-bold rounded-lg hover:bg-blue-50 shadow-md">
+          הורד התקנה ראשונה
+        </a>
+      )}
+
+      {/* כפתור עדכון OTA - מופיע רק אם יש גרסה חדשה */}
+      {isUpdateAvailable && (
+        <Button
+          text="עדכן עכשיו"
+          className="bg-white text-orange-600 hover:bg-orange-50 px-4 py-2 text-sm font-bold rounded-lg shadow-md"
+          onClick={handleTriggerUpdate}
+          disabled={isStartingAuto}
+        />
+      )}
+
+      {/* הכפתור הרגיל של המשיכה */}
+      {canStartAuto && !isUpdateAvailable && (
+        <Button
+          text={isStartingAuto ? "מתחיל..." : isAutoRunActive ? "משיכה בביצוע..." : "הפעל משיכה אוטומטית"}
+          className={`px-4 py-2 text-sm font-bold rounded-lg transition-all ${
+            isStartingAuto || isAutoRunActive 
+              ? "bg-blue-400 text-white cursor-not-allowed" 
+              : "bg-white text-blue-600 hover:bg-blue-50 shadow-md"
+          }`}
+          onClick={handleStartAuto}
+          disabled={Boolean(isStartingAuto || isAutoRunActive || autoButtonDisabled)}
+        />
+      )}
+    </div>
+  </div>
+)}
         {/* 📂 אזור טעינה ידנית */}
         <div className={`bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden transition-opacity ${!!autoRunId ? 'opacity-50 pointer-events-none' : 'opacity-100'}`}>
           <div className="p-4 bg-gray-50 border-b border-gray-100 flex justify-between items-center">
