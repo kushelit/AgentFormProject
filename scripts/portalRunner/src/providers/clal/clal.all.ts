@@ -130,8 +130,7 @@ export async function runClalAll(ctx: RunnerCtx) {
     const REPORTS: any[] = [
       { linkText: "חיים", templateId: "clal_life", stepPrefix: "clal_life", preExportTabHeading: "פוליסה" },
       { linkText: "גמל", templateId: "clal_gemel", stepPrefix: "clal_gemel", preExportTabHeading: "עמיתים" },
-
-    //   { linkText: "בריאות", templateId: "clal_briut", stepPrefix: "clal_briut" },
+      { linkText: "בריאות", templateId: "clal_briut", stepPrefix: "clal_briut" , preExportTabHeading: "פוליסות"},
     //  { linkText: "פנסיה", templateId: "clal_pensia", stepPrefix: "clal_pensia", preExportTabHeading: "עמיתים" },
     
     ];

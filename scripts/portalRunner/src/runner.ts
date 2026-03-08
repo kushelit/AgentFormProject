@@ -100,15 +100,27 @@ async function setStatusClient(db: any, runId: string, patch: any) {
 
 async function pollOtpClient(db: any, runId: string, timeoutMs = 3 * 60 * 1000): Promise<string> {
   const started = Date.now();
+  const runRef = doc(db, "portalImportRuns", runId); // נשתמש ב-ref ישיר
+
   while (Date.now() - started < timeoutMs) {
-    const snap = await getDocs(query(collection(db, "portalImportRuns"), where("__name__", "==", runId), limit(1)));
-    const d: any = snap.docs[0]?.data() || {};
+    const snap = await getDoc(runRef);
+    if (!snap.exists()) throw new Error("Run document deleted");
+    
+    const d = snap.data() as any;
+
+    // 🚩 הבדיקה הקריטית: האם המשתמש ביטל ב-UI?
+    if (d.status === "failed" || d?.otp?.state === "aborted") {
+      throw new Error("USER_ABORTED"); // זה יזרוק שגיאה, יסגור את הדפדפן וימשיך לריצה הבאה
+    }
+
     const otp = String(d?.otp?.value || "").trim();
     if (otp) return otp;
-    await sleep(1000);
+    
+    await sleep(2000); // נמתין 2 שניות בין בדיקה לבדיקה
   }
   throw new Error("OTP timeout");
 }
+
 
 async function clearOtpClient(db: any, runId: string) {
   await setStatusClient(db, runId, { otp: { state: "none", value: "" } });

@@ -46,7 +46,8 @@ interface CommissionTemplateOption {
   companyId: string;
   Name?: string;
   automationClass?: string;
-  commissionIncludesVAT?: boolean; // האם "עמלה" בקובץ כוללת מע"מ
+  commissionIncludesVAT?: boolean; 
+  automationEnabled?: boolean;
 }
 
 interface CommissionSummary {
@@ -115,6 +116,7 @@ const ExcelCommissionImporter: React.FC = () => {
   
   const sanitizeMonth = (m?: any) => String(m || '').replace(/\//g, '-').trim();
   const [fallbackProduct, setFallbackProduct] = useState<string>('');
+const [loadingStage, setLoadingStage] = useState<string>("");
 
 const { canAccess: canAutoDownload, isChecking: isCheckingAutoDownload } =
   usePermission(user ? "access_portal_auto_download" : null);
@@ -267,15 +269,6 @@ const handleStartAuto = async () => {
     const missing  = expected.filter(h => !found.includes(h));
     const coverage = expected.length ? (matched.length / expected.length) : 1;
 
-    // console.groupCollapsed(`[IMPORT DEBUG] ${ctx}`);
-    // console.log('Expected (raw):', expectedRaw);
-    // console.log('Found    (raw):', foundRaw);
-    // console.log('Expected (norm):', expected);
-    // console.log('Found    (norm):', found);
-    // console.log('Matched:', matched);
-    // console.log('Missing:', missing);
-    // console.log('Coverage:', Math.round(coverage * 100) + '%');
-    // console.groupEnd();
   }
 
   // --- בדיקת כיסוי אחידה ל-XLSX/ZIP: מחזיר true/false ומדפיס דיבאג ---
@@ -437,18 +430,26 @@ const handleStartAuto = async () => {
       const snapshot = await getDocs(qy);
 
       const templates: CommissionTemplateOption[] = [];
+      const companyCache: Record<string, any> = {};
       for (const docSnap of snapshot.docs) {
         const data = docSnap.data();
         const companyId = data.companyId;
         let companyName = '';
+        let automationEnabled = false;
+
         if (companyId) {
+         if (!companyCache[companyId]) {
           const companySnap = await getDoc(doc(db, 'company', companyId));
-          companyName = companySnap.exists() ? companySnap.data().companyName || '' : '';
+          companyCache[companyId] = companySnap.exists() ? companySnap.data() : {};
         }
+        companyName = companyCache[companyId].companyName || '';
+        automationEnabled = !!companyCache[companyId].automationEnabled; // משיכת השדה
+      }
         templates.push({
           id: docSnap.id,
           companyName,
           companyId,
+          automationEnabled,
           type: data.type || '',
           Name: data.Name || '',
           automationClass: data.automationClass || '',
@@ -488,14 +489,27 @@ const handleStartAuto = async () => {
   /* ==============================
      Derived data
   ============================== */
-  const uniqueCompanies = Array.from(
-    new Map(templateOptions.map(t => [t.companyId, { id: t.companyId, name: t.companyName }])).values()
-  );
-  const filteredTemplates = templateOptions.filter(t => t.companyId === selectedCompanyId);
-  const selectedCompanyName = React.useMemo(
-    () => uniqueCompanies.find(c => c.id === selectedCompanyId)?.name || '',
-    [selectedCompanyId, uniqueCompanies]
-  );
+// יצירת רשימת חברות ייחודית הכוללת את שדה ה-Automation
+const uniqueCompanies = Array.from(
+  new Map(templateOptions.map(t => [
+    t.companyId, 
+    { id: t.companyId, name: t.companyName, automationEnabled: t.automationEnabled }
+  ])).values()
+);
+
+const filteredTemplates = templateOptions.filter(t => t.companyId === selectedCompanyId);
+
+// 1. אובייקט החברה המלא (בשביל ה-Automation)
+const selectedCompany = React.useMemo(
+  () => uniqueCompanies.find(c => c.id === selectedCompanyId),
+  [selectedCompanyId, uniqueCompanies]
+);
+
+// 2. שם החברה (בשביל לשמור על תאימות לקוד הקיים שלך)
+const selectedCompanyName = React.useMemo(
+  () => selectedCompany?.name || '',
+  [selectedCompany]
+);
 
   /* ==============================
      Parsing helpers
@@ -889,285 +903,351 @@ if (!result.product || !String(result.product).trim()) {
 }
 
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !templateId || !selectedAgentId || !selectedCompanyId) return;
+const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const file = e.target.files?.[0];
+  if (!file || !templateId || !selectedAgentId || !selectedCompanyId) return;
 
-    const ext = getExt(file.name);
-    const allowed = new Set(['.xlsx', '.xls', '.csv', '.zip']);
-    if (!allowed.has(ext)) {
+  const ext = getExt(file.name);
+  const allowed = new Set(['.xlsx', '.xls', '.csv', '.zip']);
+  if (!allowed.has(ext)) {
+    setErrorDialog({
+      title: 'סוג קובץ לא נתמך',
+      message: <>הקובץ <b>{file.name}</b> הוא {ext}. נא להעלות רק קבצי ZIP/XLSX/XLS/CSV.</>,
+    });
+    if (fileInputRef.current) fileInputRef.current.value = '';
+    return;
+  }
+
+  setSelectedFileName(file.name);
+  setIsLoading(true);
+  setLoadingStage("קורא קובץ מהמחשב..."); // שלב 1
+
+  const reader = new FileReader();
+  reader.onload = async (evt) => {
+    try {
+      const arrayBuffer = evt.target?.result as ArrayBuffer;
+      const fallbackReportMonth = templateId === 'mor_insurance' ? extractReportMonthFromFilename(file.name) : undefined;
+
+      // --- טיפול ב-ZIP ---
+      if (ext === '.zip') {
+        setLoadingStage("פותח ארכיון ZIP...");
+        const mod = await import('jszip');
+        const JSZip: any = (mod as any).default ?? mod;
+        const zip = await JSZip.loadAsync(arrayBuffer);
+
+        const entries = zip.file(/\.xlsx$|\.xls$|\.csv$/i);
+        if (entries.length === 0) throw new Error('ה-ZIP לא מכיל XLSX/XLS/CSV.');
+
+        // אם יש יותר מקובץ אחד, פותחים את הבוחר ומפסיקים
+        if (entries.length > 1) {
+          const names = entries.map((f: any) => f.name);
+          setZipChooser({ zip, entryNames: names, outerFileName: file.name });
+          setSelectedZipEntry(names[0]);
+          setIsLoading(false);
+          setLoadingStage("");
+          return;
+        }
+
+        // אם יש קובץ אחד בלבד ב-ZIP, מחלצים אותו וממשיכים לעיבוד
+        const entry = entries[0];
+        setLoadingStage(`מחלץ את ${entry.name}...`);
+        const innerData = /\.csv$/i.test(entry.name) 
+          ? await entry.async('uint8array') 
+          : await entry.async('arraybuffer');
+        
+        await parseAndStandardize(innerData, entry.name, fallbackReportMonth);
+
+      } else {
+        // --- טיפול בקובץ רגיל (XLSX/CSV) ---
+        await parseAndStandardize(arrayBuffer, file.name, fallbackReportMonth);
+      }
+    } catch (err: any) {
       setErrorDialog({
-        title: 'סוג קובץ לא נתמך',
-        message: <>הקובץ <b>{file.name}</b> הוא {ext}. נא להעלות רק קבצי ZIP/XLSX/XLS/CSV.</>,
+        title: 'שגיאת עיבוד קובץ',
+        message: <>אירעה שגיאה בעת עיבוד הקובץ <b>{file.name}</b>.</>,
       });
-      if (fileInputRef.current) fileInputRef.current.value = '';
+    } finally {
+      setIsLoading(false);
+      setLoadingStage("");
+    }
+  };
+  reader.readAsArrayBuffer(file);
+};
+
+// const parseAndStandardize = async (data: any, fileName: string, fallbackMonth?: string) => {
+//   let jsonData: any[] = [];
+//   const innerExt = getExt(fileName);
+
+//   // 1. שלב ה-Parsing
+//   setLoadingStage(`מפענח נתונים מתוך ${fileName}...`);
+//   await new Promise(r => setTimeout(r, 100));
+
+//   if (innerExt === '.csv') {
+//     jsonData = readCsv(data);
+//   } else {
+//     let wb: XLSX.WorkBook;
+//     try {
+//       wb = XLSX.read(data, { type: 'array', cellDates: true });
+//     } catch (err) {
+//       setIsLoading(false); // כיבוי הלואדר במקרה של שגיאה קריטית
+//       throw new Error('קובץ אקסל לא תקין.');
+//     }
+
+//     let wsname = wb.SheetNames[0];
+//     let headerRowIndex = 0;
+
+//     if (templateId === 'menura_insurance') {
+//       const foundSheet = wb.SheetNames.find(name => name.includes('דוח עמלות'));
+//       if (foundSheet) { wsname = foundSheet; headerRowIndex = 29; }
+//     }
+
+//     const ws = wb.Sheets[wsname];
+//     if (templateId !== 'menura_insurance') {
+//       headerRowIndex = findHeaderRowIndex(ws, Object.keys(mapping));
+//     }
+
+//     jsonData = XLSX.utils.sheet_to_json(ws, { defval: "", range: headerRowIndex, raw: true });
+//   }
+
+//   // 2. בדיקת שלמות בסיסית
+//   if (!jsonData || jsonData.length === 0) {
+//     setIsLoading(false);
+//     addToast("error", "הקובץ ריק או שלא זוהו בו שורות נתונים.");
+//     return;
+//   }
+
+//   // 3. 🛡️ בדיקת התאמת עמודות (כאן קרתה הרגרסיה)
+//   const expectedHeadersRaw = Object.keys(mapping);
+//   const foundHeadersRaw = Object.keys(jsonData[0] || {});
+
+//   // פונקציית העזר שלך שמפעילה את setShowTemplateMismatch
+//   const ok = checkCoverageOrShowMismatch(
+//     expectedHeadersRaw,
+//     foundHeadersRaw,
+//     () => { 
+//       // חשוב: קודם מכבים את מצב הטעינה כדי שהמודאל של השגיאה יוכל לעלות מעליו
+//       setIsLoading(false);
+//       setLoadingStage("");
+//       setTimeout(() => {
+//         setShowTemplateMismatch(true);
+//       }, 100);
+//     },
+//     'Validation'
+//   );
+
+//   if (!ok) return; // עצירה מוחלטת אם הקובץ לא מתאים
+
+//   // 4. שלב הנירמול (רק אם הקובץ תקין)
+//   setLoadingStage(`מנרמל וממפה ${jsonData.length.toLocaleString()} שורות...`);
+//   await new Promise(r => setTimeout(r, 100));
+
+//   const standardized = jsonData
+//     .filter((row) => {
+//       const agentCodeColumn = Object.entries(mapping).find(([, field]) => field === 'agentCode')?.[0];
+//       const agentCodeVal = agentCodeColumn ? getCell(row, agentCodeColumn) : null;
+//       return agentCodeVal && agentCodeVal.toString().trim() !== '';
+//     })
+//     .map(row => standardizeRowWithMapping(row, mapping, {
+//       agentId: selectedAgentId,
+//       templateId,
+//       sourceFileName: fileName,
+//       uploadDate: serverTimestamp(),
+//       companyId: selectedCompanyId,
+//       company: selectedCompanyName,
+//     }, fallbackMonth));
+
+//   if (standardized.length === 0) {
+//     setIsLoading(false);
+//     setErrorDialog({ title: "שגיאת נתונים", message: "לא נמצאו שורות עם מספר סוכן תקין בעיבוד הקובץ." });
+//     return;
+//   }
+
+//   setStandardizedRows(standardized);
+
+//   // 5. בדיקת כפילויות
+//   setLoadingStage("בודק טעינות קיימות בבסיס הנתונים...");
+//   const fileMonths = Array.from(new Set(standardized.map(r => sanitizeMonth(r.reportMonth)).filter(Boolean))).sort();
+//   setMonthsInFile(fileMonths);
+
+//   await checkExistingByRuns({
+//     agentId: selectedAgentId,
+//     companyId: selectedCompanyId,
+//     templateId,
+//     monthsInFile: fileMonths,
+//   });
+
+//   setLoadingStage("הושלם!");
+//   // שהיה קצרה וכיבוי הלואדר
+//   setTimeout(() => {
+//     setIsLoading(false);
+//     setLoadingStage("");
+//   }, 500);
+// };
+
+const parseAndStandardize = async (data: any, fileName: string, fallbackMonth?: string) => {
+  let jsonData: any[] = [];
+  const innerExt = getExt(fileName);
+  const upperName = fileName.toUpperCase();
+
+  // 1. שלב ה-Parsing
+  setLoadingStage(`מפענח נתונים מתוך ${fileName}...`);
+  await new Promise(r => setTimeout(r, 100));
+
+  if (innerExt === '.csv') {
+    jsonData = readCsv(data);
+  } else {
+    let wb: XLSX.WorkBook;
+    try {
+      wb = XLSX.read(data, { type: 'array', cellDates: true });
+    } catch (err) {
+      setIsLoading(false);
+      throw new Error('קובץ אקסל לא תקין.');
+    }
+
+    let wsname = wb.SheetNames[0];
+    let headerRowIndex = 0;
+
+    // --- לוגיקה ישנה (לא נוגעים לפי בקשתך) ---
+    if (templateId === 'menura_insurance') {
+      const foundSheet = wb.SheetNames.find(name => name.includes('דוח עמלות'));
+      if (foundSheet) { wsname = foundSheet; headerRowIndex = 29; }
+    }
+    // ---------------------------------------
+
+    const ws = wb.Sheets[wsname];
+    
+    // חיפוש כותרות אוטומטי (רק אם זו לא התבנית הישנה של מנורה)
+    if (templateId !== 'menura_insurance') {
+      headerRowIndex = findHeaderRowIndex(ws, Object.keys(mapping));
+    }
+
+    jsonData = XLSX.utils.sheet_to_json(ws, { defval: "", range: headerRowIndex, raw: true });
+  }
+
+  // 2. בדיקת שלמות בסיסית
+  if (!jsonData || jsonData.length === 0) {
+    setIsLoading(false);
+    addToast("error", "הקובץ ריק או שלא זוהו בו שורות נתונים.");
+    return;
+  }
+
+// ==========================================
+  // 🛡️ שלב 2.5: "הגנת מנורה" דו-צדדית (מבוסס ID 3)
+  // ==========================================
+  const isMenora = String(selectedCompanyId) === '3';
+  
+  if (isMenora) {
+    const isZviraFile = upperName.includes('ZVIRA');
+    const isNifraimFile = upperName.includes('NIFRAIM');
+    
+    // בדיקה מה שם התבנית שלך (נפרעים או צבירה)
+    // הערה: ודאי שה-ID של תבניות הצבירה שלך מכיל את המילה 'zvira' או 'acc'
+    const isNifraimTemplate = templateId.includes('nifraim');
+    const isZviraTemplate = templateId.includes('zvira') || templateId.includes('acc');
+
+    // מקרה א': תבנית נפרעים + קובץ צבירה
+    if (isNifraimTemplate && isZviraFile) {
+      setIsLoading(false);
+      setLoadingStage("");
+      setErrorDialog({
+        title: "קובץ לא מתאים (מנורה)",
+        message: "בחרת תבנית נפרעים, אך הקובץ הוא דוח צבירה (ZVIRA). אנא בחרי קובץ NIFRAIM."
+      });
       return;
     }
 
-    setSelectedFileName(file.name);
-    setIsLoading(true);
+    // מקרה ב': תבנית צבירה + קובץ נפרעים
+    if (isZviraTemplate && isNifraimFile) {
+      setIsLoading(false);
+      setLoadingStage("");
+      setErrorDialog({
+        title: "קובץ לא מתאים (מנורה)",
+        message: "בחרת תבנית צבירה, אך הקובץ הוא דוח נפרעים (NIFRAIM). אנא בחרי קובץ ZVIRA."
+      });
+      return;
+    }
+  }
+  // ==========================================
+  // ==========================================
 
-    const reader = new FileReader();
-    reader.onload = async (evt) => {
-      let jsonData: Record<string, any>[] = [];
-      try {
-        const arrayBuffer = evt.target?.result as ArrayBuffer;
-        const fallbackReportMonth =
-          templateId === 'mor_insurance' ? extractReportMonthFromFilename(file.name) : undefined;
+  // 3. בדיקת התאמת עמודות (Coverage)
+  const expectedHeadersRaw = Object.keys(mapping);
+  const foundHeadersRaw = Object.keys(jsonData[0] || {});
 
-        if (ext === '.zip') {
-          try {
-            const mod = await import('jszip');
-            const JSZip: any = (mod as any).default ?? mod;
-            const zip = await JSZip.loadAsync(arrayBuffer);
+  const ok = checkCoverageOrShowMismatch(
+    expectedHeadersRaw,
+    foundHeadersRaw,
+    () => { 
+      setIsLoading(false);
+      setLoadingStage("");
+      setTimeout(() => setShowTemplateMismatch(true), 100);
+    },
+    'Validation'
+  );
 
-            const entries = zip.file(/\.xlsx$|\.xls$|\.csv$/i);
-            if (entries.length === 0) throw new Error('ה-ZIP לא מכיל XLSX/XLS/CSV.');
+  if (!ok) return;
 
-            if (entries.length > 1) {
-              const names = entries.map((f: any) => f.name);
-              setZipChooser({ zip, entryNames: names, outerFileName: file.name });
-              setSelectedZipEntry(names[0]);
-              setIsLoading(false);
-              return;
-            }
+  // 4. שלב הנירמול
+  setLoadingStage(`מנרמל וממפה ${jsonData.length.toLocaleString()} שורות...`);
+  await new Promise(r => setTimeout(r, 100));
 
-            const entry = entries[0];
-            if (/\.csv$/i.test(entry.name)) {
-              const inner = await entry.async('uint8array');
-              jsonData = readCsv(inner);
+  const standardized = jsonData
+    .filter((row) => {
+      const agentCodeColumn = Object.entries(mapping).find(([, field]) => field === 'agentCode')?.[0];
+      const agentCodeVal = agentCodeColumn ? getCell(row, agentCodeColumn) : null;
+      return agentCodeVal && agentCodeVal.toString().trim() !== '';
+    })
+    .map(row => standardizeRowWithMapping(row, mapping, {
+      agentId: selectedAgentId,
+      templateId,
+      sourceFileName: fileName,
+      uploadDate: serverTimestamp(),
+      companyId: selectedCompanyId,
+      company: selectedCompanyName, // ודאי שה-useMemo למטה מוגדר!
+    }, fallbackMonth));
 
-              if (!mapping || Object.keys(mapping).length === 0) { setShowTemplateMismatch(true); setIsLoading(false); return; }
-              const expectedRaw = Object.keys(mapping);
-              const foundRaw = Object.keys(jsonData[0] || {});
-              logHeadersDebug('CSV headers', expectedRaw, foundRaw);
-              const expected = expectedRaw.map(normalizeHeader);
-              const found    = foundRaw.map(normalizeHeader);
-              const coverage = expected.length ? (expected.filter(h => found.includes(h)).length / expected.length) : 1;
-              if (coverage < 0.5) { setShowTemplateMismatch(true); setIsLoading(false); return; }
+  if (standardized.length === 0) {
+    setIsLoading(false);
+    setErrorDialog({ title: "שגיאת נתונים", message: "לא נמצאו שורות תקינות לעיבוד." });
+    return;
+  }
 
-            } else {
-              const inner = await entry.async('arraybuffer');
-              let wb: XLSX.WorkBook;
-              // try { wb = XLSX.read(inner, { type: 'array' }); }
-              try {
-                wb = XLSX.read(inner, {
-                  type: 'array',
-                  cellDates: true, // ✅ חשוב
-                });
-              }
-              catch (err: any) {
-                const msg = String(err?.message || err || '');
-                throw new Error(/zip/i.test(msg) ? 'ZIP בתוך ZIP. חלצי ידנית.' : 'קובץ אקסל לא נקרא.');
-              }
+  setStandardizedRows(standardized);
 
-              let wsname = wb.SheetNames[0];
-              let headerRowIndex = 0;
+  // 5. בדיקת כפילויות
+  setLoadingStage("בודק טעינות קיימות...");
+  const fileMonths = Array.from(new Set(standardized.map(r => sanitizeMonth(r.reportMonth)).filter(Boolean))).sort();
+  setMonthsInFile(fileMonths);
 
-              if (templateId === 'menura_insurance') {
-                const foundSheet = wb.SheetNames.find(name => name.includes('דוח עמלות'));
-                if (foundSheet) { wsname = foundSheet; headerRowIndex = 29; }
-                else { setErrorDialog({ title: 'לשונית לא נמצאה', message: <>לא נמצאה לשונית בשם <b>דוח עמלות</b>.</> }); setIsLoading(false); return; }
-              }
-              const ws = wb.Sheets[wsname];
+  await checkExistingByRuns({
+    agentId: selectedAgentId,
+    companyId: selectedCompanyId,
+    templateId,
+    monthsInFile: fileMonths,
+  });
 
-              if (templateId !== 'menura_insurance') {
-                const expectedHeaders = Object.keys(mapping);
-                headerRowIndex = findHeaderRowIndex(ws, expectedHeaders);
-              }
+  setLoadingStage("הושלם!");
+  setTimeout(() => {
+    setIsLoading(false);
+    setLoadingStage("");
+  }, 500);
+};
 
-              if (!mapping || Object.keys(mapping).length === 0) { setShowTemplateMismatch(true); setIsLoading(false); return; }
-
-              const expectedExcelColumnsRaw = Object.keys(mapping);
-              const foundHeadersRaw = headersAtRow(ws, headerRowIndex);
-
-              const ok = checkCoverageOrShowMismatch(
-                expectedExcelColumnsRaw,
-                foundHeadersRaw,
-                () => { setShowTemplateMismatch(true); setIsLoading(false); },
-                'XLSX headers'
-              );
-              if (!ok) return;
-
-              jsonData = XLSX.utils.sheet_to_json<Record<string, any>>(ws, {
-                defval: "",
-                range: headerRowIndex,
-                raw: true,
-              });
-              
-              
-              // ⚙️ נרמול שמות עמודות – כמו ב-CSV
-              if (jsonData.length) {
-                jsonData = jsonData.map((row) => {
-                  const fixed: any = {};
-                  for (const [k, v] of Object.entries(row)) {
-                    fixed[normalizeHeader(k)] = v;
-                  }
-                  return fixed;
-                });
-              }
-                          }
-
-          } catch (e: any) {
-            setErrorDialog({ title: 'קובץ ZIP לא נקרא', message: <>לא ניתן לפתוח את הקובץ <b>{file.name}</b>: {String(e?.message || '')}</> });
-            setIsLoading(false);
-            if (fileInputRef.current) fileInputRef.current.value = '';
-            return;
-          }
-
-        } else if (ext === '.csv') {
-          jsonData = readCsv(arrayBuffer);
-
-          if (!mapping || Object.keys(mapping).length === 0) {
-            setShowTemplateMismatch(true); setIsLoading(false); return;
-          }
-
-          const expectedRaw = Object.keys(mapping);
-          const foundRaw    = Object.keys(jsonData[0] || {});
-          logHeadersDebug('CSV headers', expectedRaw, foundRaw);
-
-          const expected = expectedRaw.map(normalizeHeader);
-          const found    = foundRaw.map(normalizeHeader);
-          const coverage = expected.length ? (expected.filter(h => found.includes(h)).length / expected.length) : 1;
-
-          if (coverage < 0.5) {
-            setShowTemplateMismatch(true); setIsLoading(false); return;
-          }
-
-        } else {
-          let wb: XLSX.WorkBook;
-          // try { wb = XLSX.read(arrayBuffer, { type: "array" }); }
-          try {
-            wb = XLSX.read(arrayBuffer, {
-              type: "array",
-              cellDates: true, // ✅ חשוב
-            });
-          }
-          catch (err: any) {
-            const msg = String(err?.message || err || '');
-            setErrorDialog({
-              title: 'שגיאה בקריאת קובץ',
-              message: <>לא ניתן לקרוא את הקובץ <b>{file.name}</b>.<br />{ /zip/i.test(msg) ? 'נראה שזה ZIP. חלצי ממנו קובץ XLSX/CSV.' : 'ודאי שהקובץ XLSX/CSV תקין.' }</>,
-            });
-            setIsLoading(false);
-            setSelectedFileName('');
-            if (fileInputRef.current) fileInputRef.current.value = '';
-            return;
-          }
-
-          let wsname = wb.SheetNames[0];
-          let headerRowIndex = 0;
-
-          if (templateId === 'menura_insurance') {
-            const foundSheet = wb.SheetNames.find(name => name.includes('דוח עמלות'));
-            if (foundSheet) { wsname = foundSheet; headerRowIndex = 29; }
-            else { setErrorDialog({ title: 'לשונית לא נמצאה', message: <>לא נמצאה לשונית בשם <b>דוח עמלות</b>.</> }); setIsLoading(false); return; }
-          }
-          const ws = wb.Sheets[wsname];
-
-          if (templateId !== 'menura_insurance') {
-            const expectedHeaders = Object.keys(mapping);
-            headerRowIndex = findHeaderRowIndex(ws, expectedHeaders);
-          }
-
-          if (!mapping || Object.keys(mapping).length === 0) { setShowTemplateMismatch(true); setIsLoading(false); return; }
-
-          const expectedExcelColumnsRaw = Object.keys(mapping);
-          const foundHeadersRaw = headersAtRow(ws, headerRowIndex);
-
-          const ok = checkCoverageOrShowMismatch(
-            expectedExcelColumnsRaw,
-            foundHeadersRaw,
-            () => { setShowTemplateMismatch(true); setIsLoading(false); },
-            'XLSX headers'
-          );
-          if (!ok) return;
-          jsonData = XLSX.utils.sheet_to_json<Record<string, any>>(ws, {
-            defval: "",
-            range: headerRowIndex,
-            raw: true,
-          });
-          
-          // ⚙️ נרמול שמות עמודות – כמו ב-CSV
-          if (jsonData.length) {
-            jsonData = jsonData.map((row) => {
-              const fixed: any = {};
-              for (const [k, v] of Object.entries(row)) {
-                fixed[normalizeHeader(k)] = v;
-              }
-              return fixed;
-            });
-          }
-                  }
-
-        if (jsonData.length === 0) { setIsLoading(false); alert('⚠️ הקובץ לא מכיל שורות.'); return; }
-
-        // --- סטנדרטיזציה ---
-        const agentCodeColumn = Object.entries(mapping).find(([, field]) => field === 'agentCode')?.[0];
-
-        const standardized = jsonData
-          .filter((row) => {
-            const agentCodeVal = agentCodeColumn ? getCell(row, agentCodeColumn) : null;
-            return agentCodeVal && agentCodeVal.toString().trim() !== '';
-          })
-          .map((row) => standardizeRowWithMapping(row, mapping, {
-              agentId: selectedAgentId,
-              templateId,
-              sourceFileName: file.name,
-              uploadDate: serverTimestamp(),
-              companyId: selectedCompanyId,
-              company: selectedCompanyName,
-            }, fallbackReportMonth)
-          );
-
-        // setStandardizedRows(standardized);
-
-        // const reportMonth = standardized[0]?.reportMonth;
-        // if (reportMonth) await checkExistingData(selectedAgentId, templateId, reportMonth, selectedCompanyId);
-
-        setStandardizedRows(standardized);
-
-        // ✅ חישוב כל חודשי הקובץ (לא רק שורה ראשונה)
-        const fileMonths = Array.from(
-          new Set(
-            standardized
-              .map(r => sanitizeMonth(r.reportMonth))
-              .filter(Boolean)
-          )
-        ).sort();
-        
-        setMonthsInFile(fileMonths);
-        
-        // ✅ בדיקת טעינות קיימות לפי RUNS (בלי מגבלת in)
-        await checkExistingByRuns({
-          agentId: selectedAgentId,
-          companyId: selectedCompanyId,
-          templateId,
-          monthsInFile: fileMonths,
-        });
-        
-      } catch (err: any) {
-        // console.error('File parse error:', err);
-        setErrorDialog({
-          title: 'שגיאת עיבוד קובץ',
-          message: <>אירעה שגיאה בעת עיבוד הקובץ <b>{file.name}</b>.</>,
-        });
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    reader.readAsArrayBuffer(file);
-  };
-
-  const processChosenZipEntry = async () => {
-    if (!zipChooser || !selectedZipEntry) { setZipChooser(null); return; }
+const processChosenZipEntry = async () => {
+    if (!zipChooser || !selectedZipEntry) {
+      setZipChooser(null);
+      return;
+    }
 
     const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
     setIsLoading(true);
+    setLoadingStage("מחלץ קובץ נבחר מה-ZIP...");
+
     try {
       const { zip } = zipChooser;
+      
+      // איתור הקובץ בתוך הארכיון
       let entry: any = zip.file(selectedZipEntry);
       if (Array.isArray(entry)) entry = entry[0];
 
@@ -1175,141 +1255,39 @@ if (!result.product || !String(result.product).trim()) {
         const alt = zip.file(new RegExp(`${escapeRegExp(selectedZipEntry)}$`));
         entry = Array.isArray(alt) ? alt[0] : alt;
       }
-      if (!entry || entry.dir) throw new Error('הקובץ שנבחר לא נמצא (או שהוא תיקייה) בתוך ה-ZIP.');
 
-      const fallbackReportMonth =
+      if (!entry || entry.dir) {
+        throw new Error('הקובץ שנבחר לא נמצא (או שהוא תיקייה) בתוך ה-ZIP.');
+      }
+
+      // חילוץ הנתונים (Buffer)
+      const innerExt = getExt(selectedZipEntry);
+      const data = innerExt === '.csv' 
+        ? await entry.async('uint8array') 
+        : await entry.async('arraybuffer');
+
+      // חישוב חודש Fallback במידה ומדובר במור
+      const fallbackReportMonth = 
         templateId === 'mor_insurance' ? extractReportMonthFromFilename(selectedZipEntry) : undefined;
 
-      let jsonData: Record<string, any>[] = [];
+      // שליחה לפונקציית העיבוד המאוחדת שמבצעת: 
+      // Parsing -> Validation -> Standardization -> Conflict Check
+      await parseAndStandardize(data, selectedZipEntry, fallbackReportMonth);
 
-      const innerExt = getExt(selectedZipEntry);
-      if (innerExt === '.csv') {
-        const inner = await entry.async('uint8array');
-        jsonData = readCsv(inner);
-
-        if (!mapping || Object.keys(mapping).length === 0) { setShowTemplateMismatch(true); return; }
-        const expectedRaw = Object.keys(mapping);
-        const foundRaw = Object.keys(jsonData[0] || {});
-        logHeadersDebug('CSV headers (ZIP inner)', expectedRaw, foundRaw);
-        const expected = expectedRaw.map(normalizeHeader);
-        const found    = foundRaw.map(normalizeHeader);
-        const coverage = expected.length ? (expected.filter(h => found.includes(h)).length / expected.length) : 1;
-        if (coverage < 0.5) { setShowTemplateMismatch(true); return; }
-
-      } else {
-        // const inner = await entry.async('arraybuffer');
-        // const wb = XLSX.read(inner, { type: 'array' });
-
-        const inner = await entry.async('arraybuffer');
-        const wb = XLSX.read(inner, { type: 'array', cellDates: true });
-
-        let wsname = wb.SheetNames[0];
-        let headerRowIndex = 0;
-
-        if (templateId === 'menura_insurance') {
-          const foundSheet = wb.SheetNames.find((name: string) => name.includes('דוח עמלות'));
-          if (foundSheet) { wsname = foundSheet; headerRowIndex = 29; }
-          else { setErrorDialog({ title: 'לשונית לא נמצאה', message: <>לא נמצאה לשונית בשם <b>דוח עמלות</b>.</> }); return; }
-        }
-
-        const ws = wb.Sheets[wsname];
-
-        if (templateId !== 'menura_insurance') {
-          const expectedHeaders = Object.keys(mapping);
-          headerRowIndex = findHeaderRowIndex(ws, expectedHeaders);
-        }
-
-        if (!mapping || Object.keys(mapping).length === 0) { setShowTemplateMismatch(true); return; }
-
-        const expectedExcelColumnsRaw = Object.keys(mapping);
-        const foundHeadersRaw = headersAtRow(ws, headerRowIndex);
-
-        const ok = checkCoverageOrShowMismatch(
-          expectedExcelColumnsRaw,
-          foundHeadersRaw,
-          () => setShowTemplateMismatch(true),
-          'XLSX headers (ZIP inner)'
-        );
-        if (!ok) return;
-
-        // jsonData = XLSX.utils.sheet_to_json<Record<string, any>>(ws, {
-        //   defval: "",
-        //   range: headerRowIndex,
-        // });
-        jsonData = XLSX.utils.sheet_to_json<Record<string, any>>(ws, {
-          defval: "",
-          range: headerRowIndex,
-          raw: true,
-        });
-        
-        
-        // ⚙️ נרמול שמות עמודות – כמו ב-CSV
-        if (jsonData.length) {
-          jsonData = jsonData.map((row) => {
-            const fixed: any = {};
-            for (const [k, v] of Object.entries(row)) {
-              fixed[normalizeHeader(k)] = v;
-            }
-            return fixed;
-          });
-        }
-              }
-
-      if (!jsonData.length) { alert('⚠️ לא נמצאו שורות נתונים בקובץ.'); return; }
-
-      const agentCodeColumn = Object.entries(mapping).find(([, field]) => field === 'agentCode')?.[0];
-
-      const standardized = jsonData
-        .filter((row) => {
-          const agentCodeVal = agentCodeColumn ? getCell(row, agentCodeColumn) : null;
-          return agentCodeVal && agentCodeVal.toString().trim() !== '';
-        })
-        .map((row) => standardizeRowWithMapping(row, mapping, {
-            agentId: selectedAgentId,
-            templateId,
-            sourceFileName: selectedZipEntry,
-            uploadDate: serverTimestamp(),
-            companyId: selectedCompanyId,
-            company: selectedCompanyName,
-          }, fallbackReportMonth)
-        );
-
-      // setStandardizedRows(standardized);
-
-      // const reportMonth = standardized[0]?.reportMonth;
-      // if (reportMonth) await checkExistingData(selectedAgentId, templateId, reportMonth, selectedCompanyId);
-
-      setStandardizedRows(standardized);
-
-      // ✅ חישוב כל חודשי הקובץ (לא רק שורה ראשונה)
-      const fileMonths = Array.from(
-        new Set(
-          standardized
-            .map(r => sanitizeMonth(r.reportMonth))
-            .filter(Boolean)
-        )
-      ).sort();
-      
-      setMonthsInFile(fileMonths);
-      
-      // ✅ בדיקת טעינות קיימות לפי RUNS (בלי מגבלת in)
-      await checkExistingByRuns({
-        agentId: selectedAgentId,
-        companyId: selectedCompanyId,
-        templateId,
-        monthsInFile: fileMonths,
-      });
-      
     } catch (e: any) {
-      // console.error(e);
-      setErrorDialog({ title: 'שגיאת עיבוד קובץ', message: String(e?.message || 'שגיאה לא ידועה') });
+      setErrorDialog({ 
+        title: 'שגיאת עיבוד קובץ', 
+        message: String(e?.message || 'אירעה שגיאה בעת פתיחת הקובץ מתוך ה-ZIP') 
+      });
     } finally {
+      // ניקוי מצב הבחירה וסגירת המודאל
       setZipChooser(null);
       setSelectedZipEntry('');
       setIsLoading(false);
+      setLoadingStage("");
     }
   };
-
+  
   /* ==============================
      Write helpers
   ============================== */
@@ -1698,38 +1676,44 @@ const isUpdateAvailable = latestRunnerVersion && currentRunnerVersion && latestR
     </div>
     {selectedCompanyId ? (
       <div className="space-y-4 animate-in fade-in duration-500">
-        {/* 🚀 פס אוטומציה חכם */}
-   {/* 🚀 פס אוטומציה חכם עם ניהול גרסאות */}
-{canAutoDownload && (
-  <div className={`rounded-xl p-4 text-white shadow-lg flex items-center justify-between transition-all duration-500 ${isUpdateAvailable ? 'bg-orange-600' : !!autoRunId ? 'bg-indigo-700' : 'bg-blue-600'}`}>
+{/* 🚀 פס אוטומציה חכם - מבוסס הרשאות, סטטוס חברה (image_17fba5) ודגלי מערכת (image_e598ee) */}
+{canAutoDownload && selectedCompany?.automationEnabled && (
+  <div className={`rounded-xl p-4 text-white shadow-lg flex items-center justify-between transition-all duration-500 
+    ${!isAutoEnabledByFlag ? 'bg-gray-500' : isUpdateAvailable ? 'bg-orange-600' : !!autoRunId ? 'bg-indigo-700' : 'bg-blue-600'}`}>
+    
     <div className="flex items-center gap-3">
-      <span className={`text-2xl ${!!autoRunId ? 'animate-pulse' : ''}`}>
-        {isUpdateAvailable ? '🆙' : '⚡'}
+      {/* אייקון משתנה: מנעול אם חסום, חץ למעלה אם יש עדכון, ברק אם תקין */}
+      <span className={`text-2xl ${!!autoRunId && isAutoEnabledByFlag ? 'animate-pulse' : ''}`}>
+        {!isAutoEnabledByFlag ? '🔒' : isUpdateAvailable ? '🆙' : '⚡'}
       </span>
+      
       <div>
         <div className="font-bold text-sm">
           {isUpdateAvailable ? 'יש עדכון גרסה זמין לבוט!' : `משיכה אוטומטית מ${selectedCompanyName}`}
         </div>
         <div className="text-xs text-blue-100 opacity-90">
-          {isUpdateAvailable 
-            ? `הגרסה שלך (${currentRunnerVersion}) ישנה. הגרסה החדשה היא ${latestRunnerVersion}.`
-            : !currentRunnerVersion 
-              ? "הבוט לא מותקן? לחצי על 'הורד התקנה' כדי להתחיל."
-              : "המערכת מוכנה למשיכת נתונים בלחיצת כפתור."}
+          {/* לוגיקת הודעות: עדיפות ראשונה לחסימת מערכת (image_e598ee), אח"כ עדכון, ואז סטטוס רגיל */}
+          {!isAutoEnabledByFlag 
+            ? autoDisabledReason 
+            : isUpdateAvailable 
+              ? `הגרסה שלך (${currentRunnerVersion}) ישנה. הגרסה החדשה היא ${latestRunnerVersion}.`
+              : !currentRunnerVersion 
+                ? "הבוט לא מותקן? לחצי על 'הורד התקנה' כדי להתחיל."
+                : "המערכת מוכנה למשיכת נתונים בלחיצת כפתור."}
         </div>
       </div>
     </div>
-    
+
     <div className="flex items-center gap-2">
-      {/* כפתור הורדה למשתמש חדש (או אם אין גרסה) */}
+      {/* כפתור הורדה: מופיע רק אם אין גרסה מזוהה בכלל */}
       {!currentRunnerVersion && (
         <a href={INSTALLER_URL} className="bg-white text-blue-600 px-4 py-2 text-sm font-bold rounded-lg hover:bg-blue-50 shadow-md">
           הורד התקנה ראשונה
         </a>
       )}
 
-      {/* כפתור עדכון OTA - מופיע רק אם יש גרסה חדשה */}
-      {isUpdateAvailable && (
+      {/* כפתור עדכון OTA: מופיע רק אם יש גרסה חדשה ואין חסימת מערכת */}
+      {isUpdateAvailable && isAutoEnabledByFlag && (
         <Button
           text="עדכן עכשיו"
           className="bg-white text-orange-600 hover:bg-orange-50 px-4 py-2 text-sm font-bold rounded-lg shadow-md"
@@ -1738,17 +1722,17 @@ const isUpdateAvailable = latestRunnerVersion && currentRunnerVersion && latestR
         />
       )}
 
-      {/* הכפתור הרגיל של המשיכה */}
+      {/* הכפתור הרגיל: מנוטרל אם יש חסימת מערכת (autoDownloadEnabled: false ב-Firestore) */}
       {canStartAuto && !isUpdateAvailable && (
         <Button
           text={isStartingAuto ? "מתחיל..." : isAutoRunActive ? "משיכה בביצוע..." : "הפעל משיכה אוטומטית"}
           className={`px-4 py-2 text-sm font-bold rounded-lg transition-all ${
-            isStartingAuto || isAutoRunActive 
-              ? "bg-blue-400 text-white cursor-not-allowed" 
+            isStartingAuto || isAutoRunActive || !isAutoEnabledByFlag
+              ? "bg-white/20 text-white/50 cursor-not-allowed" 
               : "bg-white text-blue-600 hover:bg-blue-50 shadow-md"
           }`}
           onClick={handleStartAuto}
-          disabled={Boolean(isStartingAuto || isAutoRunActive || autoButtonDisabled)}
+          disabled={Boolean(isStartingAuto || isAutoRunActive || !isAutoEnabledByFlag || autoButtonDisabled)}
         />
       )}
     </div>
@@ -1903,21 +1887,24 @@ const isUpdateAvailable = latestRunnerVersion && currentRunnerVersion && latestR
         </button>
       )}
 
-      <PortalRunStatus 
-        db={db} 
-        runId={autoRunId} 
-        onFinished={(status) => {
-          // 🔓 משחררים רק את הכפתור בבאנר
-          setIsAutoRunActive(false);
-
-          // לא עושים setAutoRunId("") - כדי שהמשתמש יראה את התוצאה
-          if (status === 'skipped') {
-            console.log("⏭️ המשיכה דולגה (כבר קיים)");
-          } else if (status === 'done') {
-            console.log("✅ המשיכה הסתיימה בהצלחה");
-          }
-        }} 
-      />
+ <PortalRunStatus 
+  db={db} 
+  runId={autoRunId} 
+  onFinished={(status) => {
+    // 🛡️ Guard: אם הריצה כבר לא מסומנת כפעילה, סימן שכבר שלחנו Toast ושיחררנו את הכפתור
+    if (!isAutoRunActive) return; 
+    // 🔓 משחררים את הכפתור בבאנר (זה יהפוך את isAutoRunActive ל-false)
+    setIsAutoRunActive(false);
+    // כעת נשלח את ה-Toast המתאים פעם אחת בלבד
+    if (status === 'skipped') {
+      addToast("error", "⏭️ המשיכה דולגה (כבר קיים במערכת)");
+    } else if (status === 'done') {
+      addToast("success", "✅ המשיכה האוטומטית הושלמה בהצלחה!");
+    } else if (status === 'failed') {
+      addToast("error", "ℹ️ הריצה בוטלה והחסימה שוחררה.");
+    }
+  }} 
+/>
     </div>
   </div>
 )}
@@ -1942,6 +1929,62 @@ const isUpdateAvailable = latestRunnerVersion && currentRunnerVersion && latestR
         onCancel={() => setShowConfirmDelete(false)}
       />
     )}
+    {/* --- מודאל התראה על חוסר התאמה בתבנית --- */}
+{showTemplateMismatch && (
+  <DialogNotification
+    type="warning"
+    title="התבנית לא מתאימה לקובץ"
+    message={
+      <>
+        <p>העמודות שמצאנו בקובץ לא תואמות להגדרות התבנית שבחרת.</p>
+        <p className="mt-2 text-sm text-gray-500">ודאי שבחרת את התבנית הנכונה או שהקובץ הופק בפורמט הנכון.</p>
+      </>
+    }
+    onConfirm={() => setShowTemplateMismatch(false)}
+    onCancel={() => setShowTemplateMismatch(false)}
+    confirmText="הבנתי"
+    hideCancel={true}
+  />
+)}
+{/* מודאל שגיאה כללי (משמש להודעת ה-ZVIRA של מנורה) */}
+{errorDialog && (
+  <DialogNotification
+    type="warning"
+    title={errorDialog.title}
+    // התיקון כאן: הוספת Fallback כדי לרצות את TypeScript
+    message={errorDialog.message ?? ""} 
+    onConfirm={() => setErrorDialog(null)}
+    onCancel={() => setErrorDialog(null)}
+    hideCancel
+  />
+)}
+{showTemplateMismatch && (
+  <DialogNotification
+    type="warning"
+    title="התבנית לא מתאימה לקובץ"
+    message={
+      <div className="text-right">
+        <p>העמודות שמצאנו בקובץ לא תואמות להגדרות התבנית שבחרת.</p>
+        <p className="mt-2 text-sm text-gray-500 italic">
+          ודאי שבחרת את התבנית הנכונה (נפרעים/צבירה) או שהקובץ הופק בפורמט הנכון.
+        </p>
+      </div>
+    }
+    onConfirm={() => setShowTemplateMismatch(false)}
+    hideCancel
+  />
+)}
+    {isLoading && (
+  <div className="fixed inset-0 bg-white/80 backdrop-blur-sm z-[9999] flex items-center justify-center">
+    <div className="text-center p-8 bg-white rounded-2xl shadow-2xl border border-blue-50">
+      <div className="w-16 h-16 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin mx-auto mb-4"></div>
+      <h3 className="text-xl font-bold text-gray-800 mb-2">מעבד קובץ גדול...</h3>
+      <p className="text-blue-600 font-medium animate-pulse h-6">
+        {loadingStage || "אנא המתן..."}
+      </p>
+    </div>
+  </div>
+)}
     {/* Toasts */}
     <div className="fixed bottom-4 left-4 z-50 flex flex-col gap-2">
       {toasts.map((t) => (
@@ -1953,6 +1996,48 @@ const isUpdateAvailable = latestRunnerVersion && currentRunnerVersion && latestR
         />
       ))}
     </div>
+    {zipChooser && (
+      <DialogNotification
+        type="info"
+        title="נמצאו מספר קבצים ב-ZIP"
+        message={
+          <div className="text-right">
+            <p className="mb-3 text-sm">בחרי את הקובץ שברצונך לטעון:</p>
+            <select
+              className="w-full p-2 border rounded-lg text-sm font-sans"
+              value={selectedZipEntry}
+              onChange={(e) => setSelectedZipEntry(e.target.value)}
+            >
+              {zipChooser.entryNames.map(n => (
+                <option key={n} value={n}>{n}</option>
+              ))}
+            </select>
+          </div>
+        }
+        onConfirm={() => processChosenZipEntry()}
+        onCancel={() => { 
+            setZipChooser(null); 
+            setSelectedZipEntry(''); 
+            setSelectedFileName('');
+            if (fileInputRef.current) fileInputRef.current.value = ''; 
+        }}
+        confirmText="המשך לטעינה"
+        cancelText="ביטול"
+      />
+    )}
+
+    {/* מודאל OTP של האוטומציה */}
+    {autoRunId && <PortalRunOtpModal runId={autoRunId} />}
+    {/* מודאל אישור מחיקה */}
+    {showConfirmDelete && (
+      <DialogNotification
+        type="warning"
+        title="מחיקת טעינה קיימת"
+        message="האם למחוק את כל נתוני הטעינה הקודמת עבור סוכן/חברה/תבנית?"
+        onConfirm={handleDeleteExisting}
+        onCancel={() => setShowConfirmDelete(false)}
+      />
+    )}
   </div>
 );
 };

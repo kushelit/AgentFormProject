@@ -140,7 +140,7 @@ export async function clalHandleOtp(page: Page, ctx: RunnerCtx) {
   });
 
   // 2. מחכים לקוד
-  const otpCode = await pollOtp(runId).catch(() => null);
+const otpCode = await pollOtp(runId);
   if (!otpCode) throw new Error("OTP Timeout: הקוד לא התקבל.");
 
   console.log(`[Clal] Code received: ${otpCode}.`);

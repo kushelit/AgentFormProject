@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { doc, onSnapshot, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, onSnapshot, updateDoc, serverTimestamp, collection, where, getDocs, deleteDoc, query } from 'firebase/firestore';
 import { db } from '@/lib/firebase/firebase';
 import DialogNotification from '@/components/DialogNotification';
 
@@ -55,6 +55,34 @@ export default function PortalRunOtpModal({ runId, onClose }: Props) {
   }, [status, otpMode]);
 
   if (!runId || !shouldShow) return null;
+
+
+const handleCancel = async () => {
+  if (!runId) return;
+  
+  try {
+    // 1. איתור ומחיקת ה-LOCK לפי runId
+    const locksRef = collection(db, 'portalImportLocks');
+    const q = query(locksRef, where("runId", "==", runId));
+    const lockSnap = await getDocs(q);
+    
+    const deletePromises = lockSnap.docs.map(lDoc => deleteDoc(lDoc.ref));
+    await Promise.all(deletePromises);
+
+    // 2. עדכון הריצה לסטטוס failed
+    await updateDoc(doc(db, 'portalImportRuns', runId), {
+      status: 'failed',
+      error: 'בוטל ידנית על ידי המשתמש',
+      updatedAt: serverTimestamp(),
+    });
+    
+    onClose?.();
+  } catch (err) {
+    console.error("שגיאה בניקוי ה-LOCK:", err);
+    onClose?.();
+  }
+};
+
 
   const submit = async () => {
     const code = otpValue.trim();
@@ -123,7 +151,7 @@ export default function PortalRunOtpModal({ runId, onClose }: Props) {
         </div>
       }
       onConfirm={submit}
-      onCancel={onClose || (() => {})}
+     onCancel={handleCancel}
       confirmText={sending ? 'שולח...' : 'שלח קוד'}
       cancelText="סגור"
       hideCancel={false}

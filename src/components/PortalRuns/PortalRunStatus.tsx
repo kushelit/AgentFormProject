@@ -23,14 +23,15 @@ export default function PortalRunStatus({ db, runId, onFinished }: Props) {
   const otpHint = String((run as any)?.otp?.hint || "");
 
   const isDone = status === "done" || status === "skipped";
-  const isError = status === "error";
+  const isError = status === "error" || status === "failed";
   const isOtpManual = status === "otp_required" && otpMode === "manual";
-const isSuccess = status === "success" || status === "done";
+  const isSuccess = status === "success" || status === "done";
 
   const statusLabel = useMemo(() => {
     if (!status) return "—";
     if (status === "queued") return "ממתין להפעלה…";
     if (status === "running") return "מריץ אוטומציה…";
+    if (status === "failed") return "❌ הריצה בוטלה על ידי המשתמש"; 
     if (status === "otp_required") {
       if (otpMode === "manual") return "ממתין להזנת OTP בפורטל…";
       return "ממתין לקוד OTP…";
