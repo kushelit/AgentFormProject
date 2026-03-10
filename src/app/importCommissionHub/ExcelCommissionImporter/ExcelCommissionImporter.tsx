@@ -134,7 +134,9 @@ const { canAccess: canAutoDownload, isChecking: isCheckingAutoDownload } =
     [templateId, templateOptions]
   );
 
-  const VAT_DEFAULT = 0.17;
+const [importProgress, setImportProgress] = useState(0);
+
+  const VAT_DEFAULT = 0.18;
 
 
 
@@ -182,7 +184,7 @@ useEffect(() => {
 // --- לוגיקת ניהול ה-Runner (OTA & Download) ---
 const [latestRunnerVersion, setLatestRunnerVersion] = useState<string>("");
 const [currentRunnerVersion, setCurrentRunnerVersion] = useState<string>("");
-const INSTALLER_URL = "https://firebasestorage.googleapis.com/v0/b/magicsale-test.firebasestorage.app/o/installers%2FMagicSaleSetup.exe?alt=media&token=48eb2fc5-75d3-4ef5-988b-5c11b3c53cd9"; // הלינק מה-Storage
+const INSTALLER_URL = "https://firebasestorage.googleapis.com/v0/b/agentsale-693e8.firebasestorage.app/o/installers%2FMagicSaleSetup.exe?alt=media&token=0f53f279-d2bd-468f-bb3f-a84c2e7110d3"; // הלינק מה-Storage
 
 const isAutoEnabledByFlag = autoDownloadFlag?.enabled !== false;
 const autoDisabledReason =
@@ -1293,6 +1295,7 @@ const processChosenZipEntry = async () => {
   ============================== */
   async function writeExternalRowsInChunks(rows: any[]) {
     const CHUNK = 450;
+    const total = rows.length;
     for (let i = 0; i < rows.length; i += CHUNK) {
       const slice = rows.slice(i, i + CHUNK);
       const batch = writeBatch(db);
@@ -1301,6 +1304,9 @@ const processChosenZipEntry = async () => {
         batch.set(ref, r);
       }
       await batch.commit();
+      const percent = Math.floor((i / total) * 70); 
+    setImportProgress(percent);
+    setLoadingStage(`שומר נתונים... ${percent}%`);
     }
   }
 
@@ -1320,6 +1326,7 @@ const processChosenZipEntry = async () => {
 
   async function writePolicySummariesInBatch(summaries: PolicyCommissionSummary[]) {
     const CHUNK = 450;
+    const total = summaries.length;
     for (let i = 0; i < summaries.length; i += CHUNK) {
       const slice = summaries.slice(i, i + CHUNK);
       const batch = writeBatch(db);
@@ -1332,7 +1339,11 @@ const processChosenZipEntry = async () => {
         );
       }
       await batch.commit();
+      const currentPercent = Math.floor(70 + (i / total) * 30);
+    setImportProgress(currentPercent);
+    setLoadingStage(`יוצר סיכומי פוליסות... ${currentPercent}%`);
     }
+    setImportProgress(100);
   }
 
   /* ==============================
@@ -1974,12 +1985,29 @@ const isUpdateAvailable = latestRunnerVersion && currentRunnerVersion && latestR
     hideCancel
   />
 )}
-    {isLoading && (
+ {isLoading && (
   <div className="fixed inset-0 bg-white/80 backdrop-blur-sm z-[9999] flex items-center justify-center">
-    <div className="text-center p-8 bg-white rounded-2xl shadow-2xl border border-blue-50">
-      <div className="w-16 h-16 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin mx-auto mb-4"></div>
-      <h3 className="text-xl font-bold text-gray-800 mb-2">מעבד קובץ גדול...</h3>
-      <p className="text-blue-600 font-medium animate-pulse h-6">
+    <div className="text-center p-8 bg-white rounded-2xl shadow-2xl border border-blue-50 w-80">
+      <div className="relative mb-6">
+        {/* ספינר */}
+        <div className="w-20 h-20 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin mx-auto"></div>
+        {/* מספר האחוזים במרכז הספינר */}
+        <div className="absolute inset-0 flex items-center justify-center text-sm font-bold text-blue-700">
+          {importProgress}%
+        </div>
+      </div>
+
+      <h3 className="text-xl font-bold text-gray-800 mb-2">מעבד נתונים...</h3>
+      
+      {/* פס התקדמות ויזואלי */}
+      <div className="w-full bg-gray-100 h-2 rounded-full overflow-hidden mb-4 border border-gray-50">
+        <div 
+          className="bg-blue-600 h-full transition-all duration-300 ease-out"
+          style={{ width: `${importProgress}%` }}
+        />
+      </div>
+
+      <p className="text-blue-600 font-medium animate-pulse text-sm">
         {loadingStage || "אנא המתן..."}
       </p>
     </div>

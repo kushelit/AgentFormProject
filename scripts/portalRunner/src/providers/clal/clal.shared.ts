@@ -97,34 +97,6 @@ export async function clalLogin(page: Page, username: string, password: string) 
 }
 
 
-/**
- * טיפול ב-OTP מתוך המערכת (Magic) - גרסה סופית ומסונכרנת
- */
-/**
- * טיפול ב-OTP מתוך המערכת (Magic) - הזרקה חסינה בסגנון Login
- */
-
-/**
- * טיפול ב-OTP - הזרקה חסינה בסגנון Login עם תיקון שליפת ה-DB
- */
-/**
- * טיפול ב-OTP - הזרקה חסינה בסגנון Login תוך שימוש ב-pollOtp המובנה
- */
-
-/**
- * טיפול ב-OTP - הזרקה חסינה בשיטת String Injection (זהה ללוגין)
- */
-
-/**
- * טיפול ב-OTP - גרסה חסינה לשגיאות Serialization ב-EXE
- */
-/**
- * טיפול ב-OTP - גרסה סופית ל-EXE: סגירת מודאל ומניעת שגיאות Serialization
- */
-
-/**
- * טיפול ב-OTP - גרסה סופית ל-EXE: סגירת מודאל מיידית ובדיקה גמישה
- */
 export async function clalHandleOtp(page: Page, ctx: RunnerCtx) {
   const { runId, setStatus, pollOtp, clearOtp, run } = ctx;
   const monthLabel = run?.monthLabel || "חודש נוכחי";

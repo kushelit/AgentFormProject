@@ -93,9 +93,13 @@ export async function runClalAll(ctx: RunnerCtx) {
     await page.bringToFront().catch(() => {});
 
     console.log("[Clal] Navigating to portal...");
+      await setStatus(runId, { status: "running", step: " Navigating to portal", monthLabel });
+
     await page.goto(portalUrl, { waitUntil: "commit", timeout: 60000 });
     
     // הזרקת לוגין
+    await setStatus(runId, { status: "running", step: " Logging in", monthLabel });
+
     await clalLogin(page, username, password);
 
    // --- שלב ה-OTP: עדכון סטטוס שמפעיל את המודאל ב-Magic ---
@@ -111,15 +115,21 @@ export async function runClalAll(ctx: RunnerCtx) {
     // קריאה לפונקציה שתמתין לקוד ותזריק אותו
     await clalHandleOtp(page, ctx);
 
+     await setStatus(runId, { status: "running", step: "Navigating to commissions page", monthLabel });
+
     // מעבר לדף עמלות (פתיחת טאב חדש)
     const commissionsPage = await gotoCommissionsPage(page);
 
     // המתנה קריטית: ב-EXE דף העמלות נטען לאט בגלל F5 ו-Angular
     console.log("[Clal] Waiting for commissions page to stabilize...");
+    await setStatus(runId, { status: "running", step: " Stabilizing commissions page", monthLabel });
+
     await commissionsPage.waitForTimeout(4000); 
     await waitClalLoaderGone(commissionsPage, 30000);
 
     // בחירת סוכנים וחיפוש (לפי הזרקת String)
+    await setStatus(runId, { status: "running", step: " Selecting agents", monthLabel });
+
     await openAgentsDropdownAndSelectAll(commissionsPage);
     await clickSearchOnly(commissionsPage);
 
@@ -130,9 +140,9 @@ export async function runClalAll(ctx: RunnerCtx) {
     const REPORTS: any[] = [
       { linkText: "חיים", templateId: "clal_life", stepPrefix: "clal_life", preExportTabHeading: "פוליסה" },
       { linkText: "גמל", templateId: "clal_gemel", stepPrefix: "clal_gemel", preExportTabHeading: "עמיתים" },
-      { linkText: "בריאות", templateId: "clal_briut", stepPrefix: "clal_briut" , preExportTabHeading: "פוליסות"},
-    //  { linkText: "פנסיה", templateId: "clal_pensia", stepPrefix: "clal_pensia", preExportTabHeading: "עמיתים" },
-    
+     { linkText: "פנסיה", templateId: "clal_pensia", stepPrefix: "clal_pensia", preExportTabHeading: "עמיתים" },
+    { linkText: "בריאות", templateId: "clal_briut", stepPrefix: "clal_briut" , preExportTabHeading: "פוליסות"},
+
     ];
 
     for (const rep of REPORTS) {

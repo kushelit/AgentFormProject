@@ -17,7 +17,8 @@ import { fetchSourceLeadsForAgent } from '@/services/sourceLeadService';
 const systemFields = [
   "firstNameCustomer", "lastNameCustomer", "IDCustomer", "company", "product",
   "insPremia", "pensiaPremia", "pensiaZvira", "finansimPremia", "finansimZvira",
-  "mounth", "statusPolicy", "minuySochen", "notes", "workerName", "sourceValue", "cancellationDate"
+  "mounth", "statusPolicy", "minuySochen", "notes", "workerName",
+   "sourceValue", "cancellationDate" ,"policyNumber"
 ];
 
 const systemFieldsDisplay = [
@@ -29,6 +30,7 @@ const systemFieldsDisplay = [
   { key: "product", label: "מוצר", required: true },
   { key: "mounth", label: "חודש", required: true },
   { key: "statusPolicy", label: "סטטוס", required: true },
+  { key: "policyNumber", label: "מספר פוליסה", required: false }, 
   { key: "minuySochen", label: "מינוי סוכן", required: false },
   { key: "notes", label: "הערות", required: false },
   { key: "insPremia", label: "פרמיית ביטוח", required: false },
@@ -772,8 +774,10 @@ if (field === "sourceValue") {
         if (systemField === "mounth") {
           mappedRow[systemField] = String(originalRow["mounth"] ?? "").trim();
         } else if (systemField === "cancellationDate") {
-          mappedRow[systemField] = String(originalRow["cancellationDate"] ?? "").trim(); // ← חדש
-        } else {          mappedRow[systemField] = String(originalRow[excelCol] ?? "").trim();
+          mappedRow[systemField] = String(originalRow["cancellationDate"] ?? "").trim(); 
+          } else if (systemField === "policyNumber") {
+         mappedRow[systemField] = String(originalRow[excelCol] ?? "").trim();
+        } else { mappedRow[systemField] = String(originalRow[excelCol] ?? "").trim();
         }
       }
 
@@ -827,6 +831,7 @@ if (field === "sourceValue") {
           cancellationDate: mappedRow.cancellationDate || "",  // ← חדש
           statusPolicy: mappedRow.statusPolicy || "",
           notes: mappedRow.notes || "",
+          policyNumber: mappedRow.policyNumber || "",
           createdAt: serverTimestamp(),
           lastUpdateDate: serverTimestamp(),
           sourceApp: "importExcel",
@@ -1403,7 +1408,9 @@ if (field === "sourceValue") {
                           if (fieldKey === "mounth") {
                             value = row["mounth"];
                           } else if (fieldKey === "cancellationDate") {
-                            value = row["cancellationDate"]; // ← חדש
+                            value = row["cancellationDate"]; 
+                            } else if (fieldKey === "policyNumber") {
+                        value = row["policyNumber"] || (excelCol ? row[excelCol] : "");
                           } else if (excelCol) {
                             value = row[excelCol];
                           } else {
