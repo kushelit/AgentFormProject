@@ -28,6 +28,15 @@ function s(v: any) {
   return String(v ?? "").trim();
 }
 
+// function pickRefreshToken(cred: UserCredential): string {
+//   const u: any = cred?.user as any;
+//   const a = s(u?.stsTokenManager?.refreshToken);
+//   if (a) return a;
+//   const b = s(u?.refreshToken);
+//   if (b) return b;
+//   return "";
+// }
+
 function pickRefreshToken(cred: UserCredential): string {
   const u: any = cred?.user as any;
   const a = s(u?.stsTokenManager?.refreshToken);

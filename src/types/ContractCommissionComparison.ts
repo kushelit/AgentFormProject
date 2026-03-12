@@ -33,6 +33,7 @@ export type ContractComparisonRow = {
   customerId?: string;
 
   templateId?: string;
+  productGroup?: string;
   productRaw?: string;
 
   canonicalProduct?: string;

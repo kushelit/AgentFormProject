@@ -84,6 +84,9 @@ export function buildContractComparisonRow(args: {
   const resolved = resolveFromTemplate(template, row.product);
 
   const canonicalProduct = resolved.canonicalProduct;
+  const productInfo = canonicalProduct ? systemProductMap[canonicalProduct] : undefined;
+const productGroupId = productInfo?.productGroup;
+
   const premiumFieldUsed = resolved.premiumFieldUsed;
 
   // compute expected amount via calculateCommissions using saleMock + found contract
@@ -137,6 +140,7 @@ export function buildContractComparisonRow(args: {
     productRaw: row.product,
 
     canonicalProduct,
+    productGroup: productGroupId,
     premiumFieldUsed,
     premiumAmount,
 

@@ -16,6 +16,7 @@ import type { CommissionSplit } from '@/types/CommissionSplit';
 // ✅ Contracts comparison (new tab)
 import type { ViewMode, ContractComparisonRow } from '@/types/ContractCommissionComparison';
 import { useContractsComparison } from '@/hooks/useContractsComparison';
+import useFetchMD from '@/hooks/useMD';
 
 /* ---------- types ---------- */
 
@@ -23,6 +24,7 @@ type ExternalCommissionRow = {
   policyNumber: string | number;
   commissionAmount: number;
   company: string;
+  product?: string;
   reportMonth?: string;
   customerId?: string;
   agentCode?: string;
@@ -49,13 +51,14 @@ type ComparisonRow = {
 
 const statusOptions = [
   { value: '', label: 'הצג הכל' },
-  { value: 'unchanged', label: 'ללא שינוי' },
-  { value: 'changed', label: 'שינוי' },
+  { value: 'unchanged', label: 'לתקין / בטווח סטייה' },
+  { value: 'changed', label: 'פער הדורש בדיקה' },
   { value: 'not_reported', label: 'לא דווח בקובץ' },
   { value: 'not_found', label: 'אין מכירה במערכת' },
 ] as const;
 
 /* ---------- helpers ---------- */
+
 
 const canon = (v?: string | null) => String(v ?? '').trim();
 
@@ -227,7 +230,7 @@ export default function CompareReportedVsMagic() {
 //   const isAdmin = detail?.role === 'admin';
 // const canSeeContractsTab = isAdmin; // ✅ רק אדמין
 
-const ENABLE_CONTRACTS_COMPARE = false; // ⛔ כרגע כבוי בייצור
+const ENABLE_CONTRACTS_COMPARE = true; // ⛔ כרגע כבוי בייצור
 
 const canSeeContractsTab = ENABLE_CONTRACTS_COMPARE;
 
@@ -239,8 +242,8 @@ const canSeeContractsTab = ENABLE_CONTRACTS_COMPARE;
   const [splitEnabled, setSplitEnabled] = useState<boolean>(false);
 
   const [availableCompanies, setAvailableCompanies] = useState<string[]>([]);
-  const [rows, setRows] = useState<ComparisonRow[]>([]);
-  const [isLoading, setIsLoading] = useState<boolean>(false);
+const [rawSalesRows, setRawSalesRows] = useState<ComparisonRow[]>([]);
+const [isLoading, setIsLoading] = useState<boolean>(false);
 
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [agentCodeFilter, setAgentCodeFilter] = useState<string>('');
@@ -272,9 +275,6 @@ const canSeeContractsTab = ENABLE_CONTRACTS_COMPARE;
 
   // read `family=1` once
   const hydratedOnce = useRef(false);
-
-
-  const SHOW_CONTRACTS_TAB = false; // ✅ זמני
 
   // ✅ Contracts hook
   const {
@@ -391,6 +391,27 @@ const canSeeContractsTab = ENABLE_CONTRACTS_COMPARE;
       if (saveToleranceTimer.current) clearTimeout(saveToleranceTimer.current);
     };
   }, [toleranceAmount, tolerancePercent, selectedAgentId]);
+
+
+const rows = useMemo(() => {
+  return rawSalesRows.map(r => {
+    // אם הפוליסה לא נמצאה בכלל, אין מה לבדוק סטייה
+    if (r.status === 'not_found' || r.status === 'not_reported') return r;
+
+    const diffVal = Math.abs(r.diff);
+    const diffPercVal = r.diffPercent;
+
+    // כאן קורה הקסם: בדיקה מול הספים שהזנת בתיבות
+    const isWithinTolerance = diffVal <= toleranceAmount || diffPercVal <= tolerancePercent;
+    
+    return {
+      ...r,
+      status: (isWithinTolerance ? 'unchanged' : 'changed') as Status
+    };
+  });
+}, [rawSalesRows, toleranceAmount, tolerancePercent]);
+
+
 
   /* --- hydrate once from URL --- */
   useEffect(() => {
@@ -568,7 +589,7 @@ const canSeeContractsTab = ENABLE_CONTRACTS_COMPARE;
   /* ---------- core fetch (Sales) ---------- */
   const fetchData = useCallback(async () => {
     if (!selectedAgentId || !reportMonth) {
-      setRows([]);
+      setRawSalesRows([]);
       return;
     }
     setIsLoading(true);
@@ -605,6 +626,7 @@ if (lockedToCustomer) {
             policyNumber: pol,
             commissionAmount: Number((raw as any).totalCommissionAmount ?? 0),
             company: comp,
+            product: (raw as any).product || (raw as any).productRaw || 'מוצר לא מזוהה',
             reportMonth: (raw as any).reportMonth,
             customerId: String((raw as any).customerId ?? '').trim() || undefined,
             agentCode: String((raw as any).agentCode ?? '').trim() || undefined,
@@ -629,6 +651,7 @@ if (lockedToCustomer) {
             policyNumber: pol,
             commissionAmount: Number(raw.totalCommissionAmount ?? 0),
             company: comp,
+            product: (raw as any).product || (raw as any).productRaw || 'מוצר לא מזוהה',
             reportMonth: raw.reportMonth,
             customerId: cid || undefined,
             agentCode: String(raw.agentCode ?? '').trim() || undefined,
@@ -651,6 +674,7 @@ if (lockedToCustomer) {
           commissionAmount: Number(raw.totalCommissionAmount ?? 0),
           company: comp,
           reportMonth: raw.reportMonth,
+          product: (raw as any).product || (raw as any).productRaw || 'מוצר לא מזוהה',
           customerId: String(raw.customerId ?? '').trim() || undefined,
           agentCode: String(raw.agentCode ?? '').trim() || undefined,
           _company: comp,
@@ -835,6 +859,7 @@ if (lockedToCustomer) {
           status: 'not_found',
           agentCode: reported.agentCode,
           customerId: reported.customerId,
+          product: (reported as any).product || (reported as any).productRaw || 'מוצר לא מזוהה',
           _rawKey: key,
           _extRow: reported,
         });
@@ -893,14 +918,14 @@ if (lockedToCustomer) {
           status,
           agentCode: reported.agentCode,
           customerId: reported.customerId ?? customerForDisplay,
-          product: productForDisplay,
+          product: productForDisplay || (reported as any).product || 'מוצר לא מזוהה',
           _rawKey: key,
           _extRow: reported,
         });
       }
     }
 
-    setRows(computed);
+setRawSalesRows(computed);
     setIsLoading(false);
   }, [
     selectedAgentId,
@@ -1060,13 +1085,19 @@ if (lockedToCustomer) {
     XLSX.writeFile(wb, `השוואת_טעינה_מול_MAGIC_${company || 'כל_החברות'}_${reportMonth || 'חודש'}.xlsx`);
   };
 
-  const statusSummary = useMemo(() => {
-    return filtered.reduce((acc, r) => {
-      acc[r.status] = (acc[r.status] || 0) + 1;
-      return acc;
-    }, {} as Record<Status, number>);
-  }, [filtered]);
+const statusSummary = useMemo(() => {
+  const summary = { unchanged: 0, changed: 0, not_found: 0, not_reported: 0 };
+  
+  // רק אם אנחנו בלשונית מכירות, נחשב את הסטטוסים האלו
+  if (viewMode === 'sales') {
+    rows.forEach(r => {
+      if (summary[r.status] !== undefined) summary[r.status]++;
+    });
+  }
+  return summary;
+}, [rows, viewMode]);
 
+  
   /* ---------- derived (contracts) ---------- */
 
   const filteredContracts = useMemo(() => {
@@ -1088,12 +1119,17 @@ if (lockedToCustomer) {
     [filteredContracts, contractDrillStatus]
   );
 
-  const contractStatusSummary = useMemo(() => {
-    return filteredContracts.reduce((acc, r) => {
-      acc[r.status] = (acc[r.status] || 0) + 1;
-      return acc;
-    }, {} as Record<ContractStatus, number>);
-  }, [filteredContracts]);
+// ✅ הוספת סיכום ייעודי ללשונית חוזים
+const contractStatusSummary = useMemo(() => {
+  const summary = { ok: 0, diff: 0, no_contract: 0, no_template: 0 };
+  
+  if (viewMode === 'contracts') {
+    contractRows.forEach(r => {
+      if (summary[r.status] !== undefined) summary[r.status]++;
+    });
+  }
+  return summary;
+}, [contractRows, viewMode]);
 
   const handleExportContracts = () => {
     const totalsC = visibleContractRows.reduce(
@@ -1159,526 +1195,409 @@ if (lockedToCustomer) {
 
   const hasActiveData = isContracts ? contractRows.length > 0 : rows.length > 0;
 
+const insights = useMemo(() => {
+  // חישובים עבור טאב החוזים בלבד
+  const diffRows = contractRows.filter(r => r.status === 'diff');
+  const noContractRows = contractRows.filter(r => r.status === 'no_contract');
+  
+  // חישוב החברה הכי בעייתית (לפי סך פער כספי)
+  const companySums = diffRows.reduce((acc, r) => {
+    acc[r.company] = (acc[r.company] || 0) + Math.abs(r.amountDiff);
+    return acc;
+  }, {} as Record<string, number>);
+  
+  const worstCompany = Object.entries(companySums).sort((a, b) => b[1] - a[1])[0];
+
+  return {
+    totalLostMoney: diffRows.reduce((sum, r) => sum + (r.amountDiff < 0 ? Math.abs(r.amountDiff) : 0), 0),
+    worstCompanyName: worstCompany?.[0] || 'אין חריגות',
+    noContractCount: noContractRows.length,
+    diffCount: diffRows.length,
+    okCount: contractRows.filter(r => r.status === 'ok').length
+  };
+}, [contractRows]);
+
+
+  const {
+    productGroupsDB, 
+  } = useFetchMD();
+
+  
+const getGroupName = (id?: string) => {
+  if (!id) return 'ללא קבוצה';
+  return productGroupsDB.find(g => g.id === id)?.name || `קבוצה ${id}`;
+};
+
+
+
   /* ---------- UI ---------- */
+return (
+    <div className="p-6 max-w-7xl mx-auto text-right bg-slate-50 min-h-screen" dir="rtl">
+      
+      {/* --- Header & View Switcher --- */}
+      <div className="flex flex-col md:flex-row items-center justify-between mb-6 gap-4 bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-800 text-right">השוואת טעינת עמלות</h1>
+          <p className="text-sm text-slate-500 mt-1 text-right">ניהול ובקרת הפרשים בין קבצי חברה למערכת MAGIC והסכמי סוכן</p>
+        </div>
 
-  return (
-    <div className="compare-page p-6 max-w-7xl mx-auto text-right" dir="rtl">
-      <div className="flex items-center justify-between mb-4">
-        <h1 className="text-2xl font-bold">השוואת טעינת עמלות (קובץ) מול MAGIC</h1>
-
-        {canSeeContractsTab ? (
-  <div className="flex items-center rounded-full border border-blue-200 bg-blue-50 p-1 gap-1">
-    <button
-      type="button"
-      onClick={() => {
-        setViewMode('sales');
-        setContractDrillStatus(null);
-        setContractStatusFilter('');
-      }}
-      className={`px-4 py-1.5 rounded-full text-sm font-semibold transition ${
-        viewMode === 'sales'
-          ? 'bg-white text-blue-700 shadow-sm'
-          : 'text-gray-500 hover:text-blue-700'
-      }`}
-    >
-      השוואה מול Magic 
-    </button>
-
-    <button
-      type="button"
-      onClick={() => {
-        setViewMode('contracts');
-        setDrillStatus(null);
-        setStatusFilter('');
-      }}
-      className={`px-4 py-1.5 rounded-full text-sm font-semibold transition ${
-        viewMode === 'contracts'
-          ? 'bg-white text-blue-700 shadow-sm'
-          : 'text-gray-500 hover:text-blue-700'
-      }`}
-    >
-      השוואה מול הסכם 
-    </button>
-  </div>
-) : null}
-
-        {canGoBack ? (
+        <div className="flex items-center rounded-xl border border-slate-200 bg-slate-100 p-1 gap-1">
           <button
-            type="button"
-            onClick={handleBackToCustomer}
-            className="px-3 py-1.5 rounded bg-gray-200 hover:bg-gray-300"
+            onClick={() => { setViewMode('sales'); setDrillStatus(null); }}
+            className={`px-6 py-2 rounded-lg text-sm font-bold transition-all ${viewMode === 'sales' ? 'bg-white text-blue-700 shadow-md' : 'text-slate-500 hover:text-blue-600'}`}
           >
+            השוואה מול Magic
+          </button>
+          <button
+            onClick={() => { setViewMode('contracts'); setContractDrillStatus(null); }}
+            className={`px-6 py-2 rounded-lg text-sm font-bold transition-all ${viewMode === 'contracts' ? 'bg-white text-blue-700 shadow-md' : 'text-slate-500 hover:text-blue-600'}`}
+          >
+            השוואה מול הסכם
+          </button>
+        </div>
+        
+        {canGoBack && (
+          <button onClick={handleBackToCustomer} className="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 rounded-lg border border-slate-200 transition">
             ← חזרה ללקוח
           </button>
-        ) : null}
+        )}
       </div>
 
-      {/* DASHBOARD */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-        <div className="p-6 rounded-xl border bg-emerald-50">
-          <div className="text-emerald-800 font-semibold mb-1">
-            {viewMode === 'contracts' ? 'צפוי לפי הסכם' : 'MAGIC – נפרעים'}
+      {/* --- Unified Filters Area --- */}
+      <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 mb-6 text-right">
+        <div className="grid grid-cols-1 sm:grid-cols-5 gap-4 items-end">
+          <div className="text-right">
+            <label className="block mb-1 text-xs font-bold text-slate-600 text-right">בחר סוכן</label>
+            <select value={selectedAgentId} onChange={handleAgentChange} className="select-input w-full bg-slate-50 border-slate-200 text-right">
+              {detail?.role === 'admin' && <option value="">כל הסוכנים</option>}
+              {agents.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+            </select>
           </div>
-          <div className="text-3xl font-bold">{activeTotals.expected.toLocaleString()} ₪</div>
-        </div>
-        <div className="p-6 rounded-xl border bg-sky-50">
-          <div className="text-sky-800 font-semibold mb-1">קובץ טעינה – סכום</div>
-          <div className="text-3xl font-bold">{activeTotals.reported.toLocaleString()} ₪</div>
-        </div>
-        <div className="p-6 rounded-xl border bg-amber-50">
-          <div className="text-amber-800 font-semibold mb-1">
-            {viewMode === 'contracts' ? 'Delta (קובץ − צפוי)' : 'Delta (קובץ − MAGIC)'}
+          <div className="text-right">
+            <label className="block mb-1 text-xs font-bold text-slate-600 text-right">חברה</label>
+            <select value={company} onChange={e => setCompany(e.target.value)} className="select-input w-full bg-slate-50 border-slate-200 text-right">
+              <option value="">כל החברות</option>
+              {availableCompanies.map((c, i) => <option key={i} value={c}>{c}</option>)}
+            </select>
           </div>
-          <div className="text-3xl font-bold">{activeTotals.delta.toLocaleString()} ₪</div>
-        </div>
-      </div>
-
-      {/* filters row */}
-      <div className="grid grid-cols-1 sm:grid-cols-5 gap-3 mb-4 items-end">
-        {/* בחר סוכן */}
-        <div>
-          <label className="block mb-1 font-semibold">בחר סוכן:</label>
-          <select value={selectedAgentId} onChange={handleAgentChange} className="select-input w-full">
-            {detail?.role === 'admin' && <option value="">בחר סוכן</option>}
-            {agents.map(a => (
-              <option key={a.id} value={a.id}>
-                {a.name}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {/* בחר חברה */}
-        <div>
-          <label className="block mb-1 font-semibold">בחר חברה (רשות):</label>
-          <select value={company} onChange={e => setCompany(e.target.value)} className="select-input w-full">
-            <option value="">כל החברות</option>
-            {availableCompanies.map((c, i) => (
-              <option key={i} value={c}>
-                {c}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {/* חודש דיווח */}
-        <div>
-          <label className="block mb-1 font-semibold">חודש דיווח (קובץ):</label>
-          <input
-            type="month"
-            value={reportMonth}
-            onChange={e => setReportMonth(e.target.value)}
-            className="input w-full"
-          />
-        </div>
-
-        {/* תא משפחתי */}
-        <div className="flex items-center h-full">
-          <label className="inline-flex items-center gap-2">
-            <input type="checkbox" checked={includeFamily} onChange={e => setIncludeFamily(e.target.checked)} />
-            תא משפחתי
-          </label>
-        </div>
-
-        {/* מתג פיצול עמלות */}
-        <div className="flex items-center h-full">
-          <div className="flex bg-blue-100 rounded-full p-0.5 text-xs">
-            <button
-              type="button"
-              onClick={() => setSplitEnabled(false)}
-              className={`px-3 py-0.5 rounded-full transition-all duration-200 ${
-                !splitEnabled ? 'bg-white text-blue-800 font-bold' : 'text-gray-500'
-              }`}
-            >
-              ללא פיצול עמלות
-            </button>
-            <button
-              type="button"
-              onClick={() => setSplitEnabled(true)}
-              className={`px-3 py-0.5 rounded-full transition-all duration-200 ${
-                splitEnabled ? 'bg-white text-blue-800 font-bold' : 'text-gray-500'
-              }`}
-            >
-              עם פיצול עמלות
-            </button>
+          <div className="text-right">
+            <label className="block mb-1 text-xs font-bold text-slate-600 text-right">חודש דיווח</label>
+            <input type="month" value={reportMonth} onChange={e => setReportMonth(e.target.value)} className="input w-full bg-slate-50 border-slate-200 text-right" />
+          </div>
+          <div className="flex flex-col gap-2 pb-1 text-right">
+             <label className="inline-flex items-center gap-2 cursor-pointer text-sm font-medium text-slate-700">
+               <input type="checkbox" checked={includeFamily} onChange={e => setIncludeFamily(e.target.checked)} className="rounded text-blue-600 focus:ring-blue-500" />
+               תא משפחתי
+             </label>
+             <div className="flex bg-slate-100 rounded-lg p-0.5 text-[10px] border border-slate-200">
+                <button onClick={() => setSplitEnabled(false)} className={`flex-1 py-1 px-2 rounded-md transition ${!splitEnabled ? 'bg-white shadow-sm font-bold text-blue-700' : 'text-slate-500'}`}>ללא פיצול</button>
+                <button onClick={() => setSplitEnabled(true)} className={`flex-1 py-1 px-2 rounded-md transition ${splitEnabled ? 'bg-white shadow-sm font-bold text-blue-700' : 'text-slate-500'}`}>עם פיצול</button>
+             </div>
+          </div>
+          <div className="flex gap-2 text-right">
+             <div className="flex-1 text-right">
+                <label className="block mb-1 text-[10px] font-bold text-slate-500 text-right">סף סטייה (₪)</label>
+                <input type="number" step="0.01" value={toleranceAmount} onChange={e => setToleranceAmount(Number(e.target.value))} className="input w-full bg-slate-50 border-slate-200 h-9 text-xs text-right" />
+             </div>
+             <div className="flex-1 text-right">
+                <label className="block mb-1 text-[10px] font-bold text-slate-500 text-right">סף סטייה (%)</label>
+                <input type="number" step="0.01" value={tolerancePercent} onChange={e => setTolerancePercent(Number(e.target.value))} className="input w-full bg-slate-50 border-slate-200 h-9 text-xs text-right" />
+             </div>
           </div>
         </div>
       </div>
 
-      {/* search / status / export + ספי סטייה */}
-      {hasActiveData && (
-        <div className="flex flex-col sm:flex-row gap-3 mb-4 items-end">
-          <input
-            type="text"
-            placeholder="חיפוש לפי מס׳ פוליסה / ת״ז"
-            value={searchTerm}
-            onChange={e => setSearchTerm(e.target.value)}
-            className="input w-full sm:w-1/3 text-right"
-          />
+   {/* --- שורת סיכום כספי (KPIs) --- */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        
+        {/* 1. מה שנטען מהקובץ */}
+        <div className="bg-white p-5 rounded-2xl shadow-sm border-b-4 border-sky-500 transition-transform hover:scale-[1.01]">
+          <div className="text-slate-500 text-xs mb-1 text-right font-bold">סך עמלה בקובץ (חברה)</div>
+          <div className="text-3xl font-black text-sky-700 text-right">
+            {activeTotals.reported.toLocaleString()} ₪
+          </div>
+          <div className="text-[10px] text-slate-400 mt-2 text-right italic">
+            סך הכל כפי שדווח על ידי חברות הביטוח
+          </div>
+        </div>
 
-          {/* Sales-only agentCode */}
-          {viewMode === 'sales' && (
-            <select
-              value={agentCodeFilter}
-              onChange={e => setAgentCodeFilter(e.target.value)}
-              className="select-input w-full sm:w-1/3"
-            >
-              <option value="">מס׳ סוכן (מהקובץ)</option>
-              {agentCodes.map(code => (
-                <option key={code} value={code}>
-                  {code}
-                </option>
-              ))}
-            </select>
-          )}
+        {/* 2. מה שהיה אמור להיות (Magic / הסכם) */}
+        <div className="bg-white p-5 rounded-2xl shadow-sm border-b-4 border-emerald-500 transition-transform hover:scale-[1.01]">
+          <div className="text-slate-500 text-xs mb-1 text-right font-bold">
+            {viewMode === 'contracts' ? 'סך עמלה לפי הסכם' : 'סך עמלה צפויה (Magic)'}
+          </div>
+          <div className="text-3xl font-black text-emerald-700 text-right">
+            {activeTotals.expected.toLocaleString()} ₪
+          </div>
+          <div className="text-[10px] text-slate-400 mt-2 text-right italic">
+            הסכום המחושב במערכת {viewMode === 'contracts' ? 'מול ההסכמים' : 'מול נתוני המכירות'}
+          </div>
+        </div>
 
-          {/* status filter per tab */}
-          {viewMode === 'sales' ? (
-            <select
-              value={statusFilter}
-              onChange={e => setStatusFilter(e.target.value as Status | '')}
-              className="select-input w-full sm:w-1/3"
-            >
-              {statusOptions.map(s => (
-                <option key={s.value} value={s.value}>
-                  {s.label}
-                </option>
-              ))}
-            </select>
-          ) : (
-            <select
-              value={contractStatusFilter}
-              onChange={e => setContractStatusFilter(e.target.value as ContractStatus | '')}
-              className="select-input w-full sm:w-1/3"
-            >
-              {contractStatusOptions.map(s => (
-                <option key={String(s.value)} value={s.value}>
-                  {s.label}
-                </option>
-              ))}
-            </select>
-          )}
+        {/* 3. הפער הסופי */}
+        <div className="bg-white p-5 rounded-2xl shadow-sm border-b-4 border-rose-500 transition-transform hover:scale-[1.01]">
+          <div className="text-slate-500 text-xs mb-1 text-right font-bold">פער כספי</div>
+          <div className="text-3xl font-black text-rose-600 text-right">
+            {activeTotals.delta.toLocaleString()} ₪
+          </div>
+          <div className="text-[10px] text-slate-400 mt-2 text-right italic">
+             {activeTotals.delta < 0 ? 'חוסר בעמלה לטובת הסוכן' : 'עודף עמלה בקובץ'}
+          </div>
+        </div>
+      </div>
+{/* --- שורת סטטיסטיקה משנית (ציון תקינות וחריגות) --- */}
+<div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+  
+  {/* 1. כרטיסיית תקינות - עובדת נכון ✅ */}
+  <div className="bg-white py-4 px-6 rounded-2xl shadow-sm border border-slate-100 flex justify-between items-center">
+    <span className="text-slate-500 text-xs font-bold">ציון תקינות דוח:</span>
+    <span className="text-xl font-black text-emerald-600">
+      {viewMode === 'contracts' 
+        ? (contractRows.length > 0 ? Math.round((contractStatusSummary.ok / contractRows.length) * 100) : 0)
+        : (rows.length > 0 ? Math.round((statusSummary.unchanged / rows.length) * 100) : 0)
+      }%
+    </span>
+  </div>
 
-          {/* tolerances + export */}
-          <div className="flex items-end gap-3 w-full sm:w-auto">
-            <div className="w-40">
-              <label className="block mb-1 text-xs font-medium">סף סטייה בסכום (₪)</label>
-              <input
-                type="number"
-                step="0.01"
-                min="0"
-                value={toleranceAmount}
-                onChange={e => setToleranceAmount(Number(e.target.value) || 0)}
-                className="input h-9 px-2 w-full text-right text-sm"
-                placeholder="למשל 5"
+  {/* 2. כרטיסיית מוקד חריגה - עודכן להיות דינמי ⚡ */}
+  <div className="bg-white py-4 px-6 rounded-2xl shadow-sm border border-slate-100 flex justify-between items-center">
+    <span className="text-slate-500 text-xs font-bold text-right">מוקד חריגה מרכזי:</span>
+    <span className="text-sm font-black text-rose-600 truncate max-w-[150px]">
+      {viewMode === 'contracts' 
+        ? (contractStatusSummary.diff > 0 ? (company || 'חברות מרובות') : 'אין חריגות')
+        : (statusSummary.changed > 0 ? (company || 'חברות מרובות') : 'אין חריגות')
+      }
+    </span>
+  </div>
+
+  {/* 3. כרטיסיית הפעולה - עובדת נכון ✅ */}
+  <div 
+    onClick={() => viewMode === 'contracts' ? setContractStatusFilter('diff') : setStatusFilter('changed')}
+    className="bg-rose-50 py-4 px-6 rounded-2xl shadow-sm border border-rose-100 flex justify-between items-center cursor-pointer hover:bg-rose-100 transition-colors"
+  >
+    <span className="text-rose-700 text-xs font-bold">
+      {viewMode === 'contracts' ? 'פוליסות עם פער עמלה מול חוזה:' : 'פוליסות עם פער כספי (לטיפול):'}
+    </span>
+    <span className="text-2xl font-black text-rose-600">
+       {viewMode === 'contracts' ? (contractStatusSummary.diff || 0) : (statusSummary.changed || 0)}
+    </span>
+  </div>
+</div>
+
+      {/* --- Main Table Container --- */}
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+        
+        {/* Toolbar */}
+        <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between gap-4">
+          
+          <div className="flex items-center gap-3 flex-grow text-right">
+            {/* 1. חיפוש רחב */}
+            <div className="relative flex-grow max-w-2xl text-right">
+              <input 
+                type="text" 
+                placeholder="חיפוש לפי פוליסה או ת״ז..." 
+                value={searchTerm} 
+                onChange={e => setSearchTerm(e.target.value)}
+                className="input w-full pr-10 pl-4 bg-white border-slate-200 rounded-xl text-sm h-10 shadow-sm text-right"
               />
+              <span className="absolute right-3 top-2.5 opacity-30 text-lg">🔍</span>
             </div>
 
-            <div className="w-44">
-              <label className="block mb-1 text-xs font-medium">סף סטייה באחוזים (%)</label>
-              <input
-                type="number"
-                step="0.01"
-                min="0"
-                value={tolerancePercent}
-                onChange={e => setTolerancePercent(Number(e.target.value) || 0)}
-                className="input h-9 px-2 w-full text-right text-sm"
-                placeholder="למשל 0.3"
-                title="מחושב יחסית לסכום המדווח בקובץ"
-              />
-            </div>
+            {/* 2. קוד סוכן קצר */}
+            {viewMode === 'sales' && (
+              <select
+                value={agentCodeFilter}
+                onChange={e => setAgentCodeFilter(e.target.value)}
+                className="select-input bg-white border-slate-200 rounded-xl text-xs w-40 h-10 shadow-sm text-right"
+              >
+                <option value="">קוד סוכן (בקובץ)</option>
+                {agentCodes.map(code => <option key={code} value={code}>{code}</option>)}
+              </select>
+            )}
 
-            <button
-              onClick={() => (viewMode === 'sales' ? handleExportSales() : handleExportContracts())}
-              className="h-9 w-9 rounded border bg-white hover:bg-gray-50 inline-flex items-center justify-center"
-              title="ייצוא לאקסל"
+            {/* 3. סטטוס קצר */}
+            <select 
+                value={viewMode === 'contracts' ? contractStatusFilter : statusFilter} 
+                onChange={e => viewMode === 'contracts' ? setContractStatusFilter(e.target.value as any) : setStatusFilter(e.target.value as any)}
+                className="select-input bg-white border-slate-200 rounded-xl text-xs w-40 h-10 shadow-sm text-right"
             >
-              <img src="/static/img/excel-icon.svg" alt="" className="w-6 h-6" />
+                {viewMode === 'contracts' 
+                  ? contractStatusOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)
+                  : statusOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)
+                }
+            </select>
+          </div>
+
+          {/* 4. ייצוא אקסל בקצה */}
+          <div className="flex-shrink-0 text-right">
+            <button 
+              onClick={() => viewMode === 'sales' ? handleExportSales() : handleExportContracts()} 
+              className="flex items-center gap-2 px-5 py-2 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 transition shadow-md whitespace-nowrap active:scale-95"
+            >
+              <img src="/static/img/excel-icon.svg" alt="" className="w-5 h-5 invert" />
+              ייצוא אקסל
             </button>
           </div>
         </div>
-      )}
 
-      {/* סיכום לפי סטטוס */}
-      {hasActiveData && (
-        <>
-          <h2 className="text-xl font-bold mb-2">סיכום לפי סטטוס</h2>
-          <table className="w-full text-sm border mb-6">
-            <thead>
-              <tr className="bg-gray-300 text-right font-bold">
-                <th className="border p-2">סטטוס</th>
-                <th className="border p-2">כמות</th>
-              </tr>
-            </thead>
-            <tbody>
-              {viewMode === 'sales'
-                ? statusOptions
-                    .filter(s => s.value && (statusSummary as any)[s.value as Status])
-                    .map(s => (
-                      <tr
-                        key={s.value}
-                        className="hover:bg-gray-100 cursor-pointer"
-                        onClick={() => setDrillStatus(s.value as Status)}
-                      >
-                        <td className="border p-2">{s.label}</td>
-                        <td className="border p-2 text-center text-blue-600 underline">
-                          {filtered.reduce((acc, r) => (r.status === s.value ? acc + 1 : acc), 0)}
-                        </td>
-                      </tr>
-                    ))
-                : contractStatusOptions
-                    .filter(s => s.value && (contractStatusSummary as any)[s.value as ContractStatus])
-                    .map(s => (
-                      <tr
-                        key={String(s.value)}
-                        className="hover:bg-gray-100 cursor-pointer"
-                        onClick={() => setContractDrillStatus(s.value as ContractStatus)}
-                      >
-                        <td className="border p-2">{s.label}</td>
-                        <td className="border p-2 text-center text-blue-600 underline">
-                          {filteredContracts.reduce((acc, r) => (r.status === s.value ? acc + 1 : acc), 0)}
-                        </td>
-                      </tr>
-                    ))}
-            </tbody>
-          </table>
-
-          {viewMode === 'sales'
-            ? !drillStatus && <p className="text-gray-500">אפשר ללחוץ על סטטוס להצגת פירוט.</p>
-            : !contractDrillStatus && <p className="text-gray-500">אפשר ללחוץ על סטטוס להצגת פירוט.</p>}
-        </>
-      )}
-
-      {/* SALES TABLE */}
-      {viewMode === 'sales' && !isLoading && visibleRows.length > 0 && (
-        <div className="mt-2 overflow-x-auto">
-          {drillStatus && (
-            <button className="mb-4 px-4 py-2 bg-gray-500 text-white rounded" onClick={() => setDrillStatus(null)}>
-              חזור לכל הסטטוסים
-            </button>
-          )}
-
-          <h2 className="text-xl font-bold mb-2">
-            פירוט {drillStatus ? `— ${statusOptions.find(s => s.value === drillStatus)?.label}` : ''} ({visibleRows.length} שורות)
-          </h2>
-
-          <table className="w-full border text-sm rounded-lg overflow-hidden">
-            <thead>
-              <tr className="bg-gray-100 text-right">
-                <th className="border p-2">חברה</th>
-                <th className="border p-2">מס׳ פוליסה</th>
-                <th className="border p-2">ת״ז לקוח</th>
-                <th className="border p-2">מס׳ סוכן (מהקובץ)</th>
-                <th className="border p-2">מוצר</th>
-                <th className="border p-2 text-center bg-sky-50">עמלה (קובץ)</th>
-                <th className="border p-2 text-center bg-emerald-50">עמלה (MAGIC)</th>
-                <th className="border p-2 text-center">₪ Δ (קובץ−MAGIC)</th>
-                <th className="border p-2 text-center">% Δ</th>
-                <th className="border p-2">סטטוס</th>
-                <th className="border p-2">קישור</th>
-              </tr>
-            </thead>
-            <tbody>
-              {visibleRows.map(r => (
-                <tr
-                  key={`${r.company}|${r.policyNumber}|${r.agentCode || ''}|${r.customerId || ''}`}
-                  className={salesRowClass(r.status)}
-                >
-                  <td className="border p-2">{r.company}</td>
-                  <td className="border p-2">{r.policyNumber || '-'}</td>
-                  <td className="border p-2">{r.customerId ?? '-'}</td>
-                  <td className="border p-2">{r.agentCode ?? '-'}</td>
-                  <td className="border p-2">{r.product ?? '-'}</td>
-                  <td className="border p-2 text-center bg-sky-50">{r.reportedAmount.toFixed(2)}</td>
-                  <td className="border p-2 text-center bg-emerald-50">{r.magicAmount.toFixed(2)}</td>
-                  <td className="border p-2 text-center">{r.diff.toFixed(2)}</td>
-                  <td className="border p-2 text-center">{r.diffPercent.toFixed(2)}%</td>
-                  <td className="border p-2 font-bold">
-                    {statusOptions.find(s => s.value === r.status)?.label ?? '—'}
-                  </td>
-                  <td className="border p-2 text-center">
-                    {r.status === 'not_found' && r._extRow ? (
-                      <button
-                        className="px-2 py-1 text-sm rounded bg-blue-600 text-white hover:bg-blue-700"
-                        onClick={() => openLinkDialog(r)}
-                        title="קשר רשומת קובץ זו לפוליסה קיימת במערכת ללא מספר"
-                      >
-                        קישור לפוליסה
-                      </button>
-                    ) : (
-                      <span className="text-gray-400">—</span>
-                    )}
-                  </td>
+        {/* Tables */}
+        <div className="overflow-x-auto text-right">
+          {isLoading || contractsLoading ? (
+            <div className="p-20 text-center text-slate-400 italic font-medium text-right">טוען נתונים מהמערכת...</div>
+          ) : viewMode === 'sales' ? (
+            <table className="w-full text-sm text-right border-collapse">
+               <thead>
+                <tr className="bg-slate-50 text-slate-600 border-b text-right font-bold">
+                  <th className="p-3 text-right">חברה</th>
+                  <th className="p-3 text-right">פוליסה / לקוח</th>
+                  <th className="p-3 text-right">מוצר</th>
+                  <th className="p-3 text-center bg-sky-50/50 text-sky-900">קובץ</th>
+                  <th className="p-3 text-center bg-emerald-50/50 text-emerald-900">Magic</th>
+                  <th className="p-3 text-center text-rose-600">פער Δ</th>
+                  <th className="p-3 text-right text-right">סטטוס</th>
+                  <th className="p-3 text-center">פעולה</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {viewMode === 'sales' && isLoading && <p className="text-gray-500 mt-4">טוען נתונים…</p>}
-
-      {/* CONTRACTS TABLE */}
-      {viewMode === 'contracts' && (
-        <>
-          {contractsError && (
-            <div className="bg-red-100 border border-red-300 text-red-800 p-3 rounded mb-3">{contractsError}</div>
-          )}
-
-          {contractsLoading ? (
-            <p className="text-gray-500 mt-4">טוען נתונים…</p>
-          ) : visibleContractRows.length > 0 ? (
-            <div className="mt-2 overflow-x-auto">
-              {contractDrillStatus && (
-                <button
-                  className="mb-4 px-4 py-2 bg-gray-500 text-white rounded"
-                  onClick={() => setContractDrillStatus(null)}
-                >
-                  חזור לכל הסטטוסים
-                </button>
-              )}
-
-              <h2 className="text-xl font-bold mb-2">
-                פירוט {contractDrillStatus ? `— ${contractStatusOptions.find(s => s.value === contractDrillStatus)?.label}` : ''} ({visibleContractRows.length} שורות)
-              </h2>
-
-              <table className="w-full border text-sm rounded-lg overflow-hidden">
-                <thead>
-                  <tr className="bg-gray-100 text-right">
-                    <th className="border p-2">חברה</th>
-                    <th className="border p-2">מס׳ פוליסה</th>
-                    <th className="border p-2">ת״ז</th>
-                    <th className="border p-2">מוצר (Raw)</th>
-                    <th className="border p-2">מוצר (Canonical)</th>
-                    <th className="border p-2 text-center">פרמיה</th>
-                    <th className="border p-2 text-center bg-sky-50">עמלה (קובץ)</th>
-                    <th className="border p-2 text-center bg-emerald-50">עמלה צפויה</th>
-                    <th className="border p-2 text-center">Δ ₪</th>
-                    <th className="border p-2 text-center bg-sky-50">% עמלה (קובץ)</th>
-                    <th className="border p-2 text-center bg-emerald-50">% עמלה (הסכם)</th>
-                    <th className="border p-2 text-center">Δ %</th>
-                    <th className="border p-2">סטטוס</th>
+              </thead>
+              <tbody className="divide-y text-right">
+                {visibleRows.map((r, idx) => (
+                  <tr key={`${r.company}-${idx}`} className={`hover:bg-slate-50 transition-colors ${salesRowClass(r.status)} text-right`}>
+                    <td className="p-3 font-medium text-slate-900 text-right">{r.company}</td>
+                    <td className="p-3 text-right">
+                        <div className="font-bold text-slate-800 text-right">{r.policyNumber}</div>
+                        <div className="text-[10px] opacity-60 font-medium text-right">{r.customerId}</div>
+                    </td>
+                    <td className="p-3 text-slate-700 text-right">{r.product || '-'}</td>
+                    <td className="p-3 text-center bg-sky-50/20 font-bold text-sky-900">{r.reportedAmount.toFixed(2)}</td>
+                    <td className="p-3 text-center bg-emerald-50/20 font-bold text-emerald-900">{r.magicAmount.toFixed(2)}</td>
+                    <td className="p-3 text-center font-bold text-rose-600 border-x border-rose-100/50">{r.diff.toFixed(2)}</td>
+                    <td className="p-3 font-bold text-[11px] whitespace-nowrap text-right">
+                        {statusOptions.find(o => o.value === r.status)?.label}
+                    </td>
+                    <td className="p-3 text-center">
+                        {r.status === 'not_found' && r._extRow && (
+                            <button 
+                                onClick={() => openLinkDialog(r)}
+                                className="bg-blue-600 text-white text-[10px] px-3 py-1.5 rounded-lg hover:bg-blue-700 shadow-sm transition font-bold"
+                            >
+                                קישור לפוליסה
+                            </button>
+                        )}
+                    </td>
                   </tr>
-                </thead>
-                <tbody>
-                  {visibleContractRows.map(r => (
-                    <tr
-                      key={`${r.company}|${r.policyNumber}|${r.customerId || ''}|${r.templateId || ''}|${r.productRaw || ''}`}
-                      className={contractsRowClass(r.status)}
-                    >
-                      <td className="border p-2">{r.company}</td>
-                      <td className="border p-2">{r.policyNumber || '-'}</td>
-                      <td className="border p-2">{r.customerId ?? '-'}</td>
-                      <td className="border p-2">{r.productRaw || '-'}</td>
-                      <td className="border p-2">{r.canonicalProduct || '-'}</td>
-                      <td className="border p-2 text-center">{Number(r.premiumAmount || 0).toFixed(2)}</td>
-                      <td className="border p-2 text-center bg-sky-50">{Number(r.reportedCommissionAmount || 0).toFixed(2)}</td>
-                      <td className="border p-2 text-center bg-emerald-50">{Number(r.expectedAmount || 0).toFixed(2)}</td>
-                      <td className="border p-2 text-center">{Number(r.amountDiff || 0).toFixed(2)}</td>
-                      <td className="border p-2 text-center bg-sky-50">
-  {Number(r.reportedRate || 0).toFixed(2)}%
-</td>
-
-<td className="border p-2 text-center bg-emerald-50">
-  {Number(r.contractRate || 0).toFixed(2)}%
-</td>
-
-<td className="border p-2 text-center">
-  {Number(r.rateDiff || 0).toFixed(2)}%
-</td>
-                      <td className="border p-2 font-bold">{r.status}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-
-              <div className="text-xs text-gray-500 mt-2">
-                fallbackProduct: {mappingHints.usedFallbackProductCount} | no_template: {mappingHints.noTemplateCount} | no_contract: {mappingHints.noContractCount}
-              </div>
-
-              {/* legend */}
-              <div className="flex gap-3 text-xs mt-3">
-                <span className="inline-flex items-center gap-2">
-                  <span className="w-3 h-3 rounded bg-emerald-200 inline-block" /> תקין
-                </span>
-                <span className="inline-flex items-center gap-2">
-                  <span className="w-3 h-3 rounded bg-amber-200 inline-block" /> פער
-                </span>
-                <span className="inline-flex items-center gap-2">
-                  <span className="w-3 h-3 rounded bg-rose-200 inline-block" /> חסר חוזה / תבנית
-                </span>
-              </div>
-            </div>
+                ))}
+              </tbody>
+            </table>
           ) : (
-            <p className="text-gray-500 mt-4">אין נתונים להצגה.</p>
+            /* טבלת החוזים */
+            <table className="w-full text-sm text-right border-collapse">
+              <thead>
+                <tr className="bg-slate-50 text-slate-600 border-b text-right">
+                  <th className="p-3 font-semibold text-right">פרטי פוליסה</th>
+                  <th className="p-3 font-semibold text-right">זיהוי מוצר</th>
+                  <th className="p-3 font-semibold text-center bg-sky-50/50 text-sky-900 font-bold">קובץ</th>
+                  <th className="p-3 font-semibold text-center bg-emerald-50/50 text-emerald-900 font-bold">הסכם</th>
+                  <th className="p-3 font-semibold text-center text-rose-600">פער Δ</th>
+                  <th className="p-3 font-semibold text-right">סטטוס</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y text-right">
+                {visibleContractRows.map((r, idx) => (
+                  <tr key={`${r.policyNumber}-${idx}`} className={`hover:bg-slate-50 transition-colors ${contractsRowClass(r.status)} text-right`}>
+                    <td className="p-3 text-right">
+                      <div className="font-bold text-slate-800 text-right">{r.company}</div>
+                      <div className="text-xs text-slate-500 text-right">{r.policyNumber}</div>
+                      <div className="text-[11px] text-blue-600 mt-1 font-medium italic text-right">{r.customerId}</div>
+                    </td>
+                    <td className="p-3 text-right">
+                      <div className="flex flex-col text-right">
+                        <span className="font-bold text-slate-900 text-right">{r.canonicalProduct || '---'}</span>
+                        <span className="text-[10px] text-slate-500 font-bold italic text-right">קבוצה: {getGroupName(r.productGroup)}</span>
+                        <div className="flex items-center gap-1 mt-1 justify-end">
+                          {r.debug?.usedFallbackProduct && <span className="bg-amber-100 text-amber-700 text-[8px] px-1 rounded font-black border border-amber-200">FALLBACK</span>}
+                          <span className="text-[10px] text-slate-400 italic truncate max-w-[120px]" title={r.productRaw}>מקור: {r.productRaw}</span>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="p-3 text-center bg-sky-50/20">
+                      <div className="font-bold text-sky-900 text-right">{r.reportedCommissionAmount.toFixed(2)} ₪</div>
+                      <div className="text-[10px] text-sky-600 font-medium text-right">פרמיה: {r.premiumAmount.toLocaleString()}</div>
+                      <div className="text-[10px] bg-sky-100 text-sky-700 rounded px-1 mt-1 inline-block font-bold border border-sky-200 text-right">{r.reportedRate.toFixed(2)}%</div>
+                    </td>
+                    <td className="p-3 text-center bg-emerald-50/20">
+                      <div className="font-bold text-emerald-900 text-right">{r.expectedAmount.toFixed(2)} ₪</div>
+                      <div className="text-[10px] text-emerald-600 font-bold italic text-right">הסכם: {r.contractRate.toFixed(2)}%</div>
+                    </td>
+                 <td className="p-3 text-center">
+  <div className={`font-black text-sm ${
+    r.amountDiff < 0 
+      ? 'text-rose-600'  // חוסר - חברת הביטוח חייבת כסף לסוכן
+      : r.amountDiff > 0 
+        ? 'text-amber-600' // עודף - הסוכן קיבל יותר מההסכם
+        : 'text-slate-700'  // תקין בדיוק
+  }`}>
+    {r.amountDiff.toFixed(2)} ₪
+  </div>
+  <div className="text-[10px] opacity-60 font-bold">
+    {r.rateDiff.toFixed(2)}%
+  </div>
+</td>
+               <td className="p-3 text-right">
+                      <div className="flex flex-col gap-1 items-start text-right">
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold text-center border shadow-sm ${
+                            r.status === 'ok' ? 'bg-emerald-100 text-emerald-700 border-emerald-200' :
+                            r.status === 'diff' ? 'bg-amber-100 text-amber-700 border-amber-200' : 'bg-rose-100 text-rose-700 border-rose-200'
+                        }`}>{r.status === 'ok' ? 'תקין' : r.status === 'diff' ? 'פער' : 'חסר הסכם'}</span>
+                        {r.status === 'no_contract' && (
+                            <button onClick={() => window.open(`/contracts?agentId=${selectedAgentId}&company=${r.company}&product=${r.canonicalProduct}`, '_blank')} className="text-[10px] text-blue-600 underline font-black mt-1 hover:text-blue-800 transition">הגדר +</button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           )}
-        </>
-      )}
-
-      {/* link dialog */}
-      {linkOpen && linkTarget && (
-        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow p-4 w-full max-w-xl" dir="rtl">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-lg font-bold">קישור פוליסה מהקובץ לפוליסה במערכת</h3>
-              <button
-                onClick={() => setLinkOpen(false)}
-                className="px-2 py-1 rounded bg-gray-200 hover:bg-gray-300"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="space-y-2 text-sm">
-              <div>
-                <b>חברה:</b> {linkTarget.company}
-              </div>
-              <div>
-                <b>מס׳ פוליסה (קובץ):</b> {String(linkTarget.policyNumber || '-')}
-              </div>
-              {linkTarget.customerId && (
-                <div>
-                  <b>ת״ז לקוח (מהקובץ):</b> {linkTarget.customerId}
-                </div>
-              )}
-
-              <div className="mt-2">
-                <label className="block mb-1">בחרי פוליסה במערכת (ללא מספר):</label>
-                <select
-                  className="select-input w-full"
-                  value={selectedCandidateId}
-                  onChange={e => setSelectedCandidateId(e.target.value)}
-                >
-                  {linkCandidates.length === 0 && <option value="">לא נמצאו מועמדות מתאימות</option>}
-                  {linkCandidates.map(c => (
-                    <option key={c.id} value={c.id}>
-                      {c.summary}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            <div className="mt-4 flex items-center justify-between">
-              <button
-                className="px-3 py-1.5 rounded bg-gray-200 hover:bg-gray-300"
-                onClick={() => setLinkOpen(false)}
-                disabled={linkSaving}
-              >
-                ביטול
-              </button>
-
-              <button
-                className="px-3 py-1.5 rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
-                onClick={doLink}
-                disabled={!selectedCandidateId || linkSaving}
-                title="נעדכן ב-sale את policyNumber ו-policyNumberKey"
-              >
-                {linkSaving ? 'שומר…' : 'קשר פוליסה'}
-              </button>
-            </div>
-          </div>
         </div>
+      </div>
+
+      {/* Global Dialogs */}
+      {linkOpen && linkTarget && (
+          <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 backdrop-blur-sm p-4">
+             <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-xl text-right" dir="rtl">
+                <div className="flex items-center justify-between mb-4 text-right">
+                  <h3 className="text-xl font-bold text-slate-800 text-right">קישור פוליסה מהקובץ ל-MAGIC</h3>
+                  <button onClick={() => setLinkOpen(false)} className="p-2 hover:bg-slate-100 rounded-full transition text-slate-400">✕</button>
+                </div>
+                <div className="space-y-4 text-right">
+                  <div className="p-4 bg-slate-50 rounded-xl text-sm border border-slate-100 text-right">
+                    <div className="mb-1 text-right"><b>חברה:</b> {linkTarget.company}</div>
+                    <div className="mb-1 text-right"><b>מס׳ פוליסה בקובץ:</b> {String(linkTarget.policyNumber || '-')}</div>
+                    {linkTarget.customerId && <div className="text-right"><b>ת״ז לקוח:</b> {linkTarget.customerId}</div>}
+                  </div>
+                  <div className="text-right">
+                    <label className="block text-sm font-bold text-slate-700 mb-2 text-right">בחרי פוליסה קיימת לקישור:</label>
+                    <select
+                      className="select-input w-full bg-slate-50 border-slate-200 rounded-xl shadow-sm text-right h-11"
+                      value={selectedCandidateId}
+                      onChange={e => setSelectedCandidateId(e.target.value)}
+                    >
+                      {linkCandidates.length === 0 && <option value="">לא נמצאו פוליסות מועמדות</option>}
+                      {linkCandidates.map(c => <option key={c.id} value={c.id}>{c.summary}</option>)}
+                    </select>
+                  </div>
+                </div>
+                <div className="mt-8 flex gap-3 justify-end font-bold text-right">
+                   <button onClick={() => setLinkOpen(false)} className="px-6 py-2.5 text-slate-500 hover:bg-slate-100 rounded-xl transition">ביטול</button>
+                   <button 
+                    disabled={!selectedCandidateId || linkSaving}
+                    onClick={doLink}
+                    className="px-8 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-50 transition shadow-lg active:scale-95 text-right font-bold"
+                   >
+                     {linkSaving ? 'מקשר...' : 'קשר פוליסה'}
+                   </button>
+                </div>
+             </div>
+          </div>
       )}
     </div>
   );
