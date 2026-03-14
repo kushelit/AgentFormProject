@@ -553,7 +553,9 @@ const chartData = useMemo(() => {
     {/* ריבועי KPI */}
     <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
       <div className="bg-gradient-to-br from-indigo-500 to-indigo-700 p-5 rounded-2xl shadow-lg text-white">
-        <div className="text-indigo-100 text-[10px] font-bold uppercase">סה"כ עמלות {selectedYear}</div>
+<div className="text-indigo-100 text-[10px] font-bold uppercase">
+  סה&quot;כ עמלות {selectedYear}
+</div>
         <div className="text-3xl font-black mt-1">{formatCurrency(yearlyInsights.totalYearly)} ₪</div>
       </div>
       <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 border-r-4 border-r-emerald-500">
