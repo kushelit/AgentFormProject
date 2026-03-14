@@ -1,10 +1,10 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import useFetchAgentData from '@/hooks/useFetchAgentData';
 import { useAuth } from '@/lib/firebase/AuthContext';
 import { Spinner } from '@/components/Spinner';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, PieChart } from 'lucide-react';
 import AgentImportChecklist from '@/components/commission/AgentImportChecklist';
 import {
   ResponsiveContainer,
@@ -15,8 +15,20 @@ import {
   Tooltip,
   CartesianGrid,
   Legend,
+  Pie,
+  Cell,
 } from 'recharts';
+
+import dynamic from 'next/dynamic';
+
+
 import * as XLSX from 'xlsx';
+import { resolveFromTemplate } from '@/utils/contractCommissionResolvers';
+// אם תרצי להשתמש במנוע המלא:
+import { buildContractComparisonRow } from '@/utils/buildContractComparisonRow';
+import useFetchMD from '@/hooks/useMD';
+import { collection, getDocs } from 'firebase/firestore';
+import { db } from '@/lib/firebase/firebase';
 
 interface CommissionSummary {
   agentId: string;
@@ -69,6 +81,9 @@ type DrillRow = {
   commissionRate?: number;
   validMonth?: string;
   runId?: string;
+  templateId: string;    
+  productGroup?: string; 
+  companyName?: string;
 };
 
 
@@ -261,6 +276,209 @@ const CommissionSummaryAgentTab: React.FC = () => {
     XLSX.writeFile(wb, fileName);
   };
   
+  const [showYearlyAnalysis, setShowYearlyAnalysis] = useState(false);
+
+// שליפת המילונים מה-Hook הקיים שלך
+const { 
+  productMap: systemProductMap, // שימוש ב-alias כדי להתאים לקוד הניתוח
+  productGroupMap,
+  productToGroupMap 
+} = useFetchMD();
+
+// תצטרכי גם להוסיף State לתבניות אם הן לא מגיעות מה-API השנתי
+const [templatesById, setTemplatesById] = useState<Record<string, any>>({});
+
+const [yearlyPolicies, setYearlyPolicies] = useState<DrillRow[]>([]);
+const [isYearlyLoading, setIsYearlyLoading] = useState(false);
+
+const yearlyInsights = useMemo(() => {
+  if (!summaries.length) return null;
+
+  // 1. פילוח לפי חברות (סך הכל שנתי לכל חברה)
+  const companyDistribution = allCompanies.map(name => {
+    const total = summaries
+      .filter(s => companyMap[s.templateId] === name)
+      .reduce((sum, s) => sum + s.totalCommissionAmount, 0);
+    return { name, total };
+  }).sort((a, b) => b.total - a.total);
+
+  // 2. זיהוי חודש השיא וחודש השפל
+  const monthlyTotals = monthlyTotalsData.sort((a, b) => b.total - a.total);
+
+  return {
+    totalYearly: monthlyTotals.reduce((sum, m) => sum + m.total, 0),
+    topCompany: companyDistribution[0],
+    bestMonth: monthlyTotals[0],
+    companyDistribution
+  };
+}, [summaries, allCompanies, companyMap, monthlyTotalsData]);
+
+useEffect(() => {
+  const fetchYearlyData = async () => {
+    if (!selectedAgentId || !selectedYear || !showYearlyAnalysis) return;
+    
+    setIsYearlyLoading(true);
+    // איפוס הנתונים הקודמים כדי למנוע בלבול ב-UI
+    setYearlyPolicies([]); 
+
+    try {
+      const res = await fetch('/api/commission-summary-yearly-analysis', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ agentId: selectedAgentId, year: selectedYear }),
+      });
+      
+      const data = await res.json();
+      setYearlyPolicies(data.rows || []);
+    } catch (err) {
+      console.error("Error fetching yearly data:", err);
+    } finally {
+      setIsYearlyLoading(false);
+    }
+  };
+
+  fetchYearlyData();
+}, [showYearlyAnalysis, selectedYear, selectedAgentId]); // 👈 התלויות החדשות
+// הפעלת הטעינה כשלוחצים על הכפתור של הניתוח השנתי
+
+useEffect(() => {
+  const fetchTemplates = async () => {
+    const querySnapshot = await getDocs(collection(db, 'commissionTemplates'));
+    const tempMap: Record<string, any> = {};
+    querySnapshot.forEach(doc => {
+      tempMap[doc.id] = doc.data();
+    });
+    setTemplatesById(tempMap);
+  };
+  fetchTemplates();
+}, []);
+
+const [expandedGroup, setExpandedGroup] = useState<string | null>(null);
+
+const productSummary = useMemo(() => {
+  if (!yearlyPolicies.length || !productToGroupMap) return [];
+  
+  const groups: Record<string, any> = {};
+
+  yearlyPolicies.forEach(row => {
+    const template = templatesById[row.templateId];
+    const resolved = resolveFromTemplate(template, row.product);
+    const productName = resolved.canonicalProduct || row.product || 'אחר';
+    const groupId = productToGroupMap[productName] || row.productGroup || '';
+    const groupName = productGroupMap[groupId] || (groupId ? `קבוצה ${groupId}` : 'ללא סיווג');
+    const amount = row.totalCommissionAmount || 0;
+    const company = row.companyName || 'חברה לא ידועה';
+
+    if (!groups[groupName]) {
+      groups[groupName] = { total: 0, products: {} };
+    }
+    
+    // אגרגציה לפי מוצר בתוך הקבוצה
+    if (!groups[groupName].products[productName]) {
+      groups[groupName].products[productName] = { total: 0, companies: {} };
+    }
+
+    // אגרגציה לפי חברה בתוך המוצר
+    groups[groupName].total += amount;
+    groups[groupName].products[productName].total += amount;
+    groups[groupName].products[productName].companies[company] = 
+      (groups[groupName].products[productName].companies[company] || 0) + amount;
+  });
+
+  return Object.entries(groups)
+    .map(([name, data]) => ({ name, ...data }))
+    .sort((a, b) => b.total - a.total);
+}, [yearlyPolicies, templatesById, productToGroupMap, productGroupMap]);
+
+
+const exportYearlyAnalysisToExcel = (data: any[]) => {
+  const excelRows: any[] = [];
+
+  data.forEach(group => {
+    Object.entries(group.products).forEach(([prodName, prodData]: [string, any]) => {
+      Object.entries(prodData.companies).forEach(([compName, compTotal]: [string, any]) => {
+        excelRows.push({
+          'קבוצת מוצר': group.name,
+          'מוצר': prodName,
+          'חברה': compName,
+          'סכום עמלה': compTotal,
+          'נתח מהמוצר': `${((compTotal / prodData.total) * 100).toFixed(1)}%`,
+          'נתח מכלל הקבוצה': `${((compTotal / group.total) * 100).toFixed(1)}%`
+        });
+      });
+    });
+  });
+
+  const ws = XLSX.utils.json_to_sheet(excelRows);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'ניתוח שנתי');
+  XLSX.writeFile(wb, `ניתוח_שנתי_${selectedYear}.xlsx`);
+};
+
+
+const [isMounted, setIsMounted] = useState(false);
+
+useEffect(() => {
+  setIsMounted(true);
+}, []);
+
+// 1. הגדירי פלטת צבעים מעל הקומפוננטה
+const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
+
+// 2. בתוך הקומפוננטה, הוסיפי State לשליטה בנראות הטבלה המלאה
+const [showFullTable, setShowFullTable] = useState(false);
+
+
+// טעינה דינמית של הגרף - זה ימנע את שגיאת ה-activeIndex בוודאות
+const DynamicPieChart = dynamic(
+  () => import('recharts').then((mod) => mod.PieChart),
+  { ssr: false }
+);
+const DynamicPie = dynamic(
+  () => import('recharts').then((mod) => mod.Pie),
+  { ssr: false }
+);
+const DynamicCell = dynamic(
+  () => import('recharts').then((mod) => mod.Cell),
+  { ssr: false }
+);
+const DynamicResponsiveContainer = dynamic(
+  () => import('recharts').then((mod) => mod.ResponsiveContainer),
+  { ssr: false }
+);
+const DynamicTooltip = dynamic(
+  () => import('recharts').then((mod) => mod.Tooltip),
+  { ssr: false }
+);
+
+
+// רכיבי הגרפים בטעינה דינמית ללא SSR
+const PieChart = dynamic(() => import('recharts').then(mod => mod.PieChart), { ssr: false });
+const Pie = dynamic(() => import('recharts').then(mod => mod.Pie), { ssr: false });
+const Cell = dynamic(() => import('recharts').then(mod => mod.Cell), { ssr: false });
+const Tooltip = dynamic(() => import('recharts').then(mod => mod.Tooltip), { ssr: false });
+const ResponsiveContainer = dynamic(() => import('recharts').then(mod => mod.ResponsiveContainer), { ssr: false });
+const LineChart = dynamic(() => import('recharts').then(mod => mod.LineChart), { ssr: false });
+const Line = dynamic(() => import('recharts').then(mod => mod.Line), { ssr: false });
+const XAxis = dynamic(() => import('recharts').then(mod => mod.XAxis), { ssr: false });
+const YAxis = dynamic(() => import('recharts').then(mod => mod.YAxis), { ssr: false });
+const CartesianGrid = dynamic(() => import('recharts').then(mod => mod.CartesianGrid), { ssr: false });
+// שימוש ב-as any פותר את ההתנגשות של ה-Types ב-Dynamic Import
+const Legend = dynamic(() => import('recharts').then(mod => mod.Legend as any), { ssr: false });
+
+
+useEffect(() => { setIsMounted(true); }, []);
+
+
+
+const chartData = useMemo(() => {
+  return productSummary.map(item => ({
+    name: item.name,
+    total: item.total
+  }));
+}, [productSummary]);
+
+
   return (
     <div className="p-4 max-w-6xl mx-auto text-right" dir="rtl">
       <h2 className="text-xl font-bold mb-4">סיכום עמלות לפי חודש וחברה</h2>
@@ -318,11 +536,118 @@ const CommissionSummaryAgentTab: React.FC = () => {
             )}
           </select>
         </div>
+        <button 
+  onClick={() => setShowYearlyAnalysis(!showYearlyAnalysis)}
+  className="bg-indigo-600 text-white px-4 py-2 rounded-lg font-bold shadow-lg hover:bg-indigo-700 transition"
+>
+  {showYearlyAnalysis ? 'סגור ניתוח שנתי' : '📊 ניתוח תיק שנתי'}
+</button>
       </div>
       {loading ? (
         <Spinner />
       ) : (
-        <table className="table-auto w-full border text-sm text-right mt-6">
+        <>
+{showYearlyAnalysis && yearlyInsights && (
+  <div className="space-y-6 animate-in fade-in zoom-in duration-500 pb-10">
+    
+    {/* ריבועי KPI */}
+    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="bg-gradient-to-br from-indigo-500 to-indigo-700 p-5 rounded-2xl shadow-lg text-white">
+        <div className="text-indigo-100 text-[10px] font-bold uppercase">סה"כ עמלות {selectedYear}</div>
+        <div className="text-3xl font-black mt-1">{formatCurrency(yearlyInsights.totalYearly)} ₪</div>
+      </div>
+      <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 border-r-4 border-r-emerald-500">
+        <div className="text-slate-400 text-[10px] font-bold uppercase">חברה מובילה</div>
+        <div className="text-xl font-black text-slate-800 mt-1">{yearlyInsights.topCompany?.name || '-'}</div>
+      </div>
+      <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 border-r-4 border-r-amber-500">
+        <div className="text-slate-400 text-[10px] font-bold uppercase">חודש שיא</div>
+        <div className="text-xl font-black text-slate-800 mt-1">{yearlyInsights.bestMonth?.month || '-'}</div>
+      </div>
+      <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 border-r-4 border-r-indigo-400">
+        <div className="text-slate-400 text-[10px] font-bold uppercase">קבוצות מוצר</div>
+        <div className="text-xl font-black text-slate-800 mt-1">{productSummary.length}</div>
+      </div>
+    </div>
+
+    {/* גרף ותקציר */}
+    <div className="bg-white rounded-3xl shadow-xl border border-slate-200 overflow-hidden">
+      <div className="p-8 grid grid-cols-1 lg:grid-cols-12 gap-10 items-center">
+        <div className="lg:col-span-5 h-[320px] flex flex-col items-center justify-center border-l border-slate-100">
+          {isMounted && chartData.length > 0 ? (
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie data={chartData} dataKey="total" nameKey="name" cx="50%" cy="50%" innerRadius={70} outerRadius={100} paddingAngle={5}
+                  label={({ name, percent = 0 }) => `${name} ${(percent * 100).toFixed(0)}%`}>
+                  {chartData.map((_, index) => <Cell key={index} fill={COLORS[index % COLORS.length]} />)}
+                </Pie>
+                <Tooltip formatter={(val: any) => [`${formatCurrency(val)} ₪`, 'עמלה']} />
+              </PieChart>
+            </ResponsiveContainer>
+          ) : <div className="animate-pulse text-slate-300 italic">טוען ניתוח ויזואלי...</div>}
+        </div>
+
+        <div className="lg:col-span-7 space-y-6">
+          <h3 className="text-2xl font-black text-slate-800">פילוח רווחיות מוצרים</h3>
+          <div className="grid grid-cols-1 gap-3">
+            {productSummary.slice(0, 3).map((item, idx) => (
+              <div key={item.name} className="flex items-center justify-between p-4 rounded-2xl bg-slate-50 border border-slate-100">
+                <div className="flex items-center gap-4">
+                  <div className="w-4 h-4 rounded-full" style={{ backgroundColor: COLORS[idx % COLORS.length] }} />
+                  <span className="font-bold text-slate-700">{item.name}</span>
+                </div>
+                <div className="font-black text-indigo-600">{formatCurrency(item.total)} ₪</div>
+              </div>
+            ))}
+          </div>
+          <button onClick={() => setShowFullTable(!showFullTable)} className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-bold shadow-lg hover:bg-indigo-700 transition-all">
+            {showFullTable ? '⬆️ הסתר פירוט' : '⬇️ צפייה בפירוט חברות מלא'}
+          </button>
+        </div>
+      </div>
+
+      {/* הטבלה המפורטת עם ה-Stacked Bars */}
+      {showFullTable && (
+        <div className="border-t border-slate-100 animate-in slide-in-from-top-5 duration-500">
+          <table className="w-full text-right border-collapse text-sm">
+            <thead className="bg-slate-50 text-slate-400 font-bold border-b text-[11px] tracking-widest uppercase">
+              <tr><th className="px-8 py-4">מוצר</th><th className="px-8 py-4 text-center">עמלה</th><th className="px-8 py-4 text-center">פילוח חברות</th></tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {productSummary.map(group => (
+                <React.Fragment key={group.name}>
+                  <tr className="bg-indigo-50/20"><td colSpan={2} className="px-8 py-4 font-black text-slate-800">{group.name}</td><td /></tr>
+                  {Object.entries(group.products).map(([prodName, prodData]: any) => (
+                    <tr key={prodName} className="hover:bg-slate-50">
+                      <td className="pr-16 py-4 text-slate-600 italic">📦 {prodName}</td>
+                      <td className="px-8 py-4 text-center font-bold">{formatCurrency(prodData.total)} ₪</td>
+                      <td className="px-8 py-4 w-[40%]">
+                        <div className="flex w-full h-3 rounded-full overflow-hidden bg-slate-100 border shadow-inner">
+                          {Object.entries(prodData.companies).map(([cName, cTotal]: any, i) => (
+                            <div key={cName} style={{ width: `${(cTotal/prodData.total)*100}%`, backgroundColor: COLORS[i % COLORS.length] }} title={`${cName}: ${formatCurrency(cTotal)}`} />
+                          ))}
+                        </div>
+                        <div className="flex flex-wrap gap-2 mt-2">
+                          {Object.entries(prodData.companies).slice(0, 5).map(([cName, cTotal]: any, i) => (
+                            <span key={cName} className="text-[9px] text-slate-500 flex items-center gap-1">
+                              <div className="w-1 h-1 rounded-full" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
+                              {cName} ({((cTotal/prodData.total)*100).toFixed(0)}%)
+                            </span>
+                          ))}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </React.Fragment>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  </div>
+)}
+<table className="table-auto w-full border text-sm text-right mt-6">
           <thead className="bg-gray-100">
             <tr>
             <th className="border px-3 py-1 min-w-[90px] whitespace-nowrap">
@@ -385,6 +710,7 @@ const CommissionSummaryAgentTab: React.FC = () => {
             })}
           </tbody>
         </table>
+        </>
       )}
       {selectedCompany && (
         <div className="mt-10">
@@ -539,48 +865,57 @@ const CommissionSummaryAgentTab: React.FC = () => {
               </ResponsiveContainer>
             </div>
           </section>
-          <section>
-            <h3 className="text-xl font-semibold mb-3">
-              גרף נפרעים לפי חברה (התפתחות חודשית)
-            </h3>
-            <div className="w-full h-96 rounded-xl border bg-white">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart
-                  data={perCompanyOverMonthsData}
-                  margin={{ top: 10, right: 64, left: 10, bottom: 28 }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis
-                    dataKey="month"
-                    interval={0}
-                    height={50}
-                    tickMargin={10}
-                    padding={{ left: 10, right: 28 }}
-                  />
-                  <YAxis tickFormatter={formatCurrency} width={80} />
-                  <Tooltip
-                    formatter={(value, key) => [
-                      formatCurrency(value as number),
-                      key as string,
-                    ]}
-                    labelFormatter={(label) => `חודש: ${label}`}
-                  />
-                  <Legend wrapperStyle={{ direction: 'rtl' }} />
-                  {allCompanies.map((company, idx) => (
-                    <Line
-                      key={company}
-                      type="monotone"
-                      dataKey={company}
-                      stroke={palette[idx % palette.length]}
-                      strokeWidth={2}
-                      dot={false}
-                      name={company}
-                    />
-                  ))}
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          </section>
+      <section>
+  <h3 className="text-xl font-semibold mb-3 text-slate-800">
+    גרף נפרעים לפי חברה (התפתחות חודשית)
+  </h3>
+  {/* ה-div הזה פותר את הכל בעזרת dir="rtl" */}
+  <div className="w-full h-96 rounded-2xl border bg-white shadow-sm p-4" dir="rtl">
+    {isMounted && (
+      <ResponsiveContainer width="100%" height="100%">
+        <LineChart
+          data={perCompanyOverMonthsData}
+          margin={{ top: 10, right: 10, left: 10, bottom: 28 }}
+        >
+          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+          <XAxis
+            dataKey="month"
+            tick={{ fontSize: 12, fill: '#94a3b8' }}
+            axisLine={{ stroke: '#e2e8f0' }}
+          />
+          <YAxis 
+            tickFormatter={formatCurrency} 
+            width={80}
+            tick={{ fontSize: 12, fill: '#94a3b8' }}
+            axisLine={{ stroke: '#e2e8f0' }}
+          />
+          <Tooltip
+            formatter={(value: any, key: any) => [formatCurrency(value), key]}
+            contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
+          />
+          {/* הורדנו את ה-wrapperStyle מכאן כי ה-dir="rtl" למעלה כבר מטפל בזה */}
+<Legend {...({ 
+  iconType: "circle", 
+  verticalAlign: "top", 
+  height: 36 
+} as any)} />          
+          {allCompanies.map((company, idx) => (
+            <Line
+              key={company}
+              type="monotone"
+              dataKey={company}
+              stroke={COLORS[idx % COLORS.length]}
+              strokeWidth={3}
+              dot={{ r: 4, strokeWidth: 2, fill: '#fff' }}
+              activeDot={{ r: 6 }}
+              name={company}
+            />
+          ))}
+        </LineChart>
+      </ResponsiveContainer>
+    )}
+  </div>
+</section>
         </div>
       )}
       {drill && (
