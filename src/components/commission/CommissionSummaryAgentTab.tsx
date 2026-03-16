@@ -933,9 +933,9 @@ const exportProductAnalysisToExcel = () => {
       {!loading && allMonths.length > 0 && (
         <div className="mt-10 space-y-10">
      <section>
-  <h3 className="text-xl font-semibold mb-3">
-    גרף נפרעים לפי חודש (סה"כ חודשי)
-  </h3>
+<h3 className="text-xl font-semibold mb-3">
+  גרף נפרעים לפי חודש (סה&quot;כ חודשי)
+</h3>
   <div className="w-full h-80 rounded-xl border bg-white">
     {isMounted && (
       <DynamicResponsiveContainer width="100%" height="100%">
