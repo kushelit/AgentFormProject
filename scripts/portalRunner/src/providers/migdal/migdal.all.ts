@@ -9,7 +9,8 @@ import {
   migdalOpenReport, 
   migdalExportExcel,
   waitMigdalLoaderGone,
-  navigateToCommissions
+  navigateToCommissions,
+  migdalReturnToAgreements
 } from "./migdal.shared";
 import { uploadLocalFileToStorageClient } from "../../uploadToStorage.client";
 import { httpsCallable } from "firebase/functions";
@@ -82,12 +83,16 @@ export async function runMigdalAll(ctx: RunnerCtx) {
       await setStatus(runId, { downloads });
     };
 
-    for (const rep of REPORTS) {
+ for (const rep of REPORTS) {
       try {
         await setStatus(runId, { status: "running", step: `מפיק דוח: ${rep.name}` });
+        
+        // 1. פתיחת הדוח (כולל העצירה של ה-30 שניות)
         await migdalOpenReport(page, rep.name);
         
+        // 2. ניסיון הורדה
         const download = await migdalExportExcel(page);
+        
         if (download) {
           const filename = download.suggestedFilename();
           const localPath = path.join(absDir, `${Date.now()}_${filename}`);
@@ -105,13 +110,20 @@ export async function runMigdalAll(ctx: RunnerCtx) {
               storagePath: up.storagePath
             });
           }
+          console.log(`[Migdal] Successfully downloaded: ${rep.name}`);
+        } else {
+          console.log(`[Migdal] No download for ${rep.name} (maybe no data?)`);
         }
-        // חזרה לרשימת הדוחות
-        await page.goBack();
-        await waitMigdalLoaderGone(page);
-        await page.waitForTimeout(2000);
+
+        // --- כאן השינוי המרכזי ---
+        // במקום goBack, אנחנו חוזרים לתפריט דרך הקליקים בצד
+        await setStatus(runId, { status: "running", step: `חוזר לתפריט הראשי...` });
+        await migdalReturnToAgreements(page);
+        
       } catch (repErr: any) {
-        console.error(`[Migdal] Failed to download ${rep.name}:`, repErr.message);
+        console.error(`[Migdal] Failed to process ${rep.name}:`, repErr.message);
+        // אם היתה שגיאה, עדיין ננסה לחזור לתפריט בשביל הדוח הבא
+        await migdalReturnToAgreements(page).catch(() => {});
       }
     }
 

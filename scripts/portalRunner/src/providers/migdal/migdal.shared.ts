@@ -191,6 +191,36 @@ export async function migdalOpenReport(page: Page, reportName: string) {
   await page.waitForTimeout(30000); 
 }
 
+
+
+export async function migdalReturnToAgreements(page: Page) {
+  console.log("[Migdal] Returning to Agreements menu via side-bar...");
+  
+  const injection = `
+    (function() {
+      const findAndClick = (selector, text) => {
+        const el = Array.from(document.querySelectorAll(selector))
+          .find(e => (e.innerText || "").includes(text));
+        if (el) el.click();
+        return !!el;
+      };
+
+      // 1. לחיצה על "דוחות" בתפריט הצד (לפי image_bb4efc)
+      const foundReports = findAndClick('span.item-label', 'דוחות');
+      
+      // 2. לחיצה על "הסכמים ועמלות" (לפי image_c5bf0f)
+      setTimeout(() => {
+        findAndClick('label.s-content', 'הסכמים ועמלות');
+      }, 1500);
+    })()
+  `;
+  
+  await page.evaluate(injection);
+  await page.waitForTimeout(4000); // המתנה לניווט
+  await waitMigdalLoaderGone(page);
+}
+
+
 /**
  * יצוא אקסל - עובד, לא נגעתי
  */
