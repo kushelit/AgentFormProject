@@ -2,6 +2,9 @@
 import type { RunnerHandler } from "../types";
 
 import { runClalAll } from "./clal/clal.all";
+import { runMigdalAll } from "./migdal/migdal.all";
+
+
 
 // import { runMigdalInsurance } from "./migdal/migdal.insurance";
 // import { runFenixInsurance } from "./fenix/fenix.insurance";
@@ -10,6 +13,7 @@ import { runClalAll } from "./clal/clal.all";
 export const providers: Record<string, RunnerHandler> = {
   // כלל
   clal_commissions_all: runClalAll, // ✅ חדש: מוריד 4 קבצים בריצה אחת
+  migdal_commissions_all: runMigdalAll,
 
   // אחרים
   // migdal_insurance: runMigdalInsurance,

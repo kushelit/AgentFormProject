@@ -48,6 +48,7 @@ interface CommissionTemplateOption {
   automationClass?: string;
   commissionIncludesVAT?: boolean; 
   automationEnabled?: boolean;
+  companyAutoClass?: string;
 }
 
 interface CommissionSummary {
@@ -190,14 +191,51 @@ const isAutoEnabledByFlag = autoDownloadFlag?.enabled !== false;
 const autoDisabledReason =
   autoDownloadFlag?.message || "הדוחות עדיין לא זמינים להורדה החודש.";
 
+  /* ==============================
+     Derived data
+  ============================== */
+// יצירת רשימת חברות ייחודית הכוללת את שדה ה-Automation
+const uniqueCompanies = Array.from(
+  templateOptions.reduce((acc, t) => {
+    const existing = acc.get(t.companyId);
+    
+    // לוגיקה: אם החברה עוד לא קיימת, או אם הקיימת ריקה והנוכחית מכילה Class
+    if (!existing || (!existing.companyAutomationClass && t.companyAutoClass)) {
+      acc.set(t.companyId, {
+        id: t.companyId,
+        name: t.companyName,
+        automationEnabled: t.automationEnabled,
+        companyAutomationClass: t.companyAutoClass || ""
+      });
+    }
+    return acc;
+  }, new Map()).values()
+) as any[];
 
-const isClal = String(selectedCompanyId) === "4";
 
-const effectiveAutomationClass = isClal
-  ? "clal_commissions_all"
+
+const filteredTemplates = templateOptions.filter(t => t.companyId === selectedCompanyId);
+
+// 1. אובייקט החברה המלא (בשביל ה-Automation)
+const selectedCompany = React.useMemo(
+  () => uniqueCompanies.find(c => c.id === selectedCompanyId),
+  [selectedCompanyId, uniqueCompanies]
+);
+
+// 2. שם החברה (בשביל לשמור על תאימות לקוד הקיים שלך)
+const selectedCompanyName = React.useMemo(
+  () => selectedCompany?.name || '',
+  [selectedCompany]
+);
+
+
+const effectiveAutomationClass = (selectedCompany?.companyAutomationClass && selectedCompany.companyAutomationClass !== "")
+  ? selectedCompany.companyAutomationClass 
   : String(selectedTemplate?.automationClass || "").trim();
 
-const canStartAuto = Boolean(selectedAgentId && selectedCompanyId && effectiveAutomationClass);
+const canStartAuto = Boolean(selectedAgentId && selectedCompanyId && effectiveAutomationClass !== "");
+
+
 
 const autoButtonDisabled =
   !canStartAuto ||
@@ -207,18 +245,19 @@ const autoButtonDisabled =
   !isAutoEnabledByFlag;
 
 const handleStartAuto = async () => {
-  if (!selectedAgentId) {
-    addToast("error", "חסר סוכן נבחר");
-    return;
-  }
+  if (!selectedAgentId || !selectedCompanyId) return;
 
-  setIsStartingAuto(true); // זה מציג את ה-"מתחיל..."
-  setIsAutoRunActive(true); // ✅ זה מה שצריך לנעול את הכפתור ל-"בביצוע"
+  setIsStartingAuto(true);
+  setIsAutoRunActive(true);
 
   try {
-    const isClal = String(selectedCompanyId) === "4";
-    const finalAutomationClass = isClal ? "clal_commissions_all" : effectiveAutomationClass;
-    const finalTemplateId = isClal ? "bundle_clal_commissions" : templateId;
+    // לוקח את ה-Class מהחברה (או מהתבנית אם אין לחברה)
+    const finalAutomationClass = effectiveAutomationClass;
+    
+    // אם ה-Class הגיע מהחברה (מכיל _all), נשלח Bundle. אחרת נשלח את ה-templateId הרגיל.
+    const finalTemplateId = finalAutomationClass.includes('_all') 
+      ? `bundle_${selectedCompanyId}_all` 
+      : templateId;
 
     const { runId } = await startAutoPortalRun({
       db,
@@ -232,16 +271,15 @@ const handleStartAuto = async () => {
     });
 
     setAutoRunId(runId);
-    // ❌ שימי לב: אנחנו *לא* משנים פה את isAutoRunActive ל-false!
-    // הוא יישאר true עד שה-onFinished יגיד לנו שהריצה נגמרה ב-Firestore.
-
   } catch (e: any) {
-    addToast("error", `שגיאה: ${String(e?.message || e)}`);
-    setIsAutoRunActive(false); // ✅ רק בשגיאה משחררים מיד
+    addToast("error", `שגיאה: ${e.message}`);
+    setIsAutoRunActive(false);
   } finally {
     setIsStartingAuto(false);
   }
 };
+
+
 
   const roundTo2 = (num: number) => Math.round(num * 100) / 100;
   const getExt = (n: string) => n.slice(n.lastIndexOf('.')).toLowerCase();
@@ -438,14 +476,17 @@ const handleStartAuto = async () => {
         const companyId = data.companyId;
         let companyName = '';
         let automationEnabled = false;
+        let companyAutomationClass = '';
 
         if (companyId) {
          if (!companyCache[companyId]) {
           const companySnap = await getDoc(doc(db, 'company', companyId));
           companyCache[companyId] = companySnap.exists() ? companySnap.data() : {};
         }
-        companyName = companyCache[companyId].companyName || '';
-        automationEnabled = !!companyCache[companyId].automationEnabled; // משיכת השדה
+       const companyInfo = companyCache[companyId];
+        companyName = companyInfo.companyName || '';
+        automationEnabled = !!companyInfo.automationEnabled;
+        companyAutomationClass = companyInfo.automationClass || '';      
       }
         templates.push({
           id: docSnap.id,
@@ -455,6 +496,7 @@ const handleStartAuto = async () => {
           type: data.type || '',
           Name: data.Name || '',
           automationClass: data.automationClass || '',
+          companyAutoClass: companyAutomationClass,
           commissionIncludesVAT: !!data.commissionIncludesVAT,
         });
       }
@@ -488,30 +530,6 @@ const handleStartAuto = async () => {
     fetchTemplateMapping();
   }, [templateId, templateOptions]);
 
-  /* ==============================
-     Derived data
-  ============================== */
-// יצירת רשימת חברות ייחודית הכוללת את שדה ה-Automation
-const uniqueCompanies = Array.from(
-  new Map(templateOptions.map(t => [
-    t.companyId, 
-    { id: t.companyId, name: t.companyName, automationEnabled: t.automationEnabled }
-  ])).values()
-);
-
-const filteredTemplates = templateOptions.filter(t => t.companyId === selectedCompanyId);
-
-// 1. אובייקט החברה המלא (בשביל ה-Automation)
-const selectedCompany = React.useMemo(
-  () => uniqueCompanies.find(c => c.id === selectedCompanyId),
-  [selectedCompanyId, uniqueCompanies]
-);
-
-// 2. שם החברה (בשביל לשמור על תאימות לקוד הקיים שלך)
-const selectedCompanyName = React.useMemo(
-  () => selectedCompany?.name || '',
-  [selectedCompany]
-);
 
   /* ==============================
      Parsing helpers
@@ -1570,7 +1588,7 @@ await setDoc(runRef, {
 
     const score = (t: string) => {
       const heb = (t.match(/[\u0590-\u05FF]/g) || []).length;
-      const mojibakePenalty = (t.match(/ן»¿|�/g) || []).length * 50;
+      const mojibakePenalty = (t.match(/ן»¿| /g) || []).length * 50;
       const weirdQuotes = (t.match(/[׳״´`]/g) || []).length * 2;
       return heb - mojibakePenalty - weirdQuotes;
     };

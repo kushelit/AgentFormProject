@@ -4,24 +4,8 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import useFetchAgentData from '@/hooks/useFetchAgentData';
 import { useAuth } from '@/lib/firebase/AuthContext';
 import { Spinner } from '@/components/Spinner';
-import { ChevronLeft, ChevronRight, PieChart } from 'lucide-react';
 import AgentImportChecklist from '@/components/commission/AgentImportChecklist';
-import {
-  ResponsiveContainer,
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  Tooltip,
-  CartesianGrid,
-  Legend,
-  Pie,
-  Cell,
-} from 'recharts';
-
 import dynamic from 'next/dynamic';
-
-
 import * as XLSX from 'xlsx';
 import { resolveFromTemplate } from '@/utils/contractCommissionResolvers';
 // אם תרצי להשתמש במנוע המלא:
@@ -29,6 +13,22 @@ import { buildContractComparisonRow } from '@/utils/buildContractComparisonRow';
 import useFetchMD from '@/hooks/useMD';
 import { collection, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase/firebase';
+import { ChevronLeft, ChevronRight, PieChart as PieIcon } from 'lucide-react';
+
+
+
+// 1. ייבוא של כל הספרייה תחת משתנה אחד עם השתקת שגיאות גורפת
+const DynamicResponsiveContainer = dynamic(() => import('recharts').then(m => m.ResponsiveContainer), { ssr: false }) as React.ComponentType<any>;
+const DynamicPieChart = dynamic(() => import('recharts').then(m => m.PieChart), { ssr: false }) as React.ComponentType<any>;
+const DynamicPie = dynamic(() => import('recharts').then(m => m.Pie), { ssr: false }) as React.ComponentType<any>;
+const DynamicCell = dynamic(() => import('recharts').then(m => m.Cell), { ssr: false }) as React.ComponentType<any>;
+const DynamicTooltip = dynamic(() => import('recharts').then(m => m.Tooltip), { ssr: false }) as React.ComponentType<any>;
+const DynamicLineChart = dynamic(() => import('recharts').then(m => m.LineChart), { ssr: false }) as React.ComponentType<any>;
+const DynamicLine = dynamic(() => import('recharts').then(m => m.Line), { ssr: false }) as React.ComponentType<any>;
+const DynamicXAxis = dynamic(() => import('recharts').then(m => m.XAxis), { ssr: false }) as React.ComponentType<any>;
+const DynamicYAxis = dynamic(() => import('recharts').then(m => m.YAxis), { ssr: false }) as React.ComponentType<any>;
+const DynamicCartesianGrid = dynamic(() => import('recharts').then(m => m.CartesianGrid), { ssr: false }) as React.ComponentType<any>;
+const DynamicLegend = dynamic(() => import('recharts').then(m => m.Legend), { ssr: false }) as React.ComponentType<any>;
 
 interface CommissionSummary {
   agentId: string;
@@ -85,6 +85,9 @@ type DrillRow = {
   productGroup?: string; 
   companyName?: string;
 };
+
+const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'];
+
 
 
 const CommissionSummaryAgentTab: React.FC = () => {
@@ -422,61 +425,51 @@ useEffect(() => {
   setIsMounted(true);
 }, []);
 
-// 1. הגדירי פלטת צבעים מעל הקומפוננטה
-const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
-
 // 2. בתוך הקומפוננטה, הוסיפי State לשליטה בנראות הטבלה המלאה
 const [showFullTable, setShowFullTable] = useState(false);
 
 
-// טעינה דינמית של הגרף - זה ימנע את שגיאת ה-activeIndex בוודאות
-const DynamicPieChart = dynamic(
-  () => import('recharts').then((mod) => mod.PieChart),
-  { ssr: false }
-);
-const DynamicPie = dynamic(
-  () => import('recharts').then((mod) => mod.Pie),
-  { ssr: false }
-);
-const DynamicCell = dynamic(
-  () => import('recharts').then((mod) => mod.Cell),
-  { ssr: false }
-);
-const DynamicResponsiveContainer = dynamic(
-  () => import('recharts').then((mod) => mod.ResponsiveContainer),
-  { ssr: false }
-);
-const DynamicTooltip = dynamic(
-  () => import('recharts').then((mod) => mod.Tooltip),
-  { ssr: false }
-);
-
-
-// רכיבי הגרפים בטעינה דינמית ללא SSR
-const PieChart = dynamic(() => import('recharts').then(mod => mod.PieChart), { ssr: false });
-const Pie = dynamic(() => import('recharts').then(mod => mod.Pie), { ssr: false });
-const Cell = dynamic(() => import('recharts').then(mod => mod.Cell), { ssr: false });
-const Tooltip = dynamic(() => import('recharts').then(mod => mod.Tooltip), { ssr: false });
-const ResponsiveContainer = dynamic(() => import('recharts').then(mod => mod.ResponsiveContainer), { ssr: false });
-const LineChart = dynamic(() => import('recharts').then(mod => mod.LineChart), { ssr: false });
-const Line = dynamic(() => import('recharts').then(mod => mod.Line), { ssr: false });
-const XAxis = dynamic(() => import('recharts').then(mod => mod.XAxis), { ssr: false });
-const YAxis = dynamic(() => import('recharts').then(mod => mod.YAxis), { ssr: false });
-const CartesianGrid = dynamic(() => import('recharts').then(mod => mod.CartesianGrid), { ssr: false });
-// שימוש ב-as any פותר את ההתנגשות של ה-Types ב-Dynamic Import
-const Legend = dynamic(() => import('recharts').then(mod => mod.Legend as any), { ssr: false });
-
-
-useEffect(() => { setIsMounted(true); }, []);
-
-
 
 const chartData = useMemo(() => {
-  return productSummary.map(item => ({
+  return productSummary.map((item, index) => ({
     name: item.name,
-    total: item.total
+    total: item.total,
+    fill: COLORS[index % COLORS.length] // הזרקת הצבע ישירות לנתון
   }));
 }, [productSummary]);
+
+
+
+const exportProductAnalysisToExcel = () => {
+  if (!productSummary.length) return;
+
+  const excelRows: any[] = [];
+
+  productSummary.forEach(group => {
+    Object.entries(group.products).forEach(([prodName, prodData]: [string, any]) => {
+      Object.entries(prodData.companies).forEach(([compName, compTotal]: [string, any]) => {
+        excelRows.push({
+          'קבוצת מוצר': group.name,
+          'מוצר': prodName,
+          'חברה': compName,
+          'סכום עמלה': compTotal,
+          'שנה': selectedYear,
+          'נתח מהמוצר': `${((compTotal / prodData.total) * 100).toFixed(1)}%`,
+          'נתח מכלל הקבוצה': `${((compTotal / group.total) * 100).toFixed(1)}%`
+        });
+      });
+    });
+  });
+
+  const ws = XLSX.utils.json_to_sheet(excelRows);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'ניתוח שנתי מפורט');
+
+  // שמירת הקובץ
+  XLSX.writeFile(wb, `ניתוח_עמלות_שנתי_${selectedYear}.xlsx`);
+};
+
+
 
 
   return (
@@ -551,44 +544,121 @@ const chartData = useMemo(() => {
   <div className="space-y-6 animate-in fade-in zoom-in duration-500 pb-10">
     
     {/* ריבועי KPI */}
-    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-      <div className="bg-gradient-to-br from-indigo-500 to-indigo-700 p-5 rounded-2xl shadow-lg text-white">
-<div className="text-indigo-100 text-[10px] font-bold uppercase">
-  סה&quot;כ עמלות {selectedYear}
-</div>
-        <div className="text-3xl font-black mt-1">{formatCurrency(yearlyInsights.totalYearly)} ₪</div>
-      </div>
-      <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 border-r-4 border-r-emerald-500">
-        <div className="text-slate-400 text-[10px] font-bold uppercase">חברה מובילה</div>
-        <div className="text-xl font-black text-slate-800 mt-1">{yearlyInsights.topCompany?.name || '-'}</div>
-      </div>
-      <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 border-r-4 border-r-amber-500">
-        <div className="text-slate-400 text-[10px] font-bold uppercase">חודש שיא</div>
-        <div className="text-xl font-black text-slate-800 mt-1">{yearlyInsights.bestMonth?.month || '-'}</div>
-      </div>
-      <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 border-r-4 border-r-indigo-400">
-        <div className="text-slate-400 text-[10px] font-bold uppercase">קבוצות מוצר</div>
-        <div className="text-xl font-black text-slate-800 mt-1">{productSummary.length}</div>
-      </div>
+ {/* 1. כרטיסיות ה-KPI (הריבועים) */}
+<div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+  {/* סה"כ עמלות */}
+ {/* סה"כ עמלות - גרסה עדינה ונקייה */}
+<div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 border-r-4 border-r-indigo-500">
+  <div className="text-slate-400 text-[10px] font-bold uppercase tracking-wider">
+    סה"כ עמלות {selectedYear}
+  </div>
+  <div className="text-3xl font-black mt-1 text-indigo-600">
+    {formatCurrency(yearlyInsights.totalYearly)} ₪
+  </div>
+  <div className="flex items-center gap-1.5 mt-2">
+    <div className="w-1.5 h-1.5 rounded-full bg-indigo-400"></div>
+    <div className="text-[10px] text-slate-400 font-medium italic">
+      ממוצע חודשי: {formatCurrency(yearlyInsights.totalYearly / 12)} ₪
     </div>
+  </div>
+</div>
 
+  {/* חברה מובילה */}
+  <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 border-r-4 border-r-emerald-500">
+    <div className="text-slate-400 text-[10px] font-bold uppercase tracking-wider">חברה מובילה</div>
+    <div className="text-xl font-black text-slate-800 mt-1">{yearlyInsights.topCompany?.name || '-'}</div>
+    <div className="text-xs text-emerald-600 font-bold">{formatCurrency(yearlyInsights.topCompany?.total || 0)} ₪</div>
+  </div>
+
+  {/* חודש שיא */}
+  <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 border-r-4 border-r-amber-500">
+    <div className="text-slate-400 text-[10px] font-bold uppercase tracking-wider">חודש שיא</div>
+    <div className="text-xl font-black text-slate-800 mt-1">{yearlyInsights.bestMonth?.month || '-'}</div>
+    <div className="text-xs text-amber-600 font-bold">{formatCurrency(yearlyInsights.bestMonth?.total || 0)} ₪</div>
+  </div>
+
+  {/* קבוצה דומיננטית - התיקון החדש שלך */}
+  <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 border-r-4 border-r-indigo-400">
+    <div className="text-slate-400 text-[10px] font-bold uppercase tracking-wider">קבוצה דומיננטית</div>
+    <div className="text-xl font-black text-slate-800 mt-1 truncate" title={productSummary[0]?.name}>
+      {productSummary[0]?.name || 'אין נתונים'}
+    </div>
+    <div className="text-[10px] text-slate-400 mt-1 italic">
+      מתוך {productSummary.length} קבוצות מוצר
+    </div>
+  </div>
+</div>
     {/* גרף ותקציר */}
     <div className="bg-white rounded-3xl shadow-xl border border-slate-200 overflow-hidden">
       <div className="p-8 grid grid-cols-1 lg:grid-cols-12 gap-10 items-center">
-        <div className="lg:col-span-5 h-[320px] flex flex-col items-center justify-center border-l border-slate-100">
-          {isMounted && chartData.length > 0 ? (
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie data={chartData} dataKey="total" nameKey="name" cx="50%" cy="50%" innerRadius={70} outerRadius={100} paddingAngle={5}
-                  label={({ name, percent = 0 }) => `${name} ${(percent * 100).toFixed(0)}%`}>
-                  {chartData.map((_, index) => <Cell key={index} fill={COLORS[index % COLORS.length]} />)}
-                </Pie>
-                <Tooltip formatter={(val: any) => [`${formatCurrency(val)} ₪`, 'עמלה']} />
-              </PieChart>
-            </ResponsiveContainer>
-          ) : <div className="animate-pulse text-slate-300 italic">טוען ניתוח ויזואלי...</div>}
-        </div>
+<div className="lg:col-span-5 h-[350px] flex flex-col items-center justify-center border-l border-slate-100 pr-4 relative">
+  <h4 className="text-xs font-bold text-slate-400 mb-4 uppercase tracking-widest text-center w-full">
+    התפלגות תיק שנתי
+  </h4>
+  
+  {isMounted && chartData.length > 0 ? (
+    <DynamicResponsiveContainer width="100%" height="100%">
+      {/* 1. Margin גדול מאוד בצדדים כדי לתת מקום לטקסט לצאת החוצה */}
+      <DynamicPieChart margin={{ top: 30, right: 70, bottom: 30, left: 70 }}>
+ <DynamicPie
+  data={chartData}
+  dataKey="total"
+  nameKey="name"
+  cx="50%"
+  cy="50%"
+  innerRadius={0}
+  outerRadius={65} // הקטנו ל-65 כדי לפנות מקום לטקסט
+  paddingAngle={5}
+  minAngle={15}
+  animationDuration={800}
+  labelLine={true}
+  label={({
+    cx,
+    cy,
+    midAngle,
+    innerRadius,
+    outerRadius,
+    percent,
+    name
+  }: any) => {
+    // חישוב המיקום מחוץ לעיגול
+    const RADIAN = Math.PI / 180;
+    const radius = outerRadius + 25; // המרחק של הטקסט מהעיגול
+    const x = cx + radius * Math.cos(-midAngle * RADIAN);
+    const y = cy + radius * Math.sin(-midAngle * RADIAN);
 
+    return (
+      <text
+        x={x}
+        y={y}
+        fill="#4b5563" // אפור כהה קריא
+        textAnchor={x > cx ? 'start' : 'end'} // יישור לפי צד ימין או שמאל
+        dominantBaseline="central"
+        style={{ fontSize: '12px', fontWeight: 'bold' }}
+      >
+        {`${name} ${(percent * 100).toFixed(0)}%`}
+      </text>
+    );
+  }}
+>
+  {chartData.map((entry: any, index: number) => (
+    <DynamicCell 
+      key={`cell-${index}`} 
+      fill={entry.fill} 
+      stroke="#fff" 
+      strokeWidth={2}
+    />
+  ))}
+</DynamicPie>
+        <DynamicTooltip formatter={(val: any) => [`${formatCurrency(val)} ₪`, 'עמלה שנתי']} />
+      </DynamicPieChart>
+    </DynamicResponsiveContainer>
+  ) : (
+    <div className="h-48 flex items-center justify-center italic text-slate-400 animate-pulse">
+      מעבד נתונים...
+    </div>
+  )}
+</div>
         <div className="lg:col-span-7 space-y-6">
           <h3 className="text-2xl font-black text-slate-800">פילוח רווחיות מוצרים</h3>
           <div className="grid grid-cols-1 gap-3">
@@ -607,45 +677,79 @@ const chartData = useMemo(() => {
           </button>
         </div>
       </div>
-
       {/* הטבלה המפורטת עם ה-Stacked Bars */}
-      {showFullTable && (
-        <div className="border-t border-slate-100 animate-in slide-in-from-top-5 duration-500">
-          <table className="w-full text-right border-collapse text-sm">
-            <thead className="bg-slate-50 text-slate-400 font-bold border-b text-[11px] tracking-widest uppercase">
-              <tr><th className="px-8 py-4">מוצר</th><th className="px-8 py-4 text-center">עמלה</th><th className="px-8 py-4 text-center">פילוח חברות</th></tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {productSummary.map(group => (
-                <React.Fragment key={group.name}>
-                  <tr className="bg-indigo-50/20"><td colSpan={2} className="px-8 py-4 font-black text-slate-800">{group.name}</td><td /></tr>
-                  {Object.entries(group.products).map(([prodName, prodData]: any) => (
-                    <tr key={prodName} className="hover:bg-slate-50">
-                      <td className="pr-16 py-4 text-slate-600 italic">📦 {prodName}</td>
-                      <td className="px-8 py-4 text-center font-bold">{formatCurrency(prodData.total)} ₪</td>
-                      <td className="px-8 py-4 w-[40%]">
-                        <div className="flex w-full h-3 rounded-full overflow-hidden bg-slate-100 border shadow-inner">
-                          {Object.entries(prodData.companies).map(([cName, cTotal]: any, i) => (
-                            <div key={cName} style={{ width: `${(cTotal/prodData.total)*100}%`, backgroundColor: COLORS[i % COLORS.length] }} title={`${cName}: ${formatCurrency(cTotal)}`} />
-                          ))}
-                        </div>
-                        <div className="flex flex-wrap gap-2 mt-2">
-                          {Object.entries(prodData.companies).slice(0, 5).map(([cName, cTotal]: any, i) => (
-                            <span key={cName} className="text-[9px] text-slate-500 flex items-center gap-1">
-                              <div className="w-1 h-1 rounded-full" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
-                              {cName} ({((cTotal/prodData.total)*100).toFixed(0)}%)
-                            </span>
-                          ))}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </React.Fragment>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+{/* הטבלה המפורטת עם ה-Stacked Bars */}
+{showFullTable && (
+  <div className="border-t border-slate-100 animate-in slide-in-from-top-5 duration-500">
+    <table className="w-full text-right border-collapse text-sm">
+      <thead className="bg-slate-50 text-slate-500 font-bold border-b text-[14px] tracking-wide uppercase">
+        <tr>
+          <th className="px-8 py-4 text-right">מוצר</th>
+          <th className="px-8 py-4 text-center">עמלה</th>
+          <th className="px-8 py-4 text-left">
+            <div className="flex items-center justify-between">
+              <span>פילוח חברות</span>
+              
+              {/* כפתור אקסל בקצה השמאלי של הכותרת */}
+              <button 
+                onClick={exportProductAnalysisToExcel}
+                className="flex items-center gap-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 px-3 py-1.5 rounded-lg border border-emerald-200 transition-colors text-[12px]"
+                title="ייצוא ניתוח שנתי לאקסל"
+              >
+                <img src="/static/img/excel-icon.svg" width={16} height={16} alt="Excel" />
+                <span>ייצוא נתונים</span>
+              </button>
+            </div>
+          </th>
+        </tr>
+      </thead>
+      <tbody className="divide-y divide-slate-100">
+        {productSummary.map(group => (
+          <React.Fragment key={group.name}>
+            <tr className="bg-indigo-50/20">
+              {/* 1. יישור לימין של המלל בעמודת מוצר */}
+              <td colSpan={2} className="px-8 py-4 font-black text-slate-800 text-right text-base">
+                {group.name}
+              </td>
+              <td />
+            </tr>
+            {Object.entries(group.products).map(([prodName, prodData]: any) => (
+              <tr key={prodName} className="hover:bg-slate-50">
+                {/* 1. יישור לימין של מוצרי המשנה */}
+                <td className="pr-16 py-4 text-slate-600 italic text-right text-[14px]">
+                  📦 {prodName}
+                </td>
+                <td className="px-8 py-4 text-center font-bold text-base">
+                  {formatCurrency(prodData.total)} ₪
+                </td>
+                <td className="px-8 py-4 w-[45%]">
+                  <div className="flex w-full h-3 rounded-full overflow-hidden bg-slate-100 border shadow-inner">
+                    {Object.entries(prodData.companies).map(([cName, cTotal]: any, i) => (
+                      <div 
+                        key={cName} 
+                        style={{ width: `${(cTotal/prodData.total)*100}%`, backgroundColor: COLORS[i % COLORS.length] }} 
+                        title={`${cName}: ${formatCurrency(cTotal)}`} 
+                      />
+                    ))}
+                  </div>
+                  {/* 3. הגדלת שמות החברות בפילוח */}
+                  <div className="flex flex-wrap gap-x-4 gap-y-2 mt-2 justify-start">
+                    {Object.entries(prodData.companies).map(([cName, cTotal]: any, i) => (
+                      <span key={cName} className="text-[12px] text-slate-700 font-semibold flex items-center gap-1.5">
+                        <div className="w-2 h-2 rounded-full" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
+                        {cName} ({((cTotal/prodData.total)*100).toFixed(0)}%)
+                      </span>
+                    ))}
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </React.Fragment>
+        ))}
+      </tbody>
+    </table>
+  </div>
+)}
     </div>
   </div>
 )}
@@ -828,81 +932,80 @@ const chartData = useMemo(() => {
       )}
       {!loading && allMonths.length > 0 && (
         <div className="mt-10 space-y-10">
-          <section>
-            <h3 className="text-xl font-semibold mb-3">
-              גרף נפרעים לפי חודש (סה&quot;כ חודשי)
-            </h3>
-            <div className="w-full h-80 rounded-xl border bg-white">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart
-                  data={monthlyTotalsData}
-                  margin={{ top: 10, right: 64, left: 10, bottom: 28 }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis
-                    dataKey="month"
-                    interval={0}
-                    angle={0}
-                    height={50}
-                    tickMargin={10}
-                    padding={{ left: 10, right: 28 }}
-                  />
-                  <YAxis tickFormatter={formatCurrency} width={80} />
-                  <Tooltip
-                    formatter={(value) => [
-                      formatCurrency(value as number),
-                      'סה"כ',
-                    ]}
-                    labelFormatter={(label) => `חודש: ${label}`}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="total"
-                    stroke={palette[0]}
-                    strokeWidth={3}
-                    dot={{ r: 3 }}
-                    name='סה"כ'
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          </section>
-      <section>
+     <section>
+  <h3 className="text-xl font-semibold mb-3">
+    גרף נפרעים לפי חודש (סה"כ חודשי)
+  </h3>
+  <div className="w-full h-80 rounded-xl border bg-white">
+    {isMounted && (
+      <DynamicResponsiveContainer width="100%" height="100%">
+        <DynamicLineChart
+          data={monthlyTotalsData}
+          margin={{ top: 10, right: 64, left: 10, bottom: 28 }}
+        >
+          <DynamicCartesianGrid strokeDasharray="3 3" />
+          <DynamicXAxis
+            dataKey="month"
+            interval={0}
+            height={50}
+            tickMargin={10}
+            padding={{ left: 10, right: 28 }}
+          />
+          <DynamicYAxis tickFormatter={formatCurrency} width={80} />
+        <DynamicTooltip
+  formatter={(value: any) => [
+    formatCurrency(value),
+    'סה"כ',
+  ]}
+  labelFormatter={(label: any) => `חודש: ${label}`}
+/>
+          <DynamicLine
+            type="monotone"
+            dataKey="total"
+            stroke={palette[0]}
+            strokeWidth={3}
+            dot={{ r: 3 }}
+            name='סה"כ'
+          />
+        </DynamicLineChart>
+      </DynamicResponsiveContainer>
+    )}
+  </div>
+</section>
+   <section>
   <h3 className="text-xl font-semibold mb-3 text-slate-800">
     גרף נפרעים לפי חברה (התפתחות חודשית)
   </h3>
-  {/* ה-div הזה פותר את הכל בעזרת dir="rtl" */}
   <div className="w-full h-96 rounded-2xl border bg-white shadow-sm p-4" dir="rtl">
     {isMounted && (
-      <ResponsiveContainer width="100%" height="100%">
-        <LineChart
+      <DynamicResponsiveContainer width="100%" height="100%">
+        <DynamicLineChart
           data={perCompanyOverMonthsData}
           margin={{ top: 10, right: 10, left: 10, bottom: 28 }}
         >
-          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-          <XAxis
+          <DynamicCartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+          <DynamicXAxis
             dataKey="month"
             tick={{ fontSize: 12, fill: '#94a3b8' }}
             axisLine={{ stroke: '#e2e8f0' }}
           />
-          <YAxis 
+          <DynamicYAxis 
             tickFormatter={formatCurrency} 
             width={80}
             tick={{ fontSize: 12, fill: '#94a3b8' }}
             axisLine={{ stroke: '#e2e8f0' }}
           />
-          <Tooltip
+          <DynamicTooltip
             formatter={(value: any, key: any) => [formatCurrency(value), key]}
             contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
           />
-          {/* הורדנו את ה-wrapperStyle מכאן כי ה-dir="rtl" למעלה כבר מטפל בזה */}
-<Legend {...({ 
-  iconType: "circle", 
-  verticalAlign: "top", 
-  height: 36 
-} as any)} />          
+          <DynamicLegend {...({ 
+            iconType: "circle", 
+            verticalAlign: "top", 
+            height: 36 
+          } as any)} />          
           {allCompanies.map((company, idx) => (
-            <Line
+            <DynamicLine
               key={company}
               type="monotone"
               dataKey={company}
@@ -913,8 +1016,8 @@ const chartData = useMemo(() => {
               name={company}
             />
           ))}
-        </LineChart>
-      </ResponsiveContainer>
+        </DynamicLineChart>
+      </DynamicResponsiveContainer>
     )}
   </div>
 </section>
