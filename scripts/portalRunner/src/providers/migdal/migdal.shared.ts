@@ -1,4 +1,3 @@
-// scripts/portalRunner/src/providers/migdal/migdal.shared.ts
 import type { Page, Download } from "playwright";
 import type { RunnerCtx } from "../../types";
 
@@ -9,7 +8,7 @@ export async function waitMigdalLoaderGone(page: Page, timeoutMs = 30000) {
   try {
     await page.waitForFunction(() => {
       const spinners = document.querySelectorAll('.k-loading-mask, .k-loading-image, #messageYesNoDialogSpinner, .modal-backdrop, .loading-backdrop');
-      return Array.from(spinners).every(s => (s as HTMLElement).offsetWidth === 0 || (s as HTMLElement).style.display === 'none');
+      return Array.from(spinners).every(s => (s as any).offsetWidth === 0 || (s as any).style.display === 'none');
     }, { timeout: timeoutMs });
     console.log("[Migdal] Loader gone ✅");
   } catch (e) {
@@ -18,7 +17,7 @@ export async function waitMigdalLoaderGone(page: Page, timeoutMs = 30000) {
 }
 
 /**
- * לוגין למגדל באמצעות הזרקת קוד (חסין ל-Frames)
+ * לוגין למגדל - עובד, לא נגעתי
  */
 export async function migdalLogin(page: Page, username: string, password: string) {
   console.log("[Migdal] Injecting login credentials...");
@@ -44,7 +43,7 @@ export async function migdalLogin(page: Page, username: string, password: string
 }
 
 /**
- * טיפול בקוד ה-OTP של מגדל
+ * OTP - עובד, לא נגעתי
  */
 export async function migdalHandleOtp(page: Page, ctx: RunnerCtx) {
   const { runId, pollOtp, setStatus, clearOtp } = ctx;
@@ -78,7 +77,7 @@ export async function migdalHandleOtp(page: Page, ctx: RunnerCtx) {
 }
 
 /**
- * ניווט לדף עמלות: כלים -> דוחות -> הסכמים ועמלות
+ * ניווט - עובד, לא נגעתי
  */
 export async function navigateToCommissions(page: Page) {
   console.log("[Migdal] Navigating to commissions page...");
@@ -88,18 +87,12 @@ export async function navigateToCommissions(page: Page) {
         return Array.from(document.querySelectorAll(selector))
           .find(el => el.innerText && el.innerText.includes(text));
       };
-
-      // 1. לחיצה על כלים
       const tools = getByText('label', 'כלים');
       if (tools) tools.click();
-
-      // 2. לחיצה על דוחות (אחרי שניה)
       setTimeout(() => {
         const reportBtn = document.getElementById('goToSubCategory');
         if (reportBtn) reportBtn.click();
       }, 1000);
-
-      // 3. לחיצה על הסכמים ועמלות (אחרי 2 שניות)
       setTimeout(() => {
         const target = getByText('label.s-content', 'הסכמים ועמלות');
         if (target) target.click();
@@ -107,44 +100,99 @@ export async function navigateToCommissions(page: Page) {
     })()
   `;
   await page.evaluate(injection);
-  await page.waitForTimeout(4500); // המתנה לסיום כל הקליקים
+  await page.waitForTimeout(4500);
   await waitMigdalLoaderGone(page);
 }
 
 /**
- * פתיחת דוח מתוך דף הדוחות הראשי באמצעות חיפוש
+ * פתיחת דוח - מתוקן (Serialization) + 30 שניות המתנה
+ */
+/**
+ * פתיחת דוח מתוך דף הדוחות הראשי באמצעות חיפוש - גרסה חסינת Serialization
+ */
+// export async function migdalOpenReport(page: Page, reportName: string) {
+//   console.log(`[Migdal] Opening report: ${reportName}`);
+  
+//   // 1. הזרקת הטקסט לשדה החיפוש ולחיצה על זכוכית המגדלת
+//   // שימוש ב-String Injection מונע שגיאות Serialization של Playwright
+//   const searchInjection = `
+//     (function(name) {
+//       const input = document.querySelector('input[placeholder*="הקלד"], .src-input-container input');
+//       const btn = document.querySelector('button.src-btn');
+//       if (input && btn) {
+//         input.value = name;
+//         input.dispatchEvent(new Event('input', { bubbles: true }));
+//         btn.click();
+//       }
+//     })('${reportName}')
+//   `;
+//   await page.evaluate(searchInjection);
+
+//   // 2. המתנה לתוצאה שתופיע ולחיצה עליה
+//   // כאן אנחנו מעבירים את reportName כפרמטר פשוט, זה תקין ב-waitForFunction
+//   await page.waitForFunction((name) => {
+//     const items = Array.from(document.querySelectorAll('div.rslt-item-param-ttl'));
+//     return items.some(el => el.textContent && el.textContent.includes(name));
+//   }, reportName, { timeout: 20000 });
+
+//   // 3. לחיצה על התוצאה הספציפית דרך הזרקת מחרוזת
+//   const clickInjection = `
+//     (function(name) {
+//       const items = Array.from(document.querySelectorAll('div.rslt-item-param-ttl'));
+//       const target = items.find(el => el.textContent && el.textContent.includes(name));
+//       if (target) {
+//         target.click();
+//       }
+//     })('${reportName}')
+//   `;
+//   await page.evaluate(clickInjection);
+
+//   // המתנה שהלואדר ייעלם אחרי הלחיצה
+//   await waitMigdalLoaderGone(page);
+
+//   // --- העצירה שביקשת: 30 שניות מלאות לראות את הגריד נטען ---
+//   console.log("[Migdal] PAUSE: Waiting 30 seconds to observe the grid...");
+//   await page.waitForTimeout(30000); 
+// }
+
+/**
+ * פתיחת דוח באמצעות קליק ישיר על השם שלו ברשימה (ללא חיפוש)
+ */
+
+/**
+ * פתיחת דוח באמצעות קליק ישיר על השם שלו - ללא שגיאות TS וללא בעיות Serialization
  */
 export async function migdalOpenReport(page: Page, reportName: string) {
-  console.log(`[Migdal] Opening report: ${reportName}`);
-  await page.evaluate(`
+  console.log(`[Migdal] Step: Searching for report "${reportName}" to click...`);
+
+  // אנחנו מזריקים את כל הפונקציה כמחרוזת (String). 
+  // זה מונע מ-TS לצעוק על 'click' ומונע מ-Playwright להיכשל ב-Serialization.
+  const injection = `
     (function(name) {
-      const input = document.querySelector('input[placeholder*="הקלד"], .src-input-container input');
-      const btn = document.querySelector('button.src-btn');
-      if (input && btn) {
-        input.value = name;
-        input.dispatchEvent(new Event('input', { bubbles: true }));
-        btn.click();
+      const items = Array.from(document.querySelectorAll('div.rslt-item-param-ttl'));
+      const target = items.find(el => el.textContent && el.textContent.includes(name));
+      
+      if (target) {
+        target.click();
+        return "CLICKED";
       }
+      return "NOT_FOUND";
     })('${reportName}')
-  `);
+  `;
 
-  await page.waitForFunction((name) => {
-    const items = Array.from(document.querySelectorAll('div.rslt-item-param-ttl'));
-    return items.some(el => el.textContent && el.textContent.includes(name));
-  }, reportName, { timeout: 20000 });
+  const result = await page.evaluate(injection);
+  console.log(`[Migdal] Find & Click result: ${result}`);
 
-  await page.evaluate((name) => {
-    const items = Array.from(document.querySelectorAll('div.rslt-item-param-ttl'));
-    const target = items.find(el => el.textContent && el.textContent.includes(name));
-    if (target) (target as any).click();
-  }, reportName);
-
+  // המתנה ללואדר
   await waitMigdalLoaderGone(page);
-  await page.waitForTimeout(3000); // המתנה לטעינת הגריד
+
+  // העצירה של ה-30 שניות שביקשת לראות מה קורה בעין
+  console.log("[Migdal] PAUSE: Waiting 30 seconds to observe the grid...");
+  await page.waitForTimeout(30000); 
 }
 
 /**
- * יצוא אקסל (Targeted Injection)
+ * יצוא אקסל - עובד, לא נגעתי
  */
 export async function migdalExportExcel(page: Page): Promise<Download | null> {
   console.log("[Migdal] Triggering Excel Export...");
