@@ -1,3 +1,4 @@
+// scripts/portalRunner/src/providers/migdal/migdal.all.ts
 import fs from "fs";
 import path from "path";
 import { chromium } from "playwright";
@@ -7,7 +8,8 @@ import {
   migdalHandleOtp, 
   migdalOpenReport, 
   migdalExportExcel,
-  waitMigdalLoaderGone 
+  waitMigdalLoaderGone,
+  navigateToCommissions
 } from "./migdal.shared";
 import { uploadLocalFileToStorageClient } from "../../uploadToStorage.client";
 import { httpsCallable } from "firebase/functions";
@@ -21,18 +23,13 @@ async function getMigdalCredsViaCallable(ctx: RunnerCtx, portalId: string) {
   if (!functions) throw new Error("Missing ctx.functions");
   const fn = httpsCallable(functions, "getPortalCredentialsDecrypted");
   const res: any = await fn({ portalId });
-  
   const s = (v: any) => String(v ?? "").trim();
-  return { 
-    username: s(res?.data?.username), 
-    password: s(res?.data?.password) 
-  };
+  return { username: s(res?.data?.username), password: s(res?.data?.password) };
 }
 
 export async function runMigdalAll(ctx: RunnerCtx) {
   const { runId, setStatus, run, paths, storage } = ctx;
   const portalUrl = "https://apmaccess.migdal.co.il/my.policy/";
-  
   const absDir = paths?.downloadsDir || "./downloads";
   ensureDir(absDir);
 
@@ -47,8 +44,8 @@ export async function runMigdalAll(ctx: RunnerCtx) {
   });
 
   const context = await browser.newContext({ 
-    viewport: null, 
     acceptDownloads: true,
+    viewport: { width: 1600, height: 900 }, // גודל מסך גדול למניעת הסתרת תפריטים
     userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
   });
 
@@ -56,33 +53,26 @@ export async function runMigdalAll(ctx: RunnerCtx) {
 
   try {
     // 1. לוגין ו-OTP
-await page.goto(portalUrl, { waitUntil: "commit", timeout: 60000 });
+    await page.goto(portalUrl, { waitUntil: "commit", timeout: 60000 });
     await setStatus(runId, { status: "running", step: "migdal_login" });
     await migdalLogin(page, username, password!);
 
-await setStatus(runId, { 
-      status: "otp_required", 
-      step: "ממתין לקוד אימות ממגדל", 
-      "otp.mode": "firestore" 
-    });
-    
+    await setStatus(runId, { status: "otp_required", step: "ממתין לקוד אימות ממגדל", "otp.mode": "firestore" });
     await migdalHandleOtp(page, ctx);
-await page.waitForLoadState("networkidle"); // נותן למערכת לסיים את הניתוב אחרי ה-OTP
+
+    await page.waitForLoadState("networkidle");
     await page.waitForURL(/NewEra/i, { timeout: 60000 });
     await waitMigdalLoaderGone(page);
 
-    // 2. מעבר לדף דוחות
-    await setStatus(runId, { status: "running", step: "migdal_nav_to_reports" });
-    await page.getByText("כלים").click();
-    await page.getByText("דוחות").click();
-    await page.waitForLoadState("networkidle");
+    // 2. ניווט לדף עמלות
+    await setStatus(runId, { status: "running", step: "מנווט לדוחות עמלות" });
+    await navigateToCommissions(page);
 
-    // 3. רשימת כל הדוחות להורדה (4 תבניות)
+    // 3. רשימת דוחות להורדה לפי הסדר המבוקש
     const REPORTS = [
-      { name: "פירוט עמלות חיים", templateId: "migdal_life" },
-      { name: "פירוט עמלות גמל", templateId: "migdal_gemel" },
       { name: "משולמים לסוכן", templateId: "migdal_meshulamim" },
-      { name: "פירוט עמלות אלמנטרי", templateId: "migdal_general" }
+      { name: "עמלה מדמי ניהול קהש וגמל - לבעלים", templateId: "migdal_gemel" },
+      { name: "עמלה מצבירה/דמי ניהול לביטוח חיים לבעלים", templateId: "migdal_life" }
     ];
 
     const appendDownload = async (item: any) => {
@@ -94,23 +84,17 @@ await page.waitForLoadState("networkidle"); // נותן למערכת לסיים 
 
     for (const rep of REPORTS) {
       try {
-        console.log(`[Migdal] Starting export for: ${rep.name}`);
-        await setStatus(runId, { status: "running", step: `migdal_export_${rep.templateId}` });
-        
+        await setStatus(runId, { status: "running", step: `מפיק דוח: ${rep.name}` });
         await migdalOpenReport(page, rep.name);
-        const download = await migdalExportExcel(page);
         
+        const download = await migdalExportExcel(page);
         if (download) {
           const filename = download.suggestedFilename();
           const localPath = path.join(absDir, `${Date.now()}_${filename}`);
           await download.saveAs(localPath);
 
           const up = await uploadLocalFileToStorageClient({
-            storage,
-            localPath,
-            agentId,
-            runId,
-            subdir: rep.templateId
+            storage, localPath, agentId, runId, subdir: rep.templateId
           } as any);
 
           if (up?.storagePath) {
@@ -122,20 +106,17 @@ await page.waitForLoadState("networkidle"); // נותן למערכת לסיים 
             });
           }
         }
-
-        // חזרה לדף החיפוש (Migdal NewEra דורשת חזרה אחורה או לחיצה מחדש על דוחות)
+        // חזרה לרשימת הדוחות
         await page.goBack();
         await waitMigdalLoaderGone(page);
-
+        await page.waitForTimeout(2000);
       } catch (repErr: any) {
         console.error(`[Migdal] Failed to download ${rep.name}:`, repErr.message);
       }
     }
 
     await setStatus(runId, { status: "done", step: "migdal_all_done" });
-
   } catch (e: any) {
-    console.error("[Migdal] Global Run Failed:", e.message);
     await setStatus(runId, { status: "error", error: e.message });
     throw e;
   } finally {
