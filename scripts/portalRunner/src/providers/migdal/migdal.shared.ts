@@ -110,50 +110,6 @@ export async function navigateToCommissions(page: Page) {
 /**
  * פתיחת דוח מתוך דף הדוחות הראשי באמצעות חיפוש - גרסה חסינת Serialization
  */
-// export async function migdalOpenReport(page: Page, reportName: string) {
-//   console.log(`[Migdal] Opening report: ${reportName}`);
-  
-//   // 1. הזרקת הטקסט לשדה החיפוש ולחיצה על זכוכית המגדלת
-//   // שימוש ב-String Injection מונע שגיאות Serialization של Playwright
-//   const searchInjection = `
-//     (function(name) {
-//       const input = document.querySelector('input[placeholder*="הקלד"], .src-input-container input');
-//       const btn = document.querySelector('button.src-btn');
-//       if (input && btn) {
-//         input.value = name;
-//         input.dispatchEvent(new Event('input', { bubbles: true }));
-//         btn.click();
-//       }
-//     })('${reportName}')
-//   `;
-//   await page.evaluate(searchInjection);
-
-//   // 2. המתנה לתוצאה שתופיע ולחיצה עליה
-//   // כאן אנחנו מעבירים את reportName כפרמטר פשוט, זה תקין ב-waitForFunction
-//   await page.waitForFunction((name) => {
-//     const items = Array.from(document.querySelectorAll('div.rslt-item-param-ttl'));
-//     return items.some(el => el.textContent && el.textContent.includes(name));
-//   }, reportName, { timeout: 20000 });
-
-//   // 3. לחיצה על התוצאה הספציפית דרך הזרקת מחרוזת
-//   const clickInjection = `
-//     (function(name) {
-//       const items = Array.from(document.querySelectorAll('div.rslt-item-param-ttl'));
-//       const target = items.find(el => el.textContent && el.textContent.includes(name));
-//       if (target) {
-//         target.click();
-//       }
-//     })('${reportName}')
-//   `;
-//   await page.evaluate(clickInjection);
-
-//   // המתנה שהלואדר ייעלם אחרי הלחיצה
-//   await waitMigdalLoaderGone(page);
-
-//   // --- העצירה שביקשת: 30 שניות מלאות לראות את הגריד נטען ---
-//   console.log("[Migdal] PAUSE: Waiting 30 seconds to observe the grid...");
-//   await page.waitForTimeout(30000); 
-// }
 
 /**
  * פתיחת דוח באמצעות קליק ישיר על השם שלו ברשימה (ללא חיפוש)
@@ -163,34 +119,42 @@ export async function navigateToCommissions(page: Page) {
  * פתיחת דוח באמצעות קליק ישיר על השם שלו - ללא שגיאות TS וללא בעיות Serialization
  */
 export async function migdalOpenReport(page: Page, reportName: string) {
-  console.log(`[Migdal] Step: Searching for report "${reportName}" to click...`);
+  console.log(`[Migdal] Step: Searching for report "${reportName}"...`);
 
-  // אנחנו מזריקים את כל הפונקציה כמחרוזת (String). 
-  // זה מונע מ-TS לצעוק על 'click' ומונע מ-Playwright להיכשל ב-Serialization.
   const injection = `
     (function(name) {
-      const items = Array.from(document.querySelectorAll('div.rslt-item-param-ttl'));
-      const target = items.find(el => el.textContent && el.textContent.includes(name));
+      // מחפש בכל הסוגים שראינו בתמונות שלך (גם div וגם label)
+      const selectors = 'label.title, div.rslt-item-param-ttl, .title, .item-label';
+      const items = Array.from(document.querySelectorAll(selectors));
+      
+      const target = items.find(el => {
+        // הופך את כל הניו-ליינים והרווחים הכפולים לרווח אחד רגיל
+        const cleanText = (el.textContent || "").replace(/\\s+/g, ' ').trim();
+        const cleanSearchName = name.replace(/\\s+/g, ' ').trim();
+        
+        return cleanText.includes(cleanSearchName);
+      });
       
       if (target) {
+        target.scrollIntoView({ block: "center" });
         target.click();
         return "CLICKED";
       }
-      return "NOT_FOUND";
+      
+      // אם לא מצא, נחזיר לוג של מה שכן קיים על המסך כדי שנדע מה הטקסט המדויק
+      return "NOT_FOUND. Available on page: " + items.map(i => i.textContent.trim()).join(' | ');
     })('${reportName}')
   `;
 
   const result = await page.evaluate(injection);
-  console.log(`[Migdal] Find & Click result: ${result}`);
+  console.log(`[Migdal] Find & Click result for "${reportName}": ${result}`);
 
-  // המתנה ללואדר
   await waitMigdalLoaderGone(page);
-
-  // העצירה של ה-30 שניות שביקשת לראות מה קורה בעין
-  console.log("[Migdal] PAUSE: Waiting 30 seconds to observe the grid...");
-  await page.waitForTimeout(30000); 
+  
+  // השארתי 15 שניות כדי לוודא שאת רואה שהדוח אכן נפתח
+  console.log("[Migdal] PAUSE: Observing for 15s...");
+  await page.waitForTimeout(15000); 
 }
-
 
 
 export async function migdalReturnToAgreements(page: Page) {

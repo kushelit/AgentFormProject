@@ -71,7 +71,7 @@ export async function runMigdalAll(ctx: RunnerCtx) {
 
     // 3. רשימת דוחות להורדה לפי הסדר המבוקש
     const REPORTS = [
-      { name: "משולמים לסוכן", templateId: "migdal_meshulamim" },
+      { name: "משולמים לסוכן", templateId: "migdal_insurance" },
       { name: "עמלה מדמי ניהול קהש וגמל - לבעלים", templateId: "migdal_gemel" },
       { name: "עמלה מצבירה/דמי ניהול לביטוח חיים לבעלים", templateId: "migdal_life" }
     ];
