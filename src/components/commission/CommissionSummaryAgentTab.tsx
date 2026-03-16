@@ -549,9 +549,9 @@ const exportProductAnalysisToExcel = () => {
   {/* סה"כ עמלות */}
  {/* סה"כ עמלות - גרסה עדינה ונקייה */}
 <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 border-r-4 border-r-indigo-500">
-  <div className="text-slate-400 text-[10px] font-bold uppercase tracking-wider">
-    סה"כ עמלות {selectedYear}
-  </div>
+<div className="text-slate-400 text-[10px] font-bold uppercase tracking-wider">
+  סה&quot;כ עמלות {selectedYear}
+</div>
   <div className="text-3xl font-black mt-1 text-indigo-600">
     {formatCurrency(yearlyInsights.totalYearly)} ₪
   </div>
