@@ -833,12 +833,12 @@ const handleStartAuto = async () => {
       }
     }
 
-    // ✅ fallback product from template (for templates like clal_briut without product column)
-if (!result.product || !String(result.product).trim()) {
-  if (fallbackProduct) {
-    result.product = normalizeProduct(fallbackProduct);
-  }
-}
+//     // ✅ fallback product from template (for templates like clal_briut without product column)
+// if (!result.product || !String(result.product).trim()) {
+//   if (fallbackProduct) {
+//     result.product = normalizeProduct(fallbackProduct);
+//   }
+// }
     return result;
   };
 
@@ -994,115 +994,7 @@ const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
   reader.readAsArrayBuffer(file);
 };
 
-// const parseAndStandardize = async (data: any, fileName: string, fallbackMonth?: string) => {
-//   let jsonData: any[] = [];
-//   const innerExt = getExt(fileName);
 
-//   // 1. שלב ה-Parsing
-//   setLoadingStage(`מפענח נתונים מתוך ${fileName}...`);
-//   await new Promise(r => setTimeout(r, 100));
-
-//   if (innerExt === '.csv') {
-//     jsonData = readCsv(data);
-//   } else {
-//     let wb: XLSX.WorkBook;
-//     try {
-//       wb = XLSX.read(data, { type: 'array', cellDates: true });
-//     } catch (err) {
-//       setIsLoading(false); // כיבוי הלואדר במקרה של שגיאה קריטית
-//       throw new Error('קובץ אקסל לא תקין.');
-//     }
-
-//     let wsname = wb.SheetNames[0];
-//     let headerRowIndex = 0;
-
-//     if (templateId === 'menura_insurance') {
-//       const foundSheet = wb.SheetNames.find(name => name.includes('דוח עמלות'));
-//       if (foundSheet) { wsname = foundSheet; headerRowIndex = 29; }
-//     }
-
-//     const ws = wb.Sheets[wsname];
-//     if (templateId !== 'menura_insurance') {
-//       headerRowIndex = findHeaderRowIndex(ws, Object.keys(mapping));
-//     }
-
-//     jsonData = XLSX.utils.sheet_to_json(ws, { defval: "", range: headerRowIndex, raw: true });
-//   }
-
-//   // 2. בדיקת שלמות בסיסית
-//   if (!jsonData || jsonData.length === 0) {
-//     setIsLoading(false);
-//     addToast("error", "הקובץ ריק או שלא זוהו בו שורות נתונים.");
-//     return;
-//   }
-
-//   // 3. 🛡️ בדיקת התאמת עמודות (כאן קרתה הרגרסיה)
-//   const expectedHeadersRaw = Object.keys(mapping);
-//   const foundHeadersRaw = Object.keys(jsonData[0] || {});
-
-//   // פונקציית העזר שלך שמפעילה את setShowTemplateMismatch
-//   const ok = checkCoverageOrShowMismatch(
-//     expectedHeadersRaw,
-//     foundHeadersRaw,
-//     () => { 
-//       // חשוב: קודם מכבים את מצב הטעינה כדי שהמודאל של השגיאה יוכל לעלות מעליו
-//       setIsLoading(false);
-//       setLoadingStage("");
-//       setTimeout(() => {
-//         setShowTemplateMismatch(true);
-//       }, 100);
-//     },
-//     'Validation'
-//   );
-
-//   if (!ok) return; // עצירה מוחלטת אם הקובץ לא מתאים
-
-//   // 4. שלב הנירמול (רק אם הקובץ תקין)
-//   setLoadingStage(`מנרמל וממפה ${jsonData.length.toLocaleString()} שורות...`);
-//   await new Promise(r => setTimeout(r, 100));
-
-//   const standardized = jsonData
-//     .filter((row) => {
-//       const agentCodeColumn = Object.entries(mapping).find(([, field]) => field === 'agentCode')?.[0];
-//       const agentCodeVal = agentCodeColumn ? getCell(row, agentCodeColumn) : null;
-//       return agentCodeVal && agentCodeVal.toString().trim() !== '';
-//     })
-//     .map(row => standardizeRowWithMapping(row, mapping, {
-//       agentId: selectedAgentId,
-//       templateId,
-//       sourceFileName: fileName,
-//       uploadDate: serverTimestamp(),
-//       companyId: selectedCompanyId,
-//       company: selectedCompanyName,
-//     }, fallbackMonth));
-
-//   if (standardized.length === 0) {
-//     setIsLoading(false);
-//     setErrorDialog({ title: "שגיאת נתונים", message: "לא נמצאו שורות עם מספר סוכן תקין בעיבוד הקובץ." });
-//     return;
-//   }
-
-//   setStandardizedRows(standardized);
-
-//   // 5. בדיקת כפילויות
-//   setLoadingStage("בודק טעינות קיימות בבסיס הנתונים...");
-//   const fileMonths = Array.from(new Set(standardized.map(r => sanitizeMonth(r.reportMonth)).filter(Boolean))).sort();
-//   setMonthsInFile(fileMonths);
-
-//   await checkExistingByRuns({
-//     agentId: selectedAgentId,
-//     companyId: selectedCompanyId,
-//     templateId,
-//     monthsInFile: fileMonths,
-//   });
-
-//   setLoadingStage("הושלם!");
-//   // שהיה קצרה וכיבוי הלואדר
-//   setTimeout(() => {
-//     setIsLoading(false);
-//     setLoadingStage("");
-//   }, 500);
-// };
 
 const parseAndStandardize = async (data: any, fileName: string, fallbackMonth?: string) => {
   let jsonData: any[] = [];

@@ -42,12 +42,17 @@ export function resolveFromTemplate(
   let canonicalProduct: string | undefined;
   let premiumFieldUsed: string | undefined;
 
+if (!rawNorm && fallbackProduct) {
+     canonicalProduct = fallbackProduct;
+  }
+
+
   let matchedByKey = false;
   let matchedByAlias = false;
 
   // 1) match by key in productMap
-  if (rawNorm) {
-    for (const [key, entry] of Object.entries(productMap)) {
+if (rawNorm && !canonicalProduct) {
+      for (const [key, entry] of Object.entries(productMap)) {
       if (norm(key) === rawNorm) {
         matchedByKey = true;
         canonicalProduct = entry?.canonicalProduct || key;

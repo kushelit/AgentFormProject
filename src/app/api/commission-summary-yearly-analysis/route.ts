@@ -13,6 +13,7 @@ export async function POST(req: NextRequest) {
 
     // שאילתה שמביאה את כל הפוליסות של הסוכן לאותה שנה
     // אנחנו מורידים את ההגבלה של חברה וקוד סוכן כדי לקבל מבט שנתי מלא
+    
     const snap = await db
       .collection('policyCommissionSummaries')
       .where('agentId', '==', agentId)
@@ -33,7 +34,8 @@ const rows = snap.docs.map((d) => {
     companyName: x.company || 'כלל', 
     templateId: x.templateId,
     productGroup: x.productGroup || x.productsGroup || '',
-    validMonth: x.reportMonth,
+    validMonth: x.validMonth,
+    reportMonth: x.reportMonth,
   };
 });
     return NextResponse.json({ rows });

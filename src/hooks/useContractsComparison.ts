@@ -99,7 +99,9 @@ export function useContractsComparison(args: Args) {
           splitPercent,
           minuySochen,
         });
-
+if (!row.fullName && (r as any).fullName) {
+    row.fullName = (r as any).fullName;
+  }
         if (row.status === 'no_template') noTemplateCount += 1;
         if (row.status === 'no_contract') noContractCount += 1;
         if (row.debug?.usedFallbackProduct) usedFallbackProductCount += 1;

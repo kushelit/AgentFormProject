@@ -223,12 +223,12 @@ export function standardizeRowWithTemplate(params: {
     }
   }
 
-  // 4) fallbackProduct
-  if (!result.product || !String(result.product).trim()) {
-    if (template.fallbackProduct) {
-      result.product = normalizeProduct(template.fallbackProduct);
-    }
-  }
+  // // 4) fallbackProduct
+  // if (!result.product || !String(result.product).trim()) {
+  //   if (template.fallbackProduct) {
+  //     result.product = normalizeProduct(template.fallbackProduct);
+  //   }
+  // }
 
   // 5) normalize months
   if (result.reportMonth) result.reportMonth = sanitizeMonth(result.reportMonth);

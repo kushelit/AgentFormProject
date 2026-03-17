@@ -27,6 +27,7 @@ type ExternalCommissionRow = {
   product?: string;
   reportMonth?: string;
   customerId?: string;
+  fullName?: string;
   agentCode?: string;
   _company?: string;
   _displayPolicy?: string;
@@ -44,6 +45,7 @@ type ComparisonRow = {
   status: Status;
   agentCode?: string;
   customerId?: string;
+  fullName?: string;
   product?: string;
   _rawKey?: string;
   _extRow?: ExternalCommissionRow | null;
@@ -291,6 +293,8 @@ const [isLoading, setIsLoading] = useState<boolean>(false);
     minuySochen: false,
   });
 
+const [contractSortDir, setContractSortDir] = useState<'asc' | 'desc' | null>(null);
+const [salesSortDir, setSalesSortDir] = useState<'asc' | 'desc' | null>(null);
 
   useEffect(() => {
     if (!canSeeContractsTab && viewMode === 'contracts') {
@@ -629,6 +633,7 @@ if (lockedToCustomer) {
             product: (raw as any).product || (raw as any).productRaw || 'מוצר לא מזוהה',
             reportMonth: (raw as any).reportMonth,
             customerId: String((raw as any).customerId ?? '').trim() || undefined,
+            fullName: (raw as any).fullName,
             agentCode: String((raw as any).agentCode ?? '').trim() || undefined,
             _company: comp,
             _displayPolicy: pol || '-',
@@ -654,6 +659,7 @@ if (lockedToCustomer) {
             product: (raw as any).product || (raw as any).productRaw || 'מוצר לא מזוהה',
             reportMonth: raw.reportMonth,
             customerId: cid || undefined,
+            fullName: String(raw.fullName ?? '').trim() || undefined,
             agentCode: String(raw.agentCode ?? '').trim() || undefined,
             _company: comp,
             _displayPolicy: pol || '-',
@@ -676,6 +682,7 @@ if (lockedToCustomer) {
           reportMonth: raw.reportMonth,
           product: (raw as any).product || (raw as any).productRaw || 'מוצר לא מזוהה',
           customerId: String(raw.customerId ?? '').trim() || undefined,
+          fullName: String(raw.fullName ?? '').trim() || undefined,
           agentCode: String(raw.agentCode ?? '').trim() || undefined,
           _company: comp,
           _displayPolicy: pol || '-',
@@ -836,6 +843,7 @@ if (lockedToCustomer) {
           diffPercent,
           status: 'not_reported',
           customerId: customerForDisplay,
+          fullName: (saleBucket.items[0] as any)?.fullName,
           product: productForDisplay,
           _rawKey: key,
           _extRow: null,
@@ -859,6 +867,7 @@ if (lockedToCustomer) {
           status: 'not_found',
           agentCode: reported.agentCode,
           customerId: reported.customerId,
+          fullName: (reported as any).fullName,
           product: (reported as any).product || (reported as any).productRaw || 'מוצר לא מזוהה',
           _rawKey: key,
           _extRow: reported,
@@ -918,6 +927,7 @@ if (lockedToCustomer) {
           status,
           agentCode: reported.agentCode,
           customerId: reported.customerId ?? customerForDisplay,
+          fullName: (reported as any).fullName || (saleBucket.items[0] as any)?.fullName, // ✅ להוסיף כאן
           product: productForDisplay || (reported as any).product || 'מוצר לא מזוהה',
           _rawKey: key,
           _extRow: reported,
@@ -1040,7 +1050,20 @@ setRawSalesRows(computed);
     });
   }, [rows, searchTerm, agentCodeFilter, statusFilter, company, includeFamily, lockedToCustomer]);
 
-  const visibleRows = useMemo(() => (drillStatus ? filtered.filter(r => r.status === drillStatus) : filtered), [filtered, drillStatus]);
+const visibleRows = useMemo(() => {
+  let data = drillStatus ? filtered.filter(r => r.status === drillStatus) : filtered;
+
+  if (salesSortDir) {
+    data = [...data].sort((a, b) => {
+      // ב-Sales השדה נקרא diff
+      return salesSortDir === 'desc' 
+        ? a.diff - b.diff  // חוסרים גדולים למעלה
+        : b.diff - a.diff; // עודפים למעלה
+    });
+  }
+  return data;
+}, [filtered, drillStatus, salesSortDir]);
+
 
   const handleExportSales = () => {
     const totalsLocal = visibleRows.reduce(
@@ -1114,10 +1137,21 @@ const statusSummary = useMemo(() => {
     });
   }, [contractRows, searchTerm, company, contractStatusFilter]);
 
-  const visibleContractRows = useMemo(
-    () => (contractDrillStatus ? filteredContracts.filter(r => r.status === contractDrillStatus) : filteredContracts),
-    [filteredContracts, contractDrillStatus]
-  );
+const visibleContractRows = useMemo(() => {
+  let filtered = contractDrillStatus 
+    ? filteredContracts.filter(r => r.status === contractDrillStatus) 
+    : filteredContracts;
+
+  if (contractSortDir) {
+    filtered = [...filtered].sort((a, b) => {
+      return contractSortDir === 'desc' 
+        ? b.amountDiff - a.amountDiff 
+        : a.amountDiff - b.amountDiff;
+    });
+  }
+  return filtered;
+}, [filteredContracts, contractDrillStatus, contractSortDir]);
+
 
 // ✅ הוספת סיכום ייעודי ללשונית חוזים
 const contractStatusSummary = useMemo(() => {
@@ -1146,6 +1180,7 @@ const contractStatusSummary = useMemo(() => {
       חברה: r.company,
       'מס׳ פוליסה': r.policyNumber,
       'ת״ז לקוח': r.customerId ?? '',
+      'שם מלא': r.fullName ?? '',
       'מוצר (Raw)': r.productRaw ?? '',
       'מוצר (Canonical)': r.canonicalProduct ?? '',
       פרמיה: Number(r.premiumAmount || 0).toFixed(2),
@@ -1453,8 +1488,23 @@ return (
                   <th className="p-3 text-right">מוצר</th>
                   <th className="p-3 text-center bg-sky-50/50 text-sky-900">קובץ</th>
                   <th className="p-3 text-center bg-emerald-50/50 text-emerald-900">Magic</th>
-                  <th className="p-3 text-center text-rose-600">פער Δ</th>
-                  <th className="p-3 text-right text-right">סטטוס</th>
+<th 
+  className="p-3 font-semibold text-center text-rose-600 cursor-pointer hover:bg-rose-100 transition-colors select-none"
+  onClick={() => {
+    setSalesSortDir(prev => {
+      if (prev === 'desc') return 'asc';
+      if (prev === 'asc') return null;
+      return 'desc';
+    });
+  }}
+>
+  <div className="flex items-center justify-center gap-1">
+    <span>פער Δ</span>
+    <span className="text-[10px] w-4">
+      {salesSortDir === 'desc' ? '🔽' : salesSortDir === 'asc' ? '🔼' : '↕️'}
+    </span>
+  </div>
+</th>            <th className="p-3 text-right text-right">סטטוס</th>
                   <th className="p-3 text-center">פעולה</th>
                 </tr>
               </thead>
@@ -1462,10 +1512,25 @@ return (
                 {visibleRows.map((r, idx) => (
                   <tr key={`${r.company}-${idx}`} className={`hover:bg-slate-50 transition-colors ${salesRowClass(r.status)} text-right`}>
                     <td className="p-3 font-medium text-slate-900 text-right">{r.company}</td>
-                    <td className="p-3 text-right">
-                        <div className="font-bold text-slate-800 text-right">{r.policyNumber}</div>
-                        <div className="text-[10px] opacity-60 font-medium text-right">{r.customerId}</div>
-                    </td>
+                <td className="p-3 text-right">
+    {/* הצגת מספר פוליסה רק אם הוא שונה מהת"ז וקיים */}
+    <div className="font-bold text-slate-800 text-right">
+        {r.policyNumber && r.policyNumber !== r.customerId ? r.policyNumber : (
+            <span className="text-slate-400 font-normal text-[10px] italic">ללא מספר פוליסה</span>
+        )}
+    </div>
+    
+    {/* הצגת ת"ז */}
+    <div className="text-[10px] opacity-60 font-medium text-right">
+        תעודת זהות: {r.customerId}
+    </div>
+    
+    {/* הצגת שם הלקוח (השדה שסידרנו קודם) */}
+    <div className="text-[12px] font-black text-indigo-700 mt-1 text-right">
+        <span>👤</span>
+        <span>{r.fullName || 'לקוח לא ידוע'}</span>
+    </div>
+</td>
                     <td className="p-3 text-slate-700 text-right">{r.product || '-'}</td>
                     <td className="p-3 text-center bg-sky-50/20 font-bold text-sky-900">{r.reportedAmount.toFixed(2)}</td>
                     <td className="p-3 text-center bg-emerald-50/20 font-bold text-emerald-900">{r.magicAmount.toFixed(2)}</td>
@@ -1496,25 +1561,55 @@ return (
                   <th className="p-3 font-semibold text-right">זיהוי מוצר</th>
                   <th className="p-3 font-semibold text-center bg-sky-50/50 text-sky-900 font-bold">קובץ</th>
                   <th className="p-3 font-semibold text-center bg-emerald-50/50 text-emerald-900 font-bold">הסכם</th>
-                  <th className="p-3 font-semibold text-center text-rose-600">פער Δ</th>
+                  <th 
+  className="p-3 font-semibold text-center text-rose-600 cursor-pointer hover:bg-rose-100 transition-colors select-none"
+  onClick={() => {
+    // לוגיקת מחזור: ללא מיון -> יורד (desc) -> עולה (asc) -> ללא מיון
+    setContractSortDir(prev => {
+      if (prev === 'desc') return 'asc';
+      if (prev === 'asc') return null;
+      return 'desc';
+    });
+  }}
+>
+  <div className="flex items-center justify-center gap-1">
+    <span>פער Δ</span>
+    <span className="text-[10px] w-4">
+      {contractSortDir === 'desc' ? '🔽' : contractSortDir === 'asc' ? '🔼' : '↕️'}
+    </span>
+  </div>
+</th>
                   <th className="p-3 font-semibold text-right">סטטוס</th>
                 </tr>
               </thead>
               <tbody className="divide-y text-right">
                 {visibleContractRows.map((r, idx) => (
                   <tr key={`${r.policyNumber}-${idx}`} className={`hover:bg-slate-50 transition-colors ${contractsRowClass(r.status)} text-right`}>
-                    <td className="p-3 text-right">
-                      <div className="font-bold text-slate-800 text-right">{r.company}</div>
-                      <div className="text-xs text-slate-500 text-right">{r.policyNumber}</div>
-                      <div className="text-[11px] text-blue-600 mt-1 font-medium italic text-right">{r.customerId}</div>
-                    </td>
+                   <td className="p-3 text-right">
+  <div className="font-bold text-slate-800 text-right">{r.company}</div>
+  <div className="text-xs text-slate-500 text-right">{r.policyNumber}</div>
+  {/* הוספת שם הלקוח כאן */}
+  <div className="text-[12px] font-bold text-slate-700 mt-1 text-right">
+    👤 {r.fullName || 'לקוח לא ידוע'}
+  </div>
+  <div className="text-[11px] text-blue-600 mt-0.5 font-medium italic text-right">
+    {r.customerId}
+  </div>
+</td>
                     <td className="p-3 text-right">
                       <div className="flex flex-col text-right">
                         <span className="font-bold text-slate-900 text-right">{r.canonicalProduct || '---'}</span>
                         <span className="text-[10px] text-slate-500 font-bold italic text-right">קבוצה: {getGroupName(r.productGroup)}</span>
                         <div className="flex items-center gap-1 mt-1 justify-end">
-                          {r.debug?.usedFallbackProduct && <span className="bg-amber-100 text-amber-700 text-[8px] px-1 rounded font-black border border-amber-200">FALLBACK</span>}
-                          <span className="text-[10px] text-slate-400 italic truncate max-w-[120px]" title={r.productRaw}>מקור: {r.productRaw}</span>
+{/* הערה לעתיד: הוספנו את r.productRaw כדי שתגית FALLBACK לא תוצג כשהשדה הגיע ריק מהקובץ.
+  אם תרצי להחזיר את התגית לכל מקרה של Fallback, פשוט תורידי את החלק של: && r.productRaw
+
+{r.debug?.usedFallbackProduct && r.productRaw && (
+  <span className="bg-amber-100 text-amber-700 text-[8px] px-1 rounded font-black border border-amber-200">
+    FALLBACK
+  </span>
+)}    */}                     
+ <span className="text-[10px] text-slate-400 italic truncate max-w-[120px]" title={r.productRaw}>מקור: {r.productRaw}</span>
                         </div>
                       </div>
                     </td>

@@ -31,7 +31,7 @@ export type ContractComparisonRow = {
   company: string;
   policyNumber: string;
   customerId?: string;
-
+fullName?: string;
   templateId?: string;
   productGroup?: string;
   productRaw?: string;

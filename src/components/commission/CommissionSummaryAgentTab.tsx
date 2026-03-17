@@ -9,7 +9,6 @@ import dynamic from 'next/dynamic';
 import * as XLSX from 'xlsx';
 import { resolveFromTemplate } from '@/utils/contractCommissionResolvers';
 // אם תרצי להשתמש במנוע המלא:
-import { buildContractComparisonRow } from '@/utils/buildContractComparisonRow';
 import useFetchMD from '@/hooks/useMD';
 import { collection, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase/firebase';
@@ -80,6 +79,7 @@ type DrillRow = {
   totalPremiumAmount: number;
   commissionRate?: number;
   validMonth?: string;
+  reportMonth: string;
   runId?: string;
   templateId: string;    
   productGroup?: string; 
@@ -258,20 +258,26 @@ const CommissionSummaryAgentTab: React.FC = () => {
   }
   
 
-  const exportDrillToExcel = () => {
-    if (!drill || drillRows.length === 0) return;
-  
-    const rowsForExcel = drillRows.map((r) => ({
+ const exportDrillToExcel = () => {
+  if (!drill || drillRows.length === 0) return;
+
+  const rowsForExcel = drillRows.map((r) => {
+    // פתרון המוצר לפני הייצוא
+    const template = templatesById[r.templateId];
+    const resolved = resolveFromTemplate(template, r.product);
+    
+    return {
       'פוליסה': r.policyNumberKey,
       'ת״ז': r.customerId ?? '', 
       'לקוח': r.fullName ?? '',
-      'מוצר': r.product ?? '',
+      'מוצר': resolved.canonicalProduct || 'אחר', // שימוש במוצר המחושב
       'פרמיה': r.totalPremiumAmount,
       'עמלה': r.totalCommissionAmount,
       '% עמלה': r.commissionRate,
-    }));
-  
-    const ws = XLSX.utils.json_to_sheet(rowsForExcel);
+    };
+  });
+
+  const ws = XLSX.utils.json_to_sheet(rowsForExcel);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'פירוט פוליסות');
   
@@ -365,10 +371,15 @@ const productSummary = useMemo(() => {
 
   yearlyPolicies.forEach(row => {
     const template = templatesById[row.templateId];
+    
+    // כאן הקסם קורה: אם row.product ריק, resolveFromTemplate יחזיר את ה-fallbackProduct מהתבנית
     const resolved = resolveFromTemplate(template, row.product);
-    const productName = resolved.canonicalProduct || row.product || 'אחר';
+    const productName = resolved.canonicalProduct || 'אחר';
+    
+    // מציאת הקבוצה לפי המוצר המחושב (הקנוני)
     const groupId = productToGroupMap[productName] || row.productGroup || '';
     const groupName = productGroupMap[groupId] || (groupId ? `קבוצה ${groupId}` : 'ללא סיווג');
+    
     const amount = row.totalCommissionAmount || 0;
     const company = row.companyName || 'חברה לא ידועה';
 
@@ -376,12 +387,10 @@ const productSummary = useMemo(() => {
       groups[groupName] = { total: 0, products: {} };
     }
     
-    // אגרגציה לפי מוצר בתוך הקבוצה
     if (!groups[groupName].products[productName]) {
       groups[groupName].products[productName] = { total: 0, companies: {} };
     }
 
-    // אגרגציה לפי חברה בתוך המוצר
     groups[groupName].total += amount;
     groups[groupName].products[productName].total += amount;
     groups[groupName].products[productName].companies[company] = 
@@ -392,7 +401,6 @@ const productSummary = useMemo(() => {
     .map(([name, data]) => ({ name, ...data }))
     .sort((a, b) => b.total - a.total);
 }, [yearlyPolicies, templatesById, productToGroupMap, productGroupMap]);
-
 
 const exportYearlyAnalysisToExcel = (data: any[]) => {
   const excelRows: any[] = [];
@@ -468,6 +476,35 @@ const exportProductAnalysisToExcel = () => {
   // שמירת הקובץ
   XLSX.writeFile(wb, `ניתוח_עמלות_שנתי_${selectedYear}.xlsx`);
 };
+
+
+
+
+const groupMonthlyData = useMemo(() => {
+  if (!expandedGroup || !yearlyPolicies.length) return [];
+  
+  // יצירת מערך של 12 חודשים ריקים
+  const months = allMonths.sort(); 
+  const dataMap: Record<string, number> = {};
+  months.forEach(m => dataMap[m] = 0);
+
+  yearlyPolicies.forEach(row => {
+    const template = templatesById[row.templateId];
+    const resolved = resolveFromTemplate(template, row.product);
+    const productName = resolved.canonicalProduct || 'אחר';
+    const groupId = productToGroupMap[productName] || row.productGroup || '';
+    const groupName = productGroupMap[groupId] || 'ללא סיווג';
+
+    if (groupName === expandedGroup) {
+      const m = row.reportMonth; // ודאי שהשדה הזה מגיע ב-DrillRow
+      if (dataMap[m] !== undefined) {
+        dataMap[m] += row.totalCommissionAmount;
+      }
+    }
+  });
+
+  return Object.entries(dataMap).map(([month, total]) => ({ month, total }));
+}, [expandedGroup, yearlyPolicies, allMonths, templatesById, productToGroupMap, productGroupMap]);
 
 
 
@@ -673,7 +710,7 @@ const exportProductAnalysisToExcel = () => {
             ))}
           </div>
           <button onClick={() => setShowFullTable(!showFullTable)} className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-bold shadow-lg hover:bg-indigo-700 transition-all">
-            {showFullTable ? '⬆️ הסתר פירוט' : '⬇️ צפייה בפירוט חברות מלא'}
+            {showFullTable ? '⬆️ הסתר פירוט' : '⬇️ צפייה בפירוט מלא'}
           </button>
         </div>
       </div>
@@ -706,13 +743,15 @@ const exportProductAnalysisToExcel = () => {
       <tbody className="divide-y divide-slate-100">
         {productSummary.map(group => (
           <React.Fragment key={group.name}>
-            <tr className="bg-indigo-50/20">
-              {/* 1. יישור לימין של המלל בעמודת מוצר */}
-              <td colSpan={2} className="px-8 py-4 font-black text-slate-800 text-right text-base">
-                {group.name}
-              </td>
-              <td />
-            </tr>
+          <tr 
+  className="bg-indigo-50/20 cursor-pointer hover:bg-indigo-100 transition-colors" 
+  onClick={() => setExpandedGroup(expandedGroup === group.name ? null : group.name)}
+>
+  <td colSpan={2} className="px-8 py-4 font-black text-slate-800 text-right text-base">
+    {group.name} {expandedGroup === group.name ? '▲' : '▼'}
+  </td>
+  <td />
+</tr>
             {Object.entries(group.products).map(([prodName, prodData]: any) => (
               <tr key={prodName} className="hover:bg-slate-50">
                 {/* 1. יישור לימין של מוצרי המשנה */}
@@ -744,6 +783,72 @@ const exportProductAnalysisToExcel = () => {
                 </td>
               </tr>
             ))}
+            {/* בתוך ה-map של productSummary, מתחת לשורה של ה-productGroup */}
+{expandedGroup === group.name && (
+  <tr className="bg-slate-50/50">
+    <td colSpan={3} className="px-8 py-10">
+      <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
+        <div className="flex items-center justify-between mb-6">
+          <h4 className="text-sm font-black text-slate-700 flex items-center gap-2">
+            <span>📈</span> מגמת מוצרים בתוך: {group.name}
+          </h4>
+          <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+            עמלה חודשית (₪)
+          </span>
+        </div>
+        
+        <div className="h-80 w-full">
+          <DynamicResponsiveContainer width="100%" height="100%">
+            <DynamicLineChart 
+              data={(allMonths.length > 0 ? allMonths : ['01','02','03','04','05','06','07','08','09','10','11','12']).map(m => {
+                const fullMonth = m.includes('-') ? m : `${selectedYear}-${m}`;
+                const dataPoint: any = { month: m };
+                
+                // חישוב עמלה לכל מוצר בנפרד עבור החודש הנוכחי
+                Object.keys(group.products).forEach(prodName => {
+                  dataPoint[prodName] = yearlyPolicies
+                    .filter(row => {
+                      const template = templatesById[row.templateId];
+                      const resolved = resolveFromTemplate(template, row.product);
+                      const currentProdName = resolved.canonicalProduct || 'אחר';
+                      return currentProdName === prodName && row.reportMonth === fullMonth;
+                    })
+                    .reduce((sum, r) => sum + r.totalCommissionAmount, 0);
+                });
+                
+                return dataPoint;
+              })}
+            >
+              <DynamicCartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+              <DynamicXAxis dataKey="month" tick={{fontSize: 10, fill: '#94a3b8'}} />
+              <DynamicYAxis tickFormatter={formatCurrency} width={60} tick={{fontSize: 10, fill: '#94a3b8'}} />
+              <DynamicTooltip 
+                contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)'}}
+                formatter={(v: any) => [`${formatCurrency(v)} ₪`]}
+              />
+              <DynamicLegend verticalAlign="top" height={36} iconType="circle" />
+              
+              {/* יצירת קו נפרד לכל מוצר באופן דינמי */}
+              {Object.keys(group.products).map((prodName, idx) => (
+                <DynamicLine 
+                  key={prodName}
+                  type="monotone" 
+                  dataKey={prodName} 
+                  name={prodName}
+                  stroke={COLORS[idx % COLORS.length]} 
+                  strokeWidth={3} 
+                  dot={{r: 3}}
+                  activeDot={{r: 5}}
+                  connectNulls
+                />
+              ))}
+            </DynamicLineChart>
+          </DynamicResponsiveContainer>
+        </div>
+      </div>
+    </td>
+  </tr>
+)}
           </React.Fragment>
         ))}
       </tbody>
@@ -1075,17 +1180,26 @@ const exportProductAnalysisToExcel = () => {
             </tr>
           </thead>
           <tbody>
-            {drillRows.map((r) => (
-              <tr key={`${r.policyNumberKey}_${r.customerId}`}>
-                <td className="border px-2 py-1">{r.policyNumberKey}</td>
-                <td className="border px-2 py-1">{r.customerId ?? '-'}</td>
-                <td className="border px-2 py-1">{r.fullName ?? '-'}</td>
-                <td className="border px-2 py-1">{r.product ?? '-'}</td>
-                <td className="border px-2 py-1">{Number(r.totalPremiumAmount ?? 0).toLocaleString()}</td>
-                <td className="border px-2 py-1 font-semibold">{Number(r.totalCommissionAmount ?? 0).toLocaleString()}</td>
-                <td className="border px-2 py-1">{Number(r.commissionRate ?? 0).toLocaleString()}</td>
-              </tr>
-            ))}
+{drillRows.map((r) => {
+  // 1. שליפת התבנית המתאימה לרשומה
+  const template = templatesById[r.templateId];
+  // 2. פתרון המוצר (כולל ה-Fallback אם ה-Product המקורי ריק)
+  const resolved = resolveFromTemplate(template, r.product);
+  const displayProduct = resolved.canonicalProduct || 'אחר';
+
+  return (
+    <tr key={`${r.policyNumberKey}_${r.customerId}`}>
+      <td className="border px-2 py-1">{r.policyNumberKey}</td>
+      <td className="border px-2 py-1">{r.customerId ?? '-'}</td>
+      <td className="border px-2 py-1">{r.fullName ?? '-'}</td>
+      {/* הצגת המוצר המחושב */}
+      <td className="border px-2 py-1">{displayProduct}</td>
+      <td className="border px-2 py-1">{Number(r.totalPremiumAmount ?? 0).toLocaleString()}</td>
+      <td className="border px-2 py-1 font-semibold">{Number(r.totalCommissionAmount ?? 0).toLocaleString()}</td>
+      <td className="border px-2 py-1">{Number(r.commissionRate ?? 0).toLocaleString()}</td>
+    </tr>
+  );
+})}
           </tbody>
         </table>
       )}

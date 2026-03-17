@@ -41,19 +41,26 @@ export function buildContractComparisonRow(args: {
   const company = String(row.company || '').trim();
   const policyNumber = String(row.policyNumberKey || '').trim() || '-';
   const customerId = row.customerId ? String(row.customerId).trim() : undefined;
-
+const fullName = (row as any).fullName;
   const reportedCommissionAmount = Number(row.totalCommissionAmount ?? 0);
   const premiumAmount = Number(row.totalPremiumAmount ?? 0);
 
   const hasRate = row.commissionRate !== null && row.commissionRate !== undefined && isFinite(Number(row.commissionRate));
   const reportedRate = hasRate ? Number(row.commissionRate) : (premiumAmount > 0 ? (reportedCommissionAmount / premiumAmount) * 100 : 0);
   
+
+  const resolved = resolveFromTemplate(template, row.product);
+  const canonicalProduct = resolved.canonicalProduct;
+  const premiumFieldUsed = resolved.premiumFieldUsed;
+
+
   // template missing
   if (!template) {
     return {
       company,
       policyNumber,
       customerId,
+      fullName,
       templateId: row.templateId,
       productRaw: row.product,
       premiumAmount,
@@ -80,14 +87,8 @@ export function buildContractComparisonRow(args: {
     };
   }
 
-  // resolve product + premiumFieldUsed on-the-fly from template
-  const resolved = resolveFromTemplate(template, row.product);
-
-  const canonicalProduct = resolved.canonicalProduct;
   const productInfo = canonicalProduct ? systemProductMap[canonicalProduct] : undefined;
 const productGroupId = productInfo?.productGroup;
-
-  const premiumFieldUsed = resolved.premiumFieldUsed;
 
   // compute expected amount via calculateCommissions using saleMock + found contract
   const expected = computeExpectedFromContract({
