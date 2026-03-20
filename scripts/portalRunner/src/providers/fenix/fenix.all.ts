@@ -1,4 +1,3 @@
-// scripts/portalRunner/src/providers/fenix/fenix.all.ts
 import fs from "fs";
 import path from "path";
 import { chromium, Browser, BrowserContext, Page, Download } from "playwright";
@@ -21,17 +20,12 @@ function ensureDir(p: string) {
   if (!fs.existsSync(p)) fs.mkdirSync(p, { recursive: true });
 }
 
-function s(v: any) {
-  return String(v ?? "").trim();
-}
+function s(v: any) { return String(v ?? "").trim(); }
 
 async function getPhoenixCreds(ctx: RunnerCtx, portalId: string) {
   const functions = (ctx as any).functions;
-  if (!functions) throw new Error("Missing ctx.functions");
   const fn = httpsCallable(functions, "getPortalCredentialsDecrypted");
-  const res: any = await fn({ portalId }).catch(e => {
-    throw new Error(`Failed to get credentials: ${e.message}`);
-  });
+  const res: any = await fn({ portalId });
   return { username: s(res?.data?.username), password: s(res?.data?.password) };
 }
 
@@ -43,7 +37,6 @@ export async function runPhoenixAll(ctx: RunnerCtx) {
 
   const agentId = s(run.agentId || ctx.agentId);
   const { username, password } = await getPhoenixCreds(ctx, "fenix");
-
   const monthLabel = run.monthLabel || "חודש נוכחי";
 
   await setStatus(runId, { status: "running", step: "מאתחל דפדפן לפניקס...", monthLabel });
@@ -52,55 +45,48 @@ export async function runPhoenixAll(ctx: RunnerCtx) {
   let context: BrowserContext | null = null;
 
   try {
-    // ────────────────────────────────────────────────
-    // Launch & page creation – הכל בתוך try
-    // ────────────────────────────────────────────────
     const executablePath = resolveChromiumExePath();
-    log!.info(`[Fenix] Launching with executable: ${executablePath}`);
-
     browser = await chromium.launch({
       headless: false,
       executablePath: executablePath || undefined,
-      args: [
-        "--no-sandbox",
-        "--disable-setuid-sandbox",
-        "--disable-blink-features=AutomationControlled",
-        "--start-maximized",
-        "--disable-infobars"
-      ]
-    });
+args: [
+      "--no-sandbox",
+      "--disable-setuid-sandbox",
+      "--disable-blink-features=AutomationControlled",
+      "--start-maximized",
+      "--disable-infobars",
+      // ✅ השתקת פופ-אפים של חיבור למכשירים (כמו שראינו בתמונה)
+      "--disable-device-discovery-notifications",
+      "--disable-features=WebBluetooth,WebUSB,WebHID,WebSerial,DeviceAttributesService",
+      // ✅ מניעת פתיחה של אפליקציות חיצוניות (כמו ה-VPN שקפץ)
+      "--no-default-browser-check",
+      "--ignore-certificate-errors"
+    ] 
+   });
 
-    context = await browser.newContext({
+context = await browser.newContext({
       viewport: null,
       acceptDownloads: true,
+      // הסרנו את "sensors" והחלפנו בשמות המדויקים שהדפדפן מכיר
+      permissions: ['geolocation'], 
       userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
     });
 
-    // עכשיו page מוגדר כאן – TypeScript יודע שהוא קיים מכאן ואילך
     const page: Page = await context.newPage();
     await page.bringToFront().catch(() => {});
 
-    // ────────────────────────────────────────────────
-    // ניווט ראשוני + ייצוב
-    // ────────────────────────────────────────────────
-    await setStatus(runId, { status: "running", step: "נכנס לפורטל הפניקס...", monthLabel });
+    // ניווט וייצוב
     log!.info(`[Fenix] Navigating to: ${portalUrl}`);
-
-    await page.goto(portalUrl, { waitUntil: "networkidle", timeout: 90000 }).catch(e => {
-      log!.warn(`[Fenix] Initial goto timeout, continuing anyway: ${e.message}`);
-    });
-
-    await page.waitForTimeout(8000);
-    await handleFenixLoginRedirect(page);
+    await page.goto(portalUrl, { waitUntil: "networkidle", timeout: 90000 }).catch(() => {});
+    await page.waitForTimeout(5000);
 
     let inputFound = false;
-    for (let i = 0; i < 5; i++) {
-      const count = await page.locator('#input_1').count().catch(() => 0);
-      if (count > 0) {
+    for (let i = 0; i < 2; i++) {
+      if (await page.locator('#input_1').count() > 0) {
         inputFound = true;
         break;
       }
-      log!.info(`[Fenix] Attempt ${i + 1}: #input_1 not found yet`);
+      log!.info(`[Fenix] Attempt ${i + 1}: Fields not found yet`);
       await handleFenixLoginRedirect(page);
       await page.waitForTimeout(4000);
     }
@@ -111,103 +97,63 @@ export async function runPhoenixAll(ctx: RunnerCtx) {
       await page.waitForTimeout(5000);
     }
 
-    // ────────────────────────────────────────────────
-    // לוגין + OTP + ניווט + דוחות
-    // ────────────────────────────────────────────────
-    await setStatus(runId, { status: "running", step: "מבצע כניסה לפניקס...", monthLabel });
+    // לוגין ו-OTP
+    await setStatus(runId, { status: "running", step: "מבצע כניסה...", monthLabel });
     await phoenixLogin(page, username, password);
-
-    log!.info("[Fenix] Reaching OTP stage");
     await phoenixHandleOtp(page, ctx);
 
+    // ניווט לעמלות
     await setStatus(runId, { status: "running", step: "עובר לאזור העמלות...", monthLabel });
     await navigateToPhoenixCommissions(page);
 
+    // הגדרת הדוחות
     const REPORTS = [
-      { name: "ריכוז עמלות חודשי", templateId: "phoenix_summary", subdir: "summary" },
-      { name: "פירוט עמלות חיים",  templateId: "phoenix_life",     subdir: "life"     },
+      { name: "עמלות נפרעים", templateId: "fenix_insurance", subdir: "insurance" },
+      { name: "פירוט עמלות חיים", templateId: "fenix_life", subdir: "life" } // דוח שני לדוגמה
     ];
 
     const appendDownload = async (item: any) => {
       const cur = (run as any).downloads || [];
-      const downloads = Array.isArray(cur) ? [...cur, item] : [item];
+      const downloads = [...cur, item];
       (run as any).downloads = downloads;
       await setStatus(runId, { downloads });
     };
 
+    // לופ הורדה
     for (const rep of REPORTS) {
       try {
-        await setStatus(runId, {
-          status: "running",
-          step: `מפיק דוח: ${rep.name}`,
-          monthLabel
-        });
+        await setStatus(runId, { status: "running", step: `מפיק דוח: ${rep.name}`, monthLabel });
 
-        await phoenixOpenReport(page, rep.name);
-        await waitPhoenixLoaderGone(page, 30000);
-
-        const download = await phoenixExportExcel(page);
+        // פתיחת הדוח בטאב חדש
+        const reportPage = await phoenixOpenReport(page, context!, rep.name);
+        
+        // הורדה מהטאב החדש
+        const download = await phoenixExportExcel(reportPage);
         if (download) {
-          const filename = download.suggestedFilename() || `fenix_${rep.templateId}_${Date.now()}.xlsx`;
+          const filename = download.suggestedFilename();
           const localPath = path.join(absDir, `${Date.now()}_${filename}`);
-
-          log!.info(`[Fenix] Saving download: ${localPath}`);
           await download.saveAs(localPath);
 
-          const uploadResult = await uploadLocalFileToStorageClient({
-            storage,
-            localPath,
-            agentId,
-            runId,
-            subdir: rep.subdir || rep.templateId
-          } as any);
-
-          if (uploadResult?.storagePath) {
-            await appendDownload({
-              templateId: rep.templateId,
-              filename: uploadResult.filename || filename,
-              storagePath: uploadResult.storagePath
-            });
-            log!.info(`[Fenix] Uploaded: ${rep.name}`);
+          const up = await uploadLocalFileToStorageClient({ storage, localPath, agentId, runId, subdir: rep.subdir } as any);
+          if (up?.storagePath) {
+            await appendDownload({ templateId: rep.templateId, filename: up.filename || filename, storagePath: up.storagePath });
           }
-        } else {
-          log!.warn(`[Fenix] No download for ${rep.name}`);
         }
-
-        await navigateToPhoenixCommissions(page);
+        
+        // סגירת הטאב וחזרה לראשי
+        await reportPage.close().catch(() => {});
+        await page.bringToFront();
+        
       } catch (err: any) {
         log!.error(`[Fenix] Error in report ${rep.name}: ${err.message}`);
-        await setStatus(runId, {
-          status: "running",
-          step: `שגיאה בדוח ${rep.name}`,
-          error: { message: err.message }
-        });
       }
     }
 
-    await setStatus(runId, {
-      status: "done",
-      step: "fenix_all_completed",
-      monthLabel,
-      result: { uploaded: true }
-    });
-
-    log!.info("[Fenix] All reports processed successfully");
+    await setStatus(runId, { status: "done", step: "הסתיים בהצלחה", monthLabel });
 
   } catch (e: any) {
     log!.error("[Fenix] Global error:", e.message);
-
-    const ts = Date.now();
-    const logsDir = paths!.logsDir || "./logs";
-
-    // אם הגענו לכאן לפני יצירת page – לא ננסה לצלם מסך
-    // (אין צורך ב-if(page) כי page לא מוגדר מחוץ ל-try)
-    // אם רוצים בכל זאת – אפשר להוסיף try-catch פנימי, אבל זה מיותר
-
-    await setStatus(runId, {
-      status: "error",
-      error: { message: e.message || "שגיאה כללית בפניקס" }
-    });
+    await setStatus(runId, { status: "error", error: { message: e.message } });
   } finally {
     if (context) await context.close().catch(() => {});
     if (browser) await browser.close().catch(() => {});
