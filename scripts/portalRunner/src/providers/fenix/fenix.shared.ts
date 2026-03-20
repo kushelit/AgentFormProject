@@ -1,139 +1,148 @@
-import type { Page } from "playwright";
+import type { Page, Download } from "playwright";
 import type { RunnerCtx } from "../../types";
 
-async function softIdle(page: Page) {
-  await page.waitForLoadState("domcontentloaded");
-  await page.waitForLoadState("networkidle").catch(() => {});
+/**
+ * המתנה שהלואדר ייעלם - שימוש במחרוזת טקסט למניעת שגיאות EXE
+ */
+export async function waitPhoenixLoaderGone(page: Page, timeoutMs = 30000) {
+  try {
+    const loaderScript = `() => {
+      const selectors = ['.loading', '.spinner', '.overlay', '[class*="loader"]', '.k-loading-mask'];
+      const nodes = selectors.flatMap(sel => Array.from(document.querySelectorAll(sel)));
+      if (!nodes.length) return true;
+      return nodes.every(el => {
+        const style = window.getComputedStyle(el);
+        return style.display === 'none' || style.visibility === 'hidden' || el.offsetWidth === 0;
+      });
+    }`;
+    await page.waitForFunction(loaderScript, { timeout: timeoutMs });
+  } catch (e) {
+    console.log("[Phoenix] Loader timeout - continuing");
+  }
 }
 
 /**
- * כניסה: Username + Password ואז "המשך"
- * משתמש ב-name (יותר יציב מ-id)
+ * מטפל במסך שגיאה/לוגאוט
  */
-export async function fenixLogin(page: Page, username: string, password: string) {
-  const userSel = 'input[name="username"]';
-  const passSel = 'input[name="password"]';
-  const continueSel = 'input[type="submit"][value="המשך"]';
-
-  await page.waitForSelector(userSel, { state: "visible", timeout: 30_000 });
-  await page.waitForSelector(passSel, { state: "visible", timeout: 30_000 });
-
-  await page.fill(userSel, username);
-  await page.fill(passSel, password);
-
-  const continueBtn = page.locator(continueSel).first();
-  await continueBtn.waitFor({ state: "visible", timeout: 30_000 });
-
-  await Promise.all([
-    page.waitForLoadState("domcontentloaded"),
-    continueBtn.click(),
-  ]);
-
-  await softIdle(page);
-  console.log("[Fenix] clicked continue (after password). url:", page.url());
+export async function handleFenixLoginRedirect(page: Page) {
+  const url = page.url();
+  if (url.includes("errorcode=19") || url.includes("logout")) {
+    console.log("[Phoenix] Detected error/logout page. Trying return button...");
+    try {
+      const returnBtn = page.getByText("חזרה למסך כניסה").first();
+      await returnBtn.waitFor({ state: "visible", timeout: 8000 });
+      await returnBtn.click({ force: true });
+      await page.waitForURL("**/my.policy", { timeout: 20000 }).catch(() => {});
+    } catch (e) {
+      await page.goto("https://agent.fnx.co.il/my.policy", { waitUntil: "domcontentloaded" });
+    }
+  }
 }
 
 /**
- * OTP: בפניקס השדה הוא שוב name="password" (לא ייחודי)
- * לכן מזהים "מסך OTP" לפי הופעת כפתור "כניסה"
- *
- * תומך בשני מצבים:
- * - manual: הסוכן מזין בפורטל
- * - firestore: ה-UI שלנו כותב otp.value למסמך, וה-runner ממלא
+ * לוגין - הקלדה אנושית רציפה לעקיפת חסימות
  */
-export async function fenixHandleOtp(page: Page, ctx: RunnerCtx) {
+export async function phoenixLogin(page: Page, username: string, password: string) {
+  console.log("[Fenix] Injecting login (String style - Clal proven)...");
+
+  const injection = `
+    (function(u, p) {
+      let attempts = 0;
+      const interval = setInterval(() => {
+        attempts++;
+        const user = document.querySelector('#input_1');
+        const pass = document.querySelector('#input_2');
+        const btn  = document.querySelector('input[type="submit"], button[type="submit"], #btLogin');
+
+        if (user && pass && btn) {
+          clearInterval(interval);
+          user.value = u;
+          pass.value = p;
+          user.dispatchEvent(new Event('input', {bubbles:true}));
+          pass.dispatchEvent(new Event('input', {bubbles:true}));
+          pass.dispatchEvent(new Event('change', {bubbles:true}));
+          btn.click();
+          return "SUCCESS";
+        }
+        if (attempts > 80) { clearInterval(interval); return "TIMEOUT"; }
+      }, 500);
+    })('${username}', '${password}')
+  `;
+
+  const result = await page.evaluate(injection);
+  console.log(`[Fenix Login] Result: ${result}`);
+  await page.waitForTimeout(7000);   // חשוב!
+}
+
+export async function phoenixHandleOtp(page: Page, ctx: RunnerCtx) {
   const { runId, setStatus, pollOtp, clearOtp } = ctx;
-  const otpMode = String((ctx.run as any)?.otp?.mode || "manual").toLowerCase();
 
-  const otpInputSel = 'input[name="password"]';
-  const loginBtnSel = 'input[type="submit"][value="כניסה"]';
-
-  // נזהה אם בכלל יש OTP: נחכה קצת לראות אם מופיע כפתור "כניסה"
-  const hasOtp = await page
-    .locator(loginBtnSel)
-    .first()
-    .waitFor({ state: "visible", timeout: 15_000 })
-    .then(() => true)
-    .catch(() => false);
-
-  if (!hasOtp) {
-    console.log("[Fenix] OTP screen not detected (no כניסה button). assume logged in / no otp.");
-    await setStatus(runId, { status: "logged_in", step: "fenix_logged_in_no_otp" });
-    return;
-  }
-
-  // ==========================
-  // MANUAL MODE
-  // ==========================
-  if (otpMode === "manual") {
-    await setStatus(runId, {
-      status: "otp_required",
-      step: "fenix_otp_required_manual",
-      otp: {
-        mode: "manual",
-        state: "required",
-        hint: "🔐 ממתין להזנת קוד זיהוי בפורטל הפניקס...",
-      },
-    });
-
-    console.log("[Fenix] OTP manual mode: waiting for user to complete OTP in portal...");
-
-    // מחכים להתקדמות: כפתור "כניסה" נעלם / או מופיע "התנתק" / או משתנה URL
-    const startUrl = page.url();
-
-    await page.waitForFunction(
-      ({ loginBtnSel, startUrl }) => {
-        const loginBtn = document.querySelector(loginBtnSel) as HTMLElement | null;
-        if (!loginBtn) return true; // כפתור נעלם => התקדמנו
-
-        const logout = Array.from(document.querySelectorAll("*")).find((el) =>
-          (el as HTMLElement)?.innerText?.trim().includes("התנתק")
-        );
-        if (logout) return true;
-
-        if (location.href !== startUrl) return true;
-
-        return false;
-      },
-      { loginBtnSel, startUrl },
-      { timeout: 180_000 }
-    );
-
-    await softIdle(page);
-
-    await setStatus(runId, { status: "logged_in", step: "fenix_logged_in" });
-    console.log("[Fenix] progressed after manual OTP. url:", page.url());
-    return;
-  }
-
-  // ==========================
-  // FIRESTORE MODE
-  // ==========================
-  await setStatus(runId, {
-    status: "otp_required",
-    step: "fenix_otp_required",
-    otp: { mode: "firestore", state: "required" },
+  await setStatus(runId, { 
+    status: "otp_required", 
+    step: "ממתין לקוד זיהוי מהפניקס", 
+    "otp.mode": "firestore" 
   });
 
-  const otp = await pollOtp(runId);
-  console.log("[Fenix] got OTP from Firestore");
+  const otpCode = await pollOtp(runId);
+  if (!otpCode) throw new Error("OTP Timeout");
 
-  await page.waitForSelector(otpInputSel, { state: "visible", timeout: 30_000 });
-  await page.fill(otpInputSel, otp);
+  await setStatus(runId, { status: "running", step: "מזין OTP..." });
 
-  const loginBtn = page.locator(loginBtnSel).first();
-  await loginBtn.waitFor({ state: "visible", timeout: 30_000 });
+  const injection = `
+    (function(code) {
+      let attempts = 0;
+      const interval = setInterval(() => {
+        attempts++;
+        const input = document.querySelector('#input_2');
+        const btn = document.querySelector('input[type="submit"], button[type="submit"]');
 
-  await Promise.all([
-    page.waitForLoadState("domcontentloaded").catch(() => {}),
-    loginBtn.click(),
-  ]);
+        if (input && btn) {
+          clearInterval(interval);
+          input.value = code;
+          input.dispatchEvent(new Event('input', {bubbles:true}));
+          input.dispatchEvent(new Event('change', {bubbles:true}));
+          btn.click();
+          return "SUCCESS";
+        }
+        if (attempts > 40) clearInterval(interval);
+      }, 500);
+    })('${otpCode}')
+  `;
 
-  await softIdle(page);
+  await page.evaluate(injection);
+  await page.waitForTimeout(6000);
+  await clearOtp(runId).catch(() => {});
+}
 
-  // ניקוי OTP רק במצב firestore
-  await clearOtp(runId);
+/**
+ * ניווט לדף עמלות
+ */
+export async function navigateToPhoenixCommissions(page: Page) {
+  console.log("[Phoenix] Navigating to commissions area...");
+  await waitPhoenixLoaderGone(page);
+  
+  await page.getByText("עמלות", { exact: false }).first().click({ force: true });
+  await page.waitForTimeout(2000);
+  await page.getByText("דוחות עמלות", { exact: false }).first().click({ force: true });
 
-  await setStatus(runId, { status: "logged_in", step: "fenix_logged_in" });
-  console.log("[Fenix] logged in (after otp). url:", page.url());
+  await waitPhoenixLoaderGone(page);
+  await page.waitForLoadState("networkidle", { timeout: 15000 }).catch(() => {});
+}
+
+export async function phoenixOpenReport(page: Page, reportName: string) {
+  const reportLink = page.getByText(reportName, { exact: false }).first();
+  await reportLink.waitFor({ state: "visible", timeout: 30000 });
+  await reportLink.click({ force: true });
+  await waitPhoenixLoaderGone(page);
+}
+
+export async function phoenixExportExcel(page: Page): Promise<Download | null> {
+  try {
+    const downloadPromise = page.waitForEvent("download", { timeout: 60000 });
+    const excelBtn = page.locator('[title*="אקסל"], [title*="Excel"], text="אקסל"').first();
+    await excelBtn.click({ force: true });
+    return await downloadPromise;
+  } catch (e) {
+    return null;
+  }
 }

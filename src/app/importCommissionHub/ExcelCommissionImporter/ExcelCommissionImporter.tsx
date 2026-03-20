@@ -253,11 +253,11 @@ const handleStartAuto = async () => {
   try {
     // לוקח את ה-Class מהחברה (או מהתבנית אם אין לחברה)
     const finalAutomationClass = effectiveAutomationClass;
+
+    const portalId = selectedCompany?.portalId || selectedCompanyId;
     
-    // אם ה-Class הגיע מהחברה (מכיל _all), נשלח Bundle. אחרת נשלח את ה-templateId הרגיל.
-    const finalTemplateId = finalAutomationClass.includes('_all') 
-      ? `bundle_${selectedCompanyId}_all` 
-      : templateId;
+    const finalTemplateId = `bundle_${portalId}_commissions`;
+  
 
     const { runId } = await startAutoPortalRun({
       db,

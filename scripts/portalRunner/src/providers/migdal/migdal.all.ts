@@ -39,18 +39,38 @@ export async function runMigdalAll(ctx: RunnerCtx) {
 
   await setStatus(runId, { status: "running", step: "migdal_open_portal" });
 
+  // const browser = await chromium.launch({ 
+  //   headless: false, 
+  //   args: ["--no-sandbox", "--disable-setuid-sandbox", "--start-maximized"] 
+  // });
+
+  // const context = await browser.newContext({ 
+  //   acceptDownloads: true,
+  //   viewport: { width: 1600, height: 900 }, // גודל מסך גדול למניעת הסתרת תפריטים
+  //   userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
+  // });
+
+  // const page = await context.newPage();
+
+  // בתוך פונקציית runMigdalAll - החלק של פתיחת הדפדפן
   const browser = await chromium.launch({ 
     headless: false, 
-    args: ["--no-sandbox", "--disable-setuid-sandbox", "--start-maximized"] 
+    args: [
+      "--no-sandbox", 
+      "--disable-setuid-sandbox", 
+      "--disable-blink-features=AutomationControlled", 
+      "--start-maximized" // מאלץ חלון גדול
+    ] 
   });
 
   const context = await browser.newContext({ 
     acceptDownloads: true,
-    viewport: { width: 1600, height: 900 }, // גודל מסך גדול למניעת הסתרת תפריטים
+    viewport: null, // חשוב! מבטל את ה"קופסה" ומאפשר לאתר להימתח על כל המסך
     userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
   });
 
   const page = await context.newPage();
+  await page.bringToFront().catch(() => {});
 
   try {
     // 1. לוגין ו-OTP
