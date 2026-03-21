@@ -121,86 +121,192 @@ export async function phoenixHandleOtp(page: Page, ctx: RunnerCtx) {
   await clearOtp(runId).catch(() => {});
 }
 
-/**
- * ניווט: דוחות -> עמלות
- */
-/**
- * ניווט לדף עמלות: דוחות -> עמלות
- * שימוש ב-JS Injection כדי לעקוף פופ-אפים שחוסמים את הלחיצה
- */
+
 /**
  * ניווט לדף עמלות: דוחות -> עמלות
  * התיקון: שימוש במחרוזות (Strings) למניעת שגיאת Serialization ב-EXE
  */
 export async function navigateToPhoenixCommissions(page: Page) {
-  console.log("[Phoenix] Navigating to Commissions (Direct JS String Mode)...");
-  
-  await page.waitForLoadState("domcontentloaded");
+  console.log("[Phoenix] Navigating to Commissions – using aria-label priority...");
+
+  await waitPhoenixLoaderGone(page, 30000);
+  await page.waitForTimeout(5000); // נותן זמן להתנדפות F5 וטעינת תפריט
+
+  // 1. לחיצה על "דוחות" – עדיפות ל-aria-label + טקסט מדויק
+  await page.evaluate(`
+    const candidates = Array.from(document.querySelectorAll('button, span, a, div'));
+    
+    // עדיפות ראשונה: aria-label
+    let btn = candidates.find(el => 
+      el.getAttribute('aria-label')?.includes('דוחות')
+    );
+    
+    // fallback: טקסט מדויק
+    if (!btn) {
+      btn = candidates.find(el => 
+        (el.textContent || '').trim() === 'דוחות' && 
+        !el.closest('.active, .sidebar')
+      );
+    }
+    
+    if (btn) {
+      btn.scrollIntoView({block: 'center'});
+      btn.click();
+    } else {
+      console.warn("לא נמצא כפתור 'דוחות'");
+    }
+  `);
+
+  await page.waitForTimeout(4000); // המתנה להתרחבות התפריט
+  await waitPhoenixLoaderGone(page, 20000);
+
+  // 2. לחיצה על "עמלות" – עדיפות גבוהה ל-aria-label
+  await page.evaluate(`
+    const candidates = Array.from(document.querySelectorAll('button, span, a, div'));
+    
+    // עדיפות 1: aria-label שמכיל "עמלות" (הכי מדויק)
+    let target = candidates.find(el => 
+      el.getAttribute('aria-label')?.includes('עמלות')
+    );
+    
+    // עדיפות 2: טקסט מדויק + לא בתוך תביעות
+    if (!target) {
+      target = candidates.find(el => {
+        const txt = (el.textContent || el.getAttribute('title') || '').trim();
+        const parentTxt = el.closest('li, div')?.textContent || '';
+        return (txt === 'עמלות' || txt.includes('עמלות נפרעים')) &&
+               !parentTxt.includes('תביעות') &&
+               !el.closest('[class*="claims"], [class*="תביעות"], [aria-label*="תביעות"]');
+      });
+    }
+    
+    if (target) {
+      target.scrollIntoView({block: 'center'});
+      target.click();
+    } else {
+      console.warn("לא נמצא כפתור 'עמלות' תקין");
+    }
+  `);
+
+  // 3. המתנה ארוכה + בדיקה אם הגענו למקום הנכון
+  await page.waitForTimeout(10000); // 10 שניות – הדף נפתח מהר אבל צריך ייצוב
   await waitPhoenixLoaderGone(page, 45000);
-  await page.waitForTimeout(8000); // זמן להתנדפות מסכי F5
 
-  // לחיצה על "דוחות" - הזרקת קוד כטקסט פשוט
-  await page.evaluate(`
-    (function() {
-      const el = Array.from(document.querySelectorAll('span, a')).find(e => e.textContent.trim() === 'דוחות');
-      if (el) el.click();
-    })()
-  `);
-  
-  await page.waitForTimeout(3000);
+  const isInCommissions = await page.evaluate(() => {
+    const txt = document.body.innerText;
+    return txt.includes('עמלות נפרעים') ||
+           txt.includes('ריכוז עמלות') ||
+           document.querySelector('img[src*="excel"]') ||  // כפתור אקסל = סימן מצוין
+           document.querySelector('[aria-label*="עמלות"]');
+  });
 
-  // לחיצה על "עמלות" - הזרקת קוד כטקסט פשוט
-  await page.evaluate(`
-    (function() {
-      const el = Array.from(document.querySelectorAll('span, a')).find(e => e.textContent.trim() === 'עמלות');
-      if (el) el.click();
-    })()
-  `);
-
-  await waitPhoenixLoaderGone(page);
+  if (!isInCommissions) {
+    console.warn("[Phoenix] נראה שלא הגענו לדוח עמלות – אולי נכנסנו לתביעות");
+  } else {
+    console.log("[Phoenix] הגענו לדוח עמלות בהצלחה");
+  }
 }
 
 /**
  * פתיחת דוח בטאב חדש
  */
-export async function phoenixOpenReport(page: Page, context: BrowserContext, reportName: string): Promise<Page> {
-  console.log(`[Phoenix] Opening "${reportName}"...`);
-  const pagePromise = context.waitForEvent('page');
+/**
+ * פותח דוח – תומך גם בטאב חדש וגם באותו טאב
+ */
+export async function phoenixOpenReport(mainPage: Page, reportName: string): Promise<Page> {
+  console.log(`[Phoenix] Opening report "${reportName}"...`);
 
-  // הזרקת שם הדוח ישירות לתוך ה-Script כטקסט
-  const clickScript = `
-    (function() {
-      const name = "${reportName}";
-      const el = Array.from(document.querySelectorAll('span, a')).find(e => e.textContent.trim().includes(name));
-      if (el) el.click();
-    })()
-  `;
-  await page.evaluate(clickScript);
+  // 1. שמירת מצב לפני לחיצה
+  const context = mainPage.context();
+  const existingPages = context.pages().length;
+  const pagePromise = context.waitForEvent('page', { timeout: 15000 }).catch(() => null);
+
+  // 2. לחיצה על הדוח (הזרקה מדויקת)
+  await mainPage.evaluate((name) => {
+    const el = Array.from(document.querySelectorAll('span, a, div, li, button'))
+      .find(e => (e.textContent || '').trim().includes(name) && !e.closest('.sidebar'));
+    
+    if (el instanceof HTMLElement) {
+      el.scrollIntoView({ block: 'center' });
+      el.click();
+    }
+  }, reportName);
+
+  // 3. המתנה קצרה + בדיקה אם נפתח טאב חדש
+  await mainPage.waitForTimeout(3000);
 
   const newPage = await pagePromise;
-  await newPage.waitForLoadState("load");
-  return newPage;
+  if (newPage) {
+    console.log("[Phoenix] New tab detected for report");
+    await newPage.waitForLoadState("networkidle", { timeout: 45000 }).catch(() => {});
+    await waitPhoenixLoaderGone(newPage, 30000);
+    return newPage;
+  }
+
+  // 4. אם לא נפתח טאב חדש – ממשיכים עם הדף הנוכחי
+  console.log("[Phoenix] Report opened in same tab");
+  await mainPage.waitForLoadState("networkidle", { timeout: 45000 }).catch(() => {});
+  await waitPhoenixLoaderGone(mainPage, 30000);
+  await mainPage.waitForTimeout(5000); // נשימה ארוכה יותר
+
+  // 5. בדיקה אם באמת נטען הדוח (לפי כפתור אקסל או טקסט ייחודי)
+  const hasExcelBtn = await mainPage.evaluate(() => {
+    return !!document.querySelector('img[src*="excel"], [title*="אקסל"], button:has-text("אקסל")');
+  });
+
+  if (!hasExcelBtn) {
+    console.warn("[Phoenix] No Excel button after open – possible wrong page or loader issue");
+  }
+
+  return mainPage;
 }
 
 /**
  * הורדת אקסל (האייקון מהתמונה)
  */
-export async function phoenixExportExcel(reportPage: Page): Promise<Download | null> {
+export async function phoenixExportExcel(page: Page): Promise<Download | null> {
   try {
-    await waitPhoenixLoaderGone(reportPage);
-    const downloadPromise = reportPage.waitForEvent("download", { timeout: 60000 });
+    await waitPhoenixLoaderGone(page, 30000);
+    await page.waitForTimeout(3000);
 
-    // לחיצה על האייקון באמצעות הזרקת טקסט
-    await reportPage.evaluate(`
-      (function() {
-        const img = document.querySelector('img[src*="excel.svg"]');
-        if (img) img.click();
-      })()
-    `);
-    
+    const downloadPromise = page.waitForEvent("download", { timeout: 60000 });
+
+    // ניסיון 1: תמונת אקסל
+    let clicked = await page.evaluate(() => {
+      const img = document.querySelector('img[src*="excel.svg"], img[alt*="Excel"]');
+      if (img instanceof HTMLElement) {
+        img.click();
+        return true;
+      }
+      return false;
+    });
+
+    // ניסיון 2: כפתור עם טקסט או title
+    if (!clicked) {
+      clicked = await page.evaluate(() => {
+        const btn = Array.from(document.querySelectorAll('button, a, span, div'))
+          .find(el => {
+            const txt = (el.textContent || el.getAttribute('title') || '').toLowerCase();
+            return txt.includes('אקסל') || txt.includes('excel') || el.className.includes('export');
+          });
+        if (btn instanceof HTMLElement) {
+          btn.click();
+          return true;
+        }
+        return false;
+      });
+    }
+
+    if (!clicked) {
+      console.warn("[Phoenix] No Excel button clicked");
+      return null;
+    }
+
+    console.log("[Phoenix] Excel button clicked – waiting for download...");
     return await downloadPromise;
+
   } catch (e) {
-    console.log("[Phoenix] Export failed:", e);
+    console.error("[Phoenix] Export failed:", e);
     return null;
   }
 }

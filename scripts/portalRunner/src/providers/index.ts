@@ -4,6 +4,7 @@ import type { RunnerHandler } from "../types";
 import { runClalAll } from "./clal/clal.all";
 import { runMigdalAll } from "./migdal/migdal.all";
 import { runPhoenixAll } from "./fenix/fenix.all";
+import { runMenoraAll } from "./menora/menura.all";
 
 
 // import { runMigdalInsurance } from "./migdal/migdal.insurance";
@@ -15,6 +16,7 @@ export const providers: Record<string, RunnerHandler> = {
   clal_commissions_all: runClalAll, 
   migdal_commissions_all: runMigdalAll,
   fenix_commissions_all: runPhoenixAll,
+  menora_commissions_all: runMenoraAll,
 
 
 };

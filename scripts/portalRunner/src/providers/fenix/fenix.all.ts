@@ -81,20 +81,20 @@ context = await browser.newContext({
     await page.waitForTimeout(5000);
 
     let inputFound = false;
-    for (let i = 0; i < 2; i++) {
+    for (let i = 0; i < 1; i++) {
       if (await page.locator('#input_1').count() > 0) {
         inputFound = true;
         break;
       }
       log!.info(`[Fenix] Attempt ${i + 1}: Fields not found yet`);
       await handleFenixLoginRedirect(page);
-      await page.waitForTimeout(4000);
+      await page.waitForTimeout(2000);
     }
 
     if (!inputFound) {
       log!.info("[Fenix] Forcing reload to login page");
       await page.goto(portalUrl, { waitUntil: "domcontentloaded", timeout: 60000 });
-      await page.waitForTimeout(5000);
+      await page.waitForTimeout(3000);
     }
 
     // לוגין ו-OTP
@@ -109,7 +109,7 @@ context = await browser.newContext({
     // הגדרת הדוחות
     const REPORTS = [
       { name: "עמלות נפרעים", templateId: "fenix_insurance", subdir: "insurance" },
-      { name: "פירוט עמלות חיים", templateId: "fenix_life", subdir: "life" } // דוח שני לדוגמה
+      // { name: "פירוט עמלות חיים", templateId: "fenix_life", subdir: "life" } // דוח שני לדוגמה
     ];
 
     const appendDownload = async (item: any) => {
@@ -125,8 +125,11 @@ context = await browser.newContext({
         await setStatus(runId, { status: "running", step: `מפיק דוח: ${rep.name}`, monthLabel });
 
         // פתיחת הדוח בטאב חדש
-        const reportPage = await phoenixOpenReport(page, context!, rep.name);
+        const reportPage = await phoenixOpenReport(page, rep.name);
         
+        await reportPage.waitForSelector('img[src*="excel"], [title*="אקסל"]', { timeout: 30000 }).catch(() => {
+        console.warn("[Phoenix] Excel button not found after wait");
+});
         // הורדה מהטאב החדש
         const download = await phoenixExportExcel(reportPage);
         if (download) {
