@@ -49,25 +49,22 @@ export async function runPhoenixAll(ctx: RunnerCtx) {
     browser = await chromium.launch({
       headless: false,
       executablePath: executablePath || undefined,
-args: [
-      "--no-sandbox",
-      "--disable-setuid-sandbox",
-      "--disable-blink-features=AutomationControlled",
-      "--start-maximized",
-      "--disable-infobars",
-      // ✅ השתקת פופ-אפים של חיבור למכשירים (כמו שראינו בתמונה)
-      "--disable-device-discovery-notifications",
-      "--disable-features=WebBluetooth,WebUSB,WebHID,WebSerial,DeviceAttributesService",
-      // ✅ מניעת פתיחה של אפליקציות חיצוניות (כמו ה-VPN שקפץ)
-      "--no-default-browser-check",
-      "--ignore-certificate-errors"
-    ] 
-   });
+      args: [
+        "--no-sandbox",
+        "--disable-setuid-sandbox",
+        "--disable-blink-features=AutomationControlled",
+        "--start-maximized",
+        "--disable-infobars",
+        "--disable-device-discovery-notifications",
+        "--disable-features=WebBluetooth,WebUSB,WebHID,WebSerial,DeviceAttributesService",
+        "--no-default-browser-check",
+        "--ignore-certificate-errors"
+      ] 
+    });
 
-context = await browser.newContext({
+    context = await browser.newContext({
       viewport: null,
       acceptDownloads: true,
-      // הסרנו את "sensors" והחלפנו בשמות המדויקים שהדפדפן מכיר
       permissions: ['geolocation'], 
       userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
     });
@@ -80,23 +77,6 @@ context = await browser.newContext({
     await page.goto(portalUrl, { waitUntil: "networkidle", timeout: 90000 }).catch(() => {});
     await page.waitForTimeout(5000);
 
-    let inputFound = false;
-    for (let i = 0; i < 1; i++) {
-      if (await page.locator('#input_1').count() > 0) {
-        inputFound = true;
-        break;
-      }
-      log!.info(`[Fenix] Attempt ${i + 1}: Fields not found yet`);
-      await handleFenixLoginRedirect(page);
-      await page.waitForTimeout(2000);
-    }
-
-    if (!inputFound) {
-      log!.info("[Fenix] Forcing reload to login page");
-      await page.goto(portalUrl, { waitUntil: "domcontentloaded", timeout: 60000 });
-      await page.waitForTimeout(3000);
-    }
-
     // לוגין ו-OTP
     await setStatus(runId, { status: "running", step: "מבצע כניסה...", monthLabel });
     await phoenixLogin(page, username, password);
@@ -106,10 +86,18 @@ context = await browser.newContext({
     await setStatus(runId, { status: "running", step: "עובר לאזור העמלות...", monthLabel });
     await navigateToPhoenixCommissions(page);
 
-    // הגדרת הדוחות
+    // --- הגדרת הדוחות להורדה ---
     const REPORTS = [
-      { name: "עמלות נפרעים", templateId: "fenix_insurance", subdir: "insurance" },
-      // { name: "פירוט עמלות חיים", templateId: "fenix_life", subdir: "life" } // דוח שני לדוגמה
+      { 
+        name: "עמלות נפרעים", 
+        templateId: "fenix_insurance", 
+        subdir: "insurance" 
+      },
+      { 
+        name: "עמלות נפרעים והפרשי סוכנויות גמל", 
+        templateId: "fenix_provident", 
+        subdir: "provident" 
+      }
     ];
 
     const appendDownload = async (item: any) => {
@@ -119,18 +107,20 @@ context = await browser.newContext({
       await setStatus(runId, { downloads });
     };
 
-    // לופ הורדה
+    // לופ הורדה: עובר על כל דוח ברשימה
     for (const rep of REPORTS) {
       try {
         await setStatus(runId, { status: "running", step: `מפיק דוח: ${rep.name}`, monthLabel });
 
-        // פתיחת הדוח בטאב חדש
+        // 1. פתיחת הדוח (בדרך כלל בטאב חדש)
         const reportPage = await phoenixOpenReport(page, rep.name);
         
-        await reportPage.waitForSelector('img[src*="excel"], [title*="אקסל"]', { timeout: 30000 }).catch(() => {
-        console.warn("[Phoenix] Excel button not found after wait");
-});
-        // הורדה מהטאב החדש
+        // 2. המתנה קצרה לווידוא טעינה
+        await reportPage.waitForSelector('img[src*="excel"], [title*="אקסל"]', { timeout: 35000 }).catch(() => {
+          console.warn(`[Phoenix] Excel button not found for ${rep.name}`);
+        });
+
+        // 3. הורדת האקסל
         const download = await phoenixExportExcel(reportPage);
         if (download) {
           const filename = download.suggestedFilename();
@@ -143,9 +133,12 @@ context = await browser.newContext({
           }
         }
         
-        // סגירת הטאב וחזרה לראשי
-        await reportPage.close().catch(() => {});
+        // 4. סגירת הטאב של הדוח וחזרה לדף הראשי (רשימת הדוחות)
+        if (reportPage !== page) {
+          await reportPage.close().catch(() => {});
+        }
         await page.bringToFront();
+        await page.waitForTimeout(3000); // "נשימה" קצרה לפני הדוח הבא
         
       } catch (err: any) {
         log!.error(`[Fenix] Error in report ${rep.name}: ${err.message}`);
