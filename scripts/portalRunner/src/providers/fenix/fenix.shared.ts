@@ -245,37 +245,58 @@ export async function phoenixOpenReport(mainPage: Page, reportName: string): Pro
 
 
 /**
- * הורדת אקסל (האייקון מהתמונה)
+ * הורדת אקסל: גרסת String Injection - חסינה לשגיאות Serialization ב-EXE
  */
 export async function phoenixExportExcel(page: Page): Promise<Download | null> {
-  console.log("[Phoenix] Triggering Excel Export...");
+  console.log("[Phoenix] Starting Excel Export process...");
   
   try {
-    await waitPhoenixLoaderGone(page, 45000);
-    await page.waitForTimeout(5000);
-
+    await waitPhoenixLoaderGone(page, 30000);
+    
+    // 1. הכנת ההאזנה להורדה (חייב לקרות לפני הלחיצה)
     const downloadPromise = page.waitForEvent("download", { timeout: 60000 });
 
-    const clicked = await page.evaluate<string>(`
+    // 2. הזרקת קוד כטקסט (זה עוקף את שגיאת ה-not well-serializable)
+    const injectionScript = `
       (function() {
-        // חיפוש לפי הקומפוננטה הייחודית לפניקס
-        const container = document.querySelector('fnx-nx-client-continuous-table-export-to-excel');
-        const img = container ? container.querySelector('img') : document.querySelector('img[src*="excel"]');
+        // איתור כפתור האקסל (תומך גם בביטוח וגם בגמל)
+        const container = document.querySelector('fnx-nx-client-gemel-continuous-table-export-to-excel, fnx-nx-client-continuous-table-export-to-excel');
+        const mainBtn = container ? container.querySelector('button') : document.querySelector('img[src*="excel"]');
         
-        if (img) {
-          img.click();
-          return "CLICKED";
-        }
-        return "NOT_FOUND";
-      })()
-    `);
+        if (!mainBtn) return "NOT_FOUND";
 
-    if (clicked === "NOT_FOUND") {
-      console.error("[Phoenix] Excel export icon not found in DOM");
+        // לחיצה על האייקון הראשי
+        mainBtn.click();
+
+        // בדיקה אחרי 2.5 שניות אם נפתח תפריט "מורחב"
+        setTimeout(() => {
+          const menuItems = Array.from(document.querySelectorAll('.mat-mdc-menu-item, .mat-menu-item, [role="menuitem"]'));
+          const extended = menuItems.find(el => {
+            const txt = el.innerText || el.textContent || "";
+            return txt.includes("מורחב");
+          });
+
+          if (extended) {
+            console.log("Phoenix: Extended menu found, clicking...");
+            extended.click();
+          }
+        }, 2000);
+
+        return "CLICKED_MAIN";
+      })()
+    `;
+
+    const res = await page.evaluate(injectionScript);
+    console.log(`[Phoenix] Export script injected: ${res}`);
+
+    if (res === "NOT_FOUND") {
+      console.error("[Phoenix] Excel icon not found in DOM");
       return null;
     }
 
+    // 3. המתנה להורדה
     return await downloadPromise;
+
   } catch (e) {
     console.error("[Phoenix] Export failed:", e);
     return null;

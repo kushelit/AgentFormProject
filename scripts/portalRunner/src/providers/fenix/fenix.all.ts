@@ -95,8 +95,8 @@ export async function runPhoenixAll(ctx: RunnerCtx) {
       },
       { 
         name: "עמלות נפרעים והפרשי סוכנויות גמל", 
-        templateId: "fenix_provident", 
-        subdir: "provident" 
+        templateId: "fenix_gemel", 
+        subdir: "gemel" 
       }
     ];
 

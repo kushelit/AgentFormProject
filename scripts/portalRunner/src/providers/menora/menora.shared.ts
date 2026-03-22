@@ -169,174 +169,236 @@ export async function menoraHandleOtp(page: Page, ctx: RunnerCtx) {
 
 
 /**
-
- * ניווט לעמלות: לחיצה על האייקון לפי ה-SRC המדויק מה-Inspector
- */
-/**
- * ניווט לעמלות: קפיצה ישירה ללינק או לחיצה על טקסט מדויק בלבד
- */
-/**
  * ניווט לעמלות: גרסה סבלנית ומדויקת לפי ה-Inspector של מנורה (image_4f2ea8)
  * עוקפת בעיות Serialization ב-EXE.
+ */
+/**
+ * ניווט לעמלות ולחיצה על לשונית דוחות
  */
 export async function menoraNavigateToCommissions(page: Page) {
   const targetUrl = "https://menoranet.menora.co.il/agent-financial-info/commissions";
   
-  console.log(`[Menora] Attempting direct jump to commissions...`);
+  console.log(`[Menora] Navigating to: ${targetUrl}`);
   await page.goto(targetUrl, { waitUntil: "networkidle", timeout: 60000 }).catch(() => {});
   await page.waitForTimeout(5000);
   await waitMenoraLoaderGone(page);
 
-  // גיבוי לניווט ויזואלי (אם הקפיצה הישירה נכשלת)
-  if (!page.url().includes("agent-financial-info/commissions")) {
-    console.log("[Menora] Direct jump failed. Attempting strict sidebar navigation...");
-    
-    // לחיצה מדויקת על אייקון עמלות
-    await page.evaluate(`
-      (function() {
-        const icon = document.querySelector('img[src*="commissions-icon"], .commissions-icon');
-        if (icon) {
-          const link = icon.closest('a') || icon.closest('button') || icon;
-          link.click();
-        }
-      })()
-    `);
-    await page.waitForTimeout(2000);
+  console.log("[Menora] Attempting to click 'דוחות' tab...");
 
-    // לחיצה על הקישור הראשי של עמלות (טקסט מדויק למניעת כניסה להסכמים)
-    await page.evaluate(`
-      (function() {
-        const el = Array.from(document.querySelectorAll('span, a')).find(e => e.textContent.trim() === 'עמלות');
-        if (el) el.click();
-      })()
-    `);
-    await page.waitForURL("**/agent-financial-info/commissions", { timeout: 20000 }).catch(() => {});
-  }
-
-  // =========================================================================
-  // --- תיקון השגיאה: לחיצה על לשונית "דוחות" (image_4f2ea8) ---
-  // =========================================================================
-  console.log("[Menora] Activating 'דוחות' tab (Polling Mode for EXE stabilization)...");
-
-  // הזרקת קוד אקטיבי שסורק את ה-DIV שצילמת ומחכה שהכפתור יופיע ויהיה גלוי
-  const reportsTabScript = `
+  // הזרקת קוד כמחרוזת טקסט - זה פותר את כל שגיאות ה-innerText וה-Serialization
+  const script = `
     (function() {
-      return new Promise((resolve) => {
-        let attempts = 0;
-        const maxAttempts = 30; // 15 שניות של ניסיונות
-
-        const interval = setInterval(() => {
-          attempts++;
-
-          // סלקטור ממוקד מה-Inspector: button עם הקלאס menora-sub-header-btn
-          // שמכיל טקסט פנימי "דוחות"
-          const subHeaderButtons = Array.from(document.querySelectorAll('button.menora-sub-header-btn'));
-          const reportsTab = subHeaderButtons.find(el => el.innerText.trim() === 'דוחות');
-
-          if (reportsTab && reportsTab.offsetWidth > 0) {
-            clearInterval(interval);
-            console.log("Menora: 'דוחות' tab found. Clicking robustly...");
-
-            // לחיצה אגרסיבית שמעדכנת את אנגולר
-            reportsTab.removeAttribute('disabled'); // לוודא שלא נעול
-            reportsTab.click();
-            reportsTab.dispatchEvent(new Event('click', { bubbles: true }));
-
-            resolve("SUCCESS_CLICKED_TAB");
-          }
-
-          if (attempts >= maxAttempts) {
-            clearInterval(interval);
-            resolve("ERROR_TIMEOUT_WAITING_FOR_REPORTS_TAB");
-          }
-        }, 500);
+      // מחפשים את האלמנט שצילמת ב-Inspector (כפתור עם טקסט דוחות)
+      const elements = Array.from(document.querySelectorAll('button, [role="tab"], .MuiTab-root, span'));
+      const target = elements.find(el => {
+        const txt = (el.innerText || el.textContent || "").trim();
+        return txt === 'דוחות';
       });
+      
+      if (target) {
+        target.scrollIntoView({ block: 'center' });
+        target.click();
+        return "SUCCESS";
+      }
+      return "NOT_FOUND";
     })()
   `;
 
-  const tabResult = await page.evaluate<string>(reportsTabScript);
-  console.log(`[Menora] Reports tab activation result: ${tabResult}`);
+  const res = await page.evaluate(script);
+  console.log("[Menora] Tab activation result: " + res);
 
-  if (tabResult.startsWith("ERROR")) {
-    // מנורה לעיתים מחביאה את הלשונית הזו אם אין נתונים. במקרה כזה לא נזרוק שגיאה קריטית
-    console.log("[Menora] Warning: Could not activate 'דוחות' tab. Checking for production form anyway.");
+  if (res === "NOT_FOUND") {
+    throw new Error("לא נמצאה לשונית 'דוחות' בדף העמלות");
   }
 
-  // המתנה קצרה אחרי לחיצה שהטופס למטה יתרנדר
   await page.waitForTimeout(3000);
   await waitMenoraLoaderGone(page);
 }
 
+
 /**
- * בחירת סוכנים והפקת דוח
+ * בחירת סוכנים והפקת דוח - מבוסס על זיהוי טקסט וניווט לעץ ה-DOM
+ */
+/**
+ * בחירת סוכנים והפקת דוח - גרסה משולבת וחסינה
  */
 export async function menoraProduceReport(page: Page) {
-  console.log("[Menora] Selecting agents and producing report...");
+  console.log("[Menora] Producing report – selecting 'סוכנים' & strong dropdown close...");
 
-  // 1. פתיחת בחירת ישות (image_febcb0) וסימון "סוכנים" (image_febd65)
-  const selectScript = `
-    (function() {
-      const toggle = document.querySelector('.expansion-icon, .dropdown-toggle, [class*="select"]');
-      if (toggle) toggle.click();
+  const script = `
+    (async function() {
+      // שלב 1: פתיחת הדרופדאון של "בחירת ישות"
+      const expandIcon = document.querySelector('svg[data-testid="ExpandMoreIcon"]');
+      if (expandIcon && expandIcon.parentElement) {
+        expandIcon.parentElement.click();
+      } else {
+        const trigger = document.querySelector('[role="combobox"], [aria-haspopup="listbox"]');
+        if (trigger) trigger.click();
+      }
+      await new Promise(r => setTimeout(r, 1500));
+
+      // שלב 2: בחירת "סוכנים" – הלוגיקה שעבדה לך
+      const allSpans = Array.from(document.querySelectorAll('span, p, label'));
+      const agentsSpan = allSpans.find(s => (s.innerText || s.textContent || "").trim() === 'סוכנים');
       
-      setTimeout(() => {
-        const checkbox = Array.from(document.querySelectorAll('label')).find(l => l.textContent.includes('סוכנים'))?.querySelector('input[type="checkbox"]');
-        if (checkbox) {
-          checkbox.checked = true;
-          checkbox.dispatchEvent(new Event('change', { bubbles: true }));
+      if (agentsSpan) {
+        console.log("Menora: Found 'סוכנים' span");
+        
+        const row = agentsSpan.closest('li, [role="option"], label, .MuiMenuItem-root');
+        if (row) {
+          const checkbox = row.querySelector('input[type="checkbox"]');
+          if (checkbox) {
+            if (!checkbox.checked) {
+              checkbox.click();
+              console.log("Menora: Checkbox clicked successfully");
+            }
+          } else {
+            row.click();
+            console.log("Menora: Clicked on 'סוכנים' row");
+          }
         }
-        // לחיצה מחוץ ל-dropdown לסגירה
-        document.body.click();
-      }, 1000);
+      } else {
+        console.warn("לא נמצא 'סוכנים' בדרופדאון");
+      }
+
+      // שלב 3: סגירה חזקה של הדרופדאון (השיטה שעבדה לך)
+      console.log("Menora: Closing dropdown strongly...");
+      const backdrop = document.querySelector('.MuiBackdrop-root, .MuiModal-backdrop');
+      if (backdrop) {
+        backdrop.click();
+      }
+      document.body.click(); // קליק נוסף על body – סגירה בטוחה
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      window.dispatchEvent(new KeyboardEvent('keyup', { key: 'Escape', bubbles: true }));
+      await new Promise(r => setTimeout(r, 2000)); // המתנה שהדרופדאון ייסגר לגמרי
+
+      // שלב 4: לחיצה על "הפקת הדוח"
+            // שלב 4: לחיצה על "הפקת הדוח" – חיפוש לפי אייקון Excel + טקסט
+      let produceBtn = null;
+      
+      // עדיפות 1: חיפוש button שמכיל img עם alt="excel" או src עם excel
+const excelImgs = document.querySelectorAll('img[alt="excel"], img[src*="excel"], img[src*="excel.svg"]');
+      for (let img of excelImgs) {
+        const parentBtn = img.closest('button');
+        if (parentBtn) {
+          // אם מצאנו button עם אייקון Excel – נלחץ עליו גם אם הטקסט לא מושלם
+          produceBtn = parentBtn;
+          console.log("Menora: Found button via Excel icon – no text check needed");
+          break;
+        }
+      }
+      
+      
+      // עדיפות 2: גיבוי – חיפוש לפי <p> עם הטקסט
+      if (!produceBtn) {
+        const buttons = Array.from(document.querySelectorAll('button'));
+        for (let btn of buttons) {
+          const p = btn.querySelector('p');
+          if (p) {
+            const txt = (p.textContent || p.innerText || '').trim();
+            if (txt.includes('הפקת הדוח') || txt.includes('הפקה')) {
+              produceBtn = btn;
+              break;
+            }
+          }
+        }
+      }
+
+      if (produceBtn) {
+        console.log("Menora: Found 'הפקת הדוח' button via Excel icon or text");
+        produceBtn.scrollIntoView({ block: 'center' });
+        produceBtn.removeAttribute('disabled');
+        produceBtn.click();
+      } else {
+        console.warn("לא נמצא כפתור 'הפקת הדוח'");
+      }
+
+      // שלב 5: המתנה להודעת "תודה על בקשתך"
+      await new Promise(r => setTimeout(r, 8000));
+      const thankYouVisible = document.body.innerText.includes('תודה על בקשתך') ||
+                             document.body.innerText.includes('הדוח נשלח להפקה') ||
+                             document.querySelector('.MuiAlert-message');
+      
+      if (thankYouVisible) {
+        console.log("[Menora] Thank you message detected – report requested");
+      } else {
+        console.warn("[Menora] No thank you message – check if report was requested");
+      }
+
+      return "DONE";
     })()
   `;
-  await page.evaluate(selectScript);
-  await page.waitForTimeout(2000);
 
-  // 2. לחיצה על הפקת דוח (image_fec08f)
-  await page.evaluate(`
-    Array.from(document.querySelectorAll('button')).find(el => el.textContent.includes('הפקת הדוח'))?.click()
-  `);
-  console.log("[Menora] Report production triggered.");
+  try {
+    const result = await page.evaluate(script);
+    console.log(`[Menora] Produce process finished: ${result}`);
+  } catch (e: unknown) {
+    if (e instanceof Error) {
+      console.error("[Menora] Produce evaluation failed:", e.message);
+    } else {
+      console.error("[Menora] Produce evaluation failed with unknown error:", e);
+    }
+  }
+
+  // המתנה נוספת להפקה להתחיל
   await page.waitForTimeout(5000);
+  await waitMenoraLoaderGone(page, 45000);
 }
 
 /**
  * המתנה להורדה מרשימת הדוחות (Polling)
  */
 export async function menoraDownloadZip(page: Page): Promise<Download | null> {
-  console.log("[Menora] Waiting for report to be ready (Polling history)...");
+  console.log("[Menora] Navigating to report status & downloading latest...");
 
-  for (let i = 0; i < 15; i++) { // עד 15 ניסיונות (75 שניות)
-    const status = await page.evaluate(`
+  // שלב 1: לחיצה על "סטטוס דוחות" או "היסטוריית דוחות"
+  await page.evaluate(`
+    const els = document.querySelectorAll('span, a, button, div');
+    let found = false;
+    for (let i = 0; i < els.length && !found; i++) {
+      const el = els[i];
+      const txt = (el.textContent || el.getAttribute('title') || '').trim();
+      if (txt.includes('סטטוס') || txt.includes('היסטוריית דוחות') || txt.includes('דוחות')) {
+        el.click();
+        found = true;
+      }
+    }
+    if (!found) console.warn("לא נמצא קישור לסטטוס דוחות");
+  `);
+
+  await page.waitForTimeout(5000);
+  await waitMenoraLoaderGone(page, 30000);
+
+  // שלב 2: המתנה שהדוח האחרון יסתיים + לחיצה על הורדה
+  for (let i = 0; i < 20; i++) { // עד 100 שניות
+    const downloadReady = await page.evaluate(`
       (function() {
-        const row = document.querySelector('tr, .report-row'); // השורה הראשונה בהיסטוריה
-        if (!row) return "NOT_FOUND";
-        const statusText = row.innerText;
-        if (statusText.includes('הסתיים') || row.querySelector('img[src*="download"], .download-icon')) {
-          return "READY";
+        const rows = document.querySelectorAll('tr, .MuiTableRow-root, .report-row');
+        if (rows.length === 0) return "NO_ROWS";
+        
+        const firstRow = rows[0]; // הדוח האחרון (החדש ביותר)
+        const status = firstRow.textContent || '';
+        const isDone = status.includes('הסתיים') || status.includes('מוכן') || status.includes('הורד');
+        
+        if (isDone) {
+          const downloadBtn = firstRow.querySelector('svg, img[src*="download"], .download-icon, button');
+          if (downloadBtn) {
+            downloadBtn.click();
+            return "DOWNLOAD_CLICKED";
+          }
         }
         return "PROCESSING";
       })()
     `);
 
-    if (status === "READY") {
-      console.log("[Menora] Report is ready! Clicking download...");
-      const downloadPromise = page.waitForEvent("download", { timeout: 60000 });
-      
-      await page.evaluate(`
-        const btn = document.querySelector('img[src*="download"], .download-icon, [class*="download"]');
-        if (btn) btn.click();
-      `);
-      
-      return await downloadPromise;
+    if (downloadReady === "DOWNLOAD_CLICKED") {
+      console.log("[Menora] Download clicked on latest report");
+      return await page.waitForEvent("download", { timeout: 60000 });
     }
 
-    console.log(`[Menora] Report still processing... (Attempt ${i+1})`);
+    console.log(`[Menora] Report still processing... attempt ${i+1}`);
     await page.waitForTimeout(5000);
-    // לחיצה על רענון פנימי אם קיים, או פשוט מחכים
-    await page.evaluate(`document.querySelector('.refresh-icon')?.click()`).catch(() => {});
   }
-  
-  throw new Error("הפקת הדוח במנורה ארכה זמן רב מדי.");
+
+  throw new Error("הדוח לא הסתיים בזמן – נסה שוב");
 }

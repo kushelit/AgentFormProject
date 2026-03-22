@@ -550,23 +550,24 @@ const handleStartAuto = async () => {
       const d = XLSX.SSF.parse_date_code(value);
       if (d) {
         // ✅ Migdal bugfix: 1/2/25,1/3/25... נשמר כ-Jan 2/3/4 ולכן החודש "יושב" ביום
-        if ((templateId === 'migdal_life' || templateId === 'migdal_gemel') && d.m === 1 && d.d >= 1 && d.d <= 12) {
+        if ((templateId === 'migdal_life' || templateId === 'migdal_gemel' || templateId === 'fenix_insurance') && d.m === 1 && d.d >= 1 && d.d <= 12) {
           return `${d.y}-${String(d.d).padStart(2, '0')}`;
         }
         return `${d.y}-${String(d.m).padStart(2,'0')}`;
       }
     }
     
+console.log("DEBUG MONTH:", { templateId, value, type: typeof value, isDate: value instanceof Date });
+   
+const tempDate = new Date(value);
+tempDate.setHours(tempDate.getHours() + 12);
 
-    // if (value instanceof Date) {
-    //   return `${value.getFullYear()}-${String(value.getMonth()+1).padStart(2,'0')}`;
-    // }
     if (value instanceof Date) {
-      const y = value.getFullYear();
-      const m = value.getMonth() + 1;
-      const d = value.getDate();
+      const y = tempDate.getFullYear();
+      const m = tempDate.getMonth() + 1;
+      const d = tempDate.getDate();
     
-      if ((templateId === 'migdal_life' || templateId === 'migdal_gemel') && m === 1 && d >= 1 && d <= 12) {
+      if ((templateId === 'migdal_life' || templateId === 'migdal_gemel' || templateId === 'fenix_insurance') && m === 1 && d >= 1 && d <= 12) {
         return `${y}-${String(d).padStart(2,'0')}`;
       }
       return `${y}-${String(m).padStart(2,'0')}`;
