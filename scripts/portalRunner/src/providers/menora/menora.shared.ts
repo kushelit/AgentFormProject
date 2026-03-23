@@ -15,15 +15,7 @@ export async function waitMenoraLoaderGone(page: Page, timeoutMs = 30000) {
   } catch (e) {}
 }
 
-/**
- * לוגין מנורה: שם משתמש וטלפון
- */
-/**
- * לוגין מנורה: הזרקה חזקה שמעדכנת את ה-State של האתר
- */
-/**
- * לוגין מנורה: הזרקת "כוח" שעוקפת וולידציה של Angular/React
- */
+
 /**
  * לוגין מנורה: הזרקה עקשנית שמוודאת שהערך לא נמחק ע"י האתר
  */
@@ -345,60 +337,66 @@ const excelImgs = document.querySelectorAll('img[alt="excel"], img[src*="excel"]
   await waitMenoraLoaderGone(page, 45000);
 }
 
+
 /**
- * המתנה להורדה מרשימת הדוחות (Polling)
+ * מעבר לסטטוס והורדת הדוח החדש ביותר - גרסת String חסינה ל-EXE
  */
 export async function menoraDownloadZip(page: Page): Promise<Download | null> {
-  console.log("[Menora] Navigating to report status & downloading latest...");
+  console.log("[Menora] Expanding 'Status' menu and hunting for download button...");
 
-  // שלב 1: לחיצה על "סטטוס דוחות" או "היסטוריית דוחות"
-  await page.evaluate(`
-    const els = document.querySelectorAll('span, a, button, div');
-    let found = false;
-    for (let i = 0; i < els.length && !found; i++) {
-      const el = els[i];
-      const txt = (el.textContent || el.getAttribute('title') || '').trim();
-      if (txt.includes('סטטוס') || txt.includes('היסטוריית דוחות') || txt.includes('דוחות')) {
-        el.click();
-        found = true;
-      }
-    }
-    if (!found) console.warn("לא נמצא קישור לסטטוס דוחות");
-  `);
+  // שלב 1: פתיחת התפריט
+  const expandScript = " (function() { " +
+    " const listButtons = Array.from(document.querySelectorAll('div[role=\"button\"], .MuiListItemButton-root')); " +
+    " const statusBtn = listButtons.find(btn => { " +
+    "   const txt = (btn.innerText || btn.textContent || '').trim(); " +
+    "   return txt.includes('סטטוס דוחות') || txt.includes('דוחות שהופקו'); " +
+    " }); " +
+    " if (statusBtn) { " +
+    "   const isExpanded = !!statusBtn.querySelector('svg[data-testid=\"ExpandLessIcon\"]'); " +
+    "   if (isExpanded) return 'ALREADY_OPEN'; " +
+    "   statusBtn.click(); " +
+    "   return 'CLICKED_TO_OPEN'; " +
+    " } " +
+    " return 'NOT_FOUND'; " +
+    " })() ";
+
+  const expandRes = await page.evaluate(expandScript);
+  console.log("[Menora] Status expansion: " + expandRes);
 
   await page.waitForTimeout(5000);
-  await waitMenoraLoaderGone(page, 30000);
 
-  // שלב 2: המתנה שהדוח האחרון יסתיים + לחיצה על הורדה
-  for (let i = 0; i < 20; i++) { // עד 100 שניות
-    const downloadReady = await page.evaluate(`
-      (function() {
-        const rows = document.querySelectorAll('tr, .MuiTableRow-root, .report-row');
-        if (rows.length === 0) return "NO_ROWS";
-        
-        const firstRow = rows[0]; // הדוח האחרון (החדש ביותר)
-        const status = firstRow.textContent || '';
-        const isDone = status.includes('הסתיים') || status.includes('מוכן') || status.includes('הורד');
-        
-        if (isDone) {
-          const downloadBtn = firstRow.querySelector('svg, img[src*="download"], .download-icon, button');
-          if (downloadBtn) {
-            downloadBtn.click();
-            return "DOWNLOAD_CLICKED";
-          }
-        }
-        return "PROCESSING";
-      })()
-    `);
+  // שלב 2: Polling - חיפוש כפתור הורדה לפי aria-label='הסתיים'
+  for (let attempt = 0; attempt < 30; attempt++) {
+    const actionScript = " (function() { " +
+      " const allBtns = Array.from(document.querySelectorAll('div[role=\"button\"].MuiButtonBase-root')); " +
+      " const downloadBtn = allBtns.find(btn => { " +
+      "   const svg = btn.querySelector('svg[aria-label=\"הסתיים\"]'); " +
+      "   return !!svg; " +
+      " }); " +
+      " if (!downloadBtn) return 'LIST_NOT_READY'; " +
+      " downloadBtn.scrollIntoView({ block: 'center' }); " +
+      " downloadBtn.click(); " +
+      " return 'DOWNLOAD_CLICKED'; " +
+      " })() ";
 
-    if (downloadReady === "DOWNLOAD_CLICKED") {
-      console.log("[Menora] Download clicked on latest report");
-      return await page.waitForEvent("download", { timeout: 60000 });
+    const statusResult = await page.evaluate(actionScript);
+
+    if (statusResult === "DOWNLOAD_CLICKED") {
+      console.log("[Menora] Success! Download clicked on the newest report.");
+      return await page.waitForEvent("download", { timeout: 60000 }).catch(() => null);
     }
 
-    console.log(`[Menora] Report still processing... attempt ${i+1}`);
+    console.log("[Menora] Attempt " + (attempt + 1) + ": " + statusResult);
+
+    // רענון בכל ניסיון שלישי
+    if (attempt % 3 === 0 && attempt > 0) {
+      await page.evaluate(
+        "const r = document.querySelector('svg[data-testid=\"RefreshIcon\"]'); if(r) r.parentElement.click();"
+      ).catch(() => {});
+    }
+
     await page.waitForTimeout(5000);
   }
 
-  throw new Error("הדוח לא הסתיים בזמן – נסה שוב");
+  throw new Error("לא נמצא דוח במצב 'הסתיים' עם אייקון הורדה");
 }

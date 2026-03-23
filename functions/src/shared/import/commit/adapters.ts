@@ -1,6 +1,8 @@
 // functions/src/shared/import/commit/adapters.ts
 export type DocRef = any;
 export type CollectionRef = any;
+export type QueryRef = any;
+export type QueryConstraintRef = any;
 
 export interface WriteBatchLike {
   set(ref: DocRef, data: any, opts?: any): void;
@@ -12,6 +14,11 @@ export interface FirestoreAdapter {
   // refs
   collection(path: string): CollectionRef;
   doc(pathOrCollection: any, idMaybe?: string): DocRef;
+
+  // queries
+  where(field: string, op: any, value: any): QueryConstraintRef;
+  query(collectionRef: CollectionRef, ...constraints: QueryConstraintRef[]): QueryRef;
+  getDocs(queryRef: QueryRef): Promise<Array<{ id: string; data: any }>>;
 
   // operations
   serverTimestamp(): any;

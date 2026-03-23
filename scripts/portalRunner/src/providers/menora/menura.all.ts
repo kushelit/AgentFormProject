@@ -94,17 +94,29 @@ const context = await browser.newContext({
         localPath,
         agentId,
         runId,
-        subdir: "menora_insurance" // ה-Cloud יטפל בפירוק ה-ZIP
+        subdir: "menora_commissions" 
       } as any);
 
-      if (up?.storagePath) {
-        const downloads = [{
-          templateId: "menora_insurance",
-          filename: up.filename || filename,
-          storagePath: up.storagePath
-        }];
-        await setStatus(runId, { downloads, status: "done" });
-      }
+    if (up?.storagePath) {
+  const downloads = [
+    {
+      templateId: "menura_new_nifraim",
+      filename: up.filename || filename,
+      storagePath: up.storagePath
+    },
+    {
+      templateId: "menura_new_zvira",
+      filename: up.filename || filename,
+      storagePath: up.storagePath
+    }
+  ];
+
+  await setStatus(runId, {
+    downloads,
+    download: downloads[0], // אם יש אצלך עדיין קוד ישן שמסתכל על download בודד
+    status: "done"
+  });
+}
     }
 
   } catch (e: any) {

@@ -9,11 +9,14 @@ import {
   collection as c_collection,
   doc as c_doc,
   getDoc as c_getDoc,
+  getDocs as c_getDocs,
   updateDoc as c_updateDoc,
   setDoc as c_setDoc,
   writeBatch as c_writeBatch,
   serverTimestamp as c_serverTimestamp,
   arrayUnion as c_arrayUnion,
+  where as c_where,
+  query as c_query,
 } from "firebase/firestore";
 
 import type {FirestoreAdapter} from "./adapters";
@@ -41,6 +44,21 @@ export function makeClientAdapter(dbArg?: any): FirestoreAdapter {
       return idMaybe ?
         c_doc(pathOrCollection, idMaybe) :
         c_doc(pathOrCollection);
+    },
+
+    // queries
+    where: (field: string, op: any, value: any) => c_where(field, op, value),
+
+    query: (collectionRef: any, ...constraints: any[]) => {
+      return c_query(collectionRef, ...constraints);
+    },
+
+    getDocs: async (queryRef: any) => {
+      const snap = await c_getDocs(queryRef);
+      return snap.docs.map((doc: any) => ({
+        id: doc.id,
+        data: doc.data(),
+      }));
     },
 
     // operations
