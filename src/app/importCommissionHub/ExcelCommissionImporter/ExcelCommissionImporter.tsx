@@ -36,6 +36,7 @@ import PortalRunStatus from "@/components/PortalRuns/PortalRunStatus";
 // import { isCloudMode } from "@/lib/portalRuns/runnerMode";
 import { usePermission } from "@/hooks/usePermission";
 
+import { recomputeSummariesFromExternalManual } from "@/utils/manualCommissionRecompute";
 /* ==============================
    Types
 ============================== */
@@ -1260,220 +1261,297 @@ const processChosenZipEntry = async () => {
   /* ==============================
      Import button
   ============================== */
-  const handleImport = async () => {
-    if (!selectedAgentId || standardizedRows.length === 0) return;
+//  const handleImport = async () => {
+//   if (!selectedAgentId || standardizedRows.length === 0) return;
 
-    standardizedRows.forEach((row) => {
-      row.reportMonth = parseHebrewMonth(row.reportMonth, row.templateId);
-      row.validMonth  = parseHebrewMonth(row.validMonth,  row.templateId);
+//   standardizedRows.forEach((row) => {
+//     row.reportMonth = parseHebrewMonth(row.reportMonth, row.templateId);
+//     row.validMonth  = parseHebrewMonth(row.validMonth,  row.templateId);
+//   });
+
+//   setIsLoading(true);
+
+//   if (existingRunIds.length > 0) {
+//     addToast("error", "נמצאה טעינה קודמת לחודשים אלו. הטעינה החדשה תתווסף ותחושב מחדש.");
+//   }
+
+//   try {
+//     const runRef = doc(collection(db, 'commissionImportRuns'));
+//     const runId = runRef.id;
+
+//     const uniqueAgentCodes = new Set<string>();
+//     for (const row of standardizedRows) {
+//       if (row.agentCode) uniqueAgentCodes.add(String(row.agentCode).trim());
+//     }
+
+//     const userRef = doc(db, 'users', selectedAgentId);
+//     const userSnap = await getDoc(userRef);
+//     if (userSnap.exists()) {
+//       const existingCodes: string[] = userSnap.data().agentCodes || [];
+//       const codesToAdd = Array.from(uniqueAgentCodes).filter((c) => !existingCodes.includes(c));
+//       if (codesToAdd.length > 0) {
+//         await updateDoc(userRef, { agentCodes: arrayUnion(...codesToAdd) });
+//       }
+//     }
+
+//     const rowsPrepared = standardizedRows.map((r) => ({
+//       ...r,
+//       policyNumberKey: String(r.policyNumber ?? '').trim().replace(/\s+/g, ''),
+//       customerId: toPadded9(r.customerId ?? r.customerIdRaw ?? ''),
+//       runId,
+//     }));
+
+//     await writeExternalRowsInChunks(rowsPrepared);
+
+//     await recomputeSummariesFromExternalManual({
+//       db,
+//       rowsPrepared,
+//       runId,
+//     });
+
+//     const totalRows = rowsPrepared.length;
+//     const commissionSummariesCount = 0;
+//     const policySummariesCount = 0;
+
+//     const reportMonths = Array.from(
+//       new Set(rowsPrepared.map(r => sanitizeMonth(r.reportMonth)).filter(Boolean))
+//     ).sort();
+
+//     const minReportMonth = reportMonths[0] || '';
+//     const maxReportMonth = reportMonths.at(-1) || '';
+
+//     await setDoc(runRef, {
+//       runId,
+//       createdAt: serverTimestamp(),
+//       agentId: selectedAgentId,
+//       agentName: agents.find(a => a.id === selectedAgentId)?.name || '',
+//       createdBy: detail?.email || detail?.name || '',
+//       createdByUserId: user?.uid || '',
+//       companyId: selectedCompanyId,
+//       company: selectedCompanyName,
+//       templateId,
+//       templateName: selectedTemplate?.Name || selectedTemplate?.type || '',
+
+//       reportMonths,
+//       minReportMonth,
+//       maxReportMonth,
+//       reportMonthsCount: reportMonths.length,
+
+//       reportMonth: minReportMonth,
+
+//       externalCount: totalRows,
+//       commissionSummariesCount,
+//       policySummariesCount,
+//     });
+
+//     addToast("success", "✅ הטעינה הושלמה בהצלחה");
+
+//     const grouped: Record<string, {
+//       count: number;
+//       uniqueCustomers: Set<string>;
+//       totalCommission: number;
+//       totalPremium: number;
+//     }> = {};
+
+//     for (const row of rowsPrepared) {
+//       const code = row.agentCode;
+//       if (!code) continue;
+//       if (!grouped[code]) {
+//         grouped[code] = {
+//           count: 0,
+//           uniqueCustomers: new Set(),
+//           totalCommission: 0,
+//           totalPremium: 0,
+//         };
+//       }
+//       grouped[code].count += 1;
+//       if (row.customerId) grouped[code].uniqueCustomers.add(row.customerId);
+//       grouped[code].totalCommission += Number(row.commissionAmount ?? 0) || 0;
+//       grouped[code].totalPremium += Number(row.premium ?? 0) || 0;
+//     }
+
+//     const summaryArray = Object.entries(grouped).map(([agentCode, data]) => ({
+//       agentCode,
+//       count: data.count,
+//       totalInsured: data.uniqueCustomers.size,
+//       totalCommission: data.totalCommission,
+//       totalPremium: data.totalPremium,
+//     }));
+
+//     setSummaryByAgentCode(summaryArray);
+//     setShowSummaryDialog(true);
+
+//     setStandardizedRows([]);
+//     setSelectedFileName('');
+//     setExistingDocs([]);
+//   } catch (error) {
+//     addToast("error", "שגיאה בעת טעינה למסד. בדוק קונסול.");
+//   } finally {
+//     setIsLoading(false);
+//   }
+// };
+
+
+const handleImport = async () => {
+  if (!selectedAgentId || standardizedRows.length === 0) return;
+
+  standardizedRows.forEach((row) => {
+    row.reportMonth = parseHebrewMonth(row.reportMonth, row.templateId);
+    row.validMonth = parseHebrewMonth(row.validMonth, row.templateId);
+  });
+
+  setIsLoading(true);
+  setImportProgress(0);
+  setLoadingStage("מתחיל טעינה...");
+
+  if (existingRunIds.length > 0) {
+    addToast("success", "נמצאה טעינה קודמת לחודשים אלו. הטעינה החדשה תתווסף ותחושב מחדש.");
+  }
+
+  try {
+    const runRef = doc(collection(db, "commissionImportRuns"));
+    const runId = runRef.id;
+
+    const uniqueAgentCodes = new Set<string>();
+    for (const row of standardizedRows) {
+      if (row.agentCode) uniqueAgentCodes.add(String(row.agentCode).trim());
+    }
+
+    const userRef = doc(db, "users", selectedAgentId);
+    const userSnap = await getDoc(userRef);
+    if (userSnap.exists()) {
+      const existingCodes: string[] = userSnap.data().agentCodes || [];
+      const codesToAdd = Array.from(uniqueAgentCodes).filter(
+        (c) => !existingCodes.includes(c)
+      );
+      if (codesToAdd.length > 0) {
+        await updateDoc(userRef, { agentCodes: arrayUnion(...codesToAdd) });
+      }
+    }
+
+    const rowsPrepared = standardizedRows.map((r) => ({
+      ...r,
+      policyNumberKey: String(r.policyNumber ?? "").trim().replace(/\s+/g, ""),
+      customerId: toPadded9(r.customerId ?? r.customerIdRaw ?? ""),
+      runId,
+    }));
+
+    setLoadingStage("שומר שורות מקור...");
+    await writeExternalRowsInChunks(rowsPrepared);
+
+    setImportProgress(75);
+    setLoadingStage("מחשב סיכומים מחדש...");
+
+    const {
+      commissionSummariesCount,
+      policySummariesCount,
+    } = await recomputeSummariesFromExternalManual({
+      db,
+      rowsPrepared,
+      runId,
     });
 
-    setIsLoading(true);
+    const totalRows = rowsPrepared.length;
 
-    if (existingDocs.length > 0) {
-      addToast("error", "קובץ כבר קיים לחודש זה ולסוכן זה");
-      setIsLoading(false);
-      return;
+    const reportMonths = Array.from(
+      new Set(rowsPrepared.map((r) => sanitizeMonth(r.reportMonth)).filter(Boolean))
+    ).sort();
+
+    const minReportMonth = reportMonths[0] || "";
+    const maxReportMonth =
+      reportMonths.length > 0 ? reportMonths[reportMonths.length - 1] : "";
+
+    setImportProgress(95);
+    setLoadingStage("שומר רשומת טעינה...");
+
+    await setDoc(runRef, {
+      runId,
+      createdAt: serverTimestamp(),
+      agentId: selectedAgentId,
+      agentName: agents.find((a) => a.id === selectedAgentId)?.name || "",
+      createdBy: detail?.email || detail?.name || "",
+      createdByUserId: user?.uid || "",
+      companyId: selectedCompanyId,
+      company: selectedCompanyName,
+      templateId,
+      templateName: selectedTemplate?.Name || selectedTemplate?.type || "",
+
+      reportMonths,
+      minReportMonth,
+      maxReportMonth,
+      reportMonthsCount: reportMonths.length,
+
+      reportMonth: minReportMonth,
+
+      externalCount: totalRows,
+      commissionSummariesCount,
+      policySummariesCount,
+    });
+
+    addToast("success", "✅ הטעינה הושלמה בהצלחה");
+
+    const grouped: Record<
+      string,
+      {
+        count: number;
+        uniqueCustomers: Set<string>;
+        totalCommission: number;
+        totalPremium: number;
+      }
+    > = {};
+
+    for (const row of rowsPrepared) {
+      const code = String(row.agentCode ?? "").trim();
+      if (!code) continue;
+
+      if (!grouped[code]) {
+        grouped[code] = {
+          count: 0,
+          uniqueCustomers: new Set(),
+          totalCommission: 0,
+          totalPremium: 0,
+        };
+      }
+
+      grouped[code].count += 1;
+      if (row.customerId) grouped[code].uniqueCustomers.add(row.customerId);
+      grouped[code].totalCommission += Number(row.commissionAmount ?? 0) || 0;
+      grouped[code].totalPremium += Number(row.premium ?? 0) || 0;
     }
 
-    try {
-       // יוצרים ריצה חדשה (ID ריצה אחד לכל הטעינה הזו)
-    const runRef = doc(collection(db, 'commissionImportRuns'));
-    const runId = runRef.id;
-      const uniqueAgentCodes = new Set<string>();
-      for (const row of standardizedRows) {
-        if (row.agentCode) uniqueAgentCodes.add(String(row.agentCode).trim());
-      }
-      const userRef  = doc(db, 'users', selectedAgentId);
-      const userSnap = await getDoc(userRef);
-      if (userSnap.exists()) {
-        const existingCodes: string[] = userSnap.data().agentCodes || [];
-        const codesToAdd = Array.from(uniqueAgentCodes).filter((c) => !existingCodes.includes(c));
-        if (codesToAdd.length > 0) await updateDoc(userRef, { agentCodes: arrayUnion(...codesToAdd) });
-      }
+    const summaryArray = Object.entries(grouped).map(([agentCode, data]) => ({
+      agentCode,
+      count: data.count,
+      totalInsured: data.uniqueCustomers.size,
+      totalCommission: data.totalCommission,
+      totalPremium: data.totalPremium,
+    }));
 
-      const rowsPrepared = standardizedRows.map((r) => ({
-        ...r,
-        policyNumberKey: String(r.policyNumber ?? '').trim().replace(/\s+/g, ''),
-        customerId: toPadded9(r.customerId ?? r.customerIdRaw ?? ''),
-        runId,
-      }));
+    setSummaryByAgentCode(summaryArray);
+    setShowSummaryDialog(true);
 
-      await writeExternalRowsInChunks(rowsPrepared);
+    setImportProgress(100);
+    setLoadingStage("הושלם!");
 
-      const summariesMap = new Map<string, CommissionSummary>();
-      for (const row of rowsPrepared) {
-        const sanitizedMonth = String(row.reportMonth ?? '').replace(/\//g, '-') || '';
-        const key = `${row.agentId}_${row.agentCode}_${sanitizedMonth}_${row.templateId}_${row.companyId}`;
-        if (!summariesMap.has(key)) {
-          summariesMap.set(key, {
-            agentId: row.agentId,
-            agentCode: row.agentCode,
-            reportMonth: row.reportMonth,
-            templateId: row.templateId,
-            companyId: row.companyId,
-            company: row.company || '',
-            totalCommissionAmount: 0,
-            totalPremiumAmount: 0,
-            runId,
-          });
-        }
-        const s = summariesMap.get(key)!;
-        const commission = Number(row.commissionAmount ?? 0);
-        const premium    = Number(row.premium ?? 0);
-        s.totalCommissionAmount += isNaN(commission) ? 0 : commission;
-        s.totalPremiumAmount    += isNaN(premium)    ? 0 : premium;
-      }
-      await writeSummariesInBatch(Array.from(summariesMap.values()));
+    setStandardizedRows([]);
+    setSelectedFileName("");
+    setExistingDocs([]);
+    setExistingRunIds([]);
+    setMonthsInFile([]);
+    setConflictingRunIds([]);
 
-      const policyMap = new Map<string, {
-        agentId: string;
-        agentCode: string;
-        reportMonth: string;
-        companyId: string;
-        company: string;
-        policyNumberKey: string;
-        customerId: string;
-        templateId: string;
-        totalCommissionAmount: number;
-        totalPremiumAmount: number;
-        commissionRate: number;
-        rowsCount: number;
-        product?: string;
-        fullName?: string;
-        runId?: string;
-        validMonth?: string;
-      }>();
-
-      for (const row of rowsPrepared) {
-        const sanitizedMonth  = String(row.reportMonth ?? '').replace(/\//g, '-');
-        const validMonth      = String(row.validMonth ?? '').replace(/\//g, '-');
-        const agentId         = row.agentId;
-        const agentCode       = String(row.agentCode ?? '').trim();
-        const companyId       = row.companyId;
-        const company         = row.company || '';
-        const templId         = row.templateId || '';
-        const policyNumberKey = row.policyNumberKey || String(row.policyNumber ?? '').trim().replace(/\s+/g, '');
-        const customerId      = toPadded9(row.customerId ?? row.customerIdRaw ?? '');
-        const product         = String(row.product ?? '').trim();
-        const fullName        = String(row.fullName ?? '').trim();
-
-        if (!agentId || !agentCode || !sanitizedMonth || !companyId || !policyNumberKey || !customerId) continue;
-
-        const key = `${agentId}_${agentCode}_${sanitizedMonth}_${companyId}_${policyNumberKey}_${customerId}_${templId}`;
-        if (!policyMap.has(key)) {
-          policyMap.set(key, {
-            agentId,
-            agentCode,
-            reportMonth: sanitizedMonth,
-            validMonth,
-            companyId,
-            company,
-            policyNumberKey,
-            customerId,
-            templateId: templId,
-            totalCommissionAmount: 0,
-            totalPremiumAmount: 0,
-            commissionRate: 0,
-            rowsCount: 0,
-            runId,
-          });
-        }
-        const s = policyMap.get(key)!;
-        const commission = Number(row.commissionAmount ?? 0);
-        const premium    = Number(row.premium ?? 0);
-        s.totalCommissionAmount += isNaN(commission) ? 0 : commission;
-        s.totalPremiumAmount    += isNaN(premium)    ? 0 : premium;
-        s.rowsCount += 1;
-        if (!s.product  && product)  s.product  = product;
-        if (!s.fullName && fullName) s.fullName = fullName;
-      }
-
-      // ✅ חישוב commissionRate לכל פוליסה (אחוז מהקובץ)
-// חשוב: זה אחוז משוקלל ברמת פוליסה = totalCommission / totalPremium
-for (const s of policyMap.values()) {
-  const prem = Number(s.totalPremiumAmount ?? 0);
-  const comm = Number(s.totalCommissionAmount ?? 0);
-
-  (s as any).commissionRate = prem > 0 ? roundTo2((comm / prem) * 100) : 0;
-}
-
-      await writePolicySummariesInBatch(Array.from(policyMap.values()) as any);
-
-
-  // ---- יצירת דוקומנט ריצה לניהול טעינות ----
-const totalRows = rowsPrepared.length;
-const commissionSummariesCount = summariesMap.size;
-const policySummariesCount = policyMap.size;
-
-const reportMonths = Array.from(new Set(
-  rowsPrepared
-    .map(r => sanitizeMonth(r.reportMonth))
-    .filter(Boolean)
-)).sort();
-
-const minReportMonth = reportMonths[0] || '';
-const maxReportMonth = reportMonths.at(-1) || '';
-
-await setDoc(runRef, {
-  runId,
-  createdAt: serverTimestamp(),
-  agentId: selectedAgentId,
-  agentName: agents.find(a => a.id === selectedAgentId)?.name || '',
-  createdBy: detail?.email || detail?.name || '',
-  createdByUserId: user?.uid || '',
-  companyId: selectedCompanyId,
-  company: selectedCompanyName,
-  templateId,
-  templateName: selectedTemplate?.Name || selectedTemplate?.type || '',
-
-  reportMonths,
-  minReportMonth,
-  maxReportMonth,
-  reportMonthsCount: reportMonths.length,
-
-  // תאימות אחורה
-  reportMonth: minReportMonth,
-
-  externalCount: totalRows,
-  commissionSummariesCount,
-  policySummariesCount,
-});
-  addToast("success", "✅ הטעינה הושלמה בהצלחה");
-
-      const grouped: Record<string, {
-        count: number; uniqueCustomers: Set<string>; totalCommission: number; totalPremium: number;
-      }> = {};
-      for (const row of rowsPrepared) {
-        const code = row.agentCode;
-        if (!code) continue;
-        if (!grouped[code]) grouped[code] = { count: 0, uniqueCustomers: new Set(), totalCommission: 0, totalPremium: 0 };
-        grouped[code].count += 1;
-        if (row.customerId) grouped[code].uniqueCustomers.add(row.customerId);
-        grouped[code].totalCommission += Number(row.commissionAmount ?? 0) || 0;
-        grouped[code].totalPremium   += Number(row.premium ?? 0) || 0;
-      }
-
-      const summaryArray = Object.entries(grouped).map(([agentCode, data]) => ({
-        agentCode,
-        count: data.count,
-        totalInsured: data.uniqueCustomers.size,
-        totalCommission: data.totalCommission,
-        totalPremium: data.totalPremium,
-      }));
-      setSummaryByAgentCode(summaryArray);
-      setShowSummaryDialog(true);
-
-      setStandardizedRows([]);
-      setSelectedFileName('');
-      setExistingDocs([]);
-    } catch (error) {
-      // console.error('שגיאה בעת טעינה:', error);
-      addToast("error", "שגיאה בעת טעינה למסד. בדוק קונסול.");
-    } finally {
-      setIsLoading(false);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
     }
-  };
+  } catch (error) {
+    console.error("handleImport error:", error);
+    addToast("error", "שגיאה בעת טעינה למסד. בדוק קונסול.");
+  } finally {
+    setIsLoading(false);
+    setLoadingStage("");
+    setImportProgress(0);
+  }
+};
 
   function pickBestDecoding(u8: Uint8Array) {
     const utf8 = new TextDecoder('utf-8').decode(u8);
@@ -1733,8 +1811,7 @@ const isUpdateAvailable = latestRunnerVersion && currentRunnerVersion && latestR
                 type="primary"
                 className="px-8 h-10 text-sm font-bold rounded-lg"
                 onClick={handleImport}
-                disabled={Boolean(!standardizedRows.length || isLoading || existingRunIds.length > 0)}
-              />
+disabled={Boolean(!standardizedRows.length || isLoading)}              />
               <Button text="נקה" type="secondary" className="px-4 h-10 text-sm rounded-lg" onClick={handleClearSelections} />
             </div>
             {existingRunIds.length > 0 && (

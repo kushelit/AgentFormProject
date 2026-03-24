@@ -100,6 +100,7 @@ async function recomputeForCommissionGroup(params: {
   policySummaries: PolicyCommissionSummary[];
 }> {
   const {adapter, key, runId} = params;
+
 const q = adapter.query(
   adapter.collection("externalCommissions"),
   adapter.where("agentId", "==", key.agentId),
@@ -113,6 +114,8 @@ const docs = await adapter.getDocs(q);
 const rows = docs
   .map((d) => d.data || {})
   .filter((row: any) => String(row.agentCode ?? "").trim() === key.agentCode) as StandardizedRow[];
+  
+
   if (!rows.length) {
     return {
       commissionSummary: null,

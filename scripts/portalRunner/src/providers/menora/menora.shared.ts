@@ -161,10 +161,6 @@ export async function menoraHandleOtp(page: Page, ctx: RunnerCtx) {
 
 
 /**
- * ניווט לעמלות: גרסה סבלנית ומדויקת לפי ה-Inspector של מנורה (image_4f2ea8)
- * עוקפת בעיות Serialization ב-EXE.
- */
-/**
  * ניווט לעמלות ולחיצה על לשונית דוחות
  */
 export async function menoraNavigateToCommissions(page: Page) {
@@ -208,9 +204,6 @@ export async function menoraNavigateToCommissions(page: Page) {
 }
 
 
-/**
- * בחירת סוכנים והפקת דוח - מבוסס על זיהוי טקסט וניווט לעץ ה-DOM
- */
 /**
  * בחירת סוכנים והפקת דוח - גרסה משולבת וחסינה
  */
@@ -399,4 +392,100 @@ export async function menoraDownloadZip(page: Page): Promise<Download | null> {
   }
 
   throw new Error("לא נמצא דוח במצב 'הסתיים' עם אייקון הורדה");
+}
+
+
+/**
+ * הזנת תאריך דרך DatePicker של Menora - גרסה בטוחה ל-EXE
+ */
+export async function menoraSetReportDate(page: Page, monthYear: string) {
+  const parts = monthYear.split(/[.\/]/).map(s => s.trim());
+  const monthNum = parseInt(parts[0], 10);
+  const year = parts[1];
+
+  const hebrewMonths = [
+    "ינו'", "פבר'", "מרץ", "אפר'", "מאי", "יוני",
+    "יולי", "אוג'", "ספטי'", "אוק'", "נוב'", "דצמ'"
+  ];
+  const monthName = hebrewMonths[monthNum - 1];
+
+  console.log(`[Menora] Setting date: ${monthName} ${year}`);
+
+  const safeMonth = JSON.stringify(monthName);
+  const safeYear = JSON.stringify(year);
+
+  for (let boxIndex = 0; boxIndex < 2; boxIndex++) {
+    console.log(`[Menora] Processing date box ${boxIndex + 1}...`);
+
+    const script = `
+      (async function() {
+        const mName = ${safeMonth};
+        const y = ${safeYear};
+        const idx = ${boxIndex};
+        
+        const wait = (ms) => new Promise(r => setTimeout(r, ms));
+        
+        // 1. איתור הקופסה
+        const boxes = Array.from(document.querySelectorAll('.MuiBox-root.css-vgmry7'));
+        if (boxes.length <= idx) return 'BOX_NOT_FOUND';
+        const box = boxes[idx];
+
+        // 2. לחיצה על האייקון של ה-Calendar (לפי image_0eacc1)
+        const calendarImg = box.querySelector('img[alt="calendar"], img[class*="css-1aepfpb"]');
+        if (!calendarImg) return 'CALENDAR_IMAGE_NOT_FOUND';
+        
+        const trigger = calendarImg.closest('button') || calendarImg;
+        trigger.click();
+        await wait(2000);
+
+        // 3. בחירת שנה - פתיחת רשימת שנים במידת הצורך
+        const picker = document.querySelector('.MuiPickersPopper-root, [role="dialog"]');
+        if (!picker) return 'PICKER_NOT_OPEN';
+
+        const headerLabel = picker.querySelector('button[class*="MuiPickersFadeTransitionGroup-root"], .MuiPickersCalendarHeader-label');
+        if (headerLabel && !document.querySelector('.PrivatePickersYear-yearButton')) {
+           headerLabel.click();
+           await wait(1000);
+        }
+
+        const yearBtn = Array.from(document.querySelectorAll('.PrivatePickersYear-yearButton, .MuiPickersYear-yearButton'))
+          .find(el => el.textContent.trim() === y);
+        
+        if (yearBtn) {
+          yearBtn.click();
+          await wait(1500);
+        }
+
+        // 4. בחירת חודש - לוגיקה חסינת גרשים ( image_0ec2aa )
+        // ננקה את כל סוגי הגרשים (רגיל וגרש עברי) מהשם שאנחנו מחפשים
+        const targetBase = mName.replace(/['׳]/g, '').trim(); 
+        
+        const monthButtons = Array.from(document.querySelectorAll('.PrivatePickersMonth-root, .MuiPickersMonth-root, button[class*="MuiPickersMonth"]'));
+        
+        const targetMonthBtn = monthButtons.find(btn => {
+          const txt = (btn.textContent || '').trim();
+          // ננקה גרשים גם מהטקסט של הכפתור באתר
+          const txtBase = txt.replace(/['׳]/g, '').trim();
+          
+          // השוואה של אותיות הבסיס בלבד
+          return txtBase === targetBase || txt.includes(targetBase);
+        });
+
+        if (targetMonthBtn) {
+          targetMonthBtn.click();
+          await wait(1000);
+          return 'SUCCESS';
+        }
+
+        // לצורך דיבאג בלוג אם נכשל
+        const found = monthButtons.map(b => b.textContent.trim()).join(', ');
+        return 'MONTH_NOT_FOUND: ' + mName + ' | OPTIONS_ON_PAGE: ' + found;
+      })()
+    `;
+
+    const result = await page.evaluate(script);
+    console.log(`[Menora] Box ${boxIndex + 1} result: ${result}`);
+    
+    await page.waitForTimeout(1000);
+  }
 }

@@ -10,7 +10,7 @@ import {
   menoraHandleOtp, 
   menoraNavigateToCommissions, // התיקון כאן
   menoraProduceReport, 
-  menoraDownloadZip 
+  menoraDownloadZip , menoraSetReportDate
 } from "./menora.shared";
 
 function ensureDir(p: string) {
@@ -77,7 +77,25 @@ const context = await browser.newContext({
     await setStatus(runId, { status: "running", step: "ניווט והפקת דוח...", monthLabel });
     await page.waitForTimeout(8000); // 8 שניות של "נשימה"
     await menoraNavigateToCommissions(page);
-    await menoraProduceReport(page);
+
+await setStatus(runId, { status: "running", step: "מזין תאריך לדוח...", monthLabel });
+
+// חישוב חודש נוכחי - 1
+const now = new Date();
+let targetMonth = now.getMonth(); // 0 = ינואר
+let targetYear = now.getFullYear();
+
+if (targetMonth === 0) { // אם ינואר → דצמבר של השנה הקודמת
+  targetMonth = 12;
+  targetYear--;
+}
+
+const monthYearStr = `${String(targetMonth).padStart(2, '0')}.${targetYear}`;
+
+await menoraSetReportDate(page, monthYearStr);
+
+
+await menoraProduceReport(page);
 
     // המתנה והורדה
     await setStatus(runId, { status: "running", step: "ממתין להפקת ה-ZIP...", monthLabel });
