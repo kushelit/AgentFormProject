@@ -1,4 +1,3 @@
-// functions/src/shared/import/commit/commitRun.ts
 import {FirestoreAdapter} from "./adapters";
 import {CommissionSummary, PolicyCommissionSummary, RunDoc, StandardizedRow} from "../types";
 
@@ -23,6 +22,10 @@ function normalizePolicyKey(v: any): string {
   return String(v ?? "").trim().replace(/\s+/g, "");
 }
 
+function normalizeAgentCode(v: any): string {
+  return String(v ?? "").trim();
+}
+
 function buildCommissionSummaryId(s: {
   agentId: string;
   agentCode: string;
@@ -30,7 +33,7 @@ function buildCommissionSummaryId(s: {
   templateId: string;
   companyId: string;
 }) {
-  return `${s.agentId}_${s.agentCode}_${s.reportMonth}_${s.templateId}_${s.companyId}`;
+  return `${s.agentId}_${normalizeAgentCode(s.agentCode)}_${sanitizeMonth(s.reportMonth)}_${s.templateId}_${s.companyId}`;
 }
 
 function buildPolicySummaryId(s: {
@@ -42,7 +45,7 @@ function buildPolicySummaryId(s: {
   customerId: string;
   templateId: string;
 }) {
-  return `${s.agentId}_${s.agentCode}_${s.reportMonth}_${s.companyId}_${s.policyNumberKey}_${s.customerId}_${s.templateId}`;
+  return `${s.agentId}_${normalizeAgentCode(s.agentCode)}_${sanitizeMonth(s.reportMonth)}_${s.companyId}_${normalizePolicyKey(s.policyNumberKey)}_${toPadded9(s.customerId)}_${s.templateId}`;
 }
 
 async function writeInChunks<T>(
@@ -67,145 +70,166 @@ type CommissionGroupKey = {
   companyId: string;
 };
 
-function getCommissionGroupKey(row: StandardizedRow): CommissionGroupKey | null {
-  const agentId = String(row.agentId ?? "").trim();
-  const agentCode = String(row.agentCode ?? "").trim();
-  const reportMonth = sanitizeMonth(row.reportMonth);
-  const templateId = String(row.templateId ?? "").trim();
-  const companyId = String(row.companyId ?? "").trim();
-
-  if (!agentId || !agentCode || !reportMonth || !templateId || !companyId) {
-    return null;
-  }
-
-  return {
-    agentId,
-    agentCode,
-    reportMonth,
-    templateId,
-    companyId,
-  };
-}
-
 function commissionGroupKeyToString(key: CommissionGroupKey) {
   return `${key.agentId}__${key.agentCode}__${key.reportMonth}__${key.templateId}__${key.companyId}`;
 }
 
-async function recomputeForCommissionGroup(params: {
-  adapter: FirestoreAdapter;
-  key: CommissionGroupKey;
+function getCommissionGroupKeyFromSummary(s: CommissionSummary): CommissionGroupKey {
+  return {
+    agentId: String(s.agentId ?? "").trim(),
+    agentCode: normalizeAgentCode(s.agentCode),
+    reportMonth: sanitizeMonth(s.reportMonth),
+    templateId: String(s.templateId ?? "").trim(),
+    companyId: String(s.companyId ?? "").trim(),
+  };
+}
+
+function getPolicyGroupKeyFromPolicySummary(s: PolicyCommissionSummary): string {
+  return commissionGroupKeyToString({
+    agentId: String(s.agentId ?? "").trim(),
+    agentCode: normalizeAgentCode(s.agentCode),
+    reportMonth: sanitizeMonth(s.reportMonth),
+    templateId: String(s.templateId ?? "").trim(),
+    companyId: String(s.companyId ?? "").trim(),
+  });
+}
+
+function normalizePolicySummary(s: PolicyCommissionSummary, runId: string): PolicyCommissionSummary {
+  const normalized: PolicyCommissionSummary = {
+    ...s,
+    agentId: String(s.agentId ?? "").trim(),
+    agentCode: normalizeAgentCode(s.agentCode),
+    reportMonth: sanitizeMonth(s.reportMonth),
+    validMonth: s.validMonth ? sanitizeMonth(s.validMonth) : undefined,
+    companyId: String(s.companyId ?? "").trim(),
+    company: String(s.company ?? "").trim(),
+    policyNumberKey: normalizePolicyKey(s.policyNumberKey),
+    customerId: toPadded9(s.customerId),
+    templateId: String(s.templateId ?? "").trim(),
+    totalCommissionAmount: Number(s.totalCommissionAmount ?? 0) || 0,
+    totalPremiumAmount: Number(s.totalPremiumAmount ?? 0) || 0,
+    commissionRate: Number(s.commissionRate ?? 0) || 0,
+    rowsCount: Number(s.rowsCount ?? 0) || 0,
+    product: s.product ? String(s.product).trim() : undefined,
+    fullName: s.fullName ? String(s.fullName).trim() : undefined,
+    runId,
+  };
+
+  return normalized;
+}
+
+function mergePolicySummaries(params: {
+  existing: PolicyCommissionSummary[];
+  incoming: PolicyCommissionSummary[];
   runId: string;
-}): Promise<{
-  commissionSummary: CommissionSummary | null;
-  policySummaries: PolicyCommissionSummary[];
-}> {
-  const {adapter, key, runId} = params;
+}): PolicyCommissionSummary[] {
+  const {existing, incoming, runId} = params;
 
-const q = adapter.query(
-  adapter.collection("externalCommissions"),
-  adapter.where("agentId", "==", key.agentId),
-  adapter.where("reportMonth", "==", key.reportMonth),
-  adapter.where("templateId", "==", key.templateId),
-  adapter.where("companyId", "==", key.companyId)
-);
+  const map = new Map<string, PolicyCommissionSummary>();
 
-const docs = await adapter.getDocs(q);
-
-const rows = docs
-  .map((d) => d.data || {})
-  .filter((row: any) => String(row.agentCode ?? "").trim() === key.agentCode) as StandardizedRow[];
-  
-
-  if (!rows.length) {
-    return {
-      commissionSummary: null,
-      policySummaries: [],
-    };
+  for (const raw of existing) {
+    const s = normalizePolicySummary(raw, runId);
+    const id = buildPolicySummaryId({
+      agentId: s.agentId,
+      agentCode: s.agentCode,
+      reportMonth: s.reportMonth,
+      companyId: s.companyId,
+      policyNumberKey: s.policyNumberKey,
+      customerId: s.customerId,
+      templateId: s.templateId,
+    });
+    map.set(id, s);
   }
 
-  // commission summary
-  const first = rows[0];
-  const commissionSummary: CommissionSummary = {
+  for (const raw of incoming) {
+    const s = normalizePolicySummary(raw, runId);
+    const id = buildPolicySummaryId({
+      agentId: s.agentId,
+      agentCode: s.agentCode,
+      reportMonth: s.reportMonth,
+      companyId: s.companyId,
+      policyNumberKey: s.policyNumberKey,
+      customerId: s.customerId,
+      templateId: s.templateId,
+    });
+
+    const prev = map.get(id);
+    if (!prev) {
+      map.set(id, s);
+      continue;
+    }
+
+    const merged: PolicyCommissionSummary = {
+      ...prev,
+      totalCommissionAmount: (Number(prev.totalCommissionAmount ?? 0) || 0) + (Number(s.totalCommissionAmount ?? 0) || 0),
+      totalPremiumAmount: (Number(prev.totalPremiumAmount ?? 0) || 0) + (Number(s.totalPremiumAmount ?? 0) || 0),
+      rowsCount: (Number(prev.rowsCount ?? 0) || 0) + (Number(s.rowsCount ?? 0) || 0),
+      runId,
+    };
+
+    if (!merged.product && s.product) merged.product = s.product;
+    if (!merged.fullName && s.fullName) merged.fullName = s.fullName;
+    if (!merged.validMonth && s.validMonth) merged.validMonth = s.validMonth;
+    if (!merged.company && s.company) merged.company = s.company;
+
+    const prem = Number(merged.totalPremiumAmount ?? 0) || 0;
+    const comm = Number(merged.totalCommissionAmount ?? 0) || 0;
+    merged.commissionRate = prem > 0 ? roundTo2((comm / prem) * 100) : 0;
+
+    map.set(id, merged);
+  }
+
+  return Array.from(map.values());
+}
+
+function buildCommissionSummaryFromPolicies(params: {
+  key: CommissionGroupKey;
+  policies: PolicyCommissionSummary[];
+  runId: string;
+  fallbackCompany?: string;
+}): CommissionSummary {
+  const {key, policies, runId, fallbackCompany} = params;
+
+  let totalCommissionAmount = 0;
+  let totalPremiumAmount = 0;
+  let company = fallbackCompany || "";
+
+  for (const p of policies) {
+    totalCommissionAmount += Number(p.totalCommissionAmount ?? 0) || 0;
+    totalPremiumAmount += Number(p.totalPremiumAmount ?? 0) || 0;
+    if (!company && p.company) company = String(p.company);
+  }
+
+  return {
     agentId: key.agentId,
     agentCode: key.agentCode,
     reportMonth: key.reportMonth,
     templateId: key.templateId,
     companyId: key.companyId,
-    company: String(first.company ?? ""),
-    totalCommissionAmount: 0,
-    totalPremiumAmount: 0,
+    company,
+    totalCommissionAmount,
+    totalPremiumAmount,
     runId,
   };
+}
 
-  // policy summaries under this commission group
-  const policyMap = new Map<string, PolicyCommissionSummary>();
+async function loadExistingPolicySummariesForGroup(
+  adapter: FirestoreAdapter,
+  key: CommissionGroupKey
+): Promise<PolicyCommissionSummary[]> {
+  const q = adapter.query(
+    adapter.collection("policyCommissionSummaries"),
+    adapter.where("agentId", "==", key.agentId),
+    adapter.where("reportMonth", "==", key.reportMonth),
+    adapter.where("templateId", "==", key.templateId),
+    adapter.where("companyId", "==", key.companyId)
+  );
 
-  for (const row of rows) {
-    const commission = Number((row as any).commissionAmount ?? 0);
-    const premium = Number((row as any).premium ?? 0);
+  const docs = await adapter.getDocs(q);
 
-    commissionSummary.totalCommissionAmount += isNaN(commission) ? 0 : commission;
-    commissionSummary.totalPremiumAmount += isNaN(premium) ? 0 : premium;
-
-    const policyNumberKey = normalizePolicyKey((row as any).policyNumberKey ?? (row as any).policyNumber);
-    const customerId = toPadded9((row as any).customerId ?? (row as any).customerIdRaw ?? "");
-    const validMonth = sanitizeMonth((row as any).validMonth);
-    const product = String((row as any).product ?? "").trim();
-    const fullName = String((row as any).fullName ?? "").trim();
-
-    if (!policyNumberKey || !customerId) continue;
-
-    const policyKey = buildPolicySummaryId({
-      agentId: key.agentId,
-      agentCode: key.agentCode,
-      reportMonth: key.reportMonth,
-      companyId: key.companyId,
-      policyNumberKey,
-      customerId,
-      templateId: key.templateId,
-    });
-
-    if (!policyMap.has(policyKey)) {
-      policyMap.set(policyKey, {
-        agentId: key.agentId,
-        agentCode: key.agentCode,
-        reportMonth: key.reportMonth,
-        validMonth: validMonth || undefined,
-        companyId: key.companyId,
-        company: String((row as any).company ?? ""),
-        policyNumberKey,
-        customerId,
-        templateId: key.templateId,
-        totalCommissionAmount: 0,
-        totalPremiumAmount: 0,
-        commissionRate: 0,
-        rowsCount: 0,
-        product: product || undefined,
-        fullName: fullName || undefined,
-        runId,
-      });
-    }
-
-    const s = policyMap.get(policyKey)!;
-    s.totalCommissionAmount += isNaN(commission) ? 0 : commission;
-    s.totalPremiumAmount += isNaN(premium) ? 0 : premium;
-    s.rowsCount += 1;
-
-    if (!s.product && product) s.product = product;
-    if (!s.fullName && fullName) s.fullName = fullName;
-    if (!s.validMonth && validMonth) s.validMonth = validMonth;
-  }
-
-  for (const s of policyMap.values()) {
-    const prem = Number(s.totalPremiumAmount ?? 0);
-    const comm = Number(s.totalCommissionAmount ?? 0);
-    s.commissionRate = prem > 0 ? roundTo2((comm / prem) * 100) : 0;
-  }
-
-  return {
-    commissionSummary,
-    policySummaries: Array.from(policyMap.values()),
-  };
+  return docs
+    .map((d) => d.data || {})
+    .filter((row: any) => normalizeAgentCode(row.agentCode) === key.agentCode) as PolicyCommissionSummary[];
 }
 
 export async function commitRun(params: {
@@ -219,14 +243,7 @@ export async function commitRun(params: {
   // update users.agentCodes
   agentCodes: string[];
 }) {
-  const {
-    adapter,
-    runDoc,
-    rowsPrepared,
-    commissionSummaries: _commissionSummaries,
-    policySummaries: _policySummaries,
-    agentCodes,
-  } = params;
+  const {adapter, runDoc, rowsPrepared, commissionSummaries, policySummaries, agentCodes} = params;
 
   const CHUNK = 450;
 
@@ -243,43 +260,87 @@ export async function commitRun(params: {
     }
   }
 
-  // 2) externalCommissions (new docs)
+  // 2) externalCommissions (ledger)
   await writeInChunks(adapter, rowsPrepared, CHUNK, (batch, row) => {
     const ref = adapter.doc(adapter.collection("externalCommissions"));
     batch.set(ref, stripUndefined(row));
   });
 
-  // 3) identify affected commission groups from current rows
-  const affectedGroupsMap = new Map<string, CommissionGroupKey>();
-
-  for (const row of rowsPrepared) {
-    const key = getCommissionGroupKey(row);
-    if (!key) continue;
-    affectedGroupsMap.set(commissionGroupKeyToString(key), key);
+  // 3) build incoming group maps from current file
+  const incomingCommissionByGroup = new Map<string, CommissionSummary>();
+  for (const s of commissionSummaries) {
+    const key = getCommissionGroupKeyFromSummary(s);
+    incomingCommissionByGroup.set(commissionGroupKeyToString(key), {
+      ...s,
+      agentCode: normalizeAgentCode(s.agentCode),
+      reportMonth: sanitizeMonth(s.reportMonth),
+      runId: runDoc.runId,
+    });
   }
 
-  // 4) recompute summaries from externalCommissions (source of truth)
-  const recomputedCommissionSummaries: CommissionSummary[] = [];
-  const recomputedPolicySummaries: PolicyCommissionSummary[] = [];
+  const incomingPoliciesByGroup = new Map<string, PolicyCommissionSummary[]>();
+  for (const s of policySummaries) {
+    const groupKey = getPolicyGroupKeyFromPolicySummary(s);
+    if (!incomingPoliciesByGroup.has(groupKey)) incomingPoliciesByGroup.set(groupKey, []);
+    incomingPoliciesByGroup.get(groupKey)!.push(normalizePolicySummary(s, runDoc.runId));
+  }
 
-  for (const key of affectedGroupsMap.values()) {
-    const recomputed = await recomputeForCommissionGroup({
-      adapter,
-      key,
+  const finalCommissionSummaries: CommissionSummary[] = [];
+  const finalPolicySummaries: PolicyCommissionSummary[] = [];
+
+  // 4) fast path or merge path per group
+  for (const [groupKeyStr, incomingCommission] of incomingCommissionByGroup.entries()) {
+    const key = getCommissionGroupKeyFromSummary(incomingCommission);
+    const commissionId = buildCommissionSummaryId({
+      agentId: key.agentId,
+      agentCode: key.agentCode,
+      reportMonth: key.reportMonth,
+      templateId: key.templateId,
+      companyId: key.companyId,
+    });
+
+    const existingCommissionRef = adapter.doc(`commissionSummaries/${commissionId}`);
+    const existingCommissionSnap = await adapter.getDoc(existingCommissionRef);
+
+    const incomingPolicies = incomingPoliciesByGroup.get(groupKeyStr) || [];
+
+    if (!existingCommissionSnap.exists) {
+      // FAST PATH: no prior summary exists for this group
+      finalCommissionSummaries.push({
+        ...incomingCommission,
+        agentCode: key.agentCode,
+        reportMonth: key.reportMonth,
+        runId: runDoc.runId,
+      });
+      finalPolicySummaries.push(...incomingPolicies);
+      continue;
+    }
+
+    // MERGE PATH: summary exists, merge only policy summaries of that group
+    const existingPolicies = await loadExistingPolicySummariesForGroup(adapter, key);
+
+    const mergedPolicies = mergePolicySummaries({
+      existing: existingPolicies,
+      incoming: incomingPolicies,
       runId: runDoc.runId,
     });
 
-    if (recomputed.commissionSummary) {
-      recomputedCommissionSummaries.push(recomputed.commissionSummary);
-    }
-    recomputedPolicySummaries.push(...recomputed.policySummaries);
+    const mergedCommission = buildCommissionSummaryFromPolicies({
+      key,
+      policies: mergedPolicies,
+      runId: runDoc.runId,
+      fallbackCompany: String(incomingCommission.company ?? ""),
+    });
+
+    finalCommissionSummaries.push(mergedCommission);
+    finalPolicySummaries.push(...mergedPolicies);
   }
 
-  // 5) write commissionSummaries (deterministic id, recomputed)
-  await writeInChunks(adapter, recomputedCommissionSummaries, CHUNK, (batch, s) => {
+  // 5) write commissionSummaries
+  await writeInChunks(adapter, finalCommissionSummaries, CHUNK, (batch, s) => {
     const id = buildCommissionSummaryId({
       agentId: s.agentId,
-      agentCode: String(s.agentCode ?? "").trim(),
+      agentCode: normalizeAgentCode(s.agentCode),
       reportMonth: sanitizeMonth(s.reportMonth),
       templateId: s.templateId,
       companyId: s.companyId,
@@ -289,6 +350,7 @@ export async function commitRun(params: {
       ref,
       stripUndefined({
         ...s,
+        agentCode: normalizeAgentCode(s.agentCode),
         reportMonth: sanitizeMonth(s.reportMonth),
         updatedAt: adapter.serverTimestamp(),
       }),
@@ -296,11 +358,11 @@ export async function commitRun(params: {
     );
   });
 
-  // 6) write policyCommissionSummaries (deterministic id, recomputed)
-  await writeInChunks(adapter, recomputedPolicySummaries, CHUNK, (batch, s) => {
+  // 6) write policyCommissionSummaries
+  await writeInChunks(adapter, finalPolicySummaries, CHUNK, (batch, s) => {
     const id = buildPolicySummaryId({
       agentId: s.agentId,
-      agentCode: String(s.agentCode ?? "").trim(),
+      agentCode: normalizeAgentCode(s.agentCode),
       reportMonth: sanitizeMonth(s.reportMonth),
       companyId: s.companyId,
       policyNumberKey: normalizePolicyKey(s.policyNumberKey),
@@ -312,8 +374,9 @@ export async function commitRun(params: {
       ref,
       stripUndefined({
         ...s,
+        agentCode: normalizeAgentCode(s.agentCode),
         reportMonth: sanitizeMonth(s.reportMonth),
-        validMonth: sanitizeMonth(s.validMonth),
+        validMonth: s.validMonth ? sanitizeMonth(s.validMonth) : undefined,
         policyNumberKey: normalizePolicyKey(s.policyNumberKey),
         customerId: toPadded9(s.customerId),
         updatedAt: adapter.serverTimestamp(),

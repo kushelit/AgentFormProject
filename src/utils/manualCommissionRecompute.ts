@@ -1,6 +1,7 @@
 import {
   collection,
   getDocs,
+  getDoc,
   query,
   where,
   writeBatch,
@@ -10,108 +11,155 @@ import {
 
 /* ---------- helpers ---------- */
 
-function stripUndefined<T extends Record<string, any>>(obj: T): T {
+function stripUndefined(obj: any) {
   return Object.fromEntries(
     Object.entries(obj).filter(([, v]) => v !== undefined)
-  ) as T;
+  );
 }
 
 function roundTo2(num: number) {
   return Math.round(num * 100) / 100;
 }
 
-function sanitizeMonthLocal(v: any): string {
+function sanitizeMonth(v: any): string {
   return String(v ?? "").replace(/\//g, "-").trim();
 }
 
-function toPadded9Local(v: any): string {
+function toPadded9(v: any): string {
   const digits = String(v ?? "").replace(/\D/g, "");
   return digits ? digits.padStart(9, "0").slice(-9) : "";
 }
 
-function normalizePolicyKeyLocal(v: any): string {
+function normalizePolicyKey(v: any): string {
   return String(v ?? "").trim().replace(/\s+/g, "");
 }
 
-function buildCommissionSummaryIdLocal(s: {
-  agentId: string;
-  agentCode: string;
-  reportMonth: string;
-  templateId: string;
-  companyId: string;
-}) {
-  return `${s.agentId}_${s.agentCode}_${s.reportMonth}_${s.templateId}_${s.companyId}`;
+function normalizeAgentCode(v: any): string {
+  return String(v ?? "").trim();
 }
 
-function buildPolicySummaryIdLocal(s: {
-  agentId: string;
-  agentCode: string;
-  reportMonth: string;
-  companyId: string;
-  policyNumberKey: string;
-  customerId: string;
-  templateId: string;
-}) {
-  return `${s.agentId}_${s.agentCode}_${s.reportMonth}_${s.companyId}_${s.policyNumberKey}_${s.customerId}_${s.templateId}`;
+/* ---------- IDs ---------- */
+
+function buildCommissionSummaryId(s: any) {
+  return `${s.agentId}_${normalizeAgentCode(s.agentCode)}_${sanitizeMonth(
+    s.reportMonth
+  )}_${s.templateId}_${s.companyId}`;
 }
 
-/* ---------- group key ---------- */
-
-type ManualCommissionGroupKey = {
-  agentId: string;
-  agentCode: string;
-  reportMonth: string;
-  templateId: string;
-  companyId: string;
-};
-
-function getManualCommissionGroupKey(row: any): ManualCommissionGroupKey | null {
-  const agentId = String(row.agentId ?? "").trim();
-  const agentCode = String(row.agentCode ?? "").trim();
-  const reportMonth = sanitizeMonthLocal(row.reportMonth);
-  const templateId = String(row.templateId ?? "").trim();
-  const companyId = String(row.companyId ?? "").trim();
-
-  if (!agentId || !agentCode || !reportMonth || !templateId || !companyId) {
-    return null;
-  }
-
-  return {
-    agentId,
-    agentCode,
-    reportMonth,
-    templateId,
-    companyId,
-  };
+function buildPolicySummaryId(s: any) {
+  return `${s.agentId}_${normalizeAgentCode(s.agentCode)}_${sanitizeMonth(
+    s.reportMonth
+  )}_${s.companyId}_${normalizePolicyKey(
+    s.policyNumberKey
+  )}_${toPadded9(s.customerId)}_${s.templateId}`;
 }
 
-function manualCommissionGroupKeyToString(key: ManualCommissionGroupKey) {
-  return `${key.agentId}__${key.agentCode}__${key.reportMonth}__${key.templateId}__${key.companyId}`;
-}
+/* ---------- MAIN ---------- */
 
-/* ---------- MAIN FUNCTION ---------- */
-
-export async function recomputeSummariesFromExternalManual(params: {
-  db: any;
-  rowsPrepared: any[];
-  runId: string;
-}) {
-  const { db, rowsPrepared, runId } = params;
-
-  const affectedGroupsMap = new Map<string, ManualCommissionGroupKey>();
+export async function recomputeSummariesFromExternalManual({
+  db,
+  rowsPrepared,
+  runId,
+}: any) {
+  const groups = new Map<string, any>();
 
   for (const row of rowsPrepared) {
-    const key = getManualCommissionGroupKey(row);
-    if (!key) continue;
-    affectedGroupsMap.set(manualCommissionGroupKeyToString(key), key);
+    const key = `${row.agentId}__${row.agentCode}__${sanitizeMonth(
+      row.reportMonth
+    )}__${row.templateId}__${row.companyId}`;
+
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(row);
   }
 
-  const recomputedCommissionSummaries: any[] = [];
-  const recomputedPolicySummaries: any[] = [];
+  const finalCommissionSummaries: any[] = [];
+  const finalPolicySummaries: any[] = [];
 
-  for (const key of affectedGroupsMap.values()) {
+  for (const [_, rows] of groups.entries()) {
+    const first = rows[0];
+
+    const key = {
+      agentId: first.agentId,
+      agentCode: normalizeAgentCode(first.agentCode),
+      reportMonth: sanitizeMonth(first.reportMonth),
+      templateId: first.templateId,
+      companyId: first.companyId,
+    };
+
+    const commissionId = buildCommissionSummaryId(key);
+
+    const existingSnap = await getDoc(
+      doc(db, "commissionSummaries", commissionId)
+    );
+
+    /* =========================
+       FAST PATH
+    ========================= */
+    if (!existingSnap.exists()) {
+      const policyMap = new Map();
+
+      let totalCommission = 0;
+      let totalPremium = 0;
+
+      for (const row of rows) {
+        const commission = Number(row.commissionAmount ?? 0);
+        const premium = Number(row.premium ?? 0);
+
+        totalCommission += commission;
+        totalPremium += premium;
+
+        const policyKey = buildPolicySummaryId({
+          ...key,
+          policyNumberKey: row.policyNumberKey,
+          customerId: row.customerId,
+        });
+
+        if (!policyMap.has(policyKey)) {
+          policyMap.set(policyKey, {
+            ...key,
+            company: row.company,
+            policyNumberKey: row.policyNumberKey,
+            customerId: row.customerId,
+            totalCommissionAmount: 0,
+            totalPremiumAmount: 0,
+            rowsCount: 0,
+            runId,
+          });
+        }
+
+        const s = policyMap.get(policyKey);
+        s.totalCommissionAmount += commission;
+        s.totalPremiumAmount += premium;
+        s.rowsCount += 1;
+      }
+
+      const policies = Array.from(policyMap.values());
+
+      for (const p of policies) {
+        const prem = Number(p.totalPremiumAmount ?? 0);
+        const comm = Number(p.totalCommissionAmount ?? 0);
+        p.commissionRate = prem > 0 ? roundTo2((comm / prem) * 100) : 0;
+      }
+
+      finalPolicySummaries.push(...policies);
+
+      finalCommissionSummaries.push({
+        ...key,
+        company: first.company,
+        totalCommissionAmount: totalCommission,
+        totalPremiumAmount: totalPremium,
+        runId,
+      });
+
+      continue;
+    }
+
+    /* =========================
+       MERGE PATH
+    ========================= */
+
     const q = query(
-      collection(db, "externalCommissions"),
+      collection(db, "policyCommissionSummaries"),
       where("agentId", "==", key.agentId),
       where("reportMonth", "==", key.reportMonth),
       where("templateId", "==", key.templateId),
@@ -120,169 +168,105 @@ export async function recomputeSummariesFromExternalManual(params: {
 
     const snap = await getDocs(q);
 
-    const rows = snap.docs
+    const existing = snap.docs
       .map((d) => d.data())
-      .filter((row: any) => String(row.agentCode ?? "").trim() === key.agentCode);
+      .filter(
+        (r: any) =>
+          normalizeAgentCode(r.agentCode) === key.agentCode
+      );
 
-    if (!rows.length) continue;
+    const map = new Map<string, any>();
 
-    const first = rows[0];
-
-    const commissionSummary: any = {
-      agentId: key.agentId,
-      agentCode: key.agentCode,
-      reportMonth: key.reportMonth,
-      templateId: key.templateId,
-      companyId: key.companyId,
-      company: String(first.company ?? ""),
-      totalCommissionAmount: 0,
-      totalPremiumAmount: 0,
-      runId,
-    };
-
-    const policyMap = new Map<string, any>();
+    for (const r of existing) {
+      const id = buildPolicySummaryId(r);
+      map.set(id, { ...r });
+    }
 
     for (const row of rows) {
+      const id = buildPolicySummaryId({
+        ...key,
+        policyNumberKey: row.policyNumberKey,
+        customerId: row.customerId,
+      });
+
       const commission = Number(row.commissionAmount ?? 0);
       const premium = Number(row.premium ?? 0);
 
-      commissionSummary.totalCommissionAmount += isNaN(commission) ? 0 : commission;
-      commissionSummary.totalPremiumAmount += isNaN(premium) ? 0 : premium;
-
-      const policyNumberKey = normalizePolicyKeyLocal(
-        row.policyNumberKey ?? row.policyNumber
-      );
-
-      const customerId = toPadded9Local(
-        row.customerId ?? row.customerIdRaw ?? ""
-      );
-
-      const validMonth = sanitizeMonthLocal(row.validMonth);
-      const product = String(row.product ?? "").trim();
-      const fullName = String(row.fullName ?? "").trim();
-
-      if (!policyNumberKey || !customerId) continue;
-
-      const policyKey = buildPolicySummaryIdLocal({
-        agentId: key.agentId,
-        agentCode: key.agentCode,
-        reportMonth: key.reportMonth,
-        companyId: key.companyId,
-        policyNumberKey,
-        customerId,
-        templateId: key.templateId,
-      });
-
-      if (!policyMap.has(policyKey)) {
-        policyMap.set(policyKey, {
-          agentId: key.agentId,
-          agentCode: key.agentCode,
-          reportMonth: key.reportMonth,
-          validMonth: validMonth || undefined,
-          companyId: key.companyId,
-          company: String(row.company ?? ""),
-          policyNumberKey,
-          customerId,
-          templateId: key.templateId,
+      if (!map.has(id)) {
+        map.set(id, {
+          ...key,
+          company: row.company,
+          policyNumberKey: row.policyNumberKey,
+          customerId: row.customerId,
           totalCommissionAmount: 0,
           totalPremiumAmount: 0,
-          commissionRate: 0,
           rowsCount: 0,
-          product: product || undefined,
-          fullName: fullName || undefined,
           runId,
         });
       }
 
-      const s = policyMap.get(policyKey)!;
-      s.totalCommissionAmount += isNaN(commission) ? 0 : commission;
-      s.totalPremiumAmount += isNaN(premium) ? 0 : premium;
+      const s = map.get(id);
+      s.totalCommissionAmount += commission;
+      s.totalPremiumAmount += premium;
       s.rowsCount += 1;
-
-      if (!s.product && product) s.product = product;
-      if (!s.fullName && fullName) s.fullName = fullName;
-      if (!s.validMonth && validMonth) s.validMonth = validMonth;
     }
 
-    for (const s of policyMap.values()) {
-      const prem = Number(s.totalPremiumAmount ?? 0);
-      const comm = Number(s.totalCommissionAmount ?? 0);
-      s.commissionRate = prem > 0 ? roundTo2((comm / prem) * 100) : 0;
+    const merged = Array.from(map.values());
+
+    let totalCommission = 0;
+    let totalPremium = 0;
+
+    for (const p of merged) {
+      const prem = Number(p.totalPremiumAmount ?? 0);
+      const comm = Number(p.totalCommissionAmount ?? 0);
+
+      totalCommission += comm;
+      totalPremium += prem;
+
+      p.commissionRate = prem > 0 ? roundTo2((comm / prem) * 100) : 0;
     }
 
-    recomputedCommissionSummaries.push(commissionSummary);
-    recomputedPolicySummaries.push(...Array.from(policyMap.values()));
+    finalPolicySummaries.push(...merged);
+
+    finalCommissionSummaries.push({
+      ...key,
+      company: first.company,
+      totalCommissionAmount: totalCommission,
+      totalPremiumAmount: totalPremium,
+      runId,
+    });
   }
 
-  /* ---------- write commission summaries ---------- */
+  /* ---------- write ---------- */
 
-  if (recomputedCommissionSummaries.length) {
-    for (let i = 0; i < recomputedCommissionSummaries.length; i += 450) {
-      const slice = recomputedCommissionSummaries.slice(i, i + 450);
-      const batch = writeBatch(db);
-
-      for (const s of slice) {
-        const id = buildCommissionSummaryIdLocal({
-          agentId: s.agentId,
-          agentCode: String(s.agentCode ?? "").trim(),
-          reportMonth: sanitizeMonthLocal(s.reportMonth),
-          templateId: s.templateId,
-          companyId: s.companyId,
-        });
-
+  for (let i = 0; i < finalCommissionSummaries.length; i += 450) {
+    const batch = writeBatch(db);
+    for (const s of finalCommissionSummaries.slice(i, i + 450)) {
+      const id = buildCommissionSummaryId(s);
       batch.set(
-  doc(db, "commissionSummaries", id),
-  stripUndefined({
-    ...s,
-    reportMonth: sanitizeMonthLocal(s.reportMonth),
-    updatedAt: serverTimestamp(),
-  }),
-  { merge: true }
-);
-      }
-
-      await batch.commit();
+        doc(db, "commissionSummaries", id),
+        { ...stripUndefined(s), updatedAt: serverTimestamp() },
+        { merge: true }
+      );
     }
+    await batch.commit();
   }
 
-  /* ---------- write policy summaries ---------- */
-
-  if (recomputedPolicySummaries.length) {
-    for (let i = 0; i < recomputedPolicySummaries.length; i += 450) {
-      const slice = recomputedPolicySummaries.slice(i, i + 450);
-      const batch = writeBatch(db);
-
-      for (const s of slice) {
-        const id = buildPolicySummaryIdLocal({
-          agentId: s.agentId,
-          agentCode: String(s.agentCode ?? "").trim(),
-          reportMonth: sanitizeMonthLocal(s.reportMonth),
-          companyId: s.companyId,
-          policyNumberKey: normalizePolicyKeyLocal(s.policyNumberKey),
-          customerId: toPadded9Local(s.customerId),
-          templateId: s.templateId,
-        });
-
-       batch.set(
-  doc(db, "policyCommissionSummaries", id),
-  stripUndefined({
-    ...s,
-    reportMonth: sanitizeMonthLocal(s.reportMonth),
-    validMonth: sanitizeMonthLocal(s.validMonth),
-    policyNumberKey: normalizePolicyKeyLocal(s.policyNumberKey),
-    customerId: toPadded9Local(s.customerId),
-    updatedAt: serverTimestamp(),
-  }),
-  { merge: true }
-);
-      }
-
-      await batch.commit();
+  for (let i = 0; i < finalPolicySummaries.length; i += 450) {
+    const batch = writeBatch(db);
+    for (const s of finalPolicySummaries.slice(i, i + 450)) {
+      const id = buildPolicySummaryId(s);
+      batch.set(
+        doc(db, "policyCommissionSummaries", id),
+        { ...stripUndefined(s), updatedAt: serverTimestamp() },
+        { merge: true }
+      );
     }
+    await batch.commit();
   }
 
   return {
-    commissionSummariesCount: recomputedCommissionSummaries.length,
-    policySummariesCount: recomputedPolicySummaries.length,
+    commissionSummariesCount: finalCommissionSummaries.length,
+    policySummariesCount: finalPolicySummaries.length,
   };
 }

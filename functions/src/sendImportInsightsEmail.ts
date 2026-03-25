@@ -13,6 +13,15 @@ function s(v: any) {
   return String(v ?? "").trim();
 }
 
+function prevMonthOf(ym: string) {
+  const [y, m] = String(ym || "").split("-").map(Number);
+  if (!y || !m) return "";
+  const d = new Date(y, m - 2, 1);
+  const yy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  return `${yy}-${mm}`;
+}
+
 function shouldSend(after: any, before: any) {
   const afterStatus = s(after?.status);
   const afterStep = s(after?.step);
@@ -28,7 +37,7 @@ function shouldSend(after: any, before: any) {
   return becameDone;
 }
 
-export const sendImportInsightsEmailOnPortalRun  = onDocumentWritten(
+export const sendImportInsightsEmailOnPortalRun = onDocumentWritten(
   {
     region: FUNCTIONS_REGION,
     document: "portalImportRuns/{runId}",
@@ -114,7 +123,17 @@ export const sendImportInsightsEmailOnPortalRun  = onDocumentWritten(
         throw new Error(`no insights found for portal run ${runId}`);
       }
 
+      // חודש הריצה (lock month) - למשל 2026-03
+      const lockMonth = s(after?.resolvedWindow?.ym);
+
+      // חודש הדוח בפועל - תמיד lockMonth מינוס 1
+      const currentMonth = prevMonthOf(lockMonth);
+
+      // חודש קודם להשוואה
+      const previousMonth = prevMonthOf(currentMonth);
+
       const first = insightsList[0];
+
       const totalPolicies = insightsList.reduce((sum, x) => sum + (x.totalPolicies || 0), 0);
       const totalCustomers = insightsList.reduce((sum, x) => sum + (x.totalCustomers || 0), 0);
       const totalCommissionAmount = insightsList.reduce((sum, x) => sum + (x.totalCommissionAmount || 0), 0);
@@ -124,16 +143,16 @@ export const sendImportInsightsEmailOnPortalRun  = onDocumentWritten(
         0
       );
 
-      const reportMonths = Array.from(
-        new Set(insightsList.flatMap((x) => x.reportMonths || []))
-      ).sort();
-
       const mergedInsights = {
         ...first,
         runId,
-        reportMonths,
-        minReportMonth: reportMonths[0] || "",
-        maxReportMonth: reportMonths.length ? reportMonths[reportMonths.length - 1] : "",
+
+        // חודש המייל מגיע מה-run ולא מה-data
+        reportMonths: currentMonth ? [currentMonth] : [],
+        minReportMonth: currentMonth || "",
+        maxReportMonth: currentMonth || "",
+        previousMonth: previousMonth || "",
+
         totalPolicies,
         totalCustomers,
         totalCommissionAmount,
@@ -142,6 +161,14 @@ export const sendImportInsightsEmailOnPortalRun  = onDocumentWritten(
         zeroCommissionPoliciesTop: insightsList
           .flatMap((x) => x.zeroCommissionPoliciesTop || [])
           .slice(0, 10),
+
+        // זמני – עד שנבנה comparison אמיתי ברמת portalRun
+        deltaCommissionAmount: 0,
+        deltaCommissionPercent: 0,
+        newPoliciesCount: 0,
+        droppedPoliciesCount: 0,
+        droppedPoliciesTop: [],
+        newPoliciesTop: [],
       };
 
       const html = buildImportInsightsEmailHtml({
@@ -165,7 +192,10 @@ export const sendImportInsightsEmailOnPortalRun  = onDocumentWritten(
           agentId,
           companyId: mergedInsights.companyId,
           templateIds: insightsList.map((x) => x.templateId),
-          reportMonths,
+          reportMonths: mergedInsights.reportMonths,
+          lockMonth,
+          currentMonth,
+          previousMonth,
         },
       });
 
