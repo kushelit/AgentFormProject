@@ -10,7 +10,8 @@ import {
   migdalExportExcel,
   waitMigdalLoaderGone,
   navigateToCommissions,
-  migdalReturnToAgreements
+  migdalReturnToAgreements,
+  migdalClearModals
 } from "./migdal.shared";
 import { uploadLocalFileToStorageClient } from "../../uploadToStorage.client";
 import { httpsCallable } from "firebase/functions";
@@ -84,6 +85,9 @@ export async function runMigdalAll(ctx: RunnerCtx) {
     await page.waitForLoadState("networkidle");
     await page.waitForURL(/NewEra/i, { timeout: 60000 });
     await waitMigdalLoaderGone(page);
+
+// שלב הניקוי החדש:
+await migdalClearModals(page);
 
     // 2. ניווט לדף עמלות
     await setStatus(runId, { status: "running", step: "מנווט לדוחות עמלות" });

@@ -80,41 +80,68 @@ export async function migdalHandleOtp(page: Page, ctx: RunnerCtx) {
  * ניווט - עובד, לא נגעתי
  */
 export async function navigateToCommissions(page: Page) {
-  console.log("[Migdal] Navigating to commissions page...");
-  const injection = `
-    (function() {
+  console.log("[Migdal] Starting atomic navigation to Commissions...");
+
+  const script = `
+    (async function() {
+      const wait = (ms) => new Promise(r => setTimeout(r, ms));
+      
       const getByText = (selector, text) => {
         return Array.from(document.querySelectorAll(selector))
-          .find(el => el.innerText && el.innerText.includes(text));
+          .find(el => (el.innerText || el.textContent || "").includes(text));
       };
-      const tools = getByText('label', 'כלים');
-      if (tools) tools.click();
-      setTimeout(() => {
-        const reportBtn = document.getElementById('goToSubCategory');
-        if (reportBtn) reportBtn.click();
-      }, 1000);
-      setTimeout(() => {
-        const target = getByText('label.s-content', 'הסכמים ועמלות');
-        if (target) target.click();
-      }, 2000);
+
+      // 1. לופ המתנה ל"כלים" - עד 10 שניות
+      let tools = null;
+      for (let i = 0; i < 10; i++) {
+        tools = getByText('label, span, .item-label', 'כלים');
+        // בודקים שהאלמנט לא רק קיים אלא גם גלוי
+        if (tools && tools.offsetHeight > 0) break; 
+        await wait(1000);
+      }
+
+      if (!tools) return "TOOLS_NOT_FOUND_AFTER_RETRY";
+      
+      // 2. לחיצה וניסיון פתיחת תפריט משנה
+      tools.click();
+      await wait(1500);
+
+      let reportBtn = document.getElementById('goToSubCategory');
+      if (!reportBtn) {
+          console.log("Submenu didn't open, clicking 'tools' again...");
+          tools.click(); // לחיצה נוספת לביטחון
+          await wait(2000);
+          reportBtn = document.getElementById('goToSubCategory');
+      }
+
+      if (!reportBtn) return "SUBMENU_FAILED_TO_OPEN";
+      reportBtn.click();
+      await wait(2000);
+
+      // 3. לחיצה על "הסכמים ועמלות" עם המתנה קלה
+      let target = null;
+      for (let i = 0; i < 5; i++) {
+        target = getByText('label.s-content, span', 'הסכמים ועמלות');
+        if (target) break;
+        await wait(1000);
+      }
+      
+      if (!target) return "AGREEMENTS_LINK_NOT_FOUND";
+      
+      target.click();
+      return "SUCCESS";
     })()
   `;
-  await page.evaluate(injection);
-  await page.waitForTimeout(4500);
+
+  const result = await page.evaluate(script);
+  console.log(`[Migdal] Navigation result: ${result}`);
+
+  if (String(result) !== "SUCCESS") {
+    throw new Error(String(result));
+  }
+
   await waitMigdalLoaderGone(page);
 }
-
-/**
- * פתיחת דוח - מתוקן (Serialization) + 30 שניות המתנה
- */
-/**
- * פתיחת דוח מתוך דף הדוחות הראשי באמצעות חיפוש - גרסה חסינת Serialization
- */
-
-/**
- * פתיחת דוח באמצעות קליק ישיר על השם שלו ברשימה (ללא חיפוש)
- */
-
 /**
  * פתיחת דוח באמצעות קליק ישיר על השם שלו - ללא שגיאות TS וללא בעיות Serialization
  */
@@ -161,29 +188,50 @@ export async function migdalReturnToAgreements(page: Page) {
   console.log("[Migdal] Returning to Agreements menu via side-bar...");
   
   const injection = `
-    (function() {
+    (async function() {
+      const wait = (ms) => new Promise(r => setTimeout(r, ms));
+      
       const findAndClick = (selector, text) => {
         const el = Array.from(document.querySelectorAll(selector))
-          .find(e => (e.innerText || "").includes(text));
-        if (el) el.click();
-        return !!el;
+          .find(e => (e.innerText || e.textContent || "").includes(text));
+        if (el) {
+          el.click();
+          return true;
+        }
+        return false;
       };
 
-      // 1. לחיצה על "דוחות" בתפריט הצד (לפי image_bb4efc)
+      // 1. לחיצה על "דוחות" בתפריט הצד
       const foundReports = findAndClick('span.item-label', 'דוחות');
       
-      // 2. לחיצה על "הסכמים ועמלות" (לפי image_c5bf0f)
-      setTimeout(() => {
-        findAndClick('label.s-content', 'הסכמים ועמלות');
-      }, 1500);
+      // מחכים שהתפריט ייפתח באמת
+      await wait(1500);
+
+      // 2. לחיצה על "הסכמים ועמלות"
+      // ננסה 3 פעמים בתוך הלוגיקה הפנימית למקרה שהתפריט נפתח לאט
+      for (let i = 0; i < 3; i++) {
+        const foundAgreements = findAndClick('label.s-content', 'הסכמים ועמלות');
+        if (foundAgreements) return "SUCCESS";
+        await wait(1000);
+      }
+
+      return "AGREEMENTS_LINK_NOT_FOUND";
     })()
   `;
   
-  await page.evaluate(injection);
-  await page.waitForTimeout(4000); // המתנה לניווט
+  // הרצה של הסקריפט כמחרוזת
+  const result = await page.evaluate(injection);
+  console.log("[Migdal] Return result: " + result);
+
+  if (result !== "SUCCESS") {
+    console.warn("[Migdal] Could not return to Agreements menu via side-bar, trying direct navigation as backup...");
+    // גיבוי למקרה שהתפריט הצדדי תקוע - ניווט ישיר ל-URL של העמלות
+    await page.goto("https://apmaccess.migdal.co.il/NewEra/AgreementsAndCommissions", { waitUntil: "networkidle" }).catch(() => {});
+  }
+
+  await page.waitForTimeout(2000);
   await waitMigdalLoaderGone(page);
 }
-
 
 /**
  * יצוא אקסל - עובד, לא נגעתי
@@ -208,5 +256,51 @@ export async function migdalExportExcel(page: Page): Promise<Download | null> {
     return await downloadPromise;
   } catch (e) {
     return null;
+  }
+}
+
+/**
+ * פונקציה לסגירת הודעות קופצות (Modals) במגדל
+ */
+export async function migdalClearModals(page: Page) {
+  console.log("[Migdal] Checking for annoying pop-ups...");
+  
+  const script = `
+    (async function() {
+      const wait = (ms) => new Promise(r => setTimeout(r, ms));
+      
+      // 1. חיפוש כפתור ה-X (סגירה) בפינה
+      // במגדל זה בדרך כלל בתוך MuiDialog או אלמנט עם 'close'
+      const closeBtn = document.querySelector('button[aria-label="close"], .MuiDialog-container button:first-child, svg[data-testid="CloseIcon"]');
+      if (closeBtn) {
+        console.log("Migdal: Found 'X' button, closing modal...");
+        closeBtn.closest('button')?.click() || closeBtn.click();
+        await wait(1000);
+        return "CLOSED_X";
+      }
+
+      // 2. חיפוש כפתור ה"אישור" או "לפרטים נוספים" (כמו בתמונה ששלחת)
+      const actionButtons = Array.from(document.querySelectorAll('button, .MuiButton-root'));
+      const targetBtn = actionButtons.find(btn => {
+        const txt = (btn.textContent || "").trim();
+        return txt.includes('לפרטים נוספים') || txt.includes('הבנתי') || txt.includes('סגור');
+      });
+
+      if (targetBtn) {
+        console.log("Migdal: Found action button, clicking to clear...");
+        targetBtn.click();
+        await wait(1000);
+        return "CLOSED_VIA_BUTTON";
+      }
+
+      return "NO_MODAL_FOUND";
+    })()
+  `;
+
+  try {
+    const result = await page.evaluate(script);
+    console.log(`[Migdal] Modal clearer result: ${result}`);
+  } catch (e) {
+    // מתעלמים משגיאות כאן - אם אין מודאל, הכל טוב
   }
 }
