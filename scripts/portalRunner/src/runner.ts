@@ -16,7 +16,6 @@ import {
   Timestamp,
 } from "firebase/firestore";
 
-import { ref, getDownloadURL } from "firebase/storage";
 import { initFirebaseClient } from "./firebaseClient";
 import type { RunDoc, RunnerCtx, RunnerEnv } from "./types";
 import { resolveWindow, labelFromYm } from "./window";
@@ -25,7 +24,7 @@ import { createFileLogger } from "./logger";
 import { loginIfNeeded } from "./loginCli";
 
 // הגדרת גרסה נוכחית
-const RUNNER_VERSION = "2.0.1";
+const RUNNER_VERSION = "2.0.2";
 
 function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
@@ -68,6 +67,31 @@ async function checkForUpdates(db: any, log: any) {
   }
   return null;
 }
+
+async function updateRunnerPresence(params: {
+  db: any;
+  agentId: string;
+  runnerId: string;
+}) {
+  const ref = doc(params.db, "portalRunnerStatus", params.agentId);
+
+  await runTransaction(params.db, async (tx: any) => {
+    tx.set(
+      ref,
+      {
+        agentId: params.agentId,
+        runnerId: params.runnerId,
+        runnerVersion: RUNNER_VERSION,
+        lastSeenAt: serverTimestamp(),
+        isOnline: true,
+        updatedAt: serverTimestamp(),
+      },
+      { merge: true }
+    );
+  });
+}
+
+
 
 // --- פונקציות עזר ל-Firestore ---
 
@@ -264,6 +288,8 @@ async function main() {
   await checkForUpdates(db, log);
 
   const runnerId = `local_${agentId}_${crypto.randomUUID().slice(0, 8)}`;
+  await updateRunnerPresence({ db, agentId, runnerId });
+
   const pollMs = typeof runner?.pollIntervalMs === "number" && isFinite(runner.pollIntervalMs) && runner.pollIntervalMs >= 500
       ? runner.pollIntervalMs : 2000;
 
@@ -284,6 +310,7 @@ async function main() {
   // --- LOOP POLLING ---
   while (!shouldStop()) {
     try {
+    await updateRunnerPresence({ db, agentId, runnerId });
       const snap = await getDocs(
         query(
           collection(db, "portalImportRuns"),
@@ -312,13 +339,22 @@ async function main() {
           
           try {
             log.info("[Update] Starting self-update download...");
-            const storageRef = ref(storage, "installers/MagicSaleSetup.exe");
-            const downloadUrl = await getDownloadURL(storageRef);
-            const updatePath = path.join(paths.downloadsDir, "MagicSaleSetup_New.exe");
-            
-            const response = await fetch(downloadUrl);
-            const buffer = await response.arrayBuffer();
-            fs.writeFileSync(updatePath, Buffer.from(buffer));
+        log.info("[Update] Starting self-update download...");
+
+const installerUrl = String((run as any).installerUrl || "").trim();
+if (!installerUrl) {
+  throw new Error("Missing installerUrl on self_update run");
+}
+
+const updatePath = path.join(paths.downloadsDir, "MagicSaleSetup_New.exe");
+
+const response = await fetch(installerUrl);
+if (!response.ok) {
+  throw new Error(`Failed to download installer: ${response.status} ${response.statusText}`);
+}
+
+const buffer = await response.arrayBuffer();
+fs.writeFileSync(updatePath, Buffer.from(buffer));
 
             await setStatusClient(db, runId, { status: "done", step: "update_downloaded" });
             log.info("[Update] Download complete. Launching installer...");

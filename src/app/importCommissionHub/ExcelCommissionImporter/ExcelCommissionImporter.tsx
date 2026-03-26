@@ -19,6 +19,7 @@ import {
   setDoc,
   orderBy,
   limit,
+  onSnapshot,
 } from 'firebase/firestore';
 import { Button } from '@/components/Button/Button';
 import DialogNotification from '@/components/DialogNotification';
@@ -123,6 +124,8 @@ const [loadingStage, setLoadingStage] = useState<string>("");
 const { canAccess: canAutoDownload, isChecking: isCheckingAutoDownload } =
   usePermission(user ? "access_portal_auto_download" : null);
 
+
+
   // בחירה מתוך ZIP
   const [zipChooser, setZipChooser] = useState<null | {
     zip: any;
@@ -186,7 +189,12 @@ useEffect(() => {
 // --- לוגיקת ניהול ה-Runner (OTA & Download) ---
 const [latestRunnerVersion, setLatestRunnerVersion] = useState<string>("");
 const [currentRunnerVersion, setCurrentRunnerVersion] = useState<string>("");
-const INSTALLER_URL = "https://firebasestorage.googleapis.com/v0/b/agentsale-693e8.firebasestorage.app/o/installers%2FMagicSaleSetup.exe?alt=media&token=0f53f279-d2bd-468f-bb3f-a84c2e7110d3"; // הלינק מה-Storage
+const [installerUrl, setInstallerUrl] = useState<string>("");
+const needsManualUpgrade =
+  currentRunnerVersion === "2.0.0" ||
+  currentRunnerVersion === "2.0.1";
+  
+  // const INSTALLER_URL = "https://firebasestorage.googleapis.com/v0/b/magicsale-test.firebasestorage.app/o/installers%2FMagicSaleSetup.exe?alt=media&token=7fea4a99-c42b-4814-8b26-452e11a7d91e"; // הלינק מה-Storage
 
 const isAutoEnabledByFlag = autoDownloadFlag?.enabled !== false;
 const autoDisabledReason =
@@ -1570,57 +1578,65 @@ const handleImport = async () => {
 
 // 1. טעינת הגרסה הכי חדשה מהשרת
 useEffect(() => {
-  const fetchLatestVersion = async () => {
+  const fetchRunnerConfig = async () => {
     const snap = await getDoc(doc(db, "portalRunnerConfig", "global"));
-    if (snap.exists()) setLatestRunnerVersion(snap.data().latestVersion);
+    if (!snap.exists()) return;
+
+    const data: any = snap.data() || {};
+    setLatestRunnerVersion(String(data.latestVersion || "").trim());
+    setInstallerUrl(String(data.installerUrl || "").trim());
   };
-  fetchLatestVersion();
+
+  fetchRunnerConfig();
 }, []);
+
 
 // 2. זיהוי הגרסה הנוכחית של הסוכן (לפי הריצה האחרונה שלו)
 
 // 2. זיהוי הגרסה הנוכחית - שאילתה חכמה
 useEffect(() => {
-  if (!selectedAgentId) return;
-  const fetchAgentRunnerVersion = async () => {
-    // אנחנו מביאים את 5 הריצות האחרונות כדי לוודא שנדלג על רשומות queued ללא גרסה
-    const q = query(
-      collection(db, "portalImportRuns"),
-      where("agentId", "==", selectedAgentId),
-      orderBy("createdAt", "desc"),
-      limit(5) 
-    );
-    
-    const snap = await getDocs(q);
-    if (!snap.empty) {
-      // מחפשים את המסמך הראשון (הכי חדש) שיש בו באמת מספר גרסה
-      const lastRunWithVersion = snap.docs.find(doc => doc.data().runner?.version);
-      
-      if (lastRunWithVersion) {
-        setCurrentRunnerVersion(lastRunWithVersion.data().runner.version);
+  if (!selectedAgentId) {
+    setCurrentRunnerVersion("");
+    return;
+  }
+
+  const unsub = onSnapshot(
+    doc(db, "portalRunnerStatus", selectedAgentId),
+    (snap) => {
+      if (snap.exists()) {
+        setCurrentRunnerVersion(String(snap.data()?.runnerVersion || "").trim());
       } else {
-        // אם אין אף ריצה עם גרסה (סוכן חדש באמת)
-        setCurrentRunnerVersion(""); 
+        setCurrentRunnerVersion("");
       }
-    }
-  };
-  fetchAgentRunnerVersion();
-}, [selectedAgentId, autoRunId]);
+    },
+    () => setCurrentRunnerVersion("")
+  );
+
+  return () => unsub();
+}, [selectedAgentId]);
+
 
 
 // 3. פונקציית שליחת פקודת העדכון (OTA)
 const handleTriggerUpdate = async () => {
   if (!selectedAgentId) return;
+  if (!installerUrl) {
+    addToast("error", "חסר installerUrl בהגדרות המערכת");
+    return;
+  }
+
   setIsStartingAuto(true);
   try {
     const runRef = doc(collection(db, "portalImportRuns"));
     await setDoc(runRef, {
       agentId: selectedAgentId,
       status: "queued",
-      automationClass: "self_update", // המפתח שמפעיל את הקוד ב-Runner
+      automationClass: "self_update",
+      installerUrl,
       createdAt: serverTimestamp(),
-      triggeredFrom: "ui_update_button"
+      triggeredFrom: "ui_update_button",
     });
+
     setAutoRunId(runRef.id);
     addToast("success", "פקודת עדכון נשלחה לבוט!");
   } catch (e) {
@@ -1629,6 +1645,7 @@ const handleTriggerUpdate = async () => {
     setIsStartingAuto(false);
   }
 };
+
 
 const isUpdateAvailable = latestRunnerVersion && currentRunnerVersion && latestRunnerVersion !== currentRunnerVersion;
 
@@ -1706,22 +1723,31 @@ const isUpdateAvailable = latestRunnerVersion && currentRunnerVersion && latestR
 
     <div className="flex items-center gap-2">
       {/* כפתור הורדה: מופיע רק אם אין גרסה מזוהה בכלל */}
-      {!currentRunnerVersion && (
-        <a href={INSTALLER_URL} className="bg-white text-blue-600 px-4 py-2 text-sm font-bold rounded-lg hover:bg-blue-50 shadow-md">
-          הורד התקנה ראשונה
-        </a>
-      )}
-
+   {!currentRunnerVersion && installerUrl && (
+  <a
+    href={installerUrl}
+    className="bg-white text-blue-600 px-4 py-2 text-sm font-bold rounded-lg hover:bg-blue-50 shadow-md"
+  >
+    הורד התקנה ראשונה
+  </a>
+)}
+{needsManualUpgrade && installerUrl && (
+  <a
+    href={installerUrl}
+    className="bg-white text-red-600 hover:bg-red-50 px-4 py-2 text-sm font-bold rounded-lg shadow-md"
+  >
+    נדרש עדכון ידני
+  </a>
+)}
       {/* כפתור עדכון OTA: מופיע רק אם יש גרסה חדשה ואין חסימת מערכת */}
-      {isUpdateAvailable && isAutoEnabledByFlag && (
-        <Button
-          text="עדכן עכשיו"
-          className="bg-white text-orange-600 hover:bg-orange-50 px-4 py-2 text-sm font-bold rounded-lg shadow-md"
-          onClick={handleTriggerUpdate}
-          disabled={isStartingAuto}
-        />
-      )}
-
+    {isUpdateAvailable && isAutoEnabledByFlag && !needsManualUpgrade && (
+  <Button
+    text="עדכן עכשיו"
+    className="bg-white text-orange-600 hover:bg-orange-50 px-4 py-2 text-sm font-bold rounded-lg shadow-md"
+    onClick={handleTriggerUpdate}
+    disabled={isStartingAuto}
+  />
+)}
       {/* הכפתור הרגיל: מנוטרל אם יש חסימת מערכת (autoDownloadEnabled: false ב-Firestore) */}
       {canStartAuto && !isUpdateAvailable && (
         <Button
