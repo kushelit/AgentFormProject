@@ -1,112 +1,136 @@
 .announcement-overlay {
-    position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.4);
-    z-index: 9999;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 16px;
-    direction: rtl;
-  }
-  
-  .announcement-box {
-    position: relative; /* ✨ חשוב בשביל שה-close-button יתמקם נכון */
-    background: white;
-    border-radius: 16px;
-    padding: 32px 40px;
-    max-width: 650px;
-    width: 100%;
-    text-align: right;
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
-    line-height: 1.8;
-    font-size: 1.1rem; /* ⬅️ הוגדל מברירת מחדל */
-  }
-  
-  .announcement-title {
-    font-size: 2rem; /* ⬆️ היה 1.75rem */
-    font-weight: 800;
-    margin-bottom: 24px;
-    color: #111;
-  }
-  
-  .announcement-box ul {
-    padding-right: 20px;
-    margin-bottom: 24px;
-  }
-  
-  .announcement-box ul li {
-    margin-bottom: 8px;
-  }
-  
-  .announcement-box p {
-    margin-bottom: 12px;
-  }
-  
-  .acknowledge-button {
-    margin-top: 24px;
-    background-color: #0077cc;
-    color: white;
-    border: none;
-    border-radius: 6px;
-    padding: 10px 20px;
-    cursor: pointer;
-    font-size: 15px;
-    transition: background-color 0.2s ease-in-out;
-  }
-  
-  .acknowledge-button:hover {
-    background-color: #005fa3;
-  }
-  
-  .close-button {
-    position: absolute;
-    top: 16px;
-    left: 16px;
-    background: transparent;
-    border: none;
-    font-size: 20px;
-    cursor: pointer;
-    color: #0077cc;
-    transition: color 0.2s, transform 0s; /* מבטל שינויים בגודל */
-    transform: none; /* מונע גדילה מראש */
-  }
-  
-  .close-button:hover {
-    color: #005fa3;
-    transform: none !important; /* 🔒 מבטל כל scale חיצוני */
-  }
-
-  .announcement-box a {
-    color: #1a73e8; /* צבע כחול בולט */
-    text-decoration: underline;
-    font-weight: 500;
-    cursor: pointer;
-  }
-  
-  .announcement-box a:hover {
-    color: #0b53c1;
-    text-decoration: none;
-  }
-  
-  /* תגית Badge קטנה מתחת לכותרת */
-.announcement-badge {
-  display: inline-block;
-  margin: .25rem 0 1rem;
-  background: #eef6ff;
-  color: #0b53c1;
-  padding: .25rem .5rem;
-  border-radius: .5rem;
-  font-size: .875rem;
-  font-weight: 600;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  direction: rtl;
 }
 
-/* אזור קישורי פעולה (כפתורי טקסט) */
+.announcement-box {
+  position: relative;
+  background: white;
+  border-radius: 20px;
+  padding: 32px 40px 24px;
+  max-width: 680px;
+  width: 100%;
+  text-align: right;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18);
+  line-height: 1.8;
+  font-size: 1.05rem;
+  max-height: 88vh;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.announcement-box.compact {
+  max-width: 640px;
+}
+
+.announcement-box.expanded {
+  max-width: 720px;
+}
+
+.announcement-title {
+  font-size: 2rem;
+  font-weight: 800;
+  margin-bottom: 14px;
+  color: #111;
+  padding-left: 28px;
+}
+
+.announcement-box h3 {
+  font-size: 1.2rem;
+  margin: 24px 0 10px;
+  color: #111827;
+  font-weight: 800;
+}
+
+.announcement-box p {
+  margin-bottom: 12px;
+  color: #222;
+}
+
+.announcement-box ul {
+  padding-right: 20px;
+  margin-bottom: 24px;
+}
+
+.announcement-box ul li {
+  margin-bottom: 8px;
+}
+
+.close-button {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  background: transparent;
+  border: none;
+  font-size: 20px;
+  cursor: pointer;
+  color: #0077cc;
+  transition: color 0.2s ease-in-out;
+  z-index: 2;
+}
+
+.close-button:hover {
+  color: #005fa3;
+}
+
+.announcement-box a {
+  color: #1a73e8;
+  text-decoration: underline;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.announcement-box a:hover {
+  color: #0b53c1;
+  text-decoration: none;
+}
+
+.announcement-badge {
+  display: inline-block;
+  margin: 0 0 1rem;
+  background: #eef6ff;
+  color: #0b53c1;
+  padding: 0.35rem 0.7rem;
+  border-radius: 999px;
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
+.announcement-summary-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 18px 0;
+}
+
+.summary-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  background: #f8fafc;
+  border: 1px solid #e8eef7;
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+
+.summary-icon {
+  font-size: 1.2rem;
+  line-height: 1.2;
+  flex-shrink: 0;
+}
+
 .announcement-actions {
   display: flex;
   gap: 12px;
   flex-wrap: wrap;
-  margin: 8px 0 16px;
+  margin: 16px 0 10px;
 }
 
 .secondary-link {
@@ -118,30 +142,51 @@
   text-decoration: none;
 }
 
-/* שיפור ריווח לרשימות מקוננות */
-.announcement-box ul ul {
-  margin-top: 8px;
-  margin-bottom: 8px;
-  padding-right: 18px;
+.secondary-button {
+  background: #eef4ff;
+  color: #0b53c1;
+  border: 1px solid #d7e6ff;
+  border-radius: 10px;
+  padding: 10px 16px;
+  cursor: pointer;
+  font-size: 15px;
+  font-weight: 700;
+  transition: background-color 0.2s ease-in-out, border-color 0.2s ease-in-out;
 }
 
-/* התאמות קלות למובייל (אופציונלי) */
-@media (max-width: 480px) {
-  .announcement-box {
-    padding: 24px 20px;
-    font-size: 1rem;
-  }
-  .announcement-title {
-    font-size: 1.5rem;
-  }
+.secondary-button:hover {
+  background: #e4efff;
+  border-color: #bfd7ff;
 }
+
+.acknowledge-button {
+  margin-top: 18px;
+  background-color: #0077cc;
+  color: white;
+  border: none;
+  border-radius: 10px;
+  padding: 12px 20px;
+  cursor: pointer;
+  font-size: 15px;
+  font-weight: 700;
+  transition: background-color 0.2s ease-in-out;
+  width: 100%;
+  position: sticky;
+  bottom: 0;
+  box-shadow: 0 -8px 16px rgba(255, 255, 255, 0.95);
+}
+
+.acknowledge-button:hover {
+  background-color: #005fa3;
+}
+
 .highlight-line {
   margin: 20px 0;
   padding: 16px 20px;
-  border-radius: 12px;
+  border-radius: 14px;
   background: linear-gradient(90deg, #fffaf4, #fff2e0);
   border-right: 5px solid #ffa94d;
-  font-size: 1.1rem;
+  font-size: 1.02rem;
   line-height: 1.6;
   font-weight: 600;
   color: #222;
@@ -154,14 +199,14 @@
 }
 
 .highlight-icon {
-  font-size: 1.6rem;
+  font-size: 1.4rem;
   flex-shrink: 0;
-  filter: drop-shadow(0 0 4px rgba(255, 180, 80, 0.7));
+  filter: drop-shadow(0 0 4px rgba(255, 180, 80, 0.55));
 }
 
 .highlight-text {
   color: #d35400;
-  font-weight: 700;
+  font-weight: 800;
 }
 
 .announcement-image-placeholder img {
@@ -172,3 +217,184 @@
   border-radius: 8px;
 }
 
+/* מובייל */
+@media (max-width: 640px) {
+  .announcement-overlay {
+    align-items: flex-end;
+    padding: 0;
+  }
+
+  .announcement-box {
+    width: 100%;
+    max-width: 100%;
+    max-height: 92vh;
+    border-radius: 22px 22px 0 0;
+    padding: 22px 18px 18px;
+    font-size: 0.98rem;
+  }
+
+  .announcement-title {
+    font-size: 1.45rem;
+    margin-bottom: 12px;
+    padding-left: 26px;
+  }
+
+  .announcement-box h3 {
+    font-size: 1.05rem;
+    margin-top: 20px;
+  }
+
+  .announcement-box p {
+    font-size: 0.96rem;
+    line-height: 1.65;
+  }
+
+  .summary-item {
+    padding: 11px 12px;
+    border-radius: 10px;
+  }
+
+  .announcement-actions {
+    flex-direction: column;
+  }
+
+  .secondary-button,
+  .acknowledge-button {
+    width: 100%;
+    font-size: 15px;
+    padding: 13px 16px;
+  }
+
+  .close-button {
+    top: 12px;
+    left: 12px;
+    font-size: 18px;
+  }
+
+  .highlight-line {
+    padding: 14px 14px;
+    font-size: 0.95rem;
+    line-height: 1.5;
+  }
+}
+
+/* מובייל קטן */
+@media (max-width: 400px) {
+  .announcement-box {
+    padding: 18px 14px 16px;
+  }
+
+  .announcement-title {
+    font-size: 1.28rem;
+  }
+
+  .announcement-badge {
+    font-size: 0.78rem;
+  }
+
+  .announcement-box h3 {
+    font-size: 1rem;
+  }
+
+  .announcement-box p {
+    font-size: 0.92rem;
+  }
+}
+
+/* HERO */
+.announcement-hero {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin: 20px 0;
+}
+
+.hero-card {
+  display: flex;
+  gap: 14px;
+  padding: 16px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #f5f9ff, #eef6ff);
+  border: 1px solid #dbeafe;
+  align-items: center;
+}
+
+.hero-card.highlight {
+  background: linear-gradient(135deg, #fff7ed, #ffedd5);
+  border: 1px solid #fed7aa;
+}
+
+.hero-icon {
+  font-size: 26px;
+}
+
+.hero-title {
+  font-weight: 800;
+  font-size: 1rem;
+}
+
+.hero-sub {
+  font-size: 0.9rem;
+  color: #555;
+}
+
+/* SUMMARY */
+.announcement-summary-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 16px 0;
+}
+
+.summary-item {
+  background: #f8fafc;
+  padding: 10px 12px;
+  border-radius: 10px;
+}
+
+/* BUTTON */
+.secondary-button {
+  background: #eef4ff;
+  border: none;
+  border-radius: 10px;
+  padding: 10px 16px;
+  cursor: pointer;
+}
+
+/* SCROLL + MOBILE */
+.announcement-box {
+  max-height: 88vh;
+  overflow-y: auto;
+}
+
+.acknowledge-button {
+  position: sticky;
+  bottom: 0;
+  width: 100%;
+}
+
+/* MOBILE FEEL */
+@media (max-width: 640px) {
+  .announcement-overlay {
+    align-items: flex-end;
+    padding: 0;
+  }
+
+  .announcement-box {
+    border-radius: 20px 20px 0 0;
+    max-height: 92vh;
+  }
+}
+
+.hero-card.automation {
+  background: linear-gradient(135deg, #ecfeff, #cffafe);
+  border: 1px solid #67e8f9;
+}
+
+
+.hero-note {
+  margin-top: 6px;
+  font-size: 0.8rem;
+  color: #0b7285;
+  font-weight: 600;
+}
