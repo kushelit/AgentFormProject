@@ -148,6 +148,8 @@ const [importProgress, setImportProgress] = useState(0);
   //automaionUpload
 
 const [autoRunId, setAutoRunId] = useState<string>("");
+const [autoRunKind, setAutoRunKind] = useState<"portal" | "self_update" | "">("");
+
 const [isStartingAuto, setIsStartingAuto] = useState(false);
 const [isAutoRunActive, setIsAutoRunActive] = useState(false);
 
@@ -280,6 +282,7 @@ const handleStartAuto = async () => {
     });
 
     setAutoRunId(runId);
+    setAutoRunKind("portal");
   } catch (e: any) {
     addToast("error", `שגיאה: ${e.message}`);
     setIsAutoRunActive(false);
@@ -1638,6 +1641,7 @@ const handleTriggerUpdate = async () => {
     });
 
     setAutoRunId(runRef.id);
+    setAutoRunKind("self_update");
     addToast("success", "פקודת עדכון נשלחה לבוט!");
   } catch (e) {
     addToast("error", "נכשל בשליחת עדכון");
@@ -1904,31 +1908,41 @@ disabled={Boolean(!standardizedRows.length || isLoading)}              />
       {/* כפתור X קטן בפינה (אופציונלי) לניקוי הסטטוס ידנית */}
       {!isAutoRunActive && (
         <button 
-          onClick={() => setAutoRunId("")}
-          className="absolute top-2 left-2 text-gray-300 hover:text-gray-500 text-xs font-bold transition-colors"
+onClick={() => {
+  setAutoRunId("");
+  setAutoRunKind("");
+}}          className="absolute top-2 left-2 text-gray-300 hover:text-gray-500 text-xs font-bold transition-colors"
           title="נקה סטטוס"
         >
           ✖
         </button>
       )}
 
- <PortalRunStatus 
-  db={db} 
-  runId={autoRunId} 
+ <PortalRunStatus
+  db={db}
+  runId={autoRunId}
+  runKind={autoRunKind}
   onFinished={(status) => {
-    // 🛡️ Guard: אם הריצה כבר לא מסומנת כפעילה, סימן שכבר שלחנו Toast ושיחררנו את הכפתור
-    if (!isAutoRunActive) return; 
-    // 🔓 משחררים את הכפתור בבאנר (זה יהפוך את isAutoRunActive ל-false)
+    if (!isAutoRunActive) return;
     setIsAutoRunActive(false);
-    // כעת נשלח את ה-Toast המתאים פעם אחת בלבד
-    if (status === 'skipped') {
+
+    if (autoRunKind === "self_update") {
+      if (status === "done") {
+        addToast("success", "✅ קובץ העדכון ירד וההתקנה הופעלה.");
+      } else if (status === "error") {
+        addToast("error", "❌ עדכון הגרסה נכשל.");
+      }
+      return;
+    }
+
+    if (status === "skipped") {
       addToast("error", "⏭️ המשיכה דולגה (כבר קיים במערכת)");
-    } else if (status === 'done') {
+    } else if (status === "done") {
       addToast("success", "✅ המשיכה האוטומטית הושלמה בהצלחה!");
-    } else if (status === 'failed') {
+    } else if (status === "failed") {
       addToast("error", "ℹ️ הריצה בוטלה והחסימה שוחררה.");
     }
-  }} 
+  }}
 />
     </div>
   </div>

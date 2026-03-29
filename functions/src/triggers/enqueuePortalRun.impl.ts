@@ -77,6 +77,10 @@ export async function enqueueCommissionImportFromPortalRunImpl(event: any) {
   if (!afterSnap?.exists) return;
 
   const after = afterSnap.data() as any;
+  const automationClass = safeStr(after?.automationClass);
+
+// self_update הוא לא ריצת ייבוא עמלות, אז לא ממשיכים ל-enqueue
+if (automationClass === "self_update") return;
 
   // ✅ אל תרוצי על כל update – רק כשהגענו לשלב המתאים
   if (!shouldEnqueue(after)) return;

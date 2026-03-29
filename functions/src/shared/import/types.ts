@@ -10,6 +10,7 @@ export type CommissionTemplate = {
   commissionIncludesVAT?: boolean;
   fallbackProduct?: string;
   fields: Mapping; // excelCol -> systemField
+  missingZipEntryBehavior?: "error" | "skip";
 };
 
 export type BaseRow = {

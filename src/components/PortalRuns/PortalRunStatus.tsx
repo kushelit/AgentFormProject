@@ -7,11 +7,13 @@ import { usePortalRun } from "@/lib/portalRuns/usePortalRun";
 type Props = {
   db: Firestore;
   runId: string;
+  runKind?: "portal" | "self_update" | "";
   // ✅ הוספת Callback כדי להודיע לדף האב שהריצה הסתיימה
   onFinished?: (status: string) => void;
 };
 
-export default function PortalRunStatus({ db, runId, onFinished }: Props) {
+export default function PortalRunStatus({ db, runId, runKind = "portal", onFinished }: Props) {
+  
   // ✅ שליפת הנתונים מה-Hook המעודכן (כולל progress)
   const { run, loading, progress } = usePortalRun(db, runId, onFinished);
 
@@ -21,35 +23,49 @@ export default function PortalRunStatus({ db, runId, onFinished }: Props) {
 
   const otpMode = String((run as any)?.otp?.mode || "firestore");
   const otpHint = String((run as any)?.otp?.hint || "");
+  const isSelfUpdate = runKind === "self_update";
 
-  const isDone = status === "done" || status === "skipped";
-  const isError = status === "error" || status === "failed";
-  const isOtpManual = status === "otp_required" && otpMode === "manual";
-  const isSuccess = status === "success" || status === "done";
+const isDone = status === "done" || (!isSelfUpdate && status === "skipped");
+const isError = status === "error" || status === "failed";
+const isOtpManual = !isSelfUpdate && status === "otp_required" && otpMode === "manual";
+const isSuccess = status === "success" || status === "done";
 
   const statusLabel = useMemo(() => {
-    if (!status) return "—";
-    if (status === "queued") return "ממתין להפעלה…";
-    if (status === "running") return "מריץ אוטומציה…";
-    if (status === "failed") return "❌ הריצה בוטלה על ידי המשתמש"; 
-    if (status === "otp_required") {
-      if (otpMode === "manual") return "ממתין להזנת OTP בפורטל…";
-      return "ממתין לקוד OTP…";
-    }
-    if (status === "logged_in") return "מחובר וממשיך…";
-    if (status === "file_uploaded") return "הקובץ עלה לשרת…";
-if (status === "done") return "✅ משיכת קובץ הושלמה";
-    if (status === "skipped") return "⏭️ דולג (כבר קיים במערכת)";
-    if (status === "error") return "❌ שגיאה";
-    if (status === "success") return "✅ נתונים נטענו בהצלחה";
+  if (!status) return "—";
+
+  if (isSelfUpdate) {
+    if (status === "queued") return "ממתין שהבוט יתחיל את העדכון…";
+    if (status === "running" && step === "downloading_update") return "מוריד את קובץ העדכון…";
+    if (status === "running") return "מבצע עדכון גרסה…";
+    if (status === "done" && step === "update_downloaded") return "✅ קובץ העדכון ירד וההתקנה הופעלה";
+    if (status === "done") return "✅ עדכון הגרסה הושלם";
+    if (status === "failed") return "❌ העדכון בוטל";
+    if (status === "error") return "❌ עדכון הגרסה נכשל";
     return status;
-  }, [status, otpMode]);
+  }
+
+  if (status === "queued") return "ממתין להפעלה…";
+  if (status === "running") return "מריץ אוטומציה…";
+  if (status === "failed") return "❌ הריצה בוטלה על ידי המשתמש";
+  if (status === "otp_required") {
+    if (otpMode === "manual") return "ממתין להזנת OTP בפורטל…";
+    return "ממתין לקוד OTP…";
+  }
+  if (status === "logged_in") return "מחובר וממשיך…";
+  if (status === "file_uploaded") return "הקובץ עלה לשרת…";
+  if (status === "done") return "✅ משיכת קובץ הושלמה";
+  if (status === "skipped") return "⏭️ דולג (כבר קיים במערכת)";
+  if (status === "error") return "❌ שגיאה";
+  if (status === "success") return "✅ נתונים נטענו בהצלחה";
+  return status;
+}, [status, otpMode, isSelfUpdate, step]);
 
   return (
     <div className="mt-3 p-4 border rounded-xl bg-gray-50 text-right shadow-inner">
       <div className="flex justify-between items-center mb-3">
-        <div className="font-bold text-gray-700 text-sm">סטטוס משיכה אוטומטית</div>
-        <div className="text-[10px] font-mono text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md">
+<div className="font-bold text-gray-700 text-sm">
+  {isSelfUpdate ? "סטטוס עדכון גרסה" : "סטטוס משיכה אוטומטית"}
+</div>        <div className="text-[10px] font-mono text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md">
           {progress}%
         </div>
       </div>
@@ -84,8 +100,8 @@ isError ? 'bg-red-500' : isSuccess ? 'bg-green-500' : 'bg-blue-600'
               <span className={`font-bold ${isError ? 'text-red-600' : 'text-blue-900'}`}>{statusLabel}</span>
             </div>
 
-            {monthLabel && (
-              <div className="flex items-center gap-2">
+        {!isSelfUpdate && monthLabel && (
+                <div className="flex items-center gap-2">
                 <span className="text-gray-400">חודש:</span>
                 <span className="font-bold text-gray-800">{monthLabel}</span>
               </div>
@@ -104,9 +120,13 @@ isError ? 'bg-red-500' : isSuccess ? 'bg-green-500' : 'bg-blue-600'
               <b>שגיאה:</b> {(run as any)?.error?.message || "קרתה תקלה במהלך המשיכה"}
             </div>
           )}
-
-          {isDone && (run as any)?.download?.filename && (
-            <div className="mt-3 p-2 bg-green-50 border border-green-100 rounded-lg text-xs text-green-700">
+          {isSelfUpdate && status === "done" && (
+  <div className="mt-3 p-2 bg-green-50 border border-green-100 rounded-lg text-xs text-green-700">
+    ✅ קובץ העדכון ירד וההתקנה הופעלה במחשב.
+  </div>
+)}
+        {!isSelfUpdate && isDone && (run as any)?.download?.filename && (
+              <div className="mt-3 p-2 bg-green-50 border border-green-100 rounded-lg text-xs text-green-700">
               ✅ הקובץ התקבל: <b>{(run as any).download.filename}</b>
             </div>
           )}

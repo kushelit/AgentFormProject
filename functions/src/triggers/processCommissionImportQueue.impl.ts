@@ -109,17 +109,25 @@ async function updatePortalRunJobState(params: {
     if (jobIds.length) {
       const jobsMap = { ...(data?.queue?.jobs || {}), [jobId]: { ...(data?.queue?.jobs?.[jobId] || {}), ...patch } };
 
-      const statuses = jobIds.map((id) => safeStr(jobsMap?.[id]?.status));
-      const allSuccess = statuses.length > 0 && statuses.every((s) => s === "success");
-      const anyError = statuses.some((s) => s === "error");
+ const statuses = jobIds.map((id) => safeStr(jobsMap?.[id]?.status));
+const allFinishedOk =
+  statuses.length > 0 &&
+  statuses.every((s) => s === "success" || s === "skipped");
+const anyError = statuses.some((s) => s === "error");
 
-      if (allSuccess) {
-        tx.set(portalRunRef, { status: "success", step: "import_done", updatedAt: nowTs() }, { merge: true });
-      } else if (anyError) {
-        // אפשר לבחור אם להפוך את הריצה ל-error ברגע שיש job אחד שנכשל.
-        // כרגע: כן (שקוף ב-UI).
-        tx.set(portalRunRef, { status: "error", step: "import_error", updatedAt: nowTs() }, { merge: true });
-      }
+if (allFinishedOk) {
+  tx.set(
+    portalRunRef,
+    { status: "success", step: "import_done", updatedAt: nowTs() },
+    { merge: true }
+  );
+} else if (anyError) {
+  tx.set(
+    portalRunRef,
+    { status: "error", step: "import_error", updatedAt: nowTs() },
+    { merge: true }
+  );
+}
     } else if (aggregate?.finalStatus) {
       // fallback ישן: ריצה עם job יחיד
       tx.set(portalRunRef, { status: aggregate.finalStatus, updatedAt: nowTs() }, { merge: true });
@@ -247,6 +255,7 @@ export async function processCommissionImportQueueImpl(event: any) {
     if (!Object.keys(fields).length) throw stepError("load_template", `Template ${templateId} has empty fields`);
 
     const zipEntryRules = tmpl?.zipEntryRules || null;
+    const missingZipEntryBehavior = safeStr(tmpl?.missingZipEntryBehavior || "error");
 
     const companySnap = await db.collection("company").doc(companyId).get();
     const companyName = companySnap.exists ? safeStr(companySnap.data()?.companyName) : "";
@@ -256,17 +265,17 @@ export async function processCommissionImportQueueImpl(event: any) {
       ? safeStr(userSnap.data()?.name || userSnap.data()?.fullName || userSnap.data()?.displayName)
       : "";
 
-    const template: CommissionTemplate = {
-      templateId,
-      companyId,
-      companyName,
-      templateName: safeStr(tmpl?.Name || tmpl?.type),
-      automationClass: safeStr(tmpl?.automationClass),
-      commissionIncludesVAT: !!tmpl?.commissionIncludesVAT,
-      fallbackProduct: safeStr(tmpl?.fallbackProduct) || undefined,
-      fields,
-    };
-
+const template: CommissionTemplate = {
+  templateId,
+  companyId,
+  companyName,
+  templateName: safeStr(tmpl?.Name || tmpl?.type),
+  automationClass: safeStr(tmpl?.automationClass),
+  commissionIncludesVAT: !!tmpl?.commissionIncludesVAT,
+  fallbackProduct: safeStr(tmpl?.fallbackProduct) || undefined,
+  fields,
+  missingZipEntryBehavior: (missingZipEntryBehavior as "error" | "skip"),
+};
     const dl = await downloadStorageFileToTmp({ bucketNameRaw: bucketName, storagePath });
     const tmpPath = dl.tmpPath;
     const buf = fs.readFileSync(tmpPath);
@@ -279,13 +288,60 @@ if (path.extname(storagePath).toLowerCase() === ".zip") {
   const files = Object.values(zip.files).filter((f) => !f.dir);
   const names = files.map((f) => f.name);
 
-  const picked = pickZipEntryName(names, zipEntryRules || undefined);
-  if (!picked.ok) {
-    throw stepError("zip_select", picked.reason, {
-      candidates: picked.candidates,
-      zipEntryRules,
+const picked = pickZipEntryName(names, zipEntryRules || undefined);
+
+if (!picked.ok) {
+  const shouldSkip =
+    picked.reason === "zip_rules_no_match" &&
+    missingZipEntryBehavior === "skip";
+
+  if (shouldSkip) {
+    await queueRef.set(
+      {
+        status: "skipped",
+        finishedAt: nowTs(),
+        updatedAt: nowTs(),
+        result: {
+          reason: "missing_zip_entry_skipped",
+          zipReason: picked.reason,
+          candidates: picked.candidates || [],
+          templateId,
+        },
+      },
+      { merge: true }
+    );
+
+    await updatePortalRunJobState({
+      db: db as any,
+      portalRunId: effectivePortalRunId,
+      jobId,
+      patch: {
+        status: "skipped",
+        reason: "missing_zip_entry_skipped",
+        finishedAt: nowTs(),
+        templateId,
+        extra: {
+          zipReason: picked.reason,
+          candidates: picked.candidates || [],
+          zipEntryRules,
+        },
+      },
     });
+
+    try {
+      fs.unlinkSync(tmpPath);
+    } catch (e) {
+      // ignore
+    }
+
+    return;
   }
+
+  throw stepError("zip_select", picked.reason, {
+    candidates: picked.candidates,
+    zipEntryRules,
+  });
+}
 
   const file = files.find((f) => f.name === picked.name);
   if (!file) throw stepError("zip_select", "picked file not found", picked);

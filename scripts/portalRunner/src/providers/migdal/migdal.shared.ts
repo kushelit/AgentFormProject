@@ -186,51 +186,62 @@ export async function migdalOpenReport(page: Page, reportName: string) {
 
 export async function migdalReturnToAgreements(page: Page) {
   console.log("[Migdal] Returning to Agreements menu via side-bar...");
-  
-  const injection = `
-    (async function() {
-      const wait = (ms) => new Promise(r => setTimeout(r, ms));
-      
-      const findAndClick = (selector, text) => {
-        const el = Array.from(document.querySelectorAll(selector))
-          .find(e => (e.innerText || e.textContent || "").includes(text));
-        if (el) {
-          el.click();
-          return true;
-        }
-        return false;
-      };
 
-      // 1. לחיצה על "דוחות" בתפריט הצד
-      const foundReports = findAndClick('span.item-label', 'דוחות');
-      
-      // מחכים שהתפריט ייפתח באמת
-      await wait(1500);
-
-      // 2. לחיצה על "הסכמים ועמלות"
-      // ננסה 3 פעמים בתוך הלוגיקה הפנימית למקרה שהתפריט נפתח לאט
-      for (let i = 0; i < 3; i++) {
-        const foundAgreements = findAndClick('label.s-content', 'הסכמים ועמלות');
-        if (foundAgreements) return "SUCCESS";
-        await wait(1000);
-      }
-
-      return "AGREEMENTS_LINK_NOT_FOUND";
+  // שלב 1: לחיצה על דוחות
+  await page.evaluate(`
+    (function() {
+      const el = Array.from(document.querySelectorAll('span.item-label'))
+        .find(e => (e.textContent || "").includes('דוחות') && e.offsetWidth > 0);
+      if (el) el.click();
     })()
-  `;
-  
-  // הרצה של הסקריפט כמחרוזת
-  const result = await page.evaluate(injection);
-  console.log("[Migdal] Return result: " + result);
-
-  if (result !== "SUCCESS") {
-    console.warn("[Migdal] Could not return to Agreements menu via side-bar, trying direct navigation as backup...");
-    // גיבוי למקרה שהתפריט הצדדי תקוע - ניווט ישיר ל-URL של העמלות
-    await page.goto("https://apmaccess.migdal.co.il/NewEra/AgreementsAndCommissions", { waitUntil: "networkidle" }).catch(() => {});
-  }
+  `).catch(() => {});
 
   await page.waitForTimeout(2000);
+
+  // שלב 2: לחיצה על הסכמים ועמלות
+  await page.evaluate(`
+    (function() {
+      const el = Array.from(document.querySelectorAll('label.s-content'))
+        .find(e => (e.textContent || "").includes('הסכמים ועמלות') && e.offsetWidth > 0);
+      if (el) el.click();
+    })()
+  `).catch(() => {});
+
+  // שלב 3: המתן שהדף יתייצב
+  await page.waitForLoadState("networkidle", { timeout: 15000 }).catch(() => {});
+  await page.waitForTimeout(2000);
   await waitMigdalLoaderGone(page);
+
+  // שלב 4: בדוק אם הצלחנו
+  const isSelected = await page.evaluate(`
+    (function() {
+      const label = Array.from(document.querySelectorAll('label.s-content'))
+        .find(e => (e.textContent || "").includes('הסכמים ועמלות'));
+      const parent = label?.closest('div.category');
+      return !!(parent && parent.classList.contains('selected'));
+    })()
+  `).catch(() => false);
+
+  if (!isSelected) {
+    console.warn("[Migdal] Falling back to direct navigation...");
+    await page.goto(
+      "https://apmaccess.migdal.co.il/NewEra/reports-lobby",
+      { waitUntil: "networkidle" }
+    ).catch(() => {});
+    await page.waitForTimeout(3000);
+    await page.evaluate(`
+      (function() {
+        const label = Array.from(document.querySelectorAll('label.s-content'))
+          .find(e => (e.textContent || "").includes('הסכמים ועמלות'));
+        if (label) label.click();
+      })()
+    `).catch(() => {});
+    await page.waitForLoadState("networkidle", { timeout: 15000 }).catch(() => {});
+    await page.waitForTimeout(2000);
+    await waitMigdalLoaderGone(page);
+  }
+
+  console.log("[Migdal] Back to Agreements ✅");
 }
 
 /**

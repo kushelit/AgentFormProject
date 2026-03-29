@@ -176,25 +176,72 @@ const otpCode = await pollOtp(runId);
  * מעבר לדף עמלות (הזרקת String)
  */
 export async function gotoCommissionsPage(page: Page): Promise<Page> {
-  console.log("[Clal] Clicking Commissions link and waiting for new tab...");
+  console.log("[Clal] Navigating to Commissions - Target: עמלות ומכירות...");
 
   const [newPage] = await Promise.all([
     page.context().waitForEvent("page", { timeout: 60000 }),
     page.evaluate(`
-      (function() {
-        const target = Array.from(document.querySelectorAll('a'))
+      (async function() {
+        const wait = (ms) => new Promise(r => setTimeout(r, ms));
+        
+        const getLink = () => Array.from(document.querySelectorAll('a'))
           .find(a => a.innerText.includes('לפירוט עמלות') || a.innerText.includes('עמלות והפקות'));
-        if (target) target.click();
+
+        let target = getLink();
+
+        if (!target) {
+          console.log("Link not found. Searching for specific 'עמלות ומכירות' panel...");
+
+          // 1. מוצאים את כל ה-headers של האקורדיונים
+          const headers = Array.from(document.querySelectorAll('mat-expansion-panel-header'));
+          
+          // 2. מחפשים את ה-header הספציפי שמכיל h3 עם הטקסט הנכון
+          const targetHeader = headers.find(header => {
+            const h3 = header.querySelector('h3');
+            return h3 && h3.innerText.includes('עמלות ומכירות');
+          });
+
+          if (targetHeader) {
+            const isExpanded = targetHeader.getAttribute('aria-expanded') === 'true';
+            
+            if (!isExpanded) {
+              // 3. מציאת ה-span של ה-indicator (ה"אח" של ה-mat-content)
+              const indicator = targetHeader.querySelector('.mat-expansion-indicator');
+              if (indicator) {
+                console.log("Clicking expansion indicator...");
+                indicator.click();
+              } else {
+                console.log("Indicator not found, clicking header directly...");
+                targetHeader.click();
+              }
+              // המתנה לאנימציה של Angular
+              await wait(1500);
+            }
+          }
+          
+          target = getLink();
+        }
+
+        if (target) {
+          target.click();
+          return "SUCCESS";
+        }
+        
+        return "LINK_NOT_FOUND";
       })()
     `)
   ]);
 
   await newPage.bringToFront();
-  console.log("[Clal] Verifying page header: תמונת עמלות");
-  await newPage.waitForSelector("#moduleHeaderSpan", { state: "visible", timeout: 45000 }).catch(() => {});
+  console.log("[Clal] New tab opened successfully.");
+  
+  await newPage.waitForSelector("#moduleHeaderSpan", { state: "visible", timeout: 45000 }).catch(() => {
+    console.log("[Clal] Warning: Module header not found, but continuing...");
+  });
 
   return newPage;
 }
+
 
 export async function waitClalLoaderGone(page: Page, timeoutMs = 15000) {
   const loader = page.locator("#loaderDiv");

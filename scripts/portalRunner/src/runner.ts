@@ -24,7 +24,7 @@ import { createFileLogger } from "./logger";
 import { loginIfNeeded } from "./loginCli";
 
 // הגדרת גרסה נוכחית
-const RUNNER_VERSION = "2.0.2";
+const RUNNER_VERSION = "2.0.7";
 
 function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
@@ -308,18 +308,75 @@ async function main() {
   log.info("[LocalRunner] Polling started. agentId=", agentId, "runnerId=", runnerId);
 
   // --- LOOP POLLING ---
-  while (!shouldStop()) {
-    try {
+while (!shouldStop()) {
+  try {
     await updateRunnerPresence({ db, agentId, runnerId });
-      const snap = await getDocs(
-        query(
-          collection(db, "portalImportRuns"),
-          where("agentId", "==", agentId),
-          where("status", "==", "queued"),
-          orderBy("createdAt", "asc"),
-          limit(5)
-        )
-      );
+
+    // 🔥 1. עדיפות עליונה לעדכון גרסה
+    const updateSnap = await getDocs(
+      query(
+        collection(db, "portalImportRuns"),
+        where("agentId", "==", agentId),
+        where("status", "==", "queued"),
+        where("automationClass", "==", "self_update"),
+        orderBy("createdAt", "desc"),
+        limit(1)
+      )
+    );
+
+    if (!updateSnap.empty) {
+      const docSnap = updateSnap.docs[0];
+      const runId = docSnap.id;
+      const run = docSnap.data() as RunDoc;
+
+      const claimed = await claimRunClient(db, runId, runnerId, agentId);
+      if (claimed) {
+        await setStatusClient(db, runId, { status: "running", step: "downloading_update" });
+
+        try {
+          log.info("[Update] Starting self-update download...");
+
+          const installerUrl = String((run as any).installerUrl || "").trim();
+          if (!installerUrl) {
+            throw new Error("Missing installerUrl on self_update run");
+          }
+
+          const updatePath = path.join(paths.downloadsDir, "MagicSaleSetup_New.exe");
+
+          const response = await fetch(installerUrl);
+          if (!response.ok) {
+            throw new Error(`Failed to download installer: ${response.status} ${response.statusText}`);
+          }
+
+          const buffer = await response.arrayBuffer();
+          fs.writeFileSync(updatePath, Buffer.from(buffer));
+
+          await setStatusClient(db, runId, { status: "done", step: "update_downloaded" });
+          log.info("[Update] Download complete. Launching installer...");
+
+          spawn(updatePath, ["/SILENT"], { detached: true, stdio: "ignore" }).unref();
+          process.exit(0);
+        } catch (err: any) {
+          log.error("[Update] Failed to perform self-update:", err.message);
+          await setStatusClient(db, runId, { status: "error", error: { message: err.message } });
+          continue;
+        }
+      }
+
+      await sleep(pollMs);
+      continue;
+    }
+
+    // ✅ 2. רק אם אין עדכון — ממשיכים לריצות רגילות
+    const snap = await getDocs(
+      query(
+        collection(db, "portalImportRuns"),
+        where("agentId", "==", agentId),
+        where("status", "==", "queued"),
+        orderBy("createdAt", "asc"),
+        limit(5)
+      )
+    );
 
       if (snap.empty) {
         await sleep(pollMs);
