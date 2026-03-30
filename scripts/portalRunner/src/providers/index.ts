@@ -5,6 +5,8 @@ import { runClalAll } from "./clal/clal.all";
 import { runMigdalAll } from "./migdal/migdal.all";
 import { runPhoenixAll } from "./fenix/fenix.all";
 import { runMenoraAll } from "./menora/menura.all";
+import { runHarelAll } from "./harel/harel.all";
+import { runAyalonAll } from "./ayalon/ayalon.all";
 
 
 // import { runMigdalInsurance } from "./migdal/migdal.insurance";
@@ -17,6 +19,7 @@ export const providers: Record<string, RunnerHandler> = {
   migdal_commissions_all: runMigdalAll,
   fenix_commissions_all: runPhoenixAll,
   menora_commissions_all: runMenoraAll,
-
+  harel_commissions_all: runHarelAll,
+  ayalon_commissions_all: runAyalonAll,
 
 };
