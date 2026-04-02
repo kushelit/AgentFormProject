@@ -1,15 +1,19 @@
 import fs from "fs";
 import path from "path";
-import { chromium, Page } from "playwright";
+import { chromium, Page, BrowserContext } from "playwright";
 import type { RunnerCtx } from "../../types";
 import { httpsCallable } from "firebase/functions";
 import { resolveChromiumExePath } from "../../runnerPaths";
+import { uploadLocalFileToStorageClient } from "../../uploadToStorage.client";
 import {
   ayalonLogin,
   ayalonHandleOtp,
   ayalonDismissPopupQuick,
   ayalonDumpArtifacts,
-  ayalonNavigateToReport,  // ✅ מיובא מ-shared
+  ayalonNavigateToReport,
+  ayalonOpenReportTab,
+  ayalonFilterDate,
+  ayalonExportExcel,
 } from "./ayalon.shared";
 
 function ensureDir(p: string) {
@@ -31,36 +35,29 @@ async function getAyalonCreds(ctx: RunnerCtx) {
   };
 }
 
-async function diagnosePage(page: Page, tag: string) {
-  console.log(`[Ayalon] === DIAG: ${tag} ===`);
-  console.log("[Ayalon] url:", page.url());
-  console.log("[Ayalon] title:", await page.title().catch(() => "FAILED"));
-  console.log("[Ayalon] frames:", page.frames().length);
-  for (const fr of page.frames()) {
-    console.log("[Ayalon] frame url:", fr.url());
-  }
-  const bodyCount = await page.locator("body").count().catch(() => 0);
-  const inputCount = await page.locator("input").count().catch(() => 0);
-  const linkCount = await page.locator("a").count().catch(() => 0);
-  const searchboxCount = await page.locator("#searchbox").count().catch(() => 0);
-  console.log(`[Ayalon] body:${bodyCount} inputs:${inputCount} links:${linkCount} searchbox:${searchboxCount}`);
+function getPrevMonthLabel(): string {
+  const now = new Date();
+  const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const mm = String(prev.getMonth() + 1).padStart(2, "0");
+  const yyyy = prev.getFullYear();
+  return `01/${mm}/${yyyy}`;
 }
 
-// ✅ הפונקציה הישנה נמחקה — מגיעה מ-shared
-
 export async function runAyalonAll(ctx: RunnerCtx) {
-  const { runId, setStatus, run, paths } = ctx;
+  const { runId, setStatus, run, paths, storage } = ctx;
 
   const portalUrl = "https://portal.ayalon-ins.co.il/";
   const absDir = s(paths?.downloadsDir || "./downloads");
   ensureDir(absDir);
 
-  const monthLabel =
-    (run.resolvedWindow?.kind === "month"
-      ? (run.resolvedWindow.label || run.monthLabel)
-      : run.resolvedWindow?.label) || "חודש נוכחי";
+  const monthLabel = (run.resolvedWindow?.kind === "month"
+    ? (run.resolvedWindow.label || run.monthLabel)
+    : run.resolvedWindow?.label) || "חודש נוכחי";
 
+  const agentId = s((run as any)?.agentId || ctx.agentId);
   const { username, password } = await getAyalonCreds(ctx);
+  const prevMonth = getPrevMonthLabel();
+  console.log("[Ayalon] Target month:", prevMonth);
 
   await setStatus(runId, { status: "running", step: "ayalon_open_portal", monthLabel });
 
@@ -69,9 +66,7 @@ export async function runAyalonAll(ctx: RunnerCtx) {
   const x86Path = "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe";
   const localChromePath = fs.existsSync(standardPath)
     ? standardPath
-    : fs.existsSync(x86Path)
-      ? x86Path
-      : null;
+    : fs.existsSync(x86Path) ? x86Path : null;
   const executablePath = isExe && localChromePath ? localChromePath : resolveChromiumExePath();
 
   const userDataDir = path.join(
@@ -79,8 +74,6 @@ export async function runAyalonAll(ctx: RunnerCtx) {
     "MagicSaleRunner",
     "chromium-profile-ayalon"
   );
-  console.log("[Ayalon] userDataDir:", userDataDir);
-  console.log("[Ayalon] executablePath:", executablePath ?? "default (Chromium)");
 
   const context = await chromium.launchPersistentContext(userDataDir, {
     headless: false,
@@ -94,27 +87,15 @@ export async function runAyalonAll(ctx: RunnerCtx) {
   let page = context.pages()[0] || await context.newPage();
   await page.bringToFront();
 
-  page.on("framenavigated", (frame) => {
-    if (frame === page.mainFrame()) {
-      console.log("[Ayalon] navigated to:", page.url());
-    }
-  });
-
-  context.on("page", async (newPage) => {
-    console.log("[Ayalon] NEW PAGE opened:", newPage.url());
-  });
-
   try {
     console.log("[Ayalon] Navigating to portal...");
     await page.goto(portalUrl, { waitUntil: "domcontentloaded", timeout: 60000 });
     await page.waitForLoadState("networkidle", { timeout: 20000 }).catch(() => {});
     await page.waitForTimeout(3000);
-    await diagnosePage(page, "after_goto");
 
     await setStatus(runId, { status: "running", step: "מבצע לוגין לאיילון", monthLabel });
     await ayalonLogin(page, username, password);
     await page.waitForTimeout(4000);
-    await diagnosePage(page, "after_login");
 
     await setStatus(runId, {
       status: "otp_required",
@@ -128,36 +109,64 @@ export async function runAyalonAll(ctx: RunnerCtx) {
     await page.waitForNavigation({ waitUntil: "domcontentloaded", timeout: 30000 }).catch(() => {});
     await page.waitForLoadState("networkidle", { timeout: 20000 }).catch(() => {});
     await page.waitForTimeout(5000);
-    await diagnosePage(page, "after_otp");
 
     const allPages = context.pages();
-    console.log("[Ayalon] total pages after OTP:", allPages.length);
     if (allPages.length > 1) {
       page = allPages[allPages.length - 1];
-      console.log("[Ayalon] Switching to newest page:", page.url());
       await page.bringToFront();
       await page.waitForLoadState("domcontentloaded", { timeout: 30000 }).catch(() => {});
       await page.waitForTimeout(3000);
-      await diagnosePage(page, "after_switch");
     }
 
-    await setStatus(runId, { status: "running", step: "מייצב דף בית", monthLabel });
     await ayalonDismissPopupQuick(page);
     await page.waitForTimeout(2000);
 
-    await ayalonDumpArtifacts(page, absDir, "before_navigate");
-    await diagnosePage(page, "before_navigate");
-
+    // ✅ נווט לדף הדוחות וחפש
     await setStatus(runId, { status: "running", step: "מנסה לנווט לדוחות", monthLabel });
-    await ayalonNavigateToReport(page);  // ✅ מ-shared עם CDP
+    await ayalonNavigateToReport(page);
+    await page.waitForTimeout(3000);
 
-    await setStatus(runId, { status: "done", step: "הדוח אותר בהצלחה", monthLabel });
+    // ✅ פתח את הדוח בטאב חדש
+    await setStatus(runId, { status: "running", step: "פותח דוח נפרעים", monthLabel });
+    const reportPage = await ayalonOpenReportTab(page, context);
+    await page.waitForTimeout(10000);
+
+    // ✅ סנן לפי חודש
+    await setStatus(runId, { status: "running", step: `מסנן לחודש ${prevMonth}`, monthLabel });
+    await ayalonFilterDate(reportPage, prevMonth);
+
+    // ✅ ייצא לאקסל
+    await setStatus(runId, { status: "running", step: "מייצא לאקסל", monthLabel });
+    const download = await ayalonExportExcel(reportPage);
+
+    if (download) {
+      const filename = download.suggestedFilename();
+      const localPath = path.join(absDir, `${Date.now()}_${filename}`);
+      await download.saveAs(localPath);
+      console.log("[Ayalon] Saved:", localPath);
+
+      const up = await uploadLocalFileToStorageClient({
+        storage,
+        localPath,
+        agentId,
+        runId,
+        subdir: "ayalon_insurance",
+      } as any);
+
+      if (up?.storagePath) {
+        const downloads = [{
+          templateId: "ayalon_insurance",
+          localPath,
+          filename: up.filename || filename,
+          storagePath: up.storagePath,
+        }];
+        await setStatus(runId, { downloads, status: "done", step: "ayalon_done", monthLabel });
+      }
+    }
 
   } catch (e: any) {
     console.error("[Ayalon] Error:", e?.message || e);
-    try {
-      await ayalonDumpArtifacts(page, absDir, "error_state");
-    } catch {}
+    try { await ayalonDumpArtifacts(page, absDir, "error_state"); } catch {}
     await setStatus(runId, { status: "error", error: e?.message || String(e), monthLabel });
     throw e;
   } finally {

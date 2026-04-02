@@ -1,4 +1,4 @@
-import type { Page } from "playwright";
+import type { BrowserContext, Page } from "playwright";
 import type { RunnerCtx } from "../../types";
 import fs from "fs";
 import path from "path";
@@ -162,49 +162,6 @@ export async function ayalonHandleOtp(page: Page, ctx: RunnerCtx) {
   }
 }
 
-export async function ayalonNavigateToReport(page: Page) {
-    console.log("[Ayalon] Navigating to reports page...");
-
-  const reportsUrl = "https://portal.ayalon-ins.co.il/f5-w-68747470733a2f2f6167656e7473706f7274616c$$/reports/";
-  await page.goto(reportsUrl, { waitUntil: "domcontentloaded", timeout: 60000 }).catch(() => {});
-  await page.waitForTimeout(8000);
-
-  // ✅ CDP Session
-  const cdp = await page.context().newCDPSession(page);
-
-  const countResult = await cdp.send("Runtime.evaluate", {
-    expression: "document.querySelectorAll('*').length",
-    returnByValue: true,
-  });
-  console.log("[Ayalon] CDP elements count:", countResult.result.value);
-
-  const fillResult = await cdp.send("Runtime.evaluate", {
-    expression: `(function() {
-      const input = document.querySelector('#searchbox');
-      if (!input) return 'NOT_FOUND';
-      input.focus();
-      input.value = 'נפרעים';
-      input.dispatchEvent(new Event('input', { bubbles: true }));
-      input.dispatchEvent(new Event('change', { bubbles: true }));
-      return 'FILLED: ' + input.value;
-    })()`,
-    returnByValue: true,
-  });
-  console.log("[Ayalon] CDP fill result:", fillResult.result.value);
-
-  const clickResult = await cdp.send("Runtime.evaluate", {
-    expression: `(function() {
-      const btn = document.querySelector('#report-submit-button');
-      if (!btn) return 'BTN_NOT_FOUND';
-      btn.click();
-      return 'CLICKED';
-    })()`,
-    returnByValue: true,
-  });
-  console.log("[Ayalon] CDP click result:", clickResult.result.value);
-
-  await page.waitForTimeout(2000);
-}
 
 
 export async function ayalonHandlePopups(page: Page) {
@@ -545,5 +502,156 @@ export async function ayalonDismissPopupAggressive(page: Page) {
     await page.waitForTimeout(1000);
   } catch (e: any) {
     console.log("[Ayalon] Aggressive dismiss failed:", e?.message || e);
+  }
+}
+export async function ayalonNavigateToReport(page: Page) {
+  console.log("[Ayalon] Navigating to reports page...");
+
+  const reportsUrl = "https://portal.ayalon-ins.co.il/f5-w-68747470733a2f2f6167656e7473706f7274616c$$/reports/";
+  await page.goto(reportsUrl, { waitUntil: "domcontentloaded", timeout: 60000 }).catch(() => {});
+  await page.waitForTimeout(8000);
+
+  const cdp = await page.context().newCDPSession(page);
+
+  const countResult = await cdp.send("Runtime.evaluate", {
+    expression: "document.querySelectorAll('*').length",
+    returnByValue: true,
+  });
+  console.log("[Ayalon] CDP elements count:", countResult.result.value);
+
+  const fillResult = await cdp.send("Runtime.evaluate", {
+    expression: `(function() {
+      const input = document.querySelector('#searchbox');
+      if (!input) return 'NOT_FOUND';
+      input.focus();
+      input.value = 'נפרעים';
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+      return 'FILLED: ' + input.value;
+    })()`,
+    returnByValue: true,
+  });
+  console.log("[Ayalon] CDP fill result:", fillResult.result.value);
+
+  const clickResult = await cdp.send("Runtime.evaluate", {
+    expression: `(function() {
+      const btn = document.querySelector('#report-submit-button');
+      if (!btn) return 'BTN_NOT_FOUND';
+      btn.click();
+      return 'CLICKED';
+    })()`,
+    returnByValue: true,
+  });
+  console.log("[Ayalon] CDP click result:", clickResult.result.value);
+
+  await page.waitForTimeout(2000);
+  console.log("[Ayalon] Report search submitted.");
+}
+
+export async function ayalonOpenReportTab(page: Page, context: BrowserContext): Promise<Page> {
+  console.log("[Ayalon] Opening report tab...");
+
+  const cdp = await page.context().newCDPSession(page);
+
+  const [newPage] = await Promise.all([
+    context.waitForEvent("page", { timeout: 30000 }),
+    cdp.send("Runtime.evaluate", {
+      expression: `(function() {
+        const links = Array.from(document.querySelectorAll('a[title*="נפרעים"]'));
+        const report = links.find(a => a.title.includes('סוכן משנה') || a.title.includes('נפרעים'));
+        if (!report) return 'NOT_FOUND: ' + links.map(a => a.title).join(' | ');
+        report.click();
+        return 'CLICKED: ' + report.title;
+      })()`,
+      returnByValue: true,
+    }),
+  ]);
+
+  await newPage.bringToFront();
+  await newPage.waitForLoadState("domcontentloaded", { timeout: 60000 }).catch(() => {});
+  await newPage.waitForLoadState("networkidle", { timeout: 30000 }).catch(() => {});
+
+  // ✅ המתן שהטבלה תיטען — עד 2 דקות
+  console.log("[Ayalon] Waiting for table rows...");
+  const newCdp = await newPage.context().newCDPSession(newPage);
+  for (let i = 0; i < 24; i++) {
+    const rows = await newCdp.send("Runtime.evaluate", {
+      expression: `document.querySelectorAll('tbody tr, .qv-st-data-row').length`,
+      returnByValue: true,
+    });
+    console.log(`[Ayalon] Tab load check ${i+1}: rows=${rows.result.value}`);
+    if (rows.result.value > 0) {
+      console.log("[Ayalon] Table loaded!");
+      break;
+    }
+    await newPage.waitForTimeout(5000);
+  }
+
+  console.log("[Ayalon] Report tab URL:", newPage.url());
+  return newPage;
+}
+
+export async function ayalonFilterDate(page: Page, dateLabel: string) {
+  console.log("[Ayalon] Skipping date filter — will be handled by cloud function");
+  // סינון התאריך יטופל ב-Cloud Function בצד השרת
+}
+
+export async function ayalonExportExcel(page: Page): Promise<import("playwright").Download | null> {
+  console.log("[Ayalon] Exporting to Excel...");
+
+  const cdp = await page.context().newCDPSession(page);
+
+  // ✅ שלב 1: מצא את ה-header של ה-qlik_table
+  const getHeaderPos = await cdp.send("Runtime.evaluate", {
+    expression: `(function() {
+      const header = document.querySelector('.qlik_table #TpGdMG_title, .qlik_table .qv-object-header');
+      if (!header) return null;
+      const rect = header.getBoundingClientRect();
+      return JSON.stringify({ x: rect.left + rect.width/2, y: rect.top + rect.height/2 });
+    })()`,
+    returnByValue: true,
+  });
+  console.log("[Ayalon] Header position:", getHeaderPos.result.value);
+
+  const headerPos = JSON.parse(getHeaderPos.result.value || 'null');
+  if (!headerPos) {
+    console.log("[Ayalon] Header not found");
+    return null;
+  }
+
+  // ✅ שלב 2: Hover על ה-header הנכון
+  await page.mouse.move(headerPos.x, headerPos.y);
+  await page.waitForTimeout(1000);
+
+  // ✅ שלב 3: קבל מיקום האייקון הנכון
+  const btnPos = await cdp.send("Runtime.evaluate", {
+    expression: `(function() {
+      const btn = document.querySelector('.qlik_table .export_btn');
+      if (!btn) return null;
+      const rect = btn.getBoundingClientRect();
+      if (rect.width === 0) return null;
+      return JSON.stringify({ x: rect.left + rect.width/2, y: rect.top + rect.height/2 });
+    })()`,
+    returnByValue: true,
+  });
+  console.log("[Ayalon] Export btn pos:", btnPos.result.value);
+
+  const pos = JSON.parse(btnPos.result.value || 'null');
+  if (!pos) {
+    console.log("[Ayalon] Export btn not visible after header hover");
+    return null;
+  }
+
+  // ✅ שלב 4: לחץ ישירות
+  try {
+    const [download] = await Promise.all([
+      page.waitForEvent("download", { timeout: 60000 }),
+      page.mouse.click(pos.x, pos.y),
+    ]);
+    console.log("[Ayalon] Download started:", download.suggestedFilename());
+    return download;
+  } catch (e: any) {
+    console.log("[Ayalon] Export failed:", e?.message);
+    return null;
   }
 }
