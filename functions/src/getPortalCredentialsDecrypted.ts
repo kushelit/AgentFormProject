@@ -12,6 +12,14 @@ type Input = {
   portalId: string;
 };
 
+
+type PortalCredentials = {
+  username?: string;
+  password?: string;
+  phoneNumber?: string;
+  licenseNumber?: string;
+};
+
 function s(v: any) {
   return String(v ?? "").trim();
 }
@@ -27,6 +35,7 @@ function isValidPortalId(portalId: string) {
  * - username always
  * - password optional
  * - phoneNumber optional
+ * - licenseNumber optional
  */
 export const getPortalCredentialsDecrypted = onCall(
   {region: FUNCTIONS_REGION , secrets: [PORTAL_ENC_KEY_B64]},
@@ -57,11 +66,12 @@ export const getPortalCredentialsDecrypted = onCall(
       throw new HttpsError("internal", "Invalid enc payload");
     }
 
-    const plain = decryptJsonAes256Gcm(keyB64, enc) as any;
+const plain = decryptJsonAes256Gcm(keyB64, enc) as PortalCredentials;
 
     const username = s(plain?.username);
     const password = s(plain?.password);
     const phoneNumber = s(plain?.phoneNumber);
+    const licenseNumber = s(plain?.licenseNumber);
 
     if (!username) throw new HttpsError("internal", "Decrypted username empty");
 
@@ -70,6 +80,7 @@ export const getPortalCredentialsDecrypted = onCall(
       username,
       ...(password ? {password} : {}),
       ...(phoneNumber ? {phoneNumber} : {}),
+      ...(licenseNumber ? {licenseNumber} : {}),
     };
   }
 );

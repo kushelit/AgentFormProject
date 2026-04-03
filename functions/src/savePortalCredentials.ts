@@ -14,6 +14,14 @@ type Input = {
   username: string;
   password?: string;
   phoneNumber?: string;
+  licenseNumber?: string;
+};
+
+type PortalCredentials = {
+  username?: string;
+  password?: string;
+  phoneNumber?: string;
+  licenseNumber?: string;
 };
 
 function s(v: any) {
@@ -64,18 +72,42 @@ export const savePortalCredentials = onCall(
       throw new HttpsError("permission-denied", "Cannot save credentials for another agent");
     }
 
-    const isMenora = portalId === "menora";
+  const isMenora = portalId === "menora";
+const isMor = portalId === "mor";
+const isMeitav = portalId === "meitav";
 
-    if (isMenora) {
-      if (!phoneNumber) throw new HttpsError("invalid-argument", "Missing phoneNumber for menora");
-    } else {
-      if (!password) throw new HttpsError("invalid-argument", "Missing password");
-    }
+const licenseNumber = s((body as any).licenseNumber);
+
+if (isMor) {
+  if (!licenseNumber) {
+    throw new HttpsError("invalid-argument", "Missing licenseNumber for mor");
+  }
+  if (!phoneNumber) {
+    throw new HttpsError("invalid-argument", "Missing phoneNumber for mor");
+  }
+} else if (isMenora) {
+  if (!phoneNumber) {
+    throw new HttpsError("invalid-argument", "Missing phoneNumber for menora");
+  }
+} else if (isMeitav) {
+  if (!phoneNumber) {
+    throw new HttpsError("invalid-argument", "Missing phoneNumber for meitav");
+  }
+} else {
+  if (!password) {
+    throw new HttpsError("invalid-argument", "Missing password");
+  }
+}
 
     const keyB64 = PORTAL_ENC_KEY_B64.value();
     if (!keyB64) throw new HttpsError("internal", "Missing encryption secret value");
 
-    const encPayload = isMenora ? {username, phoneNumber} : {username, password};
+const encPayload: PortalCredentials = isMor
+  ? {licenseNumber, username, phoneNumber}
+  : (isMenora || isMeitav)
+    ? {username, phoneNumber}
+    : {username, password};
+
     const enc = encryptJsonAes256Gcm(keyB64, encPayload);
 
     const db = adminDb();

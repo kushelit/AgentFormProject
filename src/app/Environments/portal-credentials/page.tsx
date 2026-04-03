@@ -35,6 +35,7 @@ export default function PortalCredentialsPage() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
+  const [licenseNumber, setLicenseNumber] = useState("");
   const [saving, setSaving] = useState(false);
 
   const agentId = user?.uid || "";
@@ -45,61 +46,61 @@ export default function PortalCredentialsPage() {
   );
 
   const isMenora = selectedPortalId === "menora";
-
+  const isMor = selectedPortalId === "mor";
+  const isMeitav = selectedPortalId === "meitav";
 
   const [pairing, setPairing] = useState<{ code: string; expiresAtMs: number } | null>(null);
   const [pairingLeftSec, setPairingLeftSec] = useState<number>(0);
-const [creatingPairing, setCreatingPairing] = useState(false);
+  const [creatingPairing, setCreatingPairing] = useState(false);
 
   useEffect(() => {
     if (!pairing?.expiresAtMs) return;
+
     const tick = () => {
       const left = Math.max(0, Math.ceil((pairing.expiresAtMs - Date.now()) / 1000));
       setPairingLeftSec(left);
       if (left <= 0) setPairing(null);
     };
+
     tick();
     const t = setInterval(tick, 1000);
     return () => clearInterval(t);
   }, [pairing?.expiresAtMs]);
 
-const onCreatePairingCode = async () => {
-  if (creatingPairing) return;
+  const onCreatePairingCode = async () => {
+    if (creatingPairing) return;
 
-  setCreatingPairing(true);
-  try {
-    const fn = httpsCallable(functions, "createRunnerPairingCode");
-    const res: any = await fn({});
+    setCreatingPairing(true);
+    try {
+      const fn = httpsCallable(functions, "createRunnerPairingCode");
+      const res: any = await fn({});
 
-    const code = s(res?.data?.code);
-    const expiresAtMs = Number(res?.data?.expiresAtMs || 0);
+      const code = s(res?.data?.code);
+      const expiresAtMs = Number(res?.data?.expiresAtMs || 0);
 
-    if (!code || !expiresAtMs) {
-      throw new Error("Missing code/expiresAtMs");
+      if (!code || !expiresAtMs) {
+        throw new Error("Missing code/expiresAtMs");
+      }
+
+      setPairing({ code, expiresAtMs });
+    } catch (e: any) {
+      console.error(e);
+      alert(`שגיאה ביצירת קוד חיבור: ${String(e?.message || e)}`);
+    } finally {
+      setCreatingPairing(false);
     }
-
-    setPairing({ code, expiresAtMs });
-  } catch (e: any) {
-    console.error(e);
-    alert(`שגיאה ביצירת קוד חיבור: ${String(e?.message || e)}`);
-  } finally {
-    setCreatingPairing(false);
-  }
-};
-
+  };
 
   const onCopyPairing = async () => {
-  if (!pairing?.code) return;
+    if (!pairing?.code) return;
 
-  try {
-    await navigator.clipboard.writeText(pairing.code);
-    alert("✅ הקוד הועתק");
-  } catch {
-    // fallback אם clipboard לא נתמך
-    alert(`העתקה נכשלה. הקוד הוא:\n${pairing.code}`);
-  }
-};
-
+    try {
+      await navigator.clipboard.writeText(pairing.code);
+      alert("✅ הקוד הועתק");
+    } catch {
+      alert(`העתקה נכשלה. הקוד הוא:\n${pairing.code}`);
+    }
+  };
 
   useEffect(() => {
     const run = async () => {
@@ -159,6 +160,7 @@ const onCreatePairingCode = async () => {
       setStatusMap({});
       return;
     }
+
     const getStatus = httpsCallable(functions, "getPortalCredentialsStatus");
     const res: any = await getStatus({ agentId, portalIds });
     setStatusMap(res?.data?.status || {});
@@ -169,13 +171,20 @@ const onCreatePairingCode = async () => {
     setUsername("");
     setPassword("");
     setPhoneNumber("");
+    setLicenseNumber("");
   };
 
   const canSave =
     !!agentId &&
     !!selectedPortalId &&
     !!username &&
-    (isMenora ? !!phoneNumber : !!password) &&
+    (
+      isMor
+        ? (!!licenseNumber && !!phoneNumber)
+        : (isMenora || isMeitav)
+          ? !!phoneNumber
+          : !!password
+    ) &&
     !saving;
 
   const onSave = async () => {
@@ -191,13 +200,24 @@ const onCreatePairingCode = async () => {
         username,
       };
 
-      if (isMenora) payload.phoneNumber = phoneNumber;
-      else payload.password = password;
+      if (isMor) {
+        payload.licenseNumber = licenseNumber;
+        payload.phoneNumber = phoneNumber;
+      } else if (isMenora || isMeitav) {
+        payload.phoneNumber = phoneNumber;
+      } else {
+        payload.password = password;
+      }
 
       await saveCreds(payload);
 
       await refreshStatus();
+
+      setUsername("");
       setPassword("");
+      setPhoneNumber("");
+      setLicenseNumber("");
+
       alert("✅ נשמר בהצלחה");
     } catch (e: any) {
       console.error(e);
@@ -223,6 +243,10 @@ const onCreatePairingCode = async () => {
         כאן שומרים פרטי התחברות לכל פורטל (מוצפן). לכל פורטל יש דרישות שונות.
         <br />
         <b>מנורה:</b> שם משתמש + טלפון/SAPN (ללא סיסמה).
+        <br />
+        <b>מור:</b> מספר רישיון + תעודת זהות + טלפון (ללא סיסמה).
+        <br />
+        <b>מיטב:</b> תעודת זהות + טלפון (ללא סיסמה).
       </p>
 
       <div className="mt-4 text-sm text-gray-700">
@@ -236,12 +260,12 @@ const onCreatePairingCode = async () => {
         </div>
 
         <div className="mt-3 flex justify-end gap-2">
-<Button
-  text={creatingPairing ? "⏳ יוצר..." : "צור קוד חיבור"}
-  type="primary"
-  onClick={onCreatePairingCode}
-  disabled={creatingPairing}
-/>
+          <Button
+            text={creatingPairing ? "⏳ יוצר..." : "צור קוד חיבור"}
+            type="primary"
+            onClick={onCreatePairingCode}
+            disabled={creatingPairing}
+          />
           {pairing?.code && (
             <Button text="העתק" type="secondary" onClick={onCopyPairing} />
           )}
@@ -257,6 +281,7 @@ const onCreatePairingCode = async () => {
           </div>
         )}
       </div>
+
       {loading ? (
         <div className="mt-6">טוען...</div>
       ) : (
@@ -329,34 +354,66 @@ const onCreatePairingCode = async () => {
             </div>
 
             <div className="mb-3">
-              <label className="block font-semibold mb-1">שם משתמש:</label>
+              <label className="block font-semibold mb-1">
+                {(isMor || isMeitav) ? "תעודת זהות:" : "שם משתמש:"}
+              </label>
               <input
                 className="select-input w-full"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                placeholder={isMenora ? "קוד משתמש / ת״ז לפורטל מנורה" : "לדוגמה: ת״ז / שם משתמש"}
+                placeholder={
+                  isMor
+                    ? "תעודת זהות לפורטל מור"
+                    : isMeitav
+                      ? "תעודת זהות לפורטל מיטב"
+                      : isMenora
+                        ? "קוד משתמש / ת״ז לפורטל מנורה"
+                        : "לדוגמה: ת״ז / שם משתמש"
+                }
               />
             </div>
 
-            {/* מנורה: טלפון/SAPN */}
-            {isMenora && (
+            {isMor && (
               <div className="mb-3">
-                <label className="block font-semibold mb-1">טלפון / SAPN:</label>
+                <label className="block font-semibold mb-1">מספר רישיון:</label>
+                <input
+                  className="select-input w-full"
+                  value={licenseNumber}
+                  onChange={(e) => setLicenseNumber(e.target.value)}
+                  placeholder="מספר רישיון לפורטל מור"
+                />
+              </div>
+            )}
+
+            {(isMenora || isMor || isMeitav) && (
+              <div className="mb-3">
+                <label className="block font-semibold mb-1">
+                  {(isMor || isMeitav) ? "טלפון:" : "טלפון / SAPN:"}
+                </label>
                 <input
                   className="select-input w-full"
                   value={phoneNumber}
                   onChange={(e) => setPhoneNumber(e.target.value)}
-                  placeholder="מספר טלפון להזדהות במנורה"
+                  placeholder={
+                    isMor
+                      ? "מספר טלפון להזדהות בפורטל מור"
+                      : isMeitav
+                        ? "מספר טלפון להזדהות בפורטל מיטב"
+                        : "מספר טלפון להזדהות במנורה"
+                  }
                   inputMode="tel"
                 />
                 <div className="text-xs text-gray-500 mt-1">
-                  במנורה אין סיסמה. יש שם משתמש + טלפון ואז OTP.
+                  {isMor
+                    ? "במור אין סיסמה. יש מספר רישיון + תעודת זהות + טלפון ואז OTP."
+                    : isMeitav
+                      ? "במיטב אין סיסמה. יש תעודת זהות + טלפון ואז OTP."
+                      : "במנורה אין סיסמה. יש שם משתמש + טלפון ואז OTP."}
                 </div>
               </div>
             )}
 
-            {/* אחרים: סיסמה */}
-            {!isMenora && (
+            {!isMenora && !isMor && !isMeitav && (
               <div className="mb-3">
                 <label className="block font-semibold mb-1">סיסמה:</label>
                 <input

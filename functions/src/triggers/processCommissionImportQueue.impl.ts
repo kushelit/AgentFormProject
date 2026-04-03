@@ -20,6 +20,33 @@ function safeStr(v: any) {
   return String(v ?? "").trim();
 }
 
+// function getPreviousMonthStr(): string {
+//   const now = new Date();
+//   let year = now.getFullYear();
+//   let month = now.getMonth() ; // 0-11, ולכן זה כבר "החודש הקודם" במספור 1-12
+
+//   if (month === 0) {
+//     year -= 1;
+//     month = 12;
+//   }
+
+//   return `${year}-${String(month).padStart(2, "0")}`;
+// }
+
+function getPreviousMonthStr(): string {
+  const now = new Date();
+  let year = now.getFullYear();
+  let month = now.getMonth() - 1; // חודשיים אחורה
+
+  if (month <= 0) {
+    month += 12;
+    year -= 1;
+  }
+
+  return `${year}-${String(month).padStart(2, "0")}`;
+}
+
+
 function normalizeBucketName(b: string) {
   const s = String(b || "").trim().replace(/^gs:\/\//, "");
   if (!s) return "";
@@ -256,7 +283,7 @@ export async function processCommissionImportQueueImpl(event: any) {
 
     const zipEntryRules = tmpl?.zipEntryRules || null;
     const missingZipEntryBehavior = safeStr(tmpl?.missingZipEntryBehavior || "error");
-
+    
     const companySnap = await db.collection("company").doc(companyId).get();
     const companyName = companySnap.exists ? safeStr(companySnap.data()?.companyName) : "";
 
@@ -373,9 +400,26 @@ if (!picked.ok) {
     });
     if (!standardized.length) throw stepError("standardize", "No standardized rows produced");
 
+let finalRows = standardized;
+
+// רק לאיילון
+if (templateId === "ayalon_insurance") {
+  const targetMonth = getPreviousMonthStr();
+
+  finalRows = standardized.filter((row: any) => {
+    return safeStr(row.reportMonth) === targetMonth;
+  });
+
+  if (!finalRows.length) {
+    throw stepError(
+      "filter_month",
+      `Ayalon: no rows for ${targetMonth}`
+    );
+  }
+}
     // ✅ runId = jobId (ייחודי לכל תבנית/קובץ)
     const { rowsPrepared, commissionSummaries, policySummaries, runDoc } = buildArtifacts({
-      standardizedRows: standardized,
+      standardizedRows: finalRows,
       runId: jobId,
       runMeta: {
         agentId,
