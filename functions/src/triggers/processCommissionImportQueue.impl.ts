@@ -402,8 +402,12 @@ if (!picked.ok) {
 
 let finalRows = standardized;
 
-// רק לאיילון
-if (templateId === "ayalon_insurance") {
+const monthFilteredTemplateIds = [
+  "ayalon_insurance",
+  "analyst_insurance",
+];
+
+if (monthFilteredTemplateIds.includes(templateId)) {
   const targetMonth = getPreviousMonthStr();
 
   finalRows = standardized.filter((row: any) => {
@@ -413,7 +417,7 @@ if (templateId === "ayalon_insurance") {
   if (!finalRows.length) {
     throw stepError(
       "filter_month",
-      `Ayalon: no rows for ${targetMonth}`
+      `${templateId}: no rows for ${targetMonth}`
     );
   }
 }

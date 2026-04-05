@@ -75,6 +75,7 @@ export const savePortalCredentials = onCall(
   const isMenora = portalId === "menora";
 const isMor = portalId === "mor";
 const isMeitav = portalId === "meitav";
+const isAnalyst = portalId === "analyst";
 
 const licenseNumber = s((body as any).licenseNumber);
 
@@ -93,6 +94,10 @@ if (isMor) {
   if (!phoneNumber) {
     throw new HttpsError("invalid-argument", "Missing phoneNumber for meitav");
   }
+} else if (isAnalyst) {
+  if (!phoneNumber) {
+    throw new HttpsError("invalid-argument", "Missing phoneNumber for analyst");
+  }
 } else {
   if (!password) {
     throw new HttpsError("invalid-argument", "Missing password");
@@ -104,7 +109,7 @@ if (isMor) {
 
 const encPayload: PortalCredentials = isMor
   ? {licenseNumber, username, phoneNumber}
-  : (isMenora || isMeitav)
+  : (isMenora || isMeitav || isAnalyst)
     ? {username, phoneNumber}
     : {username, password};
 

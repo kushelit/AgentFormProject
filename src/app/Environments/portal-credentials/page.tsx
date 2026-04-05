@@ -48,6 +48,7 @@ export default function PortalCredentialsPage() {
   const isMenora = selectedPortalId === "menora";
   const isMor = selectedPortalId === "mor";
   const isMeitav = selectedPortalId === "meitav";
+  const isAnalyst = selectedPortalId === "analyst";
 
   const [pairing, setPairing] = useState<{ code: string; expiresAtMs: number } | null>(null);
   const [pairingLeftSec, setPairingLeftSec] = useState<number>(0);
@@ -181,9 +182,9 @@ export default function PortalCredentialsPage() {
     (
       isMor
         ? (!!licenseNumber && !!phoneNumber)
-        : (isMenora || isMeitav)
-          ? !!phoneNumber
-          : !!password
+        : (isMenora || isMeitav || isAnalyst)        
+        ? !!phoneNumber
+       : !!password
     ) &&
     !saving;
 
@@ -203,7 +204,7 @@ export default function PortalCredentialsPage() {
       if (isMor) {
         payload.licenseNumber = licenseNumber;
         payload.phoneNumber = phoneNumber;
-      } else if (isMenora || isMeitav) {
+      } else if (isMenora || isMeitav || isAnalyst) {
         payload.phoneNumber = phoneNumber;
       } else {
         payload.password = password;
@@ -247,6 +248,9 @@ export default function PortalCredentialsPage() {
         <b>מור:</b> מספר רישיון + תעודת זהות + טלפון (ללא סיסמה).
         <br />
         <b>מיטב:</b> תעודת זהות + טלפון (ללא סיסמה).
+        <br /><b>Analyst:</b> שם משתמש + טלפון (ללא סיסמה).
+        <br />
+        <b>אחרים:</b> שם משתמש + סיסמה.
       </p>
 
       <div className="mt-4 text-sm text-gray-700">
@@ -355,7 +359,7 @@ export default function PortalCredentialsPage() {
 
             <div className="mb-3">
               <label className="block font-semibold mb-1">
-                {(isMor || isMeitav) ? "תעודת זהות:" : "שם משתמש:"}
+{(isMor || isMeitav || isAnalyst) ? "תעודת זהות:" : "שם משתמש:"}
               </label>
               <input
                 className="select-input w-full"
@@ -368,7 +372,9 @@ export default function PortalCredentialsPage() {
                       ? "תעודת זהות לפורטל מיטב"
                       : isMenora
                         ? "קוד משתמש / ת״ז לפורטל מנורה"
-                        : "לדוגמה: ת״ז / שם משתמש"
+                        : isAnalyst
+                          ? "תעודת זהות לפורטל אנליסט"
+                            : "לדוגמה: ת״ז / שם משתמש"
                 }
               />
             </div>
@@ -385,36 +391,40 @@ export default function PortalCredentialsPage() {
               </div>
             )}
 
-            {(isMenora || isMor || isMeitav) && (
-              <div className="mb-3">
+{(isMenora || isMor || isMeitav || isAnalyst) && (
+                <div className="mb-3">
                 <label className="block font-semibold mb-1">
-                  {(isMor || isMeitav) ? "טלפון:" : "טלפון / SAPN:"}
+                  {(isMor || isMeitav || isAnalyst) ? "טלפון:" : "טלפון / SAPN:"}
                 </label>
                 <input
                   className="select-input w-full"
                   value={phoneNumber}
                   onChange={(e) => setPhoneNumber(e.target.value)}
-                  placeholder={
-                    isMor
-                      ? "מספר טלפון להזדהות בפורטל מור"
-                      : isMeitav
-                        ? "מספר טלפון להזדהות בפורטל מיטב"
-                        : "מספר טלפון להזדהות במנורה"
-                  }
+                 placeholder={
+  isMor
+    ? "מספר טלפון להזדהות בפורטל מור"
+    : isMeitav
+      ? "מספר טלפון להזדהות בפורטל מיטב"
+      : isAnalyst
+        ? "מספר טלפון להזדהות בפורטל אנליסט"
+        : "מספר טלפון להזדהות במנורה"
+}
                   inputMode="tel"
                 />
                 <div className="text-xs text-gray-500 mt-1">
                   {isMor
-                    ? "במור אין סיסמה. יש מספר רישיון + תעודת זהות + טלפון ואז OTP."
-                    : isMeitav
-                      ? "במיטב אין סיסמה. יש תעודת זהות + טלפון ואז OTP."
-                      : "במנורה אין סיסמה. יש שם משתמש + טלפון ואז OTP."}
+  ? "במור אין סיסמה. יש מספר רישיון + תעודת זהות + טלפון ואז OTP."
+  : isMeitav
+    ? "במיטב אין סיסמה. יש תעודת זהות + טלפון ואז OTP."
+    : isAnalyst
+      ? "באנליסט אין סיסמה. יש תעודת זהות + טלפון ואז OTP."
+      : "במנורה אין סיסמה. יש שם משתמש + טלפון ואז OTP."}
                 </div>
               </div>
             )}
 
-            {!isMenora && !isMor && !isMeitav && (
-              <div className="mb-3">
+{!isMenora && !isMor && !isMeitav && !isAnalyst && (
+                <div className="mb-3">
                 <label className="block font-semibold mb-1">סיסמה:</label>
                 <input
                   className="select-input w-full"

@@ -9,6 +9,7 @@ import { runHarelAll } from "./harel/harel.all";
 import { runAyalonAll } from "./ayalon/ayalon.all";
 import { runMorAll } from "./mor/mor.all";
 import { runMeitavAll } from "./meitav/meitav.all";
+import { runAnalystAll } from "./analyst/analyst.all";
 
 
 // import { runMigdalInsurance } from "./migdal/migdal.insurance";
@@ -25,5 +26,5 @@ export const providers: Record<string, RunnerHandler> = {
   ayalon_commissions_all: runAyalonAll,
   mor_commissions_all: runMorAll,
   meitav_commissions_all: runMeitavAll,
-
+  analyst_commissions_all: runAnalystAll,
 };
