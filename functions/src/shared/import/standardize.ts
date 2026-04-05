@@ -2,10 +2,32 @@
 import {normalizeHeader, parseReportMonth, sanitizeMonth} from "../month";
 import {BaseRow, CommissionTemplate, Mapping, StandardizedRow} from "./types";
 
-const VAT_DEFAULT = 0.17;
+const decodeFirestoreFieldKey = (s: string) =>
+  String(s).replaceAll("__SLASH__", "/");
+
+const VAT_DEFAULT = 0.18;
 
 function roundTo2(num: number) {
   return Math.round(num * 100) / 100;
+}
+
+function isMeitavDemoRow(rawRow: any): boolean {
+  const reportDate =
+    rawRow[normalizeHeader("תאריך היתרה")] ?? rawRow["תאריך היתרה"];
+  const company =
+    rawRow[normalizeHeader("חברה מנהלת")] ?? rawRow["חברה מנהלת"];
+  const fullName =
+    rawRow[normalizeHeader("שם עמית")] ?? rawRow["שם עמית"];
+
+  const reportDateStr = String(reportDate ?? "").trim();
+  const companyStr = String(company ?? "").trim();
+  const fullNameStr = String(fullName ?? "").trim();
+
+  return (
+    reportDateStr === "01/01/2000" &&
+    companyStr === "דוגמה" &&
+    fullNameStr === "דוגמה"
+  );
 }
 
 function toNum(v: any): number {
@@ -115,7 +137,15 @@ export function standardizeRowWithTemplate(params: {
   const result: any = {...base};
 
   // 1) מיפוי בסיסי
-  const mapping: Mapping = template.fields || {};
+  // const mapping: Mapping = template.fields || {};
+
+  const mapping: Mapping = Object.fromEntries(
+  Object.entries(template.fields || {}).map(([excelCol, systemField]) => [
+    decodeFirestoreFieldKey(excelCol),
+    systemField,
+  ])
+);
+
   for (const [excelCol, systemField] of Object.entries(mapping)) {
     const key = normalizeHeader(excelCol);
     const value = rawRow[key] ?? rawRow[excelCol];
@@ -250,13 +280,24 @@ export function standardizeRows(params: {
   const {rawRows, template, base, fallbackReportMonth, date1904} = params;
 
   // agentCode column exists if mapping maps something to agentCode
-  const mapping = template.fields || {};
+  // const mapping = template.fields || {};
+
+  const mapping = Object.fromEntries(
+  Object.entries(template.fields || {}).map(([excelCol, systemField]) => [
+    decodeFirestoreFieldKey(excelCol),
+    systemField,
+  ])
+);
+
   const agentCodeExcelColRaw =
     Object.entries(mapping).find(([, sys]) => sys === "agentCode")?.[0] || "";
   const agentCodeKey = normalizeHeader(agentCodeExcelColRaw);
 
   const standardized: StandardizedRow[] = rawRows
     .filter((r) => {
+       if (template.templateId === "meitav_insurance" && isMeitavDemoRow(r)) {
+      return false;
+    }
       if (!agentCodeKey) return true;
       const val = r[agentCodeKey] ?? r[agentCodeExcelColRaw];
       return val && String(val).trim() !== "";

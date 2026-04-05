@@ -38,6 +38,14 @@ export async function runMeitavAll(ctx: RunnerCtx) {
   const agentId = s((run as any)?.agentId || ctx.agentId);
   const { username, phoneNumber } = await getMeitavCreds(ctx);
 
+  // ✅ פונקציה לעדכון downloads[] - בדיוק כמו clal
+  const appendDownload = async (item: any) => {
+    const cur = (ctx.run as any)?.downloads || [];
+    const downloads = Array.isArray(cur) ? [...cur, item] : [item];
+    (ctx.run as any).downloads = downloads;
+    await setStatus(runId, { downloads });
+  };
+
   await setStatus(runId, { status: "running", step: "meitav_open_portal", monthLabel });
 
   const userDataDir = path.join(
@@ -59,7 +67,6 @@ export async function runMeitavAll(ctx: RunnerCtx) {
   await page.bringToFront();
 
   try {
-    // ✅ שלב 1: דף הבית
     console.log("[Meitav] Navigating to home page...");
     await page.goto(portalUrl, { waitUntil: "domcontentloaded", timeout: 60000 });
     await page.waitForLoadState("networkidle", { timeout: 15000 }).catch(() => {});
@@ -67,7 +74,6 @@ export async function runMeitavAll(ctx: RunnerCtx) {
     const cdp = await page.context().newCDPSession(page);
     console.log("[Meitav] URL:", page.url());
 
-    // ✅ שלב 2: לחץ על כניסה לחשבון
     console.log("[Meitav] Clicking login button...");
     const [loginPage] = await Promise.all([
       context.waitForEvent("page", { timeout: 15000 }).catch(() => null),
@@ -95,7 +101,6 @@ export async function runMeitavAll(ctx: RunnerCtx) {
     await loginPage2.waitForTimeout(3000);
     console.log("[Meitav] Login page URL:", loginPage2.url());
 
-    // ✅ שלב 3: לוגין + OTP
     await setStatus(runId, { status: "running", step: "מבצע לוגין למיטב", monthLabel });
     await meitavLogin(loginPage2, username, phoneNumber);
     await meitavHandleOtp(loginPage2, ctx);
@@ -103,25 +108,45 @@ export async function runMeitavAll(ctx: RunnerCtx) {
     await loginPage2.waitForTimeout(10000);
     console.log("[Meitav] URL after OTP:", loginPage2.url());
 
-    // ✅ שלב 4: ניווט וייצוא
     await setStatus(runId, { status: "running", step: "מנסה לנווט לדוח עמלות", monthLabel });
+    
+    // ✅ meitavNavigateAndExport מחזיר מערך של כל ההורדות (סוכן אחד או יותר)
     const downloads = await meitavNavigateAndExport(loginPage2, absDir);
 
     if (downloads.length > 0) {
-      for (const { localPath, filename } of downloads) {
+      for (const { localPath, filename, agentName } of downloads) {
+        console.log(`[Meitav] Uploading: ${filename} for agent: ${agentName}`);
+        
         const up = await uploadLocalFileToStorageClient({
           storage,
           localPath,
           agentId,
           runId,
-          subdir: "meitav_commissions",
+          subdir: "meitav_insurance",
         } as any);
 
         if (up?.storagePath) {
           console.log("[Meitav] Uploaded:", up.storagePath);
+          
+          // ✅ עדכון downloads[] עם כל דוח - כמו clal
+          await appendDownload({
+            templateId: "meitav_insurance",
+            localPath,
+            filename: up.filename || filename,
+            storagePath: up.storagePath,
+            agentName, // מידע נוסף לזיהוי
+          });
+        } else {
+          console.log("[Meitav] Upload failed for:", filename);
         }
       }
-      await setStatus(runId, { status: "done", step: "meitav_done", monthLabel });
+      
+      await setStatus(runId, { 
+        status: "done", 
+        step: "meitav_done", 
+        monthLabel,
+        result: { uploaded: true, count: downloads.length }
+      });
     } else {
       await setStatus(runId, { status: "done", step: "meitav_done_no_files", monthLabel });
     }

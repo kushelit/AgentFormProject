@@ -126,12 +126,55 @@ export async function meitavHandleOtp(page: Page, ctx: RunnerCtx) {
   console.log("[Meitav] URL after OTP:", page.url());
   await clearOtp(runId).catch(() => {});
 }
+
+
 export async function meitavNavigateAndExport(
   page: Page,
   absDir: string
-): Promise<{ localPath: string; filename: string }[]> {
-  const results: { localPath: string; filename: string }[] = [];
+): Promise<{ localPath: string; filename: string; agentName: string }[]> {  // ✅ הוספת agentName
+  const results: { localPath: string; filename: string; agentName: string }[] = [];
   const cdp = await page.context().newCDPSession(page);
+
+  const now = new Date();
+  const prevMonth = new Date(now.getFullYear(), now.getMonth() - 2, 1);
+  const prevMonthNum = String(prevMonth.getMonth() + 1);
+  const prevYear = String(prevMonth.getFullYear());
+  console.log(`[Meitav] Target: ${prevYear}/${prevMonthNum}`);
+
+  async function getPos(selector: string) {
+    const result = await cdp.send("Runtime.evaluate", {
+      expression: `(function() {
+        const el = document.querySelector('${selector}');
+        if (!el) return null;
+        const rect = el.getBoundingClientRect();
+        return JSON.stringify({ x: rect.left + rect.width/2, y: rect.top + rect.height/2 });
+      })()`,
+      returnByValue: true,
+    });
+    return JSON.parse(result.result.value || 'null');
+  }
+
+  async function openAndSelectByValue(selector: string, dataValue: string, label: string) {
+    const pos = await getPos(selector);
+    if (!pos) { console.log(`[Meitav] ${label} not found`); return false; }
+
+    await page.mouse.click(pos.x, pos.y);
+    await page.waitForTimeout(1000);
+
+    const result = await cdp.send("Runtime.evaluate", {
+      expression: `(function(val) {
+        const options = Array.from(document.querySelectorAll('[role="option"]'));
+        const target = options.find(o => o.getAttribute('data-value') === val);
+        if (!target) return 'NOT_FOUND: ' + options.map(o => o.getAttribute('data-value')).join(' | ');
+        target.click();
+        return 'CLICKED: ' + target.textContent?.trim();
+      })('${dataValue}')`,
+      returnByValue: true,
+    });
+    console.log(`[Meitav] ${label}:`, result.result.value);
+    await page.waitForTimeout(500);
+    return true;
+  }
 
   // ✅ שלב 1: נווט לדוח עמלות
   const navResult = await cdp.send("Runtime.evaluate", {
@@ -149,7 +192,6 @@ export async function meitavNavigateAndExport(
   });
   console.log("[Meitav] Nav result:", navResult.result.value);
   await page.waitForTimeout(5000);
-  console.log("[Meitav] URL after nav:", page.url());
 
   // ✅ שלב 2: סגור dialog אם קיים
   await cdp.send("Runtime.evaluate", {
@@ -165,24 +207,12 @@ export async function meitavNavigateAndExport(
   await page.waitForTimeout(1000);
 
   // ✅ שלב 3: קבל רשימת סוכנים
-  const agentPos = await cdp.send("Runtime.evaluate", {
-    expression: `(function() {
-      const input = document.querySelector('#selectedAgent');
-      if (!input) return null;
-      const rect = input.getBoundingClientRect();
-      return JSON.stringify({ x: rect.left + rect.width/2, y: rect.top + rect.height/2 });
-    })()`,
-    returnByValue: true,
-  });
+  const agentPos = await getPos('#selectedAgent');
+  if (!agentPos) throw new Error("Agent input not found");
 
-  const pos = JSON.parse(agentPos.result.value || 'null');
-  if (!pos) throw new Error("Agent input not found");
+  await page.mouse.click(agentPos.x, agentPos.y);
+  await page.waitForTimeout(1500);
 
-  // ✅ שלב 4: לחץ פיזית על השדה
-  await page.mouse.click(pos.x, pos.y);
-  await page.waitForTimeout(1000);
-
-  // ✅ שלב 5: קבל רשימת סוכנים
   const agentsList = await cdp.send("Runtime.evaluate", {
     expression: `(function() {
       const listbox = document.querySelector('#selectedAgent-listbox');
@@ -193,49 +223,80 @@ export async function meitavNavigateAndExport(
     returnByValue: true,
   });
   const agents: string[] = JSON.parse(agentsList.result.value || '[]');
-  console.log("[Meitav] Agents:", agents);
+  console.log("[Meitav] Agents found:", agents);
+  if (agents.length === 0) throw new Error("No agents found");
 
-  // ✅ שלב 6: לכל סוכן — בחר + הצג דוחות + ייצא
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(500);
+
+  // ✅ שלב 4: לופ על כל הסוכנים
   for (let i = 0; i < agents.length; i++) {
-    console.log(`[Meitav] Processing agent ${i+1}/${agents.length}: ${agents[i]}`);
+    const agentName = agents[i];
+    console.log(`[Meitav] Processing agent ${i + 1}/${agents.length}: ${agentName}`);
 
-    // לחץ שוב על השדה ובחר סוכן לפי index
-    await page.mouse.click(pos.x, pos.y);
-    await page.waitForTimeout(800);
-
-    for (let j = 0; j <= i; j++) {
-      await page.keyboard.press('ArrowDown');
-      await page.waitForTimeout(100);
-    }
+    // בחר סוכן
+    await page.mouse.click(agentPos.x, agentPos.y);
+    await page.waitForTimeout(500);
+    await page.keyboard.press('Control+a');
+    await page.keyboard.press('Backspace');
+    await page.waitForTimeout(300);
+    await page.keyboard.type(agentName.substring(0, 3), { delay: 100 });
+    await page.waitForTimeout(1500);
+    await page.keyboard.press('ArrowDown');
+    await page.waitForTimeout(300);
     await page.keyboard.press('Enter');
-    await page.waitForTimeout(2000);
+    await page.waitForTimeout(1000);
+    console.log("[Meitav] Agent selected:", agentName);
 
-    console.log("[Meitav] Agent selected:", agents[i]);
+    // בחר סוג דוח
+    await openAndSelectByValue('#selectReportType', '102', 'Report type');
 
-    // ✅ לחץ על "הצג דוחות"
-    const searchResult = await cdp.send("Runtime.evaluate", {
-      expression: `(function() {
-        const btns = Array.from(document.querySelectorAll('button'));
-        const btn = btns.find(b => (b.textContent || '').trim().includes('הצג דוחות'));
-        if (!btn) return 'NOT_FOUND';
-        btn.click();
-        return 'CLICKED';
-      })()`,
-      returnByValue: true,
-    });
-    console.log("[Meitav] Search:", searchResult.result.value);
+    // בחר שנה
+    await openAndSelectByValue('#selectedYear', prevYear, 'Year');
+
+    // בחר חודש
+    await openAndSelectByValue('#selectedMonth', prevMonthNum, 'Month');
+
+    // ✅ לחץ על "הצג דוחות" - פיזית לפי קלאס
+    const searchBtnPos = await getPos('.col-md-2.searchBtn');
+    if (!searchBtnPos) {
+      console.log("[Meitav] searchBtn not found by class, trying text fallback...");
+      await cdp.send("Runtime.evaluate", {
+        expression: `(function() {
+          const divs = Array.from(document.querySelectorAll('div'));
+          const btn = divs.find(d => (d.textContent || '').trim().includes('הצג דוחות'));
+          if (btn) btn.click();
+        })()`,
+        returnByValue: true,
+      });
+    } else {
+      await page.mouse.click(searchBtnPos.x, searchBtnPos.y);
+    }
+    console.log("[Meitav] Search button clicked");
     await page.waitForTimeout(5000);
 
-    // ✅ ייצא לאקסל
+    // ✅ המתן שה-resDownload יופיע (עד 15 שניות)
+    for (let w = 0; w < 15; w++) {
+      const check = await cdp.send("Runtime.evaluate", {
+        expression: `document.querySelector('div.resDownload') ? 'FOUND' : 'NOT_FOUND'`,
+        returnByValue: true,
+      });
+      if (check.result.value === 'FOUND') break;
+      console.log(`[Meitav] Waiting for resDownload... (${w + 1})`);
+      await page.waitForTimeout(1000);
+    }
+    await page.waitForTimeout(2000);
+
+    // ✅ הורד קובץ
     try {
       const [download] = await Promise.all([
         page.waitForEvent("download", { timeout: 30000 }),
         cdp.send("Runtime.evaluate", {
           expression: `(function() {
-            const btn = document.querySelector('button[class*="k-grid-excel"], button[kendogridexcelcommand]');
+            const btn = document.querySelector('div.resDownload');
             if (!btn) return 'NOT_FOUND';
             btn.click();
-            return 'CLICKED';
+            return 'CLICKED: ' + btn.textContent?.trim();
           })()`,
           returnByValue: true,
         }),
@@ -245,10 +306,16 @@ export async function meitavNavigateAndExport(
       const localPath = path.join(absDir, `${Date.now()}_${filename}`);
       await download.saveAs(localPath);
       console.log("[Meitav] Saved:", localPath);
-      results.push({ localPath, filename });
+      
+      // ✅ שומרים גם את שם הסוכן
+      results.push({ localPath, filename, agentName });
+
     } catch (e: any) {
-      console.log("[Meitav] Export failed for agent:", agents[i], e?.message);
+      console.log("[Meitav] Export failed for agent:", agentName, e?.message);
     }
+
+    // ✅ המתנה קצרה בין סוכנים
+    await page.waitForTimeout(1000);
   }
 
   return results;

@@ -522,25 +522,52 @@ const handleStartAuto = async () => {
     fetchTemplates();
   }, []);
 
-  // טעינת mapping של התבנית הנבחרת
-  useEffect(() => {
-    const fetchTemplateMapping = async () => {
-      if (!templateId) { setMapping({}); setFallbackProduct(''); return; }
-      const existsInActive = templateOptions.some(t => t.id === templateId);
-      if (!existsInActive) { setMapping({}); return; }
 
-      const ref = doc(db, 'commissionTemplates', templateId);
-      const snap = await getDoc(ref);
-      if (snap.exists()) {
-        const data = snap.data();
-        setMapping(data.fields || {});
-        setFallbackProduct(String(data.fallbackProduct || '').trim());
-      } 
-      else { setMapping({}); setFallbackProduct(''); 
-    }   
-     };
-    fetchTemplateMapping();
-  }, [templateId, templateOptions]);
+const decodeFirestoreFieldKey = (s: string) =>
+  String(s).replaceAll("__SLASH__", "/");
+
+useEffect(() => {
+  const fetchTemplateMapping = async () => {
+    if (!templateId) {
+      setMapping({});
+      setFallbackProduct('');
+      return;
+    }
+
+    const existsInActive = templateOptions.some(t => t.id === templateId);
+    if (!existsInActive) {
+      setMapping({});
+      setFallbackProduct('');
+      return;
+    }
+
+    const ref = doc(db, 'commissionTemplates', templateId);
+    const snap = await getDoc(ref);
+
+    if (snap.exists()) {
+      const data = snap.data();
+      const rawFields = data.fields || {};
+
+      const finalFields =
+        templateId === 'meitav_insurance'
+          ? Object.fromEntries(
+              Object.entries(rawFields).map(([excelCol, systemField]) => [
+                decodeFirestoreFieldKey(excelCol),
+                systemField,
+              ])
+            )
+          : rawFields;
+
+      setMapping(finalFields);
+      setFallbackProduct(String(data.fallbackProduct || '').trim());
+    } else {
+      setMapping({});
+      setFallbackProduct('');
+    }
+  };
+
+  fetchTemplateMapping();
+}, [templateId, templateOptions]);
 
 
   /* ==============================
@@ -1048,7 +1075,6 @@ const parseAndStandardize = async (data: any, fileName: string, fallbackMonth?: 
 
     jsonData = XLSX.utils.sheet_to_json(ws, { defval: "", range: headerRowIndex, raw: true });
   }
-
   // 2. בדיקת שלמות בסיסית
   if (!jsonData || jsonData.length === 0) {
     setIsLoading(false);
