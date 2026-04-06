@@ -6,7 +6,7 @@ function getPrevMonthHebrew(): string {
   const hebrewMonths = ['ינואר','פברואר','מרץ','אפריל','מאי','יוני',
                         'יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
   const now = new Date();
-  const prevMonth = new Date(now.getFullYear(), now.getMonth() - 2, 1);
+  const prevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
   return hebrewMonths[prevMonth.getMonth()];
 }
 

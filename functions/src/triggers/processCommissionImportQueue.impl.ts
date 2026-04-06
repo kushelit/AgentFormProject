@@ -20,31 +20,31 @@ function safeStr(v: any) {
   return String(v ?? "").trim();
 }
 
-// function getPreviousMonthStr(): string {
-//   const now = new Date();
-//   let year = now.getFullYear();
-//   let month = now.getMonth() ; // 0-11, ולכן זה כבר "החודש הקודם" במספור 1-12
-
-//   if (month === 0) {
-//     year -= 1;
-//     month = 12;
-//   }
-
-//   return `${year}-${String(month).padStart(2, "0")}`;
-// }
-
 function getPreviousMonthStr(): string {
   const now = new Date();
   let year = now.getFullYear();
-  let month = now.getMonth() - 1; // חודשיים אחורה
+  let month = now.getMonth() ; // 0-11, ולכן זה כבר "החודש הקודם" במספור 1-12
 
-  if (month <= 0) {
-    month += 12;
+  if (month === 0) {
     year -= 1;
+    month = 12;
   }
 
   return `${year}-${String(month).padStart(2, "0")}`;
 }
+
+// function getPreviousMonthStr(): string {
+//   const now = new Date();
+//   let year = now.getFullYear();
+//   let month = now.getMonth() - 1; // חודשיים אחורה
+
+//   if (month <= 0) {
+//     month += 12;
+//     year -= 1;
+//   }
+
+//   return `${year}-${String(month).padStart(2, "0")}`;
+// }
 
 
 function normalizeBucketName(b: string) {
@@ -60,6 +60,59 @@ function stepError(step: string, message: string, extra?: any) {
   if (extra) e.extra = extra;
   return e;
 }
+
+
+async function finishAsEmpty(params: {
+  db: FirebaseFirestore.Firestore;
+  queueRef: FirebaseFirestore.DocumentReference;
+  portalRunId: string;
+  jobId: string;
+  templateId: string;
+  message: string;
+  reason: string;
+  extra?: any;
+}) {
+  const { db, queueRef, portalRunId, jobId, templateId, message, reason, extra } = params;
+
+  await queueRef.set(
+    {
+      status: "skipped",
+      finishedAt: nowTs(),
+      updatedAt: nowTs(),
+      externalCount: 0,
+      commissionSummariesCount: 0,
+      policySummariesCount: 0,
+      result: {
+        type: "empty_report",
+        reason,
+        message,
+        ...extra,
+      },
+    },
+    { merge: true }
+  );
+
+  await updatePortalRunJobState({
+    db,
+    portalRunId,
+    jobId,
+    patch: {
+      status: "skipped",
+      templateId,
+      finishedAt: nowTs(),
+      externalCount: 0,
+      commissionSummariesCount: 0,
+      policySummariesCount: 0,
+      result: {
+        type: "empty_report",
+        reason,
+        message,
+        ...extra,
+      },
+    },
+  });
+}
+
 
 
 
@@ -385,8 +438,20 @@ if (!picked.ok) {
   }
 }
     const parsed = await parseNodeFile({ fileBuffer: parseBuf, storagePathOrName: parseName, templateId, fields });
-    if (!parsed.rowsCount) throw stepError("parse_file", "File parsed but has 0 rows", parsed?.debug);
-
+    // if (!parsed.rowsCount) throw stepError("parse_file", "File parsed but has 0 rows", parsed?.debug);
+if (!parsed.rowsCount) {
+  await finishAsEmpty({
+    db,
+    queueRef,
+    portalRunId: effectivePortalRunId,
+    jobId,
+    templateId,
+    message: "הדוח נקלט אך מכיל 0 שורות",
+    reason: "parse_file_empty",
+    extra: { debug: parsed?.debug },
+  });
+  return;
+}
     const { standardized, agentCodes } = standardizeRows({
       rawRows: parsed.rawRows,
       template,
@@ -398,7 +463,19 @@ if (!picked.ok) {
         sourceFileName: path.basename(parseName),
       },
     });
-    if (!standardized.length) throw stepError("standardize", "No standardized rows produced");
+    // if (!standardized.length) throw stepError("standardize", "No standardized rows produced");
+if (!standardized.length) {
+  await finishAsEmpty({
+    db,
+    queueRef,
+    portalRunId: effectivePortalRunId,
+    jobId,
+    templateId,
+    message: "הדוח נקלט אך לאחר עיבוד לא נמצאו שורות",
+    reason: "standardize_empty",
+  });
+  return;
+}
 
 let finalRows = standardized;
 
@@ -414,12 +491,18 @@ if (monthFilteredTemplateIds.includes(templateId)) {
     return safeStr(row.reportMonth) === targetMonth;
   });
 
-  if (!finalRows.length) {
-    throw stepError(
-      "filter_month",
-      `${templateId}: no rows for ${targetMonth}`
-    );
-  }
+if (!finalRows.length) {
+  await finishAsEmpty({
+    db,
+    queueRef,
+    portalRunId: effectivePortalRunId,
+    jobId,
+    templateId,
+    message: `הדוח נקלט אך אין נתונים עבור ${targetMonth}`,
+    reason: "filter_month_empty",
+  });
+  return;
+}
 }
     // ✅ runId = jobId (ייחודי לכל תבנית/קובץ)
     const { rowsPrepared, commissionSummaries, policySummaries, runDoc } = buildArtifacts({

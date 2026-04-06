@@ -136,7 +136,7 @@ export async function meitavNavigateAndExport(
   const cdp = await page.context().newCDPSession(page);
 
   const now = new Date();
-  const prevMonth = new Date(now.getFullYear(), now.getMonth() - 2, 1);
+  const prevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
   const prevMonthNum = String(prevMonth.getMonth() + 1);
   const prevYear = String(prevMonth.getFullYear());
   console.log(`[Meitav] Target: ${prevYear}/${prevMonthNum}`);

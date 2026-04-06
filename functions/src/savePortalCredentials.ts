@@ -76,6 +76,7 @@ export const savePortalCredentials = onCall(
 const isMor = portalId === "mor";
 const isMeitav = portalId === "meitav";
 const isAnalyst = portalId === "analyst";
+const isAltshuler = portalId === "altshuler";
 
 const licenseNumber = s((body as any).licenseNumber);
 
@@ -85,6 +86,10 @@ if (isMor) {
   }
   if (!phoneNumber) {
     throw new HttpsError("invalid-argument", "Missing phoneNumber for mor");
+  }
+} else if (isAltshuler) {
+  if (!licenseNumber) {
+    throw new HttpsError("invalid-argument", "Missing licenseNumber for altshuler");
   }
 } else if (isMenora) {
   if (!phoneNumber) {
@@ -109,9 +114,11 @@ if (isMor) {
 
 const encPayload: PortalCredentials = isMor
   ? {licenseNumber, username, phoneNumber}
-  : (isMenora || isMeitav || isAnalyst)
-    ? {username, phoneNumber}
-    : {username, password};
+  : isAltshuler
+    ? {licenseNumber, username}
+    : (isMenora || isMeitav || isAnalyst)
+      ? {username, phoneNumber}
+      : {username, password};
 
     const enc = encryptJsonAes256Gcm(keyB64, encPayload);
 

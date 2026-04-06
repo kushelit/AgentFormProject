@@ -38,6 +38,12 @@ import PortalRunStatus from "@/components/PortalRuns/PortalRunStatus";
 import { usePermission } from "@/hooks/usePermission";
 
 import { recomputeSummariesFromExternalManual } from "@/utils/manualCommissionRecompute";
+import AutomaticRunsDashboard from '@/components/PortalRuns/AutomaticRunsDashboard';
+
+
+import type { MultiSheetImportProfile } from "@/types/MultiSheetImportProfile";
+import { getMultiSheetProfiles } from "@/lib/multiSheetProfiles/getMultiSheetProfiles";
+import { parseMultiSheetWorkbook } from "@/lib/multiSheetProfiles/parseMultiSheetWorkbook";
 /* ==============================
    Types
 ============================== */
@@ -158,6 +164,54 @@ const automationClass = String(selectedTemplate?.automationClass || "").trim();
 //   selectedAgentId && selectedCompanyId && templateId && automationClass
 // );
 
+
+type AutomaticCompany = {
+  id: string;
+  name: string;
+  automationEnabled?: boolean;
+  companyAutomationClass?: string;
+  portalId?: string;
+};
+
+const handleStartAutoForCompany = async (company: AutomaticCompany) => {
+  if (!selectedAgentId) return;
+
+  const finalAutomationClass = String(company.companyAutomationClass || '').trim();
+  if (!finalAutomationClass) {
+    addToast('error', 'לא הוגדר automationClass לחברה זו');
+    return;
+  }
+
+  const portalId = String(company.portalId || company.id);
+  const finalTemplateId = `bundle_${portalId}_commissions`;
+
+  setIsStartingAuto(true);
+  setIsAutoRunActive(true);
+
+  try {
+    const { runId } = await startAutoPortalRun({
+      db,
+      agentId: selectedAgentId,
+      companyId: company.id,
+      templateId: finalTemplateId,
+      automationClass: finalAutomationClass,
+      monthLabel: 'previous_month',
+      source: 'portalRunner',
+      triggeredFrom: 'ui',
+    });
+
+    setAutoRunId(runId);
+    setAutoRunKind('portal');
+  } catch (e: any) {
+    addToast('error', `שגיאה: ${e.message}`);
+    setIsAutoRunActive(false);
+  } finally {
+    setIsStartingAuto(false);
+  }
+};
+
+
+
   /* ==============================
      Helpers
   ============================== */
@@ -222,6 +276,23 @@ const uniqueCompanies = Array.from(
     return acc;
   }, new Map()).values()
 ) as any[];
+
+
+
+
+const automaticCompanies = uniqueCompanies
+  .filter((c) => c.automationEnabled)
+  .map((c) => ({
+    id: c.id,
+    name: c.name,
+    automationEnabled: c.automationEnabled,
+    companyAutomationClass: c.companyAutomationClass,
+    portalId: c.portalId || c.id,
+  }));
+
+
+
+
 
 
 
@@ -294,8 +365,12 @@ const handleStartAuto = async () => {
 
 
   const roundTo2 = (num: number) => Math.round(num * 100) / 100;
-  const getExt = (n: string) => n.slice(n.lastIndexOf('.')).toLowerCase();
-
+const getExt = (n?: string) => {
+  console.log("[getExt] input =", n);
+  if (!n || typeof n !== "string") return "";
+  const idx = n.lastIndexOf(".");
+  return idx >= 0 ? n.slice(idx).toLowerCase() : "";
+};
   // דגל דיבאגר
   const DEBUG_IMPORT = true;
 
@@ -963,40 +1038,217 @@ tempDate.setHours(tempDate.getHours() + 12);
 }
 
 
+// const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+//   const file = e.target.files?.[0];
+//   if (!file || !templateId || !selectedAgentId || !selectedCompanyId) return;
+
+//   const ext = getExt(file.name);
+//   const allowed = new Set(['.xlsx', '.xls', '.csv', '.zip']);
+//   if (!allowed.has(ext)) {
+//     setErrorDialog({
+//       title: 'סוג קובץ לא נתמך',
+//       message: <>הקובץ <b>{file.name}</b> הוא {ext}. נא להעלות רק קבצי ZIP/XLSX/XLS/CSV.</>,
+//     });
+//     if (fileInputRef.current) fileInputRef.current.value = '';
+//     return;
+//   }
+
+//   setSelectedFileName(file.name);
+//   setIsLoading(true);
+//   setLoadingStage("קורא קובץ מהמחשב..."); // שלב 1
+
+//   const reader = new FileReader();
+//   reader.onload = async (evt) => {
+//     try {
+//       const arrayBuffer = evt.target?.result as ArrayBuffer;
+//       const fallbackReportMonth = templateId === 'mor_insurance' ? extractReportMonthFromFilename(file.name) : undefined;
+
+//       // --- טיפול ב-ZIP ---
+//       if (ext === '.zip') {
+//         setLoadingStage("פותח ארכיון ZIP...");
+//         const mod = await import('jszip');
+//         const JSZip: any = (mod as any).default ?? mod;
+//         const zip = await JSZip.loadAsync(arrayBuffer);
+
+//         const entries = zip.file(/\.xlsx$|\.xls$|\.csv$/i);
+//         if (entries.length === 0) throw new Error('ה-ZIP לא מכיל XLSX/XLS/CSV.');
+
+//         // אם יש יותר מקובץ אחד, פותחים את הבוחר ומפסיקים
+//         if (entries.length > 1) {
+//           const names = entries.map((f: any) => f.name);
+//           setZipChooser({ zip, entryNames: names, outerFileName: file.name });
+//           setSelectedZipEntry(names[0]);
+//           setIsLoading(false);
+//           setLoadingStage("");
+//           return;
+//         }
+
+//         // אם יש קובץ אחד בלבד ב-ZIP, מחלצים אותו וממשיכים לעיבוד
+//         const entry = entries[0];
+//         setLoadingStage(`מחלץ את ${entry.name}...`);
+//         const innerData = /\.csv$/i.test(entry.name) 
+//           ? await entry.async('uint8array') 
+//           : await entry.async('arraybuffer');
+        
+//         await parseAndStandardize(innerData, entry.name, fallbackReportMonth);
+
+//       } else {
+//         // --- טיפול בקובץ רגיל (XLSX/CSV) ---
+//         await parseAndStandardize(arrayBuffer, file.name, fallbackReportMonth);
+//       }
+//     } catch (err: any) {
+//       setErrorDialog({
+//         title: 'שגיאת עיבוד קובץ',
+//         message: <>אירעה שגיאה בעת עיבוד הקובץ <b>{file.name}</b>.</>,
+//       });
+//     } finally {
+//       setIsLoading(false);
+//       setLoadingStage("");
+//     }
+//   };
+//   reader.readAsArrayBuffer(file);
+// };
+
 const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
   const file = e.target.files?.[0];
-  if (!file || !templateId || !selectedAgentId || !selectedCompanyId) return;
+
+  // במצב multi-sheet לא חייבים templateId
+  // if (!file || !selectedAgentId || !selectedCompanyId) return;
+
+  if (!file || !selectedAgentId) return;
+
+if (importMode === "single" && !selectedCompanyId) return;
+
+  if (importMode === "single" && !templateId) return;
+  if (importMode === "multi_sheet" && !selectedMultiSheetProfile) {
+    setErrorDialog({
+      title: "חסר פרופיל",
+      message: "יש לבחור פרופיל טעינה מרובה לשוניות לפני העלאת הקובץ.",
+    });
+    if (fileInputRef.current) fileInputRef.current.value = "";
+    return;
+  }
 
   const ext = getExt(file.name);
-  const allowed = new Set(['.xlsx', '.xls', '.csv', '.zip']);
+  const allowed = new Set([".xlsx", ".xls", ".csv", ".zip"]);
   if (!allowed.has(ext)) {
     setErrorDialog({
-      title: 'סוג קובץ לא נתמך',
-      message: <>הקובץ <b>{file.name}</b> הוא {ext}. נא להעלות רק קבצי ZIP/XLSX/XLS/CSV.</>,
+      title: "סוג קובץ לא נתמך",
+      message: (
+        <>
+          הקובץ <b>{file.name}</b> הוא {ext}. נא להעלות רק קבצי ZIP/XLSX/XLS/CSV.
+        </>
+      ),
     });
-    if (fileInputRef.current) fileInputRef.current.value = '';
+    if (fileInputRef.current) fileInputRef.current.value = "";
+    return;
+  }
+
+  // במצב multi-sheet נתמוך רק באקסל
+  if (importMode === "multi_sheet" && ![".xlsx", ".xls"].includes(ext)) {
+    setErrorDialog({
+      title: "סוג קובץ לא נתמך",
+      message: "טעינת קובץ מרובה לשוניות נתמכת רק עבור Excel (.xlsx / .xls).",
+    });
+    if (fileInputRef.current) fileInputRef.current.value = "";
     return;
   }
 
   setSelectedFileName(file.name);
+  setStandardizedRows([]);
+  setMultiSheetPreview(null);
+  setExistingRunIds([]);
+  setMonthsInFile([]);
+  setConflictingRunIds([]);
+
   setIsLoading(true);
-  setLoadingStage("קורא קובץ מהמחשב..."); // שלב 1
+  setLoadingStage("קורא קובץ מהמחשב...");
 
   const reader = new FileReader();
+
   reader.onload = async (evt) => {
     try {
       const arrayBuffer = evt.target?.result as ArrayBuffer;
-      const fallbackReportMonth = templateId === 'mor_insurance' ? extractReportMonthFromFilename(file.name) : undefined;
+
+      // =========================
+      // MULTI SHEET MODE
+      // =========================
+      if (importMode === "multi_sheet") {
+        setLoadingStage("פותח חוברת עבודה מרובת לשוניות...");
+
+        const wb = XLSX.read(arrayBuffer, { type: "array", cellDates: true });
+
+        const result = await parseMultiSheetWorkbook({
+          db,
+          workbook: wb,
+          profile: selectedMultiSheetProfile!,
+          selectedAgentId,
+          selectedCompanyId,
+          selectedCompanyName,
+          standardizeSheetRows,
+        });
+
+        setMultiSheetPreview({
+          matchedSheets: result.matchedSheets,
+          unmatchedSheets: result.unmatchedSheets,
+          ignoredSheets: result.ignoredSheets,
+        });
+
+        const doneSheets = result.matchedSheets.filter((x) => x.status === "done");
+
+        if (doneSheets.length === 0 || result.rows.length === 0) {
+          setStandardizedRows([]);
+          setErrorDialog({
+            title: "לא זוהו לשוניות לטעינה",
+            message: (
+              <div className="text-right">
+                <p>לא נמצאה אף לשונית עם התאמה תקינה לפרופיל שנבחר.</p>
+                {result.unmatchedSheets.length > 0 && (
+                  <p className="mt-2 text-sm text-gray-500">
+                    לשוניות ללא התאמה: {result.unmatchedSheets.join(", ")}
+                  </p>
+                )}
+              </div>
+            ),
+          });
+          return;
+        }
+
+        setStandardizedRows(result.rows);
+
+        const fileMonths = Array.from(
+          new Set(result.rows.map((r) => sanitizeMonth(r.reportMonth)).filter(Boolean))
+        ).sort();
+
+        setMonthsInFile(fileMonths);
+
+        await checkExistingByRunsMultiTemplate({
+          agentId: selectedAgentId,
+          companyId: selectedCompanyId,
+          rows: result.rows,
+        });
+
+        setLoadingStage("הושלם!");
+        return;
+      }
+
+      // =========================
+      // SINGLE TEMPLATE MODE
+      // =========================
+      const fallbackReportMonth =
+        templateId === "mor_insurance"
+          ? extractReportMonthFromFilename(file.name)
+          : undefined;
 
       // --- טיפול ב-ZIP ---
-      if (ext === '.zip') {
+      if (ext === ".zip") {
         setLoadingStage("פותח ארכיון ZIP...");
-        const mod = await import('jszip');
+        const mod = await import("jszip");
         const JSZip: any = (mod as any).default ?? mod;
         const zip = await JSZip.loadAsync(arrayBuffer);
 
         const entries = zip.file(/\.xlsx$|\.xls$|\.csv$/i);
-        if (entries.length === 0) throw new Error('ה-ZIP לא מכיל XLSX/XLS/CSV.');
+        if (entries.length === 0) throw new Error("ה-ZIP לא מכיל XLSX/XLS/CSV.");
 
         // אם יש יותר מקובץ אחד, פותחים את הבוחר ומפסיקים
         if (entries.length > 1) {
@@ -1011,30 +1263,36 @@ const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
         // אם יש קובץ אחד בלבד ב-ZIP, מחלצים אותו וממשיכים לעיבוד
         const entry = entries[0];
         setLoadingStage(`מחלץ את ${entry.name}...`);
-        const innerData = /\.csv$/i.test(entry.name) 
-          ? await entry.async('uint8array') 
-          : await entry.async('arraybuffer');
-        
-        await parseAndStandardize(innerData, entry.name, fallbackReportMonth);
+        const innerData = /\.csv$/i.test(entry.name)
+          ? await entry.async("uint8array")
+          : await entry.async("arraybuffer");
 
+        await parseAndStandardize(innerData, entry.name, fallbackReportMonth);
       } else {
         // --- טיפול בקובץ רגיל (XLSX/CSV) ---
         await parseAndStandardize(arrayBuffer, file.name, fallbackReportMonth);
       }
-    } catch (err: any) {
-      setErrorDialog({
-        title: 'שגיאת עיבוד קובץ',
-        message: <>אירעה שגיאה בעת עיבוד הקובץ <b>{file.name}</b>.</>,
-      });
-    } finally {
+ } catch (err: any) {
+  console.error("handleFileUpload error:", err);
+  setErrorDialog({
+    title: "שגיאת עיבוד קובץ",
+    message: (
+      <div className="text-right">
+        <div>אירעה שגיאה בעת עיבוד הקובץ <b>{file.name}</b>.</div>
+        <div className="mt-2 text-xs text-red-600">
+          {String(err?.message || err || "Unknown error")}
+        </div>
+      </div>
+    ),
+  });
+} finally {
       setIsLoading(false);
       setLoadingStage("");
     }
   };
+
   reader.readAsArrayBuffer(file);
 };
-
-
 
 const parseAndStandardize = async (data: any, fileName: string, fallbackMonth?: string) => {
   let jsonData: any[] = [];
@@ -1298,22 +1556,26 @@ const processChosenZipEntry = async () => {
   /* ==============================
      Import button
   ============================== */
-//  const handleImport = async () => {
+
+
+// const handleImport = async () => {
 //   if (!selectedAgentId || standardizedRows.length === 0) return;
 
 //   standardizedRows.forEach((row) => {
 //     row.reportMonth = parseHebrewMonth(row.reportMonth, row.templateId);
-//     row.validMonth  = parseHebrewMonth(row.validMonth,  row.templateId);
+//     row.validMonth = parseHebrewMonth(row.validMonth, row.templateId);
 //   });
 
 //   setIsLoading(true);
+//   setImportProgress(0);
+//   setLoadingStage("מתחיל טעינה...");
 
 //   if (existingRunIds.length > 0) {
-//     addToast("error", "נמצאה טעינה קודמת לחודשים אלו. הטעינה החדשה תתווסף ותחושב מחדש.");
+//     addToast("success", "נמצאה טעינה קודמת לחודשים אלו. הטעינה החדשה תתווסף ותחושב מחדש.");
 //   }
 
 //   try {
-//     const runRef = doc(collection(db, 'commissionImportRuns'));
+//     const runRef = doc(collection(db, "commissionImportRuns"));
 //     const runId = runRef.id;
 
 //     const uniqueAgentCodes = new Set<string>();
@@ -1321,11 +1583,13 @@ const processChosenZipEntry = async () => {
 //       if (row.agentCode) uniqueAgentCodes.add(String(row.agentCode).trim());
 //     }
 
-//     const userRef = doc(db, 'users', selectedAgentId);
+//     const userRef = doc(db, "users", selectedAgentId);
 //     const userSnap = await getDoc(userRef);
 //     if (userSnap.exists()) {
 //       const existingCodes: string[] = userSnap.data().agentCodes || [];
-//       const codesToAdd = Array.from(uniqueAgentCodes).filter((c) => !existingCodes.includes(c));
+//       const codesToAdd = Array.from(uniqueAgentCodes).filter(
+//         (c) => !existingCodes.includes(c)
+//       );
 //       if (codesToAdd.length > 0) {
 //         await updateDoc(userRef, { agentCodes: arrayUnion(...codesToAdd) });
 //       }
@@ -1333,41 +1597,50 @@ const processChosenZipEntry = async () => {
 
 //     const rowsPrepared = standardizedRows.map((r) => ({
 //       ...r,
-//       policyNumberKey: String(r.policyNumber ?? '').trim().replace(/\s+/g, ''),
-//       customerId: toPadded9(r.customerId ?? r.customerIdRaw ?? ''),
+//       policyNumberKey: String(r.policyNumber ?? "").trim().replace(/\s+/g, ""),
+//       customerId: toPadded9(r.customerId ?? r.customerIdRaw ?? ""),
 //       runId,
 //     }));
 
+//     setLoadingStage("שומר שורות מקור...");
 //     await writeExternalRowsInChunks(rowsPrepared);
 
-//     await recomputeSummariesFromExternalManual({
+//     setImportProgress(75);
+//     setLoadingStage("מחשב סיכומים מחדש...");
+
+//     const {
+//       commissionSummariesCount,
+//       policySummariesCount,
+//     } = await recomputeSummariesFromExternalManual({
 //       db,
 //       rowsPrepared,
 //       runId,
 //     });
 
 //     const totalRows = rowsPrepared.length;
-//     const commissionSummariesCount = 0;
-//     const policySummariesCount = 0;
 
 //     const reportMonths = Array.from(
-//       new Set(rowsPrepared.map(r => sanitizeMonth(r.reportMonth)).filter(Boolean))
+//       new Set(rowsPrepared.map((r) => sanitizeMonth(r.reportMonth)).filter(Boolean))
 //     ).sort();
 
-//     const minReportMonth = reportMonths[0] || '';
-//     const maxReportMonth = reportMonths.at(-1) || '';
+//     const minReportMonth = reportMonths[0] || "";
+//     const maxReportMonth =
+//       reportMonths.length > 0 ? reportMonths[reportMonths.length - 1] : "";
+
+//     setImportProgress(95);
+//     setLoadingStage("שומר רשומת טעינה...");
 
 //     await setDoc(runRef, {
 //       runId,
 //       createdAt: serverTimestamp(),
 //       agentId: selectedAgentId,
-//       agentName: agents.find(a => a.id === selectedAgentId)?.name || '',
-//       createdBy: detail?.email || detail?.name || '',
-//       createdByUserId: user?.uid || '',
+//       agentName: agents.find((a) => a.id === selectedAgentId)?.name || "",
+//       createdBy: detail?.email || detail?.name || "",
+//       createdByUserId: user?.uid || "",
 //       companyId: selectedCompanyId,
 //       company: selectedCompanyName,
 //       templateId,
-//       templateName: selectedTemplate?.Name || selectedTemplate?.type || '',
+//       templateName: selectedTemplate?.Name || selectedTemplate?.type || "",
 
 //       reportMonths,
 //       minReportMonth,
@@ -1383,16 +1656,20 @@ const processChosenZipEntry = async () => {
 
 //     addToast("success", "✅ הטעינה הושלמה בהצלחה");
 
-//     const grouped: Record<string, {
-//       count: number;
-//       uniqueCustomers: Set<string>;
-//       totalCommission: number;
-//       totalPremium: number;
-//     }> = {};
+//     const grouped: Record<
+//       string,
+//       {
+//         count: number;
+//         uniqueCustomers: Set<string>;
+//         totalCommission: number;
+//         totalPremium: number;
+//       }
+//     > = {};
 
 //     for (const row of rowsPrepared) {
-//       const code = row.agentCode;
+//       const code = String(row.agentCode ?? "").trim();
 //       if (!code) continue;
+
 //       if (!grouped[code]) {
 //         grouped[code] = {
 //           count: 0,
@@ -1401,6 +1678,7 @@ const processChosenZipEntry = async () => {
 //           totalPremium: 0,
 //         };
 //       }
+
 //       grouped[code].count += 1;
 //       if (row.customerId) grouped[code].uniqueCustomers.add(row.customerId);
 //       grouped[code].totalCommission += Number(row.commissionAmount ?? 0) || 0;
@@ -1418,19 +1696,37 @@ const processChosenZipEntry = async () => {
 //     setSummaryByAgentCode(summaryArray);
 //     setShowSummaryDialog(true);
 
+//     setImportProgress(100);
+//     setLoadingStage("הושלם!");
+
 //     setStandardizedRows([]);
-//     setSelectedFileName('');
+//     setSelectedFileName("");
 //     setExistingDocs([]);
+//     setExistingRunIds([]);
+//     setMonthsInFile([]);
+//     setConflictingRunIds([]);
+
+//     if (fileInputRef.current) {
+//       fileInputRef.current.value = "";
+//     }
 //   } catch (error) {
+//     console.error("handleImport error:", error);
 //     addToast("error", "שגיאה בעת טעינה למסד. בדוק קונסול.");
 //   } finally {
 //     setIsLoading(false);
+//     setLoadingStage("");
+//     setImportProgress(0);
 //   }
 // };
 
-
+  
 const handleImport = async () => {
+  // if (!selectedAgentId || !selectedCompanyId || standardizedRows.length === 0) return;
+
   if (!selectedAgentId || standardizedRows.length === 0) return;
+
+if (importMode === "single" && !selectedCompanyId) return;
+if (importMode === "multi_sheet" && !selectedMultiSheetProfileId) return;
 
   standardizedRows.forEach((row) => {
     row.reportMonth = parseHebrewMonth(row.reportMonth, row.templateId);
@@ -1479,14 +1775,12 @@ const handleImport = async () => {
     setImportProgress(75);
     setLoadingStage("מחשב סיכומים מחדש...");
 
-    const {
-      commissionSummariesCount,
-      policySummariesCount,
-    } = await recomputeSummariesFromExternalManual({
-      db,
-      rowsPrepared,
-      runId,
-    });
+    const { commissionSummariesCount, policySummariesCount } =
+      await recomputeSummariesFromExternalManual({
+        db,
+        rowsPrepared,
+        runId,
+      });
 
     const totalRows = rowsPrepared.length;
 
@@ -1510,14 +1804,51 @@ const handleImport = async () => {
       createdByUserId: user?.uid || "",
       companyId: selectedCompanyId,
       company: selectedCompanyName,
-      templateId,
-      templateName: selectedTemplate?.Name || selectedTemplate?.type || "",
+
+      templateId:
+        importMode === "multi_sheet"
+          ? "__multi_sheet_bundle__"
+          : templateId,
+
+      templateName:
+        importMode === "multi_sheet"
+          ? selectedMultiSheetProfile?.name || "Multi Sheet Bundle"
+          : selectedTemplate?.Name || selectedTemplate?.type || "",
+
+      sourceType:
+        importMode === "multi_sheet"
+          ? "multi_sheet_bundle"
+          : "single_template",
+
+      multiSheetProfileId:
+        importMode === "multi_sheet"
+          ? selectedMultiSheetProfile?.id || ""
+          : "",
+
+      multiSheetProfileName:
+        importMode === "multi_sheet"
+          ? selectedMultiSheetProfile?.name || ""
+          : "",
+
+      matchedSheets:
+        importMode === "multi_sheet"
+          ? multiSheetPreview?.matchedSheets || []
+          : [],
+
+      unmatchedSheets:
+        importMode === "multi_sheet"
+          ? multiSheetPreview?.unmatchedSheets || []
+          : [],
+
+      ignoredSheets:
+        importMode === "multi_sheet"
+          ? multiSheetPreview?.ignoredSheets || []
+          : [],
 
       reportMonths,
       minReportMonth,
       maxReportMonth,
       reportMonthsCount: reportMonths.length,
-
       reportMonth: minReportMonth,
 
       externalCount: totalRows,
@@ -1576,6 +1907,7 @@ const handleImport = async () => {
     setExistingRunIds([]);
     setMonthsInFile([]);
     setConflictingRunIds([]);
+    setMultiSheetPreview(null);
 
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
@@ -1590,7 +1922,8 @@ const handleImport = async () => {
   }
 };
 
-  function pickBestDecoding(u8: Uint8Array) {
+
+function pickBestDecoding(u8: Uint8Array) {
     const utf8 = new TextDecoder('utf-8').decode(u8);
     const win  = new TextDecoder('windows-1255').decode(u8);
 
@@ -1679,212 +2012,580 @@ const handleTriggerUpdate = async () => {
 
 const isUpdateAvailable = latestRunnerVersion && currentRunnerVersion && latestRunnerVersion !== currentRunnerVersion;
 
+// בדיקה מקדימה של ריצות קיימות לפי templateId + חודשי הדוח בקובץ 
+
+const [importMode, setImportMode] = useState<"single" | "multi_sheet">("single");
+const [multiSheetProfiles, setMultiSheetProfiles] = useState<MultiSheetImportProfile[]>([]);
+const [selectedMultiSheetProfileId, setSelectedMultiSheetProfileId] = useState("");
+const [multiSheetPreview, setMultiSheetPreview] = useState<{
+  matchedSheets: Array<{
+    sheetName: string;
+    templateId: string;
+    rowsCount: number;
+    status: "done" | "skipped_empty";
+  }>;
+  unmatchedSheets: string[];
+  ignoredSheets: string[];
+} | null>(null);
 
 
+async function checkExistingByRunsMultiTemplate(params: {
+  agentId: string;
+  companyId: string;
+  rows: any[];
+}) {
+  const { agentId, companyId, rows } = params;
+
+  const groups = new Map<string, Set<string>>();
+
+  for (const row of rows) {
+    const templateId = String(row.templateId || "").trim();
+    const reportMonth = sanitizeMonth(row.reportMonth);
+    if (!templateId || !reportMonth) continue;
+
+    if (!groups.has(templateId)) groups.set(templateId, new Set());
+    groups.get(templateId)!.add(reportMonth);
+  }
+
+  const conflictingRunIds = new Set<string>();
+
+  for (const [templateId, monthsSet] of groups.entries()) {
+    const monthsInFile = Array.from(monthsSet);
+
+    const runsSnap = await getDocs(
+      query(
+        collection(db, "commissionImportRuns"),
+        where("agentId", "==", agentId),
+        where("companyId", "==", companyId),
+        where("templateId", "==", templateId)
+      )
+    );
+
+    const fileSet = new Set(monthsInFile);
+
+    runsSnap.docs.forEach((d) => {
+      const data: any = d.data();
+      const runId = String(data.runId || d.id);
+
+      const runMonths: string[] =
+        Array.isArray(data.reportMonths) && data.reportMonths.length
+          ? data.reportMonths.map(sanitizeMonth).filter(Boolean)
+          : data.reportMonth
+            ? [sanitizeMonth(data.reportMonth)].filter(Boolean)
+            : [];
+
+      const hasIntersect = runMonths.some((m) => fileSet.has(m));
+      if (hasIntersect) conflictingRunIds.add(runId);
+    });
+  }
+
+  setExistingRunIds(Array.from(conflictingRunIds));
+}
 
 
+const selectedMultiSheetProfile = React.useMemo(
+  () => multiSheetProfiles.find((p) => p.id === selectedMultiSheetProfileId) || null,
+  [multiSheetProfiles, selectedMultiSheetProfileId]
+);
 
+
+useEffect(() => {
+  const loadProfiles = async () => {
+    if (!selectedAgentId) {
+      setMultiSheetProfiles([]);
+      setSelectedMultiSheetProfileId("");
+      return;
+    }
+
+    const profiles = await getMultiSheetProfiles(db, {
+      agentId: selectedAgentId,
+      agencyId: detail?.agencyId || "",
+    });
+
+    setMultiSheetProfiles(profiles);
+  };
+
+  loadProfiles();
+}, [selectedAgentId, detail?.agencyId]);
+
+const standardizeSheetRows = React.useCallback((params: {
+  jsonData: any[];
+  mapping: Record<string, string>;
+  templateId: string;
+  sourceFileName: string;
+  selectedAgentId: string;
+  selectedCompanyId?: string;
+  selectedCompanyName?: string;
+  fallbackProduct?: string;
+  sheetName: string;
+}) => {
+  const {
+    jsonData,
+    mapping,
+    templateId,
+    sourceFileName,
+    selectedAgentId,
+    selectedCompanyId,
+    selectedCompanyName,
+    fallbackProduct,
+    sheetName,
+  } = params;
+
+  const standardized = jsonData
+    .filter((row) => {
+      const agentCodeColumn = Object.entries(mapping).find(
+        ([, field]) => field === "agentCode"
+      )?.[0];
+
+      const agentCodeVal = agentCodeColumn
+        ? row[agentCodeColumn] ?? row[normalizeHeader(agentCodeColumn)]
+        : null;
+
+      return agentCodeVal && String(agentCodeVal).trim() !== "";
+    })
+    .map((row) =>
+      standardizeRowWithMapping(
+        row,
+        mapping,
+        {
+          agentId: selectedAgentId,
+          templateId,
+          sourceFileName,
+          uploadDate: serverTimestamp(),
+          companyId: selectedCompanyId || "",
+          company: selectedCompanyName || "",
+          sourceSheetName: sheetName,
+        },
+        undefined
+      )
+    )
+    .map((row) => {
+      if ((!row.product || !String(row.product).trim()) && fallbackProduct) {
+        row.product = normalizeProduct(fallbackProduct);
+      }
+      return row;
+    });
+
+  return standardized;
+}, []);
+
+const multiPreviewColumns = [
+  { key: "reportMonth", label: "חודש עמלה" },
+  { key: "commissionAmount", label: "עמלה" },
+  { key: "agentCode", label: "קוד סוכן" },
+  { key: "customerId", label: 'ת.ז.' },
+  { key: "premium", label: "יתרה" },
+  { key: "policyNumber", label: "מספר פוליסה" },
+  { key: "fullName", label: "שם לקוח" },
+  { key: "product", label: "מוצר" },
+  { key: "validMonth", label: "תאריך תחילה" },
+  { key: "company", label: "חברה" },
+  { key: "sourceSheetName", label: "לשונית מקור" },
+];
 
   /* ==============================
      Render
   ============================== */
  return (
-  <div className="p-6 max-w-5xl mx-auto text-right font-sans min-h-screen bg-white">
-    {/* כותרת עדינה */}
+  <div className="p-6 max-w-6xl mx-auto text-right font-sans min-h-screen bg-white">
     <header className="mb-8 flex justify-between items-center border-b pb-4">
       <div>
         <h2 className="text-2xl font-bold text-gray-800">מרכז טעינת עמלות</h2>
         <p className="text-sm text-gray-500">ניהול דוחות נפרעים</p>
       </div>
-      <Link href="/Help/commission-reports#top" target="_blank" className="text-blue-600 text-sm font-bold flex items-center gap-1 hover:underline">
-       מדריך דוחות עמלות – איך להפיק ולייצא מכל חברה ❓
-      </Link>
     </header>
-    {/* שלב 1: בחירת סוכן וחברה */}
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6 bg-gray-50 p-4 rounded-xl border border-gray-200 shadow-inner">
-      <div className="flex flex-col gap-1">
+
+    {/* 1. בחירת סוכן */}
+    <div className="mb-6 bg-gray-50 p-4 rounded-xl border border-gray-200 shadow-inner">
+      <div className="max-w-md flex flex-col gap-1">
         <label className="text-xs font-bold text-gray-500 mr-1">1. בחר סוכן</label>
-        <select value={selectedAgentId} onChange={handleAgentChange} className="select-input w-full h-10 border-gray-300 rounded-lg">
-          {detail?.role === "admin" && <option value="">-- בחר סוכן --</option>}
-          {agents.map(agent => <option key={agent.id} value={agent.id}>{agent.name}</option>)}
-        </select>
-      </div>
-      <div className="flex flex-col gap-1">
-        <label className="text-xs font-bold text-gray-500 mr-1">2. בחר חברה</label>
         <select
-          value={selectedCompanyId}
-          onChange={(e) => { setSelectedCompanyId(e.target.value); setTemplateId(''); }}
+          value={selectedAgentId}
+          onChange={handleAgentChange}
           className="select-input w-full h-10 border-gray-300 rounded-lg"
         >
-          <option value="">-- בחרי חברה --</option>
-          {uniqueCompanies.map(company => <option key={company.id} value={company.id}>{company.name}</option>)}
+          {detail?.role === "admin" && <option value="">-- בחר סוכן --</option>}
+          {agents.map((agent) => (
+            <option key={agent.id} value={agent.id}>
+              {agent.name}
+            </option>
+          ))}
         </select>
       </div>
     </div>
-    {selectedCompanyId ? (
-      <div className="space-y-4 animate-in fade-in duration-500">
-{/* 🚀 פס אוטומציה חכם - מבוסס הרשאות, סטטוס חברה (image_17fba5) ודגלי מערכת (image_e598ee) */}
-{canAutoDownload && selectedCompany?.automationEnabled && (
-  <div className={`rounded-xl p-4 text-white shadow-lg flex items-center justify-between transition-all duration-500 
-    ${!isAutoEnabledByFlag ? 'bg-gray-500' : isUpdateAvailable ? 'bg-orange-600' : !!autoRunId ? 'bg-indigo-700' : 'bg-blue-600'}`}>
-    
-    <div className="flex items-center gap-3">
-      {/* אייקון משתנה: מנעול אם חסום, חץ למעלה אם יש עדכון, ברק אם תקין */}
-      <span className={`text-2xl ${!!autoRunId && isAutoEnabledByFlag ? 'animate-pulse' : ''}`}>
-        {!isAutoEnabledByFlag ? '🔒' : isUpdateAvailable ? '🆙' : '⚡'}
-      </span>
-      
-      <div>
-        <div className="font-bold text-sm">
-          {isUpdateAvailable ? 'יש עדכון גרסה זמין לבוט!' : `משיכה אוטומטית מ${selectedCompanyName}`}
-        </div>
-        <div className="text-xs text-blue-100 opacity-90">
-          {/* לוגיקת הודעות: עדיפות ראשונה לחסימת מערכת (image_e598ee), אח"כ עדכון, ואז סטטוס רגיל */}
-          {!isAutoEnabledByFlag 
-            ? autoDisabledReason 
-            : isUpdateAvailable 
-              ? `הגרסה שלך (${currentRunnerVersion}) ישנה. הגרסה החדשה היא ${latestRunnerVersion}.`
-              : !currentRunnerVersion 
-                ? "הבוט לא מותקן? לחצי על 'הורד התקנה' כדי להתחיל."
-                : "המערכת מוכנה למשיכת נתונים בלחיצת כפתור."}
-        </div>
-      </div>
-    </div>
 
-    <div className="flex items-center gap-2">
-      {/* כפתור הורדה: מופיע רק אם אין גרסה מזוהה בכלל */}
-   {!currentRunnerVersion && installerUrl && (
-  <a
-    href={installerUrl}
-    className="bg-white text-blue-600 px-4 py-2 text-sm font-bold rounded-lg hover:bg-blue-50 shadow-md"
-  >
-    הורד התקנה ראשונה
-  </a>
-)}
-{needsManualUpgrade && installerUrl && (
-  <a
-    href={installerUrl}
-    className="bg-white text-red-600 hover:bg-red-50 px-4 py-2 text-sm font-bold rounded-lg shadow-md"
-  >
-    נדרש עדכון ידני
-  </a>
-)}
-      {/* כפתור עדכון OTA: מופיע רק אם יש גרסה חדשה ואין חסימת מערכת */}
-    {isUpdateAvailable && isAutoEnabledByFlag && !needsManualUpgrade && (
-  <Button
-    text="עדכן עכשיו"
-    className="bg-white text-orange-600 hover:bg-orange-50 px-4 py-2 text-sm font-bold rounded-lg shadow-md"
-    onClick={handleTriggerUpdate}
-    disabled={isStartingAuto}
-  />
-)}
-      {/* הכפתור הרגיל: מנוטרל אם יש חסימת מערכת (autoDownloadEnabled: false ב-Firestore) */}
-      {canStartAuto && !isUpdateAvailable && (
-        <Button
-          text={isStartingAuto ? "מתחיל..." : isAutoRunActive ? "משיכה בביצוע..." : "הפעל משיכה אוטומטית"}
-          className={`px-4 py-2 text-sm font-bold rounded-lg transition-all ${
-            isStartingAuto || isAutoRunActive || !isAutoEnabledByFlag
-              ? "bg-white/20 text-white/50 cursor-not-allowed" 
-              : "bg-white text-blue-600 hover:bg-blue-50 shadow-md"
-          }`}
-          onClick={handleStartAuto}
-          disabled={Boolean(isStartingAuto || isAutoRunActive || !isAutoEnabledByFlag || autoButtonDisabled)}
-        />
-      )}
-    </div>
-  </div>
-)}
-        {/* 📂 אזור טעינה ידנית */}
-        <div className={`bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden transition-opacity ${!!autoRunId ? 'opacity-50 pointer-events-none' : 'opacity-100'}`}>
-          <div className="p-4 bg-gray-50 border-b border-gray-100 flex justify-between items-center">
-            <h3 className="font-bold text-gray-700 flex items-center gap-2 text-sm">
-              <span>📂</span> טעינה ידנית (נפרעים)
-            </h3>
+    {/* 2. אזור אוטומציה + עדכוני גרסה */}
+    {selectedAgentId && (
+      <div className="space-y-4 mb-8">
+        <div
+          className={`rounded-2xl p-5 text-white shadow-lg flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 transition-all duration-500
+            ${
+              !isAutoEnabledByFlag
+                ? "bg-gray-500"
+                : isUpdateAvailable
+                  ? "bg-orange-600"
+                  : autoRunId && autoRunKind === "portal"
+                    ? "bg-indigo-700"
+                    : "bg-blue-600"
+            }`}
+        >
+          <div className="flex items-start gap-3">
+            <span className={`text-2xl ${autoRunId && isAutoEnabledByFlag ? "animate-pulse" : ""}`}>
+              {!isAutoEnabledByFlag ? "🔒" : isUpdateAvailable ? "🆙" : "⚡"}
+            </span>
+
+            <div>
+              <div className="font-bold text-lg">
+                {isUpdateAvailable
+                  ? "יש עדכון גרסה זמין לבוט"
+                  : "טעינה אוטומטית של דוחות עמלות"}
+              </div>
+              <div className="text-sm text-blue-100 opacity-90 mt-1">
+                {!isAutoEnabledByFlag
+                  ? autoDisabledReason
+                  : isUpdateAvailable
+                    ? `הגרסה שלך (${currentRunnerVersion}) ישנה. הגרסה החדשה היא ${latestRunnerVersion}.`
+                    : !currentRunnerVersion
+                      ? "הבוט עדיין לא מותקן. ניתן להוריד התקנה ראשונה ולהתחיל לעבוד."
+                      : "מעקב אחר הדוחות שפורסמו החודש ולחיצה מהירה להפעלה לפי חברה."}
+              </div>
+            </div>
           </div>
 
-          <div className="p-6 space-y-4">
-            <div className="max-w-md">
-              <label className="block text-xs font-bold text-gray-400 mb-1 uppercase tracking-wider">3. בחרי תבנית דוח</label>
-              <select
-                value={templateId}
-                onChange={e => setTemplateId(e.target.value)}
-                className="select-input w-full h-10 border-gray-200 rounded-lg"
+          <div className="flex flex-wrap items-center gap-2">
+            {!currentRunnerVersion && installerUrl && (
+              <a
+                href={installerUrl}
+                className="bg-white text-blue-600 px-4 py-2 text-sm font-bold rounded-lg hover:bg-blue-50 shadow-md"
               >
-                <option value="">-- בחרי דוח ספציפי --</option>
-                {filteredTemplates.map(opt => (
-                  <option key={opt.id} value={opt.id}>{opt.Name || opt.type}</option>
-                ))}
-              </select>
-            </div>
-       {/* Dropzone משופר עם תמיכה בגרירה */}
-<div 
-  className={`border-2 border-dashed rounded-2xl transition-all flex flex-col items-center justify-center gap-2 ${
-    templateId ? 'border-blue-300 bg-blue-50/20 hover:border-blue-400 hover:bg-blue-50 cursor-pointer' : 'border-gray-100 opacity-40 cursor-not-allowed'
-  } ${selectedFileName ? 'p-4' : 'p-8'}`} 
-  
-  onClick={() => templateId && !existingRunIds.length && fileInputRef.current?.click()}
+                הורד התקנה ראשונה
+              </a>
+            )}
 
-  // --- תוספת עבור הגרירה (Drag & Drop) ---
-  onDragOver={(e) => {
-    e.preventDefault(); // מונע מהדפדפן לפתוח את הקובץ
-    e.stopPropagation();
-  }}
-  onDragEnter={(e) => {
-    e.preventDefault();
-    e.stopPropagation();
-  }}
-  onDrop={(e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    
-    // בודקים שיש תבנית נבחרת ושיש קבצים בגרירה
-    if (templateId && e.dataTransfer.files && e.dataTransfer.files[0]) {
-      const droppedFiles = e.dataTransfer.files;
-      // שליחה לפונקציית הטיפול בקובץ הקיימת שלך
-      handleFileUpload({ target: { files: droppedFiles } } as any);
-    }
-  }}
-  // ---------------------------------------
->
-  {!selectedFileName ? (
-    <>
-      <div className="text-3xl opacity-50">📄</div>
-      <div className="text-sm font-bold text-gray-600">לחצי לבחירת קובץ או גררי לכאן</div>
-    </>
-  ) : (
-    <div className="flex items-center gap-4 bg-white p-3 px-6 rounded-xl shadow-sm border border-blue-100 animate-in zoom-in-95">
-      <div className="text-xl text-green-500">✅</div>
-      <div className="text-right">
-        <div className="text-blue-700 font-bold text-sm leading-tight">{selectedFileName}</div>
-        <div className="text-[10px] text-blue-400 font-medium">הקובץ מוכן לטעינה</div>
-      </div>
-    </div>
-  )}
-</div>
-  <div className="flex gap-3 justify-start items-center">
+            {needsManualUpgrade && installerUrl && (
+              <a
+                href={installerUrl}
+                className="bg-white text-red-600 hover:bg-red-50 px-4 py-2 text-sm font-bold rounded-lg shadow-md"
+              >
+                נדרש עדכון ידני
+              </a>
+            )}
+
+            {isUpdateAvailable && isAutoEnabledByFlag && !needsManualUpgrade && (
               <Button
-                text={isLoading ? "מעבד..." : "אשר טעינה"}
-                type="primary"
-                className="px-8 h-10 text-sm font-bold rounded-lg"
-                onClick={handleImport}
-disabled={Boolean(!standardizedRows.length || isLoading)}              />
-              <Button text="נקה" type="secondary" className="px-4 h-10 text-sm rounded-lg" onClick={handleClearSelections} />
-            </div>
-            {existingRunIds.length > 0 && (
-              <div className="p-3 bg-red-50 border border-red-100 rounded-lg text-red-800 text-xs flex items-center justify-between animate-shake">
-                <div className="flex items-center gap-2">
-                  <span>⚠️</span>
-                  <span>נמצאה טעינה קיימת לחודש זה.</span>
-                </div>
-                <button onClick={() => setShowConfirmDelete(true)} className="text-red-700 underline font-black">מחק טעינה קודמת</button>
-              </div>
+                text="עדכן עכשיו"
+                className="bg-white text-orange-600 hover:bg-orange-50 px-4 py-2 text-sm font-bold rounded-lg shadow-md"
+                onClick={handleTriggerUpdate}
+                disabled={isStartingAuto}
+              />
             )}
           </div>
         </div>
-     {/* תצוגה מקדימה לאחר מיפוי - עיצוב מותאם לשפת המערכת */}
-{standardizedRows.length > 0 && (
+
+        {/* 3. קוביות החברות */}
+        {automaticCompanies.length > 0 ? (
+          <AutomaticRunsDashboard
+            db={db}
+            selectedAgentId={selectedAgentId}
+            companies={automaticCompanies}
+            isAutoEnabledByFlag={isAutoEnabledByFlag}
+            autoDisabledReason={autoDisabledReason}
+            onStartRun={handleStartAutoForCompany}
+          />
+        ) : (
+          <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50 p-8 text-center text-gray-500">
+            אין כרגע חברות עם אוטומציה זמינה לסוכן זה.
+          </div>
+        )}
+
+        {/* סטטוס ריצה אוטומטית / עדכון */}
+        {autoRunId && (
+          <div className="animate-in slide-in-from-bottom-4 duration-500">
+            <div className="bg-white border border-blue-100 rounded-xl p-4 shadow-sm relative">
+              {!isAutoRunActive && (
+                <button
+                  onClick={() => {
+                    setAutoRunId("");
+                    setAutoRunKind("");
+                  }}
+                  className="absolute top-2 left-2 text-gray-300 hover:text-gray-500 text-xs font-bold transition-colors"
+                  title="נקה סטטוס"
+                >
+                  ✖
+                </button>
+              )}
+
+              <PortalRunStatus
+                db={db}
+                runId={autoRunId}
+                runKind={autoRunKind}
+                onFinished={(status) => {
+                  if (!isAutoRunActive) return;
+                  setIsAutoRunActive(false);
+
+                  if (autoRunKind === "self_update") {
+                    if (status === "done") {
+                      addToast("success", "✅ קובץ העדכון ירד וההתקנה הופעלה.");
+                    } else if (status === "error") {
+                      addToast("error", "❌ עדכון הגרסה נכשל.");
+                    }
+                    return;
+                  }
+
+                  if (status === "skipped") {
+                    addToast("error", "⏭️ המשיכה דולגה (כבר קיים במערכת)");
+                  } else if (status === "done" || status === "success") {
+                    addToast("success", "✅ המשיכה האוטומטית הושלמה בהצלחה!");
+                  } else if (status === "failed") {
+                    addToast("error", "ℹ️ הריצה בוטלה והחסימה שוחררה.");
+                  }
+                }}
+              />
+            </div>
+          </div>
+        )}
+      </div>
+    )}
+
+  {/* 4. כותרת טעינה ידנית */}
+<div className="mb-4">
+  <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+    
+    {/* HEADER */}
+    <div className="p-4 bg-gray-50 border-b border-gray-100 flex justify-between items-center">
+      <h3 className="font-bold text-gray-700 flex items-center gap-2 text-sm">
+        <span>📂</span> טעינה ידנית של דוחות עמלות
+      </h3>
+      <Link
+        href="/Help/commission-reports#top"
+        target="_blank"
+        className="text-blue-600 text-sm font-bold flex items-center gap-1 hover:underline"
+      >
+        מדריך דוחות עמלות – איך להפיק ולייצא מכל חברה ❓
+      </Link>
+    </div>
+
+    {/* MODE */}
+    <div className="p-4">
+      <label className="block text-xs font-bold text-gray-400 mb-2 uppercase tracking-wider">
+        2. סוג טעינה
+      </label>
+
+      <div className="flex gap-6 items-center">
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="radio"
+            checked={importMode === "single"}
+            onChange={() => setImportMode("single")}
+          />
+          קובץ רגיל
+        </label>
+
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="radio"
+            checked={importMode === "multi_sheet"}
+            onChange={() => setImportMode("multi_sheet")}
+          />
+          קובץ מרובה לשוניות
+        </label>
+      </div>
+    </div>
+
+    <div className="p-6 space-y-5">
+
+      {/* ================= SINGLE ================= */}
+      {importMode === "single" && (
+        <>
+          {/* חברה */}
+          <div className="max-w-md">
+            <label className="block text-xs font-bold text-gray-400 mb-1 uppercase tracking-wider">
+              3. בחרי חברה
+            </label>
+            <select
+              value={selectedCompanyId}
+              onChange={(e) => {
+                setSelectedCompanyId(e.target.value);
+                setTemplateId("");
+              }}
+              className="select-input w-full h-10 border-gray-300 rounded-lg"
+            >
+              <option value="">-- בחרי חברה --</option>
+              {uniqueCompanies.map((company) => (
+                <option key={company.id} value={company.id}>
+                  {company.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* תבנית */}
+          {selectedCompanyId && (
+            <div className="max-w-md">
+              <label className="block text-xs font-bold text-gray-400 mb-1 uppercase tracking-wider">
+                4. בחרי תבנית דוח
+              </label>
+              <select
+                value={templateId}
+                onChange={(e) => setTemplateId(e.target.value)}
+                className="select-input w-full h-10 border-gray-200 rounded-lg"
+              >
+                <option value="">-- בחרי דוח ספציפי --</option>
+                {filteredTemplates.map((opt) => (
+                  <option key={opt.id} value={opt.id}>
+                    {opt.Name || opt.type}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* ================= MULTI ================= */}
+      {importMode === "multi_sheet" && (
+        <div className="max-w-md">
+          <label className="block text-xs font-bold text-gray-400 mb-1 uppercase tracking-wider">
+            3. פרופיל טעינה
+          </label>
+          <select
+            value={selectedMultiSheetProfileId}
+            onChange={(e) => setSelectedMultiSheetProfileId(e.target.value)}
+            className="select-input w-full h-10 border-gray-300 rounded-lg"
+          >
+            <option value="">-- בחרי פרופיל --</option>
+            {multiSheetProfiles.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      {/* ================= UPLOAD + BUTTONS ================= */}
+      {(
+        (importMode === "single" && selectedCompanyId && templateId) ||
+        (importMode === "multi_sheet" && selectedMultiSheetProfileId)
+      ) && (
+        <>
+          {/* UPLOAD */}
+          <div
+            className={`border-2 border-dashed rounded-2xl transition-all flex flex-col items-center justify-center gap-2 ${
+              "border-blue-300 bg-blue-50/20 hover:border-blue-400 hover:bg-blue-50 cursor-pointer"
+            } ${selectedFileName ? "p-4" : "p-8"}`}
+            onClick={() =>
+              !existingRunIds.length && fileInputRef.current?.click()
+            }
+            onDragOver={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+            }}
+            onDrop={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+
+              if (e.dataTransfer.files?.[0]) {
+                handleFileUpload({ target: { files: e.dataTransfer.files } } as any);
+              }
+            }}
+          >
+            {!selectedFileName ? (
+              <>
+                <div className="text-3xl opacity-50">📄</div>
+                <div className="text-sm font-bold text-gray-600">
+                  לחצי לבחירת קובץ או גררי לכאן
+                </div>
+              </>
+            ) : (
+              <div className="flex items-center gap-4 bg-white p-3 px-6 rounded-xl shadow-sm border border-blue-100">
+                <div className="text-xl text-green-500">✅</div>
+                <div className="text-right">
+                  <div className="text-blue-700 font-bold text-sm">
+                    {selectedFileName}
+                  </div>
+                  <div className="text-[10px] text-blue-400">
+                    הקובץ מוכן לטעינה
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* PREVIEW MULTI */}
+          {importMode === "multi_sheet" && multiSheetPreview && (
+            <div className="mt-4 bg-white rounded-xl border border-gray-200 p-4">
+              <h4 className="font-bold text-sm mb-3">סיכום זיהוי לשוניות</h4>
+
+              <div className="space-y-2 text-xs">
+                {multiSheetPreview.matchedSheets.map((s) => (
+                  <div
+                    key={`${s.sheetName}_${s.templateId}`}
+                    className="flex justify-between border-b pb-2"
+                  >
+                    <span>{s.sheetName}</span>
+                    <span>
+                      {s.templateId} | {s.rowsCount} שורות | {s.status}
+                    </span>
+                  </div>
+                ))}
+
+                {multiSheetPreview.unmatchedSheets.length > 0 && (
+                  <div className="text-red-600">
+                    לשוניות ללא התאמה: {multiSheetPreview.unmatchedSheets.join(", ")}
+                  </div>
+                )}
+
+                {multiSheetPreview.ignoredSheets.length > 0 && (
+                  <div className="text-gray-500">
+                    לשוניות שהתעלמנו מהן: {multiSheetPreview.ignoredSheets.join(", ")}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* BUTTONS */}
+          <div className="flex gap-3 justify-start items-center">
+            <Button
+              text={isLoading ? "מעבד..." : "אשר טעינה"}
+              type="primary"
+              className="px-8 h-10 text-sm font-bold rounded-lg"
+              onClick={handleImport}
+              disabled={Boolean(!standardizedRows.length || isLoading)}
+            />
+            <Button
+              text="נקה"
+              type="secondary"
+              className="px-4 h-10 text-sm rounded-lg"
+              onClick={handleClearSelections}
+            />
+          </div>
+
+          {existingRunIds.length > 0 && (
+            <div className="p-3 bg-red-50 border border-red-100 rounded-lg text-red-800 text-xs flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span>⚠️</span>
+                <span>נמצאה טעינה קיימת לחודש זה.</span>
+              </div>
+              <button
+                onClick={() => setShowConfirmDelete(true)}
+                className="text-red-700 underline font-black"
+              >
+                מחק טעינה קודמת
+              </button>
+            </div>
+          )}
+        </>
+      )}
+
+    </div>
+  </div>
+</div>
+
+    {/* 8. תצוגה מקדימה */}
+ {standardizedRows.length > 0 && (
   <div className="mt-8 bg-white rounded-2xl border border-blue-100 shadow-xl overflow-hidden animate-in slide-in-from-bottom-6 duration-500">
-    {/* כותרת הטבלה בכחול מותאם */}
     <div className="bg-[#1e3a8a] p-4 text-white flex justify-between items-center border-b border-blue-800">
       <div className="flex items-center gap-3">
         <div className="bg-green-500/20 text-green-400 px-2 py-0.5 rounded text-[10px] font-bold border border-green-500/30">
@@ -1901,19 +2602,36 @@ disabled={Boolean(!standardizedRows.length || isLoading)}              />
       <table className="table-auto w-full text-right text-xs border-collapse">
         <thead className="bg-blue-50/50 text-blue-900 border-b border-blue-100">
           <tr>
-            {Object.entries(mapping).map(([he]) => (
-              <th key={he} className="px-4 py-3 font-black uppercase tracking-tight border-l border-blue-100/50 last:border-l-0">
-                {he}
+            {(importMode === "multi_sheet"
+              ? multiPreviewColumns.filter((col) =>
+                  standardizedRows.some((row) => row[col.key] !== undefined)
+                )
+              : Object.entries(mapping).map(([he, en]) => ({ key: en, label: he }))
+            ).map((col: any) => (
+              <th
+                key={col.key}
+                className="px-4 py-3 font-black tracking-tight border-l border-blue-100/50 last:border-l-0"
+              >
+                {col.label}
               </th>
             ))}
           </tr>
         </thead>
+
         <tbody className="divide-y divide-gray-100">
           {standardizedRows.slice(0, 10).map((row, i) => (
             <tr key={i} className="hover:bg-blue-50/30 transition-colors group">
-              {Object.entries(mapping).map(([, en]) => (
-                <td key={en} className="px-4 py-2.5 text-gray-700 font-medium group-hover:text-blue-800">
-                  {String(row[en] ?? '')}
+              {(importMode === "multi_sheet"
+                ? multiPreviewColumns.filter((col) =>
+                    standardizedRows.some((r) => r[col.key] !== undefined)
+                  )
+                : Object.entries(mapping).map(([he, en]) => ({ key: en, label: he }))
+              ).map((col: any) => (
+                <td
+                  key={col.key}
+                  className="px-4 py-2.5 text-gray-700 font-medium group-hover:text-blue-800"
+                >
+                  {String(row[col.key] ?? "")}
                 </td>
               ))}
             </tr>
@@ -1921,70 +2639,23 @@ disabled={Boolean(!standardizedRows.length || isLoading)}              />
         </tbody>
       </table>
     </div>
-  <div className="p-3 bg-blue-50/30 border-t border-blue-50 flex justify-center italic text-[10px] text-blue-400 font-medium">
-  * ודאי כי העמודות והנתונים ממופים נכון לפני הלחיצה על &quot;אשר טעינה&quot;
-</div>
-  </div>
-)}
-        {/* תצוגת סטטוס ריצה אוטומטית */}
-  {autoRunId && (
-  <div className="mt-4 animate-in slide-in-from-bottom-4 duration-500">
-    <div className="bg-white border border-blue-100 rounded-xl p-4 shadow-sm relative">
-      
-      {/* כפתור X קטן בפינה (אופציונלי) לניקוי הסטטוס ידנית */}
-      {!isAutoRunActive && (
-        <button 
-onClick={() => {
-  setAutoRunId("");
-  setAutoRunKind("");
-}}          className="absolute top-2 left-2 text-gray-300 hover:text-gray-500 text-xs font-bold transition-colors"
-          title="נקה סטטוס"
-        >
-          ✖
-        </button>
-      )}
 
- <PortalRunStatus
-  db={db}
-  runId={autoRunId}
-  runKind={autoRunKind}
-  onFinished={(status) => {
-    if (!isAutoRunActive) return;
-    setIsAutoRunActive(false);
-
-    if (autoRunKind === "self_update") {
-      if (status === "done") {
-        addToast("success", "✅ קובץ העדכון ירד וההתקנה הופעלה.");
-      } else if (status === "error") {
-        addToast("error", "❌ עדכון הגרסה נכשל.");
-      }
-      return;
-    }
-
-    if (status === "skipped") {
-      addToast("error", "⏭️ המשיכה דולגה (כבר קיים במערכת)");
-    } else if (status === "done") {
-      addToast("success", "✅ המשיכה האוטומטית הושלמה בהצלחה!");
-    } else if (status === "failed") {
-      addToast("error", "ℹ️ הריצה בוטלה והחסימה שוחררה.");
-    }
-  }}
-/>
+    <div className="p-3 bg-blue-50/30 border-t border-blue-50 flex justify-center italic text-[10px] text-blue-400 font-medium">
+      * ודאי כי העמודות והנתונים ממופים נכון לפני הלחיצה על &quot;אשר טעינה&quot;
     </div>
   </div>
 )}
-      </div>
-    ) : (
-      <div className="text-center p-20 bg-gray-50 rounded-3xl border-2 border-dashed border-gray-100 flex flex-col items-center gap-4">
-        <div className="text-5xl opacity-20">🏢</div>
-        <p className="text-gray-400 font-bold italic text-lg">אנא בחרי חברה כדי להציג את אפשרויות הטעינה</p>
-      </div>
-    )}
-
     {/* מודלים של מערכת */}
-    <input ref={fileInputRef} type="file" accept=".xlsx,.xls,.csv,.zip" onChange={handleFileUpload} className="hidden" />
-    {/* ✅ חשוב: מודאל OTP שחייב להיות נוכח */}
+    <input
+      ref={fileInputRef}
+      type="file"
+      accept=".xlsx,.xls,.csv,.zip"
+      onChange={handleFileUpload}
+      className="hidden"
+    />
+
     {autoRunId && <PortalRunOtpModal runId={autoRunId} />}
+
     {showConfirmDelete && (
       <DialogNotification
         type="warning"
@@ -1994,90 +2665,73 @@ onClick={() => {
         onCancel={() => setShowConfirmDelete(false)}
       />
     )}
-    {/* --- מודאל התראה על חוסר התאמה בתבנית --- */}
-{showTemplateMismatch && (
-  <DialogNotification
-    type="warning"
-    title="התבנית לא מתאימה לקובץ"
-    message={
-      <>
-        <p>העמודות שמצאנו בקובץ לא תואמות להגדרות התבנית שבחרת.</p>
-        <p className="mt-2 text-sm text-gray-500">ודאי שבחרת את התבנית הנכונה או שהקובץ הופק בפורמט הנכון.</p>
-      </>
-    }
-    onConfirm={() => setShowTemplateMismatch(false)}
-    onCancel={() => setShowTemplateMismatch(false)}
-    confirmText="הבנתי"
-    hideCancel={true}
-  />
-)}
-{/* מודאל שגיאה כללי (משמש להודעת ה-ZVIRA של מנורה) */}
-{errorDialog && (
-  <DialogNotification
-    type="warning"
-    title={errorDialog.title}
-    // התיקון כאן: הוספת Fallback כדי לרצות את TypeScript
-    message={errorDialog.message ?? ""} 
-    onConfirm={() => setErrorDialog(null)}
-    onCancel={() => setErrorDialog(null)}
-    hideCancel
-  />
-)}
-{showTemplateMismatch && (
-  <DialogNotification
-    type="warning"
-    title="התבנית לא מתאימה לקובץ"
-    message={
-      <div className="text-right">
-        <p>העמודות שמצאנו בקובץ לא תואמות להגדרות התבנית שבחרת.</p>
-        <p className="mt-2 text-sm text-gray-500 italic">
-          ודאי שבחרת את התבנית הנכונה (נפרעים/צבירה) או שהקובץ הופק בפורמט הנכון.
-        </p>
-      </div>
-    }
-    onConfirm={() => setShowTemplateMismatch(false)}
-    hideCancel
-  />
-)}
- {isLoading && (
-  <div className="fixed inset-0 bg-white/80 backdrop-blur-sm z-[9999] flex items-center justify-center">
-    <div className="text-center p-8 bg-white rounded-2xl shadow-2xl border border-blue-50 w-80">
-      <div className="relative mb-6">
-        {/* ספינר */}
-        <div className="w-20 h-20 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin mx-auto"></div>
-        {/* מספר האחוזים במרכז הספינר */}
-        <div className="absolute inset-0 flex items-center justify-center text-sm font-bold text-blue-700">
-          {importProgress}%
+
+    {showTemplateMismatch && (
+      <DialogNotification
+        type="warning"
+        title="התבנית לא מתאימה לקובץ"
+        message={
+          <div className="text-right">
+            <p>העמודות שמצאנו בקובץ לא תואמות להגדרות התבנית שבחרת.</p>
+            <p className="mt-2 text-sm text-gray-500 italic">
+              ודאי שבחרת את התבנית הנכונה (נפרעים/צבירה) או שהקובץ הופק בפורמט הנכון.
+            </p>
+          </div>
+        }
+        onConfirm={() => setShowTemplateMismatch(false)}
+        hideCancel
+      />
+    )}
+
+    {errorDialog && (
+      <DialogNotification
+        type="warning"
+        title={errorDialog.title}
+        message={errorDialog.message ?? ""}
+        onConfirm={() => setErrorDialog(null)}
+        onCancel={() => setErrorDialog(null)}
+        hideCancel
+      />
+    )}
+
+    {isLoading && (
+      <div className="fixed inset-0 bg-white/80 backdrop-blur-sm z-[9999] flex items-center justify-center">
+        <div className="text-center p-8 bg-white rounded-2xl shadow-2xl border border-blue-50 w-80">
+          <div className="relative mb-6">
+            <div className="w-20 h-20 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin mx-auto"></div>
+            <div className="absolute inset-0 flex items-center justify-center text-sm font-bold text-blue-700">
+              {importProgress}%
+            </div>
+          </div>
+
+          <h3 className="text-xl font-bold text-gray-800 mb-2">מעבד נתונים...</h3>
+
+          <div className="w-full bg-gray-100 h-2 rounded-full overflow-hidden mb-4 border border-gray-50">
+            <div
+              className="bg-blue-600 h-full transition-all duration-300 ease-out"
+              style={{ width: `${importProgress}%` }}
+            />
+          </div>
+
+          <p className="text-blue-600 font-medium animate-pulse text-sm">
+            {loadingStage || "אנא המתן..."}
+          </p>
         </div>
       </div>
+    )}
 
-      <h3 className="text-xl font-bold text-gray-800 mb-2">מעבד נתונים...</h3>
-      
-      {/* פס התקדמות ויזואלי */}
-      <div className="w-full bg-gray-100 h-2 rounded-full overflow-hidden mb-4 border border-gray-50">
-        <div 
-          className="bg-blue-600 h-full transition-all duration-300 ease-out"
-          style={{ width: `${importProgress}%` }}
-        />
-      </div>
-
-      <p className="text-blue-600 font-medium animate-pulse text-sm">
-        {loadingStage || "אנא המתן..."}
-      </p>
-    </div>
-  </div>
-)}
     {/* Toasts */}
     <div className="fixed bottom-4 left-4 z-50 flex flex-col gap-2">
       {toasts.map((t) => (
-        <ToastNotification 
-          key={t.id} 
-          type={t.type} 
-          message={t.message} 
-          onClose={() => setToasts(prev => prev.filter(x => x.id !== t.id))} 
+        <ToastNotification
+          key={t.id}
+          type={t.type}
+          message={t.message}
+          onClose={() => setToasts((prev) => prev.filter((x) => x.id !== t.id))}
         />
       ))}
     </div>
+
     {zipChooser && (
       <DialogNotification
         type="info"
@@ -2090,34 +2744,23 @@ onClick={() => {
               value={selectedZipEntry}
               onChange={(e) => setSelectedZipEntry(e.target.value)}
             >
-              {zipChooser.entryNames.map(n => (
-                <option key={n} value={n}>{n}</option>
+              {zipChooser.entryNames.map((n) => (
+                <option key={n} value={n}>
+                  {n}
+                </option>
               ))}
             </select>
           </div>
         }
         onConfirm={() => processChosenZipEntry()}
-        onCancel={() => { 
-            setZipChooser(null); 
-            setSelectedZipEntry(''); 
-            setSelectedFileName('');
-            if (fileInputRef.current) fileInputRef.current.value = ''; 
+        onCancel={() => {
+          setZipChooser(null);
+          setSelectedZipEntry("");
+          setSelectedFileName("");
+          if (fileInputRef.current) fileInputRef.current.value = "";
         }}
         confirmText="המשך לטעינה"
         cancelText="ביטול"
-      />
-    )}
-
-    {/* מודאל OTP של האוטומציה */}
-    {autoRunId && <PortalRunOtpModal runId={autoRunId} />}
-    {/* מודאל אישור מחיקה */}
-    {showConfirmDelete && (
-      <DialogNotification
-        type="warning"
-        title="מחיקת טעינה קיימת"
-        message="האם למחוק את כל נתוני הטעינה הקודמת עבור סוכן/חברה/תבנית?"
-        onConfirm={handleDeleteExisting}
-        onCancel={() => setShowConfirmDelete(false)}
       />
     )}
   </div>

@@ -2,6 +2,7 @@
 
 /* eslint-disable max-len */
 
+
 import React, { useEffect, useMemo, useState } from "react";
 import { collection, getDocs, query, where } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
@@ -49,6 +50,7 @@ export default function PortalCredentialsPage() {
   const isMor = selectedPortalId === "mor";
   const isMeitav = selectedPortalId === "meitav";
   const isAnalyst = selectedPortalId === "analyst";
+  const isAltshuler = selectedPortalId === "altshuler";
 
   const [pairing, setPairing] = useState<{ code: string; expiresAtMs: number } | null>(null);
   const [pairingLeftSec, setPairingLeftSec] = useState<number>(0);
@@ -175,18 +177,20 @@ export default function PortalCredentialsPage() {
     setLicenseNumber("");
   };
 
-  const canSave =
-    !!agentId &&
-    !!selectedPortalId &&
-    !!username &&
-    (
-      isMor
-        ? (!!licenseNumber && !!phoneNumber)
-        : (isMenora || isMeitav || isAnalyst)        
-        ? !!phoneNumber
-       : !!password
-    ) &&
-    !saving;
+const canSave =
+  !!agentId &&
+  !!selectedPortalId &&
+  !!username &&
+  (
+    isMor
+      ? (!!licenseNumber && !!phoneNumber)
+      : isAltshuler
+        ? !!licenseNumber
+        : (isMenora || isMeitav || isAnalyst)
+          ? !!phoneNumber
+          : !!password
+  ) &&
+  !saving;
 
   const onSave = async () => {
     if (!canSave) return;
@@ -201,14 +205,16 @@ export default function PortalCredentialsPage() {
         username,
       };
 
-      if (isMor) {
-        payload.licenseNumber = licenseNumber;
-        payload.phoneNumber = phoneNumber;
-      } else if (isMenora || isMeitav || isAnalyst) {
-        payload.phoneNumber = phoneNumber;
-      } else {
-        payload.password = password;
-      }
+    if (isMor) {
+  payload.licenseNumber = licenseNumber;
+  payload.phoneNumber = phoneNumber;
+} else if (isAltshuler) {
+  payload.licenseNumber = licenseNumber;
+} else if (isMenora || isMeitav || isAnalyst) {
+  payload.phoneNumber = phoneNumber;
+} else {
+  payload.password = password;
+}
 
       await saveCreds(payload);
 
@@ -248,9 +254,12 @@ export default function PortalCredentialsPage() {
         <b>מור:</b> מספר רישיון + תעודת זהות + טלפון (ללא סיסמה).
         <br />
         <b>מיטב:</b> תעודת זהות + טלפון (ללא סיסמה).
-        <br /><b>Analyst:</b> שם משתמש + טלפון (ללא סיסמה).
+        <br />
+      <b>אנליסט:</b> תעודת זהות + טלפון (ללא סיסמה).
         <br />
         <b>אחרים:</b> שם משתמש + סיסמה.
+        <br />
+<b>אלטשולר:</b> מספר ח.פ + תעודת זהות (ללא סיסמה וללא טלפון).
       </p>
 
       <div className="mt-4 text-sm text-gray-700">
@@ -359,7 +368,7 @@ export default function PortalCredentialsPage() {
 
             <div className="mb-3">
               <label className="block font-semibold mb-1">
-{(isMor || isMeitav || isAnalyst) ? "תעודת זהות:" : "שם משתמש:"}
+{(isMor || isMeitav || isAnalyst || isAltshuler) ? "תעודת זהות:" : "שם משתמש:"}
               </label>
               <input
                 className="select-input w-full"
@@ -374,22 +383,30 @@ export default function PortalCredentialsPage() {
                         ? "קוד משתמש / ת״ז לפורטל מנורה"
                         : isAnalyst
                           ? "תעודת זהות לפורטל אנליסט"
+                          : isAltshuler
+                            ? "תעודת זהות לפורטל אלטשולר"
                             : "לדוגמה: ת״ז / שם משתמש"
                 }
               />
             </div>
 
-            {isMor && (
-              <div className="mb-3">
-                <label className="block font-semibold mb-1">מספר רישיון:</label>
-                <input
-                  className="select-input w-full"
-                  value={licenseNumber}
-                  onChange={(e) => setLicenseNumber(e.target.value)}
-                  placeholder="מספר רישיון לפורטל מור"
-                />
-              </div>
-            )}
+{(isMor || isAltshuler) && (
+  <div className="mb-3">
+    <label className="block font-semibold mb-1">
+      {isMor ? "מספר רישיון:" : "מספר ח.פ:"}
+    </label>
+    <input
+      className="select-input w-full"
+      value={licenseNumber}
+      onChange={(e) => setLicenseNumber(e.target.value)}
+      placeholder={
+        isMor
+          ? "מספר רישיון לפורטל מור"
+          : "מספר ח.פ לפורטל אלטשולר"
+      }
+    />
+  </div>
+)}
 
 {(isMenora || isMor || isMeitav || isAnalyst) && (
                 <div className="mb-3">
@@ -423,8 +440,8 @@ export default function PortalCredentialsPage() {
               </div>
             )}
 
-{!isMenora && !isMor && !isMeitav && !isAnalyst && (
-                <div className="mb-3">
+{!isMenora && !isMor && !isMeitav && !isAnalyst && !isAltshuler && (
+                  <div className="mb-3">
                 <label className="block font-semibold mb-1">סיסמה:</label>
                 <input
                   className="select-input w-full"
