@@ -121,6 +121,7 @@ export async function analystHandleOtp(page: Page, ctx: RunnerCtx) {
   await clearOtp(runId).catch(() => {});
 }
 
+
 export async function analystNavigateAndExport(
   page: Page,
   absDir: string
@@ -129,16 +130,28 @@ export async function analystNavigateAndExport(
   const cdp = await page.context().newCDPSession(page);
 
   // ✅ שלב 1: סגור popup אם קיים
-  console.log("[Analyst] Closing popup if exists...");
+  console.log("[Analyst] Waiting for popup if exists...");
   await cdp.send("Runtime.evaluate", {
     expression: `(function() {
-      const btn = document.querySelector('button[aria-label="סגירה"][type="submit"]');
-      if (btn) { btn.click(); return 'CLOSED'; }
-      return 'NO_POPUP';
+      return new Promise((resolve) => {
+        let attempts = 0;
+        const interval = setInterval(() => {
+          attempts++;
+          const btn = document.querySelector('button[aria-label="סגירה"][type="submit"]');
+          if (btn) {
+            clearInterval(interval);
+            btn.click();
+            resolve('CLOSED');
+          }
+          if (attempts >= 10) {
+            clearInterval(interval);
+            resolve('NO_POPUP');
+          }
+        }, 500);
+      });
     })()`,
     returnByValue: true,
   });
-  await page.waitForTimeout(1500);
 
   // ✅ שלב 2: לחץ "הפקת דוחות" בסרגל
   console.log("[Analyst] Clicking reports nav link...");
@@ -154,25 +167,23 @@ export async function analystNavigateAndExport(
   console.log("[Analyst] Nav result:", navResult.result.value);
   await page.waitForTimeout(3000);
 
-  // ✅ שלב 3: בחר סוג דוח - פתח dropdown
-// ✅ שלב 3: בחר סוג דוח - פתח dropdown
-console.log("[Analyst] Opening report type dropdown...");
-const selectPos = await cdp.send("Runtime.evaluate", {
-  expression: `(function() {
-    // מחפש לפי aria-label במקום id קשיח
-    const el = document.querySelector('mat-select[aria-label="בחירת סוג דוח"], mat-select[aria-label="בחירות סוג דות"], #mat-select-1, #mat-select-3');
-    if (!el) return null;
-    const rect = el.getBoundingClientRect();
-    return JSON.stringify({ x: rect.left + rect.width/2, y: rect.top + rect.height/2 });
-  })()`,
-  returnByValue: true,
-});
+  // ✅ שלב 3: בחר סוג דוח
+  console.log("[Analyst] Opening report type dropdown...");
+  const selectPos = await cdp.send("Runtime.evaluate", {
+    expression: `(function() {
+      const el = document.querySelector('mat-select[aria-label="בחירת סוג דוח"], mat-select[aria-label="בחירות סוג דות"], #mat-select-1, #mat-select-3');
+      if (!el) return null;
+      const rect = el.getBoundingClientRect();
+      return JSON.stringify({ x: rect.left + rect.width/2, y: rect.top + rect.height/2 });
+    })()`,
+    returnByValue: true,
+  });
 
-const pos = JSON.parse(selectPos.result.value || 'null');
-if (!pos) throw new Error("Report type select not found");
+  const pos = JSON.parse(selectPos.result.value || 'null');
+  if (!pos) throw new Error("Report type select not found");
 
-await page.mouse.click(pos.x, pos.y);
-await page.waitForTimeout(1000);
+  await page.mouse.click(pos.x, pos.y);
+  await page.waitForTimeout(1000);
 
   // ✅ שלב 4: בחר "עמלות סוכנים"
   console.log("[Analyst] Selecting 'עמלות סוכנים'...");
@@ -189,7 +200,7 @@ await page.waitForTimeout(1000);
   console.log("[Analyst] Select result:", selectResult.result.value);
   await page.waitForTimeout(1000);
 
-  // ✅ שלב 5: לחץ "הפק דוח" והמתן להורדה
+  // ✅ שלב 5: לחץ "הפק דוח"
   console.log("[Analyst] Clicking 'הפק דוח'...");
   try {
     const [download] = await Promise.all([
@@ -198,7 +209,6 @@ await page.waitForTimeout(1000);
         expression: `(function() {
           const btn = document.querySelector('button[aria-label="הפק דות"]');
           if (!btn) {
-            // fallback לפי טקסט
             const btns = Array.from(document.querySelectorAll('button'));
             const target = btns.find(b => (b.textContent || '').trim().includes('הפק דוח'));
             if (target) { target.click(); return 'CLICKED_FALLBACK'; }
