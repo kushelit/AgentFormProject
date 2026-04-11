@@ -31,6 +31,7 @@ export type UserDetail = {
   agentId: string;
   agencyId: string;
   role: 'agent' | 'worker' | 'admin' | 'manager';
+  isSystem?: boolean;
   isActive?: boolean;
   subscriptionId?: string;
   subscriptionType?: string;
@@ -68,59 +69,7 @@ export const AuthContextProvider = ({ children }: { children: React.ReactNode })
     setIsClient(true);
   }, []);
 
-  // useEffect(() => {
-  //   if (!isClient) return;
-
-  //   const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-  //     if (!currentUser) {
-  //       setUser(null);
-  //       setDetail(null);
-  //       setIsLoading(false);
-  //       return;
-  //     }
-
-  //     const docRef = doc(db, 'users', currentUser.uid);
-  //     const docSnap = await getDoc(docRef);
-
-  //     if (!docSnap.exists()) {
-  //       setUser(null);
-  //       setDetail(null);
-  //       setIsLoading(false);
-  //       return;
-  //     }
-
-  //     const data = docSnap.data() as UserDetail;
-
-  //     if (data?.isActive === false) {
-  //       setUser(null);
-  //       setDetail(null);
-  //       setIsLoading(false);
-  //       return;
-  //     }
-
-  //     setUser(currentUser);
-  //     setDetail(data);
-
-  //     const rolesToFetch = ['agent', 'worker', 'admin', 'manager'];
-  //     const rolesData: RolesPermissionsMap = {};
-
-  //     await Promise.all(
-  //       rolesToFetch.map(async (role) => {
-  //         const roleDoc = await getDoc(doc(db, 'roles', role));
-  //         rolesData[role] = roleDoc.exists() ? roleDoc.data().permissions || [] : [];
-  //       })
-  //     );
-
-  //     setRolesPermissions(rolesData);
-  //     setIsLoading(false);
-  //   });
-
-  //   return () => unsubscribe();
-  // }, [isClient]);
-
   
-// פעולות התחברות/התנתקות
-
 
 useEffect(() => {
   if (!isClient) return;
@@ -170,7 +119,8 @@ useEffect(() => {
       asmachta: raw.asmachta,
       permissionOverrides: raw.permissionOverrides,
       addOns: raw.addOns,
-    };
+      isSystem: raw.isSystem ?? false, 
+       };
 
     setUser(currentUser);
     setDetail(detail);

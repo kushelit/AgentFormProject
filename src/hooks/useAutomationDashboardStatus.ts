@@ -14,6 +14,8 @@ export type AutomaticCompany = {
   automationEnabled?: boolean;
   companyAutomationClass?: string;
   portalId?: string;
+  companyAutoDownloadEnabled?: boolean;
+  companyAutoDownloadMessage?: string;
 };
 
 export type AutoCompanyUiStatus =
@@ -48,6 +50,7 @@ type Params = {
   selectedAgentId?: string;
   companies: AutomaticCompany[];
   isAutoEnabledByFlag: boolean;
+  refreshKey?: number;
 };
 
 type Result = {
@@ -100,22 +103,59 @@ function mapRunToUiStatus(params: {
   runStatus?: string;
   runStep?: string;
   hasLock: boolean;
+  lockState?: string;
   isAutoEnabledByFlag: boolean;
+  isCompanyAutoEnabled: boolean;
 }): AutoCompanyUiStatus {
-  const { runStatus, runStep, hasLock, isAutoEnabledByFlag } = params;
+  const {
+    runStatus,
+    runStep,
+    hasLock,
+    lockState,
+    isAutoEnabledByFlag,
+    isCompanyAutoEnabled,
+  } = params;
 
-  if (!isAutoEnabledByFlag) return 'disabled_by_flag';
+  if (!isAutoEnabledByFlag || !isCompanyAutoEnabled) return 'disabled_by_flag';
   if (!hasLock && !runStatus) return 'ready';
 
-  if (runStatus === 'done' || runStatus === 'success') return 'done';
-  if (runStatus === 'error' || runStatus === 'failed') return 'error';
+  if (
+    runStatus === 'error' ||
+    runStatus === 'failed' ||
+    runStep === 'import_error' ||
+    lockState === 'error'
+  ) {
+    return 'error';
+  }
+
+  if (
+    runStatus === 'success' && runStep === 'import_done'
+  ) {
+    return 'done';
+  }
 
   if (runStatus === 'skipped') {
     if (runStep === 'duplicate_running') return 'running';
     return 'done';
   }
 
-  return 'running';
+  if (
+    lockState === 'running' ||
+    runStatus === 'queued' ||
+    runStatus === 'running' ||
+    runStatus === 'otp_required' ||
+    runStatus === 'logged_in' ||
+    runStatus === 'file_uploaded' ||
+    runStatus === 'done'
+  ) {
+    return 'running';
+  }
+
+  if (lockState === 'done') {
+    return 'done';
+  }
+
+  return 'ready';
 }
 
 export function useAutomationDashboardStatus({
@@ -123,6 +163,7 @@ export function useAutomationDashboardStatus({
   selectedAgentId,
   companies,
   isAutoEnabledByFlag,
+  refreshKey = 0,
 }: Params): Result {
   const [items, setItems] = useState<DashboardCompanyState[]>([]);
   const [loading, setLoading] = useState(false);
@@ -159,6 +200,8 @@ export function useAutomationDashboardStatus({
           let runStep = '';
           let lastRunAt: Date | null = null;
 
+
+
           if (lockSnap.exists()) {
             lockExists = true;
             const lockData: any = lockSnap.data() || {};
@@ -180,12 +223,14 @@ export function useAutomationDashboardStatus({
             }
           }
 
-          const uiStatus = mapRunToUiStatus({
-            runStatus,
-            runStep,
-            hasLock: lockExists,
-            isAutoEnabledByFlag,
-          });
+     const uiStatus = mapRunToUiStatus({
+  runStatus,
+  runStep,
+  hasLock: lockExists,
+  lockState,
+  isAutoEnabledByFlag,
+  isCompanyAutoEnabled: company.companyAutoDownloadEnabled !== false,
+});
 
           return {
             companyId: company.id,
@@ -215,7 +260,7 @@ export function useAutomationDashboardStatus({
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedAgentId, JSON.stringify(automaticCompanies), isAutoEnabledByFlag]);
+  }, [selectedAgentId, JSON.stringify(automaticCompanies), isAutoEnabledByFlag, refreshKey]);
 
   return {
     items,

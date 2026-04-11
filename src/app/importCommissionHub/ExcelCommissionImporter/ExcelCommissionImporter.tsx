@@ -57,6 +57,9 @@ interface CommissionTemplateOption {
   commissionIncludesVAT?: boolean; 
   automationEnabled?: boolean;
   companyAutoClass?: string;
+  companyAutoDownloadEnabled?: boolean;
+companyAutoDownloadMessage?: string;
+portalId?: string;
 }
 
 interface CommissionSummary {
@@ -130,8 +133,8 @@ const [loadingStage, setLoadingStage] = useState<string>("");
 const { canAccess: canAutoDownload, isChecking: isCheckingAutoDownload } =
   usePermission(user ? "access_portal_auto_download" : null);
 
-
-
+const [autoDashboardRefreshKey, setAutoDashboardRefreshKey] = useState(0);
+const [activeAutoCompanyId, setActiveAutoCompanyId] = useState<string>("");
   // בחירה מתוך ZIP
   const [zipChooser, setZipChooser] = useState<null | {
     zip: any;
@@ -158,7 +161,7 @@ const [autoRunKind, setAutoRunKind] = useState<"portal" | "self_update" | "">(""
 
 const [isStartingAuto, setIsStartingAuto] = useState(false);
 const [isAutoRunActive, setIsAutoRunActive] = useState(false);
-
+const handledFinishedRunRef = useRef<string>('');
 const automationClass = String(selectedTemplate?.automationClass || "").trim();
 // const canStartAuto = Boolean(
 //   selectedAgentId && selectedCompanyId && templateId && automationClass
@@ -171,6 +174,8 @@ type AutomaticCompany = {
   automationEnabled?: boolean;
   companyAutomationClass?: string;
   portalId?: string;
+  companyAutoDownloadEnabled?: boolean;
+companyAutoDownloadMessage?: string;
 };
 
 const handleStartAutoForCompany = async (company: AutomaticCompany) => {
@@ -187,7 +192,8 @@ const handleStartAutoForCompany = async (company: AutomaticCompany) => {
 
   setIsStartingAuto(true);
   setIsAutoRunActive(true);
-
+  setActiveAutoCompanyId(company.id);
+handledFinishedRunRef.current = '';
   try {
     const { runId } = await startAutoPortalRun({
       db,
@@ -270,7 +276,10 @@ const uniqueCompanies = Array.from(
         id: t.companyId,
         name: t.companyName,
         automationEnabled: t.automationEnabled,
-        companyAutomationClass: t.companyAutoClass || ""
+        companyAutomationClass: t.companyAutoClass || "",
+        companyAutoDownloadEnabled: t.companyAutoDownloadEnabled !== false,
+        companyAutoDownloadMessage: t.companyAutoDownloadMessage || "",
+        portalId: t.portalId || t.companyId,
       });
     }
     return acc;
@@ -287,12 +296,10 @@ const automaticCompanies = uniqueCompanies
     name: c.name,
     automationEnabled: c.automationEnabled,
     companyAutomationClass: c.companyAutomationClass,
+    companyAutoDownloadEnabled: c.companyAutoDownloadEnabled,
+    companyAutoDownloadMessage: c.companyAutoDownloadMessage,
     portalId: c.portalId || c.id,
   }));
-
-
-
-
 
 
 
@@ -318,13 +325,6 @@ const effectiveAutomationClass = (selectedCompany?.companyAutomationClass && sel
 const canStartAuto = Boolean(selectedAgentId && selectedCompanyId && effectiveAutomationClass !== "");
 
 
-
-const autoButtonDisabled =
-  !canStartAuto ||
-  isStartingAuto ||
-  isCheckingAutoDownload ||
-  isCheckingFlag ||
-  !isAutoEnabledByFlag;
 
 const handleStartAuto = async () => {
   if (!selectedAgentId || !selectedCompanyId) return;
@@ -564,6 +564,8 @@ const getExt = (n?: string) => {
         let companyName = '';
         let automationEnabled = false;
         let companyAutomationClass = '';
+        let companyAutoDownloadEnabled = true;
+        let companyAutoDownloadMessage = '';
 
         if (companyId) {
          if (!companyCache[companyId]) {
@@ -573,7 +575,9 @@ const getExt = (n?: string) => {
        const companyInfo = companyCache[companyId];
         companyName = companyInfo.companyName || '';
         automationEnabled = !!companyInfo.automationEnabled;
-        companyAutomationClass = companyInfo.automationClass || '';      
+        companyAutomationClass = companyInfo.automationClass || '';   
+        companyAutoDownloadEnabled = companyInfo.autoDownloadEnabled !== false;
+        companyAutoDownloadMessage = String(companyInfo.autoDownloadMessage || '').trim();   
       }
         templates.push({
           id: docSnap.id,
@@ -584,6 +588,8 @@ const getExt = (n?: string) => {
           Name: data.Name || '',
           automationClass: data.automationClass || '',
           companyAutoClass: companyAutomationClass,
+          companyAutoDownloadEnabled,
+          companyAutoDownloadMessage,
           commissionIncludesVAT: !!data.commissionIncludesVAT,
         });
       }
@@ -850,7 +856,8 @@ tempDate.setHours(tempDate.getHours() + 12);
     row: any,
     mapping: Record<string, string>,
     base: any,
-    fallbackReportMonth?: string
+    fallbackReportMonth?: string,
+    options?: { isMultiSheet?: boolean }
   ) => {
     const result: any = { ...base };
 
@@ -864,14 +871,24 @@ tempDate.setHours(tempDate.getHours() + 12);
         result[systemField] = parsed || value;
 
       } else if (systemField === 'commissionAmount') {
-        const override = commissionOverrides[base.templateId];
-        let commission = override ? override(row) : toNum(value);
 
-        if (selectedTemplate?.commissionIncludesVAT) {
-          commission = commission / (1 + VAT_DEFAULT);
-        }
 
-        result[systemField] = roundTo2(commission);
+       let commission = 0;
+
+  if (options?.isMultiSheet) {
+    // ב-MULTI משתמשים רק בערך מהמיפוי
+    commission = toNum(value);
+  } else {
+    // בידני רגיל - שומרים על ה-override הישן
+    const override = commissionOverrides[base.templateId];
+    commission = override ? override(row) : toNum(value);
+  }
+
+  if (selectedTemplate?.commissionIncludesVAT) {
+    commission = commission / (1 + VAT_DEFAULT);
+  }
+
+  result[systemField] = roundTo2(commission);
 
       } else if (systemField === 'premium') {
         if (base.templateId === 'fenix_insurance') {
@@ -1413,7 +1430,10 @@ const parseAndStandardize = async (data: any, fileName: string, fallbackMonth?: 
       uploadDate: serverTimestamp(),
       companyId: selectedCompanyId,
       company: selectedCompanyName, // ודאי שה-useMemo למטה מוגדר!
-    }, fallbackMonth));
+    },
+  fallbackMonth,
+  { isMultiSheet: false }
+));
 
   if (standardized.length === 0) {
     setIsLoading(false);
@@ -2012,6 +2032,30 @@ const handleTriggerUpdate = async () => {
 
 const isUpdateAvailable = latestRunnerVersion && currentRunnerVersion && latestRunnerVersion !== currentRunnerVersion;
 
+const isCompanyAutoEnabled = selectedCompany?.companyAutoDownloadEnabled !== false;
+
+const companyAutoDisabledReason =
+  selectedCompany?.companyAutoDownloadMessage || "דוחות החברה עדיין לא זמינים להורדה.";
+
+const isAutoEnabledEffective = isAutoEnabledByFlag && isCompanyAutoEnabled;
+
+const effectiveAutoDisabledReason = !isAutoEnabledByFlag
+  ? autoDisabledReason
+  : !isCompanyAutoEnabled
+    ? companyAutoDisabledReason
+    : "";
+
+
+
+const autoButtonDisabled =
+  !canStartAuto ||
+  isStartingAuto ||
+  isCheckingAutoDownload ||
+  isCheckingFlag ||
+  !isAutoEnabledEffective;
+
+
+
 // בדיקה מקדימה של ריצות קיימות לפי templateId + חודשי הדוח בקובץ 
 
 const [importMode, setImportMode] = useState<"single" | "multi_sheet">("single");
@@ -2156,7 +2200,8 @@ const standardizeSheetRows = React.useCallback((params: {
           company: selectedCompanyName || "",
           sourceSheetName: sheetName,
         },
-        undefined
+        undefined,
+         { isMultiSheet: true }
       )
     )
     .map((row) => {
@@ -2291,6 +2336,9 @@ const multiPreviewColumns = [
             isAutoEnabledByFlag={isAutoEnabledByFlag}
             autoDisabledReason={autoDisabledReason}
             onStartRun={handleStartAutoForCompany}
+            refreshKey={autoDashboardRefreshKey}
+              activeCompanyId={activeAutoCompanyId}
+            isRunActive={isAutoRunActive}
           />
         ) : (
           <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50 p-8 text-center text-gray-500">
@@ -2314,33 +2362,49 @@ const multiPreviewColumns = [
                   ✖
                 </button>
               )}
-
               <PortalRunStatus
                 db={db}
                 runId={autoRunId}
                 runKind={autoRunKind}
-                onFinished={(status) => {
-                  if (!isAutoRunActive) return;
-                  setIsAutoRunActive(false);
+    onFinished={(status) => {
+  if (!autoRunId) return;
 
-                  if (autoRunKind === "self_update") {
-                    if (status === "done") {
-                      addToast("success", "✅ קובץ העדכון ירד וההתקנה הופעלה.");
-                    } else if (status === "error") {
-                      addToast("error", "❌ עדכון הגרסה נכשל.");
-                    }
-                    return;
-                  }
+  const isFinalPortalStatus =
+    autoRunKind === "self_update"
+      ? status === "done" || status === "error"
+      : status === "success" || status === "error" || status === "failed" || status === "skipped";
 
-                  if (status === "skipped") {
-                    addToast("error", "⏭️ המשיכה דולגה (כבר קיים במערכת)");
-                  } else if (status === "done" || status === "success") {
-                    addToast("success", "✅ המשיכה האוטומטית הושלמה בהצלחה!");
-                  } else if (status === "failed") {
-                    addToast("error", "ℹ️ הריצה בוטלה והחסימה שוחררה.");
-                  }
-                }}
-              />
+  if (!isFinalPortalStatus) return;
+
+  if (handledFinishedRunRef.current === autoRunId) return;
+  handledFinishedRunRef.current = autoRunId;
+
+  setIsAutoRunActive(false);
+  setActiveAutoCompanyId('');
+  setAutoDashboardRefreshKey((v) => v + 1);
+
+  setTimeout(() => {
+    setAutoDashboardRefreshKey((v) => v + 1);
+  }, 1500);
+
+  if (autoRunKind === "self_update") {
+    if (status === "done") {
+      addToast("success", "✅ קובץ העדכון ירד וההתקנה הופעלה.");
+    } else if (status === "error") {
+      addToast("error", "❌ עדכון הגרסה נכשל.");
+    }
+    return;
+  }
+
+  if (status === "skipped") {
+    addToast("error", "⏭️ המשיכה דולגה (כבר קיים במערכת)");
+  } else if (status === "success") {
+    addToast("success", "✅ המשיכה האוטומטית הושלמה בהצלחה!");
+  } else if (status === "failed" || status === "error") {
+    addToast("error", "ℹ️ הריצה הסתיימה עם שגיאה.");
+  }
+}}
+       />
             </div>
           </div>
         )}
@@ -2511,7 +2575,6 @@ const multiPreviewColumns = [
               </div>
             )}
           </div>
-
           {/* PREVIEW MULTI */}
           {importMode === "multi_sheet" && multiSheetPreview && (
             <div className="mt-4 bg-white rounded-xl border border-gray-200 p-4">

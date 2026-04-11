@@ -24,7 +24,7 @@ import { createFileLogger } from "./logger";
 import { loginIfNeeded } from "./loginCli";
 
 // הגדרת גרסה נוכחית
-const RUNNER_VERSION = "2.0.8";
+const RUNNER_VERSION = "2.0.9";
 
 function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));

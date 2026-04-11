@@ -15,6 +15,9 @@ type Props = {
   companies: AutomaticCompany[];
   isAutoEnabledByFlag: boolean;
   autoDisabledReason: string;
+  refreshKey?: number;
+  activeCompanyId?: string;
+  isRunActive?: boolean;
   onStartRun: (company: AutomaticCompany) => Promise<void>;
 };
 
@@ -25,6 +28,9 @@ const AutomaticRunsDashboard: React.FC<Props> = ({
   isAutoEnabledByFlag,
   autoDisabledReason,
   onStartRun,
+   refreshKey = 0,
+   activeCompanyId,
+  isRunActive = false,
 }) => {
   const [startingCompanyId, setStartingCompanyId] = useState<string>('');
 
@@ -33,6 +39,7 @@ const AutomaticRunsDashboard: React.FC<Props> = ({
     selectedAgentId,
     companies,
     isAutoEnabledByFlag,
+     refreshKey,
   });
 
   const automaticCompanies = useMemo(
@@ -57,33 +64,37 @@ const AutomaticRunsDashboard: React.FC<Props> = ({
     return { done, running, error, ready, total: items.length };
   }, [items]);
 
-  const handleStart = async (companyId: string) => {
-    const company = byCompanyId[companyId];
-    if (!company) return;
+const handleStart = async (companyId: string) => {
+  const company = byCompanyId[companyId];
+  if (!company) return;
 
-    const item = items.find((x) => x.companyId === companyId);
-    if (!item) return;
+  const item = items.find((x) => x.companyId === companyId);
+  if (!item) return;
 
-    if (
-      item.uiStatus === 'done' ||
-      item.uiStatus === 'running' ||
-      item.uiStatus === 'disabled_by_flag'
-    ) {
-      return;
-    }
+  if (
+    item.uiStatus === 'done' ||
+    item.uiStatus === 'running' ||
+    item.uiStatus === 'disabled_by_flag'
+  ) {
+    return;
+  }
 
-    if (globallyBusy) {
-      return;
-    }
+  if (company.companyAutoDownloadEnabled === false) {
+    return;
+  }
 
-    try {
-      setStartingCompanyId(companyId);
-      await onStartRun(company);
-      await refresh();
-    } finally {
-      setStartingCompanyId('');
-    }
-  };
+  if (globallyBusy) {
+    return;
+  }
+
+  try {
+    setStartingCompanyId(companyId);
+    await onStartRun(company);
+    await refresh();
+  } finally {
+    setStartingCompanyId('');
+  }
+};
 
   if (!selectedAgentId || automaticCompanies.length === 0) return null;
 
@@ -152,38 +163,52 @@ const AutomaticRunsDashboard: React.FC<Props> = ({
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {items.map((item) => {
-            let effectiveStatus: AutoCompanyUiStatus = item.uiStatus;
+         {items.map((item) => {
+  const company = byCompanyId[item.companyId];
 
-            if (startingCompanyId === item.companyId) {
-              effectiveStatus = 'running';
-            }
+  let effectiveStatus: AutoCompanyUiStatus = item.uiStatus;
 
-            const anotherRunActive =
-              (activeRunningItem && activeRunningItem.companyId !== item.companyId) ||
-              (startingCompanyId && startingCompanyId !== item.companyId);
+if (
+  startingCompanyId === item.companyId ||
+  (
+    isRunActive &&
+    activeCompanyId === item.companyId &&
+    effectiveStatus !== 'done' &&
+    effectiveStatus !== 'error'
+  )
+) {
+  effectiveStatus = 'running';
+}
 
-            const globallyBlocked =
-              Boolean(anotherRunActive) &&
-              effectiveStatus !== 'done' &&
-              effectiveStatus !== 'running' &&
-              effectiveStatus !== 'disabled_by_flag';
+  const itemAutoDisabledReason = !isAutoEnabledByFlag
+    ? autoDisabledReason
+    : company?.companyAutoDownloadMessage || 'הדוחות של חברה זו עדיין לא זמינים להורדה.';
 
-            return (
-              <AutoCompanyCard
-                key={item.companyId}
-                companyName={item.companyName}
-                monthLabel={item.monthLabel}
-                uiStatus={effectiveStatus}
-                autoDisabledReason={autoDisabledReason}
-                lastRunAt={item.lastRunAt}
-                busy={startingCompanyId === item.companyId}
-                globallyBlocked={globallyBlocked}
-                globallyBlockedReason="ממתין לסיום ריצה אחרת"
-                onStart={() => handleStart(item.companyId)}
-              />
-            );
-          })}
+  const anotherRunActive =
+    (activeRunningItem && activeRunningItem.companyId !== item.companyId) ||
+    (startingCompanyId && startingCompanyId !== item.companyId);
+
+  const globallyBlocked =
+    Boolean(anotherRunActive) &&
+    effectiveStatus !== 'done' &&
+    effectiveStatus !== 'running' &&
+    effectiveStatus !== 'disabled_by_flag';
+
+  return (
+    <AutoCompanyCard
+      key={item.companyId}
+      companyName={item.companyName}
+      monthLabel={item.monthLabel}
+      uiStatus={effectiveStatus}
+      autoDisabledReason={itemAutoDisabledReason}
+      lastRunAt={item.lastRunAt}
+      busy={startingCompanyId === item.companyId}
+      globallyBlocked={globallyBlocked}
+      globallyBlockedReason="ממתין לסיום ריצה אחרת"
+      onStart={() => handleStart(item.companyId)}
+    />
+  );
+})}
         </div>
       )}
     </section>

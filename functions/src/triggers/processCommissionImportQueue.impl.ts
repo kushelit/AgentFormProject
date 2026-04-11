@@ -71,8 +71,9 @@ async function finishAsEmpty(params: {
   message: string;
   reason: string;
   extra?: any;
+  templateName?: string;
 }) {
-  const { db, queueRef, portalRunId, jobId, templateId, message, reason, extra } = params;
+  const { db, queueRef, portalRunId, jobId, templateId,templateName, message, reason, extra } = params;
 
   await queueRef.set(
     {
@@ -99,6 +100,7 @@ async function finishAsEmpty(params: {
     patch: {
       status: "skipped",
       templateId,
+      templateName,
       finishedAt: nowTs(),
       externalCount: 0,
       commissionSummariesCount: 0,
@@ -400,6 +402,7 @@ if (!picked.ok) {
         reason: "missing_zip_entry_skipped",
         finishedAt: nowTs(),
         templateId,
+        templateName: template.templateName,
         extra: {
           zipReason: picked.reason,
           candidates: picked.candidates || [],
@@ -446,6 +449,7 @@ if (!parsed.rowsCount) {
     portalRunId: effectivePortalRunId,
     jobId,
     templateId,
+  templateName: template.templateName,
     message: "הדוח נקלט אך מכיל 0 שורות",
     reason: "parse_file_empty",
     extra: { debug: parsed?.debug },
@@ -471,6 +475,7 @@ if (!standardized.length) {
     portalRunId: effectivePortalRunId,
     jobId,
     templateId,
+      templateName: template.templateName,
     message: "הדוח נקלט אך לאחר עיבוד לא נמצאו שורות",
     reason: "standardize_empty",
   });
@@ -498,6 +503,7 @@ if (!finalRows.length) {
     portalRunId: effectivePortalRunId,
     jobId,
     templateId,
+      templateName: template.templateName,
     message: `הדוח נקלט אך אין נתונים עבור ${targetMonth}`,
     reason: "filter_month_empty",
   });
@@ -548,6 +554,7 @@ if (!finalRows.length) {
         commissionSummariesCount: commissionSummaries.length,
         policySummariesCount: policySummaries.length,
         templateId,
+        templateName: template.templateName,
       },
       aggregate: { finalStatus: "success" },
     });

@@ -34,8 +34,15 @@ function normalizePolicyKey(v: any): string {
   return String(v ?? "").trim().replace(/\s+/g, "");
 }
 
+// function normalizeAgentCode(v: any): string {
+//   return String(v ?? "").trim();
+// }
+
 function normalizeAgentCode(v: any): string {
-  return String(v ?? "").trim();
+  return String(v ?? "")
+    .trim()
+    .split(/[\/\\-]/)[0] // 🔥 לוקח רק 1696
+    .replace(/\s+/g, "");
 }
 
 /* ---------- ids ---------- */

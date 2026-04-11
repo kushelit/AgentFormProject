@@ -25,16 +25,6 @@ const useFetchAgentData = () => {
   const [agents, setAgents] = useState<Agent[]>([]);
   const [selectedAgentId, setSelectedAgentId] = useState<string>('');
   const [subscriptionPermissionsMap, setSubscriptionPermissionsMap] = useState<Record<string, string[]>>({});
-
-  
-//  const [selectedAgentId, setSelectedAgentId] = useState<string>(() => {
-//   if (detail?.role === 'admin') {
-//       return ''; // Treat empty string as "all agents" for admins
-//   }
-//   return detail?.agentId || ''; // Default to the logged-in user's agent ID for other roles
-// });
-  
-
   const [selectedAgentName, setSelectedAgentName] = useState("");
   const [workers, setWorkers] = useState<Worker[]>([]);
   const [selectedWorkerId, setSelectedWorkerId] = useState("");
@@ -81,7 +71,7 @@ const useFetchAgentData = () => {
   
         const roleDoc = await getDoc(doc(db, 'roles', detail.role));
         const rolePerms = roleDoc.exists() ? roleDoc.data().permissions || [] : [];
-  
+        const isSystem = detail?.isSystem === true;
         const hasAccessAgentGroup = hasPermission({
           user: currentUser,
           permission: 'access_all_agents_in_group',
@@ -91,24 +81,41 @@ const useFetchAgentData = () => {
   
         let agentsList = [];
   
-        if (detail.role === 'admin') {
-          const adminAgencyId = detail.agencyId; // ⭐ מגיע מ-AuthContext אחרי המיפוי agencies → agencyId
-  
-          if (!adminAgencyId) {
-            // אין סוכנות משויכת – לא נציג סוכנים
-            setAgents([]);
-            setIsLoadingAgent(false);
-            return;
-          }
-  
-          const snapshot = await getDocs(
-            query(
-              collection(db, 'users'),
-              where('role', 'in', ['agent', 'manager']),
-              where('agencies', '==', adminAgencyId) // ⭐ סינון כבר ברמת ה-DB
-            )
-          );
-  
+       if (isSystem) {
+  // 🔥 SYSTEM ADMIN – רואה הכל
+  const snapshot = await getDocs(
+    query(
+      collection(db, 'users'),
+      where('role', 'in', ['agent', 'manager'])
+    )
+  );
+
+  agentsList = snapshot.docs
+    .filter(docSnap => docSnap.data().isActive !== false)
+    .map(docSnap => ({
+      id: docSnap.id,
+      name: docSnap.data().name as string,
+      agentCodes: docSnap.data().agentCodes || [],
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+else if (detail.role === 'admin') {
+  // 🧠 ADMIN רגיל – לפי סוכנות
+  const adminAgencyId = detail.agencyId;
+
+  if (!adminAgencyId) {
+    setAgents([]);
+    setIsLoadingAgent(false);
+    return;
+  }
+
+  const snapshot = await getDocs(
+    query(
+      collection(db, 'users'),
+      where('role', 'in', ['agent', 'manager']),
+      where('agencies', '==', adminAgencyId)
+    )
+  );
           agentsList = snapshot.docs
             .filter((docSnap) => {
               const data = docSnap.data();
