@@ -619,7 +619,7 @@ input::placeholder {
   margin-bottom: 0px;
   display: block;
 }
-.form-group input:not([type="checkbox"]),
+.form-group input:not([type="checkbox"]):not([type="radio"]),
 .form-group select,
 .form-group textarea {
   width: 100%; /* תופס את כל הרוחב הזמין */
@@ -1066,4 +1066,69 @@ table td.narrow-column {
 .ms-switch input:disabled + .ms-slider {
   opacity: .55;
   cursor: not-allowed;
+}
+.radio-group {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.radio-group label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  cursor: pointer;
+}
+
+.radio-group input[type="radio"] {
+  width: auto;
+  height: auto;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+}
+
+.radio-group {
+  display: flex;
+  gap: 8px;
+}
+
+.radio-group label {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 12px;
+  border: 1px solid #ccc;
+  border-radius: 20px;
+  cursor: pointer;
+  font-size: 12px;
+  background-color: #fff;
+  transition: all 0.2s ease;
+}
+
+/* מסתירים את הרדיו המקורי */
+.radio-group input[type="radio"] {
+  display: none;
+}
+
+/* מצב hover */
+.radio-group label:hover {
+  background-color: #f5f7fb;
+  border-color: #3b6a95;
+}
+
+/* מצב selected */
+.radio-group input[type="radio"]:checked + span {
+  font-weight: bold;
+}
+
+.radio-group input[type="radio"]:checked + span,
+.radio-group label:has(input:checked) {
+  background-color: #3b6a95;
+  color: #fff;
+  border-color: #3b6a95;
 }

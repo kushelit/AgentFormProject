@@ -18,7 +18,7 @@ const systemFields = [
   "firstNameCustomer", "lastNameCustomer", "IDCustomer", "company", "product",
   "insPremia", "pensiaPremia", "pensiaZvira", "finansimPremia", "finansimZvira",
   "mounth", "statusPolicy", "minuySochen", "notes", "workerName",
-   "sourceValue", "cancellationDate" ,"policyNumber"
+   "sourceValue", "cancellationDate" ,"policyNumber", "hekefPaid"
 ];
 
 const systemFieldsDisplay = [
@@ -42,6 +42,7 @@ const systemFieldsDisplay = [
   // { key: "sourceLeadName", label: "מקור ליד", required: false }, 
   { key: "sourceValue", label: "מקור ליד", required: false },       // ✅
   { key: "cancellationDate", label: "תאריך ביטול", required: false }, 
+  { key: "hekefPaid", label: "שולם היקף", required: false },
 
 ];
 
@@ -85,7 +86,19 @@ const ExcelImporter: React.FC = () => {
     agentName: string;
   } | null>(null);
 
+const canManageHekefPaid = String(detail?.agencyId ?? "") === "3";
 
+const applyDefaultHekefPaid = (row: any, mapping: Record<string, string>): void => {
+  const hekefField = Object.keys(mapping).find(col => mapping[col] === "hekefPaid");
+  if (
+    hekefField &&
+    (row[hekefField] === undefined ||
+      row[hekefField] === null ||
+      row[hekefField] === "")
+  ) {
+    row[hekefField] = "לא";
+  }
+};
   // const [sourceLeads, setSourceLeads] = useState<string[]>([]);
   type SourceLeadOption = { id: string; name: string };
 const [sourceLeads, setSourceLeads] = useState<SourceLeadOption[]>([]);
@@ -440,6 +453,7 @@ if (sourceLeadField) {
 }
 
       applyDefaultMinuySochen(newRow, mapping);
+      applyDefaultHekefPaid(newRow, mapping);
       return newRow;
     });
     // console.log("🔍 fullNameStructure at parse time:", fullNameStructure);
@@ -519,7 +533,14 @@ if (sourceLeadField) {
     const firstNameValue = String(row[reverseMap["firstNameCustomer"]] || "").trim();
     const lastNameValue = String(row[reverseMap["lastNameCustomer"]] || "").trim();
     const minuyValue = reverseMap["minuySochen"] ? String(row[reverseMap["minuySochen"]] || "").trim() : "";
-  
+  const hekefPaidValue = reverseMap["hekefPaid"]
+  ? String(row[reverseMap["hekefPaid"]] || "").trim()
+  : "";
+
+const validHekefPaid =
+  !reverseMap["hekefPaid"] ||
+  hekefPaidValue === "" ||
+  ["כן", "לא"].includes(hekefPaidValue);
     // ⭐⭐ שימו לב – זה השדה החדש! ⭐⭐
     const sourceValue = reverseMap["sourceValue"]
       ? String(row[reverseMap["sourceValue"]] || "").trim()
@@ -561,6 +582,7 @@ if (sourceLeadField) {
       validStatus;
   
     if (reverseMap["minuySochen"]) isValid = isValid && validMinuySochen;
+    if (reverseMap["hekefPaid"]) isValid = isValid && validHekefPaid;
     if (reverseMap["workerName"]) isValid = isValid && validWorker;
   
     // ⭐⭐ זה התיקון ⭐⭐
@@ -828,6 +850,10 @@ if (field === "sourceValue") {
           finansimZvira: mappedRow.finansimZvira || 0,
           mounth: mappedRow.mounth || "",
           minuySochen: String(mappedRow.minuySochen || "").trim() === "כן",
+          hekefPaid:
+  canManageHekefPaid
+    ? String(mappedRow.hekefPaid || "").trim() === "כן"
+    : false,
           cancellationDate: mappedRow.cancellationDate || "",  // ← חדש
           statusPolicy: mappedRow.statusPolicy || "",
           notes: mappedRow.notes || "",
@@ -975,8 +1001,9 @@ if (field === "sourceValue") {
               </tr>
             </thead>
             <tbody>
-              {systemFieldsDisplay.map(({ key, label, required }) => {
-                const mappedExcelField = Object.keys(mapping).find((col) => mapping[col] === key) || "";
+{systemFieldsDisplay
+  .filter((field) => field.key !== "hekefPaid" || canManageHekefPaid)
+  .map(({ key, label, required }) => {                const mappedExcelField = Object.keys(mapping).find((col) => mapping[col] === key) || "";
                 return (
                   <tr key={key}>
                     <td>{label}</td>
@@ -1147,7 +1174,10 @@ if (field === "sourceValue") {
                             !workers.find(
                               (w) => w.name.toLowerCase().trim() === lowerValue
                             );
-                          
+                          const isInvalidHekefPaid =
+  field === 'hekefPaid' &&
+  !!trimmedValue &&
+  !["כן", "לא"].includes(trimmedValue);
                           // ⭐⭐ כאן התיקון – בודקים לפי sourceValue (ID) ⭐⭐
                           const isInvalidSourceLead =
                             field === 'sourceValue' &&
@@ -1167,7 +1197,8 @@ if (field === "sourceValue") {
                               backgroundColor:
                                 isInvalidCompany || isInvalidProduct || isInvalidID ||
                                 isInvalidFirstName || isInvalidLastName || isInvalidNumber ||
-                                isInvalidStatus || isInvalidWorker || isInvalidSourceLead
+                                isInvalidStatus || isInvalidWorker || isInvalidSourceLead ||
+                                isInvalidHekefPaid
                                   ? '#ffe6e6'
                                   : undefined,
                             };
@@ -1343,7 +1374,22 @@ if (field === "sourceValue") {
                                 </select>
                               );
                             }
-
+                         if (field === 'hekefPaid') {
+  return (
+    <div>
+      <select
+        value={row[h] || ''}
+        onChange={(e) => handleFieldChange(idx, h, e.target.value)}
+        style={inputStyle}
+      >
+        <option value="">---</option>
+        <option value="כן">כן</option>
+        <option value="לא">לא</option>
+      </select>
+      {isInvalidHekefPaid && renderError(`שולם היקף חייב להיות "כן" או "לא"`)}
+    </div>
+  );
+}
                             return (
                               <div>
                                 <input

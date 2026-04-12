@@ -63,10 +63,7 @@ const NewAgentForm: React.FC = () => {
     isLoadingAgent,
   } = useFetchAgentData();
 
-  // const 
-  // { monthlyTotals,
-  //   overallFinansimTotal, overallPensiaTotal, overallInsuranceTotal, overallNiudPensiaTotal
-  //  } = useSalesData(selectedAgentId, selectedWorkerId);
+
 
    const {
     products,
@@ -130,6 +127,7 @@ const indexOfLastRow = currentPage * rowsPerPage;
 const indexOfFirstRow = indexOfLastRow - rowsPerPage;
 const currentRows = sortedData.slice(indexOfFirstRow, indexOfLastRow);
 
+const canManageHekefPaid = String(detail?.agencyId ?? "") === "3";
 
 // // const rowsPerPage = 8; // מספר השורות בעמוד
 
@@ -170,7 +168,11 @@ const exportToExcel = () => {
     "תאריך ביטול": item.cancellationDate ? formatIsraeliDateOnly(item.cancellationDate) : "", 
     "מינוי סוכן": item.minuySochen ? "כן" : "לא",
 "שם עובד": workerNameMap[item.workerId ?? ""] || "",
-    "הערות": item.notes ?? ""
+    "הערות": item.notes ?? "",
+    ...(canManageHekefPaid
+    ? { "שולם היקף": (item as any).hekefPaid ? "כן" : "לא" }
+    : {}),
+
   }));
 
   // יצירת גיליון
@@ -225,6 +227,7 @@ const resetForm = (clearCustomerFields: boolean = false) => {
     resetField("birthday" as any, "");
     resetField("gender" as any, "");
     resetField("sourceValue" as any, "");
+    resetField("hekefPaid" as any, false);
   }
    else
    {
@@ -241,6 +244,7 @@ const resetForm = (clearCustomerFields: boolean = false) => {
   resetField("notes", "");
   resetField("policyNumber", "");
   resetField("cancellationDate", "");
+  resetField("hekefPaid" as any, false);
    }
    setInvalidFields([]);
   setErrors({});
@@ -349,6 +353,7 @@ useEffect(() => {
     setMinuySochen(false);
     setSelectedStatusPolicy('');
     setNotes('');
+    setSelectedStatusPolicy('');
     // טעינת הנתונים לסוכן שנבחר
     if (selectedAgentId) {
       try {
@@ -473,6 +478,7 @@ if (Object.keys(patch).length) {
   policyNumber: editData.policyNumber || "",
   createdAt: serverTimestamp(),
   lastUpdateDate: serverTimestamp(),
+  hekefPaid: canManageHekefPaid ? !!(editData as any).hekefPaid : false,
     });
     addToast("success", "יש!!! עוד עסקה נוספה");
 
@@ -1126,6 +1132,11 @@ useEffect(() => {
     <th className="wide-column" onClick={() => handleSort("notes" as keyof CombinedData)}>
       הערות {sortColumn && sortColumn === "notes" ? (sortOrder === "asc" ? "▲" : "▼") : ""}
     </th>
+        {canManageHekefPaid && (
+  <th className="narrow-column" onClick={() => handleSort("hekefPaid" as keyof CombinedData)}>
+    שולם היקף {sortColumn && sortColumn === "hekefPaid" ? (sortOrder === "asc" ? "▲" : "▼") : ""}
+  </th>
+)}
     <th className="narrow-cell">🔧</th>
   </tr>
 </thead>
@@ -1350,6 +1361,23 @@ useEffect(() => {
     </div>
   ) : null}
 </td>
+{canManageHekefPaid && (
+  <td className="small-column">
+    {editingRow === item.id ? (
+      <select
+        value={!!(editData as any).hekefPaid ? "true" : "false"}
+        onChange={(e) =>
+          handleEditChange("hekefPaid" as any, e.target.value === "true")
+        }
+      >
+        <option value="false">לא</option>
+        <option value="true">כן</option>
+      </select>
+    ) : (
+      (item as any).hekefPaid ? "כן" : "לא"
+    )}
+  </td>
+)}
 <td className="narrow-cell">
 <MenuWrapper
   rowId={item.id}
@@ -1366,8 +1394,8 @@ useEffect(() => {
 </tbody>
 <tfoot>
       <tr>
-      <td colSpan={16}>
-      <TableFooter
+<td colSpan={canManageHekefPaid ? 17 : 16}>
+        <TableFooter
   currentPage={currentPage}
   totalPages={Math.ceil(filteredData.length / rowsPerPage)}
   onPageChange={handlePageChange}
@@ -1749,7 +1777,32 @@ useEffect(() => {
     <label>מינוי סוכן</label>
   </div>
 </div>
+   {canManageHekefPaid && (
+  <div className="form-group full-width">
+    <label>שולם היקף</label>
+    <div className="radio-group">
+     <label>
+  <input
+    type="radio"
+    name="hekefPaid"
+    checked={!((editData as any).hekefPaid)}
+    onChange={() => handleEditChange("hekefPaid" as any, false)}
+  />
+  <span>לא</span>
+</label>
 
+<label>
+  <input
+    type="radio"
+    name="hekefPaid"
+    checked={!!((editData as any).hekefPaid)}
+    onChange={() => handleEditChange("hekefPaid" as any, true)}
+  />
+  <span>כן</span>
+</label>
+    </div>
+  </div>
+)}
 <div className="form-group full-width">
   <label>הערות</label>
   <textarea value={editData.notes || ""} 

@@ -4,12 +4,14 @@ export type SheetMatchRule = {
   startsWith?: string[];
 };
 
+export type MultiSheetSystemFieldOverrideValue = string | string[];
+
 export type MultiSheetProfileSheet = {
   key: string;
   label?: string;
   match: SheetMatchRule;
   templateId: string;
-  overrideSystemFields?: Record<string, string>;
+  overrideSystemFields?: Record<string, MultiSheetSystemFieldOverrideValue>;
   isRequired?: boolean;
   skipIfEmpty?: boolean;
 };
@@ -24,4 +26,5 @@ export type MultiSheetImportProfile = {
   };
   sheets: MultiSheetProfileSheet[];
   ignoreSheets?: string[];
+  enableReportMonthFilter?: boolean;
 };

@@ -44,6 +44,7 @@ export interface Sale {
     cancellationDate?: string;
     birthday?: string; // "YYYY-MM-DD"
     gender?: "זכר" | "נקבה" | "";
+    hekefPaid?: boolean;
   }
 
   export type AgentDataType = {
@@ -67,6 +68,7 @@ export interface Sale {
     notes?: string;
     policyNumber?: string;
     cancellationDate?: string;
+    hekefPaid?: boolean;
   };
   
 

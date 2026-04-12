@@ -1,6 +1,8 @@
+import type { MultiSheetSystemFieldOverrideValue } from "@/types/MultiSheetImportProfile";
+
 export function buildEffectiveMapping(params: {
   baseMapping: Record<string, string>;
-  overrideSystemFields?: Record<string, string>;
+  overrideSystemFields?: Record<string, MultiSheetSystemFieldOverrideValue>;
 }) {
   const { baseMapping, overrideSystemFields } = params;
 
@@ -9,10 +11,13 @@ export function buildEffectiveMapping(params: {
   }
 
   const result: Record<string, string> = {};
+
+  // כל שדות המערכת שעוברים override
   const overriddenTargets = new Set(
     Object.keys(overrideSystemFields).map((x) => String(x).trim())
   );
 
+  // שומרים מהמיפוי הבסיסי רק שדות שלא עברו override
   for (const [excelCol, systemField] of Object.entries(baseMapping)) {
     if (overriddenTargets.has(String(systemField).trim())) {
       continue;
@@ -20,8 +25,16 @@ export function buildEffectiveMapping(params: {
     result[excelCol] = systemField;
   }
 
-  for (const [systemField, excelCol] of Object.entries(overrideSystemFields)) {
-    result[excelCol] = systemField;
+  // מוסיפים את ה-override, כולל תמיכה במערך של כותרות אפשריות
+  for (const [systemField, rawExcelCols] of Object.entries(overrideSystemFields)) {
+    const excelCols = Array.isArray(rawExcelCols) ? rawExcelCols : [rawExcelCols];
+
+    for (const excelCol of excelCols) {
+      const cleanExcelCol = String(excelCol || "").trim();
+      if (!cleanExcelCol) continue;
+
+      result[cleanExcelCol] = systemField;
+    }
   }
 
   return result;

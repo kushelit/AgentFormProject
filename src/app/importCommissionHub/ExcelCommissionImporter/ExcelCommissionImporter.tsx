@@ -135,6 +135,10 @@ const { canAccess: canAutoDownload, isChecking: isCheckingAutoDownload } =
 
 const [autoDashboardRefreshKey, setAutoDashboardRefreshKey] = useState(0);
 const [activeAutoCompanyId, setActiveAutoCompanyId] = useState<string>("");
+
+const [selectedReportYear, setSelectedReportYear] = useState("");
+const [selectedReportMonth, setSelectedReportMonth] = useState("");
+
   // בחירה מתוך ZIP
   const [zipChooser, setZipChooser] = useState<null | {
     zip: any;
@@ -151,8 +155,6 @@ const [activeAutoCompanyId, setActiveAutoCompanyId] = useState<string>("");
 const [importProgress, setImportProgress] = useState(0);
 
   const VAT_DEFAULT = 0.18;
-
-
 
   //automaionUpload
 
@@ -375,17 +377,64 @@ const getExt = (n?: string) => {
   const DEBUG_IMPORT = true;
 
   // --- normalize header: מסיר RTL-marks, BOM, NBSP, שורות חדשות, מכווץ רווחים ---
-  const normalizeHeader = (s: any) =>
-    String(s ?? '')
-      .replace(/\u200f|\u200e|\ufeff/g, '') // RTL + BOM
-      .replace(/\u00a0/g, ' ')              // NBSP → space רגיל
-      .replace(/\r?\n+/g, ' ')              // ירידות שורה
-      .replace(/\s+/g, ' ')                 // כיווץ רווחים מרובים
-      .trim();
+function normalizeHeader(h: string) {
+  return String(h || "")
+    .replace(/\u200E|\u200F|\u202A|\u202B|\u202C/g, "") // RTL/LTR marks
+    .replace(/\u00A0/g, " ") // NBSP
+    .replace(/\s+/g, " ") // רווחים כפולים
+    .trim()
+    .toLowerCase();
+}
+
+const normalizeRowKeys = (row: Record<string, any>) => {
+  const normalized: Record<string, any> = {};
+
+  for (const [key, value] of Object.entries(row || {})) {
+    normalized[normalizeHeader(key)] = value;
+  }
+
+  return normalized;
+};
+
+      const dumpHeaderChars = (s: string) =>
+  Array.from(String(s || "")).map((ch) => ({
+    ch,
+    code: ch.charCodeAt(0),
+  }));
 
   // --- גטר בטוח לתאים לפי כותרת (תומך בכותרת מנורמלת) ---
-  const getCell = (row: any, header: string) =>
-    row[header] ?? row[normalizeHeader(header)];
+  // const getCell = (row: any, header: string) =>
+  //   row[header] ?? row[normalizeHeader(header)];
+
+const getCell = (row: any, header: string) =>
+  row[header] ??
+  row[String(header).trim()] ??
+  row[normalizeHeader(header)];
+
+
+const getValueBySystemField = (
+  row: Record<string, any>,
+  mapping: Record<string, string>,
+  systemField: string
+) => {
+  const normalizedRow: Record<string, any> = normalizeRowKeys(row);
+
+  const candidateColumns = Object.entries(mapping)
+    .filter(([, field]) => field === systemField)
+    .map(([excelCol]) => normalizeHeader(excelCol));
+
+  for (const col of candidateColumns) {
+    const value = normalizedRow[col];
+
+    if (value !== undefined && value !== null && String(value).trim() !== "") {
+      return value;
+    }
+  }
+
+  return undefined;
+};
+
+
 
   // --- דיבאג: מציג expected/found גם RAW וגם normalized ---
   function logHeadersDebug(ctx: string, expectedRaw: string[], foundRaw: string[]) {
@@ -677,7 +726,7 @@ useEffect(() => {
       }
     }
     
-console.log("DEBUG MONTH:", { templateId, value, type: typeof value, isDate: value instanceof Date });
+// console.log("DEBUG MONTH:", { templateId, value, type: typeof value, isDate: value instanceof Date });
    
 const tempDate = new Date(value);
 tempDate.setHours(tempDate.getHours() + 12);
@@ -852,128 +901,134 @@ tempDate.setHours(tempDate.getHours() + 12);
     window.location.reload();
   };
 
-  const standardizeRowWithMapping = (
-    row: any,
-    mapping: Record<string, string>,
-    base: any,
-    fallbackReportMonth?: string,
-    options?: { isMultiSheet?: boolean }
-  ) => {
-    const result: any = { ...base };
-
-    // 1) מיפוי בסיסי מכל העמודות שהוגדרו בתבנית
-    for (const [excelCol, systemField] of Object.entries(mapping)) {
-      const value = getCell(row, excelCol);
-
-      if (systemField === 'validMonth' || systemField === 'reportMonth') {
-        let parsed = parseHebrewMonth(value, base.templateId);
-        if (!parsed && systemField === 'reportMonth' && fallbackReportMonth) parsed = fallbackReportMonth;
-        result[systemField] = parsed || value;
-
-      } else if (systemField === 'commissionAmount') {
 
 
-       let commission = 0;
+const standardizeRowWithMapping = (
+  row: any,
+  mapping: Record<string, string>,
+  base: any,
+  fallbackReportMonth?: string,
+  options?: { isMultiSheet?: boolean }
+) => {
+  const result: any = { ...base };
 
-  if (options?.isMultiSheet) {
-    // ב-MULTI משתמשים רק בערך מהמיפוי
-    commission = toNum(value);
-  } else {
-    // בידני רגיל - שומרים על ה-override הישן
-    const override = commissionOverrides[base.templateId];
-    commission = override ? override(row) : toNum(value);
+  const systemFields = Array.from(
+    new Set(Object.values(mapping).map((x) => String(x).trim()).filter(Boolean))
+  );
+
+  for (const systemField of systemFields) {
+    const value = getValueBySystemField(row, mapping, systemField);
+
+    if (systemField === "validMonth" || systemField === "reportMonth") {
+      let parsed = parseHebrewMonth(value, base.templateId);
+      if (!parsed && systemField === "reportMonth" && fallbackReportMonth) {
+        parsed = fallbackReportMonth;
+      }
+      result[systemField] = parsed || value;
+
+    } else if (systemField === "commissionAmount") {
+      let commission = 0;
+
+      if (options?.isMultiSheet) {
+        commission = toNum(value);
+      } else {
+        const override = commissionOverrides[base.templateId];
+        commission = override ? override(row) : toNum(value);
+      }
+
+      if (selectedTemplate?.commissionIncludesVAT) {
+        commission = commission / (1 + VAT_DEFAULT);
+      }
+
+      result[systemField] = roundTo2(commission);
+
+    } else if (systemField === "premium") {
+      if (base.templateId === "fenix_insurance") {
+        const sector = String(getValueBySystemField(row, mapping, "product") ?? "").trim();
+        const accRaw = getValueBySystemField(row, mapping, "premium");
+        const premRaw = getValueBySystemField(row, mapping, "premium");
+
+        result.premium = toNum(
+          sector === "פיננסים וזמן פרישה"
+            ? (accRaw ?? premRaw)
+            : premRaw
+        );
+      } else {
+        result.premium = toNum(value);
+      }
+
+    } else if (systemField === "product") {
+      const p = normalizeProduct(value);
+      if (p !== undefined) result.product = p;
+
+    } else if (systemField === "customerId" || systemField === "IDCustomer") {
+      const raw = String(value ?? "").trim();
+      const padded9 = toPadded9(value);
+      result.customerIdRaw = raw;
+      result.customerId = padded9;
+
+    } else if (systemField === "policyNumber") {
+      result[systemField] = String(value ?? "").trim();
+
+    } else {
+      result[systemField] = value;
+    }
   }
 
-  if (selectedTemplate?.commissionIncludesVAT) {
-    commission = commission / (1 + VAT_DEFAULT);
+  if (base.templateId === "mor_insurance") {
+    if (result.fullName) {
+      result.fullName = normalizeFullName(result.fullName, "");
+    } else {
+      const first = row["שם פרטי"];
+      const last = row["שם משפחה"];
+      const full = normalizeFullName(first, last);
+      if (full) result.fullName = full;
+    }
+  } else if (base.templateId === "clal_pensia") {
+    if (result.fullName) {
+      result.fullName = normalizeFullName(result.fullName, "");
+    } else {
+      const first = row["שם פרטי עמית"];
+      const last = row["שם משפחה עמית"];
+      const full = normalizeFullName(first, last);
+      if (full) result.fullName = full;
+    }
   }
 
-  result[systemField] = roundTo2(commission);
+  if (base.templateId === "clal_pensia" && !result.policyNumber && result.customerId) {
+    result.policyNumber = String(result.customerId).trim();
+  }
 
-      } else if (systemField === 'premium') {
-        if (base.templateId === 'fenix_insurance') {
-          const sector = String(pick(row, ['ענף']) ?? '').trim();
-          const accRaw  = pick(row, ['צבירה', 'סכום צבירה']);
-          const premRaw = pick(row, ['פרמיה', 'סכום פרמיה']);
-          result.premium = toNum(
-            sector === 'פיננסים וזמן פרישה'
-              ? (accRaw ?? premRaw)
-              : premRaw
-          );
-        } else {
-          result.premium = toNum(value);
-        }
+  if (base.templateId === "altshuler_insurance") {
+    const rawMonth = getCell(row, "חודש");
+    const rawYear = getCell(row, "שנה");
 
-      } else if (systemField === 'product') {
-        const p = normalizeProduct(value);
-        if (p !== undefined) result.product = p;
+    const mm = monthNameToMM(rawMonth);
+    let yyyy = String(rawYear ?? "").trim();
 
-      } else if (systemField === 'customerId' || systemField === 'IDCustomer') {
-        const raw = String(value ?? '').trim();
-        const padded9 = toPadded9(value);
-        result.customerIdRaw = raw;
-        result.customerId = padded9;
-
-      } else if (systemField === 'policyNumber') {
-        result[systemField] = String(value ?? '').trim();
-
-      } else {
-        result[systemField] = value;
-      }
+    if (/^\d{2}$/.test(yyyy)) {
+      const yy = parseInt(yyyy, 10);
+      yyyy = yy < 50 ? `20${yy}` : `19${yy}`;
     }
 
-    // 2) השלמה/נרמול שם מלא לפי תבנית (שדות מדויקים בלבד)
-    if (base.templateId === 'mor_insurance') {
-      if (result.fullName) {
-        result.fullName = normalizeFullName(result.fullName, '');
-      } else {
-        const first = row['שם פרטי'];
-        const last  = row['שם משפחה'];
-        const full  = normalizeFullName(first, last);
-        if (full) result.fullName = full;
-      }
-    } else if (base.templateId === 'clal_pensia') {
-      if (result.fullName) {
-        result.fullName = normalizeFullName(result.fullName, '');
-      } else {
-        const first = row['שם פרטי עמית'];
-        const last  = row['שם משפחה עמית'];
-        const full  = normalizeFullName(first, last);
-        if (full) result.fullName = full;
-      }
+    if (mm && /^\d{4}$/.test(yyyy)) {
+      result.reportMonth = `${yyyy}-${mm}`;
     }
-    if (base.templateId === 'clal_pensia' && !result.policyNumber && result.customerId) {
-      result.policyNumber = String(result.customerId).trim();
-    }
+  }
 
-    // ---- override for Altshuler: reportMonth = YEAR + MONTH(from "חודש") ----
-    if (base.templateId === 'altshuler_insurance') {
-      const rawMonth = getCell(row, 'חודש');
-      const rawYear  = getCell(row, 'שנה');
+  if ("agentCode" in result && result.agentCode === undefined) {
+  console.log("[standardizeRowWithMapping] agentCode became undefined", {
+    templateId: base.templateId,
+    sourceFileName: base.sourceFileName,
+    sourceSheetName: base.sourceSheetName,
+    row,
+    result,
+    mapping,
+  });
+}
 
-      const mm = monthNameToMM(rawMonth);
-      let yyyy = String(rawYear ?? '').trim();
-
-      // תמיכה גם ב־"25" → "2025"
-      if (/^\d{2}$/.test(yyyy)) {
-        const yy = parseInt(yyyy, 10);
-        yyyy = (yy < 50 ? `20${yy}` : `19${yy}`);
-      }
-
-      if (mm && /^\d{4}$/.test(yyyy)) {
-        result.reportMonth = `${yyyy}-${mm}`;
-      }
-    }
-
-//     // ✅ fallback product from template (for templates like clal_briut without product column)
-// if (!result.product || !String(result.product).trim()) {
-//   if (fallbackProduct) {
-//     result.product = normalizeProduct(fallbackProduct);
-//   }
-// }
-    return result;
-  };
-
+  return result;
+};
 
   async function checkExistingByRuns(params: {
   agentId: string;
@@ -1024,18 +1079,7 @@ tempDate.setHours(tempDate.getHours() + 12);
       // Intersection מול חודשי הקובץ
       const intersect = runMonths.filter((m) => fileSet.has(m));
 
-      // // לוג לכל ריצה
-      // console.log('[RUN]', {
-      //   docId: d.id,
-      //   runId,
-      //   reportMonth: data.reportMonth,
-      //   reportMonths: data.reportMonths,
-      //   runMonthsComputed: runMonths,
-      //   intersectWithFile: intersect,
-      //   agentId: data.agentId,
-      //   companyId: data.companyId,
-      //   templateId: data.templateId,
-      // });
+
 
       return {
         docId: d.id,
@@ -1048,47 +1092,151 @@ tempDate.setHours(tempDate.getHours() + 12);
 
   const runIds = Array.from(new Set(conflictingRuns.map((r) => r.runId).filter(Boolean)));
 
-  // console.log('[checkExistingByRuns] conflictingRuns:', conflictingRuns);
-  // console.log('[checkExistingByRuns] runIds:', runIds);
+
 
   setExistingRunIds(runIds);
 }
 
 
+
 // const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
 //   const file = e.target.files?.[0];
-//   if (!file || !templateId || !selectedAgentId || !selectedCompanyId) return;
+
+
+//   if (!file || !selectedAgentId) return;
+
+// if (importMode === "single" && !selectedCompanyId) return;
+
+//   if (importMode === "single" && !templateId) return;
+//   if (importMode === "multi_sheet" && !selectedMultiSheetProfile) {
+//     setErrorDialog({
+//       title: "חסר פרופיל",
+//       message: "יש לבחור פרופיל טעינה מרובה לשוניות לפני העלאת הקובץ.",
+//     });
+//     if (fileInputRef.current) fileInputRef.current.value = "";
+//     return;
+//   }
 
 //   const ext = getExt(file.name);
-//   const allowed = new Set(['.xlsx', '.xls', '.csv', '.zip']);
+//   const allowed = new Set([".xlsx", ".xls", ".csv", ".zip"]);
 //   if (!allowed.has(ext)) {
 //     setErrorDialog({
-//       title: 'סוג קובץ לא נתמך',
-//       message: <>הקובץ <b>{file.name}</b> הוא {ext}. נא להעלות רק קבצי ZIP/XLSX/XLS/CSV.</>,
+//       title: "סוג קובץ לא נתמך",
+//       message: (
+//         <>
+//           הקובץ <b>{file.name}</b> הוא {ext}. נא להעלות רק קבצי ZIP/XLSX/XLS/CSV.
+//         </>
+//       ),
 //     });
-//     if (fileInputRef.current) fileInputRef.current.value = '';
+//     if (fileInputRef.current) fileInputRef.current.value = "";
+//     return;
+//   }
+
+//   // במצב multi-sheet נתמוך רק באקסל
+//   if (importMode === "multi_sheet" && ![".xlsx", ".xls"].includes(ext)) {
+//     setErrorDialog({
+//       title: "סוג קובץ לא נתמך",
+//       message: "טעינת קובץ מרובה לשוניות נתמכת רק עבור Excel (.xlsx / .xls).",
+//     });
+//     if (fileInputRef.current) fileInputRef.current.value = "";
 //     return;
 //   }
 
 //   setSelectedFileName(file.name);
+//   setStandardizedRows([]);
+//   setMultiSheetPreview(null);
+//   setExistingRunIds([]);
+//   setMonthsInFile([]);
+//   setConflictingRunIds([]);
+
 //   setIsLoading(true);
-//   setLoadingStage("קורא קובץ מהמחשב..."); // שלב 1
+//   setLoadingStage("קורא קובץ מהמחשב...");
 
 //   const reader = new FileReader();
+
 //   reader.onload = async (evt) => {
 //     try {
 //       const arrayBuffer = evt.target?.result as ArrayBuffer;
-//       const fallbackReportMonth = templateId === 'mor_insurance' ? extractReportMonthFromFilename(file.name) : undefined;
+
+//       // =========================
+//       // MULTI SHEET MODE
+//       // =========================
+//       if (importMode === "multi_sheet") {
+//         setLoadingStage("פותח חוברת עבודה מרובת לשוניות...");
+
+//         const wb = XLSX.read(arrayBuffer, { type: "array", cellDates: true });
+
+//         const result = await parseMultiSheetWorkbook({
+//           db,
+//           workbook: wb,
+//           profile: selectedMultiSheetProfile!,
+//           selectedAgentId,
+//           selectedCompanyId,
+//           selectedCompanyName,
+//           standardizeSheetRows,
+//         });
+
+//         setMultiSheetPreview({
+//           matchedSheets: result.matchedSheets,
+//           unmatchedSheets: result.unmatchedSheets,
+//           ignoredSheets: result.ignoredSheets,
+//         });
+
+//         const doneSheets = result.matchedSheets.filter((x) => x.status === "done");
+
+//         if (doneSheets.length === 0 || result.rows.length === 0) {
+//           setStandardizedRows([]);
+//           setErrorDialog({
+//             title: "לא זוהו לשוניות לטעינה",
+//             message: (
+//               <div className="text-right">
+//                 <p>לא נמצאה אף לשונית עם התאמה תקינה לפרופיל שנבחר.</p>
+//                 {result.unmatchedSheets.length > 0 && (
+//                   <p className="mt-2 text-sm text-gray-500">
+//                     לשוניות ללא התאמה: {result.unmatchedSheets.join(", ")}
+//                   </p>
+//                 )}
+//               </div>
+//             ),
+//           });
+//           return;
+//         }
+
+//         setStandardizedRows(result.rows);
+
+//         const fileMonths = Array.from(
+//           new Set(result.rows.map((r) => sanitizeMonth(r.reportMonth)).filter(Boolean))
+//         ).sort();
+
+//         setMonthsInFile(fileMonths);
+
+//         await checkExistingByRunsMultiTemplate({
+//           agentId: selectedAgentId,
+//           companyId: selectedCompanyId,
+//           rows: result.rows,
+//         });
+
+//         setLoadingStage("הושלם!");
+//         return;
+//       }
+
+//       // =========================
+//       // SINGLE TEMPLATE MODE
+//       // =========================
+//       const fallbackReportMonth =
+//         templateId === "mor_insurance"
+//           ? extractReportMonthFromFilename(file.name)
+//           : undefined;
 
 //       // --- טיפול ב-ZIP ---
-//       if (ext === '.zip') {
+//       if (ext === ".zip") {
 //         setLoadingStage("פותח ארכיון ZIP...");
-//         const mod = await import('jszip');
+//         const mod = await import("jszip");
 //         const JSZip: any = (mod as any).default ?? mod;
 //         const zip = await JSZip.loadAsync(arrayBuffer);
 
 //         const entries = zip.file(/\.xlsx$|\.xls$|\.csv$/i);
-//         if (entries.length === 0) throw new Error('ה-ZIP לא מכיל XLSX/XLS/CSV.');
+//         if (entries.length === 0) throw new Error("ה-ZIP לא מכיל XLSX/XLS/CSV.");
 
 //         // אם יש יותר מקובץ אחד, פותחים את הבוחר ומפסיקים
 //         if (entries.length > 1) {
@@ -1103,40 +1251,45 @@ tempDate.setHours(tempDate.getHours() + 12);
 //         // אם יש קובץ אחד בלבד ב-ZIP, מחלצים אותו וממשיכים לעיבוד
 //         const entry = entries[0];
 //         setLoadingStage(`מחלץ את ${entry.name}...`);
-//         const innerData = /\.csv$/i.test(entry.name) 
-//           ? await entry.async('uint8array') 
-//           : await entry.async('arraybuffer');
-        
-//         await parseAndStandardize(innerData, entry.name, fallbackReportMonth);
+//         const innerData = /\.csv$/i.test(entry.name)
+//           ? await entry.async("uint8array")
+//           : await entry.async("arraybuffer");
 
+//         await parseAndStandardize(innerData, entry.name, fallbackReportMonth);
 //       } else {
 //         // --- טיפול בקובץ רגיל (XLSX/CSV) ---
 //         await parseAndStandardize(arrayBuffer, file.name, fallbackReportMonth);
 //       }
-//     } catch (err: any) {
-//       setErrorDialog({
-//         title: 'שגיאת עיבוד קובץ',
-//         message: <>אירעה שגיאה בעת עיבוד הקובץ <b>{file.name}</b>.</>,
-//       });
-//     } finally {
+//  } catch (err: any) {
+//   console.error("handleFileUpload error:", err);
+//   setErrorDialog({
+//     title: "שגיאת עיבוד קובץ",
+//     message: (
+//       <div className="text-right">
+//         <div>אירעה שגיאה בעת עיבוד הקובץ <b>{file.name}</b>.</div>
+//         <div className="mt-2 text-xs text-red-600">
+//           {String(err?.message || err || "Unknown error")}
+//         </div>
+//       </div>
+//     ),
+//   });
+// } finally {
 //       setIsLoading(false);
 //       setLoadingStage("");
 //     }
 //   };
+
 //   reader.readAsArrayBuffer(file);
 // };
 
 const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
   const file = e.target.files?.[0];
 
-  // במצב multi-sheet לא חייבים templateId
-  // if (!file || !selectedAgentId || !selectedCompanyId) return;
-
   if (!file || !selectedAgentId) return;
 
-if (importMode === "single" && !selectedCompanyId) return;
-
+  if (importMode === "single" && !selectedCompanyId) return;
   if (importMode === "single" && !templateId) return;
+
   if (importMode === "multi_sheet" && !selectedMultiSheetProfile) {
     setErrorDialog({
       title: "חסר פרופיל",
@@ -1146,8 +1299,22 @@ if (importMode === "single" && !selectedCompanyId) return;
     return;
   }
 
+  if (
+    importMode === "multi_sheet" &&
+    selectedMultiSheetProfile?.enableReportMonthFilter &&
+    !selectedTargetReportMonth
+  ) {
+    setErrorDialog({
+      title: "חסר חודש דיווח",
+      message: "יש לבחור שנה וחודש לפני העלאת קובץ עבור פרופיל זה.",
+    });
+    if (fileInputRef.current) fileInputRef.current.value = "";
+    return;
+  }
+
   const ext = getExt(file.name);
   const allowed = new Set([".xlsx", ".xls", ".csv", ".zip"]);
+
   if (!allowed.has(ext)) {
     setErrorDialog({
       title: "סוג קובץ לא נתמך",
@@ -1161,7 +1328,6 @@ if (importMode === "single" && !selectedCompanyId) return;
     return;
   }
 
-  // במצב multi-sheet נתמוך רק באקסל
   if (importMode === "multi_sheet" && ![".xlsx", ".xls"].includes(ext)) {
     setErrorDialog({
       title: "סוג קובץ לא נתמך",
@@ -1205,49 +1371,97 @@ if (importMode === "single" && !selectedCompanyId) return;
           standardizeSheetRows,
         });
 
-        setMultiSheetPreview({
-          matchedSheets: result.matchedSheets,
-          unmatchedSheets: result.unmatchedSheets,
-          ignoredSheets: result.ignoredSheets,
-        });
+      const doneSheets = result.matchedSheets.filter((x) => x.status === "done");
 
-        const doneSheets = result.matchedSheets.filter((x) => x.status === "done");
+if (doneSheets.length === 0 || result.rows.length === 0) {
+  setStandardizedRows([]);
+  setMultiSheetPreview({
+    matchedSheets: result.matchedSheets,
+    unmatchedSheets: result.unmatchedSheets,
+    ignoredSheets: result.ignoredSheets,
+  });
+  setErrorDialog({
+    title: "לא זוהו לשוניות לטעינה",
+    message: (
+      <div className="text-right">
+        <p>לא נמצאה אף לשונית עם התאמה תקינה לפרופיל שנבחר.</p>
+        {result.unmatchedSheets.length > 0 && (
+          <p className="mt-2 text-sm text-gray-500">
+            לשוניות ללא התאמה: {result.unmatchedSheets.join(", ")}
+          </p>
+        )}
+      </div>
+    ),
+  });
+  return;
+}
 
-        if (doneSheets.length === 0 || result.rows.length === 0) {
-          setStandardizedRows([]);
-          setErrorDialog({
-            title: "לא זוהו לשוניות לטעינה",
-            message: (
-              <div className="text-right">
-                <p>לא נמצאה אף לשונית עם התאמה תקינה לפרופיל שנבחר.</p>
-                {result.unmatchedSheets.length > 0 && (
-                  <p className="mt-2 text-sm text-gray-500">
-                    לשוניות ללא התאמה: {result.unmatchedSheets.join(", ")}
-                  </p>
-                )}
-              </div>
-            ),
-          });
-          return;
-        }
+const filteredRows =
+  selectedMultiSheetProfile?.enableReportMonthFilter && selectedTargetReportMonth
+    ? result.rows.filter(
+        (row) => sanitizeMonth(row.reportMonth) === selectedTargetReportMonth
+      )
+    : result.rows;
 
-        setStandardizedRows(result.rows);
+// חישוב כמה שורות נשארו אחרי הסינון לכל לשונית
+const filteredCountBySheet = new Map<string, number>();
 
-        const fileMonths = Array.from(
-          new Set(result.rows.map((r) => sanitizeMonth(r.reportMonth)).filter(Boolean))
-        ).sort();
+for (const row of filteredRows) {
+  const sheetName = String(row.sourceSheetName || "").trim();
+  if (!sheetName) continue;
 
-        setMonthsInFile(fileMonths);
+  filteredCountBySheet.set(
+    sheetName,
+    (filteredCountBySheet.get(sheetName) || 0) + 1
+  );
+}
 
-        await checkExistingByRunsMultiTemplate({
-          agentId: selectedAgentId,
-          companyId: selectedCompanyId,
-          rows: result.rows,
-        });
+const matchedSheetsWithFilteredCount = result.matchedSheets.map((sheet) => ({
+  ...sheet,
+  filteredRowsCount:
+    sheet.status === "done"
+      ? filteredCountBySheet.get(String(sheet.sheetName || "").trim()) || 0
+      : 0,
+}));
 
-        setLoadingStage("הושלם!");
-        return;
-      }
+setMultiSheetPreview({
+  matchedSheets: matchedSheetsWithFilteredCount,
+  unmatchedSheets: result.unmatchedSheets,
+  ignoredSheets: result.ignoredSheets,
+});
+
+if (filteredRows.length === 0) {
+  setStandardizedRows([]);
+  setErrorDialog({
+    title: "לא נמצאו נתונים לחודש המבוקש",
+    message: (
+      <div className="text-right">
+        <p>
+          הקובץ נקלט, אך לא נמצאו שורות עבור חודש הדיווח{" "}
+          {selectedTargetReportMonth}.
+        </p>
+      </div>
+    ),
+  });
+  return;
+}
+
+setStandardizedRows(filteredRows);
+
+const fileMonths = Array.from(
+  new Set(filteredRows.map((r) => sanitizeMonth(r.reportMonth)).filter(Boolean))
+).sort();
+
+setMonthsInFile(fileMonths);
+
+await checkExistingByRunsMultiTemplate({
+  agentId: selectedAgentId,
+  companyId: selectedCompanyId,
+  rows: filteredRows,
+});
+
+setLoadingStage("הושלם!");
+return;      }
 
       // =========================
       // SINGLE TEMPLATE MODE
@@ -1257,7 +1471,6 @@ if (importMode === "single" && !selectedCompanyId) return;
           ? extractReportMonthFromFilename(file.name)
           : undefined;
 
-      // --- טיפול ב-ZIP ---
       if (ext === ".zip") {
         setLoadingStage("פותח ארכיון ZIP...");
         const mod = await import("jszip");
@@ -1267,7 +1480,6 @@ if (importMode === "single" && !selectedCompanyId) return;
         const entries = zip.file(/\.xlsx$|\.xls$|\.csv$/i);
         if (entries.length === 0) throw new Error("ה-ZIP לא מכיל XLSX/XLS/CSV.");
 
-        // אם יש יותר מקובץ אחד, פותחים את הבוחר ומפסיקים
         if (entries.length > 1) {
           const names = entries.map((f: any) => f.name);
           setZipChooser({ zip, entryNames: names, outerFileName: file.name });
@@ -1277,7 +1489,6 @@ if (importMode === "single" && !selectedCompanyId) return;
           return;
         }
 
-        // אם יש קובץ אחד בלבד ב-ZIP, מחלצים אותו וממשיכים לעיבוד
         const entry = entries[0];
         setLoadingStage(`מחלץ את ${entry.name}...`);
         const innerData = /\.csv$/i.test(entry.name)
@@ -1286,23 +1497,24 @@ if (importMode === "single" && !selectedCompanyId) return;
 
         await parseAndStandardize(innerData, entry.name, fallbackReportMonth);
       } else {
-        // --- טיפול בקובץ רגיל (XLSX/CSV) ---
         await parseAndStandardize(arrayBuffer, file.name, fallbackReportMonth);
       }
- } catch (err: any) {
-  console.error("handleFileUpload error:", err);
-  setErrorDialog({
-    title: "שגיאת עיבוד קובץ",
-    message: (
-      <div className="text-right">
-        <div>אירעה שגיאה בעת עיבוד הקובץ <b>{file.name}</b>.</div>
-        <div className="mt-2 text-xs text-red-600">
-          {String(err?.message || err || "Unknown error")}
-        </div>
-      </div>
-    ),
-  });
-} finally {
+    } catch (err: any) {
+      console.error("handleFileUpload error:", err);
+      setErrorDialog({
+        title: "שגיאת עיבוד קובץ",
+        message: (
+          <div className="text-right">
+            <div>
+              אירעה שגיאה בעת עיבוד הקובץ <b>{file.name}</b>.
+            </div>
+            <div className="mt-2 text-xs text-red-600">
+              {String(err?.message || err || "Unknown error")}
+            </div>
+          </div>
+        ),
+      });
+    } finally {
       setIsLoading(false);
       setLoadingStage("");
     }
@@ -1310,6 +1522,8 @@ if (importMode === "single" && !selectedCompanyId) return;
 
   reader.readAsArrayBuffer(file);
 };
+
+
 
 const parseAndStandardize = async (data: any, fileName: string, fallbackMonth?: string) => {
   let jsonData: any[] = [];
@@ -1577,9 +1791,14 @@ const processChosenZipEntry = async () => {
      Import button
   ============================== */
 
-
+  
 // const handleImport = async () => {
+//   // if (!selectedAgentId || !selectedCompanyId || standardizedRows.length === 0) return;
+
 //   if (!selectedAgentId || standardizedRows.length === 0) return;
+
+// if (importMode === "single" && !selectedCompanyId) return;
+// if (importMode === "multi_sheet" && !selectedMultiSheetProfileId) return;
 
 //   standardizedRows.forEach((row) => {
 //     row.reportMonth = parseHebrewMonth(row.reportMonth, row.templateId);
@@ -1628,14 +1847,12 @@ const processChosenZipEntry = async () => {
 //     setImportProgress(75);
 //     setLoadingStage("מחשב סיכומים מחדש...");
 
-//     const {
-//       commissionSummariesCount,
-//       policySummariesCount,
-//     } = await recomputeSummariesFromExternalManual({
-//       db,
-//       rowsPrepared,
-//       runId,
-//     });
+//     const { commissionSummariesCount, policySummariesCount } =
+//       await recomputeSummariesFromExternalManual({
+//         db,
+//         rowsPrepared,
+//         runId,
+//       });
 
 //     const totalRows = rowsPrepared.length;
 
@@ -1659,14 +1876,51 @@ const processChosenZipEntry = async () => {
 //       createdByUserId: user?.uid || "",
 //       companyId: selectedCompanyId,
 //       company: selectedCompanyName,
-//       templateId,
-//       templateName: selectedTemplate?.Name || selectedTemplate?.type || "",
+
+//       templateId:
+//         importMode === "multi_sheet"
+//           ? "__multi_sheet_bundle__"
+//           : templateId,
+
+//       templateName:
+//         importMode === "multi_sheet"
+//           ? selectedMultiSheetProfile?.name || "Multi Sheet Bundle"
+//           : selectedTemplate?.Name || selectedTemplate?.type || "",
+
+//       sourceType:
+//         importMode === "multi_sheet"
+//           ? "multi_sheet_bundle"
+//           : "single_template",
+
+//       multiSheetProfileId:
+//         importMode === "multi_sheet"
+//           ? selectedMultiSheetProfile?.id || ""
+//           : "",
+
+//       multiSheetProfileName:
+//         importMode === "multi_sheet"
+//           ? selectedMultiSheetProfile?.name || ""
+//           : "",
+
+//       matchedSheets:
+//         importMode === "multi_sheet"
+//           ? multiSheetPreview?.matchedSheets || []
+//           : [],
+
+//       unmatchedSheets:
+//         importMode === "multi_sheet"
+//           ? multiSheetPreview?.unmatchedSheets || []
+//           : [],
+
+//       ignoredSheets:
+//         importMode === "multi_sheet"
+//           ? multiSheetPreview?.ignoredSheets || []
+//           : [],
 
 //       reportMonths,
 //       minReportMonth,
 //       maxReportMonth,
 //       reportMonthsCount: reportMonths.length,
-
 //       reportMonth: minReportMonth,
 
 //       externalCount: totalRows,
@@ -1725,6 +1979,7 @@ const processChosenZipEntry = async () => {
 //     setExistingRunIds([]);
 //     setMonthsInFile([]);
 //     setConflictingRunIds([]);
+//     setMultiSheetPreview(null);
 
 //     if (fileInputRef.current) {
 //       fileInputRef.current.value = "";
@@ -1739,14 +1994,24 @@ const processChosenZipEntry = async () => {
 //   }
 // };
 
-  
-const handleImport = async () => {
-  // if (!selectedAgentId || !selectedCompanyId || standardizedRows.length === 0) return;
 
+const handleImport = async () => {
   if (!selectedAgentId || standardizedRows.length === 0) return;
 
-if (importMode === "single" && !selectedCompanyId) return;
-if (importMode === "multi_sheet" && !selectedMultiSheetProfileId) return;
+  if (importMode === "single" && !selectedCompanyId) return;
+  if (importMode === "multi_sheet" && !selectedMultiSheetProfileId) return;
+
+  if (
+    importMode === "multi_sheet" &&
+    selectedMultiSheetProfile?.enableReportMonthFilter &&
+    !selectedTargetReportMonth
+  ) {
+    setErrorDialog({
+      title: "חסר חודש דיווח",
+      message: "יש לבחור שנה וחודש לפני אישור הטעינה עבור פרופיל זה.",
+    });
+    return;
+  }
 
   standardizedRows.forEach((row) => {
     row.reportMonth = parseHebrewMonth(row.reportMonth, row.templateId);
@@ -1822,8 +2087,15 @@ if (importMode === "multi_sheet" && !selectedMultiSheetProfileId) return;
       agentName: agents.find((a) => a.id === selectedAgentId)?.name || "",
       createdBy: detail?.email || detail?.name || "",
       createdByUserId: user?.uid || "",
-      companyId: selectedCompanyId,
-      company: selectedCompanyName,
+      companyId:
+  importMode === "multi_sheet"
+    ? "__multi_sheet_bundle__"
+    : selectedCompanyId,
+
+company:
+  importMode === "multi_sheet"
+    ? "Multi Sheet Bundle"
+    : selectedCompanyName,
 
       templateId:
         importMode === "multi_sheet"
@@ -1864,6 +2136,16 @@ if (importMode === "multi_sheet" && !selectedMultiSheetProfileId) return;
         importMode === "multi_sheet"
           ? multiSheetPreview?.ignoredSheets || []
           : [],
+
+      usedReportMonthFilter:
+        importMode === "multi_sheet"
+          ? !!selectedMultiSheetProfile?.enableReportMonthFilter
+          : false,
+
+      selectedReportMonth:
+        importMode === "multi_sheet" && selectedMultiSheetProfile?.enableReportMonthFilter
+          ? selectedTargetReportMonth
+          : "",
 
       reportMonths,
       minReportMonth,
@@ -1929,6 +2211,11 @@ if (importMode === "multi_sheet" && !selectedMultiSheetProfileId) return;
     setConflictingRunIds([]);
     setMultiSheetPreview(null);
 
+    if (importMode === "multi_sheet") {
+      setSelectedReportYear("");
+      setSelectedReportMonth("");
+    }
+
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
@@ -1941,7 +2228,6 @@ if (importMode === "multi_sheet" && !selectedMultiSheetProfileId) return;
     setImportProgress(0);
   }
 };
-
 
 function pickBestDecoding(u8: Uint8Array) {
     const utf8 = new TextDecoder('utf-8').decode(u8);
@@ -2066,6 +2352,7 @@ const [multiSheetPreview, setMultiSheetPreview] = useState<{
     sheetName: string;
     templateId: string;
     rowsCount: number;
+    filteredRowsCount?: number;
     status: "done" | "skipped_empty";
   }>;
   unmatchedSheets: string[];
@@ -2152,6 +2439,85 @@ useEffect(() => {
   loadProfiles();
 }, [selectedAgentId, detail?.agencyId]);
 
+
+
+// const standardizeSheetRows = React.useCallback((params: {
+//   jsonData: any[];
+//   mapping: Record<string, string>;
+//   templateId: string;
+//   sourceFileName: string;
+//   selectedAgentId: string;
+//   selectedCompanyId?: string;
+//   selectedCompanyName?: string;
+//   fallbackProduct?: string;
+//   sheetName: string;
+// }) => {
+//   const {
+//     jsonData,
+//     mapping,
+//     templateId,
+//     sourceFileName,
+//     selectedAgentId,
+//     selectedCompanyId,
+//     selectedCompanyName,
+//     fallbackProduct,
+//     sheetName,
+//   } = params;
+
+//   const standardized = jsonData
+//     .filter((row) => {
+//      console.log("[standardizeSheetRows] templateId =", templateId);
+// console.log("[standardizeSheetRows] mapping =", mapping);
+// console.log("[standardizeSheetRows] first row headers =", Object.keys(jsonData[0] || {}));
+
+// const agentCodeColumn = Object.entries(mapping).find(
+//   ([, field]) => field === "agentCode"
+// )?.[0];
+
+// console.log("[standardizeSheetRows] agentCodeColumn =", agentCodeColumn);
+// console.log(
+//   "[standardizeSheetRows] first row agentCode raw =",
+//   agentCodeColumn ? jsonData[0]?.[agentCodeColumn] : undefined
+// );
+// console.log(
+//   "[standardizeSheetRows] first row agentCode normalized =",
+//   agentCodeColumn ? jsonData[0]?.[normalizeHeader(agentCodeColumn)] : undefined
+// );
+//       const agentCodeVal = agentCodeColumn
+//         ? row[agentCodeColumn] ?? row[normalizeHeader(agentCodeColumn)]
+//         : null;
+
+//       return agentCodeVal && String(agentCodeVal).trim() !== "";
+//     })
+//     .map((row) =>
+//       standardizeRowWithMapping(
+//         row,
+//         mapping,
+//         {
+//           agentId: selectedAgentId,
+//           templateId,
+//           sourceFileName,
+//           uploadDate: serverTimestamp(),
+//           companyId: selectedCompanyId || "",
+//           company: selectedCompanyName || "",
+//           sourceSheetName: sheetName,
+//         },
+//         undefined,
+//          { isMultiSheet: true }
+//       )
+//     )
+//     .map((row) => {
+//       if ((!row.product || !String(row.product).trim()) && fallbackProduct) {
+//         row.product = normalizeProduct(fallbackProduct);
+//       }
+//       return row;
+//     });
+
+//   return standardized;
+// }, []);
+
+
+
 const standardizeSheetRows = React.useCallback((params: {
   jsonData: any[];
   mapping: Record<string, string>;
@@ -2175,17 +2541,21 @@ const standardizeSheetRows = React.useCallback((params: {
     sheetName,
   } = params;
 
+  console.log("[standardizeSheetRows] templateId =", templateId);
+  console.log("[standardizeSheetRows] sheetName =", sheetName);
+  console.log("[standardizeSheetRows] mapping =", mapping);
+  console.log("[standardizeSheetRows] first row headers =", Object.keys(jsonData[0] || {}));
+  console.log("[standardizeSheetRows] first row =", jsonData[0]);
+
   const standardized = jsonData
-    .filter((row) => {
-      const agentCodeColumn = Object.entries(mapping).find(
-        ([, field]) => field === "agentCode"
-      )?.[0];
+    .filter((row, index) => {
+      const agentCodeVal = getValueBySystemField(row, mapping, "agentCode");
 
-      const agentCodeVal = agentCodeColumn
-        ? row[agentCodeColumn] ?? row[normalizeHeader(agentCodeColumn)]
-        : null;
+      if (index === 0) {
+        console.log("[standardizeSheetRows] first row agentCodeVal =", agentCodeVal);
+      }
 
-      return agentCodeVal && String(agentCodeVal).trim() !== "";
+      return agentCodeVal !== null && agentCodeVal !== undefined;
     })
     .map((row) =>
       standardizeRowWithMapping(
@@ -2201,7 +2571,7 @@ const standardizeSheetRows = React.useCallback((params: {
           sourceSheetName: sheetName,
         },
         undefined,
-         { isMultiSheet: true }
+        { isMultiSheet: true }
       )
     )
     .map((row) => {
@@ -2213,6 +2583,10 @@ const standardizeSheetRows = React.useCallback((params: {
 
   return standardized;
 }, []);
+
+
+
+
 
 const multiPreviewColumns = [
   { key: "reportMonth", label: "חודש עמלה" },
@@ -2227,6 +2601,20 @@ const multiPreviewColumns = [
   { key: "company", label: "חברה" },
   { key: "sourceSheetName", label: "לשונית מקור" },
 ];
+
+
+
+const shouldShowMultiMonthPicker = Boolean(
+  importMode === "multi_sheet" &&
+  selectedMultiSheetProfile?.enableReportMonthFilter
+);
+
+const selectedTargetReportMonth =
+  selectedReportYear && selectedReportMonth
+    ? `${selectedReportYear}-${selectedReportMonth}`
+    : "";
+    
+
 
   /* ==============================
      Render
@@ -2507,31 +2895,136 @@ const multiPreviewColumns = [
       )}
 
       {/* ================= MULTI ================= */}
-      {importMode === "multi_sheet" && (
-        <div className="max-w-md">
+  {importMode === "multi_sheet" && (
+  <div className="max-w-md space-y-4">
+    <div>
+      <label className="block text-xs font-bold text-gray-400 mb-1 uppercase tracking-wider">
+        3. פרופיל טעינה
+      </label>
+      <select
+        value={selectedMultiSheetProfileId}
+        onChange={(e) => {
+          setSelectedMultiSheetProfileId(e.target.value);
+
+          setSelectedReportYear("");
+          setSelectedReportMonth("");
+
+          setStandardizedRows([]);
+          setMultiSheetPreview(null);
+          setSelectedFileName("");
+          setExistingRunIds([]);
+          setMonthsInFile([]);
+          setConflictingRunIds([]);
+
+          if (fileInputRef.current) {
+            fileInputRef.current.value = "";
+          }
+        }}
+        className="select-input w-full h-10 border-gray-300 rounded-lg"
+      >
+        <option value="">-- בחרי פרופיל --</option>
+        {multiSheetProfiles.map((p) => (
+          <option key={p.id} value={p.id}>
+            {p.name}
+          </option>
+        ))}
+      </select>
+    </div>
+
+    {shouldShowMultiMonthPicker && (
+      <div className="grid grid-cols-2 gap-3">
+        <div>
           <label className="block text-xs font-bold text-gray-400 mb-1 uppercase tracking-wider">
-            3. פרופיל טעינה
+            4. שנה
           </label>
           <select
-            value={selectedMultiSheetProfileId}
-            onChange={(e) => setSelectedMultiSheetProfileId(e.target.value)}
+            value={selectedReportYear}
+            onChange={(e) => {
+              setSelectedReportYear(e.target.value);
+              setSelectedReportMonth("");
+              setStandardizedRows([]);
+              setMultiSheetPreview(null);
+              setSelectedFileName("");
+              setExistingRunIds([]);
+              setMonthsInFile([]);
+              setConflictingRunIds([]);
+
+              if (fileInputRef.current) {
+                fileInputRef.current.value = "";
+              }
+            }}
             className="select-input w-full h-10 border-gray-300 rounded-lg"
           >
-            <option value="">-- בחרי פרופיל --</option>
-            {multiSheetProfiles.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
+            <option value="">-- בחרי שנה --</option>
+            {["2024", "2025", "2026", "2027"].map((year) => (
+              <option key={year} value={year}>
+                {year}
               </option>
             ))}
           </select>
         </div>
-      )}
 
+        <div>
+          <label className="block text-xs font-bold text-gray-400 mb-1 uppercase tracking-wider">
+            5. חודש
+          </label>
+          <select
+            value={selectedReportMonth}
+            onChange={(e) => {
+              setSelectedReportMonth(e.target.value);
+              setStandardizedRows([]);
+              setMultiSheetPreview(null);
+              setSelectedFileName("");
+              setExistingRunIds([]);
+              setMonthsInFile([]);
+              setConflictingRunIds([]);
+
+              if (fileInputRef.current) {
+                fileInputRef.current.value = "";
+              }
+            }}
+            disabled={!selectedReportYear}
+            className="select-input w-full h-10 border-gray-300 rounded-lg disabled:bg-gray-100 disabled:text-gray-400"
+          >
+            <option value="">-- בחרי חודש --</option>
+            <option value="01">ינואר</option>
+            <option value="02">פברואר</option>
+            <option value="03">מרץ</option>
+            <option value="04">אפריל</option>
+            <option value="05">מאי</option>
+            <option value="06">יוני</option>
+            <option value="07">יולי</option>
+            <option value="08">אוגוסט</option>
+            <option value="09">ספטמבר</option>
+            <option value="10">אוקטובר</option>
+            <option value="11">נובמבר</option>
+            <option value="12">דצמבר</option>
+          </select>
+        </div>
+      </div>
+    )}
+
+    {shouldShowMultiMonthPicker && selectedTargetReportMonth && (
+      <div className="text-xs text-blue-600 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2">
+        חודש הדיווח שייטען: <strong>{selectedTargetReportMonth}</strong>
+      </div>
+    )}
+  </div>
+)}
       {/* ================= UPLOAD + BUTTONS ================= */}
       {(
         (importMode === "single" && selectedCompanyId && templateId) ||
-        (importMode === "multi_sheet" && selectedMultiSheetProfileId)
-      ) && (
+(
+  (importMode === "single" && selectedCompanyId && templateId) ||
+  (
+    importMode === "multi_sheet" &&
+    selectedMultiSheetProfileId &&
+    (
+      !selectedMultiSheetProfile?.enableReportMonthFilter ||
+      !!selectedTargetReportMonth
+    )
+  )
+)      ) && (
         <>
           {/* UPLOAD */}
           <div
@@ -2587,9 +3080,14 @@ const multiPreviewColumns = [
                     className="flex justify-between border-b pb-2"
                   >
                     <span>{s.sheetName}</span>
-                    <span>
-                      {s.templateId} | {s.rowsCount} שורות | {s.status}
-                    </span>
+                   <span>
+  {s.templateId} | {s.rowsCount} שורות
+  {typeof s.filteredRowsCount === "number" && (
+    <> | לאחר סינון: {s.filteredRowsCount}</>
+  )}
+  {" | "}
+  {s.status}
+</span>
                   </div>
                 ))}
 
