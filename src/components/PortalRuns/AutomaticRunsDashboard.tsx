@@ -173,8 +173,7 @@ if (
   (
     isRunActive &&
     activeCompanyId === item.companyId &&
-    effectiveStatus !== 'done' &&
-    effectiveStatus !== 'error'
+    effectiveStatus !== 'done' 
   )
 ) {
   effectiveStatus = 'running';
