@@ -14,6 +14,7 @@ export type MultiSheetProfileSheet = {
   overrideSystemFields?: Record<string, MultiSheetSystemFieldOverrideValue>;
   isRequired?: boolean;
   skipIfEmpty?: boolean;
+  lookupCustomerIdByPolicy?: boolean;
 };
 
 export type MultiSheetImportProfile = {

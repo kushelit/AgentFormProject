@@ -34,6 +34,7 @@ type ParseMultiSheetWorkbookParams = {
     selectedCompanyName?: string;
     fallbackProduct?: string;
     sheetName: string;
+    lookupCustomerIdByPolicy?: boolean;
   }) => any[];
 };
 
@@ -67,9 +68,7 @@ export async function parseMultiSheetWorkbook(
       continue;
     }
 
-    // console.log("[parseMultiSheetWorkbook] sheetName =", sheetName);
-    // console.log("[parseMultiSheetWorkbook] matchedRule =", matchedRule);
-    // console.log("[parseMultiSheetWorkbook] matchedRule.templateId =", matchedRule?.templateId);
+
 
     if (!matchedRule?.templateId) {
       console.error("[parseMultiSheetWorkbook] missing templateId for rule", {
@@ -121,6 +120,7 @@ export async function parseMultiSheetWorkbook(
       selectedCompanyName: templateConfig.companyName || selectedCompanyName,
       fallbackProduct: templateConfig.fallbackProduct,
       sheetName,
+      lookupCustomerIdByPolicy: !!matchedRule.lookupCustomerIdByPolicy,
     });
 
     if (!standardizedRows.length) {

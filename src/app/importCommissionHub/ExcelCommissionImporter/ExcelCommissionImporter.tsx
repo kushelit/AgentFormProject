@@ -1099,189 +1099,6 @@ const standardizeRowWithMapping = (
 
 
 
-// const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-//   const file = e.target.files?.[0];
-
-
-//   if (!file || !selectedAgentId) return;
-
-// if (importMode === "single" && !selectedCompanyId) return;
-
-//   if (importMode === "single" && !templateId) return;
-//   if (importMode === "multi_sheet" && !selectedMultiSheetProfile) {
-//     setErrorDialog({
-//       title: "חסר פרופיל",
-//       message: "יש לבחור פרופיל טעינה מרובה לשוניות לפני העלאת הקובץ.",
-//     });
-//     if (fileInputRef.current) fileInputRef.current.value = "";
-//     return;
-//   }
-
-//   const ext = getExt(file.name);
-//   const allowed = new Set([".xlsx", ".xls", ".csv", ".zip"]);
-//   if (!allowed.has(ext)) {
-//     setErrorDialog({
-//       title: "סוג קובץ לא נתמך",
-//       message: (
-//         <>
-//           הקובץ <b>{file.name}</b> הוא {ext}. נא להעלות רק קבצי ZIP/XLSX/XLS/CSV.
-//         </>
-//       ),
-//     });
-//     if (fileInputRef.current) fileInputRef.current.value = "";
-//     return;
-//   }
-
-//   // במצב multi-sheet נתמוך רק באקסל
-//   if (importMode === "multi_sheet" && ![".xlsx", ".xls"].includes(ext)) {
-//     setErrorDialog({
-//       title: "סוג קובץ לא נתמך",
-//       message: "טעינת קובץ מרובה לשוניות נתמכת רק עבור Excel (.xlsx / .xls).",
-//     });
-//     if (fileInputRef.current) fileInputRef.current.value = "";
-//     return;
-//   }
-
-//   setSelectedFileName(file.name);
-//   setStandardizedRows([]);
-//   setMultiSheetPreview(null);
-//   setExistingRunIds([]);
-//   setMonthsInFile([]);
-//   setConflictingRunIds([]);
-
-//   setIsLoading(true);
-//   setLoadingStage("קורא קובץ מהמחשב...");
-
-//   const reader = new FileReader();
-
-//   reader.onload = async (evt) => {
-//     try {
-//       const arrayBuffer = evt.target?.result as ArrayBuffer;
-
-//       // =========================
-//       // MULTI SHEET MODE
-//       // =========================
-//       if (importMode === "multi_sheet") {
-//         setLoadingStage("פותח חוברת עבודה מרובת לשוניות...");
-
-//         const wb = XLSX.read(arrayBuffer, { type: "array", cellDates: true });
-
-//         const result = await parseMultiSheetWorkbook({
-//           db,
-//           workbook: wb,
-//           profile: selectedMultiSheetProfile!,
-//           selectedAgentId,
-//           selectedCompanyId,
-//           selectedCompanyName,
-//           standardizeSheetRows,
-//         });
-
-//         setMultiSheetPreview({
-//           matchedSheets: result.matchedSheets,
-//           unmatchedSheets: result.unmatchedSheets,
-//           ignoredSheets: result.ignoredSheets,
-//         });
-
-//         const doneSheets = result.matchedSheets.filter((x) => x.status === "done");
-
-//         if (doneSheets.length === 0 || result.rows.length === 0) {
-//           setStandardizedRows([]);
-//           setErrorDialog({
-//             title: "לא זוהו לשוניות לטעינה",
-//             message: (
-//               <div className="text-right">
-//                 <p>לא נמצאה אף לשונית עם התאמה תקינה לפרופיל שנבחר.</p>
-//                 {result.unmatchedSheets.length > 0 && (
-//                   <p className="mt-2 text-sm text-gray-500">
-//                     לשוניות ללא התאמה: {result.unmatchedSheets.join(", ")}
-//                   </p>
-//                 )}
-//               </div>
-//             ),
-//           });
-//           return;
-//         }
-
-//         setStandardizedRows(result.rows);
-
-//         const fileMonths = Array.from(
-//           new Set(result.rows.map((r) => sanitizeMonth(r.reportMonth)).filter(Boolean))
-//         ).sort();
-
-//         setMonthsInFile(fileMonths);
-
-//         await checkExistingByRunsMultiTemplate({
-//           agentId: selectedAgentId,
-//           companyId: selectedCompanyId,
-//           rows: result.rows,
-//         });
-
-//         setLoadingStage("הושלם!");
-//         return;
-//       }
-
-//       // =========================
-//       // SINGLE TEMPLATE MODE
-//       // =========================
-//       const fallbackReportMonth =
-//         templateId === "mor_insurance"
-//           ? extractReportMonthFromFilename(file.name)
-//           : undefined;
-
-//       // --- טיפול ב-ZIP ---
-//       if (ext === ".zip") {
-//         setLoadingStage("פותח ארכיון ZIP...");
-//         const mod = await import("jszip");
-//         const JSZip: any = (mod as any).default ?? mod;
-//         const zip = await JSZip.loadAsync(arrayBuffer);
-
-//         const entries = zip.file(/\.xlsx$|\.xls$|\.csv$/i);
-//         if (entries.length === 0) throw new Error("ה-ZIP לא מכיל XLSX/XLS/CSV.");
-
-//         // אם יש יותר מקובץ אחד, פותחים את הבוחר ומפסיקים
-//         if (entries.length > 1) {
-//           const names = entries.map((f: any) => f.name);
-//           setZipChooser({ zip, entryNames: names, outerFileName: file.name });
-//           setSelectedZipEntry(names[0]);
-//           setIsLoading(false);
-//           setLoadingStage("");
-//           return;
-//         }
-
-//         // אם יש קובץ אחד בלבד ב-ZIP, מחלצים אותו וממשיכים לעיבוד
-//         const entry = entries[0];
-//         setLoadingStage(`מחלץ את ${entry.name}...`);
-//         const innerData = /\.csv$/i.test(entry.name)
-//           ? await entry.async("uint8array")
-//           : await entry.async("arraybuffer");
-
-//         await parseAndStandardize(innerData, entry.name, fallbackReportMonth);
-//       } else {
-//         // --- טיפול בקובץ רגיל (XLSX/CSV) ---
-//         await parseAndStandardize(arrayBuffer, file.name, fallbackReportMonth);
-//       }
-//  } catch (err: any) {
-//   console.error("handleFileUpload error:", err);
-//   setErrorDialog({
-//     title: "שגיאת עיבוד קובץ",
-//     message: (
-//       <div className="text-right">
-//         <div>אירעה שגיאה בעת עיבוד הקובץ <b>{file.name}</b>.</div>
-//         <div className="mt-2 text-xs text-red-600">
-//           {String(err?.message || err || "Unknown error")}
-//         </div>
-//       </div>
-//     ),
-//   });
-// } finally {
-//       setIsLoading(false);
-//       setLoadingStage("");
-//     }
-//   };
-
-//   reader.readAsArrayBuffer(file);
-// };
-
 const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
   const file = e.target.files?.[0];
 
@@ -1791,209 +1608,6 @@ const processChosenZipEntry = async () => {
      Import button
   ============================== */
 
-  
-// const handleImport = async () => {
-//   // if (!selectedAgentId || !selectedCompanyId || standardizedRows.length === 0) return;
-
-//   if (!selectedAgentId || standardizedRows.length === 0) return;
-
-// if (importMode === "single" && !selectedCompanyId) return;
-// if (importMode === "multi_sheet" && !selectedMultiSheetProfileId) return;
-
-//   standardizedRows.forEach((row) => {
-//     row.reportMonth = parseHebrewMonth(row.reportMonth, row.templateId);
-//     row.validMonth = parseHebrewMonth(row.validMonth, row.templateId);
-//   });
-
-//   setIsLoading(true);
-//   setImportProgress(0);
-//   setLoadingStage("מתחיל טעינה...");
-
-//   if (existingRunIds.length > 0) {
-//     addToast("success", "נמצאה טעינה קודמת לחודשים אלו. הטעינה החדשה תתווסף ותחושב מחדש.");
-//   }
-
-//   try {
-//     const runRef = doc(collection(db, "commissionImportRuns"));
-//     const runId = runRef.id;
-
-//     const uniqueAgentCodes = new Set<string>();
-//     for (const row of standardizedRows) {
-//       if (row.agentCode) uniqueAgentCodes.add(String(row.agentCode).trim());
-//     }
-
-//     const userRef = doc(db, "users", selectedAgentId);
-//     const userSnap = await getDoc(userRef);
-//     if (userSnap.exists()) {
-//       const existingCodes: string[] = userSnap.data().agentCodes || [];
-//       const codesToAdd = Array.from(uniqueAgentCodes).filter(
-//         (c) => !existingCodes.includes(c)
-//       );
-//       if (codesToAdd.length > 0) {
-//         await updateDoc(userRef, { agentCodes: arrayUnion(...codesToAdd) });
-//       }
-//     }
-
-//     const rowsPrepared = standardizedRows.map((r) => ({
-//       ...r,
-//       policyNumberKey: String(r.policyNumber ?? "").trim().replace(/\s+/g, ""),
-//       customerId: toPadded9(r.customerId ?? r.customerIdRaw ?? ""),
-//       runId,
-//     }));
-
-//     setLoadingStage("שומר שורות מקור...");
-//     await writeExternalRowsInChunks(rowsPrepared);
-
-//     setImportProgress(75);
-//     setLoadingStage("מחשב סיכומים מחדש...");
-
-//     const { commissionSummariesCount, policySummariesCount } =
-//       await recomputeSummariesFromExternalManual({
-//         db,
-//         rowsPrepared,
-//         runId,
-//       });
-
-//     const totalRows = rowsPrepared.length;
-
-//     const reportMonths = Array.from(
-//       new Set(rowsPrepared.map((r) => sanitizeMonth(r.reportMonth)).filter(Boolean))
-//     ).sort();
-
-//     const minReportMonth = reportMonths[0] || "";
-//     const maxReportMonth =
-//       reportMonths.length > 0 ? reportMonths[reportMonths.length - 1] : "";
-
-//     setImportProgress(95);
-//     setLoadingStage("שומר רשומת טעינה...");
-
-//     await setDoc(runRef, {
-//       runId,
-//       createdAt: serverTimestamp(),
-//       agentId: selectedAgentId,
-//       agentName: agents.find((a) => a.id === selectedAgentId)?.name || "",
-//       createdBy: detail?.email || detail?.name || "",
-//       createdByUserId: user?.uid || "",
-//       companyId: selectedCompanyId,
-//       company: selectedCompanyName,
-
-//       templateId:
-//         importMode === "multi_sheet"
-//           ? "__multi_sheet_bundle__"
-//           : templateId,
-
-//       templateName:
-//         importMode === "multi_sheet"
-//           ? selectedMultiSheetProfile?.name || "Multi Sheet Bundle"
-//           : selectedTemplate?.Name || selectedTemplate?.type || "",
-
-//       sourceType:
-//         importMode === "multi_sheet"
-//           ? "multi_sheet_bundle"
-//           : "single_template",
-
-//       multiSheetProfileId:
-//         importMode === "multi_sheet"
-//           ? selectedMultiSheetProfile?.id || ""
-//           : "",
-
-//       multiSheetProfileName:
-//         importMode === "multi_sheet"
-//           ? selectedMultiSheetProfile?.name || ""
-//           : "",
-
-//       matchedSheets:
-//         importMode === "multi_sheet"
-//           ? multiSheetPreview?.matchedSheets || []
-//           : [],
-
-//       unmatchedSheets:
-//         importMode === "multi_sheet"
-//           ? multiSheetPreview?.unmatchedSheets || []
-//           : [],
-
-//       ignoredSheets:
-//         importMode === "multi_sheet"
-//           ? multiSheetPreview?.ignoredSheets || []
-//           : [],
-
-//       reportMonths,
-//       minReportMonth,
-//       maxReportMonth,
-//       reportMonthsCount: reportMonths.length,
-//       reportMonth: minReportMonth,
-
-//       externalCount: totalRows,
-//       commissionSummariesCount,
-//       policySummariesCount,
-//     });
-
-//     addToast("success", "✅ הטעינה הושלמה בהצלחה");
-
-//     const grouped: Record<
-//       string,
-//       {
-//         count: number;
-//         uniqueCustomers: Set<string>;
-//         totalCommission: number;
-//         totalPremium: number;
-//       }
-//     > = {};
-
-//     for (const row of rowsPrepared) {
-//       const code = String(row.agentCode ?? "").trim();
-//       if (!code) continue;
-
-//       if (!grouped[code]) {
-//         grouped[code] = {
-//           count: 0,
-//           uniqueCustomers: new Set(),
-//           totalCommission: 0,
-//           totalPremium: 0,
-//         };
-//       }
-
-//       grouped[code].count += 1;
-//       if (row.customerId) grouped[code].uniqueCustomers.add(row.customerId);
-//       grouped[code].totalCommission += Number(row.commissionAmount ?? 0) || 0;
-//       grouped[code].totalPremium += Number(row.premium ?? 0) || 0;
-//     }
-
-//     const summaryArray = Object.entries(grouped).map(([agentCode, data]) => ({
-//       agentCode,
-//       count: data.count,
-//       totalInsured: data.uniqueCustomers.size,
-//       totalCommission: data.totalCommission,
-//       totalPremium: data.totalPremium,
-//     }));
-
-//     setSummaryByAgentCode(summaryArray);
-//     setShowSummaryDialog(true);
-
-//     setImportProgress(100);
-//     setLoadingStage("הושלם!");
-
-//     setStandardizedRows([]);
-//     setSelectedFileName("");
-//     setExistingDocs([]);
-//     setExistingRunIds([]);
-//     setMonthsInFile([]);
-//     setConflictingRunIds([]);
-//     setMultiSheetPreview(null);
-
-//     if (fileInputRef.current) {
-//       fileInputRef.current.value = "";
-//     }
-//   } catch (error) {
-//     console.error("handleImport error:", error);
-//     addToast("error", "שגיאה בעת טעינה למסד. בדוק קונסול.");
-//   } finally {
-//     setIsLoading(false);
-//     setLoadingStage("");
-//     setImportProgress(0);
-//   }
-// };
-
 
 const handleImport = async () => {
   if (!selectedAgentId || standardizedRows.length === 0) return;
@@ -2047,9 +1661,37 @@ const handleImport = async () => {
       }
     }
 
-    const rowsPrepared = standardizedRows.map((r) => ({
+    const rowsWithPolicyKey = standardizedRows.map((r) => ({
       ...r,
       policyNumberKey: String(r.policyNumber ?? "").trim().replace(/\s+/g, ""),
+    }));
+
+    const enrichedRows =
+      importMode === "multi_sheet"
+        ? await enrichMissingCustomerIdsForMarkedSheets({
+            rows: rowsWithPolicyKey,
+            agentId: selectedAgentId,
+          })
+        : rowsWithPolicyKey;
+
+    const finalRowsForImport =
+      importMode === "multi_sheet"
+        ? enrichedRows.filter((row) => {
+            if (!row.lookupCustomerIdByPolicy) return true;
+            return String(row.customerId || row.customerIdRaw || "").trim() !== "";
+          })
+        : enrichedRows;
+
+    if (!finalRowsForImport.length) {
+      setErrorDialog({
+        title: "לא נותרו שורות לטעינה",
+        message: "לא נותרו שורות תקינות לטעינה לאחר השלמת תעודות זהות וסינון.",
+      });
+      return;
+    }
+
+    const rowsPrepared = finalRowsForImport.map((r) => ({
+      ...r,
       customerId: toPadded9(r.customerId ?? r.customerIdRaw ?? ""),
       runId,
     }));
@@ -2087,15 +1729,16 @@ const handleImport = async () => {
       agentName: agents.find((a) => a.id === selectedAgentId)?.name || "",
       createdBy: detail?.email || detail?.name || "",
       createdByUserId: user?.uid || "",
-      companyId:
-  importMode === "multi_sheet"
-    ? "__multi_sheet_bundle__"
-    : selectedCompanyId,
 
-company:
-  importMode === "multi_sheet"
-    ? "Multi Sheet Bundle"
-    : selectedCompanyName,
+      companyId:
+        importMode === "multi_sheet"
+          ? "__multi_sheet_bundle__"
+          : selectedCompanyId,
+
+      company:
+        importMode === "multi_sheet"
+          ? "Multi Sheet Bundle"
+          : selectedCompanyName,
 
       templateId:
         importMode === "multi_sheet"
@@ -2441,83 +2084,6 @@ useEffect(() => {
 
 
 
-// const standardizeSheetRows = React.useCallback((params: {
-//   jsonData: any[];
-//   mapping: Record<string, string>;
-//   templateId: string;
-//   sourceFileName: string;
-//   selectedAgentId: string;
-//   selectedCompanyId?: string;
-//   selectedCompanyName?: string;
-//   fallbackProduct?: string;
-//   sheetName: string;
-// }) => {
-//   const {
-//     jsonData,
-//     mapping,
-//     templateId,
-//     sourceFileName,
-//     selectedAgentId,
-//     selectedCompanyId,
-//     selectedCompanyName,
-//     fallbackProduct,
-//     sheetName,
-//   } = params;
-
-//   const standardized = jsonData
-//     .filter((row) => {
-//      console.log("[standardizeSheetRows] templateId =", templateId);
-// console.log("[standardizeSheetRows] mapping =", mapping);
-// console.log("[standardizeSheetRows] first row headers =", Object.keys(jsonData[0] || {}));
-
-// const agentCodeColumn = Object.entries(mapping).find(
-//   ([, field]) => field === "agentCode"
-// )?.[0];
-
-// console.log("[standardizeSheetRows] agentCodeColumn =", agentCodeColumn);
-// console.log(
-//   "[standardizeSheetRows] first row agentCode raw =",
-//   agentCodeColumn ? jsonData[0]?.[agentCodeColumn] : undefined
-// );
-// console.log(
-//   "[standardizeSheetRows] first row agentCode normalized =",
-//   agentCodeColumn ? jsonData[0]?.[normalizeHeader(agentCodeColumn)] : undefined
-// );
-//       const agentCodeVal = agentCodeColumn
-//         ? row[agentCodeColumn] ?? row[normalizeHeader(agentCodeColumn)]
-//         : null;
-
-//       return agentCodeVal && String(agentCodeVal).trim() !== "";
-//     })
-//     .map((row) =>
-//       standardizeRowWithMapping(
-//         row,
-//         mapping,
-//         {
-//           agentId: selectedAgentId,
-//           templateId,
-//           sourceFileName,
-//           uploadDate: serverTimestamp(),
-//           companyId: selectedCompanyId || "",
-//           company: selectedCompanyName || "",
-//           sourceSheetName: sheetName,
-//         },
-//         undefined,
-//          { isMultiSheet: true }
-//       )
-//     )
-//     .map((row) => {
-//       if ((!row.product || !String(row.product).trim()) && fallbackProduct) {
-//         row.product = normalizeProduct(fallbackProduct);
-//       }
-//       return row;
-//     });
-
-//   return standardized;
-// }, []);
-
-
-
 const standardizeSheetRows = React.useCallback((params: {
   jsonData: any[];
   mapping: Record<string, string>;
@@ -2528,6 +2094,7 @@ const standardizeSheetRows = React.useCallback((params: {
   selectedCompanyName?: string;
   fallbackProduct?: string;
   sheetName: string;
+  lookupCustomerIdByPolicy?: boolean;
 }) => {
   const {
     jsonData,
@@ -2539,13 +2106,10 @@ const standardizeSheetRows = React.useCallback((params: {
     selectedCompanyName,
     fallbackProduct,
     sheetName,
+    lookupCustomerIdByPolicy,
   } = params;
 
-  console.log("[standardizeSheetRows] templateId =", templateId);
-  console.log("[standardizeSheetRows] sheetName =", sheetName);
-  console.log("[standardizeSheetRows] mapping =", mapping);
-  console.log("[standardizeSheetRows] first row headers =", Object.keys(jsonData[0] || {}));
-  console.log("[standardizeSheetRows] first row =", jsonData[0]);
+
 
   const standardized = jsonData
     .filter((row, index) => {
@@ -2569,6 +2133,7 @@ const standardizeSheetRows = React.useCallback((params: {
           companyId: selectedCompanyId || "",
           company: selectedCompanyName || "",
           sourceSheetName: sheetName,
+          lookupCustomerIdByPolicy: !!lookupCustomerIdByPolicy,
         },
         undefined,
         { isMultiSheet: true }
@@ -2615,6 +2180,99 @@ const selectedTargetReportMonth =
     : "";
     
 
+    async function enrichMissingCustomerIdsForMarkedSheets(params: {
+  rows: any[];
+  agentId: string;
+}) {
+  const { rows, agentId } = params;
+
+  const rowsToLookup = rows.filter((row) => {
+    const shouldLookup = !!row.lookupCustomerIdByPolicy;
+    const hasCustomerId = String(row.customerId || "").trim() !== "";
+    const policyKey =
+      String(row.policyNumberKey || row.policyNumber || "")
+        .trim()
+        .replace(/\s+/g, "");
+    const companyId = String(row.companyId || "").trim();
+
+    return shouldLookup && !hasCustomerId && !!policyKey && !!companyId;
+  });
+
+  if (!rowsToLookup.length) return rows;
+
+  const lookupGroups = new Map<string, string[]>();
+  // key = companyId, value = policy keys
+
+  for (const row of rowsToLookup) {
+    const companyId = String(row.companyId || "").trim();
+    const policyKey =
+      String(row.policyNumberKey || row.policyNumber || "")
+        .trim()
+        .replace(/\s+/g, "");
+
+    if (!lookupGroups.has(companyId)) lookupGroups.set(companyId, []);
+    lookupGroups.get(companyId)!.push(policyKey);
+  }
+
+  const foundMap = new Map<string, string>();
+  // key = companyId__policyKey -> customerId
+
+  for (const [companyId, policyKeysRaw] of lookupGroups.entries()) {
+    const uniquePolicyKeys = Array.from(new Set(policyKeysRaw.filter(Boolean)));
+
+    for (let i = 0; i < uniquePolicyKeys.length; i += 10) {
+      const chunk = uniquePolicyKeys.slice(i, i + 10);
+
+      const snap = await getDocs(
+        query(
+          collection(db, "externalCommissions"),
+          where("agentId", "==", agentId),
+          where("companyId", "==", companyId),
+          where("policyNumberKey", "in", chunk)
+        )
+      );
+
+      snap.docs.forEach((docSnap) => {
+        const data: any = docSnap.data();
+        const policyKey = String(data.policyNumberKey || "").trim();
+        const customerId = String(data.customerId || "").trim();
+        const rowCompanyId = String(data.companyId || "").trim();
+
+        if (!policyKey || !customerId || !rowCompanyId) return;
+
+        const mapKey = `${rowCompanyId}__${policyKey}`;
+
+        if (!foundMap.has(mapKey)) {
+          foundMap.set(mapKey, customerId);
+        }
+      });
+    }
+  }
+
+  return rows.map((row) => {
+    const shouldLookup = !!row.lookupCustomerIdByPolicy;
+    const hasCustomerId = String(row.customerId || "").trim() !== "";
+
+    if (!shouldLookup || hasCustomerId) return row;
+
+    const companyId = String(row.companyId || "").trim();
+    const policyKey =
+      String(row.policyNumberKey || row.policyNumber || "")
+        .trim()
+        .replace(/\s+/g, "");
+
+    if (!companyId || !policyKey) return row;
+
+    const foundCustomerId = foundMap.get(`${companyId}__${policyKey}`);
+    if (!foundCustomerId) return row;
+
+    return {
+      ...row,
+      customerId: foundCustomerId,
+      customerIdRaw: foundCustomerId,
+    };
+  });
+}
 
   /* ==============================
      Render

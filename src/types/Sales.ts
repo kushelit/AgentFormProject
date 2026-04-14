@@ -44,8 +44,9 @@ export interface Sale {
     cancellationDate?: string;
     birthday?: string; // "YYYY-MM-DD"
     gender?: "זכר" | "נקבה" | "";
-    hekefPaid?: boolean;
-  }
+hekefPaid?: string;
+niudPaid?: string;
+depositStatus?: string;  }
 
   export type AgentDataType = {
     id: string;
@@ -68,8 +69,9 @@ export interface Sale {
     notes?: string;
     policyNumber?: string;
     cancellationDate?: string;
-    hekefPaid?: boolean;
-  };
+hekefPaid?: string;
+niudPaid?: string;
+depositStatus?: string;  };
   
 
   export type SalesToCompareCommissions = {

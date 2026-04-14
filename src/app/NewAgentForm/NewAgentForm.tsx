@@ -127,7 +127,42 @@ const indexOfLastRow = currentPage * rowsPerPage;
 const indexOfFirstRow = indexOfLastRow - rowsPerPage;
 const currentRows = sortedData.slice(indexOfFirstRow, indexOfLastRow);
 
-const canManageHekefPaid = String(detail?.agencyId ?? "") === "3";
+const canManageAgency3Fields = String(detail?.agencyId ?? "") === "3";
+
+const [paymentStatusOptions, setPaymentStatusOptions] = useState<{ id: string; name: string }[]>([]);
+const [depositStatusOptions, setDepositStatusOptions] = useState<{ id: string; name: string }[]>([]);
+
+useEffect(() => {
+  const loadAgency3Metadata = async () => {
+    try {
+      const paymentSnap = await getDocs(collection(db, "mdPaymentStatus"));
+      const depositSnap = await getDocs(collection(db, "mdDepositStatus"));
+
+      setPaymentStatusOptions(
+        paymentSnap.docs.map((d) => ({
+          id: d.id,
+          name: String(d.data().name || "").trim(),
+        }))
+      );
+
+      setDepositStatusOptions(
+        depositSnap.docs.map((d) => ({
+          id: d.id,
+          name: String(d.data().name || "").trim(),
+        }))
+      );
+    } catch (error) {
+      console.error("Failed loading agency 3 metadata", error);
+    }
+  };
+
+  if (canManageAgency3Fields) {
+    loadAgency3Metadata();
+  } else {
+    setPaymentStatusOptions([]);
+    setDepositStatusOptions([]);
+  }
+}, [canManageAgency3Fields]);
 
 // // const rowsPerPage = 8; // מספר השורות בעמוד
 
@@ -151,29 +186,32 @@ useEffect(() => {
 const exportToExcel = () => {
   if (!filteredData.length) return;
 
-  const translatedData = filteredData.map(item => ({
-    "שם פרטי": item.firstNameCustomer,
-    "שם משפחה": item.lastNameCustomer,
-    "תעודת זהות": item.IDCustomer,
-    "מספר פוליסה": item.policyNumber ?? "", // חדש
-    "חברה": item.company,
-    "מוצר": item.product,
-    "פרמיה ביטוח": item.insPremia,
-    "פרמיה פנסיה": item.pensiaPremia,
-    "צבירה פנסיה": item.pensiaZvira,
-    "פרמיה פיננסים": item.finansimPremia,
-    "צבירה פיננסים": item.finansimZvira,
-    "חודש תפוקה": item.mounth,
-    "סטאטוס": item.statusPolicy,
-    "תאריך ביטול": item.cancellationDate ? formatIsraeliDateOnly(item.cancellationDate) : "", 
-    "מינוי סוכן": item.minuySochen ? "כן" : "לא",
-"שם עובד": workerNameMap[item.workerId ?? ""] || "",
-    "הערות": item.notes ?? "",
-    ...(canManageHekefPaid
-    ? { "שולם היקף": (item as any).hekefPaid ? "כן" : "לא" }
+ const translatedData = filteredData.map(item => ({
+  "שם פרטי": item.firstNameCustomer,
+  "שם משפחה": item.lastNameCustomer,
+  "תעודת זהות": item.IDCustomer,
+  "מספר פוליסה": item.policyNumber ?? "",
+  "חברה": item.company,
+  "מוצר": item.product,
+  "פרמיה ביטוח": item.insPremia,
+  "פרמיה פנסיה": item.pensiaPremia,
+  "צבירה פנסיה": item.pensiaZvira,
+  "פרמיה פיננסים": item.finansimPremia,
+  "צבירה פיננסים": item.finansimZvira,
+  "חודש תפוקה": item.mounth,
+  "סטאטוס": item.statusPolicy,
+  "תאריך ביטול": item.cancellationDate ? formatIsraeliDateOnly(item.cancellationDate) : "",
+  "מינוי סוכן": item.minuySochen ? "כן" : "לא",
+  ...(canManageAgency3Fields
+    ? {
+        "שולם היקף": (item as any).hekefPaid || "",
+        "שולם ניוד": (item as any).niudPaid || "",
+        "סטטוס הפקדה": (item as any).depositStatus || "",
+      }
     : {}),
-
-  }));
+  "שם עובד": workerNameMap[item.workerId ?? ""] || "",
+  "הערות": item.notes ?? "",
+}));
 
   // יצירת גיליון
   const worksheet = XLSX.utils.json_to_sheet(translatedData);
@@ -227,8 +265,9 @@ const resetForm = (clearCustomerFields: boolean = false) => {
     resetField("birthday" as any, "");
     resetField("gender" as any, "");
     resetField("sourceValue" as any, "");
-    resetField("hekefPaid" as any, false);
-  }
+resetField("hekefPaid" as any, "");
+resetField("niudPaid" as any, "");
+resetField("depositStatus" as any, "");  }
    else
    {
   resetField("company", "");
@@ -244,8 +283,9 @@ const resetForm = (clearCustomerFields: boolean = false) => {
   resetField("notes", "");
   resetField("policyNumber", "");
   resetField("cancellationDate", "");
-  resetField("hekefPaid" as any, false);
-   }
+resetField("hekefPaid" as any, "");
+resetField("niudPaid" as any, "");
+resetField("depositStatus" as any, "");   }
    setInvalidFields([]);
   setErrors({});
    setIsEditing(false);
@@ -353,6 +393,9 @@ useEffect(() => {
     setMinuySochen(false);
     setSelectedStatusPolicy('');
     setNotes('');
+    handleEditChange("hekefPaid" as any, "");
+handleEditChange("niudPaid" as any, "");
+handleEditChange("depositStatus" as any, "");
     setSelectedStatusPolicy('');
     // טעינת הנתונים לסוכן שנבחר
     if (selectedAgentId) {
@@ -478,8 +521,9 @@ if (Object.keys(patch).length) {
   policyNumber: editData.policyNumber || "",
   createdAt: serverTimestamp(),
   lastUpdateDate: serverTimestamp(),
-  hekefPaid: canManageHekefPaid ? !!(editData as any).hekefPaid : false,
-    });
+hekefPaid: canManageAgency3Fields ? String((editData as any).hekefPaid || "") : "",
+niudPaid: canManageAgency3Fields ? String((editData as any).niudPaid || "") : "",
+depositStatus: canManageAgency3Fields ? String((editData as any).depositStatus || "") : "",    });
     addToast("success", "יש!!! עוד עסקה נוספה");
 
     triggerConfetti();
@@ -1132,10 +1176,18 @@ useEffect(() => {
     <th className="wide-column" onClick={() => handleSort("notes" as keyof CombinedData)}>
       הערות {sortColumn && sortColumn === "notes" ? (sortOrder === "asc" ? "▲" : "▼") : ""}
     </th>
-        {canManageHekefPaid && (
-  <th className="narrow-column" onClick={() => handleSort("hekefPaid" as keyof CombinedData)}>
-    שולם היקף {sortColumn && sortColumn === "hekefPaid" ? (sortOrder === "asc" ? "▲" : "▼") : ""}
-  </th>
+   {canManageAgency3Fields && (
+  <>
+    <th className="narrow-column" onClick={() => handleSort("hekefPaid" as keyof CombinedData)}>
+      שולם היקף {sortColumn && sortColumn === "hekefPaid" ? (sortOrder === "asc" ? "▲" : "▼") : ""}
+    </th>
+    <th className="narrow-column" onClick={() => handleSort("niudPaid" as keyof CombinedData)}>
+      שולם ניוד {sortColumn && sortColumn === "niudPaid" ? (sortOrder === "asc" ? "▲" : "▼") : ""}
+    </th>
+    <th className="narrow-column" onClick={() => handleSort("depositStatus" as keyof CombinedData)}>
+      סטטוס הפקדה {sortColumn && sortColumn === "depositStatus" ? (sortOrder === "asc" ? "▲" : "▼") : ""}
+    </th>
+  </>
 )}
     <th className="narrow-cell">🔧</th>
   </tr>
@@ -1361,22 +1413,62 @@ useEffect(() => {
     </div>
   ) : null}
 </td>
-{canManageHekefPaid && (
-  <td className="small-column">
-    {editingRow === item.id ? (
-      <select
-        value={!!(editData as any).hekefPaid ? "true" : "false"}
-        onChange={(e) =>
-          handleEditChange("hekefPaid" as any, e.target.value === "true")
-        }
-      >
-        <option value="false">לא</option>
-        <option value="true">כן</option>
-      </select>
-    ) : (
-      (item as any).hekefPaid ? "כן" : "לא"
-    )}
-  </td>
+{canManageAgency3Fields && (
+  <>
+    <td className="small-column">
+      {editingRow === item.id ? (
+        <select
+          value={(editData as any).hekefPaid || ""}
+          onChange={(e) => handleEditChange("hekefPaid" as any, e.target.value)}
+        >
+          <option value="">בחר</option>
+          {paymentStatusOptions.map((opt) => (
+            <option key={opt.id} value={opt.name}>
+              {opt.name}
+            </option>
+          ))}
+        </select>
+      ) : (
+        (item as any).hekefPaid || ""
+      )}
+    </td>
+
+    <td className="small-column">
+      {editingRow === item.id ? (
+        <select
+          value={(editData as any).niudPaid || ""}
+          onChange={(e) => handleEditChange("niudPaid" as any, e.target.value)}
+        >
+          <option value="">בחר</option>
+          {paymentStatusOptions.map((opt) => (
+            <option key={opt.id} value={opt.name}>
+              {opt.name}
+            </option>
+          ))}
+        </select>
+      ) : (
+        (item as any).niudPaid || ""
+      )}
+    </td>
+
+    <td className="small-column">
+      {editingRow === item.id ? (
+        <select
+          value={(editData as any).depositStatus || ""}
+          onChange={(e) => handleEditChange("depositStatus" as any, e.target.value)}
+        >
+          <option value="">בחר</option>
+          {depositStatusOptions.map((opt) => (
+            <option key={opt.id} value={opt.name}>
+              {opt.name}
+            </option>
+          ))}
+        </select>
+      ) : (
+        (item as any).depositStatus || ""
+      )}
+    </td>
+  </>
 )}
 <td className="narrow-cell">
 <MenuWrapper
@@ -1394,8 +1486,8 @@ useEffect(() => {
 </tbody>
 <tfoot>
       <tr>
-<td colSpan={canManageHekefPaid ? 17 : 16}>
-        <TableFooter
+<td colSpan={canManageAgency3Fields ? 19 : 16}>
+      <TableFooter
   currentPage={currentPage}
   totalPages={Math.ceil(filteredData.length / rowsPerPage)}
   onPageChange={handlePageChange}
@@ -1732,9 +1824,9 @@ useEffect(() => {
                   <option key={index} value={status}>{status}</option>
                 ))}
               </select>
-              {invalidFields.includes("product") && (
-    <div className="error-message">חובה לבחור מוצר</div>
-  )}
+            {invalidFields.includes("statusPolicy") && (
+  <div className="error-message">חובה לבחור סטטוס</div>
+)}
             </div>
             <div className="form-group">
               <label>תאריך תפוקה *</label>
@@ -1777,31 +1869,53 @@ useEffect(() => {
     <label>מינוי סוכן</label>
   </div>
 </div>
-   {canManageHekefPaid && (
-  <div className="form-group full-width">
-    <label>שולם היקף</label>
-    <div className="radio-group">
-     <label>
-  <input
-    type="radio"
-    name="hekefPaid"
-    checked={!((editData as any).hekefPaid)}
-    onChange={() => handleEditChange("hekefPaid" as any, false)}
-  />
-  <span>לא</span>
-</label>
-
-<label>
-  <input
-    type="radio"
-    name="hekefPaid"
-    checked={!!((editData as any).hekefPaid)}
-    onChange={() => handleEditChange("hekefPaid" as any, true)}
-  />
-  <span>כן</span>
-</label>
+ {canManageAgency3Fields && (
+  <>
+    <div className="form-group">
+      <label>שולם היקף</label>
+      <select
+        value={(editData as any).hekefPaid || ""}
+        onChange={(e) => handleEditChange("hekefPaid" as any, e.target.value)}
+      >
+        <option value="">בחר ערך</option>
+        {paymentStatusOptions.map((opt) => (
+          <option key={opt.id} value={opt.name}>
+            {opt.name}
+          </option>
+        ))}
+      </select>
     </div>
-  </div>
+
+    <div className="form-group">
+      <label>שולם ניוד</label>
+      <select
+        value={(editData as any).niudPaid || ""}
+        onChange={(e) => handleEditChange("niudPaid" as any, e.target.value)}
+      >
+        <option value="">בחר ערך</option>
+        {paymentStatusOptions.map((opt) => (
+          <option key={opt.id} value={opt.name}>
+            {opt.name}
+          </option>
+        ))}
+      </select>
+    </div>
+
+    <div className="form-group">
+      <label>סטטוס הפקדה</label>
+      <select
+        value={(editData as any).depositStatus || ""}
+        onChange={(e) => handleEditChange("depositStatus" as any, e.target.value)}
+      >
+        <option value="">בחר ערך</option>
+        {depositStatusOptions.map((opt) => (
+          <option key={opt.id} value={opt.name}>
+            {opt.name}
+          </option>
+        ))}
+      </select>
+    </div>
+  </>
 )}
 <div className="form-group full-width">
   <label>הערות</label>

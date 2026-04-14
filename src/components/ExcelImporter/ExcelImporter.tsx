@@ -18,7 +18,7 @@ const systemFields = [
   "firstNameCustomer", "lastNameCustomer", "IDCustomer", "company", "product",
   "insPremia", "pensiaPremia", "pensiaZvira", "finansimPremia", "finansimZvira",
   "mounth", "statusPolicy", "minuySochen", "notes", "workerName",
-   "sourceValue", "cancellationDate" ,"policyNumber", "hekefPaid"
+   "sourceValue", "cancellationDate" ,"policyNumber", "hekefPaid", "niudPaid", "depositStatus"
 ];
 
 const systemFieldsDisplay = [
@@ -43,6 +43,8 @@ const systemFieldsDisplay = [
   { key: "sourceValue", label: "מקור ליד", required: false },       // ✅
   { key: "cancellationDate", label: "תאריך ביטול", required: false }, 
   { key: "hekefPaid", label: "שולם היקף", required: false },
+  { key: "niudPaid", label: "שולם ניוד", required: false },
+  { key: "depositStatus", label: "סטטוס הפקדה", required: false },
 
 ];
 
@@ -86,19 +88,14 @@ const ExcelImporter: React.FC = () => {
     agentName: string;
   } | null>(null);
 
-const canManageHekefPaid = String(detail?.agencyId ?? "") === "3";
+const canManageAgency3Fields =
+  detail?.role === "admin" || String(detail?.agencyId ?? "") === "3";
+  const [paymentStatusOptions, setPaymentStatusOptions] = useState<{ id: string; name: string }[]>([]);
+const [depositStatusOptions, setDepositStatusOptions] = useState<{ id: string; name: string }[]>([]);
 
-const applyDefaultHekefPaid = (row: any, mapping: Record<string, string>): void => {
-  const hekefField = Object.keys(mapping).find(col => mapping[col] === "hekefPaid");
-  if (
-    hekefField &&
-    (row[hekefField] === undefined ||
-      row[hekefField] === null ||
-      row[hekefField] === "")
-  ) {
-    row[hekefField] = "לא";
-  }
-};
+
+
+
   // const [sourceLeads, setSourceLeads] = useState<string[]>([]);
   type SourceLeadOption = { id: string; name: string };
 const [sourceLeads, setSourceLeads] = useState<SourceLeadOption[]>([]);
@@ -121,6 +118,34 @@ const [sourceLeads, setSourceLeads] = useState<SourceLeadOption[]>([]);
     fetchLeads();
   }, [selectedAgentId]);
   
+useEffect(() => {
+  const loadMD = async () => {
+    try {
+      const paymentSnap = await getDocs(collection(db, "mdPaymentStatus"));
+      const depositSnap = await getDocs(collection(db, "mdDepositStatus"));
+
+      setPaymentStatusOptions(
+        paymentSnap.docs.map(d => ({
+          id: d.id,
+          name: String(d.data().name || "").trim(),
+        }))
+      );
+
+      setDepositStatusOptions(
+        depositSnap.docs.map(d => ({
+          id: d.id,
+          name: String(d.data().name || "").trim(),
+        }))
+      );
+    } catch (err) {
+      console.error("MD load error", err);
+    }
+  };
+
+  if (canManageAgency3Fields) {
+    loadMD();
+  }
+}, [canManageAgency3Fields]);
 
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -167,53 +192,6 @@ const [sourceLeads, setSourceLeads] = useState<SourceLeadOption[]>([]);
     }
   };
 
-
-
-  // type ParsedDateResult = {
-  //   value?: string;
-  //   error?: string;
-  // };
-
-  // const parseMounthField = (value: any): ParsedDateResult => {
-  //   if (value instanceof Date) {
-  //     return { value: value.toISOString().split("T")[0] };
-  //   }
-
-  //   if (typeof value === "number" && !isNaN(value)) {
-  //     const rawStr = value.toString();
-  //     if (/^\d{8}$/.test(rawStr)) {
-  //       const day = rawStr.slice(0, 2);
-  //       const month = rawStr.slice(2, 4);
-  //       const year = rawStr.slice(4, 8);
-  //       return { value: `${year}-${month}-${day}` };
-  //     }
-  //     const excelDate = XLSX.SSF.parse_date_code(value);
-  //     if (excelDate) {
-  //       const jsDate = new Date(Date.UTC(excelDate.y, excelDate.m - 1, excelDate.d));
-  //       return { value: jsDate.toISOString().split("T")[0] };
-  //     }
-  //   }
-
-  //   if (typeof value === "string") {
-  //     const cleaned = value.trim();
-  //     if (/^\d{8}$/.test(cleaned)) {
-  //       const day = cleaned.slice(0, 2);
-  //       const month = cleaned.slice(2, 4);
-  //       const year = cleaned.slice(4, 8);
-  //       return { value: `${year}-${month}-${day}` };
-  //     }
-  //     if (/^\d{2}\/\d{2}\/\d{4}$/.test(cleaned)) {
-  //       const [day, month, year] = cleaned.split("/");
-  //       return { value: `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}` };
-  //     }
-  //     if (/^\d{4}-\d{2}-\d{2}$/.test(cleaned)) {
-  //       return { value: cleaned };
-  //     }
-  //     return { error: `תאריך לא תקין: ${value}` };
-  //   }
-
-  //   return { error: `תאריך לא מזוהה: ${String(value)}` };
-  // };
 
 
   type ParsedDateResult = { value?: string; error?: string };
@@ -451,9 +429,7 @@ if (sourceLeadField) {
     newRow["_sourceLeadError"] = `מקור ליד לא מזוהה: ${raw}`;
   }
 }
-
       applyDefaultMinuySochen(newRow, mapping);
-      applyDefaultHekefPaid(newRow, mapping);
       return newRow;
     });
     // console.log("🔍 fullNameStructure at parse time:", fullNameStructure);
@@ -533,14 +509,9 @@ if (sourceLeadField) {
     const firstNameValue = String(row[reverseMap["firstNameCustomer"]] || "").trim();
     const lastNameValue = String(row[reverseMap["lastNameCustomer"]] || "").trim();
     const minuyValue = reverseMap["minuySochen"] ? String(row[reverseMap["minuySochen"]] || "").trim() : "";
-  const hekefPaidValue = reverseMap["hekefPaid"]
-  ? String(row[reverseMap["hekefPaid"]] || "").trim()
-  : "";
 
-const validHekefPaid =
-  !reverseMap["hekefPaid"] ||
-  hekefPaidValue === "" ||
-  ["כן", "לא"].includes(hekefPaidValue);
+
+
     // ⭐⭐ שימו לב – זה השדה החדש! ⭐⭐
     const sourceValue = reverseMap["sourceValue"]
       ? String(row[reverseMap["sourceValue"]] || "").trim()
@@ -557,7 +528,26 @@ const validHekefPaid =
       !reverseMap["sourceValue"] ||         // אין מיפוי → לא בודקים
       sourceValue === "" ||                 // ריק → תקין
       sourceLeads.some((sl) => sl.id === sourceValue);  // בודקים ID
-  
+  const validHekefPaid =
+  !reverseMap["hekefPaid"] ||
+  String(row[reverseMap["hekefPaid"]] || "").trim() === "" ||
+  paymentStatusOptions.some(
+    (opt) => opt.name === String(row[reverseMap["hekefPaid"]] || "").trim()
+  );
+
+const validNiudPaid =
+  !reverseMap["niudPaid"] ||
+  String(row[reverseMap["niudPaid"]] || "").trim() === "" ||
+  paymentStatusOptions.some(
+    (opt) => opt.name === String(row[reverseMap["niudPaid"]] || "").trim()
+  );
+
+const validDepositStatus =
+  !reverseMap["depositStatus"] ||
+  String(row[reverseMap["depositStatus"]] || "").trim() === "" ||
+  depositStatusOptions.some(
+    (opt) => opt.name === String(row[reverseMap["depositStatus"]] || "").trim()
+  );
     const validFirstName = !reverseMap["firstNameCustomer"] || isValidHebrewName(firstNameValue);
     const validLastName = !reverseMap["lastNameCustomer"] || isValidHebrewName(lastNameValue);
     const validMounth = /^\d{4}-\d{2}-\d{2}$/.test(String(row["mounth"] || "").trim());
@@ -582,9 +572,11 @@ const validHekefPaid =
       validStatus;
   
     if (reverseMap["minuySochen"]) isValid = isValid && validMinuySochen;
-    if (reverseMap["hekefPaid"]) isValid = isValid && validHekefPaid;
     if (reverseMap["workerName"]) isValid = isValid && validWorker;
   
+    if (reverseMap["hekefPaid"]) isValid = isValid && validHekefPaid;
+if (reverseMap["niudPaid"]) isValid = isValid && validNiudPaid;
+if (reverseMap["depositStatus"]) isValid = isValid && validDepositStatus;
     // ⭐⭐ זה התיקון ⭐⭐
     if (reverseMap["sourceValue"]) {
       isValid = isValid && validSourceLead;
@@ -685,6 +677,8 @@ if (field === "sourceValue") {
   } else {
     updatedRow["_sourceLeadError"] = `מקור ליד לא מזוהה: ${id}`;
   }
+
+  
 }
 
 
@@ -850,10 +844,9 @@ if (field === "sourceValue") {
           finansimZvira: mappedRow.finansimZvira || 0,
           mounth: mappedRow.mounth || "",
           minuySochen: String(mappedRow.minuySochen || "").trim() === "כן",
-          hekefPaid:
-  canManageHekefPaid
-    ? String(mappedRow.hekefPaid || "").trim() === "כן"
-    : false,
+    hekefPaid: canManageAgency3Fields ? mappedRow.hekefPaid || "" : "",
+niudPaid: canManageAgency3Fields ? mappedRow.niudPaid || "" : "",
+depositStatus: canManageAgency3Fields ? mappedRow.depositStatus || "" : "",
           cancellationDate: mappedRow.cancellationDate || "",  // ← חדש
           statusPolicy: mappedRow.statusPolicy || "",
           notes: mappedRow.notes || "",
@@ -1002,8 +995,10 @@ if (field === "sourceValue") {
             </thead>
             <tbody>
 {systemFieldsDisplay
-  .filter((field) => field.key !== "hekefPaid" || canManageHekefPaid)
-  .map(({ key, label, required }) => {                const mappedExcelField = Object.keys(mapping).find((col) => mapping[col] === key) || "";
+  .filter((field) =>
+  !["hekefPaid", "niudPaid", "depositStatus"].includes(field.key) ||
+  canManageAgency3Fields
+).map(({ key, label, required }) => {                const mappedExcelField = Object.keys(mapping).find((col) => mapping[col] === key) || "";
                 return (
                   <tr key={key}>
                     <td>{label}</td>
@@ -1174,10 +1169,20 @@ if (field === "sourceValue") {
                             !workers.find(
                               (w) => w.name.toLowerCase().trim() === lowerValue
                             );
-                          const isInvalidHekefPaid =
-  field === 'hekefPaid' &&
+                            const isInvalidHekefPaid =
+  field === "hekefPaid" &&
   !!trimmedValue &&
-  !["כן", "לא"].includes(trimmedValue);
+  !paymentStatusOptions.some((opt) => opt.name === trimmedValue);
+
+const isInvalidNiudPaid =
+  field === "niudPaid" &&
+  !!trimmedValue &&
+  !paymentStatusOptions.some((opt) => opt.name === trimmedValue);
+
+const isInvalidDepositStatus =
+  field === "depositStatus" &&
+  !!trimmedValue &&
+  !depositStatusOptions.some((opt) => opt.name === trimmedValue);
                           // ⭐⭐ כאן התיקון – בודקים לפי sourceValue (ID) ⭐⭐
                           const isInvalidSourceLead =
                             field === 'sourceValue' &&
@@ -1198,7 +1203,7 @@ if (field === "sourceValue") {
                                 isInvalidCompany || isInvalidProduct || isInvalidID ||
                                 isInvalidFirstName || isInvalidLastName || isInvalidNumber ||
                                 isInvalidStatus || isInvalidWorker || isInvalidSourceLead ||
-                                isInvalidHekefPaid
+    isInvalidHekefPaid || isInvalidNiudPaid || isInvalidDepositStatus
                                   ? '#ffe6e6'
                                   : undefined,
                             };
@@ -1374,20 +1379,37 @@ if (field === "sourceValue") {
                                 </select>
                               );
                             }
-                         if (field === 'hekefPaid') {
+                       if (field === 'hekefPaid' || field === 'niudPaid') {
   return (
-    <div>
-      <select
-        value={row[h] || ''}
-        onChange={(e) => handleFieldChange(idx, h, e.target.value)}
-        style={inputStyle}
-      >
-        <option value="">---</option>
-        <option value="כן">כן</option>
-        <option value="לא">לא</option>
-      </select>
-      {isInvalidHekefPaid && renderError(`שולם היקף חייב להיות "כן" או "לא"`)}
-    </div>
+    <select
+      value={row[h] || ''}
+      onChange={(e) => handleFieldChange(idx, h, e.target.value)}
+      style={inputStyle}
+    >
+      <option value="">בחר</option>
+      {paymentStatusOptions.map((opt) => (
+        <option key={opt.id} value={opt.name}>
+          {opt.name}
+        </option>
+      ))}
+    </select>
+  );
+}
+
+if (field === 'depositStatus') {
+  return (
+    <select
+      value={row[h] || ''}
+      onChange={(e) => handleFieldChange(idx, h, e.target.value)}
+      style={inputStyle}
+    >
+      <option value="">בחר</option>
+      {depositStatusOptions.map((opt) => (
+        <option key={opt.id} value={opt.name}>
+          {opt.name}
+        </option>
+      ))}
+    </select>
   );
 }
                             return (
