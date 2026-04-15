@@ -593,6 +593,26 @@ const getValueBySystemField = (
     return '';
   };
 
+
+
+  
+
+const getRowsMissingCustomerId = (rows: any[]) => {
+  return rows.filter((row) => {
+    if (!row.lookupCustomerIdByPolicy) return false;
+    return String(row.customerId || row.customerIdRaw || "").trim() === "";
+  });
+};
+
+const buildMissingCustomerSummary = (rows: any[]) => {
+  return rows.map((r) => ({
+    sheet: r.sourceSheetName,
+    policy: r.policyNumber,
+    name: r.fullName,
+    company: r.company,
+  }));
+};
+
   /* ==============================
      Effects
   ============================== */
@@ -1273,7 +1293,8 @@ setMonthsInFile(fileMonths);
 
 await checkExistingByRunsMultiTemplate({
   agentId: selectedAgentId,
-  companyId: selectedCompanyId,
+  profileId: selectedMultiSheetProfileId,
+  selectedReportMonth: selectedTargetReportMonth,
   rows: filteredRows,
 });
 
@@ -1666,13 +1687,58 @@ const handleImport = async () => {
       policyNumberKey: String(r.policyNumber ?? "").trim().replace(/\s+/g, ""),
     }));
 
-    const enrichedRows =
+ const enrichedRows =
       importMode === "multi_sheet"
         ? await enrichMissingCustomerIdsForMarkedSheets({
             rows: rowsWithPolicyKey,
             agentId: selectedAgentId,
           })
         : rowsWithPolicyKey;
+
+const rowsMissingCustomerId = getRowsMissingCustomerId(enrichedRows);
+
+if (rowsMissingCustomerId.length > 0) {
+  const summary = buildMissingCustomerSummary(rowsMissingCustomerId);
+
+  const confirmContinue = window.confirm(
+    `יש ${rowsMissingCustomerId.length} שורות ללא ת"ז.\n\n` +
+    `לדוגמה:\n` +
+    summary
+      .slice(0, 5)
+      .map((r) => `${r.sheet} | ${r.policy} | ${r.name}`)
+      .join("\n") +
+    `\n\nהאם להמשיך בטעינה ללא שורות אלו?`
+  );
+
+  if (!confirmContinue) {
+    setIsLoading(false);
+    setLoadingStage("");
+    return;
+  }
+}
+        console.log(
+  "[customerId lookup] missing before =",
+  rowsWithPolicyKey.filter(
+    (r) => r.lookupCustomerIdByPolicy && !String(r.customerId || r.customerIdRaw || "").trim()
+  ).length
+);
+
+console.log(
+  "[customerId lookup] missing after =",
+  enrichedRows.filter(
+    (r) => r.lookupCustomerIdByPolicy && !String(r.customerId || r.customerIdRaw || "").trim()
+  ).length
+);
+
+console.log(
+  "[customerId lookup] filled rows =",
+  enrichedRows.filter((row, i) => {
+    const before = rowsWithPolicyKey[i];
+    const beforeId = String(before.customerId || before.customerIdRaw || "").trim();
+    const afterId = String(row.customerId || row.customerIdRaw || "").trim();
+    return !!row.lookupCustomerIdByPolicy && !beforeId && !!afterId;
+  })
+);
 
     const finalRowsForImport =
       importMode === "multi_sheet"
@@ -1690,11 +1756,13 @@ const handleImport = async () => {
       return;
     }
 
-    const rowsPrepared = finalRowsForImport.map((r) => ({
-      ...r,
-      customerId: toPadded9(r.customerId ?? r.customerIdRaw ?? ""),
-      runId,
-    }));
+const rowsPrepared = finalRowsForImport.map((r) =>
+  stripUndefined({
+    ...r,
+    customerId: toPadded9(r.customerId ?? r.customerIdRaw ?? ""),
+    runId,
+  })
+);
 
     setLoadingStage("שומר שורות מקור...");
     await writeExternalRowsInChunks(rowsPrepared);
@@ -2005,53 +2073,55 @@ const [multiSheetPreview, setMultiSheetPreview] = useState<{
 
 async function checkExistingByRunsMultiTemplate(params: {
   agentId: string;
-  companyId: string;
+  profileId: string;
+  selectedReportMonth?: string;
   rows: any[];
 }) {
-  const { agentId, companyId, rows } = params;
+  const { agentId, profileId, selectedReportMonth, rows } = params;
 
-  const groups = new Map<string, Set<string>>();
+  const fileMonths = Array.from(
+    new Set(rows.map((r) => sanitizeMonth(r.reportMonth)).filter(Boolean))
+  );
 
-  for (const row of rows) {
-    const templateId = String(row.templateId || "").trim();
-    const reportMonth = sanitizeMonth(row.reportMonth);
-    if (!templateId || !reportMonth) continue;
-
-    if (!groups.has(templateId)) groups.set(templateId, new Set());
-    groups.get(templateId)!.add(reportMonth);
-  }
+  const runsSnap = await getDocs(
+    query(
+      collection(db, "commissionImportRuns"),
+      where("agentId", "==", agentId),
+      where("sourceType", "==", "multi_sheet_bundle"),
+      where("multiSheetProfileId", "==", profileId)
+    )
+  );
 
   const conflictingRunIds = new Set<string>();
 
-  for (const [templateId, monthsSet] of groups.entries()) {
-    const monthsInFile = Array.from(monthsSet);
+  runsSnap.docs.forEach((d) => {
+    const data: any = d.data();
+    const runId = String(data.runId || d.id);
 
-    const runsSnap = await getDocs(
-      query(
-        collection(db, "commissionImportRuns"),
-        where("agentId", "==", agentId),
-        where("companyId", "==", companyId),
-        where("templateId", "==", templateId)
-      )
-    );
+    const runSelectedReportMonth = sanitizeMonth(data.selectedReportMonth);
+    const runMonths: string[] =
+      Array.isArray(data.reportMonths) && data.reportMonths.length
+        ? data.reportMonths.map(sanitizeMonth).filter(Boolean)
+        : data.reportMonth
+          ? [sanitizeMonth(data.reportMonth)].filter(Boolean)
+          : [];
 
-    const fileSet = new Set(monthsInFile);
+    // אם במולטי בחרו חודש ספציפי - נשווה ישירות לחודש שנבחר
+    if (selectedReportMonth) {
+      if (runSelectedReportMonth === sanitizeMonth(selectedReportMonth)) {
+        conflictingRunIds.add(runId);
+      }
+      return;
+    }
 
-    runsSnap.docs.forEach((d) => {
-      const data: any = d.data();
-      const runId = String(data.runId || d.id);
+    // אם אין חודש ספציפי - בודקים חיתוך בין חודשי הקובץ לחודשי הריצה
+    const fileSet = new Set(fileMonths);
+    const hasIntersect = runMonths.some((m) => fileSet.has(m));
 
-      const runMonths: string[] =
-        Array.isArray(data.reportMonths) && data.reportMonths.length
-          ? data.reportMonths.map(sanitizeMonth).filter(Boolean)
-          : data.reportMonth
-            ? [sanitizeMonth(data.reportMonth)].filter(Boolean)
-            : [];
-
-      const hasIntersect = runMonths.some((m) => fileSet.has(m));
-      if (hasIntersect) conflictingRunIds.add(runId);
-    });
-  }
+    if (hasIntersect) {
+      conflictingRunIds.add(runId);
+    }
+  });
 
   setExistingRunIds(Array.from(conflictingRunIds));
 }
@@ -2180,41 +2250,90 @@ const selectedTargetReportMonth =
     : "";
     
 
-    async function enrichMissingCustomerIdsForMarkedSheets(params: {
+async function enrichMissingCustomerIdsForMarkedSheets(params: {
   rows: any[];
   agentId: string;
 }) {
   const { rows, agentId } = params;
 
-  const rowsToLookup = rows.filter((row) => {
+  const normalizePolicy = (v: any) =>
+    String(v || "").trim().replace(/\s+/g, "");
+
+  const normalizeCustomerId = (v: any) =>
+    String(v || "").trim();
+
+  // -----------------------------------
+  // 1) קודם בונים מאגר מתוך הטעינה הנוכחית
+  // -----------------------------------
+  const currentImportMap = new Map<string, string>();
+  // key = companyId__policyKey -> customerId
+
+  for (const row of rows) {
+    const companyId = String(row.companyId || "").trim();
+    const policyKey = normalizePolicy(row.policyNumberKey || row.policyNumber);
+    const customerId = normalizeCustomerId(row.customerId || row.customerIdRaw);
+
+    if (!companyId || !policyKey || !customerId) continue;
+
+    const key = `${companyId}__${policyKey}`;
+
+    if (!currentImportMap.has(key)) {
+      currentImportMap.set(key, customerId);
+    }
+  }
+
+  // -----------------------------------
+  // 2) ממלאים קודם מתוך הטעינה הנוכחית
+  // -----------------------------------
+  const rowsAfterCurrentImportLookup = rows.map((row) => {
     const shouldLookup = !!row.lookupCustomerIdByPolicy;
-    const hasCustomerId = String(row.customerId || "").trim() !== "";
-    const policyKey =
-      String(row.policyNumberKey || row.policyNumber || "")
-        .trim()
-        .replace(/\s+/g, "");
+    const hasCustomerId = normalizeCustomerId(row.customerId || row.customerIdRaw) !== "";
+
+    if (!shouldLookup || hasCustomerId) return row;
+
+    const companyId = String(row.companyId || "").trim();
+    const policyKey = normalizePolicy(row.policyNumberKey || row.policyNumber);
+
+    if (!companyId || !policyKey) return row;
+
+    const foundCustomerId = currentImportMap.get(`${companyId}__${policyKey}`);
+    if (!foundCustomerId) return row;
+
+    return {
+      ...row,
+      customerId: foundCustomerId,
+      customerIdRaw: foundCustomerId,
+    };
+  });
+
+  // -----------------------------------
+  // 3) רק מה שעדיין חסר - מחפשים ב-DB
+  // -----------------------------------
+  const rowsToLookupInDb = rowsAfterCurrentImportLookup.filter((row) => {
+    const shouldLookup = !!row.lookupCustomerIdByPolicy;
+    const hasCustomerId = normalizeCustomerId(row.customerId || row.customerIdRaw) !== "";
+    const policyKey = normalizePolicy(row.policyNumberKey || row.policyNumber);
     const companyId = String(row.companyId || "").trim();
 
     return shouldLookup && !hasCustomerId && !!policyKey && !!companyId;
   });
 
-  if (!rowsToLookup.length) return rows;
+  if (!rowsToLookupInDb.length) {
+    return rowsAfterCurrentImportLookup;
+  }
 
   const lookupGroups = new Map<string, string[]>();
   // key = companyId, value = policy keys
 
-  for (const row of rowsToLookup) {
+  for (const row of rowsToLookupInDb) {
     const companyId = String(row.companyId || "").trim();
-    const policyKey =
-      String(row.policyNumberKey || row.policyNumber || "")
-        .trim()
-        .replace(/\s+/g, "");
+    const policyKey = normalizePolicy(row.policyNumberKey || row.policyNumber);
 
     if (!lookupGroups.has(companyId)) lookupGroups.set(companyId, []);
     lookupGroups.get(companyId)!.push(policyKey);
   }
 
-  const foundMap = new Map<string, string>();
+  const dbFoundMap = new Map<string, string>();
   // key = companyId__policyKey -> customerId
 
   for (const [companyId, policyKeysRaw] of lookupGroups.entries()) {
@@ -2234,36 +2353,35 @@ const selectedTargetReportMonth =
 
       snap.docs.forEach((docSnap) => {
         const data: any = docSnap.data();
-        const policyKey = String(data.policyNumberKey || "").trim();
-        const customerId = String(data.customerId || "").trim();
+        const policyKey = normalizePolicy(data.policyNumberKey);
+        const customerId = normalizeCustomerId(data.customerId);
         const rowCompanyId = String(data.companyId || "").trim();
 
         if (!policyKey || !customerId || !rowCompanyId) return;
 
-        const mapKey = `${rowCompanyId}__${policyKey}`;
-
-        if (!foundMap.has(mapKey)) {
-          foundMap.set(mapKey, customerId);
+        const key = `${rowCompanyId}__${policyKey}`;
+        if (!dbFoundMap.has(key)) {
+          dbFoundMap.set(key, customerId);
         }
       });
     }
   }
 
-  return rows.map((row) => {
+  // -----------------------------------
+  // 4) משלימים את מה שנשאר מה-DB
+  // -----------------------------------
+  return rowsAfterCurrentImportLookup.map((row) => {
     const shouldLookup = !!row.lookupCustomerIdByPolicy;
-    const hasCustomerId = String(row.customerId || "").trim() !== "";
+    const hasCustomerId = normalizeCustomerId(row.customerId || row.customerIdRaw) !== "";
 
     if (!shouldLookup || hasCustomerId) return row;
 
     const companyId = String(row.companyId || "").trim();
-    const policyKey =
-      String(row.policyNumberKey || row.policyNumber || "")
-        .trim()
-        .replace(/\s+/g, "");
+    const policyKey = normalizePolicy(row.policyNumberKey || row.policyNumber);
 
     if (!companyId || !policyKey) return row;
 
-    const foundCustomerId = foundMap.get(`${companyId}__${policyKey}`);
+    const foundCustomerId = dbFoundMap.get(`${companyId}__${policyKey}`);
     if (!foundCustomerId) return row;
 
     return {
@@ -2273,6 +2391,7 @@ const selectedTargetReportMonth =
     };
   });
 }
+
 
   /* ==============================
      Render
