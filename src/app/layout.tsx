@@ -36,6 +36,14 @@ export default function RootLayout({
   return (
     <html lang="he" dir="rtl">
          <head>
+            {/* 🔥 PWA */}
+        <link rel="manifest" href="/manifest.json" />
+        <meta name="theme-color" content="#111827" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+        <meta name="apple-mobile-web-app-title" content="Magic OTP" />
+        <link rel="apple-touch-icon" href="/static/img/icon-192.png" />
+        <link rel="icon" href="/static/img/icon-192.png" />
         {/* ✅ Google Analytics */}
         <Script
           src={`https://www.googletagmanager.com/gtag/js?id=G-S97DHBQ7EM`}
