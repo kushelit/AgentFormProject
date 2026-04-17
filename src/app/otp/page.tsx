@@ -276,6 +276,7 @@ await setDoc(
     return <div className="p-6 text-center">יש להתחבר</div>;
   }
 
+  //return
   return (
     <div dir="rtl" className="min-h-screen bg-gray-50 px-4 py-6">
       <div className="mx-auto max-w-sm">
