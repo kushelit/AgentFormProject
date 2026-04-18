@@ -14,3 +14,5 @@ export {processCommissionImportQueue} from "./triggers/processCommissionImportQu
 export { createRunnerPairingCode, consumeRunnerPairingCode } from "./runnerPairing";
 
 export { sendImportInsightsEmailOnPortalRun } from "./sendImportInsightsEmail";
+
+export { sendOtpPushOnRunUpdate } from "./sendOtpPushOnRunUpdate";

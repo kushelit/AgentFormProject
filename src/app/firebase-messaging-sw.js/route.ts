@@ -9,7 +9,7 @@ export async function GET() {
     process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || "";
   const appId = process.env.NEXT_PUBLIC_FIREBASE_APP_ID || "";
 
-  const sw = `
+ const sw = `
 /* eslint-disable no-undef */
 importScripts("https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js");
 importScripts("https://www.gstatic.com/firebasejs/10.13.2/firebase-messaging-compat.js");
@@ -32,6 +32,9 @@ messaging.onBackgroundMessage((payload) => {
     icon: "/static/img/icon-192.png",
     badge: "/static/img/icon-192.png",
     data: payload?.data || {},
+    requireInteraction: true,
+    tag: payload?.data?.runId ? "otp-" + payload.data.runId : "otp-request",
+    renotify: true,
   };
 
   self.registration.showNotification(title, options);
@@ -40,12 +43,15 @@ messaging.onBackgroundMessage((payload) => {
 self.addEventListener("notificationclick", function (event) {
   event.notification.close();
 
-  const targetUrl = event.notification?.data?.url || "/otp";
+  const targetUrl =
+    event.notification?.data?.url ||
+    event.notification?.data?.FCM_MSG?.data?.url ||
+    "/otp";
 
   event.waitUntil(
     clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientList) => {
       for (const client of clientList) {
-        if ("focus" in client) {
+        if (client.url.includes("/otp") && "focus" in client) {
           client.navigate(targetUrl);
           return client.focus();
         }

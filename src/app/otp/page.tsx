@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   collection,
   doc,
@@ -91,11 +92,79 @@ function formatTs(ts?: Timestamp) {
   }
 }
 
+function OtpBoxes({
+  value,
+  onChange,
+  onSubmit,
+  disabled,
+}: {
+  value: string;
+  onChange: (next: string) => void;
+  onSubmit: () => void;
+  disabled?: boolean;
+}) {
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const digits = value.padEnd(6, " ").slice(0, 6).split("");
+
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
+
+  return (
+    <div className="relative">
+      <input
+        ref={inputRef}
+        value={value}
+        disabled={disabled}
+        inputMode="numeric"
+        autoComplete="one-time-code"
+        enterKeyHint="done"
+        onChange={(e) => {
+          const next = e.target.value.replace(/\D/g, "").slice(0, 6);
+          onChange(next);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && value.length >= 4) {
+            onSubmit();
+          }
+        }}
+        className="absolute inset-0 h-full w-full opacity-0"
+      />
+
+      <div
+        className="grid grid-cols-6 gap-2"
+        onClick={() => inputRef.current?.focus()}
+      >
+        {digits.map((digit, idx) => {
+          const isActive = idx === Math.min(value.length, 5);
+          return (
+            <div
+              key={idx}
+              className={`flex h-14 items-center justify-center rounded-2xl border text-2xl font-bold shadow-sm transition ${
+                isActive
+                  ? "border-gray-900 bg-white ring-2 ring-gray-200"
+                  : "border-gray-200 bg-white"
+              } ${disabled ? "opacity-60" : ""}`}
+            >
+              {digit === " " ? "" : digit}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function OtpPageInner() {
+  const searchParams = useSearchParams();
+  const runIdFromUrl = searchParams.get("runId");
+
   const [user, setUser] = useState<User | null>(null);
   const [uid, setUid] = useState<string | null>(null);
   const [authReady, setAuthReady] = useState(false);
   const [runs, setRuns] = useState<ActiveRun[]>([]);
+  const [hasPushToken, setHasPushToken] = useState(false);
+
   const [otpCode, setOtpCode] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [info, setInfo] = useState("");
@@ -133,6 +202,19 @@ function OtpPageInner() {
   useEffect(() => {
     if (!uid) return;
 
+    const unsub = onSnapshot(
+      collection(db, "users", uid, "pushTokens"),
+      (snap) => {
+        setHasPushToken(!snap.empty);
+      }
+    );
+
+    return () => unsub();
+  }, [uid]);
+
+  useEffect(() => {
+    if (!uid) return;
+
     const q = query(
       collection(db, "portalImportRuns"),
       where("agentId", "==", uid),
@@ -152,8 +234,12 @@ function OtpPageInner() {
   }, [uid]);
 
   const activeRun = useMemo(() => {
+    if (runIdFromUrl) {
+      return runs.find((r) => r.id === runIdFromUrl) || null;
+    }
+
     return runs.find((r) => isOtpWaiting(r.data)) || null;
-  }, [runs]);
+  }, [runs, runIdFromUrl]);
 
   async function enablePush() {
     if (!uid) return;
@@ -178,26 +264,27 @@ function OtpPageInner() {
         return;
       }
 
-const token = res.token;
-if (!token) {
-  setPushError("לא התקבל token למכשיר הזה.");
-  return;
-}
+      const token = res.token;
+      if (!token) {
+        setPushError("לא התקבל token למכשיר הזה.");
+        return;
+      }
 
-await setDoc(
-  doc(db, "users", uid, "pushTokens", token),
-  {
-    token,
-    platform: "web",
-    userAgent: navigator.userAgent,
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-    lastSeenAt: serverTimestamp(),
-  },
-  { merge: true }
-);
+      await setDoc(
+        doc(db, "users", uid, "pushTokens", token),
+        {
+          token,
+          platform: "web",
+          userAgent: navigator.userAgent,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+          lastSeenAt: serverTimestamp(),
+        },
+        { merge: true }
+      );
 
       setPushInfo("התראות הופעלו בהצלחה במכשיר הזה.");
+      setHasPushToken(true);
     } catch (e: any) {
       setPushError(e?.message || "הפעלת התראות נכשלה.");
     } finally {
@@ -269,61 +356,76 @@ await setDoc(
   }
 
   if (!authReady) {
-    return <div className="p-6 text-center">טוען...</div>;
+    return (
+      <div dir="rtl" className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
+        <div className="text-gray-600">טוען...</div>
+      </div>
+    );
   }
 
   if (!uid) {
-    return <div className="p-6 text-center">יש להתחבר</div>;
+    return (
+      <div dir="rtl" className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
+        <div className="w-full max-w-sm rounded-3xl bg-white p-6 text-center shadow-sm border border-gray-200">
+          <h1 className="text-2xl font-bold text-gray-900">Magic OTP</h1>
+          <p className="mt-3 text-sm text-gray-600">יש להתחבר כדי להשתמש במסך הקודים.</p>
+        </div>
+      </div>
+    );
   }
 
-  //return
   return (
     <div dir="rtl" className="min-h-screen bg-gray-50 px-4 py-6">
       <div className="mx-auto max-w-sm">
-        <div className="mb-5 text-center">
-          <h1 className="text-2xl font-bold text-gray-900">Magic OTP</h1>
-          <div className="mt-3 text-xs text-gray-500">
-            מחובר כ: <b>{user?.email || uid}</b>
+        <div className="mb-4 text-center">
+          <div className="text-2xl font-bold text-gray-900">Magic OTP</div>
+          <div className="mt-2 text-xs text-gray-500">
+            מחובר כ: <span className="font-semibold text-gray-700">{user?.email || uid}</span>
           </div>
         </div>
 
-        <div className="mb-4 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
-          <div className="text-sm font-semibold text-gray-800">התראות למכשיר הזה</div>
-          <p className="mt-1 text-xs text-gray-500">
-            לחצי פעם אחת כדי לאפשר התראות כשנדרש קוד OTP.
-          </p>
+        {!hasPushToken && (
+          <div className="mb-4 rounded-3xl border border-gray-200 bg-white p-4 shadow-sm">
+            <div className="text-sm font-semibold text-gray-800">התראות למכשיר הזה</div>
+            <p className="mt-1 text-xs text-gray-500">
+              לחצי פעם אחת כדי לקבל התראה כשנדרש קוד OTP.
+            </p>
 
-          <button
-            type="button"
-            onClick={enablePush}
-            disabled={isEnablingPush}
-            className="mt-3 w-full rounded-2xl bg-gray-900 px-4 py-3 text-sm font-semibold text-white disabled:opacity-50"
-          >
-            אפשר התראות
-          </button>
+            <button
+              type="button"
+              onClick={enablePush}
+              disabled={isEnablingPush}
+              className="mt-3 w-full rounded-2xl bg-gray-900 px-4 py-3 text-sm font-semibold text-white disabled:opacity-50"
+            >
+              אפשר התראות
+            </button>
 
-          {!!pushInfo && (
-            <div className="mt-3 rounded-2xl bg-green-50 px-4 py-3 text-sm text-green-700">
-              {pushInfo}
-            </div>
-          )}
+            {!!pushInfo && (
+              <div className="mt-3 rounded-2xl bg-green-50 px-4 py-3 text-sm text-green-700">
+                {pushInfo}
+              </div>
+            )}
 
-          {!!pushError && (
-            <div className="mt-3 rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-700">
-              {pushError}
-            </div>
-          )}
-        </div>
+            {!!pushError && (
+              <div className="mt-3 rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-700">
+                {pushError}
+              </div>
+            )}
+          </div>
+        )}
 
         {!activeRun ? (
-          <div className="bg-white p-6 rounded-xl shadow text-center">
-            אין כרגע בקשת קוד
+          <div className="rounded-3xl border border-gray-200 bg-white p-6 text-center shadow-sm">
+            <div className="text-lg font-semibold text-gray-900">אין כרגע בקשת קוד</div>
+            <p className="mt-2 text-sm text-gray-500">כשתגיע בקשה חדשה, היא תופיע כאן.</p>
           </div>
         ) : (
-          <div className="bg-white p-6 rounded-xl shadow">
-            <div className="mb-3 text-sm text-gray-500">חברה</div>
-            <div className="text-xl font-bold mb-4">
-              {getCompanyName(activeRun.data)}
+          <div className="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm">
+            <div className="mb-4">
+              <div className="text-xs font-medium text-gray-500">חברה</div>
+              <div className="mt-1 text-2xl font-bold text-gray-900">
+                {getCompanyName(activeRun.data)}
+              </div>
             </div>
 
             {!!activeRun.data.monthLabel && (
@@ -340,10 +442,11 @@ await setDoc(
               </div>
             )}
 
-            <div className="mb-3 rounded-2xl bg-gray-50 p-3">
-              <div className="text-xs text-gray-500">Run ID</div>
-              <div className="font-medium text-gray-900 break-all">{activeRun.id}</div>
-            </div>
+            {!!runIdFromUrl && (
+              <div className="mb-3 rounded-2xl bg-blue-50 p-3 text-sm text-blue-700">
+                נפתחה הבקשה המדויקת מההתראה.
+              </div>
+            )}
 
             {!!activeRun.data.updatedAt && (
               <div className="mb-4 text-xs text-gray-400">
@@ -351,25 +454,23 @@ await setDoc(
               </div>
             )}
 
-            <div className="text-sm mb-2">קוד אימות</div>
+            <div className="mb-2 text-sm font-medium text-gray-700">קוד אימות</div>
 
-            <input
+            <OtpBoxes
               value={otpCode}
-              onChange={(e) => {
-                setOtpCode(e.target.value.replace(/\D/g, ""));
+              onChange={(next) => {
+                setOtpCode(next);
                 setError("");
                 setInfo("");
               }}
-              className="w-full border p-3 text-center text-xl rounded"
-              inputMode="numeric"
-              autoComplete="one-time-code"
-              placeholder="------"
+              onSubmit={submitOtp}
+              disabled={isSaving}
             />
 
             <button
               onClick={submitOtp}
-              disabled={isSaving}
-              className="w-full bg-black text-white mt-4 p-3 rounded disabled:opacity-50"
+              disabled={isSaving || otpCode.length === 0}
+              className="mt-4 w-full rounded-2xl bg-gray-900 px-4 py-4 text-base font-semibold text-white disabled:opacity-50"
             >
               שלח קוד
             </button>
@@ -377,13 +478,22 @@ await setDoc(
             <button
               onClick={abortRun}
               disabled={isSaving}
-              className="w-full border mt-3 p-3 rounded disabled:opacity-50"
+              className="mt-3 w-full rounded-2xl border border-gray-300 bg-white px-4 py-4 text-base font-semibold text-gray-700 disabled:opacity-50"
             >
               בטל
             </button>
 
-            {!!info && <div className="text-green-600 mt-3">{info}</div>}
-            {!!error && <div className="text-red-600 mt-3">{error}</div>}
+            {!!info && (
+              <div className="mt-4 rounded-2xl bg-green-50 px-4 py-3 text-sm text-green-700">
+                {info}
+              </div>
+            )}
+
+            {!!error && (
+              <div className="mt-4 rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-700">
+                {error}
+              </div>
+            )}
           </div>
         )}
       </div>

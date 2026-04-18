@@ -22,6 +22,7 @@ export default function RootLayout({
   const pathname = usePathname();
 
   // תנאים לוגיים
+  const isOtpPage = pathname.startsWith('/otp');
   const isAuthPage = pathname.startsWith('/auth');
   const isHomePage = pathname === '/home';
   const isLandingPage = pathname === '/' || pathname === '/landing' 
@@ -29,9 +30,10 @@ export default function RootLayout({
   ;
   const isMainPage = !isAuthPage && !isHomePage && !isLandingPage;
 
-  const showTopBar = isMainPage || isAuthPage || isHomePage;
-  const showNavbar = isMainPage;
-  const wrapInBox = isAuthPage;
+const showTopBar = !isOtpPage && (isMainPage || isAuthPage || isHomePage);
+const showNavbar = !isOtpPage && isMainPage;
+ const wrapInBox = isAuthPage;
+  
 
   return (
     <html lang="he" dir="rtl">
@@ -75,12 +77,13 @@ export default function RootLayout({
             className="custom-navbar fixed top-16 right-0 h-[calc(100vh-64px)] w-52 z-10 shadow-lg"
           />          
             )}
-
-            <main
-              className={`flex-grow pt-16 bg-gray-50 ${
-                showNavbar ? 'mr-[210px]' : ''
-              } flex justify-center items-start px-4`}
-            >
+           <main
+  className={`flex-grow ${
+    isOtpPage ? '' : 'pt-16 bg-gray-50'
+  } ${showNavbar ? 'mr-[210px]' : ''} flex justify-center items-start ${
+    isOtpPage ? '' : 'px-4'
+  }`}
+>
               {wrapInBox ? (
                 <div className="w-full max-w-md bg-white rounded-xl shadow-lg p-8 mt-10">
                   {children}
