@@ -28,6 +28,7 @@ export async function POST(req: NextRequest) {
         customerId: x.customerId,
         fullName: x.fullName,
         product: x.product,
+        templateId: x.templateId,
         totalCommissionAmount: x.totalCommissionAmount ?? 0,
         totalPremiumAmount: x.totalPremiumAmount ?? 0,
         commissionRate: x.commissionRate ?? 0,

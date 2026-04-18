@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   collection,
   doc,
@@ -37,6 +37,7 @@ type PortalImportRun = {
   agentId?: string;
   automationClass?: string;
   companyId?: string;
+  companyName?: string;
   monthLabel?: string;
   status?: string;
   step?: string;
@@ -44,6 +45,10 @@ type PortalImportRun = {
   updatedAt?: Timestamp;
   otp?: OtpInfo;
   ["otp.mode"]?: string;
+
+  batchId?: string;
+  batchOrder?: number;
+  batchTotal?: number;
 };
 
 type ActiveRun = {
@@ -52,6 +57,10 @@ type ActiveRun = {
 };
 
 function getCompanyName(run: PortalImportRun) {
+  if (String(run.companyName || "").trim()) {
+    return String(run.companyName).trim();
+  }
+
   const cls = String(run.automationClass || "").toLowerCase();
 
   if (cls.includes("clal")) return "כלל";
@@ -81,6 +90,26 @@ function isOtpWaiting(run: PortalImportRun) {
   if (!otpMode) return true;
 
   return otpMode === "firestore";
+}
+
+function isFinalStatus(status?: string) {
+  const s = String(status || "");
+  return ["success", "done", "error", "failed", "skipped"].includes(s);
+}
+
+function isSuccessStatus(status?: string) {
+  const s = String(status || "");
+  return s === "success" || s === "done";
+}
+
+function isErrorStatus(status?: string) {
+  const s = String(status || "");
+  return s === "error" || s === "failed";
+}
+
+function isInProgressStatus(status?: string) {
+  const s = String(status || "");
+  return ["running", "otp_required", "logged_in", "file_uploaded"].includes(s);
 }
 
 function formatTs(ts?: Timestamp) {
@@ -114,6 +143,8 @@ function OtpBoxes({
     <div className="relative">
       <input
         ref={inputRef}
+        dir="ltr"
+        style={{ direction: "ltr", textAlign: "left" }}
         value={value}
         disabled={disabled}
         inputMode="numeric"
@@ -132,6 +163,7 @@ function OtpBoxes({
       />
 
       <div
+        dir="ltr"
         className="grid grid-cols-6 gap-2"
         onClick={() => inputRef.current?.focus()}
       >
@@ -155,15 +187,101 @@ function OtpBoxes({
   );
 }
 
+function BatchInfoCard({
+  total,
+  done,
+  error,
+  remaining,
+  currentCompanyName,
+  currentStep,
+  nextCompanyName,
+}: {
+  total: number;
+  done: number;
+  error: number;
+  remaining: number;
+  currentCompanyName?: string;
+  currentStep?: string;
+  nextCompanyName?: string;
+}) {
+  return (
+    <div className="mb-4 rounded-3xl border border-blue-100 bg-white p-4 shadow-sm">
+      <div className="mb-3 flex items-center justify-between">
+        <div>
+          <div className="text-base font-bold text-gray-900">ריצת Batch פעילה</div>
+          <div className="text-xs text-gray-500">המערכת מריצה את החברות אחת אחרי השנייה</div>
+        </div>
+        <div className="rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700">
+          מעקב תור
+        </div>
+      </div>
+
+      <div className="mb-4 grid grid-cols-4 gap-2">
+        <div className="rounded-2xl border border-gray-200 bg-gray-50 p-3 text-center">
+          <div className="text-[11px] font-bold text-gray-500">סה״כ</div>
+          <div className="mt-1 text-2xl font-black text-gray-800">{total}</div>
+        </div>
+
+        <div className="rounded-2xl border border-green-100 bg-green-50 p-3 text-center">
+          <div className="text-[11px] font-bold text-green-700">הושלמו</div>
+          <div className="mt-1 text-2xl font-black text-green-700">{done}</div>
+        </div>
+
+        <div className="rounded-2xl border border-red-100 bg-red-50 p-3 text-center">
+          <div className="text-[11px] font-bold text-red-700">שגיאות</div>
+          <div className="mt-1 text-2xl font-black text-red-700">{error}</div>
+        </div>
+
+        <div className="rounded-2xl border border-blue-100 bg-blue-50 p-3 text-center">
+          <div className="text-[11px] font-bold text-blue-700">נותרו</div>
+          <div className="mt-1 text-2xl font-black text-blue-700">{remaining}</div>
+        </div>
+      </div>
+
+      <div className="space-y-3">
+        <div className="rounded-2xl bg-blue-50 p-3">
+          <div className="text-xs font-bold text-blue-700">חברה נוכחית</div>
+          <div className="mt-1 text-xl font-bold text-blue-900">
+            {currentCompanyName || "—"}
+          </div>
+          {!!currentStep && (
+            <div className="mt-2 text-sm text-blue-700">
+              שלב נוכחי: <span className="font-semibold">{currentStep}</span>
+            </div>
+          )}
+        </div>
+
+        {!!nextCompanyName && (
+          <div className="rounded-2xl bg-gray-50 p-3">
+            <div className="text-xs font-bold text-gray-600">הבא בתור</div>
+            <div className="mt-1 text-lg font-bold text-gray-900">{nextCompanyName}</div>
+          </div>
+        )}
+
+        {remaining > 0 && (
+          <div className="text-xs text-gray-500">
+            צפויות עוד <span className="font-bold">{remaining}</span> ריצות בתור.
+            ייתכן שיידרש קוד נוסף בהמשך.
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function OtpPageInner() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const runIdFromUrl = searchParams.get("runId");
 
   const [user, setUser] = useState<User | null>(null);
   const [uid, setUid] = useState<string | null>(null);
   const [authReady, setAuthReady] = useState(false);
+
   const [runs, setRuns] = useState<ActiveRun[]>([]);
+  const [batchRuns, setBatchRuns] = useState<ActiveRun[]>([]);
   const [hasPushToken, setHasPushToken] = useState(false);
+  const [dismissedRunId, setDismissedRunId] = useState<string | null>(null);
 
   const [otpCode, setOtpCode] = useState("");
   const [isSaving, setIsSaving] = useState(false);
@@ -234,12 +352,69 @@ function OtpPageInner() {
   }, [uid]);
 
   const activeRun = useMemo(() => {
+    const filteredRuns = runs.filter((r) => r.id !== dismissedRunId);
+
     if (runIdFromUrl) {
-      return runs.find((r) => r.id === runIdFromUrl) || null;
+      return filteredRuns.find((r) => r.id === runIdFromUrl) || null;
     }
 
-    return runs.find((r) => isOtpWaiting(r.data)) || null;
-  }, [runs, runIdFromUrl]);
+    return filteredRuns.find((r) => isOtpWaiting(r.data)) || null;
+  }, [runs, runIdFromUrl, dismissedRunId]);
+
+  useEffect(() => {
+    const batchId = String(activeRun?.data?.batchId || "").trim();
+    if (!batchId) {
+      setBatchRuns([]);
+      return;
+    }
+
+    const q = query(
+      collection(db, "portalImportRuns"),
+      where("batchId", "==", batchId),
+      orderBy("batchOrder", "asc")
+    );
+
+    const unsub = onSnapshot(q, (snap) => {
+      const next: ActiveRun[] = snap.docs.map((d) => ({
+        id: d.id,
+        data: d.data() as PortalImportRun,
+      }));
+      setBatchRuns(next);
+    });
+
+    return () => unsub();
+  }, [activeRun?.data?.batchId]);
+
+  const batchInfo = useMemo(() => {
+    if (!activeRun) return null;
+    const batchId = String(activeRun.data.batchId || "").trim();
+    if (!batchId || !batchRuns.length) return null;
+
+    const total = batchRuns.length;
+    const done = batchRuns.filter((r) => isSuccessStatus(r.data.status)).length;
+    const errorCount = batchRuns.filter((r) => isErrorStatus(r.data.status)).length;
+    const currentIndex = batchRuns.findIndex((r) => r.id === activeRun.id);
+
+    let nextRun: ActiveRun | null = null;
+    if (currentIndex >= 0) {
+      nextRun =
+        batchRuns
+          .slice(currentIndex + 1)
+          .find((r) => !isFinalStatus(r.data.status)) || null;
+    }
+
+    const remaining = Math.max(total - done - errorCount, 0);
+
+    return {
+      total,
+      done,
+      error: errorCount,
+      remaining,
+      currentCompanyName: getCompanyName(activeRun.data),
+      currentStep: String(activeRun.data.step || "").trim(),
+      nextCompanyName: nextRun ? getCompanyName(nextRun.data) : "",
+    };
+  }, [activeRun, batchRuns]);
 
   async function enablePush() {
     if (!uid) return;
@@ -319,7 +494,9 @@ function OtpPageInner() {
       });
 
       setOtpCode("");
-      setInfo("הקוד נשלח. הריצה ממשיכה.");
+      setInfo("הקוד נשלח בהצלחה.");
+      setDismissedRunId(activeRun.id);
+      router.replace("/otp");
     } catch (e: any) {
       setError(e?.message || "שליחת הקוד נכשלה.");
     } finally {
@@ -348,6 +525,8 @@ function OtpPageInner() {
 
       setOtpCode("");
       setInfo("הריצה בוטלה.");
+      setDismissedRunId(activeRun.id);
+      router.replace("/otp");
     } catch (e: any) {
       setError(e?.message || "ביטול נכשל.");
     } finally {
@@ -414,10 +593,27 @@ function OtpPageInner() {
           </div>
         )}
 
+        {batchInfo && (
+          <BatchInfoCard
+            total={batchInfo.total}
+            done={batchInfo.done}
+            error={batchInfo.error}
+            remaining={batchInfo.remaining}
+            currentCompanyName={batchInfo.currentCompanyName}
+            currentStep={batchInfo.currentStep}
+            nextCompanyName={batchInfo.nextCompanyName}
+          />
+        )}
+
         {!activeRun ? (
           <div className="rounded-3xl border border-gray-200 bg-white p-6 text-center shadow-sm">
             <div className="text-lg font-semibold text-gray-900">אין כרגע בקשת קוד</div>
             <p className="mt-2 text-sm text-gray-500">כשתגיע בקשה חדשה, היא תופיע כאן.</p>
+            {!!info && (
+              <div className="mt-4 rounded-2xl bg-green-50 px-4 py-3 text-sm text-green-700">
+                {info}
+              </div>
+            )}
           </div>
         ) : (
           <div className="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm">

@@ -40,10 +40,10 @@ import { usePermission } from "@/hooks/usePermission";
 import { recomputeSummariesFromExternalManual } from "@/utils/manualCommissionRecompute";
 import AutomaticRunsDashboard from '@/components/PortalRuns/AutomaticRunsDashboard';
 
-
 import type { MultiSheetImportProfile } from "@/types/MultiSheetImportProfile";
 import { getMultiSheetProfiles } from "@/lib/multiSheetProfiles/getMultiSheetProfiles";
 import { parseMultiSheetWorkbook } from "@/lib/multiSheetProfiles/parseMultiSheetWorkbook";
+import BatchProgressCard from '@/components/PortalRuns/BatchProgressCard';
 /* ==============================
    Types
 ============================== */
@@ -139,7 +139,7 @@ const [activeAutoCompanyId, setActiveAutoCompanyId] = useState<string>("");
 const [selectedReportYear, setSelectedReportYear] = useState("");
 const [selectedReportMonth, setSelectedReportMonth] = useState("");
 
-  // בחירה מתוך ZIP
+// בחירה מתוך ZIP
   const [zipChooser, setZipChooser] = useState<null | {
     zip: any;
     entryNames: string[];
@@ -168,6 +168,20 @@ const automationClass = String(selectedTemplate?.automationClass || "").trim();
 // const canStartAuto = Boolean(
 //   selectedAgentId && selectedCompanyId && templateId && automationClass
 // );
+
+const [activeBatchId, setActiveBatchId] = useState<string>("");
+const [batchRunIds, setBatchRunIds] = useState<string[]>([]);
+const [batchProgress, setBatchProgress] = useState<{
+  total: number;
+  done: number;
+  error: number;
+  running: number;
+  queued: number;
+  currentRunId: string;
+  currentCompanyId: string;
+  currentCompanyName: string;
+  currentStep: string;
+} | null>(null);
 
 
 type AutomaticCompany = {
@@ -327,42 +341,183 @@ const effectiveAutomationClass = (selectedCompany?.companyAutomationClass && sel
 const canStartAuto = Boolean(selectedAgentId && selectedCompanyId && effectiveAutomationClass !== "");
 
 
+const FINAL_RUN_STATUSES = new Set(["success", "done", "error", "failed", "skipped"]);
 
-const handleStartAuto = async () => {
-  if (!selectedAgentId || !selectedCompanyId) return;
+const IN_PROGRESS_RUN_STATUSES = new Set([
+  "running",
+  "otp_required",
+  "logged_in",
+  "file_uploaded",
+]);
 
-  setIsStartingAuto(true);
-  setIsAutoRunActive(true);
+const QUEUED_RUN_STATUSES = new Set(["queued"]);
 
-  try {
-    // לוקח את ה-Class מהחברה (או מהתבנית אם אין לחברה)
-    const finalAutomationClass = effectiveAutomationClass;
+useEffect(() => {
+  if (!activeBatchId) return;
 
-    const portalId = selectedCompany?.portalId || selectedCompanyId;
-    
-    const finalTemplateId = `bundle_${portalId}_commissions`;
-  
+  const qy = query(
+    collection(db, "portalImportRuns"),
+    where("batchId", "==", activeBatchId),
+    orderBy("batchOrder", "asc")
+  );
 
-    const { runId } = await startAutoPortalRun({
-      db,
-      agentId: selectedAgentId,
-      companyId: selectedCompanyId,
-      templateId: finalTemplateId,
-      automationClass: finalAutomationClass,
-      monthLabel: "previous_month",
-      source: "portalRunner",
-      triggeredFrom: "ui",
+  const unsub = onSnapshot(qy, (snap) => {
+    const runs = snap.docs.map((d) => {
+      const data: any = d.data() || {};
+      return {
+        id: d.id,
+        companyId: String(data.companyId || "").trim(),
+        companyName: String(data.companyName || "").trim(),
+        batchOrder: Number(data.batchOrder || 0),
+        status: String(data.status || "").trim(),
+        step: String(data.step || "").trim(),
+        updatedAt: data.updatedAt?.toMillis?.() || 0,
+      };
     });
 
-    setAutoRunId(runId);
-    setAutoRunKind("portal");
-  } catch (e: any) {
-    addToast("error", `שגיאה: ${e.message}`);
-    setIsAutoRunActive(false);
-  } finally {
-    setIsStartingAuto(false);
-  }
-};
+    if (!runs.length) return;
+
+    const done = runs.filter((r) => r.status === "success" || r.status === "done").length;
+    const error = runs.filter((r) => r.status === "error" || r.status === "failed").length;
+
+    const inProgressItems = runs.filter((r) => IN_PROGRESS_RUN_STATUSES.has(r.status));
+    const queuedItems = runs.filter((r) => QUEUED_RUN_STATUSES.has(r.status));
+
+    const statusPriority: Record<string, number> = {
+      otp_required: 1,
+      running: 2,
+      logged_in: 3,
+      file_uploaded: 4,
+      queued: 5,
+    };
+
+    const sortCurrentCandidates = (arr: typeof runs) =>
+      [...arr].sort((a, b) => {
+        const pa = statusPriority[a.status] ?? 999;
+        const pb = statusPriority[b.status] ?? 999;
+
+        if (pa !== pb) return pa - pb;
+
+        if (activeAutoCompanyId) {
+          if (a.companyId === activeAutoCompanyId && b.companyId !== activeAutoCompanyId) return -1;
+          if (b.companyId === activeAutoCompanyId && a.companyId !== activeAutoCompanyId) return 1;
+        }
+
+        if (autoRunId) {
+          if (a.id === autoRunId && b.id !== autoRunId) return -1;
+          if (b.id === autoRunId && a.id !== autoRunId) return 1;
+        }
+
+        if (a.updatedAt !== b.updatedAt) return b.updatedAt - a.updatedAt;
+
+        return a.batchOrder - b.batchOrder;
+      });
+
+    let current =
+      runs.find((r) => autoRunId && r.id === autoRunId) ||
+      runs.find((r) => activeAutoCompanyId && r.companyId === activeAutoCompanyId) ||
+      sortCurrentCandidates(inProgressItems)[0] ||
+      sortCurrentCandidates(queuedItems)[0] ||
+      null;
+
+    let runningCount = inProgressItems.length;
+
+    if (isAutoRunActive && current) {
+      runningCount = Math.max(runningCount, 1);
+    }
+
+    const queued = Math.max(
+      runs.filter((r) => r.status === "queued").length -
+        (isAutoRunActive && current?.status === "queued" ? 1 : 0),
+      0
+    );
+
+    setBatchRunIds(runs.map((r) => r.id));
+
+    setBatchProgress({
+      total: runs.length,
+      done,
+      error,
+      running: runningCount,
+      queued,
+      currentRunId: current?.id || "",
+      currentCompanyId: current?.companyId || "",
+      currentCompanyName: current?.companyName || "",
+      currentStep: current?.step || "",
+    });
+
+    if (current) {
+      setAutoRunId(current.id);
+      setAutoRunKind("portal");
+      setActiveAutoCompanyId(current.companyId);
+      setIsAutoRunActive(true);
+      return;
+    }
+
+    const allFinished = runs.every((r) => FINAL_RUN_STATUSES.has(r.status));
+
+    if (allFinished) {
+      setIsAutoRunActive(false);
+      setActiveAutoCompanyId("");
+      setAutoDashboardRefreshKey((v) => v + 1);
+
+      if (error > 0 && done > 0) {
+        addToast("success", `✅ Batch הסתיים: ${done} הושלמו, ${error} עם שגיאה`);
+      } else if (error > 0 && done === 0) {
+        addToast("error", `❌ Batch הסתיים עם שגיאות (${error})`);
+      } else {
+        addToast("success", `✅ Batch הושלם בהצלחה (${done}/${runs.length})`);
+      }
+
+      setTimeout(() => {
+        setActiveBatchId("");
+        setBatchRunIds([]);
+        setBatchProgress(null);
+        setAutoRunId("");
+      }, 1200);
+    }
+  });
+
+  return () => unsub();
+}, [activeBatchId, activeAutoCompanyId, autoRunId, isAutoRunActive]);
+
+
+
+// const handleStartAuto = async () => {
+//   if (!selectedAgentId || !selectedCompanyId) return;
+
+//   setIsStartingAuto(true);
+//   setIsAutoRunActive(true);
+
+//   try {
+//     // לוקח את ה-Class מהחברה (או מהתבנית אם אין לחברה)
+//     const finalAutomationClass = effectiveAutomationClass;
+
+//     const portalId = selectedCompany?.portalId || selectedCompanyId;
+    
+//     const finalTemplateId = `bundle_${portalId}_commissions`;
+  
+
+//     const { runId } = await startAutoPortalRun({
+//       db,
+//       agentId: selectedAgentId,
+//       companyId: selectedCompanyId,
+//       templateId: finalTemplateId,
+//       automationClass: finalAutomationClass,
+//       monthLabel: "previous_month",
+//       source: "portalRunner",
+//       triggeredFrom: "ui",
+//     });
+
+//     setAutoRunId(runId);
+//     setAutoRunKind("portal");
+//   } catch (e: any) {
+//     addToast("error", `שגיאה: ${e.message}`);
+//     setIsAutoRunActive(false);
+//   } finally {
+//     setIsStartingAuto(false);
+//   }
+// };
 
 
 
@@ -396,11 +551,11 @@ const normalizeRowKeys = (row: Record<string, any>) => {
   return normalized;
 };
 
-      const dumpHeaderChars = (s: string) =>
-  Array.from(String(s || "")).map((ch) => ({
-    ch,
-    code: ch.charCodeAt(0),
-  }));
+  //     const dumpHeaderChars = (s: string) =>
+  // Array.from(String(s || "")).map((ch) => ({
+  //   ch,
+  //   code: ch.charCodeAt(0),
+  // }));
 
   // --- גטר בטוח לתאים לפי כותרת (תומך בכותרת מנורמלת) ---
   // const getCell = (row: any, header: string) =>
@@ -2492,25 +2647,47 @@ async function enrichMissingCustomerIdsForMarkedSheets(params: {
           </div>
         </div>
 
-        {/* 3. קוביות החברות */}
-        {automaticCompanies.length > 0 ? (
-          <AutomaticRunsDashboard
-            db={db}
-            selectedAgentId={selectedAgentId}
-            companies={automaticCompanies}
-            isAutoEnabledByFlag={isAutoEnabledByFlag}
-            autoDisabledReason={autoDisabledReason}
-            onStartRun={handleStartAutoForCompany}
-            refreshKey={autoDashboardRefreshKey}
-              activeCompanyId={activeAutoCompanyId}
-            isRunActive={isAutoRunActive}
-          />
-        ) : (
-          <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50 p-8 text-center text-gray-500">
-            אין כרגע חברות עם אוטומציה זמינה לסוכן זה.
-          </div>
-        )}
+ {/* 3. קוביות החברות */}
+{automaticCompanies.length > 0 ? (
+ <AutomaticRunsDashboard
+  db={db}
+  selectedAgentId={selectedAgentId}
+  companies={automaticCompanies}
+  isAutoEnabledByFlag={isAutoEnabledByFlag}
+  autoDisabledReason={effectiveAutoDisabledReason}
+  onStartRun={handleStartAutoForCompany}
+  refreshKey={autoDashboardRefreshKey}
+  activeCompanyId={activeAutoCompanyId}
+  isRunActive={isAutoRunActive}
+  onStartBatch={async (companies) => {
+    const { createPortalRunBatch } = await import('@/lib/portalRunBatches');
 
+    const { batchId, runIds } = await createPortalRunBatch({
+      db,
+      agentId: selectedAgentId,
+      companies,
+    });
+
+    setActiveBatchId(batchId);
+    setBatchRunIds(runIds);
+
+    if (runIds.length > 0) {
+      setAutoRunId(runIds[0]);
+      setAutoRunKind('portal');
+    }
+
+    setIsAutoRunActive(true);
+    setAutoDashboardRefreshKey((v) => v + 1);
+
+    addToast('success', `✅ נוצר Batch עם ${companies.length} חברות`);
+    console.log('Created batch:', batchId, runIds);
+  }}
+/>
+) : (
+  <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50 p-8 text-center text-gray-500">
+    אין כרגע חברות עם אוטומציה זמינה לסוכן זה.
+  </div>
+)}
         {/* סטטוס ריצה אוטומטית / עדכון */}
         {autoRunId && (
           <div className="animate-in slide-in-from-bottom-4 duration-500">
@@ -2527,6 +2704,17 @@ async function enrichMissingCustomerIdsForMarkedSheets(params: {
                   ✖
                 </button>
               )}
+            {batchProgress && activeBatchId && (
+  <BatchProgressCard
+    total={batchProgress.total}
+    done={batchProgress.done}
+    error={batchProgress.error}
+    running={batchProgress.running}
+    queued={batchProgress.queued}
+    currentCompanyName={batchProgress.currentCompanyName}
+    currentStep={batchProgress.currentStep}
+  />
+)}
               <PortalRunStatus
                 db={db}
                 runId={autoRunId}

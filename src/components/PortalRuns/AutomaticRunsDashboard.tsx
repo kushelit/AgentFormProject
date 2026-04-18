@@ -19,7 +19,10 @@ type Props = {
   activeCompanyId?: string;
   isRunActive?: boolean;
   onStartRun: (company: AutomaticCompany) => Promise<void>;
+  onStartBatch?: (companies: AutomaticCompany[]) => Promise<void>;
 };
+
+type RunMode = 'single' | 'multi';
 
 const AutomaticRunsDashboard: React.FC<Props> = ({
   db,
@@ -28,18 +31,22 @@ const AutomaticRunsDashboard: React.FC<Props> = ({
   isAutoEnabledByFlag,
   autoDisabledReason,
   onStartRun,
-   refreshKey = 0,
-   activeCompanyId,
+  onStartBatch,
+  refreshKey = 0,
+  activeCompanyId,
   isRunActive = false,
 }) => {
   const [startingCompanyId, setStartingCompanyId] = useState<string>('');
+  const [mode, setMode] = useState<RunMode>('single');
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [isSubmittingBatch, setIsSubmittingBatch] = useState(false);
 
   const { items, loading, refresh } = useAutomationDashboardStatus({
     db,
     selectedAgentId,
     companies,
     isAutoEnabledByFlag,
-     refreshKey,
+    refreshKey,
   });
 
   const automaticCompanies = useMemo(
@@ -64,98 +71,141 @@ const AutomaticRunsDashboard: React.FC<Props> = ({
     return { done, running, error, ready, total: items.length };
   }, [items]);
 
-const handleStart = async (companyId: string) => {
-  const company = byCompanyId[companyId];
-  if (!company) return;
+  const selectedCompanies = useMemo(
+    () =>
+      selectedIds
+        .map((id) => byCompanyId[id])
+        .filter(Boolean) as AutomaticCompany[],
+    [selectedIds, byCompanyId]
+  );
 
-  const item = items.find((x) => x.companyId === companyId);
-  if (!item) return;
-
-  if (
-    item.uiStatus === 'done' ||
-    item.uiStatus === 'running' ||
-    item.uiStatus === 'disabled_by_flag'
+  function canSelectForBatch(
+    uiStatus: AutoCompanyUiStatus,
+    company?: AutomaticCompany
   ) {
-    return;
+    if (!company) return false;
+    if (!isAutoEnabledByFlag) return false;
+    if (company.companyAutoDownloadEnabled === false) return false;
+
+    return uiStatus === 'ready' || uiStatus === 'error';
   }
 
-  if (company.companyAutoDownloadEnabled === false) {
-    return;
+  function toggleCompany(companyId: string) {
+    setSelectedIds((prev) =>
+      prev.includes(companyId)
+        ? prev.filter((id) => id !== companyId)
+        : [...prev, companyId]
+    );
   }
 
-  if (globallyBusy) {
-    return;
-  }
+  const handleStart = async (companyId: string) => {
+    const company = byCompanyId[companyId];
+    if (!company) return;
 
-  try {
-    setStartingCompanyId(companyId);
-    await onStartRun(company);
-    await refresh();
-  } finally {
-    setStartingCompanyId('');
-  }
-};
+    const item = items.find((x) => x.companyId === companyId);
+    if (!item) return;
+
+    if (
+      item.uiStatus === 'done' ||
+      item.uiStatus === 'running' ||
+      item.uiStatus === 'disabled_by_flag'
+    ) {
+      return;
+    }
+
+    if (company.companyAutoDownloadEnabled === false) {
+      return;
+    }
+
+    if (globallyBusy) {
+      return;
+    }
+
+    try {
+      setStartingCompanyId(companyId);
+      await onStartRun(company);
+      await refresh();
+    } finally {
+      setStartingCompanyId('');
+    }
+  };
+
+  const handleStartBatch = async () => {
+    if (!onStartBatch || !selectedCompanies.length) return;
+
+    try {
+      setIsSubmittingBatch(true);
+      await onStartBatch(selectedCompanies);
+      setSelectedIds([]);
+      setMode('single');
+      await refresh();
+    } finally {
+      setIsSubmittingBatch(false);
+    }
+  };
 
   if (!selectedAgentId || automaticCompanies.length === 0) return null;
 
   return (
-    <section className="space-y-4" dir="rtl">
+    <section className="space-y-4" key={refreshKey}>
       <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h3 className="text-xl font-bold text-gray-900">
-              מצב החברות בטעינה אוטומטית
-            </h3>
-            <p className="text-sm text-gray-500 mt-1">
-              מעקב אחר הדוחות שפורסמו החודש ולחיצה להפעלה במידת הצורך
-            </p>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="rounded-2xl border border-blue-100 bg-blue-50 p-4 text-center">
+            <div className="text-sm font-bold text-blue-700">מוכנות להפעלה</div>
+            <div className="mt-1 text-4xl font-black text-blue-700">{stats.ready}</div>
           </div>
 
-          <div
-            className={`px-3 py-1.5 rounded-full text-xs font-bold border ${
-              isAutoEnabledByFlag
-                ? 'bg-green-50 text-green-700 border-green-200'
-                : 'bg-gray-100 text-gray-600 border-gray-200'
-            }`}
-          >
-            {isAutoEnabledByFlag ? 'אוטומציה זמינה' : 'אוטומציה מושהית'}
+          <div className="rounded-2xl border border-red-100 bg-red-50 p-4 text-center">
+            <div className="text-sm font-bold text-red-700">שגיאות</div>
+            <div className="mt-1 text-4xl font-black text-red-700">{stats.error}</div>
+          </div>
+
+          <div className="rounded-2xl border border-indigo-100 bg-indigo-50 p-4 text-center">
+            <div className="text-sm font-bold text-indigo-700">בריצה</div>
+            <div className="mt-1 text-4xl font-black text-indigo-700">{stats.running}</div>
+          </div>
+
+          <div className="rounded-2xl border border-green-100 bg-green-50 p-4 text-center">
+            <div className="text-sm font-bold text-green-700">הושלמו</div>
+            <div className="mt-1 text-4xl font-black text-green-700">{stats.done}</div>
           </div>
         </div>
-
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-5">
-          <div className="rounded-xl bg-green-50 border border-green-100 p-3">
-            <div className="text-xs text-green-700 font-bold">הושלמו</div>
-            <div className="text-2xl font-black text-green-800">{stats.done}</div>
-          </div>
-
-          <div className="rounded-xl bg-indigo-50 border border-indigo-100 p-3">
-            <div className="text-xs text-indigo-700 font-bold">בריצה</div>
-            <div className="text-2xl font-black text-indigo-800">{stats.running}</div>
-          </div>
-
-          <div className="rounded-xl bg-red-50 border border-red-100 p-3">
-            <div className="text-xs text-red-700 font-bold">שגיאות</div>
-            <div className="text-2xl font-black text-red-800">{stats.error}</div>
-          </div>
-
-          <div className="rounded-xl bg-blue-50 border border-blue-100 p-3">
-            <div className="text-xs text-blue-700 font-bold">מוכנות להפעלה</div>
-            <div className="text-2xl font-black text-blue-800">{stats.ready}</div>
-          </div>
-        </div>
-
-        {!isAutoEnabledByFlag && (
-          <div className="mt-4 rounded-xl bg-gray-50 border border-gray-200 p-3 text-sm text-gray-700">
-            {autoDisabledReason}
-          </div>
-        )}
-
-        {globallyBusy && (
-          <div className="mt-4 rounded-xl bg-indigo-50 border border-indigo-100 p-3 text-sm text-indigo-800">
-            כרגע מתבצעת ריצה אחת במערכת. ניתן להפעיל חברה נוספת רק לאחר סיום הריצה הנוכחית.
-          </div>
-        )}
       </div>
+
+      <div className="mx-auto flex w-full max-w-md rounded-2xl bg-gray-100 p-1 shadow-sm">
+        <button
+          type="button"
+          onClick={() => {
+            setMode('single');
+            setSelectedIds([]);
+          }}
+          className={`flex-1 rounded-xl px-4 py-3 text-sm font-semibold transition ${
+            mode === 'single'
+              ? 'bg-white text-blue-700 shadow'
+              : 'text-gray-600'
+          }`}
+        >
+          ריצה בודדת
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setMode('multi')}
+          className={`flex-1 rounded-xl px-4 py-3 text-sm font-semibold transition ${
+            mode === 'multi'
+              ? 'bg-white text-blue-700 shadow'
+              : 'text-gray-600'
+          }`}
+        >
+          ריבוי חברות
+        </button>
+      </div>
+
+      {mode === 'multi' && (
+        <div className="rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+          בחרי חברות שמוכנות להפעלה או כאלה שבשגיאה. הדשבורד ישלח אותן לתור לריצה אחת אחרי השנייה.
+        </div>
+      )}
 
       {loading ? (
         <div className="rounded-2xl border border-gray-200 bg-white p-8 text-center text-gray-500">
@@ -163,51 +213,104 @@ const handleStart = async (companyId: string) => {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-         {items.map((item) => {
-  const company = byCompanyId[item.companyId];
+          {items.map((item) => {
+            const company = byCompanyId[item.companyId];
 
-  let effectiveStatus: AutoCompanyUiStatus = item.uiStatus;
+         let effectiveStatus: AutoCompanyUiStatus = item.uiStatus;
 
 if (
   startingCompanyId === item.companyId ||
-  (
-    isRunActive &&
-    activeCompanyId === item.companyId &&
-    effectiveStatus !== 'done' 
-  )
+  (isRunActive && activeCompanyId === item.companyId)
 ) {
   effectiveStatus = 'running';
 }
 
-  const itemAutoDisabledReason = !isAutoEnabledByFlag
-    ? autoDisabledReason
-    : company?.companyAutoDownloadMessage || 'הדוחות של חברה זו עדיין לא זמינים להורדה.';
+            const itemAutoDisabledReason = !isAutoEnabledByFlag
+              ? autoDisabledReason
+              : company?.companyAutoDownloadMessage || 'הדוחות של חברה זו עדיין לא זמינים להורדה.';
 
-  const anotherRunActive =
-    (activeRunningItem && activeRunningItem.companyId !== item.companyId) ||
-    (startingCompanyId && startingCompanyId !== item.companyId);
+         const anotherRunActive =
+  (isRunActive && activeCompanyId && activeCompanyId !== item.companyId) ||
+  (activeRunningItem && activeRunningItem.companyId !== item.companyId) ||
+  (startingCompanyId && startingCompanyId !== item.companyId);
 
-  const globallyBlocked =
-    Boolean(anotherRunActive) &&
-    effectiveStatus !== 'done' &&
-    effectiveStatus !== 'running' &&
-    effectiveStatus !== 'disabled_by_flag';
+const globallyBlocked =
+  mode === 'single' &&
+  Boolean(anotherRunActive) &&
+  effectiveStatus !== 'done' &&
+  effectiveStatus !== 'running' &&
+  effectiveStatus !== 'disabled_by_flag';
 
-  return (
-    <AutoCompanyCard
-      key={item.companyId}
-      companyName={item.companyName}
-      monthLabel={item.monthLabel}
-      uiStatus={effectiveStatus}
-      autoDisabledReason={itemAutoDisabledReason}
-      lastRunAt={item.lastRunAt}
-      busy={startingCompanyId === item.companyId}
-      globallyBlocked={globallyBlocked}
-      globallyBlockedReason="ממתין לסיום ריצה אחרת"
-      onStart={() => handleStart(item.companyId)}
-    />
-  );
-})}
+            const selectableInBatch = canSelectForBatch(effectiveStatus, company);
+            const selected = selectedIds.includes(item.companyId);
+
+            return (
+              <div
+                key={item.companyId}
+                className={`relative rounded-2xl transition ${
+                  mode === 'multi' && selectableInBatch
+                    ? 'cursor-pointer'
+                    : ''
+                } ${
+                  mode === 'multi' && selected
+                    ? 'ring-2 ring-blue-500 ring-offset-2'
+                    : ''
+                }`}
+                onClick={() => {
+                  if (mode !== 'multi') return;
+                  if (!selectableInBatch) return;
+                  toggleCompany(item.companyId);
+                }}
+              >
+                {mode === 'multi' && selectableInBatch && (
+                  <div
+                    className={`absolute left-3 top-3 z-10 flex h-7 w-7 items-center justify-center rounded-full border text-xs font-bold ${
+                      selected
+                        ? 'border-blue-600 bg-blue-600 text-white'
+                        : 'border-gray-300 bg-white text-gray-500'
+                    }`}
+                  >
+                    ✓
+                  </div>
+                )}
+
+                <AutoCompanyCard
+                  companyName={item.companyName}
+                  monthLabel={item.monthLabel}
+                  uiStatus={effectiveStatus}
+                  autoDisabledReason={itemAutoDisabledReason}
+                  lastRunAt={item.lastRunAt}
+                  busy={startingCompanyId === item.companyId || isSubmittingBatch}
+                  globallyBlocked={mode === 'single' ? globallyBlocked : false}
+                  globallyBlockedReason="יש ריצה פעילה כרגע"                  
+                  onStart={
+                    mode === 'single'
+                      ? () => handleStart(item.companyId)
+                      : undefined
+                  }
+                />
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {mode === 'multi' && (
+        <div className="sticky bottom-4 z-10">
+          <div className="mx-auto flex max-w-md items-center justify-between rounded-2xl border border-gray-200 bg-white px-4 py-3 shadow-lg">
+            <div className="text-sm text-gray-600">
+              נבחרו <span className="font-bold text-gray-900">{selectedCompanies.length}</span> חברות
+            </div>
+
+            <button
+              type="button"
+              onClick={handleStartBatch}
+              disabled={!selectedCompanies.length || isSubmittingBatch}
+              className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+            >
+              {isSubmittingBatch ? 'שולח...' : 'התחל Batch'}
+            </button>
+          </div>
         </div>
       )}
     </section>
