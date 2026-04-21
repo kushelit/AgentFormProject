@@ -398,30 +398,32 @@ useEffect(() => {
 
         if (pa !== pb) return pa - pb;
 
+        // העדפה לחברה שה-UI כבר יודע שהיא פעילה
         if (activeAutoCompanyId) {
           if (a.companyId === activeAutoCompanyId && b.companyId !== activeAutoCompanyId) return -1;
           if (b.companyId === activeAutoCompanyId && a.companyId !== activeAutoCompanyId) return 1;
         }
 
-        if (autoRunId) {
-          if (a.id === autoRunId && b.id !== autoRunId) return -1;
-          if (b.id === autoRunId && a.id !== autoRunId) return 1;
-        }
-
+        // העדפה לריצה הכי מעודכנת
         if (a.updatedAt !== b.updatedAt) return b.updatedAt - a.updatedAt;
 
         return a.batchOrder - b.batchOrder;
       });
 
+    // ✅ קודם כל ריצה שבאמת פעילה לפי DB
     let current =
-      runs.find((r) => autoRunId && r.id === autoRunId) ||
-      runs.find((r) => activeAutoCompanyId && r.companyId === activeAutoCompanyId) ||
       sortCurrentCandidates(inProgressItems)[0] ||
+      // ✅ אם אין כזו, ננסה לפי החברה שה-UI כבר יודע עליה
+      runs.find((r) => activeAutoCompanyId && r.companyId === activeAutoCompanyId) ||
+      // ✅ רק אם עדיין אין, fallback ל-autoRunId
+      runs.find((r) => autoRunId && r.id === autoRunId) ||
+      // ✅ ואם עדיין אין, הראשונה בתור
       sortCurrentCandidates(queuedItems)[0] ||
       null;
 
     let runningCount = inProgressItems.length;
 
+    // אם ה-UI כבר יודע שיש ריצה פעילה אבל DB עוד לא עודכן, נשמור לפחות 1
     if (isAutoRunActive && current) {
       runningCount = Math.max(runningCount, 1);
     }
@@ -447,9 +449,15 @@ useEffect(() => {
     });
 
     if (current) {
-      setAutoRunId(current.id);
+      if (autoRunId !== current.id) {
+        setAutoRunId(current.id);
+      }
       setAutoRunKind("portal");
-      setActiveAutoCompanyId(current.companyId);
+
+      if (activeAutoCompanyId !== current.companyId) {
+        setActiveAutoCompanyId(current.companyId);
+      }
+
       setIsAutoRunActive(true);
       return;
     }
@@ -480,7 +488,6 @@ useEffect(() => {
 
   return () => unsub();
 }, [activeBatchId, activeAutoCompanyId, autoRunId, isAutoRunActive]);
-
 
 
 // const handleStartAuto = async () => {
@@ -2655,7 +2662,6 @@ async function enrichMissingCustomerIdsForMarkedSheets(params: {
   companies={automaticCompanies}
   isAutoEnabledByFlag={isAutoEnabledByFlag}
   autoDisabledReason={effectiveAutoDisabledReason}
-  onStartRun={handleStartAutoForCompany}
   refreshKey={autoDashboardRefreshKey}
   activeCompanyId={activeAutoCompanyId}
   isRunActive={isAutoRunActive}
@@ -2671,15 +2677,20 @@ async function enrichMissingCustomerIdsForMarkedSheets(params: {
     setActiveBatchId(batchId);
     setBatchRunIds(runIds);
 
-    if (runIds.length > 0) {
-      setAutoRunId(runIds[0]);
-      setAutoRunKind('portal');
-    }
-
+    setAutoRunId("");
+    setAutoRunKind("portal");
+    setActiveAutoCompanyId("");
     setIsAutoRunActive(true);
+
     setAutoDashboardRefreshKey((v) => v + 1);
 
-    addToast('success', `✅ נוצר Batch עם ${companies.length} חברות`);
+    addToast(
+      'success',
+      companies.length === 1
+        ? '✅ הריצה נשלחה לתור'
+        : `✅ נשלח Batch עם ${companies.length} חברות`
+    );
+
     console.log('Created batch:', batchId, runIds);
   }}
 />

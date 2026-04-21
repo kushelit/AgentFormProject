@@ -48,9 +48,11 @@ const format = (num: number) =>
 const beforeStr = format(percentBeforeVat);
 const netStr = format(normalizedPercentNet);
 
-  const helperText = inputMode === 'per_million'
-  ? `${num.toLocaleString('he-IL')} למיליון = ${beforeStr}%${vatMode === 'includes_vat' ? ` → נשמר ${netStr}% ללא מע״מ` : ''}`
-  : `${beforeStr}%${vatMode === 'includes_vat' ? ` → נשמר ${netStr}% ללא מע״מ` : ''}`;
+ const helperText =
+  normalizedPercentNet
+    ? `נטו: ${netStr}%`
+    : "";
+    
   
   return {
     normalizedPercentNet: netStr,

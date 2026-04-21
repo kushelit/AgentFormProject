@@ -843,7 +843,7 @@ if (lockedToCustomer) {
           diffPercent,
           status: 'not_reported',
           customerId: customerForDisplay,
-          fullName: (saleBucket.items[0] as any)?.fullName,
+          fullName: getSaleDisplayName(saleBucket.items[0]) || undefined,
           product: productForDisplay,
           _rawKey: key,
           _extRow: null,
@@ -927,7 +927,10 @@ if (lockedToCustomer) {
           status,
           agentCode: reported.agentCode,
           customerId: reported.customerId ?? customerForDisplay,
-          fullName: (reported as any).fullName || (saleBucket.items[0] as any)?.fullName, // ✅ להוסיף כאן
+          fullName:
+  (reported as any).fullName ||
+  getSaleDisplayName(saleBucket.items[0]) ||
+  undefined,
           product: productForDisplay || (reported as any).product || 'מוצר לא מזוהה',
           _rawKey: key,
           _extRow: reported,
@@ -1263,7 +1266,14 @@ const getGroupName = (id?: string) => {
   return productGroupsDB.find(g => g.id === id)?.name || `קבוצה ${id}`;
 };
 
-
+const getSaleDisplayName = (sale: any) =>
+  [
+    String(sale?.firstNameCustomer || '').trim(),
+    String(sale?.lastNameCustomer || '').trim(),
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .trim();
 
   /* ---------- UI ---------- */
 return (

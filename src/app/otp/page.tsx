@@ -269,6 +269,105 @@ function BatchInfoCard({
   );
 }
 
+
+function BatchQueueList({
+  runs,
+  currentRunId,
+}: {
+  runs: ActiveRun[];
+  currentRunId?: string;
+}) {
+  if (!runs.length) return null;
+
+  function getItemState(run: ActiveRun) {
+    const status = String(run.data.status || "");
+
+    if (run.id === currentRunId) return "current";
+    if (isSuccessStatus(status)) return "done";
+    if (isErrorStatus(status)) return "error";
+    if (isFinalStatus(status)) return "done";
+    if (status === "queued") return "queued";
+    if (isInProgressStatus(status)) return "current";
+    return "queued";
+  }
+
+  function getStateLabel(state: string) {
+    if (state === "current") return "כעת";
+    if (state === "done") return "הושלם";
+    if (state === "error") return "שגיאה";
+    return "ממתין";
+  }
+
+  function getStateClasses(state: string) {
+    if (state === "current") {
+      return "border-blue-200 bg-blue-50 text-blue-900";
+    }
+    if (state === "done") {
+      return "border-green-200 bg-green-50 text-green-900";
+    }
+    if (state === "error") {
+      return "border-red-200 bg-red-50 text-red-900";
+    }
+    return "border-gray-200 bg-gray-50 text-gray-700";
+  }
+
+  function getBadgeClasses(state: string) {
+    if (state === "current") {
+      return "bg-blue-100 text-blue-700";
+    }
+    if (state === "done") {
+      return "bg-green-100 text-green-700";
+    }
+    if (state === "error") {
+      return "bg-red-100 text-red-700";
+    }
+    return "bg-gray-200 text-gray-700";
+  }
+
+  return (
+    <div className="mb-4 rounded-3xl border border-gray-200 bg-white p-4 shadow-sm">
+      <div className="mb-3 text-sm font-bold text-gray-900">רשימת החברות בתור</div>
+
+      <div className="space-y-2">
+        {runs.map((run, index) => {
+          const state = getItemState(run);
+          const companyName = getCompanyName(run.data);
+          const step = String(run.data.step || "").trim();
+
+          return (
+            <div
+              key={run.id}
+              className={`rounded-2xl border p-3 ${getStateClasses(state)}`}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="text-xs text-gray-500">#{index + 1}</div>
+                  <div className="text-base font-bold">{companyName}</div>
+                  {!!run.data.monthLabel && (
+                    <div className="text-xs text-gray-500">{run.data.monthLabel}</div>
+                  )}
+                  {!!step && state === "current" && (
+                    <div className="mt-1 text-xs font-medium text-blue-700">
+                      {step}
+                    </div>
+                  )}
+                </div>
+
+                <div
+                  className={`rounded-full px-3 py-1 text-xs font-bold ${getBadgeClasses(state)}`}
+                >
+                  {getStateLabel(state)}
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+
 function OtpPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -406,14 +505,15 @@ function OtpPageInner() {
     const remaining = Math.max(total - done - errorCount, 0);
 
     return {
-      total,
-      done,
-      error: errorCount,
-      remaining,
-      currentCompanyName: getCompanyName(activeRun.data),
-      currentStep: String(activeRun.data.step || "").trim(),
-      nextCompanyName: nextRun ? getCompanyName(nextRun.data) : "",
-    };
+  total,
+  done,
+  error: errorCount,
+  remaining,
+  currentRunId: activeRun.id,
+  currentCompanyName: getCompanyName(activeRun.data),
+  currentStep: String(activeRun.data.step || "").trim(),
+  nextCompanyName: nextRun ? getCompanyName(nextRun.data) : "",
+};
   }, [activeRun, batchRuns]);
 
   async function enablePush() {
@@ -604,7 +704,12 @@ function OtpPageInner() {
             nextCompanyName={batchInfo.nextCompanyName}
           />
         )}
-
+{batchInfo && batchRuns.length > 0 && (
+  <BatchQueueList
+    runs={batchRuns}
+    currentRunId={batchInfo.currentRunId}
+  />
+)}
         {!activeRun ? (
           <div className="rounded-3xl border border-gray-200 bg-white p-6 text-center shadow-sm">
             <div className="text-lg font-semibold text-gray-900">אין כרגע בקשת קוד</div>

@@ -1,8 +1,9 @@
 export const CONTRACTS_TABLES_CONFIG = [
   {
     key: "pension",
-    title: "פנסיה",
-    note: 'הערכים מוזנים כפי שמופיעים בהסכם (כולל מע״מ). ניתן להזין אחוזים או סכום למיליון (לניוד). המערכת ממירה אוטומטית לאחוזים וללא מע״מ בשמירה.',
+    title: "פנסיוני",
+    note: 'נא להזין את ההסכם כולל מע״מ.',
+    showDefaultColumn: true,
     sections: [
       {
         key: "pension_main",
@@ -10,10 +11,28 @@ export const CONTRACTS_TABLES_CONFIG = [
         productGroupId: "1",
         productSubGroupId: "pension_main",
         rows: [
-          { commissionType: "hekef", label: "היקף", valueMode: "percent", minuySochen: false },
-          { commissionType: "nifraim", label: "נפרעים", valueMode: "percent", minuySochen: false },
-          { commissionType: "nifraim", label: "נפרעים מינוי סוכן", valueMode: "percent", minuySochen: true },
-          { commissionType: "niud", label: "ניוד", valueMode: "per_million", minuySochen: false },
+           {
+      commissionType: "nifraim",
+      label: "נפרעים",
+      valueMode: "percent",
+      minuySochen: false,
+    },
+     { commissionType: "niud", 
+        label: "היקף על צבירה", 
+        valueMode: "per_million",
+         minuySochen: false },
+    {
+      commissionType: "hekef",
+      label: "היקף על שוטף",
+      valueMode: "percent",
+      minuySochen: false,
+    },
+    {
+      commissionType: "nifraim",
+      label: "נפרעים מינוי סוכן",
+      valueMode: "percent",
+      minuySochen: true,
+    },
         ],
       },
     ],
@@ -22,51 +41,94 @@ export const CONTRACTS_TABLES_CONFIG = [
   {
     key: "finance",
     title: "פיננסים",
-    note: 'הערכים מוזנים כפי שמופיעים בהסכם (כולל מע״מ). ניתן להזין אחוזים או סכום למיליון (לניוד). המערכת ממירה אוטומטית לאחוזים וללא מע״מ בשמירה.',
+    note: 'נא להזין את ההסכם כולל מע״מ.',
+     showDefaultColumn: true,
     sections: [
+  {
+  key: "gemel_hishtalmut",
+  label: "גמל והשתלמות",
+  productGroupId: "4",
+  productSubGroupId: "gemel_hishtalmut",
+  rows: [
+     {
+      commissionType: "nifraim",
+      label: "נפרעים",
+      valueMode: "percent",
+      minuySochen: false,
+    },
+     { commissionType: "niud", 
+        label: "היקף על צבירה", 
+        valueMode: "per_million",
+         minuySochen: false },
+    {
+      commissionType: "hekef",
+      label: "היקף על שוטף",
+      valueMode: "percent",
+      minuySochen: false,
+    },
+    {
+      commissionType: "nifraim",
+      label: "נפרעים מינוי סוכן",
+      valueMode: "percent",
+      minuySochen: true,
+    },
+  ],
+},
+  {
+  key: "financial_saving",
+  label: "חיסכון פיננסי",
+  productGroupId: "4",
+  productSubGroupId: "financial_saving",
+  rows: [
       {
-        key: "gemel_hishtalmut",
-        label: "גמל והשתלמות",
-        productGroupId: "4",
-        productSubGroupId: "gemel_hishtalmut",
-        rows: [
-          { commissionType: "hekef", label: "היקף", valueMode: "percent", minuySochen: false },
-          { commissionType: "nifraim", label: "נפרעים", valueMode: "percent", minuySochen: false },
-          { commissionType: "nifraim", label: "נפרעים מינוי סוכן", valueMode: "percent", minuySochen: true },
-          { commissionType: "niud", label: "ניוד", valueMode: "per_million", minuySochen: false },
-        ],
+      commissionType: "nifraim",
+      label: "נפרעים",
+      valueMode: "percent",
+      minuySochen: false,
+    },
+     { commissionType: "niud", 
+    label: "היקף על צבירה", 
+    valueMode: "per_million", 
+    minuySochen: false },
+    {
+      commissionType: "hekef",
+      label: "היקף על שוטף",
+      valueMode: "percent",
+      minuySochen: false,
+    },
+    {
+      commissionType: "nifraim",
+      label: "נפרעים מינוי סוכן",
+      valueMode: "percent",
+      minuySochen: true,
+    },
+  ],
+},
+     {
+  key: "portfolio_management",
+  label: "ניהול תיקים",
+  productGroupId: "4",
+  productSubGroupId: "portfolio_management",
+  rows: [
+    { commissionType: "nifraim",
+       label: "נפרעים", 
+       valueMode: "percent",
+        minuySochen: false 
       },
-      {
-        key: "financial_saving",
-        label: "חיסכון פיננסי",
-        productGroupId: "4",
-        productSubGroupId: "financial_saving",
-        rows: [
-          { commissionType: "hekef", label: "היקף", valueMode: "percent", minuySochen: false },
-          { commissionType: "nifraim", label: "נפרעים", valueMode: "percent", minuySochen: false },
-          { commissionType: "nifraim", label: "נפרעים מינוי סוכן", valueMode: "percent", minuySochen: true },
-          { commissionType: "niud", label: "ניוד", valueMode: "per_million", minuySochen: false },
-        ],
-      },
-      {
-        key: "portfolio_management",
-        label: "ניהול תיקים",
-        productGroupId: "4",
-        productSubGroupId: "portfolio_management",
-        rows: [
-          { commissionType: "hekef", label: "היקף", valueMode: "percent", minuySochen: false },
-          { commissionType: "nifraim", label: "נפרעים", valueMode: "percent", minuySochen: false },
-          { commissionType: "nifraim", label: "נפרעים מינוי סוכן", valueMode: "percent", minuySochen: true },
-          { commissionType: "niud", label: "ניוד", valueMode: "per_million", minuySochen: false },
-        ],
-      },
+    { commissionType: "niud", 
+      label: "היקף על צבירה",
+       valueMode: "per_million", 
+       minuySochen: false },
+  ],
+}
     ],
   },
 
   {
     key: "risk",
     title: "סיכונים",
-    note: 'הערכים מוזנים כפי שמופיעים בהסכם (ללא מע״מ). הזנה באחוזים בלבד.',
+    note: 'נא להזין את ההסכם ללא מע״מ.',
+    showDefaultColumn: true,
     sections: [
       {
         key: "risk_only",
@@ -108,6 +170,7 @@ export const CONTRACTS_TABLES_CONFIG = [
     key: "retirement",
     title: "פרישה מיידית",
     note: 'הזנה לפי סכום למיליון (ניוד בלבד). המערכת ממירה לאחוזים וללא מע״מ בשמירה.',
+    showDefaultColumn: false,
     sections: [
       {
         key: "immediate_retirement_main",
@@ -125,6 +188,7 @@ export const CONTRACTS_TABLES_CONFIG = [
     key: "travel",
     title: "נסיעות חול",
     note: 'הזנה באחוזים בלבד (כולל מע״מ). המערכת ממירה לאחוזים וללא מע״מ בשמירה.',
+    showDefaultColumn: false,
     sections: [
       {
         key: "travel_abroad",

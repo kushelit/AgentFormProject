@@ -50,3 +50,22 @@ export interface ContractsTableConfig {
   note: string;
   sections: ContractsTableSectionConfig[];
 }
+export interface ContractDoc {
+  id: string;
+  AgentId: string;
+  company: string;
+  productsGroup: string;
+  product: string;
+  commissionHekef: string;
+  commissionNifraim: string;
+  commissionNiud: string;
+  minuySochen: boolean;
+
+  commissionHekefDisplay?: string;
+  commissionNifraimDisplay?: string;
+  commissionNiudDisplay?: string;
+
+  commissionHekefDisplayVatIncluded?: boolean;
+  commissionNifraimDisplayVatIncluded?: boolean;
+  commissionNiudDisplayVatIncluded?: boolean;
+}
