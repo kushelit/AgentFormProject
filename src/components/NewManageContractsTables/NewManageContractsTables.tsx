@@ -616,6 +616,31 @@ const NewManageContractsTables: React.FC = () => {
   return (
     <div className="contracts-page" dir="rtl">
 <div className="top-toolbar">
+  <div className="toolbar-actions">
+    {detail?.role === "admin" && (
+      <select
+        value={selectedAgentId}
+        onChange={handleAgentChange}
+        className="toolbar-select"
+      >
+        <option value="">בחר סוכן</option>
+        {agents.map((agent: any) => (
+          <option key={agent.id} value={agent.id}>
+            {agent.name}
+          </option>
+        ))}
+      </select>
+    )}
+
+    <button
+      type="button"
+      onClick={saveContracts}
+      className="save-button"
+    >
+      שמור
+    </button>
+  </div>
+
   <div className="tabs-container">
     <div
       className={`tab ${selectedViewGroup === "pension" ? "active" : ""}`}
@@ -637,16 +662,6 @@ const NewManageContractsTables: React.FC = () => {
     >
       סיכונים
     </div>
-  </div>
-
-  <div className="toolbar-actions">
-    <button
-      type="button"
-      onClick={saveContracts}
-      className="save-button"
-    >
-      שמור
-    </button>
   </div>
 </div>
       {visibleTables.map((table: any) => (

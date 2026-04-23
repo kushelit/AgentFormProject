@@ -2,12 +2,6 @@ import { NextResponse } from 'next/server';
 
 export async function POST(req: Request) {
   try {
-    // 🔐 בדיקת SECRET
-
-    //Name: PROSAAS_WEBHOOK_SECRET
-    //Value: prosaas_8fK39xL2pQ7
-
-    
     const apiKey = req.headers.get('x-api-key');
     const expectedKey = process.env.PROSAAS_WEBHOOK_SECRET;
 
@@ -30,12 +24,8 @@ export async function POST(req: Request) {
     const contentType = req.headers.get('content-type') || '';
 
     console.log('=== PROSAAS WEBHOOK START ===');
-    console.log('Content-Type:', contentType);
+    console.log('RAW content-type:', contentType);
 
-    // 🧼 לא מדפיסים headers מלאים כדי לא לחשוף סודות
-    console.log('Has API Key:', !!apiKey);
-
-    // ===== JSON =====
     if (contentType.includes('application/json')) {
       const body = await req.json();
       console.log('JSON BODY:', body);
@@ -46,7 +36,6 @@ export async function POST(req: Request) {
       });
     }
 
-    // ===== MULTIPART =====
     if (contentType.includes('multipart/form-data')) {
       const formData = await req.formData();
 
@@ -59,12 +48,22 @@ export async function POST(req: Request) {
       }> = [];
 
       for (const [key, value] of formData.entries()) {
-        if (value instanceof File) {
+        const maybeFile = value as unknown as {
+          name?: string;
+          type?: string;
+          size?: number;
+        };
+
+        if (
+          typeof maybeFile === 'object' &&
+          maybeFile !== null &&
+          typeof maybeFile.name === 'string'
+        ) {
           files.push({
             fieldName: key,
-            fileName: value.name,
-            mimeType: value.type,
-            size: value.size,
+            fileName: maybeFile.name || '',
+            mimeType: maybeFile.type || '',
+            size: maybeFile.size || 0,
           });
         } else {
           fields[key] = String(value);
@@ -82,10 +81,13 @@ export async function POST(req: Request) {
       });
     }
 
+    console.warn('Unsupported content-type:', contentType);
+
     return NextResponse.json(
       {
         ok: false,
         error: 'Unsupported content-type',
+        contentType,
       },
       { status: 400 }
     );

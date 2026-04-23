@@ -1,6 +1,3 @@
-/* =========================
-   PAGE LAYOUT
-========================= */
 .contracts-page {
   display: flex;
   flex-direction: column;
@@ -12,71 +9,6 @@
   box-sizing: border-box;
 }
 
-/* =========================
-   TOP TOOLBAR (FIXED!)
-========================= */
-.top-toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 12px;
-  width: 100%;
-  max-width: 100%;
-  box-sizing: border-box;
-}
-
-.tabs-container {
-  display: flex;
-  gap: 6px;
-  align-items: center;
-  flex-wrap: nowrap;
-  overflow-x: auto;
-  overflow-y: hidden;
-  white-space: nowrap;
-  min-width: 0;
-  scrollbar-width: none;
-}
-
-.tabs-container::-webkit-scrollbar {
-  display: none;
-}
-
-.toolbar-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex: 0 0 auto;
-  white-space: nowrap;
-}
-
-.tab {
-  flex: 0 0 auto;
-  padding: 6px 14px;
-  border-radius: 999px;
-  border: 1px solid #cbd5e1;
-  background: #ffffff;
-  font-size: 13px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  color: #334155;
-  white-space: nowrap;
-}
-
-.tab:hover {
-  background: #f1f5f9;
-}
-
-.tab.active {
-  background: #1e293b;
-  color: #ffffff;
-  border-color: #1e293b;
-  font-weight: 600;
-}
-
-/* =========================
-   CARDS
-========================= */
 .table-card {
   background: #ffffff;
   border: 1px solid #d9dee7;
@@ -109,9 +41,6 @@
   max-width: 900px;
 }
 
-/* =========================
-   SECTIONS
-========================= */
 .section-block {
   padding: 8px 10px 10px;
   border-top: 1px solid #f1f5f9;
@@ -130,9 +59,6 @@
   line-height: 1.2;
 }
 
-/* =========================
-   TABLE
-========================= */
 .table-wrapper {
   width: 100%;
   max-width: 100%;
@@ -163,9 +89,6 @@
   white-space: nowrap;
 }
 
-/* =========================
-   STICKY COLUMN
-========================= */
 .sticky-col {
   position: sticky;
   right: 0;
@@ -177,9 +100,6 @@
   background: #f8fafc;
 }
 
-/* =========================
-   ROW LABEL
-========================= */
 .row-label-cell {
   min-width: 110px;
   width: 110px;
@@ -198,9 +118,6 @@
   line-height: 1.2;
 }
 
-/* =========================
-   INPUT
-========================= */
 .contracts-input {
   width: 100%;
   min-width: 72px;
@@ -219,9 +136,6 @@
   font-size: 12px;
 }
 
-/* =========================
-   HELPER TEXT
-========================= */
 .cell-helper {
   margin-top: 3px;
   font-size: 11px;
@@ -230,9 +144,6 @@
   font-weight: 500;
 }
 
-/* =========================
-   DEFAULT COLUMN
-========================= */
 .default-col-header,
 .default-col-cell {
   background: #f8fafc;
@@ -244,9 +155,29 @@
   font-weight: 700;
 }
 
-/* =========================
-   RESPONSIVE
-========================= */
+
+.tab {
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: #334155;
+}
+
+.tab:hover {
+  background: #f1f5f9;
+}
+
+.tab.active {
+  background: #1e293b;
+  color: #ffffff;
+  border-color: #1e293b;
+  font-weight: 600;
+}
+
 @media (max-width: 1200px) {
   .contracts-page {
     padding: 6px 6px 16px;
@@ -280,17 +211,59 @@
     font-size: 12px;
   }
 }
+.top-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
 
-@media (max-width: 900px) {
-  .top-toolbar {
-    grid-template-columns: 1fr;
-  }
+.tabs-container {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+  min-width: 0;
+  flex: 1 1 auto;
+}
 
-  .tabs-container {
-    justify-content: flex-start;
-  }
+.toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
 
-  .toolbar-actions {
-    justify-content: flex-start;
-  }
+.save-button {
+  padding: 8px 14px;
+  border-radius: 10px;
+  border: 1px solid #cbd5e1;
+  background: #0f172a;
+  color: #fff;
+  cursor: pointer;
+  font-weight: 600;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+
+
+.save-button:hover {
+  opacity: 0.95;
+}
+
+.save-button {
+  padding: 8px 14px;
+  border-radius: 10px;
+  border: 1px solid #cbd5e1;
+  background: #0f172a;
+  color: #fff;
+  cursor: pointer;
+  font-weight: 600;
+  white-space: nowrap;
 }
