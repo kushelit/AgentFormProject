@@ -67,8 +67,6 @@
 }
 
 .contracts-table {
-  width: 100%;
-  min-width: 760px;
   border-collapse: collapse;
 }
 
@@ -213,12 +211,12 @@
 }
 .top-toolbar {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
+  justify-content: space-between;
   gap: 12px;
   margin-bottom: 12px;
   width: 100%;
   max-width: 100%;
-  min-width: 0;
   box-sizing: border-box;
 }
 
@@ -227,8 +225,7 @@
   gap: 6px;
   align-items: center;
   flex-wrap: wrap;
-  min-width: 0;
-  flex: 1 1 auto;
+  justify-content: flex-end;
 }
 
 .toolbar-actions {
@@ -236,7 +233,6 @@
   align-items: center;
   gap: 8px;
   flex: 0 0 auto;
-  white-space: nowrap;
 }
 
 .save-button {
@@ -266,4 +262,112 @@
   cursor: pointer;
   font-weight: 600;
   white-space: nowrap;
+}
+/* =========================
+   DENSITY MODES BY COMPANY COUNT
+========================= */
+
+.contracts-table.density-normal {
+  width: 100%;
+  min-width: 760px;
+}
+
+.contracts-table.density-compact,
+.contracts-table.density-ultra {
+  width: max-content;
+  min-width: 100%;
+}
+
+/* קומפקטי */
+.contracts-table.density-compact th,
+.contracts-table.density-compact td {
+  padding: 5px 4px;
+}
+
+.contracts-table.density-compact thead th {
+  font-size: 11px;
+  padding: 6px 4px;
+}
+
+.contracts-table.density-compact .contracts-input {
+  min-width: 60px;
+  max-width: 72px;
+  height: 26px;
+  font-size: 11px;
+  padding: 3px 4px;
+}
+
+.contracts-table.density-compact .contracts-input::placeholder {
+  font-size: 11px;
+}
+
+.contracts-table.density-compact .row-label-cell {
+  min-width: 88px;
+  width: 88px;
+}
+
+.contracts-table.density-compact .row-label {
+  font-size: 11px;
+}
+
+.contracts-table.density-compact .row-mode {
+  font-size: 9px;
+}
+
+.contracts-table.density-compact .default-col-header,
+.contracts-table.density-compact .default-col-cell {
+  min-width: 76px;
+  width: 76px;
+}
+
+.contracts-table.density-compact .cell-helper {
+  font-size: 10px;
+  margin-top: 2px;
+}
+
+/* אולטרה צפוף */
+.contracts-table.density-ultra th,
+.contracts-table.density-ultra td {
+  padding: 4px 3px;
+}
+
+.contracts-table.density-ultra thead th {
+  font-size: 10px;
+  padding: 5px 3px;
+}
+
+.contracts-table.density-ultra .contracts-input {
+  min-width: 52px;
+  max-width: 64px;
+  height: 24px;
+  font-size: 10px;
+  padding: 2px 3px;
+}
+
+.contracts-table.density-ultra .contracts-input::placeholder {
+  font-size: 10px;
+}
+
+.contracts-table.density-ultra .row-label-cell {
+  min-width: 76px;
+  width: 76px;
+}
+
+.contracts-table.density-ultra .row-label {
+  font-size: 10px;
+}
+
+.contracts-table.density-ultra .row-mode {
+  font-size: 8px;
+}
+
+.contracts-table.density-ultra .default-col-header,
+.contracts-table.density-ultra .default-col-cell {
+  min-width: 68px;
+  width: 68px;
+}
+
+.contracts-table.density-ultra .cell-helper {
+  font-size: 9px;
+  margin-top: 1px;
 }

@@ -29,6 +29,8 @@
     "lucide-react": "^0.518.0",
     "next": "14.1.0",
     "papaparse": "^5.5.3",
+    "pdf-parse": "^2.4.5",
+    "pdfjs-dist": "^5.4.624",
     "playwright": "^1.54.2",
     "react": "^18.3.1",
     "react-chartjs-2": "^5.2.0",

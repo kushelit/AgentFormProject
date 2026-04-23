@@ -613,9 +613,40 @@ const NewManageContractsTables: React.FC = () => {
     }
   };
 
+
+  const getDensityClassByCompanies = (count: number) => {
+  if (count >= 12) return "density-ultra";
+  if (count >= 9) return "density-compact";
+  return "density-normal";
+};
+
+
   return (
     <div className="contracts-page" dir="rtl">
 <div className="top-toolbar">
+  <div className="tabs-container">
+    <div
+      className={`tab ${selectedViewGroup === "pension" ? "active" : ""}`}
+      onClick={() => setSelectedViewGroup("pension")}
+    >
+      פנסיוני
+    </div>
+
+    <div
+      className={`tab ${selectedViewGroup === "finance" ? "active" : ""}`}
+      onClick={() => setSelectedViewGroup("finance")}
+    >
+      פיננסים
+    </div>
+
+    <div
+      className={`tab ${selectedViewGroup === "risk" ? "active" : ""}`}
+      onClick={() => setSelectedViewGroup("risk")}
+    >
+      סיכונים
+    </div>
+  </div>
+
   <div className="toolbar-actions">
     {detail?.role === "admin" && (
       <select
@@ -640,29 +671,6 @@ const NewManageContractsTables: React.FC = () => {
       שמור
     </button>
   </div>
-
-  <div className="tabs-container">
-    <div
-      className={`tab ${selectedViewGroup === "pension" ? "active" : ""}`}
-      onClick={() => setSelectedViewGroup("pension")}
-    >
-      פנסיוני
-    </div>
-
-    <div
-      className={`tab ${selectedViewGroup === "finance" ? "active" : ""}`}
-      onClick={() => setSelectedViewGroup("finance")}
-    >
-      פיננסים
-    </div>
-
-    <div
-      className={`tab ${selectedViewGroup === "risk" ? "active" : ""}`}
-      onClick={() => setSelectedViewGroup("risk")}
-    >
-      סיכונים
-    </div>
-  </div>
 </div>
       {visibleTables.map((table: any) => (
         <div key={table.key} className="table-card">
@@ -674,13 +682,13 @@ const NewManageContractsTables: React.FC = () => {
           {table.sections.map((section: any) => {
             const companiesForGroup =
               visibleCompaniesByGroup[String(section.productGroupId)] || [];
-
+const densityClass = getDensityClassByCompanies(companiesForGroup.length);
             return (
               <div key={section.key} className="section-block">
                 <div className="section-title">{section.label}</div>
 
-                <div className="table-wrapper">
-                  <table className="contracts-table">
+                <div className={`table-wrapper ${densityClass}`}>
+  <table className={`contracts-table ${densityClass}`}>
                     <thead>
                       <tr>
                         <th className="sticky-col">סוג עמלה</th>
