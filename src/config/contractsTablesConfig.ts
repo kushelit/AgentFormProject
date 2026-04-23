@@ -35,6 +35,36 @@ export const CONTRACTS_TABLES_CONFIG = [
     },
         ],
       },
+      {
+  key: "executive_insurance",
+  label: "ביטוח מנהלים",
+  productGroupId: "1",
+  productSubGroupId: "executive_insurance",
+      rows: [
+           {
+      commissionType: "nifraim",
+      label: "נפרעים",
+      valueMode: "percent",
+      minuySochen: false,
+    },
+     { commissionType: "niud", 
+        label: "היקף על צבירה", 
+        valueMode: "per_million",
+         minuySochen: false },
+    {
+      commissionType: "hekef",
+      label: "היקף על שוטף",
+      valueMode: "percent",
+      minuySochen: false,
+    },
+    {
+      commissionType: "nifraim",
+      label: "נפרעים מינוי סוכן",
+      valueMode: "percent",
+      minuySochen: true,
+    },
+        ],
+}
     ],
   },
 
@@ -163,20 +193,31 @@ export const CONTRACTS_TABLES_CONFIG = [
           { commissionType: "nifraim", label: "נפרעים מינוי סוכן", valueMode: "percent", minuySochen: true },
         ],
       },
+      {
+  key: "misc_risk",
+  label: "אכ״ע, מטריה ביטוחית, סיעוד",
+  productGroupId: "3",
+  productSubGroupId: "misc_risk",
+  rows: [
+    { commissionType: "hekef", label: "היקף", valueMode: "percent", minuySochen: false },
+    { commissionType: "nifraim", label: "נפרעים", valueMode: "percent", minuySochen: false },
+    { commissionType: "nifraim", label: "נפרעים מינוי סוכן", valueMode: "percent", minuySochen: true },
+  ],
+}
     ],
   },
 
   {
     key: "retirement",
     title: "פרישה מיידית",
-    note: 'הזנה לפי סכום למיליון (ניוד בלבד). המערכת ממירה לאחוזים וללא מע״מ בשמירה.',
+    note: 'נא להזין את ההסכם כולל מע״מ.',
     showDefaultColumn: false,
     sections: [
       {
-        key: "immediate_retirement_main",
+        key: "immediate_retirement",
         label: "פרישה מיידית",
         productGroupId: "6",
-        productSubGroupId: "immediate_retirement_main",
+        productSubGroupId: "immediate_retirement",
         rows: [
           { commissionType: "niud", label: "ניוד", valueMode: "per_million", minuySochen: false },
         ],
@@ -187,7 +228,7 @@ export const CONTRACTS_TABLES_CONFIG = [
   {
     key: "travel",
     title: "נסיעות חול",
-    note: 'הזנה באחוזים בלבד (כולל מע״מ). המערכת ממירה לאחוזים וללא מע״מ בשמירה.',
+    note: 'נא להזין את ההסכם כולל מע״מ.',
     showDefaultColumn: false,
     sections: [
       {

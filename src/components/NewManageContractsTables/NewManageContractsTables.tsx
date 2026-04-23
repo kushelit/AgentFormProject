@@ -615,68 +615,40 @@ const NewManageContractsTables: React.FC = () => {
 
   return (
     <div className="contracts-page" dir="rtl">
-      <div className="tabs-container">
-        <div
-          className={`tab ${selectedViewGroup === "pension" ? "active" : ""}`}
-          onClick={() => setSelectedViewGroup("pension")}
-        >
-          פנסיוני
-        </div>
+<div className="top-toolbar">
+  <div className="tabs-container">
+    <div
+      className={`tab ${selectedViewGroup === "pension" ? "active" : ""}`}
+      onClick={() => setSelectedViewGroup("pension")}
+    >
+      פנסיוני
+    </div>
 
-        <div
-          className={`tab ${selectedViewGroup === "finance" ? "active" : ""}`}
-          onClick={() => setSelectedViewGroup("finance")}
-        >
-          פיננסים
-        </div>
+    <div
+      className={`tab ${selectedViewGroup === "finance" ? "active" : ""}`}
+      onClick={() => setSelectedViewGroup("finance")}
+    >
+      פיננסים
+    </div>
 
-        <div
-          className={`tab ${selectedViewGroup === "risk" ? "active" : ""}`}
-          onClick={() => setSelectedViewGroup("risk")}
-        >
-          סיכונים
-        </div>
+    <div
+      className={`tab ${selectedViewGroup === "risk" ? "active" : ""}`}
+      onClick={() => setSelectedViewGroup("risk")}
+    >
+      סיכונים
+    </div>
+  </div>
 
-        {detail?.role === "admin" && (
-          <select
-            value={selectedAgentId}
-            onChange={handleAgentChange}
-            style={{
-              padding: "8px 12px",
-              borderRadius: "10px",
-              border: "1px solid #cbd5e1",
-              background: "#fff",
-              fontSize: "13px",
-              marginInlineStart: "12px",
-            }}
-          >
-            <option value="">בחר סוכן</option>
-            {agents.map((agent: any) => (
-              <option key={agent.id} value={agent.id}>
-                {agent.name}
-              </option>
-            ))}
-          </select>
-        )}
-
-        <button
-          type="button"
-          onClick={saveContracts}
-          style={{
-            padding: "8px 14px",
-            borderRadius: "10px",
-            border: "1px solid #cbd5e1",
-            background: "#0f172a",
-            color: "#fff",
-            cursor: "pointer",
-            fontWeight: 600,
-            marginInlineStart: "auto",
-          }}
-        >
-          שמור
-        </button>
-      </div>
-
+  <div className="toolbar-actions">
+    <button
+      type="button"
+      onClick={saveContracts}
+      className="save-button"
+    >
+      שמור
+    </button>
+  </div>
+</div>
       {visibleTables.map((table: any) => (
         <div key={table.key} className="table-card">
           <div className="table-card-header">
