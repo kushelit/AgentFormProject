@@ -2,18 +2,17 @@
 
 import { useState } from "react";
 import { parseCurrentStateFromMeslekaZip } from "@/lib/pension/parseCurrentStateFromMeslekaZip";
-import { mergeCurrentStateWithPdf } from "../../lib/pension/mergeCurrentStateWithPdf";
-import type { CurrentStateRow, MeslekaPdfReturnRow } from "@/lib/pension/types";
+import type { CurrentStateRow } from "@/lib/pension/types";
+import CurrentStateTable from "@/components/pension/CurrentStateTable";
 
 export default function TestMeslekaPage() {
   const [zipFile, setZipFile] = useState<File | null>(null);
-  const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [result, setResult] = useState<CurrentStateRow[] | null>(null);
   const [loading, setLoading] = useState(false);
 
   const handleRun = async () => {
-    if (!zipFile || !pdfFile) {
-      alert("תבחרי גם ZIP וגם PDF");
+    if (!zipFile) {
+      alert("תבחרי קובץ ZIP");
       return;
     }
 
@@ -23,29 +22,9 @@ export default function TestMeslekaPage() {
       const xmlRows = await parseCurrentStateFromMeslekaZip(zipFile);
       console.log("XML ROWS", xmlRows);
 
-      const formData = new FormData();
-      formData.append("file", pdfFile);
-
-      const pdfRes = await fetch("/api/mesleka/parse-pdf", {
-        method: "POST",
-        body: formData,
-      });
-
-      const pdfJson: { rows?: MeslekaPdfReturnRow[]; error?: string } = await pdfRes.json();
-
-      if (!pdfRes.ok) {
-        throw new Error(pdfJson?.error || "PDF parse failed");
-      }
-
-      const pdfRows = pdfJson.rows ?? [];
-      console.log("PDF ROWS", pdfRows);
-
-      const finalRows = mergeCurrentStateWithPdf(xmlRows, pdfRows);
-      console.log("FINAL ROWS", finalRows);
-
-      setResult(finalRows);
+      setResult(xmlRows);
     } catch (err) {
-      console.error("MESLEKA TEST ERROR", err);
+      console.error("MESLEKA XML ERROR", err);
 
       const message =
         err instanceof Error ? `${err.name}: ${err.message}` : "שגיאה";
@@ -57,47 +36,61 @@ export default function TestMeslekaPage() {
   };
 
   return (
-    <div style={{ padding: 20 }} dir="rtl">
-      <h1>בדיקת מסלקה</h1>
+    <div
+      dir="rtl"
+      style={{
+        minHeight: "100vh",
+        background: "#f1f5f9",
+        padding: 32,
+      }}
+    >
+      <div style={{ maxWidth: 1400, margin: "0 auto" }}>
+        <div style={{ marginBottom: 24 }}>
+          <h1 style={{ margin: 0, fontSize: 28, color: "#0f172a" }}>
+            מצב קיים ללקוח — מסלקה פנסיונית
+          </h1>
+          <p style={{ marginTop: 8, color: "#64748b" }}>
+            טעינת ZIP מהמסלקה והצגת תמונת מצב קיימת לפי המוצרים שנמצאו.
+          </p>
+        </div>
 
-      <div>
-        <p>בחרי ZIP:</p>
-        <input
-          type="file"
-          accept=".zip"
-          onChange={(e) => setZipFile(e.target.files?.[0] || null)}
-        />
+        <div
+          style={{
+            background: "white",
+            borderRadius: 16,
+            padding: 20,
+            marginBottom: 24,
+            border: "1px solid #e5e7eb",
+          }}
+        >
+          <div style={{ marginBottom: 12, fontWeight: 700 }}>בחרי ZIP:</div>
+
+          <input
+            type="file"
+            accept=".zip"
+            onChange={(e) => setZipFile(e.target.files?.[0] || null)}
+          />
+
+          <button
+            style={{
+              marginRight: 16,
+              padding: "10px 18px",
+              borderRadius: 10,
+              border: "none",
+              background: loading ? "#94a3b8" : "#0ea5e9",
+              color: "white",
+              cursor: loading ? "not-allowed" : "pointer",
+              fontWeight: 700,
+            }}
+            onClick={handleRun}
+            disabled={loading}
+          >
+            {loading ? "טוען..." : "הצג מצב קיים"}
+          </button>
+        </div>
+
+        {result && <CurrentStateTable rows={result} />}
       </div>
-
-      <div style={{ marginTop: 10 }}>
-        <p>בחרי PDF:</p>
-        <input
-          type="file"
-          accept=".pdf"
-          onChange={(e) => setPdfFile(e.target.files?.[0] || null)}
-        />
-      </div>
-
-      <button
-        style={{ marginTop: 20 }}
-        onClick={handleRun}
-        disabled={loading}
-      >
-        {loading ? "מריץ..." : "הרץ"}
-      </button>
-
-      <pre
-        style={{
-          marginTop: 20,
-          background: "#eee",
-          padding: 10,
-          whiteSpace: "pre-wrap",
-          direction: "ltr",
-          textAlign: "left",
-        }}
-      >
-        {JSON.stringify(result, null, 2)}
-      </pre>
     </div>
   );
 }

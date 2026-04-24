@@ -2,6 +2,69 @@ import JSZip from "jszip";
 import type { CurrentStateRow, CurrentStateTrack } from "./types";
 import { resolveCompanyName } from "./companyMap";
 
+
+
+function debugFeeFields(accountEl: Element): void {
+  const all = Array.from(accountEl.getElementsByTagName("*"));
+
+  const rows = all
+    .map((el) => ({
+      tag: el.tagName,
+      value: el.textContent?.trim() ?? "",
+    }))
+    .filter((x) => {
+      const tag = x.tag.toUpperCase();
+      const value = x.value;
+
+      return (
+        tag.includes("DMEI") ||
+        tag.includes("NIHUL") ||
+        tag.includes("HAFKADA") ||
+        tag.includes("TZVIRA") ||
+        value === "1.31" ||
+        value === "0.01"
+      );
+    });
+
+  console.log("FEE DEBUG", rows);
+}
+
+function mergeTracksByName(tracks: CurrentStateTrack[]): CurrentStateTrack[] {
+  const map = new Map<string, CurrentStateTrack>();
+
+  for (const track of tracks) {
+    const existing = map.get(track.trackName);
+
+    if (!existing) {
+      map.set(track.trackName, { ...track });
+      continue;
+    }
+
+    const total = existing.trackAccumulation + track.trackAccumulation;
+
+    map.set(track.trackName, {
+      trackName: track.trackName,
+      trackAccumulation: total,
+      allocationPercent: null,
+      netReturn:
+        total > 0
+          ? ((existing.netReturn ?? 0) * existing.trackAccumulation +
+              (track.netReturn ?? 0) * track.trackAccumulation) /
+            total
+          : null,
+      annualCostPercent:
+        total > 0
+          ? ((existing.annualCostPercent ?? 0) * existing.trackAccumulation +
+              (track.annualCostPercent ?? 0) * track.trackAccumulation) /
+            total
+          : null,
+    });
+  }
+
+  return Array.from(map.values());
+}
+
+
 function textOf(parent: Element | Document, tag: string): string | null {
   const el = parent.getElementsByTagName(tag)[0];
   if (!el) return null;
@@ -138,9 +201,21 @@ function buildTrackDisplay(productType: string, tracks: CurrentStateTrack[]): st
   }
 
   if (productType === "קרן פנסיה") {
+    const ageTrack = tracks.find((t) => t.trackName.includes("בני"));
+
+    const dominantInvestmentTrack = tracks
+      .filter((t) => !t.trackName.includes("בני"))
+      .sort((a, b) => b.trackAccumulation - a.trackAccumulation)[0];
+
+    if (ageTrack && dominantInvestmentTrack) {
+      return `${ageTrack.trackName} (${dominantInvestmentTrack.trackName})`;
+    }
+
+    if (dominantInvestmentTrack) return dominantInvestmentTrack.trackName;
+    if (ageTrack) return ageTrack.trackName;
+
     const dominantTrack = getDominantTrack(tracks);
-    if (dominantTrack) return dominantTrack.trackName;
-    return "מסלול פנסיוני";
+    return dominantTrack?.trackName || "מסלול פנסיוני";
   }
 
   const uniqueNames = Array.from(new Set(tracks.map((t) => t.trackName)));
@@ -148,24 +223,33 @@ function buildTrackDisplay(productType: string, tracks: CurrentStateTrack[]): st
     return uniqueNames[0];
   }
 
-  return `מפוצל ל-${tracks.length} מסלולים`;
+  return `מפוצל ל-${uniqueNames.length} מסלולים`;
 }
 
-function getBalanceFeePercent(accountEl: Element): number | null {
-  return (
-    toNumber(textOf(accountEl, "MEMOTZA-SHEUR-DMEI-NIHUL-TZVIRA")) ??
-    toNumber(textOf(accountEl, "SHEUR-DMEI-NIHUL-HISACHON")) ??
-    toNumber(textOf(accountEl, "SHEUR-DMEI-NIHUL-MITZVIRA"))
-  );
+function firstNumberByTag(accountEl: Element, tag: string): number | null {
+  const values = Array.from(accountEl.getElementsByTagName(tag))
+    .map((el) => toNumber(el.textContent?.trim()))
+    .filter((v): v is number => v != null && Number.isFinite(v));
+
+  return values.length ? values[0] : null;
 }
 
 function getDepositFeePercent(accountEl: Element): number | null {
   return (
-    toNumber(textOf(accountEl, "MEMOTZA-SHEUR-DMEI-NIHUL-HAFKADA")) ??
-    toNumber(textOf(accountEl, "SHEUR-DMEI-NIHUL-HAFKADA")) ??
-    toNumber(textOf(accountEl, "ACHUZ-DMEI-NIHUL-MEHAFKADA"))
+    firstNumberByTag(accountEl, "SHEUR-DMEI-NIHUL-HAFKADA") ??
+    firstNumberByTag(accountEl, "SHEUR-DMEI-NIHUL")
   );
 }
+
+function getBalanceFeePercent(accountEl: Element): number | null {
+  const raw = firstNumberByTag(accountEl, "SHEUR-DMEI-NIHUL-TZVIRA");
+
+  if (raw == null) return null;
+
+  // בקובץ הזה מצבירה מגיע כשבר עשרוני: 0.0008 => 0.08%
+  return raw < 1 ? raw * 100 : raw;
+}
+
 
 function parseAccount(
   productEl: Element,
@@ -176,13 +260,16 @@ function parseAccount(
   const policyNumber = textOf(accountEl, "MISPAR-POLISA-O-HESHBON");
 
   if (!policyNumber) return null;
-
+if (policyNumber === "301849089") {
+  debugFeeFields(accountEl);
+}
   const productType = normalizeProductType(
     textOf(accountEl, "SUG-TOCHNIT-O-CHESHBON"),
     planName
   );
 
-  const tracks = parseTracks(accountEl);
+const rawTracks = parseTracks(accountEl);
+const tracks = mergeTracksByName(rawTracks);
 
   const accumulationFromTracks = sum(tracks.map((t) => t.trackAccumulation));
   const accumulation =
