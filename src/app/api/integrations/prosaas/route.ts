@@ -7,6 +7,23 @@ const DEFAULT_STATUS_LEAD = 'JVhM7nnBrwNBfvrb4zH5';
 
 // ---------------- utils ----------------
 
+function buildBucketCandidates(rawBucket: string) {
+  const clean = String(rawBucket || '').trim().replace(/^gs:\/\//, '');
+  const candidates = new Set<string>();
+
+  if (clean) candidates.add(clean);
+
+  if (clean.endsWith('.appspot.com')) {
+    candidates.add(clean.replace('.appspot.com', '.firebasestorage.app'));
+  }
+
+  if (clean.endsWith('.firebasestorage.app')) {
+    candidates.add(clean.replace('.firebasestorage.app', '.appspot.com'));
+  }
+
+  return Array.from(candidates);
+}
+
 const clean = (v: any): string => {
   if (v === null || v === undefined) return '';
   return String(v).replace(/["]/g, '').trim();
@@ -117,7 +134,18 @@ async function saveProsaasFilesToLead(
     throw new Error('Missing storage bucket env');
   }
 
-  const bucket = admin.storage().bucket(bucketName);
+  const rawBucket =
+  process.env.FIREBASE_STORAGE_BUCKET ||
+  process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET ||
+  '';
+
+const bucketCandidates = buildBucketCandidates(rawBucket);
+
+if (!bucketCandidates.length) {
+  throw new Error('Missing storage bucket env');
+}
+
+console.log('PROSAAS BUCKET CANDIDATES:', bucketCandidates);
 
   const savedFiles = [];
 
@@ -128,6 +156,14 @@ async function saveProsaasFilesToLead(
     const safeFileName = file.name.replace(/[^\w.\-א-ת ]/g, '_');
     const storagePath = `leadFiles/prosaas/${leadId}/${Date.now()}-${safeFileName}`;
 
+   let uploadedToBucket = '';
+let lastUploadError: any = null;
+
+for (const candidate of bucketCandidates) {
+  try {
+    console.log('Trying bucket:', candidate);
+
+    const bucket = admin.storage().bucket(candidate);
     const storageFile = bucket.file(storagePath);
 
     await storageFile.save(buffer, {
@@ -136,6 +172,21 @@ async function saveProsaasFilesToLead(
       },
     });
 
+    uploadedToBucket = candidate;
+    break;
+  } catch (err: any) {
+    console.warn('Bucket upload failed:', candidate, err?.message || err);
+    lastUploadError = err;
+  }
+}
+
+if (!uploadedToBucket) {
+  throw new Error(
+    `Upload failed for all buckets: ${bucketCandidates.join(', ')}. Last error: ${
+      lastUploadError?.message || String(lastUploadError)
+    }`
+  );
+}
     const docRef = await db.collection('leadDocuments').add({
       leadId,
       sourceSystem: 'prosaas',
@@ -145,6 +196,7 @@ async function saveProsaasFilesToLead(
       mimeType: file.type || '',
       size: file.size || 0,
       storagePath,
+      bucket: uploadedToBucket,
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
     });
 
