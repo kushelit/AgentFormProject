@@ -21,6 +21,15 @@ const splitName = (fullName: any) => {
   };
 };
 
+function normalizeBucketName(b: string) {
+  const s = String(b || "").trim().replace(/^gs:\/\//, "");
+  if (!s) return "";
+  if (s.endsWith(".firebasestorage.app")) {
+    return s.replace(".firebasestorage.app", ".appspot.com");
+  }
+  return s;
+}
+
 const compactUpdate = (obj: Record<string, any>) => {
   const out: Record<string, any> = {};
 
@@ -166,10 +175,15 @@ async function saveProsaasFilesToLead(
   if (!files.length) return [];
 
   const db = admin.firestore();
- const bucketName = process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET;
+const bucketNameRaw =
+  process.env.FIREBASE_STORAGE_BUCKET ||
+  process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET ||
+  '';
+
+const bucketName = normalizeBucketName(bucketNameRaw);
 
 if (!bucketName) {
-  throw new Error('Missing NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET');
+  throw new Error('Missing Firebase storage bucket env');
 }
 
 const bucket = admin.storage().bucket(bucketName);
