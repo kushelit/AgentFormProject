@@ -256,25 +256,28 @@ export async function POST(req: Request) {
       const formData = await req.formData();
 
       const fields: Record<string, string> = {};
-      const files: Array<{
-        fieldName: string;
-        fileName: string;
-        mimeType: string;
-        size: number;
-      }> = [];
+    const files: File[] = [];
+const filesLog: Array<{
+  fieldName: string;
+  fileName: string;
+  mimeType: string;
+  size: number;
+}> = [];
 
-      for (const [key, value] of formData.entries()) {
-        if (typeof value === 'string') {
-          fields[key] = value;
-        } else {
-          files.push({
-            fieldName: key,
-            fileName: value.name || '',
-            mimeType: value.type || '',
-            size: value.size || 0,
-          });
-        }
-      }
+  for (const [key, value] of formData.entries()) {
+  if (typeof value === 'string') {
+    fields[key] = value;
+  } else {
+    files.push(value);
+
+    filesLog.push({
+      fieldName: key,
+      fileName: value.name || '',
+      mimeType: value.type || '',
+      size: value.size || 0,
+    });
+  }
+}
 
       console.log('FORM FIELDS:', fields);
       console.log('FILES:', files);
@@ -284,7 +287,7 @@ export async function POST(req: Request) {
 
 const savedFiles = await saveProsaasFilesToLead(
   result.leadId,
-  files as any,
+  files,
   metadata
 );
 
