@@ -4,18 +4,7 @@ import { NextResponse } from 'next/server';
 import { admin } from '@/lib/firebase/firebase-admin';
 
 const DEFAULT_STATUS_LEAD = 'JVhM7nnBrwNBfvrb4zH5';
-
-// ---------------- utils ----------------
-function normalizeIsraeliPhone(v: any) {
-  const raw = String(v ?? '').trim();
-  const digits = raw.replace(/\D/g, '');
-
-  if (digits.startsWith('972')) {
-    return `0${digits.slice(3)}`;
-  }
-
-  return digits;
-}
+const PROSAAS_SOURCE_VALUE = 'prosaaslead';
 
 function buildBucketCandidates(rawBucket: string) {
   const clean = String(rawBucket || '').trim().replace(/^gs:\/\//, '');
@@ -39,6 +28,16 @@ const clean = (v: any): string => {
   return String(v).replace(/["]/g, '').trim();
 };
 
+const normalizeIsraeliPhone = (v: any): string => {
+  const digits = String(v ?? '').replace(/\D/g, '');
+
+  if (digits.startsWith('972')) {
+    return `0${digits.slice(3)}`;
+  }
+
+  return digits;
+};
+
 const splitName = (fullName: any) => {
   const name = clean(fullName);
   const parts = name.split(/\s+/).filter(Boolean);
@@ -51,38 +50,84 @@ const splitName = (fullName: any) => {
 
 const compactUpdate = (obj: Record<string, any>) => {
   const out: Record<string, any> = {};
-  for (const [k, v] of Object.entries(obj)) {
-    if (v !== undefined && v !== null && v !== '') out[k] = v;
+
+  for (const [key, value] of Object.entries(obj)) {
+    if (value !== undefined && value !== null && value !== '') {
+      out[key] = value;
+    }
   }
+
   return out;
 };
 
-// ---------------- mapping ----------------
-
 function mapProsaasToLead(payload: any) {
   const contact = payload?.contact || {};
-  const fallbackName = splitName(contact.name || payload.full_name);
+  const customFields = payload?.custom_fields || {};
+  const fallbackName = splitName(contact.name || payload.full_name || payload.lead_name);
 
   return {
+    sourceValue: PROSAAS_SOURCE_VALUE,
+
     firstNameCustomer:
-      clean(contact.first_name) || fallbackName.firstNameCustomer,
+      clean(contact.first_name) ||
+      clean(payload.first_name) ||
+      fallbackName.firstNameCustomer,
+
     lastNameCustomer:
-      clean(contact.last_name) || fallbackName.lastNameCustomer,
+      clean(contact.last_name) ||
+      clean(payload.last_name) ||
+      fallbackName.lastNameCustomer,
+
     phone: normalizeIsraeliPhone(contact.phone || payload.phone || payload.lead_phone),
-    mail: clean(contact.email),
+    mail: clean(contact.email || payload.email || payload.mail),
+
+    IDCustomer: clean(
+      payload.id_number ||
+        payload.IDCustomer ||
+        customFields.id_number ||
+        customFields.IDCustomer
+    ),
+
+    birthday: clean(
+      payload.birth_date ||
+        payload.birthday ||
+        customFields.birth_date ||
+        customFields.birthday
+    ),
+
+    gender: clean(contact.gender || payload.gender || customFields.gender),
+    city: clean(contact.city || payload.city || customFields.city),
+    notes: clean(payload.notes || payload.description),
 
     externalSystem: 'prosaas',
     externalBusinessId: clean(payload.business_id),
     externalLeadId: clean(payload.lead_id),
+    externalStatus: clean(payload.status),
+    externalOldStatus: clean(payload.old_status),
+    externalEvent: clean(payload.event),
     externalRawPayload: payload,
   };
 }
 
-// ---------------- upsert lead ----------------
+async function getProsaasAgentId(db: FirebaseFirestore.Firestore) {
+  const sourceDoc = await db.collection('sourceLead').doc(PROSAAS_SOURCE_VALUE).get();
+
+  if (!sourceDoc.exists) {
+    throw new Error(`Missing sourceLead/${PROSAAS_SOURCE_VALUE}`);
+  }
+
+  const sourceData = sourceDoc.data() as any;
+  const agentId = sourceData?.AgentId || sourceData?.agentId;
+
+  if (!agentId) {
+    throw new Error(`Missing AgentId in sourceLead/${PROSAAS_SOURCE_VALUE}`);
+  }
+
+  return agentId;
+}
 
 async function upsertProsaasLead(payload: any) {
   const db = admin.firestore();
-
   const leadData = mapProsaasToLead(payload);
 
   if (!leadData.externalBusinessId || !leadData.externalLeadId) {
@@ -92,6 +137,8 @@ async function upsertProsaasLead(payload: any) {
   if (!leadData.phone) {
     throw new Error('Missing phone');
   }
+
+  const agentId = await getProsaasAgentId(db);
 
   const snap = await db
     .collection('leads')
@@ -107,6 +154,8 @@ async function upsertProsaasLead(payload: any) {
     await ref.set(
       {
         ...compactUpdate(leadData),
+        AgentId: agentId,
+        sourceValue: PROSAAS_SOURCE_VALUE,
         lastUpdateDate: admin.firestore.FieldValue.serverTimestamp(),
       },
       { merge: true }
@@ -117,6 +166,9 @@ async function upsertProsaasLead(payload: any) {
 
   const newRef = await db.collection('leads').add({
     ...leadData,
+    AgentId: agentId,
+    sourceValue: PROSAAS_SOURCE_VALUE,
+    consentForInformationRequest: false,
     createDate: admin.firestore.FieldValue.serverTimestamp(),
     lastUpdateDate: admin.firestore.FieldValue.serverTimestamp(),
     selectedStatusLead: DEFAULT_STATUS_LEAD,
@@ -124,8 +176,6 @@ async function upsertProsaasLead(payload: any) {
 
   return { action: 'created', leadId: newRef.id };
 }
-
-// ---------------- save files ----------------
 
 async function saveProsaasFilesToLead(
   leadId: string,
@@ -136,26 +186,16 @@ async function saveProsaasFilesToLead(
 
   const db = admin.firestore();
 
-  const bucketName =
+  const rawBucket =
     process.env.FIREBASE_STORAGE_BUCKET ||
-    process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET;
+    process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET ||
+    '';
 
-  if (!bucketName) {
+  const bucketCandidates = buildBucketCandidates(rawBucket);
+
+  if (!bucketCandidates.length) {
     throw new Error('Missing storage bucket env');
   }
-
-  const rawBucket =
-  process.env.FIREBASE_STORAGE_BUCKET ||
-  process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET ||
-  '';
-
-const bucketCandidates = buildBucketCandidates(rawBucket);
-
-if (!bucketCandidates.length) {
-  throw new Error('Missing storage bucket env');
-}
-
-console.log('PROSAAS BUCKET CANDIDATES:', bucketCandidates);
 
   const savedFiles = [];
 
@@ -166,37 +206,35 @@ console.log('PROSAAS BUCKET CANDIDATES:', bucketCandidates);
     const safeFileName = file.name.replace(/[^\w.\-א-ת ]/g, '_');
     const storagePath = `leadFiles/prosaas/${leadId}/${Date.now()}-${safeFileName}`;
 
-   let uploadedToBucket = '';
-let lastUploadError: any = null;
+    let uploadedToBucket = '';
+    let lastUploadError: any = null;
 
-for (const candidate of bucketCandidates) {
-  try {
-    console.log('Trying bucket:', candidate);
+    for (const candidate of bucketCandidates) {
+      try {
+        const bucket = admin.storage().bucket(candidate);
+        const storageFile = bucket.file(storagePath);
 
-    const bucket = admin.storage().bucket(candidate);
-    const storageFile = bucket.file(storagePath);
+        await storageFile.save(buffer, {
+          metadata: {
+            contentType: file.type || 'application/octet-stream',
+          },
+        });
 
-    await storageFile.save(buffer, {
-      metadata: {
-        contentType: file.type || 'application/octet-stream',
-      },
-    });
+        uploadedToBucket = candidate;
+        break;
+      } catch (err: any) {
+        lastUploadError = err;
+      }
+    }
 
-    uploadedToBucket = candidate;
-    break;
-  } catch (err: any) {
-    console.warn('Bucket upload failed:', candidate, err?.message || err);
-    lastUploadError = err;
-  }
-}
+    if (!uploadedToBucket) {
+      throw new Error(
+        `Upload failed for all buckets: ${bucketCandidates.join(', ')}. Last error: ${
+          lastUploadError?.message || String(lastUploadError)
+        }`
+      );
+    }
 
-if (!uploadedToBucket) {
-  throw new Error(
-    `Upload failed for all buckets: ${bucketCandidates.join(', ')}. Last error: ${
-      lastUploadError?.message || String(lastUploadError)
-    }`
-  );
-}
     const docRef = await db.collection('leadDocuments').add({
       leadId,
       sourceSystem: 'prosaas',
@@ -213,13 +251,13 @@ if (!uploadedToBucket) {
     savedFiles.push({
       documentId: docRef.id,
       fileName: file.name,
+      storagePath,
+      bucket: uploadedToBucket,
     });
   }
 
   return savedFiles;
 }
-
-// ---------------- handler ----------------
 
 export async function POST(req: Request) {
   try {
@@ -242,13 +280,8 @@ export async function POST(req: Request) {
 
     const contentType = req.headers.get('content-type') || '';
 
-    console.log('=== PROSAAS WEBHOOK START ===');
-    console.log('Content-Type:', contentType);
-
-    // -------- JSON --------
     if (contentType.includes('application/json')) {
       const body = await req.json();
-
       const result = await upsertProsaasLead(body);
 
       return NextResponse.json({
@@ -258,7 +291,6 @@ export async function POST(req: Request) {
       });
     }
 
-    // -------- MULTIPART --------
     if (contentType.includes('multipart/form-data')) {
       const formData = await req.formData();
 
@@ -273,10 +305,7 @@ export async function POST(req: Request) {
         }
       }
 
-      const metadata = fields.metadata
-        ? JSON.parse(fields.metadata)
-        : {};
-
+      const metadata = fields.metadata ? JSON.parse(fields.metadata) : {};
       const result = await upsertProsaasLead(metadata);
 
       const savedFiles = await saveProsaasFilesToLead(
@@ -289,13 +318,18 @@ export async function POST(req: Request) {
         ok: true,
         receivedAs: 'multipart',
         ...result,
+        fieldsCount: Object.keys(fields).length,
         filesCount: files.length,
         savedFilesCount: savedFiles.length,
       });
     }
 
     return NextResponse.json(
-      { ok: false, error: 'Unsupported content-type' },
+      {
+        ok: false,
+        error: 'Unsupported content-type',
+        contentType,
+      },
       { status: 400 }
     );
   } catch (error: any) {
