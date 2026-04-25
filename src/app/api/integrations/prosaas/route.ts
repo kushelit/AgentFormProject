@@ -185,7 +185,9 @@ const bucketName = normalizeBucketName(bucketNameRaw);
 if (!bucketName) {
   throw new Error('Missing Firebase storage bucket env');
 }
-
+console.log("PROSAAS BUCKET RAW:", bucketNameRaw);
+console.log("PROSAAS BUCKET NORMALIZED:", bucketName);
+console.log("PROSAAS FIREBASE PROJECT:", process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID);
 const bucket = admin.storage().bucket(bucketName);
 
   const savedFiles = [];
