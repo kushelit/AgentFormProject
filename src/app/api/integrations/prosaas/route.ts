@@ -6,6 +6,16 @@ import { admin } from '@/lib/firebase/firebase-admin';
 const DEFAULT_STATUS_LEAD = 'JVhM7nnBrwNBfvrb4zH5';
 
 // ---------------- utils ----------------
+function normalizeIsraeliPhone(v: any) {
+  const raw = String(v ?? '').trim();
+  const digits = raw.replace(/\D/g, '');
+
+  if (digits.startsWith('972')) {
+    return `0${digits.slice(3)}`;
+  }
+
+  return digits;
+}
 
 function buildBucketCandidates(rawBucket: string) {
   const clean = String(rawBucket || '').trim().replace(/^gs:\/\//, '');
@@ -58,7 +68,7 @@ function mapProsaasToLead(payload: any) {
       clean(contact.first_name) || fallbackName.firstNameCustomer,
     lastNameCustomer:
       clean(contact.last_name) || fallbackName.lastNameCustomer,
-    phone: clean(contact.phone),
+    phone: normalizeIsraeliPhone(contact.phone || payload.phone || payload.lead_phone),
     mail: clean(contact.email),
 
     externalSystem: 'prosaas',
