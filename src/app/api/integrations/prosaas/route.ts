@@ -166,7 +166,13 @@ async function saveProsaasFilesToLead(
   if (!files.length) return [];
 
   const db = admin.firestore();
-  const bucket = admin.storage().bucket();
+ const bucketName = process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET;
+
+if (!bucketName) {
+  throw new Error('Missing NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET');
+}
+
+const bucket = admin.storage().bucket(bucketName);
 
   const savedFiles = [];
 
