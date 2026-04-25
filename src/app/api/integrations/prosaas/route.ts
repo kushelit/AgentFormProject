@@ -157,6 +157,56 @@ async function upsertProsaasLead(payload: any) {
   };
 }
 
+
+async function saveProsaasFilesToLead(
+  leadId: string,
+  files: File[],
+  metadata: any
+) {
+  if (!files.length) return [];
+
+  const db = admin.firestore();
+  const bucket = admin.storage().bucket();
+
+  const savedFiles = [];
+
+  for (const file of files) {
+    const arrayBuffer = await file.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+
+    const safeFileName = file.name.replace(/[^\w.\-א-ת ]/g, '_');
+    const storagePath = `leadFiles/prosaas/${leadId}/${Date.now()}-${safeFileName}`;
+
+    const storageFile = bucket.file(storagePath);
+
+    await storageFile.save(buffer, {
+      metadata: {
+        contentType: file.type || 'application/octet-stream',
+      },
+    });
+
+    const docRef = await db.collection('leadDocuments').add({
+      leadId,
+      sourceSystem: 'prosaas',
+      externalBusinessId: String(metadata.business_id || ''),
+      externalLeadId: String(metadata.lead_id || ''),
+      fileName: file.name,
+      mimeType: file.type || '',
+      size: file.size || 0,
+      storagePath,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    savedFiles.push({
+      documentId: docRef.id,
+      fileName: file.name,
+      storagePath,
+    });
+  }
+
+  return savedFiles;
+}
+
 export async function POST(req: Request) {
   try {
     const apiKey = req.headers.get('x-api-key');
@@ -224,15 +274,22 @@ export async function POST(req: Request) {
       console.log('FILES:', files);
 
       const metadata = fields.metadata ? JSON.parse(fields.metadata) : {};
-      const result = await upsertProsaasLead(metadata);
+   const result = await upsertProsaasLead(metadata);
 
-      return NextResponse.json({
-        ok: true,
-        receivedAs: 'multipart',
-        ...result,
-        fieldsCount: Object.keys(fields).length,
-        filesCount: files.length,
-      });
+const savedFiles = await saveProsaasFilesToLead(
+  result.leadId,
+  files as any,
+  metadata
+);
+
+return NextResponse.json({
+  ok: true,
+  receivedAs: 'multipart',
+  ...result,
+  fieldsCount: Object.keys(fields).length,
+  filesCount: files.length,
+  savedFilesCount: savedFiles.length,
+});
     }
 
     return NextResponse.json(

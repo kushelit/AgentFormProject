@@ -163,16 +163,32 @@ export function standardizeRowWithTemplate(params: {
       continue;
     }
 
-    if (systemField === "commissionAmount") {
-      const override = commissionOverrides[template.templateId];
-      let commission = override ? override(rawRow) : toNum(value);
+    // if (systemField === "commissionAmount") {
+    //   const override = commissionOverrides[template.templateId];
+    //   let commission = override ? override(rawRow) : toNum(value);
 
-      if (template.commissionIncludesVAT) {
-        commission = commission / (1 + VAT_DEFAULT);
-      }
-      result.commissionAmount = roundTo2(commission);
-      continue;
-    }
+    //   if (template.commissionIncludesVAT) {
+    //     commission = commission / (1 + VAT_DEFAULT);
+    //   }
+    //   result.commissionAmount = roundTo2(commission);
+    //   continue;
+    // }
+    if (systemField === "commissionAmount") {
+  const override = commissionOverrides[template.templateId];
+
+  const commissionOriginal = override ? override(rawRow) : toNum(value);
+  let commission = commissionOriginal;
+
+  if (template.commissionIncludesVAT) {
+    commission = commission / (1 + VAT_DEFAULT);
+  }
+
+  result.commissionAmountOriginal = roundTo2(commissionOriginal); // הערך כמו שהגיע מהקובץ
+  result.commissionIncludesVAT = !!template.commissionIncludesVAT;
+  result.commissionAmount = roundTo2(commission); // הערך הקיים נטו, לא נוגעים בהתנהגות
+
+  continue;
+}
 
     if (systemField === "premium") {
       if (template.templateId === "fenix_insurance") {
