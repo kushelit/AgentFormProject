@@ -3,6 +3,31 @@ import type { CurrentStateRow, CurrentStateTrack } from "./types";
 import { resolveCompanyName } from "./companyMap";
 
 
+function getPensionBalanceFeePercent(accountEl: Element): number | null {
+  const values = Array.from(accountEl.getElementsByTagName("SHEUR-DMEI-NIHUL"))
+    .map((el) => toNumber(el.textContent?.trim()))
+    .filter(
+      (v): v is number =>
+        v != null && Number.isFinite(v) && v > 0 && v < 1
+    );
+
+  return values.length ? values[0] : null;
+}
+
+function debugFees(accountEl: Element) {
+  const all = Array.from(accountEl.getElementsByTagName("*"));
+
+  const rows = all
+    .map((el) => ({
+      tag: el.tagName,
+      value: el.textContent?.trim(),
+    }))
+    .filter((x) =>
+      x.tag.includes("NIHUL") || x.value?.includes("0.75")
+    );
+
+  console.log("FEE DEBUG FULL", rows);
+}
 
 function debugFeeFields(accountEl: Element): void {
   const all = Array.from(accountEl.getElementsByTagName("*"));
@@ -225,7 +250,6 @@ function buildTrackDisplay(productType: string, tracks: CurrentStateTrack[]): st
 
   return `מפוצל ל-${uniqueNames.length} מסלולים`;
 }
-
 function firstNumberByTag(accountEl: Element, tag: string): number | null {
   const values = Array.from(accountEl.getElementsByTagName(tag))
     .map((el) => toNumber(el.textContent?.trim()))
@@ -234,22 +258,54 @@ function firstNumberByTag(accountEl: Element, tag: string): number | null {
   return values.length ? values[0] : null;
 }
 
+function firstPositiveNumberByTag(accountEl: Element, tag: string): number | null {
+  const values = Array.from(accountEl.getElementsByTagName(tag))
+    .map((el) => toNumber(el.textContent?.trim()))
+    .filter((v): v is number => v != null && Number.isFinite(v) && v > 0);
+
+  return values.length ? values[0] : null;
+}
+
 function getDepositFeePercent(accountEl: Element): number | null {
   return (
-    firstNumberByTag(accountEl, "SHEUR-DMEI-NIHUL-HAFKADA") ??
-    firstNumberByTag(accountEl, "SHEUR-DMEI-NIHUL")
+    firstPositiveNumberByTag(accountEl, "SHEUR-DMEI-NIHUL-HAFKADA") ??
+    firstPositiveNumberByTag(accountEl, "ACHUZ-DMEI-NIHUL-MEHAFKADA") ??
+    0
   );
 }
 
-function getBalanceFeePercent(accountEl: Element): number | null {
-  const raw = firstNumberByTag(accountEl, "SHEUR-DMEI-NIHUL-TZVIRA");
-
-  if (raw == null) return null;
-
-  // בקובץ הזה מצבירה מגיע כשבר עשרוני: 0.0008 => 0.08%
-  return raw < 1 ? raw * 100 : raw;
+function getBalanceFeePercent(
+  accountEl: Element,
+  productType: string,
+  companyName: string
+): number | null {
+ if (productType === "קרן פנסיה") {
+  return (
+    getPensionBalanceFeePercent(accountEl) ??
+    firstPositiveNumberByTag(accountEl, "SHEUR-DMEI-NIHUL-TZVIRA")
+  );
 }
+  if (companyName === "ילין לפידות") {
+    return (
+      firstPositiveNumberByTag(accountEl, "SHEUR-DMEI-NIHUL-HISACHON-MIVNE") ??
+      firstPositiveNumberByTag(accountEl, "SHEUR-DMEI-NIHUL")
+    );
+  }
 
+  if (companyName === "מיטב") {
+    return (
+      firstPositiveNumberByTag(accountEl, "SHEUR-DMEI-NIHUL") ??
+      firstPositiveNumberByTag(accountEl, "SHEUR-DMEI-NIHUL-HISACHON")
+    );
+  }
+
+  return (
+    firstPositiveNumberByTag(accountEl, "SHEUR-DMEI-NIHUL-HISACHON-MIVNE") ??
+    firstPositiveNumberByTag(accountEl, "SHEUR-DMEI-NIHUL-HISACHON") ??
+    firstPositiveNumberByTag(accountEl, "SHEUR-DMEI-NIHUL-MITZVIRA") ??
+    firstPositiveNumberByTag(accountEl, "SHEUR-DMEI-NIHUL")
+  );
+}
 
 function parseAccount(
   productEl: Element,
@@ -258,7 +314,9 @@ function parseAccount(
 ): CurrentStateRow | null {
   const planName = textOf(accountEl, "SHEM-TOCHNIT");
   const policyNumber = textOf(accountEl, "MISPAR-POLISA-O-HESHBON");
-
+if (policyNumber === "586-924-124796-0") {
+  debugFees(accountEl);
+}
   if (!policyNumber) return null;
 if (policyNumber === "301849089") {
   debugFeeFields(accountEl);
@@ -278,8 +336,9 @@ const tracks = mergeTracksByName(rawTracks);
     toNumber(textOf(accountEl, "SCHUM-CHISACHON-NOCHECHI")) ||
     0;
 
-  const depositFeePercent = getDepositFeePercent(accountEl);
-  const balanceFeePercent = getBalanceFeePercent(accountEl);
+//   const depositFeePercent = getDepositFeePercent(accountEl);
+// const balanceFeePercent = getBalanceFeePercent(accountEl, productType);
+
 
   const weightedNetReturn = weightedAverage(
     tracks,
@@ -299,13 +358,21 @@ const tracks = mergeTracksByName(rawTracks);
       )
     ) ??
     toNumber(textOf(accountEl, "TZVIRAT-CHISACHON-CHAZUYA-LELO-PREMIYOT"));
+const normalizedExpectedPension =
+  expectedPension && expectedPension > 0 ? expectedPension : null;
+
+const normalizedExpectedSavings =
+  expectedSavings && expectedSavings > 0 ? expectedSavings : null;
 
   const code =
-    textOf(productEl, "KOD-MEZAHE-YATZRAN") ||
-    textOf(productEl, "KOD-MEZAHE-METAFEL") ||
-    textOf(productEl, "KOD-MEZAHE-GUF-MOSDI");
+  textOf(productEl, "KOD-MEZAHE-YATZRAN") ||
+  textOf(productEl, "KOD-MEZAHE-METAFEL") ||
+  textOf(productEl, "KOD-MEZAHE-GUF-MOSDI");
 
-  const companyName = resolveCompanyName(code, planName, tracks);
+const companyName = resolveCompanyName(code, planName, tracks);
+
+const depositFeePercent = getDepositFeePercent(accountEl);
+const balanceFeePercent = getBalanceFeePercent(accountEl, productType, companyName);
 
   return {
     insuredName,
@@ -327,8 +394,8 @@ const tracks = mergeTracksByName(rawTracks);
 
     weightedNetReturn,
 
-    expectedPension,
-    expectedSavings,
+    expectedPension: normalizedExpectedPension,
+expectedSavings: normalizedExpectedSavings,
 
     avgReturn1Y: null,
     avgReturn3Y: null,

@@ -467,6 +467,8 @@ if (!parsed.rowsCount) {
         sourceFileName: path.basename(parseName),
       },
     });
+
+    
     // if (!standardized.length) throw stepError("standardize", "No standardized rows produced");
 if (!standardized.length) {
   await finishAsEmpty({
@@ -483,6 +485,15 @@ if (!standardized.length) {
 }
 
 let finalRows = standardized;
+// מור: באוטומטי תמיד כופים חודש דיווח = חודש קודם
+if (templateId === "mor_insurance") {
+  const reportMonth = getPreviousMonthStr();
+
+  finalRows = finalRows.map((row: any) => ({
+    ...row,
+    reportMonth,
+  }));
+}
 
 const monthFilteredTemplateIds = [
   "ayalon_insurance",
@@ -492,7 +503,7 @@ const monthFilteredTemplateIds = [
 if (monthFilteredTemplateIds.includes(templateId)) {
   const targetMonth = getPreviousMonthStr();
 
-  finalRows = standardized.filter((row: any) => {
+  finalRows = finalRows.filter((row: any) => {
     return safeStr(row.reportMonth) === targetMonth;
   });
 

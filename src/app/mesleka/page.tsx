@@ -21,8 +21,15 @@ export default function TestMeslekaPage() {
 
       const xmlRows = await parseCurrentStateFromMeslekaZip(zipFile);
       console.log("XML ROWS", xmlRows);
+const sortedRows = [...xmlRows].sort((a, b) => {
+  const productCompare = a.productType.localeCompare(b.productType, "he");
 
-      setResult(xmlRows);
+  if (productCompare !== 0) return productCompare;
+
+  return (b.accumulation || 0) - (a.accumulation || 0);
+});
+
+setResult(sortedRows);
     } catch (err) {
       console.error("MESLEKA XML ERROR", err);
 

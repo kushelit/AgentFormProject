@@ -24,6 +24,34 @@ function percent(value?: number | null) {
 
 export default function CurrentStateTable({ rows }: Props) {
   const [openPolicy, setOpenPolicy] = useState<string | null>(null);
+const [sortBy, setSortBy] = useState<"productType" | "companyName" | "accumulation">("productType");
+const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+
+const sortedRows = [...rows].sort((a, b) => {
+  let result = 0;
+
+  if (sortBy === "accumulation") {
+    result = (a.accumulation || 0) - (b.accumulation || 0);
+  } else {
+    result = String(a[sortBy] || "").localeCompare(String(b[sortBy] || ""), "he");
+  }
+
+  return sortDir === "asc" ? result : -result;
+});
+
+const handleSort = (field: "productType" | "companyName" | "accumulation") => {
+  if (sortBy === field) {
+    setSortDir(sortDir === "asc" ? "desc" : "asc");
+  } else {
+    setSortBy(field);
+    setSortDir(field === "accumulation" ? "desc" : "asc");
+  }
+};
+
+const sortIcon = (field: "productType" | "companyName" | "accumulation") => {
+  if (sortBy !== field) return "↕";
+  return sortDir === "asc" ? "↑" : "↓";
+};
 
   const totalAccumulation = rows.reduce(
     (sum, row) => sum + (row.accumulation || 0),
@@ -54,11 +82,17 @@ export default function CurrentStateTable({ rows }: Props) {
         <thead>
   <tr>
     <th style={thStyle}>מבוטח</th>
-    <th style={thStyle}>מוצר</th>
-    <th style={thStyle}>חברה</th>
+   <th style={clickableThStyle} onClick={() => handleSort("productType")}>
+  מוצר {sortIcon("productType")}
+</th>
+<th style={clickableThStyle} onClick={() => handleSort("companyName")}>
+  חברה {sortIcon("companyName")}
+</th>
     <th style={thStyle}>מס׳ פוליסה</th>
     <th style={thStyle}>סטטוס</th>
-    <th style={thStyle}>צבירה</th>
+    <th style={clickableThStyle} onClick={() => handleSort("accumulation")}>
+  צבירה {sortIcon("accumulation")}
+</th>
     <th style={thStyle}>דמי ניהול הפקדה</th>
     <th style={thStyle}>דמי ניהול מצבירה</th>
     <th style={thStyle}>מסלול</th>
@@ -69,7 +103,7 @@ export default function CurrentStateTable({ rows }: Props) {
 </thead>
 
           <tbody>
-            {rows.map((row) => {
+           {sortedRows.map((row) => {
               const isOpen = openPolicy === row.policyNumber;
               const hasTracks = row.tracks.length > 0;
 
@@ -310,4 +344,9 @@ const detailsSummaryStyle: React.CSSProperties = {
   borderRadius: 10,
   fontWeight: 700,
   color: "#0f172a",
+};
+const clickableThStyle: React.CSSProperties = {
+  ...thStyle,
+  cursor: "pointer",
+  userSelect: "none",
 };
