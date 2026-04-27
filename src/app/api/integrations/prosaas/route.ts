@@ -200,6 +200,21 @@ async function saveProsaasFilesToLead(
   const savedFiles = [];
 
   for (const file of files) {
+    // 🧠 בדיקת כפילות
+    const existingSnap = await db
+      .collection('leadDocuments')
+      .where('leadId', '==', leadId)
+      .where('fileName', '==', file.name)
+      .where('size', '==', file.size)
+      .limit(1)
+      .get();
+
+    if (!existingSnap.empty) {
+      console.log('⏭️ Skipping duplicate file:', file.name);
+      continue;
+    }
+
+    // 🧠 המרה לבאפר
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
@@ -229,12 +244,11 @@ async function saveProsaasFilesToLead(
 
     if (!uploadedToBucket) {
       throw new Error(
-        `Upload failed for all buckets: ${bucketCandidates.join(', ')}. Last error: ${
-          lastUploadError?.message || String(lastUploadError)
-        }`
+        `Upload failed for all buckets: ${bucketCandidates.join(', ')}`
       );
     }
 
+    // 🧠 שמירה ב־DB
     const docRef = await db.collection('leadDocuments').add({
       leadId,
       sourceSystem: 'prosaas',

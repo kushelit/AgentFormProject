@@ -1,6 +1,7 @@
 import JSZip from "jszip";
 import type { CurrentStateRow, CurrentStateTrack } from "./types";
 import { resolveCompanyName } from "./companyMap";
+import { extractGemelNetId } from "./parseGemelNet";
 
 
 function getPensionBalanceFeePercent(accountEl: Element): number | null {
@@ -14,45 +15,7 @@ function getPensionBalanceFeePercent(accountEl: Element): number | null {
   return values.length ? values[0] : null;
 }
 
-function debugFees(accountEl: Element) {
-  const all = Array.from(accountEl.getElementsByTagName("*"));
 
-  const rows = all
-    .map((el) => ({
-      tag: el.tagName,
-      value: el.textContent?.trim(),
-    }))
-    .filter((x) =>
-      x.tag.includes("NIHUL") || x.value?.includes("0.75")
-    );
-
-  console.log("FEE DEBUG FULL", rows);
-}
-
-function debugFeeFields(accountEl: Element): void {
-  const all = Array.from(accountEl.getElementsByTagName("*"));
-
-  const rows = all
-    .map((el) => ({
-      tag: el.tagName,
-      value: el.textContent?.trim() ?? "",
-    }))
-    .filter((x) => {
-      const tag = x.tag.toUpperCase();
-      const value = x.value;
-
-      return (
-        tag.includes("DMEI") ||
-        tag.includes("NIHUL") ||
-        tag.includes("HAFKADA") ||
-        tag.includes("TZVIRA") ||
-        value === "1.31" ||
-        value === "0.01"
-      );
-    });
-
-  console.log("FEE DEBUG", rows);
-}
 
 function mergeTracksByName(tracks: CurrentStateTrack[]): CurrentStateTrack[] {
   const map = new Map<string, CurrentStateTrack>();
@@ -71,6 +34,7 @@ function mergeTracksByName(tracks: CurrentStateTrack[]): CurrentStateTrack[] {
       trackName: track.trackName,
       trackAccumulation: total,
       allocationPercent: null,
+      gemelNetId: existing.gemelNetId ?? track.gemelNetId, // 🆕 הוסיפי כאן
       netReturn:
         total > 0
           ? ((existing.netReturn ?? 0) * existing.trackAccumulation +
@@ -203,9 +167,14 @@ function parseTracks(accountEl: Element): CurrentStateTrack[] {
     const trackName = normalizeTrackName(textOf(trackEl, "SHEM-MASLUL-HASHKAA"));
     const trackAccumulation = toNumber(textOf(trackEl, "SCHUM-TZVIRA-BAMASLUL")) ?? 0;
 
+    // 🆕 חילוץ gemelNetId
+    const kodMaslul = textOf(trackEl, "KOD-MASLUL-HASHKAA");
+    const gemelNetId = kodMaslul ? extractGemelNetId(kodMaslul) : null;
+
     return {
       trackName,
       trackAccumulation,
+      gemelNetId,                // ← חייב להיות כאן
       allocationPercent: toNumber(textOf(trackEl, "ACHUZ-HAFKADA-LEHASHKAA")),
       netReturn: toNumber(textOf(trackEl, "TSUA-NETO")),
       annualCostPercent: toNumber(textOf(trackEl, "SHIUR-ALUT-SHNATIT-ZPUIA-LMSLUL-HASHKAH")),
@@ -250,13 +219,6 @@ function buildTrackDisplay(productType: string, tracks: CurrentStateTrack[]): st
 
   return `מפוצל ל-${uniqueNames.length} מסלולים`;
 }
-function firstNumberByTag(accountEl: Element, tag: string): number | null {
-  const values = Array.from(accountEl.getElementsByTagName(tag))
-    .map((el) => toNumber(el.textContent?.trim()))
-    .filter((v): v is number => v != null && Number.isFinite(v));
-
-  return values.length ? values[0] : null;
-}
 
 function firstPositiveNumberByTag(accountEl: Element, tag: string): number | null {
   const values = Array.from(accountEl.getElementsByTagName(tag))
@@ -266,11 +228,18 @@ function firstPositiveNumberByTag(accountEl: Element, tag: string): number | nul
   return values.length ? values[0] : null;
 }
 
-function getDepositFeePercent(accountEl: Element): number | null {
+function getDepositFeePercent(accountEl: Element, productType: string): number | null {
+  if (productType === "קרן פנסיה") {
+    return (
+      firstPositiveNumberByTag(accountEl, "MEMOTZA-SHEUR-DMEI-NIHUL-HAFKADA") ??
+      firstPositiveNumberByTag(accountEl, "SHEUR-DMEI-NIHUL-HAFKADA") ??
+      null
+    );
+  }
   return (
     firstPositiveNumberByTag(accountEl, "SHEUR-DMEI-NIHUL-HAFKADA") ??
     firstPositiveNumberByTag(accountEl, "ACHUZ-DMEI-NIHUL-MEHAFKADA") ??
-    0
+    null
   );
 }
 
@@ -310,21 +279,21 @@ function getBalanceFeePercent(
 function parseAccount(
   productEl: Element,
   accountEl: Element,
-  insuredName: string
+  insuredName: string,
+  doc: Document,
+  fileType: "gemel" | "pensia"
 ): CurrentStateRow | null {
   const planName = textOf(accountEl, "SHEM-TOCHNIT");
   const policyNumber = textOf(accountEl, "MISPAR-POLISA-O-HESHBON");
-if (policyNumber === "586-924-124796-0") {
-  debugFees(accountEl);
-}
+
   if (!policyNumber) return null;
-if (policyNumber === "301849089") {
-  debugFeeFields(accountEl);
-}
-  const productType = normalizeProductType(
-    textOf(accountEl, "SUG-TOCHNIT-O-CHESHBON"),
-    planName
-  );
+
+const productType = fileType === "pensia"
+  ? "קרן פנסיה"
+  : normalizeProductType(
+      textOf(accountEl, "SUG-TOCHNIT-O-CHESHBON"),
+      planName
+    );
 
 const rawTracks = parseTracks(accountEl);
 const tracks = mergeTracksByName(rawTracks);
@@ -336,8 +305,7 @@ const tracks = mergeTracksByName(rawTracks);
     toNumber(textOf(accountEl, "SCHUM-CHISACHON-NOCHECHI")) ||
     0;
 
-//   const depositFeePercent = getDepositFeePercent(accountEl);
-// const balanceFeePercent = getBalanceFeePercent(accountEl, productType);
+
 
 
   const weightedNetReturn = weightedAverage(
@@ -350,28 +318,31 @@ const tracks = mergeTracksByName(rawTracks);
     toNumber(textOf(accountEl, "SCHUM-KITZVAT-ZIKNA")) ??
     toNumber(textOf(accountEl, "KITZVAT-HODSHIT-TZFUYA"));
 
-  const expectedSavings =
-    toNumber(
-      textOf(
-        accountEl,
-        "TOTAL-SCHUM-MTZBR-TZAFUY-LEGIL-PRISHA-MECHUSHAV-LEKITZBA-IM-PREMIYOT"
-      )
-    ) ??
-    toNumber(textOf(accountEl, "TZVIRAT-CHISACHON-CHAZUYA-LELO-PREMIYOT"));
+const expectedSavings =
+  toNumber(textOf(accountEl, "TOTAL-SCHUM-MTZBR-TZAFUY-LEGIL-PRISHA-MECHUSHAV-LEKITZBA-IM-PREMIYOT")) ??
+  toNumber(textOf(accountEl, "TOTAL-CHISACHON-MITZTABER-TZAFUY")) ??
+  toNumber(textOf(accountEl, "TZVIRAT-CHISACHON-CHAZUYA-LELO-PREMIYOT"));
+
 const normalizedExpectedPension =
-  expectedPension && expectedPension > 0 ? expectedPension : null;
+  productType === "קרן פנסיה" && expectedPension && expectedPension > 0
+    ? expectedPension
+    : null;
 
 const normalizedExpectedSavings =
-  expectedSavings && expectedSavings > 0 ? expectedSavings : null;
+  productType === "קרן פנסיה" && expectedSavings && expectedSavings > 0
+    ? expectedSavings
+    : null;
 
-  const code =
+  const yatzranEl = doc.getElementsByTagName("YeshutYatzran")[0];
+const code =
+  (yatzranEl ? textOf(yatzranEl, "KOD-MEZAHE-YATZRAN") : null) ||
   textOf(productEl, "KOD-MEZAHE-YATZRAN") ||
   textOf(productEl, "KOD-MEZAHE-METAFEL") ||
   textOf(productEl, "KOD-MEZAHE-GUF-MOSDI");
 
 const companyName = resolveCompanyName(code, planName, tracks);
 
-const depositFeePercent = getDepositFeePercent(accountEl);
+const depositFeePercent = getDepositFeePercent(accountEl, productType);
 const balanceFeePercent = getBalanceFeePercent(accountEl, productType, companyName);
 
   return {
@@ -400,6 +371,7 @@ expectedSavings: normalizedExpectedSavings,
     avgReturn1Y: null,
     avgReturn3Y: null,
     avgReturn5Y: null,
+    gemelNetMatched: false,
   };
 }
 
@@ -419,7 +391,9 @@ function mergeRowsByPolicy(rows: CurrentStateRow[]): CurrentStateRow[] {
   const byKey = new Map<string, CurrentStateRow>();
 
   for (const row of rows) {
-    const key = row.policyNumber;
+const key = `${row.policyNumber}_${row.companyName}_${row.productType}`;
+  console.log("key:", key, "| existing:", byKey.has(key));
+
     const existing = byKey.get(key);
 
     if (!existing) {
@@ -462,6 +436,7 @@ function mergeRowsByPolicy(rows: CurrentStateRow[]): CurrentStateRow[] {
       avgReturn1Y: existing.avgReturn1Y ?? row.avgReturn1Y ?? null,
       avgReturn3Y: existing.avgReturn3Y ?? row.avgReturn3Y ?? null,
       avgReturn5Y: existing.avgReturn5Y ?? row.avgReturn5Y ?? null,
+      gemelNetMatched: false,
     };
 
     byKey.set(key, merged);
@@ -474,9 +449,9 @@ export async function parseCurrentStateFromMeslekaZip(file: File): Promise<Curre
   const zip = await JSZip.loadAsync(file);
   const allNames = Object.keys(zip.files);
 
-  const relevantNames = allNames.filter(
-    (name) => name.includes("CONSLTKGM") || name.includes("CONSLTPNN")
-  );
+const relevantNames = allNames.filter(
+  (name) => name.includes("CONSLTKGM") || name.includes("CONSLTPNN")
+);
 
   const rows: CurrentStateRow[] = [];
 
@@ -494,7 +469,9 @@ export async function parseCurrentStateFromMeslekaZip(file: File): Promise<Curre
       const accounts = Array.from(productEl.getElementsByTagName("HeshbonOPolisa"));
 
       for (const accountEl of accounts) {
-        const row = parseAccount(productEl, accountEl, insuredName);
+// בלולאה של הקבצים:
+const fileType = name.includes("CONSLTPNN") ? "pensia" : "gemel";
+const row = parseAccount(productEl, accountEl, insuredName, doc, fileType);
         if (row) rows.push(row);
       }
     }

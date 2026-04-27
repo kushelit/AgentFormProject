@@ -18,6 +18,8 @@ type Props = {
   refreshKey?: number;
   activeCompanyId?: string;
   isRunActive?: boolean;
+  batchCompanyStatuses?: Record<string, "queued" | "running" | "done" | "error">;
+  isBatchActive?: boolean;
   onStartBatch: (companies: AutomaticCompany[]) => Promise<void>;
 };
 
@@ -30,6 +32,8 @@ const AutomaticRunsDashboard: React.FC<Props> = ({
   refreshKey = 0,
   activeCompanyId,
   isRunActive = false,
+   batchCompanyStatuses = {},
+  isBatchActive = false,
   onStartBatch,
 }) => {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -151,13 +155,32 @@ const AutomaticRunsDashboard: React.FC<Props> = ({
 
             let effectiveStatus: AutoCompanyUiStatus = item.uiStatus;
 
+const batchStatus = batchCompanyStatuses[item.companyId];
+const itemAutoDisabledReason =
+  batchStatus === "queued"
+    ? "ממתין בתור לריצה"
+    : !isAutoEnabledByFlag
+    ? autoDisabledReason
+    : company?.companyAutoDownloadMessage || "לא זמין";
+
+if (isBatchActive && batchStatus) {
+  if (batchStatus === "running") {
+    effectiveStatus = "running";
+  } else if (batchStatus === "done") {
+    effectiveStatus = "done";
+  } else if (batchStatus === "error") {
+    effectiveStatus = "error";
+  } else if (batchStatus === "queued") {
+    // 👈 זה הפתרון לבאג שלך
+    effectiveStatus = "ready";
+  }
+} else if (isRunActive && activeCompanyId === item.companyId) {
+  effectiveStatus = "running";
+}
+
             if (isRunActive && activeCompanyId === item.companyId) {
               effectiveStatus = 'running';
             }
-
-            const itemAutoDisabledReason = !isAutoEnabledByFlag
-              ? autoDisabledReason
-              : company?.companyAutoDownloadMessage || 'הדוחות של חברה זו עדיין לא זמינים להורדה.';
 
             const selectableInBatch = canSelectForBatch(effectiveStatus, company);
             const selected = selectedIds.includes(item.companyId);

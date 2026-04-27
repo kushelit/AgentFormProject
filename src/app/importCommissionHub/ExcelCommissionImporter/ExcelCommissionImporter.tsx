@@ -154,6 +154,10 @@ const [selectedReportMonth, setSelectedReportMonth] = useState("");
 
 const [importProgress, setImportProgress] = useState(0);
 
+const [batchCompanyStatuses, setBatchCompanyStatuses] = useState<
+  Record<string, "queued" | "running" | "done" | "error">
+>({});
+
   const VAT_DEFAULT = 0.18;
 
   //automaionUpload
@@ -344,150 +348,150 @@ const canStartAuto = Boolean(selectedAgentId && selectedCompanyId && effectiveAu
 const FINAL_RUN_STATUSES = new Set(["success", "done", "error", "failed", "skipped"]);
 
 const IN_PROGRESS_RUN_STATUSES = new Set([
+ "otp_required",
   "running",
-  "otp_required",
   "logged_in",
   "file_uploaded",
 ]);
 
 const QUEUED_RUN_STATUSES = new Set(["queued"]);
 
-useEffect(() => {
-  if (!activeBatchId) return;
+// useEffect(() => {
+//   if (!activeBatchId) return;
 
-  const qy = query(
-    collection(db, "portalImportRuns"),
-    where("batchId", "==", activeBatchId),
-    orderBy("batchOrder", "asc")
-  );
+//   const qy = query(
+//     collection(db, "portalImportRuns"),
+//     where("batchId", "==", activeBatchId),
+//     orderBy("batchOrder", "asc")
+//   );
 
-  const unsub = onSnapshot(qy, (snap) => {
-    const runs = snap.docs.map((d) => {
-      const data: any = d.data() || {};
-      return {
-        id: d.id,
-        companyId: String(data.companyId || "").trim(),
-        companyName: String(data.companyName || "").trim(),
-        batchOrder: Number(data.batchOrder || 0),
-        status: String(data.status || "").trim(),
-        step: String(data.step || "").trim(),
-        updatedAt: data.updatedAt?.toMillis?.() || 0,
-      };
-    });
+//   const unsub = onSnapshot(qy, (snap) => {
+//     const runs = snap.docs.map((d) => {
+//       const data: any = d.data() || {};
+//       return {
+//         id: d.id,
+//         companyId: String(data.companyId || "").trim(),
+//         companyName: String(data.companyName || "").trim(),
+//         batchOrder: Number(data.batchOrder || 0),
+//         status: String(data.status || "").trim(),
+//         step: String(data.step || "").trim(),
+//         updatedAt: data.updatedAt?.toMillis?.() || 0,
+//       };
+//     });
 
-    if (!runs.length) return;
+//     if (!runs.length) return;
 
-    const done = runs.filter((r) => r.status === "success" || r.status === "done").length;
-    const error = runs.filter((r) => r.status === "error" || r.status === "failed").length;
+//     const done = runs.filter((r) => r.status === "success" || r.status === "done").length;
+//     const error = runs.filter((r) => r.status === "error" || r.status === "failed").length;
 
-    const inProgressItems = runs.filter((r) => IN_PROGRESS_RUN_STATUSES.has(r.status));
-    const queuedItems = runs.filter((r) => QUEUED_RUN_STATUSES.has(r.status));
+//     const inProgressItems = runs.filter((r) => IN_PROGRESS_RUN_STATUSES.has(r.status));
+//     const queuedItems = runs.filter((r) => QUEUED_RUN_STATUSES.has(r.status));
 
-    const statusPriority: Record<string, number> = {
-      otp_required: 1,
-      running: 2,
-      logged_in: 3,
-      file_uploaded: 4,
-      queued: 5,
-    };
+//     const statusPriority: Record<string, number> = {
+//       otp_required: 1,
+//       running: 2,
+//       logged_in: 3,
+//       file_uploaded: 4,
+//       queued: 5,
+//     };
 
-    const sortCurrentCandidates = (arr: typeof runs) =>
-      [...arr].sort((a, b) => {
-        const pa = statusPriority[a.status] ?? 999;
-        const pb = statusPriority[b.status] ?? 999;
+//     const sortCurrentCandidates = (arr: typeof runs) =>
+//       [...arr].sort((a, b) => {
+//         const pa = statusPriority[a.status] ?? 999;
+//         const pb = statusPriority[b.status] ?? 999;
 
-        if (pa !== pb) return pa - pb;
+//         if (pa !== pb) return pa - pb;
 
-        // העדפה לחברה שה-UI כבר יודע שהיא פעילה
-        if (activeAutoCompanyId) {
-          if (a.companyId === activeAutoCompanyId && b.companyId !== activeAutoCompanyId) return -1;
-          if (b.companyId === activeAutoCompanyId && a.companyId !== activeAutoCompanyId) return 1;
-        }
+//         // העדפה לחברה שה-UI כבר יודע שהיא פעילה
+//         if (activeAutoCompanyId) {
+//           if (a.companyId === activeAutoCompanyId && b.companyId !== activeAutoCompanyId) return -1;
+//           if (b.companyId === activeAutoCompanyId && a.companyId !== activeAutoCompanyId) return 1;
+//         }
 
-        // העדפה לריצה הכי מעודכנת
-        if (a.updatedAt !== b.updatedAt) return b.updatedAt - a.updatedAt;
+//         // העדפה לריצה הכי מעודכנת
+//         if (a.updatedAt !== b.updatedAt) return b.updatedAt - a.updatedAt;
 
-        return a.batchOrder - b.batchOrder;
-      });
+//         return a.batchOrder - b.batchOrder;
+//       });
 
-    // ✅ קודם כל ריצה שבאמת פעילה לפי DB
-    let current =
-      sortCurrentCandidates(inProgressItems)[0] ||
-      // ✅ אם אין כזו, ננסה לפי החברה שה-UI כבר יודע עליה
-      runs.find((r) => activeAutoCompanyId && r.companyId === activeAutoCompanyId) ||
-      // ✅ רק אם עדיין אין, fallback ל-autoRunId
-      runs.find((r) => autoRunId && r.id === autoRunId) ||
-      // ✅ ואם עדיין אין, הראשונה בתור
-      sortCurrentCandidates(queuedItems)[0] ||
-      null;
+//     // ✅ קודם כל ריצה שבאמת פעילה לפי DB
+//     let current =
+//       sortCurrentCandidates(inProgressItems)[0] ||
+//       // ✅ אם אין כזו, ננסה לפי החברה שה-UI כבר יודע עליה
+//       runs.find((r) => activeAutoCompanyId && r.companyId === activeAutoCompanyId) ||
+//       // ✅ רק אם עדיין אין, fallback ל-autoRunId
+//       runs.find((r) => autoRunId && r.id === autoRunId) ||
+//       // ✅ ואם עדיין אין, הראשונה בתור
+//       sortCurrentCandidates(queuedItems)[0] ||
+//       null;
 
-    let runningCount = inProgressItems.length;
+//     let runningCount = inProgressItems.length;
 
-    // אם ה-UI כבר יודע שיש ריצה פעילה אבל DB עוד לא עודכן, נשמור לפחות 1
-    if (isAutoRunActive && current) {
-      runningCount = Math.max(runningCount, 1);
-    }
+//     // אם ה-UI כבר יודע שיש ריצה פעילה אבל DB עוד לא עודכן, נשמור לפחות 1
+//     if (isAutoRunActive && current) {
+//       runningCount = Math.max(runningCount, 1);
+//     }
 
-    const queued = Math.max(
-      runs.filter((r) => r.status === "queued").length -
-        (isAutoRunActive && current?.status === "queued" ? 1 : 0),
-      0
-    );
+//     const queued = Math.max(
+//       runs.filter((r) => r.status === "queued").length -
+//         (isAutoRunActive && current?.status === "queued" ? 1 : 0),
+//       0
+//     );
 
-    setBatchRunIds(runs.map((r) => r.id));
+//     setBatchRunIds(runs.map((r) => r.id));
 
-    setBatchProgress({
-      total: runs.length,
-      done,
-      error,
-      running: runningCount,
-      queued,
-      currentRunId: current?.id || "",
-      currentCompanyId: current?.companyId || "",
-      currentCompanyName: current?.companyName || "",
-      currentStep: current?.step || "",
-    });
+//     setBatchProgress({
+//       total: runs.length,
+//       done,
+//       error,
+//       running: runningCount,
+//       queued,
+//       currentRunId: current?.id || "",
+//       currentCompanyId: current?.companyId || "",
+//       currentCompanyName: current?.companyName || "",
+//       currentStep: current?.step || "",
+//     });
 
-    if (current) {
-      if (autoRunId !== current.id) {
-        setAutoRunId(current.id);
-      }
-      setAutoRunKind("portal");
+//     if (current) {
+//       if (autoRunId !== current.id) {
+//         setAutoRunId(current.id);
+//       }
+//       setAutoRunKind("portal");
 
-      if (activeAutoCompanyId !== current.companyId) {
-        setActiveAutoCompanyId(current.companyId);
-      }
+//       if (activeAutoCompanyId !== current.companyId) {
+//         setActiveAutoCompanyId(current.companyId);
+//       }
 
-      setIsAutoRunActive(true);
-      return;
-    }
+//       setIsAutoRunActive(true);
+//       return;
+//     }
 
-    const allFinished = runs.every((r) => FINAL_RUN_STATUSES.has(r.status));
+//     const allFinished = runs.every((r) => FINAL_RUN_STATUSES.has(r.status));
 
-    if (allFinished) {
-      setIsAutoRunActive(false);
-      setActiveAutoCompanyId("");
-      setAutoDashboardRefreshKey((v) => v + 1);
+//     if (allFinished) {
+//       setIsAutoRunActive(false);
+//       setActiveAutoCompanyId("");
+//       setAutoDashboardRefreshKey((v) => v + 1);
 
-      if (error > 0 && done > 0) {
-        addToast("success", `✅ Batch הסתיים: ${done} הושלמו, ${error} עם שגיאה`);
-      } else if (error > 0 && done === 0) {
-        addToast("error", `❌ Batch הסתיים עם שגיאות (${error})`);
-      } else {
-        addToast("success", `✅ Batch הושלם בהצלחה (${done}/${runs.length})`);
-      }
+//       if (error > 0 && done > 0) {
+//         addToast("success", `✅ Batch הסתיים: ${done} הושלמו, ${error} עם שגיאה`);
+//       } else if (error > 0 && done === 0) {
+//         addToast("error", `❌ Batch הסתיים עם שגיאות (${error})`);
+//       } else {
+//         addToast("success", `✅ Batch הושלם בהצלחה (${done}/${runs.length})`);
+//       }
 
-      setTimeout(() => {
-        setActiveBatchId("");
-        setBatchRunIds([]);
-        setBatchProgress(null);
-        setAutoRunId("");
-      }, 1200);
-    }
-  });
+//       setTimeout(() => {
+//         setActiveBatchId("");
+//         setBatchRunIds([]);
+//         setBatchProgress(null);
+//         setAutoRunId("");
+//       }, 1200);
+//     }
+//   });
 
-  return () => unsub();
-}, [activeBatchId, activeAutoCompanyId, autoRunId, isAutoRunActive]);
+//   return () => unsub();
+// }, [activeBatchId, activeAutoCompanyId, autoRunId, isAutoRunActive]);
 
 
 // const handleStartAuto = async () => {
@@ -526,6 +530,131 @@ useEffect(() => {
 //   }
 // };
 
+
+useEffect(() => {
+  if (!activeBatchId) return;
+
+  const qy = query(
+    collection(db, "portalImportRuns"),
+    where("batchId", "==", activeBatchId),
+    orderBy("batchOrder", "asc")
+  );
+
+  const unsub = onSnapshot(qy, (snap) => {
+    const runs = snap.docs.map((d) => {
+      const data: any = d.data() || {};
+      return {
+        id: d.id,
+        companyId: String(data.companyId || "").trim(),
+        companyName: String(data.companyName || "").trim(),
+        batchOrder: Number(data.batchOrder || 0),
+        status: String(data.status || "").trim(),
+        step: String(data.step || "").trim(),
+        updatedAt: data.updatedAt?.toMillis?.() || 0,
+      };
+    });
+
+    if (!runs.length) return;
+
+    const done = runs.filter((r) => r.status === "success" || r.status === "done").length;
+    const error = runs.filter((r) => r.status === "error" || r.status === "failed").length;
+
+    const notFinalRuns = runs.filter((r) => !FINAL_RUN_STATUSES.has(r.status));
+
+    const otpRun = notFinalRuns.find((r) => r.status === "otp_required");
+
+    const runningRun = notFinalRuns.find((r) =>
+      ["running", "logged_in", "file_uploaded"].includes(r.status)
+    );
+
+    const queuedRun = notFinalRuns.find((r) => r.status === "queued");
+
+    const current = otpRun || runningRun || queuedRun || null;
+
+    const runningCount = current ? 1 : 0;
+
+    const queued = Math.max(
+      runs.filter((r) => r.status === "queued").length -
+        (current?.status === "queued" ? 1 : 0),
+      0
+    );
+
+    setBatchRunIds(runs.map((r) => r.id));
+
+    setBatchProgress({
+      total: runs.length,
+      done,
+      error,
+      running: runningCount,
+      queued,
+      currentRunId: current?.id || "",
+      currentCompanyId: current?.companyId || "",
+      currentCompanyName: current?.companyName || "",
+      currentStep: current?.step || "",
+    });
+
+    const byCompany: Record<string, "queued" | "running" | "done" | "error"> = {};
+
+    for (const run of runs) {
+      if (!run.companyId) continue;
+
+      if (current && run.id === current.id) {
+        byCompany[run.companyId] = "running";
+        continue;
+      }
+
+      if (run.status === "success" || run.status === "done") {
+        byCompany[run.companyId] = "done";
+        continue;
+      }
+
+      if (run.status === "error" || run.status === "failed") {
+        byCompany[run.companyId] = "error";
+        continue;
+      }
+
+      if (run.status === "queued") {
+        byCompany[run.companyId] = "queued";
+      }
+    }
+
+    setBatchCompanyStatuses(byCompany);
+
+    if (current) {
+      setAutoRunId(current.id);
+      setAutoRunKind("portal");
+      setActiveAutoCompanyId(current.companyId);
+      setIsAutoRunActive(true);
+      return;
+    }
+
+    const allFinished = runs.every((r) => FINAL_RUN_STATUSES.has(r.status));
+
+    if (allFinished) {
+      setIsAutoRunActive(false);
+      setActiveAutoCompanyId("");
+      setBatchCompanyStatuses({});
+      setAutoDashboardRefreshKey((v) => v + 1);
+
+      if (error > 0 && done > 0) {
+        addToast("success", `✅ Batch הסתיים: ${done} הושלמו, ${error} עם שגיאה`);
+      } else if (error > 0 && done === 0) {
+        addToast("error", `❌ Batch הסתיים עם שגיאות (${error})`);
+      } else {
+        addToast("success", `✅ Batch הושלם בהצלחה (${done}/${runs.length})`);
+      }
+
+      setTimeout(() => {
+        setActiveBatchId("");
+        setBatchRunIds([]);
+        setBatchProgress(null);
+        setAutoRunId("");
+      }, 1200);
+    }
+  });
+
+  return () => unsub();
+}, [activeBatchId]);
 
 
   const roundTo2 = (num: number) => Math.round(num * 100) / 100;
@@ -2665,6 +2794,8 @@ async function enrichMissingCustomerIdsForMarkedSheets(params: {
   refreshKey={autoDashboardRefreshKey}
   activeCompanyId={activeAutoCompanyId}
   isRunActive={isAutoRunActive}
+  batchCompanyStatuses={batchCompanyStatuses}
+  isBatchActive={!!activeBatchId}
   onStartBatch={async (companies) => {
     const { createPortalRunBatch } = await import('@/lib/portalRunBatches');
 
@@ -2676,6 +2807,7 @@ async function enrichMissingCustomerIdsForMarkedSheets(params: {
 
     setActiveBatchId(batchId);
     setBatchRunIds(runIds);
+    setBatchCompanyStatuses({});
 
     setAutoRunId("");
     setAutoRunKind("portal");
