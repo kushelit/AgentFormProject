@@ -51,7 +51,6 @@ export const sendOtpPushOnRunUpdate = onDocumentUpdated(
     if (otpMode && otpMode !== "firestore") return;
 
     const automationClass = s(after.automationClass);
-    const monthLabel = s(after.monthLabel);
     const runId = s(after.runId || event.params.runId);
 
     const companyName = companyNameFromAutomationClass(automationClass);
@@ -77,12 +76,10 @@ export const sendOtpPushOnRunUpdate = onDocumentUpdated(
 
     const res = await messaging.sendEachForMulticast({
       tokens,
-      notification: {
-        title: `🔐 ${companyName}`,
-        body: monthLabel
-          ? `נדרש קוד עבור ${monthLabel}`
-          : "נדרש קוד אימות",
-      },
+  notification: {
+  title: "🔐 קוד אימות מחכה לך",
+  body: `${companyName} – הזיני תוך 2 דקות`,
+},
       data: {
         url: `/otp?runId=${runId}`, // 👉 פתיחה מדויקת
         runId,
@@ -90,20 +87,22 @@ export const sendOtpPushOnRunUpdate = onDocumentUpdated(
         companyName,
         type: "otp_required",
       },
-      android: {
-        priority: "high",
-        notification: {
-          channelId: "otp",
-          sound: "default",
-          defaultVibrateTimings: true,
-          sticky: true,
-        },
-      },
+    android: {
+  priority: "high",
+  notification: {
+    channelId: "otp_alerts",
+    sound: "default",
+    defaultVibrateTimings: true,
+    sticky: true,
+  },
+},
       webpush: {
         headers: {
           Urgency: "high",
         },
         notification: {
+          title: "🔐 קוד אימות מחכה לך",
+    body: `${companyName} – הזיני תוך 2 דקות`,
           requireInteraction: true,
           tag: `otp-${runId}`, // 👉 כל ריצה בנפרד
           renotify: true,

@@ -178,10 +178,6 @@ if (isBatchActive && batchStatus) {
   effectiveStatus = "running";
 }
 
-            if (isRunActive && activeCompanyId === item.companyId) {
-              effectiveStatus = 'running';
-            }
-
             const selectableInBatch = canSelectForBatch(effectiveStatus, company);
             const selected = selectedIds.includes(item.companyId);
 

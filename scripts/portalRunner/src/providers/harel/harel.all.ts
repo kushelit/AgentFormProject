@@ -5,7 +5,12 @@ import type { RunnerCtx } from "../../types";
 import { httpsCallable } from "firebase/functions";
 import { resolveChromiumExePath } from "../../runnerPaths";
 import { uploadLocalFileToStorageClient } from "../../uploadToStorage.client";
-import { harelLogin, harelHandleOtp, harelNavigateToReport } from "./harel.shared";
+import {
+  harelLogin,
+  harelHandleOtp,
+  harelNavigateToReport,
+  harelNavigateToTzviraReport,
+} from "./harel.shared";
 
 function ensureDir(p: string) {
   if (!fs.existsSync(p)) fs.mkdirSync(p, { recursive: true });
@@ -38,7 +43,6 @@ export async function runHarelAll(ctx: RunnerCtx) {
   const agentId = s((run as any)?.agentId || ctx.agentId);
   const { username, password } = await getHarelCreds(ctx);
 
-  // ✅ אותו פטרן כמו Analyst
   const appendDownload = async (item: any) => {
     const cur = (ctx.run as any)?.downloads || [];
     const downloads = Array.isArray(cur) ? [...cur, item] : [item];
@@ -66,6 +70,21 @@ export async function runHarelAll(ctx: RunnerCtx) {
   const page = context.pages()[0] || await context.newPage();
   await page.bringToFront();
 
+  const REPORTS = [
+    {
+      templateId: "harel_insurance",
+      stepPrefix: "harel_insurance",
+      label: "נפרעים",
+      fn: () => harelNavigateToReport(page, absDir),
+    },
+    {
+      templateId: "harel_tzvira",
+      stepPrefix: "harel_tzvira",
+      label: "צבירה",
+      fn: () => harelNavigateToTzviraReport(page, absDir),
+    },
+  ];
+
   try {
     console.log("[Harel] Navigating to portal...");
     await page.goto(portalUrl, { waitUntil: "domcontentloaded", timeout: 60000 });
@@ -76,39 +95,54 @@ export async function runHarelAll(ctx: RunnerCtx) {
 
     await harelHandleOtp(page, ctx);
 
-    await setStatus(runId, { status: "running", step: "מנווט לדוח הראל", monthLabel });
-    const downloads = await harelNavigateToReport(page, absDir);
+    for (const rep of REPORTS) {
+      try {
+        await setStatus(runId, { status: "running", step: `${rep.stepPrefix}_start`, monthLabel });
+        console.log(`[Harel] Starting report: ${rep.label}`);
 
-    if (downloads.length > 0) {
-      for (const { localPath, filename } of downloads) {
-        const up = await uploadLocalFileToStorageClient({
-          storage,
-          localPath,
-          agentId,
-          runId,
-          subdir: "harel_insurance",
-        } as any);
+        const downloads = await rep.fn();
 
-        if (up?.storagePath) {
-          console.log("[Harel] Uploaded:", up.storagePath);
-          await appendDownload({
-            templateId: "harel_insurance",
+        for (const { localPath, filename } of downloads) {
+          const up = await uploadLocalFileToStorageClient({
+            storage,
             localPath,
-            filename: up.filename || filename,
-            storagePath: up.storagePath,
-          });
-        }
-      }
+            agentId,
+            runId,
+            subdir: rep.templateId,
+          } as any);
 
-      await setStatus(runId, {
-        status: "done",
-        step: "harel_done",
-        monthLabel,
-        result: { uploaded: true },
-      });
-    } else {
-      await setStatus(runId, { status: "done", step: "harel_done_no_files", monthLabel });
+          if (up?.storagePath) {
+            console.log(`[Harel] Uploaded ${rep.label}:`, up.storagePath);
+            await appendDownload({
+              templateId: rep.templateId,
+              localPath,
+              filename: up.filename || filename,
+              storagePath: up.storagePath,
+            });
+          }
+        }
+
+        await setStatus(runId, { status: "running", step: `${rep.stepPrefix}_done`, monthLabel });
+        console.log(`[Harel] Done: ${rep.label}`);
+
+      } catch (err: any) {
+        console.error(`[Harel] Error in ${rep.label}:`, err.message);
+        await setStatus(runId, {
+          status: "running",
+          step: `${rep.stepPrefix}_failed`,
+          error: err.message,
+          monthLabel,
+        });
+      }
     }
+
+    await setStatus(runId, {
+      status: "done",
+      step: "harel_all_done",
+      monthLabel,
+      result: { uploaded: true },
+    });
+    console.log("[Harel] All done!");
 
   } catch (e: any) {
     console.error("[Harel] Error:", e.message);

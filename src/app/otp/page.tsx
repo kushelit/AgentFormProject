@@ -82,14 +82,14 @@ function getOtpMode(run: PortalImportRun) {
 }
 
 function isOtpWaiting(run: PortalImportRun) {
-  const status = String(run.status || "");
-  const otpMode = getOtpMode(run);
-  const otpState = String(run.otp?.state || "");
+  const status = String(run.status || "").trim();
+  const otpMode = getOtpMode(run) || "firestore";
+  const otpState = String(run.otp?.state || "").trim();
 
-  if (status !== "otp_required" && otpState !== "waiting") return false;
-  if (!otpMode) return true;
+  if (status !== "otp_required") return false;
+  if (otpMode !== "firestore") return false;
 
-  return otpMode === "firestore";
+  return !["provided", "aborted", "received", "none"].includes(otpState);
 }
 
 function isFinalStatus(status?: string) {
@@ -191,9 +191,7 @@ function BatchInfoCard({
   total,
   done,
   error,
-  remaining,
   currentCompanyName,
-  currentStep,
   nextCompanyName,
 }: {
   total: number;
@@ -205,70 +203,32 @@ function BatchInfoCard({
   nextCompanyName?: string;
 }) {
   return (
-    <div className="mb-4 rounded-3xl border border-blue-100 bg-white p-4 shadow-sm">
-      <div className="mb-3 flex items-center justify-between">
-        <div>
-          <div className="text-base font-bold text-gray-900">ריצת Batch פעילה</div>
-          <div className="text-xs text-gray-500">המערכת מריצה את החברות אחת אחרי השנייה</div>
-        </div>
-        <div className="rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700">
-          מעקב תור
-        </div>
+    <div className="mb-3 rounded-2xl border border-blue-100 bg-white px-4 py-3 text-center shadow-sm">
+      <div className="text-xs font-bold text-gray-500">
+        ריצת Batch
       </div>
 
-      <div className="mb-4 grid grid-cols-4 gap-2">
-        <div className="rounded-2xl border border-gray-200 bg-gray-50 p-3 text-center">
-          <div className="text-[11px] font-bold text-gray-500">סה״כ</div>
-          <div className="mt-1 text-2xl font-black text-gray-800">{total}</div>
-        </div>
-
-        <div className="rounded-2xl border border-green-100 bg-green-50 p-3 text-center">
-          <div className="text-[11px] font-bold text-green-700">הושלמו</div>
-          <div className="mt-1 text-2xl font-black text-green-700">{done}</div>
-        </div>
-
-        <div className="rounded-2xl border border-red-100 bg-red-50 p-3 text-center">
-          <div className="text-[11px] font-bold text-red-700">שגיאות</div>
-          <div className="mt-1 text-2xl font-black text-red-700">{error}</div>
-        </div>
-
-        <div className="rounded-2xl border border-blue-100 bg-blue-50 p-3 text-center">
-          <div className="text-[11px] font-bold text-blue-700">נותרו</div>
-          <div className="mt-1 text-2xl font-black text-blue-700">{remaining}</div>
-        </div>
-      </div>
-
-      <div className="space-y-3">
-        <div className="rounded-2xl bg-blue-50 p-3">
-          <div className="text-xs font-bold text-blue-700">חברה נוכחית</div>
-          <div className="mt-1 text-xl font-bold text-blue-900">
-            {currentCompanyName || "—"}
-          </div>
-          {!!currentStep && (
-            <div className="mt-2 text-sm text-blue-700">
-              שלב נוכחי: <span className="font-semibold">{currentStep}</span>
-            </div>
-          )}
-        </div>
-
-        {!!nextCompanyName && (
-          <div className="rounded-2xl bg-gray-50 p-3">
-            <div className="text-xs font-bold text-gray-600">הבא בתור</div>
-            <div className="mt-1 text-lg font-bold text-gray-900">{nextCompanyName}</div>
-          </div>
-        )}
-
-        {remaining > 0 && (
-          <div className="text-xs text-gray-500">
-            צפויות עוד <span className="font-bold">{remaining}</span> ריצות בתור.
-            ייתכן שיידרש קוד נוסף בהמשך.
-          </div>
+      <div className="mt-1 text-sm text-gray-800">
+        <span className="font-black">{done}/{total}</span> הושלמו
+        {error > 0 && (
+          <span className="text-red-600"> · {error} שגיאות</span>
         )}
       </div>
+
+      {currentCompanyName && (
+        <div className="mt-2 text-base font-black text-blue-800">
+          עכשיו: {currentCompanyName}
+        </div>
+      )}
+
+      {nextCompanyName && (
+        <div className="mt-1 text-xs text-gray-500">
+          הבא בתור: <span className="font-bold">{nextCompanyName}</span>
+        </div>
+      )}
     </div>
   );
 }
-
 
 function BatchQueueList({
   runs,
@@ -435,6 +395,7 @@ function OtpPageInner() {
     const q = query(
       collection(db, "portalImportRuns"),
       where("agentId", "==", uid),
+      where("status", "==", "otp_required"),
       orderBy("createdAt", "desc"),
       limit(20)
     );
@@ -454,7 +415,8 @@ function OtpPageInner() {
     const filteredRuns = runs.filter((r) => r.id !== dismissedRunId);
 
     if (runIdFromUrl) {
-      return filteredRuns.find((r) => r.id === runIdFromUrl) || null;
+     const byUrl = filteredRuns.find((r) => r.id === runIdFromUrl);
+  return byUrl && isOtpWaiting(byUrl.data) ? byUrl : null;
     }
 
     return filteredRuns.find((r) => isOtpWaiting(r.data)) || null;
@@ -656,13 +618,12 @@ function OtpPageInner() {
   return (
     <div dir="rtl" className="min-h-screen bg-gray-50 px-4 py-6">
       <div className="mx-auto max-w-sm">
-        <div className="mb-4 text-center">
-          <div className="text-2xl font-bold text-gray-900">Magic OTP</div>
-          <div className="mt-2 text-xs text-gray-500">
-            מחובר כ: <span className="font-semibold text-gray-700">{user?.email || uid}</span>
-          </div>
-        </div>
-
+       <div className="mb-4 text-center">
+  <div className="text-2xl font-black text-gray-900">קוד אימות</div>
+  <div className="mt-1 text-sm text-gray-500">
+    נדרש רק כשהפורטל מבקש קוד
+  </div>
+</div>
         {!hasPushToken && (
           <div className="mb-4 rounded-3xl border border-gray-200 bg-white p-4 shadow-sm">
             <div className="text-sm font-semibold text-gray-800">התראות למכשיר הזה</div>
@@ -704,12 +665,6 @@ function OtpPageInner() {
             nextCompanyName={batchInfo.nextCompanyName}
           />
         )}
-{batchInfo && batchRuns.length > 0 && (
-  <BatchQueueList
-    runs={batchRuns}
-    currentRunId={batchInfo.currentRunId}
-  />
-)}
         {!activeRun ? (
           <div className="rounded-3xl border border-gray-200 bg-white p-6 text-center shadow-sm">
             <div className="text-lg font-semibold text-gray-900">אין כרגע בקשת קוד</div>

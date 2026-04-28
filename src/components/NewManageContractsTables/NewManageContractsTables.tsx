@@ -115,6 +115,11 @@ const NewManageContractsTables: React.FC = () => {
       : "";
   };
 
+
+  const downloadExcelTemplate = () => {
+  window.open("/api/contracts-template/download", "_blank");
+};
+
   const fetchMeta = async () => {
     const [companySnap, groupSnap, subGroupSnap, productSnap] = await Promise.all([
       getDocs(collection(db, "company")),
@@ -670,6 +675,13 @@ const NewManageContractsTables: React.FC = () => {
     >
       שמור
     </button>
+    <button
+  type="button"
+  onClick={downloadExcelTemplate}
+  className="save-button"
+>
+  הורד תבנית אקסל
+</button>
   </div>
 </div>
       {visibleTables.map((table: any) => (

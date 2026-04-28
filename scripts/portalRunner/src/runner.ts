@@ -382,12 +382,41 @@ while (!shouldStop()) {
         await sleep(pollMs);
         continue;
       }
+const FINAL_BATCH_STATUSES = new Set(["done", "success", "error", "failed", "skipped"]);
+
+async function canRunBatchItemNow(db: any, run: any): Promise<boolean> {
+  const batchId = String(run.batchId || "").trim();
+  const batchOrder = Number(run.batchOrder || 0);
+
+  if (!batchId || !batchOrder) return true;
+
+  const prevSnap = await getDocs(
+    query(
+      collection(db, "portalImportRuns"),
+      where("batchId", "==", batchId),
+      where("batchOrder", "<", batchOrder),
+      limit(20)
+    )
+  );
+
+  return prevSnap.docs.every((d) => {
+    const status = String(d.data()?.status || "").trim();
+    return FINAL_BATCH_STATUSES.has(status);
+  });
+}
 
       for (const docSnap of snap.docs) {
         if (shouldStop()) break;
 
         const runId = docSnap.id;
         const run = docSnap.data() as RunDoc;
+
+        const allowedByBatchOrder = await canRunBatchItemNow(db, run);
+
+if (!allowedByBatchOrder) {
+  log.info("[LocalRunner] Skipping queued run because previous batch item is not finished:", runId);
+  continue;
+}
 
         // מנגנון עדכון עצמי (OTA)
         if (run.automationClass === "self_update") {
@@ -470,6 +499,7 @@ fs.writeFileSync(updatePath, Buffer.from(buffer));
           if (lockInfo) await markTemplateMonthLockErrorClient({ db, ...lockInfo, runId, message: e.message });
           await setStatusClient(db, runId, { status: "error", error: { message: e.message } });
         }
+        
       }
     } catch (e: any) {
       log.error("[LocalRunner] Polling error:", e.message);
