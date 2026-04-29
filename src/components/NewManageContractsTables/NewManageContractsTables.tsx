@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   collection,
   doc,
@@ -8,6 +8,7 @@ import {
   query,
   where,
   writeBatch,
+  getDocsFromServer
 } from "firebase/firestore";
 import { db } from "@/lib/firebase/firebase";
 import { useAuth } from "@/lib/firebase/AuthContext";
@@ -15,6 +16,7 @@ import useFetchAgentData from "@/hooks/useFetchAgentData";
 import { CONTRACTS_TABLES_CONFIG } from "@/config/contractsTablesConfig";
 import { normalizeCommissionForSave } from "@/utils/contractsTablesNormalize";
 import "./NewManageContractsTables.css";
+import { Button } from "@/components/Button/Button";
 
 type CompanyRow = {
   id: string;
@@ -79,6 +81,32 @@ const NewManageContractsTables: React.FC = () => {
   >("pension");
 
   const effectiveAgentId = selectedAgentId || detail?.agentId || "";
+
+const [originalCellValues, setOriginalCellValues] = useState<Record<string, string>>({});
+const [originalDefaultValues, setOriginalDefaultValues] = useState<Record<string, string>>({});
+
+const [toast, setToast] = useState<{
+  type: "success" | "error";
+  message: string;
+} | null>(null);
+
+const showToast = (type: "success" | "error", message: string) => {
+  setToast({ type, message });
+  setTimeout(() => setToast(null), 3500);
+};
+
+
+const defaultValuesRef = useRef<Record<string, string>>({});
+const cellValuesRef = useRef<Record<string, string>>({});
+
+useEffect(() => {
+  defaultValuesRef.current = defaultValues;
+}, [defaultValues]);
+
+useEffect(() => {
+  cellValuesRef.current = cellValues;
+}, [cellValues]);
+
 
   const buildCellKey = (
     tableKey: string,
@@ -165,7 +193,9 @@ const NewManageContractsTables: React.FC = () => {
       where("AgentId", "==", effectiveAgentId)
     );
 
-    const snap = await getDocs(q);
+const snap = await getDocsFromServer(q);
+      console.log("fetched contracts:", snap.docs.map(d => ({ id: d.id, ...d.data() })));
+
 
     setContracts(
       snap.docs.map((d) => ({
@@ -227,6 +257,15 @@ const NewManageContractsTables: React.FC = () => {
     return CONTRACTS_TABLES_CONFIG;
   }, [selectedViewGroup]);
 
+
+const isCellDirty = (key: string, value: string) => {
+  return (originalCellValues[key] || "") !== (value || "");
+};
+
+const isDefaultDirty = (key: string, value: string) => {
+  return (originalDefaultValues[key] || "") !== (value || "");
+};
+
   useEffect(() => {
     if (!companies.length || !products.length) return;
 
@@ -234,15 +273,22 @@ const NewManageContractsTables: React.FC = () => {
     const nextDefaults: Record<string, string> = {};
 
     CONTRACTS_TABLES_CONFIG.forEach((table: any) => {
-      table.sections.forEach((section: any) => {
-        const companiesForGroup =
+  const savedDefaultGroups = new Set<string>();
+  table.sections.forEach((section: any) => {
+    const companiesForGroup =
           visibleCompaniesByGroup[String(section.productGroupId)] || [];
 
-        const productsForSection = products.filter(
-          (p) =>
-            String(p.productGroup) === String(section.productGroupId) &&
-            String(p.productSubGroupId || "") === String(section.productSubGroupId)
-        );
+       const productsForSection = products.filter((p) => {
+  const sameGroup = String(p.productGroup) === String(section.productGroupId);
+
+  const sectionSubGroupId = String(section.productSubGroupId || "").trim();
+
+  const sameSubGroup = sectionSubGroupId
+    ? String(p.productSubGroupId || "") === sectionSubGroupId
+    : true;
+
+  return sameGroup && sameSubGroup;
+});
 
         section.rows.forEach((row: any) => {
           if (table.showDefaultColumn) {
@@ -334,289 +380,693 @@ const NewManageContractsTables: React.FC = () => {
         });
       });
     });
+setCellValues(nextValues);
+setDefaultValues(nextDefaults);
 
-    setCellValues(nextValues);
-    setDefaultValues(nextDefaults);
+setOriginalCellValues(nextValues);
+setOriginalDefaultValues(nextDefaults);
+
+    
   }, [contracts, products, companies, visibleCompaniesByGroup, effectiveAgentId]);
 
-  const saveContracts = async () => {
-    if (!effectiveAgentId) {
-      alert("חסר סוכן נבחר");
-      return;
-    }
+// const saveContracts = async () => {
+//   if (!effectiveAgentId) {
+//     showToast("error", "חסר סוכן נבחר");
+//     return;
+//   }
 
-    try {
-      const batch = writeBatch(db);
+//   try {
+//     const batch = writeBatch(db);
+// let writeCount = 0;
 
-      CONTRACTS_TABLES_CONFIG.forEach((table: any) => {
-        table.sections.forEach((section: any) => {
-          const companiesForGroup =
-            visibleCompaniesByGroup[String(section.productGroupId)] || [];
+//     const findMatches = (params: {
+//       company: string;
+//       product: string;
+//       productsGroup: string;
+//       minuySochen: boolean;
+//     }) => {
+//       return contracts.filter(
+//         (c) =>
+//           c.AgentId === effectiveAgentId &&
+//           String(c.company || "") === params.company &&
+//           String(c.product || "") === params.product &&
+//           String(c.productsGroup || "") === params.productsGroup &&
+//           Boolean(c.minuySochen) === params.minuySochen
+//       );
+//     };
 
-          const productsForSection = products.filter(
-            (p) =>
-              String(p.productGroup) === String(section.productGroupId) &&
-              String(p.productSubGroupId || "") === String(section.productSubGroupId)
-          );
+//    const upsertOrDelete = (
+//   matches: ContractDoc[],
+//   payload: any,
+//   hasValues: boolean
+// ) => {
+//   if (hasValues) {
+//     if (matches.length > 0) {
+//       batch.update(doc(db, "contracts", matches[0].id), payload);
+//       writeCount++;
 
-          const rowHekef = section.rows.find(
-            (r: any) => r.commissionType === "hekef" && !r.minuySochen
-          );
+//       matches.slice(1).forEach((duplicate) => {
+//         batch.delete(doc(db, "contracts", duplicate.id));
+//         writeCount++;
+//       });
+//     } else {
+//       const newRef = doc(collection(db, "contracts"));
+//       batch.set(newRef, payload);
+//       writeCount++;
+//     }
+//   } else {
+//     matches.forEach((existing) => {
+//       batch.delete(doc(db, "contracts", existing.id));
+//       writeCount++;
+//     });
+//   }
+// };
 
-          const rowNifraim = section.rows.find(
-            (r: any) => r.commissionType === "nifraim" && !r.minuySochen
-          );
+//     CONTRACTS_TABLES_CONFIG.forEach((table: any) => {
+//       table.sections.forEach((section: any) => {
+//         const companiesForGroup =
+//           visibleCompaniesByGroup[String(section.productGroupId)] || [];
 
-          const rowNifraimMinuy = section.rows.find(
-            (r: any) => r.commissionType === "nifraim" && r.minuySochen
-          );
+//        const productsForSection = products.filter((p) => {
+//   const sameGroup =
+//     String(p.productGroup) === String(section.productGroupId);
 
-          const rowNiud = section.rows.find(
-            (r: any) => r.commissionType === "niud" && !r.minuySochen
-          );
+//   const sectionSubGroupId = String(
+//     section.productSubGroupId || ""
+//   ).trim();
 
-          const vatMode = getVatModeByTable(table.key);
+//   const sameSubGroup = sectionSubGroupId
+//     ? String(p.productSubGroupId || "") === sectionSubGroupId
+//     : true;
 
-          if (table.showDefaultColumn) {
-            const hekefRaw = rowHekef
-              ? (defaultValues[buildDefaultKey(table.key, section.key, rowHekef.label)] || "").trim()
-              : "";
+//   return sameGroup && sameSubGroup;
+// });
 
-            const nifraimRaw = rowNifraim
-              ? (defaultValues[buildDefaultKey(table.key, section.key, rowNifraim.label)] || "").trim()
-              : "";
+//         const rowHekef = section.rows.find(
+//           (r: any) => r.commissionType === "hekef" && !r.minuySochen
+//         );
 
-            const nifraimMinuyRaw = rowNifraimMinuy
-              ? (defaultValues[buildDefaultKey(table.key, section.key, rowNifraimMinuy.label)] || "").trim()
-              : "";
+//         const rowNifraim = section.rows.find(
+//           (r: any) => r.commissionType === "nifraim" && !r.minuySochen
+//         );
 
-            const niudRaw = rowNiud
-              ? (defaultValues[buildDefaultKey(table.key, section.key, rowNiud.label)] || "").trim()
-              : "";
+//         const rowNifraimMinuy = section.rows.find(
+//           (r: any) => r.commissionType === "nifraim" && r.minuySochen
+//         );
 
-            const hasDefaultRegularValues = Boolean(
-              hekefRaw || nifraimRaw || niudRaw
+//         const rowNiud = section.rows.find(
+//           (r: any) => r.commissionType === "niud" && !r.minuySochen
+//         );
+        
+//        const vatMode = getVatModeByTable(table.key);
+
+
+//        if (table.showDefaultColumn) {
+//   const groupKey = String(section.productGroupId);
+
+//   if (!savedDefaultGroups.has(groupKey)) {
+//     savedDefaultGroups.add(groupKey);
+//         const hekefRaw = rowHekef
+//   ? (
+//       defaultValuesRef.current[
+//         buildDefaultKey(table.key, section.key, rowHekef.label)
+//       ] || ""
+//     ).trim()
+//   : "";
+
+// const nifraimRaw = rowNifraim
+//   ? (
+//       defaultValuesRef.current[
+//         buildDefaultKey(table.key, section.key, rowNifraim.label)
+//       ] || ""
+//     ).trim()
+//   : "";
+
+
+// const nifraimMinuyRaw = rowNifraimMinuy
+//   ? (
+//       defaultValuesRef.current[
+//         buildDefaultKey(
+//           table.key,
+//           section.key,
+//           rowNifraimMinuy.label
+//         )
+//       ] || ""
+//     ).trim()
+//   : "";
+
+// const niudRaw = rowNiud
+//   ? (
+//       defaultValuesRef.current[
+//         buildDefaultKey(table.key, section.key, rowNiud.label)
+//       ] || ""
+//     ).trim()
+//   : "";
+//           const hekefNormalized = rowHekef
+//             ? normalizeCommissionForSave(hekefRaw, rowHekef.valueMode, vatMode)
+//             : null;
+
+//           const nifraimNormalized = rowNifraim
+//             ? normalizeCommissionForSave(
+//                 nifraimRaw,
+//                 rowNifraim.valueMode,
+//                 vatMode
+//               )
+//             : null;
+
+//           const niudNormalized = rowNiud
+//             ? normalizeCommissionForSave(niudRaw, rowNiud.valueMode, vatMode)
+//             : null;
+
+//           const payloadDefault = {
+//             AgentId: effectiveAgentId,
+//             company: "",
+//             productsGroup: String(section.productGroupId),
+//             product: "",
+//             commissionHekef: hekefNormalized?.normalizedPercentNet || "",
+//             commissionNifraim: nifraimNormalized?.normalizedPercentNet || "",
+//             commissionNiud: niudNormalized?.normalizedPercentNet || "",
+//             minuySochen: false,
+
+//             commissionHekefDisplay: hekefRaw,
+//             commissionNifraimDisplay: nifraimRaw,
+//             commissionNiudDisplay: niudRaw,
+
+//             commissionHekefDisplayVatIncluded: vatMode === "includes_vat",
+//             commissionNifraimDisplayVatIncluded: vatMode === "includes_vat",
+//             commissionNiudDisplayVatIncluded: vatMode === "includes_vat",
+//           };
+
+//          const defaultMatches = findMatches({
+//   company: "",
+//   product: "",
+//   productsGroup: String(section.productGroupId),
+//   minuySochen: false,
+// });
+
+// console.log("section.productGroupId:", section.productGroupId);
+// console.log("defaultMatches:", defaultMatches);
+// console.log("hekefRaw:", hekefRaw, "nifraimRaw:", nifraimRaw, "niudRaw:", niudRaw);
+
+// upsertOrDelete(defaultMatches, payloadDefault, Boolean(hekefRaw || nifraimRaw || niudRaw));
+
+//           if (rowNifraimMinuy) {
+//             const nifraimMinuyNormalized = normalizeCommissionForSave(
+//               nifraimMinuyRaw,
+//               rowNifraimMinuy.valueMode,
+//               vatMode
+//             );
+
+//             const payloadDefaultMinuy = {
+//               AgentId: effectiveAgentId,
+//               company: "",
+//               productsGroup: String(section.productGroupId),
+//               product: "",
+//               commissionHekef: "",
+//               commissionNifraim:
+//                 nifraimMinuyNormalized.normalizedPercentNet || "",
+//               commissionNiud: "",
+//               minuySochen: true,
+
+//               commissionHekefDisplay: "",
+//               commissionNifraimDisplay: nifraimMinuyRaw,
+//               commissionNiudDisplay: "",
+
+//               commissionHekefDisplayVatIncluded: vatMode === "includes_vat",
+//               commissionNifraimDisplayVatIncluded: vatMode === "includes_vat",
+//               commissionNiudDisplayVatIncluded: vatMode === "includes_vat",
+//             };
+
+//             upsertOrDelete(
+//               findMatches({
+//                 company: "",
+//                 product: "",
+//                 productsGroup: String(section.productGroupId),
+//                 minuySochen: true,
+//               }),
+//               payloadDefaultMinuy,
+//               Boolean(nifraimMinuyRaw)
+//             );
+//           }
+//         }
+
+//         companiesForGroup.forEach((company) => {
+//         const hekefRaw = rowHekef
+//   ? (
+//       cellValuesRef.current[
+//         buildCellKey(table.key, section.key, rowHekef.label, company.id)
+//       ] || ""
+//     ).trim()
+//   : "";
+
+// const nifraimRaw = rowNifraim
+//   ? (
+//       cellValuesRef.current[
+//         buildCellKey(
+//           table.key,
+//           section.key,
+//           rowNifraim.label,
+//           company.id
+//         )
+//       ] || ""
+//     ).trim()
+//   : "";
+
+// const nifraimMinuyRaw = rowNifraimMinuy
+//   ? (
+//       cellValuesRef.current[
+//         buildCellKey(
+//           table.key,
+//           section.key,
+//           rowNifraimMinuy.label,
+//           company.id
+//         )
+//       ] || ""
+//     ).trim()
+//   : "";
+
+// const niudRaw = rowNiud
+//   ? (
+//       cellValuesRef.current[
+//         buildCellKey(table.key, section.key, rowNiud.label, company.id)
+//       ] || ""
+//     ).trim()
+//   : "";
+//           const hekefNormalized = rowHekef
+//             ? normalizeCommissionForSave(hekefRaw, rowHekef.valueMode, vatMode)
+//             : null;
+
+//           const nifraimNormalized = rowNifraim
+//             ? normalizeCommissionForSave(
+//                 nifraimRaw,
+//                 rowNifraim.valueMode,
+//                 vatMode
+//               )
+//             : null;
+
+//           const niudNormalized = rowNiud
+//             ? normalizeCommissionForSave(niudRaw, rowNiud.valueMode, vatMode)
+//             : null;
+
+//           productsForSection.forEach((product) => {
+//             const payload = {
+//               AgentId: effectiveAgentId,
+//               company: company.companyName,
+//               productsGroup: "",
+//               product: product.productName,
+//               commissionHekef: hekefNormalized?.normalizedPercentNet || "",
+//               commissionNifraim: nifraimNormalized?.normalizedPercentNet || "",
+//               commissionNiud: niudNormalized?.normalizedPercentNet || "",
+//               minuySochen: false,
+
+//               commissionHekefDisplay: hekefRaw,
+//               commissionNifraimDisplay: nifraimRaw,
+//               commissionNiudDisplay: niudRaw,
+
+//               commissionHekefDisplayVatIncluded: vatMode === "includes_vat",
+//               commissionNifraimDisplayVatIncluded: vatMode === "includes_vat",
+//               commissionNiudDisplayVatIncluded: vatMode === "includes_vat",
+//             };
+
+// console.log("=== DEFAULT SAVE DEBUG ===");
+// console.log("hekefRaw:", hekefRaw);
+// console.log("nifraimRaw:", nifraimRaw);
+// console.log("niudRaw:", niudRaw);
+// console.log("hasValues:", Boolean(hekefRaw || nifraimRaw || niudRaw));
+// console.log("findMatches result:", findMatches({
+//   company: "",
+//   product: "",
+//   productsGroup: String(section.productGroupId),
+//   minuySochen: false,
+// }));
+
+//             upsertOrDelete(
+//               findMatches({
+//                 company: company.companyName,
+//                 product: product.productName,
+//                 productsGroup: "",
+//                 minuySochen: false,
+//               }),
+//               payload,
+//               Boolean(hekefRaw || nifraimRaw || niudRaw)
+//             );
+
+//             if (rowNifraimMinuy) {
+//               const nifraimMinuyNormalized = normalizeCommissionForSave(
+//                 nifraimMinuyRaw,
+//                 rowNifraimMinuy.valueMode,
+//                 vatMode
+//               );
+
+//               const payloadMinuy = {
+//                 AgentId: effectiveAgentId,
+//                 company: company.companyName,
+//                 productsGroup: "",
+//                 product: product.productName,
+//                 commissionHekef: "",
+//                 commissionNifraim:
+//                   nifraimMinuyNormalized.normalizedPercentNet || "",
+//                 commissionNiud: "",
+//                 minuySochen: true,
+
+//                 commissionHekefDisplay: "",
+//                 commissionNifraimDisplay: nifraimMinuyRaw,
+//                 commissionNiudDisplay: "",
+
+//                 commissionHekefDisplayVatIncluded: vatMode === "includes_vat",
+//                 commissionNifraimDisplayVatIncluded: vatMode === "includes_vat",
+//                 commissionNiudDisplayVatIncluded: vatMode === "includes_vat",
+//               };
+
+//               upsertOrDelete(
+//                 findMatches({
+//                   company: company.companyName,
+//                   product: product.productName,
+//                   productsGroup: "",
+//                   minuySochen: true,
+//                 }),
+//                 payloadMinuy,
+//                 Boolean(nifraimMinuyRaw)
+//               );
+//             }
+//           });
+//         });
+//       });
+//     });
+
+//     console.log("contracts save writeCount:", writeCount);
+
+// if (writeCount === 0) {
+//   showToast("error", "לא נמצאו שינויים לשמירה");
+//   return;
+// }
+
+//    await batch.commit();
+
+//    console.log("batch committed successfully");
+
+// setOriginalCellValues({ ...cellValues });
+// setOriginalDefaultValues({ ...defaultValues });
+// showToast("success", "נשמר בהצלחה");
+// setTimeout(() => fetchContracts(), 1000);
+//   } catch (error) {
+//     console.error("saveContracts error:", error);
+//     showToast("error", "שגיאה בשמירה");
+//   }
+// };
+
+
+const saveContracts = async () => {
+  if (!effectiveAgentId) {
+    showToast("error", "חסר סוכן נבחר");
+    return;
+  }
+
+  try {
+    const batch = writeBatch(db);
+    let writeCount = 0;
+
+    const findMatches = (params: {
+      company: string;
+      product: string;
+      productsGroup: string;
+      minuySochen: boolean;
+    }) => {
+      return contracts.filter(
+        (c) =>
+          c.AgentId === effectiveAgentId &&
+          String(c.company || "") === params.company &&
+          String(c.product || "") === params.product &&
+          String(c.productsGroup || "") === params.productsGroup &&
+          Boolean(c.minuySochen) === params.minuySochen
+      );
+    };
+
+    const upsertOrDelete = (
+      matches: ContractDoc[],
+      payload: any,
+      hasValues: boolean
+    ) => {
+      if (hasValues) {
+        if (matches.length > 0) {
+          batch.update(doc(db, "contracts", matches[0].id), payload);
+          writeCount++;
+          matches.slice(1).forEach((duplicate) => {
+            batch.delete(doc(db, "contracts", duplicate.id));
+            writeCount++;
+          });
+        } else {
+          const newRef = doc(collection(db, "contracts"));
+          batch.set(newRef, payload);
+          writeCount++;
+        }
+      } else {
+        matches.forEach((existing) => {
+          batch.delete(doc(db, "contracts", existing.id));
+          writeCount++;
+        });
+      }
+    };
+
+    CONTRACTS_TABLES_CONFIG.forEach((table: any) => {
+      const savedDefaultGroups = new Set<string>();
+
+      table.sections.forEach((section: any) => {
+        const companiesForGroup =
+          visibleCompaniesByGroup[String(section.productGroupId)] || [];
+
+        const productsForSection = products.filter((p) => {
+          const sameGroup = String(p.productGroup) === String(section.productGroupId);
+          const sectionSubGroupId = String(section.productSubGroupId || "").trim();
+          const sameSubGroup = sectionSubGroupId
+            ? String(p.productSubGroupId || "") === sectionSubGroupId
+            : true;
+          return sameGroup && sameSubGroup;
+        });
+
+        const vatMode = getVatModeByTable(table.key);
+
+        if (table.showDefaultColumn) {
+          const groupKey = String(section.productGroupId);
+
+          if (!savedDefaultGroups.has(groupKey)) {
+            savedDefaultGroups.add(groupKey);
+
+            const sectionsForGroup = table.sections.filter(
+              (s: any) => String(s.productGroupId) === groupKey
             );
-            const hasDefaultMinuyValue = Boolean(nifraimMinuyRaw);
 
-            if (hasDefaultRegularValues) {
-              const existingDefault = contracts.find(
-                (c) =>
-                  c.AgentId === effectiveAgentId &&
-                  c.company === "" &&
-                  c.product === "" &&
-                  c.productsGroup === String(section.productGroupId) &&
-                  c.minuySochen === false
-              );
-
-              const hekefNormalized = rowHekef
-                ? normalizeCommissionForSave(hekefRaw, rowHekef.valueMode, vatMode)
-                : null;
-
-              const nifraimNormalized = rowNifraim
-                ? normalizeCommissionForSave(nifraimRaw, rowNifraim.valueMode, vatMode)
-                : null;
-
-              const niudNormalized = rowNiud
-                ? normalizeCommissionForSave(niudRaw, rowNiud.valueMode, vatMode)
-                : null;
-
-              const payloadDefault = {
-                AgentId: effectiveAgentId,
-                company: "",
-                productsGroup: String(section.productGroupId),
-                product: "",
-                commissionHekef: hekefNormalized?.normalizedPercentNet || "",
-                commissionNifraim: nifraimNormalized?.normalizedPercentNet || "",
-                commissionNiud: niudNormalized?.normalizedPercentNet || "",
-                minuySochen: false,
-
-                commissionHekefDisplay: hekefRaw || "",
-                commissionNifraimDisplay: nifraimRaw || "",
-                commissionNiudDisplay: niudRaw || "",
-
-                commissionHekefDisplayVatIncluded: vatMode === "includes_vat",
-                commissionNifraimDisplayVatIncluded: vatMode === "includes_vat",
-                commissionNiudDisplayVatIncluded: vatMode === "includes_vat",
-              };
-
-              if (existingDefault) {
-                batch.update(doc(db, "contracts", existingDefault.id), payloadDefault);
-              } else {
-                const newRef = doc(collection(db, "contracts"));
-                batch.set(newRef, payloadDefault);
+            const findRaw = (commissionType: string, isMinuy: boolean) => {
+              for (const s of sectionsForGroup) {
+                const row = s.rows.find(
+                  (r: any) =>
+                    r.commissionType === commissionType &&
+                    Boolean(r.minuySochen) === isMinuy
+                );
+                if (row) {
+                  const val = (
+                    defaultValuesRef.current[
+                      buildDefaultKey(table.key, s.key, row.label)
+                    ] || ""
+                  ).trim();
+                  if (val) return { val, row };
+                }
               }
-            }
+              return null;
+            };
 
-            if (rowNifraimMinuy && hasDefaultMinuyValue) {
-              const existingDefaultMinuy = contracts.find(
-                (c) =>
-                  c.AgentId === effectiveAgentId &&
-                  c.company === "" &&
-                  c.product === "" &&
-                  c.productsGroup === String(section.productGroupId) &&
-                  c.minuySochen === true
-              );
+            const hekefResult = findRaw("hekef", false);
+            const nifraimResult = findRaw("nifraim", false);
+            const niudResult = findRaw("niud", false);
+            const nifraimMinuyResult = findRaw("nifraim", true);
 
+            const hekefRaw = hekefResult?.val || "";
+            const nifraimRaw = nifraimResult?.val || "";
+            const niudRaw = niudResult?.val || "";
+            const nifraimMinuyRaw = nifraimMinuyResult?.val || "";
+
+            const hekefRow = hekefResult?.row;
+            const nifraimRow = nifraimResult?.row;
+            const niudRow = niudResult?.row;
+            const nifraimMinuyRow = nifraimMinuyResult?.row;
+
+            const hekefNormalized = hekefRow
+              ? normalizeCommissionForSave(hekefRaw, hekefRow.valueMode, vatMode)
+              : null;
+            const nifraimNormalized = nifraimRow
+              ? normalizeCommissionForSave(nifraimRaw, nifraimRow.valueMode, vatMode)
+              : null;
+            const niudNormalized = niudRow
+              ? normalizeCommissionForSave(niudRaw, niudRow.valueMode, vatMode)
+              : null;
+
+            const payloadDefault = {
+              AgentId: effectiveAgentId,
+              company: "",
+              productsGroup: groupKey,
+              product: "",
+              commissionHekef: hekefNormalized?.normalizedPercentNet || "",
+              commissionNifraim: nifraimNormalized?.normalizedPercentNet || "",
+              commissionNiud: niudNormalized?.normalizedPercentNet || "",
+              minuySochen: false,
+              commissionHekefDisplay: hekefRaw,
+              commissionNifraimDisplay: nifraimRaw,
+              commissionNiudDisplay: niudRaw,
+              commissionHekefDisplayVatIncluded: vatMode === "includes_vat",
+              commissionNifraimDisplayVatIncluded: vatMode === "includes_vat",
+              commissionNiudDisplayVatIncluded: vatMode === "includes_vat",
+            };
+
+            upsertOrDelete(
+              findMatches({ company: "", product: "", productsGroup: groupKey, minuySochen: false }),
+              payloadDefault,
+              Boolean(hekefRaw || nifraimRaw || niudRaw)
+            );
+
+            if (nifraimMinuyRow) {
               const nifraimMinuyNormalized = normalizeCommissionForSave(
                 nifraimMinuyRaw,
-                rowNifraimMinuy.valueMode,
+                nifraimMinuyRow.valueMode,
                 vatMode
               );
-
               const payloadDefaultMinuy = {
                 AgentId: effectiveAgentId,
                 company: "",
-                productsGroup: String(section.productGroupId),
+                productsGroup: groupKey,
                 product: "",
                 commissionHekef: "",
                 commissionNifraim: nifraimMinuyNormalized.normalizedPercentNet || "",
                 commissionNiud: "",
                 minuySochen: true,
-
                 commissionHekefDisplay: "",
-                commissionNifraimDisplay: nifraimMinuyRaw || "",
+                commissionNifraimDisplay: nifraimMinuyRaw,
                 commissionNiudDisplay: "",
-
                 commissionHekefDisplayVatIncluded: vatMode === "includes_vat",
                 commissionNifraimDisplayVatIncluded: vatMode === "includes_vat",
                 commissionNiudDisplayVatIncluded: vatMode === "includes_vat",
               };
-
-              if (existingDefaultMinuy) {
-                batch.update(doc(db, "contracts", existingDefaultMinuy.id), payloadDefaultMinuy);
-              } else {
-                const newRef = doc(collection(db, "contracts"));
-                batch.set(newRef, payloadDefaultMinuy);
-              }
+              upsertOrDelete(
+                findMatches({ company: "", product: "", productsGroup: groupKey, minuySochen: true }),
+                payloadDefaultMinuy,
+                Boolean(nifraimMinuyRaw)
+              );
             }
           }
+        }
 
-          companiesForGroup.forEach((company) => {
-            const hekefRaw = rowHekef
-              ? (cellValues[buildCellKey(table.key, section.key, rowHekef.label, company.id)] || "").trim()
-              : "";
+        companiesForGroup.forEach((company) => {
+          const rowHekef = section.rows.find(
+            (r: any) => r.commissionType === "hekef" && !r.minuySochen
+          );
+          const rowNifraim = section.rows.find(
+            (r: any) => r.commissionType === "nifraim" && !r.minuySochen
+          );
+          const rowNifraimMinuy = section.rows.find(
+            (r: any) => r.commissionType === "nifraim" && r.minuySochen
+          );
+          const rowNiud = section.rows.find(
+            (r: any) => r.commissionType === "niud" && !r.minuySochen
+          );
 
-            const nifraimRaw = rowNifraim
-              ? (cellValues[buildCellKey(table.key, section.key, rowNifraim.label, company.id)] || "").trim()
-              : "";
+          const hekefRaw = rowHekef
+            ? (cellValuesRef.current[buildCellKey(table.key, section.key, rowHekef.label, company.id)] || "").trim()
+            : "";
+          const nifraimRaw = rowNifraim
+            ? (cellValuesRef.current[buildCellKey(table.key, section.key, rowNifraim.label, company.id)] || "").trim()
+            : "";
+          const nifraimMinuyRaw = rowNifraimMinuy
+            ? (cellValuesRef.current[buildCellKey(table.key, section.key, rowNifraimMinuy.label, company.id)] || "").trim()
+            : "";
+          const niudRaw = rowNiud
+            ? (cellValuesRef.current[buildCellKey(table.key, section.key, rowNiud.label, company.id)] || "").trim()
+            : "";
 
-            const nifraimMinuyRaw = rowNifraimMinuy
-              ? (cellValues[buildCellKey(table.key, section.key, rowNifraimMinuy.label, company.id)] || "").trim()
-              : "";
+          const hekefNormalized = rowHekef
+            ? normalizeCommissionForSave(hekefRaw, rowHekef.valueMode, vatMode)
+            : null;
+          const nifraimNormalized = rowNifraim
+            ? normalizeCommissionForSave(nifraimRaw, rowNifraim.valueMode, vatMode)
+            : null;
+          const niudNormalized = rowNiud
+            ? normalizeCommissionForSave(niudRaw, rowNiud.valueMode, vatMode)
+            : null;
 
-            const niudRaw = rowNiud
-              ? (cellValues[buildCellKey(table.key, section.key, rowNiud.label, company.id)] || "").trim()
-              : "";
+          productsForSection.forEach((product) => {
+            const payload = {
+              AgentId: effectiveAgentId,
+              company: company.companyName,
+              productsGroup: "",
+              product: product.productName,
+              commissionHekef: hekefNormalized?.normalizedPercentNet || "",
+              commissionNifraim: nifraimNormalized?.normalizedPercentNet || "",
+              commissionNiud: niudNormalized?.normalizedPercentNet || "",
+              minuySochen: false,
+              commissionHekefDisplay: hekefRaw,
+              commissionNifraimDisplay: nifraimRaw,
+              commissionNiudDisplay: niudRaw,
+              commissionHekefDisplayVatIncluded: vatMode === "includes_vat",
+              commissionNifraimDisplayVatIncluded: vatMode === "includes_vat",
+              commissionNiudDisplayVatIncluded: vatMode === "includes_vat",
+            };
 
-            const hasRegularValues = Boolean(hekefRaw || nifraimRaw || niudRaw);
-            const hasMinuyValue = Boolean(nifraimMinuyRaw);
+            upsertOrDelete(
+              findMatches({ company: company.companyName, product: product.productName, productsGroup: "", minuySochen: false }),
+              payload,
+              Boolean(hekefRaw || nifraimRaw || niudRaw)
+            );
 
-            const hekefNormalized = rowHekef
-              ? normalizeCommissionForSave(hekefRaw, rowHekef.valueMode, vatMode)
-              : null;
-
-            const nifraimNormalized = rowNifraim
-              ? normalizeCommissionForSave(nifraimRaw, rowNifraim.valueMode, vatMode)
-              : null;
-
-            const nifraimMinuyNormalized = rowNifraimMinuy
-              ? normalizeCommissionForSave(nifraimMinuyRaw, rowNifraimMinuy.valueMode, vatMode)
-              : null;
-
-            const niudNormalized = rowNiud
-              ? normalizeCommissionForSave(niudRaw, rowNiud.valueMode, vatMode)
-              : null;
-
-            if (hasRegularValues) {
-              productsForSection.forEach((product) => {
-                const existing = contracts.find(
-                  (c) =>
-                    c.AgentId === effectiveAgentId &&
-                    c.company === company.companyName &&
-                    c.product === product.productName &&
-                    c.productsGroup === "" &&
-                    c.minuySochen === false
-                );
-
-                const payload = {
-                  AgentId: effectiveAgentId,
-                  company: company.companyName,
-                  productsGroup: "",
-                  product: product.productName,
-                  commissionHekef: hekefNormalized?.normalizedPercentNet || "",
-                  commissionNifraim: nifraimNormalized?.normalizedPercentNet || "",
-                  commissionNiud: niudNormalized?.normalizedPercentNet || "",
-                  minuySochen: false,
-
-                  commissionHekefDisplay: hekefRaw || "",
-                  commissionNifraimDisplay: nifraimRaw || "",
-                  commissionNiudDisplay: niudRaw || "",
-
-                  commissionHekefDisplayVatIncluded: vatMode === "includes_vat",
-                  commissionNifraimDisplayVatIncluded: vatMode === "includes_vat",
-                  commissionNiudDisplayVatIncluded: vatMode === "includes_vat",
-                };
-
-                if (existing) {
-                  batch.update(doc(db, "contracts", existing.id), payload);
-                } else {
-                  const newRef = doc(collection(db, "contracts"));
-                  batch.set(newRef, payload);
-                }
-              });
-            }
-
-            if (rowNifraimMinuy && hasMinuyValue) {
-              productsForSection.forEach((product) => {
-                const existingMinuy = contracts.find(
-                  (c) =>
-                    c.AgentId === effectiveAgentId &&
-                    c.company === company.companyName &&
-                    c.product === product.productName &&
-                    c.productsGroup === "" &&
-                    c.minuySochen === true
-                );
-
-                const payloadMinuy = {
-                  AgentId: effectiveAgentId,
-                  company: company.companyName,
-                  productsGroup: "",
-                  product: product.productName,
-                  commissionHekef: "",
-                  commissionNifraim: nifraimMinuyNormalized?.normalizedPercentNet || "",
-                  commissionNiud: "",
-                  minuySochen: true,
-
-                  commissionHekefDisplay: "",
-                  commissionNifraimDisplay: nifraimMinuyRaw || "",
-                  commissionNiudDisplay: "",
-
-                  commissionHekefDisplayVatIncluded: vatMode === "includes_vat",
-                  commissionNifraimDisplayVatIncluded: vatMode === "includes_vat",
-                  commissionNiudDisplayVatIncluded: vatMode === "includes_vat",
-                };
-
-                if (existingMinuy) {
-                  batch.update(doc(db, "contracts", existingMinuy.id), payloadMinuy);
-                } else {
-                  const newRef = doc(collection(db, "contracts"));
-                  batch.set(newRef, payloadMinuy);
-                }
-              });
+            if (rowNifraimMinuy) {
+              const nifraimMinuyNormalized = normalizeCommissionForSave(
+                nifraimMinuyRaw,
+                rowNifraimMinuy.valueMode,
+                vatMode
+              );
+              const payloadMinuy = {
+                AgentId: effectiveAgentId,
+                company: company.companyName,
+                productsGroup: "",
+                product: product.productName,
+                commissionHekef: "",
+                commissionNifraim: nifraimMinuyNormalized.normalizedPercentNet || "",
+                commissionNiud: "",
+                minuySochen: true,
+                commissionHekefDisplay: "",
+                commissionNifraimDisplay: nifraimMinuyRaw,
+                commissionNiudDisplay: "",
+                commissionHekefDisplayVatIncluded: vatMode === "includes_vat",
+                commissionNifraimDisplayVatIncluded: vatMode === "includes_vat",
+                commissionNiudDisplayVatIncluded: vatMode === "includes_vat",
+              };
+              upsertOrDelete(
+                findMatches({ company: company.companyName, product: product.productName, productsGroup: "", minuySochen: true }),
+                payloadMinuy,
+                Boolean(nifraimMinuyRaw)
+              );
             }
           });
         });
       });
+    });
 
-      await batch.commit();
-      await fetchContracts();
-      alert("נשמר בהצלחה");
-    } catch (error) {
-      console.error("saveContracts error:", error);
-      alert("שגיאה בשמירה");
+    console.log("contracts save writeCount:", writeCount);
+
+    if (writeCount === 0) {
+      showToast("error", "לא נמצאו שינויים לשמירה");
+      return;
     }
-  };
+
+    await batch.commit();
+    console.log("batch committed successfully");
+
+    setOriginalCellValues({ ...cellValues });
+    setOriginalDefaultValues({ ...defaultValues });
+    showToast("success", "נשמר בהצלחה");
+    setTimeout(() => fetchContracts(), 1000);
+  } catch (error) {
+    console.error("saveContracts error:", error);
+    showToast("error", "שגיאה בשמירה");
+  }
+};
 
 
   const getDensityClassByCompanies = (count: number) => {
@@ -628,6 +1078,11 @@ const NewManageContractsTables: React.FC = () => {
 
   return (
     <div className="contracts-page" dir="rtl">
+      {toast && (
+  <div className={`contracts-toast ${toast.type}`}>
+    {toast.message}
+  </div>
+)}
 <div className="top-toolbar">
   <div className="tabs-container">
     <div
@@ -657,7 +1112,7 @@ const NewManageContractsTables: React.FC = () => {
       <select
         value={selectedAgentId}
         onChange={handleAgentChange}
-        className="toolbar-select"
+        className="select-input"
       >
         <option value="">בחר סוכן</option>
         {agents.map((agent: any) => (
@@ -668,20 +1123,21 @@ const NewManageContractsTables: React.FC = () => {
       </select>
     )}
 
-    <button
-      type="button"
-      onClick={saveContracts}
-      className="save-button"
-    >
-      שמור
-    </button>
-    <button
-  type="button"
+  <Button
+  onClick={saveContracts}
+  text="שמור"
+  type="primary"
+  icon="off"
+  state="default"
+/>
+
+<Button
   onClick={downloadExcelTemplate}
-  className="save-button"
->
-  הורד תבנית אקסל
-</button>
+  text="הורד תבנית אקסל"
+  type="primary"
+  icon="off"
+  state="default"
+/>
   </div>
 </div>
       {visibleTables.map((table: any) => (
@@ -737,17 +1193,22 @@ const densityClass = getDensityClassByCompanies(companiesForGroup.length);
 
                                 return (
                                   <>
-                                    <input
-                                      className="contracts-input"
-                                      value={defaultValue}
-                                      placeholder={getPlaceholder(row.valueMode)}
-                                      onChange={(e) =>
-                                        setDefaultValues((prev) => ({
-                                          ...prev,
-                                          [defaultKey]: e.target.value,
-                                        }))
-                                      }
-                                    />
+                                  <input
+  className={`contracts-input ${
+  isDefaultDirty(defaultKey, defaultValue) ? "contracts-input-dirty" : ""
+}`}
+  value={defaultValue}
+  placeholder={getPlaceholder(row.valueMode)}
+  onChange={(e) => {
+    const value = e.target.value;
+
+    setDefaultValues((prev) => ({
+      ...prev,
+      [defaultKey]: value,
+    }));
+
+  }}
+/>
                                     {defaultValue && (
                                       <div className="cell-helper">
                                         {getHelper(defaultValue, row.valueMode, table.key)}
@@ -771,19 +1232,21 @@ const densityClass = getDensityClassByCompanies(companiesForGroup.length);
 
                             return (
                               <td key={key}>
-                                <input
-                                  className="contracts-input"
-                                  value={value}
-                                  placeholder={getPlaceholder(row.valueMode)}
-                                  onChange={(e) =>
-                                    setCellValues((prev) => ({
-                                      ...prev,
-                                      [key]: e.target.value,
-                                    }))
-                                  }
-                                />
+                             <input
+  className={`contracts-input ${
+  isCellDirty(key, value) ? "contracts-input-dirty" : ""
+}`}
+  value={value}
+  placeholder={getPlaceholder(row.valueMode)}
+  onChange={(e) => {
+    const value = e.target.value;
 
-                                {value && (
+    setCellValues((prev) => ({
+      ...prev,
+      [key]: value,
+    }));
+  }}
+/>                          {value && (
                                   <div className="cell-helper">
                                     {getHelper(value, row.valueMode, table.key)}
                                   </div>

@@ -235,34 +235,11 @@
   flex: 0 0 auto;
 }
 
-.save-button {
-  padding: 8px 14px;
-  border-radius: 10px;
-  border: 1px solid #cbd5e1;
-  background: #0f172a;
-  color: #fff;
-  cursor: pointer;
-  font-weight: 600;
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-
-
 
 .save-button:hover {
   opacity: 0.95;
 }
 
-.save-button {
-  padding: 8px 14px;
-  border-radius: 10px;
-  border: 1px solid #cbd5e1;
-  background: #0f172a;
-  color: #fff;
-  cursor: pointer;
-  font-weight: 600;
-  white-space: nowrap;
-}
 /* =========================
    DENSITY MODES BY COMPANY COUNT
 ========================= */
@@ -370,4 +347,82 @@
 .contracts-table.density-ultra .cell-helper {
   font-size: 9px;
   margin-top: 1px;
+}
+.contracts-input-dirty {
+  background: #fef3c7;
+  border-color: #f59e0b;
+  box-shadow: 0 0 0 1px #f59e0b inset;
+}
+
+.contracts-toast {
+  position: fixed;
+  top: 24px;
+  left: 24px;
+  z-index: 9999;
+  padding: 12px 18px;
+  border-radius: 12px;
+  font-weight: 600;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+
+.contracts-toast.success {
+  background: #dcfce7;
+  color: #166534;
+  border: 1px solid #86efac;
+}
+
+.contracts-toast.error {
+  background: #fee2e2;
+  color: #991b1b;
+  border: 1px solid #fca5a5;
+}
+.contracts-input {
+  transition: all 0.15s ease;
+}
+
+
+.save-button:hover {
+  opacity: 0.92;
+}
+
+.toolbar-actions {
+  align-items: center;
+}
+
+/* ביטול המסגרת החיצונית של הטבלה, בלי לבטל את הקווים הפנימיים */
+.contracts-table thead tr:first-child th {
+  border-top: none !important;
+}
+
+.contracts-table tbody tr:last-child td {
+  border-bottom: none !important;
+}
+
+.contracts-table tr th:first-child,
+.contracts-table tr td:first-child {
+  border-left: none !important;
+}
+
+.contracts-table tr th:last-child,
+.contracts-table tr td:last-child {
+  border-right: none !important;
+}
+.contracts-table {
+  border: none !important;
+  outline: none !important;
+}
+
+.table-wrapper {
+  border: none !important;
+  outline: none !important;
+}
+
+.table-card {
+  border: none !important;
+  outline: none !important;
+}
+.table-card + .table-card {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(15, 23, 42, 0.06);
 }
