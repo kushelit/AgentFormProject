@@ -221,23 +221,63 @@ function firstPositiveNumberByTag(accountEl: Element, tag: string): number | nul
   return values.length ? values[0] : null;
 }
 
-function getDepositFeePercent(accountEl: Element, productType: string): number | null {
-  if (productType === "קרן פנסיה") {
-    const memotza = firstPositiveNumberByTag(accountEl, "MEMOTZA-SHEUR-DMEI-NIHUL-HAFKADA");
-    const hafkada = firstPositiveNumberByTag(accountEl, "SHEUR-DMEI-NIHUL-HAFKADA");
+// function getDepositFeePercent(accountEl: Element, productType: string): number | null {
+//   if (productType === "קרן פנסיה") {
+//     const memotza = firstPositiveNumberByTag(accountEl, "MEMOTZA-SHEUR-DMEI-NIHUL-HAFKADA");
+//     const hafkada = firstPositiveNumberByTag(accountEl, "SHEUR-DMEI-NIHUL-HAFKADA");
 
-    // MEMOTZA הוא הממוצע המשוקלל הנכון כשהוא סביר (≥0.5%)
-    // מיטב שולח MEMOTZA כשקלים בפועל ולא כאחוז — ולכן יוצא נמוך מ-0.5%
-    if (memotza != null && memotza >= 0.5) return memotza;
-    return hafkada ?? null;
+//     // MEMOTZA הוא הממוצע המשוקלל הנכון כשהוא סביר (≥0.5%)
+//     // מיטב שולח MEMOTZA כשקלים בפועל ולא כאחוז — ולכן יוצא נמוך מ-0.5%
+//     if (memotza != null && memotza >= 0.5) return memotza;
+//     return hafkada ?? null;
+//   }
+
+//   return (
+//     firstPositiveNumberByTag(accountEl, "SHEUR-DMEI-NIHUL-HAFKADA") ??
+//     firstPositiveNumberByTag(accountEl, "ACHUZ-DMEI-NIHUL-MEHAFKADA") ??
+//     null
+//   );
+// }
+function getDepositFeePercent(accountEl: Element, productType: string): {
+  current: number | null;
+  avg: number | null;
+} {
+  if (productType === "קרן פנסיה") {
+    const hafkadaValues = Array.from(accountEl.getElementsByTagName("SHEUR-DMEI-NIHUL-HAFKADA"))
+      .map(el => toNumber(el.textContent?.trim()))
+      .filter((v): v is number => v != null && v > 0);
+
+    const memotza = firstPositiveNumberByTag(accountEl, "MEMOTZA-SHEUR-DMEI-NIHUL-HAFKADA");
+
+    // ✅ אם כל ערכי HAFKADA זהים — החוזה עקבי, קח אותו
+    const allSame = hafkadaValues.length > 0 &&
+      hafkadaValues.every(v => Math.abs(v - hafkadaValues[0]) < 0.01);
+
+    if (allSame) {
+      return {
+        current: hafkadaValues[0],
+        avg: (memotza && memotza >= 0.5 && Math.abs(memotza - hafkadaValues[0]) >= 0.05)
+          ? memotza : null,
+      };
+    }
+
+    // ✅ HAFKADA לא עקבי — קח MEMOTZA כנכון
+    return {
+      current: (memotza && memotza >= 0.5) ? memotza : (hafkadaValues[0] ?? null),
+      avg: null,
+    };
   }
 
-  return (
-    firstPositiveNumberByTag(accountEl, "SHEUR-DMEI-NIHUL-HAFKADA") ??
-    firstPositiveNumberByTag(accountEl, "ACHUZ-DMEI-NIHUL-MEHAFKADA") ??
-    null
-  );
+  return {
+    current: (
+      firstPositiveNumberByTag(accountEl, "SHEUR-DMEI-NIHUL-HAFKADA") ??
+      firstPositiveNumberByTag(accountEl, "ACHUZ-DMEI-NIHUL-MEHAFKADA") ??
+      null
+    ),
+    avg: null,
+  };
 }
+
 
 function getBalanceFeePercent(
   accountEl: Element,
@@ -320,7 +360,7 @@ const code =
 
 const companyName = resolveCompanyName(code, planName, tracks);
 
-const depositFeePercent = getDepositFeePercent(accountEl, productType);
+const { current: depositFeePercent, avg: avgDepositFeePercent } = getDepositFeePercent(accountEl, productType);
 const balanceFeePercent = getBalanceFeePercent(accountEl, productType, companyName);
 
   return {
@@ -335,6 +375,7 @@ planName,
     accumulation,
 
     depositFeePercent,
+    avgDepositFeePercent,
     balanceFeePercent,
 
     trackDisplay: buildTrackDisplay(productType, tracks),
@@ -396,6 +437,7 @@ const key = `${row.policyNumber}_${row.planName ?? row.productType}`;
       accumulation: mergedAccumulation,
 
       depositFeePercent: existing.depositFeePercent ?? row.depositFeePercent,
+        avgDepositFeePercent: existing.avgDepositFeePercent ?? row.avgDepositFeePercent,
       balanceFeePercent: existing.balanceFeePercent ?? row.balanceFeePercent,
 
       trackCount: mergedTracks.length,

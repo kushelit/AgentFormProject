@@ -114,11 +114,6 @@ export default function CurrentStateTable({ rows }: Props) {
                 (sum, track) => sum + (track.trackAccumulation || 0), 0
               );
 
-              const weightedTrackReturn = totalTrackAccumulation > 0
-                ? row.tracks.reduce((sum, track) =>
-                    sum + ((track.netReturn ?? 0) * (track.trackAccumulation || 0)) / totalTrackAccumulation, 0)
-                : null;
-
               const weightedAnnualCost = totalTrackAccumulation > 0
                 ? row.tracks.reduce((sum, track) =>
                     sum + ((track.annualCostPercent ?? 0) * (track.trackAccumulation || 0)) / totalTrackAccumulation, 0)
@@ -162,6 +157,16 @@ export default function CurrentStateTable({ rows }: Props) {
                         <div style={detailsTitleStyle}>
                           פירוט מסלולים — {row.companyName} / {row.productType}
                         </div>
+                          {/* ✅ באנר פער דמי ניהול — לסוכן בלבד */}
+      {row.avgDepositFeePercent != null &&
+       row.depositFeePercent != null &&
+       Math.abs(row.avgDepositFeePercent - row.depositFeePercent) >= 0.05 && (
+        <div style={feeGapBannerStyle}>
+          ⚠️ תעריף הפקדה נוכחי: {percent(row.depositFeePercent)}
+          {" | "}ממוצע היסטורי: {percent(row.avgDepositFeePercent)}
+          {" | "}פער: {percent(Math.abs(row.avgDepositFeePercent - row.depositFeePercent))}
+        </div>
+      )}
                         <div style={detailsSummaryStyle}>
                           <span>סה״כ במסלולים: {money(totalTrackAccumulation)}</span>
                           <span>עלות שנתית משוקללת: {percent(weightedAnnualCost)}</span>
@@ -280,4 +285,14 @@ const detailsSummaryStyle: React.CSSProperties = {
   padding: "10px 12px", background: "#eef6ff",
   border: "1px solid #bfdbfe", borderRadius: 10,
   fontWeight: 700, color: "#0f172a",
+};
+const feeGapBannerStyle: React.CSSProperties = {
+  background: "#fffbeb",
+  border: "1px solid #fcd34d",
+  borderRadius: 8,
+  padding: "10px 14px",
+  marginBottom: 12,
+  fontSize: 12,
+  color: "#92400e",
+  fontWeight: 600,
 };

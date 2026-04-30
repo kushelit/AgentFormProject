@@ -26,6 +26,7 @@ export type CurrentStateRow = {
   accumulation: number;
 
   depositFeePercent?: number | null;
+  avgDepositFeePercent?: number | null;  
   balanceFeePercent?: number | null;
 
   trackDisplay: string;
