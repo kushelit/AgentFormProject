@@ -4,17 +4,6 @@ import { resolveCompanyName } from "./companyMap";
 import { extractGemelNetId } from "./parseGemelNet";
 
 
-function getPensionBalanceFeePercent(accountEl: Element): number | null {
-  const values = Array.from(accountEl.getElementsByTagName("SHEUR-DMEI-NIHUL"))
-    .map((el) => toNumber(el.textContent?.trim()))
-    .filter(
-      (v): v is number =>
-        v != null && Number.isFinite(v) && v > 0 && v < 1
-    );
-
-  return values.length ? values[0] : null;
-}
-
 
 
 function mergeTracksByName(tracks: CurrentStateTrack[]): CurrentStateTrack[] {
@@ -107,8 +96,12 @@ function normalizeProductType(raw: string | null, planName: string | null): stri
   if (text.includes("פנסיה")) return "קרן פנסיה";
   if (text.includes("השתלמות")) return "קרן השתלמות";
   if (text.includes("גמל להשקעה") || text.includes("חיסכון פלוס")) return "גמל להשקעה";
+  if (text.includes("גמל")) return "קופת גמל";
 
-  return raw || planName || "מוצר";
+  // ✅ SUG-TOCHNIT-O-CHESHBON=2 = גמל ותיק (לפני 2008)
+  if (raw === "2") return "קופת גמל";
+
+  return planName || raw || "מוצר";
 }
 
 function normalizeStatus(raw: string | null): string | null {
@@ -230,12 +223,15 @@ function firstPositiveNumberByTag(accountEl: Element, tag: string): number | nul
 
 function getDepositFeePercent(accountEl: Element, productType: string): number | null {
   if (productType === "קרן פנסיה") {
-    return (
-      firstPositiveNumberByTag(accountEl, "MEMOTZA-SHEUR-DMEI-NIHUL-HAFKADA") ??
-      firstPositiveNumberByTag(accountEl, "SHEUR-DMEI-NIHUL-HAFKADA") ??
-      null
-    );
+    const memotza = firstPositiveNumberByTag(accountEl, "MEMOTZA-SHEUR-DMEI-NIHUL-HAFKADA");
+    const hafkada = firstPositiveNumberByTag(accountEl, "SHEUR-DMEI-NIHUL-HAFKADA");
+
+    // MEMOTZA הוא הממוצע המשוקלל הנכון כשהוא סביר (≥0.5%)
+    // מיטב שולח MEMOTZA כשקלים בפועל ולא כאחוז — ולכן יוצא נמוך מ-0.5%
+    if (memotza != null && memotza >= 0.5) return memotza;
+    return hafkada ?? null;
   }
+
   return (
     firstPositiveNumberByTag(accountEl, "SHEUR-DMEI-NIHUL-HAFKADA") ??
     firstPositiveNumberByTag(accountEl, "ACHUZ-DMEI-NIHUL-MEHAFKADA") ??
@@ -248,32 +244,14 @@ function getBalanceFeePercent(
   productType: string,
   companyName: string
 ): number | null {
- if (productType === "קרן פנסיה") {
-  return (
-    getPensionBalanceFeePercent(accountEl) ??
-    firstPositiveNumberByTag(accountEl, "SHEUR-DMEI-NIHUL-TZVIRA")
-  );
-}
-  if (companyName === "ילין לפידות") {
-    return (
-      firstPositiveNumberByTag(accountEl, "SHEUR-DMEI-NIHUL-HISACHON-MIVNE") ??
-      firstPositiveNumberByTag(accountEl, "SHEUR-DMEI-NIHUL")
-    );
-  }
+  // המינימום החיובי מ-SHEUR-DMEI-NIHUL עובד על כל החברות והמוצרים
+  const nihulValues = Array.from(accountEl.getElementsByTagName("SHEUR-DMEI-NIHUL"))
+    .map((el) => toNumber(el.textContent?.trim()))
+    .filter((v): v is number => v != null && Number.isFinite(v) && v > 0);
 
-  if (companyName === "מיטב") {
-    return (
-      firstPositiveNumberByTag(accountEl, "SHEUR-DMEI-NIHUL") ??
-      firstPositiveNumberByTag(accountEl, "SHEUR-DMEI-NIHUL-HISACHON")
-    );
-  }
+  if (nihulValues.length > 0) return Math.min(...nihulValues);
 
-  return (
-    firstPositiveNumberByTag(accountEl, "SHEUR-DMEI-NIHUL-HISACHON-MIVNE") ??
-    firstPositiveNumberByTag(accountEl, "SHEUR-DMEI-NIHUL-HISACHON") ??
-    firstPositiveNumberByTag(accountEl, "SHEUR-DMEI-NIHUL-MITZVIRA") ??
-    firstPositiveNumberByTag(accountEl, "SHEUR-DMEI-NIHUL")
-  );
+  return null;
 }
 
 function parseAccount(
@@ -350,7 +328,7 @@ const balanceFeePercent = getBalanceFeePercent(accountEl, productType, companyNa
     productType,
     companyName,
     policyNumber,
-
+planName,
     status: normalizeStatus(textOf(accountEl, "STATUS-POLISA-O-CHESHBON")),
     roleType: normalizeRoleType(textOf(accountEl, "SUG-BAAL-HAPOLISA-SHE-EINO-HAMEVUTACH")),
 
@@ -391,7 +369,7 @@ function mergeRowsByPolicy(rows: CurrentStateRow[]): CurrentStateRow[] {
   const byKey = new Map<string, CurrentStateRow>();
 
   for (const row of rows) {
-const key = `${row.policyNumber}_${row.companyName}_${row.productType}`;
+const key = `${row.policyNumber}_${row.planName ?? row.productType}`;
   console.log("key:", key, "| existing:", byKey.has(key));
 
     const existing = byKey.get(key);

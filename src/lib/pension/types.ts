@@ -18,6 +18,7 @@ export type CurrentStateRow = {
   productType: string;
   companyName: string;
   policyNumber: string;
+  planName?: string | null; 
 
   status?: string | null;
   roleType?: string | null;
