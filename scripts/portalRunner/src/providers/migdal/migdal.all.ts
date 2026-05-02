@@ -134,9 +134,9 @@ await migdalClearModals(page);
               storagePath: up.storagePath
             });
           }
-          console.log(`[Migdal] Successfully downloaded: ${rep.name}`);
+          // console.log(`[Migdal] Successfully downloaded: ${rep.name}`);
         } else {
-          console.log(`[Migdal] No download for ${rep.name} (maybe no data?)`);
+          // console.log(`[Migdal] No download for ${rep.name} (maybe no data?)`);
         }
 
         // --- כאן השינוי המרכזי ---
@@ -145,7 +145,7 @@ await migdalClearModals(page);
         await migdalReturnToAgreements(page);
         
       } catch (repErr: any) {
-        console.error(`[Migdal] Failed to process ${rep.name}:`, repErr.message);
+        // console.error(`[Migdal] Failed to process ${rep.name}:`, repErr.message);
         // אם היתה שגיאה, עדיין ננסה לחזור לתפריט בשביל הדוח הבא
         await migdalReturnToAgreements(page).catch(() => {});
       }

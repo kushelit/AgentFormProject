@@ -44,7 +44,7 @@ export async function GET() {
         : { exists: false },
     });
   } catch (err) {
-    console.error("GemelNet GET error:", err);
+    // console.error("GemelNet GET error:", err);
     return NextResponse.json({ error: "שגיאה" }, { status: 500 });
   }
 }
@@ -84,7 +84,7 @@ export async function POST(req: NextRequest) {
       periodTo: firstEntry?.periodTo ?? "",
     });
   } catch (err) {
-    console.error("GemelNet POST error:", err);
+    // console.error("GemelNet POST error:", err);
     return NextResponse.json({ error: "שגיאה בעיבוד הקובץ" }, { status: 500 });
   }
 }

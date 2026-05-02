@@ -65,7 +65,7 @@ export async function runAltshulerAll(ctx: RunnerCtx) {
   await page.bringToFront();
 
   try {
-    console.log("[Altshuler] Navigating to portal...");
+    // console.log("[Altshuler] Navigating to portal...");
     await page.goto(portalUrl, { waitUntil: "domcontentloaded", timeout: 60000 });
     await page.waitForLoadState("networkidle", { timeout: 15000 }).catch(() => {});
 
@@ -88,7 +88,7 @@ export async function runAltshulerAll(ctx: RunnerCtx) {
         } as any);
 
         if (up?.storagePath) {
-          console.log("[Altshuler] Uploaded:", up.storagePath);
+          // console.log("[Altshuler] Uploaded:", up.storagePath);
           await appendDownload({
             templateId: "altshuler_insurance",
             localPath,
@@ -109,7 +109,7 @@ export async function runAltshulerAll(ctx: RunnerCtx) {
     }
 
   } catch (e: any) {
-    console.error("[Altshuler] Error:", e.message);
+    // console.error("[Altshuler] Error:", e.message);
     await setStatus(runId, { status: "error", error: e.message, monthLabel });
     throw e;
   } finally {

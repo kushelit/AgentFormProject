@@ -71,10 +71,10 @@ export async function parseMultiSheetWorkbook(
 
 
     if (!matchedRule?.templateId) {
-      console.error("[parseMultiSheetWorkbook] missing templateId for rule", {
-        sheetName,
-        matchedRule,
-      });
+      // console.error("[parseMultiSheetWorkbook] missing templateId for rule", {
+      //   sheetName,
+      //   matchedRule,
+      // });
       unmatchedSheets.push(sheetName);
       continue;
     }

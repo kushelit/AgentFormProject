@@ -10,9 +10,9 @@ export async function waitMigdalLoaderGone(page: Page, timeoutMs = 30000) {
       const spinners = document.querySelectorAll('.k-loading-mask, .k-loading-image, #messageYesNoDialogSpinner, .modal-backdrop, .loading-backdrop');
       return Array.from(spinners).every(s => (s as any).offsetWidth === 0 || (s as any).style.display === 'none');
     }, { timeout: timeoutMs });
-    console.log("[Migdal] Loader gone ✅");
+    // console.log("[Migdal] Loader gone ✅");
   } catch (e) {
-    console.log("[Migdal] Loader timeout or not found - proceeding");
+    // console.log("[Migdal] Loader timeout or not found - proceeding");
   }
 }
 
@@ -20,7 +20,7 @@ export async function waitMigdalLoaderGone(page: Page, timeoutMs = 30000) {
  * לוגין למגדל - עובד, לא נגעתי
  */
 export async function migdalLogin(page: Page, username: string, password: string) {
-  console.log("[Migdal] Injecting login credentials...");
+  // console.log("[Migdal] Injecting login credentials...");
   const injection = `
     (function(u, p) {
       const user = document.querySelector('#input_1');
@@ -39,7 +39,7 @@ export async function migdalLogin(page: Page, username: string, password: string
     })('${username}', '${password}')
   `;
   const result = await page.evaluate(injection).catch(e => "ERROR: " + e.message);
-  console.log(`[Migdal] Login result: ${result}`);
+  // console.log(`[Migdal] Login result: ${result}`);
 }
 
 /**
@@ -47,10 +47,10 @@ export async function migdalLogin(page: Page, username: string, password: string
  */
 export async function migdalHandleOtp(page: Page, ctx: RunnerCtx) {
   const { runId, pollOtp, setStatus, clearOtp } = ctx;
-  console.log("[Migdal] Waiting for OTP from Magic...");
+  // console.log("[Migdal] Waiting for OTP from Magic...");
   const otpCode = await pollOtp(runId);
   if (!otpCode) throw new Error("OTP Timeout: הקוד לא הוקלד במערכת.");
-  console.log(`[Migdal] OTP received: ${otpCode}. Injecting into input_2...`);
+  // console.log(`[Migdal] OTP received: ${otpCode}. Injecting into input_2...`);
 
   await setStatus(runId, { status: "running", step: "קוד התקבל, מזין למערכת מגדל..." });
 
@@ -80,7 +80,7 @@ export async function migdalHandleOtp(page: Page, ctx: RunnerCtx) {
  * ניווט - עובד, לא נגעתי
  */
 export async function navigateToCommissions(page: Page) {
-  console.log("[Migdal] Starting atomic navigation to Commissions...");
+  // console.log("[Migdal] Starting atomic navigation to Commissions...");
 
   const script = `
     (async function() {
@@ -108,7 +108,7 @@ export async function navigateToCommissions(page: Page) {
 
       let reportBtn = document.getElementById('goToSubCategory');
       if (!reportBtn) {
-          console.log("Submenu didn't open, clicking 'tools' again...");
+          // console.log("Submenu didn't open, clicking 'tools' again...");
           tools.click(); // לחיצה נוספת לביטחון
           await wait(2000);
           reportBtn = document.getElementById('goToSubCategory');
@@ -134,7 +134,7 @@ export async function navigateToCommissions(page: Page) {
   `;
 
   const result = await page.evaluate(script);
-  console.log(`[Migdal] Navigation result: ${result}`);
+  // console.log(`[Migdal] Navigation result: ${result}`);
 
   if (String(result) !== "SUCCESS") {
     throw new Error(String(result));
@@ -146,7 +146,7 @@ export async function navigateToCommissions(page: Page) {
  * פתיחת דוח באמצעות קליק ישיר על השם שלו - ללא שגיאות TS וללא בעיות Serialization
  */
 export async function migdalOpenReport(page: Page, reportName: string) {
-  console.log(`[Migdal] Step: Searching for report "${reportName}"...`);
+  // console.log(`[Migdal] Step: Searching for report "${reportName}"...`);
 
   const injection = `
     (function(name) {
@@ -174,18 +174,18 @@ export async function migdalOpenReport(page: Page, reportName: string) {
   `;
 
   const result = await page.evaluate(injection);
-  console.log(`[Migdal] Find & Click result for "${reportName}": ${result}`);
+  // console.log(`[Migdal] Find & Click result for "${reportName}": ${result}`);
 
   await waitMigdalLoaderGone(page);
   
   // השארתי 15 שניות כדי לוודא שאת רואה שהדוח אכן נפתח
-  console.log("[Migdal] PAUSE: Observing for 15s...");
+  // console.log("[Migdal] PAUSE: Observing for 15s...");
   await page.waitForTimeout(15000); 
 }
 
 
 export async function migdalReturnToAgreements(page: Page) {
-  console.log("[Migdal] Returning to Agreements menu via side-bar...");
+  // console.log("[Migdal] Returning to Agreements menu via side-bar...");
 
   // שלב 1: לחיצה על דוחות
   await page.evaluate(`
@@ -223,7 +223,7 @@ export async function migdalReturnToAgreements(page: Page) {
   `).catch(() => false);
 
   if (!isSelected) {
-    console.warn("[Migdal] Falling back to direct navigation...");
+    // console.warn("[Migdal] Falling back to direct navigation...");
     await page.goto(
       "https://apmaccess.migdal.co.il/NewEra/reports-lobby",
       { waitUntil: "networkidle" }
@@ -241,14 +241,14 @@ export async function migdalReturnToAgreements(page: Page) {
     await waitMigdalLoaderGone(page);
   }
 
-  console.log("[Migdal] Back to Agreements ✅");
+  // console.log("[Migdal] Back to Agreements ✅");
 }
 
 /**
  * יצוא אקסל - עובד, לא נגעתי
  */
 export async function migdalExportExcel(page: Page): Promise<Download | null> {
-  console.log("[Migdal] Triggering Excel Export...");
+  // console.log("[Migdal] Triggering Excel Export...");
   try {
     const downloadPromise = page.waitForEvent("download", { timeout: 60000 });
     const clicked = await page.evaluate(`
@@ -274,7 +274,7 @@ export async function migdalExportExcel(page: Page): Promise<Download | null> {
  * פונקציה לסגירת הודעות קופצות (Modals) במגדל
  */
 export async function migdalClearModals(page: Page) {
-  console.log("[Migdal] Checking for annoying pop-ups...");
+  // console.log("[Migdal] Checking for annoying pop-ups...");
   
   const script = `
     (async function() {
@@ -284,7 +284,7 @@ export async function migdalClearModals(page: Page) {
       // במגדל זה בדרך כלל בתוך MuiDialog או אלמנט עם 'close'
       const closeBtn = document.querySelector('button[aria-label="close"], .MuiDialog-container button:first-child, svg[data-testid="CloseIcon"]');
       if (closeBtn) {
-        console.log("Migdal: Found 'X' button, closing modal...");
+        // console.log("Migdal: Found 'X' button, closing modal...");
         closeBtn.closest('button')?.click() || closeBtn.click();
         await wait(1000);
         return "CLOSED_X";
@@ -298,7 +298,7 @@ export async function migdalClearModals(page: Page) {
       });
 
       if (targetBtn) {
-        console.log("Migdal: Found action button, clicking to clear...");
+        // console.log("Migdal: Found action button, clicking to clear...");
         targetBtn.click();
         await wait(1000);
         return "CLOSED_VIA_BUTTON";
@@ -310,7 +310,7 @@ export async function migdalClearModals(page: Page) {
 
   try {
     const result = await page.evaluate(script);
-    console.log(`[Migdal] Modal clearer result: ${result}`);
+    // console.log(`[Migdal] Modal clearer result: ${result}`);
   } catch (e) {
     // מתעלמים משגיאות כאן - אם אין מודאל, הכל טוב
   }

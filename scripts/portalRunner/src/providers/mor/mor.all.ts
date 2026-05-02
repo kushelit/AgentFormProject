@@ -39,7 +39,7 @@ export async function runMorAll(ctx: RunnerCtx) {
 
   const agentId = s((run as any)?.agentId || ctx.agentId);
   const { licenseNumber, username, phoneNumber } = await getMorCreds(ctx);
-  console.log("[Mor] Creds:", { licenseNumber, username, phoneNumber });
+  // console.log("[Mor] Creds:", { licenseNumber, username, phoneNumber });
 
   await setStatus(runId, { status: "running", step: "mor_open_portal", monthLabel });
 
@@ -48,7 +48,7 @@ export async function runMorAll(ctx: RunnerCtx) {
     "MagicSaleRunner",
     "chromium-profile-mor"
   );
-  console.log("[Mor] userDataDir:", userDataDir);
+  // console.log("[Mor] userDataDir:", userDataDir);
 
   const context = await chromium.launchPersistentContext(userDataDir, {
     headless: false,
@@ -62,7 +62,7 @@ export async function runMorAll(ctx: RunnerCtx) {
   await page.bringToFront();
 
   try {
-    console.log("[Mor] Navigating to portal...");
+    // console.log("[Mor] Navigating to portal...");
     await page.goto(portalUrl, { waitUntil: "networkidle", timeout: 60000 });
     await page.waitForTimeout(3000);
 
@@ -71,7 +71,7 @@ export async function runMorAll(ctx: RunnerCtx) {
       expression: `document.querySelectorAll('*').length`,
       returnByValue: true,
     });
-    console.log("[Mor] CDP elements:", cdpCheck.result.value);
+    // console.log("[Mor] CDP elements:", cdpCheck.result.value);
 
     await setStatus(runId, { status: "running", step: "מבצע לוגין למור", monthLabel });
     await morLogin(page, licenseNumber, username, phoneNumber);
@@ -85,7 +85,7 @@ export async function runMorAll(ctx: RunnerCtx) {
       const filename = download.suggestedFilename();
       const localPath = path.join(absDir, `${Date.now()}_${filename}`);
       await download.saveAs(localPath);
-      console.log("[Mor] Saved:", localPath);
+      // console.log("[Mor] Saved:", localPath);
 
       const up = await uploadLocalFileToStorageClient({
         storage,
@@ -109,7 +109,7 @@ export async function runMorAll(ctx: RunnerCtx) {
     }
 
   } catch (e: any) {
-    console.error("[Mor] Error:", e.message);
+    // console.error("[Mor] Error:", e.message);
     await setStatus(runId, { status: "error", error: e.message, monthLabel });
     throw e;
   } finally {

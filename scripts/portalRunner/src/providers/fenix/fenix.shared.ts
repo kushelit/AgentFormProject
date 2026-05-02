@@ -17,7 +17,7 @@ export async function waitPhoenixLoaderGone(page: Page, timeoutMs = 30000) {
     }`;
     await page.waitForFunction(loaderScript, { timeout: timeoutMs });
   } catch (e) {
-    console.log("[Phoenix] Loader timeout - continuing");
+    // console.log("[Phoenix] Loader timeout - continuing");
   }
 }
 
@@ -25,12 +25,12 @@ export async function waitPhoenixLoaderGone(page: Page, timeoutMs = 30000) {
  * פונקציה חדשה: סגירת הפופ-אפ שחוסם את המסך (זה בסדר / חסימה)
  */
 async function closeInitialModals(page: Page) {
-  console.log("[Phoenix] Checking for blocking modals...");
+  // console.log("[Phoenix] Checking for blocking modals...");
   try {
     // לחיצה על "זה בסדר" (או כפתור אישור דומה בפופ-אפ)
     const approveBtn = page.locator('button:has-text("זה בסדר"), button:has-text("אישור")').first();
     if (await approveBtn.isVisible({ timeout: 5000 })) {
-      console.log("[Phoenix] Closing modal: Clicking 'זה בסדר'");
+      // console.log("[Phoenix] Closing modal: Clicking 'זה בסדר'");
       await approveBtn.click({ force: true });
       await page.waitForTimeout(2000);
     }
@@ -41,7 +41,7 @@ async function closeInitialModals(page: Page) {
         await xBtn.click({ force: true });
     }
   } catch (e) {
-    console.log("[Phoenix] No modals found or could not close them - moving on.");
+    // console.log("[Phoenix] No modals found or could not close them - moving on.");
   }
 }
 
@@ -60,7 +60,7 @@ export async function handleFenixLoginRedirect(page: Page) {
 }
 
 export async function phoenixLogin(page: Page, username: string, password: string) {
-  console.log("[Fenix] Injecting login...");
+  // console.log("[Fenix] Injecting login...");
   const injection = `
     (function(u, p) {
       return new Promise(resolve => {
@@ -127,7 +127,7 @@ export async function phoenixHandleOtp(page: Page, ctx: RunnerCtx) {
  * התיקון: שימוש במחרוזות (Strings) למניעת שגיאת Serialization ב-EXE
  */
 export async function navigateToPhoenixCommissions(page: Page) {
-  console.log("[Phoenix] Navigating to Commissions (Strict Mode)...");
+  // console.log("[Phoenix] Navigating to Commissions (Strict Mode)...");
 
   await waitPhoenixLoaderGone(page, 30000);
   await page.waitForTimeout(4000);
@@ -146,7 +146,7 @@ export async function navigateToPhoenixCommissions(page: Page) {
     })()
   `);
   
-  console.log("[Phoenix] Reports button click:", reportsResult);
+  // console.log("[Phoenix] Reports button click:", reportsResult);
   await page.waitForTimeout(3000);
   await waitPhoenixLoaderGone(page, 20000);
 
@@ -167,20 +167,20 @@ export async function navigateToPhoenixCommissions(page: Page) {
     })()
   `);
 
-  console.log("[Phoenix] Commissions button result:", commsResult);
+  // console.log("[Phoenix] Commissions button result:", commsResult);
   
   if (commsResult.startsWith("ERROR")) {
     throw new Error("לא נמצא כפתור עמלות בתפריט הדוחות");
   }
 
   // שלב ג': המתנה קריטית לטעינת דף העמלות (חיפוש טקסט שקיים רק שם)
-  console.log("[Phoenix] Waiting for commissions page content...");
+  // console.log("[Phoenix] Waiting for commissions page content...");
   await page.waitForFunction(() => {
     return document.body.innerText.includes('עמלות נפרעים') || 
            document.body.innerText.includes('חיפוש') ||
            !!document.querySelector('fnx-nx-client-continuous-table-export-to-excel');
   }, { timeout: 45000 }).catch(() => {
-    console.warn("[Phoenix] Page content timeout, but continuing...");
+    // console.warn("[Phoenix] Page content timeout, but continuing...");
   });
 }
 
@@ -193,7 +193,7 @@ export async function navigateToPhoenixCommissions(page: Page) {
 
 
 export async function phoenixOpenReport(mainPage: Page, reportName: string): Promise<Page> {
-  console.log(`[Phoenix] Opening report "${reportName}"...`);
+  // console.log(`[Phoenix] Opening report "${reportName}"...`);
 
   const context = mainPage.context();
   // נתחיל להאזין לפתיחת דף חדש לפני הלחיצה
@@ -222,7 +222,7 @@ export async function phoenixOpenReport(mainPage: Page, reportName: string): Pro
   `;
 
   const res = await mainPage.evaluate<string>(openScript);
-  console.log(`[Phoenix] Open report click result: ${res}`);
+  // console.log(`[Phoenix] Open report click result: ${res}`);
 
   if (res === "NOT_FOUND") {
     throw new Error(`הדוח "${reportName}" לא נמצא בדף העמלות`);
@@ -232,14 +232,14 @@ export async function phoenixOpenReport(mainPage: Page, reportName: string): Pro
   const newPage = await pagePromise;
   
   if (newPage) {
-    console.log("[Phoenix] New tab detected for the report.");
+    // console.log("[Phoenix] New tab detected for the report.");
     await newPage.waitForLoadState("load");
     // חשוב לוודא שהלואדר בדף החדש נעלם לפני שממשיכים
     await waitPhoenixLoaderGone(newPage, 30000);
     return newPage;
   }
 
-  console.log("[Phoenix] No new tab detected, continuing with current page.");
+  // console.log("[Phoenix] No new tab detected, continuing with current page.");
   return mainPage;
 }
 
@@ -248,7 +248,7 @@ export async function phoenixOpenReport(mainPage: Page, reportName: string): Pro
  * הורדת אקסל: גרסת String Injection - חסינה לשגיאות Serialization ב-EXE
  */
 export async function phoenixExportExcel(page: Page): Promise<Download | null> {
-  console.log("[Phoenix] Starting Excel Export process...");
+  // console.log("[Phoenix] Starting Excel Export process...");
   
   try {
     await waitPhoenixLoaderGone(page, 30000);
@@ -277,7 +277,7 @@ export async function phoenixExportExcel(page: Page): Promise<Download | null> {
           });
 
           if (extended) {
-            console.log("Phoenix: Extended menu found, clicking...");
+            // console.log("Phoenix: Extended menu found, clicking...");
             extended.click();
           }
         }, 2000);
@@ -287,10 +287,10 @@ export async function phoenixExportExcel(page: Page): Promise<Download | null> {
     `;
 
     const res = await page.evaluate(injectionScript);
-    console.log(`[Phoenix] Export script injected: ${res}`);
+    // console.log(`[Phoenix] Export script injected: ${res}`);
 
     if (res === "NOT_FOUND") {
-      console.error("[Phoenix] Excel icon not found in DOM");
+      // console.error("[Phoenix] Excel icon not found in DOM");
       return null;
     }
 
@@ -298,7 +298,7 @@ export async function phoenixExportExcel(page: Page): Promise<Download | null> {
     return await downloadPromise;
 
   } catch (e) {
-    console.error("[Phoenix] Export failed:", e);
+    // console.error("[Phoenix] Export failed:", e);
     return null;
   }
 }

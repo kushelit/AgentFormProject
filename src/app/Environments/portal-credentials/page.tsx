@@ -87,7 +87,7 @@ export default function PortalCredentialsPage() {
 
       setPairing({ code, expiresAtMs });
     } catch (e: any) {
-      console.error(e);
+      // console.error(e);
       alert(`שגיאה ביצירת קוד חיבור: ${String(e?.message || e)}`);
     } finally {
       setCreatingPairing(false);
@@ -146,7 +146,7 @@ export default function PortalCredentialsPage() {
           setStatusMap({});
         }
       } catch (e) {
-        console.error(e);
+        // console.error(e);
         setCompanies([]);
         setStatusMap({});
       } finally {
@@ -227,7 +227,7 @@ const canSave =
 
       alert("✅ נשמר בהצלחה");
     } catch (e: any) {
-      console.error(e);
+      // console.error(e);
       alert(`שגיאה בשמירה: ${String(e?.message || e)}`);
     } finally {
       setSaving(false);

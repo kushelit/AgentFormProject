@@ -68,7 +68,7 @@ export const sendOtpPushOnRunUpdate = onDocumentUpdated(
       .filter(Boolean);
 
     if (tokens.length === 0) {
-      console.log("[sendOtpPushOnRunUpdate] no push tokens", { agentId, runId });
+      // console.log("[sendOtpPushOnRunUpdate] no push tokens", { agentId, runId });
       return;
     }
 
@@ -113,13 +113,13 @@ export const sendOtpPushOnRunUpdate = onDocumentUpdated(
       },
     });
 
-    console.log("[sendOtpPushOnRunUpdate] multicast result", {
-      successCount: res.successCount,
-      failureCount: res.failureCount,
-      tokensCount: tokens.length,
-      runId,
-      agentId,
-    });
+    // console.log("[sendOtpPushOnRunUpdate] multicast result", {
+    //   successCount: res.successCount,
+    //   failureCount: res.failureCount,
+    //   tokensCount: tokens.length,
+    //   runId,
+    //   agentId,
+    // });
 
     // ניקוי טוקנים לא תקינים
     const invalidTokens: string[] = [];

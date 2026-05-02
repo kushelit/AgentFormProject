@@ -364,7 +364,7 @@ function OtpPageInner() {
     let unsub: null | (() => void) = null;
 
     attachForegroundPushListener((payload) => {
-      console.log("Foreground push payload:", payload);
+      // console.log("Foreground push payload:", payload);
     }).then((cleanup) => {
       if (typeof cleanup === "function") {
         unsub = cleanup;

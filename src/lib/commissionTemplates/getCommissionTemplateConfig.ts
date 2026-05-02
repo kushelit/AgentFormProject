@@ -49,10 +49,10 @@ export async function getCommissionTemplateConfig(
         companyName = String(companySnap.data()?.companyName || "").trim();
       }
     } catch (err) {
-      console.error(
-        "[getCommissionTemplateConfig] failed to load company name",
-        err
-      );
+      // console.error(
+      //   "[getCommissionTemplateConfig] failed to load company name",
+      //   err
+      // );
     }
   }
 

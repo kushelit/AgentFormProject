@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ rows });
 
   } catch (err: any) {
-    console.error('[commission-summary-drilldown]', err);
+    // console.error('[commission-summary-drilldown]', err);
     return NextResponse.json(
       { error: err.message ?? 'server error' },
       { status: 500 }

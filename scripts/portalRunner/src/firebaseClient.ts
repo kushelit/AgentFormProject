@@ -72,13 +72,13 @@ function ensureUserConfigFromDefault(appDataConfigPath: string) {
 
     if (fs.existsSync(defaultPath)) {
       fs.copyFileSync(defaultPath, appDataConfigPath);
-      console.log("[Config] Copied default config to AppData:", appDataConfigPath);
+      // console.log("[Config] Copied default config to AppData:", appDataConfigPath);
       return;
     }
 
-    console.warn("[Config] No config.default.json found in installDir:", defaultPath);
+    // console.warn("[Config] No config.default.json found in installDir:", defaultPath);
   } catch (e: any) {
-    console.error("[Config] Failed to ensure user config:", e?.message || e);
+    // console.error("[Config] Failed to ensure user config:", e?.message || e);
   }
 }
 
@@ -88,11 +88,11 @@ function loadConfig(): RunnerConfig | null {
     const p = String(process.env.RUNNER_CONFIG_PATH).trim();
     try {
       if (p && fs.existsSync(p)) {
-        console.log("[Config] Loaded from RUNNER_CONFIG_PATH:", p);
+        // console.log("[Config] Loaded from RUNNER_CONFIG_PATH:", p);
         return JSON.parse(fs.readFileSync(p, "utf8"));
       }
     } catch (e: any) {
-      console.error("[Config] Failed from RUNNER_CONFIG_PATH:", e?.message || e);
+      // console.error("[Config] Failed from RUNNER_CONFIG_PATH:", e?.message || e);
     }
   }
 
@@ -104,25 +104,25 @@ function loadConfig(): RunnerConfig | null {
 
   try {
     if (fs.existsSync(appDataPath)) {
-      console.log("[Config] Loaded from AppData:", appDataPath);
+      // console.log("[Config] Loaded from AppData:", appDataPath);
       return JSON.parse(fs.readFileSync(appDataPath, "utf8"));
     }
   } catch (e: any) {
-    console.error("[Config] Failed from AppData:", e?.message || e);
+    // console.error("[Config] Failed from AppData:", e?.message || e);
   }
 
   // 3) fallback לפיתוח בלבד (cwd)
   const localPath = path.resolve(process.cwd(), "config.json");
   try {
     if (fs.existsSync(localPath)) {
-      console.log("[Config] Loaded from CWD:", localPath);
+      // console.log("[Config] Loaded from CWD:", localPath);
       return JSON.parse(fs.readFileSync(localPath, "utf8"));
     }
   } catch (e: any) {
-    console.error("[Config] Failed from CWD:", e?.message || e);
+    // console.error("[Config] Failed from CWD:", e?.message || e);
   }
 
-  console.warn("[Config] No config.json found.");
+  // console.warn("[Config] No config.json found.");
   return null;
 }
 
@@ -178,9 +178,9 @@ export function initFirebaseClient() {
     const host = optEnv("FIREBASE_FUNCTIONS_EMULATOR_HOST") || "localhost";
     const port = Number(process.env.FIREBASE_FUNCTIONS_EMULATOR_PORT || 5001);
     connectFunctionsEmulator(functions, host, port);
-    console.log("[FirebaseClient] functions emulator:", `${host}:${port}`);
+    // console.log("[FirebaseClient] functions emulator:", `${host}:${port}`);
   } else {
-    console.log("[FirebaseClient] functions region:", region);
+    // console.log("[FirebaseClient] functions region:", region);
   }
 
   // bucket בפועל מה-app (הכי בטוח), fallback לקונפיג/ENV

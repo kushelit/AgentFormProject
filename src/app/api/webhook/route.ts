@@ -283,7 +283,7 @@ if (expiresAt) {
         userDocRef = docRef;
         userData = docSnap.data();
       } else {
-         console.warn('⚠️ cField9 provided but user not found:', existingUid);
+        //  console.warn('⚠️ cField9 provided but user not found:', existingUid);
       }
     }
 
@@ -614,7 +614,7 @@ if (expiresAt) {
 
     return NextResponse.json({ created: true });
   } catch (err: any) {
-    console.error('❌ Webhook error:', err);
+    // console.error('❌ Webhook error:', err);
     return NextResponse.json({ ok: true });  
   }
 }

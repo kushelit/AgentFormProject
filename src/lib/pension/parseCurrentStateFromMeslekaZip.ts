@@ -221,23 +221,7 @@ function firstPositiveNumberByTag(accountEl: Element, tag: string): number | nul
   return values.length ? values[0] : null;
 }
 
-// function getDepositFeePercent(accountEl: Element, productType: string): number | null {
-//   if (productType === "קרן פנסיה") {
-//     const memotza = firstPositiveNumberByTag(accountEl, "MEMOTZA-SHEUR-DMEI-NIHUL-HAFKADA");
-//     const hafkada = firstPositiveNumberByTag(accountEl, "SHEUR-DMEI-NIHUL-HAFKADA");
 
-//     // MEMOTZA הוא הממוצע המשוקלל הנכון כשהוא סביר (≥0.5%)
-//     // מיטב שולח MEMOTZA כשקלים בפועל ולא כאחוז — ולכן יוצא נמוך מ-0.5%
-//     if (memotza != null && memotza >= 0.5) return memotza;
-//     return hafkada ?? null;
-//   }
-
-//   return (
-//     firstPositiveNumberByTag(accountEl, "SHEUR-DMEI-NIHUL-HAFKADA") ??
-//     firstPositiveNumberByTag(accountEl, "ACHUZ-DMEI-NIHUL-MEHAFKADA") ??
-//     null
-//   );
-// }
 function getDepositFeePercent(accountEl: Element, productType: string): {
   current: number | null;
   avg: number | null;
@@ -411,7 +395,7 @@ function mergeRowsByPolicy(rows: CurrentStateRow[]): CurrentStateRow[] {
 
   for (const row of rows) {
 const key = `${row.policyNumber}_${row.planName ?? row.productType}`;
-  console.log("key:", key, "| existing:", byKey.has(key));
+  // console.log("key:", key, "| existing:", byKey.has(key));
 
     const existing = byKey.get(key);
 

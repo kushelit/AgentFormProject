@@ -112,7 +112,7 @@ export async function loginIfNeeded(params: {
 
   } catch (e: any) {
     // אם הצימוד נכשל (קוד שגוי למשל)
-    console.log("\n❌ הצימוד נכשל:", e?.message || e);
+    // console.log("\n❌ הצימוד נכשל:", e?.message || e);
     
     // Fallback רק אם הוגדר במפורש (למפתחים)
     const allowPw = String(process.env.RUNNER_ALLOW_PASSWORD_LOGIN || "").trim() === "1";

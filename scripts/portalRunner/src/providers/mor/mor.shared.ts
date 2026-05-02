@@ -14,7 +14,7 @@ export async function morLogin(
   username: string,
   phoneNumber: string
 ) {
-  console.log("[Mor] Filling login via CDP...");
+  // console.log("[Mor] Filling login via CDP...");
 
   const cdp = await page.context().newCDPSession(page);
 
@@ -53,7 +53,7 @@ export async function morLogin(
   awaitPromise: true,
 });
 
-  console.log("[Mor] Login result:", result.result.value);
+  // console.log("[Mor] Login result:", result.result.value);
 }
 
 /**
@@ -65,14 +65,14 @@ export async function morHandleOtp(page: Page, ctx: RunnerCtx) {
 
   const cdp = await page.context().newCDPSession(page);
 
-  console.log("[Mor] Waiting for OTP screen...");
+  // console.log("[Mor] Waiting for OTP screen...");
   for (let i = 0; i < 20; i++) {
-    console.log("[Mor] current URL:", page.url());
+    // console.log("[Mor] current URL:", page.url());
     const check = await cdp.send("Runtime.evaluate", {
       expression: `document.querySelector('input[formcontrolname="otpCode"]') ? 'FOUND' : 'NOT_FOUND'`,
       returnByValue: true,
     });
-    console.log(`[Mor] OTP check ${i+1}:`, check.result.value);
+    // console.log(`[Mor] OTP check ${i+1}:`, check.result.value);
     if (check.result.value === 'FOUND') break;
     await page.waitForTimeout(1000);
   }
@@ -87,7 +87,7 @@ export async function morHandleOtp(page: Page, ctx: RunnerCtx) {
   const otp = await pollOtp(runId);
   if (!otp) throw new Error("OTP Timeout");
 
-  console.log("[Mor] OTP received:", otp);
+  // console.log("[Mor] OTP received:", otp);
 
   // ✅ מצא מיקום השדה דרך CDP
   const inputPos = await cdp.send("Runtime.evaluate", {
@@ -99,7 +99,7 @@ export async function morHandleOtp(page: Page, ctx: RunnerCtx) {
     })()`,
     returnByValue: true,
   });
-  console.log("[Mor] OTP input position:", inputPos.result.value);
+  // console.log("[Mor] OTP input position:", inputPos.result.value);
 
   const pos = JSON.parse(inputPos.result.value || 'null');
   if (!pos) throw new Error("OTP input position not found");
@@ -113,7 +113,7 @@ export async function morHandleOtp(page: Page, ctx: RunnerCtx) {
 
   // ✅ המתן ובדוק מה קרה
   await page.waitForTimeout(3000);
-  console.log("[Mor] URL after OTP:", page.url());
+  // console.log("[Mor] URL after OTP:", page.url());
 
   const afterOtp = await cdp.send("Runtime.evaluate", {
     expression: `(function() {
@@ -125,13 +125,13 @@ export async function morHandleOtp(page: Page, ctx: RunnerCtx) {
     })()`,
     returnByValue: true,
   });
-  console.log("[Mor] After OTP state:", afterOtp.result.value);
+  // console.log("[Mor] After OTP state:", afterOtp.result.value);
 
   await clearOtp(runId).catch(() => {});
 }
 
 export async function morNavigateToReport(page: Page): Promise<import("playwright").Download | null> {
-  console.log("[Mor] Navigating to report...");
+  // console.log("[Mor] Navigating to report...");
 
   const cdp = await page.context().newCDPSession(page);
 
@@ -145,7 +145,7 @@ export async function morNavigateToReport(page: Page): Promise<import("playwrigh
     })()`,
     returnByValue: true,
   });
-  console.log("[Mor] Popup:", closePopup.result.value);
+  // console.log("[Mor] Popup:", closePopup.result.value);
   await page.waitForTimeout(1000);
 
   // ✅ שלב 2: לחץ על "חישוב תגמול" בתפריט הצדדי
@@ -163,9 +163,9 @@ export async function morNavigateToReport(page: Page): Promise<import("playwrigh
     })()`,
     returnByValue: true,
   });
-  console.log("[Mor] Nav result:", navResult.result.value);
+  // console.log("[Mor] Nav result:", navResult.result.value);
   await page.waitForTimeout(3000);
-  console.log("[Mor] URL after nav:", page.url());
+  // console.log("[Mor] URL after nav:", page.url());
 
   // ✅ שלב 3: לחץ על כפתור "חפש"
   const searchResult = await cdp.send("Runtime.evaluate", {
@@ -178,7 +178,7 @@ export async function morNavigateToReport(page: Page): Promise<import("playwrigh
     })()`,
     returnByValue: true,
   });
-  console.log("[Mor] Search result:", searchResult.result.value);
+  // console.log("[Mor] Search result:", searchResult.result.value);
   await page.waitForTimeout(3000);
 
   // ✅ שלב 4: לחץ על "ייצוא לאקסל" והמתן להורדה
@@ -195,10 +195,10 @@ export async function morNavigateToReport(page: Page): Promise<import("playwrigh
         returnByValue: true,
       }),
     ]);
-    console.log("[Mor] Download started:", download.suggestedFilename());
+    // console.log("[Mor] Download started:", download.suggestedFilename());
     return download;
   } catch (e: any) {
-    console.log("[Mor] Export failed:", e?.message);
+    // console.log("[Mor] Export failed:", e?.message);
     return null;
   }
 }

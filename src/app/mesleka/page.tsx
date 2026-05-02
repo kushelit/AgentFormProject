@@ -2,19 +2,30 @@
 
 import { useState } from "react";
 import { parseCurrentStateFromMeslekaZip } from "@/lib/pension/parseCurrentStateFromMeslekaZip";
-import { parseGemelNetXml, enrichRowsWithReturns } from "@/lib/pension/parseGemelNet";
+import { enrichRowsWithReturns } from "@/lib/pension/parseGemelNet";
 import type { CurrentStateRow } from "@/lib/pension/types";
 import CurrentStateTable from "@/components/pension/CurrentStateTable";
 import type { GemelNetEntry, GemelNetMap } from "@/lib/pension/parseGemelNet";
-
+import { parseHarBituchXlsx } from "@/lib/insurance/parseHarBituch";
+import { parsePolicyPdfs, mergeAllPolicies } from "@/lib/insurance/parsePolicyPdf";
+import type { HarBituchRow } from "@/lib/insurance/parseHarBituch";
+import InsuranceTable from "@/components/insurance/InsuranceTable";
 
 export default function TestMeslekaPage() {
+  // ─── פנסיה ───────────────────────────────────────────────────
   const [zipFile, setZipFile] = useState<File | null>(null);
   const [result, setResult] = useState<CurrentStateRow[] | null>(null);
   const [matchStats, setMatchStats] = useState<{ matched: number; total: number } | null>(null);
   const [gemelStatus, setGemelStatus] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+  // ─── ביטוח ───────────────────────────────────────────────────
+  const [harFile, setHarFile] = useState<File | null>(null);
+  const [policyFiles, setPolicyFiles] = useState<File[]>([]);
+  const [insuranceRows, setInsuranceRows] = useState<HarBituchRow[] | null>(null);
+  const [insuranceLoading, setInsuranceLoading] = useState(false);
+
+  // ─── Handler פנסיה ───────────────────────────────────────────
   const handleRun = async () => {
     if (!zipFile) {
       alert("תבחרי קובץ ZIP מהמסלקה");
@@ -25,30 +36,22 @@ export default function TestMeslekaPage() {
       setLoading(true);
       setGemelStatus(null);
 
-      // 1. ניתוח ZIP מסלקה
       const xmlRows = await parseCurrentStateFromMeslekaZip(zipFile);
-
-      // 2. טעינת נתוני גמל נט מ-Firestore אוטומטית
       let enriched = xmlRows;
 
       try {
         const res = await fetch("/api/gemelnet/data");
-
         if (res.ok) {
           const data = await res.json();
-
           if (data.exists && Array.isArray(data.entries)) {
-            // בנה Map מהמערך שחזר מה-API
-       const gemelMap: GemelNetMap = new Map(
-  data.entries.map((e: GemelNetEntry) => [e.kupahId, e])
-);
-
+            const gemelMap: GemelNetMap = new Map(
+              data.entries.map((e: GemelNetEntry) => [e.kupahId, e])
+            );
             enriched = enrichRowsWithReturns(xmlRows, gemelMap);
-console.log("pension row:", enriched.find(r => r.productType === "קרן פנסיה")); // ← כאן
 
-      const date = (data.gemelUpdatedAt ?? data.pensiaUpdatedAt ?? data.updatedAt)
-  ? new Date(data.gemelUpdatedAt ?? data.pensiaUpdatedAt ?? data.updatedAt).toLocaleDateString("he-IL")
-  : "לא ידוע";
+            const date = (data.gemelUpdatedAt ?? data.pensiaUpdatedAt ?? data.updatedAt)
+              ? new Date(data.gemelUpdatedAt ?? data.pensiaUpdatedAt ?? data.updatedAt).toLocaleDateString("he-IL")
+              : "לא ידוע";
 
             setGemelStatus(`נתוני גמל נט מתאריך ${date} — ${data.totalEntries ?? data.entryCount} קופות`);
           } else {
@@ -61,23 +64,46 @@ console.log("pension row:", enriched.find(r => r.productType === "קרן פנס�
         setGemelStatus("לא ניתן לטעון נתוני גמל נט");
       }
 
-      // 3. מיון
       const sorted = [...enriched].sort((a, b) => {
         const productCompare = a.productType.localeCompare(b.productType, "he");
         if (productCompare !== 0) return productCompare;
         return (b.accumulation || 0) - (a.accumulation || 0);
       });
 
-      // 4. סטטיסטיקת התאמה
       const matched = sorted.filter((r) => r.gemelNetMatched).length;
       setMatchStats({ matched, total: sorted.length });
       setResult(sorted);
 
     } catch (err) {
-      console.error("ERROR", err);
+      // console.error("ERROR", err);
       alert(err instanceof Error ? `${err.name}: ${err.message}` : "שגיאה");
     } finally {
       setLoading(false);
+    }
+  };
+
+  // ─── Handler ביטוח ───────────────────────────────────────────
+  const handleInsuranceRun = async () => {
+    if (!harFile) {
+      alert("תבחרי קובץ Excel מהר הביטוח");
+      return;
+    }
+    try {
+      setInsuranceLoading(true);
+
+      const harResult = await parseHarBituchXlsx(harFile);
+      let rows = harResult.lifeAndHealthRows;
+
+      if (policyFiles.length > 0) {
+        const pdfResults = await parsePolicyPdfs(policyFiles);
+        rows = mergeAllPolicies(rows, pdfResults);
+      }
+
+      setInsuranceRows(rows);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "שגיאה");
+    } finally {
+      setInsuranceLoading(false);
     }
   };
 
@@ -87,68 +113,115 @@ console.log("pension row:", enriched.find(r => r.productType === "קרן פנס�
 
         <div style={{ marginBottom: 24 }}>
           <h1 style={{ margin: 0, fontSize: 28, color: "#0f172a" }}>
-            מצב קיים ללקוח — מסלקה פנסיונית
+            ניתוח תיק לקוח
           </h1>
           <p style={{ marginTop: 8, color: "#64748b" }}>
-            טעינת ZIP מהמסלקה — תשואות גמל נט נטענות אוטומטית
+            פנסיה, פיננסים וביטוח — תמונה מלאה
           </p>
         </div>
 
-        {/* קלט — רק ZIP */}
-        <div style={cardStyle}>
-          <div>
-            <div style={labelStyle}>
-              📁 קובץ ZIP מהמסלקה הפנסיונית
-              <span style={badgeStyle("#fee2e2", "#dc2626")}>חובה</span>
+        {/* ─── קלט פנסיה ─── */}
+        <div style={sectionStyle}>
+          <div style={sectionTitleStyle}>🏦 מסלקה פנסיונית</div>
+
+          <div style={cardStyle}>
+            <div>
+              <div style={labelStyle}>
+                📁 קובץ ZIP מהמסלקה הפנסיונית
+                <span style={badgeStyle("#fee2e2", "#dc2626")}>חובה</span>
+              </div>
+              <input type="file" accept=".zip"
+                onChange={(e) => setZipFile(e.target.files?.[0] || null)} />
+              {zipFile && <div style={fileOkStyle}>✅ {zipFile.name}</div>}
             </div>
-            <input type="file" accept=".zip"
-              onChange={(e) => setZipFile(e.target.files?.[0] || null)} />
-            {zipFile && <div style={fileOkStyle}>✅ {zipFile.name}</div>}
+
+            <button
+              style={{
+                padding: "12px 28px", borderRadius: 10, border: "none",
+                background: loading ? "#94a3b8" : "#0ea5e9",
+                color: "white", cursor: loading ? "not-allowed" : "pointer",
+                fontWeight: 700, fontSize: 15, alignSelf: "flex-start",
+              }}
+              onClick={handleRun}
+              disabled={loading}
+            >
+              {loading ? "טוען..." : "הצג מצב קיים"}
+            </button>
           </div>
 
-          <button
-            style={{
-              padding: "12px 28px", borderRadius: 10, border: "none",
-              background: loading ? "#94a3b8" : "#0ea5e9",
-              color: "white", cursor: loading ? "not-allowed" : "pointer",
-              fontWeight: 700, fontSize: 15, alignSelf: "flex-start",
-            }}
-            onClick={handleRun}
-            disabled={loading}
-          >
-            {loading ? "טוען..." : "הצג מצב קיים"}
-          </button>
+          {gemelStatus && (
+            <div style={{
+              background: gemelStatus.includes("לא") ? "#fffbeb" : "#f0fdf4",
+              border: `1px solid ${gemelStatus.includes("לא") ? "#fcd34d" : "#86efac"}`,
+              borderRadius: 10, padding: "10px 16px", marginBottom: 12,
+              fontSize: 13, fontWeight: 600,
+              color: gemelStatus.includes("לא") ? "#92400e" : "#15803d",
+            }}>
+              {gemelStatus.includes("לא") ? "⚠️" : "✅"} {gemelStatus}
+            </div>
+          )}
+
+          {result && matchStats && (
+            <div style={{
+              background: matchStats.matched > 0 ? "#f0fdf4" : "#fffbeb",
+              border: `1px solid ${matchStats.matched > 0 ? "#86efac" : "#fcd34d"}`,
+              borderRadius: 10, padding: "12px 16px", marginBottom: 16,
+              fontWeight: 600,
+              color: matchStats.matched > 0 ? "#15803d" : "#92400e",
+            }}>
+              {matchStats.matched > 0
+                ? `✅ תשואות גמל נט שולבו ב-${matchStats.matched} מתוך ${matchStats.total} מוצרים`
+                : `⚠️ לא נמצאו התאמות — קרן פנסיה לא מכוסה בגמל נט`}
+            </div>
+          )}
+
+          {result && <CurrentStateTable rows={result} />}
         </div>
 
-        {/* סטטוס גמל נט */}
-        {gemelStatus && (
-          <div style={{
-            background: gemelStatus.includes("לא") ? "#fffbeb" : "#f0fdf4",
-            border: `1px solid ${gemelStatus.includes("לא") ? "#fcd34d" : "#86efac"}`,
-            borderRadius: 10, padding: "10px 16px", marginBottom: 12,
-            fontSize: 13, fontWeight: 600,
-            color: gemelStatus.includes("לא") ? "#92400e" : "#15803d",
-          }}>
-            {gemelStatus.includes("לא") ? "⚠️" : "✅"} {gemelStatus}
-          </div>
-        )}
+        {/* ─── קלט ביטוח ─── */}
+        <div style={{ ...sectionStyle, marginTop: 40 }}>
+          <div style={sectionTitleStyle}>🛡️ תיק ביטוחי</div>
 
-        {/* סטטוס התאמה */}
-        {result && matchStats && (
-          <div style={{
-            background: matchStats.matched > 0 ? "#f0fdf4" : "#fffbeb",
-            border: `1px solid ${matchStats.matched > 0 ? "#86efac" : "#fcd34d"}`,
-            borderRadius: 10, padding: "12px 16px", marginBottom: 16,
-            fontWeight: 600,
-            color: matchStats.matched > 0 ? "#15803d" : "#92400e",
-          }}>
-            {matchStats.matched > 0
-              ? `✅ תשואות גמל נט שולבו ב-${matchStats.matched} מתוך ${matchStats.total} מוצרים`
-              : `⚠️ לא נמצאו התאמות — קרן פנסיה לא מכוסה בגמל נט`}
-          </div>
-        )}
+          <div style={cardStyle}>
+            <div>
+              <div style={labelStyle}>
+                📊 קובץ Excel מהר הביטוח
+                <span style={badgeStyle("#fee2e2", "#dc2626")}>חובה</span>
+              </div>
+              <input type="file" accept=".xlsx,.xls,.zip"
+                onChange={(e) => setHarFile(e.target.files?.[0] || null)} />
+              {harFile && <div style={fileOkStyle}>✅ {harFile.name}</div>}
+            </div>
 
-        {result && <CurrentStateTable rows={result} />}
+            <div>
+              <div style={labelStyle}>
+                📄 עותקי פוליסות PDF
+                <span style={badgeStyle("#fef9c3", "#854d0e")}>אופציונלי</span>
+              </div>
+              <input type="file" accept=".pdf" multiple
+                onChange={(e) => setPolicyFiles(Array.from(e.target.files ?? []))} />
+              {policyFiles.length > 0 && (
+                <div style={fileOkStyle}>✅ {policyFiles.length} קבצים</div>
+              )}
+            </div>
+
+            <button
+              style={{
+                padding: "12px 28px", borderRadius: 10, border: "none",
+                background: insuranceLoading ? "#94a3b8" : "#0ea5e9",
+                color: "white", cursor: insuranceLoading ? "not-allowed" : "pointer",
+                fontWeight: 700, fontSize: 15, alignSelf: "flex-start",
+              }}
+              onClick={handleInsuranceRun}
+              disabled={insuranceLoading}
+            >
+              {insuranceLoading ? "מנתח..." : "הצג תיק ביטוחי"}
+            </button>
+          </div>
+
+          {insuranceRows && <InsuranceTable rows={insuranceRows} />}
+        </div>
+
       </div>
     </div>
   );
@@ -156,9 +229,18 @@ console.log("pension row:", enriched.find(r => r.productType === "קרן פנס�
 
 // ─── Styles ───────────────────────────────────────────────────
 
+const sectionStyle: React.CSSProperties = {
+  marginBottom: 16,
+};
+
+const sectionTitleStyle: React.CSSProperties = {
+  fontSize: 18, fontWeight: 800, color: "#0f172a",
+  marginBottom: 16,
+};
+
 const cardStyle: React.CSSProperties = {
   background: "white", borderRadius: 16, padding: 24,
-  marginBottom: 24, border: "1px solid #e5e7eb",
+  marginBottom: 16, border: "1px solid #e5e7eb",
   display: "flex", flexDirection: "column", gap: 20,
 };
 

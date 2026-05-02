@@ -285,7 +285,7 @@ export async function recomputeSummariesFromExternalManual({
     rows,
   }));
 
-  console.log("[manualRecompute] groups =", groupEntries.length);
+  // console.log("[manualRecompute] groups =", groupEntries.length);
 
   const results = await runInChunks(
     groupEntries,

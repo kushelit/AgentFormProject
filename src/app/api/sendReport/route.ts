@@ -110,7 +110,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: true });
   } catch (err: any) {
-    console.error('sendReport error:', err);
+    // console.error('sendReport error:', err);
   
     const message =
       err instanceof Error

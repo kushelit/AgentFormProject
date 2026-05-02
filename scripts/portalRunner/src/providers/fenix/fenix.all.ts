@@ -117,7 +117,7 @@ export async function runPhoenixAll(ctx: RunnerCtx) {
         
         // 2. המתנה קצרה לווידוא טעינה
         await reportPage.waitForSelector('img[src*="excel"], [title*="אקסל"]', { timeout: 35000 }).catch(() => {
-          console.warn(`[Phoenix] Excel button not found for ${rep.name}`);
+          // console.warn(`[Phoenix] Excel button not found for ${rep.name}`);
         });
 
         // 3. הורדת האקסל

@@ -20,7 +20,7 @@ export async function waitMenoraLoaderGone(page: Page, timeoutMs = 30000) {
  * לוגין מנורה: הזרקה עקשנית שמוודאת שהערך לא נמחק ע"י האתר
  */
 export async function menoraLogin(page: Page, username: string, phoneNumber: string) {
-  console.log("[Menora] Injecting credentials with Persistence Check...");
+  // console.log("[Menora] Injecting credentials with Persistence Check...");
 
   const injection = `
     (async function(u, p) {
@@ -110,7 +110,7 @@ export async function menoraHandleOtp(page: Page, ctx: RunnerCtx) {
   const otpCode = await pollOtp(runId);
   if (!otpCode) throw new Error("OTP Timeout: הקוד לא התקבל.");
 
-  console.log(`[Menora] Code received: ${otpCode}, injecting...`);
+  // console.log(`[Menora] Code received: ${otpCode}, injecting...`);
 
   const injection = `
     (function(code) {
@@ -138,7 +138,7 @@ export async function menoraHandleOtp(page: Page, ctx: RunnerCtx) {
   `;
 
   const res = await page.evaluate(injection);
-  console.log(`[Menora] OTP Injection Result: ${res}`);
+  // console.log(`[Menora] OTP Injection Result: ${res}`);
 
   // המתנה לראות אם האתר עבר דף (Auto-Submit)
   try {
@@ -146,9 +146,9 @@ export async function menoraHandleOtp(page: Page, ctx: RunnerCtx) {
     await page.waitForFunction(() => {
       return !!document.querySelector('a.logo[href*="agents-site"], .user-profile, [class*="dashboard"]');
     }, { timeout: 15000 });
-    console.log("[Menora] OTP Auto-Submit successful ✅");
+    // console.log("[Menora] OTP Auto-Submit successful ✅");
   } catch (e) {
-    console.log("[Menora] OTP did not auto-submit, checking if button is needed...");
+    // console.log("[Menora] OTP did not auto-submit, checking if button is needed...");
     // גיבוי: אם יש כפתור אישור שבכל זאת הופיע, נלחץ עליו
     await page.evaluate(`
       const btn = document.querySelector('button[type="submit"], .approve-btn, button:has-text("כניסה")');
@@ -166,12 +166,12 @@ export async function menoraHandleOtp(page: Page, ctx: RunnerCtx) {
 export async function menoraNavigateToCommissions(page: Page) {
   const targetUrl = "https://menoranet.menora.co.il/agent-financial-info/commissions";
   
-  console.log(`[Menora] Navigating to: ${targetUrl}`);
+  // console.log(`[Menora] Navigating to: ${targetUrl}`);
   await page.goto(targetUrl, { waitUntil: "networkidle", timeout: 60000 }).catch(() => {});
   await page.waitForTimeout(5000);
   await waitMenoraLoaderGone(page);
 
-  console.log("[Menora] Attempting to click 'דוחות' tab...");
+  // console.log("[Menora] Attempting to click 'דוחות' tab...");
 
   // הזרקת קוד כמחרוזת טקסט - זה פותר את כל שגיאות ה-innerText וה-Serialization
   const script = `
@@ -193,7 +193,7 @@ export async function menoraNavigateToCommissions(page: Page) {
   `;
 
   const res = await page.evaluate(script);
-  console.log("[Menora] Tab activation result: " + res);
+  // console.log("[Menora] Tab activation result: " + res);
 
   if (res === "NOT_FOUND") {
     throw new Error("לא נמצאה לשונית 'דוחות' בדף העמלות");
@@ -208,7 +208,7 @@ export async function menoraNavigateToCommissions(page: Page) {
  * בחירת סוכנים והפקת דוח - גרסה משולבת וחסינה
  */
 export async function menoraProduceReport(page: Page) {
-  console.log("[Menora] Producing report – selecting 'סוכנים' & strong dropdown close...");
+  // console.log("[Menora] Producing report – selecting 'סוכנים' & strong dropdown close...");
 
   const script = `
     (async function() {
@@ -227,7 +227,7 @@ export async function menoraProduceReport(page: Page) {
       const agentsSpan = allSpans.find(s => (s.innerText || s.textContent || "").trim() === 'סוכנים');
       
       if (agentsSpan) {
-        console.log("Menora: Found 'סוכנים' span");
+        // console.log("Menora: Found 'סוכנים' span");
         
         const row = agentsSpan.closest('li, [role="option"], label, .MuiMenuItem-root');
         if (row) {
@@ -235,19 +235,19 @@ export async function menoraProduceReport(page: Page) {
           if (checkbox) {
             if (!checkbox.checked) {
               checkbox.click();
-              console.log("Menora: Checkbox clicked successfully");
+              // console.log("Menora: Checkbox clicked successfully");
             }
           } else {
             row.click();
-            console.log("Menora: Clicked on 'סוכנים' row");
+            // console.log("Menora: Clicked on 'סוכנים' row");
           }
         }
       } else {
-        console.warn("לא נמצא 'סוכנים' בדרופדאון");
+        // console.warn("לא נמצא 'סוכנים' בדרופדאון");
       }
 
       // שלב 3: סגירה חזקה של הדרופדאון (השיטה שעבדה לך)
-      console.log("Menora: Closing dropdown strongly...");
+      // console.log("Menora: Closing dropdown strongly...");
       const backdrop = document.querySelector('.MuiBackdrop-root, .MuiModal-backdrop');
       if (backdrop) {
         backdrop.click();
@@ -268,7 +268,7 @@ const excelImgs = document.querySelectorAll('img[alt="excel"], img[src*="excel"]
         if (parentBtn) {
           // אם מצאנו button עם אייקון Excel – נלחץ עליו גם אם הטקסט לא מושלם
           produceBtn = parentBtn;
-          console.log("Menora: Found button via Excel icon – no text check needed");
+          // console.log("Menora: Found button via Excel icon – no text check needed");
           break;
         }
       }
@@ -290,12 +290,12 @@ const excelImgs = document.querySelectorAll('img[alt="excel"], img[src*="excel"]
       }
 
       if (produceBtn) {
-        console.log("Menora: Found 'הפקת הדוח' button via Excel icon or text");
+        // console.log("Menora: Found 'הפקת הדוח' button via Excel icon or text");
         produceBtn.scrollIntoView({ block: 'center' });
         produceBtn.removeAttribute('disabled');
         produceBtn.click();
       } else {
-        console.warn("לא נמצא כפתור 'הפקת הדוח'");
+        // console.warn("לא נמצא כפתור 'הפקת הדוח'");
       }
 
       // שלב 5: המתנה להודעת "תודה על בקשתך"
@@ -305,9 +305,9 @@ const excelImgs = document.querySelectorAll('img[alt="excel"], img[src*="excel"]
                              document.querySelector('.MuiAlert-message');
       
       if (thankYouVisible) {
-        console.log("[Menora] Thank you message detected – report requested");
+        // console.log("[Menora] Thank you message detected – report requested");
       } else {
-        console.warn("[Menora] No thank you message – check if report was requested");
+        // console.warn("[Menora] No thank you message – check if report was requested");
       }
 
       return "DONE";
@@ -316,12 +316,12 @@ const excelImgs = document.querySelectorAll('img[alt="excel"], img[src*="excel"]
 
   try {
     const result = await page.evaluate(script);
-    console.log(`[Menora] Produce process finished: ${result}`);
+    // console.log(`[Menora] Produce process finished: ${result}`);
   } catch (e: unknown) {
     if (e instanceof Error) {
-      console.error("[Menora] Produce evaluation failed:", e.message);
+      // console.error("[Menora] Produce evaluation failed:", e.message);
     } else {
-      console.error("[Menora] Produce evaluation failed with unknown error:", e);
+      // console.error("[Menora] Produce evaluation failed with unknown error:", e);
     }
   }
 
@@ -335,7 +335,7 @@ const excelImgs = document.querySelectorAll('img[alt="excel"], img[src*="excel"]
  * מעבר לסטטוס והורדת הדוח החדש ביותר - גרסת String חסינה ל-EXE
  */
 export async function menoraDownloadZip(page: Page): Promise<Download | null> {
-  console.log("[Menora] Expanding 'Status' menu and hunting for download button...");
+  // console.log("[Menora] Expanding 'Status' menu and hunting for download button...");
 
   // שלב 1: פתיחת התפריט
   const expandScript = " (function() { " +
@@ -354,7 +354,7 @@ export async function menoraDownloadZip(page: Page): Promise<Download | null> {
     " })() ";
 
   const expandRes = await page.evaluate(expandScript);
-  console.log("[Menora] Status expansion: " + expandRes);
+  // console.log("[Menora] Status expansion: " + expandRes);
 
   await page.waitForTimeout(5000);
 
@@ -375,11 +375,11 @@ export async function menoraDownloadZip(page: Page): Promise<Download | null> {
     const statusResult = await page.evaluate(actionScript);
 
     if (statusResult === "DOWNLOAD_CLICKED") {
-      console.log("[Menora] Success! Download clicked on the newest report.");
+      // console.log("[Menora] Success! Download clicked on the newest report.");
       return await page.waitForEvent("download", { timeout: 60000 }).catch(() => null);
     }
 
-    console.log("[Menora] Attempt " + (attempt + 1) + ": " + statusResult);
+    // console.log("[Menora] Attempt " + (attempt + 1) + ": " + statusResult);
 
     // רענון בכל ניסיון שלישי
     if (attempt % 3 === 0 && attempt > 0) {
@@ -409,13 +409,13 @@ export async function menoraSetReportDate(page: Page, monthYear: string) {
   ];
   const monthName = hebrewMonths[monthNum - 1];
 
-  console.log(`[Menora] Setting date: ${monthName} ${year}`);
+  // console.log(`[Menora] Setting date: ${monthName} ${year}`);
 
   const safeMonth = JSON.stringify(monthName);
   const safeYear = JSON.stringify(year);
 
   for (let boxIndex = 0; boxIndex < 2; boxIndex++) {
-    console.log(`[Menora] Processing date box ${boxIndex + 1}...`);
+    // console.log(`[Menora] Processing date box ${boxIndex + 1}...`);
 
     const script = `
       (async function() {
@@ -484,7 +484,7 @@ export async function menoraSetReportDate(page: Page, monthYear: string) {
     `;
 
     const result = await page.evaluate(script);
-    console.log(`[Menora] Box ${boxIndex + 1} result: ${result}`);
+    // console.log(`[Menora] Box ${boxIndex + 1} result: ${result}`);
     
     await page.waitForTimeout(1000);
   }

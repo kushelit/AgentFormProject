@@ -70,7 +70,7 @@ export async function runHachsharaAll(ctx: RunnerCtx) {
   await page.bringToFront();
 
   try {
-    console.log("[Hachshara] Navigating to portal...");
+    // console.log("[Hachshara] Navigating to portal...");
     await page.goto(portalUrl, { waitUntil: "domcontentloaded", timeout: 60000 });
     await page.waitForLoadState("networkidle", { timeout: 30000 }).catch(() => {});
 
@@ -93,7 +93,7 @@ export async function runHachsharaAll(ctx: RunnerCtx) {
         } as any);
 
         if (up?.storagePath) {
-          console.log(`[Hachshara] Uploaded ${templateId}:`, up.storagePath);
+          // console.log(`[Hachshara] Uploaded ${templateId}:`, up.storagePath);
           await appendDownload({
             templateId,
             localPath,
@@ -114,7 +114,7 @@ export async function runHachsharaAll(ctx: RunnerCtx) {
     }
 
   } catch (e: any) {
-    console.error("[Hachshara] Error:", e.message);
+    // console.error("[Hachshara] Error:", e.message);
     await setStatus(runId, { status: "error", error: e.message, monthLabel });
     throw e;
   } finally {

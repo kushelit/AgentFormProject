@@ -28,7 +28,7 @@ function escapeRegExp(s: string) {
  * פתיחת דוח לפי שם (הזרקת String)
  */
 export async function openReportFromSummaryByName(page: Page, linkText: string) {
-  console.log(`[Clal] Searching for report link: ${linkText} via Injection...`);
+  // console.log(`[Clal] Searching for report link: ${linkText} via Injection...`);
 
   const injection = `
     (function(text) {
@@ -54,7 +54,7 @@ export async function openReportFromSummaryByName(page: Page, linkText: string) 
   `;
 
   const result = await page.evaluate(injection).catch(e => "ERROR: " + e.message);
-  console.log(`[Clal] Click report '${linkText}' result: ${result}`);
+  // console.log(`[Clal] Click report '${linkText}' result: ${result}`);
   await softNetworkIdle(page);
 }
 
@@ -62,7 +62,7 @@ export async function openReportFromSummaryByName(page: Page, linkText: string) 
  * פונקציית לוגין (הזרקת String)
  */
 export async function clalLogin(page: Page, username: string, password: string) {
-  console.log("[ClalLogin] Policy page detected. Injecting via String...");
+  // console.log("[ClalLogin] Policy page detected. Injecting via String...");
 
   const injectionCode = `
     (function(u, p) {
@@ -90,9 +90,9 @@ export async function clalLogin(page: Page, username: string, password: string) 
   try {
     await page.evaluate(injectionCode);
     await page.waitForTimeout(5000);
-    console.log("[ClalLogin] Injection script sent to browser.");
+    // console.log("[ClalLogin] Injection script sent to browser.");
   } catch (e: any) {
-    console.error("[ClalLogin] Execution error: " + e.message);
+    // console.error("[ClalLogin] Execution error: " + e.message);
   }
 }
 
@@ -101,7 +101,7 @@ export async function clalHandleOtp(page: Page, ctx: RunnerCtx) {
   const { runId, setStatus, pollOtp, clearOtp, run } = ctx;
   const monthLabel = run?.monthLabel || "חודש נוכחי";
 
-  console.log("[Clal] OTP Flow: Waiting for user input in Magic...");
+  // console.log("[Clal] OTP Flow: Waiting for user input in Magic...");
 
   // 1. מעוררים את המודאל
   await setStatus(runId, { 
@@ -115,7 +115,7 @@ export async function clalHandleOtp(page: Page, ctx: RunnerCtx) {
 const otpCode = await pollOtp(runId);
   if (!otpCode) throw new Error("OTP Timeout: הקוד לא התקבל.");
 
-  console.log(`[Clal] Code received: ${otpCode}.`);
+   // console.log(`[Clal] Code received: ${otpCode}.`);
 
   // --- תיקון 1: סגירת המודאל במגיק מיד עם קבלת הקוד ---
   // שינוי הסטטוס ל-running יגרום למודאל להיעלם מהמסך של הסוכן
@@ -150,7 +150,7 @@ const otpCode = await pollOtp(runId);
   await page.evaluate(injectionScript);
 
   // --- תיקון 2: בדיקת הצלחה גמישה (Serialization-Proof) ---
-  console.log("[Clal] Waiting for navigation or dashboard elements...");
+  // console.log("[Clal] Waiting for navigation or dashboard elements...");
   
   try {
     // מחכים שהשדה ייעלם או שיופיע אלמנט של דף הבית
@@ -159,11 +159,11 @@ const otpCode = await pollOtp(runId);
       "!!document.querySelector('a[href*=\"Logout\"], a[href*=\"logout\"], #moduleHeaderSpan') || !document.querySelector('input[name=\"Token\"]')",
       { timeout: 15000 }
     );
-    console.log("[Clal] Dashboard detected ✅");
+    // console.log("[Clal] Dashboard detected ✅");
   } catch (e) {
     // אם עבר הזמן אבל הבוט כבר בדף הבית (כמו שתיארת), אנחנו לא רוצים לזרוק שגיאה שתעצור הכל.
     // אנחנו פשוט נמשיך הלאה ונבדוק אם דף העמלות זמין.
-    console.log("[Clal] Verification timeout reached, but proceeding anyway to check for commissions link.");
+    // console.log("[Clal] Verification timeout reached, but proceeding anyway to check for commissions link.");
   }
 
   // 4. ניקוי וסיום השלב
@@ -176,7 +176,7 @@ const otpCode = await pollOtp(runId);
  * מעבר לדף עמלות (הזרקת String)
  */
 export async function gotoCommissionsPage(page: Page): Promise<Page> {
-  console.log("[Clal] Navigating to Commissions - Target: עמלות ומכירות...");
+  // console.log("[Clal] Navigating to Commissions - Target: עמלות ומכירות...");
 
   const [newPage] = await Promise.all([
     page.context().waitForEvent("page", { timeout: 60000 }),
@@ -190,7 +190,7 @@ export async function gotoCommissionsPage(page: Page): Promise<Page> {
         let target = getLink();
 
         if (!target) {
-          console.log("Link not found. Searching for specific 'עמלות ומכירות' panel...");
+          // console.log("Link not found. Searching for specific 'עמלות ומכירות' panel...");
 
           // 1. מוצאים את כל ה-headers של האקורדיונים
           const headers = Array.from(document.querySelectorAll('mat-expansion-panel-header'));
@@ -208,10 +208,10 @@ export async function gotoCommissionsPage(page: Page): Promise<Page> {
               // 3. מציאת ה-span של ה-indicator (ה"אח" של ה-mat-content)
               const indicator = targetHeader.querySelector('.mat-expansion-indicator');
               if (indicator) {
-                console.log("Clicking expansion indicator...");
+                // console.log("Clicking expansion indicator...");
                 indicator.click();
               } else {
-                console.log("Indicator not found, clicking header directly...");
+                // console.log("Indicator not found, clicking header directly...");
                 targetHeader.click();
               }
               // המתנה לאנימציה של Angular
@@ -233,10 +233,10 @@ export async function gotoCommissionsPage(page: Page): Promise<Page> {
   ]);
 
   await newPage.bringToFront();
-  console.log("[Clal] New tab opened successfully.");
+  // console.log("[Clal] New tab opened successfully.");
   
   await newPage.waitForSelector("#moduleHeaderSpan", { state: "visible", timeout: 45000 }).catch(() => {
-    console.log("[Clal] Warning: Module header not found, but continuing...");
+    // console.log("[Clal] Warning: Module header not found, but continuing...");
   });
 
   return newPage;
@@ -250,9 +250,9 @@ export async function waitClalLoaderGone(page: Page, timeoutMs = 15000) {
 
   try {
     await loader.waitFor({ state: "hidden", timeout: timeoutMs });
-    console.log("[Clal] Loader gone ✅");
+    // console.log("[Clal] Loader gone ✅");
   } catch (e) {
-    console.log("[Clal] Loader already gone or timed out.");
+    // console.log("[Clal] Loader already gone or timed out.");
   }
 }
 
@@ -260,7 +260,7 @@ export async function waitClalLoaderGone(page: Page, timeoutMs = 15000) {
  * בחירת כל הסוכנים (הזרקת String - חסין שגיאות סריאליזציה)
  */
 export async function openAgentsDropdownAndSelectAll(page: Page) {
-  console.log("[Clal] Opening agents list (Smart Check)...");
+  // console.log("[Clal] Opening agents list (Smart Check)...");
 
   const result = await page.evaluate(`
     (function() {
@@ -297,7 +297,7 @@ export async function openAgentsDropdownAndSelectAll(page: Page) {
     })()
   `);
 
-  console.log(`[Clal] Agents result: ${result}`);
+  // console.log(`[Clal] Agents result: ${result}`);
   await page.keyboard.press("Escape");
   await page.waitForTimeout(500);
 }
@@ -305,7 +305,7 @@ export async function openAgentsDropdownAndSelectAll(page: Page) {
  * לחיצה על חיפוש (הזרקת String)
  */
 export async function clickSearchOnly(page: Page) {
-  console.log("[Clal] Clicking Search (String injection)...");
+  // console.log("[Clal] Clicking Search (String injection)...");
 
   const result = await page.evaluate(`
     (function() {
@@ -318,7 +318,7 @@ export async function clickSearchOnly(page: Page) {
     })()
   `);
 
-  console.log(`[Clal] Search click result: ${result}`);
+  // console.log(`[Clal] Search click result: ${result}`);
   await page.waitForTimeout(2000);
 }
 
@@ -326,7 +326,7 @@ export async function clickSearchOnly(page: Page) {
  * המתנה לטבלה (הזרקת String)
  */
 export async function waitForCommissionsGridFilled(page: Page, timeoutMs = 60000) {
-  console.log("[Clal] Waiting for grid...");
+  // console.log("[Clal] Waiting for grid...");
 
   const result = await page.evaluate(`
     (function(timeout) {
@@ -344,7 +344,7 @@ export async function waitForCommissionsGridFilled(page: Page, timeoutMs = 60000
     })(${timeoutMs})
   `);
 
-  console.log("[Clal] Grid result: " + result);
+  // console.log("[Clal] Grid result: " + result);
 }
 
 /**
@@ -352,7 +352,7 @@ export async function waitForCommissionsGridFilled(page: Page, timeoutMs = 60000
  */
 
 export async function clickReportTabHeading(page: Page, headingText: string) {
-  console.log(`[Clal] Switching tab to EXACT match: ${headingText}`);
+  // console.log(`[Clal] Switching tab to EXACT match: ${headingText}`);
 
   const result = await page.evaluate(`
     (function(txt) {
@@ -377,7 +377,7 @@ export async function clickReportTabHeading(page: Page, headingText: string) {
     })('${headingText}')
   `);
 
-  console.log(`[Clal] Tab Result: ${result}`);
+  // console.log(`[Clal] Tab Result: ${result}`);
   
   // המתנה קצרה שהתוכן יתחלף
   await page.waitForTimeout(2500);
@@ -388,7 +388,7 @@ export async function clickReportTabHeading(page: Page, headingText: string) {
  * יצוא אקסל (הזרקת String)
  */
 export async function exportExcelFromCurrentReport(page: Page): Promise<{ download: Download | null; filename: string }> {
-  console.log("[Clal] Targeted Excel Export...");
+  // console.log("[Clal] Targeted Excel Export...");
 
   const injection = `
     (function() {

@@ -17,7 +17,6 @@ function percent(value?: number | null) {
   return `${Number(value).toFixed(2)}%`;
 }
 
-// אייקון סטטוס במקום טקסט
 function StatusIcon({ status }: { status?: string | null }) {
   if (status === "פעיל") return <span title="פעיל" style={{ color: "#16a34a", fontSize: 16 }}>●</span>;
   if (status === "לא פעיל" || status === "מוקפא") return <span title={status} style={{ color: "#dc2626", fontSize: 16 }}>●</span>;
@@ -39,8 +38,6 @@ export default function CurrentStateTable({ rows }: Props) {
     return sortDir === "asc" ? result : -result;
   });
 
-  console.log("rows length:", rows.length, "sortedRows length:", sortedRows.length);
-  
   const handleSort = (field: "productType" | "companyName" | "accumulation") => {
     if (sortBy === field) {
       setSortDir(sortDir === "asc" ? "desc" : "asc");
@@ -80,7 +77,6 @@ export default function CurrentStateTable({ rows }: Props) {
         <table style={tableStyle}>
           <thead>
             <tr>
-              {/* הוסרה עמודת מבוטח */}
               <th style={clickableThStyle} onClick={() => handleSort("productType")}>
                 מוצר {sortIcon("productType")}
               </th>
@@ -157,20 +153,23 @@ export default function CurrentStateTable({ rows }: Props) {
                         <div style={detailsTitleStyle}>
                           פירוט מסלולים — {row.companyName} / {row.productType}
                         </div>
-                          {/* ✅ באנר פער דמי ניהול — לסוכן בלבד */}
-      {row.avgDepositFeePercent != null &&
-       row.depositFeePercent != null &&
-       Math.abs(row.avgDepositFeePercent - row.depositFeePercent) >= 0.05 && (
-        <div style={feeGapBannerStyle}>
-          ⚠️ תעריף הפקדה נוכחי: {percent(row.depositFeePercent)}
-          {" | "}ממוצע היסטורי: {percent(row.avgDepositFeePercent)}
-          {" | "}פער: {percent(Math.abs(row.avgDepositFeePercent - row.depositFeePercent))}
-        </div>
-      )}
+
+                        {/* באנר פער דמי ניהול — לסוכן בלבד */}
+                        {row.avgDepositFeePercent != null &&
+                         row.depositFeePercent != null &&
+                         Math.abs(row.avgDepositFeePercent - row.depositFeePercent) >= 0.05 && (
+                          <div style={feeGapBannerStyle}>
+                            ⚠️ תעריף הפקדה נוכחי: {percent(row.depositFeePercent)}
+                            {" | "}ממוצע היסטורי: {percent(row.avgDepositFeePercent)}
+                            {" | "}פער: {percent(Math.abs(row.avgDepositFeePercent - row.depositFeePercent))}
+                          </div>
+                        )}
+
                         <div style={detailsSummaryStyle}>
                           <span>סה״כ במסלולים: {money(totalTrackAccumulation)}</span>
                           <span>עלות שנתית משוקללת: {percent(weightedAnnualCost)}</span>
                         </div>
+
                         <table style={innerTableStyle}>
                           <thead>
                             <tr style={{ background: "#e0f2fe" }}>
@@ -286,6 +285,7 @@ const detailsSummaryStyle: React.CSSProperties = {
   border: "1px solid #bfdbfe", borderRadius: 10,
   fontWeight: 700, color: "#0f172a",
 };
+
 const feeGapBannerStyle: React.CSSProperties = {
   background: "#fffbeb",
   border: "1px solid #fcd34d",

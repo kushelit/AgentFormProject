@@ -76,7 +76,7 @@ export async function runClalAll(ctx: RunnerCtx) {
   ];
 
   try {
-    console.log(`[Clal] Launching with executable: ${executablePath}`);
+    // console.log(`[Clal] Launching with executable: ${executablePath}`);
     browser = await chromium.launch({
       headless: false, 
       executablePath: executablePath || undefined,
@@ -92,7 +92,7 @@ export async function runClalAll(ctx: RunnerCtx) {
     const page = await context.newPage();
     await page.bringToFront().catch(() => {});
 
-    console.log("[Clal] Navigating to portal...");
+    // console.log("[Clal] Navigating to portal...");
       await setStatus(runId, { status: "running", step: " Navigating to portal", monthLabel });
 
     await page.goto(portalUrl, { waitUntil: "commit", timeout: 60000 });
@@ -103,7 +103,7 @@ export async function runClalAll(ctx: RunnerCtx) {
     await clalLogin(page, username, password);
 
    // --- שלב ה-OTP: עדכון סטטוס שמפעיל את המודאל ב-Magic ---
-    console.log("[Clal] OTP stage reached. Triggering Magic Modal...");
+    // console.log("[Clal] OTP stage reached. Triggering Magic Modal...");
     
     await setStatus(runId, { 
       status: "otp_required", 
@@ -121,7 +121,7 @@ export async function runClalAll(ctx: RunnerCtx) {
     const commissionsPage = await gotoCommissionsPage(page);
 
     // המתנה קריטית: ב-EXE דף העמלות נטען לאט בגלל F5 ו-Angular
-    console.log("[Clal] Waiting for commissions page to stabilize...");
+    // console.log("[Clal] Waiting for commissions page to stabilize...");
     await setStatus(runId, { status: "running", step: " Stabilizing commissions page", monthLabel });
 
     await commissionsPage.waitForTimeout(4000); 
@@ -171,7 +171,7 @@ export async function runClalAll(ctx: RunnerCtx) {
         if (download) {
           const localPath = path.join(absDir, `${Date.now()}_${filename}`);
           await download.saveAs(localPath);
-          console.log(`[Clal] Saved: ${localPath}`);
+          // console.log(`[Clal] Saved: ${localPath}`);
 
           // העלאה לסטורג'
           const up = await uploadLocalFileToStorageClient({ 
@@ -191,23 +191,23 @@ export async function runClalAll(ctx: RunnerCtx) {
             });
 
             await setStatus(runId, { status: "file_uploaded", step: `${rep.stepPrefix}_done` });
-            console.log(`[Clal] Done: ${rep.linkText}`);
+            // console.log(`[Clal] Done: ${rep.linkText}`);
           }
         } else {
-          console.log(`[Clal] No download found for ${rep.linkText}`);
+          // console.log(`[Clal] No download found for ${rep.linkText}`);
         }
 
       } catch (err: any) {
-        console.error(`[Clal] Error in ${rep.linkText}: ${err.message}`);
+        // console.error(`[Clal] Error in ${rep.linkText}: ${err.message}`);
         await setStatus(runId, { status: "running", step: `${rep.stepPrefix}_failed`, error: err.message });
       }
     }
 
     await setStatus(runId, { status: "done", step: "clal_all_done", monthLabel, result: { uploaded: true } });
-    console.log("[Clal] All done!");
+    // console.log("[Clal] All done!");
 
   } catch (e: any) {
-    console.error("[Clal] Global Error:", e.message);
+    // console.error("[Clal] Global Error:", e.message);
     if (context && context.pages().length > 0) {
       const p = context.pages()[context.pages().length - 1];
       const screenshotPath = path.join(s(ctx.paths?.logsDir), `error_${Date.now()}.png`);

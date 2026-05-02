@@ -5,13 +5,17 @@ import { generateContractsTemplateExcel } from "@/components/NewManageContractsT
 
 export const runtime = "nodejs";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    const { searchParams } = new URL(request.url);
+    const agentId = searchParams.get("agentId") || "";
+
     const db = admin.firestore();
 
-    const [companySnap, groupSnap] = await Promise.all([
+    const [companySnap, groupSnap, productSnap] = await Promise.all([
       db.collection("company").get(),
       db.collection("productsGroup").get(),
+      db.collection("product").get(),
     ]);
 
     const companies = companySnap.docs.map((doc) => ({
@@ -23,6 +27,20 @@ export async function GET() {
       id: doc.id,
       ...doc.data(),
     }));
+
+    const products = productSnap.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+
+    let contracts: any[] = [];
+    if (agentId) {
+      const contractsSnap = await db
+        .collection("contracts")
+        .where("AgentId", "==", agentId)
+        .get();
+      contracts = contractsSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    }
 
     const companiesById = new Map(
       companies.map((company: any) => [String(company.id), company])
@@ -41,6 +59,9 @@ export async function GET() {
     const { buffer, filename } = await generateContractsTemplateExcel({
       tables: CONTRACTS_TABLES_CONFIG,
       companiesByGroup,
+      contracts,
+      agentId,
+      products,
     });
 
     const fileBuffer = Buffer.isBuffer(buffer)
@@ -57,7 +78,7 @@ export async function GET() {
       },
     });
   } catch (error) {
-    console.error("contracts-template download error:", error);
+    // console.error("contracts-template download error:", error);
     return NextResponse.json(
       { error: "Failed to generate contracts template" },
       { status: 500 }

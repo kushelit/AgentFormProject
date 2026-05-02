@@ -3,7 +3,7 @@ import type { RunnerCtx } from "../../types";
 import path from "path";
 
 export async function analystLogin(page: Page, idNumber: string, phoneNumber: string) {
-  console.log("[Analyst] Filling login form...");
+  // console.log("[Analyst] Filling login form...");
 
   const cdp = await page.context().newCDPSession(page);
 
@@ -46,7 +46,7 @@ export async function analystLogin(page: Page, idNumber: string, phoneNumber: st
     returnByValue: true,
   });
 
-  console.log("[Analyst] Login fill result:", fillResult.result.value);
+  // console.log("[Analyst] Login fill result:", fillResult.result.value);
   if (!fillResult.result.value?.toString().startsWith('SUCCESS')) {
     throw new Error(`Login failed: ${fillResult.result.value}`);
   }
@@ -56,7 +56,7 @@ export async function analystHandleOtp(page: Page, ctx: RunnerCtx) {
   const { runId, setStatus, pollOtp, clearOtp, run } = ctx;
   const monthLabel = run?.monthLabel || "חודש נוכחי";
 
-  console.log("[Analyst] Waiting for OTP screen...");
+  // console.log("[Analyst] Waiting for OTP screen...");
   const cdp = await page.context().newCDPSession(page);
 
   // המתן לשדה OTP הנסתר
@@ -65,7 +65,7 @@ export async function analystHandleOtp(page: Page, ctx: RunnerCtx) {
       expression: `document.querySelector('.hidden-otp-input') ? 'FOUND' : 'NOT_FOUND'`,
       returnByValue: true,
     });
-    console.log(`[Analyst] OTP screen check ${i + 1}:`, check.result.value);
+    // console.log(`[Analyst] OTP screen check ${i + 1}:`, check.result.value);
     if (check.result.value === 'FOUND') break;
     await page.waitForTimeout(1000);
   }
@@ -79,7 +79,7 @@ export async function analystHandleOtp(page: Page, ctx: RunnerCtx) {
 
   const otp = await pollOtp(runId);
   if (!otp) throw new Error("קוד ה-OTP לא התקבל");
-  console.log("[Analyst] OTP received:", otp);
+  // console.log("[Analyst] OTP received:", otp);
 
   // הזרקה לשדה הנסתר + לכל תיבה בנפרד
   const otpResult = await cdp.send("Runtime.evaluate", {
@@ -116,7 +116,7 @@ export async function analystHandleOtp(page: Page, ctx: RunnerCtx) {
     returnByValue: true,
   });
 
-  console.log("[Analyst] OTP inject result:", otpResult.result.value);
+  // console.log("[Analyst] OTP inject result:", otpResult.result.value);
   await page.waitForTimeout(5000);
   await clearOtp(runId).catch(() => {});
 }
@@ -130,7 +130,7 @@ export async function analystNavigateAndExport(
   const cdp = await page.context().newCDPSession(page);
 
   // ✅ שלב 1: סגור popup אם קיים
-  console.log("[Analyst] Waiting for popup if exists...");
+  // console.log("[Analyst] Waiting for popup if exists...");
   await cdp.send("Runtime.evaluate", {
     expression: `(function() {
       return new Promise((resolve) => {
@@ -154,7 +154,7 @@ export async function analystNavigateAndExport(
   });
 
   // ✅ שלב 2: לחץ "הפקת דוחות" בסרגל
-  console.log("[Analyst] Clicking reports nav link...");
+  // console.log("[Analyst] Clicking reports nav link...");
   const navResult = await cdp.send("Runtime.evaluate", {
     expression: `(function() {
       const link = document.querySelector('a[href="/reports"]');
@@ -164,11 +164,11 @@ export async function analystNavigateAndExport(
     })()`,
     returnByValue: true,
   });
-  console.log("[Analyst] Nav result:", navResult.result.value);
+  // console.log("[Analyst] Nav result:", navResult.result.value);
   await page.waitForTimeout(3000);
 
   // ✅ שלב 3: בחר סוג דוח
-  console.log("[Analyst] Opening report type dropdown...");
+  // console.log("[Analyst] Opening report type dropdown...");
   const selectPos = await cdp.send("Runtime.evaluate", {
     expression: `(function() {
       const el = document.querySelector('mat-select[aria-label="בחירת סוג דוח"], mat-select[aria-label="בחירות סוג דות"], #mat-select-1, #mat-select-3');
@@ -186,7 +186,7 @@ export async function analystNavigateAndExport(
   await page.waitForTimeout(1000);
 
   // ✅ שלב 4: בחר "עמלות סוכנים"
-  console.log("[Analyst] Selecting 'עמלות סוכנים'...");
+  // console.log("[Analyst] Selecting 'עמלות סוכנים'...");
   const selectResult = await cdp.send("Runtime.evaluate", {
     expression: `(function() {
       const options = Array.from(document.querySelectorAll('mat-option'));
@@ -197,11 +197,11 @@ export async function analystNavigateAndExport(
     })()`,
     returnByValue: true,
   });
-  console.log("[Analyst] Select result:", selectResult.result.value);
+  // console.log("[Analyst] Select result:", selectResult.result.value);
   await page.waitForTimeout(1000);
 
   // ✅ שלב 5: לחץ "הפק דוח"
-  console.log("[Analyst] Clicking 'הפק דוח'...");
+  // console.log("[Analyst] Clicking 'הפק דוח'...");
   try {
     const [download] = await Promise.all([
       page.waitForEvent("download", { timeout: 30000 }),
@@ -224,11 +224,11 @@ export async function analystNavigateAndExport(
     const filename = download.suggestedFilename();
     const localPath = path.join(absDir, `${Date.now()}_${filename}`);
     await download.saveAs(localPath);
-    console.log("[Analyst] Saved:", localPath);
+    // console.log("[Analyst] Saved:", localPath);
     results.push({ localPath, filename });
 
   } catch (e: any) {
-    console.log("[Analyst] Export failed:", e?.message);
+    // console.log("[Analyst] Export failed:", e?.message);
   }
 
   return results;

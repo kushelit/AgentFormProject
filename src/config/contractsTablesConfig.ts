@@ -161,10 +161,10 @@ export const CONTRACTS_TABLES_CONFIG = [
     showDefaultColumn: true,
     sections: [
       {
-        key: "risk_only",
+        key: "risk",
         label: "ריסק",
         productGroupId: "3",
-        productSubGroupId: "risk_only",
+        productSubGroupId: "risk",
         rows: [
           { commissionType: "hekef", label: "היקף", valueMode: "percent", minuySochen: false },
           { commissionType: "nifraim", label: "נפרעים", valueMode: "percent", minuySochen: false },
@@ -211,7 +211,7 @@ export const CONTRACTS_TABLES_CONFIG = [
     key: "retirement",
     title: "פרישה מיידית",
     note: 'נא להזין את ההסכם כולל מע״מ.',
-    showDefaultColumn: false,
+    showDefaultColumn: true,
     sections: [
       {
         key: "immediate_retirement",
@@ -229,7 +229,7 @@ export const CONTRACTS_TABLES_CONFIG = [
     key: "travel",
     title: "נסיעות חול",
     note: 'נא להזין את ההסכם כולל מע״מ.',
-    showDefaultColumn: false,
+    showDefaultColumn: true,
     sections: [
       {
         key: "travel_abroad",

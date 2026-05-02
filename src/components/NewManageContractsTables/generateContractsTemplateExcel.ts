@@ -1,69 +1,251 @@
 import ExcelJS from "exceljs";
 
+function getVatModeByTableKey(tableKey: string): "includes_vat" | "excludes_vat" {
+  return tableKey === "risk" ? "excludes_vat" : "includes_vat";
+}
+
+function getContractDisplayValue(contract: any, commissionType: string): string {
+  if (!contract) return "";
+  if (commissionType === "hekef") return contract.commissionHekefDisplay || contract.commissionHekef || "";
+  if (commissionType === "nifraim") return contract.commissionNifraimDisplay || contract.commissionNifraim || "";
+  if (commissionType === "niud") return contract.commissionNiudDisplay || contract.commissionNiud || "";
+  return "";
+}
+
+function getPlaceholderText(valueMode: string, vatMode: string): string {
+  const modeText = valueMode === "per_million" ? "לדוגמה: 1200" : "לדוגמה: 0.5";
+  const vatText = vatMode === "includes_vat" ? "כולל מע״מ" : "ללא מע״מ";
+  return `${modeText} | ${vatText}`;
+}
+
+const TABLE_HEADER_COLOR: Record<string, string> = {
+  pension:    "FF4F81BD",
+  retirement: "FF9B59B6",
+  finance:    "FF217346",
+  risk:       "FFC0392B",
+  travel:     "FFE67E22",
+};
+
+const TABLE_LIGHT_COLOR: Record<string, string> = {
+  pension:    "FFD6E4F7",
+  retirement: "FFEDE0F7",
+  finance:    "FFD6EEE0",
+  risk:       "FFF7D6D6",
+  travel:     "FFFDEEDD",
+};
+
+// עמודות נסתרות תמיד מתחילות מ-30
+const HIDDEN_START_COL = 30;
+
 export async function generateContractsTemplateExcel({
   tables,
   companiesByGroup,
+  contracts = [],
+  agentId = "",
+  products = [],
 }: any) {
   const workbook = new ExcelJS.Workbook();
+  const sheet = workbook.addWorksheet("הסכמים", {
+    views: [{ rightToLeft: true }],
+    properties: { defaultRowHeight: 20 },
+  });
 
-  for (const table of tables) {
-    const sheet = workbook.addWorksheet(table.title, {
-      views: [{ rightToLeft: true }],
-    });
+  let currentRow = 1;
 
-    let rowIndex = 1;
+  for (const table of tables || []) {
+    const vatMode = getVatModeByTableKey(table.key);
+    const headerColor = TABLE_HEADER_COLOR[table.key] || "FF4472C4";
+    const lightColor  = TABLE_LIGHT_COLOR[table.key]  || "FFD6E4F7";
 
-    sheet.getCell(rowIndex, 1).value = table.title;
-    sheet.getCell(rowIndex, 1).font = { bold: true, size: 16 };
-    rowIndex += 2;
+    for (const section of table.sections || []) {
+      const companiesForGroup: any[] =
+        companiesByGroup[String(section.productGroupId)] || [];
 
-    for (const section of table.sections) {
-      const companies = companiesByGroup[section.productGroupId] || [];
-
-      sheet.getCell(rowIndex, 1).value = section.label;
-      sheet.getCell(rowIndex, 1).font = { bold: true };
-      rowIndex++;
-
-      const headers = [
-        "סוג עמלה",
-        ...(table.showDefaultColumn ? ["ברירת מחדל"] : []),
-        ...companies.map((c: any) => c.companyName),
-      ];
-
-      headers.forEach((h, i) => {
-        const cell = sheet.getCell(rowIndex, i + 1);
-        cell.value = h;
-        cell.font = { bold: true };
+      const productsForSection = (products || []).filter((p: any) => {
+        const sameGroup = String(p.productGroup) === String(section.productGroupId);
+        const sectionSubGroupId = String(section.productSubGroupId || "").trim();
+        const sameSubGroup = sectionSubGroupId
+          ? String(p.productSubGroupId || "") === sectionSubGroupId
+          : true;
+        return sameGroup && sameSubGroup;
       });
 
-      rowIndex++;
+      const visibleCols = 2 + companiesForGroup.length;
 
-      for (const row of section.rows) {
-        sheet.getCell(rowIndex, 1).value = row.label;
+      // ─── כותרת section ───
+      const titleCell = sheet.getCell(currentRow, 1);
+      titleCell.value = `${table.title}  ›  ${section.label}`;
+      titleCell.font = { bold: true, size: 12, color: { argb: "FFFFFFFF" } };
+      titleCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: headerColor } };
+      titleCell.alignment = { horizontal: "right", vertical: "middle", readingOrder: "rtl" };
+      titleCell.border = {
+        top:    { style: "medium", color: { argb: headerColor } },
+        bottom: { style: "medium", color: { argb: headerColor } },
+        left:   { style: "medium", color: { argb: headerColor } },
+        right:  { style: "medium", color: { argb: headerColor } },
+      };
+      sheet.getRow(currentRow).height = 26;
+      if (visibleCols > 1) {
+        sheet.mergeCells(currentRow, 1, currentRow, visibleCols);
+      }
+      currentRow++;
 
-        let col = 2;
+      // ─── כותרות עמודות ───
+      const colHeaders = [
+        "סוג עמלה",
+        "ברירת מחדל",
+        ...companiesForGroup.map((c: any) => c.companyName),
+      ];
 
-        if (table.showDefaultColumn) {
-          sheet.getCell(rowIndex, col).value = "";
-          col++;
-        }
+      colHeaders.forEach((header, colIdx) => {
+        const cell = sheet.getCell(currentRow, colIdx + 1);
+        cell.value = header;
+        cell.font = { bold: true, size: 10, color: { argb: "FF1F3864" } };
+        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: lightColor } };
+        cell.alignment = { horizontal: "center", vertical: "middle", readingOrder: "rtl" };
+        cell.border = {
+          top:    { style: "thin",   color: { argb: headerColor } },
+          bottom: { style: "medium", color: { argb: headerColor } },
+          left:   { style: "thin",   color: { argb: "FFD0D0D0" } },
+          right:  { style: "thin",   color: { argb: "FFD0D0D0" } },
+        };
+      });
+      sheet.getRow(currentRow).height = 22;
+      currentRow++;
 
-        companies.forEach(() => {
-          sheet.getCell(rowIndex, col).value = "";
-          col++;
+      // ─── שורות עמלה ───
+      for (const row of section.rows || []) {
+        const isMinuy   = Boolean(row.minuySochen);
+        const valueMode = row.valueMode || "percent";
+        const rowBg     = isMinuy ? "FFFFF9F0" : "FFFFFFFF";
+        const placeholderText = getPlaceholderText(valueMode, vatMode);
+        const inputTitle      = valueMode === "per_million" ? "הזנה למיליון" : "הזנת אחוז";
+
+        // עמודה 1 — תווית שורה
+        const labelCell = sheet.getCell(currentRow, 1);
+        labelCell.value = row.label;
+        labelCell.font  = { size: 10, color: { argb: "FF1F3864" } };
+        labelCell.fill  = { type: "pattern", pattern: "solid", fgColor: { argb: lightColor } };
+        labelCell.alignment = { horizontal: "right", vertical: "middle", readingOrder: "rtl", indent: 1 };
+        labelCell.border = {
+          top:    { style: "thin",   color: { argb: "FFE0E0E0" } },
+          bottom: { style: "thin",   color: { argb: "FFE0E0E0" } },
+          left:   { style: "thin",   color: { argb: "FFD0D0D0" } },
+          right:  { style: "medium", color: { argb: headerColor } },
+        };
+
+        // עמודה 2 — ברירת מחדל
+        const defaultContract = contracts.find(
+          (c: any) =>
+            c.AgentId === agentId &&
+            c.productsGroup === String(section.productGroupId) &&
+            c.company === "" &&
+            c.product === "" &&
+            Boolean(c.minuySochen) === isMinuy
+        );
+        const defaultValue = getContractDisplayValue(defaultContract, row.commissionType);
+
+        const defaultCell = sheet.getCell(currentRow, 2);
+        defaultCell.value = defaultValue ? Number(defaultValue) || defaultValue : null;
+        defaultCell.fill  = { type: "pattern", pattern: "solid", fgColor: { argb: defaultValue ? "FFFFF3CD" : rowBg } };
+        defaultCell.alignment = { horizontal: "center", vertical: "middle" };
+        defaultCell.border = {
+          top:    { style: "thin", color: { argb: "FFE0E0E0" } },
+          bottom: { style: "thin", color: { argb: "FFE0E0E0" } },
+          left:   { style: "thin", color: { argb: "FFD0D0D0" } },
+          right:  { style: "thin", color: { argb: "FFD0D0D0" } },
+        };
+        defaultCell.dataValidation = {
+          type: "decimal",
+          operator: "greaterThanOrEqual",
+          formulae: [0],
+          showInputMessage: true,
+          promptTitle: inputTitle,
+          prompt: placeholderText,
+          showErrorMessage: false,
+        };
+
+        // עמודות חברות (3 עד visibleCols)
+        companiesForGroup.forEach((company: any, colIdx: number) => {
+          const matchingContract = contracts.find((c: any) => {
+            const sameCompany  = c.company === company.companyName;
+            const sameMinuy    = Boolean(c.minuySochen) === isMinuy;
+            const productMatch = productsForSection.some(
+              (p: any) => p.productName === c.product
+            );
+            return (
+              c.AgentId === agentId &&
+              sameCompany &&
+              sameMinuy &&
+              c.productsGroup === "" &&
+              productMatch
+            );
+          });
+
+          const value = getContractDisplayValue(matchingContract, row.commissionType);
+          const cell  = sheet.getCell(currentRow, 3 + colIdx);
+          cell.value  = value ? Number(value) || value : null;
+          cell.fill   = { type: "pattern", pattern: "solid", fgColor: { argb: value ? "FFFFF3CD" : rowBg } };
+          cell.alignment = { horizontal: "center", vertical: "middle" };
+          cell.border = {
+            top:    { style: "thin", color: { argb: "FFE0E0E0" } },
+            bottom: { style: "thin", color: { argb: "FFE0E0E0" } },
+            left:   { style: "thin", color: { argb: "FFD0D0D0" } },
+            right:  { style: "thin", color: { argb: "FFD0D0D0" } },
+          };
+          cell.dataValidation = {
+            type: "decimal",
+            operator: "greaterThanOrEqual",
+            formulae: [0],
+            showInputMessage: true,
+            promptTitle: inputTitle,
+            prompt: placeholderText,
+            showErrorMessage: false,
+          };
         });
 
-        rowIndex++;
+        // ─── עמודות נסתרות — תמיד מעמודה 30 ───
+        const metaCols = [
+          table.key,                               // col 30 — _tableKey
+          section.key,                             // col 31 — _sectionKey
+          row.commissionType,                      // col 32 — _commissionType
+          String(section.productGroupId),          // col 33 — _productGroupId
+          String(section.productSubGroupId || ""), // col 34 — _productSubGroupId
+          isMinuy ? "true" : "false",              // col 35 — _minuySochen
+          valueMode,                               // col 36 — _valueMode
+          vatMode,                                 // col 37 — _vatMode
+        ];
+
+        metaCols.forEach((val, i) => {
+          sheet.getCell(currentRow, HIDDEN_START_COL + i).value = val;
+        });
+
+        sheet.getRow(currentRow).height = 20;
+        currentRow++;
       }
 
-      rowIndex += 2;
+      // רווח בין sections
+      currentRow += 2;
     }
   }
 
-  const buffer = await workbook.xlsx.writeBuffer();
+  // ─── רוחב עמודות גלויות ───
+  sheet.getColumn(1).width = 24; // סוג עמלה
+  sheet.getColumn(2).width = 14; // ברירת מחדל
+  for (let i = 3; i <= 29; i++) {
+    sheet.getColumn(i).width = 12; // חברות
+  }
 
-  return {
-    buffer,
-    filename: "contracts-template.xlsx",
-  };
+  // ─── הסתרת עמודות metadata (30-37) ───
+  for (let i = HIDDEN_START_COL; i <= HIDDEN_START_COL + 7; i++) {
+    sheet.getColumn(i).hidden = true;
+  }
+
+  const buffer   = await workbook.xlsx.writeBuffer();
+  const date     = new Date().toISOString().slice(0, 10);
+  const filename = agentId
+    ? `contracts-${agentId}-${date}.xlsx`
+    : `contracts-template-${date}.xlsx`;
+
+  return { buffer, filename };
 }

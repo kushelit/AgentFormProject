@@ -516,7 +516,7 @@ useEffect(() => {
 
   const roundTo2 = (num: number) => Math.round(num * 100) / 100;
 const getExt = (n?: string) => {
-  console.log("[getExt] input =", n);
+  // console.log("[getExt] input =", n);
   if (!n || typeof n !== "string") return "";
   const idx = n.lastIndexOf(".");
   return idx >= 0 ? n.slice(idx).toLowerCase() : "";
@@ -1185,14 +1185,14 @@ const standardizeRowWithMapping = (
   }
 
   if ("agentCode" in result && result.agentCode === undefined) {
-  console.log("[standardizeRowWithMapping] agentCode became undefined", {
-    templateId: base.templateId,
-    sourceFileName: base.sourceFileName,
-    sourceSheetName: base.sourceSheetName,
-    row,
-    result,
-    mapping,
-  });
+  // console.log("[standardizeRowWithMapping] agentCode became undefined", {
+  //   templateId: base.templateId,
+  //   sourceFileName: base.sourceFileName,
+  //   sourceSheetName: base.sourceSheetName,
+  //   row,
+  //   result,
+  //   mapping,
+  // });
 }
 
   return result;
@@ -1486,7 +1486,7 @@ return;      }
         await parseAndStandardize(arrayBuffer, file.name, fallbackReportMonth);
       }
     } catch (err: any) {
-      console.error("handleFileUpload error:", err);
+      // console.error("handleFileUpload error:", err);
       setErrorDialog({
         title: "שגיאת עיבוד קובץ",
         message: (
@@ -1864,29 +1864,29 @@ if (rowsMissingCustomerId.length > 0) {
     return;
   }
 }
-        console.log(
-  "[customerId lookup] missing before =",
-  rowsWithPolicyKey.filter(
-    (r) => r.lookupCustomerIdByPolicy && !String(r.customerId || r.customerIdRaw || "").trim()
-  ).length
-);
+//         console.log(
+//   "[customerId lookup] missing before =",
+//   rowsWithPolicyKey.filter(
+//     (r) => r.lookupCustomerIdByPolicy && !String(r.customerId || r.customerIdRaw || "").trim()
+//   ).length
+// );
 
-console.log(
-  "[customerId lookup] missing after =",
-  enrichedRows.filter(
-    (r) => r.lookupCustomerIdByPolicy && !String(r.customerId || r.customerIdRaw || "").trim()
-  ).length
-);
+// console.log(
+//   "[customerId lookup] missing after =",
+//   enrichedRows.filter(
+//     (r) => r.lookupCustomerIdByPolicy && !String(r.customerId || r.customerIdRaw || "").trim()
+//   ).length
+// );
 
-console.log(
-  "[customerId lookup] filled rows =",
-  enrichedRows.filter((row, i) => {
-    const before = rowsWithPolicyKey[i];
-    const beforeId = String(before.customerId || before.customerIdRaw || "").trim();
-    const afterId = String(row.customerId || row.customerIdRaw || "").trim();
-    return !!row.lookupCustomerIdByPolicy && !beforeId && !!afterId;
-  })
-);
+// console.log(
+//   "[customerId lookup] filled rows =",
+//   enrichedRows.filter((row, i) => {
+//     const before = rowsWithPolicyKey[i];
+//     const beforeId = String(before.customerId || before.customerIdRaw || "").trim();
+//     const afterId = String(row.customerId || row.customerIdRaw || "").trim();
+//     return !!row.lookupCustomerIdByPolicy && !beforeId && !!afterId;
+//   })
+// );
 
     const finalRowsForImport =
       importMode === "multi_sheet"
@@ -2079,7 +2079,7 @@ const rowsPrepared = finalRowsForImport.map((r) =>
       fileInputRef.current.value = "";
     }
   } catch (error) {
-    console.error("handleImport error:", error);
+    // console.error("handleImport error:", error);
     addToast("error", "שגיאה בעת טעינה למסד. בדוק קונסול.");
   } finally {
     setIsLoading(false);
@@ -2334,7 +2334,7 @@ const standardizeSheetRows = React.useCallback((params: {
       const agentCodeVal = getValueBySystemField(row, mapping, "agentCode");
 
       if (index === 0) {
-        console.log("[standardizeSheetRows] first row agentCodeVal =", agentCodeVal);
+        // console.log("[standardizeSheetRows] first row agentCodeVal =", agentCodeVal);
       }
 
       return agentCodeVal !== null && agentCodeVal !== undefined;
@@ -2679,7 +2679,7 @@ addToast(
     ? '✅ הריצה נשלחה לתור'
     : `✅ נשלח Batch עם ${companies.length} חברות`
 );
-    console.log('Created batch:', batchId, runIds);
+    // console.log('Created batch:', batchId, runIds);
   }}
 />
 ) : (

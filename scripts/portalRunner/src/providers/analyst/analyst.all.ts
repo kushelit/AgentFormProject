@@ -67,7 +67,7 @@ export async function runAnalystAll(ctx: RunnerCtx) {
   await page.bringToFront();
 
   try {
-    console.log("[Analyst] Navigating to portal...");
+    // console.log("[Analyst] Navigating to portal...");
     await page.goto(portalUrl, { waitUntil: "domcontentloaded", timeout: 60000 });
     await page.waitForLoadState("networkidle", { timeout: 15000 }).catch(() => {});
 
@@ -90,7 +90,7 @@ export async function runAnalystAll(ctx: RunnerCtx) {
         } as any);
 
         if (up?.storagePath) {
-          console.log("[Analyst] Uploaded:", up.storagePath);
+          // console.log("[Analyst] Uploaded:", up.storagePath);
           await appendDownload({
             templateId: "analyst_insurance",
             localPath,
@@ -111,7 +111,7 @@ export async function runAnalystAll(ctx: RunnerCtx) {
     }
 
   } catch (e: any) {
-    console.error("[Analyst] Error:", e.message);
+    // console.error("[Analyst] Error:", e.message);
     await setStatus(runId, { status: "error", error: e.message, monthLabel });
     throw e;
   } finally {

@@ -152,7 +152,7 @@ useEffect(() => {
         }))
       );
     } catch (error) {
-      console.error("Failed loading agency 3 metadata", error);
+      // console.error("Failed loading agency 3 metadata", error);
     }
   };
 

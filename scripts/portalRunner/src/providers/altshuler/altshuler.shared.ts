@@ -11,7 +11,7 @@ function getPrevMonthHebrew(): string {
 }
 
 export async function altshulerLogin(page: Page, companyId: string, idNumber: string) {
-  console.log("[Altshuler] Starting login...");
+  // console.log("[Altshuler] Starting login...");
   const cdp = await page.context().newCDPSession(page);
 
   // ✅ שלב 1: וודא שטאב ח.פ active
@@ -30,13 +30,13 @@ export async function altshulerLogin(page: Page, companyId: string, idNumber: st
   await page.waitForTimeout(1000);
 
   // ✅ שלב 2: מלא 9 ספרות ח.פ - תיבות נפרדות
-  console.log("[Altshuler] Filling company ID...");
+  // console.log("[Altshuler] Filling company ID...");
   await fillDigitBoxes(page, cdp, companyId, 0); // מתחיל מ-index 0
 
   await page.waitForTimeout(500);
 
   // ✅ שלב 3: מלא 9 ספרות ת"ז - תיבות נפרדות
-  console.log("[Altshuler] Filling ID number...");
+  // console.log("[Altshuler] Filling ID number...");
   await fillDigitBoxes(page, cdp, idNumber, 9); // מתחיל מ-index 9 (אחרי 9 של ח.פ)
 
   await page.waitForTimeout(500);
@@ -51,7 +51,7 @@ export async function altshulerLogin(page: Page, companyId: string, idNumber: st
     })()`,
     returnByValue: true,
   });
-  console.log("[Altshuler] Send OTP btn:", btnResult.result.value);
+  // console.log("[Altshuler] Send OTP btn:", btnResult.result.value);
 }
 
 async function fillDigitBoxes(page: any, cdp: any, value: string, startIndex: number) {
@@ -77,7 +77,7 @@ async function fillDigitBoxes(page: any, cdp: any, value: string, startIndex: nu
     });
     
     if (result.result.value !== 'OK') {
-      console.log(`[Altshuler] Box ${boxIndex} fill issue:`, result.result.value);
+      // console.log(`[Altshuler] Box ${boxIndex} fill issue:`, result.result.value);
     }
     await page.waitForTimeout(100);
   }
@@ -88,7 +88,7 @@ export async function altshulerHandleOtp(page: Page, ctx: RunnerCtx) {
   const monthLabel = run?.monthLabel || "חודש נוכחי";
   const cdp = await page.context().newCDPSession(page);
 
-  console.log("[Altshuler] Waiting for OTP screen...");
+  // console.log("[Altshuler] Waiting for OTP screen...");
 
   // המתן לשדות ה-OTP (6 ספרות)
   for (let i = 0; i < 30; i++) {
@@ -100,7 +100,7 @@ export async function altshulerHandleOtp(page: Page, ctx: RunnerCtx) {
       })()`,
       returnByValue: true,
     });
-    console.log(`[Altshuler] OTP check ${i + 1}:`, check.result.value);
+    // console.log(`[Altshuler] OTP check ${i + 1}:`, check.result.value);
     if (check.result.value === 'FOUND') break;
     await page.waitForTimeout(1000);
   }
@@ -114,7 +114,7 @@ export async function altshulerHandleOtp(page: Page, ctx: RunnerCtx) {
 
   const otp = await pollOtp(runId);
   if (!otp) throw new Error("קוד ה-OTP לא התקבל");
-  console.log("[Altshuler] OTP received:", otp);
+  // console.log("[Altshuler] OTP received:", otp);
 
   // הזרקה לכל תיבה בנפרד
   await fillDigitBoxes(page, cdp, otp, 0);
@@ -133,7 +133,7 @@ const btnResult = await cdp.send("Runtime.evaluate", {
   })()`,
   returnByValue: true,
 });
-  console.log("[Altshuler] Login btn:", btnResult.result.value);
+  // console.log("[Altshuler] Login btn:", btnResult.result.value);
 
   await page.waitForTimeout(3000);
 
@@ -143,7 +143,7 @@ for (let i = 0; i < 15; i++) {
     expression: `document.querySelector('.nav-items, nav[role="navigation"]') ? 'LOGGED_IN' : 'WAITING'`,
     returnByValue: true,
   });
-  console.log(`[Altshuler] Login verify ${i + 1}:`, check.result.value);
+  // console.log(`[Altshuler] Login verify ${i + 1}:`, check.result.value);
   if (check.result.value === 'LOGGED_IN') break;
   await page.waitForTimeout(1000);
 }
@@ -158,10 +158,10 @@ export async function altshulerNavigateAndExport(
   const results: { localPath: string; filename: string }[] = [];
   const cdp = await page.context().newCDPSession(page);
   const targetMonth = getPrevMonthHebrew();
-  console.log(`[Altshuler] Target month: ${targetMonth}`);
+  // console.log(`[Altshuler] Target month: ${targetMonth}`);
 
   // ✅ שלב 1: hover על "עמלות" בתפריט ראשי
-  console.log("[Altshuler] Hovering over עמלות menu...");
+  // console.log("[Altshuler] Hovering over עמלות menu...");
   const hoverResult = await cdp.send("Runtime.evaluate", {
     expression: `(function() {
       const navItems = Array.from(document.querySelectorAll('.nav-item.has-submenu'));
@@ -173,11 +173,11 @@ export async function altshulerNavigateAndExport(
     })()`,
     returnByValue: true,
   });
-  console.log("[Altshuler] Hover result:", hoverResult.result.value);
+  // console.log("[Altshuler] Hover result:", hoverResult.result.value);
   await page.waitForTimeout(1000);
 
   // ✅ שלב 2: לחץ "עמלות נפרעים גמל" בתפריט משני
-  console.log("[Altshuler] Clicking עמלות נפרעים גמל...");
+  // console.log("[Altshuler] Clicking עמלות נפרעים גמל...");
   const subMenuResult = await cdp.send("Runtime.evaluate", {
     expression: `(function() {
       const links = Array.from(document.querySelectorAll('a[role="link"], a.nav-item'));
@@ -194,11 +194,11 @@ export async function altshulerNavigateAndExport(
     })()`,
     returnByValue: true,
   });
-  console.log("[Altshuler] Submenu result:", subMenuResult.result.value);
+  // console.log("[Altshuler] Submenu result:", subMenuResult.result.value);
   await page.waitForTimeout(3000);
 
   // ✅ שלב 3: לחץ על טאב "פירוט עמלות סוכנים לפי קופה"
-  console.log("[Altshuler] Clicking tab פירוט עמלות סוכנים לפי קופה...");
+  // console.log("[Altshuler] Clicking tab פירוט עמלות סוכנים לפי קופה...");
   const tabResult = await cdp.send("Runtime.evaluate", {
     expression: `(function() {
       const tabs = Array.from(document.querySelectorAll('[role="tab"], .mdc-tab'));
@@ -209,11 +209,11 @@ export async function altshulerNavigateAndExport(
     })()`,
     returnByValue: true,
   });
-  console.log("[Altshuler] Tab result:", tabResult.result.value);
+  // console.log("[Altshuler] Tab result:", tabResult.result.value);
   await page.waitForTimeout(2000);
 
   // ✅ שלב 4: פתח dropdown חודש ובחר
-  console.log(`[Altshuler] Selecting month: ${targetMonth}`);
+  // console.log(`[Altshuler] Selecting month: ${targetMonth}`);
   const selectPos = await cdp.send("Runtime.evaluate", {
     expression: `(function() {
       // מחפש mat-select של חודש
@@ -247,11 +247,11 @@ export async function altshulerNavigateAndExport(
     })('${targetMonth}')`,
     returnByValue: true,
   });
-  console.log("[Altshuler] Month result:", monthResult.result.value);
+  // console.log("[Altshuler] Month result:", monthResult.result.value);
   await page.waitForTimeout(500);
 
   // ✅ שלב 5: לחץ "הצג"
-  console.log("[Altshuler] Clicking הצג...");
+  // console.log("[Altshuler] Clicking הצג...");
   const showResult = await cdp.send("Runtime.evaluate", {
     expression: `(function() {
       const btns = Array.from(document.querySelectorAll('button'));
@@ -262,12 +262,12 @@ export async function altshulerNavigateAndExport(
     })()`,
     returnByValue: true,
   });
-  console.log("[Altshuler] Show result:", showResult.result.value);
+  // console.log("[Altshuler] Show result:", showResult.result.value);
   await page.waitForTimeout(5000);
 
   // ✅ שלב 6: לחץ על אייקון אקסל להורדה
  // ✅ שלב 6: לחץ על אייקון אקסל להורדה
-console.log("[Altshuler] Clicking Excel export...");
+// console.log("[Altshuler] Clicking Excel export...");
 try {
   const [download] = await Promise.all([
     page.waitForEvent("download", { timeout: 30000 }),
@@ -296,11 +296,11 @@ try {
     const filename = download.suggestedFilename();
     const localPath = path.join(absDir, `${Date.now()}_${filename}`);
     await download.saveAs(localPath);
-    console.log("[Altshuler] Saved:", localPath);
+    // console.log("[Altshuler] Saved:", localPath);
     results.push({ localPath, filename });
 
   } catch (e: any) {
-    console.log("[Altshuler] Export failed:", e?.message);
+    // console.log("[Altshuler] Export failed:", e?.message);
   }
 
   return results;

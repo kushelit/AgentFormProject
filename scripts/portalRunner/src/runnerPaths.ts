@@ -83,7 +83,7 @@ export function resolveChromiumExePath(): string | undefined {
   const base = path.join(exeDir, "pw-browsers");
 
   if (!fs.existsSync(base)) {
-    console.log("[resolveChromiumExePath] pw-browsers not found at:", base);
+    // console.log("[resolveChromiumExePath] pw-browsers not found at:", base);
     return undefined;
   }
 
@@ -96,12 +96,12 @@ export function resolveChromiumExePath(): string | undefined {
     ];
     for (const p of candidates) {
       if (fs.existsSync(p)) {
-        console.log("[resolveChromiumExePath] found:", p);
+        // console.log("[resolveChromiumExePath] found:", p);
         return p;
       }
     }
   }
 
-  console.log("[resolveChromiumExePath] chrome.exe not found under:", base);
+  // console.log("[resolveChromiumExePath] chrome.exe not found under:", base);
   return undefined;
 }

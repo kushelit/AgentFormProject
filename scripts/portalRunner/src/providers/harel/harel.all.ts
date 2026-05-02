@@ -86,7 +86,7 @@ export async function runHarelAll(ctx: RunnerCtx) {
   ];
 
   try {
-    console.log("[Harel] Navigating to portal...");
+    // console.log("[Harel] Navigating to portal...");
     await page.goto(portalUrl, { waitUntil: "domcontentloaded", timeout: 60000 });
     await page.waitForLoadState("networkidle", { timeout: 20000 }).catch(() => {});
 
@@ -98,7 +98,7 @@ export async function runHarelAll(ctx: RunnerCtx) {
     for (const rep of REPORTS) {
       try {
         await setStatus(runId, { status: "running", step: `${rep.stepPrefix}_start`, monthLabel });
-        console.log(`[Harel] Starting report: ${rep.label}`);
+        // console.log(`[Harel] Starting report: ${rep.label}`);
 
         const downloads = await rep.fn();
 
@@ -112,7 +112,7 @@ export async function runHarelAll(ctx: RunnerCtx) {
           } as any);
 
           if (up?.storagePath) {
-            console.log(`[Harel] Uploaded ${rep.label}:`, up.storagePath);
+            // console.log(`[Harel] Uploaded ${rep.label}:`, up.storagePath);
             await appendDownload({
               templateId: rep.templateId,
               localPath,
@@ -123,10 +123,10 @@ export async function runHarelAll(ctx: RunnerCtx) {
         }
 
         await setStatus(runId, { status: "running", step: `${rep.stepPrefix}_done`, monthLabel });
-        console.log(`[Harel] Done: ${rep.label}`);
+        // console.log(`[Harel] Done: ${rep.label}`);
 
       } catch (err: any) {
-        console.error(`[Harel] Error in ${rep.label}:`, err.message);
+        // console.error(`[Harel] Error in ${rep.label}:`, err.message);
         await setStatus(runId, {
           status: "running",
           step: `${rep.stepPrefix}_failed`,
@@ -142,10 +142,10 @@ export async function runHarelAll(ctx: RunnerCtx) {
       monthLabel,
       result: { uploaded: true },
     });
-    console.log("[Harel] All done!");
+    // console.log("[Harel] All done!");
 
   } catch (e: any) {
-    console.error("[Harel] Error:", e.message);
+    // console.error("[Harel] Error:", e.message);
     await setStatus(runId, { status: "error", error: e.message, monthLabel });
     throw e;
   } finally {

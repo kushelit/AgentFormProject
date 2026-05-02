@@ -150,6 +150,73 @@ async function downloadStorageFileToTmp(params: { bucketNameRaw: string; storage
 }
 
 // helper: ניהול סטטוס פר-job בתוך portalImportRuns
+// async function updatePortalRunJobState(params: {
+//   db: FirebaseFirestore.Firestore;
+//   portalRunId: string;
+//   jobId: string;
+//   patch: any;
+//   aggregate?: { finalStatus?: "success" | "error" };
+// }) {
+//   const { db, portalRunId, jobId, patch, aggregate } = params;
+//   const portalRunRef = db.collection("portalImportRuns").doc(portalRunId);
+
+//   await db.runTransaction(async (tx) => {
+//     const snap = await tx.get(portalRunRef);
+//     if (!snap.exists) return;
+
+//     const data = snap.data() as any;
+//     const jobIds: string[] = Array.isArray(data?.queue?.jobIds) ? data.queue.jobIds : [];
+
+//     // שמירת סטטוס פר-job
+//     tx.set(
+//       portalRunRef,
+//       {
+//         queue: {
+//           ...(data.queue || {}),
+//           jobs: {
+//             ...(data?.queue?.jobs || {}),
+//             [jobId]: {
+//               ...(data?.queue?.jobs?.[jobId] || {}),
+//               ...patch,
+//               updatedAt: nowTs(),
+//             },
+//           },
+//         },
+//         updatedAt: nowTs(),
+//       },
+//       { merge: true }
+//     );
+
+//     // אגרגציה: אם יש jobIds בריצה — אפשר להחליט מתי status=success/ error
+//     if (jobIds.length) {
+//       const jobsMap = { ...(data?.queue?.jobs || {}), [jobId]: { ...(data?.queue?.jobs?.[jobId] || {}), ...patch } };
+
+//  const statuses = jobIds.map((id) => safeStr(jobsMap?.[id]?.status));
+// const allFinishedOk =
+//   statuses.length > 0 &&
+//   statuses.every((s) => s === "success" || s === "skipped");
+// const anyError = statuses.some((s) => s === "error");
+
+// if (allFinishedOk) {
+//   tx.set(
+//     portalRunRef,
+//     { status: "success", step: "import_done", updatedAt: nowTs() },
+//     { merge: true }
+//   );
+// } else if (anyError) {
+//   tx.set(
+//     portalRunRef,
+//     { status: "error", step: "import_error", updatedAt: nowTs() },
+//     { merge: true }
+//   );
+// }
+//     } else if (aggregate?.finalStatus) {
+//       // fallback ישן: ריצה עם job יחיד
+//       tx.set(portalRunRef, { status: aggregate.finalStatus, updatedAt: nowTs() }, { merge: true });
+//     }
+//   });
+// }
+
 async function updatePortalRunJobState(params: {
   db: FirebaseFirestore.Firestore;
   portalRunId: string;
@@ -165,9 +232,10 @@ async function updatePortalRunJobState(params: {
     if (!snap.exists) return;
 
     const data = snap.data() as any;
-    const jobIds: string[] = Array.isArray(data?.queue?.jobIds) ? data.queue.jobIds : [];
+    const jobIds: string[] = Array.isArray(data?.queue?.jobIds)
+      ? data.queue.jobIds
+      : [];
 
-    // שמירת סטטוס פר-job
     tx.set(
       portalRunRef,
       {
@@ -187,36 +255,92 @@ async function updatePortalRunJobState(params: {
       { merge: true }
     );
 
-    // אגרגציה: אם יש jobIds בריצה — אפשר להחליט מתי status=success/ error
-    if (jobIds.length) {
-      const jobsMap = { ...(data?.queue?.jobs || {}), [jobId]: { ...(data?.queue?.jobs?.[jobId] || {}), ...patch } };
-
- const statuses = jobIds.map((id) => safeStr(jobsMap?.[id]?.status));
-const allFinishedOk =
-  statuses.length > 0 &&
-  statuses.every((s) => s === "success" || s === "skipped");
-const anyError = statuses.some((s) => s === "error");
-
-if (allFinishedOk) {
-  tx.set(
-    portalRunRef,
-    { status: "success", step: "import_done", updatedAt: nowTs() },
-    { merge: true }
-  );
-} else if (anyError) {
-  tx.set(
-    portalRunRef,
-    { status: "error", step: "import_error", updatedAt: nowTs() },
-    { merge: true }
-  );
-}
-    } else if (aggregate?.finalStatus) {
-      // fallback ישן: ריצה עם job יחיד
-      tx.set(portalRunRef, { status: aggregate.finalStatus, updatedAt: nowTs() }, { merge: true });
+    if (!jobIds.length && aggregate?.finalStatus) {
+      tx.set(
+        portalRunRef,
+        {
+          status: aggregate.finalStatus,
+          step: aggregate.finalStatus === "success" ? "import_done" : "import_error",
+          updatedAt: nowTs(),
+        },
+        { merge: true }
+      );
     }
   });
-}
 
+  // ✅ אחרי שמירת ה-job, בודקים את האמת מתוך commissionImportQueue
+  const freshRunSnap = await portalRunRef.get();
+  if (!freshRunSnap.exists) return;
+
+  const freshRun = freshRunSnap.data() as any;
+  const jobIds: string[] = Array.isArray(freshRun?.queue?.jobIds)
+    ? freshRun.queue.jobIds
+    : [];
+
+  if (!jobIds.length) return;
+
+  const jobSnaps = await Promise.all(
+    jobIds.map((id) => db.collection("commissionImportQueue").doc(id).get())
+  );
+
+  const statuses = jobSnaps.map((snap) => {
+    if (!snap.exists) return "missing";
+    return safeStr(snap.data()?.status);
+  });
+
+  const allFinishedOk =
+    statuses.length > 0 &&
+    statuses.every((s) => s === "success" || s === "skipped");
+
+  const anyError = statuses.some((s) => s === "error" || s === "missing");
+
+  const pendingJobIds = jobIds.filter((id, index) => {
+    const st = statuses[index];
+    return st !== "success" && st !== "skipped" && st !== "error";
+  });
+
+  if (allFinishedOk) {
+    await portalRunRef.set(
+      {
+        status: "success",
+        step: "import_done",
+        queue: {
+          ...(freshRun.queue || {}),
+          pendingJobIds: [],
+          lastAggregateCheckAt: nowTs(),
+        },
+        updatedAt: nowTs(),
+      },
+      { merge: true }
+    );
+  } else if (anyError) {
+    await portalRunRef.set(
+      {
+        status: "error",
+        step: "import_error",
+        queue: {
+          ...(freshRun.queue || {}),
+          pendingJobIds,
+          lastAggregateCheckAt: nowTs(),
+        },
+        updatedAt: nowTs(),
+      },
+      { merge: true }
+    );
+  } else {
+    await portalRunRef.set(
+      {
+        queue: {
+          ...(freshRun.queue || {}),
+          pendingJobIds,
+          lastAggregateCheckAt: nowTs(),
+        },
+        updatedAt: nowTs(),
+      },
+      { merge: true }
+    );
+  }
+}
 
 async function isAutomationEnabled(db: FirebaseFirestore.Firestore): Promise<boolean> {
   try {
@@ -238,8 +362,8 @@ export async function processCommissionImportQueueImpl(event: any) {
 
   const jobId = event.params.jobId as string;
 
-  const after = event.data?.after;
-  if (!after?.exists) return;
+ const after = event.data;
+if (!after?.exists) return;
 
   const queueRef = db.collection("commissionImportQueue").doc(jobId);
 

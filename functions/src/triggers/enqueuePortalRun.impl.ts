@@ -72,12 +72,21 @@ export async function enqueueCommissionImportFromPortalRunImpl(event: any) {
   const enabled = await isAutomationEnabled(db as any);
   if (!enabled) return;
 
-  const portalRunId = event.params.runId as string;
-  const afterSnap = event.data?.after;
-  if (!afterSnap?.exists) return;
+ const portalRunId = event.params.runId as string;
 
-  const after = afterSnap.data() as any;
-  const automationClass = safeStr(after?.automationClass);
+const beforeSnap = event.data?.before;
+const afterSnap = event.data?.after;
+
+if (!beforeSnap?.exists || !afterSnap?.exists) return;
+
+const before = beforeSnap.data() as any;
+const after = afterSnap.data() as any;
+
+// ✅ להריץ רק ברגע שהסטטוס עבר ל-done
+if (safeStr(before?.status) === "done") return;
+if (safeStr(after?.status) !== "done") return;
+
+const automationClass = safeStr(after?.automationClass);
 
 // self_update הוא לא ריצת ייבוא עמלות, אז לא ממשיכים ל-enqueue
 if (automationClass === "self_update") return;

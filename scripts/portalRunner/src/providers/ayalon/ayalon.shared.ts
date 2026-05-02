@@ -76,7 +76,7 @@ export async function ayalonLogin(page: Page, u: string, p: string) {
   `;
 
   const result = await page.evaluate(injection);
-  console.log(`[Ayalon] Login submit result: ${result}`);
+  // console.log(`[Ayalon] Login submit result: ${result}`);
 
   if (result !== "SUBMITTED") {
     throw new Error(`לוגין לאיילון נכשל: ${String(result)}`);
@@ -121,7 +121,7 @@ export async function ayalonHandleOtp(page: Page, ctx: RunnerCtx) {
     })()
   `);
 
-  console.log("[Ayalon] Before OTP injection:", JSON.stringify(debugBefore, null, 2));
+  // console.log("[Ayalon] Before OTP injection:", JSON.stringify(debugBefore, null, 2));
 
   const injection = `
     (function(code) {
@@ -153,7 +153,7 @@ export async function ayalonHandleOtp(page: Page, ctx: RunnerCtx) {
   `;
 
   const result = await page.evaluate(injection);
-  console.log(`[Ayalon] OTP submit result: ${result}`);
+  // console.log(`[Ayalon] OTP submit result: ${result}`);
 
   await clearOtp(runId).catch(() => {});
 
@@ -165,7 +165,7 @@ export async function ayalonHandleOtp(page: Page, ctx: RunnerCtx) {
 
 
 export async function ayalonHandlePopups(page: Page) {
-  console.log("[Ayalon] Checking for blocking popups...");
+  // console.log("[Ayalon] Checking for blocking popups...");
 
   const popupSelector = 'div[id^="popup-"].popup-modal.uk-open, div.popup-modal.uk-open';
   const closeBtnSelector =
@@ -178,11 +178,11 @@ export async function ayalonHandlePopups(page: Page) {
     const popupCount = await popups.count().catch(() => 0);
 
     if (!popupCount) {
-      console.log("[Ayalon] No blocking popup found.");
+      // console.log("[Ayalon] No blocking popup found.");
       return;
     }
 
-    console.log(`[Ayalon] Found ${popupCount} open popup(s).`);
+    // console.log(`[Ayalon] Found ${popupCount} open popup(s).`);
 
     let closedAny = false;
 
@@ -191,16 +191,16 @@ export async function ayalonHandlePopups(page: Page) {
 
       const popupId = await popup.getAttribute("id").catch(() => null);
       const popupText = await popup.textContent().catch(() => "");
-      console.log(
-        `[Ayalon] Popup detected: id=${popupId || "(no-id)"} text=${String(popupText || "")
-          .trim()
-          .slice(0, 150)}`
-      );
+      // console.log(
+      //   `[Ayalon] Popup detected: id=${popupId || "(no-id)"} text=${String(popupText || "")
+      //     .trim()
+      //     .slice(0, 150)}`
+      // );
 
       const closeBtn = popup.locator(closeBtnSelector).first();
 
       if (await closeBtn.isVisible().catch(() => false)) {
-        console.log(`[Ayalon] Clicking popup close button for ${popupId || "(no-id)"}`);
+        // console.log(`[Ayalon] Clicking popup close button for ${popupId || "(no-id)"}`);
 
         try {
           await closeBtn.click({ force: true, timeout: 5000 });
@@ -221,7 +221,7 @@ export async function ayalonHandlePopups(page: Page) {
     }
 
     if (!closedAny) {
-      console.log("[Ayalon] Popup exists but close button was not clicked.");
+      // console.log("[Ayalon] Popup exists but close button was not clicked.");
       break;
     }
   }
@@ -231,72 +231,72 @@ export async function ayalonHandlePopups(page: Page) {
     throw new Error("נמצא popup פתוח שלא נסגר.");
   }
 
-  console.log("[Ayalon] Popups cleared.");
+  // console.log("[Ayalon] Popups cleared.");
 }
 
 export async function ayalonDumpCurrentPageElements(page: Page) {
-  console.log("[Ayalon] --- DOM SNAPSHOT START ---");
+  // console.log("[Ayalon] --- DOM SNAPSHOT START ---");
 
   const aside = page.locator("#aside_container");
-  console.log("[Ayalon] #aside_container count =", await aside.count().catch(() => 0));
+  // console.log("[Ayalon] #aside_container count =", await aside.count().catch(() => 0));
   if (await aside.count().catch(() => 0)) {
-    console.log("[Ayalon] #aside_container aria-hidden =", await aside.first().getAttribute("aria-hidden").catch(() => null));
-    console.log("[Ayalon] #aside_container class =", await aside.first().getAttribute("class").catch(() => null));
+    // console.log("[Ayalon] #aside_container aria-hidden =", await aside.first().getAttribute("aria-hidden").catch(() => null));
+    // console.log("[Ayalon] #aside_container class =", await aside.first().getAttribute("class").catch(() => null));
   }
 
   const sideMenu = page.locator("nav#side-menu");
-  console.log("[Ayalon] nav#side-menu count =", await sideMenu.count().catch(() => 0));
+  // console.log("[Ayalon] nav#side-menu count =", await sideMenu.count().catch(() => 0));
   if (await sideMenu.count().catch(() => 0)) {
-    console.log("[Ayalon] nav#side-menu aria-label =", await sideMenu.first().getAttribute("aria-label").catch(() => null));
-    console.log("[Ayalon] nav#side-menu class =", await sideMenu.first().getAttribute("class").catch(() => null));
+    // console.log("[Ayalon] nav#side-menu aria-label =", await sideMenu.first().getAttribute("aria-label").catch(() => null));
+    // console.log("[Ayalon] nav#side-menu class =", await sideMenu.first().getAttribute("class").catch(() => null));
   }
 
   const reportLinks = page.locator('a[href*="/reports/"]');
   const reportCount = await reportLinks.count().catch(() => 0);
-  console.log("[Ayalon] a[href*='/reports/'] count =", reportCount);
+  // console.log("[Ayalon] a[href*='/reports/'] count =", reportCount);
 
   for (let i = 0; i < Math.min(reportCount, 5); i++) {
     const link = reportLinks.nth(i);
-    console.log(`[Ayalon] reportLink[${i}] href =`, await link.getAttribute("href").catch(() => null));
-    console.log(`[Ayalon] reportLink[${i}] title =`, await link.getAttribute("title").catch(() => null));
-    console.log(`[Ayalon] reportLink[${i}] data-ga-label =`, await link.getAttribute("data-ga-label").catch(() => null));
-    console.log(`[Ayalon] reportLink[${i}] text =`, await link.textContent().catch(() => null));
+    // console.log(`[Ayalon] reportLink[${i}] href =`, await link.getAttribute("href").catch(() => null));
+    // console.log(`[Ayalon] reportLink[${i}] title =`, await link.getAttribute("title").catch(() => null));
+    // console.log(`[Ayalon] reportLink[${i}] data-ga-label =`, await link.getAttribute("data-ga-label").catch(() => null));
+    // console.log(`[Ayalon] reportLink[${i}] text =`, await link.textContent().catch(() => null));
   }
 
   const allReportsTitleLinks = page.locator('a[title*="כל הדוחות שלי"]');
-  console.log("[Ayalon] a[title*='כל הדוחות שלי'] count =", await allReportsTitleLinks.count().catch(() => 0));
+  // console.log("[Ayalon] a[title*='כל הדוחות שלי'] count =", await allReportsTitleLinks.count().catch(() => 0));
 
   const gaLinks = page.locator('a[data-ga-label*="כל הדוחות שלי"]');
-  console.log("[Ayalon] a[data-ga-label*='כל הדוחות שלי'] count =", await gaLinks.count().catch(() => 0));
+  // console.log("[Ayalon] a[data-ga-label*='כל הדוחות שלי'] count =", await gaLinks.count().catch(() => 0));
 
   const searchBox = page.locator("#searchbox");
-  console.log("[Ayalon] #searchbox count =", await searchBox.count().catch(() => 0));
+  // console.log("[Ayalon] #searchbox count =", await searchBox.count().catch(() => 0));
   if (await searchBox.count().catch(() => 0)) {
-    console.log("[Ayalon] #searchbox placeholder =", await searchBox.first().getAttribute("placeholder").catch(() => null));
-    console.log("[Ayalon] #searchbox name =", await searchBox.first().getAttribute("name").catch(() => null));
+    // console.log("[Ayalon] #searchbox placeholder =", await searchBox.first().getAttribute("placeholder").catch(() => null));
+    // console.log("[Ayalon] #searchbox name =", await searchBox.first().getAttribute("name").catch(() => null));
   }
 
   const searchBtn = page.locator("#report-submit-button");
-  console.log("[Ayalon] #report-submit-button count =", await searchBtn.count().catch(() => 0));
+  // console.log("[Ayalon] #report-submit-button count =", await searchBtn.count().catch(() => 0));
   if (await searchBtn.count().catch(() => 0)) {
-    console.log("[Ayalon] #report-submit-button type =", await searchBtn.first().getAttribute("type").catch(() => null));
-    console.log("[Ayalon] #report-submit-button text =", await searchBtn.first().textContent().catch(() => null));
+    // console.log("[Ayalon] #report-submit-button type =", await searchBtn.first().getAttribute("type").catch(() => null));
+    // console.log("[Ayalon] #report-submit-button text =", await searchBtn.first().textContent().catch(() => null));
   }
 
-  console.log("[Ayalon] current url =", page.url());
-  console.log("[Ayalon] --- DOM SNAPSHOT END ---");
+  // console.log("[Ayalon] current url =", page.url());
+  // console.log("[Ayalon] --- DOM SNAPSHOT END ---");
 }
 
 export async function ayalonDumpFrames(page: Page) {
-  console.log("[Ayalon] --- FRAMES DUMP START ---");
+  // console.log("[Ayalon] --- FRAMES DUMP START ---");
 
   const frames = page.frames();
-  console.log("[Ayalon] frames count =", frames.length);
+  // console.log("[Ayalon] frames count =", frames.length);
 
   for (let i = 0; i < frames.length; i++) {
     const fr = frames[i];
     try {
-      console.log(`[Ayalon] frame[${i}] url = ${fr.url()}`);
+      // console.log(`[Ayalon] frame[${i}] url = ${fr.url()}`);
 
       const asideCount = await fr.locator("#aside_container").count().catch(() => 0);
       const sideMenuCount = await fr.locator("nav#side-menu").count().catch(() => 0);
@@ -304,17 +304,17 @@ export async function ayalonDumpFrames(page: Page) {
       const searchboxCount = await fr.locator("#searchbox").count().catch(() => 0);
       const searchBtnCount = await fr.locator("#report-submit-button").count().catch(() => 0);
 
-      console.log(`[Ayalon] frame[${i}] #aside_container = ${asideCount}`);
-      console.log(`[Ayalon] frame[${i}] nav#side-menu = ${sideMenuCount}`);
-      console.log(`[Ayalon] frame[${i}] a[href*="/reports/"] = ${reportsCount}`);
-      console.log(`[Ayalon] frame[${i}] #searchbox = ${searchboxCount}`);
-      console.log(`[Ayalon] frame[${i}] #report-submit-button = ${searchBtnCount}`);
+      // console.log(`[Ayalon] frame[${i}] #aside_container = ${asideCount}`);
+      // console.log(`[Ayalon] frame[${i}] nav#side-menu = ${sideMenuCount}`);
+      // console.log(`[Ayalon] frame[${i}] a[href*="/reports/"] = ${reportsCount}`);
+      // console.log(`[Ayalon] frame[${i}] #searchbox = ${searchboxCount}`);
+      // console.log(`[Ayalon] frame[${i}] #report-submit-button = ${searchBtnCount}`);
     } catch (e: any) {
-      console.log(`[Ayalon] frame[${i}] dump failed: ${e?.message || e}`);
+      // console.log(`[Ayalon] frame[${i}] dump failed: ${e?.message || e}`);
     }
   }
 
-  console.log("[Ayalon] --- FRAMES DUMP END ---");
+  // console.log("[Ayalon] --- FRAMES DUMP END ---");
 }
 
 
@@ -328,7 +328,7 @@ export async function ayalonFindPortalFrame(page: Page) {
       const sideMenuCount = await fr.locator("nav#side-menu").count().catch(() => 0);
 
       if (reportsCount > 0 || searchboxCount > 0 || sideMenuCount > 0) {
-        console.log("[Ayalon] Portal frame found:", fr.url());
+        // console.log("[Ayalon] Portal frame found:", fr.url());
         return fr;
       }
     } catch {
@@ -340,7 +340,7 @@ export async function ayalonFindPortalFrame(page: Page) {
 }
 
 export async function ayalonDismissPopupQuick(page: Page) {
-  console.log("[Ayalon] Trying quick popup dismiss...");
+  // console.log("[Ayalon] Trying quick popup dismiss...");
 
   for (let i = 0; i < 3; i++) {
     try {
@@ -353,7 +353,7 @@ export async function ayalonDismissPopupQuick(page: Page) {
 
       if (await closeBtn.count().catch(() => 0)) {
         if (await closeBtn.isVisible().catch(() => false)) {
-          console.log("[Ayalon] Visible close button found, clicking...");
+          // console.log("[Ayalon] Visible close button found, clicking...");
           await closeBtn.click({ force: true }).catch(() => {});
           await page.waitForTimeout(1000);
         }
@@ -364,22 +364,22 @@ export async function ayalonDismissPopupQuick(page: Page) {
         .count()
         .catch(() => 0);
 
-      console.log(`[Ayalon] Open popups after dismiss attempt ${i + 1}: ${popupCount}`);
+      // console.log(`[Ayalon] Open popups after dismiss attempt ${i + 1}: ${popupCount}`);
 
       if (popupCount === 0) {
-        console.log("[Ayalon] Popup dismissed.");
+        // console.log("[Ayalon] Popup dismissed.");
         return;
       }
     } catch (e: any) {
-      console.log(`[Ayalon] Quick dismiss attempt ${i + 1} failed: ${e?.message || e}`);
+      // console.log(`[Ayalon] Quick dismiss attempt ${i + 1} failed: ${e?.message || e}`);
     }
   }
 
-  console.log("[Ayalon] Quick popup dismiss finished.");
+  // console.log("[Ayalon] Quick popup dismiss finished.");
 }
 
 export async function ayalonWaitForDashboardDom(page: Page, timeoutMs = 60000) {
-  console.log("[Ayalon] Waiting for dashboard DOM...");
+  // console.log("[Ayalon] Waiting for dashboard DOM...");
 
   const started = Date.now();
   let poll = 0;
@@ -396,9 +396,9 @@ export async function ayalonWaitForDashboardDom(page: Page, timeoutMs = 60000) {
     const reportsTitleCount = await page.locator('a[title*="כל הדוחות שלי"]').count().catch(() => 0);
     const searchboxCount = await page.locator("#searchbox").count().catch(() => 0);
 
-    console.log(
-      `[Ayalon] dashboard poll #${poll} -> aside=${asideCount}, sideMenu=${sideMenuCount}, reports=${reportsCount}, reportsTitle=${reportsTitleCount}, searchbox=${searchboxCount}, url=${page.url()}`
-    );
+    // console.log(
+    //   `[Ayalon] dashboard poll #${poll} -> aside=${asideCount}, sideMenu=${sideMenuCount}, reports=${reportsCount}, reportsTitle=${reportsTitleCount}, searchbox=${searchboxCount}, url=${page.url()}`
+    // );
 
     if (
       asideCount > 0 ||
@@ -407,7 +407,7 @@ export async function ayalonWaitForDashboardDom(page: Page, timeoutMs = 60000) {
       reportsTitleCount > 0 ||
       searchboxCount > 0
     ) {
-      console.log("[Ayalon] Dashboard DOM detected.");
+      // console.log("[Ayalon] Dashboard DOM detected.");
       return;
     }
 
@@ -447,16 +447,16 @@ export async function ayalonDumpArtifacts(page: Page, outDir: string, tag: strin
       "utf8"
     );
 
-    console.log("[Ayalon] Dumped html:", htmlPath);
-    console.log("[Ayalon] Dumped body text:", bodyPath);
-    console.log("[Ayalon] Dumped meta:", metaPath);
+    // console.log("[Ayalon] Dumped html:", htmlPath);
+    // console.log("[Ayalon] Dumped body text:", bodyPath);
+    // console.log("[Ayalon] Dumped meta:", metaPath);
   } catch (e: any) {
-    console.log("[Ayalon] dump artifacts failed:", e?.message || e);
+    // console.log("[Ayalon] dump artifacts failed:", e?.message || e);
   }
 }
 
 export async function ayalonDismissPopupAggressive(page: Page) {
-  console.log("[Ayalon] Aggressive popup dismiss...");
+  // console.log("[Ayalon] Aggressive popup dismiss...");
 
   try {
     await page.locator("body").click({ position: { x: 10, y: 10 }, force: true, timeout: 3000 }).catch(() => {});
@@ -469,7 +469,7 @@ export async function ayalonDismissPopupAggressive(page: Page) {
     for (let i = 0; i < Math.min(count, 5); i++) {
       const el = closeByText.nth(i);
       if (await el.isVisible().catch(() => false)) {
-        console.log(`[Ayalon] clicking close text button #${i + 1}`);
+        // console.log(`[Ayalon] clicking close text button #${i + 1}`);
         await el.click({ force: true, timeout: 3000 }).catch(() => {});
         await page.waitForTimeout(700);
       }
@@ -501,11 +501,11 @@ export async function ayalonDismissPopupAggressive(page: Page) {
 
     await page.waitForTimeout(1000);
   } catch (e: any) {
-    console.log("[Ayalon] Aggressive dismiss failed:", e?.message || e);
+    // console.log("[Ayalon] Aggressive dismiss failed:", e?.message || e);
   }
 }
 export async function ayalonNavigateToReport(page: Page) {
-  console.log("[Ayalon] Navigating to reports page...");
+  // console.log("[Ayalon] Navigating to reports page...");
 
   const reportsUrl = "https://portal.ayalon-ins.co.il/f5-w-68747470733a2f2f6167656e7473706f7274616c$$/reports/";
   await page.goto(reportsUrl, { waitUntil: "domcontentloaded", timeout: 60000 }).catch(() => {});
@@ -517,7 +517,7 @@ export async function ayalonNavigateToReport(page: Page) {
     expression: "document.querySelectorAll('*').length",
     returnByValue: true,
   });
-  console.log("[Ayalon] CDP elements count:", countResult.result.value);
+  // console.log("[Ayalon] CDP elements count:", countResult.result.value);
 
   const fillResult = await cdp.send("Runtime.evaluate", {
     expression: `(function() {
@@ -531,7 +531,7 @@ export async function ayalonNavigateToReport(page: Page) {
     })()`,
     returnByValue: true,
   });
-  console.log("[Ayalon] CDP fill result:", fillResult.result.value);
+  // console.log("[Ayalon] CDP fill result:", fillResult.result.value);
 
   const clickResult = await cdp.send("Runtime.evaluate", {
     expression: `(function() {
@@ -542,14 +542,14 @@ export async function ayalonNavigateToReport(page: Page) {
     })()`,
     returnByValue: true,
   });
-  console.log("[Ayalon] CDP click result:", clickResult.result.value);
+  // console.log("[Ayalon] CDP click result:", clickResult.result.value);
 
   await page.waitForTimeout(2000);
-  console.log("[Ayalon] Report search submitted.");
+  // console.log("[Ayalon] Report search submitted.");
 }
 
 export async function ayalonOpenReportTab(page: Page, context: BrowserContext): Promise<Page> {
-  console.log("[Ayalon] Opening report tab...");
+  // console.log("[Ayalon] Opening report tab...");
 
   const cdp = await page.context().newCDPSession(page);
 
@@ -572,32 +572,32 @@ export async function ayalonOpenReportTab(page: Page, context: BrowserContext): 
   await newPage.waitForLoadState("networkidle", { timeout: 30000 }).catch(() => {});
 
   // ✅ המתן שהטבלה תיטען — עד 2 דקות
-  console.log("[Ayalon] Waiting for table rows...");
+  // console.log("[Ayalon] Waiting for table rows...");
   const newCdp = await newPage.context().newCDPSession(newPage);
   for (let i = 0; i < 24; i++) {
     const rows = await newCdp.send("Runtime.evaluate", {
       expression: `document.querySelectorAll('tbody tr, .qv-st-data-row').length`,
       returnByValue: true,
     });
-    console.log(`[Ayalon] Tab load check ${i+1}: rows=${rows.result.value}`);
+    // console.log(`[Ayalon] Tab load check ${i+1}: rows=${rows.result.value}`);
     if (rows.result.value > 0) {
-      console.log("[Ayalon] Table loaded!");
+      // console.log("[Ayalon] Table loaded!");
       break;
     }
     await newPage.waitForTimeout(5000);
   }
 
-  console.log("[Ayalon] Report tab URL:", newPage.url());
+  // console.log("[Ayalon] Report tab URL:", newPage.url());
   return newPage;
 }
 
 export async function ayalonFilterDate(page: Page, dateLabel: string) {
-  console.log("[Ayalon] Skipping date filter — will be handled by cloud function");
+  // console.log("[Ayalon] Skipping date filter — will be handled by cloud function");
   // סינון התאריך יטופל ב-Cloud Function בצד השרת
 }
 
 export async function ayalonExportExcel(page: Page): Promise<import("playwright").Download | null> {
-  console.log("[Ayalon] Exporting to Excel...");
+  // console.log("[Ayalon] Exporting to Excel...");
 
   const cdp = await page.context().newCDPSession(page);
 
@@ -611,11 +611,11 @@ export async function ayalonExportExcel(page: Page): Promise<import("playwright"
     })()`,
     returnByValue: true,
   });
-  console.log("[Ayalon] Header position:", getHeaderPos.result.value);
+  // console.log("[Ayalon] Header position:", getHeaderPos.result.value);
 
   const headerPos = JSON.parse(getHeaderPos.result.value || 'null');
   if (!headerPos) {
-    console.log("[Ayalon] Header not found");
+    // console.log("[Ayalon] Header not found");
     return null;
   }
 
@@ -634,11 +634,11 @@ export async function ayalonExportExcel(page: Page): Promise<import("playwright"
     })()`,
     returnByValue: true,
   });
-  console.log("[Ayalon] Export btn pos:", btnPos.result.value);
+  // console.log("[Ayalon] Export btn pos:", btnPos.result.value);
 
   const pos = JSON.parse(btnPos.result.value || 'null');
   if (!pos) {
-    console.log("[Ayalon] Export btn not visible after header hover");
+    // console.log("[Ayalon] Export btn not visible after header hover");
     return null;
   }
 
@@ -648,10 +648,10 @@ export async function ayalonExportExcel(page: Page): Promise<import("playwright"
       page.waitForEvent("download", { timeout: 60000 }),
       page.mouse.click(pos.x, pos.y),
     ]);
-    console.log("[Ayalon] Download started:", download.suggestedFilename());
+    // console.log("[Ayalon] Download started:", download.suggestedFilename());
     return download;
   } catch (e: any) {
-    console.log("[Ayalon] Export failed:", e?.message);
+    // console.log("[Ayalon] Export failed:", e?.message);
     return null;
   }
 }

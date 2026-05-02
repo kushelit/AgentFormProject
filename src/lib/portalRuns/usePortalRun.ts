@@ -62,7 +62,7 @@ if (data && data.status && ["done", "skipped", "error", "success"].includes(data
         }
       },
       (err) => {
-        console.error("PortalRun Snapshot Error:", err);
+        // console.error("PortalRun Snapshot Error:", err);
         setLoading(false);
       }
     );

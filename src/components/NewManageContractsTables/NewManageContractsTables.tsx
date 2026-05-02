@@ -17,6 +17,8 @@ import { CONTRACTS_TABLES_CONFIG } from "@/config/contractsTablesConfig";
 import { normalizeCommissionForSave } from "@/utils/contractsTablesNormalize";
 import "./NewManageContractsTables.css";
 import { Button } from "@/components/Button/Button";
+import { ToastNotification } from '@/components/ToastNotification';
+import { useToast } from "@/hooks/useToast";
 
 type CompanyRow = {
   id: string;
@@ -85,15 +87,8 @@ const NewManageContractsTables: React.FC = () => {
 const [originalCellValues, setOriginalCellValues] = useState<Record<string, string>>({});
 const [originalDefaultValues, setOriginalDefaultValues] = useState<Record<string, string>>({});
 
-const [toast, setToast] = useState<{
-  type: "success" | "error";
-  message: string;
-} | null>(null);
+const { toasts, addToast, setToasts } = useToast();
 
-const showToast = (type: "success" | "error", message: string) => {
-  setToast({ type, message });
-  setTimeout(() => setToast(null), 3500);
-};
 
 
 const defaultValuesRef = useRef<Record<string, string>>({});
@@ -144,8 +139,11 @@ useEffect(() => {
   };
 
 
-  const downloadExcelTemplate = () => {
-  window.open("/api/contracts-template/download", "_blank");
+const downloadExcelTemplate = () => {
+  const url = effectiveAgentId
+    ? `/api/contracts-template/download?agentId=${effectiveAgentId}`
+    : `/api/contracts-template/download`;
+  window.open(url, "_blank");
 };
 
   const fetchMeta = async () => {
@@ -185,25 +183,24 @@ useEffect(() => {
     );
   };
 
-  const fetchContracts = async () => {
-    if (!effectiveAgentId) return;
+const fetchContracts = async () => {
+  if (!effectiveAgentId) return;
 
-    const q = query(
-      collection(db, "contracts"),
-      where("AgentId", "==", effectiveAgentId)
-    );
+  const q = query(
+    collection(db, "contracts"),
+    where("AgentId", "==", effectiveAgentId)
+  );
 
-const snap = await getDocsFromServer(q);
-      console.log("fetched contracts:", snap.docs.map(d => ({ id: d.id, ...d.data() })));
+  const snap = await getDocsFromServer(q);
 
+  const fetched = snap.docs.map((d) => ({
+    id: d.id,
+    ...(d.data() as Omit<ContractDoc, "id">),
+  }));
 
-    setContracts(
-      snap.docs.map((d) => ({
-        id: d.id,
-        ...(d.data() as Omit<ContractDoc, "id">),
-      }))
-    );
-  };
+  // ← מאלץ reference חדש
+  setContracts([...fetched]);
+};
 
   useEffect(() => {
     fetchMeta();
@@ -332,6 +329,9 @@ const isDefaultDirty = (key: string, value: string) => {
           }
 
           companiesForGroup.forEach((company) => {
+            if (company.companyName === "מגדל" || company.companyName === "הראל") {
+    // console.log("section:", section.key, "productsForSection:", productsForSection.map(p => p.productName));
+  }
             const matchingContract = contracts.find((c) => {
               const sameCompany = c.company === company.companyName;
               const sameMinuy = Boolean(c.minuySochen) === Boolean(row.minuySochen);
@@ -347,6 +347,8 @@ const isDefaultDirty = (key: string, value: string) => {
                 productMatch
               );
             });
+              // console.log("company:", company.companyName, "matchingContract:", matchingContract?.id || "NOT FOUND");
+
 
             if (!matchingContract) return;
 
@@ -389,396 +391,12 @@ setOriginalDefaultValues(nextDefaults);
     
   }, [contracts, products, companies, visibleCompaniesByGroup, effectiveAgentId]);
 
-// const saveContracts = async () => {
-//   if (!effectiveAgentId) {
-//     showToast("error", "חסר סוכן נבחר");
-//     return;
-//   }
 
-//   try {
-//     const batch = writeBatch(db);
-// let writeCount = 0;
-
-//     const findMatches = (params: {
-//       company: string;
-//       product: string;
-//       productsGroup: string;
-//       minuySochen: boolean;
-//     }) => {
-//       return contracts.filter(
-//         (c) =>
-//           c.AgentId === effectiveAgentId &&
-//           String(c.company || "") === params.company &&
-//           String(c.product || "") === params.product &&
-//           String(c.productsGroup || "") === params.productsGroup &&
-//           Boolean(c.minuySochen) === params.minuySochen
-//       );
-//     };
-
-//    const upsertOrDelete = (
-//   matches: ContractDoc[],
-//   payload: any,
-//   hasValues: boolean
-// ) => {
-//   if (hasValues) {
-//     if (matches.length > 0) {
-//       batch.update(doc(db, "contracts", matches[0].id), payload);
-//       writeCount++;
-
-//       matches.slice(1).forEach((duplicate) => {
-//         batch.delete(doc(db, "contracts", duplicate.id));
-//         writeCount++;
-//       });
-//     } else {
-//       const newRef = doc(collection(db, "contracts"));
-//       batch.set(newRef, payload);
-//       writeCount++;
-//     }
-//   } else {
-//     matches.forEach((existing) => {
-//       batch.delete(doc(db, "contracts", existing.id));
-//       writeCount++;
-//     });
-//   }
-// };
-
-//     CONTRACTS_TABLES_CONFIG.forEach((table: any) => {
-//       table.sections.forEach((section: any) => {
-//         const companiesForGroup =
-//           visibleCompaniesByGroup[String(section.productGroupId)] || [];
-
-//        const productsForSection = products.filter((p) => {
-//   const sameGroup =
-//     String(p.productGroup) === String(section.productGroupId);
-
-//   const sectionSubGroupId = String(
-//     section.productSubGroupId || ""
-//   ).trim();
-
-//   const sameSubGroup = sectionSubGroupId
-//     ? String(p.productSubGroupId || "") === sectionSubGroupId
-//     : true;
-
-//   return sameGroup && sameSubGroup;
-// });
-
-//         const rowHekef = section.rows.find(
-//           (r: any) => r.commissionType === "hekef" && !r.minuySochen
-//         );
-
-//         const rowNifraim = section.rows.find(
-//           (r: any) => r.commissionType === "nifraim" && !r.minuySochen
-//         );
-
-//         const rowNifraimMinuy = section.rows.find(
-//           (r: any) => r.commissionType === "nifraim" && r.minuySochen
-//         );
-
-//         const rowNiud = section.rows.find(
-//           (r: any) => r.commissionType === "niud" && !r.minuySochen
-//         );
-        
-//        const vatMode = getVatModeByTable(table.key);
-
-
-//        if (table.showDefaultColumn) {
-//   const groupKey = String(section.productGroupId);
-
-//   if (!savedDefaultGroups.has(groupKey)) {
-//     savedDefaultGroups.add(groupKey);
-//         const hekefRaw = rowHekef
-//   ? (
-//       defaultValuesRef.current[
-//         buildDefaultKey(table.key, section.key, rowHekef.label)
-//       ] || ""
-//     ).trim()
-//   : "";
-
-// const nifraimRaw = rowNifraim
-//   ? (
-//       defaultValuesRef.current[
-//         buildDefaultKey(table.key, section.key, rowNifraim.label)
-//       ] || ""
-//     ).trim()
-//   : "";
-
-
-// const nifraimMinuyRaw = rowNifraimMinuy
-//   ? (
-//       defaultValuesRef.current[
-//         buildDefaultKey(
-//           table.key,
-//           section.key,
-//           rowNifraimMinuy.label
-//         )
-//       ] || ""
-//     ).trim()
-//   : "";
-
-// const niudRaw = rowNiud
-//   ? (
-//       defaultValuesRef.current[
-//         buildDefaultKey(table.key, section.key, rowNiud.label)
-//       ] || ""
-//     ).trim()
-//   : "";
-//           const hekefNormalized = rowHekef
-//             ? normalizeCommissionForSave(hekefRaw, rowHekef.valueMode, vatMode)
-//             : null;
-
-//           const nifraimNormalized = rowNifraim
-//             ? normalizeCommissionForSave(
-//                 nifraimRaw,
-//                 rowNifraim.valueMode,
-//                 vatMode
-//               )
-//             : null;
-
-//           const niudNormalized = rowNiud
-//             ? normalizeCommissionForSave(niudRaw, rowNiud.valueMode, vatMode)
-//             : null;
-
-//           const payloadDefault = {
-//             AgentId: effectiveAgentId,
-//             company: "",
-//             productsGroup: String(section.productGroupId),
-//             product: "",
-//             commissionHekef: hekefNormalized?.normalizedPercentNet || "",
-//             commissionNifraim: nifraimNormalized?.normalizedPercentNet || "",
-//             commissionNiud: niudNormalized?.normalizedPercentNet || "",
-//             minuySochen: false,
-
-//             commissionHekefDisplay: hekefRaw,
-//             commissionNifraimDisplay: nifraimRaw,
-//             commissionNiudDisplay: niudRaw,
-
-//             commissionHekefDisplayVatIncluded: vatMode === "includes_vat",
-//             commissionNifraimDisplayVatIncluded: vatMode === "includes_vat",
-//             commissionNiudDisplayVatIncluded: vatMode === "includes_vat",
-//           };
-
-//          const defaultMatches = findMatches({
-//   company: "",
-//   product: "",
-//   productsGroup: String(section.productGroupId),
-//   minuySochen: false,
-// });
-
-// console.log("section.productGroupId:", section.productGroupId);
-// console.log("defaultMatches:", defaultMatches);
-// console.log("hekefRaw:", hekefRaw, "nifraimRaw:", nifraimRaw, "niudRaw:", niudRaw);
-
-// upsertOrDelete(defaultMatches, payloadDefault, Boolean(hekefRaw || nifraimRaw || niudRaw));
-
-//           if (rowNifraimMinuy) {
-//             const nifraimMinuyNormalized = normalizeCommissionForSave(
-//               nifraimMinuyRaw,
-//               rowNifraimMinuy.valueMode,
-//               vatMode
-//             );
-
-//             const payloadDefaultMinuy = {
-//               AgentId: effectiveAgentId,
-//               company: "",
-//               productsGroup: String(section.productGroupId),
-//               product: "",
-//               commissionHekef: "",
-//               commissionNifraim:
-//                 nifraimMinuyNormalized.normalizedPercentNet || "",
-//               commissionNiud: "",
-//               minuySochen: true,
-
-//               commissionHekefDisplay: "",
-//               commissionNifraimDisplay: nifraimMinuyRaw,
-//               commissionNiudDisplay: "",
-
-//               commissionHekefDisplayVatIncluded: vatMode === "includes_vat",
-//               commissionNifraimDisplayVatIncluded: vatMode === "includes_vat",
-//               commissionNiudDisplayVatIncluded: vatMode === "includes_vat",
-//             };
-
-//             upsertOrDelete(
-//               findMatches({
-//                 company: "",
-//                 product: "",
-//                 productsGroup: String(section.productGroupId),
-//                 minuySochen: true,
-//               }),
-//               payloadDefaultMinuy,
-//               Boolean(nifraimMinuyRaw)
-//             );
-//           }
-//         }
-
-//         companiesForGroup.forEach((company) => {
-//         const hekefRaw = rowHekef
-//   ? (
-//       cellValuesRef.current[
-//         buildCellKey(table.key, section.key, rowHekef.label, company.id)
-//       ] || ""
-//     ).trim()
-//   : "";
-
-// const nifraimRaw = rowNifraim
-//   ? (
-//       cellValuesRef.current[
-//         buildCellKey(
-//           table.key,
-//           section.key,
-//           rowNifraim.label,
-//           company.id
-//         )
-//       ] || ""
-//     ).trim()
-//   : "";
-
-// const nifraimMinuyRaw = rowNifraimMinuy
-//   ? (
-//       cellValuesRef.current[
-//         buildCellKey(
-//           table.key,
-//           section.key,
-//           rowNifraimMinuy.label,
-//           company.id
-//         )
-//       ] || ""
-//     ).trim()
-//   : "";
-
-// const niudRaw = rowNiud
-//   ? (
-//       cellValuesRef.current[
-//         buildCellKey(table.key, section.key, rowNiud.label, company.id)
-//       ] || ""
-//     ).trim()
-//   : "";
-//           const hekefNormalized = rowHekef
-//             ? normalizeCommissionForSave(hekefRaw, rowHekef.valueMode, vatMode)
-//             : null;
-
-//           const nifraimNormalized = rowNifraim
-//             ? normalizeCommissionForSave(
-//                 nifraimRaw,
-//                 rowNifraim.valueMode,
-//                 vatMode
-//               )
-//             : null;
-
-//           const niudNormalized = rowNiud
-//             ? normalizeCommissionForSave(niudRaw, rowNiud.valueMode, vatMode)
-//             : null;
-
-//           productsForSection.forEach((product) => {
-//             const payload = {
-//               AgentId: effectiveAgentId,
-//               company: company.companyName,
-//               productsGroup: "",
-//               product: product.productName,
-//               commissionHekef: hekefNormalized?.normalizedPercentNet || "",
-//               commissionNifraim: nifraimNormalized?.normalizedPercentNet || "",
-//               commissionNiud: niudNormalized?.normalizedPercentNet || "",
-//               minuySochen: false,
-
-//               commissionHekefDisplay: hekefRaw,
-//               commissionNifraimDisplay: nifraimRaw,
-//               commissionNiudDisplay: niudRaw,
-
-//               commissionHekefDisplayVatIncluded: vatMode === "includes_vat",
-//               commissionNifraimDisplayVatIncluded: vatMode === "includes_vat",
-//               commissionNiudDisplayVatIncluded: vatMode === "includes_vat",
-//             };
-
-// console.log("=== DEFAULT SAVE DEBUG ===");
-// console.log("hekefRaw:", hekefRaw);
-// console.log("nifraimRaw:", nifraimRaw);
-// console.log("niudRaw:", niudRaw);
-// console.log("hasValues:", Boolean(hekefRaw || nifraimRaw || niudRaw));
-// console.log("findMatches result:", findMatches({
-//   company: "",
-//   product: "",
-//   productsGroup: String(section.productGroupId),
-//   minuySochen: false,
-// }));
-
-//             upsertOrDelete(
-//               findMatches({
-//                 company: company.companyName,
-//                 product: product.productName,
-//                 productsGroup: "",
-//                 minuySochen: false,
-//               }),
-//               payload,
-//               Boolean(hekefRaw || nifraimRaw || niudRaw)
-//             );
-
-//             if (rowNifraimMinuy) {
-//               const nifraimMinuyNormalized = normalizeCommissionForSave(
-//                 nifraimMinuyRaw,
-//                 rowNifraimMinuy.valueMode,
-//                 vatMode
-//               );
-
-//               const payloadMinuy = {
-//                 AgentId: effectiveAgentId,
-//                 company: company.companyName,
-//                 productsGroup: "",
-//                 product: product.productName,
-//                 commissionHekef: "",
-//                 commissionNifraim:
-//                   nifraimMinuyNormalized.normalizedPercentNet || "",
-//                 commissionNiud: "",
-//                 minuySochen: true,
-
-//                 commissionHekefDisplay: "",
-//                 commissionNifraimDisplay: nifraimMinuyRaw,
-//                 commissionNiudDisplay: "",
-
-//                 commissionHekefDisplayVatIncluded: vatMode === "includes_vat",
-//                 commissionNifraimDisplayVatIncluded: vatMode === "includes_vat",
-//                 commissionNiudDisplayVatIncluded: vatMode === "includes_vat",
-//               };
-
-//               upsertOrDelete(
-//                 findMatches({
-//                   company: company.companyName,
-//                   product: product.productName,
-//                   productsGroup: "",
-//                   minuySochen: true,
-//                 }),
-//                 payloadMinuy,
-//                 Boolean(nifraimMinuyRaw)
-//               );
-//             }
-//           });
-//         });
-//       });
-//     });
-
-//     console.log("contracts save writeCount:", writeCount);
-
-// if (writeCount === 0) {
-//   showToast("error", "לא נמצאו שינויים לשמירה");
-//   return;
-// }
-
-//    await batch.commit();
-
-//    console.log("batch committed successfully");
-
-// setOriginalCellValues({ ...cellValues });
-// setOriginalDefaultValues({ ...defaultValues });
-// showToast("success", "נשמר בהצלחה");
-// setTimeout(() => fetchContracts(), 1000);
-//   } catch (error) {
-//     console.error("saveContracts error:", error);
-//     showToast("error", "שגיאה בשמירה");
-//   }
-// };
 
 
 const saveContracts = async () => {
   if (!effectiveAgentId) {
-    showToast("error", "חסר סוכן נבחר");
+    addToast("error", "חסר סוכן נבחר");
     return;
   }
 
@@ -856,25 +474,24 @@ const saveContracts = async () => {
               (s: any) => String(s.productGroupId) === groupKey
             );
 
-            const findRaw = (commissionType: string, isMinuy: boolean) => {
-              for (const s of sectionsForGroup) {
-                const row = s.rows.find(
-                  (r: any) =>
-                    r.commissionType === commissionType &&
-                    Boolean(r.minuySochen) === isMinuy
-                );
-                if (row) {
-                  const val = (
-                    defaultValuesRef.current[
-                      buildDefaultKey(table.key, s.key, row.label)
-                    ] || ""
-                  ).trim();
-                  if (val) return { val, row };
-                }
-              }
-              return null;
-            };
-
+const findRaw = (commissionType: string, isMinuy: boolean) => {
+  for (const s of sectionsForGroup) {
+    const row = s.rows.find(
+      (r: any) =>
+        r.commissionType === commissionType &&
+        Boolean(r.minuySochen) === isMinuy
+    );
+    if (row) {
+      const val = (
+        defaultValuesRef.current[
+          buildDefaultKey(table.key, s.key, row.label)
+        ] || ""
+      ).trim();
+      return { val, row }; // ← הסרנו את if (val)
+    }
+  }
+  return null;
+};
             const hekefResult = findRaw("hekef", false);
             const nifraimResult = findRaw("nifraim", false);
             const niudResult = findRaw("niud", false);
@@ -899,6 +516,7 @@ const saveContracts = async () => {
             const niudNormalized = niudRow
               ? normalizeCommissionForSave(niudRaw, niudRow.valueMode, vatMode)
               : null;
+  console.log("saving default for groupKey:", groupKey, "hekefRaw:", hekefRaw, "nifraimRaw:", nifraimRaw, "niudRaw:", niudRaw);
 
             const payloadDefault = {
               AgentId: effectiveAgentId,
@@ -1048,23 +666,23 @@ const saveContracts = async () => {
       });
     });
 
-    console.log("contracts save writeCount:", writeCount);
+    // console.log("contracts save writeCount:", writeCount);
 
     if (writeCount === 0) {
-      showToast("error", "לא נמצאו שינויים לשמירה");
+      addToast("error", "לא נמצאו שינויים לשמירה");
       return;
     }
 
     await batch.commit();
-    console.log("batch committed successfully");
+    // console.log("batch committed successfully");
 
     setOriginalCellValues({ ...cellValues });
     setOriginalDefaultValues({ ...defaultValues });
-    showToast("success", "נשמר בהצלחה");
+    addToast("success", "נשמר בהצלחה");
     setTimeout(() => fetchContracts(), 1000);
   } catch (error) {
-    console.error("saveContracts error:", error);
-    showToast("error", "שגיאה בשמירה");
+    // console.error("saveContracts error:", error);
+    addToast("error", "שגיאה בשמירה");
   }
 };
 
@@ -1075,14 +693,49 @@ const saveContracts = async () => {
   return "density-normal";
 };
 
+const [isUploading, setIsUploading] = useState(false);
+const uploadInputRef = useRef<HTMLInputElement>(null);
+
+const handleUploadExcel = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const file = e.target.files?.[0];
+  if (!file || !effectiveAgentId) {
+    addToast("error", "יש לבחור קובץ ולוודא שסוכן נבחר");
+    return;
+  }
+
+  setIsUploading(true);
+  try {
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("agentId", effectiveAgentId);
+
+    const res = await fetch("/api/contracts-template/upload", {
+      method: "POST",
+      body: formData,
+    });
+
+    const data = await res.json();
+alert(JSON.stringify(data));
+
+    if (!res.ok) {
+      addToast("error", data.error || "שגיאה בהעלאה");
+      return;
+    }
+
+    addToast("success", `הועלה בהצלחה — ${data.writeCount} רשומות נשמרו`);
+    await fetchContracts();
+  } catch (err) {
+    // console.error("upload error:", err);
+    addToast("error", "שגיאה בהעלאת הקובץ");
+  } finally {
+    setIsUploading(false);
+    // איפוס ה-input כדי שיהיה אפשר להעלות את אותו קובץ שוב
+    if (uploadInputRef.current) uploadInputRef.current.value = "";
+  }
+};
 
   return (
     <div className="contracts-page" dir="rtl">
-      {toast && (
-  <div className={`contracts-toast ${toast.type}`}>
-    {toast.message}
-  </div>
-)}
 <div className="top-toolbar">
   <div className="tabs-container">
     <div
@@ -1107,38 +760,54 @@ const saveContracts = async () => {
     </div>
   </div>
 
-  <div className="toolbar-actions">
-    {detail?.role === "admin" && (
-      <select
-        value={selectedAgentId}
-        onChange={handleAgentChange}
-        className="select-input"
-      >
-        <option value="">בחר סוכן</option>
-        {agents.map((agent: any) => (
-          <option key={agent.id} value={agent.id}>
-            {agent.name}
-          </option>
-        ))}
-      </select>
-    )}
+ <div className="toolbar-actions">
+  {detail?.role === "admin" && (
+    <select
+      value={selectedAgentId}
+      onChange={handleAgentChange}
+      className="select-input"
+    >
+      <option value="">בחר סוכן</option>
+      {agents.map((agent: any) => (
+        <option key={agent.id} value={agent.id}>
+          {agent.name}
+        </option>
+      ))}
+    </select>
+  )}
 
   <Button
-  onClick={saveContracts}
-  text="שמור"
-  type="primary"
-  icon="off"
-  state="default"
-/>
+    onClick={saveContracts}
+    text="שמור"
+    type="primary"
+    icon="off"
+    state="default"
+  />
 
-<Button
-  onClick={downloadExcelTemplate}
-  text="הורד תבנית אקסל"
-  type="primary"
-  icon="off"
-  state="default"
-/>
-  </div>
+  <Button
+    onClick={downloadExcelTemplate}
+    text="הורד תבנית אקסל"
+    type="primary"
+    icon="off"
+    state="default"
+  />
+
+  {/* כפתור העלאה */}
+  <input
+    ref={uploadInputRef}
+    type="file"
+    accept=".xlsx"
+    style={{ display: "none" }}
+    onChange={handleUploadExcel}
+  />
+  <Button
+    onClick={() => uploadInputRef.current?.click()}
+    text={isUploading ? "מעלה..." : "העלה אקסל"}
+    type="primary"
+    icon="off"
+    state={isUploading ? "disabled" : "default"}
+  />
+</div>
 </div>
       {visibleTables.map((table: any) => (
         <div key={table.key} className="table-card">
@@ -1264,6 +933,15 @@ const densityClass = getDensityClassByCompanies(companiesForGroup.length);
           })}
         </div>
       ))}
+      {toasts.length > 0 && toasts.map((toast) => (
+  <ToastNotification
+    key={toast.id}
+    type={toast.type}
+    className={toast.isHiding ? "hide" : ""}
+    message={toast.message}
+    onClose={() => setToasts((prevToasts) => prevToasts.filter((t) => t.id !== toast.id))}
+  />
+))}
     </div>
   );
 };

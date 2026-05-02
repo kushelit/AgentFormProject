@@ -57,7 +57,7 @@ export async function runAyalonAll(ctx: RunnerCtx) {
   const agentId = s((run as any)?.agentId || ctx.agentId);
   const { username, password } = await getAyalonCreds(ctx);
   const prevMonth = getPrevMonthLabel();
-  console.log("[Ayalon] Target month:", prevMonth);
+  // console.log("[Ayalon] Target month:", prevMonth);
 
   await setStatus(runId, { status: "running", step: "ayalon_open_portal", monthLabel });
 
@@ -88,7 +88,7 @@ export async function runAyalonAll(ctx: RunnerCtx) {
   await page.bringToFront();
 
   try {
-    console.log("[Ayalon] Navigating to portal...");
+    // console.log("[Ayalon] Navigating to portal...");
     await page.goto(portalUrl, { waitUntil: "domcontentloaded", timeout: 60000 });
     await page.waitForLoadState("networkidle", { timeout: 20000 }).catch(() => {});
     await page.waitForTimeout(3000);
@@ -143,7 +143,7 @@ export async function runAyalonAll(ctx: RunnerCtx) {
       const filename = download.suggestedFilename();
       const localPath = path.join(absDir, `${Date.now()}_${filename}`);
       await download.saveAs(localPath);
-      console.log("[Ayalon] Saved:", localPath);
+      // console.log("[Ayalon] Saved:", localPath);
 
       const up = await uploadLocalFileToStorageClient({
         storage,
@@ -165,7 +165,7 @@ export async function runAyalonAll(ctx: RunnerCtx) {
     }
 
   } catch (e: any) {
-    console.error("[Ayalon] Error:", e?.message || e);
+    // console.error("[Ayalon] Error:", e?.message || e);
     try { await ayalonDumpArtifacts(page, absDir, "error_state"); } catch {}
     await setStatus(runId, { status: "error", error: e?.message || String(e), monthLabel });
     throw e;

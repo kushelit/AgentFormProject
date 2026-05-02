@@ -57,7 +57,7 @@ export function createFileLogger(params: {
     } catch (e: any) {
       // אם כתיבה לקובץ נכשלה, לפחות לקונסול
       try {
-        console.error("[Logger] failed to write file:", e?.message || e);
+        // console.error("[Logger] failed to write file:", e?.message || e);
       } catch {}
     } finally {
       flushing = false;

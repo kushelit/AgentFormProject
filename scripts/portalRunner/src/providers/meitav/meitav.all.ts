@@ -67,14 +67,14 @@ export async function runMeitavAll(ctx: RunnerCtx) {
   await page.bringToFront();
 
   try {
-    console.log("[Meitav] Navigating to home page...");
+    // console.log("[Meitav] Navigating to home page...");
     await page.goto(portalUrl, { waitUntil: "domcontentloaded", timeout: 60000 });
     await page.waitForLoadState("networkidle", { timeout: 15000 }).catch(() => {});
 
     const cdp = await page.context().newCDPSession(page);
-    console.log("[Meitav] URL:", page.url());
+    // console.log("[Meitav] URL:", page.url());
 
-    console.log("[Meitav] Clicking login button...");
+    // console.log("[Meitav] Clicking login button...");
     const [loginPage] = await Promise.all([
       context.waitForEvent("page", { timeout: 15000 }).catch(() => null),
       cdp.send("Runtime.evaluate", {
@@ -91,7 +91,7 @@ export async function runMeitavAll(ctx: RunnerCtx) {
 
     let loginPage2 = loginPage;
     if (!loginPage2) {
-      console.log("[Meitav] No new tab — navigating directly...");
+      // console.log("[Meitav] No new tab — navigating directly...");
       await page.goto("https://customers.meitav.co.il/v2/login/LoginAgent", { waitUntil: "domcontentloaded", timeout: 30000 });
       loginPage2 = page;
     }
@@ -99,14 +99,14 @@ export async function runMeitavAll(ctx: RunnerCtx) {
     await loginPage2.bringToFront();
     await loginPage2.waitForLoadState("domcontentloaded", { timeout: 30000 }).catch(() => {});
     await loginPage2.waitForTimeout(3000);
-    console.log("[Meitav] Login page URL:", loginPage2.url());
+    // console.log("[Meitav] Login page URL:", loginPage2.url());
 
     await setStatus(runId, { status: "running", step: "מבצע לוגין למיטב", monthLabel });
     await meitavLogin(loginPage2, username, phoneNumber);
     await meitavHandleOtp(loginPage2, ctx);
 
     await loginPage2.waitForTimeout(10000);
-    console.log("[Meitav] URL after OTP:", loginPage2.url());
+    // console.log("[Meitav] URL after OTP:", loginPage2.url());
 
     await setStatus(runId, { status: "running", step: "מנסה לנווט לדוח עמלות", monthLabel });
     
@@ -115,7 +115,7 @@ export async function runMeitavAll(ctx: RunnerCtx) {
 
     if (downloads.length > 0) {
       for (const { localPath, filename, agentName } of downloads) {
-        console.log(`[Meitav] Uploading: ${filename} for agent: ${agentName}`);
+        // console.log(`[Meitav] Uploading: ${filename} for agent: ${agentName}`);
         
         const up = await uploadLocalFileToStorageClient({
           storage,
@@ -126,7 +126,7 @@ export async function runMeitavAll(ctx: RunnerCtx) {
         } as any);
 
         if (up?.storagePath) {
-          console.log("[Meitav] Uploaded:", up.storagePath);
+          // console.log("[Meitav] Uploaded:", up.storagePath);
           
           // ✅ עדכון downloads[] עם כל דוח - כמו clal
           await appendDownload({
@@ -137,7 +137,7 @@ export async function runMeitavAll(ctx: RunnerCtx) {
             agentName, // מידע נוסף לזיהוי
           });
         } else {
-          console.log("[Meitav] Upload failed for:", filename);
+          // console.log("[Meitav] Upload failed for:", filename);
         }
       }
       
@@ -152,7 +152,7 @@ export async function runMeitavAll(ctx: RunnerCtx) {
     }
 
   } catch (e: any) {
-    console.error("[Meitav] Error:", e.message);
+    // console.error("[Meitav] Error:", e.message);
     await setStatus(runId, { status: "error", error: e.message, monthLabel });
     throw e;
   } finally {

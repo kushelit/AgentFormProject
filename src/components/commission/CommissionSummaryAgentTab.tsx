@@ -340,7 +340,7 @@ useEffect(() => {
       const data = await res.json();
       setYearlyPolicies(data.rows || []);
     } catch (err) {
-      console.error("Error fetching yearly data:", err);
+      // console.error("Error fetching yearly data:", err);
     } finally {
       setIsYearlyLoading(false);
     }
