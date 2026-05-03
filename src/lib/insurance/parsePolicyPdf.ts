@@ -56,124 +56,6 @@ export interface PolicyPdfResult {
   parseConfidence: "high" | "medium" | "low";
 }
 
-// ─── Claude API Call ──────────────────────────────────────────
-
-async function callClaudeWithPdf(
-  base64Data: string,
-  mediaType: string
-): Promise<PolicyPdfResult> {
-  const systemPrompt = `אתה מומחה לניתוח פוליסות ביטוח ישראליות.
-תפקידך לחלץ מידע מובנה מ-PDF של דף פרטי ביטוח.
-החזר תמיד JSON בלבד — ללא טקסט נוסף, ללא markdown, ללא קוד בקצות.
-
-חוקים:
-- אם שדה לא קיים בפוליסה — החזר null
-- תאריכים בפורמט MM/YYYY (לדוגמה: "05/2029")
-- סכומים כמספרים בלבד ללא ₪ ופסיקים
-- smokerStatus: "מעשן" או "לא מעשן" בלבד
-- parseConfidence: "high" אם רוב השדות נמצאו, "medium" אם חלקם, "low" אם מעט מאוד`;
-
-  const userPrompt = `נתח את דף פרטי הביטוח הזה והחזר JSON במבנה הבא בדיוק:
-
-{
-  "policyNumber": "מספר פוליסה",
-  "companyName": "שם חברת הביטוח",
-  "insuredName": "שם המבוטח",
-  "idNumber": "מספר זהות",
-  "coverageAmount": 1500000,
-  "coverageStart": "05/2022",
-  "coverageEnd": "04/2057",
-  "premiumMonthly": 82.47,
-  "premiumAnnual": null,
-  "discountPercent": 65,
-  "discountExpiryDate": "12/2026",
-  "futurePremiums": [
-    { "date": "05/2026", "premium": 82.47 },
-    { "date": "05/2027", "premium": 91.21 }
-  ],
-  "irrevocableBeneficiary": "בנק מזרחי טפחות",
-  "smokerStatus": "לא מעשן",
-  "exclusions": "תוספת 50% סוכרת",
-  "medicalAddition": null,
-  "occupationalAddition": null,
-  "coverages": [
-    {
-      "coverageType": "ריסק",
-      "coverageName": "ריסק יסודי בפרמיה משתנה",
-      "coverageAmount": 1500000,
-      "premium": 82.47,
-      "premiumType": "חודשית",
-      "startDate": "05/2022",
-      "endDate": "04/2057"
-    }
-  ],
-  "reportDate": "27/04/2026",
-  "parseConfidence": "high"
-}`;
-
-  const response = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: "claude-sonnet-4-20250514",
-      max_tokens: 1000,
-      system: systemPrompt,
-      messages: [
-        {
-          role: "user",
-          content: [
-            {
-              type: "document",
-              source: {
-                type: "base64",
-                media_type: mediaType,
-                data: base64Data,
-              },
-            },
-            { type: "text", text: userPrompt },
-          ],
-        },
-      ],
-    }),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Claude API error: ${response.status}`);
-  }
-
-  const data = await response.json();
-  const text = data.content
-    ?.filter((b: any) => b.type === "text")
-    .map((b: any) => b.text)
-    .join("") ?? "";
-
-  // ניקוי markdown אם קיים
-  const clean = text
-    .replace(/```json\s*/gi, "")
-    .replace(/```\s*/gi, "")
-    .trim();
-
-  try {
-    return JSON.parse(clean) as PolicyPdfResult;
-  } catch {
-    console.error("parsePolicyPdf: failed to parse JSON", clean);
-    return emptyResult("low");
-  }
-}
-
-// ─── File to Base64 ───────────────────────────────────────────
-
-async function fileToBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = reader.result as string;
-      resolve(result.split(",")[1]); // הסר data:...;base64,
-    };
-    reader.onerror = () => reject(new Error("Failed to read file"));
-    reader.readAsDataURL(file);
-  });
-}
 
 // ─── Empty Result ─────────────────────────────────────────────
 
@@ -207,15 +89,28 @@ function emptyResult(confidence: "high" | "medium" | "low"): PolicyPdfResult {
 /**
  * מנתח PDF של פוליסת ביטוח ומחזיר נתונים מובנים
  */
+// החלף את כל פונקציית parsePolicyPdf:
 export async function parsePolicyPdf(file: File): Promise<PolicyPdfResult> {
   if (!file.type.includes("pdf") && !file.name.toLowerCase().endsWith(".pdf")) {
     throw new Error("הקובץ חייב להיות PDF");
   }
 
-  const base64 = await fileToBase64(file);
-  return callClaudeWithPdf(base64, "application/pdf");
-}
+  const formData = new FormData();
+  formData.append("file", file);
 
+  const res = await fetch("/api/insurance/parse-policy", {
+    method: "POST",
+    body: formData,
+  });
+
+  if (!res.ok) throw new Error("שגיאה בניתוח הפוליסה");
+  
+  try {
+    return await res.json();
+  } catch {
+    return emptyResult("low");
+  }
+}
 /**
  * מנתח מספר PDFs במקביל
  */

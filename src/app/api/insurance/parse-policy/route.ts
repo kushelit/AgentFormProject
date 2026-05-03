@@ -11,10 +11,14 @@ export async function POST(req: NextRequest) {
 
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+    "Content-Type": "application/json",
+    "x-api-key": process.env.ANTHROPIC_API_KEY ?? "",  // ✅ הוסיפי שורה זו
+    "anthropic-version": "2023-06-01",                  // ✅ הוסיפי שורה זו
+  },
       body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
-        max_tokens: 1000,
+       model: "claude-sonnet-4-5",
+        max_tokens: 4000,
         system: `אתה מומחה לניתוח פוליסות ביטוח ישראליות. החזר תמיד JSON בלבד ללא טקסט נוסף.`,
         messages: [{
           role: "user",
@@ -46,12 +50,18 @@ export async function POST(req: NextRequest) {
     });
 
     const data = await response.json();
+    console.log("Claude response status:", response.status);
+console.log("Claude response data:", JSON.stringify(data).slice(0, 500));
+
     const text = data.content?.filter((b: any) => b.type === "text").map((b: any) => b.text).join("") ?? "";
+   
+   console.log("Claude text:", text);
     const clean = text.replace(/```json\s*/gi, "").replace(/```\s*/gi, "").trim();
+   console.log("Clean text:", clean);
     return NextResponse.json(JSON.parse(clean));
 
   } catch (err) {
-    // console.error("parse-policy error:", err);
+     console.error("parse-policy error:", err);
     return NextResponse.json({ error: "שגיאה" }, { status: 500 });
   }
 }

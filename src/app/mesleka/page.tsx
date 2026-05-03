@@ -25,6 +25,8 @@ export default function TestMeslekaPage() {
   const [insuranceRows, setInsuranceRows] = useState<HarBituchRow[] | null>(null);
   const [insuranceLoading, setInsuranceLoading] = useState(false);
 
+  const [hiddenRows, setHiddenRows] = useState<HarBituchRow[]>([]);
+
   // ─── Handler פנסיה ───────────────────────────────────────────
   const handleRun = async () => {
     if (!zipFile) {
@@ -92,7 +94,14 @@ export default function TestMeslekaPage() {
       setInsuranceLoading(true);
 
       const harResult = await parseHarBituchXlsx(harFile);
+
+      console.log("har rows:", harResult.lifeAndHealthRows.map(r => r.policyNumber));
+
+const pdfResults = await parsePolicyPdfs(policyFiles);
+console.log("pdf results:", pdfResults.map(r => r.policyNumber));
+
       let rows = harResult.lifeAndHealthRows;
+     setHiddenRows(harResult.generalRows); 
 
       if (policyFiles.length > 0) {
         const pdfResults = await parsePolicyPdfs(policyFiles);
@@ -217,6 +226,23 @@ export default function TestMeslekaPage() {
             >
               {insuranceLoading ? "מנתח..." : "הצג תיק ביטוחי"}
             </button>
+            {insuranceRows && hiddenRows.length > 0 && (
+  <div style={{
+    background: "#fffbeb",
+    border: "1px solid #fcd34d",
+    borderRadius: 10, padding: "12px 16px", marginBottom: 16,
+    fontSize: 13, color: "#92400e",
+  }}>
+    <div style={{ fontWeight: 700, marginBottom: 6 }}>
+      ⚠️ {hiddenRows.length} פוליסות לא מוצגות (רכב / דירה / אחר):
+    </div>
+    {hiddenRows.map((r) => (
+      <div key={r.policyNumber} style={{ fontSize: 12, marginTop: 2 }}>
+        • {r.companyName} — {r.branchMain} ({r.branchSub}) — פוליסה {r.policyNumber}
+      </div>
+    ))}
+  </div>
+)}
           </div>
 
           {insuranceRows && <InsuranceTable rows={insuranceRows} />}

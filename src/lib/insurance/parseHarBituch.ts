@@ -186,7 +186,39 @@ export async function parseHarBituchXlsx(file: File): Promise<HarBituchParseResu
 
   const sheetName = wb.SheetNames[0];
   const ws = wb.Sheets[sheetName];
-  const rawRows = XLSX.utils.sheet_to_json<any[]>(ws, { header: 1, raw: false, dateNF: "dd/mm/yyyy" });
+// ✅ הרחב את הטווח אוטומטית
+if (ws["!ref"]) {
+  const ref = XLSX.utils.decode_range(ws["!ref"]);
+  // הרחב עד שורה 10000
+  ref.e.r = Math.max(ref.e.r, 9999);
+  ws["!ref"] = XLSX.utils.encode_range(ref);
+}
+
+
+  console.log("ws ref:", ws["!ref"]);
+console.log("ws keys:", Object.keys(ws).slice(0, 20));
+
+
+const range = XLSX.utils.decode_range(ws["!ref"] ?? "A1:K20");
+const rawRows: any[][] = [];
+for (let r = range.s.r; r <= range.e.r; r++) {
+  const row: any[] = [];
+  for (let c = range.s.c; c <= range.e.c; c++) {
+    const cell = ws[XLSX.utils.encode_cell({ r, c })];
+    if (!cell) { row.push(null); continue; }
+    
+    // מספרים גדולים — שמור ערך גולמי
+    if (cell.t === "n" && Math.abs(cell.v) > 1e10) {
+      row.push(String(cell.v));
+    } else {
+      row.push(XLSX.utils.format_cell(cell));
+    }
+  }
+  rawRows.push(row);
+}
+
+console.log("rawRows length:", rawRows.length);
+console.log("rawRows:", rawRows);
 
   let extractedAt = "";
   let headerRowIdx = -1;
@@ -195,6 +227,9 @@ export async function parseHarBituchXlsx(file: File): Promise<HarBituchParseResu
   // מציאת תאריך הפקה + שורת כותרות
   for (let i = 0; i < Math.min(rawRows.length, 10); i++) {
     const row = rawRows[i] as any[];
+
+      console.log(`raw row ${i}:`, row);
+
     if (!row || row.length === 0) continue;
 
     const rowStr = row.join(" ");
@@ -206,10 +241,10 @@ export async function parseHarBituchXlsx(file: File): Promise<HarBituchParseResu
     }
 
     // שורת כותרות
-    if (row.includes("תעודת זהות") || row.includes("ענף ראשי")) {
-      headerRowIdx = i;
-      break;
-    }
+    if (row.includes("תעודת זהות") || row.includes("ענף ראשי") || row.includes("סוג מוצר")) {
+  headerRowIdx = i;
+  break;
+}
   }
 
   if (headerRowIdx === -1) {
@@ -217,21 +252,34 @@ export async function parseHarBituchXlsx(file: File): Promise<HarBituchParseResu
   }
 
   const headers = (rawRows[headerRowIdx] as any[]).map((h: any) => String(h ?? "").trim());
+console.log("headers:", headers);
+console.log("headerRowIdx:", headerRowIdx);  // ← הוסיפי כאן
+console.log("first data row:", rawRows[headerRowIdx + 1]);  // ← והוסיפי כאן
 
   const col = (name: string) => headers.indexOf(name);
 
   const rows: HarBituchRow[] = [];
+let emptyRowCount = 0;
 
   for (let i = headerRowIdx + 1; i < rawRows.length; i++) {
     const row = rawRows[i] as any[];
     if (!row || row.length === 0) continue;
 
-    const get = (name: string): string | null => {
-      const idx = col(name);
-      if (idx === -1) return null;
-      const val = row[idx];
-      return val != null && val !== "" ? String(val).trim() : null;
-    };
+ const get = (name: string): string | null => {
+  const idx = col(name);
+  if (idx === -1) return null;
+  const val = row[idx];
+  if (val == null || val === "") return null;
+  const str = String(val).trim();
+  
+  // תיקון notation מדעי: "1.54068E+11" → "154068000000"
+  if (/^-?\d+\.?\d*[eE][+\-]\d+$/.test(str)) {
+    return Math.round(Number(str)).toString();
+  }
+  
+  return str;
+};
+
 
     const getNum = (name: string): number | null => {
       const v = get(name);
@@ -243,8 +291,24 @@ export async function parseHarBituchXlsx(file: File): Promise<HarBituchParseResu
     // דלג על שורות כותרת תחום ("תחום - כללי" וכו')
     const main = get("ענף ראשי");
     const sub = get("ענף (משני)");
+
+    // ✅ עצור אם 3 שורות ריקות ברצף
+if (!main && !sub && !get("מספר פוליסה") && !get("חברה")) {
+  // ספור שורות ריקות ברצף
+  emptyRowCount = (emptyRowCount ?? 0) + 1;
+  if (emptyRowCount >= 3) break;
+  continue;
+} else {
+  emptyRowCount = 0;
+}
+
+
+if (i < headerRowIdx + 20) {
+  console.log(`row ${i}: main="${main}" sub="${sub}" policy="${get("מספר פוליסה")}"`);
+}
     if (!main && !sub) continue;
-    if (main && main.startsWith("תחום")) continue;
+if (!main && !sub) continue;
+if ((main && main.startsWith("תחום")) || (sub && sub.startsWith("תחום"))) continue;
 
     const policyNumber = get("מספר פוליסה");
     if (!policyNumber) continue;
