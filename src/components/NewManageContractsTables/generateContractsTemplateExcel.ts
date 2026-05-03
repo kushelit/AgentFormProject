@@ -34,7 +34,6 @@ const TABLE_LIGHT_COLOR: Record<string, string> = {
   travel:     "FFFDEEDD",
 };
 
-// עמודות נסתרות תמיד מתחילות מ-30
 const HIDDEN_START_COL = 30;
 
 export async function generateContractsTemplateExcel({
@@ -69,6 +68,12 @@ export async function generateContractsTemplateExcel({
           : true;
         return sameGroup && sameSubGroup;
       });
+
+      // זיהוי אם זה הסקשן הראשון בגרופ
+      const firstSectionInGroup = table.sections.find(
+        (s: any) => String(s.productGroupId) === String(section.productGroupId)
+      );
+      const isFirstSection = firstSectionInGroup?.key === section.key;
 
       const visibleCols = 2 + companiesForGroup.length;
 
@@ -135,37 +140,53 @@ export async function generateContractsTemplateExcel({
         };
 
         // עמודה 2 — ברירת מחדל
-        const defaultContract = contracts.find(
-          (c: any) =>
-            c.AgentId === agentId &&
-            c.productsGroup === String(section.productGroupId) &&
-            c.company === "" &&
-            c.product === "" &&
-            Boolean(c.minuySochen) === isMinuy
-        );
-        const defaultValue = getContractDisplayValue(defaultContract, row.commissionType);
-
         const defaultCell = sheet.getCell(currentRow, 2);
-        defaultCell.value = defaultValue ? Number(defaultValue) || defaultValue : null;
-        defaultCell.fill  = { type: "pattern", pattern: "solid", fgColor: { argb: defaultValue ? "FFFFF3CD" : rowBg } };
-        defaultCell.alignment = { horizontal: "center", vertical: "middle" };
-        defaultCell.border = {
-          top:    { style: "thin", color: { argb: "FFE0E0E0" } },
-          bottom: { style: "thin", color: { argb: "FFE0E0E0" } },
-          left:   { style: "thin", color: { argb: "FFD0D0D0" } },
-          right:  { style: "thin", color: { argb: "FFD0D0D0" } },
-        };
-        defaultCell.dataValidation = {
-          type: "decimal",
-          operator: "greaterThanOrEqual",
-          formulae: [0],
-          showInputMessage: true,
-          promptTitle: inputTitle,
-          prompt: placeholderText,
-          showErrorMessage: false,
-        };
 
-        // עמודות חברות (3 עד visibleCols)
+        if (!isFirstSection) {
+          // ─── סקשן משני — הצג הסבר במקום תא עריכה ───
+          defaultCell.value = `משותף עם "${firstSectionInGroup?.label}"`;
+          defaultCell.font = { size: 9, italic: true, color: { argb: "FF888888" } };
+          defaultCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF5F5F5" } };
+          defaultCell.alignment = { horizontal: "center", vertical: "middle" };
+          defaultCell.border = {
+            top:    { style: "thin", color: { argb: "FFE0E0E0" } },
+            bottom: { style: "thin", color: { argb: "FFE0E0E0" } },
+            left:   { style: "thin", color: { argb: "FFD0D0D0" } },
+            right:  { style: "thin", color: { argb: "FFD0D0D0" } },
+          };
+        } else {
+          // ─── סקשן ראשון — תא עריכה רגיל ───
+          const defaultContract = contracts.find(
+            (c: any) =>
+              c.AgentId === agentId &&
+              c.productsGroup === String(section.productGroupId) &&
+              c.company === "" &&
+              c.product === "" &&
+              Boolean(c.minuySochen) === isMinuy
+          );
+          const defaultValue = getContractDisplayValue(defaultContract, row.commissionType);
+
+          defaultCell.value = defaultValue ? Number(defaultValue) || defaultValue : null;
+          defaultCell.fill  = { type: "pattern", pattern: "solid", fgColor: { argb: defaultValue ? "FFFFF3CD" : rowBg } };
+          defaultCell.alignment = { horizontal: "center", vertical: "middle" };
+          defaultCell.border = {
+            top:    { style: "thin", color: { argb: "FFE0E0E0" } },
+            bottom: { style: "thin", color: { argb: "FFE0E0E0" } },
+            left:   { style: "thin", color: { argb: "FFD0D0D0" } },
+            right:  { style: "thin", color: { argb: "FFD0D0D0" } },
+          };
+          defaultCell.dataValidation = {
+            type: "decimal",
+            operator: "greaterThanOrEqual",
+            formulae: [0],
+            showInputMessage: true,
+            promptTitle: inputTitle,
+            prompt: placeholderText,
+            showErrorMessage: false,
+          };
+        }
+
+        // עמודות חברות
         companiesForGroup.forEach((company: any, colIdx: number) => {
           const matchingContract = contracts.find((c: any) => {
             const sameCompany  = c.company === company.companyName;
@@ -206,14 +227,14 @@ export async function generateContractsTemplateExcel({
 
         // ─── עמודות נסתרות — תמיד מעמודה 30 ───
         const metaCols = [
-          table.key,                               // col 30 — _tableKey
-          section.key,                             // col 31 — _sectionKey
-          row.commissionType,                      // col 32 — _commissionType
-          String(section.productGroupId),          // col 33 — _productGroupId
-          String(section.productSubGroupId || ""), // col 34 — _productSubGroupId
-          isMinuy ? "true" : "false",              // col 35 — _minuySochen
-          valueMode,                               // col 36 — _valueMode
-          vatMode,                                 // col 37 — _vatMode
+          table.key,
+          section.key,
+          row.commissionType,
+          String(section.productGroupId),
+          String(section.productSubGroupId || ""),
+          isMinuy ? "true" : "false",
+          valueMode,
+          vatMode,
         ];
 
         metaCols.forEach((val, i) => {
@@ -224,28 +245,24 @@ export async function generateContractsTemplateExcel({
         currentRow++;
       }
 
-      // רווח בין sections
       currentRow += 2;
     }
   }
 
-  // ─── רוחב עמודות גלויות ───
-  sheet.getColumn(1).width = 24; // סוג עמלה
-  sheet.getColumn(2).width = 14; // ברירת מחדל
+  sheet.getColumn(1).width = 24;
+  sheet.getColumn(2).width = 16; // הרחבנו מעט לטקסט ההסבר
   for (let i = 3; i <= 29; i++) {
-    sheet.getColumn(i).width = 12; // חברות
+    sheet.getColumn(i).width = 12;
   }
 
-  // ─── הסתרת עמודות metadata (30-37) ───
   for (let i = HIDDEN_START_COL; i <= HIDDEN_START_COL + 7; i++) {
     sheet.getColumn(i).hidden = true;
   }
 
   const buffer   = await workbook.xlsx.writeBuffer();
   const date     = new Date().toISOString().slice(0, 10);
-  const filename = agentId
-    ? `contracts-${agentId}-${date}.xlsx`
-    : `contracts-template-${date}.xlsx`;
+ const filename = `תבנית הזנת הסכמי עמלות - ${date}.xlsx`;
+
 
   return { buffer, filename };
 }

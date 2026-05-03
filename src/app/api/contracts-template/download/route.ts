@@ -68,18 +68,18 @@ export async function GET(request: Request) {
       ? buffer
       : Buffer.from(buffer as ArrayBuffer);
 
-    return new NextResponse(fileBuffer, {
-      status: 200,
-      headers: {
-        "Content-Type":
-          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        "Content-Disposition": `attachment; filename="${filename}"`,
-        "Cache-Control": "no-store",
-      },
-    });
+  return new NextResponse(fileBuffer, {
+  status: 200,
+  headers: {
+    "Content-Type":
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "Content-Disposition": `attachment; filename="contracts-template.xlsx"; filename*=UTF-8''${encodeURIComponent(filename)}`,
+    "Cache-Control": "no-store",
+  },
+});
   } catch (error) {
-    // console.error("contracts-template download error:", error);
-    return NextResponse.json(
+console.error("contracts-template download error:", error);
+  console.error("error message:", (error as any)?.message);    return NextResponse.json(
       { error: "Failed to generate contracts template" },
       { status: 500 }
     );

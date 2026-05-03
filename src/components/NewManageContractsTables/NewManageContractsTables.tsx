@@ -90,6 +90,7 @@ const [originalDefaultValues, setOriginalDefaultValues] = useState<Record<string
 const { toasts, addToast, setToasts } = useToast();
 
 
+const skipResetOriginalRef = useRef(false);
 
 const defaultValuesRef = useRef<Record<string, string>>({});
 const cellValuesRef = useRef<Record<string, string>>({});
@@ -263,136 +264,335 @@ const isDefaultDirty = (key: string, value: string) => {
   return (originalDefaultValues[key] || "") !== (value || "");
 };
 
-  useEffect(() => {
-    if (!companies.length || !products.length) return;
+//   useEffect(() => {
+//     if (!companies.length || !products.length) return;
 
-    const nextValues: Record<string, string> = {};
-    const nextDefaults: Record<string, string> = {};
+//     const nextValues: Record<string, string> = {};
+//     const nextDefaults: Record<string, string> = {};
 
-    CONTRACTS_TABLES_CONFIG.forEach((table: any) => {
-  const savedDefaultGroups = new Set<string>();
-  table.sections.forEach((section: any) => {
-    const companiesForGroup =
-          visibleCompaniesByGroup[String(section.productGroupId)] || [];
+//     CONTRACTS_TABLES_CONFIG.forEach((table: any) => {
+//   const savedDefaultGroups = new Set<string>();
+//   table.sections.forEach((section: any) => {
+//     const companiesForGroup =
+//           visibleCompaniesByGroup[String(section.productGroupId)] || [];
 
-       const productsForSection = products.filter((p) => {
-  const sameGroup = String(p.productGroup) === String(section.productGroupId);
+//        const productsForSection = products.filter((p) => {
+//   const sameGroup = String(p.productGroup) === String(section.productGroupId);
 
-  const sectionSubGroupId = String(section.productSubGroupId || "").trim();
+//   const sectionSubGroupId = String(section.productSubGroupId || "").trim();
 
-  const sameSubGroup = sectionSubGroupId
-    ? String(p.productSubGroupId || "") === sectionSubGroupId
-    : true;
+//   const sameSubGroup = sectionSubGroupId
+//     ? String(p.productSubGroupId || "") === sectionSubGroupId
+//     : true;
 
-  return sameGroup && sameSubGroup;
-});
+//   return sameGroup && sameSubGroup;
+// });
 
-        section.rows.forEach((row: any) => {
-          if (table.showDefaultColumn) {
-            const defaultContract = contracts.find(
-              (c) =>
-                c.AgentId === effectiveAgentId &&
-                c.productsGroup === String(section.productGroupId) &&
-                c.company === "" &&
-                c.product === "" &&
-                Boolean(c.minuySochen) === Boolean(row.minuySochen)
-            );
+//         section.rows.forEach((row: any) => {
+//           if (table.showDefaultColumn) {
+//             const defaultContract = contracts.find(
+//               (c) =>
+//                 c.AgentId === effectiveAgentId &&
+//                 c.productsGroup === String(section.productGroupId) &&
+//                 c.company === "" &&
+//                 c.product === "" &&
+//                 Boolean(c.minuySochen) === Boolean(row.minuySochen)
+//             );
 
-            if (defaultContract) {
-              let displayValue = "";
+//             if (defaultContract) {
+//               let displayValue = "";
 
-              if (row.commissionType === "hekef") {
-                displayValue =
-                  defaultContract.commissionHekefDisplay ||
-                  defaultContract.commissionHekef ||
-                  "";
-              }
+//               if (row.commissionType === "hekef") {
+//                 displayValue =
+//                   defaultContract.commissionHekefDisplay ||
+//                   defaultContract.commissionHekef ||
+//                   "";
+//               }
 
-              if (row.commissionType === "nifraim") {
-                displayValue =
-                  defaultContract.commissionNifraimDisplay ||
-                  defaultContract.commissionNifraim ||
-                  "";
-              }
+//               if (row.commissionType === "nifraim") {
+//                 displayValue =
+//                   defaultContract.commissionNifraimDisplay ||
+//                   defaultContract.commissionNifraim ||
+//                   "";
+//               }
 
-              if (row.commissionType === "niud") {
-                displayValue =
-                  defaultContract.commissionNiudDisplay ||
-                  defaultContract.commissionNiud ||
-                  "";
-              }
+//               if (row.commissionType === "niud") {
+//                 displayValue =
+//                   defaultContract.commissionNiudDisplay ||
+//                   defaultContract.commissionNiud ||
+//                   "";
+//               }
 
-              nextDefaults[
-                buildDefaultKey(table.key, section.key, row.label)
-              ] = displayValue;
-            }
-          }
+//               nextDefaults[
+//                 buildDefaultKey(table.key, section.key, row.label)
+//               ] = displayValue;
+//             }
+//           }
 
-          companiesForGroup.forEach((company) => {
-            if (company.companyName === "מגדל" || company.companyName === "הראל") {
-    // console.log("section:", section.key, "productsForSection:", productsForSection.map(p => p.productName));
+//           companiesForGroup.forEach((company) => {
+//             if (company.companyName === "מגדל" || company.companyName === "הראל") {
+//     // console.log("section:", section.key, "productsForSection:", productsForSection.map(p => p.productName));
+//   }
+//             const matchingContract = contracts.find((c) => {
+//               const sameCompany = c.company === company.companyName;
+//               const sameMinuy = Boolean(c.minuySochen) === Boolean(row.minuySochen);
+//               const productMatch = productsForSection.some(
+//                 (p) => p.productName === c.product
+//               );
+
+//               return (
+//                 c.AgentId === effectiveAgentId &&
+//                 sameCompany &&
+//                 sameMinuy &&
+//                 c.productsGroup === "" &&
+//                 productMatch
+//               );
+//             });
+//               // console.log("company:", company.companyName, "matchingContract:", matchingContract?.id || "NOT FOUND");
+
+
+//             if (!matchingContract) return;
+
+//             let displayValue = "";
+
+//             if (row.commissionType === "hekef") {
+//               displayValue =
+//                 matchingContract.commissionHekefDisplay ||
+//                 matchingContract.commissionHekef ||
+//                 "";
+//             }
+
+//             if (row.commissionType === "nifraim") {
+//               displayValue =
+//                 matchingContract.commissionNifraimDisplay ||
+//                 matchingContract.commissionNifraim ||
+//                 "";
+//             }
+
+//             if (row.commissionType === "niud") {
+//               displayValue =
+//                 matchingContract.commissionNiudDisplay ||
+//                 matchingContract.commissionNiud ||
+//                 "";
+//             }
+
+//             nextValues[
+//               buildCellKey(table.key, section.key, row.label, company.id)
+//             ] = displayValue;
+//           });
+//         });
+//       });
+//     });
+// setCellValues(nextValues);
+// setDefaultValues(nextDefaults);
+
+// if (!skipResetOriginalRef.current) {
+//   setOriginalCellValues(nextValues);
+//   setOriginalDefaultValues(nextDefaults);
+// }
+// skipResetOriginalRef.current = false;
+    
+//   }, [contracts, products, companies, visibleCompaniesByGroup, effectiveAgentId]);
+
+const denormalizeForDisplay = (
+  netValue: string,
+  valueMode: "percent" | "per_million",
+  vatMode: "includes_vat" | "excludes_vat",
+  vatRate = 0.18
+): string => {
+  if (!netValue) return "";
+  const num = Number(netValue);
+  if (isNaN(num) || num === 0) return "";
+
+  // שלב 1 — החזר מע"מ
+  const grossPercent = vatMode === "includes_vat"
+    ? num * (1 + vatRate)
+    : num;
+
+  // שלב 2 — המר לאלפים אם צריך
+  if (valueMode === "per_million") {
+    const perMillion = (grossPercent / 100) * 1_000_000;
+    // עיגול ל-100 הקרוב
+    const rounded = Math.round(perMillion / 100) * 100;
+    return rounded.toString();
   }
-            const matchingContract = contracts.find((c) => {
-              const sameCompany = c.company === company.companyName;
-              const sameMinuy = Boolean(c.minuySochen) === Boolean(row.minuySochen);
-              const productMatch = productsForSection.some(
-                (p) => p.productName === c.product
-              );
 
-              return (
-                c.AgentId === effectiveAgentId &&
-                sameCompany &&
-                sameMinuy &&
-                c.productsGroup === "" &&
-                productMatch
-              );
-            });
-              // console.log("company:", company.companyName, "matchingContract:", matchingContract?.id || "NOT FOUND");
+  // אחוז — עיגול ל-2 ספרות
+  return Number(grossPercent.toFixed(2)).toString();
+};
 
 
-            if (!matchingContract) return;
+useEffect(() => {
+  if (!companies.length || !products.length) return;
 
+  const nextValues: Record<string, string> = {};
+  const nextDefaults: Record<string, string> = {};
+
+  CONTRACTS_TABLES_CONFIG.forEach((table: any) => {
+    table.sections.forEach((section: any) => {
+      const companiesForGroup =
+        visibleCompaniesByGroup[String(section.productGroupId)] || [];
+
+      const productsForSection = products.filter((p) => {
+        const sameGroup = String(p.productGroup) === String(section.productGroupId);
+        const sectionSubGroupId = String(section.productSubGroupId || "").trim();
+        const sameSubGroup = sectionSubGroupId
+          ? String(p.productSubGroupId || "") === sectionSubGroupId
+          : true;
+        return sameGroup && sameSubGroup;
+      });
+
+      const vatMode = getVatModeByTable(table.key);
+
+      section.rows.forEach((row: any) => {
+        // ─── ברירת מחדל ───
+        if (table.showDefaultColumn) {
+          const defaultContract = contracts.find(
+            (c) =>
+              c.AgentId === effectiveAgentId &&
+              c.productsGroup === String(section.productGroupId) &&
+              c.company === "" &&
+              c.product === "" &&
+              Boolean(c.minuySochen) === Boolean(row.minuySochen)
+          );
+
+          if (defaultContract) {
             let displayValue = "";
 
             if (row.commissionType === "hekef") {
-              displayValue =
-                matchingContract.commissionHekefDisplay ||
-                matchingContract.commissionHekef ||
-                "";
+              if (defaultContract.commissionHekefDisplay) {
+                displayValue = defaultContract.commissionHekefDisplay;
+              } else if (defaultContract.commissionHekef) {
+                displayValue = denormalizeForDisplay(
+                  defaultContract.commissionHekef,
+                  row.valueMode,
+                  vatMode
+                );
+              }
             }
 
             if (row.commissionType === "nifraim") {
-              displayValue =
-                matchingContract.commissionNifraimDisplay ||
-                matchingContract.commissionNifraim ||
-                "";
+              if (defaultContract.commissionNifraimDisplay) {
+                displayValue = defaultContract.commissionNifraimDisplay;
+              } else if (defaultContract.commissionNifraim) {
+                displayValue = denormalizeForDisplay(
+                  defaultContract.commissionNifraim,
+                  row.valueMode,
+                  vatMode
+                );
+              }
             }
 
             if (row.commissionType === "niud") {
-              displayValue =
-                matchingContract.commissionNiudDisplay ||
-                matchingContract.commissionNiud ||
-                "";
+              if (defaultContract.commissionNiudDisplay) {
+                displayValue = defaultContract.commissionNiudDisplay;
+              } else if (defaultContract.commissionNiud) {
+                displayValue = denormalizeForDisplay(
+                  defaultContract.commissionNiud,
+                  row.valueMode,
+                  vatMode
+                );
+              }
             }
 
-            nextValues[
-              buildCellKey(table.key, section.key, row.label, company.id)
-            ] = displayValue;
+            // שים בכל הסקשנים של אותו productGroupId
+            const allSectionsForGroup = table.sections.filter(
+              (s: any) => String(s.productGroupId) === String(section.productGroupId)
+            );
+            allSectionsForGroup.forEach((s: any) => {
+              nextDefaults[buildDefaultKey(table.key, s.key, row.label)] = displayValue;
+            });
+          }
+        }
+
+        // ─── לפי חברה ───
+        companiesForGroup.forEach((company) => {
+          const matchingContract = contracts.find((c) => {
+            const sameCompany = c.company === company.companyName;
+            const sameMinuy = Boolean(c.minuySochen) === Boolean(row.minuySochen);
+            const productMatch = productsForSection.some(
+              (p) => p.productName === c.product
+            );
+            return (
+              c.AgentId === effectiveAgentId &&
+              sameCompany &&
+              sameMinuy &&
+              c.productsGroup === "" &&
+              productMatch
+            );
           });
+
+          if (!matchingContract) return;
+
+          let displayValue = "";
+
+          if (row.commissionType === "hekef") {
+            if (matchingContract.commissionHekefDisplay) {
+              displayValue = matchingContract.commissionHekefDisplay;
+            } else if (matchingContract.commissionHekef) {
+              displayValue = denormalizeForDisplay(
+                matchingContract.commissionHekef,
+                row.valueMode,
+                vatMode
+              );
+            }
+          }
+
+          if (row.commissionType === "nifraim") {
+            if (matchingContract.commissionNifraimDisplay) {
+              displayValue = matchingContract.commissionNifraimDisplay;
+            } else if (matchingContract.commissionNifraim) {
+              displayValue = denormalizeForDisplay(
+                matchingContract.commissionNifraim,
+                row.valueMode,
+                vatMode
+              );
+            }
+          }
+
+          if (row.commissionType === "niud") {
+            if (matchingContract.commissionNiudDisplay) {
+              displayValue = matchingContract.commissionNiudDisplay;
+            } else if (matchingContract.commissionNiud) {
+              displayValue = denormalizeForDisplay(
+                matchingContract.commissionNiud,
+                row.valueMode,
+                vatMode
+              );
+            }
+          }
+
+          nextValues[
+            buildCellKey(table.key, section.key, row.label, company.id)
+          ] = displayValue;
         });
       });
     });
+  });
+
+ const hasLegacyContracts = contracts.some(
+  (c) =>
+    !c.commissionHekefDisplay &&
+    !c.commissionNifraimDisplay &&
+    !c.commissionNiudDisplay &&
+    (c.commissionHekef || c.commissionNifraim || c.commissionNiud)
+);
+
 setCellValues(nextValues);
 setDefaultValues(nextDefaults);
 
-setOriginalCellValues(nextValues);
-setOriginalDefaultValues(nextDefaults);
+if (!skipResetOriginalRef.current) {
+  if (hasLegacyContracts) {
+    setOriginalCellValues({});
+    setOriginalDefaultValues({});
+  } else {
+    setOriginalCellValues(nextValues);
+    setOriginalDefaultValues(nextDefaults);
+  }
+}
+skipResetOriginalRef.current = false;
 
-    
-  }, [contracts, products, companies, visibleCompaniesByGroup, effectiveAgentId]);
-
-
-
+}, [contracts, products, companies, visibleCompaniesByGroup, effectiveAgentId]);
 
 const saveContracts = async () => {
   if (!effectiveAgentId) {
@@ -715,7 +915,6 @@ const handleUploadExcel = async (e: React.ChangeEvent<HTMLInputElement>) => {
     });
 
     const data = await res.json();
-alert(JSON.stringify(data));
 
     if (!res.ok) {
       addToast("error", data.error || "שגיאה בהעלאה");
@@ -723,16 +922,117 @@ alert(JSON.stringify(data));
     }
 
     addToast("success", `הועלה בהצלחה — ${data.writeCount} רשומות נשמרו`);
+    skipResetOriginalRef.current = true; // ← לא לאפס originals
     await fetchContracts();
   } catch (err) {
-    // console.error("upload error:", err);
     addToast("error", "שגיאה בהעלאת הקובץ");
   } finally {
     setIsUploading(false);
-    // איפוס ה-input כדי שיהיה אפשר להעלות את אותו קובץ שוב
     if (uploadInputRef.current) uploadInputRef.current.value = "";
   }
 };
+
+
+// ─── פונקציה לזיהוי סוכן ישן ───
+const isLegacyAgent = useMemo(() => {
+  return contracts.some(
+    (c) =>
+      !c.commissionHekefDisplay &&
+      !c.commissionNifraimDisplay &&
+      !c.commissionNiudDisplay &&
+      (c.commissionHekef || c.commissionNifraim || c.commissionNiud)
+  );
+}, [contracts]);
+
+// ─── המרה הפוכה מנטו לברוטו/למיליון ───
+
+// ─── מציאת section לפי חוזה ───
+// const findSectionForContract = (contract: ContractDoc) => {
+//   for (const table of CONTRACTS_TABLES_CONFIG) {
+//     for (const section of table.sections) {
+//       if (contract.productsGroup) {
+//         // ברירת מחדל — לפי productsGroup
+//         if (String(section.productGroupId) === String(contract.productsGroup)) {
+//           return { table, section };
+//         }
+//       } else {
+//         // לפי מוצר
+//         const productDoc = products.find(
+//           (p) => p.productName === contract.product
+//         );
+//         if (!productDoc) continue;
+//         const sameGroup =
+//           String(section.productGroupId) === String(productDoc.productGroup);
+//         const sameSubGroup = section.productSubGroupId
+//           ? String(section.productSubGroupId) ===
+//             String(productDoc.productSubGroupId || "")
+//           : true;
+//         if (sameGroup && sameSubGroup) {
+//           return { table, section };
+//         }
+//       }
+//     }
+//   }
+//   return null;
+// };
+
+// ─── פונקציית עדכון לפורמט החדש ───
+// const migrateToNewFormat = () => {
+//   const nextCellValues = { ...cellValuesRef.current };
+//   const nextDefaultValues = { ...defaultValuesRef.current };
+
+//   contracts.forEach((contract) => {
+//     // דלג על חוזים שכבר יש להם Display
+//     if (
+//       contract.commissionHekefDisplay ||
+//       contract.commissionNifraimDisplay ||
+//       contract.commissionNiudDisplay
+//     )
+//       return;
+
+//     const found = findSectionForContract(contract);
+//     if (!found) return;
+
+//     const { table, section } = found;
+//     const vatMode = getVatModeByTable(table.key);
+
+//     section.rows.forEach((row: any) => {
+//       if (Boolean(row.minuySochen) !== Boolean(contract.minuySochen)) return;
+
+//       let netValue = "";
+//       if (row.commissionType === "hekef") netValue = contract.commissionHekef || "";
+//       if (row.commissionType === "nifraim") netValue = contract.commissionNifraim || "";
+//       if (row.commissionType === "niud") netValue = contract.commissionNiud || "";
+
+//       if (!netValue) return;
+
+//       const displayValue = denormalizeForDisplay(
+//         netValue,
+//         row.valueMode,
+//         vatMode
+//       );
+
+//       if (contract.productsGroup) {
+//         // ברירת מחדל
+//         const key = buildDefaultKey(table.key, section.key, row.label);
+//         nextDefaultValues[key] = displayValue;
+//       } else {
+//         // לפי חברה
+//         const company = companies.find(
+//           (c) => c.companyName === contract.company
+//         );
+//         if (!company) return;
+//         const key = buildCellKey(table.key, section.key, row.label, company.id);
+//         nextCellValues[key] = displayValue;
+//       }
+//     });
+//   });
+
+//   setCellValues(nextCellValues);
+//   setDefaultValues(nextDefaultValues);
+//   addToast("success", "הערכים הומרו — בדוק ולחץ שמור לאישור");
+// };
+
 
   return (
     <div className="contracts-page" dir="rtl">
@@ -775,7 +1075,6 @@ alert(JSON.stringify(data));
       ))}
     </select>
   )}
-
   <Button
     onClick={saveContracts}
     text="שמור"
@@ -791,7 +1090,6 @@ alert(JSON.stringify(data));
     icon="off"
     state="default"
   />
-
   {/* כפתור העלאה */}
   <input
     ref={uploadInputRef}
@@ -809,6 +1107,13 @@ alert(JSON.stringify(data));
   />
 </div>
 </div>
+{isLegacyAgent && (
+  <div className="legacy-banner">
+    <div className="legacy-banner-text">
+      ⚠️ נמצאו הסכמים בפורמט ישן — הערכים חושבו מחדש, בדוק ולחץ שמור לאישור
+    </div>
+  </div>
+)}
       {visibleTables.map((table: any) => (
         <div key={table.key} className="table-card">
           <div className="table-card-header">
@@ -850,45 +1155,55 @@ const densityClass = getDensityClassByCompanies(companiesForGroup.length);
                             </div>
                           </td>
 
-                          {table.showDefaultColumn && (
-                            <td className="default-col-cell">
-                              {(() => {
-                                const defaultKey = buildDefaultKey(
-                                  table.key,
-                                  section.key,
-                                  row.label
-                                );
-                                const defaultValue = defaultValues[defaultKey] || "";
+                  {table.showDefaultColumn && (
+  <td className="default-col-cell">
+    {(() => {
+      const firstSectionInGroup = table.sections.find(
+        (s: any) => String(s.productGroupId) === String(section.productGroupId)
+      );
+      const isFirstSection = firstSectionInGroup?.key === section.key;
 
-                                return (
-                                  <>
-                                  <input
-  className={`contracts-input ${
-  isDefaultDirty(defaultKey, defaultValue) ? "contracts-input-dirty" : ""
-}`}
-  value={defaultValue}
-  placeholder={getPlaceholder(row.valueMode)}
-  onChange={(e) => {
-    const value = e.target.value;
+      if (!isFirstSection) {
+        return (
+          <div className="default-linked-note">
+            משותף עם "{firstSectionInGroup?.label}"
+          </div>
+        );
+      }
 
-    setDefaultValues((prev) => ({
-      ...prev,
-      [defaultKey]: value,
-    }));
+      const defaultKey = buildDefaultKey(
+        table.key,
+        section.key,
+        row.label
+      );
+      const defaultValue = defaultValues[defaultKey] || "";
 
-  }}
-/>
-                                    {defaultValue && (
-                                      <div className="cell-helper">
-                                        {getHelper(defaultValue, row.valueMode, table.key)}
-                                      </div>
-                                    )}
-                                  </>
-                                );
-                              })()}
-                            </td>
-                          )}
-
+      return (
+        <>
+          <input
+            className={`contracts-input ${
+              isDefaultDirty(defaultKey, defaultValue) ? "contracts-input-dirty" : ""
+            }`}
+            value={defaultValue}
+            placeholder={getPlaceholder(row.valueMode)}
+            onChange={(e) => {
+              const value = e.target.value;
+              setDefaultValues((prev) => ({
+                ...prev,
+                [defaultKey]: value,
+              }));
+            }}
+          />
+          {defaultValue && (
+            <div className="cell-helper">
+              {getHelper(defaultValue, row.valueMode, table.key)}
+            </div>
+          )}
+        </>
+      );
+    })()}
+  </td>
+)}
                           {companiesForGroup.map((company) => {
                             const key = buildCellKey(
                               table.key,

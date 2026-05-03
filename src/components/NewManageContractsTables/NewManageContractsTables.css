@@ -426,3 +426,27 @@
   padding-top: 14px;
   border-top: 1px solid rgba(15, 23, 42, 0.06);
 }
+.default-linked-note {
+  font-size: 11px;
+  color: #888;
+  text-align: center;
+  padding: 4px;
+  font-style: italic;
+}
+.legacy-banner {
+  background: #FFF3CD;
+  border: 1px solid #FFC107;
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  direction: rtl;
+}
+
+.legacy-banner-text {
+  font-size: 14px;
+  color: #856404;
+}

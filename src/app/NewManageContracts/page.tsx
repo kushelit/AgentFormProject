@@ -1,7 +1,7 @@
 'use client';
 
 import { Suspense, useEffect, useState } from "react";
-// import NewManageContracts from "./NewManageContracts";
+ import NewManageContracts from "./NewManageContracts";
 import NewManageContractsTables from "@/components/NewManageContractsTables/NewManageContractsTables";
 import { useAuth } from "@/lib/firebase/AuthContext";
 import AccessDenied from "@/components/AccessDenied";
@@ -10,6 +10,8 @@ import { usePermission } from "@/hooks/usePermission";
 const ManageContractsPage = () => {
   const { user, isLoading } = useAuth();
   const [ready, setReady] = useState(false);
+const { detail } = useAuth();
+
 
   const { canAccess, isChecking } = usePermission(user ? "access_manageContracts" : null);
 
@@ -42,12 +44,22 @@ const ManageContractsPage = () => {
   }
 
   // מוכן להציג
+  // return (
+  //   <Suspense fallback={<div>Loading...</div>}>
+  //     {/* <NewManageContracts /> */}
+  //     <NewManageContractsTables />
+  //   </Suspense>
+  // );
+
   return (
-    <Suspense fallback={<div>Loading...</div>}>
-      {/* <NewManageContracts /> */}
+  <Suspense fallback={<div>Loading...</div>}>
+    {detail?.role === "admin" ? (
       <NewManageContractsTables />
-    </Suspense>
-  );
+    ) : (
+      <NewManageContracts />
+    )}
+  </Suspense>
+);
 };
 
 export default ManageContractsPage;
