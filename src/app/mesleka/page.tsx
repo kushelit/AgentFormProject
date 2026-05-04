@@ -74,7 +74,11 @@ export default function TestMeslekaPage() {
 
       const matched = sorted.filter((r) => r.gemelNetMatched).length;
       setMatchStats({ matched, total: sorted.length });
-      setResult(sorted);
+const filtered = sorted.filter(r => 
+  r.status === "פעיל" || (r.accumulation ?? 0) > 0
+);
+setMatchStats({ matched: filtered.filter((r) => r.gemelNetMatched).length, total: filtered.length });
+setResult(filtered);
 
     } catch (err) {
       // console.error("ERROR", err);

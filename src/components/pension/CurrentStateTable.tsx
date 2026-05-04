@@ -132,8 +132,22 @@ export default function CurrentStateTable({ rows }: Props) {
                     <td style={tdStyle}>{percent(row.avgReturn3Y)}</td>
                     <td style={tdStyle}>{percent(row.avgReturn5Y)}</td>
                     <td style={tdStyle}>{percent(row.actuarialBalance)}</td>
-                    <td style={tdStyle}>{money(row.expectedPension)}</td>
-                    <td style={tdStyle}>{money(row.expectedSavings)}</td>
+                    <td style={tdStyle}>
+  {row.expectedPension
+    ? money(row.expectedPension)
+    : row.productType === "קרן פנסיה"
+      ? <span style={{ color: "#94a3b8", fontSize: 11 }}>חבר חדש</span>
+      : "—"
+  }
+</td>
+<td style={tdStyle}>
+  {row.expectedSavings
+    ? money(row.expectedSavings)
+    : row.productType === "קרן פנסיה"
+      ? <span style={{ color: "#94a3b8", fontSize: 11 }}>חבר חדש</span>
+      : "—"
+  }
+</td>
                     <td style={tdStyle}>
                       {hasTracks ? (
                         <button

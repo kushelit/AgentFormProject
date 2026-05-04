@@ -42,7 +42,7 @@ export interface HarBituchRow {
   coverageStart: Date | null;
   coverageEnd: Date | null;
   isRenewing: boolean;              // "מתחדש"
-
+isLifelong: boolean; 
   // פרמיה
   premium: number | null;
   premiumType: PremiumType;
@@ -50,6 +50,9 @@ export interface HarBituchRow {
 
   // סיווג
   classification: InsuranceClassification;
+
+  // ענפים משניים (כל הכיסויים בפוליסה)
+  subBranches: string[];            // ["ייעוץ ובדיקות", "מחלות קשות", ...]
 
   // מידע נוסף
   additionalInfo: string | null;    // "פרטים נוספים" מהקובץ
@@ -62,6 +65,8 @@ export interface HarBituchRow {
   discountPercent: number | null;
   discountExpiryDate: string | null;
   futurePremiums: Array<{ date: string; premium: number }> | null;
+  medicalAddition: string | null;       // תוספת חיתומית
+  occupationalAddition: string | null;  // תוספת מקצועית
   pdfEnriched: boolean;
 }
 
@@ -78,12 +83,10 @@ export interface HarBituchParseResult {
 async function extractXlsxFromZipOrFile(file: File): Promise<ArrayBuffer> {
   const name = file.name.toLowerCase();
 
-  // אם זה כבר XLSX — פשוט תחזיר
   if (name.endsWith(".xlsx") || name.endsWith(".xls")) {
     return file.arrayBuffer();
   }
 
-  // אם זה ZIP — חלץ את ה-XLSX הראשון שבתוכו
   if (name.endsWith(".zip")) {
     const JSZip = (await import("jszip")).default;
     const zip = await JSZip.loadAsync(file);
@@ -96,16 +99,13 @@ async function extractXlsxFromZipOrFile(file: File): Promise<ArrayBuffer> {
       throw new Error("לא נמצא קובץ Excel בתוך ה-ZIP");
     }
 
-    const buffer = await xlsxEntry.async("arraybuffer");
-    return buffer;
+    return xlsxEntry.async("arraybuffer");
   }
 
   throw new Error("פורמט קובץ לא נתמך — יש להעלות XLSX או ZIP");
 }
 
-
 // ─── Branch Normalization ──────────────────────────────────────
-
 
 function normalizeBranch(main: string, sub: string): InsuranceBranch {
   if (main.includes("חיים") || sub.includes("מוות") || sub.includes("חיים")) return "ביטוח חיים";
@@ -145,9 +145,11 @@ function parseCoveragePeriod(raw: string | null): {
   start: Date | null;
   end: Date | null;
   isRenewing: boolean;
+  isLifelong: boolean; 
 } {
-  if (!raw) return { start: null, end: null, isRenewing: false };
-  if (raw.trim() === "מתחדש") return { start: null, end: null, isRenewing: true };
+  if (!raw) return { start: null, end: null, isRenewing: false, isLifelong: false };
+  if (raw.trim() === "מתחדש") return { start: null, end: null, isRenewing: true, isLifelong: false };
+  if (raw.trim() === "לכל החיים") return { start: null, end: null, isRenewing: false, isLifelong: true };
 
   const parts = raw.split(" - ").map((s) => s.trim());
   const parseDate = (s: string): Date | null => {
@@ -160,6 +162,7 @@ function parseCoveragePeriod(raw: string | null): {
     start: parts[0] ? parseDate(parts[0]) : null,
     end: parts[1] ? parseDate(parts[1]) : null,
     isRenewing: false,
+    isLifelong: false,
   };
 }
 
@@ -176,75 +179,65 @@ function normalizeClassification(raw: string | null): InsuranceClassification {
 // ─── Main Parser (Browser — uses SheetJS) ────────────────────
 
 export async function parseHarBituchXlsx(file: File): Promise<HarBituchParseResult> {
-  // SheetJS
   const XLSX = await import("xlsx");
 
-   // ✅ תמיכה ב-ZIP וב-XLSX ישירות
   const buffer = await extractXlsxFromZipOrFile(file);
   const wb = XLSX.read(buffer, { type: "array", cellDates: true, dateNF: "dd/mm/yyyy" });
- 
 
   const sheetName = wb.SheetNames[0];
   const ws = wb.Sheets[sheetName];
-// ✅ הרחב את הטווח אוטומטית
-if (ws["!ref"]) {
-  const ref = XLSX.utils.decode_range(ws["!ref"]);
-  // הרחב עד שורה 10000
-  ref.e.r = Math.max(ref.e.r, 9999);
-  ws["!ref"] = XLSX.utils.encode_range(ref);
-}
 
+  if (ws["!ref"]) {
+    const ref = XLSX.utils.decode_range(ws["!ref"]);
+    ref.e.r = Math.max(ref.e.r, 9999);
+    ws["!ref"] = XLSX.utils.encode_range(ref);
+  }
 
   console.log("ws ref:", ws["!ref"]);
-console.log("ws keys:", Object.keys(ws).slice(0, 20));
+  console.log("ws keys:", Object.keys(ws).slice(0, 20));
 
+  const range = XLSX.utils.decode_range(ws["!ref"] ?? "A1:K20");
+  const rawRows: any[][] = [];
 
-const range = XLSX.utils.decode_range(ws["!ref"] ?? "A1:K20");
-const rawRows: any[][] = [];
-for (let r = range.s.r; r <= range.e.r; r++) {
-  const row: any[] = [];
-  for (let c = range.s.c; c <= range.e.c; c++) {
-    const cell = ws[XLSX.utils.encode_cell({ r, c })];
-    if (!cell) { row.push(null); continue; }
-    
-    // מספרים גדולים — שמור ערך גולמי
-    if (cell.t === "n" && Math.abs(cell.v) > 1e10) {
-      row.push(String(cell.v));
-    } else {
-      row.push(XLSX.utils.format_cell(cell));
+  for (let r = range.s.r; r <= range.e.r; r++) {
+    const row: any[] = [];
+    for (let c = range.s.c; c <= range.e.c; c++) {
+      const cell = ws[XLSX.utils.encode_cell({ r, c })];
+      if (!cell) { row.push(null); continue; }
+
+      // מספרים גדולים — שמור ערך גולמי
+      if (cell.t === "n" && Math.abs(cell.v) > 1e10) {
+        row.push(String(cell.v));
+      } else {
+        row.push(XLSX.utils.format_cell(cell));
+      }
     }
+    rawRows.push(row);
   }
-  rawRows.push(row);
-}
 
-console.log("rawRows length:", rawRows.length);
-console.log("rawRows:", rawRows);
+  console.log("rawRows length:", rawRows.length);
 
   let extractedAt = "";
   let headerRowIdx = -1;
   let idNumber: string | null = null;
 
-  // מציאת תאריך הפקה + שורת כותרות
   for (let i = 0; i < Math.min(rawRows.length, 10); i++) {
     const row = rawRows[i] as any[];
-
-      console.log(`raw row ${i}:`, row);
+    console.log(`raw row ${i}:`, row);
 
     if (!row || row.length === 0) continue;
 
     const rowStr = row.join(" ");
 
-    // תאריך הפקה
     if (rowStr.includes("הר הביטוח") && !extractedAt) {
       const dateCell = row.find((c: any) => c && /\d{2}\/\d{2}\/\d{4}/.test(String(c)));
       if (dateCell) extractedAt = String(dateCell);
     }
 
-    // שורת כותרות
     if (row.includes("תעודת זהות") || row.includes("ענף ראשי") || row.includes("סוג מוצר")) {
-  headerRowIdx = i;
-  break;
-}
+      headerRowIdx = i;
+      break;
+    }
   }
 
   if (headerRowIdx === -1) {
@@ -252,34 +245,33 @@ console.log("rawRows:", rawRows);
   }
 
   const headers = (rawRows[headerRowIdx] as any[]).map((h: any) => String(h ?? "").trim());
-console.log("headers:", headers);
-console.log("headerRowIdx:", headerRowIdx);  // ← הוסיפי כאן
-console.log("first data row:", rawRows[headerRowIdx + 1]);  // ← והוסיפי כאן
+  console.log("headers:", headers);
+  console.log("headerRowIdx:", headerRowIdx);
+  console.log("first data row:", rawRows[headerRowIdx + 1]);
 
   const col = (name: string) => headers.indexOf(name);
 
   const rows: HarBituchRow[] = [];
-let emptyRowCount = 0;
+  let emptyRowCount = 0;
 
   for (let i = headerRowIdx + 1; i < rawRows.length; i++) {
     const row = rawRows[i] as any[];
     if (!row || row.length === 0) continue;
 
- const get = (name: string): string | null => {
-  const idx = col(name);
-  if (idx === -1) return null;
-  const val = row[idx];
-  if (val == null || val === "") return null;
-  const str = String(val).trim();
-  
-  // תיקון notation מדעי: "1.54068E+11" → "154068000000"
-  if (/^-?\d+\.?\d*[eE][+\-]\d+$/.test(str)) {
-    return Math.round(Number(str)).toString();
-  }
-  
-  return str;
-};
+    const get = (name: string): string | null => {
+      const idx = col(name);
+      if (idx === -1) return null;
+      const val = row[idx];
+      if (val == null || val === "") return null;
+      const str = String(val).trim();
 
+      // תיקון notation מדעי
+      if (/^-?\d+\.?\d*[eE][+\-]\d+$/.test(str)) {
+        return Math.round(Number(str)).toString();
+      }
+
+      return str;
+    };
 
     const getNum = (name: string): number | null => {
       const v = get(name);
@@ -288,32 +280,27 @@ let emptyRowCount = 0;
       return Number.isFinite(n) ? n : null;
     };
 
-    // דלג על שורות כותרת תחום ("תחום - כללי" וכו')
     const main = get("ענף ראשי");
     const sub = get("ענף (משני)");
 
-    // ✅ עצור אם 3 שורות ריקות ברצף
-if (!main && !sub && !get("מספר פוליסה") && !get("חברה")) {
-  // ספור שורות ריקות ברצף
-  emptyRowCount = (emptyRowCount ?? 0) + 1;
-  if (emptyRowCount >= 3) break;
-  continue;
-} else {
-  emptyRowCount = 0;
-}
+    if (!main && !sub && !get("מספר פוליסה") && !get("חברה")) {
+      emptyRowCount = (emptyRowCount ?? 0) + 1;
+      if (emptyRowCount >= 3) break;
+      continue;
+    } else {
+      emptyRowCount = 0;
+    }
 
+    if (i < headerRowIdx + 20) {
+      console.log(`row ${i}: main="${main}" sub="${sub}" policy="${get("מספר פוליסה")}"`);
+    }
 
-if (i < headerRowIdx + 20) {
-  console.log(`row ${i}: main="${main}" sub="${sub}" policy="${get("מספר פוליסה")}"`);
-}
     if (!main && !sub) continue;
-if (!main && !sub) continue;
-if ((main && main.startsWith("תחום")) || (sub && sub.startsWith("תחום"))) continue;
+    if ((main && main.startsWith("תחום")) || (sub && sub.startsWith("תחום"))) continue;
 
     const policyNumber = get("מספר פוליסה");
     if (!policyNumber) continue;
 
-    // ת.ז מהשורה הראשונה של הנתונים
     const rowId = get("תעודת זהות");
     if (rowId && !idNumber) idNumber = rowId;
 
@@ -323,7 +310,7 @@ if ((main && main.startsWith("תחום")) || (sub && sub.startsWith("תחום"))
     const premiumMonthly = toMonthlyPremium(premiumRaw, premiumType);
 
     const periodRaw = get("תקופת ביטוח");
-    const { start, end, isRenewing } = parseCoveragePeriod(periodRaw);
+const { start, end, isRenewing, isLifelong } = parseCoveragePeriod(periodRaw);
 
     const branchMain = main ?? "";
     const branchSub = sub ?? "";
@@ -334,6 +321,7 @@ if ((main && main.startsWith("תחום")) || (sub && sub.startsWith("תחום"))
       policyNumber,
       branchMain,
       branchSub,
+      subBranches: sub ? [sub] : [],
       productType,
       isLifeOrHealth: isLifeOrHealth(productType),
       companyName: get("חברה") ?? "",
@@ -341,6 +329,7 @@ if ((main && main.startsWith("תחום")) || (sub && sub.startsWith("תחום"))
       coverageStart: start,
       coverageEnd: end,
       isRenewing,
+      isLifelong,
       premium: premiumRaw,
       premiumType,
       premiumMonthly,
@@ -354,15 +343,43 @@ if ((main && main.startsWith("תחום")) || (sub && sub.startsWith("תחום"))
       discountPercent: null,
       discountExpiryDate: null,
       futurePremiums: null,
+      medicalAddition: null,
+      occupationalAddition: null,
       pdfEnriched: false,
     });
   }
 
+  // ─── Deduplicate by policyNumber ─────────────────────────────
+  // פוליסה אחת יכולה להופיע בכמה שורות (כיסוי אחר לכל שורה)
+  // מאחדים: סוכמים פרמיות, אוספים ענפים משניים
+  const deduped = new Map<string, HarBituchRow>();
+
+  for (const row of rows) {
+    const existing = deduped.get(row.policyNumber);
+    if (!existing) {
+      deduped.set(row.policyNumber, { ...row });
+    } else {
+      // צבור פרמיה
+      if (row.premiumMonthly != null) {
+        existing.premiumMonthly = (existing.premiumMonthly ?? 0) + row.premiumMonthly;
+      }
+      if (row.premium != null) {
+        existing.premium = (existing.premium ?? 0) + row.premium;
+      }
+      // אסוף ענפים משניים
+      if (row.branchSub && !existing.subBranches.includes(row.branchSub)) {
+        existing.subBranches.push(row.branchSub);
+      }
+    }
+  }
+
+  const uniqueRows = Array.from(deduped.values());
+
   return {
     extractedAt,
     idNumber,
-    rows,
-    lifeAndHealthRows: rows.filter((r) => r.isLifeOrHealth),
-    generalRows: rows.filter((r) => !r.isLifeOrHealth),
+    rows: uniqueRows,
+    lifeAndHealthRows: uniqueRows.filter((r) => r.isLifeOrHealth),
+    generalRows: uniqueRows.filter((r) => !r.isLifeOrHealth),
   };
 }

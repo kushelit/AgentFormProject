@@ -12,11 +12,6 @@ function money(value?: number | null) {
   return value.toLocaleString("he-IL", { maximumFractionDigits: 0 }) + " ₪";
 }
 
-function percent(value?: number | null) {
-  if (value == null) return "—";
-  return `${Number(value).toFixed(0)}%`;
-}
-
 function formatDate(d: Date | null): string {
   if (!d) return "—";
   return d.toLocaleDateString("he-IL", { month: "2-digit", year: "numeric" });
@@ -136,16 +131,22 @@ export default function InsuranceTable({ rows }: Props) {
                 פרמיה חודשית {sortIcon("premiumMonthly")}
               </th>
               <th style={thStyle}>תקופה</th>
-              <th style={thStyle}>מוטב</th>
               <th style={thStyle}>פירוט</th>
             </tr>
           </thead>
           <tbody>
             {sorted.map((row) => {
               const isOpen = openPolicy === row.policyNumber;
-              const hasFuturePremiums = (row.futurePremiums?.length ?? 0) > 0;
               const hasCoverages = (row as any).coverages?.length > 0;
-              const hasDetails = hasFuturePremiums || hasCoverages || row.pdfEnriched;
+              const hasDetails =
+                hasCoverages ||
+                row.pdfEnriched ||
+                !!row.exclusions ||
+                !!row.medicalAddition ||
+                !!row.occupationalAddition ||
+                !!row.smokerStatus ||
+                !!row.classification ||
+                (row.subBranches?.length ?? 0) > 1;
 
               return (
                 <Fragment key={row.policyNumber}>
@@ -176,16 +177,12 @@ export default function InsuranceTable({ rows }: Props) {
                       {money(row.premiumMonthly)}
                     </td>
                     <td style={{ ...tdStyle, fontSize: 11 }}>
-                      {row.isRenewing
-                        ? "מתחדש"
-                        : `${formatDate(row.coverageStart)} – ${formatDate(row.coverageEnd)}`
-                      }
-                    </td>
-                    <td style={{ ...tdStyle, fontSize: 11 }}>
-                      {row.irrevocableBeneficiary
-                        ? <span style={{ color: "#7c3aed", fontWeight: 600 }}>🔒 {row.irrevocableBeneficiary}</span>
-                        : <span style={{ color: "#94a3b8" }}>—</span>
-                      }
+                     {row.isLifelong
+  ? "לכל החיים"
+  : row.isRenewing
+    ? "מתחדש"
+    : `${formatDate(row.coverageStart)} – ${formatDate(row.coverageEnd)}`
+}
                     </td>
                     <td style={tdStyle}>
                       {hasDetails ? (
@@ -203,55 +200,79 @@ export default function InsuranceTable({ rows }: Props) {
                   {/* פאנל פירוט */}
                   {isOpen && (
                     <tr>
-                      <td colSpan={10} style={detailsCellStyle}>
+                      <td colSpan={9} style={detailsCellStyle}>
                         <div style={detailsTitleStyle}>
                           פירוט — {row.companyName} / {row.productType} / {row.policyNumber}
                         </div>
 
-                        {/* מידע בסיסי */}
-                        <div style={detailsSummaryStyle}>
-                          {row.smokerStatus && (
-                            <span>🚬 {row.smokerStatus}</span>
-                          )}
-                          {row.classification && (
-                            <span>📋 {row.classification}</span>
-                          )}
-                          {row.discountPercent && row.discountExpiryDate && (
-                            <span>⚠️ הנחה של {row.discountPercent}% פוגה ב-{row.discountExpiryDate}</span>
-                          )}
-                        </div>
-
-                        {/* טבלת פרמיה עתידית */}
-                        {hasFuturePremiums && (
-                          <>
+                        {/* ענפים משניים — כיסויים בפוליסה */}
+                        {(row.subBranches?.length ?? 0) > 0 && (
+                          <div style={{ marginBottom: 16 }}>
                             <div style={{ fontWeight: 700, marginBottom: 8, fontSize: 13 }}>
-                              📈 התפתחות פרמיה עתידית
+                              🛡️ כיסויים בפוליסה
                             </div>
-                            <div style={{ overflowX: "auto", marginBottom: 16 }}>
-                              <table style={innerTableStyle}>
-                                <thead>
-                                  <tr style={{ background: "#e0f2fe" }}>
-                                    {row.futurePremiums!.map((fp, i) => (
-                                      <th key={i} style={innerThStyle}>{fp.date}</th>
-                                    ))}
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  <tr>
-                                    {row.futurePremiums!.map((fp, i) => (
-                                      <td key={i} style={{
-                                        ...innerTdStyle,
-                                        fontWeight: i === 0 ? 800 : 400,
-                                        color: i === 0 ? "#0f172a" : fp.premium > (row.premiumMonthly ?? 0) * 3 ? "#dc2626" : "#0f172a",
-                                      }}>
-                                        {money(fp.premium)}
-                                      </td>
-                                    ))}
-                                  </tr>
-                                </tbody>
-                              </table>
+                            <div style={{
+                              display: "flex", flexWrap: "wrap", gap: 6,
+                            }}>
+                              {row.subBranches.map((sub, i) => (
+                                <span key={i} style={{
+                                  background: "#f0f9ff", border: "1px solid #bae6fd",
+                                  borderRadius: 999, padding: "2px 10px",
+                                  fontSize: 11, color: "#0369a1", fontWeight: 600,
+                                }}>
+                                  {sub}
+                                </span>
+                              ))}
                             </div>
-                          </>
+                          </div>
+                        )}
+
+                        {/* מידע בסיסי */}
+                        {(row.smokerStatus || row.classification || (row.discountPercent && row.discountExpiryDate)) && (
+                          <div style={detailsSummaryStyle}>
+                            {row.smokerStatus && (
+                              <span>🚬 {row.smokerStatus}</span>
+                            )}
+                            {row.classification && (
+                              <span>📋 {row.classification}</span>
+                            )}
+                            {row.discountPercent && row.discountExpiryDate && (
+                              <span>⚠️ הנחה של {row.discountPercent}% פוגה ב-{row.discountExpiryDate}</span>
+                            )}
+                          </div>
+                        )}
+
+                        {/* תוספות והחרגות */}
+                        {(row.exclusions || row.medicalAddition || row.occupationalAddition) && (
+                          <div style={{ marginBottom: 16 }}>
+                            <div style={{ fontWeight: 700, marginBottom: 8, fontSize: 13 }}>
+                              📋 תוספות והחרגות
+                            </div>
+                            <div style={{
+                              background: "white", border: "1px solid #e5e7eb",
+                              borderRadius: 10, padding: "12px 16px",
+                              display: "flex", flexDirection: "column", gap: 8,
+                            }}>
+                              {row.exclusions && (
+                                <div style={{ fontSize: 12 }}>
+                                  <span style={{ fontWeight: 700, color: "#dc2626" }}>החרגות: </span>
+                                  <span>{row.exclusions}</span>
+                                </div>
+                              )}
+                              {row.medicalAddition && (
+                                <div style={{ fontSize: 12 }}>
+                                  <span style={{ fontWeight: 700, color: "#92400e" }}>תוספת חיתומית: </span>
+                                  <span>{row.medicalAddition}</span>
+                                </div>
+                              )}
+                              {row.occupationalAddition && (
+                                <div style={{ fontSize: 12 }}>
+                                  <span style={{ fontWeight: 700, color: "#92400e" }}>תוספת מקצועית: </span>
+                                  <span>{row.occupationalAddition}</span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
                         )}
 
                         {/* פירוט כיסויים */}
