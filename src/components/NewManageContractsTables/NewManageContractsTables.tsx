@@ -1166,11 +1166,10 @@ const densityClass = getDensityClassByCompanies(companiesForGroup.length);
       if (!isFirstSection) {
         return (
           <div className="default-linked-note">
-            משותף עם "{firstSectionInGroup?.label}"
+משותף עם &quot;{firstSectionInGroup?.label}&quot;
           </div>
         );
       }
-
       const defaultKey = buildDefaultKey(
         table.key,
         section.key,
