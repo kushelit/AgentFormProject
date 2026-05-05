@@ -395,7 +395,6 @@ function OtpPageInner() {
     const q = query(
       collection(db, "portalImportRuns"),
       where("agentId", "==", uid),
-      where("status", "==", "otp_required"),
       orderBy("createdAt", "desc"),
       limit(20)
     );
