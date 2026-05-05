@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useCallback } from "react";
+import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import type { Firestore } from "firebase/firestore";
 import { doc, onSnapshot, updateDoc, serverTimestamp } from "firebase/firestore";
 
@@ -38,37 +38,39 @@ export function usePortalRun(
   const [run, setRun] = useState<PortalRunDoc | null>(null);
   const [loading, setLoading] = useState<boolean>(!!runId);
 
-  useEffect(() => {
-    if (!runId) {
-      setRun(null);
+ const onFinishedRef = useRef(onFinished);
+useEffect(() => { 
+  onFinishedRef.current = onFinished; 
+}, [onFinished]);
+
+useEffect(() => {
+  if (!runId) {
+    setRun(null);
+    setLoading(false);
+    return;
+  }
+
+  setLoading(true);
+  const ref = doc(db, "portalImportRuns", runId);
+
+  const unsub = onSnapshot(
+    ref,
+    (snap) => {
       setLoading(false);
-      return;
-    }
+      const data = snap.data() as PortalRunDoc;
+      setRun(data || null);
 
-    setLoading(true);
-    const ref = doc(db, "portalImportRuns", runId);
-
-    const unsub = onSnapshot(
-      ref,
-      (snap) => {
-        setLoading(false);
-        const data = snap.data() as PortalRunDoc;
-        setRun(data || null);
-
-        // ✅ בדיקה אם הסטטוס סופי - ואם כן הפעלת ה-callback
-if (data && data.status && ["done", "skipped", "error", "success"].includes(data.status)) {          if (onFinished) {
-            onFinished(data.status);
-          }
-        }
-      },
-      (err) => {
-        // console.error("PortalRun Snapshot Error:", err);
-        setLoading(false);
+      if (data?.status && ["skipped", "error", "success", "failed"].includes(data.status)) {
+        onFinishedRef.current?.(data.status);
       }
-    );
+    },
+    (err) => {
+      setLoading(false);
+    }
+  );
 
-    return () => unsub();
-  }, [db, runId, onFinished]); // הוספת onFinished למערך התלות
+  return () => unsub();
+}, [db, runId]);
 
   // 📊 חישוב אחוז התקדמות ויזואלי (progress)
   const progress = useMemo(() => {

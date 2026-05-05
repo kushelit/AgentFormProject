@@ -89,7 +89,7 @@ function isOtpWaiting(run: PortalImportRun) {
   if (status !== "otp_required") return false;
   if (otpMode !== "firestore") return false;
 
-  return !["provided", "aborted", "received", "none"].includes(otpState);
+  return !["provided", "aborted", "received"].includes(otpState);
 }
 
 function isFinalStatus(status?: string) {
@@ -617,6 +617,7 @@ function OtpPageInner() {
 
   return (
     <div dir="rtl" className="min-h-screen bg-gray-50 px-4 py-6">
+      <div className="text-xs text-gray-400 text-center mb-2">uid: {uid}</div>
       <div className="mx-auto max-w-sm">
        <div className="mb-4 text-center">
   <div className="text-2xl font-black text-gray-900">קוד אימות</div>

@@ -162,7 +162,12 @@ export async function runClalAll(ctx: RunnerCtx) {
           await clickReportTabHeading(commissionsPage, rep.preExportTabHeading);
         }
 
-        await waitForCommissionsGridFilled(commissionsPage, 45000);
+        // await waitForCommissionsGridFilled(commissionsPage, 45000);
+        const gridResult = await waitForCommissionsGridFilled(commissionsPage, 45000);
+if (gridResult === "TIMEOUT" || gridResult === "NO_DATA") {
+  await setStatus(runId, { status: "running", step: `${rep.stepPrefix}_skipped` });
+  continue;
+}
         await commissionsPage.waitForTimeout(1000); // נשימה לפני הורדה
         
         // הורדת אקסל (הזרקת String)

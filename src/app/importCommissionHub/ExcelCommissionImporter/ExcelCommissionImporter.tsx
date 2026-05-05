@@ -1,7 +1,7 @@
 // ExcelCommissionImporter.tsx – premium + totalPremiumAmount + product intake/normalize
 'use client';
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import * as XLSX from "xlsx";
 import { useAuth } from '@/lib/firebase/AuthContext';
 import useFetchAgentData from '@/hooks/useFetchAgentData';
@@ -236,7 +236,39 @@ handledFinishedRunRef.current = '';
   }
 };
 
+const handlePortalRunFinished = useCallback((status: string) => {
+  if (!autoRunId) return;
 
+  const isFinalPortalStatus =
+  autoRunKind === "self_update"
+    ? status === "done" || status === "error"
+    : status === "success" || status === "error" || 
+      status === "failed" || status === "skipped";
+
+  if (!isFinalPortalStatus) return;
+  if (activeBatchId) return;
+  if (handledFinishedRunRef.current === autoRunId) return;
+
+  handledFinishedRunRef.current = autoRunId;
+  setIsAutoRunActive(false);
+  setActiveAutoCompanyId('');
+  setAutoDashboardRefreshKey((v) => v + 1);
+
+  setTimeout(() => {
+    setAutoDashboardRefreshKey((v) => v + 1);
+  }, 1500);
+
+  if (autoRunKind === "self_update") {
+    if (status === "done") addToast("success", "✅ קובץ העדכון ירד וההתקנה הופעלה.");
+    else if (status === "error") addToast("error", "❌ עדכון הגרסה נכשל.");
+    return;
+  }
+
+  if (status === "skipped") addToast("error", "⏭️ המשיכה דולגה (כבר קיים במערכת)");
+  else if (status === "success" || status === "done") addToast("success", "✅ המשיכה האוטומטית הושלמה בהצלחה!");
+  else if (status === "failed" || status === "error") addToast("error", "ℹ️ הריצה הסתיימה עם שגיאה.");
+
+}, [autoRunId, autoRunKind, activeBatchId]);
 
   /* ==============================
      Helpers
@@ -466,8 +498,6 @@ useEffect(() => {
         setActiveBatchId("");
         setBatchRunIds([]);
         setBatchProgress(null);
-        setAutoRunId("");
-        setAutoRunKind("");
       }, 1200);
     }
   });
@@ -2719,50 +2749,7 @@ addToast(
                 db={db}
                 runId={autoRunId}
                 runKind={autoRunKind}
-    onFinished={(status) => {
-  if (!autoRunId) return;
-
-  const isFinalPortalStatus =
-    autoRunKind === "self_update"
-      ? status === "done" || status === "error"
-      : status === "success" || status === "error" || status === "failed" || status === "skipped";
-
-  if (!isFinalPortalStatus) return;
-
-   // בזמן Batch ה-useEffect של activeBatchId מנהל את הריצה הנוכחית.
-  // לא מאפסים כאן את autoRunId / isAutoRunActive אחרי חברה אחת.
-if (activeBatchId) {
-  return;
-}
-  if (handledFinishedRunRef.current === autoRunId) return;
-
-  handledFinishedRunRef.current = autoRunId;
-
-  setIsAutoRunActive(false);
-  setActiveAutoCompanyId('');
-  setAutoDashboardRefreshKey((v) => v + 1);
-
-  setTimeout(() => {
-    setAutoDashboardRefreshKey((v) => v + 1);
-  }, 1500);
-
-  if (autoRunKind === "self_update") {
-    if (status === "done") {
-      addToast("success", "✅ קובץ העדכון ירד וההתקנה הופעלה.");
-    } else if (status === "error") {
-      addToast("error", "❌ עדכון הגרסה נכשל.");
-    }
-    return;
-  }
-
-  if (status === "skipped") {
-    addToast("error", "⏭️ המשיכה דולגה (כבר קיים במערכת)");
-  } else if (status === "success") {
-    addToast("success", "✅ המשיכה האוטומטית הושלמה בהצלחה!");
-  } else if (status === "failed" || status === "error") {
-    addToast("error", "ℹ️ הריצה הסתיימה עם שגיאה.");
-  }
-}}
+   onFinished={handlePortalRunFinished}
        />
             </div>
           </div>

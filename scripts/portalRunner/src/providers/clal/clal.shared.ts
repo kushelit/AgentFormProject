@@ -325,9 +325,30 @@ export async function clickSearchOnly(page: Page) {
 /**
  * המתנה לטבלה (הזרקת String)
  */
-export async function waitForCommissionsGridFilled(page: Page, timeoutMs = 60000) {
-  // console.log("[Clal] Waiting for grid...");
+// export async function waitForCommissionsGridFilled(page: Page, timeoutMs = 60000) {
+//   // console.log("[Clal] Waiting for grid...");
 
+//   const result = await page.evaluate(`
+//     (function(timeout) {
+//       return new Promise((resolve) => {
+//         const start = Date.now();
+//         const interval = setInterval(() => {
+//           const hasRows = document.querySelectorAll('.ui-grid-row').length > 0;
+//           const noData = document.body.innerText.includes("אין נתונים") || document.querySelector('.ui-grid-empty');
+          
+//           if (hasRows) { clearInterval(interval); resolve("DATA"); }
+//           else if (noData) { clearInterval(interval); resolve("NO_DATA"); }
+//           else if (Date.now() - start > timeout) { clearInterval(interval); resolve("TIMEOUT"); }
+//         }, 1000);
+//       });
+//     })(${timeoutMs})
+//   `);
+
+//   // console.log("[Clal] Grid result: " + result);
+// }
+
+
+export async function waitForCommissionsGridFilled(page: Page, timeoutMs = 60000): Promise<string> {
   const result = await page.evaluate(`
     (function(timeout) {
       return new Promise((resolve) => {
@@ -342,9 +363,9 @@ export async function waitForCommissionsGridFilled(page: Page, timeoutMs = 60000
         }, 1000);
       });
     })(${timeoutMs})
-  `);
+  `) as string;
 
-  // console.log("[Clal] Grid result: " + result);
+  return result;
 }
 
 /**
@@ -417,12 +438,12 @@ export async function exportExcelFromCurrentReport(page: Page): Promise<{ downlo
   `;
 
   try {
-    const downloadPromise = page.waitForEvent("download", { timeout: 45000 });
-    const result = await page.evaluate(injection);
-    if (result === "NOT_FOUND") return { download: null, filename: "" };
-    const download = await downloadPromise;
-    return { download, filename: download.suggestedFilename() };
-  } catch (e) {
-    return { download: null, filename: "" };
-  }
+  const result = await page.evaluate(injection);
+  if (result === "NOT_FOUND") return { download: null, filename: "" };
+  
+  const download = await page.waitForEvent("download", { timeout: 45000 });
+  return { download, filename: download.suggestedFilename() };
+} catch (e) {
+  return { download: null, filename: "" };
+}
 }
