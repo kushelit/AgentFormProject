@@ -22,6 +22,8 @@ export default function PortalRunOtpModal({ runId, onClose }: Props) {
   const [otpValue, setOtpValue] = useState<string>('');
   const [sending, setSending] = useState(false);
 
+  const [submitted, setSubmitted] = useState(false);
+
   // 🔄 האזנה ל-run
   useEffect(() => {
     if (!runId) return;
@@ -51,6 +53,7 @@ export default function PortalRunOtpModal({ runId, onClose }: Props) {
    * לא תלוי יותר ב-otp.state כדי למנוע באגים עתידיים.
    */
   const shouldShow = useMemo(() => {
+    if (submitted) return false; 
     return status === 'otp_required' && otpMode !== 'manual';
   }, [status, otpMode]);
 
@@ -89,21 +92,23 @@ const handleCancel = async () => {
     if (!code) return;
 
     setSending(true);
-
+    setSubmitted(true);
     try {
-      await updateDoc(doc(db, 'portalImportRuns', runId), {
-        'otp.state': 'required',
-        'otp.value': code,
-        'otp.mode': otpMode,
-        updatedAt: serverTimestamp(),
-      });
+    await updateDoc(doc(db, 'portalImportRuns', runId), {
+      'otp.state': 'required',
+      'otp.value': code,
+      'otp.mode': otpMode,
+      updatedAt: serverTimestamp(),
+    });
 
-      setOtpValue('');
-      onClose?.();
-    } finally {
-      setSending(false);
-    }
-  };
+    setOtpValue('');
+    onClose?.();
+  } catch (e) {
+    setSubmitted(false); // ← אם נכשל — מציג שוב
+  } finally {
+    setSending(false);
+  }
+};
 
   return (
     <DialogNotification

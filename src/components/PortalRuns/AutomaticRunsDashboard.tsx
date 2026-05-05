@@ -192,18 +192,6 @@ if (isBatchActive && batchStatus) {
                   toggleCompany(item.companyId);
                 }}
               >
-                {selectableInBatch && (
-                  <div
-                    className={`absolute left-3 top-3 z-10 flex h-7 w-7 items-center justify-center rounded-full border text-xs font-bold ${
-                      selected
-                        ? 'border-blue-600 bg-blue-600 text-white'
-                        : 'border-gray-300 bg-white text-gray-500'
-                    }`}
-                  >
-                    ✓
-                  </div>
-                )}
-
                 <AutoCompanyCard
                   companyName={item.companyName}
                   monthLabel={item.monthLabel}

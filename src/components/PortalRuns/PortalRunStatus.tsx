@@ -175,7 +175,9 @@ export default function PortalRunStatus({
     }
 
     if (isRunLevelEmptyResult) return "empty";
-    if (status === "success" || status === "done") return "success";
+if (status === "done" && !hasJobs) return "processing_files";
+if (status === "done" && (jobsSummary.processingCount > 0 || jobsSummary.queuedCount > 0)) return "processing_files";
+if (status === "success" || status === "done") return "success";
     if (status === "queued" || status === "running" || status === "logged_in" || status === "file_uploaded") {
       return "running";
     }
@@ -217,7 +219,8 @@ export default function PortalRunStatus({
 
     if (hasJobs) {
       if (derivedStatusMode === "error") return "❌ הריצה הסתיימה עם שגיאה";
-      if (derivedStatusMode === "running") return "מריץ אוטומציה…";
+     if (derivedStatusMode === "running") return "מריץ אוטומציה…";
+     if (derivedStatusMode === "processing_files") return "⏳ טוען קבצים למערכת…";
       if (derivedStatusMode === "partial_success") return "✅ הריצה הושלמה חלקית";
       if (derivedStatusMode === "empty") return "ℹ️ הריצה הסתיימה ללא נתונים";
       if (derivedStatusMode === "success") return "✅ נתונים נטענו בהצלחה";

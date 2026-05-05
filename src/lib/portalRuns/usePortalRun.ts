@@ -81,7 +81,8 @@ useEffect(() => {
     if (s === "otp_required") return 50;
     if (s === "logged_in") return 70;
     if (s === "file_uploaded") return 90;
-if (s === "done" || s === "skipped" || s === "success") return 100;
+if (s === "skipped" || s === "success") return 100;
+if (s === "done") return 85; // 
     return 0;
   }, [run?.status]);
 

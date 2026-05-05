@@ -20,7 +20,10 @@ export async function waitMigdalLoaderGone(page: Page, timeoutMs = 30000) {
  * לוגין למגדל - עובד, לא נגעתי
  */
 export async function migdalLogin(page: Page, username: string, password: string) {
-  // console.log("[Migdal] Injecting login credentials...");
+  // המתנה שהשדות יופיעו לפני ההזרקה
+  await page.waitForSelector('#input_1', { state: 'visible', timeout: 30000 }).catch(() => {});
+  await page.waitForSelector('#input_2', { state: 'visible', timeout: 10000 }).catch(() => {});
+  
   const injection = `
     (function(u, p) {
       const user = document.querySelector('#input_1');
@@ -133,12 +136,17 @@ export async function navigateToCommissions(page: Page) {
     })()
   `;
 
-  const result = await page.evaluate(script);
+  const result = await page.evaluate(script).catch((e: any) => {
+  if (String(e.message || "").includes("Execution context was destroyed")) {
+    return "NAVIGATION_OCCURRED";
+  }
+  throw e;
+});
   // console.log(`[Migdal] Navigation result: ${result}`);
 
-  if (String(result) !== "SUCCESS") {
-    throw new Error(String(result));
-  }
+  if (String(result) !== "SUCCESS" && String(result) !== "NAVIGATION_OCCURRED") {
+  throw new Error(String(result));
+}
 
   await waitMigdalLoaderGone(page);
 }

@@ -159,34 +159,6 @@ const AutoCompanyCard: React.FC<Props> = ({
           </div>
         )}
       </div>
-
-      <div className="flex justify-start">
-        {meta.actionLabel ? (
-          <button
-            type="button"
-            onClick={onStart}
-            disabled={actionDisabled}
-            className={`px-4 py-2 rounded-xl text-sm font-bold shadow-sm transition
-              ${
-                actionDisabled
-                  ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
-                  : uiStatus === 'error'
-                    ? 'bg-red-600 text-white hover:bg-red-700'
-                    : 'bg-blue-600 text-white hover:bg-blue-700'
-              }`}
-          >
-            {actionLabel}
-          </button>
-        ) : (
-          <div className="px-4 py-2 rounded-xl text-sm font-bold bg-white/70 text-gray-600 border border-white/80">
-            {uiStatus === 'done'
-              ? 'הושלם'
-              : uiStatus === 'running'
-                ? 'בריצה...'
-                : 'לא זמין'}
-          </div>
-        )}
-      </div>
     </div>
   );
 };

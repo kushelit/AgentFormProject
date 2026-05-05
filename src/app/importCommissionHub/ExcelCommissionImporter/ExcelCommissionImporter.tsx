@@ -252,10 +252,10 @@ const handlePortalRunFinished = useCallback((status: string) => {
   handledFinishedRunRef.current = autoRunId;
   setIsAutoRunActive(false);
   setActiveAutoCompanyId('');
-  setAutoDashboardRefreshKey((v) => v + 1);
+setTimeout(() => setAutoDashboardRefreshKey((v) => v + 1), 3000);
 
   setTimeout(() => {
-    setAutoDashboardRefreshKey((v) => v + 1);
+setTimeout(() => setAutoDashboardRefreshKey((v) => v + 1), 3000);
   }, 1500);
 
   if (autoRunKind === "self_update") {
@@ -484,7 +484,7 @@ useEffect(() => {
     if (allFinished) {
       setIsAutoRunActive(false);
       setActiveAutoCompanyId("");
-      setAutoDashboardRefreshKey((v) => v + 1);
+setTimeout(() => setAutoDashboardRefreshKey((v) => v + 1), 3000);
 
       if (error > 0 && done > 0) {
         addToast("success", `✅ Batch הסתיים: ${done} הושלמו, ${error} עם שגיאה`);

@@ -79,7 +79,11 @@ export async function runMigdalAll(ctx: RunnerCtx) {
     await setStatus(runId, { status: "running", step: "migdal_login" });
     await migdalLogin(page, username, password!);
 
-    await setStatus(runId, { status: "otp_required", step: "ממתין לקוד אימות ממגדל", "otp.mode": "firestore" });
+    await setStatus
+    (runId, { status: "otp_required", 
+      step: "ממתין לקוד אימות ממגדל", 
+       otp: { mode: "firestore", state: "required", value: "" },
+    });
     await migdalHandleOtp(page, ctx);
 
     await page.waitForLoadState("networkidle");
