@@ -82,8 +82,10 @@ const NewManageContractsTables: React.FC = () => {
     "pension" | "finance" | "risk"
   >("pension");
 
-  const effectiveAgentId = selectedAgentId || detail?.agentId || "";
-
+const effectiveAgentId = detail?.role === "admin"
+  ? selectedAgentId
+  : detail?.agentId || "";
+  
 const [originalCellValues, setOriginalCellValues] = useState<Record<string, string>>({});
 const [originalDefaultValues, setOriginalDefaultValues] = useState<Record<string, string>>({});
 
@@ -141,6 +143,10 @@ useEffect(() => {
 
 
 const downloadExcelTemplate = () => {
+   if (!effectiveAgentId) {
+    addToast("error", "יש לבחור סוכן תחילה");
+    return;
+  }
   const url = effectiveAgentId
     ? `/api/contracts-template/download?agentId=${effectiveAgentId}`
     : `/api/contracts-template/download`;
@@ -944,95 +950,6 @@ const isLegacyAgent = useMemo(() => {
   );
 }, [contracts]);
 
-// ─── המרה הפוכה מנטו לברוטו/למיליון ───
-
-// ─── מציאת section לפי חוזה ───
-// const findSectionForContract = (contract: ContractDoc) => {
-//   for (const table of CONTRACTS_TABLES_CONFIG) {
-//     for (const section of table.sections) {
-//       if (contract.productsGroup) {
-//         // ברירת מחדל — לפי productsGroup
-//         if (String(section.productGroupId) === String(contract.productsGroup)) {
-//           return { table, section };
-//         }
-//       } else {
-//         // לפי מוצר
-//         const productDoc = products.find(
-//           (p) => p.productName === contract.product
-//         );
-//         if (!productDoc) continue;
-//         const sameGroup =
-//           String(section.productGroupId) === String(productDoc.productGroup);
-//         const sameSubGroup = section.productSubGroupId
-//           ? String(section.productSubGroupId) ===
-//             String(productDoc.productSubGroupId || "")
-//           : true;
-//         if (sameGroup && sameSubGroup) {
-//           return { table, section };
-//         }
-//       }
-//     }
-//   }
-//   return null;
-// };
-
-// ─── פונקציית עדכון לפורמט החדש ───
-// const migrateToNewFormat = () => {
-//   const nextCellValues = { ...cellValuesRef.current };
-//   const nextDefaultValues = { ...defaultValuesRef.current };
-
-//   contracts.forEach((contract) => {
-//     // דלג על חוזים שכבר יש להם Display
-//     if (
-//       contract.commissionHekefDisplay ||
-//       contract.commissionNifraimDisplay ||
-//       contract.commissionNiudDisplay
-//     )
-//       return;
-
-//     const found = findSectionForContract(contract);
-//     if (!found) return;
-
-//     const { table, section } = found;
-//     const vatMode = getVatModeByTable(table.key);
-
-//     section.rows.forEach((row: any) => {
-//       if (Boolean(row.minuySochen) !== Boolean(contract.minuySochen)) return;
-
-//       let netValue = "";
-//       if (row.commissionType === "hekef") netValue = contract.commissionHekef || "";
-//       if (row.commissionType === "nifraim") netValue = contract.commissionNifraim || "";
-//       if (row.commissionType === "niud") netValue = contract.commissionNiud || "";
-
-//       if (!netValue) return;
-
-//       const displayValue = denormalizeForDisplay(
-//         netValue,
-//         row.valueMode,
-//         vatMode
-//       );
-
-//       if (contract.productsGroup) {
-//         // ברירת מחדל
-//         const key = buildDefaultKey(table.key, section.key, row.label);
-//         nextDefaultValues[key] = displayValue;
-//       } else {
-//         // לפי חברה
-//         const company = companies.find(
-//           (c) => c.companyName === contract.company
-//         );
-//         if (!company) return;
-//         const key = buildCellKey(table.key, section.key, row.label, company.id);
-//         nextCellValues[key] = displayValue;
-//       }
-//     });
-//   });
-
-//   setCellValues(nextCellValues);
-//   setDefaultValues(nextDefaultValues);
-//   addToast("success", "הערכים הומרו — בדוק ולחץ שמור לאישור");
-// };
-
 
   return (
     <div className="contracts-page" dir="rtl">
@@ -1076,19 +993,19 @@ const isLegacyAgent = useMemo(() => {
     </select>
   )}
   <Button
-    onClick={saveContracts}
+    onClick={!effectiveAgentId ? undefined : saveContracts}
     text="שמור"
     type="primary"
     icon="off"
-    state="default"
+    state={!effectiveAgentId ? "disabled" : "default"}
   />
 
   <Button
-    onClick={downloadExcelTemplate}
+    onClick={!effectiveAgentId ? undefined : downloadExcelTemplate}
     text="הורד תבנית אקסל"
     type="primary"
     icon="off"
-    state="default"
+    state={!effectiveAgentId ? "disabled" : "default"}
   />
   {/* כפתור העלאה */}
   <input
@@ -1099,11 +1016,11 @@ const isLegacyAgent = useMemo(() => {
     onChange={handleUploadExcel}
   />
   <Button
-    onClick={() => uploadInputRef.current?.click()}
+    onClick={!effectiveAgentId || isUploading ? undefined : () => uploadInputRef.current?.click()}
     text={isUploading ? "מעלה..." : "העלה אקסל"}
     type="primary"
     icon="off"
-    state={isUploading ? "disabled" : "default"}
+    state={!effectiveAgentId || isUploading ? "disabled" : "default"}
   />
 </div>
 </div>
@@ -1192,6 +1109,7 @@ const densityClass = getDensityClassByCompanies(companiesForGroup.length);
                 [defaultKey]: value,
               }));
             }}
+            disabled={!effectiveAgentId}
           />
           {defaultValue && (
             <div className="cell-helper">
@@ -1229,6 +1147,7 @@ const densityClass = getDensityClassByCompanies(companiesForGroup.length);
       [key]: value,
     }));
   }}
+  disabled={!effectiveAgentId}
 />                          {value && (
                                   <div className="cell-helper">
                                     {getHelper(value, row.valueMode, table.key)}
