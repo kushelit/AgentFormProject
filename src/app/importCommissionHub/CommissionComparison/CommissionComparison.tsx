@@ -881,7 +881,7 @@ if (rows.length === 0) {
                 ))}
             </tbody>
           </table>
-          {!drillStatus && <p className="text-gray-500">בחרי סטטוס להצגת פירוט.</p>}
+          {!drillStatus && <p className="text-gray-500">בחר סטטוס להצגת פירוט.</p>}
         </>
       )}
 

@@ -1,6 +1,6 @@
 import { ChangeEventHandler, FormEventHandler, SetStateAction, useEffect, useMemo, useState } from "react";
 import { collection, query, setDoc, where, getDocs, getDoc, addDoc, deleteDoc, doc, updateDoc, DocumentSnapshot, DocumentData, serverTimestamp, Timestamp, Query } from "firebase/firestore";
-import { db } from "@/lib/firebase/firebase"; // Ensure this path matches your project structure
+import { db, firebaseApp } from "@/lib/firebase/firebase";
 import { useAuth } from '@/lib/firebase/AuthContext';
 import useFetchMD from "@/hooks/useMD";
 import './NewLeads.css';
@@ -16,7 +16,7 @@ import {useSortableTable}  from "@/hooks/useSortableTable";
 import {ToastNotification} from '@/components/ToastNotification';
 import { useToast } from "@/hooks/useToast";
 import { useValidation } from "@/hooks/useValidation";
-
+import { getDownloadURL, getStorage, ref } from "firebase/storage";
 
 const NewLeads = () => {
 
@@ -87,34 +87,22 @@ const { errors,setErrors, handleValidatedEditChange } = useValidation();
     source: string; 
   }
 
+type LeadDocumentRow = {
+  id: string;
+  leadId: string;
+  fileName: string;
+  mimeType?: string;
+  size?: number;
+  storagePath: string;
+  bucket?: string;
+  url?: string;
+};
 
-  // type LeadsType = {
-  //   id: string;
-  //   firstNameCustomer: string;
-  //   lastNameCustomer: string;
-  //   IDCustomer: string;
-  //   returnDate: string;
-  //   lastContactDate: string;
-  //   phone: string;
-  //   mail: string;
-  //   address: string;
-  //   sourceValue: string;
-  //   selectedStatusLead: string;
-  //   workerId: string;
-  //   notes: string;
-  //   workerName: string;
-  //   birthday: string;
-  //   availableFunds: string;
-  //   retirementFunds: string;
-  //   consentForInformationRequest: boolean;
-  //   createDate: Timestamp;
-  //   campaign: string;
-  //   AgentId: string;
-  //   agentName?: string;
-  // };
-
-
-
+const [leadDocuments, setLeadDocuments] = useState<LeadDocumentRow[]>([]);
+const [documentsModalOpen, setDocumentsModalOpen] = useState(false);
+const [documentsLeadName, setDocumentsLeadName] = useState("");
+const [documentsLoading, setDocumentsLoading] = useState(false);
+  
   const {
     agents,
     selectedAgentId,
@@ -606,24 +594,42 @@ const { errors,setErrors, handleValidatedEditChange } = useValidation();
 
   
 
-  const menuItems = (rowId: string, closeMenu: () => void) => [
+ const menuItems = (rowId: string, closeMenu: () => void) => {
+  const lead = leadsData.find(l => l.id === rowId); // ← זה פותר את השגיאה
+
+  return [
     {
       label: "ערוך",
+      onClick: () => { handleEditRowModal(rowId); closeMenu(); },
+      Icon: Edit,
+    },
+    {
+      label: "מחק",
+      onClick: () => { handleDeleteLeadRow(rowId); closeMenu(); },
+      Icon: Delete,
+    },
+    {
+      label: "המר ללקוח",
       onClick: () => {
-        handleEditRowModal(rowId);
+        if (lead && window.confirm(`להמיר את ${lead.firstNameCustomer} ${lead.lastNameCustomer} ללקוח?`)) {
+          handleConvertToCustomer(lead);
+        }
         closeMenu();
       },
       Icon: Edit,
     },
     {
-      label: "מחק",
-      onClick: () => {
-        handleDeleteLeadRow(rowId);
-        closeMenu();
-      },
-      Icon: Delete,
-    },
+  label: "מסמכים",
+  onClick: () => {
+    if (lead) {
+      openLeadDocuments(lead);
+    }
+    closeMenu();
+  },
+  Icon: Edit,
+},
   ];
+};
 
   useEffect(() => {
     if (editingLeadRow) {
@@ -633,56 +639,136 @@ const { errors,setErrors, handleValidatedEditChange } = useValidation();
   
  
 
-  // const [sortColumn, setSortColumn] = useState<string | null>(null);
-  // const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
-  
-
-  // const handleSort = (column: keyof LeadsType) => {
-  //   const newSortOrder = sortColumn === column && sortOrder === "asc" ? "desc" : "asc";
-  //   setSortColumn(column);
-  //   setSortOrder(newSortOrder);
-  
-  //   const sorted = [...filteredData].sort((a, b) => {
-  //     let valueA: string | boolean | Timestamp | undefined = a[column];
-  //     let valueB: string | boolean | Timestamp | undefined = b[column];
-  
-  //     // ✅ אם הערכים `undefined` או `null`, נשתמש במחרוזת ריקה למניעת שגיאות
-  //     if (valueA == null) valueA = "";
-  //     if (valueB == null) valueB = "";
-  
-  //     // ✅ אם הערכים הם `boolean`, נמיר אותם למחרוזת לצורך השוואה
-  //     if (typeof valueA === "boolean") valueA = valueA ? "1" : "0";
-  //     if (typeof valueB === "boolean") valueB = valueB ? "1" : "0";
-  
-  //     // ✅ אם הערכים הם Firebase `Timestamp`, נמיר אותם ל- `Date` רק כאשר נדרש
-  //     if (valueA instanceof Timestamp) valueA = valueA.toDate().toISOString();
-  //     if (valueB instanceof Timestamp) valueB = valueB.toDate().toISOString();
-  
-  //     // ✅ אם הערכים הם מחרוזות של תאריכים, נמיר למספר כדי שניתן יהיה למיין לפי זמן
-  //     if (typeof valueA === "string" && column.toLowerCase().includes("date")) {
-  //       const parsedA = Date.parse(valueA);
-  //       if (!isNaN(parsedA)) valueA = String(parsedA);
-  //     }
-  //     if (typeof valueB === "string" && column.toLowerCase().includes("date")) {
-  //       const parsedB = Date.parse(valueB);
-  //       if (!isNaN(parsedB)) valueB = String(parsedB);
-  //     }
-  
-  //     // ✅ מיון טקסטים
-  //     return newSortOrder === "asc"
-  //       ? String(valueA).localeCompare(String(valueB), "he")
-  //       : String(valueB).localeCompare(String(valueA), "he");
-  //   });
-  
-  //   console.log("✅ נתונים אחרי מיון:", sorted);
-  //   setFilteredData(sorted);
-  // };
-  
-
-
-
   const { sortedData, sortColumn, sortOrder, handleSort, setSortedData } = useSortableTable(filteredData);
 
+
+
+const handleConvertToCustomer = async (lead: LeadsType) => {
+     if (!lead.AgentId) {
+    addToast("error", "ליד חסר סוכן – לא ניתן להמיר");
+    return;
+  }
+  if (!lead.IDCustomer || !lead.firstNameCustomer || !lead.lastNameCustomer) {
+    addToast("error", "להמרה ללקוח נדרשים: שם פרטי, שם משפחה ותעודת זהות");
+    return;
+  }
+
+  // בדיקת קיום לקוח
+  const customerQuery = query(
+    collection(db, 'customer'),
+    where('IDCustomer', '==', lead.IDCustomer),
+    where('AgentId', '==', lead.AgentId)
+  );
+  const customerSnapshot = await getDocs(customerQuery);
+
+  if (!customerSnapshot.empty) {
+    addToast("error", "לקוח עם תז זה כבר קיים במערכת");
+    return;
+  }
+
+  try {
+    // יצירת רשומת customer
+    const customerRef = doc(collection(db, 'customer'));
+    await setDoc(customerRef, {
+      AgentId: lead.AgentId,
+      firstNameCustomer: lead.firstNameCustomer || '',
+      lastNameCustomer: lead.lastNameCustomer || '',
+      fullNameCustomer: `${lead.firstNameCustomer || ''} ${lead.lastNameCustomer || ''}`.trim(),
+      IDCustomer: lead.IDCustomer,
+      parentID: customerRef.id,
+      phone: lead.phone || '',
+      mail: lead.mail || '',
+      address: lead.address || '',
+      birthday: lead.birthday || '',
+      notes: lead.notes || '',
+      sourceValue: lead.sourceValue || '',
+      sourceLead: lead.sourceValue || '',
+      convertedFromLeadId: lead.id,
+      createdAt: serverTimestamp(),
+      lastUpdateDate: serverTimestamp(),
+    });
+
+    // עדכון סטטוס הליד
+    const convertedStatus = statusLeadMap.find(
+      s => s.statusLeadName === 'הפך ללקוח'
+    )?.id ?? '';
+
+    await updateDoc(doc(db, 'leads', lead.id), {
+      selectedStatusLead: convertedStatus,
+      lastUpdateDate: serverTimestamp(),
+    });
+
+    reloadLeadsData(selectedAgentId);
+    addToast("success", `${lead.firstNameCustomer} ${lead.lastNameCustomer} הומר ללקוח בהצלחה`);
+  } catch (error) {
+    addToast("error", "שגיאה ביצירת הלקוח");
+  }
+};
+
+const openLeadDocuments = async (lead: LeadsType) => {
+  if (!lead.id) {
+    addToast("error", "ליד חסר מזהה");
+    return;
+  }
+
+  setDocumentsModalOpen(true);
+  setDocumentsLeadName(
+    `${lead.firstNameCustomer || ""} ${lead.lastNameCustomer || ""}`.trim()
+  );
+  setDocumentsLoading(true);
+  setLeadDocuments([]);
+
+  try {
+    const qDocs = query(
+      collection(db, "leadDocuments"),
+      where("leadId", "==", lead.id)
+    );
+
+    const snap = await getDocs(qDocs);
+
+    const rows = [];
+for (const d of snap.docs) {
+    const data: any = d.data();
+    let url = "";
+
+    try {
+      const bucketName = String(data.bucket || '').trim();
+      const storagePath = String(data.storagePath || '').trim();
+
+      if (bucketName && storagePath) {
+        // ✅ מציינים את ה-app וה-bucket הספציפי במפורש
+        const { firebaseApp } = await import('@/lib/firebase/firebase');
+        const storage = getStorage(firebaseApp, `gs://${bucketName}`);
+const storageRef = ref(storage, storagePath);
+url = await getDownloadURL(storageRef);
+      }
+    } catch (e) {
+      console.error("Failed to create download URL", {
+        bucket: data.bucket,
+        storagePath: data.storagePath,
+        error: e,
+      });
+    }
+      rows.push({
+        id: d.id,
+        leadId: data.leadId,
+        fileName: data.fileName || "מסמך",
+        mimeType: data.mimeType || "",
+        size: data.size || 0,
+        storagePath: data.storagePath || "",
+        bucket: data.bucket || "",
+        url,
+      });
+    }
+
+    setLeadDocuments(rows);
+  } catch (error) {
+    console.error("Failed loading lead documents", error);
+    addToast("error", "שגיאה בטעינת מסמכי הליד");
+  } finally {
+    setDocumentsLoading(false);
+  }
+};
 
   return (
     <div className="content-container">
@@ -894,10 +980,38 @@ const { errors,setErrors, handleValidatedEditChange } = useValidation();
         </section>
             {/* כפתורי פעולה */}
             <div className="form-actions">
-            {isEditing ? (
-    <Button onClick={saveLeadChanges} text="שמור שינויים" type="primary" icon="on" disabled={!editingLeadRow} />
+         {isEditing ? (
+    <>
+      <Button
+        onClick={saveLeadChanges}
+        text="שמור שינויים"
+        type="primary"
+        icon="on"
+        disabled={!editingLeadRow}
+      />
+    <Button
+  onClick={async () => {
+    const leadFromDb = leadsData.find(l => l.id === editingLeadRow);
+    const lead = leadFromDb ? { ...leadFromDb, ...editData } : null;
+    
+    if (!lead) return;
+    
+    if (window.confirm(`להמיר את ${lead.firstNameCustomer} ${lead.lastNameCustomer} ללקוח?`)) {
+      // ✅ 1. שומר את השינויים לליד קודם
+      await saveLeadChanges();
+      // ✅ 2. ואז ממיר ללקוח עם הנתונים המעודכנים
+      await handleConvertToCustomer(lead as LeadsType);
+      setShowOpenNewLead(false);
+    }
+  }}
+  text="המר ללקוח"
+  type="primary"
+  icon="off"
+  state="default"
+/>
+    </>
   ) : (
-             <Button
+   <Button
   onClick={(e) => handleSubmit(e)}
   text="הזן"
   type="primary"
@@ -905,6 +1019,7 @@ const { errors,setErrors, handleValidatedEditChange } = useValidation();
   disabled={!canSubmit || submitDisabled}
   state={!canSubmit ? "disabled" : "default"}
 />
+
             )}
               <Button
                 onClick={() => setShowOpenNewLead(false)}
@@ -918,6 +1033,56 @@ const { errors,setErrors, handleValidatedEditChange } = useValidation();
         </div>
       </div>
     )}       
+    {documentsModalOpen && (
+  <div className="modal-overlay" onClick={() => setDocumentsModalOpen(false)}>
+    <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+      <button
+        className="close-button"
+        onClick={() => setDocumentsModalOpen(false)}
+      >
+        ✖
+      </button>
+
+      <div className="title">
+        מסמכי ליד {documentsLeadName ? `- ${documentsLeadName}` : ""}
+      </div>
+
+      {documentsLoading ? (
+        <div>טוען מסמכים...</div>
+      ) : leadDocuments.length === 0 ? (
+        <div>אין מסמכים לליד זה</div>
+      ) : (
+        <div className="documents-list">
+          {leadDocuments.map((doc) => (
+            <div key={doc.id} className="document-row">
+              <div>
+                📎 {doc.fileName}
+                {doc.size ? (
+                  <span style={{ marginRight: 8, color: "#777" }}>
+                    ({Math.round(doc.size / 1024)} KB)
+                  </span>
+                ) : null}
+              </div>
+
+              {doc.url ? (
+                <a
+                  href={doc.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="document-link"
+                >
+                  פתח מסמך
+                </a>
+              ) : (
+                <span>לא ניתן לפתוח קובץ</span>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  </div>
+)}
       <div className="table-container flex" >
     <table className="leads-table">
               <thead>

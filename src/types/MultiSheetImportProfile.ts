@@ -15,6 +15,7 @@ export type MultiSheetProfileSheet = {
   isRequired?: boolean;
   skipIfEmpty?: boolean;
   lookupCustomerIdByPolicy?: boolean;
+  reportMonthOffset?: number
 };
 
 export type MultiSheetImportProfile = {

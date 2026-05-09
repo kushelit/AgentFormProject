@@ -432,3 +432,65 @@ input[type="month"].input:hover::-webkit-calendar-picker-indicator { opacity: 1;
   box-shadow: 0 0 0 3px rgba(59,106,149,.15) !important;
   background-color: var(--clrwhite) !important;
 }
+
+@media print {
+  @page {
+    size: landscape;
+    margin: 5mm;
+  }
+
+  .custom-navbar,
+  nav,
+  .no-print,
+  #menu-portal,
+  .frame,
+  .help-button,
+  .user-name,
+  .line,
+  .design-component-instance-node {
+    display: none !important;
+  }
+
+  a[href*="wa.me"],
+  a[href*="whatsapp"],
+  [class*="green-500"],
+  [class*="bottom-4"] {
+    display: none !important;
+  }
+
+  .print-hide {
+    display: none !important;
+  }
+
+  main {
+    margin-right: 0 !important;
+    padding-top: 0 !important;
+  }
+
+  body, html {
+    background: white !important;
+    overflow: visible !important;
+  }
+
+  table {
+    font-size: 8px !important;
+    width: 100% !important;
+  }
+
+  th, td {
+    padding: 2px 3px !important;
+    white-space: nowrap;
+  }
+
+  .tableWrap,
+  [style*="overflow"] {
+    overflow: visible !important;
+  }
+
+  [style*="minWidth"] {
+    min-width: unset !important;
+  }
+
+  tr { page-break-inside: avoid; }
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}

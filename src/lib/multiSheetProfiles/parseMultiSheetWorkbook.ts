@@ -4,6 +4,7 @@ import type { MultiSheetImportProfile } from "@/types/MultiSheetImportProfile";
 import { matchSheetToProfile, isIgnoredSheet } from "./matchSheetToProfile";
 import { getCommissionTemplateConfig } from "@/lib/commissionTemplates/getCommissionTemplateConfig";
 import { buildEffectiveMapping } from "./buildEffectiveMapping";
+import { applyMonthOffset } from "./applyMonthOffset";
 
 export type MultiSheetParsedResult = {
   rows: any[];
@@ -24,6 +25,7 @@ type ParseMultiSheetWorkbookParams = {
   selectedAgentId: string;
   selectedCompanyId?: string;
   selectedCompanyName?: string;
+  selectedTargetReportMonth?: string;
   standardizeSheetRows: (params: {
     jsonData: any[];
     mapping: Record<string, string>;
@@ -99,6 +101,9 @@ export async function parseMultiSheetWorkbook(
       defval: "",
       raw: true,
     });
+console.log("[meitav headers]", 
+  sheetName.includes("מיטב") ? Object.keys(jsonData[0] || {}) : "not meitav"
+);
 
     if (!jsonData.length) {
       matchedSheets.push({
@@ -133,7 +138,21 @@ export async function parseMultiSheetWorkbook(
       continue;
     }
 
-    allRows.push(...standardizedRows);
+    console.log("[parseMultiSheetWorkbook] first row reportMonth before offset:", 
+  standardizedRows[0]?.reportMonth
+);
+const rowsWithOffset = matchedRule.reportMonthOffset
+  ? standardizedRows.map((row) => {
+      console.log("[rowsWithOffset meitav] reportMonth =", row.reportMonth, "sheetName =", row.sourceSheetName);
+      return {
+        ...row,
+        reportMonthOriginal: row.reportMonth,
+        _sheetReportMonthOffset: matchedRule.reportMonthOffset,
+      };
+    })
+  : standardizedRows;
+
+allRows.push(...rowsWithOffset);
 
     matchedSheets.push({
       sheetName,
@@ -150,3 +169,4 @@ export async function parseMultiSheetWorkbook(
     ignoredSheets,
   };
 }
+

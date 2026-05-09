@@ -167,6 +167,42 @@ export async function morNavigateToReport(page: Page): Promise<import("playwrigh
   await page.waitForTimeout(3000);
   // console.log("[Mor] URL after nav:", page.url());
 
+ await page.waitForTimeout(3000);
+
+  // ✅ שלב 2.5: הגדר תאריך מינוס 2 חודשים
+  const now = new Date();
+  const target = new Date(now.getFullYear(), now.getMonth() - 2, 1);
+  const targetMonth = String(target.getMonth() + 1).padStart(2, '0');
+  const targetYear = String(target.getFullYear());
+
+  const dateInputPos = await cdp.send("Runtime.evaluate", {
+    expression: `(function() {
+      const input = document.querySelector('input[role="spinbutton"][aria-haspopup="true"]');
+      if (!input) return null;
+      const rect = input.getBoundingClientRect();
+      return JSON.stringify({ x: rect.left + rect.width/2, y: rect.top + rect.height/2 });
+    })()`,
+    returnByValue: true,
+  });
+
+  const datePos = JSON.parse(dateInputPos.result.value || 'null');
+  if (datePos) {
+    await page.mouse.click(datePos.x, datePos.y);
+    await page.waitForTimeout(300);
+    await page.keyboard.press('Control+a');
+    await page.keyboard.press('Delete');
+    await page.waitForTimeout(200);
+    await page.keyboard.type(targetMonth, { delay: 150 });
+    await page.waitForTimeout(300);
+    await page.keyboard.type(targetYear, { delay: 150 });
+    await page.waitForTimeout(500);
+    // console.log(`[Mor] Date set to: ${targetMonth}/${targetYear}`);
+  } else {
+    // console.log("[Mor] Date input not found, using default");
+  }
+
+
+
   // ✅ שלב 3: לחץ על כפתור "חפש"
   const searchResult = await cdp.send("Runtime.evaluate", {
     expression: `(function() {

@@ -50,15 +50,20 @@ export async function POST(req: NextRequest) {
     });
 
     const data = await response.json();
-    console.log("Claude response status:", response.status);
-console.log("Claude response data:", JSON.stringify(data).slice(0, 500));
-
     const text = data.content?.filter((b: any) => b.type === "text").map((b: any) => b.text).join("") ?? "";
    
-   console.log("Claude text:", text);
     const clean = text.replace(/```json\s*/gi, "").replace(/```\s*/gi, "").trim();
-   console.log("Clean text:", clean);
-    return NextResponse.json(JSON.parse(clean));
+
+    const parsed = JSON.parse(clean);
+
+return NextResponse.json({
+  ...parsed,
+  _usage: {
+    input_tokens: data.usage?.input_tokens ?? 0,
+    output_tokens: data.usage?.output_tokens ?? 0,
+    model: "claude-sonnet-4-5",
+  },
+});
 
   } catch (err) {
      console.error("parse-policy error:", err);

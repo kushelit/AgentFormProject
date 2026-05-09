@@ -1048,8 +1048,8 @@ const totals = useMemo(() => {
 }, [familySummary]);
 
 const loadCustomerMiniCompare = async () => {
-  if (!selectedAgentId) { addToast("error", "בחרי סוכן"); return; }
-  if (!selectedCustomers?.length) { addToast("error", "בחרי לקוח מהרשימה"); return; }
+  if (!selectedAgentId) { addToast("error", "בחר סוכן"); return; }
+  if (!selectedCustomers?.length) { addToast("error", "בחר לקוח מהרשימה"); return; }
 
   setCmpLoading(true);
   try {

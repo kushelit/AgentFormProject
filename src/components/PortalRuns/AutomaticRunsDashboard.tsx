@@ -134,10 +134,19 @@ const AutomaticRunsDashboard: React.FC<Props> = ({
         </div>
       </div>
 
-      <div className="rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-800">
-        בחרי את החברות שייכנסו לתור. אפשר לבחור חברה אחת או כמה חברות, והמערכת תריץ אותן אחת אחרי השנייה.
-      </div>
-
+   <div className="rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+  בחרי את החברות שייכנסו לתור. אפשר לבחור חברה אחת או כמה חברות, והמערכת תריץ אותן אחת אחרי השנייה.
+  {isAutoEnabledByFlag && (
+    <div className="text-sm text-blue-700 mt-1">
+      {(() => {
+        const now = new Date();
+        const twoMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 2, 1);
+        const label = twoMonthsAgo.toLocaleDateString('he-IL', { month: 'long', year: 'numeric' });
+        return `בתי השקעות ומוצרי הגמל בחברות הביטוח זמינים בגין חודש ${label}`;
+      })()}
+    </div>
+  )}
+</div>
       {!isAutoEnabledByFlag && (
         <div className="rounded-2xl border border-orange-200 bg-orange-50 px-4 py-3 text-sm text-orange-800">
           {autoDisabledReason}

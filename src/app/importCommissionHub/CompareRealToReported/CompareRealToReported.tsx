@@ -1680,7 +1680,7 @@ return (
                     {linkTarget.customerId && <div className="text-right"><b>ת״ז לקוח:</b> {linkTarget.customerId}</div>}
                   </div>
                   <div className="text-right">
-                    <label className="block text-sm font-bold text-slate-700 mb-2 text-right">בחרי פוליסה קיימת לקישור:</label>
+                    <label className="block text-sm font-bold text-slate-700 mb-2 text-right">בחר פוליסה קיימת לקישור:</label>
                     <select
                       className="select-input w-full bg-slate-50 border-slate-200 rounded-xl shadow-sm text-right h-11"
                       value={selectedCandidateId}

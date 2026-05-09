@@ -44,6 +44,7 @@ import type { MultiSheetImportProfile } from "@/types/MultiSheetImportProfile";
 import { getMultiSheetProfiles } from "@/lib/multiSheetProfiles/getMultiSheetProfiles";
 import { parseMultiSheetWorkbook } from "@/lib/multiSheetProfiles/parseMultiSheetWorkbook";
 import BatchProgressCard from '@/components/PortalRuns/BatchProgressCard';
+import { applyMonthOffset } from "@/lib/multiSheetProfiles/applyMonthOffset";
 /* ==============================
    Types
 ============================== */
@@ -126,7 +127,13 @@ const ExcelCommissionImporter: React.FC = () => {
   const [monthsInFile, setMonthsInFile] = useState<string[]>([]);
   const [conflictingRunIds, setConflictingRunIds] = useState<string[]>([]);
   
-  const sanitizeMonth = (m?: any) => String(m || '').replace(/\//g, '-').trim();
+  // const sanitizeMonth = (m?: any) => String(m || '').replace(/\//g, '-').trim();
+
+  const sanitizeMonth = (m?: any) => {
+  const s = String(m || '').replace(/\//g, '-').trim();
+  return s.replace(/^(\d{4})-(\d)$/, '$1-0$2');
+};
+
   const [fallbackProduct, setFallbackProduct] = useState<string>('');
 const [loadingStage, setLoadingStage] = useState<string>("");
 
@@ -1215,14 +1222,6 @@ const standardizeRowWithMapping = (
   }
 
   if ("agentCode" in result && result.agentCode === undefined) {
-  // console.log("[standardizeRowWithMapping] agentCode became undefined", {
-  //   templateId: base.templateId,
-  //   sourceFileName: base.sourceFileName,
-  //   sourceSheetName: base.sourceSheetName,
-  //   row,
-  //   result,
-  //   mapping,
-  // });
 }
 
   return result;
@@ -1384,6 +1383,7 @@ const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
           selectedCompanyId,
           selectedCompanyName,
           standardizeSheetRows,
+          selectedTargetReportMonth,
         });
 
       const doneSheets = result.matchedSheets.filter((x) => x.status === "done");
@@ -1411,11 +1411,24 @@ if (doneSheets.length === 0 || result.rows.length === 0) {
   return;
 }
 
+console.log("[filter meitav] selectedTargetReportMonth:", selectedTargetReportMonth);
+console.log("[filter meitav] unique reportMonths in rows:", 
+  [...new Set(result.rows
+    .filter(r => r.sourceSheetName?.includes("מיטב"))
+    .map(r => JSON.stringify({
+      reportMonth: r.reportMonth,
+      reportMonthOriginal: r.reportMonthOriginal,
+      offset: r._sheetReportMonthOffset
+    }))
+  )].slice(0, 5)
+);
 const filteredRows =
   selectedMultiSheetProfile?.enableReportMonthFilter && selectedTargetReportMonth
-    ? result.rows.filter(
-        (row) => sanitizeMonth(row.reportMonth) === selectedTargetReportMonth
-      )
+    ? result.rows.filter((row) => {
+        const offset = row._sheetReportMonthOffset ?? 0;
+        const expectedOriginal = applyMonthOffset(selectedTargetReportMonth, offset);
+        return sanitizeMonth(row.reportMonthOriginal ?? row.reportMonth) === sanitizeMonth(expectedOriginal);
+      })
     : result.rows;
 
 // חישוב כמה שורות נשארו אחרי הסינון לכל לשונית
@@ -1462,6 +1475,13 @@ if (filteredRows.length === 0) {
 }
 
 setStandardizedRows(filteredRows);
+console.log("[filter meitav debug]", JSON.stringify({
+  expectedOriginal: applyMonthOffset(selectedTargetReportMonth, -1),
+  firstRowOriginal: result.rows.find(r => r.sourceSheetName?.includes("מיטב"))?.reportMonthOriginal,
+  firstRowMonth: result.rows.find(r => r.sourceSheetName?.includes("מיטב"))?.reportMonth,
+  sanitizedExpected: sanitizeMonth(applyMonthOffset(selectedTargetReportMonth, -1)),
+  sanitizedActual: sanitizeMonth(result.rows.find(r => r.sourceSheetName?.includes("מיטב"))?.reportMonthOriginal),
+}));
 
 const fileMonths = Array.from(
   new Set(filteredRows.map((r) => sanitizeMonth(r.reportMonth)).filter(Boolean))
@@ -1607,7 +1627,7 @@ const parseAndStandardize = async (data: any, fileName: string, fallbackMonth?: 
       setLoadingStage("");
       setErrorDialog({
         title: "קובץ לא מתאים (מנורה)",
-        message: "בחרת תבנית נפרעים, אך הקובץ הוא דוח צבירה (ZVIRA). אנא בחרי קובץ NIFRAIM."
+        message: "בחרת תבנית נפרעים, אך הקובץ הוא דוח צבירה (ZVIRA). אנא בחר קובץ NIFRAIM."
       });
       return;
     }
@@ -1618,7 +1638,7 @@ const parseAndStandardize = async (data: any, fileName: string, fallbackMonth?: 
       setLoadingStage("");
       setErrorDialog({
         title: "קובץ לא מתאים (מנורה)",
-        message: "בחרת תבנית צבירה, אך הקובץ הוא דוח נפרעים (NIFRAIM). אנא בחרי קובץ ZVIRA."
+        message: "בחרת תבנית צבירה, אך הקובץ הוא דוח נפרעים (NIFRAIM). אנא בחר קובץ ZVIRA."
       });
       return;
     }
@@ -1894,29 +1914,6 @@ if (rowsMissingCustomerId.length > 0) {
     return;
   }
 }
-//         console.log(
-//   "[customerId lookup] missing before =",
-//   rowsWithPolicyKey.filter(
-//     (r) => r.lookupCustomerIdByPolicy && !String(r.customerId || r.customerIdRaw || "").trim()
-//   ).length
-// );
-
-// console.log(
-//   "[customerId lookup] missing after =",
-//   enrichedRows.filter(
-//     (r) => r.lookupCustomerIdByPolicy && !String(r.customerId || r.customerIdRaw || "").trim()
-//   ).length
-// );
-
-// console.log(
-//   "[customerId lookup] filled rows =",
-//   enrichedRows.filter((row, i) => {
-//     const before = rowsWithPolicyKey[i];
-//     const beforeId = String(before.customerId || before.customerIdRaw || "").trim();
-//     const afterId = String(row.customerId || row.customerIdRaw || "").trim();
-//     return !!row.lookupCustomerIdByPolicy && !beforeId && !!afterId;
-//   })
-// );
 
     const finalRowsForImport =
       importMode === "multi_sheet"
@@ -2639,7 +2636,6 @@ async function enrichMissingCustomerIdsForMarkedSheets(params: {
               </div>
             </div>
           </div>
-
           <div className="flex flex-wrap items-center gap-2">
             {!currentRunnerVersion && installerUrl && (
               <a
@@ -2810,7 +2806,7 @@ addToast(
           {/* חברה */}
           <div className="max-w-md">
             <label className="block text-xs font-bold text-gray-400 mb-1 uppercase tracking-wider">
-              3. בחרי חברה
+              3. בחר חברה
             </label>
             <select
               value={selectedCompanyId}
@@ -2820,7 +2816,7 @@ addToast(
               }}
               className="select-input w-full h-10 border-gray-300 rounded-lg"
             >
-              <option value="">-- בחרי חברה --</option>
+              <option value="">-- בחר חברה --</option>
               {uniqueCompanies.map((company) => (
                 <option key={company.id} value={company.id}>
                   {company.name}
@@ -2833,14 +2829,14 @@ addToast(
           {selectedCompanyId && (
             <div className="max-w-md">
               <label className="block text-xs font-bold text-gray-400 mb-1 uppercase tracking-wider">
-                4. בחרי תבנית דוח
+                4. בחר תבנית דוח
               </label>
               <select
                 value={templateId}
                 onChange={(e) => setTemplateId(e.target.value)}
                 className="select-input w-full h-10 border-gray-200 rounded-lg"
               >
-                <option value="">-- בחרי דוח ספציפי --</option>
+                <option value="">-- בחר דוח ספציפי --</option>
                 {filteredTemplates.map((opt) => (
                   <option key={opt.id} value={opt.id}>
                     {opt.Name || opt.type}
@@ -2880,7 +2876,7 @@ addToast(
         }}
         className="select-input w-full h-10 border-gray-300 rounded-lg"
       >
-        <option value="">-- בחרי פרופיל --</option>
+        <option value="">-- בחר פרופיל --</option>
         {multiSheetProfiles.map((p) => (
           <option key={p.id} value={p.id}>
             {p.name}
@@ -2913,7 +2909,7 @@ addToast(
             }}
             className="select-input w-full h-10 border-gray-300 rounded-lg"
           >
-            <option value="">-- בחרי שנה --</option>
+            <option value="">-- בחר שנה --</option>
             {["2024", "2025", "2026", "2027"].map((year) => (
               <option key={year} value={year}>
                 {year}
@@ -2944,7 +2940,7 @@ addToast(
             disabled={!selectedReportYear}
             className="select-input w-full h-10 border-gray-300 rounded-lg disabled:bg-gray-100 disabled:text-gray-400"
           >
-            <option value="">-- בחרי חודש --</option>
+            <option value="">-- בחר חודש --</option>
             <option value="01">ינואר</option>
             <option value="02">פברואר</option>
             <option value="03">מרץ</option>
@@ -3257,7 +3253,7 @@ addToast(
         title="נמצאו מספר קבצים ב-ZIP"
         message={
           <div className="text-right">
-            <p className="mb-3 text-sm">בחרי את הקובץ שברצונך לטעון:</p>
+            <p className="mb-3 text-sm">בחר את הקובץ שברצונך לטעון:</p>
             <select
               className="w-full p-2 border rounded-lg text-sm font-sans"
               value={selectedZipEntry}

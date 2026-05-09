@@ -410,14 +410,21 @@ input::placeholder {
   box-sizing: border-box;
 }
 
-
 .form-actions {
   display: flex;
-  justify-content: space-between;
-  gap: 10px;
+  flex-wrap: wrap;       /* מאפשר ירידת שורה אם צר */
+  justify-content: flex-end;
+  gap: 8px;
   width: 100%;
   align-items: center;
   padding-top: 10px;
+  border-top: 1px solid #eee;
+}
+
+.form-actions .button {
+  width: auto !important;  /* מבטל את ה-100px הקבוע */
+  min-width: 90px;
+  flex-shrink: 0;
 }
 
 /* חלוקת שדות לטופס עם שתי עמודות */
@@ -475,4 +482,27 @@ input::placeholder {
   justify-content:flex-start;   /* שהשדות יידבקו לימין */
   flex-wrap:nowrap;           /* לא לשבור שורה */
   width:100%;
+}
+
+.documents-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.document-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: #fff;
+}
+
+.document-link {
+  color: #2563eb;
+  font-weight: 600;
+  text-decoration: underline;
 }

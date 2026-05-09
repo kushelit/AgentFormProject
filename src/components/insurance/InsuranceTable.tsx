@@ -91,7 +91,7 @@ export default function InsuranceTable({ rows }: Props) {
             fontSize: 11, fontWeight: 600, padding: "2px 10px", borderRadius: 999,
             border: "1px solid #86efac",
           }}>
-            ✅ {enrichedCount} פוליסות מועשרות מ-PDF
+            ✅ {enrichedCount} פוליסות נותחו מ-PDF
           </span>
         )}
       </div>
@@ -131,7 +131,7 @@ export default function InsuranceTable({ rows }: Props) {
                 פרמיה חודשית {sortIcon("premiumMonthly")}
               </th>
               <th style={thStyle}>תקופה</th>
-              <th style={thStyle}>פירוט</th>
+              <th style={thStyle} className="print-hide">פירוט</th>
             </tr>
           </thead>
           <tbody>
@@ -184,7 +184,7 @@ export default function InsuranceTable({ rows }: Props) {
     : `${formatDate(row.coverageStart)} – ${formatDate(row.coverageEnd)}`
 }
                     </td>
-                    <td style={tdStyle}>
+                    <td style={tdStyle} className="print-hide">
                       {hasDetails ? (
                         <button
                           type="button"
@@ -199,7 +199,7 @@ export default function InsuranceTable({ rows }: Props) {
 
                   {/* פאנל פירוט */}
                   {isOpen && (
-                    <tr>
+                    <tr className="print-hide">
                       <td colSpan={9} style={detailsCellStyle}>
                         <div style={detailsTitleStyle}>
                           פירוט — {row.companyName} / {row.productType} / {row.policyNumber}

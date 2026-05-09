@@ -48,9 +48,17 @@ export interface PolicyPdfResult {
   coverages: InsuranceCoverage[];
 
   // מטא
-  reportDate: string | null;
+   reportDate: string | null;
   parseConfidence: "high" | "medium" | "low";
+
+  // ניטור שימוש
+  _usage?: {
+    input_tokens: number;
+    output_tokens: number;
+    model: string;
+  };
 }
+
 
 // ─── Empty Result ─────────────────────────────────────────────
 

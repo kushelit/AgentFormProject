@@ -132,6 +132,10 @@ const canManageAgency3Fields = String(detail?.agencyId ?? "") === "3";
 const [paymentStatusOptions, setPaymentStatusOptions] = useState<{ id: string; name: string }[]>([]);
 const [depositStatusOptions, setDepositStatusOptions] = useState<{ id: string; name: string }[]>([]);
 
+const [hekefPaidFilter, setHekefPaidFilter] = useState('');
+const [niudPaidFilter, setNiudPaidFilter] = useState('');
+const [depositStatusFilter, setDepositStatusFilter] = useState('');
+
 useEffect(() => {
   const loadAgency3Metadata = async () => {
     try {
@@ -652,7 +656,10 @@ useEffect(() => {
       item.lastNameCustomer.includes(lastNameCustomerFilter) &&
       (minuySochenFilter === '' || item.minuySochen?.toString() === minuySochenFilter) &&
       (!expiryDateFilter || itemDate.includes(expiryDateFilter)) && // ✅ חיפוש חלקי בתאריך
-      (selectedStatusPolicyFilter ? item.statusPolicy === selectedStatusPolicyFilter : true)
+      (selectedStatusPolicyFilter ? item.statusPolicy === selectedStatusPolicyFilter : true) &&
+      (hekefPaidFilter === '' || item.hekefPaid === hekefPaidFilter) &&
+      (niudPaidFilter === '' || item.niudPaid === niudPaidFilter) &&
+      (depositStatusFilter === '' || item.depositStatus === depositStatusFilter)
     );
   });
 
@@ -682,6 +689,9 @@ useEffect(() => {
   lastNameCustomerFilter,
   minuySochenFilter,
   expiryDateFilter,
+  hekefPaidFilter,
+  niudPaidFilter,
+  depositStatusFilter
 ]);
 
   const handleCalculate = useCallback(async () => {
@@ -1120,7 +1130,37 @@ useEffect(() => {
     <option value="false">לא</option>
   </select>
                 </div> 
-      </div>
+                {canManageAgency3Fields && (
+  <>
+    <div className="filter-select-container">
+      <select value={hekefPaidFilter} onChange={(e) => setHekefPaidFilter(e.target.value)} className="select-input">
+        <option value="">שולם היקף</option>
+        {paymentStatusOptions.map((opt) => (
+          <option key={opt.id} value={opt.name}>{opt.name}</option>
+        ))}
+      </select>
+    </div>
+
+    <div className="filter-select-container">
+      <select value={niudPaidFilter} onChange={(e) => setNiudPaidFilter(e.target.value)} className="select-input">
+        <option value="">שולם ניוד</option>
+        {paymentStatusOptions.map((opt) => (
+          <option key={opt.id} value={opt.name}>{opt.name}</option>
+        ))}
+      </select>
+    </div>
+
+    <div className="filter-select-container">
+      <select value={depositStatusFilter} onChange={(e) => setDepositStatusFilter(e.target.value)} className="select-input">
+        <option value="">סטטוס הפקדה</option>
+        {depositStatusOptions.map((opt) => (
+          <option key={opt.id} value={opt.name}>{opt.name}</option>
+        ))}
+      </select>
+    </div>
+  </>
+)}
+   </div>
       <div  className="table-Deal-container">
         {isLoadingAgent && (
                    <div className="spinner-overlay">

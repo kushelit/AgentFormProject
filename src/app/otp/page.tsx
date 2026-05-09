@@ -616,9 +616,6 @@ function OtpPageInner() {
 
   return (
     <div dir="rtl" className="min-h-screen bg-gray-50 px-4 py-6">
-      <div className="text-xs text-gray-400 text-center mb-2">
-  uid: {uid} | runs: {runs.length}
-</div>
       <div className="mx-auto max-w-sm">
        <div className="mb-4 text-center">
   <div className="text-2xl font-black text-gray-900">קוד אימות</div>

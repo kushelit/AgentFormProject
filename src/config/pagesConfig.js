@@ -29,7 +29,7 @@ const pages = [
     ],
   },
   {
-    href: '/AdminHub', // או כל דף ראשי שתבחרי
+    href: '/AdminHub', 
     label: 'ניהול אדמין',
     onlyRoles: ['admin'],     submenu: [
       { href: '/Log', label: 'לוג מערכת' },
@@ -42,7 +42,7 @@ const pages = [
       { href: '/Admin-ImportExcelruns', label: 'ניהול טעינת קבצי עסקאות' },  
       { href: '/admin/mfa', label: 'ניהול MFA' },     
       { href: '/admin/commission-purge', label: 'מחיקת קבצי עמלות' },    
-  
+      { href: '/admin/claude-usage', label: 'ניטור Claude API' },
     ],
   }
 

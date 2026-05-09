@@ -321,7 +321,7 @@ const CommissionSummaryAgencyMatrixTab: React.FC = () => {
 
       {noAgentsSelected && mode === 'custom' && (
         <p className="mt-2 text-sm text-orange-600">
-          בחרי לפחות סוכן אחד להצגה או עברי למצב &quot;כל הסוכנים&quot;.
+          בחר לפחות סוכן אחד להצגה או עברי למצב &quot;כל הסוכנים&quot;.
         </p>
       )}
 

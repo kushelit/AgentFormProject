@@ -33,18 +33,19 @@ function getPreviousMonthStr(): string {
   return `${year}-${String(month).padStart(2, "0")}`;
 }
 
-// function getPreviousMonthStr(): string {
-//   const now = new Date();
-//   let year = now.getFullYear();
-//   let month = now.getMonth() - 1; // חודשיים אחורה
 
-//   if (month <= 0) {
-//     month += 12;
-//     year -= 1;
-//   }
+function getTwoMonthsAgoStr(): string {
+  const now = new Date();
+  let year = now.getFullYear();
+  let month = now.getMonth() - 1; // מינוס 2 (getMonth הוא 0-based)
 
-//   return `${year}-${String(month).padStart(2, "0")}`;
-// }
+  if (month <= 0) {
+    month += 12;
+    year -= 1;
+  }
+
+  return `${year}-${String(month).padStart(2, "0")}`;
+}
 
 
 function normalizeBucketName(b: string) {
@@ -611,41 +612,56 @@ if (!standardized.length) {
 let finalRows = standardized;
 // מור: באוטומטי תמיד כופים חודש דיווח = חודש קודם
 if (templateId === "mor_insurance") {
-  const reportMonth = getPreviousMonthStr();
+  const reportMonth = getTwoMonthsAgoStr();
 
   finalRows = finalRows.map((row: any) => ({
     ...row,
     reportMonth,
   }));
 }
-
-const monthFilteredTemplateIds = [
-  "ayalon_insurance",
-  "analyst_insurance",
-];
-
-if (monthFilteredTemplateIds.includes(templateId)) {
+if (templateId === "ayalon_insurance") {
   const targetMonth = getPreviousMonthStr();
 
   finalRows = finalRows.filter((row: any) => {
     return safeStr(row.reportMonth) === targetMonth;
   });
 
-if (!finalRows.length) {
-  await finishAsEmpty({
-    db,
-    queueRef,
-    portalRunId: effectivePortalRunId,
-    jobId,
-    templateId,
+  if (!finalRows.length) {
+    await finishAsEmpty({
+      db,
+      queueRef,
+      portalRunId: effectivePortalRunId,
+      jobId,
+      templateId,
       templateName: template.templateName,
-    message: `הדוח נקלט אך אין נתונים עבור ${targetMonth}`,
-    reason: "filter_month_empty",
+      message: `הדוח נקלט אך אין נתונים עבור ${targetMonth}`,
+      reason: "filter_month_empty",
+    });
+    return;
+  }
+}
+
+if (templateId === "analyst_insurance") {
+  const targetMonth = getTwoMonthsAgoStr();
+
+  finalRows = finalRows.filter((row: any) => {
+    return safeStr(row.reportMonth) === targetMonth;
   });
-  return;
-}
-}
-    // ✅ runId = jobId (ייחודי לכל תבנית/קובץ)
+
+  if (!finalRows.length) {
+    await finishAsEmpty({
+      db,
+      queueRef,
+      portalRunId: effectivePortalRunId,
+      jobId,
+      templateId,
+      templateName: template.templateName,
+      message: `הדוח נקלט אך אין נתונים עבור ${targetMonth}`,
+      reason: "filter_month_empty",
+    });
+    return;
+  }
+}    // ✅ runId = jobId (ייחודי לכל תבנית/קובץ)
     const { rowsPrepared, commissionSummaries, policySummaries, runDoc } = buildArtifacts({
       standardizedRows: finalRows,
       runId: jobId,

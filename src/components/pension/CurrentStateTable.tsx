@@ -97,7 +97,7 @@ export default function CurrentStateTable({ rows }: Props) {
               <th style={thStyle}>איזון אק׳</th>
               <th style={thStyle}>קצבה צפויה</th>
               <th style={thStyle}>חיסכון צפוי</th>
-              <th style={thStyle}>פירוט</th>
+              <th style={thStyle} className="print-hide">פירוט</th>
             </tr>
           </thead>
 
@@ -133,22 +133,22 @@ export default function CurrentStateTable({ rows }: Props) {
                     <td style={tdStyle}>{percent(row.avgReturn5Y)}</td>
                     <td style={tdStyle}>{percent(row.actuarialBalance)}</td>
                     <td style={tdStyle}>
-  {row.expectedPension
-    ? money(row.expectedPension)
-    : row.productType === "קרן פנסיה"
-      ? <span style={{ color: "#94a3b8", fontSize: 11 }}>חבר חדש</span>
-      : "—"
-  }
-</td>
-<td style={tdStyle}>
-  {row.expectedSavings
-    ? money(row.expectedSavings)
-    : row.productType === "קרן פנסיה"
-      ? <span style={{ color: "#94a3b8", fontSize: 11 }}>חבר חדש</span>
-      : "—"
-  }
-</td>
+                      {row.expectedPension
+                        ? money(row.expectedPension)
+                        : row.productType === "קרן פנסיה"
+                          ? <span style={{ color: "#94a3b8", fontSize: 11 }}>חבר חדש</span>
+                          : "—"
+                      }
+                    </td>
                     <td style={tdStyle}>
+                      {row.expectedSavings
+                        ? money(row.expectedSavings)
+                        : row.productType === "קרן פנסיה"
+                          ? <span style={{ color: "#94a3b8", fontSize: 11 }}>חבר חדש</span>
+                          : "—"
+                      }
+                    </td>
+                    <td style={tdStyle} className="print-hide">
                       {hasTracks ? (
                         <button
                           type="button"
@@ -162,13 +162,12 @@ export default function CurrentStateTable({ rows }: Props) {
                   </tr>
 
                   {isOpen && (
-                    <tr>
+                    <tr className="print-hide">
                       <td colSpan={15} style={detailsCellStyle}>
                         <div style={detailsTitleStyle}>
                           פירוט מסלולים — {row.companyName} / {row.productType}
                         </div>
 
-                        {/* באנר פער דמי ניהול — לסוכן בלבד */}
                         {row.avgDepositFeePercent != null &&
                          row.depositFeePercent != null &&
                          Math.abs(row.avgDepositFeePercent - row.depositFeePercent) >= 0.05 && (

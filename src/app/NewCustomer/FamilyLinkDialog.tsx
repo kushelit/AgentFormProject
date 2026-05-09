@@ -268,7 +268,7 @@ export const startLinkingProcess = (
             const updatedCustomers = await fetchCustomersForAgent(selectedAgentId);
             // console.log("✅ רשימת הלקוחות החדשה מה-DB:", updatedCustomers);
             setCustomers([...updatedCustomers]); // יוצר אובייקט חדש כדי להכריח רינדור מחדש
-            setSelectedCustomers([]); // מרוקן רק את הנבחרים, לא את כולם
+            setSelectedCustomers([]); 
         }
     } catch (error) {
         // console.error("Failed to disconnect customers:", error);

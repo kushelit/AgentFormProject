@@ -265,7 +265,7 @@ export default function ReconcileMock({
                     <div className="flex flex-col gap-3">
                       <div className="flex flex-col gap-1">
                         <label className="text-xs text-gray-500">
-                          בחרי פוליסה קיימת ב-SALE לשיוך
+                          בחר פוליסה קיימת ב-SALE לשיוך
                         </label>
                         <select
                           className="px-3 py-2 rounded border max-w-xl"
@@ -277,7 +277,7 @@ export default function ReconcileMock({
                             }))
                           }
                         >
-                          <option value="">בחרי…</option>
+                          <option value="">בחר…</option>
                           {c.saleOptions.map((s) => (
                             <option key={s.saleId} value={s.saleId}>
                               {s.customerName} • {s.company} • {s.product} • {s.policyMonth}
