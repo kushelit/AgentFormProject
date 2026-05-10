@@ -23,6 +23,7 @@ export type AutoCompanyUiStatus =
   | 'running'
   | 'error'
   | 'ready'
+  | 'queued'
   | 'disabled_by_flag';
 
 export type DashboardCompanyState = {

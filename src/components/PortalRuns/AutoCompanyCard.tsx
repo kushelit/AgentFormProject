@@ -80,7 +80,16 @@ function getUiMeta(
         subtitle: autoDisabledReason || 'הדוחות עדיין לא זמינים להורדה החודש',
         canStart: false,
       };
-
+case 'queued':
+  return {
+    cardClass: 'border-amber-200 bg-amber-50/70',
+    badgeClass: 'bg-amber-100 text-amber-700 border-amber-200',
+    badgeText: 'ממתין בתור',
+    title: 'ממתין להפעלה בתור',
+    subtitle: 'תרוץ בקרוב אוטומטית',
+    canStart: false,
+  };
+  
     case 'ready':
     default:
       return {

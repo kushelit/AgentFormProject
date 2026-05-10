@@ -15,6 +15,7 @@ type Input = {
   password?: string;
   phoneNumber?: string;
   licenseNumber?: string;
+  loginType?: string;
 };
 
 type PortalCredentials = {
@@ -108,6 +109,8 @@ if (isMor) {
     throw new HttpsError("invalid-argument", "Missing password");
   }
 }
+const loginType = s((body as any).loginType);
+
 
     const keyB64 = PORTAL_ENC_KEY_B64.value();
     if (!keyB64) throw new HttpsError("internal", "Missing encryption secret value");
@@ -115,7 +118,7 @@ if (isMor) {
 const encPayload: PortalCredentials = isMor
   ? {licenseNumber, username, phoneNumber}
   : isAltshuler
-    ? {licenseNumber, username}
+    ? {licenseNumber, username, ...(loginType ? {loginType} : {})}
     : (isMenora || isMeitav || isAnalyst)
       ? {username, phoneNumber}
       : {username, password};

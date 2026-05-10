@@ -57,6 +57,14 @@ export interface PolicyPdfResult {
     output_tokens: number;
     model: string;
   };
+
+  // מכסה
+_quota?: {
+  used: number;
+  limit: number;
+  remaining: number;
+};
+
 }
 
 
@@ -89,13 +97,14 @@ function emptyResult(confidence: "high" | "medium" | "low"): PolicyPdfResult {
 
 // ─── Main Export ──────────────────────────────────────────────
 
-export async function parsePolicyPdf(file: File): Promise<PolicyPdfResult> {
+export async function parsePolicyPdf(file: File , agentUid: string): Promise<PolicyPdfResult> {
   if (!file.type.includes("pdf") && !file.name.toLowerCase().endsWith(".pdf")) {
     throw new Error("הקובץ חייב להיות PDF");
   }
 
   const formData = new FormData();
   formData.append("file", file);
+formData.append("agentUid", agentUid);
 
   const res = await fetch("/api/insurance/parse-policy", {
     method: "POST",
@@ -111,8 +120,8 @@ export async function parsePolicyPdf(file: File): Promise<PolicyPdfResult> {
   }
 }
 
-export async function parsePolicyPdfs(files: File[]): Promise<PolicyPdfResult[]> {
-  return Promise.all(files.map((f) => parsePolicyPdf(f)));
+export async function parsePolicyPdfs(files: File[], agentUid: string): Promise<PolicyPdfResult[]> {
+  return Promise.all(files.map((f) => parsePolicyPdf(f, agentUid)));
 }
 
 // ─── Merge into HarBituchRow ──────────────────────────────────

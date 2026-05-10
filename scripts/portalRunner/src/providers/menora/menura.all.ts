@@ -131,7 +131,7 @@ await menoraProduceReport(page);
 
   await setStatus(runId, {
     downloads,
-    download: downloads[0], // אם יש אצלך עדיין קוד ישן שמסתכל על download בודד
+    // download: downloads[0], // אם יש אצלך עדיין קוד ישן שמסתכל על download בודד
     status: "done"
   });
 }

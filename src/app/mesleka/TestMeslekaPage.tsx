@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { parseCurrentStateFromMeslekaZip } from "@/lib/pension/parseCurrentStateFromMeslekaZip";
 import { enrichRowsWithReturns } from "@/lib/pension/parseGemelNet";
 import type { CurrentStateRow } from "@/lib/pension/types";
@@ -32,7 +32,11 @@ export default function TestMeslekaPage() {
 
   const [user] = useAuthState(auth);
 
+  const [pdfQuota, setPdfQuota] = useState<{ used: number; limit: number; remaining: number } | null>(null);
+
   // ─── Handler פנסיה ───────────────────────────────────────────
+
+
   const handleRun = async () => {
     if (!zipFile) {
       alert("בחר קובץ ZIP מהמסלקה");
@@ -102,9 +106,19 @@ export default function TestMeslekaPage() {
       const harResult = await parseHarBituchXlsx(harFile);
 
       const pdfResults: PolicyPdfResult[] = [];
+
+  if (!user) {
+  alert("נדרש להתחבר למערכת");
+  return;
+}
+
       for (const file of policyFiles) {
-        const result = await parsePolicyPdf(file);
-        pdfResults.push(result);
+        const result = await parsePolicyPdf(file , user.uid);
+      pdfResults.push(result);
+
+      if (result._quota) {
+  setPdfQuota(result._quota);
+}
 
         if (user && result._usage) {
           await logPolicyUsage({
@@ -296,6 +310,20 @@ export default function TestMeslekaPage() {
             >
               {insuranceLoading ? "מנתח..." : "הצג תיק ביטוחי"}
             </button>
+  {/* ─── מכסת PDF ─── */}
+            {pdfQuota && (
+              <div style={{
+                background: pdfQuota.remaining === 0 ? "#fee2e2" : "#f0fdf4",
+                border: `1px solid ${pdfQuota.remaining === 0 ? "#fca5a5" : "#86efac"}`,
+                borderRadius: 10, padding: "10px 16px",
+                fontSize: 13, fontWeight: 600,
+                color: pdfQuota.remaining === 0 ? "#dc2626" : "#15803d",
+              }}>
+                {pdfQuota.remaining === 0
+                  ? `⛔ הגעת למכסה החודשית (${pdfQuota.limit} פוליסות)`
+                  : `📄 פוליסות שנותחו החודש: ${pdfQuota.used}/${pdfQuota.limit} — נותרו ${pdfQuota.remaining}`}
+              </div>
+            )}
 
             {insuranceRows && hiddenRows.length > 0 && (
               <div style={{

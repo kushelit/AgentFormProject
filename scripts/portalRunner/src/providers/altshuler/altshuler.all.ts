@@ -21,6 +21,7 @@ async function getAltshulerCreds(ctx: RunnerCtx) {
   return {
     companyId: s(res?.data?.licenseNumber),  // ח.פ = licenseNumber
     idNumber: s(res?.data?.username),         // ת"ז = username
+    loginType: s(res?.data?.loginType) || "company",
   };
 }
 
@@ -35,7 +36,8 @@ export async function runAltshulerAll(ctx: RunnerCtx) {
     : run.resolvedWindow?.label) || "חודש נוכחי";
 
   const agentId = s((run as any)?.agentId || ctx.agentId);
-  const { companyId, idNumber } = await getAltshulerCreds(ctx);
+  const { companyId, idNumber, loginType } = await getAltshulerCreds(ctx);
+
 
   const appendDownload = async (item: any) => {
     const cur = (ctx.run as any)?.downloads || [];
@@ -70,7 +72,7 @@ export async function runAltshulerAll(ctx: RunnerCtx) {
     await page.waitForLoadState("networkidle", { timeout: 15000 }).catch(() => {});
 
     await setStatus(runId, { status: "running", step: "מבצע לוגין לאלטשולר", monthLabel });
-    await altshulerLogin(page, companyId, idNumber);
+    await altshulerLogin(page, companyId, idNumber, loginType);
 
     await altshulerHandleOtp(page, ctx);
 

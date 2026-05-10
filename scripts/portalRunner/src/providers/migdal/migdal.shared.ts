@@ -19,30 +19,61 @@ export async function waitMigdalLoaderGone(page: Page, timeoutMs = 30000) {
 /**
  * לוגין למגדל - עובד, לא נגעתי
  */
-export async function migdalLogin(page: Page, username: string, password: string) {
-  // המתנה שהשדות יופיעו לפני ההזרקה
-  await page.waitForSelector('#input_1', { state: 'visible', timeout: 30000 }).catch(() => {});
-  await page.waitForSelector('#input_2', { state: 'visible', timeout: 10000 }).catch(() => {});
+// export async function migdalLogin(page: Page, username: string, password: string) {
+//   // המתנה שהשדות יופיעו לפני ההזרקה
+//   await page.waitForSelector('#input_1', { state: 'visible', timeout: 30000 }).catch(() => {});
+//   await page.waitForSelector('#input_2', { state: 'visible', timeout: 10000 }).catch(() => {});
   
+//   const injection = `
+//     (function(u, p) {
+//       const user = document.querySelector('#input_1');
+//       const pass = document.querySelector('#input_2');
+//       const btn = document.querySelector('input.credentials_input_submit');
+//       if (user && pass && btn) {
+//         user.value = u;
+//         pass.value = p;
+//         user.dispatchEvent(new Event('input', { bubbles: true }));
+//         pass.dispatchEvent(new Event('input', { bubbles: true }));
+//         pass.dispatchEvent(new Event('change', { bubbles: true }));
+//         setTimeout(() => btn.click(), 200);
+//         return "SUCCESS";
+//       }
+//       return "FIELDS_NOT_FOUND";
+//     })('${username}', '${password}')
+//   `;
+//   const result = await page.evaluate(injection).catch(e => "ERROR: " + e.message);
+//   // console.log(`[Migdal] Login result: ${result}`);
+// }
+
+export async function migdalLogin(page: Page, username: string, password: string) {
   const injection = `
     (function(u, p) {
-      const user = document.querySelector('#input_1');
-      const pass = document.querySelector('#input_2');
-      const btn = document.querySelector('input.credentials_input_submit');
-      if (user && pass && btn) {
-        user.value = u;
-        pass.value = p;
-        user.dispatchEvent(new Event('input', { bubbles: true }));
-        pass.dispatchEvent(new Event('input', { bubbles: true }));
-        pass.dispatchEvent(new Event('change', { bubbles: true }));
-        setTimeout(() => btn.click(), 200);
-        return "SUCCESS";
-      }
-      return "FIELDS_NOT_FOUND";
+      return new Promise((resolve) => {
+        let attempts = 0;
+        const interval = setInterval(() => {
+          attempts++;
+          const user = document.querySelector('#input_1');
+          const pass = document.querySelector('#input_2');
+          const btn = document.querySelector('input.credentials_input_submit');
+          if (user && pass && btn) {
+            clearInterval(interval);
+            user.value = u;
+            pass.value = p;
+            user.dispatchEvent(new Event('input', { bubbles: true }));
+            pass.dispatchEvent(new Event('input', { bubbles: true }));
+            pass.dispatchEvent(new Event('change', { bubbles: true }));
+            setTimeout(() => btn.click(), 200);
+            resolve("SUCCESS");
+          }
+          if (attempts > 60) {
+            clearInterval(interval);
+            resolve("FIELDS_NOT_FOUND");
+          }
+        }, 500);
+      });
     })('${username}', '${password}')
   `;
   const result = await page.evaluate(injection).catch(e => "ERROR: " + e.message);
-  // console.log(`[Migdal] Login result: ${result}`);
 }
 
 /**

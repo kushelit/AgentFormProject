@@ -56,6 +56,8 @@ export default function PortalCredentialsPage() {
   const [pairingLeftSec, setPairingLeftSec] = useState<number>(0);
   const [creatingPairing, setCreatingPairing] = useState(false);
 
+  const [altshulerLoginType, setAltshulerLoginType] = useState<"company" | "agent">("company");
+
   useEffect(() => {
     if (!pairing?.expiresAtMs) return;
 
@@ -210,6 +212,7 @@ const canSave =
   payload.phoneNumber = phoneNumber;
 } else if (isAltshuler) {
   payload.licenseNumber = licenseNumber;
+  payload.loginType = altshulerLoginType;
 } else if (isMenora || isMeitav || isAnalyst) {
   payload.phoneNumber = phoneNumber;
 } else {
@@ -389,21 +392,35 @@ const canSave =
                 }
               />
             </div>
-
+            {isAltshuler && (
+  <div className="mb-3">
+    <label className="block font-semibold mb-1">סוג כניסה:</label>
+    <select
+      className="select-input w-full"
+      value={altshulerLoginType}
+      onChange={(e) => setAltshulerLoginType(e.target.value as "company" | "agent")}
+    >
+      <option value="company">ח.פ חברה</option>
+      <option value="agent">רישיון סוכן</option>
+    </select>
+  </div>
+)}
 {(isMor || isAltshuler) && (
   <div className="mb-3">
     <label className="block font-semibold mb-1">
-      {isMor ? "מספר רישיון:" : "מספר ח.פ:"}
+{isMor ? "מספר רישיון:" : altshulerLoginType === "agent" ? "מספר רישיון סוכן:" : "מספר ח.פ:"}
     </label>
     <input
       className="select-input w-full"
       value={licenseNumber}
       onChange={(e) => setLicenseNumber(e.target.value)}
-      placeholder={
-        isMor
-          ? "מספר רישיון לפורטל מור"
-          : "מספר ח.פ לפורטל אלטשולר"
-      }
+    placeholder={
+  isMor
+    ? "מספר רישיון לפורטל מור"
+    : altshulerLoginType === "agent"
+      ? "מספר רישיון סוכן לפורטל אלטשולר"
+      : "מספר ח.פ לפורטל אלטשולר"
+}
     />
   </div>
 )}

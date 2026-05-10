@@ -10,38 +10,37 @@ function getPrevMonthHebrew(): string {
   return hebrewMonths[prevMonth.getMonth()];
 }
 
-export async function altshulerLogin(page: Page, companyId: string, idNumber: string) {
-  // console.log("[Altshuler] Starting login...");
+export async function altshulerLogin(page: Page, companyId: string, idNumber: string, loginType: string = "company") {
   const cdp = await page.context().newCDPSession(page);
 
-  // ✅ שלב 1: וודא שטאב ח.פ active
-  await cdp.send("Runtime.evaluate", {
-    expression: `(function() {
-      const tab = document.querySelector('.text-left');
-      if (!tab) return 'TAB_NOT_FOUND';
-      if (!tab.classList.contains('active')) {
-        tab.click();
-        return 'CLICKED_TAB';
-      }
-      return 'ALREADY_ACTIVE';
-    })()`,
-    returnByValue: true,
-  });
-  await page.waitForTimeout(1000);
+  if (loginType === "company") {
+    await cdp.send("Runtime.evaluate", {
+      expression: `(function() {
+        const tab = document.querySelector('.text-left');
+        if (!tab) return 'TAB_NOT_FOUND';
+        if (!tab.classList.contains('active')) {
+          tab.click();
+          return 'CLICKED_TAB';
+        }
+        return 'ALREADY_ACTIVE';
+      })()`,
+      returnByValue: true,
+    });
+    await page.waitForTimeout(1000);
 
-  // ✅ שלב 2: מלא 9 ספרות ח.פ - תיבות נפרדות
-  // console.log("[Altshuler] Filling company ID...");
-  await fillDigitBoxes(page, cdp, companyId, 0); // מתחיל מ-index 0
+    await fillDigitBoxes(page, cdp, companyId, 0);
+    await page.waitForTimeout(500);
+    await fillDigitBoxes(page, cdp, idNumber, 9);
+    await page.waitForTimeout(500);
 
-  await page.waitForTimeout(500);
+  } else {
+    // רישיון סוכן — אין לחיצה על טאב
+    await fillDigitBoxes(page, cdp, companyId, 0);
+    await page.waitForTimeout(500);
+    await fillDigitBoxes(page, cdp, idNumber, 8);
+    await page.waitForTimeout(500);
+  }
 
-  // ✅ שלב 3: מלא 9 ספרות ת"ז - תיבות נפרדות
-  // console.log("[Altshuler] Filling ID number...");
-  await fillDigitBoxes(page, cdp, idNumber, 9); // מתחיל מ-index 9 (אחרי 9 של ח.פ)
-
-  await page.waitForTimeout(500);
-
-  // ✅ שלב 4: לחץ "שלחו לי קוד זיהוי"
   const btnResult = await cdp.send("Runtime.evaluate", {
     expression: `(function() {
       const btn = document.querySelector('button.login-new-button-component');
@@ -51,7 +50,6 @@ export async function altshulerLogin(page: Page, companyId: string, idNumber: st
     })()`,
     returnByValue: true,
   });
-  // console.log("[Altshuler] Send OTP btn:", btnResult.result.value);
 }
 
 async function fillDigitBoxes(page: any, cdp: any, value: string, startIndex: number) {

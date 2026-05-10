@@ -477,6 +477,20 @@ useEffect(() => {
       currentCompanyName: current?.companyName || "",
       currentStep: current?.step || "",
     });
+// עדכון סטטוס לכל חברה
+const newStatuses: Record<string, "queued" | "running" | "done" | "error"> = {};
+for (const r of runs) {
+  if (r.status === "success" || r.status === "done") {
+    newStatuses[r.companyId] = "done";
+  } else if (r.status === "error" || r.status === "failed") {
+    newStatuses[r.companyId] = "error";
+  } else if (IN_PROGRESS_RUN_STATUSES.has(r.status)) {
+    newStatuses[r.companyId] = "running";
+  } else if (r.status === "queued") {
+    newStatuses[r.companyId] = "queued";
+  }
+}
+setBatchCompanyStatuses(newStatuses);
 
     if (current) {
       setAutoRunId(current.id);

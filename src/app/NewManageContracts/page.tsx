@@ -1,7 +1,7 @@
 'use client';
 
 import { Suspense, useEffect, useState } from "react";
- import NewManageContracts from "./NewManageContracts";
+//  import NewManageContracts from "./NewManageContracts";
 import NewManageContractsTables from "@/components/NewManageContractsTables/NewManageContractsTables";
 import { useAuth } from "@/lib/firebase/AuthContext";
 import AccessDenied from "@/components/AccessDenied";
@@ -53,11 +53,7 @@ const { detail } = useAuth();
 
   return (
   <Suspense fallback={<div>Loading...</div>}>
-    {detail?.role === "admin" ? (
-      <NewManageContractsTables />
-    ) : (
-      <NewManageContracts />
-    )}
+    <NewManageContractsTables />
   </Suspense>
 );
 };

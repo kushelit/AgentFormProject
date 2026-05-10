@@ -57,14 +57,38 @@ const AutomaticRunsDashboard: React.FC<Props> = ({
     [automaticCompanies]
   );
 
-  const stats = useMemo(() => {
-    const done = items.filter((i) => i.uiStatus === 'done').length;
-    const running = items.filter((i) => i.uiStatus === 'running').length;
-    const error = items.filter((i) => i.uiStatus === 'error').length;
-    const ready = items.filter((i) => i.uiStatus === 'ready').length;
+  // const stats = useMemo(() => {
+  //   const done = items.filter((i) => i.uiStatus === 'done').length;
+  //   const running = items.filter((i) => i.uiStatus === 'running').length;
+  //   const error = items.filter((i) => i.uiStatus === 'error').length;
+  //   const ready = items.filter((i) => i.uiStatus === 'ready').length;
 
-    return { done, running, error, ready, total: items.length };
-  }, [items]);
+  //   return { done, running, error, ready, total: items.length };
+  // }, [items]);
+const stats = useMemo(() => {
+  let done = 0, running = 0, error = 0, ready = 0;
+
+  for (const item of items) {
+    const batchStatus = batchCompanyStatuses[item.companyId];
+    let effectiveStatus = item.uiStatus;
+
+    if (isBatchActive && batchStatus) {
+      if (batchStatus === "running") effectiveStatus = "running";
+      else if (batchStatus === "done") effectiveStatus = "done";
+      else if (batchStatus === "error") effectiveStatus = "error";
+      else if (batchStatus === "queued") effectiveStatus = "queued" as any;
+    } else if (isRunActive && activeCompanyId === item.companyId) {
+      effectiveStatus = "running";
+    }
+
+    if (effectiveStatus === 'done') done++;
+    else if (effectiveStatus === 'running') running++;
+    else if (effectiveStatus === 'error') error++;
+    else if (effectiveStatus === 'ready' || effectiveStatus === 'queued') ready++;
+  }
+
+  return { done, running, error, ready, total: items.length };
+}, [items, batchCompanyStatuses, isBatchActive, isRunActive, activeCompanyId]);
 
   const selectedCompanies = useMemo(
     () =>
@@ -181,7 +205,7 @@ if (isBatchActive && batchStatus) {
     effectiveStatus = "error";
   } else if (batchStatus === "queued") {
     // 👈 זה הפתרון לבאג שלך
-    effectiveStatus = "ready";
+    effectiveStatus = "queued";
   }
 } else if (isRunActive && activeCompanyId === item.companyId) {
   effectiveStatus = "running";
