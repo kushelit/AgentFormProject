@@ -78,7 +78,7 @@ export async function runMigdalAll(ctx: RunnerCtx) {
     await page.goto(portalUrl, { waitUntil: "commit", timeout: 60000 });
     await setStatus(runId, { status: "running", step: "migdal_login" });
     await migdalLogin(page, username, password!);
-
+    await page.waitForTimeout(3000);
     await setStatus
     (runId, { status: "otp_required", 
       step: "ממתין לקוד אימות ממגדל", 
