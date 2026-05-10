@@ -603,19 +603,27 @@ function OtpPageInner() {
     );
   }
 
-  if (!uid) {
-    return (
-      <div dir="rtl" className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
-        <div className="w-full max-w-sm rounded-3xl bg-white p-6 text-center shadow-sm border border-gray-200">
-          <h1 className="text-2xl font-bold text-gray-900">Magic OTP</h1>
-          <p className="mt-3 text-sm text-gray-600">יש להתחבר כדי להשתמש במסך הקודים.</p>
-        </div>
+ if (!uid) {
+  return (
+    <div dir="rtl" className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
+      <div className="w-full max-w-sm rounded-3xl bg-white p-6 text-center shadow-sm border border-gray-200">
+        <h1 className="text-2xl font-bold text-gray-900">Magic OTP</h1>
+        <p className="mt-3 text-sm text-gray-600">יש להתחבר למגיק כדי לקבל קודי אימות.</p>
+        < a
+          href="/auth/log-in"
+          className="mt-4 block w-full rounded-2xl bg-gray-900 px-4 py-3 text-sm font-semibold text-white text-center"
+        >
+          התחברות למגיק
+        </a>
       </div>
-    );
-  }
-
+    </div>
+  );
+}
   return (
     <div dir="rtl" className="min-h-screen bg-gray-50 px-4 py-6">
+      <div className="text-xs text-gray-400 text-center mb-2">
+  uid: {uid} | runs: {runs.length} | env: {process.env.NEXT_PUBLIC_APP_ENV || 'unknown'}
+</div>
       <div className="mx-auto max-w-sm">
        <div className="mb-4 text-center">
   <div className="text-2xl font-black text-gray-900">קוד אימות</div>
@@ -624,8 +632,8 @@ function OtpPageInner() {
   </div>
 </div>
         {!hasPushToken && (
-          <div className="mb-4 rounded-3xl border border-gray-200 bg-white p-4 shadow-sm">
-            <div className="text-sm font-semibold text-gray-800">התראות למכשיר הזה</div>
+          <div className="mb-4 rounded-3xl border border-red-200 bg-red-50 p-4 shadow-sm">
+  <div className="text-sm font-semibold text-red-800">⚠️ התראות למכשיר הזה</div>
             <p className="mt-1 text-xs text-gray-500">
               לחצי פעם אחת כדי לקבל התראה כשנדרש קוד OTP.
             </p>

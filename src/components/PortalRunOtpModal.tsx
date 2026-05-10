@@ -157,7 +157,7 @@ const handleCancel = async () => {
       }
       onConfirm={submit}
      onCancel={handleCancel}
-      confirmText={sending ? 'שולח...' : 'שלח קוד'}
+      confirmText={sending || submitted ? 'נשלח ✓' : 'שלח קוד'}
       cancelText="סגור"
       hideCancel={false}
     />
