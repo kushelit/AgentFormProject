@@ -156,6 +156,7 @@ await migdalClearModals(page);
     }
 
     await setStatus(runId, { status: "done", step: "migdal_all_done" });
+    
   } catch (e: any) {
     await setStatus(runId, { status: "error", error: e.message });
     throw e;

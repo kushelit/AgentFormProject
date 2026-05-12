@@ -209,7 +209,6 @@ if (gridResult === "TIMEOUT" || gridResult === "NO_DATA") {
     }
 
     await setStatus(runId, { status: "done", step: "clal_all_done", monthLabel, result: { uploaded: true } });
-    // console.log("[Clal] All done!");
 
   } catch (e: any) {
     // console.error("[Clal] Global Error:", e.message);

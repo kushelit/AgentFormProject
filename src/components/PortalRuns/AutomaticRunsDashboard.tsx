@@ -234,6 +234,7 @@ if (isBatchActive && batchStatus) {
                   busy={isSubmittingBatch}
                   globallyBlocked={false}
                   globallyBlockedReason="יש ריצה פעילה כרגע"
+                  missingReports={item.missingReports}
                 />
               </div>
             );

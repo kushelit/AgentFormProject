@@ -13,6 +13,8 @@ type Props = {
   busy?: boolean;
   globallyBlocked?: boolean;
   globallyBlockedReason?: string;
+missingReports?: Array<{ templateId: string; templateName?: string; status: string }>;
+
 };
 
 function formatDateTime(date?: Date | null) {
@@ -114,6 +116,7 @@ const AutoCompanyCard: React.FC<Props> = ({
   busy = false,
   globallyBlocked = false,
   globallyBlockedReason = '',
+  missingReports = [], 
 }) => {
   const meta = getUiMeta(uiStatus, autoDisabledReason);
   const lastRunLabel = formatDateTime(lastRunAt);
@@ -167,6 +170,12 @@ const AutoCompanyCard: React.FC<Props> = ({
             עדכון אחרון: {lastRunLabel}
           </div>
         )}
+        {uiStatus === 'done' && missingReports.length > 0 && (
+  <div className="mt-2 text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1.5">
+    ⚠️ דוחות שלא נקלטו:{' '}
+{missingReports.map(r => (r as any).templateName || r.templateId).join(', ')}
+  </div>
+)}
       </div>
     </div>
   );

@@ -11,6 +11,7 @@ export type CommissionTemplate = {
   fallbackProduct?: string;
   fields: Mapping; // excelCol -> systemField
   missingZipEntryBehavior?: "error" | "skip";
+  hekefType?: "tfuka_letagmul" | "hekefim";
 };
 
 export type BaseRow = {

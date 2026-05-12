@@ -44,6 +44,8 @@ export type DashboardCompanyState = {
   lastRunAt?: Date | null;
 
   uiStatus: AutoCompanyUiStatus;
+  missingReports?: Array<{ templateId: string; status: string }>;
+
 };
 
 type Params = {
@@ -200,7 +202,7 @@ export function useAutomationDashboardStatus({
           let runStatus = '';
           let runStep = '';
           let lastRunAt: Date | null = null;
-
+         let missingReports: any[] = [];
 
 
           if (lockSnap.exists()) {
@@ -221,6 +223,8 @@ export function useAutomationDashboardStatus({
                 toDateSafe(runData.updatedAt) ||
                 toDateSafe(runData.createdAt) ||
                 null;
+                 const reportsSummary: any[] = runData?.reportsSummary || [];
+               missingReports = reportsSummary.filter((r: any) => r.status !== "ok");
             }
           }
 
@@ -232,7 +236,6 @@ export function useAutomationDashboardStatus({
   isAutoEnabledByFlag,
   isCompanyAutoEnabled: company.companyAutoDownloadEnabled !== false,
 });
-
           return {
             companyId: company.id,
             companyName: company.name,
@@ -248,6 +251,7 @@ export function useAutomationDashboardStatus({
             runStep: runStep || undefined,
             lastRunAt,
             uiStatus,
+            missingReports: missingReports.length ? missingReports : undefined,
           } satisfies DashboardCompanyState;
         })
       );

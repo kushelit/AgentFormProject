@@ -145,7 +145,22 @@ export async function runPhoenixAll(ctx: RunnerCtx) {
       }
     }
 
-    await setStatus(runId, { status: "done", step: "הסתיים בהצלחה", monthLabel });
+    // await setStatus(runId, { status: "done", step: "הסתיים בהצלחה", monthLabel });
+
+    const expectedTemplateIds = REPORTS.map(r => r.templateId);
+const downloadedTemplateIds = ((run as any).downloads || []).map((d: any) => d.templateId);
+const missingTemplateIds = expectedTemplateIds.filter(id => !downloadedTemplateIds.includes(id));
+
+if (missingTemplateIds.length) {
+  await setStatus(runId, {
+    missingReports: missingTemplateIds.map(templateId => ({
+      templateId,
+      reason: "no_data_or_no_button",
+    }))
+  });
+}
+
+await setStatus(runId, { status: "done", step: "הסתיים בהצלחה", monthLabel });
 
   } catch (e: any) {
     log!.error("[Fenix] Global error:", e.message);

@@ -150,74 +150,6 @@ async function downloadStorageFileToTmp(params: { bucketNameRaw: string; storage
   );
 }
 
-// helper: ניהול סטטוס פר-job בתוך portalImportRuns
-// async function updatePortalRunJobState(params: {
-//   db: FirebaseFirestore.Firestore;
-//   portalRunId: string;
-//   jobId: string;
-//   patch: any;
-//   aggregate?: { finalStatus?: "success" | "error" };
-// }) {
-//   const { db, portalRunId, jobId, patch, aggregate } = params;
-//   const portalRunRef = db.collection("portalImportRuns").doc(portalRunId);
-
-//   await db.runTransaction(async (tx) => {
-//     const snap = await tx.get(portalRunRef);
-//     if (!snap.exists) return;
-
-//     const data = snap.data() as any;
-//     const jobIds: string[] = Array.isArray(data?.queue?.jobIds) ? data.queue.jobIds : [];
-
-//     // שמירת סטטוס פר-job
-//     tx.set(
-//       portalRunRef,
-//       {
-//         queue: {
-//           ...(data.queue || {}),
-//           jobs: {
-//             ...(data?.queue?.jobs || {}),
-//             [jobId]: {
-//               ...(data?.queue?.jobs?.[jobId] || {}),
-//               ...patch,
-//               updatedAt: nowTs(),
-//             },
-//           },
-//         },
-//         updatedAt: nowTs(),
-//       },
-//       { merge: true }
-//     );
-
-//     // אגרגציה: אם יש jobIds בריצה — אפשר להחליט מתי status=success/ error
-//     if (jobIds.length) {
-//       const jobsMap = { ...(data?.queue?.jobs || {}), [jobId]: { ...(data?.queue?.jobs?.[jobId] || {}), ...patch } };
-
-//  const statuses = jobIds.map((id) => safeStr(jobsMap?.[id]?.status));
-// const allFinishedOk =
-//   statuses.length > 0 &&
-//   statuses.every((s) => s === "success" || s === "skipped");
-// const anyError = statuses.some((s) => s === "error");
-
-// if (allFinishedOk) {
-//   tx.set(
-//     portalRunRef,
-//     { status: "success", step: "import_done", updatedAt: nowTs() },
-//     { merge: true }
-//   );
-// } else if (anyError) {
-//   tx.set(
-//     portalRunRef,
-//     { status: "error", step: "import_error", updatedAt: nowTs() },
-//     { merge: true }
-//   );
-// }
-//     } else if (aggregate?.finalStatus) {
-//       // fallback ישן: ריצה עם job יחיד
-//       tx.set(portalRunRef, { status: aggregate.finalStatus, updatedAt: nowTs() }, { merge: true });
-//     }
-//   });
-// }
-
 async function updatePortalRunJobState(params: {
   db: FirebaseFirestore.Firestore;
   portalRunId: string;
@@ -300,21 +232,63 @@ async function updatePortalRunJobState(params: {
     return st !== "success" && st !== "skipped" && st !== "error";
   });
 
+  // if (allFinishedOk) {
+  //   await portalRunRef.set(
+  //     {
+  //       status: "success",
+  //       step: "import_done",
+  //       queue: {
+  //         ...(freshRun.queue || {}),
+  //         pendingJobIds: [],
+  //         lastAggregateCheckAt: nowTs(),
+  //       },
+  //       updatedAt: nowTs(),
+  //     },
+  //     { merge: true }
+  //   );
+  // } 
   if (allFinishedOk) {
-    await portalRunRef.set(
-      {
-        status: "success",
-        step: "import_done",
-        queue: {
-          ...(freshRun.queue || {}),
-          pendingJobIds: [],
-          lastAggregateCheckAt: nowTs(),
-        },
-        updatedAt: nowTs(),
+  // חישוב דוחות חסרים לפי תבניות פעילות
+  const companyId = safeStr(freshRun.companyId);
+  let reportsSummary: any[] = [];
+
+  if (companyId) {
+    const expectedSnap = await db.collection("commissionTemplates")
+      .where("companyId", "==", companyId)
+      .where("isactive", "==", true)
+      .get();
+
+    const expectedTemplateIds = expectedSnap.docs.map(d => d.id);
+
+  reportsSummary = expectedTemplateIds.map(templateId => {
+  const templateDoc = expectedSnap.docs.find(d => d.id === templateId);
+  const templateName = safeStr(templateDoc?.data()?.Name || templateDoc?.data()?.type || templateId);
+  const job = jobSnaps.find(s => safeStr(s.exists ? s.data()?.templateId : "") === templateId);
+  if (!job || !job.exists) return { templateId, templateName, status: "not_downloaded" };
+  const jobStatus = safeStr(job.data()?.status);
+  if (jobStatus === "success") return { templateId, templateName, status: "ok" };
+  if (jobStatus === "skipped") return { templateId, templateName, status: "skipped", reason: safeStr(job.data()?.result?.reason) };
+  if (jobStatus === "error") return { templateId, templateName, status: "error", message: safeStr(job.data()?.error?.message) };
+  return { templateId, templateName, status: "unknown" };
+});
+  }
+
+  await portalRunRef.set(
+    {
+      status: "success",
+      step: "import_done",
+      reportsSummary,
+      queue: {
+        ...(freshRun.queue || {}),
+        pendingJobIds: [],
+        lastAggregateCheckAt: nowTs(),
       },
-      { merge: true }
-    );
-  } else if (anyError) {
+      updatedAt: nowTs(),
+    },
+    { merge: true }
+  );
+}
+  else if (anyError) {
     await portalRunRef.set(
       {
         status: "error",
@@ -715,7 +689,21 @@ if (templateId === "analyst_insurance") {
     } catch (e) {
       // ignore
     }
-  } catch (e: any) {
+ } catch (e: any) {
+    if (safeStr(e?.step) === "template_mismatch") {
+      await finishAsEmpty({
+        db,
+        queueRef,
+        portalRunId: effectivePortalRunId,
+        jobId,
+        templateId,
+        templateName: undefined,
+        message: "הדוח ריק או לא תואם את התבנית",
+        reason: "template_mismatch",
+        extra: { debug: e?.debug },
+      });
+      return;
+    }
     await fail(e);
   }
 }
