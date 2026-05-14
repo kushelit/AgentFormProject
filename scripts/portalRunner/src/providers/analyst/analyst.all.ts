@@ -79,27 +79,25 @@ export async function runAnalystAll(ctx: RunnerCtx) {
     await setStatus(runId, { status: "running", step: "מוריד דוח מאנליסט", monthLabel });
     const downloads = await analystNavigateAndExport(page, absDir);
 
-    if (downloads.length > 0) {
-      for (const { localPath, filename } of downloads) {
-        const up = await uploadLocalFileToStorageClient({
-          storage,
-          localPath,
-          agentId,
-          runId,
-          subdir: "analyst_insurance",
-        } as any);
+   if (downloads.length > 0) {
+  for (const { localPath, filename, templateId: repTemplateId } of downloads) {
+    const up = await uploadLocalFileToStorageClient({
+      storage,
+      localPath,
+      agentId,
+      runId,
+      subdir: repTemplateId,
+    } as any);
 
-        if (up?.storagePath) {
-          // console.log("[Analyst] Uploaded:", up.storagePath);
-          await appendDownload({
-            templateId: "analyst_insurance",
-            localPath,
-            filename: up.filename || filename,
-            storagePath: up.storagePath,
-          });
-        }
-      }
-
+    if (up?.storagePath) {
+      await appendDownload({
+        templateId: repTemplateId,
+        localPath,
+        filename: up.filename || filename,
+        storagePath: up.storagePath,
+      });
+    }
+  }
       await setStatus(runId, {
         status: "done",
         step: "analyst_done",

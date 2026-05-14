@@ -125,8 +125,8 @@ export async function analystHandleOtp(page: Page, ctx: RunnerCtx) {
 export async function analystNavigateAndExport(
   page: Page,
   absDir: string
-): Promise<{ localPath: string; filename: string }[]> {
-  const results: { localPath: string; filename: string }[] = [];
+): Promise<{ localPath: string; filename: string; templateId: string }[]> {
+  const results: { localPath: string; filename: string; templateId: string }[] = [];
   const cdp = await page.context().newCDPSession(page);
 
   // ✅ שלב 1: סגור popup אם קיים
@@ -168,68 +168,70 @@ export async function analystNavigateAndExport(
   await page.waitForTimeout(3000);
 
   // ✅ שלב 3: בחר סוג דוח
-  // console.log("[Analyst] Opening report type dropdown...");
-  const selectPos = await cdp.send("Runtime.evaluate", {
-    expression: `(function() {
-      const el = document.querySelector('mat-select[aria-label="בחירת סוג דוח"], mat-select[aria-label="בחירות סוג דות"], #mat-select-1, #mat-select-3');
-      if (!el) return null;
-      const rect = el.getBoundingClientRect();
-      return JSON.stringify({ x: rect.left + rect.width/2, y: rect.top + rect.height/2 });
-    })()`,
-    returnByValue: true,
-  });
+  const REPORTS = [
+    { name: "עמלות סוכנים", templateId: "analyst_insurance" },
+    { name: "גיוסים", templateId: "analyst_volume" },
+  ];
 
-  const pos = JSON.parse(selectPos.result.value || 'null');
-  if (!pos) throw new Error("Report type select not found");
+  for (const rep of REPORTS) {
+    // שלב 3: פתח dropdown
+    const selectPos = await cdp.send("Runtime.evaluate", {
+      expression: `(function() {
+        const el = document.querySelector('mat-select[aria-label="בחירת סוג דוח"], mat-select[aria-label="בחירות סוג דות"], #mat-select-1, #mat-select-3');
+        if (!el) return null;
+        const rect = el.getBoundingClientRect();
+        return JSON.stringify({ x: rect.left + rect.width/2, y: rect.top + rect.height/2 });
+      })()`,
+      returnByValue: true,
+    });
 
-  await page.mouse.click(pos.x, pos.y);
-  await page.waitForTimeout(1000);
+    const pos = JSON.parse(selectPos.result.value || 'null');
+    if (!pos) throw new Error("Report type select not found");
 
-  // ✅ שלב 4: בחר "עמלות סוכנים"
-  // console.log("[Analyst] Selecting 'עמלות סוכנים'...");
-  const selectResult = await cdp.send("Runtime.evaluate", {
-    expression: `(function() {
-      const options = Array.from(document.querySelectorAll('mat-option'));
-      const target = options.find(o => (o.textContent || '').trim().includes('עמלות סוכנים'));
-      if (!target) return 'NOT_FOUND: ' + options.map(o => o.textContent?.trim()).join(' | ');
-      target.click();
-      return 'CLICKED: ' + target.textContent?.trim();
-    })()`,
-    returnByValue: true,
-  });
-  // console.log("[Analyst] Select result:", selectResult.result.value);
-  await page.waitForTimeout(1000);
+    await page.mouse.click(pos.x, pos.y);
+    await page.waitForTimeout(1000);
 
-  // ✅ שלב 5: לחץ "הפק דוח"
-  // console.log("[Analyst] Clicking 'הפק דוח'...");
-  try {
-    const [download] = await Promise.all([
-      page.waitForEvent("download", { timeout: 30000 }),
-      cdp.send("Runtime.evaluate", {
-        expression: `(function() {
-          const btn = document.querySelector('button[aria-label="הפק דות"]');
-          if (!btn) {
-            const btns = Array.from(document.querySelectorAll('button'));
-            const target = btns.find(b => (b.textContent || '').trim().includes('הפק דוח'));
-            if (target) { target.click(); return 'CLICKED_FALLBACK'; }
-            return 'NOT_FOUND';
-          }
-          btn.click();
-          return 'CLICKED';
-        })()`,
-        returnByValue: true,
-      }),
-    ]);
+    // שלב 4: בחר דוח
+    await cdp.send("Runtime.evaluate", {
+      expression: `(function(name) {
+        const options = Array.from(document.querySelectorAll('mat-option'));
+        const target = options.find(o => (o.textContent || '').trim().includes(name));
+        if (target) target.click();
+      })('${rep.name}')`,
+      returnByValue: true,
+    });
+    await page.waitForTimeout(1000);
 
-    const filename = download.suggestedFilename();
-    const localPath = path.join(absDir, `${Date.now()}_${filename}`);
-    await download.saveAs(localPath);
-    // console.log("[Analyst] Saved:", localPath);
-    results.push({ localPath, filename });
+    // שלב 5: הפק דוח
+    try {
+      const [download] = await Promise.all([
+        page.waitForEvent("download", { timeout: 30000 }),
+        cdp.send("Runtime.evaluate", {
+          expression: `(function() {
+            const btn = document.querySelector('button[aria-label="הפק דות"]');
+            if (!btn) {
+              const btns = Array.from(document.querySelectorAll('button'));
+              const target = btns.find(b => (b.textContent || '').trim().includes('הפק דוח'));
+              if (target) { target.click(); return 'CLICKED_FALLBACK'; }
+              return 'NOT_FOUND';
+            }
+            btn.click();
+            return 'CLICKED';
+          })()`,
+          returnByValue: true,
+        }),
+      ]);
 
-  } catch (e: any) {
-    // console.log("[Analyst] Export failed:", e?.message);
+      const filename = download.suggestedFilename();
+      const localPath = path.join(absDir, `${Date.now()}_${filename}`);
+      await download.saveAs(localPath);
+      results.push({ localPath, filename, templateId: rep.templateId });
+
+    } catch (e: any) {
+      // console.log(`[Analyst] Export failed for ${rep.name}:`, e?.message);
+    }
+
+    await page.waitForTimeout(2000);
   }
 
-  return results;
-}
+  return results;}

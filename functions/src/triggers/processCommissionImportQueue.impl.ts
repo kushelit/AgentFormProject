@@ -101,7 +101,7 @@ async function finishAsEmpty(params: {
     patch: {
       status: "skipped",
       templateId,
-      templateName,
+      templateName: templateName || templateId,
       finishedAt: nowTs(),
       externalCount: 0,
       commissionSummariesCount: 0,
@@ -262,7 +262,7 @@ async function updatePortalRunJobState(params: {
 
   reportsSummary = expectedTemplateIds.map(templateId => {
   const templateDoc = expectedSnap.docs.find(d => d.id === templateId);
-  const templateName = safeStr(templateDoc?.data()?.Name || templateDoc?.data()?.type || templateId);
+const templateName = safeStr(templateDoc?.data()?.Name || templateDoc?.data()?.type) || templateId;
   const job = jobSnaps.find(s => safeStr(s.exists ? s.data()?.templateId : "") === templateId);
   if (!job || !job.exists) return { templateId, templateName, status: "not_downloaded" };
   const jobStatus = safeStr(job.data()?.status);
@@ -456,6 +456,7 @@ const template: CommissionTemplate = {
   fallbackProduct: safeStr(tmpl?.fallbackProduct) || undefined,
   fields,
   missingZipEntryBehavior: (missingZipEntryBehavior as "error" | "skip"),
+    hekefType: tmpl?.hekefType || undefined,
 };
     const dl = await downloadStorageFileToTmp({ bucketNameRaw: bucketName, storagePath });
     const tmpPath = dl.tmpPath;
@@ -501,7 +502,7 @@ if (!picked.ok) {
         reason: "missing_zip_entry_skipped",
         finishedAt: nowTs(),
         templateId,
-        templateName: template.templateName,
+       templateName: safeStr(template.templateName) || templateId,
         extra: {
           zipReason: picked.reason,
           candidates: picked.candidates || [],
@@ -548,7 +549,7 @@ if (!parsed.rowsCount) {
     portalRunId: effectivePortalRunId,
     jobId,
     templateId,
-  templateName: template.templateName,
+   templateName: safeStr(template.templateName) || templateId,
     message: "הדוח נקלט אך מכיל 0 שורות",
     reason: "parse_file_empty",
     extra: { debug: parsed?.debug },
@@ -576,7 +577,7 @@ if (!standardized.length) {
     portalRunId: effectivePortalRunId,
     jobId,
     templateId,
-      templateName: template.templateName,
+    templateName: safeStr(template.templateName) || templateId,
     message: "הדוח נקלט אך לאחר עיבוד לא נמצאו שורות",
     reason: "standardize_empty",
   });
@@ -607,7 +608,7 @@ if (templateId === "ayalon_insurance") {
       portalRunId: effectivePortalRunId,
       jobId,
       templateId,
-      templateName: template.templateName,
+    templateName: safeStr(template.templateName) || templateId,
       message: `הדוח נקלט אך אין נתונים עבור ${targetMonth}`,
       reason: "filter_month_empty",
     });
@@ -629,7 +630,7 @@ if (templateId === "analyst_insurance") {
       portalRunId: effectivePortalRunId,
       jobId,
       templateId,
-      templateName: template.templateName,
+    templateName: safeStr(template.templateName) || templateId,
       message: `הדוח נקלט אך אין נתונים עבור ${targetMonth}`,
       reason: "filter_month_empty",
     });
@@ -645,7 +646,7 @@ if (templateId === "analyst_insurance") {
         companyId,
         company: companyName,
         templateId,
-        templateName: template.templateName,
+       templateName: safeStr(template.templateName) || templateId,
         createdAt: nowTs(),
         source: "portalRunner",
         portalRunId: effectivePortalRunId, // חשוב לשיוך
@@ -679,7 +680,7 @@ if (templateId === "analyst_insurance") {
         commissionSummariesCount: commissionSummaries.length,
         policySummariesCount: policySummaries.length,
         templateId,
-        templateName: template.templateName,
+      templateName: safeStr(template.templateName) || templateId,
       },
       aggregate: { finalStatus: "success" },
     });
@@ -697,7 +698,7 @@ if (templateId === "analyst_insurance") {
         portalRunId: effectivePortalRunId,
         jobId,
         templateId,
-        templateName: undefined,
+        templateName: templateId || "",
         message: "הדוח ריק או לא תואם את התבנית",
         reason: "template_mismatch",
         extra: { debug: e?.debug },

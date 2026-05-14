@@ -165,10 +165,17 @@ export function initFirebaseClient() {
   const storage = getStorage();
 
   // region: קודם config, אחר כך ENV, אחרון default
+  // const region =
+  //   (config?.firebase?.functionsRegion && String(config.firebase.functionsRegion).trim()) ||
+  //   optEnv("FIREBASE_FUNCTIONS_REGION") ||
+  //   "us-central1";
+
+  const projectId = reqPickFirebase(config, "projectId", "FIREBASE_PROJECT_ID");
+
   const region =
-    (config?.firebase?.functionsRegion && String(config.firebase.functionsRegion).trim()) ||
-    optEnv("FIREBASE_FUNCTIONS_REGION") ||
-    "us-central1";
+  (config?.firebase?.functionsRegion && String(config.firebase.functionsRegion).trim()) ||
+  optEnv("FIREBASE_FUNCTIONS_REGION") ||
+  (projectId === "agentsale-693e8" ? "us-central1" : "europe-west1");
 
   const functions = getFunctions(getApps()[0], region);
 

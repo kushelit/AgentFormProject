@@ -163,19 +163,27 @@ export function standardizeRowWithTemplate(params: {
       continue;
     }
 
-    // if (systemField === "commissionAmount") {
-    //   const override = commissionOverrides[template.templateId];
-    //   let commission = override ? override(rawRow) : toNum(value);
+//     if (systemField === "commissionAmount") {
+//   const override = commissionOverrides[template.templateId];
 
-    //   if (template.commissionIncludesVAT) {
-    //     commission = commission / (1 + VAT_DEFAULT);
-    //   }
-    //   result.commissionAmount = roundTo2(commission);
-    //   continue;
-    // }
-    if (systemField === "commissionAmount") {
+//   const commissionOriginal = override ? override(rawRow) : toNum(value);
+//   let commission = commissionOriginal;
+
+//   if (template.commissionIncludesVAT) {
+//     commission = commission / (1 + VAT_DEFAULT);
+//   }
+
+//   result.commissionAmountOriginal = roundTo2(commissionOriginal); // הערך כמו שהגיע מהקובץ
+//   result.commissionIncludesVAT = !!template.commissionIncludesVAT;
+//   result.commissionAmount = roundTo2(commission); // הערך הקיים נטו, לא נוגעים בהתנהגות
+
+//   continue;
+// }
+
+if (systemField === "commissionAmount") {
+ 
+
   const override = commissionOverrides[template.templateId];
-
   const commissionOriginal = override ? override(rawRow) : toNum(value);
   let commission = commissionOriginal;
 
@@ -183,12 +191,12 @@ export function standardizeRowWithTemplate(params: {
     commission = commission / (1 + VAT_DEFAULT);
   }
 
-  result.commissionAmountOriginal = roundTo2(commissionOriginal); // הערך כמו שהגיע מהקובץ
+  result.commissionAmountOriginal = roundTo2(commissionOriginal);
   result.commissionIncludesVAT = !!template.commissionIncludesVAT;
-  result.commissionAmount = roundTo2(commission); // הערך הקיים נטו, לא נוגעים בהתנהגות
-
+  result.commissionAmount = roundTo2(commission);
   continue;
 }
+
 
     if (systemField === "premium") {
       if (template.templateId === "fenix_insurance") {
@@ -275,6 +283,18 @@ export function standardizeRowWithTemplate(params: {
   //     result.product = normalizeProduct(template.fallbackProduct);
   //   }
   // }
+  
+ if (template.hekefType) {
+    result.commissionAmountOriginal = 0;
+    result.commissionIncludesVAT = false;
+    result.commissionAmount = 0;
+  }
+
+  // היקפים: validMonth = reportMonth
+if (template.hekefType && result.reportMonth) {
+  result.validMonth = result.reportMonth;
+  console.log('[hekef] setting validMonth:', result.reportMonth);
+}
 
   // 5) normalize months
   if (result.reportMonth) result.reportMonth = sanitizeMonth(result.reportMonth);
