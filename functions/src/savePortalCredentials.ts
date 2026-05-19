@@ -78,6 +78,8 @@ const isMor = portalId === "mor";
 const isMeitav = portalId === "meitav";
 const isAnalyst = portalId === "analyst";
 const isAltshuler = portalId === "altshuler";
+const isYalin = portalId === "yalin";
+
 
 const licenseNumber = s((body as any).licenseNumber);
 
@@ -104,7 +106,12 @@ if (isMor) {
   if (!phoneNumber) {
     throw new HttpsError("invalid-argument", "Missing phoneNumber for analyst");
   }
-} else {
+} else if (isYalin) {
+  if (!phoneNumber) {
+    throw new HttpsError("invalid-argument", "Missing phoneNumber for yalin");
+  }
+} 
+else {
   if (!password) {
     throw new HttpsError("invalid-argument", "Missing password");
   }
@@ -119,7 +126,7 @@ const encPayload: PortalCredentials = isMor
   ? {licenseNumber, username, phoneNumber}
   : isAltshuler
     ? {licenseNumber, username, ...(loginType ? {loginType} : {})}
-    : (isMenora || isMeitav || isAnalyst)
+    : (isMenora || isMeitav || isAnalyst || isYalin)
       ? {username, phoneNumber}
       : {username, password};
 

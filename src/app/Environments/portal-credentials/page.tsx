@@ -51,6 +51,8 @@ export default function PortalCredentialsPage() {
   const isMeitav = selectedPortalId === "meitav";
   const isAnalyst = selectedPortalId === "analyst";
   const isAltshuler = selectedPortalId === "altshuler";
+  const isYalin = selectedPortalId === "yalin";
+
 
   const [pairing, setPairing] = useState<{ code: string; expiresAtMs: number } | null>(null);
   const [pairingLeftSec, setPairingLeftSec] = useState<number>(0);
@@ -188,7 +190,7 @@ const canSave =
       ? (!!licenseNumber && !!phoneNumber)
       : isAltshuler
         ? !!licenseNumber
-        : (isMenora || isMeitav || isAnalyst)
+        : (isMenora || isMeitav || isAnalyst || isYalin)
           ? !!phoneNumber
           : !!password
   ) &&
@@ -213,7 +215,7 @@ const canSave =
 } else if (isAltshuler) {
   payload.licenseNumber = licenseNumber;
   payload.loginType = altshulerLoginType;
-} else if (isMenora || isMeitav || isAnalyst) {
+} else if (isMenora || isMeitav || isAnalyst || isYalin) {
   payload.phoneNumber = phoneNumber;
 } else {
   payload.password = password;
@@ -371,7 +373,7 @@ const canSave =
 
             <div className="mb-3">
               <label className="block font-semibold mb-1">
-{(isMor || isMeitav || isAnalyst || isAltshuler) ? "תעודת זהות:" : "שם משתמש:"}
+{(isMor || isMeitav || isAnalyst || isAltshuler || isYalin) ? "תעודת זהות:" : "שם משתמש:"}
               </label>
               <input
                 className="select-input w-full"
@@ -425,7 +427,7 @@ const canSave =
   </div>
 )}
 
-{(isMenora || isMor || isMeitav || isAnalyst) && (
+{(isMenora || isMor || isMeitav || isAnalyst || isYalin) && (
                 <div className="mb-3">
                 <label className="block font-semibold mb-1">
                   {(isMor || isMeitav || isAnalyst) ? "טלפון:" : "טלפון / SAPN:"}
@@ -441,7 +443,9 @@ const canSave =
       ? "מספר טלפון להזדהות בפורטל מיטב"
       : isAnalyst
         ? "מספר טלפון להזדהות בפורטל אנליסט"
-        : "מספר טלפון להזדהות במנורה"
+        : isYalin
+          ? "מספר טלפון להזדהות בפורטל יאלין"
+          : "מספר טלפון להזדהות במנורה"
 }
                   inputMode="tel"
                 />
@@ -452,12 +456,16 @@ const canSave =
     ? "במיטב אין סיסמה. יש תעודת זהות + טלפון ואז OTP."
     : isAnalyst
       ? "באנליסט אין סיסמה. יש תעודת זהות + טלפון ואז OTP."
-      : "במנורה אין סיסמה. יש שם משתמש + טלפון ואז OTP."}
+      : isYalin
+        ? "ביאלין אין סיסמה. יש תעודת זהות + טלפון ואז OTP."
+        : "במנורה אין סיסמה. יש שם משתמש + טלפון ואז OTP."
+      
+      }
                 </div>
               </div>
             )}
 
-{!isMenora && !isMor && !isMeitav && !isAnalyst && !isAltshuler && (
+{!isMenora && !isMor && !isMeitav && !isAnalyst && !isAltshuler && !isYalin && (
                   <div className="mb-3">
                 <label className="block font-semibold mb-1">סיסמה:</label>
                 <input

@@ -12,6 +12,7 @@ import { runMeitavAll } from "./meitav/meitav.all";
 import { runAnalystAll } from "./analyst/analyst.all";
 import { runAltshulerAll } from "./altshuler/altshuler.all";
 import { runHachsharaAll } from "./hachshara/hachshara.all";
+import { runYalinAll } from "./yalinlapidot/yalinlapidot.all";
 
 
 // import { runMigdalInsurance } from "./migdal/migdal.insurance";
@@ -31,4 +32,5 @@ export const providers: Record<string, RunnerHandler> = {
   analyst_commissions_all: runAnalystAll,
   altshuler_commissions_all: runAltshulerAll,
   hachshara_commissions_all: runHachsharaAll,
+  yalin_commissions_all: runYalinAll,
 };

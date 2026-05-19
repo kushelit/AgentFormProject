@@ -277,6 +277,19 @@ if (systemField === "commissionAmount") {
     }
   }
 
+  // ילין לפידות: reportMonth = שנה + חודש
+if (template.templateId === "yalin_insurance") {
+  const rawMonth = rawRow[normalizeHeader("חודש")] ?? rawRow["חודש"];
+  const rawYear = rawRow[normalizeHeader("שנה")] ?? rawRow["שנה"];
+
+  const mm = String(rawMonth ?? "").trim().padStart(2, "0");
+  const yyyy = String(rawYear ?? "").trim();
+
+  if (mm && yyyy && /^\d{4}$/.test(yyyy)) {
+    result.reportMonth = `${yyyy}-${mm}`;
+  }
+}
+
   // // 4) fallbackProduct
   // if (!result.product || !String(result.product).trim()) {
   //   if (template.fallbackProduct) {
@@ -290,10 +303,8 @@ if (systemField === "commissionAmount") {
     result.commissionAmount = 0;
   }
 
-  // היקפים: validMonth = reportMonth
-if (template.hekefType && result.reportMonth) {
+ if (template.hekefType && result.reportMonth && !result.validMonth) {
   result.validMonth = result.reportMonth;
-  console.log('[hekef] setting validMonth:', result.reportMonth);
 }
 
   // 5) normalize months

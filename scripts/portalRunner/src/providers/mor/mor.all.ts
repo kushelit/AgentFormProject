@@ -5,7 +5,8 @@ import type { RunnerCtx } from "../../types";
 import { httpsCallable } from "firebase/functions";
 import { resolveChromiumExePath } from "../../runnerPaths";
 import { uploadLocalFileToStorageClient } from "../../uploadToStorage.client";
-import { morLogin, morHandleOtp, morNavigateToReport } from "./mor.shared";
+import { morLogin, morHandleOtp, morNavigateToReport, morNavigateToVolumeReport } from "./mor.shared";
+
 
 function ensureDir(p: string) {
   if (!fs.existsSync(p)) fs.mkdirSync(p, { recursive: true });
@@ -81,32 +82,57 @@ export async function runMorAll(ctx: RunnerCtx) {
     await setStatus(runId, { status: "running", step: "מנסה לנווט לדוח", monthLabel });
     const download = await morNavigateToReport(page);
 
+  const appendDownload = async (item: any) => {
+      const cur = (ctx.run as any)?.downloads || [];
+      const downloads = Array.isArray(cur) ? [...cur, item] : [item];
+      (ctx.run as any).downloads = downloads;
+      await setStatus(runId, { downloads });
+    };
+
+    // דוח נפרעים
     if (download) {
       const filename = download.suggestedFilename();
       const localPath = path.join(absDir, `${Date.now()}_${filename}`);
       await download.saveAs(localPath);
-      // console.log("[Mor] Saved:", localPath);
 
       const up = await uploadLocalFileToStorageClient({
-        storage,
-        localPath,
-        agentId,
-        runId,
-        subdir: "mor_insurance",
+        storage, localPath, agentId, runId, subdir: "mor_insurance",
       } as any);
 
       if (up?.storagePath) {
-        const downloads = [{
+        await appendDownload({
           templateId: "mor_insurance",
           localPath,
           filename: up.filename || filename,
           storagePath: up.storagePath,
-        }];
-        await setStatus(runId, { downloads, status: "done", step: "mor_done", monthLabel });
+        });
       }
-    } else {
-      await setStatus(runId, { status: "done", step: "mor_done_no_file", monthLabel });
     }
+
+    // דוח גיוסים (תפוקות)
+    await setStatus(runId, { status: "running", step: "מוריד דוח גיוסים ממור", monthLabel });
+    const volumeDownload = await morNavigateToVolumeReport(page);
+
+    if (volumeDownload) {
+      const filename = volumeDownload.suggestedFilename();
+      const localPath = path.join(absDir, `${Date.now()}_${filename}`);
+      await volumeDownload.saveAs(localPath);
+
+      const up = await uploadLocalFileToStorageClient({
+        storage, localPath, agentId, runId, subdir: "mor_volume",
+      } as any);
+
+      if (up?.storagePath) {
+        await appendDownload({
+          templateId: "mor_volume",
+          localPath,
+          filename: up.filename || filename,
+          storagePath: up.storagePath,
+        });
+      }
+    }
+
+    await setStatus(runId, { status: "done", step: "mor_done", monthLabel, result: { uploaded: true } });
 
   } catch (e: any) {
     // console.error("[Mor] Error:", e.message);

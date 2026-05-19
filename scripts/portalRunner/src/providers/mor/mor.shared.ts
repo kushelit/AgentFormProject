@@ -238,3 +238,44 @@ export async function morNavigateToReport(page: Page): Promise<import("playwrigh
     return null;
   }
 }
+
+export async function morNavigateToVolumeReport(page: Page): Promise<import("playwright").Download | null> {
+  const cdp = await page.context().newCDPSession(page);
+
+  // לחץ על "דוח גיוסים" בתפריט
+  const navResult = await cdp.send("Runtime.evaluate", {
+    expression: `(function() {
+      const items = Array.from(document.querySelectorAll('ul.k-drawer-items li[class*="k-drawer-item"]'));
+      const target = items.find(li =>
+        (li.getAttribute('aria-label') || '').includes('דוח גיוסים') ||
+        (li.textContent || '').includes('דוח גיוסים')
+      );
+      if (!target) return 'NOT_FOUND: ' + items.map(li => li.getAttribute('aria-label')).join(' | ');
+      target.scrollIntoView();
+      target.click();
+      return 'CLICKED';
+    })()`,
+    returnByValue: true,
+  });
+
+  await page.waitForTimeout(3000);
+
+  // לחץ על "ייצוא לאקסל"
+  try {
+    const [download] = await Promise.all([
+      page.waitForEvent("download", { timeout: 60000 }),
+      cdp.send("Runtime.evaluate", {
+        expression: `(function() {
+          const btn = document.querySelector('button[kendogridexcelcommand], button[class*="k-grid-excel"]');
+          if (!btn) return 'NOT_FOUND';
+          btn.click();
+          return 'CLICKED';
+        })()`,
+        returnByValue: true,
+      }),
+    ]);
+    return download;
+  } catch (e: any) {
+    return null;
+  }
+}
