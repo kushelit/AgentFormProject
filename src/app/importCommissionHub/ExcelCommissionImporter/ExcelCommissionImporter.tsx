@@ -127,6 +127,7 @@ const ExcelCommissionImporter: React.FC = () => {
   const [monthsInFile, setMonthsInFile] = useState<string[]>([]);
   const [conflictingRunIds, setConflictingRunIds] = useState<string[]>([]);
   
+  const [isRunnerOnline, setIsRunnerOnline] = useState<boolean | null>(null);
   // const sanitizeMonth = (m?: any) => String(m || '').replace(/\//g, '-').trim();
 
   const sanitizeMonth = (m?: any) => {
@@ -2168,18 +2169,62 @@ useEffect(() => {
     return;
   }
 
-  const unsub = onSnapshot(
+  let prevVersion = "";
+
+//   const unsub = onSnapshot(
+//     doc(db, "portalRunnerStatus", selectedAgentId),
+//     (snap) => {
+//       if (snap.exists()) {
+//         const newVersion = String(snap.data()?.runnerVersion || "").trim();
+        
+//         // אם הגרסה השתנה ויש גרסה קודמת → עדכון הסתיים
+//         if (prevVersion && newVersion && prevVersion !== newVersion) {
+//           addToast("success", `✅ הבוט עודכן בהצלחה לגרסה ${newVersion}`);
+//           setTimeout(() => window.location.reload(), 2000);
+//         }
+
+//         prevVersion = newVersion;
+//         setCurrentRunnerVersion(newVersion);
+//       } else {
+//         setCurrentRunnerVersion("");
+//       }
+//     },
+//     () => setCurrentRunnerVersion("")
+//   );
+//   return () => unsub();
+// }, [selectedAgentId]);
+
+
+const unsub = onSnapshot(
     doc(db, "portalRunnerStatus", selectedAgentId),
     (snap) => {
       if (snap.exists()) {
-        setCurrentRunnerVersion(String(snap.data()?.runnerVersion || "").trim());
+        const data = snap.data();
+        const newVersion = String(data?.runnerVersion || "").trim();
+        
+        // בדיקת online לפי lastSeenAt
+        const lastSeenAt = data?.lastSeenAt?.toDate?.() ?? null;
+        const online = lastSeenAt ? (Date.now() - lastSeenAt.getTime()) < 30_000 : false;
+        setIsRunnerOnline(online);
+
+        // אם הגרסה השתנה ויש גרסה קודמת → עדכון הסתיים
+        if (prevVersion && newVersion && prevVersion !== newVersion) {
+          addToast("success", `✅ הבוט עודכן בהצלחה לגרסה ${newVersion}`);
+          setTimeout(() => window.location.reload(), 2000);
+        }
+
+        prevVersion = newVersion;
+        setCurrentRunnerVersion(newVersion);
       } else {
         setCurrentRunnerVersion("");
+        setIsRunnerOnline(false);
       }
     },
-    () => setCurrentRunnerVersion("")
+    () => {
+      setCurrentRunnerVersion("");
+      setIsRunnerOnline(false);
+    }
   );
-
   return () => unsub();
 }, [selectedAgentId]);
 
@@ -2612,7 +2657,6 @@ async function enrichMissingCustomerIdsForMarkedSheets(params: {
         </select>
       </div>
     </div>
-
     {/* 2. אזור אוטומציה + עדכוני גרסה */}
     {selectedAgentId && (
       <div className="space-y-4 mb-8">
@@ -2669,14 +2713,14 @@ async function enrichMissingCustomerIdsForMarkedSheets(params: {
               </a>
             )}
 
-            {isUpdateAvailable && isAutoEnabledByFlag && !needsManualUpgrade && (
-              <Button
-                text="עדכן עכשיו"
-                className="bg-white text-orange-600 hover:bg-orange-50 px-4 py-2 text-sm font-bold rounded-lg shadow-md"
-                onClick={handleTriggerUpdate}
-                disabled={isStartingAuto}
-              />
-            )}
+          {isUpdateAvailable && isAutoEnabledByFlag && !needsManualUpgrade && (
+  <Button
+    text={autoRunKind === "self_update" && autoRunId ? "מעדכן..." : "עדכן עכשיו"}
+    className="bg-white text-orange-600 hover:bg-orange-50 px-4 py-2 text-sm font-bold rounded-lg shadow-md"
+    onClick={handleTriggerUpdate}
+    disabled={isStartingAuto || (autoRunKind === "self_update" && !!autoRunId)}
+  />
+)}
           </div>
         </div>
 
@@ -2693,6 +2737,8 @@ async function enrichMissingCustomerIdsForMarkedSheets(params: {
   isRunActive={isAutoRunActive}
   batchCompanyStatuses={batchCompanyStatuses}
   isBatchActive={!!activeBatchId}
+  isRunnerOnline={isRunnerOnline}
+  isUpdateAvailable={!!isUpdateAvailable}
   onStartBatch={async (companies) => {
     const { createPortalRunBatch } = await import('@/lib/portalRunBatches');
 

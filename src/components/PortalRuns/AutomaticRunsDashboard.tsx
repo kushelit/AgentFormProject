@@ -20,6 +20,8 @@ type Props = {
   isRunActive?: boolean;
   batchCompanyStatuses?: Record<string, "queued" | "running" | "done" | "error">;
   isBatchActive?: boolean;
+  isRunnerOnline?: boolean | null;
+  isUpdateAvailable?: boolean;
   onStartBatch: (companies: AutomaticCompany[]) => Promise<void>;
 };
 
@@ -32,8 +34,10 @@ const AutomaticRunsDashboard: React.FC<Props> = ({
   refreshKey = 0,
   activeCompanyId,
   isRunActive = false,
-   batchCompanyStatuses = {},
+  batchCompanyStatuses = {},
   isBatchActive = false,
+  isRunnerOnline = null,
+  isUpdateAvailable = false,
   onStartBatch,
 }) => {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -117,9 +121,16 @@ const stats = useMemo(() => {
     );
   }
 
-  const handleStartBatch = async () => {
+ const handleStartBatch = async () => {
     if (!selectedCompanies.length) return;
-
+    if (isRunnerOnline === false) {
+      alert("הבוט אינו פעיל. יש להפעיל את MagicSale Runner לפני שליחת ריצות.");
+      return;
+    }
+      if (isUpdateAvailable) {
+      alert("יש עדכון גרסה זמין. יש לעדכן את הבוט לפני שליחת ריצות.");
+      return;
+    }
     try {
       setIsSubmittingBatch(true);
       await onStartBatch(selectedCompanies);
@@ -242,26 +253,35 @@ if (isBatchActive && batchStatus) {
         </div>
       )}
 
-      <div className="sticky bottom-4 z-10">
-        <div className="mx-auto flex max-w-md items-center justify-between rounded-2xl border border-gray-200 bg-white px-4 py-3 shadow-lg">
-          <div className="text-sm text-gray-600">
-            נבחרו <span className="font-bold text-gray-900">{selectedCompanies.length}</span> חברות
+     <div className="sticky bottom-4 z-10">
+       {(isRunnerOnline === false || isUpdateAvailable) && (
+  <div className="flex items-center gap-2 text-xs text-red-700 bg-red-50 border border-red-200 rounded-xl px-3 py-2">
+    <span>🔴</span>
+    <span>
+      {isUpdateAvailable
+        ? "יש עדכון גרסה זמין — יש לעדכן את הבוט לפני שליחת ריצות"
+        : "הבוט אינו פעיל — יש להפעיל את MagicSale Runner לפני שליחת ריצות"}
+    </span>
+  </div>
+)}
+          <div className="flex items-center justify-between">
+            <div className="text-sm text-gray-600">
+              נבחרו <span className="font-bold text-gray-900">{selectedCompanies.length}</span> חברות
+            </div>
+            <button
+              type="button"
+              onClick={handleStartBatch}
+              disabled={!selectedCompanies.length || isSubmittingBatch || isRunnerOnline === false || !!isUpdateAvailable}
+              className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+            >
+              {isSubmittingBatch
+                ? 'שולח...'
+                : selectedCompanies.length <= 1
+                ? 'התחל ריצה'
+                : `התחל ריצה ל-${selectedCompanies.length} חברות`}
+            </button>
           </div>
-
-          <button
-            type="button"
-            onClick={handleStartBatch}
-            disabled={!selectedCompanies.length || isSubmittingBatch}
-            className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
-          >
-            {isSubmittingBatch
-              ? 'שולח...'
-              : selectedCompanies.length <= 1
-              ? 'התחל ריצה'
-              : `התחל ריצה ל-${selectedCompanies.length} חברות`}
-          </button>
         </div>
-      </div>
     </section>
   );
 };

@@ -24,7 +24,7 @@ import { createFileLogger } from "./logger";
 import { loginIfNeeded } from "./loginCli";
 
 // הגדרת גרסה נוכחית
-const RUNNER_VERSION = "2.2.1";
+const RUNNER_VERSION = "2.2.8";
 
 function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
@@ -230,6 +230,7 @@ function setupGracefulShutdown() {
 ========================================================= */
 
 async function main() {
+
   const shouldStop = setupGracefulShutdown();
   const { auth, db, storage, functions, runner, effectiveBucket } = initFirebaseClient();
 
@@ -239,6 +240,22 @@ async function main() {
 
   const log = createFileLogger({ logsDir: paths.logsDir, alsoConsole: true });
   log.info(`[Runner] Starting MagicSale Runner v${RUNNER_VERSION}`);
+
+ if ((process as any).pkg) {
+    try {
+      const result = execSync(
+        'tasklist /FI "IMAGENAME eq MagicSaleRunner.exe" /NH',
+        { encoding: "utf8" }
+      );
+      const count = (result.match(/MagicSaleRunner\.exe/gi) || []).length;
+      if (count > 1) {
+        log.info("[Runner] Already running. Exiting.");
+        process.exit(0);
+      }
+    } catch {
+      // ignore
+    }
+  }
 
   // טיפול בנתיבי Playwright בתוך EXE (PKG)
   if ((process as any).pkg) {
