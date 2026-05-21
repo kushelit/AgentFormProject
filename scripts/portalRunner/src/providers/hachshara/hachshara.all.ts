@@ -109,8 +109,9 @@ export async function runHachsharaAll(ctx: RunnerCtx) {
         monthLabel,
         result: { uploaded: true },
       });
-    } else {
-      await setStatus(runId, { status: "done", step: "hachshara_done_no_files", monthLabel });
+   } else {
+      await setStatus(runId, { status: "error", step: "hachshara_done_no_files", error: { message: "No downloads[] / download.storagePath found" }, monthLabel });
+      throw new Error("No downloads[] / download.storagePath found");
     }
 
   } catch (e: any) {

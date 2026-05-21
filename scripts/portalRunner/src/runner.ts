@@ -24,7 +24,7 @@ import { createFileLogger } from "./logger";
 import { loginIfNeeded } from "./loginCli";
 
 // הגדרת גרסה נוכחית
-const RUNNER_VERSION = "2.2.8";
+const RUNNER_VERSION = "2.2.9";
 
 function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
@@ -191,7 +191,7 @@ async function acquireTemplateMonthLockClient(params: {
       const existingExpiresAt = d.expiresAt as Timestamp | undefined;
       const isExpired = existingExpiresAt ? existingExpiresAt.toMillis() < now.toMillis() : true;
 
-      if (state === "done") return { ok: false as const, reason: "already_done" as const, existingRunId };
+       if (state === "done" && !d.error?.message) return { ok: false as const, reason: "already_done" as const, existingRunId };
       if (state === "running" && !isExpired && existingRunId && existingRunId !== params.runId) {
         return { ok: false as const, reason: "busy" as const, existingRunId };
       }
@@ -506,10 +506,28 @@ fs.writeFileSync(updatePath, Buffer.from(buffer));
 
           await fn(ctx);
 
-          const after = await getDoc(doc(db, "portalImportRuns", runId));
+         const after = await getDoc(doc(db, "portalImportRuns", runId));
           if ((after.data() as any)?.status !== "error") {
             await setStatusClient(db, runId, { status: "done" });
             if (lockInfo) await markTemplateMonthLockDoneClient({ db, ...lockInfo, runId });
+
+            // Fallback: אם אחרי 15 שניות עדיין done → בדוק jobs ועדכן success
+            await sleep(15000);
+            const afterDelay = await getDoc(doc(db, "portalImportRuns", runId));
+            const afterData = afterDelay.data() as any;
+
+            if (afterData?.status === "done") {
+              const jobIds: string[] = afterData?.queue?.jobIds || [];
+              const allJobsSuccess = jobIds.length > 0 && jobIds.every((jid: string) => {
+                const jobStatus = afterData?.queue?.jobs?.[jid]?.status;
+                return jobStatus === "success" || jobStatus === "skipped";
+              });
+
+              if (allJobsSuccess) {
+                log.info("[Runner] Fallback: setting status to success for run:", runId);
+                await setStatusClient(db, runId, { status: "success", step: "import_done" });
+              }
+            }
           }
         } catch (e: any) {
           log.error("[LocalRunner] Error in provider:", e.message);
