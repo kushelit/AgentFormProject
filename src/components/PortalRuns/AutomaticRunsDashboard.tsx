@@ -7,7 +7,9 @@ import {
   useAutomationDashboardStatus,
   type AutomaticCompany,
   type AutoCompanyUiStatus,
+  type DashboardCompanyState,
 } from '@/hooks/useAutomationDashboardStatus';
+import { doc, deleteDoc, collection, query, where, getDocs, writeBatch, getDoc } from 'firebase/firestore';
 
 type Props = {
   db: Firestore;
@@ -61,14 +63,53 @@ const AutomaticRunsDashboard: React.FC<Props> = ({
     [automaticCompanies]
   );
 
-  // const stats = useMemo(() => {
-  //   const done = items.filter((i) => i.uiStatus === 'done').length;
-  //   const running = items.filter((i) => i.uiStatus === 'running').length;
-  //   const error = items.filter((i) => i.uiStatus === 'error').length;
-  //   const ready = items.filter((i) => i.uiStatus === 'ready').length;
+const [deletingCompanyId, setDeletingCompanyId] = useState<string | null>(null);
+const [deleteConfirmCompanyId, setDeleteConfirmCompanyId] = useState<string | null>(null);
 
-  //   return { done, running, error, ready, total: items.length };
-  // }, [items]);
+const handleDeleteRun = async (item: DashboardCompanyState) => {
+      console.log('[Delete] item:', item.companyId, 'lockId:', item.lockId, 'runId:', item.runId);
+
+  setDeletingCompanyId(item.companyId);
+  try {
+    const { lockId, runId } = item;
+
+    // שלוף jobIds מ-portalImportRuns
+    let jobIds: string[] = [];
+    if (runId) {
+      const runSnap = await getDoc(doc(db, 'portalImportRuns', runId));
+      if (runSnap.exists()) {
+        jobIds = runSnap.data()?.queue?.jobIds || [];
+      }
+    }
+    // מחק לפי כל jobId
+    for (const jobId of jobIds) {
+      for (const col of ['commissionImportRuns', 'externalCommissions', 'commissionSummaries', 'policyCommissionSummaries']) {
+        const snap = await getDocs(query(collection(db, col), where('runId', '==', jobId)));
+    if (!snap.empty) {
+            const CHUNK = 450;
+            for (let i = 0; i < snap.docs.length; i += CHUNK) {
+              const batch = writeBatch(db);
+              snap.docs.slice(i, i + CHUNK).forEach(d => batch.delete(d.ref));
+              await batch.commit();
+            }
+          }
+      }
+      await deleteDoc(doc(db, 'commissionImportQueue', jobId)).catch(() => {});
+    }
+
+    // מחק Lock ו-portalImportRuns
+    if (lockId) await deleteDoc(doc(db, 'portalImportLocks', lockId)).catch(() => {});
+    if (runId) await deleteDoc(doc(db, 'portalImportRuns', runId)).catch(() => {});
+
+    await refresh();
+  } catch (e: any) {
+    console.error('[Delete] Error:', e.message);
+  } finally {
+    setDeletingCompanyId(null);
+    setDeleteConfirmCompanyId(null);
+  }
+};
+
 const stats = useMemo(() => {
   let done = 0, running = 0, error = 0, ready = 0;
 
@@ -131,6 +172,10 @@ const stats = useMemo(() => {
       alert("יש עדכון גרסה זמין. יש לעדכן את הבוט לפני שליחת ריצות.");
       return;
     }
+     if (isBatchActive) {
+      alert("יש ריצה פעילה כרגע. יש להמתין לסיומה לפני שליחת ריצות נוספות.");
+      return;
+    }
     try {
       setIsSubmittingBatch(true);
       await onStartBatch(selectedCompanies);
@@ -170,7 +215,7 @@ const stats = useMemo(() => {
       </div>
 
    <div className="rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-800">
-  בחרי את החברות שייכנסו לתור. אפשר לבחור חברה אחת או כמה חברות, והמערכת תריץ אותן אחת אחרי השנייה.
+  בחר את החברות שייכנסו לתור. אפשר לבחור חברה אחת או כמה חברות, והמערכת תריץ אותן אחת אחרי השנייה.
   {isAutoEnabledByFlag && (
     <div className="text-sm text-blue-700 mt-1">
       {(() => {
@@ -246,42 +291,80 @@ if (isBatchActive && batchStatus) {
                   globallyBlocked={false}
                   globallyBlockedReason="יש ריצה פעילה כרגע"
                   missingReports={item.missingReports}
-                />
+                  errorMessage={item.errorMessage}
+onDelete={effectiveStatus === 'done' 
+  ? () => setDeleteConfirmCompanyId(item.companyId) 
+  : undefined}              />
               </div>
             );
           })}
         </div>
       )}
 
-     <div className="sticky bottom-4 z-10">
-       {(isRunnerOnline === false || isUpdateAvailable) && (
-  <div className="flex items-center gap-2 text-xs text-red-700 bg-red-50 border border-red-200 rounded-xl px-3 py-2">
-    <span>🔴</span>
-    <span>
-      {isUpdateAvailable
-        ? "יש עדכון גרסה זמין — יש לעדכן את הבוט לפני שליחת ריצות"
-        : "הבוט אינו פעיל — יש להפעיל את MagicSale Runner לפני שליחת ריצות"}
-    </span>
+    <div className="sticky bottom-4 z-10">
+  <div className="mx-auto flex max-w-md flex-col gap-2 rounded-2xl border border-gray-200 bg-white px-4 py-3 shadow-lg">
+    {(isRunnerOnline === false || isUpdateAvailable || isBatchActive) && (
+      <div className="flex items-center gap-2 text-xs text-red-700 bg-red-50 border border-red-200 rounded-xl px-3 py-2">
+        <span>🔴</span>
+        <span>
+          {isRunnerOnline === false
+            ? "הבוט אינו פעיל — יש להפעיל את MagicSale Runner לפני שליחת ריצות"
+            : isBatchActive
+            ? "יש ריצה פעילה — יש להמתין לסיומה לפני שליחת ריצות נוספות"
+            : "יש עדכון גרסה זמין — יש לעדכן את הבוט לפני שליחת ריצות"}
+        </span>
+      </div>
+    )}
+    <div className="flex items-center justify-between">
+      <div className="text-sm text-gray-600">
+        נבחרו <span className="font-bold text-gray-900">{selectedCompanies.length}</span> חברות
+      </div>
+      <button
+        type="button"
+        onClick={handleStartBatch}
+        disabled={!selectedCompanies.length || isSubmittingBatch || isRunnerOnline === false || !!isUpdateAvailable || isBatchActive}
+        className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+      >
+        {isSubmittingBatch
+          ? 'שולח...'
+          : selectedCompanies.length <= 1
+          ? 'התחל ריצה'
+          : `התחל ריצה ל-${selectedCompanies.length} חברות`}
+      </button>
+    </div>
   </div>
-)}
-          <div className="flex items-center justify-between">
-            <div className="text-sm text-gray-600">
-              נבחרו <span className="font-bold text-gray-900">{selectedCompanies.length}</span> חברות
-            </div>
-            <button
-              type="button"
-              onClick={handleStartBatch}
-              disabled={!selectedCompanies.length || isSubmittingBatch || isRunnerOnline === false || !!isUpdateAvailable}
-              className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
-            >
-              {isSubmittingBatch
-                ? 'שולח...'
-                : selectedCompanies.length <= 1
-                ? 'התחל ריצה'
-                : `התחל ריצה ל-${selectedCompanies.length} חברות`}
-            </button>
-          </div>
+</div>
+{deleteConfirmCompanyId && (() => {
+  const item = items.find(i => i.companyId === deleteConfirmCompanyId);
+  if (!item) return null;
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+      <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-xl text-right" dir="rtl">
+        <div className="text-lg font-bold mb-2">מחיקת ריצה</div>
+        <div className="text-sm text-gray-700 mb-4">
+          האם למחוק את כל נתוני הריצה של <b>{item.companyName}</b> לחודש <b>{item.monthLabel}</b>?
+          <br />
+          <span className="text-xs text-gray-500">הנתונים יימחקו ותוכל לשלוח ריצה מחדש.</span>
         </div>
+        <div className="flex gap-2 justify-end">
+          <button
+            onClick={() => setDeleteConfirmCompanyId(null)}
+            className="px-4 py-2 rounded-xl border text-sm"
+          >
+            ביטול
+          </button>
+          <button
+            onClick={() => handleDeleteRun(item)}
+            disabled={deletingCompanyId === item.companyId}
+            className="px-4 py-2 rounded-xl bg-red-600 text-white text-sm disabled:opacity-50"
+          >
+            {deletingCompanyId === item.companyId ? 'מוחק...' : 'מחק ונסה שוב'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+})()}
     </section>
   );
 };

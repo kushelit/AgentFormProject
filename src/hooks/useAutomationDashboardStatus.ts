@@ -45,6 +45,7 @@ export type DashboardCompanyState = {
 
   uiStatus: AutoCompanyUiStatus;
   missingReports?: Array<{ templateId: string; status: string }>;
+  errorMessage?: string;
 
 };
 
@@ -201,8 +202,10 @@ export function useAutomationDashboardStatus({
           let runId = '';
           let runStatus = '';
           let runStep = '';
+          let errorMessage = '';
           let lastRunAt: Date | null = null;
-         let missingReports: any[] = [];
+          let missingReports: any[] = [];
+         
 
 
           if (lockSnap.exists()) {
@@ -219,6 +222,7 @@ export function useAutomationDashboardStatus({
               runId = String(runData.runId || runSnap.id);
               runStatus = String(runData.status || '').trim();
               runStep = String(runData.step || '').trim();
+              errorMessage = String(runData.error?.message || '').trim();
               lastRunAt =
                 toDateSafe(runData.updatedAt) ||
                 toDateSafe(runData.createdAt) ||
@@ -249,6 +253,7 @@ export function useAutomationDashboardStatus({
             runId: runId || undefined,
             runStatus: runStatus || undefined,
             runStep: runStep || undefined,
+            errorMessage: errorMessage || undefined,
             lastRunAt,
             uiStatus,
             missingReports: missingReports.length ? missingReports : undefined,

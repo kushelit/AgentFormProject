@@ -13,6 +13,8 @@ type Props = {
   busy?: boolean;
   globallyBlocked?: boolean;
   globallyBlockedReason?: string;
+  errorMessage?: string;
+  onDelete?: () => void;
 missingReports?: Array<{ templateId: string; templateName?: string; status: string }>;
 
 };
@@ -117,6 +119,8 @@ const AutoCompanyCard: React.FC<Props> = ({
   globallyBlocked = false,
   globallyBlockedReason = '',
   missingReports = [], 
+  errorMessage,
+  onDelete,
 }) => {
   const meta = getUiMeta(uiStatus, autoDisabledReason);
   const lastRunLabel = formatDateTime(lastRunAt);
@@ -170,10 +174,24 @@ const AutoCompanyCard: React.FC<Props> = ({
             עדכון אחרון: {lastRunLabel}
           </div>
         )}
+    {uiStatus === 'done' && onDelete && (
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onDelete(); }}
+            className="mt-2 text-[11px] text-amber-700 underline hover:text-amber-900"
+          >
+            🗑️ מחק ריצה ושלח מחדש
+          </button>
+        )}
         {uiStatus === 'done' && missingReports.length > 0 && (
   <div className="mt-2 text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1.5">
     ⚠️ דוחות שלא נקלטו:{' '}
 {missingReports.map(r => (r as any).templateName || r.templateId).join(', ')}
+  </div>
+)}
+{uiStatus === 'error' && errorMessage && (
+  <div className="mt-2 text-[11px] text-red-700 bg-red-50 border border-red-200 rounded-lg px-2 py-1.5">
+    ❌ {errorMessage}
   </div>
 )}
       </div>

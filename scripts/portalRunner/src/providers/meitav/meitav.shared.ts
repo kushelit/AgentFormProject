@@ -223,8 +223,9 @@ export async function meitavNavigateAndExport(
     returnByValue: true,
   });
   const agents: string[] = JSON.parse(agentsList.result.value || '[]');
-  // console.log("[Meitav] Agents found:", agents);
-  if (agents.length === 0) throw new Error("No agents found");
+console.log("[Meitav] Agents found:", JSON.stringify(agents));
+
+if (agents.length === 0) throw new Error("No agents found");
 
   await page.keyboard.press('Escape');
   await page.waitForTimeout(500);
@@ -234,19 +235,26 @@ export async function meitavNavigateAndExport(
     const agentName = agents[i];
     // console.log(`[Meitav] Processing agent ${i + 1}/${agents.length}: ${agentName}`);
 
-    // בחר סוכן
+  // בחר סוכן לפי index
     await page.mouse.click(agentPos.x, agentPos.y);
     await page.waitForTimeout(500);
     await page.keyboard.press('Control+a');
     await page.keyboard.press('Backspace');
-    await page.waitForTimeout(300);
-    await page.keyboard.type(agentName.substring(0, 3), { delay: 100 });
-    await page.waitForTimeout(1500);
-    await page.keyboard.press('ArrowDown');
-    await page.waitForTimeout(300);
-    await page.keyboard.press('Enter');
+    await page.waitForTimeout(500);
+
+    const selectResult = await cdp.send("Runtime.evaluate", {
+      expression: `(function(idx) {
+        const listbox = document.querySelector('#selectedAgent-listbox');
+        if (!listbox) return 'NO_LISTBOX';
+        const items = Array.from(listbox.querySelectorAll('li, [role="option"]'));
+        if (!items[idx]) return 'NO_ITEM_' + idx;
+        items[idx].click();
+        return 'CLICKED: ' + items[idx].textContent?.trim();
+      })(${i})`,
+      returnByValue: true,
+    });
+    console.log(`[Meitav] Agent select by index:`, selectResult.result.value);
     await page.waitForTimeout(1000);
-    // console.log("[Meitav] Agent selected:", agentName);
 
     // בחר סוג דוח
     await openAndSelectByValue('#selectReportType', '102', 'Report type');

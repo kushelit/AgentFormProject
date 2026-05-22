@@ -106,8 +106,9 @@ export async function runAltshulerAll(ctx: RunnerCtx) {
         monthLabel,
         result: { uploaded: true },
       });
-    } else {
-      await setStatus(runId, { status: "done", step: "altshuler_done_no_files", monthLabel });
+   } else {
+      await setStatus(runId, { status: "error", step: "altshuler_done_no_files", error: { message: "No downloads[] / download.storagePath found" }, monthLabel });
+      throw new Error("No downloads[] / download.storagePath found");
     }
 
   } catch (e: any) {

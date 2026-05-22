@@ -391,7 +391,7 @@ while (!shouldStop()) {
         where("agentId", "==", agentId),
         where("status", "==", "queued"),
         orderBy("createdAt", "asc"),
-        limit(5)
+        limit(20)
       )
     );
 

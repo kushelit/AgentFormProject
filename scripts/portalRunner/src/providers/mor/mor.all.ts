@@ -132,8 +132,13 @@ export async function runMorAll(ctx: RunnerCtx) {
       }
     }
 
+const totalDownloads = ((ctx.run as any)?.downloads || []).length;
+    if (totalDownloads === 0) {
+      await setStatus(runId, { status: "error", step: "mor_done_no_files", error: { message: "No downloads[] / download.storagePath found" }, monthLabel });
+      throw new Error("No downloads[] / download.storagePath found");
+    }
     await setStatus(runId, { status: "done", step: "mor_done", monthLabel, result: { uploaded: true } });
-
+    
   } catch (e: any) {
     // console.error("[Mor] Error:", e.message);
     await setStatus(runId, { status: "error", error: e.message, monthLabel });

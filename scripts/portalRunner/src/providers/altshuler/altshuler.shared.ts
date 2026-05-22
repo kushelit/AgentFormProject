@@ -12,7 +12,17 @@ function getPrevMonthHebrew(): string {
 
 export async function altshulerLogin(page: Page, companyId: string, idNumber: string, loginType: string = "company") {
   const cdp = await page.context().newCDPSession(page);
-
+ // המתן לטעינת שדות הלוגין
+  for (let i = 0; i < 20; i++) {
+    const check = await cdp.send("Runtime.evaluate", {
+      expression: `document.querySelectorAll('input.login-new-input-field').length`,
+      returnByValue: true,
+    });
+    if (Number(check.result.value) >= 9) break;
+    await page.waitForTimeout(1000);
+  }
+  await page.waitForTimeout(500);
+  
   if (loginType === "company") {
     await cdp.send("Runtime.evaluate", {
       expression: `(function() {
@@ -86,8 +96,15 @@ export async function altshulerHandleOtp(page: Page, ctx: RunnerCtx) {
   const monthLabel = run?.monthLabel || "חודש נוכחי";
   const cdp = await page.context().newCDPSession(page);
 
-  // console.log("[Altshuler] Waiting for OTP screen...");
-
+  // המתן שהלוגין יסיים — URL אמור להשתנות
+  await page.waitForTimeout(3000);
+  
+  // וודא שעברנו מדף הלוגין
+  for (let i = 0; i < 10; i++) {
+    const url = page.url();
+    if (!url.includes('login')) break;
+    await page.waitForTimeout(1000);
+  }
   // המתן לשדות ה-OTP (6 ספרות)
   for (let i = 0; i < 30; i++) {
     const check = await cdp.send("Runtime.evaluate", {

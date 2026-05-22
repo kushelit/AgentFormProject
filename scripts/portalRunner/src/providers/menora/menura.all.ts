@@ -134,7 +134,13 @@ await menoraProduceReport(page);
     // download: downloads[0], // אם יש אצלך עדיין קוד ישן שמסתכל על download בודד
     status: "done"
   });
-}
+ } else {
+        await setStatus(runId, { status: "error", step: "menora_upload_failed", error: { message: "Upload failed - no storagePath" }, monthLabel });
+        throw new Error("Upload failed - no storagePath");
+      }
+    } else {
+      await setStatus(runId, { status: "error", step: "menora_done_no_files", error: { message: "No downloads[] / download.storagePath found" }, monthLabel });
+      throw new Error("No downloads[] / download.storagePath found");
     }
 
   } catch (e: any) {

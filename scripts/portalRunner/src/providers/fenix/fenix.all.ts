@@ -160,8 +160,13 @@ if (missingTemplateIds.length) {
   });
 }
 
-await setStatus(runId, { status: "done", step: "הסתיים בהצלחה", monthLabel });
-
+const totalDownloads = ((run as any)?.downloads || []).length;
+    if (totalDownloads === 0) {
+      await setStatus(runId, { status: "error", step: "fenix_done_no_files", error: { message: "No downloads[] / download.storagePath found" }, monthLabel });
+      throw new Error("No downloads[] / download.storagePath found");
+    }
+    await setStatus(runId, { status: "done", step: "הסתיים בהצלחה", monthLabel });
+    
   } catch (e: any) {
     log!.error("[Fenix] Global error:", e.message);
     await setStatus(runId, { status: "error", error: { message: e.message } });

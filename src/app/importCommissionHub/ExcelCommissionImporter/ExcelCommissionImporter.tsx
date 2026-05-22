@@ -503,10 +503,26 @@ setBatchCompanyStatuses(newStatuses);
 
     const allFinished = runs.every((r) => FINAL_RUN_STATUSES.has(r.status));
 
-    if (allFinished) {
+  if (allFinished) {
       setIsAutoRunActive(false);
       setActiveAutoCompanyId("");
-setTimeout(() => setAutoDashboardRefreshKey((v) => v + 1), 3000);
+      setTimeout(() => setAutoDashboardRefreshKey((v) => v + 1), 3000);
+
+      // עדכון סטטוס ה-Batch ב-Firestore
+      (async () => {
+        try {
+          const finalStatus = error > 0 && done === 0 ? "error" : error > 0 ? "partial" : "success";
+          await setDoc(doc(db, "portalRunBatches", activeBatchId), {
+            status: finalStatus,
+            finishedAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+            doneCount: done,
+            errorCount: error,
+          }, { merge: true });
+        } catch (e) {
+          // ignore
+        }
+      })();
 
       if (error > 0 && done > 0) {
         addToast("success", `✅ Batch הסתיים: ${done} הושלמו, ${error} עם שגיאה`);

@@ -87,29 +87,28 @@ const handleCancel = async () => {
 };
 
 
-  const submit = async () => {
+const submit = async () => {
     const code = otpValue.trim();
     if (!code) return;
 
     setSending(true);
-    setSubmitted(true);
-    try {
-    await updateDoc(doc(db, 'portalImportRuns', runId), {
-      'otp.state': 'required',
-      'otp.value': code,
-      'otp.mode': otpMode,
-      updatedAt: serverTimestamp(),
-    });
-
+    setSubmitted(true); // ← סוגר מיד את המודאל
     setOtpValue('');
-    onClose?.();
-  } catch (e) {
-    setSubmitted(false); // ← אם נכשל — מציג שוב
-  } finally {
-    setSending(false);
-  }
-};
 
+    try {
+      await updateDoc(doc(db, 'portalImportRuns', runId), {
+        'otp.state': 'required',
+        'otp.value': code,
+        'otp.mode': otpMode,
+        updatedAt: serverTimestamp(),
+      });
+    } catch (e) {
+      setSubmitted(false); // ← אם נכשל — פותח שוב
+    } finally {
+      setSending(false);
+    }
+  };
+  
   return (
     <DialogNotification
       type="info"
@@ -141,13 +140,17 @@ const handleCancel = async () => {
               הקלידי את הקוד שקיבלת:
             </label>
 
-            <input
-              className="select-input w-full"
-              value={otpValue}
-              onChange={(e) => setOtpValue(e.target.value)}
-              inputMode="numeric"
-              placeholder="לדוגמה: 123456"
-            />
+         <input
+  className="select-input w-full"
+  value={otpValue}
+  onChange={(e) => setOtpValue(e.target.value)}
+  onKeyDown={(e) => {
+    if (e.key === 'Enter') submit();
+  }}
+  inputMode="numeric"
+  placeholder="לדוגמה: 123456"
+  autoFocus
+/>
           </div>
 
           <div className="text-xs text-gray-500 mt-2">

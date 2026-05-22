@@ -153,7 +153,7 @@ export async function runAyalonAll(ctx: RunnerCtx) {
         subdir: "ayalon_insurance",
       } as any);
 
-      if (up?.storagePath) {
+     if (up?.storagePath) {
         const downloads = [{
           templateId: "ayalon_insurance",
           localPath,
@@ -161,7 +161,13 @@ export async function runAyalonAll(ctx: RunnerCtx) {
           storagePath: up.storagePath,
         }];
         await setStatus(runId, { downloads, status: "done", step: "ayalon_done", monthLabel });
+      } else {
+        await setStatus(runId, { status: "error", step: "ayalon_upload_failed", error: { message: "Upload failed - no storagePath" }, monthLabel });
+        throw new Error("Upload failed - no storagePath");
       }
+    } else {
+      await setStatus(runId, { status: "error", step: "ayalon_done_no_files", error: { message: "No downloads[] / download.storagePath found" }, monthLabel });
+      throw new Error("No downloads[] / download.storagePath found");
     }
 
   } catch (e: any) {

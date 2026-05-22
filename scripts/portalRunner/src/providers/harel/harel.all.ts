@@ -136,13 +136,17 @@ export async function runHarelAll(ctx: RunnerCtx) {
       }
     }
 
+  const totalDownloads = ((ctx.run as any)?.downloads || []).length;
+    if (totalDownloads === 0) {
+      await setStatus(runId, { status: "error", step: "harel_done_no_files", error: { message: "No downloads[] / download.storagePath found" }, monthLabel });
+      throw new Error("No downloads[] / download.storagePath found");
+    }
     await setStatus(runId, {
       status: "done",
       step: "harel_all_done",
       monthLabel,
       result: { uploaded: true },
     });
-    // console.log("[Harel] All done!");
 
   } catch (e: any) {
     // console.error("[Harel] Error:", e.message);

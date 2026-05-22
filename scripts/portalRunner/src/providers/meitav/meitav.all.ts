@@ -148,7 +148,8 @@ export async function runMeitavAll(ctx: RunnerCtx) {
         result: { uploaded: true, count: downloads.length }
       });
     } else {
-      await setStatus(runId, { status: "done", step: "meitav_done_no_files", monthLabel });
+      await setStatus(runId, { status: "error", step: "meitav_done_no_files", error: { message: "No downloads[] / download.storagePath found" }, monthLabel });
+      throw new Error("No downloads[] / download.storagePath found");
     }
 
   } catch (e: any) {

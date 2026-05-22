@@ -155,8 +155,13 @@ await migdalClearModals(page);
       }
     }
 
+const totalDownloads = ((ctx.run as any)?.downloads || []).length;
+    if (totalDownloads === 0) {
+      await setStatus(runId, { status: "error", step: "migdal_done_no_files", error: { message: "No downloads[] / download.storagePath found" } });
+      throw new Error("No downloads[] / download.storagePath found");
+    }
     await setStatus(runId, { status: "done", step: "migdal_all_done" });
-    
+        
   } catch (e: any) {
     await setStatus(runId, { status: "error", error: e.message });
     throw e;

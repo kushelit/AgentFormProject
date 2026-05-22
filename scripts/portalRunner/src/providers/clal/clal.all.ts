@@ -208,8 +208,13 @@ if (gridResult === "TIMEOUT" || gridResult === "NO_DATA") {
       }
     }
 
+const totalDownloads = ((ctx.run as any)?.downloads || []).length;
+    if (totalDownloads === 0) {
+      await setStatus(runId, { status: "error", step: "clal_done_no_files", error: { message: "No downloads[] / download.storagePath found" }, monthLabel });
+      throw new Error("No downloads[] / download.storagePath found");
+    }
     await setStatus(runId, { status: "done", step: "clal_all_done", monthLabel, result: { uploaded: true } });
-
+    
   } catch (e: any) {
     // console.error("[Clal] Global Error:", e.message);
     if (context && context.pages().length > 0) {

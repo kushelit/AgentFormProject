@@ -37,9 +37,23 @@ export async function morLogin(
     await wait(300);
     fill('input[formcontrolname="identity"]', id);
     await wait(300);
-    fill('input[placeholder="הקלד טלפון"]', phone); // ✅ תוקן
-    await wait(600);
+    // fill('input[placeholder="הקלד טלפון"]', phone); // ✅ תוקן
+    // await wait(600);
 
+    // טלפון — הקלדה תו תו בגלל validation
+    const phoneEl = document.querySelector('input[placeholder="הקלד טלפון"]');
+    if (phoneEl) {
+      phoneEl.focus();
+      for (const ch of phone) {
+        phoneEl.value += ch;
+        phoneEl.dispatchEvent(new Event('input', { bubbles: true }));
+        await wait(80);
+      }
+      phoneEl.dispatchEvent(new Event('change', { bubbles: true }));
+      phoneEl.dispatchEvent(new Event('blur', { bubbles: true }));
+    }
+    await wait(300);
+    
     const mobileVal = document.querySelector('input[placeholder="הקלד טלפון"]')?.value;
     if (!mobileVal) return 'MOBILE_EMPTY';
 

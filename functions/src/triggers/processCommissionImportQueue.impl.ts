@@ -458,14 +458,35 @@ const template: CommissionTemplate = {
   missingZipEntryBehavior: (missingZipEntryBehavior as "error" | "skip"),
     hekefType: tmpl?.hekefType || undefined,
 };
-    const dl = await downloadStorageFileToTmp({ bucketNameRaw: bucketName, storagePath });
+
+// ====== מיטב: כמה קבצים עם אותו templateId ======
+const storagePathsToProcess: string[] = [storagePath];
+
+if (templateId === "meitav_insurance") {
+  const portalRunSnap = await db.collection("portalImportRuns").doc(effectivePortalRunId).get();
+  const allDownloads: any[] = portalRunSnap.data()?.downloads || [];
+  const extraPaths = allDownloads
+    .filter((d: any) => safeStr(d.templateId) === templateId)
+    .map((d: any) => safeStr(d.storagePath))
+    .filter((p) => p && p !== storagePath);
+  storagePathsToProcess.push(...extraPaths);
+}
+
+let allFinalRows: any[] = [];
+let allAgentCodes: string[] = [];
+const tmpPaths: string[] = [];
+
+  for (const currentStoragePath of storagePathsToProcess) {
+      try {
+    const dl = await downloadStorageFileToTmp({ bucketNameRaw: bucketName, storagePath: currentStoragePath });
     const tmpPath = dl.tmpPath;
+    tmpPaths.push(tmpPath);
     const buf = fs.readFileSync(tmpPath);
 
 let parseBuf: Buffer = Buffer.from(buf);
-let parseName = storagePath;
+let parseName = currentStoragePath;
 
-if (path.extname(storagePath).toLowerCase() === ".zip") {
+if (path.extname(currentStoragePath).toLowerCase() === ".zip") {
   const zip = await JSZip.loadAsync(buf);
   const files = Object.values(zip.files).filter((f) => !f.dir);
   const names = files.map((f) => f.name);
@@ -584,12 +605,12 @@ if (!standardized.length) {
   return;
 }
 
-let finalRows = standardized;
+let rowsForThisFile = [...standardized];
 // מור: באוטומטי תמיד כופים חודש דיווח = חודש קודם
 if (templateId === "mor_insurance") {
   const reportMonth = getTwoMonthsAgoStr();
 
-  finalRows = finalRows.map((row: any) => ({
+  rowsForThisFile = rowsForThisFile.map((row: any) => ({
     ...row,
     reportMonth,
   }));
@@ -597,11 +618,11 @@ if (templateId === "mor_insurance") {
 if (templateId === "ayalon_insurance") {
   const targetMonth = getPreviousMonthStr();
 
-  finalRows = finalRows.filter((row: any) => {
+  rowsForThisFile = rowsForThisFile.filter((row: any) => {
     return safeStr(row.reportMonth) === targetMonth;
   });
 
-  if (!finalRows.length) {
+  if (!rowsForThisFile.length) {
     await finishAsEmpty({
       db,
       queueRef,
@@ -619,11 +640,11 @@ if (templateId === "ayalon_insurance") {
 if (templateId === "analyst_insurance") {
   const targetMonth = getTwoMonthsAgoStr();
 
-  finalRows = finalRows.filter((row: any) => {
+  rowsForThisFile = rowsForThisFile.filter((row: any) => {
     return safeStr(row.reportMonth) === targetMonth;
   });
 
-  if (!finalRows.length) {
+  if (!rowsForThisFile.length) {
     await finishAsEmpty({
       db,
       queueRef,
@@ -636,7 +657,18 @@ if (templateId === "analyst_insurance") {
     });
     return;
   }
-}    // ✅ runId = jobId (ייחודי לכל תבנית/קובץ)
+}   
+allFinalRows = allFinalRows.concat(rowsForThisFile);
+allAgentCodes = Array.from(new Set([...allAgentCodes, ...agentCodes]));
+
+      } catch (fileErr: any) {
+        console.error(`[processQueue] Error processing file ${currentStoragePath}:`, fileErr.message);
+      }
+    } // סגירת for
+
+const finalRows = allFinalRows;
+
+// ✅ runId = jobId (ייחודי לכל תבנית/קובץ)
     const { rowsPrepared, commissionSummaries, policySummaries, runDoc } = buildArtifacts({
       standardizedRows: finalRows,
       runId: jobId,
@@ -654,7 +686,7 @@ if (templateId === "analyst_insurance") {
     });
 
     const adapter = makeAdminAdapter(db as any);
-    await commitRun({ adapter, runDoc, rowsPrepared, commissionSummaries, policySummaries, agentCodes });
+    await commitRun({ adapter, runDoc, rowsPrepared, commissionSummaries, policySummaries, agentCodes: allAgentCodes });
 
     await queueRef.set(
       {
@@ -685,10 +717,8 @@ if (templateId === "analyst_insurance") {
       aggregate: { finalStatus: "success" },
     });
 
-    try {
-      fs.unlinkSync(tmpPath);
-    } catch (e) {
-      // ignore
+   for (const tmpPath of tmpPaths) {
+      try { fs.unlinkSync(tmpPath); } catch {}
     }
  } catch (e: any) {
     if (safeStr(e?.step) === "template_mismatch") {

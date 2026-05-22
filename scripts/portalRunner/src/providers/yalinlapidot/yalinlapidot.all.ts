@@ -101,8 +101,9 @@ export async function runYalinAll(ctx: RunnerCtx) {
       }
 
       await setStatus(runId, { status: "done", step: "yalin_done", monthLabel, result: { uploaded: true } });
-    } else {
-      await setStatus(runId, { status: "done", step: "yalin_done_no_file", monthLabel });
+   } else {
+      await setStatus(runId, { status: "error", step: "yalin_done_no_file", error: { message: "No downloads[] / download.storagePath found" }, monthLabel });
+      throw new Error("No downloads[] / download.storagePath found");
     }
 
   } catch (e: any) {

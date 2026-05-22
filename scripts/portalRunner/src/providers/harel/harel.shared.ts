@@ -35,8 +35,7 @@ export async function harelLogin(page: Page, username: string, password: string)
     await page.waitForTimeout(1000);
   }
 
-  // ✅ שלב 2: מלא שדות ולחץ אישור
-  const result = await cdp.send("Runtime.evaluate", {
+  await cdp.send("Runtime.evaluate", {
     expression: `(function(u, p) {
       function fill(selector, val) {
         const el = document.querySelector(selector);
@@ -52,16 +51,16 @@ export async function harelLogin(page: Page, username: string, password: string)
       const pOk = fill('#input_2', p);
       if (!uOk) return 'USER_NOT_FOUND';
       if (!pOk) return 'PASS_NOT_FOUND';
+      const u1 = document.querySelector('#input_1')?.value;
+      const p1 = document.querySelector('#input_2')?.value;
       setTimeout(() => {
         const btn = document.querySelector('.credentials_input_submit');
         if (btn) btn.click();
       }, 500);
-      return 'SUCCESS';
+      return 'SUCCESS: user=' + u1 + ' pass_len=' + (p1 ? p1.length : 0);
     })('${username}', '${password}')`,
     returnByValue: true,
   });
-
-  // console.log("[Harel] Login result:", result.result.value);
 }
 
 export async function harelHandleOtp(page: Page, ctx: RunnerCtx) {
@@ -80,6 +79,14 @@ export async function harelHandleOtp(page: Page, ctx: RunnerCtx) {
     await page.waitForTimeout(1000);
   }
 
+   const otpCheck = await cdp.send("Runtime.evaluate", {
+    expression: `document.querySelector('input[name="otpass"]') ? 'FOUND' : 'NOT_FOUND'`,
+    returnByValue: true,
+  });
+  if (otpCheck.result.value !== 'FOUND') {
+    throw new Error('Login failed - OTP screen not reached');
+  }
+
   await setStatus(runId, {
     status: "otp_required",
     step: "ממתין לקוד אימות מהראל",
@@ -91,8 +98,8 @@ export async function harelHandleOtp(page: Page, ctx: RunnerCtx) {
   if (!otp) throw new Error("קוד ה-OTP לא התקבל");
   // console.log("[Harel] OTP received:", otp);
 
-  const result = await cdp.send("Runtime.evaluate", {
-    expression: `(function(code) {
+  await cdp.send("Runtime.evaluate", {
+      expression: `(function(code) {
       const input = document.querySelector('input[name="otpass"]');
       if (!input) return 'INPUT_NOT_FOUND';
       input.focus();
