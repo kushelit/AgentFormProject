@@ -283,7 +283,7 @@ async function openTemplateDrill(companyId: string, companyName: string) {
           agentId: selectedAgentId,
           companyId,
           agentCode,
-          reportMonth: month, // YYYY-MM
+          reportMonth: month, 
         }),
       });
   
