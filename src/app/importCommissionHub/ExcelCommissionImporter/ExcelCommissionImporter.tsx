@@ -2728,14 +2728,20 @@ async function enrichMissingCustomerIdsForMarkedSheets(params: {
                 נדרש עדכון ידני
               </a>
             )}
-
-          {isUpdateAvailable && isAutoEnabledByFlag && !needsManualUpgrade && (
-  <Button
-    text={autoRunKind === "self_update" && autoRunId ? "מעדכן..." : "עדכן עכשיו"}
-    className="bg-white text-orange-600 hover:bg-orange-50 px-4 py-2 text-sm font-bold rounded-lg shadow-md"
-    onClick={handleTriggerUpdate}
-    disabled={isStartingAuto || (autoRunKind === "self_update" && !!autoRunId)}
-  />
+{isUpdateAvailable && isAutoEnabledByFlag && !needsManualUpgrade && (
+  <>
+    <Button
+      text={autoRunKind === "self_update" && autoRunId ? "מעדכן..." : "עדכן עכשיו"}
+      className="bg-white text-orange-600 hover:bg-orange-50 px-4 py-2 text-sm font-bold rounded-lg shadow-md disabled:opacity-50"
+      onClick={handleTriggerUpdate}
+      disabled={isStartingAuto || (autoRunKind === "self_update" && !!autoRunId) || isRunnerOnline === false}
+    />
+    {isRunnerOnline === false && (
+      <span className="text-white text-xs opacity-80">
+        יש להפעיל את הבוט לפני העדכון
+      </span>
+    )}
+  </>
 )}
           </div>
         </div>

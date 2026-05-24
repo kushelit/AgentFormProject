@@ -136,6 +136,37 @@ const CommissionSummaryAgentTab: React.FC = () => {
   const [drillLoading, setDrillLoading] = useState(false);
 
 
+  // דריל ביניים — תבניות לפי חברה
+const [templateDrill, setTemplateDrill] = useState<{ companyId: string; companyName: string } | null>(null);
+const [byTemplateMonth, setByTemplateMonth] = useState<Record<string, Record<string, number>>>({});
+const [templateNames, setTemplateNames] = useState<Record<string, string>>({});
+const [templateDrillMonths, setTemplateDrillMonths] = useState<string[]>([]);
+const [templateDrillLoading, setTemplateDrillLoading] = useState(false);
+
+const [agentDrill, setAgentDrill] = useState<{ companyName: string; companyId: string; templateId: string; month: string } | null>(null);
+
+async function openTemplateDrill(companyId: string, companyName: string) {
+  setTemplateDrill({ companyId, companyName });
+  setTemplateDrillLoading(true);
+  setByTemplateMonth({});
+  setTemplateNames({});
+  setTemplateDrillMonths([]);
+
+  try {
+    const res = await fetch('/api/commission-summary-by-template', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ agentId: selectedAgentId, companyId, year: selectedYear }),
+    });
+    const data = await res.json();
+    setByTemplateMonth(data.byTemplateMonth ?? {});
+    setTemplateNames(data.templateNames ?? {});
+    setTemplateDrillMonths(data.allMonths ?? []);
+  } finally {
+    setTemplateDrillLoading(false);
+  }
+}
+
   useEffect(() => {
     const fetchSummaries = async () => {
       if (!selectedAgentId || !selectedYear) {
@@ -867,23 +898,20 @@ const groupMonthlyData = useMemo(() => {
               {allCompanies.map((company) => {
                 const isOpen = expanded?.company === company;
                 return (
-                  <th key={company} className="border px-2 py-1">
-                    <button
-                      type="button"
-                      className="w-full flex items-center justify-between gap-2 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-400 rounded px-1 py-0.5"
-                      onClick={() => handleToggleExpandCompany(company)}
-                      title="לחצי כדי להציג פירוט לפי מספרי סוכן לחברה זו"
-                      aria-expanded={isOpen}
-                    >
-                      <span>{company}</span>
-                      <ChevronRight
-                        className={`h-4 w-4 transition-transform ${
-                          isOpen ? 'rotate-90' : ''
-                        }`}
-                        aria-hidden="true"
-                      />
-                    </button>
-                  </th>
+                 <th key={company} className="border px-2 py-1">
+  <button
+    type="button"
+    className="w-full flex items-center justify-between gap-2 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-400 rounded px-1 py-0.5"
+    onClick={() => {
+      const companyId = companyIdByName[company];
+      if (companyId) openTemplateDrill(companyId, company);
+    }}
+    title="לחצי לפילוח לפי תבניות"
+    aria-expanded={templateDrill?.companyName === company}
+  >
+    <span>{company}</span>
+  </button>
+</th>
                 );
               })}
               <th className="border px-2 py-1 font-bold bg-gray-50">
@@ -907,8 +935,10 @@ const groupMonthlyData = useMemo(() => {
                     <td
                       key={company}
                       className="border px-2 py-1 cursor-pointer hover:bg-gray-100"
-                      onClick={() => handleToggleExpand(month, company)}
-                    >
+onClick={() => {
+  const companyId = companyIdByName[company];
+  if (companyId) openTemplateDrill(companyId, company);
+}}                    >
                       {summaryByMonthCompany[month]?.[company]?.toLocaleString() ??
                         '-'}
                     </td>
@@ -1128,6 +1158,97 @@ const groupMonthlyData = useMemo(() => {
 </section>
         </div>
       )}
+      {templateDrill && (
+  <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center" dir="rtl">
+    <div className="bg-white w-[min(1100px,95vw)] max-h-[85vh] overflow-auto rounded-xl p-4">
+      <div className="flex items-center justify-between mb-3">
+        <div className="font-bold">פילוח לפי תבניות | {templateDrill.companyName}</div>
+        <button className="px-3 py-1 border rounded" onClick={() => setTemplateDrill(null)}>סגור</button>
+      </div>
+      {templateDrillLoading ? <Spinner /> : (
+        <table className="w-full text-sm border">
+          <thead className="bg-gray-100">
+            <tr>
+              <th className="border px-2 py-1">תבנית</th>
+              {templateDrillMonths.map(m => (
+                <th key={m} className="border px-2 py-1">{m}</th>
+              ))}
+              <th className="border px-2 py-1 font-bold">סה"כ</th>
+            </tr>
+          </thead>
+          <tbody>
+            {Object.entries(byTemplateMonth).map(([tid, monthMap]) => {
+              const total = Object.values(monthMap).reduce((s, v) => s + v, 0);
+              return (
+                <tr key={tid}>
+                  <td className="border px-2 py-1 font-semibold">{templateNames[tid] || tid}</td>
+                  {templateDrillMonths.map(m => (
+                  <td
+  key={m}
+  className={`border px-2 py-1 ${monthMap[m] ? 'cursor-pointer hover:bg-gray-100' : 'text-gray-300'}`}
+  onClick={() => {
+    if (!monthMap[m]) return;
+    setAgentDrill({
+      companyName: templateDrill!.companyName,
+      companyId: templateDrill!.companyId,
+      templateId: tid,
+      month: m,
+    });
+  }}
+  title="לחץ לפירוט לפי מספר סוכן"
+>
+                      {monthMap[m]?.toLocaleString() ?? '-'}
+                    </td>
+                  ))}
+                  <td className="border px-2 py-1 font-bold bg-gray-50">{total.toLocaleString()}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      )}
+    </div>
+  </div>
+)}
+{agentDrill && (
+  <div className="fixed inset-0 z-[60] bg-black/40 flex items-center justify-center" dir="rtl">
+    <div className="bg-white w-[min(900px,95vw)] max-h-[85vh] overflow-auto rounded-xl p-4">
+      <div className="flex items-center justify-between mb-3">
+        <div className="font-bold">
+          פירוט לפי מספר סוכן | {templateNames[agentDrill.templateId] || agentDrill.templateId} | {agentDrill.month}
+        </div>
+        <button className="px-3 py-1 border rounded" onClick={() => setAgentDrill(null)}>סגור</button>
+      </div>
+      <table className="w-full text-sm border">
+        <thead className="bg-gray-100">
+          <tr>
+            <th className="border px-2 py-1">מספר סוכן</th>
+            <th className="border px-2 py-1">סכום עמלה</th>
+          </tr>
+        </thead>
+        <tbody>
+          {Object.entries(summaryByCompanyAgentMonth[agentDrill.companyName] || {})
+            .filter(([, monthMap]) => monthMap[agentDrill.month])
+            .sort(([, a], [, b]) => (b[agentDrill.month] || 0) - (a[agentDrill.month] || 0))
+            .map(([agentCode, monthMap]) => (
+              <tr
+                key={agentCode}
+                className="cursor-pointer hover:bg-gray-100"
+                onClick={() => {
+                  setAgentDrill(null);
+                  setTemplateDrill(null);
+                  openDrill(agentDrill.companyId, agentCode, agentDrill.month);
+                }}
+              >
+                <td className="border px-2 py-1">{agentCode}</td>
+                <td className="border px-2 py-1 font-semibold">{(monthMap[agentDrill.month] || 0).toLocaleString()}</td>
+              </tr>
+            ))}
+        </tbody>
+      </table>
+    </div>
+  </div>
+)}
       {drill && (
   <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center" dir="rtl">
     <div className="bg-white w-[min(1100px,95vw)] max-h-[85vh] overflow-auto rounded-xl p-4">

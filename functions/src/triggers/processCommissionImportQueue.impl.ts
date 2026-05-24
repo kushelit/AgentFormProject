@@ -658,6 +658,28 @@ if (templateId === "analyst_insurance") {
     return;
   }
 }   
+
+if (templateId === "hachshara_insurance") {
+  const targetMonth = getPreviousMonthStr();
+
+  rowsForThisFile = rowsForThisFile.filter((row: any) => {
+    return safeStr(row.reportMonth) === targetMonth;
+  });
+
+  if (!rowsForThisFile.length) {
+    await finishAsEmpty({
+      db,
+      queueRef,
+      portalRunId: effectivePortalRunId,
+      jobId,
+      templateId,
+      templateName: safeStr(template.templateName) || templateId,
+      message: `הדוח נקלט אך אין נתונים עבור ${targetMonth}`,
+      reason: "filter_month_empty",
+    });
+    return;
+  }
+}
 allFinalRows = allFinalRows.concat(rowsForThisFile);
 allAgentCodes = Array.from(new Set([...allAgentCodes, ...agentCodes]));
 

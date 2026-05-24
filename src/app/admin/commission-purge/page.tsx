@@ -569,25 +569,79 @@ export default function CommissionPurgeAdminPage() {
     setRunDeleteDialogOpen(true);
   };
 
-  const handleRunDeleteConfirm = async () => {
+  // const handleRunDeleteConfirm = async () => {
+  //   if (!selectedRun) return;
+  //   setRunDeleteLoading(true);
+  //   const { runId } = selectedRun;
+
+  //   try {
+  //     await deleteByRunIdInChunks('externalCommissions', runId);
+  //     await deleteByRunIdInChunks('commissionSummaries', runId);
+  //     await deleteByRunIdInChunks('policyCommissionSummaries', runId);
+  //     await deleteDoc(doc(db, 'commissionImportRuns', runId));
+  //     await fetchCommissionRuns();
+  //   } finally {
+  //     setRunDeleteLoading(false);
+  //     setRunDeleteDialogOpen(false);
+  //     setSelectedRun(null);
+  //   }
+  // };
+
+  // ===== Render =====
+ 
+ 
+ const handleRunDeleteConfirm = async () => {
     if (!selectedRun) return;
     setRunDeleteLoading(true);
-    const { runId } = selectedRun;
+    const { runId, agentId } = selectedRun;
 
     try {
-      await deleteByRunIdInChunks('externalCommissions', runId);
-      await deleteByRunIdInChunks('commissionSummaries', runId);
-      await deleteByRunIdInChunks('policyCommissionSummaries', runId);
-      await deleteDoc(doc(db, 'commissionImportRuns', runId));
+      // שלוף jobIds מ-portalImportRuns לפי portalRunId
+      const portalRunsSnap = await getDocs(
+        query(collection(db, 'portalImportRuns'), where('runId', '==', runId))
+      );
+
+      const jobIds: string[] = [];
+      let portalRunDocId = '';
+
+      for (const d of portalRunsSnap.docs) {
+        portalRunDocId = d.id;
+        const ids: string[] = d.data()?.queue?.jobIds || [];
+        jobIds.push(...ids);
+      }
+
+      // מחק לפי כל jobId
+      for (const jobId of jobIds) {
+        for (const col of ['commissionImportRuns', 'externalCommissions', 'commissionSummaries', 'policyCommissionSummaries']) {
+          await deleteByRunIdInChunks(col, jobId);
+        }
+        await deleteDoc(doc(db, 'commissionImportQueue', jobId)).catch(() => {});
+      }
+
+      // fallback — אם אין portalImportRuns, מחק לפי runId ישירות
+      if (jobIds.length === 0) {
+        await deleteByRunIdInChunks('externalCommissions', runId);
+        await deleteByRunIdInChunks('commissionSummaries', runId);
+        await deleteByRunIdInChunks('policyCommissionSummaries', runId);
+        await deleteDoc(doc(db, 'commissionImportRuns', runId)).catch(() => {});
+      }
+
+      // מחק portalImportRuns
+      if (portalRunDocId) {
+        await deleteDoc(doc(db, 'portalImportRuns', portalRunDocId)).catch(() => {});
+      }
+
       await fetchCommissionRuns();
+    } catch (e: any) {
+      setDialog({ type: 'error', title: 'שגיאת מחיקה', message: String(e?.message || e) });
     } finally {
       setRunDeleteLoading(false);
       setRunDeleteDialogOpen(false);
       setSelectedRun(null);
     }
   };
-
-  // ===== Render =====
+ 
+ 
   return (
     <AdminGuard>
       <div className="p-6 max-w-4xl mx-auto text-right" dir="rtl">

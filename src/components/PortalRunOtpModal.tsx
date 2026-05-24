@@ -23,6 +23,8 @@ export default function PortalRunOtpModal({ runId, onClose }: Props) {
   const [sending, setSending] = useState(false);
 
   const [submitted, setSubmitted] = useState(false);
+    const submittedRef = React.useRef(false);
+
 
   // 🔄 האזנה ל-run
   useEffect(() => {
@@ -53,9 +55,9 @@ export default function PortalRunOtpModal({ runId, onClose }: Props) {
    * לא תלוי יותר ב-otp.state כדי למנוע באגים עתידיים.
    */
   const shouldShow = useMemo(() => {
-    if (submitted) return false; 
+       if (submitted || submittedRef.current) return false;  
     return status === 'otp_required' && otpMode !== 'manual';
-  }, [status, otpMode]);
+}, [status, otpMode, submitted]);
 
   if (!runId || !shouldShow) return null;
 
@@ -86,12 +88,12 @@ const handleCancel = async () => {
   }
 };
 
-
 const submit = async () => {
     const code = otpValue.trim();
     if (!code) return;
 
     setSending(true);
+    submittedRef.current = true;
     setSubmitted(true); // ← סוגר מיד את המודאל
     setOtpValue('');
 

@@ -41,10 +41,9 @@ function normalizePolicyKey(v: any): string {
 function normalizeAgentCode(v: any): string {
   return String(v ?? "")
     .trim()
-    .split(/[\/\\-]/)[0] // 🔥 לוקח רק 1696
+    .split(/[\/\\]/)[0]  // חותך רק / ו-\ — לא מקף
     .replace(/\s+/g, "");
 }
-
 /* ---------- ids ---------- */
 
 function buildCommissionSummaryId(s: any) {
