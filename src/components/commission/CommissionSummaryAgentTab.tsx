@@ -295,7 +295,7 @@ async function openTemplateDrill(companyId: string, companyName: string) {
     }
   }
   
-
+//test
  const exportDrillToExcel = () => {
   if (!drill || drillRows.length === 0) return;
 
