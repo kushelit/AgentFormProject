@@ -27,6 +27,7 @@ export interface CommissionSummaryResult {
   allCompanies: string[];
   monthlyTotalsData: { month: string; total: number }[];
   perCompanyOverMonthsData: Record<string, string | number>[];
+  summaryByYmCompany: Record<string, Record<string, number>>;
 }
 
 export async function getCommissionSummary(
@@ -118,6 +119,39 @@ if (item.companyId && companyName !== 'לא ידוע' && !companyIdByName[compan
     return row;
   });
 
+ // --- חישוב portalRunIds ייחודיים ---
+  const portalRunIdSet = new Set<string>();
+  for (const item of summaries) {
+    const runId = (item as any).runId || '';
+    if (!runId) continue;
+    const parts = runId.split('_');
+    if (parts.length >= 2) portalRunIdSet.add(parts[0]);
+  }
+
+  // --- שלוף ym לכל portalRunId ---
+  const ymByPortalRunId: Record<string, string> = {};
+  await Promise.all(
+    Array.from(portalRunIdSet).map(async (portalRunId) => {
+      const runSnap = await db.collection('portalImportRuns').doc(portalRunId).get();
+      if (runSnap.exists) {
+        const ym = String(runSnap.data()?.resolvedWindow?.ym || '');
+        if (ym) ymByPortalRunId[portalRunId] = ym;
+      }
+    })
+  );
+
+  // --- בנה summaryByYmCompany ---
+  const summaryByYmCompany: Record<string, Record<string, number>> = {};
+  for (const item of summaries) {
+    const runId = (item as any).runId || '';
+    const portalRunId = runId.split('_')[0] || '';
+    const ym = ymByPortalRunId[portalRunId];
+    if (!ym) continue;
+    const companyName = item.company || 'לא ידוע';
+    if (!summaryByYmCompany[ym]) summaryByYmCompany[ym] = {};
+    summaryByYmCompany[ym][companyName] = (summaryByYmCompany[ym][companyName] || 0) + (item.totalCommissionAmount || 0);
+  }
+
   return {
     summaries,
     companyMap,
@@ -128,5 +162,6 @@ if (item.companyId && companyName !== 'לא ידוע' && !companyIdByName[compan
     allCompanies,
     monthlyTotalsData,
     perCompanyOverMonthsData,
+    summaryByYmCompany,
   };
 }

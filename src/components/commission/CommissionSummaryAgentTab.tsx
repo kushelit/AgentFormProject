@@ -1173,8 +1173,9 @@ onClick={() => {
               {templateDrillMonths.map(m => (
                 <th key={m} className="border px-2 py-1">{m}</th>
               ))}
-              <th className="border px-2 py-1 font-bold">סה"כ</th>
-            </tr>
+<th className="border px-2 py-1 font-bold">
+  סה&quot;כ
+</th>            </tr>
           </thead>
           <tbody>
             {Object.entries(byTemplateMonth).map(([tid, monthMap]) => {
