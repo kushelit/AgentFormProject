@@ -113,8 +113,11 @@ export async function runMeitavAll(ctx: RunnerCtx) {
     // ✅ meitavNavigateAndExport מחזיר מערך של כל ההורדות (סוכן אחד או יותר)
     const downloads = await meitavNavigateAndExport(loginPage2, absDir);
 
-    if (downloads.length > 0) {
-      for (const { localPath, filename, agentName } of downloads) {
+    const successDownloads = downloads.filter(d => !d.failed);
+    const failedDownloads = downloads.filter(d => d.failed);
+
+    if (successDownloads.length > 0) {
+      for (const { localPath, filename, agentName } of successDownloads) {
         // console.log(`[Meitav] Uploading: ${filename} for agent: ${agentName}`);
         
         const up = await uploadLocalFileToStorageClient({
@@ -141,13 +144,16 @@ export async function runMeitavAll(ctx: RunnerCtx) {
         }
       }
       
-      await setStatus(runId, { 
+    await setStatus(runId, { 
         status: "done", 
         step: "meitav_done", 
         monthLabel,
-        result: { uploaded: true, count: downloads.length }
+        result: { uploaded: true, count: successDownloads.length },
+       ...(failedDownloads.length > 0 ? {
+          missingAgents: failedDownloads.map(d => ({ agentName: d.agentName, reason: d.failReason }))
+        } : {}),
       });
-    } else {
+    } else if (downloads.length === 0) {
       await setStatus(runId, { status: "error", step: "meitav_done_no_files", error: { message: "No downloads[] / download.storagePath found" }, monthLabel });
       throw new Error("No downloads[] / download.storagePath found");
     }

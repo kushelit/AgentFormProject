@@ -227,8 +227,16 @@ export function useAutomationDashboardStatus({
                 toDateSafe(runData.updatedAt) ||
                 toDateSafe(runData.createdAt) ||
                 null;
-                 const reportsSummary: any[] = runData?.reportsSummary || [];
-               missingReports = reportsSummary.filter((r: any) => r.status !== "ok");
+          const reportsSummary: any[] = runData?.reportsSummary || [];
+               const missingAgents: any[] = runData?.missingAgents || [];
+               missingReports = [
+                 ...reportsSummary.filter((r: any) => r.status !== "ok"),
+                 ...missingAgents.map((a: any) => ({
+                   templateId: 'meitav_insurance',
+                   templateName: `סוכן ${a.agentName}`,
+                   status: 'not_downloaded',
+                 })),
+               ];
             }
           }
 

@@ -10,5 +10,8 @@ export async function POST(req: Request) {
     toMonth: `${year}-12`
   });
 
-  return NextResponse.json(result);
+  return NextResponse.json({
+  ...result,
+  summaryByYmCompany: result.summaryByYmCompany,
+});
 }

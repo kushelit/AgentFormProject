@@ -131,8 +131,8 @@ export async function meitavHandleOtp(page: Page, ctx: RunnerCtx) {
 export async function meitavNavigateAndExport(
   page: Page,
   absDir: string
-): Promise<{ localPath: string; filename: string; agentName: string }[]> {  // ✅ הוספת agentName
-  const results: { localPath: string; filename: string; agentName: string }[] = [];
+): Promise<{ localPath: string; filename: string; agentName: string; failed?: boolean; failReason?: string }[]> {
+  const results: { localPath: string; filename: string; agentName: string; failed?: boolean; failReason?: string }[] = [];
   const cdp = await page.context().newCDPSession(page);
 
   const now = new Date();
@@ -319,7 +319,7 @@ if (agents.length === 0) throw new Error("No agents found");
       results.push({ localPath, filename, agentName });
 
     } catch (e: any) {
-      // console.log("[Meitav] Export failed for agent:", agentName, e?.message);
+      results.push({ localPath: '', filename: '', agentName, failed: true, failReason: String(e?.message || 'download_failed') });
     }
 
     // ✅ המתנה קצרה בין סוכנים

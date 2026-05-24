@@ -66,6 +66,7 @@ interface CommissionSummaryApiResponse {
   allCompanies: string[];
   monthlyTotalsData: MonthlyTotalRow[];
   perCompanyOverMonthsData: PerCompanyRow[];
+  summaryByYmCompany: Record<string, Record<string, number>>;
 }
 
 type DrillKey = { companyId: string; agentCode: string; month: string } | null;
@@ -124,6 +125,9 @@ const CommissionSummaryAgentTab: React.FC = () => {
   const [companyIdByName, setCompanyIdByName] = useState<Record<string,string>>({});
   const [showChecklist, setShowChecklist] = useState(false);
 
+  const [summaryByYmCompany, setSummaryByYmCompany] = useState<Record<string, Record<string, number>>>({});
+const [activeTab, setActiveTab] = useState<'reportMonth' | 'ym'>('reportMonth');
+const [agentDrillSort, setAgentDrillSort] = useState<{ key: 'agentCode' | 'amount'; dir: 'asc' | 'desc' }>({ key: 'amount', dir: 'desc' });
 
   const handleToggleExpandCompany = (company: string) => {
     setExpanded((prev) =>
@@ -178,6 +182,7 @@ async function openTemplateDrill(companyId: string, companyName: string) {
         setAllCompanies([]);
         setMonthlyTotalsData([]);
         setPerCompanyOverMonthsData([]);
+        setSummaryByYmCompany({});
         return;
       }
 
@@ -217,6 +222,7 @@ async function openTemplateDrill(companyId: string, companyName: string) {
         setAllCompanies(data.allCompanies ?? []);
         setMonthlyTotalsData(data.monthlyTotalsData ?? []);
         setPerCompanyOverMonthsData(data.perCompanyOverMonthsData ?? []);
+        setSummaryByYmCompany(data.summaryByYmCompany ?? {});
       } catch (err) {
         // console.error('fetchSummaries error:', err);
         setSummaries([]);
@@ -228,6 +234,7 @@ async function openTemplateDrill(companyId: string, companyName: string) {
         setMonthlyTotalsData([]);
         setPerCompanyOverMonthsData([]);
         setCompanyIdByName({});
+        setSummaryByYmCompany({});
       } finally {
         setLoading(false);
       }
@@ -889,7 +896,73 @@ const groupMonthlyData = useMemo(() => {
     </div>
   </div>
 )}
-<table className="table-auto w-full border text-sm text-right mt-6">
+<div className="mt-6 flex gap-2 border-b mb-0">
+  <button
+    className={`px-4 py-2 text-sm font-bold border-b-2 transition-colors ${activeTab === 'reportMonth' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+    onClick={() => setActiveTab('reportMonth')}
+  >
+    לפי חודש דיווח
+  </button>
+  <button
+    className={`px-4 py-2 text-sm font-bold border-b-2 transition-colors ${activeTab === 'ym' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+    onClick={() => setActiveTab('ym')}
+  >
+    לפי חודש פרסום
+  </button>
+</div>
+
+{activeTab === 'ym' && Object.keys(summaryByYmCompany).length > 0 && (
+  <table className="table-auto w-full border text-sm text-right mt-0">
+    <thead className="bg-blue-50">
+      <tr>
+        <th className="border px-3 py-1 min-w-[90px] whitespace-nowrap">חודש פרסום</th>
+        {allCompanies.map(company => (
+          <th key={company} className="border px-2 py-1">
+            <button
+              type="button"
+              className="hover:underline"
+              onClick={() => {
+                const companyId = companyIdByName[company];
+                if (companyId) openTemplateDrill(companyId, company);
+              }}
+            >
+              {company}
+            </button>
+          </th>
+        ))}
+<th className="border px-2 py-1 font-bold bg-blue-100">סה&quot;כ</th>
+      </tr>
+    </thead>
+    <tbody>
+      {Object.keys(summaryByYmCompany).sort().map(ym => {
+        const ymTotal = allCompanies.reduce(
+          (sum, company) => sum + (summaryByYmCompany[ym]?.[company] || 0), 0
+        );
+        return (
+          <tr key={ym}>
+            <td className="border px-3 py-1 font-semibold min-w-[90px] whitespace-nowrap">{ym}</td>
+            {allCompanies.map(company => (
+              <td
+                key={company}
+                className={`border px-2 py-1 ${summaryByYmCompany[ym]?.[company] ? 'cursor-pointer hover:bg-blue-50' : ''}`}
+                onClick={() => {
+                  const companyId = companyIdByName[company];
+                  if (companyId && summaryByYmCompany[ym]?.[company]) openTemplateDrill(companyId, company);
+                }}
+              >
+                {summaryByYmCompany[ym]?.[company]?.toLocaleString() ?? '-'}
+              </td>
+            ))}
+            <td className="border px-2 py-1 font-bold bg-blue-50">{ymTotal.toLocaleString()}</td>
+          </tr>
+        );
+      })}
+    </tbody>
+  </table>
+)}
+
+{activeTab === 'reportMonth' && (
+<table className="table-auto w-full border text-sm text-right mt-0">
           <thead className="bg-gray-100">
             <tr>
             <th className="border px-3 py-1 min-w-[90px] whitespace-nowrap">
@@ -938,8 +1011,9 @@ const groupMonthlyData = useMemo(() => {
 onClick={() => {
   const companyId = companyIdByName[company];
   if (companyId) openTemplateDrill(companyId, company);
-}}                    >
-                      {summaryByMonthCompany[month]?.[company]?.toLocaleString() ??
+}}  
+  >
+  {summaryByMonthCompany[month]?.[company]?.toLocaleString() ??
                         '-'}
                     </td>
                   ))}
@@ -951,7 +1025,6 @@ onClick={() => {
             })}
           </tbody>
         </table>
-        </>
       )}
       {selectedCompany && (
         <div className="mt-10">
@@ -1220,17 +1293,42 @@ onClick={() => {
         </div>
         <button className="px-3 py-1 border rounded" onClick={() => setAgentDrill(null)}>סגור</button>
       </div>
-      <table className="w-full text-sm border">
+     <table className="w-full text-sm border">
         <thead className="bg-gray-100">
           <tr>
-            <th className="border px-2 py-1">מספר סוכן</th>
-            <th className="border px-2 py-1">סכום עמלה</th>
+           <th
+              className="border px-2 py-1 cursor-pointer hover:bg-gray-200 select-none"
+              onClick={() => setAgentDrillSort(s => ({
+                key: 'agentCode',
+                dir: s.key === 'agentCode' && s.dir === 'asc' ? 'desc' : 'asc'
+              }))}
+            >
+              מספר סוכן {agentDrillSort.key === 'agentCode' ? (agentDrillSort.dir === 'asc' ? '▲' : '▼') : ''}
+            </th>
+            <th
+              className="border px-2 py-1 cursor-pointer hover:bg-gray-200 select-none"
+              onClick={() => setAgentDrillSort(s => ({
+                key: 'amount',
+                dir: s.key === 'amount' && s.dir === 'desc' ? 'asc' : 'desc'
+              }))}
+            >
+              סכום עמלה {agentDrillSort.key === 'amount' ? (agentDrillSort.dir === 'desc' ? '▼' : '▲') : ''}
+            </th>
           </tr>
         </thead>
         <tbody>
           {Object.entries(summaryByCompanyAgentMonth[agentDrill.companyName] || {})
             .filter(([, monthMap]) => monthMap[agentDrill.month])
-            .sort(([, a], [, b]) => (b[agentDrill.month] || 0) - (a[agentDrill.month] || 0))
+         .sort(([codeA, a], [codeB, b]) => {
+              if (agentDrillSort.key === 'agentCode') {
+                return agentDrillSort.dir === 'asc'
+                  ? codeA.localeCompare(codeB)
+                  : codeB.localeCompare(codeA);
+              }
+              return agentDrillSort.dir === 'desc'
+                ? (b[agentDrill.month] || 0) - (a[agentDrill.month] || 0)
+                : (a[agentDrill.month] || 0) - (b[agentDrill.month] || 0);
+            })
             .map(([agentCode, monthMap]) => (
               <tr
                 key={agentCode}
@@ -1327,7 +1425,10 @@ onClick={() => {
       )}
     </div>
   </div>
+
 )}
+        </>
+      )}
     </div>
   );
 };
