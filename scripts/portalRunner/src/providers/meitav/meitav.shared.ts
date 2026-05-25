@@ -180,10 +180,7 @@ export async function meitavNavigateAndExport(
   const navResult = await cdp.send("Runtime.evaluate", {
     expression: `(function() {
       const links = Array.from(document.querySelectorAll('a'));
-      const target = links.find(a =>
-        (a.textContent || '').includes('עמלות') ||
-        (a.href || '').includes('agentamlot')
-      );
+     const target = links.find(a => (a.href || '').includes('/agentamlot'));
       if (!target) return 'NOT_FOUND';
       target.click();
       return 'CLICKED: ' + target.href;

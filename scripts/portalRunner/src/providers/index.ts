@@ -13,11 +13,9 @@ import { runAnalystAll } from "./analyst/analyst.all";
 import { runAltshulerAll } from "./altshuler/altshuler.all";
 import { runHachsharaAll } from "./hachshara/hachshara.all";
 import { runYalinAll } from "./yalinlapidot/yalinlapidot.all";
+import { runInfinityAll } from "./infinity/infinity.all";
 
 
-// import { runMigdalInsurance } from "./migdal/migdal.insurance";
-// import { runFenixInsurance } from "./fenix/fenix.insurance";
-// import { runMenoraNewNifraim } from "./menora/menura_new_nifraim";
 
 export const providers: Record<string, RunnerHandler> = {
   // כלל
@@ -33,4 +31,5 @@ export const providers: Record<string, RunnerHandler> = {
   altshuler_commissions_all: runAltshulerAll,
   hachshara_commissions_all: runHachsharaAll,
   yalin_commissions_all: runYalinAll,
+  infinity_commissions_all: runInfinityAll,
 };

@@ -30,6 +30,6 @@
     "**/*.ts",
     "**/*.tsx",
     ".next/types/**/*.ts"
-, "src/app/summaryTable/SummaryTable.tsx.bak", "src/app/Customer/Customer.tsx.bak"  ],
+, "src/app/summaryTable/SummaryTable.tsx.bak", "src/app/Customer/Customer.tsx.bak", "scripts/portalRunner/src/providers/infinity/infinity.allts"  ],
 "exclude": ["node_modules", "functions", "scripts", "**/*.bak"]
 }

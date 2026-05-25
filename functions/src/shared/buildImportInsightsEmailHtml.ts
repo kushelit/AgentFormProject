@@ -187,6 +187,7 @@ export function buildImportInsightsEmailHtml(params: {
             </div>
           </div>
 
+      ${insights.hasPrevMonth ? `
           <div style="background:#f8fafc;border:1px solid #e5e7eb;border-radius:14px;padding:18px;margin-bottom:22px;">
             <div style="font-size:18px;font-weight:800;margin-bottom:12px;">השוואה לחודש קודם</div>
             <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px;">
@@ -194,22 +195,15 @@ export function buildImportInsightsEmailHtml(params: {
                 <div style="font-size:12px;color:#64748b;margin-bottom:4px;">חודש קודם</div>
                 <div style="font-size:18px;font-weight:700;">${esc(insights.previousMonth || "-")}</div>
               </div>
-
               <div style="background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:14px;">
                 <div style="font-size:12px;color:#64748b;margin-bottom:4px;">שינוי בעמלות</div>
-                <div style="font-size:18px;font-weight:800;color:${deltaColor(insights.deltaCommissionAmount)};">
-                  ${fmtCurrency(insights.deltaCommissionAmount)}
-                </div>
-                <div style="font-size:13px;color:${deltaColor(insights.deltaCommissionPercent)};">
-                  ${fmtPercent(insights.deltaCommissionPercent)}
-                </div>
+                <div style="font-size:18px;font-weight:800;color:${deltaColor(insights.deltaCommissionAmount)};">${fmtCurrency(insights.deltaCommissionAmount)}</div>
+                <div style="font-size:13px;color:${deltaColor(insights.deltaCommissionPercent)};">${fmtPercent(insights.deltaCommissionPercent)}</div>
               </div>
-
               <div style="background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:14px;">
                 <div style="font-size:12px;color:#64748b;margin-bottom:4px;">פוליסות חדשות</div>
                 <div style="font-size:22px;font-weight:800;">${fmtNumber(insights.newPoliciesCount)}</div>
               </div>
-
               <div style="background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:14px;">
                 <div style="font-size:12px;color:#64748b;margin-bottom:4px;">פוליסות שירדו לעמלה 0</div>
                 <div style="font-size:22px;font-weight:800;">${fmtNumber(insights.droppedPoliciesCount)}</div>
@@ -218,75 +212,51 @@ export function buildImportInsightsEmailHtml(params: {
           </div>
 
           <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:14px;padding:18px;margin-bottom:22px;">
-            <div style="font-size:18px;font-weight:800;color:#9a3412;margin-bottom:8px;">
-              פוליסות עם 0 עמלה
-            </div>
-            <div style="font-size:15px;color:#7c2d12;">
-              זוהו <strong>${fmtNumber(insights.zeroCommissionPoliciesCount)}</strong> פוליסות עם 0 עמלה.
-            </div>
+            <div style="font-size:18px;font-weight:800;color:#9a3412;margin-bottom:8px;">פוליסות עם 0 עמלה</div>
+            <div style="font-size:15px;color:#7c2d12;">זוהו <strong>${fmtNumber(insights.zeroCommissionPoliciesCount)}</strong> פוליסות עם 0 עמלה.</div>
           </div>
 
           <div style="margin-top:8px;">
-            <div style="font-size:18px;font-weight:800;margin-bottom:12px;">
-              דוגמאות לפוליסות עם 0 עמלה
-            </div>
-
+            <div style="font-size:18px;font-weight:800;margin-bottom:12px;">דוגמאות לפוליסות עם 0 עמלה</div>
             <div style="border:1px solid #e5e7eb;border-radius:14px;overflow:hidden;margin-bottom:22px;">
               <table style="width:100%;border-collapse:collapse;font-size:14px;">
-                <thead style="background:#f8fafc;">
-                  <tr>
-                    <th style="padding:10px;text-align:right;border-bottom:1px solid #e5e7eb;">פוליסה</th>
-                    <th style="padding:10px;text-align:right;border-bottom:1px solid #e5e7eb;">שם לקוח</th>
-                    <th style="padding:10px;text-align:right;border-bottom:1px solid #e5e7eb;">מוצר</th>
-                    <th style="padding:10px;text-align:right;border-bottom:1px solid #e5e7eb;">פרמיה</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  ${zeroRowsHtml}
-                </tbody>
+                <thead style="background:#f8fafc;"><tr>
+                  <th style="padding:10px;text-align:right;border-bottom:1px solid #e5e7eb;">פוליסה</th>
+                  <th style="padding:10px;text-align:right;border-bottom:1px solid #e5e7eb;">שם לקוח</th>
+                  <th style="padding:10px;text-align:right;border-bottom:1px solid #e5e7eb;">מוצר</th>
+                  <th style="padding:10px;text-align:right;border-bottom:1px solid #e5e7eb;">פרמיה</th>
+                </tr></thead>
+                <tbody>${zeroRowsHtml}</tbody>
               </table>
             </div>
 
-            <div style="font-size:18px;font-weight:800;margin-bottom:12px;">
-              פוליסות שקיבלו עמלה בחודש קודם ולא כעת
-            </div>
-
+            <div style="font-size:18px;font-weight:800;margin-bottom:12px;">פוליסות שקיבלו עמלה בחודש קודם ולא כעת</div>
             <div style="border:1px solid #e5e7eb;border-radius:14px;overflow:hidden;margin-bottom:22px;">
               <table style="width:100%;border-collapse:collapse;font-size:14px;">
-                <thead style="background:#f8fafc;">
-                  <tr>
-                    <th style="padding:10px;text-align:right;border-bottom:1px solid #e5e7eb;">פוליסה</th>
-                    <th style="padding:10px;text-align:right;border-bottom:1px solid #e5e7eb;">שם לקוח</th>
-                    <th style="padding:10px;text-align:right;border-bottom:1px solid #e5e7eb;">מוצר</th>
-                    <th style="padding:10px;text-align:right;border-bottom:1px solid #e5e7eb;">עמלה בחודש קודם</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  ${droppedRowsHtml}
-                </tbody>
+                <thead style="background:#f8fafc;"><tr>
+                  <th style="padding:10px;text-align:right;border-bottom:1px solid #e5e7eb;">פוליסה</th>
+                  <th style="padding:10px;text-align:right;border-bottom:1px solid #e5e7eb;">שם לקוח</th>
+                  <th style="padding:10px;text-align:right;border-bottom:1px solid #e5e7eb;">מוצר</th>
+                  <th style="padding:10px;text-align:right;border-bottom:1px solid #e5e7eb;">עמלה בחודש קודם</th>
+                </tr></thead>
+                <tbody>${droppedRowsHtml}</tbody>
               </table>
             </div>
 
-            <div style="font-size:18px;font-weight:800;margin-bottom:12px;">
-              פוליסות חדשות לעומת חודש קודם
-            </div>
-
+            <div style="font-size:18px;font-weight:800;margin-bottom:12px;">פוליסות חדשות לעומת חודש קודם</div>
             <div style="border:1px solid #e5e7eb;border-radius:14px;overflow:hidden;">
               <table style="width:100%;border-collapse:collapse;font-size:14px;">
-                <thead style="background:#f8fafc;">
-                  <tr>
-                    <th style="padding:10px;text-align:right;border-bottom:1px solid #e5e7eb;">פוליסה</th>
-                    <th style="padding:10px;text-align:right;border-bottom:1px solid #e5e7eb;">שם לקוח</th>
-                    <th style="padding:10px;text-align:right;border-bottom:1px solid #e5e7eb;">מוצר</th>
-                    <th style="padding:10px;text-align:right;border-bottom:1px solid #e5e7eb;">עמלה נוכחית</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  ${newRowsHtml}
-                </tbody>
+                <thead style="background:#f8fafc;"><tr>
+                  <th style="padding:10px;text-align:right;border-bottom:1px solid #e5e7eb;">פוליסה</th>
+                  <th style="padding:10px;text-align:right;border-bottom:1px solid #e5e7eb;">שם לקוח</th>
+                  <th style="padding:10px;text-align:right;border-bottom:1px solid #e5e7eb;">מוצר</th>
+                  <th style="padding:10px;text-align:right;border-bottom:1px solid #e5e7eb;">עמלה נוכחית</th>
+                </tr></thead>
+                <tbody>${newRowsHtml}</tbody>
               </table>
             </div>
           </div>
+          ` : ''}
 
           ${ctaHtml}
         </div>
@@ -295,4 +265,4 @@ export function buildImportInsightsEmailHtml(params: {
   </body>
 </html>
   `;
-}
+  }

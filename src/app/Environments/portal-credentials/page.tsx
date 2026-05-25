@@ -54,6 +54,8 @@ export default function PortalCredentialsPage() {
   const isAnalyst = selectedPortalId === "analyst";
   const isAltshuler = selectedPortalId === "altshuler";
   const isYalin = selectedPortalId === "yalin";
+  const isInfinity = selectedPortalId === "infinity";
+
 
 
   const [pairing, setPairing] = useState<{ code: string; expiresAtMs: number } | null>(null);
@@ -375,7 +377,7 @@ const canSave =
 
             <div className="mb-3">
               <label className="block font-semibold mb-1">
-{(isMor || isMeitav || isAnalyst || isAltshuler || isYalin) ? "תעודת זהות:" : "שם משתמש:"}
+{(isMor || isMeitav || isAnalyst || isAltshuler || isYalin || isInfinity) ? "תעודת זהות:" : "שם משתמש:"}
               </label>
               <input
                 className="select-input w-full"

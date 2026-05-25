@@ -3,7 +3,7 @@ import { onDocumentWritten } from "firebase-functions/v2/firestore";
 import { defineSecret } from "firebase-functions/params";
 import { adminDb, ensureAdminApp, nowTs } from "./shared/admin";
 import { FUNCTIONS_REGION } from "./shared/region";
-import { buildImportInsights } from "./shared/buildImportInsights";
+import { buildImportInsightsForPortalRun } from "./shared/buildImportInsights";
 import { buildImportInsightsEmailHtml } from "./shared/buildImportInsightsEmailHtml";
 import { sendSystemEmail } from "./shared/sendgrid";
 
@@ -11,15 +11,6 @@ const SENDGRID_API_KEY = defineSecret("SENDGRID_API_KEY");
 
 function s(v: any) {
   return String(v ?? "").trim();
-}
-
-function prevMonthOf(ym: string) {
-  const [y, m] = String(ym || "").split("-").map(Number);
-  if (!y || !m) return "";
-  const d = new Date(y, m - 2, 1);
-  const yy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  return `${yy}-${mm}`;
 }
 
 function shouldSend(after: any, before: any) {
@@ -103,82 +94,17 @@ export const sendImportInsightsEmailOnPortalRun = onDocumentWritten(
         return;
       }
 
-      const queueJobIds: string[] = Array.isArray(after?.queue?.jobIds) ? after.queue.jobIds : [];
+    const mergedInsights = await buildImportInsightsForPortalRun(runId);
+      mergedInsights.agentName = s(user.name || user.fullName || user.displayName || '');
 
-      if (!queueJobIds.length) {
-        throw new Error(`portalImportRun ${runId} has no queue.jobIds`);
-      }
-
-      const insightsList = [];
-      for (const jobId of queueJobIds) {
-        try {
-          const insights = await buildImportInsights(jobId);
-          insightsList.push(insights);
-        } catch (_e) {
-          // ממשיכים גם אם job אחד לא הצליח להחזיר insights
-        }
-      }
-
-      if (!insightsList.length) {
-        throw new Error(`no insights found for portal run ${runId}`);
-      }
-
-      // חודש הריצה (lock month) - למשל 2026-03
       const lockMonth = s(after?.resolvedWindow?.ym);
-
-      // חודש הדוח בפועל - תמיד lockMonth מינוס 1
-      const currentMonth = prevMonthOf(lockMonth);
-
-      // חודש קודם להשוואה
-      const previousMonth = prevMonthOf(currentMonth);
-
-      const first = insightsList[0];
-
-      const totalPolicies = insightsList.reduce((sum, x) => sum + (x.totalPolicies || 0), 0);
-      const totalCustomers = insightsList.reduce((sum, x) => sum + (x.totalCustomers || 0), 0);
-      const totalCommissionAmount = insightsList.reduce((sum, x) => sum + (x.totalCommissionAmount || 0), 0);
-      const totalPremiumAmount = insightsList.reduce((sum, x) => sum + (x.totalPremiumAmount || 0), 0);
-      const zeroCommissionPoliciesCount = insightsList.reduce(
-        (sum, x) => sum + (x.zeroCommissionPoliciesCount || 0),
-        0
-      );
-
-      const mergedInsights = {
-        ...first,
-        runId,
-
-        // חודש המייל מגיע מה-run ולא מה-data
-        reportMonths: currentMonth ? [currentMonth] : [],
-        minReportMonth: currentMonth || "",
-        maxReportMonth: currentMonth || "",
-        previousMonth: previousMonth || "",
-
-        totalPolicies,
-        totalCustomers,
-        totalCommissionAmount,
-        totalPremiumAmount,
-        zeroCommissionPoliciesCount,
-        zeroCommissionPoliciesTop: insightsList
-          .flatMap((x) => x.zeroCommissionPoliciesTop || [])
-          .slice(0, 10),
-
-        // זמני – עד שנבנה comparison אמיתי ברמת portalRun
-        deltaCommissionAmount: 0,
-        deltaCommissionPercent: 0,
-        newPoliciesCount: 0,
-        droppedPoliciesCount: 0,
-        droppedPoliciesTop: [],
-        newPoliciesTop: [],
-      };
 
       const html = buildImportInsightsEmailHtml({
         insights: mergedInsights,
         appUrl: "https://www.magicsale.co.il/importCommissionHub/commissionSummaryTabs",
       });
 
-      const subject = `📊 סיכום טעינת עמלות – ${mergedInsights.company} | ${
-        mergedInsights.maxReportMonth || mergedInsights.minReportMonth
-      }`;
+     const subject = `📊 סיכום טעינת עמלות – ${mergedInsights.company} | ${lockMonth}`;
 
       await sendSystemEmail({
         apiKey: SENDGRID_API_KEY.value(),
@@ -187,15 +113,12 @@ export const sendImportInsightsEmailOnPortalRun = onDocumentWritten(
         html,
         text: `טעינת העמלות הסתיימה בהצלחה עבור ${mergedInsights.company}. פוליסות: ${mergedInsights.totalPolicies}, סה"כ עמלות: ${mergedInsights.totalCommissionAmount}`,
         category: "import_insights",
-        meta: {
+       meta: {
           portalRunId: runId,
           agentId,
           companyId: mergedInsights.companyId,
-          templateIds: insightsList.map((x) => x.templateId),
           reportMonths: mergedInsights.reportMonths,
           lockMonth,
-          currentMonth,
-          previousMonth,
         },
       });
 
