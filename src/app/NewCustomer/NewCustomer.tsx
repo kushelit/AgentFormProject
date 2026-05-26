@@ -2202,7 +2202,7 @@ const handleImportCustomers = async () => {
           <div className="text-green-600 text-5xl">✓</div>
           <div className="grid grid-cols-3 gap-3 mt-4">
             <div className="p-3 bg-gray-50 rounded-lg">
-              <div className="text-xs text-gray-500">סה"כ נמצאו</div>
+         <div className="text-xs text-gray-500">סה&quot;כ נמצאו</div>
               <div className="text-2xl font-bold">{importResult.total}</div>
             </div>
             <div className="p-3 bg-green-50 rounded-lg">
