@@ -86,9 +86,17 @@ export async function POST(req: NextRequest) {
 
     const data = await response.json();
     const text = data.content?.filter((b: any) => b.type === "text").map((b: any) => b.text).join("") ?? "";
-    const clean = text.replace(/```json\s*/gi, "").replace(/```\s*/gi, "").trim();
-    const parsed = JSON.parse(clean);
+   
+   const clean = text.replace(/```json\s*/gi, "").replace(/```\s*/gi, "").trim();
 
+// ← הוסיפי בדיקה
+if (!clean) {
+  console.error("Claude returned empty response");
+  return NextResponse.json({ error: "תשובה ריקה מהמודל" }, { status: 500 });
+}
+
+const parsed = JSON.parse(clean);
+   
     return NextResponse.json({
   ...parsed,
   _usage: {

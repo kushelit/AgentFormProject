@@ -16,3 +16,5 @@ export { createRunnerPairingCode, consumeRunnerPairingCode } from "./runnerPairi
 export { sendImportInsightsEmailOnPortalRun } from "./sendImportInsightsEmail";
 
 export { sendOtpPushOnRunUpdate } from "./sendOtpPushOnRunUpdate";
+
+export { importCustomersFromCommissions } from "./importCustomersFromCommissions";

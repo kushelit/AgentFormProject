@@ -10,6 +10,8 @@ import { generateClientNifraimReportedVsMagic } from '@/app/Reports/generators/g
 import { generateCommissionSummaryMultiYear } from '@/app/Reports/generators/generateCommissionSummaryMultiYear';
 import { generateProfitByLeadSourceReport } from '@/app/Reports/generators/generateProfitByLeadSourceReport';
 import { generateLeadSourceStatementReport } from '@/app/Reports/generators/generateLeadSourceStatementReport';
+import { generateNifraimFromLoadReport } from '@/app/Reports/generators/generateNifraimFromLoadReport';
+
 
 
 import { admin } from '@/lib/firebase/firebase-admin';
@@ -89,6 +91,10 @@ export async function POST(req: NextRequest) {
     ({ buffer: reportBuffer, filename, subject, description } =
       await generateLeadSourceStatementReport(body));
     break;  
+    case 'nifraimFromLoadReport':
+  ({ buffer: reportBuffer, filename, subject, description } =
+    await generateNifraimFromLoadReport(body));
+  break;
       default:
         return NextResponse.json({ error: 'Unsupported report type' }, { status: 400 });
     }

@@ -47,26 +47,35 @@ export interface GemelNetStorageResult {
 }
 
 async function loadFromFirestore(docId: string): Promise<GemelNetStorageResult | null> {
-  const db = admin.firestore();
-  const doc = await db.collection(COLLECTION).doc(docId).get();
+  try {
+    const db = admin.firestore();
+    const doc = await db.collection(COLLECTION).doc(docId).get();
+    console.log(`[gemelNet] loadFromFirestore ${docId}: exists=${doc.exists}`);
 
-  if (!doc.exists) return null;
+    if (!doc.exists) return null;
 
-  const data = doc.data();
-  if (!data || !Array.isArray(data.entries)) return null;
+    const data = doc.data();
+    console.log(`[gemelNet] ${docId}: has entries=${Array.isArray(data?.entries)}, count=${data?.entries?.length}`);
 
-  const map: GemelNetMap = new Map();
-  for (const entry of data.entries as GemelNetEntry[]) {
-    if (entry.kupahId) map.set(entry.kupahId, entry);
+    if (!data || !Array.isArray(data.entries)) return null;
+
+    const map: GemelNetMap = new Map();
+    for (const entry of data.entries as GemelNetEntry[]) {
+      if (entry.kupahId) map.set(entry.kupahId, entry);
+    }
+
+    return {
+      map,
+      updatedAt: data.updatedAt?.toDate?.() ?? null,
+      periodFrom: data.periodFrom ?? "",
+      periodTo: data.periodTo ?? "",
+      entryCount: map.size,
+    };
+
+  } catch (err) {
+    console.error(`[gemelNet] loadFromFirestore ${docId} error:`, err);
+    return null;
   }
-
-  return {
-    map,
-    updatedAt: data.updatedAt?.toDate?.() ?? null,
-    periodFrom: data.periodFrom ?? "",
-    periodTo: data.periodTo ?? "",
-    entryCount: map.size,
-  };
 }
 
 export async function loadGemelNetFromFirestore(): Promise<GemelNetStorageResult | null> {
@@ -93,6 +102,9 @@ export async function loadCombinedMapFromFirestore(): Promise<{
     loadFromFirestore(DOC_GEMEL),
     loadFromFirestore(DOC_PENSIA),
   ]);
+
+   console.log("gemel result:", gemel?.entryCount ?? "null");
+  console.log("pensia result:", pensia?.entryCount ?? "null");
 
   const combined: GemelNetMap = new Map();
 

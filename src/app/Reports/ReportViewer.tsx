@@ -32,6 +32,7 @@ const REPORTS = [
   { value: 'commissionSummaryMultiYear', label: 'דוח נפרעים מסוכם - מטעינת קבצים' },
   { value: 'profitByLeadSourceReport', label: 'דוח רווחיות לפי מקור ליד' },
   { value: 'leadSourceStatementReport', label: 'דוח למקור ליד (פירוט לתשלום)' },
+  { value: 'nifraimFromLoadReport', label: 'דוח נפרעים מטעינות' },
 ];
 
 const REPORT_UI_RULES: Record<
@@ -101,7 +102,14 @@ const REPORT_UI_RULES: Record<
     showPitzul: false,      // ✅ תראי את הטוגל כמו נפרעים
     showLeadSource: true,  // ✅ חדש
   },
-  
+  nifraimFromLoadReport: {
+  showProducts: false,   // הטעינות לא מפולחות לפי מוצר
+  showStatus: false,
+  showMinuySochen: false,
+  showCompanies: true,   // אפשר לסנן לפי חברה
+  showPitzul: false,
+  showLeadSource: false,
+},
   
 };
 
@@ -254,6 +262,16 @@ useEffect(() => {
         return;
       }
     }
+    if (reportType === 'nifraimFromLoadReport') {
+  if (!selectedAgentId || selectedAgentId === 'all') {
+    addToast('error', 'בדוח זה יש לבחור סוכן יחיד');
+    return;
+  }
+  if (!fromDate || !toDate) {
+    addToast('error', 'נדרש לבחור טווח תאריכים (מתאריך ועד תאריך)');
+    return;
+  }
+}
     if (reportType === 'leadSourceStatementReport') {
       if (!selectedAgentId || selectedAgentId === 'all') {
         addToast('error', 'בדוח זה יש לבחור סוכן יחיד');
@@ -326,6 +344,14 @@ useEffect(() => {
     }
   };
 
+
+
+  const dateRangeLabel =
+  reportType === 'nifraimFromLoadReport'
+    ? 'טווח חודשי דיווח (טעינות):'
+    : 'טווח תאריכי חודש תפוקה:';
+
+
   return (
     <div className="p-6 max-w-4xl mx-auto text-right">
       <h2 className="text-2xl font-bold mb-4">דוחות</h2>
@@ -349,35 +375,44 @@ useEffect(() => {
         </select>
       </div>
 
-      {/* טווח תאריכים */}
-      <div className="mb-4">
-        <label className="block font-semibold mb-1">טווח תאריכי חודש תפוקה:</label>
-        <div className="flex gap-2">
-          <DatePicker
-            selected={fromDate ? new Date(fromDate) : null}
-            onChange={(date: Date | null) =>
-              setFromDate(date ? date.toISOString().split('T')[0] : '')
-            }
-            placeholderText="מתאריך"
-            className="input w-full"
-            locale="he"
-            dateFormat="dd/MM/yyyy"
-            isClearable
-          />
-          <DatePicker
-            selected={toDate ? new Date(toDate) : null}
-            onChange={(date: Date | null) =>
-              setToDate(date ? date.toISOString().split('T')[0] : '')
-            }
-            placeholderText="עד תאריך"
-            className="input w-full"
-            locale="he"
-            dateFormat="dd/MM/yyyy"
-            isClearable
-          />
-        </div>
-      </div>
-
+     {/* טווח תאריכים */}
+<div className="mb-4">
+  <label className="block font-semibold mb-1">{dateRangeLabel}</label>
+  <div className="flex gap-2">
+    <DatePicker
+      selected={fromDate ? new Date(fromDate) : null}
+      onChange={(date: Date | null) => {
+        if (!date) { setFromDate(''); return; }
+        const y = date.getFullYear();
+        const m = String(date.getMonth() + 1).padStart(2, '0');
+        setFromDate(`${y}-${m}-01`);
+      }}
+      placeholderText="מחודש"
+      className="input w-full"
+      locale="he"
+      dateFormat="MM/yyyy"
+      showMonthYearPicker
+      isClearable
+    />
+    <DatePicker
+      selected={toDate ? new Date(toDate) : null}
+      onChange={(date: Date | null) => {
+        if (!date) { setToDate(''); return; }
+        const y = date.getFullYear();
+        const m = date.getMonth() + 1;
+        // יום אחרון בחודש
+        const lastDay = new Date(y, m, 0).getDate();
+        setToDate(`${y}-${String(m).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`);
+      }}
+      placeholderText="עד חודש"
+      className="input w-full"
+      locale="he"
+      dateFormat="MM/yyyy"
+      showMonthYearPicker
+      isClearable
+    />
+  </div>
+</div>
       {/* סוכן */}
       <div className="mb-4">
         <label className="block font-semibold mb-1">בחר סוכן:</label>

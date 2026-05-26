@@ -1,6 +1,6 @@
 import { ChangeEventHandler, FormEventHandler, SetStateAction, useEffect, useMemo, useState } from "react";
 import { collection, query, setDoc, where, getDocs, getDoc, addDoc, deleteDoc, doc, updateDoc, DocumentSnapshot, DocumentData, serverTimestamp } from "firebase/firestore";
-import { db } from "@/lib/firebase/firebase"; // Ensure this path matches your project structure
+import { db, functions } from "@/lib/firebase/firebase"; // Ensure this path matches your project structure
 import { useAuth } from '@/lib/firebase/AuthContext';
 import useFetchMD from "@/hooks/useMD";
 import './NewCustomer.css';
@@ -28,6 +28,7 @@ import { fetchSplits } from '@/services/splitsService';
 import { fetchExternalForCustomers } from '@/services/externalQueries';
 import { useRouter } from 'next/navigation';
 import { useSearchParams } from 'next/navigation';
+import { httpsCallable } from "firebase/functions";
 
 const NewCustomer = () => {
 
@@ -75,6 +76,11 @@ const runIdRef = React.useRef(0);
 
 const toYm = (s?: string|null) => (s || '').toString().slice(0,7);
 const normCompany = (s?: string|null) => String(s ?? '').trim();
+
+
+const [importModalOpen, setImportModalOpen] = useState(false);
+const [importLoading, setImportLoading] = useState(false);
+const [importResult, setImportResult] = useState<{ created: number; skipped: number; total: number } | null>(null);
 
 
  const {
@@ -1407,6 +1413,26 @@ const dedupeSales = (rows: any[]) => {
 };
 
 
+
+const handleImportCustomers = async () => {
+  if (!selectedAgentId) { addToast("error", "בחר סוכן"); return; }
+  setImportLoading(true);
+  setImportResult(null);
+  setImportModalOpen(true);
+  try {
+    const fn = httpsCallable(functions, "importCustomersFromCommissions");
+    const res: any = await fn({ agentId: selectedAgentId });
+    setImportResult(res.data);
+    reloadCustomerData(selectedAgentId);
+  } catch (e: any) {
+    addToast("error", "כשל בייבוא לקוחות: " + (e?.message || ""));
+    setImportModalOpen(false);
+  } finally {
+    setImportLoading(false);
+  }
+};
+
+
   return (
     <div className="content-container">
     <div className="first-table">
@@ -1436,6 +1462,14 @@ const dedupeSales = (rows: any[]) => {
     state={editingRowCustomer ? "default" : "disabled"} // כפתור פעיל רק כשיש שורה שנערכת
     disabled={!editingRowCustomer} // מנוטרל אם אין שורה שנערכת
   />
+  <Button
+  onClick={handleImportCustomers}
+  text="ייבא לקוחות מטעינות"
+  type="primary"
+  icon="off"
+  state={selectedAgentId ? "default" : "disabled"}
+  disabled={!selectedAgentId}
+/>
   <button onClick={() => exportCustomersToExcel(filteredData)}>
   <img src="/static/img/excel-icon.svg" alt="ייצוא לקוחות" width={24} height={24} />
 </button>
@@ -2151,6 +2185,47 @@ const dedupeSales = (rows: any[]) => {
     onClose={() => setToasts((prevToasts) => prevToasts.filter((t) => t.id !== toast.id))}
   />
 ))}
+
+
+{importModalOpen && (
+  <div className="modal">
+    <div className="modal-content" style={{ maxWidth: 400, textAlign: 'center' }}>
+      <div className="modal-title">ייבוא לקוחות מטעינות</div>
+      {importLoading ? (
+        <div className="mt-4">
+          <div className="animate-spin text-4xl mb-3">⏳</div>
+          <div className="text-gray-600">מייבא לקוחות, אנא המתן...</div>
+          <div className="text-sm text-gray-400 mt-2">הפעולה עשויה לקחת מספר דקות בריצה ראשונה</div>
+        </div>
+      ) : importResult ? (
+        <div className="mt-4 space-y-3">
+          <div className="text-green-600 text-5xl">✓</div>
+          <div className="grid grid-cols-3 gap-3 mt-4">
+            <div className="p-3 bg-gray-50 rounded-lg">
+              <div className="text-xs text-gray-500">סה"כ נמצאו</div>
+              <div className="text-2xl font-bold">{importResult.total}</div>
+            </div>
+            <div className="p-3 bg-green-50 rounded-lg">
+              <div className="text-xs text-green-600">נוצרו חדשים</div>
+              <div className="text-2xl font-bold text-green-700">{importResult.created}</div>
+            </div>
+            <div className="p-3 bg-blue-50 rounded-lg">
+              <div className="text-xs text-blue-600">כבר קיימים</div>
+              <div className="text-2xl font-bold text-blue-700">{importResult.skipped}</div>
+            </div>
+          </div>
+          <button
+            className="mt-4 px-6 py-2 bg-blue-600 text-white rounded-lg font-bold"
+            onClick={() => { setImportModalOpen(false); setImportResult(null); }}
+          >
+            סגור
+          </button>
+        </div>
+      ) : null}
+    </div>
+  </div>
+)}
+
       </div>
   );
 }

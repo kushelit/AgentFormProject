@@ -293,6 +293,18 @@ const [isLoading, setIsLoading] = useState<boolean>(false);
     minuySochen: false,
   });
 
+
+  const productRawToCanonical = useMemo(() => {
+  const map = new Map<string, string>();
+  contractRows.forEach(r => {
+    if (r.policyNumber && r.canonicalProduct) {
+      map.set(r.policyNumber, r.canonicalProduct);
+    }
+  });
+  return map;
+}, [contractRows]);
+
+
 const [contractSortDir, setContractSortDir] = useState<'asc' | 'desc' | null>(null);
 const [salesSortDir, setSalesSortDir] = useState<'asc' | 'desc' | null>(null);
 
@@ -868,7 +880,9 @@ if (lockedToCustomer) {
           agentCode: reported.agentCode,
           customerId: reported.customerId,
           fullName: (reported as any).fullName,
-          product: (reported as any).product || (reported as any).productRaw || 'מוצר לא מזוהה',
+          product: productRawToCanonical.get(normPolicy(String(reported.policyNumber))) ||
+         (reported as any).product ||
+         'מוצר לא מזוהה',
           _rawKey: key,
           _extRow: reported,
         });
@@ -953,6 +967,7 @@ setRawSalesRows(computed);
     commissionSplits,
     customersForSplit,
     splitEnabled,
+    productRawToCanonical,
   ]);
 
   // ✅ fetch only when sales tab is active

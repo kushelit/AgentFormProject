@@ -8,7 +8,8 @@ import {
   query,
   where,
   writeBatch,
-  getDocsFromServer
+  getDocsFromServer,
+  addDoc
 } from "firebase/firestore";
 import { db } from "@/lib/firebase/firebase";
 import { useAuth } from "@/lib/firebase/AuthContext";
@@ -19,6 +20,14 @@ import "./NewManageContractsTables.css";
 import { Button } from "@/components/Button/Button";
 import { ToastNotification } from '@/components/ToastNotification';
 import { useToast } from "@/hooks/useToast";
+
+import { fetchSourceLeadsForAgent } from '@/services/sourceLeadService';
+import { SourceLead } from '@/types/SourceLead';
+import { fetchSplits } from '@/services/splitsService';
+import useEditableTable from "@/hooks/useEditableTable";
+import MenuWrapper from "@/components/MenuWrapper/MenuWrapper";
+import Edit from '@/components/icons/Edit/Edit';
+import Delete from '@/components/icons/Delete/Delete';
 
 type CompanyRow = {
   id: string;
@@ -96,6 +105,18 @@ const skipResetOriginalRef = useRef(false);
 
 const defaultValuesRef = useRef<Record<string, string>>({});
 const cellValuesRef = useRef<Record<string, string>>({});
+
+const [activeView, setActiveView] = useState<'tables' | 'splits'>('tables');
+
+// ── פיצול עמלות ──
+const [isModalOpenSplit, setIsModalOpenSplit] = useState(false);
+const [selectedSourceLeadId, setSelectedSourceLeadId] = useState('');
+const [percentToAgent, setPercentToAgent] = useState('');
+const [percentToSourceLead, setPercentToSourceLead] = useState('');
+const [sourceLeads, setSourceLeads] = useState<SourceLead[]>([]);
+const [splitMode, setSplitMode] = useState<'commission' | 'production'>('commission');
+const [openMenuRowCommissionSplit, setOpenMenuRowCommissionSplit] = useState<string | null>(null);
+
 
 useEffect(() => {
   defaultValuesRef.current = defaultValues;
@@ -270,135 +291,49 @@ const isDefaultDirty = (key: string, value: string) => {
   return (originalDefaultValues[key] || "") !== (value || "");
 };
 
-//   useEffect(() => {
-//     if (!companies.length || !products.length) return;
 
-//     const nextValues: Record<string, string> = {};
-//     const nextDefaults: Record<string, string> = {};
+const {
+  data: commissionSplits,
+  editingRow: editingRowCommissionSplit,
+  editData: editCommissionSplitData,
+  handleEditRow: handleEditCommissionSplitRow,
+  handleEditChange: handleEditCommissionSplitChange,
+  handleDeleteRow: handleDeleteCommissionSplitRow,
+  saveChanges: saveSplitAgreementChanges,
+  reloadData: reloadCommissionSplits,
+  cancelEdit: cancelEditSplitAgreement,
+} = useEditableTable({
+  dbCollection: "commissionSplits",
+  agentId: effectiveAgentId,
+  fetchData: fetchSplits,
+});
 
-//     CONTRACTS_TABLES_CONFIG.forEach((table: any) => {
-//   const savedDefaultGroups = new Set<string>();
-//   table.sections.forEach((section: any) => {
-//     const companiesForGroup =
-//           visibleCompaniesByGroup[String(section.productGroupId)] || [];
-
-//        const productsForSection = products.filter((p) => {
-//   const sameGroup = String(p.productGroup) === String(section.productGroupId);
-
-//   const sectionSubGroupId = String(section.productSubGroupId || "").trim();
-
-//   const sameSubGroup = sectionSubGroupId
-//     ? String(p.productSubGroupId || "") === sectionSubGroupId
-//     : true;
-
-//   return sameGroup && sameSubGroup;
-// });
-
-//         section.rows.forEach((row: any) => {
-//           if (table.showDefaultColumn) {
-//             const defaultContract = contracts.find(
-//               (c) =>
-//                 c.AgentId === effectiveAgentId &&
-//                 c.productsGroup === String(section.productGroupId) &&
-//                 c.company === "" &&
-//                 c.product === "" &&
-//                 Boolean(c.minuySochen) === Boolean(row.minuySochen)
-//             );
-
-//             if (defaultContract) {
-//               let displayValue = "";
-
-//               if (row.commissionType === "hekef") {
-//                 displayValue =
-//                   defaultContract.commissionHekefDisplay ||
-//                   defaultContract.commissionHekef ||
-//                   "";
-//               }
-
-//               if (row.commissionType === "nifraim") {
-//                 displayValue =
-//                   defaultContract.commissionNifraimDisplay ||
-//                   defaultContract.commissionNifraim ||
-//                   "";
-//               }
-
-//               if (row.commissionType === "niud") {
-//                 displayValue =
-//                   defaultContract.commissionNiudDisplay ||
-//                   defaultContract.commissionNiud ||
-//                   "";
-//               }
-
-//               nextDefaults[
-//                 buildDefaultKey(table.key, section.key, row.label)
-//               ] = displayValue;
-//             }
-//           }
-
-//           companiesForGroup.forEach((company) => {
-//             if (company.companyName === "מגדל" || company.companyName === "הראל") {
-//     // console.log("section:", section.key, "productsForSection:", productsForSection.map(p => p.productName));
-//   }
-//             const matchingContract = contracts.find((c) => {
-//               const sameCompany = c.company === company.companyName;
-//               const sameMinuy = Boolean(c.minuySochen) === Boolean(row.minuySochen);
-//               const productMatch = productsForSection.some(
-//                 (p) => p.productName === c.product
-//               );
-
-//               return (
-//                 c.AgentId === effectiveAgentId &&
-//                 sameCompany &&
-//                 sameMinuy &&
-//                 c.productsGroup === "" &&
-//                 productMatch
-//               );
-//             });
-//               // console.log("company:", company.companyName, "matchingContract:", matchingContract?.id || "NOT FOUND");
+useEffect(() => {
+  if (!effectiveAgentId) return;
+  fetchSourceLeadsForAgent(effectiveAgentId).then(setSourceLeads);
+  reloadCommissionSplits(effectiveAgentId);
+}, [effectiveAgentId]);
 
 
-//             if (!matchingContract) return;
+const handleSubmitSplitForm = async (e: any) => {
+  e.preventDefault();
+  if (!effectiveAgentId || !selectedSourceLeadId) return;
 
-//             let displayValue = "";
+  await addDoc(collection(db, 'commissionSplits'), {
+    agentId: effectiveAgentId,
+    sourceLeadId: selectedSourceLeadId,
+    percentToAgent: Number(percentToAgent),
+    percentToSourceLead: Number(percentToSourceLead),
+    splitMode,
+  });
 
-//             if (row.commissionType === "hekef") {
-//               displayValue =
-//                 matchingContract.commissionHekefDisplay ||
-//                 matchingContract.commissionHekef ||
-//                 "";
-//             }
-
-//             if (row.commissionType === "nifraim") {
-//               displayValue =
-//                 matchingContract.commissionNifraimDisplay ||
-//                 matchingContract.commissionNifraim ||
-//                 "";
-//             }
-
-//             if (row.commissionType === "niud") {
-//               displayValue =
-//                 matchingContract.commissionNiudDisplay ||
-//                 matchingContract.commissionNiud ||
-//                 "";
-//             }
-
-//             nextValues[
-//               buildCellKey(table.key, section.key, row.label, company.id)
-//             ] = displayValue;
-//           });
-//         });
-//       });
-//     });
-// setCellValues(nextValues);
-// setDefaultValues(nextDefaults);
-
-// if (!skipResetOriginalRef.current) {
-//   setOriginalCellValues(nextValues);
-//   setOriginalDefaultValues(nextDefaults);
-// }
-// skipResetOriginalRef.current = false;
-    
-//   }, [contracts, products, companies, visibleCompaniesByGroup, effectiveAgentId]);
+  setSelectedSourceLeadId('');
+  setPercentToAgent('');
+  setPercentToSourceLead('');
+  setSplitMode('commission');
+  setIsModalOpenSplit(false);
+  reloadCommissionSplits(effectiveAgentId);
+};
 
 const denormalizeForDisplay = (
   netValue: string,
@@ -950,233 +885,341 @@ const isLegacyAgent = useMemo(() => {
   );
 }, [contracts]);
 
+return (
+  <div className="contracts-page" dir="rtl">
 
-  return (
-    <div className="contracts-page" dir="rtl">
-<div className="top-toolbar">
-  <div className="tabs-container">
-    <div
-      className={`tab ${selectedViewGroup === "pension" ? "active" : ""}`}
-      onClick={() => setSelectedViewGroup("pension")}
-    >
-      פנסיוני
+    {/* ── TOOLBAR ── */}
+ <div className="top-toolbar">
+  {activeView === 'tables' && (
+    <div className="tabs-container">
+      <div className={`tab ${selectedViewGroup === "pension" ? "active" : ""}`} onClick={() => setSelectedViewGroup("pension")}>פנסיוני</div>
+      <div className={`tab ${selectedViewGroup === "finance" ? "active" : ""}`} onClick={() => setSelectedViewGroup("finance")}>פיננסים</div>
+      <div className={`tab ${selectedViewGroup === "risk" ? "active" : ""}`} onClick={() => setSelectedViewGroup("risk")}>סיכונים</div>
     </div>
-
-    <div
-      className={`tab ${selectedViewGroup === "finance" ? "active" : ""}`}
-      onClick={() => setSelectedViewGroup("finance")}
-    >
-      פיננסים
-    </div>
-
-    <div
-      className={`tab ${selectedViewGroup === "risk" ? "active" : ""}`}
-      onClick={() => setSelectedViewGroup("risk")}
-    >
-      סיכונים
-    </div>
-  </div>
-
- <div className="toolbar-actions">
-  {detail?.role === "admin" && (
-    <select
-      value={selectedAgentId}
-      onChange={handleAgentChange}
-      className="select-input"
-    >
-      <option value="">בחר סוכן</option>
-      {agents.map((agent: any) => (
-        <option key={agent.id} value={agent.id}>
-          {agent.name}
-        </option>
-      ))}
-    </select>
   )}
-  <Button
-    onClick={!effectiveAgentId ? undefined : saveContracts}
-    text="שמור"
-    type="primary"
-    icon="off"
-    state={!effectiveAgentId ? "disabled" : "default"}
-  />
 
-  <Button
-    onClick={!effectiveAgentId ? undefined : downloadExcelTemplate}
-    text="הורד תבנית אקסל"
-    type="primary"
-    icon="off"
-    state={!effectiveAgentId ? "disabled" : "default"}
-  />
-  {/* כפתור העלאה */}
-  <input
-    ref={uploadInputRef}
-    type="file"
-    accept=".xlsx"
-    style={{ display: "none" }}
-    onChange={handleUploadExcel}
-  />
-  <Button
-    onClick={!effectiveAgentId || isUploading ? undefined : () => uploadInputRef.current?.click()}
-    text={isUploading ? "מעלה..." : "העלה אקסל"}
-    type="primary"
-    icon="off"
-    state={!effectiveAgentId || isUploading ? "disabled" : "default"}
-  />
-</div>
-</div>
-{isLegacyAgent && (
-  <div className="legacy-banner">
-    <div className="legacy-banner-text">
-      ⚠️ נמצאו הסכמים בפורמט ישן — הערכים חושבו מחדש, בדוק ולחץ שמור לאישור
-    </div>
+  <div className="toolbar-actions">
+    {detail?.role === "admin" && (
+      <select value={selectedAgentId} onChange={handleAgentChange} className="select-input">
+        <option value="">בחר סוכן</option>
+        {agents.map((agent: any) => (
+          <option key={agent.id} value={agent.id}>{agent.name}</option>
+        ))}
+      </select>
+    )}
+
+    {activeView === 'tables' && (
+      <>
+        <Button onClick={!effectiveAgentId ? undefined : saveContracts} text="שמור" type="primary" icon="off" state={!effectiveAgentId ? "disabled" : "default"} />
+        <Button onClick={!effectiveAgentId ? undefined : downloadExcelTemplate} text="הורד תבנית אקסל" type="primary" icon="off" state={!effectiveAgentId ? "disabled" : "default"} />
+        <input ref={uploadInputRef} type="file" accept=".xlsx" style={{ display: "none" }} onChange={handleUploadExcel} />
+        <Button onClick={!effectiveAgentId || isUploading ? undefined : () => uploadInputRef.current?.click()} text={isUploading ? "מעלה..." : "העלה אקסל"} type="primary" icon="off" state={!effectiveAgentId || isUploading ? "disabled" : "default"} />
+      </>
+    )}
+
+    {activeView === 'splits' && (
+      <>
+        <Button onClick={!effectiveAgentId ? undefined : () => setIsModalOpenSplit(true)} text="הוספת הסכם פיצול" type="primary" icon="on" state={!effectiveAgentId ? "disabled" : "default"} />
+        <Button onClick={saveSplitAgreementChanges} text="שמור שינויים" type="primary" icon="off" state={editingRowCommissionSplit ? "default" : "disabled"} />
+        <Button onClick={cancelEditSplitAgreement} text="בטל" type="primary" icon="off" state={editingRowCommissionSplit ? "default" : "disabled"} />
+      </>
+    )}
+
+    <div className="toolbar-divider" />
+
+    <button
+      className={`tab tab-split ${activeView === 'splits' ? 'active' : ''}`}
+      onClick={() => setActiveView(activeView === 'splits' ? 'tables' : 'splits')}
+    >
+      פיצול עמלות
+    </button>
   </div>
-)}
-      {visibleTables.map((table: any) => (
-        <div key={table.key} className="table-card">
+</div>
+    {/* ── LEGACY BANNER ── */}
+    {activeView === 'tables' && isLegacyAgent && (
+      <div className="legacy-banner">
+        <div className="legacy-banner-text">
+          ⚠️ נמצאו הסכמים בפורמט ישן — הערכים חושבו מחדש, בדוק ולחץ שמור לאישור
+        </div>
+      </div>
+    )}
+
+    {/* ── SPLITS VIEW ── */}
+    {activeView === 'splits' ? (
+      <div className="splits-view">
+        <div className="table-card">
           <div className="table-card-header">
-            <div className="table-title">{table.title}</div>
-            <div className="table-note">{table.note}</div>
+            <div className="table-title">הסכמי פיצול עמלות</div>
           </div>
-
-          {table.sections.map((section: any) => {
-            const companiesForGroup =
-              visibleCompaniesByGroup[String(section.productGroupId)] || [];
-const densityClass = getDensityClassByCompanies(companiesForGroup.length);
-            return (
-              <div key={section.key} className="section-block">
-                <div className="section-title">{section.label}</div>
-
-                <div className={`table-wrapper ${densityClass}`}>
-  <table className={`contracts-table ${densityClass}`}>
-                    <thead>
-                      <tr>
-                        <th className="sticky-col">סוג עמלה</th>
-
-                        {table.showDefaultColumn && (
-                          <th className="default-col-header">ברירת מחדל</th>
+          <div className="table-wrapper">
+            <table className="contracts-table">
+              <thead>
+                <tr>
+                  <th>מקור ליד</th>
+                  <th>אחוז לסוכן</th>
+                  <th>אחוז למקור ליד</th>
+                  <th>סוג הסכם</th>
+                  <th className="narrow-cell">🔧</th>
+                </tr>
+              </thead>
+              <tbody>
+                {commissionSplits.map((item: any) => {
+                  const lead = sourceLeads.find(l => l.id === item.sourceLeadId);
+                  return (
+                    <tr key={item.id}>
+                      <td>
+                        {editingRowCommissionSplit === item.id ? (
+                          <select
+                            value={editCommissionSplitData.sourceLeadId || ''}
+                            onChange={(e) => handleEditCommissionSplitChange("sourceLeadId", e.target.value)}
+                          >
+                            <option value="">בחר מקור ליד</option>
+                            {sourceLeads.map((l) => (
+                              <option key={l.id} value={l.id}>{l.sourceLead}</option>
+                            ))}
+                          </select>
+                        ) : (
+                          lead?.sourceLead || '—'
                         )}
-
-                        {companiesForGroup.map((company) => (
-                          <th key={company.id}>{company.companyName}</th>
-                        ))}
-                      </tr>
-                    </thead>
-
-                    <tbody>
-                      {section.rows.map((row: any) => (
-                        <tr key={row.label}>
-                          <td className="sticky-col row-label-cell">
-                            <div className="row-label">{row.label}</div>
-                            <div className="row-mode">
-                              {row.valueMode === "percent" ? "אחוזים" : "למיליון"}
-                            </div>
-                          </td>
-
-                  {table.showDefaultColumn && (
-  <td className="default-col-cell">
-    {(() => {
-      const firstSectionInGroup = table.sections.find(
-        (s: any) => String(s.productGroupId) === String(section.productGroupId)
-      );
-      const isFirstSection = firstSectionInGroup?.key === section.key;
-
-      if (!isFirstSection) {
-        return (
-          <div className="default-linked-note">
-משותף עם &quot;{firstSectionInGroup?.label}&quot;
+                      </td>
+                      <td>
+                        {editingRowCommissionSplit === item.id ? (
+                          <input
+                            type="number"
+                            value={editCommissionSplitData.percentToAgent ?? ''}
+                            onChange={(e) => handleEditCommissionSplitChange("percentToAgent", Number(e.target.value))}
+                          />
+                        ) : (
+                          `${item.percentToAgent}%`
+                        )}
+                      </td>
+                      <td>
+                        {editingRowCommissionSplit === item.id ? (
+                          <input
+                            type="number"
+                            value={editCommissionSplitData.percentToSourceLead ?? ''}
+                            onChange={(e) => handleEditCommissionSplitChange("percentToSourceLead", Number(e.target.value))}
+                          />
+                        ) : (
+                          `${item.percentToSourceLead}%`
+                        )}
+                      </td>
+                      <td>
+                        {editingRowCommissionSplit === item.id ? (
+                          <select
+                            value={editCommissionSplitData.splitMode || 'commission'}
+                            onChange={(e) => handleEditCommissionSplitChange("splitMode", e.target.value)}
+                          >
+                            <option value="commission">פיצול עמלות</option>
+                            <option value="production">פיצול תפוקות</option>
+                          </select>
+                        ) : (
+                          item.splitMode === 'production' ? 'פיצול תפוקות' : 'פיצול עמלות'
+                        )}
+                      </td>
+                      <td className="narrow-cell">
+                        <MenuWrapper
+                          rowId={item.id}
+                          openMenuRow={openMenuRowCommissionSplit}
+                          setOpenMenuRow={setOpenMenuRowCommissionSplit}
+                          menuItems={[
+                            {
+                              label: "ערוך",
+                              onClick: () => { handleEditCommissionSplitRow(item.id); setOpenMenuRowCommissionSplit(null); },
+                              Icon: Edit,
+                            },
+                            {
+                              label: "מחק",
+                              onClick: () => { handleDeleteCommissionSplitRow(item.id); setOpenMenuRowCommissionSplit(null); },
+                              Icon: Delete,
+                            },
+                          ]}
+                        />
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
-        );
-      }
-      const defaultKey = buildDefaultKey(
-        table.key,
-        section.key,
-        row.label
-      );
-      const defaultValue = defaultValues[defaultKey] || "";
+        </div>
 
-      return (
-        <>
-          <input
-            className={`contracts-input ${
-              isDefaultDirty(defaultKey, defaultValue) ? "contracts-input-dirty" : ""
-            }`}
-            value={defaultValue}
-            placeholder={getPlaceholder(row.valueMode)}
-            onChange={(e) => {
-              const value = e.target.value;
-              setDefaultValues((prev) => ({
-                ...prev,
-                [defaultKey]: value,
-              }));
-            }}
-            disabled={!effectiveAgentId}
-          />
-          {defaultValue && (
-            <div className="cell-helper">
-              {getHelper(defaultValue, row.valueMode, table.key)}
-            </div>
-          )}
-        </>
-      );
-    })()}
-  </td>
-)}
-                          {companiesForGroup.map((company) => {
-                            const key = buildCellKey(
-                              table.key,
-                              section.key,
-                              row.label,
-                              company.id
-                            );
-
-                            const value = cellValues[key] || "";
-
-                            return (
-                              <td key={key}>
-                             <input
-  className={`contracts-input ${
-  isCellDirty(key, value) ? "contracts-input-dirty" : ""
-}`}
-  value={value}
-  placeholder={getPlaceholder(row.valueMode)}
-  onChange={(e) => {
-    const value = e.target.value;
-
-    setCellValues((prev) => ({
-      ...prev,
-      [key]: value,
-    }));
-  }}
-  disabled={!effectiveAgentId}
-/>                          {value && (
-                                  <div className="cell-helper">
-                                    {getHelper(value, row.valueMode, table.key)}
-                                  </div>
-                                )}
-                              </td>
-                            );
-                          })}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+        {/* מודל הוספת הסכם פיצול */}
+        {isModalOpenSplit && (
+          <div className="modal">
+            <div className="modal-content">
+              <button className="close-button" onClick={() => setIsModalOpenSplit(false)}>✖</button>
+              <div className="modal-title">הוספת הסכם פיצול</div>
+              <div className="form-container">
+                <div className="form-group">
+                  <label>מקור ליד</label>
+                  <select value={selectedSourceLeadId} onChange={(e) => setSelectedSourceLeadId(e.target.value)}>
+                    <option value="">בחר מקור ליד</option>
+                    {sourceLeads.map((lead) => (
+                      <option key={lead.id} value={lead.id}>{lead.sourceLead}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label>אחוז לסוכן</label>
+                  <input type="number" value={percentToAgent} onChange={(e) => setPercentToAgent(e.target.value)} />
+                </div>
+                <div className="form-group">
+                  <label>אחוז למקור ליד</label>
+                  <input type="number" value={percentToSourceLead} onChange={(e) => setPercentToSourceLead(e.target.value)} />
+                </div>
+                <div className="form-group">
+                  <label>סוג הסכם</label>
+                  <select value={splitMode} onChange={(e) => setSplitMode(e.target.value as 'commission' | 'production')}>
+                    <option value="commission">פיצול עמלות</option>
+                    <option value="production">פיצול תפוקות</option>
+                  </select>
+                </div>
+                <div className="button-group">
+                  <Button onClick={handleSubmitSplitForm} text="שמור" type="primary" icon="on" state="default" />
+                  <Button onClick={() => setIsModalOpenSplit(false)} text="בטל" type="secondary" icon="off" state="default" />
                 </div>
               </div>
-            );
-          })}
-        </div>
-      ))}
-      {toasts.length > 0 && toasts.map((toast) => (
-  <ToastNotification
-    key={toast.id}
-    type={toast.type}
-    className={toast.isHiding ? "hide" : ""}
-    message={toast.message}
-    onClose={() => setToasts((prevToasts) => prevToasts.filter((t) => t.id !== toast.id))}
-  />
-))}
-    </div>
-  );
-};
+            </div>
+          </div>
+        )}
+      </div>
 
+    ) : (
+
+      /* ── TABLES VIEW ── */
+      <>
+        {visibleTables.map((table: any) => (
+          <div key={table.key} className="table-card">
+            <div className="table-card-header">
+              <div className="table-title">{table.title}</div>
+              <div className="table-note">{table.note}</div>
+            </div>
+
+            {table.sections.map((section: any) => {
+              const companiesForGroup =
+                visibleCompaniesByGroup[String(section.productGroupId)] || [];
+              const densityClass = getDensityClassByCompanies(companiesForGroup.length);
+
+              return (
+                <div key={section.key} className="section-block">
+                  <div className="section-title">{section.label}</div>
+
+                  <div className={`table-wrapper ${densityClass}`}>
+                    <table className={`contracts-table ${densityClass}`}>
+                      <thead>
+                        <tr>
+                          <th className="sticky-col">סוג עמלה</th>
+                          {table.showDefaultColumn && (
+                            <th className="default-col-header">ברירת מחדל</th>
+                          )}
+                          {companiesForGroup.map((company) => (
+                            <th key={company.id}>{company.companyName}</th>
+                          ))}
+                        </tr>
+                      </thead>
+
+                      <tbody>
+                        {section.rows.map((row: any) => (
+                          <tr key={row.label}>
+                            <td className="sticky-col row-label-cell">
+                              <div className="row-label">{row.label}</div>
+                              <div className="row-mode">
+                                {row.valueMode === "percent" ? "אחוזים" : "למיליון"}
+                              </div>
+                            </td>
+
+                            {table.showDefaultColumn && (
+                              <td className="default-col-cell">
+                                {(() => {
+                                  const firstSectionInGroup = table.sections.find(
+                                    (s: any) => String(s.productGroupId) === String(section.productGroupId)
+                                  );
+                                  const isFirstSection = firstSectionInGroup?.key === section.key;
+
+                                  if (!isFirstSection) {
+                                    return (
+                                      <div className="default-linked-note">
+                                        משותף עם &quot;{firstSectionInGroup?.label}&quot;
+                                      </div>
+                                    );
+                                  }
+
+                                  const defaultKey = buildDefaultKey(table.key, section.key, row.label);
+                                  const defaultValue = defaultValues[defaultKey] || "";
+
+                                  return (
+                                    <>
+                                      <input
+                                        className={`contracts-input ${isDefaultDirty(defaultKey, defaultValue) ? "contracts-input-dirty" : ""}`}
+                                        value={defaultValue}
+                                        placeholder={getPlaceholder(row.valueMode)}
+                                        onChange={(e) => {
+                                          const value = e.target.value;
+                                          setDefaultValues((prev) => ({ ...prev, [defaultKey]: value }));
+                                        }}
+                                        disabled={!effectiveAgentId}
+                                      />
+                                      {defaultValue && (
+                                        <div className="cell-helper">
+                                          {getHelper(defaultValue, row.valueMode, table.key)}
+                                        </div>
+                                      )}
+                                    </>
+                                  );
+                                })()}
+                              </td>
+                            )}
+
+                            {companiesForGroup.map((company) => {
+                              const key = buildCellKey(table.key, section.key, row.label, company.id);
+                              const value = cellValues[key] || "";
+
+                              return (
+                                <td key={key}>
+                                  <input
+                                    className={`contracts-input ${isCellDirty(key, value) ? "contracts-input-dirty" : ""}`}
+                                    value={value}
+                                    placeholder={getPlaceholder(row.valueMode)}
+                                    onChange={(e) => {
+                                      const value = e.target.value;
+                                      setCellValues((prev) => ({ ...prev, [key]: value }));
+                                    }}
+                                    disabled={!effectiveAgentId}
+                                  />
+                                  {value && (
+                                    <div className="cell-helper">
+                                      {getHelper(value, row.valueMode, table.key)}
+                                    </div>
+                                  )}
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ))}
+      </>
+    )}
+
+    {/* ── TOASTS ── */}
+    {toasts.length > 0 && toasts.map((toast) => (
+      <ToastNotification
+        key={toast.id}
+        type={toast.type}
+        className={toast.isHiding ? "hide" : ""}
+        message={toast.message}
+        onClose={() => setToasts((prevToasts) => prevToasts.filter((t) => t.id !== toast.id))}
+      />
+    ))}
+
+  </div>
+);
+};
 export default NewManageContractsTables;

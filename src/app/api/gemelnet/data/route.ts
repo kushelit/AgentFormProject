@@ -25,7 +25,7 @@ export async function GET() {
       totalEntries: result.totalEntries,
     });
   } catch (err) {
-    // console.error("GemelNet data GET error:", err);
+     console.error("GemelNet data GET error:", err);
     return NextResponse.json({ error: "שגיאה" }, { status: 500 });
   }
 }

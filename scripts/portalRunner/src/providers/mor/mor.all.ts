@@ -64,8 +64,10 @@ export async function runMorAll(ctx: RunnerCtx) {
 
   try {
     // console.log("[Mor] Navigating to portal...");
-    await page.goto(portalUrl, { waitUntil: "networkidle", timeout: 60000 });
-    await page.waitForTimeout(3000);
+await page.goto(portalUrl, { waitUntil: "domcontentloaded", timeout: 60000 });
+await page.waitForLoadState("networkidle", { timeout: 15000 }).catch(() => {});
+
+await page.waitForTimeout(3000);
 
     const cdp = await page.context().newCDPSession(page);
     const cdpCheck = await cdp.send("Runtime.evaluate", {
