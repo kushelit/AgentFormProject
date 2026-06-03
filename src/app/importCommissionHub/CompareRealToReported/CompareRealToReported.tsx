@@ -226,7 +226,7 @@ export default function CompareReportedVsMagic() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { detail } = useAuth();
-  const { agents, selectedAgentId, handleAgentChange } = useFetchAgentData();
+  const { agents, selectedAgentId, handleAgentChange, companies } = useFetchAgentData();
   const agentIdFromUrl = (searchParams.get('agentId') || '').trim();
 
 //   const isAdmin = detail?.role === 'admin';
@@ -243,7 +243,7 @@ const canSeeContractsTab = ENABLE_CONTRACTS_COMPARE;
   const [includeFamily, setIncludeFamily] = useState<boolean>(false);
   const [splitEnabled, setSplitEnabled] = useState<boolean>(false);
 
-  const [availableCompanies, setAvailableCompanies] = useState<string[]>([]);
+  // const [availableCompanies, setAvailableCompanies] = useState<string[]>([]);
 const [rawSalesRows, setRawSalesRows] = useState<ComparisonRow[]>([]);
 const [isLoading, setIsLoading] = useState<boolean>(false);
 
@@ -340,16 +340,16 @@ const [salesSortDir, setSalesSortDir] = useState<'asc' | 'desc' | null>(null);
   };
 
   /* --- load companies --- */
-  useEffect(() => {
-    (async () => {
-      const snapshot = await getDocs(collection(db, 'company'));
-      const companies = snapshot.docs
-        .map(d => (d.data() as any)?.companyName as string)
-        .filter((x): x is string => Boolean(x))
-        .sort();
-      setAvailableCompanies(companies);
-    })();
-  }, []);
+  // useEffect(() => {
+  //   (async () => {
+  //     const snapshot = await getDocs(collection(db, 'company'));
+  //     const companies = snapshot.docs
+  //       .map(d => (d.data() as any)?.companyName as string)
+  //       .filter((x): x is string => Boolean(x))
+  //       .sort();
+  //     setAvailableCompanies(companies);
+  //   })();
+  // }, []);
 
   /* --- load products map --- */
   useEffect(() => {
@@ -1337,7 +1337,7 @@ return (
             <label className="block mb-1 text-xs font-bold text-slate-600 text-right">חברה</label>
             <select value={company} onChange={e => setCompany(e.target.value)} className="select-input w-full bg-slate-50 border-slate-200 text-right">
               <option value="">כל החברות</option>
-              {availableCompanies.map((c, i) => <option key={i} value={c}>{c}</option>)}
+              {companies.map((c, i) => <option key={i} value={c}>{c}</option>)}
             </select>
           </div>
           <div className="text-right">

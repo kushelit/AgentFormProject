@@ -232,21 +232,7 @@ async function updatePortalRunJobState(params: {
     return st !== "success" && st !== "skipped" && st !== "error";
   });
 
-  // if (allFinishedOk) {
-  //   await portalRunRef.set(
-  //     {
-  //       status: "success",
-  //       step: "import_done",
-  //       queue: {
-  //         ...(freshRun.queue || {}),
-  //         pendingJobIds: [],
-  //         lastAggregateCheckAt: nowTs(),
-  //       },
-  //       updatedAt: nowTs(),
-  //     },
-  //     { merge: true }
-  //   );
-  // } 
+ 
   if (allFinishedOk) {
   // חישוב דוחות חסרים לפי תבניות פעילות
   const companyId = safeStr(freshRun.companyId);

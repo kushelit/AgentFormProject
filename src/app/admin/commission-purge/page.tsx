@@ -18,6 +18,8 @@ import {
   doc,
   getDoc,
   deleteDoc,
+  serverTimestamp,
+  addDoc,
 } from 'firebase/firestore';
 import useFetchAgentData from '@/hooks/useFetchAgentData';
 import { Button } from '@/components/Button/Button';
@@ -47,6 +49,7 @@ interface CommissionImportRun {
   minReportMonth?: string;
   maxReportMonth?: string;
   reportMonthsCount?: number;
+  companyId?: string;
 }
 
 export default function CommissionPurgeAdminPage() {
@@ -91,6 +94,11 @@ export default function CommissionPurgeAdminPage() {
   const [lockInfo, setLockInfo] = useState<any | null>(null);
   const [lockLoading, setLockLoading] = useState(false);
   const [unlockLoading, setUnlockLoading] = useState(false);
+
+
+  const [bridgeRun, setBridgeRun] = useState<CommissionImportRun | null>(null);
+  const [bridgeYm, setBridgeYm] = useState('');
+  const [bridgeLoading, setBridgeLoading] = useState(false);
 
   // confirm unlock dialog
   const [unlockConfirmOpen, setUnlockConfirmOpen] = useState(false);
@@ -505,6 +513,7 @@ export default function CommissionPurgeAdminPage() {
       externalCount: docData.externalCount,
       commissionSummariesCount: docData.commissionSummariesCount,
       policySummariesCount: docData.policySummariesCount,
+      companyId: docData.companyId || '',
     }));
 
     data.sort((a, b) => (b.createdAt?.seconds ?? 0) - (a.createdAt?.seconds ?? 0));
@@ -569,7 +578,6 @@ export default function CommissionPurgeAdminPage() {
     setRunDeleteDialogOpen(true);
   };
 
-  // const handleRunDeleteConfirm = async () => {
   //   if (!selectedRun) return;
   //   setRunDeleteLoading(true);
   //   const { runId } = selectedRun;
@@ -630,6 +638,17 @@ export default function CommissionPurgeAdminPage() {
       if (portalRunDocId) {
         await deleteDoc(doc(db, 'portalImportRuns', portalRunDocId)).catch(() => {});
       }
+// מחק מסמכי מגשר שמצביעים על runId זה
+const bridgeSnap = await getDocs(
+  query(
+    collection(db, 'portalImportRuns'),
+    where('source', '==', 'manual_bridge'),
+    where('queue.jobIds', 'array-contains', runId)
+  )
+);
+for (const d of bridgeSnap.docs) {
+  await deleteDoc(d.ref).catch(() => {});
+}
 
       await fetchCommissionRuns();
     } catch (e: any) {
@@ -641,6 +660,38 @@ export default function CommissionPurgeAdminPage() {
     }
   };
  
+  async function handleCreateBridge() {
+  if (!bridgeRun || !bridgeYm) return;
+  setBridgeLoading(true);
+  try {
+    const cId = bridgeRun.companyId || '';
+    const bundleTemplateId = `bundle_${cId}_commissions`;
+    const [y, m] = bridgeYm.split('-');
+    const label = `${m}/${y}`;
+
+    await addDoc(collection(db, 'portalImportRuns'), {
+      agentId: bridgeRun.agentId,
+      companyId: cId,
+      companyName: bridgeRun.company,
+      templateId: bundleTemplateId,
+      status: 'success',
+      step: 'import_done',
+      source: 'manual_bridge',
+      resolvedWindow: { kind: 'month', ym: bridgeYm, label },
+      queue: { jobIds: [bridgeRun.runId] },
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+
+    setDialog({ type: 'success', title: 'נוצר בהצלחה', message: `מסמך מגשר נוצר עבור חודש פרסום ${bridgeYm}` });
+    setBridgeRun(null);
+    setBridgeYm('');
+  } catch (e: any) {
+    setDialog({ type: 'error', title: 'שגיאה', message: String(e?.message || e) });
+  } finally {
+    setBridgeLoading(false);
+  }
+}
  
   return (
     <AdminGuard>
@@ -783,8 +834,14 @@ export default function CommissionPurgeAdminPage() {
                     <td>{run.policySummariesCount ?? '-'}</td>
                     <td>
                       <button onClick={() => handleRunDeleteClick(run)} className="text-red-600 hover:underline font-medium">
-                        מחק ריצה
+                        מחק
                       </button>
+                      <button
+  onClick={() => { setBridgeRun(run); setBridgeYm(''); }}
+  className="text-blue-600 hover:underline font-medium mr-2"
+>
+  צור מגשר
+</button>
                     </td>
                   </tr>
                 ))}
@@ -850,7 +907,32 @@ export default function CommissionPurgeAdminPage() {
             cancelText="ביטול"
           />
         )}
-
+{bridgeRun && (
+  <DialogNotification
+    type="info"
+    title="צור מסמך מגשר לחודש פרסום"
+    message={
+      <div className="text-sm space-y-2">
+        <div><b>ריצה:</b> {bridgeRun.runId}</div>
+        <div><b>חברה:</b> {bridgeRun.company}</div>
+        <div><b>חודש דיווח:</b> {bridgeRun.minReportMonth || bridgeRun.reportMonth || '-'}</div>
+        <div className="mt-3">
+          <label className="block mb-1 font-bold">חודש פרסום (חובה):</label>
+          <input
+            type="month"
+            className="border rounded px-2 py-1 w-full"
+            value={bridgeYm}
+            onChange={e => setBridgeYm(e.target.value)}
+          />
+        </div>
+      </div>
+    }
+    onConfirm={handleCreateBridge}
+    onCancel={() => { setBridgeRun(null); setBridgeYm(''); }}
+    confirmText={bridgeLoading ? 'יוצר...' : 'צור מגשר'}
+    cancelText="ביטול"
+  />
+)}
         {/* Dialog popup כללי */}
         {dialog ? (
           <DialogNotification

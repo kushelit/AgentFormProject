@@ -28,6 +28,16 @@ const pages = [
       { href: '/importCommissionHub/CompareRealToReported', label: 'השוואה לעמלה בפועל' },
     ],
   },
+ {
+  href: '/sharon',
+  label: 'שרון — עסקאות',
+  onlyPermissions: ['access_sharon_elementary', 'access_sharon_tax_returns'],
+},
+{
+  href: '/sharon-summary',
+  label: 'שרון — עמלות מסכם',
+  onlyPermissions: ['access_sharon_summary'],
+},
   {
     href: '/AdminHub', 
     label: 'ניהול אדמין',

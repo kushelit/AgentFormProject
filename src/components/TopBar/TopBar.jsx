@@ -87,21 +87,22 @@ useEffect(() => {
         🔐 חיבור לפורטלים
       </button>
 
-      <button
-        style={{
-          width: "100%",
-          textAlign: "right",
-          background: "transparent",
-          border: "none",
-          padding: "10px 8px",
-          cursor: "pointer",
-          opacity: 0.6,
-        }}
-        onClick={() => setShowSettingsMenu(false)}
-        disabled
-      >
-        👤 פרופיל סוכן (בקרוב)
-      </button>
+     <button
+  style={{
+    width: "100%",
+    textAlign: "right",
+    background: "transparent",
+    border: "none",
+    padding: "10px 8px",
+    cursor: "pointer",
+  }}
+  onClick={() => {
+    setShowSettingsMenu(false);
+    router.push("/Environments/company-preferences");
+  }}
+>
+  🏢 בחירת חברות
+</button>
     </div>
   )}
 </div>

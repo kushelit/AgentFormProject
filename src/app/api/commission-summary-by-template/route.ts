@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { admin } from '@/lib/firebase/firebase-admin';
 
 export async function POST(req: NextRequest) {
-  const { agentId, companyId, year } = await req.json();
+  const { agentId, companyId, year, ym } = await req.json();
 
   if (!agentId || !companyId) {
     return NextResponse.json({ error: 'missing params' }, { status: 400 });
@@ -11,6 +11,30 @@ export async function POST(req: NextRequest) {
   try {
     const db = admin.firestore();
 
+    // אם יש ym — שלוף את ה-runIds הרלוונטיים
+    let allowedRunIds: Set<string> | null = null;
+
+    if (ym) {
+      const portalRunsSnap = await db
+        .collection('portalImportRuns')
+        .where('agentId', '==', agentId)
+        .where('companyId', '==', companyId)
+        .where('resolvedWindow.ym', '==', ym)
+        .get();
+
+      const jobIds: string[] = [];
+      for (const d of portalRunsSnap.docs) {
+        const ids: string[] = d.data()?.queue?.jobIds || [];
+        jobIds.push(...ids);
+      }
+      allowedRunIds = new Set(jobIds);
+
+       console.log('[template-drill] ym received:', ym);
+  console.log('[template-drill] portalRuns found:', portalRunsSnap.size);
+  console.log('[template-drill] allowedRunIds:', Array.from(allowedRunIds));
+    }
+
+    
     const snap = await db
       .collection('commissionSummaries')
       .where('agentId', '==', agentId)
@@ -19,11 +43,16 @@ export async function POST(req: NextRequest) {
 
     const rows = snap.docs.map(d => d.data() as any);
 
-    // פילטר לפי שנה אם יש
-    const filtered = year
-      ? rows.filter(r => String(r.reportMonth || '').startsWith(year))
-      : rows;
+    const filtered = rows.filter(r => {
+      if (year && !String(r.reportMonth || '').startsWith(year)) return false;
+      if (allowedRunIds !== null && !allowedRunIds.has(String(r.runId || ''))) return false;
+      return true;
 
+      
+    });
+
+    console.log('[template-drill] filtered rows:', filtered.length, '/', rows.length);
+    // ... שאר הקוד קיים ללא שינוי ...
     // סיכום לפי templateId × reportMonth
     const byTemplateMonth: Record<string, Record<string, number>> = {};
     const templateNames: Record<string, string> = {};

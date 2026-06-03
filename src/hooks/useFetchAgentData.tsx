@@ -295,29 +295,63 @@ useEffect(() => {
     }
   };
 
-  useEffect(() => {
-    // בדיקת user לפני קריאת Firebase
-    if (!user || !user.uid) {
-      // console.log("No user - skipping companies fetch");
-      setCompanies([]);
-      return;
-    }
+  // useEffect(() => {
+  //   // בדיקת user לפני קריאת Firebase
+  //   if (!user || !user.uid) {
+  //     // console.log("No user - skipping companies fetch");
+  //     setCompanies([]);
+  //     return;
+  //   }
   
-    const fetchCompanies = async () => {
-      try {
-        const querySnapshot = await getDocs(collection(db, 'company'));
-        const companiesList = querySnapshot.docs.map(doc => doc.data().companyName); 
-        setCompanies(companiesList);
-      } catch (error) {
-        // console.error('Failed to fetch companies:', error);
-        setCompanies([]);
-      }
-    };
+  //   const fetchCompanies = async () => {
+  //     try {
+  //       const querySnapshot = await getDocs(collection(db, 'company'));
+  //       const companiesList = querySnapshot.docs.map(doc => doc.data().companyName); 
+  //       setCompanies(companiesList);
+  //     } catch (error) {
+  //       // console.error('Failed to fetch companies:', error);
+  //       setCompanies([]);
+  //     }
+  //   };
   
-    fetchCompanies();
-  }, [user]); // user כתלות
+  //   fetchCompanies();
+  // }, [user]); // user כתלות
 
- 
+useEffect(() => {
+  if (!user || !user.uid) {
+    setCompanies([]);
+    return;
+  }
+
+  const fetchCompanies = async () => {
+    try {
+      const querySnapshot = await getDocs(collection(db, 'company'));
+
+      // בדוק העדפות שמורות
+      const agentDoc = await getDoc(doc(db, 'users', user.uid));
+      const preferredIds: string[] = agentDoc.data()?.preferredCompanyIds || [];
+
+      let companiesList = querySnapshot.docs.map(d => d.data().companyName as string);
+
+      // אם יש העדפות — סנן לפיהן
+      if (preferredIds.length > 0) {
+        const preferredNames = new Set(
+          querySnapshot.docs
+            .filter(d => preferredIds.includes(d.id))
+            .map(d => d.data().companyName as string)
+        );
+        companiesList = companiesList.filter(name => preferredNames.has(name));
+      }
+      // אם אין העדפות — מציג הכל
+
+      setCompanies(companiesList);
+    } catch (error) {
+      setCompanies([]);
+    }
+  };
+
+  fetchCompanies();
+}, [user]); 
 
  return {
   agents,

@@ -28,6 +28,8 @@ import useEditableTable from "@/hooks/useEditableTable";
 import MenuWrapper from "@/components/MenuWrapper/MenuWrapper";
 import Edit from '@/components/icons/Edit/Edit';
 import Delete from '@/components/icons/Delete/Delete';
+import ElementaryContractsTab from '@/components/ElementaryContractsTab/ElementaryContractsTab';
+import { usePermission } from "@/hooks/usePermission";
 
 type CompanyRow = {
   id: string;
@@ -76,7 +78,7 @@ type ContractDoc = {
 };
 
 const NewManageContractsTables: React.FC = () => {
-  const { detail } = useAuth();
+const { detail, user } = useAuth();
   const { agents, selectedAgentId, handleAgentChange } = useFetchAgentData();
 
   const [companies, setCompanies] = useState<CompanyRow[]>([]);
@@ -88,7 +90,7 @@ const NewManageContractsTables: React.FC = () => {
   const [cellValues, setCellValues] = useState<Record<string, string>>({});
   const [defaultValues, setDefaultValues] = useState<Record<string, string>>({});
   const [selectedViewGroup, setSelectedViewGroup] = useState<
-    "pension" | "finance" | "risk"
+    "pension" | "finance" | "risk" | "elementary"
   >("pension");
 
 const effectiveAgentId = detail?.role === "admin"
@@ -117,6 +119,9 @@ const [sourceLeads, setSourceLeads] = useState<SourceLead[]>([]);
 const [splitMode, setSplitMode] = useState<'commission' | 'production'>('commission');
 const [openMenuRowCommissionSplit, setOpenMenuRowCommissionSplit] = useState<string | null>(null);
 
+const { canAccess: canAccessElementary } = usePermission(
+  user ? 'access_sharon_elementary' : null  // ← הרשאה חדשה שתגדירי
+);
 
 useEffect(() => {
   defaultValuesRef.current = defaultValues;
@@ -260,27 +265,29 @@ const fetchContracts = async () => {
     return map;
   }, [productsGroups, companiesById]);
 
-  const visibleTables = useMemo(() => {
-    if (selectedViewGroup === "pension") {
-      return CONTRACTS_TABLES_CONFIG.filter(
-        (table: any) => table.key === "pension" || table.key === "retirement"
-      );
-    }
+ const visibleTables = useMemo(() => {
+  if (selectedViewGroup === "elementary") return [];
 
-    if (selectedViewGroup === "finance") {
-      return CONTRACTS_TABLES_CONFIG.filter(
-        (table: any) => table.key === "finance"
-      );
-    }
+  if (selectedViewGroup === "pension") {
+    return CONTRACTS_TABLES_CONFIG.filter(
+      (table: any) => table.key === "pension" || table.key === "retirement"
+    );
+  }
 
-    if (selectedViewGroup === "risk") {
-      return CONTRACTS_TABLES_CONFIG.filter(
-        (table: any) => table.key === "risk" || table.key === "travel"
-      );
-    }
+  if (selectedViewGroup === "finance") {
+    return CONTRACTS_TABLES_CONFIG.filter(
+      (table: any) => table.key === "finance"
+    );
+  }
 
-    return CONTRACTS_TABLES_CONFIG;
-  }, [selectedViewGroup]);
+  if (selectedViewGroup === "risk") {
+    return CONTRACTS_TABLES_CONFIG.filter(
+      (table: any) => table.key === "risk" || table.key === "travel"
+    );
+  }
+
+  return CONTRACTS_TABLES_CONFIG;
+}, [selectedViewGroup]);
 
 
 const isCellDirty = (key: string, value: string) => {
@@ -895,6 +902,14 @@ return (
       <div className={`tab ${selectedViewGroup === "pension" ? "active" : ""}`} onClick={() => setSelectedViewGroup("pension")}>פנסיוני</div>
       <div className={`tab ${selectedViewGroup === "finance" ? "active" : ""}`} onClick={() => setSelectedViewGroup("finance")}>פיננסים</div>
       <div className={`tab ${selectedViewGroup === "risk" ? "active" : ""}`} onClick={() => setSelectedViewGroup("risk")}>סיכונים</div>
+  {canAccessElementary && (
+  <div
+    className={`tab ${selectedViewGroup === "elementary" ? "active" : ""}`}
+    onClick={() => setSelectedViewGroup("elementary")}
+  >
+    אלמנטרי
+  </div>
+)}
     </div>
   )}
 
@@ -908,7 +923,7 @@ return (
       </select>
     )}
 
-    {activeView === 'tables' && (
+{activeView === 'tables' && selectedViewGroup !== 'elementary' && (
       <>
         <Button onClick={!effectiveAgentId ? undefined : saveContracts} text="שמור" type="primary" icon="off" state={!effectiveAgentId ? "disabled" : "default"} />
         <Button onClick={!effectiveAgentId ? undefined : downloadExcelTemplate} text="הורד תבנית אקסל" type="primary" icon="off" state={!effectiveAgentId ? "disabled" : "default"} />
@@ -1089,6 +1104,9 @@ return (
 
       /* ── TABLES VIEW ── */
       <>
+      {selectedViewGroup === 'elementary' && canAccessElementary && (
+  <ElementaryContractsTab agentId={effectiveAgentId} />
+)}
         {visibleTables.map((table: any) => (
           <div key={table.key} className="table-card">
             <div className="table-card-header">

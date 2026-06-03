@@ -7,6 +7,8 @@ import useFetchAgentData from "@/hooks/useFetchAgentData";
 import { useAuth } from '@/lib/firebase/AuthContext';
 import ContactFormModal from "@/components/ContactFormModal/ContactFormModal";
 import "./Navbar.css";
+import { usePermission } from '@/hooks/usePermission';
+
 
 export const Navbar = ({ items, bottomPage, className }) => {
   const [openSubmenu, setOpenSubmenu] = useState(null);
@@ -18,15 +20,42 @@ export const Navbar = ({ items, bottomPage, className }) => {
   const { selectedAgentId } = useFetchAgentData();
 
 
-  const isItemVisible = (item) => {
-    // עד שטעון ה-role – לא להציג (גם מונע הבהוב)
-    if (!detail?.role) return false;
+  // const isItemVisible = (item) => {
+  //   // עד שטעון ה-role – לא להציג (גם מונע הבהוב)
+  //   if (!detail?.role) return false;
   
-    if (Array.isArray(item.onlyRoles) && item.onlyRoles.length > 0) {
-      return item.onlyRoles.includes(detail.role);
-    }
-    return true;
-  };
+  //   if (Array.isArray(item.onlyRoles) && item.onlyRoles.length > 0) {
+  //     return item.onlyRoles.includes(detail.role);
+  //   }
+  //   return true;
+  // };
+
+
+const { canAccess: canAccessElementary } = usePermission(user ? 'access_sharon_elementary' : null);
+const { canAccess: canAccessSummary } = usePermission(user ? 'access_sharon_summary' : null);
+
+const permissionsMap = {
+  access_sharon_elementary: canAccessElementary,
+  access_sharon_summary: canAccessSummary,
+};
+
+const isItemVisible = (item) => {
+  if (!detail?.role) return false;
+
+  if (Array.isArray(item.onlyRoles) && item.onlyRoles.length > 0) {
+    if (!item.onlyRoles.includes(detail.role)) return false;
+  }
+
+  if (Array.isArray(item.onlyPermissions) && item.onlyPermissions.length > 0) {
+  return item.onlyPermissions.some(
+    (p) => permissionsMap[p] === true
+  );
+}
+
+  return true;
+};
+
+
 
   // זיהוי רנדר בצד לקוח
   useEffect(() => {
