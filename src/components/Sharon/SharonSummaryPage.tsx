@@ -371,7 +371,7 @@ const SharonSummaryPage: React.FC = () => {
               <th>נפרעים פנסיוני</th>
               <th>עמלת אלמנטרי</th>
               <th>עמלת שרון (החזרי מס)</th>
-              <th>סה"כ עמלת שרון</th>
+             <th>סה&quot;כ עמלת שרון</th>
             </tr>
           </thead>
           <tbody>
@@ -401,7 +401,7 @@ const SharonSummaryPage: React.FC = () => {
 
             {/* Summary row */}
             <tr className="sum-row">
-              <td>סה"כ</td>
+             <td>סה&quot;כ</td>
               <td>{fmt(totals.pensionHekef)}</td>
               <td>{fmt(totals.pensionNifraim)}</td>
               <td>{fmt(totals.elementary)}</td>

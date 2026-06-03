@@ -201,7 +201,7 @@ const SharonPage: React.FC = () => {
                     {c.firstNameCustomer} {c.lastNameCustomer}
                   </div>
                   <div style={{ fontSize: 11, color: '#888' }}>
-                    ת"ז: {c.IDCustomer}{c.phone ? ` · ${c.phone}` : ''}
+                  ת&quot;ז: {c.IDCustomer}{c.phone ? ` · ${c.phone}` : ''}
                   </div>
                 </div>
               ))}
@@ -221,7 +221,7 @@ const SharonPage: React.FC = () => {
               {selectedCustomer.firstNameCustomer} {selectedCustomer.lastNameCustomer}
             </div>
             <div className="sharon-customer-sub">
-              ת"ז: {selectedCustomer.IDCustomer}
+             ת&quot;ז: {selectedCustomer.IDCustomer}
               {selectedCustomer.phone && ` · ${selectedCustomer.phone}`}
             </div>
           </div>

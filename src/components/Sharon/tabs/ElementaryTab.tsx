@@ -479,7 +479,7 @@ const ElementaryTab: React.FC<Props> = ({ agentId, customer }) => {
         <table className="sharon-table">
           <thead>
             <tr>
-              <th colSpan={2}>לקוח / ת"ז</th>
+             <th colSpan={2}>לקוח / ת&quot;ז</th>
               <th>חברה</th>
               <th>מוצר</th>
               <th>מסלול</th>
@@ -529,7 +529,9 @@ const ElementaryTab: React.FC<Props> = ({ agentId, customer }) => {
 
             {filtered.length > 0 && (
               <tr className="sum-row">
-                <td colSpan={11} style={{ fontSize: 12, color: '#5F5E5A' }}>סה"כ — {filtered.length} פוליסות</td>
+<td colSpan={11} style={{ fontSize: 12, color: '#5F5E5A' }}>
+  סה&quot;כ — {filtered.length} פוליסות
+</td>
                 <td className="commission-cell">{totalCommission.toLocaleString()} ₪</td>
                 <td></td>
               </tr>

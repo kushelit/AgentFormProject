@@ -121,7 +121,7 @@ const PensionTab: React.FC<Props> = ({ agentId, customer }) => {
               <tr>
                 <th>חודש</th>
                 <th>שם</th>
-                <th>ת"ז</th>
+               <th>ת&quot;ז</th>
                 <th>מוצר</th>
                 <th>חברה</th>
                 <th>סטטוס</th>
@@ -157,7 +157,9 @@ const PensionTab: React.FC<Props> = ({ agentId, customer }) => {
 
               {filtered.length > 0 && (
                 <tr className="sum-row">
-                  <td colSpan={6} style={{ fontSize: 12, color: '#5F5E5A' }}>סה"כ — {filtered.length} רשומות</td>
+<td colSpan={6} style={{ fontSize: 12, color: '#5F5E5A' }}>
+  {'סה"כ'} — {filtered.length} רשומות
+</td>
                   <td colSpan={2}>{totalPremia.toLocaleString()}</td>
                   <td colSpan={3}>{totalZvira.toLocaleString()}</td>
                 </tr>

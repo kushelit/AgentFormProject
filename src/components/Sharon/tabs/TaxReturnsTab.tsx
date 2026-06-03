@@ -404,14 +404,14 @@ const TaxReturnsTab: React.FC<Props> = ({ agentId, customer }) => {
           <thead>
             <tr>
               <th>תאריך פתיחה</th>
-              <th>לקוח / ת"ז</th>
+             <th>לקוח / ת&quot;ז</th>
               <th>יישוב</th>
               <th>טלפון</th>
               <th>סטטוס</th>
               <th>מסמכים</th>
               <th>צפי החזר</th>
               <th>% הסכם</th>
-              <th>עמלת רו"ח</th>
+             <th>עמלת רו&quot;ח</th>
               <th>עמלת שרון</th>
               <th>תשלום</th>
               <th></th>
@@ -462,7 +462,9 @@ const TaxReturnsTab: React.FC<Props> = ({ agentId, customer }) => {
 
             {filtered.length > 0 && (
               <tr className="sum-row">
-                <td colSpan={8} style={{ fontSize: 12, color: '#5F5E5A' }}>סה"כ — {filtered.length} תיקים</td>
+<td colSpan={8} style={{ fontSize: 12, color: '#5F5E5A' }}>
+  סה&quot;כ — {filtered.length} תיקים
+</td>
                 <td style={{ fontSize: 11, color: '#5F5E5A' }}>{totalAccountant.toLocaleString()} ₪</td>
                 <td className="commission-cell">{totalSharon.toLocaleString()} ₪</td>
                 <td colSpan={2}></td>
