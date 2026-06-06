@@ -349,8 +349,35 @@ const uniqueCompanies = Array.from(
 
 
 
+// const automaticCompanies = uniqueCompanies
+//   .filter((c) => c.automationEnabled)
+//   .map((c) => ({
+//     id: c.id,
+//     name: c.name,
+//     automationEnabled: c.automationEnabled,
+//     companyAutomationClass: c.companyAutomationClass,
+//     companyAutoDownloadEnabled: c.companyAutoDownloadEnabled,
+//     companyAutoDownloadMessage: c.companyAutoDownloadMessage,
+//     portalId: c.portalId || c.id,
+//   }));
+
+
+//filter company 
+
+const [preferredCompanyIds, setPreferredCompanyIds] = useState<string[]>([]);
+
+useEffect(() => {
+  if (!selectedAgentId) return;
+  getDoc(doc(db, 'users', selectedAgentId)).then(snap => {
+    setPreferredCompanyIds(snap.data()?.preferredCompanyIds || []);
+  });
+}, [selectedAgentId]);
+
+
+
 const automaticCompanies = uniqueCompanies
   .filter((c) => c.automationEnabled)
+  .filter((c) => preferredCompanyIds.length === 0 || preferredCompanyIds.includes(c.id))
   .map((c) => ({
     id: c.id,
     name: c.name,
@@ -360,7 +387,6 @@ const automaticCompanies = uniqueCompanies
     companyAutoDownloadMessage: c.companyAutoDownloadMessage,
     portalId: c.portalId || c.id,
   }));
-
 
 
 const filteredTemplates = templateOptions.filter(t => t.companyId === selectedCompanyId);
@@ -2641,6 +2667,9 @@ async function enrichMissingCustomerIdsForMarkedSheets(params: {
     };
   });
 }
+
+
+
 
 
   /* ==============================
