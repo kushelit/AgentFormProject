@@ -11,9 +11,19 @@ const SharonTransactionsPage = () => {
   const [ready, setReady] = useState(false);
   const [isClient, setIsClient] = useState(false);
 
-  const { canAccess, isChecking } = usePermission(
-    user ? "access_sharon_elementary" : null
-  );
+  const { canAccess: canAccessElementary, isChecking: isCheckingElementary } = usePermission(
+  user ? "access_sharon_elementary" : null
+);
+const { canAccess: canAccessTax, isChecking: isCheckingTax } = usePermission(
+  user ? "access_sharon_tax_returns" : null
+);
+const { canAccess: canAccessPension, isChecking: isCheckingPension } = usePermission(
+  user ? "access_sharon_pension" : null
+);
+
+const isChecking = isCheckingElementary || isCheckingTax || isCheckingPension;
+const canAccess = canAccessElementary || canAccessTax || canAccessPension;
+
 
   useEffect(() => {
     setIsClient(true);
@@ -35,7 +45,7 @@ const SharonTransactionsPage = () => {
     );
   }
 
-  if (canAccess === false) {
+if (!isChecking && !canAccess) {
     return <AccessDenied />;
   }
 

@@ -29,8 +29,19 @@ const SharonPage: React.FC = () => {
   const { canAccess: canAccessTax } = usePermission(
     user ? 'access_sharon_tax_returns' : null
   );
+  const { canAccess: canAccessElementary } = usePermission(
+  user ? 'access_sharon_elementary' : null
+);
+const { canAccess: canAccessPension } = usePermission(
+  user ? 'access_sharon_pension' : null
+);
 
-  const [activeTab, setActiveTab] = useState<TabKey>('elementary');
+const [activeTab, setActiveTab] = useState<TabKey>(
+  canAccessElementary ? 'elementary' 
+  : canAccessTax ? 'tax' 
+  : canAccessPension ? 'pension'
+  : 'elementary'
+);
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerResult | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<CustomerResult[]>([]);
@@ -231,12 +242,14 @@ const SharonPage: React.FC = () => {
 
       {/* ── TABS ── */}
       <div className="sharon-tabs">
+        {canAccessElementary && (
         <div
           className={`sharon-tab ${activeTab === 'elementary' ? 'active' : ''}`}
           onClick={() => setActiveTab('elementary')}
         >
           אלמנטרי
         </div>
+        )}
         {canAccessTax && (
           <div
             className={`sharon-tab ${activeTab === 'tax' ? 'active' : ''}`}
@@ -245,17 +258,19 @@ const SharonPage: React.FC = () => {
             החזרי מס
           </div>
         )}
+        {canAccessPension && (
         <div
           className={`sharon-tab ${activeTab === 'pension' ? 'active' : ''}`}
           onClick={() => setActiveTab('pension')}
         >
           פנסיוני
         </div>
+        )}
       </div>
 
       {/* ── TAB CONTENT ── */}
       <div className="sharon-tab-content">
-        {activeTab === 'elementary' && (
+{activeTab === 'elementary' && canAccessElementary && (
           <ElementaryTab
             agentId={effectiveAgentId}
             customer={selectedCustomer}
@@ -271,7 +286,7 @@ const SharonPage: React.FC = () => {
             searchQuery={searchQuery}
           />
         )}
-        {activeTab === 'pension' && (
+{activeTab === 'pension' && canAccessPension && (
           <PensionTab
             agentId={effectiveAgentId}
             customer={selectedCustomer}

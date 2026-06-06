@@ -32,11 +32,13 @@ const pages = [
   href: '/sharon',
   label: 'שרון — עסקאות',
   onlyPermissions: ['access_sharon_elementary', 'access_sharon_tax_returns'],
+  onlyRoles: ['agent', 'worker'],
 },
 {
   href: '/sharon-summary',
   label: 'שרון — עמלות מסכם',
   onlyPermissions: ['access_sharon_summary'],
+  onlyRoles: ['agent', 'worker'],
 },
   {
     href: '/AdminHub', 
