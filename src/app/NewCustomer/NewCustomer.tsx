@@ -1729,11 +1729,18 @@ const handleImportCustomers = async () => {
 </thead>
    <tbody>
   {currentRows.map((item) => (
-    <tr key={item.id} className={editingRowCustomer === item.id ? "editing-row" : ""}
-      onMouseEnter={() => setHoveredRowId(item.id)}
-      onMouseLeave={() => setHoveredRowId(null)}
-    >
-    <td>
+    <tr key={item.id} 
+  className={editingRowCustomer === item.id ? "editing-row" : ""}
+  onMouseEnter={() => setHoveredRowId(item.id)}
+  onMouseLeave={() => setHoveredRowId(null)}
+  onClick={(e) => {
+    const target = e.target as HTMLElement;
+    if (target.closest('input') || target.closest('button') || target.closest('select')) return;
+    router.push(`/customers/${item.id}`);
+  }}
+  style={{ cursor: 'pointer' }}
+>
+ <td>
   <input
     type="checkbox"
     checked={selectedCustomers.some(customer => customer.IDCustomer === item.IDCustomer)}
@@ -1910,19 +1917,19 @@ const handleImportCustomers = async () => {
           item.sourceValue && sourceLeadMap[item.sourceValue] ? sourceLeadMap[item.sourceValue] : "לא נבחר"
         )}
       </td>
-      <td className="narrow-cell">
-        <MenuWrapper
-          rowId={item.id}
-          openMenuRow={openMenuRowCustomers}
-          setOpenMenuRow={setOpenMenuRowCustomers}
-          menuItems={menuItems(
-            item.id,
-            handleEditCustomerRow,
-            handleDeleteCustomerRow,
-            () => setOpenMenuRowCustomers(null)
-          )}
-        />
-      </td>
+      <td className="narrow-cell" onClick={e => e.stopPropagation()}>
+  <MenuWrapper
+    rowId={item.id}
+    openMenuRow={openMenuRowCustomers}
+    setOpenMenuRow={setOpenMenuRowCustomers}
+    menuItems={menuItems(
+      item.id,
+      handleEditCustomerRow,
+      handleDeleteCustomerRow,
+      () => setOpenMenuRowCustomers(null)
+    )}
+  />
+</td>
     </tr>
   ))}
 </tbody>

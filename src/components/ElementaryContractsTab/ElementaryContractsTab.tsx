@@ -70,8 +70,10 @@ const ElementaryContractsTab: React.FC<Props> = ({ agentId }) => {
     ]);
 
     setGroups(groupsSnap.docs.map(d => ({ id: d.id, ...d.data() } as ElementaryProductGroup)));
-    setProducts(productsSnap.docs.map(d => ({ id: d.id, ...d.data() } as ElementaryProduct)));
-
+setProducts(productsSnap.docs
+  .map(d => ({ id: d.id, ...d.data() } as ElementaryProduct))
+  .filter(p => !p.isManual)
+);
     const all: CompanyRow[] = companiesSnap.docs.map(d => ({
       id: d.id,
       companyName: d.data().companyName,

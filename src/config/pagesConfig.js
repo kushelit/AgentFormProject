@@ -2,6 +2,11 @@ const pages = [
  
   { href: '/NewAgentForm', label: 'ניהול עסקאות' },
   { href: '/NewCustomer', label: 'ניהול לקוחות' },
+   { 
+  href: '/tasks', 
+  label: 'משימות',
+  onlyPermissions: ['access_crm_module'],
+},
   { href: '/NewSummaryTable', label: 'דף מרכז' },
   // { href: '/ManageWorkers', label: 'ניהול עובדים' },
   {

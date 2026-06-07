@@ -1,0 +1,345 @@
+/* ── TasksHub.css ── */
+@import url('https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700&display=swap');
+
+.th-page {
+  padding: 20px 24px;
+  direction: rtl;
+  min-height: 100vh;
+  background: #f0f4f9;
+  font-family: 'Heebo', sans-serif;
+}
+
+/* ── header ── */
+.th-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 16px;
+}
+
+.th-title {
+  font-size: 26px;
+  font-weight: 700;
+  color: #1e3a5f;
+}
+
+.th-subtitle {
+  font-size: 13px;
+  color: #7a8faa;
+  margin-top: 2px;
+}
+
+.th-overdue-badge {
+  color: #e65100;
+  font-weight: 600;
+}
+
+.th-btn-new {
+  background: #2d5a8e;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 20px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: 'Heebo', sans-serif;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+.th-btn-new:hover { opacity: 0.88; }
+
+/* ── filters ── */
+.th-filters {
+  background: white;
+  border: 1px solid #dde3ee;
+  border-radius: 10px;
+  padding: 12px 16px;
+  margin-bottom: 14px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  align-items: center;
+}
+
+.th-filter-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.th-filter-label {
+  font-size: 12px;
+  color: #7a8faa;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.th-toggle {
+  display: flex;
+  gap: 2px;
+  background: #f0f4f9;
+  border-radius: 20px;
+  padding: 3px;
+}
+
+.th-toggle-btn {
+  background: transparent;
+  border: none;
+  border-radius: 20px;
+  padding: 4px 12px;
+  font-size: 12px;
+  font-family: 'Heebo', sans-serif;
+  color: #7a8faa;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.th-toggle-btn.active {
+  background: white;
+  color: #1e3a5f;
+  font-weight: 600;
+  box-shadow: 0 1px 4px rgba(30,58,95,0.1);
+}
+
+.th-select {
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid #cdd5e0;
+  border-radius: 6px;
+  font-size: 12px;
+  font-family: 'Heebo', sans-serif;
+  color: #2c3e5a;
+  background: white;
+  direction: rtl;
+}
+
+/* ── form ── */
+.th-form {
+  background: white;
+  border: 1px solid #dde3ee;
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.th-form-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1e3a5f;
+  margin-bottom: 2px;
+}
+
+.th-form-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+.th-form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.th-label {
+  font-size: 11px;
+  color: #7a8faa;
+  font-weight: 500;
+}
+
+.th-input {
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid #cdd5e0;
+  border-radius: 6px;
+  font-size: 13px;
+  font-family: 'Heebo', sans-serif;
+  color: #2c3e5a;
+  background: white;
+  direction: rtl;
+  width: 100%;
+  box-sizing: border-box;
+}
+.th-input:focus { outline: none; border-color: #2d5a8e; }
+
+.th-form-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.th-btn-save {
+  background: #2d5a8e;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 7px 20px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: 'Heebo', sans-serif;
+  cursor: pointer;
+}
+.th-btn-save:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.th-btn-cancel {
+  background: white;
+  color: #7a8faa;
+  border: 1px solid #cdd5e0;
+  border-radius: 6px;
+  padding: 7px 14px;
+  font-size: 13px;
+  font-family: 'Heebo', sans-serif;
+  cursor: pointer;
+}
+
+/* ── task list ── */
+.th-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.th-task {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: white;
+  border: 1px solid #dde3ee;
+  border-radius: 10px;
+  transition: background 0.15s;
+}
+.th-task:hover { background: #f7f9fc; }
+.th-task-done { opacity: 0.5; }
+.th-task-overdue {
+  border-right: 3px solid #e65100;
+  background: #fff8f5;
+}
+.th-task-overdue:hover { background: #fff3ee; }
+
+/* ✓ check */
+.th-check {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 1.5px solid #cdd5e0;
+  background: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  color: #2d5a8e;
+  flex-shrink: 0;
+  transition: all 0.15s;
+}
+.th-check:hover { border-color: #2d5a8e; background: #e8f0fb; }
+.th-check-done {
+  background: #2d5a8e;
+  border-color: #2d5a8e;
+  color: white;
+  cursor: default;
+}
+
+/* body */
+.th-task-body { flex: 1; min-width: 0; }
+
+.th-task-text {
+  font-size: 14px;
+  color: #1e3a5f;
+  font-weight: 500;
+  margin-bottom: 4px;
+}
+.th-task-done .th-task-text {
+  text-decoration: line-through;
+  color: #9aafc4;
+  font-weight: 400;
+}
+
+.th-task-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-size: 12px;
+  color: #7a8faa;
+}
+
+.th-task-customer {
+  color: #2d5a8e;
+  cursor: pointer;
+  font-weight: 500;
+}
+.th-task-customer:hover { text-decoration: underline; }
+
+.th-task-due { color: #7a8faa; }
+.th-due-late { color: #e65100; font-weight: 600; }
+
+.th-task-assignee { color: #7a8faa; }
+
+/* status select */
+.th-status-select {
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 20px;
+  border: 1px solid;
+  font-size: 11px;
+  font-family: 'Heebo', sans-serif;
+  cursor: pointer;
+  appearance: none;
+  text-align: center;
+  flex-shrink: 0;
+}
+.th-badge-open { background: #f0f4f9; color: #4a6fa5; border-color: #cdd5e0; }
+.th-badge-progress { background: #fff8e6; color: #b07800; border-color: #ffd666; }
+.th-badge-done { background: #eaf5ea; color: #2e7d32; border-color: #a5d6a7; }
+
+/* loading / empty */
+.th-loading { padding: 48px; text-align: center; color: #7a8faa; font-size: 14px; }
+.th-empty { padding: 48px; text-align: center; color: #a8bdd4; font-size: 14px; }
+
+/* ── כפתור עריכה בשורה ── */
+.th-btn-edit-task {
+  background: none;
+  border: none;
+  color: #9aafc4;
+  font-size: 14px;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 4px;
+  flex-shrink: 0;
+  transition: color 0.15s, background 0.15s;
+}
+.th-btn-edit-task:hover { color: #2d5a8e; background: #e8f0fb; }
+
+/* ── מודל עריכה ── */
+.th-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.th-modal {
+  background: white;
+  border-radius: 12px;
+  padding: 20px 24px;
+  width: 560px;
+  max-width: 95vw;
+  box-shadow: 0 8px 32px rgba(30,58,95,0.18);
+  direction: rtl;
+}
+
+.th-modal-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #1e3a5f;
+  margin-bottom: 14px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #edf0f7;
+}

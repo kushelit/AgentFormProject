@@ -35,12 +35,14 @@ const { canAccess: canAccessElementary } = usePermission(user ? 'access_sharon_e
 const { canAccess: canAccessTax } = usePermission(user ? 'access_sharon_tax_returns' : null);  // ← חסר!
 const { canAccess: canAccessSummary } = usePermission(user ? 'access_sharon_summary' : null);
 const { canAccess: canAccessPension } = usePermission(user ? 'access_sharon_pension' : null);
+const { canAccess: canAccessCrm } = usePermission(user ? 'access_crm_module' : null);
 
 const permissionsMap = {
   access_sharon_elementary: canAccessElementary,
   access_sharon_tax_returns: canAccessTax,
   access_sharon_summary: canAccessSummary,
   access_sharon_pension: canAccessPension,
+  access_crm_module: canAccessCrm, 
 };
 
 const isItemVisible = (item) => {

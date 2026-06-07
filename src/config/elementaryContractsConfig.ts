@@ -30,5 +30,6 @@ export type ElementaryProduct = {
   label: string;
   productGroupId: string;
   hasMozalTrack: boolean;
+   isManual?: boolean;
   order: number;
 };

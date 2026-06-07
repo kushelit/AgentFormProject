@@ -174,7 +174,7 @@ const ElementaryTab: React.FC<Props> = ({ agentId, customer }) => {
     track: 'מוזל' | 'רגיל' | '', premium: string, manualRate?: string,
   ) => {
     const companyRow = allCompanies.find(c => c.companyName === company);
-    const isManual = companyRow?.elementaryManual ?? false;
+  const isManual = (companyRow?.elementaryManual ?? false) || productId === 'ktav_sherut'; // ← הוסיפי
     const p = parseFloat(premium) || 0;
 
     if (isManual) {
@@ -339,8 +339,9 @@ const ElementaryTab: React.FC<Props> = ({ agentId, customer }) => {
   const isHomeGroup = currentProduct?.productGroupId === 'home';
   const isBusinessGroup = currentProduct?.productGroupId === 'business';
   const hasMozalTrack = currentProduct?.hasMozalTrack ?? false;
-  const editIsManual = allCompanies.find(c => c.companyName === editData.company)?.elementaryManual ?? false;
-
+const editIsManual = 
+  (allCompanies.find(c => c.companyName === editData.company)?.elementaryManual ?? false)
+  || editData.productId === 'ktav_sherut'; // ← הוסיפי
   // ─── Customer input block (used in new row) ───────────────────────────────
   const renderCustomerInput = () => (
     <td colSpan={2}>
