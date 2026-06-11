@@ -22,3 +22,5 @@ export { importCustomersFromCommissions } from "./importCustomersFromCommissions
 export { reengagementLeadsWebhook } from "./reengagementLeads";
 
 export { sendReengagementBatch } from "./sendReengagementBatch";
+
+export { saveAgentWhatsAppConfig } from "./saveAgentWhatsAppConfig";

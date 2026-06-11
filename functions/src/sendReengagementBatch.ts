@@ -3,11 +3,12 @@
 
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { FUNCTIONS_REGION } from "./shared/region";
+import { PORTAL_ENC_KEY_B64 } from "./shared/secrets";
 
 export const sendReengagementBatch = onCall(
   {
     region: FUNCTIONS_REGION,
-    secrets: ["WA_ACCESS_TOKEN", "WA_PHONE_NUMBER_ID"],
+    secrets: [PORTAL_ENC_KEY_B64],
     timeoutSeconds: 120,
     memory: "256MiB",
   },

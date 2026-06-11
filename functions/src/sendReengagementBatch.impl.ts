@@ -2,20 +2,36 @@
 /* eslint-disable max-len */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import { adminDb, nowTs } from "./shared/admin";
 import { HttpsError } from "firebase-functions/v2/https";
+import { adminDb, nowTs } from "./shared/admin";
+import { PORTAL_ENC_KEY_B64 } from "./shared/secrets";
+import { decryptJsonAes256Gcm } from "./shared/cryptoAesGcm";
 
 const WA_API_URL = "https://graph.facebook.com/v19.0";
 
-export async function sendReengagementBatchImpl(agentId: string): Promise<object> {
-  const accessToken = process.env.WA_ACCESS_TOKEN;
-  const phoneNumberId = process.env.WA_PHONE_NUMBER_ID;
+function s(v: any) {
+  return String(v ?? "").trim();
+}
 
-  if (!accessToken || !phoneNumberId) {
-    throw new HttpsError("internal", "Missing WA configuration");
+export async function sendReengagementBatchImpl(agentId: string): Promise<object> {
+  const db = adminDb();
+
+  // קרא WhatsApp config מ-Firestore
+  const waConfigSnap = await (db as any).doc(`agents/${agentId}/config/whatsapp`).get();
+  if (!waConfigSnap.exists) {
+    throw new HttpsError("failed-precondition", "WhatsApp config not found for agent");
   }
 
-  const db = adminDb();
+  const waConfig = waConfigSnap.data() as any;
+  const phoneNumberId = s(waConfig.phoneNumberId);
+
+  const keyB64 = PORTAL_ENC_KEY_B64.value();
+  if (!keyB64) throw new HttpsError("internal", "Missing encryption key");
+
+  const { accessToken } = decryptJsonAes256Gcm(keyB64, waConfig.enc) as any;
+  if (!phoneNumberId || !accessToken) {
+    throw new HttpsError("failed-precondition", "Invalid WhatsApp config");
+  }
 
   // קח batchSize מה-config של הסוכן
   let batchSize = 20;
@@ -56,7 +72,7 @@ export async function sendReengagementBatchImpl(agentId: string): Promise<object
 
     const normalizedPhone = normalizeIsraeliPhone(phone);
     if (!normalizedPhone) {
-      console.warn(`[sendReengagementBatch] Invalid phone for lead ${doc.id}: ${phone}`);
+      console.warn(`[sendReengagementBatch] Invalid phone for ${doc.id}: ${phone}`);
       failed++;
       continue;
     }
