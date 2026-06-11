@@ -4,7 +4,7 @@ import { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   collection, query, where, getDocs, addDoc, updateDoc,
-  doc, serverTimestamp,
+  doc, serverTimestamp, orderBy,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase/firebase';
 import { useAuth } from '@/lib/firebase/AuthContext';
@@ -12,6 +12,8 @@ import useFetchAgentData from '@/hooks/useFetchAgentData';
 import { useToast } from '@/hooks/useToast';
 import { ToastNotification } from '@/components/ToastNotification';
 import './TasksHub.css';
+
+// ─── טיפוסים ──────────────────────────────────────────────────────────────────
 
 type TaskStatus = 'open' | 'in_progress' | 'done';
 
@@ -24,6 +26,7 @@ interface Task {
   status: TaskStatus;
   createdAt: any;
   customerId: string;
+  customerName?: string;
   agentId: string;
 }
 
@@ -46,6 +49,8 @@ const STATUS_CLASS: Record<TaskStatus, string> = {
   done: 'th-badge-done',
 };
 
+// ─── עזרים ────────────────────────────────────────────────────────────────────
+
 const isOverdue = (t: Task) => {
   if (t.status === 'done' || !t.dueDate) return false;
   return new Date(t.dueDate) < new Date();
@@ -58,55 +63,19 @@ const formatDateTime = (s?: string) => {
     ' ' + d.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
 };
 
-const sortTasks = (tasks: Task[]) => [...tasks].sort((a, b) => {
-  const aOver = isOverdue(a) ? 0 : 1;
-  const bOver = isOverdue(b) ? 0 : 1;
-  if (aOver !== bOver) return aOver - bOver;
-  if (!a.dueDate && !b.dueDate) return 0;
-  if (!a.dueDate) return 1;
-  if (!b.dueDate) return -1;
-  return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
-});
+const sortTasks = (tasks: Task[]) => {
+  return [...tasks].sort((a, b) => {
+    const aOver = isOverdue(a) ? 0 : 1;
+    const bOver = isOverdue(b) ? 0 : 1;
+    if (aOver !== bOver) return aOver - bOver;
+    if (!a.dueDate && !b.dueDate) return 0;
+    if (!a.dueDate) return 1;
+    if (!b.dueDate) return -1;
+    return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
+  });
+};
 
-// ── קומפוננט בחירת תאריך+שעה ──
-function DateTimePicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  const datePart = value.split('T')[0] ?? '';
-  const hourPart = value.split('T')[1]?.split(':')[0] ?? '09';
-  const minPart  = value.split('T')[1]?.split(':')[1] ?? '00';
-
-  return (
-    <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexDirection: 'row-reverse' }}>
-      <input
-        type="date"
-        className="th-input"
-        style={{ flex: 1 }}
-        value={datePart}
-        onChange={e => onChange(`${e.target.value}T${hourPart}:${minPart}`)}
-      />
-      <select
-        className="th-input"
-        style={{ width: 70 }}
-        value={hourPart}
-        onChange={e => onChange(`${datePart}T${e.target.value}:${minPart}`)}
-      >
-        {Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0')).map(h => (
-          <option key={h} value={h}>{h}</option>
-        ))}
-      </select>
-      <span>:</span>
-      <select
-        className="th-input"
-        style={{ width: 70 }}
-        value={minPart}
-        onChange={e => onChange(`${datePart}T${hourPart}:${e.target.value}`)}
-      >
-        {['00', '15', '30', '45'].map(m => (
-          <option key={m} value={m}>{m}</option>
-        ))}
-      </select>
-    </div>
-  );
-}
+// ─── קומפוננט ראשי ────────────────────────────────────────────────────────────
 
 export default function TasksHub() {
   const router = useRouter();
@@ -121,7 +90,7 @@ export default function TasksHub() {
   const [myUserId, setMyUserId] = useState('');
 
   // פילטרים
-  const [filterAssignee, setFilterAssignee] = useState('');
+  const [filterAssignee, setFilterAssignee] = useState('me'); // 'me' | uid | 'all'
   const [filterStatus, setFilterStatus] = useState<'all' | TaskStatus | 'active'>('active');
 
   // טופס הוספה
@@ -133,7 +102,7 @@ export default function TasksHub() {
   const [customers, setCustomers] = useState<{ id: string; name: string; IDCustomer: string }[]>([]);
   const [saving, setSaving] = useState(false);
 
-  // עריכה
+  // עריכת משימה
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [editText, setEditText] = useState('');
   const [editDue, setEditDue] = useState('');
@@ -162,7 +131,9 @@ export default function TasksHub() {
         status: editStatus,
       });
       setTasks(prev => prev.map(t => t.id === editingTask.id ? {
-        ...t, text: editText.trim(), dueDate: editDue || undefined,
+        ...t,
+        text: editText.trim(),
+        dueDate: editDue || undefined,
         assignedTo: editAssigned,
         assignedToName: assignedUser?.name || assignedUser?.displayName || assignedUser?.email || '',
         status: editStatus,
@@ -176,46 +147,71 @@ export default function TasksHub() {
     }
   };
 
-  // טעינת uid
+  // ─── טעינת uid שלי מ-users ───────────────────────────────────────────────────
   useEffect(() => {
     if (!user?.uid) return;
-    setMyUserId(user.uid);
-    setNewAssigned(user.uid);
+    const load = async () => {
+      const snap = await getDocs(query(collection(db, 'users'), where('__name__', '==', user.uid)));
+      if (!snap.empty) {
+        const d = snap.docs[0].data() as any;
+        setMyUserId(user.uid);
+        setNewAssigned(user.uid);
+      } else {
+        setMyUserId(user.uid);
+        setNewAssigned(user.uid);
+      }
+    };
+    load();
   }, [user?.uid]);
 
-  useEffect(() => {
-    if (myUserId && !filterAssignee) setFilterAssignee(myUserId);
-  }, [myUserId]);
-
-  // טעינת משתמשי סוכנות
+  // ─── טעינת משתמשי סוכנות ─────────────────────────────────────────────────────
   useEffect(() => {
     if (!selectedAgentId) return;
-    getDocs(query(collection(db, 'users'), where('agentId', '==', selectedAgentId)))
-      .then(snap => setAgentUsers(snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }))));
+    const load = async () => {
+      const q = query(collection(db, 'users'), where('agentId', '==', selectedAgentId));
+      const snap = await getDocs(q);
+      setAgentUsers(snap.docs.map(d => ({ id: d.id, ...(d.data() as any) })));
+    };
+    load();
   }, [selectedAgentId]);
 
-  // טעינת לקוחות
+  // ─── טעינת לקוחות לטופס ──────────────────────────────────────────────────────
   useEffect(() => {
     if (!selectedAgentId) return;
-    getDocs(query(collection(db, 'customer'), where('AgentId', '==', selectedAgentId)))
-      .then(snap => setCustomers(snap.docs.map(d => {
+    const load = async () => {
+      const q = query(collection(db, 'customer'), where('AgentId', '==', selectedAgentId));
+      const snap = await getDocs(q);
+      setCustomers(snap.docs.map(d => {
         const data = d.data() as any;
-        return { id: d.id, name: `${data.firstNameCustomer ?? ''} ${data.lastNameCustomer ?? ''}`.trim(), IDCustomer: data.IDCustomer ?? '' };
-      })));
+        return {
+          id: d.id,
+          name: `${data.firstNameCustomer ?? ''} ${data.lastNameCustomer ?? ''}`.trim(),
+          IDCustomer: data.IDCustomer ?? '',
+        };
+      }));
+    };
+    load();
   }, [selectedAgentId]);
 
-  // טעינת משימות
+  // ─── טעינת משימות ────────────────────────────────────────────────────────────
   const loadTasks = async () => {
     if (!selectedAgentId) return;
     setLoading(true);
     try {
-      const snap = await getDocs(query(collection(db, 'customerTasks'), where('agentId', '==', selectedAgentId)));
+      const q = query(
+        collection(db, 'customerTasks'),
+        where('agentId', '==', selectedAgentId),
+      );
+      const snap = await getDocs(q);
       const rows = snap.docs.map(d => ({ id: d.id, ...(d.data() as any) })) as Task[];
 
+      // שמות לקוחות
       const ids = Array.from(new Set(rows.map(r => r.customerId).filter(Boolean)));
       const nameMap: Record<string, string> = {};
       for (let i = 0; i < ids.length; i += 10) {
-        const cs = await getDocs(query(collection(db, 'customer'), where('__name__', 'in', ids.slice(i, i + 10))));
+        const chunk = ids.slice(i, i + 10);
+        const cq = query(collection(db, 'customer'), where('__name__', 'in', chunk));
+        const cs = await getDocs(cq);
         cs.docs.forEach(d => {
           const data = d.data() as any;
           nameMap[d.id] = `${data.firstNameCustomer ?? ''} ${data.lastNameCustomer ?? ''}`.trim();
@@ -232,15 +228,28 @@ export default function TasksHub() {
 
   useEffect(() => { loadTasks(); }, [selectedAgentId]);
 
-  // פילטור ומיון
+  // ─── פילטור + מיון ───────────────────────────────────────────────────────────
   const filtered = useMemo(() => {
     let rows = tasks;
-    if (filterAssignee && filterAssignee !== 'all') rows = rows.filter(t => t.assignedTo === filterAssignee);
-    if (filterStatus === 'active') rows = rows.filter(t => t.status !== 'done');
-    else if (filterStatus !== 'all') rows = rows.filter(t => t.status === filterStatus);
-    return sortTasks(rows);
-  }, [tasks, filterAssignee, filterStatus]);
 
+    // פילטר אחראי
+    if (filterAssignee === 'me') {
+      rows = rows.filter(t => t.assignedTo === myUserId);
+    } else if (filterAssignee !== 'all') {
+      rows = rows.filter(t => t.assignedTo === filterAssignee);
+    }
+
+    // פילטר סטטוס
+    if (filterStatus === 'active') {
+      rows = rows.filter(t => t.status !== 'done');
+    } else if (filterStatus !== 'all') {
+      rows = rows.filter(t => t.status === filterStatus);
+    }
+
+    return sortTasks(rows);
+  }, [tasks, filterAssignee, filterStatus, myUserId]);
+
+  // ─── פעולות ──────────────────────────────────────────────────────────────────
   const markDone = async (taskId: string) => {
     await updateDoc(doc(db, 'customerTasks', taskId), { status: 'done' });
     setTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: 'done' } : t));
@@ -256,6 +265,7 @@ export default function TasksHub() {
     setSaving(true);
     try {
       const assignedUser = agentUsers.find(u => u.id === newAssigned);
+      const customerDoc = customers.find(c => c.id === newCustomerId);
       await addDoc(collection(db, 'customerTasks'), {
         customerId: newCustomerId,
         agentId: selectedAgentId,
@@ -279,12 +289,13 @@ export default function TasksHub() {
     return u?.name || u?.displayName || u?.email || uid;
   };
 
+  // ─── UI ──────────────────────────────────────────────────────────────────────
   const overdueCount = filtered.filter(isOverdue).length;
   const openCount = filtered.filter(t => t.status !== 'done').length;
 
   return (
     <div className="th-page" dir="rtl">
-      {/* כותרת */}
+      {/* ── כותרת ── */}
       <div className="th-header">
         <div>
           <div className="th-title">משימות</div>
@@ -298,56 +309,106 @@ export default function TasksHub() {
         </button>
       </div>
 
-      {/* פילטרים */}
+      {/* ── פילטרים ── */}
       <div className="th-filters">
         <div className="th-filter-group">
           <label className="th-filter-label">אחראי</label>
-          <select className="th-select" value={filterAssignee} onChange={e => setFilterAssignee(e.target.value)}>
-            <option value="all">כולם</option>
+          <div className="th-toggle">
+            <button
+              className={`th-toggle-btn${filterAssignee === 'me' ? ' active' : ''}`}
+              onClick={() => setFilterAssignee('me')}
+            >שלי</button>
             {agentUsers.map(u => (
-              <option key={u.id} value={u.id}>
-                {u.name || u.displayName || u.email}
-                {u.id === myUserId ? ' ★' : ''}
-              </option>
+              <button
+                key={u.id}
+                className={`th-toggle-btn${filterAssignee === u.id ? ' active' : ''}`}
+                onClick={() => setFilterAssignee(u.id)}
+              >{u.name || u.displayName || u.email}</button>
             ))}
-          </select>
+            <button
+              className={`th-toggle-btn${filterAssignee === 'all' ? ' active' : ''}`}
+              onClick={() => setFilterAssignee('all')}
+            >כולם</button>
+          </div>
         </div>
 
         <div className="th-filter-group">
           <label className="th-filter-label">סטטוס</label>
           <div className="th-toggle">
-            {([['active', 'פעילות'], ['open', 'פתוחה'], ['in_progress', 'בתהליך'], ['done', 'הושלם'], ['all', 'הכל']] as const).map(([val, label]) => (
-              <button key={val} className={`th-toggle-btn${filterStatus === val ? ' active' : ''}`} onClick={() => setFilterStatus(val as any)}>
-                {label}
-              </button>
+            {([
+              ['active', 'פעילות'],
+              ['open', 'פתוחה'],
+              ['in_progress', 'בתהליך'],
+              ['done', 'הושלם'],
+              ['all', 'הכל'],
+            ] as const).map(([val, label]) => (
+              <button
+                key={val}
+                className={`th-toggle-btn${filterStatus === val ? ' active' : ''}`}
+                onClick={() => setFilterStatus(val as any)}
+              >{label}</button>
             ))}
           </div>
         </div>
+
+        {/* סוכן — למנהל */}
+        <select className="th-select" value={selectedAgentId} onChange={handleAgentChange}>
+          <option value="">בחר סוכן</option>
+          {agents.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+        </select>
       </div>
 
-      {/* טופס הוספה */}
+      {/* ── טופס הוספה ── */}
       {showForm && (
         <div className="th-form">
           <div className="th-form-title">משימה חדשה</div>
-          <input className="th-input" placeholder="תיאור המשימה *" value={newText} onChange={e => setNewText(e.target.value)} />
+          <input
+            className="th-input"
+            placeholder="תיאור המשימה *"
+            value={newText}
+            onChange={e => setNewText(e.target.value)}
+          />
           <div className="th-form-row">
             <div className="th-form-field">
               <label className="th-label">לקוח</label>
               <select className="th-input" value={newCustomerId} onChange={e => setNewCustomerId(e.target.value)}>
                 <option value="">בחר לקוח</option>
-                {customers.map(c => <option key={c.id} value={c.id}>{c.name} ({c.IDCustomer})</option>)}
+                {customers.map(c => (
+                  <option key={c.id} value={c.id}>{c.name} ({c.IDCustomer})</option>
+                ))}
               </select>
             </div>
             <div className="th-form-field">
               <label className="th-label">אחראי</label>
               <select className="th-input" value={newAssigned} onChange={e => setNewAssigned(e.target.value)}>
                 <option value="">בחר אחראי</option>
-                {agentUsers.map(u => <option key={u.id} value={u.id}>{u.name || u.displayName || u.email}</option>)}
+                {agentUsers.map(u => (
+                  <option key={u.id} value={u.id}>{u.name || u.displayName || u.email}</option>
+                ))}
               </select>
             </div>
             <div className="th-form-field">
               <label className="th-label">תאריך ושעה</label>
-              <DateTimePicker value={newDue} onChange={setNewDue} />
+              <div style={{ display: 'flex', gap: 6 }}>
+                <input
+                  type="date"
+                  className="th-input"
+                  value={newDue.split('T')[0] ?? ''}
+                  onChange={e => {
+                    const time = newDue.split('T')[1] ?? '10:00';
+                    setNewDue(`${e.target.value}T${time}`);
+                  }}
+                />
+                <input
+                  type="time"
+                  className="th-input"
+                  value={newDue.split('T')[1] ?? ''}
+                  onChange={e => {
+                    const date = newDue.split('T')[0] ?? '';
+                    setNewDue(`${date}T${e.target.value}`);
+                  }}
+                />
+              </div>
             </div>
           </div>
           <div className="th-form-actions">
@@ -359,7 +420,7 @@ export default function TasksHub() {
         </div>
       )}
 
-      {/* רשימת משימות */}
+      {/* ── רשימת משימות ── */}
       {loading ? (
         <div className="th-loading">טוען משימות...</div>
       ) : filtered.length === 0 ? (
@@ -370,34 +431,60 @@ export default function TasksHub() {
             const overdue = isOverdue(t);
             const custName = customerNames[t.customerId] || '';
             return (
-              <div key={t.id} className={`th-task${t.status === 'done' ? ' th-task-done' : ''}${overdue ? ' th-task-overdue' : ''}`}>
-                <button className={`th-check${t.status === 'done' ? ' th-check-done' : ''}`}
+              <div
+                key={t.id}
+                className={`th-task${t.status === 'done' ? ' th-task-done' : ''}${overdue ? ' th-task-overdue' : ''}`}
+              >
+                {/* ✓ כפתור השלמה */}
+                <button
+                  className={`th-check${t.status === 'done' ? ' th-check-done' : ''}`}
                   onClick={() => t.status !== 'done' && markDone(t.id)}
-                  title={t.status === 'done' ? 'הושלם' : 'סמן כהושלם'}>
+                  title={t.status === 'done' ? 'הושלם' : 'סמן כהושלם'}
+                >
                   {t.status === 'done' ? '✓' : ''}
                 </button>
+
+                {/* גוף המשימה */}
                 <div className="th-task-body">
                   <div className="th-task-text">{t.text}</div>
                   <div className="th-task-meta">
                     {custName && (
-                      <span className="th-task-customer"
+                      <span
+                        className="th-task-customer"
                         onClick={() => t.customerId && router.push(`/customers/${t.customerId}`)}
-                        title="עבור לדף הלקוח">
+                        title="עבור לדף הלקוח"
+                      >
                         👤 {custName}
                       </span>
                     )}
                     {t.dueDate && (
                       <span className={`th-task-due${overdue ? ' th-due-late' : ''}`}>
-                        📅 {formatDateTime(t.dueDate)}{overdue && ' — באיחור'}
+                        📅 {formatDateTime(t.dueDate)}
+                        {overdue && ' — באיחור'}
                       </span>
                     )}
-                    <span className="th-task-assignee">🙋 {t.assignedToName || getUserName(t.assignedTo)}</span>
+                    <span className="th-task-assignee">
+                      🙋 {t.assignedToName || getUserName(t.assignedTo)}
+                    </span>
                   </div>
                 </div>
-                <button className="th-btn-edit-task" onClick={() => openEdit(t)} title="ערוך משימה">✏</button>
-                <select className={`th-status-select ${STATUS_CLASS[t.status]}`} value={t.status}
-                  onChange={e => changeStatus(t.id, e.target.value as TaskStatus)}>
-                  {Object.entries(STATUS_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+
+                {/* עריכה */}
+                <button
+                  className="th-btn-edit-task"
+                  onClick={() => openEdit(t)}
+                  title="ערוך משימה"
+                >✏</button>
+
+                {/* סטטוס */}
+                <select
+                  className={`th-status-select ${STATUS_CLASS[t.status]}`}
+                  value={t.status}
+                  onChange={e => changeStatus(t.id, e.target.value as TaskStatus)}
+                >
+                  {Object.entries(STATUS_LABEL).map(([k, v]) => (
+                    <option key={k} value={k}>{v}</option>
+                  ))}
                 </select>
               </div>
             );
@@ -405,30 +492,57 @@ export default function TasksHub() {
         </div>
       )}
 
-      {/* מודל עריכה */}
+      {/* ── מודל עריכה ── */}
       {editingTask && (
         <div className="th-modal-overlay" onClick={() => setEditingTask(null)}>
           <div className="th-modal" onClick={e => e.stopPropagation()}>
             <div className="th-modal-title">עריכת משימה</div>
             <div className="th-form-field" style={{ marginBottom: 10 }}>
               <label className="th-label">תיאור</label>
-              <input className="th-input" value={editText} onChange={e => setEditText(e.target.value)} />
+              <input
+                className="th-input"
+                value={editText}
+                onChange={e => setEditText(e.target.value)}
+              />
             </div>
             <div className="th-form-row" style={{ marginBottom: 10 }}>
               <div className="th-form-field">
                 <label className="th-label">תאריך ושעה</label>
-                <DateTimePicker value={editDue} onChange={setEditDue} />
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <input
+                    type="date"
+                    className="th-input"
+                    value={editDue.split('T')[0] ?? ''}
+                    onChange={e => {
+                      const time = editDue.split('T')[1] ?? '10:00';
+                      setEditDue(`${e.target.value}T${time}`);
+                    }}
+                  />
+                  <input
+                    type="time"
+                    className="th-input"
+                    value={editDue.split('T')[1] ?? ''}
+                    onChange={e => {
+                      const date = editDue.split('T')[0] ?? '';
+                      setEditDue(`${date}T${e.target.value}`);
+                    }}
+                  />
+                </div>
               </div>
               <div className="th-form-field">
                 <label className="th-label">אחראי</label>
                 <select className="th-input" value={editAssigned} onChange={e => setEditAssigned(e.target.value)}>
-                  {agentUsers.map(u => <option key={u.id} value={u.id}>{u.name || u.displayName || u.email}</option>)}
+                  {agentUsers.map(u => (
+                    <option key={u.id} value={u.id}>{u.name || u.displayName || u.email}</option>
+                  ))}
                 </select>
               </div>
               <div className="th-form-field">
                 <label className="th-label">סטטוס</label>
                 <select className="th-input" value={editStatus} onChange={e => setEditStatus(e.target.value as TaskStatus)}>
-                  {Object.entries(STATUS_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                  {Object.entries(STATUS_LABEL).map(([k, v]) => (
+                    <option key={k} value={k}>{v}</option>
+                  ))}
                 </select>
               </div>
             </div>
@@ -443,9 +557,13 @@ export default function TasksHub() {
       )}
 
       {toasts.map(t => (
-        <ToastNotification key={t.id} type={t.type} message={t.message}
+        <ToastNotification
+          key={t.id}
+          type={t.type}
+          message={t.message}
           className={t.isHiding ? 'hide' : ''}
-          onClose={() => setToasts(prev => prev.filter(x => x.id !== t.id))} />
+          onClose={() => setToasts(prev => prev.filter(x => x.id !== t.id))}
+        />
       ))}
     </div>
   );

@@ -82,6 +82,7 @@ function mapProsaasToLead(payload: any) {
     mail: clean(contact.email || payload.email || payload.mail),
 
     IDCustomer: clean(
+      contact.id_number ||
       payload.id_number ||
         payload.IDCustomer ||
         customFields.id_number ||
@@ -89,6 +90,7 @@ function mapProsaasToLead(payload: any) {
     ),
 
     birthday: clean(
+      contact.birth_date ||
       payload.birth_date ||
         payload.birthday ||
         customFields.birth_date ||

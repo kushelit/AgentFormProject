@@ -36,6 +36,7 @@ interface CustomerDoc {
   notes?: string;
   parentID?: string;
   parentFullName?: string;
+  shortNote?: string;
   AgentId: string;
 }
 
@@ -126,7 +127,7 @@ export default function CustomerPage() {
   const { user, detail } = useAuth();
   const { formatIsraeliDateOnly, sourceLeadMap, fetchSourceLeadMap } = useFetchMD();
   const { toasts, addToast, setToasts } = useToast();
-  const { canAccess: canAccessCrm } = usePermission('access_crm_module');
+
   const { agents, selectedAgentId, handleAgentChange } = useFetchAgentData();
 
   const { canAccess: canViewCommissions } = usePermission('view_commissions_field');
@@ -159,6 +160,7 @@ export default function CustomerPage() {
       mail: customer.mail ?? '',
       address: customer.address ?? '',
       notes: customer.notes ?? '',
+      shortNote: customer.shortNote ?? '',
     });
     setIsEditing(true);
   };
@@ -247,42 +249,33 @@ export default function CustomerPage() {
   }, [customer?.AgentId]);
 
   // ─── חישוב עמלות (מהלוגיקה הקיימת) ─────────────────────────────────────────
-const calculateCommissions = (sale: any, contractMatch: any) => {
-  const product = productMap[sale.product];
-  const isOneTime = product?.isOneTime ?? false;
-  const multiplier = isOneTime ? 1 : 12;
-  const toNum = (v: any) => parseInt(v) || 0;
+  const calculateCommissions = (sale: any, contractMatch: any) => {
+    const product = productMap[sale.product];
+    const isOneTime = product?.isOneTime ?? false;
+    const multiplier = isOneTime ? 1 : 12;
 
-  let hekef = 0;
-  let nifraim = 0;
+    const toNum = (v: any) => parseInt(v) || 0;
 
-  const match = contractMatch ?? contracts.find(c =>
-    c.AgentId === customer?.AgentId &&
-    c.productsGroup === product?.productGroup &&
-    (c.minuySochen === sale.minuySochen || (c.minuySochen === undefined && !sale.minuySochen))
-  );
+    if (!contractMatch) return { commissionHekef: 0, commissionNifraim: 0 };
 
-  if (match) {
-    hekef =
-      toNum(sale.insPremia) * match.commissionHekef / 100 * multiplier +
-      toNum(sale.pensiaPremia) * match.commissionHekef / 100 * multiplier +
-      toNum(sale.pensiaZvira) * match.commissionNiud / 100 +
-      toNum(sale.finansimPremia) * match.commissionHekef / 100 * multiplier +
-      toNum(sale.finansimZvira) * match.commissionNiud / 100;
+    const hekef =
+      toNum(sale.insPremia) * contractMatch.commissionHekef / 100 * multiplier +
+      toNum(sale.pensiaPremia) * contractMatch.commissionHekef / 100 * multiplier +
+      toNum(sale.pensiaZvira) * contractMatch.commissionNiud / 100 +
+      toNum(sale.finansimPremia) * contractMatch.commissionHekef / 100 * multiplier +
+      toNum(sale.finansimZvira) * contractMatch.commissionNiud / 100;
 
-    if (!isOneTime) {
-      nifraim =
-        toNum(sale.insPremia) * match.commissionNifraim / 100 +
-        toNum(sale.pensiaPremia) * match.commissionNifraim / 100 +
-        toNum(sale.finansimZvira) * match.commissionNifraim / 100 / 12;
-    }
-  }
+    const nifraim = isOneTime ? 0 : (
+      toNum(sale.insPremia) * contractMatch.commissionNifraim / 100 +
+      toNum(sale.pensiaPremia) * contractMatch.commissionNifraim / 100 +
+      toNum(sale.finansimZvira) * contractMatch.commissionNifraim / 100 / 12
+    );
 
-  return {
-    commissionHekef: Math.round(hekef),
-    commissionNifraim: Math.round(nifraim),
+    return {
+      commissionHekef: Math.round(hekef),
+      commissionNifraim: Math.round(nifraim),
+    };
   };
-};
 
   // ─── טעינת עסקאות Magic ──────────────────────────────────────────────────────
   useEffect(() => {
@@ -310,7 +303,7 @@ const calculateCommissions = (sale: any, contractMatch: any) => {
           const effectiveMonth = s.mounth || s.month;
           const contractMatch = contracts.find(
             c =>
-              c.AgentId === agentId &&
+              c.agentId === agentId &&
               c.product === s.product &&
               c.company === s.company &&
               (c.minuySochen === s.minuySochen || (c.minuySochen === undefined && !s.minuySochen)),
@@ -331,7 +324,7 @@ const calculateCommissions = (sale: any, contractMatch: any) => {
       }
     };
 
-if (contracts.length > 0 && Object.keys(productMap).length > 0) load();
+    if (contracts.length > 0) load();
   }, [customer, contracts, productMap]);
 
   // ─── טעינת נפרעים מקלטות ─────────────────────────────────────────────────────
@@ -439,16 +432,14 @@ rows.push({ company: r.company ?? '', product: r.product ?? '', policyNumber: r.
     (customer.sourceLead && sourceLeadMap[customer.sourceLead]) ||
     '—';
 
-const tabs: { key: TabKey; label: string }[] = [
-  { key: 'magic', label: 'עסקאות Magic' },
-  { key: 'nifraim', label: 'נפרעים מקלטות' },
-  { key: 'gaps', label: 'פערים' },
-  { key: 'family', label: 'קשרים משפחתיים' },
-  ...(canAccessCrm ? [
-    { key: 'notes' as TabKey, label: 'הערות' },
-    { key: 'tasks' as TabKey, label: 'משימות' },
-  ] : []),
-];
+  const tabs: { key: TabKey; label: string }[] = [
+    { key: 'magic', label: 'עסקאות Magic' },
+    { key: 'nifraim', label: 'נפרעים מקלטות' },
+    { key: 'gaps', label: 'פערים' },
+    { key: 'family', label: 'קשרים משפחתיים' },
+    { key: 'notes', label: 'הערות' },
+    { key: 'tasks', label: 'משימות' },
+  ];
 
   return (
     <div className="cp-page" dir="rtl">
@@ -564,6 +555,19 @@ const tabs: { key: TabKey; label: string }[] = [
             <span className="cp-field-label">מקור ליד</span>
             <span className="cp-field-value">{sourceName}</span>
           </div>
+          <div className="cp-field">
+            <span className="cp-field-label">הערת רקע</span>
+            {isEditing ? (
+              <input
+                className="cp-edit-input-field"
+                placeholder="תזכורת קצרה על הלקוח..."
+                value={editData.shortNote ?? ''}
+                onChange={e => setEditData(p => ({ ...p, shortNote: e.target.value }))}
+              />
+            ) : (
+              <span className="cp-field-value">{customer.shortNote || '—'}</span>
+            )}
+          </div>
           {(isEditing || customer.notes) && (
             <div className="cp-field cp-field-full">
               <span className="cp-field-label">הערות</span>
@@ -629,9 +633,7 @@ const tabs: { key: TabKey; label: string }[] = [
                   {canViewCommissions && (
                     <tfoot>
                       <tr>
-<td colSpan={5} style={{ fontWeight: 'bold', textAlign: 'left' }}>
-  סה&quot;כ
-</td>
+                        <td colSpan={5} style={{ fontWeight: 'bold', textAlign: 'left' }}>סה"כ</td>
                         <td style={{ fontWeight: 'bold' }}>{totalMagicHekef.toLocaleString()} ₪</td>
                         <td style={{ fontWeight: 'bold' }}>{magicNifraim.toLocaleString()} ₪</td>
                       </tr>
@@ -782,7 +784,7 @@ const tabs: { key: TabKey; label: string }[] = [
                           {isMain && <span className="cp-chip-main">ראשי</span>}
                           {isCurrent && <span className="cp-chip-current">נוכחי</span>}
                         </span>
-<span className="cp-fmember-sub">ת&quot;ז {m.IDCustomer}</span>
+                        <span className="cp-fmember-sub">ת"ז {m.IDCustomer}</span>
                       </div>
                       {!isCurrent && <span className="cp-family-arrow">←</span>}
                     </div>
@@ -794,16 +796,15 @@ const tabs: { key: TabKey; label: string }[] = [
         )}
 
         {/* ── הערות ── */}
-    {activeTab === 'notes' && (
-  canAccessCrm
-    ? <CustomerNotes customerId={customerId} agentId={customer.AgentId} />
-    : <div className="cp-empty">אין הרשאה</div>
-)}
-{activeTab === 'tasks' && (
-  canAccessCrm
-    ? <CustomerTasks customerId={customerId} agentId={customer.AgentId} />
-    : <div className="cp-empty">אין הרשאה</div>
-)}
+        {activeTab === 'notes' && (
+          <CustomerNotes customerId={customerId} agentId={customer.AgentId} />
+        )}
+
+        {/* ── משימות ── */}
+        {activeTab === 'tasks' && (
+          <CustomerTasks customerId={customerId} agentId={customer.AgentId} />
+        )}
+
       </div>
 
       {/* ── Toasts ── */}

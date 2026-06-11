@@ -4,6 +4,8 @@
 // + שחרור נעילה (portalImportLocks) בנפרד, ללא קשר ל-DELETE
 // קובץ: app/admin/commission-purge/page.tsx
 
+//token to facebook to keep
+//EAAVvIohuDZCwBRlXYu7OyNN1S8ZBcNENrT3HOSdVtJOUdr0bxso0DBBiqfQZA70yhAIOSZBgZBwXbDzElV5Xp4Ubkoub44qJThuyGxdhuglanFQqt8ZApbej701W7U6PjTll4LzHe3fJx8t7ZCfOntLyeFXxM8rpZCo8p48fODz2KZCjGW42V52e0SiZCtWRn7BgZDZD
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
