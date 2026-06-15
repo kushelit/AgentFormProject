@@ -680,6 +680,7 @@ const handleConvertToCustomer = async (lead: LeadsType) => {
       mail: lead.mail || '',
       address: lead.address || '',
       birthday: lead.birthday || '',
+      issueDay: lead.idCardIssueDate || '',
       notes: lead.notes || '',
       sourceValue: lead.sourceValue || '',
       sourceLead: lead.sourceValue || '',
@@ -897,6 +898,14 @@ url = await getDownloadURL(storageRef);
     className={errors.IDCustomer ? "input-error" : ""}
   />
   {errors.IDCustomer && <div className="error-message">{errors.IDCustomer}</div>}
+</div>
+<div className="form-group">
+  <label>תאריך הנפקת תז</label>
+  <input
+    type="date"
+    value={editData?.idCardIssueDate || ""}
+    onChange={(e) => handleEditLeadChange("idCardIssueDate", e.target.value)}
+  />
 </div>
             <div className="form-group">
               <label>תאריך לידה</label>

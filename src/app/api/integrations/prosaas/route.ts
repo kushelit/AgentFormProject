@@ -100,6 +100,7 @@ function mapProsaasToLead(payload: any) {
     gender: clean(contact.gender || payload.gender || customFields.gender),
     city: clean(contact.city || payload.city || customFields.city),
     notes: clean(payload.notes || payload.description),
+    idCardIssueDate: clean(customFields.id_card_issue_date || ''),
 
     externalSystem: 'prosaas',
     externalBusinessId: clean(payload.business_id),

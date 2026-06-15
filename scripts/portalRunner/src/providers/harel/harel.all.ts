@@ -81,7 +81,7 @@ export async function runHarelAll(ctx: RunnerCtx) {
       templateId: "harel_tzvira",
       stepPrefix: "harel_tzvira",
       label: "צבירה",
-      fn: () => harelNavigateToTzviraReport(page, absDir),
+      fn: () => harelNavigateToTzviraReport(page, absDir, ctx),
     },
   ];
 

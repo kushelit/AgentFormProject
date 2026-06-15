@@ -1,6 +1,19 @@
 import type { Page } from "playwright";
 import type { RunnerCtx } from "../../types";
 import path from "path";
+import fs from 'fs';
+
+
+const logFile = path.join(
+  String(process.env.APPDATA || ''),
+  'MagicSaleRunner', 'logs', 'tzvira_debug.txt'
+);
+
+const dlog = (msg: string) => {
+  try {
+    fs.appendFileSync(logFile, `[${new Date().toISOString()}] ${msg}\n`);
+  } catch {}
+};
 
 export async function harelLogin(page: Page, username: string, password: string) {
   // console.log("[Harel] Checking for error page...");
@@ -313,7 +326,8 @@ export async function harelNavigateToReport(
 
 export async function harelNavigateToTzviraReport(
   page: Page,
-  absDir: string
+  absDir: string,
+  ctx: RunnerCtx
 ): Promise<{ localPath: string; filename: string }[]> {
   const results: { localPath: string; filename: string }[] = [];
   const reportUrl = "https://agents-int.harel-group.co.il/Information/Reports/life-health-saving/Agent/Pages/commissions/payments-assembly.aspx";
@@ -379,7 +393,6 @@ export async function harelNavigateToTzviraReport(
     if (check === 'FOUND') break;
     await page.waitForTimeout(1000);
   }
-
   // ✅ שלב 4: לחץ על תא החודש - modal ראשון
   // console.log("[Harel] Clicking first modal cell...");
   const firstClickResult = await frame.evaluate(`(function() {
@@ -450,147 +463,105 @@ const clearResult = await filterFrame.evaluate(`(function() {
 })()`);
 // console.log("[Harel] Clear filter result:", clearResult);
 await newPage.waitForTimeout(2000);
+// פונקציית עזר: לחיצת עכבר אמיתית על אלמנט בתוך frame
+async function clickInFrame(
+  newPage: any,
+  filterFrame: any,
+  selector: string
+): Promise<boolean> {
+  const rect = await filterFrame.evaluate(`(function() {
+    const el = document.querySelector('${selector}');
+    if (!el) return null;
+    const r = el.getBoundingClientRect();
+    return { x: r.left + r.width/2, y: r.top + r.height/2 };
+  })()`).catch(() => null);
 
-  // ✅ שלב 8: פתח dropdown חברה מנהלת + בחר הכל
-  // console.log("[Harel] Opening חברה מנהלת dropdown...");
-  await filterFrame.evaluate(`(function() {
-    const btn = document.querySelector('#_ctrlParam__4 .ctrlbutton.cbo');
-    if (!btn) return 'NOT_FOUND';
-    ['mousedown', 'mouseup', 'click'].forEach(evt =>
-      btn.dispatchEvent(new MouseEvent(evt, { bubbles: true, cancelable: true, view: window }))
-    );
-    return 'CLICKED';
-  })()`);
-
-  for (let i = 0; i < 20; i++) {
-    const check = await filterFrame.evaluate(
-      `document.querySelector('div.selectall') ? 'FOUND' : 'NOT_FOUND'`
-    ).catch(() => 'ERROR');
-    // console.log(`[Harel] חברה מנהלת selectall check ${i + 1}:`, check);
-    if (check === 'FOUND') break;
-    await newPage.waitForTimeout(500);
+  if (!rect) {
+    dlog(`clickInFrame: NOT FOUND: ${selector}`);
+    return false;
   }
 
-  await filterFrame.evaluate(`(function() {
-    const el = document.querySelector('div.selectall');
-    if (!el) return 'NOT_FOUND';
-    ['mousedown', 'mouseup', 'click'].forEach(evt =>
-      el.dispatchEvent(new MouseEvent(evt, { bubbles: true, cancelable: true, view: window }))
-    );
-    return 'CLICKED';
-  })()`);
+  // מחפשים את ה-frame element ב-page כדי לקבל offset
+  const frameRect = await newPage.evaluate(`(function() {
+    const frames = Array.from(document.querySelectorAll('iframe'));
+    const f = frames.find(f => f.src && f.src.includes('OAOAnalysis'));
+    if (!f) return null;
+    const r = f.getBoundingClientRect();
+    return { x: r.left, y: r.top };
+  })()`).catch(() => null);
+
+  const offsetX = frameRect?.x || 0;
+  const offsetY = frameRect?.y || 0;
+
+  const absX = offsetX + rect.x;
+  const absY = offsetY + rect.y;
+
+  dlog(`clickInFrame: ${selector} at abs(${absX}, ${absY})`);
+  await newPage.mouse.click(absX, absY);
+  return true;
+}
+
+// ✅ שלב 8: חברה מנהלת — בחר הכל
+dlog('Step 8: open חברה מנהלת');
+await clickInFrame(newPage, filterFrame, '#_ctrlParam__4 .ctrlbutton.cbo');
+await newPage.waitForTimeout(1500);
+
+// המתן שהדרופדאון יפתח
+for (let i = 0; i < 20; i++) {
+  const open = await filterFrame.evaluate(
+    `!!document.querySelector('#_ctrlParam__4 .membercontainer')`
+  ).catch(() => false);
+  dlog(`Step 8 wait ${i+1}: open=${open}`);
+  if (open) break;
   await newPage.waitForTimeout(500);
+}
 
-  // ✅ שלב 9: פתח dropdown סוכן + בחר הכל
-  // console.log("[Harel] Opening סוכן dropdown...");
-  await filterFrame.evaluate(`(function() {
-    const btn = document.querySelector('#_ctrlParam__3 .ctrlbutton.cbo');
-    if (!btn) return 'NOT_FOUND';
-    ['mousedown', 'mouseup', 'click'].forEach(evt =>
-      btn.dispatchEvent(new MouseEvent(evt, { bubbles: true, cancelable: true, view: window }))
-    );
-    return 'CLICKED';
-  })()`);
+// לחץ selectall
+await clickInFrame(newPage, filterFrame, '.selectall');
+dlog('Step 8: clicked selectall חברה מנהלת');
+await newPage.waitForTimeout(500);
 
-  for (let i = 0; i < 20; i++) {
-    const check = await filterFrame.evaluate(
-      `document.querySelector('div.selectall') ? 'FOUND' : 'NOT_FOUND'`
-    ).catch(() => 'ERROR');
-    // console.log(`[Harel] סוכן selectall check ${i + 1}:`, check);
-    if (check === 'FOUND') break;
-    await newPage.waitForTimeout(500);
-  }
+// ✅ שלב 9: סוכן — בחר הכל
+await clickInFrame(newPage, filterFrame, '.selectall');
+dlog('Step 9: clicked selectall סוכן');
+await newPage.waitForTimeout(500);
 
-  await filterFrame.evaluate(`(function() {
-    const el = document.querySelector('div.selectall');
-    if (!el) return 'NOT_FOUND';
-    ['mousedown', 'mouseup', 'click'].forEach(evt =>
-      el.dispatchEvent(new MouseEvent(evt, { bubbles: true, cancelable: true, view: window }))
-    );
-    return 'CLICKED';
-  })()`);
-  await newPage.waitForTimeout(1000);
-
-  // ✅ שלב 10: בחר מחודש עיבוד (חודשיים אחורה)
-  const { monthIndex, needNextYear } = getOneMonthAgo();
-  const monthText = hebrewMonthsShort[monthIndex];
-  // console.log(`[Harel] Setting from-month: ${monthText}, needNextYear: ${needNextYear}`);
-
-  // פתח datepicker
-  await filterFrame.evaluate(`(function() {
-    const btn = document.querySelector('#_ctrlParam__2');
-    if (!btn) return 'NOT_FOUND';
-    ['mousedown', 'mouseup', 'click'].forEach(evt =>
-      btn.dispatchEvent(new MouseEvent(evt, { bubbles: true, cancelable: true, view: window }))
-    );
-    return 'CLICKED';
-  })()`);
+for (let i = 0; i < 20; i++) {
+  const open = await filterFrame.evaluate(
+    `!!document.querySelector('#_ctrlParam__3 .membercontainer')`
+  ).catch(() => false);
+  dlog(`Step 9 wait ${i+1}: open=${open}`);
+  if (open) break;
   await newPage.waitForTimeout(500);
+}
 
-  // לחץ חץ קדימה אם צריך לעבור שנה
-  if (needNextYear) {
-    // console.log("[Harel] Clicking next year arrow...");
-    await filterFrame.evaluate(`(function() {
-      const next = document.querySelector('.datepicker-dropdown th.next');
-      if (!next) return 'NOT_FOUND';
-      next.click();
-      return 'CLICKED';
-    })()`);
-    await newPage.waitForTimeout(300);
-  }
+await clickInFrame(newPage, filterFrame, '#_ctrlParam__3 .selectall');
+dlog('Step 9: clicked selectall סוכן');
+await newPage.waitForTimeout(500);
 
-  // בחר חודש
-  const monthResult = await filterFrame.evaluate(`(function(month) {
-    const cells = Array.from(document.querySelectorAll('.datepicker-dropdown .datepicker-months td span'));
-    const target = cells.find(c => (c.textContent || '').trim() === month);
-    if (!target) return 'NOT_FOUND: ' + cells.map(c => c.textContent?.trim()).join(' | ');
-    target.click();
-    return 'CLICKED: ' + target.textContent?.trim();
-  })('${monthText}')`);
-  // console.log("[Harel] From-month result:", monthResult);
-  await newPage.waitForTimeout(500);
-
-  // ✅ שלב 11: לחץ סנן מידע
-  // console.log("[Harel] Clicking filter apply...");
-  const filterResult = await filterFrame.evaluate(`(function() {
-    let btn = document.querySelector('#H_InlineFilters_Apply_2');
-    if (!btn) btn = document.querySelector('.filter-apply.click-enter');
-    if (!btn) return 'NOT_FOUND';
-    ['mousedown', 'mouseup', 'click'].forEach(evt =>
-      btn.dispatchEvent(new MouseEvent(evt, { bubbles: true, cancelable: true, view: window }))
-    );
-    return 'CLICKED: ' + btn.textContent?.trim();
-  })()`);
-  // console.log("[Harel] Tzvira filter result:", filterResult);
-
+// ✅ שלב 11: סנן מידע
+dlog('Step 11: clicking filter apply');
+await clickInFrame(newPage, filterFrame, '#H_InlineFilters_Apply_2');
 await newPage.waitForTimeout(10000);
 await newPage.waitForLoadState("networkidle", { timeout: 120000 }).catch(() => {});
-await newPage.waitForTimeout(5000); // buffer נוסף אחרי networkidle
+await newPage.waitForTimeout(5000);
+dlog('Step 11: done waiting after filter');
 
-  // ✅ שלב 12: הורד אקסל
-  // console.log("[Harel] Clicking Excel export for tzvira...");
-  try {
-    const [download] = await Promise.all([
-      newPage.waitForEvent("download", { timeout: 60000 }),
-      filterFrame.evaluate(`(function() {
-        const btn = document.querySelector('.bar-excel');
-        if (!btn) return 'NOT_FOUND';
-        ['mousedown', 'mouseup', 'click'].forEach(evt =>
-          btn.dispatchEvent(new MouseEvent(evt, { bubbles: true, cancelable: true, view: window }))
-        );
-        return 'CLICKED';
-      })()`)
-    ]);
+// ✅ שלב 12: אקסל
+dlog('Step 12: clicking excel');
+try {
+  const [download] = await Promise.all([
+    newPage.waitForEvent("download", { timeout: 60000 }),
+    clickInFrame(newPage, filterFrame, '.bar-excel'),
+  ]);
 
-    const filename = download.suggestedFilename();
-    const localPath = path.join(absDir, `${Date.now()}_${filename}`);
-    await download.saveAs(localPath);
-    // console.log("[Harel] Tzvira saved:", localPath);
-    results.push({ localPath, filename });
-
-  } catch (e: any) {
-    // console.log("[Harel] Tzvira Excel download failed:", e?.message);
-  }
-
+  const filename = download.suggestedFilename();
+  const localPath = path.join(absDir, `${Date.now()}_${filename}`);
+  await download.saveAs(localPath);
+  dlog(`Step 12: saved ${localPath}`);
+  results.push({ localPath, filename });
+} catch (e: any) {
+  dlog(`Step 12: excel download failed: ${e?.message}`);
+}
   return results;
 }

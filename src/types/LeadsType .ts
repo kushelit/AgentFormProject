@@ -25,4 +25,5 @@ export interface LeadsType {
   campaign: string;
   AgentId: string;
   agentName?: string;
+  idCardIssueDate?: string;
 }

@@ -13,7 +13,7 @@ import useFetchMD from '@/hooks/useMD';
 import { collection, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase/firebase';
 import { ChevronLeft, ChevronRight, PieChart as PieIcon } from 'lucide-react';
-
+import AnomalyPoliciesModal from '@/components/commission/AnomalyPoliciesModal';
 
 
 // 1. ייבוא של כל הספרייה תחת משתנה אחד עם השתקת שגיאות גורפת
@@ -157,6 +157,8 @@ const [templateYearDrill, setTemplateYearDrill] = useState<{
   templateName: string;
   byMonth: Record<string, number>;
 } | null>(null);
+
+const [showAnomalies, setShowAnomalies] = useState(false);
 
 
 async function openTemplateDrill(companyId: string, companyName: string, ym?: string) {
@@ -618,6 +620,13 @@ const groupMonthlyData = useMemo(() => {
   className="bg-indigo-600 text-white px-4 py-2 rounded-lg font-bold shadow-lg hover:bg-indigo-700 transition"
 >
   {showYearlyAnalysis ? 'סגור ניתוח שנתי' : '📊 ניתוח תיק שנתי'}
+</button>
+<button
+  onClick={() => setShowAnomalies(true)}
+  disabled={!selectedAgentId || !selectedYear}
+  className="bg-red-50 text-red-700 border border-red-200 px-4 py-2 rounded-lg font-bold hover:bg-red-100 transition disabled:opacity-40"
+>
+  ⚠️ פוליסות חריגות
 </button>
       </div>
       {loading ? (
@@ -1495,6 +1504,13 @@ onClick={() => {
       </table>
     </div>
   </div>
+)}
+{showAnomalies && selectedAgentId && (
+  <AnomalyPoliciesModal
+    agentId={selectedAgentId}
+    selectedYear={selectedYear}
+    onClose={() => setShowAnomalies(false)}
+  />
 )}
     </div>
   );

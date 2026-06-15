@@ -177,7 +177,7 @@ function getYmForLock(resolved: any): string | null {
 async function acquireTemplateMonthLockClient(params: {
   db: any; agentId: string; templateId: string; ym: string; runId: string; runnerId: string; ttlMinutes?: number;
 }): Promise<LockResult> {
-  const ttlMinutes = params.ttlMinutes ?? 10;
+  const ttlMinutes = params.ttlMinutes ?? 3;
   const ref = doc(params.db, "portalImportLocks", lockDocId(params.agentId, params.templateId, params.ym));
   const now = Timestamp.now();
   const expiresAt = Timestamp.fromMillis(now.toMillis() + ttlMinutes * 60 * 1000);

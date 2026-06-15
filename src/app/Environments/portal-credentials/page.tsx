@@ -46,6 +46,12 @@ function PortalModal({
   const isAltshuler = portalId === "altshuler";
   const isYalin = portalId === "yalin";
   const isInfinity = portalId === "infinity";
+  const isClal = portalId === "clal";
+  const isAyalon = portalId === "ayalon";
+  const isHachshara = portalId === "hachshara";
+  const isHarel = portalId === "harel";
+  const isMigdal = portalId === "migdal";
+  const isFenix = portalId === "fenix";
 
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -54,6 +60,34 @@ function PortalModal({
   const [showPassword, setShowPassword] = useState(false);
   const [saving, setSaving] = useState(false);
   const [altshulerLoginType, setAltshulerLoginType] = useState<"company" | "agent">("company");
+
+
+const [loadingCreds, setLoadingCreds] = useState(false);
+
+useEffect(() => {
+  const load = async () => {
+    const st = statusMap[portalId];
+    if (!st?.has) return;
+
+    setLoadingCreds(true);
+    try {
+      const fn = httpsCallable(functions, "getPortalCredentialsDecrypted");
+      const res: any = await fn({ portalId });
+      const data = res?.data || {};
+
+      if (data.username) setUsername(data.username);
+      if (data.phoneNumber) setPhoneNumber(data.phoneNumber);
+      if (data.licenseNumber) setLicenseNumber(data.licenseNumber);
+      if (data.loginType) setAltshulerLoginType(data.loginType);
+    } catch {
+      // ignore
+    } finally {
+      setLoadingCreds(false);
+    }
+  };
+  load();
+}, [portalId]);
+
 
   const canSave =
     !!agentId &&
@@ -139,7 +173,7 @@ function PortalModal({
           {isAnalyst && "אנליסט: תעודת זהות + טלפון (ללא סיסמה) ← OTP בזמן הרצה."}
           {isAltshuler && "אלטשולר: תעודת זהות + מספר ח.פ / רישיון (ללא סיסמה וללא טלפון)."}
           {isYalin && "יאלין: תעודת זהות + טלפון (ללא סיסמה) ← OTP בזמן הרצה."}
-          {isInfinity && "אינפיניטי: כניסה באמצעות OTP בלבד."}
+          {isInfinity && "אינפיניטי: כניסה באמצעות תעודת זהות + OTP בלבד."}
           {!isMenora && !isMor && !isMeitav && !isAnalyst && !isAltshuler && !isYalin && !isInfinity &&
             "פורטל זה משתמש בשם משתמש + סיסמה."}
         </div>
@@ -147,7 +181,7 @@ function PortalModal({
         {/* שדות */}
         <div className="mb-3">
           <label className="block font-semibold mb-1">
-            {isMor || isMeitav || isAnalyst || isAltshuler || isYalin || isInfinity
+            {isMor || isMeitav || isAnalyst || isAltshuler || isYalin || isInfinity || isClal || isFenix
               ? "תעודת זהות:"
               : "שם משתמש:"}
           </label>
@@ -155,12 +189,21 @@ function PortalModal({
             className="select-input w-full"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
+            autoComplete="off"
             placeholder={
               isMor ? "תעודת זהות לפורטל מור"
               : isMeitav ? "תעודת זהות לפורטל מיטב"
-              : isMenora ? "קוד משתמש / ת״ז לפורטל מנורה"
+              : isMenora ? "שם משתמש לפורטל מנורה"
               : isAnalyst ? "תעודת זהות לפורטל אנליסט"
               : isAltshuler ? "תעודת זהות לפורטל אלטשולר"
+              : isClal ? "תעודת זהות לפורטל כלל"
+              : isAyalon ? "שם משתמש לפורטל איילון"
+              : isInfinity ? "תעודת זהות לפורטל אינפיניטי"
+              : isHachshara ? "שם משתמש לפורטל הכשרה"
+              : isHarel ? "שם משתמש לפורטל הראל"
+              : isYalin ? "תעודת זהות לפורטל יאלין"
+              : isMigdal ? "שם משתמש לפורטל מגדל"
+              : isFenix ? "תעודת זהות לפורטל הפניקס"
               : "שם משתמש / ת״ז"
             }
           />
@@ -193,6 +236,7 @@ function PortalModal({
               className="select-input w-full"
               value={licenseNumber}
               onChange={(e) => setLicenseNumber(e.target.value)}
+              autoComplete="off"
               placeholder={
                 isMor
                   ? "מספר רישיון לפורטל מור"
@@ -206,13 +250,12 @@ function PortalModal({
 
         {(isMenora || isMor || isMeitav || isAnalyst || isYalin) && (
           <div className="mb-3">
-            <label className="block font-semibold mb-1">
-              {isMor || isMeitav || isAnalyst ? "טלפון:" : "טלפון / SAPN:"}
-            </label>
+           <label className="block font-semibold mb-1">טלפון:</label>
             <input
               className="select-input w-full"
               value={phoneNumber}
               onChange={(e) => setPhoneNumber(e.target.value)}
+             autoComplete="off"
               placeholder={
                 isMor ? "מספר טלפון להזדהות בפורטל מור"
                 : isMeitav ? "מספר טלפון להזדהות בפורטל מיטב"
@@ -234,6 +277,7 @@ function PortalModal({
                 type={showPassword ? "text" : "password"}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                autoComplete="new-password"
                 placeholder="סיסמה לפורטל"
               />
               <button
