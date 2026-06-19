@@ -527,23 +527,6 @@ export default function PortalCredentialsPage() {
           </div>
         </div>
       )}
-      {/* טסט זמני - למחוק אחרי */}
-<div className="mt-4 border rounded p-3 bg-yellow-50">
-  <div className="font-semibold mb-2">🧪 טסט שליחת WhatsApp</div>
-  <Button
-    text="שלח מנה טסט"
-    type="primary"
-    onClick={async () => {
-      try {
-        const fn = httpsCallable(functions, "sendReengagementBatch");
-        const result: any = await fn({});
-        alert(JSON.stringify(result.data, null, 2));
-      } catch (e: any) {
-        alert(`שגיאה: ${e.message}`);
-      }
-    }}
-  />
-</div>
     </div>
   );
 }

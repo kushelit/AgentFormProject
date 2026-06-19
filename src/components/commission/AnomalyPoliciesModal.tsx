@@ -45,7 +45,10 @@ type Props = {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function fmtNum(v: number) {
-  return Number(v).toLocaleString('he-IL', { maximumFractionDigits: 2 });
+  const n = Math.round(Number(v) * 100) / 100;
+  if (Object.is(n, -0)) return '0'; // טיפול ספציפי ב--0
+  if (n === 0) return '0';
+  return n.toLocaleString('he-IL', { maximumFractionDigits: 2 });
 }
 
 function getDefaultMonth(): string {
@@ -68,13 +71,16 @@ function premiumColor(premium: number, commission: number) {
 }
 
 function anomalyBadge(row: AnomalyRow) {
-  if (row.totalPremiumAmount > 0 && row.totalCommissionAmount < 0) {
+  const comm = row.totalCommissionAmount;
+  const prem = row.totalPremiumAmount;
+  
+  if (prem > 0 && comm < -0.001) {
     return { label: 'פרמיה חיובית + עמלה שלילית', color: 'bg-red-100 text-red-700 border-red-200' };
   }
-  if (row.totalPremiumAmount > 0 && row.totalCommissionAmount === 0) {
+  if (prem > 0 && Math.abs(comm) < 0.001) {
     return { label: 'פרמיה ללא עמלה', color: 'bg-orange-100 text-orange-700 border-orange-200' };
   }
-  if (row.totalCommissionAmount < 0) {
+  if (comm < -0.001) {
     return { label: 'עמלה שלילית', color: 'bg-red-100 text-red-700 border-red-200' };
   }
   return { label: 'עמלה 0', color: 'bg-yellow-100 text-yellow-700 border-yellow-200' };
@@ -122,7 +128,7 @@ function PolicyHistoryModal({
     if (!rows.length) return;
     const ws = XLSX.utils.json_to_sheet(rows.map(r => ({
       'חודש דיווח': r.reportMonth,
-      'קוד סוכן': r.agentCode,
+      'מספר סוכן': r.agentCode,
       'מוצר': r.product ?? '',
       'פרמיה': r.totalPremiumAmount,
       'עמלה': r.totalCommissionAmount,
@@ -176,9 +182,9 @@ function PolicyHistoryModal({
               <thead>
                 <tr className="bg-gray-50 text-gray-500 text-xs">
                   <th className="border px-3 py-2 text-right">חודש</th>
-                  <th className="border px-3 py-2 text-right">קוד סוכן</th>
+                  <th className="border px-3 py-2 text-right">מספר סוכן</th>
                   <th className="border px-3 py-2 text-right">מוצר</th>
-                  <th className="border px-3 py-2 text-right">פרמיה</th>
+                  <th className="border px-3 py-2 text-right">פרמיה/צבירה</th>
                   <th className="border px-3 py-2 text-right">עמלה</th>
                   <th className="border px-3 py-2 text-right">% עמלה</th>
                 </tr>
@@ -229,6 +235,12 @@ export default function AnomalyPoliciesModal({ agentId, selectedYear, onClose }:
   const [search, setSearch] = useState('');
 
   const [historyPolicy, setHistoryPolicy] = useState<AnomalyRow | null>(null);
+  const [activeStatFilter, setActiveStatFilter] = useState<'negative' | 'zero' | 'premium_positive' | null>(null);
+
+  const [filterAgentCode, setFilterAgentCode] = useState('');
+  const agentCodes = useMemo(() => Array.from(new Set(rows.map(r => r.agentCode).filter(Boolean))).sort(), [rows]);
+
+const isNegative = (v: number) => Math.round(v * 100) / 100 < 0;
 
   const load = async () => {
     if (!selectedMonth) return;
@@ -253,11 +265,16 @@ export default function AnomalyPoliciesModal({ agentId, selectedYear, onClose }:
 
   const filtered = useMemo(() => {
     return rows.filter(r => {
+
+      if (activeStatFilter === 'negative' && !isNegative(r.totalCommissionAmount)) return false;      if (activeStatFilter === 'zero' && r.totalCommissionAmount !== 0) return false;
+      if (activeStatFilter === 'premium_positive' &&
+      !(r.totalPremiumAmount > 0 && r.totalCommissionAmount <= 0)) return false;
       if (filterType === 'zero_commission' && r.totalCommissionAmount !== 0) return false;
-      if (filterType === 'negative_commission' && r.totalCommissionAmount >= 0) return false;
+      if (filterType === 'negative_commission' && !isNegative(r.totalCommissionAmount)) return false;
       if (filterType === 'premium_positive_commission_zero' &&
         !(r.totalPremiumAmount > 0 && r.totalCommissionAmount <= 0)) return false;
       if (filterCompany && r.company !== filterCompany) return false;
+      if (filterAgentCode && r.agentCode !== filterAgentCode) return false;
       if (search) {
         const q = search.toLowerCase();
         const match =
@@ -268,7 +285,7 @@ export default function AnomalyPoliciesModal({ agentId, selectedYear, onClose }:
       }
       return true;
     });
-  }, [rows, filterType, filterCompany, search]);
+  }, [rows, filterType, filterCompany , filterAgentCode, search , activeStatFilter]);
 
   const exportToExcel = () => {
     if (!filtered.length) return;
@@ -279,7 +296,7 @@ export default function AnomalyPoliciesModal({ agentId, selectedYear, onClose }:
       'חברה': r.company,
       'מוצר': r.product ?? '',
       'חודש דיווח': r.reportMonth,
-      'קוד סוכן': r.agentCode,
+      'מספר סוכן': r.agentCode,
       'פרמיה': r.totalPremiumAmount,
       'עמלה': r.totalCommissionAmount,
       '% עמלה': r.commissionRate,
@@ -295,6 +312,11 @@ export default function AnomalyPoliciesModal({ agentId, selectedYear, onClose }:
     const premiumPositive = rows.filter(r => r.totalPremiumAmount > 0 && r.totalCommissionAmount <= 0).length;
     return { zeroCommission, negativeCommission, premiumPositive };
   }, [rows]);
+
+
+  useEffect(() => {
+  load();
+}, []); // רץ פעם אחת בטעינה
 
   return (
     <>
@@ -354,21 +376,43 @@ export default function AnomalyPoliciesModal({ agentId, selectedYear, onClose }:
               <>
                 {/* Stats */}
                 <div className="grid grid-cols-3 gap-3 mb-5">
-                  <div className="rounded-xl border border-red-100 bg-red-50 p-4 text-center">
-                    <div className="text-xs text-red-500 font-bold mb-1">עמלה שלילית</div>
-                    <div className="text-3xl font-black text-red-600">{stats.negativeCommission}</div>
-                  </div>
-                  <div className="rounded-xl border border-orange-100 bg-orange-50 p-4 text-center">
-                    <div className="text-xs text-orange-500 font-bold mb-1">עמלה 0</div>
-                    <div className="text-3xl font-black text-orange-600">{stats.zeroCommission}</div>
-                  </div>
-                  <div className="rounded-xl border border-yellow-100 bg-yellow-50 p-4 text-center">
-                    <div className="text-xs text-yellow-600 font-bold mb-1">פרמיה חיובית + עמלה 0/שלילית</div>
-                    <div className="text-3xl font-black text-yellow-600">{stats.premiumPositive}</div>
-                  </div>
-                </div>
+              <div
+  onClick={() => setActiveStatFilter(prev => prev === 'negative' ? null : 'negative')}
+  className={`rounded-xl border p-4 text-center cursor-pointer transition ${
+    activeStatFilter === 'negative'
+      ? 'border-red-400 bg-red-100 ring-2 ring-red-400'
+      : 'border-red-100 bg-red-50 hover:bg-red-100'
+  }`}
+>
+  <div className="text-xs text-red-500 font-bold mb-1">עמלה שלילית</div>
+  <div className="text-3xl font-black text-red-600">{stats.negativeCommission}</div>
+</div>
 
-                {/* Filters */}
+<div
+  onClick={() => setActiveStatFilter(prev => prev === 'zero' ? null : 'zero')}
+  className={`rounded-xl border p-4 text-center cursor-pointer transition ${
+    activeStatFilter === 'zero'
+      ? 'border-orange-400 bg-orange-100 ring-2 ring-orange-400'
+      : 'border-orange-100 bg-orange-50 hover:bg-orange-100'
+  }`}
+>
+  <div className="text-xs text-orange-500 font-bold mb-1">עמלה 0</div>
+  <div className="text-3xl font-black text-orange-600">{stats.zeroCommission}</div>
+</div>
+
+<div
+  onClick={() => setActiveStatFilter(prev => prev === 'premium_positive' ? null : 'premium_positive')}
+  className={`rounded-xl border p-4 text-center cursor-pointer transition ${
+    activeStatFilter === 'premium_positive'
+      ? 'border-yellow-400 bg-yellow-100 ring-2 ring-yellow-400'
+      : 'border-yellow-100 bg-yellow-50 hover:bg-yellow-100'
+  }`}
+>
+  <div className="text-xs text-yellow-600 font-bold mb-1">פרמיה חיובית + עמלה 0/שלילית</div>
+  <div className="text-3xl font-black text-yellow-600">{stats.premiumPositive}</div>
+</div>
+</div>
+{/* Filters */}
                 <div className="flex flex-wrap gap-2 mb-4">
                   <select
                     value={filterType}
@@ -389,7 +433,14 @@ export default function AnomalyPoliciesModal({ agentId, selectedYear, onClose }:
                     <option value="">כל החברות</option>
                     {companies.map(c => <option key={c} value={c}>{c}</option>)}
                   </select>
-
+<select
+  value={filterAgentCode}
+  onChange={e => setFilterAgentCode(e.target.value)}
+  className="text-sm border rounded-lg px-3 py-1.5 bg-white"
+>
+  <option value="">כל מספרי הסוכן</option>
+  {agentCodes.map(c => <option key={c} value={c}>{c}</option>)}
+</select>
                   <input
                     type="text"
                     placeholder="חיפוש פוליסה / לקוח / ת״ז..."
@@ -400,8 +451,7 @@ export default function AnomalyPoliciesModal({ agentId, selectedYear, onClose }:
 
                   {(filterType !== 'all' || filterCompany || search) && (
                     <button
-                      onClick={() => { setFilterType('all'); setFilterCompany(''); setSearch(''); }}
-                      className="text-xs text-gray-500 hover:text-gray-700 px-2"
+                   onClick={() => { setFilterType('all'); setFilterCompany(''); setFilterAgentCode(''); setSearch(''); setActiveStatFilter(null); }}                      className="text-xs text-gray-500 hover:text-gray-700 px-2"
                     >
                       נקה סינון
                     </button>
@@ -421,8 +471,9 @@ export default function AnomalyPoliciesModal({ agentId, selectedYear, onClose }:
                           <th className="border-b px-3 py-2.5 text-right">ת״ז</th>
                           <th className="border-b px-3 py-2.5 text-right">לקוח</th>
                           <th className="border-b px-3 py-2.5 text-right">חברה</th>
+                          <th className="border-b px-3 py-2.5 text-right">מספר סוכן</th>
                           <th className="border-b px-3 py-2.5 text-right">מוצר</th>
-                          <th className="border-b px-3 py-2.5 text-right">פרמיה</th>
+                          <th className="border-b px-3 py-2.5 text-right">פרמיה/צבירה</th>
                           <th className="border-b px-3 py-2.5 text-right">עמלה</th>
                           <th className="border-b px-3 py-2.5 text-right">היסטוריה</th>
                         </tr>
@@ -441,6 +492,7 @@ export default function AnomalyPoliciesModal({ agentId, selectedYear, onClose }:
                               <td className="px-3 py-2 text-gray-600">{r.customerId ?? '-'}</td>
                               <td className="px-3 py-2 text-gray-700">{r.fullName ?? '-'}</td>
                               <td className="px-3 py-2 text-gray-600">{r.company}</td>
+                              <td className="px-3 py-2 text-gray-600">{r.agentCode ?? '-'}</td>
                               <td className="px-3 py-2 text-gray-600">{r.product ?? '-'}</td>
                               <td className={`px-3 py-2 text-right ${premiumColor(r.totalPremiumAmount, r.totalCommissionAmount)}`}>
                                 {fmtNum(r.totalPremiumAmount)}

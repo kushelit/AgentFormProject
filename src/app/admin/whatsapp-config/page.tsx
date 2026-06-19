@@ -17,6 +17,8 @@ export default function WhatsAppConfigPage() {
   const [agents, setAgents] = useState<Agent[]>([]);
   const [selectedAgentId, setSelectedAgentId] = useState('');
   const [phoneNumberId, setPhoneNumberId] = useState('');
+  const [templateName, setTemplateName] = useState('');
+  const [updateGlobalToken, setUpdateGlobalToken] = useState(false);
   const [accessToken, setAccessToken] = useState('');
   const [saving, setSaving] = useState(false);
   const [dialog, setDialog] = useState<DialogState | null>(null);
@@ -36,17 +38,34 @@ export default function WhatsAppConfigPage() {
     })();
   }, []);
 
-  const canSave = !!selectedAgentId && !!phoneNumberId && !!accessToken && !saving;
+  const canSave =
+    !!selectedAgentId &&
+    !!phoneNumberId &&
+    (!updateGlobalToken || !!accessToken) &&
+    !saving;
 
   const handleSave = async () => {
     if (!canSave) return;
     setSaving(true);
     try {
       const fn = httpsCallable(functions, 'saveAgentWhatsAppConfig');
-      await fn({ agentId: selectedAgentId, phoneNumberId, accessToken });
-      setDialog({ type: 'success', title: 'נשמר בהצלחה', message: `הוגדר WhatsApp עבור הסוכן.` });
+      await fn({
+        agentId: selectedAgentId,
+        phoneNumberId,
+        templateName: templateName.trim() || undefined,
+        accessToken: updateGlobalToken ? accessToken : undefined,
+      });
+      setDialog({
+        type: 'success',
+        title: 'נשמר בהצלחה',
+        message: updateGlobalToken
+          ? 'הוגדרו פרטי הסוכן וגם עודכן הטוקן הגלובלי לכל הסוכנים.'
+          : 'הוגדרו פרטי WhatsApp עבור הסוכן.',
+      });
       setPhoneNumberId('');
+      setTemplateName('');
       setAccessToken('');
+      setUpdateGlobalToken(false);
       setSelectedAgentId('');
     } catch (e: any) {
       setDialog({ type: 'error', title: 'שגיאה', message: String(e?.message || e) });
@@ -90,17 +109,45 @@ export default function WhatsAppConfigPage() {
           </div>
 
           <div>
-            <label className="block font-semibold mb-1">Access Token (קבוע):</label>
-            <textarea
-              className="border rounded px-2 py-2 w-full font-mono text-xs"
-              rows={3}
-              value={accessToken}
-              onChange={(e) => setAccessToken(e.target.value)}
-              placeholder="הדבק/י את ה-Permanent Access Token"
+            <label className="block font-semibold mb-1">שם תבנית (Template Name):</label>
+            <input
+              className="border rounded px-2 py-2 w-full font-mono"
+              value={templateName}
+              onChange={(e) => setTemplateName(e.target.value)}
+              placeholder="meir_reengagement_initial"
             />
             <p className="text-xs text-gray-400 mt-1">
-              נמצא ב: Meta Business Suite → System Users → Generate Token
+              שם ה-template המאושר עבור ה-WABA של הסוכן הזה
             </p>
+          </div>
+
+          <div className="border-t pt-4">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={updateGlobalToken}
+                onChange={(e) => setUpdateGlobalToken(e.target.checked)}
+              />
+              <span className="font-semibold">עדכן את הטוקן הגלובלי (משותף לכל הסוכנים)</span>
+            </label>
+
+            {updateGlobalToken && (
+              <div className="mt-2">
+                <textarea
+                  className="border rounded px-2 py-2 w-full font-mono text-xs"
+                  rows={3}
+                  value={accessToken}
+                  onChange={(e) => setAccessToken(e.target.value)}
+                  placeholder="הדבק/י את ה-Permanent Access Token"
+                />
+                <p className="text-xs text-gray-400 mt-1">
+                  נמצא ב: Meta Business Suite → System Users → Generate Token
+                </p>
+                <p className="text-xs text-red-500 mt-1">
+                  ⚠️ זה ישנה את הטוקן עבור כל הסוכנים במערכת, לא רק עבור הסוכן הנבחר.
+                </p>
+              </div>
+            )}
           </div>
 
           <div className="flex justify-end">

@@ -26,23 +26,36 @@ export async function saveAgentWhatsAppConfigImpl(req: any): Promise<object> {
   const body = req.data || {};
   const agentId = s(body.agentId);
   const phoneNumberId = s(body.phoneNumberId);
-  const accessToken = s(body.accessToken);
+  const templateName = s(body.templateName);
+  const accessToken = s(body.accessToken); // אופציונלי - רק כשרוצים לעדכן את הטוקן הגלובלי
 
-  if (!agentId || !phoneNumberId || !accessToken) {
-    throw new HttpsError("invalid-argument", "Missing agentId / phoneNumberId / accessToken");
+  if (!agentId || !phoneNumberId) {
+    throw new HttpsError("invalid-argument", "Missing agentId / phoneNumberId");
   }
 
   const keyB64 = PORTAL_ENC_KEY_B64.value();
   if (!keyB64) throw new HttpsError("internal", "Missing encryption key");
 
-  const enc = encryptJsonAes256Gcm(keyB64, { accessToken });
+  // אם הוזן טוקן - מעדכן את המסמך הגלובלי המשותף לכל הסוכנים
+  if (accessToken) {
+    const enc = encryptJsonAes256Gcm(keyB64, { accessToken });
+    await (db as any).doc("system/whatsappConfig").set({
+      enc,
+      updatedAt: nowTs(),
+      updatedBy: authUid,
+    });
+    console.info(`[saveAgentWhatsAppConfig] Global token updated by ${authUid}`);
+  }
 
-  await (db as any).doc(`agents/${agentId}/config/whatsapp`).set({
+  // הגדרות ספציפיות לסוכן - בלי טוקן בכלל
+  const agentDocData: any = {
     phoneNumberId,
-    enc,
     updatedAt: nowTs(),
     updatedBy: authUid,
-  });
+  };
+  if (templateName) agentDocData.templateName = templateName;
 
-  return { ok: true };
+  await (db as any).doc(`agents/${agentId}/config/whatsapp`).set(agentDocData, { merge: true });
+
+  return { ok: true, globalTokenUpdated: !!accessToken };
 }

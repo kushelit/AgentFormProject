@@ -127,7 +127,7 @@ const CommissionSummaryAgentTab: React.FC = () => {
   const [showChecklist, setShowChecklist] = useState(false);
 
   const [summaryByYmCompany, setSummaryByYmCompany] = useState<Record<string, Record<string, number>>>({});
-const [activeTab, setActiveTab] = useState<'reportMonth' | 'ym'>('reportMonth');
+const [activeTab, setActiveTab] = useState<'reportMonth' | 'ym'>('ym');
 const [agentDrillSort, setAgentDrillSort] = useState<{ key: 'agentCode' | 'amount'; dir: 'asc' | 'desc' }>({ key: 'amount', dir: 'desc' });
 
   const handleToggleExpandCompany = (company: string) => {
@@ -916,19 +916,18 @@ const groupMonthlyData = useMemo(() => {
 )}
 <div className="mt-6 flex gap-2 border-b mb-0">
   <button
-    className={`px-4 py-2 text-sm font-bold border-b-2 transition-colors ${activeTab === 'reportMonth' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
-    onClick={() => setActiveTab('reportMonth')}
-  >
-    לפי חודש דיווח
-  </button>
-  <button
     className={`px-4 py-2 text-sm font-bold border-b-2 transition-colors ${activeTab === 'ym' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
     onClick={() => setActiveTab('ym')}
   >
     לפי חודש פרסום
   </button>
+  <button
+    className={`px-4 py-2 text-sm font-bold border-b-2 transition-colors ${activeTab === 'reportMonth' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+    onClick={() => setActiveTab('reportMonth')}
+  >
+    לפי חודש דיווח
+  </button>
 </div>
-
 {activeTab === 'ym' && Object.keys(summaryByYmCompany).length > 0 && (
   <table className="table-auto w-full border text-sm text-right mt-0">
     <thead className="bg-blue-50">

@@ -1942,13 +1942,30 @@ const handleImport = async () => {
       policyNumberKey: String(r.policyNumber ?? "").trim().replace(/\s+/g, ""),
     }));
 
+// סינון לפי agentPortalFilters (רק במצב single)
+let rowsAfterFilter = rowsWithPolicyKey;
+
+if (importMode === "single" && selectedCompanyId) {
+  const filterSnap = await getDoc(doc(db, "agentPortalFilters", `${selectedAgentId}_${selectedCompanyId}`));
+  if (filterSnap.exists()) {
+    const allowedCodes: string[] = (filterSnap.data()?.agentCodes || [])
+      .map((c: any) => String(c).trim())
+      .filter(Boolean);
+    if (allowedCodes.length > 0) {
+      rowsAfterFilter = rowsWithPolicyKey.filter((r) =>
+        allowedCodes.includes(String(r.agentCode ?? "").trim())
+      );
+    }
+  }
+}
+
  const enrichedRows =
       importMode === "multi_sheet"
         ? await enrichMissingCustomerIdsForMarkedSheets({
-            rows: rowsWithPolicyKey,
+            rows: rowsAfterFilter,
             agentId: selectedAgentId,
           })
-        : rowsWithPolicyKey;
+        : rowsAfterFilter;
 
 const rowsMissingCustomerId = getRowsMissingCustomerId(enrichedRows);
 

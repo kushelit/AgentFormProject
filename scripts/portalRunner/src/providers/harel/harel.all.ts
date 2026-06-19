@@ -126,7 +126,7 @@ export async function runHarelAll(ctx: RunnerCtx) {
         // console.log(`[Harel] Done: ${rep.label}`);
 
       } catch (err: any) {
-        // console.error(`[Harel] Error in ${rep.label}:`, err.message);
+         console.error(`[Harel] Error in ${rep.label}:`, err.message);
         await setStatus(runId, {
           status: "running",
           step: `${rep.stepPrefix}_failed`,

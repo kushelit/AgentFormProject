@@ -37,6 +37,8 @@ interface CustomerDoc {
   parentID?: string;
   parentFullName?: string;
   shortNote?: string;
+  customerTier?: 'gold' | 'silver' | 'standard';
+  tierNifraim?: number;
   AgentId: string;
 }
 
@@ -76,7 +78,7 @@ interface FamilyMember {
   parentID?: string;
 }
 
-type TabKey = 'magic' | 'nifraim' | 'gaps' | 'family' | 'notes' | 'tasks';
+type TabKey = 'magic' | 'nifraim' | 'family' | 'notes' | 'tasks';
 
 // ─── עזרים ────────────────────────────────────────────────────────────────────
 
@@ -349,6 +351,7 @@ export default function CustomerPage() {
         for (const r of b.rows) {
           const amt = Number(r.commissionAmount || 0);
 rows.push({ company: r.company ?? '', product: r.product ?? '', policyNumber: r.policyNumber ?? '', commissionAmount: amt, reportMonth: r.reportMonth });          total += amt;
+          total += amt;
         }
       }
       setExternalRows(rows);
@@ -361,7 +364,7 @@ rows.push({ company: r.company ?? '', product: r.product ?? '', policyNumber: r.
   };
 
   useEffect(() => {
-    if (activeTab === 'nifraim' || activeTab === 'gaps') loadExternal();
+    if (activeTab === 'nifraim') loadExternal();
   }, [activeTab, reportMonth, customer]);
 
   // ─── טעינת תא משפחתי ─────────────────────────────────────────────────────────
@@ -434,8 +437,7 @@ rows.push({ company: r.company ?? '', product: r.product ?? '', policyNumber: r.
 
   const tabs: { key: TabKey; label: string }[] = [
     { key: 'magic', label: 'עסקאות Magic' },
-    { key: 'nifraim', label: 'נפרעים מקלטות' },
-    { key: 'gaps', label: 'פערים' },
+    { key: 'nifraim', label: 'לקוחות מטעינה' },
     { key: 'family', label: 'קשרים משפחתיים' },
     { key: 'notes', label: 'הערות' },
     { key: 'tasks', label: 'משימות' },
@@ -476,6 +478,11 @@ rows.push({ company: r.company ?? '', product: r.product ?? '', policyNumber: r.
             ) : (
               <div className="cp-fullname">
                 {customer.firstNameCustomer} {customer.lastNameCustomer}
+                {customer.customerTier && customer.customerTier !== 'standard' && (
+                  <span className={`cp-tier-badge cp-tier-${customer.customerTier}`}>
+                    {customer.customerTier === 'gold' ? '★ זהב' : '◆ כסף'}
+                  </span>
+                )}
               </div>
             )}
             <div className="cp-subline">
@@ -633,7 +640,8 @@ rows.push({ company: r.company ?? '', product: r.product ?? '', policyNumber: r.
                   {canViewCommissions && (
                     <tfoot>
                       <tr>
-<td colSpan={5} style={{ fontWeight: 'bold', textAlign: 'left' }}>סה&quot;כ</td>                        <td style={{ fontWeight: 'bold' }}>{totalMagicHekef.toLocaleString()} ₪</td>
+                        <td colSpan={5} style={{ fontWeight: 'bold', textAlign: 'left' }}>סה"כ</td>
+                        <td style={{ fontWeight: 'bold' }}>{totalMagicHekef.toLocaleString()} ₪</td>
                         <td style={{ fontWeight: 'bold' }}>{magicNifraim.toLocaleString()} ₪</td>
                       </tr>
                     </tfoot>
@@ -669,9 +677,7 @@ rows.push({ company: r.company ?? '', product: r.product ?? '', policyNumber: r.
                     <th>חברה</th>
                     <th>מוצר</th>
                     <th>מספר פוליסה</th>
-                    <th>סכום שדווח</th>
-                    {canViewCommissions && <th>Magic מחושב</th>}
-                    <th>סטטוס</th>
+                    {canViewCommissions && <th>עמלה</th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -680,77 +686,13 @@ rows.push({ company: r.company ?? '', product: r.product ?? '', policyNumber: r.
                       <td>{r.company}</td>
                       <td>{r.product || '—'}</td>
                       <td>{r.policyNumber || '—'}</td>
-                      <td>{r.commissionAmount.toLocaleString()} ₪</td>
                       {canViewCommissions && (
-                        <td>{r.magicVal !== null ? `${r.magicVal.toLocaleString()} ₪` : '—'}</td>
+                        <td>{r.commissionAmount.toLocaleString()} ₪</td>
                       )}
-                      <td>
-                        {r.gap === null ? (
-                          <span className="cp-badge cp-badge-neutral">לא נמצא ב-Magic</span>
-                        ) : Math.abs(r.gap) < 1 ? (
-                          <span className="cp-badge cp-badge-ok">תואם</span>
-                        ) : (
-                          <span
-                            className="cp-badge cp-badge-gap"
-                            onClick={openFullCompare}
-                            title="לחץ לפתיחת מסך השוואה מלאה"
-                          >
-                            פער {r.gap > 0 ? '+' : ''}{Math.round(r.gap).toLocaleString()} ₪
-                          </span>
-                        )}
-                      </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-            )}
-          </div>
-        )}
-
-        {/* ── פערים ── */}
-        {activeTab === 'gaps' && (
-          <div>
-            <div className="cp-month-bar">
-              <label>חודש עיבוד:</label>
-              <input
-                type="month"
-                value={reportMonth}
-                onChange={e => setReportMonth(e.target.value)}
-                className="cp-month-input"
-              />
-            </div>
-            {!canSeeExternal ? (
-              <div className="cp-empty">אין הרשאה</div>
-            ) : (
-              <>
-                <div className="cp-summary-cards">
-                  <div className="cp-sum-card">
-                    <div className="cp-sum-label">Magic — נפרעים מחושב</div>
-                    <div className="cp-sum-val">{magicNifraim.toLocaleString()} ₪</div>
-                  </div>
-                  <div className="cp-sum-card">
-                    <div className="cp-sum-label">קלטה — סכום שדווח</div>
-                    <div className="cp-sum-val">{externalTotal.toLocaleString()} ₪</div>
-                  </div>
-                  <div className={`cp-sum-card${Math.abs(delta) > 0 ? ' cp-sum-card-warn' : ''}`}>
-                    <div className="cp-sum-label">דלתא (קלטה − Magic)</div>
-                    <div className="cp-sum-val">
-                      {delta >= 0 ? '+' : ''}{delta.toLocaleString()} ₪
-                    </div>
-                  </div>
-                </div>
-                {canSeeExternal && (
-                  <div style={{ marginTop: 16 }}>
-                    <Button
-                      onClick={openFullCompare}
-                      text="מסך השוואה מלאה"
-                      type="primary"
-                      icon="on"
-                      state="default"
-                    />
-                  </div>
-                )}
-              </>
             )}
           </div>
         )}
@@ -783,7 +725,8 @@ rows.push({ company: r.company ?? '', product: r.product ?? '', policyNumber: r.
                           {isMain && <span className="cp-chip-main">ראשי</span>}
                           {isCurrent && <span className="cp-chip-current">נוכחי</span>}
                         </span>
-<span className="cp-fmember-sub">ת&quot;ז {m.IDCustomer}</span>                      </div>
+                        <span className="cp-fmember-sub">ת"ז {m.IDCustomer}</span>
+                      </div>
                       {!isCurrent && <span className="cp-family-arrow">←</span>}
                     </div>
                   );

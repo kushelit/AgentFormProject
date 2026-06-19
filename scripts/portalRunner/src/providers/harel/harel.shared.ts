@@ -449,11 +449,34 @@ export async function harelNavigateToTzviraReport(
     }
     await newPage.waitForTimeout(2000);
   }
+if (!filterFrame) throw new Error("Tzvira filter frame לא נמצא");
 
-  if (!filterFrame) throw new Error("Tzvira filter frame לא נמצא");
+// ================= DEBUG =================
+dlog("========== FILTER FRAME ==========");
+dlog("Frame URL = " + filterFrame.url());
+const debug = await filterFrame.evaluate(() => {
+  return {
+    url: location.href,
+    readyState: document.readyState,
+    title: document.title,
+
+    companyExists: !!document.querySelector("#_ctrlParam__4"),
+    agentExists: !!document.querySelector("#_ctrlParam__3"),
+    clearExists: !!document.querySelector("#H_InlineFilters_Clear_2"),
+
+    companyClass: (document.querySelector("#_ctrlParam__4") as HTMLElement)?.className,
+    agentClass: (document.querySelector("#_ctrlParam__3") as HTMLElement)?.className,
+
+    selectAllCount: document.querySelectorAll("div.selectall").length
+  };
+});
+
+dlog(JSON.stringify(debug, null, 2));
+
+await newPage.waitForTimeout(3000);
+
 // ✅ אפס מסנן לפני הגדרת ערכים
-// console.log("[Harel] Clicking אפס מסנן...");
-const clearResult = await filterFrame.evaluate(`(function() {
+const clearResult = await filterFrame.evaluate(`...
   const btn = document.querySelector('#H_InlineFilters_Clear_2');
   if (!btn) return 'NOT_FOUND';
   ['mousedown', 'mouseup', 'click'].forEach(evt =>
@@ -500,45 +523,133 @@ async function clickInFrame(
   await newPage.mouse.click(absX, absY);
   return true;
 }
+// ✅ שלב 8: חברה מנהלת — דיבאג פתיחה ובחר הכל
+dlog('Step 8 DEBUG: start חברה מנהלת');
 
-// ✅ שלב 8: חברה מנהלת — בחר הכל
-dlog('Step 8: open חברה מנהלת');
-await clickInFrame(newPage, filterFrame, '#_ctrlParam__4 .ctrlbutton.cbo');
+const step8OpenDebug = await filterFrame.evaluate(`(function() {
+  const box = document.querySelector('#_ctrlParam__4');
+  const text = document.querySelector('#ctrlParam__4');
+  const button = document.querySelector('#_ctrlParam__4 .ctrlbutton.cbo');
+
+  const beforeSelectAll = document.querySelectorAll('div.selectall').length;
+  const beforeModal = document.querySelectorAll('.modal, .boxdiv, .paramselector, .membercontainer').length;
+
+  if (!box) {
+    return {
+      status: 'BOX_NOT_FOUND',
+      frameUrl: location.href,
+      bodyText: document.body?.innerText?.slice(0, 500)
+    };
+  }
+
+  const r = box.getBoundingClientRect();
+
+  box.scrollIntoView({ block: 'center' });
+
+  const events = [];
+  ['mouseover', 'mouseenter', 'mousedown', 'mouseup', 'click'].forEach(type => {
+    try {
+      box.dispatchEvent(new MouseEvent(type, {
+        bubbles: true,
+        cancelable: true,
+        view: window
+      }));
+      events.push(type + ':OK');
+    } catch(e) {
+      events.push(type + ':ERR:' + e.message);
+    }
+  });
+
+  const afterSelectAll = document.querySelectorAll('div.selectall').length;
+  const afterModal = document.querySelectorAll('.modal, .boxdiv, .paramselector, .membercontainer').length;
+
+  return {
+    status: 'DONE',
+    frameUrl: location.href,
+    boxExists: !!box,
+    textExists: !!text,
+    buttonExists: !!button,
+    boxClass: box.className,
+    boxText: box.innerText,
+    rect: { x: r.x, y: r.y, width: r.width, height: r.height },
+    beforeSelectAll,
+    afterSelectAll,
+    beforeModal,
+    afterModal,
+    events
+  };
+})()`);
+
+dlog('Step 8 open debug: ' + JSON.stringify(step8OpenDebug, null, 2));
 await newPage.waitForTimeout(1500);
 
-// המתן שהדרופדאון יפתח
-for (let i = 0; i < 20; i++) {
-  const open = await filterFrame.evaluate(
-    `!!document.querySelector('#_ctrlParam__4 .membercontainer')`
-  ).catch(() => false);
-  dlog(`Step 8 wait ${i+1}: open=${open}`);
-  if (open) break;
-  await newPage.waitForTimeout(500);
-}
+const step8SelectAllDebug = await filterFrame.evaluate(`(function() {
+  const items = Array.from(document.querySelectorAll('div.selectall'));
+  const selectAll = items[0];
 
-// לחץ selectall
-await clickInFrame(newPage, filterFrame, '.selectall');
-dlog('Step 8: clicked selectall חברה מנהלת');
-await newPage.waitForTimeout(500);
+  if (!selectAll) {
+    return {
+      status: 'SELECT_ALL_NOT_FOUND',
+      selectAllCount: items.length,
+      htmlSample: document.body?.innerHTML?.slice(0, 1000)
+    };
+  }
 
-// ✅ שלב 9: סוכן — בחר הכל
-await clickInFrame(newPage, filterFrame, '.selectall');
-dlog('Step 9: clicked selectall סוכן');
-await newPage.waitForTimeout(500);
+  const r = selectAll.getBoundingClientRect();
 
-for (let i = 0; i < 20; i++) {
-  const open = await filterFrame.evaluate(
-    `!!document.querySelector('#_ctrlParam__3 .membercontainer')`
-  ).catch(() => false);
-  dlog(`Step 9 wait ${i+1}: open=${open}`);
-  if (open) break;
-  await newPage.waitForTimeout(500);
-}
+  ['mousedown', 'mouseup', 'click'].forEach(type =>
+    selectAll.dispatchEvent(new MouseEvent(type, {
+      bubbles: true,
+      cancelable: true,
+      view: window
+    }))
+  );
 
-await clickInFrame(newPage, filterFrame, '#_ctrlParam__3 .selectall');
-dlog('Step 9: clicked selectall סוכן');
-await newPage.waitForTimeout(500);
+  return {
+    status: 'SELECT_ALL_CLICKED',
+    selectAllCount: items.length,
+    text: selectAll.innerText,
+    className: selectAll.className,
+    rect: { x: r.x, y: r.y, width: r.width, height: r.height }
+  };
+})()`);
 
+dlog('Step 8 selectAll debug: ' + JSON.stringify(step8SelectAllDebug, null, 2));
+await newPage.waitForTimeout(1000);
+
+// ✅ שלב 9: סוכן — פתח ובחר הכל
+dlog('Step 9: open סוכן');
+
+const agentResult = await filterFrame.evaluate(`(function() {
+  const box = document.querySelector('#_ctrlParam__3');
+  if (!box) return 'BOX_NOT_FOUND';
+
+  box.scrollIntoView({ block: 'center' });
+  box.click();
+
+  return 'OPEN_CLICKED';
+})()`);
+
+dlog('Step 9 agent open result: ' + agentResult);
+await newPage.waitForTimeout(1000);
+
+const agentSelectAllResult = await filterFrame.evaluate(`(function() {
+  const selectAll = document.querySelector('div.selectall');
+  if (!selectAll) return 'SELECT_ALL_NOT_FOUND';
+
+  ['mousedown', 'mouseup', 'click'].forEach(type =>
+    selectAll.dispatchEvent(new MouseEvent(type, {
+      bubbles: true,
+      cancelable: true,
+      view: window
+    }))
+  );
+
+  return 'SELECT_ALL_CLICKED';
+})()`);
+
+dlog('Step 9 agent select all result: ' + agentSelectAllResult);
+await newPage.waitForTimeout(700);
 // ✅ שלב 11: סנן מידע
 dlog('Step 11: clicking filter apply');
 await clickInFrame(newPage, filterFrame, '#H_InlineFilters_Apply_2');

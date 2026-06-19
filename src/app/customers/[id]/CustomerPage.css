@@ -462,3 +462,27 @@
 .ct-badge-open { background: #f0f4f9; color: #4a6fa5; border-color: #cdd5e0; }
 .ct-badge-progress { background: #fff8e6; color: #b07800; border-color: #ffd666; }
 .ct-badge-done { background: #eaf5ea; color: #2e7d32; border-color: #a5d6a7; }
+
+/* ── תג דירוג לקוח ── */
+.cp-tier-badge {
+  display: inline-flex;
+  align-items: center;
+  margin-right: 10px;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 700;
+  vertical-align: middle;
+}
+
+.cp-tier-gold {
+  background: #fff4d6;
+  color: #9a6b00;
+  border: 1px solid #f0c14b;
+}
+
+.cp-tier-silver {
+  background: #eef1f5;
+  color: #5a6b7d;
+  border: 1px solid #c5ccd6;
+}

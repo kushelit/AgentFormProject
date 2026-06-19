@@ -24,3 +24,5 @@ export { reengagementLeadsWebhook } from "./reengagementLeads";
 export { sendReengagementBatch } from "./sendReengagementBatch";
 
 export { saveAgentWhatsAppConfig } from "./saveAgentWhatsAppConfig";
+
+export { calculateCustomerTiers, applyCustomerTiers } from './customerTiers';

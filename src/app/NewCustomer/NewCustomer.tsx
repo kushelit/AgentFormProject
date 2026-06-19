@@ -53,6 +53,8 @@ const NewCustomer = () => {
   const lastAutoCustomerIdRef = React.useRef<string | null>(null);
  // const [customerData, setCustomerData] = useState<any[]>([]);
  const router = useRouter();
+const { canAccess: canAccessCrm } = usePermission('access_crm_module');
+
 
 // ==== כרטיסון השוואה ללקוח ====
 const [cmpReportMonth, setCmpReportMonth] = useState(() => {
@@ -1736,8 +1738,9 @@ const handleImportCustomers = async () => {
   onClick={(e) => {
     const target = e.target as HTMLElement;
     if (target.closest('input') || target.closest('button') || target.closest('select')) return;
-    router.push(`/customers/${item.id}`);
-  }}
+    if (!canAccessCrm) return;
+  router.push(`/customers/${item.id}`);
+}}
   style={{ cursor: 'pointer' }}
 >
  <td>

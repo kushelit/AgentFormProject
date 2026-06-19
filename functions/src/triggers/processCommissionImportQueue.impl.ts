@@ -687,6 +687,47 @@ if (templateId === "hacshara_zvira") {
     return;
   }
 }
+
+// סינון לפי קודי סוכן מותרים (agentPortalFilters)
+const portalFilterSnap = await db
+  .collection("agentPortalFilters")
+  .doc(`${agentId}_${companyId}`)
+  .get();
+
+console.log(`[portalFilter] doc=${agentId}_${companyId} exists=${portalFilterSnap.exists}`);
+
+if (portalFilterSnap.exists) {
+  const allowedCodes: string[] = (portalFilterSnap.data()?.agentCodes || [])
+    .map((c: any) => safeStr(c))
+    .filter(Boolean);
+
+    console.log(`[portalFilter] allowedCodes=${JSON.stringify(allowedCodes)}`);
+  console.log(`[portalFilter] rowsBeforeFilter=${rowsForThisFile.length}`);
+
+  if (allowedCodes.length > 0) {
+    rowsForThisFile = rowsForThisFile.filter((row: any) =>
+      allowedCodes.includes(safeStr(row.agentCode))
+    );
+  console.log(`[portalFilter] rowsAfterFilter=${rowsForThisFile.length}`);
+
+    if (!rowsForThisFile.length) {
+      await finishAsEmpty({
+        db,
+        queueRef,
+        portalRunId: effectivePortalRunId,
+        jobId,
+        templateId,
+        templateName: safeStr(template.templateName) || templateId,
+        message: "הדוח נקלט אך אף מספר סוכן לא תואם את הפילטר המוגדר",
+        reason: "portal_filter_empty",
+      });
+      return;
+    }
+  }
+}
+
+
+
 allFinalRows = allFinalRows.concat(rowsForThisFile);
 allAgentCodes = Array.from(new Set([...allAgentCodes, ...agentCodes]));
 

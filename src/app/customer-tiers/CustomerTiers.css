@@ -1,0 +1,187 @@
+/* ── CustomerTiers — תואם לעיצוב הקיים (NewCustomer.css) ── */
+
+.ct-page {
+  position: relative;
+  padding: 10px;
+  direction: rtl;
+}
+
+.ct-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px;
+}
+
+.ct-title {
+  all: unset;
+  font-family: "Rubik-Regular", Helvetica, sans-serif !important;
+  font-size: 30px !important;
+  font-weight: 400 !important;
+  color: var(--clrdarkblue3) !important;
+  text-align: right !important;
+  line-height: 36px;
+  display: block;
+}
+
+.ct-subtitle {
+  font-size: 13px;
+  color: #777;
+  margin-top: 4px;
+}
+
+/* ── סרגל בקרה (חודש + סוכן + כפתור חישוב) ── */
+.ct-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: flex-end;
+  padding: 8px 16px;
+  box-shadow: var(--m3-elevation-light-1);
+  margin-bottom: 16px;
+}
+
+.ct-field {
+  display: flex;
+  flex-direction: column;
+  min-width: 160px;
+}
+
+.ct-label {
+  font-size: 12px;
+  color: #444;
+  margin-bottom: 4px;
+  display: block;
+}
+
+.ct-btn-calc {
+  height: 32px;
+  background-color: var(--clrdarkblue3);
+  color: var(--clrwhite);
+  border: none;
+  border-radius: 4px;
+  padding: 0 20px;
+  font-size: 13px;
+  font-weight: bold;
+  cursor: pointer;
+}
+.ct-btn-calc:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ── תוצאות ── */
+.ct-results {
+  padding: 0 16px;
+}
+
+.ct-results-bar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--clrgray4);
+  gap: 10px;
+}
+
+.ct-results-summary {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 13px;
+  color: var(--clrblack);
+}
+
+.ct-dot { color: var(--clrgray5); }
+
+.ct-changed-count {
+  font-weight: bold;
+  color: #b07800;
+}
+
+.ct-show-all-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #444;
+  cursor: pointer;
+}
+
+.ct-empty {
+  text-align: center;
+  padding: 30px;
+  color: #999;
+  font-size: 13px;
+}
+
+/* ── עמודת הצ'קבוקס בטבלה — נשען על th/td גלובליים, רק רוחב מצומצם ── */
+.ct-th-check {
+  width: 40px !important;
+  text-align: center !important;
+}
+
+.ct-row-changed td {
+  background-color: #fffaf0;
+}
+.ct-row-changed:hover td { background-color: #fff6e5; }
+
+/* ── תגי דירוג ── */
+.ct-tier-badge {
+  display: inline-flex;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: bold;
+  white-space: nowrap;
+}
+
+.ct-tier-gold {
+  background: #fff4d6;
+  color: #9a6b00;
+  border: 1px solid #f0c14b;
+}
+
+.ct-tier-silver {
+  background: var(--clrgray3);
+  color: #5a6b7d;
+  border: 1px solid var(--clrgray5);
+}
+
+.ct-tier-standard {
+  background: #f7f9fc;
+  color: #8a9bb0;
+  border: 1px solid var(--clrgray4);
+}
+
+.ct-change-arrow {
+  color: #b07800;
+  font-size: 11px;
+  font-weight: bold;
+  margin-right: 6px;
+}
+
+/* ── סרגל אישור ── */
+.ct-apply-bar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 14px;
+  padding: 12px 0;
+  border-top: 1px solid var(--clrgray4);
+  font-size: 13px;
+  color: #444;
+  gap: 10px;
+}
+
+.ct-btn-apply {
+  background-color: #2e7d32;
+  color: var(--clrwhite);
+  border: none;
+  border-radius: 4px;
+  padding: 8px 22px;
+  font-size: 13px;
+  font-weight: bold;
+  cursor: pointer;
+}
+.ct-btn-apply:disabled { opacity: 0.5; cursor: not-allowed; }

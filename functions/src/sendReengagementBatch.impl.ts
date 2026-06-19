@@ -8,6 +8,7 @@ import { PORTAL_ENC_KEY_B64 } from "./shared/secrets";
 import { decryptJsonAes256Gcm } from "./shared/cryptoAesGcm";
 
 const WA_API_URL = "https://graph.facebook.com/v19.0";
+const DEFAULT_TEMPLATE_NAME = "meir_reengagement_initial";
 
 function s(v: any) {
   return String(v ?? "").trim();
@@ -16,7 +17,7 @@ function s(v: any) {
 export async function sendReengagementBatchImpl(agentId: string): Promise<object> {
   const db = adminDb();
 
-  // קרא WhatsApp config מ-Firestore
+  // קרא הגדרות ספציפיות לסוכן: phoneNumberId + templateName (בלי טוקן)
   const waConfigSnap = await (db as any).doc(`agents/${agentId}/config/whatsapp`).get();
   if (!waConfigSnap.exists) {
     throw new HttpsError("failed-precondition", "WhatsApp config not found for agent");
@@ -24,13 +25,24 @@ export async function sendReengagementBatchImpl(agentId: string): Promise<object
 
   const waConfig = waConfigSnap.data() as any;
   const phoneNumberId = s(waConfig.phoneNumberId);
+  const templateName = s(waConfig.templateName) || DEFAULT_TEMPLATE_NAME;
+
+  if (!phoneNumberId) {
+    throw new HttpsError("failed-precondition", "Missing phoneNumberId for agent");
+  }
+
+  // קרא את הטוקן הגלובלי - משותף לכל הסוכנים
+  const globalConfigSnap = await (db as any).doc("system/whatsappConfig").get();
+  if (!globalConfigSnap.exists) {
+    throw new HttpsError("failed-precondition", "Global WhatsApp token not configured");
+  }
 
   const keyB64 = PORTAL_ENC_KEY_B64.value();
   if (!keyB64) throw new HttpsError("internal", "Missing encryption key");
 
-  const { accessToken } = decryptJsonAes256Gcm(keyB64, waConfig.enc) as any;
-  if (!phoneNumberId || !accessToken) {
-    throw new HttpsError("failed-precondition", "Invalid WhatsApp config");
+  const { accessToken } = decryptJsonAes256Gcm(keyB64, globalConfigSnap.data().enc) as any;
+  if (!accessToken) {
+    throw new HttpsError("failed-precondition", "Invalid global WhatsApp token");
   }
 
   // קח batchSize מה-config של הסוכן
@@ -89,7 +101,7 @@ export async function sendReengagementBatchImpl(agentId: string): Promise<object
           to: normalizedPhone,
           type: "template",
           template: {
-            name: "unamix_test",
+            name: templateName,
             language: { code: "en" },
           },
         }),
