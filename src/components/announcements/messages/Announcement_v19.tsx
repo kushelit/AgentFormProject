@@ -36,9 +36,8 @@ const AnnouncementV19 = ({ onAcknowledge, onClose }: Props) => {
 
         <p>
           במודול <strong>טעינת עמלות</strong>, במסך <strong>דף מסכם</strong>,
-          התווסף כפתור חדש <strong>"פוליסות חריגות"</strong>.
+התווסף כפתור חדש <strong>&quot;פוליסות חריגות&quot;</strong>.
         </p>
-
         <div className="announcement-summary-list">
           <div className="summary-item">
             <span className="summary-icon">💰</span>
