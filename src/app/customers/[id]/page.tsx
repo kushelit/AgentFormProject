@@ -665,8 +665,10 @@ export default function CustomerPage() {
                   {canViewCommissions && (
                     <tfoot>
                       <tr>
-                        <td colSpan={5} style={{ fontWeight: 'bold', textAlign: 'left' }}>סה"כ</td>
-                        <td style={{ fontWeight: 'bold' }}>{totalMagicHekef.toLocaleString()} ₪</td>
+<td colSpan={5} style={{ fontWeight: 'bold', textAlign: 'left' }}>
+  סה&quot;כ
+</td> 
+ <td style={{ fontWeight: 'bold' }}>{totalMagicHekef.toLocaleString()} ₪</td>
                         <td style={{ fontWeight: 'bold' }}>{magicNifraim.toLocaleString()} ₪</td>
                       </tr>
                     </tfoot>
@@ -750,7 +752,7 @@ export default function CustomerPage() {
                           {isMain && <span className="cp-chip-main">ראשי</span>}
                           {isCurrent && <span className="cp-chip-current">נוכחי</span>}
                         </span>
-                        <span className="cp-fmember-sub">ת"ז {m.IDCustomer}</span>
+<span className="cp-fmember-sub">ת&quot;ז {m.IDCustomer}</span>
                       </div>
                       {!isCurrent && <span className="cp-family-arrow">←</span>}
                     </div>
