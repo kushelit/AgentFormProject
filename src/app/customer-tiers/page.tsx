@@ -6,6 +6,7 @@ import { collection, query, where, getDocs, orderBy, limit } from 'firebase/fire
 import { db, functions } from '@/lib/firebase/firebase';
 import useFetchAgentData from '@/hooks/useFetchAgentData';
 import { useAuth } from '@/lib/firebase/AuthContext';
+import { usePermission } from '@/hooks/usePermission';
 import { useToast } from '@/hooks/useToast';
 import { ToastNotification } from '@/components/ToastNotification';
 import TableFooter from '@/components/TableFooter/TableFooter';
@@ -56,6 +57,7 @@ function prevMonth() {
 export default function CustomerTiersPage() {
   const { agents, selectedAgentId, handleAgentChange } = useFetchAgentData();
   const { detail } = useAuth();
+  const { canAccess: canAccessCustomerTiers } = usePermission('access_customer_tiers');
   const { toasts, addToast, setToasts } = useToast();
 
   const [month, setMonth] = useState(prevMonth());
@@ -268,6 +270,14 @@ export default function CustomerTiersPage() {
     if (sortColumn !== col) return '';
     return sortOrder === 'asc' ? ' ▲' : ' ▼';
   };
+
+  if (!canAccessCustomerTiers) {
+    return (
+      <div className="ct-page" dir="rtl">
+        <div className="ct-empty">אין לך הרשאה לצפות בדף זה</div>
+      </div>
+    );
+  }
 
   return (
     <div className="ct-page" dir="rtl">

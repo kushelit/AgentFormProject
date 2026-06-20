@@ -1,3 +1,8 @@
+// ═══════════════════════════════════════════════════════════════════
+// app/api/policy-history/route.ts
+// תיקון: סינון תבניות "היקף" (hekefType) — נכלל רק תבניות נפרעים
+// ═══════════════════════════════════════════════════════════════════
+
 import { NextRequest, NextResponse } from 'next/server';
 import { admin } from '@/lib/firebase/firebase-admin';
 
@@ -11,32 +16,48 @@ export async function POST(req: NextRequest) {
   try {
     const db = admin.firestore();
 
-   const snap = await db
-  .collection('policyCommissionSummaries')
-  .where('agentId', '==', agentId)
-  .where('companyId', '==', companyId)
-  .where('policyNumberKey', '==', policyNumberKey)
-  .limit(60)
-  .get();
+    // ─── שלוף templateIds שהם "היקף" — אלה שיש להם hekefType ──────────────
+    const templatesSnap = await db
+      .collection('commissionTemplates')
+      .where('isactive', '==', true)
+      .get();
 
-const rows = snap.docs.map((d) => {
-  const x: any = d.data();
-  return {
-    reportMonth: x.reportMonth,
-    agentCode: x.agentCode,
-    totalCommissionAmount: x.totalCommissionAmount ?? 0,
-    totalPremiumAmount: x.totalPremiumAmount ?? 0,
-    commissionRate: x.commissionRate ?? 0,
-    product: x.product,
-    customerId: x.customerId,
-    fullName: x.fullName,
-    templateId: x.templateId,
-    validMonth: x.validMonth,
-  };
-});
+    const hekefTemplateIds = new Set(
+      templatesSnap.docs
+        .filter(d => !!d.data().hekefType)
+        .map(d => d.id)
+    );
 
-// מיון ב-JS במקום Firestore
-rows.sort((a, b) => b.reportMonth.localeCompare(a.reportMonth));
+    const snap = await db
+      .collection('policyCommissionSummaries')
+      .where('agentId', '==', agentId)
+      .where('companyId', '==', companyId)
+      .where('policyNumberKey', '==', policyNumberKey)
+      .limit(60)
+      .get();
+
+    const rows = snap.docs
+      .map((d) => {
+        const x: any = d.data();
+        return {
+          reportMonth: x.reportMonth,
+          agentCode: x.agentCode,
+          totalCommissionAmount: x.totalCommissionAmount ?? 0,
+          totalPremiumAmount: x.totalPremiumAmount ?? 0,
+          commissionRate: x.commissionRate ?? 0,
+          product: x.product,
+          customerId: x.customerId,
+          fullName: x.fullName,
+          templateId: x.templateId,
+          validMonth: x.validMonth,
+        };
+      })
+      // ─── סינון: רק templates שאין להם hekefType (= "נפרעים") ─────────────
+      .filter((r) => !hekefTemplateIds.has(String(r.templateId || '')));
+
+    // מיון ב-JS במקום Firestore
+    rows.sort((a, b) => b.reportMonth.localeCompare(a.reportMonth));
+
     return NextResponse.json({ rows });
 
   } catch (err: any) {

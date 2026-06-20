@@ -200,6 +200,8 @@ const CommissionComparisonByPolicy: React.FC = () => {
   
   const showFilters = comparisonRows.length > 0;
 
+const [hekefTemplateIds, setHekefTemplateIds] = useState<Set<string>>(new Set());
+const [templatesLoaded, setTemplatesLoaded] = useState(false);
 
   // אחוז שינוי בין סכומי עמלה: אם הבסיס 0 והטארגט >0 → אינסוף (כל שינוי נחשב חריגה)
 const percentChange = (prev: number, curr: number) => {
@@ -277,41 +279,50 @@ const saveAgentTolerance = async () => {
   }, [month1, month2]);
 
   // fetch templates (and company names)
-  useEffect(() => {
-    (async () => {
-      const q = query(
-        collection(db, "commissionTemplates"),
-        where("isactive", "==", true)   // ← כאן הסינון
-      );
-  
-      const snap = await getDocs(q);
-  
-      const arr: TemplateOption[] = [];
-      for (const docSnap of snap.docs) {
-        const data = docSnap.data() as any;
-        const companyId = data.companyId || "";
-        let companyName = "";
-  
-        if (companyId) {
-          const c = await getDoc(doc(db, "company", companyId)).catch(() => undefined);
-          if (c && c.exists()) {
-            companyName = (c.data() as any)?.companyName || "";
-          }
+ useEffect(() => {
+  (async () => {
+    const q = query(
+      collection(db, "commissionTemplates"),
+      where("isactive", "==", true)
+    );
+
+    const snap = await getDocs(q);
+
+    const arr: TemplateOption[] = [];
+    const hekefIds = new Set<string>();
+
+    for (const docSnap of snap.docs) {
+      const data = docSnap.data() as any;
+      const companyId = data.companyId || "";
+      let companyName = "";
+
+      if (companyId) {
+        const c = await getDoc(doc(db, "company", companyId)).catch(() => undefined);
+        if (c && c.exists()) {
+          companyName = (c.data() as any)?.companyName || "";
         }
-  
-        arr.push({
-          id: docSnap.id,
-          companyId,
-          companyName,
-          type: data.type || "",
-          Name: data.Name || "",
-        });
       }
-  
-      setTemplateOptions(arr);
-    })();
-  }, []);
-  
+
+      arr.push({
+        id: docSnap.id,
+        companyId,
+        companyName,
+        type: data.type || "",
+        Name: data.Name || "",
+      });
+
+      // ⬇️ סימון תבניות היקף
+      if (data.hekefType) {
+        hekefIds.add(docSnap.id);
+      }
+    }
+
+    setTemplateOptions(arr);
+    setHekefTemplateIds(hekefIds);
+    setTemplatesLoaded(true);
+  })();
+}, []);
+
   const uniqueCompanies = useMemo(() => {
     return Array.from(
       new Map(
@@ -320,10 +331,14 @@ const saveAgentTolerance = async () => {
     );
   }, [templateOptions]);
 
-  const filteredTemplates = useMemo(
-    () => templateOptions.filter((t) => t.companyId === selectedCompanyId),
-    [templateOptions, selectedCompanyId]
-  );
+const filteredTemplates = useMemo(
+  () =>
+    templateOptions.filter(
+      (t) => t.companyId === selectedCompanyId && !hekefTemplateIds.has(t.id)
+    ),
+  [templateOptions, selectedCompanyId, hekefTemplateIds]
+);
+
 
   const agentCodes = useMemo(
     () => agents.find((a) => a.id === selectedAgentId)?.agentCodes ?? [],
@@ -410,6 +425,7 @@ const saveAgentTolerance = async () => {
       const map: Record<string, PolicySummaryDoc> = {};
       snap.forEach((docSnap: any) => {
         const d = docSnap.data() as PolicySummaryDoc;
+        if (hekefTemplateIds.has(String(d.templateId || ""))) return;
         const key = composeKey({
           companyId: d.companyId,
           policyNumberKey: d.policyNumberKey,
@@ -802,7 +818,7 @@ if (rows.length === 0) {
         text={isLoading ? "טוען…" : "השווה"}
         type="primary"
         onClick={handleCompare}
-        disabled={isLoading}
+         disabled={isLoading || !templatesLoaded}
         className="h-9 px-5 text-sm font-bold rounded-lg shadow-sm"
       />
     </div>

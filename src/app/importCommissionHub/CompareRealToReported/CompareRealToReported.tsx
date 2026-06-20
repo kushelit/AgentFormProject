@@ -308,6 +308,24 @@ const [isLoading, setIsLoading] = useState<boolean>(false);
 const [contractSortDir, setContractSortDir] = useState<'asc' | 'desc' | null>(null);
 const [salesSortDir, setSalesSortDir] = useState<'asc' | 'desc' | null>(null);
 
+
+const [hekefTemplateIds, setHekefTemplateIds] = useState<Set<string>>(new Set());
+
+useEffect(() => {
+  (async () => {
+    const snap = await getDocs(collection(db, 'commissionTemplates'));
+    const ids = new Set<string>();
+    snap.forEach(d => {
+      if (d.data()?.hekefType) ids.add(d.id);
+    });
+    setHekefTemplateIds(ids);
+  })();
+}, []);
+
+
+
+
+
   useEffect(() => {
     if (!canSeeContractsTab && viewMode === 'contracts') {
       setViewMode('sales');
@@ -631,25 +649,25 @@ if (lockedToCustomer) {
     let extRows: ExternalCommissionRow[] = [];
 
     if (scopeCustomerIds) {
-      const fetched = await fetchDocsByFamilyDualFields<ExternalCommissionRow>(
-        'policyCommissionSummaries',
-        extBase,
-        scopeCustomerIds,
-        raw => {
-          const comp = canon(raw.company);
-          const pol = normPolicy((raw as any).policyNumberKey ?? (raw as any).policyNumber);
-          return {
-            policyNumber: pol,
-            commissionAmount: Number((raw as any).totalCommissionAmount ?? 0),
-            company: comp,
-            product: (raw as any).product || (raw as any).productRaw || 'מוצר לא מזוהה',
-            reportMonth: (raw as any).reportMonth,
-            customerId: String((raw as any).customerId ?? '').trim() || undefined,
-            fullName: (raw as any).fullName,
-            agentCode: String((raw as any).agentCode ?? '').trim() || undefined,
-            _company: comp,
-            _displayPolicy: pol || '-',
-          };
+     const fetched = await fetchDocsByFamilyDualFields<ExternalCommissionRow>(
+  'policyCommissionSummaries',
+  extBase,
+  scopeCustomerIds,
+  raw => {
+    const comp = canon(raw.company);
+    const pol = normPolicy((raw as any).policyNumberKey ?? (raw as any).policyNumber);
+    return {
+      policyNumber: pol,
+      commissionAmount: Number((raw as any).totalCommissionAmount ?? 0),
+      company: comp,
+      product: (raw as any).product || (raw as any).productRaw || 'מוצר לא מזוהה',
+      reportMonth: (raw as any).reportMonth,
+      customerId: String((raw as any).customerId ?? '').trim() || undefined,
+      fullName: (raw as any).fullName,
+      agentCode: String((raw as any).agentCode ?? '').trim() || undefined,
+      _company: comp,
+      _displayPolicy: pol || '-',
+ };
         }
       );
 
@@ -657,47 +675,52 @@ if (lockedToCustomer) {
         const qAll = query(collection(db, 'policyCommissionSummaries'), ...extBase);
         const sAll = await getDocs(qAll);
         const famSet = new Set(scopeCustomerIds);
-        sAll.docs.forEach(d => {
-          const raw: any = d.data();
-          const cid = toPadded9Local(raw.customerId ?? raw.IDCustomer);
-          if (!famSet.has(cid)) return;
-          
-          const comp = canon(raw.company);
-          const pol = normPolicy(raw.policyNumberKey ?? raw.policyNumber);
-          extRows.push({
-            policyNumber: pol,
-            commissionAmount: Number(raw.totalCommissionAmount ?? 0),
-            company: comp,
-            product: (raw as any).product || (raw as any).productRaw || 'מוצר לא מזוהה',
-            reportMonth: raw.reportMonth,
-            customerId: cid || undefined,
-            fullName: String(raw.fullName ?? '').trim() || undefined,
-            agentCode: String(raw.agentCode ?? '').trim() || undefined,
-            _company: comp,
-            _displayPolicy: pol || '-',
-          });
-        });
-      } else {
+       sAll.docs.forEach(d => {
+  const raw: any = d.data();
+  const cid = toPadded9Local(raw.customerId ?? raw.IDCustomer);
+  if (!famSet.has(cid)) return;
+  // ⬇️ סינון תבניות היקף
+  if (hekefTemplateIds.has(String(raw.templateId || ''))) return;
+
+  const comp = canon(raw.company);
+  const pol = normPolicy(raw.policyNumberKey ?? raw.policyNumber);
+  extRows.push({
+    policyNumber: pol,
+    commissionAmount: Number(raw.totalCommissionAmount ?? 0),
+    company: comp,
+    product: (raw as any).product || (raw as any).productRaw || 'מוצר לא מזוהה',
+    reportMonth: raw.reportMonth,
+    customerId: cid || undefined,
+    fullName: String(raw.fullName ?? '').trim() || undefined,
+    agentCode: String(raw.agentCode ?? '').trim() || undefined,
+    _company: comp,
+    _displayPolicy: pol || '-',
+  });
+});
+     } else {
         extRows = fetched;
       }
     } else {
-      const qBase = query(collection(db, 'policyCommissionSummaries'), ...extBase);
-      const s = await getDocs(qBase);
-      extRows = s.docs.map(d => {
-        const raw = d.data() as any;
-        const comp = canon(raw.company);
-        const pol = normPolicy(raw.policyNumberKey ?? raw.policyNumber);
-        return {
-          policyNumber: pol,
-          commissionAmount: Number(raw.totalCommissionAmount ?? 0),
-          company: comp,
-          reportMonth: raw.reportMonth,
-          product: (raw as any).product || (raw as any).productRaw || 'מוצר לא מזוהה',
-          customerId: String(raw.customerId ?? '').trim() || undefined,
-          fullName: String(raw.fullName ?? '').trim() || undefined,
-          agentCode: String(raw.agentCode ?? '').trim() || undefined,
-          _company: comp,
-          _displayPolicy: pol || '-',
+     const qBase = query(collection(db, 'policyCommissionSummaries'), ...extBase);
+const s = await getDocs(qBase);
+extRows = s.docs
+  // ⬇️ סינון תבניות היקף
+  .filter(d => !hekefTemplateIds.has(String((d.data() as any).templateId || '')))
+  .map(d => {
+    const raw = d.data() as any;
+    const comp = canon(raw.company);
+    const pol = normPolicy(raw.policyNumberKey ?? raw.policyNumber);
+    return {
+      policyNumber: pol,
+      commissionAmount: Number(raw.totalCommissionAmount ?? 0),
+      company: comp,
+      reportMonth: raw.reportMonth,
+      product: (raw as any).product || (raw as any).productRaw || 'מוצר לא מזוהה',
+      customerId: String(raw.customerId ?? '').trim() || undefined,
+      fullName: String(raw.fullName ?? '').trim() || undefined,
+      agentCode: String(raw.agentCode ?? '').trim() || undefined,
+      _company: comp,
+      _displayPolicy: pol || '-',
         };
       });
     }
@@ -968,6 +991,7 @@ setRawSalesRows(computed);
     customersForSplit,
     splitEnabled,
     productRawToCanonical,
+    hekefTemplateIds,
   ]);
 
   // ✅ fetch only when sales tab is active

@@ -1,4 +1,8 @@
+// ═══════════════════════════════════════════════════════════════════
 // src/services/contractCommissionComparisonService.ts
+// תיקון: סינון תבניות "היקף" (hekefType) — נכלל רק תבניות נפרעים
+// ═══════════════════════════════════════════════════════════════════
+
 import { collection, doc, getDoc, getDocs, query, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase/firebase';
 import type { TemplateDoc } from '@/types/ContractCommissionComparison';
@@ -43,6 +47,7 @@ export type LoadContractsComparisonDataResult = {
 /**
  * Load everything required for "contracts" comparison mode:
  * - policyCommissionSummaries rows (agentId + reportMonth + optional company)
+ *   ⚠️ מסונן: נכללות רק שורות מתבניות "נפרעים" (ללא hekefType)
  * - templates referenced by those rows (by templateId)
  * - contracts for agent
  * - system product map (collection 'product') for calculateCommissions
@@ -52,6 +57,16 @@ export async function loadContractsComparisonData(
 ): Promise<LoadContractsComparisonDataResult> {
   const { agentId, reportMonth, company } = args;
 
+  // ─── ① שלוף templateIds שהם "היקף" — אלה שיש להם hekefType ──────────────
+  const hekefTemplatesSnap = await getDocs(
+    query(collection(db, 'commissionTemplates'), where('isactive', '==', true))
+  );
+  const hekefTemplateIds = new Set(
+    hekefTemplatesSnap.docs
+      .filter(d => !!d.data().hekefType)
+      .map(d => d.id)
+  );
+
   // 1) policyCommissionSummaries
   const base: any[] = [
     where('agentId', '==', agentId),
@@ -60,28 +75,32 @@ export async function loadContractsComparisonData(
   if (company) base.push(where('company', '==', company));
 
   const polSnap = await getDocs(query(collection(db, 'policyCommissionSummaries'), ...base));
-  const policyRows: PolicyCommissionSummaryDoc[] = polSnap.docs.map(d => {
-    const raw = d.data() as any;
-    return {
-      agentId: String(raw.agentId || '').trim(),
-      reportMonth: String(raw.reportMonth || '').trim(),
-      company: String(raw.company || '').trim(),
-      companyId: raw.companyId ? String(raw.companyId).trim() : undefined,
-      templateId: raw.templateId ? String(raw.templateId).trim() : undefined,
 
-      policyNumberKey: String(raw.policyNumberKey || raw.policyNumber || '').trim(),
-      customerId: raw.customerId ? String(raw.customerId).trim() : undefined,
-      agentCode: raw.agentCode ? String(raw.agentCode).trim() : undefined,
+  // ─── ② סינון: רק templates שאין להם hekefType (= "נפרעים") ────────────────
+  const policyRows: PolicyCommissionSummaryDoc[] = polSnap.docs
+    .map(d => {
+      const raw = d.data() as any;
+      return {
+        agentId: String(raw.agentId || '').trim(),
+        reportMonth: String(raw.reportMonth || '').trim(),
+        company: String(raw.company || '').trim(),
+        companyId: raw.companyId ? String(raw.companyId).trim() : undefined,
+        templateId: raw.templateId ? String(raw.templateId).trim() : undefined,
 
-      totalCommissionAmount: Number(raw.totalCommissionAmount ?? 0),
-      totalPremiumAmount: Number(raw.totalPremiumAmount ?? 0),
-      commissionRate: typeof raw.commissionRate !== 'undefined' ? Number(raw.commissionRate) : undefined,
+        policyNumberKey: String(raw.policyNumberKey || raw.policyNumber || '').trim(),
+        customerId: raw.customerId ? String(raw.customerId).trim() : undefined,
+        agentCode: raw.agentCode ? String(raw.agentCode).trim() : undefined,
 
-      product: raw.product ? String(raw.product).trim() : undefined,
-      fullName: raw.fullName ? String(raw.fullName).trim() : undefined,
-      validMonth: raw.validMonth ? String(raw.validMonth).trim() : undefined,
-    };
-  });
+        totalCommissionAmount: Number(raw.totalCommissionAmount ?? 0),
+        totalPremiumAmount: Number(raw.totalPremiumAmount ?? 0),
+        commissionRate: typeof raw.commissionRate !== 'undefined' ? Number(raw.commissionRate) : undefined,
+
+        product: raw.product ? String(raw.product).trim() : undefined,
+        fullName: raw.fullName ? String(raw.fullName).trim() : undefined,
+        validMonth: raw.validMonth ? String(raw.validMonth).trim() : undefined,
+      };
+    })
+    .filter((r) => !hekefTemplateIds.has(String(r.templateId || '')));
 
   // 2) templates by id (only those referenced)
   const templateIds = Array.from(

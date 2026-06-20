@@ -1,4 +1,8 @@
+// ═══════════════════════════════════════════════════════════════════
 // services/server/commissionSummaryService.ts
+// תיקון: סינון תבניות "היקף" (hekefType) — נכלל רק תבניות נפרעים
+// ═══════════════════════════════════════════════════════════════════
+
 import { admin } from '@/lib/firebase/firebase-admin';
 
 export interface CommissionSummary {
@@ -7,7 +11,7 @@ export interface CommissionSummary {
   reportMonth: string; // YYYY-MM
   templateId: string;
   totalCommissionAmount: number;
-  company?: string;  
+  company?: string;
   companyId?: string;
 }
 
@@ -38,6 +42,19 @@ export async function getCommissionSummary(
 
   const db = admin.firestore();
 
+  // ─── ① שלוף את templateIds שהם "היקף" (יש להם hekefType) ──────────────────
+  // אלה ה-templates שצריך *לא* לכלול בדף הנפרעים.
+  const templatesSnap = await db
+    .collection('commissionTemplates')
+    .where('isactive', '==', true)
+    .get();
+
+  const hekefTemplateIds = new Set(
+    templatesSnap.docs
+      .filter(d => !!d.data().hekefType)
+      .map(d => d.id)
+  );
+
   // --- FETCH RAW SUMMARIES (אוסף יחיד, בלי אוספים נוספים) ---
   const snap = await db
     .collection('commissionSummaries')
@@ -47,9 +64,10 @@ export async function getCommissionSummary(
     .orderBy('reportMonth')
     .get();
 
-  const summaries: CommissionSummary[] = snap.docs.map(
-    (d) => d.data() as CommissionSummary
-  );
+  // ─── ② סינון: רק templates שאין להם hekefType (= "נפרעים") ────────────────
+  const summaries: CommissionSummary[] = snap.docs
+    .map((d) => d.data() as CommissionSummary)
+    .filter((item) => !hekefTemplateIds.has(item.templateId));
 
   // --- נבנה companyMap מתוך הסיכומים עצמם (templateId -> companyName) ---
   const companyMap: Record<string, string> = {};
@@ -65,10 +83,9 @@ export async function getCommissionSummary(
     const month = item.reportMonth;
     const agentCode = item.agentCode || '-';
 
-
-if (item.companyId && companyName !== 'לא ידוע' && !companyIdByName[companyName]) {
-  companyIdByName[companyName] = item.companyId;
-}
+    if (item.companyId && companyName !== 'לא ידוע' && !companyIdByName[companyName]) {
+      companyIdByName[companyName] = item.companyId;
+    }
 
     // map לפי templateId -> שם חברה (יכול לשמש לדוחות אחרים)
     if (item.templateId && !companyMap[item.templateId]) {
@@ -119,7 +136,7 @@ if (item.companyId && companyName !== 'לא ידוע' && !companyIdByName[compan
     return row;
   });
 
- // --- חישוב portalRunIds ייחודיים ---
+  // --- חישוב portalRunIds ייחודיים ---
   const portalRunIdSet = new Set<string>();
   for (const item of summaries) {
     const runId = (item as any).runId || '';

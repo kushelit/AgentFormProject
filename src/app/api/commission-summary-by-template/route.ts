@@ -1,3 +1,8 @@
+// ═══════════════════════════════════════════════════════════════════
+// app/api/commission-summary-by-template/route.ts
+// תיקון: סינון תבניות "היקף" (hekefType) — נכלל רק תבניות נפרעים
+// ═══════════════════════════════════════════════════════════════════
+
 import { NextRequest, NextResponse } from 'next/server';
 import { admin } from '@/lib/firebase/firebase-admin';
 
@@ -10,6 +15,18 @@ export async function POST(req: NextRequest) {
 
   try {
     const db = admin.firestore();
+
+    // ─── שלוף templateIds שהם "היקף" — אלה שיש להם hekefType ──────────────
+    const templatesAllSnap = await db
+      .collection('commissionTemplates')
+      .where('isactive', '==', true)
+      .get();
+
+    const hekefTemplateIds = new Set(
+      templatesAllSnap.docs
+        .filter(d => !!d.data().hekefType)
+        .map(d => d.id)
+    );
 
     // אם יש ym — שלוף את ה-runIds הרלוונטיים
     let allowedRunIds: Set<string> | null = null;
@@ -29,12 +46,11 @@ export async function POST(req: NextRequest) {
       }
       allowedRunIds = new Set(jobIds);
 
-       console.log('[template-drill] ym received:', ym);
-  console.log('[template-drill] portalRuns found:', portalRunsSnap.size);
-  console.log('[template-drill] allowedRunIds:', Array.from(allowedRunIds));
+      console.log('[template-drill] ym received:', ym);
+      console.log('[template-drill] portalRuns found:', portalRunsSnap.size);
+      console.log('[template-drill] allowedRunIds:', Array.from(allowedRunIds));
     }
 
-    
     const snap = await db
       .collection('commissionSummaries')
       .where('agentId', '==', agentId)
@@ -46,13 +62,13 @@ export async function POST(req: NextRequest) {
     const filtered = rows.filter(r => {
       if (year && !String(r.reportMonth || '').startsWith(year)) return false;
       if (allowedRunIds !== null && !allowedRunIds.has(String(r.runId || ''))) return false;
+      // ─── סינון: רק templates שאין להם hekefType (= "נפרעים") ─────────────
+      if (hekefTemplateIds.has(String(r.templateId || ''))) return false;
       return true;
-
-      
     });
 
     console.log('[template-drill] filtered rows:', filtered.length, '/', rows.length);
-    // ... שאר הקוד קיים ללא שינוי ...
+
     // סיכום לפי templateId × reportMonth
     const byTemplateMonth: Record<string, Record<string, number>> = {};
     const templateNames: Record<string, string> = {};

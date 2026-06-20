@@ -15,6 +15,7 @@ export type ExternalRow = {
   validMonth?: string | null;   // נשתמש כאן כאליאס ל-reportMonth (לתאימות)
   commissionAmount?: number | null;
   linkedSaleId?: string | null;
+   templateId?: string | null;
 };
 
 export type ExternalSummaryBucket = {
@@ -92,6 +93,7 @@ export async function fetchExternalForCustomers(params: {
         validMonth: reportYm, // אליאס – אם יש קוד שמסתמך על זה
         commissionAmount,
         linkedSaleId: raw.linkedSaleId ?? null,
+        templateId: raw.templateId ?? null,
       });
     });
   }

@@ -14,6 +14,7 @@ import { fetchExternalForCustomers } from '@/services/externalQueries';
 import { Button } from '@/components/Button/Button';
 import { ToastNotification } from '@/components/ToastNotification';
 import { useToast } from '@/hooks/useToast';
+import { resolveFromTemplate } from '@/utils/contractCommissionResolvers';
 import './CustomerPage.css';
 import CustomerNotes from './CustomerNotes';
 import CustomerTasks from './CustomerTasks';
@@ -68,6 +69,7 @@ interface ExternalRow {
   policyNumber?: string;
   commissionAmount: number;
   reportMonth?: string;
+  templateId?: string;
 }
 
 interface FamilyMember {
@@ -195,6 +197,7 @@ export default function CustomerPage() {
   const [loadingMagic, setLoadingMagic] = useState(false);
   const [contracts, setContracts] = useState<any[]>([]);
   const [productMap, setProductMap] = useState<Record<string, any>>({});
+  const [templatesById, setTemplatesById] = useState<Record<string, any>>({});
 
   // נפרעים מקלטות
   const [reportMonth, setReportMonth] = useState(prevMonth);
@@ -241,8 +244,15 @@ export default function CustomerPage() {
       });
       setProductMap(map);
     };
+    const fetchTemplates = async () => {
+      const snap = await getDocs(collection(db, 'commissionTemplates'));
+      const map: Record<string, any> = {};
+      snap.docs.forEach(d => { map[d.id] = d.data(); });
+      setTemplatesById(map);
+    };
     fetchContracts();
     fetchProducts();
+    fetchTemplates();
   }, []);
 
   // ─── sourceLeadMap ────────────────────────────────────────────────────────────
@@ -350,7 +360,7 @@ export default function CustomerPage() {
       for (const b of buckets) {
         for (const r of b.rows) {
           const amt = Number(r.commissionAmount || 0);
-rows.push({ company: r.company ?? '', product: r.product ?? '', policyNumber: r.policyNumber ?? '', commissionAmount: amt, reportMonth: r.reportMonth });          total += amt;
+          rows.push({ company: r.company ?? '', product: r.product ?? '', policyNumber: r.policyNumber ?? '', commissionAmount: amt, reportMonth: r.reportMonth, templateId: r.templateId ?? undefined });
           total += amt;
         }
       }
@@ -393,16 +403,31 @@ rows.push({ company: r.company ?? '', product: r.product ?? '', policyNumber: r.
 
   // ─── נפרעים vs Magic לכל שורה בלשונית נפרעים ────────────────────────────────
   const nifraimWithGap = useMemo(() => {
-    return externalRows.map(ext => {
-      const magicMatch = magicSales.find(
-        s => String(s.company || '').trim() === String(ext.company || '').trim() &&
-             (!ext.product || String(s.product || '').trim() === String(ext.product || '').trim()),
-      );
-      const magicVal = magicMatch?.commissionNifraim ?? null;
-      const gap = magicVal !== null ? ext.commissionAmount - magicVal : null;
-      return { ...ext, magicVal, gap };
-    });
-  }, [externalRows, magicSales]);
+    return externalRows
+      .filter(ext => {
+        // ── סינון תבניות "היקף" — נכלל רק תבניות נפרעים (ללא hekefType) ──
+        if (!ext.templateId) return true; // אין templateId — לא נחסום (שורות ישנות/חיצוניות)
+        const template = templatesById[ext.templateId];
+        if (!template) return true; // template עדיין לא נטען — לא נחסום
+        const hekefType = String(template.hekefType ?? '').trim();
+        return !hekefType; // יש ערך ב-hekefType => תבנית היקף => מסונן בחוץ
+      })
+      .map(ext => {
+        const magicMatch = magicSales.find(
+          s => String(s.company || '').trim() === String(ext.company || '').trim() &&
+               (!ext.product || String(s.product || '').trim() === String(ext.product || '').trim()),
+        );
+        const magicVal = magicMatch?.commissionNifraim ?? null;
+        const gap = magicVal !== null ? ext.commissionAmount - magicVal : null;
+
+        // פתרון המוצר הקנוני לפי קטלוג ה-template (כמו במסך סיכום העמלות)
+        const template = ext.templateId ? templatesById[ext.templateId] : undefined;
+        const resolved = resolveFromTemplate(template, ext.product);
+        const displayProduct = resolved.canonicalProduct || ext.product || '—';
+
+        return { ...ext, magicVal, gap, displayProduct };
+      });
+  }, [externalRows, magicSales, templatesById]);
 
   // ─── ניווט לדף השוואה מלאה ───────────────────────────────────────────────────
   const openFullCompare = () => {
@@ -640,7 +665,8 @@ rows.push({ company: r.company ?? '', product: r.product ?? '', policyNumber: r.
                   {canViewCommissions && (
                     <tfoot>
                       <tr>
-<td colSpan={5} style={{ fontWeight: 'bold', textAlign: 'left' }}>סה&quot;כ</td>                        <td style={{ fontWeight: 'bold' }}>{totalMagicHekef.toLocaleString()} ₪</td>
+                        <td colSpan={5} style={{ fontWeight: 'bold', textAlign: 'left' }}>סה"כ</td>
+                        <td style={{ fontWeight: 'bold' }}>{totalMagicHekef.toLocaleString()} ₪</td>
                         <td style={{ fontWeight: 'bold' }}>{magicNifraim.toLocaleString()} ₪</td>
                       </tr>
                     </tfoot>
@@ -683,7 +709,7 @@ rows.push({ company: r.company ?? '', product: r.product ?? '', policyNumber: r.
                   {nifraimWithGap.map((r, i) => (
                     <tr key={i}>
                       <td>{r.company}</td>
-                      <td>{r.product || '—'}</td>
+                      <td>{r.displayProduct}</td>
                       <td>{r.policyNumber || '—'}</td>
                       {canViewCommissions && (
                         <td>{r.commissionAmount.toLocaleString()} ₪</td>
@@ -724,7 +750,8 @@ rows.push({ company: r.company ?? '', product: r.product ?? '', policyNumber: r.
                           {isMain && <span className="cp-chip-main">ראשי</span>}
                           {isCurrent && <span className="cp-chip-current">נוכחי</span>}
                         </span>
-<span className="cp-fmember-sub">ת&quot;ז {m.IDCustomer}</span>                      </div>
+                        <span className="cp-fmember-sub">ת"ז {m.IDCustomer}</span>
+                      </div>
                       {!isCurrent && <span className="cp-family-arrow">←</span>}
                     </div>
                   );

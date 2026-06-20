@@ -1,3 +1,8 @@
+// ═══════════════════════════════════════════════════════════════════
+// app/api/commission-summary-yearly-analysis/route.ts
+// תיקון: סינון תבניות "היקף" (hekefType) — נכלל רק תבניות נפרעים
+// ═══════════════════════════════════════════════════════════════════
+
 import { NextRequest, NextResponse } from 'next/server';
 import { admin } from '@/lib/firebase/firebase-admin';
 
@@ -11,9 +16,19 @@ export async function POST(req: NextRequest) {
 
     const db = admin.firestore();
 
+    // ─── שלוף templateIds שהם "היקף" — אלה שיש להם hekefType ──────────────
+    const templatesSnap = await db
+      .collection('commissionTemplates')
+      .where('isactive', '==', true)
+      .get();
+
+    const hekefTemplateIds = new Set(
+      templatesSnap.docs
+        .filter(d => !!d.data().hekefType)
+        .map(d => d.id)
+    );
+
     // שאילתה שמביאה את כל הפוליסות של הסוכן לאותה שנה
-    // אנחנו מורידים את ההגבלה של חברה וקוד סוכן כדי לקבל מבט שנתי מלא
-    
     const snap = await db
       .collection('policyCommissionSummaries')
       .where('agentId', '==', agentId)
@@ -21,23 +36,25 @@ export async function POST(req: NextRequest) {
       .where('reportMonth', '<=', `${year}-12`)
       .get();
 
-  // בתוך ה-snap.docs.map ב-Route שלך:
-const rows = snap.docs.map((d) => {
-  const x: any = d.data();
-  return {
-    policyNumberKey: x.policyNumberKey,
-    customerId: x.customerId,
-    fullName: x.fullName,
-    product: x.product,
-    totalCommissionAmount: x.totalCommissionAmount ?? 0,
-    // התיקון כאן: אנחנו לוקחים את x.company מה-Firestore ושולחים כ-companyName
-    companyName: x.company || 'כלל', 
-    templateId: x.templateId,
-    productGroup: x.productGroup || x.productsGroup || '',
-    validMonth: x.validMonth,
-    reportMonth: x.reportMonth,
-  };
-});
+    const rows = snap.docs
+      .map((d) => {
+        const x: any = d.data();
+        return {
+          policyNumberKey: x.policyNumberKey,
+          customerId: x.customerId,
+          fullName: x.fullName,
+          product: x.product,
+          totalCommissionAmount: x.totalCommissionAmount ?? 0,
+          companyName: x.company || 'כלל',
+          templateId: x.templateId,
+          productGroup: x.productGroup || x.productsGroup || '',
+          validMonth: x.validMonth,
+          reportMonth: x.reportMonth,
+        };
+      })
+      // ─── סינון: רק templates שאין להם hekefType (= "נפרעים") ─────────────
+      .filter((r) => !hekefTemplateIds.has(r.templateId));
+
     return NextResponse.json({ rows });
 
   } catch (err: any) {

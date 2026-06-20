@@ -82,7 +82,7 @@ const normCompany = (s?: string|null) => String(s ?? '').trim();
 
 const [importModalOpen, setImportModalOpen] = useState(false);
 const [importLoading, setImportLoading] = useState(false);
-const [importResult, setImportResult] = useState<{ created: number; skipped: number; total: number } | null>(null);
+const [importResult, setImportResult] = useState<{ created: number;updated: number; skipped: number; total: number } | null>(null);
 
 
  const {
@@ -165,7 +165,7 @@ const { toasts, addToast, setToasts } = useToast();
 
 const { errors, setErrors, handleValidatedEditChange } = useValidation();
 const { canAccess: canViewCommissions } = usePermission("view_commissions_field");
-
+const { canAccess: canAccessCustomerTiers } = usePermission('access_customer_tiers');
 
 // שינוי עמוד
 const handlePageChange = (pageNumber: number) => {
@@ -1472,6 +1472,16 @@ const handleImportCustomers = async () => {
   state={selectedAgentId ? "default" : "disabled"}
   disabled={!selectedAgentId}
 />
+{canAccessCustomerTiers && (
+  <Button
+    onClick={() => router.push('/customer-tiers')}
+    text="דירוג לקוחות"
+    type="primary"
+    icon="off"
+    state={selectedAgentId ? "default" : "disabled"}
+    disabled={!selectedAgentId}
+  />
+)}
   <button onClick={() => exportCustomersToExcel(filteredData)}>
   <img src="/static/img/excel-icon.svg" alt="ייצוא לקוחות" width={24} height={24} />
 </button>
@@ -2207,17 +2217,21 @@ const handleImportCustomers = async () => {
           <div className="text-gray-600">מייבא לקוחות, אנא המתן...</div>
           <div className="text-sm text-gray-400 mt-2">הפעולה עשויה לקחת מספר דקות בריצה ראשונה</div>
         </div>
-      ) : importResult ? (
+    ) : importResult ? (
         <div className="mt-4 space-y-3">
           <div className="text-green-600 text-5xl">✓</div>
-          <div className="grid grid-cols-3 gap-3 mt-4">
+          <div className="grid grid-cols-4 gap-3 mt-4">
             <div className="p-3 bg-gray-50 rounded-lg">
-         <div className="text-xs text-gray-500">סה&quot;כ נמצאו</div>
+              <div className="text-xs text-gray-500">סה&quot;כ נמצאו</div>
               <div className="text-2xl font-bold">{importResult.total}</div>
             </div>
             <div className="p-3 bg-green-50 rounded-lg">
               <div className="text-xs text-green-600">נוצרו חדשים</div>
               <div className="text-2xl font-bold text-green-700">{importResult.created}</div>
+            </div>
+            <div className="p-3 bg-purple-50 rounded-lg">
+              <div className="text-xs text-purple-600">הושלם שם</div>
+              <div className="text-2xl font-bold text-purple-700">{importResult.updated}</div>
             </div>
             <div className="p-3 bg-blue-50 rounded-lg">
               <div className="text-xs text-blue-600">כבר קיימים</div>
