@@ -26,4 +26,5 @@ export interface LeadsType {
   AgentId: string;
   agentName?: string;
   idCardIssueDate?: string;
+  gender?: string;
 }

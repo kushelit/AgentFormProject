@@ -100,7 +100,7 @@ function mapProsaasToLead(payload: any) {
     gender: clean(contact.gender || payload.gender || customFields.gender),
     city: clean(contact.city || payload.city || customFields.city),
     notes: clean(payload.notes || payload.description),
-    idCardIssueDate: clean(customFields.id_card_issue_date || ''),
+    idCardIssueDate: normalizeDate(customFields.id_card_issue_date || ''),
 
     externalSystem: 'prosaas',
     externalBusinessId: clean(payload.business_id),
@@ -275,6 +275,24 @@ async function saveProsaasFilesToLead(
 
   return savedFiles;
 }
+
+
+const normalizeDate = (v: any): string => {
+  const raw = clean(v);
+  if (!raw) return '';
+  
+  const dotMatch = raw.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
+  if (dotMatch) {
+    const [, day, month, year] = dotMatch;
+    return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+  }
+  
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+  
+  return raw;
+};
+
+
 
 export async function POST(req: Request) {
   try {

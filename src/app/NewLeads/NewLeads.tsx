@@ -641,6 +641,11 @@ const [documentsLoading, setDocumentsLoading] = useState(false);
 
   const { sortedData, sortColumn, sortOrder, handleSort, setSortedData } = useSortableTable(filteredData);
 
+const mapGenderToHebrew = (g: string): string => {
+  if (g === 'male') return 'זכר';
+  if (g === 'female') return 'נקבה';
+  return '';
+};
 
 
 const handleConvertToCustomer = async (lead: LeadsType) => {
@@ -681,6 +686,7 @@ const handleConvertToCustomer = async (lead: LeadsType) => {
       address: lead.address || '',
       birthday: lead.birthday || '',
       issueDay: lead.idCardIssueDate || '',
+      gender: mapGenderToHebrew(lead.gender || ''),
       notes: lead.notes || '',
       sourceValue: lead.sourceValue || '',
       sourceLead: lead.sourceValue || '',
@@ -770,6 +776,8 @@ url = await getDownloadURL(storageRef);
     setDocumentsLoading(false);
   }
 };
+
+
 
   return (
     <div className="content-container">
@@ -906,6 +914,17 @@ url = await getDownloadURL(storageRef);
     value={editData?.idCardIssueDate || ""}
     onChange={(e) => handleEditLeadChange("idCardIssueDate", e.target.value)}
   />
+</div>
+<div className="form-group">
+  <label>מגדר</label>
+  <select 
+    value={editData?.gender || ""} 
+    onChange={(e) => handleEditLeadChange("gender", e.target.value)}
+  >
+    <option value="">בחר מגדר</option>
+    <option value="male">זכר</option>
+    <option value="female">נקבה</option>
+  </select>
 </div>
             <div className="form-group">
               <label>תאריך לידה</label>
