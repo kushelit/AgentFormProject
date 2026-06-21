@@ -312,7 +312,7 @@ async function openAgentDrill(
   ];
 
 
-  async function openDrill(companyId: string, agentCode: string, month: string) {
+ async function openDrill(companyId: string, agentCode: string, month: string, templateId?: string) {
     setDrill({ companyId, agentCode, month });
     setDrillLoading(true);
     setDrillRows([]);
@@ -326,6 +326,7 @@ async function openAgentDrill(
           companyId,
           agentCode,
           reportMonth: month, 
+          templateId,
         }),
       });
   
@@ -1402,11 +1403,12 @@ onClick={() => {
               <tr
                 key={agentCode}
                 className="cursor-pointer hover:bg-gray-100"
-                onClick={() => {
-                  setAgentDrill(null);
-                  setTemplateDrill(null);
-                  openDrill(agentDrill.companyId, agentCode, agentDrill.month);
-                }}
+           onClick={() => {
+  setAgentDrill(null);
+  setTemplateDrill(null);
+  setTemplateYearDrill(null); // 🔧 חסר היה — בלי זה הטבלה הישנה (z-55) נשארת מעל drill (z-50)
+  openDrill(agentDrill.companyId, agentCode, agentDrill.month, agentDrill.templateId);
+}}
               >
                 <td className="border px-2 py-1">{agentCode}</td>
                 <td className="border px-2 py-1 font-semibold">{amount.toLocaleString()}</td>
