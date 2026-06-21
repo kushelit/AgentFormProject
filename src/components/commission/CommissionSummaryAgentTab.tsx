@@ -142,13 +142,17 @@ const [agentDrillSort, setAgentDrillSort] = useState<{ key: 'agentCode' | 'amoun
 
 
   // דריל ביניים — תבניות לפי חברה
-const [templateDrill, setTemplateDrill] = useState<{ companyId: string; companyName: string } | null>(null);
+// 🔧 הוספנו ym ל-state כדי שנוכל להעביר אותו הלאה לדריל הסוכן (לתיקון תקלה 2)
+const [templateDrill, setTemplateDrill] = useState<{ companyId: string; companyName: string; ym?: string } | null>(null);
 const [byTemplateMonth, setByTemplateMonth] = useState<Record<string, Record<string, number>>>({});
 const [templateNames, setTemplateNames] = useState<Record<string, string>>({});
 const [templateDrillMonths, setTemplateDrillMonths] = useState<string[]>([]);
 const [templateDrillLoading, setTemplateDrillLoading] = useState(false);
 
 const [agentDrill, setAgentDrill] = useState<{ companyName: string; companyId: string; templateId: string; month: string } | null>(null);
+// 🔧 דאטה טריה ומסוננת לתבנית+חודש הספציפיים (לא עוד מ-summaryByCompanyAgentMonth הגלובלי)
+const [agentDrillData, setAgentDrillData] = useState<Record<string, number>>({});
+const [agentDrillLoading, setAgentDrillLoading] = useState(false);
 
 const [templateYearDrill, setTemplateYearDrill] = useState<{
   companyId: string;
@@ -162,7 +166,7 @@ const [showAnomalies, setShowAnomalies] = useState(false);
 
 
 async function openTemplateDrill(companyId: string, companyName: string, ym?: string) {
-  setTemplateDrill({ companyId, companyName });
+  setTemplateDrill({ companyId, companyName, ym });
   setTemplateDrillLoading(true);
   setByTemplateMonth({});
   setTemplateNames({});
@@ -182,6 +186,33 @@ async function openTemplateDrill(companyId: string, companyName: string, ym?: st
     setTemplateDrillLoading(false);
   }
 }
+
+// 🔧 חדש: פותח את דריל הסוכן ומביא דאטה מסוננת לתבנית+חודש (+ym אם רלוונטי) מה-API
+// במקום לקרוא ל-summaryByCompanyAgentMonth הגלובלי שמצרף את כל התבניות של החברה
+async function openAgentDrill(
+  companyId: string,
+  companyName: string,
+  templateId: string,
+  month: string,
+  ym?: string
+) {
+  setAgentDrill({ companyName, companyId, templateId, month });
+  setAgentDrillLoading(true);
+  setAgentDrillData({});
+
+  try {
+    const res = await fetch('/api/commission-summary-by-template-agent', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ agentId: selectedAgentId, companyId, templateId, month, ym }),
+    });
+    const data = await res.json();
+    setAgentDrillData(data.byAgent ?? {});
+  } finally {
+    setAgentDrillLoading(false);
+  }
+}
+
   useEffect(() => {
     const fetchSummaries = async () => {
       if (!selectedAgentId || !selectedYear) {
@@ -1297,12 +1328,15 @@ onClick={() => {
   className={`border px-2 py-1 ${monthMap[m] ? 'cursor-pointer hover:bg-gray-100' : 'text-gray-300'}`}
   onClick={() => {
     if (!monthMap[m]) return;
-    setAgentDrill({
-      companyName: templateDrill!.companyName,
-      companyId: templateDrill!.companyId,
-      templateId: tid,
-      month: m,
-    });
+    // 🔧 תיקון תקלה 2: פותחים דריל סוכן עם דאטה מסוננת לתבנית+חודש(+ym),
+    // לא עם summaryByCompanyAgentMonth הגלובלי שמצרף את כל התבניות
+    openAgentDrill(
+      templateDrill!.companyId,
+      templateDrill!.companyName,
+      tid,
+      m,
+      templateDrill!.ym
+    );
   }}
   title="לחץ לפירוט לפי מספר סוכן"
 >
@@ -1328,6 +1362,9 @@ onClick={() => {
         </div>
         <button className="px-3 py-1 border rounded" onClick={() => setAgentDrill(null)}>סגור</button>
       </div>
+      {agentDrillLoading ? (
+        <Spinner />
+      ) : (
      <table className="w-full text-sm border">
         <thead className="bg-gray-100">
           <tr>
@@ -1352,19 +1389,16 @@ onClick={() => {
           </tr>
         </thead>
         <tbody>
-          {Object.entries(summaryByCompanyAgentMonth[agentDrill.companyName] || {})
-            .filter(([, monthMap]) => monthMap[agentDrill.month])
+          {Object.entries(agentDrillData)
          .sort(([codeA, a], [codeB, b]) => {
               if (agentDrillSort.key === 'agentCode') {
                 return agentDrillSort.dir === 'asc'
                   ? codeA.localeCompare(codeB)
                   : codeB.localeCompare(codeA);
               }
-              return agentDrillSort.dir === 'desc'
-                ? (b[agentDrill.month] || 0) - (a[agentDrill.month] || 0)
-                : (a[agentDrill.month] || 0) - (b[agentDrill.month] || 0);
+              return agentDrillSort.dir === 'desc' ? b - a : a - b;
             })
-            .map(([agentCode, monthMap]) => (
+            .map(([agentCode, amount]) => (
               <tr
                 key={agentCode}
                 className="cursor-pointer hover:bg-gray-100"
@@ -1375,11 +1409,12 @@ onClick={() => {
                 }}
               >
                 <td className="border px-2 py-1">{agentCode}</td>
-                <td className="border px-2 py-1 font-semibold">{(monthMap[agentDrill.month] || 0).toLocaleString()}</td>
+                <td className="border px-2 py-1 font-semibold">{amount.toLocaleString()}</td>
               </tr>
             ))}
         </tbody>
       </table>
+      )}
     </div>
   </div>
 )}
@@ -1487,12 +1522,14 @@ onClick={() => {
   key={month}
   className="hover:bg-gray-100 cursor-pointer"
   onClick={() => {
-    setAgentDrill({
-      companyName: templateYearDrill.companyName,
-      companyId: templateYearDrill.companyId,
-      templateId: templateYearDrill.templateId,
-      month,
-    });
+    // 🔧 תיקון תקלה 2: כאן גם — דריל סוכן מסונן לתבנית+חודש, בלי ym
+    // (התצוגה השנתית הזו נשלפת בלי ym מההתחלה)
+    openAgentDrill(
+      templateYearDrill.companyId,
+      templateYearDrill.companyName,
+      templateYearDrill.templateId,
+      month
+    );
   }}
 >
   <td className="border px-2 py-1">{month}</td>
