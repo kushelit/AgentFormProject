@@ -129,6 +129,12 @@ export async function harelHandleOtp(page: Page, ctx: RunnerCtx) {
     await page.waitForTimeout(1000);
   }
 
+  // 🔧 buffer נוסף אחרי אישור LOGGED_IN — נותן לסשן/לקוקיז של הראל "להתבסס"
+  // בצד השרת לפני שממשיכים לנווט לדוח. זה מדמה את ההמתנה הטבעית שקיימת
+  // כשמעבירים URL לטאב חדש ידנית (כמו שמיכל גילתה שעוזר).
+  console.log("[Harel] ממתין 5 שניות לאחר אישור LOGGED_IN, לפני המשך...");
+  await page.waitForTimeout(5000);
+
   await clearOtp(runId).catch(() => {});
 }
 
@@ -143,7 +149,7 @@ export async function harelNavigateToReport(
   await page.goto(reportUrl, { waitUntil: "domcontentloaded", timeout: 60000 });
   await page.waitForLoadState("networkidle", { timeout: 60000 }).catch(() => {});
 
-  // ✅ שלב 1: המתן שה-frame עם הטבלה יטען
+  // ✅ שלב 1: המתן שה-frame עם הטבלה יטען (עם רענון אוטומטי אם תקוע)
   // console.log("[Harel] Waiting for frame with table...");
   let frame = null;
   for (let i = 0; i < 60; i++) {
@@ -156,6 +162,13 @@ export async function harelNavigateToReport(
       if (check === 'FOUND') break;
     } else {
       // console.log(`[Harel] Table check ${i + 1}: frame not found yet`);
+    }
+    // 🔧 אחרי ~15 שניות בלי הצלחה — מרענן את הדף (מדמה הדבקת URL טרי לטאב חדש,
+    // שגילינו שעוזר כשהדף נתקע ב-spinner של ה-iframe הפנימי)
+    if (i === 7) {
+      console.log('[Harel] שלב 1: עדיין לא נמצא אחרי ~15ש׳ — מרענן דף...');
+      await page.reload({ waitUntil: "domcontentloaded", timeout: 60000 }).catch(() => {});
+      await page.waitForLoadState("networkidle", { timeout: 30000 }).catch(() => {});
     }
     await page.waitForTimeout(2000);
   }
@@ -312,15 +325,14 @@ export async function harelNavigateToReport(
 }
 
 // ============================================================================
-// 🔧 פונקציות עזר חדשות — קליק עכבר אמיתי בתוך frame, עם retry/polling
+// 🔧 פונקציות עזר — קליק עכבר אמיתי בתוך frame, עם retry/polling/אימות
 //
-// הסיבה: ה-widget של הקומבואים (חברה מנהלת / סוכן) ב-OAOAnalysis בנוי
-// כ-single-spa micro-frontend. dispatchEvent שנשלח לפני שה-app הזה "עלה"
-// (mounted) לא מגיע לשום event listener אמיתי — שום דבר לא נפתח, וזה קורה
-// בעיקר בשלב 8 (חברה מנהלת) כי זה הקומבו הראשון שתלוי בכך. קליק עכבר אמיתי
-// בקואורדינטות (page.mouse.click) פועל גם אם ה-app טרם עלה כי זה event
-// אמיתי שדפדפן ה-OS מדמה, ובנוסף הוספנו retry שמנסה שוב אם לא נפתח בפעם
-// הראשונה (כלומר ה-app עוד לא היה מוכן).
+// הסיבה: ה-widgets ב-OAOAnalysis (קומבואים, ולעיתים גם המודלים בטבלה הראשית)
+// בנויים כ-single-spa micro-frontends. dispatchEvent/click שנשלח לפני שה-app
+// הרלוונטי "עלה" (mounted) לא מגיע לשום event listener אמיתי — שום דבר לא
+// קורה, וזה קורה בעיקר כשמדובר באלמנט הראשון שתלוי ב-app שעדיין לא היה לו
+// סיבה לעלות קודם. קליק עכבר אמיתי (page.mouse.click) + retry + אימות
+// שהתופעה הצפויה אכן קרתה, פותרים את זה בלי תלות במזל תזמון.
 // ============================================================================
 
 async function getCenterInFrame(
@@ -347,7 +359,7 @@ async function getFrameOffset(newPage: any): Promise<{ x: number; y: number }> {
   return { x: rect?.x || 0, y: rect?.y || 0 };
 }
 
-// קליק עכבר אמיתי (לא dispatchEvent) על אלמנט בתוך ה-iframe
+// קליק עכבר אמיתי (לא dispatchEvent) על אלמנט בתוך ה-iframe (OAOAnalysis)
 async function clickElementInFrame(
   newPage: any,
   filterFrame: any,
@@ -356,7 +368,7 @@ async function clickElementInFrame(
 ): Promise<boolean> {
   const center = await getCenterInFrame(filterFrame, jsElementExpr);
   if (!center) {
-    console.log(`[Harel] clickElementInFrame: NOT_FOUND ${label}`);
+    console.log(`[Harel][Tzvira] clickElementInFrame: NOT_FOUND ${label}`);
     return false;
   }
 
@@ -366,12 +378,12 @@ async function clickElementInFrame(
 
   await newPage.mouse.move(absX, absY);
   await newPage.mouse.click(absX, absY);
-  console.log(`[Harel] clicked ${label} at (${Math.round(absX)}, ${Math.round(absY)})`);
+  console.log(`[Harel][Tzvira] clicked ${label} at (${Math.round(absX)}, ${Math.round(absY)})`);
   return true;
 }
 
 // פותח קומבו (חברה מנהלת / סוכן) ובוחר "בחר הכל" — עם retry אם ה-single-spa
-// app של הקומבו עדיין לא עלה (זה מה שתמיד נכשל בלי retry בשלב 8)
+// app של הקומבו עדיין לא עלה
 async function openComboAndSelectAll(
   newPage: any,
   filterFrame: any,
@@ -386,7 +398,7 @@ async function openComboAndSelectAll(
       `open ${label} (ניסיון ${attempt})`
     );
     if (!opened) {
-      console.log(`[Harel] ${label}: תיבת הקומבו לא נמצאה בכלל — עוצר`);
+      console.log(`[Harel][Tzvira] ${label}: תיבת הקומבו לא נמצאה בכלל — עוצר`);
       return false;
     }
 
@@ -413,15 +425,53 @@ async function openComboAndSelectAll(
         `select-all ${label}`
       );
       if (ok) {
-        console.log(`[Harel] ${label}: בחר-הכל בוצע בניסיון ${attempt}`);
+        console.log(`[Harel][Tzvira] ${label}: בחר-הכל בוצע בניסיון ${attempt}`);
         return true;
       }
     }
 
-    console.log(`[Harel] ${label}: selectall לא הופיע בניסיון ${attempt}, מנסה שוב...`);
+    console.log(`[Harel][Tzvira] ${label}: selectall לא הופיע בניסיון ${attempt}, מנסה שוב...`);
   }
 
-  console.log(`[Harel] ${label}: נכשל אחרי כל הניסיונות`);
+  console.log(`[Harel][Tzvira] ${label}: נכשל אחרי כל הניסיונות`);
+  return false;
+}
+
+// קליק על אלמנט + אימות שתופעה צפויה קרתה (למשל: מודל נפתח) — עם retry על
+// כל השרשרת (קליק + אימות) ולא רק על הקליק. אם נכשל לחלוטין, מחזיר false
+// והקריאה צריכה לעשות throw מפורש (לא להמשיך בשקט).
+async function clickAndVerify(
+  page: Page,
+  frame: any,
+  clickExpr: string,
+  verifyExpr: string,
+  label: string,
+  maxAttempts = 3,
+  verifyTimeoutMs = 8000
+): Promise<boolean> {
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const clickResult = await frame.evaluate(clickExpr).catch(() => 'ERROR');
+    console.log(`[Harel][Tzvira] ${label}: לחיצה ניסיון ${attempt} -> ${clickResult}`);
+
+    if (clickResult === 'NOT_FOUND' || clickResult === 'ERROR') {
+      console.log(`[Harel][Tzvira] ${label}: האלמנט ללחיצה לא נמצא, ממתין ומנסה שוב...`);
+      await page.waitForTimeout(1000);
+      continue;
+    }
+
+    const start = Date.now();
+    while (Date.now() - start < verifyTimeoutMs) {
+      const check = await frame.evaluate(verifyExpr).catch(() => 'ERROR');
+      if (check === 'FOUND') {
+        console.log(`[Harel][Tzvira] ${label}: אומת בהצלחה בניסיון ${attempt}`);
+        return true;
+      }
+      await page.waitForTimeout(500);
+    }
+    console.log(`[Harel][Tzvira] ${label}: הלחיצה קרתה אך האימות נכשל בניסיון ${attempt}, מנסה קליק נוסף...`);
+  }
+
+  console.log(`[Harel][Tzvira] ${label}: נכשל לחלוטין אחרי ${maxAttempts} ניסיונות`);
   return false;
 }
 
@@ -433,23 +483,13 @@ export async function harelNavigateToTzviraReport(
   const results: { localPath: string; filename: string }[] = [];
   const reportUrl = "https://agents-int.harel-group.co.il/Information/Reports/life-health-saving/Agent/Pages/commissions/payments-assembly.aspx";
 
-  function getOneMonthAgo(): { monthIndex: number; needNextYear: boolean } {
-    const now = new Date();
-    const d = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    return {
-      monthIndex: d.getMonth(),
-      needNextYear: d.getFullYear() > now.getFullYear() - 1,
-    };
-  }
+  console.log("[Harel][Tzvira] === מתחיל ריצת דוח צבירה ===");
 
-  const hebrewMonthsShort = ['ינו', 'פבר', 'מרץ', 'אפר', 'מאי', 'יונ', 'יול', 'אוג', 'ספט', 'אוק', 'נוב', 'דצמ'];
-
-  // console.log("[Harel] Navigating to tzvira report page...");
   await page.goto(reportUrl, { waitUntil: "domcontentloaded", timeout: 60000 });
   await page.waitForLoadState("networkidle", { timeout: 60000 }).catch(() => {});
 
-  // ✅ שלב 1: המתן שה-frame עם הטבלה יטען
-  // console.log("[Harel] Waiting for frame with table...");
+  // ✅ שלב 1: המתן שה-frame עם הטבלה הראשית יטען (עם רענון אוטומטי אם תקוע)
+  console.log("[Harel][Tzvira] שלב 1: מחפש frame עם טבלת מוצרי צבירה...");
   let frame = null;
   for (let i = 0; i < 60; i++) {
     frame = page.frames().find(f => f.url().includes('_layouts/15/H'));
@@ -457,68 +497,65 @@ export async function harelNavigateToTzviraReport(
       const check = await frame.evaluate(
         `document.querySelector('th[data_colid="Schum_Mutzarim_Finnasim"]') ? 'FOUND' : 'NOT_FOUND'`
       ).catch(() => 'ERROR');
-      // console.log(`[Harel] Tzvira table check ${i + 1}:`, check);
-      if (check === 'FOUND') break;
-    } else {
-      // console.log(`[Harel] Tzvira table check ${i + 1}: frame not found yet`);
+      if (check === 'FOUND') {
+        console.log(`[Harel][Tzvira] שלב 1: נמצא (ניסיון ${i + 1})`);
+        break;
+      }
+    }
+    // 🔧 אחרי ~15 שניות בלי הצלחה — מרענן את הדף (מדמה הדבקת URL טרי לטאב
+    // חדש, שגילינו שעוזר כשהדף נתקע ב-spinner של ה-iframe הפנימי)
+    if (i === 7) {
+      console.log('[Harel][Tzvira] שלב 1: עדיין לא נמצא אחרי ~15ש׳ — מרענן דף...');
+      await page.reload({ waitUntil: "domcontentloaded", timeout: 60000 }).catch(() => {});
+      await page.waitForLoadState("networkidle", { timeout: 30000 }).catch(() => {});
     }
     await page.waitForTimeout(2000);
   }
 
-  if (!frame) throw new Error("Tzvira frame לא נמצא");
+  if (!frame) throw new Error("[Harel][Tzvira] שלב 1: ה-frame הראשי לא נמצא");
 
-  // ✅ שלב 2: לחץ על "מוצרי צבירה" בשורה הראשונה
-  // console.log("[Harel] Clicking first row מוצרי צבירה...");
-  const clickResult = await frame.evaluate(`(function() {
-    const th = document.querySelector('th[data_colid="Schum_Mutzarim_Finnasim"]');
-    if (!th) return 'TH_NOT_FOUND';
-    const table = th.closest('table');
-    if (!table) return 'TABLE_NOT_FOUND';
-    const colIndex = Array.from(table.querySelectorAll('th')).findIndex(t => t.getAttribute('data_colid') === 'Schum_Mutzarim_Finnasim');
-    const firstRow = table.querySelector('tbody tr');
-    if (!firstRow) return 'ROW_NOT_FOUND';
-    const cell = firstRow.querySelectorAll('td')[colIndex];
-    if (!cell) return 'CELL_NOT_FOUND';
-    cell.click();
-    return 'CLICKED: ' + cell.textContent?.trim();
-  })()`);
-  // console.log("[Harel] Tzvira click result:", clickResult);
+  // ✅ שלב 2-3: קליק על שורת "מוצרי צבירה" + אימות שמודל ראשון נפתח (עם retry)
+  console.log("[Harel][Tzvira] שלב 2-3: לוחץ על שורת מוצרי צבירה ומאמת פתיחת מודל ראשון...");
+  const step2_3Ok = await clickAndVerify(
+    page,
+    frame,
+    `(function() {
+      const th = document.querySelector('th[data_colid="Schum_Mutzarim_Finnasim"]');
+      if (!th) return 'NOT_FOUND';
+      const table = th.closest('table');
+      if (!table) return 'NOT_FOUND';
+      const colIndex = Array.from(table.querySelectorAll('th')).findIndex(t => t.getAttribute('data_colid') === 'Schum_Mutzarim_Finnasim');
+      const firstRow = table.querySelector('tbody tr');
+      if (!firstRow) return 'NOT_FOUND';
+      const cell = firstRow.querySelectorAll('td')[colIndex];
+      if (!cell) return 'NOT_FOUND';
+      cell.click();
+      return 'CLICKED';
+    })()`,
+    `document.querySelector('td[data_colid="_M2_Schum_2"].cell_action') ? 'FOUND' : 'NOT_FOUND'`,
+    'שלב 2-3'
+  );
+  if (!step2_3Ok) throw new Error("[Harel][Tzvira] שלב 2-3: לא הצלחנו לפתוח את המודל הראשון אחרי כל הניסיונות");
 
-  // ✅ שלב 3: המתן ל-modal ראשון
-  // console.log("[Harel] Waiting for first modal _M2_Schum_2...");
-  for (let i = 0; i < 20; i++) {
-    const check = await frame.evaluate(
-      `document.querySelector('td[data_colid="_M2_Schum_2"].cell_action') ? 'FOUND' : 'NOT_FOUND'`
-    ).catch(() => 'ERROR');
-    // console.log(`[Harel] First modal check ${i + 1}:`, check);
-    if (check === 'FOUND') break;
-    await page.waitForTimeout(1000);
-  }
+  // ✅ שלב 4-5: קליק על תא מודל ראשון + אימות שמודל שני נפתח (עם retry)
+  console.log("[Harel][Tzvira] שלב 4-5: לוחץ על תא מודל ראשון ומאמת פתיחת מודל שני...");
+  const step4_5Ok = await clickAndVerify(
+    page,
+    frame,
+    `(function() {
+      const cell = document.querySelector('td[data_colid="_M2_Schum_2"].cell_action');
+      if (!cell) return 'NOT_FOUND';
+      cell.click();
+      return 'CLICKED';
+    })()`,
+    `document.querySelectorAll('td[data_colid="_M2_Schum_2"].cell_action').length >= 2 ? 'FOUND' : 'NOT_FOUND'`,
+    'שלב 4-5'
+  );
+  if (!step4_5Ok) throw new Error("[Harel][Tzvira] שלב 4-5: לא הצלחנו לפתוח את המודל השני אחרי כל הניסיונות");
 
-  // ✅ שלב 4: לחץ על תא החודש - modal ראשון
-  // console.log("[Harel] Clicking first modal cell...");
-  const firstClickResult = await frame.evaluate(`(function() {
-    const cell = document.querySelector('td[data_colid="_M2_Schum_2"].cell_action');
-    if (!cell) return 'NOT_FOUND';
-    cell.click();
-    return 'CLICKED: ' + cell.getAttribute('data-title') + ' = ' + cell.textContent?.trim();
-  })()`);
-  // console.log("[Harel] First modal click result:", firstClickResult);
-
-  // ✅ שלב 5: המתן ל-modal שני
-  // console.log("[Harel] Waiting for second modal _M2_Schum_2...");
-  await page.waitForTimeout(1000);
-  for (let i = 0; i < 20; i++) {
-    const check = await frame.evaluate(
-      `document.querySelectorAll('td[data_colid="_M2_Schum_2"].cell_action').length >= 2 ? 'FOUND' : 'NOT_FOUND'`
-    ).catch(() => 'ERROR');
-    // console.log(`[Harel] Second modal check ${i + 1}:`, check);
-    if (check === 'FOUND') break;
-    await page.waitForTimeout(1000);
-  }
-
-  // ✅ שלב 6: לחץ על תא החודש - modal שני - וחכה לטאב חדש
-   console.log("[Harel]  6 start - waiting for new tab...");
+  // ✅ שלב 6: קליק על תא מודל שני - וחכה לטאב חדש
+  // (בנקודה הזו אנחנו בטוחים ש-2 התאים קיימים, כי שלב 4-5 אומת את זה)
+  console.log("[Harel][Tzvira] שלב 6: לוחץ על תא מודל שני, מחכה לטאב חדש...");
   const [newPage] = await Promise.all([
     page.context().waitForEvent("page", { timeout: 120000 }),
     frame.evaluate(`(function() {
@@ -530,17 +567,16 @@ export async function harelNavigateToTzviraReport(
     })()`)
   ]);
 
-   console.log("[Harel] Tzvira new tab opened 6b:", newPage.url());
+  console.log(`[Harel][Tzvira] שלב 6: טאב חדש נפתח: ${newPage.url()}`);
   await newPage.bringToFront();
   await newPage.waitForLoadState("domcontentloaded", { timeout: 120000 }).catch(() => {});
   await newPage.waitForTimeout(3000);
 
-  console.log("[Harel] Tzvira new tab URL 6c:", newPage.url());
   // 🔧 לוג שגיאות JS בעמוד החדש — עוזר לאשר/לשלול תיאוריות תזמון בעתיד
-  newPage.on('pageerror', (e: any) => console.log(`[Harel] PAGEERROR: ${e?.message}`));
+  newPage.on('pageerror', (e: any) => console.log(`[Harel][Tzvira] PAGEERROR: ${e?.message}`));
 
-  // ✅ שלב 7: המתן שה-frame OAOAnalysis יטען
-   console.log("[Harel] Waiting for OAOAnalysis frame 7...");
+  // ✅ שלב 7: המתן שה-frame OAOAnalysis יטען בטאב החדש
+  console.log("[Harel][Tzvira] שלב 7: מחפש frame OAOAnalysis בטאב החדש...");
   let filterFrame = null;
   for (let i = 0; i < 60; i++) {
     filterFrame = newPage.frames().find(f => f.url().includes('OAOAnalysis'));
@@ -548,109 +584,77 @@ export async function harelNavigateToTzviraReport(
       const check = await filterFrame.evaluate(
         `document.querySelector('#_ctrlParam__4') ? 'FOUND' : 'NOT_FOUND'`
       ).catch(() => 'ERROR');
-      // console.log(`[Harel] Filter frame check ${i + 1}:`, check);
-      if (check === 'FOUND') break;
-    } else {
-      // console.log(`[Harel] Filter frame check ${i + 1}: frame not found yet`);
+      if (check === 'FOUND') {
+        console.log(`[Harel][Tzvira] שלב 7: נמצא (ניסיון ${i + 1})`);
+        break;
+      }
     }
     await newPage.waitForTimeout(2000);
   }
 
-  if (!filterFrame) throw new Error("Tzvira filter frame לא נמצא");
+  if (!filterFrame) throw new Error("[Harel][Tzvira] שלב 7: filter frame לא נמצא");
 
   // 🔧 buffer קצר נוסף לפני שמתחילים לאנטרקט עם הקומבואים — נותן ל-single-spa
-  // הזדמנות סבירה לעלות לפני הניסיון הראשון (לא פותר את הבעיה לבד, אבל מוריד
-  // את הסבירות שנצטרך retry בכלל)
+  // הזדמנות סבירה לעלות לפני הניסיון הראשון
   await newPage.waitForTimeout(1500);
 
-  // ✅ אפס מסנן לפני הגדרת ערכים — קליק אמיתי
+  // ✅ שלב 7.5: אפס מסנן לפני הגדרת ערכים — קליק אמיתי
+  console.log("[Harel][Tzvira] שלב 7.5: מאפס מסנן...");
   const clearOk = await clickElementInFrame(
     newPage,
     filterFrame,
     `document.querySelector('#H_InlineFilters_Clear_2')`,
-    'אפס מסנן'
+    'שלב 7.5 (אפס מסנן)'
   );
-   console.log("[Harel] Clear filter result 7c", clearOk);
+  console.log(`[Harel][Tzvira] שלב 7.5: תוצאה = ${clearOk}`);
   await newPage.waitForTimeout(2000);
 
-  // ✅ שלב 8: חברה מנהלת — פתח + בחר הכל (עם retry — זה השלב שתמיד נכשל)
+  // ✅ שלב 8: חברה מנהלת — פתח + בחר הכל (עם retry)
+  console.log("[Harel][Tzvira] שלב 8: פותח קומבו חברה מנהלת...");
   const step8Ok = await openComboAndSelectAll(
     newPage,
     filterFrame,
     `document.querySelector('#_ctrlParam__4 .ctrlbutton.cbo')`,
-    'חברה מנהלת'
+    'שלב 8 (חברה מנהלת)'
   );
   if (!step8Ok) {
-    console.log('[Harel] חברה מנהלת נכשל — ממשיך בכל זאת (יתכן שהפילטר יחזיר תוצאה חלקית/שגויה)');
+    console.log('[Harel][Tzvira] שלב 8: נכשל — ממשיך בכל זאת (יתכן שהפילטר יחזיר תוצאה חלקית/שגויה)');
   }
   await newPage.waitForTimeout(500);
 
   // ✅ שלב 9: סוכן — פתח + בחר הכל (עם retry)
+  console.log("[Harel][Tzvira] שלב 9: פותח קומבו סוכן...");
   const step9Ok = await openComboAndSelectAll(
     newPage,
     filterFrame,
     `document.querySelector('#_ctrlParam__3 .ctrlbutton.cbo')`,
-    'סוכן'
+    'שלב 9 (סוכן)'
   );
   if (!step9Ok) {
-    console.log('[Harel] סוכן נכשל — ממשיך בכל זאת');
+    console.log('[Harel][Tzvira] שלב 9: נכשל — ממשיך בכל זאת');
   }
   await newPage.waitForTimeout(1000);
 
-  // // ✅ שלב 10: בחר מחודש עיבוד (חודשיים אחורה)
-  // const { monthIndex, needNextYear } = getOneMonthAgo();
-  // const monthText = hebrewMonthsShort[monthIndex];
-  // // console.log(`[Harel] Setting from-month: ${monthText}, needNextYear: ${needNextYear}`);
-
-  // // פתח datepicker — קליק אמיתי
-  // await clickElementInFrame(
-  //   newPage,
-  //   filterFrame,
-  //   `document.querySelector('#_ctrlParam__2')`,
-  //   'פתח datepicker'
-  // );
-  // await newPage.waitForTimeout(500);
-
-  // // לחץ חץ קדימה אם צריך לעבור שנה
-  // if (needNextYear) {
-  //   // console.log("[Harel] Clicking next year arrow...");
-  //   await clickElementInFrame(
-  //     newPage,
-  //     filterFrame,
-  //     `document.querySelector('.datepicker-dropdown th.next')`,
-  //     'חץ שנה קדימה'
-  //   );
-  //   await newPage.waitForTimeout(300);
-  // }
-
-  // // בחר חודש — קליק אמיתי
-  // const monthOk = await clickElementInFrame(
-  //   newPage,
-  //   filterFrame,
-  //   `(function(){
-  //     const cells = Array.from(document.querySelectorAll('.datepicker-dropdown .datepicker-months td span'));
-  //     return cells.find(c => (c.textContent || '').trim() === '${monthText}');
-  //   })()`,
-  //   `בחירת חודש ${monthText}`
-  // );
-  // // console.log("[Harel] From-month click ok:", monthOk);
-  // await newPage.waitForTimeout(500);
+  // ⛔ שלב 10 (בחירת חודש ב-datepicker) הוסר — התאריך כבר מגיע מקודד ב-URL
+  // של הטאב החדש (FilterParams=...TAARIX_ZIKUY_SAP_F|...~TAARIX_ZIKUY_SAP_T|...)
+  // שנקבע בשלב 6, כך שה-datepicker היה redundant ולא משפיע בפועל.
 
   // ✅ שלב 11: לחץ סנן מידע — קליק אמיתי
+  console.log("[Harel][Tzvira] שלב 11: לוחץ סנן מידע...");
   const filterOk = await clickElementInFrame(
     newPage,
     filterFrame,
     `(function(){ return document.querySelector('#H_InlineFilters_Apply_2') || document.querySelector('.filter-apply.click-enter'); })()`,
-    'סנן מידע'
+    'שלב 11 (סנן מידע)'
   );
-  // console.log("[Harel] Tzvira filter result:", filterOk);
+  console.log(`[Harel][Tzvira] שלב 11: תוצאה = ${filterOk}`);
 
   await newPage.waitForTimeout(10000);
   await newPage.waitForLoadState("networkidle", { timeout: 120000 }).catch(() => {});
   await newPage.waitForTimeout(5000); // buffer נוסף אחרי networkidle
 
   // ✅ שלב 12: הורד אקסל — קליק אמיתי
-  // console.log("[Harel] Clicking Excel export for tzvira...");
+  console.log("[Harel][Tzvira] שלב 12: לוחץ הורד אקסל...");
   try {
     const [download] = await Promise.all([
       newPage.waitForEvent("download", { timeout: 60000 }),
@@ -658,19 +662,20 @@ export async function harelNavigateToTzviraReport(
         newPage,
         filterFrame,
         `document.querySelector('.bar-excel')`,
-        'הורד אקסל'
+        'שלב 12 (הורד אקסל)'
       ),
     ]);
 
     const filename = download.suggestedFilename();
     const localPath = path.join(absDir, `${Date.now()}_${filename}`);
     await download.saveAs(localPath);
-    // console.log("[Harel] Tzvira saved:", localPath);
+    console.log(`[Harel][Tzvira] שלב 12: נשמר בהצלחה -> ${localPath}`);
     results.push({ localPath, filename });
 
   } catch (e: any) {
-    console.log(`[Harel] Tzvira Excel download failed: ${e?.message}`);
+    console.log(`[Harel][Tzvira] שלב 12: הורדת אקסל נכשלה: ${e?.message}`);
   }
 
+  console.log(`[Harel][Tzvira] === סיום ריצה, ${results.length} קבצים הורדו ===`);
   return results;
 }
