@@ -1,9 +1,12 @@
 // ═══════════════════════════════════════════════════════════════════
 // services/server/commissionSummaryService.ts
-// תיקון: סינון תבניות "היקף" (hekefType) — נכלל רק תבניות נפרעים
+// תיקון יסודי: summaryByYmCompany (חודש פרסום) נבנה כעת מ-externalCommissions
+// (ה-ledger הגולמי, כל ריצה נשמרת בנפרד) במקום מ-commissionSummaries הממוזג.
+// summaryByMonthCompany / summaryByCompanyAgentMonth (חודש דיווח) — ללא שינוי.
 // ═══════════════════════════════════════════════════════════════════
 
 import { admin } from '@/lib/firebase/firebase-admin';
+import { getDocsByFieldInBatches } from '@/lib/server/firestoreBatch';
 
 export interface CommissionSummary {
   agentId: string;
@@ -43,7 +46,7 @@ export async function getCommissionSummary(
   const db = admin.firestore();
 
   // ─── ① שלוף את templateIds שהם "היקף" (יש להם hekefType) ──────────────────
-  // אלה ה-templates שצריך *לא* לכלול בדף הנפרעים.
+  // אלה ה-templates שצריך *לא* לכלול בדף הנפרעים. משותף לשני המבטים.
   const templatesSnap = await db
     .collection('commissionTemplates')
     .where('isactive', '==', true)
@@ -55,7 +58,10 @@ export async function getCommissionSummary(
       .map(d => d.id)
   );
 
-  // --- FETCH RAW SUMMARIES (אוסף יחיד, בלי אוספים נוספים) ---
+  // ═══════════════════════════════════════════════════════════════════
+  // מבט 1: "לפי חודש דיווח" — commissionSummaries הממוזג, ללא שינוי
+  // ═══════════════════════════════════════════════════════════════════
+
   const snap = await db
     .collection('commissionSummaries')
     .where('agentId', '==', agentId)
@@ -64,12 +70,10 @@ export async function getCommissionSummary(
     .orderBy('reportMonth')
     .get();
 
-  // ─── ② סינון: רק templates שאין להם hekefType (= "נפרעים") ────────────────
   const summaries: CommissionSummary[] = snap.docs
     .map((d) => d.data() as CommissionSummary)
     .filter((item) => !hekefTemplateIds.has(item.templateId));
 
-  // --- נבנה companyMap מתוך הסיכומים עצמם (templateId -> companyName) ---
   const companyMap: Record<string, string> = {};
 
   const summaryByMonthCompany: Record<string, Record<string, number>> = {};
@@ -87,12 +91,10 @@ export async function getCommissionSummary(
       companyIdByName[companyName] = item.companyId;
     }
 
-    // map לפי templateId -> שם חברה (יכול לשמש לדוחות אחרים)
     if (item.templateId && !companyMap[item.templateId]) {
       companyMap[item.templateId] = companyName;
     }
 
-    // --- summaryByMonthCompany ---
     if (!summaryByMonthCompany[month]) summaryByMonthCompany[month] = {};
     if (!summaryByMonthCompany[month][companyName])
       summaryByMonthCompany[month][companyName] = 0;
@@ -100,7 +102,6 @@ export async function getCommissionSummary(
     summaryByMonthCompany[month][companyName] +=
       item.totalCommissionAmount || 0;
 
-    // --- summaryByCompanyAgentMonth ---
     if (!summaryByCompanyAgentMonth[companyName])
       summaryByCompanyAgentMonth[companyName] = {};
     if (!summaryByCompanyAgentMonth[companyName][agentCode])
@@ -136,37 +137,65 @@ export async function getCommissionSummary(
     return row;
   });
 
-  // --- חישוב portalRunIds ייחודיים ---
-  const portalRunIdSet = new Set<string>();
-  for (const item of summaries) {
-    const runId = (item as any).runId || '';
-    if (!runId) continue;
-    const parts = runId.split('_');
-    if (parts.length >= 2) portalRunIdSet.add(parts[0]);
+  // ═══════════════════════════════════════════════════════════════════
+  // מבט 2: "לפי חודש פרסום" — externalCommissions, בנפרד לגמרי ממבט 1
+  //
+  // 🔧 התיקון: לא גוזרים ym מ-runId שמופיע על מסמך commissionSummaries
+  // ממוזג (שיכול לדרוס/לאבד ריצות ישנות). במקום זה, שולפים ישירות את כל
+  // portalImportRuns של הסוכן שה-ym שלהם בטווח המבוקש, ומהם את כל ה-
+  // jobIds (= runId-ים). לכל jobId כזה יש ym וcompanyId ידועים מראש מתוך
+  // ה-portalImportRun עצמו — לא צריך "לנחש" מה-runId בדיעבד.
+  // ═══════════════════════════════════════════════════════════════════
+
+  const portalRunsSnap = await db
+    .collection('portalImportRuns')
+    .where('agentId', '==', agentId)
+    .where('resolvedWindow.ym', '>=', fromMonth)
+    .where('resolvedWindow.ym', '<=', toMonth)
+    .get();
+
+  const jobIdToYm: Record<string, string> = {};
+  const allJobIds: string[] = [];
+
+  for (const d of portalRunsSnap.docs) {
+    const data = d.data() as any;
+    const ym = String(data?.resolvedWindow?.ym || '');
+    if (!ym) continue;
+
+    const jobIds: string[] = data?.queue?.jobIds || [];
+    for (const jobId of jobIds) {
+      jobIdToYm[jobId] = ym;
+      allJobIds.push(jobId);
+    }
   }
 
-  // --- שלוף ym לכל portalRunId ---
-  const ymByPortalRunId: Record<string, string> = {};
-  await Promise.all(
-    Array.from(portalRunIdSet).map(async (portalRunId) => {
-      const runSnap = await db.collection('portalImportRuns').doc(portalRunId).get();
-      if (runSnap.exists) {
-        const ym = String(runSnap.data()?.resolvedWindow?.ym || '');
-        if (ym) ymByPortalRunId[portalRunId] = ym;
-      }
-    })
-  );
-
-  // --- בנה summaryByYmCompany ---
   const summaryByYmCompany: Record<string, Record<string, number>> = {};
-  for (const item of summaries) {
-    const runId = (item as any).runId || '';
-    const portalRunId = runId.split('_')[0] || '';
-    const ym = ymByPortalRunId[portalRunId];
-    if (!ym) continue;
-    const companyName = item.company || 'לא ידוע';
-    if (!summaryByYmCompany[ym]) summaryByYmCompany[ym] = {};
-    summaryByYmCompany[ym][companyName] = (summaryByYmCompany[ym][companyName] || 0) + (item.totalCommissionAmount || 0);
+
+  if (allJobIds.length) {
+    const externalDocs = await getDocsByFieldInBatches({
+      collection: 'externalCommissions',
+      field: 'runId',
+      values: allJobIds,
+      extraWhere: [['agentId', '==', agentId]],
+    });
+
+    for (const doc of externalDocs) {
+      const r = doc.data() as any;
+
+      const tid = String(r.templateId || '');
+      if (hekefTemplateIds.has(tid)) continue;
+
+      const runId = String(r.runId || '');
+      const ym = jobIdToYm[runId];
+      if (!ym) continue;
+
+      const companyName = String(r.company || 'לא ידוע');
+      const amount = Number(r.commissionAmount || 0);
+
+      if (!summaryByYmCompany[ym]) summaryByYmCompany[ym] = {};
+      summaryByYmCompany[ym][companyName] =
+        (summaryByYmCompany[ym][companyName] || 0) + amount;
+    }
   }
 
   return {

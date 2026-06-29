@@ -1,19 +1,6 @@
 import type { Page } from "playwright";
 import type { RunnerCtx } from "../../types";
 import path from "path";
-import fs from 'fs';
-
-
-const logFile = path.join(
-  String(process.env.APPDATA || ''),
-  'MagicSaleRunner', 'logs', 'tzvira_debug.txt'
-);
-
-const dlog = (msg: string) => {
-  try {
-    fs.appendFileSync(logFile, `[${new Date().toISOString()}] ${msg}\n`);
-  } catch {}
-};
 
 export async function harelLogin(page: Page, username: string, password: string) {
   // console.log("[Harel] Checking for error page...");
@@ -324,17 +311,131 @@ export async function harelNavigateToReport(
   return results;
 }
 
+// ============================================================================
+// 🔧 פונקציות עזר חדשות — קליק עכבר אמיתי בתוך frame, עם retry/polling
+//
+// הסיבה: ה-widget של הקומבואים (חברה מנהלת / סוכן) ב-OAOAnalysis בנוי
+// כ-single-spa micro-frontend. dispatchEvent שנשלח לפני שה-app הזה "עלה"
+// (mounted) לא מגיע לשום event listener אמיתי — שום דבר לא נפתח, וזה קורה
+// בעיקר בשלב 8 (חברה מנהלת) כי זה הקומבו הראשון שתלוי בכך. קליק עכבר אמיתי
+// בקואורדינטות (page.mouse.click) פועל גם אם ה-app טרם עלה כי זה event
+// אמיתי שדפדפן ה-OS מדמה, ובנוסף הוספנו retry שמנסה שוב אם לא נפתח בפעם
+// הראשונה (כלומר ה-app עוד לא היה מוכן).
+// ============================================================================
+
+async function getCenterInFrame(
+  filterFrame: any,
+  jsElementExpr: string
+): Promise<{ x: number; y: number } | null> {
+  return await filterFrame.evaluate(`(function() {
+    const el = ${jsElementExpr};
+    if (!el) return null;
+    const r = el.getBoundingClientRect();
+    if (r.width === 0 && r.height === 0) return null;
+    return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+  })()`).catch(() => null);
+}
+
+async function getFrameOffset(newPage: any): Promise<{ x: number; y: number }> {
+  const rect = await newPage.evaluate(`(function() {
+    const frames = Array.from(document.querySelectorAll('iframe'));
+    const f = frames.find((f) => f.src && f.src.includes('OAOAnalysis'));
+    if (!f) return null;
+    const r = f.getBoundingClientRect();
+    return { x: r.left, y: r.top };
+  })()`).catch(() => null);
+  return { x: rect?.x || 0, y: rect?.y || 0 };
+}
+
+// קליק עכבר אמיתי (לא dispatchEvent) על אלמנט בתוך ה-iframe
+async function clickElementInFrame(
+  newPage: any,
+  filterFrame: any,
+  jsElementExpr: string,
+  label = ''
+): Promise<boolean> {
+  const center = await getCenterInFrame(filterFrame, jsElementExpr);
+  if (!center) {
+    console.log(`[Harel] clickElementInFrame: NOT_FOUND ${label}`);
+    return false;
+  }
+
+  const offset = await getFrameOffset(newPage);
+  const absX = offset.x + center.x;
+  const absY = offset.y + center.y;
+
+  await newPage.mouse.move(absX, absY);
+  await newPage.mouse.click(absX, absY);
+  console.log(`[Harel] clicked ${label} at (${Math.round(absX)}, ${Math.round(absY)})`);
+  return true;
+}
+
+// פותח קומבו (חברה מנהלת / סוכן) ובוחר "בחר הכל" — עם retry אם ה-single-spa
+// app של הקומבו עדיין לא עלה (זה מה שתמיד נכשל בלי retry בשלב 8)
+async function openComboAndSelectAll(
+  newPage: any,
+  filterFrame: any,
+  comboElementExpr: string,
+  label: string
+): Promise<boolean> {
+  for (let attempt = 1; attempt <= 4; attempt++) {
+    const opened = await clickElementInFrame(
+      newPage,
+      filterFrame,
+      comboElementExpr,
+      `open ${label} (ניסיון ${attempt})`
+    );
+    if (!opened) {
+      console.log(`[Harel] ${label}: תיבת הקומבו לא נמצאה בכלל — עוצר`);
+      return false;
+    }
+
+    // polling אמיתי - לא timeout קבוע
+    let found = false;
+    for (let i = 0; i < 10; i++) {
+      const count: number = await filterFrame
+        .evaluate(`document.querySelectorAll('div.selectall').length`)
+        .catch(() => 0);
+      if (count > 0) {
+        found = true;
+        break;
+      }
+      await newPage.waitForTimeout(500);
+    }
+
+    if (found) {
+      // לוחצים על ה-selectall האחרון שנפתח (לא הראשון בדף, כדי לא לפגוע
+      // בקומבו קודם שאולי נשאר פתוח)
+      const ok = await clickElementInFrame(
+        newPage,
+        filterFrame,
+        `(function(){ const items = document.querySelectorAll('div.selectall'); return items[items.length - 1]; })()`,
+        `select-all ${label}`
+      );
+      if (ok) {
+        console.log(`[Harel] ${label}: בחר-הכל בוצע בניסיון ${attempt}`);
+        return true;
+      }
+    }
+
+    console.log(`[Harel] ${label}: selectall לא הופיע בניסיון ${attempt}, מנסה שוב...`);
+  }
+
+  console.log(`[Harel] ${label}: נכשל אחרי כל הניסיונות`);
+  return false;
+}
+
 export async function harelNavigateToTzviraReport(
   page: Page,
   absDir: string,
-  ctx: RunnerCtx
+  _ctx?: RunnerCtx
 ): Promise<{ localPath: string; filename: string }[]> {
   const results: { localPath: string; filename: string }[] = [];
   const reportUrl = "https://agents-int.harel-group.co.il/Information/Reports/life-health-saving/Agent/Pages/commissions/payments-assembly.aspx";
 
- function getOneMonthAgo(): { monthIndex: number; needNextYear: boolean } {
-  const now = new Date();
-  const d = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  function getOneMonthAgo(): { monthIndex: number; needNextYear: boolean } {
+    const now = new Date();
+    const d = new Date(now.getFullYear(), now.getMonth() - 1, 1);
     return {
       monthIndex: d.getMonth(),
       needNextYear: d.getFullYear() > now.getFullYear() - 1,
@@ -393,6 +494,7 @@ export async function harelNavigateToTzviraReport(
     if (check === 'FOUND') break;
     await page.waitForTimeout(1000);
   }
+
   // ✅ שלב 4: לחץ על תא החודש - modal ראשון
   // console.log("[Harel] Clicking first modal cell...");
   const firstClickResult = await frame.evaluate(`(function() {
@@ -416,7 +518,7 @@ export async function harelNavigateToTzviraReport(
   }
 
   // ✅ שלב 6: לחץ על תא החודש - modal שני - וחכה לטאב חדש
-  // console.log("[Harel] Clicking second modal cell - waiting for new tab...");
+   console.log("[Harel]  6 start - waiting for new tab...");
   const [newPage] = await Promise.all([
     page.context().waitForEvent("page", { timeout: 120000 }),
     frame.evaluate(`(function() {
@@ -428,13 +530,17 @@ export async function harelNavigateToTzviraReport(
     })()`)
   ]);
 
-  // console.log("[Harel] Tzvira new tab opened:", newPage.url());
+   console.log("[Harel] Tzvira new tab opened 6b:", newPage.url());
   await newPage.bringToFront();
   await newPage.waitForLoadState("domcontentloaded", { timeout: 120000 }).catch(() => {});
   await newPage.waitForTimeout(3000);
 
+  console.log("[Harel] Tzvira new tab URL 6c:", newPage.url());
+  // 🔧 לוג שגיאות JS בעמוד החדש — עוזר לאשר/לשלול תיאוריות תזמון בעתיד
+  newPage.on('pageerror', (e: any) => console.log(`[Harel] PAGEERROR: ${e?.message}`));
+
   // ✅ שלב 7: המתן שה-frame OAOAnalysis יטען
-  // console.log("[Harel] Waiting for OAOAnalysis frame...");
+   console.log("[Harel] Waiting for OAOAnalysis frame 7...");
   let filterFrame = null;
   for (let i = 0; i < 60; i++) {
     filterFrame = newPage.frames().find(f => f.url().includes('OAOAnalysis'));
@@ -449,230 +555,122 @@ export async function harelNavigateToTzviraReport(
     }
     await newPage.waitForTimeout(2000);
   }
-if (!filterFrame) throw new Error("Tzvira filter frame לא נמצא");
 
-// ================= DEBUG =================
-dlog("========== FILTER FRAME ==========");
-dlog("Frame URL = " + filterFrame.url());
-const debug = await filterFrame.evaluate(() => {
-  return {
-    url: location.href,
-    readyState: document.readyState,
-    title: document.title,
+  if (!filterFrame) throw new Error("Tzvira filter frame לא נמצא");
 
-    companyExists: !!document.querySelector("#_ctrlParam__4"),
-    agentExists: !!document.querySelector("#_ctrlParam__3"),
-    clearExists: !!document.querySelector("#H_InlineFilters_Clear_2"),
+  // 🔧 buffer קצר נוסף לפני שמתחילים לאנטרקט עם הקומבואים — נותן ל-single-spa
+  // הזדמנות סבירה לעלות לפני הניסיון הראשון (לא פותר את הבעיה לבד, אבל מוריד
+  // את הסבירות שנצטרך retry בכלל)
+  await newPage.waitForTimeout(1500);
 
-    companyClass: (document.querySelector("#_ctrlParam__4") as HTMLElement)?.className,
-    agentClass: (document.querySelector("#_ctrlParam__3") as HTMLElement)?.className,
-
-    selectAllCount: document.querySelectorAll("div.selectall").length
-  };
-});
-
-dlog(JSON.stringify(debug, null, 2));
-
-await newPage.waitForTimeout(3000);
-
-// ✅ אפס מסנן לפני הגדרת ערכים
-const clearResult = await filterFrame.evaluate(`...
-  const btn = document.querySelector('#H_InlineFilters_Clear_2');
-  if (!btn) return 'NOT_FOUND';
-  ['mousedown', 'mouseup', 'click'].forEach(evt =>
-    btn.dispatchEvent(new MouseEvent(evt, { bubbles: true, cancelable: true, view: window }))
+  // ✅ אפס מסנן לפני הגדרת ערכים — קליק אמיתי
+  const clearOk = await clickElementInFrame(
+    newPage,
+    filterFrame,
+    `document.querySelector('#H_InlineFilters_Clear_2')`,
+    'אפס מסנן'
   );
-  return 'CLICKED';
-})()`);
-// console.log("[Harel] Clear filter result:", clearResult);
-await newPage.waitForTimeout(2000);
-// פונקציית עזר: לחיצת עכבר אמיתית על אלמנט בתוך frame
-async function clickInFrame(
-  newPage: any,
-  filterFrame: any,
-  selector: string
-): Promise<boolean> {
-  const rect = await filterFrame.evaluate(`(function() {
-    const el = document.querySelector('${selector}');
-    if (!el) return null;
-    const r = el.getBoundingClientRect();
-    return { x: r.left + r.width/2, y: r.top + r.height/2 };
-  })()`).catch(() => null);
+   console.log("[Harel] Clear filter result 7c", clearOk);
+  await newPage.waitForTimeout(2000);
 
-  if (!rect) {
-    dlog(`clickInFrame: NOT FOUND: ${selector}`);
-    return false;
+  // ✅ שלב 8: חברה מנהלת — פתח + בחר הכל (עם retry — זה השלב שתמיד נכשל)
+  const step8Ok = await openComboAndSelectAll(
+    newPage,
+    filterFrame,
+    `document.querySelector('#_ctrlParam__4 .ctrlbutton.cbo')`,
+    'חברה מנהלת'
+  );
+  if (!step8Ok) {
+    console.log('[Harel] חברה מנהלת נכשל — ממשיך בכל זאת (יתכן שהפילטר יחזיר תוצאה חלקית/שגויה)');
+  }
+  await newPage.waitForTimeout(500);
+
+  // ✅ שלב 9: סוכן — פתח + בחר הכל (עם retry)
+  const step9Ok = await openComboAndSelectAll(
+    newPage,
+    filterFrame,
+    `document.querySelector('#_ctrlParam__3 .ctrlbutton.cbo')`,
+    'סוכן'
+  );
+  if (!step9Ok) {
+    console.log('[Harel] סוכן נכשל — ממשיך בכל זאת');
+  }
+  await newPage.waitForTimeout(1000);
+
+  // // ✅ שלב 10: בחר מחודש עיבוד (חודשיים אחורה)
+  // const { monthIndex, needNextYear } = getOneMonthAgo();
+  // const monthText = hebrewMonthsShort[monthIndex];
+  // // console.log(`[Harel] Setting from-month: ${monthText}, needNextYear: ${needNextYear}`);
+
+  // // פתח datepicker — קליק אמיתי
+  // await clickElementInFrame(
+  //   newPage,
+  //   filterFrame,
+  //   `document.querySelector('#_ctrlParam__2')`,
+  //   'פתח datepicker'
+  // );
+  // await newPage.waitForTimeout(500);
+
+  // // לחץ חץ קדימה אם צריך לעבור שנה
+  // if (needNextYear) {
+  //   // console.log("[Harel] Clicking next year arrow...");
+  //   await clickElementInFrame(
+  //     newPage,
+  //     filterFrame,
+  //     `document.querySelector('.datepicker-dropdown th.next')`,
+  //     'חץ שנה קדימה'
+  //   );
+  //   await newPage.waitForTimeout(300);
+  // }
+
+  // // בחר חודש — קליק אמיתי
+  // const monthOk = await clickElementInFrame(
+  //   newPage,
+  //   filterFrame,
+  //   `(function(){
+  //     const cells = Array.from(document.querySelectorAll('.datepicker-dropdown .datepicker-months td span'));
+  //     return cells.find(c => (c.textContent || '').trim() === '${monthText}');
+  //   })()`,
+  //   `בחירת חודש ${monthText}`
+  // );
+  // // console.log("[Harel] From-month click ok:", monthOk);
+  // await newPage.waitForTimeout(500);
+
+  // ✅ שלב 11: לחץ סנן מידע — קליק אמיתי
+  const filterOk = await clickElementInFrame(
+    newPage,
+    filterFrame,
+    `(function(){ return document.querySelector('#H_InlineFilters_Apply_2') || document.querySelector('.filter-apply.click-enter'); })()`,
+    'סנן מידע'
+  );
+  // console.log("[Harel] Tzvira filter result:", filterOk);
+
+  await newPage.waitForTimeout(10000);
+  await newPage.waitForLoadState("networkidle", { timeout: 120000 }).catch(() => {});
+  await newPage.waitForTimeout(5000); // buffer נוסף אחרי networkidle
+
+  // ✅ שלב 12: הורד אקסל — קליק אמיתי
+  // console.log("[Harel] Clicking Excel export for tzvira...");
+  try {
+    const [download] = await Promise.all([
+      newPage.waitForEvent("download", { timeout: 60000 }),
+      clickElementInFrame(
+        newPage,
+        filterFrame,
+        `document.querySelector('.bar-excel')`,
+        'הורד אקסל'
+      ),
+    ]);
+
+    const filename = download.suggestedFilename();
+    const localPath = path.join(absDir, `${Date.now()}_${filename}`);
+    await download.saveAs(localPath);
+    // console.log("[Harel] Tzvira saved:", localPath);
+    results.push({ localPath, filename });
+
+  } catch (e: any) {
+    console.log(`[Harel] Tzvira Excel download failed: ${e?.message}`);
   }
 
-  // מחפשים את ה-frame element ב-page כדי לקבל offset
-  const frameRect = await newPage.evaluate(`(function() {
-    const frames = Array.from(document.querySelectorAll('iframe'));
-    const f = frames.find(f => f.src && f.src.includes('OAOAnalysis'));
-    if (!f) return null;
-    const r = f.getBoundingClientRect();
-    return { x: r.left, y: r.top };
-  })()`).catch(() => null);
-
-  const offsetX = frameRect?.x || 0;
-  const offsetY = frameRect?.y || 0;
-
-  const absX = offsetX + rect.x;
-  const absY = offsetY + rect.y;
-
-  dlog(`clickInFrame: ${selector} at abs(${absX}, ${absY})`);
-  await newPage.mouse.click(absX, absY);
-  return true;
-}
-// ✅ שלב 8: חברה מנהלת — דיבאג פתיחה ובחר הכל
-dlog('Step 8 DEBUG: start חברה מנהלת');
-
-const step8OpenDebug = await filterFrame.evaluate(`(function() {
-  const box = document.querySelector('#_ctrlParam__4');
-  const text = document.querySelector('#ctrlParam__4');
-  const button = document.querySelector('#_ctrlParam__4 .ctrlbutton.cbo');
-
-  const beforeSelectAll = document.querySelectorAll('div.selectall').length;
-  const beforeModal = document.querySelectorAll('.modal, .boxdiv, .paramselector, .membercontainer').length;
-
-  if (!box) {
-    return {
-      status: 'BOX_NOT_FOUND',
-      frameUrl: location.href,
-      bodyText: document.body?.innerText?.slice(0, 500)
-    };
-  }
-
-  const r = box.getBoundingClientRect();
-
-  box.scrollIntoView({ block: 'center' });
-
-  const events = [];
-  ['mouseover', 'mouseenter', 'mousedown', 'mouseup', 'click'].forEach(type => {
-    try {
-      box.dispatchEvent(new MouseEvent(type, {
-        bubbles: true,
-        cancelable: true,
-        view: window
-      }));
-      events.push(type + ':OK');
-    } catch(e) {
-      events.push(type + ':ERR:' + e.message);
-    }
-  });
-
-  const afterSelectAll = document.querySelectorAll('div.selectall').length;
-  const afterModal = document.querySelectorAll('.modal, .boxdiv, .paramselector, .membercontainer').length;
-
-  return {
-    status: 'DONE',
-    frameUrl: location.href,
-    boxExists: !!box,
-    textExists: !!text,
-    buttonExists: !!button,
-    boxClass: box.className,
-    boxText: box.innerText,
-    rect: { x: r.x, y: r.y, width: r.width, height: r.height },
-    beforeSelectAll,
-    afterSelectAll,
-    beforeModal,
-    afterModal,
-    events
-  };
-})()`);
-
-dlog('Step 8 open debug: ' + JSON.stringify(step8OpenDebug, null, 2));
-await newPage.waitForTimeout(1500);
-
-const step8SelectAllDebug = await filterFrame.evaluate(`(function() {
-  const items = Array.from(document.querySelectorAll('div.selectall'));
-  const selectAll = items[0];
-
-  if (!selectAll) {
-    return {
-      status: 'SELECT_ALL_NOT_FOUND',
-      selectAllCount: items.length,
-      htmlSample: document.body?.innerHTML?.slice(0, 1000)
-    };
-  }
-
-  const r = selectAll.getBoundingClientRect();
-
-  ['mousedown', 'mouseup', 'click'].forEach(type =>
-    selectAll.dispatchEvent(new MouseEvent(type, {
-      bubbles: true,
-      cancelable: true,
-      view: window
-    }))
-  );
-
-  return {
-    status: 'SELECT_ALL_CLICKED',
-    selectAllCount: items.length,
-    text: selectAll.innerText,
-    className: selectAll.className,
-    rect: { x: r.x, y: r.y, width: r.width, height: r.height }
-  };
-})()`);
-
-dlog('Step 8 selectAll debug: ' + JSON.stringify(step8SelectAllDebug, null, 2));
-await newPage.waitForTimeout(1000);
-
-// ✅ שלב 9: סוכן — פתח ובחר הכל
-dlog('Step 9: open סוכן');
-
-const agentResult = await filterFrame.evaluate(`(function() {
-  const box = document.querySelector('#_ctrlParam__3');
-  if (!box) return 'BOX_NOT_FOUND';
-
-  box.scrollIntoView({ block: 'center' });
-  box.click();
-
-  return 'OPEN_CLICKED';
-})()`);
-
-dlog('Step 9 agent open result: ' + agentResult);
-await newPage.waitForTimeout(1000);
-
-const agentSelectAllResult = await filterFrame.evaluate(`(function() {
-  const selectAll = document.querySelector('div.selectall');
-  if (!selectAll) return 'SELECT_ALL_NOT_FOUND';
-
-  ['mousedown', 'mouseup', 'click'].forEach(type =>
-    selectAll.dispatchEvent(new MouseEvent(type, {
-      bubbles: true,
-      cancelable: true,
-      view: window
-    }))
-  );
-
-  return 'SELECT_ALL_CLICKED';
-})()`);
-
-dlog('Step 9 agent select all result: ' + agentSelectAllResult);
-await newPage.waitForTimeout(700);
-// ✅ שלב 11: סנן מידע
-dlog('Step 11: clicking filter apply');
-await clickInFrame(newPage, filterFrame, '#H_InlineFilters_Apply_2');
-await newPage.waitForTimeout(10000);
-await newPage.waitForLoadState("networkidle", { timeout: 120000 }).catch(() => {});
-await newPage.waitForTimeout(5000);
-dlog('Step 11: done waiting after filter');
-
-// ✅ שלב 12: אקסל
-dlog('Step 12: clicking excel');
-try {
-  const [download] = await Promise.all([
-    newPage.waitForEvent("download", { timeout: 60000 }),
-    clickInFrame(newPage, filterFrame, '.bar-excel'),
-  ]);
-
-  const filename = download.suggestedFilename();
-  const localPath = path.join(absDir, `${Date.now()}_${filename}`);
-  await download.saveAs(localPath);
-  dlog(`Step 12: saved ${localPath}`);
-  results.push({ localPath, filename });
-} catch (e: any) {
-  dlog(`Step 12: excel download failed: ${e?.message}`);
-}
   return results;
 }

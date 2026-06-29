@@ -2319,6 +2319,23 @@ const handleTriggerUpdate = async () => {
   }
 };
 
+const PROTOCOL_MIN_VERSION = "3.0.3"; // הגרסה הראשונה שתומכת בפרוטוקול
+
+function isVersionAtLeast(version: string, min: string): boolean {
+  const toParts = (v: string) => v.split(".").map((n) => parseInt(n, 10) || 0);
+  const vParts = toParts(version);
+  const mParts = toParts(min);
+  for (let i = 0; i < Math.max(vParts.length, mParts.length); i++) {
+    const v = vParts[i] || 0;
+    const m = mParts[i] || 0;
+    if (v > m) return true;
+    if (v < m) return false;
+  }
+  return true;
+}
+
+const supportsRemoteStart =
+  !!currentRunnerVersion && isVersionAtLeast(currentRunnerVersion, PROTOCOL_MIN_VERSION);
 
 const isUpdateAvailable = latestRunnerVersion && currentRunnerVersion && latestRunnerVersion !== currentRunnerVersion;
 
@@ -2782,7 +2799,7 @@ async function enrichMissingCustomerIdsForMarkedSheets(params: {
       onClick={handleTriggerUpdate}
       disabled={isStartingAuto || (autoRunKind === "self_update" && !!autoRunId) || isRunnerOnline === false}
     />
-    {isRunnerOnline === false && (
+   {isRunnerOnline === false && (
       <span className="text-white text-xs opacity-80">
         יש להפעיל את הבוט לפני העדכון
       </span>
@@ -2792,7 +2809,34 @@ async function enrichMissingCustomerIdsForMarkedSheets(params: {
           </div>
         </div>
 
- {/* 3. קוביות החברות */}
+        {selectedAgentId && currentRunnerVersion && isRunnerOnline === false && (
+          supportsRemoteStart ? (
+            <div className="rounded-xl bg-red-50 border border-red-200 p-4 flex items-center justify-between gap-3">
+           <div className="text-sm text-red-700">
+                <span className="font-bold">⚠️ הבוט לא פעיל כרגע במחשב הסוכן.</span>
+                <span className="block text-xs text-red-500 mt-0.5">
+                  לחצי כדי לנסות להפעיל אותו מרחוק
+                </span>
+              </div>
+              <a
+                href="magicsale-runner://start"
+                className="bg-red-600 text-white px-4 py-2 text-sm font-bold rounded-lg hover:bg-red-700 shadow-md whitespace-nowrap"
+              >
+                הפעל את הבוט
+              </a>
+            </div>
+          ) : (
+            <div className="rounded-xl bg-amber-50 border border-amber-200 p-4 text-sm text-amber-700">
+              הבוט לא פעיל, וגרסתו ({currentRunnerVersion}) ישנה מכדי לתמוך בהפעלה מרחוק.
+              {installerUrl && (
+                <a href={installerUrl} className="block mt-2 underline font-bold">
+                  הורדת גרסה מעודכנת (התקנה חד-פעמית)
+                </a>
+              )}
+            </div>
+          )
+        )}   
+    {/* 3. קוביות החברות */}
 {automaticCompanies.length > 0 ? (
  <AutomaticRunsDashboard
   db={db}

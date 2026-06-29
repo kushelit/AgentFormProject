@@ -149,8 +149,7 @@ const [templateNames, setTemplateNames] = useState<Record<string, string>>({});
 const [templateDrillMonths, setTemplateDrillMonths] = useState<string[]>([]);
 const [templateDrillLoading, setTemplateDrillLoading] = useState(false);
 
-const [agentDrill, setAgentDrill] = useState<{ companyName: string; companyId: string; templateId: string; month: string } | null>(null);
-// 🔧 דאטה טריה ומסוננת לתבנית+חודש הספציפיים (לא עוד מ-summaryByCompanyAgentMonth הגלובלי)
+const [agentDrill, setAgentDrill] = useState<{ companyName: string; companyId: string; templateId: string; month: string; ym?: string } | null>(null);// 🔧 דאטה טריה ומסוננת לתבנית+חודש הספציפיים (לא עוד מ-summaryByCompanyAgentMonth הגלובלי)
 const [agentDrillData, setAgentDrillData] = useState<Record<string, number>>({});
 const [agentDrillLoading, setAgentDrillLoading] = useState(false);
 
@@ -196,7 +195,7 @@ async function openAgentDrill(
   month: string,
   ym?: string
 ) {
-  setAgentDrill({ companyName, companyId, templateId, month });
+  setAgentDrill({ companyName, companyId, templateId, month, ym });
   setAgentDrillLoading(true);
   setAgentDrillData({});
 
@@ -312,7 +311,7 @@ async function openAgentDrill(
   ];
 
 
- async function openDrill(companyId: string, agentCode: string, month: string, templateId?: string) {
+ async function openDrill(companyId: string, agentCode: string, month: string, templateId?: string, ym?: string) {
     setDrill({ companyId, agentCode, month });
     setDrillLoading(true);
     setDrillRows([]);
@@ -327,6 +326,7 @@ async function openAgentDrill(
           agentCode,
           reportMonth: month, 
           templateId,
+          ym,
         }),
       });
   
@@ -784,7 +784,7 @@ const groupMonthlyData = useMemo(() => {
     </div>
   )}
 </div>
-        <div className="lg:col-span-7 space-y-6">
+   <div className="lg:col-span-7 space-y-6">
           <h3 className="text-2xl font-black text-slate-800">פילוח רווחיות מוצרים</h3>
           <div className="grid grid-cols-1 gap-3">
             {productSummary.slice(0, 3).map((item, idx) => (
@@ -814,7 +814,6 @@ const groupMonthlyData = useMemo(() => {
           <th className="px-8 py-4 text-left">
             <div className="flex items-center justify-between">
               <span>פילוח חברות</span>
-              
               {/* כפתור אקסל בקצה השמאלי של הכותרת */}
               <button 
                 onClick={exportProductAnalysisToExcel}
@@ -840,7 +839,7 @@ const groupMonthlyData = useMemo(() => {
   </td>
   <td />
 </tr>
-            {Object.entries(group.products).map(([prodName, prodData]: any) => (
+     {Object.entries(group.products).map(([prodName, prodData]: any) => (
               <tr key={prodName} className="hover:bg-slate-50">
                 {/* 1. יישור לימין של מוצרי המשנה */}
                 <td className="pr-16 py-4 text-slate-600 italic text-right text-[14px]">
@@ -884,14 +883,12 @@ const groupMonthlyData = useMemo(() => {
             עמלה חודשית (₪)
           </span>
         </div>
-        
         <div className="h-80 w-full">
           <DynamicResponsiveContainer width="100%" height="100%">
             <DynamicLineChart 
               data={(allMonths.length > 0 ? allMonths : ['01','02','03','04','05','06','07','08','09','10','11','12']).map(m => {
                 const fullMonth = m.includes('-') ? m : `${selectedYear}-${m}`;
-                const dataPoint: any = { month: m };
-                
+                const dataPoint: any = { month: m };    
                 // חישוב עמלה לכל מוצר בנפרד עבור החודש הנוכחי
                 Object.keys(group.products).forEach(prodName => {
                   dataPoint[prodName] = yearlyPolicies
@@ -902,8 +899,7 @@ const groupMonthlyData = useMemo(() => {
                       return currentProdName === prodName && row.reportMonth === fullMonth;
                     })
                     .reduce((sum, r) => sum + r.totalCommissionAmount, 0);
-                });
-                
+                });         
                 return dataPoint;
               })}
             >
@@ -914,8 +910,7 @@ const groupMonthlyData = useMemo(() => {
                 contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)'}}
                 formatter={(v: any) => [`${formatCurrency(v)} ₪`]}
               />
-              <DynamicLegend verticalAlign="top" height={36} iconType="circle" />
-              
+              <DynamicLegend verticalAlign="top" height={36} iconType="circle" />         
               {/* יצירת קו נפרד לכל מוצר באופן דינמי */}
               {Object.keys(group.products).map((prodName, idx) => (
                 <DynamicLine 
@@ -998,8 +993,8 @@ const groupMonthlyData = useMemo(() => {
   const companyId = companyIdByName[company];
   if (companyId && summaryByYmCompany[ym]?.[company]) openTemplateDrill(companyId, company, ym);
 }}
-              >
-                {summaryByYmCompany[ym]?.[company]?.toLocaleString() ?? '-'}
+    >
+  {summaryByYmCompany[ym]?.[company]?.toLocaleString() ?? '-'}
               </td>
             ))}
             <td className="border px-2 py-1 font-bold bg-blue-50">{ymTotal.toLocaleString()}</td>
@@ -1033,7 +1028,7 @@ const groupMonthlyData = useMemo(() => {
     <span>{company}</span>
   </button>
 </th>
-                );
+   );
               })}
               <th className="border px-2 py-1 font-bold bg-gray-50">
                 סה&quot;כ לחודש
@@ -1295,8 +1290,9 @@ onClick={() => {
               ))}
 <th className="border px-2 py-1 font-bold">
   סה&quot;כ
-</th>            </tr>
-          </thead>
+</th> 
+</tr>
+   </thead>
           <tbody>
             {Object.entries(byTemplateMonth).map(([tid, monthMap]) => {
               const total = Object.values(monthMap).reduce((s, v) => s + v, 0);
@@ -1403,11 +1399,11 @@ onClick={() => {
               <tr
                 key={agentCode}
                 className="cursor-pointer hover:bg-gray-100"
-           onClick={() => {
+         onClick={() => {
   setAgentDrill(null);
   setTemplateDrill(null);
-  setTemplateYearDrill(null); // 🔧 חסר היה — בלי זה הטבלה הישנה (z-55) נשארת מעל drill (z-50)
-  openDrill(agentDrill.companyId, agentCode, agentDrill.month, agentDrill.templateId);
+  setTemplateYearDrill(null);
+  openDrill(agentDrill.companyId, agentCode, agentDrill.month, agentDrill.templateId, agentDrill.ym);
 }}
               >
                 <td className="border px-2 py-1">{agentCode}</td>
@@ -1446,7 +1442,6 @@ onClick={() => {
         height={24}
       />
     </button>
-
     {/* סגירה */}
     <button
       className="px-3 py-1 border rounded"
@@ -1496,7 +1491,6 @@ onClick={() => {
       )}
     </div>
   </div>
-
 )}
         </>
       )}

@@ -687,7 +687,29 @@ if (templateId === "hacshara_zvira") {
     return;
   }
 }
+if (templateId === "harel_tzvira") {
+  const targetMonth1 = getPreviousMonthStr();   // מינוס חודש
+  const targetMonth2 = getTwoMonthsAgoStr();    // מינוס חודשיים
 
+  rowsForThisFile = rowsForThisFile.filter((row: any) => {
+    const rm = safeStr(row.reportMonth);
+    return rm === targetMonth1 || rm === targetMonth2;
+  });
+
+  if (!rowsForThisFile.length) {
+    await finishAsEmpty({
+      db,
+      queueRef,
+      portalRunId: effectivePortalRunId,
+      jobId,
+      templateId,
+      templateName: safeStr(template.templateName) || templateId,
+      message: `הדוח נקלט אך אין נתונים עבור ${targetMonth1} או ${targetMonth2}`,
+      reason: "filter_month_empty",
+    });
+    return;
+  }
+}
 // סינון לפי קודי סוכן מותרים (agentPortalFilters)
 const portalFilterSnap = await db
   .collection("agentPortalFilters")

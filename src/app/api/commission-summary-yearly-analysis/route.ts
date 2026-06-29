@@ -58,7 +58,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ rows });
 
   } catch (err: any) {
-    // console.error('[commission-summary-yearly-analysis]', err);
+     console.error('[commission-summary-yearly-analysis]', err);
     return NextResponse.json(
       { error: err.message ?? 'server error' },
       { status: 500 }
