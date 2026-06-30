@@ -366,7 +366,7 @@
 .cn-add-box { background: #f7f9fc; border: 1px solid #dde3ee; border-radius: 10px; padding: 12px; }
 .cn-textarea {
   width: 100%; border: 1px solid #cdd5e0; border-radius: 7px;
-  padding: 9px 12px; font-size: 13px; font-family: 'Heebo', sans-serif;
+  padding: 9px 12px; font-size: 15px; font-family: 'Heebo', sans-serif;
   color: #2c3e5a; background: white; resize: none; direction: rtl;
 }
 .cn-textarea:focus { outline: none; border-color: #2d5a8e; }
@@ -391,7 +391,7 @@
 }
 .cn-note-author { font-size: 12px; font-weight: 600; color: #2d5a8e; }
 .cn-note-date { font-size: 11px; color: #9aafc4; margin-right: auto; }
-.cn-note-text { font-size: 13px; color: #2c3e5a; line-height: 1.55; white-space: pre-wrap; }
+.cn-note-text { font-size: 15px; color: #2c3e5a; line-height: 1.55; white-space: pre-wrap; }
 
 /* ════════════════════════════════════════
    משימות
@@ -416,7 +416,7 @@
 .ct-input {
   height: 34px; padding: 0 10px;
   border: 1px solid #cdd5e0; border-radius: 6px;
-  font-size: 13px; font-family: 'Heebo', sans-serif;
+  font-size: 15px; font-family: 'Heebo', sans-serif;
   color: #2c3e5a; background: white; direction: rtl;
 }
 .ct-input:focus { outline: none; border-color: #2d5a8e; }
@@ -450,7 +450,7 @@
 .ct-check:hover { border-color: #2d5a8e; background: #e8f0fb; }
 .ct-check-done { background: #2d5a8e; border-color: #2d5a8e; color: white; cursor: default; }
 .ct-task-body { flex: 1; }
-.ct-task-text { font-size: 13px; color: #2c3e5a; margin-bottom: 3px; }
+.ct-task-text { font-size: 15px; color: #2c3e5a; margin-bottom: 3px; }
 .ct-task-done .ct-task-text { text-decoration: line-through; color: #9aafc4; }
 .ct-task-meta { display: flex; gap: 12px; font-size: 11px; color: #9aafc4; }
 .ct-due-late { color: #e65100; font-weight: 600; }
@@ -486,3 +486,10 @@
   color: #5a6b7d;
   border: 1px solid #c5ccd6;
 }
+
+.cn-note-actions { margin-right: auto; display: flex; align-items: center; gap: 4px; }
+.cn-btn-icon { background: none; border: none; cursor: pointer; padding: 2px 6px; border-radius: 4px; font-size: 14px; opacity: 0.6; }
+.cn-btn-icon:hover { opacity: 1; background: var(--color-surface-alt, #f0f0f0); }
+.cn-btn-danger { color: #e53e3e; }
+.cn-confirm-text { font-size: 12px; color: #e53e3e; margin-inline: 4px; }
+.cn-edit-box { margin-top: 8px; }

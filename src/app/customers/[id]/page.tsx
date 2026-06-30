@@ -41,6 +41,7 @@ interface CustomerDoc {
   customerTier?: 'gold' | 'silver' | 'standard';
   tierNifraim?: number;
   AgentId: string;
+  issueDay?: string;
 }
 
 interface SaleRow {
@@ -68,6 +69,7 @@ interface ExternalRow {
   product?: string;
   policyNumber?: string;
   commissionAmount: number;
+  totalPremiumAmount?: number;
   reportMonth?: string;
   templateId?: string;
 }
@@ -135,10 +137,8 @@ export default function CustomerPage() {
   const { agents, selectedAgentId, handleAgentChange } = useFetchAgentData();
 
   const { canAccess: canViewCommissions } = usePermission('view_commissions_field');
-  const { canAccess: canSeeExternal } = usePermission('access_commission_import');
 
   // ─── מזהה לקוח מה-URL ────────────────────────────────────────────────────────
-  // params.id = מזהה מסמך Firestore של הלקוח
   const customerId = Array.isArray(params?.id) ? params.id[0] : (params?.id ?? '');
 
   // ─── סטייט ───────────────────────────────────────────────────────────────────
@@ -165,6 +165,7 @@ export default function CustomerPage() {
       address: customer.address ?? '',
       notes: customer.notes ?? '',
       shortNote: customer.shortNote ?? '',
+      issueDay: customer.issueDay ?? '',
     });
     setIsEditing(true);
   };
@@ -199,7 +200,7 @@ export default function CustomerPage() {
   const [productMap, setProductMap] = useState<Record<string, any>>({});
   const [templatesById, setTemplatesById] = useState<Record<string, any>>({});
 
-  // נפרעים מקלטות
+  // פוליסות מטעינה
   const [reportMonth, setReportMonth] = useState(prevMonth);
   const [externalRows, setExternalRows] = useState<ExternalRow[]>([]);
   const [loadingExternal, setLoadingExternal] = useState(false);
@@ -231,10 +232,17 @@ export default function CustomerPage() {
 
   // ─── טעינת חוזים ומוצרים (חד-פעמי) ─────────────────────────────────────────
   useEffect(() => {
-    const fetchContracts = async () => {
-      const snap = await getDocs(collection(db, 'contracts'));
-      setContracts(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+   const fetchContracts = async () => {
+  const snap = await getDocs(collection(db, 'contracts'));
+  setContracts(snap.docs.map(d => {
+    const data = d.data() as any;
+    return {
+      id: d.id,
+      ...data,
+      agentId: data.AgentId ?? data.agentId, // ← נרמול
     };
+  }));
+};
     const fetchProducts = async () => {
       const snap = await getDocs(collection(db, 'product'));
       const map: Record<string, any> = {};
@@ -260,34 +268,42 @@ export default function CustomerPage() {
     if (customer?.AgentId) fetchSourceLeadMap(customer.AgentId);
   }, [customer?.AgentId]);
 
-  // ─── חישוב עמלות (מהלוגיקה הקיימת) ─────────────────────────────────────────
-  const calculateCommissions = (sale: any, contractMatch: any) => {
-    const product = productMap[sale.product];
-    const isOneTime = product?.isOneTime ?? false;
-    const multiplier = isOneTime ? 1 : 12;
+  // ─── חישוב עמלות ─────────────────────────────────────────────────────────────
+const calculateCommissions = (sale: any, contractMatch: any) => {
+  const product = productMap[sale.product];
+  const isOneTime = product?.isOneTime ?? false;
+  const multiplier = isOneTime ? 1 : 12;
+  const toNum = (v: any) => parseInt(v) || 0;
 
-    const toNum = (v: any) => parseInt(v) || 0;
+  // fallback לקבוצת מוצר אם אין התאמה מדויקת
+  const effectiveMatch = contractMatch ?? contracts.find(
+    c =>
+      c.productsGroup === product?.productGroup &&
+      c.agentId === customer?.AgentId &&
+      (c.minuySochen === sale.minuySochen ||
+        (c.minuySochen === undefined && !sale.minuySochen)),
+  );
 
-    if (!contractMatch) return { commissionHekef: 0, commissionNifraim: 0 };
+  if (!effectiveMatch) return { commissionHekef: 0, commissionNifraim: 0 };
 
-    const hekef =
-      toNum(sale.insPremia) * contractMatch.commissionHekef / 100 * multiplier +
-      toNum(sale.pensiaPremia) * contractMatch.commissionHekef / 100 * multiplier +
-      toNum(sale.pensiaZvira) * contractMatch.commissionNiud / 100 +
-      toNum(sale.finansimPremia) * contractMatch.commissionHekef / 100 * multiplier +
-      toNum(sale.finansimZvira) * contractMatch.commissionNiud / 100;
+  const hekef =
+    toNum(sale.insPremia)     * effectiveMatch.commissionHekef / 100 * multiplier +
+    toNum(sale.pensiaPremia)  * effectiveMatch.commissionHekef / 100 * multiplier +
+    toNum(sale.pensiaZvira)   * effectiveMatch.commissionNiud  / 100 +
+    toNum(sale.finansimPremia)* effectiveMatch.commissionHekef / 100 * multiplier +
+    toNum(sale.finansimZvira) * effectiveMatch.commissionNiud  / 100;
 
-    const nifraim = isOneTime ? 0 : (
-      toNum(sale.insPremia) * contractMatch.commissionNifraim / 100 +
-      toNum(sale.pensiaPremia) * contractMatch.commissionNifraim / 100 +
-      toNum(sale.finansimZvira) * contractMatch.commissionNifraim / 100 / 12
-    );
+  const nifraim = isOneTime ? 0 : (
+    toNum(sale.insPremia)    * effectiveMatch.commissionNifraim / 100 +
+    toNum(sale.pensiaPremia) * effectiveMatch.commissionNifraim / 100 +
+    toNum(sale.finansimZvira)* effectiveMatch.commissionNifraim / 100 / 12
+  );
 
-    return {
-      commissionHekef: Math.round(hekef),
-      commissionNifraim: Math.round(nifraim),
-    };
+  return {
+    commissionHekef: Math.round(hekef),
+    commissionNifraim: Math.round(nifraim),
   };
+};
 
   // ─── טעינת עסקאות Magic ──────────────────────────────────────────────────────
   useEffect(() => {
@@ -339,9 +355,9 @@ export default function CustomerPage() {
     if (contracts.length > 0) load();
   }, [customer, contracts, productMap]);
 
-  // ─── טעינת נפרעים מקלטות ─────────────────────────────────────────────────────
+  // ─── טעינת פוליסות מטעינה ────────────────────────────────────────────────────
   const loadExternal = async () => {
-    if (!customer || !canSeeExternal) return;
+    if (!customer) return;
     setLoadingExternal(true);
     try {
       const padded = Array.from(
@@ -360,14 +376,22 @@ export default function CustomerPage() {
       for (const b of buckets) {
         for (const r of b.rows) {
           const amt = Number(r.commissionAmount || 0);
-          rows.push({ company: r.company ?? '', product: r.product ?? '', policyNumber: r.policyNumber ?? '', commissionAmount: amt, reportMonth: r.reportMonth, templateId: r.templateId ?? undefined });
+          rows.push({
+            company: r.company ?? '',
+            product: r.product ?? '',
+            policyNumber: r.policyNumber ?? '',
+            commissionAmount: amt,
+            totalPremiumAmount: Number(r.totalPremiumAmount || 0),
+            reportMonth: r.reportMonth,
+            templateId: r.templateId ?? undefined,
+          });
           total += amt;
         }
       }
       setExternalRows(rows);
       setExternalTotal(Number(total.toFixed(2)));
     } catch {
-      addToast('error', 'כשל בטעינת נפרעים מקלטות');
+      addToast('error', 'כשל בטעינת פוליסות מטעינה');
     } finally {
       setLoadingExternal(false);
     }
@@ -401,16 +425,15 @@ export default function CustomerPage() {
   const totalMagicHekef = useMemo(() => magicSales.reduce((a, r) => a + (r.commissionHekef || 0), 0), [magicSales]);
   const delta = externalTotal - magicNifraim;
 
-  // ─── נפרעים vs Magic לכל שורה בלשונית נפרעים ────────────────────────────────
+  // ─── פוליסות מטעינה — סינון + העשרה ─────────────────────────────────────────
   const nifraimWithGap = useMemo(() => {
     return externalRows
       .filter(ext => {
-        // ── סינון תבניות "היקף" — נכלל רק תבניות נפרעים (ללא hekefType) ──
-        if (!ext.templateId) return true; // אין templateId — לא נחסום (שורות ישנות/חיצוניות)
+        if (!ext.templateId) return true;
         const template = templatesById[ext.templateId];
-        if (!template) return true; // template עדיין לא נטען — לא נחסום
+        if (!template) return true;
         const hekefType = String(template.hekefType ?? '').trim();
-        return !hekefType; // יש ערך ב-hekefType => תבנית היקף => מסונן בחוץ
+        return !hekefType;
       })
       .map(ext => {
         const magicMatch = magicSales.find(
@@ -420,7 +443,6 @@ export default function CustomerPage() {
         const magicVal = magicMatch?.commissionNifraim ?? null;
         const gap = magicVal !== null ? ext.commissionAmount - magicVal : null;
 
-        // פתרון המוצר הקנוני לפי קטלוג ה-template (כמו במסך סיכום העמלות)
         const template = ext.templateId ? templatesById[ext.templateId] : undefined;
         const resolved = resolveFromTemplate(template, ext.product);
         const displayProduct = resolved.canonicalProduct || ext.product || '—';
@@ -462,7 +484,7 @@ export default function CustomerPage() {
 
   const tabs: { key: TabKey; label: string }[] = [
     { key: 'magic', label: 'עסקאות Magic' },
-    { key: 'nifraim', label: 'לקוחות מטעינה' },
+    { key: 'nifraim', label: 'פוליסות מטעינה' },
     { key: 'family', label: 'קשרים משפחתיים' },
     { key: 'notes', label: 'הערות' },
     { key: 'tasks', label: 'משימות' },
@@ -548,6 +570,21 @@ export default function CustomerPage() {
             )}
           </div>
           <div className="cp-field">
+  <span className="cp-field-label">תאריך הנפקת ת.ז</span>
+  {isEditing ? (
+    <input
+      type="date"
+      className="cp-edit-input-field"
+      value={editData.issueDay ?? ''}
+      onChange={e => setEditData(p => ({ ...p, issueDay: e.target.value }))}
+    />
+  ) : (
+    <span className="cp-field-value">
+      {customer.issueDay ? formatIsraeliDateOnly(customer.issueDay) : '—'}
+    </span>
+  )}
+</div>
+   <div className="cp-field">
             <span className="cp-field-label">מגדר</span>
             {isEditing ? (
               <select className="cp-edit-input-field" value={editData.gender ?? ''} onChange={e => setEditData(p => ({ ...p, gender: e.target.value }))}>
@@ -600,16 +637,6 @@ export default function CustomerPage() {
               <span className="cp-field-value">{customer.shortNote || '—'}</span>
             )}
           </div>
-          {(isEditing || customer.notes) && (
-            <div className="cp-field cp-field-full">
-              <span className="cp-field-label">הערות</span>
-              {isEditing ? (
-                <textarea className="cp-edit-input-field cp-edit-textarea" value={editData.notes ?? ''} onChange={e => setEditData(p => ({ ...p, notes: e.target.value }))} rows={2} />
-              ) : (
-                <span className="cp-field-value">{customer.notes}</span>
-              )}
-            </div>
-          )}
         </div>
       </div>
 
@@ -636,50 +663,48 @@ export default function CustomerPage() {
             ) : magicSales.length === 0 ? (
               <div className="cp-empty">אין עסקאות פעילות ללקוח זה</div>
             ) : (
-              <>
-                <table className="cp-table">
-                  <thead>
-                    <tr>
-                      <th>מוצר</th>
-                      <th>חברה</th>
-                      <th>חודש תוקף</th>
-                      {canViewCommissions && <th>פרמיה</th>}
-                      {canViewCommissions && <th>צבירה</th>}
-                      {canViewCommissions && <th>עמלת היקף</th>}
-                      {canViewCommissions && <th>נפרעים</th>}
+              <table className="cp-table">
+                <thead>
+                  <tr>
+                    <th>מוצר</th>
+                    <th>חברה</th>
+                    <th>חודש תוקף</th>
+                    <th>פרמיה</th>
+                    <th>צבירה</th>
+                    {canViewCommissions && <th>עמלת היקף</th>}
+                    {canViewCommissions && <th>נפרעים</th>}
+                  </tr>
+                </thead>
+                <tbody>
+                  {magicSales.map((s, i) => (
+                    <tr key={i}>
+                      <td>{s.product}</td>
+                      <td>{s.company}</td>
+                      <td>{s.month ? formatIsraeliDateOnly(s.month) : '—'}</td>
+                      <td>{s.sumPremia?.toLocaleString() ?? '—'}</td>
+                      <td>{s.sumTzvira?.toLocaleString() ?? '—'}</td>
+                      {canViewCommissions && <td>{s.commissionHekef?.toLocaleString()}</td>}
+                      {canViewCommissions && <td>{s.commissionNifraim?.toLocaleString()}</td>}
                     </tr>
-                  </thead>
-                  <tbody>
-                    {magicSales.map((s, i) => (
-                      <tr key={i}>
-                        <td>{s.product}</td>
-                        <td>{s.company}</td>
-                        <td>{s.month ? formatIsraeliDateOnly(s.month) : '—'}</td>
-                        {canViewCommissions && <td>{s.sumPremia?.toLocaleString()}</td>}
-                        {canViewCommissions && <td>{s.sumTzvira?.toLocaleString()}</td>}
-                        {canViewCommissions && <td>{s.commissionHekef?.toLocaleString()}</td>}
-                        {canViewCommissions && <td>{s.commissionNifraim?.toLocaleString()}</td>}
-                      </tr>
-                    ))}
-                  </tbody>
-                  {canViewCommissions && (
-                    <tfoot>
-                      <tr>
-<td colSpan={5} style={{ fontWeight: 'bold', textAlign: 'left' }}>
-  סה&quot;כ
-</td> 
- <td style={{ fontWeight: 'bold' }}>{totalMagicHekef.toLocaleString()} ₪</td>
-                        <td style={{ fontWeight: 'bold' }}>{magicNifraim.toLocaleString()} ₪</td>
-                      </tr>
-                    </tfoot>
-                  )}
-                </table>
-              </>
+                  ))}
+                </tbody>
+                {canViewCommissions && (
+                  <tfoot>
+                    <tr>
+                      <td colSpan={5} style={{ fontWeight: 'bold', textAlign: 'left' }}>
+                        סה&quot;כ
+                      </td>
+                      <td style={{ fontWeight: 'bold' }}>{totalMagicHekef.toLocaleString()} ₪</td>
+                      <td style={{ fontWeight: 'bold' }}>{magicNifraim.toLocaleString()} ₪</td>
+                    </tr>
+                  </tfoot>
+                )}
+              </table>
             )}
           </div>
         )}
 
-        {/* ── נפרעים מקלטות ── */}
+        {/* ── פוליסות מטעינה ── */}
         {activeTab === 'nifraim' && (
           <div>
             <div className="cp-month-bar">
@@ -691,12 +716,10 @@ export default function CustomerPage() {
                 className="cp-month-input"
               />
             </div>
-            {!canSeeExternal ? (
-              <div className="cp-empty">אין הרשאה לצפות בנתוני קלטות</div>
-            ) : loadingExternal ? (
+            {loadingExternal ? (
               <div className="cp-loading-inline">טוען...</div>
             ) : nifraimWithGap.length === 0 ? (
-              <div className="cp-empty">אין נתוני קלטות לחודש זה</div>
+              <div className="cp-empty">אין נתוני פוליסות לחודש זה</div>
             ) : (
               <table className="cp-table">
                 <thead>
@@ -704,6 +727,7 @@ export default function CustomerPage() {
                     <th>חברה</th>
                     <th>מוצר</th>
                     <th>מספר פוליסה</th>
+                    <th>פרמיה / צבירה</th>
                     {canViewCommissions && <th>עמלה</th>}
                   </tr>
                 </thead>
@@ -713,12 +737,27 @@ export default function CustomerPage() {
                       <td>{r.company}</td>
                       <td>{r.displayProduct}</td>
                       <td>{r.policyNumber || '—'}</td>
+                      <td>
+                        {r.totalPremiumAmount
+                          ? r.totalPremiumAmount.toLocaleString()
+                          : '—'}
+                      </td>
                       {canViewCommissions && (
                         <td>{r.commissionAmount.toLocaleString()} ₪</td>
                       )}
                     </tr>
                   ))}
                 </tbody>
+                {canViewCommissions && (
+                  <tfoot>
+                    <tr>
+                      <td colSpan={4} style={{ fontWeight: 'bold', textAlign: 'left' }}>
+                        סה&quot;כ עמלות
+                      </td>
+                      <td style={{ fontWeight: 'bold' }}>{externalTotal.toLocaleString()} ₪</td>
+                    </tr>
+                  </tfoot>
+                )}
               </table>
             )}
           </div>
@@ -752,7 +791,7 @@ export default function CustomerPage() {
                           {isMain && <span className="cp-chip-main">ראשי</span>}
                           {isCurrent && <span className="cp-chip-current">נוכחי</span>}
                         </span>
-<span className="cp-fmember-sub">ת&quot;ז {m.IDCustomer}</span>
+                        <span className="cp-fmember-sub">ת&quot;ז {m.IDCustomer}</span>
                       </div>
                       {!isCurrent && <span className="cp-family-arrow">←</span>}
                     </div>

@@ -26,3 +26,5 @@ export { sendReengagementBatch } from "./sendReengagementBatch";
 export { saveAgentWhatsAppConfig } from "./saveAgentWhatsAppConfig";
 
 export { calculateCustomerTiers, applyCustomerTiers } from './customerTiers';
+
+export { notifyNewTaxReturn } from "./sharon/notifyNewTaxReturn";

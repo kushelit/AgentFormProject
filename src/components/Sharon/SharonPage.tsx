@@ -12,6 +12,7 @@ import TaxReturnsTab from './tabs/TaxReturnsTab';
 import PensionTab from './tabs/PensionTab';
 import './SharonPage.css';
 
+
 type TabKey = 'elementary' | 'tax' | 'pension';
 
 type CustomerResult = {
@@ -153,6 +154,39 @@ const [activeTab, setActiveTab] = useState<TabKey>(
     setShowDropdown(false);
   };
 
+
+const [customerDocs, setCustomerDocs] = useState<any[]>([]);
+const [docsModalOpen, setDocsModalOpen] = useState(false);
+const [docsLoading, setDocsLoading] = useState(false);
+
+const openCustomerDocuments = async (customer: CustomerResult) => {
+  setDocsModalOpen(true);
+  setDocsLoading(true);
+  setCustomerDocs([]);
+  try {
+    const snap = await getDocs(query(
+      collection(db, 'customerDocuments'),
+      where('customerId', '==', customer.id)
+    ));
+    const rows = await Promise.all(snap.docs.map(async d => {
+      const data = d.data();
+      let url = '';
+      try {
+        const { firebaseApp } = await import('@/lib/firebase/firebase');
+        const { getStorage, ref, getDownloadURL } = await import('firebase/storage');
+        const storage = getStorage(firebaseApp, `gs://${data.bucket}`);
+        url = await getDownloadURL(ref(storage, data.storagePath));
+      } catch {}
+      return { id: d.id, fileName: data.fileName || 'מסמך', size: data.size || 0, url };
+    }));
+    setCustomerDocs(rows);
+  } finally {
+    setDocsLoading(false);
+  }
+};
+
+
+
   return (
     <div className="sharon-page" dir="rtl">
 
@@ -222,24 +256,35 @@ const [activeTab, setActiveTab] = useState<TabKey>(
       </div>
 
       {/* ── CUSTOMER CARD ── */}
-      {selectedCustomer && (
-        <div className="sharon-customer-card">
-          <div className="sharon-avatar">
-            {selectedCustomer.firstNameCustomer[0]}{selectedCustomer.lastNameCustomer[0]}
-          </div>
-          <div>
-            <div className="sharon-customer-name">
-              {selectedCustomer.firstNameCustomer} {selectedCustomer.lastNameCustomer}
-            </div>
-            <div className="sharon-customer-sub">
-             ת&quot;ז: {selectedCustomer.IDCustomer}
-              {selectedCustomer.phone && ` · ${selectedCustomer.phone}`}
-            </div>
-          </div>
-          <span className="sharon-customer-note">כל הטאבים מסוננים ללקוח זה</span>
-        </div>
-      )}
+   {selectedCustomer && (
+  <div className="sharon-customer-card">
+    <div className="sharon-avatar">
+      {selectedCustomer.firstNameCustomer[0]}{selectedCustomer.lastNameCustomer[0]}
+    </div>
+    <div>
+      <div className="sharon-customer-name">
+        {selectedCustomer.firstNameCustomer} {selectedCustomer.lastNameCustomer}
+      </div>
+      <div className="sharon-customer-sub">
+        ת&quot;ז: {selectedCustomer.IDCustomer}
+        {selectedCustomer.phone && ` · ${selectedCustomer.phone}`}
+      </div>
+    </div>
+    <span className="sharon-customer-note">כל הטאבים מסוננים ללקוח זה</span>
 
+    {/* ── כפתור מסמכים ── */}
+    <button
+      onClick={() => openCustomerDocuments(selectedCustomer)}
+      style={{
+        marginRight: 'auto', background: 'none', border: '1px solid #D3D1C7',
+        borderRadius: 6, padding: '4px 10px', cursor: 'pointer',
+        fontSize: 13, color: '#185FA5', display: 'flex', alignItems: 'center', gap: 4,
+      }}
+    >
+      📎 מסמכים
+    </button>
+  </div>
+)}
       {/* ── TABS ── */}
       <div className="sharon-tabs">
         {canAccessElementary && (
@@ -292,6 +337,36 @@ const [activeTab, setActiveTab] = useState<TabKey>(
             customer={selectedCustomer}
           />
         )}
+        {docsModalOpen && (
+  <div className="modal-overlay" onClick={() => setDocsModalOpen(false)}>
+    <div className="modal-content" onClick={e => e.stopPropagation()} dir="rtl">
+      <button className="close-button" onClick={() => setDocsModalOpen(false)}>✖</button>
+      <div className="title">
+        מסמכים — {selectedCustomer?.firstNameCustomer} {selectedCustomer?.lastNameCustomer}
+      </div>
+      {docsLoading ? (
+        <div>טוען מסמכים...</div>
+      ) : customerDocs.length === 0 ? (
+        <div>אין מסמכים ללקוח זה</div>
+      ) : (
+        <div className="documents-list">
+          {customerDocs.map(doc => (
+            <div key={doc.id} className="document-row">
+              <div>
+                📎 {doc.fileName}
+                {doc.size ? <span style={{ marginRight: 8, color: '#777' }}>({Math.round(doc.size / 1024)} KB)</span> : null}
+              </div>
+              {doc.url
+                ? <a href={doc.url} target="_blank" rel="noreferrer" className="document-link">פתח מסמך</a>
+                : <span>לא ניתן לפתוח</span>
+              }
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  </div>
+)}
       </div>
     </div>
   );

@@ -31,6 +31,7 @@ type ExternalCommissionRow = {
   agentCode?: string;
   _company?: string;
   _displayPolicy?: string;
+  totalPremiumAmount?: number;
 };
 
 type Status = 'unchanged' | 'changed' | 'not_reported' | 'not_found';
@@ -49,6 +50,9 @@ type ComparisonRow = {
   product?: string;
   _rawKey?: string;
   _extRow?: ExternalCommissionRow | null;
+  premiumMagicPremia?: number;
+premiumMagicTzvira?: number;
+premiumExternal?: number;
 };
 
 const statusOptions = [
@@ -665,6 +669,7 @@ if (lockedToCustomer) {
       customerId: String((raw as any).customerId ?? '').trim() || undefined,
       fullName: (raw as any).fullName,
       agentCode: String((raw as any).agentCode ?? '').trim() || undefined,
+      totalPremiumAmount: Number((raw as any).totalPremiumAmount || 0),
       _company: comp,
       _displayPolicy: pol || '-',
  };
@@ -693,6 +698,7 @@ if (lockedToCustomer) {
     customerId: cid || undefined,
     fullName: String(raw.fullName ?? '').trim() || undefined,
     agentCode: String(raw.agentCode ?? '').trim() || undefined,
+    totalPremiumAmount: Number(raw.totalPremiumAmount || 0),
     _company: comp,
     _displayPolicy: pol || '-',
   });
@@ -719,6 +725,7 @@ extRows = s.docs
       customerId: String(raw.customerId ?? '').trim() || undefined,
       fullName: String(raw.fullName ?? '').trim() || undefined,
       agentCode: String(raw.agentCode ?? '').trim() || undefined,
+      totalPremiumAmount: Number(raw.totalPremiumAmount || 0),
       _company: comp,
       _displayPolicy: pol || '-',
         };
@@ -837,6 +844,9 @@ extRows = s.docs
         let magicAmountSum = 0;
         let productForDisplay: string | undefined;
         let customerForDisplay: string | undefined;
+        
+        let premiumMagicPremia = 0;
+        let premiumMagicTzvira = 0;
 
         for (const sale of saleBucket.items) {
           ensureProductInMap((sale as any).product);
@@ -859,6 +869,15 @@ extRows = s.docs
           }
 
           magicAmountSum += magicNifraim;
+     premiumMagicPremia += (
+  Number((sale as any).insPremia || 0) +
+  Number((sale as any).pensiaPremia || 0) +
+  Number((sale as any).finansimPremia || 0)
+);
+premiumMagicTzvira += (
+  Number((sale as any).pensiaZvira || 0) +
+  Number((sale as any).finansimZvira || 0)
+);
 
           if (!productForDisplay) productForDisplay = (sale as any)?.product;
           if (!customerForDisplay) customerForDisplay = (sale as any)?.customerId || (sale as any)?.IDCustomer;
@@ -880,6 +899,9 @@ extRows = s.docs
           customerId: customerForDisplay,
           fullName: getSaleDisplayName(saleBucket.items[0]) || undefined,
           product: productForDisplay,
+         premiumMagicPremia: premiumMagicPremia,
+        premiumMagicTzvira: premiumMagicTzvira,
+          premiumExternal: 0, 
           _rawKey: key,
           _extRow: null,
         });
@@ -906,6 +928,9 @@ extRows = s.docs
           product: productRawToCanonical.get(normPolicy(String(reported.policyNumber))) ||
          (reported as any).product ||
          'מוצר לא מזוהה',
+         premiumMagicPremia: 0,  
+       premiumMagicTzvira: 0,                                                       // ← הוסיפי
+        premiumExternal: Number((reported as any)?.totalPremiumAmount || 0),
           _rawKey: key,
           _extRow: reported,
         });
@@ -917,6 +942,9 @@ extRows = s.docs
         let magicAmountSum = 0;
         let productForDisplay: string | undefined;
         let customerForDisplay: string | undefined;
+
+       let premiumMagicPremia = 0;
+        let premiumMagicTzvira = 0;
 
         for (const sale of saleBucket.items) {
           ensureProductInMap((sale as any).product);
@@ -939,6 +967,16 @@ extRows = s.docs
           }
 
           magicAmountSum += magicNifraim;
+
+        premiumMagicPremia += (
+  Number((sale as any).insPremia || 0) +
+  Number((sale as any).pensiaPremia || 0) +
+  Number((sale as any).finansimPremia || 0)
+);
+premiumMagicTzvira += (
+  Number((sale as any).pensiaZvira || 0) +
+  Number((sale as any).finansimZvira || 0)
+);
 
           if (!productForDisplay) productForDisplay = (sale as any)?.product;
           if (!customerForDisplay) customerForDisplay = (sale as any)?.customerId || (sale as any)?.IDCustomer;
@@ -969,6 +1007,9 @@ extRows = s.docs
   getSaleDisplayName(saleBucket.items[0]) ||
   undefined,
           product: productForDisplay || (reported as any).product || 'מוצר לא מזוהה',
+       premiumMagicPremia: premiumMagicPremia,
+        premiumMagicTzvira: premiumMagicTzvira,
+        premiumExternal: Number((reported as any)?.totalPremiumAmount || 0),
           _rawKey: key,
           _extRow: reported,
         });
@@ -1581,9 +1622,28 @@ return (
     </div>
 </td>
                     <td className="p-3 text-slate-700 text-right">{r.product || '-'}</td>
-                    <td className="p-3 text-center bg-sky-50/20 font-bold text-sky-900">{r.reportedAmount.toFixed(2)}</td>
-                    <td className="p-3 text-center bg-emerald-50/20 font-bold text-emerald-900">{r.magicAmount.toFixed(2)}</td>
-                    <td className="p-3 text-center font-bold text-rose-600 border-x border-rose-100/50">{r.diff.toFixed(2)}</td>
+<td className="p-3 text-center bg-sky-50/20">
+  <div className="font-bold text-sky-900">{r.reportedAmount.toFixed(2)} ₪</div>
+  {r.premiumExternal ? (
+    <div className="text-[10px] text-sky-600 font-medium">
+      פרמיה/צבירה: {r.premiumExternal.toLocaleString()}
+    </div>
+  ) : null}
+</td>
+<td className="p-3 text-center bg-emerald-50/20">
+  <div className="font-bold text-emerald-900">{r.magicAmount.toFixed(2)} ₪</div>
+  {r.premiumMagicPremia ? (
+    <div className="text-[10px] text-emerald-600 font-medium">
+      פרמיה: {r.premiumMagicPremia.toLocaleString()}
+    </div>
+  ) : null}
+  {r.premiumMagicTzvira ? (
+    <div className="text-[10px] text-emerald-600 font-medium">
+      צבירה: {r.premiumMagicTzvira.toLocaleString()}
+    </div>
+  ) : null}
+</td>
+         <td className="p-3 text-center font-bold text-rose-600 border-x border-rose-100/50">{r.diff.toFixed(2)}</td>
                     <td className="p-3 font-bold text-[11px] whitespace-nowrap text-right">
                         {statusOptions.find(o => o.value === r.status)?.label}
                     </td>

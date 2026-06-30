@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   collection, query, where, getDocs, addDoc, updateDoc,
@@ -35,6 +35,13 @@ interface AgentUser {
   name?: string;
   displayName?: string;
   email?: string;
+  isActive?: boolean;
+}
+
+interface CustomerOption {
+  id: string;
+  name: string;
+  IDCustomer: string;
 }
 
 const STATUS_LABEL: Record<TaskStatus, string> = {
@@ -65,6 +72,9 @@ const formatDateTime = (s?: string) => {
 
 const sortTasks = (tasks: Task[]) => {
   return [...tasks].sort((a, b) => {
+    const aDone = a.status === 'done' ? 1 : 0;
+    const bDone = b.status === 'done' ? 1 : 0;
+    if (aDone !== bDone) return aDone - bDone;
     const aOver = isOverdue(a) ? 0 : 1;
     const bOver = isOverdue(b) ? 0 : 1;
     if (aOver !== bOver) return aOver - bOver;
@@ -74,6 +84,89 @@ const sortTasks = (tasks: Task[]) => {
     return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
   });
 };
+
+// ─── CustomerSearch — חיפוש לקוח ──────────────────────────────────────────────
+
+function CustomerSearch({
+  customers,
+  value,
+  onChange,
+  placeholder = 'חפש לקוח...',
+}: {
+  customers: CustomerOption[];
+  value: string;
+  onChange: (id: string, name: string) => void;
+  placeholder?: string;
+}) {
+  const [text, setText] = useState('');
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  // כאשר value מנוקה מחוץ לקומפוננט
+  useEffect(() => {
+    if (!value) setText('');
+  }, [value]);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const filtered = useMemo(() => {
+    const q = text.trim().toLowerCase();
+    if (!q) return customers.slice(0, 50);
+    return customers.filter(c =>
+      c.name.toLowerCase().includes(q) ||
+      c.IDCustomer.includes(q)
+    ).slice(0, 50);
+  }, [customers, text]);
+
+  const handleSelect = (c: CustomerOption) => {
+    setText(c.name);
+    onChange(c.id, c.name);
+    setOpen(false);
+  };
+
+  const handleClear = () => {
+    setText('');
+    onChange('', '');
+    setOpen(false);
+  };
+
+  return (
+    <div className="th-customer-search" ref={ref}>
+      <div className="th-search-input-wrap">
+        <input
+          className="th-input"
+          placeholder={placeholder}
+          value={text}
+          onChange={e => { setText(e.target.value); setOpen(true); }}
+          onFocus={() => setOpen(true)}
+        />
+        {text && (
+          <button className="th-search-clear" onClick={handleClear}>✕</button>
+        )}
+      </div>
+      {open && filtered.length > 0 && (
+        <div className="th-search-dropdown">
+          {filtered.map(c => (
+            <div
+              key={c.id}
+              className="th-search-item"
+              onMouseDown={() => handleSelect(c)}
+            >
+              <span className="th-search-name">{c.name}</span>
+              <span className="th-search-id">{c.IDCustomer}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ─── קומפוננט ראשי ────────────────────────────────────────────────────────────
 
@@ -90,8 +183,9 @@ export default function TasksHub() {
   const [myUserId, setMyUserId] = useState('');
 
   // פילטרים
-  const [filterAssignee, setFilterAssignee] = useState('me'); // 'me' | uid | 'all'
+  const [filterAssignee, setFilterAssignee] = useState<'me' | 'all' | string>('me');
   const [filterStatus, setFilterStatus] = useState<'all' | TaskStatus | 'active'>('active');
+  const [filterCustomerId, setFilterCustomerId] = useState('');
 
   // טופס הוספה
   const [showForm, setShowForm] = useState(false);
@@ -99,7 +193,7 @@ export default function TasksHub() {
   const [newDue, setNewDue] = useState('');
   const [newAssigned, setNewAssigned] = useState('');
   const [newCustomerId, setNewCustomerId] = useState('');
-  const [customers, setCustomers] = useState<{ id: string; name: string; IDCustomer: string }[]>([]);
+  const [customers, setCustomers] = useState<CustomerOption[]>([]);
   const [saving, setSaving] = useState(false);
 
   // עריכת משימה
@@ -147,35 +241,29 @@ export default function TasksHub() {
     }
   };
 
-  // ─── טעינת uid שלי מ-users ───────────────────────────────────────────────────
+  // ─── טעינת uid שלי ───────────────────────────────────────────────────────────
   useEffect(() => {
     if (!user?.uid) return;
-    const load = async () => {
-      const snap = await getDocs(query(collection(db, 'users'), where('__name__', '==', user.uid)));
-      if (!snap.empty) {
-        const d = snap.docs[0].data() as any;
-        setMyUserId(user.uid);
-        setNewAssigned(user.uid);
-      } else {
-        setMyUserId(user.uid);
-        setNewAssigned(user.uid);
-      }
-    };
-    load();
+    setMyUserId(user.uid);
+    setNewAssigned(user.uid);
   }, [user?.uid]);
 
-  // ─── טעינת משתמשי סוכנות ─────────────────────────────────────────────────────
+  // ─── טעינת משתמשי סוכנות — רק פעילים ───────────────────────────────────────
   useEffect(() => {
     if (!selectedAgentId) return;
     const load = async () => {
-      const q = query(collection(db, 'users'), where('agentId', '==', selectedAgentId));
+      const q = query(
+        collection(db, 'users'),
+        where('agentId', '==', selectedAgentId),
+        where('isActive', '==', true),
+      );
       const snap = await getDocs(q);
       setAgentUsers(snap.docs.map(d => ({ id: d.id, ...(d.data() as any) })));
     };
     load();
   }, [selectedAgentId]);
 
-  // ─── טעינת לקוחות לטופס ──────────────────────────────────────────────────────
+  // ─── טעינת לקוחות לחיפוש ─────────────────────────────────────────────────────
   useEffect(() => {
     if (!selectedAgentId) return;
     const load = async () => {
@@ -205,7 +293,6 @@ export default function TasksHub() {
       const snap = await getDocs(q);
       const rows = snap.docs.map(d => ({ id: d.id, ...(d.data() as any) })) as Task[];
 
-      // שמות לקוחות
       const ids = Array.from(new Set(rows.map(r => r.customerId).filter(Boolean)));
       const nameMap: Record<string, string> = {};
       for (let i = 0; i < ids.length; i += 10) {
@@ -232,22 +319,24 @@ export default function TasksHub() {
   const filtered = useMemo(() => {
     let rows = tasks;
 
-    // פילטר אחראי
     if (filterAssignee === 'me') {
       rows = rows.filter(t => t.assignedTo === myUserId);
     } else if (filterAssignee !== 'all') {
       rows = rows.filter(t => t.assignedTo === filterAssignee);
     }
 
-    // פילטר סטטוס
     if (filterStatus === 'active') {
       rows = rows.filter(t => t.status !== 'done');
     } else if (filterStatus !== 'all') {
       rows = rows.filter(t => t.status === filterStatus);
     }
 
+    if (filterCustomerId) {
+      rows = rows.filter(t => t.customerId === filterCustomerId);
+    }
+
     return sortTasks(rows);
-  }, [tasks, filterAssignee, filterStatus, myUserId]);
+  }, [tasks, filterAssignee, filterStatus, myUserId, filterCustomerId]);
 
   // ─── פעולות ──────────────────────────────────────────────────────────────────
   const markDone = async (taskId: string) => {
@@ -265,7 +354,6 @@ export default function TasksHub() {
     setSaving(true);
     try {
       const assignedUser = agentUsers.find(u => u.id === newAssigned);
-      const customerDoc = customers.find(c => c.id === newCustomerId);
       await addDoc(collection(db, 'customerTasks'), {
         customerId: newCustomerId,
         agentId: selectedAgentId,
@@ -276,7 +364,7 @@ export default function TasksHub() {
         status: 'open' as TaskStatus,
         createdAt: serverTimestamp(),
       });
-      setNewText(''); setNewDue(''); setShowForm(false);
+      setNewText(''); setNewDue(''); setNewCustomerId(''); setShowForm(false);
       addToast('success', 'משימה נוספה בהצלחה');
       await loadTasks();
     } finally {
@@ -311,6 +399,8 @@ export default function TasksHub() {
 
       {/* ── פילטרים ── */}
       <div className="th-filters">
+
+        {/* אחראי — שלי + dropdown לשאר */}
         <div className="th-filter-group">
           <label className="th-filter-label">אחראי</label>
           <div className="th-toggle">
@@ -318,20 +408,30 @@ export default function TasksHub() {
               className={`th-toggle-btn${filterAssignee === 'me' ? ' active' : ''}`}
               onClick={() => setFilterAssignee('me')}
             >שלי</button>
-            {agentUsers.map(u => (
-              <button
-                key={u.id}
-                className={`th-toggle-btn${filterAssignee === u.id ? ' active' : ''}`}
-                onClick={() => setFilterAssignee(u.id)}
-              >{u.name || u.displayName || u.email}</button>
-            ))}
             <button
               className={`th-toggle-btn${filterAssignee === 'all' ? ' active' : ''}`}
               onClick={() => setFilterAssignee('all')}
             >כולם</button>
           </div>
+          <select
+            className="th-select"
+            value={filterAssignee === 'me' || filterAssignee === 'all' ? '' : filterAssignee}
+            onChange={e => {
+              if (e.target.value) setFilterAssignee(e.target.value);
+            }}
+          >
+            <option value="">חבר צוות...</option>
+            {agentUsers
+              .filter(u => u.id !== myUserId)
+              .map(u => (
+                <option key={u.id} value={u.id}>
+                  {u.name || u.displayName || u.email}
+                </option>
+              ))}
+          </select>
         </div>
 
+        {/* סטטוס */}
         <div className="th-filter-group">
           <label className="th-filter-label">סטטוס</label>
           <div className="th-toggle">
@@ -349,6 +449,17 @@ export default function TasksHub() {
               >{label}</button>
             ))}
           </div>
+        </div>
+
+        {/* סינון לפי לקוח */}
+        <div className="th-filter-group">
+          <label className="th-filter-label">לקוח</label>
+          <CustomerSearch
+            customers={customers}
+            value={filterCustomerId}
+            onChange={(id) => setFilterCustomerId(id)}
+            placeholder="חפש לקוח לסינון..."
+          />
         </div>
 
         {/* סוכן — למנהל */}
@@ -371,12 +482,12 @@ export default function TasksHub() {
           <div className="th-form-row">
             <div className="th-form-field">
               <label className="th-label">לקוח</label>
-              <select className="th-input" value={newCustomerId} onChange={e => setNewCustomerId(e.target.value)}>
-                <option value="">בחר לקוח</option>
-                {customers.map(c => (
-                  <option key={c.id} value={c.id}>{c.name} ({c.IDCustomer})</option>
-                ))}
-              </select>
+              <CustomerSearch
+                customers={customers}
+                value={newCustomerId}
+                onChange={(id) => setNewCustomerId(id)}
+                placeholder="חפש לפי שם / ת.ז..."
+              />
             </div>
             <div className="th-form-field">
               <label className="th-label">אחראי</label>
@@ -435,7 +546,6 @@ export default function TasksHub() {
                 key={t.id}
                 className={`th-task${t.status === 'done' ? ' th-task-done' : ''}${overdue ? ' th-task-overdue' : ''}`}
               >
-                {/* ✓ כפתור השלמה */}
                 <button
                   className={`th-check${t.status === 'done' ? ' th-check-done' : ''}`}
                   onClick={() => t.status !== 'done' && markDone(t.id)}
@@ -444,7 +554,6 @@ export default function TasksHub() {
                   {t.status === 'done' ? '✓' : ''}
                 </button>
 
-                {/* גוף המשימה */}
                 <div className="th-task-body">
                   <div className="th-task-text">{t.text}</div>
                   <div className="th-task-meta">
@@ -469,14 +578,12 @@ export default function TasksHub() {
                   </div>
                 </div>
 
-                {/* עריכה */}
                 <button
                   className="th-btn-edit-task"
                   onClick={() => openEdit(t)}
                   title="ערוך משימה"
                 >✏</button>
 
-                {/* סטטוס */}
                 <select
                   className={`th-status-select ${STATUS_CLASS[t.status]}`}
                   value={t.status}

@@ -157,6 +157,7 @@ const [commissionSplits, setCommissionSplits] = useState<CommissionSplit[]>([]);
 
 const [isCommissionSplitEnabled, setIsCommissionSplitEnabled] = useState(false);
 
+
 useEffect(() => {
   setCurrentPage(1);
 }, [rowsPerPage]);
@@ -1248,6 +1249,10 @@ const highlightCustomer = searchParams.get('highlightCustomer');
 const agentIdFromUrl = searchParams.get('agentId') || '';
 const familyFromUrl = searchParams.get('family') || '';
 
+useEffect(() => {
+  const id = searchParams.get('idCustomerFilter');
+  if (id) setIdCustomerFilter(id);
+}, [searchParams]);
 
 // ליד ה-useSearchParams הקיים
 const familyParam = searchParams.get('family');

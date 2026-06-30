@@ -17,6 +17,7 @@ import {ToastNotification} from '@/components/ToastNotification';
 import { useToast } from "@/hooks/useToast";
 import { useValidation } from "@/hooks/useValidation";
 import { getDownloadURL, getStorage, ref } from "firebase/storage";
+import { useRouter } from 'next/navigation';
 
 const NewLeads = () => {
 
@@ -80,6 +81,8 @@ const [editingRowIdTime, setEditingRowIdTime] = useState<string | null>(null);
 const { toasts, addToast, setToasts } = useToast();
 
 const { errors,setErrors, handleValidatedEditChange } = useValidation();
+
+const router = useRouter();
 
 
   interface Suggestion {
@@ -189,7 +192,6 @@ const [documentsLoading, setDocumentsLoading] = useState(false);
   }, [editData]);
   
 
-  // const { sortedData, sortColumn, sortOrder, handleSort } = useSort(leadsData);
 
 
 
@@ -695,6 +697,38 @@ const handleConvertToCustomer = async (lead: LeadsType) => {
       lastUpdateDate: serverTimestamp(),
     });
 
+// ── Migration הערות ──
+const notesSnap = await getDocs(query(
+  collection(db, 'customerNotes'),
+  where('customerId', '==', lead.id),
+));
+for (const n of notesSnap.docs) {
+  await updateDoc(n.ref, { customerId: customerRef.id });
+}
+
+// ── Migration משימות ──
+const tasksSnap = await getDocs(query(
+  collection(db, 'customerTasks'),
+  where('customerId', '==', lead.id),
+));
+for (const t of tasksSnap.docs) {
+  await updateDoc(t.ref, { customerId: customerRef.id });
+}
+
+// ── Migration מסמכים ──
+const docsSnap = await getDocs(query(
+  collection(db, 'leadDocuments'),
+  where('leadId', '==', lead.id),
+));
+for (const d of docsSnap.docs) {
+  // מוסיפים רשומה חדשה ב-customerDocuments עם אותם נתוני קובץ
+  await addDoc(collection(db, 'customerDocuments'), {
+    ...d.data(),
+    customerId: customerRef.id,
+    convertedFromLeadDocId: d.id,
+    createdAt: serverTimestamp(),
+  });
+}
     // עדכון סטטוס הליד
     const convertedStatus = statusLeadMap.find(
       s => s.statusLeadName === 'הפך ללקוח'
@@ -1130,7 +1164,15 @@ url = await getDownloadURL(storageRef);
               </thead>
               <tbody>
                 {sortedData.map((item) => (
-                  <tr key={item.id}>
+                  <tr
+  key={item.id}
+  onClick={(e) => {
+    const target = e.target as HTMLElement;
+    if (target.closest('select') || target.closest('input') || target.closest('button')) return;
+    router.push(`/NewLeads/${item.id}`);
+  }}
+  style={{ cursor: 'pointer' }}
+>
                     <td>{item.agentName}</td>
                     <td>{`${item.firstNameCustomer || ''} ${item.lastNameCustomer || ''}`.trim()}</td>
                     
@@ -1178,7 +1220,7 @@ url = await getDownloadURL(storageRef);
                     <td>{item.createDate ? item.createDate.toDate().toLocaleString() : 'N/A'}</td>
                     
                     {/* תפריט בורגר לעריכה ומחיקה */}
-                    <td>
+                    <td onClick={e => e.stopPropagation()}>
                       <MenuWrapper
                         rowId={item.id}
                         openMenuRow={openMenuRow}

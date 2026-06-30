@@ -30,6 +30,7 @@ import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
 import { FaFileExcel } from 'react-icons/fa';
 import { useUserPreferences } from "@/hooks/useUserPreferences";
+import { useRouter } from 'next/navigation';
 
 
 const NewAgentForm: React.FC = () => {
@@ -135,6 +136,8 @@ const [depositStatusOptions, setDepositStatusOptions] = useState<{ id: string; n
 const [hekefPaidFilter, setHekefPaidFilter] = useState('');
 const [niudPaidFilter, setNiudPaidFilter] = useState('');
 const [depositStatusFilter, setDepositStatusFilter] = useState('');
+
+const router = useRouter();
 
 useEffect(() => {
   const loadAgency3Metadata = async () => {
@@ -1236,39 +1239,56 @@ useEffect(() => {
                 {currentRows.map((item) => (
                   
                 <tr key={item.id} className={editingRow === item.id ? "editing-row" : ""}>
-    <td className="narrow-column">
-               {editingRow === item.id ? (
-          <input
-            type="text"
-            value={editData.firstNameCustomer || ""}
-            onChange={(e) => handleEditChange("firstNameCustomer", e.target.value)}
-          />
-        ) : (
-          item.firstNameCustomer
-        )}
-      </td>
-            <td className="narrow-column">
-               {editingRow === item.id ? (
-          <input
-            type="text"
-            value={editData.lastNameCustomer || ""}
-            onChange={(e) => handleEditChange("lastNameCustomer", e.target.value)}
-          />
-        ) : (
-          item.lastNameCustomer
-        )}
-      </td>
-      <td className="narrow-column">
-        {editingRow === item.id ? (
-          <input
-            type="text"
-            value={editData.IDCustomer || ""}
-            onChange={(e) => handleEditChange("IDCustomer", e.target.value)}
-          />
-        ) : (
-          item.IDCustomer
-        )}
-      </td>
+   <td className="narrow-column">
+  {editingRow === item.id ? (
+    <input
+      type="text"
+      value={editData.firstNameCustomer || ""}
+      onChange={(e) => handleEditChange("firstNameCustomer", e.target.value)}
+    />
+  ) : (
+    <span
+      style={{ cursor: 'pointer', color: '#2d5a8e', textDecoration: 'underline' }}
+      onClick={() => router.push(`/NewCustomer?idCustomerFilter=${item.IDCustomer}`)}
+    >
+      {item.firstNameCustomer}
+    </span>
+  )}
+</td>
+
+<td className="narrow-column">
+  {editingRow === item.id ? (
+    <input
+      type="text"
+      value={editData.lastNameCustomer || ""}
+      onChange={(e) => handleEditChange("lastNameCustomer", e.target.value)}
+    />
+  ) : (
+    <span
+      style={{ cursor: 'pointer', color: '#2d5a8e', textDecoration: 'underline' }}
+      onClick={() => router.push(`/NewCustomer?idCustomerFilter=${item.IDCustomer}`)}
+    >
+      {item.lastNameCustomer}
+    </span>
+  )}
+</td>
+
+<td className="narrow-column">
+  {editingRow === item.id ? (
+    <input
+      type="text"
+      value={editData.IDCustomer || ""}
+      onChange={(e) => handleEditChange("IDCustomer", e.target.value)}
+    />
+  ) : (
+    <span
+      style={{ cursor: 'pointer', color: '#2d5a8e', textDecoration: 'underline' }}
+      onClick={() => router.push(`/NewCustomer?idCustomerFilter=${item.IDCustomer}`)}
+    >
+      {item.IDCustomer}
+    </span>
+  )}
+</td>
       <td className="narrow-column">
         {editingRow === item.id ? (
           <select

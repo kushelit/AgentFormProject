@@ -1190,7 +1190,7 @@ onClick={() => {
     {isMounted && (
       <DynamicResponsiveContainer width="100%" height="100%">
         <DynamicLineChart
-          data={monthlyTotalsData}
+          data={[...monthlyTotalsData].sort((a, b) => a.month.localeCompare(b.month))}
           margin={{ top: 10, right: 64, left: 10, bottom: 28 }}
         >
           <DynamicCartesianGrid strokeDasharray="3 3" />
@@ -1325,8 +1325,6 @@ onClick={() => {
   className={`border px-2 py-1 ${monthMap[m] ? 'cursor-pointer hover:bg-gray-100' : 'text-gray-300'}`}
   onClick={() => {
     if (!monthMap[m]) return;
-    // 🔧 תיקון תקלה 2: פותחים דריל סוכן עם דאטה מסוננת לתבנית+חודש(+ym),
-    // לא עם summaryByCompanyAgentMonth הגלובלי שמצרף את כל התבניות
     openAgentDrill(
       templateDrill!.companyId,
       templateDrill!.companyName,

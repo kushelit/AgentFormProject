@@ -16,6 +16,7 @@ export type ExternalRow = {
   commissionAmount?: number | null;
   linkedSaleId?: string | null;
    templateId?: string | null;
+   totalPremiumAmount?: number | null;
 };
 
 export type ExternalSummaryBucket = {
@@ -90,8 +91,11 @@ export async function fetchExternalForCustomers(params: {
         product: raw.product ?? null,
         policyNumber: raw.policyNumberKey ?? null,
         reportMonth: reportYm,
-        validMonth: reportYm, // אליאס – אם יש קוד שמסתמך על זה
+        validMonth: reportYm, 
         commissionAmount,
+        totalPremiumAmount: typeof raw.totalPremiumAmount === 'number'   
+    ? raw.totalPremiumAmount                                   
+    : Number(raw.totalPremiumAmount || 0),
         linkedSaleId: raw.linkedSaleId ?? null,
         templateId: raw.templateId ?? null,
       });

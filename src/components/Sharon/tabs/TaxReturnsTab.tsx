@@ -358,7 +358,16 @@ const TaxReturnsTab: React.FC<Props> = ({ agentId, customer }) => {
             {TAX_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
           </select>
         </td>
-        <td><input className="sharon-inline-input" value={editData.documents || ''} onChange={e => handleChange('documents', e.target.value)} placeholder="מסמכים" /></td>
+<td>
+  <textarea
+    className="sharon-inline-input"
+    value={editData.documents || ''}
+    onChange={e => handleChange('documents', e.target.value)}
+    placeholder="הערות"
+    rows={3}
+    style={{ resize: 'vertical', minHeight: 60, width: '100%' }}
+  />
+</td>
         <td><input className="sharon-inline-input" type="number" value={editData.expectedRefund || ''} onChange={e => handleChange('expectedRefund', e.target.value)} placeholder="₪" style={{ width: 80 }} /></td>
         <td>
           <select className="sharon-inline-select" value={editData.commissionRate || ''} onChange={e => handleChange('commissionRate', e.target.value)} style={{ width: 60 }}>
@@ -408,7 +417,7 @@ const TaxReturnsTab: React.FC<Props> = ({ agentId, customer }) => {
               <th>יישוב</th>
               <th>טלפון</th>
               <th>סטטוס</th>
-              <th>מסמכים</th>
+              <th>הערות</th>
               <th>צפי החזר</th>
               <th>% הסכם</th>
              <th>עמלת רו&quot;ח</th>
@@ -437,7 +446,7 @@ const TaxReturnsTab: React.FC<Props> = ({ agentId, customer }) => {
                         'sharon-pill-green'
                       }`}>{client.status || '—'}</span>
                     </td>
-                    <td>{client.documents || '—'}</td>
+                  <td style={{ whiteSpace: 'pre-wrap', maxWidth: 180, fontSize: 12 }}>{client.documents || '—'}</td>
                     <td>{client.expectedRefund ? `${parseFloat(client.expectedRefund).toLocaleString()} ₪` : '—'}</td>
                     <td>{client.commissionRate ? `${client.commissionRate}%` : '—'}</td>
                     <td style={{ fontSize: 11, color: '#5F5E5A' }}>{client.accountantCommission ? `${parseFloat(client.accountantCommission).toLocaleString()} ₪` : '—'}</td>

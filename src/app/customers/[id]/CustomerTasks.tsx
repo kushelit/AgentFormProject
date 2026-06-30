@@ -60,7 +60,11 @@ export default function CustomerTasks({ customerId, agentId }: Props) {
   // שליפת משתמשי הסוכנות
   useEffect(() => {
     const load = async () => {
-      const q = query(collection(db, 'users'), where('agentId', '==', agentId));
+      const q = query(
+  collection(db, 'users'),
+  where('agentId', '==', agentId),
+  where('isActive', '==', true),
+);
       const snap = await getDocs(q);
       const list = snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }));
       setUsers(list);
@@ -73,21 +77,41 @@ export default function CustomerTasks({ customerId, agentId }: Props) {
     if (agentId) load();
   }, [agentId]);
 
-  const loadTasks = async () => {
-    setLoading(true);
-    try {
-      const q = query(
-        collection(db, 'customerTasks'),
-        where('customerId', '==', customerId),
-        where('agentId', '==', agentId),
-        orderBy('createdAt', 'desc'),
-      );
-      const snap = await getDocs(q);
-      setTasks(snap.docs.map(d => ({ id: d.id, ...(d.data() as any) })));
-    } finally {
-      setLoading(false);
-    }
-  };
+const loadTasks = async () => {
+  setLoading(true);
+  try {
+    const q = query(
+      collection(db, 'customerTasks'),
+      where('customerId', '==', customerId),
+      where('agentId', '==', agentId),
+      orderBy('createdAt', 'desc'),
+    );
+    const snap = await getDocs(q);
+    const raw: Task[] = snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }));
+
+    const sorted = [...raw].sort((a, b) => {
+      // הושלם — תמיד למטה
+      const aDone = a.status === 'done' ? 1 : 0;
+      const bDone = b.status === 'done' ? 1 : 0;
+      if (aDone !== bDone) return aDone - bDone;
+
+      // שניהם פתוחים — לפי תאריך יעד (ללא תאריך = אחרון)
+      if (!aDone && !bDone) {
+        if (!a.dueDate && !b.dueDate) return 0;
+        if (!a.dueDate) return 1;
+        if (!b.dueDate) return -1;
+        return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
+      }
+
+      // שניהם הושלמו — לפי createdAt יורד (כמו שהיה)
+      return 0;
+    });
+
+    setTasks(sorted);
+  } finally {
+    setLoading(false);
+  }
+};
 
   useEffect(() => { loadTasks(); }, [customerId]);
 
