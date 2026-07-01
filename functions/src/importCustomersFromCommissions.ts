@@ -8,20 +8,6 @@ function s(v: any) {
   return String(v ?? "").trim();
 }
 
-function splitFullName(fullName: string): { firstName: string; lastName: string } {
-  const parts = fullName.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return { firstName: "", lastName: "" };
-  if (parts.length === 1) return { firstName: parts[0], lastName: "" };
-  const firstName = parts[parts.length - 1];
-  const lastName = parts.slice(0, -1).join(" ");
-  return { firstName, lastName };
-}
-
-function normalizeId(id: string): string {
-  const digits = id.replace(/\D/g, "");
-  return digits ? digits.padStart(9, "0").slice(-9) : "";
-}
-
 function idVariants(id: string): string[] {
   const digits = id.replace(/\D/g, "");
   if (!digits) return [];
@@ -30,182 +16,235 @@ function idVariants(id: string): string[] {
   return Array.from(new Set([digits, padded, stripped]));
 }
 
+function splitName(
+  fullName: string,
+  nameFormat: string
+): { firstName: string; lastName: string } {
+  const parts = fullName.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return { firstName: "", lastName: "" };
+  if (parts.length === 1) return { firstName: parts[0], lastName: "" };
+
+  if (nameFormat === "first_last") {
+    return { firstName: parts[0], lastName: parts.slice(1).join(" ") };
+  } else {
+    return { firstName: parts[parts.length - 1], lastName: parts.slice(0, -1).join(" ") };
+  }
+}
+
+// ─── ייבוא לקוחות ───────────────────────────────────────────────────────────
+
 export const importCustomersFromCommissions = onCall(
-  {
-    region: FUNCTIONS_REGION,
-    timeoutSeconds: 540,
-    memory: "512MiB",
-  },
+  { region: FUNCTIONS_REGION, timeoutSeconds: 540, memory: "512MiB" },
   async (request) => {
     ensureAdminApp();
 
     const agentId = s(request.data?.agentId);
     if (!agentId) throw new HttpsError("invalid-argument", "agentId is required");
 
-    // ✅ אימות שהמשתמש הוא הסוכן עצמו או אדמין
     const callerUid = request.auth?.uid;
     if (!callerUid) throw new HttpsError("unauthenticated", "Must be authenticated");
 
     const db = adminDb();
 
-    // ✅ שלב 1: שלוף את כל ה-customerId הייחודיים מ-policyCommissionSummaries
-    const policiesSnap = await db
-      .collection("policyCommissionSummaries")
-      .where("agentId", "==", agentId)
-      .get();
+    // שלב 1: צור רשומת ריצה
+    const runRef = db.collection("customerImportRuns").doc();
+    await runRef.set({
+      agentId,
+      createdBy: callerUid,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      status: "running",
+      created: 0,
+      skipped: 0,
+      total: 0,
+    });
+    const runId = runRef.id;
 
-    if (policiesSnap.empty) {
-      return { created: 0, updated: 0, skipped: 0, total: 0 };
-    }
-
-    // בנה map של customerId → fullName (ייחודי לפי תז מנורמל)
-    // 🔧 תיקון: אם יש כמה רשומות לאותו לקוח, נעדיף רשומה עם fullName לא ריק
-    // ולא נסתפק "בראשונה שנתקלנו בה" (שיכולה להיות עם שם חסר).
-    const candidateMap = new Map<string, { customerId: string; fullName: string }>();
-
-    for (const doc of policiesSnap.docs) {
-      const data = doc.data();
-      const rawId = s(data.customerId);
-      const fullName = s(data.fullName);
-      if (!rawId) continue;
-
-      const normalizedId = normalizeId(rawId);
-      if (!normalizedId) continue;
-
-      const existingCandidate = candidateMap.get(normalizedId);
-      if (!existingCandidate) {
-        candidateMap.set(normalizedId, { customerId: rawId, fullName });
-      } else if (!existingCandidate.fullName && fullName) {
-        // היה לנו מועמד בלי שם, ומצאנו רשומה אחרת לאותו לקוח עם שם - נעדיף אותה
-        candidateMap.set(normalizedId, { customerId: rawId, fullName });
+    try {
+      // שלב 2: טען nameFormat מהתבניות
+      const templatesSnap = await db.collection("commissionTemplates").get();
+      const templateNameFormat = new Map<string, string>();
+      for (const doc of templatesSnap.docs) {
+        templateNameFormat.set(doc.id, s(doc.data().nameFormat) || "last_first");
       }
+
+      // שלב 3: שלוף רשומות מ-policyCommissionSummaries
+      const policiesSnap = await db
+        .collection("policyCommissionSummaries")
+        .where("agentId", "==", agentId)
+        .get();
+
+      if (policiesSnap.empty) {
+        await runRef.update({ status: "done", created: 0, skipped: 0, total: 0 });
+        return { runId, created: 0, skipped: 0, total: 0, createdList: [] };
+      }
+
+      // שלב 4: בנה map של מועמדים — חובה fullName + customerId
+      const candidateMap = new Map<
+        string,
+        { customerId: string; fullName: string; nameFormat: string }
+      >();
+
+      for (const doc of policiesSnap.docs) {
+        const data = doc.data();
+        const rawId = s(data.customerId);
+        const fullName = s(data.fullName);
+        const templateId = s(data.templateId);
+
+        if (!rawId || !fullName) continue;
+
+        const variants = idVariants(rawId);
+        if (!variants.length) continue;
+
+        const key = variants.find((v) => v.length === 9) ?? variants[0];
+        if (!candidateMap.has(key)) {
+          const nameFormat = templateNameFormat.get(templateId) || "last_first";
+          candidateMap.set(key, { customerId: rawId, fullName, nameFormat });
+        }
+      }
+
+      const total = candidateMap.size;
+      if (total === 0) {
+        await runRef.update({ status: "done", created: 0, skipped: 0, total: 0 });
+        return { runId, created: 0, skipped: 0, total: 0, createdList: [] };
+      }
+
+      // שלב 5: שלוף לקוחות קיימים → בנה set של וריאנטים
+      const existingSnap = await db
+        .collection("customer")
+        .where("AgentId", "==", agentId)
+        .get();
+
+      const existingVariants = new Set<string>();
+      for (const doc of existingSnap.docs) {
+        for (const variant of idVariants(s(doc.data().IDCustomer))) {
+          existingVariants.add(variant);
+        }
+      }
+
+      // שלב 6: סנן — רק לקוחות שלא קיימים בשום וריאנט
+      const toCreate: Array<{ customerId: string; fullName: string; nameFormat: string }> = [];
+      let skipped = 0;
+
+      for (const [, candidate] of candidateMap.entries()) {
+        const exists = idVariants(candidate.customerId).some((v) => existingVariants.has(v));
+        if (exists) {
+          skipped++;
+        } else {
+          toCreate.push(candidate);
+        }
+      }
+
+      // שלב 7: צור לקוחות חדשים בבאצ'ים
+      let created = 0;
+      const createdList: Array<{ customerId: string; fullName: string }> = [];
+      const BATCH_SIZE = 500;
+
+      for (let i = 0; i < toCreate.length; i += BATCH_SIZE) {
+        const chunk = toCreate.slice(i, i + BATCH_SIZE);
+        const batch = db.batch();
+
+        for (const { customerId, fullName, nameFormat } of chunk) {
+          const { firstName, lastName } = splitName(fullName, nameFormat);
+          const docRef = db.collection("customer").doc();
+
+          batch.set(docRef, {
+            AgentId: agentId,
+            IDCustomer: customerId,
+            firstNameCustomer: firstName,
+            lastNameCustomer: lastName,
+            fullNameCustomer: fullName,
+            parentID: docRef.id,
+            importedFromCommissions: true,
+            importRunId: runId,
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            lastUpdateDate: admin.firestore.FieldValue.serverTimestamp(),
+          });
+
+          created++;
+          createdList.push({ customerId, fullName });
+        }
+
+        await batch.commit();
+      }
+
+      // עדכון רשומת הריצה
+      await runRef.update({ status: "done", created, skipped, total });
+
+      // שמירת ה-runId האחרון על הסוכן — לאפשר rollback מאוחר
+      await db.collection("agentImportState").doc(agentId).set({
+        lastImportRunId: runId,
+        lastImportAt: admin.firestore.FieldValue.serverTimestamp(),
+        lastImportCreated: created,
+      }, { merge: true });
+
+      return { runId, created, skipped, total, createdList };
+
+    } catch (e) {
+      await runRef.update({ status: "error" });
+      throw e;
     }
+  }
+);
 
-    const total = candidateMap.size;
-    if (total === 0) return { created: 0, updated: 0, skipped: 0, total: 0 };
+// ─── רולבק — מחיקת כל מה שנוצר בריצה ספציפית ──────────────────────────────
 
-    // ✅ שלב 2: שלוף את כל הלקוחות הקיימים של הסוכן (כולל השם הנוכחי, כדי לבדוק אם חסר)
-    const existingSnap = await db
+export const rollbackCustomerImport = onCall(
+  { region: FUNCTIONS_REGION, timeoutSeconds: 540, memory: "512MiB" },
+  async (request) => {
+    ensureAdminApp();
+
+    const runId = s(request.data?.runId);
+    if (!runId) throw new HttpsError("invalid-argument", "runId is required");
+
+    const callerUid = request.auth?.uid;
+    if (!callerUid) throw new HttpsError("unauthenticated", "Must be authenticated");
+
+    const db = adminDb();
+
+    // וודא שהריצה קיימת
+    const runDoc = await db.collection("customerImportRuns").doc(runId).get();
+    if (!runDoc.exists) throw new HttpsError("not-found", "Run not found");
+
+    const agentId = s(runDoc.data()?.agentId);
+
+    // שלוף את כל הלקוחות של הריצה הזו
+    const toDeleteSnap = await db
       .collection("customer")
-      .where("AgentId", "==", agentId)
+      .where("importRunId", "==", runId)
       .get();
 
-    // 🔧 תיקון: בנה map מכל ווריאנט תז → { docRef, fullNameCustomer }
-    // כדי שנדע גם אם הלקוח קיים, וגם אם חסר לו שם.
-    const existingByIdVariant = new Map<
-      string,
-      { ref: admin.firestore.DocumentReference; fullNameCustomer: string }
-    >();
+    let deleted = 0;
 
-    for (const doc of existingSnap.docs) {
-      const rawId = s(doc.data().IDCustomer);
-      const fullNameCustomer = s(doc.data().fullNameCustomer);
-      for (const variant of idVariants(rawId)) {
-        // אם כבר יש ערך עם שם, לא נחליף אותו בערך בלי שם (אבל זה edge-case נדיר של תזים כפולים)
-        const existing = existingByIdVariant.get(variant);
-        if (!existing || (!existing.fullNameCustomer && fullNameCustomer)) {
-          existingByIdVariant.set(variant, { ref: doc.ref, fullNameCustomer });
+    if (!toDeleteSnap.empty) {
+      const BATCH_SIZE = 500;
+      const docs = toDeleteSnap.docs;
+
+      for (let i = 0; i < docs.length; i += BATCH_SIZE) {
+        const batch = db.batch();
+        for (const doc of docs.slice(i, i + BATCH_SIZE)) {
+          batch.delete(doc.ref);
+          deleted++;
         }
+        await batch.commit();
       }
     }
 
-    // ✅ שלב 3: סנן לפי 3 קבוצות:
-    //   - toCreate: לקוח חדש שלא קיים בכלל
-    //   - toUpdate: לקוח קיים בלי שם (fullNameCustomer ריק) ויש לנו שם מהקומישנים
-    //   - skipped: לקוח קיים עם שם כלשהו - לא נוגעים בו בכלל, אפילו אם הוא שונה
-    const toCreate: Array<{ customerId: string; fullName: string }> = [];
-    const toUpdate: Array<{
-      ref: admin.firestore.DocumentReference;
-      customerId: string;
-      fullName: string;
-    }> = [];
+    // עדכן רשומת הריצה
+    await db.collection("customerImportRuns").doc(runId).update({
+      status: "rolledBack",
+      deletedAt: admin.firestore.FieldValue.serverTimestamp(),
+      deleted,
+    });
 
-    let skipped = 0;
-
-    for (const [, candidate] of candidateMap.entries()) {
-      const variants = idVariants(candidate.customerId);
-      let matchedExisting: { ref: admin.firestore.DocumentReference; fullNameCustomer: string } | undefined;
-
-      for (const v of variants) {
-        const found = existingByIdVariant.get(v);
-        if (found) {
-          matchedExisting = found;
-          break;
-        }
-      }
-
-      if (!matchedExisting) {
-        // לא קיים בכלל - ליצור לקוח חדש
-        toCreate.push(candidate);
-        continue;
-      }
-
-      const hasExistingName = !!matchedExisting.fullNameCustomer;
-      if (!hasExistingName && candidate.fullName) {
-        // קיים, אבל בלי שם - ויש לנו שם מהקומישנים - להשלים רק את השם
-        toUpdate.push({
-          ref: matchedExisting.ref,
-          customerId: candidate.customerId,
-          fullName: candidate.fullName,
-        });
-      } else {
-        // קיים עם שם (גם אם שונה/נערך) - או שגם לנו אין שם - לא לגעת
-        skipped++;
-      }
+    // נקה את ה-runId מ-agentImportState
+    if (agentId) {
+      await db.collection("agentImportState").doc(agentId).update({
+        lastImportRunId: admin.firestore.FieldValue.delete(),
+        lastImportAt: admin.firestore.FieldValue.delete(),
+        lastImportCreated: admin.firestore.FieldValue.delete(),
+      });
     }
 
-    let created = 0;
-    let updated = 0;
-    const BATCH_SIZE = 500;
-
-    // ✅ שלב 4: צור לקוחות חדשים בבאצ'ים
-    for (let i = 0; i < toCreate.length; i += BATCH_SIZE) {
-      const chunk = toCreate.slice(i, i + BATCH_SIZE);
-      const batch = db.batch();
-
-      for (const { customerId, fullName } of chunk) {
-        const { firstName, lastName } = splitFullName(fullName);
-        const docRef = db.collection("customer").doc();
-
-        batch.set(docRef, {
-          AgentId: agentId,
-          IDCustomer: normalizeId(customerId),
-          firstNameCustomer: firstName,
-          lastNameCustomer: lastName,
-          fullNameCustomer: fullName,
-          parentID: docRef.id,
-          createdAt: admin.firestore.FieldValue.serverTimestamp(),
-          lastUpdateDate: admin.firestore.FieldValue.serverTimestamp(),
-          importedFromCommissions: true,
-        });
-
-        created++;
-      }
-
-      await batch.commit();
-    }
-
-    // ✅ שלב 5: השלם שם רק ללקוחות קיימים שבאמת אין להם שם
-    for (let i = 0; i < toUpdate.length; i += BATCH_SIZE) {
-      const chunk = toUpdate.slice(i, i + BATCH_SIZE);
-      const batch = db.batch();
-
-      for (const { ref, fullName } of chunk) {
-        const { firstName, lastName } = splitFullName(fullName);
-
-        batch.update(ref, {
-          firstNameCustomer: firstName,
-          lastNameCustomer: lastName,
-          fullNameCustomer: fullName,
-          lastUpdateDate: admin.firestore.FieldValue.serverTimestamp(),
-        });
-
-        updated++;
-      }
-
-      await batch.commit();
-    }
-
-    return { created, updated, skipped, total };
+    return { deleted };
   }
 );

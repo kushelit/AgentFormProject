@@ -4,7 +4,7 @@
 
 import { HttpsError } from "firebase-functions/v2/https";
 import { adminDb, nowTs } from "./shared/admin";
-import { PORTAL_ENC_KEY_B64 } from "./shared/secrets";
+import { PORTAL_ENC_KEY_B64, SURENSE_ACTIVITY_API_KEY } from "./shared/secrets";
 import { decryptJsonAes256Gcm } from "./shared/cryptoAesGcm";
 
 const WA_API_URL = "https://graph.facebook.com/v19.0";
@@ -14,7 +14,30 @@ function s(v: any) {
   return String(v ?? "").trim();
 }
 
-export async function sendReengagementBatchImpl(agentId: string): Promise<object> {
+async function notifySurenseActivity(webhookUrl: string, surenseId: string, fullName: string): Promise<boolean> {
+  try {
+    const res = await fetch(webhookUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-make-apikey": SURENSE_ACTIVITY_API_KEY.value(),
+      },
+      body: JSON.stringify({
+        surenseId,
+        fullName,
+        activityType: "whatsapp_reengagement",
+        activityDate: new Date().toISOString(),
+        note: "נשלחה הודעת WhatsApp אוטומטית ליצירת קשר חוזר",
+      }),
+    });
+    return res.ok;
+  } catch (e: any) {
+    console.error(`[sendReengagementBatch] Surense activity webhook failed for ${surenseId}:`, e.message);
+    return false;
+  }
+}
+
+export async function sendReengagementBatchImpl(agentId: string, leadIds?: string[]): Promise<object> {
   const db = adminDb();
 
   // קרא הגדרות ספציפיות לסוכן: phoneNumberId + templateName (בלי טוקן)
@@ -45,35 +68,58 @@ export async function sendReengagementBatchImpl(agentId: string): Promise<object
     throw new HttpsError("failed-precondition", "Invalid global WhatsApp token");
   }
 
-  // קח batchSize מה-config של הסוכן
+  // קרא את כתובת ה-Webhook ל-Make (יצירת פעילות בשורנס)
+  let activityWebhookUrl = "";
   let batchSize = 20;
   try {
-    const configSnap = await (db as any).doc(`agents/${agentId}/config/main`).get();
-    if (configSnap.exists) {
-      batchSize = configSnap.data()?.waBatchSize ?? 20;
+    const mainConfigSnap = await (db as any).doc(`agents/${agentId}/config/main`).get();
+    if (mainConfigSnap.exists) {
+      const mainConfig = mainConfigSnap.data() as any;
+      activityWebhookUrl = s(mainConfig.surenseActivityWebhookUrl);
+      batchSize = mainConfig.waBatchSize ?? 20;
     }
   } catch {
-    console.warn("[sendReengagementBatch] Could not read agent config, using default batchSize=20");
+    console.warn("[sendReengagementBatch] Could not read agent config/main");
   }
 
-  // שלוף לידים עם סטטוס pending
-  const leadsSnap = await (db as any)
-    .collection(`agents/${agentId}/reengagement_leads`)
-    .where("status", "==", "pending")
-    .limit(batchSize)
-    .get();
+  if (!activityWebhookUrl) {
+    console.warn(`[sendReengagementBatch] No surenseActivityWebhookUrl configured for agent ${agentId} - Surense will NOT be updated`);
+  }
 
-  if (leadsSnap.empty) {
-    return { ok: true, sent: 0, message: "No pending leads" };
+  let leadDocs: FirebaseFirestore.DocumentSnapshot[];
+
+  if (leadIds && leadIds.length > 0) {
+    // שליחה ידנית לרשימה נבחרת מה-UI
+    const refs = leadIds.map((id) => (db as any).doc(`agents/${agentId}/reengagement_leads/${id}`));
+    const snaps = await (db as any).getAll(...refs);
+    leadDocs = snaps.filter((snap: any) => snap.exists && snap.data()?.status === "pending");
+
+    if (leadDocs.length === 0) {
+      return { ok: true, sent: 0, message: "No valid pending leads in selection" };
+    }
+  } else {
+    // fallback: שליפה אוטומטית לפי batchSize (התנהגות ישנה)
+    const leadsSnap = await (db as any)
+      .collection(`agents/${agentId}/reengagement_leads`)
+      .where("status", "==", "pending")
+      .limit(batchSize)
+      .get();
+
+    if (leadsSnap.empty) {
+      return { ok: true, sent: 0, message: "No pending leads" };
+    }
+    leadDocs = leadsSnap.docs;
   }
 
   const batchId = `batch_${Date.now()}`;
   let sent = 0;
   let failed = 0;
+  let surenseSynced = 0;
+  let surenseSyncFailed = 0;
   const errors: any[] = [];
 
-  for (const doc of leadsSnap.docs) {
-    const lead = doc.data();
+  for (const doc of leadDocs) {
+    const lead: any = doc.data();
     const phone = lead.phone as string;
 
     if (!phone) {
@@ -100,10 +146,7 @@ export async function sendReengagementBatchImpl(agentId: string): Promise<object
           messaging_product: "whatsapp",
           to: normalizedPhone,
           type: "template",
-          template: {
-            name: templateName,
-            language: { code: "en" },
-          },
+          template: { name: templateName, language: { code: "en" } },
         }),
       });
 
@@ -116,15 +159,28 @@ export async function sendReengagementBatchImpl(agentId: string): Promise<object
         continue;
       }
 
+      // WhatsApp נשלח בהצלחה - עכשיו מעדכנים את שורנס באופן סינכרוני,
+      // כי זו בפועל נקודת "יצירת הקשר" שחייבת להירשם, לא צעד אופציונלי
+      let surenseSyncedOk = false;
+      if (activityWebhookUrl) {
+        surenseSyncedOk = await notifySurenseActivity(activityWebhookUrl, doc.id, lead.fullName || "");
+        if (surenseSyncedOk) surenseSynced++;
+        else surenseSyncFailed++;
+      } else {
+        surenseSyncFailed++;
+      }
+
       await doc.ref.update({
         status: "sent",
         batchId,
         waSentAt: nowTs(),
         updatedAt: nowTs(),
+        surenseActivitySynced: surenseSyncedOk,
+        surenseActivitySyncedAt: surenseSyncedOk ? nowTs() : null,
       });
 
       sent++;
-      console.info(`[sendReengagementBatch] Sent to ${doc.id} (${normalizedPhone})`);
+      console.info(`[sendReengagementBatch] Sent to ${doc.id} (${normalizedPhone}), surenseSynced=${surenseSyncedOk}`);
 
     } catch (e: any) {
       console.error(`[sendReengagementBatch] Error for ${doc.id}:`, e.message);
@@ -133,7 +189,7 @@ export async function sendReengagementBatchImpl(agentId: string): Promise<object
     }
   }
 
-  return { ok: true, batchId, sent, failed, errors };
+  return { ok: true, batchId, sent, failed, surenseSynced, surenseSyncFailed, errors };
 }
 
 function normalizeIsraeliPhone(phone: string): string | null {

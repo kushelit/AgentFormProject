@@ -17,8 +17,6 @@ export { sendImportInsightsEmailOnPortalRun } from "./sendImportInsightsEmail";
 
 export { sendOtpPushOnRunUpdate } from "./sendOtpPushOnRunUpdate";
 
-export { importCustomersFromCommissions } from "./importCustomersFromCommissions";
-
 export { reengagementLeadsWebhook } from "./reengagementLeads";
 
 export { sendReengagementBatch } from "./sendReengagementBatch";
@@ -28,3 +26,8 @@ export { saveAgentWhatsAppConfig } from "./saveAgentWhatsAppConfig";
 export { calculateCustomerTiers, applyCustomerTiers } from './customerTiers';
 
 export { notifyNewTaxReturn } from "./sharon/notifyNewTaxReturn";
+
+export { importCustomersFromCommissions, rollbackCustomerImport } from "./importCustomersFromCommissions";
+
+export { getReengagementLeads } from "./getReengagementLeads";
+export { updateReengagementLeadStatus } from "./updateReengagementLeadStatus";

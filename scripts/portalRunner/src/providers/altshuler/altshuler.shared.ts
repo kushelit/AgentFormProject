@@ -164,6 +164,27 @@ for (let i = 0; i < 15; i++) {
 }
 
 await clearOtp(runId).catch(() => {});
+
+  // ✅ סגירת פופ-אפ אם מופיע (לא תמיד מופיע — תלוי בסוכן)
+  console.log("[Altshuler] בודק אם יש פופ-אפ לסגירה...");
+  for (let i = 0; i < 10; i++) {
+    const closed = await cdp.send("Runtime.evaluate", {
+      expression: `(function() {
+        const btn = document.querySelector('button.close[aria-label*="סגור"]');
+        if (!btn) return 'NOT_FOUND';
+        btn.click();
+        return 'CLOSED';
+      })()`,
+      returnByValue: true,
+    });
+    if (closed.result.value === 'CLOSED') {
+      console.log("[Altshuler] פופ-אפ נסגר בהצלחה");
+      await page.waitForTimeout(1000);
+      break;
+    }
+    await page.waitForTimeout(500);
+  }
+
 }
 
 export async function altshulerNavigateAndExport(

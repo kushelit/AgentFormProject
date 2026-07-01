@@ -82,7 +82,13 @@ const normCompany = (s?: string|null) => String(s ?? '').trim();
 
 const [importModalOpen, setImportModalOpen] = useState(false);
 const [importLoading, setImportLoading] = useState(false);
-const [importResult, setImportResult] = useState<{ created: number;updated: number; skipped: number; total: number } | null>(null);
+const [importResult, setImportResult] = useState<{
+  runId: string;
+  created: number;
+  skipped: number;
+  total: number;
+  createdList: Array<{ customerId: string; fullName: string }>;
+} | null>(null);
 
 
  const {
@@ -156,6 +162,9 @@ const currentRows = sortedData.slice(indexOfFirstRow, indexOfLastRow);
 const [commissionSplits, setCommissionSplits] = useState<CommissionSplit[]>([]);
 
 const [isCommissionSplitEnabled, setIsCommissionSplitEnabled] = useState(false);
+
+const [importRunId, setImportRunId] = useState<string | null>(null);
+const [rollbackLoading, setRollbackLoading] = useState(false);
 
 
 useEffect(() => {
@@ -280,6 +289,18 @@ const removeCustomerFromList = (id: string) => {
 const handleRemoveCustomer = (customerId: string) => {
   setSelectedCustomers((prev) => prev.filter((c) => c.id !== customerId));
 };
+
+
+useEffect(() => {
+  if (!selectedAgentId) { setImportRunId(null); return; }
+  getDoc(doc(db, "agentImportState", selectedAgentId)).then(snap => {
+    if (snap.exists()) {
+      setImportRunId(snap.data()?.lastImportRunId || null);
+    } else {
+      setImportRunId(null);
+    }
+  });
+}, [selectedAgentId]);
 
 
 useEffect(() => {
@@ -996,7 +1017,7 @@ const handleNewSelectCustomer = (id: string) => {
     "שם פרטי": item.firstNameCustomer || "",
     "שם משפחה": item.lastNameCustomer || "",
     "תעודת זהות": item.IDCustomer || "",
-    "מבוטח אב": item.parentFullName || "",
+    "מבוטח ראשי": item.parentFullName || "",
     "תאריך לידה": item.birthday || "",
     "מגדר": item.gender || "",
     "טלפון": item.phone || "",
@@ -1420,7 +1441,6 @@ const dedupeSales = (rows: any[]) => {
 };
 
 
-
 const handleImportCustomers = async () => {
   if (!selectedAgentId) { addToast("error", "בחר סוכן"); return; }
   setImportLoading(true);
@@ -1430,12 +1450,34 @@ const handleImportCustomers = async () => {
     const fn = httpsCallable(functions, "importCustomersFromCommissions");
     const res: any = await fn({ agentId: selectedAgentId });
     setImportResult(res.data);
+    setImportRunId(res.data.runId);
     reloadCustomerData(selectedAgentId);
   } catch (e: any) {
     addToast("error", "כשל בייבוא לקוחות: " + (e?.message || ""));
     setImportModalOpen(false);
   } finally {
     setImportLoading(false);
+  }
+};
+
+
+
+const handleRollbackImport = async () => {
+  if (!importRunId) return;
+  if (!confirm("האם למחוק את כל הלקוחות שנוצרו בייבוא זה?")) return;
+  setRollbackLoading(true);
+  try {
+    const fn = httpsCallable(functions, "rollbackCustomerImport");
+    const res: any = await fn({ runId: importRunId });
+    addToast("success", `בוטל הייבוא — נמחקו ${res.data.deleted} לקוחות`);
+    setImportModalOpen(false);
+    setImportResult(null);
+    setImportRunId(null);
+    reloadCustomerData(selectedAgentId);
+  } catch (e: any) {
+    addToast("error", "כשל בביטול הייבוא: " + (e?.message || ""));
+  } finally {
+    setRollbackLoading(false);
   }
 };
 
@@ -1477,6 +1519,17 @@ const handleImportCustomers = async () => {
   state={selectedAgentId ? "default" : "disabled"}
   disabled={!selectedAgentId}
 />
+{importRunId && !importModalOpen && (
+  <Button
+    onClick={handleRollbackImport}
+    text={rollbackLoading ? "מבטל..." : "בטל ייבוא אחרון"}
+    type="primary"
+    icon="off"
+    state={rollbackLoading ? "disabled" : "default"}
+    disabled={rollbackLoading}
+  />
+)}
+
 {canAccessCustomerTiers && (
   <Button
     onClick={() => router.push('/customer-tiers')}
@@ -1529,7 +1582,7 @@ const handleImportCustomers = async () => {
           <div className="filter-select-container">
           <input className="filter-input"
             type="text"
-            placeholder="מבוטח אב"
+            placeholder="מבוטח ראשי"
             value={parentFullNameFilter}
             onChange={(e) => setParentFullNameFilter(e.target.value)}
           />
@@ -1721,7 +1774,7 @@ const handleImportCustomers = async () => {
       תז {sortColumn && sortColumn === "IDCustomer" ? (sortOrder === "asc" ? "▲" : "▼") : ""}
     </th>
     <th onClick={() => handleSort("parentFullName" as keyof CustomersTypeForFetching)}>
-      מבוטח אב {sortColumn && sortColumn === "parentFullName" ? (sortOrder === "asc" ? "▲" : "▼") : ""}
+      מבוטח ראשי {sortColumn && sortColumn === "parentFullName" ? (sortOrder === "asc" ? "▲" : "▼") : ""}
     </th>
     <th onClick={() => handleSort("birthday" as keyof CustomersTypeForFetching)}>
       תאריך לידה {sortColumn && sortColumn === "birthday" ? (sortOrder === "asc" ? "▲" : "▼") : ""}
@@ -2222,39 +2275,64 @@ const handleImportCustomers = async () => {
           <div className="text-gray-600">מייבא לקוחות, אנא המתן...</div>
           <div className="text-sm text-gray-400 mt-2">הפעולה עשויה לקחת מספר דקות בריצה ראשונה</div>
         </div>
-    ) : importResult ? (
+      ) : importResult ? (
         <div className="mt-4 space-y-3">
           <div className="text-green-600 text-5xl">✓</div>
-          <div className="grid grid-cols-4 gap-3 mt-4">
+          <div className="grid grid-cols-3 gap-3 mt-4">
             <div className="p-3 bg-gray-50 rounded-lg">
-              <div className="text-xs text-gray-500">סה&quot;כ נמצאו</div>
+              <div className="text-xs text-gray-500">סה״כ נמצאו</div>
               <div className="text-2xl font-bold">{importResult.total}</div>
             </div>
             <div className="p-3 bg-green-50 rounded-lg">
               <div className="text-xs text-green-600">נוצרו חדשים</div>
               <div className="text-2xl font-bold text-green-700">{importResult.created}</div>
             </div>
-            <div className="p-3 bg-purple-50 rounded-lg">
-              <div className="text-xs text-purple-600">הושלם שם</div>
-              <div className="text-2xl font-bold text-purple-700">{importResult.updated}</div>
-            </div>
             <div className="p-3 bg-blue-50 rounded-lg">
               <div className="text-xs text-blue-600">כבר קיימים</div>
               <div className="text-2xl font-bold text-blue-700">{importResult.skipped}</div>
             </div>
           </div>
+
           <button
-            className="mt-4 px-6 py-2 bg-blue-600 text-white rounded-lg font-bold"
+            className="mt-4 px-6 py-2 bg-blue-600 text-white rounded-lg font-bold w-full"
             onClick={() => { setImportModalOpen(false); setImportResult(null); }}
           >
             סגור
+          </button>
+
+          {importResult.createdList?.length > 0 && (
+            <button
+              className="mt-2 px-6 py-2 bg-green-600 text-white rounded-lg font-bold w-full"
+              onClick={() => {
+                const ws = XLSX.utils.json_to_sheet(
+                  importResult.createdList.map((r) => ({
+                    "תעודת זהות": r.customerId,
+                    "שם מלא": r.fullName,
+                  }))
+                );
+                ws["!rtl"] = true;
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, "לקוחות חדשים");
+                const buf = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+                saveAs(new Blob([buf], { type: "application/octet-stream" }), "לקוחות_שיובאו.xlsx");
+              }}
+            >
+              הורד רשימה ({importResult.created})
+            </button>
+          )}
+
+          <button
+            className="mt-2 px-6 py-2 bg-red-600 text-white rounded-lg font-bold w-full"
+            onClick={handleRollbackImport}
+            disabled={rollbackLoading}
+          >
+            {rollbackLoading ? "מבטל..." : "בטל ייבוא (מחק הכל)"}
           </button>
         </div>
       ) : null}
     </div>
   </div>
 )}
-
       </div>
   );
 }
