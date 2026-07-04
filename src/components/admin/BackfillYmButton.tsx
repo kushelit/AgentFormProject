@@ -34,7 +34,7 @@ export default function BackfillYmButton() {
     setError(null);
 
     try {
- const backfill = httpsCallable(functions, 'backfillYmCommissionSummaries');
+const backfill = httpsCallable(functions, 'backfillYmCommissionSummaries', { timeout: 600000 });
 const res = await backfill({});
 setResult(res.data as any);
 } catch (err: any) {

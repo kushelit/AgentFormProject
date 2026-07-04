@@ -76,8 +76,8 @@ async function writeInChunks(
 
 export const backfillYmCommissionSummaries = onCall(
   {
-    timeoutSeconds: 540, // 9 דקות — מספיק למאות ריצות
-    memory: "512MiB",
+    timeoutSeconds: 3600, 
+    memory: "1GiB",
     region: FUNCTIONS_REGION,
   },
   async (req) => {
