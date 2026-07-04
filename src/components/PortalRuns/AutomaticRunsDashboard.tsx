@@ -83,7 +83,7 @@ const handleDeleteRun = async (item: DashboardCompanyState) => {
     }
     // מחק לפי כל jobId
     for (const jobId of jobIds) {
-      for (const col of ['commissionImportRuns', 'externalCommissions', 'commissionSummaries', 'policyCommissionSummaries']) {
+      for (const col of ['commissionImportRuns', 'externalCommissions', 'commissionSummaries', 'policyCommissionSummaries' , 'ymCommissionSummaries']) {
         const snap = await getDocs(query(collection(db, col), where('runId', '==', jobId)));
     if (!snap.empty) {
             const CHUNK = 450;

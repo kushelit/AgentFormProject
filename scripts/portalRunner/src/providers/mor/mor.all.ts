@@ -112,27 +112,27 @@ await page.waitForTimeout(3000);
     }
 
     // דוח גיוסים (תפוקות)
-    await setStatus(runId, { status: "running", step: "מוריד דוח גיוסים ממור", monthLabel });
-    const volumeDownload = await morNavigateToVolumeReport(page);
+    // await setStatus(runId, { status: "running", step: "מוריד דוח גיוסים ממור", monthLabel });
+    // const volumeDownload = await morNavigateToVolumeReport(page);
 
-    if (volumeDownload) {
-      const filename = volumeDownload.suggestedFilename();
-      const localPath = path.join(absDir, `${Date.now()}_${filename}`);
-      await volumeDownload.saveAs(localPath);
+    // if (volumeDownload) {
+    //   const filename = volumeDownload.suggestedFilename();
+    //   const localPath = path.join(absDir, `${Date.now()}_${filename}`);
+    //   await volumeDownload.saveAs(localPath);
 
-      const up = await uploadLocalFileToStorageClient({
-        storage, localPath, agentId, runId, subdir: "mor_volume",
-      } as any);
+    //   const up = await uploadLocalFileToStorageClient({
+    //     storage, localPath, agentId, runId, subdir: "mor_volume",
+    //   } as any);
 
-      if (up?.storagePath) {
-        await appendDownload({
-          templateId: "mor_volume",
-          localPath,
-          filename: up.filename || filename,
-          storagePath: up.storagePath,
-        });
-      }
-    }
+    //   if (up?.storagePath) {
+    //     await appendDownload({
+    //       templateId: "mor_volume",
+    //       localPath,
+    //       filename: up.filename || filename,
+    //       storagePath: up.storagePath,
+    //     });
+    //   }
+    // }
 
 const totalDownloads = ((ctx.run as any)?.downloads || []).length;
     if (totalDownloads === 0) {

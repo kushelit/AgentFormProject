@@ -27,6 +27,8 @@ import useFetchAgentData from '@/hooks/useFetchAgentData';
 import { Button } from '@/components/Button/Button';
 import DialogNotification from '@/components/DialogNotification';
 import AdminGuard from '@/app/admin/_components/AdminGuard';
+import BackfillYmButton from '@/components/admin/BackfillYmButton';
+
 
 type DialogKind = 'info' | 'warning' | 'success' | 'error';
 type DialogState = {
@@ -622,7 +624,7 @@ export default function CommissionPurgeAdminPage() {
 
       // מחק לפי כל jobId
       for (const jobId of jobIds) {
-        for (const col of ['commissionImportRuns', 'externalCommissions', 'commissionSummaries', 'policyCommissionSummaries']) {
+        for (const col of ['commissionImportRuns', 'externalCommissions', 'commissionSummaries', 'policyCommissionSummaries' , 'ymCommissionSummaries']) {
           await deleteByRunIdInChunks(col, jobId);
         }
         await deleteDoc(doc(db, 'commissionImportQueue', jobId)).catch(() => {});
@@ -719,7 +721,6 @@ for (const d of bridgeSnap.docs) {
                 ))}
               </select>
             </div>
-
             <div>
               <label className="block mb-1">תבנית:</label>
               <select className="border rounded px-2 py-1 w-full" value={templateId} onChange={(e) => setTemplateId(e.target.value)}>
@@ -732,7 +733,6 @@ for (const d of bridgeSnap.docs) {
                 ))}
               </select>
             </div>
-
             <div>
               <label className="block mb-1">חודש (UI):</label>
               <input type="month" className="border rounded px-2 py-1 w-full" value={validMonth} onChange={(e) => setValidMonth(e.target.value)} />
@@ -747,7 +747,6 @@ for (const d of bridgeSnap.docs) {
 
           <div className="mt-3 flex gap-2 items-center">
             <Button onClick={handleCheckLock} disabled={lockLoading || lockActionsDisabled} text={lockLoading ? 'בודק...' : 'בדוק נעילה'} />
-
             <button
               onClick={handleUnlockClick}
               disabled={unlockLoading || lockActionsDisabled}
@@ -758,7 +757,6 @@ for (const d of bridgeSnap.docs) {
               {unlockLoading ? 'משחרר...' : 'שחרר נעילה'}
             </button>
           </div>
-
           {lockInfo && (
             <div className="mt-3 text-sm border-t pt-3">
               <div><b>state:</b> {String(lockInfo.state || '-')}</div>
@@ -767,7 +765,9 @@ for (const d of bridgeSnap.docs) {
             </div>
           )}
         </div>
-
+        <div>
+<BackfillYmButton />
+</div>
         {/* ===== חלק תחתון: ניהול ריצות טעינה לפי מספר טעינה / טוען ===== */}
         <div className="mt-10 border-t pt-6">
           <div className="flex flex-col md:flex-row gap-3 mb-4 text-sm">
@@ -788,7 +788,6 @@ for (const d of bridgeSnap.docs) {
               <input type="date" className="border rounded px-2 py-1 w-full" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
             </div>
           </div>
-
           {commissionRunsLoading ? (
             <p>טוען ריצות טעינה...</p>
           ) : filteredCommissionRuns.length === 0 ? (

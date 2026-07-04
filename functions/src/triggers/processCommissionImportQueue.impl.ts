@@ -761,7 +761,14 @@ allAgentCodes = Array.from(new Set([...allAgentCodes, ...agentCodes]));
 const finalRows = allFinalRows;
 
 // ✅ runId = jobId (ייחודי לכל תבנית/קובץ)
-    const { rowsPrepared, commissionSummaries, policySummaries, runDoc } = buildArtifacts({
+   // 🔧 שלוף את ה-ym מה-portalImportRun לפני buildArtifacts
+let resolvedYm: string | undefined;
+const portalRunForYm = await db.collection("portalImportRuns").doc(effectivePortalRunId).get();
+if (portalRunForYm.exists) {
+  resolvedYm = safeStr(portalRunForYm.data()?.resolvedWindow?.ym) || undefined;
+}
+
+const { rowsPrepared, commissionSummaries, policySummaries, runDoc } = buildArtifacts({
       standardizedRows: finalRows,
       runId: jobId,
       runMeta: {
@@ -773,7 +780,8 @@ const finalRows = allFinalRows;
        templateName: safeStr(template.templateName) || templateId,
         createdAt: nowTs(),
         source: "portalRunner",
-        portalRunId: effectivePortalRunId, // חשוב לשיוך
+        portalRunId: effectivePortalRunId,
+        ym: resolvedYm, // 🔧 חדש — חודש פרסום לכתיבה ל-ymCommissionSummaries
       },
     });
 

@@ -170,7 +170,7 @@ export async function analystNavigateAndExport(
   // ✅ שלב 3: בחר סוג דוח
   const REPORTS = [
     { name: "עמלות סוכנים", templateId: "analyst_insurance" },
-    { name: "גיוסים", templateId: "analyst_volume" },
+  //  { name: "גיוסים", templateId: "analyst_volume" },
   ];
 
   for (const rep of REPORTS) {

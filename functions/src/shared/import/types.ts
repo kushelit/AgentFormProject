@@ -104,4 +104,5 @@ export type RunDoc = {
 
   source?: "manual" | "portalRunner";
   portalRunId?: string;
+  ym?: string;
 };

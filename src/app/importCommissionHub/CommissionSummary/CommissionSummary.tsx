@@ -42,7 +42,7 @@ export default function CommissionSummaryTabsPage() {
             >
               נפרעים
             </button>
-            <button
+          {/* <button
               type="button"
               onClick={() => setActiveTab('hekef')}
               className={`px-4 py-1 rounded-full text-sm font-semibold transition-all ${
@@ -50,7 +50,7 @@ export default function CommissionSummaryTabsPage() {
               }`}
             >
               תפוקות
-            </button>
+            </button> */}
           </div>
         </div>
         {/* 🔹 תוכן הלשוניות */}
@@ -61,8 +61,7 @@ export default function CommissionSummaryTabsPage() {
           {activeTab === 'agency' && canSeeAgencyTab && (
             <CommissionSummaryAgencyMatrixTab />
           )}
-        {activeTab === 'hekef' && <CommissionSummaryHekefTab />}
-        </div>
+{/* {activeTab === 'hekef' && <CommissionSummaryHekefTab />} */}        </div>
       </div>
     </div>
   );

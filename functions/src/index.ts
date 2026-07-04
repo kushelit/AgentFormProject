@@ -31,3 +31,5 @@ export { importCustomersFromCommissions, rollbackCustomerImport } from "./import
 
 export { getReengagementLeads } from "./getReengagementLeads";
 export { updateReengagementLeadStatus } from "./updateReengagementLeadStatus";
+
+export { backfillYmCommissionSummaries } from "./backfillYmCommissionSummaries";

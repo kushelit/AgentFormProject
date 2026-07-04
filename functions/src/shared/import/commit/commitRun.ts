@@ -36,6 +36,18 @@ function buildCommissionSummaryId(s: {
   return `${s.agentId}_${normalizeAgentCode(s.agentCode)}_${sanitizeMonth(s.reportMonth)}_${s.templateId}_${s.companyId}`;
 }
 
+// 🔧 חדש: מפתח ל-ymCommissionSummaries — ym במקום runId, כך שכל ym+reportMonth הוא מסמך נפרד
+function buildYmCommissionSummaryId(s: {
+  agentId: string;
+  agentCode: string;
+  ym: string;
+  templateId: string;
+  companyId: string;
+  reportMonth: string;
+}) {
+  return `${s.agentId}_${normalizeAgentCode(s.agentCode)}_${s.ym}_${s.templateId}_${s.companyId}_${sanitizeMonth(s.reportMonth)}`;
+}
+
 function buildPolicySummaryId(s: {
   agentId: string;
   agentCode: string;
@@ -395,4 +407,50 @@ export async function commitRun(params: {
     }),
     {merge: true}
   );
+
+  // 8) 🔧 ymCommissionSummaries — מסמך סיכום לפי חודש פרסום (ym) + חודש דיווח.
+  // כותבים לפי ה-delta של הריצה הנוכחית בלבד (commissionSummaries לפני מיזוג),
+  // לא לפי הסכום הממוזג — כך כל ym+reportMonth הוא מסמך נפרד, ואין דריסה בין ymים.
+  // נכתב רק אם runDoc.ym קיים (= ריצה אוטומטית דרך portalRunner עם resolvedWindow).
+  if (runDoc.ym) {
+    const ym = String(runDoc.ym);
+
+    await writeInChunks(adapter, commissionSummaries, CHUNK, (batch, s) => {
+      const agentCode = normalizeAgentCode(s.agentCode);
+      const reportMonth = sanitizeMonth(s.reportMonth);
+      const templateId = String(s.templateId ?? "").trim();
+      const companyId = String(s.companyId ?? "").trim();
+
+      if (!agentCode || !reportMonth || !templateId || !companyId) return;
+
+      const id = buildYmCommissionSummaryId({
+        agentId: runDoc.agentId,
+        agentCode,
+        ym,
+        templateId,
+        companyId,
+        reportMonth,
+      });
+
+      const ref = adapter.doc(`ymCommissionSummaries/${id}`);
+      batch.set(
+        ref,
+        stripUndefined({
+          agentId: runDoc.agentId,
+          agentCode,
+          ym,
+          templateId,
+          companyId,
+          company: String(s.company ?? "").trim(),
+          reportMonth,
+          totalCommissionAmount: Number(s.totalCommissionAmount ?? 0) || 0,
+          totalPremiumAmount: Number(s.totalPremiumAmount ?? 0) || 0,
+          runId: runDoc.runId,
+          updatedAt: adapter.serverTimestamp(),
+        })
+        // ⚠️ אין {merge: true} — כתיבה גורפת (set מלא).
+        // מאחר שלא מאפשרים ייבוא כפול ללא מחיקה קודמת, זה תמיד בטוח.
+      );
+    });
+  }
 }
