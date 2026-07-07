@@ -2,9 +2,14 @@ import type { Page } from "playwright";
 import type { RunnerCtx } from "../../types";
 import path from "path";
 
-function getPrevMonthHebrew(): string {
+function getPrevMonthHebrew(requestedReportMonth?: string): string {
   const hebrewMonths = ['ינואר','פברואר','מרץ','אפריל','מאי','יוני',
                         'יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
+  if (requestedReportMonth) {
+    // YYYY-MM → שם עברי
+    const monthIndex = Number(requestedReportMonth.split('-')[1]) - 1;
+    return hebrewMonths[monthIndex];
+  }
   const now = new Date();
   const prevMonth = new Date(now.getFullYear(), now.getMonth() - 2, 1);
   return hebrewMonths[prevMonth.getMonth()];
@@ -189,11 +194,12 @@ await clearOtp(runId).catch(() => {});
 
 export async function altshulerNavigateAndExport(
   page: Page,
-  absDir: string
+  absDir: string,
+  requestedReportMonth?: string
 ): Promise<{ localPath: string; filename: string }[]> {
   const results: { localPath: string; filename: string }[] = [];
   const cdp = await page.context().newCDPSession(page);
-  const targetMonth = getPrevMonthHebrew();
+  const targetMonth = getPrevMonthHebrew(requestedReportMonth);
   // console.log(`[Altshuler] Target month: ${targetMonth}`);
 
   // ✅ שלב 1: hover על "עמלות" בתפריט ראשי

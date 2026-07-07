@@ -37,10 +37,23 @@ async function notifySurenseActivity(webhookUrl: string, surenseId: string, full
   }
 }
 
-export async function sendReengagementBatchImpl(agentId: string, leadIds?: string[]): Promise<object> {
+function templatePreview(templateName: string, bodyText?: string): string {
+  if (bodyText) return bodyText;
+
+  if (templateName === "meir_reengagement_initial") {
+    return "נשלחה הודעת WhatsApp אוטומטית ליצירת קשר חוזר";
+  }
+
+  return `נשלחה תבנית WhatsApp: ${templateName}`;
+}
+
+export async function sendReengagementBatchImpl(
+  agentId: string,
+  leadIds?: string[],
+  requestedTemplateName?: string
+): Promise<object> {
   const db = adminDb();
 
-  // קרא הגדרות ספציפיות לסוכן: phoneNumberId + templateName (בלי טוקן)
   const waConfigSnap = await (db as any).doc(`agents/${agentId}/config/whatsapp`).get();
   if (!waConfigSnap.exists) {
     throw new HttpsError("failed-precondition", "WhatsApp config not found for agent");
@@ -48,27 +61,77 @@ export async function sendReengagementBatchImpl(agentId: string, leadIds?: strin
 
   const waConfig = waConfigSnap.data() as any;
   const phoneNumberId = s(waConfig.phoneNumberId);
-  const templateName = s(waConfig.templateName) || DEFAULT_TEMPLATE_NAME;
+  const templateName = s(requestedTemplateName) || s(waConfig.templateName) || DEFAULT_TEMPLATE_NAME;
 
   if (!phoneNumberId) {
     throw new HttpsError("failed-precondition", "Missing phoneNumberId for agent");
   }
 
-  // קרא את הטוקן הגלובלי - משותף לכל הסוכנים
-  const globalConfigSnap = await (db as any).doc("system/whatsappConfig").get();
-  if (!globalConfigSnap.exists) {
-    throw new HttpsError("failed-precondition", "Global WhatsApp token not configured");
+  if (!templateName) {
+    throw new HttpsError("invalid-argument", "Missing templateName");
+  }
+
+  let templateLanguage = "he";
+  let templateBodyText = "";
+
+  const templateSnap = await (db as any)
+    .doc(`agents/${agentId}/whatsapp_templates/${templateName}`)
+    .get();
+
+  if (requestedTemplateName) {
+    if (!templateSnap.exists) {
+      throw new HttpsError(
+        "failed-precondition",
+        "Selected WhatsApp template was not found for this agent"
+      );
+    }
+
+    const templateData = templateSnap.data() as any;
+    const templateStatus = s(templateData.status).toUpperCase();
+
+    if (templateStatus !== "APPROVED") {
+      throw new HttpsError(
+        "failed-precondition",
+        `Selected WhatsApp template is not approved. Current status: ${templateStatus || "UNKNOWN"}`
+      );
+    }
+
+    templateLanguage = s(templateData.language) || "he";
+    templateBodyText = s(templateData.bodyText);
+  } else if (templateSnap.exists) {
+    const templateData = templateSnap.data() as any;
+    templateLanguage = s(templateData.language) || "he";
+    templateBodyText = s(templateData.bodyText);
+  }
+
+  const waSecretSnap = await (db as any)
+    .doc(`agents/${agentId}/secrets/whatsapp`)
+    .get();
+
+  if (!waSecretSnap.exists) {
+    throw new HttpsError(
+      "failed-precondition",
+      "WhatsApp token not configured for agent"
+    );
   }
 
   const keyB64 = PORTAL_ENC_KEY_B64.value();
   if (!keyB64) throw new HttpsError("internal", "Missing encryption key");
 
-  const { accessToken } = decryptJsonAes256Gcm(keyB64, globalConfigSnap.data().enc) as any;
+  const waSecret = waSecretSnap.data() as any;
+
+  const { accessToken } = decryptJsonAes256Gcm(
+    keyB64,
+    waSecret.enc
+  ) as any;
+
   if (!accessToken) {
-    throw new HttpsError("failed-precondition", "Invalid global WhatsApp token");
+    throw new HttpsError(
+      "failed-precondition",
+      "Invalid WhatsApp token for agent"
+    );
   }
 
-  // קרא את כתובת ה-Webhook ל-Make (יצירת פעילות בשורנס)
   let activityWebhookUrl = "";
   let batchSize = 20;
   try {
@@ -89,7 +152,6 @@ export async function sendReengagementBatchImpl(agentId: string, leadIds?: strin
   let leadDocs: FirebaseFirestore.DocumentSnapshot[];
 
   if (leadIds && leadIds.length > 0) {
-    // שליחה ידנית לרשימה נבחרת מה-UI
     const refs = leadIds.map((id) => (db as any).doc(`agents/${agentId}/reengagement_leads/${id}`));
     const snaps = await (db as any).getAll(...refs);
     leadDocs = snaps.filter((snap: any) => snap.exists && snap.data()?.status === "pending");
@@ -98,7 +160,6 @@ export async function sendReengagementBatchImpl(agentId: string, leadIds?: strin
       return { ok: true, sent: 0, message: "No valid pending leads in selection" };
     }
   } else {
-    // fallback: שליפה אוטומטית לפי batchSize (התנהגות ישנה)
     const leadsSnap = await (db as any)
       .collection(`agents/${agentId}/reengagement_leads`)
       .where("status", "==", "pending")
@@ -146,11 +207,15 @@ export async function sendReengagementBatchImpl(agentId: string, leadIds?: strin
           messaging_product: "whatsapp",
           to: normalizedPhone,
           type: "template",
-          template: { name: templateName, language: { code: "en" } },
+          template: {
+            name: templateName,
+            language: { code: templateLanguage },
+          },
         }),
       });
 
       const waData = await waRes.json() as any;
+      const waMessageId = waData?.messages?.[0]?.id ?? null;
 
       if (!waRes.ok) {
         console.error(`[sendReengagementBatch] WA error for ${doc.id}:`, JSON.stringify(waData));
@@ -159,8 +224,6 @@ export async function sendReengagementBatchImpl(agentId: string, leadIds?: strin
         continue;
       }
 
-      // WhatsApp נשלח בהצלחה - עכשיו מעדכנים את שורנס באופן סינכרוני,
-      // כי זו בפועל נקודת "יצירת הקשר" שחייבת להירשם, לא צעד אופציונלי
       let surenseSyncedOk = false;
       if (activityWebhookUrl) {
         surenseSyncedOk = await notifySurenseActivity(activityWebhookUrl, doc.id, lead.fullName || "");
@@ -170,18 +233,55 @@ export async function sendReengagementBatchImpl(agentId: string, leadIds?: strin
         surenseSyncFailed++;
       }
 
+      const conversationId = `${agentId}_${normalizedPhone}`;
+      const messagePreview = templatePreview(templateName, templateBodyText);
+
+      const conversationRef = (db as any).doc(`whatsapp_conversations/${conversationId}`);
+      const conversationMessageRef = conversationRef
+        .collection("messages")
+        .doc(waMessageId || `outbound_${Date.now()}`);
+
+      await conversationRef.set({
+        agentId,
+        phoneNumberId,
+        customerPhone: normalizedPhone,
+        customerName: lead.fullName || null,
+        leadId: doc.id,
+        status: "open",
+        lastMessageText: messagePreview,
+        lastMessageType: "template",
+        lastMessageDirection: "outbound",
+        lastMessageAt: nowTs(),
+        updatedAt: nowTs(),
+      }, { merge: true });
+
+      await conversationMessageRef.set({
+        direction: "outbound",
+        fromPhoneNumberId: phoneNumberId,
+        to: normalizedPhone,
+        type: "template",
+        templateName,
+        templateLanguage,
+        text: messagePreview,
+        waMessageId,
+        status: "accepted",
+        createdAt: nowTs(),
+      }, { merge: true });
+
       await doc.ref.update({
-        status: "sent",
+        status: "accepted",
+        waMessageId,
+        waAcceptedAt: nowTs(),
         batchId,
-        waSentAt: nowTs(),
+        conversationId,
+        templateName,
         updatedAt: nowTs(),
         surenseActivitySynced: surenseSyncedOk,
         surenseActivitySyncedAt: surenseSyncedOk ? nowTs() : null,
       });
 
       sent++;
-      console.info(`[sendReengagementBatch] Sent to ${doc.id} (${normalizedPhone}), surenseSynced=${surenseSyncedOk}`);
-
+      console.info(`[sendReengagementBatch] Sent to ${doc.id} (${normalizedPhone}), templateName=${templateName}, surenseSynced=${surenseSyncedOk}`);
     } catch (e: any) {
       console.error(`[sendReengagementBatch] Error for ${doc.id}:`, e.message);
       errors.push({ surenseId: doc.id, error: e.message });
@@ -189,7 +289,16 @@ export async function sendReengagementBatchImpl(agentId: string, leadIds?: strin
     }
   }
 
-  return { ok: true, batchId, sent, failed, surenseSynced, surenseSyncFailed, errors };
+  return {
+    ok: true,
+    batchId,
+    sent,
+    failed,
+    surenseSynced,
+    surenseSyncFailed,
+    templateName,
+    errors,
+  };
 }
 
 function normalizeIsraeliPhone(phone: string): string | null {

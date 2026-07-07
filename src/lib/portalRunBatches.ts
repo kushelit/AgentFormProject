@@ -14,6 +14,7 @@ export type BatchCompany = {
   automationEnabled?: boolean;
   companyAutoDownloadEnabled?: boolean;
   companyAutoDownloadMessage?: string;
+  requestedReportMonth?: string;
 };
 
 type CreatePortalBatchInput = {
@@ -93,6 +94,9 @@ export async function createPortalRunBatch({
       batchMode: "sequential",
       batchOrder: index + 1,
       batchTotal: companies.length,
+       ...(company.requestedReportMonth
+    ? { requestedReportMonth: company.requestedReportMonth }
+    : {}),
     });
   });
 

@@ -2,175 +2,954 @@
 
 import React, { useEffect, useState } from 'react';
 import { httpsCallable } from 'firebase/functions';
-import { functions } from '@/lib/firebase/firebase';
-import { collection, getDocs } from 'firebase/firestore';
-import { db } from '@/lib/firebase/firebase';
+import { functions, db } from '@/lib/firebase/firebase';
+import {
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  orderBy,
+  query,
+} from 'firebase/firestore';
+
 import { Button } from '@/components/Button/Button';
 import AdminGuard from '@/app/admin/_components/AdminGuard';
 import DialogNotification from '@/components/DialogNotification';
 
-type Agent = { id: string; name: string };
-type DialogKind = 'info' | 'warning' | 'success' | 'error';
-type DialogState = { type: DialogKind; title: string; message: string };
+type Agent = {
+  id: string;
+  name: string;
+};
+
+type WhatsAppTemplate = {
+  id: string;
+  name: string;
+  category?: string;
+  language?: string;
+  bodyText?: string;
+  status?: string;
+  updatedAt?: any;
+};
+
+type DialogKind =
+  | 'info'
+  | 'warning'
+  | 'success'
+  | 'error';
+
+type DialogState = {
+  type: DialogKind;
+  title: string;
+  message: string;
+};
 
 export default function WhatsAppConfigPage() {
   const [agents, setAgents] = useState<Agent[]>([]);
   const [selectedAgentId, setSelectedAgentId] = useState('');
+
+  const [businessId, setBusinessId] = useState('');
+  const [wabaId, setWabaId] = useState('');
   const [phoneNumberId, setPhoneNumberId] = useState('');
+  const [displayPhoneNumber, setDisplayPhoneNumber] = useState('');
+  const [displayName, setDisplayName] = useState('');
   const [templateName, setTemplateName] = useState('');
-  const [updateGlobalToken, setUpdateGlobalToken] = useState(false);
-  const [accessToken, setAccessToken] = useState('');
+
+  // יצירת תבנית WhatsApp חדשה
+  const [newTemplateName, setNewTemplateName] = useState('');
+  const [newTemplateCategory, setNewTemplateCategory] = useState('MARKETING');
+  const [newTemplateLanguage, setNewTemplateLanguage] = useState('he');
+  const [newTemplateBody, setNewTemplateBody] = useState('');
+  const [creatingTemplate, setCreatingTemplate] = useState(false);
+
+  // רשימת תבניות קיימות
+  const [templates, setTemplates] = useState<WhatsAppTemplate[]>([]);
+  const [loadingTemplates, setLoadingTemplates] = useState(false);
+  const [refreshingTemplates, setRefreshingTemplates] = useState(false);
+
+
+  const [registrationPin, setRegistrationPin] = useState('');
+const [registering, setRegistering] = useState(false);
+
+  const [
+    embeddedSignupCode,
+    setEmbeddedSignupCode,
+  ] = useState('');
+
   const [saving, setSaving] = useState(false);
-  const [dialog, setDialog] = useState<DialogState | null>(null);
+  const [loadingConfig, setLoadingConfig] = useState(false);
+
+  const [dialog, setDialog] =
+    useState<DialogState | null>(null);
+
+
+  // =====================================================
+  // ניקוי שדות ההגדרה
+  // =====================================================
+
+  const clearConfigFields = () => {
+    setBusinessId('');
+    setWabaId('');
+    setPhoneNumberId('');
+    setDisplayPhoneNumber('');
+    setDisplayName('');
+    setTemplateName('');
+    setEmbeddedSignupCode('');
+    setTemplates([]);
+  };
+
+
+  // =====================================================
+  // טעינת רשימת סוכנים
+  // =====================================================
 
   useEffect(() => {
-    (async () => {
-      const snap = await getDocs(collection(db, 'users'));
-      const list: Agent[] = snap.docs.map((d) => {
+    const loadAgents = async () => {
+      try {
+        const snap = await getDocs(
+          collection(db, 'users')
+        );
+
+        const list: Agent[] = snap.docs.map((d) => {
+          const data: any = d.data();
+
+          return {
+            id: d.id,
+            name:
+              data.fullName ||
+              data.displayName ||
+              data.name ||
+              d.id,
+          };
+        });
+
+        list.sort((a, b) =>
+          a.name.localeCompare(b.name, 'he')
+        );
+
+        setAgents(list);
+      } catch (e: any) {
+        setDialog({
+          type: 'error',
+          title: 'שגיאה',
+          message:
+            'לא ניתן היה לטעון את רשימת הסוכנים: ' +
+            String(e?.message || e),
+        });
+      }
+    };
+
+    loadAgents();
+  }, []);
+
+
+
+  // =====================================================
+  // טעינת תבניות WhatsApp קיימות לסוכן
+  // =====================================================
+
+  const loadTemplates = async (agentId: string) => {
+    if (!agentId) {
+      setTemplates([]);
+      return;
+    }
+
+    setLoadingTemplates(true);
+
+    try {
+      const templatesRef = collection(
+        db,
+        'agents',
+        agentId,
+        'whatsapp_templates'
+      );
+
+      const q = query(
+        templatesRef,
+        orderBy('updatedAt', 'desc')
+      );
+
+      const snap = await getDocs(q);
+
+      const list: WhatsAppTemplate[] = snap.docs.map((d) => {
         const data: any = d.data();
+
         return {
           id: d.id,
-          name: data.fullName || data.displayName || data.name || d.id,
+          name: String(data.name || d.id),
+          category: data.category,
+          language: data.language,
+          bodyText: data.bodyText,
+          status: data.status,
+          updatedAt: data.updatedAt,
         };
       });
-      list.sort((a, b) => a.name.localeCompare(b.name, 'he'));
-      setAgents(list);
-    })();
-  }, []);
+
+      setTemplates(list);
+    } catch (e: any) {
+      console.error('[loadTemplates]', e);
+      setTemplates([]);
+
+      setDialog({
+        type: 'error',
+        title: 'שגיאה בטעינת תבניות',
+        message: String(e?.message || e),
+      });
+    } finally {
+      setLoadingTemplates(false);
+    }
+  };
+
+
+  // =====================================================
+  // טעינת הגדרת WhatsApp קיימת לסוכן
+  // =====================================================
+
+  useEffect(() => {
+    if (!selectedAgentId) {
+      clearConfigFields();
+      return;
+    }
+
+    const loadWhatsAppConfig = async () => {
+      setLoadingConfig(true);
+
+      try {
+        const configRef = doc(
+          db,
+          'agents',
+          selectedAgentId,
+          'config',
+          'whatsapp'
+        );
+
+        const configSnap = await getDoc(configRef);
+
+        if (!configSnap.exists()) {
+          clearConfigFields();
+          return;
+        }
+
+        const data: any = configSnap.data();
+
+        setBusinessId(
+          String(data.businessId || '')
+        );
+
+        setWabaId(
+          String(data.wabaId || '')
+        );
+
+        setPhoneNumberId(
+          String(data.phoneNumberId || '')
+        );
+
+        setDisplayPhoneNumber(
+          String(data.displayPhoneNumber || '')
+        );
+
+        setDisplayName(
+          String(data.displayName || '')
+        );
+
+        setTemplateName(
+          String(data.templateName || '')
+        );
+
+        // לא מחזירים טוקן או code למסך
+        setEmbeddedSignupCode('');
+
+      } catch (e: any) {
+        clearConfigFields();
+
+        setDialog({
+          type: 'error',
+          title: 'שגיאה בטעינת ההגדרות',
+          message: String(e?.message || e),
+        });
+
+      } finally {
+        setLoadingConfig(false);
+      }
+    };
+
+    loadWhatsAppConfig();
+    loadTemplates(selectedAgentId);
+
+  }, [selectedAgentId]);
+
+
+  // =====================================================
+  // האם אפשר לשמור
+  // =====================================================
 
   const canSave =
     !!selectedAgentId &&
-    !!phoneNumberId &&
-    (!updateGlobalToken || !!accessToken) &&
-    !saving;
+    !!businessId.trim() &&
+    !!wabaId.trim() &&
+    !!phoneNumberId.trim() &&
+    !!embeddedSignupCode.trim() &&
+    !saving &&
+    !loadingConfig;
+
+
+  // =====================================================
+  // איפוס מלא
+  // =====================================================
+
+  const resetForm = () => {
+    setSelectedAgentId('');
+    clearConfigFields();
+  };
+
+
+  // =====================================================
+  // שמירה
+  // =====================================================
 
   const handleSave = async () => {
     if (!canSave) return;
+
     setSaving(true);
+
     try {
-      const fn = httpsCallable(functions, 'saveAgentWhatsAppConfig');
+      const fn = httpsCallable(
+        functions,
+        'saveAgentWhatsAppConfig'
+      );
+
+      /*
+       * חשוב:
+       * ה-Function דורשת redirectUri.
+       *
+       * אנחנו שולחים את כתובת העמוד הנוכחי,
+       * ללא query string או hash.
+       */
+const redirectUri =
+  'https://developers.facebook.com/es/oauth/callback/?product_route=whatsapp-business&business_id=757884344079063&nonce=mrToB6QAKsnjxovBkFVvB1ICSGghamg5';
+
       await fn({
         agentId: selectedAgentId,
-        phoneNumberId,
-        templateName: templateName.trim() || undefined,
-        accessToken: updateGlobalToken ? accessToken : undefined,
+
+        businessId:
+          businessId.trim(),
+
+        wabaId:
+          wabaId.trim(),
+
+        phoneNumberId:
+          phoneNumberId.trim(),
+
+        displayPhoneNumber:
+          displayPhoneNumber.trim() || undefined,
+
+        displayName:
+          displayName.trim() || undefined,
+
+        templateName:
+          templateName.trim() || undefined,
+
+        embeddedSignupCode:
+          embeddedSignupCode.trim(),
+
+        redirectUri,
       });
+
+
       setDialog({
         type: 'success',
         title: 'נשמר בהצלחה',
-        message: updateGlobalToken
-          ? 'הוגדרו פרטי הסוכן וגם עודכן הטוקן הגלובלי לכל הסוכנים.'
-          : 'הוגדרו פרטי WhatsApp עבור הסוכן.',
+        message:
+          'חיבור ה-WhatsApp נשמר והטוקן נשמר מוצפן עבור הסוכן.',
       });
-      setPhoneNumberId('');
-      setTemplateName('');
-      setAccessToken('');
-      setUpdateGlobalToken(false);
-      setSelectedAgentId('');
+
+      resetForm();
+
     } catch (e: any) {
-      setDialog({ type: 'error', title: 'שגיאה', message: String(e?.message || e) });
+      console.error(
+        '[WhatsAppConfig] Save error:',
+        e
+      );
+
+      setDialog({
+        type: 'error',
+        title: 'שגיאה',
+        message: String(e?.message || e),
+      });
+
     } finally {
       setSaving(false);
     }
   };
 
+
+
+
+const handleRegisterPhone = async () => {
+  if (!selectedAgentId || !registrationPin.trim()) {
+    setDialog({
+      type: 'warning',
+      title: 'חסרים נתונים',
+      message: 'יש לבחור סוכן ולהזין PIN.',
+    });
+    return;
+  }
+
+  setRegistering(true);
+
+  try {
+    const fn = httpsCallable(
+      functions,
+      'registerAgentWhatsAppPhone'
+    );
+
+    const result = await fn({
+      agentId: selectedAgentId,
+      pin: registrationPin.trim(),
+    });
+
+    console.log(
+      '[registerAgentWhatsAppPhone]',
+      result.data
+    );
+
+    setDialog({
+      type: 'success',
+      title: 'הרישום הצליח',
+      message: 'מספר ה-WhatsApp נרשם בהצלחה ב-Cloud API.',
+    });
+
+    setRegistrationPin('');
+  } catch (e: any) {
+    console.error(
+      '[registerAgentWhatsAppPhone]',
+      e
+    );
+
+    setDialog({
+      type: 'error',
+      title: 'שגיאה ברישום המספר',
+      message: String(e?.message || e),
+    });
+  } finally {
+    setRegistering(false);
+  }
+};
+
+
+
+// =====================================================
+// יצירת תבנית WhatsApp
+// =====================================================
+
+const handleCreateTemplate = async () => {
+  if (
+    !selectedAgentId ||
+    !newTemplateName.trim() ||
+    !newTemplateBody.trim()
+  ) {
+    setDialog({
+      type: 'warning',
+      title: 'חסרים נתונים',
+      message: 'יש לבחור סוכן, להזין שם תבנית ותוכן הודעה.',
+    });
+    return;
+  }
+
+  setCreatingTemplate(true);
+
+  try {
+    const fn = httpsCallable(
+      functions,
+      'createWhatsAppTemplate'
+    );
+
+    const result = await fn({
+      agentId: selectedAgentId,
+      name: newTemplateName.trim(),
+      category: newTemplateCategory,
+      language: newTemplateLanguage,
+      bodyText: newTemplateBody.trim(),
+    });
+
+    const data: any = result.data;
+
+    setDialog({
+      type: 'success',
+      title: 'התבנית נוצרה',
+      message:
+        `התבנית ${data?.name || newTemplateName.trim()} נשלחה ל-Meta. ` +
+        `סטטוס: ${data?.status || 'PENDING'}`,
+    });
+
+    setNewTemplateName('');
+    setNewTemplateBody('');
+
+    await loadTemplates(selectedAgentId);
+  } catch (e: any) {
+    console.error(
+      '[createWhatsAppTemplate]',
+      e
+    );
+
+    setDialog({
+      type: 'error',
+      title: 'שגיאה ביצירת התבנית',
+      message: String(e?.message || e),
+    });
+  } finally {
+    setCreatingTemplate(false);
+  }
+};
+
+
+
+// =====================================================
+// רענון תבניות מ-Meta
+// =====================================================
+
+const handleRefreshTemplates = async () => {
+  if (!selectedAgentId) {
+    setDialog({
+      type: 'warning',
+      title: 'לא נבחר סוכן',
+      message: 'יש לבחור סוכן לפני רענון התבניות.',
+    });
+    return;
+  }
+
+  setRefreshingTemplates(true);
+
+  try {
+    const fn = httpsCallable(
+      functions,
+      'refreshWhatsAppTemplates'
+    );
+
+    const result = await fn({
+      agentId: selectedAgentId,
+    });
+
+    const data: any = result.data;
+
+    await loadTemplates(selectedAgentId);
+
+    setDialog({
+      type: 'success',
+      title: 'התבניות עודכנו',
+      message:
+        `עודכנו ${data?.count ?? 0} תבניות מ-Meta.`,
+    });
+  } catch (e: any) {
+    console.error(
+      '[refreshWhatsAppTemplates]',
+      e
+    );
+
+    setDialog({
+      type: 'error',
+      title: 'שגיאה ברענון תבניות',
+      message: String(e?.message || e),
+    });
+  } finally {
+    setRefreshingTemplates(false);
+  }
+};
+
+
+  // =====================================================
+  // UI
+  // =====================================================
+
   return (
     <AdminGuard>
-      <div className="p-6 max-w-2xl mx-auto text-right" dir="rtl">
-        <h1 className="text-2xl font-bold mb-4">⚙️ הגדרת WhatsApp לסוכן</h1>
+
+      <div
+        className="p-6 max-w-2xl mx-auto text-right"
+        dir="rtl"
+      >
+
+        <h1 className="text-2xl font-bold mb-4">
+          ⚙️ הגדרת WhatsApp לסוכן
+        </h1>
+
 
         <div className="border rounded p-4 bg-white space-y-4">
 
-          <div>
-            <label className="block font-semibold mb-1">סוכן:</label>
+
+          {/* בחירת סוכן */}
+
+          <select
+            className="border rounded px-2 py-2 w-full"
+            value={selectedAgentId}
+            onChange={(e) =>
+              setSelectedAgentId(e.target.value)
+            }
+          >
+            <option value="">
+              בחר/י סוכן
+            </option>
+
+            {agents.map((a) => (
+              <option
+                key={a.id}
+                value={a.id}
+              >
+                {a.name}
+              </option>
+            ))}
+          </select>
+
+
+          {loadingConfig && (
+            <div className="text-sm text-gray-500">
+              טוען הגדרות קיימות...
+            </div>
+          )}
+
+
+          {/* Business ID */}
+
+          <input
+            className="border rounded px-2 py-2 w-full font-mono"
+            value={businessId}
+            onChange={(e) =>
+              setBusinessId(e.target.value)
+            }
+            placeholder="Business ID"
+          />
+
+
+          {/* WABA ID */}
+
+          <input
+            className="border rounded px-2 py-2 w-full font-mono"
+            value={wabaId}
+            onChange={(e) =>
+              setWabaId(e.target.value)
+            }
+            placeholder="WABA ID"
+          />
+
+
+          {/* Phone Number ID */}
+
+          <input
+            className="border rounded px-2 py-2 w-full font-mono"
+            value={phoneNumberId}
+            onChange={(e) =>
+              setPhoneNumberId(e.target.value)
+            }
+            placeholder="Phone Number ID"
+          />
+
+
+          {/* Display Phone Number */}
+
+          <input
+            className="border rounded px-2 py-2 w-full font-mono"
+            value={displayPhoneNumber}
+            onChange={(e) =>
+              setDisplayPhoneNumber(e.target.value)
+            }
+            placeholder="Display Phone Number"
+          />
+
+
+          {/* Display Name */}
+
+          <input
+            className="border rounded px-2 py-2 w-full"
+            value={displayName}
+            onChange={(e) =>
+              setDisplayName(e.target.value)
+            }
+            placeholder="Display Name"
+          />
+
+
+          {/* Template Name */}
+
+          <input
+            className="border rounded px-2 py-2 w-full font-mono"
+            value={templateName}
+            onChange={(e) =>
+              setTemplateName(e.target.value)
+            }
+            placeholder="Template Name"
+          />
+
+
+          {/* Embedded Signup Code */}
+
+          <textarea
+            className="
+              border
+              rounded
+              px-2
+              py-2
+              w-full
+              font-mono
+              text-xs
+            "
+            rows={4}
+            value={embeddedSignupCode}
+            onChange={(e) =>
+              setEmbeddedSignupCode(e.target.value)
+            }
+            placeholder="Embedded Signup Code"
+          />
+<div className="border-t pt-4 mt-4">
+
+  <div className="font-bold mb-2">
+    רישום המספר ב-Cloud API
+  </div>
+
+  <input
+    className="border rounded px-2 py-2 w-full font-mono"
+    type="password"
+    value={registrationPin}
+    onChange={(e) =>
+      setRegistrationPin(e.target.value)
+    }
+    placeholder="PIN דו-שלבי של מספר WhatsApp"
+  />
+
+  <div className="flex justify-end mt-3">
+    <Button
+      text={
+        registering
+          ? '⏳ רושם...'
+          : 'רישום מספר WhatsApp'
+      }
+      type="primary"
+      onClick={handleRegisterPhone}
+      disabled={
+        !selectedAgentId ||
+        !registrationPin.trim() ||
+        registering
+      }
+    />
+  </div>
+
+</div>
+
+          {/* יצירת תבנית WhatsApp */}
+
+          <div className="border-t pt-4 mt-4 space-y-3">
+
+            <div>
+              <div className="font-bold">
+                יצירת תבנית WhatsApp
+              </div>
+
+              <div className="text-sm text-gray-500 mt-1">
+                יצירת תבנית חדשה עבור הסוכן שנבחר ושליחתה לאישור Meta.
+              </div>
+            </div>
+
+            <input
+              className="border rounded px-2 py-2 w-full font-mono"
+              value={newTemplateName}
+              onChange={(e) =>
+                setNewTemplateName(e.target.value)
+              }
+              placeholder="Template Name, לדוגמה: renewal_conversation"
+            />
+
             <select
               className="border rounded px-2 py-2 w-full"
-              value={selectedAgentId}
-              onChange={(e) => setSelectedAgentId(e.target.value)}
+              value={newTemplateCategory}
+              onChange={(e) =>
+                setNewTemplateCategory(e.target.value)
+              }
             >
-              <option value="">בחר/י סוכן</option>
-              {agents.map((a) => (
-                <option key={a.id} value={a.id}>{a.name}</option>
-              ))}
+              <option value="MARKETING">
+                MARKETING
+              </option>
+              <option value="UTILITY">
+                UTILITY
+              </option>
+              <option value="AUTHENTICATION">
+                AUTHENTICATION
+              </option>
             </select>
-          </div>
 
-          <div>
-            <label className="block font-semibold mb-1">Phone Number ID:</label>
-            <input
-              className="border rounded px-2 py-2 w-full font-mono"
-              value={phoneNumberId}
-              onChange={(e) => setPhoneNumberId(e.target.value)}
-              placeholder="1076301525576644"
+            <select
+              className="border rounded px-2 py-2 w-full"
+              value={newTemplateLanguage}
+              onChange={(e) =>
+                setNewTemplateLanguage(e.target.value)
+              }
+            >
+              <option value="he">
+                עברית (he)
+              </option>
+              <option value="en">
+                English (en)
+              </option>
+            </select>
+
+            <textarea
+              className="border rounded px-2 py-2 w-full"
+              rows={6}
+              value={newTemplateBody}
+              onChange={(e) =>
+                setNewTemplateBody(e.target.value)
+              }
+              placeholder="תוכן התבנית"
             />
-            <p className="text-xs text-gray-400 mt-1">
-              נמצא ב: Meta for Developers → WhatsApp → API Setup → Phone Number ID
-            </p>
-          </div>
 
-          <div>
-            <label className="block font-semibold mb-1">שם תבנית (Template Name):</label>
-            <input
-              className="border rounded px-2 py-2 w-full font-mono"
-              value={templateName}
-              onChange={(e) => setTemplateName(e.target.value)}
-              placeholder="meir_reengagement_initial"
-            />
-            <p className="text-xs text-gray-400 mt-1">
-              שם ה-template המאושר עבור ה-WABA של הסוכן הזה
-            </p>
-          </div>
-
-          <div className="border-t pt-4">
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={updateGlobalToken}
-                onChange={(e) => setUpdateGlobalToken(e.target.checked)}
+            <div className="flex justify-end">
+              <Button
+                text={
+                  creatingTemplate
+                    ? '⏳ יוצר תבנית...'
+                    : 'יצירת תבנית'
+                }
+                type="primary"
+                onClick={handleCreateTemplate}
+                disabled={
+                  !selectedAgentId ||
+                  !newTemplateName.trim() ||
+                  !newTemplateBody.trim() ||
+                  creatingTemplate
+                }
               />
-              <span className="font-semibold">עדכן את הטוקן הגלובלי (משותף לכל הסוכנים)</span>
-            </label>
+            </div>
 
-            {updateGlobalToken && (
-              <div className="mt-2">
-                <textarea
-                  className="border rounded px-2 py-2 w-full font-mono text-xs"
-                  rows={3}
-                  value={accessToken}
-                  onChange={(e) => setAccessToken(e.target.value)}
-                  placeholder="הדבק/י את ה-Permanent Access Token"
-                />
-                <p className="text-xs text-gray-400 mt-1">
-                  נמצא ב: Meta Business Suite → System Users → Generate Token
-                </p>
-                <p className="text-xs text-red-500 mt-1">
-                  ⚠️ זה ישנה את הטוקן עבור כל הסוכנים במערכת, לא רק עבור הסוכן הנבחר.
-                </p>
+          </div>
+
+          {/* רשימת תבניות WhatsApp */}
+
+          <div className="border-t pt-4 mt-4 space-y-3">
+
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <div className="font-bold">
+                  תבניות WhatsApp של הסוכן
+                </div>
+
+                <div className="text-sm text-gray-500 mt-1">
+                  כאן מוצגות התבניות שנשמרו במערכת. ניתן לרענן סטטוס מול Meta.
+                </div>
+              </div>
+
+              <Button
+                text={
+                  refreshingTemplates
+                    ? '⏳ מרענן...'
+                    : 'רענון מ-Meta'
+                }
+                type="secondary"
+                onClick={handleRefreshTemplates}
+                disabled={
+                  !selectedAgentId ||
+                  refreshingTemplates ||
+                  loadingTemplates
+                }
+              />
+            </div>
+
+            {loadingTemplates && (
+              <div className="text-sm text-gray-500">
+                טוען תבניות...
               </div>
             )}
+
+            {!loadingTemplates && templates.length === 0 && (
+              <div className="text-sm text-gray-500 border rounded p-3 bg-gray-50">
+                אין עדיין תבניות שמורות לסוכן הזה.
+              </div>
+            )}
+
+            {!loadingTemplates && templates.length > 0 && (
+              <div className="overflow-x-auto border rounded">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="p-2 text-right">
+                        שם תבנית
+                      </th>
+                      <th className="p-2 text-right">
+                        קטגוריה
+                      </th>
+                      <th className="p-2 text-right">
+                        שפה
+                      </th>
+                      <th className="p-2 text-right">
+                        סטטוס
+                      </th>
+                      <th className="p-2 text-right">
+                        תוכן
+                      </th>
+                    </tr>
+                  </thead>
+
+                  <tbody>
+                    {templates.map((t) => (
+                      <tr
+                        key={t.id}
+                        className="border-t"
+                      >
+                        <td className="p-2 font-mono">
+                          {t.name}
+                        </td>
+                        <td className="p-2">
+                          {t.category || '-'}
+                        </td>
+                        <td className="p-2">
+                          {t.language || '-'}
+                        </td>
+                        <td className="p-2">
+                          <span className="inline-flex rounded-full bg-gray-100 px-2 py-1 text-xs font-bold">
+                            {t.status || 'UNKNOWN'}
+                          </span>
+                        </td>
+                        <td className="p-2 max-w-xs truncate">
+                          {t.bodyText || '-'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
           </div>
+
+          {/* שמירה */}
 
           <div className="flex justify-end">
             <Button
-              text={saving ? '⏳ שומר...' : 'שמור'}
+              text={
+                saving
+                  ? '⏳ שומר...'
+                  : 'שמור'
+              }
               type="primary"
               onClick={handleSave}
               disabled={!canSave}
             />
           </div>
+
         </div>
+
 
         {dialog && (
           <DialogNotification
             type={dialog.type}
             title={dialog.title}
             message={dialog.message}
-            onConfirm={() => setDialog(null)}
+            onConfirm={() =>
+              setDialog(null)
+            }
             confirmText="סגור"
             hideCancel
           />
         )}
+
       </div>
+
     </AdminGuard>
   );
 }

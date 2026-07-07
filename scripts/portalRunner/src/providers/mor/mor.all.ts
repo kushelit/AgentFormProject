@@ -82,7 +82,8 @@ await page.waitForTimeout(3000);
     await morHandleOtp(page, ctx);
 
     await setStatus(runId, { status: "running", step: "מנסה לנווט לדוח", monthLabel });
-    const download = await morNavigateToReport(page);
+const requestedReportMonth = String((run as any)?.requestedReportMonth || '').trim() || undefined;
+const download = await morNavigateToReport(page, requestedReportMonth);
 
   const appendDownload = async (item: any) => {
       const cur = (ctx.run as any)?.downloads || [];

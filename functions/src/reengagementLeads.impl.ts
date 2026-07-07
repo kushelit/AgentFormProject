@@ -59,12 +59,14 @@ export async function reengagementLeadsWebhookImpl(req: any, res: any): Promise<
       res.status(200).json({ ok: true, action: "skipped", reason: "already_exists", surenseId });
       return;
     }
+const phoneNormalized = normalizePhone(phone);
 
     await docRef.set({
       surenseId,
       agentId,
       fullName: fullName || null,
       phone: phone || null,
+      phoneNormalized: phoneNormalized || null,
       email: email || null,
       lastActivityDate: lastActivityDate || null,
       idNumber: idNumber || null,
@@ -83,4 +85,12 @@ export async function reengagementLeadsWebhookImpl(req: any, res: any): Promise<
     console.error("[reengagementLeads] Firestore write error:", e.message);
     res.status(500).json({ ok: false, error: "Failed to save lead" });
   }
+}
+
+function normalizePhone(phone: string): string {
+  const digits = String(phone ?? "").replace(/\D/g, "");
+  if (digits.startsWith("972")) return digits;
+  if (digits.startsWith("0")) return "972" + digits.slice(1);
+  if (digits.length === 9) return "972" + digits;
+  return digits;
 }

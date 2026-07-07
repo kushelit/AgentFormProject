@@ -2,6 +2,7 @@ const pages = [
  
   { href: '/NewAgentForm', label: 'ניהול עסקאות' },
   { href: '/NewCustomer', label: 'ניהול לקוחות' },
+  { href: '/whatsapp-send', label: 'לידים ושליחה' },
    { 
   href: '/tasks', 
   label: 'משימות',
@@ -50,6 +51,7 @@ const pages = [
     label: 'ניהול אדמין',
     onlyRoles: ['admin'],     submenu: [
       { href: '/Log', label: 'לוג מערכת' },
+      { href: '/admin/whatsapp-config', label: 'whatsapp' },
       { href: '/agency-center', label: 'הגדרת סוכנות' },    
       { href: '/ManageSimulation', label: 'ניהול סימולטור' },
       { href: '/RequestStatus', label: 'סטאטוס API' },

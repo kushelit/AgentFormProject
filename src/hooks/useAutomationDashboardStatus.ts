@@ -16,6 +16,7 @@ export type AutomaticCompany = {
   portalId?: string;
   companyAutoDownloadEnabled?: boolean;
   companyAutoDownloadMessage?: string;
+  allowEarlyDownload?: boolean;
 };
 
 export type AutoCompanyUiStatus =

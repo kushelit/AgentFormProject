@@ -20,7 +20,11 @@ export const sendReengagementBatch = onCall(
       ? req.data.leadIds.filter((id: any) => typeof id === "string" && id.trim().length > 0)
       : undefined;
 
+    const templateName = typeof req.data?.templateName === "string"
+      ? req.data.templateName.trim()
+      : undefined;
+
     const mod = await import("./sendReengagementBatch.impl");
-    return mod.sendReengagementBatchImpl(agentId, leadIds);
+    return mod.sendReengagementBatchImpl(agentId, leadIds, templateName);
   }
 );

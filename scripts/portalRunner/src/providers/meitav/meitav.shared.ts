@@ -130,15 +130,26 @@ export async function meitavHandleOtp(page: Page, ctx: RunnerCtx) {
 
 export async function meitavNavigateAndExport(
   page: Page,
-  absDir: string
+  absDir: string,
+  requestedReportMonth?: string
 ): Promise<{ localPath: string; filename: string; agentName: string; failed?: boolean; failReason?: string }[]> {
   const results: { localPath: string; filename: string; agentName: string; failed?: boolean; failReason?: string }[] = [];
   const cdp = await page.context().newCDPSession(page);
 
+ let prevMonthNum: string;
+let prevYear: string;
+
+if (requestedReportMonth) {
+  // 🔧 שימוש בחודש שנבחר ב-UI (פורמט YYYY-MM)
+  const [y, m] = requestedReportMonth.split('-');
+  prevYear = y;
+  prevMonthNum = String(Number(m)); // הסרת אפס מוביל (06 → 6)
+} else {
   const now = new Date();
   const prevMonth = new Date(now.getFullYear(), now.getMonth() - 2, 1);
-  const prevMonthNum = String(prevMonth.getMonth() + 1);
-  const prevYear = String(prevMonth.getFullYear());
+  prevMonthNum = String(prevMonth.getMonth() + 1);
+  prevYear = String(prevMonth.getFullYear());
+}
   // console.log(`[Meitav] Target: ${prevYear}/${prevMonthNum}`);
 
   async function getPos(selector: string) {

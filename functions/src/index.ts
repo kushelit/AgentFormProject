@@ -33,3 +33,9 @@ export { getReengagementLeads } from "./getReengagementLeads";
 export { updateReengagementLeadStatus } from "./updateReengagementLeadStatus";
 
 export { backfillYmCommissionSummaries } from "./backfillYmCommissionSummaries";
+
+export { registerAgentWhatsAppPhone } from "./registerAgentWhatsAppPhone";
+export { whatsappWebhook } from "./whatsappWebhook";
+export { sendWhatsAppConversationMessage } from "./sendWhatsAppConversationMessage";
+export { createWhatsAppTemplate } from "./createWhatsAppTemplate";
+export { refreshWhatsAppTemplates } from "./refreshWhatsAppTemplates";

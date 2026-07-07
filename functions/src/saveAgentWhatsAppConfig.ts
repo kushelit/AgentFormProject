@@ -3,12 +3,20 @@
 
 import { onCall } from "firebase-functions/v2/https";
 import { FUNCTIONS_REGION } from "./shared/region";
-import { PORTAL_ENC_KEY_B64 } from "./shared/secrets";
+import {
+  PORTAL_ENC_KEY_B64,
+  META_APP_ID,
+  META_APP_SECRET,
+} from "./shared/secrets";
 
 export const saveAgentWhatsAppConfig = onCall(
   {
     region: FUNCTIONS_REGION,
-    secrets: [PORTAL_ENC_KEY_B64],
+    secrets: [
+      PORTAL_ENC_KEY_B64,
+      META_APP_ID,
+      META_APP_SECRET,
+    ],
     memory: "256MiB",
   },
   async (req) => {

@@ -77,7 +77,8 @@ export async function runAltshulerAll(ctx: RunnerCtx) {
     await altshulerHandleOtp(page, ctx);
 
     await setStatus(runId, { status: "running", step: "מוריד דוח מאלטשולר", monthLabel });
-    const downloads = await altshulerNavigateAndExport(page, absDir);
+    const requestedReportMonth = String((run as any)?.requestedReportMonth || '').trim() || undefined;
+const downloads = await altshulerNavigateAndExport(page, absDir, requestedReportMonth);
 
     if (downloads.length > 0) {
       for (const { localPath, filename } of downloads) {

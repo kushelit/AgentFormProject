@@ -322,6 +322,7 @@ export async function processCommissionImportQueueImpl(event: any) {
   if (!enabled) return;
 
   const jobId = event.params.jobId as string;
+let requestedReportMonth: string | undefined;
 
  const after = event.data;
 if (!after?.exists) return;
@@ -594,7 +595,7 @@ if (!standardized.length) {
 let rowsForThisFile = [...standardized];
 // מור: באוטומטי תמיד כופים חודש דיווח = חודש קודם
 if (templateId === "mor_insurance") {
-  const reportMonth = getTwoMonthsAgoStr();
+const reportMonth = requestedReportMonth || getTwoMonthsAgoStr();
 
   rowsForThisFile = rowsForThisFile.map((row: any) => ({
     ...row,
@@ -624,7 +625,7 @@ if (templateId === "ayalon_insurance") {
 }
 
 if (templateId === "analyst_insurance") {
-  const targetMonth = getTwoMonthsAgoStr();
+const targetMonth = requestedReportMonth || getTwoMonthsAgoStr();
 
   rowsForThisFile = rowsForThisFile.filter((row: any) => {
     return safeStr(row.reportMonth) === targetMonth;
@@ -766,6 +767,7 @@ let resolvedYm: string | undefined;
 const portalRunForYm = await db.collection("portalImportRuns").doc(effectivePortalRunId).get();
 if (portalRunForYm.exists) {
   resolvedYm = safeStr(portalRunForYm.data()?.resolvedWindow?.ym) || undefined;
+  requestedReportMonth = safeStr(portalRunForYm.data()?.requestedReportMonth) || undefined;
 }
 
 const { rowsPrepared, commissionSummaries, policySummaries, runDoc } = buildArtifacts({

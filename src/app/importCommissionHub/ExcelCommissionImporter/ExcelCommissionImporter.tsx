@@ -61,6 +61,7 @@ interface CommissionTemplateOption {
   companyAutoDownloadEnabled?: boolean;
 companyAutoDownloadMessage?: string;
 portalId?: string;
+allowEarlyDownload?: boolean;
 }
 
 interface CommissionSummary {
@@ -204,6 +205,7 @@ type AutomaticCompany = {
   portalId?: string;
   companyAutoDownloadEnabled?: boolean;
 companyAutoDownloadMessage?: string;
+allowEarlyDownload?: boolean;
 };
 
 const handleStartAutoForCompany = async (company: AutomaticCompany) => {
@@ -340,26 +342,13 @@ const uniqueCompanies = Array.from(
         companyAutoDownloadEnabled: t.companyAutoDownloadEnabled !== false,
         companyAutoDownloadMessage: t.companyAutoDownloadMessage || "",
         portalId: t.portalId || t.companyId,
+        allowEarlyDownload: t.allowEarlyDownload === true,
       });
     }
     return acc;
   }, new Map()).values()
 ) as any[];
 
-
-
-
-// const automaticCompanies = uniqueCompanies
-//   .filter((c) => c.automationEnabled)
-//   .map((c) => ({
-//     id: c.id,
-//     name: c.name,
-//     automationEnabled: c.automationEnabled,
-//     companyAutomationClass: c.companyAutomationClass,
-//     companyAutoDownloadEnabled: c.companyAutoDownloadEnabled,
-//     companyAutoDownloadMessage: c.companyAutoDownloadMessage,
-//     portalId: c.portalId || c.id,
-//   }));
 
 
 //filter company 
@@ -386,6 +375,7 @@ const automaticCompanies = uniqueCompanies
     companyAutoDownloadEnabled: c.companyAutoDownloadEnabled,
     companyAutoDownloadMessage: c.companyAutoDownloadMessage,
     portalId: c.portalId || c.id,
+    allowEarlyDownload: c.allowEarlyDownload,
   }));
 
 
@@ -877,6 +867,7 @@ const buildMissingCustomerSummary = (rows: any[]) => {
         let companyAutomationClass = '';
         let companyAutoDownloadEnabled = true;
         let companyAutoDownloadMessage = '';
+        let allowEarlyDownload = false;
 
         if (companyId) {
          if (!companyCache[companyId]) {
@@ -889,7 +880,8 @@ const buildMissingCustomerSummary = (rows: any[]) => {
         companyAutomationClass = companyInfo.automationClass || '';   
         companyAutoDownloadEnabled = companyInfo.autoDownloadEnabled !== false;
         companyAutoDownloadMessage = String(companyInfo.autoDownloadMessage || '').trim();   
-      }
+        allowEarlyDownload = companyInfo.allowEarlyDownload === true;
+        }
         templates.push({
           id: docSnap.id,
           companyName,
@@ -902,6 +894,7 @@ const buildMissingCustomerSummary = (rows: any[]) => {
           companyAutoDownloadEnabled,
           companyAutoDownloadMessage,
           commissionIncludesVAT: !!data.commissionIncludesVAT,
+           allowEarlyDownload,
         });
       }
 

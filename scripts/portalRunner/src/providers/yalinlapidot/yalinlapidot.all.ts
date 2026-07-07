@@ -76,8 +76,8 @@ export async function runYalinAll(ctx: RunnerCtx) {
     await yalinHandleOtp(page, ctx);
 
     await setStatus(runId, { status: "running", step: "מוריד דוח מילין לפידות", monthLabel });
-    const download = await yalinNavigateAndExport(page);
-
+const requestedReportMonth = String((run as any)?.requestedReportMonth || '').trim() || undefined;
+const download = await yalinNavigateAndExport(page, requestedReportMonth);
     if (download) {
       const filename = download.suggestedFilename();
       const localPath = path.join(absDir, `${Date.now()}_${filename}`);

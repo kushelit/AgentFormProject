@@ -111,7 +111,8 @@ export async function runMeitavAll(ctx: RunnerCtx) {
     await setStatus(runId, { status: "running", step: "מנסה לנווט לדוח עמלות", monthLabel });
     
     // ✅ meitavNavigateAndExport מחזיר מערך של כל ההורדות (סוכן אחד או יותר)
-    const downloads = await meitavNavigateAndExport(loginPage2, absDir);
+const requestedReportMonth = String((run as any)?.requestedReportMonth || '').trim() || undefined;
+const downloads = await meitavNavigateAndExport(loginPage2, absDir, requestedReportMonth);
 
     const successDownloads = downloads.filter(d => !d.failed);
     const failedDownloads = downloads.filter(d => d.failed);

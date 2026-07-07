@@ -144,7 +144,7 @@ export async function morHandleOtp(page: Page, ctx: RunnerCtx) {
   await clearOtp(runId).catch(() => {});
 }
 
-export async function morNavigateToReport(page: Page): Promise<import("playwright").Download | null> {
+export async function morNavigateToReport(page: Page , requestedReportMonth?: string): Promise<import("playwright").Download | null> {
   // console.log("[Mor] Navigating to report...");
 
   const cdp = await page.context().newCDPSession(page);
@@ -184,10 +184,19 @@ export async function morNavigateToReport(page: Page): Promise<import("playwrigh
  await page.waitForTimeout(3000);
 
   // ✅ שלב 2.5: הגדר תאריך מינוס 2 חודשים
+  let targetMonth: string;
+let targetYear: string;
+
+if (requestedReportMonth) {
+  const [y, m] = requestedReportMonth.split('-');
+  targetYear = y;
+  targetMonth = m; // כבר padded (01-12)
+} else {
   const now = new Date();
   const target = new Date(now.getFullYear(), now.getMonth() - 2, 1);
-  const targetMonth = String(target.getMonth() + 1).padStart(2, '0');
-  const targetYear = String(target.getFullYear());
+  targetMonth = String(target.getMonth() + 1).padStart(2, '0');
+  targetYear = String(target.getFullYear());
+}
 
   const dateInputPos = await cdp.send("Runtime.evaluate", {
     expression: `(function() {
