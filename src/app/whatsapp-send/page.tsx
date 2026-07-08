@@ -1,1236 +1,902 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
-import { httpsCallable } from 'firebase/functions';
-import { functions, db } from '@/lib/firebase/firebase';
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { httpsCallable } from "firebase/functions";
 import {
   collection,
   doc,
-  getDoc,
-  getDocs,
+  onSnapshot,
   orderBy,
   query,
-} from 'firebase/firestore';
+  setDoc,
+  where,
+} from "firebase/firestore";
+import { db, functions } from "@/lib/firebase/firebase";
+import { useAuth } from "@/lib/firebase/AuthContext";
+import AccessDenied from "@/components/AccessDenied";
+import { usePermission } from "@/hooks/usePermission";
+import { Button } from "@/components/Button/Button";
+import { ToastNotification } from "@/components/ToastNotification";
+import { useToast } from "@/hooks/useToast";
 
-import { Button } from '@/components/Button/Button';
-import AdminGuard from '@/app/admin/_components/AdminGuard';
-import DialogNotification from '@/components/DialogNotification';
+type LeadStatus =
+  | "pending"
+  | "sent"
+  | "accepted"
+  | "delivered"
+  | "read"
+  | "booked"
+  | "declined"
+  | "no_response";
 
-type Agent = {
+interface Lead {
+  surenseId: string;
+  fullName: string;
+  phone: string;
+  lastActivityDate: string;
+  status: LeadStatus;
+  waSentAt: number | null;
+  updatedAt: number | null;
+}
+
+type LeadsTab = "pending" | "sent" | "resolved" | "all";
+type MainTab = "leads" | "inbox";
+
+interface Conversation {
   id: string;
-  name: string;
-};
+  agentId: string;
+  customerName: string | null;
+  customerPhone: string;
+  lastMessageText: string;
+  lastMessageDirection: "inbound" | "outbound";
+  lastMessageType: string;
+  lastMessageAt: any;
+  unreadCount?: number;
+  leadId?: string | null;
+  status?: string;
+  needsReply?: boolean;
+  lastInboundAt?: any;
+}
 
-type WhatsAppTemplate = {
+interface ConversationMessage {
+  id: string;
+  direction: "inbound" | "outbound";
+  text?: string | null;
+  type?: string;
+  templateName?: string;
+  createdAt: any;
+  status?: string;
+}
+
+interface WhatsAppTemplate {
   id: string;
   name: string;
   category?: string;
   language?: string;
   bodyText?: string;
   status?: string;
-  updatedAt?: any;
-};
-
-type DialogKind =
-  | 'info'
-  | 'warning'
-  | 'success'
-  | 'error';
-
-type DialogState = {
-  type: DialogKind;
-  title: string;
-  message: string;
-};
-
-const META_APP_ID = process.env.NEXT_PUBLIC_META_APP_ID || '';
-const EMBEDDED_SIGNUP_CONFIG_ID = '3303093589871398';
-
-declare global {
-  interface Window {
-    FB?: {
-      init: (options: Record<string, any>) => void;
-      login: (
-        callback: (response: any) => void,
-        options: Record<string, any>
-      ) => void;
-    };
-    fbAsyncInit?: () => void;
-  }
 }
 
-export default function WhatsAppConfigPage() {
-  const [agents, setAgents] = useState<Agent[]>([]);
-  const [selectedAgentId, setSelectedAgentId] = useState('');
+const STATUS_LABELS: Record<LeadStatus, string> = {
+  pending: "ממתין לשליחה",
+  sent: "נשלח - ממתין לתגובה",
+  accepted: "נשלח - התקבל ב-Meta",
+  delivered: "נמסר",
+  read: "נקרא",
+  booked: "נקבעה פגישה",
+  declined: "סירב",
+  no_response: "לא ענה",
+};
 
-  const [businessId, setBusinessId] = useState('');
-  const [wabaId, setWabaId] = useState('');
-  const [phoneNumberId, setPhoneNumberId] = useState('');
-  const [displayPhoneNumber, setDisplayPhoneNumber] = useState('');
-  const [displayName, setDisplayName] = useState('');
-  const [templateName, setTemplateName] = useState('');
+const STATUS_COLORS: Record<LeadStatus, string> = {
+  pending: "bg-gray-100 text-gray-700",
+  sent: "bg-amber-100 text-amber-800",
+  accepted: "bg-amber-100 text-amber-800",
+  delivered: "bg-blue-100 text-blue-800",
+  read: "bg-green-100 text-green-800",
+  booked: "bg-green-100 text-green-800",
+  declined: "bg-red-100 text-red-700",
+  no_response: "bg-gray-200 text-gray-600",
+};
 
-  // יצירת תבנית WhatsApp חדשה
-  const [newTemplateName, setNewTemplateName] = useState('');
-  const [newTemplateCategory, setNewTemplateCategory] = useState('MARKETING');
-  const [newTemplateLanguage, setNewTemplateLanguage] = useState('he');
-  const [newTemplateBody, setNewTemplateBody] = useState('');
-  const [creatingTemplate, setCreatingTemplate] = useState(false);
+const formatPhoneNumber = (phone: string): string => {
+  if (!phone) return "-";
+  const digits = phone.replace(/\D/g, "");
+  let local = digits;
+  if (local.startsWith("972")) local = "0" + local.slice(3);
+  else if (!local.startsWith("0")) local = "0" + local;
+  return local.replace(/(\d{3})(\d+)/, "$1-$2");
+};
 
-  // רשימת תבניות קיימות
+const formatDateOnly = (iso: string): string => {
+  if (!iso) return "-";
+  const datePart = iso.split("T")[0];
+  const [y, m, d] = datePart.split("-");
+  if (y && m && d) return `${d}/${m}/${y}`;
+  return datePart;
+};
+
+const formatMsDateOnly = (ms: number | null): string => {
+  if (!ms) return "-";
+  return new Date(ms).toLocaleDateString("he-IL");
+};
+
+const formatFirestoreTime = (value: any): string => {
+  if (!value) return "";
+  const date = typeof value?.toDate === "function" ? value.toDate() : new Date(value);
+  return date.toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit" });
+};
+
+const formatConversationDate = (value: any): string => {
+  if (!value) return "";
+  const date = typeof value?.toDate === "function" ? value.toDate() : new Date(value);
+  const now = new Date();
+
+  const isToday =
+    date.getFullYear() === now.getFullYear() &&
+    date.getMonth() === now.getMonth() &&
+    date.getDate() === now.getDate();
+
+  if (isToday) {
+    return date.toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit" });
+  }
+
+  return date.toLocaleDateString("he-IL");
+};
+
+const getMessageText = (msg: ConversationMessage): string => {
+  if (msg.text) return msg.text;
+  if (msg.type === "template") return `נשלחה תבנית WhatsApp${msg.templateName ? `: ${msg.templateName}` : ""}`;
+  return `[${msg.type || "message"}]`;
+};
+
+const WhatsAppSendPage = () => {
+  const { user, isLoading, detail } = useAuth();
+  const [ready, setReady] = useState(false);
+  const [isClient, setIsClient] = useState(false);
+
+  const { canAccess, isChecking } = usePermission(
+    user ? "access_whatsapp_send" : null
+  );
+
+  const { toasts, addToast, setToasts } = useToast();
+
+  const [mainTab, setMainTab] = useState<MainTab>("inbox");
+
+  const [leads, setLeads] = useState<Lead[]>([]);
+  const [stats, setStats] = useState<Record<string, number>>({});
+  const [loadingLeads, setLoadingLeads] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [autoPickCount, setAutoPickCount] = useState<number>(10);
+  const [sending, setSending] = useState(false);
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<LeadsTab>("pending");
+
   const [templates, setTemplates] = useState<WhatsAppTemplate[]>([]);
   const [loadingTemplates, setLoadingTemplates] = useState(false);
-  const [refreshingTemplates, setRefreshingTemplates] = useState(false);
+  const [selectedTemplateName, setSelectedTemplateName] = useState("");
 
-
-  const [registrationPin, setRegistrationPin] = useState('');
-const [registering, setRegistering] = useState(false);
-
-  const [
-    embeddedSignupCode,
-    setEmbeddedSignupCode,
-  ] = useState('');
-
-  const [saving, setSaving] = useState(false);
-  const [loadingConfig, setLoadingConfig] = useState(false);
-  const [connectingMeta, setConnectingMeta] = useState(false);
-  const [metaSdkReady, setMetaSdkReady] = useState(false);
-
-  const embeddedSignupSessionRef = useRef<{
-    businessId?: string;
-    wabaId?: string;
-    phoneNumberId?: string;
-  }>({});
-
-  const [dialog, setDialog] =
-    useState<DialogState | null>(null);
-
-
-  // =====================================================
-  // טעינת Facebook JavaScript SDK + אירועי Embedded Signup
-  // =====================================================
+  const agentId = useMemo(() => {
+    const d: any = detail;
+    return d?.agentId || user?.uid || "";
+  }, [detail, user]);
 
   useEffect(() => {
-    const handleEmbeddedSignupMessage = (event: MessageEvent) => {
-      if (
-        event.origin !== 'https://www.facebook.com' &&
-        event.origin !== 'https://web.facebook.com'
-      ) {
-        return;
-      }
-
-      let payload: any = event.data;
-
-      if (typeof payload === 'string') {
-        try {
-          payload = JSON.parse(payload);
-        } catch {
-          return;
-        }
-      }
-
-      if (payload?.type !== 'WA_EMBEDDED_SIGNUP') return;
-
-      const data = payload?.data || {};
-
-      if (payload?.event === 'FINISH') {
-        const sessionData = {
-          businessId: String(
-            data.business_id ||
-            data.businessId ||
-            ''
-          ),
-          wabaId: String(
-            data.waba_id ||
-            data.wabaId ||
-            ''
-          ),
-          phoneNumberId: String(
-            data.phone_number_id ||
-            data.phoneNumberId ||
-            ''
-          ),
-        };
-
-        embeddedSignupSessionRef.current = sessionData;
-
-        if (sessionData.businessId) {
-          setBusinessId(sessionData.businessId);
-        }
-
-        if (sessionData.wabaId) {
-          setWabaId(sessionData.wabaId);
-        }
-
-        if (sessionData.phoneNumberId) {
-          setPhoneNumberId(sessionData.phoneNumberId);
-        }
-      }
-
-      if (payload?.event === 'CANCEL') {
-        setConnectingMeta(false);
-      }
-
-      if (payload?.event === 'ERROR') {
-        setConnectingMeta(false);
-
-        setDialog({
-          type: 'error',
-          title: 'שגיאה בחיבור Meta',
-          message:
-            String(
-              data?.error_message ||
-              data?.message ||
-              'תהליך החיבור מול Meta נכשל.'
-            ),
-        });
-      }
-    };
-
-    window.addEventListener(
-      'message',
-      handleEmbeddedSignupMessage
-    );
-
-    if (!META_APP_ID) {
-      console.error(
-        '[EmbeddedSignup] Missing NEXT_PUBLIC_META_APP_ID'
-      );
-
-      return () => {
-        window.removeEventListener(
-          'message',
-          handleEmbeddedSignupMessage
-        );
-      };
-    }
-
-    window.fbAsyncInit = () => {
-      window.FB?.init({
-        appId: META_APP_ID,
-        cookie: true,
-        xfbml: false,
-        version: 'v24.0',
-      });
-
-      setMetaSdkReady(true);
-    };
-
-    const existingScript =
-      document.getElementById('facebook-jssdk');
-
-    if (!existingScript) {
-      const script = document.createElement('script');
-
-      script.id = 'facebook-jssdk';
-      script.src =
-        'https://connect.facebook.net/en_US/sdk.js';
-      script.async = true;
-      script.defer = true;
-      script.crossOrigin = 'anonymous';
-
-      document.body.appendChild(script);
-    } else if (window.FB) {
-      window.fbAsyncInit();
-    }
-
-    return () => {
-      window.removeEventListener(
-        'message',
-        handleEmbeddedSignupMessage
-      );
-    };
+    setIsClient(true);
+    const timer = setTimeout(() => setReady(true), 300);
+    return () => clearTimeout(timer);
   }, []);
 
-
-  // =====================================================
-  // פתיחת Embedded Signup
-  // =====================================================
-
-  const handleConnectMeta = () => {
-    if (!selectedAgentId) {
-      setDialog({
-        type: 'warning',
-        title: 'לא נבחר סוכן',
-        message:
-          'יש לבחור סוכן לפני התחלת החיבור ל-Meta.',
-      });
-      return;
+  const loadLeads = useCallback(async () => {
+    setLoadingLeads(true);
+    setLoadError(null);
+    try {
+      const fn = httpsCallable(functions, "getReengagementLeads");
+      const result: any = await fn({});
+      setLeads(result.data.leads ?? []);
+      setStats(result.data.stats ?? {});
+    } catch (e: any) {
+      setLoadError(e.message ?? "שגיאה בטעינת הלידים");
+    } finally {
+      setLoadingLeads(false);
     }
-
-    if (!META_APP_ID) {
-      setDialog({
-        type: 'error',
-        title: 'חסרה הגדרת App ID',
-        message:
-          'יש להגדיר NEXT_PUBLIC_META_APP_ID בסביבת MagicSale.',
-      });
-      return;
-    }
-
-    if (!window.FB || !metaSdkReady) {
-      setDialog({
-        type: 'warning',
-        title: 'Meta עדיין נטען',
-        message:
-          'החיבור ל-Meta עדיין נטען. נסי שוב בעוד מספר שניות.',
-      });
-      return;
-    }
-
-    embeddedSignupSessionRef.current = {};
-    setEmbeddedSignupCode('');
-    setConnectingMeta(true);
-
-    window.FB.login(
-      (response: any) => {
-        const code =
-          response?.authResponse?.code;
-
-        if (!code) {
-          setConnectingMeta(false);
-
-          setDialog({
-            type: 'warning',
-            title: 'החיבור לא הושלם',
-            message:
-              'Meta לא החזירה קוד חיבור. אם החלון נסגר או בוטל, ניתן לנסות שוב.',
-          });
-
-          return;
-        }
-
-        setEmbeddedSignupCode(String(code));
-        setConnectingMeta(false);
-
-        setDialog({
-          type: 'success',
-          title: 'החיבור ל-Meta הושלם',
-          message:
-            'פרטי החיבור התקבלו מ-Meta. כעת ניתן לשמור את החיבור לסוכן.',
-        });
-      },
-      {
-        config_id: EMBEDDED_SIGNUP_CONFIG_ID,
-        response_type: 'code',
-        override_default_response_type: true,
-        extras: {
-          setup: {},
-          featureType: '',
-          sessionInfoVersion: '3',
-        },
-      }
-    );
-  };
-
-
-  // =====================================================
-  // ניקוי שדות ההגדרה
-  // =====================================================
-
-  const clearConfigFields = () => {
-    setBusinessId('');
-    setWabaId('');
-    setPhoneNumberId('');
-    setDisplayPhoneNumber('');
-    setDisplayName('');
-    setTemplateName('');
-    setEmbeddedSignupCode('');
-    setTemplates([]);
-  };
-
-
-  // =====================================================
-  // טעינת רשימת סוכנים
-  // =====================================================
+  }, []);
 
   useEffect(() => {
-    const loadAgents = async () => {
-      try {
-        const snap = await getDocs(
-          collection(db, 'users')
-        );
+    if (isClient && ready && user && detail && canAccess) {
+      loadLeads();
+    }
+  }, [isClient, ready, user, detail, canAccess, loadLeads]);
 
-        const list: Agent[] = snap.docs.map((d) => {
-          const data: any = d.data();
-
-          return {
-            id: d.id,
-            name:
-              data.fullName ||
-              data.displayName ||
-              data.name ||
-              d.id,
-          };
-        });
-
-        list.sort((a, b) =>
-          a.name.localeCompare(b.name, 'he')
-        );
-
-        setAgents(list);
-      } catch (e: any) {
-        setDialog({
-          type: 'error',
-          title: 'שגיאה',
-          message:
-            'לא ניתן היה לטעון את רשימת הסוכנים: ' +
-            String(e?.message || e),
-        });
-      }
-    };
-
-    loadAgents();
-  }, []);
-
-
-
-  // =====================================================
-  // טעינת תבניות WhatsApp קיימות לסוכן
-  // =====================================================
-
-  const loadTemplates = async (agentId: string) => {
-    if (!agentId) {
+  useEffect(() => {
+    if (!isClient || !ready || !user || !detail || !canAccess || !agentId) {
       setTemplates([]);
+      setSelectedTemplateName("");
       return;
     }
 
     setLoadingTemplates(true);
 
-    try {
-      const templatesRef = collection(
-        db,
-        'agents',
-        agentId,
-        'whatsapp_templates'
-      );
+    const templatesRef = collection(
+      db,
+      "agents",
+      agentId,
+      "whatsapp_templates"
+    );
 
-      const q = query(
-        templatesRef,
-        orderBy('updatedAt', 'desc')
-      );
+    const templatesQuery = query(
+      templatesRef,
+      where("status", "==", "APPROVED")
+    );
 
-      const snap = await getDocs(q);
+    const unsub = onSnapshot(
+      templatesQuery,
+      (snap) => {
+        const list: WhatsAppTemplate[] = snap.docs.map((d) => {
+          const data: any = d.data();
 
-      const list: WhatsAppTemplate[] = snap.docs.map((d) => {
-        const data: any = d.data();
+          return {
+            id: d.id,
+            name: String(data.name || d.id),
+            category: data.category,
+            language: data.language,
+            bodyText: data.bodyText,
+            status: data.status,
+          };
+        });
 
-        return {
-          id: d.id,
-          name: String(data.name || d.id),
-          category: data.category,
-          language: data.language,
-          bodyText: data.bodyText,
-          status: data.status,
-          updatedAt: data.updatedAt,
-        };
-      });
+        list.sort((a, b) => a.name.localeCompare(b.name));
 
-      setTemplates(list);
-    } catch (e: any) {
-      console.error('[loadTemplates]', e);
-      setTemplates([]);
+        setTemplates(list);
+        setLoadingTemplates(false);
 
-      setDialog({
-        type: 'error',
-        title: 'שגיאה בטעינת תבניות',
-        message: String(e?.message || e),
-      });
-    } finally {
-      setLoadingTemplates(false);
-    }
+        setSelectedTemplateName((current) => {
+          if (current && list.some((t) => t.name === current)) return current;
+          return list[0]?.name || "";
+        });
+      },
+      (err) => {
+        console.error("[whatsapp_templates]", err);
+        setTemplates([]);
+        setSelectedTemplateName("");
+        setLoadingTemplates(false);
+        addToast("error", `שגיאה בטעינת תבניות: ${err.message}`);
+      }
+    );
+
+    return () => unsub();
+  }, [isClient, ready, user, detail, canAccess, agentId]);
+
+  if (!isClient) return null;
+
+  if (isLoading || isChecking || !ready || !user || !detail) {
+    return <div className="p-4 text-gray-600">⏳ טוען מידע...</div>;
+  }
+
+  if (!canAccess) {
+    return <AccessDenied />;
+  }
+
+  const pendingLeads = leads.filter((l) => l.status === "pending");
+  const sentLeads = leads.filter((l) =>
+    ["sent", "accepted", "delivered", "read"].includes(l.status)
+  );
+  const resolvedLeads = leads.filter((l) =>
+    l.status === "booked" || l.status === "declined" || l.status === "no_response"
+  );
+
+  const visibleLeads =
+    activeTab === "pending" ? pendingLeads :
+    activeTab === "sent" ? sentLeads :
+    activeTab === "resolved" ? resolvedLeads :
+    leads;
+
+  const selectedTemplate = templates.find(
+    (t) => t.name === selectedTemplateName
+  );
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
   };
 
+  const autoSelect = () => {
+    const n = Math.max(0, Math.min(autoPickCount, pendingLeads.length));
+    const ids = pendingLeads.slice(0, n).map((l) => l.surenseId);
+    setSelectedIds(new Set(ids));
+    setActiveTab("pending");
+  };
 
-  // =====================================================
-  // טעינת הגדרת WhatsApp קיימת לסוכן
-  // =====================================================
+  const clearSelection = () => setSelectedIds(new Set());
 
-  useEffect(() => {
-    if (!selectedAgentId) {
-      clearConfigFields();
+  const onSendSelected = async () => {
+    if (sending || selectedIds.size === 0) return;
+
+    if (!selectedTemplateName) {
+      addToast("error", "יש לבחור תבנית WhatsApp מאושרת לשליחה");
       return;
     }
 
-    const loadWhatsAppConfig = async () => {
-      setLoadingConfig(true);
-
-      try {
-        const configRef = doc(
-          db,
-          'agents',
-          selectedAgentId,
-          'config',
-          'whatsapp'
-        );
-
-        const configSnap = await getDoc(configRef);
-
-        if (!configSnap.exists()) {
-          clearConfigFields();
-          return;
-        }
-
-        const data: any = configSnap.data();
-
-        setBusinessId(
-          String(data.businessId || '')
-        );
-
-        setWabaId(
-          String(data.wabaId || '')
-        );
-
-        setPhoneNumberId(
-          String(data.phoneNumberId || '')
-        );
-
-        setDisplayPhoneNumber(
-          String(data.displayPhoneNumber || '')
-        );
-
-        setDisplayName(
-          String(data.displayName || '')
-        );
-
-        setTemplateName(
-          String(data.templateName || '')
-        );
-
-        // לא מחזירים טוקן או code למסך
-        setEmbeddedSignupCode('');
-
-      } catch (e: any) {
-        clearConfigFields();
-
-        setDialog({
-          type: 'error',
-          title: 'שגיאה בטעינת ההגדרות',
-          message: String(e?.message || e),
-        });
-
-      } finally {
-        setLoadingConfig(false);
-      }
-    };
-
-    loadWhatsAppConfig();
-    loadTemplates(selectedAgentId);
-
-  }, [selectedAgentId]);
-
-
-  // =====================================================
-  // האם אפשר לשמור
-  // =====================================================
-
-  const canSave =
-    !!selectedAgentId &&
-    !!businessId.trim() &&
-    !!wabaId.trim() &&
-    !!phoneNumberId.trim() &&
-    !!embeddedSignupCode.trim() &&
-    !saving &&
-    !loadingConfig;
-
-
-  // =====================================================
-  // איפוס מלא
-  // =====================================================
-
-  const resetForm = () => {
-    setSelectedAgentId('');
-    clearConfigFields();
-  };
-
-
-  // =====================================================
-  // שמירה
-  // =====================================================
-
-  const handleSave = async () => {
-    if (!canSave) return;
-
-    setSaving(true);
-
+    setSending(true);
     try {
-      const fn = httpsCallable(
-        functions,
-        'saveAgentWhatsAppConfig'
-      );
-
-      /*
-       * חשוב:
-       * ה-Function דורשת redirectUri.
-       *
-       * אנחנו שולחים את כתובת העמוד הנוכחי,
-       * ללא query string או hash.
-       */
-const redirectUri =
-  'https://developers.facebook.com/es/oauth/callback/?product_route=whatsapp-business&business_id=757884344079063&nonce=mrToB6QAKsnjxovBkFVvB1ICSGghamg5';
-
-      await fn({
-        agentId: selectedAgentId,
-
-        businessId:
-          businessId.trim(),
-
-        wabaId:
-          wabaId.trim(),
-
-        phoneNumberId:
-          phoneNumberId.trim(),
-
-        displayPhoneNumber:
-          displayPhoneNumber.trim() || undefined,
-
-        displayName:
-          displayName.trim() || undefined,
-
-        templateName:
-          templateName.trim() || undefined,
-
-        embeddedSignupCode:
-          embeddedSignupCode.trim(),
-
-        redirectUri,
+      const fn = httpsCallable(functions, "sendReengagementBatch");
+      const result: any = await fn({
+        leadIds: Array.from(selectedIds),
+        templateName: selectedTemplateName,
       });
-
-
-      setDialog({
-        type: 'success',
-        title: 'נשמר בהצלחה',
-        message:
-          'חיבור ה-WhatsApp נשמר והטוקן נשמר מוצפן עבור הסוכן.',
-      });
-
-      resetForm();
-
+      const { sent, failed } = result.data ?? {};
+      if (failed > 0) addToast("error", `נשלח בהצלחה: ${sent ?? 0} | נכשל: ${failed}`);
+      else addToast("success", `נשלח בהצלחה ל-${sent ?? 0} לקוחות`);
+      clearSelection();
+      await loadLeads();
     } catch (e: any) {
-      console.error(
-        '[WhatsAppConfig] Save error:',
-        e
-      );
-
-      setDialog({
-        type: 'error',
-        title: 'שגיאה',
-        message: String(e?.message || e),
-      });
-
+      addToast("error", `שגיאה בשליחה: ${e.message}`);
     } finally {
-      setSaving(false);
+      setSending(false);
     }
   };
 
-
-
-
-const handleRegisterPhone = async () => {
-  if (!selectedAgentId || !registrationPin.trim()) {
-    setDialog({
-      type: 'warning',
-      title: 'חסרים נתונים',
-      message: 'יש לבחור סוכן ולהזין PIN.',
-    });
-    return;
-  }
-
-  setRegistering(true);
-
-  try {
-    const fn = httpsCallable(
-      functions,
-      'registerAgentWhatsAppPhone'
-    );
-
-    const result = await fn({
-      agentId: selectedAgentId,
-      pin: registrationPin.trim(),
-    });
-
-    console.log(
-      '[registerAgentWhatsAppPhone]',
-      result.data
-    );
-
-    setDialog({
-      type: 'success',
-      title: 'הרישום הצליח',
-      message: 'מספר ה-WhatsApp נרשם בהצלחה ב-Cloud API.',
-    });
-
-    setRegistrationPin('');
-  } catch (e: any) {
-    console.error(
-      '[registerAgentWhatsAppPhone]',
-      e
-    );
-
-    setDialog({
-      type: 'error',
-      title: 'שגיאה ברישום המספר',
-      message: String(e?.message || e),
-    });
-  } finally {
-    setRegistering(false);
-  }
-};
-
-
-
-// =====================================================
-// יצירת תבנית WhatsApp
-// =====================================================
-
-const handleCreateTemplate = async () => {
-  if (
-    !selectedAgentId ||
-    !newTemplateName.trim() ||
-    !newTemplateBody.trim()
-  ) {
-    setDialog({
-      type: 'warning',
-      title: 'חסרים נתונים',
-      message: 'יש לבחור סוכן, להזין שם תבנית ותוכן הודעה.',
-    });
-    return;
-  }
-
-  setCreatingTemplate(true);
-
-  try {
-    const fn = httpsCallable(
-      functions,
-      'createWhatsAppTemplate'
-    );
-
-    const result = await fn({
-      agentId: selectedAgentId,
-      name: newTemplateName.trim(),
-      category: newTemplateCategory,
-      language: newTemplateLanguage,
-      bodyText: newTemplateBody.trim(),
-    });
-
-    const data: any = result.data;
-
-    setDialog({
-      type: 'success',
-      title: 'התבנית נוצרה',
-      message:
-        `התבנית ${data?.name || newTemplateName.trim()} נשלחה ל-Meta. ` +
-        `סטטוס: ${data?.status || 'PENDING'}`,
-    });
-
-    setNewTemplateName('');
-    setNewTemplateBody('');
-
-    await loadTemplates(selectedAgentId);
-  } catch (e: any) {
-    console.error(
-      '[createWhatsAppTemplate]',
-      e
-    );
-
-    setDialog({
-      type: 'error',
-      title: 'שגיאה ביצירת התבנית',
-      message: String(e?.message || e),
-    });
-  } finally {
-    setCreatingTemplate(false);
-  }
-};
-
-
-
-// =====================================================
-// רענון תבניות מ-Meta
-// =====================================================
-
-const handleRefreshTemplates = async () => {
-  if (!selectedAgentId) {
-    setDialog({
-      type: 'warning',
-      title: 'לא נבחר סוכן',
-      message: 'יש לבחור סוכן לפני רענון התבניות.',
-    });
-    return;
-  }
-
-  setRefreshingTemplates(true);
-
-  try {
-    const fn = httpsCallable(
-      functions,
-      'refreshWhatsAppTemplates'
-    );
-
-    const result = await fn({
-      agentId: selectedAgentId,
-    });
-
-    const data: any = result.data;
-
-    await loadTemplates(selectedAgentId);
-
-    setDialog({
-      type: 'success',
-      title: 'התבניות עודכנו',
-      message:
-        `עודכנו ${data?.count ?? 0} תבניות מ-Meta.`,
-    });
-  } catch (e: any) {
-    console.error(
-      '[refreshWhatsAppTemplates]',
-      e
-    );
-
-    setDialog({
-      type: 'error',
-      title: 'שגיאה ברענון תבניות',
-      message: String(e?.message || e),
-    });
-  } finally {
-    setRefreshingTemplates(false);
-  }
-};
-
-
-  // =====================================================
-  // UI
-  // =====================================================
+  const onUpdateStatus = async (surenseId: string, status: LeadStatus) => {
+    if (updatingId) return;
+    setUpdatingId(surenseId);
+    try {
+      const fn = httpsCallable(functions, "updateReengagementLeadStatus");
+      await fn({ surenseId, status });
+      setLeads((prev) =>
+        prev.map((l) => (l.surenseId === surenseId ? { ...l, status } : l))
+      );
+      addToast("success", `הסטטוס עודכן ל"${STATUS_LABELS[status]}"`);
+    } catch (e: any) {
+      addToast("error", `שגיאה בעדכון סטטוס: ${e.message}`);
+    } finally {
+      setUpdatingId(null);
+    }
+  };
 
   return (
-    <AdminGuard>
+    <Suspense fallback={<div>Loading...</div>}>
+      <div className="p-6 max-w-7xl mx-auto text-right" dir="rtl">
+        <h1 className="text-2xl font-bold mb-4">ניהול קמפיין יצירת קשר חוזר</h1>
 
-      <div
-        className="p-6 max-w-2xl mx-auto text-right"
-        dir="rtl"
-      >
+        <div className="flex gap-2 mb-5 border-b">
+        <MainTabButton
+  label="💬 שיחות WhatsApp"
+  active={mainTab === "inbox"}
+  onClick={() => setMainTab("inbox")}
+/>
 
-        <h1 className="text-2xl font-bold mb-4">
-          ⚙️ הגדרת WhatsApp לסוכן
-        </h1>
+<MainTabButton
+  label="📋 לידים ושליחה"
+  active={mainTab === "leads"}
+  onClick={() => setMainTab("leads")}
+/>
+        </div>
 
-
-        <div className="border rounded p-4 bg-white space-y-4">
-
-
-          {/* בחירת סוכן */}
-
-          <select
-            className="border rounded px-2 py-2 w-full"
-            value={selectedAgentId}
-            onChange={(e) =>
-              setSelectedAgentId(e.target.value)
-            }
-          >
-            <option value="">
-              בחר/י סוכן
-            </option>
-
-            {agents.map((a) => (
-              <option
-                key={a.id}
-                value={a.id}
-              >
-                {a.name}
-              </option>
-            ))}
-          </select>
-
-
-          {loadingConfig && (
-            <div className="text-sm text-gray-500">
-              טוען הגדרות קיימות...
-            </div>
-          )}
-
-
-          {/* Embedded Signup */}
-
-          <div className="rounded-lg border bg-slate-50 p-4 space-y-3">
-            <div>
-              <div className="font-bold">
-                חיבור WhatsApp Business דרך Meta
-              </div>
-
-              <div className="text-sm text-gray-500 mt-1">
-                בחרי סוכן והתחילי את תהליך החיבור המאובטח של Meta.
-                פרטי ה-WABA ומספר הטלפון ייקלטו אוטומטית.
-              </div>
-            </div>
-
-            <div className="flex justify-end">
-              <Button
-                text={
-                  connectingMeta
-                    ? '⏳ מתחבר ל-Meta...'
-                    : 'חיבור WhatsApp Business'
-                }
-                type="primary"
-                onClick={handleConnectMeta}
-                disabled={
-                  !selectedAgentId ||
-                  connectingMeta ||
-                  !metaSdkReady
-                }
-              />
-            </div>
-
-            {!META_APP_ID && (
-              <div className="text-sm text-red-600">
-                חסר NEXT_PUBLIC_META_APP_ID בסביבת הפרויקט.
+        {mainTab === "leads" && (
+          <>
+            {loadError && (
+              <div className="bg-red-50 text-red-700 border border-red-200 rounded p-3 mb-4">
+                {loadError}
               </div>
             )}
 
-            {META_APP_ID && !metaSdkReady && (
-              <div className="text-sm text-gray-500">
-                טוען את חיבור Meta...
-              </div>
-            )}
-
-            {!!embeddedSignupCode && (
-              <div className="text-sm text-green-700">
-                ✓ התקבל קוד חיבור מ-Meta. ניתן לשמור את החיבור.
-              </div>
-            )}
-          </div>
-
-
-          {/* Business ID */}
-
-          <input
-            className="border rounded px-2 py-2 w-full font-mono"
-            value={businessId}
-            onChange={(e) =>
-              setBusinessId(e.target.value)
-            }
-            placeholder="Business ID"
-          />
-
-
-          {/* WABA ID */}
-
-          <input
-            className="border rounded px-2 py-2 w-full font-mono"
-            value={wabaId}
-            onChange={(e) =>
-              setWabaId(e.target.value)
-            }
-            placeholder="WABA ID"
-          />
-
-
-          {/* Phone Number ID */}
-
-          <input
-            className="border rounded px-2 py-2 w-full font-mono"
-            value={phoneNumberId}
-            onChange={(e) =>
-              setPhoneNumberId(e.target.value)
-            }
-            placeholder="Phone Number ID"
-          />
-
-
-          {/* Display Phone Number */}
-
-          <input
-            className="border rounded px-2 py-2 w-full font-mono"
-            value={displayPhoneNumber}
-            onChange={(e) =>
-              setDisplayPhoneNumber(e.target.value)
-            }
-            placeholder="Display Phone Number"
-          />
-
-
-          {/* Display Name */}
-
-          <input
-            className="border rounded px-2 py-2 w-full"
-            value={displayName}
-            onChange={(e) =>
-              setDisplayName(e.target.value)
-            }
-            placeholder="Display Name"
-          />
-
-
-          {/* Template Name */}
-
-          <input
-            className="border rounded px-2 py-2 w-full font-mono"
-            value={templateName}
-            onChange={(e) =>
-              setTemplateName(e.target.value)
-            }
-            placeholder="Template Name"
-          />
-
-
-          {/* Embedded Signup Code נשמר בזיכרון בלבד ואינו מוצג למשתמש */}
-
-          {!!embeddedSignupCode && (
-            <div className="rounded border border-green-200 bg-green-50 p-2 text-sm text-green-700">
-              קוד החיבור התקבל בהצלחה מ-Meta.
-            </div>
-          )}
-<div className="border-t pt-4 mt-4">
-
-  <div className="font-bold mb-2">
-    רישום המספר ב-Cloud API
-  </div>
-
-  <input
-    className="border rounded px-2 py-2 w-full font-mono"
-    type="password"
-    value={registrationPin}
-    onChange={(e) =>
-      setRegistrationPin(e.target.value)
-    }
-    placeholder="PIN דו-שלבי של מספר WhatsApp"
-  />
-
-  <div className="flex justify-end mt-3">
-    <Button
-      text={
-        registering
-          ? '⏳ רושם...'
-          : 'רישום מספר WhatsApp'
-      }
-      type="primary"
-      onClick={handleRegisterPhone}
-      disabled={
-        !selectedAgentId ||
-        !registrationPin.trim() ||
-        registering
-      }
-    />
-  </div>
-
-</div>
-
-          {/* יצירת תבנית WhatsApp */}
-
-          <div className="border-t pt-4 mt-4 space-y-3">
-
-            <div>
-              <div className="font-bold">
-                יצירת תבנית WhatsApp
-              </div>
-
-              <div className="text-sm text-gray-500 mt-1">
-                יצירת תבנית חדשה עבור הסוכן שנבחר ושליחתה לאישור Meta.
-              </div>
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
+              <StatCard label="ממתינים לשליחה" value={stats.pending ?? 0} color="bg-gray-50 text-gray-800" />
+              <StatCard label="בטיפול" value={(stats.sent ?? 0) + (stats.accepted ?? 0) + (stats.delivered ?? 0) + (stats.read ?? 0)} color="bg-amber-50 text-amber-800" />
+              <StatCard label="נקבעו פגישות" value={stats.booked ?? 0} color="bg-green-50 text-green-800" />
+              <StatCard label="לא ענו" value={stats.no_response ?? 0} color="bg-gray-50 text-gray-600" />
+              <StatCard label="סירבו" value={stats.declined ?? 0} color="bg-red-50 text-red-700" />
             </div>
 
-            <input
-              className="border rounded px-2 py-2 w-full font-mono"
-              value={newTemplateName}
-              onChange={(e) =>
-                setNewTemplateName(e.target.value)
-              }
-              placeholder="Template Name, לדוגמה: renewal_conversation"
-            />
+            <div className="border rounded p-4 bg-white mb-4 flex flex-wrap items-center gap-3">
+              <div className="w-full border-b pb-3 mb-1">
+                <label className="block text-sm font-semibold text-gray-700 mb-1">
+                  תבנית WhatsApp לשליחה
+                </label>
 
-            <select
-              className="border rounded px-2 py-2 w-full"
-              value={newTemplateCategory}
-              onChange={(e) =>
-                setNewTemplateCategory(e.target.value)
-              }
-            >
-              <option value="MARKETING">
-                MARKETING
-              </option>
-              <option value="UTILITY">
-                UTILITY
-              </option>
-              <option value="AUTHENTICATION">
-                AUTHENTICATION
-              </option>
-            </select>
+                <div className="flex flex-wrap items-center gap-3">
+                  <select
+                    className="border rounded px-3 py-2 min-w-[280px]"
+                    value={selectedTemplateName}
+                    onChange={(e) => setSelectedTemplateName(e.target.value)}
+                    disabled={loadingTemplates || templates.length === 0}
+                  >
+                    {templates.length === 0 ? (
+                      <option value="">
+                        אין תבניות מאושרות
+                      </option>
+                    ) : (
+                      templates.map((template) => (
+                        <option
+                          key={template.id}
+                          value={template.name}
+                        >
+                          {template.name}
+                        </option>
+                      ))
+                    )}
+                  </select>
 
-            <select
-              className="border rounded px-2 py-2 w-full"
-              value={newTemplateLanguage}
-              onChange={(e) =>
-                setNewTemplateLanguage(e.target.value)
-              }
-            >
-              <option value="he">
-                עברית (he)
-              </option>
-              <option value="en">
-                English (en)
-              </option>
-            </select>
+                  {loadingTemplates && (
+                    <span className="text-sm text-gray-500">
+                      טוען תבניות...
+                    </span>
+                  )}
 
-            <textarea
-              className="border rounded px-2 py-2 w-full"
-              rows={6}
-              value={newTemplateBody}
-              onChange={(e) =>
-                setNewTemplateBody(e.target.value)
-              }
-              placeholder="תוכן התבנית"
-            />
-
-            <div className="flex justify-end">
-              <Button
-                text={
-                  creatingTemplate
-                    ? '⏳ יוצר תבנית...'
-                    : 'יצירת תבנית'
-                }
-                type="primary"
-                onClick={handleCreateTemplate}
-                disabled={
-                  !selectedAgentId ||
-                  !newTemplateName.trim() ||
-                  !newTemplateBody.trim() ||
-                  creatingTemplate
-                }
-              />
-            </div>
-
-          </div>
-
-          {/* רשימת תבניות WhatsApp */}
-
-          <div className="border-t pt-4 mt-4 space-y-3">
-
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <div className="font-bold">
-                  תבניות WhatsApp של הסוכן
+                  {selectedTemplate && (
+                    <span className="text-xs text-gray-500">
+                      {selectedTemplate.category || "-"} · {selectedTemplate.language || "he"}
+                    </span>
+                  )}
                 </div>
 
-                <div className="text-sm text-gray-500 mt-1">
-                  כאן מוצגות התבניות שנשמרו במערכת. ניתן לרענן סטטוס מול Meta.
-                </div>
+                {selectedTemplate?.bodyText && (
+                  <div className="mt-2 rounded bg-gray-50 border p-2 text-sm text-gray-700">
+                    <span className="font-semibold">תצוגה מקדימה: </span>
+                    {selectedTemplate.bodyText}
+                  </div>
+                )}
               </div>
 
+              <label className="text-sm text-gray-700">
+                בחר אוטומטית
+                <input
+                  type="number"
+                  min={1}
+                  max={pendingLeads.length || 1}
+                  value={autoPickCount}
+                  onChange={(e) => setAutoPickCount(Number(e.target.value))}
+                  className="w-16 mx-2 border rounded px-2 py-1 text-center"
+                />
+                מתוך {pendingLeads.length} ממתינים
+              </label>
+
+              <Button text="בחר" type="secondary" onClick={autoSelect} disabled={pendingLeads.length === 0} />
+
+              <span className="text-sm text-gray-500">נבחרו: {selectedIds.size}</span>
+
+              {selectedIds.size > 0 && (
+                <Button text="נקה בחירה" type="secondary" onClick={clearSelection} />
+              )}
+
+              <div className="flex-1" />
+
               <Button
-                text={
-                  refreshingTemplates
-                    ? '⏳ מרענן...'
-                    : 'רענון מ-Meta'
-                }
-                type="secondary"
-                onClick={handleRefreshTemplates}
+                text={sending ? "⏳ שולח..." : `שלח לנבחרים (${selectedIds.size})`}
+                type="primary"
+                onClick={onSendSelected}
                 disabled={
-                  !selectedAgentId ||
-                  refreshingTemplates ||
+                  sending ||
+                  selectedIds.size === 0 ||
+                  !selectedTemplateName ||
                   loadingTemplates
                 }
               />
+
+              <Button text="🔄 רענן" type="secondary" onClick={loadLeads} disabled={loadingLeads} />
             </div>
 
-            {loadingTemplates && (
-              <div className="text-sm text-gray-500">
-                טוען תבניות...
-              </div>
-            )}
+            <div className="flex gap-2 mb-3 border-b">
+              <TabButton label={`ממתינים (${pendingLeads.length})`} active={activeTab === "pending"} onClick={() => setActiveTab("pending")} />
+              <TabButton label={`נשלח / נקרא (${sentLeads.length})`} active={activeTab === "sent"} onClick={() => setActiveTab("sent")} />
+              <TabButton label={`נסגר (${resolvedLeads.length})`} active={activeTab === "resolved"} onClick={() => setActiveTab("resolved")} />
+              <TabButton label={`הכל (${leads.length})`} active={activeTab === "all"} onClick={() => setActiveTab("all")} />
+            </div>
 
-            {!loadingTemplates && templates.length === 0 && (
-              <div className="text-sm text-gray-500 border rounded p-3 bg-gray-50">
-                אין עדיין תבניות שמורות לסוכן הזה.
-              </div>
-            )}
-
-            {!loadingTemplates && templates.length > 0 && (
-              <div className="overflow-x-auto border rounded">
+            <div className="border rounded bg-white overflow-x-auto">
+              {loadingLeads ? (
+                <div className="p-6 text-center text-gray-500">⏳ טוען לידים...</div>
+              ) : visibleLeads.length === 0 ? (
+                <div className="p-6 text-center text-gray-500">אין לידים להצגה בטאב הזה</div>
+              ) : (
                 <table className="w-full text-sm">
-                  <thead className="bg-gray-50">
+                  <thead className="bg-gray-50 text-gray-600">
                     <tr>
-                      <th className="p-2 text-right">
-                        שם תבנית
-                      </th>
-                      <th className="p-2 text-right">
-                        קטגוריה
-                      </th>
-                      <th className="p-2 text-right">
-                        שפה
-                      </th>
-                      <th className="p-2 text-right">
-                        סטטוס
-                      </th>
-                      <th className="p-2 text-right">
-                        תוכן
-                      </th>
+                      <th className="p-2 w-8"></th>
+                      <th className="p-2 text-right">שם</th>
+                      <th className="p-2 text-right">טלפון</th>
+                      <th className="p-2 text-right">פנייה אחרונה</th>
+                      <th className="p-2 text-right">סטטוס</th>
+                      <th className="p-2 text-right">נשלח בתאריך</th>
+                      <th className="p-2 text-right">פעולות</th>
                     </tr>
                   </thead>
-
                   <tbody>
-                    {templates.map((t) => (
-                      <tr
-                        key={t.id}
-                        className="border-t"
-                      >
-                        <td className="p-2 font-mono">
-                          {t.name}
-                        </td>
+                    {visibleLeads.map((lead) => (
+                      <tr key={lead.surenseId} className="border-t hover:bg-gray-50">
                         <td className="p-2">
-                          {t.category || '-'}
+                          {lead.status === "pending" && (
+                            <input
+                              type="checkbox"
+                              checked={selectedIds.has(lead.surenseId)}
+                              onChange={() => toggleSelect(lead.surenseId)}
+                            />
+                          )}
                         </td>
+                        <td className="p-2">{lead.fullName || "-"}</td>
+                        <td className="p-2" dir="ltr">{formatPhoneNumber(lead.phone)}</td>
+                        <td className="p-2">{formatDateOnly(lead.lastActivityDate)}</td>
                         <td className="p-2">
-                          {t.language || '-'}
-                        </td>
-                        <td className="p-2">
-                          <span className="inline-flex rounded-full bg-gray-100 px-2 py-1 text-xs font-bold">
-                            {t.status || 'UNKNOWN'}
+                          <span className={`px-2 py-1 rounded text-xs ${STATUS_COLORS[lead.status] ?? "bg-gray-100 text-gray-700"}`}>
+                            {STATUS_LABELS[lead.status] ?? lead.status}
                           </span>
                         </td>
-                        <td className="p-2 max-w-xs truncate">
-                          {t.bodyText || '-'}
+                        <td className="p-2">{formatMsDateOnly(lead.waSentAt)}</td>
+                        <td className="p-2">
+                          {["sent", "accepted", "delivered", "read"].includes(lead.status) && (
+                            <div className="flex gap-1 flex-wrap">
+                              <button className="text-xs px-2 py-1 rounded bg-green-100 text-green-800 hover:bg-green-200 disabled:opacity-50" disabled={updatingId === lead.surenseId} onClick={() => onUpdateStatus(lead.surenseId, "booked")}>
+                                נקבעה פגישה
+                              </button>
+                              <button className="text-xs px-2 py-1 rounded bg-gray-200 text-gray-700 hover:bg-gray-300 disabled:opacity-50" disabled={updatingId === lead.surenseId} onClick={() => onUpdateStatus(lead.surenseId, "no_response")}>
+                                לא ענה
+                              </button>
+                              <button className="text-xs px-2 py-1 rounded bg-red-100 text-red-700 hover:bg-red-200 disabled:opacity-50" disabled={updatingId === lead.surenseId} onClick={() => onUpdateStatus(lead.surenseId, "declined")}>
+                                סירב
+                              </button>
+                            </div>
+                          )}
                         </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
-              </div>
-            )}
+              )}
+            </div>
+          </>
+        )}
 
-          </div>
+        {mainTab === "inbox" && (
+          <WhatsAppInbox agentId={agentId} />
+        )}
+      </div>
 
-          {/* שמירה */}
+      {toasts.length > 0 && toasts.map((toast) => (
+        <ToastNotification
+          key={toast.id}
+          type={toast.type}
+          className={toast.isHiding ? "hide" : ""}
+          message={toast.message}
+          onClose={() => setToasts((prevToasts) => prevToasts.filter((t) => t.id !== toast.id))}
+        />
+      ))}
+    </Suspense>
+  );
+};
 
-          <div className="flex justify-end">
-            <Button
-              text={
-                saving
-                  ? '⏳ שומר...'
-                  : 'שמור'
-              }
-              type="primary"
-              onClick={handleSave}
-              disabled={!canSave}
+function WhatsAppInbox({ agentId }: { agentId: string }) {
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [selectedConversationId, setSelectedConversationId] = useState<string>("");
+  const [messages, setMessages] = useState<ConversationMessage[]>([]);
+  const [search, setSearch] = useState("");
+  const [replyText, setReplyText] = useState("");
+  const [sendingReply, setSendingReply] = useState(false);
+const waitingForReplyCount = conversations.filter((c) => c.needsReply).length;
+
+const sendReply = async () => {
+  const text = replyText.trim();
+  if (!selectedConversationId || !text || sendingReply) return;
+
+  setSendingReply(true);
+
+  try {
+    const fn = httpsCallable(functions, "sendWhatsAppConversationMessage");
+    await fn({
+      conversationId: selectedConversationId,
+      text,
+    });
+
+    setReplyText("");
+  } catch (e: any) {
+    alert(e.message || "שגיאה בשליחת הודעה");
+  } finally {
+    setSendingReply(false);
+  }
+};
+
+const markConversationRead = async (conversationId: string) => {
+  await setDoc(
+    doc(db, "whatsapp_conversations", conversationId),
+    { unreadCount: 0 },
+    { merge: true }
+  );
+};
+
+  useEffect(() => {
+    if (!agentId) return;
+
+    const q = query(
+      collection(db, "whatsapp_conversations"),
+      where("agentId", "==", agentId),
+    );
+
+    const unsub = onSnapshot(q, (snap) => {
+     const rows = snap.docs.map((d) => ({
+  id: d.id,
+  ...(d.data() as any),
+})) as Conversation[];
+
+rows.sort((a, b) => {
+  const ad = a.lastMessageAt?.toDate?.()?.getTime?.() ?? 0;
+  const bd = b.lastMessageAt?.toDate?.()?.getTime?.() ?? 0;
+  return bd - ad;
+});
+
+setConversations(rows);
+
+      if (!selectedConversationId && rows.length > 0) {
+        setSelectedConversationId(rows[0].id);
+      }
+    });
+
+    return () => unsub();
+  }, [agentId, selectedConversationId]);
+
+  useEffect(() => {
+    if (!selectedConversationId) {
+      setMessages([]);
+      return;
+    }
+
+    const q = query(
+      collection(doc(db, "whatsapp_conversations", selectedConversationId), "messages"),
+      orderBy("createdAt", "asc")
+    );
+
+    const unsub = onSnapshot(q, (snap) => {
+      setMessages(
+        snap.docs.map((d) => ({
+          id: d.id,
+          ...(d.data() as any),
+        })) as ConversationMessage[]
+      );
+    });
+
+    return () => unsub();
+  }, [selectedConversationId]);
+
+  const filtered = conversations.filter((c) => {
+    const term = search.trim();
+    if (!term) return true;
+    return `${c.customerName ?? ""} ${c.customerPhone ?? ""} ${c.lastMessageText ?? ""}`.includes(term);
+  });
+
+  const selected = conversations.find((c) => c.id === selectedConversationId) ?? null;
+
+  const isServiceWindowOpen = (conversation: Conversation | null): boolean => {
+  if (!conversation?.lastInboundAt) return false;
+
+  const inboundDate =
+    typeof conversation.lastInboundAt?.toDate === "function"
+      ? conversation.lastInboundAt.toDate()
+      : new Date(conversation.lastInboundAt);
+
+  const diffMs = Date.now() - inboundDate.getTime();
+  return diffMs < 24 * 60 * 60 * 1000;
+};
+
+const serviceWindowOpen = isServiceWindowOpen(selected);
+  return (
+    <div className="bg-white border rounded-xl overflow-hidden shadow-sm">
+    <div className="p-4 border-b flex items-center justify-between">
+  <div>
+    <h2 className="text-xl font-bold">
+      💬 שיחות WhatsApp
+    </h2>
+
+    <p className="text-sm text-gray-500 mt-1">
+      שיחות נכנסות מלידים שחזרו בוואטסאפ
+    </p>
+  </div>
+
+  <div className="flex items-center gap-3">
+    {waitingForReplyCount > 0 && (
+      <span className="bg-green-100 text-green-700 rounded-full px-3 py-1 text-sm font-bold">
+        {waitingForReplyCount} שיחות ממתינות למענה
+      </span>
+    )}
+
+    <div className="text-sm text-gray-500">
+      {conversations.length} שיחות
+    </div>
+  </div>
+</div>
+      <div className="grid grid-cols-1 lg:grid-cols-[360px_1fr] min-h-[620px]">
+        <aside className="border-l bg-gray-50">
+          <div className="p-3 border-b">
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="חיפוש לפי שם / טלפון / הודעה"
+              className="w-full border rounded-lg px-3 py-2 text-sm"
             />
           </div>
 
-        </div>
+          <div className="max-h-[560px] overflow-y-auto">
+            {filtered.length === 0 ? (
+              <div className="p-6 text-center text-gray-500 text-sm">אין שיחות להצגה</div>
+            ) : (
+              filtered.map((c) => (
+                <button
+                  key={c.id}
+                 onClick={() => {
+  setSelectedConversationId(c.id);
+  markConversationRead(c.id);
+}}
+                  className={`w-full text-right p-3 border-b hover:bg-white transition ${
+                    selectedConversationId === c.id ? "bg-white" : ""
+                  }`}
+                >
+                  <div className="flex items-start gap-2">
+                    <div className="w-10 h-10 rounded-full bg-green-100 text-green-700 flex items-center justify-center font-bold shrink-0">
+                      {(c.customerName || c.customerPhone || "?").slice(0, 1)}
+                    </div>
 
+                    <div className="min-w-0 flex-1">
+                      <div className="flex justify-between gap-2">
+                  <div className={`truncate ${(c.unreadCount ?? 0) > 0 ? "font-bold" : "font-semibold"}`}>
+  {c.customerName || formatPhoneNumber(c.customerPhone)}
+</div>
+                        <div className="text-xs text-gray-400 shrink-0">
+                          {formatConversationDate(c.lastMessageAt)}
+                        </div>
+                      </div>
 
-        {dialog && (
-          <DialogNotification
-            type={dialog.type}
-            title={dialog.title}
-            message={dialog.message}
-            onConfirm={() =>
-              setDialog(null)
-            }
-            confirmText="סגור"
-            hideCancel
-          />
-        )}
+                      <div className="text-xs text-gray-500 mt-0.5" dir="ltr">
+                        {formatPhoneNumber(c.customerPhone)}
+                      </div>
 
+                      <div className="text-sm text-gray-600 truncate mt-1">
+                        {c.lastMessageDirection === "outbound" ? "אתם: " : ""}
+                        {c.lastMessageText || "-"}
+                      </div>
+                    </div>
+
+                   {!!c.needsReply && !!c.unreadCount && c.unreadCount > 0 && (
+  <div className="bg-green-500 text-white text-xs rounded-full min-w-5 h-5 px-1 flex items-center justify-center">
+    {c.unreadCount}
+  </div>
+)}
+                  </div>
+                </button>
+              ))
+            )}
+          </div>
+        </aside>
+
+        <main className="bg-[#e9f3ef] flex justify-center p-4">
+          {!selected ? (
+            <div className="text-gray-500 self-center">בחרי שיחה להצגה</div>
+          ) : (
+            <div className="w-full max-w-[520px] bg-[#efeae2] rounded-[28px] shadow-xl overflow-hidden border">
+              <div className="bg-[#075e54] text-white px-4 py-3 flex items-center gap-3">
+                <div className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center font-bold">
+                  {(selected.customerName || selected.customerPhone || "?").slice(0, 1)}
+                </div>
+                <div>
+                  <div className="font-bold">{selected.customerName || formatPhoneNumber(selected.customerPhone)}</div>
+                  <div className="text-xs opacity-80" dir="ltr">{formatPhoneNumber(selected.customerPhone)}</div>
+                </div>
+              </div>
+              <div className="h-[500px] overflow-y-auto p-4 space-y-2">
+                {messages.length === 0 ? (
+                  <div className="text-center text-gray-500 text-sm mt-10">אין הודעות בשיחה</div>
+                ) : (
+                  messages.map((msg) => {
+                    const isOutbound = msg.direction === "outbound";
+
+                    return (
+                      <div
+                        key={msg.id}
+                        className={`flex ${isOutbound ? "justify-end" : "justify-start"}`}
+                      >
+                        <div
+                          className={`max-w-[78%] rounded-2xl px-3 py-2 text-sm shadow-sm ${
+                            isOutbound
+                              ? "bg-[#dcf8c6] rounded-br-sm"
+                              : "bg-white rounded-bl-sm"
+                          }`}
+                        >
+                          <div className="whitespace-pre-wrap">{getMessageText(msg)}</div>
+                          <div className="text-[10px] text-gray-500 mt-1 text-left">
+                            {formatFirestoreTime(msg.createdAt)}
+                            {isOutbound && msg.status ? ` · ${msg.status}` : ""}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+        <div className="bg-gray-100 p-3">
+  {selected && !serviceWindowOpen && (
+    <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2 mb-2">
+      חלפו יותר מ־24 שעות מהודעת הלקוח האחרונה. כדי לחדש שיחה צריך לשלוח תבנית WhatsApp מאושרת.
+    </div>
+  )}
+
+  <div className="flex gap-2">
+    <input
+      value={replyText}
+      onChange={(e) => setReplyText(e.target.value)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+
+          if (serviceWindowOpen) {
+            sendReply();
+          }
+        }
+      }}
+      disabled={!serviceWindowOpen}
+      placeholder={
+        serviceWindowOpen
+          ? "כתבי תשובה ללקוח..."
+          : "חלון השיחה הסתיים"
+      }
+      className="flex-1 rounded-full border px-4 py-2 text-sm bg-white disabled:text-gray-400"
+    />
+
+    <button
+      onClick={sendReply}
+      disabled={
+        !serviceWindowOpen ||
+        !replyText.trim() ||
+        sendingReply
+      }
+      className="rounded-full bg-green-600 text-white px-4 py-2 disabled:opacity-50"
+    >
+      {sendingReply ? "שולח..." : "שלח"}
+    </button>
+  </div>
+</div>
+            </div>
+          )}
+        </main>
       </div>
-
-    </AdminGuard>
+    </div>
   );
 }
+
+function StatCard({ label, value, color }: { label: string; value: number; color: string }) {
+  return (
+    <div className={`rounded p-3 ${color}`}>
+      <div className="text-2xl font-bold">{value}</div>
+      <div className="text-xs mt-1">{label}</div>
+    </div>
+  );
+}
+
+function MainTabButton({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`px-5 py-3 text-sm border-b-2 ${
+        active ? "border-green-600 text-green-700 font-bold" : "border-transparent text-gray-500 hover:text-gray-700"
+      }`}
+    >
+      {label}
+    </button>
+  );
+}
+
+function TabButton({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`px-3 py-2 text-sm border-b-2 ${
+        active ? "border-blue-600 text-blue-600 font-medium" : "border-transparent text-gray-500 hover:text-gray-700"
+      }`}
+    >
+      {label}
+    </button>
+  );
+}
+
+export default WhatsAppSendPage;

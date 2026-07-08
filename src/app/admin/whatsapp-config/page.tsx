@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { httpsCallable } from 'firebase/functions';
 import { functions, db } from '@/lib/firebase/firebase';
 import {
@@ -13,8 +13,10 @@ import {
 } from 'firebase/firestore';
 
 import { Button } from '@/components/Button/Button';
-import AdminGuard from '@/app/admin/_components/AdminGuard';
 import DialogNotification from '@/components/DialogNotification';
+import AccessDenied from '@/components/AccessDenied';
+import { useAuth } from '@/lib/firebase/AuthContext';
+import { usePermission } from '@/hooks/usePermission';
 
 type Agent = {
   id: string;
@@ -43,7 +45,32 @@ type DialogState = {
   message: string;
 };
 
+const META_APP_ID = process.env.NEXT_PUBLIC_META_APP_ID || '';
+const EMBEDDED_SIGNUP_CONFIG_ID = '3303093589871398';
+
+declare global {
+  interface Window {
+    FB?: {
+      init: (options: Record<string, any>) => void;
+      login: (
+        callback: (response: any) => void,
+        options: Record<string, any>
+      ) => void;
+    };
+    fbAsyncInit?: () => void;
+  }
+}
+
 export default function WhatsAppConfigPage() {
+  const { user, isLoading } = useAuth();
+
+  const {
+    canAccess,
+    isChecking,
+  } = usePermission(
+    user ? 'access_whatsapp_admin' : null
+  );
+
   const [agents, setAgents] = useState<Agent[]>([]);
   const [selectedAgentId, setSelectedAgentId] = useState('');
 
@@ -77,9 +104,235 @@ const [registering, setRegistering] = useState(false);
 
   const [saving, setSaving] = useState(false);
   const [loadingConfig, setLoadingConfig] = useState(false);
+  const [connectingMeta, setConnectingMeta] = useState(false);
+  const [metaSdkReady, setMetaSdkReady] = useState(false);
+
+  const embeddedSignupSessionRef = useRef<{
+    businessId?: string;
+    wabaId?: string;
+    phoneNumberId?: string;
+  }>({});
 
   const [dialog, setDialog] =
     useState<DialogState | null>(null);
+
+
+  // =====================================================
+  // טעינת Facebook JavaScript SDK + אירועי Embedded Signup
+  // =====================================================
+
+  useEffect(() => {
+    const handleEmbeddedSignupMessage = (event: MessageEvent) => {
+      if (
+        event.origin !== 'https://www.facebook.com' &&
+        event.origin !== 'https://web.facebook.com'
+      ) {
+        return;
+      }
+
+      let payload: any = event.data;
+
+      if (typeof payload === 'string') {
+        try {
+          payload = JSON.parse(payload);
+        } catch {
+          return;
+        }
+      }
+
+      if (payload?.type !== 'WA_EMBEDDED_SIGNUP') return;
+
+      const data = payload?.data || {};
+
+      if (payload?.event === 'FINISH') {
+        const sessionData = {
+          businessId: String(
+            data.business_id ||
+            data.businessId ||
+            ''
+          ),
+          wabaId: String(
+            data.waba_id ||
+            data.wabaId ||
+            ''
+          ),
+          phoneNumberId: String(
+            data.phone_number_id ||
+            data.phoneNumberId ||
+            ''
+          ),
+        };
+
+        embeddedSignupSessionRef.current = sessionData;
+
+        if (sessionData.businessId) {
+          setBusinessId(sessionData.businessId);
+        }
+
+        if (sessionData.wabaId) {
+          setWabaId(sessionData.wabaId);
+        }
+
+        if (sessionData.phoneNumberId) {
+          setPhoneNumberId(sessionData.phoneNumberId);
+        }
+      }
+
+      if (payload?.event === 'CANCEL') {
+        setConnectingMeta(false);
+      }
+
+      if (payload?.event === 'ERROR') {
+        setConnectingMeta(false);
+
+        setDialog({
+          type: 'error',
+          title: 'שגיאה בחיבור Meta',
+          message:
+            String(
+              data?.error_message ||
+              data?.message ||
+              'תהליך החיבור מול Meta נכשל.'
+            ),
+        });
+      }
+    };
+
+    window.addEventListener(
+      'message',
+      handleEmbeddedSignupMessage
+    );
+
+    if (!META_APP_ID) {
+      console.error(
+        '[EmbeddedSignup] Missing NEXT_PUBLIC_META_APP_ID'
+      );
+
+      return () => {
+        window.removeEventListener(
+          'message',
+          handleEmbeddedSignupMessage
+        );
+      };
+    }
+
+    window.fbAsyncInit = () => {
+      window.FB?.init({
+        appId: META_APP_ID,
+        cookie: true,
+        xfbml: false,
+        version: 'v24.0',
+      });
+
+      setMetaSdkReady(true);
+    };
+
+    const existingScript =
+      document.getElementById('facebook-jssdk');
+
+    if (!existingScript) {
+      const script = document.createElement('script');
+
+      script.id = 'facebook-jssdk';
+      script.src =
+        'https://connect.facebook.net/en_US/sdk.js';
+      script.async = true;
+      script.defer = true;
+      script.crossOrigin = 'anonymous';
+
+      document.body.appendChild(script);
+    } else if (window.FB) {
+      window.fbAsyncInit();
+    }
+
+    return () => {
+      window.removeEventListener(
+        'message',
+        handleEmbeddedSignupMessage
+      );
+    };
+  }, []);
+
+
+  // =====================================================
+  // פתיחת Embedded Signup
+  // =====================================================
+
+  const handleConnectMeta = () => {
+    if (!selectedAgentId) {
+      setDialog({
+        type: 'warning',
+        title: 'לא נבחר סוכן',
+        message:
+          'יש לבחור סוכן לפני התחלת החיבור ל-Meta.',
+      });
+      return;
+    }
+
+    if (!META_APP_ID) {
+      setDialog({
+        type: 'error',
+        title: 'חסרה הגדרת App ID',
+        message:
+          'יש להגדיר NEXT_PUBLIC_META_APP_ID בסביבת MagicSale.',
+      });
+      return;
+    }
+
+    if (!window.FB || !metaSdkReady) {
+      setDialog({
+        type: 'warning',
+        title: 'Meta עדיין נטען',
+        message:
+          'החיבור ל-Meta עדיין נטען. נסי שוב בעוד מספר שניות.',
+      });
+      return;
+    }
+
+    embeddedSignupSessionRef.current = {};
+    setEmbeddedSignupCode('');
+    setConnectingMeta(true);
+
+    window.FB.login(
+      (response: any) => {
+        const code =
+          response?.authResponse?.code;
+
+        if (!code) {
+          setConnectingMeta(false);
+
+          setDialog({
+            type: 'warning',
+            title: 'החיבור לא הושלם',
+            message:
+              'Meta לא החזירה קוד חיבור. אם החלון נסגר או בוטל, ניתן לנסות שוב.',
+          });
+
+          return;
+        }
+
+        setEmbeddedSignupCode(String(code));
+        setConnectingMeta(false);
+
+        setDialog({
+          type: 'success',
+          title: 'החיבור ל-Meta הושלם',
+          message:
+            'פרטי החיבור התקבלו מ-Meta. כעת ניתן לשמור את החיבור לסוכן.',
+        });
+      },
+      {
+        config_id: EMBEDDED_SIGNUP_CONFIG_ID,
+        response_type: 'code',
+        override_default_response_type: true,
+        extras: {
+          setup: {},
+          featureType: '',
+          sessionInfoVersion: '3',
+        },
+      }
+    );
+  };
 
 
   // =====================================================
@@ -561,8 +814,6 @@ const handleRefreshTemplates = async () => {
   // =====================================================
 
   return (
-    <AdminGuard>
-
       <div
         className="p-6 max-w-2xl mx-auto text-right"
         dir="rtl"
@@ -605,6 +856,57 @@ const handleRefreshTemplates = async () => {
               טוען הגדרות קיימות...
             </div>
           )}
+
+
+          {/* Embedded Signup */}
+
+          <div className="rounded-lg border bg-slate-50 p-4 space-y-3">
+            <div>
+              <div className="font-bold">
+                חיבור WhatsApp Business דרך Meta
+              </div>
+
+              <div className="text-sm text-gray-500 mt-1">
+                בחרי סוכן והתחילי את תהליך החיבור המאובטח של Meta.
+                פרטי ה-WABA ומספר הטלפון ייקלטו אוטומטית.
+              </div>
+            </div>
+
+            <div className="flex justify-end">
+              <Button
+                text={
+                  connectingMeta
+                    ? '⏳ מתחבר ל-Meta...'
+                    : 'חיבור WhatsApp Business'
+                }
+                type="primary"
+                onClick={handleConnectMeta}
+                disabled={
+                  !selectedAgentId ||
+                  connectingMeta ||
+                  !metaSdkReady
+                }
+              />
+            </div>
+
+            {!META_APP_ID && (
+              <div className="text-sm text-red-600">
+                חסר NEXT_PUBLIC_META_APP_ID בסביבת הפרויקט.
+              </div>
+            )}
+
+            {META_APP_ID && !metaSdkReady && (
+              <div className="text-sm text-gray-500">
+                טוען את חיבור Meta...
+              </div>
+            )}
+
+            {!!embeddedSignupCode && (
+              <div className="text-sm text-green-700">
+                ✓ התקבל קוד חיבור מ-Meta. ניתן לשמור את החיבור.
+              </div>
+            )}
+          </div>
 
 
           {/* Business ID */}
@@ -679,25 +981,13 @@ const handleRefreshTemplates = async () => {
           />
 
 
-          {/* Embedded Signup Code */}
+          {/* Embedded Signup Code נשמר בזיכרון בלבד ואינו מוצג למשתמש */}
 
-          <textarea
-            className="
-              border
-              rounded
-              px-2
-              py-2
-              w-full
-              font-mono
-              text-xs
-            "
-            rows={4}
-            value={embeddedSignupCode}
-            onChange={(e) =>
-              setEmbeddedSignupCode(e.target.value)
-            }
-            placeholder="Embedded Signup Code"
-          />
+          {!!embeddedSignupCode && (
+            <div className="rounded border border-green-200 bg-green-50 p-2 text-sm text-green-700">
+              קוד החיבור התקבל בהצלחה מ-Meta.
+            </div>
+          )}
 <div className="border-t pt-4 mt-4">
 
   <div className="font-bold mb-2">
@@ -950,6 +1240,5 @@ const handleRefreshTemplates = async () => {
 
       </div>
 
-    </AdminGuard>
   );
 }

@@ -197,25 +197,11 @@ export async function yalinHandleOtp(page: Page, ctx: RunnerCtx) {
  * ניווט לדוח עמלות + הגדרת תאריך + ייצוא אקסל
  */
 export async function yalinNavigateAndExport(
-  page: Page,
-  requestedReportMonth?: string
+  page: Page
 ): Promise<import("playwright").Download | null> {
   const cdp = await page.context().newCDPSession(page);
-
-  // 🔧 requestedReportMonth (YYYY-MM) → שני הפורמטים שהפורטל צריך
-  let targetStr: string;
-  let targetTitle: string;
-
-  if (requestedReportMonth) {
-    const [y, m] = requestedReportMonth.split('-');
-    targetTitle = `${y}-${m}`;   // "2026-06"
-    targetStr = `${m}/${y}`;     // "06/2026"
-  } else {
-    targetStr = getTwoMonthsAgoStr();           // "05/2026"
-    targetTitle = getTwoMonthsAgoPickerTitle(); // "2026-05"
-  }
-
-  console.log(`[Yalin] targetStr: "${targetStr}" | targetTitle: "${targetTitle}"`); // 🔧 debug
+  const targetStr = getTwoMonthsAgoStr(); // "03/2026"
+  const targetTitle = getTwoMonthsAgoPickerTitle(); // "2026-03"
 
   // שלב 1: לחץ על "צפיה בדוח עמלות" בתפריט
   const navResult = await cdp.send("Runtime.evaluate", {
@@ -230,66 +216,68 @@ export async function yalinNavigateAndExport(
     })()`,
     returnByValue: true,
   });
-  console.log('[Yalin] nav result:', navResult.result.value); // 🔧 debug
 
   await page.waitForTimeout(3000);
 
-  // ─── helper: פתח picker לשדה מסוים ובחר חודש לפי title ──────────────
-async function pickMonth(inputId: string, title: string): Promise<void> {
-    const curVal = await cdp.send("Runtime.evaluate", {
-      expression: `document.querySelector('input#${inputId}')?.value || ''`,
-      returnByValue: true,
-    });
+  // שלב 2: בדוק אם fromDate כבר על החודש הנכון
+  const currentVal = await cdp.send("Runtime.evaluate", {
+    expression: `document.querySelector('input#fromDate')?.value || ''`,
+    returnByValue: true,
+  });
 
-    const [y, m] = title.split('-');
-    const expectedStr = `${m}/${y}`;
-
-    console.log(`[Yalin] ${inputId} — current: "${curVal.result.value}" | expected: "${expectedStr}"`);
-
-    if (curVal.result.value === expectedStr) {
-      console.log(`[Yalin] ${inputId} — already correct, skipping`);
-      return;
-    }
-
-    // לחץ ישירות על ה-input כדי לפתוח את ה-picker
-    const clickResult = await cdp.send("Runtime.evaluate", {
-      expression: `(function(id) {
-        const input = document.querySelector('input#' + id);
-        if (!input) return 'INPUT_NOT_FOUND';
-        input.click();
+  if (currentVal.result.value !== targetStr) {
+    // פתח picker ובחר חודש
+    const calendarClicked = await cdp.send("Runtime.evaluate", {
+      expression: `(function() {
+        const cal = document.querySelector('span[role="img"][aria-label="calendar"]');
+        if (!cal) return 'NOT_FOUND';
+        cal.click();
         return 'CLICKED';
-      })('${inputId}')`,
+      })()`,
       returnByValue: true,
     });
-    console.log(`[Yalin] ${inputId} — input click: "${clickResult.result?.value}"`);
 
     await page.waitForTimeout(1500);
 
-    // בחר את התא לפי title (YYYY-MM)
-    const cellResult = await cdp.send("Runtime.evaluate", {
-      expression: `(function(t) {
-        const cell = document.querySelector('td[title="' + t + '"]');
-        if (!cell || cell.classList.contains('ant-picker-cell-disabled')) return 'NOT_FOUND_OR_DISABLED';
-        const inner = cell.querySelector('.ant-picker-cell-inner');
-        if (inner) inner.click();
-        else cell.click();
+    // בדוק שנה — אם לא נכונה לחץ חץ אחורה
+    const targetYear = targetTitle.split("-")[0];
+    for (let i = 0; i < 3; i++) {
+      const yearCheck = await cdp.send("Runtime.evaluate", {
+        expression: `(function() {
+          const header = document.querySelector('.ant-picker-year-btn');
+          return header ? header.textContent.trim() : '';
+        })()`,
+        returnByValue: true,
+      });
+
+      if (yearCheck.result.value === targetYear) break;
+
+      await cdp.send("Runtime.evaluate", {
+        expression: `(function() {
+          const btn = document.querySelector('.ant-picker-header-super-prev-btn');
+          if (btn) btn.click();
+        })()`,
+        returnByValue: true,
+      });
+      await page.waitForTimeout(500);
+    }
+
+    // בחר חודש לפי title
+    await cdp.send("Runtime.evaluate", {
+      expression: `(function(title) {
+        const cell = document.querySelector('td[title="' + title + '"]');
+        if (!cell) return 'NOT_FOUND';
+        cell.click();
         return 'CLICKED';
-      })('${title}')`,
+      })('${targetTitle}')`,
       returnByValue: true,
     });
-    console.log(`[Yalin] ${inputId} — cell click "${title}": "${cellResult.result?.value}"`);
 
     await page.waitForTimeout(1000);
   }
 
-  // שלב 2: הגדר toDate קודם, אחר כך fromDate (כמו שהפורטל דורש)
-  await pickMonth('toDate', targetTitle);
-  await page.waitForTimeout(500);
-  await pickMonth('fromDate', targetTitle);
-  await page.waitForTimeout(500);
-
   // שלב 3: לחץ "הצג"
-  const showResult = await cdp.send("Runtime.evaluate", {
+  await cdp.send("Runtime.evaluate", {
     expression: `(function() {
       const btn = document.querySelector('button[type="submit"].data-filter__btn');
       if (!btn) return 'NOT_FOUND';
@@ -298,7 +286,6 @@ async function pickMonth(inputId: string, title: string): Promise<void> {
     })()`,
     returnByValue: true,
   });
-  console.log('[Yalin] show button:', showResult.result?.value); // 🔧 debug
 
   await page.waitForTimeout(5000);
 
