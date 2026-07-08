@@ -2,7 +2,14 @@ const pages = [
  
   { href: '/NewAgentForm', label: 'ניהול עסקאות' },
   { href: '/NewCustomer', label: 'ניהול לקוחות' },
-  { href: '/whatsapp-send', label: 'לידים ושליחה' },
+   {
+    href: '/whatsapp-send',
+    label: 'שליחת whatsapp',
+    submenu: [
+      { href: '/whatsapp-send', label: 'לידים ושליחה' },
+      { href: '/admin/whatsapp-config', label: 'ניהול הגדרות' },
+    ],
+  },
    { 
   href: '/tasks', 
   label: 'משימות',
