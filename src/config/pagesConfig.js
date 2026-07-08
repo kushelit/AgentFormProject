@@ -7,7 +7,7 @@ const pages = [
     label: 'שליחת whatsapp',
     submenu: [
       { href: '/whatsapp-send', label: 'לידים ושליחה' },
-      { href: '/admin/whatsapp-config', label: 'ניהול הגדרות' },
+      { href: '/WhatsAppSettings', label: 'ניהול הגדרות' },
     ],
   },
    { 
