@@ -29,13 +29,34 @@ export async function createWhatsAppTemplateImpl(req: any): Promise<object> {
   const userSnap = await (db as any).collection("users").doc(authUid).get();
   if (!userSnap.exists) throw new HttpsError("permission-denied", "User not found");
 
-  const userData = userSnap.data() as any;
-  const isAdmin = userData?.role === "admin" || userData?.isSystem === true;
-  if (!isAdmin) throw new HttpsError("permission-denied", "Admin only");
+ const userData = userSnap.data() as any;
+const isAdmin = userData?.role === "admin" || userData?.isSystem === true;
+const userAgentId = s(userData?.agentId);
 
-  const body = req.data || {};
+const allow = Array.isArray(userData?.permissionOverrides?.allow)
+  ? userData.permissionOverrides.allow
+  : [];
 
-  const agentId = s(body.agentId);
+const hasWhatsAppManagePermission =
+  allow.includes("access_whatsapp_manage") ||
+  allow.includes("*");
+
+const body = req.data || {};
+const agentId = s(body.agentId);
+
+if (!agentId) {
+  throw new HttpsError("invalid-argument", "Missing agentId");
+}
+
+if (!isAdmin) {
+  if (!hasWhatsAppManagePermission) {
+    throw new HttpsError("permission-denied", "Missing WhatsApp manage permission");
+  }
+
+  if (!userAgentId || userAgentId !== agentId) {
+    throw new HttpsError("permission-denied", "Cannot manage WhatsApp templates for another agent");
+  }
+}
   const rawName = s(body.name);
   const name = normalizeTemplateName(rawName);
   const category = s(body.category || "MARKETING").toUpperCase();

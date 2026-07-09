@@ -23,6 +23,10 @@ export async function getReengagementLeadsImpl(agentId: string): Promise<object>
       status: data.status || "pending",
       waSentAt: data.waSentAt ? data.waSentAt.toMillis() : null,
       updatedAt: data.updatedAt ? data.updatedAt.toMillis() : null,
+      surenseStatusName: data.surenseStatusName || null,
+      surenseStatusActive:
+        typeof data.surenseStatusActive === "boolean" ? data.surenseStatusActive : null,
+      surenseWorkflowId: data.surenseWorkflowId || null,
     };
   });
 

@@ -37,6 +37,8 @@ interface Lead {
   status: LeadStatus;
   waSentAt: number | null;
   updatedAt: number | null;
+  surenseStatusName: string | null;
+  surenseStatusActive: boolean | null;
 }
 
 type LeadsTab = "pending" | "sent" | "resolved" | "all";
@@ -172,6 +174,7 @@ const WhatsAppSendPage = () => {
   const [autoPickCount, setAutoPickCount] = useState<number>(10);
   const [sending, setSending] = useState(false);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [closingId, setClosingId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<LeadsTab>("pending");
 
   const [templates, setTemplates] = useState<WhatsAppTemplate[]>([]);
@@ -359,6 +362,32 @@ const WhatsAppSendPage = () => {
     }
   };
 
+  const onCloseLead = async (surenseId: string) => {
+    if (closingId) return;
+
+    const confirmed = window.confirm(
+      "לסגור את המעקב אחרי הלקוח הזה? הוא לא ייכנס יותר למשיכות עתידיות."
+    );
+    if (!confirmed) return;
+
+    setClosingId(surenseId);
+    try {
+      const fn = httpsCallable(functions, "closeReengagementLead");
+      await fn({ surenseId });
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        next.delete(surenseId);
+        return next;
+      });
+      addToast("success", "המעקב נסגר בהצלחה");
+      await loadLeads();
+    } catch (e: any) {
+      addToast("error", `שגיאה בסגירת מעקב: ${e.message}`);
+    } finally {
+      setClosingId(null);
+    }
+  };
+
   return (
     <Suspense fallback={<div>Loading...</div>}>
       <div className="p-6 max-w-7xl mx-auto text-right" dir="rtl">
@@ -502,6 +531,7 @@ const WhatsAppSendPage = () => {
                       <th className="p-2 text-right">שם</th>
                       <th className="p-2 text-right">טלפון</th>
                       <th className="p-2 text-right">פנייה אחרונה</th>
+                      <th className="p-2 text-right">סטטוס בשורנס</th>
                       <th className="p-2 text-right">סטטוס</th>
                       <th className="p-2 text-right">נשלח בתאריך</th>
                       <th className="p-2 text-right">פעולות</th>
@@ -523,26 +553,54 @@ const WhatsAppSendPage = () => {
                         <td className="p-2" dir="ltr">{formatPhoneNumber(lead.phone)}</td>
                         <td className="p-2">{formatDateOnly(lead.lastActivityDate)}</td>
                         <td className="p-2">
+  {lead.surenseStatusName ? (
+    <span
+      className={`px-2 py-1 rounded text-xs ${
+        lead.surenseStatusActive
+          ? "bg-red-50 text-red-700"
+          : "bg-gray-100 text-gray-600"
+      }`}
+      title="סטטוס הלקוח כפי שמתקבל משורנס - לא בהכרח מעודכן ב-100%"
+    >
+      {lead.surenseStatusName}
+    </span>
+  ) : (
+    <span className="text-gray-400 text-xs">-</span>
+  )}
+</td>
+                        <td className="p-2">
                           <span className={`px-2 py-1 rounded text-xs ${STATUS_COLORS[lead.status] ?? "bg-gray-100 text-gray-700"}`}>
                             {STATUS_LABELS[lead.status] ?? lead.status}
                           </span>
                         </td>
                         <td className="p-2">{formatMsDateOnly(lead.waSentAt)}</td>
-                        <td className="p-2">
-                          {["sent", "accepted", "delivered", "read"].includes(lead.status) && (
-                            <div className="flex gap-1 flex-wrap">
-                              <button className="text-xs px-2 py-1 rounded bg-green-100 text-green-800 hover:bg-green-200 disabled:opacity-50" disabled={updatingId === lead.surenseId} onClick={() => onUpdateStatus(lead.surenseId, "booked")}>
-                                נקבעה פגישה
-                              </button>
-                              <button className="text-xs px-2 py-1 rounded bg-gray-200 text-gray-700 hover:bg-gray-300 disabled:opacity-50" disabled={updatingId === lead.surenseId} onClick={() => onUpdateStatus(lead.surenseId, "no_response")}>
-                                לא ענה
-                              </button>
-                              <button className="text-xs px-2 py-1 rounded bg-red-100 text-red-700 hover:bg-red-200 disabled:opacity-50" disabled={updatingId === lead.surenseId} onClick={() => onUpdateStatus(lead.surenseId, "declined")}>
-                                סירב
-                              </button>
-                            </div>
-                          )}
-                        </td>
+                      <td className="p-2">
+  <div className="flex gap-1 flex-wrap">
+    {["sent", "accepted", "delivered", "read"].includes(lead.status) && (
+      <>
+        <button className="text-xs px-2 py-1 rounded bg-green-100 text-green-800 hover:bg-green-200 disabled:opacity-50" disabled={updatingId === lead.surenseId} onClick={() => onUpdateStatus(lead.surenseId, "booked")}>
+          נקבעה פגישה
+        </button>
+        <button className="text-xs px-2 py-1 rounded bg-gray-200 text-gray-700 hover:bg-gray-300 disabled:opacity-50" disabled={updatingId === lead.surenseId} onClick={() => onUpdateStatus(lead.surenseId, "no_response")}>
+          לא ענה
+        </button>
+        <button className="text-xs px-2 py-1 rounded bg-red-100 text-red-700 hover:bg-red-200 disabled:opacity-50" disabled={updatingId === lead.surenseId} onClick={() => onUpdateStatus(lead.surenseId, "declined")}>
+          סירב
+        </button>
+      </>
+    )}
+    {lead.status !== "declined" && (
+      <button
+        className="text-xs px-2 py-1 rounded bg-gray-100 text-gray-600 hover:bg-gray-200 disabled:opacity-50"
+        disabled={closingId === lead.surenseId}
+        onClick={() => onCloseLead(lead.surenseId)}
+        title="לא להמשיך בטיפול מול הלקוח הזה - יסגר גם התהליך בשורנס"
+      >
+        {closingId === lead.surenseId ? "⏳ סוגר..." : "לא להמשיך טיפול"}
+      </button>
+    )}
+  </div>
+</td>
                       </tr>
                     ))}
                   </tbody>

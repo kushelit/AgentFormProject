@@ -14,7 +14,13 @@ function s(v: any) {
   return String(v ?? "").trim();
 }
 
-async function notifySurenseActivity(webhookUrl: string, surenseId: string, fullName: string): Promise<boolean> {
+async function notifySurenseActivity(
+  webhookUrl: string,
+  surenseId: string,
+  fullName: string,
+  surenseWorkflowId: string,
+  note: string
+): Promise<boolean> {
   try {
     const res = await fetch(webhookUrl, {
       method: "POST",
@@ -25,9 +31,11 @@ async function notifySurenseActivity(webhookUrl: string, surenseId: string, full
       body: JSON.stringify({
         surenseId,
         fullName,
+        surenseWorkflowId: surenseWorkflowId || null,
+        surenseWorkflowStatus: "in_progress",
         activityType: "whatsapp_reengagement",
         activityDate: new Date().toISOString(),
-        note: "נשלחה הודעת WhatsApp אוטומטית ליצירת קשר חוזר",
+        note,
       }),
     });
     return res.ok;
@@ -226,7 +234,13 @@ export async function sendReengagementBatchImpl(
 
       let surenseSyncedOk = false;
       if (activityWebhookUrl) {
-        surenseSyncedOk = await notifySurenseActivity(activityWebhookUrl, doc.id, lead.fullName || "");
+        surenseSyncedOk = await notifySurenseActivity(
+          activityWebhookUrl,
+          doc.id,
+          lead.fullName || "",
+          s(lead.surenseWorkflowId),
+          "נשלחה הודעת WhatsApp אוטומטית ליצירת קשר חוזר"
+        );
         if (surenseSyncedOk) surenseSynced++;
         else surenseSyncFailed++;
       } else {

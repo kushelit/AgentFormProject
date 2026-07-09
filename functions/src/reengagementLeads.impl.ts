@@ -44,6 +44,15 @@ export async function reengagementLeadsWebhookImpl(req: any, res: any): Promise<
   const gender = safeStr(body?.gender);
   const birthDate = safeStr(body?.birthDate);
 
+  // ✅ סטטוס לקוח בשורנס (למידע בלבד - לא לסינון אוטומטי)
+  const surenseStatusName = safeStr(body?.statusName);
+  const surenseStatusActiveRaw = body?.statusActive;
+  const surenseStatusActive =
+    typeof surenseStatusActiveRaw === "boolean" ? surenseStatusActiveRaw : null;
+
+  // ✅ מזהה ה-workflow שנפתח בשורנס בזמן המשיכה
+  const surenseWorkflowId = safeStr(body?.surenseWorkflowId);
+
   if (!surenseId) {
     res.status(400).json({ ok: false, error: "Missing surenseId" });
     return;
@@ -59,7 +68,8 @@ export async function reengagementLeadsWebhookImpl(req: any, res: any): Promise<
       res.status(200).json({ ok: true, action: "skipped", reason: "already_exists", surenseId });
       return;
     }
-const phoneNormalized = normalizePhone(phone);
+
+    const phoneNormalized = normalizePhone(phone);
 
     await docRef.set({
       surenseId,
@@ -72,13 +82,16 @@ const phoneNormalized = normalizePhone(phone);
       idNumber: idNumber || null,
       gender: gender || null,
       birthDate: birthDate || null,
+      surenseStatusName: surenseStatusName || null,
+      surenseStatusActive,
+      surenseWorkflowId: surenseWorkflowId || null,
       status: "pending",
       createdAt: nowTs(),
       updatedAt: nowTs(),
       source: "surense_reengagement",
     });
 
-    console.info(`[reengagementLeads] Created lead: agent=${agentId} surense=${surenseId}`);
+    console.info(`[reengagementLeads] Created lead: agent=${agentId} surense=${surenseId} status=${surenseStatusName} workflowId=${surenseWorkflowId}`);
     res.status(200).json({ ok: true, action: "created", surenseId });
 
   } catch (e: any) {
@@ -93,4 +106,15 @@ function normalizePhone(phone: string): string {
   if (digits.startsWith("0")) return "972" + digits.slice(1);
   if (digits.length === 9) return "972" + digits;
   return digits;
+}
+
+export async function getExistingSurenseLeadIdsImpl(agentId: string): Promise<object> {
+  const db = adminDb();
+  const snap = await (db as any)
+    .collection(`agents/${agentId}/reengagement_leads`)
+    .select() // רק document IDs, בלי לשלוף שדות
+    .get();
+
+  const ids = snap.docs.map((d: any) => d.id);
+  return { ok: true, ids };
 }

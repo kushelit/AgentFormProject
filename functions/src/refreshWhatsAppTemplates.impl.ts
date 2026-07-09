@@ -23,11 +23,29 @@ export async function refreshWhatsAppTemplatesImpl(req: any): Promise<object> {
   if (!userSnap.exists) throw new HttpsError("permission-denied", "User not found");
 
   const userData = userSnap.data() as any;
-  const isAdmin = userData?.role === "admin" || userData?.isSystem === true;
-  if (!isAdmin) throw new HttpsError("permission-denied", "Admin only");
+const isAdmin = userData?.role === "admin" || userData?.isSystem === true;
+const userAgentId = s(userData?.agentId);
 
-  const agentId = s(req.data?.agentId);
-  if (!agentId) throw new HttpsError("invalid-argument", "Missing agentId");
+const allow = Array.isArray(userData?.permissionOverrides?.allow)
+  ? userData.permissionOverrides.allow
+  : [];
+
+const hasWhatsAppManagePermission =
+  allow.includes("access_whatsapp_manage") ||
+  allow.includes("*");
+
+const agentId = s(req.data?.agentId);
+if (!agentId) throw new HttpsError("invalid-argument", "Missing agentId");
+
+if (!isAdmin) {
+  if (!hasWhatsAppManagePermission) {
+    throw new HttpsError("permission-denied", "Missing WhatsApp manage permission");
+  }
+
+  if (!userAgentId || userAgentId !== agentId) {
+    throw new HttpsError("permission-denied", "Cannot refresh WhatsApp templates for another agent");
+  }
+}
 
   const waConfigSnap = await (db as any).doc(`agents/${agentId}/config/whatsapp`).get();
   if (!waConfigSnap.exists) {
@@ -86,7 +104,26 @@ export async function refreshWhatsAppTemplatesImpl(req: any): Promise<object> {
   }
 
   const templates: any[] = Array.isArray(json?.data) ? json.data : [];
-  const batch = (db as any).batch();
+
+const templatesCollection = (db as any)
+  .collection(`agents/${agentId}/whatsapp_templates`);
+
+const localTemplatesSnap = await templatesCollection.get();
+
+const metaTemplateNames = new Set(
+  templates
+    .map((t: any) => s(t.name))
+    .filter(Boolean)
+);
+
+const batch = (db as any).batch();
+
+// מחיקת תבניות מקומיות שכבר לא קיימות ב-Meta
+for (const doc of localTemplatesSnap.docs) {
+  if (!metaTemplateNames.has(doc.id)) {
+    batch.delete(doc.ref);
+  }
+}
 
   for (const t of templates) {
     const name = s(t.name);
@@ -96,9 +133,7 @@ export async function refreshWhatsAppTemplatesImpl(req: any): Promise<object> {
       ? t.components.find((c: any) => String(c?.type || "").toUpperCase() === "BODY")
       : null;
 
-    const templateRef = (db as any)
-      .collection(`agents/${agentId}/whatsapp_templates`)
-      .doc(name);
+    const templateRef = templatesCollection.doc(name);
 
     batch.set(templateRef, {
       name,

@@ -4,8 +4,53 @@
 
 import { HttpsError } from "firebase-functions/v2/https";
 import { adminDb, nowTs } from "./shared/admin";
+import { SURENSE_ACTIVITY_API_KEY } from "./shared/secrets";
 
 const ALLOWED_STATUSES = ["pending", "sent", "booked", "declined", "no_response"];
+
+// כרגע רק "declined" שולח עדכון לשורנס וסוגר את התהליך שם.
+// "booked" ו-"no_response" נשארים ללא שינוי בשורנס - יפותח בהמשך.
+const SURENSE_SYNCED_STATUSES = ["declined"];
+
+function s(v: any): string {
+  return String(v ?? "").trim();
+}
+
+const STATUS_NOTES: Record<string, string> = {
+  declined: "הלקוח סירב להצעה בעקבות פניית WhatsApp אוטומטית",
+};
+
+async function notifySurenseActivity(
+  webhookUrl: string,
+  surenseId: string,
+  fullName: string,
+  surenseWorkflowId: string,
+  activityType: string,
+  note: string
+): Promise<boolean> {
+  try {
+    const res = await fetch(webhookUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-make-apikey": SURENSE_ACTIVITY_API_KEY.value(),
+      },
+      body: JSON.stringify({
+        surenseId,
+        fullName,
+        surenseWorkflowId: surenseWorkflowId || null,
+        surenseWorkflowStatus: "closed",
+        activityType,
+        activityDate: new Date().toISOString(),
+        note,
+      }),
+    });
+    return res.ok;
+  } catch (e: any) {
+    console.error(`[updateReengagementLeadStatus] Surense webhook failed for ${surenseId}:`, e.message);
+    return false;
+  }
+}
 
 export async function updateReengagementLeadStatusImpl(
   agentId: string,
@@ -24,13 +69,45 @@ export async function updateReengagementLeadStatusImpl(
     throw new HttpsError("not-found", "Lead not found");
   }
 
+  const lead: any = snap.data();
   const isFinal = status === "booked" || status === "declined" || status === "no_response";
+  const shouldSyncToSurense = SURENSE_SYNCED_STATUSES.includes(status);
+
+  let surenseSyncedOk = false;
+
+  if (shouldSyncToSurense) {
+    let activityWebhookUrl = "";
+    try {
+      const mainConfigSnap = await (db as any).doc(`agents/${agentId}/config/main`).get();
+      if (mainConfigSnap.exists) {
+        activityWebhookUrl = s(mainConfigSnap.data()?.surenseActivityWebhookUrl);
+      }
+    } catch {
+      console.warn("[updateReengagementLeadStatus] Could not read agent config/main");
+    }
+
+    if (activityWebhookUrl) {
+      surenseSyncedOk = await notifySurenseActivity(
+        activityWebhookUrl,
+        surenseId,
+        lead.fullName || "",
+        s(lead.surenseWorkflowId),
+        `whatsapp_reengagement_${status}`,
+        STATUS_NOTES[status] || `סטטוס עודכן ל-${status}`
+      );
+    } else {
+      console.warn(`[updateReengagementLeadStatus] No surenseActivityWebhookUrl configured for agent ${agentId}`);
+    }
+  }
 
   await ref.update({
     status,
     updatedAt: nowTs(),
     ...(isFinal ? { resolvedAt: nowTs() } : {}),
+    ...(shouldSyncToSurense
+      ? { surenseActivitySynced: surenseSyncedOk, surenseActivitySyncedAt: surenseSyncedOk ? nowTs() : null }
+      : {}),
   });
 
-  return { ok: true, surenseId, status };
+  return { ok: true, surenseId, status, surenseSynced: surenseSyncedOk };
 }

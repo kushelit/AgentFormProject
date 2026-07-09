@@ -5,7 +5,7 @@ import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { FUNCTIONS_REGION } from "./shared/region";
 import { SURENSE_ACTIVITY_API_KEY } from "./shared/secrets";
 
-export const updateReengagementLeadStatus = onCall(
+export const closeReengagementLead = onCall(
   {
     region: FUNCTIONS_REGION,
     secrets: [SURENSE_ACTIVITY_API_KEY],
@@ -17,11 +17,11 @@ export const updateReengagementLeadStatus = onCall(
     if (!agentId) throw new HttpsError("unauthenticated", "Login required");
 
     const surenseId = String(req.data?.surenseId ?? "").trim();
-    const status = String(req.data?.status ?? "").trim();
-
     if (!surenseId) throw new HttpsError("invalid-argument", "Missing surenseId");
 
-    const mod = await import("./updateReengagementLeadStatus.impl");
-    return mod.updateReengagementLeadStatusImpl(agentId, surenseId, status);
+    const note = String(req.data?.note ?? "").trim();
+
+    const mod = await import("./closeReengagementLead.impl");
+    return mod.closeReengagementLeadImpl(agentId, surenseId, note);
   }
 );

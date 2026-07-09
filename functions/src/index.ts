@@ -39,3 +39,4 @@ export { whatsappWebhook } from "./whatsappWebhook";
 export { sendWhatsAppConversationMessage } from "./sendWhatsAppConversationMessage";
 export { createWhatsAppTemplate } from "./createWhatsAppTemplate";
 export { refreshWhatsAppTemplates } from "./refreshWhatsAppTemplates";
+export { closeReengagementLead } from "./closeReengagementLead";
