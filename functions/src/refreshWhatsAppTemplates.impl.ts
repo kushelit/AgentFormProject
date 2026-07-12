@@ -6,6 +6,7 @@ import { HttpsError } from "firebase-functions/v2/https";
 import { adminDb, nowTs } from "./shared/admin";
 import { PORTAL_ENC_KEY_B64 } from "./shared/secrets";
 import { decryptJsonAes256Gcm } from "./shared/cryptoAesGcm";
+import { FieldValue } from "firebase-admin/firestore";
 
 const WA_API_URL = "https://graph.facebook.com/v25.0";
 
@@ -135,21 +136,61 @@ for (const doc of localTemplatesSnap.docs) {
 
     const templateRef = templatesCollection.doc(name);
 
-    batch.set(templateRef, {
-      name,
-      metaTemplateId: s(t.id),
-      category: s(t.category),
-      language: s(t.language),
-      status: s(t.status) || "UNKNOWN",
-      bodyText: s(bodyComponent?.text),
-      components: t.components || [],
-      provider: "meta_cloud_api",
-      syncedAt: nowTs(),
-      updatedAt: nowTs(),
-      syncedBy: authUid,
-      metaResponse: t,
-    }, { merge: true });
-  }
+   const buttonComponent = Array.isArray(t.components)
+  ? t.components.find(
+      (c: any) =>
+        String(c?.type || "").toUpperCase() === "BUTTONS"
+    )
+  : null;
+
+const quickReplyButtons = Array.isArray(buttonComponent?.buttons)
+  ? buttonComponent.buttons
+      .filter(
+        (button: any) =>
+          String(button?.type || "").toUpperCase() === "QUICK_REPLY"
+      )
+      .map((button: any) => s(button?.text))
+      .filter(Boolean)
+  : [];
+
+const bodyExamples =
+  Array.isArray(bodyComponent?.example?.body_text) &&
+  Array.isArray(bodyComponent.example.body_text[0])
+    ? bodyComponent.example.body_text[0]
+        .map((value: any) => s(value))
+        .filter(Boolean)
+    : [];
+
+batch.set(
+  templateRef,
+  {
+    name,
+    metaTemplateId: s(t.id),
+    category: s(t.category),
+    language: s(t.language),
+    status: s(t.status) || "UNKNOWN",
+
+    bodyText: s(bodyComponent?.text),
+
+    bodyVariableCount: bodyExamples.length,
+    bodyExamples,
+
+    quickReplyButtons,
+    hasQuickReplies: quickReplyButtons.length > 0,
+
+    componentsJson: JSON.stringify(t.components || []),
+    metaResponseJson: JSON.stringify(t),
+
+    components: FieldValue.delete(),
+    metaResponse: FieldValue.delete(),
+
+    provider: "meta_cloud_api",
+    syncedAt: nowTs(),
+    updatedAt: nowTs(),
+    syncedBy: authUid,
+  },
+  { merge: true }
+); }
 
   await batch.commit();
 

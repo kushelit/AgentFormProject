@@ -27,6 +27,8 @@ type LeadStatus =
   | "read"
   | "booked"
   | "declined"
+  | "interested"
+  | "failed"
   | "no_response";
 
 interface Lead {
@@ -77,6 +79,9 @@ interface WhatsAppTemplate {
   language?: string;
   bodyText?: string;
   status?: string;
+  bodyVariableCount?: number;
+  bodyExamples?: string[];
+  quickReplyButtons?: string[];
 }
 
 const STATUS_LABELS: Record<LeadStatus, string> = {
@@ -88,6 +93,8 @@ const STATUS_LABELS: Record<LeadStatus, string> = {
   booked: "נקבעה פגישה",
   declined: "סירב",
   no_response: "לא ענה",
+  interested: "מעוניין - טרם זימן",
+  failed: "שליחה נכשלה",
 };
 
 const STATUS_COLORS: Record<LeadStatus, string> = {
@@ -99,6 +106,8 @@ const STATUS_COLORS: Record<LeadStatus, string> = {
   booked: "bg-green-100 text-green-800",
   declined: "bg-red-100 text-red-700",
   no_response: "bg-gray-200 text-gray-600",
+  interested: "bg-purple-100 text-purple-800",
+  failed: "bg-red-100 text-red-700",
 };
 
 const formatPhoneNumber = (phone: string): string => {
@@ -247,6 +256,13 @@ const WhatsAppSendPage = () => {
             language: data.language,
             bodyText: data.bodyText,
             status: data.status,
+            bodyVariableCount: Number(data.bodyVariableCount || 0),
+            bodyExamples: Array.isArray(data.bodyExamples)
+              ? data.bodyExamples.map((value: unknown) => String(value))
+              : [],
+            quickReplyButtons: Array.isArray(data.quickReplyButtons)
+              ? data.quickReplyButtons.map((value: unknown) => String(value))
+              : [],
           };
         });
 
@@ -283,9 +299,15 @@ const WhatsAppSendPage = () => {
   }
 
   const pendingLeads = leads.filter((l) => l.status === "pending");
-  const sentLeads = leads.filter((l) =>
-    ["sent", "accepted", "delivered", "read"].includes(l.status)
-  );
+ const sentLeads = leads.filter((l) =>
+  [
+    "sent",
+    "accepted",
+    "delivered",
+    "read",
+    "interested",
+  ].includes(l.status)
+);
   const resolvedLeads = leads.filter((l) =>
     l.status === "booked" || l.status === "declined" || l.status === "no_response"
   );
@@ -299,6 +321,19 @@ const WhatsAppSendPage = () => {
   const selectedTemplate = templates.find(
     (t) => t.name === selectedTemplateName
   );
+
+  const previewLead = leads.find((lead) =>
+    selectedIds.has(lead.surenseId)
+  );
+
+  const previewCustomerName =
+    previewLead?.fullName?.trim().split(/\s+/)[0] ||
+    selectedTemplate?.bodyExamples?.[0] ||
+    "שם הלקוח";
+
+  const selectedTemplatePreview = selectedTemplate?.bodyText
+    ? selectedTemplate.bodyText.replace(/\{\{1\}\}/g, previewCustomerName)
+    : "";
 
   const toggleSelect = (id: string) => {
     setSelectedIds((prev) => {
@@ -417,7 +452,13 @@ const WhatsAppSendPage = () => {
 
             <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
               <StatCard label="ממתינים לשליחה" value={stats.pending ?? 0} color="bg-gray-50 text-gray-800" />
-              <StatCard label="בטיפול" value={(stats.sent ?? 0) + (stats.accepted ?? 0) + (stats.delivered ?? 0) + (stats.read ?? 0)} color="bg-amber-50 text-amber-800" />
+              <StatCard label="בטיפול" value={
+  (stats.sent ?? 0) +
+  (stats.accepted ?? 0) +
+  (stats.delivered ?? 0) +
+  (stats.read ?? 0) +
+  (stats.interested ?? 0)
+} color="bg-amber-50 text-amber-800" />
               <StatCard label="נקבעו פגישות" value={stats.booked ?? 0} color="bg-green-50 text-green-800" />
               <StatCard label="לא ענו" value={stats.no_response ?? 0} color="bg-gray-50 text-gray-600" />
               <StatCard label="סירבו" value={stats.declined ?? 0} color="bg-red-50 text-red-700" />
@@ -466,9 +507,32 @@ const WhatsAppSendPage = () => {
                 </div>
 
                 {selectedTemplate?.bodyText && (
-                  <div className="mt-2 rounded bg-gray-50 border p-2 text-sm text-gray-700">
-                    <span className="font-semibold">תצוגה מקדימה: </span>
-                    {selectedTemplate.bodyText}
+                  <div className="mt-2 rounded bg-gray-50 border p-3 text-sm text-gray-700 space-y-2">
+                    <div>
+                      <span className="font-semibold">תצוגה מקדימה: </span>
+                      <span className="whitespace-pre-wrap">
+                        {selectedTemplatePreview}
+                      </span>
+                    </div>
+
+                    {!!selectedTemplate.quickReplyButtons?.length && (
+                      <div className="flex flex-wrap gap-2">
+                        {selectedTemplate.quickReplyButtons.map((buttonText) => (
+                          <span
+                            key={buttonText}
+                            className="inline-flex rounded border bg-white px-3 py-1 text-xs font-semibold text-blue-700"
+                          >
+                            {buttonText}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+
+                    {(selectedTemplate.bodyVariableCount ?? 0) > 0 && !previewLead && (
+                      <div className="text-xs text-gray-500">
+                        לאחר בחירת ליד, התצוגה תציג את שמו הפרטי במקום {'{{1}}'}.
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

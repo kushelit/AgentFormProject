@@ -4,14 +4,39 @@
 
 import { HttpsError } from "firebase-functions/v2/https";
 import { adminDb, nowTs } from "./shared/admin";
-import { PORTAL_ENC_KEY_B64, SURENSE_ACTIVITY_API_KEY } from "./shared/secrets";
+import {
+  PORTAL_ENC_KEY_B64,
+  SURENSE_ACTIVITY_API_KEY,
+} from "./shared/secrets";
 import { decryptJsonAes256Gcm } from "./shared/cryptoAesGcm";
 
-const WA_API_URL = "https://graph.facebook.com/v19.0";
+const WA_API_URL = "https://graph.facebook.com/v25.0";
 const DEFAULT_TEMPLATE_NAME = "meir_reengagement_initial";
 
-function s(v: any) {
+function s(v: any): string {
   return String(v ?? "").trim();
+}
+
+function getCustomerFirstName(fullName: string): string {
+  const normalized = s(fullName);
+  return normalized ? normalized.split(/\s+/)[0] : "לקוח יקר";
+}
+
+function replaceTemplateVariables(
+  bodyText: string,
+  values: string[]
+): string {
+  let result = s(bodyText);
+
+  values.forEach((value, index) => {
+    const variableNumber = index + 1;
+    result = result.replace(
+      new RegExp(`\\{\\{${variableNumber}\\}\\}`, "g"),
+      value
+    );
+  });
+
+  return result;
 }
 
 async function notifySurenseActivity(
@@ -38,17 +63,27 @@ async function notifySurenseActivity(
         note,
       }),
     });
+
     return res.ok;
   } catch (e: any) {
-    console.error(`[sendReengagementBatch] Surense activity webhook failed for ${surenseId}:`, e.message);
+    console.error(
+      `[sendReengagementBatch] Surense activity webhook failed for ${surenseId}:`,
+      e.message
+    );
     return false;
   }
 }
 
-function templatePreview(templateName: string, bodyText?: string): string {
-  if (bodyText) return bodyText;
+function templatePreview(
+  templateName: string,
+  bodyText?: string,
+  variableValues: string[] = []
+): string {
+  if (bodyText) {
+    return replaceTemplateVariables(bodyText, variableValues);
+  }
 
-  if (templateName === "meir_reengagement_initial") {
+  if (templateName === DEFAULT_TEMPLATE_NAME) {
     return "נשלחה הודעת WhatsApp אוטומטית ליצירת קשר חוזר";
   }
 
@@ -62,54 +97,77 @@ export async function sendReengagementBatchImpl(
 ): Promise<object> {
   const db = adminDb();
 
-  const waConfigSnap = await (db as any).doc(`agents/${agentId}/config/whatsapp`).get();
+  const waConfigSnap = await (db as any)
+    .doc(`agents/${agentId}/config/whatsapp`)
+    .get();
+
   if (!waConfigSnap.exists) {
-    throw new HttpsError("failed-precondition", "WhatsApp config not found for agent");
+    throw new HttpsError(
+      "failed-precondition",
+      "WhatsApp config not found for agent"
+    );
   }
 
   const waConfig = waConfigSnap.data() as any;
   const phoneNumberId = s(waConfig.phoneNumberId);
-  const templateName = s(requestedTemplateName) || s(waConfig.templateName) || DEFAULT_TEMPLATE_NAME;
+
+  const templateName =
+    s(requestedTemplateName) ||
+    s(waConfig.templateName) ||
+    DEFAULT_TEMPLATE_NAME;
 
   if (!phoneNumberId) {
-    throw new HttpsError("failed-precondition", "Missing phoneNumberId for agent");
+    throw new HttpsError(
+      "failed-precondition",
+      "Missing phoneNumberId for agent"
+    );
   }
 
   if (!templateName) {
-    throw new HttpsError("invalid-argument", "Missing templateName");
+    throw new HttpsError(
+      "invalid-argument",
+      "Missing templateName"
+    );
   }
-
-  let templateLanguage = "he";
-  let templateBodyText = "";
 
   const templateSnap = await (db as any)
     .doc(`agents/${agentId}/whatsapp_templates/${templateName}`)
     .get();
 
-  if (requestedTemplateName) {
-    if (!templateSnap.exists) {
-      throw new HttpsError(
-        "failed-precondition",
-        "Selected WhatsApp template was not found for this agent"
-      );
-    }
+  if (!templateSnap.exists) {
+    throw new HttpsError(
+      "failed-precondition",
+      "Selected WhatsApp template was not found for this agent"
+    );
+  }
 
-    const templateData = templateSnap.data() as any;
-    const templateStatus = s(templateData.status).toUpperCase();
+  const templateData = templateSnap.data() as any;
+  const templateStatus = s(templateData.status).toUpperCase();
+  const templateLanguage = s(templateData.language) || "he";
+  const templateBodyText = s(templateData.bodyText);
+  const bodyVariableCount = Number(
+    templateData.bodyVariableCount || 0
+  );
 
-    if (templateStatus !== "APPROVED") {
-      throw new HttpsError(
-        "failed-precondition",
-        `Selected WhatsApp template is not approved. Current status: ${templateStatus || "UNKNOWN"}`
-      );
-    }
+  if (templateStatus !== "APPROVED") {
+    throw new HttpsError(
+      "failed-precondition",
+      `Selected WhatsApp template is not approved. Current status: ${templateStatus || "UNKNOWN"}`
+    );
+  }
 
-    templateLanguage = s(templateData.language) || "he";
-    templateBodyText = s(templateData.bodyText);
-  } else if (templateSnap.exists) {
-    const templateData = templateSnap.data() as any;
-    templateLanguage = s(templateData.language) || "he";
-    templateBodyText = s(templateData.bodyText);
+  if (!Number.isInteger(bodyVariableCount) || bodyVariableCount < 0) {
+    throw new HttpsError(
+      "failed-precondition",
+      "Invalid bodyVariableCount in template configuration"
+    );
+  }
+
+  if (bodyVariableCount > 1) {
+    throw new HttpsError(
+      "failed-precondition",
+      "This sending flow currently supports one body variable only: {{1}}"
+    );
   }
 
   const waSecretSnap = await (db as any)
@@ -124,10 +182,11 @@ export async function sendReengagementBatchImpl(
   }
 
   const keyB64 = PORTAL_ENC_KEY_B64.value();
-  if (!keyB64) throw new HttpsError("internal", "Missing encryption key");
+  if (!keyB64) {
+    throw new HttpsError("internal", "Missing encryption key");
+  }
 
   const waSecret = waSecretSnap.data() as any;
-
   const { accessToken } = decryptJsonAes256Gcm(
     keyB64,
     waSecret.enc
@@ -142,30 +201,53 @@ export async function sendReengagementBatchImpl(
 
   let activityWebhookUrl = "";
   let batchSize = 20;
+
   try {
-    const mainConfigSnap = await (db as any).doc(`agents/${agentId}/config/main`).get();
+    const mainConfigSnap = await (db as any)
+      .doc(`agents/${agentId}/config/main`)
+      .get();
+
     if (mainConfigSnap.exists) {
       const mainConfig = mainConfigSnap.data() as any;
       activityWebhookUrl = s(mainConfig.surenseActivityWebhookUrl);
-      batchSize = mainConfig.waBatchSize ?? 20;
+      batchSize = Number(mainConfig.waBatchSize ?? 20);
     }
   } catch {
-    console.warn("[sendReengagementBatch] Could not read agent config/main");
+    console.warn(
+      "[sendReengagementBatch] Could not read agent config/main"
+    );
   }
 
   if (!activityWebhookUrl) {
-    console.warn(`[sendReengagementBatch] No surenseActivityWebhookUrl configured for agent ${agentId} - Surense will NOT be updated`);
+    console.warn(
+      `[sendReengagementBatch] No surenseActivityWebhookUrl configured for agent ${agentId} - Surense will NOT be updated`
+    );
   }
 
   let leadDocs: FirebaseFirestore.DocumentSnapshot[];
 
   if (leadIds && leadIds.length > 0) {
-    const refs = leadIds.map((id) => (db as any).doc(`agents/${agentId}/reengagement_leads/${id}`));
+    const refs = leadIds.map((id) =>
+      (db as any).doc(
+        `agents/${agentId}/reengagement_leads/${id}`
+      )
+    );
+
     const snaps = await (db as any).getAll(...refs);
-    leadDocs = snaps.filter((snap: any) => snap.exists && snap.data()?.status === "pending");
+
+    leadDocs = snaps.filter(
+      (snap: any) =>
+        snap.exists &&
+        snap.data()?.status === "pending"
+    );
 
     if (leadDocs.length === 0) {
-      return { ok: true, sent: 0, message: "No valid pending leads in selection" };
+      return {
+        ok: true,
+        sent: 0,
+        failed: 0,
+        message: "No valid pending leads in selection",
+      };
     }
   } else {
     const leadsSnap = await (db as any)
@@ -175,130 +257,225 @@ export async function sendReengagementBatchImpl(
       .get();
 
     if (leadsSnap.empty) {
-      return { ok: true, sent: 0, message: "No pending leads" };
+      return {
+        ok: true,
+        sent: 0,
+        failed: 0,
+        message: "No pending leads",
+      };
     }
+
     leadDocs = leadsSnap.docs;
   }
 
   const batchId = `batch_${Date.now()}`;
+
   let sent = 0;
   let failed = 0;
   let surenseSynced = 0;
   let surenseSyncFailed = 0;
+
   const errors: any[] = [];
 
-  for (const doc of leadDocs) {
-    const lead: any = doc.data();
-    const phone = lead.phone as string;
+  for (const leadDoc of leadDocs) {
+    const lead: any = leadDoc.data();
+    const phone = s(lead.phone);
 
     if (!phone) {
-      console.warn(`[sendReengagementBatch] Lead ${doc.id} has no phone, skipping`);
+      errors.push({
+        surenseId: leadDoc.id,
+        error: "Missing phone",
+      });
       failed++;
       continue;
     }
 
     const normalizedPhone = normalizeIsraeliPhone(phone);
+
     if (!normalizedPhone) {
-      console.warn(`[sendReengagementBatch] Invalid phone for ${doc.id}: ${phone}`);
+      errors.push({
+        surenseId: leadDoc.id,
+        error: "Invalid phone",
+      });
       failed++;
       continue;
     }
 
-    try {
-      const waRes = await fetch(`${WA_API_URL}/${phoneNumberId}/messages`, {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${accessToken}`,
-          "Content-Type": "application/json",
+    const customerFirstName = getCustomerFirstName(
+      lead.fullName
+    );
+
+    const variableValues =
+      bodyVariableCount === 1
+        ? [customerFirstName]
+        : [];
+
+    const templatePayload: any = {
+      name: templateName,
+      language: {
+        code: templateLanguage,
+      },
+    };
+
+    if (bodyVariableCount === 1) {
+      templatePayload.components = [
+        {
+          type: "body",
+          parameters: [
+            {
+              type: "text",
+              text: customerFirstName,
+            },
+          ],
         },
-        body: JSON.stringify({
-          messaging_product: "whatsapp",
-          to: normalizedPhone,
-          type: "template",
-          template: {
-            name: templateName,
-            language: { code: templateLanguage },
+      ];
+    }
+
+    try {
+      const waRes = await fetch(
+        `${WA_API_URL}/${phoneNumberId}/messages`,
+        {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${accessToken}`,
+            "Content-Type": "application/json",
           },
-        }),
-      });
+          body: JSON.stringify({
+            messaging_product: "whatsapp",
+            to: normalizedPhone,
+            type: "template",
+            template: templatePayload,
+          }),
+        }
+      );
 
       const waData = await waRes.json() as any;
-      const waMessageId = waData?.messages?.[0]?.id ?? null;
+      const waMessageId =
+        s(waData?.messages?.[0]?.id) || null;
 
       if (!waRes.ok) {
-        console.error(`[sendReengagementBatch] WA error for ${doc.id}:`, JSON.stringify(waData));
-        errors.push({ surenseId: doc.id, error: waData });
+        console.error(
+          `[sendReengagementBatch] WA error for ${leadDoc.id}:`,
+          JSON.stringify(waData)
+        );
+
+        errors.push({
+          surenseId: leadDoc.id,
+          error: waData,
+        });
+
         failed++;
         continue;
       }
 
       let surenseSyncedOk = false;
+
       if (activityWebhookUrl) {
         surenseSyncedOk = await notifySurenseActivity(
           activityWebhookUrl,
-          doc.id,
-          lead.fullName || "",
+          leadDoc.id,
+          s(lead.fullName),
           s(lead.surenseWorkflowId),
           "נשלחה הודעת WhatsApp אוטומטית ליצירת קשר חוזר"
         );
-        if (surenseSyncedOk) surenseSynced++;
-        else surenseSyncFailed++;
+
+        if (surenseSyncedOk) {
+          surenseSynced++;
+        } else {
+          surenseSyncFailed++;
+        }
       } else {
         surenseSyncFailed++;
       }
 
-      const conversationId = `${agentId}_${normalizedPhone}`;
-      const messagePreview = templatePreview(templateName, templateBodyText);
+      const conversationId =
+        `${agentId}_${normalizedPhone}`;
 
-      const conversationRef = (db as any).doc(`whatsapp_conversations/${conversationId}`);
+      const messagePreview = templatePreview(
+        templateName,
+        templateBodyText,
+        variableValues
+      );
+
+      const conversationRef = (db as any).doc(
+        `whatsapp_conversations/${conversationId}`
+      );
+
       const conversationMessageRef = conversationRef
         .collection("messages")
-        .doc(waMessageId || `outbound_${Date.now()}`);
+        .doc(
+          waMessageId ||
+          `outbound_${Date.now()}_${leadDoc.id}`
+        );
 
-      await conversationRef.set({
-        agentId,
-        phoneNumberId,
-        customerPhone: normalizedPhone,
-        customerName: lead.fullName || null,
-        leadId: doc.id,
-        status: "open",
-        lastMessageText: messagePreview,
-        lastMessageType: "template",
-        lastMessageDirection: "outbound",
-        lastMessageAt: nowTs(),
-        updatedAt: nowTs(),
-      }, { merge: true });
+      await conversationRef.set(
+        {
+          agentId,
+          phoneNumberId,
+          customerPhone: normalizedPhone,
+          customerName: s(lead.fullName) || null,
+          leadId: leadDoc.id,
+          status: "open",
+          lastMessageText: messagePreview,
+          lastMessageType: "template",
+          lastMessageDirection: "outbound",
+          lastMessageAt: nowTs(),
+          updatedAt: nowTs(),
+        },
+        { merge: true }
+      );
 
-      await conversationMessageRef.set({
-        direction: "outbound",
-        fromPhoneNumberId: phoneNumberId,
-        to: normalizedPhone,
-        type: "template",
-        templateName,
-        templateLanguage,
-        text: messagePreview,
-        waMessageId,
+      await conversationMessageRef.set(
+        {
+          direction: "outbound",
+          fromPhoneNumberId: phoneNumberId,
+          to: normalizedPhone,
+          type: "template",
+          templateName,
+          templateLanguage,
+          templateVariables: variableValues,
+          text: messagePreview,
+          waMessageId,
+          status: "accepted",
+          createdAt: nowTs(),
+        },
+        { merge: true }
+      );
+
+      await leadDoc.ref.update({
         status: "accepted",
-        createdAt: nowTs(),
-      }, { merge: true });
-
-      await doc.ref.update({
-        status: "accepted",
+        interestStatus: "pending",
+        bookingStatus: "not_sent",
         waMessageId,
         waAcceptedAt: nowTs(),
+        waSentAt: Date.now(),
         batchId,
         conversationId,
         templateName,
+        templateLanguage,
+        templateVariables: variableValues,
         updatedAt: nowTs(),
         surenseActivitySynced: surenseSyncedOk,
-        surenseActivitySyncedAt: surenseSyncedOk ? nowTs() : null,
+        surenseActivitySyncedAt:
+          surenseSyncedOk ? nowTs() : null,
       });
 
       sent++;
-      console.info(`[sendReengagementBatch] Sent to ${doc.id} (${normalizedPhone}), templateName=${templateName}, surenseSynced=${surenseSyncedOk}`);
+
+      console.info(
+        `[sendReengagementBatch] Sent to ${leadDoc.id} (${normalizedPhone}), templateName=${templateName}, customerFirstName=${customerFirstName}, surenseSynced=${surenseSyncedOk}`
+      );
     } catch (e: any) {
-      console.error(`[sendReengagementBatch] Error for ${doc.id}:`, e.message);
-      errors.push({ surenseId: doc.id, error: e.message });
+      console.error(
+        `[sendReengagementBatch] Error for ${leadDoc.id}:`,
+        e.message
+      );
+
+      errors.push({
+        surenseId: leadDoc.id,
+        error: e.message,
+      });
+
       failed++;
     }
   }
@@ -311,14 +488,28 @@ export async function sendReengagementBatchImpl(
     surenseSynced,
     surenseSyncFailed,
     templateName,
+    templateLanguage,
+    bodyVariableCount,
     errors,
   };
 }
 
-function normalizeIsraeliPhone(phone: string): string | null {
+function normalizeIsraeliPhone(
+  phone: string
+): string | null {
   const digits = phone.replace(/\D/g, "");
-  if (digits.startsWith("972") && digits.length === 12) return digits;
-  if (digits.startsWith("0") && digits.length === 10) return "972" + digits.slice(1);
-  if (digits.length === 9) return "972" + digits;
+
+  if (digits.startsWith("972") && digits.length === 12) {
+    return digits;
+  }
+
+  if (digits.startsWith("0") && digits.length === 10) {
+    return "972" + digits.slice(1);
+  }
+
+  if (digits.length === 9) {
+    return "972" + digits;
+  }
+
   return null;
 }

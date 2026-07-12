@@ -6,7 +6,14 @@ import { HttpsError } from "firebase-functions/v2/https";
 import { adminDb, nowTs } from "./shared/admin";
 import { SURENSE_ACTIVITY_API_KEY } from "./shared/secrets";
 
-const ALLOWED_STATUSES = ["pending", "sent", "booked", "declined", "no_response"];
+const ALLOWED_STATUSES = [
+  "pending",
+  "sent",
+  "interested",
+  "booked",
+  "declined",
+  "no_response",
+];
 
 // כרגע רק "declined" שולח עדכון לשורנס וסוגר את התהליך שם.
 // "booked" ו-"no_response" נשארים ללא שינוי בשורנס - יפותח בהמשך.
@@ -45,9 +52,14 @@ async function notifySurenseActivity(
         note,
       }),
     });
+
     return res.ok;
   } catch (e: any) {
-    console.error(`[updateReengagementLeadStatus] Surense webhook failed for ${surenseId}:`, e.message);
+    console.error(
+      `[updateReengagementLeadStatus] Surense webhook failed for ${surenseId}:`,
+      e.message
+    );
+
     return false;
   }
 }
@@ -58,11 +70,18 @@ export async function updateReengagementLeadStatusImpl(
   status: string
 ): Promise<object> {
   if (!ALLOWED_STATUSES.includes(status)) {
-    throw new HttpsError("invalid-argument", `Invalid status: ${status}`);
+    throw new HttpsError(
+      "invalid-argument",
+      `Invalid status: ${status}`
+    );
   }
 
   const db = adminDb();
-  const ref = (db as any).doc(`agents/${agentId}/reengagement_leads/${surenseId}`);
+
+  const ref = (db as any).doc(
+    `agents/${agentId}/reengagement_leads/${surenseId}`
+  );
+
   const snap = await ref.get();
 
   if (!snap.exists) {
@@ -70,20 +89,34 @@ export async function updateReengagementLeadStatusImpl(
   }
 
   const lead: any = snap.data();
-  const isFinal = status === "booked" || status === "declined" || status === "no_response";
-  const shouldSyncToSurense = SURENSE_SYNCED_STATUSES.includes(status);
+
+  const isFinal =
+    status === "booked" ||
+    status === "declined" ||
+    status === "no_response";
+
+  const shouldSyncToSurense =
+    SURENSE_SYNCED_STATUSES.includes(status);
 
   let surenseSyncedOk = false;
 
   if (shouldSyncToSurense) {
     let activityWebhookUrl = "";
+
     try {
-      const mainConfigSnap = await (db as any).doc(`agents/${agentId}/config/main`).get();
+      const mainConfigSnap = await (db as any)
+        .doc(`agents/${agentId}/config/main`)
+        .get();
+
       if (mainConfigSnap.exists) {
-        activityWebhookUrl = s(mainConfigSnap.data()?.surenseActivityWebhookUrl);
+        activityWebhookUrl = s(
+          mainConfigSnap.data()?.surenseActivityWebhookUrl
+        );
       }
     } catch {
-      console.warn("[updateReengagementLeadStatus] Could not read agent config/main");
+      console.warn(
+        "[updateReengagementLeadStatus] Could not read agent config/main"
+      );
     }
 
     if (activityWebhookUrl) {
@@ -96,18 +129,70 @@ export async function updateReengagementLeadStatusImpl(
         STATUS_NOTES[status] || `סטטוס עודכן ל-${status}`
       );
     } else {
-      console.warn(`[updateReengagementLeadStatus] No surenseActivityWebhookUrl configured for agent ${agentId}`);
+      console.warn(
+        `[updateReengagementLeadStatus] No surenseActivityWebhookUrl configured for agent ${agentId}`
+      );
     }
   }
 
+  const statusFields: Record<string, Record<string, any>> = {
+    pending: {
+      interestStatus: "pending",
+      bookingStatus: "not_sent",
+    },
+
+    sent: {
+      interestStatus: "pending",
+    },
+
+    interested: {
+      interestStatus: "interested",
+      interestRespondedAt: nowTs(),
+      bookingStatus: "not_sent",
+    },
+
+    declined: {
+      interestStatus: "not_interested",
+      interestRespondedAt: nowTs(),
+      bookingStatus: "not_sent",
+    },
+
+    booked: {
+      bookingStatus: "booked",
+      bookedAt: nowTs(),
+    },
+
+    no_response: {
+      interestStatus: "pending",
+      bookingStatus: "no_booking",
+    },
+  };
+
   await ref.update({
     status,
+    ...statusFields[status],
     updatedAt: nowTs(),
-    ...(isFinal ? { resolvedAt: nowTs() } : {}),
+
+    ...(isFinal
+      ? {
+          resolvedAt: nowTs(),
+        }
+      : {}),
+
     ...(shouldSyncToSurense
-      ? { surenseActivitySynced: surenseSyncedOk, surenseActivitySyncedAt: surenseSyncedOk ? nowTs() : null }
+      ? {
+          surenseActivitySynced: surenseSyncedOk,
+          surenseActivitySyncedAt: surenseSyncedOk
+            ? nowTs()
+            : null,
+        }
       : {}),
   });
 
-  return { ok: true, surenseId, status, surenseSynced: surenseSyncedOk };
+  return {
+    ok: true,
+    surenseId,
+    status,
+    surenseSynced: surenseSyncedOk,
+  };
 }

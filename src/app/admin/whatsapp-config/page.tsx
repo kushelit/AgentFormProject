@@ -31,6 +31,9 @@ type WhatsAppTemplate = {
   bodyText?: string;
   status?: string;
   updatedAt?: any;
+  bodyVariableCount?: number;
+  bodyExamples?: string[];
+  quickReplyButtons?: string[];
 };
 
 type DialogKind =
@@ -86,6 +89,9 @@ export default function WhatsAppConfigPage() {
   const [newTemplateCategory, setNewTemplateCategory] = useState('MARKETING');
   const [newTemplateLanguage, setNewTemplateLanguage] = useState('he');
   const [newTemplateBody, setNewTemplateBody] = useState('');
+  const [newTemplateExample1, setNewTemplateExample1] = useState('');
+  const [newTemplateQuickReply1, setNewTemplateQuickReply1] = useState('');
+  const [newTemplateQuickReply2, setNewTemplateQuickReply2] = useState('');
   const [creatingTemplate, setCreatingTemplate] = useState(false);
 
   // רשימת תבניות קיימות
@@ -434,6 +440,13 @@ const [registering, setRegistering] = useState(false);
           bodyText: data.bodyText,
           status: data.status,
           updatedAt: data.updatedAt,
+          bodyVariableCount: Number(data.bodyVariableCount || 0),
+          bodyExamples: Array.isArray(data.bodyExamples)
+            ? data.bodyExamples.map((value: unknown) => String(value))
+            : [],
+          quickReplyButtons: Array.isArray(data.quickReplyButtons)
+            ? data.quickReplyButtons.map((value: unknown) => String(value))
+            : [],
         };
       });
 
@@ -690,6 +703,20 @@ const handleRegisterPhone = async () => {
 
 
 
+
+const getTemplateVariableNumbers = (value: string): number[] => {
+  const matches = Array.from(value.matchAll(/\{\{(\d+)\}\}/g));
+
+  return Array.from(
+    new Set(
+      matches
+        .map((match) => Number(match[1]))
+        .filter((number) => Number.isInteger(number) && number > 0)
+    )
+  ).sort((a, b) => a - b);
+};
+
+
 // =====================================================
 // יצירת תבנית WhatsApp
 // =====================================================
@@ -708,6 +735,46 @@ const handleCreateTemplate = async () => {
     return;
   }
 
+  const variableNumbers = getTemplateVariableNumbers(newTemplateBody);
+
+  if (
+    variableNumbers.length > 0 &&
+    (variableNumbers.length !== 1 || variableNumbers[0] !== 1)
+  ) {
+    setDialog({
+      type: 'warning',
+      title: 'משתנים לא תקינים',
+      message: 'בשלב זה המסך תומך במשתנה אחד בלבד: {{1}} עבור שם הלקוח.',
+    });
+    return;
+  }
+
+  if (variableNumbers.length === 1 && !newTemplateExample1.trim()) {
+    setDialog({
+      type: 'warning',
+      title: 'חסרה דוגמה למשתנה',
+      message: 'התבנית כוללת את {{1}}. יש להזין דוגמה, למשל: ישראל.',
+    });
+    return;
+  }
+
+  const quickReplyButtons = [
+    newTemplateQuickReply1.trim(),
+    newTemplateQuickReply2.trim(),
+  ].filter(Boolean);
+
+  if (
+    quickReplyButtons.length === 2 &&
+    quickReplyButtons[0] === quickReplyButtons[1]
+  ) {
+    setDialog({
+      type: 'warning',
+      title: 'כפתורים זהים',
+      message: 'יש להזין טקסט שונה לכל כפתור תגובה.',
+    });
+    return;
+  }
+
   setCreatingTemplate(true);
 
   try {
@@ -716,13 +783,36 @@ const handleCreateTemplate = async () => {
       'createWhatsAppTemplate'
     );
 
-    const result = await fn({
-      agentId: selectedAgentId,
-      name: newTemplateName.trim(),
-      category: newTemplateCategory,
-      language: newTemplateLanguage,
-      bodyText: newTemplateBody.trim(),
-    });
+  const result = await fn({
+  agentId: selectedAgentId,
+  name: newTemplateName.trim(),
+  category: newTemplateCategory,
+  language: newTemplateLanguage,
+  bodyText: newTemplateBody.trim(),
+
+  bodyExamples:
+    variableNumbers.length === 1
+      ? [newTemplateExample1.trim()]
+      : [],
+
+  quickReplyButtons,
+
+  quickReplyActions: {
+    ...(newTemplateQuickReply1.trim()
+      ? {
+          [newTemplateQuickReply1.trim()]:
+            "interested",
+        }
+      : {}),
+
+    ...(newTemplateQuickReply2.trim()
+      ? {
+          [newTemplateQuickReply2.trim()]:
+            "declined",
+        }
+      : {}),
+  },
+});
 
     const data: any = result.data;
 
@@ -736,13 +826,13 @@ const handleCreateTemplate = async () => {
 
     setNewTemplateName('');
     setNewTemplateBody('');
+    setNewTemplateExample1('');
+    setNewTemplateQuickReply1('');
+    setNewTemplateQuickReply2('');
 
     await loadTemplates(selectedAgentId);
   } catch (e: any) {
-    console.error(
-      '[createWhatsAppTemplate]',
-      e
-    );
+    console.error('[createWhatsAppTemplate]', e);
 
     setDialog({
       type: 'error',
@@ -753,7 +843,6 @@ const handleCreateTemplate = async () => {
     setCreatingTemplate(false);
   }
 };
-
 
 
 // =====================================================
@@ -1089,6 +1178,70 @@ const handleRefreshTemplates = async () => {
               placeholder="תוכן התבנית"
             />
 
+            <div className="rounded border bg-slate-50 p-3 text-sm text-gray-600">
+              ניתן לשלב את שם הלקוח באמצעות המשתנה{' '}
+              <span className="font-mono font-bold">{'{{1}}'}</span>.
+              לדוגמה: שלום {'{{1}}'},
+            </div>
+
+            {getTemplateVariableNumbers(newTemplateBody).includes(1) && (
+              <div className="space-y-1">
+                <label className="block text-sm font-bold">
+                  דוגמה למשתנה {'{{1}}'}
+                </label>
+
+                <input
+                  className="border rounded px-2 py-2 w-full"
+                  value={newTemplateExample1}
+                  onChange={(e) =>
+                    setNewTemplateExample1(e.target.value)
+                  }
+                  placeholder="לדוגמה: ישראל"
+                />
+              </div>
+            )}
+
+            <div className="rounded border p-3 space-y-3">
+              <div>
+                <div className="font-bold">
+                  כפתורי תגובה מהירה
+                </div>
+
+                <div className="text-sm text-gray-500 mt-1">
+                  אופציונלי. עבור תהליך הזימון מומלץ להשתמש בשני הכפתורים המוצעים.
+                </div>
+              </div>
+
+              <input
+                className="border rounded px-2 py-2 w-full"
+                value={newTemplateQuickReply1}
+                onChange={(e) =>
+                  setNewTemplateQuickReply1(e.target.value)
+                }
+                placeholder="כן, אשמח לקבוע"
+              />
+
+              <input
+                className="border rounded px-2 py-2 w-full"
+                value={newTemplateQuickReply2}
+                onChange={(e) =>
+                  setNewTemplateQuickReply2(e.target.value)
+                }
+                placeholder="לא מעוניין כרגע"
+              />
+
+              <button
+                type="button"
+                className="text-sm text-blue-700 underline"
+                onClick={() => {
+                  setNewTemplateQuickReply1('כן, אשמח לקבוע');
+                  setNewTemplateQuickReply2('לא מעוניין כרגע');
+                }}
+              >
+                מילוי הכפתורים המומלצים
+              </button>
+            </div>
+
             <div className="flex justify-end">
               <Button
                 text={
@@ -1172,6 +1325,9 @@ const handleRefreshTemplates = async () => {
                       <th className="p-2 text-right">
                         תוכן
                       </th>
+                      <th className="p-2 text-right">
+                        כפתורים
+                      </th>
                     </tr>
                   </thead>
 
@@ -1197,6 +1353,11 @@ const handleRefreshTemplates = async () => {
                         </td>
                         <td className="p-2 max-w-xs truncate">
                           {t.bodyText || '-'}
+                        </td>
+                        <td className="p-2">
+                          {t.quickReplyButtons?.length
+                            ? t.quickReplyButtons.join(' | ')
+                            : '-'}
                         </td>
                       </tr>
                     ))}
