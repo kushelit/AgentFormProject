@@ -1461,17 +1461,17 @@ if (doneSheets.length === 0 || result.rows.length === 0) {
   return;
 }
 
-console.log("[filter meitav] selectedTargetReportMonth:", selectedTargetReportMonth);
-console.log("[filter meitav] unique reportMonths in rows:", 
-  [...new Set(result.rows
-    .filter(r => r.sourceSheetName?.includes("מיטב"))
-    .map(r => JSON.stringify({
-      reportMonth: r.reportMonth,
-      reportMonthOriginal: r.reportMonthOriginal,
-      offset: r._sheetReportMonthOffset
-    }))
-  )].slice(0, 5)
-);
+// console.log("[filter meitav] selectedTargetReportMonth:", selectedTargetReportMonth);
+// console.log("[filter meitav] unique reportMonths in rows:", 
+//   [...new Set(result.rows
+//     .filter(r => r.sourceSheetName?.includes("מיטב"))
+//     .map(r => JSON.stringify({
+//       reportMonth: r.reportMonth,
+//       reportMonthOriginal: r.reportMonthOriginal,
+//       offset: r._sheetReportMonthOffset
+//     }))
+//   )].slice(0, 5)
+// );
 const filteredRows =
   selectedMultiSheetProfile?.enableReportMonthFilter && selectedTargetReportMonth
     ? result.rows.filter((row) => {
@@ -1525,13 +1525,15 @@ if (filteredRows.length === 0) {
 }
 
 setStandardizedRows(filteredRows);
-console.log("[filter meitav debug]", JSON.stringify({
-  expectedOriginal: applyMonthOffset(selectedTargetReportMonth, -1),
-  firstRowOriginal: result.rows.find(r => r.sourceSheetName?.includes("מיטב"))?.reportMonthOriginal,
-  firstRowMonth: result.rows.find(r => r.sourceSheetName?.includes("מיטב"))?.reportMonth,
-  sanitizedExpected: sanitizeMonth(applyMonthOffset(selectedTargetReportMonth, -1)),
-  sanitizedActual: sanitizeMonth(result.rows.find(r => r.sourceSheetName?.includes("מיטב"))?.reportMonthOriginal),
-}));
+// console.log("[filter meitav debug]", JSON.stringify({
+//   expectedOriginal: applyMonthOffset(selectedTargetReportMonth, -1),
+//   firstRowOriginal: result.rows.find(r => r.sourceSheetName?.includes("מיטב"))?.reportMonthOriginal,
+//   firstRowMonth: result.rows.find(r => r.sourceSheetName?.includes("מיטב"))?.reportMonth,
+//   sanitizedExpected: sanitizeMonth(applyMonthOffset(selectedTargetReportMonth, -1)),
+//   sanitizedActual: sanitizeMonth(result.rows.find(r => r.sourceSheetName?.includes("מיטב"))?.reportMonthOriginal),
+// })
+
+// );
 
 const fileMonths = Array.from(
   new Set(filteredRows.map((r) => sanitizeMonth(r.reportMonth)).filter(Boolean))

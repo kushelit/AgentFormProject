@@ -193,8 +193,8 @@ export async function parseHarBituchXlsx(file: File): Promise<HarBituchParseResu
     ws["!ref"] = XLSX.utils.encode_range(ref);
   }
 
-  console.log("ws ref:", ws["!ref"]);
-  console.log("ws keys:", Object.keys(ws).slice(0, 20));
+  // console.log("ws ref:", ws["!ref"]);
+  // console.log("ws keys:", Object.keys(ws).slice(0, 20));
 
   const range = XLSX.utils.decode_range(ws["!ref"] ?? "A1:K20");
   const rawRows: any[][] = [];
@@ -215,7 +215,7 @@ export async function parseHarBituchXlsx(file: File): Promise<HarBituchParseResu
     rawRows.push(row);
   }
 
-  console.log("rawRows length:", rawRows.length);
+  // console.log("rawRows length:", rawRows.length);
 
   let extractedAt = "";
   let headerRowIdx = -1;
@@ -223,7 +223,7 @@ export async function parseHarBituchXlsx(file: File): Promise<HarBituchParseResu
 
   for (let i = 0; i < Math.min(rawRows.length, 10); i++) {
     const row = rawRows[i] as any[];
-    console.log(`raw row ${i}:`, row);
+    // console.log(`raw row ${i}:`, row);
 
     if (!row || row.length === 0) continue;
 
@@ -245,9 +245,9 @@ export async function parseHarBituchXlsx(file: File): Promise<HarBituchParseResu
   }
 
   const headers = (rawRows[headerRowIdx] as any[]).map((h: any) => String(h ?? "").trim());
-  console.log("headers:", headers);
-  console.log("headerRowIdx:", headerRowIdx);
-  console.log("first data row:", rawRows[headerRowIdx + 1]);
+  // console.log("headers:", headers);
+  // console.log("headerRowIdx:", headerRowIdx);
+  // console.log("first data row:", rawRows[headerRowIdx + 1]);
 
   const col = (name: string) => headers.indexOf(name);
 
@@ -291,9 +291,9 @@ export async function parseHarBituchXlsx(file: File): Promise<HarBituchParseResu
       emptyRowCount = 0;
     }
 
-    if (i < headerRowIdx + 20) {
-      console.log(`row ${i}: main="${main}" sub="${sub}" policy="${get("מספר פוליסה")}"`);
-    }
+    // if (i < headerRowIdx + 20) {
+    //   console.log(`row ${i}: main="${main}" sub="${sub}" policy="${get("מספר פוליסה")}"`);
+    // }
 
     if (!main && !sub) continue;
     if ((main && main.startsWith("תחום")) || (sub && sub.startsWith("תחום"))) continue;

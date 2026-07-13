@@ -328,18 +328,18 @@ export async function createWhatsAppTemplateImpl(
     components,
   };
 
-  console.log(
-    "[createWhatsAppTemplate] Creating template:",
-    JSON.stringify({
-      agentId,
-      wabaId,
-      name,
-      category,
-      language,
-      bodyVariableCount,
-      quickReplyButtons,
-    })
-  );
+  // console.log(
+  //   "[createWhatsAppTemplate] Creating template:",
+  //   JSON.stringify({
+  //     agentId,
+  //     wabaId,
+  //     name,
+  //     category,
+  //     language,
+  //     bodyVariableCount,
+  //     quickReplyButtons,
+  //   })
+  // );
 
   const res = await fetch(
     `${WA_API_URL}/${wabaId}/message_templates`,

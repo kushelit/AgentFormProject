@@ -664,7 +664,7 @@ const findRaw = (commissionType: string, isMinuy: boolean) => {
             const niudNormalized = niudRow
               ? normalizeCommissionForSave(niudRaw, niudRow.valueMode, vatMode)
               : null;
-  console.log("saving default for groupKey:", groupKey, "hekefRaw:", hekefRaw, "nifraimRaw:", nifraimRaw, "niudRaw:", niudRaw);
+ // console.log("saving default for groupKey:", groupKey, "hekefRaw:", hekefRaw, "nifraimRaw:", nifraimRaw, "niudRaw:", niudRaw);
 
             const payloadDefault = {
               AgentId: effectiveAgentId,

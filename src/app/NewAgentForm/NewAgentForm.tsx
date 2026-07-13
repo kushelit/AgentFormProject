@@ -769,12 +769,12 @@ useEffect(() => {
     const idCustomer = String((editData as any)?.IDCustomer ?? "").trim();
     const agent = String((editData as any)?.AgentId ?? selectedAgentId ?? "").trim();
 
-    console.log("AUTO-FILL start", { editingRow, idCustomer, agent });
+    //console.log("AUTO-FILL start", { editingRow, idCustomer, agent });
 
     if (!idCustomer || !agent) return;
 
     const customerData = await fetchCustomerBelongToAgent(idCustomer, agent);
-    console.log("AUTO-FILL customerData", customerData);
+    //console.log("AUTO-FILL customerData", customerData);
 
     if (!customerData) return;
 

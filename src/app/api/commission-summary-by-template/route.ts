@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
         jobIds.push(...ids);
       }
 
-      console.log('[template-drill] ym mode, jobIds:', jobIds.length);
+      //console.log('[template-drill] ym mode, jobIds:', jobIds.length);
 
       if (!jobIds.length) {
         return NextResponse.json({ byTemplateMonth: {}, templateNames: {}, allMonths: [] });
@@ -68,7 +68,7 @@ export async function POST(req: NextRequest) {
         ],
       });
 
-      console.log('[template-drill] ym mode, externalCommissions rows:', externalDocs.length);
+     // console.log('[template-drill] ym mode, externalCommissions rows:', externalDocs.length);
 
       for (const doc of externalDocs) {
         const r = doc.data() as any;

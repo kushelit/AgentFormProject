@@ -166,6 +166,13 @@ const [isCommissionSplitEnabled, setIsCommissionSplitEnabled] = useState(false);
 const [importRunId, setImportRunId] = useState<string | null>(null);
 const [rollbackLoading, setRollbackLoading] = useState(false);
 
+const [previewLoading, setPreviewLoading] = useState(false);
+const [previewData, setPreviewData] = useState<{
+  previewList: Array<{ customerId: string; fullName: string; firstName: string; lastName: string }>;
+  skipped: number;
+  total: number;
+  toCreate: number;
+} | null>(null);
 
 useEffect(() => {
   setCurrentPage(1);
@@ -1440,17 +1447,33 @@ const dedupeSales = (rows: any[]) => {
   return Array.from(m.values());
 };
 
-
-const handleImportCustomers = async () => {
+const handlePreviewImport = async () => {
   if (!selectedAgentId) { addToast("error", "בחר סוכן"); return; }
-  setImportLoading(true);
+  setPreviewLoading(true);
+  setPreviewData(null);
   setImportResult(null);
   setImportModalOpen(true);
+  try {
+    const fn = httpsCallable(functions, "previewCustomerImport");
+    const res: any = await fn({ agentId: selectedAgentId });
+    setPreviewData(res.data);
+  } catch (e: any) {
+    addToast("error", "כשל בתצוגה מקדימה: " + (e?.message || ""));
+    setImportModalOpen(false);
+  } finally {
+    setPreviewLoading(false);
+  }
+};
+
+const handleConfirmImport = async () => {
+  if (!selectedAgentId) return;
+  setImportLoading(true);
   try {
     const fn = httpsCallable(functions, "importCustomersFromCommissions");
     const res: any = await fn({ agentId: selectedAgentId });
     setImportResult(res.data);
     setImportRunId(res.data.runId);
+    setPreviewData(null);
     reloadCustomerData(selectedAgentId);
   } catch (e: any) {
     addToast("error", "כשל בייבוא לקוחות: " + (e?.message || ""));
@@ -1512,7 +1535,7 @@ const handleRollbackImport = async () => {
     disabled={!editingRowCustomer} // מנוטרל אם אין שורה שנערכת
   />
   <Button
-  onClick={handleImportCustomers}
+  onClick={handlePreviewImport}
   text="ייבא לקוחות מטעינות"
   type="primary"
   icon="off"
@@ -2264,72 +2287,92 @@ const handleRollbackImport = async () => {
   />
 ))}
 
-
 {importModalOpen && (
   <div className="modal">
-    <div className="modal-content" style={{ maxWidth: 400, textAlign: 'center' }}>
+    <div className="modal-content" style={{ maxWidth: 650, textAlign: 'center' }}>
+      <button className="close-button" onClick={() => { setImportModalOpen(false); setPreviewData(null); setImportResult(null); }}>✖</button>
       <div className="modal-title">ייבוא לקוחות מטעינות</div>
-      {importLoading ? (
+
+      {(previewLoading || importLoading) && (
         <div className="mt-4">
           <div className="animate-spin text-4xl mb-3">⏳</div>
-          <div className="text-gray-600">מייבא לקוחות, אנא המתן...</div>
-          <div className="text-sm text-gray-400 mt-2">הפעולה עשויה לקחת מספר דקות בריצה ראשונה</div>
+          <div className="text-gray-600">{previewLoading ? "טוען תצוגה מקדימה..." : "מייבא לקוחות, אנא המתן..."}</div>
+          <div className="text-sm text-gray-400 mt-2">הפעולה עשויה לקחת מספר דקות</div>
         </div>
-      ) : importResult ? (
+      )}
+
+      {!previewLoading && !importLoading && previewData && !importResult && (
+        <div className="mt-4">
+          <div className="grid grid-cols-3 gap-3 mb-4">
+            <div className="p-3 bg-gray-50 rounded-lg"><div className="text-xs text-gray-500">סה״כ נמצאו</div><div className="text-2xl font-bold">{previewData.total}</div></div>
+            <div className="p-3 bg-green-50 rounded-lg"><div className="text-xs text-green-600">יוצרו חדשים</div><div className="text-2xl font-bold text-green-700">{previewData.toCreate}</div></div>
+            <div className="p-3 bg-blue-50 rounded-lg"><div className="text-xs text-blue-600">כבר קיימים</div><div className="text-2xl font-bold text-blue-700">{previewData.skipped}</div></div>
+          </div>
+          {previewData.previewList.length > 0 && (
+            <div style={{ maxHeight: 300, overflowY: 'auto', textAlign: 'right' }} className="border rounded mb-4">
+              <table style={{ width: '100%', fontSize: 13 }}>
+                <thead><tr style={{ background: '#f3f4f6' }}><th className="p-2">תז</th><th className="p-2">שם מלא</th><th className="p-2">שם פרטי</th><th className="p-2">שם משפחה</th></tr></thead>
+                <tbody>
+                  {previewData.previewList.map((r, i) => (
+                    <tr key={i} style={{ borderTop: '1px solid #e5e7eb' }}>
+                      <td className="p-2">{r.customerId}</td><td className="p-2">{r.fullName}</td><td className="p-2">{r.firstName}</td><td className="p-2">{r.lastName}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          <div className="flex gap-2 justify-center mt-2 mb-2">
+  <button
+    className="px-4 py-1 bg-gray-600 text-white rounded-lg text-sm"
+    onClick={() => {
+      const ws = XLSX.utils.json_to_sheet(
+        previewData.previewList.map((r) => ({
+          "תעודת זהות": r.customerId,
+          "שם מלא": r.fullName,
+          "שם פרטי": r.firstName,
+          "שם משפחה": r.lastName,
+        }))
+      );
+      ws["!rtl"] = true;
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "תצוגה מקדימה");
+      const buf = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+      saveAs(new Blob([buf], { type: "application/octet-stream" }), "תצוגה_מקדימה_ייבוא.xlsx");
+    }}
+  >
+    הורד לאקסל ({previewData.toCreate})
+  </button>
+</div>
+          <div className="flex gap-2 justify-center">
+            <button className="px-6 py-2 bg-blue-600 text-white rounded-lg font-bold" onClick={handleConfirmImport}>אשר ייבוא ({previewData.toCreate})</button>
+            <button className="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg font-bold" onClick={() => { setImportModalOpen(false); setPreviewData(null); }}>בטל</button>
+          </div>
+        </div>
+      )}
+
+      {!previewLoading && !importLoading && importResult && (
         <div className="mt-4 space-y-3">
           <div className="text-green-600 text-5xl">✓</div>
           <div className="grid grid-cols-3 gap-3 mt-4">
-            <div className="p-3 bg-gray-50 rounded-lg">
-              <div className="text-xs text-gray-500">סה״כ נמצאו</div>
-              <div className="text-2xl font-bold">{importResult.total}</div>
-            </div>
-            <div className="p-3 bg-green-50 rounded-lg">
-              <div className="text-xs text-green-600">נוצרו חדשים</div>
-              <div className="text-2xl font-bold text-green-700">{importResult.created}</div>
-            </div>
-            <div className="p-3 bg-blue-50 rounded-lg">
-              <div className="text-xs text-blue-600">כבר קיימים</div>
-              <div className="text-2xl font-bold text-blue-700">{importResult.skipped}</div>
-            </div>
+            <div className="p-3 bg-gray-50 rounded-lg"><div className="text-xs text-gray-500">סה״כ נמצאו</div><div className="text-2xl font-bold">{importResult.total}</div></div>
+            <div className="p-3 bg-green-50 rounded-lg"><div className="text-xs text-green-600">נוצרו חדשים</div><div className="text-2xl font-bold text-green-700">{importResult.created}</div></div>
+            <div className="p-3 bg-blue-50 rounded-lg"><div className="text-xs text-blue-600">כבר קיימים</div><div className="text-2xl font-bold text-blue-700">{importResult.skipped}</div></div>
           </div>
-
-          <button
-            className="mt-4 px-6 py-2 bg-blue-600 text-white rounded-lg font-bold w-full"
-            onClick={() => { setImportModalOpen(false); setImportResult(null); }}
-          >
-            סגור
-          </button>
-
+          <button className="mt-4 px-6 py-2 bg-blue-600 text-white rounded-lg font-bold w-full" onClick={() => { setImportModalOpen(false); setImportResult(null); }}>סגור</button>
           {importResult.createdList?.length > 0 && (
-            <button
-              className="mt-2 px-6 py-2 bg-green-600 text-white rounded-lg font-bold w-full"
-              onClick={() => {
-                const ws = XLSX.utils.json_to_sheet(
-                  importResult.createdList.map((r) => ({
-                    "תעודת זהות": r.customerId,
-                    "שם מלא": r.fullName,
-                  }))
-                );
-                ws["!rtl"] = true;
-                const wb = XLSX.utils.book_new();
-                XLSX.utils.book_append_sheet(wb, ws, "לקוחות חדשים");
-                const buf = XLSX.write(wb, { bookType: "xlsx", type: "array" });
-                saveAs(new Blob([buf], { type: "application/octet-stream" }), "לקוחות_שיובאו.xlsx");
-              }}
-            >
-              הורד רשימה ({importResult.created})
-            </button>
+            <button className="mt-2 px-6 py-2 bg-green-600 text-white rounded-lg font-bold w-full" onClick={() => {
+              const ws = XLSX.utils.json_to_sheet(importResult.createdList.map((r) => ({ "תעודת זהות": r.customerId, "שם מלא": r.fullName })));
+              ws["!rtl"] = true;
+              const wb = XLSX.utils.book_new();
+              XLSX.utils.book_append_sheet(wb, ws, "לקוחות חדשים");
+              const buf = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+              saveAs(new Blob([buf], { type: "application/octet-stream" }), "לקוחות_שיובאו.xlsx");
+            }}>הורד רשימה ({importResult.created})</button>
           )}
-
-          <button
-            className="mt-2 px-6 py-2 bg-red-600 text-white rounded-lg font-bold w-full"
-            onClick={handleRollbackImport}
-            disabled={rollbackLoading}
-          >
-            {rollbackLoading ? "מבטל..." : "בטל ייבוא (מחק הכל)"}
-          </button>
+          <button className="mt-2 px-6 py-2 bg-red-600 text-white rounded-lg font-bold w-full" onClick={handleRollbackImport} disabled={rollbackLoading}>{rollbackLoading ? "מבטל..." : "בטל ייבוא (מחק הכל)"}</button>
         </div>
-      ) : null}
+      )}
     </div>
   </div>
 )}

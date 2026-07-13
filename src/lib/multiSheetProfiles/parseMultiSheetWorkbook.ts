@@ -101,9 +101,9 @@ export async function parseMultiSheetWorkbook(
       defval: "",
       raw: true,
     });
-console.log("[meitav headers]", 
-  sheetName.includes("מיטב") ? Object.keys(jsonData[0] || {}) : "not meitav"
-);
+// console.log("[meitav headers]", 
+//   sheetName.includes("מיטב") ? Object.keys(jsonData[0] || {}) : "not meitav"
+// );
 
     if (!jsonData.length) {
       matchedSheets.push({
@@ -138,12 +138,12 @@ console.log("[meitav headers]",
       continue;
     }
 
-    console.log("[parseMultiSheetWorkbook] first row reportMonth before offset:", 
-  standardizedRows[0]?.reportMonth
-);
+//     console.log("[parseMultiSheetWorkbook] first row reportMonth before offset:", 
+//   standardizedRows[0]?.reportMonth
+// );
 const rowsWithOffset = matchedRule.reportMonthOffset
   ? standardizedRows.map((row) => {
-      console.log("[rowsWithOffset meitav] reportMonth =", row.reportMonth, "sheetName =", row.sourceSheetName);
+  //    console.log("[rowsWithOffset meitav] reportMonth =", row.reportMonth, "sheetName =", row.sourceSheetName);
       return {
         ...row,
         reportMonthOriginal: row.reportMonth,

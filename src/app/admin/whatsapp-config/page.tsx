@@ -673,10 +673,10 @@ const handleRegisterPhone = async () => {
       pin: registrationPin.trim(),
     });
 
-    console.log(
-      '[registerAgentWhatsAppPhone]',
-      result.data
-    );
+    // console.log(
+    //   '[registerAgentWhatsAppPhone]',
+    //   result.data
+    // );
 
     setDialog({
       type: 'success',

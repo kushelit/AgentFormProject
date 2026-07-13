@@ -689,12 +689,11 @@ if (templateId === "hacshara_zvira") {
   }
 }
 if (templateId === "harel_tzvira") {
-  const targetMonth1 = getPreviousMonthStr();   // מינוס חודש
-  const targetMonth2 = getTwoMonthsAgoStr();    // מינוס חודשיים
+  // 🔧 רק M-2 — הדוח תמיד מכיל שני חודשים, אנחנו לוקחים רק את הנכון
+  const targetMonth = getTwoMonthsAgoStr();
 
   rowsForThisFile = rowsForThisFile.filter((row: any) => {
-    const rm = safeStr(row.reportMonth);
-    return rm === targetMonth1 || rm === targetMonth2;
+    return safeStr(row.reportMonth) === targetMonth;
   });
 
   if (!rowsForThisFile.length) {
@@ -705,7 +704,7 @@ if (templateId === "harel_tzvira") {
       jobId,
       templateId,
       templateName: safeStr(template.templateName) || templateId,
-      message: `הדוח נקלט אך אין נתונים עבור ${targetMonth1} או ${targetMonth2}`,
+      message: `הדוח נקלט אך אין נתונים עבור ${targetMonth}`,
       reason: "filter_month_empty",
     });
     return;
@@ -717,15 +716,15 @@ const portalFilterSnap = await db
   .doc(`${agentId}_${companyId}`)
   .get();
 
-console.log(`[portalFilter] doc=${agentId}_${companyId} exists=${portalFilterSnap.exists}`);
+//console.log(`[portalFilter] doc=${agentId}_${companyId} exists=${portalFilterSnap.exists}`);
 
 if (portalFilterSnap.exists) {
   const allowedCodes: string[] = (portalFilterSnap.data()?.agentCodes || [])
     .map((c: any) => safeStr(c))
     .filter(Boolean);
 
-    console.log(`[portalFilter] allowedCodes=${JSON.stringify(allowedCodes)}`);
-  console.log(`[portalFilter] rowsBeforeFilter=${rowsForThisFile.length}`);
+ //   console.log(`[portalFilter] allowedCodes=${JSON.stringify(allowedCodes)}`);
+ // console.log(`[portalFilter] rowsBeforeFilter=${rowsForThisFile.length}`);
 
   if (allowedCodes.length > 0) {
     rowsForThisFile = rowsForThisFile.filter((row: any) =>

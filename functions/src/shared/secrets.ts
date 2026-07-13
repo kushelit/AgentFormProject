@@ -18,3 +18,12 @@ export const MAGIC_WEB_API_KEY = defineSecret("MAGIC_WEB_API_KEY");
 
 // secret name in Secret Manager: SURENSE_ACTIVITY_API_KEY
 export const SURENSE_ACTIVITY_API_KEY = defineSecret("SURENSE_ACTIVITY_API_KEY");
+
+export const MICROSOFT_CLIENT_ID =
+  defineSecret("MICROSOFT_CLIENT_ID");
+
+export const MICROSOFT_CLIENT_SECRET =
+  defineSecret("MICROSOFT_CLIENT_SECRET");
+
+export const MICROSOFT_TENANT_ID =
+  defineSecret("MICROSOFT_TENANT_ID");

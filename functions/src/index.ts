@@ -27,7 +27,7 @@ export { calculateCustomerTiers, applyCustomerTiers } from './customerTiers';
 
 export { notifyNewTaxReturn } from "./sharon/notifyNewTaxReturn";
 
-export { importCustomersFromCommissions, rollbackCustomerImport } from "./importCustomersFromCommissions";
+export { importCustomersFromCommissions, rollbackCustomerImport, previewCustomerImport } from "./importCustomersFromCommissions";
 
 export { getReengagementLeads } from "./getReengagementLeads";
 export { updateReengagementLeadStatus } from "./updateReengagementLeadStatus";
@@ -40,3 +40,18 @@ export { sendWhatsAppConversationMessage } from "./sendWhatsAppConversationMessa
 export { createWhatsAppTemplate } from "./createWhatsAppTemplate";
 export { refreshWhatsAppTemplates } from "./refreshWhatsAppTemplates";
 export { closeReengagementLead } from "./closeReengagementLead";
+
+export {startMicrosoftBookingsAuth, } from "./startMicrosoftBookingsAuth";
+
+export {
+  microsoftBookingsOAuthCallback,
+} from "./microsoftBookingsOAuthCallback";
+
+export {
+  syncMicrosoftBookingsAppointments,
+} from "./syncMicrosoftBookingsAppointments";
+
+
+export {
+  testMicrosoftBookingsConnection,
+} from "./testMicrosoftBookingsConnection";

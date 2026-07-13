@@ -66,9 +66,9 @@ export async function POST(req: NextRequest) {
       return b.totalPremiumAmount - a.totalPremiumAmount;
     });
 
-    console.log('[anomaly] total rows (after hekef filter):', allRows.length);
-    console.log('[anomaly] negative rows:', allRows.filter(r => r.totalCommissionAmount < 0).length);
-    console.log('[anomaly] anomalies:', anomalies.length);
+    // console.log('[anomaly] total rows (after hekef filter):', allRows.length);
+    // console.log('[anomaly] negative rows:', allRows.filter(r => r.totalCommissionAmount < 0).length);
+    // console.log('[anomaly] anomalies:', anomalies.length);
 
     return NextResponse.json({ rows: anomalies, total: anomalies.length });
 

@@ -171,7 +171,7 @@ for (let i = 0; i < 15; i++) {
 await clearOtp(runId).catch(() => {});
 
   // ✅ סגירת פופ-אפ אם מופיע (לא תמיד מופיע — תלוי בסוכן)
-  console.log("[Altshuler] בודק אם יש פופ-אפ לסגירה...");
+ // console.log("[Altshuler] בודק אם יש פופ-אפ לסגירה...");
   for (let i = 0; i < 10; i++) {
     const closed = await cdp.send("Runtime.evaluate", {
       expression: `(function() {
@@ -183,7 +183,7 @@ await clearOtp(runId).catch(() => {});
       returnByValue: true,
     });
     if (closed.result.value === 'CLOSED') {
-      console.log("[Altshuler] פופ-אפ נסגר בהצלחה");
+    //  console.log("[Altshuler] פופ-אפ נסגר בהצלחה");
       await page.waitForTimeout(1000);
       break;
     }
