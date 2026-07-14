@@ -53,11 +53,59 @@ export async function getReengagementLeadsImpl(
       phone:
         data.phone || "",
 
+      email:
+        data.email || null,
+
       lastActivityDate:
         data.lastActivityDate || "",
 
       status:
         data.status || "pending",
+
+      interestStatus:
+        data.interestStatus || "pending",
+
+      bookingStatus:
+        data.bookingStatus || "not_sent",
+
+      bookingLink:
+        data.bookingLink || null,
+
+      bookingAppointmentId:
+        data.bookingAppointmentId || null,
+
+      bookingCustomerName:
+        data.bookingCustomerName || null,
+
+      bookingCustomerEmail:
+        data.bookingCustomerEmail || null,
+
+      bookingCustomerPhone:
+        data.bookingCustomerPhone || null,
+
+      bookingServiceId:
+        data.bookingServiceId || null,
+
+      bookingServiceName:
+        data.bookingServiceName || null,
+
+      bookingStartAt:
+        data.bookingStartAt || null,
+
+      bookingEndAt:
+        data.bookingEndAt || null,
+
+      bookedAt:
+        toMillisOrNull(data.bookedAt),
+
+      bookingCancelledAt:
+        toMillisOrNull(data.bookingCancelledAt),
+
+      bookingLinkSentAt:
+        toMillisOrNull(data.bookingLinkSentAt),
+
+      interestRespondedAt:
+        toMillisOrNull(data.interestRespondedAt),
 
       waSentAt:
         toMillisOrNull(data.waSentAt),
@@ -75,18 +123,6 @@ export async function getReengagementLeadsImpl(
 
       surenseWorkflowId:
         data.surenseWorkflowId || null,
-
-      interestStatus:
-        data.interestStatus || "pending",
-
-      bookingStatus:
-        data.bookingStatus || "not_sent",
-
-      bookingLinkSentAt:
-        toMillisOrNull(data.bookingLinkSentAt),
-
-      interestRespondedAt:
-        toMillisOrNull(data.interestRespondedAt),
     };
   });
 

@@ -29,16 +29,9 @@ type MicrosoftBusiness = {
 };
 
 type MicrosoftBookingsConfig = {
-  status?:
-    | 'connected'
-    | 'needs_business_selection'
-    | 'no_booking_business'
-    | 'disconnected'
-    | string;
-
+  status?: string;
   connected?: boolean;
 
-  microsoftUserId?: string | null;
   microsoftUserName?: string | null;
   microsoftUserEmail?: string | null;
 
@@ -50,8 +43,6 @@ type MicrosoftBookingsConfig = {
 
   availableBusinesses?: MicrosoftBusiness[];
 
-  scope?: string | null;
-
   lastSyncAt?: {
     toDate?: () => Date;
   } | null;
@@ -59,6 +50,8 @@ type MicrosoftBookingsConfig = {
   lastSyncStatus?: string | null;
   lastSyncError?: string | null;
   lastSyncAppointmentCount?: number | null;
+  lastSyncMatchedCount?: number | null;
+  lastSyncUnmatchedCount?: number | null;
 
   connectedAt?: {
     toDate?: () => Date;
@@ -101,7 +94,12 @@ export default function MicrosoftBookingsSettingsPage() {
 
   const [loadingConfig, setLoadingConfig] = useState(true);
   const [connecting, setConnecting] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [disconnecting, setDisconnecting] = useState(false);
+  const [savingBusiness, setSavingBusiness] = useState(false);
   const [testingConnection, setTestingConnection] = useState(false);
+
+  const [selectedBusinessId, setSelectedBusinessId] = useState('');
 
   const [dialog, setDialog] =
     useState<DialogState | null>(null);
@@ -136,18 +134,28 @@ export default function MicrosoftBookingsSettingsPage() {
       (snapshot) => {
         if (!snapshot.exists()) {
           setConfig(null);
+          setSelectedBusinessId('');
           setLoadingConfig(false);
           return;
         }
 
         const data = snapshot.data();
 
+        const availableBusinesses =
+          Array.isArray(data.availableBusinesses)
+            ? data.availableBusinesses.map(
+                (business: Record<string, unknown>) => ({
+                  id: String(business.id || ''),
+                  displayName: String(
+                    business.displayName || business.id || ''
+                  ),
+                })
+              )
+            : [];
+
         setConfig({
           status: String(data.status || ''),
           connected: data.connected === true,
-
-          microsoftUserId:
-            data.microsoftUserId || null,
 
           microsoftUserName:
             data.microsoftUserName || null,
@@ -170,20 +178,7 @@ export default function MicrosoftBookingsSettingsPage() {
           bookingBusinessPublicUrl:
             data.bookingBusinessPublicUrl || null,
 
-          availableBusinesses:
-            Array.isArray(data.availableBusinesses)
-              ? data.availableBusinesses.map(
-                  (business: Record<string, unknown>) => ({
-                    id: String(business.id || ''),
-                    displayName: String(
-                      business.displayName || business.id || ''
-                    ),
-                  })
-                )
-              : [],
-
-          scope:
-            data.scope || null,
+          availableBusinesses,
 
           lastSyncAt:
             data.lastSyncAt || null,
@@ -199,9 +194,27 @@ export default function MicrosoftBookingsSettingsPage() {
               ? data.lastSyncAppointmentCount
               : null,
 
+          lastSyncMatchedCount:
+            typeof data.lastSyncMatchedCount === 'number'
+              ? data.lastSyncMatchedCount
+              : null,
+
+          lastSyncUnmatchedCount:
+            typeof data.lastSyncUnmatchedCount === 'number'
+              ? data.lastSyncUnmatchedCount
+              : null,
+
           connectedAt:
             data.connectedAt || null,
         });
+
+        setSelectedBusinessId(
+          String(
+            data.bookingBusinessId ||
+            availableBusinesses[0]?.id ||
+            ''
+          )
+        );
 
         setLoadingConfig(false);
       },
@@ -245,7 +258,7 @@ export default function MicrosoftBookingsSettingsPage() {
         type: 'warning',
         title: 'נדרשת בחירת עסק',
         message:
-          'החשבון חובר, אך נמצאו מספר עסקי Bookings. בהמשך נוסיף בחירה מתוך המסך.',
+          'החשבון חובר. כעת יש לבחור את עסק ה־Bookings הרצוי.',
       });
       return;
     }
@@ -303,16 +316,6 @@ export default function MicrosoftBookingsSettingsPage() {
           : 'bg-gray-100 text-gray-700';
 
   const handleConnectMicrosoft = async () => {
-    if (!agentId) {
-      setDialog({
-        type: 'warning',
-        title: 'נדרשת התחברות',
-        message:
-          'יש להתחבר למערכת לפני חיבור Microsoft Bookings.',
-      });
-      return;
-    }
-
     setConnecting(true);
 
     try {
@@ -336,10 +339,7 @@ export default function MicrosoftBookingsSettingsPage() {
 
       window.location.assign(authUrl);
     } catch (error: any) {
-      console.error(
-        '[MicrosoftBookingsSettings] connect failed',
-        error
-      );
+      setConnecting(false);
 
       setDialog({
         type: 'error',
@@ -348,22 +348,95 @@ export default function MicrosoftBookingsSettingsPage() {
           error?.message ||
           'לא ניתן להתחיל את החיבור ל־Microsoft.',
       });
-
-      setConnecting(false);
     }
   };
 
-  const handleTestMicrosoftConnection = async () => {
-    if (!agentId) {
+  const handleSelectBusiness = async () => {
+    if (!selectedBusinessId) {
       setDialog({
         type: 'warning',
-        title: 'נדרשת התחברות',
+        title: 'לא נבחר עסק',
         message:
-          'יש להתחבר למערכת לפני בדיקת חיבור Microsoft.',
+          'יש לבחור עסק Microsoft Bookings.',
       });
       return;
     }
 
+    setSavingBusiness(true);
+
+    try {
+      const fn = httpsCallable(
+        functions,
+        'selectMicrosoftBookingsBusiness'
+      );
+
+      const result = await fn({
+        businessId: selectedBusinessId,
+      });
+
+      const data = result.data as {
+        bookingBusinessName?: string | null;
+      };
+
+      setDialog({
+        type: 'success',
+        title: 'העסק נשמר',
+        message:
+          `עסק ה־Bookings` +
+          `${data.bookingBusinessName ? ` ${data.bookingBusinessName}` : ''}` +
+          ` נבחר בהצלחה.`,
+      });
+    } catch (error: any) {
+      setDialog({
+        type: 'error',
+        title: 'שמירת העסק נכשלה',
+        message:
+          error?.message ||
+          'לא ניתן לשמור את עסק ה־Bookings.',
+      });
+    } finally {
+      setSavingBusiness(false);
+    }
+  };
+
+  const handleSyncNow = async () => {
+    setSyncing(true);
+
+    try {
+      const fn = httpsCallable(
+        functions,
+        'syncMicrosoftBookingsNow'
+      );
+
+      const result = await fn({});
+      const data = result.data as {
+        appointments?: number;
+        matched?: number;
+        unmatched?: number;
+      };
+
+      setDialog({
+        type: 'success',
+        title: 'הסנכרון הסתיים',
+        message:
+          `נמצאו ${data.appointments ?? 0} פגישות. ` +
+          `${data.matched ?? 0} שויכו ללידים, ` +
+          `${data.unmatched ?? 0} לא שויכו.`,
+      });
+    } catch (error: any) {
+      setDialog({
+        type: 'error',
+        title: 'הסנכרון נכשל',
+        message:
+          error?.message ||
+          'לא ניתן לסנכרן את פגישות Bookings.',
+      });
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const handleTestMicrosoftConnection = async () => {
     setTestingConnection(true);
 
     try {
@@ -374,10 +447,7 @@ export default function MicrosoftBookingsSettingsPage() {
 
       const result = await fn({});
       const data = result.data as {
-        ok?: boolean;
         microsoftUserEmail?: string | null;
-        microsoftUserName?: string | null;
-        bookingBusinessId?: string | null;
         bookingBusinessName?: string | null;
       };
 
@@ -390,11 +460,6 @@ export default function MicrosoftBookingsSettingsPage() {
           `${data.bookingBusinessName ? ` לעסק ${data.bookingBusinessName}` : ''}.`,
       });
     } catch (error: any) {
-      console.error(
-        '[MicrosoftBookingsSettings] connection test failed',
-        error
-      );
-
       setDialog({
         type: 'error',
         title: 'בדיקת החיבור נכשלה',
@@ -407,6 +472,43 @@ export default function MicrosoftBookingsSettingsPage() {
     }
   };
 
+  const handleDisconnect = async () => {
+    const approved = window.confirm(
+      'האם לנתק את חשבון Microsoft Bookings? הסנכרון האוטומטי יופסק.'
+    );
+
+    if (!approved) {
+      return;
+    }
+
+    setDisconnecting(true);
+
+    try {
+      const fn = httpsCallable(
+        functions,
+        'disconnectMicrosoftBookings'
+      );
+
+      await fn({});
+
+      setDialog({
+        type: 'success',
+        title: 'החשבון נותק',
+        message:
+          'החיבור ל־Microsoft Bookings נותק והסנכרון הופסק.',
+      });
+    } catch (error: any) {
+      setDialog({
+        type: 'error',
+        title: 'הניתוק נכשל',
+        message:
+          error?.message ||
+          'לא ניתן לנתק את חשבון Microsoft.',
+      });
+    } finally {
+      setDisconnecting(false);
+    }
+  };
 
   if (!authReady || loadingConfig) {
     return (
@@ -432,8 +534,8 @@ export default function MicrosoftBookingsSettingsPage() {
         </h1>
 
         <p className="text-gray-600">
-          חיבור חשבון Microsoft 365 מאפשר ל־MagicSale
-          לזהות פגישות שנקבעו ולעדכן אוטומטית את סטטוס הליד.
+          חיבור Microsoft 365 מאפשר ל־MagicSale לזהות
+          פגישות שנקבעו ולעדכן אוטומטית את סטטוס הליד.
         </p>
       </header>
 
@@ -456,12 +558,12 @@ export default function MicrosoftBookingsSettingsPage() {
           </span>
         </div>
 
-        {!config?.connected && (
+        {!config?.connected &&
+          connectionStatus !== 'needs_business_selection' && (
           <div className="rounded border bg-slate-50 p-4 space-y-4">
             <div className="text-sm text-gray-700">
-              לאחר הלחיצה תועברי למסך הכניסה של Microsoft.
-              יש להתחבר עם חשבון Microsoft 365 שמחזיק בגישה
-              ל־Microsoft Bookings של הסוכן.
+              יש להתחבר עם חשבון Microsoft 365 שמורשה
+              לגשת ל־Bookings של הסוכן.
             </div>
 
             <Button
@@ -472,6 +574,57 @@ export default function MicrosoftBookingsSettingsPage() {
               }
               onClick={handleConnectMicrosoft}
               disabled={connecting || !agentId}
+            />
+          </div>
+        )}
+
+        {connectionStatus === 'needs_business_selection' && (
+          <div className="rounded border border-yellow-300 bg-yellow-50 p-4 space-y-4">
+            <div>
+              <div className="font-bold">
+                בחירת עסק Microsoft Bookings
+              </div>
+
+              <div className="text-sm text-gray-700 mt-1">
+                נמצאו מספר עסקים בחשבון. יש לבחור את העסק
+                שיחובר לסוכן זה.
+              </div>
+            </div>
+
+            <select
+              className="w-full rounded border bg-white px-3 py-2"
+              value={selectedBusinessId}
+              onChange={(event) =>
+                setSelectedBusinessId(event.target.value)
+              }
+            >
+              <option value="">
+                בחר עסק
+              </option>
+
+              {(config?.availableBusinesses || []).map(
+                (business) => (
+                  <option
+                    key={business.id}
+                    value={business.id}
+                  >
+                    {business.displayName}
+                  </option>
+                )
+              )}
+            </select>
+
+            <Button
+              text={
+                savingBusiness
+                  ? 'שומר בחירה...'
+                  : 'שמור עסק Bookings'
+              }
+              onClick={handleSelectBusiness}
+              disabled={
+                savingBusiness ||
+                !selectedBusinessId
+              }
             />
           </div>
         )}
@@ -488,33 +641,13 @@ export default function MicrosoftBookingsSettingsPage() {
             />
 
             <InfoCard
-              label="שם המשתמש"
-              value={config.microsoftUserName || '-'}
-            />
-
-            <InfoCard
               label="עסק Bookings"
               value={config.bookingBusinessName || '-'}
             />
 
             <InfoCard
-              label="מזהה עסק Bookings"
+              label="מזהה העסק"
               value={config.bookingBusinessId || '-'}
-            />
-
-            <InfoCard
-              label="מייל העסק"
-              value={config.bookingBusinessEmail || '-'}
-            />
-
-            <InfoCard
-              label="טלפון העסק"
-              value={config.bookingBusinessPhone || '-'}
-            />
-
-            <InfoCard
-              label="חובר בתאריך"
-              value={formatTimestamp(config.connectedAt)}
             />
 
             <InfoCard
@@ -528,85 +661,51 @@ export default function MicrosoftBookingsSettingsPage() {
             />
 
             <InfoCard
-              label="פגישות בסנכרון האחרון"
+              label="פגישות שנמצאו"
               value={
                 config.lastSyncAppointmentCount != null
                   ? String(config.lastSyncAppointmentCount)
                   : '-'
               }
             />
-          </div>
-        )}
 
-        {config?.bookingBusinessPublicUrl && (
-          <a
-            href={config.bookingBusinessPublicUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex text-blue-700 underline"
-          >
-            פתיחת עמוד Bookings
-          </a>
-        )}
+            <InfoCard
+              label="פגישות ששויכו"
+              value={
+                config.lastSyncMatchedCount != null
+                  ? String(config.lastSyncMatchedCount)
+                  : '-'
+              }
+            />
 
-        {connectionStatus === 'needs_business_selection' && (
-          <div className="rounded border border-yellow-300 bg-yellow-50 p-4 space-y-3">
-            <div className="font-bold">
-              נמצאו מספר עסקי Bookings
-            </div>
-
-            <div className="text-sm text-gray-700">
-              כרגע מוצגת הרשימה לצורך בדיקה. בשלב הבא נוסיף
-              פונקציה לשמירת הבחירה.
-            </div>
-
-            <div className="space-y-2">
-              {(config?.availableBusinesses || []).map(
-                (business) => (
-                  <div
-                    key={business.id}
-                    className="rounded border bg-white px-3 py-2"
-                  >
-                    <div className="font-semibold">
-                      {business.displayName}
-                    </div>
-
-                    <div className="text-xs text-gray-500">
-                      {business.id}
-                    </div>
-                  </div>
-                )
-              )}
-            </div>
-          </div>
-        )}
-
-        {connectionStatus === 'no_booking_business' && (
-          <div className="rounded border border-orange-300 bg-orange-50 p-4 text-sm">
-            החיבור ל־Microsoft הצליח, אך לא נמצא בחשבון עסק
-            Microsoft Bookings. יש לוודא שהמשתמש המחובר מורשה
-            לגשת ל־Bookings של הסוכן.
+            <InfoCard
+              label="פגישות ללא התאמה"
+              value={
+                config.lastSyncUnmatchedCount != null
+                  ? String(config.lastSyncUnmatchedCount)
+                  : '-'
+              }
+            />
           </div>
         )}
 
         {config?.lastSyncError && (
-          <div className="rounded border border-red-300 bg-red-50 p-4">
-            <div className="font-bold text-red-800">
-              שגיאת סנכרון אחרונה
-            </div>
-
-            <div className="mt-1 text-sm text-red-700 break-words">
-              {config.lastSyncError}
-            </div>
+          <div className="rounded border border-red-300 bg-red-50 p-4 text-red-800">
+            {config.lastSyncError}
           </div>
         )}
 
         {config?.connected && (
-          <div className="rounded border bg-blue-50 p-4 space-y-4 text-sm text-blue-900">
-            <div>
-              הסנכרון האוטומטי מתבצע כל עשר דקות.
-              בשלב הבא נוסיף גם כפתור סנכרון ידני וניתוק חשבון.
-            </div>
+          <div className="flex flex-wrap gap-3">
+            <Button
+              text={
+                syncing
+                  ? 'מסנכרן...'
+                  : 'סנכרן פגישות עכשיו'
+              }
+              onClick={handleSyncNow}
+              disabled={syncing}
+            />
 
             <Button
               text={
@@ -616,6 +715,16 @@ export default function MicrosoftBookingsSettingsPage() {
               }
               onClick={handleTestMicrosoftConnection}
               disabled={testingConnection}
+            />
+
+            <Button
+              text={
+                disconnecting
+                  ? 'מנתק...'
+                  : 'נתק חשבון Microsoft'
+              }
+              onClick={handleDisconnect}
+              disabled={disconnecting}
             />
           </div>
         )}

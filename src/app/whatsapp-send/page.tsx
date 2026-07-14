@@ -35,12 +35,49 @@ interface Lead {
   surenseId: string;
   fullName: string;
   phone: string;
+  email?: string | null;
   lastActivityDate: string;
   status: LeadStatus;
+
   waSentAt: number | null;
   updatedAt: number | null;
+
   surenseStatusName: string | null;
   surenseStatusActive: boolean | null;
+
+  interestStatus?: string;
+  bookingStatus?: string;
+
+  bookingLink?: string | null;
+  bookingAppointmentId?: string | null;
+
+  bookingCustomerName?: string | null;
+  bookingCustomerEmail?: string | null;
+  bookingCustomerPhone?: string | null;
+
+  bookingServiceId?: string | null;
+  bookingServiceName?: string | null;
+
+  bookingStartAt?:
+    | {
+        dateTime?: string;
+        timeZone?: string;
+      }
+    | string
+    | null;
+
+  bookingEndAt?:
+    | {
+        dateTime?: string;
+        timeZone?: string;
+      }
+    | string
+    | null;
+
+  bookedAt?: number | null;
+  bookingCancelledAt?: number | null;
+  bookingLinkSentAt?: number | null;
+  interestRespondedAt?: number | null;
 }
 
 type LeadsTab = "pending" | "sent" | "resolved" | "all";
@@ -86,28 +123,28 @@ interface WhatsAppTemplate {
 
 const STATUS_LABELS: Record<LeadStatus, string> = {
   pending: "ממתין לשליחה",
-  sent: "נשלח - ממתין לתגובה",
-  accepted: "נשלח - התקבל ב-Meta",
+  sent: "נשלח",
+  accepted: "התקבל ב־WhatsApp",
   delivered: "נמסר",
   read: "נקרא",
+  interested: "מעוניין – טרם נקבעה פגישה",
   booked: "נקבעה פגישה",
-  declined: "סירב",
-  no_response: "לא ענה",
-  interested: "מעוניין - טרם זימן",
-  failed: "שליחה נכשלה",
+  declined: "לא מעוניין",
+  no_response: "לא התקבלה תשובה",
+  failed: "השליחה נכשלה",
 };
 
 const STATUS_COLORS: Record<LeadStatus, string> = {
-  pending: "bg-gray-100 text-gray-700",
-  sent: "bg-amber-100 text-amber-800",
-  accepted: "bg-amber-100 text-amber-800",
-  delivered: "bg-blue-100 text-blue-800",
-  read: "bg-green-100 text-green-800",
-  booked: "bg-green-100 text-green-800",
-  declined: "bg-red-100 text-red-700",
-  no_response: "bg-gray-200 text-gray-600",
+  pending: "bg-gray-100 text-gray-800",
+  sent: "bg-blue-100 text-blue-800",
+  accepted: "bg-blue-100 text-blue-800",
+  delivered: "bg-cyan-100 text-cyan-800",
+  read: "bg-indigo-100 text-indigo-800",
   interested: "bg-purple-100 text-purple-800",
-  failed: "bg-red-100 text-red-700",
+  booked: "bg-green-100 text-green-800",
+  declined: "bg-red-100 text-red-800",
+  no_response: "bg-orange-100 text-orange-800",
+  failed: "bg-red-100 text-red-800",
 };
 
 const formatPhoneNumber = (phone: string): string => {
@@ -117,6 +154,27 @@ const formatPhoneNumber = (phone: string): string => {
   if (local.startsWith("972")) local = "0" + local.slice(3);
   else if (!local.startsWith("0")) local = "0" + local;
   return local.replace(/(\d{3})(\d+)/, "$1-$2");
+};
+
+
+const BOOKING_STATUS_LABELS: Record<string, string> = {
+  not_sent: "קישור טרם נשלח",
+  link_sent: "קישור זימון נשלח",
+  booked: "נקבעה פגישה",
+  cancelled: "הפגישה בוטלה",
+  no_booking: "לא נקבעה פגישה",
+  send_failed: "שליחת הקישור נכשלה",
+  missing_booking_url: "חסר קישור זימון",
+};
+
+const BOOKING_STATUS_COLORS: Record<string, string> = {
+  not_sent: "bg-gray-100 text-gray-700",
+  link_sent: "bg-blue-100 text-blue-800",
+  booked: "bg-green-100 text-green-800",
+  cancelled: "bg-orange-100 text-orange-800",
+  no_booking: "bg-gray-100 text-gray-700",
+  send_failed: "bg-red-100 text-red-800",
+  missing_booking_url: "bg-red-100 text-red-800",
 };
 
 const formatDateOnly = (iso: string): string => {
@@ -130,6 +188,37 @@ const formatDateOnly = (iso: string): string => {
 const formatMsDateOnly = (ms: number | null): string => {
   if (!ms) return "-";
   return new Date(ms).toLocaleDateString("he-IL");
+};
+
+const formatBookingDate = (
+  value:
+    | {
+        dateTime?: string;
+        timeZone?: string;
+      }
+    | string
+    | null
+    | undefined
+): string => {
+  if (!value) return "-";
+
+  const rawValue =
+    typeof value === "string"
+      ? value
+      : value.dateTime;
+
+  if (!rawValue) return "-";
+
+  const parsed = new Date(rawValue);
+
+  if (Number.isNaN(parsed.getTime())) {
+    return rawValue;
+  }
+
+  return parsed.toLocaleString("he-IL", {
+    dateStyle: "short",
+    timeStyle: "short",
+  });
 };
 
 const formatFirestoreTime = (value: any): string => {
@@ -298,18 +387,26 @@ const WhatsAppSendPage = () => {
     return <AccessDenied />;
   }
 
-  const pendingLeads = leads.filter((l) => l.status === "pending");
- const sentLeads = leads.filter((l) =>
-  [
-    "sent",
-    "accepted",
-    "delivered",
-    "read",
-    "interested",
-  ].includes(l.status)
-);
-  const resolvedLeads = leads.filter((l) =>
-    l.status === "booked" || l.status === "declined" || l.status === "no_response"
+  const pendingLeads = leads.filter(
+    (lead) => lead.status === "pending"
+  );
+
+  const sentLeads = leads.filter((lead) =>
+    [
+      "sent",
+      "accepted",
+      "delivered",
+      "read",
+      "interested",
+    ].includes(lead.status)
+  );
+
+  const resolvedLeads = leads.filter((lead) =>
+    [
+      "booked",
+      "declined",
+      "no_response",
+    ].includes(lead.status)
   );
 
   const visibleLeads =
@@ -577,9 +674,15 @@ const WhatsAppSendPage = () => {
 
             <div className="flex gap-2 mb-3 border-b">
               <TabButton label={`ממתינים (${pendingLeads.length})`} active={activeTab === "pending"} onClick={() => setActiveTab("pending")} />
-              <TabButton label={`נשלח / נקרא (${sentLeads.length})`} active={activeTab === "sent"} onClick={() => setActiveTab("sent")} />
-              <TabButton label={`נסגר (${resolvedLeads.length})`} active={activeTab === "resolved"} onClick={() => setActiveTab("resolved")} />
+              <TabButton label={`בטיפול (${sentLeads.length})`} active={activeTab === "sent"} onClick={() => setActiveTab("sent")} />
+              <TabButton label={`הסתיימו (${resolvedLeads.length})`} active={activeTab === "resolved"} onClick={() => setActiveTab("resolved")} />
               <TabButton label={`הכל (${leads.length})`} active={activeTab === "all"} onClick={() => setActiveTab("all")} />
+            </div>
+
+            <div className="mb-3 rounded border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900">
+              סטטוס הטיפול מציג את שלב הליד בקמפיין. סטטוס הזימון
+              מתעדכן אוטומטית לאחר סנכרון Microsoft Bookings.
+              פגישה שבוטלה מחזירה את הליד ל״מעוניין״ כדי לאפשר המשך טיפול.
             </div>
 
             <div className="border rounded bg-white overflow-x-auto">
@@ -596,7 +699,9 @@ const WhatsAppSendPage = () => {
                       <th className="p-2 text-right">טלפון</th>
                       <th className="p-2 text-right">פנייה אחרונה</th>
                       <th className="p-2 text-right">סטטוס בשורנס</th>
-                      <th className="p-2 text-right">סטטוס</th>
+                      <th className="p-2 text-right">סטטוס טיפול</th>
+                      <th className="p-2 text-right">סטטוס זימון</th>
+                      <th className="p-2 text-right">מועד פגישה</th>
                       <th className="p-2 text-right">נשלח בתאריך</th>
                       <th className="p-2 text-right">פעולות</th>
                     </tr>
@@ -633,17 +738,70 @@ const WhatsAppSendPage = () => {
   )}
 </td>
                         <td className="p-2">
-                          <span className={`px-2 py-1 rounded text-xs ${STATUS_COLORS[lead.status] ?? "bg-gray-100 text-gray-700"}`}>
+                          <span
+                            className={`inline-flex rounded px-2 py-1 text-xs ${
+                              STATUS_COLORS[lead.status] ??
+                              "bg-gray-100 text-gray-700"
+                            }`}
+                          >
                             {STATUS_LABELS[lead.status] ?? lead.status}
                           </span>
                         </td>
+
+                        <td className="p-2">
+                          {lead.bookingStatus ? (
+                            <span
+                              className={`inline-flex rounded px-2 py-1 text-xs font-semibold ${
+                                BOOKING_STATUS_COLORS[lead.bookingStatus] ??
+                                "bg-gray-100 text-gray-700"
+                              }`}
+                            >
+                              {BOOKING_STATUS_LABELS[lead.bookingStatus] ??
+                                lead.bookingStatus}
+                            </span>
+                          ) : (
+                            <span className="text-xs text-gray-400">-</span>
+                          )}
+                        </td>
+
+                        <td className="p-2 min-w-[180px]">
+                          {lead.bookingStatus === "booked" ? (
+                            <div className="space-y-1">
+                              <div className="font-semibold text-green-800">
+                                {formatBookingDate(lead.bookingStartAt)}
+                              </div>
+
+                              {lead.bookingServiceName && (
+                                <div className="text-xs text-gray-500">
+                                  {lead.bookingServiceName}
+                                </div>
+                              )}
+                            </div>
+                          ) : lead.bookingStatus === "cancelled" ? (
+                            <div className="space-y-1">
+                              <div className="font-semibold text-orange-700">
+                                הפגישה בוטלה
+                              </div>
+
+                              {lead.bookingStartAt && (
+                                <div className="text-xs text-gray-500">
+                                  המועד שבוטל:{" "}
+                                  {formatBookingDate(lead.bookingStartAt)}
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-xs text-gray-400">-</span>
+                          )}
+                        </td>
+
                         <td className="p-2">{formatMsDateOnly(lead.waSentAt)}</td>
                       <td className="p-2">
   <div className="flex gap-1 flex-wrap">
-    {["sent", "accepted", "delivered", "read"].includes(lead.status) && (
+    {["sent", "accepted", "delivered", "read", "interested"].includes(lead.status) && (
       <>
         <button className="text-xs px-2 py-1 rounded bg-green-100 text-green-800 hover:bg-green-200 disabled:opacity-50" disabled={updatingId === lead.surenseId} onClick={() => onUpdateStatus(lead.surenseId, "booked")}>
-          נקבעה פגישה
+          סמן ידנית: נקבעה פגישה
         </button>
         <button className="text-xs px-2 py-1 rounded bg-gray-200 text-gray-700 hover:bg-gray-300 disabled:opacity-50" disabled={updatingId === lead.surenseId} onClick={() => onUpdateStatus(lead.surenseId, "no_response")}>
           לא ענה

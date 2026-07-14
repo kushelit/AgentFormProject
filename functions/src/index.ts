@@ -55,3 +55,15 @@ export {
 export {
   testMicrosoftBookingsConnection,
 } from "./testMicrosoftBookingsConnection";
+
+export {
+  selectMicrosoftBookingsBusiness,
+} from "./selectMicrosoftBookingsBusiness";
+
+export {
+  syncMicrosoftBookingsNow,
+} from "./syncMicrosoftBookingsNow";
+
+export {
+  disconnectMicrosoftBookings,
+} from "./disconnectMicrosoftBookings";
