@@ -1,7 +1,6 @@
 // MagicSale — Commission Admin Purge Page
 // מחיקת נתוני עמלות גורפת לפי סוכן / חברה / חודש / תבנית
 // + ניהול ריצות טעינה לפי מספר טעינה / טוען
-// + שחרור נעילה (portalImportLocks) בנפרד, ללא קשר ל-DELETE
 // קובץ: app/admin/commission-purge/page.tsx
 
 //token to facebook to keep
@@ -15,6 +14,7 @@ import {
   collection,
   query,
   where,
+  documentId,
   getDocs,
   writeBatch,
   doc,
@@ -22,6 +22,8 @@ import {
   deleteDoc,
   serverTimestamp,
   addDoc,
+  setDoc,
+  Timestamp,
 } from 'firebase/firestore';
 import useFetchAgentData from '@/hooks/useFetchAgentData';
 import { Button } from '@/components/Button/Button';
@@ -54,6 +56,77 @@ interface CommissionImportRun {
   maxReportMonth?: string;
   reportMonthsCount?: number;
   companyId?: string;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// מעקב ריצות אוטומטיות (Portal Runner) — מקור האמת הוא portalImportLocks,
+// כי זו הנעילה שבפועל חוסמת ריצה חדשה. אם יש נעילה — היא תוצג, גם אם
+// אין (או שיש) מסמך portalImportRuns תואם. השדות מוצגים גולמיים, בדיוק
+// כמו שהם נראים ב-Firestore console, כדי שיהיה מיפוי ישיר בין המסך ל-DB.
+// ═══════════════════════════════════════════════════════════════════
+const IN_PROGRESS_STATUSES = ['queued', 'running', 'otp_required', 'logged_in', 'file_uploaded'] as const;
+
+const STATUS_LABELS: Record<string, string> = {
+  queued: 'ממתין בתור',
+  running: 'בריצה',
+  otp_required: 'ממתין ל-OTP',
+  logged_in: 'מחובר לפורטל',
+  file_uploaded: 'קובץ הועלה',
+  success: 'הושלם בהצלחה',
+  done: 'הושלם',
+  error: 'שגיאה',
+  failed: 'שגיאה',
+  skipped: 'דולג',
+};
+
+function statusLabel(status: string): string {
+  if (!status) return '-';
+  return STATUS_LABELS[status] || status;
+}
+
+function isInProgressStatus(status: string): boolean {
+  return (IN_PROGRESS_STATUSES as readonly string[]).includes(status);
+}
+
+interface QueueJobInfo {
+  id: string;           // commissionImportQueue doc id (= jobId)
+  status: string;       // commissionImportQueue.status הגולמי
+  templateId?: string;
+  portalRunId?: string; // commissionImportQueue.portalRunId — לצורך אימות מול DB
+  agentId?: string;      // commissionImportQueue.agentId — נשלף ישירות מהמסמך עצמו
+  companyId?: string;    // commissionImportQueue.companyId — נשלף ישירות מהמסמך עצמו
+}
+
+interface StuckRun {
+  id: string; // = lockId, כדי שה-key בטבלה יהיה ייחודי גם בלי runId
+  lockId: string;         // portalImportLocks/{lockId} — המזהה המדויק כפי שמופיע ב-DB
+  lockState: string;      // portalImportLocks.state — הערך הגולמי
+  runId?: string;         // portalImportLocks.runId
+  runFound: boolean;      // האם נמצא בפועל מסמך portalImportRuns/{runId}
+  agentId: string;
+  companyId: string;
+  companyName: string;
+  templateId: string;
+  ym: string;
+  status: string;         // portalImportRuns.status (ריק אם לא נמצא ריצה)
+  step?: string;          // portalImportRuns.step
+  source?: string;
+  updatedAt: Date | null; // portalImportRuns.updatedAt/createdAt
+  jobIds: string[];
+  queueJobs: QueueJobInfo[]; // מצב בפועל של כל job ב-commissionImportQueue, נשלף מראש
+}
+
+function toDateSafe(value: any): Date | null {
+  if (!value) return null;
+  if (value instanceof Date) return value;
+  if (value instanceof Timestamp) return value.toDate();
+  if (typeof value?.toDate === 'function') return value.toDate();
+  return null;
+}
+
+function minutesAgo(date: Date | null): number | null {
+  if (!date) return null;
+  return Math.max(0, Math.floor((Date.now() - date.getTime()) / 60000));
 }
 
 export default function CommissionPurgeAdminPage() {
@@ -94,29 +167,23 @@ export default function CommissionPurgeAdminPage() {
   const [dateFrom, setDateFrom] = useState<string>('');
   const [dateTo, setDateTo] = useState<string>('');
 
-  // ===== State – שחרור נעילה (נפרד) =====
-  const [lockInfo, setLockInfo] = useState<any | null>(null);
-  const [lockLoading, setLockLoading] = useState(false);
-  const [unlockLoading, setUnlockLoading] = useState(false);
-
-
   const [bridgeRun, setBridgeRun] = useState<CommissionImportRun | null>(null);
   const [bridgeYm, setBridgeYm] = useState('');
   const [bridgeLoading, setBridgeLoading] = useState(false);
 
-  // confirm unlock dialog
-  const [unlockConfirmOpen, setUnlockConfirmOpen] = useState(false);
+  // ===== State – מעקב ריצות אוטומטיות (Portal Runner) =====
+  const [stuckRuns, setStuckRuns] = useState<StuckRun[]>([]);
+  const [stuckLoading, setStuckLoading] = useState(false);
+  const [releaseConfirmRun, setReleaseConfirmRun] = useState<StuckRun | null>(null);
+  const [releasingRunId, setReleasingRunId] = useState<string | null>(null);
+  const [runsStatusFilter, setRunsStatusFilter] = useState<'all' | 'in_progress' | 'error'>('all');
+  const [runsYmFilter, setRunsYmFilter] = useState('');
+  const [runsAgentId, setRunsAgentId] = useState('');
+  const [runsCompanyId, setRunsCompanyId] = useState('');
+  const [hasSearchedRuns, setHasSearchedRuns] = useState(false);
 
   // Helpers
   const sanitizeMonth = (m?: string) => (m || '').replace(/\//g, '-');
-
-  // key: agentId_templateId_YYYY-MM
-  const lockYm = useMemo(() => sanitizeMonth(validMonth), [validMonth]);
-
-  const lockId = useMemo(() => {
-    if (!selectedAgentId || selectedAgentId === 'all' || !templateId || !lockYm) return '';
-    return `${selectedAgentId}_${templateId}_${lockYm}`;
-  }, [selectedAgentId, templateId, lockYm]);
 
   const uniqueCompanies = useMemo(() => {
     const map = new Map<string, { id: string; name: string }>();
@@ -244,7 +311,6 @@ export default function CommissionPurgeAdminPage() {
   }
 
   // ===== Delete (חלק עליון) =====
-  // ⚠️ לא משחרר נעילה - במכוון
   async function handleDelete() {
     if (!selectedAgentId) {
       setDialog({ type: 'warning', title: 'חסר סוכן', message: 'יש לבחור סוכן לפני מחיקה.' });
@@ -328,156 +394,6 @@ export default function CommissionPurgeAdminPage() {
       setDialog({ type: 'error', title: 'שגיאת מחיקה', message: String(e?.message || e) });
     } finally {
       setDeleteRunning(false);
-    }
-  }
-
-  const lockActionsDisabled =
-    !selectedAgentId || selectedAgentId === 'all' || !templateId || !lockYm || !lockId;
-
-  useEffect(() => {
-    setLockInfo(null);
-  }, [selectedAgentId, templateId, validMonth]);
-
-  // ===== שחרור נעילה — פעולות נפרדות =====
-  async function handleCheckLock() {
-    // סדר בדיקות נכון: קודם השדות, בסוף lockId
-    if (!selectedAgentId) {
-      setDialog({ type: 'warning', title: 'חסר סוכן', message: 'יש לבחור סוכן.' });
-      return;
-    }
-    if (selectedAgentId === 'all') {
-      setDialog({
-        type: 'warning',
-        title: 'בחירת סוכן',
-        message: 'בשחרור נעילה חייבים לבחור סוכן ספציפי (לא "כל הסוכנות").',
-      });
-      return;
-    }
-    if (!templateId) {
-      setDialog({ type: 'warning', title: 'חסרה תבנית', message: 'יש לבחור תבנית.' });
-      return;
-    }
-    if (!lockYm) {
-      setDialog({ type: 'warning', title: 'חסר חודש', message: 'יש לבחור חודש (YYYY-MM).' });
-      return;
-    }
-    if (!lockId) {
-      setDialog({ type: 'warning', title: 'חסר מידע', message: 'לא ניתן לבנות LockId.' });
-      return;
-    }
-
-    setLockLoading(true);
-    try {
-      const ref = doc(db, 'portalImportLocks', lockId);
-      const snap = await getDoc(ref);
-
-      if (!snap.exists()) {
-        setLockInfo(null);
-        setDialog({
-          type: 'info',
-          title: 'לא נמצאה נעילה',
-          message: `לא קיימת נעילה עבור ${lockYm} לתבנית זו.`,
-        });
-        return;
-      }
-
-      const data = snap.data() as any;
-      setLockInfo({ id: snap.id, ...data });
-
-      setDialog({
-        type: 'success',
-        title: 'נמצאה נעילה',
-        message: (
-          <div className="text-sm">
-            <div>
-              <b>LockId:</b> <span className="font-mono">{snap.id}</span>
-            </div>
-            <div>
-              <b>state:</b> {String(data.state || '-')}
-            </div>
-            <div>
-              <b>runId:</b> {String(data.runId || '-')}
-            </div>
-            <div>
-              <b>ym:</b> {String(data.ym || lockYm || '-')}
-            </div>
-          </div>
-        ),
-      });
-    } catch (e: any) {
-      setDialog({ type: 'error', title: 'שגיאת בדיקה', message: String(e?.message || e) });
-    } finally {
-      setLockLoading(false);
-    }
-  }
-
-  // פותח דיאלוג אישור לפני שחרור
-  function handleUnlockClick() {
-    if (lockActionsDisabled) return;
-    setUnlockConfirmOpen(true);
-  }
-
-  async function handleUnlockLockConfirmed() {
-    // סדר בדיקות נכון: קודם השדות, בסוף lockId
-    if (!selectedAgentId) {
-      setDialog({ type: 'warning', title: 'חסר סוכן', message: 'יש לבחור סוכן.' });
-      return;
-    }
-    if (selectedAgentId === 'all') {
-      setDialog({
-        type: 'warning',
-        title: 'בחירת סוכן',
-        message: 'בשחרור נעילה חייבים לבחור סוכן ספציפי (לא "כל הסוכנות").',
-      });
-      return;
-    }
-    if (!templateId) {
-      setDialog({ type: 'warning', title: 'חסרה תבנית', message: 'יש לבחור תבנית.' });
-      return;
-    }
-    if (!lockYm) {
-      setDialog({ type: 'warning', title: 'חסר חודש', message: 'יש לבחור חודש (YYYY-MM).' });
-      return;
-    }
-    if (!lockId) {
-      setDialog({ type: 'warning', title: 'חסר מידע', message: 'לא ניתן לבנות LockId.' });
-      return;
-    }
-
-    setUnlockLoading(true);
-    try {
-      const ref = doc(db, 'portalImportLocks', lockId);
-      const snap = await getDoc(ref);
-
-      if (!snap.exists()) {
-        setLockInfo(null);
-        setDialog({
-          type: 'info',
-          title: 'אין מה לשחרר',
-          message: `אין נעילה לשחרור עבור ${lockYm}.`,
-        });
-        return;
-      }
-
-      await deleteDoc(ref);
-      setLockInfo(null);
-
-      setDialog({
-        type: 'success',
-        title: 'שוחרר בהצלחה',
-        message: (
-          <div className="text-sm">
-            <div>הנעילה נמחקה.</div>
-            <div>
-              <b>LockId:</b> <span className="font-mono">{lockId}</span>
-            </div>
-          </div>
-        ),
-      });
-    } catch (e: any) {
-      setDialog({ type: 'error', title: 'שגיאת שחרור', message: String(e?.message || e) });
-    } finally {
-      setUnlockLoading(false);
     }
   }
 
@@ -582,27 +498,7 @@ export default function CommissionPurgeAdminPage() {
     setRunDeleteDialogOpen(true);
   };
 
-  //   if (!selectedRun) return;
-  //   setRunDeleteLoading(true);
-  //   const { runId } = selectedRun;
-
-  //   try {
-  //     await deleteByRunIdInChunks('externalCommissions', runId);
-  //     await deleteByRunIdInChunks('commissionSummaries', runId);
-  //     await deleteByRunIdInChunks('policyCommissionSummaries', runId);
-  //     await deleteDoc(doc(db, 'commissionImportRuns', runId));
-  //     await fetchCommissionRuns();
-  //   } finally {
-  //     setRunDeleteLoading(false);
-  //     setRunDeleteDialogOpen(false);
-  //     setSelectedRun(null);
-  //   }
-  // };
-
-  // ===== Render =====
- 
- 
- const handleRunDeleteConfirm = async () => {
+  const handleRunDeleteConfirm = async () => {
     if (!selectedRun) return;
     setRunDeleteLoading(true);
     const { runId, agentId } = selectedRun;
@@ -624,7 +520,7 @@ export default function CommissionPurgeAdminPage() {
 
       // מחק לפי כל jobId
       for (const jobId of jobIds) {
-        for (const col of ['commissionImportRuns', 'externalCommissions', 'commissionSummaries', 'policyCommissionSummaries' , 'ymCommissionSummaries']) {
+        for (const col of ['commissionImportRuns', 'externalCommissions', 'commissionSummaries', 'policyCommissionSummaries', 'ymCommissionSummaries']) {
           await deleteByRunIdInChunks(col, jobId);
         }
         await deleteDoc(doc(db, 'commissionImportQueue', jobId)).catch(() => {});
@@ -635,6 +531,7 @@ export default function CommissionPurgeAdminPage() {
         await deleteByRunIdInChunks('externalCommissions', runId);
         await deleteByRunIdInChunks('commissionSummaries', runId);
         await deleteByRunIdInChunks('policyCommissionSummaries', runId);
+        await deleteByRunIdInChunks('ymCommissionSummaries', runId);
         await deleteDoc(doc(db, 'commissionImportRuns', runId)).catch(() => {});
       }
 
@@ -664,55 +561,423 @@ for (const d of bridgeSnap.docs) {
     }
   };
  
-  async function handleCreateBridge() {
-  if (!bridgeRun || !bridgeYm) return;
-  setBridgeLoading(true);
-  try {
-    const cId = bridgeRun.companyId || '';
-    const bundleTemplateId = `bundle_${cId}_commissions`;
-    const [y, m] = bridgeYm.split('-');
-    const label = `${m}/${y}`;
+  // ═══════════════════════════════════════════════════════════════════
+  // מעקב ריצות אוטומטיות — שליפה לפי סוכן (חובה) + חברה (אופציונלי).
+  // מקור האמת: portalImportLocks. מזהה הנעילה בנוי כ-
+  // "{agentId}_{templateId}_{ym}", ולכן אפשר לשלוף את כל הנעילות של
+  // סוכן מסוים לפי range query על documentId() (prefix match).
+  // לכל נעילה מנסים גם לצרף את מסמך portalImportRuns התואם (דרך
+  // lockData.runId), אבל הנעילה עצמה מוצגת גם אם אין ריצה תואמת —
+  // כי היא זו שבפועל חוסמת ריצה חדשה של הסוכן.
+  // לא נטען אוטומטית בכניסה לדף — רק לפי בקשה.
+  // ═══════════════════════════════════════════════════════════════════
+  const fetchStuckRuns = async () => {
+    if (!runsAgentId) {
+      setDialog({ type: 'warning', title: 'חסר סוכן', message: 'יש לבחור סוכן לפני חיפוש.' });
+      return;
+    }
 
-    await addDoc(collection(db, 'portalImportRuns'), {
-      agentId: bridgeRun.agentId,
-      companyId: cId,
-      companyName: bridgeRun.company,
-      templateId: bundleTemplateId,
-      status: 'success',
-      step: 'import_done',
-      source: 'manual_bridge',
-      resolvedWindow: { kind: 'month', ym: bridgeYm, label },
-      queue: { jobIds: [bridgeRun.runId] },
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    });
+    setStuckLoading(true);
+    setHasSearchedRuns(true);
+    setRunsYmFilter('');
+    try {
+      const lockSnap = await getDocs(
+        query(
+          collection(db, 'portalImportLocks'),
+          where(documentId(), '>=', `${runsAgentId}_`),
+          where(documentId(), '<', `${runsAgentId}_\uf8ff`)
+        )
+      );
 
-    setDialog({ type: 'success', title: 'נוצר בהצלחה', message: `מסמך מגשר נוצר עבור חודש פרסום ${bridgeYm}` });
-    setBridgeRun(null);
-    setBridgeYm('');
-  } catch (e: any) {
-    setDialog({ type: 'error', title: 'שגיאה', message: String(e?.message || e) });
-  } finally {
-    setBridgeLoading(false);
+      const companyCache = new Map<string, string>();
+
+      const rows: StuckRun[] = await Promise.all(
+        lockSnap.docs.map(async (lockDoc) => {
+          const lockData: any = lockDoc.data();
+          const lockState = String(lockData.state || '');
+          const runId = String(lockData.runId || '').trim();
+          const ymFromLock = String(lockData.ym || '');
+
+          let runFound = false;
+          let runStatus = '';
+          let runStep = '';
+          let companyId = '';
+          let companyName = '';
+          let templateId = '';
+          let source = '';
+          let updatedAt: Date | null = null;
+          let jobIds: string[] = [];
+          let ym = ymFromLock;
+
+          if (runId) {
+            const runSnap = await getDoc(doc(db, 'portalImportRuns', runId));
+            if (runSnap.exists()) {
+              runFound = true;
+              const r: any = runSnap.data();
+              runStatus = String(r.status || '');
+              runStep = r.step ? String(r.step) : '';
+              companyId = String(r.companyId || '');
+              templateId = String(r.templateId || '');
+              source = r.source ? String(r.source) : '';
+              updatedAt = toDateSafe(r.updatedAt) || toDateSafe(r.createdAt) || null;
+              jobIds = Array.isArray(r?.queue?.jobIds) ? r.queue.jobIds : [];
+              if (!ym) ym = String(r?.resolvedWindow?.ym || '');
+
+              companyName = String(r.companyName || '') || companyCache.get(companyId) || '';
+              if (!companyName && companyId) {
+                const cSnap = await getDoc(doc(db, 'company', companyId));
+                companyName = cSnap.exists() ? String((cSnap.data() as any)?.companyName || companyId) : companyId;
+                companyCache.set(companyId, companyName);
+              }
+            }
+          }
+
+          // שליפת מצב בפועל של כל job ב-commissionImportQueue, מראש —
+          // כך שרואים את זה על המסך גם לפני שלוחצים "שחרר נעילה"
+          const queueJobs: QueueJobInfo[] = await Promise.all(
+            jobIds.map(async (jobId) => {
+              const qSnap = await getDoc(doc(db, 'commissionImportQueue', jobId));
+              if (!qSnap.exists()) {
+                return { id: jobId, status: '(לא נמצא)' };
+              }
+              const q: any = qSnap.data();
+              return {
+                id: jobId,
+                status: String(q.status || ''),
+                templateId: q.templateId ? String(q.templateId) : undefined,
+                portalRunId: q.portalRunId ? String(q.portalRunId) : undefined,
+              };
+            })
+          );
+
+          return {
+            id: lockDoc.id,
+            lockId: lockDoc.id,
+            lockState,
+            runId: runId || undefined,
+            runFound,
+            agentId: runsAgentId,
+            companyId,
+            companyName: companyName || (runFound ? '-' : 'לא ידוע — אין מסמך ריצה תואם'),
+            templateId,
+            ym: ym || 'לא ידוע',
+            status: runStatus,
+            step: runStep || undefined,
+            source: source || undefined,
+            updatedAt,
+            jobIds,
+            queueJobs,
+          };
+        })
+      );
+
+      // סינון לפי חברה — רק אם הצלחנו לזהות companyId מהריצה המשוייכת.
+      // נעילות בלי ריצה תואמת (runFound=false) תמיד יוצגו, כדי לא "להסתיר"
+      // בטעות בדיוק את המקרה שאת מחפשת.
+      const rowsFiltered = runsCompanyId
+        ? rows.filter((r) => !r.runFound || r.companyId === runsCompanyId)
+        : rows;
+
+      setStuckRuns(rowsFiltered);
+    } catch (e: any) {
+      setDialog({ type: 'error', title: 'שגיאת שליפת נעילות', message: String(e?.message || e) });
+    } finally {
+      setStuckLoading(false);
+    }
+  };
+
+  // רשימת חודשי הפרסום הקיימים בתוצאות הנוכחיות — לבניית אפשרויות הסינון
+  const availableYms = useMemo(() => {
+    const set = new Set<string>();
+    for (const r of stuckRuns) {
+      if (r.ym) set.add(r.ym);
+    }
+    return Array.from(set).sort((a, b) => (a < b ? 1 : a > b ? -1 : 0));
+  }, [stuckRuns]);
+
+  const filteredStuckRuns = useMemo(() => {
+    let rows = stuckRuns;
+    if (runsStatusFilter === 'in_progress') {
+      // "בתהליך" מבוסס על lockState — כי זו הנעילה עצמה, לא תלוי אם נמצא runId
+      rows = rows.filter((r) => r.lockState === 'running' || isInProgressStatus(r.status));
+    } else if (runsStatusFilter === 'error') {
+      rows = rows.filter((r) => r.lockState === 'error' || r.status === 'error' || r.status === 'failed');
+    }
+    if (runsYmFilter) {
+      rows = rows.filter((r) => r.ym === runsYmFilter);
+    }
+    return rows;
+  }, [stuckRuns, runsStatusFilter, runsYmFilter]);
+
+  // קיבוץ לפי חודש פרסום (ym) — מהחדש לישן, ובתוך כל חודש לפי עדכון אחרון
+  const runsGroupedByYm = useMemo(() => {
+    const groups = new Map<string, StuckRun[]>();
+    for (const r of filteredStuckRuns) {
+      const key = r.ym || 'לא ידוע';
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key)!.push(r);
+    }
+    for (const arr of groups.values()) {
+      arr.sort((a, b) => (b.updatedAt?.getTime() ?? 0) - (a.updatedAt?.getTime() ?? 0));
+    }
+    return Array.from(groups.entries()).sort(([a], [b]) => (a < b ? 1 : a > b ? -1 : 0));
+  }, [filteredStuckRuns]);
+
+  // ═══════════════════════════════════════════════════════════════════
+  // שחרור ריצה תקועה:
+  // 1) מוחק את portalImportLocks כדי שהסוכן יוכל להתחיל ריצה חדשה.
+  // 2) מסמן את portalImportRuns כ-error, כך שה-Card בדשבורד (דרך
+  //    mapRunToUiStatus) יראה "שגיאה — נסה שוב" במקום להישאר תקוע.
+  // 3) מסמן job-ים תקועים ב-commissionImportQueue כ-error, כדי שה-worker
+  //    לא ינסה "לסיים" אותם ברקע אחרי השחרור וייצור מירוץ/דריסה.
+  // ═══════════════════════════════════════════════════════════════════
+  async function handleReleaseStuckRun(item: StuckRun) {
+    setReleasingRunId(item.id);
+    try {
+      // 1) מחיקת הנעילה עצמה — זה מה שאת עושה ידנית היום
+      await deleteDoc(doc(db, 'portalImportLocks', item.lockId)).catch(() => {});
+
+      // 2) אם נמצא מסמך ריצה תואם — מסמנים אותו כ-error, כדי שה-Card יזהה
+      //    שהריצה הסתיימה (בשגיאה) ולא יישאר תקוע בתצוגת הסוכן
+      if (item.runFound && item.runId) {
+        await setDoc(
+          doc(db, 'portalImportRuns', item.runId),
+          {
+            status: 'error',
+            step: 'import_error',
+            error: { message: 'שוחרר ידנית ע"י אדמין — נעילה תקועה' },
+            updatedAt: serverTimestamp(),
+          },
+          { merge: true }
+        );
+      }
+
+      // 3) job-ים תקועים בתור, אם יש
+      let updatedJobsCount = 0;
+      for (const jobId of item.jobIds) {
+        const qRef = doc(db, 'commissionImportQueue', jobId);
+        const qSnap = await getDoc(qRef);
+        if (qSnap.exists()) {
+          const st = String((qSnap.data() as any)?.status || '');
+          if (st === 'queued' || st === 'processing') {
+            await setDoc(
+              qRef,
+              {
+                status: 'error',
+                error: { step: 'manual_release', message: 'שוחרר ידנית ע"י אדמין' },
+                finishedAt: serverTimestamp(),
+                updatedAt: serverTimestamp(),
+              },
+              { merge: true }
+            ).catch(() => {});
+            updatedJobsCount++;
+          }
+        }
+      }
+
+      // 4) דיאלוג מפורט שמראה בדיוק מה נמחק ומה עודכן
+      setDialog({
+        type: 'success',
+        title: 'שוחרר בהצלחה',
+        message: (
+          <div className="text-sm space-y-1">
+            <div>{item.companyName} | {item.ym}</div>
+            <div className="mt-2 border-t pt-2">
+              <div>
+                <b>portalImportLocks:</b>{' '}
+                <span className="text-red-600">נמחקה שורה — {item.lockId}</span>
+              </div>
+              <div>
+                <b>portalImportRuns:</b>{' '}
+                {item.runFound ? (
+                  <span className="text-blue-600">עודכנה שורה {item.runId} → status = error</span>
+                ) : (
+                  <span className="text-gray-500">לא נמצא מסמך ריצה תואם — לא עודכן דבר</span>
+                )}
+              </div>
+              <div>
+                <b>commissionImportQueue:</b>{' '}
+                {updatedJobsCount > 0 ? (
+                  <span className="text-blue-600">עודכנו {updatedJobsCount} job-ים → status = error</span>
+                ) : (
+                  <span className="text-gray-500">לא נמצאו job-ים פעילים לעדכון</span>
+                )}
+              </div>
+            </div>
+          </div>
+        ),
+      });
+
+      // 5) רענון הטבלה — השורה תיעלם (כי הנעילה נמחקה)
+      await fetchStuckRuns();
+    } catch (e: any) {
+      setDialog({ type: 'error', title: 'שגיאת שחרור', message: String(e?.message || e) });
+    } finally {
+      setReleasingRunId(null);
+      setReleaseConfirmRun(null);
+    }
   }
-}
+
+  // ═══════════════════════════════════════════════════════════════════
+  // יצירת מגשר — כותבת גם ישירות ל-ymCommissionSummaries.
+  // הדפים מה-drilldown (by-template, by-template-agent, drilldown) כבר
+  // שואבים בזמן ריצה מתוך externalCommissions דרך portalImportRuns.queue.jobIds,
+  // כך שהם עובדים ללא שינוי. השורה הראשית בטבלה המסכמת ("לפי חודש פרסום")
+  // נשלפת ישירות מתוך ymCommissionSummaries, ולכן צריך לכתוב אליה כאן במפורש.
+  // ═══════════════════════════════════════════════════════════════════
+  async function handleCreateBridge() {
+    if (!bridgeRun || !bridgeYm) return;
+    setBridgeLoading(true);
+    try {
+      const cId = bridgeRun.companyId || '';
+      const bundleTemplateId = `bundle_${cId}_commissions`;
+      const [y, m] = bridgeYm.split('-');
+      const label = `${m}/${y}`;
+
+      // 1) יצירת מסמך המגשר — כרגיל, ללא שינוי
+      await addDoc(collection(db, 'portalImportRuns'), {
+        agentId: bridgeRun.agentId,
+        companyId: cId,
+        companyName: bridgeRun.company,
+        templateId: bundleTemplateId,
+        status: 'success',
+        step: 'import_done',
+        source: 'manual_bridge',
+        resolvedWindow: { kind: 'month', ym: bridgeYm, label },
+        queue: { jobIds: [bridgeRun.runId] },
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+
+      // 2) שליפת externalCommissions לפי ה-runId האמיתי של הטעינה הידנית המקורית
+      const extSnap = await getDocs(
+        query(
+          collection(db, 'externalCommissions'),
+          where('runId', '==', bridgeRun.runId),
+          where('agentId', '==', bridgeRun.agentId),
+          where('companyId', '==', cId)
+        )
+      );
+
+      // 3) אותו סינון hekef שקיים בכל endpoint וב-backfill
+      const templatesSnap = await getDocs(
+        query(collection(db, 'commissionTemplates'), where('isactive', '==', true))
+      );
+      const hekefIds = new Set(
+        templatesSnap.docs.filter((d) => !!d.data().hekefType).map((d) => d.id)
+      );
+
+      // 4) קיבוץ לפי agentCode+templateId+companyId+reportMonth, עם trim
+      type Acc = {
+        agentId: string;
+        agentCode: string;
+        ym: string;
+        templateId: string;
+        companyId: string;
+        company: string;
+        reportMonth: string;
+        totalCommissionAmount: number;
+        totalPremiumAmount: number;
+        runId: string;
+      };
+
+      const acc = new Map<string, Acc>();
+
+      extSnap.docs.forEach((d) => {
+        const r: any = d.data();
+        const tid = String(r.templateId || '').trim();
+        if (hekefIds.has(tid)) return;
+
+        const agentCode = String(r.agentCode || '').trim();
+        const reportMonth = String(r.reportMonth || '').replace(/\//g, '-').trim();
+        const companyId = String(r.companyId || '').trim();
+        const company = String(r.company || '').trim();
+
+        if (!agentCode || !reportMonth || !tid || !companyId) return;
+
+        const id = `${bridgeRun.agentId}_${agentCode}_${bridgeYm}_${tid}_${companyId}_${reportMonth}`;
+
+        if (!acc.has(id)) {
+          acc.set(id, {
+            agentId: bridgeRun.agentId,
+            agentCode,
+            ym: bridgeYm,
+            templateId: tid,
+            companyId,
+            company,
+            reportMonth,
+            totalCommissionAmount: 0,
+            totalPremiumAmount: 0,
+            runId: bridgeRun.runId,
+          });
+        }
+
+        const a = acc.get(id)!;
+        a.totalCommissionAmount += Number(r.commissionAmount || 0);
+        a.totalPremiumAmount += Number(r.premium || 0);
+      });
+
+      if (!acc.size) {
+        setDialog({
+          type: 'warning',
+          title: 'לא נמצאו נתונים',
+          message: 'מסמך המגשר נוצר, אך לא נמצאו רשומות externalCommissions תואמות ל-runId זה. ייתכן שהריצה נמחקה או שה-agentId/companyId לא תואמים.',
+        });
+        setBridgeRun(null);
+        setBridgeYm('');
+        return;
+      }
+
+      // 5) כתיבה ל-ymCommissionSummaries — set מלא (לא merge)
+      const batch = writeBatch(db);
+      for (const [id, data] of acc.entries()) {
+        batch.set(doc(db, 'ymCommissionSummaries', id), {
+          ...data,
+          totalCommissionAmount: Math.round(data.totalCommissionAmount * 100) / 100,
+          totalPremiumAmount: Math.round(data.totalPremiumAmount * 100) / 100,
+          updatedAt: serverTimestamp(),
+        });
+      }
+      await batch.commit();
+
+      setDialog({
+        type: 'success',
+        title: 'נוצר בהצלחה',
+        message: `מסמך מגשר נוצר + ${acc.size} רשומות סיכום בטבלת ymCommissionSummaries עבור חודש פרסום ${bridgeYm}.`,
+      });
+      setBridgeRun(null);
+      setBridgeYm('');
+    } catch (e: any) {
+      setDialog({ type: 'error', title: 'שגיאה', message: String(e?.message || e) });
+    } finally {
+      setBridgeLoading(false);
+    }
+  }
  
   return (
     <AdminGuard>
       <div className="p-6 max-w-4xl mx-auto text-right" dir="rtl">
         <h1 className="text-2xl font-bold mb-2">ניהול מחיקות קבצי עמלות</h1>
 
-        {/* ===== שחרור נעילה (נפרד) ===== */}
+        {/* ===== מעקב ריצות אוטומטיות (Portal Runner) ===== */}
         <div className="mt-4 border rounded p-4 bg-white">
-          <h2 className="font-bold mb-2">שחרור נעילת הרצה</h2>
+          <h2 className="font-bold mb-2">מעקב ריצות אוטומטיות (Portal Runner)</h2>
           <p className="text-sm text-gray-600 mb-3">
-            פעולה זו מיועדת לריצות האוטומטיות (Portal Runner) בלבד. היא לא קשורה למחיקה (DELETE).
+            בחרי סוכן (וחברה אופציונלי) כדי לראות את כל הנעילות הפעילות שלו (portalImportLocks) —
+            השדות מוצגים גולמיים בדיוק כמו ב-Firestore console, לצד מסמך הריצה התואם אם נמצא כזה.
           </p>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-3 text-sm mb-3">
             <div>
               <label className="block mb-1">סוכן:</label>
-              <select className="border rounded px-2 py-1 w-full" value={selectedAgentId || ''} onChange={handleAgentChange}>
+              <select
+                className="border rounded px-2 py-1 w-full"
+                value={runsAgentId}
+                onChange={(e) => {
+                  setRunsAgentId(e.target.value);
+                  setRunsCompanyId('');
+                }}
+              >
                 <option value="">בחר/י סוכן</option>
                 {agents?.map((a: any) => (
                   <option key={a.id} value={a.id}>
@@ -722,49 +987,202 @@ for (const d of bridgeSnap.docs) {
               </select>
             </div>
             <div>
-              <label className="block mb-1">תבנית:</label>
-              <select className="border rounded px-2 py-1 w-full" value={templateId} onChange={(e) => setTemplateId(e.target.value)}>
-                <option value="">בחר/י תבנית</option>
-                {filteredTemplates.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.companyName ? `${t.companyName} — ` : ''}
-                    {t.Name || t.id}
+              <label className="block mb-1">חברה (אופציונלי):</label>
+              <select
+                className="border rounded px-2 py-1 w-full"
+                value={runsCompanyId}
+                onChange={(e) => setRunsCompanyId(e.target.value)}
+                disabled={!runsAgentId}
+              >
+                <option value="">כל החברות</option>
+                {uniqueCompanies.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
                   </option>
                 ))}
               </select>
             </div>
             <div>
-              <label className="block mb-1">חודש (UI):</label>
-              <input type="month" className="border rounded px-2 py-1 w-full" value={validMonth} onChange={(e) => setValidMonth(e.target.value)} />
+              <label className="block mb-1">חודש פרסום:</label>
+              <select
+                className="border rounded px-2 py-1 w-full"
+                value={runsYmFilter}
+                onChange={(e) => setRunsYmFilter(e.target.value)}
+                disabled={!hasSearchedRuns || availableYms.length === 0}
+              >
+                <option value="">כל החודשים</option>
+                {availableYms.map((ym) => (
+                  <option key={ym} value={ym}>
+                    {ym}
+                  </option>
+                ))}
+              </select>
             </div>
-          </div>
-
-          <div className="mt-3 text-sm">
             <div>
-              <b>LockId:</b> <span className="font-mono">{lockId || '-'}</span>
+              <label className="block mb-1">סינון סטטוס:</label>
+              <select
+                className="border rounded px-2 py-1 w-full"
+                value={runsStatusFilter}
+                onChange={(e) => setRunsStatusFilter(e.target.value as any)}
+              >
+                <option value="all">הצג הכל</option>
+                <option value="in_progress">רק בתהליך</option>
+                <option value="error">רק שגיאות</option>
+              </select>
+            </div>
+            <div className="flex items-end">
+              <Button
+                onClick={fetchStuckRuns}
+                disabled={stuckLoading || !runsAgentId}
+                text={stuckLoading ? 'מחפש...' : 'חפש'}
+              />
             </div>
           </div>
 
-          <div className="mt-3 flex gap-2 items-center">
-            <Button onClick={handleCheckLock} disabled={lockLoading || lockActionsDisabled} text={lockLoading ? 'בודק...' : 'בדוק נעילה'} />
-            <button
-              onClick={handleUnlockClick}
-              disabled={unlockLoading || lockActionsDisabled}
-              className={`px-3 py-2 rounded text-white transition ${
-                unlockLoading || lockActionsDisabled ? 'bg-red-300 cursor-not-allowed' : 'bg-red-600 hover:bg-red-700'
-              }`}
-            >
-              {unlockLoading ? 'משחרר...' : 'שחרר נעילה'}
-            </button>
-          </div>
-          {lockInfo && (
-            <div className="mt-3 text-sm border-t pt-3">
-              <div><b>state:</b> {String(lockInfo.state || '-')}</div>
-              <div><b>runId:</b> {String(lockInfo.runId || '-')}</div>
-              <div><b>ym:</b> {String(lockInfo.ym || lockYm || '-')}</div>
+          {!hasSearchedRuns ? (
+            <p className="text-sm text-gray-500">בחרי סוכן ולחצי &quot;חפש&quot; כדי לראות את הריצות שלו.</p>
+          ) : stuckLoading ? (
+            <p className="text-sm text-gray-500">טוען...</p>
+          ) : filteredStuckRuns.length === 0 ? (
+            <p className="text-sm text-gray-500">
+              לא נמצאו נעילות (portalImportLocks) פעילות לסוכן זה לפי הסינון הנוכחי.
+            </p>
+          ) : (
+            <div className="space-y-4">
+              {runsGroupedByYm.map(([ym, rows]) => (
+                <div key={ym} className="border rounded overflow-hidden">
+                  <div className="bg-gray-100 px-3 py-2 font-bold text-sm">
+                    חודש פרסום: {ym}
+                  </div>
+                  <div className="p-3 space-y-3">
+                    {rows.map((item) => {
+                      const mins = minutesAgo(item.updatedAt);
+                      return (
+                        <div key={item.id} className="border rounded-lg overflow-hidden">
+                          <div className="flex items-center justify-between bg-gray-50 px-3 py-2">
+                            <div className="font-bold text-sm">{item.companyName}</div>
+                            <button
+                              onClick={() => setReleaseConfirmRun(item)}
+                              disabled={releasingRunId === item.id}
+                              className="text-red-600 hover:underline text-sm font-medium disabled:opacity-50"
+                            >
+                              {releasingRunId === item.id ? 'משחרר...' : 'שחרר נעילה'}
+                            </button>
+                          </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 p-3">
+                            {/* טבלה 1: portalImportLocks */}
+                            <div
+                              className={`rounded-lg border p-3 ${
+                                item.lockState === 'running'
+                                  ? 'bg-blue-50 border-blue-200'
+                                  : item.lockState === 'error'
+                                  ? 'bg-red-50 border-red-200'
+                                  : 'bg-gray-50 border-gray-200'
+                              }`}
+                            >
+                              <div className="text-xs text-gray-500">שם טבלה</div>
+                              <div className="font-mono font-bold text-sm mb-2">portalImportLocks</div>
+                              <div className="text-xs text-gray-500">סטטוס</div>
+                              <div className="font-bold text-base">{item.lockState || '(ריק)'}</div>
+                              <div className="text-[11px] text-gray-500 mt-2 font-mono break-all">
+                                <b>runId:</b> {item.runId || '(אין)'}
+                              </div>
+                              <div className="text-[11px] text-gray-400 mt-1 font-mono break-all">
+                                docId: {item.lockId}
+                              </div>
+                            </div>
+
+                            {/* טבלה 2: portalImportRuns */}
+                            <div
+                              className={`rounded-lg border p-3 ${
+                                !item.runFound
+                                  ? 'bg-gray-50 border-gray-200'
+                                  : isInProgressStatus(item.status)
+                                  ? 'bg-blue-50 border-blue-200'
+                                  : item.status === 'error' || item.status === 'failed'
+                                  ? 'bg-red-50 border-red-200'
+                                  : 'bg-green-50 border-green-200'
+                              }`}
+                            >
+                              <div className="text-xs text-gray-500">שם טבלה</div>
+                              <div className="font-mono font-bold text-sm mb-2">portalImportRuns</div>
+                              <div className="text-xs text-gray-500">סטטוס</div>
+                              <div className="font-bold text-base">
+                                {item.runFound ? statusLabel(item.status) : 'אין מסמך תואם'}
+                                {item.step ? (
+                                  <span className="text-xs text-gray-400 font-normal"> ({item.step})</span>
+                                ) : null}
+                              </div>
+                              <div className="text-[11px] text-gray-500 mt-2 font-mono break-all">
+                                <b>runId:</b> {item.runId || '(אין)'}
+                              </div>
+                              <div className="text-[11px] text-gray-400 mt-1 font-mono break-all">
+                                docId: {item.runId || '(אין)'} <span className="text-gray-300">(= runId, זהה)</span>
+                              </div>
+                              {item.updatedAt && (
+                                <div className="text-[11px] text-gray-400 mt-1">
+                                  עודכן: {item.updatedAt.toLocaleString('he-IL')}
+                                  {mins !== null ? ` (לפני ${mins} דק')` : ''}
+                                </div>
+                              )}
+                            </div>
+
+                            {/* טבלה 3: commissionImportQueue */}
+                            <div
+                              className={`rounded-lg border p-3 ${
+                                item.queueJobs.length === 0
+                                  ? 'bg-gray-50 border-gray-200'
+                                  : item.queueJobs.some((j) => j.status === 'queued' || j.status === 'processing')
+                                  ? 'bg-blue-50 border-blue-200'
+                                  : item.queueJobs.some((j) => j.status === 'error')
+                                  ? 'bg-red-50 border-red-200'
+                                  : 'bg-green-50 border-green-200'
+                              }`}
+                            >
+                              <div className="text-xs text-gray-500">שם טבלה</div>
+                              <div className="font-mono font-bold text-sm mb-2">commissionImportQueue</div>
+                              {item.queueJobs.length === 0 ? (
+                                <>
+                                  <div className="text-xs text-gray-500">סטטוס</div>
+                                  <div className="font-bold text-base text-gray-400">אין job-ים משויכים</div>
+                                  <div className="text-[11px] text-gray-400 mt-2 italic">
+                                    (של הריצה ההורה — {item.runId || 'אין'})
+                                  </div>
+                                </>
+                              ) : (
+                                <div className="space-y-2">
+                                  {item.queueJobs.map((j) => (
+                                    <div key={j.id} className="border-t first:border-t-0 pt-1.5 first:pt-0">
+                                      <div className="text-[11px] text-gray-500 font-mono break-all">
+                                        <b>jobId:</b> {j.id}
+                                      </div>
+                                      <div className="text-xs text-gray-500 mt-1.5">סטטוס</div>
+                                      <div className="font-bold text-base">{statusLabel(j.status)}</div>
+                                      <div className="text-[11px] text-gray-500 mt-1 font-mono break-all">
+                                        <b>portalRunId:</b> {j.portalRunId || '(לא רשום על המסמך)'}
+                                      </div>
+                                      {j.templateId && (
+                                        <div className="text-[11px] text-gray-400 mt-0.5 font-mono break-all">
+                                          templateId: {j.templateId}
+                                        </div>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </div>
+
         <div>
 <BackfillYmButton />
 </div>
@@ -880,34 +1298,6 @@ for (const d of bridgeSnap.docs) {
           )}
         </div>
 
-        {/* Confirm unlock dialog */}
-        {unlockConfirmOpen && (
-          <DialogNotification
-            type="warning"
-            title="אישור שחרור נעילה"
-            message={
-              <div className="text-sm">
-                <p>האם לשחרר/למחוק את הנעילה?</p>
-                <div className="mt-2">
-                  <div><b>LockId:</b> <span className="font-mono">{lockId || '-'}</span></div>
-                  <div><b>סוכן:</b> {selectedAgentId}</div>
-                  <div><b>תבנית:</b> {templateId}</div>
-                  <div><b>חודש:</b> {lockYm}</div>
-                </div>
-                <p className="text-red-600 mt-3">
-                  זה מיועד לריצות אוטומטיות בלבד. שחרור נעילה מאפשר לריצה חדשה להתחיל.
-                </p>
-              </div>
-            }
-            onConfirm={async () => {
-              setUnlockConfirmOpen(false);
-              await handleUnlockLockConfirmed();
-            }}
-            onCancel={() => setUnlockConfirmOpen(false)}
-            confirmText={unlockLoading ? 'משחרר...' : 'שחרר נעילה'}
-            cancelText="ביטול"
-          />
-        )}
 {bridgeRun && (
   <DialogNotification
     type="info"
@@ -934,6 +1324,50 @@ for (const d of bridgeSnap.docs) {
     cancelText="ביטול"
   />
 )}
+        {releaseConfirmRun && (
+          <DialogNotification
+            type="warning"
+            title="אישור שחרור נעילה"
+            message={
+              <div className="text-sm space-y-1">
+                <p>האם למחוק את הנעילה הזו?</p>
+                <div className="mt-2 font-mono text-xs bg-gray-50 border rounded p-2 space-y-1">
+                  <div><b>portalImportLocks.docId:</b> {releaseConfirmRun.lockId}</div>
+                  <div><b>portalImportLocks.state:</b> {releaseConfirmRun.lockState || '(ריק)'}</div>
+                  <div><b>portalImportLocks.runId:</b> {releaseConfirmRun.runId || '(אין)'}</div>
+                </div>
+                <div className="mt-2">
+                  <div><b>חברה:</b> {releaseConfirmRun.companyName}</div>
+                  <div><b>חודש פרסום:</b> {releaseConfirmRun.ym}</div>
+                  <div>
+                    <b>מסמך ריצה תואם:</b>{' '}
+                    {releaseConfirmRun.runFound
+                      ? `נמצא (status: ${releaseConfirmRun.status || '-'})`
+                      : 'לא נמצא'}
+                  </div>
+                  <div>
+                    <b>job-ים ב-commissionImportQueue:</b>{' '}
+                    {releaseConfirmRun.queueJobs.length === 0
+                      ? 'אין'
+                      : releaseConfirmRun.queueJobs
+                          .map((j) => `${j.id} (${statusLabel(j.status)})`)
+                          .join(', ')}
+                  </div>
+                </div>
+                <p className="text-amber-700 mt-3">
+                  הפעולה תמחק את הנעילה, ואם נמצא מסמך ריצה תואם — תסמן אותו כשגיאה, כך שהסוכן יוכל לנסות שוב.
+                  job-ים ב-commissionImportQueue שנמצאים ב-queued/processing יסומנו גם הם כ-error.
+                  אם הריצה בעצם עדיין פעילה באמת (לא תקועה), עדיף להמתין במקום לשחרר.
+                </p>
+              </div>
+            }
+            onConfirm={() => handleReleaseStuckRun(releaseConfirmRun)}
+            onCancel={() => setReleaseConfirmRun(null)}
+            confirmText={releasingRunId === releaseConfirmRun.id ? 'משחרר...' : 'שחרר'}
+            cancelText="ביטול"
+          />
+        )}
+
         {/* Dialog popup כללי */}
         {dialog ? (
           <DialogNotification
