@@ -138,6 +138,7 @@
 }
 
 .cp-field-full { grid-column: span 6; }
+.cp-field-fill { grid-column: span 4; }
 
 .cp-field-label {
   font-size: 13px;
@@ -473,6 +474,12 @@
   font-size: 12px;
   font-weight: 700;
   vertical-align: middle;
+}
+
+.cp-tier-premium {
+  background: #eee5ff;
+  color: #5b21b6;
+  border: 1px solid #b794f4;
 }
 
 .cp-tier-gold {

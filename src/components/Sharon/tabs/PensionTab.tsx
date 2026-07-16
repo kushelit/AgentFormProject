@@ -34,6 +34,7 @@ type SaleRow = {
 type Props = {
   agentId: string;
   customer: CustomerResult | null;
+  onSelectCustomer: (c: CustomerResult) => void;
 };
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -47,11 +48,36 @@ function formatDate(dateStr: string): string {
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
-const PensionTab: React.FC<Props> = ({ agentId, customer }) => {
+const PensionTab: React.FC<Props> = ({ agentId, customer, onSelectCustomer }) => {
   const [sales, setSales] = useState<SaleRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [filterCompany, setFilterCompany] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
+
+
+const handleRowSelectCustomer = async (idNumber: string) => {
+    if (!agentId || !idNumber) return;
+    try {
+      const snap = await getDocs(query(
+        collection(db, 'customer'),
+        where('AgentId', '==', agentId),
+        where('IDCustomer', '==', idNumber)
+      ));
+      if (!snap.empty) {
+        const d = snap.docs[0];
+        const data = d.data();
+        onSelectCustomer({
+          id: d.id,
+          IDCustomer: data.IDCustomer,
+            firstNameCustomer: data.firstNameCustomer,
+          lastNameCustomer: data.lastNameCustomer,
+          phone: data.phone,
+        });
+      }
+    } catch {}
+  };
+
+
 
   const fetchSales = useCallback(async () => {
     if (!agentId) return;
@@ -133,9 +159,9 @@ const PensionTab: React.FC<Props> = ({ agentId, customer }) => {
               </tr>
             </thead>
             <tbody>
-              {filtered.map(sale => (
-                <tr key={sale.id}>
-                  <td>{formatDate(sale.mounth)}</td>
+            {filtered.map(sale => (
+  <tr key={sale.id} onClick={() => handleRowSelectCustomer(sale.IDCustomer)} style={{ cursor: 'pointer' }}>
+    <td>{formatDate(sale.mounth)}</td>
                   <td>{sale.firstNameCustomer} {sale.lastNameCustomer}</td>
                   <td>{sale.IDCustomer}</td>
                   <td>{sale.product}</td>

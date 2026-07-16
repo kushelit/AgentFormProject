@@ -1,0 +1,239 @@
+/* ── CustomerMeetingFlow — דיאגרמת תהליך תיאום פגישה ── */
+
+.cmf-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  align-items: center;
+  padding: 12px 0 8px;
+}
+
+/* ── דיאגרמה ── */
+.cmf-diagram {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  width: 100%;
+  max-width: 560px;
+  justify-content: center;
+}
+
+.cmf-node {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  min-width: 96px;
+}
+
+.cmf-node-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: #f0f4f9;
+  border: 2px solid #cdd5e0;
+  color: #7a8faa;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 17px;
+  font-weight: 700;
+  transition: all 0.2s;
+}
+
+.cmf-node-label {
+  font-size: 12px;
+  color: #7a8faa;
+  font-weight: 600;
+  text-align: center;
+}
+
+.cmf-node-active .cmf-node-icon {
+  background: #e8f0fb;
+  border-color: #2d5a8e;
+  color: #2d5a8e;
+  box-shadow: 0 0 0 4px rgba(45, 90, 142, 0.1);
+}
+.cmf-node-active .cmf-node-label { color: #1e3a5f; }
+
+.cmf-node-done .cmf-node-icon {
+  background: #2d5a8e;
+  border-color: #2d5a8e;
+  color: white;
+}
+.cmf-node-done .cmf-node-label { color: #1e3a5f; }
+
+.cmf-node-negative.cmf-node-active .cmf-node-icon {
+  background: #fff3e0;
+  border-color: #e65100;
+  color: #e65100;
+  box-shadow: 0 0 0 4px rgba(230, 81, 0, 0.1);
+}
+
+.cmf-node-done-negative .cmf-node-icon {
+  background: #e53e3e;
+  border-color: #e53e3e;
+  color: white;
+}
+.cmf-node-done-negative .cmf-node-label { color: #b3261e; }
+
+.cmf-connector {
+  height: 2px;
+  width: 60px;
+  background: #cdd5e0;
+  flex-shrink: 0;
+  margin: 0 -4px 20px;
+  transition: background 0.2s;
+}
+.cmf-connector-done { background: #2d5a8e; }
+
+.cmf-branch {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* ── תיבות פעולה ── */
+.cmf-action-box {
+  background: #f7f9fc;
+  border: 1px solid #dde3ee;
+  border-radius: 12px;
+  padding: 16px 20px;
+  width: 100%;
+  max-width: 400px;
+  text-align: center;
+}
+
+.cmf-question {
+  font-size: 13px;
+  color: #7a8faa;
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+
+.cmf-branch-actions {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.cmf-btn-primary {
+  background: #2d5a8e;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 9px 18px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: 'Heebo', sans-serif;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+.cmf-btn-primary:hover:not(:disabled) { opacity: 0.88; }
+.cmf-btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.cmf-btn-negative {
+  background: white;
+  color: #e53e3e;
+  border: 1px solid #f0b8b8;
+  border-radius: 8px;
+  padding: 9px 18px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: 'Heebo', sans-serif;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.cmf-btn-negative:hover:not(:disabled) { background: #fdeceb; }
+
+.cmf-btn-cancel {
+  background: white;
+  color: #7a8faa;
+  border: 1px solid #cdd5e0;
+  border-radius: 8px;
+  padding: 9px 14px;
+  font-size: 13px;
+  font-family: 'Heebo', sans-serif;
+  cursor: pointer;
+}
+
+.cmf-btn-reset {
+  background: none;
+  color: #7a8faa;
+  border: none;
+  text-decoration: underline;
+  font-size: 12px;
+  font-family: 'Heebo', sans-serif;
+  cursor: pointer;
+  margin-top: 8px;
+}
+.cmf-btn-reset:hover { color: #1e3a5f; }
+
+.cmf-status-line {
+  font-size: 13px;
+}
+.cmf-status-ok {
+  color: #2e7d32;
+  font-weight: 600;
+}
+
+.cmf-date-form {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.cmf-label {
+  font-size: 12px;
+  color: #7a8faa;
+  font-weight: 500;
+}
+
+.cmf-input {
+  height: 36px;
+  padding: 0 10px;
+  border: 1px solid #cdd5e0;
+  border-radius: 6px;
+  font-size: 14px;
+  font-family: 'Heebo', sans-serif;
+  color: #2c3e5a;
+  background: white;
+  direction: ltr;
+}
+.cmf-input:focus { outline: none; border-color: #2d5a8e; }
+
+/* ── תוצאה סופית ── */
+.cmf-result {
+  text-align: center;
+  padding: 16px 20px;
+  border-radius: 12px;
+  width: 100%;
+  max-width: 400px;
+}
+
+.cmf-result-positive {
+  background: #eaf5ea;
+  border: 1px solid #a5d6a7;
+}
+.cmf-result-positive .cmf-result-title { color: #2e7d32; }
+
+.cmf-result-negative {
+  background: #fdeceb;
+  border: 1px solid #f0b8b8;
+}
+.cmf-result-negative .cmf-result-title { color: #b3261e; }
+
+.cmf-result-title {
+  font-size: 15px;
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+
+.cmf-result-date {
+  font-size: 14px;
+  color: #1e3a5f;
+  font-weight: 600;
+  direction: ltr;
+}

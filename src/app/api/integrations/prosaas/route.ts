@@ -213,7 +213,7 @@ async function saveProsaasFilesToLead(
       .get();
 
     if (!existingSnap.empty) {
-      // console.log('⏭️ Skipping duplicate file:', file.name);
+       console.log('⏭️ Skipping duplicate file:', file.name);
       continue;
     }
 
@@ -368,7 +368,7 @@ export async function POST(req: Request) {
       { status: 400 }
     );
   } catch (error: any) {
-    // console.error('PROSAAS WEBHOOK ERROR:', error);
+     console.error('PROSAAS WEBHOOK ERROR:', error);
 
     return NextResponse.json(
       {

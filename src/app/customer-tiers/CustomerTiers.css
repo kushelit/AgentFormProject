@@ -218,6 +218,11 @@
   border: none;
 }
 
+.ct-tier-premium {
+  background: #f1e9ff;
+  color: #6b3fc9;
+}
+
 .ct-tier-gold {
   background: #fdf3df;
   color: #b8860b;

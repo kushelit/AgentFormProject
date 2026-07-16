@@ -3,7 +3,7 @@
 import { useEffect, useState, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-  collection, query, where, getDocs, addDoc, updateDoc,
+  collection, query, where, getDocs, addDoc, updateDoc, deleteDoc,
   doc, serverTimestamp, orderBy,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase/firebase';
@@ -24,7 +24,11 @@ interface Task {
   assignedTo: string;
   assignedToName: string;
   status: TaskStatus;
+  createdBy?: string;
   createdAt: any;
+  reminderMinutesBefore?: number;
+  reminderShown?: boolean;
+  snoozeUntil?: string;
   customerId: string;
   customerName?: string;
   agentId: string;
@@ -193,6 +197,7 @@ export default function TasksHub() {
   const [newDue, setNewDue] = useState('');
   const [newAssigned, setNewAssigned] = useState('');
   const [newCustomerId, setNewCustomerId] = useState('');
+  const [newReminder, setNewReminder] = useState(15);
   const [customers, setCustomers] = useState<CustomerOption[]>([]);
   const [saving, setSaving] = useState(false);
 
@@ -202,7 +207,11 @@ export default function TasksHub() {
   const [editDue, setEditDue] = useState('');
   const [editAssigned, setEditAssigned] = useState('');
   const [editStatus, setEditStatus] = useState<TaskStatus>('open');
+  const [editReminder, setEditReminder] = useState(15);
   const [editSaving, setEditSaving] = useState(false);
+
+  // מחיקת משימה
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   const openEdit = (t: Task) => {
     setEditingTask(t);
@@ -210,6 +219,7 @@ export default function TasksHub() {
     setEditDue(t.dueDate ?? '');
     setEditAssigned(t.assignedTo);
     setEditStatus(t.status);
+    setEditReminder(t.reminderMinutesBefore ?? 15);
   };
 
   const saveEdit = async () => {
@@ -217,12 +227,16 @@ export default function TasksHub() {
     setEditSaving(true);
     try {
       const assignedUser = agentUsers.find(u => u.id === editAssigned);
+      const dueChanged = (editingTask.dueDate || '') !== (editDue || '');
+      const reminderChanged = (editingTask.reminderMinutesBefore ?? 15) !== (editReminder || 0);
       await updateDoc(doc(db, 'customerTasks', editingTask.id), {
         text: editText.trim(),
         dueDate: editDue || null,
         assignedTo: editAssigned,
         assignedToName: assignedUser?.name || assignedUser?.displayName || assignedUser?.email || '',
         status: editStatus,
+        reminderMinutesBefore: editReminder || 15,
+        ...(dueChanged || reminderChanged ? { reminderShown: false, snoozeUntil: null } : {}),
       });
       setTasks(prev => prev.map(t => t.id === editingTask.id ? {
         ...t,
@@ -231,6 +245,8 @@ export default function TasksHub() {
         assignedTo: editAssigned,
         assignedToName: assignedUser?.name || assignedUser?.displayName || assignedUser?.email || '',
         status: editStatus,
+        reminderMinutesBefore: editReminder || 15,
+        ...(dueChanged || reminderChanged ? { reminderShown: false, snoozeUntil: undefined } : {}),
       } : t));
       setEditingTask(null);
       addToast('success', 'משימה עודכנה');
@@ -238,6 +254,18 @@ export default function TasksHub() {
       addToast('error', 'כשל בשמירה');
     } finally {
       setEditSaving(false);
+    }
+  };
+
+  // ─── מחיקת משימה (פתוח לכל חבר צוות) ─────────────────────────────────────────
+  const deleteTask = async (taskId: string) => {
+    try {
+      await deleteDoc(doc(db, 'customerTasks', taskId));
+      setTasks(prev => prev.filter(t => t.id !== taskId));
+      setConfirmDeleteId(null);
+      addToast('success', 'המשימה נמחקה');
+    } catch {
+      addToast('error', 'כשל במחיקת המשימה');
     }
   };
 
@@ -362,9 +390,13 @@ export default function TasksHub() {
         assignedTo: newAssigned || user.uid,
         assignedToName: assignedUser?.name || assignedUser?.displayName || assignedUser?.email || '',
         status: 'open' as TaskStatus,
+        createdBy: user.uid,
         createdAt: serverTimestamp(),
+        reminderMinutesBefore: newReminder || 15,
+        reminderShown: false,
+        snoozeUntil: null,
       });
-      setNewText(''); setNewDue(''); setNewCustomerId(''); setShowForm(false);
+      setNewText(''); setNewDue(''); setNewCustomerId(''); setNewReminder(15); setShowForm(false);
       addToast('success', 'משימה נוספה בהצלחה');
       await loadTasks();
     } finally {
@@ -521,6 +553,16 @@ export default function TasksHub() {
                 />
               </div>
             </div>
+            <div className="th-form-field">
+              <label className="th-label">תזכורת (דקות לפני)</label>
+              <input
+                type="number"
+                min={0}
+                className="th-input"
+                value={newReminder}
+                onChange={e => setNewReminder(Number(e.target.value) || 0)}
+              />
+            </div>
           </div>
           <div className="th-form-actions">
             <button className="th-btn-save" onClick={addTask} disabled={!newText.trim() || saving}>
@@ -578,11 +620,34 @@ export default function TasksHub() {
                   </div>
                 </div>
 
+                {/* ── כפתורי ערוך / מחק (פתוח לכל חבר צוות) ── */}
                 <button
                   className="th-btn-edit-task"
                   onClick={() => openEdit(t)}
                   title="ערוך משימה"
                 >✏</button>
+
+                {confirmDeleteId === t.id ? (
+                  <div className="th-delete-confirm">
+                    <span className="th-delete-confirm-text">למחוק?</span>
+                    <button
+                      className="th-btn-delete-task th-btn-delete-confirm"
+                      onClick={() => deleteTask(t.id)}
+                      title="אישור מחיקה"
+                    >כן</button>
+                    <button
+                      className="th-btn-delete-task"
+                      onClick={() => setConfirmDeleteId(null)}
+                      title="ביטול"
+                    >לא</button>
+                  </div>
+                ) : (
+                  <button
+                    className="th-btn-delete-task"
+                    onClick={() => setConfirmDeleteId(t.id)}
+                    title="מחק משימה"
+                  >🗑</button>
+                )}
 
                 <select
                   className={`th-status-select ${STATUS_CLASS[t.status]}`}
@@ -651,6 +716,16 @@ export default function TasksHub() {
                     <option key={k} value={k}>{v}</option>
                   ))}
                 </select>
+              </div>
+              <div className="th-form-field">
+                <label className="th-label">תזכורת (דקות לפני)</label>
+                <input
+                  type="number"
+                  min={0}
+                  className="th-input"
+                  value={editReminder}
+                  onChange={e => setEditReminder(Number(e.target.value) || 0)}
+                />
               </div>
             </div>
             <div className="th-form-actions">

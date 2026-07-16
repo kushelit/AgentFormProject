@@ -88,7 +88,7 @@ type Props = {
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
-const ElementaryTab: React.FC<Props> = ({ agentId, customer }) => {
+const ElementaryTab: React.FC<Props> = ({ agentId, customer, onSelectCustomer }) => {
   const { toasts, addToast, setToasts } = useToast();
 
   const [groups, setGroups] = useState<ElementaryProductGroup[]>([]);
@@ -102,6 +102,30 @@ const ElementaryTab: React.FC<Props> = ({ agentId, customer }) => {
   const [isLookingUp, setIsLookingUp] = useState(false);
   const [filterCompany, setFilterCompany] = useState('');
   const [filterProductId, setFilterProductId] = useState('');
+
+
+ const handleRowSelectCustomer = async (idNumber: string) => {
+    if (!agentId || !idNumber) return;
+    try {
+      const snap = await getDocs(query(
+        collection(db, 'customer'),
+        where('AgentId', '==', agentId),
+        where('IDCustomer', '==', idNumber)
+      ));
+      if (!snap.empty) {
+        const d = snap.docs[0];
+        const data = d.data();
+        onSelectCustomer({
+          id: d.id,
+          IDCustomer: data.IDCustomer,
+          firstNameCustomer: data.firstNameCustomer,
+          lastNameCustomer: data.lastNameCustomer,
+          phone: data.phone,
+        });
+      }
+    } catch {}
+  };
+
 
   // ─── Fetch meta ───────────────────────────────────────────────────────────
   const fetchMeta = useCallback(async () => {
@@ -495,9 +519,13 @@ const editIsManual =
             </tr>
           </thead>
           <tbody>
-            {filtered.map(policy => (
-              <tr key={policy.id}>
-                {editingId === policy.id ? renderEditCells() : (
+          {filtered.map(policy => (
+  <tr
+    key={policy.id}
+    onClick={() => { if (editingId !== policy.id) handleRowSelectCustomer(policy.customerId); }}
+    style={{ cursor: editingId === policy.id ? 'default' : 'pointer' }}
+  >
+    {editingId === policy.id ? renderEditCells() : (
                   <>
                     <td colSpan={2}>
                       <div style={{ fontWeight: 500 }}>{policy.customerName}</div>

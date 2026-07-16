@@ -18,6 +18,7 @@ import { resolveFromTemplate } from '@/utils/contractCommissionResolvers';
 import './CustomerPage.css';
 import CustomerNotes from './CustomerNotes';
 import CustomerTasks from './CustomerTasks';
+import CustomerMeetingFlow from './CustomerMeetingFlow';
 
 // ─── טיפוסים ──────────────────────────────────────────────────────────────────
 
@@ -28,6 +29,7 @@ interface CustomerDoc {
   lastNameCustomer: string;
   fullNameCustomer?: string;
   birthday?: string;
+  familyStatus?: string;
   gender?: string;
   phone?: string;
   mail?: string;
@@ -38,10 +40,12 @@ interface CustomerDoc {
   parentID?: string;
   parentFullName?: string;
   shortNote?: string;
-  customerTier?: 'gold' | 'silver' | 'standard';
+  customerTier?: 'premium' | 'gold' | 'silver' | 'standard';
   tierNifraim?: number;
   AgentId: string;
   issueDay?: string;
+  responsibleUserId?: string;
+  responsibleUserName?: string;
 }
 
 interface SaleRow {
@@ -82,7 +86,14 @@ interface FamilyMember {
   parentID?: string;
 }
 
-type TabKey = 'magic' | 'nifraim' | 'family' | 'notes' | 'tasks';
+interface AgentUser {
+  id: string;
+  name?: string;
+  displayName?: string;
+  email?: string;
+}
+
+type TabKey = 'magic' | 'nifraim' | 'family' | 'notes' | 'tasks' | 'meeting';
 
 // ─── עזרים ────────────────────────────────────────────────────────────────────
 
@@ -124,6 +135,17 @@ const prevMonth = () => {
 const initials = (first: string, last: string) =>
   `${first?.[0] ?? ''}${last?.[0] ?? ''}`.toUpperCase();
 
+const calculateAge = (birthday?: string): number | null => {
+  if (!birthday) return null;
+  const b = new Date(birthday);
+  if (isNaN(b.getTime())) return null;
+  const today = new Date();
+  let age = today.getFullYear() - b.getFullYear();
+  const m = today.getMonth() - b.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < b.getDate())) age--;
+  return age >= 0 ? age : null;
+};
+
 // ─── קומפוננט ראשי ────────────────────────────────────────────────────────────
 
 export default function CustomerPage() {
@@ -145,7 +167,7 @@ export default function CustomerPage() {
   const [customer, setCustomer] = useState<CustomerDoc | null>(null);
   const [loadingCustomer, setLoadingCustomer] = useState(true);
 
-  const [activeTab, setActiveTab] = useState<TabKey>('magic');
+  const [activeTab, setActiveTab] = useState<TabKey>('tasks');
 
   // עריכת פרטי לקוח
   const [isEditing, setIsEditing] = useState(false);
@@ -159,6 +181,7 @@ export default function CustomerPage() {
       lastNameCustomer: customer.lastNameCustomer,
       IDCustomer: customer.IDCustomer,
       birthday: customer.birthday ?? '',
+      familyStatus: customer.familyStatus ?? '',
       gender: customer.gender ?? '',
       phone: customer.phone ?? '',
       mail: customer.mail ?? '',
@@ -166,6 +189,7 @@ export default function CustomerPage() {
       notes: customer.notes ?? '',
       shortNote: customer.shortNote ?? '',
       issueDay: customer.issueDay ?? '',
+      responsibleUserId: customer.responsibleUserId ?? '',
     });
     setIsEditing(true);
   };
@@ -177,12 +201,17 @@ export default function CustomerPage() {
     setIsSaving(true);
     try {
       const fullName = (editData.firstNameCustomer ?? '') + ' ' + (editData.lastNameCustomer ?? '');
+      const responsibleUser = agentUsers.find(u => u.id === editData.responsibleUserId);
+      const responsibleUserName = responsibleUser
+        ? (responsibleUser.name || responsibleUser.displayName || responsibleUser.email || '')
+        : '';
       await updateDoc(doc(db, 'customer', customer.id), {
         ...editData,
         fullNameCustomer: fullName.trim(),
+        responsibleUserName,
         lastUpdateDate: serverTimestamp(),
       });
-      setCustomer(prev => prev ? { ...prev, ...editData, fullNameCustomer: fullName.trim() } : prev);
+      setCustomer(prev => prev ? { ...prev, ...editData, fullNameCustomer: fullName.trim(), responsibleUserName } : prev);
       setIsEditing(false);
       setEditData({});
       addToast('success', 'פרטי הלקוח עודכנו בהצלחה');
@@ -212,6 +241,9 @@ export default function CustomerPage() {
   // קשרים משפחתיים
   const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>([]);
   const [loadingFamily, setLoadingFamily] = useState(false);
+
+  // אנשי צוות הסוכנות — לבחירת "אחראי" ברמת לקוח (אותה רשימה כמו באחראי משימה)
+  const [agentUsers, setAgentUsers] = useState<AgentUser[]>([]);
 
   // ─── טעינת נתוני לקוח ────────────────────────────────────────────────────────
   useEffect(() => {
@@ -266,6 +298,21 @@ export default function CustomerPage() {
   // ─── sourceLeadMap ────────────────────────────────────────────────────────────
   useEffect(() => {
     if (customer?.AgentId) fetchSourceLeadMap(customer.AgentId);
+  }, [customer?.AgentId]);
+
+  // ─── אנשי צוות הסוכנות (לשדה "אחראי" ברמת לקוח) ────────────────────────────────
+  useEffect(() => {
+    if (!customer?.AgentId) return;
+    const loadUsers = async () => {
+      const q = query(
+        collection(db, 'users'),
+        where('agentId', '==', customer.AgentId),
+        where('isActive', '==', true),
+      );
+      const snap = await getDocs(q);
+      setAgentUsers(snap.docs.map(d => ({ id: d.id, ...(d.data() as any) })));
+    };
+    loadUsers();
   }, [customer?.AgentId]);
 
   // ─── חישוב עמלות ─────────────────────────────────────────────────────────────
@@ -483,11 +530,12 @@ const calculateCommissions = (sale: any, contractMatch: any) => {
     '—';
 
   const tabs: { key: TabKey; label: string }[] = [
+    { key: 'tasks', label: 'משימות' },
+    { key: 'meeting', label: 'תיאום פגישה' },
+    { key: 'notes', label: 'הערות' },
     { key: 'magic', label: 'עסקאות Magic' },
     { key: 'nifraim', label: 'פוליסות מטעינה' },
     { key: 'family', label: 'קשרים משפחתיים' },
-    { key: 'notes', label: 'הערות' },
-    { key: 'tasks', label: 'משימות' },
   ];
 
   return (
@@ -527,7 +575,11 @@ const calculateCommissions = (sale: any, contractMatch: any) => {
                 {customer.firstNameCustomer} {customer.lastNameCustomer}
                 {customer.customerTier && customer.customerTier !== 'standard' && (
                   <span className={`cp-tier-badge cp-tier-${customer.customerTier}`}>
-                    {customer.customerTier === 'gold' ? '★ זהב' : '◆ כסף'}
+                    {customer.customerTier === 'premium'
+                      ? '♛ פרימיום'
+                      : customer.customerTier === 'gold'
+                      ? '★ זהב'
+                      : '◆ כסף'}
                   </span>
                 )}
               </div>
@@ -567,6 +619,34 @@ const calculateCommissions = (sale: any, contractMatch: any) => {
               <input type="date" className="cp-edit-input-field" value={editData.birthday ?? ''} onChange={e => setEditData(p => ({ ...p, birthday: e.target.value }))} />
             ) : (
               <span className="cp-field-value">{customer.birthday ? formatIsraeliDateOnly(customer.birthday) : '—'}</span>
+            )}
+          </div>
+          <div className="cp-field">
+            <span className="cp-field-label">גיל</span>
+            <span className="cp-field-value">
+              {(() => {
+                const age = calculateAge(isEditing ? editData.birthday : customer.birthday);
+                return age !== null ? age : '—';
+              })()}
+            </span>
+          </div>
+          <div className="cp-field">
+            <span className="cp-field-label">סטטוס משפחתי</span>
+            {isEditing ? (
+              <select
+                className="cp-edit-input-field"
+                value={editData.familyStatus ?? ''}
+                onChange={e => setEditData(p => ({ ...p, familyStatus: e.target.value }))}
+              >
+                <option value="">לא נבחר</option>
+                <option value="רווק/ה">רווק/ה</option>
+                <option value="נשוי/אה">נשוי/אה</option>
+                <option value="גרוש/ה">גרוש/ה</option>
+                <option value="אלמן/ה">אלמן/ה</option>
+                <option value="ידוע/ה בציבור">ידוע/ה בציבור</option>
+              </select>
+            ) : (
+              <span className="cp-field-value">{customer.familyStatus || '—'}</span>
             )}
           </div>
           <div className="cp-field">
@@ -625,6 +705,25 @@ const calculateCommissions = (sale: any, contractMatch: any) => {
             <span className="cp-field-value">{sourceName}</span>
           </div>
           <div className="cp-field">
+            <span className="cp-field-label">אחראי</span>
+            {isEditing ? (
+              <select
+                className="cp-edit-input-field"
+                value={editData.responsibleUserId ?? ''}
+                onChange={e => setEditData(p => ({ ...p, responsibleUserId: e.target.value }))}
+              >
+                <option value="">בחר אחראי</option>
+                {agentUsers.map(u => (
+                  <option key={u.id} value={u.id}>
+                    {u.name || u.displayName || u.email}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <span className="cp-field-value">{customer.responsibleUserName || '—'}</span>
+            )}
+          </div>
+          <div className="cp-field cp-field-fill">
             <span className="cp-field-label">הערת רקע</span>
             {isEditing ? (
               <input
@@ -810,6 +909,11 @@ const calculateCommissions = (sale: any, contractMatch: any) => {
         {/* ── משימות ── */}
         {activeTab === 'tasks' && (
           <CustomerTasks customerId={customerId} agentId={customer.AgentId} />
+        )}
+
+        {/* ── תיאום פגישה ── */}
+        {activeTab === 'meeting' && (
+          <CustomerMeetingFlow customerId={customerId} agentId={customer.AgentId} />
         )}
 
       </div>

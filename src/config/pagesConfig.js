@@ -2,19 +2,35 @@ const pages = [
  
   { href: '/NewAgentForm', label: 'ניהול עסקאות' },
   { href: '/NewCustomer', label: 'ניהול לקוחות' },
-   {
-    href: '/whatsapp-send',
-    label: 'שליחת whatsapp',
+  //  {
+  //   href: '/whatsapp-send',
+  //   label: 'שליחת whatsapp',
+  //   submenu: [
+  //     { href: '/whatsapp-send', label: 'לידים ושליחה' },
+  //     { href: '/WhatsAppSettings', label: 'ניהול הגדרות' },
+  //   ],
+  // },
+    {
+    href: '/CRM',
+    label: 'CRM',
     submenu: [
-      { href: '/whatsapp-send', label: 'לידים ושליחה' },
-      { href: '/WhatsAppSettings', label: 'ניהול הגדרות' },
-    ],
-  },
-   { 
+    { 
   href: '/tasks', 
   label: 'משימות',
   onlyPermissions: ['access_crm_module'],
 },
+    { 
+  href: '/MeetingsDashboard', 
+  label: 'פגישות',
+  onlyPermissions: ['access_crm_module'],
+},
+  { 
+  href: '/customer-tiers', 
+  label: 'מדרג לקוחות',
+  onlyPermissions: ['access_customer_tiers'],
+},
+    ],
+  },
   { href: '/NewSummaryTable', label: 'דף מרכז' },
   // { href: '/ManageWorkers', label: 'ניהול עובדים' },
   {

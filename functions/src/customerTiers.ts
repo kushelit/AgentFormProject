@@ -19,12 +19,13 @@ function s(v: any): string {
 // ─── טיפוסים ──────────────────────────────────────────────────────────────────
 
 interface TierThresholds {
+  premium: number; // סכום נפרעים מינימלי לפרימיום
   gold: number;    // סכום נפרעים מינימלי לזהב
   silver: number;  // סכום נפרעים מינימלי לכסף
   // מתחת ל-silver -> 'standard'
 }
 
-type Tier = "gold" | "silver" | "standard";
+type Tier = "premium" | "gold" | "silver" | "standard";
 
 interface TierProposalRow {
   customerId: string;       // doc id של הלקוח
@@ -44,6 +45,7 @@ function canonId(v: any): string {
 }
 
 function tierFromAmount(amount: number, thresholds: TierThresholds): Tier {
+  if (amount >= thresholds.premium) return "premium";
   if (amount >= thresholds.gold) return "gold";
   if (amount >= thresholds.silver) return "silver";
   return "standard";
@@ -82,6 +84,17 @@ export const calculateCustomerTiers = onCall(
       );
     }
     const thresholds = thresholdsDoc.data() as TierThresholds;
+
+    if (
+      thresholds.premium === undefined ||
+      thresholds.gold === undefined ||
+      thresholds.silver === undefined
+    ) {
+      throw new HttpsError(
+        "failed-precondition",
+        "מסמך tierThresholds חסר אחד מהשדות: premium, gold, silver",
+      );
+    }
 
     // 2) טעינת כל לקוחות הסוכן
     const customersSnap = await db.collection("customer").where("AgentId", "==", agentId).get();

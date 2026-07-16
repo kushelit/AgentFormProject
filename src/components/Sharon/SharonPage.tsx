@@ -2,7 +2,7 @@
 // components/Sharon/SharonPage.tsx
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { collection, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
+import { collection, query, where, getDocs, limit, updateDoc, doc } from 'firebase/firestore';
 import { db } from '@/lib/firebase/firebase';
 import { useAuth } from '@/lib/firebase/AuthContext';
 import useFetchAgentData from '@/hooks/useFetchAgentData';
@@ -11,7 +11,9 @@ import ElementaryTab from './tabs/ElementaryTab';
 import TaxReturnsTab from './tabs/TaxReturnsTab';
 import PensionTab from './tabs/PensionTab';
 import './SharonPage.css';
-
+import DocumentsModal from '@/components/DocumentsModal/DocumentsModal';
+import { useToast } from '@/hooks/useToast';
+import { ToastNotification } from '@/components/ToastNotification';
 
 type TabKey = 'elementary' | 'tax' | 'pension';
 
@@ -26,23 +28,25 @@ type CustomerResult = {
 const SharonPage: React.FC = () => {
   const { detail, user } = useAuth();
   const { agents, selectedAgentId, handleAgentChange } = useFetchAgentData();
+  const { toasts, addToast, setToasts } = useToast();
 
   const { canAccess: canAccessTax } = usePermission(
     user ? 'access_sharon_tax_returns' : null
   );
   const { canAccess: canAccessElementary } = usePermission(
-  user ? 'access_sharon_elementary' : null
-);
-const { canAccess: canAccessPension } = usePermission(
-  user ? 'access_sharon_pension' : null
-);
+    user ? 'access_sharon_elementary' : null
+  );
+  const { canAccess: canAccessPension } = usePermission(
+    user ? 'access_sharon_pension' : null
+  );
 
-const [activeTab, setActiveTab] = useState<TabKey>(
-  canAccessElementary ? 'elementary' 
-  : canAccessTax ? 'tax' 
-  : canAccessPension ? 'pension'
-  : 'elementary'
-);
+  const [activeTab, setActiveTab] = useState<TabKey>(
+    canAccessElementary ? 'elementary'
+    : canAccessTax ? 'tax'
+    : canAccessPension ? 'pension'
+    : 'elementary'
+  );
+
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerResult | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<CustomerResult[]>([]);
@@ -77,7 +81,6 @@ const [activeTab, setActiveTab] = useState<TabKey>(
 
     setIsSearching(true);
     try {
-      // חיפוש לפי ת"ז (מתחיל ב...)
       const byId = await getDocs(query(
         collection(db, 'customer'),
         where('AgentId', '==', effectiveAgentId),
@@ -86,7 +89,6 @@ const [activeTab, setActiveTab] = useState<TabKey>(
         limit(5)
       ));
 
-      // חיפוש לפי שם משפחה
       const byLastName = await getDocs(query(
         collection(db, 'customer'),
         where('AgentId', '==', effectiveAgentId),
@@ -95,7 +97,6 @@ const [activeTab, setActiveTab] = useState<TabKey>(
         limit(5)
       ));
 
-      // חיפוש לפי שם פרטי
       const byFirstName = await getDocs(query(
         collection(db, 'customer'),
         where('AgentId', '==', effectiveAgentId),
@@ -104,7 +105,6 @@ const [activeTab, setActiveTab] = useState<TabKey>(
         limit(5)
       ));
 
-      // מיזוג ללא כפילויות
       const seen = new Set<string>();
       const results: CustomerResult[] = [];
 
@@ -154,37 +154,125 @@ const [activeTab, setActiveTab] = useState<TabKey>(
     setShowDropdown(false);
   };
 
+  // ─── מסמכי לקוח ─────────────────────────────────────────────────────────
+  const [customerDocs, setCustomerDocs] = useState<any[]>([]);
+  const [docsModalOpen, setDocsModalOpen] = useState(false);
+  const [docsLoading, setDocsLoading] = useState(false);
 
-const [customerDocs, setCustomerDocs] = useState<any[]>([]);
-const [docsModalOpen, setDocsModalOpen] = useState(false);
-const [docsLoading, setDocsLoading] = useState(false);
+  const openCustomerDocuments = async (customer: CustomerResult) => {
+    setDocsModalOpen(true);
+    setDocsLoading(true);
+    setCustomerDocs([]);
+    try {
+      const snap = await getDocs(query(
+        collection(db, 'customerDocuments'),
+        where('customerId', '==', customer.id)
+      ));
+      const rows = await Promise.all(snap.docs.map(async d => {
+        const data = d.data();
+        let url = '';
+        try {
+          const { firebaseApp } = await import('@/lib/firebase/firebase');
+          const { getStorage, ref, getDownloadURL } = await import('firebase/storage');
+          const storage = getStorage(firebaseApp, `gs://${data.bucket}`);
+          url = await getDownloadURL(ref(storage, data.storagePath));
+        } catch {}
+        return {
+          id: d.id,
+          fileName: data.fileName || 'מסמך',
+          mimeType: data.mimeType || '',
+          size: data.size || 0,
+          url,
+        };
+      }));
+      setCustomerDocs(rows);
+    } catch (error) {
+      console.error('שגיאה בטעינת מסמכי לקוח:', error);
+      addToast('error', 'שגיאה בטעינת מסמכי הלקוח');
+    } finally {
+      setDocsLoading(false);
+    }
+  };
 
-const openCustomerDocuments = async (customer: CustomerResult) => {
-  setDocsModalOpen(true);
-  setDocsLoading(true);
-  setCustomerDocs([]);
-  try {
-    const snap = await getDocs(query(
-      collection(db, 'customerDocuments'),
-      where('customerId', '==', customer.id)
-    ));
-    const rows = await Promise.all(snap.docs.map(async d => {
-      const data = d.data();
+  const handleRenameCustomerDocument = async (docId: string, newName: string) => {
+    try {
+      await updateDoc(doc(db, 'customerDocuments', docId), { fileName: newName });
+      setCustomerDocs(prev => prev.map(d => d.id === docId ? { ...d, fileName: newName } : d));
+      addToast('success', 'שם המסמך עודכן');
+    } catch (error) {
+      console.error('שגיאה בשינוי שם המסמך:', error);
+      addToast('error', 'שגיאה בשינוי שם המסמך');
+    }
+  };
+
+  const handleUploadCustomerDocument = async (file: File) => {
+    if (!selectedCustomer) return;
+
+    try {
+      const formData = new FormData();
+      formData.append('customerId', selectedCustomer.id);
+      formData.append('file', file);
+
+      const res = await fetch('/api/customerDocuments/upload', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const result = await res.json();
+
+      if (!result.ok) {
+        addToast('error', result.error || 'שגיאה בהעלאת המסמך');
+        return;
+      }
+
+      if (result.skipped) {
+        addToast('warning', 'קובץ זהה כבר קיים ולא הועלה שוב');
+        return;
+      }
+
+      const { firebaseApp } = await import('@/lib/firebase/firebase');
+      const { getStorage, ref, getDownloadURL } = await import('firebase/storage');
       let url = '';
       try {
-        const { firebaseApp } = await import('@/lib/firebase/firebase');
-        const { getStorage, ref, getDownloadURL } = await import('firebase/storage');
-        const storage = getStorage(firebaseApp, `gs://${data.bucket}`);
-        url = await getDownloadURL(ref(storage, data.storagePath));
+        const storage = getStorage(firebaseApp, `gs://${result.bucket}`);
+        const storageRef = ref(storage, result.storagePath);
+        url = await getDownloadURL(storageRef);
       } catch {}
-      return { id: d.id, fileName: data.fileName || 'מסמך', size: data.size || 0, url };
-    }));
-    setCustomerDocs(rows);
-  } finally {
-    setDocsLoading(false);
+
+      setCustomerDocs(prev => [...prev, {
+        id: result.documentId,
+        fileName: result.fileName,
+        mimeType: file.type,
+        size: file.size,
+        url,
+      }]);
+
+      addToast('success', 'המסמך הועלה בהצלחה');
+    } catch (error) {
+      console.error('Failed to upload customer document', error);
+      addToast('error', 'שגיאה בהעלאת המסמך');
+    }
+  };
+
+const handleDeleteCustomerDocument = async (docId: string) => {
+  try {
+    const res = await fetch('/api/customerDocuments/delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ documentId: docId }),
+    });
+    const result = await res.json();
+    if (!result.ok) {
+      addToast('error', result.error || 'שגיאה במחיקת המסמך');
+      return;
+    }
+    setCustomerDocs(prev => prev.filter(d => d.id !== docId));
+    addToast('success', 'המסמך נמחק');
+  } catch (error) {
+    console.error('Failed to delete customer document', error);
+    addToast('error', 'שגיאה במחיקת המסמך');
   }
 };
-
 
 
   return (
@@ -246,7 +334,7 @@ const openCustomerDocuments = async (customer: CustomerResult) => {
                     {c.firstNameCustomer} {c.lastNameCustomer}
                   </div>
                   <div style={{ fontSize: 11, color: '#888' }}>
-                  ת&quot;ז: {c.IDCustomer}{c.phone ? ` · ${c.phone}` : ''}
+                    ת&quot;ז: {c.IDCustomer}{c.phone ? ` · ${c.phone}` : ''}
                   </div>
                 </div>
               ))}
@@ -256,44 +344,45 @@ const openCustomerDocuments = async (customer: CustomerResult) => {
       </div>
 
       {/* ── CUSTOMER CARD ── */}
-   {selectedCustomer && (
-  <div className="sharon-customer-card">
-    <div className="sharon-avatar">
-      {selectedCustomer.firstNameCustomer[0]}{selectedCustomer.lastNameCustomer[0]}
-    </div>
-    <div>
-      <div className="sharon-customer-name">
-        {selectedCustomer.firstNameCustomer} {selectedCustomer.lastNameCustomer}
-      </div>
-      <div className="sharon-customer-sub">
-        ת&quot;ז: {selectedCustomer.IDCustomer}
-        {selectedCustomer.phone && ` · ${selectedCustomer.phone}`}
-      </div>
-    </div>
-    <span className="sharon-customer-note">כל הטאבים מסוננים ללקוח זה</span>
+      {selectedCustomer && (
+        <div className="sharon-customer-card">
+          <div className="sharon-avatar">
+            {selectedCustomer.firstNameCustomer[0]}{selectedCustomer.lastNameCustomer[0]}
+          </div>
+          <div>
+            <div className="sharon-customer-name">
+              {selectedCustomer.firstNameCustomer} {selectedCustomer.lastNameCustomer}
+            </div>
+            <div className="sharon-customer-sub">
+              ת&quot;ז: {selectedCustomer.IDCustomer}
+              {selectedCustomer.phone && ` · ${selectedCustomer.phone}`}
+            </div>
+          </div>
+          <span className="sharon-customer-note">כל הטאבים מסוננים ללקוח זה</span>
 
-    {/* ── כפתור מסמכים ── */}
-    <button
-      onClick={() => openCustomerDocuments(selectedCustomer)}
-      style={{
-        marginRight: 'auto', background: 'none', border: '1px solid #D3D1C7',
-        borderRadius: 6, padding: '4px 10px', cursor: 'pointer',
-        fontSize: 13, color: '#185FA5', display: 'flex', alignItems: 'center', gap: 4,
-      }}
-    >
-      📎 מסמכים
-    </button>
-  </div>
-)}
+          {/* ── כפתור מסמכים ── */}
+          <button
+            onClick={() => openCustomerDocuments(selectedCustomer)}
+            style={{
+              marginRight: 'auto', background: 'none', border: '1px solid #D3D1C7',
+              borderRadius: 6, padding: '4px 10px', cursor: 'pointer',
+              fontSize: 13, color: '#185FA5', display: 'flex', alignItems: 'center', gap: 4,
+            }}
+          >
+            📎 מסמכים
+          </button>
+        </div>
+      )}
+
       {/* ── TABS ── */}
       <div className="sharon-tabs">
         {canAccessElementary && (
-        <div
-          className={`sharon-tab ${activeTab === 'elementary' ? 'active' : ''}`}
-          onClick={() => setActiveTab('elementary')}
-        >
-          אלמנטרי
-        </div>
+          <div
+            className={`sharon-tab ${activeTab === 'elementary' ? 'active' : ''}`}
+            onClick={() => setActiveTab('elementary')}
+          >
+            אלמנטרי
+          </div>
         )}
         {canAccessTax && (
           <div
@@ -304,18 +393,18 @@ const openCustomerDocuments = async (customer: CustomerResult) => {
           </div>
         )}
         {canAccessPension && (
-        <div
-          className={`sharon-tab ${activeTab === 'pension' ? 'active' : ''}`}
-          onClick={() => setActiveTab('pension')}
-        >
-          פנסיוני
-        </div>
+          <div
+            className={`sharon-tab ${activeTab === 'pension' ? 'active' : ''}`}
+            onClick={() => setActiveTab('pension')}
+          >
+            פנסיוני
+          </div>
         )}
       </div>
 
       {/* ── TAB CONTENT ── */}
       <div className="sharon-tab-content">
-{activeTab === 'elementary' && canAccessElementary && (
+        {activeTab === 'elementary' && canAccessElementary && (
           <ElementaryTab
             agentId={effectiveAgentId}
             customer={selectedCustomer}
@@ -331,43 +420,36 @@ const openCustomerDocuments = async (customer: CustomerResult) => {
             searchQuery={searchQuery}
           />
         )}
-{activeTab === 'pension' && canAccessPension && (
+        {activeTab === 'pension' && canAccessPension && (
           <PensionTab
             agentId={effectiveAgentId}
             customer={selectedCustomer}
+            onSelectCustomer={selectCustomer}
           />
         )}
-        {docsModalOpen && (
-  <div className="modal-overlay" onClick={() => setDocsModalOpen(false)}>
-    <div className="modal-content" onClick={e => e.stopPropagation()} dir="rtl">
-      <button className="close-button" onClick={() => setDocsModalOpen(false)}>✖</button>
-      <div className="title">
-        מסמכים — {selectedCustomer?.firstNameCustomer} {selectedCustomer?.lastNameCustomer}
       </div>
-      {docsLoading ? (
-        <div>טוען מסמכים...</div>
-      ) : customerDocs.length === 0 ? (
-        <div>אין מסמכים ללקוח זה</div>
-      ) : (
-        <div className="documents-list">
-          {customerDocs.map(doc => (
-            <div key={doc.id} className="document-row">
-              <div>
-                📎 {doc.fileName}
-                {doc.size ? <span style={{ marginRight: 8, color: '#777' }}>({Math.round(doc.size / 1024)} KB)</span> : null}
-              </div>
-              {doc.url
-                ? <a href={doc.url} target="_blank" rel="noreferrer" className="document-link">פתח מסמך</a>
-                : <span>לא ניתן לפתוח</span>
-              }
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  </div>
-)}
-      </div>
+
+      {/* ── מודל מסמכי לקוח ── */}
+    <DocumentsModal
+  open={docsModalOpen}
+  title={selectedCustomer ? `${selectedCustomer.firstNameCustomer} ${selectedCustomer.lastNameCustomer}` : ''}
+  documents={customerDocs}
+  loading={docsLoading}
+  onClose={() => setDocsModalOpen(false)}
+  onRename={handleRenameCustomerDocument}
+  onUpload={handleUploadCustomerDocument}
+  onDelete={handleDeleteCustomerDocument}
+/>
+      {/* ── Toasts ── */}
+      {toasts.length > 0 && toasts.map((toast) => (
+        <ToastNotification
+          key={toast.id}
+          type={toast.type}
+          className={toast.isHiding ? 'hide' : ''}
+          message={toast.message}
+          onClose={() => setToasts((prevToasts) => prevToasts.filter((t) => t.id !== toast.id))}
+        />
+      ))}
     </div>
   );
 };

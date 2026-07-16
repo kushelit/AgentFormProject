@@ -18,6 +18,8 @@ import { useToast } from "@/hooks/useToast";
 import { useValidation } from "@/hooks/useValidation";
 import { getDownloadURL, getStorage, ref } from "firebase/storage";
 import { useRouter } from 'next/navigation';
+import { usePermission } from "@/hooks/usePermission";
+import DocumentsModal from "@/components/DocumentsModal/DocumentsModal";
 
 const NewLeads = () => {
 
@@ -82,6 +84,8 @@ const { toasts, addToast, setToasts } = useToast();
 
 const { errors,setErrors, handleValidatedEditChange } = useValidation();
 
+const { canAccess: canAccessCrm } = usePermission('access_crm_module');
+
 const router = useRouter();
 
 
@@ -105,6 +109,7 @@ const [leadDocuments, setLeadDocuments] = useState<LeadDocumentRow[]>([]);
 const [documentsModalOpen, setDocumentsModalOpen] = useState(false);
 const [documentsLeadName, setDocumentsLeadName] = useState("");
 const [documentsLoading, setDocumentsLoading] = useState(false);
+const [documentsLeadId, setDocumentsLeadId] = useState<string | null>(null);
   
   const {
     agents,
@@ -235,117 +240,7 @@ const [documentsLoading, setDocumentsLoading] = useState(false);
     selectedSourceLeadFilter
   ]);
   
-  const handleFirstNameChange: ChangeEventHandler<HTMLInputElement> = (event) => {
-    const value = event.target.value;
-    const hebrewRegex = /^[\u0590-\u05FF ]+$/;
-    if (value === '' || hebrewRegex.test(value.trim())) {
-      setfirstNameCustomer(value);
-    }
-  };
 
-  const handleLastNameChange: ChangeEventHandler<HTMLInputElement> = (event) => {
-    const value = event.target.value;
-    const hebrewRegex = /^[\u0590-\u05FF ]+$/;
-    if (value === '' || hebrewRegex.test(value.trim())) {
-      setlastNameCustomer(value);
-    }
-  };
-
-  const handleIDChange: ChangeEventHandler<HTMLInputElement> = (e) => {
-    const value = e.target.value;
-    const onlyNums = value.replace(/[^0-9]/g, '').slice(0, 9);
-    setIDCustomer(onlyNums);
-  };
-
-  // const handleRowClick = (item: any) => {
-  //  // setSalesData([]);
-  //   setSelectedRow(item); // Store the selected row's data
-  //   setfirstNameCustomer(item.firstNameCustomer || '');
-  //   setlastNameCustomer(item.lastNameCustomer || '');
-  //   setIDCustomer(item.IDCustomer || '');
-  //   setIsEditing(true);
-  //   setNotes(item.notes || '');
-  //   setReturnDate(item.returnDate || '');
-  //   setLastContactDate(item.lastContactDate || '');
-  //   setPhone(item.phone || '');
-  //   setMail(item.mail || '');
-  //   setAddress(item.address || '');
-  //   setSourceValue(item.sourceValue || '');
-  //   setSelectedStatusLead(item.selectedStatusLead || '');
-  //   setAvailableFunds(item.availableFunds || '');
-  //   setRetirementFunds(item.retirementFunds || '');
-  //   setConsentForInformationRequest(item.consentForInformationRequest || false);
-  //   setBirthday(item.birthday || '');
-  //   setCampaign(item.campaign || '');
-  //   setSelectedAgentIdInRow(item.AgentId || '');
-  //   const workerName = workerNameMap[item.workerId];
-  //   if (workerName) {
-  //       setSelectedWorkerId(item.workerId);
-  //       setSelectedWorkerName(workerName);
-  //   } else {
-  //       // Handle case where the worker is not found - maybe clear or set default values
-  //       setSelectedWorkerId('');
-  //       setSelectedWorkerName('Unknown Worker');
-  //   }
-    
-  // };
-
-
-  // // delete function ***
-  // const handleDelete = async () => {
-  //   if (selectedRow && selectedRow.id) {
-  //     await deleteDoc(doc(db, 'leads', selectedRow.id));
-  //     setSelectedRow(null); // Reset selection
-  //     resetForm();
-  //     setIsEditing(false);
-  //     if (selectedAgentId) {
-  //       fetchLeadsForAgent(selectedAgentId);
-  //     }
-  //     setFilteredData([]);
-
-  //   } else {
-  //     console.log("No selected row or row ID is undefined");
-  //   }
-  // };
-  // const handleEdit = async () => {
-  //   if (selectedRow && selectedRow.id) {
-  //     try {
-  //       const docRef = doc(db, 'leads', selectedRow.id);
-  //       await updateDoc(docRef, {
-  //         firstNameCustomer,
-  //         lastNameCustomer,
-  //         IDCustomer,
-  //         notes: notes || '',
-  //         returnDate,
-  //         lastContactDate,
-  //         phone,
-  //         mail,
-  //         address,
-  //         sourceValue,
-  //         lastUpdateDate: serverTimestamp(),
-  //         selectedStatusLead,
-  //         availableFunds,
-  //         retirementFunds,
-  //         consentForInformationRequest,
-  //         birthday,
-  //         workerId: selectedWorkerId,// id new
-  //         campaign,
-  //         AgentId: selectedAgentIdInRow || '', // עדכון AgentId
-  //       });
-  //       console.log("Document successfully updated");
-  //       setSelectedRow(null);
-  //       resetForm();
-  //       setFilteredData([]);
-  //       if (selectedAgentId) {
-  //         fetchLeadsForAgent(selectedAgentId);
-  //       }
-  //     } catch (error) {
-  //       console.error("Error updating document:", error);
-  //     }
-  //   } else {
-  //     console.log("No row selected or missing document ID");
-  //   }
-  // };
 
   const resetForm = () => {
     setfirstNameCustomer('');
@@ -373,45 +268,6 @@ const [documentsLoading, setDocumentsLoading] = useState(false);
   };
 
 
-  // const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
-  //   event.preventDefault();
-  //   try {   
-  //       const docRef = await addDoc(collection(db, 'leads'), {
-  //         AgentId: selectedAgentId,
-  //         firstNameCustomer,
-  //         lastNameCustomer,
-  //         IDCustomer,
-  //         phone,
-  //         mail,
-  //         address,
-  //         notes,
-  //         returnDate,
-  //         lastContactDate,       
-  //         sourceLeadId: sourceValue,
-  //         lastUpdateDate: serverTimestamp(), 
-  //         selectedStatusLead,
-  //         workerId: selectedWorkerId,
-  //         birthday,
-  //         availableFunds,
-  //         retirementFunds,
-  //         consentForInformationRequest,
-  //         createDate: serverTimestamp(),
-  //         campaign,
-  //       });
-  //       // alert('ליד חדש התווסף בהצלחה');
-  //       addToast("success", "ליד חדש התווסף בהצלחה");
-
-  //     resetForm();
-  //     setIsEditing(false);
-  //     setShowOpenNewLead(false);
-  //     reloadLeadsData(selectedAgentId);
-  //     // if (selectedAgentId) {
-  //     //   fetchLeadsForAgent(selectedAgentId);
-  //     // }
-  //   } catch (error) {
-  //     console.error('Error adding document:', error);  // Log any errors during the process
-  //   }
-  // };
 
   const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
     event.preventDefault();
@@ -435,12 +291,6 @@ const [documentsLoading, setDocumentsLoading] = useState(false);
   
 
 
-  // const canSubmit = useMemo(() => (
-  // selectedAgentId.trim() !== '' &&
-  // phone.trim() !== '' 
-  // ), [selectedAgentId, phone
-  // ]);
-
   const canSubmit = useMemo(() => {
     const isPhoneValid = (editData.phone || "").trim() !== "";
     const isAgentValid = (editData.AgentId || "").trim() !== "";
@@ -455,28 +305,6 @@ const [documentsLoading, setDocumentsLoading] = useState(false);
   }, [editData.AgentId, editData.phone, detail?.role]);
   
   
-
-  // useEffect(() => {
-  //   const fetchSourceLeadForAgent = async () => {
-  //     if (!selectedAgentId) return; 
-  //     const q = query(
-  //       collection(db, 'sourceLead'),
-  //       where('AgentId', '==', selectedAgentId),
-  //       where('statusLead', '==', true)
-  //     );
-  //     try {
-  //       const querySnapshot = await getDocs(q);
-  //       const data = querySnapshot.docs.map(doc => ({
-  //         id: doc.id,
-  //         ...doc.data()
-  //       }));
-  //       setSourceLeadList(data); 
-  //     } catch (error) {
-  //       console.error('Error fetching source leads:', error);
-  //     }
-  //   };
-  //   fetchSourceLeadForAgent();
-  // }, [selectedAgentId]); 
 
   const handleSelectChange = (event: { target: { value: SetStateAction<string | null>; }; }) => {
     setSourceValue(event.target.value);
@@ -753,6 +581,7 @@ const openLeadDocuments = async (lead: LeadsType) => {
   }
 
   setDocumentsModalOpen(true);
+  setDocumentsLeadId(lead.id);
   setDocumentsLeadName(
     `${lead.firstNameCustomer || ""} ${lead.lastNameCustomer || ""}`.trim()
   );
@@ -811,6 +640,85 @@ url = await getDownloadURL(storageRef);
   }
 };
 
+
+
+const handleRenameLeadDocument = async (docId: string, newName: string) => {
+  await updateDoc(doc(db, 'leadDocuments', docId), { fileName: newName });
+  setLeadDocuments(prev => prev.map(d => d.id === docId ? { ...d, fileName: newName } : d));
+};
+
+
+const handleUploadLeadDocument = async (file: File) => {
+  if (!documentsLeadId) return;
+
+  try {
+    const formData = new FormData();
+    formData.append('leadId', documentsLeadId);
+    formData.append('file', file);
+
+    const res = await fetch('/api/leadDocuments/upload', {
+      method: 'POST',
+      body: formData,
+    });
+
+    const result = await res.json();
+
+    if (!result.ok) {
+      addToast('error', result.error || 'שגיאה בהעלאת המסמך');
+      return;
+    }
+
+    if (result.skipped) {
+      addToast('warning', 'קובץ זהה כבר קיים ולא הועלה שוב');
+      return;
+    }
+
+    // שליפת URL להורדה מיידית לתצוגה
+    const { firebaseApp } = await import('@/lib/firebase/firebase');
+    let url = '';
+    try {
+      const storage = getStorage(firebaseApp, `gs://${result.bucket}`);
+      const storageRef = ref(storage, result.storagePath);
+      url = await getDownloadURL(storageRef);
+    } catch {}
+
+    setLeadDocuments(prev => [...prev, {
+      id: result.documentId,
+      leadId: documentsLeadId,
+      fileName: result.fileName,
+      mimeType: file.type,
+      size: file.size,
+      storagePath: result.storagePath,
+      bucket: result.bucket,
+      url,
+    }]);
+
+    addToast('success', 'המסמך הועלה בהצלחה');
+  } catch (error) {
+    console.error('Failed to upload lead document', error);
+    addToast('error', 'שגיאה בהעלאת המסמך');
+  }
+};
+
+const handleDeleteLeadDocument = async (docId: string) => {
+  try {
+    const res = await fetch('/api/leadDocuments/delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ documentId: docId }),
+    });
+    const result = await res.json();
+    if (!result.ok) {
+      addToast('error', result.error || 'שגיאה במחיקת המסמך');
+      return;
+    }
+    setLeadDocuments(prev => prev.filter(d => d.id !== docId));
+    addToast('success', 'המסמך נמחק');
+  } catch (error) {
+    console.error('Failed to delete lead document', error);
+    addToast('error', 'שגיאה במחיקת המסמך');
+  }
+};
 
 
   return (
@@ -1095,56 +1003,16 @@ url = await getDownloadURL(storageRef);
         </div>
       </div>
     )}       
-    {documentsModalOpen && (
-  <div className="modal-overlay" onClick={() => setDocumentsModalOpen(false)}>
-    <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-      <button
-        className="close-button"
-        onClick={() => setDocumentsModalOpen(false)}
-      >
-        ✖
-      </button>
-
-      <div className="title">
-        מסמכי ליד {documentsLeadName ? `- ${documentsLeadName}` : ""}
-      </div>
-
-      {documentsLoading ? (
-        <div>טוען מסמכים...</div>
-      ) : leadDocuments.length === 0 ? (
-        <div>אין מסמכים לליד זה</div>
-      ) : (
-        <div className="documents-list">
-          {leadDocuments.map((doc) => (
-            <div key={doc.id} className="document-row">
-              <div>
-                📎 {doc.fileName}
-                {doc.size ? (
-                  <span style={{ marginRight: 8, color: "#777" }}>
-                    ({Math.round(doc.size / 1024)} KB)
-                  </span>
-                ) : null}
-              </div>
-
-              {doc.url ? (
-                <a
-                  href={doc.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="document-link"
-                >
-                  פתח מסמך
-                </a>
-              ) : (
-                <span>לא ניתן לפתוח קובץ</span>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  </div>
-)}
+<DocumentsModal
+  open={documentsModalOpen}
+  title={documentsLeadName}
+  documents={leadDocuments}
+  loading={documentsLoading}
+  onClose={() => setDocumentsModalOpen(false)}
+  onRename={handleRenameLeadDocument}
+  onUpload={handleUploadLeadDocument}
+  onDelete={handleDeleteLeadDocument}
+/>
       <div className="table-container flex" >
     <table className="leads-table">
               <thead>
@@ -1164,11 +1032,12 @@ url = await getDownloadURL(storageRef);
               </thead>
               <tbody>
                 {sortedData.map((item) => (
-                  <tr
+                <tr
   key={item.id}
   onClick={(e) => {
     const target = e.target as HTMLElement;
     if (target.closest('select') || target.closest('input') || target.closest('button')) return;
+    if (!canAccessCrm) return;
     router.push(`/NewLeads/${item.id}`);
   }}
   style={{ cursor: 'pointer' }}

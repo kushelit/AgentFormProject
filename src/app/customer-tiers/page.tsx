@@ -12,7 +12,7 @@ import { ToastNotification } from '@/components/ToastNotification';
 import TableFooter from '@/components/TableFooter/TableFooter';
 import './CustomerTiers.css';
 
-type Tier = 'gold' | 'silver' | 'standard';
+type Tier = 'premium' | 'gold' | 'silver' | 'standard';
 type SortColumn = 'customerName' | 'IDCustomer' | 'nifraimAmount' | 'currentTier' | 'proposedTier';
 type SortOrder = 'asc' | 'desc';
 
@@ -30,19 +30,21 @@ interface TierRow {
 
 interface CalcResult {
   month: string;
-  thresholds: { gold: number; silver: number };
+  thresholds: { premium: number; gold: number; silver: number };
   totalCustomers: number;
   changedCount: number;
   rows: TierRow[];
 }
 
 const TIER_LABEL: Record<Tier, string> = {
+  premium: 'פרימיום',
   gold: 'זהב',
   silver: 'כסף',
   standard: 'רגיל',
 };
 
 const TIER_CLASS: Record<Tier, string> = {
+  premium: 'ct-tier-premium',
   gold: 'ct-tier-gold',
   silver: 'ct-tier-silver',
   standard: 'ct-tier-standard',
@@ -367,6 +369,7 @@ export default function CustomerTiersPage() {
                 onChange={(e) => setCurrentTierFilter(e.target.value)}
               >
                 <option value="">דירוג קיים — הכל</option>
+                <option value="premium">פרימיום</option>
                 <option value="gold">זהב</option>
                 <option value="silver">כסף</option>
                 <option value="standard">רגיל</option>
@@ -379,6 +382,7 @@ export default function CustomerTiersPage() {
                 onChange={(e) => setProposedTierFilter(e.target.value)}
               >
                 <option value="">דירוג מוצע — הכל</option>
+                <option value="premium">פרימיום</option>
                 <option value="gold">זהב</option>
                 <option value="silver">כסף</option>
                 <option value="standard">רגיל</option>

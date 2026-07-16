@@ -297,9 +297,15 @@ export async function syncMicrosoftBookingsAgent(
             ? appointment.staffMemberIds
             : [],
 
-        startAt: appointment?.start || null,
-        endAt: appointment?.end || null,
+       startAt:
+  appointment?.start ??
+  appointment?.startDateTime ??
+  null,
 
+endAt:
+  appointment?.end ??
+  appointment?.endDateTime ??
+  null,
         isCancelled,
 
         matchStatus: leadDoc ? "matched" : "unmatched",
@@ -340,9 +346,15 @@ export async function syncMicrosoftBookingsAgent(
 
       bookingServiceId: s(appointment?.serviceId) || null,
       bookingServiceName: s(appointment?.serviceName) || null,
+bookingStartAt:
+  appointment?.start ??
+  appointment?.startDateTime ??
+  null,
 
-      bookingStartAt: appointment?.start || null,
-      bookingEndAt: appointment?.end || null,
+bookingEndAt:
+  appointment?.end ??
+  appointment?.endDateTime ??
+  null,
 
       bookingCancelledAt: isCancelled ? nowTs() : null,
       bookedAt: isCancelled ? null : nowTs(),

@@ -103,10 +103,11 @@ export default function SubscriptionSignUpPage() {
           }
         });
   
-        setPlans(res.data);
-        if (res.data.length > 0) {
-          setSelectedPlan(res.data[0].id);
-        }
+      setPlans(res.data);
+if (res.data.length > 0) {
+  const proPlan = res.data.find((p: Plan) => p.id === 'pro');
+  setSelectedPlan(proPlan ? proPlan.id : res.data[0].id);
+}
       } catch (err) {
         // console.error('שגיאה בטעינת מסלולים', err);
       } finally {
@@ -335,17 +336,19 @@ if (isLoading || plans.length === 0) {
       <form onSubmit={handleSubmit} className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-6xl mx-auto">
       {orderedPlans.map((plan) => (
-         <div
-         key={plan.id}
-         onClick={() => setSelectedPlan(plan.id)}
-         className={`relative cursor-pointer rounded-lg border p-4 shadow-md transition hover:shadow-xl text-right flex flex-col justify-between h-full min-h-[420px] ${
-          selectedPlan === plan.id
-            ? 'border-blue-500 bg-blue-50'
-            : plan.id === 'enterprise'
-            ? 'bg-purple-50 border-purple-400'
-            : 'border-gray-300'
-        }`}        
-       >
+        <div
+  key={plan.id}
+  onClick={() => setSelectedPlan(plan.id)}
+  className={`relative cursor-pointer rounded-lg border p-4 shadow-md transition hover:shadow-xl text-right flex flex-col justify-between h-full min-h-[420px] ${
+    selectedPlan === plan.id
+      ? plan.id === 'pro'
+        ? 'border-2 border-blue-600 bg-blue-50 shadow-xl scale-[1.03] ring-2 ring-blue-300'
+        : 'border-blue-500 bg-blue-50'
+      : plan.id === 'enterprise'
+      ? 'bg-purple-50 border-purple-400'
+      : 'border-gray-300'
+  }`}
+>
          {/* תג הכי פופולרי */}
          {plan.id === 'pro' && (
            <div className="absolute top-2 left-2 bg-yellow-400 text-white text-xs font-bold px-2 py-1 rounded shadow">

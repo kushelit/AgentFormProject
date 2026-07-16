@@ -117,7 +117,7 @@ function calcTaxCommissions(
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
-const TaxReturnsTab: React.FC<Props> = ({ agentId, customer }) => {
+const TaxReturnsTab: React.FC<Props> = ({ agentId, customer, onSelectCustomer }) => {
   const { toasts, addToast, setToasts } = useToast();
 
   const [clients, setClients] = useState<TaxReturnClient[]>([]);
@@ -136,6 +136,37 @@ const TaxReturnsTab: React.FC<Props> = ({ agentId, customer }) => {
   }, [agentId, customer]);
 
   useEffect(() => { fetchClients(); }, [fetchClients]);
+
+
+
+  // ─── בחירת לקוח משורה קיימת ─────────────────────────────────────────────
+  const handleRowSelectCustomer = async (idNumber: string) => {
+    if (!agentId || !idNumber) return;
+    try {
+      const snap = await getDocs(query(
+        collection(db, 'customer'),
+        where('AgentId', '==', agentId),
+        where('IDCustomer', '==', idNumber)
+      ));
+      if (!snap.empty) {
+        const d = snap.docs[0];
+        const data = d.data();
+        onSelectCustomer({
+          id: d.id,
+          IDCustomer: data.IDCustomer,
+          firstNameCustomer: data.firstNameCustomer,
+          lastNameCustomer: data.lastNameCustomer,
+          phone: data.phone,
+        });
+      }
+    } catch {}
+  };
+
+
+
+
+
+
 
   // ─── Customer lookup ──────────────────────────────────────────────────────
   const handleIdBlur = async (idValue: string) => {
@@ -427,11 +458,15 @@ const TaxReturnsTab: React.FC<Props> = ({ agentId, customer }) => {
             </tr>
           </thead>
           <tbody>
-            {filtered.map(client => (
-              <tr key={client.id}>
-                {editingId === client.id ? renderEditCells() : (
-                  <>
-                    <td>{client.startDate || '—'}</td>
+           {filtered.map(client => (
+  <tr
+    key={client.id}
+    onClick={() => { if (editingId !== client.id) handleRowSelectCustomer(client.idNumber); }}
+    style={{ cursor: editingId === client.id ? 'default' : 'pointer' }}
+  >
+    {editingId === client.id ? renderEditCells() : (
+      <>
+        <td>{client.startDate || '—'}</td>
                     <td>
                       <div style={{ fontWeight: 500 }}>{client.fullName}</div>
                       <div style={{ fontSize: 11, color: '#888' }}>{client.idNumber}</div>

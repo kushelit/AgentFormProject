@@ -147,7 +147,7 @@ export default function CustomerNotes({ customerId, agentId }: Props) {
         <div className="cn-add-footer">
           <span className="cn-hint">Ctrl+Enter לשמירה</span>
           <button className="cn-btn-add" onClick={addNote} disabled={!text.trim() || saving}>
-            {saving ? 'שומר...' : '+ הוסף הערה'}
+            {saving ? 'שומר...' : (text.trim() ? 'שמור' : '+ הוסף הערה')}
           </button>
         </div>
       </div>

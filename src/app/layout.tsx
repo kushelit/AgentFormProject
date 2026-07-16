@@ -10,6 +10,7 @@ import '@/app/globals.css';
 import Script from 'next/script'; // ✅ חדש
 import AnalyticsTracker from '@/components/AnalyticsTracker';
 import WhatsAppCta from '@/components/WhatsAppCta';
+import TaskReminderWatcher from '@/components/TaskReminderWatcher';
 
 
 const font = Rubik({ subsets: ['latin'] });
@@ -64,7 +65,8 @@ const showNavbar = !isOtpPage && isMainPage;
       </head>
       <body className={font.className}>
         <AuthContextProvider>
-        <AnalyticsTracker /> {/* ✅ חדש */}
+        <AnalyticsTracker /> 
+        <TaskReminderWatcher />  {/* ← השורה החדשה */}
           {showTopBar && (
             <TopBar className="bg-custom-blue p-4 fixed top-0 right-0 w-full h-16 z-10" />
           )}

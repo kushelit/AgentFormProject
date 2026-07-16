@@ -116,6 +116,52 @@ interface StuckRun {
   queueJobs: QueueJobInfo[]; // מצב בפועל של כל job ב-commissionImportQueue, נשלף מראש
 }
 
+// ═══════════════════════════════════════════════════════════════════
+// מעקב באצ'ים (portalRunBatches) — לכל באצ' מוצגים כל ה-portalImportRuns
+// שקשורים אליו (batchId), ולכל ריצה כזו — הנעילה (portalImportLocks) וה-
+// job-ים (commissionImportQueue) שלה, אותו עיקרון בדיוק כמו הנעילות הבודדות.
+// ═══════════════════════════════════════════════════════════════════
+const RUN_FINISHED_STATUSES = ['success', 'done', 'error', 'failed', 'skipped'] as const;
+const BATCH_FINISHED_STATUSES = ['success', 'partial', 'error', 'done', 'failed', 'cancelled'] as const;
+
+function isRunFinishedStatus(status: string): boolean {
+  return (RUN_FINISHED_STATUSES as readonly string[]).includes(status);
+}
+
+function isBatchFinishedStatus(status: string): boolean {
+  return (BATCH_FINISHED_STATUSES as readonly string[]).includes(status);
+}
+
+interface BatchRunInfo {
+  id: string;              // portalImportRuns doc id (= runId)
+  companyId: string;
+  companyName: string;
+  templateId: string;
+  batchOrder: number;
+  status: string;
+  step?: string;
+  ym?: string;
+  lockId?: string;
+  lockFound: boolean;
+  lockState?: string;
+  jobIds: string[];
+  queueJobs: QueueJobInfo[];
+  updatedAt: Date | null;
+}
+
+interface BatchInfo {
+  id: string;               // portalRunBatches doc id (= batchId)
+  status: string;
+  mode?: string;
+  monthLabel?: string;
+  totalCount?: number;
+  doneCount?: number;
+  errorCount?: number;
+  createdAt: Date | null;
+  updatedAt: Date | null;
+  runs: BatchRunInfo[];
+}
+
 function toDateSafe(value: any): Date | null {
   if (!value) return null;
   if (value instanceof Date) return value;
@@ -181,6 +227,16 @@ export default function CommissionPurgeAdminPage() {
   const [runsAgentId, setRunsAgentId] = useState('');
   const [runsCompanyId, setRunsCompanyId] = useState('');
   const [hasSearchedRuns, setHasSearchedRuns] = useState(false);
+
+  // ===== State – ניהול לשוניות =====
+  const [activeMainTab, setActiveMainTab] = useState<'runs' | 'batches' | 'imports' | 'tools'>('runs');
+
+  // ===== State – מעקב באצ'ים (portalRunBatches) =====
+  const [batches, setBatches] = useState<BatchInfo[]>([]);
+  const [batchesLoading, setBatchesLoading] = useState(false);
+  const [batchesStatusFilter, setBatchesStatusFilter] = useState<'active' | 'all'>('active');
+  const [batchStopConfirm, setBatchStopConfirm] = useState<BatchInfo | null>(null);
+  const [stoppingBatchId, setStoppingBatchId] = useState<string | null>(null);
 
   // Helpers
   const sanitizeMonth = (m?: string) => (m || '').replace(/\//g, '-');
@@ -679,12 +735,236 @@ for (const d of bridgeSnap.docs) {
         : rows;
 
       setStuckRuns(rowsFiltered);
+      await fetchBatches(runsAgentId);
     } catch (e: any) {
       setDialog({ type: 'error', title: 'שגיאת שליפת נעילות', message: String(e?.message || e) });
     } finally {
       setStuckLoading(false);
     }
   };
+
+  // ═══════════════════════════════════════════════════════════════════
+  // שליפת באצ'ים (portalRunBatches) לסוכן, כולל כל ה-portalImportRuns
+  // וה-portalImportLocks המקוננים תחת כל באצ'.
+  // ═══════════════════════════════════════════════════════════════════
+  const fetchBatches = async (agentId: string) => {
+    setBatchesLoading(true);
+    try {
+      const batchesSnap = await getDocs(
+        query(collection(db, 'portalRunBatches'), where('agentId', '==', agentId))
+      );
+
+      const companyCache = new Map<string, string>();
+
+      const batchList: BatchInfo[] = await Promise.all(
+        batchesSnap.docs.map(async (batchDoc) => {
+          const b: any = batchDoc.data();
+
+          const runsSnap = await getDocs(
+            query(collection(db, 'portalImportRuns'), where('batchId', '==', batchDoc.id))
+          );
+
+          const runs: BatchRunInfo[] = await Promise.all(
+            runsSnap.docs.map(async (runDoc) => {
+              const r: any = runDoc.data();
+              const companyId = String(r.companyId || '');
+              const templateId = String(r.templateId || '');
+              const ym = String(r?.resolvedWindow?.ym || '') || undefined;
+              const jobIds: string[] = Array.isArray(r?.queue?.jobIds) ? r.queue.jobIds : [];
+
+              let companyName = String(r.companyName || '') || companyCache.get(companyId) || '';
+              if (!companyName && companyId) {
+                const cSnap = await getDoc(doc(db, 'company', companyId));
+                companyName = cSnap.exists() ? String((cSnap.data() as any)?.companyName || companyId) : companyId;
+                companyCache.set(companyId, companyName);
+              }
+
+              let lockFound = false;
+              let lockState: string | undefined;
+              let lockId: string | undefined;
+              if (agentId && templateId && ym) {
+                lockId = `${agentId}_${templateId}_${ym}`;
+                const lockSnap = await getDoc(doc(db, 'portalImportLocks', lockId));
+                if (lockSnap.exists()) {
+                  lockFound = true;
+                  lockState = String((lockSnap.data() as any)?.state || '');
+                }
+              }
+
+              const queueJobs: QueueJobInfo[] = await Promise.all(
+                jobIds.map(async (jobId) => {
+                  const qSnap = await getDoc(doc(db, 'commissionImportQueue', jobId));
+                  if (!qSnap.exists()) return { id: jobId, status: '(לא נמצא)' };
+                  const q: any = qSnap.data();
+                  return {
+                    id: jobId,
+                    status: String(q.status || ''),
+                    templateId: q.templateId ? String(q.templateId) : undefined,
+                    portalRunId: q.portalRunId ? String(q.portalRunId) : undefined,
+                  };
+                })
+              );
+
+              return {
+                id: runDoc.id,
+                companyId,
+                companyName: companyName || '-',
+                templateId,
+                batchOrder: Number(r.batchOrder || 0),
+                status: String(r.status || ''),
+                step: r.step ? String(r.step) : undefined,
+                ym,
+                lockId,
+                lockFound,
+                lockState,
+                jobIds,
+                queueJobs,
+                updatedAt: toDateSafe(r.updatedAt) || toDateSafe(r.createdAt) || null,
+              };
+            })
+          );
+
+          runs.sort((a, b) => a.batchOrder - b.batchOrder);
+
+          return {
+            id: batchDoc.id,
+            status: String(b.status || ''),
+            mode: b.mode ? String(b.mode) : undefined,
+            monthLabel: b.monthLabel ? String(b.monthLabel) : undefined,
+            totalCount: typeof b.totalCount === 'number' ? b.totalCount : undefined,
+            doneCount: typeof b.doneCount === 'number' ? b.doneCount : undefined,
+            errorCount: typeof b.errorCount === 'number' ? b.errorCount : undefined,
+            createdAt: toDateSafe(b.createdAt),
+            updatedAt: toDateSafe(b.updatedAt),
+            runs,
+          };
+        })
+      );
+
+      batchList.sort((a, b) => (b.createdAt?.getTime() ?? 0) - (a.createdAt?.getTime() ?? 0));
+      setBatches(batchList);
+    } catch (e: any) {
+      setDialog({ type: 'error', title: 'שגיאת שליפת באצ\'ים', message: String(e?.message || e) });
+    } finally {
+      setBatchesLoading(false);
+    }
+  };
+
+  const filteredBatches = useMemo(() => {
+    if (batchesStatusFilter === 'all') return batches;
+    return batches.filter((b) => !isBatchFinishedStatus(b.status));
+  }, [batches, batchesStatusFilter]);
+
+  // ═══════════════════════════════════════════════════════════════════
+  // עצירת באצ' — סוגר לשגיאה את כל הריצות שעדיין לא הסתיימו (ולא נתפסות
+  // כ"סופיות"), כולל שחרור הנעילות והשתקת job-ים תקועים בתור. לבסוף
+  // מסמן את הבאצ' עצמו כ-'error' כדי שהוא לא יוצג יותר כ"פעיל".
+  // ═══════════════════════════════════════════════════════════════════
+  async function handleStopBatch(batch: BatchInfo) {
+    setStoppingBatchId(batch.id);
+    try {
+      let releasedRuns = 0;
+      let releasedLocks = 0;
+      let releasedJobs = 0;
+
+      for (const run of batch.runs) {
+        if (isRunFinishedStatus(run.status)) continue;
+
+        if (run.lockFound && run.lockId) {
+          await deleteDoc(doc(db, 'portalImportLocks', run.lockId)).catch(() => {});
+          releasedLocks++;
+        }
+
+        await setDoc(
+          doc(db, 'portalImportRuns', run.id),
+          {
+            status: 'error',
+            step: 'import_error',
+            error: { message: 'הבאצ\' נעצר ידנית ע"י אדמין' },
+            updatedAt: serverTimestamp(),
+          },
+          { merge: true }
+        );
+        releasedRuns++;
+
+        for (const jobId of run.jobIds) {
+          const qRef = doc(db, 'commissionImportQueue', jobId);
+          const qSnap = await getDoc(qRef);
+          if (qSnap.exists()) {
+            const st = String((qSnap.data() as any)?.status || '');
+            if (st === 'queued' || st === 'processing') {
+              await setDoc(
+                qRef,
+                {
+                  status: 'error',
+                  error: { step: 'manual_batch_stop', message: 'הבאצ\' נעצר ידנית ע"י אדמין' },
+                  finishedAt: serverTimestamp(),
+                  updatedAt: serverTimestamp(),
+                },
+                { merge: true }
+              ).catch(() => {});
+              releasedJobs++;
+            }
+          }
+        }
+      }
+
+      await setDoc(
+        doc(db, 'portalRunBatches', batch.id),
+        {
+          status: 'error',
+          error: { message: 'נעצר ידנית ע"י אדמין' },
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true }
+      );
+
+      setDialog({
+        type: 'success',
+        title: 'הבאצ\' נעצר',
+        message: (
+          <div className="text-sm space-y-1">
+            <div>
+              <b>portalRunBatches:</b>{' '}
+              <span className="text-blue-600">עודכן {batch.id} → status = error</span>
+            </div>
+            <div>
+              <b>portalImportRuns:</b>{' '}
+              {releasedRuns > 0 ? (
+                <span className="text-blue-600">עודכנו {releasedRuns} ריצות → status = error</span>
+              ) : (
+                <span className="text-gray-500">לא נמצאו ריצות לא-סופיות</span>
+              )}
+            </div>
+            <div>
+              <b>portalImportLocks:</b>{' '}
+              {releasedLocks > 0 ? (
+                <span className="text-red-600">נמחקו {releasedLocks} נעילות</span>
+              ) : (
+                <span className="text-gray-500">לא נמצאו נעילות למחיקה</span>
+              )}
+            </div>
+            <div>
+              <b>commissionImportQueue:</b>{' '}
+              {releasedJobs > 0 ? (
+                <span className="text-blue-600">עודכנו {releasedJobs} job-ים → status = error</span>
+              ) : (
+                <span className="text-gray-500">לא נמצאו job-ים פעילים לעדכון</span>
+              )}
+            </div>
+          </div>
+        ),
+      });
+
+      await fetchBatches(runsAgentId);
+      await fetchStuckRuns();
+    } catch (e: any) {
+      setDialog({ type: 'error', title: 'שגיאת עצירת באצ\'', message: String(e?.message || e) });
+    } finally {
+      setStoppingBatchId(null);
+      setBatchStopConfirm(null);
+    }
+  }
 
   // רשימת חודשי הפרסום הקיימים בתוצאות הנוכחיות — לבניית אפשרויות הסינון
   const availableYms = useMemo(() => {
@@ -959,6 +1239,30 @@ for (const d of bridgeSnap.docs) {
       <div className="p-6 max-w-4xl mx-auto text-right" dir="rtl">
         <h1 className="text-2xl font-bold mb-2">ניהול מחיקות קבצי עמלות</h1>
 
+        {/* ===== סרגל לשוניות ===== */}
+        <div className="flex gap-1 border-b mb-4 overflow-x-auto">
+          {[
+            { key: 'runs', label: 'נעילות וריצות' },
+            { key: 'batches', label: "באצ'ים" },
+            { key: 'imports', label: 'מחיקת טעינות' },
+            { key: 'tools', label: 'כלים נוספים' },
+          ].map((tab) => (
+            <button
+              key={tab.key}
+              onClick={() => setActiveMainTab(tab.key as any)}
+              className={`px-4 py-2 text-sm font-bold whitespace-nowrap border-b-2 transition-colors ${
+                activeMainTab === tab.key
+                  ? 'border-blue-600 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        {activeMainTab === 'runs' && (
+        <>
         {/* ===== מעקב ריצות אוטומטיות (Portal Runner) ===== */}
         <div className="mt-4 border rounded p-4 bg-white">
           <h2 className="font-bold mb-2">מעקב ריצות אוטומטיות (Portal Runner)</h2>
@@ -1058,7 +1362,7 @@ for (const d of bridgeSnap.docs) {
                     {rows.map((item) => {
                       const mins = minutesAgo(item.updatedAt);
                       return (
-                        <div key={item.id} className="border rounded-lg overflow-hidden">
+                        <div key={`${ym}_${item.id}`} className="border rounded-lg overflow-hidden">
                           <div className="flex items-center justify-between bg-gray-50 px-3 py-2">
                             <div className="font-bold text-sm">{item.companyName}</div>
                             <button
@@ -1152,8 +1456,8 @@ for (const d of bridgeSnap.docs) {
                                 </>
                               ) : (
                                 <div className="space-y-2">
-                                  {item.queueJobs.map((j) => (
-                                    <div key={j.id} className="border-t first:border-t-0 pt-1.5 first:pt-0">
+                                  {item.queueJobs.map((j, jIdx) => (
+                                    <div key={`${item.id}_${j.id}_${jIdx}`} className="border-t first:border-t-0 pt-1.5 first:pt-0">
                                       <div className="text-[11px] text-gray-500 font-mono break-all">
                                         <b>jobId:</b> {j.id}
                                       </div>
@@ -1182,10 +1486,171 @@ for (const d of bridgeSnap.docs) {
             </div>
           )}
         </div>
+        </>
+        )}
 
+        {activeMainTab === 'batches' && (
+        <>
+        {/* ===== מעקב באצ'ים (portalRunBatches) ===== */}
+        <div className="mt-4 border rounded p-4 bg-white">
+          <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
+            <h2 className="font-bold">מעקב באצ&apos;ים (portalRunBatches)</h2>
+            <select
+              className="border rounded px-2 py-1 text-sm"
+              value={batchesStatusFilter}
+              onChange={(e) => setBatchesStatusFilter(e.target.value as any)}
+            >
+              <option value="active">רק פעילים</option>
+              <option value="all">הצג הכל</option>
+            </select>
+          </div>
+          <p className="text-sm text-gray-600 mb-3">
+            לכל באצ&apos; מוצגות כל הריצות (portalImportRuns) שקשורות אליו, ולכל ריצה — הנעילה
+            (portalImportLocks) הקשורה אליה. &quot;עצור באצ&apos;&quot; יסגור לשגיאה כל מה שעדיין לא הסתיים,
+            כדי שהריצה תפסיק להתקדם.
+          </p>
+
+          {!hasSearchedRuns ? (
+            <p className="text-sm text-gray-500">בחרי סוכן למעלה ולחצי &quot;חפש&quot; כדי לראות באצ&apos;ים.</p>
+          ) : batchesLoading ? (
+            <p className="text-sm text-gray-500">טוען...</p>
+          ) : filteredBatches.length === 0 ? (
+            <p className="text-sm text-gray-500">לא נמצאו באצ&apos;ים לפי הסינון הנוכחי.</p>
+          ) : (
+            <div className="space-y-4">
+              {filteredBatches.map((batch) => {
+                const active = !isBatchFinishedStatus(batch.status);
+                return (
+                  <div key={batch.id} className="border rounded-lg overflow-hidden">
+                    <div
+                      className={`flex items-center justify-between px-3 py-2 ${
+                        active ? 'bg-blue-50' : 'bg-gray-50'
+                      }`}
+                    >
+                      <div className="text-sm">
+                        <span className="font-bold">{statusLabel(batch.status)}</span>
+                        {batch.monthLabel ? <span className="text-gray-500"> | {batch.monthLabel}</span> : null}
+                        <span className="text-gray-500">
+                          {' '}
+                          | {batch.doneCount ?? 0}/{batch.totalCount ?? batch.runs.length} הושלמו
+                          {batch.errorCount ? `, ${batch.errorCount} שגיאות` : ''}
+                        </span>
+                        <div className="text-[11px] text-gray-400 font-mono mt-0.5">batchId: {batch.id}</div>
+                      </div>
+                      {active && (
+                        <button
+                          onClick={() => setBatchStopConfirm(batch)}
+                          disabled={stoppingBatchId === batch.id}
+                          className="text-red-600 hover:underline text-sm font-medium disabled:opacity-50"
+                        >
+                          {stoppingBatchId === batch.id ? 'עוצר...' : "עצור באצ'"}
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="p-3 space-y-2">
+                      {batch.runs.map((run) => {
+                        const runMins = minutesAgo(run.updatedAt);
+                        return (
+                          <div key={`${batch.id}_${run.id}`} className="border rounded-lg overflow-hidden">
+                            <div className="bg-gray-50 px-3 py-1.5 text-xs font-bold flex items-center justify-between">
+                              <span>#{run.batchOrder} — {run.companyName}</span>
+                              {run.ym && <span className="text-gray-400 font-normal">{run.ym}</span>}
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 p-2">
+                              {/* ריצה: portalImportRuns */}
+                              <div
+                                className={`rounded-lg border p-2 text-xs ${
+                                  isInProgressStatus(run.status)
+                                    ? 'bg-blue-50 border-blue-200'
+                                    : run.status === 'error' || run.status === 'failed'
+                                    ? 'bg-red-50 border-red-200'
+                                    : 'bg-green-50 border-green-200'
+                                }`}
+                              >
+                                <div className="text-gray-500">portalImportRuns</div>
+                                <div className="font-bold">
+                                  {statusLabel(run.status)}
+                                  {run.step ? <span className="text-gray-400 font-normal"> ({run.step})</span> : null}
+                                </div>
+                                <div className="text-gray-400 font-mono break-all mt-1">runId: {run.id}</div>
+                                {run.updatedAt && (
+                                  <div className="text-gray-400 mt-0.5">
+                                    {run.updatedAt.toLocaleString('he-IL')}
+                                    {runMins !== null ? ` (לפני ${runMins} דק')` : ''}
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* נעילה: portalImportLocks */}
+                              <div
+                                className={`rounded-lg border p-2 text-xs ${
+                                  !run.lockFound
+                                    ? 'bg-gray-50 border-gray-200'
+                                    : run.lockState === 'running'
+                                    ? 'bg-blue-50 border-blue-200'
+                                    : run.lockState === 'error'
+                                    ? 'bg-red-50 border-red-200'
+                                    : 'bg-green-50 border-green-200'
+                                }`}
+                              >
+                                <div className="text-gray-500">portalImportLocks</div>
+                                <div className="font-bold">
+                                  {run.lockFound ? (run.lockState || '(ריק)') : 'אין נעילה'}
+                                </div>
+                                <div className="text-gray-400 font-mono break-all mt-1">
+                                  {run.lockId || '(אין templateId/ym לחישוב)'}
+                                </div>
+                              </div>
+
+                              {/* job-ים: commissionImportQueue */}
+                              <div
+                                className={`rounded-lg border p-2 text-xs ${
+                                  run.queueJobs.length === 0
+                                    ? 'bg-gray-50 border-gray-200'
+                                    : run.queueJobs.some((j) => j.status === 'queued' || j.status === 'processing')
+                                    ? 'bg-blue-50 border-blue-200'
+                                    : run.queueJobs.some((j) => j.status === 'error')
+                                    ? 'bg-red-50 border-red-200'
+                                    : 'bg-green-50 border-green-200'
+                                }`}
+                              >
+                                <div className="text-gray-500">commissionImportQueue</div>
+                                {run.queueJobs.length === 0 ? (
+                                  <div className="font-bold text-gray-400">אין job-ים</div>
+                                ) : (
+                                  run.queueJobs.map((j, qIdx) => (
+                                    <div key={`${run.id}_${j.id}_${qIdx}`} className="mt-0.5">
+                                      <span className="font-bold">{statusLabel(j.status)}</span>
+                                      <div className="text-gray-400 font-mono break-all">jobId: {j.id}</div>
+                                    </div>
+                                  ))
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+        </>
+        )}
+
+        {activeMainTab === 'tools' && (
+        <>
         <div>
 <BackfillYmButton />
 </div>
+        </>
+        )}
+
+        {activeMainTab === 'imports' && (
+        <>
         {/* ===== חלק תחתון: ניהול ריצות טעינה לפי מספר טעינה / טוען ===== */}
         <div className="mt-10 border-t pt-6">
           <div className="flex flex-col md:flex-row gap-3 mb-4 text-sm">
@@ -1297,6 +1762,8 @@ for (const d of bridgeSnap.docs) {
             />
           )}
         </div>
+        </>
+        )}
 
 {bridgeRun && (
   <DialogNotification
@@ -1364,6 +1831,36 @@ for (const d of bridgeSnap.docs) {
             onConfirm={() => handleReleaseStuckRun(releaseConfirmRun)}
             onCancel={() => setReleaseConfirmRun(null)}
             confirmText={releasingRunId === releaseConfirmRun.id ? 'משחרר...' : 'שחרר'}
+            cancelText="ביטול"
+          />
+        )}
+
+        {batchStopConfirm && (
+          <DialogNotification
+            type="warning"
+            title="אישור עצירת באצ'"
+            message={
+              <div className="text-sm space-y-1">
+                <p>האם לעצור את הבאצ&apos; הזה?</p>
+                <div className="mt-2 font-mono text-xs bg-gray-50 border rounded p-2 space-y-1">
+                  <div><b>batchId:</b> {batchStopConfirm.id}</div>
+                  <div><b>status נוכחי:</b> {statusLabel(batchStopConfirm.status)}</div>
+                  <div>
+                    <b>ריצות לא-סופיות שייסגרו:</b>{' '}
+                    {batchStopConfirm.runs.filter((r) => !isRunFinishedStatus(r.status)).length} מתוך{' '}
+                    {batchStopConfirm.runs.length}
+                  </div>
+                </div>
+                <p className="text-amber-700 mt-3">
+                  הפעולה תסגור לשגיאה את כל הריצות שעדיין לא הסתיימו בבאצ&apos; הזה, תמחק את הנעילות
+                  שלהן, ותסמן job-ים תקועים בתור כשגיאה — כדי שהריצה תפסיק להתקדם. אם הבאצ&apos; בעצם
+                  עדיין פעיל באמת (לא תקוע), עדיף להמתין במקום לעצור.
+                </p>
+              </div>
+            }
+            onConfirm={() => handleStopBatch(batchStopConfirm)}
+            onCancel={() => setBatchStopConfirm(null)}
+            confirmText={stoppingBatchId === batchStopConfirm.id ? 'עוצר...' : "עצור באצ'"}
             cancelText="ביטול"
           />
         )}
