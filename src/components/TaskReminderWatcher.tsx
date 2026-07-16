@@ -143,7 +143,7 @@ export default function TaskReminderWatcher() {
             עבור למשימה
           </button>
           <button className="trw-btn-snooze" onClick={() => snooze(activePopup)}>
-            דחה ב-15 דק'
+            דחה ב-15 דקות
           </button>
           <button className="trw-btn-dismiss" onClick={() => dismissForever(activePopup)}>
             הבנתי, סגור
