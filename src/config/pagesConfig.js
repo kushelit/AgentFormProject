@@ -10,27 +10,28 @@ const pages = [
   //     { href: '/WhatsAppSettings', label: 'ניהול הגדרות' },
   //   ],
   // },
-    {
-    href: '/CRM',
-    label: 'CRM',
-    submenu: [
-    { 
-  href: '/tasks', 
-  label: 'משימות',
+   {
+  href: '/CRM',
+  label: 'CRM',
   onlyPermissions: ['access_crm_module'],
-},
+  submenu: [
     { 
-  href: '/MeetingsDashboard', 
-  label: 'פגישות',
-  onlyPermissions: ['access_crm_module'],
+      href: '/tasks', 
+      label: 'משימות',
+      onlyPermissions: ['access_crm_module'],
+    },
+    { 
+      href: '/MeetingsDashboard', 
+      label: 'פגישות',
+      onlyPermissions: ['access_crm_module'],
+    },
+    { 
+      href: '/customer-tiers', 
+      label: 'מדרג לקוחות',
+      onlyPermissions: ['access_customer_tiers'],
+    },
+  ],
 },
-  { 
-  href: '/customer-tiers', 
-  label: 'מדרג לקוחות',
-  onlyPermissions: ['access_customer_tiers'],
-},
-    ],
-  },
   { href: '/NewSummaryTable', label: 'דף מרכז' },
   // { href: '/ManageWorkers', label: 'ניהול עובדים' },
   {

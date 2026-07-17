@@ -36,6 +36,7 @@ const { canAccess: canAccessTax } = usePermission(user ? 'access_sharon_tax_retu
 const { canAccess: canAccessSummary } = usePermission(user ? 'access_sharon_summary' : null);
 const { canAccess: canAccessPension } = usePermission(user ? 'access_sharon_pension' : null);
 const { canAccess: canAccessCrm } = usePermission(user ? 'access_crm_module' : null);
+const { canAccess: canAccessCustomerTiers } = usePermission(user ? 'access_customer_tiers' : null);
 
 const permissionsMap = {
   access_sharon_elementary: canAccessElementary,
@@ -43,6 +44,7 @@ const permissionsMap = {
   access_sharon_summary: canAccessSummary,
   access_sharon_pension: canAccessPension,
   access_crm_module: canAccessCrm, 
+  access_customer_tiers: canAccessCustomerTiers,
 };
 
 const isItemVisible = (item) => {
