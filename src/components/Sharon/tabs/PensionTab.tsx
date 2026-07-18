@@ -4,6 +4,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase/firebase';
+import DealFormModal from '@/components/DealFormModal/DealFormModal';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -54,8 +55,26 @@ const PensionTab: React.FC<Props> = ({ agentId, customer, onSelectCustomer }) =>
   const [filterCompany, setFilterCompany] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
 
+  // ─── מודל הוספה/עריכה של עסקה ───────────────────────────────────────────
+  const [showDealForm, setShowDealForm] = useState(false);
+  const [editingSaleId, setEditingSaleId] = useState<string | null>(null);
 
-const handleRowSelectCustomer = async (idNumber: string) => {
+  const openNewDeal = () => {
+    setEditingSaleId(null);
+    setShowDealForm(true);
+  };
+
+  const openEditDeal = (saleId: string) => {
+    setEditingSaleId(saleId);
+    setShowDealForm(true);
+  };
+
+  const closeDealForm = () => {
+    setShowDealForm(false);
+    setEditingSaleId(null);
+  };
+
+  const handleRowSelectCustomer = async (idNumber: string) => {
     if (!agentId || !idNumber) return;
     try {
       const snap = await getDocs(query(
@@ -69,15 +88,13 @@ const handleRowSelectCustomer = async (idNumber: string) => {
         onSelectCustomer({
           id: d.id,
           IDCustomer: data.IDCustomer,
-            firstNameCustomer: data.firstNameCustomer,
+          firstNameCustomer: data.firstNameCustomer,
           lastNameCustomer: data.lastNameCustomer,
           phone: data.phone,
         });
       }
     } catch {}
   };
-
-
 
   const fetchSales = useCallback(async () => {
     if (!agentId) return;
@@ -120,9 +137,19 @@ const handleRowSelectCustomer = async (idNumber: string) => {
 
   return (
     <div>
-      {/* Readonly note */}
-      <div className="sharon-readonly-note">
-        👁 קריאה בלבד — נתונים מתוך מערכת MagicSale
+      {/* Readonly note + כפתור הוספה */}
+      <div className="sharon-readonly-note" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <span>👁 קריאה בלבד — נתונים מתוך מערכת MagicSale</span>
+        {agentId && (
+          <button
+            type="button"
+            onClick={openNewDeal}
+            className="sharon-inline-btn"
+            style={{ marginRight: 'auto' }}
+          >
+            + הוסף עסקה{customer ? ` ל${customer.firstNameCustomer} ${customer.lastNameCustomer}` : ''}
+          </button>
+        )}
       </div>
 
       {/* Filters */}
@@ -156,6 +183,7 @@ const handleRowSelectCustomer = async (idNumber: string) => {
                 <th>צבירה פנסיה</th>
                 <th>פרמיה פיננסים</th>
                 <th>צבירה פיננסים</th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
@@ -178,6 +206,17 @@ const handleRowSelectCustomer = async (idNumber: string) => {
                   <td>{sale.pensiaZvira ? parseFloat(String(sale.pensiaZvira)).toLocaleString() : '—'}</td>
                   <td>{sale.finansimPremia ? parseFloat(String(sale.finansimPremia)).toLocaleString() : '—'}</td>
                   <td>{sale.finansimZvira ? parseFloat(String(sale.finansimZvira)).toLocaleString() : '—'}</td>
+                  <td onClick={(e) => e.stopPropagation()}>
+                    <button
+                      type="button"
+                      className="sharon-inline-btn"
+                      style={{ background: '#5F5E5A' }}
+                      onClick={() => openEditDeal(sale.id)}
+                      title="עריכת עסקה"
+                    >
+                      ✏️
+                    </button>
+                  </td>
                 </tr>
               ))}
 
@@ -188,12 +227,13 @@ const handleRowSelectCustomer = async (idNumber: string) => {
 </td>
                   <td colSpan={2}>{totalPremia.toLocaleString()}</td>
                   <td colSpan={3}>{totalZvira.toLocaleString()}</td>
+                  <td></td>
                 </tr>
               )}
 
               {filtered.length === 0 && !loading && (
                 <tr>
-                  <td colSpan={11} style={{ textAlign: 'center', padding: 20, color: '#888' }}>
+                  <td colSpan={12} style={{ textAlign: 'center', padding: 20, color: '#888' }}>
                     {customer ? 'אין נתונים פנסיוניים ללקוח זה' : 'בחר לקוח לצפייה בנתונים'}
                   </td>
                 </tr>
@@ -202,6 +242,22 @@ const handleRowSelectCustomer = async (idNumber: string) => {
           </table>
         )}
       </div>
+
+      {/* מודל הוספה/עריכה של עסקה */}
+      {showDealForm && agentId && (
+        <DealFormModal
+          defaultAgentId={agentId}
+          editingSaleId={editingSaleId}
+          initialCustomer={!editingSaleId && customer ? {
+            IDCustomer: customer.IDCustomer,
+            firstNameCustomer: customer.firstNameCustomer,
+            lastNameCustomer: customer.lastNameCustomer,
+            phone: customer.phone,
+          } : null}
+          onClose={closeDealForm}
+          onSaved={fetchSales}
+        />
+      )}
     </div>
   );
 };

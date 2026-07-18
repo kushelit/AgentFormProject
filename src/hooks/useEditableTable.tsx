@@ -28,7 +28,8 @@ type UseTableActionsResult<T> = {
   isLoadingHookEdit: boolean;
   editingRow: string | null;
   editData: Partial<T>;
-  setEditData: React.Dispatch<React.SetStateAction<Partial<T>>>; // ✅ הוספה של setEditData
+  setEditData: React.Dispatch<React.SetStateAction<Partial<T>>>; 
+  setRowForEditing: (row: T) => void;
   handleEditRow: (id: string) => void;
   handleDeleteRow: (id: string) => Promise<void>;
   saveChanges: () => Promise<void>;
@@ -66,13 +67,13 @@ function useEditableTable<T extends { id: string }>({
       setIsLoadingHookEdit(false);
     }
   };
-
-  useEffect(() => {
-    if (agentId) {
-      reloadData(agentId);
-    }
-  }, [agentId]);
-
+useEffect(() => {
+  if (agentId) {
+    reloadData(agentId);
+  } else {
+    setIsLoadingHookEdit(false); // בלי agentId — לא טוענים, ולא נשארים "תקועים" ב-loading
+  }
+}, [agentId]);
 
   const handleEditRow = (id: string, openModal?: () => void) => {
     setEditingRow(id);
@@ -86,6 +87,16 @@ function useEditableTable<T extends { id: string }>({
     }
   };
   
+  const setRowForEditing = (row: T) => {
+  setEditingRow(row.id);
+  setEditData({ ...row });
+  setData((prev) => {
+    const exists = prev.some((item) => item.id === row.id);
+    return exists
+      ? prev.map((item) => (item.id === row.id ? { ...item, ...row } : item))
+      : [...prev, row];
+  });
+};
   
   const handleEditChange = (field: keyof T, value: T[keyof T]) => {
     // console.log(`✏️ Field updated: →`, value);
@@ -318,6 +329,7 @@ function useEditableTable<T extends { id: string }>({
     editingRow,
     editData,
     setEditData,
+    setRowForEditing,
     handleEditRow,
     handleEditChange,
     handleDeleteRow,

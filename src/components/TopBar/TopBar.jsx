@@ -103,6 +103,22 @@ useEffect(() => {
 >
   🏢 בחירת חברות
 </button>
+  <button
+        style={{
+          width: "100%",
+          textAlign: "right",
+          background: "transparent",
+          border: "none",
+          padding: "10px 8px",
+          cursor: "pointer",
+        }}
+        onClick={() => {
+          setShowSettingsMenu(false);
+          router.push("/Environments/product-preferences");
+        }}
+      >
+        📦 בחירת מוצרים
+      </button>
     </div>
   )}
 </div>

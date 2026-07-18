@@ -1,0 +1,249 @@
+/* components/DealFormModal/DealFormModal.css
+   קלאסים עם prefix "dfm-" כדי לא להתנגש עם .modal-content / .form-group
+   הגלובליים שכבר קיימים בפרויקט. הצבעים, הגופן וה-RTL תואמים
+   למערכת העיצוב הקיימת (globals.css + NewAgentForm.css). */
+
+/* ── Overlay + Container ─────────────────────────────────────────────── */
+
+.dfm-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.dfm-content {
+  width: 440px;
+  max-width: 95vw;
+  max-height: 90vh;
+  overflow-y: auto;
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+  background-color: var(--clrgray1);
+  position: relative;
+  margin-top: 8vh;
+  direction: rtl;
+  font-family: var(--font-family-primary);
+}
+
+.dfm-close {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  background: transparent;
+  border: none;
+  outline: none;
+  font-size: 14px;
+  cursor: pointer;
+  color: rgba(0, 0, 0, 0.3);
+  z-index: 10;
+  transition: color 0.2s ease, transform 0.2s ease;
+}
+
+.dfm-close:hover {
+  color: rgba(0, 0, 0, 0.6);
+  transform: scale(1.2);
+}
+
+/* ── Header ───────────────────────────────────────────────────────────── */
+
+.dfm-title {
+  color: var(--clrdarkblue3);
+  direction: rtl;
+  font-family: var(--font-family-secondary);
+  font-size: var(--font-size-heading-small);
+  font-weight: 700;
+  line-height: var(--line-height-heading-small);
+  white-space: nowrap;
+  border-bottom: 1px solid var(--clrgray4);
+  padding-bottom: 8px;
+  margin-bottom: 16px;
+}
+
+/* ── Sections ─────────────────────────────────────────────────────────── */
+
+.dfm-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.dfm-section-title {
+  font-weight: bold;
+  font-size: var(--font-size-text-regular);
+  color: var(--clrdarkblue2);
+  margin-bottom: 2px;
+}
+
+.dfm-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  row-gap: 10px;
+  column-gap: 16px;
+}
+
+/* ── Fields ───────────────────────────────────────────────────────────── */
+
+.dfm-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.dfm-group--full {
+  grid-column: span 2;
+  width: 100%;
+}
+
+.dfm-label {
+  font-size: var(--font-size-text-small);
+  color: var(--clrgray7);
+  margin-bottom: 3px;
+}
+
+.dfm-group input:not([type='checkbox']),
+.dfm-group select,
+.dfm-group textarea {
+  width: 100%;
+  height: 32px;
+  padding: 6px 8px;
+  font-size: var(--font-size-text-regular);
+  border: 1px solid var(--clrgray5);
+  border-radius: 4px;
+  box-sizing: border-box;
+  background-color: var(--clrwhite);
+  color: var(--clrblack);
+  text-align: right;
+  direction: rtl;
+  appearance: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.dfm-group select {
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' width='14' height='14'><path fill='%23696969' d='M7 10l5 5 5-5H7z'/></svg>");
+  background-repeat: no-repeat;
+  background-position: left 8px center;
+  background-size: 12px;
+  padding-left: 24px;
+}
+
+.dfm-group textarea {
+  height: 80px;
+  padding: 8px;
+  resize: vertical;
+}
+
+.dfm-group input::placeholder,
+.dfm-group textarea::placeholder {
+  color: rgba(0, 0, 0, 0.4);
+  font-style: italic;
+}
+
+.dfm-group input:focus,
+.dfm-group select:focus,
+.dfm-group textarea:focus {
+  outline: none;
+  border-color: var(--clrdarkblue3);
+  box-shadow: 0 0 0 3px rgba(59, 106, 149, 0.15);
+  background-color: var(--clrwhite);
+}
+
+.dfm-input-error {
+  border-color: var(--status-error) !important;
+  background-color: #ffe6e6 !important;
+}
+
+.dfm-error-message {
+  color: var(--status-error);
+  font-size: var(--font-size-text-small);
+  font-weight: bold;
+  margin-top: 3px;
+}
+
+/* ── Checkbox ─────────────────────────────────────────────────────────── */
+
+.dfm-checkbox-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  grid-column: span 2;
+}
+
+.dfm-checkbox-row label {
+  font-size: var(--font-size-text-regular);
+  color: var(--clrblack);
+  cursor: pointer;
+}
+
+.dfm-checkbox-row input[type='checkbox'] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  border: 1px solid var(--clrgray5);
+  background-color: var(--clrwhite);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dfm-checkbox-row input[type='checkbox']:checked {
+  background-color: var(--clrdarkblue3);
+  border-color: var(--clrdarkblue3);
+}
+
+.dfm-checkbox-row input[type='checkbox']:checked::before {
+  content: '✔';
+  color: #fff;
+  font-size: 12px;
+  line-height: 1;
+}
+
+/* ── Actions ──────────────────────────────────────────────────────────── */
+
+.dfm-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding-top: 14px;
+  margin-top: 4px;
+  border-top: 1px solid var(--clrgray4);
+}
+
+.dfm-actions-right,
+.dfm-actions-left {
+  display: flex;
+  gap: 10px;
+}
+
+.dfm-actions-right .button,
+.dfm-actions-left .button {
+  width: 100px !important;
+}
+
+/* ── Responsive ───────────────────────────────────────────────────────── */
+
+@media (max-width: 520px) {
+  .dfm-content {
+    width: 100%;
+    margin-top: 4vh;
+    padding: 16px;
+  }
+
+  .dfm-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .dfm-group--full,
+  .dfm-checkbox-row {
+    grid-column: span 1;
+  }
+}

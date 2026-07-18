@@ -4,13 +4,12 @@ import { useEffect, useState, ChangeEvent  } from 'react';
 import { query, collection, where, getDocs, getDoc, doc } from 'firebase/firestore';
 import { db } from '@/lib/firebase/firebase';
 import { Lead, StatusLead } from '@/types/Enviorment';
-
-
+import { useAuth } from '@/lib/firebase/AuthContext';
 
 const useFetchMD = (selectedAgentId?:string) => {
 
 
-
+    const { user } = useAuth();
     const [companies, setCompanies] = useState<string[]>([]); 
     const [selectedCompany, setSelectedCompany] = useState<string>(''); 
   
@@ -43,16 +42,45 @@ const useFetchMD = (selectedAgentId?:string) => {
     type ProductGroupMap = {
       [key: string]: string; 
   };
-        useEffect(() => {
-          const fetchCompanies = async () => {
-            const querySnapshot = await getDocs(collection(db, 'company'));
-            const companiesList = querySnapshot.docs.map(doc => doc.data().companyName);
-            setCompanies(companiesList);
-          };
+        // useEffect(() => {
+        //   const fetchCompanies = async () => {
+        //     const querySnapshot = await getDocs(collection(db, 'company'));
+        //     const companiesList = querySnapshot.docs.map(doc => doc.data().companyName);
+        //     setCompanies(companiesList);
+        //   };
       
-          fetchCompanies();
-        }, []);
+        //   fetchCompanies();
+        // }, []);
       
+useEffect(() => {
+  const fetchCompanies = async () => {
+    try {
+      const querySnapshot = await getDocs(collection(db, 'company'));
+      let companiesList = querySnapshot.docs.map(d => d.data().companyName as string);
+
+      if (user?.uid) {
+        const agentDoc = await getDoc(doc(db, 'users', user.uid));
+        const preferredIds: string[] = agentDoc.data()?.preferredCompanyIds || [];
+
+        if (preferredIds.length > 0) {
+          const preferredNames = new Set(
+            querySnapshot.docs
+              .filter(d => preferredIds.includes(d.id))
+              .map(d => d.data().companyName as string)
+          );
+          companiesList = companiesList.filter(name => preferredNames.has(name));
+        }
+      }
+
+      setCompanies(companiesList);
+    } catch (error) {
+      setCompanies([]);
+    }
+  };
+
+  fetchCompanies();
+}, [user]);
+
 
         useEffect(() => {
           const fetchCommissionTypes = async () => {
@@ -105,25 +133,54 @@ const useFetchMD = (selectedAgentId?:string) => {
 
 
 
-      useEffect(() => {
-        const fetchProducts = async () => {
-          try {
-         //   console.log("Attempting to fetch products");
-            const querySnapshot = await getDocs(collection(db, 'product'));
-            const productsList = querySnapshot.docs.map(doc => ({
-              id: doc.id,
-              name: doc.data().productName,
-              productGroup: doc.data().productGroup
-            }));
-            setProducts(productsList);
-        //    console.log("Products fetched:", productsList);
-          } catch (error) {
-            // console.error("Failed to fetch products:", error);
-          }
-        };
+      // useEffect(() => {
+      //   const fetchProducts = async () => {
+      //     try {
+      //    //   console.log("Attempting to fetch products");
+      //       const querySnapshot = await getDocs(collection(db, 'product'));
+      //       const productsList = querySnapshot.docs.map(doc => ({
+      //         id: doc.id,
+      //         name: doc.data().productName,
+      //         productGroup: doc.data().productGroup
+      //       }));
+      //       setProducts(productsList);
+      //   //    console.log("Products fetched:", productsList);
+      //     } catch (error) {
+      //       // console.error("Failed to fetch products:", error);
+      //     }
+      //   };
       
-        fetchProducts();
-      }, [selectedProduct]);
+      //   fetchProducts();
+      // }, [selectedProduct]);
+
+      useEffect(() => {
+  const fetchProducts = async () => {
+    try {
+      const querySnapshot = await getDocs(collection(db, 'product'));
+      let productsList: Product[] = querySnapshot.docs.map(d => ({
+        id: d.id,
+        name: d.data().productName,
+        productGroup: d.data().productGroup
+      }));
+
+      if (user?.uid) {
+        const agentDoc = await getDoc(doc(db, 'users', user.uid));
+        const preferredIds: string[] = agentDoc.data()?.preferredProductIds || [];
+
+        if (preferredIds.length > 0) {
+          productsList = productsList.filter(p => preferredIds.includes(p.id));
+        }
+      }
+
+      setProducts(productsList);
+    } catch (error) {
+      // console.error("Failed to fetch products:", error);
+    }
+  };
+
+  fetchProducts();
+}, [selectedProduct, user]);
+
 
       interface ProductMap {
         [productName: string]: string; // Assuming productGroup is a string
