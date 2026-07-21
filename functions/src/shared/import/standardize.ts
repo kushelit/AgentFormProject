@@ -199,7 +199,7 @@ if (systemField === "commissionAmount") {
 
 
     if (systemField === "premium") {
-      if (template.templateId === "fenix_insurance") {
+       if (template.templateId === "fenix_insurance" || template.templateId === "fenix_hefreshim") {
         const sector = String(pick(rawRow, ["ענף"]) ?? "").trim();
         const accRaw = pick(rawRow, ["צבירה", "סכום צבירה"]);
         const premRaw = pick(rawRow, ["פרמיה", "סכום פרמיה"]);

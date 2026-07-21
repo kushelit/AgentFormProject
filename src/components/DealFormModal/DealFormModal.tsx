@@ -16,6 +16,7 @@ import { useToast } from '@/hooks/useToast';
 import { ToastNotification } from '@/components/ToastNotification';
 import { CombinedData, Customer } from '@/types/Sales';
 import { Button } from '@/components/Button/Button';
+import ReferrerField from '@/components/ReferrerField/ReferrerField';
 import confetti from 'canvas-confetti';
 import './DealFormModal.css';
 
@@ -40,6 +41,16 @@ type DealFormModalProps = {
   onSaved: () => void;
   /** קונפטי + צליל בהוספת עסקה חדשה. ברירת מחדל: מופעל */
   enableCelebration?: boolean;
+  /** אם מוגדר: רשימת "בחר מוצר" תציג רק מוצרים מקבוצות אלה (למשל ['1','4'] = פנסיה+פיננסים) */
+  includeGroupIds?: string[];
+  /** אם מוגדר (ו-includeGroupIds לא מוגדר): רשימת המוצרים תציג הכל חוץ מהקבוצות האלה */
+  excludeGroupIds?: string[];
+  /**
+   * ההקשר שממנו נפתח המודל (איזה טאב/מסך) — קובע אם להציג שדות ייחודיים
+   * שרלוונטיים רק להקשר הזה (למשל שדות ל-agency4 שרלוונטיים רק בטאב "סיכונים").
+   * הרחיבי את הטיפוס הזה כשמוסיפים הקשרים נוספים.
+   */
+  formContext?: 'risk' | 'pension_finance' | 'general';
 };
 
 // ─── Component ───────────────────────────────────────────────────────────────
@@ -51,6 +62,9 @@ const DealFormModal: React.FC<DealFormModalProps> = ({
   onClose,
   onSaved,
   enableCelebration = true,
+  includeGroupIds,
+  excludeGroupIds,
+  formContext,
 }) => {
   const { user, detail } = useAuth();
   const { toasts, addToast, setToasts } = useToast();
@@ -77,6 +91,9 @@ const DealFormModal: React.FC<DealFormModalProps> = ({
   const { prefs } = useUserPreferences(user?.uid);
 
   const canManageAgency3Fields = String(detail?.agencyId ?? '') === '3';
+  const isAgency4 = String(detail?.agencyId ?? '') === '4';
+  const canManageAgency4RiskFields = isAgency4 && formContext === 'risk';
+  const canManageAgency4PensionFinanceFields = isAgency4 && formContext === 'pension_finance';
   const [paymentStatusOptions, setPaymentStatusOptions] = useState<{ id: string; name: string }[]>([]);
   const [depositStatusOptions, setDepositStatusOptions] = useState<{ id: string; name: string }[]>([]);
 
@@ -120,6 +137,15 @@ const DealFormModal: React.FC<DealFormModalProps> = ({
     resetField('hekefPaid' as any, '');
     resetField('niudPaid' as any, '');
     resetField('depositStatus' as any, '');
+    resetField('discountPercent' as any, '');
+    resetField('cancellationCompany' as any, '');
+    resetField('needsCorrection' as any, false);
+    resetField('kupaAction' as any, '');
+    resetField('transferCompany' as any, '');
+    resetField('transferKupaType' as any, '');
+    resetField('kupaStatus' as any, '');
+    resetField('candidateStatus' as any, '');
+    resetField('referrerName' as any, '');
 
     setInvalidFields([]);
     setErrors({});
@@ -408,6 +434,15 @@ const DealFormModal: React.FC<DealFormModalProps> = ({
         hekefPaid: canManageAgency3Fields ? String((editData as any).hekefPaid || '') : '',
         niudPaid: canManageAgency3Fields ? String((editData as any).niudPaid || '') : '',
         depositStatus: canManageAgency3Fields ? String((editData as any).depositStatus || '') : '',
+        discountPercent: canManageAgency4RiskFields ? String((editData as any).discountPercent || '') : '',
+        cancellationCompany: canManageAgency4RiskFields ? String((editData as any).cancellationCompany || '') : '',
+        needsCorrection: canManageAgency4RiskFields ? !!(editData as any).needsCorrection : false,
+        kupaAction: canManageAgency4PensionFinanceFields ? String((editData as any).kupaAction || '') : '',
+        transferCompany: canManageAgency4PensionFinanceFields ? String((editData as any).transferCompany || '') : '',
+        transferKupaType: canManageAgency4PensionFinanceFields ? String((editData as any).transferKupaType || '') : '',
+        kupaStatus: canManageAgency4PensionFinanceFields ? String((editData as any).kupaStatus || '') : '',
+        candidateStatus: canManageAgency4PensionFinanceFields ? String((editData as any).candidateStatus || '') : '',
+        referrerName: isAgency4 ? String((editData as any).referrerName || '') : '',
       });
 
       addToast('success', 'יש!!! עוד עסקה נוספה');
@@ -472,9 +507,41 @@ const DealFormModal: React.FC<DealFormModalProps> = ({
   const shouldShowCancellationDate =
     !!editData.statusPolicy && !['פעילה', 'הצעה'].includes(editData.statusPolicy);
 
+  // רשימת המוצרים שמוצגת ב"בחר מוצר" — מסוננת לפי הטאב שממנו נפתח המודל (אם הוגדר סינון).
+  // המוצר שכבר נבחר (בעריכה) תמיד נשאר ברשימה, גם אם הוא מחוץ לסינון — כדי לא "לאבד" בחירה קיימת.
+  const visibleProducts = useMemo(() => {
+    if (!includeGroupIds?.length && !excludeGroupIds?.length) return products;
+    return products.filter((p) => {
+      if (editData.product && p.name === editData.product) return true;
+      const groupId = productToGroupMap[(p.name || '').trim()] || '';
+      if (includeGroupIds?.length) return includeGroupIds.includes(groupId);
+      if (excludeGroupIds?.length) return !excludeGroupIds.includes(groupId);
+      return true;
+    });
+  }, [products, includeGroupIds, excludeGroupIds, productToGroupMap, editData.product]);
+
   const handleClose = () => {
     cancelEdit(true);
     onClose();
+  };
+
+  // רשימת מוצרי פנסיה+פיננסים לשדה "סוג קופה לניוד" — הולכת אחרי אותה includeGroupIds
+  // שה-tab מגדיר (כדי שמקור אמת אחד יקבע גם את "מוצר" וגם את "סוג קופה לניוד")
+  const pensionFinanceProducts = useMemo(() => {
+    const groups = includeGroupIds?.length ? includeGroupIds : ['1', '4'];
+    return products.filter((p) => {
+      const groupId = productToGroupMap[(p.name || '').trim()] || '';
+      return groups.includes(groupId);
+    });
+  }, [products, productToGroupMap, includeGroupIds]);
+
+  // בעת מעבר מ"ניוד" לערך אחר — מנקים את השדות התלויים כדי לא לשמור מידע לא רלוונטי
+  const handleKupaActionChange = (value: string) => {
+    handleEditChange('kupaAction' as any, value);
+    if (value !== 'ניוד') {
+      handleEditChange('transferCompany' as any, '');
+      handleEditChange('transferKupaType' as any, '');
+    }
   };
 
   // ─── Render ─────────────────────────────────────────────────────────────
@@ -616,6 +683,15 @@ const DealFormModal: React.FC<DealFormModalProps> = ({
                   ))}
                 </select>
               </div>
+
+              {isAgency4 && (
+                <ReferrerField
+                  agentId={editData.AgentId || defaultAgentId}
+                  value={(editData as any).referrerName || ''}
+                  onChange={(v) => handleEditChange('referrerName' as any, v)}
+                  label="נציג מפנה"
+                />
+              )}
             </div>
           </section>
 
@@ -646,7 +722,7 @@ const DealFormModal: React.FC<DealFormModalProps> = ({
                   className={invalidFields.includes('product') ? 'dfm-input-error' : ''}
                 >
                   <option value="">בחר מוצר</option>
-                  {products.map((product) => (
+                  {visibleProducts.map((product) => (
                     <option key={product.id} value={product.name}>{product.name}</option>
                   ))}
                 </select>
@@ -723,6 +799,86 @@ const DealFormModal: React.FC<DealFormModalProps> = ({
                 </div>
               )}
 
+              {canManageAgency4RiskFields && (
+                <div className="dfm-group">
+                  <label className="dfm-label">אחוז הנחה</label>
+                  <input
+                    type="number"
+                    value={(editData as any).discountPercent || ''}
+                    onChange={(e) => handleEditChange('discountPercent' as any, e.target.value)}
+                    placeholder="%"
+                  />
+                </div>
+              )}
+
+              {canManageAgency4PensionFinanceFields && (
+                <>
+                  <div className="dfm-group">
+                    <label className="dfm-label">פעולה</label>
+                    <select
+                      value={(editData as any).kupaAction || ''}
+                      onChange={(e) => handleKupaActionChange(e.target.value)}
+                    >
+                      <option value="">בחר פעולה</option>
+                      <option value="קופה חדשה">קופה חדשה</option>
+                      <option value="ניוד">ניוד</option>
+                    </select>
+                  </div>
+
+                  {(editData as any).kupaAction === 'ניוד' && (
+                    <>
+                      <div className="dfm-group">
+                        <label className="dfm-label">חברה לניוד</label>
+                        <select
+                          value={(editData as any).transferCompany || ''}
+                          onChange={(e) => handleEditChange('transferCompany' as any, e.target.value)}
+                        >
+                          <option value="">בחר חברה</option>
+                          {companies.map((companyName, index) => (
+                            <option key={index} value={companyName}>{companyName}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="dfm-group">
+                        <label className="dfm-label">סוג קופה לניוד</label>
+                        <select
+                          value={(editData as any).transferKupaType || ''}
+                          onChange={(e) => handleEditChange('transferKupaType' as any, e.target.value)}
+                        >
+                          <option value="">בחר סוג קופה</option>
+                          {pensionFinanceProducts.map((product) => (
+                            <option key={product.id} value={product.name}>{product.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </>
+                  )}
+
+                  <div className="dfm-group">
+                    <label className="dfm-label">סטטוס קופה</label>
+                    <select
+                      value={(editData as any).kupaStatus || ''}
+                      onChange={(e) => handleEditChange('kupaStatus' as any, e.target.value)}
+                    >
+                      <option value="">בחר סטטוס</option>
+                      <option value="פעיל">פעיל</option>
+                      <option value="לא פעיל">לא פעיל</option>
+                    </select>
+                  </div>
+                  <div className="dfm-group">
+                    <label className="dfm-label">סטטוס מועמד</label>
+                    <select
+                      value={(editData as any).candidateStatus || ''}
+                      onChange={(e) => handleEditChange('candidateStatus' as any, e.target.value)}
+                    >
+                      <option value="">בחר סטטוס</option>
+                      <option value="עצמאי">עצמאי</option>
+                      <option value="שכיר">שכיר</option>
+                    </select>
+                  </div>
+                </>
+              )}
+
               <div className="dfm-group">
                 <label className="dfm-label">סטטוס עסקה *</label>
                 <select
@@ -760,6 +916,18 @@ const DealFormModal: React.FC<DealFormModalProps> = ({
                     value={editData.cancellationDate || ''}
                     onChange={(e) => handleEditChange('cancellationDate', e.target.value)}
                   />
+                </div>
+              )}
+
+              {canManageAgency4RiskFields && editData.statusPolicy === 'פעילה' && (
+                <div className="dfm-checkbox-row">
+                  <input
+                    type="checkbox"
+                    checked={!!(editData as any).needsCorrection}
+                    onChange={(e) => handleEditChange('needsCorrection' as any, e.target.checked)}
+                    id="dfm-needsCorrection"
+                  />
+                  <label htmlFor="dfm-needsCorrection">נדרש תיקון</label>
                 </div>
               )}
 
@@ -812,6 +980,21 @@ const DealFormModal: React.FC<DealFormModalProps> = ({
                     </select>
                   </div>
                 </>
+              )}
+
+              {canManageAgency4RiskFields && (
+                <div className="dfm-group">
+                  <label className="dfm-label">חברה לביטול</label>
+                  <select
+                    value={(editData as any).cancellationCompany || ''}
+                    onChange={(e) => handleEditChange('cancellationCompany' as any, e.target.value)}
+                  >
+                    <option value="">בחר חברה</option>
+                    {companies.map((companyName, index) => (
+                      <option key={index} value={companyName}>{companyName}</option>
+                    ))}
+                  </select>
+                </div>
               )}
 
               <div className="dfm-group dfm-group--full">

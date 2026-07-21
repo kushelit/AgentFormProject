@@ -15,7 +15,7 @@ import DocumentsModal from '@/components/DocumentsModal/DocumentsModal';
 import { useToast } from '@/hooks/useToast';
 import { ToastNotification } from '@/components/ToastNotification';
 
-type TabKey = 'elementary' | 'tax' | 'pension';
+type TabKey = 'elementary' | 'tax' | 'pension_finance' | 'risk';
 
 type CustomerResult = {
   id: string;
@@ -43,7 +43,7 @@ const SharonPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabKey>(
     canAccessElementary ? 'elementary'
     : canAccessTax ? 'tax'
-    : canAccessPension ? 'pension'
+    : canAccessPension ? 'pension_finance'
     : 'elementary'
   );
 
@@ -394,10 +394,18 @@ const handleDeleteCustomerDocument = async (docId: string) => {
         )}
         {canAccessPension && (
           <div
-            className={`sharon-tab ${activeTab === 'pension' ? 'active' : ''}`}
-            onClick={() => setActiveTab('pension')}
+            className={`sharon-tab ${activeTab === 'pension_finance' ? 'active' : ''}`}
+            onClick={() => setActiveTab('pension_finance')}
           >
-            פנסיוני
+            פנסיה ופיננסים
+          </div>
+        )}
+        {canAccessPension && (
+          <div
+            className={`sharon-tab ${activeTab === 'risk' ? 'active' : ''}`}
+            onClick={() => setActiveTab('risk')}
+          >
+            סיכונים
           </div>
         )}
       </div>
@@ -420,11 +428,22 @@ const handleDeleteCustomerDocument = async (docId: string) => {
             searchQuery={searchQuery}
           />
         )}
-        {activeTab === 'pension' && canAccessPension && (
+        {activeTab === 'pension_finance' && canAccessPension && (
           <PensionTab
             agentId={effectiveAgentId}
             customer={selectedCustomer}
             onSelectCustomer={selectCustomer}
+            includeGroupIds={['1', '4', '6']}
+            dealFormContext="pension_finance"
+          />
+        )}
+        {activeTab === 'risk' && canAccessPension && (
+          <PensionTab
+            agentId={effectiveAgentId}
+            customer={selectedCustomer}
+            onSelectCustomer={selectCustomer}
+            excludeGroupIds={['1', '4', '6']}
+            dealFormContext="risk"
           />
         )}
       </div>

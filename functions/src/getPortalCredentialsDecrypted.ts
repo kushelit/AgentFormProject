@@ -19,6 +19,7 @@ type PortalCredentials = {
   phoneNumber?: string;
   licenseNumber?: string;
  loginType?: string;
+ companyTaxId?: string;
 };
 
 function s(v: any) {
@@ -72,7 +73,8 @@ const plain = decryptJsonAes256Gcm(keyB64, enc) as PortalCredentials;
     const username = s(plain?.username);
     const password = s(plain?.password);
     const phoneNumber = s(plain?.phoneNumber);
-    const licenseNumber = s(plain?.licenseNumber);
+   const licenseNumber = s(plain?.licenseNumber);
+    const companyTaxId = s(plain?.companyTaxId);
 
     if (!username) throw new HttpsError("internal", "Decrypted username empty");
 const loginType = s(plain?.loginType);
@@ -84,6 +86,7 @@ const loginType = s(plain?.loginType);
       ...(phoneNumber ? {phoneNumber} : {}),
       ...(licenseNumber ? {licenseNumber} : {}),
       ...(loginType ? {loginType} : {}),
+      ...(companyTaxId ? {companyTaxId} : {}),
     };
   }
 );

@@ -60,6 +60,18 @@ const compactUpdate = (obj: Record<string, any>) => {
   return out;
 };
 
+const sanitizeForFirestore = (obj: any): any => {
+  if (obj === null || obj === undefined) return '';
+  if (Array.isArray(obj)) return obj.map(sanitizeForFirestore);
+  if (typeof obj === 'object') {
+    return Object.fromEntries(
+      Object.entries(obj).map(([k, v]) => [k, sanitizeForFirestore(v)])
+    );
+  }
+  return obj;
+};
+
+
 function mapProsaasToLead(payload: any) {
   const contact = payload?.contact || {};
   const customFields = payload?.custom_fields || {};
@@ -108,7 +120,7 @@ function mapProsaasToLead(payload: any) {
     externalStatus: clean(payload.status),
     externalOldStatus: clean(payload.old_status),
     externalEvent: clean(payload.event),
-    externalRawPayload: payload,
+   externalRawPayload: sanitizeForFirestore(payload),
   };
 }
 

@@ -61,6 +61,7 @@ function PortalModal({
   const [saving, setSaving] = useState(false);
   const [altshulerLoginType, setAltshulerLoginType] = useState<"company" | "agent">("company");
 
+  const [companyTaxId, setCompanyTaxId] = useState("");
 
 const [loadingCreds, setLoadingCreds] = useState(false);
 
@@ -79,6 +80,7 @@ useEffect(() => {
       if (data.phoneNumber) setPhoneNumber(data.phoneNumber);
       if (data.licenseNumber) setLicenseNumber(data.licenseNumber);
       if (data.loginType) setAltshulerLoginType(data.loginType);
+       if (data.companyTaxId) setCompanyTaxId(data.companyTaxId);
     } catch {
       // ignore
     } finally {
@@ -118,6 +120,10 @@ useEffect(() => {
         payload.phoneNumber = phoneNumber;
       } else {
         payload.password = password;
+      }
+
+ if (isFenix && companyTaxId) {
+        payload.companyTaxId = companyTaxId;
       }
 
       await saveCreds(payload);
@@ -297,6 +303,21 @@ useEffect(() => {
                 )}
               </button>
             </div>
+          </div>
+        )}
+        {isFenix && (
+          <div className="mb-3">
+            <label className="block font-semibold mb-1">
+              מספר ח.פ (רק לבית סוכן - אופציונלי):
+            </label>
+            <input
+              className="select-input w-full"
+              value={companyTaxId}
+              onChange={(e) => setCompanyTaxId(e.target.value)}
+              autoComplete="off"
+              placeholder="למלא רק אם הכניסה היא כבית סוכן עם ריבוי חברות"
+              inputMode="numeric"
+            />
           </div>
         )}
 

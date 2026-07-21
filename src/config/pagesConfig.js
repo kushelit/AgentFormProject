@@ -1,5 +1,5 @@
 const pages = [
- 
+
   { href: '/NewAgentForm', label: 'ניהול עסקאות' },
   { href: '/NewCustomer', label: 'ניהול לקוחות' },
   //  {
@@ -60,8 +60,8 @@ const pages = [
   },
  {
   href: '/sharon',
-  label: 'שרון — עסקאות',
-  onlyPermissions: ['access_sharon_elementary', 'access_sharon_tax_returns'],
+  label: 'תיק לקוח',
+  onlyPermissions: ['access_sharon_elementary', 'access_sharon_tax_returns', 'access_sharon_pension'],
   onlyRoles: ['agent', 'worker'],
 },
 {
