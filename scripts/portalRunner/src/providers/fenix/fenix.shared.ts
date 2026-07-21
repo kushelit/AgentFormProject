@@ -78,6 +78,65 @@ export async function handleFenixLoginRedirect(page: Page) {
   }
 }
 
+// export async function phoenixLogin(page: Page, username: string, password: string) {
+//   // console.log("[Fenix] Injecting login...");
+//   const injection = `
+//     (function(u, p) {
+//       return new Promise(resolve => {
+//         let attempts = 0;
+//         const interval = setInterval(() => {
+//           attempts++;
+//           const user = document.querySelector('#input_1');
+//           const pass = document.querySelector('#input_2');
+//           const btn  = document.querySelector('input[type="submit"], button[type="submit"], #btLogin');
+//           if (user && pass && btn) {
+//             clearInterval(interval);
+//             user.value = u;
+//             pass.value = p;
+//             user.dispatchEvent(new Event('input', {bubbles:true}));
+//             pass.dispatchEvent(new Event('input', {bubbles:true}));
+//             pass.dispatchEvent(new Event('change', {bubbles:true}));
+//             btn.click();
+//             resolve("SUCCESS");
+//           }
+//           if (attempts > 60) { clearInterval(interval); resolve("TIMEOUT"); }
+//         }, 500);
+//       });
+//     })('${username.replace(/'/g, "\\'")}', '${password.replace(/'/g, "\\'")}')
+//   `;
+//   await page.evaluate(injection);
+//   await page.waitForTimeout(8000);
+// }
+
+/**
+ * עטיפה בטוחה סביב page.evaluate שמתעלמת משגיאת "Execution context was
+ * destroyed" (ניווט קרה תוך כדי ההרצה - שכיח מאוד בפניקס בגלל דפי F5 שעולים
+ * ויורדים בזמן הכניסה). מחזירה ערך ברירת מחדל אם זה קורה, במקום לזרוק שגיאה.
+ */
+async function safeEvaluateBool(page: Page, script: string, fallback: boolean): Promise<boolean> {
+  try {
+    const result = await page.evaluate(script);
+    return result === true;
+  } catch (e: any) {
+    if (String(e?.message || '').includes('Execution context was destroyed')) {
+      return fallback;
+    }
+    throw e;
+  }
+}
+
+export async function phoenixHasLoginError(page: Page): Promise<boolean> {
+  return safeEvaluateBool(page, `
+    (function() {
+      const header = document.getElementById('credentials_table_header');
+      if (!header) return false;
+      const title = header.querySelector('.title');
+      const txt = title ? (title.innerText || title.textContent || '').trim() : '';
+      return txt.includes('לא זיהינו אותך');
+    })()
+  `, false);
+}
+
 export async function phoenixLogin(page: Page, username: string, password: string) {
   // console.log("[Fenix] Injecting login...");
   const injection = `
@@ -104,16 +163,80 @@ export async function phoenixLogin(page: Page, username: string, password: strin
       });
     })('${username.replace(/'/g, "\\'")}', '${password.replace(/'/g, "\\'")}')
   `;
-  await page.evaluate(injection);
+  try {
+    await page.evaluate(injection);
+  } catch (e: any) {
+    // "Execution context was destroyed" בעקבות ניווט (לחיצת הכניסה מובילה
+    // לעמוד הבא) היא סימן שהניווט קרה, לא כישלון אמיתי - מתעלמים ומשך.
+    if (!String(e?.message || '').includes('Execution context was destroyed')) {
+      throw e;
+    }
+  }
   await page.waitForTimeout(8000);
+
+  // בדיקה: האם הפורטל דחה את פרטי ההתחברות (ת.ז/סיסמה שגויים)? אם כן - נכשלים
+  // בבירור כאן, במקום להמשיך בעיוורון למסך הזנת טוקן ב-Magic.
+  const hasLoginError = await phoenixHasLoginError(page);
+  if (hasLoginError) {
+    throw new Error('פניקס: פרטי ההתחברות (ת.ז/סיסמה) שגויים - הפורטל הציג "לא זיהינו אותך"');
+  }
 }
 
-export async function phoenixHandleOtp(page: Page, ctx: RunnerCtx) {
-  const { runId, setStatus, pollOtp, clearOtp } = ctx;
-  await setStatus(runId, { status: "otp_required", step: "ממתין לקוד זיהוי", "otp.mode": "firestore" });
-  const otpCode = await pollOtp(runId);
-  if (!otpCode) throw new Error("OTP Timeout");
 
+// export async function phoenixHandleOtp(page: Page, ctx: RunnerCtx) {
+//   const { runId, setStatus, pollOtp, clearOtp } = ctx;
+//   await setStatus(runId, { status: "otp_required", step: "ממתין לקוד זיהוי", "otp.mode": "firestore" });
+//   const otpCode = await pollOtp(runId);
+//   if (!otpCode) throw new Error("OTP Timeout");
+
+//   const injection = `
+//     (function(code) {
+//       return new Promise(resolve => {
+//         let attempts = 0;
+//         const interval = setInterval(() => {
+//           attempts++;
+//           const input = document.querySelector('#input_2');
+//           const btn = document.querySelector('input[type="submit"], button[type="submit"]');
+//           if (input && btn) {
+//             clearInterval(interval);
+//             input.value = code;
+//             input.dispatchEvent(new Event('input', {bubbles:true}));
+//             input.dispatchEvent(new Event('change', {bubbles:true}));
+//             btn.click();
+//             resolve("SUCCESS");
+//           }
+//           if (attempts > 40) { clearInterval(interval); resolve("TIMEOUT"); }
+//         }, 500);
+//       });
+//     })('${otpCode}')
+//   `;
+//   await page.evaluate(injection);
+//   await page.waitForTimeout(8000);
+//   await clearOtp(runId).catch(() => {});
+// }
+
+/**
+ * בדיקה האם הפורטל דחה את קוד ה-OTP - נבדק ואומת מול ריצה חיה: אלמנט
+ * #credentials_table_postheader ובתוכו div.error_message עם הטקסט
+ * "הקוד שהזנת שגוי".
+ */
+export async function phoenixHasWrongTokenError(page: Page): Promise<boolean> {
+  return safeEvaluateBool(page, `
+    (function() {
+      const cell = document.getElementById('credentials_table_postheader');
+      if (!cell) return false;
+      const msg = cell.querySelector('.error_message');
+      const txt = msg ? (msg.innerText || msg.textContent || '').trim() : '';
+      return txt.includes('הקוד שהזנת שגוי');
+    })()
+  `, false);
+}
+
+/**
+ * הזרקת קוד ה-OTP לשדה + לחיצה על כפתור האישור. מופרד לפונקציה נפרדת כדי
+ * לאפשר קריאה חוזרת (הזדמנות שנייה במקרה של קוד שגוי).
+ */
+async function injectOtpCode(page: Page, otpCode: string) {
   const injection = `
     (function(code) {
       return new Promise(resolve => {
@@ -135,9 +258,47 @@ export async function phoenixHandleOtp(page: Page, ctx: RunnerCtx) {
       });
     })('${otpCode}')
   `;
-  await page.evaluate(injection);
+ try {
+    await page.evaluate(injection);
+  } catch (e: any) {
+    if (!String(e?.message || '').includes('Execution context was destroyed')) {
+      throw e;
+    }
+  }
   await page.waitForTimeout(8000);
+}
+
+export async function phoenixHandleOtp(page: Page, ctx: RunnerCtx) {
+  const { runId, setStatus, pollOtp, clearOtp } = ctx;
+
+  await setStatus(runId, { status: "otp_required", step: "ממתין לקוד זיהוי", "otp.mode": "firestore" });
+  let otpCode = await pollOtp(runId);
+  if (!otpCode) throw new Error("OTP Timeout");
+
+  await injectOtpCode(page, otpCode);
   await clearOtp(runId).catch(() => {});
+
+  // בדיקה: האם הפורטל דחה את הקוד? בשונה מסיסמה שגויה - כאן לא נכשלים מיד,
+  // נותנים לסוכן הזדמנות נוספת אחת להזין קוד חדש.
+  const wrongToken = await phoenixHasWrongTokenError(page);
+  if (wrongToken) {
+    await setStatus(runId, {
+      status: "otp_required",
+      step: "הקוד הקודם היה שגוי - נסי שוב",
+      "otp.mode": "firestore"
+    });
+
+    otpCode = await pollOtp(runId);
+    if (!otpCode) throw new Error("OTP Timeout (ניסיון שני)");
+
+    await injectOtpCode(page, otpCode);
+    await clearOtp(runId).catch(() => {});
+
+    const stillWrong = await phoenixHasWrongTokenError(page);
+    if (stillWrong) {
+      throw new Error('פניקס: קוד הזיהוי שגוי גם בניסיון השני - הפורטל הציג "הקוד שהזנת שגוי"');
+    }
+  }
 }
 
 
@@ -395,7 +556,11 @@ export async function phoenixSearchAndSelectCompany(page: Page, taxId: string) {
     throw new Error(`לא נמצאה/נבחרה תוצאה מתאימה לח.פ ${taxId} בתוך פאנל בורר החברה (${selectResult})`);
   }
 
-  await waitPhoenixLoaderGone(page, 6000);
+  // "נשימה" קצרה וקבועה אחרי בחירת החברה, לפני שחוזרים ללולאת פתיחת הדוחות -
+  // אין כאן סימן DOM ברור לחכות לו, אז טיימר אמיתי (לא waitPhoenixLoaderGone
+  // הבלתי-אמין) הוא הבטוח ביותר.
+  await page.waitForTimeout(3000);
+
 }
 
 /**

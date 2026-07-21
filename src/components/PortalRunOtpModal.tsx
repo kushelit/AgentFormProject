@@ -47,6 +47,21 @@ export default function PortalRunOtpModal({ runId, onClose }: Props) {
     });
   }, [runId]);
 
+
+// אם הריצה מבקשת שוב OTP (status חזר ל-otp_required) והערך הקודם כבר נוקה
+  // על ידי הרנר (otp.state !== 'required', כלומר clearOtp כבר רץ) - זו בקשה
+  // חדשה, ולכן מאפסים את דגל ה-submitted כדי שהמודאל ייפתח שוב. בלי זה, הדגל
+  // נשאר true לצמיתות (הרכיב לא נטען מחדש בין ניסיונות, כי ה-key זהה) וה-
+  // מודאל אף פעם לא מוצג שוב לאחר השליחה הראשונה.
+  useEffect(() => {
+    if (status === 'otp_required' && otpState !== 'required') {
+      submittedRef.current = false;
+      setSubmitted(false);
+    }
+  }, [status, otpState]);
+
+
+
   /**
    * ✅ מציגים מודאל רק אם:
    * 1. status === otp_required
