@@ -395,7 +395,7 @@ export async function phoenixSearchAndSelectCompany(page: Page, taxId: string) {
     throw new Error(`לא נמצאה/נבחרה תוצאה מתאימה לח.פ ${taxId} בתוך פאנל בורר החברה (${selectResult})`);
   }
 
-  await waitPhoenixLoaderGone(page, 15000);
+  await waitPhoenixLoaderGone(page, 6000);
 }
 
 /**
@@ -454,9 +454,11 @@ export async function phoenixOpenReportByMatch(mainPage: Page, match: ReportMatc
 
   const newPage = await pagePromise;
 
-  if (newPage) {
+ if (newPage) {
     await newPage.waitForLoadState("domcontentloaded", { timeout: 20000 }).catch(() => {});
-    await waitPhoenixLoaderGone(newPage, 20000);
+    // "נשימה" קצרה וקבועה (טיימר אמיתי, לא תלוי בזיהוי DOM) כדי לתת לדף החדש
+    // זמן להתחיל לצייר תוכן לפני שמנסים לחפש בו את כפתור האקסל
+    await newPage.waitForTimeout(3000);
     return newPage;
   }
 
@@ -535,16 +537,15 @@ export async function phoenixExportExcel(page: Page): Promise<Download | null> {
   try {
     // המתנה ממוקדת לכפתור האקסל עצמו, לא ללואדר כללי - זה החלק שאמור לקצר
     // משמעותית את ההמתנה כשהדוח בפועל כבר טעון וגלוי.
-    const excelReady = await waitForSelectorFast(
+ // polling בתוך הדפדפן (pollForSelector) - לא page.waitForSelector/waitForFunction
+    // המובנים, שהתגלו כלא אמינים ב-EXE ומבזבזים את מלוא הטיימאאוט בשקט.
+    // 60 ניסיונות × 500ms = 30 שנ' טווח חיפוש.
+    await pollForSelector(
       page,
       'fnx-nx-client-gemel-continuous-table-export-to-excel button, fnx-nx-client-continuous-table-export-to-excel button, img[src*="excel"]',
-      15000
+      60,
+      500
     );
-
-    if (!excelReady) {
-      // רשת אחרונה: אם לא הגענו לכפתור במהירות, נותנים עוד צ'אנס עם המתנת לואדר קצרה
-      await waitPhoenixLoaderGone(page, 15000);
-    }
 
     // 1. הכנת ההאזנה להורדה (חייב לקרות לפני הלחיצה)
     const downloadPromise = page.waitForEvent("download", { timeout: 60000 });
