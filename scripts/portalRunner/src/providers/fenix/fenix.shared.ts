@@ -572,13 +572,9 @@ export async function phoenixSearchAndSelectCompany(page: Page, taxId: string) {
 export type ReportMatch = { include: string[]; exclude?: string[]; exact?: string };
 
 export async function phoenixOpenReportByMatch(mainPage: Page, match: ReportMatch): Promise<Page> {
-  const context = mainPage.context();
-  // נתחיל להאזין לפתיחת דף חדש לפני הלחיצה
-  const pagePromise = context.waitForEvent('page', { timeout: 20000 }).catch(() => null);
-
   const openScript = `
     (function() {
-    const include = ${JSON.stringify(match.include)};
+      const include = ${JSON.stringify(match.include)};
       const exclude = ${JSON.stringify(match.exclude || [])};
       const exact = ${JSON.stringify(match.exact || null)};
       const elements = Array.from(document.querySelectorAll('li span, a span, span, button, a'));
@@ -593,8 +589,6 @@ export async function phoenixOpenReportByMatch(mainPage: Page, match: ReportMatc
 
       if (matches.length === 0) return "NOT_FOUND";
       if (matches.length > 1) {
-        // בטיחות: אם יש כמה שורות מתאימות - לא לוחצים על הראשונה בעיוורון,
-        // אלא נכשלים בבירור. עדיף ריצה שנכשלת מאשר הורדת דוח כספי שגוי.
         const texts = matches.map(el => (el.innerText || el.textContent || "").trim());
         return "AMBIGUOUS::" + JSON.stringify(texts);
       }
@@ -607,28 +601,52 @@ export async function phoenixOpenReportByMatch(mainPage: Page, match: ReportMatc
     })()
   `;
 
-  const res = await mainPage.evaluate<string>(openScript);
+  const context = mainPage.context();
 
-  if (res === "NOT_FOUND") {
-    throw new Error(`דוח עם מילות המפתח ${JSON.stringify(match)} לא נמצא בדף ריכוז תשלומי עמלות`);
+  // ניסיון ראשון + ניסיון שני (אם דף F5 "בלע" את הלחיצה הראשונה) - אותו
+  // עיקרון כמו הזדמנות שנייה ב-OTP. לא ניחוש למה זה קורה, רק התמודדות איתו.
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    const pagePromise = context.waitForEvent('page', { timeout: 15000 }).catch(() => null);
+
+    const res = await mainPage.evaluate<string>(openScript);
+
+    if (res === "NOT_FOUND") {
+      throw new Error(`דוח עם מילות המפתח ${JSON.stringify(match)} לא נמצא בדף ריכוז תשלומי עמלות`);
+    }
+    if (res.startsWith("AMBIGUOUS::")) {
+      const texts = res.slice("AMBIGUOUS::".length);
+      throw new Error(`נמצאה יותר מהתאמה אחת עבור מילות המפתח ${JSON.stringify(match)} - צריך קריטריון מדויק יותר. שורות שנמצאו: ${texts}`);
+    }
+
+    const newPage = await pagePromise;
+
+    if (newPage) {
+      await newPage.waitForLoadState("domcontentloaded", { timeout: 20000 }).catch(() => {});
+      await newPage.waitForTimeout(3000);
+      return newPage;
+    }
+
+    // הניסיון הזה נכשל (טאב לא נפתח) - אם זה הניסיון הראשון, נותנים רגע
+    // לדפי ה-F5 להתייצב ומנסים שוב פעם אחת לפני שנכשלים
+    if (attempt === 1) {
+      await mainPage.waitForTimeout(3000);
+    }
   }
-  if (res.startsWith("AMBIGUOUS::")) {
-    const texts = res.slice("AMBIGUOUS::".length);
-    throw new Error(`נמצאה יותר מהתאמה אחת עבור מילות המפתח ${JSON.stringify(match)} - צריך קריטריון מדויק יותר. שורות שנמצאו: ${texts}`);
+
+  // צילום מסך לאבחון - זה נדיר ולא בטוח שתהיי מול המסך כשזה קורה, אז שומרים
+  // עדות אמיתית לפעם הבאה במקום לנחש שוב מה בדיוק ה-F5 עושה לדף.
+  let screenshotPath = "";
+  try {
+    screenshotPath = `./fenix_report_open_failure_${Date.now()}.png`;
+    await mainPage.screenshot({ path: screenshotPath, fullPage: true });
+  } catch (e) {
+    // אם גם הצילום נכשל - לא קריטי, ממשיכים לזרוק את השגיאה המקורית
   }
 
-  const newPage = await pagePromise;
-
- if (newPage) {
-    await newPage.waitForLoadState("domcontentloaded", { timeout: 20000 }).catch(() => {});
-    // "נשימה" קצרה וקבועה (טיימר אמיתי, לא תלוי בזיהוי DOM) כדי לתת לדף החדש
-    // זמן להתחיל לצייר תוכן לפני שמנסים לחפש בו את כפתור האקסל
-    await newPage.waitForTimeout(3000);
-    return newPage;
-  }
-
-  // גיבוי: אם בכל זאת לא נפתח טאב חדש (למשל שינוי עתידי באתר)
-  return mainPage;
+  throw new Error(
+    `הדוח נלחץ פעמיים אך לא נפתח טאב חדש - ייתכן שדפי F5 ביניים "בולעים" את הלחיצה. קריטריון: ${JSON.stringify(match)}` +
+    (screenshotPath ? ` | צילום מסך לאבחון: ${screenshotPath}` : "")
+  );
 }
 
 /**
@@ -697,74 +715,74 @@ export async function phoenixOpenReport(mainPage: Page, reportName: string): Pro
  * גם כשהדוח כבר גלוי ומוכן), ממתינים ישירות ובאופן ממוקד לכפתור/אייקון האקסל.
  */
 export async function phoenixExportExcel(page: Page): Promise<Download | null> {
-  // console.log("[Phoenix] Starting Excel Export process...");
+  // polling בתוך הדפדפן - לא page.waitForSelector/waitForFunction המובנים.
+  // 60 ניסיונות × 500ms = 30 שנ' טווח חיפוש. חשוב: כן בודקים את התוצאה עכשיו
+  // (לפני זה נזרקה בלי לבדוק בכלל) כדי לדעת אם באמת מצאנו את הכפתור.
+  const excelReady = await pollForSelector(
+    page,
+    'fnx-nx-client-gemel-continuous-table-export-to-excel button, fnx-nx-client-continuous-table-export-to-excel button, img[src*="excel"]',
+    60,
+    500
+  );
 
-  try {
-    // המתנה ממוקדת לכפתור האקסל עצמו, לא ללואדר כללי - זה החלק שאמור לקצר
-    // משמעותית את ההמתנה כשהדוח בפועל כבר טעון וגלוי.
- // polling בתוך הדפדפן (pollForSelector) - לא page.waitForSelector/waitForFunction
-    // המובנים, שהתגלו כלא אמינים ב-EXE ומבזבזים את מלוא הטיימאאוט בשקט.
-    // 60 ניסיונות × 500ms = 30 שנ' טווח חיפוש.
-    await pollForSelector(
-      page,
-      'fnx-nx-client-gemel-continuous-table-export-to-excel button, fnx-nx-client-continuous-table-export-to-excel button, img[src*="excel"]',
-      60,
-      500
-    );
+  if (!excelReady) {
+    // לא נבלעים בשקט - זורקים שגיאה ברורה שתופיע בלוג של הדוח הספציפי
+    throw new Error('לא נמצא כפתור/אייקון אקסל בדוח תוך 30 שניות - ייתכן שהטאב לא נטען כראוי (דף F5?)');
+  }
 
-    // 1. הכנת ההאזנה להורדה (חייב לקרות לפני הלחיצה)
-    const downloadPromise = page.waitForEvent("download", { timeout: 60000 });
+  // הכנת ההאזנה להורדה (חייב לקרות לפני הלחיצה)
+  const downloadPromise = page.waitForEvent("download", { timeout: 60000 });
 
-    // 2. הזרקת קוד כטקסט (זה עוקף את שגיאת ה-not well-serializable)
-    const injectionScript = `
-      (function() {
-        // איתור כפתור האקסל - תומך בכמה מבנים שונים שראינו באתר:
-        // 1. קונטיינרים ישנים (fnx-nx-client-...-export-to-excel)
-        // 2. תמונת אקסל עטופה ב-button (fnx-nx-ui-standalone-icon > img[src*="excel.svg"])
-        const container = document.querySelector('fnx-nx-client-gemel-continuous-table-export-to-excel, fnx-nx-client-continuous-table-export-to-excel');
-        let mainBtn = container ? container.querySelector('button') : null;
+  // הזרקת קוד כטקסט (זה עוקף את שגיאת ה-not well-serializable)
+  const injectionScript = `
+    (function() {
+      const container = document.querySelector('fnx-nx-client-gemel-continuous-table-export-to-excel, fnx-nx-client-continuous-table-export-to-excel');
+      let mainBtn = container ? container.querySelector('button') : null;
 
-        if (!mainBtn) {
-          const img = document.querySelector('img[src*="excel"]');
-          mainBtn = img ? (img.closest('button') || img) : null;
+      if (!mainBtn) {
+        const img = document.querySelector('img[src*="excel"]');
+        mainBtn = img ? (img.closest('button') || img) : null;
+      }
+
+      if (!mainBtn) return "NOT_FOUND";
+
+      mainBtn.click();
+
+      setTimeout(() => {
+        const menuItems = Array.from(document.querySelectorAll('.mat-mdc-menu-item, .mat-menu-item, [role="menuitem"]'));
+        const extended = menuItems.find(el => {
+          const txt = el.innerText || el.textContent || "";
+          return txt.includes("מורחב");
+        });
+
+        if (extended) {
+          extended.click();
         }
+      }, 2000);
 
-        if (!mainBtn) return "NOT_FOUND";
+      return "CLICKED_MAIN";
+    })()
+  `;
 
-        // לחיצה על הכפתור (לא רק על התמונה שבתוכו)
-        mainBtn.click();
-
-        // בדיקה אחרי 2.5 שניות אם נפתח תפריט "מורחב"
-        setTimeout(() => {
-          const menuItems = Array.from(document.querySelectorAll('.mat-mdc-menu-item, .mat-menu-item, [role="menuitem"]'));
-          const extended = menuItems.find(el => {
-            const txt = el.innerText || el.textContent || "";
-            return txt.includes("מורחב");
-          });
-
-          if (extended) {
-            // console.log("Phoenix: Extended menu found, clicking...");
-            extended.click();
-          }
-        }, 2000);
-
-        return "CLICKED_MAIN";
-      })()
-    `;
-
-    const res = await page.evaluate(injectionScript);
-    // console.log(`[Phoenix] Export script injected: ${res}`);
-
-    if (res === "NOT_FOUND") {
-      // console.error("[Phoenix] Excel icon not found in DOM");
-      return null;
+  let res: string;
+  try {
+    res = await page.evaluate(injectionScript);
+  } catch (e: any) {
+    if (String(e?.message || '').includes('Execution context was destroyed')) {
+      throw new Error('הלחיצה על כפתור האקסל בוצעה תוך כדי ניווט (F5?) - לא ברור אם ההורדה התחילה');
     }
+    throw e;
+  }
 
-    // 3. המתנה להורדה
+  if (res === "NOT_FOUND") {
+    // מצב מירוץ נדיר: הכפתור נמצא ב-polling אך נעלם עד ללחיצה בפועל
+    throw new Error('כפתור האקסל אותר אך נעלם לפני שהספקנו ללחוץ עליו');
+  }
+
+  // המתנה להורדה - אם זה נכשל, גם זה עכשיו שגיאה ברורה בלוג ולא null שקט
+  try {
     return await downloadPromise;
-
-  } catch (e) {
-    // console.error("[Phoenix] Export failed:", e);
-    return null;
+  } catch (e: any) {
+    throw new Error(`נלחץ על כפתור האקסל אך ההורדה לא התחילה תוך 60 שניות: ${e?.message || e}`);
   }
 }

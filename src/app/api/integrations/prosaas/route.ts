@@ -145,6 +145,9 @@ async function upsertProsaasLead(payload: any) {
   const db = admin.firestore();
   const leadData = mapProsaasToLead(payload);
 
+    console.log('leadData externalRawPayload:', JSON.stringify(leadData.externalRawPayload));  // ← הוסיפי זה זמנית
+
+
   if (!leadData.externalBusinessId || !leadData.externalLeadId) {
     throw new Error('Missing business_id or lead_id');
   }
