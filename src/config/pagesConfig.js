@@ -62,7 +62,6 @@ const pages = [
   href: '/sharon',
   label: 'תיק לקוח',
   onlyPermissions: ['access_sharon_elementary', 'access_sharon_tax_returns', 'access_sharon_pension'],
-  onlyRoles: ['agent', 'worker'],
 },
 {
   href: '/sharon-summary',

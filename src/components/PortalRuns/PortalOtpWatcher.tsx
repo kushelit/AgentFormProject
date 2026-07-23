@@ -36,23 +36,20 @@ export default function PortalOtpWatcher({ db, agentId, preferRunId }: Props) {
         setOtpRunId('');
         return;
       }
+const d: any = doc.data();
 
-      const d: any = doc.data();
-
-      // חייב להיות required
-      if (String(d?.otp?.state || '') !== 'required') {
+      // לא בודקים otp.state כאן - זה הופך ל-'required' רק *אחרי* שהמשתמש
+      // כבר שלח קוד, מה שיצר מצב "ביצה ותרנגולת" שמנע מהמודאל להופיע שוב
+      // בניסיון השני (אחרי קוד שגוי). מסתמכים רק על status, כמו המודאל עצמו.
+      const otpMode = String(d?.otp?.mode || d?.['otp.mode'] || 'firestore');
+      if (otpMode === 'manual') {
         setOtpRunId('');
         return;
       }
 
-      // אם נתנו preferRunId (הריצה שנוצרה במסך הזה) – נעדיף אותה
-      // ואם יש mismatch, עדיין נציג (כדי לא להיתקע), אבל את יכולה לבחור להחמיר.
       const id = doc.id;
-
-      // אם את רוצה להציג רק את preferRunId – החליפי לזה:
-      // if (preferRunId && id !== preferRunId) { setOtpRunId(''); return; }
-
       setOtpRunId(id);
+      
     });
   }, [db, agentId, preferRunId]);
 

@@ -25,6 +25,14 @@ async function getMeitavCreds(ctx: RunnerCtx) {
   };
 }
 
+async function getMeitavAgentCodeIncludeList(ctx: RunnerCtx): Promise<string[]> {
+  const functions = (ctx as any).functions;
+  const fn = httpsCallable(functions, "getPortalAgentCodeIncludeList");
+  const res: any = await fn({ portalId: "meitav" });
+  const raw = Array.isArray(res?.data?.includeCodes) ? res.data.includeCodes : [];
+  return raw.map((c: any) => String(c).trim()).filter(Boolean);
+}
+
 export async function runMeitavAll(ctx: RunnerCtx) {
   const { runId, setStatus, run, paths, storage } = ctx;
   const portalUrl = "https://www.meitav.co.il/agents_home_page/";
@@ -37,6 +45,7 @@ export async function runMeitavAll(ctx: RunnerCtx) {
 
   const agentId = s((run as any)?.agentId || ctx.agentId);
   const { username, phoneNumber } = await getMeitavCreds(ctx);
+   const includeCodes = await getMeitavAgentCodeIncludeList(ctx);
 
   // ✅ פונקציה לעדכון downloads[] - בדיוק כמו clal
   const appendDownload = async (item: any) => {
@@ -112,7 +121,7 @@ export async function runMeitavAll(ctx: RunnerCtx) {
     
     // ✅ meitavNavigateAndExport מחזיר מערך של כל ההורדות (סוכן אחד או יותר)
 const requestedReportMonth = String((run as any)?.requestedReportMonth || '').trim() || undefined;
-const downloads = await meitavNavigateAndExport(loginPage2, absDir, requestedReportMonth);
+const downloads = await meitavNavigateAndExport(loginPage2, absDir, requestedReportMonth, includeCodes);
 
     const successDownloads = downloads.filter(d => !d.failed);
     const failedDownloads = downloads.filter(d => d.failed);

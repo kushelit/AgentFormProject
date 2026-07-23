@@ -50,11 +50,95 @@ export async function meitavLogin(page: Page, idNumber: string, fullPhone: strin
     returnByValue: true,
   });
 
-  // console.log("[Meitav] CDP Fill Result:", fillResult.result.value);
+ // console.log("[Meitav] CDP Fill Result:", fillResult.result.value);
   if (!fillResult.result.value?.toString().startsWith('SUCCESS')) {
     throw new Error(`Login fields filling failed: ${fillResult.result.value}`);
   }
+
+  // בדיקה: האם הפורטל ניווט לעמוד "הפרטים שהוזנו אינם תואמים"? נותנים לדף
+  // זמן אמיתי לנווט (עד 10 שניות) לפני שממשיכים בעיוורון לשלב ה-OTP.
+  let hasError = false;
+  for (let i = 0; i < 10; i++) {
+    hasError = await meitavHasLoginError(cdp);
+    if (hasError) break;
+    await page.waitForTimeout(1000).catch(() => {});
+  }
+
+  if (hasError) {
+    throw new Error('מיטב: פרטי ההתחברות (ת.ז/טלפון) שגויים - הפורטל הציג "הפרטים שהוזנו אינם תואמים את המידע הקיים במערכת"');
+  }
 }
+
+
+async function meitavHasLoginError(cdp: any): Promise<boolean> {
+  const check = await cdp.send("Runtime.evaluate", {
+    expression: `!!document.getElementById('LoginNoMatch') || location.href.includes('loginNoMatch')`,
+    returnByValue: true,
+  });
+  return check.result.value === true;
+}
+
+async function meitavHasOtpError(cdp: any): Promise<boolean> {
+  const check = await cdp.send("Runtime.evaluate", {
+    expression: `(function() {
+      const el = document.querySelector('.errorLabel[role="alert"]');
+      if (!el) return false;
+      const visible = el.offsetParent !== null;
+      const txt = (el.innerText || el.textContent || '').trim();
+      return visible && txt.includes('הקוד שהזנת שגוי');
+    })()`,
+    returnByValue: true,
+  });
+  return check.result.value === true;
+}
+
+
+async function injectMeitavOtpCode(cdp: any, page: Page, otp: string) {
+  const inputPos = await cdp.send("Runtime.evaluate", {
+    expression: `(function() {
+      const input = document.querySelector('#codeDigitsInput, input[name="codeDigitsInput"]');
+      if (!input) return null;
+      const rect = input.getBoundingClientRect();
+      return JSON.stringify({ x: rect.left + rect.width/2, y: rect.top + rect.height/2 });
+    })()`,
+    returnByValue: true,
+  });
+  const pos = JSON.parse(inputPos.result.value || 'null');
+  if (!pos) throw new Error("OTP input position not found");
+
+  await page.mouse.click(pos.x, pos.y);
+  await page.waitForTimeout(300);
+  await page.keyboard.type(otp, { delay: 150 });
+  await page.waitForTimeout(500);
+
+  await cdp.send("Runtime.evaluate", {
+    expression: `(function() {
+      const btn = document.querySelector('button[ng-click="confirmPassword()"], button[type="submit"]');
+      if (!btn) return 'BTN_NOT_FOUND';
+      btn.click();
+      return 'CLICKED';
+    })()`,
+    returnByValue: true,
+  });
+}
+
+async function waitForMeitavOtpDone(cdp: any, page: Page, timeoutMs = 15000): Promise<boolean> {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    try {
+      const check = await cdp.send("Runtime.evaluate", {
+        expression: `!!document.querySelector('a.lnkLogOut') || !document.querySelector('#codeDigitsInput, input[name="codeDigitsInput"]')`,
+        returnByValue: true,
+      });
+      if (check.result.value === true) return true;
+    } catch (e) {
+      // ניווט קרה תוך כדי הבדיקה - ממשיכים לנסות
+    }
+    await page.waitForTimeout(500).catch(() => {});
+  }
+  return false;
+}
+
 /**
  * טיפול ב-OTP מיטב בגישת CDP
  */
@@ -62,17 +146,13 @@ export async function meitavHandleOtp(page: Page, ctx: RunnerCtx) {
   const { runId, setStatus, pollOtp, clearOtp, run } = ctx;
   const monthLabel = run?.monthLabel || "חודש נוכחי";
 
-  // console.log("[Meitav] Waiting for OTP input field...");
-  
   const cdp = await page.context().newCDPSession(page);
 
-  // ✅ המתן לשדה OTP דרך CDP
   for (let i = 0; i < 30; i++) {
     const check = await cdp.send("Runtime.evaluate", {
       expression: `document.querySelector('#codeDigitsInput, input[name="codeDigitsInput"]') ? 'FOUND' : 'NOT_FOUND'`,
       returnByValue: true,
     });
-    // console.log(`[Meitav] OTP check ${i+1}:`, check.result.value, page.url());
     if (check.result.value === 'FOUND') break;
     await page.waitForTimeout(1000);
   }
@@ -84,56 +164,49 @@ export async function meitavHandleOtp(page: Page, ctx: RunnerCtx) {
     monthLabel,
   });
 
-  const otp = await pollOtp(runId);
+  let otp = await pollOtp(runId);
   if (!otp) throw new Error("קוד ה-OTP לא התקבל");
 
-  // console.log("[Meitav] OTP received:", otp);
-
-  // ✅ מצא מיקום השדה ולחץ פיזית
-  const inputPos = await cdp.send("Runtime.evaluate", {
-    expression: `(function() {
-      const input = document.querySelector('#codeDigitsInput, input[name="codeDigitsInput"]');
-      if (!input) return null;
-      const rect = input.getBoundingClientRect();
-      return JSON.stringify({ x: rect.left + rect.width/2, y: rect.top + rect.height/2 });
-    })()`,
-    returnByValue: true,
-  });
-  // console.log("[Meitav] OTP input position:", inputPos.result.value);
-
-  const pos = JSON.parse(inputPos.result.value || 'null');
-  if (!pos) throw new Error("OTP input position not found");
-
-  // ✅ לחץ פיזית + הקלד כמו אדם
-  await page.mouse.click(pos.x, pos.y);
-  await page.waitForTimeout(300);
-  await page.keyboard.type(otp, { delay: 150 });
-  await page.waitForTimeout(500);
-
-  // ✅ לחץ על כפתור אישור
-  const btnResult = await cdp.send("Runtime.evaluate", {
-    expression: `(function() {
-      const btn = document.querySelector('button[ng-click="confirmPassword()"], button[type="submit"]');
-      if (!btn) return 'BTN_NOT_FOUND';
-      btn.click();
-      return 'CLICKED';
-    })()`,
-    returnByValue: true,
-  });
-  // console.log("[Meitav] OTP btn:", btnResult.result.value);
-
-  await page.waitForTimeout(5000);
-  // console.log("[Meitav] URL after OTP:", page.url());
+ await injectMeitavOtpCode(cdp, page, otp);
   await clearOtp(runId).catch(() => {});
+
+  await waitForMeitavOtpDone(cdp, page, 15000);
+  const hasError = await meitavHasOtpError(cdp);
+
+  if (hasError) {
+    await setStatus(runId, {
+      status: "otp_required",
+      step: "הקוד הקודם היה שגוי - נסי שוב",
+      "otp.mode": "firestore",
+      monthLabel,
+    });
+
+    otp = await pollOtp(runId);
+    if (!otp) throw new Error("OTP Timeout (ניסיון שני)");
+
+   await injectMeitavOtpCode(cdp, page, otp);
+    await clearOtp(runId).catch(() => {});
+
+    await waitForMeitavOtpDone(cdp, page, 15000);
+    const stillError = await meitavHasOtpError(cdp);
+    if (stillError) {
+      throw new Error('מיטב: קוד הזיהוי שגוי גם בניסיון השני - הפורטל הציג "הקוד שהזנת שגוי, יש להזין את הקוד בשנית"');
+    }
+  }
+
+ await setStatus(runId, { status: "running", step: "קוד אומת בהצלחה, ממשיך...", monthLabel });
+  await page.waitForTimeout(5000);
 }
 
 
 export async function meitavNavigateAndExport(
   page: Page,
   absDir: string,
-  requestedReportMonth?: string
+  requestedReportMonth?: string,
+  includeCodes: string[] = []
 ): Promise<{ localPath: string; filename: string; agentName: string; failed?: boolean; failReason?: string }[]> {
   const results: { localPath: string; filename: string; agentName: string; failed?: boolean; failReason?: string }[] = [];
+  const includeSet = new Set(includeCodes);
   const cdp = await page.context().newCDPSession(page);
 
  let prevMonthNum: string;
@@ -239,8 +312,16 @@ if (agents.length === 0) throw new Error("No agents found");
   await page.waitForTimeout(500);
 
   // ✅ שלב 4: לופ על כל הסוכנים
-  for (let i = 0; i < agents.length; i++) {
+ for (let i = 0; i < agents.length; i++) {
     const agentName = agents[i];
+
+    // סינון לפי רשימת הכללה (אם ריקה - מעבדים הכל, ללא שינוי מהתנהגות הקיימת)
+    const codeMatch = agentName.match(/\(([^)]+)\)/);
+    const agentCode = codeMatch ? codeMatch[1].trim() : null;
+    if (includeSet.size > 0 && (!agentCode || !includeSet.has(agentCode))) {
+      console.log(`[Meitav] Skipping agent code ${agentCode} (not in include list)`);
+      continue;
+    }
     // console.log(`[Meitav] Processing agent ${i + 1}/${agents.length}: ${agentName}`);
 
   // בחר סוכן לפי index

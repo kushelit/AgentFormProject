@@ -28,8 +28,6 @@ function escapeRegExp(s: string) {
  * פתיחת דוח לפי שם (הזרקת String)
  */
 export async function openReportFromSummaryByName(page: Page, linkText: string) {
-  // console.log(`[Clal] Searching for report link: ${linkText} via Injection...`);
-
   const injection = `
     (function(text) {
       return new Promise((resolve) => {
@@ -54,16 +52,66 @@ export async function openReportFromSummaryByName(page: Page, linkText: string) 
   `;
 
   const result = await page.evaluate(injection).catch(e => "ERROR: " + e.message);
-  // console.log(`[Clal] Click report '${linkText}' result: ${result}`);
   await softNetworkIdle(page);
 }
 
 /**
- * פונקציית לוגין (הזרקת String)
+ * עטיפה בטוחה סביב page.evaluate שמתעלמת משגיאת "Execution context was
+ * destroyed" (ניווט קרה תוך כדי ההרצה). מחזירה ערך ברירת מחדל אם זה קורה.
  */
-export async function clalLogin(page: Page, username: string, password: string) {
-  // console.log("[ClalLogin] Policy page detected. Injecting via String...");
+async function safeEvaluateBool(page: Page, script: string, fallback: boolean): Promise<boolean> {
+  try {
+    const result = await page.evaluate(script);
+    return result === true;
+  } catch (e: any) {
+    if (String(e?.message || '').includes('Execution context was destroyed')) {
+      return fallback;
+    }
+    throw e;
+  }
+}
 
+
+/**
+ * המתנה שכן שורדת ניווט (בניגוד ל-page.evaluate עם setInterval פנימי, שנהרס
+ * כליל כשהדף מנווט תוך כדי ההמתנה - זה בדיוק מה שגרם לבעיה: כל ניווט "שבר"
+ * את ההמתנה מיידית וגרם להמשך מוקדם מדי, לפני שהדף התייצב). כאן כל בדיקה
+ * היא evaluate קצר בפני עצמו - אם הוא נכשל בגלל ניווט, פשוט מנסים שוב.
+ */
+async function waitForOtpDone(page: Page, timeoutMs = 15000): Promise<boolean> {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    try {
+      const ready = await page.evaluate(`
+        !!document.querySelector('a[href*="Logout"], a[href*="logout"], #moduleHeaderSpan') || !document.querySelector('input[name="Token"]')
+      `);
+      if (ready) return true;
+    } catch (e) {
+      // ניווט קרה תוך כדי הבדיקה - זה בסדר, פשוט מנסים שוב בסיבוב הבא
+    }
+    await page.waitForTimeout(500).catch(() => {});
+  }
+  return false;
+}
+
+
+/**
+ * בדיקה האם הפורטל הציג שגיאת "שם המשתמש או הסיסמה שגויים" - נבדק ואומת מול
+ * ריצה חיה: אלמנט עם id="credentials_table_postheader" ובתוכו <font
+ * color="red"> עם הטקסט "שם המשתמש או הסיסמה שגויים".
+ */
+export async function clalHasLoginError(page: Page): Promise<boolean> {
+  return safeEvaluateBool(page, `
+    (function() {
+      const cell = document.getElementById('credentials_table_postheader');
+      if (!cell) return false;
+      const txt = (cell.innerText || cell.textContent || '').trim();
+      return txt.includes('שם המשתמש או הסיסמא שגויים');
+    })()
+  `, false);
+}
+
+export async function clalLogin(page: Page, username: string, password: string) {
   const injectionCode = `
     (function(u, p) {
       let attempts = 0;
@@ -89,19 +137,39 @@ export async function clalLogin(page: Page, username: string, password: string) 
 
   try {
     await page.evaluate(injectionCode);
-    await page.waitForTimeout(5000);
-    // console.log("[ClalLogin] Injection script sent to browser.");
   } catch (e: any) {
-    // console.error("[ClalLogin] Execution error: " + e.message);
+    if (!String(e?.message || '').includes('Execution context was destroyed')) {
+      throw e;
+    }
+  }
+  await page.waitForTimeout(5000);
+
+  const hasLoginError = await clalHasLoginError(page);
+ if (hasLoginError) {
+    throw new Error('כלל: פרטי ההתחברות (ת.ז/סיסמה) שגויים - הפורטל הציג "שם המשתמש או הסיסמא שגויים"');
   }
 }
 
+/**
+ * בדיקה האם הפורטל דחה את קוד ה-OTP - נבדק ואומת מול ריצה חיה: אלמנט
+ * #ctlErrorMessage ובתוכו span.ErrorText עם הטקסט "הקוד שהוזן אינו תקין".
+ * שלב 1 בלבד: הבדיקה קיימת ומדווחת ללוג, אבל עדיין לא משנה את הזרימה.
+ */
+export async function clalHasWrongTokenError(page: Page): Promise<boolean> {
+  return safeEvaluateBool(page, `
+    (function() {
+      const cell = document.getElementById('ctlErrorMessage');
+      if (!cell) return false;
+      const msg = cell.querySelector('.ErrorText');
+      const txt = msg ? (msg.innerText || msg.textContent || '').trim() : '';
+      return txt.includes('הקוד שהוזן אינו תקין');
+    })()
+  `, false);
+}
 
 export async function clalHandleOtp(page: Page, ctx: RunnerCtx) {
   const { runId, setStatus, pollOtp, clearOtp, run } = ctx;
   const monthLabel = run?.monthLabel || "חודש נוכחי";
-
-  // console.log("[Clal] OTP Flow: Waiting for user input in Magic...");
 
   // 1. מעוררים את המודאל
   await setStatus(runId, { 
@@ -112,13 +180,10 @@ export async function clalHandleOtp(page: Page, ctx: RunnerCtx) {
   });
 
   // 2. מחכים לקוד
-const otpCode = await pollOtp(runId);
+  const otpCode = await pollOtp(runId);
   if (!otpCode) throw new Error("OTP Timeout: הקוד לא התקבל.");
 
-   // console.log(`[Clal] Code received: ${otpCode}.`);
-
   // --- תיקון 1: סגירת המודאל במגיק מיד עם קבלת הקוד ---
-  // שינוי הסטטוס ל-running יגרום למודאל להיעלם מהמסך של הסוכן
   await setStatus(runId, { 
     status: "running", 
     step: "הקוד התקבל, מתחבר למערכת...",
@@ -149,99 +214,139 @@ const otpCode = await pollOtp(runId);
 
   await page.evaluate(injectionScript);
 
-  // --- תיקון 2: בדיקת הצלחה גמישה (Serialization-Proof) ---
-  // console.log("[Clal] Waiting for navigation or dashboard elements...");
-  
-  try {
-    // מחכים שהשדה ייעלם או שיופיע אלמנט של דף הבית
-    // שימוש במחרוזת טקסט מונע את שגיאת ה-not well-serializable
-    await page.waitForFunction(
-      "!!document.querySelector('a[href*=\"Logout\"], a[href*=\"logout\"], #moduleHeaderSpan') || !document.querySelector('input[name=\"Token\"]')",
-      { timeout: 15000 }
-    );
-    // console.log("[Clal] Dashboard detected ✅");
-  } catch (e) {
-    // אם עבר הזמן אבל הבוט כבר בדף הבית (כמו שתיארת), אנחנו לא רוצים לזרוק שגיאה שתעצור הכל.
-    // אנחנו פשוט נמשיך הלאה ונבדוק אם דף העמלות זמין.
-    // console.log("[Clal] Verification timeout reached, but proceeding anyway to check for commissions link.");
-  }
-
+// --- תיקון 2: בדיקת הצלחה גמישה, שורדת ניווט ---
+  await waitForOtpDone(page, 15000);
   // 4. ניקוי וסיום השלב
   await clearOtp(runId).catch(() => {});
+
+ // שלב 2: עכשיו שהבדיקה מאומתת כעובדת (ראינו brongToken=true בלוג עם
+  // ריצה חיה), מוסיפים את הזרימה בפועל - הזדמנות נוספת אחת להזין קוד חדש.
+  const wrongToken = await clalHasWrongTokenError(page);
+  console.log(`[Clal OTP] wrongToken check result: ${wrongToken}`);
+
+  if (wrongToken) {
+    await setStatus(runId, {
+      status: "otp_required",
+      step: "הקוד הקודם היה שגוי - נסי שוב",
+      "otp.mode": "firestore"
+    });
+
+    const otpCode2 = await pollOtp(runId);
+    if (!otpCode2) throw new Error("OTP Timeout (ניסיון שני)");
+
+    await setStatus(runId, { status: "running", step: "הקוד התקבל, מתחבר למערכת...", "otp.mode": "firestore" });
+
+    const retryScript = `
+      (function(code) {
+        let attempts = 0;
+        const interval = setInterval(() => {
+          attempts++;
+          const input = document.querySelector('input[name="Token"]'); 
+          const btn = document.querySelector('#btLogin_ctl09');
+
+          if (input && btn) {
+            clearInterval(interval);
+            input.value = code;
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+            input.dispatchEvent(new Event('change', { bubbles: true }));
+            
+            setTimeout(() => btn.click(), 100);
+          }
+          if (attempts > 40) clearInterval(interval);
+        }, 500);
+      })('${otpCode2}')
+    `;
+
+    await page.evaluate(retryScript);
+await waitForOtpDone(page, 15000);
+
+    const stillWrong = await clalHasWrongTokenError(page);
+
+    console.log(`[Clal OTP] stillWrong (attempt 2) check result: ${stillWrong}`);
+
+    if (stillWrong) {
+      throw new Error('כלל: קוד הזיהוי שגוי גם בניסיון השני - הפורטל הציג "הקוד שהוזן אינו תקין"');
+    }
+  }
+
   await setStatus(runId, { status: "logged_in", step: "clal_logged_in" });
 }
-
 
 /**
  * מעבר לדף עמלות (הזרקת String)
  */
 export async function gotoCommissionsPage(page: Page): Promise<Page> {
-  // console.log("[Clal] Navigating to Commissions - Target: עמלות ומכירות...");
-
   const [newPage] = await Promise.all([
     page.context().waitForEvent("page", { timeout: 60000 }),
     page.evaluate(`
       (async function() {
         const wait = (ms) => new Promise(r => setTimeout(r, ms));
-        
+
         const getLink = () => Array.from(document.querySelectorAll('a'))
           .find(a => a.innerText.includes('לפירוט עמלות') || a.innerText.includes('עמלות והפקות'));
 
-        let target = getLink();
+        // polling: מחכים בפועל שהדף (או האקורדיון) יתייצבו, לא מנסים פעם
+        // אחת בלבד - זה מה שגרם ל-timeout כשהדף עדיין לא היה מוכן.
+        const maxAttempts = 30; // 30 * 1000ms = 30 שנ' טווח חיפוש
+        for (let attempt = 0; attempt < maxAttempts; attempt++) {
+          let target = getLink();
 
-        if (!target) {
-          // console.log("Link not found. Searching for specific 'עמלות ומכירות' panel...");
+          if (!target) {
+            const headers = Array.from(document.querySelectorAll('mat-expansion-panel-header'));
+            const targetHeader = headers.find(header => {
+              const h3 = header.querySelector('h3');
+              return h3 && h3.innerText.includes('עמלות ומכירות');
+            });
 
-          // 1. מוצאים את כל ה-headers של האקורדיונים
-          const headers = Array.from(document.querySelectorAll('mat-expansion-panel-header'));
-          
-          // 2. מחפשים את ה-header הספציפי שמכיל h3 עם הטקסט הנכון
-          const targetHeader = headers.find(header => {
-            const h3 = header.querySelector('h3');
-            return h3 && h3.innerText.includes('עמלות ומכירות');
-          });
-
-          if (targetHeader) {
-            const isExpanded = targetHeader.getAttribute('aria-expanded') === 'true';
-            
-            if (!isExpanded) {
-              // 3. מציאת ה-span של ה-indicator (ה"אח" של ה-mat-content)
-              const indicator = targetHeader.querySelector('.mat-expansion-indicator');
-              if (indicator) {
-                // console.log("Clicking expansion indicator...");
-                indicator.click();
-              } else {
-                // console.log("Indicator not found, clicking header directly...");
-                targetHeader.click();
+            if (targetHeader) {
+              const isExpanded = targetHeader.getAttribute('aria-expanded') === 'true';
+              if (!isExpanded) {
+                const indicator = targetHeader.querySelector('.mat-expansion-indicator');
+                if (indicator) {
+                  indicator.click();
+                } else {
+                  targetHeader.click();
+                }
+                await wait(1500);
               }
-              // המתנה לאנימציה של Angular
-              await wait(1500);
             }
+
+            target = getLink();
           }
-          
-          target = getLink();
+
+          if (target) {
+            target.click();
+            return "SUCCESS";
+          }
+await wait(1000);
         }
 
-        if (target) {
-          target.click();
-          return "SUCCESS";
-        }
-        
         return "LINK_NOT_FOUND";
       })()
     `)
   ]);
 
   await newPage.bringToFront();
-  // console.log("[Clal] New tab opened successfully.");
-  
-  await newPage.waitForSelector("#moduleHeaderSpan", { state: "visible", timeout: 45000 }).catch(() => {
-    // console.log("[Clal] Warning: Module header not found, but continuing...");
-  });
+
+  // polling בתוך הדפדפן במקום page.waitForSelector הבלתי-אמין - אותה שיטה
+  // שכבר הוכחה אמינה בשאר הקוד (לא מבזבזת 45 שניות בשקט).
+  await newPage.evaluate(`
+    (function() {
+      return new Promise((resolve) => {
+        const start = Date.now();
+        const interval = setInterval(() => {
+          const ready = !!document.querySelector('#moduleHeaderSpan');
+          if (ready || Date.now() - start > 20000) {
+            clearInterval(interval);
+            resolve(ready ? "READY" : "TIMEOUT");
+          }
+        }, 500);
+      });
+    })()
+  `).catch(() => {});
 
   return newPage;
 }
-
 
 export async function waitClalLoaderGone(page: Page, timeoutMs = 15000) {
   const loader = page.locator("#loaderDiv");
@@ -250,63 +355,103 @@ export async function waitClalLoaderGone(page: Page, timeoutMs = 15000) {
 
   try {
     await loader.waitFor({ state: "hidden", timeout: timeoutMs });
-    // console.log("[Clal] Loader gone ✅");
   } catch (e) {
-    // console.log("[Clal] Loader already gone or timed out.");
+    // ignore
   }
 }
 
 /**
  * בחירת כל הסוכנים (הזרקת String - חסין שגיאות סריאליזציה)
  */
-export async function openAgentsDropdownAndSelectAll(page: Page) {
-  // console.log("[Clal] Opening agents list (Smart Check)...");
-
+export async function openAgentsDropdownAndSelectAll(page: Page, companyTaxId?: string) {
   const result = await page.evaluate(`
-    (function() {
+    (function(taxId) {
       return new Promise((resolve) => {
         const btn = document.querySelector('#drpAgentsNameBtn');
         if (!btn) return resolve("BTN_NOT_FOUND");
-        btn.click(); 
+        btn.click();
 
         let attempts = 0;
         const interval = setInterval(() => {
           attempts++;
-          
-          const allBtn = document.querySelector('.helperButton'); 
-          // כאן הבדיקה של ה-input הראשון ברשימה
-          const firstCheckbox = document.querySelector('.ui-multiselect-checkboxes li input'); 
 
-          if (allBtn && (allBtn.offsetWidth > 0 || allBtn.offsetHeight > 0)) {
-            clearInterval(interval);
-            allBtn.click();
-            resolve("SUCCESS_SELECTED_ALL");
-          } 
-          else if (firstCheckbox) {
-            clearInterval(interval);
-            // מצאנו לפחות סוכן אחד, אפשר להמשיך בלי לחכות 20 שניות
-            resolve("SUCCESS_SINGLE_AGENT_READY");
+          if (taxId) {
+            const clearBtn = Array.from(document.querySelectorAll('button')).find(b =>
+              (b.getAttribute('ng-click') || '').includes("select( 'none'")
+            );
+            if (clearBtn) {
+              clearInterval(interval);
+              clearBtn.click();
+              resolve("CLEARED_FOR_TAXID");
+            }
+          } else {
+            const allBtn = document.querySelector('.helperButton');
+            const firstCheckbox = document.querySelector('.ui-multiselect-checkboxes li input');
+
+            if (allBtn && (allBtn.offsetWidth > 0 || allBtn.offsetHeight > 0)) {
+              clearInterval(interval);
+              allBtn.click();
+              resolve("SUCCESS_SELECTED_ALL");
+            }
+            else if (firstCheckbox) {
+              clearInterval(interval);
+              resolve("SUCCESS_SINGLE_AGENT_READY");
+            }
           }
 
-          if (attempts > 20) { 
+          if (attempts > 20) {
             clearInterval(interval);
             resolve("PROCEEDING_WITH_CURRENT_STATE");
           }
         }, 500);
       });
-    })()
+    })(${JSON.stringify(companyTaxId || null)})
   `);
 
-  // console.log(`[Clal] Agents result: ${result}`);
+  if (companyTaxId && result === "CLEARED_FOR_TAXID") {
+    const filterFound = await page.evaluate(`
+      (function() {
+        const input = document.querySelector('input[ng-model="inputLabel.labelFilter"]');
+        if (input) {
+          input.click();
+          input.focus();
+          return true;
+        }
+        return false;
+      })()
+    `);
+
+    if (filterFound) {
+      await page.waitForTimeout(300);
+      await page.keyboard.type(companyTaxId, { delay: 70 });
+      await page.waitForTimeout(1500);
+
+      const selectResult = await page.evaluate(`
+        (function(taxId) {
+          const labels = Array.from(document.querySelectorAll('label.custom-checkbox'));
+          const target = labels.find(l => (l.innerText || l.textContent || '').includes(taxId));
+          if (!target) return "NOT_FOUND";
+          const input = target.querySelector('input[type="checkbox"]');
+          if (!input) return "INPUT_NOT_FOUND";
+          if (!input.checked) input.click();
+          return "SELECTED";
+        })('${companyTaxId.replace(/'/g, "\\'")}')
+      `);
+
+      if (selectResult !== "SELECTED") {
+        throw new Error(`לא נמצאה/נבחרה חברה עם ח.פ ${companyTaxId} ברשימת הסינון של כלל (${selectResult})`);
+      }
+    }
+  }
+
   await page.keyboard.press("Escape");
   await page.waitForTimeout(500);
 }
+
 /**
  * לחיצה על חיפוש (הזרקת String)
  */
 export async function clickSearchOnly(page: Page) {
-  // console.log("[Clal] Clicking Search (String injection)...");
-
   const result = await page.evaluate(`
     (function() {
       const btn = document.querySelector('button[ng-click="search()"]');
@@ -318,35 +463,8 @@ export async function clickSearchOnly(page: Page) {
     })()
   `);
 
-  // console.log(`[Clal] Search click result: ${result}`);
   await page.waitForTimeout(2000);
 }
-
-/**
- * המתנה לטבלה (הזרקת String)
- */
-// export async function waitForCommissionsGridFilled(page: Page, timeoutMs = 60000) {
-//   // console.log("[Clal] Waiting for grid...");
-
-//   const result = await page.evaluate(`
-//     (function(timeout) {
-//       return new Promise((resolve) => {
-//         const start = Date.now();
-//         const interval = setInterval(() => {
-//           const hasRows = document.querySelectorAll('.ui-grid-row').length > 0;
-//           const noData = document.body.innerText.includes("אין נתונים") || document.querySelector('.ui-grid-empty');
-          
-//           if (hasRows) { clearInterval(interval); resolve("DATA"); }
-//           else if (noData) { clearInterval(interval); resolve("NO_DATA"); }
-//           else if (Date.now() - start > timeout) { clearInterval(interval); resolve("TIMEOUT"); }
-//         }, 1000);
-//       });
-//     })(${timeoutMs})
-//   `);
-
-//   // console.log("[Clal] Grid result: " + result);
-// }
-
 
 export async function waitForCommissionsGridFilled(page: Page, timeoutMs = 60000): Promise<string> {
   const result = await page.evaluate(`
@@ -371,10 +489,7 @@ export async function waitForCommissionsGridFilled(page: Page, timeoutMs = 60000
 /**
  * החלפת טאב (הזרקת String - חסין שגיאות סריאליזציה)
  */
-
 export async function clickReportTabHeading(page: Page, headingText: string) {
-  // console.log(`[Clal] Switching tab to EXACT match: ${headingText}`);
-
   const result = await page.evaluate(`
     (function(txt) {
       const normalize = (s) => (s || "").replace(/\\s+/g, " ").trim();
@@ -382,7 +497,6 @@ export async function clickReportTabHeading(page: Page, headingText: string) {
 
       const tabs = Array.from(document.querySelectorAll('tab-heading'));
       
-      // שינוי קריטי: מחפשים התאמה מדויקת של כל הטקסט בטאב
       const target = tabs.find(t => normalize(t.textContent) === targetText);
 
       if (target) {
@@ -398,9 +512,6 @@ export async function clickReportTabHeading(page: Page, headingText: string) {
     })('${headingText}')
   `);
 
-  // console.log(`[Clal] Tab Result: ${result}`);
-  
-  // המתנה קצרה שהתוכן יתחלף
   await page.waitForTimeout(2500);
   await waitClalLoaderGone(page);
 }
@@ -409,8 +520,6 @@ export async function clickReportTabHeading(page: Page, headingText: string) {
  * יצוא אקסל (הזרקת String)
  */
 export async function exportExcelFromCurrentReport(page: Page): Promise<{ download: Download | null; filename: string }> {
-  // console.log("[Clal] Targeted Excel Export...");
-
   const injection = `
     (function() {
       return new Promise((resolve) => {
@@ -438,12 +547,12 @@ export async function exportExcelFromCurrentReport(page: Page): Promise<{ downlo
   `;
 
   try {
-  const result = await page.evaluate(injection);
-  if (result === "NOT_FOUND") return { download: null, filename: "" };
-  
-  const download = await page.waitForEvent("download", { timeout: 45000 });
-  return { download, filename: download.suggestedFilename() };
-} catch (e) {
-  return { download: null, filename: "" };
-}
+    const result = await page.evaluate(injection);
+    if (result === "NOT_FOUND") return { download: null, filename: "" };
+    
+    const download = await page.waitForEvent("download", { timeout: 45000 });
+    return { download, filename: download.suggestedFilename() };
+  } catch (e) {
+    return { download: null, filename: "" };
+  }
 }

@@ -239,12 +239,27 @@ async function updatePortalRunJobState(params: {
   let reportsSummary: any[] = [];
 
   if (companyId) {
-    const expectedSnap = await db.collection("commissionTemplates")
+  const expectedSnap = await db.collection("commissionTemplates")
       .where("companyId", "==", companyId)
       .where("isactive", "==", true)
       .get();
 
-    const expectedTemplateIds = expectedSnap.docs.map(d => d.id);
+   // סוכן רגיל (לא בית סוכן) לא אמור לצפות לדוחות שמסומנים agencyHouseOnly -
+    // הם פשוט לא רלוונטיים לו ולא צריכים להופיע כ"חסרים".
+    // משתמשים ב-agentId מתוך מסמך ה-portalRun עצמו (freshRun) - לא ממשתנה
+    // חיצוני, כי זו פונקציה נפרדת (updatePortalRunJobState) בלי גישה אליו.
+    const runAgentId = safeStr(freshRun?.agentId);
+    const userSnap = runAgentId ? await db.collection("users").doc(runAgentId).get() : null;
+    const isAgencyHouse = userSnap?.exists ? !!userSnap.data()?.isAgencyHouse : false;
+
+    const expectedTemplateIds = expectedSnap.docs
+  .filter(d => {
+    const data = d.data();
+    if (data?.agencyHouseOnly && !isAgencyHouse) return false;
+    if (data?.excludeForAgencyHouse && isAgencyHouse) return false;
+    return true;
+  })
+  .map(d => d.id);
 
   reportsSummary = expectedTemplateIds.map(templateId => {
   const templateDoc = expectedSnap.docs.find(d => d.id === templateId);

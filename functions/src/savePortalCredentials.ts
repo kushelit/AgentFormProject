@@ -10,13 +10,12 @@ import { FUNCTIONS_REGION } from "./shared/region";
 
 type Input = {
   agentId: string;
-  portalId: string;
+  portalId: string; // "clal", "migdal", "menora", ...
   username: string;
   password?: string;
   phoneNumber?: string;
   licenseNumber?: string;
   loginType?: string;
-  companyTaxId?: string;
 };
 
 type PortalCredentials = {
@@ -24,7 +23,6 @@ type PortalCredentials = {
   password?: string;
   phoneNumber?: string;
   licenseNumber?: string;
-  companyTaxId?: string;
 };
 
 function s(v: any) {
@@ -86,7 +84,6 @@ const isInfinity = portalId === "infinity";
 
 
 const licenseNumber = s((body as any).licenseNumber);
-const companyTaxId = s((body as any).companyTaxId);
 
 if (isMor) {
   if (!licenseNumber) {
@@ -137,9 +134,7 @@ const encPayload: PortalCredentials = isMor
       ? {username}
       : (isMenora || isMeitav || isAnalyst || isYalin)
         ? {username, phoneNumber}
-        : portalId === "fenix"
-          ? {username, password, ...(companyTaxId ? {companyTaxId} : {})}
-          : {username, password};
+        : {username, password};
 
     const enc = encryptJsonAes256Gcm(keyB64, encPayload);
 

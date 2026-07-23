@@ -111,6 +111,7 @@ function mapProsaasToLead(payload: any) {
 
     gender: clean(contact.gender || payload.gender || customFields.gender),
     city: clean(contact.city || payload.city || customFields.city),
+    address: clean(contact.address || payload.address || ''),
     notes: clean(payload.notes || payload.description),
     idCardIssueDate: normalizeDate(customFields.id_card_issue_date || ''),
 

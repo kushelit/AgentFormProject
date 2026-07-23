@@ -26,7 +26,11 @@ async function getMigdalCredsViaCallable(ctx: RunnerCtx, portalId: string) {
   const fn = httpsCallable(functions, "getPortalCredentialsDecrypted");
   const res: any = await fn({ portalId });
   const s = (v: any) => String(v ?? "").trim();
-  return { username: s(res?.data?.username), password: s(res?.data?.password) };
+  return {
+    username: s(res?.data?.username),
+    password: s(res?.data?.password),
+    companyTaxId: s(res?.data?.companyTaxId)
+  };
 }
 
 export async function runMigdalAll(ctx: RunnerCtx) {
@@ -36,7 +40,7 @@ export async function runMigdalAll(ctx: RunnerCtx) {
   ensureDir(absDir);
 
   const agentId = String((run as any)?.agentId || ctx.agentId || "").trim();
-  const { username, password } = await getMigdalCredsViaCallable(ctx, "migdal");
+  const { username, password, companyTaxId } = await getMigdalCredsViaCallable(ctx, "migdal");
 
   await setStatus(runId, { status: "running", step: "migdal_open_portal" });
 
@@ -86,7 +90,7 @@ export async function runMigdalAll(ctx: RunnerCtx) {
     });
     await migdalHandleOtp(page, ctx);
 
-    await page.waitForLoadState("networkidle");
+await page.waitForLoadState("networkidle").catch(() => {});
     await page.waitForURL(/NewEra/i, { timeout: 60000 });
     await waitMigdalLoaderGone(page);
 
@@ -98,8 +102,13 @@ await migdalClearModals(page);
     await navigateToCommissions(page);
 
     // 3. רשימת דוחות להורדה לפי הסדר המבוקש
-    const REPORTS = [
-      { name: "משולמים לסוכן", templateId: "migdal_insurance" },
+  // 3. רשימת דוחות להורדה לפי הסדר המבוקש. "משולמים לסוכן" (סוכן רגיל)
+    // מוחלף ב"משולמים בעלים" (בית סוכן, כשיש companyTaxId) - לא תוספת,
+    // אלא בחירה בין השניים.
+  const REPORTS = [
+      companyTaxId
+        ? { name: "משולמים בעלים", templateId: "migdal_bealim" }
+        : { name: "משולמים לסוכן", templateId: "migdal_insurance" },
       { name: "עמלה מדמי ניהול קהש וגמל - לבעלים", templateId: "migdal_gemel" },
       { name: "עמלה מצבירה/דמי ניהול לביטוח חיים לבעלים", templateId: "migdal_life" }
     ];

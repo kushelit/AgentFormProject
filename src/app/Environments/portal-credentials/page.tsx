@@ -3,7 +3,7 @@
 /* eslint-disable max-len */
 
 import React, { useEffect, useMemo, useState } from "react";
-import { collection, getDocs, query, where } from "firebase/firestore";
+import { collection, getDocs, query, where, doc, getDoc, setDoc , serverTimestamp } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
 
 import { db, functions } from "@/lib/firebase/firebase";
@@ -61,9 +61,29 @@ function PortalModal({
   const [saving, setSaving] = useState(false);
   const [altshulerLoginType, setAltshulerLoginType] = useState<"company" | "agent">("company");
 
-  const [companyTaxId, setCompanyTaxId] = useState("");
 
 const [loadingCreds, setLoadingCreds] = useState(false);
+
+const [skipCodesInput, setSkipCodesInput] = useState("");
+const [savingSkipCodes, setSavingSkipCodes] = useState(false);
+
+// פורטלים עם ריבוי-סוכנים בכניסה אחת - כרגע רק מיטב, ניתן להרחיב בעתיד
+const isMultiAgentPortal = isMeitav;
+
+useEffect(() => {
+  const loadSkipCodes = async () => {
+    if (!isMultiAgentPortal || !agentId) return;
+    try {
+      const snap = await getDoc(doc(db, "portalAgentCodeIncludeList", `${agentId}_${portalId}`));
+      const codes: string[] = snap.exists() ? (snap.data()?.includeCodes || []) : [];
+      setSkipCodesInput(codes.join(", "));
+    } catch {
+      // ignore
+    }
+  };
+  loadSkipCodes();
+}, [portalId, agentId, isMultiAgentPortal]);
+
 
 useEffect(() => {
   const load = async () => {
@@ -80,7 +100,6 @@ useEffect(() => {
       if (data.phoneNumber) setPhoneNumber(data.phoneNumber);
       if (data.licenseNumber) setLicenseNumber(data.licenseNumber);
       if (data.loginType) setAltshulerLoginType(data.loginType);
-       if (data.companyTaxId) setCompanyTaxId(data.companyTaxId);
     } catch {
       // ignore
     } finally {
@@ -122,10 +141,6 @@ useEffect(() => {
         payload.password = password;
       }
 
- if (isFenix && companyTaxId) {
-        payload.companyTaxId = companyTaxId;
-      }
-
       await saveCreds(payload);
       onSaved();
       alert("✅ נשמר בהצלחה");
@@ -136,6 +151,30 @@ useEffect(() => {
       setSaving(false);
     }
   };
+
+
+  const onSaveSkipCodes = async () => {
+  if (!agentId) return;
+  const codes = skipCodesInput
+    .split(/[\n,]+/)
+    .map(c => c.trim())
+    .filter(Boolean);
+
+  setSavingSkipCodes(true);
+  try {
+    await setDoc(doc(db, "portalAgentCodeIncludeList", `${agentId}_${portalId}`), {
+      agentId,
+      portalId,
+      includeCodes: codes,
+      updatedAt: serverTimestamp(),
+    }, { merge: true });
+    alert("✅ רשימת הדילוג נשמרה");
+  } catch (e: any) {
+    alert(`שגיאה בשמירת רשימת הדילוג: ${String(e?.message || e)}`);
+  } finally {
+    setSavingSkipCodes(false);
+  }
+};
 
   // סגירה בלחיצה על הרקע
   const onBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -305,22 +344,28 @@ useEffect(() => {
             </div>
           </div>
         )}
-        {isFenix && (
-          <div className="mb-3">
-            <label className="block font-semibold mb-1">
-              מספר ח.פ (רק לבית סוכן - אופציונלי):
-            </label>
-            <input
-              className="select-input w-full"
-              value={companyTaxId}
-              onChange={(e) => setCompanyTaxId(e.target.value)}
-              autoComplete="off"
-              placeholder="למלא רק אם הכניסה היא כבית סוכן עם ריבוי חברות"
-              inputMode="numeric"
-            />
-          </div>
-        )}
-
+{isMultiAgentPortal && (
+  <div className="mb-3 border-t pt-3">
+   <label className="block font-semibold mb-1">
+  מספרי סוכן להורדה (השאר ריק כדי להוריד מכל המספרים):
+</label>
+    <textarea
+      rows={2}
+      className="select-input w-full"
+      placeholder="הזן מספרי סוכן מופרדים בפסיק או שורה חדשה, לדוגמה: 2-2094, 2-2095"
+      value={skipCodesInput}
+      onChange={(e) => setSkipCodesInput(e.target.value)}
+    />
+    <div className="flex justify-end mt-2">
+      <Button
+        text={savingSkipCodes ? "⏳ שומר..." : "שמור רשימה "}
+        type="secondary"
+        onClick={onSaveSkipCodes}
+        disabled={savingSkipCodes}
+      />
+    </div>
+  </div>
+)}
         <div className="flex justify-end gap-2 mt-4">
           <Button text="ביטול" type="secondary" onClick={onClose} />
           <Button
@@ -350,6 +395,45 @@ export default function PortalCredentialsPage() {
   const [creatingPairing, setCreatingPairing] = useState(false);
 
   const agentId = user?.uid || "";
+
+  const [isAgencyHouse, setIsAgencyHouse] = useState(false);
+  const [agencyHouseTaxId, setAgencyHouseTaxId] = useState("");
+  const [loadingAgencyHouse, setLoadingAgencyHouse] = useState(true);
+  const [savingAgencyHouse, setSavingAgencyHouse] = useState(false);
+
+  useEffect(() => {
+    const loadAgencyHouse = async () => {
+      if (!agentId) { setLoadingAgencyHouse(false); return; }
+      setLoadingAgencyHouse(true);
+      try {
+        const snap = await getDoc(doc(db, "users", agentId));
+        const data: any = snap.exists() ? snap.data() : {};
+        setIsAgencyHouse(!!data.isAgencyHouse);
+        setAgencyHouseTaxId(String(data.agencyHouseTaxId || ""));
+      } catch {
+        // ignore
+      } finally {
+        setLoadingAgencyHouse(false);
+      }
+    };
+    loadAgencyHouse();
+  }, [agentId]);
+
+  const onSaveAgencyHouse = async () => {
+    if (!agentId) return;
+    setSavingAgencyHouse(true);
+    try {
+      await setDoc(doc(db, "users", agentId), {
+        isAgencyHouse,
+        agencyHouseTaxId: isAgencyHouse ? agencyHouseTaxId.trim() : "",
+      }, { merge: true });
+      alert("✅ נשמר בהצלחה");
+    } catch (e: any) {
+      alert(`שגיאה בשמירה: ${String(e?.message || e)}`);
+    } finally {
+      setSavingAgencyHouse(false);
+    }
+  };
 
   const portalIds = useMemo(
     () => companies.map((c) => c.portalId).filter(Boolean),
@@ -469,6 +553,41 @@ export default function PortalCredentialsPage() {
 
       <div className="mt-4 text-sm text-gray-700">
         סוכן: <b>{detail?.name || user.email}</b>
+      </div>
+      <div className="mt-4 border rounded p-3 bg-white">
+        <div className="font-semibold mb-2">🏢 בית סוכן</div>
+        <label className="flex items-center gap-2 text-sm font-semibold cursor-pointer">
+          <input
+            type="checkbox"
+            checked={isAgencyHouse}
+            onChange={(e) => {
+              setIsAgencyHouse(e.target.checked);
+              if (!e.target.checked) setAgencyHouseTaxId("");
+            }}
+            disabled={loadingAgencyHouse}
+          />
+          הורדת דוחות כבית סוכן (ריבוי סוכנים תחת הכניסה שלי, בכל הפורטלים)
+        </label>
+
+        {isAgencyHouse && (
+          <input
+            className="select-input w-full mt-2"
+            value={agencyHouseTaxId}
+            onChange={(e) => setAgencyHouseTaxId(e.target.value)}
+            autoComplete="off"
+            placeholder="מספר ח.פ של החברה"
+            inputMode="numeric"
+          />
+        )}
+
+        <div className="mt-3 flex justify-end">
+          <Button
+            text={savingAgencyHouse ? "⏳ שומר..." : "שמור"}
+            type="primary"
+            onClick={onSaveAgencyHouse}
+            disabled={savingAgencyHouse || loadingAgencyHouse}
+          />
+        </div>
       </div>
 
       {/* Pairing */}

@@ -1,6 +1,33 @@
 import type { Page, Download } from "playwright";
 import type { RunnerCtx } from "../../types";
 
+
+
+
+/**
+ * בדיקה משותפת לשגיאת "הזיהוי נכשל, נסה שנית" - אלמנט זהה ומשמש גם לסיסמה
+ * שגויה וגם ל-OTP שגוי (נבדק ואומת מול ריצה חיה בשני המצבים): אלמנט עם
+ * id="credentials_table_postheader" ובתוכו הטקסט "הזיהוי נכשל".
+ */
+export async function migdalHasCredentialsError(page: Page): Promise<boolean> {
+  try {
+    const result = await page.evaluate(`
+      (function() {
+        const cell = document.getElementById('credentials_table_postheader');
+        if (!cell) return false;
+        const txt = (cell.innerText || cell.textContent || '').trim();
+        return txt.includes('הזיהוי נכשל');
+      })()
+    `);
+    return result === true;
+  } catch (e: any) {
+    if (String(e?.message || '').includes('Execution context was destroyed')) {
+      return false;
+    }
+    throw e;
+  }
+}
+
 /**
  * פונקציית עזר להמתנה שהלואדר של מגדל ייעלם (Kendo UI)
  */
@@ -15,35 +42,6 @@ export async function waitMigdalLoaderGone(page: Page, timeoutMs = 30000) {
     // console.log("[Migdal] Loader timeout or not found - proceeding");
   }
 }
-
-/**
- * לוגין למגדל - עובד, לא נגעתי
- */
-// export async function migdalLogin(page: Page, username: string, password: string) {
-//   // המתנה שהשדות יופיעו לפני ההזרקה
-//   await page.waitForSelector('#input_1', { state: 'visible', timeout: 30000 }).catch(() => {});
-//   await page.waitForSelector('#input_2', { state: 'visible', timeout: 10000 }).catch(() => {});
-  
-//   const injection = `
-//     (function(u, p) {
-//       const user = document.querySelector('#input_1');
-//       const pass = document.querySelector('#input_2');
-//       const btn = document.querySelector('input.credentials_input_submit');
-//       if (user && pass && btn) {
-//         user.value = u;
-//         pass.value = p;
-//         user.dispatchEvent(new Event('input', { bubbles: true }));
-//         pass.dispatchEvent(new Event('input', { bubbles: true }));
-//         pass.dispatchEvent(new Event('change', { bubbles: true }));
-//         setTimeout(() => btn.click(), 200);
-//         return "SUCCESS";
-//       }
-//       return "FIELDS_NOT_FOUND";
-//     })('${username}', '${password}')
-//   `;
-//   const result = await page.evaluate(injection).catch(e => "ERROR: " + e.message);
-//   // console.log(`[Migdal] Login result: ${result}`);
-// }
 
 export async function migdalLogin(page: Page, username: string, password: string) {
   const injection = `
@@ -73,21 +71,33 @@ export async function migdalLogin(page: Page, username: string, password: string
       });
     })('${username}', '${password}')
   `;
-  const result = await page.evaluate(injection).catch(e => "ERROR: " + e.message);
+  await page.evaluate(injection).catch(e => "ERROR: " + e.message);
+
+  // בדיקה חוזרת (לא המתנה קבועה) - נותנת לדף זמן אמיתי להציג את שגיאת
+  // הסיסמה אם יש, ושורדת ניווט (אותו עיקרון שכבר עבד בכלל).
+  const start = Date.now();
+  let hasError = false;
+  while (Date.now() - start < 10000) {
+    try {
+      hasError = await migdalHasCredentialsError(page);
+      if (hasError) break;
+      const movedOn = await page.evaluate(`!document.querySelector('#input_1')`);
+      if (movedOn) break;   // ← יציאה מוקדמת בהצלחה
+    } catch (e) {
+      // ניווט קרה תוך כדי הבדיקה - ממשיכים לנסות
+    }
+    await page.waitForTimeout(500).catch(() => {});
+  }
+
+  if (hasError) {
+    throw new Error('מגדל: פרטי ההתחברות (ת.ז/סיסמה) שגויים - הפורטל הציג "הזיהוי נכשל, נסה שנית"');
+  }
 }
 
 /**
  * OTP - עובד, לא נגעתי
  */
-export async function migdalHandleOtp(page: Page, ctx: RunnerCtx) {
-  const { runId, pollOtp, setStatus, clearOtp } = ctx;
-  // console.log("[Migdal] Waiting for OTP from Magic...");
-  const otpCode = await pollOtp(runId);
-  if (!otpCode) throw new Error("OTP Timeout: הקוד לא הוקלד במערכת.");
-  // console.log(`[Migdal] OTP received: ${otpCode}. Injecting into input_2...`);
-
-  await setStatus(runId, { status: "running", step: "קוד התקבל, מזין למערכת מגדל..." });
-
+async function injectMigdalOtp(page: Page, otpCode: string) {
   const injectionScript = `
     (function(code) {
       let attempts = 0;
@@ -106,8 +116,67 @@ export async function migdalHandleOtp(page: Page, ctx: RunnerCtx) {
       }, 500);
     })('${otpCode}')
   `;
-  await page.evaluate(injectionScript);
+  await page.evaluate(injectionScript).catch((e: any) => {
+    if (!String(e?.message || '').includes('Execution context was destroyed')) {
+      throw e;
+    }
+  });
+}
+
+async function waitForMigdalOtpDone(page: Page, timeoutMs = 15000): Promise<boolean> {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    try {
+      const ready = await page.evaluate(`
+        !!document.getElementById('goToHome') || !document.querySelector('#input_2')
+      `);
+      if (ready) return true;
+    } catch (e) {
+      // ניווט קרה תוך כדי הבדיקה - ממשיכים לנסות
+    }
+    await page.waitForTimeout(500).catch(() => {});
+  }
+  return false;
+}
+
+export async function migdalHandleOtp(page: Page, ctx: RunnerCtx) {
+  const { runId, pollOtp, setStatus, clearOtp } = ctx;
+
+  let otpCode = await pollOtp(runId);
+  if (!otpCode) throw new Error("OTP Timeout: הקוד לא הוקלד במערכת.");
+
+  await setStatus(runId, { status: "running", step: "קוד התקבל, מזין למערכת מגדל..." });
+
+  await injectMigdalOtp(page, otpCode);
   await clearOtp(runId).catch(() => {});
+
+  // בדיקה חוזרת - האם המערכת דחתה את הקוד?
+  await waitForMigdalOtpDone(page, 15000);
+  const hasError = await migdalHasCredentialsError(page);
+
+  if (hasError) {
+    // הזדמנות נוספת אחת, כמו בפניקס ובכלל
+    await setStatus(runId, {
+      status: "otp_required",
+      step: "הקוד הקודם היה שגוי - נסי שוב",
+      "otp.mode": "firestore"
+    });
+
+    otpCode = await pollOtp(runId);
+    if (!otpCode) throw new Error("OTP Timeout (ניסיון שני)");
+
+    await setStatus(runId, { status: "running", step: "קוד התקבל, מזין למערכת מגדל..." });
+
+   await injectMigdalOtp(page, otpCode);
+    await clearOtp(runId).catch(() => {});
+
+    await waitForMigdalOtpDone(page, 15000);
+    const stillError = await migdalHasCredentialsError(page);
+
+    if (stillError) {
+      throw new Error('מגדל: קוד הזיהוי שגוי גם בניסיון השני - הפורטל הציג "הזיהוי נכשל, נסה שנית"');
+    }
+  }
 }
 
 /**

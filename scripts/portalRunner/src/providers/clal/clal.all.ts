@@ -33,7 +33,11 @@ async function getClalCredsViaCallable(ctx: RunnerCtx, portalId: string) {
   if (!functions) throw new Error("Missing ctx.functions");
   const fn = httpsCallable(functions, "getPortalCredentialsDecrypted");
   const res: any = await fn({ portalId });
-  return { username: s(res?.data?.username), password: s(res?.data?.password) };
+  return {
+    username: s(res?.data?.username),
+    password: s(res?.data?.password),
+    companyTaxId: s(res?.data?.companyTaxId)
+  };
 }
 
 export async function runClalAll(ctx: RunnerCtx) {
@@ -46,8 +50,8 @@ export async function runClalAll(ctx: RunnerCtx) {
   const absDir = s(ctx.paths?.downloadsDir);
   ensureDir(absDir);
 
-  const { username, password } = await getClalCredsViaCallable(ctx, "clal");
-  const monthLabel = (run.resolvedWindow?.kind === "month" ? (run.resolvedWindow.label || run.monthLabel) : run.resolvedWindow?.label) || "חודש נוכחי";
+const { username, password, companyTaxId } = await getClalCredsViaCallable(ctx, "clal");
+ const monthLabel = (run.resolvedWindow?.kind === "month" ? (run.resolvedWindow.label || run.monthLabel) : run.resolvedWindow?.label) || "חודש נוכחי";
 
   const appendDownload = async (item: any) => {
     const cur = (ctx.run as any)?.downloads || [];
@@ -125,12 +129,12 @@ export async function runClalAll(ctx: RunnerCtx) {
     await setStatus(runId, { status: "running", step: " Stabilizing commissions page", monthLabel });
 
     await commissionsPage.waitForTimeout(4000); 
-    await waitClalLoaderGone(commissionsPage, 30000);
+    await waitClalLoaderGone(commissionsPage, 5000);
 
     // בחירת סוכנים וחיפוש (לפי הזרקת String)
     await setStatus(runId, { status: "running", step: " Selecting agents", monthLabel });
 
-    await openAgentsDropdownAndSelectAll(commissionsPage);
+await openAgentsDropdownAndSelectAll(commissionsPage, companyTaxId);
     await clickSearchOnly(commissionsPage);
 
     // המתנה שהגריד הראשי יתמלא

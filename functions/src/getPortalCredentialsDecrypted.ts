@@ -19,7 +19,6 @@ type PortalCredentials = {
   phoneNumber?: string;
   licenseNumber?: string;
  loginType?: string;
- companyTaxId?: string;
 };
 
 function s(v: any) {
@@ -73,11 +72,23 @@ const plain = decryptJsonAes256Gcm(keyB64, enc) as PortalCredentials;
     const username = s(plain?.username);
     const password = s(plain?.password);
     const phoneNumber = s(plain?.phoneNumber);
-   const licenseNumber = s(plain?.licenseNumber);
-    const companyTaxId = s(plain?.companyTaxId);
+    const licenseNumber = s(plain?.licenseNumber);
 
-    if (!username) throw new HttpsError("internal", "Decrypted username empty");
+   if (!username) throw new HttpsError("internal", "Decrypted username empty");
 const loginType = s(plain?.loginType);
+
+    // ח.פ בית סוכן - נשמר ברמת הסוכן (users/{agentId}), לא ברמת הפורטל
+    // הבודד, כדי שיחול אוטומטית על כל הפורטלים שתומכים בכך.
+    let companyTaxId = "";
+    try {
+      const userSnap = await db.collection("users").doc(authUid).get();
+      const userData: any = userSnap.exists ? userSnap.data() : {};
+      if (userData?.isAgencyHouse && userData?.agencyHouseTaxId) {
+        companyTaxId = s(userData.agencyHouseTaxId);
+      }
+    } catch (e) {
+      // אם השליפה נכשלת - פשוט לא שולחים companyTaxId, לא מפילים את כל הבקשה
+    }
 
     return {
       ok: true,
