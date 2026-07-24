@@ -57,25 +57,35 @@ export async function meitavLogin(page: Page, idNumber: string, fullPhone: strin
 
   // בדיקה: האם הפורטל ניווט לעמוד "הפרטים שהוזנו אינם תואמים"? נותנים לדף
   // זמן אמיתי לנווט (עד 10 שניות) לפני שממשיכים בעיוורון לשלב ה-OTP.
-  let hasError = false;
+ let errorText: string | null = null;
   for (let i = 0; i < 10; i++) {
-    hasError = await meitavHasLoginError(cdp);
-    if (hasError) break;
+    errorText = await meitavGetLoginErrorText(cdp);
+    if (errorText) break;
     await page.waitForTimeout(1000).catch(() => {});
   }
 
-  if (hasError) {
-    throw new Error('מיטב: פרטי ההתחברות (ת.ז/טלפון) שגויים - הפורטל הציג "הפרטים שהוזנו אינם תואמים את המידע הקיים במערכת"');
+  if (errorText) {
+    throw new Error(`מיטב: פרטי ההתחברות שגויים - הפורטל הציג "${errorText}"`);
   }
 }
 
 
-async function meitavHasLoginError(cdp: any): Promise<boolean> {
+async function meitavGetLoginErrorText(cdp: any): Promise<string | null> {
   const check = await cdp.send("Runtime.evaluate", {
-    expression: `!!document.getElementById('LoginNoMatch') || location.href.includes('loginNoMatch')`,
+    expression: `(function() {
+      if (document.getElementById('LoginNoMatch') || location.href.includes('loginNoMatch')) {
+        return 'הפרטים שהוזנו אינם תואמים את המידע הקיים במערכת';
+      }
+      const el = document.querySelector('.errorLabel[role="alert"]');
+      if (el && el.offsetParent !== null) {
+        const txt = (el.innerText || el.textContent || '').trim();
+        if (txt) return txt;
+      }
+      return null;
+    })()`,
     returnByValue: true,
   });
-  return check.result.value === true;
+  return check.result.value || null;
 }
 
 async function meitavHasOtpError(cdp: any): Promise<boolean> {
@@ -106,8 +116,11 @@ async function injectMeitavOtpCode(cdp: any, page: Page, otp: string) {
   const pos = JSON.parse(inputPos.result.value || 'null');
   if (!pos) throw new Error("OTP input position not found");
 
-  await page.mouse.click(pos.x, pos.y);
+ await page.mouse.click(pos.x, pos.y);
   await page.waitForTimeout(300);
+  await page.keyboard.press('Control+a');
+  await page.keyboard.press('Backspace');
+  await page.waitForTimeout(200);
   await page.keyboard.type(otp, { delay: 150 });
   await page.waitForTimeout(500);
 
@@ -121,13 +134,31 @@ async function injectMeitavOtpCode(cdp: any, page: Page, otp: string) {
     returnByValue: true,
   });
 }
+async function meitavClearOtpErrorMarker(cdp: any) {
+  await cdp.send("Runtime.evaluate", {
+    expression: `(function() {
+      const el = document.querySelector('.errorLabel[role="alert"]');
+      if (el) el.textContent = '';
+    })()`,
+    returnByValue: true,
+  }).catch(() => {});
+}
 
 async function waitForMeitavOtpDone(cdp: any, page: Page, timeoutMs = 15000): Promise<boolean> {
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
     try {
       const check = await cdp.send("Runtime.evaluate", {
-        expression: `!!document.querySelector('a.lnkLogOut') || !document.querySelector('#codeDigitsInput, input[name="codeDigitsInput"]')`,
+        expression: `(function() {
+          if (document.querySelector('a.lnkLogOut')) return true;
+          if (!document.querySelector('#codeDigitsInput, input[name="codeDigitsInput"]')) return true;
+          const el = document.querySelector('.errorLabel[role="alert"]');
+          if (el && el.offsetParent !== null) {
+            const txt = (el.innerText || el.textContent || '').trim();
+            if (txt.includes('הקוד שהזנת שגוי')) return true;
+          }
+          return false;
+        })()`,
         returnByValue: true,
       });
       if (check.result.value === true) return true;
@@ -164,14 +195,18 @@ export async function meitavHandleOtp(page: Page, ctx: RunnerCtx) {
     monthLabel,
   });
 
-  let otp = await pollOtp(runId);
+ let otp = await pollOtp(runId);
   if (!otp) throw new Error("קוד ה-OTP לא התקבל");
 
- await injectMeitavOtpCode(cdp, page, otp);
-  await clearOtp(runId).catch(() => {});
+  // סגירת המודאל מיד עם קבלת הקוד - כמו בכלל
+  await setStatus(runId, { status: "running", step: "הקוד התקבל, מתחבר למערכת...", "otp.mode": "firestore", monthLabel });
+
+  await injectMeitavOtpCode(cdp, page, otp);
 
   await waitForMeitavOtpDone(cdp, page, 15000);
   const hasError = await meitavHasOtpError(cdp);
+  await clearOtp(runId).catch(() => {});
+
 
   if (hasError) {
     await setStatus(runId, {
@@ -181,14 +216,17 @@ export async function meitavHandleOtp(page: Page, ctx: RunnerCtx) {
       monthLabel,
     });
 
-    otp = await pollOtp(runId);
+   otp = await pollOtp(runId);
     if (!otp) throw new Error("OTP Timeout (ניסיון שני)");
 
+    await setStatus(runId, { status: "running", step: "הקוד התקבל, מתחבר למערכת...", "otp.mode": "firestore", monthLabel });
+
+    await meitavClearOtpErrorMarker(cdp);
    await injectMeitavOtpCode(cdp, page, otp);
-    await clearOtp(runId).catch(() => {});
 
     await waitForMeitavOtpDone(cdp, page, 15000);
     const stillError = await meitavHasOtpError(cdp);
+    await clearOtp(runId).catch(() => {});
     if (stillError) {
       throw new Error('מיטב: קוד הזיהוי שגוי גם בניסיון השני - הפורטל הציג "הקוד שהזנת שגוי, יש להזין את הקוד בשנית"');
     }
