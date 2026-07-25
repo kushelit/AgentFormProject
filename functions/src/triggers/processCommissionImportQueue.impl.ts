@@ -461,6 +461,18 @@ const template: CommissionTemplate = {
     hekefType: tmpl?.hekefType || undefined,
 };
 
+// 🔧 שלוף את ה-ym ו-requestedReportMonth מה-portalImportRun *לפני* לולאת
+// הקבצים - הבלוקים של mor_insurance/analyst_insurance בתוך הלולאה תלויים בזה
+let resolvedYm: string | undefined;
+const portalRunForYm = await db.collection("portalImportRuns").doc(effectivePortalRunId).get();
+if (portalRunForYm.exists) {
+  resolvedYm = safeStr(portalRunForYm.data()?.resolvedWindow?.ym) || undefined;
+  requestedReportMonth = safeStr(portalRunForYm.data()?.requestedReportMonth) || undefined;
+}
+
+// ====== מיטב: כמה קבצים עם אותו templateId ======
+
+
 // ====== מיטב: כמה קבצים עם אותו templateId ======
 const storagePathsToProcess: string[] = [storagePath];
 
@@ -777,12 +789,6 @@ const finalRows = allFinalRows;
 
 // ✅ runId = jobId (ייחודי לכל תבנית/קובץ)
    // 🔧 שלוף את ה-ym מה-portalImportRun לפני buildArtifacts
-let resolvedYm: string | undefined;
-const portalRunForYm = await db.collection("portalImportRuns").doc(effectivePortalRunId).get();
-if (portalRunForYm.exists) {
-  resolvedYm = safeStr(portalRunForYm.data()?.resolvedWindow?.ym) || undefined;
-  requestedReportMonth = safeStr(portalRunForYm.data()?.requestedReportMonth) || undefined;
-}
 
 const { rowsPrepared, commissionSummaries, policySummaries, runDoc } = buildArtifacts({
       standardizedRows: finalRows,
