@@ -67,6 +67,45 @@ export async function altshulerLogin(page: Page, companyId: string, idNumber: st
   });
 }
 
+async function altshulerWaitForPopupClosed(cdp: any, page: Page, maxAttempts = 10): Promise<void> {
+  // המתנת התארגנות - פופ-אפים כמו הזמנת ZOOM יכולים לעלות באיחור, לא מיד
+  // עם טעינת הדף. בלי ההמתנה הזו, בדיקה שקוראת לפונקציה מוקדם מדי (למשל
+  // מיד אחרי אימות login) עלולה למצוא "אין כלום" ולצאת, רגע לפני שהפופ-אפ
+  // בפועל מופיע.
+  await page.waitForTimeout(2000).catch(() => {});
+
+  for (let i = 0; i < maxAttempts; i++) {
+    const check = await cdp.send("Runtime.evaluate", {
+      expression: `(function() {
+        const btn = document.querySelector('button.close[aria-label*="סגור"]');
+        return !!(btn && btn.offsetParent !== null);
+      })()`,
+      returnByValue: true,
+    });
+
+    if (check.result.value !== true) {
+      return; // אין פופ-אפ גלוי - אפשר להמשיך
+    }
+
+    // יש פופ-אפ גלוי - ננסה לסגור עם רצף אירועי עכבר מלא
+    await cdp.send("Runtime.evaluate", {
+      expression: `(function() {
+        const btn = document.querySelector('button.close[aria-label*="סגור"]');
+        if (!btn) return;
+        const rect = btn.getBoundingClientRect();
+        const opts = { bubbles: true, cancelable: true, view: window, clientX: rect.left + rect.width/2, clientY: rect.top + rect.height/2 };
+        btn.dispatchEvent(new MouseEvent('pointerdown', opts));
+        btn.dispatchEvent(new MouseEvent('mousedown', opts));
+        btn.dispatchEvent(new MouseEvent('pointerup', opts));
+        btn.dispatchEvent(new MouseEvent('mouseup', opts));
+        btn.dispatchEvent(new MouseEvent('click', opts));
+      })()`,
+      returnByValue: true,
+    });
+    await page.waitForTimeout(700);
+  }
+}
+
 async function fillDigitBoxes(page: any, cdp: any, value: string, startIndex: number) {
   const digits = value.replace(/\D/g, ''); // רק ספרות
   
@@ -170,27 +209,12 @@ for (let i = 0; i < 15; i++) {
 
 await clearOtp(runId).catch(() => {});
 
-  // ✅ סגירת פופ-אפ אם מופיע (לא תמיד מופיע — תלוי בסוכן)
- // console.log("[Altshuler] בודק אם יש פופ-אפ לסגירה...");
-  for (let i = 0; i < 10; i++) {
-    const closed = await cdp.send("Runtime.evaluate", {
-      expression: `(function() {
-        const btn = document.querySelector('button.close[aria-label*="סגור"]');
-        if (!btn) return 'NOT_FOUND';
-        btn.click();
-        return 'CLOSED';
-      })()`,
-      returnByValue: true,
-    });
-    if (closed.result.value === 'CLOSED') {
-    //  console.log("[Altshuler] פופ-אפ נסגר בהצלחה");
-      await page.waitForTimeout(1000);
-      break;
-    }
-    await page.waitForTimeout(500);
-  }
-
+// ✅ סגירת פופ-אפ אם מופיע (לא תמיד מופיע — תלוי בסוכן) - מוודאת בפועל
+  // שהוא נעלם, לא רק שהקליק נשלח
+  await altshulerWaitForPopupClosed(cdp, page);
 }
+
+
 
 export async function altshulerNavigateAndExport(
   page: Page,
@@ -199,6 +223,11 @@ export async function altshulerNavigateAndExport(
 ): Promise<{ localPath: string; filename: string }[]> {
   const results: { localPath: string; filename: string }[] = [];
   const cdp = await page.context().newCDPSession(page);
+
+   // בדיקה הגנתית נוספת - וידוא שאין פופ-אפ פתוח לפני שמנווטים לדוח, גם אם
+  // altshulerHandleOtp כבר ניסתה
+  await altshulerWaitForPopupClosed(cdp, page);
+
   const targetMonth = getPrevMonthHebrew(requestedReportMonth);
   // console.log(`[Altshuler] Target month: ${targetMonth}`);
 

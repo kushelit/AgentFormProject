@@ -15,11 +15,11 @@ const AnnouncementV20 = ({ onAcknowledge, onClose }: Props) => {
         </button>
 
         <div className="announcement-badge">
-          חדש: שיפורים בטעינת עמלות
+          חדש: שיפורים במודול העמלות
         </div>
 
         <h2 className="announcement-title">
-          ✨ טעינת עמלות מתקדמת וגמישה יותר
+          ✨ שיפורים חדשים ב-MagicSale
         </h2>
 
         <div className="announcement-hero">
@@ -28,25 +28,24 @@ const AnnouncementV20 = ({ onAcknowledge, onClose }: Props) => {
 
             <div>
               <div className="hero-title">
-                שיפורים חדשים במודול טעינת העמלות
+                מודול טעינת העמלות ממשיך להשתדרג
               </div>
 
               <div className="hero-sub">
-                תהליך טעינה רחב, גמיש ונוח יותר עבור סוכנים ובתי סוכן.
+                יכולות חדשות לניהול עמלות והתאמה אישית של סביבת העבודה.
               </div>
             </div>
           </div>
         </div>
 
         <p>
-          הרחבנו את מודול <strong>טעינת העמלות</strong> והוספנו אפשרויות
-          חדשות, המאפשרות לנהל את קליטת העמלות בצורה מדויקת ונוחה יותר.
+          הרחבנו את מודול <strong>טעינת העמלות</strong> והוספנו יכולות חדשות,
+          המאפשרות עבודה נוחה, מהירה ומדויקת יותר.
         </p>
 
         <div className="announcement-summary-list">
           <div className="summary-item">
             <span className="summary-icon">⚙️</span>
-
             <span>
               בוצעו <strong>שיפורים בתהליך טעינת העמלות</strong>, לשיפור
               חוויית העבודה וקליטת הנתונים במערכת.
@@ -55,7 +54,6 @@ const AnnouncementV20 = ({ onAcknowledge, onClose }: Props) => {
 
           <div className="summary-item">
             <span className="summary-icon">🏢</span>
-
             <span>
               נוספה אפשרות לטעון עמלות עבור <strong>בית סוכן</strong>, בנוסף
               לטעינת עמלות עבור סוכן בודד.
@@ -64,10 +62,18 @@ const AnnouncementV20 = ({ onAcknowledge, onClose }: Props) => {
 
           <div className="summary-item">
             <span className="summary-icon">📥</span>
-
             <span>
               נוספה אפשרות ל<strong>קליטה מוקדמת של קבצי בתי השקעות</strong>,
               כחלק מתהליך טעינת העמלות.
+            </span>
+          </div>
+
+          <div className="summary-item">
+            <span className="summary-icon">📦</span>
+            <span>
+              נוספה אפשרות לבחור <strong>מוצרי ברירת מחדל</strong> דרך
+              <strong> גלגל ההגדרות → בחירת מוצרים</strong>, בדומה לבחירת
+              החברות.
             </span>
           </div>
         </div>
@@ -77,8 +83,9 @@ const AnnouncementV20 = ({ onAcknowledge, onClose }: Props) => {
 
           <span>
             <span className="highlight-text">חדש:</span>{" "}
-            ניתן לנהל טעינות עמלות גם ברמת בית הסוכן ולהתחיל את קליטת קבצי
-            בתי ההשקעות מוקדם יותר ובצורה מסודרת.
+            טעינת העמלות הפכה גמישה ומתקדמת יותר, עם תמיכה בבתי סוכן, קליטה
+            מוקדמת של בתי השקעות ואפשרות להתאים את רשימת המוצרים לעבודה
+            היומיומית.
           </span>
         </div>
 
