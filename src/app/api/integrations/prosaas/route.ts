@@ -146,8 +146,6 @@ async function upsertProsaasLead(payload: any) {
   const db = admin.firestore();
   const leadData = mapProsaasToLead(payload);
 
-    console.log('leadData externalRawPayload:', JSON.stringify(leadData.externalRawPayload));  // ← הוסיפי זה זמנית
-
 
   if (!leadData.externalBusinessId || !leadData.externalLeadId) {
     throw new Error('Missing business_id or lead_id');
@@ -280,6 +278,28 @@ async function saveProsaasFilesToLead(
       bucket: uploadedToBucket,
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
     });
+
+ // ✅ הוסיפי כאן — בדיקה האם הליד כבר הומר ללקוח
+    const customerSnap = await db.collection('customer')
+      .where('convertedFromLeadId', '==', leadId)
+      .limit(1)
+      .get();
+
+    if (!customerSnap.empty) {
+      const customerId = customerSnap.docs[0].id;
+      await db.collection('customerDocuments').add({
+        customerId,
+        convertedFromLeadDocId: docRef.id,
+        leadId,
+        sourceSystem: 'prosaas',
+        fileName: file.name,
+        mimeType: file.type || '',
+        size: file.size || 0,
+        storagePath,
+        bucket: uploadedToBucket,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+    }
 
     savedFiles.push({
       documentId: docRef.id,

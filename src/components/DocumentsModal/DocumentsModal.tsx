@@ -42,6 +42,7 @@ const DocumentsModal: React.FC<Props> = ({ open, title, documents, loading, onCl
   const [editValue, setEditValue] = useState('');
   const [savingId, setSavingId] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<{ done: number; total: number } | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -72,12 +73,18 @@ const DocumentsModal: React.FC<Props> = ({ open, title, documents, loading, onCl
 
   const handleFiles = async (files: FileList | null) => {
     if (!files || !files.length || !onUpload) return;
-    const file = files[0];
+    const fileArray = Array.from(files);
     setUploading(true);
+    setUploadProgress({ done: 0, total: fileArray.length });
     try {
-      await onUpload(file);
+      // מעלה קובץ אחר קובץ (בטוח יותר מול שרת/DB), אפשר לשנות ל-Promise.all אם השרת תומך במקביליות
+      for (let i = 0; i < fileArray.length; i++) {
+        await onUpload(fileArray[i]);
+        setUploadProgress({ done: i + 1, total: fileArray.length });
+      }
     } finally {
       setUploading(false);
+      setUploadProgress(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
@@ -113,6 +120,7 @@ const DocumentsModal: React.FC<Props> = ({ open, title, documents, loading, onCl
               <input
                 ref={fileInputRef}
                 type="file"
+                multiple
                 className="dm-file-input-hidden"
                 onChange={e => handleFiles(e.target.files)}
               />
@@ -130,12 +138,16 @@ const DocumentsModal: React.FC<Props> = ({ open, title, documents, loading, onCl
                 {uploading ? (
                   <>
                     <div className="dm-spinner dm-spinner-sm" />
-                    <span>מעלה מסמך...</span>
+                    <span>
+                      {uploadProgress
+                        ? `מעלה מסמכים... (${uploadProgress.done}/${uploadProgress.total})`
+                        : 'מעלה מסמך...'}
+                    </span>
                   </>
                 ) : (
                   <>
                     <span className="dm-upload-icon">⬆️</span>
-                    <span>גררי קובץ לכאן או לחצי להעלאה</span>
+                    <span>גררי קבצים לכאן או לחצי להעלאה (ניתן לבחור כמה קבצים)</span>
                   </>
                 )}
               </div>

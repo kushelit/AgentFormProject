@@ -24,12 +24,13 @@ type CustomerResult = {
 type TaxStatus =
   | 'חדש'
   | 'ממתין למסמכים'
+  | 'בבדיקה'
   | 'לא זכאי/ת להחזר'
   | 'ממתין להחזרים'
   | 'קוד ביטוח לאומי';
 
 const TAX_STATUSES: TaxStatus[] = [
-  'חדש', 'ממתין למסמכים', 'לא זכאי/ת להחזר', 'ממתין להחזרים', 'קוד ביטוח לאומי',
+  'חדש', 'ממתין למסמכים', 'בבדיקה', 'לא זכאי/ת להחזר', 'ממתין להחזרים', 'קוד ביטוח לאומי',
 ];
 
 // 3 אפשרויות הסכם בלבד
@@ -477,6 +478,7 @@ const TaxReturnsTab: React.FC<Props> = ({ agentId, customer, onSelectCustomer })
                       <span className={`sharon-pill ${
                         client.status === 'ממתין להחזרים' ? 'sharon-pill-amber' :
                         client.status === 'חדש' ? 'sharon-pill-blue' :
+                        client.status === 'בבדיקה' ? 'sharon-pill-blue' :
                         client.status === 'לא זכאי/ת להחזר' ? 'sharon-pill-gray' :
                         'sharon-pill-green'
                       }`}>{client.status || '—'}</span>
