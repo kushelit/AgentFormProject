@@ -93,6 +93,31 @@
   gap: 20px;
 }
 
+/* ── עמודת ההסתעפות "תואמה פגישה" + תת-שלב "הפגישה התקיימה" ── */
+.cmf-branch-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.cmf-sub-connector {
+  width: 2px;
+  height: 14px;
+  background: #cdd5e0;
+  transition: background 0.2s;
+}
+.cmf-sub-connector.cmf-connector-done { background: #2d5a8e; }
+
+.cmf-node-sub .cmf-node-icon {
+  width: 36px;
+  height: 36px;
+  font-size: 14px;
+}
+.cmf-node-sub .cmf-node-label {
+  font-size: 11px;
+}
+
 /* ── תיבות פעולה ── */
 .cmf-action-box {
   background: #f7f9fc;
@@ -133,6 +158,11 @@
 .cmf-btn-primary:hover:not(:disabled) { opacity: 0.88; }
 .cmf-btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
 
+.cmf-btn-meeting-done {
+  display: block;
+  margin: 10px auto 0;
+}
+
 .cmf-btn-negative {
   background: white;
   color: #e53e3e;
@@ -172,10 +202,50 @@
 
 .cmf-status-line {
   font-size: 13px;
+  text-align: center;
 }
 .cmf-status-ok {
   color: #2e7d32;
   font-weight: 600;
+}
+
+/* ── מטא-דאטה: יצירת קשר אחרונה + עריכה ידנית ── */
+.cmf-contacted-meta {
+  margin-top: 4px;
+  font-size: 11.5px;
+  color: #9aa9bd;
+  font-weight: 500;
+}
+
+.cmf-btn-edit-inline {
+  background: none;
+  border: none;
+  color: #2d5a8e;
+  text-decoration: underline;
+  font-size: 11px;
+  font-family: 'Heebo', sans-serif;
+  cursor: pointer;
+  margin-inline-start: 6px;
+  padding: 0;
+}
+.cmf-btn-edit-inline:hover { color: #1e3a5f; }
+
+.cmf-contacted-edit {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.cmf-btn-sm {
+  padding: 5px 10px;
+  font-size: 12px;
+}
+
+.cmf-input-sm {
+  height: 30px;
+  font-size: 12px;
 }
 
 .cmf-date-form {

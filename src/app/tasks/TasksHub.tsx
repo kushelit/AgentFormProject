@@ -89,6 +89,12 @@ const sortTasks = (tasks: Task[]) => {
   });
 };
 
+// מתרחב אוטומטית לפי התוכן תוך כדי הקלדה
+const autoGrow = (el: HTMLTextAreaElement) => {
+  el.style.height = 'auto';
+  el.style.height = `${el.scrollHeight}px`;
+};
+
 // ─── CustomerSearch — חיפוש לקוח ──────────────────────────────────────────────
 
 function CustomerSearch({
@@ -505,11 +511,12 @@ export default function TasksHub() {
       {showForm && (
         <div className="th-form">
           <div className="th-form-title">משימה חדשה</div>
-          <input
-            className="th-input"
+          <textarea
+            className="th-input th-textarea"
             placeholder="תיאור המשימה *"
             value={newText}
-            onChange={e => setNewText(e.target.value)}
+            onChange={e => { setNewText(e.target.value); autoGrow(e.target); }}
+            rows={3}
           />
           <div className="th-form-row">
             <div className="th-form-field">
@@ -671,10 +678,12 @@ export default function TasksHub() {
             <div className="th-modal-title">עריכת משימה</div>
             <div className="th-form-field" style={{ marginBottom: 10 }}>
               <label className="th-label">תיאור</label>
-              <input
-                className="th-input"
+              <textarea
+                className="th-input th-textarea"
                 value={editText}
-                onChange={e => setEditText(e.target.value)}
+                onChange={e => { setEditText(e.target.value); autoGrow(e.target); }}
+                ref={el => { if (el) autoGrow(el); }}
+                rows={3}
               />
             </div>
             <div className="th-form-row" style={{ marginBottom: 10 }}>

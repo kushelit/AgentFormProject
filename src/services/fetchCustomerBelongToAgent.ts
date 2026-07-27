@@ -2,8 +2,16 @@ import { doc, getDoc, updateDoc, query, collection, where, getDocs } from "fireb
 import { db } from '@/lib/firebase/firebase';
 import { CustomersTypeForFetching } from '@/types/Customer';
 
+// ── זיהוי ת"ז ללא תלות בפורמט (עם/בלי 0 מוביל) - זהה לעיקרון idVariants ב-NewCustomer.tsx/DealFormModal.tsx ──
+const normIdDigits = (v: any) => String(v ?? '').trim().replace(/\D/g, '');
+const pad9 = (v: string) => v.padStart(9, '0');
+const stripLeadingZeros = (v: string) => v.replace(/^0+/, '');
+const idVariants = (v: any): string[] => {
+  const d = normIdDigits(v);
+  if (!d) return [];
+  return Array.from(new Set([d, pad9(d), stripLeadingZeros(d)].filter(Boolean)));
+};
 
- 
 export const fetchCustomerBelongToAgent = async (
   idNumber: string,
   agentId: string
@@ -12,9 +20,12 @@ export const fetchCustomerBelongToAgent = async (
   //  console.log("🔍 Fetching customer from Firestore: ID:", idNumber, "Agent:", agentId);
 
   try {
+    const variants = idVariants(idNumber);
+    if (!variants.length) return null;
+
     const customerQuery = query(
       collection(db, "customer"),
-      where("IDCustomer", "==", idNumber),
+      where("IDCustomer", "in", variants.slice(0, 10)),
       where("AgentId", "==", agentId)
     );
 

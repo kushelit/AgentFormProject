@@ -14,6 +14,16 @@ import {
 
 import { db } from '@/lib/firebase/firebase';
 
+// ── זיהוי ת"ז ללא תלות בפורמט (עם/בלי 0 מוביל) ──
+const normIdDigits = (v: any) => String(v ?? '').trim().replace(/\D/g, '');
+const pad9 = (v: string) => v.padStart(9, '0');
+const stripLeadingZeros = (v: string) => v.replace(/^0+/, '');
+const idVariants = (v: any): string[] => {
+  const d = normIdDigits(v);
+  if (!d) return [];
+  return Array.from(new Set([d, pad9(d), stripLeadingZeros(d)].filter(Boolean)));
+};
+
 
 type UseTableActionsProps<T> = {
   dbCollection: string; // שם האוסף העיקרי
@@ -181,13 +191,21 @@ useEffect(() => {
         !!idCustomerToSend;
   
       // ✅ מעדכנים CUSTOMER רק אם זו עריכה מתוך SALES
+    // ✅ מעדכנים CUSTOMER רק אם זו עריכה מתוך SALES, ומקבלים חזרה את הת"ז
+      // בדיוק כפי שהיא שמורה בפועל אצל הלקוח שנמצא (בכל פורמט שהוקלד).
+      let resolvedIDCustomer: string | null = null;
       if (dbCollection === "sales") {
-        await updateCustomerIfNeeded(editData as any, beforeRow);
+        resolvedIDCustomer = await updateCustomerIfNeeded(editData as any, beforeRow);
       }
   
       // ✅ מעדכנים SALES בלי שדות הלקוח (אבל כן משאירים first/last כמו שביקשת)
-      const patchForDb =
+      const patchForDb: any =
         dbCollection === "sales" ? stripCustomerFields(editData) : editData;
+
+      // ✅ אם נמצא לקוח קיים תואם - העסקה נשמרת עם אותה ת"ז בדיוק כמו שלו
+      if (dbCollection === "sales" && resolvedIDCustomer) {
+        patchForDb.IDCustomer = resolvedIDCustomer;
+      }
   
       // עדכון UI מידי
       const updatedData = data.map((item) =>
@@ -258,48 +276,31 @@ useEffect(() => {
     };
 
 
-  // const updateCustomerIfNeeded = async (editData: Partial<CombinedData>) => {
-  //   if (!editData.IDCustomer) return; // אם אין תעודת זהות - לא עושים כלום
-  
-  //   try {
-  //     const customerQuery = query(
-  //       collection(db, 'customer'),
-  //       where('IDCustomer', '==', editData.IDCustomer)
-  //     );
-  //     const customerSnapshot = await getDocs(customerQuery);
-  
-  //     if (!customerSnapshot.empty) {
-  //       const customerDocRef = customerSnapshot.docs[0].ref;
-  //       await updateDoc(customerDocRef, {
-  //         firstNameCustomer: editData.firstNameCustomer,
-  //         lastNameCustomer: editData.lastNameCustomer,
-  //       });
-  //       // console.log('Customer updated successfully');
-  //     }
-  //   } catch (error) {
-  //     // console.error('Error updating customer:', error);
-  //   }
-  // };
-  
   const updateCustomerIfNeeded = async (
     editData: Partial<CombinedData>,
     beforeRow?: any
-  ) => {
+  ): Promise<string | null> => {
     const id = String(editData.IDCustomer ?? beforeRow?.IDCustomer ?? "").trim();
     const agentId = String(editData.AgentId ?? beforeRow?.AgentId ?? "").trim();
   
-    if (!id || !agentId) return;
+    if (!id || !agentId) return null;
   
+    // חיפוש הלקוח ללא תלות בפורמט הת"ז (עם/בלי 0 מוביל)
+    const variants = idVariants(id);
+    if (!variants.length) return null;
+
     const customerQuery = query(
       collection(db, "customer"),
-      where("IDCustomer", "==", id),
+      where("IDCustomer", "in", variants.slice(0, 10)),
       where("AgentId", "==", agentId)
     );
   
     const snap = await getDocs(customerQuery);
-    if (snap.empty) return;
+    if (snap.empty) return null;
   
     const ref = snap.docs[0].ref;
+    // הת"ז בדיוק כפי שהיא שמורה בפועל אצל הלקוח שנמצא
+    const resolvedIDCustomer = String((snap.docs[0].data() as any)?.IDCustomer || id);
   
     const patch: any = { lastUpdateDate: serverTimestamp() };
   
@@ -320,8 +321,8 @@ useEffect(() => {
     if ((editData as any).sourceValue !== undefined) patch.sourceValue = (editData as any).sourceValue;
   
     await updateDoc(ref, patch);
+    return resolvedIDCustomer;
   };
-  
   
   return {
     data,

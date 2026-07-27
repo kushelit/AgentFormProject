@@ -77,6 +77,10 @@ const chunk = <T,>(arr: T[], size: number) => {
   return out;
 };
 
+// ── זיהוי ת"ז ללא תלות בפורמט (עם/בלי 0 מוביל) - זהה לעיקרון בכל שאר הקבצים
+// (NewCustomer.tsx / DealFormModal.tsx / useEditableTable.ts / fetchDataForAgent.ts) ──
+const canonId = (v: any): string => String(v ?? '').trim().replace(/\D/g, '').replace(/^0+/, '');
+
 function formatMonthFromMounthField(mounthValue: any) {
   const date = new Date(mounthValue);
   if (isNaN(date.getTime())) return null;
@@ -90,8 +94,10 @@ function findSplitAgreementForSale(
   commissionSplits: CommissionSplit[],
   customers: CombinedData[]
 ): CommissionSplit | undefined {
+  // התאמה לפי ת"ז מנורמלת (לא מחרוזת מדויקת) - כדי שעסקה שנשמרה עם פורמט ת"ז אחר
+  // (עם/בלי 0 מוביל) עדיין תמצא את הסכם הפיצול הנכון של אותו לקוח בפועל.
   const customer = customers.find(
-    (cust) => cust.IDCustomer === data.IDCustomer && cust.AgentId === data.AgentId
+    (cust) => canonId(cust.IDCustomer) === canonId(data.IDCustomer) && cust.AgentId === data.AgentId
   );
 
   const sourceValueUnified = customer?.sourceValue || customer?.sourceLead || '';

@@ -11,6 +11,7 @@ export type MeetingStage =
   | 'not_started'      // עדיין לא נוצר קשר
   | 'contacted'         // דיברתי עם הלקוח
   | 'scheduled'         // תואמה פגישה
+  | 'meeting_done'      // הפגישה התקיימה (מצב סופי חיובי)
   | 'not_interested';   // לא מעוניין (מצב סופי שלילי)
 
 export interface MeetingStageMeta {
@@ -23,7 +24,8 @@ export interface MeetingStageMeta {
 export const MEETING_STAGE_META: Record<MeetingStage, MeetingStageMeta> = {
   not_started:    { label: 'טרם נוצר קשר', icon: '—',  isFinal: false, isNegative: false },
   contacted:      { label: 'דיברתי עם הלקוח', icon: '💬', isFinal: false, isNegative: false },
-  scheduled:      { label: 'תואמה פגישה', icon: '📅', isFinal: true,  isNegative: false },
+  scheduled:      { label: 'תואמה פגישה', icon: '📅', isFinal: false, isNegative: false },
+  meeting_done:   { label: 'הפגישה התקיימה', icon: '🤝', isFinal: true,  isNegative: false },
   not_interested: { label: 'לא מעוניין', icon: '🚫', isFinal: true,  isNegative: true },
 };
 
@@ -33,6 +35,7 @@ export const MEETING_STAGE_ORDER: MeetingStage[] = [
   'not_started',
   'contacted',
   'scheduled',
+  'meeting_done',
 ];
 
 export const getMeetingStageLabel = (stage?: string | null): string => {

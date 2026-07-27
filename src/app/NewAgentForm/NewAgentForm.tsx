@@ -25,6 +25,10 @@ import { useRouter } from 'next/navigation';
 import useFetchMD from "@/hooks/useMD";
 import DealFormModal from '@/components/DealFormModal/DealFormModal';
 
+// ── התאמת ת"ז ללא תלות באפסים מובילים (עם/בלי 0 בהתחלה) - זהה לעקרון canonId ב-NewCustomer.tsx.
+// כך שחיפוש "17564188" ימצא גם עסקאות ששמורות עם "017564188" ולהיפך.
+const canonDigits = (v: any): string => String(v ?? '').replace(/\D/g, '').replace(/^0+/, '');
+
 const NewAgentForm: React.FC = () => {
   const { user, detail } = useAuth();
   const router = useRouter();
@@ -234,13 +238,17 @@ const NewAgentForm: React.FC = () => {
       cancellationDate: item.cancellationDate ?? "",
     }));
 
+    // חיפוש ת"ז מנורמל (בלי אפסים מובילים) - כך שחיפוש "17564188" ימצא גם עסקאות
+    // ששמורות עם "017564188" ולהיפך, כולל את כל ה"תאומים" הכפולים של אותו לקוח.
+    const idFilterCanon = canonDigits(idCustomerFilter);
+
     filtered = filtered.filter((item) => {
       const itemDate = item.mounth ? formatDateForComparison(item.mounth) : "";
       return (
         (selectedWorkerIdFilter ? item.workerId === selectedWorkerIdFilter : true) &&
         (selectedCompanyFilter ? item.company === selectedCompanyFilter : true) &&
         (selectedProductFilter ? item.product === selectedProductFilter : true) &&
-        item.IDCustomer.includes(idCustomerFilter) &&
+        (!idFilterCanon || canonDigits(item.IDCustomer).includes(idFilterCanon)) &&
         (item.policyNumber ?? "").includes(policyNumberFilter) &&
         item.firstNameCustomer.includes(firstNameCustomerFilter) &&
         item.lastNameCustomer.includes(lastNameCustomerFilter) &&
@@ -687,7 +695,7 @@ const NewAgentForm: React.FC = () => {
                     <td className="narrow-column">
                       <span
                         style={{ cursor: 'pointer', color: '#2d5a8e', textDecoration: 'underline' }}
-                        onClick={() => router.push(`/NewCustomer?idCustomerFilter=${item.IDCustomer}`)}
+                        onClick={() => router.push(`/NewCustomer?agentId=${selectedAgentId}&highlightCustomer=${item.IDCustomer}`)}
                       >
                         {item.firstNameCustomer}
                       </span>
@@ -696,7 +704,7 @@ const NewAgentForm: React.FC = () => {
                     <td className="narrow-column">
                       <span
                         style={{ cursor: 'pointer', color: '#2d5a8e', textDecoration: 'underline' }}
-                        onClick={() => router.push(`/NewCustomer?idCustomerFilter=${item.IDCustomer}`)}
+                        onClick={() => router.push(`/NewCustomer?agentId=${selectedAgentId}&highlightCustomer=${item.IDCustomer}`)}
                       >
                         {item.lastNameCustomer}
                       </span>
@@ -705,7 +713,7 @@ const NewAgentForm: React.FC = () => {
                     <td className="narrow-column">
                       <span
                         style={{ cursor: 'pointer', color: '#2d5a8e', textDecoration: 'underline' }}
-                        onClick={() => router.push(`/NewCustomer?idCustomerFilter=${item.IDCustomer}`)}
+                        onClick={() => router.push(`/NewCustomer?agentId=${selectedAgentId}&highlightCustomer=${item.IDCustomer}`)}
                       >
                         {item.IDCustomer}
                       </span>

@@ -376,16 +376,28 @@ useEffect(() => {
   
       const fullNameCustomer = `${firstNameCustomer} ${lastNameCustomer}`.trim();
   
-      // Check for existing customer with the same IDCustomer and AgentId
-      const customerQuery = query(
-        collection(db, 'customer'),
-        where('IDCustomer', '==', IDCustomer),
-        where('AgentId', '==', selectedAgentId)
-      );
+      // בדיקת קיום לקוח קיים עם אותה ת"ז (מנורמלת - כולל/בלי 0 מוביל) ואותו סוכן.
+      // idVariants מייצר את כל הצורות האפשריות (רגיל / padded ל-9 / בלי אפסים מובילים),
+      // כדי לא ליצור כפילות אם הלקוח כבר קיים במערכת עם ת"ז שנכתבה בפורמט אחר.
+      const idVariantsForCheck = idVariants(IDCustomer);
+      const customerQuery = idVariantsForCheck.length
+        ? query(
+            collection(db, 'customer'),
+            where('IDCustomer', 'in', idVariantsForCheck.slice(0, 10)),
+            where('AgentId', '==', selectedAgentId)
+          )
+        : query(
+            collection(db, 'customer'),
+            where('IDCustomer', '==', IDCustomer),
+            where('AgentId', '==', selectedAgentId)
+          );
       const customerSnapshot = await getDocs(customerQuery);
   
       if (customerSnapshot.empty) {
         const customerRef = doc(collection(db, 'customer'));
+        // שומרים את הת"ז בפורמט קנוני (בלי אפסים מובילים) - אותו פורמט שכבר משמש
+        // בכל שאר הקוד (canonId) - כדי שלא ייווצרו כפילויות עתידיות בגלל ריבוי פורמטים.
+        const canonicalIDCustomer = canonId(IDCustomer) || IDCustomer;
   
         await setDoc(customerRef, {
           agent: selectedAgentName,
@@ -393,7 +405,7 @@ useEffect(() => {
           firstNameCustomer,
           lastNameCustomer,
           fullNameCustomer,
-          IDCustomer,
+          IDCustomer: canonicalIDCustomer,
           parentID: customerRef.id,
           notes,
           issueDay,
@@ -420,6 +432,36 @@ useEffect(() => {
     } catch (error) {
       // console.error('Error adding document:', error);
     }
+  };
+
+  // עוטף את saveCustomerChanges (מ-useEditableTable) בבדיקת כפילות ת"ז לפני שמירה -
+  // כדי לסגור את אותה בעיית הכפילויות (עם/בלי 0 מוביל) גם בעריכת לקוח קיים, לא רק בהוספה.
+  const handleSaveCustomerChanges = async () => {
+    const editingId = editingRowCustomer;
+    const currentIDCustomer = editCustomerData.IDCustomer;
+
+    if (editingId && currentIDCustomer) {
+      const variants = idVariants(currentIDCustomer);
+      if (variants.length) {
+        try {
+          const dupQuery = query(
+            collection(db, 'customer'),
+            where('IDCustomer', 'in', variants.slice(0, 10)),
+            where('AgentId', '==', selectedAgentId)
+          );
+          const dupSnapshot = await getDocs(dupQuery);
+          const conflictingDoc = dupSnapshot.docs.find((d) => d.id !== editingId);
+          if (conflictingDoc) {
+            addToast("error", "לא ניתן לשמור - ת\"ז זו כבר משויכת ללקוח אחר במערכת");
+            return;
+          }
+        } catch (error) {
+          // אם בדיקת הכפילות נכשלה מסיבה טכנית, לא חוסמים את השמירה - רק ממשיכים כרגיל
+        }
+      }
+    }
+
+    saveCustomerChanges();
   };
   
   const canSubmit = useMemo(() => (
@@ -709,7 +751,6 @@ useEffect(() => {
       );
   
       if (salesWithNames.length === 0) {
-        addToast("warning", "לקוח זה אין מכירות");
         setSalesData(null);
       } else {
         setSalesData(salesWithNames);
@@ -843,7 +884,6 @@ useEffect(() => {
       );
   
       if (salesWithNames.length === 0) {
-        addToast("warning", "לקוח זה אין מכירות");
 
       } else {
         setSalesData(salesWithNames);
@@ -1519,7 +1559,7 @@ const handleRollbackImport = async () => {
     state="default"
   />
   <Button
-    onClick={saveCustomerChanges}
+    onClick={handleSaveCustomerChanges}
     text="שמור שינויים"
     type="primary"
     icon="off"
@@ -1896,13 +1936,21 @@ const handleRollbackImport = async () => {
         type="text"
         value={editCustomerData.IDCustomer || ""}
         onChange={(e) => {
-          const newValue = e.target.value.replace(/\D/g, "").slice(0, 9); 
+          const newValue = e.target.value.replace(/\D/g, "").slice(0, 9);
           const errorMessage = validationRules["IDCustomer"]?.(e.target.value); 
           setErrors((prevErrors) => ({
             ...prevErrors,
             IDCustomer: errorMessage || "",
           }));
           handleEditCustomerChange("IDCustomer", newValue);
+        }}
+        onBlur={(e) => {
+          // מנרמל את הת"ז לפורמט קנוני (בלי אפסים מובילים) ברגע שיוצאים מהשדה,
+          // כדי לא להפריע תוך כדי הקלדה, אבל להבטיח ששמירה תמיד תכתוב פורמט עקבי.
+          const canonical = canonId(e.target.value) || e.target.value;
+          if (canonical !== editCustomerData.IDCustomer) {
+            handleEditCustomerChange("IDCustomer", canonical);
+          }
         }}
       />
       {errors.IDCustomer && <div className="error-message">{errors.IDCustomer}</div>}

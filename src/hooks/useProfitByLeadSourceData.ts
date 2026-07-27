@@ -48,13 +48,18 @@ export type ProfitByLeadSourceRow = {
 };
 
 /** ---------- Helpers ---------- */
+// ── זיהוי ת"ז ללא תלות בפורמט (עם/בלי 0 מוביל) - זהה לעיקרון בכל שאר הקבצים
+// (NewCustomer.tsx / DealFormModal.tsx / useEditableTable.ts / fetchDataForAgent.ts / useSalesData.ts) ──
+const canonId = (v: any): string => String(v ?? '').trim().replace(/\D/g, '').replace(/^0+/, '');
+
 function findSplitAgreementForSale(
   sale: any,
   commissionSplits: CommissionSplit[],
   customers: CombinedData[]
 ) {
+  // התאמה לפי ת"ז מנורמלת - כדי שעסקה בפורמט ת"ז שונה עדיין תמצא את הסכם הפיצול הנכון
   const customer = customers.find(
-    (cust) => cust.IDCustomer === sale.IDCustomer && cust.AgentId === sale.AgentId
+    (cust) => canonId(cust.IDCustomer) === canonId(sale.IDCustomer) && cust.AgentId === sale.AgentId
   );
 
   const sourceValueUnified = (customer?.sourceValue || customer?.sourceLead || '').trim();
@@ -350,9 +355,9 @@ export default function useProfitByLeadSourceData(params: {
         snap.docs.forEach((d) => {
           const sale = d.data() as DocumentData;
 
-          // לקוח תואם
+          // לקוח תואם - לפי ת"ז מנורמלת, כדי לא לפספס עסקאות בפורמט ת"ז שונה
           const cust = customers.find(
-            (c) => c.IDCustomer === sale.IDCustomer && c.AgentId === sale.AgentId
+            (c) => canonId(c.IDCustomer) === canonId(sale.IDCustomer) && c.AgentId === sale.AgentId
           );
 
           // ✅ מקור ליד הוא ID (sourceLead.id)
@@ -393,8 +398,10 @@ export default function useProfitByLeadSourceData(params: {
           agg[leadSource].commissionHekefTotal += amounts.hekef;
           agg[leadSource].commissionNifraimTotal += amounts.nifraim;
 
-          const customerId = String(sale.IDCustomer || '').trim();
-          if (customerId) agg[leadSource]._customerSet!.add(customerId);
+          // ✅ ספירת לקוחות ייחודיים לפי ת"ז מנורמלת - כדי שאותו לקוח בשני פורמטי ת"ז
+          // לא ייספר כשני לקוחות שונים.
+          const customerCanonId = canonId(sale.IDCustomer);
+          if (customerCanonId) agg[leadSource]._customerSet!.add(customerCanonId);
         });
 
         const out: ProfitByLeadSourceRow[] = Object.values(agg)

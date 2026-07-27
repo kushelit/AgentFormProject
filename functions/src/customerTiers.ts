@@ -37,6 +37,14 @@ interface TierProposalRow {
   currentTier: Tier;        // הדירוג הקיים היום ב-DB
   proposedTier: Tier;       // הדירוג המוצע לפי הסכימה החדשה
   changed: boolean;         // proposedTier !== currentTier
+  responsibleUserId: string | null;   // אחראי הלקוח היום - customer.responsibleUserId (uid מקולקציית users)
+  responsibleUserName: string | null; // שם מוצג של האחראי - customer.responsibleUserName (מוזן/מטוייב) אם קיים
+}
+
+interface DuplicateSkipped {
+  canonId: string;          // ת"ז מנורמלת (בלי אפסים מובילים) שמשותפת לשתי הרשומות
+  keptCustomerId: string;   // doc id של הרשומה שנשארה ונכנסה לחישוב
+  skippedCustomerId: string; // doc id של הרשומה הכפולה שהודחה מהחישוב
 }
 
 function canonId(v: any): string {
@@ -98,7 +106,41 @@ export const calculateCustomerTiers = onCall(
 
     // 2) טעינת כל לקוחות הסוכן
     const customersSnap = await db.collection("customer").where("AgentId", "==", agentId).get();
-    const customers = customersSnap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }));
+    const customersRaw = customersSnap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }));
+
+    // 2.5) זיהוי וסינון כפילויות לקוח לפי ת"ז מנורמלת (עם/בלי 0 מוביל).
+    // זו "זבל" קיים בדאטה שגורם לאותו לקוח אמיתי להופיע פעמיים במדרג.
+    // בין שתי רשומות עם אותה ת"ז מנורמלת - נשארת זו שעודכנה לאחרונה (lastUpdateDate, ואם אין - createdAt),
+    // והשנייה מודחת מהחישוב (לא נמחקת ב-DB, רק לא נכנסת לתוצאה הזו).
+    const primaryByCanonId = new Map<string, any>();
+    const duplicatesSkipped: DuplicateSkipped[] = [];
+
+    customersRaw.forEach((c) => {
+      const key = canonId(c.IDCustomer);
+      if (!key) return; // אין ת"ז תקינה - לא ניתן לזהות כפילות, הרשומה נשארת כרגיל
+
+      const existing = primaryByCanonId.get(key);
+      if (!existing) {
+        primaryByCanonId.set(key, c);
+        return;
+      }
+
+      const existingTime = existing.lastUpdateDate?.toMillis?.() ?? existing.createdAt?.toMillis?.() ?? 0;
+      const currentTime = c.lastUpdateDate?.toMillis?.() ?? c.createdAt?.toMillis?.() ?? 0;
+
+      if (currentTime > existingTime) {
+        primaryByCanonId.set(key, c);
+        duplicatesSkipped.push({ canonId: key, keptCustomerId: c.id, skippedCustomerId: existing.id });
+      } else {
+        duplicatesSkipped.push({ canonId: key, keptCustomerId: existing.id, skippedCustomerId: c.id });
+      }
+    });
+
+    const customers = customersRaw.filter((c) => {
+      const key = canonId(c.IDCustomer);
+      if (!key) return true; // אין ת"ז - נשאר, לא מזוהה ככפילות
+      return primaryByCanonId.get(key)?.id === c.id;
+    });
 
     // 3) טעינת כל שורות העמלה מטעינות (policyCommissionSummaries) לחודש הנבחר
     const externalSnap = await db
@@ -117,7 +159,7 @@ export const calculateCustomerTiers = onCall(
       amountByCustomerId.set(key, (amountByCustomerId.get(key) || 0) + amt);
     });
 
-    // 4) קיבוץ לקוחות לפי תא משפחתי (parentID)
+    // 4) קיבוץ לקוחות לפי תא משפחתי (parentID) - לאחר סינון הכפילויות
     const familyGroups = new Map<string, typeof customers>();
     customers.forEach((c) => {
       const key = c.parentID || c.id;
@@ -148,6 +190,8 @@ export const calculateCustomerTiers = onCall(
           currentTier,
           proposedTier,
           changed: currentTier !== proposedTier,
+          responsibleUserId: m.responsibleUserId ?? null,
+          responsibleUserName: m.responsibleUserName ?? null,
         });
       }
     }
@@ -163,6 +207,8 @@ export const calculateCustomerTiers = onCall(
       thresholds,
       totalCustomers: rows.length,
       changedCount: rows.filter((r) => r.changed).length,
+      duplicatesSkippedCount: duplicatesSkipped.length,
+      duplicatesSkipped, // לצורך שקיפות/ניקוי עתידי - אילו לקוחות זוהו ככפילות ואילו נשמרו
       rows,
     };
   },
@@ -193,17 +239,43 @@ export const applyCustomerTiers = onCall(
     }
 
     const db = adminDb();
+
+    // טעינת כל לקוחות הסוכן, כדי לזהות רשומות כפולות (אותה ת"ז מנורמלת, עם/בלי 0 מוביל)
+    // שצריכות לקבל את אותו הדירוג - גם אם המשתמש אישר רק את אחת מהן במסך.
+    const customersSnap = await db.collection("customer").where("AgentId", "==", agentId).get();
+    const idsByCanon = new Map<string, string[]>(); // canonId -> כל ה-doc id-ים שמשתפים אותה ת"ז מנורמלת
+    const canonByCustomerId = new Map<string, string>(); // doc id -> canonId שלו
+    customersSnap.docs.forEach((d) => {
+      const idc = (d.data() as any).IDCustomer;
+      const key = canonId(idc);
+      if (!key) return;
+      canonByCustomerId.set(d.id, key);
+      if (!idsByCanon.has(key)) idsByCanon.set(key, []);
+      idsByCanon.get(key)!.push(d.id);
+    });
+
+    // מרחיבים כל שורה מאושרת לכל הרשומות הכפולות שלה - כולן מקבלות את אותו proposedTier/nifraimAmount
+    const expandedUpdates = new Map<string, { proposedTier: Tier; nifraimAmount: number }>();
+    approvedRows.forEach((row) => {
+      const canon = canonByCustomerId.get(row.customerId);
+      const targetIds = canon ? (idsByCanon.get(canon) || [row.customerId]) : [row.customerId];
+      targetIds.forEach((id) => {
+        expandedUpdates.set(id, { proposedTier: row.proposedTier, nifraimAmount: row.nifraimAmount });
+      });
+    });
+
+    const updatesList = Array.from(expandedUpdates.entries());
     const batchSize = 400; // מתחת למגבלת 500 כתיבות ל-batch
     let updated = 0;
 
-    for (let i = 0; i < approvedRows.length; i += batchSize) {
-      const chunk = approvedRows.slice(i, i + batchSize);
+    for (let i = 0; i < updatesList.length; i += batchSize) {
+      const chunk = updatesList.slice(i, i + batchSize);
       const batch = db.batch();
-      chunk.forEach((row) => {
-        const ref = db.collection("customer").doc(row.customerId);
+      chunk.forEach(([customerId, data]) => {
+        const ref = db.collection("customer").doc(customerId);
         batch.update(ref, {
-          customerTier: row.proposedTier,
-          tierNifraim: row.nifraimAmount,
+          customerTier: data.proposedTier,
+          tierNifraim: data.nifraimAmount,
           tierLastCalculated: month,
           tierUpdatedAt: nowTs(),
         });

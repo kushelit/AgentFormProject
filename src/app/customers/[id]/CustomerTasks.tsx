@@ -48,6 +48,12 @@ const STATUS_CLASS: Record<TaskStatus, string> = {
   done: 'ct-badge-done',
 };
 
+// מתרחב אוטומטית לפי התוכן תוך כדי הקלדה
+const autoGrow = (el: HTMLTextAreaElement) => {
+  el.style.height = 'auto';
+  el.style.height = `${el.scrollHeight}px`;
+};
+
 export default function CustomerTasks({ customerId, agentId }: Props) {
   const { user } = useAuth();
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -258,11 +264,12 @@ const loadTasks = async () => {
       {/* ── טופס הוספה ── */}
       {showForm && (
         <div className="ct-form">
-          <input
-            className="ct-input"
+          <textarea
+            className="ct-input ct-textarea"
             placeholder="תיאור המשימה"
             value={newText}
-            onChange={e => setNewText(e.target.value)}
+            onChange={e => { setNewText(e.target.value); autoGrow(e.target); }}
+            rows={3}
           />
           <div className="ct-form-row">
             <div className="ct-form-field">
@@ -320,11 +327,13 @@ const loadTasks = async () => {
             editingId === t.id ? (
               // ── מצב עריכה — טופס inline באותה שורה ──
               <div key={t.id} className="ct-form">
-                <input
-                  className="ct-input"
+                <textarea
+                  className="ct-input ct-textarea"
                   placeholder="תיאור המשימה"
                   value={editText}
-                  onChange={e => setEditText(e.target.value)}
+                  onChange={e => { setEditText(e.target.value); autoGrow(e.target); }}
+                  ref={el => { if (el) autoGrow(el); }}
+                  rows={3}
                   autoFocus
                 />
                 <div className="ct-form-row">

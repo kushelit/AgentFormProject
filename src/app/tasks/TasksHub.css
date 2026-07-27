@@ -228,6 +228,16 @@
 }
 .th-input:focus { outline: none; border-color: #2d5a8e; }
 
+/* טקסטאריה לתיאור משימה — גובה דינמי, לא שורה קבועה כמו th-input */
+.th-textarea {
+  height: auto;
+  min-height: 68px;
+  padding: 8px 10px;
+  line-height: 1.5;
+  resize: vertical;
+  overflow: hidden;
+}
+
 .th-form-actions {
   display: flex;
   gap: 8px;
@@ -315,6 +325,7 @@
   color: #1e3a5f;
   font-weight: 500;
   margin-bottom: 4px;
+  white-space: pre-wrap;
 }
 .th-task-done .th-task-text {
   text-decoration: line-through;

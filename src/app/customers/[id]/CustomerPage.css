@@ -421,6 +421,17 @@
   color: #2c3e5a; background: white; direction: rtl;
 }
 .ct-input:focus { outline: none; border-color: #2d5a8e; }
+
+/* טקסטאריה לתיאור משימה — גובה דינמי, לא שורה קבועה כמו ct-input */
+.ct-textarea {
+  height: auto;
+  min-height: 68px;
+  padding: 8px 10px;
+  line-height: 1.5;
+  resize: vertical;
+  overflow: hidden;
+}
+
 .ct-form-actions { display: flex; gap: 8px; }
 .ct-btn-save {
   background: #2d5a8e; color: white; border: none; border-radius: 6px;
@@ -451,7 +462,7 @@
 .ct-check:hover { border-color: #2d5a8e; background: #e8f0fb; }
 .ct-check-done { background: #2d5a8e; border-color: #2d5a8e; color: white; cursor: default; }
 .ct-task-body { flex: 1; }
-.ct-task-text { font-size: 15px; color: #2c3e5a; margin-bottom: 3px; }
+.ct-task-text { font-size: 15px; color: #2c3e5a; margin-bottom: 3px; white-space: pre-wrap; }
 .ct-task-done .ct-task-text { text-decoration: line-through; color: #9aafc4; }
 .ct-task-meta { display: flex; gap: 12px; font-size: 11px; color: #9aafc4; }
 .ct-due-late { color: #e65100; font-weight: 600; }

@@ -2,7 +2,10 @@ import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase/firebase';
 import { Customer, Sale, CombinedData , AgentDataType } from '../types/Sales';
 
- 
+// ── זיהוי ת"ז ללא תלות בפורמט (עם/בלי 0 מוביל) - זהה לעיקרון idVariants/canonId
+// ב-NewCustomer.tsx / DealFormModal.tsx / useEditableTable.ts ──
+const canonId = (v: any): string => String(v ?? '').trim().replace(/\D/g, '').replace(/^0+/, '');
+
 const fetchDataForAgent = async (UserAgentId: string): Promise<CombinedData[]> => {
   if (!UserAgentId) {
     // console.warn('No agent selected for admin, skipping data fetch.');
@@ -20,7 +23,17 @@ const fetchDataForAgent = async (UserAgentId: string): Promise<CombinedData[]> =
     lastNameCustomer: doc.data()?.lastNameCustomer || 'Unknown',
     IDCustomer: doc.data()?.IDCustomer || '',
   }));
-  
+
+  // מיפוי לקוחות לפי ת"ז מנורמלת (canonId) - כדי שהצירוף לעסקאות לא ייפול על הבדלי
+  // פורמט (עם/בלי 0 מוביל) בין sale.IDCustomer לבין customer.IDCustomer.
+  const customersByCanonId = new Map<string, Customer>();
+  customers.forEach((c) => {
+    const key = canonId(c.IDCustomer);
+    if (key && !customersByCanonId.has(key)) {
+      customersByCanonId.set(key, c);
+    }
+  });
+
   // שליפת מכירות
   const salesQuery = query(collection(db, 'sales'), where('AgentId', '==', UserAgentId));
   const salesSnapshot = await getDocs(salesQuery);
@@ -44,9 +57,9 @@ const fetchDataForAgent = async (UserAgentId: string): Promise<CombinedData[]> =
     notes: doc.data()?.notes || '',
   }));
 
-  // שילוב הנתונים
+  // שילוב הנתונים - התאמה לפי ת"ז מנורמלת, לא לפי מחרוזת מדויקת
   const combinedData: CombinedData[] = sales.map((sale) => {
-    const customer = customers.find((customer) => customer.IDCustomer === sale.IDCustomer);
+    const customer = customersByCanonId.get(canonId(sale.IDCustomer));
     return {
       ...sale,
       firstNameCustomer: customer?.firstNameCustomer || 'Unknown',
