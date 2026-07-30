@@ -4,7 +4,7 @@ import { useEffect, useState, useMemo } from 'react';
 import { httpsCallable } from 'firebase/functions';
 import {
   collection, query, where, getDocs, orderBy, limit,
-  doc, updateDoc, writeBatch, serverTimestamp,
+  doc, getDoc, setDoc, updateDoc, writeBatch, serverTimestamp,
 } from 'firebase/firestore';
 import { db, functions } from '@/lib/firebase/firebase';
 import { useRouter } from 'next/navigation';
@@ -45,6 +45,12 @@ interface CalcResult {
 interface ResponsibleOption {
   id: string;
   name: string;
+}
+
+interface TierThresholds {
+  premium: number;
+  gold: number;
+  silver: number;
 }
 
 const TIER_LABEL: Record<Tier, string> = {
@@ -92,7 +98,24 @@ export default function CustomerTiersPage() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<CalcResult | null>(null);
 
-  const [selected, setSelected] = useState<Record<string, boolean>>({});
+  // ── הגדרות סף דירוג (silver/gold/premium) — נטען/נשמר ב-tierThresholds/{agentId}, נופל ל-tierThresholds/default ──
+  const [showThresholdSettings, setShowThresholdSettings] = useState(false);
+  const [thresholdsLoading, setThresholdsLoading] = useState(false);
+  const [thresholdsSaving, setThresholdsSaving] = useState(false);
+  const [thresholdsSource, setThresholdsSource] = useState<'agent' | 'default' | null>(null);
+  const [thresholdsDraft, setThresholdsDraft] = useState<{ premium: string; gold: string; silver: string }>({
+    premium: '', gold: '', silver: '',
+  });
+
+  // ── סימון שורות: ברירת המחדל היא שכל שורה שמוצגת (לפי הסינון הפעיל) מסומנת אוטומטית — "מה שמסננים = מה שמסומן".
+  // "overrides" שומר רק חריגות ידניות (שורה שספציפית סומנה/בוטלה ידנית) — כך שסינון לא "שוכח" בחירות,
+  // אבל גם לא מוחק ביטולים ידניים כשעוברים בין סינונים. מתאפס עם כל חישוב חדש. ──
+  const [overrides, setOverrides] = useState<Record<string, boolean>>({});
+  const isRowSelected = (r: TierRow) => {
+    const o = overrides[r.customerId];
+    return o !== undefined ? o : true;
+  };
+
   const [showAll, setShowAll] = useState(false);
   const [applying, setApplying] = useState(false);
 
@@ -117,6 +140,11 @@ export default function CustomerTiersPage() {
   const [savingResponsibleFor, setSavingResponsibleFor] = useState<string | null>(null);
   const [bulkResponsibleValue, setBulkResponsibleValue] = useState('');
   const [bulkAssigning, setBulkAssigning] = useState(false);
+
+  useEffect(() => {
+    setShowThresholdSettings(false);
+    setThresholdsSource(null);
+  }, [selectedAgentId]);
 
   useEffect(() => {
     if (!selectedAgentId) return;
@@ -166,13 +194,74 @@ export default function CustomerTiersPage() {
     fetchResponsibleList();
   }, [selectedAgentId]);
 
+  // ── טעינת הגדרות הסף לסוכן הנוכחי (agent-specific, ואם אין - default) ──
+  const loadThresholdSettings = async () => {
+    if (!selectedAgentId) return;
+    setThresholdsLoading(true);
+    try {
+      const agentSnap = await getDoc(doc(db, 'tierThresholds', selectedAgentId));
+      const snap = agentSnap.exists() ? agentSnap : await getDoc(doc(db, 'tierThresholds', 'default'));
+      const source: 'agent' | 'default' = agentSnap.exists() ? 'agent' : 'default';
+      if (snap.exists()) {
+        const t = snap.data() as TierThresholds;
+        setThresholdsDraft({
+          premium: String(t.premium ?? ''),
+          gold: String(t.gold ?? ''),
+          silver: String(t.silver ?? ''),
+        });
+        setThresholdsSource(source);
+      } else {
+        setThresholdsDraft({ premium: '', gold: '', silver: '' });
+        setThresholdsSource(null);
+      }
+    } catch (e: any) {
+      addToast('error', 'כשל בטעינת הגדרות הדירוג: ' + ((e && e.message) || ''));
+    } finally {
+      setThresholdsLoading(false);
+    }
+  };
+
+  const toggleThresholdSettings = () => {
+    const next = !showThresholdSettings;
+    setShowThresholdSettings(next);
+    if (next) loadThresholdSettings();
+  };
+
+  const saveThresholdSettings = async () => {
+    if (!selectedAgentId) return;
+
+    const premium = Number(thresholdsDraft.premium);
+    const gold = Number(thresholdsDraft.gold);
+    const silver = Number(thresholdsDraft.silver);
+
+    if ([premium, gold, silver].some((n) => Number.isNaN(n) || n < 0)) {
+      addToast('error', 'יש להזין ערכים מספריים תקינים (0 ומעלה) לכל שדה');
+      return;
+    }
+    if (!(silver < gold && gold < premium)) {
+      addToast('error', 'הסדר חייב להיות עולה: סף כסף < סף זהב < סף פרימיום');
+      return;
+    }
+
+    setThresholdsSaving(true);
+    try {
+      await setDoc(doc(db, 'tierThresholds', selectedAgentId), { premium, gold, silver }, { merge: true });
+      setThresholdsSource('agent');
+      addToast('success', 'הגדרות הדירוג נשמרו — יש להריץ חישוב מחדש כדי שהן ישפיעו על התוצאות');
+    } catch (e: any) {
+      addToast('error', 'כשל בשמירת הגדרות הדירוג: ' + ((e && e.message) || ''));
+    } finally {
+      setThresholdsSaving(false);
+    }
+  };
+
   const runCalculation = async () => {
     if (!selectedAgentId) { addToast('error', 'בחר סוכן'); return; }
     if (!month) { addToast('error', 'בחר חודש לחישוב'); return; }
 
     setLoading(true);
     setResult(null);
-    setSelected({});
+    setOverrides({});
     setCurrentPage(1);
     setNameFilter('');
     setIdFilter('');
@@ -186,13 +275,10 @@ export default function CustomerTiersPage() {
       const data = res.data as CalcResult;
       setResult(data);
 
-      const initialSelected: Record<string, boolean> = {};
       const initialResponsible: Record<string, string> = {};
       data.rows.forEach(function (r) {
-        if (r.changed) initialSelected[r.customerId] = true;
         if (r.responsibleUserId) initialResponsible[r.customerId] = r.responsibleUserId;
       });
-      setSelected(initialSelected);
       setResponsibleByCustomer(initialResponsible);
       setShowAll(false);
 
@@ -206,14 +292,53 @@ export default function CustomerTiersPage() {
     }
   };
 
+  // ── שורות אחרי "שינויים בלבד / הכל" ──
+  const baseRows = useMemo(() => {
+    if (!result) return [];
+    return showAll ? result.rows : result.rows.filter(function (r) { return r.changed; });
+  }, [result, showAll]);
+
+  // ── שורות אחרי סינון ──
+  const filteredRows = useMemo(() => {
+    return baseRows.filter((r) => {
+      const nameOk = !nameFilter || r.customerName.toLowerCase().includes(nameFilter.toLowerCase().trim());
+      const idOk = !idFilter || r.IDCustomer.includes(idFilter.trim());
+      const currOk = !currentTierFilter || r.currentTier === currentTierFilter;
+      const propOk = !proposedTierFilter || r.proposedTier === proposedTierFilter;
+      const respOk = !responsibleFilter
+        || (responsibleFilter === '__none__' ? !r.responsibleUserId : r.responsibleUserId === responsibleFilter);
+      return nameOk && idOk && currOk && propOk && respOk;
+    });
+  }, [baseRows, nameFilter, idFilter, currentTierFilter, proposedTierFilter, responsibleFilter]);
+
+  // ── מיון ──
+  const sortedRows = useMemo(() => {
+    if (!sortColumn) return filteredRows;
+    const arr = [...filteredRows];
+    arr.sort((a, b) => {
+      let av: string | number = a[sortColumn];
+      let bv: string | number = b[sortColumn];
+      if (typeof av === 'string') av = av.toLowerCase();
+      if (typeof bv === 'string') bv = bv.toLowerCase();
+      if (av < bv) return sortOrder === 'asc' ? -1 : 1;
+      if (av > bv) return sortOrder === 'asc' ? 1 : -1;
+      return 0;
+    });
+    return arr;
+  }, [filteredRows, sortColumn, sortOrder]);
+
+  // ── שורות מסומנות מתוך מה שמוצג כרגע (לפי הסינון הפעיל) — זה הבסיס הן לספירה והן לפעולות אישור/שיבוץ ──
+  const selectedVisibleRows = useMemo(
+    () => sortedRows.filter((r) => isRowSelected(r)),
+    [sortedRows, overrides],
+  );
+
   const applyChanges = async () => {
     if (!result || !selectedAgentId) return;
 
-    const approvedRows = result.rows
-      .filter(function (r) { return selected[r.customerId]; })
-      .map(function (r) {
-        return { customerId: r.customerId, proposedTier: r.proposedTier, nifraimAmount: r.nifraimAmount };
-      });
+    const approvedRows = selectedVisibleRows.map(function (r) {
+      return { customerId: r.customerId, proposedTier: r.proposedTier, nifraimAmount: r.nifraimAmount };
+    });
 
     if (approvedRows.length === 0) { addToast('error', 'לא נבחרו שורות לאישור'); return; }
 
@@ -224,7 +349,7 @@ export default function CustomerTiersPage() {
       addToast('success', 'עודכנו ' + res.data.updated + ' לקוחות בהצלחה');
       setLastCalculated(result.month);
       setResult(null);
-      setSelected({});
+      setOverrides({});
     } catch (e: any) {
       addToast('error', (e && e.message) || 'כשל בעדכון הדירוג');
     } finally {
@@ -276,10 +401,10 @@ export default function CustomerTiersPage() {
     }
   };
 
-  // שיבוץ אחראי מרובה - לכל השורות המסומנות (checkbox), כולל הכפילויות של כל אחת מהן
+  // שיבוץ אחראי מרובה - לכל השורות המסומנות המוצגות כרגע (לפי הסינון הפעיל), כולל הכפילויות של כל אחת מהן
   const handleBulkAssignResponsible = async () => {
     if (!result || !selectedAgentId) return;
-    const targetRows = result.rows.filter((r) => selected[r.customerId]);
+    const targetRows = selectedVisibleRows;
     if (targetRows.length === 0) { addToast('error', 'לא נבחרו שורות לשיבוץ'); return; }
 
     setBulkAssigning(true);
@@ -321,41 +446,6 @@ export default function CustomerTiersPage() {
     }
   };
 
-  // ── שורות אחרי "שינויים בלבד / הכל" ──
-  const baseRows = useMemo(() => {
-    if (!result) return [];
-    return showAll ? result.rows : result.rows.filter(function (r) { return r.changed; });
-  }, [result, showAll]);
-
-  // ── שורות אחרי סינון ──
-  const filteredRows = useMemo(() => {
-    return baseRows.filter((r) => {
-      const nameOk = !nameFilter || r.customerName.toLowerCase().includes(nameFilter.toLowerCase().trim());
-      const idOk = !idFilter || r.IDCustomer.includes(idFilter.trim());
-      const currOk = !currentTierFilter || r.currentTier === currentTierFilter;
-      const propOk = !proposedTierFilter || r.proposedTier === proposedTierFilter;
-      const respOk = !responsibleFilter
-        || (responsibleFilter === '__none__' ? !r.responsibleUserId : r.responsibleUserId === responsibleFilter);
-      return nameOk && idOk && currOk && propOk && respOk;
-    });
-  }, [baseRows, nameFilter, idFilter, currentTierFilter, proposedTierFilter, responsibleFilter]);
-
-  // ── מיון ──
-  const sortedRows = useMemo(() => {
-    if (!sortColumn) return filteredRows;
-    const arr = [...filteredRows];
-    arr.sort((a, b) => {
-      let av: string | number = a[sortColumn];
-      let bv: string | number = b[sortColumn];
-      if (typeof av === 'string') av = av.toLowerCase();
-      if (typeof bv === 'string') bv = bv.toLowerCase();
-      if (av < bv) return sortOrder === 'asc' ? -1 : 1;
-      if (av > bv) return sortOrder === 'asc' ? 1 : -1;
-      return 0;
-    });
-    return arr;
-  }, [filteredRows, sortColumn, sortOrder]);
-
   const handleSort = (col: SortColumn) => {
     if (sortColumn === col) {
       setSortOrder((prev) => (prev === 'asc' ? 'desc' : 'asc'));
@@ -374,24 +464,21 @@ export default function CustomerTiersPage() {
   const indexOfFirstRow = indexOfLastRow - rowsPerPage;
   const currentRows = sortedRows.slice(indexOfFirstRow, indexOfLastRow);
 
-  const toggleRow = (id: string) => {
-    setSelected(function (prev) {
+  const toggleRow = (r: TierRow) => {
+    setOverrides((prev) => ({ ...prev, [r.customerId]: !isRowSelected(r) }));
+  };
+
+  // ── "בחר/בטל הכל" פועל רק על מה שמוצג כרגע (לפי הסינון הפעיל) ──
+  const toggleAllFiltered = (checked: boolean) => {
+    setOverrides((prev) => {
       const next = { ...prev };
-      next[id] = !prev[id];
+      sortedRows.forEach(function (r) { next[r.customerId] = checked; });
       return next;
     });
   };
 
-  const toggleAllFiltered = (checked: boolean) => {
-    setSelected(function (prev) {
-      const upd = { ...prev };
-      sortedRows.forEach(function (r) { upd[r.customerId] = checked; });
-      return upd;
-    });
-  };
-
-  const selectedCount = Object.keys(selected).filter(function (k) { return selected[k]; }).length;
-  const allFilteredSelected = sortedRows.length > 0 && sortedRows.every((r) => selected[r.customerId]);
+  const selectedCount = selectedVisibleRows.length;
+  const allFilteredSelected = sortedRows.length > 0 && sortedRows.every((r) => isRowSelected(r));
 
   const sortArrow = (col: SortColumn) => {
     if (sortColumn !== col) return '';
@@ -426,7 +513,66 @@ export default function CustomerTiersPage() {
             {lastCalculated ? ('חודש אחרון שחושב: ' + lastCalculated) : 'לא בוצע חישוב עדיין לסוכן זה'}
           </div>
         </div>
+        <button className="ct-btn-secondary" onClick={toggleThresholdSettings} disabled={!selectedAgentId}>
+          ⚙ הגדרות דירוג
+        </button>
       </div>
+
+      {showThresholdSettings && (
+        <div className="ct-threshold-panel">
+          {thresholdsLoading ? (
+            <div className="ct-threshold-loading">טוען הגדרות...</div>
+          ) : (
+            <>
+              <div className="ct-threshold-header">
+                <span className="ct-threshold-title">סף דירוג לקוחות (נפרעים משוקלל למשפחה, ₪)</span>
+                {thresholdsSource === 'default' && (
+                  <span className="ct-threshold-badge">
+                    מוצגת כרגע ברירת המחדל הכללית — טרם הוגדר סף ייעודי לסוכן זה
+                  </span>
+                )}
+              </div>
+              <div className="ct-threshold-fields">
+                <div className="ct-field">
+                  <label className="ct-label">סף כסף</label>
+                  <input
+                    type="number"
+                    className="input"
+                    value={thresholdsDraft.silver}
+                    onChange={(e) => setThresholdsDraft((p) => ({ ...p, silver: e.target.value }))}
+                  />
+                </div>
+                <div className="ct-field">
+                  <label className="ct-label">סף זהב</label>
+                  <input
+                    type="number"
+                    className="input"
+                    value={thresholdsDraft.gold}
+                    onChange={(e) => setThresholdsDraft((p) => ({ ...p, gold: e.target.value }))}
+                  />
+                </div>
+                <div className="ct-field">
+                  <label className="ct-label">סף פרימיום</label>
+                  <input
+                    type="number"
+                    className="input"
+                    value={thresholdsDraft.premium}
+                    onChange={(e) => setThresholdsDraft((p) => ({ ...p, premium: e.target.value }))}
+                  />
+                </div>
+              </div>
+              <div className="ct-threshold-actions">
+                <button className="ct-btn-calc" onClick={saveThresholdSettings} disabled={thresholdsSaving}>
+                  {thresholdsSaving ? 'שומר...' : 'שמור הגדרות'}
+                </button>
+                <button className="ct-btn-secondary" onClick={() => setShowThresholdSettings(false)}>
+                  סגור
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      )}
 
       <div className="ct-controls">
         {detail && detail.role === 'admin' ? (
@@ -523,32 +669,42 @@ export default function CustomerTiersPage() {
             </div>
           </div>
 
+          {/* ── שורת פעולה מאוחדת: שיבוץ אחראי + אישור דירוג, שני הכפתורים יחד למעלה ── */}
+          {sortedRows.length > 0 && (
+            <div className="ct-action-bar">
+              <span className="ct-action-count">
+                {selectedCount} שורות מסומנות (מתוך המוצג לפי הסינון הנוכחי)
+              </span>
+              <div className="ct-action-buttons">
+                <button className="ct-btn-secondary" onClick={() => toggleAllFiltered(!allFilteredSelected)}>
+                  {allFilteredSelected ? 'נקה בחירה' : 'בחר הכל'}
+                </button>
+                <div className="ct-bulk-action">
+                  <select
+                    className="select-input"
+                    value={bulkResponsibleValue}
+                    onChange={(e) => setBulkResponsibleValue(e.target.value)}
+                  >
+                    <option value="">לא שובץ</option>
+                    {responsibleList.map((opt) => (<option key={opt.id} value={opt.id}>{opt.name}</option>))}
+                  </select>
+                  <button className="ct-btn-secondary" onClick={handleBulkAssignResponsible} disabled={bulkAssigning || selectedCount === 0}>
+                    {bulkAssigning ? 'משבץ...' : `שבץ אחראי לנבחרים (${selectedCount})`}
+                  </button>
+                </div>
+                <button className="ct-btn-apply" onClick={applyChanges} disabled={applying || selectedCount === 0}>
+                  {applying ? 'מעדכן...' : ('אשר ועדכן ' + selectedCount + ' לקוחות')}
+                </button>
+              </div>
+            </div>
+          )}
+
           {sortedRows.length === 0 ? (
             <div className="ct-empty">
               {showAll ? 'לא נמצאו לקוחות התואמים לסינון' : 'אין שינויים להצגה — לחצי על "הצג את כל הלקוחות" לראות את כולם'}
             </div>
           ) : (
             <div>
-              {/* ── שורת פעולה מרובה - מופיעה כשמסומנות שורות ── */}
-              {selectedCount > 0 && (
-                <div className="ct-bulk-bar">
-                  <span className="ct-bulk-count">{selectedCount} שורות מסומנות</span>
-                  <div className="ct-bulk-action">
-                    <select
-                      className="select-input"
-                      value={bulkResponsibleValue}
-                      onChange={(e) => setBulkResponsibleValue(e.target.value)}
-                    >
-                      <option value="">לא שובץ</option>
-                      {responsibleList.map((opt) => (<option key={opt.id} value={opt.id}>{opt.name}</option>))}
-                    </select>
-                    <button className="ct-btn-secondary" onClick={handleBulkAssignResponsible} disabled={bulkAssigning}>
-                      {bulkAssigning ? 'משבץ...' : `שבץ אחראי לנבחרים (${selectedCount})`}
-                    </button>
-                  </div>
-                </div>
-              )}
-
               <table>
                 <thead>
                   <tr>
@@ -590,7 +746,7 @@ export default function CustomerTiersPage() {
                       }}
                     >
                       <td onClick={(e) => e.stopPropagation()}>
-                        <input type="checkbox" checked={!!selected[r.customerId]} onChange={function () { toggleRow(r.customerId); }} />
+                        <input type="checkbox" checked={isRowSelected(r)} onChange={function () { toggleRow(r); }} />
                       </td>
                       <td>{r.customerName}</td>
                       <td>{r.IDCustomer}</td>
@@ -625,13 +781,6 @@ export default function CustomerTiersPage() {
                 rowsPerPage={rowsPerPage}
                 onRowsPerPageChange={setRowsPerPage}
               />
-
-              <div className="ct-apply-bar">
-                <span>{selectedCount} שורות מסומנות לאישור</span>
-                <button className="ct-btn-apply" onClick={applyChanges} disabled={applying || selectedCount === 0}>
-                  {applying ? 'מעדכן...' : ('אשר ועדכן ' + selectedCount + ' לקוחות')}
-                </button>
-              </div>
             </div>
           )}
         </div>

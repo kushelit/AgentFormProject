@@ -1106,43 +1106,54 @@ tempDate.setHours(tempDate.getHours() + 12);
     }
   };
   
+const handleDeleteExisting = async () => {
+  setShowConfirmDelete(false);
 
+  if (!existingRunIds.length) {
+    addToast("error", "לא נמצאה טעינה קודמת למחיקה");
+    return;
+  }
 
-  const handleDeleteExisting = async () => {
-    setShowConfirmDelete(false);
-  
-    if (!existingRunIds.length) {
-      addToast("error", "לא נמצאה טעינה קודמת למחיקה");
-      return;
-    }
-  
-    setIsLoading(true);
-    const runsToDelete = [...existingRunIds]; // שומרים לפני שננקה state
-  
-    try {
-      for (const runId of runsToDelete) {
-        await deleteByRunIdInChunks('externalCommissions', runId);
-        await deleteByRunIdInChunks('commissionSummaries', runId);
-        await deleteByRunIdInChunks('policyCommissionSummaries', runId);
-  
-        // מחיקת רשומת הריצה
-        await deleteDoc(doc(db, 'commissionImportRuns', runId));
+  setIsLoading(true);
+  const runsToDelete = [...existingRunIds];
+
+  try {
+    for (const runId of runsToDelete) {
+      await deleteByRunIdInChunks('externalCommissions', runId);
+      await deleteByRunIdInChunks('commissionSummaries', runId);
+      await deleteByRunIdInChunks('policyCommissionSummaries', runId);
+      await deleteByRunIdInChunks('ymCommissionSummaries', runId);
+
+      await deleteDoc(doc(db, 'commissionImportRuns', runId));
+
+      // 🔧 ניקוי מגשרים (portalImportRuns עם source='manual_bridge')
+      // שמצביעים לריצה הזו דרך queue.jobIds — אחרת נשארת רשומת "רפאים"
+      // שמצביעה ל-runId שכבר לא קיים בשום מקום.
+      const bridgeSnap = await getDocs(
+        query(
+          collection(db, 'portalImportRuns'),
+          where('source', '==', 'manual_bridge'),
+          where('queue.jobIds', 'array-contains', runId)
+        )
+      );
+      for (const d of bridgeSnap.docs) {
+        await deleteDoc(d.ref).catch(() => {});
       }
-  
-      // ניקוי מצב UI
-      setExistingRunIds([]);
-      setMonthsInFile([]); // אם הוספת
-      setStandardizedRows([]);
-      setSelectedFileName('');
-      if (fileInputRef.current) fileInputRef.current.value = '';
-  
-      addToast("success", "נמחקה טעינה קודמת בהצלחה");
-    } catch (err) {
-      addToast("error", "שגיאה במחיקת הטעינה");
-    } finally {
-      setIsLoading(false);
     }
-  };
+
+    setExistingRunIds([]);
+    setMonthsInFile([]);
+    setStandardizedRows([]);
+    setSelectedFileName('');
+    if (fileInputRef.current) fileInputRef.current.value = '';
+
+    addToast("success", "נמחקה טעינה קודמת בהצלחה");
+  } catch (err) {
+    addToast("error", "שגיאה במחיקת הטעינה");
+  } finally {
+    setIsLoading(false);
+  }
+};
    
   /* ==============================
      UI actions

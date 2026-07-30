@@ -2,7 +2,7 @@
 // components/Sharon/tabs/PensionTab.tsx
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { collection, query, where, getDocs } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, deleteDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase/firebase';
 import { useAuth } from '@/lib/firebase/AuthContext';
 import DealFormModal from '@/components/DealFormModal/DealFormModal';
@@ -10,6 +10,7 @@ import ImportRunsManager from '@/components/ImportRunsManager/ImportRunsManager'
 import useFetchMD from '@/hooks/useMD';
 import { useToast } from '@/hooks/useToast';
 import { ToastNotification } from '@/components/ToastNotification';
+import { saveAs } from 'file-saver';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -39,6 +40,7 @@ type SaleRow = {
   kupaStatus?: string;
   needsCorrection?: boolean;
   referrerName?: string;
+  sourceValue?: string;
 };
 
 type Props = {
@@ -74,8 +76,13 @@ const PensionTab: React.FC<Props> = ({ agentId, customer, onSelectCustomer, incl
   const [filterStatus, setFilterStatus] = useState('');
   const [filterNeedsCorrection, setFilterNeedsCorrection] = useState('');
   const [filterReferrer, setFilterReferrer] = useState('');
+  const [filterSourceLead, setFilterSourceLead] = useState('');
 
-  const { productToGroupMap } = useFetchMD();
+  const { productToGroupMap, sourceLeadMap, fetchSourceLeadMap } = useFetchMD();
+
+  useEffect(() => {
+    if (agentId) fetchSourceLeadMap?.(agentId);
+  }, [agentId, fetchSourceLeadMap]);
 
   // מבצע התאמה של עסקה לקבוצת המוצר המבוקשת (פנסיה+פיננסים / סיכונים / הכל)
   const matchesGroupFilter = useCallback((productName: string) => {
@@ -103,6 +110,17 @@ const PensionTab: React.FC<Props> = ({ agentId, customer, onSelectCustomer, incl
   const closeDealForm = () => {
     setShowDealForm(false);
     setEditingSaleId(null);
+  };
+
+  const deleteSale = async (saleId: string) => {
+    if (!confirm('למחוק עסקה זו?')) return;
+    try {
+      await deleteDoc(doc(db, 'sales', saleId));
+      addToast('success', 'העסקה נמחקה');
+      await fetchSales();
+    } catch {
+      addToast('error', 'שגיאה במחיקת העסקה');
+    }
   };
 
   // ─── ייבוא מאקסל — כרגע רק ל"פנסיה ופיננסים" ───────────────────────────
@@ -204,12 +222,14 @@ const PensionTab: React.FC<Props> = ({ agentId, customer, onSelectCustomer, incl
   const companies = [...new Set(groupFilteredSales.map(s => s.company).filter(Boolean))];
   const statuses = [...new Set(groupFilteredSales.map(s => s.statusPolicy).filter(Boolean))];
   const referrerOptions = [...new Set(groupFilteredSales.map(s => s.referrerName).filter(Boolean))] as string[];
+  const sourceLeadOptions = [...new Set(groupFilteredSales.map(s => s.sourceValue).filter(Boolean))] as string[];
 
   const filtered = groupFilteredSales.filter(s =>
     (!filterCompany || s.company === filterCompany) &&
     (!filterStatus || s.statusPolicy === filterStatus) &&
     (!filterNeedsCorrection || (filterNeedsCorrection === 'true' ? !!s.needsCorrection : !s.needsCorrection)) &&
-    (!filterReferrer || s.referrerName === filterReferrer)
+    (!filterReferrer || s.referrerName === filterReferrer) &&
+    (!filterSourceLead || s.sourceValue === filterSourceLead)
   );
 
   const totalPremia = filtered.reduce((sum, s) => sum + (parseFloat(String(s.insPremia)) || 0) + (parseFloat(String(s.pensiaPremia)) || 0) + (parseFloat(String(s.finansimPremia)) || 0), 0);
@@ -222,12 +242,70 @@ const PensionTab: React.FC<Props> = ({ agentId, customer, onSelectCustomer, incl
   const showReferrerCol = isAgency4;                            // מוצג ב-agency4, בכל לשונית (פנסיה+פיננסים וגם סיכונים)
   const totalColumns = 6 + (showInsPremia ? 1 : 0) + (showPensionFinanceCols ? 6 : 0) + (showNeedsCorrectionCol ? 1 : 0) + (showReferrerCol ? 1 : 0) + 1; // +1 = עמודת פעולות
 
+  // ─── ייצוא דוח — בדיוק מה שמוצג כרגע (אחרי הסינונים הפעילים) ───────────
+  const exportSalesToExcel = async () => {
+    if (!filtered.length) return;
+
+    const headers = [
+      'חודש', 'שם', 'ת"ז', 'מוצר', 'חברה', 'סטטוס',
+      ...(showInsPremia ? ['פרמיית ביטוח'] : []),
+      ...(showNeedsCorrectionCol ? ['נדרש תיקון'] : []),
+      ...(showReferrerCol ? ['נציג מפנה'] : []),
+      'מקור ליד',
+      ...(showPensionFinanceCols
+        ? ['פרמיית פנסיה', 'צבירת פנסיה', 'פרמיית פיננסים', 'צבירת פיננסים', 'סוג פעולה', 'סטטוס קופה']
+        : []),
+    ];
+
+    const rows = filtered.map((s) => [
+      formatDate(s.mounth), `${s.firstNameCustomer} ${s.lastNameCustomer}`, s.IDCustomer, s.product, s.company, s.statusPolicy,
+      ...(showInsPremia ? [s.insPremia || ''] : []),
+      ...(showNeedsCorrectionCol ? [s.statusPolicy === 'פעילה' ? (s.needsCorrection ? 'כן' : 'לא') : ''] : []),
+      ...(showReferrerCol ? [s.referrerName || ''] : []),
+      s.sourceValue ? (sourceLeadMap?.[s.sourceValue] || s.sourceValue) : '',
+      ...(showPensionFinanceCols
+        ? [s.pensiaPremia || '', s.pensiaZvira || '', s.finansimPremia || '', s.finansimZvira || '', s.kupaAction || '', s.kupaStatus || '']
+        : []),
+    ]);
+
+    const sheetName = dealFormContext === 'risk' ? 'דוח סיכונים' : 'דוח פנסיה ופיננסים';
+
+    try {
+      const res = await fetch('/api/export-report', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sheetName, headers, rows }),
+      });
+      if (!res.ok) {
+        addToast('error', 'שגיאה בהפקת הדוח');
+        return;
+      }
+      const blob = await res.blob();
+      saveAs(blob, `${sheetName}.xlsx`);
+    } catch {
+      addToast('error', 'שגיאה בהפקת הדוח');
+    }
+  };
+
+
   return (
     <div>
       {/* Readonly note + כפתורי הוספה/ייבוא */}
       <div className="sharon-readonly-note" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
         <span>👁 קריאה בלבד — נתונים מתוך מערכת MagicSale</span>
         <div style={{ display: 'flex', gap: 8, marginRight: 'auto' }}>
+          {agentId && (
+            <button
+              type="button"
+              onClick={exportSalesToExcel}
+              className="sharon-inline-btn"
+              style={{ background: '#185FA5' }}
+              disabled={!filtered.length}
+              title={!filtered.length ? 'אין נתונים להורדה' : ''}
+            >
+              הורד דוח ({filtered.length})
+            </button>
+          )}
           {agentId && canImport && (
             <>
               <button type="button" onClick={downloadImportTemplate} className="sharon-inline-btn" style={{ background: '#5F5E5A' }}>
@@ -276,6 +354,10 @@ const PensionTab: React.FC<Props> = ({ agentId, customer, onSelectCustomer, incl
         <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
           <option value="">כל הסטטוסים</option>
           {statuses.map(s => <option key={s} value={s}>{s}</option>)}
+        </select>
+        <select value={filterSourceLead} onChange={e => setFilterSourceLead(e.target.value)}>
+          <option value="">כל מקורות הליד</option>
+          {sourceLeadOptions.map(id => <option key={id} value={id}>{sourceLeadMap?.[id] || id}</option>)}
         </select>
         {showNeedsCorrectionCol && (
           <select value={filterNeedsCorrection} onChange={e => setFilterNeedsCorrection(e.target.value)}>
@@ -356,7 +438,7 @@ const PensionTab: React.FC<Props> = ({ agentId, customer, onSelectCustomer, incl
                       <td>{sale.kupaStatus || '—'}</td>
                     </>
                   )}
-                  <td onClick={(e) => e.stopPropagation()}>
+                  <td onClick={(e) => e.stopPropagation()} style={{ display: 'flex', gap: 4 }}>
                     <button
                       type="button"
                       className="sharon-inline-btn"
@@ -365,6 +447,15 @@ const PensionTab: React.FC<Props> = ({ agentId, customer, onSelectCustomer, incl
                       title="עריכת עסקה"
                     >
                       ✏️
+                    </button>
+                    <button
+                      type="button"
+                      className="sharon-inline-btn"
+                      style={{ background: '#E24B4A' }}
+                      onClick={() => deleteSale(sale.id)}
+                      title="מחיקת עסקה"
+                    >
+                      🗑
                     </button>
                   </td>
                 </tr>

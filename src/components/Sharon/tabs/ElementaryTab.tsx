@@ -15,6 +15,7 @@ import fetchCustomerBelongToAgent from '@/services/fetchCustomerBelongToAgent';
 import ReferrerField from '@/components/ReferrerField/ReferrerField';
 import ImportRunsManager from '@/components/ImportRunsManager/ImportRunsManager';
 import useFetchMD from '@/hooks/useMD';
+import { saveAs } from 'file-saver';
 import {
   calcElementaryCommission,
   type ElementaryProductGroup,
@@ -68,6 +69,7 @@ type ElementaryPolicy = {
   statusPolicy?: string;
   notes?: string;
   referrerName?: string;
+  sourceValue?: string;
 };
 
 type NewCustomerData = {
@@ -98,7 +100,11 @@ type Props = {
 
 const ElementaryTab: React.FC<Props> = ({ agentId, customer, onSelectCustomer }) => {
   const { detail } = useAuth();
-  const { statusPolicies } = useFetchMD();
+  const { statusPolicies, sourceLeadMap, fetchSourceLeadMap } = useFetchMD();
+
+  useEffect(() => {
+    if (agentId) fetchSourceLeadMap?.(agentId);
+  }, [agentId, fetchSourceLeadMap]);
   const { toasts, addToast, setToasts } = useToast();
 
   // agency4 (נתנאל): בלי שדות עמלה, עם סטטוס/הערות/נציג מפנה
@@ -116,6 +122,7 @@ const ElementaryTab: React.FC<Props> = ({ agentId, customer, onSelectCustomer })
   const [filterCompany, setFilterCompany] = useState('');
   const [filterProductId, setFilterProductId] = useState('');
   const [filterReferrer, setFilterReferrer] = useState('');
+  const [filterSourceLead, setFilterSourceLead] = useState('');
 
   // ─── ייבוא מאקסל ────────────────────────────────────────────────────────
   const [isUploadingExcel, setIsUploadingExcel] = useState(false);
@@ -287,7 +294,7 @@ const ElementaryTab: React.FC<Props> = ({ agentId, customer, onSelectCustomer })
       track: '' as const, policyNumber: '', licenseNumber: '', carModel: '',
       address: '', startDate: '', endDate: '',
       premium: '', commissionRate: '', commission: '', isManual: false,
-      statusPolicy: '', notes: '', referrerName: '',
+      statusPolicy: '', notes: '', referrerName: '', sourceValue: '',
     };
 
     if (customer) {
@@ -404,6 +411,7 @@ const ElementaryTab: React.FC<Props> = ({ agentId, customer, onSelectCustomer })
         statusPolicy: canManageAgency4Fields ? (editData.statusPolicy || '') : '',
         notes: canManageAgency4Fields ? (editData.notes || '') : '',
         referrerName: canManageAgency4Fields ? (editData.referrerName || '') : '',
+        sourceValue: editData.sourceValue || '',
       };
 
       if (editData.isNew) {
@@ -430,10 +438,54 @@ const ElementaryTab: React.FC<Props> = ({ agentId, customer, onSelectCustomer })
   const filtered = policies.filter(p =>
     (!filterCompany || p.company === filterCompany) &&
     (!filterProductId || p.productId === filterProductId) &&
-    (!filterReferrer || p.referrerName === filterReferrer)
+    (!filterReferrer || p.referrerName === filterReferrer) &&
+    (!filterSourceLead || p.sourceValue === filterSourceLead)
   );
   const referrerOptions = [...new Set(policies.map(p => p.referrerName).filter(Boolean))] as string[];
+  const sourceLeadOptions = [...new Set(policies.map(p => p.sourceValue).filter(Boolean))] as string[];
   const totalCommission = filtered.reduce((s, p) => s + (parseFloat(p.commission) || 0), 0);
+
+  // ─── ייצוא דוח — בדיוק מה שמוצג כרגע (אחרי הסינונים הפעילים) ───────────
+  const exportPoliciesToExcel = async () => {
+    if (!filtered.length) return;
+
+    const headers = [
+      'שם לקוח', 'ת"ז', 'חברה', 'מוצר',
+      ...(canManageAgency4Fields ? [] : ['מסלול']),
+      "מס' פוליסה", 'רישוי / כתובת', 'תאריך תחילה', 'תאריך סיום', 'פרמיה', 'מקור ליד',
+      ...(canManageAgency4Fields ? ['סטטוס', 'הערות', 'נציג מפנה'] : ['% עמלה', 'עמלה (₪)']),
+    ];
+
+    const rows = filtered.map((p) => [
+      p.customerName, p.customerId, p.company, p.productLabel,
+      ...(canManageAgency4Fields ? [] : [p.track || '']),
+      p.policyNumber, p.licenseNumber || p.address || '',
+      p.startDate ? formatDateDisplay(p.startDate) : '',
+      p.endDate ? formatDateDisplay(p.endDate) : '',
+      p.premium,
+      p.sourceValue ? (sourceLeadMap?.[p.sourceValue] || p.sourceValue) : '',
+      ...(canManageAgency4Fields
+        ? [p.statusPolicy || '', p.notes || '', p.referrerName || '']
+        : [p.commissionRate || '', p.commission || '']),
+    ]);
+
+    try {
+      const res = await fetch('/api/export-report', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sheetName: 'דוח אלמנטרי', headers, rows }),
+      });
+      if (!res.ok) {
+        addToast('error', 'שגיאה בהפקת הדוח');
+        return;
+      }
+      const blob = await res.blob();
+      saveAs(blob, 'דוח_אלמנטרי.xlsx');
+    } catch {
+      addToast('error', 'שגיאה בהפקת הדוח');
+    }
+  };
+
   const currentProduct = products.find(p => p.id === editData.productId);
   const isCarGroup = currentProduct?.productGroupId === 'car';
   const isHomeGroup = currentProduct?.productGroupId === 'home';
@@ -451,9 +503,9 @@ const ElementaryTab: React.FC<Props> = ({ agentId, customer, onSelectCustomer })
   };
 
   // מספר העמודות בפועל בטבלה — לחישוב colSpan דינמי
-  // קבועות: לקוח/ת"ז(colSpan=2) + חברה + מוצר + מס' פוליסה + רישוי/כתובת + תחילה + סיום + פרמיה = 9
-  // + מסלול (רק לא-agency4) = 10/9
-  const fixedColumns = 9 + (canManageAgency4Fields ? 0 : 1);
+  // קבועות: לקוח/ת"ז(colSpan=2) + חברה + מוצר + מס' פוליסה + רישוי/כתובת + תחילה + סיום + פרמיה + מקור ליד = 10
+  // + מסלול (רק לא-agency4) = 11/10
+  const fixedColumns = 10 + (canManageAgency4Fields ? 0 : 1);
   const totalColumns = fixedColumns + (canManageAgency4Fields ? 3 : 2) + 1; // +1 = עמודת פעולות
 
   // ─── Customer input block (used in new row) ───────────────────────────────
@@ -559,6 +611,14 @@ const ElementaryTab: React.FC<Props> = ({ agentId, customer, onSelectCustomer })
       <td><input className="sharon-inline-input" type="date" value={editData.startDate || ''} onChange={e => handleChange('startDate', e.target.value)} /></td>
       <td><input className="sharon-inline-input" type="date" value={editData.endDate || ''} onChange={e => handleChange('endDate', e.target.value)} /></td>
       <td><input className="sharon-inline-input" type="number" value={editData.premium || ''} onChange={e => handleChange('premium', e.target.value)} placeholder="₪" style={{ width: 70 }} /></td>
+      <td>
+        <select className="sharon-inline-select" value={editData.sourceValue || ''} onChange={e => handleChange('sourceValue', e.target.value)}>
+          <option value="">מקור ליד</option>
+          {Object.entries(sourceLeadMap || {}).map(([id, label]) => (
+            <option key={id} value={id}>{label as string}</option>
+          ))}
+        </select>
+      </td>
 
       {!canManageAgency4Fields && (
         <>
@@ -611,6 +671,16 @@ const ElementaryTab: React.FC<Props> = ({ agentId, customer, onSelectCustomer })
           >
             הורד תבנית אקסל
           </button>
+          <button
+            type="button"
+            onClick={exportPoliciesToExcel}
+            className="sharon-inline-btn"
+            style={{ background: '#185FA5' }}
+            disabled={!filtered.length}
+            title={!filtered.length ? 'אין נתונים להורדה' : ''}
+          >
+            הורד דוח ({filtered.length})
+          </button>
           <input
             ref={uploadInputRef}
             type="file"
@@ -636,7 +706,7 @@ const ElementaryTab: React.FC<Props> = ({ agentId, customer, onSelectCustomer })
             ניהול טעינות
           </button>
           <div className="sharon-add-row" onClick={startNew}>
-            + הוסף פוליסה{customer ? ` ל${customer.firstNameCustomer} ${customer.lastNameCustomer}` : ''}
+            + הוסף מכירה{customer ? ` ל${customer.firstNameCustomer} ${customer.lastNameCustomer}` : ''}
           </div>
         </div>
       )}
@@ -655,6 +725,10 @@ const ElementaryTab: React.FC<Props> = ({ agentId, customer, onSelectCustomer })
               ))}
             </optgroup>
           ))}
+        </select>
+        <select value={filterSourceLead} onChange={e => setFilterSourceLead(e.target.value)}>
+          <option value="">כל מקורות הליד</option>
+          {sourceLeadOptions.map(id => <option key={id} value={id}>{sourceLeadMap?.[id] || id}</option>)}
         </select>
         {canManageAgency4Fields && (
           <select value={filterReferrer} onChange={e => setFilterReferrer(e.target.value)}>
@@ -677,6 +751,7 @@ const ElementaryTab: React.FC<Props> = ({ agentId, customer, onSelectCustomer })
               <th>תחילה</th>
               <th>סיום</th>
               <th>פרמיה</th>
+              <th>מקור ליד</th>
               {!canManageAgency4Fields && (
                 <>
                   <th>% עמלה</th>
@@ -714,6 +789,7 @@ const ElementaryTab: React.FC<Props> = ({ agentId, customer, onSelectCustomer })
                     <td>{formatDateDisplay(policy.startDate)}</td>
                     <td>{formatDateDisplay(policy.endDate)}</td>
                     <td>{policy.premium ? parseFloat(policy.premium).toLocaleString() : '—'}</td>
+                    <td>{policy.sourceValue ? (sourceLeadMap?.[policy.sourceValue] || policy.sourceValue) : '—'}</td>
                     {!canManageAgency4Fields && (
                       <>
                         <td>{policy.commissionRate ? `${policy.commissionRate}%` : '—'}</td>

@@ -8,12 +8,14 @@ import { useAuth } from '@/lib/firebase/AuthContext';
 import { usePermission } from '@/hooks/usePermission';
 import useFetchAgentData from '@/hooks/useFetchAgentData';
 import { MeetingStage, MEETING_STAGE_META, MEETING_STAGE_ORDER, getMeetingStageLabel } from '@/lib/meetingStages';
+import { saveAs } from 'file-saver';
 import './MeetingsDashboard.css';
 
 type Tier = 'premium' | 'gold' | 'silver' | 'standard';
 
 interface CustomerRow {
   id: string;
+  IDCustomer?: string;
   firstNameCustomer: string;
   lastNameCustomer: string;
   phone?: string;
@@ -87,12 +89,13 @@ export default function MeetingsDashboard() {
   const [customers, setCustomers] = useState<CustomerRow[]>([]);
   const [agentUsers, setAgentUsers] = useState<AgentUser[]>([]);
   const [loading, setLoading] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
 
   // ── פילטרים ──
   const [filterResponsible, setFilterResponsible] = useState<'me' | 'all' | string>('me');
   const [filterTier, setFilterTier] = useState<'all' | Tier>('all');
   const [filterStage, setFilterStage] = useState<'all' | MeetingStage>('all');
-  const [nameFilter, setNameFilter] = useState('');
+  const [nameFilter, setNameFilter] = useState(''); // ── חיפוש חופשי: שם או ת"ז ──
 
   // ── מיון ──
   const [sortField, setSortField] = useState<SortField | null>(null);
@@ -167,11 +170,14 @@ export default function MeetingsDashboard() {
       rows = rows.filter(c => (c.meetingStage || 'not_started') === filterStage);
     }
 
+    // ── חיפוש חופשי: מתאים גם לשם (פרטי+משפחה) וגם לת"ז ──
     if (nameFilter.trim()) {
       const q = nameFilter.trim().toLowerCase();
-      rows = rows.filter(c =>
-        `${c.firstNameCustomer ?? ''} ${c.lastNameCustomer ?? ''}`.toLowerCase().includes(q),
-      );
+      rows = rows.filter(c => {
+        const name = `${c.firstNameCustomer ?? ''} ${c.lastNameCustomer ?? ''}`.toLowerCase();
+        const id = (c.IDCustomer ?? '').toLowerCase();
+        return name.includes(q) || id.includes(q);
+      });
     }
 
     return rows;
@@ -249,6 +255,41 @@ export default function MeetingsDashboard() {
       ' ' + d.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
   };
 
+  // ── ייצוא דוח — בדיוק מה שמוצג כרגע על המסך (אחרי סינון ומיון) ──
+  const exportToExcel = async () => {
+    if (!sorted.length || isExporting) return;
+    setIsExporting(true);
+    try {
+      const headers = ['לקוח', 'ת"ז', 'טלפון', 'דירוג', 'אחראי', 'סטטוס תהליך', 'יצירת קשר אחרונה', 'מועד פגישה'];
+
+      const rows = sorted.map(c => {
+        const tier = (c.customerTier || 'standard') as Tier;
+        const stage = (c.meetingStage || 'not_started') as MeetingStage;
+        return [
+          `${c.firstNameCustomer ?? ''} ${c.lastNameCustomer ?? ''}`.trim(),
+          c.IDCustomer || '',
+          c.phone || '',
+          TIER_LABEL[tier],
+          c.responsibleUserName || getUserName(c.responsibleUserId) || '',
+          getMeetingStageLabel(stage),
+          c.contactedAt ? formatContactedAt(c.contactedAt) : '',
+          stage === 'scheduled' && c.meetingDate ? formatMeetingDate(c.meetingDate) : '',
+        ];
+      });
+
+      const res = await fetch('/api/export-report', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sheetName: 'תהליך פגישות', headers, rows }),
+      });
+      if (!res.ok) return;
+      const blob = await res.blob();
+      saveAs(blob, 'דוח_תהליך_פגישות.xlsx');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   if (canAccessCrm === false) {
     return (
       <div className="md-page" dir="rtl">
@@ -264,6 +305,15 @@ export default function MeetingsDashboard() {
           <div className="md-title">ריכוז לקוחות ותהליך פגישות</div>
           <div className="md-subtitle">{filtered.length} לקוחות מוצגים</div>
         </div>
+        <button
+          type="button"
+          className="md-btn-export"
+          onClick={exportToExcel}
+          disabled={!sorted.length || isExporting}
+          title={!sorted.length ? 'אין נתונים להורדה' : ''}
+        >
+          {isExporting ? 'מפיק דוח...' : `⬇ הורד דוח (${sorted.length})`}
+        </button>
       </div>
 
       {/* ── פילטרים ── */}
@@ -324,10 +374,10 @@ export default function MeetingsDashboard() {
         </div>
 
         <div className="md-filter-group md-filter-search">
-          <label className="md-filter-label">חיפוש לפי שם</label>
+          <label className="md-filter-label">חיפוש לפי שם / ת&quot;ז</label>
           <input
             className="md-input"
-            placeholder="שם לקוח..."
+            placeholder="שם לקוח או ת&quot;ז..."
             value={nameFilter}
             onChange={e => setNameFilter(e.target.value)}
           />
@@ -375,6 +425,7 @@ export default function MeetingsDashboard() {
                   <tr key={c.id} onClick={() => router.push(`/customers/${c.id}`)} className="md-row">
                     <td className="md-cell-name">
                       {c.firstNameCustomer} {c.lastNameCustomer}
+                      {c.IDCustomer && <div className="md-cell-subid">{c.IDCustomer}</div>}
                     </td>
                     <td>{c.phone || '—'}</td>
                     <td>

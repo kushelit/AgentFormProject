@@ -10,6 +10,7 @@ import { db } from '@/lib/firebase/firebase';
 import { useToast } from '@/hooks/useToast';
 import { ToastNotification } from '@/components/ToastNotification';
 import fetchCustomerBelongToAgent from '@/services/fetchCustomerBelongToAgent';
+import { usePermission } from '@/hooks/usePermission';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -33,9 +34,9 @@ const TAX_STATUSES: TaxStatus[] = [
   'חדש', 'ממתין למסמכים', 'בבדיקה', 'לא זכאי/ת להחזר', 'ממתין להחזרים', 'קוד ביטוח לאומי',
 ];
 
-// 3 אפשרויות הסכם בלבד
-type CommissionRate = '5' | '10' | '15';
-const COMMISSION_RATES: CommissionRate[] = ['5', '10', '15'];
+// אפשרויות הסכם
+type CommissionRate = '5' | '10' | '15' | '20' | '25';
+const COMMISSION_RATES: CommissionRate[] = ['5', '10', '15', '20', '25'];
 
 type TaxReturnClient = {
   id: string;
@@ -49,7 +50,7 @@ type TaxReturnClient = {
   status: TaxStatus | '';
   documents: string;
   expectedRefund: string;
-  commissionRate: CommissionRate | '';  // 5 / 10 / 15
+  commissionRate: CommissionRate | '';  // 5 / 10 / 15 / 20 / 25
   accountantCommission: string;         // מחושב
   sharonCommission: string;             // מחושב
   paymentStatus: 'שולם' | 'טרם שולם' | '';
@@ -80,9 +81,11 @@ type Props = {
 
 // ─── Commission calc ──────────────────────────────────────────────────────────
 // בסיס = צפי החזר × 1.18 (כולל מע"מ)
-// 5%  → כל העמלה לרו"ח:  רו"ח = בסיס × 5%,    שרון = 0
-// 10% → חצי חצי:         רו"ח = בסיס × 5%,    שרון = בסיס × 5%
-// 15% → חצי חצי:         רו"ח = בסיס × 7.5%,  שרון = בסיס × 7.5%
+// 5%  → כל העמלה לרו"ח:  רו"ח = בסיס × 5%,     שרון = 0
+// 10% → חצי חצי:         רו"ח = בסיס × 5%,     שרון = בסיס × 5%
+// 15% → חצי חצי:         רו"ח = בסיס × 7.5%,   שרון = בסיס × 7.5%
+// 20% → חצי חצי:         רו"ח = בסיס × 10%,    שרון = בסיס × 10%
+// 25% → חצי חצי:         רו"ח = בסיס × 12.5%,  שרון = בסיס × 12.5%
 
 const VAT = 1.18;
 
@@ -107,6 +110,12 @@ function calcTaxCommissions(
   } else if (commissionRate === '15') {
     accountantPct = 7.5;
     sharonPct = 7.5;
+  } else if (commissionRate === '20') {
+    accountantPct = 10;
+    sharonPct = 10;
+  } else if (commissionRate === '25') {
+    accountantPct = 12.5;
+    sharonPct = 12.5;
   }
 
   return {
@@ -127,6 +136,9 @@ const TaxReturnsTab: React.FC<Props> = ({ agentId, customer, onSelectCustomer })
   const [isLookingUp, setIsLookingUp] = useState(false);
   const [filterStatus, setFilterStatus] = useState('');
   const [filterPayment, setFilterPayment] = useState('');
+
+  // הרשאה לצפייה בעמלת שרון — אותה הרשאה שמשמשת בדפים אחרים במערכת
+  const { canAccess: canViewCommissions } = usePermission('view_commissions_field');
 
   const fetchClients = useCallback(async () => {
     if (!agentId) return;
@@ -409,7 +421,9 @@ const TaxReturnsTab: React.FC<Props> = ({ agentId, customer, onSelectCustomer })
           {base && <div style={{ fontSize: 10, color: '#888', marginTop: 2 }}>בסיס: {parseFloat(base).toLocaleString()} ₪</div>}
         </td>
         <td style={{ fontSize: 11, color: '#5F5E5A' }}>{editData.accountantCommission ? `${parseFloat(editData.accountantCommission).toLocaleString()} ₪` : '—'}</td>
-        <td className="commission-cell">{editData.sharonCommission ? `${parseFloat(editData.sharonCommission).toLocaleString()} ₪` : '—'}</td>
+        {canViewCommissions && (
+          <td className="commission-cell">{editData.sharonCommission ? `${parseFloat(editData.sharonCommission).toLocaleString()} ₪` : '—'}</td>
+        )}
         <td>
           <select className="sharon-inline-select" value={editData.paymentStatus || ''} onChange={e => handleChange('paymentStatus', e.target.value)}>
             <option value="">בחר</option>
@@ -453,7 +467,7 @@ const TaxReturnsTab: React.FC<Props> = ({ agentId, customer, onSelectCustomer })
               <th>צפי החזר</th>
               <th>% הסכם</th>
              <th>עמלת רו&quot;ח</th>
-              <th>עמלת שרון</th>
+              {canViewCommissions && <th>עמלת שרון</th>}
               <th>תשלום</th>
               <th></th>
             </tr>
@@ -487,7 +501,9 @@ const TaxReturnsTab: React.FC<Props> = ({ agentId, customer, onSelectCustomer })
                     <td>{client.expectedRefund ? `${parseFloat(client.expectedRefund).toLocaleString()} ₪` : '—'}</td>
                     <td>{client.commissionRate ? `${client.commissionRate}%` : '—'}</td>
                     <td style={{ fontSize: 11, color: '#5F5E5A' }}>{client.accountantCommission ? `${parseFloat(client.accountantCommission).toLocaleString()} ₪` : '—'}</td>
-                    <td className="commission-cell">{client.sharonCommission ? `${parseFloat(client.sharonCommission).toLocaleString()} ₪` : '—'}</td>
+                    {canViewCommissions && (
+                      <td className="commission-cell">{client.sharonCommission ? `${parseFloat(client.sharonCommission).toLocaleString()} ₪` : '—'}</td>
+                    )}
                     <td>
                       <span className={`sharon-pill ${client.paymentStatus === 'שולם' ? 'sharon-pill-green' : 'sharon-pill-gray'}`}>
                         {client.paymentStatus || '—'}
@@ -512,8 +528,10 @@ const TaxReturnsTab: React.FC<Props> = ({ agentId, customer, onSelectCustomer })
   סה&quot;כ — {filtered.length} תיקים
 </td>
                 <td style={{ fontSize: 11, color: '#5F5E5A' }}>{totalAccountant.toLocaleString()} ₪</td>
-                <td className="commission-cell">{totalSharon.toLocaleString()} ₪</td>
-                <td colSpan={2}></td>
+                {canViewCommissions && (
+                  <td className="commission-cell">{totalSharon.toLocaleString()} ₪</td>
+                )}
+                <td colSpan={canViewCommissions ? 2 : 1}></td>
               </tr>
             )}
           </tbody>

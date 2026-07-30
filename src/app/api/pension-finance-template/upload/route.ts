@@ -36,6 +36,9 @@ const COL = {
   CANDIDATE_STATUS: 'סטטוס מועמד',
 };
 
+// ── זיהוי ת"ז ללא תלות בפורמט (עם/בלי 0 מוביל) - זהה לעיקרון בכל שאר הקבצים ──
+const canonId = (v: any): string => String(v ?? '').trim().replace(/\D/g, '').replace(/^0+/, '');
+
 function getCellText(row: ExcelJS.Row, colIndex: number): string {
   const value = row.getCell(colIndex).value;
   if (value == null) return "";
@@ -119,8 +122,11 @@ export async function POST(req: NextRequest) {
     const validStatusNames = statusSnap.docs.map((d) => String(d.data().statusName || "")).filter(Boolean);
     const workers = workerSnap.docs.map((d) => ({ id: d.id, name: String(d.data().name || "") }));
     const sourceLeads = sourceLeadSnap.docs.map((d) => ({ id: d.id, name: String(d.data().sourceLead || "") }));
-    const existingCustomersByIdNum = new Map(
-      customersSnap.docs.map((d) => [String(d.data().IDCustomer || "").trim(), { id: d.id, ...(d.data() as any) }])
+    // ✅ מפתח לפי ת"ז מנורמלת (canonId) - כדי שלא ייווצרו לקוחות כפולים בגלל הבדלי פורמט
+    const existingCustomersByCanonId = new Map(
+      customersSnap.docs
+        .map((d) => [canonId(d.data().IDCustomer), { id: d.id, ...(d.data() as any) }] as const)
+        .filter(([key]) => !!key)
     );
     const referrerNames = referrersSnap ? referrersSnap.docs.map((d) => String(d.data().name || "")) : [];
     const paymentNames = paymentSnap ? paymentSnap.docs.map((d) => String(d.data().name || "")) : [];
@@ -260,7 +266,15 @@ export async function POST(req: NextRequest) {
         return;
       }
 
-      const existingCustomer = existingCustomersByIdNum.get(idCustomer);
+      // ✅ חיפוש לקוח קיים לפי ת"ז מנורמלת, ולא מחרוזת גולמית מהאקסל
+      const idCustomerCanon = canonId(idCustomer);
+      const existingCustomer = existingCustomersByCanonId.get(idCustomerCanon);
+
+      // ✅ הת"ז שבפועל תישמר על העסקה: אם נמצא לקוח קיים - בדיוק כמו שהוא שמור אצלו.
+      // אם לא - בפורמט קנוני (בלי 0 מוביל), כדי לא ליצור עוד כפילויות עתידיות.
+      const resolvedIdCustomer = existingCustomer
+        ? String(existingCustomer.IDCustomer || idCustomer).trim()
+        : (idCustomerCanon || idCustomer);
 
       const payload: any = {
         agent: agentName,
@@ -269,7 +283,7 @@ export async function POST(req: NextRequest) {
         workerName,
         firstNameCustomer: firstName,
         lastNameCustomer: lastName,
-        IDCustomer: idCustomer,
+        IDCustomer: resolvedIdCustomer,
         company: companyName,
         product: matchedProduct!.name,
         insPremia: 0,
@@ -302,7 +316,7 @@ export async function POST(req: NextRequest) {
         payload,
         newCustomer: existingCustomer
           ? undefined
-          : { AgentId: agentId, IDCustomer: idCustomer, firstNameCustomer: firstName, lastNameCustomer: lastName, sourceValue, parentID: '' },
+          : { AgentId: agentId, IDCustomer: resolvedIdCustomer, firstNameCustomer: firstName, lastNameCustomer: lastName, sourceValue, parentID: '' },
       });
     });
 
@@ -319,6 +333,8 @@ export async function POST(req: NextRequest) {
     const CHUNK = 400;
     let writeCount = 0;
     let newCustomerCount = 0;
+    // ✅ מפתח לפי ת"ז מנורמלת - כדי שאותו לקוח חדש שמופיע בכמה שורות (אפילו בפורמטים
+    // שונים באקסל) ייווצר פעם אחת בלבד.
     const createdCustomerIds = new Map<string, string>();
     const runId = db.collection("importRuns").doc().id;
 
@@ -327,11 +343,12 @@ export async function POST(req: NextRequest) {
       const batch = db.batch();
 
       for (const row of chunk) {
-        if (row.newCustomer && !createdCustomerIds.has(row.payload.IDCustomer)) {
+        const customerKey = canonId(row.payload.IDCustomer) || row.payload.IDCustomer;
+        if (row.newCustomer && !createdCustomerIds.has(customerKey)) {
           const customerRef = db.collection("customer").doc();
           batch.set(customerRef, { ...row.newCustomer, runId, createdAt: admin.firestore.FieldValue.serverTimestamp() });
           batch.update(customerRef, { parentID: customerRef.id });
-          createdCustomerIds.set(row.payload.IDCustomer, customerRef.id);
+          createdCustomerIds.set(customerKey, customerRef.id);
           newCustomerCount++;
         }
 

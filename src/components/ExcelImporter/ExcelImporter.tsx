@@ -39,8 +39,7 @@ const systemFieldsDisplay = [
   { key: "finansimPremia", label: "פרמיית פיננסים", required: false },
   { key: "finansimZvira", label: "צבירה פיננסים", required: false },
   { key: "workerName", label: "עובד", required: false },
-  // { key: "sourceLeadName", label: "מקור ליד", required: false }, 
-  { key: "sourceValue", label: "מקור ליד", required: false },       // ✅
+  { key: "sourceValue", label: "מקור ליד", required: false },
   { key: "cancellationDate", label: "תאריך ביטול", required: false }, 
   { key: "hekefPaid", label: "שולם היקף", required: false },
   { key: "niudPaid", label: "שולם ניוד", required: false },
@@ -51,6 +50,18 @@ const systemFieldsDisplay = [
 const numericFields = [
   "insPremia", "pensiaPremia", "pensiaZvira", "finansimPremia", "finansimZvira"
 ];
+
+// ── זיהוי ת"ז ללא תלות בפורמט (עם/בלי 0 מוביל) - זהה לעיקרון בכל שאר הקבצים
+// (NewCustomer.tsx / DealFormModal.tsx / useEditableTable.ts / fetchDataForAgent.ts) ──
+const normIdDigits = (v: any) => String(v ?? '').trim().replace(/\D/g, '');
+const pad9 = (v: string) => v.padStart(9, '0');
+const stripLeadingZeros = (v: string) => v.replace(/^0+/, '');
+const idVariants = (v: any): string[] => {
+  const d = normIdDigits(v);
+  if (!d) return [];
+  return Array.from(new Set([d, pad9(d), stripLeadingZeros(d)].filter(Boolean)));
+};
+const canonId = (v: any) => stripLeadingZeros(normIdDigits(v));
 
 const ExcelImporter: React.FC = () => {
   const [headers, setHeaders] = useState<string[]>([]);
@@ -168,7 +179,6 @@ useEffect(() => {
       const jsonData: Record<string, any>[] = XLSX.utils.sheet_to_json(ws, { defval: "" });
 
       if (jsonData.length > 0) {
-        // console.log("🔎 Headers from Excel:", Object.keys(jsonData[0]));
         setHeaders(Object.keys(jsonData[0]));
         setPendingExcelData(jsonData);
         setErrors([]);
@@ -197,7 +207,6 @@ useEffect(() => {
   type ParsedDateResult = { value?: string; error?: string };
 
   const parseDateField = (value: any): ParsedDateResult => {
-    // ✅ ריק / null / undefined → מותר, בלי שגיאה
     if (
       value === null ||
       value === undefined ||
@@ -207,7 +216,7 @@ useEffect(() => {
     }
   
     if (value instanceof Date) {
-      return { value: value.toISOString().split("T")[0] }; // YYYY-MM-DD
+      return { value: value.toISOString().split("T")[0] };
     }
   
     if (typeof value === "number" && !isNaN(value)) {
@@ -253,7 +262,6 @@ useEffect(() => {
   };
   
 
-// לשימור תאימות אחורה (אם פונקציות אחרות משתמשות בשם הישן):
 const parseMounthField = parseDateField;
 
 
@@ -285,7 +293,6 @@ const parseMounthField = parseDateField;
         lastName = parts.slice(0, 2).join(" ");
       }
     } else {
-      // 4 מילים ומעלה
       if (structure === "firstNameFirst") {
         firstName = parts[0];
         lastName = parts.slice(1).join(" ");
@@ -294,7 +301,6 @@ const parseMounthField = parseDateField;
         lastName = parts.slice(0, -1).join(" ");
       }
     }
-    // console.log(`💡 Full name "${fullNameRaw}" split as → First: ${firstName}, Last: ${lastName}`);
 
     return { firstName, lastName };
   };
@@ -322,21 +328,11 @@ const parseMounthField = parseDateField;
 
 
   useEffect(() => {
-  //   console.log("📌 useEffect triggered", { pendingExcelData, areAllRequiredFieldsMapped });
-  //   console.log("📌 required fields missing?", {
-  //     requiredFields,
-  //     mapping,
-  //     fullNameMapped,
-  //     areAllRequiredFieldsMapped
-  //   }
-  // );
-
     if (!pendingExcelData || !areAllRequiredFieldsMapped) return;
 
     const parsedData = pendingExcelData.map((row) => {
       const newRow = { ...row };
 
-      // Trim all string fields
   Object.keys(newRow).forEach((key) => {
     if (typeof newRow[key] === "string") {
       newRow[key] = newRow[key].trim();
@@ -349,7 +345,6 @@ const parseMounthField = parseDateField;
         newRow["firstNameCustomer"] = firstName;
         newRow["lastNameCustomer"] = lastName;
       }
-      // עיבוד שדה תאריך
       const excelFieldForMounth = Object.keys(mapping).find(
         (col) => mapping[col] === "mounth"
       );
@@ -363,8 +358,6 @@ const parseMounthField = parseDateField;
           newRow["_mounthError"] = parsedDate.error;
         }
       }
-// ... בתוך ה-map של parsedData
-// עיבוד שדה תאריך "cancellationDate"
 const excelFieldForCancellation = Object.keys(mapping).find(
   (col) => mapping[col] === "cancellationDate"
 );
@@ -372,12 +365,11 @@ if (excelFieldForCancellation) {
   const rawCancelDate = row[excelFieldForCancellation];
   const parsedCancel = parseDateField(rawCancelDate);
   newRow[excelFieldForCancellation] = parsedCancel.value ?? rawCancelDate;
-  newRow["cancellationDate"] = parsedCancel.value ?? rawCancelDate; // לשמירה תקנית
+  newRow["cancellationDate"] = parsedCancel.value ?? rawCancelDate;
   if (parsedCancel.error) {
     newRow["_cancellationDateError"] = parsedCancel.error;
   }
 }
-      // עיבוד שדה עובד
       const workerField = Object.keys(mapping).find((col) => mapping[col] === "workerName");
       if (workerField) {
         const workerName = String(row[workerField] || "").trim();
@@ -390,16 +382,6 @@ if (excelFieldForCancellation) {
           newRow["_workerError"] = `עובד לא מזוהה: ${workerName}`;
         }
       }
-      // עיבוד שדה מקור ליד
-// const sourceLeadField = Object.keys(mapping).find(col => mapping[col] === "sourceLeadName");
-// if (sourceLeadField) {
-//   const leadName = String(row[sourceLeadField] || "").trim();
-//   newRow[sourceLeadField] = leadName;
-//   if (!sourceLeads.includes(leadName.toLowerCase())) {
-//     newRow["_sourceLeadError"] = `מקור ליד לא מזוהה: ${leadName}`;
-//   }
-// }
-// עיבוד שדה מקור ליד → sourceValue (ID)
 const sourceLeadField = Object.keys(mapping).find(
   (col) => mapping[col] === "sourceValue"
 );
@@ -407,7 +389,6 @@ const sourceLeadField = Object.keys(mapping).find(
 if (sourceLeadField) {
   const raw = String(row[sourceLeadField] || "").trim();
 
-  // מנסים למצוא לפי ID או לפי שם
   const match = sourceLeads.find(
     (sl) =>
       sl.id === raw ||
@@ -415,15 +396,12 @@ if (sourceLeadField) {
   );
 
   if (!raw) {
-    // ריק = תקין, בלי שגיאה
     newRow[sourceLeadField] = "";
     newRow["sourceValue"] = "";
   } else if (match) {
-    // שמירה של ה-ID בשורה
     newRow[sourceLeadField] = match.id;
     newRow["sourceValue"] = match.id;
   } else {
-    // לא זוהה – נשמור את מה שהיה אבל נסמן כשגיאה
     newRow[sourceLeadField] = raw;
     newRow["sourceValue"] = raw;
     newRow["_sourceLeadError"] = `מקור ליד לא מזוהה: ${raw}`;
@@ -432,12 +410,8 @@ if (sourceLeadField) {
       applyDefaultMinuySochen(newRow, mapping);
       return newRow;
     });
-    // console.log("🔍 fullNameStructure at parse time:", fullNameStructure);
     setRows(parsedData);
     checkAllRows(parsedData, mapping);
-    // console.log("🔍 parsedData example (first row):", parsedData[0]);
-    // console.log("✅ parsedData:", parsedData);
-    // setPendingExcelData(null);
   }, [pendingExcelData, mapping, fullNameStructure, workers, sourceLeads]);
 
   const applyDefaultMinuySochen = (row: any, mapping: Record<string, string>): void => {
@@ -494,7 +468,6 @@ if (sourceLeadField) {
   
     const required = ["firstNameCustomer", "lastNameCustomer", "IDCustomer", "company", "product", "mounth", "statusPolicy"];
   
-    // בדיקת שדות חובה
     const hasRequired = required.every((key) => {
       const source = reverseMap[key];
       if (!source) return true;
@@ -512,22 +485,19 @@ if (sourceLeadField) {
 
 
 
-    // ⭐⭐ שימו לב – זה השדה החדש! ⭐⭐
     const sourceValue = reverseMap["sourceValue"]
       ? String(row[reverseMap["sourceValue"]] || "").trim()
       : "";
   
-    // ולידציות קיימות
     const validCompany = !reverseMap["company"] || companyNames.includes(companyValue);
     const validProduct = !reverseMap["product"] || productNames.includes(productValue);
     const validID = !reverseMap["IDCustomer"] || /^\d{5,9}$/.test(idValue);
     const validWorker = !reverseMap["workerName"] || workerNames.includes(workerValue);
   
-    // ⭐⭐ ולידציה נכונה למקור ליד (ID בלבד) ⭐⭐
     const validSourceLead =
-      !reverseMap["sourceValue"] ||         // אין מיפוי → לא בודקים
-      sourceValue === "" ||                 // ריק → תקין
-      sourceLeads.some((sl) => sl.id === sourceValue);  // בודקים ID
+      !reverseMap["sourceValue"] ||
+      sourceValue === "" ||
+      sourceLeads.some((sl) => sl.id === sourceValue);
   const validHekefPaid =
   !reverseMap["hekefPaid"] ||
   String(row[reverseMap["hekefPaid"]] || "").trim() === "" ||
@@ -560,7 +530,6 @@ const validDepositStatus =
       cancellationValue === "" ||
       /^\d{4}-\d{2}-\d{2}$/.test(cancellationValue);
   
-    // בדיקת כלל השורה
     let isValid =
       hasRequired &&
       validCompany &&
@@ -577,7 +546,6 @@ const validDepositStatus =
     if (reverseMap["hekefPaid"]) isValid = isValid && validHekefPaid;
 if (reverseMap["niudPaid"]) isValid = isValid && validNiudPaid;
 if (reverseMap["depositStatus"]) isValid = isValid && validDepositStatus;
-    // ⭐⭐ זה התיקון ⭐⭐
     if (reverseMap["sourceValue"]) {
       isValid = isValid && validSourceLead;
     }
@@ -603,11 +571,9 @@ if (reverseMap["depositStatus"]) isValid = isValid && validDepositStatus;
   };
 
   useEffect(() => {
-    // console.log("שורות תקינות:", validRows);
   }, [errors, rows]);
 
   useEffect(() => {
-    // console.log("🔍 שורות עם שגיאות (errors):", errors);
   }, [errors]);
 
   const handleFieldChange = (rowIdx: number, field: string, value: string) => {
@@ -615,14 +581,12 @@ if (reverseMap["depositStatus"]) isValid = isValid && validDepositStatus;
     const originalRow = updatedRows[rowIdx];
     const updatedRow = { ...originalRow };
   
-    // עדכון גם לשם השדה במערכת וגם לעמודה המקורית מהאקסל
     const excelField = Object.entries(mapping).find(([, v]) => v === field)?.[0];
     if (excelField) {
       updatedRow[excelField] = value;
     }
     updatedRow[field] = value;
   
-    // mounth – תאריך
     if (field === "mounth") {
       const parsed = parseMounthField(value);
       updatedRow["mounth"] = parsed.value || value;
@@ -645,7 +609,6 @@ if (reverseMap["depositStatus"]) isValid = isValid && validDepositStatus;
       }
     }
     
-    // עובד
     if (field === "workerName") {
       const worker = workers.find(w => w.name.toLowerCase() === value.trim().toLowerCase());
       if (worker) {
@@ -653,7 +616,7 @@ if (reverseMap["depositStatus"]) isValid = isValid && validDepositStatus;
         updatedRow["workerName"] = worker.name;
     
         if (excelField) {
-          updatedRow[excelField] = worker.name; // זה המפתח!
+          updatedRow[excelField] = worker.name;
         }
     
         delete updatedRow["_workerError"];
@@ -662,8 +625,6 @@ if (reverseMap["depositStatus"]) isValid = isValid && validDepositStatus;
       }
     }
     
-    // מקור ליד
-// מקור ליד – נשמר sourceValue (ID)
 if (field === "sourceValue") {
   const id = value.trim();
 
@@ -703,7 +664,6 @@ if (field === "sourceValue") {
       "product",
       "mounth",
       "statusPolicy",
-      // "workerName"
     ];
 
     const reverseMap = Object.fromEntries(Object.entries(mapping).map(([k, v]) => [v, k]));
@@ -770,9 +730,9 @@ if (field === "sourceValue") {
     let newCustomerCount = 0;
 
     type FailedRowInfo = {
-      index: number;       // מספר שורה (1-based)
-      idCustomer: string;  // ת"ז לקוח אם יש
-      error: any;          // אובייקט השגיאה המקורי
+      index: number;
+      idCustomer: string;
+      error: any;
     };
     const failedRows: FailedRowInfo[] = [];
     const runId = doc(collection(db, "importRuns")).id;
@@ -803,27 +763,42 @@ if (field === "sourceValue") {
       mappedRow["workerName"] ??= originalRow["workerName"];
 
       try {
-        const customerQuery = query(
-          collection(db, 'customer'),
-          where('IDCustomer', '==', mappedRow.IDCustomer),
-          where('AgentId', '==', selectedAgentId)
-        );
+        // ✅ חיפוש לקוח קיים ללא תלות בפורמט הת"ז (עם/בלי 0 מוביל) - idVariants,
+        // כדי לא ליצור לקוח כפול אם הוא כבר קיים בפורמט אחר.
+        const idVariantsForCheck = idVariants(mappedRow.IDCustomer);
+        const customerQuery = idVariantsForCheck.length
+          ? query(
+              collection(db, 'customer'),
+              where('IDCustomer', 'in', idVariantsForCheck.slice(0, 10)),
+              where('AgentId', '==', selectedAgentId)
+            )
+          : query(
+              collection(db, 'customer'),
+              where('IDCustomer', '==', mappedRow.IDCustomer),
+              where('AgentId', '==', selectedAgentId)
+            );
         const customerSnapshot = await getDocs(customerQuery);
 
         let customerDocRef;
+        // ✅ הת"ז שבפועל תישמר על העסקה: אם נמצא לקוח קיים - בדיוק כמו שהוא שמור אצלו.
+        // אם לא - בפורמט קנוני (בלי 0 מוביל), כדי לא ליצור עוד כפילויות עתידיות.
+        let resolvedIDCustomer = canonId(mappedRow.IDCustomer) || String(mappedRow.IDCustomer || "");
+
         if (customerSnapshot.empty) {
           customerDocRef = await addDoc(collection(db, "customer"), {
             AgentId: selectedAgentId,
             runId,
             firstNameCustomer: mappedRow.firstNameCustomer || "",
             lastNameCustomer: mappedRow.lastNameCustomer || "",
-            IDCustomer: String(mappedRow.IDCustomer || ""),
+            IDCustomer: resolvedIDCustomer,
             parentID: "",
             sourceValue: mappedRow.sourceValue || "",
             sourceApp: "importExcel",
           });
           await updateDoc(customerDocRef, { parentID: customerDocRef.id });
           newCustomerCount++;
+        } else {
+          resolvedIDCustomer = String((customerSnapshot.docs[0].data() as any)?.IDCustomer || resolvedIDCustomer);
         }
 
         await addDoc(collection(db, 'sales'), {
@@ -834,7 +809,7 @@ if (field === "sourceValue") {
           workerName: mappedRow.workerName || "",
           firstNameCustomer: mappedRow.firstNameCustomer || "",
           lastNameCustomer: mappedRow.lastNameCustomer || "",
-          IDCustomer: mappedRow.IDCustomer || "",
+          IDCustomer: resolvedIDCustomer,
           company: mappedRow.company || "",
           product: mappedRow.product || "",
           insPremia: mappedRow.insPremia || 0,
@@ -847,7 +822,7 @@ if (field === "sourceValue") {
     hekefPaid: canManageAgency3Fields ? mappedRow.hekefPaid || "" : "",
 niudPaid: canManageAgency3Fields ? mappedRow.niudPaid || "" : "",
 depositStatus: canManageAgency3Fields ? mappedRow.depositStatus || "" : "",
-          cancellationDate: mappedRow.cancellationDate || "",  // ← חדש
+          cancellationDate: mappedRow.cancellationDate || "",
           statusPolicy: mappedRow.statusPolicy || "",
           notes: mappedRow.notes || "",
           policyNumber: mappedRow.policyNumber || "",
@@ -858,9 +833,8 @@ depositStatus: canManageAgency3Fields ? mappedRow.depositStatus || "" : "",
 
         successCount++;
       } catch (error) {
-        // 🔹 שורה שנכשלה – נאסוף גם את ה-ID של הלקוח וגם את ההודעה
         failedRows.push({
-          index: i + 1, // מספר שורה "אנושי"
+          index: i + 1,
           idCustomer: String(mappedRow.IDCustomer || ""),
           error,
         });
@@ -879,7 +853,6 @@ depositStatus: canManageAgency3Fields ? mappedRow.depositStatus || "" : "",
       customersCount: newCustomerCount,
       salesCount: successCount,
   
-      // 🔹 סיכום כישלונות בריצה
       failedCount: failedRows.length,
       failedCustomers: failedRows.map((row) => ({
         rowIndex: row.index,
@@ -1074,38 +1047,6 @@ depositStatus: canManageAgency3Fields ? mappedRow.depositStatus || "" : "",
                   שם משפחה ראשון (למשל: <b>כהן מלכה</b>) → <b>שם משפחה:</b> כהן, <b>שם פרטי:</b> מלכה
                 </label>
               </div>
-              {/* {(() => {
-                const fullNameColEntry = Object.entries(mapping).find(([, v]) => v === "fullName");
-                const fullNameCol = fullNameColEntry?.[0];
-
-                if (!fullNameCol || !rows?.[0]) return null;
-
-                const fullNameValue = rows[0][fullNameCol] || "";
-                const parts = fullNameValue.split(" ");
-
-                const firstSplit = {
-                  firstName: parts[0] || "",
-                  lastName: parts.slice(1).join(" "),
-                };
-
-                const lastSplit = {
-                  firstName: parts.slice(0, -1).join(" "),
-                  lastName: parts.slice(-1).join(" "),
-                };
-
-                return (
-                  fullNameValue && (
-                    <div className="mt-3 text-sm text-gray-700 bg-white border border-gray-200 rounded p-2">
-                      <div>🔍 דוגמה מתוך הקובץ: <b>{fullNameValue}</b></div>
-                      <div className="mt-1">
-                        📌 רווח ראשון → שם פרטי: <b>{firstSplit.firstName}</b>, שם משפחה: <b>{firstSplit.lastName}</b><br />
-                        📌 רווח אחרון → שם פרטי: <b>{lastSplit.firstName}</b>, שם משפחה: <b>{lastSplit.lastName}</b>
-                      </div>
-                    </div>
-                  )
-                );
-              })()}
-               */}
             </div>
           )}
         </div>
@@ -1137,8 +1078,8 @@ depositStatus: canManageAgency3Fields ? mappedRow.depositStatus || "" : "",
                         <td key={h}>
                           {(() => {
                           const rawValue = row[h];
-                          const trimmedValue = String(rawValue || '').trim();      // ערך כמו שהוא
-                          const lowerValue = trimmedValue.toLowerCase();           // ערך באותיות קטנות
+                          const trimmedValue = String(rawValue || '').trim();
+                          const lowerValue = trimmedValue.toLowerCase();
                           const field = mapping[h];
                           
                           const isInvalidCompany =
@@ -1183,19 +1124,10 @@ const isInvalidDepositStatus =
   field === "depositStatus" &&
   !!trimmedValue &&
   !depositStatusOptions.some((opt) => opt.name === trimmedValue);
-                          // ⭐⭐ כאן התיקון – בודקים לפי sourceValue (ID) ⭐⭐
                           const isInvalidSourceLead =
                             field === 'sourceValue' &&
                             !!trimmedValue &&
                             !sourceLeads.some((sl) => sl.id === trimmedValue);
-                            // console.log("🧪 DEBUG sourceLead", {
-                            //   field,
-                            //   value,
-                            //   trimmedValue: value.trim(),
-                            //   sourceLeads,
-                            //   includes: sourceLeads.includes(value.trim()),
-                            //   includesIgnoreCase: sourceLeads.some(name => name.toLowerCase() === value.trim().toLowerCase())
-                            // });
                             
                             const inputStyle = {
                               width: '100%',
@@ -1261,16 +1193,6 @@ const isInvalidDepositStatus =
                             
                             if (field === 'workerName') {
                               const error = row['_workerError'];
-                            //   console.log("🧩 workerName render debug", {
-                            //     rowIdx: idx,
-                            //     field,
-                            //     excelHeader: h,
-                            //     valueInRowH: row[h],
-                            //     workerNameInRow: row["workerName"],
-                            //     matchingWorker: workers.find(w => w.name === row[h]),
-                            //     allWorkers: workers.map(w => w.name),
-                            //   }
-                            // );
                               
                               return (
                                 <div>
@@ -1547,7 +1469,7 @@ if (field === 'depositStatus') {
           style={{
             width: `${importProgress}%`,
             transition: "width 0.2s ease",
-            backgroundColor: "#3b82f6", // כחול נחמד, אפשר להחליף ל־CSS קלאס
+            backgroundColor: "#3b82f6",
           }}
         />
       </div>
