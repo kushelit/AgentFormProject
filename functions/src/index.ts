@@ -101,3 +101,7 @@ export {
 export {
   addMagicTouchContactNote,
 } from "./addMagicTouchContactNote";
+
+export {
+  sendMagicTouchWhatsAppTemplate,
+} from "./sendMagicTouchWhatsAppTemplate";

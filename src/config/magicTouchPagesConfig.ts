@@ -22,7 +22,7 @@ const magicTouchPages: MagicTouchNavigationItem[] = [
     href: '/MagicTouch/Conversations',
     label: 'שיחות',
     icon: '💬',
-    permission: 'access_magic_touch_conversations',
+  permission: 'access_magic_touch',
   },
   {
     href: '/MagicTouch/Campaigns',

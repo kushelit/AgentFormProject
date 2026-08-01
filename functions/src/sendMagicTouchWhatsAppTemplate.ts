@@ -13,7 +13,7 @@ import {
   PORTAL_ENC_KEY_B64,
 } from "./shared/secrets";
 
-export const sendWhatsAppConversationMessage =
+export const sendMagicTouchWhatsAppTemplate =
   onCall(
     {
       region:
@@ -33,11 +33,11 @@ export const sendWhatsAppConversationMessage =
     async (req) => {
       const mod =
         await import(
-          "./sendWhatsAppConversationMessage.impl"
+          "./sendMagicTouchWhatsAppTemplate.impl"
         );
 
       return mod
-        .sendWhatsAppConversationMessageImpl(
+        .sendMagicTouchWhatsAppTemplateImpl(
           req
         );
     }
