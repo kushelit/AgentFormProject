@@ -105,3 +105,7 @@ export {
 export {
   sendMagicTouchWhatsAppTemplate,
 } from "./sendMagicTouchWhatsAppTemplate";
+
+export {
+  sendMagicTouchWhatsAppCampaign,
+} from "./sendMagicTouchWhatsAppCampaign";

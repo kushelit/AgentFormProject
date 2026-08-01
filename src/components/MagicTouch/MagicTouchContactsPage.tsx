@@ -7,15 +7,21 @@ import {
   useState,
 } from 'react';
 
-import { httpsCallable } from 'firebase/functions';
+import Link from 'next/link';
 
-import { functions } from '@/lib/firebase/firebase';
+import {
+  httpsCallable,
+} from 'firebase/functions';
+
+import {
+  functions,
+} from '@/lib/firebase/firebase';
+
 import useFetchAgentData from '@/hooks/useFetchAgentData';
 
 import CreateMagicTouchContactModal from '@/components/MagicTouch/CreateMagicTouchContactModal';
 import ImportMagicTouchExcelModal from '@/components/MagicTouch/ImportMagicTouchExcelModal';
-
-import Link from 'next/link';
+import SendMagicTouchCampaignModal from '@/components/MagicTouch/SendMagicTouchCampaignModal';
 
 type SourceSystem =
   | 'surense'
@@ -44,72 +50,189 @@ type MagicTouchContact = {
   gender: string | null;
   birthDate: string | null;
 
-  sourceSystem: SourceSystem;
-  sourceRecordId: string | null;
+  sourceSystem:
+    SourceSystem;
+
+  sourceRecordId:
+    string | null;
 
   sourceData?: {
     surense?: {
-      customerId: string | null;
-      workflowId: string | null;
-      statusName: string | null;
-      statusActive: boolean | null;
-      lastActivityDate: string | null;
+      customerId:
+        string | null;
+
+      workflowId:
+        string | null;
+
+      statusName:
+        string | null;
+
+      statusActive:
+        boolean | null;
+
+      lastActivityDate:
+        string | null;
     } | null;
 
     magicsale?: {
-      customerDocId: string | null;
-      customerId: string | null;
+      customerDocId:
+        string | null;
+
+      customerId:
+        string | null;
     } | null;
 
     excel?: {
-      importId: string | null;
-      fileName: string | null;
-      rowNumber: number | null;
-      uploadedBy: string | null;
+      importId:
+        string | null;
+
+      fileName:
+        string | null;
+
+      rowNumber:
+        number | null;
+
+      uploadedBy:
+        string | null;
     } | null;
   };
 
-  contactStatus: string;
-  interestStatus: string;
-  appointmentStatus: string;
-  appointmentProvider: string | null;
-  consentStatus: string;
+  contactStatus:
+    string;
 
-  tags: string[];
-  notes: string | null;
+  interestStatus:
+    string;
 
-  lastInboundAt: number | null;
-  lastOutboundAt: number | null;
-  lastReplyText: string | null;
+  appointmentStatus:
+    string;
 
-  sourceLastSyncedAt: number | null;
-  createdAt: number | null;
-  updatedAt: number | null;
+  appointmentProvider:
+    string | null;
+
+  consentStatus:
+    string;
+
+  tags:
+    string[];
+
+  notes:
+    string | null;
+
+  lastInboundAt:
+    number | null;
+
+  lastOutboundAt:
+    number | null;
+
+  lastReplyText:
+    string | null;
+
+  sourceLastSyncedAt:
+    number | null;
+
+  createdAt:
+    number | null;
+
+  updatedAt:
+    number | null;
 };
 
 type MagicTouchStats = {
-  total: number;
-  bySource: Record<string, number>;
-  byContactStatus: Record<string, number>;
-  byInterestStatus: Record<string, number>;
-  byAppointmentStatus: Record<string, number>;
-  withPhone: number;
-  withoutPhone: number;
-  withEmail: number;
-  withoutEmail: number;
+  total:
+    number;
+
+  bySource:
+    Record<
+      string,
+      number
+    >;
+
+  byContactStatus:
+    Record<
+      string,
+      number
+    >;
+
+  byInterestStatus:
+    Record<
+      string,
+      number
+    >;
+
+  byAppointmentStatus:
+    Record<
+      string,
+      number
+    >;
+
+  withPhone:
+    number;
+
+  withoutPhone:
+    number;
+
+  withEmail:
+    number;
+
+  withoutEmail:
+    number;
 };
 
 type GetMagicTouchContactsResponse = {
-  ok: boolean;
-  agentId: string;
-  contacts: MagicTouchContact[];
-  stats: MagicTouchStats;
-  count: number;
-  limit: number;
+  ok:
+    boolean;
+
+  agentId:
+    string;
+
+  contacts:
+    MagicTouchContact[];
+
+  stats:
+    MagicTouchStats;
+
+  count:
+    number;
+
+  limit:
+    number;
+};
+
+type SendCampaignResponse = {
+  ok:
+    boolean;
+
+  partialSuccess:
+    boolean;
+
+  agentId:
+    string;
+
+  campaignId:
+    string;
+
+  campaignName:
+    string;
+
+  templateName:
+    string;
+
+  received:
+    number;
+
+  sent:
+    number;
+
+  failed:
+    number;
+
+  status:
+    string;
 };
 
 function formatDate(
-  value: number | null
+  value:
+    number | null
 ): string {
   if (!value) {
     return '—';
@@ -118,18 +241,26 @@ function formatDate(
   return new Intl.DateTimeFormat(
     'he-IL',
     {
-      dateStyle: 'short',
-      timeStyle: 'short',
+      dateStyle:
+        'short',
+
+      timeStyle:
+        'short',
     }
   ).format(
-    new Date(value)
+    new Date(
+      value
+    )
   );
 }
 
 function sourceLabel(
-  source: string
+  source:
+    string
 ): string {
-  switch (source) {
+  switch (
+    source
+  ) {
     case 'surense':
       return 'שורנס';
 
@@ -151,9 +282,12 @@ function sourceLabel(
 }
 
 function interestLabel(
-  status: string
+  status:
+    string
 ): string {
-  switch (status) {
+  switch (
+    status
+  ) {
     case 'interested':
       return 'מעוניין';
 
@@ -172,9 +306,12 @@ function interestLabel(
 }
 
 function appointmentLabel(
-  status: string
+  status:
+    string
 ): string {
-  switch (status) {
+  switch (
+    status
+  ) {
     case 'link_sent':
       return 'נשלח קישור';
 
@@ -198,7 +335,8 @@ function appointmentLabel(
 export default function MagicTouchContactsPage() {
   const {
     selectedAgentId,
-  } = useFetchAgentData();
+  } =
+    useFetchAgentData();
 
   const agentId =
     selectedAgentId;
@@ -244,6 +382,12 @@ export default function MagicTouchContactsPage() {
     useState('');
 
   const [
+    successMessage,
+    setSuccessMessage,
+  ] =
+    useState('');
+
+  const [
     isCreateModalOpen,
     setIsCreateModalOpen,
   ] =
@@ -254,6 +398,22 @@ export default function MagicTouchContactsPage() {
     setIsExcelImportOpen,
   ] =
     useState(false);
+
+  const [
+    isCampaignModalOpen,
+    setIsCampaignModalOpen,
+  ] =
+    useState(false);
+
+  const [
+    selectedContactIds,
+    setSelectedContactIds,
+  ] =
+    useState<
+      Set<string>
+    >(
+      new Set()
+    );
 
   const loadContacts =
     useCallback(
@@ -274,6 +434,7 @@ export default function MagicTouchContactsPage() {
               {
                 agentId:
                   string;
+
                 limit:
                   number;
               },
@@ -286,6 +447,7 @@ export default function MagicTouchContactsPage() {
           const result =
             await fn({
               agentId,
+
               limit:
                 500,
             });
@@ -333,6 +495,18 @@ export default function MagicTouchContactsPage() {
     void loadContacts();
   }, [
     loadContacts,
+  ]);
+
+  useEffect(() => {
+    setSelectedContactIds(
+      new Set()
+    );
+
+    setIsCampaignModalOpen(
+      false
+    );
+  }, [
+    agentId,
   ]);
 
   const filteredContacts =
@@ -393,6 +567,184 @@ export default function MagicTouchContactsPage() {
       sourceFilter,
     ]);
 
+  const selectedContacts =
+    useMemo(
+      () =>
+        contacts.filter(
+          (
+            contact
+          ) =>
+            selectedContactIds.has(
+              contact.contactId
+            )
+        ),
+      [
+        contacts,
+        selectedContactIds,
+      ]
+    );
+
+  const selectedCount =
+    selectedContactIds.size;
+
+  const filteredContactIds =
+    useMemo(
+      () =>
+        filteredContacts.map(
+          (
+            contact
+          ) =>
+            contact.contactId
+        ),
+      [
+        filteredContacts,
+      ]
+    );
+
+  const allFilteredSelected =
+    filteredContactIds.length >
+      0 &&
+    filteredContactIds.every(
+      (
+        contactId
+      ) =>
+        selectedContactIds.has(
+          contactId
+        )
+    );
+
+  const someFilteredSelected =
+    filteredContactIds.some(
+      (
+        contactId
+      ) =>
+        selectedContactIds.has(
+          contactId
+        )
+    );
+
+  const toggleContact =
+    (
+      contactId:
+        string
+    ) => {
+      setSelectedContactIds(
+        (
+          current
+        ) => {
+          const next =
+            new Set(
+              current
+            );
+
+          if (
+            next.has(
+              contactId
+            )
+          ) {
+            next.delete(
+              contactId
+            );
+          } else {
+            next.add(
+              contactId
+            );
+          }
+
+          return next;
+        }
+      );
+    };
+
+  const toggleAllFiltered =
+    () => {
+      setSelectedContactIds(
+        (
+          current
+        ) => {
+          const next =
+            new Set(
+              current
+            );
+
+          if (
+            allFilteredSelected
+          ) {
+            for (
+              const contactId of
+              filteredContactIds
+            ) {
+              next.delete(
+                contactId
+              );
+            }
+          } else {
+            for (
+              const contactId of
+              filteredContactIds
+            ) {
+              next.add(
+                contactId
+              );
+            }
+          }
+
+          return next;
+        }
+      );
+    };
+
+  const clearSelection =
+    () => {
+      setSelectedContactIds(
+        new Set()
+      );
+    };
+
+  const openCampaignModal =
+    () => {
+      if (
+        !agentId
+      ) {
+        setErrorMessage(
+          'לא נמצא סוכן פעיל.'
+        );
+        return;
+      }
+
+      if (
+        selectedCount ===
+        0
+      ) {
+        setErrorMessage(
+          'יש לבחור לפחות איש קשר אחד.'
+        );
+        return;
+      }
+
+      if (
+        selectedCount >
+        100
+      ) {
+        setErrorMessage(
+          'ניתן לשלוח עד 100 אנשי קשר בכל קמפיין.'
+        );
+        return;
+      }
+
+      setErrorMessage('');
+      setSuccessMessage('');
+
+      setIsCampaignModalOpen(
+        true
+      );
+    };
+
+  const selectedPreviewName =
+    selectedContacts[0]
+      ?.fullName ||
+    null;
+
   return (
     <section
       dir="rtl"
@@ -410,7 +762,7 @@ export default function MagicTouchContactsPage() {
             </h1>
 
             <p className="mt-2 text-gray-600">
-              ניהול אנשי קשר, מקורות מידע ותהליכי תקשורת.
+              ניהול אנשי קשר, מקורות מידע ושליחת קמפיינים.
             </p>
           </div>
 
@@ -435,9 +787,7 @@ export default function MagicTouchContactsPage() {
                 hover:bg-slate-50
               "
             >
-              <span
-                aria-hidden="true"
-              >
+              <span aria-hidden="true">
                 ⬇
               </span>
 
@@ -449,13 +799,10 @@ export default function MagicTouchContactsPage() {
             <button
               type="button"
               onClick={() => {
-                if (
-                  !agentId
-                ) {
+                if (!agentId) {
                   setErrorMessage(
                     'לא נמצא סוכן פעיל לייבוא.'
                   );
-
                   return;
                 }
 
@@ -486,9 +833,7 @@ export default function MagicTouchContactsPage() {
                 disabled:opacity-50
               "
             >
-              <span
-                aria-hidden="true"
-              >
+              <span aria-hidden="true">
                 ⬆
               </span>
 
@@ -500,13 +845,10 @@ export default function MagicTouchContactsPage() {
             <button
               type="button"
               onClick={() => {
-                if (
-                  !agentId
-                ) {
+                if (!agentId) {
                   setErrorMessage(
                     'לא נמצא סוכן פעיל להוספת איש קשר.'
                   );
-
                   return;
                 }
 
@@ -535,9 +877,7 @@ export default function MagicTouchContactsPage() {
                 disabled:opacity-50
               "
             >
-              <span
-                aria-hidden="true"
-              >
+              <span aria-hidden="true">
                 ＋
               </span>
 
@@ -547,6 +887,18 @@ export default function MagicTouchContactsPage() {
             </button>
           </div>
         </header>
+
+        {errorMessage ? (
+          <div className="mb-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-red-700">
+            {errorMessage}
+          </div>
+        ) : null}
+
+        {successMessage ? (
+          <div className="mb-5 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-green-700">
+            {successMessage}
+          </div>
+        ) : null}
 
         <section className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-4">
           <div className="rounded-xl border bg-white p-4 shadow-sm">
@@ -597,6 +949,43 @@ export default function MagicTouchContactsPage() {
             </div>
           </div>
         </section>
+
+        {selectedCount >
+        0 ? (
+          <section className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3">
+            <div className="font-semibold text-blue-900">
+              נבחרו{' '}
+              {selectedCount}{' '}
+              אנשי קשר
+            </div>
+
+            <button
+              type="button"
+              onClick={
+                clearSelection
+              }
+              className="rounded-lg border border-blue-200 bg-white px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-50"
+            >
+              ניקוי בחירה
+            </button>
+
+            <div className="flex-1" />
+
+            <button
+              type="button"
+              onClick={
+                openCampaignModal
+              }
+              disabled={
+                selectedCount >
+                100
+              }
+              className="rounded-lg bg-green-600 px-5 py-2.5 font-semibold text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              שליחת קמפיין WhatsApp
+            </button>
+          </section>
+        ) : null}
 
         <section className="overflow-hidden rounded-xl border bg-white shadow-sm">
           <div className="flex flex-col gap-3 border-b p-4 md:flex-row md:items-center md:justify-between">
@@ -677,14 +1066,6 @@ export default function MagicTouchContactsPage() {
             </button>
           </div>
 
-          {errorMessage ? (
-            <div className="m-4 rounded-lg border border-red-200 bg-red-50 p-4 text-red-700">
-              {
-                errorMessage
-              }
-            </div>
-          ) : null}
-
           {isLoading ? (
             <div className="p-8 text-center text-gray-500">
               טוען אנשי קשר...
@@ -700,6 +1081,30 @@ export default function MagicTouchContactsPage() {
               <table className="min-w-full text-right">
                 <thead className="bg-gray-50 text-sm text-gray-600">
                   <tr>
+                    <th className="w-12 px-4 py-3 text-center">
+                      <input
+                        type="checkbox"
+                        checked={
+                          allFilteredSelected
+                        }
+                        ref={(
+                          input
+                        ) => {
+                          if (
+                            input
+                          ) {
+                            input.indeterminate =
+                              someFilteredSelected &&
+                              !allFilteredSelected;
+                          }
+                        }}
+                        onChange={
+                          toggleAllFiltered
+                        }
+                        aria-label="בחירת כל אנשי הקשר המסוננים"
+                      />
+                    </th>
+
                     <th className="px-4 py-3">
                       שם
                     </th>
@@ -734,70 +1139,102 @@ export default function MagicTouchContactsPage() {
                   {filteredContacts.map(
                     (
                       contact
-                    ) => (
-                     <tr
-  key={contact.contactId}
-  className="hover:bg-gray-50"
->
-                   <td className="px-4 py-3">
-  <Link
-    href={`/MagicTouch/Contacts/${encodeURIComponent(
-      contact.contactId
-    )}?agentId=${encodeURIComponent(
-      agentId
-    )}`}
-    className="block rounded-md hover:text-blue-700"
-  >
-    <div className="font-medium text-gray-900 hover:text-blue-700">
-      {contact.fullName || 'ללא שם'}
-    </div>
+                    ) => {
+                      const isSelected =
+                        selectedContactIds.has(
+                          contact.contactId
+                        );
 
-    {contact.email ? (
-      <div className="text-sm text-gray-500">
-        {contact.email}
-      </div>
-    ) : null}
-  </Link>
-</td>
+                      return (
+                        <tr
+                          key={
+                            contact.contactId
+                          }
+                          className={`hover:bg-gray-50 ${
+                            isSelected
+                              ? 'bg-blue-50/60'
+                              : ''
+                          }`}
+                        >
+                          <td className="px-4 py-3 text-center">
+                            <input
+                              type="checkbox"
+                              checked={
+                                isSelected
+                              }
+                              onChange={() =>
+                                toggleContact(
+                                  contact.contactId
+                                )
+                              }
+                              aria-label={`בחירת ${contact.fullName || 'איש קשר'}`}
+                            />
+                          </td>
 
-                        <td className="px-4 py-3">
-                          {contact.phone ||
-                            '—'}
-                        </td>
+                          <td className="px-4 py-3">
+                            <Link
+                              href={`/MagicTouch/Contacts/${encodeURIComponent(
+                                contact.contactId
+                              )}?agentId=${encodeURIComponent(
+                                agentId
+                              )}`}
+                              className="block rounded-md hover:text-blue-700"
+                            >
+                              <div className="font-medium text-gray-900 hover:text-blue-700">
+                                {contact.fullName ||
+                                  'ללא שם'}
+                              </div>
 
-                        <td className="px-4 py-3">
-                          {sourceLabel(
-                            contact.sourceSystem
-                          )}
-                        </td>
+                              {contact.email ? (
+                                <div className="text-sm text-gray-500">
+                                  {contact.email}
+                                </div>
+                              ) : null}
+                            </Link>
+                          </td>
 
-                        <td className="px-4 py-3">
-                          {interestLabel(
-                            contact.interestStatus
-                          )}
-                        </td>
+                          <td
+                            className="px-4 py-3"
+                            dir="ltr"
+                          >
+                            {contact.phone ||
+                              '—'}
+                          </td>
 
-                        <td className="px-4 py-3">
-                          {appointmentLabel(
-                            contact.appointmentStatus
-                          )}
-                        </td>
+                          <td className="px-4 py-3">
+                            {sourceLabel(
+                              contact.sourceSystem
+                            )}
+                          </td>
 
-                        <td className="px-4 py-3">
-                          {contact
-                            .sourceData
-                            ?.surense
-                            ?.statusName ||
-                            '—'}
-                        </td>
+                          <td className="px-4 py-3">
+                            {interestLabel(
+                              contact.interestStatus
+                            )}
+                          </td>
 
-                        <td className="px-4 py-3">
-                          {formatDate(
-                            contact.updatedAt
-                          )}
-                        </td>
-                      </tr>
-                    )
+                          <td className="px-4 py-3">
+                            {appointmentLabel(
+                              contact.appointmentStatus
+                            )}
+                          </td>
+
+                          <td className="px-4 py-3">
+                            {contact
+                              .sourceData
+                              ?.surense
+                              ?.statusName ||
+                              '—'}
+                          </td>
+
+                          <td className="px-4 py-3">
+                            {formatDate(
+                              contact.updatedAt
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    }
                   )}
                 </tbody>
               </table>
@@ -835,6 +1272,42 @@ export default function MagicTouchContactsPage() {
             );
           }}
           onImported={async () => {
+            await loadContacts();
+          }}
+        />
+      ) : null}
+
+      {isCampaignModalOpen &&
+      agentId &&
+      selectedCount >
+        0 ? (
+        <SendMagicTouchCampaignModal
+          agentId={
+            agentId
+          }
+          contactIds={Array.from(
+            selectedContactIds
+          )}
+          selectedContactName={
+            selectedPreviewName
+          }
+          onClose={() => {
+            setIsCampaignModalOpen(
+              false
+            );
+          }}
+          onSent={async (
+            result
+          ) => {
+            setSuccessMessage(
+              result.failed >
+                0
+                ? `הקמפיין הסתיים: ${result.sent} נשלחו, ${result.failed} נכשלו.`
+                : `הקמפיין נשלח בהצלחה ל-${result.sent} אנשי קשר.`
+            );
+
+            clearSelection();
+
             await loadContacts();
           }}
         />
