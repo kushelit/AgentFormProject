@@ -62,12 +62,35 @@ export async function saveAgentWhatsAppConfigImpl(req: any): Promise<object> {
   if (!userSnap.exists) throw new HttpsError("permission-denied", "User not found");
 
   const userData = userSnap.data() as any;
-  const isAdmin = userData?.role === "admin" || userData?.isSystem === true;
-  if (!isAdmin) throw new HttpsError("permission-denied", "Admin only");
+const body = req.data || {};
 
-  const body = req.data || {};
+const agentId = s(body.agentId);
 
-  const agentId = s(body.agentId);
+if (!agentId) {
+  throw new HttpsError(
+    "invalid-argument",
+    "Missing agentId"
+  );
+}
+
+const isAdmin =
+  userData?.role === "admin" ||
+  userData?.isSystem === true;
+
+const loggedInAgentId = s(
+  userData?.agentId || authUid
+);
+
+const canManageAgent =
+  isAdmin ||
+  loggedInAgentId === agentId;
+
+if (!canManageAgent) {
+  throw new HttpsError(
+    "permission-denied",
+    "You may only connect WhatsApp for your own agent"
+  );
+}
   const businessId = s(body.businessId);
   const wabaId = s(body.wabaId);
   const phoneNumberId = s(body.phoneNumberId);
@@ -77,9 +100,12 @@ export async function saveAgentWhatsAppConfigImpl(req: any): Promise<object> {
   const embeddedSignupCode = s(body.embeddedSignupCode);
   const redirectUri = s(body.redirectUri);
 
-  if (!agentId || !businessId || !wabaId || !phoneNumberId) {
-    throw new HttpsError("invalid-argument", "Missing agentId / businessId / wabaId / phoneNumberId");
-  }
+ if (!businessId || !wabaId || !phoneNumberId) {
+  throw new HttpsError(
+    "invalid-argument",
+    "Missing businessId / wabaId / phoneNumberId"
+  );
+}
 
   if (!embeddedSignupCode) {
     throw new HttpsError("invalid-argument", "Missing embeddedSignupCode");

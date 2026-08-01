@@ -91,6 +91,10 @@ export default function WhatsAppSettingsPage() {
   const [loadingConfig, setLoadingConfig] = useState(false);
   const [connectingMeta, setConnectingMeta] = useState(false);
   const [metaSdkReady, setMetaSdkReady] = useState(false);
+  const [
+  isPersistedConnected,
+  setIsPersistedConnected,
+] = useState(false);
 
   const [dialog, setDialog] = useState<DialogState | null>(null);
 
@@ -100,7 +104,7 @@ export default function WhatsAppSettingsPage() {
     phoneNumberId?: string;
   }>({});
 
-  const isConnected = !!phoneNumberId && !!wabaId;
+const isConnected = isPersistedConnected;
 
   const canSave =
     !!agentId &&
@@ -112,15 +116,16 @@ export default function WhatsAppSettingsPage() {
     !loadingConfig;
 
   const clearConfigFields = () => {
-    setBusinessId('');
-    setWabaId('');
-    setPhoneNumberId('');
-    setDisplayPhoneNumber('');
-    setDisplayName('');
-    setTemplateName('');
-    setEmbeddedSignupCode('');
-    setTemplates([]);
-  };
+  setBusinessId('');
+  setWabaId('');
+  setPhoneNumberId('');
+  setDisplayPhoneNumber('');
+  setDisplayName('');
+  setTemplateName('');
+  setEmbeddedSignupCode('');
+  setTemplates([]);
+  setIsPersistedConnected(false);
+};
 
   useEffect(() => {
     const handleEmbeddedSignupMessage = (event: MessageEvent) => {
@@ -296,6 +301,10 @@ export default function WhatsAppSettingsPage() {
         setDisplayName(String(data.displayName || ''));
         setTemplateName(String(data.templateName || ''));
         setEmbeddedSignupCode('');
+        setIsPersistedConnected(
+  !!String(data.wabaId || '').trim() &&
+  !!String(data.phoneNumberId || '').trim()
+);
       } catch (e: any) {
         clearConfigFields();
         setDialog({
@@ -402,14 +411,14 @@ export default function WhatsAppSettingsPage() {
         embeddedSignupCode: embeddedSignupCode.trim(),
         redirectUri,
       });
+      setIsPersistedConnected(true);
+setEmbeddedSignupCode('');
 
       setDialog({
         type: 'success',
         title: 'החיבור נשמר בהצלחה',
         message: 'חשבון WhatsApp Business חובר ונשמר במערכת.',
       });
-
-      setEmbeddedSignupCode('');
       await loadTemplates(agentId);
     } catch (e: any) {
       console.error('[WhatsAppSettings] Save error:', e);

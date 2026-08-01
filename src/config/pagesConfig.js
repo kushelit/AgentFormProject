@@ -60,7 +60,7 @@ const pages = [
   },
  {
   href: '/sharon',
-  label: 'תיק לקוח',
+  label: 'ניהול מכירות',
   onlyPermissions: ['access_sharon_elementary', 'access_sharon_tax_returns', 'access_sharon_pension'],
 },
 {
