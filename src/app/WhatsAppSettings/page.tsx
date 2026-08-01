@@ -397,20 +397,16 @@ const isConnected = isPersistedConnected;
     try {
       const fn = httpsCallable(functions, 'saveAgentWhatsAppConfig');
 
-      const redirectUri =
-        'https://developers.facebook.com/es/oauth/callback/?product_route=whatsapp-business&business_id=757884344079063&nonce=mrToB6QAKsnjxovBkFVvB1ICSGghamg5';
-
-      await fn({
-        agentId,
-        businessId: businessId.trim(),
-        wabaId: wabaId.trim(),
-        phoneNumberId: phoneNumberId.trim(),
-        displayPhoneNumber: displayPhoneNumber.trim() || undefined,
-        displayName: displayName.trim() || undefined,
-        templateName: templateName.trim() || undefined,
-        embeddedSignupCode: embeddedSignupCode.trim(),
-        redirectUri,
-      });
+     await fn({
+  agentId,
+  businessId: businessId.trim(),
+  wabaId: wabaId.trim(),
+  phoneNumberId: phoneNumberId.trim(),
+  displayPhoneNumber: displayPhoneNumber.trim() || undefined,
+  displayName: displayName.trim() || undefined,
+  templateName: templateName.trim() || undefined,
+  embeddedSignupCode: embeddedSignupCode.trim(),
+});
       setIsPersistedConnected(true);
 setEmbeddedSignupCode('');
 

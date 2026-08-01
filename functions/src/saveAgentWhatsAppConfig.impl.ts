@@ -15,37 +15,57 @@ function s(v: any) {
   return String(v ?? "").trim();
 }
 
-async function exchangeEmbeddedSignupCode(code: string, redirectUri: string): Promise<string> {
+async function exchangeEmbeddedSignupCode(
+  code: string
+): Promise<string> {
   const clientId = META_APP_ID.value();
   const clientSecret = META_APP_SECRET.value();
 
   if (!clientId || !clientSecret) {
-    throw new HttpsError("internal", "Missing Meta app credentials");
+    throw new HttpsError(
+      "internal",
+      "Missing Meta app credentials"
+    );
   }
 
-  if (!redirectUri) {
-    throw new HttpsError("invalid-argument", "Missing redirectUri");
-  }
+  const tokenUrl = new URL(
+    "https://graph.facebook.com/v25.0/oauth/access_token"
+  );
 
-  const res = await fetch("https://graph.facebook.com/v25.0/oauth/access_token", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      client_id: clientId,
-      client_secret: clientSecret,
-      code,
-      grant_type: "authorization_code",
-      redirect_uri: redirectUri,
-    }),
-  });
+  tokenUrl.searchParams.set(
+    "client_id",
+    clientId
+  );
+
+  tokenUrl.searchParams.set(
+    "client_secret",
+    clientSecret
+  );
+
+  tokenUrl.searchParams.set(
+    "code",
+    code
+  );
+
+  const res = await fetch(
+    tokenUrl.toString(),
+    {
+      method: "GET",
+    }
+  );
 
   const json: any = await res.json();
 
   if (!res.ok || !json?.access_token) {
-    console.error("[exchangeEmbeddedSignupCode] Meta error", json);
+    console.error(
+      "[exchangeEmbeddedSignupCode] Meta error",
+      JSON.stringify(json)
+    );
+
     throw new HttpsError(
       "failed-precondition",
-      json?.error?.message || "Failed to exchange Embedded Signup code"
+      json?.error?.message ||
+        "Failed to exchange Embedded Signup code"
     );
   }
 
@@ -98,7 +118,7 @@ if (!canManageAgent) {
   const displayName = s(body.displayName);
   const templateName = s(body.templateName);
   const embeddedSignupCode = s(body.embeddedSignupCode);
-  const redirectUri = s(body.redirectUri);
+  
 
  if (!businessId || !wabaId || !phoneNumberId) {
   throw new HttpsError(
@@ -114,7 +134,10 @@ if (!canManageAgent) {
   const keyB64 = PORTAL_ENC_KEY_B64.value();
   if (!keyB64) throw new HttpsError("internal", "Missing encryption key");
 
-  const accessToken = await exchangeEmbeddedSignupCode(embeddedSignupCode, redirectUri);
+const accessToken =
+  await exchangeEmbeddedSignupCode(
+    embeddedSignupCode
+  );
   const enc = encryptJsonAes256Gcm(keyB64, { accessToken });
 
   const configRef = (db as any).doc(`agents/${agentId}/config/whatsapp`);
