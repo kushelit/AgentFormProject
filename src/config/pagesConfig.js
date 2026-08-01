@@ -2,14 +2,13 @@ const pages = [
 
   { href: '/NewAgentForm', label: 'ניהול עסקאות' },
   { href: '/NewCustomer', label: 'ניהול לקוחות' },
-  //  {
-  //   href: '/whatsapp-send',
-  //   label: 'שליחת whatsapp',
-  //   submenu: [
-  //     { href: '/whatsapp-send', label: 'לידים ושליחה' },
-  //     { href: '/WhatsAppSettings', label: 'ניהול הגדרות' },
-  //   ],
-  // },
+ {
+    href: '/MagicTouch',
+    label: 'Magic Touch',
+    onlyPermissions: [
+      'access_magic_touch',
+    ],
+  },
    {
   href: '/CRM',
   label: 'CRM',

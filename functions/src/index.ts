@@ -69,3 +69,35 @@ export {
 } from "./disconnectMicrosoftBookings";
 
 export {getPortalAgentCodeIncludeList} from "./getPortalAgentCodeIncludeList";
+
+export {
+  magicTouchContactsWebhook,
+} from "./magicTouchContactsWebhook";
+
+export {
+  getMagicTouchContacts,
+} from "./getMagicTouchContacts";
+
+export {
+  createMagicTouchContact,
+} from "./createMagicTouchContact";
+
+export {
+  magicTouchContactsApi,
+} from "./magicTouchContactsApi";
+
+export {
+  importMagicSaleCustomersToMagicTouch,
+} from "./importMagicSaleCustomersToMagicTouch";
+
+export {
+  importMagicTouchExcelContacts,
+} from "./importMagicTouchExcelContacts";
+
+export {
+  getMagicTouchContactDetails,
+} from "./getMagicTouchContactDetails";
+
+export {
+  addMagicTouchContactNote,
+} from "./addMagicTouchContactNote";

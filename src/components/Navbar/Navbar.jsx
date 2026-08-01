@@ -19,6 +19,12 @@ export const Navbar = ({ items, bottomPage, className }) => {
   const { user, detail } = useAuth();
   const { selectedAgentId } = useFetchAgentData();
 
+  const { canAccess: canAccessMagicTouch } =
+  usePermission(
+    user
+      ? 'access_magic_touch'
+      : null
+  );
 
   // const isItemVisible = (item) => {
   //   // עד שטעון ה-role – לא להציג (גם מונע הבהוב)
@@ -45,6 +51,7 @@ const permissionsMap = {
   access_sharon_pension: canAccessPension,
   access_crm_module: canAccessCrm, 
   access_customer_tiers: canAccessCustomerTiers,
+  access_magic_touch: canAccessMagicTouch,
 };
 
 const isItemVisible = (item) => {

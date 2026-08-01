@@ -55,6 +55,13 @@ const NewCustomer = () => {
  const router = useRouter();
 const { canAccess: canAccessCrm } = usePermission('access_crm_module');
 
+const {
+  canAccess: canAccessMagicTouch,
+  isChecking: isCheckingMagicTouch,
+} = usePermission(
+  user ? 'access_magic_touch' : null
+);
+
 
 // ==== כרטיסון השוואה ללקוח ====
 const [cmpReportMonth, setCmpReportMonth] = useState(() => {
@@ -144,6 +151,11 @@ const handleGenderChange = (e: React.ChangeEvent<HTMLSelectElement>) =>
   
   const [selectedCustomers, setSelectedCustomers] = useState<CustomersTypeForFetching[]>([]);
   const [customers, setCustomers] = useState<CustomersTypeForFetching[]>([]);
+
+  const [
+  magicTouchImportLoading,
+  setMagicTouchImportLoading,
+] = useState(false);
 
   const { sortedData, sortColumn, sortOrder, handleSort, setSortedData } = useSortableTable(filteredData);
 
@@ -1545,6 +1557,127 @@ const handleRollbackImport = async () => {
 };
 
 
+const handleImportSelectedCustomersToMagicTouch =
+  async () => {
+    if (magicTouchImportLoading) {
+      return;
+    }
+
+    if (
+      isCheckingMagicTouch ||
+      !canAccessMagicTouch
+    ) {
+      addToast(
+        'error',
+        'אין לך הרשאה ל־Magic Touch'
+      );
+      return;
+    }
+
+    if (!selectedAgentId) {
+      addToast(
+        'error',
+        'יש לבחור סוכן'
+      );
+      return;
+    }
+
+    if (
+      !Array.isArray(selectedCustomers) ||
+      selectedCustomers.length === 0
+    ) {
+      addToast(
+        'error',
+        'יש לבחור לפחות לקוח אחד'
+      );
+      return;
+    }
+
+    const customerIds =
+      selectedCustomers
+        .map((customer) =>
+          String(
+            customer.id || ''
+          ).trim()
+        )
+        .filter(Boolean);
+
+    if (
+      customerIds.length !==
+      selectedCustomers.length
+    ) {
+      addToast(
+        'error',
+        'לאחד הלקוחות שנבחרו חסר מזהה מסמך'
+      );
+      return;
+    }
+
+    setMagicTouchImportLoading(true);
+
+    try {
+      const fn = httpsCallable<
+        {
+          agentId: string;
+          customerIds: string[];
+        },
+        {
+          ok: boolean;
+          partialSuccess: boolean;
+          received: number;
+          created: number;
+          updated: number;
+          failed: number;
+          notFound: number;
+          wrongAgent: number;
+        }
+      >(
+        functions,
+        'importMagicSaleCustomersToMagicTouch'
+      );
+
+      const response = await fn({
+        agentId: selectedAgentId,
+        customerIds,
+      });
+
+      const result = response.data;
+
+      if (result.failed === 0) {
+        addToast(
+          'success',
+          `הועברו ל־Magic Touch: ${result.created} חדשים, ${result.updated} עודכנו`
+        );
+
+        return;
+      }
+
+      addToast(
+        'warning',
+        `העברה חלקית: ${result.created} חדשים, ${result.updated} עודכנו, ${result.failed} נכשלו`
+      );
+    } catch (error: any) {
+      console.error(
+        '[NewCustomer] Magic Touch import failed',
+        error
+      );
+
+      addToast(
+        'error',
+        error?.message ||
+          'כשל בהעברת הלקוחות ל־Magic Touch'
+      );
+    } finally {
+      setMagicTouchImportLoading(false);
+    }
+  };
+
+
+
+
+
+
+
   return (
     <div className="content-container">
     <div className="first-table">
@@ -2137,16 +2270,54 @@ const handleRollbackImport = async () => {
 {selectedCustomers.length > 0 && (
   <div className="selected-customers-container">
     <strong>לקוחות שנבחרו:</strong>
+
     <ul>
       {selectedCustomers.map((customer) => (
         <li key={customer.id}>
-          {customer.firstNameCustomer} {customer.lastNameCustomer} 
-          <button onClick={() => handleRemoveCustomer(customer.id)}>❌</button>
+          {customer.firstNameCustomer}{' '}
+          {customer.lastNameCustomer}
+
+          <button
+            type="button"
+            onClick={() =>
+              handleRemoveCustomer(customer.id)
+            }
+          >
+            ❌
+          </button>
         </li>
       ))}
     </ul>
-    <button onClick={clearSelection}>נקה בחירה</button>
-    </div>
+
+    <button
+      type="button"
+      onClick={clearSelection}
+    >
+      נקה בחירה
+    </button>
+
+    {!isCheckingMagicTouch &&
+      canAccessMagicTouch && (
+        <Button
+          onClick={
+            handleImportSelectedCustomersToMagicTouch
+          }
+          text={
+            magicTouchImportLoading
+              ? 'מעביר...'
+              : `העבר ל־Magic Touch (${selectedCustomers.length})`
+          }
+          type="primary"
+          icon="off"
+          state={
+            magicTouchImportLoading
+              ? 'disabled'
+              : 'default'
+          }
+          disabled={magicTouchImportLoading}
+        />
+      )}
+  </div>
 )}
 </div>
         <TableFooter

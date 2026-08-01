@@ -21,6 +21,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const isMagicTouchPage = pathname.startsWith('/MagicTouch');
 
   // תנאים לוגיים
   const isOtpPage = pathname.startsWith('/otp');
@@ -29,10 +30,21 @@ export default function RootLayout({
   const isLandingPage = pathname === '/' || pathname === '/landing' 
    || pathname === '/subscription-sign-up'
   ;
-  const isMainPage = !isAuthPage && !isHomePage && !isLandingPage;
+const isMainPage =
+  !isAuthPage &&
+  !isHomePage &&
+  !isLandingPage &&
+  !isMagicTouchPage;
 
-const showTopBar = !isOtpPage && (isMainPage || isAuthPage || isHomePage);
-const showNavbar = !isOtpPage && isMainPage;
+const showTopBar =
+  !isOtpPage &&
+  !isMagicTouchPage &&
+  (isMainPage || isAuthPage || isHomePage);
+
+const showNavbar =
+  !isOtpPage &&
+  !isMagicTouchPage &&
+  isMainPage;
  const wrapInBox = isAuthPage;
   
 
@@ -79,11 +91,19 @@ const showNavbar = !isOtpPage && isMainPage;
             className="custom-navbar fixed top-16 right-0 h-[calc(100vh-64px)] w-52 z-10 shadow-lg"
           />          
             )}
-           <main
+         <main
   className={`flex-grow ${
-    isOtpPage ? '' : 'pt-16 bg-gray-50'
-  } ${showNavbar ? 'mr-[210px]' : ''} flex justify-center items-start ${
-    isOtpPage ? '' : 'px-4'
+    isOtpPage || isMagicTouchPage
+      ? ''
+      : 'pt-16 bg-gray-50'
+  } ${
+    showNavbar
+      ? 'mr-[210px]'
+      : ''
+  } flex justify-center items-start ${
+    isOtpPage || isMagicTouchPage
+      ? ''
+      : 'px-4'
   }`}
 >
               {wrapInBox ? (

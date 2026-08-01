@@ -428,13 +428,14 @@ table tr {
   gap: 5px; /* מרחק בין האייקון לשם */
 }
 
-.selected-customers-container button {
+.selected-customers-container li button {
   background: none;
   border: none;
   cursor: pointer;
   font-size: 16px;
   color: red;
 }
+
 .fixed-header {
   position: sticky;
   top: 0;
