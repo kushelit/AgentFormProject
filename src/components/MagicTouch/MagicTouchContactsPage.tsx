@@ -97,6 +97,46 @@ type MagicTouchContact = {
     } | null;
   };
 
+  engagement?: {
+    reengagement?: {
+      status?:
+        string | null;
+
+      interestStatus?:
+        string | null;
+
+      interestRespondedAt?:
+        number | null;
+
+      bookingStatus?:
+        string | null;
+
+      bookingLink?:
+        string | null;
+
+      bookingLinkSentAt?:
+        number | null;
+
+      bookedAt?:
+        number | null;
+
+      resolvedAt?:
+        number | null;
+
+      lastFlowRunId?:
+        string | null;
+
+      surenseSyncStatus?:
+        string | null;
+
+      surenseSyncedAt?:
+        number | null;
+
+      updatedAt?:
+        number | null;
+    } | null;
+  } | null;
+
   contactStatus:
     string;
 
@@ -330,6 +370,36 @@ function appointmentLabel(
     default:
       return 'טרם נשלח';
   }
+}
+
+function getContactInterestStatus(
+  contact:
+    MagicTouchContact
+): string {
+  return (
+    contact
+      .engagement
+      ?.reengagement
+      ?.interestStatus ||
+    contact
+      .interestStatus ||
+    ''
+  );
+}
+
+function getContactAppointmentStatus(
+  contact:
+    MagicTouchContact
+): string {
+  return (
+    contact
+      .engagement
+      ?.reengagement
+      ?.bookingStatus ||
+    contact
+      .appointmentStatus ||
+    ''
+  );
 }
 
 export default function MagicTouchContactsPage() {
@@ -1209,13 +1279,17 @@ export default function MagicTouchContactsPage() {
 
                           <td className="px-4 py-3">
                             {interestLabel(
-                              contact.interestStatus
+                              getContactInterestStatus(
+                                contact
+                              )
                             )}
                           </td>
 
                           <td className="px-4 py-3">
                             {appointmentLabel(
-                              contact.appointmentStatus
+                              getContactAppointmentStatus(
+                                contact
+                              )
                             )}
                           </td>
 

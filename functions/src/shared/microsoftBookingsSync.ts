@@ -34,13 +34,36 @@ function normalizeEmail(email: string): string {
   return s(email).toLowerCase();
 }
 
-function appointmentDocumentId(appointmentId: string): string {
+function sha256(value: string): string {
   return createHash("sha256")
-    .update(appointmentId)
+    .update(value)
     .digest("hex");
 }
 
-function getAppointmentCustomer(appointment: any): {
+function appointmentDocumentId(
+  appointmentId: string
+): string {
+  return sha256(appointmentId);
+}
+
+function bookingEventDocumentId(
+  agentId: string,
+  appointmentId: string,
+  triggerType: string
+): string {
+  return sha256(
+    [
+      "microsoft_bookings",
+      agentId,
+      appointmentId,
+      triggerType,
+    ].join("|")
+  );
+}
+
+function getAppointmentCustomer(
+  appointment: any
+): {
   name: string;
   email: string;
   phone: string;
@@ -56,31 +79,57 @@ function getAppointmentCustomer(appointment: any): {
       s(customer?.name) ||
       s(appointment?.customerName),
 
-    email: normalizeEmail(
-      customer?.emailAddress ||
-      appointment?.customerEmailAddress
-    ),
+    email:
+      normalizeEmail(
+        customer?.emailAddress ||
+        appointment?.customerEmailAddress
+      ),
 
-    phone: normalizePhone(
-      customer?.phone ||
-      appointment?.customerPhone
-    ),
+    phone:
+      normalizePhone(
+        customer?.phone ||
+        appointment?.customerPhone
+      ),
   };
 }
 
-async function findMatchingLead(
+function getAppointmentStart(
+  appointment: any
+): any {
+  return (
+    appointment?.start ??
+    appointment?.startDateTime ??
+    null
+  );
+}
+
+function getAppointmentEnd(
+  appointment: any
+): any {
+  return (
+    appointment?.end ??
+    appointment?.endDateTime ??
+    null
+  );
+}
+
+async function findMatchingContact(
   db: FirebaseFirestore.Firestore,
   agentId: string,
   customerPhone: string,
   customerEmail: string
 ): Promise<FirebaseFirestore.QueryDocumentSnapshot | null> {
-  const leadsCollection = db.collection(
-    `agents/${agentId}/reengagement_leads`
+  const contactsCollection = db.collection(
+    `agents/${agentId}/magic_touch_contacts`
   );
 
   if (customerPhone) {
-    const phoneSnap = await leadsCollection
-      .where("phoneNormalized", "==", customerPhone)
+    const phoneSnap = await contactsCollection
+      .where(
+        "phoneNormalized",
+        "==",
+        customerPhone
+      )
       .limit(1)
       .get();
 
@@ -90,17 +139,26 @@ async function findMatchingLead(
   }
 
   if (customerEmail) {
-    const normalizedEmailSnap = await leadsCollection
-      .where("emailNormalized", "==", customerEmail)
-      .limit(1)
-      .get();
+    const normalizedEmailSnap =
+      await contactsCollection
+        .where(
+          "emailNormalized",
+          "==",
+          customerEmail
+        )
+        .limit(1)
+        .get();
 
     if (!normalizedEmailSnap.empty) {
       return normalizedEmailSnap.docs[0];
     }
 
-    const emailSnap = await leadsCollection
-      .where("email", "==", customerEmail)
+    const emailSnap = await contactsCollection
+      .where(
+        "email",
+        "==",
+        customerEmail
+      )
       .limit(1)
       .get();
 
@@ -112,17 +170,145 @@ async function findMatchingLead(
   return null;
 }
 
+async function createBookingMagicTouchEvent({
+  db,
+  agentId,
+  contactId,
+  appointmentId,
+  bookingBusinessId,
+  appointment,
+  customer,
+  triggerType,
+}: {
+  db: FirebaseFirestore.Firestore;
+  agentId: string;
+  contactId: string;
+  appointmentId: string;
+  bookingBusinessId: string;
+  appointment: any;
+  customer: {
+    name: string;
+    email: string;
+    phone: string;
+  };
+  triggerType:
+    | "microsoft_booking_created"
+    | "microsoft_booking_cancelled";
+}): Promise<{
+  created: boolean;
+  eventId: string;
+}> {
+  const eventId =
+    bookingEventDocumentId(
+      agentId,
+      appointmentId,
+      triggerType
+    );
+
+  const eventRef = db.doc(
+    `agents/${agentId}/magic_touch_events/${eventId}`
+  );
+
+  const eventSnap = await eventRef.get();
+
+  if (eventSnap.exists) {
+    return {
+      created: false,
+      eventId,
+    };
+  }
+
+  const timestamp = nowTs();
+
+  await eventRef.create({
+    agentId,
+    eventId,
+
+    triggerType,
+
+    channel:
+      "microsoft_bookings",
+
+    sourceSystem:
+      "microsoft_bookings",
+
+    contactId,
+
+    bookingAppointmentId:
+      appointmentId,
+
+    bookingBusinessId,
+
+    bookingServiceId:
+      s(appointment?.serviceId) ||
+      null,
+
+    bookingServiceName:
+      s(appointment?.serviceName) ||
+      null,
+
+    bookingStartAt:
+      getAppointmentStart(
+        appointment
+      ),
+
+    bookingEndAt:
+      getAppointmentEnd(
+        appointment
+      ),
+
+    bookingIsCancelled:
+      triggerType ===
+      "microsoft_booking_cancelled",
+
+    customerName:
+      customer.name ||
+      null,
+
+    customerEmail:
+      customer.email ||
+      null,
+
+    customerPhone:
+      customer.phone ||
+      null,
+
+    occurredAt:
+      timestamp,
+
+    status:
+      "pending",
+
+    attempts:
+      0,
+
+    createdAt:
+      timestamp,
+
+    updatedAt:
+      timestamp,
+  });
+
+  return {
+    created: true,
+    eventId,
+  };
+}
+
 export type MicrosoftBookingsSyncResult = {
   appointments: number;
   matched: number;
   unmatched: number;
   cancelled: number;
+  createdEvents: number;
+  cancelledEvents: number;
 };
 
 export async function syncMicrosoftBookingsAgent(
   agentId: string
 ): Promise<MicrosoftBookingsSyncResult> {
-  const normalizedAgentId = s(agentId);
+  const normalizedAgentId =
+    s(agentId);
 
   if (!normalizedAgentId) {
     throw new HttpsError(
@@ -141,10 +327,11 @@ export async function syncMicrosoftBookingsAgent(
     `agents/${normalizedAgentId}/secrets/microsoftBookings`
   );
 
-  const [configSnap, secretSnap] = await Promise.all([
-    configRef.get(),
-    secretRef.get(),
-  ]);
+  const [configSnap, secretSnap] =
+    await Promise.all([
+      configRef.get(),
+      secretRef.get(),
+    ]);
 
   if (!configSnap.exists) {
     throw new HttpsError(
@@ -160,8 +347,11 @@ export async function syncMicrosoftBookingsAgent(
     );
   }
 
-  const config = configSnap.data() as any;
-  const bookingBusinessId = s(config?.bookingBusinessId);
+  const config =
+    configSnap.data() as any;
+
+  const bookingBusinessId =
+    s(config?.bookingBusinessId);
 
   if (!bookingBusinessId) {
     throw new HttpsError(
@@ -170,7 +360,8 @@ export async function syncMicrosoftBookingsAgent(
     );
   }
 
-  const keyB64 = s(PORTAL_ENC_KEY_B64.value());
+  const keyB64 =
+    s(PORTAL_ENC_KEY_B64.value());
 
   if (!keyB64) {
     throw new HttpsError(
@@ -179,12 +370,14 @@ export async function syncMicrosoftBookingsAgent(
     );
   }
 
-  const decrypted = decryptJsonAes256Gcm(
-    keyB64,
-    secretSnap.data()?.enc
-  ) as any;
+  const decrypted =
+    decryptJsonAes256Gcm(
+      keyB64,
+      secretSnap.data()?.enc
+    ) as any;
 
-  const refreshToken = s(decrypted?.refreshToken);
+  const refreshToken =
+    s(decrypted?.refreshToken);
 
   if (!refreshToken) {
     throw new HttpsError(
@@ -194,11 +387,16 @@ export async function syncMicrosoftBookingsAgent(
   }
 
   const refreshed =
-    await refreshMicrosoftAccessToken(refreshToken);
+    await refreshMicrosoftAccessToken(
+      refreshToken
+    );
 
-  const accessToken = s(refreshed.access_token);
+  const accessToken =
+    s(refreshed.access_token);
+
   const nextRefreshToken =
-    s(refreshed.refresh_token) || refreshToken;
+    s(refreshed.refresh_token) ||
+    refreshToken;
 
   if (!accessToken) {
     throw new HttpsError(
@@ -207,36 +405,61 @@ export async function syncMicrosoftBookingsAgent(
     );
   }
 
-  const accessTokenExpiresAtMs =
-    Date.now() +
-    Number(refreshed.expires_in || 3600) * 1000;
+  const encryptedTokens =
+    encryptJsonAes256Gcm(
+      keyB64,
+      {
+        ...decrypted,
 
-  const encryptedTokens = encryptJsonAes256Gcm(
-    keyB64,
-    {
-      ...decrypted,
-      accessToken,
-      refreshToken: nextRefreshToken,
-      accessTokenExpiresAtMs,
-      tokenType: s(refreshed.token_type),
-      scope: s(refreshed.scope),
-      updatedAtMs: Date.now(),
-    }
-  );
+        accessToken,
+
+        refreshToken:
+          nextRefreshToken,
+
+        accessTokenExpiresAtMs:
+          Date.now() +
+          Number(
+            refreshed.expires_in ||
+            3600
+          ) *
+          1000,
+
+        tokenType:
+          s(refreshed.token_type),
+
+        scope:
+          s(refreshed.scope),
+
+        updatedAtMs:
+          Date.now(),
+      }
+    );
 
   await secretRef.set(
     {
-      enc: encryptedTokens,
-      updatedAt: nowTs(),
+      enc:
+        encryptedTokens,
+
+      updatedAt:
+        nowTs(),
     },
-    { merge: true }
+    {
+      merge:
+        true,
+    }
   );
 
   const start = new Date();
-  start.setUTCDate(start.getUTCDate() - 1);
+  start.setUTCDate(
+    start.getUTCDate() -
+    1
+  );
 
   const end = new Date();
-  end.setUTCDate(end.getUTCDate() + 90);
+  end.setUTCDate(
+    end.getUTCDate() +
+    90
+  );
 
   const appointments =
     await listMicrosoftBookingCalendarView(
@@ -249,145 +472,265 @@ export async function syncMicrosoftBookingsAgent(
   let matched = 0;
   let unmatched = 0;
   let cancelled = 0;
+  let createdEvents = 0;
+  let cancelledEvents = 0;
 
   for (const appointment of appointments) {
-    const appointmentId = s(appointment?.id);
+    const appointmentId =
+      s(appointment?.id);
 
     if (!appointmentId) {
       continue;
     }
 
-    const customer = getAppointmentCustomer(appointment);
-    const isCancelled = appointment?.isCancelled === true;
+    const customer =
+      getAppointmentCustomer(
+        appointment
+      );
+
+    const isCancelled =
+      appointment?.isCancelled ===
+      true;
 
     if (isCancelled) {
       cancelled++;
     }
 
-    const leadDoc = await findMatchingLead(
-      db,
-      normalizedAgentId,
-      customer.phone,
-      customer.email
-    );
+    const contactDoc =
+      await findMatchingContact(
+        db,
+        normalizedAgentId,
+        customer.phone,
+        customer.email
+      );
 
-    const appointmentRef = (db as any).doc(
-      `agents/${normalizedAgentId}/booking_appointments/${appointmentDocumentId(
-        appointmentId
-      )}`
-    );
+    const appointmentRef =
+      (db as any).doc(
+        `agents/${normalizedAgentId}/booking_appointments/${appointmentDocumentId(
+          appointmentId
+        )}`
+      );
 
     const existingAppointmentSnap =
       await appointmentRef.get();
 
+    const timestamp = nowTs();
+
     await appointmentRef.set(
       {
+        agentId:
+          normalizedAgentId,
+
         appointmentId,
         bookingBusinessId,
 
-        customerName: customer.name || null,
-        customerEmail: customer.email || null,
-        customerPhone: customer.phone || null,
+        contactId:
+          contactDoc?.id ||
+          null,
 
-        serviceId: s(appointment?.serviceId) || null,
-        serviceName: s(appointment?.serviceName) || null,
+        customerName:
+          customer.name ||
+          null,
+
+        customerEmail:
+          customer.email ||
+          null,
+
+        customerPhone:
+          customer.phone ||
+          null,
+
+        serviceId:
+          s(appointment?.serviceId) ||
+          null,
+
+        serviceName:
+          s(appointment?.serviceName) ||
+          null,
 
         staffMemberIds:
-          Array.isArray(appointment?.staffMemberIds)
+          Array.isArray(
+            appointment?.staffMemberIds
+          )
             ? appointment.staffMemberIds
             : [],
 
-       startAt:
-  appointment?.start ??
-  appointment?.startDateTime ??
-  null,
+        startAt:
+          getAppointmentStart(
+            appointment
+          ),
 
-endAt:
-  appointment?.end ??
-  appointment?.endDateTime ??
-  null,
+        endAt:
+          getAppointmentEnd(
+            appointment
+          ),
+
         isCancelled,
 
-        matchStatus: leadDoc ? "matched" : "unmatched",
-        leadId: leadDoc?.id || null,
+        matchStatus:
+          contactDoc
+            ? "matched"
+            : "unmatched",
 
-        rawJson: JSON.stringify(appointment),
+        rawJson:
+          JSON.stringify(
+            appointment
+          ),
 
-        lastSeenAt: nowTs(),
-        updatedAt: nowTs(),
+        lastSeenAt:
+          timestamp,
+
+        updatedAt:
+          timestamp,
 
         ...(existingAppointmentSnap.exists
           ? {}
           : {
-              firstSeenAt: nowTs(),
-              createdAt: nowTs(),
-            }),
+            firstSeenAt:
+              timestamp,
+
+            createdAt:
+              timestamp,
+          }),
       },
-      { merge: true }
+      {
+        merge:
+          true,
+      }
     );
 
-    if (!leadDoc) {
+    if (!contactDoc) {
       unmatched++;
       continue;
     }
 
     matched++;
 
-    await leadDoc.ref.update({
-      status: isCancelled ? "interested" : "booked",
-      interestStatus: "interested",
-      bookingStatus: isCancelled ? "cancelled" : "booked",
+    const triggerType:
+      | "microsoft_booking_created"
+      | "microsoft_booking_cancelled" =
+      isCancelled
+        ? "microsoft_booking_cancelled"
+        : "microsoft_booking_created";
 
-      bookingAppointmentId: appointmentId,
+    const eventResult =
+      await createBookingMagicTouchEvent({
+        db,
 
-      bookingCustomerName: customer.name || null,
-      bookingCustomerEmail: customer.email || null,
-      bookingCustomerPhone: customer.phone || null,
+        agentId:
+          normalizedAgentId,
 
-      bookingServiceId: s(appointment?.serviceId) || null,
-      bookingServiceName: s(appointment?.serviceName) || null,
-bookingStartAt:
-  appointment?.start ??
-  appointment?.startDateTime ??
-  null,
+        contactId:
+          contactDoc.id,
 
-bookingEndAt:
-  appointment?.end ??
-  appointment?.endDateTime ??
-  null,
+        appointmentId,
 
-      bookingCancelledAt: isCancelled ? nowTs() : null,
-      bookedAt: isCancelled ? null : nowTs(),
-      resolvedAt: isCancelled ? null : nowTs(),
+        bookingBusinessId,
 
-      updatedAt: nowTs(),
-    });
+        appointment,
+
+        customer,
+
+        triggerType,
+      });
+
+    if (eventResult.created) {
+      if (
+        triggerType ===
+        "microsoft_booking_cancelled"
+      ) {
+        cancelledEvents++;
+      } else {
+        createdEvents++;
+      }
+    }
+
+    await appointmentRef.set(
+      {
+        contactId:
+          contactDoc.id,
+
+        matchStatus:
+          "matched",
+
+        lastEventId:
+          eventResult.eventId,
+
+        lastEventType:
+          triggerType,
+
+        lastEventCreated:
+          eventResult.created,
+
+        lastEventAt:
+          eventResult.created
+            ? nowTs()
+            : null,
+
+        updatedAt:
+          nowTs(),
+      },
+      {
+        merge:
+          true,
+      }
+    );
   }
 
-  const result: MicrosoftBookingsSyncResult = {
-    appointments: appointments.length,
-    matched,
-    unmatched,
-    cancelled,
-  };
+  const result:
+    MicrosoftBookingsSyncResult = {
+      appointments:
+        appointments.length,
+
+      matched,
+      unmatched,
+      cancelled,
+      createdEvents,
+      cancelledEvents,
+    };
 
   await configRef.set(
     {
-      status: "connected",
-      connected: true,
+      status:
+        "connected",
 
-      lastSyncAt: nowTs(),
-      lastSyncStatus: "success",
-      lastSyncError: null,
+      connected:
+        true,
 
-      lastSyncAppointmentCount: result.appointments,
-      lastSyncMatchedCount: result.matched,
-      lastSyncUnmatchedCount: result.unmatched,
-      lastSyncCancelledCount: result.cancelled,
+      lastSyncAt:
+        nowTs(),
 
-      updatedAt: nowTs(),
+      lastSyncStatus:
+        "success",
+
+      lastSyncError:
+        null,
+
+      lastSyncAppointmentCount:
+        result.appointments,
+
+      lastSyncMatchedCount:
+        result.matched,
+
+      lastSyncUnmatchedCount:
+        result.unmatched,
+
+      lastSyncCancelledCount:
+        result.cancelled,
+
+      lastSyncCreatedEventCount:
+        result.createdEvents,
+
+      lastSyncCancelledEventCount:
+        result.cancelledEvents,
+
+      updatedAt:
+        nowTs(),
     },
-    { merge: true }
+    {
+      merge:
+        true,
+    }
   );
 
   return result;

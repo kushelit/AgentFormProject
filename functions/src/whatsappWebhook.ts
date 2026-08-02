@@ -7,65 +7,273 @@ import { logger } from "firebase-functions";
 import { FieldValue } from "firebase-admin/firestore";
 
 import { adminDb, nowTs } from "./shared/admin";
+
 import {
   PORTAL_ENC_KEY_B64,
-  SURENSE_ACTIVITY_API_KEY,
   WHATSAPP_WEBHOOK_VERIFY_TOKEN,
 } from "./shared/secrets";
-import { decryptJsonAes256Gcm } from "./shared/cryptoAesGcm";
+
 import { FUNCTIONS_REGION } from "./shared/region";
-import { updateReengagementLeadStatusImpl } from "./updateReengagementLeadStatus.impl";
 
-const WA_API_URL = "https://graph.facebook.com/v25.0";
+import {
+  resolveMagicTouchContact,
+} from "./shared/magicTouchContactLookup";
 
+import {
+  addMagicTouchTimelineEvent,
+} from "./shared/magicTouchTimelineService";
 
-
-function s(v: any): string {
-  return String(v ?? "").trim();
+function s(value: any): string {
+  return String(value ?? "").trim();
 }
 
-function normalizePhone(phone: string): string {
-  const digits = String(phone ?? "").replace(/\D/g, "");
+function normalizePhone(
+  phone: string
+): string {
+  const digits =
+    s(phone).replace(
+      /\D/g,
+      ""
+    );
 
-  if (digits.startsWith("972")) return digits;
-  if (digits.startsWith("0")) return "972" + digits.slice(1);
-  if (digits.length === 9) return "972" + digits;
+  if (
+    digits.startsWith("972")
+  ) {
+    return digits;
+  }
+
+  if (
+    digits.startsWith("0")
+  ) {
+    return `972${digits.slice(1)}`;
+  }
+
+  if (
+    digits.length === 9
+  ) {
+    return `972${digits}`;
+  }
 
   return digits;
 }
 
-function getInboundMessageText(message: any): string {
-  const messageType = s(message?.type);
+function getInboundMessageText(
+  message: any
+): string {
+  const messageType =
+    s(message?.type);
 
-  if (messageType === "text") {
-    return s(message?.text?.body);
-  }
-
-  if (messageType === "button") {
-    return (
-      s(message?.button?.text) ||
-      s(message?.button?.payload)
+  if (
+    messageType === "text"
+  ) {
+    return s(
+      message?.text?.body
     );
   }
 
-  if (messageType === "interactive") {
+  if (
+    messageType === "button"
+  ) {
     return (
-      s(message?.interactive?.button_reply?.title) ||
-      s(message?.interactive?.button_reply?.id) ||
-      s(message?.interactive?.list_reply?.title) ||
-      s(message?.interactive?.list_reply?.id)
+      s(
+        message?.button?.text
+      ) ||
+      s(
+        message?.button?.payload
+      )
     );
   }
 
-  return "";
+  if (
+    messageType ===
+    "interactive"
+  ) {
+    return (
+      s(
+        message
+          ?.interactive
+          ?.button_reply
+          ?.title
+      ) ||
+      s(
+        message
+          ?.interactive
+          ?.button_reply
+          ?.id
+      ) ||
+      s(
+        message
+          ?.interactive
+          ?.list_reply
+          ?.title
+      ) ||
+      s(
+        message
+          ?.interactive
+          ?.list_reply
+          ?.id
+      )
+    );
+  }
+
+  if (
+    messageType === "image"
+  ) {
+    return (
+      s(
+        message
+          ?.image
+          ?.caption
+      ) ||
+      "[תמונה]"
+    );
+  }
+
+  if (
+    messageType === "document"
+  ) {
+    return (
+      s(
+        message
+          ?.document
+          ?.caption
+      ) ||
+      s(
+        message
+          ?.document
+          ?.filename
+      ) ||
+      "[מסמך]"
+    );
+  }
+
+  if (
+    messageType === "audio"
+  ) {
+    return "[הודעה קולית]";
+  }
+
+  if (
+    messageType === "video"
+  ) {
+    return (
+      s(
+        message
+          ?.video
+          ?.caption
+      ) ||
+      "[וידאו]"
+    );
+  }
+
+  if (
+    messageType === "location"
+  ) {
+    return "[מיקום]";
+  }
+
+  if (
+    messageType === "contacts"
+  ) {
+    return "[איש קשר]";
+  }
+
+  return messageType
+    ? `[${messageType}]`
+    : "[הודעה]";
 }
 
-async function getQuickReplyAction(
+async function findAgentByPhoneNumberId(
   db: FirebaseFirestore.Firestore,
-  agentId: string,
-  templateName: string,
-  messageText: string
-): Promise<"interested" | "declined" | null> {
+  phoneNumberId: string
+): Promise<string | null> {
+  const normalizedPhoneNumberId =
+    s(phoneNumberId);
+
+  if (
+    !normalizedPhoneNumberId
+  ) {
+    return null;
+  }
+
+  const mappingSnap =
+    await db
+      .doc(
+        `whatsapp_phone_mappings/${normalizedPhoneNumberId}`
+      )
+      .get();
+
+  if (
+    !mappingSnap.exists
+  ) {
+    logger.warn(
+      "[whatsappWebhook] WhatsApp phone mapping was not found",
+      {
+        phoneNumberId:
+          normalizedPhoneNumberId,
+      }
+    );
+
+    return null;
+  }
+
+  return (
+    s(
+      mappingSnap
+        .data()
+        ?.agentId
+    ) ||
+    null
+  );
+}
+
+async function findOriginalMessageTemplateName({
+  db,
+  conversationId,
+  contextMessageId,
+}: {
+  db: FirebaseFirestore.Firestore;
+  conversationId: string;
+  contextMessageId: string;
+}): Promise<string> {
+  if (
+    !conversationId ||
+    !contextMessageId
+  ) {
+    return "";
+  }
+
+  const originalMessageSnap =
+    await db
+      .doc(
+        `whatsapp_conversations/${conversationId}/messages/${contextMessageId}`
+      )
+      .get();
+
+  if (
+    !originalMessageSnap.exists
+  ) {
+    return "";
+  }
+
+  return s(
+    originalMessageSnap
+      .data()
+      ?.templateName
+  );
+}
+
+async function getQuickReplyAction({
+  db,
+  agentId,
+  templateName,
+  messageText,
+}: {
+  db: FirebaseFirestore.Firestore;
+  agentId: string;
+  templateName: string;
+  messageText: string;
+}): Promise<string | null> {
   if (
     !agentId ||
     !templateName ||
@@ -74,15 +282,18 @@ async function getQuickReplyAction(
     return null;
   }
 
-  const templateSnap = await db
-    .doc(
-      `agents/${agentId}/whatsapp_templates/${templateName}`
-    )
-    .get();
+  const templateSnap =
+    await db
+      .doc(
+        `agents/${agentId}/whatsapp_templates/${templateName}`
+      )
+      .get();
 
-  if (!templateSnap.exists) {
+  if (
+    !templateSnap.exists
+  ) {
     logger.warn(
-      "[whatsappWebhook] template not found for quick reply",
+      "[whatsappWebhook] Template was not found for Quick Reply mapping",
       {
         agentId,
         templateName,
@@ -97,772 +308,1173 @@ async function getQuickReplyAction(
     templateSnap.data() as any;
 
   const actions =
-    templateData?.quickReplyActions &&
-    typeof templateData.quickReplyActions === "object"
-      ? templateData.quickReplyActions
+    templateData
+      ?.quickReplyActions &&
+    typeof templateData
+      .quickReplyActions ===
+      "object" &&
+    !Array.isArray(
+      templateData
+        .quickReplyActions
+    )
+      ? templateData
+          .quickReplyActions
       : {};
 
-  const action = s(
-    actions[s(messageText)]
-  );
+  const action =
+    s(
+      actions[
+        messageText
+      ]
+    );
 
+  return action || null;
+}
+
+async function updateOutboundMessageStatus({
+  db,
+  waMessageId,
+  waStatus,
+  recipientId,
+  providerTimestamp,
+  error,
+}: {
+  db: FirebaseFirestore.Firestore;
+  waMessageId: string;
+  waStatus: string;
+  recipientId: string;
+  providerTimestamp: string;
+  error: any;
+}): Promise<void> {
   if (
-    action === "interested" ||
-    action === "declined"
+    !waMessageId
   ) {
-    return action;
+    return;
   }
 
-  logger.warn(
-    "[whatsappWebhook] quick reply action not mapped",
+  const messageQuery =
+    await db
+      .collectionGroup(
+        "messages"
+      )
+      .where(
+        "waMessageId",
+        "==",
+        waMessageId
+      )
+      .limit(1)
+      .get();
+
+  if (
+    messageQuery.empty
+  ) {
+    logger.warn(
+      "[whatsappWebhook] Outbound message was not found for status update",
+      {
+        waMessageId,
+        waStatus,
+      }
+    );
+
+    return;
+  }
+
+  const messageDoc =
+    messageQuery.docs[0];
+
+  const messageData =
+    messageDoc.data() as any;
+
+  const statusUpdate:
+    Record<string, any> = {
+      status:
+        waStatus,
+
+      waLastStatus:
+        waStatus,
+
+      waLastStatusAt:
+        nowTs(),
+
+      waRecipientId:
+        recipientId ||
+        null,
+
+      providerStatusTimestamp:
+        providerTimestamp ||
+        null,
+
+      updatedAt:
+        nowTs(),
+    };
+
+  if (
+    waStatus === "sent"
+  ) {
+    statusUpdate.waSentAt =
+      nowTs();
+  }
+
+  if (
+    waStatus === "delivered"
+  ) {
+    statusUpdate.waDeliveredAt =
+      nowTs();
+  }
+
+  if (
+    waStatus === "read"
+  ) {
+    statusUpdate.waReadAt =
+      nowTs();
+  }
+
+  if (
+    waStatus === "failed"
+  ) {
+    statusUpdate.waFailedAt =
+      nowTs();
+
+    statusUpdate.waError =
+      error || null;
+  }
+
+  await messageDoc.ref.set(
+    statusUpdate,
     {
+      merge: true,
+    }
+  );
+
+  /*
+   * אם ההודעה נשלחה כחלק מקמפיין,
+   * מעדכנים גם את רשומת הנמען בקמפיין.
+   */
+  const campaignId =
+    s(
+      messageData
+        ?.campaignId
+    );
+
+  const agentId =
+    s(
+      messageData
+        ?.agentId
+    );
+
+  const contactId =
+    s(
+      messageData
+        ?.contactId
+    );
+
+  if (
+    campaignId &&
+    agentId &&
+    contactId
+  ) {
+    const recipientRef =
+      db.doc(
+        `agents/${agentId}/magic_touch_campaigns/${campaignId}/recipients/${contactId}`
+      );
+
+    const recipientUpdate:
+      Record<string, any> = {
+        status:
+          waStatus,
+
+        waLastStatus:
+          waStatus,
+
+        waLastStatusAt:
+          nowTs(),
+
+        updatedAt:
+          nowTs(),
+      };
+
+    if (
+      waStatus === "sent"
+    ) {
+      recipientUpdate.sentConfirmedAt =
+        nowTs();
+    }
+
+    if (
+      waStatus === "delivered"
+    ) {
+      recipientUpdate.deliveredAt =
+        nowTs();
+    }
+
+    if (
+      waStatus === "read"
+    ) {
+      recipientUpdate.readAt =
+        nowTs();
+    }
+
+    if (
+      waStatus === "failed"
+    ) {
+      recipientUpdate.failedAt =
+        nowTs();
+
+      recipientUpdate.error =
+        error || null;
+    }
+
+    await recipientRef.set(
+      recipientUpdate,
+      {
+        merge: true,
+      }
+    );
+  }
+}
+
+async function createAutomationEvent({
+  db,
+  agentId,
+  contactId,
+  conversationId,
+  triggerType,
+  message,
+  quickReplyAction,
+  templateName,
+}: {
+  db: FirebaseFirestore.Firestore;
+  agentId: string;
+  contactId: string | null;
+  conversationId: string;
+  triggerType: string;
+  message: any;
+  quickReplyAction: string | null;
+  templateName: string;
+}): Promise<string> {
+  const eventRef =
+    db
+      .collection(
+        `agents/${agentId}/magic_touch_events`
+      )
+      .doc();
+
+  const messageText =
+    getInboundMessageText(
+      message
+    );
+
+  await eventRef.set({
+    eventId:
+      eventRef.id,
+
+    agentId,
+
+    contactId:
+      contactId ||
+      null,
+
+    conversationId,
+
+    triggerType,
+
+    channel:
+      "whatsapp",
+
+    messageType:
+      s(
+        message?.type
+      ) ||
+      null,
+
+    messageText:
+      messageText ||
+      null,
+
+    waMessageId:
+      s(
+        message?.id
+      ) ||
+      null,
+
+    contextMessageId:
+      s(
+        message
+          ?.context
+          ?.id
+      ) ||
+      null,
+
+    templateName:
+      templateName ||
+      null,
+
+    quickReplyAction:
+      quickReplyAction ||
+      null,
+
+    status:
+      "pending",
+
+    attempts:
+      0,
+
+    rawJson:
+      JSON.stringify(
+        message || {}
+      ),
+
+    occurredAt:
+      nowTs(),
+
+    createdAt:
+      nowTs(),
+
+    updatedAt:
+      nowTs(),
+  });
+
+  return eventRef.id;
+}
+
+async function processInboundMessage({
+  db,
+  phoneNumberId,
+  message,
+}: {
+  db: FirebaseFirestore.Firestore;
+  phoneNumberId: string;
+  message: any;
+}): Promise<void> {
+  const from =
+    normalizePhone(
+      s(
+        message?.from
+      )
+    );
+
+  const messageType =
+    s(
+      message?.type
+    ) ||
+    "unknown";
+
+  const messageText =
+    getInboundMessageText(
+      message
+    );
+
+  const inboundWaMessageId =
+    s(
+      message?.id
+    );
+
+  if (
+    !from
+  ) {
+    logger.warn(
+      "[whatsappWebhook] Inbound message is missing sender phone",
+      {
+        phoneNumberId,
+        messageType,
+        inboundWaMessageId,
+      }
+    );
+
+    return;
+  }
+
+  const agentId =
+    await findAgentByPhoneNumberId(
+      db,
+      phoneNumberId
+    );
+
+  if (
+    !agentId
+  ) {
+    await db
+      .collection(
+        "whatsapp_inbound_messages"
+      )
+      .add({
+        phoneNumberId,
+
+        from,
+
+        type:
+          messageType,
+
+        text:
+          messageText ||
+          null,
+
+        waMessageId:
+          inboundWaMessageId ||
+          null,
+
+        rawJson:
+          JSON.stringify(
+            message || {}
+          ),
+
+        mappingStatus:
+          "agent_not_found",
+
+        createdAt:
+          nowTs(),
+      });
+
+    return;
+  }
+
+  const conversationId =
+    `${agentId}_${from}`;
+
+  const conversationRef =
+    db.doc(
+      `whatsapp_conversations/${conversationId}`
+    );
+
+  const conversationSnap =
+    await conversationRef.get();
+
+  const conversationData =
+    conversationSnap.exists
+      ? conversationSnap.data() as any
+      : {};
+
+  /*
+   * קודם משתמשים ב-contactId שכבר מקושר לשיחה.
+   * אם עדיין אין, מחפשים איש קשר לפי מספר הטלפון.
+   */
+  const contactMatch =
+    await resolveMagicTouchContact({
+      db,
+
+      agentId,
+
+      contactId:
+        s(
+          conversationData
+            ?.contactId
+        ) ||
+        null,
+
+      phone:
+        from,
+    });
+
+  const contactId =
+    contactMatch
+      ?.contactId ||
+    null;
+
+  const customerName =
+    contactMatch
+      ? s(
+          contactMatch
+            .contactData
+            ?.fullName
+        ) ||
+        null
+      : s(
+          conversationData
+            ?.customerName
+        ) ||
+        null;
+
+  const conversationMessageRef =
+    inboundWaMessageId
+      ? conversationRef
+          .collection(
+            "messages"
+          )
+          .doc(
+            inboundWaMessageId
+          )
+      : conversationRef
+          .collection(
+            "messages"
+          )
+          .doc();
+
+  const existingMessage =
+    await conversationMessageRef
+      .get();
+
+  if (
+    existingMessage.exists
+  ) {
+    logger.info(
+      "[whatsappWebhook] Duplicate inbound message ignored",
+      {
+        agentId,
+        from,
+        inboundWaMessageId,
+      }
+    );
+
+    return;
+  }
+
+  const contextMessageId =
+    s(
+      message
+        ?.context
+        ?.id
+    );
+
+  const templateName =
+    await findOriginalMessageTemplateName({
+      db,
+      conversationId,
+      contextMessageId,
+    });
+
+  const quickReplyAction =
+    await getQuickReplyAction({
+      db,
       agentId,
       templateName,
       messageText,
-      actions,
-    }
-  );
+    });
 
-  return null;
-}
+  const timestamp =
+    nowTs();
 
-async function getAgentBookingUrl(
-  db: FirebaseFirestore.Firestore,
-  agentId: string
-): Promise<string> {
-  const configSnap = await db
-    .doc(
-      `agents/${agentId}/config/whatsapp`
-    )
-    .get();
+  const nextConversationData:
+    Record<string, any> = {
+      agentId,
 
-  if (!configSnap.exists) {
-    return "";
+      contactId,
+
+      phoneNumberId,
+
+      customerPhone:
+        from,
+
+      customerName,
+
+      status:
+        "open",
+
+      lastMessageText:
+        messageText ||
+        `[${messageType}]`,
+
+      lastMessageType:
+        messageType,
+
+      lastMessageDirection:
+        "inbound",
+
+      lastMessageAt:
+        timestamp,
+
+      lastInboundAt:
+        timestamp,
+
+      unreadCount:
+        FieldValue.increment(
+          1
+        ),
+
+      needsReply:
+        true,
+
+      updatedAt:
+        timestamp,
+    };
+
+  if (
+    !conversationSnap.exists
+  ) {
+    nextConversationData.createdAt =
+      timestamp;
   }
 
-  return s(
-    configSnap.data()?.bookingUrl
-  );
-}
+  await Promise.all([
+    conversationRef.set(
+      nextConversationData,
+      {
+        merge: true,
+      }
+    ),
 
-async function findAgentByPhoneNumberId(
-  db: FirebaseFirestore.Firestore,
-  phoneNumberId: string
-): Promise<string | null> {
-  if (!phoneNumberId) return null;
+    conversationMessageRef.set({
+      agentId,
 
-  const snap = await db
-    .doc(`whatsapp_phone_mappings/${phoneNumberId}`)
-    .get();
+      contactId,
 
-  if (!snap.exists) {
-    logger.warn(
-      "[whatsappWebhook] phone mapping not found",
-      { phoneNumberId }
-    );
-    return null;
-  }
+      conversationId,
 
-  return s(snap.data()?.agentId) || null;
-}
+      direction:
+        "inbound",
 
-async function findLeadByPhone(
-  db: FirebaseFirestore.Firestore,
-  agentId: string,
-  phoneNormalized: string
-): Promise<FirebaseFirestore.QueryDocumentSnapshot | null> {
-  if (!agentId || !phoneNormalized) return null;
+      from,
 
-  const snap = await db
-    .collection(`agents/${agentId}/reengagement_leads`)
-    .where("phoneNormalized", "==", phoneNormalized)
-    .limit(1)
-    .get();
+      toPhoneNumberId:
+        phoneNumberId,
 
-  if (snap.empty) return null;
+      type:
+        messageType,
 
-  return snap.docs[0];
-}
+      text:
+        messageText ||
+        null,
 
-async function getAgentWhatsAppAccess(
-  db: FirebaseFirestore.Firestore,
-  agentId: string
-): Promise<{
-  phoneNumberId: string;
-  accessToken: string;
-}> {
-  const configSnap = await db
-    .doc(`agents/${agentId}/config/whatsapp`)
-    .get();
+      templateName:
+        templateName ||
+        null,
 
-  if (!configSnap.exists) {
-    throw new Error(
-      `WhatsApp config not found for agent ${agentId}`
-    );
-  }
+      quickReplyAction:
+        quickReplyAction ||
+        null,
 
-  const phoneNumberId = s(
-    configSnap.data()?.phoneNumberId
-  );
+      contextMessageId:
+        contextMessageId ||
+        null,
 
-  if (!phoneNumberId) {
-    throw new Error(
-      `Missing phoneNumberId for agent ${agentId}`
-    );
-  }
+      waMessageId:
+        inboundWaMessageId ||
+        null,
 
-  const secretSnap = await db
-    .doc(`agents/${agentId}/secrets/whatsapp`)
-    .get();
+      status:
+        "received",
 
-  if (!secretSnap.exists) {
-    throw new Error(
-      `WhatsApp secret not found for agent ${agentId}`
-    );
-  }
+      rawJson:
+        JSON.stringify(
+          message || {}
+        ),
 
-  const keyB64 = PORTAL_ENC_KEY_B64.value();
+      createdAt:
+        timestamp,
 
-  if (!keyB64) {
-    throw new Error("Missing PORTAL_ENC_KEY_B64");
-  }
+      updatedAt:
+        timestamp,
+    }),
 
-  const secretData = secretSnap.data() as any;
+    db
+      .collection(
+        "whatsapp_inbound_messages"
+      )
+      .add({
+        agentId,
 
-  const decrypted = decryptJsonAes256Gcm(
-    keyB64,
-    secretData.enc
-  ) as any;
+        contactId,
 
-  const accessToken = s(decrypted?.accessToken);
+        conversationId,
 
-  if (!accessToken) {
-    throw new Error(
-      `Invalid WhatsApp token for agent ${agentId}`
-    );
-  }
+        phoneNumberId,
 
-  return {
-    phoneNumberId,
-    accessToken,
-  };
-}
+        from,
 
-async function sendWhatsAppTextMessage(
-  db: FirebaseFirestore.Firestore,
-  agentId: string,
-  to: string,
-  text: string
-): Promise<{
-  waMessageId: string | null;
-  phoneNumberId: string;
-}> {
-  const {
-    phoneNumberId,
-    accessToken,
-  } = await getAgentWhatsAppAccess(
-    db,
-    agentId
-  );
+        type:
+          messageType,
 
-  const response = await fetch(
-    `${WA_API_URL}/${phoneNumberId}/messages`,
-    {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        messaging_product: "whatsapp",
-        recipient_type: "individual",
-        to,
-        type: "text",
-        text: {
-          preview_url: true,
-          body: text,
-        },
+        text:
+          messageText ||
+          null,
+
+        templateName:
+          templateName ||
+          null,
+
+        quickReplyAction:
+          quickReplyAction ||
+          null,
+
+        waMessageId:
+          inboundWaMessageId ||
+          null,
+
+        rawJson:
+          JSON.stringify(
+            message || {}
+          ),
+
+        mappingStatus:
+          contactId
+            ? "contact_matched"
+            : "contact_not_found",
+
+        createdAt:
+          timestamp,
       }),
+  ]);
+
+  if (
+    contactMatch
+  ) {
+    await contactMatch
+      .contactRef
+      .set(
+        {
+          lastInboundAt:
+            timestamp,
+
+          lastReplyText:
+            messageText ||
+            null,
+
+          lastWhatsAppInboundMessageId:
+            inboundWaMessageId ||
+            null,
+
+          whatsappConversationId:
+            conversationId,
+
+          updatedAt:
+            timestamp,
+        },
+        {
+          merge: true,
+        }
+      );
+
+    try {
+      await addMagicTouchTimelineEvent({
+        agentId,
+
+        contactId:
+          contactMatch
+            .contactId,
+
+        type:
+          "whatsapp_message_received",
+
+        channel:
+          "whatsapp",
+
+        title:
+          quickReplyAction
+            ? "התקבלה תגובה לתבנית WhatsApp"
+            : "התקבלה הודעת WhatsApp",
+
+        description:
+          messageText ||
+          `[${messageType}]`,
+
+        direction:
+          "inbound",
+
+        status:
+          "completed",
+
+        createdBy:
+          "system:whatsapp_webhook",
+
+        sourceSystem:
+          "whatsapp",
+
+        sourceRecordId:
+          inboundWaMessageId ||
+          null,
+
+        metadata: {
+          waMessageId:
+            inboundWaMessageId ||
+            null,
+
+          conversationId,
+
+          phoneNumberId,
+
+          customerPhone:
+            from,
+
+          messageType,
+
+          contextMessageId:
+            contextMessageId ||
+            null,
+
+          templateName:
+            templateName ||
+            null,
+
+          quickReplyAction:
+            quickReplyAction ||
+            null,
+        },
+      });
+    } catch (
+      timelineError: any
+    ) {
+      logger.error(
+        "[whatsappWebhook] Failed to create inbound Timeline event",
+        {
+          agentId,
+
+          contactId:
+            contactMatch
+              .contactId,
+
+          conversationId,
+
+          inboundWaMessageId,
+
+          error:
+            timelineError
+              ?.message ||
+            String(
+              timelineError
+            ),
+        }
+      );
     }
-  );
-
-  const json: any = await response.json();
-
-  if (!response.ok) {
-    throw new Error(
-      json?.error?.message ||
-      "Failed to send WhatsApp text message"
-    );
   }
 
-  return {
-    waMessageId:
-      s(json?.messages?.[0]?.id) || null,
-    phoneNumberId,
-  };
-}
+  /*
+   * יצירת אירוע כללי למנוע ה־Flow.
+   * בשלב הזה האירוע רק נשמר במצב pending.
+   * מנוע האוטומציות שנבנה בהמשך יחליט אילו פעולות לבצע.
+   */
+  const automationEventId =
+    await createAutomationEvent({
+      db,
 
-async function saveOutboundConversationMessage(
-  db: FirebaseFirestore.Firestore,
-  params: {
-    agentId: string;
-    phoneNumberId: string;
-    customerPhone: string;
-    customerName: string | null;
-    leadId: string | null;
-    text: string;
-    waMessageId: string | null;
-    messageType: string;
-  }
-): Promise<void> {
-  const {
-    agentId,
-    phoneNumberId,
-    customerPhone,
-    customerName,
-    leadId,
-    text,
-    waMessageId,
-    messageType,
-  } = params;
+      agentId,
 
-  const conversationId =
-    `${agentId}_${customerPhone}`;
+      contactId,
 
-  const conversationRef = db.doc(
-    `whatsapp_conversations/${conversationId}`
-  );
+      conversationId,
 
-  const messageRef = conversationRef
-    .collection("messages")
-    .doc(
-      waMessageId ||
-      `outbound_${Date.now()}`
-    );
+      triggerType:
+        quickReplyAction
+          ? "whatsapp_quick_reply_received"
+          : "whatsapp_message_received",
 
-  await conversationRef.set(
+      message,
+
+      quickReplyAction,
+
+      templateName,
+    });
+
+  logger.info(
+    "[whatsappWebhook] Inbound message processed",
     {
       agentId,
-      phoneNumberId,
-      customerPhone,
-      customerName,
-      leadId,
-      status: "open",
-      lastMessageText: text,
-      lastMessageType: messageType,
-      lastMessageDirection: "outbound",
-      lastMessageAt: nowTs(),
-      needsReply: false,
-      updatedAt: nowTs(),
-    },
-    { merge: true }
-  );
 
-  await messageRef.set(
-    {
-      direction: "outbound",
-      fromPhoneNumberId: phoneNumberId,
-      to: customerPhone,
-      type: messageType,
-      text,
-      waMessageId,
-      status: "accepted",
-      createdAt: nowTs(),
-    },
-    { merge: true }
+      contactId,
+
+      conversationId,
+
+      from,
+
+      messageType,
+
+      messageText,
+
+      templateName,
+
+      quickReplyAction,
+
+      inboundWaMessageId,
+
+      automationEventId,
+    }
   );
 }
 
-export const whatsappWebhook = onRequest(
-  {
-    region: FUNCTIONS_REGION,
-    secrets: [
-      WHATSAPP_WEBHOOK_VERIFY_TOKEN,
-      PORTAL_ENC_KEY_B64,
-      SURENSE_ACTIVITY_API_KEY,
-    ],
-  },
+export const whatsappWebhook =
+  onRequest(
+    {
+      region:
+        FUNCTIONS_REGION,
 
-  async (req, res) => {
-    const db = adminDb();
+      secrets: [
+        WHATSAPP_WEBHOOK_VERIFY_TOKEN,
+        PORTAL_ENC_KEY_B64,
+      ],
 
-    if (req.method === "GET") {
-      const mode = s(req.query["hub.mode"]);
-      const token = s(req.query["hub.verify_token"]);
-      const challenge = s(req.query["hub.challenge"]);
+      timeoutSeconds:
+        60,
+
+      memory:
+        "256MiB",
+    },
+
+    async (
+      req,
+      res
+    ) => {
+      const db =
+        adminDb();
 
       if (
-        mode === "subscribe" &&
-        token === WHATSAPP_WEBHOOK_VERIFY_TOKEN.value()
+        req.method === "GET"
       ) {
-        logger.info("[whatsappWebhook] verified");
-        res.status(200).send(challenge);
+        const mode =
+          s(
+            req.query[
+              "hub.mode"
+            ]
+          );
+
+        const token =
+          s(
+            req.query[
+              "hub.verify_token"
+            ]
+          );
+
+        const challenge =
+          s(
+            req.query[
+              "hub.challenge"
+            ]
+          );
+
+        if (
+          mode ===
+            "subscribe" &&
+          token ===
+            WHATSAPP_WEBHOOK_VERIFY_TOKEN
+              .value()
+        ) {
+          logger.info(
+            "[whatsappWebhook] Verification succeeded"
+          );
+
+          res
+            .status(200)
+            .send(
+              challenge
+            );
+
+          return;
+        }
+
+        logger.warn(
+          "[whatsappWebhook] Verification failed",
+          {
+            mode,
+          }
+        );
+
+        res.sendStatus(
+          403
+        );
+
         return;
       }
 
-      logger.warn(
-        "[whatsappWebhook] verification failed",
-        { mode }
-      );
+      if (
+        req.method !==
+        "POST"
+      ) {
+        res.sendStatus(
+          405
+        );
 
-      res.sendStatus(403);
-      return;
-    }
+        return;
+      }
 
-    if (req.method !== "POST") {
-      res.sendStatus(405);
-      return;
-    }
+      try {
+        const body =
+          req.body;
 
-    try {
-      const body = req.body;
+        logger.info(
+          "[whatsappWebhook] Payload received",
+          JSON.stringify(
+            body
+          )
+        );
 
-      logger.info(
-        "[whatsappWebhook] incoming payload",
-        JSON.stringify(body)
-      );
+        const entries =
+          Array.isArray(
+            body?.entry
+          )
+            ? body.entry
+            : [];
 
-      const entries = body?.entry ?? [];
+        for (
+          const entry of
+          entries
+        ) {
+          const changes =
+            Array.isArray(
+              entry?.changes
+            )
+              ? entry.changes
+              : [];
 
-      for (const entry of entries) {
-        const changes = entry?.changes ?? [];
-
-        for (const change of changes) {
-          if (change?.field !== "messages") {
-            continue;
-          }
-
-          const value = change?.value;
-          const phoneNumberId = s(
-            value?.metadata?.phone_number_id
-          );
-
-          const statuses = value?.statuses ?? [];
-
-          for (const status of statuses) {
-            const waMessageId = s(status?.id);
-            const waStatus = s(status?.status);
-            const timestamp = s(status?.timestamp);
-            const recipientId = s(status?.recipient_id);
-            const error = status?.errors?.[0] ?? null;
-
-            logger.info(
-              "[whatsappWebhook] status",
-              {
-                phoneNumberId,
-                waMessageId,
-                waStatus,
-                recipientId,
-                error,
-              }
-            );
-
-            if (!waMessageId) continue;
-
-            const leadQuery = await db
-              .collectionGroup("reengagement_leads")
-              .where("waMessageId", "==", waMessageId)
-              .limit(1)
-              .get();
-
-            if (leadQuery.empty) {
-              logger.warn(
-                "[whatsappWebhook] waMessageId not found",
-                {
-                  waMessageId,
-                  waStatus,
-                }
-              );
+          for (
+            const change of
+            changes
+          ) {
+            if (
+              change?.field !==
+              "messages"
+            ) {
               continue;
             }
 
-            const leadRef = leadQuery.docs[0].ref;
+            const value =
+              change?.value ||
+              {};
 
-            const updateData: any = {
-              waLastStatus: waStatus,
-              waLastStatusAt: nowTs(),
-              waRecipientId: recipientId || null,
-              updatedAt: nowTs(),
-            };
-
-            if (timestamp) {
-              updateData.waStatusTimestamp = timestamp;
-            }
-
-            if (waStatus === "sent") {
-              updateData.status = "sent";
-              updateData.waSentConfirmedAt = nowTs();
-            }
-
-            if (waStatus === "delivered") {
-              updateData.status = "delivered";
-              updateData.waDeliveredAt = nowTs();
-            }
-
-            if (waStatus === "read") {
-              updateData.status = "read";
-              updateData.waReadAt = nowTs();
-            }
-
-            if (waStatus === "failed") {
-              updateData.status = "failed";
-              updateData.waFailedAt = nowTs();
-              updateData.waError = error;
-            }
-
-            await leadRef.update(updateData);
-          }
-
-          const messages = value?.messages ?? [];
-
-          for (const message of messages) {
-            const from = normalizePhone(
-              s(message?.from)
-            );
-
-            const messageType = s(message?.type);
-            const messageText =
-              getInboundMessageText(message);
-
-           
-
-            const inboundWaMessageId =
-              s(message?.id);
-
-            logger.info(
-              "[whatsappWebhook] inbound message received",
-              {
-                phoneNumberId,
-                from,
-                type: messageType,
-                text: messageText,
-                waMessageId: inboundWaMessageId,
-              }
-            );
-
-            const agentId =
-              await findAgentByPhoneNumberId(
-                db,
-                phoneNumberId
+            const phoneNumberId =
+              s(
+                value
+                  ?.metadata
+                  ?.phone_number_id
               );
 
-            if (!agentId) {
-              await db
-                .collection("whatsapp_inbound_messages")
-                .add({
-                  phoneNumberId,
-                  from,
-                  type: messageType,
-                  text: messageText,
-                  waMessageId:
-                    inboundWaMessageId || null,
-                  rawJson:
-                    JSON.stringify(message),
-                  mappingStatus:
-                    "agent_not_found",
-                  createdAt: nowTs(),
-                });
+            const statuses =
+              Array.isArray(
+                value?.statuses
+              )
+                ? value.statuses
+                : [];
 
-              continue;
-            }
+            for (
+              const status of
+              statuses
+            ) {
+              const waMessageId =
+                s(
+                  status?.id
+                );
 
-            const leadDoc =
-              await findLeadByPhone(
-                db,
-                agentId,
-                from
-              );
+              const waStatus =
+                s(
+                  status
+                    ?.status
+                );
 
-            const leadId = leadDoc?.id ?? null;
-            const leadData = leadDoc?.data() ?? null;
-            const fullName =
-              s(leadData?.fullName) || null;
+              const recipientId =
+                s(
+                  status
+                    ?.recipient_id
+                );
 
-          let templateName =
-  s(leadData?.templateName);
+              const providerTimestamp =
+                s(
+                  status
+                    ?.timestamp
+                );
 
-const contextMessageId =
-  s(message?.context?.id);
+              const error =
+                Array.isArray(
+                  status?.errors
+                )
+                  ? status
+                      .errors[0] ||
+                    null
+                  : null;
 
-if (!templateName && contextMessageId) {
-  const originalMessageSnap = await db
-    .doc(
-      `whatsapp_conversations/${agentId}_${from}/messages/${contextMessageId}`
-    )
-    .get();
-
-  if (originalMessageSnap.exists) {
-    templateName = s(
-      originalMessageSnap.data()?.templateName
-    );
-  }
-}
-
-const quickReplyAction =
-  await getQuickReplyAction(
-    db,
-    agentId,
-    templateName,
-    messageText
-  );
-
-          logger.info(
-  "[whatsappWebhook] inbound message mapped",
-  {
-    agentId,
-    phoneNumberId,
-    from,
-    templateName,
-    contextMessageId,
-    messageText,
-    quickReplyAction,
-    waMessageId: inboundWaMessageId,
-  }
-);
-
-            const conversationId =
-              `${agentId}_${from}`;
-
-            const conversationRef = db.doc(
-              `whatsapp_conversations/${conversationId}`
-            );
-
-            const conversationMessageRef =
-              inboundWaMessageId
-                ? conversationRef
-                    .collection("messages")
-                    .doc(inboundWaMessageId)
-                : conversationRef
-                    .collection("messages")
-                    .doc();
-
-            const existingMessage =
-              await conversationMessageRef.get();
-
-            if (existingMessage.exists) {
               logger.info(
-                "[whatsappWebhook] duplicate inbound ignored",
+                "[whatsappWebhook] Status received",
                 {
-                  agentId,
-                  from,
-                  waMessageId: inboundWaMessageId,
+                  phoneNumberId,
+
+                  waMessageId,
+
+                  waStatus,
+
+                  recipientId,
+
+                  error,
                 }
               );
-              continue;
-            }
 
-            await db
-              .collection("whatsapp_inbound_messages")
-              .add({
-                agentId,
-                phoneNumberId,
-                from,
-                type: messageType,
-                text: messageText,
-                quickReplyAction,
-                waMessageId:
-                  inboundWaMessageId || null,
-                leadId,
-                fullName,
-                rawJson:
-                  JSON.stringify(message),
-                createdAt: nowTs(),
-              });
-
-            const conversationSnap =
-              await conversationRef.get();
-
-            const conversationData: any = {
-              agentId,
-              phoneNumberId,
-              customerPhone: from,
-              customerName: fullName,
-              leadId,
-              status: "open",
-              lastMessageText:
-                messageText || `[${messageType}]`,
-              lastMessageType: messageType,
-              lastMessageDirection: "inbound",
-              lastMessageAt: nowTs(),
-              lastInboundAt: nowTs(),
-              unreadCount: FieldValue.increment(1),
-              needsReply: true,
-              updatedAt: nowTs(),
-            };
-
-            if (!conversationSnap.exists) {
-              conversationData.createdAt = nowTs();
-            }
-
-            await conversationRef.set(
-              conversationData,
-              { merge: true }
-            );
-
-            await conversationMessageRef.set({
-              direction: "inbound",
-              from,
-              toPhoneNumberId: phoneNumberId,
-              type: messageType,
-              text: messageText || null,
-              quickReplyAction,
-              waMessageId:
-                inboundWaMessageId || null,
-              status: "received",
-              rawJson:
-                JSON.stringify(message),
-              createdAt: nowTs(),
-            });
-
-            if (leadDoc) {
-              await leadDoc.ref.update({
-                hasInboundReply: true,
-                lastInboundText:
-                  messageText || null,
-                lastInboundAt: nowTs(),
-                conversationId,
-                updatedAt: nowTs(),
-              });
-            }
-
-            if (
-              quickReplyAction === "declined" &&
-              leadDoc
-            ) {
-              await updateReengagementLeadStatusImpl(
-                agentId,
-                leadDoc.id,
-                "declined"
-              );
-
-              await conversationRef.set(
-                {
-                  needsReply: false,
-                  updatedAt: nowTs(),
-                },
-                { merge: true }
-              );
-            }
-
-            if (
-              quickReplyAction === "interested" &&
-              leadDoc
-            ) {
-              await leadDoc.ref.update({
-                status: "interested",
-                interestStatus: "interested",
-                interestRespondedAt: nowTs(),
-                bookingStatus: "not_sent",
-                updatedAt: nowTs(),
-              });
-
-              const bookingUrl =
-                await getAgentBookingUrl(
-                  db,
-                  agentId
-                );
-
-              if (!bookingUrl) {
-                logger.error(
-                  "[whatsappWebhook] missing bookingUrl",
-                  {
-                    agentId,
-                    leadId: leadDoc.id,
-                  }
-                );
-
-                await leadDoc.ref.update({
-                  bookingStatus:
-                    "missing_booking_url",
-                  updatedAt:
-                    nowTs(),
-                });
-
+              if (
+                !waMessageId ||
+                !waStatus
+              ) {
                 continue;
               }
 
-              const bookingMessage =
-                `בשמחה, ניתן לבחור מועד שמתאים לך בקישור הבא:\n\n${bookingUrl}\n\nלאחר קביעת הפגישה יישלח אליך אישור למייל.`;
+              await updateOutboundMessageStatus({
+                db,
 
-              try {
-                const sentResult =
-                  await sendWhatsAppTextMessage(
-                    db,
-                    agentId,
-                    from,
-                    bookingMessage
-                  );
+                waMessageId,
 
-                await saveOutboundConversationMessage(
-                  db,
-                  {
-                    agentId,
-                    phoneNumberId:
-                      sentResult.phoneNumberId,
-                    customerPhone: from,
-                    customerName: fullName,
-                    leadId: leadDoc.id,
-                    text: bookingMessage,
-                    waMessageId:
-                      sentResult.waMessageId,
-                    messageType:
-                      "booking_link",
-                  }
-                );
+                waStatus,
 
-                await leadDoc.ref.update({
-                  bookingStatus: "link_sent",
-                  bookingLink: bookingUrl,
-                  bookingLinkSentAt: nowTs(),
-                  bookingLinkWaMessageId:
-                    sentResult.waMessageId,
-                  updatedAt: nowTs(),
-                });
-              } catch (sendError: any) {
-                logger.error(
-                  "[whatsappWebhook] booking link send failed",
-                  {
-                    agentId,
-                    leadId: leadDoc.id,
-                    from,
-                    error:
-                      sendError?.message ||
-                      String(sendError),
-                  }
-                );
+                recipientId,
 
-                await leadDoc.ref.update({
-                  bookingStatus: "send_failed",
-                  bookingLinkSendError:
-                    sendError?.message ||
-                    String(sendError),
-                  updatedAt: nowTs(),
-                });
-              }
+                providerTimestamp,
+
+                error,
+              });
             }
 
-            logger.info(
-              "[whatsappWebhook] inbound processed",
-              {
-                agentId,
-                from,
-                leadId,
-                conversationId,
-                quickReplyAction,
+            const messages =
+              Array.isArray(
+                value?.messages
+              )
+                ? value.messages
+                : [];
+
+            for (
+              const message of
+              messages
+            ) {
+              try {
+                await processInboundMessage({
+                  db,
+
+                  phoneNumberId,
+
+                  message,
+                });
+              } catch (
+                messageError: any
+              ) {
+                logger.error(
+                  "[whatsappWebhook] Failed to process inbound message",
+                  {
+                    phoneNumberId,
+
+                    waMessageId:
+                      s(
+                        message?.id
+                      ),
+
+                    error:
+                      messageError
+                        ?.message ||
+                      String(
+                        messageError
+                      ),
+                  }
+                );
+
+                /*
+                 * לא מפילים את כל ה־Webhook בגלל הודעה בודדת.
+                 * Meta עשויה לשלוח מספר הודעות באותו Payload.
+                 */
               }
-            );
+            }
           }
         }
+
+        res.sendStatus(
+          200
+        );
+      } catch (
+        error: any
+      ) {
+        logger.error(
+          "[whatsappWebhook] Request failed",
+          {
+            error:
+              error
+                ?.message ||
+              String(
+                error
+              ),
+          }
+        );
+
+        res.sendStatus(
+          500
+        );
       }
-
-      res.sendStatus(200);
-    } catch (e: any) {
-      logger.error(
-        "[whatsappWebhook] error",
-        e
-      );
-
-      res.sendStatus(500);
     }
-  }
-);
+  );

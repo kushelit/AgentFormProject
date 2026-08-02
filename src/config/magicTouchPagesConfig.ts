@@ -31,10 +31,10 @@ const magicTouchPages: MagicTouchNavigationItem[] = [
     permission: 'access_magic_touch_campaigns',
   },
   {
-    href: '/MagicTouch/Workflows',
+    href: '/MagicTouch/Flows',
     label: 'אוטומציות',
     icon: '⚡',
-    permission: 'access_magic_touch_workflows',
+    permission: 'access_magic_touch',
   },
   {
     href: '/MagicTouch/Appointments',
@@ -46,7 +46,7 @@ const magicTouchPages: MagicTouchNavigationItem[] = [
     href: '/MagicTouch/Templates',
     label: 'תבניות',
     icon: '📝',
-    permission: 'access_magic_touch_templates',
+    permission: 'access_magic_touch',
   },
   {
     href: '/MagicTouch/Integrations',
