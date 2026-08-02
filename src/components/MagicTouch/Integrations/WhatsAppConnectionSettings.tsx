@@ -58,24 +58,18 @@ declare global {
   interface Window {
     FB?: {
       init: (
-        options:
-          Record<string, unknown>
+        options: Record<string, any>
       ) => void;
 
       login: (
-        callback:
-          (
-            response:
-              Record<string, any>
-          ) => void,
-
-        options:
-          Record<string, unknown>
+        callback: (
+          response: any
+        ) => void,
+        options: Record<string, any>
       ) => void;
     };
 
-    fbAsyncInit?:
-      () => void;
+    fbAsyncInit?: () => void;
   }
 }
 
