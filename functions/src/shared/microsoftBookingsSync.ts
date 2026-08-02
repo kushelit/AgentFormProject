@@ -1,6 +1,9 @@
 /* eslint-disable require-jsdoc */
 /* eslint-disable max-len */
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import {
+  logger,
+} from "firebase-functions";
 
 import { createHash } from "node:crypto";
 import { HttpsError } from "firebase-functions/v2/https";
@@ -468,6 +471,51 @@ export async function syncMicrosoftBookingsAgent(
       start.toISOString(),
       end.toISOString()
     );
+logger.info(
+  "[MicrosoftBookingsSync] calendarView result",
+  {
+    agentId:
+      normalizedAgentId,
+
+    bookingBusinessId,
+
+    appointmentCount:
+      appointments.length,
+
+    appointments:
+      appointments.map(
+        (
+          appointment: any
+        ) => ({
+          id:
+            s(
+              appointment?.id
+            ),
+
+          isCancelled:
+            appointment?.isCancelled ??
+            null,
+
+          createdDateTime:
+            appointment?.createdDateTime ??
+            null,
+
+          lastUpdatedDateTime:
+            appointment?.lastUpdatedDateTime ??
+            null,
+
+          customerName:
+            appointment?.customerName ??
+            null,
+
+          customerEmail:
+            appointment?.customerEmailAddress ??
+            null,
+        })
+      ),
+  }
+);
+
 
   let matched = 0;
   let unmatched = 0;

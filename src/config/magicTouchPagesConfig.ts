@@ -49,11 +49,11 @@ const magicTouchPages: MagicTouchNavigationItem[] = [
     permission: 'access_magic_touch',
   },
   {
-    href: '/MagicTouch/Integrations',
-    label: 'ייבוא וחיבורים',
-    icon: '🔗',
-    permission: 'access_magic_touch_integrations',
-  },
+  href: '/MagicTouch/Integrations',
+  label: 'ייבוא וחיבורים',
+  icon: '🔗',
+  permission: 'access_magic_touch',
+},
   {
     href: '/MagicTouch/Settings',
     label: 'הגדרות',
