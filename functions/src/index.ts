@@ -149,3 +149,22 @@ export {
 export {
   validateMagicTouchFlow,
 } from "./validateMagicTouchFlow";
+
+export {
+  diagnoseMicrosoftBookingAppointment,
+} from "./diagnoseMicrosoftBookingAppointment";
+
+export {
+  getMagicTouchFlowRuns,
+  getMagicTouchFlowRunDetails,
+} from "./getMagicTouchFlowRuns";
+
+export {
+  getAgentSurenseConfig,
+  saveAgentSurenseConfig,
+} from "./saveAgentSurenseConfig";
+
+export {
+  getAgentSurenseIncomingConfig,
+  rotateAgentSurenseIncomingKey,
+} from "./manageAgentSurenseIncomingKey";

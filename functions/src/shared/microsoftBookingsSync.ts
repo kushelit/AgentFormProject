@@ -1,52 +1,107 @@
 /* eslint-disable require-jsdoc */
 /* eslint-disable max-len */
 /* eslint-disable @typescript-eslint/no-explicit-any */
+
+import { createHash } from "node:crypto";
+
+import {
+  HttpsError,
+} from "firebase-functions/v2/https";
+
 import {
   logger,
 } from "firebase-functions";
 
-import { createHash } from "node:crypto";
-import { HttpsError } from "firebase-functions/v2/https";
+import {
+  adminDb,
+  nowTs,
+} from "./admin";
 
-import { adminDb, nowTs } from "./admin";
-import { PORTAL_ENC_KEY_B64 } from "./secrets";
+import {
+  PORTAL_ENC_KEY_B64,
+} from "./secrets";
+
 import {
   decryptJsonAes256Gcm,
   encryptJsonAes256Gcm,
 } from "./cryptoAesGcm";
+
 import {
+  getMicrosoftBookingAppointmentDiagnostic,
   listMicrosoftBookingCalendarView,
   refreshMicrosoftAccessToken,
 } from "./microsoftGraph";
 
-function s(value: any): string {
-  return String(value ?? "").trim();
+function s(
+  value: any
+): string {
+  return String(
+    value ?? ""
+  ).trim();
 }
 
-function normalizePhone(phone: string): string {
-  const digits = s(phone).replace(/\D/g, "");
+function normalizePhone(
+  phone: string
+): string {
+  const digits =
+    s(phone).replace(
+      /\D/g,
+      ""
+    );
 
-  if (digits.startsWith("972")) return digits;
-  if (digits.startsWith("0")) return `972${digits.slice(1)}`;
-  if (digits.length === 9) return `972${digits}`;
+  if (
+    digits.startsWith(
+      "972"
+    )
+  ) {
+    return digits;
+  }
+
+  if (
+    digits.startsWith(
+      "0"
+    )
+  ) {
+    return `972${digits.slice(1)}`;
+  }
+
+  if (
+    digits.length === 9
+  ) {
+    return `972${digits}`;
+  }
 
   return digits;
 }
 
-function normalizeEmail(email: string): string {
-  return s(email).toLowerCase();
+function normalizeEmail(
+  email: string
+): string {
+  return s(
+    email
+  ).toLowerCase();
 }
 
-function sha256(value: string): string {
-  return createHash("sha256")
-    .update(value)
-    .digest("hex");
+function sha256(
+  value: string
+): string {
+  return createHash(
+    "sha256"
+  )
+    .update(
+      value
+    )
+    .digest(
+      "hex"
+    );
 }
 
 function appointmentDocumentId(
   appointmentId: string
 ): string {
-  return sha256(appointmentId);
+  return sha256(
+    appointmentId
+  );
 }
 
 function bookingEventDocumentId(
@@ -72,15 +127,21 @@ function getAppointmentCustomer(
   phone: string;
 } {
   const customer =
-    Array.isArray(appointment?.customers) &&
+    Array.isArray(
+      appointment?.customers
+    ) &&
     appointment.customers.length > 0
       ? appointment.customers[0]
       : {};
 
   return {
     name:
-      s(customer?.name) ||
-      s(appointment?.customerName),
+      s(
+        customer?.name
+      ) ||
+      s(
+        appointment?.customerName
+      ),
 
     email:
       normalizeEmail(
@@ -101,6 +162,7 @@ function getAppointmentStart(
 ): any {
   return (
     appointment?.start ??
+    appointment?.startAt ??
     appointment?.startDateTime ??
     null
   );
@@ -111,8 +173,81 @@ function getAppointmentEnd(
 ): any {
   return (
     appointment?.end ??
+    appointment?.endAt ??
     appointment?.endDateTime ??
     null
+  );
+}
+
+function toDateOrNull(
+  value: any
+): Date | null {
+  if (!value) {
+    return null;
+  }
+
+  if (
+    value instanceof Date
+  ) {
+    return value;
+  }
+
+  if (
+    typeof value?.toDate ===
+    "function"
+  ) {
+    return value.toDate();
+  }
+
+  if (
+    typeof value?.toMillis ===
+    "function"
+  ) {
+    return new Date(
+      value.toMillis()
+    );
+  }
+
+  const rawValue =
+    value?.dateTime ??
+    value;
+
+  const parsed =
+    new Date(
+      rawValue
+    );
+
+  return Number.isNaN(
+    parsed.getTime()
+  )
+    ? null
+    : parsed;
+}
+
+function isAppointmentInsideWindow(
+  appointment: any,
+  start: Date,
+  end: Date
+): boolean {
+  const appointmentStart =
+    toDateOrNull(
+      getAppointmentStart(
+        appointment
+      )
+    );
+
+  if (!appointmentStart) {
+    return false;
+  }
+
+  const appointmentStartMs =
+    appointmentStart.getTime();
+
+  return (
+    appointmentStartMs >=
+      start.getTime() &&
+    appointmentStartMs <=
+      end.getTime()
   );
 }
 
@@ -122,19 +257,21 @@ async function findMatchingContact(
   customerPhone: string,
   customerEmail: string
 ): Promise<FirebaseFirestore.QueryDocumentSnapshot | null> {
-  const contactsCollection = db.collection(
-    `agents/${agentId}/magic_touch_contacts`
-  );
+  const contactsCollection =
+    db.collection(
+      `agents/${agentId}/magic_touch_contacts`
+    );
 
   if (customerPhone) {
-    const phoneSnap = await contactsCollection
-      .where(
-        "phoneNormalized",
-        "==",
-        customerPhone
-      )
-      .limit(1)
-      .get();
+    const phoneSnap =
+      await contactsCollection
+        .where(
+          "phoneNormalized",
+          "==",
+          customerPhone
+        )
+        .limit(1)
+        .get();
 
     if (!phoneSnap.empty) {
       return phoneSnap.docs[0];
@@ -152,18 +289,22 @@ async function findMatchingContact(
         .limit(1)
         .get();
 
-    if (!normalizedEmailSnap.empty) {
-      return normalizedEmailSnap.docs[0];
+    if (
+      !normalizedEmailSnap.empty
+    ) {
+      return normalizedEmailSnap
+        .docs[0];
     }
 
-    const emailSnap = await contactsCollection
-      .where(
-        "email",
-        "==",
-        customerEmail
-      )
-      .limit(1)
-      .get();
+    const emailSnap =
+      await contactsCollection
+        .where(
+          "email",
+          "==",
+          customerEmail
+        )
+        .limit(1)
+        .get();
 
     if (!emailSnap.empty) {
       return emailSnap.docs[0];
@@ -208,11 +349,13 @@ async function createBookingMagicTouchEvent({
       triggerType
     );
 
-  const eventRef = db.doc(
-    `agents/${agentId}/magic_touch_events/${eventId}`
-  );
+  const eventRef =
+    db.doc(
+      `agents/${agentId}/magic_touch_events/${eventId}`
+    );
 
-  const eventSnap = await eventRef.get();
+  const eventSnap =
+    await eventRef.get();
 
   if (eventSnap.exists) {
     return {
@@ -221,7 +364,8 @@ async function createBookingMagicTouchEvent({
     };
   }
 
-  const timestamp = nowTs();
+  const timestamp =
+    nowTs();
 
   await eventRef.create({
     agentId,
@@ -243,11 +387,15 @@ async function createBookingMagicTouchEvent({
     bookingBusinessId,
 
     bookingServiceId:
-      s(appointment?.serviceId) ||
+      s(
+        appointment?.serviceId
+      ) ||
       null,
 
     bookingServiceName:
-      s(appointment?.serviceName) ||
+      s(
+        appointment?.serviceName
+      ) ||
       null,
 
     bookingStartAt:
@@ -311,7 +459,9 @@ export async function syncMicrosoftBookingsAgent(
   agentId: string
 ): Promise<MicrosoftBookingsSyncResult> {
   const normalizedAgentId =
-    s(agentId);
+    s(
+      agentId
+    );
 
   if (!normalizedAgentId) {
     throw new HttpsError(
@@ -320,17 +470,23 @@ export async function syncMicrosoftBookingsAgent(
     );
   }
 
-  const db = adminDb();
+  const db =
+    adminDb();
 
-  const configRef = (db as any).doc(
-    `agents/${normalizedAgentId}/config/microsoftBookings`
-  );
+  const configRef =
+    (db as any).doc(
+      `agents/${normalizedAgentId}/config/microsoftBookings`
+    );
 
-  const secretRef = (db as any).doc(
-    `agents/${normalizedAgentId}/secrets/microsoftBookings`
-  );
+  const secretRef =
+    (db as any).doc(
+      `agents/${normalizedAgentId}/secrets/microsoftBookings`
+    );
 
-  const [configSnap, secretSnap] =
+  const [
+    configSnap,
+    secretSnap,
+  ] =
     await Promise.all([
       configRef.get(),
       secretRef.get(),
@@ -354,7 +510,9 @@ export async function syncMicrosoftBookingsAgent(
     configSnap.data() as any;
 
   const bookingBusinessId =
-    s(config?.bookingBusinessId);
+    s(
+      config?.bookingBusinessId
+    );
 
   if (!bookingBusinessId) {
     throw new HttpsError(
@@ -364,7 +522,9 @@ export async function syncMicrosoftBookingsAgent(
   }
 
   const keyB64 =
-    s(PORTAL_ENC_KEY_B64.value());
+    s(
+      PORTAL_ENC_KEY_B64.value()
+    );
 
   if (!keyB64) {
     throw new HttpsError(
@@ -380,7 +540,9 @@ export async function syncMicrosoftBookingsAgent(
     ) as any;
 
   const refreshToken =
-    s(decrypted?.refreshToken);
+    s(
+      decrypted?.refreshToken
+    );
 
   if (!refreshToken) {
     throw new HttpsError(
@@ -395,10 +557,14 @@ export async function syncMicrosoftBookingsAgent(
     );
 
   const accessToken =
-    s(refreshed.access_token);
+    s(
+      refreshed.access_token
+    );
 
   const nextRefreshToken =
-    s(refreshed.refresh_token) ||
+    s(
+      refreshed.refresh_token
+    ) ||
     refreshToken;
 
   if (!accessToken) {
@@ -428,10 +594,14 @@ export async function syncMicrosoftBookingsAgent(
           1000,
 
         tokenType:
-          s(refreshed.token_type),
+          s(
+            refreshed.token_type
+          ),
 
         scope:
-          s(refreshed.scope),
+          s(
+            refreshed.scope
+          ),
 
         updatedAtMs:
           Date.now(),
@@ -452,13 +622,21 @@ export async function syncMicrosoftBookingsAgent(
     }
   );
 
-  const start = new Date();
+  /*
+   * חלון הסנכרון:
+   * מאתמול ועד 90 ימים קדימה.
+   */
+  const start =
+    new Date();
+
   start.setUTCDate(
     start.getUTCDate() -
     1
   );
 
-  const end = new Date();
+  const end =
+    new Date();
+
   end.setUTCDate(
     end.getUTCDate() +
     90
@@ -471,51 +649,36 @@ export async function syncMicrosoftBookingsAgent(
       start.toISOString(),
       end.toISOString()
     );
-logger.info(
-  "[MicrosoftBookingsSync] calendarView result",
-  {
-    agentId:
-      normalizedAgentId,
 
-    bookingBusinessId,
+  logger.info(
+    "[MicrosoftBookingsSync] calendarView result",
+    {
+      agentId:
+        normalizedAgentId,
 
-    appointmentCount:
-      appointments.length,
+      bookingBusinessId,
 
-    appointments:
-      appointments.map(
-        (
-          appointment: any
-        ) => ({
-          id:
+      appointmentCount:
+        appointments.length,
+
+      appointmentIds:
+        appointments.map(
+          (
+            appointment: any
+          ) =>
             s(
               appointment?.id
-            ),
+            )
+        ),
+    }
+  );
 
-          isCancelled:
-            appointment?.isCancelled ??
-            null,
-
-          createdDateTime:
-            appointment?.createdDateTime ??
-            null,
-
-          lastUpdatedDateTime:
-            appointment?.lastUpdatedDateTime ??
-            null,
-
-          customerName:
-            appointment?.customerName ??
-            null,
-
-          customerEmail:
-            appointment?.customerEmailAddress ??
-            null,
-        })
-      ),
-  }
-);
-
+  /*
+   * כל מזהי הפגישות שחזרו בסנכרון הנוכחי.
+   * נשווה אותם בהמשך לפגישות שכבר שמורות אצלנו.
+   */
+  const returnedAppointmentIds =
+    new Set<string>();
 
   let matched = 0;
   let unmatched = 0;
@@ -523,19 +686,36 @@ logger.info(
   let createdEvents = 0;
   let cancelledEvents = 0;
 
-  for (const appointment of appointments) {
+  /*
+   * שלב א':
+   * טיפול בכל הפגישות שמיקרוסופט החזירה.
+   */
+  for (
+    const appointment of appointments
+  ) {
     const appointmentId =
-      s(appointment?.id);
+      s(
+        appointment?.id
+      );
 
     if (!appointmentId) {
       continue;
     }
+
+    returnedAppointmentIds.add(
+      appointmentId
+    );
 
     const customer =
       getAppointmentCustomer(
         appointment
       );
 
+    /*
+     * השדה נשאר כתמיכה עתידית,
+     * אף שבבדיקה שלנו Microsoft הסירה
+     * פגישה מבוטלת במקום להחזיר isCancelled.
+     */
     const isCancelled =
       appointment?.isCancelled ===
       true;
@@ -562,7 +742,8 @@ logger.info(
     const existingAppointmentSnap =
       await appointmentRef.get();
 
-    const timestamp = nowTs();
+    const timestamp =
+      nowTs();
 
     await appointmentRef.set(
       {
@@ -570,6 +751,7 @@ logger.info(
           normalizedAgentId,
 
         appointmentId,
+
         bookingBusinessId,
 
         contactId:
@@ -589,18 +771,23 @@ logger.info(
           null,
 
         serviceId:
-          s(appointment?.serviceId) ||
+          s(
+            appointment?.serviceId
+          ) ||
           null,
 
         serviceName:
-          s(appointment?.serviceName) ||
+          s(
+            appointment?.serviceName
+          ) ||
           null,
 
         staffMemberIds:
           Array.isArray(
             appointment?.staffMemberIds
           )
-            ? appointment.staffMemberIds
+            ? appointment
+              .staffMemberIds
             : [],
 
         startAt:
@@ -614,6 +801,11 @@ logger.info(
           ),
 
         isCancelled,
+
+        cancellationDetectionStatus:
+          isCancelled
+            ? "cancelled_returned_by_microsoft"
+            : "active",
 
         matchStatus:
           contactDoc
@@ -631,7 +823,8 @@ logger.info(
         updatedAt:
           timestamp,
 
-        ...(existingAppointmentSnap.exists
+        ...(existingAppointmentSnap
+          .exists
           ? {}
           : {
             firstSeenAt:
@@ -682,7 +875,9 @@ logger.info(
         triggerType,
       });
 
-    if (eventResult.created) {
+    if (
+      eventResult.created
+    ) {
       if (
         triggerType ===
         "microsoft_booking_cancelled"
@@ -710,10 +905,12 @@ logger.info(
         lastEventCreated:
           eventResult.created,
 
-        lastEventAt:
-          eventResult.created
-            ? nowTs()
-            : null,
+        ...(eventResult.created
+          ? {
+            lastEventAt:
+              nowTs(),
+          }
+          : {}),
 
         updatedAt:
           nowTs(),
@@ -721,6 +918,412 @@ logger.info(
       {
         merge:
           true,
+      }
+    );
+  }
+
+  /*
+   * שלב ב':
+   * איתור פגישות שהיו שמורות אצלנו,
+   * אבל לא חזרו כעת מ-calendarView.
+   *
+   * Microsoft הוכחה אצלנו כמסירה פגישה
+   * מבוטלת מהרשימות ומחזירה 404 בקריאה ישירה.
+   */
+  const activeAppointmentsSnap =
+    await (db as any)
+      .collection(
+        `agents/${normalizedAgentId}/booking_appointments`
+      )
+      .where(
+        "isCancelled",
+        "==",
+        false
+      )
+      .limit(1000)
+      .get();
+
+  for (
+    const storedAppointmentDoc of
+      activeAppointmentsSnap.docs
+  ) {
+    const storedAppointment =
+      storedAppointmentDoc.data() as any;
+
+    const storedAppointmentId =
+      s(
+        storedAppointment
+          ?.appointmentId
+      );
+
+    if (!storedAppointmentId) {
+      continue;
+    }
+
+    /*
+     * לא בודקים פגישה של עסק Bookings אחר.
+     */
+    if (
+      s(
+        storedAppointment
+          ?.bookingBusinessId
+      ) &&
+      s(
+        storedAppointment
+          ?.bookingBusinessId
+      ) !==
+        bookingBusinessId
+    ) {
+      continue;
+    }
+
+    /*
+     * אם היא חזרה ב-calendarView,
+     * היא כבר טופלה בשלב א'.
+     */
+    if (
+      returnedAppointmentIds.has(
+        storedAppointmentId
+      )
+    ) {
+      continue;
+    }
+
+    /*
+     * בודקים רק פגישות שנמצאות בתוך
+     * חלון הסנכרון הנוכחי.
+     *
+     * כך לא נסמן כפגישות שבוטלו
+     * פגישות ישנות שכבר יצאו מהטווח.
+     */
+    if (
+      !isAppointmentInsideWindow(
+        storedAppointment,
+        start,
+        end
+      )
+    ) {
+      continue;
+    }
+
+    logger.info(
+      "[MicrosoftBookingsSync] appointment missing from calendarView",
+      {
+        agentId:
+          normalizedAgentId,
+
+        appointmentId:
+          storedAppointmentId,
+
+        contactId:
+          s(
+            storedAppointment
+              ?.contactId
+          ) ||
+          null,
+
+        startAt:
+          storedAppointment
+            ?.startAt ??
+          null,
+      }
+    );
+
+    /*
+     * אימות נוסף:
+     * האם Microsoft עדיין מוצאת את הפגישה
+     * בקריאה ישירה לפי appointmentId?
+     */
+    const directLookup =
+      await getMicrosoftBookingAppointmentDiagnostic(
+        accessToken,
+        bookingBusinessId,
+        storedAppointmentId
+      );
+
+    if (
+      directLookup.found
+    ) {
+      /*
+       * הפגישה עדיין קיימת ב-Microsoft,
+       * ולכן אסור לסמן אותה כמבוטלת.
+       */
+      await storedAppointmentDoc.ref.set(
+        {
+          cancellationDetectionStatus:
+            "missing_from_calendar_but_direct_lookup_found",
+
+          lastCancellationCheckAt:
+            nowTs(),
+
+          lastCancellationCheckHttpStatus:
+            directLookup.status,
+
+          updatedAt:
+            nowTs(),
+        },
+        {
+          merge:
+            true,
+        }
+      );
+
+      logger.warn(
+        "[MicrosoftBookingsSync] missing appointment still exists in direct lookup",
+        {
+          agentId:
+            normalizedAgentId,
+
+          appointmentId:
+            storedAppointmentId,
+
+          httpStatus:
+            directLookup.status,
+        }
+      );
+
+      continue;
+    }
+
+    if (
+      directLookup.status !==
+      404
+    ) {
+      /*
+       * שגיאה זמנית, הרשאה, תקשורת וכו'.
+       * לא מסמנים ביטול במקרה כזה.
+       */
+      await storedAppointmentDoc.ref.set(
+        {
+          cancellationDetectionStatus:
+            "direct_lookup_failed",
+
+          lastCancellationCheckAt:
+            nowTs(),
+
+          lastCancellationCheckHttpStatus:
+            directLookup.status,
+
+          lastCancellationCheckError:
+            directLookup.error ||
+            null,
+
+          updatedAt:
+            nowTs(),
+        },
+        {
+          merge:
+            true,
+        }
+      );
+
+      logger.warn(
+        "[MicrosoftBookingsSync] direct lookup failed while checking cancellation",
+        {
+          agentId:
+            normalizedAgentId,
+
+          appointmentId:
+            storedAppointmentId,
+
+          httpStatus:
+            directLookup.status,
+
+          error:
+            directLookup.error ||
+            null,
+        }
+      );
+
+      continue;
+    }
+
+    /*
+     * הפגישה לא חזרה ברשימה וגם הקריאה הישירה
+     * החזירה 404.
+     *
+     * לפי הבדיקה שביצענו זהו ביטול מאומת.
+     */
+    cancelled++;
+
+    const contactId =
+      s(
+        storedAppointment
+          ?.contactId
+      );
+
+    const customer = {
+      name:
+        s(
+          storedAppointment
+            ?.customerName
+        ),
+
+      email:
+        normalizeEmail(
+          storedAppointment
+            ?.customerEmail
+        ),
+
+      phone:
+        normalizePhone(
+          storedAppointment
+            ?.customerPhone
+        ),
+    };
+
+    let eventResult:
+      {
+        created: boolean;
+        eventId: string;
+      } | null =
+      null;
+
+    if (contactId) {
+      eventResult =
+        await createBookingMagicTouchEvent({
+          db,
+
+          agentId:
+            normalizedAgentId,
+
+          contactId,
+
+          appointmentId:
+            storedAppointmentId,
+
+          bookingBusinessId,
+
+          appointment: {
+            id:
+              storedAppointmentId,
+
+            serviceId:
+              storedAppointment
+                ?.serviceId,
+
+            serviceName:
+              storedAppointment
+                ?.serviceName,
+
+            startAt:
+              storedAppointment
+                ?.startAt,
+
+            endAt:
+              storedAppointment
+                ?.endAt,
+
+            customerName:
+              storedAppointment
+                ?.customerName,
+
+            customerEmailAddress:
+              storedAppointment
+                ?.customerEmail,
+
+            customerPhone:
+              storedAppointment
+                ?.customerPhone,
+          },
+
+          customer,
+
+          triggerType:
+            "microsoft_booking_cancelled",
+        });
+
+      if (
+        eventResult.created
+      ) {
+        cancelledEvents++;
+      }
+    }
+
+    await storedAppointmentDoc.ref.set(
+      {
+        isCancelled:
+          true,
+
+        cancelledAt:
+          nowTs(),
+
+        cancellationDetectedAt:
+          nowTs(),
+
+        cancellationDetectedBy:
+          "missing_from_calendar_and_direct_lookup_404",
+
+        cancellationDetectionStatus:
+          "cancelled_confirmed",
+
+        lastCancellationCheckAt:
+          nowTs(),
+
+        lastCancellationCheckHttpStatus:
+          404,
+
+        lastCancellationCheckError:
+          directLookup.error ||
+          null,
+
+        ...(eventResult
+          ? {
+            lastEventId:
+              eventResult.eventId,
+
+            lastEventType:
+              "microsoft_booking_cancelled",
+
+            lastEventCreated:
+              eventResult.created,
+
+            ...(eventResult.created
+              ? {
+                lastEventAt:
+                  nowTs(),
+              }
+              : {}),
+          }
+          : {
+            lastEventCreated:
+              false,
+
+            cancellationEventSkippedReason:
+              "missing_contact_id",
+          }),
+
+        updatedAt:
+          nowTs(),
+      },
+      {
+        merge:
+          true,
+      }
+    );
+
+    logger.info(
+      "[MicrosoftBookingsSync] cancellation confirmed",
+      {
+        agentId:
+          normalizedAgentId,
+
+        appointmentId:
+          storedAppointmentId,
+
+        contactId:
+          contactId ||
+          null,
+
+        eventCreated:
+          eventResult
+            ?.created ||
+          false,
+
+        eventId:
+          eventResult
+            ?.eventId ||
+          null,
       }
     );
   }

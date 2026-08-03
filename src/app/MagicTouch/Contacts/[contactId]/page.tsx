@@ -73,6 +73,24 @@ type MagicTouchContact = {
   appointmentProvider: string | null;
   consentStatus: string;
 
+  engagement?: {
+    reengagement?: {
+      status?: string | null;
+      interestStatus?: string | null;
+      bookingStatus?: string | null;
+      bookingLink?: string | null;
+      bookingLinkSentAt?: number | null;
+      bookedAt?: number | null;
+      bookingCancelledAt?: number | null;
+      bookingStartAt?: number | null;
+      bookingEndAt?: number | null;
+      bookingServiceName?: string | null;
+      bookingAppointmentId?: string | null;
+      resolvedAt?: number | null;
+      updatedAt?: number | null;
+    };
+  };
+
   tags: string[];
   notes: string | null;
 
@@ -141,20 +159,88 @@ type AddContactNoteResponse = {
 };
 
 function formatDateTime(
-  value: number | null | undefined
+  value: unknown
 ): string {
-  if (!value) {
+  if (
+    value === null ||
+    value === undefined ||
+    value === ''
+  ) {
+    return '—';
+  }
+
+  let rawValue: unknown =
+    value;
+
+  if (
+    typeof value === 'object' &&
+    value !== null
+  ) {
+    const record =
+      value as Record<
+        string,
+        unknown
+      >;
+
+    if (
+      typeof record.dateTime ===
+      'string'
+    ) {
+      rawValue =
+        record.dateTime;
+    } else if (
+      typeof record.toMillis ===
+      'function'
+    ) {
+      rawValue =
+        (
+          record.toMillis as
+            () => number
+        )();
+    } else if (
+      typeof record._seconds ===
+      'number'
+    ) {
+      rawValue =
+        record._seconds *
+        1000;
+    } else if (
+      typeof record.seconds ===
+      'number'
+    ) {
+      rawValue =
+        record.seconds *
+        1000;
+    }
+  }
+
+  const parsedDate =
+    rawValue instanceof Date
+      ? rawValue
+      : new Date(
+          rawValue as
+            string | number
+        );
+
+  if (
+    Number.isNaN(
+      parsedDate.getTime()
+    )
+  ) {
     return '—';
   }
 
   return new Intl.DateTimeFormat(
     'he-IL',
     {
-      dateStyle: 'short',
-      timeStyle: 'short',
+      dateStyle:
+        'short',
+
+      timeStyle:
+        'short',
     }
   ).format(
-    new Date(value)
+    parsedDate
   );
 }
 
@@ -250,6 +336,33 @@ function appointmentLabel(
 
     default:
       return 'טרם נשלח';
+  }
+}
+
+function processStatusLabel(
+  status: string
+): string {
+  switch (status) {
+    case 'pending':
+      return 'ממתין';
+
+    case 'sent':
+      return 'נשלחה פנייה';
+
+    case 'interested':
+      return 'מעוניין';
+
+    case 'declined':
+      return 'לא מעוניין';
+
+    case 'booked':
+      return 'נקבעה פגישה';
+
+    case 'completed':
+      return 'הושלם';
+
+    default:
+      return status || '—';
   }
 }
 
@@ -561,6 +674,33 @@ export default function MagicTouchContactDetailsPage() {
       }
     };
 
+  const reengagement =
+    contact?.engagement
+      ?.reengagement;
+
+  const displayedInterestStatus =
+    String(
+      reengagement
+        ?.interestStatus ||
+      contact?.interestStatus ||
+      ''
+    );
+
+  const displayedBookingStatus =
+    String(
+      reengagement
+        ?.bookingStatus ||
+      contact?.appointmentStatus ||
+      ''
+    );
+
+  const displayedProcessStatus =
+    String(
+      reengagement
+        ?.status ||
+      ''
+    );
+
   if (
     isLoading
   ) {
@@ -736,18 +876,30 @@ export default function MagicTouchContactDetailsPage() {
 
               <section className="rounded-xl border bg-white p-5 shadow-sm">
                 <h2 className="mb-4 text-lg font-bold text-slate-900">
-                  סטטוסים
+                  מצב התהליך
                 </h2>
 
                 <div className="space-y-4 text-sm">
                   <div>
                     <div className="text-slate-500">
+                      סטטוס תהליך חידוש קשר
+                    </div>
+
+                    <div className="mt-1 font-medium text-slate-900">
+                      {processStatusLabel(
+                        displayedProcessStatus
+                      )}
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="text-slate-500">
                       סטטוס עניין
                     </div>
 
-                    <div className="mt-1 font-medium">
+                    <div className="mt-1 font-medium text-slate-900">
                       {interestLabel(
-                        contact.interestStatus
+                        displayedInterestStatus
                       )}
                     </div>
                   </div>
@@ -757,19 +909,59 @@ export default function MagicTouchContactDetailsPage() {
                       סטטוס פגישה
                     </div>
 
-                    <div className="mt-1 font-medium">
+                    <div className="mt-1 font-medium text-slate-900">
                       {appointmentLabel(
-                        contact.appointmentStatus
+                        displayedBookingStatus
                       )}
                     </div>
                   </div>
 
-                  <div>
+                  {reengagement?.bookingServiceName ? (
+                    <div>
+                      <div className="text-slate-500">
+                        שירות הפגישה
+                      </div>
+
+                      <div className="mt-1 font-medium text-slate-900">
+                        {reengagement.bookingServiceName}
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {reengagement?.bookingStartAt ? (
+                    <div>
+                      <div className="text-slate-500">
+                        מועד הפגישה
+                      </div>
+
+                      <div className="mt-1 font-medium text-slate-900">
+                        {formatDateTime(
+                          reengagement.bookingStartAt
+                        )}
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {reengagement?.bookingCancelledAt ? (
+                    <div>
+                      <div className="text-slate-500">
+                        מועד ביטול הפגישה
+                      </div>
+
+                      <div className="mt-1 font-medium text-slate-900">
+                        {formatDateTime(
+                          reengagement.bookingCancelledAt
+                        )}
+                      </div>
+                    </div>
+                  ) : null}
+
+                  <div className="border-t pt-4">
                     <div className="text-slate-500">
                       סטטוס איש קשר
                     </div>
 
-                    <div className="mt-1 font-medium">
+                    <div className="mt-1 font-medium text-slate-900">
                       {contact.contactStatus ||
                         '—'}
                     </div>
@@ -780,7 +972,7 @@ export default function MagicTouchContactDetailsPage() {
                       הסכמה לדיוור
                     </div>
 
-                    <div className="mt-1 font-medium">
+                    <div className="mt-1 font-medium text-slate-900">
                       {contact.consentStatus ||
                         '—'}
                     </div>

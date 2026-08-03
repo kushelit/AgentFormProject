@@ -5,9 +5,7 @@ import React, {
   useState,
 } from "react";
 
-import {
-  useRouter,
-} from "next/navigation";
+import { useRouter } from "next/navigation";
 
 import type {
   FlowDocument,
@@ -21,421 +19,267 @@ import {
 
 import FlowTriggerEditor from
   "@/components/MagicTouch/Flows/FlowTriggerEditor";
-
 import FlowStepsEditor from
   "@/components/MagicTouch/Flows/FlowStepsEditor";
-
 import FlowValidationPanel from
   "@/components/MagicTouch/Flows/FlowValidationPanel";
 
 type Props = {
-  initialFlow:
-    FlowDocument;
-
-  agentId?:
-    string;
+  initialFlow: FlowDocument;
+  agentId?: string;
 };
+
+const fieldClass =
+  "h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-50";
+
+function statusLabel(status: string): string {
+  switch (status) {
+    case "active":
+      return "פעיל";
+    case "draft":
+      return "טיוטה";
+    case "inactive":
+      return "לא פעיל";
+    default:
+      return status || "לא ידוע";
+  }
+}
 
 export default function FlowEditor({
   initialFlow,
   agentId,
 }: Props) {
-  const router =
-    useRouter();
+  const router = useRouter();
+  const [flow, setFlow] = useState<FlowDocument>(initialFlow);
+  const [validation, setValidation] =
+    useState<ValidationResult | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
 
-  const [
-    flow,
-    setFlow,
-  ] =
-    useState<FlowDocument>(
-      initialFlow
-    );
+  useEffect(() => {
+    setFlow(initialFlow);
+  }, [initialFlow]);
 
-  const [
-    validation,
-    setValidation,
-  ] =
-    useState<
-      ValidationResult |
-      null
-    >(
-      null
-    );
+  const runValidation = async () => {
+    setError("");
 
-  const [
-    saving,
-    setSaving,
-  ] =
-    useState(
-      false
-    );
-
-  const [
-    error,
-    setError,
-  ] =
-    useState(
-      ""
-    );
-
-  const [
-    success,
-    setSuccess,
-  ] =
-    useState(
-      ""
-    );
-
-  useEffect(
-    () => {
-      setFlow(
-        initialFlow
-      );
-    },
-    [
-      initialFlow,
-    ]
-  );
-
-  const runValidation =
-    async () => {
+    try {
+      const result = await validateFlow(flow, { agentId });
+      setValidation(result);
+      return result;
+    } catch (validationError: any) {
       setError(
-        ""
+        validationError?.message ||
+        "בדיקת התקינות נכשלה"
       );
+      return null;
+    }
+  };
 
-      try {
-        const result =
-          await validateFlow(
-            flow,
-            {
-              agentId,
-            }
-          );
+  const save = async (status: "draft" | "active") => {
+    setSaving(true);
+    setError("");
+    setSuccess("");
 
-        setValidation(
-          result
-        );
+    try {
+      const nextFlow: FlowDocument = {
+        ...flow,
+        status,
+      };
 
-        return result;
-      } catch (
-        validationError:
-          any
-      ) {
-        setError(
-          validationError
-            ?.message ||
-          "בדיקת התקינות נכשלה"
-        );
+      const result = await saveFlow(nextFlow, { agentId });
 
-        return null;
-      }
-    };
-
-  const save =
-    async (
-      status:
-        "draft" |
-        "active"
-    ) => {
-      setSaving(
-        true
-      );
-
-      setError(
-        ""
-      );
+      setValidation(result.validation);
+      setFlow({
+        ...nextFlow,
+        flowId: result.flowId,
+        version: result.version,
+      });
 
       setSuccess(
-        ""
+        status === "active"
+          ? "התהליך נשמר והופעל."
+          : "הטיוטה נשמרה."
       );
 
-      try {
-        const nextFlow:
-          FlowDocument = {
-            ...flow,
-            status,
-          };
-
-        const result =
-          await saveFlow(
-            nextFlow,
-            {
-              agentId,
-            }
-          );
-
-        setValidation(
-          result
-            .validation
-        );
-
-        setFlow({
-          ...nextFlow,
-
-          flowId:
-            result
-              .flowId,
-
-          version:
-            result
-              .version,
-        });
-
-        setSuccess(
-          status ===
-            "active"
-            ? "התהליך נשמר והופעל."
-            : "הטיוטה נשמרה."
-        );
-
-        if (
-          !flow.flowId
-        ) {
-          router.replace(
-            `/MagicTouch/Flows/${result.flowId}`
-          );
-        }
-
-        router.refresh();
-      } catch (
-        saveError:
-          any
-      ) {
-        const serverValidation =
-          saveError
-            ?.details
-            ?.validation as
-            ValidationResult |
-            undefined;
-
-        if (
-          serverValidation
-        ) {
-          setValidation(
-            serverValidation
-          );
-        }
-
-        setError(
-          saveError
-            ?.message ||
-          "שמירת התהליך נכשלה"
-        );
-      } finally {
-        setSaving(
-          false
-        );
+      if (!flow.flowId) {
+        router.replace(`/MagicTouch/Flows/${result.flowId}`);
       }
-    };
+
+      router.refresh();
+    } catch (saveError: any) {
+      const serverValidation =
+        saveError?.details?.validation as
+          ValidationResult | undefined;
+
+      if (serverValidation) {
+        setValidation(serverValidation);
+      }
+
+      setError(
+        saveError?.message ||
+        "שמירת התהליך נכשלה"
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <main
       dir="rtl"
-      className="mx-auto max-w-6xl p-6"
+      className="min-h-screen bg-slate-50 px-4 py-6 sm:px-6"
     >
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold">
-            {
-              flow.flowId
-                ? "עריכת תהליך"
-                : "תהליך חדש"
-            }
-          </h1>
+      <div className="mx-auto max-w-7xl">
+        <header className="mb-6 flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <div className="text-sm font-semibold text-blue-600">
+              MagicTouch · אוטומציות
+            </div>
+            <h1 className="mt-1 text-3xl font-bold text-slate-900">
+              {flow.flowId ? "עריכת תהליך" : "תהליך חדש"}
+            </h1>
 
-          {
-            flow.flowId &&
-            (
-              <p className="mt-1 text-sm text-gray-500">
-                מזהה: {flow.flowId}
-                {
-                  flow.version
-                    ? ` · גרסה ${flow.version}`
-                    : ""
-                }
+            {flow.flowId ? (
+              <p className="mt-2 text-sm text-slate-500">
+                גרסה {flow.version || 1}
               </p>
-            )
-          }
-        </div>
+            ) : null}
+          </div>
 
-        <button
-          type="button"
-          className="rounded-lg border px-4 py-2"
-          onClick={() =>
-            router.push(
-              "/MagicTouch/Flows"
-            )
-          }
-        >
-          חזרה לרשימה
-        </button>
-      </div>
+          <button
+            type="button"
+            className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
+            onClick={() => router.push("/MagicTouch/Flows")}
+          >
+            חזרה לרשימה
+          </button>
+        </header>
 
-      {
-        error &&
-        (
-          <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-red-700">
+        {error ? (
+          <div className="mb-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-red-700">
             {error}
           </div>
-        )
-      }
+        ) : null}
 
-      {
-        success &&
-        (
-          <div className="mb-4 rounded-lg border border-green-200 bg-green-50 p-3 text-green-700">
+        {success ? (
+          <div className="mb-5 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-emerald-700">
             {success}
           </div>
-        )
-      }
+        ) : null}
 
-      <div className="space-y-5">
-        <section className="rounded-xl border bg-white p-5">
-          <h2 className="mb-4 text-lg font-semibold">
-            פרטי התהליך
-          </h2>
+        <div className="space-y-6">
+<section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">           
+<div className="mb-3 flex items-center justify-between gap-3">              <div>
+                <h2 className="text-lg font-bold text-slate-900">
+                  פרטי התהליך
+                </h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  שם ותיאור שיעזרו לזהות את האוטומציה.
+                </p>
+              </div>
 
-          <div className="grid gap-4 md:grid-cols-2">
-            <label>
-              <span className="mb-1 block text-sm font-medium">
-                שם
+              <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">
+                {statusLabel(flow.status)}
               </span>
+            </div>
 
-              <input
-                className="w-full rounded-lg border px-3 py-2"
-                value={
-                  flow.name
-                }
-                onChange={(
-                  event
-                ) =>
-                  setFlow({
-                    ...flow,
+<div className="grid gap-3 md:grid-cols-2">
+                <label>
+                <span className="mb-2 block text-sm font-semibold text-slate-700">
+                  שם התהליך
+                </span>
+                <input
+                  className={fieldClass}
+                  value={flow.name}
+                  onChange={(event) =>
+                    setFlow({
+                      ...flow,
+                      name: event.target.value,
+                    })
+                  }
+                />
+              </label>
 
-                    name:
-                      event
-                        .target
-                        .value,
-                  })
-                }
-              />
-            </label>
+              <div>
+                <span className="mb-2 block text-sm font-semibold text-slate-700">
+                  סטטוס נוכחי
+                </span>
+                <div className="flex h-11 items-center rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-600">
+                  {statusLabel(flow.status)}
+                </div>
+              </div>
 
-            <label>
-              <span className="mb-1 block text-sm font-medium">
-                סטטוס נוכחי
-              </span>
+              <label className="md:col-span-2">
+                <span className="mb-2 block text-sm font-semibold text-slate-700">
+                  תיאור
+                </span>
+                <textarea
+className="min-h-16 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-50"                  value={flow.description}
+                  onChange={(event) =>
+                    setFlow({
+                      ...flow,
+                      description: event.target.value,
+                    })
+                  }
+                />
+              </label>
+            </div>
+          </section>
 
-              <input
-                className="w-full rounded-lg border bg-gray-50 px-3 py-2"
-                value={
-                  flow.status
-                }
-                readOnly
-              />
-            </label>
-
-            <label className="md:col-span-2">
-              <span className="mb-1 block text-sm font-medium">
-                תיאור
-              </span>
-
-              <textarea
-                className="min-h-20 w-full rounded-lg border px-3 py-2"
-                value={
-                  flow
-                    .description
-                }
-                onChange={(
-                  event
-                ) =>
-                  setFlow({
-                    ...flow,
-
-                    description:
-                      event
-                        .target
-                        .value,
-                  })
-                }
-              />
-            </label>
-          </div>
-        </section>
-
-        <FlowTriggerEditor
-          value={
-            flow.trigger
-          }
-          onChange={(
-            trigger
-          ) =>
-            setFlow({
-              ...flow,
-              trigger,
-            })
-          }
-        />
-
-        <FlowStepsEditor
-          value={
-            flow
-          }
-          onChange={
-            setFlow
-          }
-        />
-
-        <FlowValidationPanel
-          validation={
-            validation
-          }
-        />
-
-        <section className="sticky bottom-0 flex flex-wrap justify-end gap-3 rounded-xl border bg-white/95 p-4 shadow-lg backdrop-blur">
-          <button
-            type="button"
-            className="rounded-lg border px-4 py-2"
-            disabled={
-              saving
+          <FlowTriggerEditor
+            value={flow.trigger}
+            onChange={(trigger) =>
+              setFlow({
+                ...flow,
+                trigger,
+              })
             }
-            onClick={
-              runValidation
-            }
-          >
-            בדיקת תקינות
-          </button>
+          />
 
-          <button
-            type="button"
-            className="rounded-lg bg-gray-800 px-4 py-2 text-white disabled:opacity-50"
-            disabled={
-              saving
-            }
-            onClick={() =>
-              save(
-                "draft"
-              )
-            }
-          >
-            שמירה כטיוטה
-          </button>
+          <FlowStepsEditor
+            value={flow}
+            onChange={setFlow}
+          />
 
-          <button
-            type="button"
-            className="rounded-lg bg-blue-600 px-4 py-2 text-white disabled:opacity-50"
-            disabled={
-              saving
-            }
-            onClick={() =>
-              save(
-                "active"
-              )
-            }
-          >
-            שמירה והפעלה
-          </button>
-        </section>
+          <FlowValidationPanel validation={validation} />
+
+          <section className="sticky bottom-3 z-40 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white/95 p-4 shadow-xl backdrop-blur">
+            <div className="text-sm text-slate-500">
+              השינויים נשמרים רק בלחיצה על אחד מכפתורי השמירה.
+            </div>
+
+            <div className="flex flex-wrap justify-end gap-3">
+              <button
+                type="button"
+                className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                disabled={saving}
+                onClick={runValidation}
+              >
+                בדיקת תקינות
+              </button>
+
+              <button
+                type="button"
+                className="rounded-xl bg-slate-800 px-5 py-2.5 font-semibold text-white hover:bg-slate-900 disabled:opacity-50"
+                disabled={saving}
+                onClick={() => save("draft")}
+              >
+                שמירה כטיוטה
+              </button>
+
+              <button
+                type="button"
+                className="rounded-xl bg-blue-600 px-5 py-2.5 font-semibold text-white shadow-sm hover:bg-blue-700 disabled:opacity-50"
+                disabled={saving}
+                onClick={() => save("active")}
+              >
+                {saving ? "שומר..." : "שמירה והפעלה"}
+              </button>
+            </div>
+          </section>
+        </div>
       </div>
     </main>
   );

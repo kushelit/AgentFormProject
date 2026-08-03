@@ -88,13 +88,13 @@ export default function MagicTouchIntegrationsPage() {
           statusText="יומן"
         />
 
-        <IntegrationCard
-          title="Surense"
-          description="החיבור לשורנס מתבצע כיום באמצעות Webhook המוגדר ברמת הסוכן."
-          href="/MagicTouch/Settings"
-          icon="🔄"
-          statusText="Webhook"
-        />
+       <IntegrationCard
+  title="Surense"
+  description="ניהול חיבורי Make מול שורנס ברמת הסוכן: סגירת Workflow, יצירת קישור ייפוי כוח ובדיקת סטטוס חתימה."
+  href="/MagicTouch/Integrations/Surense"
+  icon="🔄"
+  statusText="Make"
+/>
 
         <IntegrationCard
           title="ייבוא אנשי קשר"

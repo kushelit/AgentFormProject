@@ -291,3 +291,160 @@ export async function listMicrosoftBookingCalendarView(
 
   return appointments;
 }
+
+
+export type MicrosoftGraphDiagnosticResult<T> = {
+  found: boolean;
+  status: number;
+  data: T | null;
+  error: any | null;
+};
+
+export async function microsoftGraphGetDiagnostic<T>(
+  accessToken: string,
+  pathOrUrl: string
+): Promise<MicrosoftGraphDiagnosticResult<T>> {
+  const url = pathOrUrl.startsWith("http")
+    ? pathOrUrl
+    : `${MICROSOFT_GRAPH_URL}${pathOrUrl}`;
+
+  const response = await fetch(
+    url,
+    {
+      method: "GET",
+
+      headers: {
+        "Authorization":
+          `Bearer ${s(accessToken)}`,
+
+        "Accept":
+          "application/json",
+      },
+    }
+  );
+
+  const json =
+    await parseJsonResponse(
+      response
+    );
+
+  if (
+    response.status === 404
+  ) {
+    return {
+      found: false,
+      status: 404,
+      data: null,
+      error:
+        json || null,
+    };
+  }
+
+  if (!response.ok) {
+    return {
+      found: false,
+      status:
+        response.status,
+
+      data:
+        null,
+
+      error:
+        json || null,
+    };
+  }
+
+  return {
+    found: true,
+    status:
+      response.status,
+
+    data:
+      json as T,
+
+    error:
+      null,
+  };
+}
+
+export async function listMicrosoftBookingAppointments(
+  accessToken: string,
+  businessId: string
+): Promise<any[]> {
+  const firstResult =
+    await microsoftGraphGet<{
+      value?: any[];
+      "@odata.nextLink"?: string;
+    }>(
+      accessToken,
+
+      `/solutions/bookingBusinesses/${encodeURIComponent(
+        businessId
+      )}/appointments`
+    );
+
+  const appointments:
+    any[] =
+    Array.isArray(
+      firstResult?.value
+    )
+      ? [
+        ...firstResult.value,
+      ]
+      : [];
+
+  let nextLink =
+    s(
+      firstResult?.[
+        "@odata.nextLink"
+      ]
+    );
+
+  while (nextLink) {
+    const next =
+      await microsoftGraphGet<{
+        value?: any[];
+        "@odata.nextLink"?: string;
+      }>(
+        accessToken,
+        nextLink
+      );
+
+    if (
+      Array.isArray(
+        next?.value
+      )
+    ) {
+      appointments.push(
+        ...next.value
+      );
+    }
+
+    nextLink =
+      s(
+        next?.[
+          "@odata.nextLink"
+        ]
+      );
+  }
+
+  return appointments;
+}
+
+export async function getMicrosoftBookingAppointmentDiagnostic(
+  accessToken: string,
+  businessId: string,
+  appointmentId: string
+): Promise<
+  MicrosoftGraphDiagnosticResult<any>
+> {
+  return microsoftGraphGetDiagnostic<any>(
+    accessToken,
+
+    `/solutions/bookingBusinesses/${encodeURIComponent(
+      businessId
+    )}/appointments/${encodeURIComponent(
+      appointmentId
+    )}`
+  );
+}

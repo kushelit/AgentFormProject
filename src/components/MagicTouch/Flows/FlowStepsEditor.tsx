@@ -1,6 +1,10 @@
 "use client";
 
-import React from "react";
+import React, {
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 
 import type {
   FlowDocument,
@@ -8,45 +12,15 @@ import type {
   StepType,
 } from "@/lib/MagicTouch/flows/types";
 
-import UpdateContactStepEditor from
-  "@/components/MagicTouch/Flows/steps/UpdateContactStepEditor";
-
-import TimelineStepEditor from
-  "@/components/MagicTouch/Flows/steps/TimelineStepEditor";
-
-import SurenseActivityStepEditor from
-  "@/components/MagicTouch/Flows/steps/SurenseActivityStepEditor";
+import FlowNode from "./FlowNode";
+import FlowConnector from "./FlowConnector";
+import FlowStepDrawer from "./FlowStepDrawer";
+import { STEP_TYPES } from "./FlowStepCatalog";
 
 type Props = {
   value: FlowDocument;
   onChange: (value: FlowDocument) => void;
 };
-
-const STEP_TYPES: Array<{
-  value: StepType;
-  label: string;
-}> = [
-  {
-    value: "send_whatsapp",
-    label: "שליחת WhatsApp",
-  },
-  {
-    value: "update_contact",
-    label: "עדכון איש קשר",
-  },
-  {
-    value: "add_timeline_event",
-    label: "הוספה לציר הזמן",
-  },
-  {
-    value: "sync_surense_activity",
-    label: "עדכון פעילות בשורנס",
-  },
-  {
-    value: "end",
-    label: "סיום",
-  },
-];
 
 function createStepId(
   type: StepType,
@@ -88,10 +62,8 @@ function createDefaultStep(
         nextStepId: null,
         config: {
           updates: {
-            "engagement.reengagement.lastFlowRunId":
-              "{{run.runId}}",
-            "engagement.reengagement.updatedAt":
-              "{{nowTimestamp}}",
+            "engagement.reengagement.lastFlowRunId": "{{run.runId}}",
+            "engagement.reengagement.updatedAt": "{{nowTimestamp}}",
           },
         },
       };
@@ -143,12 +115,67 @@ function createDefaultStep(
   }
 }
 
+function buildOrderedStepIds(value: FlowDocument): string[] {
+  const steps = value.steps;
+  const allIds = Object.keys(steps);
+
+  if (allIds.length === 0) return [];
+
+  const ordered: string[] = [];
+  const visited = new Set<string>();
+  let currentId = value.firstStepId || allIds[0];
+
+  while (currentId && steps[currentId] && !visited.has(currentId)) {
+    ordered.push(currentId);
+    visited.add(currentId);
+    currentId = String(steps[currentId].nextStepId || "").trim();
+  }
+
+  for (const id of allIds) {
+    if (!visited.has(id)) ordered.push(id);
+  }
+
+  return ordered;
+}
+
+function triggerLabel(type: string): string {
+  switch (type) {
+    case "whatsapp_quick_reply_received":
+      return "לחיצה על כפתור WhatsApp";
+    case "whatsapp_message_received":
+      return "התקבלה הודעת WhatsApp";
+    case "microsoft_booking_created":
+      return "נקבעה פגישה ב־Microsoft Bookings";
+    case "microsoft_booking_cancelled":
+      return "בוטלה פגישה ב־Microsoft Bookings";
+    case "reengagement_message_sent":
+      return "נשלחה הודעת חידוש קשר";
+    case "manual":
+      return "הפעלה ידנית";
+    default:
+      return type || "לא הוגדר טריגר";
+  }
+}
+
 export default function FlowStepsEditor({
   value,
   onChange,
 }: Props) {
   const steps = value.steps;
-  const stepIds = Object.keys(steps);
+
+  const orderedStepIds = useMemo(
+    () => buildOrderedStepIds(value),
+    [value]
+  );
+
+  const [selectedStepId, setSelectedStepId] =
+    useState<string | null>(null);
+
+  useEffect(() => {
+    if (selectedStepId && !steps[selectedStepId]) {
+      setSelectedStepId(null);
+    }
+  }, [selectedStepId, steps]);
 
   const updateStep = (
     stepId: string,
@@ -178,315 +205,235 @@ export default function FlowStepsEditor({
     });
   };
 
-  const addStep = (
-    type: StepType
+  const addStepAfter = (
+    type: StepType,
+    afterStepId: string | null
   ) => {
-    const stepId =
-      createStepId(type, steps);
+    const stepId = createStepId(type, steps);
+    const newStep = createDefaultStep(stepId, type);
+    const nextSteps: Record<string, FlowStep> = {
+      ...steps,
+    };
 
-    const newStep =
-      createDefaultStep(stepId, type);
+    if (!afterStepId) {
+      const previousFirstStepId = value.firstStepId || null;
+
+      nextSteps[stepId] = {
+        ...newStep,
+        ...(type !== "end"
+          ? {
+              nextStepId: previousFirstStepId,
+            }
+          : {}),
+      };
+
+      onChange({
+        ...value,
+        firstStepId: stepId,
+        steps: nextSteps,
+      });
+
+      setSelectedStepId(stepId);
+      return;
+    }
+
+    const previousStep = steps[afterStepId];
+    const previousNextStepId = previousStep?.nextStepId || null;
+
+    nextSteps[afterStepId] = {
+      ...previousStep,
+      nextStepId: stepId,
+    };
+
+    nextSteps[stepId] = {
+      ...newStep,
+      ...(type !== "end"
+        ? {
+            nextStepId: previousNextStepId,
+          }
+        : {}),
+    };
 
     onChange({
       ...value,
-      firstStepId:
-        value.firstStepId || stepId,
-      steps: {
-        ...steps,
-        [stepId]: newStep,
-      },
+      firstStepId: value.firstStepId || stepId,
+      steps: nextSteps,
     });
+
+    setSelectedStepId(stepId);
   };
 
-  const removeStep = (
-    stepIdToRemove: string
-  ) => {
-    const nextSteps:
-      Record<string, FlowStep> = {};
+  const removeStep = (stepIdToRemove: string) => {
+    const approved = window.confirm(
+      "למחוק את השלב? החיבור יעבור לשלב שאחריו ככל שניתן."
+    );
 
-    for (const [stepId, step]
-      of Object.entries(steps)) {
-      if (stepId === stepIdToRemove) {
-        continue;
-      }
+    if (!approved) return;
+
+    const removedStep = steps[stepIdToRemove];
+    const replacementStepId = removedStep?.nextStepId || null;
+    const nextSteps: Record<string, FlowStep> = {};
+
+    for (const [stepId, step] of Object.entries(steps)) {
+      if (stepId === stepIdToRemove) continue;
 
       nextSteps[stepId] = {
         ...step,
         nextStepId:
           step.nextStepId === stepIdToRemove
-            ? null
+            ? replacementStepId
             : step.nextStepId,
         config: {
           ...step.config,
           trueStepId:
             step.config?.trueStepId === stepIdToRemove
-              ? ""
+              ? replacementStepId || ""
               : step.config?.trueStepId,
           falseStepId:
             step.config?.falseStepId === stepIdToRemove
-              ? ""
+              ? replacementStepId || ""
               : step.config?.falseStepId,
         },
       };
     }
 
+    const remainingIds = Object.keys(nextSteps);
+
     onChange({
       ...value,
       firstStepId:
         value.firstStepId === stepIdToRemove
-          ? Object.keys(nextSteps)[0] || ""
+          ? replacementStepId || remainingIds[0] || ""
           : value.firstStepId,
       steps: nextSteps,
     });
+
+    if (selectedStepId === stepIdToRemove) {
+      setSelectedStepId(null);
+    }
   };
 
-  const renderNextStepEditor = (
-    stepId: string,
-    step: FlowStep
-  ) => (
-    <label>
-      <span className="mb-1 block text-sm font-medium">
-        השלב הבא
-      </span>
+  const selectedStep = selectedStepId
+    ? steps[selectedStepId] || null
+    : null;
 
-      <select
-        className="w-full rounded-lg border px-3 py-2"
-        value={step.nextStepId || ""}
-        onChange={(event) =>
-          updateStep(stepId, {
-            nextStepId:
-              event.target.value || null,
-          })
-        }
-      >
-        <option value="">
-          ללא שלב הבא — סיום המסלול
-        </option>
-
-        {stepIds
-          .filter((candidateStepId) =>
-            candidateStepId !== stepId
-          )
-          .map((candidateStepId) => (
-            <option
-              key={candidateStepId}
-              value={candidateStepId}
-            >
-              {steps[candidateStepId].name ||
-                candidateStepId}
-            </option>
-          ))}
-      </select>
-    </label>
-  );
+  const disconnectedCount = orderedStepIds.filter((stepId) => {
+    const step = steps[stepId];
+    return step.type !== "end" && !step.nextStepId;
+  }).length;
 
   return (
-    <section className="rounded-xl border bg-white p-5">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+    <section className="overflow-hidden rounded-3xl border border-slate-200 bg-slate-50 shadow-sm">
+      <header className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-200 bg-white px-6 py-5">
         <div>
-          <h2 className="text-lg font-semibold">
-            שלבי התהליך
-          </h2>
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="text-xl font-bold text-slate-900">
+              מסלול האוטומציה
+            </h2>
 
-          <p className="text-sm text-gray-500">
-            ניתן להוסיף את כל השלבים לפני השמירה, ולאחר מכן לחבר ביניהם.
+            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
+              {orderedStepIds.length} שלבים
+            </span>
+
+            {disconnectedCount === 0 && orderedStepIds.length > 0 ? (
+              <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">
+                כל השלבים מחוברים
+              </span>
+            ) : disconnectedCount > 0 ? (
+              <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700">
+                {disconnectedCount} דורשים חיבור
+              </span>
+            ) : null}
+          </div>
+
+          <p className="mt-1 text-sm text-slate-500">
+            לחצי על כרטיס לעריכה. הוסיפי פעולה באמצעות כפתור הפלוס.
           </p>
         </div>
+      </header>
 
-        <select
-          className="rounded-lg border px-3 py-2"
-          defaultValue=""
-          onChange={(event) => {
-            const type =
-              event.target.value as StepType;
+      <div className="relative min-h-[480px] overflow-hidden px-5 py-12">
+        <div className="pointer-events-none absolute inset-0 opacity-[0.28] [background-image:radial-gradient(#94a3b8_1px,transparent_1px)] [background-size:24px_24px]" />
 
-            if (!type) {
-              return;
-            }
+        <div className="relative mx-auto flex max-w-3xl flex-col items-center">
+          <div className="w-full max-w-lg rounded-3xl border border-blue-200 bg-white p-5 text-center shadow-sm">
+            <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-50 text-xl">
+              ⚡
+            </div>
+            <div className="mt-3 text-xs font-bold text-blue-600">
+              טריגר
+            </div>
+            <div className="mt-1 font-bold text-slate-900">
+              {triggerLabel(String(value.trigger?.type || ""))}
+            </div>
+          </div>
 
-            addStep(type);
-            event.target.value = "";
-          }}
-        >
-          <option value="">
-            הוסף שלב...
-          </option>
+          <FlowConnector
+            options={STEP_TYPES}
+            onAdd={(type) => addStepAfter(type, null)}
+          />
 
-          {STEP_TYPES.map((stepType) => (
-            <option
-              key={stepType.value}
-              value={stepType.value}
-            >
-              {stepType.label}
-            </option>
-          ))}
-        </select>
+          {orderedStepIds.length === 0 ? (
+            <div className="w-full max-w-lg rounded-3xl border-2 border-dashed border-slate-300 bg-white/80 p-10 text-center">
+              <div className="text-4xl">⚙️</div>
+              <h3 className="mt-4 text-lg font-bold text-slate-900">
+                הוסיפי את הפעולה הראשונה
+              </h3>
+              <p className="mt-2 text-sm text-slate-500">
+                לחצי על הפלוס שמעל הכרטיס.
+              </p>
+            </div>
+          ) : (
+            orderedStepIds.map((stepId, index) => {
+              const step = steps[stepId];
+              const nextStepName = step.nextStepId
+                ? steps[step.nextStepId]?.name || step.nextStepId
+                : null;
+
+              return (
+                <React.Fragment key={stepId}>
+                  <FlowNode
+                    step={step}
+                    stepNumber={index + 1}
+                    nextStepName={nextStepName}
+                    isFirst={value.firstStepId === stepId}
+                    isSelected={selectedStepId === stepId}
+                    isConnected={
+                      step.type === "end" ||
+                      Boolean(step.nextStepId)
+                    }
+                    onSelect={() => setSelectedStepId(stepId)}
+                    onDelete={() => removeStep(stepId)}
+                    onSetFirst={() =>
+                      onChange({
+                        ...value,
+                        firstStepId: stepId,
+                      })
+                    }
+                  />
+
+                  {step.type !== "end" ? (
+                    <FlowConnector
+                      options={STEP_TYPES}
+                      onAdd={(type) => addStepAfter(type, stepId)}
+                    />
+                  ) : null}
+                </React.Fragment>
+              );
+            })
+          )}
+        </div>
       </div>
 
-      {stepIds.length === 0 ? (
-        <div className="rounded-lg border border-dashed p-8 text-center text-gray-500">
-          עדיין אין שלבים בתהליך.
-        </div>
-      ) : (
-        <div className="space-y-4">
-          {stepIds.map((stepId, index) => {
-            const step = steps[stepId];
-
-            const stepTypeLabel =
-              STEP_TYPES.find(
-                (item) =>
-                  item.value === step.type
-              )?.label || step.type;
-
-            return (
-              <article
-                key={stepId}
-                className="rounded-xl border p-4"
-              >
-                <div className="mb-4 flex flex-wrap items-start justify-between gap-4">
-                  <div>
-                    <div className="text-xs text-gray-500">
-                      שלב {index + 1} · {stepId}
-                    </div>
-
-                    <div className="font-semibold">
-                      {stepTypeLabel}
-                    </div>
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-3">
-                    <label className="flex items-center gap-2 text-sm">
-                      <input
-                        type="radio"
-                        name="magicTouchFirstStep"
-                        checked={
-                          value.firstStepId === stepId
-                        }
-                        onChange={() =>
-                          onChange({
-                            ...value,
-                            firstStepId: stepId,
-                          })
-                        }
-                      />
-
-                      שלב ראשון
-                    </label>
-
-                    <button
-                      type="button"
-                      className="rounded border px-3 py-1 text-sm text-red-600"
-                      onClick={() =>
-                        removeStep(stepId)
-                      }
-                    >
-                      מחיקה
-                    </button>
-                  </div>
-                </div>
-
-                <div className="grid gap-4 md:grid-cols-2">
-                  <label>
-                    <span className="mb-1 block text-sm font-medium">
-                      שם השלב
-                    </span>
-
-                    <input
-                      className="w-full rounded-lg border px-3 py-2"
-                      value={step.name}
-                      onChange={(event) =>
-                        updateStep(stepId, {
-                          name: event.target.value,
-                        })
-                      }
-                    />
-                  </label>
-
-                  {step.type !== "end" &&
-                    renderNextStepEditor(
-                      stepId,
-                      step
-                    )}
-
-                  {step.type ===
-                    "send_whatsapp" && (
-                    <label className="md:col-span-2">
-                      <span className="mb-1 block text-sm font-medium">
-                        תוכן ההודעה
-                      </span>
-
-                      <textarea
-                        className="min-h-28 w-full rounded-lg border px-3 py-2"
-                        value={String(
-                          step.config?.message || ""
-                        )}
-                        onChange={(event) =>
-                          updateConfig(stepId, {
-                            mode: "text",
-                            message:
-                              event.target.value,
-                          })
-                        }
-                      />
-                    </label>
-                  )}
-
-                  {step.type ===
-                    "update_contact" && (
-                    <UpdateContactStepEditor
-                      step={step}
-                      onConfigChange={(patch) =>
-                        updateConfig(stepId, patch)
-                      }
-                    />
-                  )}
-
-                  {step.type ===
-                    "add_timeline_event" && (
-                    <TimelineStepEditor
-                      step={step}
-                      onConfigChange={(patch) =>
-                        updateConfig(stepId, patch)
-                      }
-                    />
-                  )}
-
-                  {step.type ===
-                    "sync_surense_activity" && (
-                    <SurenseActivityStepEditor
-                      step={step}
-                      onConfigChange={(patch) =>
-                        updateConfig(stepId, patch)
-                      }
-                    />
-                  )}
-
-                  {step.type === "end" && (
-                    <label className="md:col-span-2">
-                      <span className="mb-1 block text-sm font-medium">
-                        הודעת סיום פנימית
-                      </span>
-
-                      <input
-                        className="w-full rounded-lg border px-3 py-2"
-                        value={String(
-                          step.config?.message || ""
-                        )}
-                        onChange={(event) =>
-                          updateConfig(stepId, {
-                            message:
-                              event.target.value,
-                          })
-                        }
-                      />
-                    </label>
-                  )}
-                </div>
-              </article>
-            );
-          })}
-        </div>
-      )}
+      <FlowStepDrawer
+        open={Boolean(selectedStep)}
+        step={selectedStep}
+        stepIds={Object.keys(steps)}
+        steps={steps}
+        onClose={() => setSelectedStepId(null)}
+        onUpdateStep={updateStep}
+        onUpdateConfig={updateConfig}
+      />
     </section>
   );
 }

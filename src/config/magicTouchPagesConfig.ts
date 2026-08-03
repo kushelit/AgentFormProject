@@ -31,6 +31,12 @@ const magicTouchPages: MagicTouchNavigationItem[] = [
     permission: 'access_magic_touch_campaigns',
   },
   {
+  href: '/MagicTouch/Runs',
+  label: 'הרצות תהליכים',
+  icon: '📋',
+  permission: 'access_magic_touch',
+},
+  {
     href: '/MagicTouch/Flows',
     label: 'אוטומציות',
     icon: '⚡',

@@ -240,6 +240,26 @@ export default function MicrosoftBookingsSettings() {
       null
     );
 
+
+const [
+  diagnosticAppointmentId,
+  setDiagnosticAppointmentId,
+] = useState("");
+
+const [
+  diagnosingAppointment,
+  setDiagnosingAppointment,
+] = useState(false);
+
+const [
+  diagnosticResult,
+  setDiagnosticResult,
+] = useState<Record<string, any> | null>(
+  null
+);
+
+
+
   useEffect(
     () => {
       if (
@@ -789,6 +809,76 @@ export default function MicrosoftBookingsSettings() {
       }
     };
 
+const handleDiagnoseAppointment =
+  async () => {
+    const appointmentId =
+      diagnosticAppointmentId.trim();
+
+    if (!appointmentId) {
+      setDialog({
+        type: "warning",
+        title: "חסר מזהה פגישה",
+        message:
+          "יש להדביק את appointmentId שנשמר במסמך booking_appointments.",
+      });
+
+      return;
+    }
+
+    setDiagnosingAppointment(true);
+    setDiagnosticResult(null);
+
+    try {
+      const fn =
+        httpsCallable(
+          functions,
+          "diagnoseMicrosoftBookingAppointment"
+        );
+
+      const response =
+        await fn({
+          appointmentId,
+        });
+
+      const result =
+        response.data as Record<
+          string,
+          any
+        >;
+
+      console.log(
+        "[Microsoft Booking Diagnostic]",
+        result
+      );
+
+      setDiagnosticResult(result);
+
+      setDialog({
+        type: "success",
+        title: "בדיקת הפגישה הסתיימה",
+        message:
+          "הבדיקה הסתיימה. התוצאה המלאה מוצגת בתחתית המסך וגם ב-Console.",
+      });
+    } catch (error: any) {
+      console.error(
+        "[Microsoft Booking Diagnostic] failed",
+        error
+      );
+
+      setDialog({
+        type: "error",
+        title: "בדיקת הפגישה נכשלה",
+        message:
+          error?.message ||
+          "לא ניתן לבדוק את הפגישה מול Microsoft.",
+      });
+    } finally {
+      setDiagnosingAppointment(false);
+    }
+  };
+
+
+
   const handleTestConnection =
     async () => {
       setTestingConnection(
@@ -1233,6 +1323,121 @@ export default function MicrosoftBookingsSettings() {
             />
           </div>
         )}
+{config?.connected && (
+  <div className="space-y-4 rounded-xl border border-dashed border-purple-300 bg-purple-50 p-4">
+    <div>
+      <h3 className="font-bold text-purple-900">
+        בדיקת פגישה מול Microsoft
+      </h3>
+
+      <p className="mt-1 text-sm leading-6 text-purple-800">
+        כלי זמני לבדיקת פגישה ב־calendarView,
+        ברשימת appointments ובקריאה ישירה לפי
+        appointmentId.
+      </p>
+    </div>
+
+    <label className="block">
+      <span className="mb-1 block text-sm font-medium">
+        Appointment ID
+      </span>
+
+      <textarea
+        className="min-h-24 w-full rounded-lg border bg-white px-3 py-2 text-left"
+        dir="ltr"
+        value={
+          diagnosticAppointmentId
+        }
+        onChange={(event) =>
+          setDiagnosticAppointmentId(
+            event.target.value
+          )
+        }
+        placeholder="AAMkAG..."
+      />
+    </label>
+
+    <Button
+      text={
+        diagnosingAppointment
+          ? "בודק מול Microsoft..."
+          : "בדוק פגישה"
+      }
+      onClick={
+        handleDiagnoseAppointment
+      }
+      disabled={
+        diagnosingAppointment ||
+        !diagnosticAppointmentId.trim()
+      }
+    />
+
+    {diagnosticResult && (
+      <div className="space-y-3">
+        <div className="grid gap-3 md:grid-cols-3">
+          <InfoCard
+            label="Calendar View"
+            value={
+              diagnosticResult
+                ?.calendarView
+                ?.found
+                ? "נמצאה"
+                : "לא נמצאה"
+            }
+          />
+
+          <InfoCard
+            label="Appointments List"
+            value={
+              diagnosticResult
+                ?.appointmentsList
+                ?.found
+                ? "נמצאה"
+                : "לא נמצאה"
+            }
+          />
+
+          <InfoCard
+            label="Direct Lookup"
+            value={
+              diagnosticResult
+                ?.directLookup
+                ?.found
+                ? `נמצאה – HTTP ${
+                    diagnosticResult
+                      ?.directLookup
+                      ?.status
+                  }`
+                : `לא נמצאה – HTTP ${
+                    diagnosticResult
+                      ?.directLookup
+                      ?.status ??
+                    "-"
+                  }`
+            }
+          />
+        </div>
+
+        <details className="rounded-lg border bg-white p-3">
+          <summary className="cursor-pointer font-bold">
+            הצגת התוצאה המלאה
+          </summary>
+
+          <pre
+            dir="ltr"
+            className="mt-3 max-h-96 overflow-auto whitespace-pre-wrap break-all rounded-lg bg-slate-950 p-4 text-left text-xs text-white"
+          >
+            {JSON.stringify(
+              diagnosticResult,
+              null,
+              2
+            )}
+          </pre>
+        </details>
+      </div>
+    )}
+  </div>
+)}
       </section>
 
       {dialog && (
