@@ -20,6 +20,22 @@ import ReferrerField from '@/components/ReferrerField/ReferrerField';
 import confetti from 'canvas-confetti';
 import './DealFormModal.css';
 
+// ─── Constants ─────────────────────────────────────────────────────────────
+
+// ⚠️ רשימה סגורה, מקודדת בכוונה (לא מגיעה מ-Firestore הכללי — statusPolicy) —
+// רלוונטית רק ל-agency4 בהקשר "פנסיה ופיננסים". "פעילה" ו"גניזה" זהים בכוונה
+// לערכים הקיימים ברשימה הכללית (כדי לשמור על משמעות עסקית עקבית), אבל שאר
+// הערכים ייחודיים להקשר הזה בלבד ולא נכתבים/נטענים משום collection משותף,
+// כדי שלא "יזלגו" לשאר הלשוניות/סוכנויות.
+const PENSION_FINANCE_AGENCY4_STATUSES = [
+  'פעילה',
+  'גניזה',
+  'נשלח לחברה',
+  'קופה הוקמה',
+  'ק.ה ממתין לניוד',
+  'ק.ה ממתין להפקדה',
+];
+
 // ─── Types ─────────────────────────────────────────────────────────────────
 
 export type DealFormInitialCustomer = {
@@ -52,17 +68,6 @@ type DealFormModalProps = {
    */
   formContext?: 'risk' | 'pension_finance' | 'general';
 };
-
-// ─── עזרים: זיהוי ת"ז ללא תלות בפורמט (עם/בלי 0 מוביל) - זהה לעיקרון ב-NewCustomer.tsx ───
-const normIdDigits = (v: any) => String(v ?? '').trim().replace(/\D/g, '');
-const pad9 = (v: string) => v.padStart(9, '0');
-const stripLeadingZeros = (v: string) => v.replace(/^0+/, '');
-const idVariants = (v: any): string[] => {
-  const d = normIdDigits(v);
-  if (!d) return [];
-  return Array.from(new Set([d, pad9(d), stripLeadingZeros(d)].filter(Boolean)));
-};
-const canonId = (v: any) => stripLeadingZeros(normIdDigits(v));
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
@@ -149,6 +154,7 @@ const DealFormModal: React.FC<DealFormModalProps> = ({
     resetField('niudPaid' as any, '');
     resetField('depositStatus' as any, '');
     resetField('discountPercent' as any, '');
+    resetField('updateDate' as any, '');
     resetField('cancellationCompany' as any, '');
     resetField('needsCorrection' as any, false);
     resetField('kupaAction' as any, '');
@@ -376,36 +382,20 @@ const DealFormModal: React.FC<DealFormModalProps> = ({
     const agentIdToUse = editData.AgentId || defaultAgentId;
 
     try {
-      // בדיקת קיום לקוח קיים עם אותה ת"ז (מנורמלת - עם/בלי 0 מוביל) ואותו סוכן,
-      // באותו עיקרון idVariants שכבר בשימוש ב-NewCustomer.tsx - כדי שעסקה על "17564188"
-      // תמצא ותתחבר ללקוח שכבר קיים כ-"017564188" (או להיפך), במקום ליצור לקוח כפול.
-      const idVariantsForCheck = idVariants(editData.IDCustomer);
-      const customerQuery = idVariantsForCheck.length
-        ? query(
-            collection(db, 'customer'),
-            where('IDCustomer', 'in', idVariantsForCheck.slice(0, 10)),
-            where('AgentId', '==', agentIdToUse)
-          )
-        : query(
-            collection(db, 'customer'),
-            where('IDCustomer', '==', editData.IDCustomer),
-            where('AgentId', '==', agentIdToUse)
-          );
+      const customerQuery = query(
+        collection(db, 'customer'),
+        where('IDCustomer', '==', editData.IDCustomer),
+        where('AgentId', '==', agentIdToUse)
+      );
       const customerSnapshot = await getDocs(customerQuery);
       let customerDocRef;
-      // הת"ז שבפועל תישמר על העסקה - תמיד תואמת את רשומת הלקוח שאליה היא משויכת,
-      // כדי שעסקה ולקוח לא יסתיימו עם שני פורמטים שונים לאותה ת"ז.
-      let resolvedIDCustomer = editData.IDCustomer || '';
 
       if (customerSnapshot.empty) {
-        // אין לקוח קיים כלל (גם לא בפורמט חלופי) - יוצרים חדש, בפורמט קנוני (בלי 0 מוביל)
-        // כדי לא ליצור כפילויות עתידיות.
-        resolvedIDCustomer = canonId(editData.IDCustomer) || editData.IDCustomer || '';
         customerDocRef = await addDoc(collection(db, 'customer'), {
           AgentId: agentIdToUse,
           firstNameCustomer: editData.firstNameCustomer || '',
           lastNameCustomer: editData.lastNameCustomer || '',
-          IDCustomer: resolvedIDCustomer,
+          IDCustomer: editData.IDCustomer || '',
           parentID: '',
           birthday: editData.birthday || '',
           gender: (editData.gender as any) || '',
@@ -417,9 +407,7 @@ const DealFormModal: React.FC<DealFormModalProps> = ({
         await updateDoc(customerDocRef, { parentID: customerDocRef.id });
         addToast('success', 'לקוח התווסף בהצלחה');
       } else {
-        // כבר קיים לקוח מכונן (זהה או בפורמט ת"ז חלופי) - מתחברים אליו, לא יוצרים חדש.
         customerDocRef = customerSnapshot.docs[0].ref;
-        resolvedIDCustomer = (customerSnapshot.docs[0].data() as any)?.IDCustomer || editData.IDCustomer || '';
         const patch: any = {};
         if (editData.firstNameCustomer) patch.firstNameCustomer = editData.firstNameCustomer;
         if (editData.lastNameCustomer) patch.lastNameCustomer = editData.lastNameCustomer;
@@ -444,7 +432,7 @@ const DealFormModal: React.FC<DealFormModalProps> = ({
         workerName,
         firstNameCustomer: editData.firstNameCustomer || '',
         lastNameCustomer: editData.lastNameCustomer || '',
-        IDCustomer: resolvedIDCustomer,
+        IDCustomer: editData.IDCustomer || '',
         company: editData.company || '',
         product: editData.product || '',
         insPremia: editData.insPremia || 0,
@@ -464,6 +452,7 @@ const DealFormModal: React.FC<DealFormModalProps> = ({
         niudPaid: canManageAgency3Fields ? String((editData as any).niudPaid || '') : '',
         depositStatus: canManageAgency3Fields ? String((editData as any).depositStatus || '') : '',
         discountPercent: canManageAgency4RiskFields ? String((editData as any).discountPercent || '') : '',
+        updateDate: canManageAgency4RiskFields ? String((editData as any).updateDate || '') : '',
         cancellationCompany: canManageAgency4RiskFields ? String((editData as any).cancellationCompany || '') : '',
         needsCorrection: canManageAgency4RiskFields ? !!(editData as any).needsCorrection : false,
         kupaAction: canManageAgency4PensionFinanceFields ? String((editData as any).kupaAction || '') : '',
@@ -487,7 +476,7 @@ const DealFormModal: React.FC<DealFormModalProps> = ({
       fetch('/api/integrations/smoove/sync-customer', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ agentId: agentIdToUse, IDCustomer: resolvedIDCustomer }),
+        body: JSON.stringify({ agentId: agentIdToUse, IDCustomer: editData.IDCustomer }),
       }).catch(() => {});
 
       resetForm(closeAfterSubmit);
@@ -840,6 +829,17 @@ const DealFormModal: React.FC<DealFormModalProps> = ({
                 </div>
               )}
 
+              {canManageAgency4RiskFields && (
+                <div className="dfm-group">
+                  <label className="dfm-label">תאריך עדכון</label>
+                  <input
+                    type="date"
+                    value={(editData as any).updateDate || ''}
+                    onChange={(e) => handleEditChange('updateDate' as any, e.target.value)}
+                  />
+                </div>
+              )}
+
               {canManageAgency4PensionFinanceFields && (
                 <>
                   <div className="dfm-group">
@@ -916,7 +916,7 @@ const DealFormModal: React.FC<DealFormModalProps> = ({
                   className={invalidFields.includes('statusPolicy') ? 'dfm-input-error' : ''}
                 >
                   <option value="">בחר סטאטוס</option>
-                  {statusPolicies.map((status, index) => (
+                  {(canManageAgency4PensionFinanceFields ? PENSION_FINANCE_AGENCY4_STATUSES : statusPolicies).map((status, index) => (
                     <option key={index} value={status}>{status}</option>
                   ))}
                 </select>

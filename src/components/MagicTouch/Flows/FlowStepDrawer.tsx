@@ -8,10 +8,14 @@ import TimelineStepEditor from
   "@/components/MagicTouch/Flows/steps/TimelineStepEditor";
 import SurenseActivityStepEditor from
   "@/components/MagicTouch/Flows/steps/SurenseActivityStepEditor";
+import CreateSurensePowerOfAttorneyStepEditor from
+  "@/components/MagicTouch/Flows/steps/CreateSurensePowerOfAttorneyStepEditor";
 import {
   getStepIcon,
   getStepTypeLabel,
 } from "./FlowStepSummary";
+
+
 
 type Props = {
   open: boolean;
@@ -191,6 +195,15 @@ export default function FlowStepDrawer({
                 <SurenseActivityStepEditor
                   step={step}
                   onConfigChange={(patch) => onUpdateConfig(stepId, patch)}
+                />
+              ) : null}
+
+              {step.type === "create_surense_power_of_attorney" ? (
+                <CreateSurensePowerOfAttorneyStepEditor
+                  step={step}
+                  onConfigChange={(
+                    patch: Record<string, unknown>
+                  ) => onUpdateConfig(stepId, patch)}
                 />
               ) : null}
 

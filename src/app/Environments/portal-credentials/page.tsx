@@ -66,6 +66,7 @@ const [loadingCreds, setLoadingCreds] = useState(false);
 
 const [skipCodesInput, setSkipCodesInput] = useState("");
 const [savingSkipCodes, setSavingSkipCodes] = useState(false);
+const [accountingNumber, setAccountingNumber] = useState("");
 
 // פורטלים עם ריבוי-סוכנים בכניסה אחת - כרגע רק מיטב, ניתן להרחיב בעתיד
 const isMultiAgentPortal = isMeitav;
@@ -96,10 +97,11 @@ useEffect(() => {
       const res: any = await fn({ portalId });
       const data = res?.data || {};
 
-      if (data.username) setUsername(data.username);
+     if (data.username) setUsername(data.username);
       if (data.phoneNumber) setPhoneNumber(data.phoneNumber);
       if (data.licenseNumber) setLicenseNumber(data.licenseNumber);
       if (data.loginType) setAltshulerLoginType(data.loginType);
+      if (data.accountingNumber) setAccountingNumber(data.accountingNumber);
     } catch {
       // ignore
     } finally {
@@ -135,7 +137,10 @@ useEffect(() => {
       } else if (isAltshuler) {
         payload.licenseNumber = licenseNumber;
         payload.loginType = altshulerLoginType;
-      } else if (isMenora || isMeitav || isAnalyst || isYalin) {
+      } else if (isMenora) {
+        payload.phoneNumber = phoneNumber;
+        if (accountingNumber.trim()) payload.accountingNumber = accountingNumber.trim();
+      } else if (isMeitav || isAnalyst || isYalin) {
         payload.phoneNumber = phoneNumber;
       } else {
         payload.password = password;
@@ -312,7 +317,21 @@ useEffect(() => {
             />
           </div>
         )}
-
+{isMenora && (
+          <div className="mb-3">
+            <label className="block font-semibold mb-1">
+              מספר הנהלת חשבונות (בית סוכן — אופציונלי):
+            </label>
+            <input
+              className="select-input w-full"
+              value={accountingNumber}
+              onChange={(e) => setAccountingNumber(e.target.value)}
+              autoComplete="off"
+              placeholder="השאירי ריק אם מזדהים כסוכן רגיל"
+              inputMode="numeric"
+            />
+          </div>
+        )}
         {!isMenora && !isMor && !isMeitav && !isAnalyst && !isAltshuler && !isYalin && (
           <div className="mb-3">
             <label className="block font-semibold mb-1">סיסמה:</label>

@@ -18,7 +18,8 @@ type PortalCredentials = {
   password?: string;
   phoneNumber?: string;
   licenseNumber?: string;
- loginType?: string;
+  loginType?: string;
+  accountingNumber?: string;
 };
 
 function s(v: any) {
@@ -69,13 +70,14 @@ export const getPortalCredentialsDecrypted = onCall(
 
 const plain = decryptJsonAes256Gcm(keyB64, enc) as PortalCredentials;
 
-    const username = s(plain?.username);
+ const username = s(plain?.username);
     const password = s(plain?.password);
     const phoneNumber = s(plain?.phoneNumber);
     const licenseNumber = s(plain?.licenseNumber);
 
    if (!username) throw new HttpsError("internal", "Decrypted username empty");
 const loginType = s(plain?.loginType);
+const accountingNumber = s(plain?.accountingNumber);
 
     // ח.פ בית סוכן - נשמר ברמת הסוכן (users/{agentId}), לא ברמת הפורטל
     // הבודד, כדי שיחול אוטומטית על כל הפורטלים שתומכים בכך.
@@ -90,7 +92,7 @@ const loginType = s(plain?.loginType);
       // אם השליפה נכשלת - פשוט לא שולחים companyTaxId, לא מפילים את כל הבקשה
     }
 
-    return {
+  return {
       ok: true,
       username,
       ...(password ? {password} : {}),
@@ -98,6 +100,7 @@ const loginType = s(plain?.loginType);
       ...(licenseNumber ? {licenseNumber} : {}),
       ...(loginType ? {loginType} : {}),
       ...(companyTaxId ? {companyTaxId} : {}),
+      ...(accountingNumber ? {accountingNumber} : {}),
     };
   }
 );

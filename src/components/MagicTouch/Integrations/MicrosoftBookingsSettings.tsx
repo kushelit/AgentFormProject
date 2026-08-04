@@ -56,6 +56,37 @@ type MicrosoftBusiness = {
   displayName: string;
 };
 
+
+type MicrosoftAppointmentListItem = {
+  appointmentId: string;
+  selfServiceAppointmentId?: string | null;
+  customerName?: string | null;
+  customerEmail?: string | null;
+  customerPhone?: string | null;
+  serviceId?: string | null;
+  serviceName?: string | null;
+  startAt?: {
+    dateTime?: string;
+    timeZone?: string;
+  } | string | null;
+  endAt?: {
+    dateTime?: string;
+    timeZone?: string;
+  } | string | null;
+  isCancelled?: boolean;
+  createdDateTime?: string | null;
+  lastUpdatedDateTime?: string | null;
+};
+
+type MicrosoftAppointmentListResult = {
+  ok: boolean;
+  bookingBusinessId: string;
+  start: string;
+  end: string;
+  count: number;
+  appointments: MicrosoftAppointmentListItem[];
+};
+
 type TimestampLike = {
   toDate?: () => Date;
 };
@@ -132,6 +163,33 @@ function formatTimestamp(
     .toLocaleString(
       "he-IL"
     );
+}
+
+
+function appointmentDateText(
+  value:
+    | {
+      dateTime?: string;
+      timeZone?: string;
+    }
+    | string
+    | null
+    | undefined
+): string {
+  const raw =
+    typeof value === "string"
+      ? value
+      : String(value?.dateTime || "");
+
+  if (!raw) return "-";
+
+  const date = new Date(raw);
+
+  if (Number.isNaN(date.getTime())) {
+    return raw;
+  }
+
+  return date.toLocaleString("he-IL");
 }
 
 function InfoCard({
@@ -240,6 +298,24 @@ export default function MicrosoftBookingsSettings() {
       null
     );
 
+
+  const [
+    listingAppointments,
+    setListingAppointments,
+  ] = useState(false);
+
+  const [
+    appointmentListResult,
+    setAppointmentListResult,
+  ] = useState<MicrosoftAppointmentListResult | null>(
+    null
+  );
+
+
+  const [
+    deletingAppointmentId,
+    setDeletingAppointmentId,
+  ] = useState("");
 
 const [
   diagnosticAppointmentId,
@@ -809,6 +885,171 @@ const [
       }
     };
 
+  const handleDeleteAppointment =
+    async (
+      appointment:
+        MicrosoftAppointmentListItem
+    ) => {
+      const approved =
+        window.confirm(
+          `למחוק את הפגישה של ${
+            appointment.customerName ||
+            "הלקוח"
+          } מ-Microsoft Bookings?`
+        );
+
+      if (!approved) {
+        return;
+      }
+
+      const confirmation =
+        window.prompt(
+          "כדי לאשר את המחיקה הקלידי DELETE"
+        );
+
+      if (
+        confirmation !==
+        "DELETE"
+      ) {
+        setDialog({
+          type: "warning",
+          title: "המחיקה בוטלה",
+          message:
+            "לא הוקלד אישור DELETE.",
+        });
+
+        return;
+      }
+
+      setDeletingAppointmentId(
+        appointment.appointmentId
+      );
+
+      try {
+        const fn =
+          httpsCallable<
+            {
+              agentId: string;
+              appointmentId: string;
+              confirmation: "DELETE";
+            },
+            {
+              ok: boolean;
+              deleted: boolean;
+              httpStatus: number;
+            }
+          >(
+            functions,
+            "deleteMicrosoftBookingAppointment"
+          );
+
+        await fn({
+          agentId,
+          appointmentId:
+            appointment.appointmentId,
+          confirmation:
+            "DELETE",
+        });
+
+        setDialog({
+          type: "success",
+          title: "הפגישה נמחקה",
+          message:
+            "הפגישה נמחקה מ-Microsoft Bookings.",
+        });
+
+        setAppointmentListResult(
+          (current) => {
+            if (!current) {
+              return current;
+            }
+
+            const appointments =
+              current.appointments.filter(
+                (item) =>
+                  item.appointmentId !==
+                  appointment.appointmentId
+              );
+
+            return {
+              ...current,
+              count:
+                appointments.length,
+              appointments,
+            };
+          }
+        );
+      } catch (
+        error: any
+      ) {
+        console.error(
+          "[Microsoft Bookings Delete Appointment] failed",
+          error
+        );
+
+        setDialog({
+          type: "error",
+          title: "מחיקת הפגישה נכשלה",
+          message:
+            error?.message ||
+            "לא ניתן למחוק את הפגישה מ-Microsoft.",
+        });
+      } finally {
+        setDeletingAppointmentId(
+          ""
+        );
+      }
+    };
+
+  const handleListAppointments =
+    async () => {
+      setListingAppointments(true);
+      setAppointmentListResult(null);
+
+      try {
+        const fn = httpsCallable<
+          {
+            agentId: string;
+          },
+          MicrosoftAppointmentListResult
+        >(
+          functions,
+          "listMicrosoftBookingsAppointments"
+        );
+
+        const response = await fn({
+          agentId,
+        });
+
+        setAppointmentListResult(
+          response.data
+        );
+
+        setDialog({
+          type: "success",
+          title: "רשימת הפגישות נטענה",
+          message:
+            `Microsoft החזירה ${response.data.count} פגישות ` +
+            "בחלון הסנכרון הפעיל.",
+        });
+      } catch (error: any) {
+        console.error(
+          "[Microsoft Bookings Appointment List] failed",
+          error
+        );
+
+        setDialog({
+          type: "error",
+          title: "טעינת הפגישות נכשלה",
+          message:
+            error?.message ||
+            "לא ניתן לטעון את רשימת הפגישות מ-Microsoft.",
+        });
+      } finally {
+        setListingAppointments(false);
+      }
+    };
+
 const handleDiagnoseAppointment =
   async () => {
     const appointmentId =
@@ -1296,6 +1537,20 @@ const handleDiagnoseAppointment =
 
             <Button
               text={
+                listingAppointments
+                  ? "טוען פגישות..."
+                  : "הצג פגישות מ-Microsoft"
+              }
+              onClick={
+                handleListAppointments
+              }
+              disabled={
+                listingAppointments
+              }
+            />
+
+            <Button
+              text={
                 testingConnection
                   ? "בודק חיבור..."
                   : "בדוק חיבור Microsoft"
@@ -1323,6 +1578,170 @@ const handleDiagnoseAppointment =
             />
           </div>
         )}
+        {config?.connected && appointmentListResult && (
+          <section className="space-y-4 rounded-xl border border-blue-200 bg-blue-50 p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h3 className="font-bold text-blue-950">
+                  פגישות שמוחזרות כרגע מ-Microsoft
+                </h3>
+
+                <p className="mt-1 text-sm leading-6 text-blue-800">
+                  זו הרשימה הישירה מ-calendarView באותו חלון זמן
+                  שבו משתמש הסנכרון האמיתי.
+                </p>
+              </div>
+
+              <span className="rounded-full bg-white px-3 py-1 text-sm font-bold text-blue-800">
+                {appointmentListResult.count} פגישות
+              </span>
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-3">
+              <InfoCard
+                label="עסק Bookings"
+                value={
+                  appointmentListResult.bookingBusinessId
+                }
+              />
+
+              <InfoCard
+                label="מתאריך"
+                value={
+                  new Date(
+                    appointmentListResult.start
+                  ).toLocaleString("he-IL")
+                }
+              />
+
+              <InfoCard
+                label="עד תאריך"
+                value={
+                  new Date(
+                    appointmentListResult.end
+                  ).toLocaleString("he-IL")
+                }
+              />
+            </div>
+
+            {appointmentListResult.appointments.length === 0 ? (
+              <div className="rounded-xl border border-blue-200 bg-white p-4 text-sm text-slate-700">
+                Microsoft לא החזירה פגישות בחלון הסנכרון.
+              </div>
+            ) : (
+              <div className="overflow-x-auto rounded-xl border border-blue-200 bg-white">
+                <table className="min-w-full text-sm">
+                  <thead className="bg-slate-50 text-slate-700">
+                    <tr>
+                      <th className="whitespace-nowrap px-4 py-3 text-right">
+                        לקוח
+                      </th>
+                      <th className="whitespace-nowrap px-4 py-3 text-right">
+                        טלפון / מייל
+                      </th>
+                      <th className="whitespace-nowrap px-4 py-3 text-right">
+                        שירות
+                      </th>
+                      <th className="whitespace-nowrap px-4 py-3 text-right">
+                        התחלה
+                      </th>
+                      <th className="whitespace-nowrap px-4 py-3 text-right">
+                        מצב
+                      </th>
+                      <th className="whitespace-nowrap px-4 py-3 text-right">
+                        פעולה
+                      </th>
+                      <th className="whitespace-nowrap px-4 py-3 text-right">
+                        Appointment ID
+                      </th>
+                    </tr>
+                  </thead>
+
+                  <tbody className="divide-y divide-slate-100">
+                    {appointmentListResult.appointments.map(
+                      (appointment) => (
+                        <tr
+                          key={appointment.appointmentId}
+                          className="align-top"
+                        >
+                          <td className="px-4 py-3 font-semibold text-slate-900">
+                            {appointment.customerName || "-"}
+                          </td>
+
+                          <td className="px-4 py-3 text-slate-600">
+                            <div dir="ltr" className="text-right">
+                              {appointment.customerPhone || "-"}
+                            </div>
+                            <div
+                              dir="ltr"
+                              className="mt-1 break-all text-right text-xs"
+                            >
+                              {appointment.customerEmail || "-"}
+                            </div>
+                          </td>
+
+                          <td className="px-4 py-3 text-slate-700">
+                            {appointment.serviceName || "-"}
+                          </td>
+
+                          <td className="whitespace-nowrap px-4 py-3 text-slate-700">
+                            {appointmentDateText(
+                              appointment.startAt
+                            )}
+                          </td>
+
+                          <td className="px-4 py-3">
+                            <span
+                              className={[
+                                "inline-flex rounded-full px-2.5 py-1 text-xs font-bold",
+                                appointment.isCancelled
+                                  ? "bg-rose-100 text-rose-700"
+                                  : "bg-emerald-100 text-emerald-700",
+                              ].join(" ")}
+                            >
+                              {appointment.isCancelled
+                                ? "מבוטלת"
+                                : "פעילה"}
+                            </span>
+                          </td>
+
+                          <td className="px-4 py-3">
+                            <button
+                              type="button"
+                              className="rounded-lg bg-rose-600 px-3 py-2 text-xs font-bold text-white hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-50"
+                              onClick={() =>
+                                handleDeleteAppointment(
+                                  appointment
+                                )
+                              }
+                              disabled={
+                                deletingAppointmentId ===
+                                appointment.appointmentId
+                              }
+                            >
+                              {deletingAppointmentId ===
+                              appointment.appointmentId
+                                ? "מוחק..."
+                                : "מחק פגישה"}
+                            </button>
+                          </td>
+
+                          <td
+                            dir="ltr"
+                            className="max-w-sm break-all px-4 py-3 font-mono text-xs text-slate-600"
+                          >
+                            {appointment.appointmentId}
+                          </td>
+                        </tr>
+                      )
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+        )}
+
 {config?.connected && (
   <div className="space-y-4 rounded-xl border border-dashed border-purple-300 bg-purple-50 p-4">
     <div>

@@ -154744,59 +154744,103 @@ async function menoraNavigateToCommissions(page) {
     await waitMenoraLoaderGone(page);
 }
 /**
- * בחירת סוכנים והפקת דוח - גרסה משולבת וחסינה
+ * בחירת חברה/ישות לפי "מספר הנהלת חשבונות" (בית סוכן) - אלטרנטיבה לבחירת
+ * "סוכנים" הרגילה. אומת מול הדף החי: השדה #test-searchAgent הוא
+ * MUI Autocomplete, פתיחה דורשת רצף אירועי עכבר מלא (לא click פשוט);
+ * הרשימה כולה קיימת ב-DOM בבת אחת (לא וירטואלית) אז חיפוש טקסטואלי ישיר
+ * מספיק, אין צורך בגלילה.
  */
-async function menoraProduceReport(page) {
-    // console.log("[Menora] Producing report – selecting 'סוכנים' & strong dropdown close...");
-    const script = `
-    (async function() {
-      // שלב 1: פתיחת הדרופדאון של "בחירת ישות"
-      const expandIcon = document.querySelector('svg[data-testid="ExpandMoreIcon"]');
-      if (expandIcon && expandIcon.parentElement) {
-        expandIcon.parentElement.click();
-      } else {
-        const trigger = document.querySelector('[role="combobox"], [aria-haspopup="listbox"]');
-        if (trigger) trigger.click();
-      }
-      await new Promise(r => setTimeout(r, 1500));
-
-      // שלב 2: בחירת "סוכנים" – הלוגיקה שעבדה לך
-      const allSpans = Array.from(document.querySelectorAll('span, p, label'));
-      const agentsSpan = allSpans.find(s => (s.innerText || s.textContent || "").trim() === 'סוכנים');
-      
-      if (agentsSpan) {
-        // console.log("Menora: Found 'סוכנים' span");
-        
-        const row = agentsSpan.closest('li, [role="option"], label, .MuiMenuItem-root');
-        if (row) {
-          const checkbox = row.querySelector('input[type="checkbox"]');
-          if (checkbox) {
-            if (!checkbox.checked) {
-              checkbox.click();
-              // console.log("Menora: Checkbox clicked successfully");
-            }
-          } else {
-            row.click();
-            // console.log("Menora: Clicked on 'סוכנים' row");
-          }
-        }
-      } else {
-        // console.warn("לא נמצא 'סוכנים' בדרופדאון");
-      }
-
-      // שלב 3: סגירה חזקה של הדרופדאון (השיטה שעבדה לך)
-      // console.log("Menora: Closing dropdown strongly...");
-      const backdrop = document.querySelector('.MuiBackdrop-root, .MuiModal-backdrop');
-      if (backdrop) {
-        backdrop.click();
-      }
-      document.body.click(); // קליק נוסף על body – סגירה בטוחה
+async function menoraSelectCompanyByAccountingNumber(page, accountingNumber) {
+    await page.evaluate(`
+    (function() {
+      const el = document.querySelector('#test-searchAgent');
+      if (!el) return 'INPUT_NOT_FOUND';
+      const rect = el.getBoundingClientRect();
+      const opts = { bubbles: true, cancelable: true, view: window, clientX: rect.left + rect.width/2, clientY: rect.top + rect.height/2 };
+      el.dispatchEvent(new MouseEvent('pointerdown', opts));
+      el.dispatchEvent(new MouseEvent('mousedown', opts));
+      el.dispatchEvent(new MouseEvent('pointerup', opts));
+      el.dispatchEvent(new MouseEvent('mouseup', opts));
+      el.dispatchEvent(new MouseEvent('click', opts));
+      return 'CLICKED';
+    })()
+  `);
+    await page.waitForTimeout(800);
+    const result = await page.evaluate(`
+    (function(num) {
+      const li = Array.from(document.querySelectorAll('.MuiAutocomplete-popper li, .MuiAutocomplete-listbox li, ul.MuiAutocomplete-listbox > li'))
+        .find(el => (el.textContent || '').includes(num));
+      if (!li) return 'NOT_FOUND';
+      const checkbox = li.querySelector('input[type="checkbox"]') || li.querySelector('.MuiCheckbox-root');
+      if (!checkbox) return 'CHECKBOX_NOT_FOUND';
+      checkbox.click();
+      return 'CLICKED';
+    })(${JSON.stringify(accountingNumber)})
+  `);
+    await page.waitForTimeout(500);
+    // סגירת הרשימה - אותו pattern שכבר קיים ב-menoraProduceReport
+    await page.evaluate(`
+    (function() {
+      document.body.click();
       window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
       window.dispatchEvent(new KeyboardEvent('keyup', { key: 'Escape', bubbles: true }));
-      await new Promise(r => setTimeout(r, 2000)); // המתנה שהדרופדאון ייסגר לגמרי
+    })()
+  `);
+    await page.waitForTimeout(1000);
+    return String(result);
+}
+/**
+ * בחירת סוכנים והפקת דוח - גרסה משולבת וחסינה
+ */
+async function menoraProduceReport(page, accountingNumber) {
+    // console.log("[Menora] Producing report...");
+    if (accountingNumber) {
+        // console.log("[Menora] Selecting company by accounting number:", accountingNumber);
+        const selectResult = await menoraSelectCompanyByAccountingNumber(page, accountingNumber);
+        // console.log("[Menora] Accounting number select result:", selectResult);
+    }
+    else {
+        // הזרימה הרגילה - פתיחת "בחירת ישות" ובחירת "סוכנים" (ללא שינוי מהמקור)
+        const openAndSelectAgentsScript = `
+      (async function() {
+        const expandIcon = document.querySelector('svg[data-testid="ExpandMoreIcon"]');
+        if (expandIcon && expandIcon.parentElement) {
+          expandIcon.parentElement.click();
+        } else {
+          const trigger = document.querySelector('[role="combobox"], [aria-haspopup="listbox"]');
+          if (trigger) trigger.click();
+        }
+        await new Promise(r => setTimeout(r, 1500));
 
-      // שלב 4: לחיצה על "הפקת הדוח"
-            // שלב 4: לחיצה על "הפקת הדוח" – חיפוש לפי אייקון Excel + טקסט
+        const allSpans = Array.from(document.querySelectorAll('span, p, label'));
+        const agentsSpan = allSpans.find(s => (s.innerText || s.textContent || "").trim() === 'סוכנים');
+
+        if (agentsSpan) {
+          const row = agentsSpan.closest('li, [role="option"], label, .MuiMenuItem-root');
+          if (row) {
+            const checkbox = row.querySelector('input[type="checkbox"]');
+            if (checkbox) {
+              if (!checkbox.checked) checkbox.click();
+            } else {
+              row.click();
+            }
+          }
+        }
+
+        const backdrop = document.querySelector('.MuiBackdrop-root, .MuiModal-backdrop');
+        if (backdrop) backdrop.click();
+        document.body.click();
+        window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+        window.dispatchEvent(new KeyboardEvent('keyup', { key: 'Escape', bubbles: true }));
+        await new Promise(r => setTimeout(r, 2000));
+        return 'DONE';
+      })()
+    `;
+        await page.evaluate(openAndSelectAgentsScript);
+    }
+    // שלב 4: לחיצה על "הפקת הדוח"
+    const script = `
+    (async function() {            // שלב 4: לחיצה על "הפקת הדוח" – חיפוש לפי אייקון Excel + טקסט
       let produceBtn = null;
       
       // עדיפות 1: חיפוש button שמכיל img עם alt="excel" או src עם excel
@@ -155034,7 +155078,11 @@ async function getMenoraCreds(ctx) {
     const functions = ctx.functions;
     const fn = (0, functions_1.httpsCallable)(functions, "getPortalCredentialsDecrypted");
     const res = await fn({ portalId: "menora" });
-    return { username: s(res?.data?.username), phoneNumber: s(res?.data?.phoneNumber) };
+    return {
+        username: s(res?.data?.username),
+        phoneNumber: s(res?.data?.phoneNumber),
+        accountingNumber: s(res?.data?.accountingNumber),
+    };
 }
 async function runMenoraAll(ctx) {
     const { runId, setStatus, run, paths, storage, log } = ctx;
@@ -155042,7 +155090,7 @@ async function runMenoraAll(ctx) {
     const absDir = s(paths.downloadsDir || "./downloads");
     ensureDir(absDir);
     const agentId = s(run.agentId || ctx.agentId);
-    const { username, phoneNumber } = await getMenoraCreds(ctx);
+    const { username, phoneNumber, accountingNumber } = await getMenoraCreds(ctx);
     const monthLabel = run.monthLabel || "חודש נוכחי";
     await setStatus(runId, { status: "running", step: "מאתחל דפדפן מנורה...", monthLabel });
     const executablePath = (0, runnerPaths_1.resolveChromiumExePath)();
@@ -155090,7 +155138,7 @@ async function runMenoraAll(ctx) {
         }
         const monthYearStr = `${String(targetMonth).padStart(2, '0')}.${targetYear}`;
         await (0, menora_shared_1.menoraSetReportDate)(page, monthYearStr);
-        await (0, menora_shared_1.menoraProduceReport)(page);
+        await (0, menora_shared_1.menoraProduceReport)(page, accountingNumber || undefined);
         // המתנה והורדה
         await setStatus(runId, { status: "running", step: "ממתין להפקת ה-ZIP...", monthLabel });
         const download = await (0, menora_shared_1.menoraDownloadZip)(page);

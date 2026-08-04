@@ -769,13 +769,18 @@ const getValueBySystemField = (
     return undefined;
   };
 
-  const commissionOverrides: Record<string, (row: any) => number> = {
+ const commissionOverrides: Record<string, (row: any) => number> = {
     ayalon_insurance: (row) =>
       toNum(pick(row, ['סך עמלת סוכן'])) + toNum(pick(row, ['סך דמי גביה', 'סך דמי גבייה'])),
 
     menura_new_nifraim: (row) =>
       toNum(pick(row, ['סוכן-סכום עמלה', 'סוכן - סכום עמלה'])) +
-      toNum(pick(row, ['סוכן-דמי גביה', 'סוכן - דמי גביה', 'סוכן-דמי גבייה', 'סוכן - דמי גבייה'])),
+      toNum(pick(row, ['סוכן-דמי גביה', 'סוכן - דמי גביה', 'סוכן-דמי גבייה', 'סוכן - דמי גבייה'])) +
+      toNum(pick(row, ['מאגד-סכום עמלה', 'מאגד - סכום עמלה'])),
+
+    menura_new_zvira: (row) =>
+      toNum(pick(row, ["סוכן-סה'כ עמלה", "סוכן - סה'כ עמלה", 'סוכן-סה׳כ עמלה', 'סוכן - סה׳כ עמלה'])) +
+      toNum(pick(row, ["מאגד-סה'כ עמלה", "מאגד - סה'כ עמלה", 'מאגד-סה׳כ עמלה', 'מאגד - סה׳כ עמלה'])),
   };
 
   const chunk = <T,>(arr: T[], size: number) =>

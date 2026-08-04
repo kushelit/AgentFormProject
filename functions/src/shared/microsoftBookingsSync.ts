@@ -318,6 +318,7 @@ async function createBookingMagicTouchEvent({
   db,
   agentId,
   contactId,
+  conversationId,
   appointmentId,
   bookingBusinessId,
   appointment,
@@ -327,6 +328,7 @@ async function createBookingMagicTouchEvent({
   db: FirebaseFirestore.Firestore;
   agentId: string;
   contactId: string;
+  conversationId: string | null;
   appointmentId: string;
   bookingBusinessId: string;
   appointment: any;
@@ -380,6 +382,10 @@ async function createBookingMagicTouchEvent({
       "microsoft_bookings",
 
     contactId,
+
+    conversationId:
+      conversationId ||
+      null,
 
     bookingAppointmentId:
       appointmentId,
@@ -732,6 +738,30 @@ export async function syncMicrosoftBookingsAgent(
         customer.email
       );
 
+    const contactData =
+      contactDoc
+        ? (
+          contactDoc.data() as
+            Record<string, any>
+        )
+        : null;
+
+    const conversationId =
+      contactDoc
+        ? (
+          s(
+            contactData
+              ?.whatsappConversationId
+          ) ||
+          (
+            customer.phone
+              ? `${normalizedAgentId}_${customer.phone}`
+              : ""
+          ) ||
+          null
+        )
+        : null;
+
     const appointmentRef =
       (db as any).doc(
         `agents/${normalizedAgentId}/booking_appointments/${appointmentDocumentId(
@@ -757,6 +787,8 @@ export async function syncMicrosoftBookingsAgent(
         contactId:
           contactDoc?.id ||
           null,
+
+        conversationId,
 
         customerName:
           customer.name ||
@@ -863,6 +895,8 @@ export async function syncMicrosoftBookingsAgent(
 
         contactId:
           contactDoc.id,
+
+        conversationId,
 
         appointmentId,
 
@@ -1172,6 +1206,46 @@ export async function syncMicrosoftBookingsAgent(
         ),
     };
 
+    let cancellationConversationId =
+      s(
+        storedAppointment
+          ?.conversationId
+      ) ||
+      null;
+
+    if (
+      !cancellationConversationId &&
+      contactId
+    ) {
+      const contactSnap =
+        await (db as any)
+          .doc(
+            `agents/${normalizedAgentId}/magic_touch_contacts/${contactId}`
+          )
+          .get();
+
+      if (contactSnap.exists) {
+        const contactData =
+          contactSnap.data() as
+            Record<string, any>;
+
+        cancellationConversationId =
+          s(
+            contactData
+              ?.whatsappConversationId
+          ) ||
+          null;
+      }
+    }
+
+    if (
+      !cancellationConversationId &&
+      customer.phone
+    ) {
+      cancellationConversationId =
+        `${normalizedAgentId}_${customer.phone}`;
+    }
+
     let eventResult:
       {
         created: boolean;
@@ -1188,6 +1262,9 @@ export async function syncMicrosoftBookingsAgent(
             normalizedAgentId,
 
           contactId,
+
+          conversationId:
+            cancellationConversationId,
 
           appointmentId:
             storedAppointmentId,

@@ -16,6 +16,15 @@ export async function executeSurenseAction(input:{agentId:string;action:SurenseA
  const url=s(actionCfg.webhookUrl);if(!url)throw new HttpsError("failed-precondition",`Surense webhook is not configured for action: ${input.action}`);
  const key=s(SURENSE_ACTIVITY_API_KEY.value());if(!key)throw new HttpsError("internal","Surense integration API key is missing");
  const res=await fetch(url,{method:"POST",headers:{"Content-Type":"application/json","x-make-apikey":key},body:JSON.stringify({schemaVersion:1,action:input.action,agentId,...input.payload})});
- const body=await parse(res);if(!res.ok){console.error("[surenseIntegrationService] action failed",{agentId,action:input.action,status:res.status,response:body});throw new HttpsError("failed-precondition",`Surense action failed with HTTP ${res.status}`,{action:input.action,httpStatus:res.status,response:body});}
+ const body=await parse(res);
+ console.log(
+  "[Surense] HTTP response:",
+  JSON.stringify(body, null, 2)
+);
+console.log(
+  "[Surense] raw type:",
+  typeof body
+);
+if(!res.ok){console.error("[surenseIntegrationService] action failed",{agentId,action:input.action,status:res.status,response:body});throw new HttpsError("failed-precondition",`Surense action failed with HTTP ${res.status}`,{action:input.action,httpStatus:res.status,response:body});}
  return{ok:true,action:input.action,httpStatus:res.status,response:body};
 }

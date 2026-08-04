@@ -205,60 +205,110 @@ export async function menoraNavigateToCommissions(page: Page) {
 
 
 /**
- * בחירת סוכנים והפקת דוח - גרסה משולבת וחסינה
+ * בחירת חברה/ישות לפי "מספר הנהלת חשבונות" (בית סוכן) - אלטרנטיבה לבחירת
+ * "סוכנים" הרגילה. אומת מול הדף החי: השדה #test-searchAgent הוא
+ * MUI Autocomplete, פתיחה דורשת רצף אירועי עכבר מלא (לא click פשוט);
+ * הרשימה כולה קיימת ב-DOM בבת אחת (לא וירטואלית) אז חיפוש טקסטואלי ישיר
+ * מספיק, אין צורך בגלילה.
  */
-export async function menoraProduceReport(page: Page) {
-  // console.log("[Menora] Producing report – selecting 'סוכנים' & strong dropdown close...");
+async function menoraSelectCompanyByAccountingNumber(page: Page, accountingNumber: string): Promise<string> {
+  await page.evaluate(`
+    (function() {
+      const el = document.querySelector('#test-searchAgent');
+      if (!el) return 'INPUT_NOT_FOUND';
+      const rect = el.getBoundingClientRect();
+      const opts = { bubbles: true, cancelable: true, view: window, clientX: rect.left + rect.width/2, clientY: rect.top + rect.height/2 };
+      el.dispatchEvent(new MouseEvent('pointerdown', opts));
+      el.dispatchEvent(new MouseEvent('mousedown', opts));
+      el.dispatchEvent(new MouseEvent('pointerup', opts));
+      el.dispatchEvent(new MouseEvent('mouseup', opts));
+      el.dispatchEvent(new MouseEvent('click', opts));
+      return 'CLICKED';
+    })()
+  `);
+  await page.waitForTimeout(800);
 
-  const script = `
-    (async function() {
-      // שלב 1: פתיחת הדרופדאון של "בחירת ישות"
-      const expandIcon = document.querySelector('svg[data-testid="ExpandMoreIcon"]');
-      if (expandIcon && expandIcon.parentElement) {
-        expandIcon.parentElement.click();
-      } else {
-        const trigger = document.querySelector('[role="combobox"], [aria-haspopup="listbox"]');
-        if (trigger) trigger.click();
-      }
-      await new Promise(r => setTimeout(r, 1500));
+  const result = await page.evaluate(`
+    (function(num) {
+      const li = Array.from(document.querySelectorAll('.MuiAutocomplete-popper li, .MuiAutocomplete-listbox li, ul.MuiAutocomplete-listbox > li'))
+        .find(el => (el.textContent || '').includes(num));
+      if (!li) return 'NOT_FOUND';
+      const checkbox = li.querySelector('input[type="checkbox"]') || li.querySelector('.MuiCheckbox-root');
+      if (!checkbox) return 'CHECKBOX_NOT_FOUND';
+      checkbox.click();
+      return 'CLICKED';
+    })(${JSON.stringify(accountingNumber)})
+  `);
 
-      // שלב 2: בחירת "סוכנים" – הלוגיקה שעבדה לך
-      const allSpans = Array.from(document.querySelectorAll('span, p, label'));
-      const agentsSpan = allSpans.find(s => (s.innerText || s.textContent || "").trim() === 'סוכנים');
-      
-      if (agentsSpan) {
-        // console.log("Menora: Found 'סוכנים' span");
-        
-        const row = agentsSpan.closest('li, [role="option"], label, .MuiMenuItem-root');
-        if (row) {
-          const checkbox = row.querySelector('input[type="checkbox"]');
-          if (checkbox) {
-            if (!checkbox.checked) {
-              checkbox.click();
-              // console.log("Menora: Checkbox clicked successfully");
-            }
-          } else {
-            row.click();
-            // console.log("Menora: Clicked on 'סוכנים' row");
-          }
-        }
-      } else {
-        // console.warn("לא נמצא 'סוכנים' בדרופדאון");
-      }
+  await page.waitForTimeout(500);
 
-      // שלב 3: סגירה חזקה של הדרופדאון (השיטה שעבדה לך)
-      // console.log("Menora: Closing dropdown strongly...");
-      const backdrop = document.querySelector('.MuiBackdrop-root, .MuiModal-backdrop');
-      if (backdrop) {
-        backdrop.click();
-      }
-      document.body.click(); // קליק נוסף על body – סגירה בטוחה
+  // סגירת הרשימה - אותו pattern שכבר קיים ב-menoraProduceReport
+  await page.evaluate(`
+    (function() {
+      document.body.click();
       window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
       window.dispatchEvent(new KeyboardEvent('keyup', { key: 'Escape', bubbles: true }));
-      await new Promise(r => setTimeout(r, 2000)); // המתנה שהדרופדאון ייסגר לגמרי
+    })()
+  `);
+  await page.waitForTimeout(1000);
 
-      // שלב 4: לחיצה על "הפקת הדוח"
-            // שלב 4: לחיצה על "הפקת הדוח" – חיפוש לפי אייקון Excel + טקסט
+  return String(result);
+}
+
+
+/**
+ * בחירת סוכנים והפקת דוח - גרסה משולבת וחסינה
+ */
+export async function menoraProduceReport(page: Page, accountingNumber?: string) {
+  // console.log("[Menora] Producing report...");
+
+  if (accountingNumber) {
+    // console.log("[Menora] Selecting company by accounting number:", accountingNumber);
+    const selectResult = await menoraSelectCompanyByAccountingNumber(page, accountingNumber);
+    // console.log("[Menora] Accounting number select result:", selectResult);
+  } else {
+    // הזרימה הרגילה - פתיחת "בחירת ישות" ובחירת "סוכנים" (ללא שינוי מהמקור)
+    const openAndSelectAgentsScript = `
+      (async function() {
+        const expandIcon = document.querySelector('svg[data-testid="ExpandMoreIcon"]');
+        if (expandIcon && expandIcon.parentElement) {
+          expandIcon.parentElement.click();
+        } else {
+          const trigger = document.querySelector('[role="combobox"], [aria-haspopup="listbox"]');
+          if (trigger) trigger.click();
+        }
+        await new Promise(r => setTimeout(r, 1500));
+
+        const allSpans = Array.from(document.querySelectorAll('span, p, label'));
+        const agentsSpan = allSpans.find(s => (s.innerText || s.textContent || "").trim() === 'סוכנים');
+
+        if (agentsSpan) {
+          const row = agentsSpan.closest('li, [role="option"], label, .MuiMenuItem-root');
+          if (row) {
+            const checkbox = row.querySelector('input[type="checkbox"]');
+            if (checkbox) {
+              if (!checkbox.checked) checkbox.click();
+            } else {
+              row.click();
+            }
+          }
+        }
+
+        const backdrop = document.querySelector('.MuiBackdrop-root, .MuiModal-backdrop');
+        if (backdrop) backdrop.click();
+        document.body.click();
+        window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+        window.dispatchEvent(new KeyboardEvent('keyup', { key: 'Escape', bubbles: true }));
+        await new Promise(r => setTimeout(r, 2000));
+        return 'DONE';
+      })()
+    `;
+    await page.evaluate(openAndSelectAgentsScript);
+  }
+
+  // שלב 4: לחיצה על "הפקת הדוח"
+  const script = `
+    (async function() {            // שלב 4: לחיצה על "הפקת הדוח" – חיפוש לפי אייקון Excel + טקסט
       let produceBtn = null;
       
       // עדיפות 1: חיפוש button שמכיל img עם alt="excel" או src עם excel

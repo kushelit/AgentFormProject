@@ -27,18 +27,27 @@ interface TierThresholds {
 
 type Tier = "premium" | "gold" | "silver" | "standard";
 
-interface TierProposalRow {
-  customerId: string;       // doc id של הלקוח
+interface TierFamilyMember {
+  customerId: string;
   customerName: string;
   IDCustomer: string;
-  parentID?: string;
+  currentTier: Tier;
+  responsibleUserId: string | null;
+  responsibleUserName: string | null;
+}
+
+interface TierProposalRow {
+  customerId: string;       // doc id של המבוטח הראשי (או של היחיד, אם אין תא משפחתי)
+  customerName: string;     // שם המבוטח הראשי
+  IDCustomer: string;       // ת"ז המבוטח הראשי
   familySize: number;       // כמה לקוחות בתא המשפחתי נכללו בסכימה
-  nifraimAmount: number;    // הסכום שחושב (משוקלל למשפחה)
-  currentTier: Tier;        // הדירוג הקיים היום ב-DB
-  proposedTier: Tier;       // הדירוג המוצע לפי הסכימה החדשה
-  changed: boolean;         // proposedTier !== currentTier
-  responsibleUserId: string | null;   // אחראי הלקוח היום - customer.responsibleUserId (uid מקולקציית users)
-  responsibleUserName: string | null; // שם מוצג של האחראי - customer.responsibleUserName (מוזן/מטוייב) אם קיים
+  nifraimAmount: number;    // הסכום שחושב (משוקלל למשפחה) - מוצג פעם אחת בלבד לכל המשפחה
+  currentTier: Tier;        // הדירוג הקיים של המבוטח הראשי
+  proposedTier: Tier;       // הדירוג המוצע למשפחה כולה
+  changed: boolean;         // true אם לפחות אחד מבני המשפחה לא כבר בדירוג המוצע
+  responsibleUserId: string | null;   // אחראי המבוטח הראשי - customer.responsibleUserId
+  responsibleUserName: string | null; // שם מוצג של האחראי - customer.responsibleUserName
+  members: TierFamilyMember[]; // כל בני התא המשפחתי (כולל הראשי) - לצורך תצוגה/הרחבת עדכונים
 }
 
 interface DuplicateSkipped {
@@ -167,33 +176,47 @@ export const calculateCustomerTiers = onCall(
       familyGroups.get(key)!.push(c);
     });
 
-    // 5) חישוב סכום משוקלל למשפחה, והצעת דירוג לכל לקוח
+    // 5) חישוב סכום משוקלל למשפחה, והצעת דירוג למשפחה - שורה אחת פר תא משפחתי
     const rows: TierProposalRow[] = [];
 
-    for (const [, members] of familyGroups) {
+    for (const [key, members] of familyGroups) {
       const familyTotal = members.reduce((sum, m) => {
-        const key = canonId(m.IDCustomer);
-        return sum + (amountByCustomerId.get(key) || 0);
+        const idKey = canonId(m.IDCustomer);
+        return sum + (amountByCustomerId.get(idKey) || 0);
       }, 0);
 
       const proposedTier = tierFromAmount(familyTotal, thresholds);
 
-      for (const m of members) {
-        const currentTier: Tier = (m.customerTier as Tier) || "standard";
-        rows.push({
-          customerId: m.id,
-          customerName: `${m.firstNameCustomer ?? ""} ${m.lastNameCustomer ?? ""}`.trim(),
-          IDCustomer: m.IDCustomer ?? "",
-          parentID: m.parentID,
-          familySize: members.length,
-          nifraimAmount: Number(familyTotal.toFixed(2)),
-          currentTier,
-          proposedTier,
-          changed: currentTier !== proposedTier,
-          responsibleUserId: m.responsibleUserId ?? null,
-          responsibleUserName: m.responsibleUserName ?? null,
-        });
-      }
+      // המבוטח הראשי: הרשומה שה-id שלה שווה למפתח הקבוצה (parentID המשותף, או עצמה אם יחיד)
+      const primary = members.find((m) => m.id === key) || members[0];
+
+      const familyMembers: TierFamilyMember[] = members.map((m) => ({
+        customerId: m.id,
+        customerName: `${m.firstNameCustomer ?? ""} ${m.lastNameCustomer ?? ""}`.trim(),
+        IDCustomer: m.IDCustomer ?? "",
+        currentTier: (m.customerTier as Tier) || "standard",
+        responsibleUserId: m.responsibleUserId ?? null,
+        responsibleUserName: m.responsibleUserName ?? null,
+      }));
+
+      // "שינוי" מוגדר ברמת המשפחה: true אם לפחות אחד מבני המשפחה עדיין לא בדירוג המוצע
+      // (לא רק הראשי) - כדי לתפוס גם מצב שבו רק חלק מהמשפחה עודכנה בעבר.
+      const changed = familyMembers.some((m) => m.currentTier !== proposedTier);
+      const primaryCurrentTier: Tier = (primary.customerTier as Tier) || "standard";
+
+      rows.push({
+        customerId: primary.id,
+        customerName: `${primary.firstNameCustomer ?? ""} ${primary.lastNameCustomer ?? ""}`.trim(),
+        IDCustomer: primary.IDCustomer ?? "",
+        familySize: members.length,
+        nifraimAmount: Number(familyTotal.toFixed(2)),
+        currentTier: primaryCurrentTier,
+        proposedTier,
+        changed,
+        responsibleUserId: primary.responsibleUserId ?? null,
+        responsibleUserName: primary.responsibleUserName ?? null,
+        members: familyMembers,
+      });
     }
 
     // מיון: שינויים קודם, אחר כך לפי סכום בסדר יורד
@@ -205,7 +228,8 @@ export const calculateCustomerTiers = onCall(
     return {
       month,
       thresholds,
-      totalCustomers: rows.length,
+      totalCustomers: customers.length,
+      totalFamilies: rows.length,
       changedCount: rows.filter((r) => r.changed).length,
       duplicatesSkippedCount: duplicatesSkipped.length,
       duplicatesSkipped, // לצורך שקיפות/ניקוי עתידי - אילו לקוחות זוהו ככפילות ואילו נשמרו
@@ -240,27 +264,45 @@ export const applyCustomerTiers = onCall(
 
     const db = adminDb();
 
-    // טעינת כל לקוחות הסוכן, כדי לזהות רשומות כפולות (אותה ת"ז מנורמלת, עם/בלי 0 מוביל)
-    // שצריכות לקבל את אותו הדירוג - גם אם המשתמש אישר רק את אחת מהן במסך.
+    // טעינת כל לקוחות הסוכן, כדי לזהות:
+    // (א) רשומות כפולות (אותה ת"ז מנורמלת, עם/בלי 0 מוביל) שצריכות לקבל את אותו הדירוג
+    // (ב) בני משפחה (אותו parentID) - כי כל שורה מאושרת היום מייצגת משפחה שלמה, לא לקוח בודד
     const customersSnap = await db.collection("customer").where("AgentId", "==", agentId).get();
     const idsByCanon = new Map<string, string[]>(); // canonId -> כל ה-doc id-ים שמשתפים אותה ת"ז מנורמלת
     const canonByCustomerId = new Map<string, string>(); // doc id -> canonId שלו
+    const parentKeyByCustomerId = new Map<string, string>(); // doc id -> parentID (או עצמו, אם יחיד)
+    const memberIdsByParentKey = new Map<string, string[]>(); // parentID -> כל ה-doc id-ים בתא המשפחתי
+
     customersSnap.docs.forEach((d) => {
-      const idc = (d.data() as any).IDCustomer;
+      const data = d.data() as any;
+
+      const idc = data.IDCustomer;
       const key = canonId(idc);
-      if (!key) return;
-      canonByCustomerId.set(d.id, key);
-      if (!idsByCanon.has(key)) idsByCanon.set(key, []);
-      idsByCanon.get(key)!.push(d.id);
+      if (key) {
+        canonByCustomerId.set(d.id, key);
+        if (!idsByCanon.has(key)) idsByCanon.set(key, []);
+        idsByCanon.get(key)!.push(d.id);
+      }
+
+      const parentKey = data.parentID || d.id;
+      parentKeyByCustomerId.set(d.id, parentKey);
+      if (!memberIdsByParentKey.has(parentKey)) memberIdsByParentKey.set(parentKey, []);
+      memberIdsByParentKey.get(parentKey)!.push(d.id);
     });
 
-    // מרחיבים כל שורה מאושרת לכל הרשומות הכפולות שלה - כולן מקבלות את אותו proposedTier/nifraimAmount
+    // מרחיבים כל שורה מאושרת (מייצגת משפחה) לכל בני המשפחה, ולכל הרשומות הכפולות של כל אחד מהם -
+    // כולם מקבלים את אותו proposedTier/nifraimAmount.
     const expandedUpdates = new Map<string, { proposedTier: Tier; nifraimAmount: number }>();
     approvedRows.forEach((row) => {
-      const canon = canonByCustomerId.get(row.customerId);
-      const targetIds = canon ? (idsByCanon.get(canon) || [row.customerId]) : [row.customerId];
-      targetIds.forEach((id) => {
-        expandedUpdates.set(id, { proposedTier: row.proposedTier, nifraimAmount: row.nifraimAmount });
+      const parentKey = parentKeyByCustomerId.get(row.customerId) || row.customerId;
+      const familyMemberIds = memberIdsByParentKey.get(parentKey) || [row.customerId];
+
+      familyMemberIds.forEach((memberId) => {
+        const canon = canonByCustomerId.get(memberId);
+        const targetIds = canon ? (idsByCanon.get(canon) || [memberId]) : [memberId];
+        targetIds.forEach((id) => {
+          expandedUpdates.set(id, { proposedTier: row.proposedTier, nifraimAmount: row.nifraimAmount });
+        });
       });
     });
 

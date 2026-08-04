@@ -35,6 +35,8 @@ export function getStepTypeLabel(step: FlowStep): string {
       return "הוספה לציר הזמן";
     case "sync_surense_activity":
       return "עדכון פעילות בשורנס";
+    case "create_surense_power_of_attorney":
+      return "יצירת קישור ייפוי כוח";
     case "condition":
       return "תנאי";
     case "end":
@@ -54,6 +56,8 @@ export function getStepIcon(step: FlowStep): string {
       return "📝";
     case "sync_surense_activity":
       return "🔄";
+    case "create_surense_power_of_attorney":
+      return "✍️";
     case "condition":
       return "◆";
     case "end":
@@ -97,6 +101,13 @@ export function getStepAccent(step: FlowStep): {
         icon: "bg-sky-100 text-sky-800",
         badge: "bg-sky-50 text-sky-700",
         connector: "bg-sky-300",
+      };
+    case "create_surense_power_of_attorney":
+      return {
+        ring: "border-indigo-200 hover:border-indigo-400",
+        icon: "bg-indigo-100 text-indigo-800",
+        badge: "bg-indigo-50 text-indigo-700",
+        connector: "bg-indigo-300",
       };
     case "condition":
       return {
@@ -154,7 +165,9 @@ export function getStepSummary(step: FlowStep): string[] {
     case "send_whatsapp": {
       const message = s(step.config?.message);
       return [
-        s(step.config?.mode) === "template" ? "הודעת תבנית" : "הודעת טקסט",
+        s(step.config?.mode) === "template"
+          ? "הודעת תבנית"
+          : "הודעת טקסט",
         message
           ? message.length > 90
             ? `${message.slice(0, 90)}…`
@@ -169,9 +182,34 @@ export function getStepSummary(step: FlowStep): string[] {
         s(step.config?.note) || "לא הוגדרה הערה לשורנס",
       ];
 
+    case "create_surense_power_of_attorney": {
+      const included: string[] = [];
+
+      if (step.config?.includeHb !== false) {
+        included.push("הר הביטוח");
+      }
+
+      if (step.config?.includePolicies !== false) {
+        included.push("פוליסות");
+      }
+
+      if (step.config?.includeSwiftness !== false) {
+        included.push("מסלקה");
+      }
+
+      return [
+        included.length > 0
+          ? `יצירת קישור עבור: ${included.join(", ")}`
+          : "לא נבחרו סוגי מידע",
+        "הקישור יישמר באיש הקשר",
+      ];
+    }
+
     case "condition":
       return [
-        `${s(step.config?.field) || "שדה"} ${s(step.config?.operator) || ""}`.trim(),
+        `${s(step.config?.field) || "שדה"} ${s(
+          step.config?.operator
+        ) || ""}`.trim(),
         s(step.config?.value) || "ללא ערך להשוואה",
       ];
 

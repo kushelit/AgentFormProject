@@ -76,6 +76,7 @@ function microsoftScopes(): string {
     "offline_access",
     "https://graph.microsoft.com/User.Read",
     "https://graph.microsoft.com/Bookings.Read.All",
+    "https://graph.microsoft.com/BookingsAppointment.ReadWrite.All",
   ].join(" ");
 }
 
@@ -210,6 +211,66 @@ export async function microsoftGraphGet<T>(
   return json as T;
 }
 
+export async function deleteMicrosoftBookingAppointment(input: {
+  accessToken: string;
+  businessId: string;
+  appointmentId: string;
+}): Promise<{
+  ok: true;
+  status: number;
+}> {
+  const url =
+    `${MICROSOFT_GRAPH_URL}` +
+    `/solutions/bookingBusinesses/${encodeURIComponent(
+      s(input.businessId)
+    )}` +
+    `/appointments/${encodeURIComponent(
+      s(input.appointmentId)
+    )}`;
+
+  const response = await fetch(
+    url,
+    {
+      method: "DELETE",
+      headers: {
+        "Authorization":
+          `Bearer ${s(input.accessToken)}`,
+        "Accept":
+          "application/json",
+      },
+    }
+  );
+
+  if (!response.ok) {
+    const body =
+      await parseJsonResponse(
+        response
+      );
+
+    console.error(
+      "[microsoftGraph] DELETE booking appointment failed",
+      {
+        url,
+        status:
+          response.status,
+        body,
+      }
+    );
+
+    throw new HttpsError(
+      "failed-precondition",
+      body?.error?.message ||
+        `Microsoft Graph DELETE failed (${response.status})`
+    );
+  }
+
+  return {
+    ok: true,
+    status:
+      response.status,
+  };
+}
+
 export async function getMicrosoftMe(
   accessToken: string
 ): Promise<{
@@ -292,7 +353,6 @@ export async function listMicrosoftBookingCalendarView(
   return appointments;
 }
 
-
 export type MicrosoftGraphDiagnosticResult<T> = {
   found: boolean;
   status: number;
@@ -312,11 +372,9 @@ export async function microsoftGraphGetDiagnostic<T>(
     url,
     {
       method: "GET",
-
       headers: {
         "Authorization":
           `Bearer ${s(accessToken)}`,
-
         "Accept":
           "application/json",
       },
@@ -345,10 +403,8 @@ export async function microsoftGraphGetDiagnostic<T>(
       found: false,
       status:
         response.status,
-
       data:
         null,
-
       error:
         json || null,
     };
@@ -358,10 +414,8 @@ export async function microsoftGraphGetDiagnostic<T>(
     found: true,
     status:
       response.status,
-
     data:
       json as T,
-
     error:
       null,
   };
@@ -377,7 +431,6 @@ export async function listMicrosoftBookingAppointments(
       "@odata.nextLink"?: string;
     }>(
       accessToken,
-
       `/solutions/bookingBusinesses/${encodeURIComponent(
         businessId
       )}/appointments`
@@ -440,7 +493,6 @@ export async function getMicrosoftBookingAppointmentDiagnostic(
 > {
   return microsoftGraphGetDiagnostic<any>(
     accessToken,
-
     `/solutions/bookingBusinesses/${encodeURIComponent(
       businessId
     )}/appointments/${encodeURIComponent(

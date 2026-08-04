@@ -94,6 +94,21 @@ function createDefaultStep(
         },
       };
 
+    case "create_surense_power_of_attorney":
+      return {
+        id,
+        type,
+        name: "יצירת קישור ייפוי כוח",
+        nextStepId: null,
+        config: {
+          includeHb: true,
+          includePolicies: true,
+          includeSwiftness: true,
+          statusPath:
+            "engagement.reengagement.powerOfAttorney",
+        },
+      };
+
     case "end":
       return {
         id,

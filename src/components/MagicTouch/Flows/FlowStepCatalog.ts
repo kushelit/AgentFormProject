@@ -33,6 +33,12 @@ export const STEP_TYPES: StepTypeOption[] = [
     icon: "🔄",
   },
   {
+    value: "create_surense_power_of_attorney",
+    label: "יצירת קישור ייפוי כוח",
+    description: "יצירת קישור חתימה דרך שורנס ושמירתו באיש הקשר",
+    icon: "✍️",
+  },
+  {
     value: "end",
     label: "סיום",
     description: "סיום מסלול האוטומציה",

@@ -23,7 +23,11 @@ async function getMenoraCreds(ctx: RunnerCtx) {
   const functions = (ctx as any).functions;
   const fn = httpsCallable(functions, "getPortalCredentialsDecrypted");
   const res: any = await fn({ portalId: "menora" });
-  return { username: s(res?.data?.username), phoneNumber: s(res?.data?.phoneNumber) };
+  return {
+    username: s(res?.data?.username),
+    phoneNumber: s(res?.data?.phoneNumber),
+    accountingNumber: s(res?.data?.accountingNumber),
+  };
 }
 
 export async function runMenoraAll(ctx: RunnerCtx) {
@@ -33,7 +37,8 @@ export async function runMenoraAll(ctx: RunnerCtx) {
   ensureDir(absDir);
 
   const agentId = s(run.agentId || ctx.agentId);
-  const { username, phoneNumber } = await getMenoraCreds(ctx);
+  const { username, phoneNumber, accountingNumber } = await getMenoraCreds(ctx);
+
   const monthLabel = run.monthLabel || "חודש נוכחי";
 
   await setStatus(runId, { status: "running", step: "מאתחל דפדפן מנורה...", monthLabel });
@@ -95,8 +100,7 @@ const monthYearStr = `${String(targetMonth).padStart(2, '0')}.${targetYear}`;
 await menoraSetReportDate(page, monthYearStr);
 
 
-await menoraProduceReport(page);
-
+await menoraProduceReport(page, accountingNumber || undefined);
     // המתנה והורדה
     await setStatus(runId, { status: "running", step: "ממתין להפקת ה-ZIP...", monthLabel });
     const download = await menoraDownloadZip(page);

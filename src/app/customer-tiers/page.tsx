@@ -20,11 +20,19 @@ type Tier = 'premium' | 'gold' | 'silver' | 'standard';
 type SortColumn = 'customerName' | 'IDCustomer' | 'nifraimAmount' | 'currentTier' | 'proposedTier';
 type SortOrder = 'asc' | 'desc';
 
-interface TierRow {
+interface TierFamilyMember {
   customerId: string;
   customerName: string;
   IDCustomer: string;
-  parentID?: string;
+  currentTier: Tier;
+  responsibleUserId: string | null;
+  responsibleUserName: string | null;
+}
+
+interface TierRow {
+  customerId: string;   // המבוטח הראשי (או היחיד)
+  customerName: string;
+  IDCustomer: string;
   familySize: number;
   nifraimAmount: number;
   currentTier: Tier;
@@ -32,12 +40,14 @@ interface TierRow {
   changed: boolean;
   responsibleUserId: string | null;
   responsibleUserName: string | null;
+  members: TierFamilyMember[];
 }
 
 interface CalcResult {
   month: string;
   thresholds: { premium: number; gold: number; silver: number };
-  totalCustomers: number;
+  totalCustomers: number; // לקוחות ייחודיים (אחרי דה-דופ)
+  totalFamilies: number;  // שורות בפועל (משפחות + יחידים)
   changedCount: number;
   rows: TierRow[];
 }
@@ -140,6 +150,9 @@ export default function CustomerTiersPage() {
   const [savingResponsibleFor, setSavingResponsibleFor] = useState<string | null>(null);
   const [bulkResponsibleValue, setBulkResponsibleValue] = useState('');
   const [bulkAssigning, setBulkAssigning] = useState(false);
+
+  // ── הרחבת תא משפחתי (הצגת בני המשפחה) ──
+  const [expandedFamilyId, setExpandedFamilyId] = useState<string | null>(null);
 
   useEffect(() => {
     setShowThresholdSettings(false);
@@ -268,6 +281,7 @@ export default function CustomerTiersPage() {
     setCurrentTierFilter('');
     setProposedTierFilter('');
     setResponsibleFilter('');
+    setExpandedFamilyId(null);
 
     try {
       const fn = httpsCallable(functions, 'calculateCustomerTiers');
@@ -298,11 +312,17 @@ export default function CustomerTiersPage() {
     return showAll ? result.rows : result.rows.filter(function (r) { return r.changed; });
   }, [result, showAll]);
 
-  // ── שורות אחרי סינון ──
+  // ── שורות אחרי סינון - שם/ת"ז מתאימים גם אם ההתאמה היא לבן משפחה שאינו הראשי ──
   const filteredRows = useMemo(() => {
+    const nameQ = nameFilter.toLowerCase().trim();
+    const idQ = idFilter.trim();
     return baseRows.filter((r) => {
-      const nameOk = !nameFilter || r.customerName.toLowerCase().includes(nameFilter.toLowerCase().trim());
-      const idOk = !idFilter || r.IDCustomer.includes(idFilter.trim());
+      const nameOk = !nameQ
+        || r.customerName.toLowerCase().includes(nameQ)
+        || r.members.some((m) => m.customerName.toLowerCase().includes(nameQ));
+      const idOk = !idQ
+        || r.IDCustomer.includes(idQ)
+        || r.members.some((m) => m.IDCustomer.includes(idQ));
       const currOk = !currentTierFilter || r.currentTier === currentTierFilter;
       const propOk = !proposedTierFilter || r.proposedTier === proposedTierFilter;
       const respOk = !responsibleFilter
@@ -346,7 +366,7 @@ export default function CustomerTiersPage() {
     try {
       const fn = httpsCallable(functions, 'applyCustomerTiers');
       const res: any = await fn({ agentId: selectedAgentId, month: result.month, approvedRows: approvedRows });
-      addToast('success', 'עודכנו ' + res.data.updated + ' לקוחות בהצלחה');
+      addToast('success', 'עודכנו ' + res.data.updated + ' רשומות לקוח בהצלחה');
       setLastCalculated(result.month);
       setResult(null);
       setOverrides({});
@@ -370,11 +390,23 @@ export default function CustomerTiersPage() {
     return dupSnap.docs.map((d) => d.id);
   };
 
-  // שיבוץ/שינוי אחראי לשורה בודדת - מסתנכרן גם לרשומות כפולות (אותה ת"ז מנורמלת)
-  const handleResponsibleChange = async (customerId: string, IDCustomer: string, value: string) => {
-    const prev = responsibleByCustomer[customerId] || '';
-    setResponsibleByCustomer((p) => ({ ...p, [customerId]: value }));
-    setSavingResponsibleFor(customerId);
+  // מרחיב שורה (משפחה) לכל ה-doc id-ים שבאמת צריכים להתעדכן: כל בני המשפחה,
+  // ולכל אחד מהם - גם הרשומות הכפולות שלו (אותה ת"ז מנורמלת בפורמט אחר).
+  const expandRowToAllCustomerIds = async (row: TierRow): Promise<string[]> => {
+    const idSet = new Set<string>();
+    await Promise.all(row.members.map(async (m) => {
+      idSet.add(m.customerId);
+      const dupIds = await findDuplicateIds(m.IDCustomer);
+      dupIds.forEach((id) => idSet.add(id));
+    }));
+    return Array.from(idSet);
+  };
+
+  // שיבוץ/שינוי אחראי לשורה (משפחה) - מסתנכרן לכל בני המשפחה ולרשומות הכפולות של כל אחד מהם
+  const handleResponsibleChange = async (row: TierRow, value: string) => {
+    const prev = responsibleByCustomer[row.customerId] || '';
+    setResponsibleByCustomer((p) => ({ ...p, [row.customerId]: value }));
+    setSavingResponsibleFor(row.customerId);
     try {
       const chosen = responsibleList.find((o) => o.id === value);
       const updatePayload = {
@@ -383,8 +415,7 @@ export default function CustomerTiersPage() {
         lastUpdateDate: serverTimestamp(),
       };
 
-      const foundIds = await findDuplicateIds(IDCustomer);
-      const targetIds = Array.from(new Set([customerId, ...foundIds]));
+      const targetIds = await expandRowToAllCustomerIds(row);
 
       if (targetIds.length === 1) {
         await updateDoc(doc(db, 'customer', targetIds[0]), updatePayload);
@@ -394,14 +425,15 @@ export default function CustomerTiersPage() {
         await batch.commit();
       }
     } catch (e: any) {
-      setResponsibleByCustomer((p) => ({ ...p, [customerId]: prev }));
+      setResponsibleByCustomer((p) => ({ ...p, [row.customerId]: prev }));
       addToast('error', 'כשל בעדכון אחראי: ' + ((e && e.message) || ''));
     } finally {
       setSavingResponsibleFor(null);
     }
   };
 
-  // שיבוץ אחראי מרובה - לכל השורות המסומנות המוצגות כרגע (לפי הסינון הפעיל), כולל הכפילויות של כל אחת מהן
+  // שיבוץ אחראי מרובה - לכל השורות המסומנות המוצגות כרגע (לפי הסינון הפעיל),
+  // כולל כל בני המשפחה של כל שורה והכפילויות של כל אחד מהם
   const handleBulkAssignResponsible = async () => {
     if (!result || !selectedAgentId) return;
     const targetRows = selectedVisibleRows;
@@ -417,10 +449,9 @@ export default function CustomerTiersPage() {
       };
 
       const allTargetIds = new Set<string>();
-      await Promise.all(targetRows.map(async (r) => {
-        allTargetIds.add(r.customerId);
-        const foundIds = await findDuplicateIds(r.IDCustomer);
-        foundIds.forEach((id) => allTargetIds.add(id));
+      await Promise.all(targetRows.map(async (row) => {
+        const ids = await expandRowToAllCustomerIds(row);
+        ids.forEach((id) => allTargetIds.add(id));
       }));
 
       const idsArray = Array.from(allTargetIds);
@@ -438,7 +469,7 @@ export default function CustomerTiersPage() {
         return next;
       });
 
-      addToast('success', `שובצו ${targetRows.length} לקוחות (${idsArray.length} רשומות בפועל, כולל כפילויות)`);
+      addToast('success', `שובצו ${targetRows.length} שורות (${idsArray.length} רשומות בפועל, כולל בני משפחה וכפילויות)`);
     } catch (e: any) {
       addToast('error', 'כשל בשיבוץ מרובה: ' + ((e && e.message) || ''));
     } finally {
@@ -485,10 +516,15 @@ export default function CustomerTiersPage() {
     return sortOrder === 'asc' ? ' ▲' : ' ▼';
   };
 
+  // ── טבלת ריכוז לפי דירוג נוכחי - נספר ברמת לקוח בודד (לא ברמת שורה/משפחה) ──
   const tierCounts = useMemo(() => {
     const counts: Record<Tier, number> = { premium: 0, gold: 0, silver: 0, standard: 0 };
     if (!result) return counts;
-    result.rows.forEach((r) => { counts[r.currentTier] = (counts[r.currentTier] || 0) + 1; });
+    result.rows.forEach((r) => {
+      r.members.forEach((m) => {
+        counts[m.currentTier] = (counts[m.currentTier] || 0) + 1;
+      });
+    });
     return counts;
   }, [result]);
 
@@ -597,7 +633,7 @@ export default function CustomerTiersPage() {
 
       {result ? (
         <div className="ct-results">
-          {/* ── טבלת ריכוז לפי דירוג נוכחי ── */}
+          {/* ── טבלת ריכוז לפי דירוג נוכחי (לפי לקוחות בודדים) ── */}
           <div className="ct-tier-summary">
             {TIER_ORDER.map((tier) => (
               <div
@@ -622,6 +658,8 @@ export default function CustomerTiersPage() {
             <div className="ct-results-summary">
               <span>{result.totalCustomers} לקוחות נבדקו</span>
               <span className="ct-dot">·</span>
+              <span>{result.totalFamilies} שורות (משפחות/יחידים)</span>
+              <span className="ct-dot">·</span>
               <span className={result.changedCount > 0 ? 'ct-changed-count' : ''}>
                 {result.changedCount} שינויים מהדירוג הקיים
               </span>
@@ -637,10 +675,10 @@ export default function CustomerTiersPage() {
           {/* ── שורת סינון - זהה במבנה ל-NewCustomer.tsx ── */}
           <div className="filter-inputs-container">
             <div className="filter-select-container">
-              <input className="filter-input" type="text" placeholder="שם לקוח" value={nameFilter} onChange={(e) => setNameFilter(e.target.value)} />
+              <input className="filter-input" type="text" placeholder="שם לקוח (כולל בני משפחה)" value={nameFilter} onChange={(e) => setNameFilter(e.target.value)} />
             </div>
             <div className="filter-select-container">
-              <input className="filter-input" type="text" placeholder="תז לקוח" value={idFilter} onChange={(e) => setIdFilter(e.target.value)} />
+              <input className="filter-input" type="text" placeholder="תז לקוח (כולל בני משפחה)" value={idFilter} onChange={(e) => setIdFilter(e.target.value)} />
             </div>
             <div className="filter-select-container">
               <select className="select-input" value={currentTierFilter} onChange={(e) => setCurrentTierFilter(e.target.value)}>
@@ -693,7 +731,7 @@ export default function CustomerTiersPage() {
                   </button>
                 </div>
                 <button className="ct-btn-apply" onClick={applyChanges} disabled={applying || selectedCount === 0}>
-                  {applying ? 'מעדכן...' : ('אשר ועדכן ' + selectedCount + ' לקוחות')}
+                  {applying ? 'מעדכן...' : ('אשר ועדכן ' + selectedCount + ' שורות')}
                 </button>
               </div>
             </div>
@@ -735,42 +773,78 @@ export default function CustomerTiersPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {currentRows.map((r) => (
-                    <tr
-                      key={r.customerId}
-                      className={(r.changed ? 'ct-row-changed ' : '') + 'ct-row-clickable'}
-                      onClick={(e) => {
-                        const target = e.target as HTMLElement;
-                        if (target.closest('input') || target.closest('select') || target.closest('button')) return;
-                        goToCustomer(r.customerId);
-                      }}
-                    >
-                      <td onClick={(e) => e.stopPropagation()}>
-                        <input type="checkbox" checked={isRowSelected(r)} onChange={function () { toggleRow(r); }} />
-                      </td>
-                      <td>{r.customerName}</td>
-                      <td>{r.IDCustomer}</td>
-                      <td>{r.nifraimAmount.toLocaleString()} ₪</td>
-                      <td>
-                        <span className={'ct-tier-badge ' + TIER_CLASS[r.currentTier]}>{TIER_LABEL[r.currentTier]}</span>
-                      </td>
-                      <td>
-                        <span className={'ct-tier-badge ' + TIER_CLASS[r.proposedTier]}>{TIER_LABEL[r.proposedTier]}</span>
-                        {r.changed ? <span className="ct-change-arrow">← שינוי</span> : null}
-                      </td>
-                      <td className="ct-td-responsible" onClick={(e) => e.stopPropagation()}>
-                        <select
-                          className="select-input"
-                          value={responsibleByCustomer[r.customerId] || ''}
-                          disabled={savingResponsibleFor === r.customerId}
-                          onChange={(e) => handleResponsibleChange(r.customerId, r.IDCustomer, e.target.value)}
-                        >
-                          <option value="">לא שובץ</option>
-                          {responsibleList.map((opt) => (<option key={opt.id} value={opt.id}>{opt.name}</option>))}
-                        </select>
-                      </td>
-                    </tr>
-                  ))}
+                  {currentRows.map((r) => {
+                    const isFamily = r.familySize > 1;
+                    const isExpanded = expandedFamilyId === r.customerId;
+                    return (
+                    <>
+                      <tr
+                        key={r.customerId}
+                        className={(r.changed ? 'ct-row-changed ' : '') + 'ct-row-clickable'}
+                        onClick={(e) => {
+                          const target = e.target as HTMLElement;
+                          if (target.closest('input') || target.closest('select') || target.closest('button')) return;
+                          goToCustomer(r.customerId);
+                        }}
+                      >
+                        <td onClick={(e) => e.stopPropagation()}>
+                          <input type="checkbox" checked={isRowSelected(r)} onChange={function () { toggleRow(r); }} />
+                        </td>
+                        <td>
+                          {r.customerName}
+                          {isFamily && (
+                            <button
+                              type="button"
+                              className="ct-family-badge"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setExpandedFamilyId(isExpanded ? null : r.customerId);
+                              }}
+                              title="לחצו להצגת בני המשפחה"
+                            >
+                              משפחה · {r.familySize} נפשות {isExpanded ? '▲' : '▼'}
+                            </button>
+                          )}
+                        </td>
+                        <td>{r.IDCustomer}</td>
+                        <td>{r.nifraimAmount.toLocaleString()} ₪</td>
+                        <td>
+                          <span className={'ct-tier-badge ' + TIER_CLASS[r.currentTier]}>{TIER_LABEL[r.currentTier]}</span>
+                        </td>
+                        <td>
+                          <span className={'ct-tier-badge ' + TIER_CLASS[r.proposedTier]}>{TIER_LABEL[r.proposedTier]}</span>
+                          {r.changed ? <span className="ct-change-arrow">← שינוי</span> : null}
+                        </td>
+                        <td className="ct-td-responsible" onClick={(e) => e.stopPropagation()}>
+                          <select
+                            className="select-input"
+                            value={responsibleByCustomer[r.customerId] || ''}
+                            disabled={savingResponsibleFor === r.customerId}
+                            onChange={(e) => handleResponsibleChange(r, e.target.value)}
+                          >
+                            <option value="">לא שובץ</option>
+                            {responsibleList.map((opt) => (<option key={opt.id} value={opt.id}>{opt.name}</option>))}
+                          </select>
+                        </td>
+                      </tr>
+                      {isFamily && isExpanded && (
+                        <tr className="ct-family-members-row">
+                          <td></td>
+                          <td colSpan={6}>
+                            <div className="ct-family-members-list">
+                              {r.members.map((m) => (
+                                <span key={m.customerId} className="ct-family-member-chip">
+                                  {m.customerName} · {m.IDCustomer}
+                                  {m.customerId === r.customerId ? ' (ראשי)' : ''}
+                                </span>
+                              ))}
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </>
+                    );
+                  })}
                 </tbody>
               </table>
 

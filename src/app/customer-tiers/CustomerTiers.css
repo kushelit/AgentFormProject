@@ -341,6 +341,45 @@
   margin-top: 3px;
 }
 
+/* ── תג "משפחה" ליד שם הלקוח + שורת הרחבה עם בני המשפחה ── */
+.ct-family-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-right: 8px;
+  padding: 2px 10px;
+  border-radius: 20px;
+  font-size: 10.5px;
+  font-weight: 600;
+  background: #eef1f5;
+  color: #6b7785;
+  border: none;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.ct-family-badge:hover { background: #e2e7ee; }
+
+.ct-family-members-row td {
+  background: #fafbfc;
+  border-bottom: 1px solid var(--clrgray4);
+  padding: 8px 12px;
+}
+
+.ct-family-members-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.ct-family-member-chip {
+  font-size: 12px;
+  color: #5a6472;
+  background: #fff;
+  border: 1px solid #e9ecf1;
+  border-radius: 7px;
+  padding: 3px 10px;
+}
+
 /* ── טבלת ריכוז לפי דירוג נוכחי (כרטיסים) ── */
 .ct-tier-summary {
   display: grid;

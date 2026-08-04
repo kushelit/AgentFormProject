@@ -3,7 +3,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import {
-  collection, doc, getDoc, getDocs, query, where, updateDoc, serverTimestamp,
+  collection, doc, getDoc, getDocs, query, where, updateDoc, serverTimestamp, limit,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase/firebase';
 import { useAuth } from '@/lib/firebase/AuthContext';
@@ -242,6 +242,12 @@ export default function CustomerPage() {
   const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>([]);
   const [loadingFamily, setLoadingFamily] = useState(false);
 
+  // ── חיפוש והוספת בן משפחה (לשונית "קשרים משפחתיים") ──
+  const [familySearchQuery, setFamilySearchQuery] = useState('');
+  const [familySearchResults, setFamilySearchResults] = useState<FamilyMember[]>([]);
+  const [searchingFamily, setSearchingFamily] = useState(false);
+  const [addingFamilyMemberId, setAddingFamilyMemberId] = useState<string | null>(null);
+
   // אנשי צוות הסוכנות — לבחירת "אחראי" ברמת לקוח (אותה רשימה כמו באחראי משימה)
   const [agentUsers, setAgentUsers] = useState<AgentUser[]>([]);
 
@@ -449,24 +455,157 @@ const calculateCommissions = (sale: any, contractMatch: any) => {
   }, [activeTab, reportMonth, customer]);
 
   // ─── טעינת תא משפחתי ─────────────────────────────────────────────────────────
+  const loadFamilyMembers = async () => {
+    if (!customer?.parentID) { setFamilyMembers([]); return; }
+    setLoadingFamily(true);
+    try {
+      const q = query(
+        collection(db, 'customer'),
+        where('AgentId', '==', customer.AgentId),
+        where('parentID', '==', customer.parentID),
+      );
+      const snap = await getDocs(q);
+      setFamilyMembers(snap.docs.map(d => ({ id: d.id, ...(d.data() as any) })));
+    } finally {
+      setLoadingFamily(false);
+    }
+  };
+
   useEffect(() => {
     if (activeTab !== 'family' || !customer?.parentID) return;
-    const load = async () => {
-      setLoadingFamily(true);
-      try {
-        const q = query(
-          collection(db, 'customer'),
-          where('AgentId', '==', customer.AgentId),
-          where('parentID', '==', customer.parentID),
-        );
-        const snap = await getDocs(q);
-        setFamilyMembers(snap.docs.map(d => ({ id: d.id, ...(d.data() as any) })));
-      } finally {
-        setLoadingFamily(false);
-      }
-    };
-    load();
+    loadFamilyMembers();
   }, [activeTab, customer]);
+
+  // ─── חיפוש בן משפחה להוספה ────────────────────────────────────────────────────
+  // ⚠️ הגבלה: Firestore לא תומך בחיפוש "מכיל" חופשי על אוסף גדול בלי שירות חיפוש חיצוני
+  // (כמו Algolia). זה חיפוש לפי prefix על שם פרטי/משפחה, ולפי ת"ז מדויקת (עם idVariants) -
+  // לא "מכיל בכל מקום". מספיק טוב לרוב המקרים, אבל שם חלקי שלא מתחיל באות שהוקלדה לא יימצא.
+  useEffect(() => {
+    if (activeTab !== 'family' || !customer) { setFamilySearchResults([]); return; }
+    const raw = familySearchQuery.trim();
+    if (!raw) { setFamilySearchResults([]); return; }
+
+    let cancelled = false;
+    const t = setTimeout(async () => {
+      setSearchingFamily(true);
+      try {
+        const digitsOnly = normIdDigits(raw);
+        let docsRaw: any[] = [];
+
+        if (digitsOnly.length >= 3) {
+          // חיפוש לפי ת"ז - כל הפורמטים האפשריים (עם/בלי 0 מוביל)
+          const variants = idVariants(digitsOnly);
+          const q1 = query(
+            collection(db, 'customer'),
+            where('AgentId', '==', customer.AgentId),
+            where('IDCustomer', 'in', variants.slice(0, 10)),
+          );
+          const snap1 = await getDocs(q1);
+          docsRaw = snap1.docs.map(d => ({ id: d.id, ...(d.data() as any) }));
+        } else {
+          // חיפוש לפי prefix על שם פרטי ושם משפחה (שתי שאילתות, ממוזגות)
+          const [snapFirst, snapLast] = await Promise.all([
+            getDocs(query(
+              collection(db, 'customer'),
+              where('AgentId', '==', customer.AgentId),
+              where('firstNameCustomer', '>=', raw),
+              where('firstNameCustomer', '<=', raw + '\uf8ff'),
+              limit(10),
+            )),
+            getDocs(query(
+              collection(db, 'customer'),
+              where('AgentId', '==', customer.AgentId),
+              where('lastNameCustomer', '>=', raw),
+              where('lastNameCustomer', '<=', raw + '\uf8ff'),
+              limit(10),
+            )),
+          ]);
+          const byId = new Map<string, any>();
+          [...snapFirst.docs, ...snapLast.docs].forEach(d => byId.set(d.id, { id: d.id, ...(d.data() as any) }));
+          docsRaw = Array.from(byId.values());
+        }
+
+        const existingMemberIds = new Set([customer.id, ...familyMembers.map(m => m.id)]);
+        const results = docsRaw.filter(c => !existingMemberIds.has(c.id)).slice(0, 15);
+
+        if (!cancelled) setFamilySearchResults(results as any);
+      } catch {
+        if (!cancelled) setFamilySearchResults([]);
+      } finally {
+        if (!cancelled) setSearchingFamily(false);
+      }
+    }, 350); // דיבאונס
+
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [familySearchQuery, activeTab, customer, familyMembers]);
+
+  // ─── הוספת בן משפחה נמצא לתא המשפחתי של הלקוח הנוכחי ──────────────────────────
+  const addToFamily = async (candidate: FamilyMember) => {
+    if (!customer) return;
+    setAddingFamilyMemberId(candidate.id);
+    try {
+      // "הראשי" הנוכחי: אם ללקוח הזה אין עדיין תא משפחתי, הוא עצמו הופך לראשי;
+      // אחרת - ה-parentID הקיים שלו.
+      const mainId = customer.parentID || customer.id;
+
+      // ולידציה: הראשי חייב להיות "עצמאי" (לא כבר ילד במשפחה אחרת) - זהה לבדיקה ב-FamilyLinkDialog.tsx
+      const mainSnap = await getDoc(doc(db, 'customer', mainId));
+      if (mainSnap.exists()) {
+        const mainData = mainSnap.data() as any;
+        if (mainData.parentID && mainData.parentID !== mainId) {
+          addToast('error', `לא ניתן - ${mainData.firstNameCustomer} כבר חלק מחיבור משפחתי אחר`);
+          return;
+        }
+      }
+
+      // בדיקת קונפליקט: האם המועמד משמש כ"הורה" (ראשי) למשפחה אחרת כרגע
+      const candidateSnap = await getDoc(doc(db, 'customer', candidate.id));
+      if (candidateSnap.exists()) {
+        const candidateData = candidateSnap.data() as any;
+        const childCheckSnap = await getDocs(query(
+          collection(db, 'customer'),
+          where('AgentId', '==', candidateData.AgentId),
+          where('parentID', '==', candidate.id),
+        ));
+        const otherChildren = childCheckSnap.docs.filter(d => d.id !== candidate.id);
+        if (otherChildren.length > 0) {
+          const confirmTransfer = confirm(
+            `${candidateData.firstNameCustomer} כבר מקושר למשפחה אחרת כראשי (${otherChildren.length} בני משפחה). האם להעביר את כולם לתא המשפחתי הזה?`
+          );
+          if (!confirmTransfer) return;
+          await Promise.all(otherChildren.map(d =>
+            updateDoc(doc(db, 'customer', d.id), { parentID: mainId, lastUpdateDate: serverTimestamp() })
+          ));
+        }
+      }
+
+      // אם הלקוח הנוכחי עדיין לא היה בתא משפחתי (parentID עצמי/ריק) - הופך רשמית לראשי
+      if (!customer.parentID || customer.parentID !== mainId) {
+        await updateDoc(doc(db, 'customer', mainId), { parentID: mainId, lastUpdateDate: serverTimestamp() });
+      }
+
+      await updateDoc(doc(db, 'customer', candidate.id), { parentID: mainId, lastUpdateDate: serverTimestamp() });
+
+      addToast('success', `${candidate.firstNameCustomer} ${candidate.lastNameCustomer} נוסף/ה לתא המשפחתי`);
+      setFamilySearchQuery('');
+      setFamilySearchResults([]);
+
+      // רענון הנתונים המקומיים
+      if (!customer.parentID || customer.parentID !== mainId) {
+        setCustomer(prev => prev ? { ...prev, parentID: mainId } : prev);
+      }
+      const refreshSnap = await getDocs(query(
+        collection(db, 'customer'),
+        where('AgentId', '==', customer.AgentId),
+        where('parentID', '==', mainId),
+      ));
+      setFamilyMembers(refreshSnap.docs.map(d => ({ id: d.id, ...(d.data() as any) })));
+    } catch {
+      addToast('error', 'כשל בהוספת בן משפחה');
+    } finally {
+      setAddingFamilyMemberId(null);
+    }
+  };
 
   // ─── סיכומים ─────────────────────────────────────────────────────────────────
   const totalMagicHekef = useMemo(() => magicSales.reduce((a, r) => a + (r.commissionHekef || 0), 0), [magicSales]);
@@ -865,6 +1004,41 @@ const calculateCommissions = (sale: any, contractMatch: any) => {
         {/* ── קשרים משפחתיים ── */}
         {activeTab === 'family' && (
           <div>
+            {/* ── חיפוש והוספת בן משפחה ── */}
+            <div className="cp-family-search">
+              <input
+                type="text"
+                className="cp-family-search-input"
+                placeholder="חפש לקוח לפי שם או ת&quot;ז כדי להוסיף לתא המשפחתי..."
+                value={familySearchQuery}
+                onChange={e => setFamilySearchQuery(e.target.value)}
+              />
+              {searchingFamily && <div className="cp-loading-inline">מחפש...</div>}
+              {!searchingFamily && familySearchQuery.trim() && familySearchResults.length === 0 && (
+                <div className="cp-empty cp-family-search-empty">לא נמצאו התאמות</div>
+              )}
+              {familySearchResults.length > 0 && (
+                <div className="cp-family-search-results">
+                  {familySearchResults.map(c => (
+                    <div key={c.id} className="cp-family-search-row">
+                      <div className="cp-fmember-info">
+                        <span className="cp-fmember-name">{c.firstNameCustomer} {c.lastNameCustomer}</span>
+                        <span className="cp-fmember-sub">ת&quot;ז {c.IDCustomer}</span>
+                      </div>
+                      <Button
+                        onClick={() => addToFamily(c)}
+                        text={addingFamilyMemberId === c.id ? 'מוסיף...' : 'הוסף לתא המשפחתי'}
+                        type="primary"
+                        icon="off"
+                        state={addingFamilyMemberId ? 'disabled' : 'default'}
+                        disabled={!!addingFamilyMemberId}
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
             {loadingFamily ? (
               <div className="cp-loading-inline">טוען...</div>
             ) : familyMembers.length === 0 ? (

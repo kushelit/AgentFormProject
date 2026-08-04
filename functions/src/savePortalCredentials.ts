@@ -16,6 +16,7 @@ type Input = {
   phoneNumber?: string;
   licenseNumber?: string;
   loginType?: string;
+  accountingNumber?: string;
 };
 
 type PortalCredentials = {
@@ -23,6 +24,7 @@ type PortalCredentials = {
   password?: string;
   phoneNumber?: string;
   licenseNumber?: string;
+  accountingNumber?: string;
 };
 
 function s(v: any) {
@@ -84,6 +86,7 @@ const isInfinity = portalId === "infinity";
 
 
 const licenseNumber = s((body as any).licenseNumber);
+const accountingNumber = s((body as any).accountingNumber); // אופציונלי - רק למנורה, בית סוכן
 
 if (isMor) {
   if (!licenseNumber) {
@@ -132,9 +135,11 @@ const encPayload: PortalCredentials = isMor
     ? {licenseNumber, username, ...(loginType ? {loginType} : {})}
     : isInfinity
       ? {username}
-      : (isMenora || isMeitav || isAnalyst || isYalin)
-        ? {username, phoneNumber}
-        : {username, password};
+      : isMenora
+        ? {username, phoneNumber, ...(accountingNumber ? {accountingNumber} : {})}
+        : (isMeitav || isAnalyst || isYalin)
+          ? {username, phoneNumber}
+          : {username, password};
 
     const enc = encryptJsonAes256Gcm(keyB64, encPayload);
 

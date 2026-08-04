@@ -168,3 +168,13 @@ export {
   getAgentSurenseIncomingConfig,
   rotateAgentSurenseIncomingKey,
 } from "./manageAgentSurenseIncomingKey";
+
+export { resetMagicTouchTestContact } from "./resetMagicTouchTestContact";
+
+export {
+  listMicrosoftBookingsAppointments,
+} from "./listMicrosoftBookingsAppointments";
+
+export {
+  deleteMicrosoftBookingAppointment,
+} from "./deleteMicrosoftBookingAppointment";

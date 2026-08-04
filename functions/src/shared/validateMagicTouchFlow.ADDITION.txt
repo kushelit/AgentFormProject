@@ -1,0 +1,10 @@
+בתוך אימות השלבים הוסיפי:
+
+else if (step.type === "create_surense_power_of_attorney") {
+  const includeHb = step.config?.includeHb !== false;
+  const includePolicies = step.config?.includePolicies !== false;
+  const includeSwiftness = step.config?.includeSwiftness !== false;
+  if (!includeHb && !includePolicies && !includeSwiftness) {
+    add("surense_power_of_attorney_types_missing", `steps.${id}.config`, "יש לבחור לפחות סוג אחד של ייפוי כוח.");
+  }
+}
