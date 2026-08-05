@@ -178,3 +178,43 @@ export {
 export {
   deleteMicrosoftBookingAppointment,
 } from "./deleteMicrosoftBookingAppointment";
+
+export {
+  testSurenseGetCustomer,
+} from "./testSurenseGetCustomer";
+
+export {
+  processWaitingPowerOfAttorneySignaturesDaily,
+} from "./processWaitingPowerOfAttorneySignaturesDaily";
+
+export {
+  processWaitingPowerOfAttorneySignaturesNow,
+} from "./processWaitingPowerOfAttorneySignaturesNow";
+
+export {
+  checkSurenseSignatureNow,
+} from "./checkSurenseSignatureNow";
+
+export {
+  createSignedSurenseTestContact,
+} from "./createSignedSurenseTestContact";
+
+export {
+  listMagicTouchJobs,
+} from "./listMagicTouchJobs";
+
+export {
+  updateMagicTouchJob,
+} from "./updateMagicTouchJob";
+
+export {
+  runMagicTouchJobNow,
+} from "./runMagicTouchJobNow";
+
+export {
+  processDueMagicTouchJobs,
+} from "./processDueMagicTouchJobs";
+
+export {
+  resetSignedSurenseTestContact,
+} from "./resetSignedSurenseTestContact";

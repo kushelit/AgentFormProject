@@ -91,12 +91,11 @@ export default function WhatsAppConnectionSettings() {
         : null
     );
 
-  const agentId =
-    String(
-      detail?.agentId ||
-      user?.uid ||
-      ""
-    ).trim();
+ const agentId =
+  String(
+    detail?.agentId ||
+    ""
+  ).trim();
 
   const [
     businessId,

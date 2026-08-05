@@ -11,8 +11,43 @@ export async function waitMenoraLoaderGone(page: Page, timeoutMs = 30000) {
         return style.display === 'none' || style.visibility === 'hidden' || el.offsetWidth === 0;
       });
     }`;
-    await page.waitForFunction(loaderScript, { timeout: timeoutMs }).catch(() => {});
-  } catch (e) {}
+await page.waitForFunction(loaderScript, undefined, { timeout: timeoutMs }).catch(() => {});  } catch (e) {}
+}
+
+async function menoraWaitForLoginResult(page: Page, timeoutMs = 15000): Promise<string | null> {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    const errorText = await menoraGetLoginErrorText(page);
+    if (errorText) return errorText;
+
+    const otpFieldReady = await page.evaluate(`
+      !!document.querySelector('input[id^="otp-input"], input[name*="otp"], .otp-field input')
+    `).catch(() => false);
+    if (otpFieldReady) return null;
+
+    await page.waitForTimeout(500).catch(() => {});
+  }
+  return null;
+}
+
+async function menoraGetLoginErrorText(page: Page): Promise<string | null> {
+  return await page.evaluate(`
+    (function() {
+      // סוג 1: מודאל כישלון-לוגין - מזוהה לפי data-mnr-bo הייחודי, לא טקסט חופשי
+      const modalTitle = document.querySelector('[data-mnr-bo="service-doc-sale-modal-title"]');
+      if (modalTitle && modalTitle.offsetParent !== null) {
+        const txt = modalTitle.getAttribute('aria-label') || (modalTitle.innerText || modalTitle.textContent || '').trim();
+        if (txt) return txt;
+      }
+
+      const helperText = document.querySelector('#username-helper-text, .MuiFormHelperText-root.Mui-error');
+      if (helperText && helperText.offsetParent !== null) {
+        const txt = (helperText.innerText || helperText.textContent || '').trim();
+        if (txt) return txt;
+      }
+return null;
+    })()
+  `).catch(() => null) as string | null;
 }
 
 
@@ -89,9 +124,15 @@ export async function menoraLogin(page: Page, username: string, phoneNumber: str
     })('${username}', '${phoneNumber}')
   `;
 
-  await page.evaluate(injection);
-  // המתנה ארוכה יותר כדי לוודא שהדף הבא נטען
-  await page.waitForTimeout(8000);
+ await page.evaluate(injection);
+
+  // בדיקה אמיתית: ממתינים עד 15 שניות עד שמופיע **או** מודאל-שגיאה **או**
+  // שדה ה-OTP (סימן הצלחה אמיתי) - לא בדיקה בודדת אחרי המתנה קבועה, כי
+  // המודאל יכול להתעכב ולהופיע אחרי חלון-הבדיקה הקבוע הישן.
+  const errorText = await menoraWaitForLoginResult(page, 15000);
+  if (errorText) {
+    throw new Error(`מנורה: פרטי ההתחברות שגויים - הפורטל הציג "${errorText}"`);
+  }
 }
 
 
@@ -145,7 +186,7 @@ export async function menoraHandleOtp(page: Page, ctx: RunnerCtx) {
     // אנחנו מחכים שהלוגו של מנורה בפנים יופיע או שה-URL ישתנה
     await page.waitForFunction(() => {
       return !!document.querySelector('a.logo[href*="agents-site"], .user-profile, [class*="dashboard"]');
-    }, { timeout: 15000 });
+    }, undefined, { timeout: 15000 });
     // console.log("[Menora] OTP Auto-Submit successful ✅");
   } catch (e) {
     // console.log("[Menora] OTP did not auto-submit, checking if button is needed...");
@@ -160,19 +201,22 @@ export async function menoraHandleOtp(page: Page, ctx: RunnerCtx) {
 }
 
 
+
 /**
  * ניווט לעמלות ולחיצה על לשונית דוחות
  */
 export async function menoraNavigateToCommissions(page: Page) {
   const targetUrl = "https://menoranet.menora.co.il/agent-financial-info/commissions";
   
-  // console.log(`[Menora] Navigating to: ${targetUrl}`);
-  await page.goto(targetUrl, { waitUntil: "networkidle", timeout: 60000 }).catch(() => {});
-  await page.waitForTimeout(5000);
-  await waitMenoraLoaderGone(page);
+  const t0 = Date.now();
+  await page.goto(targetUrl, { waitUntil: "domcontentloaded", timeout: 60000 }).catch(() => {});
 
+ await page.waitForFunction(() => {
+    return !!document.querySelector('img[alt="calendar"], img[class*="css-1aepfpb"]');
+  }, { timeout: 15000 }).catch(() => {});
+
+  await waitMenoraLoaderGone(page, 10000);
   // console.log("[Menora] Attempting to click 'דוחות' tab...");
-
   // הזרקת קוד כמחרוזת טקסט - זה פותר את כל שגיאות ה-innerText וה-Serialization
   const script = `
     (function() {
@@ -192,17 +236,20 @@ export async function menoraNavigateToCommissions(page: Page) {
     })()
   `;
 
-  const res = await page.evaluate(script);
+ const res = await page.evaluate(script);
   // console.log("[Menora] Tab activation result: " + res);
 
   if (res === "NOT_FOUND") {
     throw new Error("לא נמצאה לשונית 'דוחות' בדף העמלות");
   }
 
-  await page.waitForTimeout(3000);
-  await waitMenoraLoaderGone(page);
-}
+  // המתנה אמיתית לשדות התאריך (אייקון הלוח-שנה), במקום 3 שניות קבועות -
+await page.waitForFunction(() => {
+    return !!document.querySelector('img[alt="calendar"], img[class*="css-1aepfpb"]');
+  }, undefined, { timeout: 15000 }).catch(() => {});
 
+  await waitMenoraLoaderGone(page, 10000);
+}
 
 /**
  * בחירת חברה/ישות לפי "מספר הנהלת חשבונות" (בית סוכן) - אלטרנטיבה לבחירת

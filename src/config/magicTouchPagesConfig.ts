@@ -43,6 +43,12 @@ const magicTouchPages: MagicTouchNavigationItem[] = [
     permission: 'access_magic_touch',
   },
   {
+  href: '/MagicTouch/Monitor',
+  label: 'מעקב ובקרה',
+  icon: '📊',
+  permission: 'access_magic_touch',
+},
+  {
     href: '/MagicTouch/Appointments',
     label: 'פגישות',
     icon: '📅',
@@ -59,6 +65,12 @@ const magicTouchPages: MagicTouchNavigationItem[] = [
   label: 'ייבוא וחיבורים',
   icon: '🔗',
   permission: 'access_magic_touch',
+},
+{
+  href: '/MagicTouch/Monitor/Jobs',
+  label: 'עיבודים',
+  icon: '🗂️',
+  permission: 'access_magic_touch_jobs_admin',
 },
   {
     href: '/MagicTouch/Settings',
