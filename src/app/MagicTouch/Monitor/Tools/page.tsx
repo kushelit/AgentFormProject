@@ -93,8 +93,7 @@ const tools = [
 
   {
     href:
-      "/MagicTouch/Integrations",
-
+  "/MagicTouch/Tools/TestContactReset",
     title:
       "איפוס נתוני לקוח לבדיקה",
 

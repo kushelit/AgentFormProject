@@ -233,6 +233,15 @@ export default function MicrosoftBookingsSettings() {
         : null
     );
 
+    const {
+  canAccess: canAccessJobsAdmin,
+} =
+  usePermission(
+    user
+      ? "access_magic_touch_jobs_admin"
+      : null
+  );
+
   const agentId =
     String(
       detail?.agentId ||
@@ -1705,26 +1714,28 @@ const handleDiagnoseAppointment =
                             </span>
                           </td>
 
-                          <td className="px-4 py-3">
-                            <button
-                              type="button"
-                              className="rounded-lg bg-rose-600 px-3 py-2 text-xs font-bold text-white hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-50"
-                              onClick={() =>
-                                handleDeleteAppointment(
-                                  appointment
-                                )
-                              }
-                              disabled={
-                                deletingAppointmentId ===
-                                appointment.appointmentId
-                              }
-                            >
-                              {deletingAppointmentId ===
-                              appointment.appointmentId
-                                ? "מוחק..."
-                                : "מחק פגישה"}
-                            </button>
-                          </td>
+                        <td className="px-4 py-3">
+  {canAccessJobsAdmin ? (
+    <button
+      type="button"
+      className="rounded-lg bg-rose-600 px-3 py-2 text-xs font-bold text-white hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-50"
+      onClick={() =>
+        handleDeleteAppointment(
+          appointment
+        )
+      }
+      disabled={
+        deletingAppointmentId ===
+        appointment.appointmentId
+      }
+    >
+      {deletingAppointmentId ===
+      appointment.appointmentId
+        ? "מוחק..."
+        : "מחק פגישה"}
+    </button>
+  ) : null}
+</td>
 
                           <td
                             dir="ltr"
@@ -1742,7 +1753,8 @@ const handleDiagnoseAppointment =
           </section>
         )}
 
-{config?.connected && (
+{config?.connected &&
+  canAccessJobsAdmin && (
   <div className="space-y-4 rounded-xl border border-dashed border-purple-300 bg-purple-50 p-4">
     <div>
       <h3 className="font-bold text-purple-900">

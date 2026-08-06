@@ -17,11 +17,17 @@ import {
   functions,
 } from '@/lib/firebase/firebase';
 
+import {
+  getAgentSurenseConfig,
+} from "@/lib/MagicTouch/integrations/surense/api";
+
 import useFetchAgentData from '@/hooks/useFetchAgentData';
 
 import CreateMagicTouchContactModal from '@/components/MagicTouch/CreateMagicTouchContactModal';
 import ImportMagicTouchExcelModal from '@/components/MagicTouch/ImportMagicTouchExcelModal';
 import SendMagicTouchCampaignModal from '@/components/MagicTouch/SendMagicTouchCampaignModal';
+
+
 
 type SourceSystem =
   | 'surense'
@@ -119,6 +125,14 @@ type MagicTouchContact = {
 
       bookedAt?:
         number | null;
+
+        powerOfAttorney?: {
+  status?: string | null;
+  requestedAt?: number | null;
+  lastCheckedAt?: number | null;
+  signedAt?: number | null;
+  reminderDue?: boolean;
+} | null;
 
       resolvedAt?:
         number | null;
@@ -371,6 +385,29 @@ function appointmentLabel(
       return 'טרם נשלח';
   }
 }
+function powerOfAttorneyLabel(
+  status: string
+): string {
+  switch (status) {
+    case "waiting_for_signature":
+      return "ממתין לחתימה";
+
+    case "partially_signed":
+      return "חתום חלקית";
+
+    case "signed":
+      return "נחתם";
+
+    case "failed":
+      return "נכשל";
+
+    case "cancelled":
+      return "בוטל";
+
+    default:
+      return "לא נשלח";
+  }
+}
 
 function getContactInterestStatus(
   contact:
@@ -410,6 +447,13 @@ export default function MagicTouchContactsPage() {
 
   const agentId =
     selectedAgentId;
+
+
+    const [
+  hasSurenseIntegration,
+  setHasSurenseIntegration,
+] = useState(false);
+
 
   const [
     contacts,
@@ -560,6 +604,35 @@ export default function MagicTouchContactsPage() {
         agentId,
       ]
     );
+    
+    useEffect(() => {
+  if (!agentId) {
+    setHasSurenseIntegration(false);
+    return;
+  }
+
+  const loadSurenseConfig = async () => {
+    try {
+      const result =
+        await getAgentSurenseConfig(
+          agentId
+        );
+
+      setHasSurenseIntegration(
+        result.config.enabled === true
+      );
+    } catch (error) {
+      console.error(
+        "[MagicTouchContactsPage] Failed to load Surense config",
+        error
+      );
+
+      setHasSurenseIntegration(false);
+    }
+  };
+
+  void loadSurenseConfig();
+}, [agentId]);
 
   useEffect(() => {
     void loadContacts();
@@ -1195,9 +1268,17 @@ export default function MagicTouchContactsPage() {
                       פגישה
                     </th>
 
-                    <th className="px-4 py-3">
-                      סטטוס במקור
-                    </th>
+                  {hasSurenseIntegration ? (
+  <>
+    <th className="px-4 py-3">
+      סטטוס במקור
+    </th>
+
+    <th className="px-4 py-3">
+      סטטוס ייפוי כוח
+    </th>
+  </>
+) : null}
 
                     <th className="px-4 py-3">
                       עודכן
@@ -1293,13 +1374,59 @@ export default function MagicTouchContactsPage() {
                             )}
                           </td>
 
-                          <td className="px-4 py-3">
-                            {contact
-                              .sourceData
-                              ?.surense
-                              ?.statusName ||
-                              '—'}
-                          </td>
+                          {hasSurenseIntegration ? (
+  <>
+    <td className="px-4 py-3">
+      {contact.sourceSystem === "surense"
+        ? contact
+            .sourceData
+            ?.surense
+            ?.statusName || "—"
+        : "—"}
+    </td>
+
+    <td className="px-4 py-3">
+      {contact.sourceSystem === "surense" ? (
+        <span
+          className={[
+            "inline-flex rounded-full px-3 py-1 text-xs font-bold",
+
+            contact
+              .engagement
+              ?.reengagement
+              ?.powerOfAttorney
+              ?.status === "signed"
+              ? "bg-emerald-100 text-emerald-700"
+              : contact
+                    .engagement
+                    ?.reengagement
+                    ?.powerOfAttorney
+                    ?.status === "partially_signed"
+                ? "bg-amber-100 text-amber-700"
+                : contact
+                      .engagement
+                      ?.reengagement
+                      ?.powerOfAttorney
+                      ?.status === "waiting_for_signature"
+                  ? "bg-blue-100 text-blue-700"
+                 : "bg-slate-100 text-slate-500 border border-slate-200",
+          ].join(" ")}
+        >
+          {powerOfAttorneyLabel(
+            contact
+              .engagement
+              ?.reengagement
+              ?.powerOfAttorney
+              ?.status ||
+              ""
+          )}
+        </span>
+      ) : (
+        "—"
+      )}
+    </td>
+  </>
+) : null}
 
                           <td className="px-4 py-3">
                             {formatDate(

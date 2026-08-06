@@ -128,9 +128,6 @@ export async function resetSignedSurenseTestContactImpl(
   "engagement.reengagement.powerOfAttorney.status":
     "waiting_for_signature",
 
-  "sourceData.surense.statusName":
-    "ממתין לחתימה",
-
   "engagement.reengagement.powerOfAttorney.requestedAt":
     Timestamp.fromMillis(
       Date.now() -

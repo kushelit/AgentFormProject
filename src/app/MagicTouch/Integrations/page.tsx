@@ -9,7 +9,6 @@ type IntegrationCardProps = {
   href: string;
   icon: string;
   statusText?: string;
-  danger?: boolean;
 };
 
 function IntegrationCard({
@@ -18,53 +17,28 @@ function IntegrationCard({
   href,
   icon,
   statusText,
-  danger = false,
 }: IntegrationCardProps) {
   return (
     <Link
       href={href}
       className={[
-        "block rounded-2xl border bg-white p-5 shadow-sm transition",
+        "block rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition",
         "hover:-translate-y-0.5 hover:shadow-md",
-        danger
-          ? "border-rose-200 hover:border-rose-300"
-          : "border-slate-200",
       ].join(" ")}
     >
       <div className="flex items-start gap-4">
-        <div
-          className={[
-            "flex h-12 w-12 items-center justify-center rounded-xl text-2xl",
-            danger
-              ? "bg-rose-50"
-              : "bg-slate-100",
-          ].join(" ")}
-        >
+        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-slate-100 text-2xl">
           {icon}
         </div>
 
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <h2
-              className={[
-                "text-lg font-bold",
-                danger
-                  ? "text-rose-900"
-                  : "text-slate-900",
-              ].join(" ")}
-            >
+            <h2 className="text-lg font-bold text-slate-900">
               {title}
             </h2>
 
             {statusText ? (
-              <span
-                className={[
-                  "rounded-full px-3 py-1 text-xs font-bold",
-                  danger
-                    ? "bg-rose-50 text-rose-700"
-                    : "bg-blue-50 text-blue-700",
-                ].join(" ")}
-              >
+              <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700">
                 {statusText}
               </span>
             ) : null}
@@ -74,14 +48,7 @@ function IntegrationCard({
             {description}
           </p>
 
-          <div
-            className={[
-              "mt-4 text-sm font-bold",
-              danger
-                ? "text-rose-700"
-                : "text-blue-700",
-            ].join(" ")}
-          >
+          <div className="mt-4 text-sm font-bold text-blue-700">
             מעבר להגדרות ←
           </div>
         </div>
@@ -139,29 +106,6 @@ export default function MagicTouchIntegrationsPage() {
           icon="📥"
           statusText="ייבוא"
         />
-      </section>
-
-      <section className="space-y-3 border-t border-slate-200 pt-6">
-        <div>
-          <h2 className="text-lg font-bold text-slate-900">
-            כלי פיתוח ובדיקות
-          </h2>
-
-          <p className="mt-1 text-sm text-slate-500">
-            כלים זמניים לסביבת הטסט בלבד.
-          </p>
-        </div>
-
-        <div className="grid gap-5 md:grid-cols-2">
-          <IntegrationCard
-            title="איפוס נתוני לקוח לבדיקה"
-            description="מחיקת אירועים, הרצות Flow, נתוני קמפיין ושיחות WhatsApp עבור איש קשר מסוים, בלי למחוק את איש הקשר עצמו."
-            href="/MagicTouch/Integrations/TestContactReset"
-            icon="🧹"
-            statusText="טסט בלבד"
-            danger
-          />
-        </div>
       </section>
     </main>
   );
