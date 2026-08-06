@@ -1,4 +1,7 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
+export type FlowTemplateTimestamp = {
+  seconds: number;
+  nanoseconds: number;
+};
 
 export type FlowTemplateSummary = {
   templateId: string;
@@ -12,12 +15,12 @@ export type FlowTemplateSummary = {
   sourceAgentId: string;
   sourceFlowId: string;
   sourceFlowVersion: number;
-  trigger: Record<string, any>;
+  trigger: Record<string, unknown>;
   firstStepId: string;
-  steps: Record<string, any>;
-  variables: any[];
+  steps: Record<string, unknown>;
+  variables: unknown[];
   requiredIntegrations: string[];
   requiredPermissions: string[];
-  createdAt?: any;
-  updatedAt?: any;
+  createdAt?: FlowTemplateTimestamp | string | null;
+  updatedAt?: FlowTemplateTimestamp | string | null;
 };
