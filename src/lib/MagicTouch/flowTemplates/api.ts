@@ -28,6 +28,64 @@ export async function saveFlowAsTemplate(input: {
   const result = await fn(input);
   return result.data;
 }
+export async function installFlowTemplateForAgent(input: {
+  templateId: string;
+  agentId: string;
+  name: string;
+}): Promise<{
+  flowId: string;
+  flowName: string;
+  stepCount: number;
+}> {
+  const fn =
+    httpsCallable<
+      typeof input,
+      {
+        flowId: string;
+        flowName: string;
+        stepCount: number;
+      }
+    >(
+      functions,
+      "installMagicTouchFlowTemplateForAgent"
+    );
+
+  const result =
+    await fn(input);
+
+  return result.data;
+}
+
+export async function importFlowTemplateJson(input: {
+  payload: Record<string, unknown>;
+  replaceExisting?: boolean;
+}): Promise<{
+  templateId: string;
+  templateKey: string;
+  version: number;
+  replaced: boolean;
+  stepCount: number;
+}> {
+  const fn =
+    httpsCallable<
+      typeof input,
+      {
+        templateId: string;
+        templateKey: string;
+        version: number;
+        replaced: boolean;
+        stepCount: number;
+      }
+    >(
+      functions,
+      "importMagicTouchFlowTemplate"
+    );
+
+  const result =
+    await fn(input);
+
+  return result.data;
+}
 
 export function downloadFlowTemplate(template: FlowTemplateSummary): void {
   const exported = {
