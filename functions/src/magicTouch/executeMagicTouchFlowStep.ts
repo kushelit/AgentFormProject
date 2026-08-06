@@ -26,6 +26,10 @@ import {
 } from "./steps/executeCreateSurensePowerOfAttorneyStep";
 
 import {
+  executeRequestDocumentsStep,
+} from "./steps/executeRequestDocumentsStep";
+
+import {
   getMagicTouchContextValue,
   resolveMagicTouchStringTemplate,
 } from "../shared/magicTouchAutomationValueResolver";
@@ -272,6 +276,12 @@ export async function executeMagicTouchFlowStep({
         },
       };
     }
+
+    case "request_documents":
+      return executeRequestDocumentsStep({
+        context,
+        step,
+      });
 
     case "update_contact":
       return executeUpdateContactStep({

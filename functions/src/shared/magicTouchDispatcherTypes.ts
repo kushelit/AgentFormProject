@@ -8,6 +8,7 @@ export type MagicTouchStepType =
   | "create_surense_power_of_attorney"
   | "http_request"
   | "delay"
+  | "request_documents"
   | "create_task"
   | "end";export interface MagicTouchFlowStep{id:string;type:MagicTouchStepType;name?:string;nextStepId?:string|null;config?:Record<string,any>}
 export interface MagicTouchFlowDefinitionV2{flowId:string;agentId:string;name:string;description?:string;status:'draft'|'active'|'inactive'|'archived';version:number;firstStepId:string;trigger:Record<string,any>;steps:Record<string,MagicTouchFlowStep>}

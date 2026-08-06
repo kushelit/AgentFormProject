@@ -27,6 +27,8 @@ function s(value: unknown): string {
 
 export function getStepTypeLabel(step: FlowStep): string {
   switch (step.type) {
+    case "request_documents":
+      return "בקשת מסמכים";
     case "send_whatsapp":
       return "שליחת WhatsApp";
     case "update_contact":
@@ -48,6 +50,8 @@ export function getStepTypeLabel(step: FlowStep): string {
 
 export function getStepIcon(step: FlowStep): string {
   switch (step.type) {
+    case "request_documents":
+      return "🪪";
     case "send_whatsapp":
       return "💬";
     case "update_contact":
@@ -74,6 +78,13 @@ export function getStepAccent(step: FlowStep): {
   connector: string;
 } {
   switch (step.type) {
+    case "request_documents":
+      return {
+        ring: "border-cyan-200 hover:border-cyan-400",
+        icon: "bg-cyan-100 text-cyan-800",
+        badge: "bg-cyan-50 text-cyan-700",
+        connector: "bg-cyan-300",
+      };
     case "send_whatsapp":
       return {
         ring: "border-emerald-200 hover:border-emerald-400",
@@ -135,6 +146,13 @@ export function getStepAccent(step: FlowStep): {
 
 export function getStepSummary(step: FlowStep): string[] {
   switch (step.type) {
+    case "request_documents":
+      return [
+        "צילום תעודת זהות - צד קדמי ואחורי",
+        "המשך אוטומטי לאחר השלמת ההעלאה",
+        "קישור פעיל עד השלמת הבקשה או ביטולה",
+      ];
+
     case "update_contact": {
       const updates =
         step.config?.updates &&

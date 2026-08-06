@@ -42,6 +42,20 @@ function createDefaultStep(
   type: StepType
 ): FlowStep {
   switch (type) {
+    case "request_documents":
+      return {
+        id,
+        type,
+        name: "בקשת צילום תעודת זהות",
+        nextStepId: null,
+        config: {
+          documentSet: "identity_card_both_sides",
+          waitForCompletion: true,
+          message:
+            "לצורך הכנת התהליך, יש להעלות צילום ברור של שני צדי תעודת הזהות בקישור המאובטח הבא:\n\n{{uploadUrl}}",
+        },
+      };
+
     case "send_whatsapp":
       return {
         id,

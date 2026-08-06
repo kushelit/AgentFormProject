@@ -7,6 +7,7 @@ export type FlowStatus =
 export type StepType =
   | "condition"
   | "send_whatsapp"
+  | "request_documents"
   | "update_contact"
   | "add_timeline_event"
   | "sync_surense_activity"

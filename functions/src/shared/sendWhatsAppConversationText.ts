@@ -42,9 +42,10 @@ export interface SendWhatsAppConversationTextInput {
   sentBy: string;
   sentByName?: string | null;
 
-  source:
-    | "user"
-    | "magic_touch_automation";
+source:
+  | "user"
+  | "magic_touch_automation"
+  | "magic_touch_document_request";
 
   flowRunId?: string | null;
   flowId?: string | null;
@@ -85,16 +86,19 @@ export async function sendWhatsAppConversationText({
       text
     );
 
-  const normalizedSentBy =
-    safeString(
-      sentBy
-    ) ||
-    (
-      source ===
-      "magic_touch_automation"
-        ? "magic_touch_automation"
+ const normalizedSentBy =
+  safeString(
+    sentBy
+  ) ||
+  (
+    source ===
+    "magic_touch_automation"
+      ? "magic_touch_automation"
+      : source ===
+        "magic_touch_document_request"
+        ? "magic_touch_document_request"
         : ""
-    );
+  );
 
   if (!normalizedAgentId) {
     throw new HttpsError(
@@ -498,11 +502,14 @@ export async function sendWhatsAppConversationText({
         channel:
           "whatsapp",
 
-        title:
-          source ===
-          "magic_touch_automation"
-            ? "נשלחה הודעת WhatsApp אוטומטית"
-            : "נשלחה הודעת WhatsApp",
+       title:
+  source ===
+  "magic_touch_document_request"
+    ? "נשלחה בקשת מסמכים ב-WhatsApp"
+    : source ===
+      "magic_touch_automation"
+      ? "נשלחה הודעת WhatsApp אוטומטית"
+      : "נשלחה הודעת WhatsApp",
 
         description:
           normalizedText,
@@ -516,12 +523,12 @@ export async function sendWhatsAppConversationText({
         createdBy:
           normalizedSentBy,
 
-        sourceSystem:
-          source ===
-          "magic_touch_automation"
-            ? "magic_touch"
-            : "whatsapp",
-
+      sourceSystem:
+  source ===
+  "user"
+    ? "whatsapp"
+    : "magic_touch",
+    
         sourceRecordId:
           waMessageId,
 

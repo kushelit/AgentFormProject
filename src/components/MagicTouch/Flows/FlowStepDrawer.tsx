@@ -10,6 +10,8 @@ import SurenseActivityStepEditor from
   "@/components/MagicTouch/Flows/steps/SurenseActivityStepEditor";
 import CreateSurensePowerOfAttorneyStepEditor from
   "@/components/MagicTouch/Flows/steps/CreateSurensePowerOfAttorneyStepEditor";
+import RequestDocumentsStepEditor from
+  "@/components/MagicTouch/Flows/steps/RequestDocumentsStepEditor";
 import {
   getStepIcon,
   getStepTypeLabel,
@@ -193,6 +195,13 @@ export default function FlowStepDrawer({
 
               {step.type === "sync_surense_activity" ? (
                 <SurenseActivityStepEditor
+                  step={step}
+                  onConfigChange={(patch) => onUpdateConfig(stepId, patch)}
+                />
+              ) : null}
+
+              {step.type === "request_documents" ? (
+                <RequestDocumentsStepEditor
                   step={step}
                   onConfigChange={(patch) => onUpdateConfig(stepId, patch)}
                 />

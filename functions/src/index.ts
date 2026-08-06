@@ -238,3 +238,10 @@ export {
 export {
   importMagicTouchFlowTemplate,
 } from "./importMagicTouchFlowTemplate";
+export {
+  getMagicTouchDocumentRequestPublic,
+} from "./getMagicTouchDocumentRequestPublic";
+
+export {
+  uploadMagicTouchDocumentPublic,
+} from "./uploadMagicTouchDocumentPublic";

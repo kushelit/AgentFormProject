@@ -9,6 +9,12 @@ export type StepTypeOption = {
 
 export const STEP_TYPES: StepTypeOption[] = [
   {
+    value: "request_documents",
+    label: "בקשת מסמכים",
+    description: "שליחת קישור מאובטח לצילום שני צדי תעודת זהות",
+    icon: "🪪",
+  },
+  {
     value: "send_whatsapp",
     label: "שליחת WhatsApp",
     description: "שליחת הודעת טקסט ללקוח",
