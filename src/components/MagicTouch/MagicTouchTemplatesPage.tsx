@@ -23,7 +23,7 @@ import {
   functions,
 } from '@/lib/firebase/firebase';
 
-import useFetchAgentData from '@/hooks/useFetchAgentData';
+import { useMagicTouchAgent } from '@/components/MagicTouch/MagicTouchAgentContext';
 
 type WhatsAppTemplate = {
   id: string;
@@ -178,7 +178,7 @@ export default function MagicTouchTemplatesPage() {
   const {
     selectedAgentId,
   } =
-    useFetchAgentData();
+    useMagicTouchAgent();
 
   const agentId =
     selectedAgentId;

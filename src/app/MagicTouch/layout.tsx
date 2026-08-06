@@ -11,6 +11,7 @@ import { usePermission } from '@/hooks/usePermission';
 import AccessDenied from '@/components/AccessDenied';
 import MagicTouchSidebar from '@/components/MagicTouch/MagicTouchSidebar';
 import MagicTouchTopBar from '@/components/MagicTouch/MagicTouchTopBar';
+import { MagicTouchAgentProvider } from '@/components/MagicTouch/MagicTouchAgentContext';
 
 export default function MagicTouchLayout({
   children,
@@ -73,6 +74,7 @@ export default function MagicTouchLayout({
   }
 
   return (
+    <MagicTouchAgentProvider>
     <div
       dir="rtl"
       className="min-h-screen bg-slate-50"
@@ -86,5 +88,6 @@ export default function MagicTouchLayout({
         </div>
       </main>
     </div>
+    </MagicTouchAgentProvider>
   );
 }

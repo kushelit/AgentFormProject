@@ -14,7 +14,7 @@ import {
   useSearchParams,
 } from "next/navigation";
 
-import useFetchAgentData from "@/hooks/useFetchAgentData";
+import { useMagicTouchAgent } from "@/components/MagicTouch/MagicTouchAgentContext";
 
 import {
   getMagicTouchFlowRunDetails,
@@ -51,7 +51,7 @@ export default function MagicTouchRunDetailsPage() {
   const {
     selectedAgentId,
   } =
-    useFetchAgentData();
+    useMagicTouchAgent();
 
   const runId =
     String(

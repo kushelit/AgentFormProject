@@ -9,6 +9,8 @@ import {
   useParams,
 } from "next/navigation";
 
+import { useMagicTouchAgent } from "@/components/MagicTouch/MagicTouchAgentContext";
+
 import FlowEditor from
   "@/components/MagicTouch/Flows/FlowEditor";
 
@@ -21,6 +23,8 @@ import type {
 } from "@/lib/MagicTouch/flows/types";
 
 export default function EditMagicTouchFlowPage() {
+  const { effectiveAgentId } = useMagicTouchAgent();
+
   const params =
     useParams<{
       flowId:
@@ -53,7 +57,8 @@ export default function EditMagicTouchFlowPage() {
           try {
             const loaded =
               await getFlow(
-                params.flowId
+                params.flowId,
+                { agentId: effectiveAgentId }
               );
 
             setFlow(
@@ -75,6 +80,7 @@ export default function EditMagicTouchFlowPage() {
     },
     [
       params.flowId,
+      effectiveAgentId,
     ]
   );
 
@@ -108,6 +114,7 @@ export default function EditMagicTouchFlowPage() {
 
   return (
     <FlowEditor
+      agentId={effectiveAgentId}
       initialFlow={
         flow
       }

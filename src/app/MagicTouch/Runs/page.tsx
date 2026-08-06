@@ -7,7 +7,7 @@ import React, {
   useState,
 } from "react";
 
-import useFetchAgentData from "@/hooks/useFetchAgentData";
+import { useMagicTouchAgent } from "@/components/MagicTouch/MagicTouchAgentContext";
 
 import {
   getMagicTouchFlowRuns,
@@ -56,7 +56,7 @@ export default function MagicTouchRunsPage() {
   const {
     selectedAgentId,
   } =
-    useFetchAgentData();
+    useMagicTouchAgent();
 
   const [
     runs,

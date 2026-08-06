@@ -218,3 +218,23 @@ export {
 export {
   resetSignedSurenseTestContact,
 } from "./resetSignedSurenseTestContact";
+
+export {
+  saveMagicTouchFlowAsTemplate,
+} from "./saveMagicTouchFlowAsTemplate";
+
+export {
+  listMagicTouchFlowTemplates,
+} from "./listMagicTouchFlowTemplates";
+
+export {
+  getMagicTouchFlowTemplate,
+} from "./getMagicTouchFlowTemplate";
+
+export {
+  installMagicTouchFlowTemplateForAgent,
+} from "./installMagicTouchFlowTemplateForAgent";
+
+export {
+  importMagicTouchFlowTemplate,
+} from "./importMagicTouchFlowTemplate";

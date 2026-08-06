@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import { httpsCallable } from "firebase/functions";
 import { functions } from "@/lib/firebase/firebase";
 import { useAuth } from "@/lib/firebase/AuthContext";
+import { useMagicTouchAgent } from "@/components/MagicTouch/MagicTouchAgentContext";
 import { usePermission } from "@/hooks/usePermission";
 import AccessDenied from "@/components/AccessDenied";
 
@@ -85,17 +86,14 @@ function CustomerCard({
 }
 
 export default function SurenseGetCustomerTestPage() {
+  const { effectiveAgentId } = useMagicTouchAgent();
   const { user, detail, isLoading } = useAuth() as any;
 
   const { canAccess, isChecking } = usePermission(
     user ? "access_magic_touch" : null
   );
 
-  const agentId = String(
-    detail?.agentId ||
-    user?.uid ||
-    ""
-  ).trim();
+  const agentId = effectiveAgentId;
 
   const [customCustomerId, setCustomCustomerId] = useState("");
   const [loadingCase, setLoadingCase] = useState<TestCase | null>(null);

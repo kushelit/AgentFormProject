@@ -21,7 +21,7 @@ import {
   getAgentSurenseConfig,
 } from "@/lib/MagicTouch/integrations/surense/api";
 
-import useFetchAgentData from '@/hooks/useFetchAgentData';
+import { useMagicTouchAgent } from '@/components/MagicTouch/MagicTouchAgentContext';
 
 import CreateMagicTouchContactModal from '@/components/MagicTouch/CreateMagicTouchContactModal';
 import ImportMagicTouchExcelModal from '@/components/MagicTouch/ImportMagicTouchExcelModal';
@@ -443,7 +443,7 @@ export default function MagicTouchContactsPage() {
   const {
     selectedAgentId,
   } =
-    useFetchAgentData();
+    useMagicTouchAgent();
 
   const agentId =
     selectedAgentId;

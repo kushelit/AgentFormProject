@@ -23,7 +23,7 @@ import {
   functions,
 } from "@/lib/firebase/firebase";
 
-import useFetchAgentData from "@/hooks/useFetchAgentData";
+import { useMagicTouchAgent } from "@/components/MagicTouch/MagicTouchAgentContext";
 import AccessDenied from "@/components/AccessDenied";
 
 import {
@@ -252,7 +252,7 @@ export default function MagicTouchMonitorPage() {
   const {
     selectedAgentId,
   } =
-    useFetchAgentData();
+    useMagicTouchAgent();
 
   const [
     rows,

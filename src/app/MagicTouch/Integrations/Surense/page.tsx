@@ -7,7 +7,7 @@ import React, {
   useState,
 } from "react";
 
-import useFetchAgentData from "@/hooks/useFetchAgentData";
+import { useMagicTouchAgent } from "@/components/MagicTouch/MagicTouchAgentContext";
 
 import {
   getAgentSurenseConfig,
@@ -68,7 +68,7 @@ export default function SurenseIntegrationPage() {
   const {
     selectedAgentId,
   } =
-    useFetchAgentData();
+    useMagicTouchAgent();
 
   const [
     config,

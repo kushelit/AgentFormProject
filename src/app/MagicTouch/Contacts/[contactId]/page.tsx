@@ -16,7 +16,7 @@ import {
 import { httpsCallable } from 'firebase/functions';
 
 import { functions } from '@/lib/firebase/firebase';
-import useFetchAgentData from '@/hooks/useFetchAgentData';
+import { useMagicTouchAgent } from '@/components/MagicTouch/MagicTouchAgentContext';
 
 type MagicTouchContact = {
   id: string;
@@ -430,7 +430,7 @@ export default function MagicTouchContactDetailsPage() {
   const {
     selectedAgentId,
   } =
-    useFetchAgentData();
+    useMagicTouchAgent();
 
   const contactId =
     String(

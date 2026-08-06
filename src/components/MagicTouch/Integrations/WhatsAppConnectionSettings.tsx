@@ -23,6 +23,7 @@ import {
 import {
   useAuth,
 } from "@/lib/firebase/AuthContext";
+import { useMagicTouchAgent } from "@/components/MagicTouch/MagicTouchAgentContext";
 
 import {
   usePermission,
@@ -74,6 +75,7 @@ declare global {
 }
 
 export default function WhatsAppConnectionSettings() {
+  const { effectiveAgentId } = useMagicTouchAgent();
   const {
     user,
     detail,
@@ -91,11 +93,7 @@ export default function WhatsAppConnectionSettings() {
         : null
     );
 
- const agentId =
-  String(
-    detail?.agentId ||
-    ""
-  ).trim();
+ const agentId = effectiveAgentId;
 
   const [
     businessId,

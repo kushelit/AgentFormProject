@@ -14,7 +14,7 @@ import {
   functions,
 } from '@/lib/firebase/firebase';
 
-import useFetchAgentData from '@/hooks/useFetchAgentData';
+import { useMagicTouchAgent } from '@/components/MagicTouch/MagicTouchAgentContext';
 
 import {
   useMagicTouchConversations,
@@ -180,7 +180,7 @@ export default function MagicTouchConversationsPage() {
   const {
     selectedAgentId,
   } =
-    useFetchAgentData();
+    useMagicTouchAgent();
 
   const agentId =
     selectedAgentId;

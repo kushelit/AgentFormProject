@@ -27,6 +27,7 @@ import {
 import {
   useAuth,
 } from "@/lib/firebase/AuthContext";
+import { useMagicTouchAgent } from "@/components/MagicTouch/MagicTouchAgentContext";
 
 import {
   usePermission,
@@ -213,6 +214,7 @@ function InfoCard({
 }
 
 export default function MicrosoftBookingsSettings() {
+  const { effectiveAgentId } = useMagicTouchAgent();
   const searchParams =
     useSearchParams();
 
@@ -242,12 +244,7 @@ export default function MicrosoftBookingsSettings() {
       : null
   );
 
-  const agentId =
-    String(
-      detail?.agentId ||
-      user?.uid ||
-      ""
-    ).trim();
+  const agentId = effectiveAgentId;
 
   const [
     config,
