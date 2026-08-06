@@ -10,6 +10,11 @@ import {
   FUNCTIONS_REGION,
 } from "./shared/region";
 
+import {
+  PORTAL_ENC_KEY_B64,
+  SURENSE_ACTIVITY_API_KEY,
+} from "./shared/secrets";
+
 export const resumeMagicTouchFlowAfterDocumentUpload =
   onDocumentUpdated(
     {
@@ -20,10 +25,15 @@ export const resumeMagicTouchFlowAfterDocumentUpload =
         FUNCTIONS_REGION,
 
       timeoutSeconds:
-        60,
+        120,
 
       memory:
         "256MiB",
+
+      secrets: [
+        PORTAL_ENC_KEY_B64,
+        SURENSE_ACTIVITY_API_KEY,
+      ],
     },
 
     async (event: any) => {

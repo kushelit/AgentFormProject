@@ -113,6 +113,14 @@ async function collectCandidates(): Promise<{
       path: `agents/${TEST_AGENT_ID}/magic_touch_campaigns`,
       label: "MagicTouch campaign data",
     },
+    {
+      path: `agents/${TEST_AGENT_ID}/magic_touch_document_requests`,
+      label: "MagicTouch document request",
+    },
+    {
+      path: `agents/${TEST_AGENT_ID}/magic_touch_documents`,
+      label: "MagicTouch document",
+    },
   ];
 
   for (const definition of agentCollectionDefinitions) {
@@ -186,14 +194,14 @@ async function collectCandidates(): Promise<{
     });
   }
 
- await addByField({
-  collectionPath:
-    `agents/${TEST_AGENT_ID}/booking_appointments`,
-  label: "Microsoft Bookings appointment",
-  field: "contactId",
-  value: TEST_CONTACT_ID,
-  candidates,
-});
+  await addByField({
+    collectionPath:
+      `agents/${TEST_AGENT_ID}/booking_appointments`,
+    label: "Microsoft Bookings appointment",
+    field: "contactId",
+    value: TEST_CONTACT_ID,
+    candidates,
+  });
 
   if (conversationId) {
     const conversationRef = db.doc(
@@ -314,7 +322,6 @@ export async function resetMagicTouchTestContactImpl(
       "A signed-in user is required"
     );
   }
-
 
   const mode = s(input.mode) as ResetMode;
 
