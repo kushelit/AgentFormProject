@@ -368,8 +368,32 @@ export async function uploadPublicMagicTouchDocument(params: {
           waitingUntil: null,
           updatedAt: nowTs(),
         }, {merge: true});
-        const mod = await import("../dispatchMagicTouchFlowRun.impl");
-        await mod.dispatchMagicTouchFlowRunImpl({agentId, runId});
+       try {
+  const mod =
+    await import(
+      "../dispatchMagicTouchFlowRun.impl"
+    );
+
+  await mod
+    .dispatchMagicTouchFlowRunImpl({
+      agentId,
+      runId,
+    });
+} catch (dispatchError: unknown) {
+  console.error(
+    "[MagicTouchDocuments] Flow resume failed after successful upload",
+    {
+      agentId,
+      requestId,
+      runId,
+      nextStepId,
+      error:
+        dispatchError instanceof Error
+          ? dispatchError.message
+          : String(dispatchError),
+    }
+  );
+}
       } else {
         await runRef.set({
           status: "completed",
