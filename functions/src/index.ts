@@ -245,3 +245,7 @@ export {
 export {
   uploadMagicTouchDocumentPublic,
 } from "./uploadMagicTouchDocumentPublic";
+
+export {
+  resumeMagicTouchFlowAfterDocumentUpload,
+} from "./resumeMagicTouchFlowAfterDocumentUpload";

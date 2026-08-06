@@ -317,6 +317,8 @@ export async function uploadPublicMagicTouchDocument(params: {
       uploadedDocuments,
       status: complete ? "completed" : "partially_uploaded",
       completedAt: complete ? nowTs() : null,
+      resumeStatus: complete ? "pending" : null,
+      resumeRequestedAt: complete ? nowTs() : null,
       updatedAt: nowTs(),
     }, {merge: true});
     return {complete, request: fresh, uploadedDocuments};
@@ -355,55 +357,8 @@ export async function uploadPublicMagicTouchDocument(params: {
       },
     });
 
-    const runId = s(transactionResult.request.flowRunId);
-    const nextStepId = s(transactionResult.request.resumeNextStepId);
-    if (runId) {
-      const runRef = (db as any).doc(
-        `agents/${agentId}/magic_touch_flow_runs/${runId}`
-      );
-      if (nextStepId) {
-        await runRef.set({
-          status: "queued",
-          currentStepId: nextStepId,
-          waitingUntil: null,
-          updatedAt: nowTs(),
-        }, {merge: true});
-       try {
-  const mod =
-    await import(
-      "../dispatchMagicTouchFlowRun.impl"
-    );
-
-  await mod
-    .dispatchMagicTouchFlowRunImpl({
-      agentId,
-      runId,
-    });
-} catch (dispatchError: unknown) {
-  console.error(
-    "[MagicTouchDocuments] Flow resume failed after successful upload",
-    {
-      agentId,
-      requestId,
-      runId,
-      nextStepId,
-      error:
-        dispatchError instanceof Error
-          ? dispatchError.message
-          : String(dispatchError),
-    }
-  );
-}
-      } else {
-        await runRef.set({
-          status: "completed",
-          currentStepId: null,
-          waitingUntil: null,
-          completedAt: nowTs(),
-          updatedAt: nowTs(),
-        }, {merge: true});
-      }
-    }
+    // המשך ה-Flow מתבצע ב-Trigger נפרד.
+    // פונקציית ההעלאה מחזירה הצלחה ללקוח מיד לאחר שמירת שני המסמכים.
   }
 
   return {
