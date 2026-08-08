@@ -4,14 +4,18 @@ import {
   HttpsError,
   onCall,
 } from "firebase-functions/v2/https";
-import { SURENSE_ACTIVITY_API_KEY } from "./shared/secrets";
+
+import {
+  SURENSE_ACTIVITY_API_KEY,
+} from "./shared/secrets";
+
+import {
+  FUNCTIONS_REGION,
+} from "./shared/region";
+
 import {
   checkSinglePowerOfAttorneySignature,
 } from "./shared/checkSinglePowerOfAttorneySignature";
-
-const REGION =
-  process.env.FUNCTIONS_REGION ||
-  "europe-west1";
 
 /*
  * בדיקה ידנית של לקוח יחיד.
@@ -20,15 +24,19 @@ export const checkSurenseSignatureNow =
   onCall(
     {
       region:
-        REGION,
+        FUNCTIONS_REGION,
+
       timeoutSeconds:
         120,
+
       memory:
         "256MiB",
+
       secrets: [
         SURENSE_ACTIVITY_API_KEY,
       ],
     },
+
     async (request) => {
       if (!request.auth?.uid) {
         throw new HttpsError(
@@ -41,14 +49,14 @@ export const checkSurenseSignatureNow =
         String(
           request.data
             ?.agentId ||
-          ""
+            ""
         ).trim();
 
       const contactId =
         String(
           request.data
             ?.contactId ||
-          ""
+            ""
         ).trim();
 
       if (!agentId || !contactId) {

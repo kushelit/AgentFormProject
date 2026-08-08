@@ -9,18 +9,18 @@ import {
 } from "./shared/secrets";
 
 import {
+  FUNCTIONS_REGION,
+} from "./shared/region";
+
+import {
   runMagicTouchJobNowImpl,
 } from "./runMagicTouchJobNow.impl";
-
-const REGION =
-  process.env.FUNCTIONS_REGION ||
-  "europe-west1";
 
 export const runMagicTouchJobNow =
   onCall(
     {
       region:
-        REGION,
+        FUNCTIONS_REGION,
 
       timeoutSeconds:
         540,

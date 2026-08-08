@@ -5,18 +5,18 @@ import {
 } from "firebase-functions/v2/https";
 
 import {
+  FUNCTIONS_REGION,
+} from "./shared/region";
+
+import {
   resetSignedSurenseTestContactImpl,
 } from "./resetSignedSurenseTestContact.impl";
-
-const REGION =
-  process.env.FUNCTIONS_REGION ||
-  "europe-west1";
 
 export const resetSignedSurenseTestContact =
   onCall(
     {
       region:
-        REGION,
+        FUNCTIONS_REGION,
 
       timeoutSeconds:
         60,

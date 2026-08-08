@@ -1,14 +1,20 @@
 /* eslint-disable max-len */
 
-import { onSchedule } from "firebase-functions/v2/scheduler";
-import { SURENSE_ACTIVITY_API_KEY } from "./shared/secrets";
+import {
+  onSchedule,
+} from "firebase-functions/v2/scheduler";
+
+import {
+  SURENSE_ACTIVITY_API_KEY,
+} from "./shared/secrets";
+
+import {
+  FUNCTIONS_REGION,
+} from "./shared/region";
+
 import {
   processWaitingPowerOfAttorneySignatures,
 } from "./shared/processWaitingPowerOfAttorneySignatures";
-
-const REGION =
-  process.env.FUNCTIONS_REGION ||
-  "europe-west1";
 
 /*
  * ריצה יומית בשעה 09:00 לפי שעון ישראל.
@@ -23,19 +29,25 @@ export const processWaitingPowerOfAttorneySignaturesDaily =
   onSchedule(
     {
       region:
-        REGION,
+        FUNCTIONS_REGION,
+
       schedule:
         "0 9 * * *",
+
       timeZone:
         "Asia/Jerusalem",
+
       timeoutSeconds:
         540,
+
       memory:
         "512MiB",
+
       secrets: [
         SURENSE_ACTIVITY_API_KEY,
       ],
     },
+
     async () => {
       await processWaitingPowerOfAttorneySignatures();
     }

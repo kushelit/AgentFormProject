@@ -1,21 +1,41 @@
 /* eslint-disable max-len */
 
-import { onCall } from "firebase-functions/v2/https";
-import { resetMagicTouchTestContactImpl } from "./resetMagicTouchTestContact.impl";
+import {
+  onCall,
+} from "firebase-functions/v2/https";
 
-const REGION = process.env.FUNCTIONS_REGION || "europe-west1";
+import {
+  FUNCTIONS_REGION,
+} from "./shared/region";
 
-export const resetMagicTouchTestContact = onCall(
-  {
-    region: REGION,
-    timeoutSeconds: 120,
-    memory: "256MiB",
-  },
-  async (request) => {
-    return resetMagicTouchTestContactImpl({
-      uid: request.auth?.uid || null,
-      mode: request.data?.mode,
-      confirmation: request.data?.confirmation,
-    });
-  }
-);
+import {
+  resetMagicTouchTestContactImpl,
+} from "./resetMagicTouchTestContact.impl";
+
+export const resetMagicTouchTestContact =
+  onCall(
+    {
+      region:
+        FUNCTIONS_REGION,
+
+      timeoutSeconds:
+        120,
+
+      memory:
+        "256MiB",
+    },
+
+    async (request) => {
+      return resetMagicTouchTestContactImpl({
+        uid:
+          request.auth?.uid ||
+          null,
+
+        mode:
+          request.data?.mode,
+
+        confirmation:
+          request.data?.confirmation,
+      });
+    }
+  );

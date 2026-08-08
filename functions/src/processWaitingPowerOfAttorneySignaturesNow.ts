@@ -4,14 +4,18 @@ import {
   HttpsError,
   onCall,
 } from "firebase-functions/v2/https";
-import { SURENSE_ACTIVITY_API_KEY } from "./shared/secrets";
+
+import {
+  SURENSE_ACTIVITY_API_KEY,
+} from "./shared/secrets";
+
+import {
+  FUNCTIONS_REGION,
+} from "./shared/region";
+
 import {
   processWaitingPowerOfAttorneySignatures,
 } from "./shared/processWaitingPowerOfAttorneySignatures";
-
-const REGION =
-  process.env.FUNCTIONS_REGION ||
-  "europe-west1";
 
 /*
  * הפעלה ידנית בזמן פיתוח.
@@ -21,15 +25,19 @@ export const processWaitingPowerOfAttorneySignaturesNow =
   onCall(
     {
       region:
-        REGION,
+        FUNCTIONS_REGION,
+
       timeoutSeconds:
         540,
+
       memory:
         "512MiB",
+
       secrets: [
         SURENSE_ACTIVITY_API_KEY,
       ],
     },
+
     async (request) => {
       if (!request.auth?.uid) {
         throw new HttpsError(

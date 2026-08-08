@@ -322,9 +322,7 @@ export default function LogInPage() {
   const validateUserAndRedirect = async (
     user: User
   ): Promise<void> => {
-    console.info('[AUTH] Validating Firestore user', {
-      uid: user.uid,
-    });
+    console.info('[AUTH] Validating Firestore user');
 
     const userRef = doc(db, 'users', user.uid);
     const userSnapshot = await getDoc(userRef);
@@ -339,9 +337,7 @@ export default function LogInPage() {
       throw new Error('המנוי שלך אינו פעיל');
     }
 
-    console.info('[AUTH] Login completed successfully', {
-      uid: user.uid,
-    });
+   console.info('[AUTH] Login completed successfully');
 
     resetRecaptcha();
     router.push('/NewAgentForm');

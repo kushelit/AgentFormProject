@@ -9,12 +9,12 @@ import {
 } from "./shared/secrets";
 
 import {
+  FUNCTIONS_REGION,
+} from "./shared/region";
+
+import {
   processDueMagicTouchJobsImpl,
 } from "./processDueMagicTouchJobs.impl";
-
-const REGION =
-  process.env.FUNCTIONS_REGION ||
-  "europe-west1";
 
 /*
  * Scheduler טכני בלבד.
@@ -24,7 +24,7 @@ export const processDueMagicTouchJobs =
   onSchedule(
     {
       region:
-        REGION,
+        FUNCTIONS_REGION,
 
       schedule:
         "every 15 minutes",
