@@ -692,17 +692,13 @@ export default function LogInPage() {
             >
               קוד אימות
             </label>
-
-          <input
-  id="smsCode"
+       <input
   name="smsCode"
-  type="text"
-  inputMode="numeric"
   maxLength={6}
   pattern="[0-9]{6}"
   required
   disabled={smsLoading}
-  className="w-full border border-gray-300 rounded px-3 py-3 text-center text-xl font-mono disabled:bg-gray-100"
+  className="w-full border border-gray-300 rounded px-3 py-3 text-center text-xl font-mono"
   placeholder="123456"
   autoComplete="one-time-code"
 />
