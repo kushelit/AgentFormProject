@@ -399,6 +399,94 @@ useEffect(() => {
   );
 }
 
+// ─── Help video wizard (4 סרטונים ברצף: התקנה → סיסמאות → הורדה → צפייה בנתונים) ──
+type HelpVideo = { key: string; title: string; url: string };
+
+function HelpVideoWizard({
+  videos,
+  onClose,
+}: {
+  videos: HelpVideo[];
+  onClose: () => void;
+}) {
+  const [stepIndex, setStepIndex] = useState(0);
+
+  const current = videos[stepIndex];
+  const isFirst = stepIndex === 0;
+  const isLast = stepIndex === videos.length - 1;
+
+  const onBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (e.target === e.currentTarget) onClose();
+  };
+
+  if (!current) return null;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      onClick={onBackdropClick}
+    >
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl text-right relative overflow-hidden">
+        <div className="p-4 border-b flex items-center justify-between">
+          <div>
+            <div className="text-xs text-gray-400 font-bold mb-0.5">
+              שלב {stepIndex + 1} מתוך {videos.length}
+            </div>
+            <h2 className="text-lg font-bold text-gray-800">{current.title}</h2>
+          </div>
+          <button
+            onClick={onClose}
+            className="text-gray-400 hover:text-gray-600 text-xl leading-none"
+          >
+            ✕
+          </button>
+        </div>
+
+        <div className="bg-black flex items-center justify-center">
+          <video
+            key={current.url}
+            src={current.url}
+            controls
+            preload="metadata"
+            className="w-full max-h-[60vh]"
+          />
+        </div>
+
+        <div className="p-4 flex items-center justify-between gap-3">
+          <div className="flex gap-1.5">
+            {videos.map((v, i) => (
+              <span
+                key={v.key}
+                className={`h-2 w-2 rounded-full ${
+                  i === stepIndex ? "bg-blue-600" : "bg-gray-200"
+                }`}
+              />
+            ))}
+          </div>
+
+          <div className="flex gap-2">
+            <Button
+              text="הקודם"
+              type="secondary"
+              onClick={() => setStepIndex((i) => Math.max(0, i - 1))}
+              disabled={isFirst}
+            />
+            {isLast ? (
+              <Button text="סיימתי" type="primary" onClick={onClose} />
+            ) : (
+              <Button
+                text="הבא"
+                type="primary"
+                onClick={() => setStepIndex((i) => Math.min(videos.length - 1, i + 1))}
+              />
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export default function PortalCredentialsPage() {
   const { user, detail } = useAuth();
@@ -435,6 +523,33 @@ export default function PortalCredentialsPage() {
       }
     };
     fetchRunnerConfig();
+  }, []);
+
+  // ── 4 סרטוני הדרכה, נגישים ברצף ממסך אחד (התקנה → סיסמאות → הורדה → צפייה בנתונים) ──
+  const [helpVideos, setHelpVideos] = useState<HelpVideo[]>([]);
+  const [showHelpWizard, setShowHelpWizard] = useState(false);
+
+  useEffect(() => {
+    const fetchHelpVideos = async () => {
+      try {
+        const snap = await getDoc(doc(db, "helpVideos", "global"));
+        if (!snap.exists()) return;
+        const data: any = snap.data() || {};
+        const list: HelpVideo[] = Array.isArray(data.videos) ? data.videos : [];
+        setHelpVideos(
+          list
+            .map((v) => ({
+              key: String(v?.key || "").trim(),
+              title: String(v?.title || "").trim(),
+              url: String(v?.url || "").trim(),
+            }))
+            .filter((v) => v.key && v.url)
+        );
+      } catch {
+        // ignore
+      }
+    };
+    fetchHelpVideos();
   }, []);
 
   useEffect(() => {
@@ -582,10 +697,23 @@ export default function PortalCredentialsPage() {
         />
       )}
 
+      {showHelpWizard && (
+        <HelpVideoWizard videos={helpVideos} onClose={() => setShowHelpWizard(false)} />
+      )}
+
       <h1 className="text-2xl font-bold">🔐 חיבור לפורטלים</h1>
       <p className="mt-2 text-gray-600">
         לחצו על <b>חבר</b> או <b>ערוך</b> ליד כל פורטל כדי להזין את פרטי הגישה.
       </p>
+
+      {helpVideos.length > 0 && (
+        <button
+          onClick={() => setShowHelpWizard(true)}
+          className="mt-3 inline-flex items-center gap-2 bg-indigo-50 text-indigo-700 border border-indigo-200 px-4 py-2 rounded-lg text-sm font-bold hover:bg-indigo-100"
+        >
+          📺 מדריך מלא: התקנה → סיסמאות → הורדה → צפייה בנתונים ({helpVideos.length} שלבים)
+        </button>
+      )}
 
       <div className="mt-4 text-sm text-gray-700">
         סוכן: <b>{detail?.name || user.email}</b>
