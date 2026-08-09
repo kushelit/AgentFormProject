@@ -420,6 +420,23 @@ export default function PortalCredentialsPage() {
   const [loadingAgencyHouse, setLoadingAgencyHouse] = useState(true);
   const [savingAgencyHouse, setSavingAgencyHouse] = useState(false);
 
+  // ── קישור התקנת ה-Runner (נוסף כדי לרכז "התקן → צמד" באותו מסך) ──
+  const [installerUrl, setInstallerUrl] = useState<string>("");
+
+  useEffect(() => {
+    const fetchRunnerConfig = async () => {
+      try {
+        const snap = await getDoc(doc(db, "portalRunnerConfig", "global"));
+        if (!snap.exists()) return;
+        const data: any = snap.data() || {};
+        setInstallerUrl(String(data.installerUrl || "").trim());
+      } catch {
+        // ignore
+      }
+    };
+    fetchRunnerConfig();
+  }, []);
+
   useEffect(() => {
     const loadAgencyHouse = async () => {
       if (!agentId) { setLoadingAgencyHouse(false); return; }
@@ -612,8 +629,28 @@ export default function PortalCredentialsPage() {
       {/* Pairing */}
       <div className="mt-4 border rounded p-3 bg-white">
         <div className="font-semibold mb-2">🖥️ חיבור Runner למחשב</div>
+
+        <div className="mb-4 p-3 bg-blue-50 border border-blue-100 rounded-lg">
+          <div className="text-sm font-bold text-blue-900 mb-1">
+            שלב 1: הורדה והתקנה
+          </div>
+          <div className="text-xs text-blue-700 mb-2">
+            יש להוריד ולהתקין את הבוט על המחשב הזה (גם אם כבר הותקן בעבר על מחשב אחר).
+          </div>
+          {installerUrl ? (
+            <a
+              href={installerUrl}
+              className="inline-block bg-blue-600 text-white px-4 py-2 text-sm font-bold rounded-lg hover:bg-blue-700 shadow-md"
+            >
+              הורד והתקן
+            </a>
+          ) : (
+            <div className="text-xs text-gray-500">קישור ההתקנה עדיין לא הוגדר במערכת.</div>
+          )}
+        </div>
+
         <div className="text-sm text-gray-600">
-          קוד חיבור חד-פעמי (10 דקות). מדביקים אותו ב-Runner בפעם הראשונה על מחשב חדש.
+          שלב 2: קוד חיבור חד-פעמי (10 דקות). מדביקים אותו ב-Runner אחרי ההתקנה.
         </div>
         <div className="mt-3 flex justify-end gap-2">
           <Button
