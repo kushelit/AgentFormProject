@@ -119,6 +119,14 @@ const ExcelCommissionImporter: React.FC = () => {
   const [selectedCompanyId, setSelectedCompanyId] = useState('');
   const canChooseFile = Boolean(selectedAgentId && selectedCompanyId && templateId);
 
+  const [selectedSigmaYear, setSelectedSigmaYear] = useState<string>('');
+
+  const [missingCustomerConfirm, setMissingCustomerConfirm] = useState<{
+  rows: any[];
+  resolve: (proceed: boolean) => void;
+} | null>(null);
+
+
   const [showTemplateMismatch, setShowTemplateMismatch] = useState(false);
   const [errorDialog, setErrorDialog] = useState<{ title: string; message: React.ReactNode } | null>(null);
 
@@ -850,6 +858,13 @@ const buildMissingCustomerSummary = (rows: any[]) => {
   }));
 };
 
+
+const confirmMissingCustomerIds = (missingRows: any[]): Promise<boolean> => {
+  return new Promise((resolve) => {
+    setMissingCustomerConfirm({ rows: missingRows, resolve });
+  });
+};
+
   /* ==============================
      Effects
   ============================== */
@@ -1051,6 +1066,198 @@ tempDate.setHours(tempDate.getHours() + 12);
 
     return str.replace(/\//g, '-'); // fallback ישן
   };
+
+
+
+const parseSigmaWorkbook = (
+  ws: XLSX.WorkSheet,
+  selectedYear: string,
+  base: {
+    agentId: string;
+    templateId: string;
+    sourceFileName: string;
+    companyId: string;
+    company: string;
+  }
+): any[] => {
+  const grid: any[][] = XLSX.utils.sheet_to_json(ws, {
+    header: 1,
+    defval: '',
+    raw: true,
+  }) as any[][];
+
+  const rows: any[] = [];
+  let currentMonthMM = '';
+  let currentExchangeRate = 0;
+
+  for (const r of grid) {
+    const colAStr = String(r[0] ?? '').trim();
+    const colM = r[12]; // עמודה M = שער ההמרה בשורת כותרת החודש
+
+    // שורת כותרת חודש (למשל "אפריל" + שער בעמודה M)
+    const mm = monthNameToMM(colAStr);
+    if (mm && typeof colM === 'number') {
+      currentMonthMM = mm;
+      currentExchangeRate = colM;
+      continue;
+    }
+
+    // שורת נתונים אמיתית: עמודה A היא "מס תיק" (מספר פוליסה) - מספר, לא טקסט
+    // (מסנן אוטומטית את שורת "קומפליט" ואת שורת הסיכום, שאינן מספריות בעמודה A)
+    const isNumericPolicy = /^\d+$/.test(colAStr);
+    if (!isNumericPolicy || !currentMonthMM) continue;
+
+    const commissionUsd = toNum(r[11]); // עמודה L - עמלה לסוכן לפני מע"מ ב$
+    const premium = toNum(r[4]); // עמודה E - שווי תיק בשקלים
+    const fullName = String(r[3] ?? '').trim(); // עמודה D - שם לקוח
+
+    rows.push({
+      ...base,
+      uploadDate: serverTimestamp(),
+      agentCode: '306', // קבוע, לא מגיע מהקובץ
+      reportMonth: `${selectedYear}-${currentMonthMM}`,
+      policyNumber: colAStr, // מס תיק
+      lookupCustomerIdByPolicy: true, // מפעיל את חיפוש ה-customerId בטבלת sales
+      // customerId / customerIdRaw לא נקלטים כאן בכוונה - יושלמו מטבלת sales בהמשך
+      fullName,
+      premium: roundTo2(premium),
+      commissionAmountUsd: roundTo2(commissionUsd),
+      exchangeRate: currentExchangeRate,
+      commissionAmount: roundTo2(commissionUsd * currentExchangeRate), // מחושב: $ * שער = ₪
+    });
+  }
+
+  return rows;
+};
+
+const parseSigmaMonthlyWorkbook = (
+  ws: XLSX.WorkSheet,
+  base: {
+    agentId: string;
+    templateId: string;
+    sourceFileName: string;
+    companyId: string;
+    company: string;
+  }
+): any[] => {
+  const grid: any[][] = XLSX.utils.sheet_to_json(ws, {
+    header: 1,
+    defval: '',
+    raw: true,
+  }) as any[][];
+
+  const rows: any[] = [];
+
+  for (const r of grid) {
+    const policyNumberStr = String(r[22] ?? '').trim(); // W - מספר תיק
+    // מספרי בלבד - מסנן אוטומטית את שורת הכותרת (טקסט), השורה הריקה,
+    // ואת שורת הסיכום (שלושתן לא מכילות מספר תיק מספרי)
+    if (!/^\d+$/.test(policyNumberStr)) continue;
+
+    const agentCode = String(r[23] ?? '').trim(); // X - קוד סוכן (קיים בקובץ עצמו)
+    if (!agentCode) continue;
+
+    const fullName = String(r[21] ?? '').trim(); // V - שם לקוח
+    const commissionAmount = toNum(r[1]); // B - סה"כ תגמול לפי חוזה (כבר בש"ח, אין המרה)
+    const premium = toNum(r[17]); // R - שווי תיק כללי
+
+    // עמודה אחרונה ללא כותרת - תאריך אמיתי (ה-1 לחודש הדיווח)
+    let reportMonth = '';
+    const dateVal = r[25];
+    if (dateVal instanceof Date) {
+      const adjusted = new Date(dateVal);
+      adjusted.setHours(adjusted.getHours() + 12); // מונע גלישה ליום/חודש הקודם עקב timezone
+      reportMonth = `${adjusted.getFullYear()}-${String(adjusted.getMonth() + 1).padStart(2, '0')}`;
+    }
+
+    rows.push({
+      ...base,
+      uploadDate: serverTimestamp(),
+      agentCode,
+      reportMonth,
+      policyNumber: policyNumberStr,
+      lookupCustomerIdByPolicy: true, // אותו מנגנון חיפוש מול sales כמו ב-sigma_nifraim
+      fullName,
+      premium: roundTo2(premium),
+      commissionAmount: roundTo2(commissionAmount),
+    });
+  }
+
+  return rows;
+};
+
+
+
+const SIGMA_SALES_COMPANY_NAME = 'סיגמא קלאריטי'; // טקסט קבוע כפי שמופיע בטבלת sales, ממקור METADATA
+
+async function enrichSigmaCustomerIdsFromSales(params: {
+  rows: any[];
+  agentId: string;
+}) {
+  const { rows, agentId } = params;
+
+  const rowsToLookup = rows.filter(
+    (row) => row.lookupCustomerIdByPolicy && String(row.customerId || '').trim() === ''
+  );
+
+  if (!rowsToLookup.length) return rows;
+
+  const uniquePolicyNumbers = Array.from(
+    new Set(
+      rowsToLookup
+        .map((r) => String(r.policyNumber ?? '').trim())
+        .filter(Boolean)
+    )
+  );
+
+  const foundMap = new Map<string, string>(); // policyNumber -> IDCustomer
+
+  for (let i = 0; i < uniquePolicyNumbers.length; i += 10) {
+    const chunk = uniquePolicyNumbers.slice(i, i + 10);
+
+
+     console.log('[sigma sales lookup] querying with:', {
+    agentId,
+    company: SIGMA_SALES_COMPANY_NAME,
+    policyNumbers: chunk,
+  });
+
+
+    const snap = await getDocs(
+      query(
+        collection(db, 'sales'),
+        where('AgentId', '==', agentId),
+        where('company', '==', SIGMA_SALES_COMPANY_NAME),
+        where('policyNumber', 'in', chunk)
+      )
+    );
+
+    snap.docs.forEach((docSnap) => {
+      const data: any = docSnap.data();
+      const pn = String(data.policyNumber ?? '').trim();
+      const idCustomer = String(data.IDCustomer ?? '').trim();
+      if (pn && idCustomer && !foundMap.has(pn)) {
+        foundMap.set(pn, idCustomer);
+      }
+    });
+  }
+
+  return rows.map((row) => {
+    if (!row.lookupCustomerIdByPolicy) return row;
+    if (String(row.customerId || '').trim() !== '') return row;
+
+    const pn = String(row.policyNumber ?? '').trim();
+    const found = foundMap.get(pn);
+    if (!found) return row;
+
+    return {
+      ...row,
+      customerId: found,
+      customerIdRaw: found,
+    };
+  });
+}
+
 
   /* ==============================
      Firestore helpers
@@ -1630,6 +1837,127 @@ return;      }
 
 
 const parseAndStandardize = async (data: any, fileName: string, fallbackMonth?: string) => {
+
+
+if (templateId === 'sigma_nifraim') {
+  if (!selectedSigmaYear) {
+    setIsLoading(false);
+    setLoadingStage('');
+    setErrorDialog({
+      title: 'חסרה שנת דיווח',
+      message: 'יש לבחור שנת דיווח לפני העלאת קובץ סיגמא (הקובץ עצמו לא מכיל שנה).',
+    });
+    return;
+  }
+
+  setLoadingStage('קורא קובץ סיגמא...');
+
+  let wb: XLSX.WorkBook;
+  try {
+    wb = XLSX.read(data, { type: 'array', cellDates: false });
+  } catch (err) {
+    setIsLoading(false);
+    throw new Error('קובץ אקסל לא תקין.');
+  }
+
+  const ws = wb.Sheets[wb.SheetNames[0]];
+
+  const standardized = parseSigmaWorkbook(ws, selectedSigmaYear, {
+    agentId: selectedAgentId,
+    templateId,
+    sourceFileName: fileName,
+    companyId: selectedCompanyId,
+    company: selectedCompanyName,
+  });
+
+  if (standardized.length === 0) {
+    setIsLoading(false);
+    setLoadingStage('');
+    setErrorDialog({
+      title: 'שגיאת נתונים',
+      message: 'לא נמצאו שורות תקינות לעיבוד בקובץ סיגמא.',
+    });
+    return;
+  }
+
+  setStandardizedRows(standardized);
+
+  setLoadingStage('בודק טעינות קיימות...');
+  const fileMonths = Array.from(
+    new Set(standardized.map((r) => sanitizeMonth(r.reportMonth)).filter(Boolean))
+  ).sort();
+  setMonthsInFile(fileMonths);
+
+  await checkExistingByRuns({
+    agentId: selectedAgentId,
+    companyId: selectedCompanyId,
+    templateId,
+    monthsInFile: fileMonths,
+  });
+
+  setLoadingStage('הושלם!');
+  setTimeout(() => {
+    setIsLoading(false);
+    setLoadingStage('');
+  }, 500);
+  return; // חשוב - חוסם את כל הזרימה הרגילה (mapping/coverage) שלא רלוונטית לסיגמא
+}
+
+if (templateId === 'sigma_monthly') {
+  setLoadingStage('קורא קובץ סיגמא (חודשי)...');
+
+  let wb: XLSX.WorkBook;
+  try {
+    wb = XLSX.read(data, { type: 'array', cellDates: true }); // cellDates:true - חשוב, כדי לקבל Date אמיתי בעמודת התאריך
+  } catch (err) {
+    setIsLoading(false);
+    throw new Error('קובץ אקסל לא תקין.');
+  }
+
+  const ws = wb.Sheets[wb.SheetNames[0]];
+
+  const standardized = parseSigmaMonthlyWorkbook(ws, {
+    agentId: selectedAgentId,
+    templateId,
+    sourceFileName: fileName,
+    companyId: selectedCompanyId,
+    company: selectedCompanyName,
+  });
+
+  if (standardized.length === 0) {
+    setIsLoading(false);
+    setLoadingStage('');
+    setErrorDialog({
+      title: 'שגיאת נתונים',
+      message: 'לא נמצאו שורות תקינות לעיבוד בקובץ סיגמא (חודשי).',
+    });
+    return;
+  }
+
+  setStandardizedRows(standardized);
+
+  setLoadingStage('בודק טעינות קיימות...');
+  const fileMonths = Array.from(
+    new Set(standardized.map((r) => sanitizeMonth(r.reportMonth)).filter(Boolean))
+  ).sort();
+  setMonthsInFile(fileMonths);
+
+  await checkExistingByRuns({
+    agentId: selectedAgentId,
+    companyId: selectedCompanyId,
+    templateId,
+    monthsInFile: fileMonths,
+  });
+
+  setLoadingStage('הושלם!');
+  setTimeout(() => {
+    setIsLoading(false);
+    setLoadingStage('');
+  }, 500);
+  return;
+}
+
+
   let jsonData: any[] = [];
   const innerExt = getExt(fileName);
   const upperName = fileName.toUpperCase();
@@ -1970,28 +2298,25 @@ if (importMode === "single" && selectedCompanyId) {
   }
 }
 
- const enrichedRows =
-      importMode === "multi_sheet"
-        ? await enrichMissingCustomerIdsForMarkedSheets({
-            rows: rowsAfterFilter,
-            agentId: selectedAgentId,
-          })
-        : rowsAfterFilter;
+const enrichedRows =
+  templateId === 'sigma_nifraim' || templateId === 'sigma_monthly'
+    ? await enrichSigmaCustomerIdsFromSales({
+        rows: rowsAfterFilter,
+        agentId: selectedAgentId,
+      })
+    : importMode === 'multi_sheet'
+    ? await enrichMissingCustomerIdsForMarkedSheets({
+        rows: rowsAfterFilter,
+        agentId: selectedAgentId,
+      })
+    : rowsAfterFilter;
+
+
 
 const rowsMissingCustomerId = getRowsMissingCustomerId(enrichedRows);
 
 if (rowsMissingCustomerId.length > 0) {
-  const summary = buildMissingCustomerSummary(rowsMissingCustomerId);
-
-  const confirmContinue = window.confirm(
-    `יש ${rowsMissingCustomerId.length} שורות ללא ת"ז.\n\n` +
-    `לדוגמה:\n` +
-    summary
-      .slice(0, 5)
-      .map((r) => `${r.sheet} | ${r.policy} | ${r.name}`)
-      .join("\n") +
-    `\n\nהאם להמשיך בטעינה ללא שורות אלו?`
-  );
+  const confirmContinue = await confirmMissingCustomerIds(rowsMissingCustomerId);
 
   if (!confirmContinue) {
     setIsLoading(false);
@@ -2000,13 +2325,23 @@ if (rowsMissingCustomerId.length > 0) {
   }
 }
 
-    const finalRowsForImport =
-      importMode === "multi_sheet"
-        ? enrichedRows.filter((row) => {
-            if (!row.lookupCustomerIdByPolicy) return true;
-            return String(row.customerId || row.customerIdRaw || "").trim() !== "";
-          })
-        : enrichedRows;
+  const finalRowsForImport = enrichedRows.map((row) => {
+  if (!row.lookupCustomerIdByPolicy) return row;
+
+  const hasCustomerId = String(row.customerId || row.customerIdRaw || '').trim() !== '';
+  if (hasCustomerId) return row;
+
+  // לא נמצאה התאמה - משאירים את מספר הפוליסה עצמו בשדה customerId, לא זורקים את השורה
+  const fallback = String(row.policyNumber ?? '').trim();
+  return {
+    ...row,
+    customerId: fallback,
+    customerIdRaw: fallback,
+  };
+});
+
+
+
 
     if (!finalRowsForImport.length) {
       setErrorDialog({
@@ -2688,6 +3023,8 @@ async function enrichMissingCustomerIdsForMarkedSheets(params: {
     }
   }
 
+
+
   // -----------------------------------
   // 4) משלימים את מה שנשאר מה-DB
   // -----------------------------------
@@ -2715,6 +3052,13 @@ async function enrichMissingCustomerIdsForMarkedSheets(params: {
 
 
 
+  
+  
+const singleModeReady =
+  importMode === 'single' &&
+  !!selectedCompanyId &&
+  !!templateId &&
+  (templateId !== 'sigma_nifraim' || !!selectedSigmaYear);
 
 
   /* ==============================
@@ -3016,8 +3360,11 @@ addToast(
               </label>
               <select
                 value={templateId}
-                onChange={(e) => setTemplateId(e.target.value)}
-                className="select-input w-full h-10 border-gray-200 rounded-lg"
+                 onChange={(e) => {
+    setTemplateId(e.target.value);
+    setSelectedSigmaYear('');
+  }}
+      className="select-input w-full h-10 border-gray-200 rounded-lg"
               >
                 <option value="">-- בחר דוח ספציפי --</option>
                 {filteredTemplates.map((opt) => (
@@ -3028,6 +3375,25 @@ addToast(
               </select>
             </div>
           )}
+{selectedCompanyId && templateId === 'sigma_nifraim' && (
+  <div className="max-w-md">
+    <label className="block text-xs font-bold text-gray-400 mb-1 uppercase tracking-wider">
+      5. שנת דיווח (לא מופיעה בקובץ סיגמא)
+    </label>
+    <select
+      value={selectedSigmaYear}
+      onChange={(e) => setSelectedSigmaYear(e.target.value)}
+      className="select-input w-full h-10 border-gray-300 rounded-lg"
+    >
+      <option value="">-- בחר שנה --</option>
+      {['2024', '2025', '2026', '2027'].map((year) => (
+        <option key={year} value={year}>
+          {year}
+        </option>
+      ))}
+    </select>
+  </div>
+)}
         </>
       )}
 
@@ -3149,19 +3515,20 @@ addToast(
   </div>
 )}
       {/* ================= UPLOAD + BUTTONS ================= */}
-      {(
-        (importMode === "single" && selectedCompanyId && templateId) ||
-(
-  (importMode === "single" && selectedCompanyId && templateId) ||
-  (
-    importMode === "multi_sheet" &&
-    selectedMultiSheetProfileId &&
-    (
-      !selectedMultiSheetProfile?.enableReportMonthFilter ||
-      !!selectedTargetReportMonth
-    )
-  )
-)      ) && (
+     {(
+        singleModeReady ||
+        (
+          singleModeReady ||
+          (
+            importMode === "multi_sheet" &&
+            selectedMultiSheetProfileId &&
+            (
+              !selectedMultiSheetProfile?.enableReportMonthFilter ||
+              !!selectedTargetReportMonth
+            )
+          )
+        )
+      ) && (
         <>
           {/* UPLOAD */}
           <div
@@ -3391,9 +3758,46 @@ addToast(
         hideCancel
       />
     )}
+{missingCustomerConfirm && (
+  <DialogNotification
+    type="warning"
+    title='שורות ללא ת"ז'
+    message={
+      <div className="text-right">
+        <p>
+          יש <b>{missingCustomerConfirm.rows.length}</b> שורות שלא נמצאה להן התאמת ת"ז.
+        </p>
+        <p className="mt-3 text-sm text-gray-500">לדוגמה:</p>
+        <div className="mt-1 text-xs space-y-1 text-gray-700">
+          {buildMissingCustomerSummary(missingCustomerConfirm.rows)
+            .slice(0, 5)
+            .map((r, i) => (
+              <div key={i}>
+                {r.sheet ? `${r.sheet} | ` : ''}
+                {r.policy} | {r.name}
+              </div>
+            ))}
+        </div>
+        <p className="mt-3">
+          אפשר להמשיך ולטעון אותן עם מספר הפוליסה במקום ת"ז זמנית, ולתקן ידנית מאוחר יותר.
+        </p>
+      </div>
+    }
+    onConfirm={() => {
+      missingCustomerConfirm.resolve(true);
+      setMissingCustomerConfirm(null);
+    }}
+    onCancel={() => {
+      missingCustomerConfirm.resolve(false);
+      setMissingCustomerConfirm(null);
+    }}
+    confirmText={'המשך  בטעינה'}
+    cancelText="ביטול הטעינה"
+  />
+)}
 
-    {isLoading && (
-      <div className="fixed inset-0 bg-white/80 backdrop-blur-sm z-[9999] flex items-center justify-center">
+  {isLoading && !missingCustomerConfirm && (
+  <div className="fixed inset-0 bg-white/80 backdrop-blur-sm z-[9999] flex items-center justify-center">
         <div className="text-center p-8 bg-white rounded-2xl shadow-2xl border border-blue-50 w-80">
           <div className="relative mb-6">
             <div className="w-20 h-20 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin mx-auto"></div>
