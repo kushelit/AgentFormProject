@@ -3764,9 +3764,9 @@ addToast(
     title='שורות ללא ת"ז'
     message={
       <div className="text-right">
-        <p>
-          יש <b>{missingCustomerConfirm.rows.length}</b> שורות שלא נמצאה להן התאמת ת"ז.
-        </p>
+     <p>
+  יש <b>{missingCustomerConfirm.rows.length}</b> שורות שלא נמצאה להן התאמת ת&quot;ז.
+</p>
         <p className="mt-3 text-sm text-gray-500">לדוגמה:</p>
         <div className="mt-1 text-xs space-y-1 text-gray-700">
           {buildMissingCustomerSummary(missingCustomerConfirm.rows)
@@ -3778,9 +3778,9 @@ addToast(
               </div>
             ))}
         </div>
-        <p className="mt-3">
-          אפשר להמשיך ולטעון אותן עם מספר הפוליסה במקום ת"ז זמנית, ולתקן ידנית מאוחר יותר.
-        </p>
+       <p className="mt-3">
+  אפשר להמשיך ולטעון אותן עם מספר הפוליסה במקום ת&quot;ז זמנית, ולתקן ידנית מאוחר יותר.
+</p>
       </div>
     }
     onConfirm={() => {
