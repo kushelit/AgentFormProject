@@ -3232,7 +3232,6 @@ addToast(
     ? '✅ הריצה נשלחה לתור'
     : `✅ נשלח Batch עם ${companies.length} חברות`
 );
-    // console.log('Created batch:', batchId, runIds);
   }}
 />
 ) : (
