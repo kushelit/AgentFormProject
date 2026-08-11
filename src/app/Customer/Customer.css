@@ -6,7 +6,7 @@
 
 .form-container,
 .data-container {
-   /*flex: 1;*/
+  
   /* Each child will take up equal space */
   padding: 10px;
   color: black;
