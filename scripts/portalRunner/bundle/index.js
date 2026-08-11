@@ -149380,35 +149380,42 @@ function normalizePairingCode(code) {
 }
 /**
  * פונקציית הלוגין המרכזית:
+ *
+ * תיקון: כשמועבר pairingCode במפורש, מדלגים לגמרי על ניסיון ההתחברות
+ * השקטה מה-session.json הקיים ועוברים ישר לצריכת הקוד. בלי זה, session
+ * קיים תמיד "מנצח" (כי הוא מנוסה ראשון ומצליח בשקט) והקוד שהועבר
+ * במפורש נשאר "open" בלי שנצרך בפועל - זה בדיוק מה שגרם ל---switch-agent
+ * להיראות כאילו עבד כשבפועל הזהות לא הוחלפה.
  */
 async function loginIfNeeded(params) {
     const { auth, functions, pairingCode } = params;
     if (auth.currentUser?.uid)
         return auth.currentUser.uid;
-    // --- שלב 1: ניסיון התחברות שקטה ---
-    const sess = (0, sessionStore_1.readSession)();
-    if (sess?.refreshToken) {
-        try {
-            const fn = (0, functions_1.httpsCallable)(functions, "mintCustomTokenFromRefreshToken");
-            const res = await fn({ refreshToken: sess.refreshToken });
-            const customToken = s(res?.data?.customToken);
-            if (customToken) {
-                await (0, auth_1.signInWithCustomToken)(auth, customToken);
-                const uid = auth.currentUser?.uid;
-                if (uid)
-                    return uid;
+    // --- אם לא הועבר קוד צימוד במפורש: ניסיון התחברות שקטה כרגיל ---
+    if (!pairingCode) {
+        // שלב 1: ניסיון התחברות שקטה
+        const sess = (0, sessionStore_1.readSession)();
+        if (sess?.refreshToken) {
+            try {
+                const fn = (0, functions_1.httpsCallable)(functions, "mintCustomTokenFromRefreshToken");
+                const res = await fn({ refreshToken: sess.refreshToken });
+                const customToken = s(res?.data?.customToken);
+                if (customToken) {
+                    await (0, auth_1.signInWithCustomToken)(auth, customToken);
+                    const uid = auth.currentUser?.uid;
+                    if (uid)
+                        return uid;
+                }
+            }
+            catch (e) {
+                // אם נכשל, נמשיך הלאה
             }
         }
-        catch (e) {
-            // אם נכשל, נמשיך הלאה
-        }
-    }
-    // --- שלב 2: תהליך צימוד (Pairing Code) ---
-    // התיקון הקריטי: אם לא קיבלנו קוד מה-Runner, אנחנו לא שואלים ב-CMD.
-    // אנחנו זורקים שגיאה כדי שה-Runner יתפוס אותה ויקפיץ את חלון ה-UI.
-    if (!pairingCode) {
+        // התיקון הקריטי: אם לא קיבלנו קוד מה-Runner, אנחנו לא שואלים ב-CMD.
+        // אנחנו זורקים שגיאה כדי שה-Runner יתפוס אותה ויקפיץ את חלון ה-UI.
         throw new Error("NO_SESSION_FOUND");
     }
+    // --- שלב 2: קיבלנו pairingCode במפורש - תמיד צורכים אותו ---
     const code = normalizePairingCode(pairingCode);
     try {
         const consumeFn = (0, functions_1.httpsCallable)(functions, "consumeRunnerPairingCode");
@@ -156684,6 +156691,17 @@ function getPairingCodeFromUI() {
     }
 }
 /**
+ * בודק האם המשתמש ביקש במפורש להחליף זהות (agentId) על המחשב הזה,
+ * גם אם יש כבר session.json תקף מזהות קודמת.
+ * שימוש: `MagicSaleRunner.exe --switch-agent`, או משתנה סביבה RUNNER_SWITCH_AGENT=1.
+ * מיועד בעיקר לאדמין שמריץ אוטומציה בשם סוכנים שונים מאותו מחשב.
+ */
+function shouldForceAgentSwitch() {
+    const argFlag = process.argv.includes("--switch-agent");
+    const envFlag = String(process.env.RUNNER_SWITCH_AGENT || "").trim() === "1";
+    return argFlag || envFlag;
+}
+/**
  * בודק ב-Firestore אם קיימת גרסה חדשה יותר בשרת
  */
 async function checkForUpdates(db, log) {
@@ -156870,7 +156888,17 @@ async function main() {
     const { providers } = await Promise.resolve().then(() => __importStar(__nccwpck_require__(99)));
     // --- לוגיקת צימוד וחיבור חכמה ---
     let tempAgentId = null;
+    const forceAgentSwitch = shouldForceAgentSwitch();
+    if (forceAgentSwitch) {
+        log.info("[Login] --switch-agent requested. Skipping saved session, forcing pairing window...");
+    }
     try {
+        // אם ביקשו החלפת סוכן במפורש - מדלגים על ניסיון ההתחברות השקטה
+        // (session.json קיים) ועוברים ישר לחלון קוד הצימוד, כדי לאפשר לאותו
+        // מחשב לפעול בשם סוכן אחר מזה ששמור כרגע.
+        if (forceAgentSwitch) {
+            throw new Error("FORCE_AGENT_SWITCH");
+        }
         // נסיון ראשון: אולי הסוכן כבר מחובר (יש לו session.json)
         tempAgentId = await (0, loginCli_1.loginIfNeeded)({ auth, functions });
     }
@@ -156892,6 +156920,7 @@ async function main() {
         process.exit(1);
     }
     const agentId = tempAgentId; // מעכשיו הוא string ודאי
+    log.info("[Login] Authenticated as agentId=", agentId);
     // בדיקת עדכונים
     await checkForUpdates(db, log);
     const runnerId = `local_${agentId}_${crypto_1.default.randomUUID().slice(0, 8)}`;

@@ -48,6 +48,18 @@ function getPairingCodeFromUI(): string | null {
 }
 
 /**
+ * בודק האם המשתמש ביקש במפורש להחליף זהות (agentId) על המחשב הזה,
+ * גם אם יש כבר session.json תקף מזהות קודמת.
+ * שימוש: `MagicSaleRunner.exe --switch-agent`, או משתנה סביבה RUNNER_SWITCH_AGENT=1.
+ * מיועד בעיקר לאדמין שמריץ אוטומציה בשם סוכנים שונים מאותו מחשב.
+ */
+function shouldForceAgentSwitch(): boolean {
+  const argFlag = process.argv.includes("--switch-agent");
+  const envFlag = String(process.env.RUNNER_SWITCH_AGENT || "").trim() === "1";
+  return argFlag || envFlag;
+}
+
+/**
  * בודק ב-Firestore אם קיימת גרסה חדשה יותר בשרת
  */
 async function checkForUpdates(db: any, log: any) {
@@ -274,7 +286,19 @@ async function main() {
   // --- לוגיקת צימוד וחיבור חכמה ---
   let tempAgentId: string | null = null;
 
+  const forceAgentSwitch = shouldForceAgentSwitch();
+  if (forceAgentSwitch) {
+    log.info("[Login] --switch-agent requested. Skipping saved session, forcing pairing window...");
+  }
+
   try {
+    // אם ביקשו החלפת סוכן במפורש - מדלגים על ניסיון ההתחברות השקטה
+    // (session.json קיים) ועוברים ישר לחלון קוד הצימוד, כדי לאפשר לאותו
+    // מחשב לפעול בשם סוכן אחר מזה ששמור כרגע.
+    if (forceAgentSwitch) {
+      throw new Error("FORCE_AGENT_SWITCH");
+    }
+
     // נסיון ראשון: אולי הסוכן כבר מחובר (יש לו session.json)
     tempAgentId = await loginIfNeeded({ auth, functions });
   } catch (err) {
@@ -300,6 +324,7 @@ async function main() {
   }
 
   const agentId: string = tempAgentId; // מעכשיו הוא string ודאי
+  log.info("[Login] Authenticated as agentId=", agentId);
 
   // בדיקת עדכונים
   await checkForUpdates(db, log);

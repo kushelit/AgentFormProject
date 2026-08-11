@@ -236,16 +236,93 @@
   min-height: 280px;
 }
 
+/* ── טוגל "כולל תא משפחתי" — עסקאות Magic + פוליסות מטעינה ── */
+.cp-family-toggle-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  background: #f7f9fc;
+  border: 1px solid #dde3ee;
+  border-radius: 10px;
+  padding: 10px 14px;
+  margin-bottom: 16px;
+}
+
+.cp-family-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #1e3a5f;
+  cursor: pointer;
+  user-select: none;
+}
+
+.cp-family-toggle input[type="checkbox"] {
+  width: 17px;
+  height: 17px;
+  min-width: 17px;
+  margin: 0;
+  accent-color: #2d5a8e;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.cp-family-toggle input[type="checkbox"]:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.cp-family-toggle-hint {
+  font-size: 11px;
+  color: #9aafc4;
+}
+
 /* ── month bar ── */
 .cp-month-bar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   margin-bottom: 16px;
   padding-bottom: 14px;
   border-bottom: 1px solid #edf0f7;
 }
 .cp-month-bar label { font-size: 13px; color: #7a8faa; font-weight: 500; }
+
+.cp-nifraim-mode-toggle {
+  display: flex;
+  gap: 2px;
+  background: #f0f4f9;
+  border-radius: 20px;
+  padding: 3px;
+}
+.cp-mode-btn {
+  background: transparent;
+  border: none;
+  border-radius: 20px;
+  padding: 5px 14px;
+  font-size: 12px;
+  font-family: 'Heebo', sans-serif;
+  color: #7a8faa;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s;
+}
+.cp-mode-btn-active {
+  background: white;
+  color: #1e3a5f;
+  font-weight: 600;
+  box-shadow: 0 1px 4px rgba(30,58,95,.1);
+}
+
+.cp-month-bar-divider {
+  width: 1px;
+  height: 20px;
+  background: #dde3ee;
+}
+
 .cp-month-input {
   height: 34px;
   padding: 0 10px;
@@ -275,6 +352,14 @@
   font-size: 15px;
   border-bottom: 2px solid #dde3ee;
   white-space: nowrap;
+}
+.cp-th-sortable {
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.15s;
+}
+.cp-th-sortable:hover {
+  background: #e8f0fb;
 }
 .cp-table td {
   padding: 11px 12px;

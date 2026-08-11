@@ -52,6 +52,12 @@ function normalizePairingCode(code: string) {
 
 /**
  * פונקציית הלוגין המרכזית:
+ *
+ * תיקון: כשמועבר pairingCode במפורש, מדלגים לגמרי על ניסיון ההתחברות
+ * השקטה מה-session.json הקיים ועוברים ישר לצריכת הקוד. בלי זה, session
+ * קיים תמיד "מנצח" (כי הוא מנוסה ראשון ומצליח בשקט) והקוד שהועבר
+ * במפורש נשאר "open" בלי שנצרך בפועל - זה בדיוק מה שגרם ל---switch-agent
+ * להיראות כאילו עבד כשבפועל הזהות לא הוחלפה.
  */
 export async function loginIfNeeded(params: { 
   auth: any; 
@@ -62,33 +68,33 @@ export async function loginIfNeeded(params: {
 
   if (auth.currentUser?.uid) return auth.currentUser.uid;
 
-  // --- שלב 1: ניסיון התחברות שקטה ---
-  const sess = readSession();
-  
-  if (sess?.refreshToken) {
-    try {
-      const fn = httpsCallable(functions, "mintCustomTokenFromRefreshToken");
-      const res: any = await fn({ refreshToken: sess.refreshToken });
-      const customToken = s(res?.data?.customToken);
-      
-      if (customToken) {
-        await signInWithCustomToken(auth, customToken);
-        const uid = auth.currentUser?.uid;
-        if (uid) return uid;
-      }
-    } catch (e) {
-      // אם נכשל, נמשיך הלאה
-    }
-  }
-
-  // --- שלב 2: תהליך צימוד (Pairing Code) ---
-  
-  // התיקון הקריטי: אם לא קיבלנו קוד מה-Runner, אנחנו לא שואלים ב-CMD.
-  // אנחנו זורקים שגיאה כדי שה-Runner יתפוס אותה ויקפיץ את חלון ה-UI.
+  // --- אם לא הועבר קוד צימוד במפורש: ניסיון התחברות שקטה כרגיל ---
   if (!pairingCode) {
-    throw new Error("NO_SESSION_FOUND"); 
+    // שלב 1: ניסיון התחברות שקטה
+    const sess = readSession();
+
+    if (sess?.refreshToken) {
+      try {
+        const fn = httpsCallable(functions, "mintCustomTokenFromRefreshToken");
+        const res: any = await fn({ refreshToken: sess.refreshToken });
+        const customToken = s(res?.data?.customToken);
+
+        if (customToken) {
+          await signInWithCustomToken(auth, customToken);
+          const uid = auth.currentUser?.uid;
+          if (uid) return uid;
+        }
+      } catch (e) {
+        // אם נכשל, נמשיך הלאה
+      }
+    }
+
+    // התיקון הקריטי: אם לא קיבלנו קוד מה-Runner, אנחנו לא שואלים ב-CMD.
+    // אנחנו זורקים שגיאה כדי שה-Runner יתפוס אותה ויקפיץ את חלון ה-UI.
+    throw new Error("NO_SESSION_FOUND");
   }
 
+  // --- שלב 2: קיבלנו pairingCode במפורש - תמיד צורכים אותו ---
   const code = normalizePairingCode(pairingCode);
 
   try {

@@ -9,6 +9,7 @@ import { useAuth } from "@/lib/firebase/AuthContext";
 import Link from "next/link";
 import { useRouter } from 'next/navigation';
 import { UserSubscriptionPopup } from "@/components/UserSubscriptionPopup/UserSubscriptionPopup";
+import CustomerSearchBox from "@/components/CustomerSearch/CustomerSearchBox";
 
 export const TopBar = ({ prop = true, className }) => {
   const { user, detail, logOut } = useAuth();
@@ -37,9 +38,15 @@ useEffect(() => {
   return (
     <>
       <div className={`top-bar ${className}`}>
-        <Link href="/NewAgentForm">
-          <Logo className="logo-instance" />
-        </Link>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 36 }}>
+          <Link href="/NewAgentForm">
+            <Logo className="logo-instance" />
+          </Link>
+
+          {prop && user && (
+            <CustomerSearchBox agentId={detail?.agentId} />
+          )}
+        </div>
 
         {prop && (
           <div className="frame">

@@ -24,13 +24,100 @@ function assertAuthed(context: any) {
   return uid as string;
 }
 
-export const createRunnerPairingCode = onCall(async (_req) => {
-  const uid = assertAuthed(_req);
+function s(v: any) {
+  return String(v ?? "").trim();
+}
 
-  // מגבלה פשוטה: עד 1 קוד פתוח למשתמש
+/**
+ * מחזיר את ה-uid שעבורו בפועל ייווצר קוד הצימוד ("מי הבוט יזדהה בתור"),
+ * אחרי בדיקת הרשאה בצד השרת.
+ *
+ * הכלל תואם בדיוק את הלוגיקה הקיימת ב-useFetchAgentData (client):
+ * - isSystem === true            → מותר לכל targetAgentId, בלי קשר ל-agencies
+ * - role === "admin" (לא system) → מותר רק אם agencies של הקורא == agencies של היעד
+ * - אחרת (או אם אין targetAgentId שונה מה-authUid) → מותר רק לעצמו
+ */
+async function resolvePairingTargetUid(authUid: string, targetAgentId?: string): Promise<string> {
+  const target = s(targetAgentId);
+
+  // אין יעד, או שהיעד הוא בדיוק אני → אין צורך בבדיקת הרשאה נוספת
+  if (!target || target === authUid) {
+    return authUid;
+  }
+
+  const db = adminDb();
+
+  const callerSnap = await db.collection("users").doc(authUid).get();
+  if (!callerSnap.exists) {
+    throw new HttpsError("permission-denied", "Caller profile not found");
+  }
+  const caller: any = callerSnap.data() || {};
+
+  const isSystem = caller.isSystem === true;
+  const callerRole = s(caller.role);
+  const callerAgencies = caller.agencies;
+
+  if (isSystem) {
+    // System admin - מותר לכל סוכן, בלי תלות ב-agencies.
+    // בכל זאת מוודאים שה-uid היעד הוא אכן סוכן/מנהל קיים ופעיל.
+    const targetSnap = await db.collection("users").doc(target).get();
+    if (!targetSnap.exists) {
+      throw new HttpsError("not-found", "Target agent not found");
+    }
+    const targetData: any = targetSnap.data() || {};
+    if (targetData.isActive === false) {
+      throw new HttpsError("failed-precondition", "Target agent is not active");
+    }
+    if (!["agent", "manager"].includes(s(targetData.role))) {
+      throw new HttpsError("permission-denied", "Target is not an agent/manager");
+    }
+    return target;
+  }
+
+  if (callerRole === "admin") {
+    if (!callerAgencies) {
+      throw new HttpsError("permission-denied", "Caller has no agencies assigned");
+    }
+
+    const targetSnap = await db.collection("users").doc(target).get();
+    if (!targetSnap.exists) {
+      throw new HttpsError("not-found", "Target agent not found");
+    }
+    const targetData: any = targetSnap.data() || {};
+
+    if (targetData.isActive === false) {
+      throw new HttpsError("failed-precondition", "Target agent is not active");
+    }
+    if (!["agent", "manager"].includes(s(targetData.role))) {
+      throw new HttpsError("permission-denied", "Target is not an agent/manager");
+    }
+    if (targetData.agencies !== callerAgencies) {
+      throw new HttpsError("permission-denied", "Target agent is not in caller's agency");
+    }
+
+    return target;
+  }
+
+  // כל תפקיד אחר - אין הרשאה לפעול בשם סוכן אחר
+  throw new HttpsError("permission-denied", "Not authorized to act on behalf of another agent");
+}
+
+type CreatePairingInput = {
+  targetAgentId?: string;
+};
+
+export const createRunnerPairingCode = onCall(async (_req) => {
+  const authUid = assertAuthed(_req);
+
+  const body = (_req.data || {}) as Partial<CreatePairingInput>;
+  const pairingUid = await resolvePairingTargetUid(authUid, body.targetAgentId);
+
+  // מגבלה פשוטה: עד קוד פתוח אחד לזהות שעבורה נוצר הקוד
+  // (לא למי שיצר אותו בפועל - כדי שאדמין לא יינעל אחרי יצירת קוד אחד לסוכן X
+  // כשהוא רוצה ליצור עוד קוד לסוכן Y)
   const openSnap = await adminDb()
     .collection("runnerPairings")
-    .where("uid", "==", uid)
+    .where("uid", "==", pairingUid)
     .where("status", "==", "open")
     .limit(1)
     .get();
@@ -43,7 +130,8 @@ export const createRunnerPairingCode = onCall(async (_req) => {
   const expiresAt = Timestamp.fromMillis(Date.now() + 10 * 60 * 1000);
 
   await adminDb().collection("runnerPairings").doc(code).set({
-    uid,
+    uid: pairingUid,
+    createdByUid: authUid,
     status: "open",
     createdAt: FieldValue.serverTimestamp(),
     expiresAt,

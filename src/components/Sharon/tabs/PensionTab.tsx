@@ -5,6 +5,8 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { collection, query, where, getDocs, doc, deleteDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase/firebase';
 import { useAuth } from '@/lib/firebase/AuthContext';
+import { usePermission } from '@/hooks/usePermission';
+import { useRouter } from 'next/navigation';
 import DealFormModal from '@/components/DealFormModal/DealFormModal';
 import ImportRunsManager from '@/components/ImportRunsManager/ImportRunsManager';
 import useFetchMD from '@/hooks/useMD';
@@ -67,7 +69,9 @@ function formatDate(dateStr: string): string {
 // ─── Component ───────────────────────────────────────────────────────────────
 
 const PensionTab: React.FC<Props> = ({ agentId, customer, onSelectCustomer, includeGroupIds, excludeGroupIds, dealFormContext }) => {
-  const { detail } = useAuth();
+  const { user, detail } = useAuth();
+  const router = useRouter();
+  const { canAccess: canAccessCrm } = usePermission(user ? 'access_crm_module' : null);
   const isAgency4 = String(detail?.agencyId ?? '') === '4';
   const { toasts, addToast, setToasts } = useToast();
   const [sales, setSales] = useState<SaleRow[]>([]);
@@ -294,6 +298,17 @@ const PensionTab: React.FC<Props> = ({ agentId, customer, onSelectCustomer, incl
       <div className="sharon-readonly-note" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
         <span>👁 קריאה בלבד — נתונים מתוך מערכת MagicSale</span>
         <div style={{ display: 'flex', gap: 8, marginRight: 'auto' }}>
+          {customer && canAccessCrm && (
+            <button
+              type="button"
+              onClick={() => router.push(`/customers/${customer.id}`)}
+              className="sharon-inline-btn"
+              style={{ background: '#2D5A8E' }}
+              title="פותח את כרטיס הלקוח המלא - משימות, תיאום פגישה, הערות, קשרים משפחתיים ותמונה מאוחדת של כל העסקאות (כולל סיכונים)"
+            >
+              👤 כרטיס לקוח מלא ({customer.firstNameCustomer} {customer.lastNameCustomer}) ←
+            </button>
+          )}
           {agentId && (
             <button
               type="button"

@@ -80,3 +80,99 @@
   font-size: 14px; /* גודל טקסט מתאים */
   font-size: var(--font-size);
 }
+
+/* ── חיפוש לקוח בטופ-בר ── */
+.customer-search-wrap {
+  position: relative;
+  width: 260px;
+}
+
+.customer-search-input {
+  height: 34px !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+  border-radius: 8px !important;
+  border: 1px solid rgba(255, 255, 255, 0.3) !important;
+  background: rgba(255, 255, 255, 0.1) !important;
+  color: #fff !important;
+  padding: 0 34px 0 12px !important;
+  font-size: 13px !important;
+  font-family: var(--font-family) !important;
+  outline: none !important;
+  transition: background 0.15s, border-color 0.15s;
+}
+.customer-search-input::placeholder {
+  color: rgba(255, 255, 255, 0.6) !important;
+}
+.customer-search-input:focus {
+  border-color: rgba(255, 255, 255, 0.6) !important;
+  background: rgba(255, 255, 255, 0.16) !important;
+}
+.customer-search-input:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.customer-search-icon {
+  position: absolute;
+  top: 50%;
+  right: 10px;
+  transform: translateY(-50%);
+  width: 15px;
+  height: 15px;
+  pointer-events: none;
+  color: rgba(255, 255, 255, 0.65);
+}
+
+.customer-search-dropdown {
+  position: fixed; /* לא absolute בתוך .top-bar - כדי לצאת לגמרי מה-stacking context של z-index:1050 */
+  background: #fff;
+  border: 1px solid #e2e6ec;
+  border-radius: 12px;
+  box-shadow: 0 12px 28px rgba(15, 30, 60, 0.18);
+  z-index: 999999;
+  max-height: 340px;
+  overflow-y: auto;
+  padding: 4px;
+}
+
+.customer-search-empty {
+  padding: 14px 12px;
+  font-size: 13px;
+  color: #98a2b0;
+  text-align: center;
+}
+
+.customer-search-error {
+  color: #b3261e;
+}
+
+.customer-search-result {
+  display: block;
+  width: 100%;
+  text-align: right;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  padding: 9px 10px;
+  cursor: pointer;
+  font-size: 13px;
+  font-family: var(--font-family);
+  transition: background 0.12s;
+}
+.customer-search-result:hover {
+  background: #f0f4fb;
+}
+
+.customer-search-result-name {
+  font-weight: 600;
+  color: #1a2b40;
+}
+
+.customer-search-result-id {
+  color: #98a2b0;
+  font-size: 11.5px;
+  margin-top: 2px;
+  direction: ltr;
+  text-align: right;
+}

@@ -45,6 +45,8 @@ import { getMultiSheetProfiles } from "@/lib/multiSheetProfiles/getMultiSheetPro
 import { parseMultiSheetWorkbook } from "@/lib/multiSheetProfiles/parseMultiSheetWorkbook";
 import BatchProgressCard from '@/components/PortalRuns/BatchProgressCard';
 import { applyMonthOffset } from "@/lib/multiSheetProfiles/applyMonthOffset";
+
+import AdminAgentPairingWidget from "@/components/PortalRuns/AdminAgentPairingWidget";
 /* ==============================
    Types
 ============================== */
@@ -3074,6 +3076,7 @@ const singleModeReady =
     </header>
 
     {/* 1. בחירת סוכן */}
+  {/* 1. בחירת סוכן */}
     <div className="mb-6 bg-gray-50 p-4 rounded-xl border border-gray-200 shadow-inner">
       <div className="max-w-md flex flex-col gap-1">
         <label className="text-xs font-bold text-gray-500 mr-1">1. בחר סוכן</label>
@@ -3089,6 +3092,14 @@ const singleModeReady =
             </option>
           ))}
         </select>
+
+        {/* ✅ חדש */}
+        {detail?.role === "admin" && selectedAgentId && (
+          <AdminAgentPairingWidget
+            agentId={selectedAgentId}
+            agentName={agents.find((a) => a.id === selectedAgentId)?.name}
+          />
+        )}
       </div>
     </div>
     {/* 2. אזור אוטומציה + עדכוני גרסה */}
