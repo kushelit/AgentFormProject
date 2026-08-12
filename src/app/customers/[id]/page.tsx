@@ -156,7 +156,7 @@ export default function CustomerPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user, detail } = useAuth();
-  const { formatIsraeliDateOnly, sourceLeadMap, fetchSourceLeadMap } = useFetchMD();
+  const { formatIsraeliDateOnly, sourceLeadMap, fetchSourceLeadMap, productToGroupMap } = useFetchMD();
   const { toasts, addToast, setToasts } = useToast();
 
   const { agents, selectedAgentId, handleAgentChange } = useFetchAgentData();
@@ -773,6 +773,41 @@ const calculateCommissions = (sale: any, contractMatch: any) => {
     return rows;
   }, [nifraimWithGap, nifraimCompanyFilter, nifraimSort]);
 
+  // ── סיווג לקבוצת מוצר: פנסיה (1) / פיננסים (4) / סיכונים (כל השאר) - זהה להגדרה הקיימת
+  // ב-PensionTab.tsx (excludeGroupIds=['1','4'] לטאב "סיכונים") ──
+  type NifraimGroup = 'pension' | 'finance' | 'risk';
+  const NIFRAIM_GROUP_LABEL: Record<NifraimGroup, string> = { pension: 'פנסיה', finance: 'פיננסים', risk: 'סיכונים' };
+
+  const groupOfProduct = (productName?: string): NifraimGroup => {
+    const gid = productToGroupMap?.[(productName || '').trim()] || '';
+    if (gid === '1') return 'pension';
+    if (gid === '4') return 'finance';
+    return 'risk';
+  };
+
+  const [nifraimGroupFilter, setNifraimGroupFilter] = useState<NifraimGroup | null>(null);
+
+  // סטטיסטיקות לשלושת הריבועים - תמיד מהדאטה המלאה (nifraimWithGap), לא מושפעות מפילטר החברה,
+  // כך שהריבועים תמיד מציגים את התמונה המלאה ואפשר ללחוץ עליהם כדי לצמצם את הטבלה
+  const nifraimGroupStats = useMemo(() => {
+    const stats: Record<NifraimGroup, { count: number; total: number }> = {
+      pension: { count: 0, total: 0 },
+      finance: { count: 0, total: 0 },
+      risk: { count: 0, total: 0 },
+    };
+    nifraimWithGap.forEach(r => {
+      const g = groupOfProduct(r.product);
+      stats[g].count += 1;
+      stats[g].total += r.commissionAmount;
+    });
+    return stats;
+  }, [nifraimWithGap, productToGroupMap]);
+
+  const nifraimFilteredByGroup = useMemo(() => {
+    if (!nifraimGroupFilter) return nifraimFiltered;
+    return nifraimFiltered.filter(r => groupOfProduct(r.product) === nifraimGroupFilter);
+  }, [nifraimFiltered, nifraimGroupFilter, productToGroupMap]);
+
   // ─── ניווט לדף השוואה מלאה ───────────────────────────────────────────────────
   const openFullCompare = () => {
     if (!customer) return;
@@ -1110,6 +1145,29 @@ const calculateCommissions = (sale: any, contractMatch: any) => {
         {activeTab === 'nifraim' && (
           <div>
             {familyToggleBar}
+
+            {/* ── 3 ריבועים קבועים לפי קבוצת מוצר - תמיד מוצגים, גם עם 0 ── */}
+            <div className="cp-nifraim-group-cards">
+              {(['pension', 'finance', 'risk'] as const).map(g => {
+                const stat = nifraimGroupStats[g];
+                const active = nifraimGroupFilter === g;
+                return (
+                  <div
+                    key={g}
+                    className={`cp-nifraim-group-card${active ? ' cp-nifraim-group-card-active' : ''}`}
+                    onClick={() => setNifraimGroupFilter(prev => prev === g ? null : g)}
+                    title="לחצי לסינון הטבלה לפי הקבוצה הזו"
+                  >
+                    <div className="cp-nifraim-group-label">{NIFRAIM_GROUP_LABEL[g]}</div>
+                    <div className="cp-nifraim-group-count">{stat.count} פוליסות</div>
+                    {canViewCommissions && (
+                      <div className="cp-nifraim-group-total">{stat.total.toLocaleString()} ₪</div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
             <div className="cp-month-bar">
               <div className="cp-nifraim-mode-toggle">
                 <button
@@ -1150,7 +1208,7 @@ const calculateCommissions = (sale: any, contractMatch: any) => {
             </div>
             {loadingExternal ? (
               <div className="cp-loading-inline">טוען...</div>
-            ) : nifraimFiltered.length === 0 ? (
+            ) : nifraimFilteredByGroup.length === 0 ? (
               <div className="cp-empty">אין נתוני פוליסות לחודש זה</div>
             ) : (
               <table className="cp-table">
@@ -1171,7 +1229,7 @@ const calculateCommissions = (sale: any, contractMatch: any) => {
                   </tr>
                 </thead>
                 <tbody>
-                  {nifraimFiltered.map((r, i) => (
+                  {nifraimFilteredByGroup.map((r, i) => (
                     <tr key={i}>
                       {includeFamily && <td>{r.customerName || '—'}</td>}
                       <td>{r.company}</td>
@@ -1192,10 +1250,10 @@ const calculateCommissions = (sale: any, contractMatch: any) => {
                   <tfoot>
                     <tr>
                       <td colSpan={includeFamily ? 5 : 4} style={{ fontWeight: 'bold', textAlign: 'left' }}>
-                        סה&quot;כ עמלות{nifraimCompanyFilter ? ' (מסונן)' : ''}
+                        סה&quot;כ עמלות{(nifraimCompanyFilter || nifraimGroupFilter) ? ' (מסונן)' : ''}
                       </td>
                       <td style={{ fontWeight: 'bold' }}>
-                        {nifraimFiltered.reduce((s, r) => s + r.commissionAmount, 0).toLocaleString()} ₪
+                        {nifraimFilteredByGroup.reduce((s, r) => s + r.commissionAmount, 0).toLocaleString()} ₪
                       </td>
                     </tr>
                   </tfoot>

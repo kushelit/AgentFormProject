@@ -1168,8 +1168,17 @@ const parseSigmaMonthlyWorkbook = (
     const dateVal = r[25];
     if (dateVal instanceof Date) {
       const adjusted = new Date(dateVal);
-      adjusted.setHours(adjusted.getHours() + 12); // מונע גלישה ליום/חודש הקודם עקב timezone
+      adjusted.setHours(adjusted.getHours() + 12); // מונע גלישה ליום/חודש הקודם עקב timezone (אותה שיטה כמו ב-parseHebrewMonth)
       reportMonth = `${adjusted.getFullYear()}-${String(adjusted.getMonth() + 1).padStart(2, '0')}`;
+    }
+
+    // T - תאריך פתיחת תיק
+    let validMonth = '';
+    const validMonthDate = r[19];
+    if (validMonthDate instanceof Date) {
+      const adjustedValid = new Date(validMonthDate);
+      adjustedValid.setHours(adjustedValid.getHours() + 12); // אותו תיקון timezone
+      validMonth = `${adjustedValid.getFullYear()}-${String(adjustedValid.getMonth() + 1).padStart(2, '0')}`;
     }
 
     rows.push({
@@ -1177,6 +1186,7 @@ const parseSigmaMonthlyWorkbook = (
       uploadDate: serverTimestamp(),
       agentCode,
       reportMonth,
+      validMonth,
       policyNumber: policyNumberStr,
       lookupCustomerIdByPolicy: true, // אותו מנגנון חיפוש מול sales כמו ב-sigma_nifraim
       fullName,
@@ -1958,6 +1968,7 @@ if (templateId === 'sigma_monthly') {
   }, 500);
   return;
 }
+
 
 
   let jsonData: any[] = [];

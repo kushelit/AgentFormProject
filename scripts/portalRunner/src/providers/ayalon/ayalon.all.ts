@@ -61,18 +61,18 @@ export async function runAyalonAll(ctx: RunnerCtx) {
 
   await setStatus(runId, { status: "running", step: "ayalon_open_portal", monthLabel });
 
-  const isExe = !!(process as any).pkg;
-  const standardPath = "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe";
-  const x86Path = "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe";
-  const localChromePath = fs.existsSync(standardPath)
-    ? standardPath
-    : fs.existsSync(x86Path) ? x86Path : null;
-  const executablePath = isExe && localChromePath ? localChromePath : resolveChromiumExePath();
+  // תמיד ה-Chromium המובנה (הבדוק) - בדיוק כמו שאר הפרוברים (meitav/menora/mor/yalin).
+  // לא בורחים ל-Chrome האמיתי שמותקן אצל הסוכן, כדי לא להיות תלויים בגרסה
+  // ובהרשאות ההורדה של הפרופיל האישי שלו.
+  const executablePath = resolveChromiumExePath();
 
+  // שם תיקייה חדש בכוונה (לא chromium-profile-ayalon) - כדי לא לרשת פרופיל
+  // שנכתב בעבר על ידי Chrome אמיתי (לפני שהוסר ה-branch שהשתמש בו), שיכול
+  // לגרום ל-Chromium המובנה לקרוס מיד עקב חוסר תאימות בפורמט הפרופיל.
   const userDataDir = path.join(
     String(process.env.APPDATA || ""),
     "MagicSaleRunner",
-    "chromium-profile-ayalon"
+    "chromium-profile-ayalon-v2"
   );
 
   const context = await chromium.launchPersistentContext(userDataDir, {

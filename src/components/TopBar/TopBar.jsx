@@ -6,6 +6,7 @@ import { ButtonTopbar } from "../ButtonTopbar";
 import { Logo } from "../Logo";
 import "./style.css";
 import { useAuth } from "@/lib/firebase/AuthContext";
+import { usePermission } from "@/hooks/usePermission";
 import Link from "next/link";
 import { useRouter } from 'next/navigation';
 import { UserSubscriptionPopup } from "@/components/UserSubscriptionPopup/UserSubscriptionPopup";
@@ -14,6 +15,7 @@ import CustomerSearchBox from "@/components/CustomerSearch/CustomerSearchBox";
 export const TopBar = ({ prop = true, className }) => {
   const { user, detail, logOut } = useAuth();
   const router = useRouter();
+  const { canAccess: canAccessCrm } = usePermission(user ? 'access_crm_module' : null);
   const [showPopup, setShowPopup] = useState(false);
   const [showSettingsMenu, setShowSettingsMenu] = useState(false);
 
@@ -43,7 +45,7 @@ useEffect(() => {
             <Logo className="logo-instance" />
           </Link>
 
-          {prop && user && (
+          {prop && user && canAccessCrm && (
             <CustomerSearchBox agentId={detail?.agentId} />
           )}
         </div>
