@@ -23,6 +23,7 @@ import AccessDenied from "@/components/AccessDenied";
 import InstallFlowTemplateModal from "./InstallFlowTemplateModal";
 
 import {
+  archiveFlowTemplate,
   downloadFlowTemplate,
   importFlowTemplateJson,
   listFlowTemplates,
@@ -203,6 +204,42 @@ export default function MagicTouchFlowTemplatesPage() {
     }
   };
 
+const removeTemplate = async (
+  template: FlowTemplateSummary
+) => {
+  const approved =
+    window.confirm(
+      `למחוק את התבנית "${template.name}" מספריית התהליכים?\n\nתהליכים שכבר הותקנו אצל סוכנים לא יימחקו.`
+    );
+
+  if (!approved) {
+    return;
+  }
+
+  try {
+    setError("");
+    setSuccess("");
+
+    await archiveFlowTemplate(
+      template.templateId
+    );
+
+    setSuccess(
+      `התבנית "${template.name}" הוסרה מספריית התהליכים.`
+    );
+
+    await load();
+  } catch (deleteError: any) {
+    setError(
+      deleteError?.message ||
+        "מחיקת התבנית נכשלה"
+    );
+  }
+};
+
+
+
+
   if (
     isLoading ||
     isChecking
@@ -223,6 +260,11 @@ export default function MagicTouchFlowTemplatesPage() {
     return <AccessDenied />;
   }
 
+
+
+
+
+  
   return (
     <main
       dir="rtl"
@@ -425,6 +467,15 @@ export default function MagicTouchFlowTemplatesPage() {
                   הורדת JSON
                 </button>
               </div>
+<button
+  type="button"
+  onClick={() =>
+    void removeTemplate(template)
+  }
+  className="mt-2 w-full rounded-lg border border-red-200 px-3 py-2 text-sm font-medium text-red-600 transition hover:bg-red-50"
+>
+  מחיקה מהספרייה
+</button>
             </article>
           ))}
         </div>

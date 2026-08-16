@@ -11,6 +11,7 @@ import Script from 'next/script';
 import AnalyticsTracker from '@/components/AnalyticsTracker';
 import WhatsAppCta from '@/components/WhatsAppCta';
 import TaskReminderWatcher from '@/components/TaskReminderWatcher';
+import GlobalPortalOtpWatcher from '@/components/GlobalPortalOtpWatcher';
 
 const font = Rubik({ subsets: ['latin'] });
 
@@ -116,6 +117,13 @@ export default function RootLayout({
           {/* לא נריץ watcher בדף הנחיתה הציבורי */}
           {!isMagicTouchLandingPage && (
             <TaskReminderWatcher />
+          )}
+
+          {/* מודל OTP גלובלי - קופץ מכל עמוד באתר, לא רק מ-Importer.
+              מוחרג מדף ה-/otp עצמו (שם כבר יש מסך ייעודי להזנת קוד)
+              ומדף הנחיתה הציבורי, באותו דפוס כמו TaskReminderWatcher. */}
+          {!isMagicTouchLandingPage && !isOtpPage && (
+            <GlobalPortalOtpWatcher />
           )}
 
           {showTopBar && (

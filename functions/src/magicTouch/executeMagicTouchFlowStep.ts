@@ -34,6 +34,7 @@ import {
   resolveMagicTouchStringTemplate,
 } from "../shared/magicTouchAutomationValueResolver";
 
+
 export interface ExecuteStepResult {
   status:
     | "continue"

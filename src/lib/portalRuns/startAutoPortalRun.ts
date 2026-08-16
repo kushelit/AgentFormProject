@@ -14,6 +14,7 @@ export type StartAutoPortalRunParams = {
 
   source?: "portalRunner";
   triggeredFrom?: "ui";
+   reservedRunnerId?: string;
 };
 
 export async function startAutoPortalRun(params: StartAutoPortalRunParams) {
@@ -26,6 +27,7 @@ export async function startAutoPortalRun(params: StartAutoPortalRunParams) {
     monthLabel = "previous_month",
     source = "portalRunner",
     triggeredFrom = "ui",
+     reservedRunnerId,
   } = params;
 
   const ac = String(automationClass || "").trim();
@@ -36,6 +38,7 @@ export async function startAutoPortalRun(params: StartAutoPortalRunParams) {
   if (!ac) {
     throw new Error("Missing automationClass");
   }
+const reserved = String(reservedRunnerId || "").trim();
 
   const runRef = doc(collection(db, "portalImportRuns"));
   const runId = runRef.id;
@@ -54,6 +57,8 @@ export async function startAutoPortalRun(params: StartAutoPortalRunParams) {
     source,
     triggeredFrom,
 
+    ...(reserved ? { reservedRunnerId: reserved } : {}),
+    
     // 🔐 ברירת מחדל: OTP ידני בפורטל (לא מודאל במערכת)
     otp: {
       mode: "firestore", // "manual" | "firestore"

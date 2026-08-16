@@ -10,10 +10,9 @@ export default function CreateSurensePowerOfAttorneyStepEditor({ step, onConfigC
 
   return (
     <div className="space-y-5">
-      <div className="rounded-xl border border-blue-100 bg-blue-50 p-4 text-sm leading-6 text-blue-800">
-        המערכת תיקח אוטומטית את מזהה הלקוח בשורנס, תפנה ל-Make, תקבל קישור חתימה ותשמור אותו באיש הקשר.
-      </div>
-
+    <div className="rounded-xl border border-blue-100 bg-blue-50 p-4 text-sm leading-6 text-blue-800">
+  המערכת תאתר אוטומטית את הלקוח ב־Surense, תיצור קישור ייפוי כוח ותשמור אותו באיש הקשר.
+</div>
       <fieldset className="rounded-xl border border-slate-200 bg-white p-4">
         <legend className="px-2 text-sm font-bold text-slate-800">אילו ייפויי כוח ליצור?</legend>
         <div className="mt-2 grid gap-3 md:grid-cols-3">

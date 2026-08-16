@@ -32,6 +32,11 @@ import {
   refreshMicrosoftAccessToken,
 } from "./microsoftGraph";
 
+
+import {
+  addMagicTouchTimelineEvent,
+} from "./magicTouchTimelineService";
+
 function s(
   value: any
 ): string {
@@ -445,7 +450,188 @@ async function createBookingMagicTouchEvent({
     updatedAt:
       timestamp,
   });
+  const contactRef =
+  db.doc(
+    `agents/${agentId}/magic_touch_contacts/${contactId}`
+  );
 
+const bookingUpdate =
+  triggerType ===
+  "microsoft_booking_cancelled"
+    ? {
+        "engagement.reengagement.bookingStatus":
+          "cancelled",
+
+        "engagement.reengagement.bookingCancelledAt":
+          timestamp,
+
+        "engagement.reengagement.bookingAppointmentId":
+          appointmentId,
+
+        "engagement.reengagement.bookingStartAt":
+          getAppointmentStart(
+            appointment
+          ),
+
+        "engagement.reengagement.bookingEndAt":
+          getAppointmentEnd(
+            appointment
+          ),
+
+        "engagement.reengagement.bookingServiceName":
+          s(
+            appointment?.serviceName
+          ) ||
+          null,
+
+        updatedAt:
+          timestamp,
+      }
+    : {
+        "engagement.reengagement.bookingStatus":
+          "booked",
+
+        "engagement.reengagement.bookedAt":
+          timestamp,
+
+        "engagement.reengagement.bookingAppointmentId":
+          appointmentId,
+
+        "engagement.reengagement.bookingStartAt":
+          getAppointmentStart(
+            appointment
+          ),
+
+        "engagement.reengagement.bookingEndAt":
+          getAppointmentEnd(
+            appointment
+          ),
+
+        "engagement.reengagement.bookingServiceName":
+          s(
+            appointment?.serviceName
+          ) ||
+          null,
+
+        updatedAt:
+          timestamp,
+      };
+
+await contactRef.set(
+  bookingUpdate,
+  {
+    merge: true,
+  }
+);
+try {
+  const isCancelled =
+    triggerType ===
+    "microsoft_booking_cancelled";
+
+  await addMagicTouchTimelineEvent({
+    agentId,
+
+    contactId,
+
+    type:
+      isCancelled
+        ? "microsoft_booking_cancelled"
+        : "microsoft_booking_created",
+
+    channel:
+      "microsoft_bookings",
+
+    title:
+      isCancelled
+        ? "בוטלה פגישה"
+        : "נקבעה פגישה",
+
+    description:
+      s(
+        appointment?.serviceName
+      )
+        ? (
+          isCancelled
+            ? `בוטלה פגישה: ${s(appointment?.serviceName)}`
+            : `נקבעה פגישה: ${s(appointment?.serviceName)}`
+        )
+        : (
+          isCancelled
+            ? "הפגישה ב־Microsoft Bookings בוטלה."
+            : "נקבעה פגישה חדשה ב־Microsoft Bookings."
+        ),
+
+    direction:
+      "inbound",
+
+    status:
+      "completed",
+
+    createdBy:
+      "microsoft_bookings_sync",
+
+    sourceSystem:
+      "microsoft_bookings",
+
+    sourceRecordId:
+      appointmentId,
+
+    metadata: {
+      eventId,
+
+      appointmentId,
+
+      bookingBusinessId,
+
+      serviceId:
+        s(
+          appointment?.serviceId
+        ) ||
+        null,
+
+      serviceName:
+        s(
+          appointment?.serviceName
+        ) ||
+        null,
+
+      bookingStartAt:
+        getAppointmentStart(
+          appointment
+        ),
+
+      bookingEndAt:
+        getAppointmentEnd(
+          appointment
+        ),
+
+      triggerType,
+    },
+  });
+} catch (
+  timelineError: any
+) {
+  logger.error(
+    "[MicrosoftBookingsSync] Timeline event failed",
+    {
+      agentId,
+
+      contactId,
+
+      appointmentId,
+
+      triggerType,
+
+      eventId,
+
+      error:
+        timelineError?.message ||
+        String(
+          timelineError
+        ),
+    }
+  );
+}
   return {
     created: true,
     eventId,

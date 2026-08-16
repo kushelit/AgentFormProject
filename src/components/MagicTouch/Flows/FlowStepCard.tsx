@@ -14,6 +14,11 @@ import {
   getStepWarnings,
 } from "@/components/MagicTouch/Flows/StepSummary";
 
+import {
+  getSystemForStepType,
+} from "@/lib/MagicTouch/flows/flowBuilderRegistry";
+
+
 type Props = {
   flow: FlowDocument;
   stepId: string;
@@ -41,6 +46,18 @@ export default function FlowStepCard({
   const summaryLines = getStepSummaryLines(step);
   const warnings = getStepWarnings(flow, stepId, step);
   const nextStepLabel = getStepConnectionLabel(flow, step);
+
+
+  const stepSystem =
+  getSystemForStepType(
+    step.type
+  );
+
+const stepAction =
+  stepSystem?.actions.find(
+    (action) =>
+      action.stepType === step.type
+  );
 
   return (
     <article
@@ -74,11 +91,18 @@ export default function FlowStepCard({
                 </span>
               ) : null}
 
-              <span
-                className={`rounded-full px-2 py-0.5 text-xs font-semibold ${visual.badgeClassName}`}
-              >
-                {visual.label}
-              </span>
+           {stepSystem ? (
+  <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-700">
+    <span>{stepSystem.icon}</span>
+    <span>{stepSystem.label}</span>
+  </span>
+) : null}
+
+<span
+  className={`rounded-full px-2 py-0.5 text-xs font-semibold ${visual.badgeClassName}`}
+>
+  {stepAction?.label || visual.label}
+</span>
             </span>
 
             <span className="mt-2 block truncate text-base font-bold text-slate-900">

@@ -31,6 +31,12 @@ import {
   sendSurenseActivity,
 } from "../../shared/surenseActivityService";
 
+
+import {
+  addMagicTouchTimelineEvent,
+} from "../../shared/magicTouchTimelineService";
+
+
 function s(
   value: any
 ): string {
@@ -208,6 +214,83 @@ export async function executeSyncSurenseActivityStep({
         timestamp,
     });
 
+    try {
+  await addMagicTouchTimelineEvent({
+    agentId:
+      context.agentId,
+
+    contactId,
+
+    type:
+      "surense_workflow_closed",
+
+    channel:
+      "surense",
+
+    title:
+      "תהליך Surense נסגר",
+
+    description:
+      note,
+
+    direction:
+      "outbound",
+
+    status:
+      "completed",
+
+    createdBy:
+      "magic_touch_automation",
+
+    sourceSystem:
+      "surense",
+
+    sourceRecordId:
+      surenseWorkflowId ||
+      surenseId,
+
+    metadata: {
+      flowRunId:
+        context.run.runId,
+
+      flowId:
+        context.flow.flowId,
+
+      eventId:
+        context.run.eventId,
+
+      stepId:
+        step.id,
+
+      surenseCustomerId:
+        surenseId,
+
+      surenseWorkflowId,
+
+      activityType,
+
+      workflowStatus,
+    },
+  });
+} catch (timelineError: any) {
+  console.error(
+    "[executeSyncSurenseActivityStep] Timeline event failed",
+    {
+      agentId:
+        context.agentId,
+
+      contactId,
+
+      surenseId,
+
+      surenseWorkflowId,
+
+      error:
+        timelineError?.message ||
+        String(timelineError),
+    }
+  );
+}
     return {
       status:
         step.nextStepId

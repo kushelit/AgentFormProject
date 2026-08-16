@@ -15,7 +15,6 @@ import type {
 import FlowNode from "./FlowNode";
 import FlowConnector from "./FlowConnector";
 import FlowStepDrawer from "./FlowStepDrawer";
-import { STEP_TYPES } from "./FlowStepCatalog";
 
 type Props = {
   value: FlowDocument;
@@ -397,11 +396,11 @@ export default function FlowStepsEditor({
             </div>
           </div>
 
-          <FlowConnector
-            options={STEP_TYPES}
-            onAdd={(type) => addStepAfter(type, null)}
-          />
-
+       <FlowConnector
+  onAdd={(type) =>
+    addStepAfter(type, null)
+  }
+/>
           {orderedStepIds.length === 0 ? (
             <div className="w-full max-w-lg rounded-3xl border-2 border-dashed border-slate-300 bg-white/80 p-10 text-center">
               <div className="text-4xl">⚙️</div>
@@ -442,10 +441,14 @@ export default function FlowStepsEditor({
                   />
 
                   {step.type !== "end" ? (
-                    <FlowConnector
-                      options={STEP_TYPES}
-                      onAdd={(type) => addStepAfter(type, stepId)}
-                    />
+                 <FlowConnector
+  onAdd={(type) =>
+    addStepAfter(
+      type,
+      stepId
+    )
+  }
+/>
                   ) : null}
                 </React.Fragment>
               );

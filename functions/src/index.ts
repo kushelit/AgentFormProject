@@ -274,3 +274,7 @@ export {
 export {
   runSurenseCustomerImport,
 } from "./runSurenseCustomerImport";
+
+export {
+  archiveMagicTouchFlowTemplate,
+} from "./archiveMagicTouchFlowTemplate";

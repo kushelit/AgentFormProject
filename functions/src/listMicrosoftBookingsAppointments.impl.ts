@@ -14,6 +14,10 @@ import {
   refreshMicrosoftAccessToken,
 } from "./shared/microsoftGraph";
 
+import {
+  assertMagicTouchJobsAdmin,
+} from "./shared/magicTouchJobs/jobPermissions";
+
 function s(value: unknown): string {
   return String(value ?? "").trim();
 }
@@ -80,12 +84,9 @@ export async function listMicrosoftBookingsAppointmentsImpl(input: {
   uid: string | null;
   agentId: unknown;
 }): Promise<Record<string, unknown>> {
-  if (!input.uid) {
-    throw new HttpsError(
-      "unauthenticated",
-      "A signed-in user is required"
-    );
-  }
+await assertMagicTouchJobsAdmin(
+  input.uid
+);
 
   const agentId = s(input.agentId);
 

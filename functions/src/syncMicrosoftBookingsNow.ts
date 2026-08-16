@@ -3,41 +3,47 @@
 
 import {
   onCall,
-  HttpsError,
 } from "firebase-functions/v2/https";
 
-import { FUNCTIONS_REGION } from "./shared/region";
+import {
+  FUNCTIONS_REGION,
+} from "./shared/region";
+
 import {
   MICROSOFT_CLIENT_ID,
   MICROSOFT_CLIENT_SECRET,
   PORTAL_ENC_KEY_B64,
 } from "./shared/secrets";
 
-export const syncMicrosoftBookingsNow = onCall(
-  {
-    region: FUNCTIONS_REGION,
-    secrets: [
-      MICROSOFT_CLIENT_ID,
-      MICROSOFT_CLIENT_SECRET,
-      PORTAL_ENC_KEY_B64,
-    ],
-    timeoutSeconds: 300,
-    memory: "512MiB",
-  },
-  async (req) => {
-    const agentId = req.auth?.uid;
+export const syncMicrosoftBookingsNow =
+  onCall(
+    {
+      region: FUNCTIONS_REGION,
 
-    if (!agentId) {
-      throw new HttpsError(
-        "unauthenticated",
-        "Login required"
-      );
+      secrets: [
+        MICROSOFT_CLIENT_ID,
+        MICROSOFT_CLIENT_SECRET,
+        PORTAL_ENC_KEY_B64,
+      ],
+
+      timeoutSeconds: 300,
+
+      memory: "512MiB",
+    },
+
+    async (request) => {
+      const mod =
+        await import(
+          "./syncMicrosoftBookingsNow.impl"
+        );
+
+      return mod.syncMicrosoftBookingsNowImpl({
+        uid:
+          request.auth?.uid ||
+          null,
+
+        agentId:
+          request.data?.agentId,
+      });
     }
-
-    const mod = await import(
-      "./syncMicrosoftBookingsNow.impl"
-    );
-
-    return mod.syncMicrosoftBookingsNowImpl(agentId);
-  }
-);
+  );

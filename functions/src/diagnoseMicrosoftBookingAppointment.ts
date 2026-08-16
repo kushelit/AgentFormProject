@@ -3,7 +3,6 @@
 
 import {
   onCall,
-  HttpsError,
 } from "firebase-functions/v2/https";
 
 import {
@@ -36,44 +35,26 @@ export const diagnoseMicrosoftBookingAppointment =
     },
 
     async (
-      req
+      request
     ) => {
-      const agentId =
-        String(
-          req.auth?.uid ??
-          ""
-        ).trim();
-
-      if (!agentId) {
-        throw new HttpsError(
-          "unauthenticated",
-          "Login required"
-        );
-      }
-
-      const appointmentId =
-        String(
-          req.data
-            ?.appointmentId ??
-          ""
-        ).trim();
-
-      if (!appointmentId) {
-        throw new HttpsError(
-          "invalid-argument",
-          "Missing appointmentId"
-        );
-      }
-
       const mod =
         await import(
           "./diagnoseMicrosoftBookingAppointment.impl"
         );
 
       return mod
-        .diagnoseMicrosoftBookingAppointmentImpl(
-          agentId,
-          appointmentId
-        );
+        .diagnoseMicrosoftBookingAppointmentImpl({
+          uid:
+            request.auth?.uid ||
+            null,
+
+          agentId:
+            request.data
+              ?.agentId,
+
+          appointmentId:
+            request.data
+              ?.appointmentId,
+        });
     }
   );

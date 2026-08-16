@@ -28,7 +28,7 @@ function s(value: unknown): string {
 export function getStepTypeLabel(step: FlowStep): string {
   switch (step.type) {
     case "request_documents":
-      return "בקשת מסמכים";
+       return "בקשת צילום תעודת זהות";
     case "send_whatsapp":
       return "שליחת WhatsApp";
     case "update_contact":

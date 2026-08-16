@@ -6,12 +6,12 @@ export type MagicTouchNavigationItem = {
 };
 
 const magicTouchPages: MagicTouchNavigationItem[] = [
-  {
-    href: '/MagicTouch',
-    label: 'דשבורד',
-    icon: '🏠',
-    permission: 'access_magic_touch',
-  },
+  // {
+  //   href: '/MagicTouch',
+  //   label: 'דשבורד',
+  //   icon: '🏠',
+  //   permission: 'access_magic_touch',
+  // },
   {
     href: '/MagicTouch/Contacts',
     label: 'אנשי קשר',
@@ -24,37 +24,19 @@ const magicTouchPages: MagicTouchNavigationItem[] = [
     icon: '💬',
   permission: 'access_magic_touch',
   },
-  {
-    href: '/MagicTouch/Campaigns',
-    label: 'קמפיינים',
-    icon: '📣',
-    permission: 'access_magic_touch_campaigns',
-  },
-  {
-  href: '/MagicTouch/Runs',
-  label: 'הרצות תהליכים',
-  icon: '📋',
-  permission: 'access_magic_touch',
-},
-  {
+  // {
+  //   href: '/MagicTouch/Campaigns',
+  //   label: 'קמפיינים',
+  //   icon: '📣',
+  //   permission: 'access_magic_touch_campaigns',
+  // },
+    {
     href: '/MagicTouch/Flows',
     label: 'אוטומציות',
     icon: '⚡',
     permission: 'access_magic_touch',
   },
-  {
-  href: '/MagicTouch/Monitor',
-  label: 'מעקב ובקרה',
-  icon: '📊',
-  permission: 'access_magic_touch',
-},
-  {
-    href: '/MagicTouch/Appointments',
-    label: 'פגישות',
-    icon: '📅',
-    permission: 'access_magic_touch_appointments',
-  },
-  {
+   {
     href: '/MagicTouch/Templates',
     label: 'תבניות',
     icon: '📝',
@@ -66,18 +48,37 @@ const magicTouchPages: MagicTouchNavigationItem[] = [
   icon: '🔗',
   permission: 'access_magic_touch',
 },
+  {
+  href: '/MagicTouch/Runs',
+  label: 'הרצות תהליכים',
+  icon: '📋',
+  permission: 'access_magic_touch',
+},
 {
   href: '/MagicTouch/Monitor/Jobs',
   label: 'עיבודים',
   icon: '🗂️',
   permission: 'access_magic_touch_jobs_admin',
 },
-  {
-    href: '/MagicTouch/Settings',
-    label: 'הגדרות',
-    icon: '⚙️',
-    permission: 'access_magic_touch_settings',
-  },
+//   {
+//   href: '/MagicTouch/Monitor',
+//   label: 'מעקב ובקרה',
+//   icon: '📊',
+//   permission: 'access_magic_touch',
+// },
+  // {
+  //   href: '/MagicTouch/Appointments',
+  //   label: 'פגישות',
+  //   icon: '📅',
+  //   permission: 'access_magic_touch_appointments',
+  // },
+
+  // {
+  //   href: '/MagicTouch/Settings',
+  //   label: 'הגדרות',
+  //   icon: '⚙️',
+  //   permission: 'access_magic_touch_settings',
+  // },
 ];
 
 export default magicTouchPages;

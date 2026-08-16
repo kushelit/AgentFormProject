@@ -17,7 +17,9 @@ import {
   getStepTypeLabel,
 } from "./FlowStepSummary";
 
-
+import {
+  getSystemForStepType,
+} from "@/lib/MagicTouch/flows/flowBuilderRegistry";
 
 type Props = {
   open: boolean;
@@ -61,6 +63,18 @@ export default function FlowStepDrawer({
 
   const stepId = step.id;
 
+  const stepSystem =
+  getSystemForStepType(
+    step.type
+  );
+
+const stepAction =
+  stepSystem?.actions.find(
+    (action) =>
+      action.stepType ===
+      step.type
+  );
+
   return (
     <div className="fixed inset-0 z-[60]" dir="rtl">
       <button
@@ -78,17 +92,37 @@ export default function FlowStepDrawer({
                 {getStepIcon(step)}
               </div>
 
-              <div>
-                <div className="text-xs font-semibold text-blue-600">
-                  {getStepTypeLabel(step)}
-                </div>
-                <h2 className="mt-1 text-xl font-bold text-slate-900">
-                  {step.name || "עריכת שלב"}
-                </h2>
-                <p className="mt-1 text-xs text-slate-400" dir="ltr">
-                  {step.id}
-                </p>
-              </div>
+          <div>
+  <div className="mb-2 flex flex-wrap items-center gap-2">
+    {stepSystem ? (
+      <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
+        <span>
+          {stepSystem.icon}
+        </span>
+
+        <span>
+          {stepSystem.label}
+        </span>
+      </span>
+    ) : null}
+
+    <span className="inline-flex rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
+      {stepAction?.label ||
+        getStepTypeLabel(step)}
+    </span>
+  </div>
+
+  <h2 className="text-xl font-bold text-slate-900">
+    {step.name || "עריכת שלב"}
+  </h2>
+
+  <p
+    className="mt-1 text-xs text-slate-400"
+    dir="ltr"
+  >
+    {step.id}
+  </p>
+</div>
             </div>
 
             <button
@@ -216,22 +250,28 @@ export default function FlowStepDrawer({
                 />
               ) : null}
 
-              {step.type === "end" ? (
-                <label>
-                  <span className="mb-2 block text-sm font-semibold text-slate-700">
-                    הודעת סיום פנימית
-                  </span>
-                  <input
-                    className={fieldClass}
-                    value={String(step.config?.message || "")}
-                    onChange={(event) =>
-                      onUpdateConfig(stepId, {
-                        message: event.target.value,
-                      })
-                    }
-                  />
-                </label>
-              ) : null}
+         {step.type === "end" ? (
+  <label>
+    <span className="mb-2 block text-sm font-semibold text-slate-700">
+      הערת סיום פנימית
+    </span>
+
+    <input
+      className={fieldClass}
+      value={String(step.config?.message || "")}
+      onChange={(event) =>
+        onUpdateConfig(stepId, {
+          message: event.target.value,
+        })
+      }
+      placeholder="לדוגמה: התהליך הסתיים בהצלחה"
+    />
+
+    <span className="mt-2 block text-xs text-slate-400">
+      ההערה נשמרת בריצת התהליך בלבד ואינה נשלחת ללקוח.
+    </span>
+  </label>
+) : null}
             </section>
           </div>
         </div>

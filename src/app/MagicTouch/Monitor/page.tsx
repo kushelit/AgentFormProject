@@ -34,6 +34,8 @@ import {
   usePermission,
 } from "@/hooks/usePermission";
 
+import MonitorTabs from "@/components/MagicTouch/Monitor/MonitorTabs";
+
 type PowerOfAttorneyStatus =
   | "waiting_for_signature"
   | "partially_signed"
@@ -243,11 +245,11 @@ export default function MagicTouchMonitorPage() {
     canAccess,
     isChecking,
   } =
-    usePermission(
-      user
-        ? "access_magic_touch"
-        : null
-    );
+ usePermission(
+  user
+    ? "access_magic_touch_jobs_admin"
+    : null
+);
 
   const {
     selectedAgentId,
@@ -769,16 +771,16 @@ export default function MagicTouchMonitorPage() {
       className="min-h-screen bg-slate-50 px-4 py-6 text-right sm:px-6"
     >
       <div className="mx-auto max-w-7xl space-y-6">
+        <MonitorTabs />
         <header className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <div className="text-sm font-semibold text-blue-600">
-              MagicTouch
-            </div>
+       <div className="text-sm font-semibold text-blue-600">
+  MagicTouch · עיבודים וכלי מערכת
+</div>
 
-            <h1 className="mt-1 text-3xl font-bold text-slate-900">
-              Monitor
-            </h1>
-
+<h1 className="mt-1 text-3xl font-bold text-slate-900">
+  מעקב ייפויי כוח
+</h1>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">
               מעקב תפעולי אחר ייפויי כוח, בדיקות חתימה
               ותהליכים שממתינים לפעולה.

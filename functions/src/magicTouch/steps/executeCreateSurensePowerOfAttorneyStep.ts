@@ -9,6 +9,10 @@ import type { MagicTouchExecutionContext, MagicTouchFlowStep } from "../../share
 import type { ExecuteStepResult } from "../executeMagicTouchFlowStep";
 import { executeSurenseAction } from "../../shared/surenseIntegrationService";
 
+import {
+  addMagicTouchTimelineEvent,
+} from "../../shared/magicTouchTimelineService";
+
 const s = (v: any): string => String(v ?? "").trim();
 const asRecord = (v: unknown): Record<string, any> => v && typeof v === "object" && !Array.isArray(v) ? v as Record<string, any> : {};
 const first = (...values: unknown[]): string => values.map(s).find(Boolean) || "";
@@ -85,6 +89,90 @@ export async function executeCreateSurensePowerOfAttorneyStep({ context, step }:
   await contactRef.update({ [statusPath]: value, updatedAt: requestedAt });
   if (!context.contact) context.contact = contact;
   setNestedValue(context.contact as Record<string, any>, statusPath, value);
+
+  try {
+  await addMagicTouchTimelineEvent({
+    agentId:
+      context.agentId,
+
+    contactId,
+
+    type:
+      "surense_power_of_attorney_created",
+
+    channel:
+      "surense",
+
+    title:
+      "נוצר קישור ייפוי כוח",
+
+    description:
+      "נוצר קישור ייפוי כוח ב־Surense וממתין לחתימת הלקוח.",
+
+    direction:
+      "outbound",
+
+    status:
+      "completed",
+
+    createdBy:
+      "magic_touch_automation",
+
+    sourceSystem:
+      "surense",
+
+    sourceRecordId:
+      requestId,
+
+    metadata: {
+      flowRunId:
+        context.run.runId,
+
+      flowId:
+        context.flow.flowId,
+
+      eventId:
+        context.run.eventId,
+
+      stepId:
+        step.id,
+
+      surenseCustomerId,
+
+      requestId,
+
+      status:
+        "waiting_for_signature",
+
+      included: {
+        hb:
+          includeHb,
+
+        policies:
+          includePolicies,
+
+        swiftness:
+          includeSwiftness,
+      },
+    },
+  });
+} catch (timelineError: any) {
+  console.error(
+    "[executeCreateSurensePowerOfAttorneyStep] Timeline event failed",
+    {
+      agentId:
+        context.agentId,
+
+      contactId,
+
+      requestId,
+
+      error:
+        timelineError?.message ||
+        String(timelineError),
+    }
+  );
+}
 
   return {
     status: step.nextStepId ? "continue" : "completed",

@@ -11,19 +11,38 @@ export type FlowTriggerDefinition = {
   type: string;
   label: string;
   description?: string;
+  active: boolean;
 };
 
 export type FlowActionDefinition = {
-  type: StepType;
+  id: string;
+
+  /*
+   * stepType קיים רק כאשר ה-Flow Engine
+   * כבר יודע להריץ את הפעולה.
+   *
+   * פעולה עתידית יכולה להיות מוגדרת ב-Registry
+   * עם active:false בלי להוסיף StepType שעדיין
+   * לא קיים ב-Engine.
+   */
+  stepType?: StepType;
+
   label: string;
   description: string;
   icon: string;
+
+  /*
+   * האם ניתן כרגע לבחור את הפעולה
+   * בבונה התהליכים.
+   */
+  active: boolean;
 };
 
 export type FlowSystemDefinition = {
   id: FlowSystemId;
   label: string;
   icon: string;
+
   triggers: FlowTriggerDefinition[];
   actions: FlowActionDefinition[];
 };
@@ -38,22 +57,28 @@ export const FLOW_SYSTEMS: FlowSystemDefinition[] = [
       {
         type: "whatsapp_message_received",
         label: "התקבלה הודעה",
-        description: "הלקוח שלח הודעת WhatsApp",
+        description:
+          "הלקוח שלח הודעת WhatsApp",
+        active: true,
       },
       {
         type: "whatsapp_quick_reply_received",
         label: "התקבלה תשובה לתבנית",
         description:
           "הלקוח בחר תשובה מתוך תבנית WhatsApp שנשלחה אליו",
+        active: true,
       },
     ],
 
     actions: [
       {
-        type: "send_whatsapp",
+        id: "send_whatsapp",
+        stepType: "send_whatsapp",
         label: "שליחת הודעה",
-        description: "שליחת הודעת WhatsApp ללקוח",
+        description:
+          "שליחת הודעת WhatsApp ללקוח",
         icon: "💬",
+        active: true,
       },
     ],
   },
@@ -67,15 +92,24 @@ export const FLOW_SYSTEMS: FlowSystemDefinition[] = [
       {
         type: "microsoft_booking_created",
         label: "נקבעה פגישה",
-        description: "נוצרה פגישה חדשה ב־Microsoft Bookings",
+        description:
+          "נוצרה פגישה חדשה ב־Microsoft Bookings",
+        active: true,
       },
       {
         type: "microsoft_booking_cancelled",
         label: "בוטלה פגישה",
-        description: "פגישה קיימת בוטלה ב־Microsoft Bookings",
+        description:
+          "פגישה קיימת בוטלה ב־Microsoft Bookings",
+        active: true,
       },
     ],
 
+    /*
+     * כרגע MagicTouch מקבל אירועים מ-Bookings,
+     * אבל אין לנו Step שמבצע פעולה ישירות
+     * בתוך Microsoft Bookings.
+     */
     actions: [],
   },
 
@@ -84,22 +118,50 @@ export const FLOW_SYSTEMS: FlowSystemDefinition[] = [
     label: "Surense",
     icon: "🔄",
 
+    /*
+     * בדיקות חתימה / getCustomer הן Jobs פנימיים
+     * ולא Trigger שהמיישם צריך לבנות כרגע.
+     */
     triggers: [],
 
     actions: [
       {
-        type: "sync_surense_activity",
+        id: "create_surense_workflow",
+        label: "יצירת תהליך",
+        description:
+          "יצירת Workflow חדש ב־Surense",
+        icon: "➕",
+        active: false,
+      },
+
+      {
+        id: "update_surense_workflow",
         label: "עדכון תהליך",
         description:
-          "עדכון פעילות או סטטוס בתהליך קיים ב־Surense",
-        icon: "🔄",
+          "עדכון Workflow קיים ב־Surense",
+        icon: "✏️",
+        active: false,
       },
+
       {
-        type: "create_surense_power_of_attorney",
+        id: "close_surense_workflow",
+        stepType: "sync_surense_activity",
+        label: "סגירת תהליך",
+        description:
+          "סגירת Workflow קיים ב־Surense",
+        icon: "✅",
+        active: true,
+      },
+
+      {
+        id: "create_surense_power_of_attorney",
+        stepType:
+          "create_surense_power_of_attorney",
         label: "יצירת ייפוי כוח",
         description:
           "יצירת קישור ייפוי כוח דרך Surense ושמירתו באיש הקשר",
         icon: "✍️",
+        active: true,
       },
     ],
   },
@@ -113,32 +175,54 @@ export const FLOW_SYSTEMS: FlowSystemDefinition[] = [
 
     actions: [
       {
-        type: "request_documents",
-        label: "בקשת מסמכים",
+        id: "condition",
+        stepType: "condition",
+        label: "תנאי",
         description:
-          "שליחת קישור מאובטח ללקוח להעלאת מסמכים",
-        icon: "🪪",
+          "פיצול המסלול לפי ערך או מצב בתהליך",
+        icon: "🔀",
+        active: false,
       },
+
+     {
+  id: "request_documents",
+  stepType: "request_documents",
+  label: "בקשת צילום תעודת זהות",
+  description:
+    "שליחת קישור מאובטח ללקוח להעלאת צילום הצד הקדמי והצד האחורי של תעודת הזהות",
+  icon: "🪪",
+  active: true,
+},
+
       {
-        type: "update_contact",
+        id: "update_contact",
+        stepType: "update_contact",
         label: "עדכון איש קשר",
         description:
           "עדכון סטטוסים, מועדים ונתוני תהליך באיש הקשר",
         icon: "👤",
+        active: true,
       },
+
       {
-        type: "add_timeline_event",
+        id: "add_timeline_event",
+        stepType: "add_timeline_event",
         label: "הוספת תיעוד מותאם אישית",
         description:
           "הוספת הערה או אירוע עסקי לציר הזמן",
         icon: "📝",
+        active: true,
       },
-      {
-        type: "end",
-        label: "סיום",
-        description: "סיום מסלול האוטומציה",
-        icon: "🏁",
-      },
+
+   {
+  id: "end",
+  stepType: "end",
+  label: "סיום המסלול",
+  description:
+    "סיום הריצה וסימון התהליך כהושלם",
+  icon: "🏁",
+  active: true,
+},
     ],
   },
 
@@ -147,6 +231,10 @@ export const FLOW_SYSTEMS: FlowSystemDefinition[] = [
     label: "MagicSale",
     icon: "✨",
 
+    /*
+     * המערכת כבר מוכרת ל-Builder,
+     * אבל עדיין לא חשפנו Events או Actions.
+     */
     triggers: [],
     actions: [],
   },
@@ -156,26 +244,31 @@ export function getFlowSystem(
   systemId: string | undefined
 ): FlowSystemDefinition | undefined {
   return FLOW_SYSTEMS.find(
-    (system) => system.id === systemId
+    (system) =>
+      system.id === systemId
   );
 }
 
 export function getSystemForTrigger(
   triggerType: string
 ): FlowSystemDefinition | undefined {
-  return FLOW_SYSTEMS.find((system) =>
-    system.triggers.some(
-      (trigger) => trigger.type === triggerType
-    )
+  return FLOW_SYSTEMS.find(
+    (system) =>
+      system.triggers.some(
+        (trigger) =>
+          trigger.type === triggerType
+      )
   );
 }
 
 export function getSystemForStepType(
   stepType: StepType
 ): FlowSystemDefinition | undefined {
-  return FLOW_SYSTEMS.find((system) =>
-    system.actions.some(
-      (action) => action.type === stepType
-    )
+  return FLOW_SYSTEMS.find(
+    (system) =>
+      system.actions.some(
+        (action) =>
+          action.stepType === stepType
+      )
   );
 }

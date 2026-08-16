@@ -487,8 +487,95 @@ export async function sendWhatsAppConversationText({
         }
       );
 
-    try {
-      await addMagicTouchTimelineEvent({
+   if (
+  source !==
+  "magic_touch_document_request"
+) {
+  try {
+    await addMagicTouchTimelineEvent({
+      agentId:
+        normalizedAgentId,
+
+      contactId:
+        magicTouchContact
+          .contactId,
+
+      type:
+        "whatsapp_message_sent",
+
+      channel:
+        "whatsapp",
+
+      title:
+        source ===
+        "magic_touch_automation"
+          ? "נשלחה הודעת WhatsApp אוטומטית"
+          : "נשלחה הודעת WhatsApp",
+
+      description:
+        normalizedText,
+
+      direction:
+        "outbound",
+
+      status:
+        "completed",
+
+      createdBy:
+        normalizedSentBy,
+
+      sourceSystem:
+        source ===
+        "user"
+          ? "whatsapp"
+          : "magic_touch",
+
+      sourceRecordId:
+        waMessageId,
+
+      metadata: {
+        waMessageId,
+
+        conversationId:
+          normalizedConversationId,
+
+        phoneNumberId,
+
+        customerPhone,
+
+        sentByName:
+          safeString(
+            sentByName
+          ) ||
+          null,
+
+        source,
+
+        flowRunId:
+          safeString(
+            flowRunId
+          ) ||
+          null,
+
+        flowId:
+          safeString(
+            flowId
+          ) ||
+          null,
+
+        eventId:
+          safeString(
+            eventId
+          ) ||
+          null,
+      },
+    });
+  } catch (
+    timelineError: any
+  ) {
+    console.error(
+      "[sendWhatsAppConversationText] Timeline event failed",
+      {
         agentId:
           normalizedAgentId,
 
@@ -496,108 +583,23 @@ export async function sendWhatsAppConversationText({
           magicTouchContact
             .contactId,
 
-        type:
-          "whatsapp_message_sent",
+        conversationId:
+          normalizedConversationId,
 
-        channel:
-          "whatsapp",
+        waMessageId,
 
-       title:
-  source ===
-  "magic_touch_document_request"
-    ? "נשלחה בקשת מסמכים ב-WhatsApp"
-    : source ===
-      "magic_touch_automation"
-      ? "נשלחה הודעת WhatsApp אוטומטית"
-      : "נשלחה הודעת WhatsApp",
+        source,
 
-        description:
-          normalizedText,
-
-        direction:
-          "outbound",
-
-        status:
-          "completed",
-
-        createdBy:
-          normalizedSentBy,
-
-      sourceSystem:
-  source ===
-  "user"
-    ? "whatsapp"
-    : "magic_touch",
-    
-        sourceRecordId:
-          waMessageId,
-
-        metadata: {
-          waMessageId,
-
-          conversationId:
-            normalizedConversationId,
-
-          phoneNumberId,
-
-          customerPhone,
-
-          sentByName:
-            safeString(
-              sentByName
-            ) ||
-            null,
-
-          source,
-
-          flowRunId:
-            safeString(
-              flowRunId
-            ) ||
-            null,
-
-          flowId:
-            safeString(
-              flowId
-            ) ||
-            null,
-
-          eventId:
-            safeString(
-              eventId
-            ) ||
-            null,
-        },
-      });
-    } catch (
-      timelineError: any
-    ) {
-      console.error(
-        "[sendWhatsAppConversationText] Timeline event failed",
-        {
-          agentId:
-            normalizedAgentId,
-
-          contactId:
-            magicTouchContact
-              .contactId,
-
-          conversationId:
-            normalizedConversationId,
-
-          waMessageId,
-
-          source,
-
-          error:
+        error:
+          timelineError
+            ?.message ||
+          String(
             timelineError
-              ?.message ||
-            String(
-              timelineError
-            ),
-        }
-      );
-    }
+          ),
+      }
+    );
+  }
+}
   } else {
     console.warn(
       "[sendWhatsAppConversationText] Magic Touch contact not found",

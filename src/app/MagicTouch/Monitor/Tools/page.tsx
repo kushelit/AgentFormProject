@@ -2,29 +2,11 @@
 
 import React from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
 
 import { useAuth } from "@/lib/firebase/AuthContext";
 import { usePermission } from "@/hooks/usePermission";
 import AccessDenied from "@/components/AccessDenied";
-
-const monitorTabs = [
-  {
-    href: "/MagicTouch/Monitor",
-    label: "ייפויי כוח",
-    icon: "✍️",
-  },
-  {
-    href: "/MagicTouch/Monitor/Jobs",
-    label: "עיבודים",
-    icon: "🕒",
-  },
-  {
-    href: "/MagicTouch/Monitor/Tools",
-    label: "כלי בדיקה",
-    icon: "🧪",
-  },
-];
+import MonitorTabs from "@/components/MagicTouch/Monitor/MonitorTabs";
 
 const tools = [
   {
@@ -93,7 +75,8 @@ const tools = [
 
   {
     href:
-  "/MagicTouch/Tools/TestContactReset",
+      "/MagicTouch/Tools/TestContactReset",
+
     title:
       "איפוס נתוני לקוח לבדיקה",
 
@@ -122,61 +105,6 @@ const tools = [
       "text-rose-700",
   },
 ];
-
-function MonitorTabs() {
-  const pathname =
-    usePathname();
-
-  return (
-    <nav
-      aria-label="מעקב ובקרה"
-      className="flex flex-wrap gap-2 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm"
-    >
-      {monitorTabs.map(
-        (
-          tab
-        ) => {
-          const active =
-            tab.href ===
-              "/MagicTouch/Monitor"
-              ? pathname ===
-                tab.href
-              : pathname.startsWith(
-                tab.href
-              );
-
-          return (
-            <Link
-              key={
-                tab.href
-              }
-              href={
-                tab.href
-              }
-              className={[
-                "inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold transition",
-
-                active
-                  ? "bg-blue-600 text-white shadow-sm"
-                  : "text-slate-700 hover:bg-slate-100",
-              ].join(" ")}
-            >
-              <span
-                aria-hidden="true"
-              >
-                {tab.icon}
-              </span>
-
-              <span>
-                {tab.label}
-              </span>
-            </Link>
-          );
-        }
-      )}
-    </nav>
-  );
-}
 
 export default function MagicTouchMonitorToolsPage() {
   const {
@@ -209,9 +137,7 @@ export default function MagicTouchMonitorToolsPage() {
     );
   }
 
-  if (
-    !canAccess
-  ) {
+  if (!canAccess) {
     return (
       <AccessDenied />
     );
@@ -227,7 +153,7 @@ export default function MagicTouchMonitorToolsPage() {
 
         <header>
           <div className="text-sm font-semibold text-blue-600">
-            MagicTouch · מעקב ובקרה
+            MagicTouch · עיבודים וכלי מערכת
           </div>
 
           <h1 className="mt-1 text-3xl font-bold text-slate-900">

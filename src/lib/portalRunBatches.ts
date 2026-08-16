@@ -24,6 +24,7 @@ type CreatePortalBatchInput = {
   monthLabel?: string;
   source?: string;
   triggeredFrom?: string;
+  reservedRunnerId?: string;
 };
 
 function s(v: unknown) {
@@ -37,9 +38,12 @@ export async function createPortalRunBatch({
   monthLabel = "previous_month",
   source = "portalRunner",
   triggeredFrom = "ui_batch",
+  reservedRunnerId,
 }: CreatePortalBatchInput) {
   if (!agentId) throw new Error("Missing agentId");
   if (!companies.length) throw new Error("No companies selected");
+
+  const reserved = s(reservedRunnerId);
 
   const batchRef = doc(collection(db, "portalRunBatches"));
   const wb = writeBatch(db);
@@ -58,7 +62,9 @@ export async function createPortalRunBatch({
     triggeredFrom,
     companyIds: companies.map((c) => s(c.id)),
     companyNames: companies.map((c) => s(c.name)),
+    ...(reserved ? { reservedRunnerId: reserved } : {}),
   });
+ 
 
   companies.forEach((company, index) => {
     const companyId = s(company.id);
@@ -94,9 +100,10 @@ export async function createPortalRunBatch({
       batchMode: "sequential",
       batchOrder: index + 1,
       batchTotal: companies.length,
-       ...(company.requestedReportMonth
+     ...(company.requestedReportMonth
     ? { requestedReportMonth: company.requestedReportMonth }
     : {}),
+      ...(reserved ? { reservedRunnerId: reserved } : {}),
     });
   });
 

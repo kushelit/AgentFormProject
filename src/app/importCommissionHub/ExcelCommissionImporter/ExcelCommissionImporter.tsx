@@ -31,10 +31,7 @@ import { add } from "date-fns";
 import {ToastNotification} from '@/components/ToastNotification'
 import { deleteDoc } from 'firebase/firestore';
 import { startAutoPortalRun } from "@/lib/portalRuns/startAutoPortalRun";
-import PortalRunOtpModal from "@/components/PortalRunOtpModal";
-// import { triggerPortalRun } from "@/lib/portalRuns/triggerPortalRun";
 import PortalRunStatus from "@/components/PortalRuns/PortalRunStatus";
-// import { isCloudMode } from "@/lib/portalRuns/runnerMode";
 import { usePermission } from "@/hooks/usePermission";
 
 import { recomputeSummariesFromExternalManual } from "@/utils/manualCommissionRecompute";
@@ -244,6 +241,7 @@ handledFinishedRunRef.current = '';
       monthLabel: 'previous_month',
       source: 'portalRunner',
       triggeredFrom: 'ui',
+      reservedRunnerId: currentRunnerId || undefined,
     });
 
     setAutoRunId(runId);
@@ -323,6 +321,7 @@ useEffect(() => {
 // --- לוגיקת ניהול ה-Runner (OTA & Download) ---
 const [latestRunnerVersion, setLatestRunnerVersion] = useState<string>("");
 const [currentRunnerVersion, setCurrentRunnerVersion] = useState<string>("");
+const [currentRunnerId, setCurrentRunnerId] = useState<string>("");
 const [installerUrl, setInstallerUrl] = useState<string>("");
 const needsManualUpgrade =
   currentRunnerVersion === "2.0.0" ||
@@ -569,41 +568,6 @@ setBatchCompanyStatuses(newStatuses);
   return () => unsub();
 }, [activeBatchId, isAutoRunActive]);
 
-// const handleStartAuto = async () => {
-//   if (!selectedAgentId || !selectedCompanyId) return;
-
-//   setIsStartingAuto(true);
-//   setIsAutoRunActive(true);
-
-//   try {
-//     // לוקח את ה-Class מהחברה (או מהתבנית אם אין לחברה)
-//     const finalAutomationClass = effectiveAutomationClass;
-
-//     const portalId = selectedCompany?.portalId || selectedCompanyId;
-    
-//     const finalTemplateId = `bundle_${portalId}_commissions`;
-  
-
-//     const { runId } = await startAutoPortalRun({
-//       db,
-//       agentId: selectedAgentId,
-//       companyId: selectedCompanyId,
-//       templateId: finalTemplateId,
-//       automationClass: finalAutomationClass,
-//       monthLabel: "previous_month",
-//       source: "portalRunner",
-//       triggeredFrom: "ui",
-//     });
-
-//     setAutoRunId(runId);
-//     setAutoRunKind("portal");
-//   } catch (e: any) {
-//     addToast("error", `שגיאה: ${e.message}`);
-//     setIsAutoRunActive(false);
-//   } finally {
-//     setIsStartingAuto(false);
-//   }
-// };
 
 
 
@@ -2589,28 +2553,6 @@ useEffect(() => {
 
   let prevVersion = "";
 
-//   const unsub = onSnapshot(
-//     doc(db, "portalRunnerStatus", selectedAgentId),
-//     (snap) => {
-//       if (snap.exists()) {
-//         const newVersion = String(snap.data()?.runnerVersion || "").trim();
-        
-//         // אם הגרסה השתנה ויש גרסה קודמת → עדכון הסתיים
-//         if (prevVersion && newVersion && prevVersion !== newVersion) {
-//           addToast("success", `✅ הבוט עודכן בהצלחה לגרסה ${newVersion}`);
-//           setTimeout(() => window.location.reload(), 2000);
-//         }
-
-//         prevVersion = newVersion;
-//         setCurrentRunnerVersion(newVersion);
-//       } else {
-//         setCurrentRunnerVersion("");
-//       }
-//     },
-//     () => setCurrentRunnerVersion("")
-//   );
-//   return () => unsub();
-// }, [selectedAgentId]);
 
 
 const unsub = onSnapshot(
@@ -2624,7 +2566,7 @@ const unsub = onSnapshot(
         const lastSeenAt = data?.lastSeenAt?.toDate?.() ?? null;
         const online = lastSeenAt ? (Date.now() - lastSeenAt.getTime()) < 30_000 : false;
         setIsRunnerOnline(online);
-
+setCurrentRunnerId(String(data?.runnerId || "").trim()); 
         // אם הגרסה השתנה ויש גרסה קודמת → עדכון הסתיים
         if (prevVersion && newVersion && prevVersion !== newVersion) {
           addToast("success", `✅ הבוט עודכן בהצלחה לגרסה ${newVersion}`);
@@ -2635,11 +2577,13 @@ const unsub = onSnapshot(
         setCurrentRunnerVersion(newVersion);
       } else {
         setCurrentRunnerVersion("");
+        setCurrentRunnerId("");
         setIsRunnerOnline(false);
       }
     },
     () => {
       setCurrentRunnerVersion("");
+      setCurrentRunnerId("");
       setIsRunnerOnline(false);
     }
   );
@@ -3235,6 +3179,7 @@ const singleModeReady =
   db,
   agentId: selectedAgentId,
   companies,
+   reservedRunnerId: currentRunnerId || undefined, 
 });
 
 const firstCompany = companies[0];
@@ -3739,9 +3684,6 @@ addToast(
       onChange={handleFileUpload}
       className="hidden"
     />
-
-    {autoRunId && <PortalRunOtpModal key={autoRunId} runId={autoRunId} />}
-
     {showConfirmDelete && (
       <DialogNotification
         type="warning"

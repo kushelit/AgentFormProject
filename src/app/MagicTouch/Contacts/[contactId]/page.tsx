@@ -4,19 +4,28 @@ import {
   FormEvent,
   useCallback,
   useEffect,
+  useMemo,
   useState,
 } from 'react';
 
 import Link from 'next/link';
+
 import {
   useParams,
   useSearchParams,
 } from 'next/navigation';
 
-import { httpsCallable } from 'firebase/functions';
+import {
+  httpsCallable,
+} from 'firebase/functions';
 
-import { functions } from '@/lib/firebase/firebase';
-import { useMagicTouchAgent } from '@/components/MagicTouch/MagicTouchAgentContext';
+import {
+  functions,
+} from '@/lib/firebase/firebase';
+
+import {
+  useMagicTouchAgent,
+} from '@/components/MagicTouch/MagicTouchAgentContext';
 
 type MagicTouchContact = {
   id: string;
@@ -158,6 +167,16 @@ type AddContactNoteResponse = {
   eventId: string;
 };
 
+type ActivityFilter =
+  | 'all'
+  | 'whatsapp'
+  | 'appointments'
+  | 'notes'
+  | 'process';
+
+const ACTIVITY_PREVIEW_COUNT =
+  8;
+
 function formatDateTime(
   value: unknown
 ): string {
@@ -265,9 +284,12 @@ function formatBirthDate(
   return new Intl.DateTimeFormat(
     'he-IL',
     {
-      dateStyle: 'short',
+      dateStyle:
+        'short',
     }
-  ).format(parsed);
+  ).format(
+    parsed
+  );
 }
 
 function sourceLabel(
@@ -366,6 +388,53 @@ function processStatusLabel(
   }
 }
 
+function contactStatusLabel(
+  status: string
+): string {
+  switch (
+    String(
+      status ||
+        ''
+    ).toLowerCase()
+  ) {
+    case 'active':
+      return 'פעיל';
+
+    case 'inactive':
+      return 'לא פעיל';
+
+    default:
+      return status || '—';
+  }
+}
+
+function consentStatusLabel(
+  status: string
+): string {
+  switch (
+    String(
+      status ||
+        ''
+    ).toLowerCase()
+  ) {
+    case 'granted':
+    case 'approved':
+    case 'consented':
+      return 'מאושר';
+
+    case 'denied':
+    case 'declined':
+      return 'לא מאושר';
+
+    case 'unknown':
+    case '':
+      return 'לא ידוע';
+
+    default:
+      return status;
+  }
+}
+
 function timelineIcon(
   event: TimelineEvent
 ): string {
@@ -375,19 +444,19 @@ function timelineIcon(
 
     case 'whatsapp_template_sent':
     case 'whatsapp_message_sent':
-      return '📤';
-
     case 'whatsapp_received':
-      return '📥';
+      return '💬';
 
     case 'booking_link_sent':
       return '🔗';
 
     case 'appointment_booked':
+    case 'microsoft_booking_created':
       return '📅';
 
     case 'appointment_cancelled':
-      return '❌';
+    case 'microsoft_booking_cancelled':
+      return '📅';
 
     case 'interest_updated':
       return '⭐';
@@ -395,33 +464,160 @@ function timelineIcon(
     case 'contact_created':
       return '👤';
 
+    case 'power_of_attorney_created':
+      return '✍️';
+
+    case 'document_request_created':
+      return '🪪';
+
     default:
       return '•';
   }
 }
 
-function timelineStatusLabel(
-  status: string
+function activityTypeLabel(
+  event: TimelineEvent
 ): string {
-  switch (status) {
-    case 'pending':
-      return 'ממתין';
+  switch (event.type) {
+    case 'note_added':
+      return 'הערה';
 
-    case 'failed':
-      return 'נכשל';
+    case 'whatsapp_template_sent':
+    case 'whatsapp_message_sent':
+    case 'whatsapp_received':
+      return 'WhatsApp';
 
-    case 'cancelled':
-      return 'בוטל';
+    case 'booking_link_sent':
+    case 'appointment_booked':
+    case 'microsoft_booking_created':
+    case 'appointment_cancelled':
+    case 'microsoft_booking_cancelled':
+      return 'פגישה';
+
+    case 'interest_updated':
+      return 'סטטוס';
+
+    case 'contact_created':
+      return 'לקוח';
+
+    case 'power_of_attorney_created':
+    case 'document_request_created':
+      return 'תהליך';
 
     default:
-      return 'הושלם';
+      return 'פעילות';
   }
+}
+
+function matchesActivityFilter(
+  event: TimelineEvent,
+  filter: ActivityFilter
+): boolean {
+  if (
+    filter ===
+    'all'
+  ) {
+    return true;
+  }
+
+  if (
+    filter ===
+    'whatsapp'
+  ) {
+    return (
+      event.type ===
+        'whatsapp_template_sent' ||
+      event.type ===
+        'whatsapp_message_sent' ||
+      event.type ===
+        'whatsapp_received'
+    );
+  }
+
+  if (
+    filter ===
+    'appointments'
+  ) {
+    return (
+      event.type ===
+        'booking_link_sent' ||
+      event.type ===
+        'appointment_booked' ||
+      event.type ===
+        'appointment_cancelled' ||
+      event.type ===
+        'microsoft_booking_created' ||
+      event.type ===
+        'microsoft_booking_cancelled'
+    );
+  }
+
+  if (
+    filter ===
+    'notes'
+  ) {
+    return (
+      event.type ===
+      'note_added'
+    );
+  }
+
+  return (
+    event.type ===
+      'interest_updated' ||
+    event.type ===
+      'power_of_attorney_created' ||
+    event.type ===
+      'document_request_created' ||
+    event.type ===
+      'contact_created'
+  );
+}
+
+function contactInitials(
+  fullName: string
+): string {
+  const parts =
+    String(
+      fullName ||
+        ''
+    )
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean);
+
+  if (
+    parts.length ===
+    0
+  ) {
+    return '?';
+  }
+
+  if (
+    parts.length ===
+    1
+  ) {
+    return parts[0]
+      .slice(
+        0,
+        2
+      )
+      .toUpperCase();
+  }
+
+  return (
+    parts[0][0] +
+    parts[
+      parts.length - 1
+    ][0]
+  ).toUpperCase();
 }
 
 export default function MagicTouchContactDetailsPage() {
   const params =
     useParams<{
-      contactId: string;
+      contactId:
+        string;
     }>();
 
   const searchParams =
@@ -455,7 +651,8 @@ export default function MagicTouchContactDetailsPage() {
     setContact,
   ] =
     useState<
-      MagicTouchContact | null
+      MagicTouchContact |
+      null
     >(null);
 
   const [
@@ -470,31 +667,65 @@ export default function MagicTouchContactDetailsPage() {
     isLoading,
     setIsLoading,
   ] =
-    useState(true);
+    useState(
+      true
+    );
 
   const [
     errorMessage,
     setErrorMessage,
   ] =
-    useState('');
+    useState(
+      ''
+    );
 
   const [
     note,
     setNote,
   ] =
-    useState('');
+    useState(
+      ''
+    );
 
   const [
     isSavingNote,
     setIsSavingNote,
   ] =
-    useState(false);
+    useState(
+      false
+    );
 
   const [
     successMessage,
     setSuccessMessage,
   ] =
-    useState('');
+    useState(
+      ''
+    );
+
+  const [
+    showAllActivity,
+    setShowAllActivity,
+  ] =
+    useState(
+      false
+    );
+
+  const [
+    activityFilter,
+    setActivityFilter,
+  ] =
+    useState<ActivityFilter>(
+      'all'
+    );
+
+  const [
+    showSystemInfo,
+    setShowSystemInfo,
+  ] =
+    useState(
+      false
+    );
 
   const loadContact =
     useCallback(
@@ -503,9 +734,17 @@ export default function MagicTouchContactDetailsPage() {
           !agentId ||
           !contactId
         ) {
-          setContact(null);
-          setTimeline([]);
-          setIsLoading(false);
+          setContact(
+            null
+          );
+
+          setTimeline(
+            []
+          );
+
+          setIsLoading(
+            false
+          );
 
           setErrorMessage(
             'לא נמצאו פרטי סוכן או איש קשר.'
@@ -514,16 +753,24 @@ export default function MagicTouchContactDetailsPage() {
           return;
         }
 
-        setIsLoading(true);
-        setErrorMessage('');
+        setIsLoading(
+          true
+        );
+
+        setErrorMessage(
+          ''
+        );
 
         try {
           const fn =
             httpsCallable<
               {
-                agentId: string;
-                contactId: string;
-                timelineLimit: number;
+                agentId:
+                  string;
+                contactId:
+                  string;
+                timelineLimit:
+                  number;
               },
               GetContactDetailsResponse
             >(
@@ -562,15 +809,22 @@ export default function MagicTouchContactDetailsPage() {
             error
           );
 
-          setContact(null);
-          setTimeline([]);
+          setContact(
+            null
+          );
+
+          setTimeline(
+            []
+          );
 
           setErrorMessage(
             error?.message ||
               'לא ניתן היה לטעון את פרטי איש הקשר.'
           );
         } finally {
-          setIsLoading(false);
+          setIsLoading(
+            false
+          );
         }
       },
       [
@@ -579,11 +833,14 @@ export default function MagicTouchContactDetailsPage() {
       ]
     );
 
-  useEffect(() => {
-    void loadContact();
-  }, [
-    loadContact,
-  ]);
+  useEffect(
+    () => {
+      void loadContact();
+    },
+    [
+      loadContact,
+    ]
+  );
 
   const handleAddNote =
     async (
@@ -622,9 +879,17 @@ export default function MagicTouchContactDetailsPage() {
         return;
       }
 
-      setIsSavingNote(true);
-      setErrorMessage('');
-      setSuccessMessage('');
+      setIsSavingNote(
+        true
+      );
+
+      setErrorMessage(
+        ''
+      );
+
+      setSuccessMessage(
+        ''
+      );
 
       try {
         const fn =
@@ -650,7 +915,9 @@ export default function MagicTouchContactDetailsPage() {
             normalizedNote,
         });
 
-        setNote('');
+        setNote(
+          ''
+        );
 
         setSuccessMessage(
           'ההערה נוספה בהצלחה.'
@@ -670,7 +937,9 @@ export default function MagicTouchContactDetailsPage() {
             'לא ניתן היה להוסיף את ההערה.'
         );
       } finally {
-        setIsSavingNote(false);
+        setIsSavingNote(
+          false
+        );
       }
     };
 
@@ -682,23 +951,111 @@ export default function MagicTouchContactDetailsPage() {
     String(
       reengagement
         ?.interestStatus ||
-      contact?.interestStatus ||
-      ''
+        contact
+          ?.interestStatus ||
+        ''
     );
 
   const displayedBookingStatus =
     String(
       reengagement
         ?.bookingStatus ||
-      contact?.appointmentStatus ||
-      ''
+        contact
+          ?.appointmentStatus ||
+        ''
     );
 
   const displayedProcessStatus =
     String(
       reengagement
         ?.status ||
-      ''
+        ''
+    );
+
+  const filteredTimeline =
+    useMemo(
+      () =>
+        timeline.filter(
+          (
+            event
+          ) =>
+            matchesActivityFilter(
+              event,
+              activityFilter
+            )
+        ),
+      [
+        timeline,
+        activityFilter,
+      ]
+    );
+
+  const displayedTimeline =
+    useMemo(
+      () =>
+        showAllActivity
+          ? filteredTimeline
+          : filteredTimeline.slice(
+              0,
+              ACTIVITY_PREVIEW_COUNT
+            ),
+      [
+        filteredTimeline,
+        showAllActivity,
+      ]
+    );
+
+  const visibleTags =
+    useMemo(
+      () => {
+        if (
+          !contact ||
+          !Array.isArray(
+            contact.tags
+          )
+        ) {
+          return [];
+        }
+
+        return contact.tags.filter(
+          (
+            tag
+          ) =>
+            !(
+              contact.sourceSystem ===
+                'surense' &&
+              String(
+                tag
+              ).toLowerCase() ===
+                'surense'
+            )
+        );
+      },
+      [
+        contact,
+      ]
+    );
+
+  const conversationHref =
+    useMemo(
+      () => {
+        if (
+          !contact
+        ) {
+          return '';
+        }
+
+        const conversationId =
+          `${agentId}_${contact.phoneNormalized || contact.phone}`;
+
+        return `/MagicTouch/Conversations?conversationId=${encodeURIComponent(
+          conversationId
+        )}`;
+      },
+      [
+        agentId,
+        contact,
+      ]
     );
 
   if (
@@ -717,504 +1074,820 @@ export default function MagicTouchContactDetailsPage() {
   return (
     <section
       dir="rtl"
-      className="w-full"
+      className="min-h-screen bg-slate-50 px-4 py-6 sm:px-6"
     >
       <div className="mx-auto max-w-7xl">
-        <header className="mb-6">
-          <Link
-            href="/MagicTouch/Contacts"
-            className="inline-flex items-center gap-2 text-sm font-medium text-blue-700 hover:underline"
-          >
-            <span>
-              ←
-            </span>
-
-            <span>
-              חזרה לאנשי קשר
-            </span>
-          </Link>
-
-          <div className="mt-4">
-            <div className="text-sm font-medium text-blue-700">
-              Magic Touch
-            </div>
-
-            <h1 className="mt-1 text-3xl font-bold text-slate-900">
-              {contact
-                ?.fullName ||
-                'פרטי איש קשר'}
-            </h1>
-
-            <p className="mt-2 text-slate-600">
-              פרטי הלקוח והיסטוריית הפעילות מולו.
-            </p>
-          </div>
-        </header>
+        <Link
+          href="/MagicTouch/Contacts"
+          className="inline-flex items-center gap-2 text-sm font-semibold text-blue-700 hover:underline"
+        >
+          ← חזרה לאנשי קשר
+        </Link>
 
         {errorMessage ? (
-          <div className="mb-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-red-700">
+          <div className="mt-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-red-700">
             {errorMessage}
           </div>
         ) : null}
 
         {successMessage ? (
-          <div className="mb-5 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-green-700">
+          <div className="mt-5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-emerald-700">
             {successMessage}
           </div>
         ) : null}
 
         {!contact ? (
-          <div className="rounded-xl border bg-white p-8 text-center text-slate-500 shadow-sm">
+          <div className="mt-6 rounded-2xl border bg-white p-10 text-center text-slate-500 shadow-sm">
             איש הקשר לא נמצא.
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-6 xl:grid-cols-[360px_minmax(0,1fr)]">
-            <aside className="space-y-5">
-              <section className="rounded-xl border bg-white p-5 shadow-sm">
-                <h2 className="mb-4 text-lg font-bold text-slate-900">
-                  פרטי איש קשר
-                </h2>
-
-                <div className="space-y-4 text-sm">
-                  <div>
-                    <div className="text-slate-500">
-                      שם מלא
-                    </div>
-
-                    <div className="mt-1 font-medium text-slate-900">
-                      {contact.fullName ||
-                        '—'}
-                    </div>
-                  </div>
-
-                  <div>
-                    <div className="text-slate-500">
-                      טלפון
-                    </div>
-
-                    <div
-                      className="mt-1 font-medium text-slate-900"
-                      dir="ltr"
-                    >
-                      {contact.phone ||
-                        '—'}
-                    </div>
-                  </div>
-
-                  <div>
-                    <div className="text-slate-500">
-                      אימייל
-                    </div>
-
-                    <div
-                      className="mt-1 break-all font-medium text-slate-900"
-                      dir="ltr"
-                    >
-                      {contact.email ||
-                        '—'}
-                    </div>
-                  </div>
-
-                  <div>
-                    <div className="text-slate-500">
-                      תעודת זהות
-                    </div>
-
-                    <div className="mt-1 font-medium text-slate-900">
-                      {contact.idNumber ||
-                        '—'}
-                    </div>
-                  </div>
-
-                  <div>
-                    <div className="text-slate-500">
-                      תאריך לידה
-                    </div>
-
-                    <div className="mt-1 font-medium text-slate-900">
-                      {formatBirthDate(
-                        contact.birthDate
+          <>
+            <section className="mt-5 overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+              <div className="p-6 sm:p-7">
+                <div className="flex flex-col justify-between gap-6 lg:flex-row lg:items-center">
+                  <div className="flex min-w-0 items-center gap-4">
+                    <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-blue-600 text-xl font-bold text-white shadow-sm">
+                      {contactInitials(
+                        contact.fullName
                       )}
                     </div>
-                  </div>
 
-                  <div>
-                    <div className="text-slate-500">
-                      מגדר
-                    </div>
-
-                    <div className="mt-1 font-medium text-slate-900">
-                      {contact.gender ||
-                        '—'}
-                    </div>
-                  </div>
-
-                  <div>
-                    <div className="text-slate-500">
-                      מקור
-                    </div>
-
-                    <div className="mt-1 font-medium text-slate-900">
-                      {sourceLabel(
-                        contact.sourceSystem
-                      )}
-                    </div>
-                  </div>
-
-                  <div>
-                    <div className="text-slate-500">
-                      מזהה במקור
-                    </div>
-
-                    <div className="mt-1 break-all font-medium text-slate-900">
-                      {contact.sourceRecordId ||
-                        '—'}
-                    </div>
-                  </div>
-                </div>
-              </section>
-
-              <section className="rounded-xl border bg-white p-5 shadow-sm">
-                <h2 className="mb-4 text-lg font-bold text-slate-900">
-                  מצב התהליך
-                </h2>
-
-                <div className="space-y-4 text-sm">
-                  <div>
-                    <div className="text-slate-500">
-                      סטטוס תהליך חידוש קשר
-                    </div>
-
-                    <div className="mt-1 font-medium text-slate-900">
-                      {processStatusLabel(
-                        displayedProcessStatus
-                      )}
-                    </div>
-                  </div>
-
-                  <div>
-                    <div className="text-slate-500">
-                      סטטוס עניין
-                    </div>
-
-                    <div className="mt-1 font-medium text-slate-900">
-                      {interestLabel(
-                        displayedInterestStatus
-                      )}
-                    </div>
-                  </div>
-
-                  <div>
-                    <div className="text-slate-500">
-                      סטטוס פגישה
-                    </div>
-
-                    <div className="mt-1 font-medium text-slate-900">
-                      {appointmentLabel(
-                        displayedBookingStatus
-                      )}
-                    </div>
-                  </div>
-
-                  {reengagement?.bookingServiceName ? (
-                    <div>
-                      <div className="text-slate-500">
-                        שירות הפגישה
+                    <div className="min-w-0">
+                      <div className="text-xs font-bold uppercase tracking-wide text-blue-600">
+                        כרטיס לקוח
                       </div>
 
-                      <div className="mt-1 font-medium text-slate-900">
-                        {reengagement.bookingServiceName}
+                      <h1 className="mt-1 truncate text-3xl font-bold text-slate-900">
+                        {contact.fullName ||
+                          'ללא שם'}
+                      </h1>
+
+                      <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-slate-600">
+                        {contact.phone ? (
+                          <span
+                            dir="ltr"
+                            className="font-medium"
+                          >
+                            📞 {contact.phone}
+                          </span>
+                        ) : null}
+
+                        {contact.email ? (
+                          <span
+                            dir="ltr"
+                            className="font-medium"
+                          >
+                            ✉️ {contact.email}
+                          </span>
+                        ) : null}
+
+                        {contact.idNumber ? (
+                          <span>
+                            🪪 ת״ז {contact.idNumber}
+                          </span>
+                        ) : null}
                       </div>
-                    </div>
-                  ) : null}
 
-                  {reengagement?.bookingStartAt ? (
-                    <div>
-                      <div className="text-slate-500">
-                        מועד הפגישה
-                      </div>
-
-                      <div className="mt-1 font-medium text-slate-900">
-                        {formatDateTime(
-                          reengagement.bookingStartAt
-                        )}
-                      </div>
-                    </div>
-                  ) : null}
-
-                  {reengagement?.bookingCancelledAt ? (
-                    <div>
-                      <div className="text-slate-500">
-                        מועד ביטול הפגישה
-                      </div>
-
-                      <div className="mt-1 font-medium text-slate-900">
-                        {formatDateTime(
-                          reengagement.bookingCancelledAt
-                        )}
-                      </div>
-                    </div>
-                  ) : null}
-
-                  <div className="border-t pt-4">
-                    <div className="text-slate-500">
-                      סטטוס איש קשר
-                    </div>
-
-                    <div className="mt-1 font-medium text-slate-900">
-                      {contact.contactStatus ||
-                        '—'}
-                    </div>
-                  </div>
-
-                  <div>
-                    <div className="text-slate-500">
-                      הסכמה לדיוור
-                    </div>
-
-                    <div className="mt-1 font-medium text-slate-900">
-                      {contact.consentStatus ||
-                        '—'}
-                    </div>
-                  </div>
-                </div>
-              </section>
-
-              <section className="rounded-xl border bg-white p-5 shadow-sm">
-                <h2 className="mb-4 text-lg font-bold text-slate-900">
-                  תגיות
-                </h2>
-
-                {Array.isArray(
-                  contact.tags
-                ) &&
-                contact.tags
-                  .length >
-                  0 ? (
-                  <div className="flex flex-wrap gap-2">
-                    {contact.tags.map(
-                      (
-                        tag
-                      ) => (
-                        <span
-                          key={
-                            tag
-                          }
-                          className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700"
-                        >
-                          {
-                            tag
-                          }
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-700">
+                          {sourceLabel(
+                            contact.sourceSystem
+                          )}
                         </span>
-                      )
-                    )}
-                  </div>
-                ) : (
-                  <div className="text-sm text-slate-500">
-                    אין תגיות.
-                  </div>
-                )}
-              </section>
 
-              <section className="rounded-xl border bg-white p-5 shadow-sm">
-                <h2 className="mb-4 text-lg font-bold text-slate-900">
-                  מידע נוסף
-                </h2>
+                        <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">
+                          {contactStatusLabel(
+                            contact.contactStatus
+                          )}
+                        </span>
 
-                <div className="space-y-3 text-sm">
-                  <div>
-                    <div className="text-slate-500">
-                      נוצר
-                    </div>
-
-                    <div className="mt-1">
-                      {formatDateTime(
-                        contact.createdAt
-                      )}
-                    </div>
-                  </div>
-
-                  <div>
-                    <div className="text-slate-500">
-                      עודכן
-                    </div>
-
-                    <div className="mt-1">
-                      {formatDateTime(
-                        contact.updatedAt
-                      )}
+                        {visibleTags
+                          .slice(
+                            0,
+                            3
+                          )
+                          .map(
+                            (
+                              tag
+                            ) => (
+                              <span
+                                key={
+                                  tag
+                                }
+                                className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700"
+                              >
+                                {tag}
+                              </span>
+                            )
+                          )}
+                      </div>
                     </div>
                   </div>
 
-                  <div>
-                    <div className="text-slate-500">
-                      סנכרון אחרון מהמקור
-                    </div>
+                  <div className="flex flex-wrap gap-2">
+                    {contact.phone ? (
+                      <a
+                        href={`tel:${contact.phone}`}
+                        className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 transition hover:bg-slate-50"
+                      >
+                        📞 התקשרות
+                      </a>
+                    ) : null}
 
-                    <div className="mt-1">
-                      {formatDateTime(
-                        contact.sourceLastSyncedAt
-                      )}
-                    </div>
+                    {contact.email ? (
+                      <a
+                        href={`mailto:${contact.email}`}
+                        className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 transition hover:bg-slate-50"
+                      >
+                        ✉️ אימייל
+                      </a>
+                    ) : null}
+
+                    {conversationHref ? (
+                      <Link
+                        href={
+                          conversationHref
+                        }
+                        className="rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-blue-700"
+                      >
+                        💬 מעבר לשיחה
+                      </Link>
+                    ) : null}
                   </div>
                 </div>
-              </section>
-            </aside>
+              </div>
+            </section>
 
-            <main className="space-y-6">
-              <section className="rounded-xl border bg-white p-5 shadow-sm">
-                <h2 className="text-lg font-bold text-slate-900">
-                  הוספת הערה
-                </h2>
+            <section className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              <StatusCard
+                icon="⚡"
+                label="סטטוס חידוש קשר"
+                value={processStatusLabel(
+                  displayedProcessStatus
+                )}
+                description="הסטטוס בתהליך חידוש הקשר"
+              />
 
-                <p className="mt-1 text-sm text-slate-500">
-                  ההערה תישמר גם ב־Timeline של איש הקשר.
-                </p>
+              <StatusCard
+                icon="⭐"
+                label="עניין"
+                value={interestLabel(
+                  displayedInterestStatus
+                )}
+                description="תגובת הלקוח"
+              />
 
-                <form
-                  onSubmit={
-                    handleAddNote
-                  }
-                  className="mt-4"
-                >
-                  <textarea
-                    value={note}
-                    onChange={(
-                      event
-                    ) =>
-                      setNote(
-                        event
-                          .target
-                          .value
+              <StatusCard
+                icon="📅"
+                label="פגישה"
+                value={appointmentLabel(
+                  displayedBookingStatus
+                )}
+                description={
+                  reengagement
+                    ?.bookingStartAt
+                    ? formatDateTime(
+                        reengagement.bookingStartAt
                       )
-                    }
-                    disabled={
-                      isSavingNote
-                    }
-                    rows={4}
-                    maxLength={5000}
-                    placeholder="לדוגמה: הלקוח ביקש לחזור אליו ביום ראשון..."
-                    className="w-full resize-y rounded-lg border px-4 py-3 outline-none focus:border-blue-500"
-                  />
+                    : 'אין מועד פעיל'
+                }
+              />
 
-                  <div className="mt-3 flex items-center justify-between gap-3">
-                    <div className="text-xs text-slate-500">
-                      {note.length}
-                      /5000
+              <StatusCard
+                icon="🕘"
+                label="פעילות אחרונה"
+                value={formatDateTime(
+                  contact.lastTimelineEventAt ||
+                    contact.updatedAt
+                )}
+                description={
+                  contact.lastReplyText
+                    ? `תגובה אחרונה: ${contact.lastReplyText}`
+                    : 'עדכון אחרון בכרטיס'
+                }
+              />
+            </section>
+
+            <div className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
+              <main className="space-y-6">
+                <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                  <div>
+                    <div className="text-xs font-bold text-blue-600">
+                      המשך טיפול
                     </div>
 
-                    <button
-                      type="submit"
-                      disabled={
-                        isSavingNote ||
-                        !note.trim()
-                      }
-                      className="rounded-lg bg-blue-600 px-5 py-2.5 font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      {isSavingNote
-                        ? 'שומר...'
-                        : 'הוספת הערה'}
-                    </button>
-                  </div>
-                </form>
-              </section>
-
-              <section className="rounded-xl border bg-white shadow-sm">
-                <div className="flex items-center justify-between border-b px-5 py-4">
-                  <div>
-                    <h2 className="text-lg font-bold text-slate-900">
-                      היסטוריית פעילות
+                    <h2 className="mt-1 text-xl font-bold text-slate-900">
+                      נתונים רלוונטיים להמשך
                     </h2>
 
                     <p className="mt-1 text-sm text-slate-500">
-                      כל הפעולות מול איש הקשר במקום אחד.
+                      מידע תפעולי אחרון שיכול לסייע בטיפול בלקוח.
                     </p>
                   </div>
 
+                  <div className="mt-5 grid gap-4 md:grid-cols-2">
+                    {reengagement
+                      ?.bookingServiceName ? (
+                      <InfoBlock
+                        label="סוג הפגישה"
+                        value={
+                          reengagement.bookingServiceName
+                        }
+                      />
+                    ) : null}
+
+                    {reengagement
+                      ?.bookingStartAt ? (
+                      <InfoBlock
+                        label="מועד הפגישה"
+                        value={formatDateTime(
+                          reengagement.bookingStartAt
+                        )}
+                      />
+                    ) : null}
+
+                    {reengagement
+                      ?.bookingCancelledAt ? (
+                      <InfoBlock
+                        label="מועד ביטול הפגישה"
+                        value={formatDateTime(
+                          reengagement.bookingCancelledAt
+                        )}
+                      />
+                    ) : null}
+
+                    <InfoBlock
+                      label="פעילות נכנסת אחרונה"
+                      value={formatDateTime(
+                        contact.lastInboundAt
+                      )}
+                    />
+
+                    <InfoBlock
+                      label="פעילות יוצאת אחרונה"
+                      value={formatDateTime(
+                        contact.lastOutboundAt
+                      )}
+                    />
+                  </div>
+                </section>
+
+                <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-50 text-lg">
+                      📝
+                    </div>
+
+                    <div>
+                      <h2 className="font-bold text-slate-900">
+                        הערה חדשה
+                      </h2>
+
+                      <p className="text-xs text-slate-500">
+                        תישמר בהיסטוריית הלקוח
+                      </p>
+                    </div>
+                  </div>
+
+                  <form
+                    onSubmit={
+                      handleAddNote
+                    }
+                    className="mt-4"
+                  >
+                    <textarea
+                      value={
+                        note
+                      }
+                      onChange={(
+                        event
+                      ) =>
+                        setNote(
+                          event.target
+                            .value
+                        )
+                      }
+                      disabled={
+                        isSavingNote
+                      }
+                      rows={
+                        3
+                      }
+                      maxLength={
+                        5000
+                      }
+                      placeholder="כתבי הערה, תזכורת או מידע חשוב להמשך הטיפול..."
+                      className="w-full resize-y rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-50"
+                    />
+
+                    <div className="mt-3 flex items-center justify-between gap-3">
+                      <span className="text-xs text-slate-400">
+                        {note.length}/5000
+                      </span>
+
+                      <button
+                        type="submit"
+                        disabled={
+                          isSavingNote ||
+                          !note.trim()
+                        }
+                        className="rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-bold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {isSavingNote
+                          ? 'שומר...'
+                          : 'שמירת הערה'}
+                      </button>
+                    </div>
+                  </form>
+                </section>
+
+                <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+                  <div className="border-b border-slate-100 px-5 py-4">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <h2 className="text-lg font-bold text-slate-900">
+                          פעילות אחרונה
+                        </h2>
+
+                        <p className="mt-1 text-sm text-slate-500">
+                          אירועים משמעותיים בקשר עם הלקוח
+                        </p>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          void loadContact()
+                        }
+                        className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50"
+                      >
+                        רענון
+                      </button>
+                    </div>
+
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      <ActivityFilterButton
+                        active={
+                          activityFilter ===
+                          'all'
+                        }
+                        label="הכול"
+                        onClick={() => {
+                          setActivityFilter(
+                            'all'
+                          );
+
+                          setShowAllActivity(
+                            false
+                          );
+                        }}
+                      />
+
+                      <ActivityFilterButton
+                        active={
+                          activityFilter ===
+                          'whatsapp'
+                        }
+                        label="WhatsApp"
+                        onClick={() => {
+                          setActivityFilter(
+                            'whatsapp'
+                          );
+
+                          setShowAllActivity(
+                            false
+                          );
+                        }}
+                      />
+
+                      <ActivityFilterButton
+                        active={
+                          activityFilter ===
+                          'appointments'
+                        }
+                        label="פגישות"
+                        onClick={() => {
+                          setActivityFilter(
+                            'appointments'
+                          );
+
+                          setShowAllActivity(
+                            false
+                          );
+                        }}
+                      />
+
+                      <ActivityFilterButton
+                        active={
+                          activityFilter ===
+                          'notes'
+                        }
+                        label="הערות"
+                        onClick={() => {
+                          setActivityFilter(
+                            'notes'
+                          );
+
+                          setShowAllActivity(
+                            false
+                          );
+                        }}
+                      />
+
+                      <ActivityFilterButton
+                        active={
+                          activityFilter ===
+                          'process'
+                        }
+                        label="תהליכים"
+                        onClick={() => {
+                          setActivityFilter(
+                            'process'
+                          );
+
+                          setShowAllActivity(
+                            false
+                          );
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  {displayedTimeline.length ===
+                  0 ? (
+                    <div className="p-10 text-center text-sm text-slate-500">
+                      אין פעילות מתאימה לסינון שנבחר.
+                    </div>
+                  ) : (
+                    <div className="divide-y divide-slate-100">
+                      {displayedTimeline.map(
+                        (
+                          event
+                        ) => (
+                          <article
+                            key={
+                              event.eventId
+                            }
+                            className="flex gap-4 px-5 py-4 transition hover:bg-slate-50/70"
+                          >
+                            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-lg">
+                              {timelineIcon(
+                                event
+                              )}
+                            </div>
+
+                            <div className="min-w-0 flex-1">
+                              <div className="flex flex-wrap items-start justify-between gap-2">
+                                <div>
+                                  <div className="mb-1 text-xs font-bold text-blue-600">
+                                    {activityTypeLabel(
+                                      event
+                                    )}
+                                  </div>
+
+                                  <h3 className="font-bold text-slate-900">
+                                    {event.title}
+                                  </h3>
+                                </div>
+
+                                <time className="whitespace-nowrap text-xs text-slate-400">
+                                  {formatDateTime(
+                                    event.occurredAt
+                                  )}
+                                </time>
+                              </div>
+
+                              {event.description ? (
+                                <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-600">
+                                  {event.description}
+                                </p>
+                              ) : null}
+
+                              {event.status ===
+                              'failed' ? (
+                                <div className="mt-2 inline-flex rounded-full bg-red-50 px-2.5 py-1 text-xs font-bold text-red-700">
+                                  הפעולה נכשלה
+                                </div>
+                              ) : null}
+
+                              {event.status ===
+                              'cancelled' ? (
+                                <div className="mt-2 inline-flex rounded-full bg-amber-50 px-2.5 py-1 text-xs font-bold text-amber-700">
+                                  בוטל
+                                </div>
+                              ) : null}
+                            </div>
+                          </article>
+                        )
+                      )}
+                    </div>
+                  )}
+
+                  {filteredTimeline.length >
+                  ACTIVITY_PREVIEW_COUNT ? (
+                    <div className="border-t border-slate-100 p-4 text-center">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setShowAllActivity(
+                            (
+                              current
+                            ) =>
+                              !current
+                          )
+                        }
+                        className="text-sm font-bold text-blue-700 hover:underline"
+                      >
+                        {showAllActivity
+                          ? 'הצגת פעילות אחרונה בלבד'
+                          : `הצגת כל הפעילות (${filteredTimeline.length})`}
+                      </button>
+                    </div>
+                  ) : null}
+                </section>
+              </main>
+
+              <aside className="space-y-5">
+                <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                  <h2 className="font-bold text-slate-900">
+                    פרטי לקוח
+                  </h2>
+
+                  <div className="mt-5 space-y-4">
+                    <DetailRow
+                      label="טלפון"
+                      value={
+                        contact.phone
+                      }
+                      ltr
+                    />
+
+                    <DetailRow
+                      label="אימייל"
+                      value={
+                        contact.email
+                      }
+                      ltr
+                    />
+
+                    <DetailRow
+                      label="תעודת זהות"
+                      value={
+                        contact.idNumber
+                      }
+                    />
+
+                    <DetailRow
+                      label="תאריך לידה"
+                      value={formatBirthDate(
+                        contact.birthDate
+                      )}
+                    />
+
+                    <DetailRow
+                      label="מגדר"
+                      value={
+                        contact.gender
+                      }
+                    />
+
+                    <DetailRow
+                      label="מקור"
+                      value={sourceLabel(
+                        contact.sourceSystem
+                      )}
+                    />
+
+                    <DetailRow
+                      label="הסכמה לדיוור"
+                      value={consentStatusLabel(
+                        contact.consentStatus
+                      )}
+                    />
+                  </div>
+                </section>
+
+                {visibleTags.length >
+                0 ? (
+                  <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                    <h2 className="font-bold text-slate-900">
+                      תגיות
+                    </h2>
+
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      {visibleTags.map(
+                        (
+                          tag
+                        ) => (
+                          <span
+                            key={
+                              tag
+                            }
+                            className="rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700"
+                          >
+                            {tag}
+                          </span>
+                        )
+                      )}
+                    </div>
+                  </section>
+                ) : null}
+
+                <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
                   <button
                     type="button"
                     onClick={() =>
-                      void loadContact()
-                    }
-                    disabled={
-                      isLoading
-                    }
-                    className="rounded-lg border px-4 py-2 text-sm font-medium hover:bg-slate-50 disabled:opacity-50"
-                  >
-                    רענון
-                  </button>
-                </div>
-
-                {timeline.length ===
-                0 ? (
-                  <div className="p-8 text-center text-slate-500">
-                    עדיין אין פעילות להצגה.
-                  </div>
-                ) : (
-                  <div className="divide-y">
-                    {timeline.map(
-                      (
-                        event
-                      ) => (
-                        <article
-                          key={
-                            event.eventId
-                          }
-                          className="flex gap-4 px-5 py-4"
-                        >
-                          <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-slate-100 text-lg">
-                            {timelineIcon(
-                              event
-                            )}
-                          </div>
-
-                          <div className="min-w-0 flex-1">
-                            <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-                              <h3 className="font-semibold text-slate-900">
-                                {event.title}
-                              </h3>
-
-                              <time className="text-xs text-slate-500">
-                                {formatDateTime(
-                                  event.occurredAt
-                                )}
-                              </time>
-                            </div>
-
-                            {event.description ? (
-                              <p className="mt-2 whitespace-pre-wrap text-sm text-slate-700">
-                                {event.description}
-                              </p>
-                            ) : null}
-
-                            <div className="mt-3 flex flex-wrap gap-2 text-xs">
-                              <span className="rounded-full bg-slate-100 px-2.5 py-1 text-slate-600">
-                                {event.channel}
-                              </span>
-
-                              <span className="rounded-full bg-slate-100 px-2.5 py-1 text-slate-600">
-                                {timelineStatusLabel(
-                                  event.status
-                                )}
-                              </span>
-
-                              {event.direction ? (
-                                <span className="rounded-full bg-slate-100 px-2.5 py-1 text-slate-600">
-                                  {event.direction}
-                                </span>
-                              ) : null}
-                            </div>
-                          </div>
-                        </article>
+                      setShowSystemInfo(
+                        (
+                          current
+                        ) =>
+                          !current
                       )
-                    )}
-                  </div>
-                )}
-              </section>
-            </main>
-          </div>
+                    }
+                    className="flex w-full items-center justify-between gap-3 p-5 text-right"
+                  >
+                    <div>
+                      <h2 className="font-bold text-slate-900">
+                        מידע מערכת
+                      </h2>
+
+                      <p className="mt-1 text-xs text-slate-400">
+                        מזהים, סנכרון ומידע טכני
+                      </p>
+                    </div>
+
+                    <span className="text-slate-400">
+                      {showSystemInfo
+                        ? '▲'
+                        : '▼'}
+                    </span>
+                  </button>
+
+                  {showSystemInfo ? (
+                    <div className="border-t border-slate-100 p-5">
+                      <div className="space-y-4">
+                        <DetailRow
+                          label="נוצר"
+                          value={formatDateTime(
+                            contact.createdAt
+                          )}
+                        />
+
+                        <DetailRow
+                          label="עודכן"
+                          value={formatDateTime(
+                            contact.updatedAt
+                          )}
+                        />
+
+                        <DetailRow
+                          label="סנכרון אחרון"
+                          value={formatDateTime(
+                            contact.sourceLastSyncedAt
+                          )}
+                        />
+
+                        {contact.sourceRecordId ? (
+                          <DetailRow
+                            label={
+                              contact.sourceSystem ===
+                              'surense'
+                                ? 'מזהה לקוח ב־Surense'
+                                : 'מזהה במערכת המקור'
+                            }
+                            value={
+                              contact.sourceRecordId
+                            }
+                          />
+                        ) : null}
+                      </div>
+                    </div>
+                  ) : null}
+                </section>
+              </aside>
+            </div>
+          </>
         )}
       </div>
     </section>
+  );
+}
+
+function StatusCard({
+  icon,
+  label,
+  value,
+  description,
+}: {
+  icon: string;
+  label: string;
+  value: string;
+  description?: string;
+}) {
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="flex items-start gap-3">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-lg">
+          {icon}
+        </div>
+
+        <div className="min-w-0">
+          <div className="text-xs font-semibold text-slate-500">
+            {label}
+          </div>
+
+          <div className="mt-1 truncate text-lg font-bold text-slate-900">
+            {value}
+          </div>
+
+          {description ? (
+            <div className="mt-1 line-clamp-2 text-xs text-slate-400">
+              {description}
+            </div>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function InfoBlock({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="rounded-xl bg-slate-50 px-4 py-3">
+      <div className="text-xs font-semibold text-slate-500">
+        {label}
+      </div>
+
+      <div className="mt-1 font-bold text-slate-800">
+        {value ||
+          '—'}
+      </div>
+    </div>
+  );
+}
+
+function DetailRow({
+  label,
+  value,
+  ltr = false,
+}: {
+  label: string;
+  value:
+    | string
+    | null
+    | undefined;
+  ltr?: boolean;
+}) {
+  return (
+    <div className="border-b border-slate-100 pb-3 last:border-0 last:pb-0">
+      <div className="text-xs font-semibold text-slate-400">
+        {label}
+      </div>
+
+      <div
+        className="mt-1 break-words text-sm font-semibold text-slate-800"
+        dir={
+          ltr
+            ? 'ltr'
+            : undefined
+        }
+      >
+        {value ||
+          '—'}
+      </div>
+    </div>
+  );
+}
+
+function ActivityFilterButton({
+  active,
+  label,
+  onClick,
+}: {
+  active: boolean;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={
+        onClick
+      }
+      className={[
+        'rounded-full px-3 py-1.5 text-xs font-bold transition',
+        active
+          ? 'bg-blue-600 text-white shadow-sm'
+          : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50',
+      ].join(' ')}
+    >
+      {label}
+    </button>
   );
 }

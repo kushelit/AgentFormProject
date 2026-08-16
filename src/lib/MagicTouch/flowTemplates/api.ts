@@ -118,3 +118,33 @@ export function downloadFlowTemplate(template: FlowTemplateSummary): void {
   link.remove();
   URL.revokeObjectURL(url);
 }
+
+export async function archiveFlowTemplate(
+  templateId: string
+): Promise<{
+  templateId: string;
+}> {
+  const fn =
+    httpsCallable<
+      {
+        templateId: string;
+      },
+      {
+        ok: boolean;
+        templateId: string;
+      }
+    >(
+      functions,
+      "archiveMagicTouchFlowTemplate"
+    );
+
+  const result =
+    await fn({
+      templateId,
+    });
+
+  return {
+    templateId:
+      result.data.templateId,
+  };
+}

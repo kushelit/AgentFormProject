@@ -7,39 +7,38 @@ import React, {
   useState,
 } from "react";
 
-import Link from "next/link";
-import { usePathname } from "next/navigation";
 import { httpsCallable } from "firebase/functions";
 
 import { functions } from "@/lib/firebase/firebase";
 import { useAuth } from "@/lib/firebase/AuthContext";
 import { usePermission } from "@/hooks/usePermission";
 import AccessDenied from "@/components/AccessDenied";
+import MonitorTabs from "@/components/MagicTouch/Monitor/MonitorTabs";
 
 type Schedule =
   | {
-    type: "manual";
-    timeZone: string;
-  }
+      type: "manual";
+      timeZone: string;
+    }
   | {
-    type: "interval";
-    every: number;
-    unit: "hours" | "days";
-    timeZone: string;
-  }
+      type: "interval";
+      every: number;
+      unit: "hours" | "days";
+      timeZone: string;
+    }
   | {
-    type: "daily";
-    hour: number;
-    minute: number;
-    timeZone: string;
-  }
+      type: "daily";
+      hour: number;
+      minute: number;
+      timeZone: string;
+    }
   | {
-    type: "monthly";
-    dayOfMonth: number;
-    hour: number;
-    minute: number;
-    timeZone: string;
-  };
+      type: "monthly";
+      dayOfMonth: number;
+      hour: number;
+      minute: number;
+      timeZone: string;
+    };
 
 type Job = {
   id: string;
@@ -78,24 +77,6 @@ type ListResult = {
 };
 
 const TIME_ZONE = "Asia/Jerusalem";
-
-const monitorTabs = [
-  {
-    href: "/MagicTouch/Monitor",
-    label: "ייפויי כוח",
-    icon: "✍️",
-  },
-  {
-    href: "/MagicTouch/Monitor/Jobs",
-    label: "עיבודים",
-    icon: "🕒",
-  },
-  {
-    href: "/MagicTouch/Monitor/Tools",
-    label: "כלי בדיקה",
-    icon: "🧪",
-  },
-];
 
 function s(value: unknown): string {
   return String(value ?? "").trim();
@@ -213,43 +194,6 @@ function defaultEditorSchedule(schedule: Schedule): {
         ? schedule.minute
         : 0,
   };
-}
-
-function MonitorTabs() {
-  const pathname = usePathname();
-
-  return (
-    <nav
-      aria-label="מעקב ובקרה"
-      className="flex flex-wrap gap-2 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm"
-    >
-      {monitorTabs.map((tab) => {
-        const active =
-          tab.href === "/MagicTouch/Monitor"
-            ? pathname === tab.href
-            : pathname.startsWith(tab.href);
-
-        return (
-          <Link
-            key={tab.href}
-            href={tab.href}
-            className={[
-              "inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold transition",
-              active
-                ? "bg-blue-600 text-white shadow-sm"
-                : "text-slate-700 hover:bg-slate-100",
-            ].join(" ")}
-          >
-            <span aria-hidden="true">
-              {tab.icon}
-            </span>
-
-            <span>{tab.label}</span>
-          </Link>
-        );
-      })}
-    </nav>
-  );
 }
 
 export default function MagicTouchJobsPage() {
@@ -568,7 +512,7 @@ export default function MagicTouchJobsPage() {
         <header className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <div className="text-sm font-semibold text-blue-600">
-              MagicTouch · מעקב ובקרה
+              MagicTouch · עיבודים וכלי מערכת
             </div>
 
             <h1 className="mt-1 text-3xl font-bold text-slate-900">

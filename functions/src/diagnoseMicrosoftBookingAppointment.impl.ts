@@ -31,6 +31,10 @@ import {
   refreshMicrosoftAccessToken,
 } from "./shared/microsoftGraph";
 
+import {
+  assertMagicTouchJobsAdmin,
+} from "./shared/magicTouchJobs/jobPermissions";
+
 function s(
   value: any
 ): string {
@@ -223,17 +227,24 @@ function findAppointmentById(
 }
 
 export async function diagnoseMicrosoftBookingAppointmentImpl(
-  agentId: string,
-  appointmentId: string
+  input: {
+    uid: string | null;
+    agentId: unknown;
+    appointmentId: unknown;
+  }
 ): Promise<object> {
+  await assertMagicTouchJobsAdmin(
+    input.uid
+  );
+
   const normalizedAgentId =
     s(
-      agentId
+      input.agentId
     );
 
   const normalizedAppointmentId =
     s(
-      appointmentId
+      input.appointmentId
     );
 
   if (
