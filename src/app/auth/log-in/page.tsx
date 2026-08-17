@@ -8,7 +8,12 @@ import React, {
 } from 'react';
 
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+
+import {
+  useRouter,
+  useSearchParams,
+} from 'next/navigation';
+
 
 import {
   signInWithEmailAndPassword,
@@ -159,7 +164,11 @@ const mapSmsVerificationError = (
 
 export default function LogInPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
 
+  const logoutReason = searchParams.get('reason');
+  const wasIdleLogout = logoutReason === 'idle';
+  
   // ===== UI STATE =====
 
   const [step, setStep] = useState<Step>('login');
@@ -745,18 +754,28 @@ export default function LogInPage() {
   onSubmit={handleLogIn}
   className="space-y-4"
 >
-        <h1 className="text-2xl font-bold text-center text-blue-900">
-          התחברות
-        </h1>
+      <h1 className="text-2xl font-bold text-center text-blue-900">
+  התחברות
+</h1>
 
-        <div>
-          <label
-            htmlFor="email"
-            className="block text-sm font-medium mb-2"
-          >
-            כתובת מייל
-          </label>
+{wasIdleLogout && (
+  <div
+    className="bg-amber-50 border border-amber-200 rounded p-3 text-amber-800 text-sm text-center"
+    role="status"
+  >
+    נותקת מהמערכת עקב חוסר פעילות.
+    <br />
+    יש להתחבר מחדש כדי להמשיך בעבודה.
+  </div>
+)}
 
+<div>
+  <label
+    htmlFor="email"
+    className="block text-sm font-medium mb-2"
+  >
+    כתובת מייל
+  </label>
           <input
             id="email"
             name="email"

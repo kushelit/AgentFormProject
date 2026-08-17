@@ -12,6 +12,7 @@ import AnalyticsTracker from '@/components/AnalyticsTracker';
 import WhatsAppCta from '@/components/WhatsAppCta';
 import TaskReminderWatcher from '@/components/TaskReminderWatcher';
 import GlobalPortalOtpWatcher from '@/components/GlobalPortalOtpWatcher';
+import IdleSessionManager from '@/components/auth/IdleSessionManager';
 
 const font = Rubik({ subsets: ['latin'] });
 
@@ -59,6 +60,12 @@ export default function RootLayout({
     isMainPage;
 
   const wrapInBox = isAuthPage;
+
+  const shouldRunIdleSessionManager =
+  !isAuthPage &&
+  !isOtpPage &&
+  !isLandingPage;
+
 
   return (
     <html lang="he" dir="rtl">
@@ -110,14 +117,17 @@ export default function RootLayout({
         </Script>
       </head>
 
-      <body className={font.className}>
-        <AuthContextProvider>
-          <AnalyticsTracker />
+    <body className={font.className}>
+  <AuthContextProvider>
+    <AnalyticsTracker />
 
-          {/* לא נריץ watcher בדף הנחיתה הציבורי */}
-          {!isMagicTouchLandingPage && (
-            <TaskReminderWatcher />
-          )}
+    {shouldRunIdleSessionManager && (
+      <IdleSessionManager />
+    )}
+
+    {!isMagicTouchLandingPage && (
+      <TaskReminderWatcher />
+    )}
 
           {/* מודל OTP גלובלי - קופץ מכל עמוד באתר, לא רק מ-Importer.
               מוחרג מדף ה-/otp עצמו (שם כבר יש מסך ייעודי להזנת קוד)

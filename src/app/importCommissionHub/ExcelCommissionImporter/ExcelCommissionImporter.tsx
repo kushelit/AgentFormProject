@@ -31,7 +31,10 @@ import { add } from "date-fns";
 import {ToastNotification} from '@/components/ToastNotification'
 import { deleteDoc } from 'firebase/firestore';
 import { startAutoPortalRun } from "@/lib/portalRuns/startAutoPortalRun";
+// import PortalRunOtpModal from "@/components/PortalRunOtpModal"; // הוסר - מטופל גלובלית עכשיו, ר' GlobalPortalOtpWatcher
+// import { triggerPortalRun } from "@/lib/portalRuns/triggerPortalRun";
 import PortalRunStatus from "@/components/PortalRuns/PortalRunStatus";
+// import { isCloudMode } from "@/lib/portalRuns/runnerMode";
 import { usePermission } from "@/hooks/usePermission";
 
 import { recomputeSummariesFromExternalManual } from "@/utils/manualCommissionRecompute";
@@ -241,6 +244,8 @@ handledFinishedRunRef.current = '';
       monthLabel: 'previous_month',
       source: 'portalRunner',
       triggeredFrom: 'ui',
+      // נועל את הריצה ל-runner הידוע כרגע לסוכן הזה (portalRunnerStatus),
+      // כדי שלא "יתחרו" עליה שני מחשבים שמזוהים כאותו agentId.
       reservedRunnerId: currentRunnerId || undefined,
     });
 
@@ -568,6 +573,100 @@ setBatchCompanyStatuses(newStatuses);
   return () => unsub();
 }, [activeBatchId, isAutoRunActive]);
 
+// שחזור מצב אחרי כניסה מחדש לעמוד (או החלפת סוכן): בודקים אם כבר יש
+// batch פעיל, או ריצה בודדת (לא-batch) שעדיין באמצע, לסוכן הזה - ואם כן,
+// פשוט קובעים מחדש activeBatchId / autoRunId. ה-useEffect הקיים שכבר
+// מאזין ל-activeBatchId מתחבר מעצמו ומטעין את ההתקדמות בפועל.
+useEffect(() => {
+  if (!selectedAgentId) return;
+
+  let cancelled = false;
+
+  const rehydrate = async () => {
+    try {
+      // 1. batch פעיל (עדיין לא הגיע לסטטוס סופי)
+      const batchQy = query(
+        collection(db, "portalRunBatches"),
+        where("agentId", "==", selectedAgentId),
+        where("status", "==", "queued"),
+        orderBy("createdAt", "desc"),
+        limit(1)
+      );
+      const batchSnap = await getDocs(batchQy);
+      if (cancelled) return;
+
+      const batchDoc = batchSnap.docs[0];
+      if (batchDoc) {
+        setActiveBatchId(batchDoc.id);
+        setIsAutoRunActive(true);
+        return;
+      }
+
+      // 2. אין batch - בודקים ריצה בודדת (לא חלק מ-batch) שעדיין באמצע
+      const singleQy = query(
+        collection(db, "portalImportRuns"),
+        where("agentId", "==", selectedAgentId),
+        where("status", "in", ["queued", "running", "otp_required", "logged_in", "file_uploaded"]),
+        orderBy("createdAt", "desc"),
+        limit(5)
+      );
+      const singleSnap = await getDocs(singleQy);
+      if (cancelled) return;
+
+      const singleRun = singleSnap.docs.find((d) => !String(d.data()?.batchId || "").trim());
+      if (singleRun) {
+        const runData: any = singleRun.data();
+        setAutoRunId(singleRun.id);
+        setAutoRunKind(runData?.automationClass === "self_update" ? "self_update" : "portal");
+        setIsAutoRunActive(true);
+      }
+    } catch {
+      // שחזור הוא best-effort - אם נכשל, פשוט לא משחזרים, לא מציגים שגיאה
+    }
+  };
+
+  rehydrate();
+
+  return () => {
+    cancelled = true;
+  };
+}, [selectedAgentId]);
+
+// const handleStartAuto = async () => {
+//   if (!selectedAgentId || !selectedCompanyId) return;
+
+//   setIsStartingAuto(true);
+//   setIsAutoRunActive(true);
+
+//   try {
+//     // לוקח את ה-Class מהחברה (או מהתבנית אם אין לחברה)
+//     const finalAutomationClass = effectiveAutomationClass;
+
+//     const portalId = selectedCompany?.portalId || selectedCompanyId;
+    
+//     const finalTemplateId = `bundle_${portalId}_commissions`;
+  
+
+//     const { runId } = await startAutoPortalRun({
+//       db,
+//       agentId: selectedAgentId,
+//       companyId: selectedCompanyId,
+//       templateId: finalTemplateId,
+//       automationClass: finalAutomationClass,
+//       monthLabel: "previous_month",
+//       source: "portalRunner",
+//       triggeredFrom: "ui",
+//     });
+
+//     setAutoRunId(runId);
+//     setAutoRunKind("portal");
+//   } catch (e: any) {
+//     addToast("error", `שגיאה: ${e.message}`);
+//     setIsAutoRunActive(false);
+//   } finally {
+//     setIsStartingAuto(false);
+//   }
+// };
 
 
 
@@ -2548,11 +2647,34 @@ useEffect(() => {
 useEffect(() => {
   if (!selectedAgentId) {
     setCurrentRunnerVersion("");
+    setCurrentRunnerId("");
     return;
   }
 
   let prevVersion = "";
 
+//   const unsub = onSnapshot(
+//     doc(db, "portalRunnerStatus", selectedAgentId),
+//     (snap) => {
+//       if (snap.exists()) {
+//         const newVersion = String(snap.data()?.runnerVersion || "").trim();
+        
+//         // אם הגרסה השתנה ויש גרסה קודמת → עדכון הסתיים
+//         if (prevVersion && newVersion && prevVersion !== newVersion) {
+//           addToast("success", `✅ הבוט עודכן בהצלחה לגרסה ${newVersion}`);
+//           setTimeout(() => window.location.reload(), 2000);
+//         }
+
+//         prevVersion = newVersion;
+//         setCurrentRunnerVersion(newVersion);
+//       } else {
+//         setCurrentRunnerVersion("");
+//       }
+//     },
+//     () => setCurrentRunnerVersion("")
+//   );
+//   return () => unsub();
+// }, [selectedAgentId]);
 
 
 const unsub = onSnapshot(
@@ -2566,7 +2688,12 @@ const unsub = onSnapshot(
         const lastSeenAt = data?.lastSeenAt?.toDate?.() ?? null;
         const online = lastSeenAt ? (Date.now() - lastSeenAt.getTime()) < 30_000 : false;
         setIsRunnerOnline(online);
-setCurrentRunnerId(String(data?.runnerId || "").trim()); 
+
+        // ✅ שומר את ה-runnerId הידוע כרגע לסוכן זה - משמש לנעילת ריצות
+        // חדשות (reservedRunnerId) כדי למנוע תחרות בין שני מחשבים שמזוהים
+        // כאותו agentId (למשל אדמין שמריץ בשם הסוכן במקביל למחשב שלו).
+        setCurrentRunnerId(String(data?.runnerId || "").trim());
+
         // אם הגרסה השתנה ויש גרסה קודמת → עדכון הסתיים
         if (prevVersion && newVersion && prevVersion !== newVersion) {
           addToast("success", `✅ הבוט עודכן בהצלחה לגרסה ${newVersion}`);
@@ -3031,7 +3158,6 @@ const singleModeReady =
     </header>
 
     {/* 1. בחירת סוכן */}
-  {/* 1. בחירת סוכן */}
     <div className="mb-6 bg-gray-50 p-4 rounded-xl border border-gray-200 shadow-inner">
       <div className="max-w-md flex flex-col gap-1">
         <label className="text-xs font-bold text-gray-500 mr-1">1. בחר סוכן</label>
@@ -3179,7 +3305,9 @@ const singleModeReady =
   db,
   agentId: selectedAgentId,
   companies,
-   reservedRunnerId: currentRunnerId || undefined, 
+  // נועל את כל ריצות ה-batch ל-runner הידוע כרגע לסוכן זה, מאותה
+  // סיבה כמו ב-handleStartAutoForCompany.
+  reservedRunnerId: currentRunnerId || undefined,
 });
 
 const firstCompany = companies[0];
@@ -3684,6 +3812,12 @@ addToast(
       onChange={handleFileUpload}
       className="hidden"
     />
+
+    {/* ה-OTP מטופל עכשיו גלובלית דרך GlobalPortalOtpWatcher ב-layout -
+        לא מרנדרים אותו כאן יותר, כדי לא ליצור שני מופעים נפרדים לאותו
+        runId (כל מופע מנהל state פרטי משלו ב-PortalRunOtpModal, אז שני
+        מופעים בו-זמנית יוצרים שני דיאלוגים חופפים ומבלבלים). */}
+
     {showConfirmDelete && (
       <DialogNotification
         type="warning"

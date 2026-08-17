@@ -154,8 +154,10 @@ useEffect(() => {
                 <ButtonTopbar
                   className="design-component-instance-node"
                   state="default"
-                  logOut={() => logOut().then(() => window.location.reload())}
-                />
+logOut={async () => {
+  await logOut();
+  window.location.replace('/auth/log-in');
+}}                />
               </>
             ) : (
               <>
