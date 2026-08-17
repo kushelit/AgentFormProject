@@ -21,6 +21,12 @@ import {
   getSystemForStepType,
 } from "@/lib/MagicTouch/flows/flowBuilderRegistry";
 
+import SendWhatsAppStepEditor from
+  "@/components/MagicTouch/Flows/steps/SendWhatsAppStepEditor";
+
+  import SendBookingLinkStepEditor from
+  "@/components/MagicTouch/Flows/steps/SendBookingLinkStepEditor";
+
 type Props = {
   open: boolean;
   step: FlowStep | null;
@@ -194,25 +200,32 @@ const stepAction =
                 הגדירי מה יקרה כאשר המערכת תגיע לשלב הזה.
               </p>
 
-              {step.type === "send_whatsapp" ? (
-                <label>
-                  <span className="mb-2 block text-sm font-semibold text-slate-700">
-                    תוכן ההודעה
-                  </span>
-                  <textarea
-                    className="min-h-44 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-50"
-                    value={String(step.config?.message || "")}
-                    onChange={(event) =>
-                      onUpdateConfig(stepId, {
-                        mode: "text",
-                        message: event.target.value,
-                      })
-                    }
-                    placeholder="כתבי את ההודעה שתישלח ללקוח..."
-                  />
-                </label>
-              ) : null}
-
+        {step.type === "send_whatsapp" ? (
+  <SendWhatsAppStepEditor
+    step={
+      step
+    }
+    onConfigChange={(
+      patch
+    ) =>
+      onUpdateConfig(
+        stepId,
+        patch
+      )
+    }
+  />
+) : null}
+{step.type === "send_booking_link" ? (
+  <SendBookingLinkStepEditor
+    step={step}
+    onConfigChange={(patch) =>
+      onUpdateConfig(
+        stepId,
+        patch
+      )
+    }
+  />
+) : null}
               {step.type === "update_contact" ? (
                 <UpdateContactStepEditor
                   step={step}

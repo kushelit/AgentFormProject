@@ -110,7 +110,17 @@ export const FLOW_SYSTEMS: FlowSystemDefinition[] = [
      * אבל אין לנו Step שמבצע פעולה ישירות
      * בתוך Microsoft Bookings.
      */
-    actions: [],
+   actions: [
+  {
+    id: "send_booking_link",
+    stepType: "send_booking_link",
+    label: "שליחת קישור לפגישה",
+    description:
+      "שליחת קישור לפגישת ברירת המחדל של Microsoft Bookings ללקוח",
+    icon: "📅",
+    active: true,
+  },
+],
   },
 
   {

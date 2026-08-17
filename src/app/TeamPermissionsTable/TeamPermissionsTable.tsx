@@ -230,6 +230,160 @@ const detailAsMinimalUser: MinimalUser | null = detail && user
   }, [detail?.role, detail?.subscriptionType, workers, subscriptionPermissionsMap]);
   
 
+  // useEffect(() => {
+  //   const fetchWorkersForAgent = async () => {
+  //     if (!selectedAgentId && detail?.role !== 'admin') return;
+  //     setLoading(true);
+  
+  //     const baseRef = collection(db, 'users');
+  //     const isManager = detail?.role === 'manager';
+  //     const isAgent = detail?.role === 'agent';
+  //     const isWorker = detail?.role === 'worker';
+  
+  //     // עזר: חלוקה למנות (מגבלת in של Firestore עד 10 פריטים)
+  //     const chunk = <T,>(arr: T[], size: number) =>
+  //       Array.from({ length: Math.ceil(arr.length / size) }, (_, i) =>
+  //         arr.slice(i * size, i * size + size)
+  //       );
+  
+  //     try {
+  //       let workersData: ExtendedWorker[] = [];
+  
+  //       if (detail?.role === 'admin') {
+  //         // שליפת ה-agencies (string) של האדמין
+  //         const adminDoc = await getDoc(doc(db, 'users', user!.uid));
+  //         const adminAgency: string | undefined = adminDoc.exists()
+  //           ? (adminDoc.data() as any)?.agencies
+  //           : undefined;
+  
+  //         if (!adminAgency) {
+  //           setWorkers([]);
+  //           setLoading(false);
+  //           return;
+  //         }
+  
+  //         if (selectedAgentId && selectedAgentId !== 'all') {
+  //           // וידוא שה-agent/manager הנבחר הוא מאותה סוכנות
+  //           const agentDoc = await getDoc(doc(db, 'users', selectedAgentId));
+  //           const agentOk =
+  //             agentDoc.exists() &&
+  //             ['agent', 'manager'].includes((agentDoc.data() as any)?.role) &&
+  //             (agentDoc.data() as any)?.agencies === adminAgency;
+  
+  //           if (!agentOk) {
+  //             setWorkers([]);
+  //             setLoading(false);
+  //             return;
+  //           }
+  
+  //           // כל המשתמשים תחת agentId הזה (הסוכן/מנג’ר עצמו + עובדים שלו)
+  //           const qs = await getDocs(query(baseRef, where('agentId', '==', selectedAgentId)));
+  //           workersData = qs.docs.map((d) => {
+  //             const data = d.data() as any;
+  //             return {
+  //               id: d.id,
+  //               uid: d.id,
+  //               name: data.name,
+  //               role: data.role,
+  //               isActive: data.isActive ?? true,
+  //               subscriptionId: data.subscriptionId || '',
+  //               subscriptionType: data.subscriptionType || '',
+  //               permissionOverrides: data.permissionOverrides || {},
+  //               addOns: data.addOns || {},
+  //             };
+  //           });
+  //         } else {
+  //           // "כל הסוכנות": קודם מביאים את כל ה-agent/manager של adminAgency
+  //           const agentsSnap = await getDocs(
+  //             query(
+  //               baseRef,
+  //               where('role', 'in', ['agent', 'manager']),
+  //               where('agencies', '==', adminAgency) // ייתכן ותידרש אינדקסה מרוכבת
+  //             )
+  //           );
+  
+  //           const agentDocs = agentsSnap.docs.filter((d) => (d.data() as any).isActive !== false);
+  //           const allowedAgentIds = agentDocs.map((d) => d.id);
+  
+  //           // מוסיפים לרשימה גם את הסוכנים/מנהלים עצמם
+  //           workersData.push(
+  //             ...agentDocs.map((d) => {
+  //               const data = d.data() as any;
+  //               return {
+  //                 id: d.id,
+  //                 uid: d.id,
+  //                 name: data.name,
+  //                 role: data.role,
+  //                 isActive: data.isActive ?? true,
+  //                 subscriptionId: data.subscriptionId || '',
+  //                 subscriptionType: data.subscriptionType || '',
+  //                 permissionOverrides: data.permissionOverrides || {},
+  //                 addOns: data.addOns || {},
+  //               } as ExtendedWorker;
+  //             })
+  //           );
+  
+  //           // עכשיו מביאים את ה-workers לפי agentId במנות של 10
+  //           for (const batch of chunk(allowedAgentIds, 10)) {
+  //             const wsnap = await getDocs(
+  //               query(baseRef, where('role', '==', 'worker'), where('agentId', 'in', batch))
+  //             );
+  //             wsnap.forEach((docSnap) => {
+  //               const data = docSnap.data() as any;
+  //               if (data.isActive === false) return;
+  //               workersData.push({
+  //                 id: docSnap.id,
+  //                 uid: docSnap.id,
+  //                 name: data.name,
+  //                 role: data.role,
+  //                 isActive: data.isActive ?? true,
+  //                 subscriptionId: data.subscriptionId || '',
+  //                 subscriptionType: data.subscriptionType || '',
+  //                 permissionOverrides: data.permissionOverrides || {},
+  //                 addOns: data.addOns || {},
+  //               });
+  //             });
+  //           }
+  //         }
+  //       } else {
+  //         // לא-אדמין: לוגיקה קיימת
+  //         let workersQuery: any;
+  //         if ((isAgent || isManager || isWorker) && selectedAgentId && selectedAgentId !== 'all') {
+  //           workersQuery = query(baseRef, where('agentId', '==', selectedAgentId));
+  //         } else {
+  //           workersQuery = query(baseRef, where('role', 'in', ['worker', 'agent', 'manager']));
+  //         }
+  
+  //         const qs = await getDocs(workersQuery);
+  //         workersData = qs.docs.map((docSnap) => {
+  //           const data = docSnap.data() as any;
+  //           return {
+  //             id: docSnap.id,
+  //             uid: docSnap.id,
+  //             name: data.name,
+  //             role: data.role,
+  //             isActive: data.isActive ?? true,
+  //             subscriptionId: data.subscriptionId || '',
+  //             subscriptionType: data.subscriptionType || '',
+  //             permissionOverrides: data.permissionOverrides || {},
+  //             addOns: data.addOns || {},
+  //           };
+  //         });
+  //       }
+  
+  //       setWorkers(workersData);
+  //     } catch (error) {
+  //       // console.error('Failed to fetch workers:', error);
+  //       setWorkers([]);
+  //     } finally {
+  //       setLoading(false);
+  //     }
+  //   };
+  
+  //   fetchWorkersForAgent();
+  // }, [selectedAgentId, detail?.role, user?.uid]);
+
+
   useEffect(() => {
     const fetchWorkersForAgent = async () => {
       if (!selectedAgentId && detail?.role !== 'admin') return;
@@ -240,7 +394,6 @@ const detailAsMinimalUser: MinimalUser | null = detail && user
       const isAgent = detail?.role === 'agent';
       const isWorker = detail?.role === 'worker';
   
-      // עזר: חלוקה למנות (מגבלת in של Firestore עד 10 פריטים)
       const chunk = <T,>(arr: T[], size: number) =>
         Array.from({ length: Math.ceil(arr.length / size) }, (_, i) =>
           arr.slice(i * size, i * size + size)
@@ -250,25 +403,28 @@ const detailAsMinimalUser: MinimalUser | null = detail && user
         let workersData: ExtendedWorker[] = [];
   
         if (detail?.role === 'admin') {
-          // שליפת ה-agencies (string) של האדמין
+          // ✅ חדש: isSystem מדלג על הגבלת ה-agency, בדיוק כמו ב-useFetchAgentData
+          const isSystem = detail?.isSystem === true;
+
+          // שליפת ה-agencies (string) של האדמין - לא נדרש אם isSystem
           const adminDoc = await getDoc(doc(db, 'users', user!.uid));
           const adminAgency: string | undefined = adminDoc.exists()
             ? (adminDoc.data() as any)?.agencies
             : undefined;
   
-          if (!adminAgency) {
+          if (!isSystem && !adminAgency) {
             setWorkers([]);
             setLoading(false);
             return;
           }
   
           if (selectedAgentId && selectedAgentId !== 'all') {
-            // וידוא שה-agent/manager הנבחר הוא מאותה סוכנות
+            // וידוא שה-agent/manager הנבחר הוא מאותה סוכנות - אלא אם isSystem
             const agentDoc = await getDoc(doc(db, 'users', selectedAgentId));
             const agentOk =
               agentDoc.exists() &&
               ['agent', 'manager'].includes((agentDoc.data() as any)?.role) &&
-              (agentDoc.data() as any)?.agencies === adminAgency;
+              (isSystem || (agentDoc.data() as any)?.agencies === adminAgency);
   
             if (!agentOk) {
               setWorkers([]);
@@ -276,7 +432,7 @@ const detailAsMinimalUser: MinimalUser | null = detail && user
               return;
             }
   
-            // כל המשתמשים תחת agentId הזה (הסוכן/מנג’ר עצמו + עובדים שלו)
+            // כל המשתמשים תחת agentId הזה (הסוכן/מנג'ר עצמו + עובדים שלו)
             const qs = await getDocs(query(baseRef, where('agentId', '==', selectedAgentId)));
             workersData = qs.docs.map((d) => {
               const data = d.data() as any;
@@ -293,19 +449,20 @@ const detailAsMinimalUser: MinimalUser | null = detail && user
               };
             });
           } else {
-            // "כל הסוכנות": קודם מביאים את כל ה-agent/manager של adminAgency
+            // "כל הסוכנות": אם isSystem - כל ה-agent/manager בלי סינון agencies
             const agentsSnap = await getDocs(
-              query(
-                baseRef,
-                where('role', 'in', ['agent', 'manager']),
-                where('agencies', '==', adminAgency) // ייתכן ותידרש אינדקסה מרוכבת
-              )
+              isSystem
+                ? query(baseRef, where('role', 'in', ['agent', 'manager']))
+                : query(
+                    baseRef,
+                    where('role', 'in', ['agent', 'manager']),
+                    where('agencies', '==', adminAgency)
+                  )
             );
   
             const agentDocs = agentsSnap.docs.filter((d) => (d.data() as any).isActive !== false);
             const allowedAgentIds = agentDocs.map((d) => d.id);
   
-            // מוסיפים לרשימה גם את הסוכנים/מנהלים עצמם
             workersData.push(
               ...agentDocs.map((d) => {
                 const data = d.data() as any;
@@ -323,7 +480,6 @@ const detailAsMinimalUser: MinimalUser | null = detail && user
               })
             );
   
-            // עכשיו מביאים את ה-workers לפי agentId במנות של 10
             for (const batch of chunk(allowedAgentIds, 10)) {
               const wsnap = await getDocs(
                 query(baseRef, where('role', '==', 'worker'), where('agentId', 'in', batch))
@@ -346,7 +502,7 @@ const detailAsMinimalUser: MinimalUser | null = detail && user
             }
           }
         } else {
-          // לא-אדמין: לוגיקה קיימת
+          // לא-אדמין: ללא שינוי
           let workersQuery: any;
           if ((isAgent || isManager || isWorker) && selectedAgentId && selectedAgentId !== 'all') {
             workersQuery = query(baseRef, where('agentId', '==', selectedAgentId));
@@ -373,7 +529,6 @@ const detailAsMinimalUser: MinimalUser | null = detail && user
   
         setWorkers(workersData);
       } catch (error) {
-        // console.error('Failed to fetch workers:', error);
         setWorkers([]);
       } finally {
         setLoading(false);
@@ -381,7 +536,7 @@ const detailAsMinimalUser: MinimalUser | null = detail && user
     };
   
     fetchWorkersForAgent();
-  }, [selectedAgentId, detail?.role, user?.uid]);
+  }, [selectedAgentId, detail?.role, user?.uid, detail?.isSystem]);
   
   useEffect(() => {
     const fetchRolesForWorkers = async () => {

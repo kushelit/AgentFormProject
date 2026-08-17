@@ -278,3 +278,23 @@ export {
 export {
   archiveMagicTouchFlowTemplate,
 } from "./archiveMagicTouchFlowTemplate";
+
+export {
+  listMicrosoftBookingServices,
+} from "./listMicrosoftBookingServices";
+
+export {
+  createMicrosoftBookingService,
+} from "./createMicrosoftBookingService";
+
+export {
+  selectDefaultMicrosoftBookingService,
+} from "./selectDefaultMicrosoftBookingService";
+
+export {
+  listMicrosoftBookingStaffMembers,
+} from "./listMicrosoftBookingStaffMembers";
+
+export {
+  updateMicrosoftBookingStaffAvailability,
+} from "./updateMicrosoftBookingStaffAvailability";

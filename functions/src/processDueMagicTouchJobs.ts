@@ -6,6 +6,9 @@ import {
 
 import {
   SURENSE_ACTIVITY_API_KEY,
+  MICROSOFT_CLIENT_ID,
+  MICROSOFT_CLIENT_SECRET,
+  PORTAL_ENC_KEY_B64,
 } from "./shared/secrets";
 
 import {
@@ -40,6 +43,9 @@ export const processDueMagicTouchJobs =
 
       secrets: [
         SURENSE_ACTIVITY_API_KEY,
+        MICROSOFT_CLIENT_ID,
+        MICROSOFT_CLIENT_SECRET,
+        PORTAL_ENC_KEY_B64,
       ],
     },
 

@@ -1080,46 +1080,7 @@ export default function MagicTouchMonitorPage() {
             </div>
           )}
         </section>
-
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h2 className="text-lg font-bold text-slate-900">
-            עיבודים פעילים
-          </h2>
-
-          <div className="mt-4 grid gap-4 md:grid-cols-2">
-            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-              <div className="font-bold text-slate-900">
-                בדיקת חתימות יומית
-              </div>
-
-              <div className="mt-1 text-sm text-slate-500">
-                רצה בכל יום בשעה 09:00 לפי שעון ישראל.
-              </div>
-
-              <div className="mt-3 inline-flex rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-700">
-                פעיל
-              </div>
-            </div>
-
-            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-              <div className="font-bold text-slate-900">
-                סנכרון Microsoft Bookings
-              </div>
-
-              <div className="mt-1 text-sm text-slate-500">
-                מנוהל במסך האינטגרציה של Microsoft Bookings.
-              </div>
-
-              <a
-                href="/MagicTouch/Integrations/MicrosoftBookings"
-                className="mt-3 inline-flex rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50"
-              >
-                מעבר להגדרות
-              </a>
-            </div>
           </div>
-        </section>
-      </div>
     </main>
   );
 }

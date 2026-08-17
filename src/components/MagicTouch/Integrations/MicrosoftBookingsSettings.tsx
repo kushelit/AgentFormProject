@@ -1,6 +1,7 @@
 "use client";
 
 import React, {
+  useCallback,
   useEffect,
   useMemo,
   useState,
@@ -27,7 +28,10 @@ import {
 import {
   useAuth,
 } from "@/lib/firebase/AuthContext";
-import { useMagicTouchAgent } from "@/components/MagicTouch/MagicTouchAgentContext";
+
+import {
+  useMagicTouchAgent,
+} from "@/components/MagicTouch/MagicTouchAgentContext";
 
 import {
   usePermission,
@@ -57,35 +61,57 @@ type MicrosoftBusiness = {
   displayName: string;
 };
 
-
-type MicrosoftAppointmentListItem = {
-  appointmentId: string;
-  selfServiceAppointmentId?: string | null;
-  customerName?: string | null;
-  customerEmail?: string | null;
-  customerPhone?: string | null;
-  serviceId?: string | null;
-  serviceName?: string | null;
-  startAt?: {
-    dateTime?: string;
-    timeZone?: string;
-  } | string | null;
-  endAt?: {
-    dateTime?: string;
-    timeZone?: string;
-  } | string | null;
-  isCancelled?: boolean;
-  createdDateTime?: string | null;
-  lastUpdatedDateTime?: string | null;
+type MicrosoftBookingService = {
+  id: string;
+  displayName: string;
+  description?: string | null;
+  defaultDuration?: string | null;
+  webUrl?: string | null;
+  isHiddenFromCustomers?: boolean;
 };
 
-type MicrosoftAppointmentListResult = {
-  ok: boolean;
-  bookingBusinessId: string;
-  start: string;
-  end: string;
-  count: number;
-  appointments: MicrosoftAppointmentListItem[];
+type BookingDayKey =
+  | "sunday"
+  | "monday"
+  | "tuesday"
+  | "wednesday"
+  | "thursday"
+  | "friday"
+  | "saturday";
+
+type MicrosoftBookingWorkTimeSlot = {
+  startTime: string;
+  endTime: string;
+};
+
+type MicrosoftBookingWorkHours = {
+  day: BookingDayKey;
+  timeSlots: MicrosoftBookingWorkTimeSlot[];
+};
+
+type MicrosoftBookingStaffMember = {
+  id: string;
+  displayName: string;
+
+  emailAddress?: string | null;
+  role?: string | null;
+  membershipStatus?: string | null;
+
+  timeZone?: string | null;
+
+  useBusinessHours?: boolean;
+
+  availabilityIsAffectedByPersonalCalendar?: boolean;
+
+  workingHours?: MicrosoftBookingWorkHours[];
+};
+
+type AvailabilityDay = {
+  day: BookingDayKey;
+  label: string;
+  enabled: boolean;
+  startTime: string;
+  endTime: string;
 };
 
 type TimestampLike = {
@@ -106,6 +132,30 @@ type MicrosoftBookingsConfig = {
   bookingBusinessPublicUrl?: string | null;
 
   availableBusinesses?: MicrosoftBusiness[];
+  availableServices?: MicrosoftBookingService[];
+
+  availableStaffMembers?: MicrosoftBookingStaffMember[];
+
+  selectedBookingStaffMemberId?: string | null;
+  selectedBookingStaffMemberName?: string | null;
+  selectedBookingStaffMemberEmail?: string | null;
+
+  bookingStaffTimeZone?: string | null;
+
+  bookingStaffWorkingHours?: MicrosoftBookingWorkHours[];
+
+  defaultBookingServiceId?: string | null;
+  defaultBookingServiceName?: string | null;
+  defaultBookingServiceUrl?: string | null;
+  defaultBookingServiceDurationMinutes?: number | null;
+
+  defaultBookingServicePreBufferMinutes?: number | null;
+  defaultBookingServicePostBufferMinutes?: number | null;
+  defaultBookingServiceMinimumLeadTimeMinutes?: number | null;
+  defaultBookingServiceMaximumAdvanceDays?: number | null;
+  defaultBookingServiceTimeSlotIntervalMinutes?: number | null;
+
+  defaultBookingServiceStaffMemberId?: string | null;
 
   lastSyncAt?: TimestampLike | null;
   lastSyncStatus?: string | null;
@@ -119,32 +169,213 @@ type MicrosoftBookingsConfig = {
   lastSyncCancelledEventCount?: number | null;
 };
 
-const CONNECTION_STATUS_LABELS:
-  Record<string, string> = {
-    connected:
-      "מחובר",
+type ListServicesResult = {
+  ok: boolean;
+  bookingBusinessId: string;
+  count: number;
+  services: MicrosoftBookingService[];
+  defaultServiceId?: string | null;
+};
 
-    needs_business_selection:
-      "נדרשת בחירת עסק",
+type ListStaffResult = {
+  ok: boolean;
 
-    no_booking_business:
-      "לא נמצא עסק Bookings",
+  bookingBusinessId: string;
 
-    disconnected:
-      "לא מחובר",
+  count: number;
+
+  staffMembers:
+    MicrosoftBookingStaffMember[];
+
+  selectedStaffMemberId?:
+    string |
+    null;
+};
+
+type CreateServiceResult = {
+  ok: boolean;
+  created: boolean;
+  selectedAsDefault: boolean;
+
+  service: {
+    id: string;
+    displayName: string;
+    description?: string | null;
+    defaultDuration?: string | null;
+    durationMinutes?: number;
+    webUrl?: string | null;
+
+    staffMemberId?: string | null;
+
+    preBufferMinutes?: number;
+    postBufferMinutes?: number;
+
+    minimumLeadTimeMinutes?: number;
+    maximumAdvanceDays?: number;
+    timeSlotIntervalMinutes?: number;
   };
+};
+
+type ServiceMode =
+  | "existing"
+  | "create";
+
+const CONNECTION_STATUS_LABELS:
+Record<string, string> = {
+  connected:
+    "מחובר",
+
+  needs_business_selection:
+    "נדרשת בחירת עסק",
+
+  no_booking_business:
+    "לא נמצא עסק Bookings",
+
+  disconnected:
+    "לא מחובר",
+};
 
 const SYNC_STATUS_LABELS:
-  Record<string, string> = {
-    not_started:
-      "טרם בוצע סנכרון",
+Record<string, string> = {
+  not_started:
+    "טרם בוצע סנכרון",
 
-    success:
-      "הסנכרון הצליח",
+  success:
+    "הסנכרון הצליח",
 
-    failed:
-      "הסנכרון נכשל",
-  };
+  failed:
+    "הסנכרון נכשל",
+};
+
+const DEFAULT_AVAILABILITY:
+AvailabilityDay[] = [
+  {
+    day:
+      "sunday",
+
+    label:
+      "יום א׳",
+
+    enabled:
+      true,
+
+    startTime:
+      "09:00",
+
+    endTime:
+      "17:00",
+  },
+
+  {
+    day:
+      "monday",
+
+    label:
+      "יום ב׳",
+
+    enabled:
+      true,
+
+    startTime:
+      "09:00",
+
+    endTime:
+      "17:00",
+  },
+
+  {
+    day:
+      "tuesday",
+
+    label:
+      "יום ג׳",
+
+    enabled:
+      true,
+
+    startTime:
+      "09:00",
+
+    endTime:
+      "17:00",
+  },
+
+  {
+    day:
+      "wednesday",
+
+    label:
+      "יום ד׳",
+
+    enabled:
+      true,
+
+    startTime:
+      "09:00",
+
+    endTime:
+      "17:00",
+  },
+
+  {
+    day:
+      "thursday",
+
+    label:
+      "יום ה׳",
+
+    enabled:
+      true,
+
+    startTime:
+      "09:00",
+
+    endTime:
+      "17:00",
+  },
+
+  {
+    day:
+      "friday",
+
+    label:
+      "יום ו׳",
+
+    enabled:
+      false,
+
+    startTime:
+      "09:00",
+
+    endTime:
+      "13:00",
+  },
+
+  {
+    day:
+      "saturday",
+
+    label:
+      "שבת",
+
+    enabled:
+      false,
+
+    startTime:
+      "09:00",
+
+    endTime:
+      "17:00",
+  },
+];
+
+function s(
+  value: unknown
+): string {
+  return String(
+    value ?? ""
+  ).trim();
+}
 
 function formatTimestamp(
   value?:
@@ -166,31 +397,142 @@ function formatTimestamp(
     );
 }
 
-
-function appointmentDateText(
-  value:
-    | {
-      dateTime?: string;
-      timeZone?: string;
-    }
-    | string
-    | null
-    | undefined
+function durationText(
+  value?:
+    string |
+    null
 ): string {
   const raw =
-    typeof value === "string"
-      ? value
-      : String(value?.dateTime || "");
+    s(
+      value
+    );
 
-  if (!raw) return "-";
+  if (!raw) {
+    return "-";
+  }
 
-  const date = new Date(raw);
+  const match =
+    raw.match(
+      /^PT(?:(\d+)H)?(?:(\d+)M)?$/
+    );
 
-  if (Number.isNaN(date.getTime())) {
+  if (!match) {
     return raw;
   }
 
-  return date.toLocaleString("he-IL");
+  const hours =
+    Number(
+      match[1] ||
+      0
+    );
+
+  const minutes =
+    Number(
+      match[2] ||
+      0
+    );
+
+  const total =
+    hours *
+      60 +
+    minutes;
+
+  return total > 0
+    ? `${total} דקות`
+    : raw;
+}
+
+function normalizeGraphTime(
+  value: unknown,
+  fallback: string
+): string {
+  const raw =
+    s(
+      value
+    );
+
+  const match =
+    raw.match(
+      /^(\d{2}):(\d{2})/
+    );
+
+  if (!match) {
+    return fallback;
+  }
+
+  return `${match[1]}:${match[2]}`;
+}
+
+function availabilityFromWorkingHours(
+  workingHours?:
+    MicrosoftBookingWorkHours[]
+): AvailabilityDay[] {
+  if (
+    !Array.isArray(
+      workingHours
+    )
+  ) {
+    return DEFAULT_AVAILABILITY.map(
+      (
+        item
+      ) => ({
+        ...item,
+      })
+    );
+  }
+
+  return DEFAULT_AVAILABILITY.map(
+    (
+      defaultDay
+    ) => {
+      const graphDay =
+        workingHours.find(
+          (
+            item
+          ) =>
+            item.day ===
+            defaultDay.day
+        );
+
+      const firstSlot =
+        Array.isArray(
+          graphDay?.timeSlots
+        )
+          ? graphDay
+              ?.timeSlots[0]
+          : null;
+
+      if (
+        !firstSlot
+      ) {
+        return {
+          ...defaultDay,
+
+          enabled:
+            false,
+        };
+      }
+
+      return {
+        ...defaultDay,
+
+        enabled:
+          true,
+
+        startTime:
+          normalizeGraphTime(
+            firstSlot.startTime,
+            defaultDay.startTime
+          ),
+
+        endTime:
+          normalizeGraphTime(
+            firstSlot.endTime,
+            defaultDay.endTime
+          ),
+      };
+    }
+  );
 }
 
 function InfoCard({
@@ -214,13 +556,16 @@ function InfoCard({
 }
 
 export default function MicrosoftBookingsSettings() {
-  const { effectiveAgentId } = useMagicTouchAgent();
+  const {
+    effectiveAgentId,
+  } =
+    useMagicTouchAgent();
+
   const searchParams =
     useSearchParams();
 
   const {
     user,
-    detail,
     isLoading,
   } =
     useAuth() as any;
@@ -235,16 +580,8 @@ export default function MicrosoftBookingsSettings() {
         : null
     );
 
-    const {
-  canAccess: canAccessJobsAdmin,
-} =
-  usePermission(
-    user
-      ? "access_magic_touch_jobs_admin"
-      : null
-  );
-
-  const agentId = effectiveAgentId;
+  const agentId =
+    effectiveAgentId;
 
   const [
     config,
@@ -263,12 +600,6 @@ export default function MicrosoftBookingsSettings() {
   const [
     connecting,
     setConnecting,
-  ] =
-    useState(false);
-
-  const [
-    syncing,
-    setSyncing,
   ] =
     useState(false);
 
@@ -304,43 +635,159 @@ export default function MicrosoftBookingsSettings() {
       null
     );
 
+  /*
+   * Services
+   */
 
   const [
-    listingAppointments,
-    setListingAppointments,
-  ] = useState(false);
+    services,
+    setServices,
+  ] =
+    useState<MicrosoftBookingService[]>(
+      []
+    );
 
   const [
-    appointmentListResult,
-    setAppointmentListResult,
-  ] = useState<MicrosoftAppointmentListResult | null>(
-    null
-  );
-
+    loadingServices,
+    setLoadingServices,
+  ] =
+    useState(false);
 
   const [
-    deletingAppointmentId,
-    setDeletingAppointmentId,
-  ] = useState("");
+    serviceMode,
+    setServiceMode,
+  ] =
+    useState<ServiceMode>(
+      "existing"
+    );
 
-const [
-  diagnosticAppointmentId,
-  setDiagnosticAppointmentId,
-] = useState("");
+  const [
+    selectedServiceId,
+    setSelectedServiceId,
+  ] =
+    useState("");
 
-const [
-  diagnosingAppointment,
-  setDiagnosingAppointment,
-] = useState(false);
+  const [
+    savingDefaultService,
+    setSavingDefaultService,
+  ] =
+    useState(false);
 
-const [
-  diagnosticResult,
-  setDiagnosticResult,
-] = useState<Record<string, any> | null>(
-  null
-);
+  const [
+    creatingService,
+    setCreatingService,
+  ] =
+    useState(false);
 
+  /*
+   * Staff
+   */
 
+  const [
+    staffMembers,
+    setStaffMembers,
+  ] =
+    useState<MicrosoftBookingStaffMember[]>(
+      []
+    );
+
+  const [
+    loadingStaff,
+    setLoadingStaff,
+  ] =
+    useState(false);
+
+  const [
+    selectedStaffMemberId,
+    setSelectedStaffMemberId,
+  ] =
+    useState("");
+
+  const [
+    savingAvailability,
+    setSavingAvailability,
+  ] =
+    useState(false);
+
+  const [
+    availability,
+    setAvailability,
+  ] =
+    useState<AvailabilityDay[]>(
+      DEFAULT_AVAILABILITY
+    );
+
+  /*
+   * New service
+   */
+
+  const [
+    newServiceName,
+    setNewServiceName,
+  ] =
+    useState(
+      "פגישת ייעוץ"
+    );
+
+  const [
+    newServiceDescription,
+    setNewServiceDescription,
+  ] =
+    useState(
+      "פגישת ייעוץ עם הסוכן"
+    );
+
+  const [
+    newServiceDurationMinutes,
+    setNewServiceDurationMinutes,
+  ] =
+    useState(
+      30
+    );
+
+  const [
+    preBufferMinutes,
+    setPreBufferMinutes,
+  ] =
+    useState(
+      0
+    );
+
+  const [
+    postBufferMinutes,
+    setPostBufferMinutes,
+  ] =
+    useState(
+      0
+    );
+
+  const [
+    minimumLeadTimeMinutes,
+    setMinimumLeadTimeMinutes,
+  ] =
+    useState(
+      120
+    );
+
+  const [
+    maximumAdvanceDays,
+    setMaximumAdvanceDays,
+  ] =
+    useState(
+      60
+    );
+
+  const [
+    timeSlotIntervalMinutes,
+    setTimeSlotIntervalMinutes,
+  ] =
+    useState(
+      30
+    );
+
+  /*
+   * Config listener
+   */
 
   useEffect(
     () => {
@@ -370,6 +817,7 @@ const [
 
       return onSnapshot(
         configRef,
+
         (
           snapshot
         ) => {
@@ -381,6 +829,22 @@ const [
             );
 
             setSelectedBusinessId(
+              ""
+            );
+
+            setServices(
+              []
+            );
+
+            setStaffMembers(
+              []
+            );
+
+            setSelectedServiceId(
+              ""
+            );
+
+            setSelectedStaffMemberId(
               ""
             );
 
@@ -399,31 +863,137 @@ const [
               data.availableBusinesses
             )
               ? data.availableBusinesses.map(
-                (
-                  business:
-                    Record<string, unknown>
-                ) => ({
-                  id:
-                    String(
-                      business.id ||
-                      ""
-                    ),
+                  (
+                    business:
+                      Record<string, unknown>
+                  ) => ({
+                    id:
+                      s(
+                        business.id
+                      ),
 
-                  displayName:
-                    String(
-                      business.displayName ||
-                      business.id ||
-                      ""
-                    ),
-                })
-              )
+                    displayName:
+                      s(
+                        business.displayName ||
+                        business.id
+                      ),
+                  })
+                )
               : [];
 
-          setConfig({
+          const availableServices =
+            Array.isArray(
+              data.availableServices
+            )
+              ? data.availableServices.map(
+                  (
+                    service:
+                      Record<string, unknown>
+                  ) => ({
+                    id:
+                      s(
+                        service.id
+                      ),
+
+                    displayName:
+                      s(
+                        service.displayName ||
+                        service.id
+                      ),
+
+                    description:
+                      s(
+                        service.description
+                      ) ||
+                      null,
+
+                    defaultDuration:
+                      s(
+                        service.defaultDuration
+                      ) ||
+                      null,
+
+                    webUrl:
+                      s(
+                        service.webUrl
+                      ) ||
+                      null,
+
+                    isHiddenFromCustomers:
+                      service.isHiddenFromCustomers ===
+                      true,
+                  })
+                )
+              : [];
+
+          const availableStaffMembers =
+            Array.isArray(
+              data.availableStaffMembers
+            )
+              ? data.availableStaffMembers.map(
+                  (
+                    member:
+                      Record<string, any>
+                  ) => ({
+                    id:
+                      s(
+                        member.id
+                      ),
+
+                    displayName:
+                      s(
+                        member.displayName ||
+                        member.emailAddress ||
+                        member.id
+                      ),
+
+                    emailAddress:
+                      s(
+                        member.emailAddress
+                      ) ||
+                      null,
+
+                    role:
+                      s(
+                        member.role
+                      ) ||
+                      null,
+
+                    membershipStatus:
+                      s(
+                        member.membershipStatus
+                      ) ||
+                      null,
+
+                    timeZone:
+                      s(
+                        member.timeZone
+                      ) ||
+                      null,
+
+                    useBusinessHours:
+                      member.useBusinessHours !==
+                      false,
+
+                    availabilityIsAffectedByPersonalCalendar:
+                      member.availabilityIsAffectedByPersonalCalendar ===
+                      true,
+
+                    workingHours:
+                      Array.isArray(
+                        member.workingHours
+                      )
+                        ? member.workingHours
+                        : [],
+                  })
+                )
+              : [];
+
+          const nextConfig:
+          MicrosoftBookingsConfig = {
             status:
-              String(
-                data.status ||
-                ""
+              s(
+                data.status
               ),
 
             connected:
@@ -459,6 +1029,85 @@ const [
               null,
 
             availableBusinesses,
+
+            availableServices,
+
+            availableStaffMembers,
+
+            selectedBookingStaffMemberId:
+              data.selectedBookingStaffMemberId ||
+              null,
+
+            selectedBookingStaffMemberName:
+              data.selectedBookingStaffMemberName ||
+              null,
+
+            selectedBookingStaffMemberEmail:
+              data.selectedBookingStaffMemberEmail ||
+              null,
+
+            bookingStaffTimeZone:
+              data.bookingStaffTimeZone ||
+              null,
+
+            bookingStaffWorkingHours:
+              Array.isArray(
+                data.bookingStaffWorkingHours
+              )
+                ? data.bookingStaffWorkingHours
+                : [],
+
+            defaultBookingServiceId:
+              data.defaultBookingServiceId ||
+              null,
+
+            defaultBookingServiceName:
+              data.defaultBookingServiceName ||
+              null,
+
+            defaultBookingServiceUrl:
+              data.defaultBookingServiceUrl ||
+              null,
+
+            defaultBookingServiceDurationMinutes:
+              typeof data.defaultBookingServiceDurationMinutes ===
+              "number"
+                ? data.defaultBookingServiceDurationMinutes
+                : null,
+
+            defaultBookingServicePreBufferMinutes:
+              typeof data.defaultBookingServicePreBufferMinutes ===
+              "number"
+                ? data.defaultBookingServicePreBufferMinutes
+                : null,
+
+            defaultBookingServicePostBufferMinutes:
+              typeof data.defaultBookingServicePostBufferMinutes ===
+              "number"
+                ? data.defaultBookingServicePostBufferMinutes
+                : null,
+
+            defaultBookingServiceMinimumLeadTimeMinutes:
+              typeof data.defaultBookingServiceMinimumLeadTimeMinutes ===
+              "number"
+                ? data.defaultBookingServiceMinimumLeadTimeMinutes
+                : null,
+
+            defaultBookingServiceMaximumAdvanceDays:
+              typeof data.defaultBookingServiceMaximumAdvanceDays ===
+              "number"
+                ? data.defaultBookingServiceMaximumAdvanceDays
+                : null,
+
+            defaultBookingServiceTimeSlotIntervalMinutes:
+              typeof data.defaultBookingServiceTimeSlotIntervalMinutes ===
+              "number"
+                ? data.defaultBookingServiceTimeSlotIntervalMinutes
+                : null,
+
+            defaultBookingServiceStaffMemberId:
+              data.defaultBookingServiceStaffMemberId ||
+              null,
 
             lastSyncAt:
               data.lastSyncAt ||
@@ -507,20 +1156,65 @@ const [
               "number"
                 ? data.lastSyncCancelledEventCount
                 : null,
-          });
+          };
+
+          setConfig(
+            nextConfig
+          );
+
+          setServices(
+            availableServices
+          );
+
+          setStaffMembers(
+            availableStaffMembers
+          );
 
           setSelectedBusinessId(
-            String(
+            s(
               data.bookingBusinessId ||
-              availableBusinesses[0]?.id ||
-              ""
+              availableBusinesses[0]?.id
             )
           );
+
+          setSelectedServiceId(
+            s(
+              data.defaultBookingServiceId
+            )
+          );
+
+          const configuredStaffId =
+            s(
+              data.selectedBookingStaffMemberId
+            );
+
+          if (
+            configuredStaffId
+          ) {
+            setSelectedStaffMemberId(
+              configuredStaffId
+            );
+
+            if (
+              Array.isArray(
+                data.bookingStaffWorkingHours
+              ) &&
+              data.bookingStaffWorkingHours.length >
+                0
+            ) {
+              setAvailability(
+                availabilityFromWorkingHours(
+                  data.bookingStaffWorkingHours
+                )
+              );
+            }
+          }
 
           setLoadingConfig(
             false
           );
         },
+
         (
           error
         ) => {
@@ -546,10 +1240,15 @@ const [
         }
       );
     },
+
     [
       agentId,
     ]
   );
+
+  /*
+   * OAuth result
+   */
 
   useEffect(
     () => {
@@ -637,6 +1336,7 @@ const [
         });
       }
     },
+
     [
       searchParams,
     ]
@@ -660,6 +1360,7 @@ const [
           )
         );
       },
+
       [
         config,
       ]
@@ -674,7 +1375,7 @@ const [
 
   const syncStatusLabel =
     SYNC_STATUS_LABELS[
-      String(
+      s(
         config?.lastSyncStatus ||
         "not_started"
       )
@@ -693,6 +1394,369 @@ const [
           "no_booking_business"
           ? "bg-orange-100 text-orange-800"
           : "bg-gray-100 text-gray-700";
+
+  const defaultService =
+    useMemo(
+      () => {
+        const id =
+          s(
+            config?.defaultBookingServiceId
+          );
+
+        if (!id) {
+          return null;
+        }
+
+        return (
+          services.find(
+            (
+              service
+            ) =>
+              service.id ===
+              id
+          ) ||
+          {
+            id,
+
+            displayName:
+              s(
+                config?.defaultBookingServiceName
+              ) ||
+              "פגישה שנבחרה",
+
+            webUrl:
+              s(
+                config?.defaultBookingServiceUrl
+              ) ||
+              null,
+
+            defaultDuration:
+              null,
+
+            description:
+              null,
+
+            isHiddenFromCustomers:
+              false,
+          }
+        );
+      },
+
+      [
+        config,
+        services,
+      ]
+    );
+
+  const selectedStaffMember =
+    useMemo(
+      () =>
+        staffMembers.find(
+          (
+            member
+          ) =>
+            member.id ===
+            selectedStaffMemberId
+        ) ||
+        null,
+      [
+        staffMembers,
+        selectedStaffMemberId,
+      ]
+    );
+
+  /*
+   * Load services
+   */
+
+  const loadServices =
+    useCallback(
+      async (
+        showSuccess:
+          boolean =
+          false
+      ) => {
+        if (
+          !config?.connected ||
+          !config?.bookingBusinessId
+        ) {
+          return;
+        }
+
+        setLoadingServices(
+          true
+        );
+
+        try {
+          const fn =
+            httpsCallable<
+              Record<string, never>,
+              ListServicesResult
+            >(
+              functions,
+              "listMicrosoftBookingServices"
+            );
+
+          const response =
+            await fn({});
+
+          const nextServices =
+            Array.isArray(
+              response.data
+                ?.services
+            )
+              ? response.data
+                  .services
+              : [];
+
+          setServices(
+            nextServices
+          );
+
+          const defaultId =
+            s(
+              response.data
+                ?.defaultServiceId ||
+              config.defaultBookingServiceId
+            );
+
+          if (
+            defaultId
+          ) {
+            setSelectedServiceId(
+              defaultId
+            );
+          } else if (
+            nextServices.length ===
+            1
+          ) {
+            setSelectedServiceId(
+              nextServices[0].id
+            );
+          }
+
+          if (
+            nextServices.length ===
+            0
+          ) {
+            setServiceMode(
+              "create"
+            );
+          }
+
+          if (
+            showSuccess
+          ) {
+            setDialog({
+              type:
+                "success",
+
+              title:
+                "סוגי הפגישות נטענו",
+
+              message:
+                `נמצאו ${nextServices.length} סוגי פגישות ב-Microsoft Bookings.`,
+            });
+          }
+        } catch (
+          error: any
+        ) {
+          console.error(
+            "[MicrosoftBookingsSettings] load services failed",
+            error
+          );
+
+          setDialog({
+            type:
+              "error",
+
+            title:
+              "טעינת סוגי הפגישות נכשלה",
+
+            message:
+              error?.message ||
+              "לא ניתן לטעון את סוגי הפגישות מ-Microsoft Bookings.",
+          });
+        } finally {
+          setLoadingServices(
+            false
+          );
+        }
+      },
+
+      [
+        config?.connected,
+        config?.bookingBusinessId,
+        config?.defaultBookingServiceId,
+      ]
+    );
+
+  /*
+   * Load staff
+   */
+
+  const loadStaff =
+    useCallback(
+      async (
+        showSuccess:
+          boolean =
+          false
+      ) => {
+        if (
+          !config?.connected ||
+          !config?.bookingBusinessId
+        ) {
+          return;
+        }
+
+        setLoadingStaff(
+          true
+        );
+
+        try {
+          const fn =
+            httpsCallable<
+              Record<string, never>,
+              ListStaffResult
+            >(
+              functions,
+              "listMicrosoftBookingStaffMembers"
+            );
+
+          const response =
+            await fn({});
+
+          const nextStaff =
+            Array.isArray(
+              response.data
+                ?.staffMembers
+            )
+              ? response.data
+                  .staffMembers
+              : [];
+
+          setStaffMembers(
+            nextStaff
+          );
+
+          const configuredId =
+            s(
+              response.data
+                ?.selectedStaffMemberId ||
+              config.selectedBookingStaffMemberId
+            );
+
+          let nextSelectedId =
+            configuredId;
+
+          if (
+            !nextSelectedId &&
+            nextStaff.length ===
+            1
+          ) {
+            nextSelectedId =
+              nextStaff[0].id;
+          }
+
+          if (
+            nextSelectedId
+          ) {
+            setSelectedStaffMemberId(
+              nextSelectedId
+            );
+
+            const member =
+              nextStaff.find(
+                (
+                  item
+                ) =>
+                  item.id ===
+                  nextSelectedId
+              );
+
+            if (
+              member?.workingHours &&
+              member.workingHours.length >
+                0
+            ) {
+              setAvailability(
+                availabilityFromWorkingHours(
+                  member.workingHours
+                )
+              );
+            }
+          }
+
+          if (
+            showSuccess
+          ) {
+            setDialog({
+              type:
+                "success",
+
+              title:
+                "אנשי הצוות נטענו",
+
+              message:
+                `נמצאו ${nextStaff.length} אנשי צוות ב-Microsoft Bookings.`,
+            });
+          }
+        } catch (
+          error: any
+        ) {
+          console.error(
+            "[MicrosoftBookingsSettings] load staff failed",
+            error
+          );
+
+          setDialog({
+            type:
+              "error",
+
+            title:
+              "טעינת אנשי הצוות נכשלה",
+
+            message:
+              error?.message ||
+              "לא ניתן לטעון את אנשי הצוות מ-Microsoft Bookings.",
+          });
+        } finally {
+          setLoadingStaff(
+            false
+          );
+        }
+      },
+
+      [
+        config?.connected,
+        config?.bookingBusinessId,
+        config?.selectedBookingStaffMemberId,
+      ]
+    );
+
+  useEffect(
+    () => {
+      if (
+        config?.connected &&
+        config?.bookingBusinessId
+      ) {
+        void loadServices(
+          false
+        );
+
+        void loadStaff(
+          false
+        );
+      }
+    },
+
+    [
+      config?.connected,
+      config?.bookingBusinessId,
+      loadServices,
+      loadStaff,
+    ]
+  );
 
   const handleConnectMicrosoft =
     async () => {
@@ -716,10 +1780,9 @@ const [
           };
 
         const authUrl =
-          String(
-            data?.authUrl ||
-            ""
-          ).trim();
+          s(
+            data?.authUrl
+          );
 
         if (
           !authUrl
@@ -831,300 +1894,562 @@ const [
       }
     };
 
-  const handleSyncNow =
-    async () => {
-      setSyncing(
-        true
+  /*
+   * Staff selection
+   */
+
+  const handleStaffSelection =
+    (
+      staffMemberId:
+        string
+    ) => {
+      setSelectedStaffMemberId(
+        staffMemberId
       );
 
-      try {
-        const fn =
-          httpsCallable(
-            functions,
-            "syncMicrosoftBookingsNow"
-          );
+      const member =
+        staffMembers.find(
+          (
+            item
+          ) =>
+            item.id ===
+            staffMemberId
+        );
 
-        const result =
-          await fn({});
-
-        const data =
-          result.data as {
-            appointments?: number;
-            matched?: number;
-            unmatched?: number;
-            createdEvents?: number;
-            cancelledEvents?: number;
-          };
-
-        setDialog({
-          type:
-            "success",
-
-          title:
-            "הסנכרון הסתיים",
-
-          message:
-            `נמצאו ${data.appointments ?? 0} פגישות. ` +
-            `${data.matched ?? 0} שויכו לאנשי קשר, ` +
-            `${data.unmatched ?? 0} לא שויכו. ` +
-            `${data.createdEvents ?? 0} אירועי פגישה חדשים ו-` +
-            `${data.cancelledEvents ?? 0} אירועי ביטול נוצרו.`,
-        });
-      } catch (
-        error: any
+      if (
+        member?.workingHours &&
+        member.workingHours.length >
+          0
       ) {
-        setDialog({
-          type:
-            "error",
-
-          title:
-            "הסנכרון נכשל",
-
-          message:
-            error?.message ||
-            "לא ניתן לסנכרן את פגישות Bookings.",
-        });
-      } finally {
-        setSyncing(
-          false
+        setAvailability(
+          availabilityFromWorkingHours(
+            member.workingHours
+          )
+        );
+      } else {
+        setAvailability(
+          DEFAULT_AVAILABILITY.map(
+            (
+              item
+            ) => ({
+              ...item,
+            })
+          )
         );
       }
     };
 
-  const handleDeleteAppointment =
-    async (
-      appointment:
-        MicrosoftAppointmentListItem
+
+const handleCopyBookingLink =
+  async () => {
+    const url =
+      s(
+        defaultService?.webUrl ||
+        config?.defaultBookingServiceUrl
+      );
+
+    if (!url) {
+      setDialog({
+        type:
+          "warning",
+
+        title:
+          "אין קישור זמין",
+
+        message:
+          "לא נמצא קישור לפגישת ברירת המחדל.",
+      });
+
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(
+        url
+      );
+
+      setDialog({
+        type:
+          "success",
+
+        title:
+          "הקישור הועתק",
+
+        message:
+          "קישור הפגישה הועתק ללוח ואפשר להדביק אותו בהודעה.",
+      });
+    } catch (
+      error
+    ) {
+      console.error(
+        "[MicrosoftBookingsSettings] copy booking link failed",
+        error
+      );
+
+      setDialog({
+        type:
+          "error",
+
+        title:
+          "העתקת הקישור נכשלה",
+
+        message:
+          "לא ניתן להעתיק את קישור הפגישה.",
+      });
+    }
+  };
+
+
+  const updateAvailabilityDay =
+    (
+      day:
+        BookingDayKey,
+
+      patch:
+        Partial<
+          AvailabilityDay
+        >
     ) => {
-      const approved =
-        window.confirm(
-          `למחוק את הפגישה של ${
-            appointment.customerName ||
-            "הלקוח"
-          } מ-Microsoft Bookings?`
-        );
+      setAvailability(
+        (
+          current
+        ) =>
+          current.map(
+            (
+              item
+            ) =>
+              item.day ===
+              day
+                ? {
+                    ...item,
+                    ...patch,
+                  }
+                : item
+          )
+      );
+    };
 
-      if (!approved) {
-        return;
-      }
-
-      const confirmation =
-        window.prompt(
-          "כדי לאשר את המחיקה הקלידי DELETE"
-        );
-
+  const handleSaveAvailability =
+    async () => {
       if (
-        confirmation !==
-        "DELETE"
+        !selectedStaffMemberId
       ) {
         setDialog({
-          type: "warning",
-          title: "המחיקה בוטלה",
+          type:
+            "warning",
+
+          title:
+            "לא נבחר איש צוות",
+
           message:
-            "לא הוקלד אישור DELETE.",
+            "יש לבחור מי מקבל את הפגישות לפני שמירת הזמינות.",
         });
 
         return;
       }
 
-      setDeletingAppointmentId(
-        appointment.appointmentId
+      const invalidDay =
+        availability.find(
+          (
+            item
+          ) =>
+            item.enabled &&
+            item.startTime >=
+              item.endTime
+        );
+
+      if (
+        invalidDay
+      ) {
+        setDialog({
+          type:
+            "warning",
+
+          title:
+            "טווח שעות לא תקין",
+
+          message:
+            `ביום ${invalidDay.label} שעת הסיום חייבת להיות מאוחרת משעת ההתחלה.`,
+        });
+
+        return;
+      }
+
+      setSavingAvailability(
+        true
       );
 
       try {
         const fn =
           httpsCallable<
             {
-              agentId: string;
-              appointmentId: string;
-              confirmation: "DELETE";
+              staffMemberId:
+                string;
+
+              timeZone:
+                string;
+
+              workingHours:
+                Array<{
+                  day:
+                    BookingDayKey;
+
+                  enabled:
+                    boolean;
+
+                  startTime:
+                    string;
+
+                  endTime:
+                    string;
+                }>;
             },
             {
-              ok: boolean;
-              deleted: boolean;
-              httpStatus: number;
+              ok:
+                boolean;
             }
           >(
             functions,
-            "deleteMicrosoftBookingAppointment"
+            "updateMicrosoftBookingStaffAvailability"
           );
 
         await fn({
-          agentId,
-          appointmentId:
-            appointment.appointmentId,
-          confirmation:
-            "DELETE",
+          staffMemberId:
+            selectedStaffMemberId,
+
+          timeZone:
+            "Israel Standard Time",
+
+          workingHours:
+            availability.map(
+              (
+                item
+              ) => ({
+                day:
+                  item.day,
+
+                enabled:
+                  item.enabled,
+
+                startTime:
+                  item.startTime,
+
+                endTime:
+                  item.endTime,
+              })
+            ),
         });
 
         setDialog({
-          type: "success",
-          title: "הפגישה נמחקה",
+          type:
+            "success",
+
+          title:
+            "הזמינות נשמרה",
+
           message:
-            "הפגישה נמחקה מ-Microsoft Bookings.",
+            "ימי ושעות הפגישה נשמרו ב-Microsoft Bookings. זמנים תפוסים ביומן Microsoft ימשיכו להיחסם.",
         });
 
-        setAppointmentListResult(
-          (current) => {
-            if (!current) {
-              return current;
-            }
-
-            const appointments =
-              current.appointments.filter(
-                (item) =>
-                  item.appointmentId !==
-                  appointment.appointmentId
-              );
-
-            return {
-              ...current,
-              count:
-                appointments.length,
-              appointments,
-            };
-          }
+        await loadStaff(
+          false
         );
       } catch (
         error: any
       ) {
         console.error(
-          "[Microsoft Bookings Delete Appointment] failed",
+          "[MicrosoftBookingsSettings] save availability failed",
           error
         );
 
         setDialog({
-          type: "error",
-          title: "מחיקת הפגישה נכשלה",
+          type:
+            "error",
+
+          title:
+            "שמירת הזמינות נכשלה",
+
           message:
             error?.message ||
-            "לא ניתן למחוק את הפגישה מ-Microsoft.",
+            "לא ניתן לשמור את הזמינות ב-Microsoft Bookings.",
         });
       } finally {
-        setDeletingAppointmentId(
-          ""
+        setSavingAvailability(
+          false
         );
       }
     };
 
-  const handleListAppointments =
+  /*
+   * Existing service
+   */
+
+  const handleSelectExistingService =
     async () => {
-      setListingAppointments(true);
-      setAppointmentListResult(null);
+      if (
+        !selectedServiceId
+      ) {
+        setDialog({
+          type:
+            "warning",
+
+          title:
+            "לא נבחרה פגישה",
+
+          message:
+            "יש לבחור סוג פגישה מתוך Microsoft Bookings.",
+        });
+
+        return;
+      }
+
+      setSavingDefaultService(
+        true
+      );
 
       try {
-        const fn = httpsCallable<
-          {
-            agentId: string;
-          },
-          MicrosoftAppointmentListResult
-        >(
-          functions,
-          "listMicrosoftBookingsAppointments"
-        );
+        const fn =
+          httpsCallable<
+            {
+              serviceId:
+                string;
+            },
+            {
+              ok:
+                boolean;
 
-        const response = await fn({
-          agentId,
-        });
+              service?: {
+                id?: string;
+                displayName?: string | null;
+                webUrl?: string | null;
+              };
+            }
+          >(
+            functions,
+            "selectDefaultMicrosoftBookingService"
+          );
 
-        setAppointmentListResult(
-          response.data
-        );
+        const response =
+          await fn({
+            serviceId:
+              selectedServiceId,
+          });
 
         setDialog({
-          type: "success",
-          title: "רשימת הפגישות נטענה",
+          type:
+            "success",
+
+          title:
+            "הפגישה נשמרה",
+
           message:
-            `Microsoft החזירה ${response.data.count} פגישות ` +
-            "בחלון הסנכרון הפעיל.",
+            `${
+              response.data
+                ?.service
+                ?.displayName ||
+              "הפגישה"
+            } הוגדרה כפגישת ברירת המחדל של MagicTouch.`,
         });
-      } catch (error: any) {
+      } catch (
+        error: any
+      ) {
         console.error(
-          "[Microsoft Bookings Appointment List] failed",
+          "[MicrosoftBookingsSettings] select default service failed",
           error
         );
 
         setDialog({
-          type: "error",
-          title: "טעינת הפגישות נכשלה",
+          type:
+            "error",
+
+          title:
+            "שמירת הפגישה נכשלה",
+
           message:
             error?.message ||
-            "לא ניתן לטעון את רשימת הפגישות מ-Microsoft.",
+            "לא ניתן לשמור את סוג הפגישה שנבחר.",
         });
       } finally {
-        setListingAppointments(false);
+        setSavingDefaultService(
+          false
+        );
       }
     };
 
-const handleDiagnoseAppointment =
-  async () => {
-    const appointmentId =
-      diagnosticAppointmentId.trim();
+  /*
+   * Create service
+   */
 
-    if (!appointmentId) {
-      setDialog({
-        type: "warning",
-        title: "חסר מזהה פגישה",
-        message:
-          "יש להדביק את appointmentId שנשמר במסמך booking_appointments.",
-      });
+  const handleCreateService =
+    async () => {
+      const displayName =
+        newServiceName.trim();
 
-      return;
-    }
+      if (
+        !displayName
+      ) {
+        setDialog({
+          type:
+            "warning",
 
-    setDiagnosingAppointment(true);
-    setDiagnosticResult(null);
+          title:
+            "חסר שם לפגישה",
 
-    try {
-      const fn =
-        httpsCallable(
-          functions,
-          "diagnoseMicrosoftBookingAppointment"
-        );
-
-      const response =
-        await fn({
-          appointmentId,
+          message:
+            "יש להזין שם לסוג הפגישה החדש.",
         });
 
-      const result =
-        response.data as Record<
-          string,
-          any
-        >;
+        return;
+      }
 
-      console.log(
-        "[Microsoft Booking Diagnostic]",
-        result
+      if (
+        !selectedStaffMemberId
+      ) {
+        setDialog({
+          type:
+            "warning",
+
+          title:
+            "לא נבחר מי מקבל את הפגישה",
+
+          message:
+            "יש לבחור איש צוות לפני יצירת סוג הפגישה החדש.",
+        });
+
+        return;
+      }
+
+      const durationMinutes =
+        Math.max(
+          5,
+          Math.min(
+            480,
+            Number(
+              newServiceDurationMinutes
+            ) ||
+            30
+          )
+        );
+
+      setCreatingService(
+        true
       );
 
-      setDiagnosticResult(result);
+      try {
+        const fn =
+          httpsCallable<
+            {
+              displayName:
+                string;
 
-      setDialog({
-        type: "success",
-        title: "בדיקת הפגישה הסתיימה",
-        message:
-          "הבדיקה הסתיימה. התוצאה המלאה מוצגת בתחתית המסך וגם ב-Console.",
-      });
-    } catch (error: any) {
-      console.error(
-        "[Microsoft Booking Diagnostic] failed",
-        error
-      );
+              description:
+                string;
 
-      setDialog({
-        type: "error",
-        title: "בדיקת הפגישה נכשלה",
-        message:
-          error?.message ||
-          "לא ניתן לבדוק את הפגישה מול Microsoft.",
-      });
-    } finally {
-      setDiagnosingAppointment(false);
-    }
-  };
+              durationMinutes:
+                number;
 
+              preBufferMinutes:
+                number;
 
+              postBufferMinutes:
+                number;
+
+              minimumLeadTimeMinutes:
+                number;
+
+              maximumAdvanceDays:
+                number;
+
+              timeSlotIntervalMinutes:
+                number;
+
+              staffMemberId:
+                string;
+            },
+            CreateServiceResult
+          >(
+            functions,
+            "createMicrosoftBookingService"
+          );
+
+        const response =
+          await fn({
+            displayName,
+
+            description:
+              newServiceDescription.trim(),
+
+            durationMinutes,
+
+            preBufferMinutes,
+
+            postBufferMinutes,
+
+            minimumLeadTimeMinutes,
+
+            maximumAdvanceDays,
+
+            timeSlotIntervalMinutes,
+
+            staffMemberId:
+              selectedStaffMemberId,
+          });
+
+        const created =
+          response.data
+            ?.service;
+
+        if (
+          created?.id
+        ) {
+          setSelectedServiceId(
+            created.id
+          );
+        }
+
+        setServiceMode(
+          "existing"
+        );
+
+        setDialog({
+          type:
+            "success",
+
+          title:
+            "הפגישה נוצרה",
+
+          message:
+            `${created?.displayName || displayName} נוצרה ב-Microsoft Bookings והוגדרה כפגישת ברירת המחדל של MagicTouch.`,
+        });
+
+        await loadServices(
+          false
+        );
+      } catch (
+        error: any
+      ) {
+        console.error(
+          "[MicrosoftBookingsSettings] create service failed",
+          error
+        );
+
+        setDialog({
+          type:
+            "error",
+
+          title:
+            "יצירת הפגישה נכשלה",
+
+          message:
+            error?.message ||
+            "לא ניתן ליצור את סוג הפגישה ב-Microsoft Bookings.",
+        });
+      } finally {
+        setCreatingService(
+          false
+        );
+      }
+    };
 
   const handleTestConnection =
     async () => {
@@ -1218,6 +2543,22 @@ const handleDiagnoseAppointment =
 
         await fn({});
 
+        setServices(
+          []
+        );
+
+        setStaffMembers(
+          []
+        );
+
+        setSelectedServiceId(
+          ""
+        );
+
+        setSelectedStaffMemberId(
+          ""
+        );
+
         setDialog({
           type:
             "success",
@@ -1289,6 +2630,8 @@ const handleDiagnoseAppointment =
           לשייך אותן לאנשי קשר ולהפעיל תהליכים אוטומטיים.
         </p>
       </header>
+
+      {/* Connection */}
 
       <section className="space-y-5 rounded-2xl border bg-white p-5 shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -1451,8 +2794,8 @@ const handleDiagnoseAppointment =
                 config.lastSyncAppointmentCount !=
                 null
                   ? String(
-                    config.lastSyncAppointmentCount
-                  )
+                      config.lastSyncAppointmentCount
+                    )
                   : "-"
               }
             />
@@ -1463,8 +2806,8 @@ const handleDiagnoseAppointment =
                 config.lastSyncMatchedCount !=
                 null
                   ? String(
-                    config.lastSyncMatchedCount
-                  )
+                      config.lastSyncMatchedCount
+                    )
                   : "-"
               }
             />
@@ -1475,8 +2818,8 @@ const handleDiagnoseAppointment =
                 config.lastSyncUnmatchedCount !=
                 null
                   ? String(
-                    config.lastSyncUnmatchedCount
-                  )
+                      config.lastSyncUnmatchedCount
+                    )
                   : "-"
               }
             />
@@ -1487,32 +2830,8 @@ const handleDiagnoseAppointment =
                 config.lastSyncCancelledCount !=
                 null
                   ? String(
-                    config.lastSyncCancelledCount
-                  )
-                  : "-"
-              }
-            />
-
-            <InfoCard
-              label="אירועי פגישה חדשים"
-              value={
-                config.lastSyncCreatedEventCount !=
-                null
-                  ? String(
-                    config.lastSyncCreatedEventCount
-                  )
-                  : "-"
-              }
-            />
-
-            <InfoCard
-              label="אירועי ביטול חדשים"
-              value={
-                config.lastSyncCancelledEventCount !=
-                null
-                  ? String(
-                    config.lastSyncCancelledEventCount
-                  )
+                      config.lastSyncCancelledCount
+                    )
                   : "-"
               }
             />
@@ -1527,34 +2846,6 @@ const handleDiagnoseAppointment =
 
         {config?.connected && (
           <div className="flex flex-wrap gap-3">
-            <Button
-              text={
-                syncing
-                  ? "מסנכרן..."
-                  : "סנכרן פגישות עכשיו"
-              }
-              onClick={
-                handleSyncNow
-              }
-              disabled={
-                syncing
-              }
-            />
-
-            <Button
-              text={
-                listingAppointments
-                  ? "טוען פגישות..."
-                  : "הצג פגישות מ-Microsoft"
-              }
-              onClick={
-                handleListAppointments
-              }
-              disabled={
-                listingAppointments
-              }
-            />
-
             <Button
               text={
                 testingConnection
@@ -1584,289 +2875,816 @@ const handleDiagnoseAppointment =
             />
           </div>
         )}
-        {config?.connected && appointmentListResult && (
-          <section className="space-y-4 rounded-xl border border-blue-200 bg-blue-50 p-4">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <h3 className="font-bold text-blue-950">
-                  פגישות שמוחזרות כרגע מ-Microsoft
-                </h3>
+      </section>
 
-                <p className="mt-1 text-sm leading-6 text-blue-800">
-                  זו הרשימה הישירה מ-calendarView באותו חלון זמן
-                  שבו משתמש הסנכרון האמיתי.
+      {/* Staff + availability */}
+
+      {config?.connected &&
+        config?.bookingBusinessId && (
+          <section className="space-y-5 rounded-2xl border border-violet-200 bg-white p-5 shadow-sm">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <div className="text-sm font-semibold text-violet-600">
+                  זמינות לפגישות
+                </div>
+
+                <h2 className="mt-1 text-xl font-bold text-slate-900">
+                  מי מקבל את הפגישות ומתי?
+                </h2>
+
+                <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">
+                  בחרי את איש הצוות שיקבל את הפגישות והגדירי את חלונות
+                  הזמינות שלו. בתוך השעות האלו Microsoft יבדוק גם את
+                  יומן Outlook ולא יציע ללקוחות שעות שכבר תפוסות.
                 </p>
               </div>
 
-              <span className="rounded-full bg-white px-3 py-1 text-sm font-bold text-blue-800">
-                {appointmentListResult.count} פגישות
-              </span>
+              <button
+                type="button"
+                className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                onClick={() =>
+                  void loadStaff(
+                    true
+                  )
+                }
+                disabled={
+                  loadingStaff
+                }
+              >
+                {loadingStaff
+                  ? "טוען..."
+                  : "רענן אנשי צוות"}
+              </button>
             </div>
 
-            <div className="grid gap-3 md:grid-cols-3">
-              <InfoCard
-                label="עסק Bookings"
-                value={
-                  appointmentListResult.bookingBusinessId
-                }
-              />
-
-              <InfoCard
-                label="מתאריך"
-                value={
-                  new Date(
-                    appointmentListResult.start
-                  ).toLocaleString("he-IL")
-                }
-              />
-
-              <InfoCard
-                label="עד תאריך"
-                value={
-                  new Date(
-                    appointmentListResult.end
-                  ).toLocaleString("he-IL")
-                }
-              />
-            </div>
-
-            {appointmentListResult.appointments.length === 0 ? (
-              <div className="rounded-xl border border-blue-200 bg-white p-4 text-sm text-slate-700">
-                Microsoft לא החזירה פגישות בחלון הסנכרון.
+            {loadingStaff ? (
+              <div className="rounded-xl bg-slate-50 p-5 text-sm text-slate-500">
+                טוען אנשי צוות מ-Microsoft...
+              </div>
+            ) : staffMembers.length ===
+              0 ? (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900">
+                לא נמצאו אנשי צוות ב-Microsoft Bookings.
+                יש להוסיף לפחות איש צוות אחד לעסק Bookings לפני שניתן
+                להגדיר זמינות.
               </div>
             ) : (
-              <div className="overflow-x-auto rounded-xl border border-blue-200 bg-white">
-                <table className="min-w-full text-sm">
-                  <thead className="bg-slate-50 text-slate-700">
-                    <tr>
-                      <th className="whitespace-nowrap px-4 py-3 text-right">
-                        לקוח
-                      </th>
-                      <th className="whitespace-nowrap px-4 py-3 text-right">
-                        טלפון / מייל
-                      </th>
-                      <th className="whitespace-nowrap px-4 py-3 text-right">
-                        שירות
-                      </th>
-                      <th className="whitespace-nowrap px-4 py-3 text-right">
-                        התחלה
-                      </th>
-                      <th className="whitespace-nowrap px-4 py-3 text-right">
-                        מצב
-                      </th>
-                      <th className="whitespace-nowrap px-4 py-3 text-right">
-                        פעולה
-                      </th>
-                      <th className="whitespace-nowrap px-4 py-3 text-right">
-                        Appointment ID
-                      </th>
-                    </tr>
-                  </thead>
+              <>
+                <div>
+                  <label className="block">
+                    <span className="mb-2 block text-sm font-bold text-slate-700">
+                      מי מקבל את הפגישות?
+                    </span>
 
-                  <tbody className="divide-y divide-slate-100">
-                    {appointmentListResult.appointments.map(
-                      (appointment) => (
-                        <tr
-                          key={appointment.appointmentId}
-                          className="align-top"
-                        >
-                          <td className="px-4 py-3 font-semibold text-slate-900">
-                            {appointment.customerName || "-"}
-                          </td>
+                    <select
+                      className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 md:max-w-xl"
+                      value={
+                        selectedStaffMemberId
+                      }
+                      onChange={(
+                        event
+                      ) =>
+                        handleStaffSelection(
+                          event.target.value
+                        )
+                      }
+                    >
+                      <option value="">
+                        בחר איש צוות
+                      </option>
 
-                          <td className="px-4 py-3 text-slate-600">
-                            <div dir="ltr" className="text-right">
-                              {appointment.customerPhone || "-"}
-                            </div>
-                            <div
-                              dir="ltr"
-                              className="mt-1 break-all text-right text-xs"
-                            >
-                              {appointment.customerEmail || "-"}
-                            </div>
-                          </td>
-
-                          <td className="px-4 py-3 text-slate-700">
-                            {appointment.serviceName || "-"}
-                          </td>
-
-                          <td className="whitespace-nowrap px-4 py-3 text-slate-700">
-                            {appointmentDateText(
-                              appointment.startAt
-                            )}
-                          </td>
-
-                          <td className="px-4 py-3">
-                            <span
-                              className={[
-                                "inline-flex rounded-full px-2.5 py-1 text-xs font-bold",
-                                appointment.isCancelled
-                                  ? "bg-rose-100 text-rose-700"
-                                  : "bg-emerald-100 text-emerald-700",
-                              ].join(" ")}
-                            >
-                              {appointment.isCancelled
-                                ? "מבוטלת"
-                                : "פעילה"}
-                            </span>
-                          </td>
-
-                        <td className="px-4 py-3">
-  {canAccessJobsAdmin ? (
-    <button
-      type="button"
-      className="rounded-lg bg-rose-600 px-3 py-2 text-xs font-bold text-white hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-50"
-      onClick={() =>
-        handleDeleteAppointment(
-          appointment
-        )
-      }
-      disabled={
-        deletingAppointmentId ===
-        appointment.appointmentId
-      }
-    >
-      {deletingAppointmentId ===
-      appointment.appointmentId
-        ? "מוחק..."
-        : "מחק פגישה"}
-    </button>
-  ) : null}
-</td>
-
-                          <td
-                            dir="ltr"
-                            className="max-w-sm break-all px-4 py-3 font-mono text-xs text-slate-600"
+                      {staffMembers.map(
+                        (
+                          member
+                        ) => (
+                          <option
+                            key={
+                              member.id
+                            }
+                            value={
+                              member.id
+                            }
                           >
-                            {appointment.appointmentId}
-                          </td>
-                        </tr>
-                      )
-                    )}
-                  </tbody>
-                </table>
-              </div>
+                            {
+                              member.displayName
+                            }
+                            {member.emailAddress
+                              ? ` · ${member.emailAddress}`
+                              : ""}
+                          </option>
+                        )
+                      )}
+                    </select>
+                  </label>
+
+                  {selectedStaffMember ? (
+                    <div className="mt-3 flex flex-wrap gap-2 text-xs">
+                      <span className="rounded-full bg-violet-50 px-3 py-1 font-semibold text-violet-700">
+                        {
+                          selectedStaffMember.displayName
+                        }
+                      </span>
+
+                      <span className="rounded-full bg-emerald-50 px-3 py-1 font-semibold text-emerald-700">
+                        יומן Outlook נלקח בחשבון
+                      </span>
+                    </div>
+                  ) : null}
+                </div>
+
+                {selectedStaffMemberId ? (
+                  <div className="overflow-hidden rounded-2xl border border-slate-200">
+                    <div className="grid grid-cols-[110px_1fr_1fr] gap-3 bg-slate-50 px-4 py-3 text-xs font-bold text-slate-500 sm:grid-cols-[130px_80px_1fr_1fr]">
+                      <div>
+                        יום
+                      </div>
+
+                      <div className="hidden sm:block">
+                        פעיל
+                      </div>
+
+                      <div>
+                        משעה
+                      </div>
+
+                      <div>
+                        עד שעה
+                      </div>
+                    </div>
+
+                    <div className="divide-y divide-slate-100 bg-white">
+                      {availability.map(
+                        (
+                          item
+                        ) => (
+                          <div
+                            key={
+                              item.day
+                            }
+                            className="grid grid-cols-[110px_1fr_1fr] items-center gap-3 px-4 py-3 sm:grid-cols-[130px_80px_1fr_1fr]"
+                          >
+                            <div className="flex items-center gap-2 font-bold text-slate-800">
+                              <input
+                                type="checkbox"
+                                className="h-4 w-4 sm:hidden"
+                                checked={
+                                  item.enabled
+                                }
+                                onChange={(
+                                  event
+                                ) =>
+                                  updateAvailabilityDay(
+                                    item.day,
+                                    {
+                                      enabled:
+                                        event.target.checked,
+                                    }
+                                  )
+                                }
+                              />
+
+                              {
+                                item.label
+                              }
+                            </div>
+
+                            <div className="hidden sm:block">
+                              <input
+                                type="checkbox"
+                                className="h-4 w-4"
+                                checked={
+                                  item.enabled
+                                }
+                                onChange={(
+                                  event
+                                ) =>
+                                  updateAvailabilityDay(
+                                    item.day,
+                                    {
+                                      enabled:
+                                        event.target.checked,
+                                    }
+                                  )
+                                }
+                              />
+                            </div>
+
+                            <input
+                              type="time"
+                              className="h-10 rounded-xl border border-slate-200 bg-white px-2 disabled:bg-slate-100 disabled:text-slate-400"
+                              value={
+                                item.startTime
+                              }
+                              disabled={
+                                !item.enabled
+                              }
+                              onChange={(
+                                event
+                              ) =>
+                                updateAvailabilityDay(
+                                  item.day,
+                                  {
+                                    startTime:
+                                      event.target.value,
+                                  }
+                                )
+                              }
+                            />
+
+                            <input
+                              type="time"
+                              className="h-10 rounded-xl border border-slate-200 bg-white px-2 disabled:bg-slate-100 disabled:text-slate-400"
+                              value={
+                                item.endTime
+                              }
+                              disabled={
+                                !item.enabled
+                              }
+                              onChange={(
+                                event
+                              ) =>
+                                updateAvailabilityDay(
+                                  item.day,
+                                  {
+                                    endTime:
+                                      event.target.value,
+                                  }
+                                )
+                              }
+                            />
+                          </div>
+                        )
+                      )}
+                    </div>
+                  </div>
+                ) : null}
+
+                {selectedStaffMemberId ? (
+                  <div className="space-y-3">
+                    <div className="rounded-xl border border-blue-100 bg-blue-50 p-4 text-sm leading-6 text-blue-900">
+                      השעות מגדירות מתי מותר להציע פגישות.
+                      אם קיימת פגישה או חסימה ביומן Microsoft בתוך
+                      החלון הזה, אותה שעה לא תוצע ללקוח.
+                    </div>
+
+                    <Button
+                      text={
+                        savingAvailability
+                          ? "שומר זמינות..."
+                          : "שמור ימים ושעות"
+                      }
+                      onClick={
+                        handleSaveAvailability
+                      }
+                      disabled={
+                        savingAvailability
+                      }
+                    />
+                  </div>
+                ) : null}
+              </>
             )}
           </section>
         )}
 
-{config?.connected &&
-  canAccessJobsAdmin && (
-  <div className="space-y-4 rounded-xl border border-dashed border-purple-300 bg-purple-50 p-4">
-    <div>
-      <h3 className="font-bold text-purple-900">
-        בדיקת פגישה מול Microsoft
-      </h3>
+      {/* Service */}
 
-      <p className="mt-1 text-sm leading-6 text-purple-800">
-        כלי זמני לבדיקת פגישה ב־calendarView,
-        ברשימת appointments ובקריאה ישירה לפי
-        appointmentId.
-      </p>
-    </div>
+      {config?.connected &&
+        config?.bookingBusinessId && (
+          <section className="space-y-5 rounded-2xl border border-blue-200 bg-white p-5 shadow-sm">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <div className="text-sm font-semibold text-blue-600">
+                  הפגישה ללקוחות
+                </div>
 
-    <label className="block">
-      <span className="mb-1 block text-sm font-medium">
-        Appointment ID
-      </span>
+                <h2 className="mt-1 text-xl font-bold text-slate-900">
+                  הפגישה שתישלח ללקוחות
+                </h2>
 
-      <textarea
-        className="min-h-24 w-full rounded-lg border bg-white px-3 py-2 text-left"
-        dir="ltr"
-        value={
-          diagnosticAppointmentId
-        }
-        onChange={(event) =>
-          setDiagnosticAppointmentId(
-            event.target.value
-          )
-        }
-        placeholder="AAMkAG..."
-      />
-    </label>
+                <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">
+                  בחרי סוג פגישה שכבר קיים ב-Microsoft Bookings,
+                  או צרי פגישה חדשה מתוך MagicTouch.
+                  הפגישה שתבחרי תשמש כברירת המחדל באוטומציות.
+                </p>
+              </div>
 
-    <Button
-      text={
-        diagnosingAppointment
-          ? "בודק מול Microsoft..."
-          : "בדוק פגישה"
-      }
+              <button
+                type="button"
+                className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                onClick={() =>
+                  void loadServices(
+                    true
+                  )
+                }
+                disabled={
+                  loadingServices
+                }
+              >
+                {loadingServices
+                  ? "טוען..."
+                  : "רענן מ-Microsoft"}
+              </button>
+            </div>
+
+            {defaultService ? (
+              <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5">
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div>
+                    <div className="text-xs font-bold text-emerald-700">
+                      פגישת ברירת המחדל
+                    </div>
+
+                    <div className="mt-1 text-lg font-bold text-emerald-950">
+                      {
+                        defaultService.displayName
+                      }
+                    </div>
+
+                    {defaultService.defaultDuration ? (
+                      <div className="mt-1 text-sm text-emerald-800">
+                        {durationText(
+                          defaultService.defaultDuration
+                        )}
+                      </div>
+                    ) : null}
+
+                    <div className="mt-2 text-sm text-emerald-800">
+                      זו הפגישה ש-MagicTouch ישתמש בה כברירת מחדל
+                      כאשר Flow שולח ללקוח קישור לקביעת פגישה.
+                    </div>
+                  </div>
+
+             {defaultService.webUrl ? (
+  <div className="flex flex-wrap gap-2">
+    <button
+      type="button"
       onClick={
-        handleDiagnoseAppointment
+        handleCopyBookingLink
       }
-      disabled={
-        diagnosingAppointment ||
-        !diagnosticAppointmentId.trim()
+      className="rounded-xl border border-emerald-300 bg-white px-4 py-2 text-sm font-bold text-emerald-700 hover:bg-emerald-50"
+    >
+      העתק קישור
+    </button>
+
+    <a
+      href={
+        defaultService.webUrl
       }
-    />
-
-    {diagnosticResult && (
-      <div className="space-y-3">
-        <div className="grid gap-3 md:grid-cols-3">
-          <InfoCard
-            label="Calendar View"
-            value={
-              diagnosticResult
-                ?.calendarView
-                ?.found
-                ? "נמצאה"
-                : "לא נמצאה"
-            }
-          />
-
-          <InfoCard
-            label="Appointments List"
-            value={
-              diagnosticResult
-                ?.appointmentsList
-                ?.found
-                ? "נמצאה"
-                : "לא נמצאה"
-            }
-          />
-
-          <InfoCard
-            label="Direct Lookup"
-            value={
-              diagnosticResult
-                ?.directLookup
-                ?.found
-                ? `נמצאה – HTTP ${
-                    diagnosticResult
-                      ?.directLookup
-                      ?.status
-                  }`
-                : `לא נמצאה – HTTP ${
-                    diagnosticResult
-                      ?.directLookup
-                      ?.status ??
-                    "-"
-                  }`
-            }
-          />
-        </div>
-
-        <details className="rounded-lg border bg-white p-3">
-          <summary className="cursor-pointer font-bold">
-            הצגת התוצאה המלאה
-          </summary>
-
-          <pre
-            dir="ltr"
-            className="mt-3 max-h-96 overflow-auto whitespace-pre-wrap break-all rounded-lg bg-slate-950 p-4 text-left text-xs text-white"
-          >
-            {JSON.stringify(
-              diagnosticResult,
-              null,
-              2
-            )}
-          </pre>
-        </details>
-      </div>
-    )}
+      target="_blank"
+      rel="noreferrer"
+      className="rounded-xl border border-emerald-300 bg-white px-4 py-2 text-sm font-bold text-emerald-700 hover:bg-emerald-50"
+    >
+      פתח קישור הזמנה
+    </a>
   </div>
-)}
-      </section>
+) : null}
+                </div>
+              </div>
+            ) : (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+                עדיין לא הוגדרה פגישת ברירת מחדל.
+              </div>
+            )}
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <button
+                type="button"
+                className={[
+                  "rounded-2xl border p-4 text-right transition",
+
+                  serviceMode ===
+                  "existing"
+                    ? "border-blue-400 bg-blue-50 ring-2 ring-blue-100"
+                    : "border-slate-200 bg-white hover:border-blue-200",
+                ].join(
+                  " "
+                )}
+                onClick={() =>
+                  setServiceMode(
+                    "existing"
+                  )
+                }
+              >
+                <div className="font-bold text-slate-900">
+                  בחר פגישה קיימת
+                </div>
+
+                <div className="mt-1 text-sm text-slate-500">
+                  השתמשי בסוג פגישה שכבר קיים ב-Microsoft Bookings.
+                </div>
+              </button>
+
+              <button
+                type="button"
+                className={[
+                  "rounded-2xl border p-4 text-right transition",
+
+                  serviceMode ===
+                  "create"
+                    ? "border-blue-400 bg-blue-50 ring-2 ring-blue-100"
+                    : "border-slate-200 bg-white hover:border-blue-200",
+                ].join(
+                  " "
+                )}
+                onClick={() =>
+                  setServiceMode(
+                    "create"
+                  )
+                }
+              >
+                <div className="font-bold text-slate-900">
+                  צור פגישה חדשה
+                </div>
+
+                <div className="mt-1 text-sm text-slate-500">
+                  MagicTouch ייצור עבורך סוג פגישה חדש בתוך Microsoft Bookings.
+                </div>
+              </button>
+            </div>
+
+            {serviceMode ===
+            "existing" ? (
+              <div className="space-y-4 rounded-2xl border border-slate-200 bg-slate-50 p-5">
+                <div>
+                  <h3 className="font-bold text-slate-900">
+                    בחירת פגישה קיימת
+                  </h3>
+
+                  <p className="mt-1 text-sm text-slate-500">
+                    נמצאו כרגע {services.length} סוגי פגישות.
+                  </p>
+                </div>
+
+                {loadingServices ? (
+                  <div className="rounded-xl bg-white p-5 text-sm text-slate-500">
+                    טוען סוגי פגישות...
+                  </div>
+                ) : services.length ===
+                  0 ? (
+                  <div className="rounded-xl border border-dashed border-slate-300 bg-white p-5 text-sm text-slate-600">
+                    לא נמצאו סוגי פגישות קיימים.
+                    אפשר לעבור ל״צור פגישה חדשה״.
+                  </div>
+                ) : (
+                  <>
+                    {services.map(
+                      (
+                        service
+                      ) => {
+                        const selected =
+                          selectedServiceId ===
+                          service.id;
+
+                        return (
+                          <button
+                            key={
+                              service.id
+                            }
+                            type="button"
+                            className={[
+                              "block w-full rounded-xl border p-4 text-right transition",
+
+                              selected
+                                ? "border-blue-400 bg-blue-50"
+                                : "border-slate-200 bg-white hover:border-blue-200",
+                            ].join(
+                              " "
+                            )}
+                            onClick={() =>
+                              setSelectedServiceId(
+                                service.id
+                              )
+                            }
+                          >
+                            <div className="flex flex-wrap items-start justify-between gap-3">
+                              <div>
+                                <div className="font-bold text-slate-900">
+                                  {
+                                    service.displayName
+                                  }
+                                </div>
+
+                                {service.description ? (
+                                  <div className="mt-1 text-sm text-slate-500">
+                                    {
+                                      service.description
+                                    }
+                                  </div>
+                                ) : null}
+                              </div>
+
+                              <div className="flex flex-wrap gap-2">
+                                {service.defaultDuration ? (
+                                  <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">
+                                    {durationText(
+                                      service.defaultDuration
+                                    )}
+                                  </span>
+                                ) : null}
+
+                                {selected ? (
+                                  <span className="rounded-full bg-blue-600 px-3 py-1 text-xs font-bold text-white">
+                                    נבחרה
+                                  </span>
+                                ) : null}
+                              </div>
+                            </div>
+                          </button>
+                        );
+                      }
+                    )}
+
+                    <Button
+                      text={
+                        savingDefaultService
+                          ? "שומר פגישה..."
+                          : "הגדר כפגישת ברירת מחדל"
+                      }
+                      onClick={
+                        handleSelectExistingService
+                      }
+                      disabled={
+                        savingDefaultService ||
+                        !selectedServiceId
+                      }
+                    />
+                  </>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-5 rounded-2xl border border-slate-200 bg-slate-50 p-5">
+                <div>
+                  <h3 className="font-bold text-slate-900">
+                    יצירת פגישה חדשה
+                  </h3>
+
+                  <p className="mt-1 text-sm text-slate-500">
+                    הגדירי את הפגישה פעם אחת, ו-MagicTouch ייצור אותה
+                    בתוך Microsoft Bookings וישייך אותה לאיש הצוות שבחרת.
+                  </p>
+                </div>
+
+                {!selectedStaffMemberId ? (
+                  <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+                    לפני יצירת פגישה חדשה יש לבחור למעלה מי מקבל את
+                    הפגישות.
+                  </div>
+                ) : null}
+
+                <div className="grid gap-4 md:grid-cols-2">
+                  <label className="block md:col-span-2">
+                    <span className="mb-2 block text-sm font-bold text-slate-700">
+                      שם הפגישה
+                    </span>
+
+                    <input
+                      type="text"
+                      className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3"
+                      value={
+                        newServiceName
+                      }
+                      onChange={(
+                        event
+                      ) =>
+                        setNewServiceName(
+                          event.target.value
+                        )
+                      }
+                    />
+                  </label>
+
+                  <label className="block">
+                    <span className="mb-2 block text-sm font-bold text-slate-700">
+                      משך הפגישה
+                    </span>
+
+                    <select
+                      className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3"
+                      value={
+                        newServiceDurationMinutes
+                      }
+                      onChange={(
+                        event
+                      ) =>
+                        setNewServiceDurationMinutes(
+                          Number(
+                            event.target.value
+                          )
+                        )
+                      }
+                    >
+                      <option value={15}>
+                        15 דקות
+                      </option>
+
+                      <option value={30}>
+                        30 דקות
+                      </option>
+
+                      <option value={45}>
+                        45 דקות
+                      </option>
+
+                      <option value={60}>
+                        60 דקות
+                      </option>
+                    </select>
+                  </label>
+
+                  <label className="block md:col-span-2">
+                    <span className="mb-2 block text-sm font-bold text-slate-700">
+                      תיאור
+                    </span>
+
+                    <textarea
+                      className="min-h-24 w-full rounded-xl border border-slate-200 bg-white px-3 py-2"
+                      value={
+                        newServiceDescription
+                      }
+                      onChange={(
+                        event
+                      ) =>
+                        setNewServiceDescription(
+                          event.target.value
+                        )
+                      }
+                    />
+                  </label>
+                </div>
+
+                <div className="border-t border-slate-200 pt-5">
+                  <h4 className="font-bold text-slate-900">
+                    כללי הזמנה
+                  </h4>
+
+                  <p className="mt-1 text-sm text-slate-500">
+                    ההגדרות האלו קובעות איך הפגישה תוצע ללקוחות.
+                  </p>
+
+                  <div className="mt-4 grid gap-4 md:grid-cols-2">
+                    <SelectNumber
+                      label="מרווח לפני פגישה"
+                      value={
+                        preBufferMinutes
+                      }
+                      options={[
+                        0,
+                        5,
+                        10,
+                        15,
+                        30,
+                      ]}
+                      onChange={
+                        setPreBufferMinutes
+                      }
+                      suffix="דקות"
+                    />
+
+                    <SelectNumber
+                      label="מרווח אחרי פגישה"
+                      value={
+                        postBufferMinutes
+                      }
+                      options={[
+                        0,
+                        5,
+                        10,
+                        15,
+                        30,
+                      ]}
+                      onChange={
+                        setPostBufferMinutes
+                      }
+                      suffix="דקות"
+                    />
+
+                    <label className="block">
+                      <span className="mb-2 block text-sm font-bold text-slate-700">
+                        מינימום זמן להזמנה מראש
+                      </span>
+
+                      <select
+                        className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3"
+                        value={
+                          minimumLeadTimeMinutes
+                        }
+                        onChange={(
+                          event
+                        ) =>
+                          setMinimumLeadTimeMinutes(
+                            Number(
+                              event.target.value
+                            )
+                          )
+                        }
+                      >
+                        <option value={60}>
+                          שעה מראש
+                        </option>
+
+                        <option value={120}>
+                          שעתיים מראש
+                        </option>
+
+                        <option value={240}>
+                          4 שעות מראש
+                        </option>
+
+                        <option value={720}>
+                          12 שעות מראש
+                        </option>
+
+                        <option value={1440}>
+                          יום מראש
+                        </option>
+                      </select>
+                    </label>
+
+                    <label className="block">
+                      <span className="mb-2 block text-sm font-bold text-slate-700">
+                        כמה זמן קדימה אפשר להזמין
+                      </span>
+
+                      <select
+                        className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3"
+                        value={
+                          maximumAdvanceDays
+                        }
+                        onChange={(
+                          event
+                        ) =>
+                          setMaximumAdvanceDays(
+                            Number(
+                              event.target.value
+                            )
+                          )
+                        }
+                      >
+                        <option value={14}>
+                          14 ימים
+                        </option>
+
+                        <option value={30}>
+                          30 ימים
+                        </option>
+
+                        <option value={60}>
+                          60 ימים
+                        </option>
+
+                        <option value={90}>
+                          90 ימים
+                        </option>
+                      </select>
+                    </label>
+
+                    <SelectNumber
+                      label="כל כמה זמן להציע שעת התחלה"
+                      value={
+                        timeSlotIntervalMinutes
+                      }
+                      options={[
+                        10,
+                        15,
+                        20,
+                        30,
+                        45,
+                        60,
+                      ]}
+                      onChange={
+                        setTimeSlotIntervalMinutes
+                      }
+                      suffix="דקות"
+                    />
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-blue-100 bg-blue-50 p-4 text-sm leading-6 text-blue-900">
+                  אחרי היצירה הפגישה תתווסף ל-Microsoft Bookings,
+                  תשויך לאיש הצוות שבחרת ותוגדר כפגישת ברירת המחדל
+                  של MagicTouch.
+                </div>
+
+                <Button
+                  text={
+                    creatingService
+                      ? "יוצר פגישה ב-Microsoft..."
+                      : "צור פגישה והגדר כברירת מחדל"
+                  }
+                  onClick={
+                    handleCreateService
+                  }
+                  disabled={
+                    creatingService ||
+                    !newServiceName.trim() ||
+                    !selectedStaffMemberId
+                  }
+                />
+              </div>
+            )}
+          </section>
+        )}
 
       {dialog && (
         <DialogNotification
@@ -1894,5 +3712,67 @@ const handleDiagnoseAppointment =
         />
       )}
     </main>
+  );
+}
+
+function SelectNumber({
+  label,
+  value,
+  options,
+  onChange,
+  suffix,
+}: {
+  label: string;
+  value: number;
+  options: number[];
+
+  onChange: (
+    value: number
+  ) => void;
+
+  suffix: string;
+}) {
+  return (
+    <label className="block">
+      <span className="mb-2 block text-sm font-bold text-slate-700">
+        {label}
+      </span>
+
+      <select
+        className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3"
+        value={
+          value
+        }
+        onChange={(
+          event
+        ) =>
+          onChange(
+            Number(
+              event.target.value
+            )
+          )
+        }
+      >
+        {options.map(
+          (
+            option
+          ) => (
+            <option
+              key={
+                option
+              }
+              value={
+                option
+              }
+            >
+              {option ===
+              0
+                ? "ללא"
+                : `${option} ${suffix}`}
+            </option>
+          )
+        )}
+      </select>
+    </label>
   );
 }

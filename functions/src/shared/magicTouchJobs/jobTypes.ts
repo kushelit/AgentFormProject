@@ -1,7 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 export type MagicTouchJobAction =
-  | "processWaitingPowerOfAttorneySignatures";
+  | "processWaitingPowerOfAttorneySignatures"
+  | "syncMicrosoftBookingsAllAgents";
 
 export type MagicTouchJobSchedule =
   | {

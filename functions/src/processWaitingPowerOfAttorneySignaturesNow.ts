@@ -1,7 +1,6 @@
 /* eslint-disable max-len */
 
 import {
-  HttpsError,
   onCall,
 } from "firebase-functions/v2/https";
 
@@ -17,9 +16,18 @@ import {
   processWaitingPowerOfAttorneySignatures,
 } from "./shared/processWaitingPowerOfAttorneySignatures";
 
+import {
+  assertMagicTouchJobsAdmin,
+} from "./shared/magicTouchJobs/jobPermissions";
+
 /*
- * הפעלה ידנית בזמן פיתוח.
- * דורשת משתמש מחובר, ללא דרישת role: admin.
+ * הפעלה ידנית של בדיקת חתימות ייפוי כוח.
+ *
+ * מיועדת למסך הניהול של MagicTouch
+ * ודורשת הרשאת access_magic_touch_jobs_admin.
+ *
+ * הבדיקה עצמה משתמשת באותו core
+ * שמשמש גם את מנגנון ה-Jobs.
  */
 export const processWaitingPowerOfAttorneySignaturesNow =
   onCall(
@@ -39,12 +47,10 @@ export const processWaitingPowerOfAttorneySignaturesNow =
     },
 
     async (request) => {
-      if (!request.auth?.uid) {
-        throw new HttpsError(
-          "unauthenticated",
-          "A signed-in user is required"
-        );
-      }
+      await assertMagicTouchJobsAdmin(
+        request.auth?.uid ||
+        null
+      );
 
       return processWaitingPowerOfAttorneySignatures();
     }

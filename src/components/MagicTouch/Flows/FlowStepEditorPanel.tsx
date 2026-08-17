@@ -20,6 +20,9 @@ import {
   getStepVisual,
 } from "@/components/MagicTouch/Flows/StepSummary";
 
+import SendWhatsAppStepEditor from
+  "@/components/MagicTouch/Flows/steps/SendWhatsAppStepEditor";
+
 type Props = {
   flow: FlowDocument;
   stepId: string;
@@ -132,25 +135,23 @@ export default function FlowStepEditorPanel({
           </label>
         ) : null}
 
-        {step.type === "send_whatsapp" ? (
-          <label className="md:col-span-2">
-            <span className="mb-1 block text-sm font-medium">
-              תוכן ההודעה
-            </span>
-
-            <textarea
-              className="min-h-32 w-full rounded-lg border bg-white px-3 py-2"
-              value={String(step.config?.message || "")}
-              onChange={(event) =>
-                onUpdateConfig(stepId, {
-                  mode: "text",
-                  message: event.target.value,
-                })
-              }
-              placeholder="כתבי את הודעת ה-WhatsApp..."
-            />
-          </label>
-        ) : null}
+    {step.type === "send_whatsapp" ? (
+  <div className="md:col-span-2">
+    <SendWhatsAppStepEditor
+      step={
+        step
+      }
+      onConfigChange={(
+        patch
+      ) =>
+        onUpdateConfig(
+          stepId,
+          patch
+        )
+      }
+    />
+  </div>
+) : null}
 
         {step.type === "update_contact" ? (
           <UpdateContactStepEditor

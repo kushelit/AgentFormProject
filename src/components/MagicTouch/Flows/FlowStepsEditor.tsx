@@ -66,7 +66,24 @@ function createDefaultStep(
           message: "",
         },
       };
+case "send_booking_link":
+  return {
+    id,
+    type,
+    name: "שליחת קישור לפגישת Bookings",
+    nextStepId: null,
+    config: {
+      messageBefore:
+        "מעולה, נשמח לתאם פגישה.\nניתן לבחור מועד שנוח לך בקישור הבא:",
 
+      messageAfter:
+        "",
+
+      bookingSource:
+        "default_service",
+    },
+  };
+  
     case "update_contact":
       return {
         id,

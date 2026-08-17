@@ -46,18 +46,15 @@ type DialogKind =
   | "success"
   | "error";
 
-
 type DialogState = {
   type: DialogKind;
   title: string;
   message: string;
 };
 
-
 type TimestampLike = {
   toDate?: () => Date;
 };
-
 
 type MicrosoftBookingsConfig = {
   status?: string;
@@ -80,7 +77,6 @@ type MicrosoftBookingsConfig = {
   lastSyncCreatedEventCount?: number | null;
   lastSyncCancelledEventCount?: number | null;
 };
-
 
 type MicrosoftAppointmentListItem = {
   appointmentId: string;
@@ -116,7 +112,6 @@ type MicrosoftAppointmentListItem = {
   lastUpdatedDateTime?: string | null;
 };
 
-
 type MicrosoftAppointmentListResult = {
   ok: boolean;
 
@@ -132,7 +127,6 @@ type MicrosoftAppointmentListResult = {
   appointments:
     MicrosoftAppointmentListItem[];
 };
-
 
 function formatTimestamp(
   value?:
@@ -153,7 +147,6 @@ function formatTimestamp(
       "he-IL"
     );
 }
-
 
 function appointmentDateText(
   value:
@@ -194,7 +187,6 @@ function appointmentDateText(
   );
 }
 
-
 function StatCard({
   label,
   value,
@@ -223,7 +215,6 @@ function StatCard({
   );
 }
 
-
 export default function MicrosoftBookingsAdminPage() {
   const {
     user,
@@ -239,7 +230,6 @@ export default function MicrosoftBookingsAdminPage() {
   } =
     useMagicTouchAgent();
 
-
   const {
     canAccess,
     isChecking,
@@ -250,7 +240,6 @@ export default function MicrosoftBookingsAdminPage() {
         : null
     );
 
-
   const [
     config,
     setConfig,
@@ -259,13 +248,11 @@ export default function MicrosoftBookingsAdminPage() {
       null
     );
 
-
   const [
     loadingConfig,
     setLoadingConfig,
   ] =
     useState(false);
-
 
   const [
     syncing,
@@ -273,13 +260,11 @@ export default function MicrosoftBookingsAdminPage() {
   ] =
     useState(false);
 
-
   const [
     listingAppointments,
     setListingAppointments,
   ] =
     useState(false);
-
 
   const [
     appointmentListResult,
@@ -289,13 +274,11 @@ export default function MicrosoftBookingsAdminPage() {
       null
     );
 
-
   const [
     deletingAppointmentId,
     setDeletingAppointmentId,
   ] =
     useState("");
-
 
   const [
     diagnosingAppointmentId,
@@ -303,6 +286,11 @@ export default function MicrosoftBookingsAdminPage() {
   ] =
     useState("");
 
+  const [
+    manualAppointmentId,
+    setManualAppointmentId,
+  ] =
+    useState("");
 
   const [
     diagnosticResult,
@@ -315,13 +303,11 @@ export default function MicrosoftBookingsAdminPage() {
       null
     );
 
-
   const [
     diagnosticTitle,
     setDiagnosticTitle,
   ] =
     useState("");
-
 
   const [
     dialog,
@@ -330,7 +316,6 @@ export default function MicrosoftBookingsAdminPage() {
     useState<DialogState | null>(
       null
     );
-
 
   useEffect(
     () => {
@@ -343,6 +328,10 @@ export default function MicrosoftBookingsAdminPage() {
       );
 
       setDiagnosticTitle(
+        ""
+      );
+
+      setManualAppointmentId(
         ""
       );
 
@@ -503,7 +492,6 @@ export default function MicrosoftBookingsAdminPage() {
     ]
   );
 
-
   const handleSyncNow =
     async () => {
       if (!agentId) {
@@ -581,7 +569,6 @@ export default function MicrosoftBookingsAdminPage() {
       }
     };
 
-
   const handleListAppointments =
     async () => {
       if (!agentId) {
@@ -646,21 +633,22 @@ export default function MicrosoftBookingsAdminPage() {
       }
     };
 
-
-  const handleDiagnoseAppointment =
+  const handleDiagnoseById =
     async (
-      appointment:
-        MicrosoftAppointmentListItem
+      appointmentId:
+        string,
+      title:
+        string
     ) => {
       if (
         !agentId ||
-        !appointment.appointmentId
+        !appointmentId
       ) {
         return;
       }
 
       setDiagnosingAppointmentId(
-        appointment.appointmentId
+        appointmentId
       );
 
       setDiagnosticResult(
@@ -668,8 +656,7 @@ export default function MicrosoftBookingsAdminPage() {
       );
 
       setDiagnosticTitle(
-        appointment.customerName ||
-          appointment.appointmentId
+        title
       );
 
       try {
@@ -691,9 +678,7 @@ export default function MicrosoftBookingsAdminPage() {
         const response =
           await fn({
             agentId,
-
-            appointmentId:
-              appointment.appointmentId,
+            appointmentId,
           });
 
         setDiagnosticResult(
@@ -725,6 +710,58 @@ export default function MicrosoftBookingsAdminPage() {
       }
     };
 
+  const handleDiagnoseAppointment =
+    async (
+      appointment:
+        MicrosoftAppointmentListItem
+    ) => {
+      await handleDiagnoseById(
+        appointment.appointmentId,
+        appointment.customerName ||
+          appointment.appointmentId
+      );
+    };
+
+  const handleManualDiagnoseAppointment =
+    async () => {
+      const appointmentId =
+        manualAppointmentId.trim();
+
+      if (!agentId) {
+        setDialog({
+          type:
+            "warning",
+
+          title:
+            "לא נבחר סוכן",
+
+          message:
+            "יש לבחור סוכן לפני בדיקת הפגישה.",
+        });
+
+        return;
+      }
+
+      if (!appointmentId) {
+        setDialog({
+          type:
+            "warning",
+
+          title:
+            "חסר מזהה פגישה",
+
+          message:
+            "יש להזין Appointment ID.",
+        });
+
+        return;
+      }
+
+      await handleDiagnoseById(
+        appointmentId,
+        appointmentId
+      );
+    };
 
   const handleDeleteAppointment =
     async (
@@ -832,18 +869,13 @@ export default function MicrosoftBookingsAdminPage() {
           }
         );
 
-        if (
-          diagnosticTitle &&
-          diagnosticResult
-        ) {
-          setDiagnosticResult(
-            null
-          );
+        setDiagnosticResult(
+          null
+        );
 
-          setDiagnosticTitle(
-            ""
-          );
-        }
+        setDiagnosticTitle(
+          ""
+        );
 
         setDialog({
           type:
@@ -881,7 +913,6 @@ export default function MicrosoftBookingsAdminPage() {
       }
     };
 
-
   if (
     isLoading ||
     isChecking
@@ -896,13 +927,11 @@ export default function MicrosoftBookingsAdminPage() {
     );
   }
 
-
   if (!canAccess) {
     return (
       <AccessDenied />
     );
   }
-
 
   return (
     <main
@@ -910,9 +939,7 @@ export default function MicrosoftBookingsAdminPage() {
       className="min-h-screen bg-slate-50 px-4 py-6 text-right sm:px-6"
     >
       <div className="mx-auto max-w-7xl space-y-6">
-
         <MonitorTabs />
-
 
         <header>
           <div className="text-sm font-semibold text-blue-600">
@@ -928,7 +955,6 @@ export default function MicrosoftBookingsAdminPage() {
             עבור הסוכן שנבחר.
           </p>
         </header>
-
 
         <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-4">
@@ -955,7 +981,6 @@ export default function MicrosoftBookingsAdminPage() {
             )}
           </div>
         </section>
-
 
         {!agentId ? (
           <section className="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center">
@@ -1037,7 +1062,6 @@ export default function MicrosoftBookingsAdminPage() {
               />
             </section>
 
-
             {config.lastSyncError && (
               <section className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
                 <div className="font-bold">
@@ -1050,7 +1074,6 @@ export default function MicrosoftBookingsAdminPage() {
               </section>
             )}
 
-
             <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <div className="flex flex-wrap items-center justify-between gap-4">
                 <div>
@@ -1059,7 +1082,7 @@ export default function MicrosoftBookingsAdminPage() {
                   </h2>
 
                   <p className="mt-1 text-sm text-slate-500">
-                    הפעלה ידנית של כלי הסנכרון והבדיקה.
+                    פעולות ידניות עבור הסוכן שנבחר.
                   </p>
                 </div>
 
@@ -1068,7 +1091,7 @@ export default function MicrosoftBookingsAdminPage() {
                     text={
                       syncing
                         ? "מסנכרן..."
-                        : "סנכרן עכשיו"
+                        : "סנכרן סוכן נבחר"
                     }
                     onClick={
                       handleSyncNow
@@ -1095,7 +1118,6 @@ export default function MicrosoftBookingsAdminPage() {
               </div>
             </section>
 
-
             {appointmentListResult && (
               <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
                 <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 p-5">
@@ -1113,7 +1135,6 @@ export default function MicrosoftBookingsAdminPage() {
                     {appointmentListResult.count} פגישות
                   </span>
                 </div>
-
 
                 {appointmentListResult.appointments.length ===
                 0 ? (
@@ -1274,13 +1295,73 @@ export default function MicrosoftBookingsAdminPage() {
               </section>
             )}
 
+            <section className="rounded-2xl border border-dashed border-purple-200 bg-purple-50 p-5">
+              <div>
+                <div className="text-xs font-bold text-purple-600">
+                  כלי בדיקה מתקדם
+                </div>
+
+                <h2 className="mt-1 text-lg font-bold text-purple-950">
+                  בדיקת פגישה לפי Appointment ID
+                </h2>
+
+                <p className="mt-1 text-sm leading-6 text-purple-800">
+                  מיועד לתחקור פגישה שלא מופיעה ברשימה הנוכחית,
+                  או מזהה פגישה שנמצא ב־Firestore או בלוגים.
+                  הבדיקה מתבצעת מול Microsoft Bookings של הסוכן שנבחר.
+                </p>
+              </div>
+
+              <div className="mt-4 flex flex-col gap-3 md:flex-row md:items-end">
+                <label className="flex-1">
+                  <span className="mb-2 block text-sm font-bold text-slate-700">
+                    Appointment ID
+                  </span>
+
+                  <textarea
+                    dir="ltr"
+                    rows={3}
+                    value={
+                      manualAppointmentId
+                    }
+                    onChange={(
+                      event
+                    ) =>
+                      setManualAppointmentId(
+                        event.target.value
+                      )
+                    }
+                    placeholder="AAMkAG..."
+                    className="w-full rounded-xl border border-purple-200 bg-white px-3 py-2 text-left text-sm outline-none focus:border-purple-400 focus:ring-4 focus:ring-purple-100"
+                  />
+                </label>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    void handleManualDiagnoseAppointment()
+                  }
+                  disabled={
+                    !manualAppointmentId.trim() ||
+                    Boolean(
+                      diagnosingAppointmentId
+                    )
+                  }
+                  className="rounded-xl bg-purple-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-purple-700 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {diagnosingAppointmentId
+                    ? "בודק..."
+                    : "בדוק פגישה"}
+                </button>
+              </div>
+            </section>
 
             {diagnosticResult && (
               <section className="rounded-2xl border border-purple-200 bg-purple-50 p-5 shadow-sm">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <div className="text-xs font-bold text-purple-600">
-                      כלי בדיקה
+                      תוצאת בדיקה
                     </div>
 
                     <h2 className="mt-1 text-lg font-bold text-purple-950">
@@ -1304,7 +1385,6 @@ export default function MicrosoftBookingsAdminPage() {
                     סגור
                   </button>
                 </div>
-
 
                 <div className="mt-5 grid gap-3 md:grid-cols-3">
                   <StatCard
@@ -1351,7 +1431,6 @@ export default function MicrosoftBookingsAdminPage() {
                   />
                 </div>
 
-
                 <details className="mt-4 rounded-xl border border-purple-200 bg-white p-4">
                   <summary className="cursor-pointer font-bold text-purple-900">
                     הצגת התוצאה המלאה
@@ -1372,7 +1451,6 @@ export default function MicrosoftBookingsAdminPage() {
             )}
           </>
         )}
-
 
         {dialog && (
           <DialogNotification

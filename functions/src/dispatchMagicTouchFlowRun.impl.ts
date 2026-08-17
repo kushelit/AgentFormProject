@@ -44,10 +44,14 @@ export async function dispatchMagicTouchFlowRunImpl({
   runId: string;
 }): Promise<object> {
   const normalizedAgentId =
-    s(agentId);
+    s(
+      agentId
+    );
 
   const normalizedRunId =
-    s(runId);
+    s(
+      runId
+    );
 
   if (
     !normalizedAgentId ||
@@ -189,8 +193,19 @@ export async function dispatchMagicTouchFlowRunImpl({
         `agents/${normalizedAgentId}/magic_touch_events/${claimedRun.eventId}`
       );
 
-    const eventSnap =
-      await eventRef.get();
+    const microsoftBookingsConfigRef =
+      (db as any).doc(
+        `agents/${normalizedAgentId}/config/microsoftBookings`
+      );
+
+    const [
+      eventSnap,
+      microsoftBookingsConfigSnap,
+    ] =
+      await Promise.all([
+        eventRef.get(),
+        microsoftBookingsConfigRef.get(),
+      ]);
 
     if (
       !eventSnap.exists
@@ -199,6 +214,11 @@ export async function dispatchMagicTouchFlowRunImpl({
         `Event not found: ${claimedRun.eventId}`
       );
     }
+
+    const microsoftBookingsConfig =
+      microsoftBookingsConfigSnap.exists
+        ? microsoftBookingsConfigSnap.data()
+        : {};
 
     const context:
       MagicTouchExecutionContext = {
@@ -215,6 +235,17 @@ export async function dispatchMagicTouchFlowRunImpl({
             eventSnap.id,
 
           ...eventSnap.data(),
+        },
+
+        agent: {
+          booking: {
+            defaultServiceUrl:
+              s(
+                microsoftBookingsConfig
+                  ?.defaultBookingServiceUrl
+              ) ||
+              null,
+          },
         },
       };
 
@@ -233,7 +264,10 @@ export async function dispatchMagicTouchFlowRunImpl({
     }
 
     const stepHistory:
-      Record<string, any>[] = [];
+      Record<
+        string,
+        any
+      >[] = [];
 
     for (
       let stepIndex = 0;

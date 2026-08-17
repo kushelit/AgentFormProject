@@ -34,7 +34,6 @@ import {
   resolveMagicTouchStringTemplate,
 } from "../shared/magicTouchAutomationValueResolver";
 
-
 export interface ExecuteStepResult {
   status:
     | "continue"
@@ -53,7 +52,9 @@ export interface ExecuteStepResult {
     null;
 }
 
-function s(value: any): string {
+function s(
+  value: any
+): string {
   return String(
     value ?? ""
   ).trim();
@@ -74,6 +75,36 @@ function eq(
   }
 
   return left === right;
+}
+
+function buildBookingMessage(
+  input: {
+    messageBefore: string;
+    bookingUrl: string;
+    messageAfter: string;
+  }
+): string {
+  const parts =
+    [
+      s(
+        input.messageBefore
+      ),
+
+      s(
+        input.bookingUrl
+      ),
+
+      s(
+        input.messageAfter
+      ),
+    ]
+      .filter(
+        Boolean
+      );
+
+  return parts.join(
+    "\n\n"
+  );
 }
 
 export async function executeMagicTouchFlowStep({
@@ -270,6 +301,123 @@ export async function executeMagicTouchFlowStep({
         output: {
           sent:
             true,
+
+          message,
+
+          ...result,
+        },
+      };
+    }
+
+    case "send_booking_link": {
+      const conversationId =
+        s(
+          context
+            .run
+            .conversationId
+        );
+
+      if (
+        !conversationId
+      ) {
+        throw new Error(
+          "Cannot send booking link without conversationId"
+        );
+      }
+
+      const bookingUrl =
+        s(
+          context
+            .agent
+            ?.booking
+            ?.defaultServiceUrl
+        );
+
+      if (
+        !bookingUrl
+      ) {
+        throw new Error(
+          "Microsoft Bookings default service URL is missing for this agent"
+        );
+      }
+
+      const messageBefore =
+        resolveMagicTouchStringTemplate(
+          s(
+            step.config
+              ?.messageBefore
+          ),
+          context
+        );
+
+      const messageAfter =
+        resolveMagicTouchStringTemplate(
+          s(
+            step.config
+              ?.messageAfter
+          ),
+          context
+        );
+
+      const message =
+        buildBookingMessage({
+          messageBefore,
+          bookingUrl,
+          messageAfter,
+        });
+
+      const result =
+        await sendWhatsAppConversationText({
+          agentId:
+            context.agentId,
+
+          conversationId,
+
+          text:
+            message,
+
+          sentBy:
+            "magic_touch_automation",
+
+          sentByName:
+            "MagicTouch",
+
+          source:
+            "magic_touch_automation",
+
+          flowRunId:
+            context.run.runId,
+
+          flowId:
+            context.flow.flowId,
+
+          eventId:
+            context.run.eventId,
+        });
+
+      return {
+        status:
+          step.nextStepId
+            ? "continue"
+            : "completed",
+
+        nextStepId:
+          step.nextStepId ||
+          null,
+
+        output: {
+          sent:
+            true,
+
+          bookingUrl,
+
+          messageBefore:
+            messageBefore ||
+            null,
+
+          messageAfter:
+            messageAfter ||
+            null,
 
           message,
 
