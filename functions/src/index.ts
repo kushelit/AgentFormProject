@@ -298,3 +298,11 @@ export {
 export {
   updateMicrosoftBookingStaffAvailability,
 } from "./updateMicrosoftBookingStaffAvailability";
+
+export {
+  startGoogleCalendarAuth,
+} from "./startGoogleCalendarAuth";
+
+export {
+  googleCalendarOAuthCallback,
+} from "./googleCalendarOAuthCallback";

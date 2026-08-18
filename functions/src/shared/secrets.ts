@@ -27,3 +27,9 @@ export const MICROSOFT_CLIENT_SECRET =
 
 export const MICROSOFT_TENANT_ID =
   defineSecret("MICROSOFT_TENANT_ID");
+
+  export const GOOGLE_CLIENT_ID =
+  defineSecret("GOOGLE_CLIENT_ID");
+
+export const GOOGLE_CLIENT_SECRET =
+  defineSecret("GOOGLE_CLIENT_SECRET");
