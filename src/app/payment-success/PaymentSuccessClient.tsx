@@ -23,8 +23,8 @@ export default function PaymentSuccessClient() {
 
     ⚠️ אם לא התקבל מייל תוך מספר דקות, בדוק/י בתיקיית הספאם.
 
-    ✉️ ניתן גם לאפס סיסמה ישירות כאן: 
-    https://test.magicsale.co.il/auth/reset-password`);
+    // ✉️ ניתן גם לאפס סיסמה ישירות כאן: 
+    // https://test.magicsale.co.il/auth/reset-password`);
   }, [searchParams]);
 
   return (

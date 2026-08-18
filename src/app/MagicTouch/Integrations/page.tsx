@@ -92,6 +92,14 @@ export default function MagicTouchIntegrationsPage() {
         />
 
         <IntegrationCard
+          title="Google Calendar"
+          description="חיבור חשבון Google, בחירת היומן והגדרת קישור לקביעת פגישה."
+          href="/MagicTouch/Integrations/GoogleCalendarSettings"
+          icon="🗓️"
+          statusText="יומן"
+        />
+
+        <IntegrationCard
           title="Surense"
           description="מרכז אחד לכל כיווני התקשורת בין MagicTouch, Make ושורנס."
           href="/MagicTouch/Integrations/Surense"

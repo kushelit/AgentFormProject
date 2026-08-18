@@ -27,6 +27,9 @@ import SendWhatsAppStepEditor from
   import SendBookingLinkStepEditor from
   "@/components/MagicTouch/Flows/steps/SendBookingLinkStepEditor";
 
+  import SendGoogleBookingLinkStepEditor from
+  "@/components/MagicTouch/Flows/steps/SendGoogleBookingLinkStepEditor";
+
 type Props = {
   open: boolean;
   step: FlowStep | null;
@@ -217,6 +220,17 @@ const stepAction =
 ) : null}
 {step.type === "send_booking_link" ? (
   <SendBookingLinkStepEditor
+    step={step}
+    onConfigChange={(patch) =>
+      onUpdateConfig(
+        stepId,
+        patch
+      )
+    }
+  />
+) : null}
+{step.type === "send_google_booking_link" ? (
+  <SendGoogleBookingLinkStepEditor
     step={step}
     onConfigChange={(patch) =>
       onUpdateConfig(

@@ -8,6 +8,7 @@ export type StepType =
   | "condition"
   | "send_whatsapp"
   | "send_booking_link"
+  | "send_google_booking_link"
   | "request_documents"
   | "update_contact"
   | "add_timeline_event"

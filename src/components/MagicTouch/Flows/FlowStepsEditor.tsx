@@ -83,7 +83,23 @@ case "send_booking_link":
         "default_service",
     },
   };
-  
+  case "send_google_booking_link":
+  return {
+    id,
+    type,
+    name: "שליחת קישור לפגישה ב־Google Calendar",
+    nextStepId: null,
+    config: {
+      messageBefore:
+        "מעולה, נשמח לתאם פגישה.\nניתן לבחור מועד שנוח לך בקישור הבא:",
+
+      messageAfter:
+        "",
+
+      bookingSource:
+        "default_booking_url",
+    },
+  };
     case "update_contact":
       return {
         id,
@@ -193,6 +209,10 @@ function triggerLabel(type: string): string {
       return "נקבעה פגישה ב־Microsoft Bookings";
     case "microsoft_booking_cancelled":
       return "בוטלה פגישה ב־Microsoft Bookings";
+      case "google_booking_created":
+  return "נקבעה פגישה ב־Google Calendar";
+case "google_booking_cancelled":
+  return "בוטלה פגישה ב־Google Calendar";
     case "reengagement_message_sent":
       return "נשלחה הודעת חידוש קשר";
     case "manual":

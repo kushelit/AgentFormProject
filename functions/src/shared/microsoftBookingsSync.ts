@@ -932,21 +932,47 @@ export async function syncMicrosoftBookingsAgent(
         )
         : null;
 
-    const conversationId =
-      contactDoc
-        ? (
-          s(
-            contactData
-              ?.whatsappConversationId
-          ) ||
-          (
-            customer.phone
-              ? `${normalizedAgentId}_${customer.phone}`
-              : ""
-          ) ||
-          null
-        )
-        : null;
+const bookingStatus =
+  s(
+    contactData
+      ?.engagement
+      ?.reengagement
+      ?.bookingStatus
+  );
+
+const appointmentProvider =
+  s(
+    contactData
+      ?.appointmentProvider
+  ).toLowerCase();
+
+const isWaitingForMicrosoftBooking =
+  bookingStatus ===
+    "link_sent" &&
+  appointmentProvider ===
+    "microsoft";
+
+const matchedContactDoc =
+  contactDoc &&
+  isWaitingForMicrosoftBooking
+    ? contactDoc
+    : null;
+
+const conversationId =
+  matchedContactDoc
+    ? (
+      s(
+        contactData
+          ?.whatsappConversationId
+      ) ||
+      (
+        customer.phone
+          ? `${normalizedAgentId}_${customer.phone}`
+          : ""
+      ) ||
+      null
+    )
+    : null;
 
     const appointmentRef =
       (db as any).doc(
@@ -970,9 +996,9 @@ export async function syncMicrosoftBookingsAgent(
 
         bookingBusinessId,
 
-        contactId:
-          contactDoc?.id ||
-          null,
+      contactId:
+  matchedContactDoc?.id ||
+  null,
 
         conversationId,
 
@@ -1025,11 +1051,13 @@ export async function syncMicrosoftBookingsAgent(
             ? "cancelled_returned_by_microsoft"
             : "active",
 
-        matchStatus:
-          contactDoc
-            ? "matched"
-            : "unmatched",
-
+      matchStatus:
+  matchedContactDoc
+    ? "matched"
+    : contactDoc
+      ? "contact_not_waiting_for_microsoft_booking"
+      : "unmatched",
+      
         rawJson:
           JSON.stringify(
             appointment
@@ -1058,12 +1086,39 @@ export async function syncMicrosoftBookingsAgent(
       }
     );
 
-    if (!contactDoc) {
-      unmatched++;
-      continue;
-    }
+ if (!matchedContactDoc) {
+  unmatched++;
 
-    matched++;
+  logger.info(
+    "[MicrosoftBookingsSync] appointment ignored",
+    {
+      agentId:
+        normalizedAgentId,
+
+      appointmentId,
+
+      contactFound:
+        Boolean(contactDoc),
+
+      bookingStatus:
+        bookingStatus ||
+        null,
+
+      appointmentProvider:
+        appointmentProvider ||
+        null,
+
+      reason:
+        contactDoc
+          ? "contact_not_waiting_for_microsoft_booking"
+          : "contact_not_found",
+    }
+  );
+
+  continue;
+}
+
+matched++;
 
     const triggerType:
       | "microsoft_booking_created"
@@ -1079,8 +1134,8 @@ export async function syncMicrosoftBookingsAgent(
         agentId:
           normalizedAgentId,
 
-        contactId:
-          contactDoc.id,
+       contactId:
+  matchedContactDoc.id,
 
         conversationId,
 
@@ -1110,8 +1165,8 @@ export async function syncMicrosoftBookingsAgent(
 
     await appointmentRef.set(
       {
-        contactId:
-          contactDoc.id,
+      contactId:
+  matchedContactDoc.id,
 
         matchStatus:
           "matched",

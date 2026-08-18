@@ -44,6 +44,9 @@ export function getStepTypeLabel(
     case "send_booking_link":
       return "שליחת קישור לפגישת Bookings";
 
+      case "send_google_booking_link":
+  return "שליחת קישור לפגישה ב־Google Calendar";
+
     case "update_contact":
       return "עדכון איש קשר";
 
@@ -84,6 +87,9 @@ export function getStepIcon(
 
     case "send_booking_link":
       return "📅";
+
+      case "send_google_booking_link":
+  return "🗓️";
 
     case "update_contact":
       return "👤";
@@ -163,6 +169,20 @@ export function getStepAccent(
         connector:
           "bg-blue-300",
       };
+case "send_google_booking_link":
+  return {
+    ring:
+      "border-emerald-200 hover:border-emerald-400",
+
+    icon:
+      "bg-emerald-100 text-emerald-800",
+
+    badge:
+      "bg-emerald-50 text-emerald-700",
+
+    connector:
+      "bg-emerald-300",
+  };
 
     case "update_contact":
       return {
@@ -429,7 +449,45 @@ export function getStepSummary(
         ),
       ];
     }
+case "send_google_booking_link": {
+  const messageBefore =
+    s(
+      step.config
+        ?.messageBefore
+    );
 
+  const messageAfter =
+    s(
+      step.config
+        ?.messageAfter
+    );
+
+  return [
+    "קישור ברירת המחדל של Google Calendar",
+
+    messageBefore
+      ? messageBefore.length > 90
+        ? `${messageBefore.slice(
+            0,
+            90
+          )}…`
+        : messageBefore
+      : "ללא מלל לפני הקישור",
+
+    ...(
+      messageAfter
+        ? [
+            messageAfter.length > 90
+              ? `${messageAfter.slice(
+                  0,
+                  90
+                )}…`
+              : messageAfter,
+          ]
+        : []
+    ),
+  ];
+}
     case "sync_surense_activity":
       return [
         s(

@@ -16,6 +16,11 @@ const monitorTabs = [
     icon: "📅",
   },
   {
+    href: "/MagicTouch/Monitor/GoogleCalendar",
+    label: "Google Calendar",
+    icon: "🗓️",
+  },
+  {
     href: "/MagicTouch/Monitor",
     label: "מעקב ייפויי כוח",
     icon: "✍️",

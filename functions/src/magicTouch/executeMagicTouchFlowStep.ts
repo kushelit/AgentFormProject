@@ -34,6 +34,18 @@ import {
   resolveMagicTouchStringTemplate,
 } from "../shared/magicTouchAutomationValueResolver";
 
+import {
+  nowTs,
+} from "../shared/admin";
+
+import {
+  updateMagicTouchContactFields,
+} from "../shared/magicTouchContactAutomationService";
+
+import {
+  getGoogleCalendarBookingUrl,
+} from "../shared/googleCalendar";
+
 export interface ExecuteStepResult {
   status:
     | "continue"
@@ -309,122 +321,360 @@ export async function executeMagicTouchFlowStep({
       };
     }
 
-    case "send_booking_link": {
-      const conversationId =
-        s(
-          context
-            .run
-            .conversationId
-        );
+  case "send_booking_link": {
+  const conversationId =
+    s(
+      context
+        .run
+        .conversationId
+    );
 
-      if (
-        !conversationId
-      ) {
-        throw new Error(
-          "Cannot send booking link without conversationId"
-        );
-      }
+  if (
+    !conversationId
+  ) {
+    throw new Error(
+      "Cannot send booking link without conversationId"
+    );
+  }
 
-      const bookingUrl =
-        s(
-          context
-            .agent
-            ?.booking
-            ?.defaultServiceUrl
-        );
+  const contactId =
+    s(
+      context
+        .run
+        .contactId ||
+      context
+        .event
+        ?.contactId
+    );
 
-      if (
-        !bookingUrl
-      ) {
-        throw new Error(
-          "Microsoft Bookings default service URL is missing for this agent"
-        );
-      }
+  if (
+    !contactId
+  ) {
+    throw new Error(
+      "Cannot send booking link without contactId"
+    );
+  }
 
-      const messageBefore =
-        resolveMagicTouchStringTemplate(
-          s(
-            step.config
-              ?.messageBefore
-          ),
-          context
-        );
+  /*
+   * כרגע send_booking_link הוא Microsoft Bookings.
+   * בהמשך נרחיב אותו לבחירת provider.
+   */
+  const appointmentProvider =
+    "microsoft";
 
-      const messageAfter =
-        resolveMagicTouchStringTemplate(
-          s(
-            step.config
-              ?.messageAfter
-          ),
-          context
-        );
+  const bookingUrl =
+    s(
+      context
+        .agent
+        ?.booking
+        ?.defaultServiceUrl
+    );
 
-      const message =
-        buildBookingMessage({
-          messageBefore,
-          bookingUrl,
-          messageAfter,
-        });
+  if (
+    !bookingUrl
+  ) {
+    throw new Error(
+      "Microsoft Bookings default service URL is missing for this agent"
+    );
+  }
 
-      const result =
-        await sendWhatsAppConversationText({
-          agentId:
-            context.agentId,
+  const messageBefore =
+    resolveMagicTouchStringTemplate(
+      s(
+        step.config
+          ?.messageBefore
+      ),
+      context
+    );
 
-          conversationId,
+  const messageAfter =
+    resolveMagicTouchStringTemplate(
+      s(
+        step.config
+          ?.messageAfter
+      ),
+      context
+    );
 
-          text:
-            message,
+  const message =
+    buildBookingMessage({
+      messageBefore,
+      bookingUrl,
+      messageAfter,
+    });
 
-          sentBy:
-            "magic_touch_automation",
+  /*
+   * קודם שולחים בפועל.
+   *
+   * רק אם WhatsApp הצליח,
+   * נסמן את הלקוח כממתין לקביעת פגישה.
+   */
+  const result =
+    await sendWhatsAppConversationText({
+      agentId:
+        context.agentId,
 
-          sentByName:
-            "MagicTouch",
+      conversationId,
 
-          source:
-            "magic_touch_automation",
+      text:
+        message,
 
-          flowRunId:
-            context.run.runId,
+      sentBy:
+        "magic_touch_automation",
 
-          flowId:
-            context.flow.flowId,
+      sentByName:
+        "MagicTouch",
 
-          eventId:
-            context.run.eventId,
-        });
+      source:
+        "magic_touch_automation",
 
-      return {
-        status:
-          step.nextStepId
-            ? "continue"
-            : "completed",
+      flowRunId:
+        context.run.runId,
 
-        nextStepId:
-          step.nextStepId ||
-          null,
+      flowId:
+        context.flow.flowId,
 
-        output: {
-          sent:
-            true,
+      eventId:
+        context.run.eventId,
+    });
 
-          bookingUrl,
+  const timestamp =
+    nowTs();
 
-          messageBefore:
-            messageBefore ||
-            null,
+  /*
+   * זה חלק מהותי מהפעולה send_booking_link.
+   *
+   * לא צריך Step נוסף של Update Contact
+   * כדי לומר שהמערכת מחכה עכשיו לפגישה.
+   */
+  await updateMagicTouchContactFields({
+    agentId:
+      context.agentId,
 
-          messageAfter:
-            messageAfter ||
-            null,
+    contactId,
 
-          message,
+    updates: {
+      appointmentStatus:
+        "link_sent",
 
-          ...result,
-        },
-      };
-    }
+      appointmentProvider,
+
+      "engagement.reengagement.bookingStatus":
+        "link_sent",
+
+      "engagement.reengagement.bookingLink":
+        bookingUrl,
+
+      "engagement.reengagement.bookingLinkSentAt":
+        timestamp,
+
+      "engagement.reengagement.updatedAt":
+        timestamp,
+    },
+  });
+
+  return {
+    status:
+      step.nextStepId
+        ? "continue"
+        : "completed",
+
+    nextStepId:
+      step.nextStepId ||
+      null,
+
+    output: {
+      sent:
+        true,
+
+      appointmentProvider,
+
+      bookingUrl,
+
+      bookingStatus:
+        "link_sent",
+
+      messageBefore:
+        messageBefore ||
+        null,
+
+      messageAfter:
+        messageAfter ||
+        null,
+
+      message,
+
+      ...result,
+    },
+  };
+}
+
+case "send_google_booking_link": {
+  const conversationId =
+    s(
+      context
+        .run
+        .conversationId
+    );
+
+  if (
+    !conversationId
+  ) {
+    throw new Error(
+      "Cannot send Google booking link without conversationId"
+    );
+  }
+
+  const contactId =
+    s(
+      context
+        .run
+        .contactId ||
+      context
+        .event
+        ?.contactId
+    );
+
+  if (
+    !contactId
+  ) {
+    throw new Error(
+      "Cannot send Google booking link without contactId"
+    );
+  }
+
+  const appointmentProvider =
+    "google";
+
+  const bookingUrl =
+    await getGoogleCalendarBookingUrl(
+      context.agentId
+    );
+
+  const messageBefore =
+    resolveMagicTouchStringTemplate(
+      s(
+        step.config
+          ?.messageBefore
+      ),
+      context
+    );
+
+  const messageAfter =
+    resolveMagicTouchStringTemplate(
+      s(
+        step.config
+          ?.messageAfter
+      ),
+      context
+    );
+
+  const message =
+    buildBookingMessage({
+      messageBefore,
+      bookingUrl,
+      messageAfter,
+    });
+
+  /*
+   * קודם שולחים את ההודעה.
+   * רק לאחר שליחה מוצלחת מעדכנים
+   * שהלקוח ממתין לפגישה דרך Google.
+   */
+  const result =
+    await sendWhatsAppConversationText({
+      agentId:
+        context.agentId,
+
+      conversationId,
+
+      text:
+        message,
+
+      sentBy:
+        "magic_touch_automation",
+
+      sentByName:
+        "MagicTouch",
+
+      source:
+        "magic_touch_automation",
+
+      flowRunId:
+        context.run.runId,
+
+      flowId:
+        context.flow.flowId,
+
+      eventId:
+        context.run.eventId,
+    });
+
+  const timestamp =
+    nowTs();
+
+  await updateMagicTouchContactFields({
+    agentId:
+      context.agentId,
+
+    contactId,
+
+    updates: {
+      appointmentStatus:
+        "link_sent",
+
+      appointmentProvider:
+        "google",
+
+      "engagement.reengagement.bookingStatus":
+        "link_sent",
+
+      "engagement.reengagement.bookingLink":
+        bookingUrl,
+
+      "engagement.reengagement.bookingLinkSentAt":
+        timestamp,
+
+      "engagement.reengagement.updatedAt":
+        timestamp,
+    },
+  });
+
+  return {
+    status:
+      step.nextStepId
+        ? "continue"
+        : "completed",
+
+    nextStepId:
+      step.nextStepId ||
+      null,
+
+    output: {
+      sent:
+        true,
+
+      appointmentProvider,
+
+      bookingUrl,
+
+      bookingStatus:
+        "link_sent",
+
+      messageBefore:
+        messageBefore ||
+        null,
+
+      messageAfter:
+        messageAfter ||
+        null,
+
+      message,
+
+      ...result,
+    },
+  };
+}
 
     case "request_documents":
       return executeRequestDocumentsStep({

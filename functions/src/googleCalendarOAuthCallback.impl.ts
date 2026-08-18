@@ -34,6 +34,10 @@ import {
   consumeGoogleOAuthState,
 } from "./shared/googleOAuthState";
 
+import {
+  APP_BASE_URL,
+} from "./shared/appBaseUrl";
+
 const GOOGLE_TOKEN_URL =
   "https://oauth2.googleapis.com/token";
 
@@ -48,91 +52,17 @@ function s(
   ).trim();
 }
 
-function getFirebaseProjectId():
-string {
-  const directProjectId =
-    s(
-      process.env
-        .GCLOUD_PROJECT
-    ) ||
-    s(
-      process.env
-        .GCP_PROJECT
-    );
-
-  if (
-    directProjectId
-  ) {
-    return directProjectId;
-  }
-
-  const firebaseConfig =
-    s(
-      process.env
-        .FIREBASE_CONFIG
-    );
-
-  if (
-    firebaseConfig
-  ) {
-    try {
-      const parsed =
-        JSON.parse(
-          firebaseConfig
-        );
-
-      const projectId =
-        s(
-          parsed
-            ?.projectId
-        );
-
-      if (
-        projectId
-      ) {
-        return projectId;
-      }
-    } catch {
-      // handled below
-    }
-  }
-
-  return "";
-}
 
 function getMagicSaleReturnUrl(
-  params:
-    Record<
-      string,
-      string
-    >
+  params: Record<string, string>
 ): string {
-  const projectId =
-    getFirebaseProjectId();
+  const url = new URL(
+    "/MagicTouch/Integrations/GoogleCalendarSettings",
+    APP_BASE_URL
+  );
 
-  const baseUrl =
-    projectId ===
-    "magicsale-test"
-      ? "https://test.magicsale.co.il/GoogleCalendarSettings"
-      : "https://magicsale.co.il/GoogleCalendarSettings";
-
-  const url =
-    new URL(
-      baseUrl
-    );
-
-  for (
-    const [
-      key,
-      value,
-    ] of
-    Object.entries(
-      params
-    )
-  ) {
-    if (
-      value
-    ) {
+  for (const [key, value] of Object.entries(params)) {
+    if (value) {
       url.searchParams.set(
         key,
         value

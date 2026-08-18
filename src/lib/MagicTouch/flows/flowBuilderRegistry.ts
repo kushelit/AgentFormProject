@@ -3,6 +3,7 @@ import type { StepType } from "./types";
 export type FlowSystemId =
   | "whatsapp"
   | "microsoft_bookings"
+  | "google_calendar"
   | "surense"
   | "magicsale"
   | "magic_touch";
@@ -122,7 +123,40 @@ export const FLOW_SYSTEMS: FlowSystemDefinition[] = [
   },
 ],
   },
+{
+  id: "google_calendar",
+  label: "Google Calendar",
+  icon: "🗓️",
 
+  triggers: [
+    {
+      type: "google_booking_created",
+      label: "נקבעה פגישה",
+      description:
+        "נוצרה פגישה חדשה דרך Google Calendar",
+      active: true,
+    },
+    {
+      type: "google_booking_cancelled",
+      label: "בוטלה פגישה",
+      description:
+        "פגישה קיימת ב־Google Calendar בוטלה",
+      active: true,
+    },
+  ],
+
+  actions: [
+    {
+      id: "send_google_booking_link",
+      stepType: "send_google_booking_link",
+      label: "שליחת קישור לפגישה",
+      description:
+        "שליחת קישור ברירת המחדל לקביעת פגישה ב־Google Calendar",
+      icon: "🗓️",
+      active: true,
+    },
+  ],
+},
   {
     id: "surense",
     label: "Surense",

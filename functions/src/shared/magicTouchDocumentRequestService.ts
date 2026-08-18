@@ -7,7 +7,7 @@ import {getStorage} from "firebase-admin/storage";
 import {HttpsError} from "firebase-functions/v2/https";
 
 import {adminDb, nowTs} from "./admin";
-import {PROJECT_ID} from "./region";
+import {APP_BASE_URL} from "./appBaseUrl";
 import {addMagicTouchTimelineEvent} from "./magicTouchTimelineService";
 import {sendWhatsAppConversationText} from "./sendWhatsAppConversationText";
 
@@ -33,11 +33,7 @@ function tokenHash(token: string): string {
   return createHash("sha256").update(token).digest("hex");
 }
 
-function publicBaseUrl(): string {
-  return PROJECT_ID === "agentsale-693e8" ?
-    "https://magicsale.co.il" :
-    "https://test.magicsale.co.il";
-}
+
 
 function extensionForMimeType(mimeType: string): string {
   if (mimeType === "image/png") return "png";
@@ -88,7 +84,12 @@ export async function createMagicTouchDocumentRequest(params: {
 
   const requestId = randomUUID();
   const token = randomBytes(32).toString("base64url");
-  const uploadUrl = `${publicBaseUrl()}/MagicTouchUpload/${encodeURIComponent(agentId)}/${encodeURIComponent(requestId)}?token=${encodeURIComponent(token)}`;
+const uploadUrl =
+  `${APP_BASE_URL}/MagicTouchUpload/` +
+  `${encodeURIComponent(agentId)}/` +
+  `${encodeURIComponent(requestId)}` +
+  `?token=${encodeURIComponent(token)}`;  
+  
   const requestRef = (db as any).doc(
     `agents/${agentId}/magic_touch_document_requests/${requestId}`
   );

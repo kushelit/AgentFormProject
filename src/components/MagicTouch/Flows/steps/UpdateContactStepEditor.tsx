@@ -236,7 +236,6 @@ const FIELD_DEFINITIONS:
         },
       ],
     },
-
     {
       path:
         "engagement.reengagement.bookingLink",

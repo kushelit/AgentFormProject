@@ -4,6 +4,7 @@ export type MagicTouchStepType =
   | "condition"
   | "send_whatsapp"
   | "send_booking_link"
+   | "send_google_booking_link"
   | "update_contact"
   | "add_timeline_event"
   | "sync_surense_activity"
