@@ -207,10 +207,56 @@ function getCandidateName(
   );
 }
 
+
+function toMillisOrNull(
+  value: any
+): number | null {
+  if (!value) {
+    return null;
+  }
+
+  if (
+    typeof value?.toMillis ===
+    "function"
+  ) {
+    return value.toMillis();
+  }
+
+  if (
+    typeof value?.toDate ===
+    "function"
+  ) {
+    return value
+      .toDate()
+      .getTime();
+  }
+
+  if (
+    value instanceof Date
+  ) {
+    return value.getTime();
+  }
+
+  const parsed =
+    new Date(
+      value
+    );
+
+  const millis =
+    parsed.getTime();
+
+  return Number.isNaN(
+    millis
+  )
+    ? null
+    : millis;
+}
+
 async function findMatchingContactByEmail(
   db: FirebaseFirestore.Firestore,
   agentId: string,
-  email: string
+  email: string,
+  googleEventCreatedAt: any
 ): Promise<FirebaseFirestore.QueryDocumentSnapshot | null> {
   const normalizedEmail =
     normalizeMagicTouchEmail(
@@ -223,14 +269,97 @@ async function findMatchingContactByEmail(
     return null;
   }
 
+  const googleEventCreatedAtMs =
+    toMillisOrNull(
+      googleEventCreatedAt
+    );
+
+  if (
+    !googleEventCreatedAtMs
+  ) {
+    logger.warn(
+      "[syncGoogleCalendarAppointments] Google event has no valid created timestamp",
+      {
+        agentId,
+        email:
+          normalizedEmail,
+        googleEventCreatedAt:
+          googleEventCreatedAt ||
+          null,
+      }
+    );
+
+    return null;
+  }
+
   const contactsRef =
     db.collection(
       `agents/${agentId}/magic_touch_contacts`
     );
 
+  const isMatchingContact = (
+    doc: FirebaseFirestore.QueryDocumentSnapshot
+  ): boolean => {
+    const data =
+      doc.data() as any;
+
+    const bookingStatus =
+      s(
+        data
+          ?.engagement
+          ?.reengagement
+          ?.bookingStatus
+      );
+
+    const appointmentProvider =
+      s(
+        data
+          ?.appointmentProvider
+      ).toLowerCase();
+
+    const bookingLinkSentAt =
+      data
+        ?.engagement
+        ?.reengagement
+        ?.bookingLinkSentAt;
+
+    const bookingLinkSentAtMs =
+      toMillisOrNull(
+        bookingLinkSentAt
+      );
+
+    /*
+     * נותנים מרווח קטן של 2 דקות
+     * למקרה של הבדל זמנים בין המערכות.
+     */
+    const toleranceMs =
+      2 *
+      60 *
+      1000;
+
+    const createdAfterLinkSent =
+      Boolean(
+        bookingLinkSentAtMs
+      ) &&
+      googleEventCreatedAtMs >=
+        (
+          bookingLinkSentAtMs! -
+          toleranceMs
+        );
+
+    return (
+      bookingStatus ===
+        "link_sent" &&
+      appointmentProvider ===
+        "google" &&
+      createdAfterLinkSent
+    );
+  };
+
   /*
-   * זה השדה הרשמי שנוצר אצלנו
-   * ב-upsertMagicTouchContact.
+   * אנשי קשר עם emailNormalized.
+   * לא משתמשים ב-limit(1), כי אותו מייל
+   * יכול להופיע אצל כמה Contacts.
    */
   const normalizedSnap =
     await contactsRef
@@ -239,19 +368,109 @@ async function findMatchingContactByEmail(
         "==",
         normalizedEmail
       )
-      .limit(1)
       .get();
 
+  logger.info(
+    "[syncGoogleCalendarAppointments] email candidates found",
+    {
+      agentId,
+
+      email:
+        normalizedEmail,
+
+      googleEventCreatedAt:
+        googleEventCreatedAt ||
+        null,
+
+      candidateCount:
+        normalizedSnap.size,
+
+      candidates:
+        normalizedSnap.docs.map(
+          (doc) => {
+            const data =
+              doc.data() as any;
+
+            const bookingLinkSentAt =
+              data
+                ?.engagement
+                ?.reengagement
+                ?.bookingLinkSentAt;
+
+            const bookingLinkSentAtMs =
+              toMillisOrNull(
+                bookingLinkSentAt
+              );
+
+            const toleranceMs =
+              2 *
+              60 *
+              1000;
+
+            return {
+              contactId:
+                doc.id,
+
+              fullName:
+                s(
+                  data
+                    ?.fullName
+                ) ||
+                null,
+
+              appointmentProvider:
+                s(
+                  data
+                    ?.appointmentProvider
+                ) ||
+                null,
+
+              bookingStatus:
+                s(
+                  data
+                    ?.engagement
+                    ?.reengagement
+                    ?.bookingStatus
+                ) ||
+                null,
+
+              bookingLinkSentAt:
+                bookingLinkSentAt ||
+                null,
+
+              googleEventCreatedAt:
+                googleEventCreatedAt ||
+                null,
+
+              createdAfterLinkSent:
+                Boolean(
+                  bookingLinkSentAtMs
+                ) &&
+                googleEventCreatedAtMs >=
+                  (
+                    bookingLinkSentAtMs! -
+                    toleranceMs
+                  ),
+            };
+          }
+        ),
+    }
+  );
+
+  const matchingContact =
+    normalizedSnap.docs.find(
+      isMatchingContact
+    );
+
   if (
-    !normalizedSnap.empty
+    matchingContact
   ) {
-    return normalizedSnap
-      .docs[0];
+    return matchingContact;
   }
 
   /*
-   * fallback לתמיכה באנשי קשר ישנים
-   * שאולי נוצרו לפני emailNormalized.
+   * fallback לאנשי קשר ישנים
+   * שאין להם emailNormalized.
    */
   const directEmailSnap =
     await contactsRef
@@ -260,18 +479,22 @@ async function findMatchingContactByEmail(
         "==",
         email
       )
-      .limit(1)
       .get();
 
+  const legacyMatchingContact =
+    directEmailSnap.docs.find(
+      isMatchingContact
+    );
+
   if (
-    !directEmailSnap.empty
+    legacyMatchingContact
   ) {
-    return directEmailSnap
-      .docs[0];
+    return legacyMatchingContact;
   }
 
   return null;
 }
+
 
 function sha256(
   value: string
@@ -492,12 +715,9 @@ async function createGoogleBookingMagicTouchEvent({
           timestamp,
       };
 
-  await contactRef.set(
-    contactUpdate,
-    {
-      merge: true,
-    }
-  );
+ await contactRef.update(
+  contactUpdate
+);
 
   try {
     await addMagicTouchTimelineEvent({
@@ -827,12 +1047,13 @@ export async function syncGoogleCalendarAppointmentsImpl({
   !contactId &&
   resolvedCustomerEmail
 ) {
-  const contactDoc =
-    await findMatchingContactByEmail(
-      db,
-      normalizedAgentId,
-      resolvedCustomerEmail
-    );
+ const contactDoc =
+  await findMatchingContactByEmail(
+    db,
+    normalizedAgentId,
+    resolvedCustomerEmail,
+    event?.created
+  );
 
   if (
     contactDoc

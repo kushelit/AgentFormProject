@@ -366,8 +366,13 @@ export async function resetMagicTouchTestContactImpl(
     };
   }
 
-  await deleteCandidates(candidates);
-  await resetContactFields();
+ await deleteCandidates(
+  candidates
+);
+
+await resetContactFields();
+
+await resetGoogleCalendarSyncState();
 
   return {
     ok: true,
@@ -378,4 +383,71 @@ export async function resetMagicTouchTestContactImpl(
     deletedDocuments: documents.length,
     message: "Test contact data was reset successfully",
   };
+}
+
+async function resetGoogleCalendarSyncState(): Promise<void> {
+  const db = adminDb();
+
+  const configRef = db.doc(
+    `agents/${TEST_AGENT_ID}/config/googleCalendar`
+  );
+
+  const configSnap =
+    await configRef.get();
+
+  if (!configSnap.exists) {
+    return;
+  }
+
+  await configRef.set(
+    {
+      lastSuccessfulSyncAtIso:
+        FieldValue.delete(),
+
+      lastSuccessfulSyncAt:
+        FieldValue.delete(),
+
+      lastSyncAt:
+        FieldValue.delete(),
+
+      lastSyncStartedAt:
+        FieldValue.delete(),
+
+      lastSyncCompletedAt:
+        FieldValue.delete(),
+
+      lastSyncFailedAt:
+        FieldValue.delete(),
+
+      lastSyncStatus:
+        "not_started",
+
+      lastSyncError:
+        null,
+
+      lastSyncScannedCount:
+        FieldValue.delete(),
+
+      lastSyncEventCount:
+        FieldValue.delete(),
+
+      lastSyncMatchedCount:
+        FieldValue.delete(),
+
+      lastSyncSkippedCount:
+        FieldValue.delete(),
+
+      lastSyncCancelledCount:
+        FieldValue.delete(),
+
+      lastSyncCustomerCandidateCount:
+        FieldValue.delete(),
+
+      updatedAt:
+        FieldValue.serverTimestamp(),
+    },
+    {
+      merge: true,
+    }
+  );
 }

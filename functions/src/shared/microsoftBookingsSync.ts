@@ -517,12 +517,10 @@ const bookingUpdate =
           timestamp,
       };
 
-await contactRef.set(
-  bookingUpdate,
-  {
-    merge: true,
-  }
+await contactRef.update(
+  bookingUpdate
 );
+
 try {
   const isCancelled =
     triggerType ===
@@ -984,109 +982,140 @@ const conversationId =
     const existingAppointmentSnap =
       await appointmentRef.get();
 
-    const timestamp =
-      nowTs();
+  const timestamp =
+  nowTs();
 
-    await appointmentRef.set(
-      {
-        agentId:
-          normalizedAgentId,
+const existingAppointmentData =
+  existingAppointmentSnap.exists
+    ? (
+      existingAppointmentSnap.data() as
+        Record<string, any>
+    )
+    : null;
 
-        appointmentId,
+const existingContactId =
+  s(
+    existingAppointmentData
+      ?.contactId
+  );
 
-        bookingBusinessId,
+const existingConversationId =
+  s(
+    existingAppointmentData
+      ?.conversationId
+  );
 
-      contactId:
+const resolvedContactId =
   matchedContactDoc?.id ||
-  null,
+  existingContactId ||
+  null;
 
-        conversationId,
+const resolvedConversationId =
+  conversationId ||
+  existingConversationId ||
+  null;
 
-        customerName:
-          customer.name ||
-          null,
+await appointmentRef.set(
+  {
+    agentId:
+      normalizedAgentId,
 
-        customerEmail:
-          customer.email ||
-          null,
+    appointmentId,
 
-        customerPhone:
-          customer.phone ||
-          null,
+    bookingBusinessId,
 
-        serviceId:
-          s(
-            appointment?.serviceId
-          ) ||
-          null,
+    contactId:
+      resolvedContactId,
 
-        serviceName:
-          s(
-            appointment?.serviceName
-          ) ||
-          null,
+    conversationId:
+      resolvedConversationId,
 
-        staffMemberIds:
-          Array.isArray(
-            appointment?.staffMemberIds
-          )
-            ? appointment
-              .staffMemberIds
-            : [],
+    customerName:
+      customer.name ||
+      null,
 
-        startAt:
-          getAppointmentStart(
-            appointment
-          ),
+    customerEmail:
+      customer.email ||
+      null,
 
-        endAt:
-          getAppointmentEnd(
-            appointment
-          ),
+    customerPhone:
+      customer.phone ||
+      null,
 
-        isCancelled,
+    serviceId:
+      s(
+        appointment?.serviceId
+      ) ||
+      null,
 
-        cancellationDetectionStatus:
-          isCancelled
-            ? "cancelled_returned_by_microsoft"
-            : "active",
+    serviceName:
+      s(
+        appointment?.serviceName
+      ) ||
+      null,
 
-      matchStatus:
-  matchedContactDoc
-    ? "matched"
-    : contactDoc
-      ? "contact_not_waiting_for_microsoft_booking"
-      : "unmatched",
-      
-        rawJson:
-          JSON.stringify(
-            appointment
-          ),
+    staffMemberIds:
+      Array.isArray(
+        appointment?.staffMemberIds
+      )
+        ? appointment.staffMemberIds
+        : [],
 
-        lastSeenAt:
-          timestamp,
+    startAt:
+      getAppointmentStart(
+        appointment
+      ),
 
-        updatedAt:
-          timestamp,
+    endAt:
+      getAppointmentEnd(
+        appointment
+      ),
 
-        ...(existingAppointmentSnap
-          .exists
-          ? {}
-          : {
-            firstSeenAt:
-              timestamp,
+    isCancelled,
 
-            createdAt:
-              timestamp,
-          }),
-      },
-      {
-        merge:
-          true,
-      }
-    );
+    cancellationDetectionStatus:
+      isCancelled
+        ? "cancelled_returned_by_microsoft"
+        : "active",
 
- if (!matchedContactDoc) {
+    matchStatus:
+      resolvedContactId
+        ? "matched"
+        : contactDoc
+          ? "contact_not_waiting_for_microsoft_booking"
+          : "unmatched",
+
+    rawJson:
+      JSON.stringify(
+        appointment
+      ),
+
+    lastSeenAt:
+      timestamp,
+
+    updatedAt:
+      timestamp,
+
+    ...(existingAppointmentSnap.exists
+      ? {}
+      : {
+          firstSeenAt:
+            timestamp,
+
+          createdAt:
+            timestamp,
+        }),
+  },
+  {
+    merge:
+      true,
+  }
+);
+
+ if (
+  !matchedContactDoc &&
+  !existingContactId
+) {
   unmatched++;
 
   logger.info(
@@ -1127,29 +1156,31 @@ matched++;
         ? "microsoft_booking_cancelled"
         : "microsoft_booking_created";
 
-    const eventResult =
-      await createBookingMagicTouchEvent({
-        db,
+  const eventResult =
+  await createBookingMagicTouchEvent({
+    db,
 
-        agentId:
-          normalizedAgentId,
+    agentId:
+      normalizedAgentId,
 
-       contactId:
-  matchedContactDoc.id,
+    contactId:
+      String(
+        resolvedContactId
+      ),
 
-        conversationId,
+    conversationId:
+      resolvedConversationId,
 
-        appointmentId,
+    appointmentId,
 
-        bookingBusinessId,
+    bookingBusinessId,
 
-        appointment,
+    appointment,
 
-        customer,
+    customer,
 
-        triggerType,
-      });
-
+    triggerType,
+  });
     if (
       eventResult.created
     ) {
@@ -1163,13 +1194,16 @@ matched++;
       }
     }
 
-    await appointmentRef.set(
-      {
-      contactId:
-  matchedContactDoc.id,
+ await appointmentRef.set(
+  {
+    contactId:
+      resolvedContactId,
 
-        matchStatus:
-          "matched",
+    conversationId:
+      resolvedConversationId,
+
+    matchStatus:
+      "matched",
 
         lastEventId:
           eventResult.eventId,
