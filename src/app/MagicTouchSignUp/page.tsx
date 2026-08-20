@@ -669,10 +669,9 @@ export default function MagicTouchSignUpPage() {
                             }
                           </span>
 
-                          <span className="mr-1 text-sm text-slate-400">
-                            לחודש +
-                            מע"מ
-                          </span>
+                         <span className="mr-1 text-sm text-slate-400">
+  לחודש + מע&quot;מ
+</span>
                         </div>
 
                         <span
@@ -702,11 +701,10 @@ export default function MagicTouchSignUpPage() {
                   עובדים נוספים
                 </h2>
 
-                <p className="mt-1 text-sm text-slate-300">
-                  כל עובד נוסף מעבר
-                  לעובד הכלול במנוי:
-                  49 ₪ לחודש + מע"מ.
-                </p>
+              <p className="mt-1 text-sm text-slate-300">
+  כל עובד נוסף מעבר לעובד הכלול במנוי:
+  49 ₪ לחודש + מע&quot;מ.
+</p>
               </div>
 
               <input
@@ -817,9 +815,9 @@ export default function MagicTouchSignUpPage() {
             </div>
 
             <div className="min-w-[250px] rounded-2xl border border-cyan-300/30 bg-gradient-to-br from-cyan-300/15 to-blue-400/10 px-5 py-4">
-              <div className="text-xs font-medium text-cyan-200">
-                סה"כ לתשלום
-              </div>
+             <div className="text-xs font-medium text-cyan-200">
+  סה&quot;כ לתשלום
+</div>
 
               <div className="mt-1 text-3xl font-semibold text-white">
                 ₪
@@ -828,9 +826,9 @@ export default function MagicTouchSignUpPage() {
                 )}
               </div>
 
-              <div className="mt-1 text-xs text-slate-400">
-                כולל מע"מ
-              </div>
+             <div className="mt-1 text-xs text-slate-400">
+  כולל מע&quot;מ
+</div>
             </div>
           </section>
 
@@ -947,10 +945,9 @@ export default function MagicTouchSignUpPage() {
             </div>
           </div>
 
-          <div className="mt-6 text-center text-[11px] text-slate-500">
-            © 2026 יונמיקס פתרונות
-            טכנולוגיים בע"מ
-          </div>
+       <div className="mt-6 text-center text-[11px] text-slate-500">
+  © 2026 יונמיקס פתרונות טכנולוגיים בע&quot;מ
+</div>
         </footer>
       </div>
     </main>
