@@ -4,7 +4,7 @@ export type MagicTouchStepType =
   | "condition"
   | "send_whatsapp"
   | "send_booking_link"
-   | "send_google_booking_link"
+  | "send_google_booking_link"
   | "update_contact"
   | "add_timeline_event"
   | "sync_surense_activity"
@@ -12,11 +12,47 @@ export type MagicTouchStepType =
   | "http_request"
   | "delay"
   | "request_documents"
+  | "wait_for_customer_response"
   | "create_task"
   | "end";
 
+export type MagicTouchWaitingForType =
+  | "customer_response"
+  | "document"
+  | "booking"
+  | "signature"
+  | "external_event"
+  | "delay";
+
+export interface MagicTouchWaitingFor {
+  type:
+    MagicTouchWaitingForType;
+
+  stepId?:
+    string |
+    null;
+
+  expectedActions?:
+    string[];
+
+  startedAt?:
+    any;
+
+    resumeStepId?:
+  string |
+  null;
+
+  context?:
+    Record<
+      string,
+      any
+    > |
+    null;
+}
+
 export interface MagicTouchFlowStep {
-  id: string;
+  id:
+    string;
 
   type:
     MagicTouchStepType;
@@ -112,6 +148,14 @@ export interface MagicTouchFlowRun {
 
   attempts?:
     number;
+
+  waitingFor?:
+    MagicTouchWaitingFor |
+    null;
+
+    executionEventId?:
+  string |
+  null;
 
   [key: string]:
     any;

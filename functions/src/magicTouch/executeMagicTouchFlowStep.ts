@@ -3,6 +3,7 @@
 import type {
   MagicTouchExecutionContext,
   MagicTouchFlowStep,
+  MagicTouchWaitingFor,
 } from "../shared/magicTouchDispatcherTypes";
 
 import {
@@ -46,6 +47,8 @@ import {
   getGoogleCalendarBookingUrl,
 } from "../shared/googleCalendar";
 
+
+
 export interface ExecuteStepResult {
   status:
     | "continue"
@@ -62,6 +65,10 @@ export interface ExecuteStepResult {
   output?:
     Record<string, any> |
     null;
+
+    waitingFor?:
+  MagicTouchWaitingFor |
+  null;
 }
 
 function s(
@@ -675,7 +682,74 @@ case "send_google_booking_link": {
     },
   };
 }
+case "wait_for_customer_response": {
+const rawExpectedActions =
+  step.config?.expectedActions;
 
+const expectedActions =
+  Array.isArray(
+    rawExpectedActions
+  )
+    ? rawExpectedActions
+        .map(
+          (value: any) =>
+            s(value)
+        )
+        .filter(Boolean)
+    : [];
+
+  return {
+    status:
+      "waiting",
+
+    nextStepId:
+      step.nextStepId ||
+      null,
+
+    waitingFor: {
+      type:
+        "customer_response",
+
+      stepId:
+        step.id,
+
+        
+          resumeStepId:
+  step.nextStepId ||
+  null,
+
+      expectedActions,
+
+      startedAt:
+        nowTs(),
+
+      context: {
+        conversationId:
+          context.run
+            .conversationId ||
+          null,
+
+
+        contactId:
+          context.run
+            .contactId ||
+          context.event
+            ?.contactId ||
+          null,
+      },
+    },
+
+    output: {
+      waiting:
+        true,
+
+      waitingFor:
+        "customer_response",
+
+      expectedActions,
+    },
+  };
+}
     case "request_documents":
       return executeRequestDocumentsStep({
         context,

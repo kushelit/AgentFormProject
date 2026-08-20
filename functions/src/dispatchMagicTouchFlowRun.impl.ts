@@ -188,10 +188,16 @@ export async function dispatchMagicTouchFlowRunImpl({
       );
     }
 
-    const eventRef =
-      (db as any).doc(
-        `agents/${normalizedAgentId}/magic_touch_events/${claimedRun.eventId}`
-      );
+    const executionEventId =
+  s(
+    claimedRun.executionEventId ||
+    claimedRun.eventId
+  );
+
+const eventRef =
+  (db as any).doc(
+    `agents/${normalizedAgentId}/magic_touch_events/${executionEventId}`
+  );
 
     const microsoftBookingsConfigRef =
       (db as any).doc(
@@ -345,72 +351,85 @@ export async function dispatchMagicTouchFlowRunImpl({
         }
       );
 
-      if (
-        result.status ===
-        "waiting"
-      ) {
-        await runRef.set(
-          {
-            status:
-              "waiting",
+    if (
+  result.status ===
+  "waiting"
+) {
+  await runRef.set(
+    {
+      status:
+        "waiting",
 
-            waitingUntil:
-              result.waitingUntil ||
-              null,
+      waitingUntil:
+        result.waitingUntil ||
+        null,
 
-            updatedAt:
-              nowTs(),
-          },
-          {
-            merge:
-              true,
-          }
-        );
+      waitingFor:
+        result.waitingFor ||
+        null,
 
-        return {
-          ok:
-            true,
+      updatedAt:
+        nowTs(),
+    },
+    {
+      merge:
+        true,
+    }
+  );
 
-          status:
-            "waiting",
+  return {
+    ok:
+      true,
 
-          runId:
-            normalizedRunId,
+    status:
+      "waiting",
 
-          currentStepId,
-        };
-      }
+    runId:
+      normalizedRunId,
+
+    currentStepId,
+
+    waitingFor:
+      result.waitingFor ||
+      null,
+  };
+}
 
       const nextStepId =
         s(
           result.nextStepId
         );
 
-      if (
-        result.status ===
-          "completed" ||
-        !nextStepId
-      ) {
-        await runRef.set(
-          {
-            status:
-              "completed",
+  if (
+  result.status ===
+    "completed" ||
+  !nextStepId
+) {
+  await runRef.set(
+    {
+      status:
+        "completed",
 
-            currentStepId:
-              null,
+      currentStepId:
+        null,
 
-            completedAt:
-              nowTs(),
+      waitingFor:
+        null,
 
-            updatedAt:
-              nowTs(),
-          },
-          {
-            merge:
-              true,
-          }
-        );
+      waitingUntil:
+        null,
 
+      completedAt:
+        nowTs(),
+
+      updatedAt:
+        nowTs(),
+    },
+    {
+      merge:
+        true,
+    }
+  );
         logger.info(
           "[dispatchMagicTouchFlowRun] Run completed",
           {

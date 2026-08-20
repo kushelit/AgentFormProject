@@ -732,6 +732,349 @@ export async function processMagicTouchEventImpl({
   }
 
   try {
+const routing =
+  (event as any)
+    ?.routing ||
+  {};
+
+const routingHandling =
+  s(
+    routing.handling
+  );
+
+const activeRunId =
+  s(
+    routing.activeRunId
+  );
+
+const resolvedAction =
+  s(
+    routing.resolvedAction
+  );
+
+if (
+  routingHandling ===
+    "continue_flow" &&
+  activeRunId
+) {
+  const runRef =
+    (db as any).doc(
+      `agents/${normalizedAgentId}/magic_touch_flow_runs/${activeRunId}`
+    );
+
+  const resumeResult =
+    await (db as any)
+      .runTransaction(
+        async (
+          transaction: any
+        ) => {
+          const runSnap =
+            await transaction.get(
+              runRef
+            );
+
+          if (
+            !runSnap.exists
+          ) {
+            return {
+              resumed:
+                false,
+
+              reason:
+                "active_run_not_found",
+            };
+          }
+
+          const runData =
+            runSnap.data();
+
+          const runStatus =
+            s(
+              runData
+                ?.status
+            );
+
+          const waitingFor =
+            runData
+              ?.waitingFor ||
+            null;
+
+          const waitingForType =
+            s(
+              waitingFor
+                ?.type
+            );
+
+          if (
+            runStatus !==
+              "waiting" ||
+            waitingForType !==
+              "customer_response"
+          ) {
+            return {
+              resumed:
+                false,
+
+              reason:
+                "run_not_waiting_for_customer_response",
+            };
+          }
+
+          const expectedActions =
+            Array.isArray(
+              waitingFor
+                ?.expectedActions
+            )
+              ? waitingFor
+                  .expectedActions
+                  .map(
+                    (
+                      value: any
+                    ) =>
+                      s(value)
+                  )
+                  .filter(
+                    Boolean
+                  )
+              : [];
+
+          const actionExpected =
+            Boolean(
+              resolvedAction
+            ) &&
+            expectedActions.some(
+              (
+                expectedAction:
+                  string
+              ) =>
+                expectedAction ===
+                resolvedAction
+            );
+
+          if (
+            !actionExpected
+          ) {
+            return {
+              resumed:
+                false,
+
+              reason:
+                "resolved_action_not_expected",
+            };
+          }
+
+          const resumeStepId =
+            s(
+              waitingFor
+                ?.resumeStepId
+            );
+
+          if (
+            !resumeStepId
+          ) {
+            return {
+              resumed:
+                false,
+
+              reason:
+                "resume_step_missing",
+            };
+          }
+
+          transaction.set(
+            runRef,
+            {
+              status:
+                "queued",
+
+              currentStepId:
+                resumeStepId,
+
+              executionEventId:
+                normalizedEventId,
+
+              waitingFor:
+                null,
+
+              waitingUntil:
+                null,
+
+              lastResumeEventId:
+                normalizedEventId,
+
+              lastResolvedAction:
+                resolvedAction,
+
+              resumedAt:
+                nowTs(),
+
+              updatedAt:
+                nowTs(),
+            },
+            {
+              merge:
+                true,
+            }
+          );
+
+          transaction.set(
+            eventRef,
+            {
+              status:
+                "dispatched",
+
+              resumedRunId:
+                activeRunId,
+
+              flowRunIds: [
+                activeRunId,
+              ],
+
+              resume: {
+                resumed:
+                  true,
+
+                runId:
+                  activeRunId,
+
+                resolvedAction,
+
+                resumeStepId,
+              },
+
+              dispatchedAt:
+                nowTs(),
+
+              processedAt:
+                nowTs(),
+
+              updatedAt:
+                nowTs(),
+            },
+            {
+              merge:
+                true,
+            }
+          );
+
+          return {
+            resumed:
+              true,
+
+            runId:
+              activeRunId,
+
+            resumeStepId,
+          };
+        }
+      );
+
+  if (
+    resumeResult
+      ?.resumed
+  ) {
+    logger.info(
+      "[processMagicTouchEvent] Waiting run resumed",
+      {
+        agentId:
+          normalizedAgentId,
+
+        eventId:
+          normalizedEventId,
+
+        runId:
+          activeRunId,
+
+        resolvedAction,
+
+        resumeStepId:
+          resumeResult
+            .resumeStepId,
+      }
+    );
+
+    return {
+      ok:
+        true,
+
+      resumed:
+        true,
+
+      agentId:
+        normalizedAgentId,
+
+      eventId:
+        normalizedEventId,
+
+      runId:
+        activeRunId,
+
+      resolvedAction,
+
+      resumeStepId:
+        resumeResult
+          .resumeStepId,
+    };
+  }
+
+  /*
+   * ה-Router אמר continue_flow,
+   * אבל בזמן העיבוד כבר אי אפשר
+   * היה לחדש את ה-Run.
+   *
+   * לא מפעילים Flow חדש במקרה כזה.
+   */
+  await eventRef.set(
+    {
+      status:
+        "ignored",
+
+      resume: {
+        resumed:
+          false,
+
+        runId:
+          activeRunId,
+
+        resolvedAction:
+          resolvedAction ||
+          null,
+
+        reason:
+          resumeResult
+            ?.reason ||
+          "resume_failed",
+      },
+
+      processedAt:
+        nowTs(),
+
+      updatedAt:
+        nowTs(),
+    },
+    {
+      merge:
+        true,
+    }
+  );
+
+  return {
+    ok:
+      true,
+
+    ignored:
+      true,
+
+    reason:
+      resumeResult
+        ?.reason ||
+      "resume_failed",
+
+    runId:
+      activeRunId,
+  };
+}
+
     const flowsSnap =
       await (db as any)
         .collection(
@@ -1007,6 +1350,9 @@ export async function processMagicTouchEventImpl({
 
           eventId:
             normalizedEventId,
+
+            executionEventId:
+      normalizedEventId,
 
           contactId:
             s(event.contactId) ||

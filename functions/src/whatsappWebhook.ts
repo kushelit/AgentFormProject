@@ -23,6 +23,10 @@ import {
   addMagicTouchTimelineEvent,
 } from "./shared/magicTouchTimelineService";
 
+import {
+  routeMagicTouchConversation,
+} from "./shared/magicTouchConversationRouter";
+
 function s(value: any): string {
   return String(value ?? "").trim();
 }
@@ -542,6 +546,7 @@ async function createAutomationEvent({
   message,
   quickReplyAction,
   templateName,
+  routingResult,
 }: {
   db: FirebaseFirestore.Firestore;
   agentId: string;
@@ -551,6 +556,7 @@ async function createAutomationEvent({
   message: any;
   quickReplyAction: string | null;
   templateName: string;
+  routingResult: any;
 }): Promise<string> {
   const eventRef =
     db
@@ -577,6 +583,44 @@ async function createAutomationEvent({
     conversationId,
 
     triggerType,
+
+    routing: {
+  contactState:
+    routingResult?.contactState ||
+    null,
+
+  flowState:
+    routingResult?.flowState ||
+    null,
+
+  messageDisposition:
+    routingResult?.messageDisposition ||
+    null,
+
+  resolvedAction:
+    routingResult?.resolvedAction ||
+    null,
+
+  handling:
+    routingResult?.handling ||
+    null,
+
+  activeRunId:
+    routingResult?.activeRunId ||
+    null,
+
+  activeFlowId:
+    routingResult?.activeFlowId ||
+    null,
+
+  previousRunId:
+    routingResult?.previousRunId ||
+    null,
+
+  reason:
+    routingResult?.reason ||
+    null,
+},
 
     channel:
       "whatsapp",
@@ -1131,6 +1175,48 @@ async function processInboundMessage({
    * בשלב הזה האירוע רק נשמר במצב pending.
    * מנוע האוטומציות שנבנה בהמשך יחליט אילו פעולות לבצע.
    */
+
+
+const routingResult =
+  await routeMagicTouchConversation({
+    agentId,
+
+    contactId,
+
+    conversationId,
+
+    phoneNormalized:
+      from,
+
+    messageText:
+      messageText ||
+      null,
+
+    messageType:
+      messageType ||
+      null,
+
+    quickReplyAction:
+      quickReplyAction ||
+      null,
+  });
+
+logger.info(
+  "[whatsappWebhook] Conversation routing result",
+  {
+    agentId,
+
+    contactId,
+
+    conversationId,
+
+    inboundWaMessageId,
+
+    routingResult,
+  }
+);
+
+
   const automationEventId =
     await createAutomationEvent({
       db,
@@ -1151,6 +1237,7 @@ async function processInboundMessage({
       quickReplyAction,
 
       templateName,
+       routingResult,
     });
 
   logger.info(

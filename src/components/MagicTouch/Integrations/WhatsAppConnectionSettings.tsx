@@ -1,14 +1,11 @@
 "use client";
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 import React, {
   useEffect,
-  useRef,
   useState,
 } from "react";
-
-import {
-  httpsCallable,
-} from "firebase/functions";
 
 import {
   doc,
@@ -17,24 +14,29 @@ import {
 
 import {
   db,
-  functions,
 } from "@/lib/firebase/firebase";
 
 import {
   useAuth,
 } from "@/lib/firebase/AuthContext";
-import { useMagicTouchAgent } from "@/components/MagicTouch/MagicTouchAgentContext";
+
+import {
+  useMagicTouchAgent,
+} from "@/components/MagicTouch/MagicTouchAgentContext";
 
 import {
   usePermission,
 } from "@/hooks/usePermission";
 
-import {
-  Button,
-} from "@/components/Button/Button";
+import DialogNotification from
+  "@/components/DialogNotification";
 
-import DialogNotification from "@/components/DialogNotification";
-import AccessDenied from "@/components/AccessDenied";
+import AccessDenied from
+  "@/components/AccessDenied";
+
+import WhatsAppEmbeddedSignup, {
+  WhatsAppConnectionResult,
+} from "./WhatsAppEmbeddedSignup";
 
 type DialogKind =
   | "info"
@@ -48,37 +50,14 @@ type DialogState = {
   message: string;
 };
 
-const META_APP_ID =
-  process.env.NEXT_PUBLIC_META_APP_ID ||
-  "";
-
-const EMBEDDED_SIGNUP_CONFIG_ID =
-  "3303093589871398";
-
-declare global {
-  interface Window {
-    FB?: {
-      init: (
-        options: Record<string, any>
-      ) => void;
-
-      login: (
-        callback: (
-          response: any
-        ) => void,
-        options: Record<string, any>
-      ) => void;
-    };
-
-    fbAsyncInit?: () => void;
-  }
-}
-
 export default function WhatsAppConnectionSettings() {
-  const { effectiveAgentId } = useMagicTouchAgent();
+  const {
+    effectiveAgentId,
+  } =
+    useMagicTouchAgent();
+
   const {
     user,
-    detail,
     isLoading,
   } =
     useAuth() as any;
@@ -93,7 +72,8 @@ export default function WhatsAppConnectionSettings() {
         : null
     );
 
- const agentId = effectiveAgentId;
+  const agentId =
+    effectiveAgentId;
 
   const [
     businessId,
@@ -126,38 +106,8 @@ export default function WhatsAppConnectionSettings() {
     useState("");
 
   const [
-    templateName,
-    setTemplateName,
-  ] =
-    useState("");
-
-  const [
-    embeddedSignupCode,
-    setEmbeddedSignupCode,
-  ] =
-    useState("");
-
-  const [
     loadingConfig,
     setLoadingConfig,
-  ] =
-    useState(false);
-
-  const [
-    saving,
-    setSaving,
-  ] =
-    useState(false);
-
-  const [
-    connectingMeta,
-    setConnectingMeta,
-  ] =
-    useState(false);
-
-  const [
-    metaSdkReady,
-    setMetaSdkReady,
   ] =
     useState(false);
 
@@ -175,30 +125,6 @@ export default function WhatsAppConnectionSettings() {
       null
     );
 
-  const embeddedSignupSessionRef =
-    useRef<{
-      businessId?: string;
-      wabaId?: string;
-      phoneNumberId?: string;
-    }>({});
-
-  const canSave =
-    Boolean(agentId) &&
-    Boolean(
-      businessId.trim()
-    ) &&
-    Boolean(
-      wabaId.trim()
-    ) &&
-    Boolean(
-      phoneNumberId.trim()
-    ) &&
-    Boolean(
-      embeddedSignupCode.trim()
-    ) &&
-    !saving &&
-    !loadingConfig;
-
   const clearConfigFields =
     () => {
       setBusinessId("");
@@ -206,230 +132,11 @@ export default function WhatsAppConnectionSettings() {
       setPhoneNumberId("");
       setDisplayPhoneNumber("");
       setDisplayName("");
-      setTemplateName("");
-      setEmbeddedSignupCode("");
+
       setIsPersistedConnected(
         false
       );
     };
-
-  useEffect(
-    () => {
-      const handleEmbeddedSignupMessage =
-        (
-          event:
-            MessageEvent
-        ) => {
-          if (
-            event.origin !==
-              "https://www.facebook.com" &&
-            event.origin !==
-              "https://web.facebook.com"
-          ) {
-            return;
-          }
-
-          let payload:
-            any =
-            event.data;
-
-          if (
-            typeof payload ===
-            "string"
-          ) {
-            try {
-              payload =
-                JSON.parse(
-                  payload
-                );
-            } catch {
-              return;
-            }
-          }
-
-          if (
-            payload?.type !==
-            "WA_EMBEDDED_SIGNUP"
-          ) {
-            return;
-          }
-
-          const data =
-            payload?.data ||
-            {};
-
-          if (
-            payload?.event ===
-            "FINISH"
-          ) {
-            const sessionData = {
-              businessId:
-                String(
-                  data.business_id ||
-                  data.businessId ||
-                  ""
-                ),
-
-              wabaId:
-                String(
-                  data.waba_id ||
-                  data.wabaId ||
-                  ""
-                ),
-
-              phoneNumberId:
-                String(
-                  data.phone_number_id ||
-                  data.phoneNumberId ||
-                  ""
-                ),
-            };
-
-            embeddedSignupSessionRef.current =
-              sessionData;
-
-            if (
-              sessionData.businessId
-            ) {
-              setBusinessId(
-                sessionData.businessId
-              );
-            }
-
-            if (
-              sessionData.wabaId
-            ) {
-              setWabaId(
-                sessionData.wabaId
-              );
-            }
-
-            if (
-              sessionData.phoneNumberId
-            ) {
-              setPhoneNumberId(
-                sessionData.phoneNumberId
-              );
-            }
-          }
-
-          if (
-            payload?.event ===
-            "CANCEL"
-          ) {
-            setConnectingMeta(
-              false
-            );
-          }
-
-          if (
-            payload?.event ===
-            "ERROR"
-          ) {
-            setConnectingMeta(
-              false
-            );
-
-            setDialog({
-              type:
-                "error",
-
-              title:
-                "שגיאה בחיבור Meta",
-
-              message:
-                String(
-                  data?.error_message ||
-                  data?.message ||
-                  "תהליך החיבור מול Meta נכשל."
-                ),
-            });
-          }
-        };
-
-      window.addEventListener(
-        "message",
-        handleEmbeddedSignupMessage
-      );
-
-      if (
-        !META_APP_ID
-      ) {
-        return () => {
-          window.removeEventListener(
-            "message",
-            handleEmbeddedSignupMessage
-          );
-        };
-      }
-
-      window.fbAsyncInit =
-        () => {
-          window.FB?.init({
-            appId:
-              META_APP_ID,
-
-            cookie:
-              true,
-
-            xfbml:
-              false,
-
-            version:
-              "v24.0",
-          });
-
-          setMetaSdkReady(
-            true
-          );
-        };
-
-      const existingScript =
-        document.getElementById(
-          "facebook-jssdk"
-        );
-
-      if (
-        !existingScript
-      ) {
-        const script =
-          document.createElement(
-            "script"
-          );
-
-        script.id =
-          "facebook-jssdk";
-
-        script.src =
-          "https://connect.facebook.net/en_US/sdk.js";
-
-        script.async =
-          true;
-
-        script.defer =
-          true;
-
-        script.crossOrigin =
-          "anonymous";
-
-        document.body.appendChild(
-          script
-        );
-      } else if (
-        window.FB
-      ) {
-        window.fbAsyncInit();
-      }
-
-      return () => {
-        window.removeEventListener(
-          "message",
-          handleEmbeddedSignupMessage
-        );
-      };
-    },
-    []
-  );
 
   useEffect(
     () => {
@@ -472,65 +179,63 @@ export default function WhatsAppConnectionSettings() {
               any =
               configSnap.data();
 
-            setBusinessId(
+            const loadedBusinessId =
               String(
                 data.businessId ||
-                ""
-              )
+                  ""
+              );
+
+            const loadedWabaId =
+              String(
+                data.wabaId ||
+                  ""
+              );
+
+            const loadedPhoneNumberId =
+              String(
+                data.phoneNumberId ||
+                  ""
+              );
+
+            const loadedDisplayPhoneNumber =
+              String(
+                data.displayPhoneNumber ||
+                  ""
+              );
+
+            const loadedDisplayName =
+              String(
+                data.displayName ||
+                  ""
+              );
+
+            setBusinessId(
+              loadedBusinessId
             );
 
             setWabaId(
-              String(
-                data.wabaId ||
-                ""
-              )
+              loadedWabaId
             );
 
             setPhoneNumberId(
-              String(
-                data.phoneNumberId ||
-                ""
-              )
+              loadedPhoneNumberId
             );
 
             setDisplayPhoneNumber(
-              String(
-                data.displayPhoneNumber ||
-                ""
-              )
+              loadedDisplayPhoneNumber
             );
 
             setDisplayName(
-              String(
-                data.displayName ||
-                ""
-              )
-            );
-
-            setTemplateName(
-              String(
-                data.templateName ||
-                ""
-              )
-            );
-
-            setEmbeddedSignupCode(
-              ""
+              loadedDisplayName
             );
 
             setIsPersistedConnected(
               Boolean(
-                String(
-                  data.wabaId ||
-                  ""
-                ).trim()
+                loadedWabaId.trim()
               ) &&
-              Boolean(
-                String(
-                  data.phoneNumberId ||
-                  ""
-                ).trim()
-              )
+                Boolean(
+                  loadedPhoneNumberId.trim()
+                )
             );
           } catch (
             error: any
@@ -547,7 +252,7 @@ export default function WhatsAppConnectionSettings() {
               message:
                 String(
                   error?.message ||
-                  error
+                    error
                 ),
             });
           } finally {
@@ -564,235 +269,42 @@ export default function WhatsAppConnectionSettings() {
     ]
   );
 
-  const handleConnectMeta =
-    () => {
-      if (
-        !agentId
-      ) {
-        setDialog({
-          type:
-            "warning",
-
-          title:
-            "לא נמצא סוכן",
-
-          message:
-            "לא נמצא agentId למשתמש המחובר.",
-        });
-
-        return;
-      }
-
-      if (
-        !META_APP_ID
-      ) {
-        setDialog({
-          type:
-            "error",
-
-          title:
-            "חסרה הגדרת App ID",
-
-          message:
-            "יש להגדיר NEXT_PUBLIC_META_APP_ID בסביבת MagicSale.",
-        });
-
-        return;
-      }
-
-      if (
-        !window.FB ||
-        !metaSdkReady
-      ) {
-        setDialog({
-          type:
-            "warning",
-
-          title:
-            "Meta עדיין נטען",
-
-          message:
-            "החיבור ל-Meta עדיין נטען. נסי שוב בעוד מספר שניות.",
-        });
-
-        return;
-      }
-
-      embeddedSignupSessionRef.current =
-        {};
-
-      setEmbeddedSignupCode(
-        ""
+  const handleConnected =
+    (
+      result:
+        WhatsAppConnectionResult
+    ) => {
+      setBusinessId(
+        result.businessId
       );
 
-      setConnectingMeta(
+      setWabaId(
+        result.wabaId
+      );
+
+      setPhoneNumberId(
+        result.phoneNumberId
+      );
+
+      if (
+        result.displayPhoneNumber
+      ) {
+        setDisplayPhoneNumber(
+          result.displayPhoneNumber
+        );
+      }
+
+      if (
+        result.displayName
+      ) {
+        setDisplayName(
+          result.displayName
+        );
+      }
+
+      setIsPersistedConnected(
         true
       );
-
-      window.FB.login(
-        (
-          response:
-            any
-        ) => {
-          const code =
-            response
-              ?.authResponse
-              ?.code;
-
-          if (
-            !code
-          ) {
-            setConnectingMeta(
-              false
-            );
-
-            setDialog({
-              type:
-                "warning",
-
-              title:
-                "החיבור לא הושלם",
-
-              message:
-                "Meta לא החזירה קוד חיבור. ניתן לנסות שוב.",
-            });
-
-            return;
-          }
-
-          setEmbeddedSignupCode(
-            String(
-              code
-            )
-          );
-
-          setConnectingMeta(
-            false
-          );
-
-          setDialog({
-            type:
-              "success",
-
-            title:
-              "החיבור ל-Meta הושלם",
-
-            message:
-              "פרטי החיבור התקבלו. כעת ניתן לשמור את החיבור.",
-          });
-        },
-        {
-          config_id:
-            EMBEDDED_SIGNUP_CONFIG_ID,
-
-          response_type:
-            "code",
-
-          override_default_response_type:
-            true,
-
-          extras: {
-            setup: {},
-            featureType:
-              "",
-            sessionInfoVersion:
-              "3",
-          },
-        }
-      );
-    };
-
-  const handleSave =
-    async () => {
-      if (
-        !canSave
-      ) {
-        return;
-      }
-
-      setSaving(
-        true
-      );
-
-      try {
-        const fn =
-          httpsCallable(
-            functions,
-            "saveAgentWhatsAppConfig"
-          );
-
-        await fn({
-          agentId,
-
-          businessId:
-            businessId.trim(),
-
-          wabaId:
-            wabaId.trim(),
-
-          phoneNumberId:
-            phoneNumberId.trim(),
-
-          displayPhoneNumber:
-            displayPhoneNumber.trim() ||
-            undefined,
-
-          displayName:
-            displayName.trim() ||
-            undefined,
-
-          templateName:
-            templateName.trim() ||
-            undefined,
-
-          embeddedSignupCode:
-            embeddedSignupCode.trim(),
-        });
-
-        setIsPersistedConnected(
-          true
-        );
-
-        setEmbeddedSignupCode(
-          ""
-        );
-
-        setDialog({
-          type:
-            "success",
-
-          title:
-            "החיבור נשמר בהצלחה",
-
-          message:
-            "חשבון WhatsApp Business חובר ונשמר במערכת.",
-        });
-      } catch (
-        error: any
-      ) {
-        console.error(
-          "[WhatsAppConnectionSettings] save failed",
-          error
-        );
-
-        setDialog({
-          type:
-            "error",
-
-          title:
-            "שגיאה בשמירת החיבור",
-
-          message:
-            String(
-              error?.message ||
-              error
-            ),
-        });
-      } finally {
-        setSaving(
-          false
-        );
-      }
     };
 
   if (
@@ -845,45 +357,56 @@ export default function WhatsAppConnectionSettings() {
             סטטוס החיבור
           </div>
 
-          {loadingConfig
-            ? (
-              <div className="text-sm text-gray-500">
-                טוען הגדרות חיבור...
+          {loadingConfig ? (
+            <div className="text-sm text-gray-500">
+              טוען הגדרות חיבור...
+            </div>
+          ) : isPersistedConnected ? (
+            <div className="space-y-2">
+              <div className="font-bold text-green-700">
+                ✓ חשבון WhatsApp Business מחובר
               </div>
-            )
-            : isPersistedConnected
-              ? (
-                <div className="space-y-2">
-                  <div className="font-bold text-green-700">
-                    ✓ חשבון WhatsApp Business מחובר
-                  </div>
 
-                  <div className="text-sm text-gray-700">
-                    <strong>
-                      מספר מחובר:
-                    </strong>{" "}
-                    {displayPhoneNumber ||
-                      "לא הוגדר"}
-                  </div>
+              <div className="text-sm text-gray-700">
+                <strong>
+                  מספר מחובר:
+                </strong>{" "}
+                {displayPhoneNumber ||
+                  "לא הוגדר"}
+              </div>
 
-                  <div className="text-sm text-gray-700">
-                    <strong>
-                      שם תצוגה:
-                    </strong>{" "}
-                    {displayName ||
-                      "לא הוגדר"}
-                  </div>
+              <div className="text-sm text-gray-700">
+                <strong>
+                  שם תצוגה:
+                </strong>{" "}
+                {displayName ||
+                  "לא הוגדר"}
+              </div>
 
-                  <div className="text-xs text-gray-500">
-                    WABA ID: {wabaId}
-                  </div>
+              <div className="text-xs text-gray-500">
+                WABA ID:{" "}
+                {wabaId}
+              </div>
+
+              {businessId ? (
+                <div className="text-xs text-gray-500">
+                  Business ID:{" "}
+                  {businessId}
                 </div>
-              )
-              : (
-                <div className="font-bold text-orange-700">
-                  חשבון WhatsApp Business עדיין לא מחובר
+              ) : null}
+
+              {phoneNumberId ? (
+                <div className="text-xs text-gray-500">
+                  Phone Number ID:{" "}
+                  {phoneNumberId}
                 </div>
-              )}
+              ) : null}
+            </div>
+          ) : (
+            <div className="font-bold text-orange-700">
+              חשבון WhatsApp Business עדיין לא מחובר
+            </div>
+          )}
         </div>
 
         <div className="space-y-4 rounded-xl border p-4">
@@ -897,68 +420,37 @@ export default function WhatsAppConnectionSettings() {
             </p>
           </div>
 
-          {!META_APP_ID && (
-            <div className="text-sm text-red-600">
-              חסר NEXT_PUBLIC_META_APP_ID בסביבת הפרויקט.
+          {loadingConfig ? (
+            <div className="text-sm text-gray-500">
+              טוען את מצב החיבור...
             </div>
-          )}
-
-          {META_APP_ID &&
-            !metaSdkReady && (
-              <div className="text-sm text-gray-500">
-                טוען את חיבור Meta...
-              </div>
-            )}
-
-          {isPersistedConnected
-            ? (
-              <div className="rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-700">
-                ✓ החשבון מחובר בהצלחה. אין צורך לבצע חיבור נוסף.
-              </div>
-            )
-            : (
-              <div className="flex flex-wrap justify-end gap-3">
-                <Button
-                  text={
-                    connectingMeta
-                      ? "⏳ מתחבר ל-Meta..."
-                      : "חיבור WhatsApp Business"
-                  }
-                  type="primary"
-                  onClick={
-                    handleConnectMeta
-                  }
-                  disabled={
-                    !agentId ||
-                    connectingMeta ||
-                    !metaSdkReady
-                  }
-                />
-
-                <Button
-                  text={
-                    saving
-                      ? "⏳ שומר..."
-                      : "שמור חיבור"
-                  }
-                  type="primary"
-                  onClick={
-                    handleSave
-                  }
-                  disabled={
-                    !canSave
-                  }
-                />
-              </div>
-            )}
-
-          {Boolean(
-            embeddedSignupCode
-          ) && (
-            <div className="rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-700">
-              ✓ החיבור מול Meta הושלם. לחצי על שמירת החיבור.
-            </div>
-          )}
+          ) : agentId ? (
+            <WhatsAppEmbeddedSignup
+              agentId={
+                agentId
+              }
+              isConnected={
+                isPersistedConnected
+              }
+              displayPhoneNumber={
+                displayPhoneNumber
+              }
+              displayName={
+                displayName
+              }
+              onConnected={
+                handleConnected
+              }
+              onError={(
+                error
+              ) => {
+                console.error(
+                  "[WhatsAppConnectionSettings] Embedded Signup failed",
+                  error
+                );
+              }}
+            />
+          ) : null}
         </div>
       </section>
 
