@@ -90,7 +90,7 @@ export default function SubscriptionSignUpPage() {
   useEffect(() => {
     const fetchPlans = async () => {
       try {
-        const res = await axios.get('/api/subscription-plans');
+        const res = await axios.get('/api/subscription-plans?channel=sale');
   
         // ✅ בדיקה לכל תוכנית
         res.data.forEach((plan: any, index: number) => {

@@ -145,15 +145,96 @@ export const UserSubscriptionPopup: React.FC<UserSubscriptionPopupProps> = ({
 
     setIsUpdatingCard(true);
 
-    // חשוב לפתוח חלון מיד בגלל popup blockers.
-    const growWindow = window.open(
-      '',
-      '_blank'
-    );
+    // פותחים את החלון מיד כחלק מה-click כדי להימנע מחסימת popup.
+    const growWindow = window.open('', '_blank');
+
+    // מציגים מסך המתנה במקום about:blank עד שה-API מחזיר URL של GROW.
+    if (growWindow) {
+      growWindow.document.open();
+      growWindow.document.write(`
+        <!doctype html>
+        <html lang="he" dir="rtl">
+          <head>
+            <meta charset="utf-8" />
+            <meta name="viewport" content="width=device-width, initial-scale=1" />
+            <title>עדכון אמצעי תשלום</title>
+            <style>
+              * {
+                box-sizing: border-box;
+              }
+
+              body {
+                margin: 0;
+                min-height: 100vh;
+                font-family: Arial, sans-serif;
+                background: #f8fafc;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                color: #0f172a;
+              }
+
+              .box {
+                width: calc(100% - 40px);
+                max-width: 430px;
+                background: #ffffff;
+                padding: 42px 32px;
+                border-radius: 18px;
+                text-align: center;
+                box-shadow: 0 12px 35px rgba(15, 23, 42, 0.10);
+                border: 1px solid #e2e8f0;
+              }
+
+              .spinner {
+                width: 42px;
+                height: 42px;
+                margin: 0 auto 24px;
+                border: 4px solid #e2e8f0;
+                border-top-color: #4f46e5;
+                border-radius: 50%;
+                animation: spin 0.8s linear infinite;
+              }
+
+              .title {
+                font-size: 19px;
+                font-weight: 700;
+                margin-bottom: 10px;
+              }
+
+              .subtitle {
+                color: #64748b;
+                font-size: 14px;
+                line-height: 1.6;
+              }
+
+              @keyframes spin {
+                to {
+                  transform: rotate(360deg);
+                }
+              }
+            </style>
+          </head>
+
+          <body>
+            <div class="box">
+              <div class="spinner"></div>
+
+              <div class="title">
+                מעבירים אותך בצורה מאובטחת ל-GROW
+              </div>
+
+              <div class="subtitle">
+                מסך עדכון כרטיס האשראי ייפתח בעוד מספר רגעים
+              </div>
+            </div>
+          </body>
+        </html>
+      `);
+      growWindow.document.close();
+    }
 
     try {
-      const idToken =
-        await user.getIdToken();
+      const idToken = await user.getIdToken();
 
       const res = await axios.post(
         '/api/updatePaymentMethod',
@@ -165,8 +246,7 @@ export const UserSubscriptionPopup: React.FC<UserSubscriptionPopupProps> = ({
         }
       );
 
-      const updateCardUrl =
-        res.data?.updateCardUrl;
+      const updateCardUrl = res.data?.updateCardUrl;
 
       if (!updateCardUrl) {
         growWindow?.close();
@@ -179,21 +259,18 @@ export const UserSubscriptionPopup: React.FC<UserSubscriptionPopupProps> = ({
         return;
       }
 
-      // מעבירים את החלון שכבר נפתח אל GROW
-      if (growWindow) {
-        growWindow.location.href =
-          updateCardUrl;
-
+      // מעבירים את החלון שכבר נפתח ל-GROW.
+      if (growWindow && !growWindow.closed) {
+        growWindow.location.href = updateCardUrl;
         growWindow.focus();
       } else {
-        // fallback אם הדפדפן חסם חלונות
-        window.location.href =
-          updateCardUrl;
+        // fallback אם הדפדפן חסם/סגר את החלון.
+        window.location.href = updateCardUrl;
       }
 
       addToast(
         'success',
-        'נפתח חלון מאובטח של GROW לעדכון כרטיס האשראי.'
+        'נפתח עבורך מסך מאובטח של GROW להחלפת כרטיס האשראי. יש להשלים את העדכון בחלון שנפתח.'
       );
     } catch (err: any) {
       growWindow?.close();
@@ -463,33 +540,38 @@ export const UserSubscriptionPopup: React.FC<UserSubscriptionPopupProps> = ({
                 </p>
               </div>
 
-              <button
-                type="button"
-                disabled={
-                  isUpdatingCard ||
-                  !isActive
-                }
-                onClick={
-                  handleUpdatePaymentMethod
-                }
-                className="
-                  rounded-lg
-                  bg-indigo-600
-                  px-4 py-2
-                  text-sm font-semibold
-                  text-white
-                  shadow-sm
-                  transition
-                  hover:bg-indigo-700
-                  disabled:cursor-not-allowed
-                  disabled:opacity-50
-                "
-              >
-                {isUpdatingCard
-                  ? 'פותח GROW...'
-                  : 'החלפת כרטיס אשראי'}
-              </button>
-            </div>
+          <div className="text-left">
+  <button
+    type="button"
+    disabled={
+      isUpdatingCard ||
+      !isActive
+    }
+    onClick={
+      handleUpdatePaymentMethod
+    }
+    className="
+      rounded-lg
+      bg-indigo-600
+      px-4 py-2
+      text-sm font-semibold
+      text-white
+      shadow-sm
+      transition
+      hover:bg-indigo-700
+      disabled:cursor-not-allowed
+      disabled:opacity-50
+    "
+  >
+    {isUpdatingCard
+      ? 'פותח GROW...'
+      : 'החלפת כרטיס אשראי'}
+  </button>
+
+  <div className="mt-1 text-[11px] text-gray-400">
+    העדכון מתבצע באתר המאובטח של GROW
+  </div>
+</div>            </div>
 
             <div className="divide-y">
               {renderInfoRow(

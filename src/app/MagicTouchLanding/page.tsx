@@ -137,14 +137,22 @@ export default function MagicTouchLandingPage() {
               <div className="hidden h-7 w-px bg-white/20 md:block" />
 
               <div className="hidden md:block">
-                <div className="text-base font-black">MagicTouch</div>
+                <div className="text-base font-semibold">MagicTouch</div>
                 <div className="text-sm text-cyan-200/70">
                   Smart Process Automation
                 </div>
+                <a
+                  href="https://www.unamix.co.il/"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="mt-1 inline-block text-xs font-semibold text-slate-400 transition hover:text-cyan-200"
+                >
+                  מבית Unamix
+                </a>
               </div>
             </div>
 
-            <div className="hidden items-center gap-5 text-sm font-bold text-slate-300 lg:flex">
+            <div className="hidden items-center gap-5 text-sm font-medium text-slate-300 lg:flex">
               <a href="#how-it-works" className="transition hover:text-white">איך זה עובד</a>
               <a href="#insurance" className="transition hover:text-white">חיבורים</a>
               <a href="#magic-family" className="transition hover:text-white">MagicSale</a>
@@ -159,10 +167,10 @@ export default function MagicTouchLandingPage() {
               </Link>
 
               <button
-                onClick={scrollToContact}
-                className="hidden rounded-xl bg-cyan-400 px-5 py-2 text-sm font-black text-slate-950 transition hover:bg-cyan-300 sm:block"
+                onClick={() => router.push('/MagicTouchSignUp')}
+                className="hidden rounded-xl bg-cyan-400 px-5 py-2 text-sm font-semibold text-slate-950 transition hover:bg-cyan-300 sm:block"
               >
-                דברו איתנו
+                הצטרפו ל-MagicTouch
               </button>
             </div>
           </motion.header>
@@ -173,11 +181,11 @@ export default function MagicTouchLandingPage() {
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.8 }}
             >
-              <div className="mb-5 text-base font-black text-cyan-300 md:text-lg">
+              <div className="mb-5 text-base font-semibold text-cyan-300 md:text-lg">
                 תקשורת אוטומטית עם הלקוח. תהליך שממשיך אחריה.
               </div>
 
-              <h1 className="max-w-3xl text-4xl font-black leading-[1.12] sm:text-5xl lg:text-6xl">
+              <h1 className="max-w-3xl text-4xl font-semibold leading-[1.12] sm:text-5xl lg:text-6xl">
                 מהודעת WhatsApp
                 <br />
                 ועד לסיום הטיפול —
@@ -194,23 +202,23 @@ export default function MagicTouchLandingPage() {
                 בתוך תהליך אחד.
               </p>
 
-              <p className="mt-5 max-w-2xl text-lg font-bold leading-8 text-cyan-200">
+              <p className="mt-5 max-w-2xl text-lg font-medium leading-8 text-cyan-200">
                 MagicTouch מבצעת את מה שאפשר אוטומטית,
                 ומעבירה לעובד רק את מה שבאמת דורש אותו.
               </p>
 
               <div className="mt-8 flex flex-col gap-3 sm:flex-row">
                 <button
-                  onClick={scrollToContact}
-                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-cyan-400 px-7 py-3.5 font-black text-slate-950 transition hover:bg-cyan-300"
+                  onClick={() => router.push('/MagicTouchSignUp')}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-cyan-400 px-7 py-3.5 font-semibold text-slate-950 transition hover:bg-cyan-300"
                 >
-                  דברו איתנו
+                  הצטרפו ל-MagicTouch
                   <ChevronLeft className="h-5 w-5" />
                 </button>
 
                 <button
                   onClick={scrollToHowItWorks}
-                  className="rounded-xl border border-white/20 bg-white/5 px-7 py-3.5 font-bold text-white transition hover:bg-white/10"
+                  className="rounded-xl border border-white/20 bg-white/5 px-7 py-3.5 font-medium text-white transition hover:bg-white/10"
                 >
                   מה המערכת עושה בפועל?
                 </button>
@@ -228,11 +236,11 @@ export default function MagicTouchLandingPage() {
               <div className="relative rounded-[34px] border border-white/10 bg-white/[0.06] p-6 shadow-2xl backdrop-blur">
                 <div className="mb-5 flex items-center justify-between">
                   <div>
-                    <div className="text-lg font-black">תהליך לקוח</div>
+                    <div className="text-lg font-semibold">תהליך לקוח</div>
                     <div className="mt-1 text-sm text-slate-300">דוגמה לתהליך אוטומטי</div>
                   </div>
 
-                  <div className="flex items-center gap-2 rounded-full bg-emerald-400/10 px-3 py-1.5 text-sm font-bold text-emerald-300">
+                  <div className="flex items-center gap-2 rounded-full bg-emerald-400/10 px-3 py-1.5 text-sm font-medium text-emerald-300">
                     <span className="h-2 w-2 rounded-full bg-emerald-400" />
                     פעיל
                   </div>
@@ -255,7 +263,7 @@ export default function MagicTouchLandingPage() {
             {integrations.map((item) => (
               <div
                 key={item}
-                className="flex min-h-14 items-center justify-center rounded-xl border border-white/10 bg-white/[0.05] px-4 text-base font-black text-slate-200"
+                className="flex min-h-14 items-center justify-center rounded-xl border border-white/10 bg-white/[0.05] px-4 text-base font-semibold text-slate-200"
               >
                 {item}
               </div>
@@ -267,8 +275,8 @@ export default function MagicTouchLandingPage() {
       <section id="how-it-works" className="bg-white px-6 py-20 text-slate-900">
         <div className="mx-auto max-w-7xl">
           <div className="mx-auto mb-14 max-w-3xl text-center">
-            <div className="mb-3 text-base font-black text-indigo-600">מה MagicTouch עושה?</div>
-            <h2 className="text-3xl font-black leading-tight md:text-5xl">
+            <div className="mb-3 text-base font-medium text-indigo-600">מה MagicTouch עושה?</div>
+            <h2 className="text-3xl font-semibold leading-tight md:text-5xl">
               שלושה דברים.
               <br />
               זה כל הסיפור.
@@ -292,7 +300,7 @@ export default function MagicTouchLandingPage() {
                     <Icon className="h-7 w-7" />
                   </div>
 
-                  <h3 className="text-2xl font-black leading-8">{item.title}</h3>
+                  <h3 className="text-2xl font-semibold leading-8">{item.title}</h3>
                   <p className="mt-4 text-lg leading-8 text-slate-600">{item.text}</p>
                 </motion.div>
               );
@@ -304,8 +312,8 @@ export default function MagicTouchLandingPage() {
       <section className="bg-[#0b1230] px-6 py-20 text-white">
         <div className="mx-auto max-w-7xl">
           <div className="mb-14 text-center">
-            <div className="mb-3 text-base font-black text-cyan-300">דוגמה פשוטה</div>
-            <h2 className="text-3xl font-black md:text-5xl">כך תהליך אחד יכול להיראות</h2>
+            <div className="mb-3 text-base font-medium text-cyan-300">דוגמה פשוטה</div>
+            <h2 className="text-3xl font-semibold md:text-5xl">כך תהליך אחד יכול להיראות</h2>
           </div>
 
           <div className="grid gap-8 md:grid-cols-5">
@@ -318,7 +326,7 @@ export default function MagicTouchLandingPage() {
                     <Icon className="h-8 w-8 text-cyan-300" />
                   </div>
 
-                  <h3 className="text-lg font-black">{step.title}</h3>
+                  <h3 className="text-lg font-semibold">{step.title}</h3>
                   <p className="mx-auto mt-2 max-w-[210px] text-base leading-7 text-slate-300">{step.text}</p>
 
                   {index < simpleFlow.length - 1 && (
@@ -334,8 +342,8 @@ export default function MagicTouchLandingPage() {
       <section className="bg-slate-50 px-6 py-20 text-slate-900">
         <div className="mx-auto max-w-7xl">
           <div className="mx-auto mb-14 max-w-4xl text-center">
-            <div className="mb-3 text-base font-black text-indigo-600">מה משתנה ביום העבודה?</div>
-            <h2 className="text-3xl font-black leading-tight md:text-5xl">
+            <div className="mb-3 text-base font-medium text-indigo-600">מה משתנה ביום העבודה?</div>
+            <h2 className="text-3xl font-semibold leading-tight md:text-5xl">
               היום — כל שלב דורש פעולה ידנית.
               <br />
               <span className="text-indigo-600">עם MagicTouch — התהליך מתקדם כשמשהו קורה.</span>
@@ -351,8 +359,8 @@ export default function MagicTouchLandingPage() {
                   </div>
 
                   <div>
-                    <div className="text-sm font-bold text-slate-500">היום</div>
-                    <h3 className="text-2xl font-black">פעולות ידניות לאורך כל הדרך</h3>
+                    <div className="text-sm font-medium text-slate-500">היום</div>
+                    <h3 className="text-2xl font-semibold">פעולות ידניות לאורך כל הדרך</h3>
                   </div>
                 </div>
 
@@ -375,8 +383,8 @@ export default function MagicTouchLandingPage() {
                   </div>
 
                   <div>
-                    <div className="text-sm font-bold text-cyan-300">עם MagicTouch</div>
-                    <h3 className="text-2xl font-black">אותה עבודה — בלי לרדוף אחרי כל שלב</h3>
+                    <div className="text-sm font-medium text-cyan-300">עם MagicTouch</div>
+                    <h3 className="text-2xl font-semibold">אותה עבודה — בלי לרדוף אחרי כל שלב</h3>
                   </div>
                 </div>
 
@@ -399,9 +407,9 @@ export default function MagicTouchLandingPage() {
       <section id="insurance" className="bg-white px-6 py-20 text-slate-900">
         <div className="mx-auto grid max-w-7xl items-center gap-14 lg:grid-cols-2">
           <div>
-            <div className="mb-3 text-base font-black text-indigo-600">היתרון למשרד הביטוח</div>
+            <div className="mb-3 text-base font-medium text-indigo-600">היתרון למשרד הביטוח</div>
 
-            <h2 className="text-3xl font-black leading-tight md:text-5xl">
+            <h2 className="text-3xl font-semibold leading-tight md:text-5xl">
               לא רק WhatsApp ויומן.
               <br />
               גם המערכות המקצועיות שלכם.
@@ -412,7 +420,7 @@ export default function MagicTouchLandingPage() {
               Roeto, Polywiz, MagicSale ומערכות נוספות.
             </p>
 
-            <p className="mt-5 max-w-xl text-lg font-bold leading-8 text-indigo-950">
+            <p className="mt-5 max-w-xl text-lg font-medium leading-8 text-indigo-950">
               כך תהליך שמתחיל בתקשורת עם הלקוח יכול להמשיך
               לפגישה, ייפוי כוח, מסמכים, קבלת מידעים והמשך טיפול —
               בלי להתחיל כל שלב מחדש באופן ידני.
@@ -420,7 +428,7 @@ export default function MagicTouchLandingPage() {
           </div>
 
           <div className="relative mx-auto h-[420px] w-full max-w-[520px]">
-            <div className="absolute left-1/2 top-1/2 flex h-28 w-28 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-[8px] border-white bg-indigo-600 text-3xl font-black text-white shadow-2xl">
+            <div className="absolute left-1/2 top-1/2 flex h-28 w-28 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-[8px] border-white bg-indigo-600 text-3xl font-semibold text-white shadow-2xl">
               M
             </div>
 
@@ -436,9 +444,9 @@ export default function MagicTouchLandingPage() {
 
       <section className="bg-[#0b1230] px-6 py-20 text-white">
         <div className="mx-auto max-w-6xl text-center">
-          <div className="mb-3 text-base font-black text-cyan-300">ומה כשצריך אדם?</div>
+          <div className="mb-3 text-base font-medium text-cyan-300">ומה כשצריך אדם?</div>
 
-          <h2 className="text-3xl font-black leading-tight md:text-5xl">
+          <h2 className="text-3xl font-semibold leading-tight md:text-5xl">
             MagicTouch לא אמורה להחליף את העובד.
             <br />
             היא אמורה לחסוך לו את מה שלא צריך לעשות ידנית.
@@ -455,14 +463,14 @@ export default function MagicTouchLandingPage() {
       <section id="magic-family" className="bg-white px-6 py-20 text-slate-900">
         <div className="mx-auto max-w-6xl">
           <div className="mb-12 text-center">
-            <h2 className="text-3xl font-black md:text-5xl">MagicSale + MagicTouch</h2>
+            <h2 className="text-3xl font-semibold md:text-5xl">MagicSale + MagicTouch</h2>
             <p className="mt-4 text-lg text-slate-600">שתי סביבות עבודה. פלטפורמה אחת.</p>
           </div>
 
           <div className="grid gap-7 md:grid-cols-2">
             <div className="rounded-3xl border border-indigo-100 bg-indigo-50 p-8">
-              <div className="mb-3 text-base font-black text-indigo-600">MagicSale</div>
-              <h3 className="text-2xl font-black text-indigo-950">מנהלת את המידע העסקי.</h3>
+              <div className="mb-3 text-base font-medium text-indigo-600">MagicSale</div>
+              <h3 className="text-2xl font-semibold text-indigo-950">מנהלת את המידע העסקי.</h3>
               <p className="mt-5 text-lg leading-8 text-slate-600">
                 לקוחות, עסקאות, עמלות, דוחות, יעדים,
                 ביצועים והמידע העסקי של המשרד.
@@ -470,8 +478,8 @@ export default function MagicTouchLandingPage() {
             </div>
 
             <div className="rounded-3xl bg-[#0b1230] p-8 text-white">
-              <div className="mb-3 text-base font-black text-cyan-300">MagicTouch</div>
-              <h3 className="text-2xl font-black">מנהלת את התהליך.</h3>
+              <div className="mb-3 text-base font-medium text-cyan-300">MagicTouch</div>
+              <h3 className="text-2xl font-semibold">מנהלת את התהליך.</h3>
               <p className="mt-5 text-lg leading-8 text-slate-300">
                 התקשורת עם הלקוח, הפעולה הבאה, מה כבר בוצע,
                 למה מחכים ומתי צריך להעביר את הטיפול לעובד.
@@ -488,7 +496,7 @@ export default function MagicTouchLandingPage() {
         <div className="absolute left-1/2 top-0 h-80 w-80 -translate-x-1/2 rounded-full bg-cyan-300/10 blur-[100px]" />
 
         <div className="relative z-10 mx-auto max-w-4xl">
-          <h2 className="text-4xl font-black leading-tight md:text-6xl">
+          <h2 className="text-4xl font-semibold leading-tight md:text-6xl">
             יש אצלכם תהליך
             <br />
             שחוזר שוב ושוב?
@@ -502,7 +510,7 @@ export default function MagicTouchLandingPage() {
 
           <button
             onClick={() => router.push('/landing#contact')}
-            className="mt-8 inline-flex items-center gap-2 rounded-xl bg-cyan-400 px-8 py-4 text-lg font-black text-slate-950 transition hover:bg-cyan-300"
+            className="mt-8 inline-flex items-center gap-2 rounded-xl bg-cyan-400 px-8 py-4 text-lg font-semibold text-slate-950 transition hover:bg-cyan-300"
           >
             בואו נדבר
             <ChevronLeft className="h-5 w-5" />
@@ -510,12 +518,43 @@ export default function MagicTouchLandingPage() {
         </div>
       </section>
 
-      <footer className="bg-[#050817] px-6 py-7 text-center text-base text-slate-400">
-        <p>© {new Date().getFullYear()} MagicSale by Unamix. כל הזכויות שמורות.</p>
+      <footer className="bg-[#050817] px-6 py-8 text-center text-base text-slate-400">
+        <div className="mx-auto max-w-4xl">
+          <p className="font-semibold text-slate-300">
+            MagicTouch מבית Unamix Technological Solutions
+          </p>
 
-        <div className="mt-3 flex justify-center gap-5">
-          <Link href="/terms" className="transition hover:text-white">תנאי שימוש</Link>
-          <Link href="/privacy" className="transition hover:text-white">מדיניות פרטיות</Link>
+          <p className="mt-2 text-sm text-slate-500">
+            פתרונות תוכנה, אוטומציה ו-AI לעולמות הביטוח והפיננסים.
+          </p>
+
+          <div className="mt-4 flex flex-wrap justify-center gap-5">
+            <a
+              href="https://www.unamix.co.il/"
+              target="_blank"
+              rel="noreferrer"
+              className="transition hover:text-white"
+            >
+              אתר Unamix
+            </a>
+          <Link
+  href="/MagicTouchTerms"
+  className="transition hover:text-white"
+>
+  תנאי שימוש
+</Link>
+
+<Link
+  href="/MagicTouchPrivacy"
+  className="transition hover:text-white"
+>
+  מדיניות פרטיות
+</Link>
+          </div>
+
+          <p className="mt-4 text-xs text-slate-600">
+            © {new Date().getFullYear()} Unamix. כל הזכויות שמורות.
+          </p>
         </div>
       </footer>
     </div>
@@ -558,7 +597,7 @@ function HeroFlowStep({
       </div>
 
       <div>
-        <div className="text-base font-black text-white">{title}</div>
+        <div className="text-base font-semibold text-white">{title}</div>
         <div className="mt-1 text-sm leading-6 text-slate-300">{text}</div>
       </div>
     </div>
@@ -583,7 +622,7 @@ function IntegrationNode({
   return (
     <>
       <div
-        className={`absolute z-10 rounded-xl border border-slate-200 bg-white px-5 py-3 text-base font-black shadow-lg ${className}`}
+        className={`absolute z-10 rounded-xl border border-slate-200 bg-white px-5 py-3 text-base font-semibold shadow-lg ${className}`}
       >
         {title}
       </div>
