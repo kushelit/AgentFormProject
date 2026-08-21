@@ -14,6 +14,10 @@ import {
   WHATSAPP_WEBHOOK_VERIFY_TOKEN,
 } from "./shared/secrets";
 
+import {
+  decryptJsonAes256Gcm,
+} from "./shared/cryptoAesGcm";
+
 import { FUNCTIONS_REGION } from "./shared/region";
 
 import {
@@ -60,6 +64,371 @@ function normalizePhone(
   }
 
   return digits;
+}
+
+
+async function loadAgentWhatsAppAccessToken({
+  db,
+  agentId,
+}: {
+  db: FirebaseFirestore.Firestore;
+  agentId: string;
+}): Promise<string> {
+  const secretSnap =
+    await db
+      .doc(
+        `agents/${agentId}/secrets/whatsapp`
+      )
+      .get();
+
+  if (
+    !secretSnap.exists
+  ) {
+    throw new Error(
+      "WhatsApp secret was not found for agent"
+    );
+  }
+
+  const keyB64 =
+    s(
+      PORTAL_ENC_KEY_B64
+        .value()
+    );
+
+  if (
+    !keyB64
+  ) {
+    throw new Error(
+      "Missing PORTAL_ENC_KEY_B64"
+    );
+  }
+
+  const secretData =
+    secretSnap.data() as any;
+
+  const decrypted =
+    decryptJsonAes256Gcm(
+      keyB64,
+      secretData?.enc
+    ) as any;
+
+  const accessToken =
+    s(
+      decrypted
+        ?.accessToken
+    );
+
+  if (
+    !accessToken
+  ) {
+    throw new Error(
+      "Invalid WhatsApp token for agent"
+    );
+  }
+
+  return accessToken;
+}
+
+async function sendMagicTouchSafeReply({
+  db,
+  agentId,
+  contactId,
+  conversationId,
+  phoneNumberId,
+  to,
+  replyText,
+  inboundWaMessageId,
+  resolvedAction,
+  confidence,
+}: {
+  db: FirebaseFirestore.Firestore;
+  agentId: string;
+  contactId: string | null;
+  conversationId: string;
+  phoneNumberId: string;
+  to: string;
+  replyText: string;
+  inboundWaMessageId: string;
+  resolvedAction: string | null;
+  confidence: number | null;
+}): Promise<string> {
+  const accessToken =
+    await loadAgentWhatsAppAccessToken({
+      db,
+      agentId,
+    });
+
+  const response =
+    await fetch(
+      `https://graph.facebook.com/v23.0/${phoneNumberId}/messages`,
+      {
+        method:
+          "POST",
+
+        headers: {
+          Authorization:
+            `Bearer ${accessToken}`,
+
+          "Content-Type":
+            "application/json",
+        },
+
+        body:
+          JSON.stringify({
+            messaging_product:
+              "whatsapp",
+
+            recipient_type:
+              "individual",
+
+            to,
+
+            type:
+              "text",
+
+            text: {
+              preview_url:
+                false,
+
+              body:
+                replyText,
+            },
+          }),
+      }
+    );
+
+  const responseText =
+    await response.text();
+
+  let responseBody:
+    any = null;
+
+  try {
+    responseBody =
+      responseText
+        ? JSON.parse(
+            responseText
+          )
+        : null;
+  } catch {
+    responseBody = {
+      raw:
+        responseText,
+    };
+  }
+
+  if (
+    !response.ok
+  ) {
+    throw new Error(
+      `WhatsApp safe reply failed (${response.status}): ${responseText}`
+    );
+  }
+
+  const waMessageId =
+    s(
+      responseBody
+        ?.messages?.[0]
+        ?.id
+    );
+
+  if (
+    !waMessageId
+  ) {
+    throw new Error(
+      "WhatsApp safe reply response is missing message id"
+    );
+  }
+
+  const timestamp =
+    nowTs();
+
+  const conversationRef =
+    db.doc(
+      `whatsapp_conversations/${conversationId}`
+    );
+
+  const outboundMessageRef =
+    conversationRef
+      .collection(
+        "messages"
+      )
+      .doc(
+        waMessageId
+      );
+
+  await Promise.all([
+    outboundMessageRef.set({
+      agentId,
+
+      contactId:
+        contactId ||
+        null,
+
+      conversationId,
+
+      direction:
+        "outbound",
+
+      fromPhoneNumberId:
+        phoneNumberId,
+
+      to,
+
+      type:
+        "text",
+
+      text:
+        replyText,
+
+      waMessageId,
+
+      status:
+        "accepted",
+
+      source:
+        "magic_touch_ai_safe_reply",
+
+      aiGenerated:
+        true,
+
+      aiIntent:
+        resolvedAction ||
+        null,
+
+      aiConfidence:
+        confidence ??
+        null,
+
+      replyToWaMessageId:
+        inboundWaMessageId ||
+        null,
+
+      createdAt:
+        timestamp,
+
+      updatedAt:
+        timestamp,
+    }),
+
+    conversationRef.set(
+      {
+        lastMessageText:
+          replyText,
+
+        lastMessageType:
+          "text",
+
+        lastMessageDirection:
+          "outbound",
+
+        lastMessageAt:
+          timestamp,
+
+        lastOutboundAt:
+          timestamp,
+
+        needsReply:
+          false,
+
+        updatedAt:
+          timestamp,
+      },
+      {
+        merge:
+          true,
+      }
+    ),
+  ]);
+
+  if (
+    contactId
+  ) {
+    try {
+      await addMagicTouchTimelineEvent({
+        agentId,
+
+        contactId,
+
+        type:
+          "whatsapp_ai_safe_reply_sent",
+
+        channel:
+          "whatsapp",
+
+        title:
+          "נשלחה תשובת WhatsApp אוטומטית",
+
+        description:
+          replyText,
+
+        direction:
+          "outbound",
+
+        status:
+          "completed",
+
+        createdBy:
+          "system:magic_touch_ai",
+
+        sourceSystem:
+          "whatsapp",
+
+        sourceRecordId:
+          waMessageId,
+
+        metadata: {
+          waMessageId,
+
+          conversationId,
+
+          phoneNumberId,
+
+          customerPhone:
+            to,
+
+          inboundWaMessageId:
+            inboundWaMessageId ||
+            null,
+
+          resolvedAction:
+            resolvedAction ||
+            null,
+
+          confidence:
+            confidence ??
+            null,
+
+          aiGenerated:
+            true,
+        },
+      });
+    } catch (
+      timelineError: any
+    ) {
+      logger.error(
+        "[whatsappWebhook] Failed to create safe reply Timeline event",
+        {
+          agentId,
+
+          contactId,
+
+          conversationId,
+
+          waMessageId,
+
+          error:
+            timelineError
+              ?.message ||
+            String(
+              timelineError
+            ),
+        }
+      );
+    }
+  }
+
+  return waMessageId;
 }
 
 function getInboundMessageText(
@@ -621,6 +990,17 @@ async function createAutomationEvent({
   reason:
     routingResult?.reason ||
     null,
+
+  suggestedReply:
+    routingResult?.suggestedReply ||
+    null,
+
+  suggestedReplyConfidence:
+    typeof routingResult?.suggestedReplyConfidence ===
+      "number"
+      ? routingResult
+          .suggestedReplyConfidence
+      : null,
 },
 
     channel:
@@ -1240,6 +1620,200 @@ logger.info(
       templateName,
        routingResult,
     });
+
+
+  /*
+   * Safe AI Reply:
+   * שולחים רק תשובה שכבר עברה:
+   * intent resolution + allowed intent + confidence + safe reply generation.
+   *
+   * חשוב:
+   * אין כאן Resume ל-Flow ואין שינוי ב-waitingFor של ה-Run.
+   */
+  if (
+    routingResult
+      ?.handling ===
+      "safe_reply"
+  ) {
+    const suggestedReply =
+      s(
+        routingResult
+          ?.suggestedReply
+      );
+
+    const suggestedReplyConfidence =
+      typeof routingResult
+        ?.suggestedReplyConfidence ===
+        "number"
+        ? routingResult
+            .suggestedReplyConfidence
+        : null;
+
+    if (
+      suggestedReply
+    ) {
+      try {
+        const safeReplyWaMessageId =
+          await sendMagicTouchSafeReply({
+            db,
+
+            agentId,
+
+            contactId,
+
+            conversationId,
+
+            phoneNumberId,
+
+            to:
+              from,
+
+            replyText:
+              suggestedReply,
+
+            inboundWaMessageId,
+
+            resolvedAction:
+              s(
+                routingResult
+                  ?.resolvedAction
+              ) ||
+              null,
+
+            confidence:
+              suggestedReplyConfidence,
+          });
+
+        await db
+          .doc(
+            `agents/${agentId}/magic_touch_events/${automationEventId}`
+          )
+          .set(
+            {
+              safeReply: {
+                sent:
+                  true,
+
+                text:
+                  suggestedReply,
+
+                waMessageId:
+                  safeReplyWaMessageId,
+
+                intent:
+                  s(
+                    routingResult
+                      ?.resolvedAction
+                  ) ||
+                  null,
+
+                confidence:
+                  suggestedReplyConfidence,
+
+                sentAt:
+                  nowTs(),
+              },
+
+              updatedAt:
+                nowTs(),
+            },
+            {
+              merge:
+                true,
+            }
+          );
+
+        logger.info(
+          "[whatsappWebhook] Safe AI reply sent",
+          {
+            agentId,
+
+            contactId,
+
+            conversationId,
+
+            inboundWaMessageId,
+
+            safeReplyWaMessageId,
+
+            resolvedAction:
+              routingResult
+                ?.resolvedAction ||
+              null,
+
+            confidence:
+              suggestedReplyConfidence,
+          }
+        );
+      } catch (
+        safeReplyError: any
+      ) {
+        logger.error(
+          "[whatsappWebhook] Failed to send safe AI reply",
+          {
+            agentId,
+
+            contactId,
+
+            conversationId,
+
+            inboundWaMessageId,
+
+            error:
+              safeReplyError
+                ?.message ||
+              String(
+                safeReplyError
+              ),
+          }
+        );
+
+        await db
+          .doc(
+            `agents/${agentId}/magic_touch_events/${automationEventId}`
+          )
+          .set(
+            {
+              safeReply: {
+                sent:
+                  false,
+
+                text:
+                  suggestedReply,
+
+                intent:
+                  s(
+                    routingResult
+                      ?.resolvedAction
+                  ) ||
+                  null,
+
+                confidence:
+                  suggestedReplyConfidence,
+
+                error:
+                  safeReplyError
+                    ?.message ||
+                  String(
+                    safeReplyError
+                  ),
+
+                failedAt:
+                  nowTs(),
+              },
+
+              updatedAt:
+                nowTs(),
+            },
+            {
+              merge:
+                true,
+            }
+          );
+      }
+    }
+  }
+
 
   logger.info(
     "[whatsappWebhook] Inbound message processed",

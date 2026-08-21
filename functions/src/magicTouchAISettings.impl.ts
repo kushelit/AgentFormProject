@@ -28,6 +28,12 @@ export type MagicTouchAIEmojiLevel =
   | "light"
   | "free";
 
+export type MagicTouchAISafeIntent =
+  | "document_upload_help"
+  | "link_problem"
+  | "booking_help"
+  | "process_question";
+
 export interface MagicTouchAIConversationProfile {
   tone:
     MagicTouchAITone;
@@ -42,6 +48,14 @@ export interface MagicTouchAIConversationProfile {
     string;
 }
 
+export interface MagicTouchAISafeRepliesSettings {
+  enabled:
+    boolean;
+
+  allowedIntents:
+    MagicTouchAISafeIntent[];
+}
+
 export interface EffectiveMagicTouchAISettings {
   enabled:
     boolean;
@@ -54,7 +68,17 @@ export interface EffectiveMagicTouchAISettings {
 
   conversationProfile:
     MagicTouchAIConversationProfile;
+
+  safeReplies:
+    MagicTouchAISafeRepliesSettings;
 }
+
+const DEFAULT_SAFE_INTENTS:
+  MagicTouchAISafeIntent[] = [
+    "document_upload_help",
+    "link_problem",
+    "booking_help",
+  ];
 
 function s(
   value: unknown
@@ -189,9 +213,6 @@ function normalizeAllowedModes(
       )
     );
 
-  /*
-   * off תמיד חייב להיות אפשרי.
-   */
   if (
     !normalized.includes(
       "off"
@@ -203,6 +224,66 @@ function normalizeAllowedModes(
   }
 
   return normalized;
+}
+
+function normalizeSafeIntent(
+  value: unknown
+): MagicTouchAISafeIntent | null {
+  const intent =
+    s(
+      value
+    );
+
+  if (
+    intent === "document_upload_help" ||
+    intent === "link_problem" ||
+    intent === "booking_help" ||
+    intent === "process_question"
+  ) {
+    return intent;
+  }
+
+  return null;
+}
+
+function normalizeSafeIntents(
+  value: unknown
+): MagicTouchAISafeIntent[] {
+  if (
+    !Array.isArray(
+      value
+    )
+  ) {
+    return [
+      ...DEFAULT_SAFE_INTENTS,
+    ];
+  }
+
+  const result =
+    Array.from(
+      new Set(
+        value
+          .map(
+            (
+              item
+            ) =>
+              normalizeSafeIntent(
+                item
+              )
+          )
+          .filter(
+            (
+              item
+            ):
+              item is MagicTouchAISafeIntent =>
+              Boolean(
+                item
+              )
+          )
+      )
+    );
+
+  return result;
 }
 
 async function getUserContext(
@@ -287,22 +368,18 @@ function getDefaultAgentSettings(
       customStyleInstructions:
         "",
     },
+
+    safeReplies: {
+      enabled:
+        false,
+
+      allowedIntents: [
+        ...DEFAULT_SAFE_INTENTS,
+      ],
+    },
   };
 }
 
-/*
- * ---------------------------------------------------------
- * SHARED SETTINGS RESOLVER
- * ---------------------------------------------------------
- *
- * זהו מקור האמת המשותף ל-UI ולמנוע השיחה.
- *
- * הוא קורא:
- * systemConfig/magicTouchAI
- * agents/{agentId}/config/magicTouchAI
- *
- * ומחשב את ההגדרות האפקטיביות.
- */
 async function loadMagicTouchAISettings(
   agentId:
     string
@@ -323,23 +400,22 @@ async function loadMagicTouchAISettings(
   const db =
     adminDb();
 
-  const systemRef =
-    db.doc(
-      "systemConfig/magicTouchAI"
-    );
-
-  const agentRef =
-    db.doc(
-      `agents/${normalizedAgentId}/config/magicTouchAI`
-    );
-
   const [
     systemSnap,
     agentSnap,
   ] =
     await Promise.all([
-      systemRef.get(),
-      agentRef.get(),
+      db
+        .doc(
+          "systemConfig/magicTouchAI"
+        )
+        .get(),
+
+      db
+        .doc(
+          `agents/${normalizedAgentId}/config/magicTouchAI`
+        )
+        .get(),
     ]);
 
   const defaultSystem =
@@ -413,10 +489,6 @@ async function loadMagicTouchAISettings(
       defaultMode
     );
 
-  /*
-   * Agent לא יכול להשתמש ב-mode
-   * שלא אושר ברמת המערכת.
-   */
   const agentMode =
     allowedModes.includes(
       requestedAgentMode
@@ -427,6 +499,11 @@ async function loadMagicTouchAISettings(
   const rawProfile =
     rawAgent
       ?.conversationProfile ||
+    {};
+
+  const rawSafeReplies =
+    rawAgent
+      ?.safeReplies ||
     {};
 
   const agent = {
@@ -477,6 +554,19 @@ async function loadMagicTouchAISettings(
         ),
     },
 
+    safeReplies: {
+      enabled:
+        rawSafeReplies
+          ?.enabled ===
+        true,
+
+      allowedIntents:
+        normalizeSafeIntents(
+          rawSafeReplies
+            ?.allowedIntents
+        ),
+    },
+
     updatedAt:
       rawAgent
         ?.updatedAt ||
@@ -490,13 +580,6 @@ async function loadMagicTouchAISettings(
       null,
   };
 
-  /*
-   * AI פעיל רק כאשר:
-   * 1. המערכת מאפשרת AI
-   * 2. הסוכן מאפשר AI
-   * 3. mode אינו off
-   * 4. ה-mode של הסוכן מאושר ברמת המערכת
-   */
   const effectiveEnabled =
     system.enabled &&
     agent.enabled &&
@@ -505,6 +588,26 @@ async function loadMagicTouchAISettings(
     system.allowedModes.includes(
       agent.mode
     );
+
+  /*
+   * בשלב הנוכחי אנחנו רק שומרים את הגדרת safeReplies.
+   * המנוע עצמו יחובר אליה בשלב הבא.
+   *
+   * effective.safeReplies.enabled יהיה true רק כאשר:
+   * - AI פעיל בפועל
+   * - mode הוא safe_replies או full_conversation
+   * - הסוכן הדליק safeReplies
+   */
+  const effectiveSafeRepliesEnabled =
+    effectiveEnabled &&
+    (
+      agent.mode ===
+        "safe_replies" ||
+      agent.mode ===
+        "full_conversation"
+    ) &&
+    agent.safeReplies
+      .enabled;
 
   const effective:
     EffectiveMagicTouchAISettings = {
@@ -522,6 +625,16 @@ async function loadMagicTouchAISettings(
       conversationProfile:
         agent
           .conversationProfile,
+
+      safeReplies: {
+        enabled:
+          effectiveSafeRepliesEnabled,
+
+        allowedIntents:
+          agent
+            .safeReplies
+            .allowedIntents,
+      },
     };
 
   return {
@@ -531,10 +644,6 @@ async function loadMagicTouchAISettings(
   };
 }
 
-/*
- * פונקציה לשימוש פנימי מהמנוע.
- * אין כאן auth כי היא לא endpoint ציבורי.
- */
 export async function getEffectiveMagicTouchAISettings(
   agentId:
     string
@@ -547,12 +656,6 @@ export async function getEffectiveMagicTouchAISettings(
   return settings
     .effective;
 }
-
-/*
- * ---------------------------------------------------------
- * GET SETTINGS
- * ---------------------------------------------------------
- */
 
 export async function getMagicTouchAISettingsImpl(
   request: any
@@ -586,10 +689,6 @@ export async function getMagicTouchAISettingsImpl(
     );
   }
 
-  /*
-   * משתמש רגיל יכול לקרוא
-   * רק את ההגדרות של הסוכן שלו.
-   */
   if (
     !user.isSystem &&
     user.agentId !==
@@ -625,12 +724,6 @@ export async function getMagicTouchAISettingsImpl(
       settings.effective,
   };
 }
-
-/*
- * ---------------------------------------------------------
- * SAVE SYSTEM SETTINGS
- * ---------------------------------------------------------
- */
 
 export async function saveSystemMagicTouchAISettingsImpl(
   request: any
@@ -719,12 +812,6 @@ export async function saveSystemMagicTouchAISettingsImpl(
   };
 }
 
-/*
- * ---------------------------------------------------------
- * SAVE AGENT SETTINGS
- * ---------------------------------------------------------
- */
-
 export async function saveAgentMagicTouchAISettingsImpl(
   request: any
 ) {
@@ -757,10 +844,6 @@ export async function saveAgentMagicTouchAISettingsImpl(
     );
   }
 
-  /*
-   * משתמש רגיל יכול לעדכן
-   * רק את הסוכן שלו.
-   */
   if (
     !user.isSystem &&
     user.agentId !==
@@ -800,10 +883,6 @@ export async function saveAgentMagicTouchAISettingsImpl(
         ?.mode
     );
 
-  /*
-   * אי אפשר לפתוח Agent Mode
-   * שהמערכת עדיין לא אישרה.
-   */
   if (
     !allowedModes.includes(
       requestedMode
@@ -818,6 +897,11 @@ export async function saveAgentMagicTouchAISettingsImpl(
   const conversationProfile =
     request.data
       ?.conversationProfile ||
+    {};
+
+  const safeReplies =
+    request.data
+      ?.safeReplies ||
     {};
 
   const agentSettings = {
@@ -860,6 +944,19 @@ export async function saveAgentMagicTouchAISettingsImpl(
         ),
     },
 
+    safeReplies: {
+      enabled:
+        safeReplies
+          ?.enabled ===
+        true,
+
+      allowedIntents:
+        normalizeSafeIntents(
+          safeReplies
+            ?.allowedIntents
+        ),
+    },
+
     updatedAt:
       nowTs(),
 
@@ -899,6 +996,10 @@ export async function saveAgentMagicTouchAISettingsImpl(
       conversationProfile:
         agentSettings
           .conversationProfile,
+
+      safeReplies:
+        agentSettings
+          .safeReplies,
     },
   };
 }

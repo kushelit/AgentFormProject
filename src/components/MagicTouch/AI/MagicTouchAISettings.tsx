@@ -1,15 +1,37 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { httpsCallable } from "firebase/functions";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 
-import { functions } from "@/lib/firebase/firebase";
-import { useAuth } from "@/lib/firebase/AuthContext";
-import { useMagicTouchAgent } from "@/components/MagicTouch/MagicTouchAgentContext";
-import { usePermission } from "@/hooks/usePermission";
+import {
+  httpsCallable,
+} from "firebase/functions";
 
-import DialogNotification from "@/components/DialogNotification";
-import AccessDenied from "@/components/AccessDenied";
+import {
+  functions,
+} from "@/lib/firebase/firebase";
+
+import {
+  useAuth,
+} from "@/lib/firebase/AuthContext";
+
+import {
+  useMagicTouchAgent,
+} from "@/components/MagicTouch/MagicTouchAgentContext";
+
+import {
+  usePermission,
+} from "@/hooks/usePermission";
+
+import DialogNotification from
+  "@/components/DialogNotification";
+
+import AccessDenied from
+  "@/components/AccessDenied";
 
 type MagicTouchAIMode =
   | "off"
@@ -28,6 +50,12 @@ type MagicTouchAIEmojiLevel =
   | "light"
   | "free";
 
+type MagicTouchAISafeIntent =
+  | "document_upload_help"
+  | "link_problem"
+  | "booking_help"
+  | "process_question";
+
 type SystemSettings = {
   enabled: boolean;
   allowedModes: MagicTouchAIMode[];
@@ -41,17 +69,25 @@ type ConversationProfile = {
   customStyleInstructions: string;
 };
 
+type SafeRepliesSettings = {
+  enabled: boolean;
+  allowedIntents: MagicTouchAISafeIntent[];
+};
+
 type AgentSettings = {
   enabled: boolean;
   mode: MagicTouchAIMode;
   minConfidence: number;
   conversationProfile: ConversationProfile;
+  safeReplies: SafeRepliesSettings;
 };
 
 type EffectiveSettings = {
   enabled: boolean;
   mode: MagicTouchAIMode;
   minConfidence: number;
+  conversationProfile?: ConversationProfile;
+  safeReplies?: SafeRepliesSettings;
 };
 
 type GetSettingsResponse = {
@@ -64,71 +100,156 @@ type GetSettingsResponse = {
 };
 
 type DialogState = {
-  type: "info" | "warning" | "success" | "error";
+  type:
+    | "info"
+    | "warning"
+    | "success"
+    | "error";
   title: string;
   message: string;
 };
 
-const MODE_LABELS: Record<
-  MagicTouchAIMode,
-  { title: string; description: string }
-> = {
-  off: {
-    title: "ללא AI",
-    description: "MagicTouch לא משתמש ב-AI עבור הסוכן.",
-  },
-  understand_only: {
-    title: "הבנת שיחה בלבד",
-    description:
-      "AI מבין מלל חופשי ומנתב אותו, אבל לא משיב ללקוח באופן חופשי.",
-  },
-  safe_replies: {
-    title: "תשובות AI בטוחות",
-    description:
-      "AI יוכל לענות רק בתחומים שהוגדרו כבטוחים ומבוססי ידע.",
-  },
-  full_conversation: {
-    title: "שיחה מלאה",
-    description:
-      "AI יוכל לנהל חלקים רחבים יותר מהשיחה בהתאם למדיניות הסוכן.",
-  },
-};
+const MODE_LABELS:
+  Record<
+    MagicTouchAIMode,
+    {
+      title: string;
+      description: string;
+    }
+  > = {
+    off: {
+      title:
+        "ללא AI",
+      description:
+        "MagicTouch לא משתמש ב-AI עבור הסוכן.",
+    },
 
-const TONE_OPTIONS: Array<{
-  value: MagicTouchAITone;
-  title: string;
-  example: string;
-}> = [
-  {
-    value: "friendly",
-    title: "חברי ואישי",
-    example: "היי דנה, בשמחה 😊",
-  },
-  {
-    value: "professional",
-    title: "מקצועי ונעים",
-    example: "שלום דנה, בשמחה. אפשר להמשיך מכאן.",
-  },
-  {
-    value: "formal",
-    title: "רשמי",
-    example: "שלום דנה, ניתן להמשיך בתהליך באמצעות הקישור המצורף.",
-  },
-  {
-    value: "concise",
-    title: "קצר ותכליתי",
-    example: "בשמחה. הנה הקישור להמשך:",
-  },
-];
+    understand_only: {
+      title:
+        "הבנת שיחה בלבד",
+      description:
+        "AI מבין מלל חופשי ומנתב אותו, אבל לא משיב ללקוח באופן חופשי.",
+    },
 
-const EMOJI_OPTIONS: Array<{
-  value: MagicTouchAIEmojiLevel;
-  label: string;
-}> = [
-  { value: "none", label: "ללא" },
-  { value: "light", label: "מעט" },
-  { value: "free", label: "חופשי" },
-];
+    safe_replies: {
+      title:
+        "תשובות AI בטוחות",
+      description:
+        "AI רשאי לענות רק בנושאים שהוגדרו מראש כבטוחים.",
+    },
+
+    full_conversation: {
+      title:
+        "שיחה מלאה",
+      description:
+        "AI יוכל לנהל חלקים רחבים יותר מהשיחה בהתאם למדיניות הסוכן.",
+    },
+  };
+
+const TONE_OPTIONS:
+  Array<{
+    value: MagicTouchAITone;
+    title: string;
+    example: string;
+  }> = [
+    {
+      value:
+        "friendly",
+      title:
+        "חברי ואישי",
+      example:
+        "היי דנה, בשמחה 😊",
+    },
+    {
+      value:
+        "professional",
+      title:
+        "מקצועי ונעים",
+      example:
+        "שלום דנה, בשמחה. אפשר להמשיך מכאן.",
+    },
+    {
+      value:
+        "formal",
+      title:
+        "רשמי",
+      example:
+        "שלום דנה, ניתן להמשיך בתהליך באמצעות הקישור המצורף.",
+    },
+    {
+      value:
+        "concise",
+      title:
+        "קצר ותכליתי",
+      example:
+        "בשמחה. הנה הקישור להמשך:",
+    },
+  ];
+
+const EMOJI_OPTIONS:
+  Array<{
+    value: MagicTouchAIEmojiLevel;
+    label: string;
+  }> = [
+    {
+      value:
+        "none",
+      label:
+        "ללא",
+    },
+    {
+      value:
+        "light",
+      label:
+        "מעט",
+    },
+    {
+      value:
+        "free",
+      label:
+        "חופשי",
+    },
+  ];
+
+const SAFE_INTENT_OPTIONS:
+  Array<{
+    value: MagicTouchAISafeIntent;
+    title: string;
+    description: string;
+  }> = [
+    {
+      value:
+        "document_upload_help",
+      title:
+        "עזרה בהעלאת מסמכים",
+      description:
+        "למשל: לא מצליח להעלות, לא יודע איפה מצרפים, ההעלאה נתקעת.",
+    },
+    {
+      value:
+        "link_problem",
+      title:
+        "בעיה בקישור",
+      description:
+        "למשל: הקישור לא נפתח, הקישור לא עובד, הדף לא עולה.",
+    },
+    {
+      value:
+        "booking_help",
+      title:
+        "עזרה בקביעת פגישה",
+      description:
+        "למשל: איפה קובעים מועד, איך משנים מועד, איך פותחים את קישור היומן.",
+    },
+    {
+      value:
+        "process_question",
+      title:
+        "שאלה כללית על התהליך",
+      description:
+        "יישאר כבוי בהתחלה עד שנוסיף Knowledge עסקי מסודר.",
+    },
+  ];
 
 function Toggle({
   checked,
@@ -136,25 +257,41 @@ function Toggle({
   disabled = false,
 }: {
   checked: boolean;
-  onChange: (checked: boolean) => void;
+  onChange: (
+    checked: boolean
+  ) => void;
   disabled?: boolean;
 }) {
   return (
     <button
       type="button"
-      disabled={disabled}
-      onClick={() => onChange(!checked)}
+      disabled={
+        disabled
+      }
+      onClick={() =>
+        onChange(
+          !checked
+        )
+      }
       className={[
         "relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition",
-        checked ? "bg-blue-600" : "bg-slate-300",
-        disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer",
+        checked
+          ? "bg-blue-600"
+          : "bg-slate-300",
+        disabled
+          ? "cursor-not-allowed opacity-50"
+          : "cursor-pointer",
       ].join(" ")}
-      aria-pressed={checked}
+      aria-pressed={
+        checked
+      }
     >
       <span
         className={[
           "inline-block h-5 w-5 rounded-full bg-white shadow transition",
-          checked ? "-translate-x-6" : "-translate-x-1",
+          checked
+            ? "-translate-x-6"
+            : "-translate-x-1",
         ].join(" ")}
       />
     </button>
@@ -162,232 +299,714 @@ function Toggle({
 }
 
 export default function MagicTouchAISettings() {
-  const { effectiveAgentId } = useMagicTouchAgent();
-  const { user, detail, isLoading } = useAuth() as any;
+  const {
+    effectiveAgentId,
+  } =
+    useMagicTouchAgent();
 
-  const { canAccess, isChecking } = usePermission(
-    user ? "access_magic_touch" : null
+  const {
+    user,
+    detail,
+    isLoading,
+  } =
+    useAuth() as any;
+
+  const {
+    canAccess,
+    isChecking,
+  } =
+    usePermission(
+      user
+        ? "access_magic_touch"
+        : null
+    );
+
+  const agentId =
+    String(
+      effectiveAgentId ||
+      ""
+    ).trim();
+
+  const isSystem =
+    detail?.isSystem ===
+    true;
+
+  const [
+    loading,
+    setLoading,
+  ] =
+    useState(
+      false
+    );
+
+  const [
+    savingSystem,
+    setSavingSystem,
+  ] =
+    useState(
+      false
+    );
+
+  const [
+    savingAgent,
+    setSavingAgent,
+  ] =
+    useState(
+      false
+    );
+
+  const [
+    canEditSystem,
+    setCanEditSystem,
+  ] =
+    useState(
+      false
+    );
+
+  const [
+    system,
+    setSystem,
+  ] =
+    useState<SystemSettings>({
+      enabled:
+        false,
+      allowedModes: [
+        "off",
+      ],
+      defaultMode:
+        "off",
+    });
+
+  const [
+    agent,
+    setAgent,
+  ] =
+    useState<AgentSettings>({
+      enabled:
+        false,
+      mode:
+        "off",
+      minConfidence:
+        0.8,
+      conversationProfile: {
+        tone:
+          "friendly",
+        useCustomerFirstName:
+          true,
+        emojiLevel:
+          "light",
+        customStyleInstructions:
+          "",
+      },
+      safeReplies: {
+        enabled:
+          false,
+        allowedIntents: [
+          "document_upload_help",
+          "link_problem",
+          "booking_help",
+        ],
+      },
+    });
+
+  const [
+    effective,
+    setEffective,
+  ] =
+    useState<EffectiveSettings>({
+      enabled:
+        false,
+      mode:
+        "off",
+      minConfidence:
+        0.8,
+      safeReplies: {
+        enabled:
+          false,
+        allowedIntents: [],
+      },
+    });
+
+  const [
+    dialog,
+    setDialog,
+  ] =
+    useState<DialogState | null>(
+      null
+    );
+
+  const loadSettings =
+    useCallback(
+      async () => {
+        if (
+          !agentId
+        ) {
+          return;
+        }
+
+        setLoading(
+          true
+        );
+
+        try {
+          const fn =
+            httpsCallable<
+              {
+                agentId:
+                  string;
+              },
+              GetSettingsResponse
+            >(
+              functions,
+              "getMagicTouchAISettings"
+            );
+
+          const response =
+            await fn({
+              agentId,
+            });
+
+          const data =
+            response.data;
+
+          setCanEditSystem(
+            Boolean(
+              data
+                .canEditSystem
+            )
+          );
+
+          setSystem({
+            enabled:
+              Boolean(
+                data
+                  .system
+                  ?.enabled
+              ),
+
+            allowedModes:
+              Array.isArray(
+                data
+                  .system
+                  ?.allowedModes
+              )
+                ? data
+                    .system
+                    .allowedModes
+                : [
+                    "off",
+                  ],
+
+            defaultMode:
+              data
+                .system
+                ?.defaultMode ||
+              "off",
+          });
+
+          setAgent({
+            enabled:
+              Boolean(
+                data
+                  .agent
+                  ?.enabled
+              ),
+
+            mode:
+              data
+                .agent
+                ?.mode ||
+              "off",
+
+            minConfidence:
+              Number(
+                data
+                  .agent
+                  ?.minConfidence ??
+                0.8
+              ),
+
+            conversationProfile: {
+              tone:
+                data
+                  .agent
+                  ?.conversationProfile
+                  ?.tone ||
+                "friendly",
+
+              useCustomerFirstName:
+                data
+                  .agent
+                  ?.conversationProfile
+                  ?.useCustomerFirstName !==
+                false,
+
+              emojiLevel:
+                data
+                  .agent
+                  ?.conversationProfile
+                  ?.emojiLevel ||
+                "light",
+
+              customStyleInstructions:
+                String(
+                  data
+                    .agent
+                    ?.conversationProfile
+                    ?.customStyleInstructions ||
+                  ""
+                ),
+            },
+
+            safeReplies: {
+              enabled:
+                Boolean(
+                  data
+                    .agent
+                    ?.safeReplies
+                    ?.enabled
+                ),
+
+              allowedIntents:
+                Array.isArray(
+                  data
+                    .agent
+                    ?.safeReplies
+                    ?.allowedIntents
+                )
+                  ? data
+                      .agent
+                      .safeReplies
+                      .allowedIntents
+                  : [
+                      "document_upload_help",
+                      "link_problem",
+                      "booking_help",
+                    ],
+            },
+          });
+
+          setEffective({
+            enabled:
+              Boolean(
+                data
+                  .effective
+                  ?.enabled
+              ),
+
+            mode:
+              data
+                .effective
+                ?.mode ||
+              "off",
+
+            minConfidence:
+              Number(
+                data
+                  .effective
+                  ?.minConfidence ??
+                0.8
+              ),
+
+            conversationProfile:
+              data
+                .effective
+                ?.conversationProfile,
+
+            safeReplies: {
+              enabled:
+                Boolean(
+                  data
+                    .effective
+                    ?.safeReplies
+                    ?.enabled
+                ),
+
+              allowedIntents:
+                Array.isArray(
+                  data
+                    .effective
+                    ?.safeReplies
+                    ?.allowedIntents
+                )
+                  ? data
+                      .effective
+                      .safeReplies
+                      .allowedIntents
+                  : [],
+            },
+          });
+        } catch (
+          error: any
+        ) {
+          setDialog({
+            type:
+              "error",
+
+            title:
+              "טעינת הגדרות AI נכשלה",
+
+            message:
+              error?.message ||
+              "לא ניתן לטעון את הגדרות ה-AI.",
+          });
+        } finally {
+          setLoading(
+            false
+          );
+        }
+      },
+      [
+        agentId,
+      ]
+    );
+
+  useEffect(
+    () => {
+      void loadSettings();
+    },
+    [
+      loadSettings,
+    ]
   );
 
-  const agentId = String(effectiveAgentId || "").trim();
-  const isSystem = detail?.isSystem === true;
-
-  const [loading, setLoading] = useState(false);
-  const [savingSystem, setSavingSystem] = useState(false);
-  const [savingAgent, setSavingAgent] = useState(false);
-  const [canEditSystem, setCanEditSystem] = useState(false);
-
-  const [system, setSystem] = useState<SystemSettings>({
-    enabled: false,
-    allowedModes: ["off"],
-    defaultMode: "off",
-  });
-
-  const [agent, setAgent] = useState<AgentSettings>({
-    enabled: false,
-    mode: "off",
-    minConfidence: 0.8,
-    conversationProfile: {
-      tone: "friendly",
-      useCustomerFirstName: true,
-      emojiLevel: "light",
-      customStyleInstructions: "",
-    },
-  });
-
-  const [effective, setEffective] = useState<EffectiveSettings>({
-    enabled: false,
-    mode: "off",
-    minConfidence: 0.8,
-  });
-
-  const [dialog, setDialog] = useState<DialogState | null>(null);
-
-  const loadSettings = useCallback(async () => {
-    if (!agentId) return;
-
-    setLoading(true);
-
-    try {
-      const fn = httpsCallable<
-        { agentId: string },
-        GetSettingsResponse
-      >(functions, "getMagicTouchAISettings");
-
-      const response = await fn({ agentId });
-      const data = response.data;
-
-      setCanEditSystem(Boolean(data.canEditSystem));
-
-      setSystem({
-        enabled: Boolean(data.system?.enabled),
-        allowedModes: Array.isArray(data.system?.allowedModes)
-          ? data.system.allowedModes
-          : ["off"],
-        defaultMode: data.system?.defaultMode || "off",
-      });
-
-      setAgent({
-        enabled: Boolean(data.agent?.enabled),
-        mode: data.agent?.mode || "off",
-        minConfidence: Number(data.agent?.minConfidence ?? 0.8),
-        conversationProfile: {
-          tone: data.agent?.conversationProfile?.tone || "friendly",
-          useCustomerFirstName:
-            data.agent?.conversationProfile?.useCustomerFirstName !== false,
-          emojiLevel:
-            data.agent?.conversationProfile?.emojiLevel || "light",
-          customStyleInstructions: String(
-            data.agent?.conversationProfile?.customStyleInstructions || ""
-          ),
-        },
-      });
-
-      setEffective({
-        enabled: Boolean(data.effective?.enabled),
-        mode: data.effective?.mode || "off",
-        minConfidence: Number(data.effective?.minConfidence ?? 0.8),
-      });
-    } catch (error: any) {
-      setDialog({
-        type: "error",
-        title: "טעינת הגדרות AI נכשלה",
-        message: error?.message || "לא ניתן לטעון את הגדרות ה-AI.",
-      });
-    } finally {
-      setLoading(false);
-    }
-  }, [agentId]);
-
-  useEffect(() => {
-    void loadSettings();
-  }, [loadSettings]);
-
-  const availableAgentModes = useMemo(() => {
-    return Array.from(
-      new Set<MagicTouchAIMode>(["off", ...system.allowedModes])
+  const availableAgentModes =
+    useMemo(
+      () => {
+        return Array.from(
+          new Set<
+            MagicTouchAIMode
+          >([
+            "off",
+            ...system
+              .allowedModes,
+          ])
+        );
+      },
+      [
+        system
+          .allowedModes,
+      ]
     );
-  }, [system.allowedModes]);
 
-  const effectiveExplanation = useMemo(() => {
-    if (!system.enabled) {
-      return "AI כבוי כרגע ברמת המערכת.";
-    }
+  const safeRepliesSystemAllowed =
+    system
+      .enabled &&
+    system
+      .allowedModes
+      .includes(
+        "safe_replies"
+      );
 
-    if (!agent.enabled) {
-      return "AI זמין במערכת, אך כבוי עבור הסוכן הנבחר.";
-    }
+  const effectiveExplanation =
+    useMemo(
+      () => {
+        if (
+          !system
+            .enabled
+        ) {
+          return "AI כבוי כרגע ברמת המערכת.";
+        }
 
-    if (agent.mode === "off") {
-      return "AI מופעל לסוכן, אך מצב העבודה שלו מוגדר ללא AI.";
-    }
+        if (
+          !agent
+            .enabled
+        ) {
+          return "AI זמין במערכת, אך כבוי עבור הסוכן הנבחר.";
+        }
 
-    if (!system.allowedModes.includes(agent.mode)) {
-      return "מצב ה-AI של הסוכן אינו מאושר כרגע ברמת המערכת.";
-    }
+        if (
+          agent.mode ===
+          "off"
+        ) {
+          return "AI מופעל לסוכן, אך מצב העבודה שלו מוגדר ללא AI.";
+        }
 
-    return `AI פעיל בפועל במצב: ${MODE_LABELS[agent.mode].title}.`;
-  }, [system, agent]);
+        if (
+          !system
+            .allowedModes
+            .includes(
+              agent.mode
+            )
+        ) {
+          return "מצב ה-AI של הסוכן אינו מאושר כרגע ברמת המערכת.";
+        }
 
-  const saveSystem = async () => {
-    setSavingSystem(true);
+        return `AI פעיל בפועל במצב: ${
+          MODE_LABELS[
+            agent.mode
+          ].title
+        }.`;
+      },
+      [
+        system,
+        agent,
+      ]
+    );
 
-    try {
-      const fn = httpsCallable(functions, "saveSystemMagicTouchAISettings");
+  const saveSystem =
+    async () => {
+      setSavingSystem(
+        true
+      );
 
-      await fn({
-        enabled: system.enabled,
-        allowedModes: system.allowedModes,
-        defaultMode: system.defaultMode,
-      });
+      try {
+        const fn =
+          httpsCallable(
+            functions,
+            "saveSystemMagicTouchAISettings"
+          );
 
-      setDialog({
-        type: "success",
-        title: "הגדרות המערכת נשמרו",
-        message: "הגדרות ה-AI ברמת המערכת עודכנו בהצלחה.",
-      });
+        await fn({
+          enabled:
+            system.enabled,
 
-      await loadSettings();
-    } catch (error: any) {
-      setDialog({
-        type: "error",
-        title: "שמירת הגדרות המערכת נכשלה",
-        message: error?.message || "לא ניתן לשמור את הגדרות המערכת.",
-      });
-    } finally {
-      setSavingSystem(false);
-    }
-  };
+          allowedModes:
+            system.allowedModes,
 
-  const saveAgent = async () => {
-    if (!agentId) return;
+          defaultMode:
+            system.defaultMode,
+        });
 
-    setSavingAgent(true);
+        setDialog({
+          type:
+            "success",
 
-    try {
-      const fn = httpsCallable(functions, "saveAgentMagicTouchAISettings");
+          title:
+            "הגדרות המערכת נשמרו",
 
-      await fn({
-        agentId,
-        enabled: agent.enabled,
-        mode: agent.mode,
-        minConfidence: agent.minConfidence,
-        conversationProfile: agent.conversationProfile,
-      });
+          message:
+            "הגדרות ה-AI ברמת המערכת עודכנו בהצלחה.",
+        });
 
-      setDialog({
-        type: "success",
-        title: "הגדרות הסוכן נשמרו",
-        message: "הגדרות ה-AI ופרופיל השיחה של הסוכן עודכנו.",
-      });
+        await loadSettings();
+      } catch (
+        error: any
+      ) {
+        setDialog({
+          type:
+            "error",
 
-      await loadSettings();
-    } catch (error: any) {
-      setDialog({
-        type: "error",
-        title: "שמירת הגדרות הסוכן נכשלה",
-        message: error?.message || "לא ניתן לשמור את הגדרות ה-AI של הסוכן.",
-      });
-    } finally {
-      setSavingAgent(false);
-    }
-  };
+          title:
+            "שמירת הגדרות המערכת נכשלה",
 
-  const toggleAllowedMode = (
-    mode: MagicTouchAIMode,
-    checked: boolean
-  ) => {
-    if (mode === "off") return;
+          message:
+            error?.message ||
+            "לא ניתן לשמור את הגדרות המערכת.",
+        });
+      } finally {
+        setSavingSystem(
+          false
+        );
+      }
+    };
 
-    setSystem((current) => {
-      const next = checked
-        ? Array.from(new Set([...current.allowedModes, mode]))
-        : current.allowedModes.filter((item) => item !== mode);
+  const saveAgent =
+    async () => {
+      if (
+        !agentId
+      ) {
+        return;
+      }
 
-      const allowedModes = next.includes("off")
-        ? next
-        : ["off" as MagicTouchAIMode, ...next];
+      setSavingAgent(
+        true
+      );
 
-      return {
-        ...current,
-        allowedModes,
-        defaultMode: allowedModes.includes(current.defaultMode)
-          ? current.defaultMode
-          : "off",
-      };
-    });
-  };
+      try {
+        const fn =
+          httpsCallable(
+            functions,
+            "saveAgentMagicTouchAISettings"
+          );
 
-  if (isLoading || isChecking) {
+        await fn({
+          agentId,
+
+          enabled:
+            agent.enabled,
+
+          mode:
+            agent.mode,
+
+          minConfidence:
+            agent
+              .minConfidence,
+
+          conversationProfile:
+            agent
+              .conversationProfile,
+
+          safeReplies:
+            agent
+              .safeReplies,
+        });
+
+        setDialog({
+          type:
+            "success",
+
+          title:
+            "הגדרות הסוכן נשמרו",
+
+          message:
+            "הגדרות ה-AI, פרופיל השיחה ותשובות ה-AI הבטוחות עודכנו.",
+        });
+
+        await loadSettings();
+      } catch (
+        error: any
+      ) {
+        setDialog({
+          type:
+            "error",
+
+          title:
+            "שמירת הגדרות הסוכן נכשלה",
+
+          message:
+            error?.message ||
+            "לא ניתן לשמור את הגדרות ה-AI של הסוכן.",
+        });
+      } finally {
+        setSavingAgent(
+          false
+        );
+      }
+    };
+
+  const toggleAllowedMode =
+    (
+      mode:
+        MagicTouchAIMode,
+      checked:
+        boolean
+    ) => {
+      if (
+        mode ===
+        "off"
+      ) {
+        return;
+      }
+
+      setSystem(
+        (
+          current
+        ) => {
+          const next =
+            checked
+              ? Array.from(
+                  new Set([
+                    ...current
+                      .allowedModes,
+                    mode,
+                  ])
+                )
+              : current
+                  .allowedModes
+                  .filter(
+                    (
+                      item
+                    ) =>
+                      item !==
+                      mode
+                  );
+
+          const allowedModes =
+            next.includes(
+              "off"
+            )
+              ? next
+              : [
+                  "off" as MagicTouchAIMode,
+                  ...next,
+                ];
+
+          return {
+            ...current,
+
+            allowedModes,
+
+            defaultMode:
+              allowedModes.includes(
+                current
+                  .defaultMode
+              )
+                ? current
+                    .defaultMode
+                : "off",
+          };
+        }
+      );
+    };
+
+  const toggleSafeIntent =
+    (
+      intent:
+        MagicTouchAISafeIntent,
+      checked:
+        boolean
+    ) => {
+      setAgent(
+        (
+          current
+        ) => {
+          const currentIntents =
+            current
+              .safeReplies
+              .allowedIntents;
+
+          const allowedIntents =
+            checked
+              ? Array.from(
+                  new Set([
+                    ...currentIntents,
+                    intent,
+                  ])
+                )
+              : currentIntents
+                  .filter(
+                    (
+                      item
+                    ) =>
+                      item !==
+                      intent
+                  );
+
+          return {
+            ...current,
+
+            safeReplies: {
+              ...current
+                .safeReplies,
+
+              allowedIntents,
+            },
+          };
+        }
+      );
+    };
+
+  if (
+    isLoading ||
+    isChecking
+  ) {
     return (
-      <div dir="rtl" className="p-6 text-right">
+      <div
+        dir="rtl"
+        className="p-6 text-right"
+      >
         טוען...
       </div>
     );
   }
 
-  if (!canAccess) {
-    return <AccessDenied />;
+  if (
+    !canAccess
+  ) {
+    return (
+      <AccessDenied />
+    );
   }
 
   return (
@@ -404,21 +1023,23 @@ export default function MagicTouchAISettings() {
 
             <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
               כאן מגדירים מתי MagicTouch רשאי להשתמש ב-AI,
-              ומה סגנון השיחה של הסוכן. בשלב הראשון ניתן
-              להשתמש ב-AI להבנת מלל חופשי בלי לאפשר לו לענות
-              בשם הסוכן.
+              ומה סגנון השיחה של הסוכן.
             </p>
           </div>
 
           <span
             className={[
               "rounded-full px-3 py-1 text-xs font-bold",
-              effective.enabled
+              effective
+                .enabled
                 ? "bg-green-100 text-green-800"
                 : "bg-slate-100 text-slate-600",
             ].join(" ")}
           >
-            {effective.enabled ? "AI פעיל" : "AI לא פעיל"}
+            {effective
+              .enabled
+              ? "AI פעיל"
+              : "AI לא פעיל"}
           </span>
         </div>
       </header>
@@ -437,7 +1058,8 @@ export default function MagicTouchAISettings() {
         </section>
       ) : (
         <>
-          {isSystem && canEditSystem ? (
+          {isSystem &&
+          canEditSystem ? (
             <section className="space-y-5 rounded-2xl border border-violet-200 bg-white p-5 shadow-sm">
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
@@ -450,18 +1072,27 @@ export default function MagicTouchAISettings() {
                   </h2>
 
                   <p className="mt-1 text-sm leading-6 text-slate-600">
-                    זו שכבת ההרשאה העליונה. מצב שלא מאושר כאן
-                    לא יכול לפעול אצל אף סוכן.
+                    מצב שלא מאושר כאן לא יכול לפעול אצל אף סוכן.
                   </p>
                 </div>
 
                 <Toggle
-                  checked={system.enabled}
-                  onChange={(checked) =>
-                    setSystem((current) => ({
-                      ...current,
-                      enabled: checked,
-                    }))
+                  checked={
+                    system
+                      .enabled
+                  }
+                  onChange={(
+                    checked
+                  ) =>
+                    setSystem(
+                      (
+                        current
+                      ) => ({
+                        ...current,
+                        enabled:
+                          checked,
+                      })
+                    )
                   }
                 />
               </div>
@@ -478,44 +1109,73 @@ export default function MagicTouchAISettings() {
                       "safe_replies",
                       "full_conversation",
                     ] as MagicTouchAIMode[]
-                  ).map((mode) => {
-                    const futureMode =
-                      mode === "safe_replies" ||
-                      mode === "full_conversation";
+                  ).map(
+                    (
+                      mode
+                    ) => {
+                      const fullConversation =
+                        mode ===
+                        "full_conversation";
 
-                    return (
-                      <div
-                        key={mode}
-                        className="flex items-start justify-between gap-4 rounded-xl border bg-white p-4"
-                      >
-                        <div>
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className="font-bold text-slate-900">
-                              {MODE_LABELS[mode].title}
-                            </span>
-
-                            {futureMode ? (
-                              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-800">
-                                עדיין לא פעיל במנוע
+                      return (
+                        <div
+                          key={
+                            mode
+                          }
+                          className="flex items-start justify-between gap-4 rounded-xl border bg-white p-4"
+                        >
+                          <div>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="font-bold text-slate-900">
+                                {
+                                  MODE_LABELS[
+                                    mode
+                                  ]
+                                    .title
+                                }
                               </span>
-                            ) : null}
+
+                              {fullConversation ? (
+                                <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-800">
+                                  עדיין לא פעיל במנוע
+                                </span>
+                              ) : null}
+                            </div>
+
+                            <p className="mt-1 text-sm leading-6 text-slate-600">
+                              {
+                                MODE_LABELS[
+                                  mode
+                                ]
+                                  .description
+                              }
+                            </p>
                           </div>
 
-                          <p className="mt-1 text-sm leading-6 text-slate-600">
-                            {MODE_LABELS[mode].description}
-                          </p>
+                          <Toggle
+                            checked={
+                              system
+                                .allowedModes
+                                .includes(
+                                  mode
+                                )
+                            }
+                            disabled={
+                              fullConversation
+                            }
+                            onChange={(
+                              checked
+                            ) =>
+                              toggleAllowedMode(
+                                mode,
+                                checked
+                              )
+                            }
+                          />
                         </div>
-
-                        <Toggle
-                          checked={system.allowedModes.includes(mode)}
-                          disabled={futureMode}
-                          onChange={(checked) =>
-                            toggleAllowedMode(mode, checked)
-                          }
-                        />
-                      </div>
-                    );
-                  })}
+                      );
+                    }
+                  )}
                 </div>
               </div>
 
@@ -525,29 +1185,63 @@ export default function MagicTouchAISettings() {
                 </div>
 
                 <select
-                  value={system.defaultMode}
-                  onChange={(event) =>
-                    setSystem((current) => ({
-                      ...current,
-                      defaultMode:
-                        event.target.value as MagicTouchAIMode,
-                    }))
+                  value={
+                    system
+                      .defaultMode
+                  }
+                  onChange={(
+                    event
+                  ) =>
+                    setSystem(
+                      (
+                        current
+                      ) => ({
+                        ...current,
+
+                        defaultMode:
+                          event
+                            .target
+                            .value as MagicTouchAIMode,
+                      })
+                    )
                   }
                   className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-blue-500"
                 >
-                  {system.allowedModes.map((mode) => (
-                    <option key={mode} value={mode}>
-                      {MODE_LABELS[mode].title}
-                    </option>
-                  ))}
+                  {system
+                    .allowedModes
+                    .map(
+                      (
+                        mode
+                      ) => (
+                        <option
+                          key={
+                            mode
+                          }
+                          value={
+                            mode
+                          }
+                        >
+                          {
+                            MODE_LABELS[
+                              mode
+                            ]
+                              .title
+                          }
+                        </option>
+                      )
+                    )}
                 </select>
               </label>
 
               <div className="flex justify-end">
                 <button
                   type="button"
-                  disabled={savingSystem}
-                  onClick={saveSystem}
+                  disabled={
+                    savingSystem
+                  }
+                  onClick={
+                    saveSystem
+                  }
                   className="rounded-xl bg-violet-600 px-5 py-2.5 text-sm font-bold text-white transition hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {savingSystem
@@ -570,19 +1264,32 @@ export default function MagicTouchAISettings() {
                 </h2>
 
                 <p className="mt-1 text-sm leading-6 text-slate-600">
-                  ההגדרה כאן כפופה להרשאות המערכת ולמדיניות של
-                  ה-Flow הפעיל.
+                  ההגדרה כאן כפופה להרשאות המערכת ולמדיניות של ה-Flow הפעיל.
                 </p>
               </div>
 
               <Toggle
-                checked={agent.enabled}
-                disabled={!agentId || !system.enabled}
-                onChange={(checked) =>
-                  setAgent((current) => ({
-                    ...current,
-                    enabled: checked,
-                  }))
+                checked={
+                  agent
+                    .enabled
+                }
+                disabled={
+                  !agentId ||
+                  !system
+                    .enabled
+                }
+                onChange={(
+                  checked
+                ) =>
+                  setAgent(
+                    (
+                      current
+                    ) => ({
+                      ...current,
+                      enabled:
+                        checked,
+                    })
+                  )
                 }
               />
             </div>
@@ -590,7 +1297,8 @@ export default function MagicTouchAISettings() {
             <div
               className={[
                 "rounded-xl border p-4",
-                effective.enabled
+                effective
+                  .enabled
                   ? "border-green-200 bg-green-50"
                   : "border-slate-200 bg-slate-50",
               ].join(" ")}
@@ -600,7 +1308,9 @@ export default function MagicTouchAISettings() {
               </div>
 
               <p className="mt-1 text-sm leading-6 text-slate-700">
-                {effectiveExplanation}
+                {
+                  effectiveExplanation
+                }
               </p>
             </div>
 
@@ -610,40 +1320,84 @@ export default function MagicTouchAISettings() {
               </div>
 
               <div className="grid gap-3 md:grid-cols-2">
-                {availableAgentModes.map((mode) => {
-                  const selected = agent.mode === mode;
+                {availableAgentModes.map(
+                  (
+                    mode
+                  ) => {
+                    const selected =
+                      agent
+                        .mode ===
+                      mode;
 
-                  return (
-                    <button
-                      type="button"
-                      key={mode}
-                      disabled={
-                        !agentId ||
-                        (mode !== "off" && !system.enabled)
-                      }
-                      onClick={() =>
-                        setAgent((current) => ({
-                          ...current,
-                          mode,
-                        }))
-                      }
-                      className={[
-                        "rounded-xl border p-4 text-right transition",
-                        selected
-                          ? "border-blue-500 bg-blue-50 ring-1 ring-blue-200"
-                          : "border-slate-200 bg-white hover:border-slate-300",
-                      ].join(" ")}
-                    >
-                      <div className="font-bold text-slate-900">
-                        {MODE_LABELS[mode].title}
-                      </div>
+                    return (
+                      <button
+                        type="button"
+                        key={
+                          mode
+                        }
+                        disabled={
+                          !agentId ||
+                          (
+                            mode !==
+                              "off" &&
+                            !system
+                              .enabled
+                          )
+                        }
+                        onClick={() =>
+                          setAgent(
+                            (
+                              current
+                            ) => ({
+                              ...current,
 
-                      <div className="mt-1 text-sm leading-6 text-slate-600">
-                        {MODE_LABELS[mode].description}
-                      </div>
-                    </button>
-                  );
-                })}
+                              mode,
+
+                              safeReplies: {
+                                ...current
+                                  .safeReplies,
+
+                                enabled:
+                                  mode ===
+                                    "safe_replies" ||
+                                  mode ===
+                                    "full_conversation"
+                                    ? current
+                                        .safeReplies
+                                        .enabled
+                                    : false,
+                              },
+                            })
+                          )
+                        }
+                        className={[
+                          "rounded-xl border p-4 text-right transition",
+                          selected
+                            ? "border-blue-500 bg-blue-50 ring-1 ring-blue-200"
+                            : "border-slate-200 bg-white hover:border-slate-300",
+                        ].join(" ")}
+                      >
+                        <div className="font-bold text-slate-900">
+                          {
+                            MODE_LABELS[
+                              mode
+                            ]
+                              .title
+                          }
+                        </div>
+
+                        <div className="mt-1 text-sm leading-6 text-slate-600">
+                          {
+                            MODE_LABELS[
+                              mode
+                            ]
+                              .description
+                          }
+                        </div>
+                      </button>
+                    );
+                  }
+                )}
               </div>
             </div>
 
@@ -655,13 +1409,17 @@ export default function MagicTouchAISettings() {
                   </div>
 
                   <p className="mt-1 text-sm text-slate-600">
-                    מתחת לסף הזה המערכת לא תמשיך פעולה עסקית
-                    על סמך פרשנות AI.
+                    מתחת לסף הזה המערכת לא תמשיך פעולה עסקית על סמך פרשנות AI.
                   </p>
                 </div>
 
                 <div className="rounded-lg bg-white px-3 py-2 text-sm font-bold text-blue-700 shadow-sm">
-                  {Math.round(agent.minConfidence * 100)}%
+                  {Math.round(
+                    agent
+                      .minConfidence *
+                    100
+                  )}
+                  %
                 </div>
               </div>
 
@@ -670,12 +1428,27 @@ export default function MagicTouchAISettings() {
                 min="0.5"
                 max="0.95"
                 step="0.05"
-                value={agent.minConfidence}
-                onChange={(event) =>
-                  setAgent((current) => ({
-                    ...current,
-                    minConfidence: Number(event.target.value),
-                  }))
+                value={
+                  agent
+                    .minConfidence
+                }
+                onChange={(
+                  event
+                ) =>
+                  setAgent(
+                    (
+                      current
+                    ) => ({
+                      ...current,
+
+                      minConfidence:
+                        Number(
+                          event
+                            .target
+                            .value
+                        ),
+                    })
+                  )
                 }
                 className="mt-4 w-full"
               />
@@ -691,45 +1464,71 @@ export default function MagicTouchAISettings() {
               </h3>
 
               <p className="mt-1 text-sm leading-6 text-slate-600">
-                ההגדרות נשמרות כבר עכשיו. הן ישמשו אותנו כאשר
-                נפתח תשובות AI מבוקרות.
+                פרופיל השיחה משמש ליצירת תשובות כאשר מצב תשובות AI יהיה פעיל.
               </p>
 
               <div className="mt-5 grid gap-3 md:grid-cols-2">
-                {TONE_OPTIONS.map((option) => {
-                  const selected =
-                    agent.conversationProfile.tone === option.value;
+                {TONE_OPTIONS.map(
+                  (
+                    option
+                  ) => {
+                    const selected =
+                      agent
+                        .conversationProfile
+                        .tone ===
+                      option.value;
 
-                  return (
-                    <button
-                      key={option.value}
-                      type="button"
-                      onClick={() =>
-                        setAgent((current) => ({
-                          ...current,
-                          conversationProfile: {
-                            ...current.conversationProfile,
-                            tone: option.value,
-                          },
-                        }))
-                      }
-                      className={[
-                        "rounded-xl border p-4 text-right transition",
-                        selected
-                          ? "border-blue-500 bg-blue-50 ring-1 ring-blue-200"
-                          : "border-slate-200 bg-white hover:border-slate-300",
-                      ].join(" ")}
-                    >
-                      <div className="font-bold text-slate-900">
-                        {option.title}
-                      </div>
+                    return (
+                      <button
+                        key={
+                          option
+                            .value
+                        }
+                        type="button"
+                        onClick={() =>
+                          setAgent(
+                            (
+                              current
+                            ) => ({
+                              ...current,
 
-                      <div className="mt-2 rounded-lg bg-slate-50 p-2 text-sm text-slate-600">
-                        “{option.example}”
-                      </div>
-                    </button>
-                  );
-                })}
+                              conversationProfile: {
+                                ...current
+                                  .conversationProfile,
+
+                                tone:
+                                  option
+                                    .value,
+                              },
+                            })
+                          )
+                        }
+                        className={[
+                          "rounded-xl border p-4 text-right transition",
+                          selected
+                            ? "border-blue-500 bg-blue-50 ring-1 ring-blue-200"
+                            : "border-slate-200 bg-white hover:border-slate-300",
+                        ].join(" ")}
+                      >
+                        <div className="font-bold text-slate-900">
+                          {
+                            option
+                              .title
+                          }
+                        </div>
+
+                        <div className="mt-2 rounded-lg bg-slate-50 p-2 text-sm text-slate-600">
+                          “
+                          {
+                            option
+                              .example
+                          }
+                          ”
+                        </div>
+                      </button>
+                    );
+                  }
+                )}
               </div>
 
               <div className="mt-5 grid gap-5 md:grid-cols-2">
@@ -747,16 +1546,28 @@ export default function MagicTouchAISettings() {
 
                     <Toggle
                       checked={
-                        agent.conversationProfile.useCustomerFirstName
+                        agent
+                          .conversationProfile
+                          .useCustomerFirstName
                       }
-                      onChange={(checked) =>
-                        setAgent((current) => ({
-                          ...current,
-                          conversationProfile: {
-                            ...current.conversationProfile,
-                            useCustomerFirstName: checked,
-                          },
-                        }))
+                      onChange={(
+                        checked
+                      ) =>
+                        setAgent(
+                          (
+                            current
+                          ) => ({
+                            ...current,
+
+                            conversationProfile: {
+                              ...current
+                                .conversationProfile,
+
+                              useCustomerFirstName:
+                                checked,
+                            },
+                          })
+                        )
                       }
                     />
                   </div>
@@ -768,30 +1579,51 @@ export default function MagicTouchAISettings() {
                   </div>
 
                   <div className="mt-3 flex flex-wrap gap-2">
-                    {EMOJI_OPTIONS.map((option) => (
-                      <button
-                        key={option.value}
-                        type="button"
-                        onClick={() =>
-                          setAgent((current) => ({
-                            ...current,
-                            conversationProfile: {
-                              ...current.conversationProfile,
-                              emojiLevel: option.value,
-                            },
-                          }))
-                        }
-                        className={[
-                          "rounded-lg border px-4 py-2 text-sm font-bold transition",
-                          agent.conversationProfile.emojiLevel ===
-                          option.value
-                            ? "border-blue-500 bg-blue-50 text-blue-700"
-                            : "border-slate-200 bg-white text-slate-700",
-                        ].join(" ")}
-                      >
-                        {option.label}
-                      </button>
-                    ))}
+                    {EMOJI_OPTIONS.map(
+                      (
+                        option
+                      ) => (
+                        <button
+                          key={
+                            option
+                              .value
+                          }
+                          type="button"
+                          onClick={() =>
+                            setAgent(
+                              (
+                                current
+                              ) => ({
+                                ...current,
+
+                                conversationProfile: {
+                                  ...current
+                                    .conversationProfile,
+
+                                  emojiLevel:
+                                    option
+                                      .value,
+                                },
+                              })
+                            )
+                          }
+                          className={[
+                            "rounded-lg border px-4 py-2 text-sm font-bold transition",
+                            agent
+                              .conversationProfile
+                              .emojiLevel ===
+                            option.value
+                              ? "border-blue-500 bg-blue-50 text-blue-700"
+                              : "border-slate-200 bg-white text-slate-700",
+                          ].join(" ")}
+                        >
+                          {
+                            option
+                              .label
+                          }
+                        </button>
+                      )
+                    )}
                   </div>
                 </div>
               </div>
@@ -802,38 +1634,200 @@ export default function MagicTouchAISettings() {
                 </div>
 
                 <textarea
-                  rows={5}
-                  value={
-                    agent.conversationProfile.customStyleInstructions
+                  rows={
+                    5
                   }
-                  onChange={(event) =>
-                    setAgent((current) => ({
-                      ...current,
-                      conversationProfile: {
-                        ...current.conversationProfile,
-                        customStyleInstructions: event.target.value,
-                      },
-                    }))
+                  value={
+                    agent
+                      .conversationProfile
+                      .customStyleInstructions
+                  }
+                  onChange={(
+                    event
+                  ) =>
+                    setAgent(
+                      (
+                        current
+                      ) => ({
+                        ...current,
+
+                        conversationProfile: {
+                          ...current
+                            .conversationProfile,
+
+                          customStyleInstructions:
+                            event
+                              .target
+                              .value,
+                        },
+                      })
+                    )
                   }
                   placeholder="לדוגמה: דבר בגובה העיניים, קצר וחם. לא להשתמש בניסוחים טכניים. אפשר אימוג׳י מדי פעם."
                   className="w-full rounded-xl border border-slate-300 bg-white px-3 py-3 text-sm leading-6 outline-none focus:border-blue-500"
                 />
 
                 <div className="mt-1 text-xs text-slate-500">
-                  אין צורך לכתוב כאן תשובות לשאלות. זהו תיאור
-                  של אופי השיחה בלבד.
+                  אין צורך לכתוב כאן תשובות לשאלות. זהו תיאור של אופי השיחה בלבד.
                 </div>
               </label>
+            </div>
+
+            <div className="border-t pt-6">
+              <div className="mb-1 text-xs font-bold uppercase tracking-wide text-emerald-600">
+                תשובות בטוחות
+              </div>
+
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900">
+                    תשובות AI בטוחות
+                  </h3>
+
+                  <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-600">
+                    כאן מגדירים באילו סוגי פניות יהיה מותר ל-AI לענות.
+                    בשלב הזה ההגדרות נשמרות בלבד; חיבור השליחה בפועל ייעשה בשלב הבא.
+                  </p>
+                </div>
+
+                <Toggle
+                  checked={
+                    agent
+                      .safeReplies
+                      .enabled
+                  }
+                  disabled={
+                    !safeRepliesSystemAllowed
+                  }
+                  onChange={(
+                    checked
+                  ) =>
+                    setAgent(
+                      (
+                        current
+                      ) => ({
+                        ...current,
+
+                        mode:
+                          checked
+                            ? "safe_replies"
+                            : (
+                                current.mode ===
+                                "safe_replies"
+                                  ? "understand_only"
+                                  : current.mode
+                              ),
+
+                        safeReplies: {
+                          ...current
+                            .safeReplies,
+
+                          enabled:
+                            checked,
+                        },
+                      })
+                    )
+                  }
+                />
+              </div>
+
+              {!safeRepliesSystemAllowed ? (
+                <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-800">
+                  כדי לפתוח תשובות AI בטוחות לסוכן, יש לאפשר קודם
+                  את מצב "תשובות AI בטוחות" ברמת המערכת.
+                </div>
+              ) : null}
+
+              <div className="mt-5 grid gap-3 md:grid-cols-2">
+                {SAFE_INTENT_OPTIONS.map(
+                  (
+                    option
+                  ) => {
+                    const checked =
+                      agent
+                        .safeReplies
+                        .allowedIntents
+                        .includes(
+                          option
+                            .value
+                        );
+
+                    const processQuestion =
+                      option.value ===
+                      "process_question";
+
+                    return (
+                      <div
+                        key={
+                          option
+                            .value
+                        }
+                        className="flex items-start justify-between gap-4 rounded-xl border bg-white p-4"
+                      >
+                        <div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <div className="font-bold text-slate-900">
+                              {
+                                option
+                                  .title
+                              }
+                            </div>
+
+                            {processQuestion ? (
+                              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-800">
+                                דורש Knowledge
+                              </span>
+                            ) : null}
+                          </div>
+
+                          <p className="mt-1 text-sm leading-6 text-slate-600">
+                            {
+                              option
+                                .description
+                            }
+                          </p>
+                        </div>
+
+                        <Toggle
+                          checked={
+                            checked
+                          }
+                          disabled={
+                            !safeRepliesSystemAllowed ||
+                            processQuestion
+                          }
+                          onChange={(
+                            value
+                          ) =>
+                            toggleSafeIntent(
+                              option
+                                .value,
+                              value
+                            )
+                          }
+                        />
+                      </div>
+                    );
+                  }
+                )}
+              </div>
             </div>
 
             <div className="flex justify-end border-t pt-5">
               <button
                 type="button"
-                disabled={!agentId || savingAgent}
-                onClick={saveAgent}
+                disabled={
+                  !agentId ||
+                  savingAgent
+                }
+                onClick={
+                  saveAgent
+                }
                 className="rounded-xl bg-blue-600 px-6 py-2.5 text-sm font-bold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {savingAgent ? "שומר..." : "שמירת הגדרות הסוכן"}
+                {savingAgent
+                  ? "שומר..."
+                  : "שמירת הגדרות הסוכן"}
               </button>
             </div>
           </section>
@@ -842,10 +1836,20 @@ export default function MagicTouchAISettings() {
 
       {dialog ? (
         <DialogNotification
-          type={dialog.type}
-          title={dialog.title}
-          message={dialog.message}
-          onConfirm={() => setDialog(null)}
+          type={
+            dialog.type
+          }
+          title={
+            dialog.title
+          }
+          message={
+            dialog.message
+          }
+          onConfirm={() =>
+            setDialog(
+              null
+            )
+          }
           confirmText="סגור"
           hideCancel
         />

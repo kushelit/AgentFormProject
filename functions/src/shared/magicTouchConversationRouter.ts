@@ -9,6 +9,8 @@ import {
 import {
   resolveMagicTouchAction,
   resolveMagicTouchConversationTarget,
+  resolveMagicTouchSafeReplyIntent,
+  generateMagicTouchSafeReply,
 } from "./magicTouchActionResolver";
 
 import type {
@@ -37,6 +39,7 @@ export type MagicTouchMessageDisposition =
 export type MagicTouchConversationHandling =
   | "continue_flow"
   | "start_flow"
+  | "safe_reply"
   | "human_attention";
 
 export type MagicTouchResolvedAction =
@@ -83,6 +86,12 @@ export interface MagicTouchConversationRouteResult {
 
   reason:
     string;
+
+  suggestedReply?:
+    string | null;
+
+  suggestedReplyConfidence?:
+    number | null;
 }
 
 type ActiveRunRecord = {
@@ -538,6 +547,117 @@ function buildConversationCandidates(
       };
     }
   );
+}
+
+function buildSafeReplyBusinessContext(
+  runData: any
+): Record<
+  string,
+  any
+> {
+  const waitingFor =
+    runData
+      ?.waitingFor ||
+    {};
+
+  const waitingContext =
+    waitingFor
+      ?.context &&
+    typeof waitingFor
+      .context ===
+      "object"
+      ? waitingFor
+          .context
+      : {};
+
+  const lastStepResult =
+    runData
+      ?.lastStepResult &&
+    typeof runData
+      .lastStepResult ===
+      "object"
+      ? runData
+          .lastStepResult
+      : {};
+
+  return {
+    currentStepId:
+      s(
+        runData
+          ?.currentStepId
+      ) ||
+      null,
+
+    lastStepId:
+      s(
+        runData
+          ?.lastStepId
+      ) ||
+      null,
+
+    waitingFor: {
+      type:
+        s(
+          waitingFor
+            ?.type
+        ) ||
+        null,
+
+      stepId:
+        s(
+          waitingFor
+            ?.stepId
+        ) ||
+        null,
+
+      resumeStepId:
+        s(
+          waitingFor
+            ?.resumeStepId
+        ) ||
+        null,
+
+      context:
+        waitingContext,
+    },
+
+    lastStepResult: {
+      message:
+        s(
+          lastStepResult
+            ?.message
+        ) ||
+        null,
+
+      waitingFor:
+        s(
+          lastStepResult
+            ?.waitingFor
+        ) ||
+        null,
+
+      requestId:
+        s(
+          lastStepResult
+            ?.requestId
+        ) ||
+        null,
+
+      uploadUrl:
+        s(
+          lastStepResult
+            ?.uploadUrl
+        ) ||
+        null,
+
+      status:
+        s(
+          lastStepResult
+            ?.status
+        ) ||
+        null,
+    },
+  };
 }
 
 export async function routeMagicTouchConversation(
@@ -1005,12 +1125,370 @@ export async function routeMagicTouchConversation(
 
     /*
      * ההודעה שייכת ל-Run פעיל,
-     * אבל ה-Run מחכה למסמך / חתימה /
-     * booking / external event וכו'.
+     * אבל ה-Run אינו מחכה כרגע ל-customer_response
+     * שמאפשר המשך עסקי של ה-Flow.
      *
-     * במצב understand_only:
-     * ה-AI יכול לזהות את ההקשר/intent,
-     * אבל אינו עונה ללקוח ואינו משלים את ההמתנה.
+     * אם safe_replies פעיל, אנחנו מריצים Resolver נפרד
+     * שמטרתו להבין רק האם מדובר ב-intent בטוח שמותר
+     * לסוכן לענות עליו.
+     *
+     * חשוב:
+     * בשלב הזה handling="safe_reply" הוא רק החלטת ניתוב.
+     * עדיין לא נשלחת תשובה ללקוח וה-Run נשאר waiting.
+     */
+    const safeRepliesEnabled =
+      aiSettings.enabled &&
+      (
+        aiSettings.mode ===
+          "safe_replies" ||
+        aiSettings.mode ===
+          "full_conversation"
+      ) &&
+      aiSettings.safeReplies
+        .enabled;
+
+    if (
+      safeRepliesEnabled &&
+      messageText
+    ) {
+      const allowedIntents =
+        aiSettings.safeReplies
+          .allowedIntents ||
+        [];
+
+      const safeIntentResult =
+        await resolveMagicTouchSafeReplyIntent({
+          messageText,
+
+          waitingForType:
+            waitingForType ||
+            null,
+
+          flowName:
+            s(
+              targetRun.data
+                ?.flowName
+            ) ||
+            null,
+
+          stepId:
+            s(
+              targetRun.data
+                ?.waitingFor
+                ?.stepId ||
+              targetRun.data
+                ?.currentStepId
+            ) ||
+            null,
+
+          stepName:
+            s(
+              targetRun.data
+                ?.lastStepResult
+                ?.stepName ||
+              targetRun.data
+                ?.waitingFor
+                ?.stepName
+            ) ||
+            null,
+
+          prompt:
+            s(
+              targetRun.data
+                ?.waitingFor
+                ?.promptContext
+                ?.question ||
+              targetRun.data
+                ?.lastStepResult
+                ?.message
+            ) ||
+            null,
+
+          businessContext:
+            buildSafeReplyBusinessContext(
+              targetRun.data
+            ),
+
+          allowedIntents,
+
+          context: {
+            agentId,
+
+            contactId,
+
+            conversationId,
+
+            runId:
+              targetRun.runId,
+
+            flowId:
+              s(
+                targetRun.data
+                  ?.flowId
+              ) ||
+              null,
+          },
+        });
+
+      const safeIntent =
+        s(
+          safeIntentResult
+            .intent
+        ) ||
+        null;
+
+      const safeConfidence =
+        safeIntentResult
+          .confidence;
+
+   const safeIntentAllowed =
+  Boolean(
+    safeIntent
+  ) &&
+  allowedIntents.some(
+    (
+      allowedIntent
+    ) =>
+      allowedIntent ===
+      safeIntent
+  );
+
+      const confidencePassed =
+        typeof safeConfidence ===
+          "number" &&
+        safeConfidence >=
+          aiSettings
+            .minConfidence;
+
+      if (
+        safeIntentAllowed &&
+        confidencePassed &&
+        safeIntent
+      ) {
+        const businessContext =
+          buildSafeReplyBusinessContext(
+            targetRun.data
+          );
+
+        const replyResult =
+          await generateMagicTouchSafeReply({
+            messageText,
+
+            intent:
+              safeIntent,
+
+            waitingForType:
+              waitingForType ||
+              null,
+
+            flowName:
+              s(
+                targetRun.data
+                  ?.flowName
+              ) ||
+              null,
+
+            stepId:
+              s(
+                targetRun.data
+                  ?.waitingFor
+                  ?.stepId ||
+                targetRun.data
+                  ?.currentStepId
+              ) ||
+              null,
+
+            stepName:
+              s(
+                targetRun.data
+                  ?.lastStepResult
+                  ?.stepName ||
+                targetRun.data
+                  ?.waitingFor
+                  ?.stepName
+              ) ||
+              null,
+
+            prompt:
+              s(
+                targetRun.data
+                  ?.waitingFor
+                  ?.promptContext
+                  ?.question ||
+                targetRun.data
+                  ?.lastStepResult
+                  ?.message
+              ) ||
+              null,
+
+            businessContext,
+
+            conversationProfile:
+              aiSettings
+                .conversationProfile,
+
+            context: {
+              agentId,
+
+              contactId,
+
+              conversationId,
+
+              runId:
+                targetRun.runId,
+
+              flowId:
+                s(
+                  targetRun.data
+                    ?.flowId
+                ) ||
+                null,
+            },
+          });
+
+        const suggestedReply =
+          s(
+            replyResult
+              .replyText
+          ) ||
+          null;
+
+        const suggestedReplyConfidence =
+          replyResult
+            .confidence;
+
+        const replyConfidencePassed =
+          Boolean(
+            suggestedReply
+          ) &&
+          typeof suggestedReplyConfidence ===
+            "number" &&
+          suggestedReplyConfidence >=
+            aiSettings
+              .minConfidence;
+
+        if (
+          replyConfidencePassed
+        ) {
+          return {
+            contactState,
+
+            flowState:
+              "active",
+
+            messageDisposition:
+              "unexpected",
+
+            resolvedAction:
+              safeIntent,
+
+            handling:
+              "safe_reply",
+
+            activeRunId:
+              targetRun.runId,
+
+            activeFlowId:
+              s(
+                targetRun.data
+                  ?.flowId
+              ) ||
+              null,
+
+            previousRunId:
+              null,
+
+            reason:
+              "safe_reply_generated",
+
+            suggestedReply,
+
+            suggestedReplyConfidence,
+          };
+        }
+
+        return {
+          contactState,
+
+          flowState:
+            "active",
+
+          messageDisposition:
+            "unexpected",
+
+          resolvedAction:
+            safeIntent,
+
+          handling:
+            "human_attention",
+
+          activeRunId:
+            targetRun.runId,
+
+          activeFlowId:
+            s(
+              targetRun.data
+                ?.flowId
+            ) ||
+            null,
+
+          previousRunId:
+            null,
+
+          reason:
+            suggestedReply
+              ? "safe_reply_generation_confidence_below_threshold"
+              : "safe_reply_generation_unresolved",
+
+          suggestedReply:
+            null,
+
+          suggestedReplyConfidence:
+            suggestedReplyConfidence ??
+            null,
+        };
+      }
+
+      return {
+        contactState,
+
+        flowState:
+          "active",
+
+        messageDisposition:
+          "unexpected",
+
+        resolvedAction:
+          safeIntent,
+
+        handling:
+          "human_attention",
+
+        activeRunId:
+          targetRun.runId,
+
+        activeFlowId:
+          s(
+            targetRun.data
+              ?.flowId
+          ) ||
+          null,
+
+        previousRunId:
+          null,
+
+        reason:
+          safeIntent &&
+          !confidencePassed
+            ? "safe_reply_confidence_below_threshold"
+            : "safe_reply_intent_not_allowed_or_unresolved",
+      };
+    }
+
+    /*
+     * understand_only (או safe replies כבוי):
+     * מבינים את ההקשר, אבל לא עונים ולא משלימים
+     * את ההמתנה העסקית של ה-Run.
      */
     return {
       contactState,

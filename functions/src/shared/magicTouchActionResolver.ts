@@ -189,6 +189,163 @@ export interface MagicTouchConversationTargetResult {
     string;
 }
 
+export interface MagicTouchSafeReplyIntentInput {
+  messageText:
+    string;
+
+  waitingForType?:
+    string | null;
+
+  flowName?:
+    string | null;
+
+  stepId?:
+    string | null;
+
+  stepName?:
+    string | null;
+
+  prompt?:
+    string | null;
+
+  businessContext?:
+    Record<
+      string,
+      any
+    > | null;
+
+  allowedIntents:
+    string[];
+
+  context?:
+    {
+      agentId?:
+        string | null;
+
+      contactId?:
+        string | null;
+
+      conversationId?:
+        string | null;
+
+      runId?:
+        string | null;
+
+      flowId?:
+        string | null;
+    };
+}
+
+export interface MagicTouchSafeReplyIntentResult {
+  intent:
+    string | null;
+
+  confidence:
+    number | null;
+
+  source:
+    "ai" |
+    "unresolved";
+
+  reason:
+    string;
+
+  model?:
+    string | null;
+
+  inputTokens?:
+    number | null;
+
+  outputTokens?:
+    number | null;
+}
+
+export interface MagicTouchSafeReplyGenerationInput {
+  messageText:
+    string;
+
+  intent:
+    string;
+
+  waitingForType?:
+    string | null;
+
+  flowName?:
+    string | null;
+
+  stepId?:
+    string | null;
+
+  stepName?:
+    string | null;
+
+  prompt?:
+    string | null;
+
+  businessContext?:
+    Record<
+      string,
+      any
+    > | null;
+
+  conversationProfile?:
+    {
+      tone?:
+        string | null;
+
+      useCustomerFirstName?:
+        boolean | null;
+
+      emojiLevel?:
+        string | null;
+
+      customStyleInstructions?:
+        string | null;
+    } | null;
+
+  context?:
+    {
+      agentId?:
+        string | null;
+
+      contactId?:
+        string | null;
+
+      conversationId?:
+        string | null;
+
+      runId?:
+        string | null;
+
+      flowId?:
+        string | null;
+    };
+}
+
+export interface MagicTouchSafeReplyGenerationResult {
+  replyText:
+    string | null;
+
+  confidence:
+    number | null;
+
+  source:
+    "ai" |
+    "unresolved";
+
+  reason:
+    string;
+
+  model?:
+    string | null;
+
+  inputTokens?:
+    number | null;
+
+  outputTokens?:
+    number | null;
+}
+
 const AI_MODEL =
   "gpt-5.6-luna";
 
@@ -382,7 +539,7 @@ async function callOpenAIJson({
               false,
 
             max_output_tokens:
-              160,
+              400,
 
             input: [
               {
@@ -443,6 +600,47 @@ async function callOpenAIJson({
     getOutputText(
       responseBody
     );
+if (
+  !outputText
+) {
+  logger.error(
+    "[MagicTouchActionResolver] OpenAI returned no output text",
+    {
+      status:
+        responseBody
+          ?.status ||
+        null,
+
+      incompleteDetails:
+        responseBody
+          ?.incomplete_details ||
+        null,
+
+      usage:
+        responseBody
+          ?.usage ||
+        null,
+
+      outputTypes:
+        Array.isArray(
+          responseBody
+            ?.output
+        )
+          ? responseBody.output.map(
+              (
+                item: any
+              ) =>
+                item?.type ||
+                null
+            )
+          : [],
+    }
+  );
+
+  throw new Error(
+    "OpenAI output is missing"
+  );
+}
 
   if (
     !outputText
@@ -672,6 +870,254 @@ async function saveAiUsage({
   ) {
     logger.error(
       "[MagicTouchActionResolver] Failed to save AI usage",
+      {
+        agentId,
+
+        error:
+          error?.message ||
+          String(
+            error
+          ),
+      }
+    );
+  }
+}
+
+
+async function saveSafeReplyIntentUsage({
+  input,
+  result,
+}: {
+  input:
+    MagicTouchSafeReplyIntentInput;
+
+  result:
+    MagicTouchSafeReplyIntentResult;
+}): Promise<void> {
+  const agentId =
+    s(
+      input.context
+        ?.agentId
+    );
+
+  if (
+    !agentId
+  ) {
+    return;
+  }
+
+  try {
+    const db =
+      adminDb();
+
+    await db
+      .collection(
+        `agents/${agentId}/magic_touch_ai_usage`
+      )
+      .add({
+        provider:
+          "openai",
+
+        model:
+          result.model ||
+          AI_MODEL,
+
+        purpose:
+          "safe_reply_intent_resolution",
+
+        runId:
+          s(
+            input.context
+              ?.runId
+          ) ||
+          null,
+
+        flowId:
+          s(
+            input.context
+              ?.flowId
+          ) ||
+          null,
+
+        contactId:
+          s(
+            input.context
+              ?.contactId
+          ) ||
+          null,
+
+        conversationId:
+          s(
+            input.context
+              ?.conversationId
+          ) ||
+          null,
+
+        waitingForType:
+          s(
+            input.waitingForType
+          ) ||
+          null,
+
+        businessContext:
+          input.businessContext ||
+          null,
+
+        intent:
+          result.intent ||
+          null,
+
+        confidence:
+          result.confidence ??
+          null,
+
+        source:
+          result.source,
+
+        reason:
+          result.reason,
+
+        inputTokens:
+          result.inputTokens ??
+          null,
+
+        outputTokens:
+          result.outputTokens ??
+          null,
+
+        createdAt:
+          nowTs(),
+      });
+  } catch (
+    error: any
+  ) {
+    logger.error(
+      "[MagicTouchActionResolver] Failed to save safe reply intent usage",
+      {
+        agentId,
+
+        error:
+          error?.message ||
+          String(
+            error
+          ),
+      }
+    );
+  }
+}
+
+
+async function saveSafeReplyGenerationUsage({
+  input,
+  result,
+}: {
+  input:
+    MagicTouchSafeReplyGenerationInput;
+
+  result:
+    MagicTouchSafeReplyGenerationResult;
+}): Promise<void> {
+  const agentId =
+    s(
+      input.context
+        ?.agentId
+    );
+
+  if (
+    !agentId
+  ) {
+    return;
+  }
+
+  try {
+    const db =
+      adminDb();
+
+    await db
+      .collection(
+        `agents/${agentId}/magic_touch_ai_usage`
+      )
+      .add({
+        provider:
+          "openai",
+
+        model:
+          result.model ||
+          AI_MODEL,
+
+        purpose:
+          "safe_reply_generation",
+
+        runId:
+          s(
+            input.context
+              ?.runId
+          ) ||
+          null,
+
+        flowId:
+          s(
+            input.context
+              ?.flowId
+          ) ||
+          null,
+
+        contactId:
+          s(
+            input.context
+              ?.contactId
+          ) ||
+          null,
+
+        conversationId:
+          s(
+            input.context
+              ?.conversationId
+          ) ||
+          null,
+
+        waitingForType:
+          s(
+            input.waitingForType
+          ) ||
+          null,
+
+        intent:
+          s(
+            input.intent
+          ) ||
+          null,
+
+        replyText:
+          result.replyText ||
+          null,
+
+        confidence:
+          result.confidence ??
+          null,
+
+        source:
+          result.source,
+
+        reason:
+          result.reason,
+
+        inputTokens:
+          result.inputTokens ??
+          null,
+
+        outputTokens:
+          result.outputTokens ??
+          null,
+
+        createdAt:
+          nowTs(),
+      });
+  } catch (
+    error: any
+  ) {
+    logger.error(
+      "[MagicTouchActionResolver] Failed to save safe reply generation usage",
       {
         agentId,
 
@@ -1134,6 +1580,627 @@ export async function resolveMagicTouchConversationTarget(
 
       reason:
         "conversation_target_resolution_failed",
+    };
+  }
+}
+
+
+function buildSafeReplyBusinessContextText(
+  value: unknown
+): string {
+  if (
+    !value ||
+    typeof value !==
+      "object"
+  ) {
+    return "";
+  }
+
+  try {
+    return JSON.stringify(
+      value,
+      null,
+      2
+    );
+  } catch {
+    return "";
+  }
+}
+
+export async function resolveMagicTouchSafeReplyIntent(
+  input:
+    MagicTouchSafeReplyIntentInput
+): Promise<MagicTouchSafeReplyIntentResult> {
+  const messageText =
+    s(
+      input.messageText
+    );
+
+  const waitingForType =
+    s(
+      input.waitingForType
+    );
+
+  const flowName =
+    s(
+      input.flowName
+    );
+
+  const stepId =
+    s(
+      input.stepId
+    );
+
+  const stepName =
+    s(
+      input.stepName
+    );
+
+  const promptContext =
+    s(
+      input.prompt
+    );
+
+  const businessContextText =
+    buildSafeReplyBusinessContextText(
+      input.businessContext
+    );
+
+  const allowedIntents =
+    normalizeActions(
+      input.allowedIntents
+    );
+
+  if (
+    !messageText
+  ) {
+    return {
+      intent:
+        null,
+
+      confidence:
+        null,
+
+      source:
+        "unresolved",
+
+      reason:
+        "safe_reply_message_missing",
+
+      model:
+        AI_MODEL,
+
+      inputTokens:
+        null,
+
+      outputTokens:
+        null,
+    };
+  }
+
+  if (
+    allowedIntents.length ===
+      0
+  ) {
+    return {
+      intent:
+        null,
+
+      confidence:
+        null,
+
+      source:
+        "unresolved",
+
+      reason:
+        "safe_reply_allowed_intents_missing",
+
+      model:
+        AI_MODEL,
+
+      inputTokens:
+        null,
+
+      outputTokens:
+        null,
+    };
+  }
+
+  const prompt =
+    [
+      "You are a safe-intent classifier inside MagicTouch.",
+      "",
+      "Your task is only to classify the customer's WhatsApp message into one of the explicitly allowed safe intents.",
+      "",
+      "Important rules:",
+      "- Choose only from the supplied allowed intents.",
+      "- Do not invent intents.",
+      "- Do not answer the customer.",
+      "- Use the full current business context to interpret short, incomplete, or referential messages.",
+      "- The customer may omit details because they are obvious from the ongoing conversation.",
+      "- A help request can relate to the current run without completing the business event the run is waiting for.",
+      "- Never infer that a document, signature, booking, payment, or other business event was completed unless the supplied system context explicitly says so.",
+      "- Return intent as null only when the customer message genuinely does not fit any allowed safe intent.",
+      "- Confidence must be between 0 and 1.",
+      "",
+      flowName
+        ? `Flow name:\n${flowName}`
+        : "Flow name: unavailable",
+      "",
+      stepName
+        ? `Current step:\n${stepName}`
+        : stepId
+          ? `Current step id:\n${stepId}`
+          : "Current step: unavailable",
+      "",
+      waitingForType
+        ? `Run waiting for:\n${waitingForType}`
+        : "Run waiting for: unavailable",
+      "",
+      promptContext
+        ? `Relevant prompt/context:\n${promptContext}`
+        : "Relevant prompt/context: unavailable",
+      "",
+      businessContextText
+        ? `Current business context:\n${businessContextText}`
+        : "Current business context: unavailable",
+      "",
+      `Customer message:\n${messageText}`,
+      "",
+      `Allowed safe intents:\n${allowedIntents.join("\n")}`,
+    ].join(
+      "\n"
+    );
+
+  try {
+    const {
+      parsed,
+      inputTokens,
+      outputTokens,
+    } =
+      await callOpenAIJson({
+        prompt,
+
+        schemaName:
+          "magic_touch_safe_reply_intent",
+
+        schema: {
+          type:
+            "object",
+
+          additionalProperties:
+            false,
+
+          properties: {
+            intent: {
+              anyOf: [
+                {
+                  type:
+                    "string",
+
+                  enum:
+                    allowedIntents,
+                },
+
+                {
+                  type:
+                    "null",
+                },
+              ],
+            },
+
+            confidence: {
+              type:
+                "number",
+
+              minimum:
+                0,
+
+              maximum:
+                1,
+            },
+          },
+
+          required: [
+            "intent",
+            "confidence",
+          ],
+        },
+      });
+
+    const intent =
+      s(
+        parsed
+          ?.intent
+      ) ||
+      null;
+
+    const confidence =
+      normalizeConfidence(
+        parsed
+          ?.confidence
+      );
+
+    const validIntent =
+      intent &&
+      allowedIntents.includes(
+        intent
+      )
+        ? intent
+        : null;
+
+    const result:
+      MagicTouchSafeReplyIntentResult = {
+      intent:
+        validIntent,
+
+      confidence,
+
+      source:
+        validIntent
+          ? "ai"
+          : "unresolved",
+
+      reason:
+        validIntent
+          ? "safe_reply_intent_resolved"
+          : "safe_reply_intent_unresolved",
+
+      model:
+        AI_MODEL,
+
+      inputTokens,
+
+      outputTokens,
+    };
+
+    await saveSafeReplyIntentUsage({
+      input,
+      result,
+    });
+
+    return result;
+  } catch (
+    error: any
+  ) {
+    logger.error(
+      "[MagicTouchActionResolver] Safe reply intent resolution failed",
+      {
+        agentId:
+          input.context
+            ?.agentId ||
+          null,
+
+        runId:
+          input.context
+            ?.runId ||
+          null,
+
+        error:
+          error?.message ||
+          String(
+            error
+          ),
+      }
+    );
+
+    return {
+      intent:
+        null,
+
+      confidence:
+        null,
+
+      source:
+        "unresolved",
+
+      reason:
+        "safe_reply_intent_resolution_failed",
+
+      model:
+        AI_MODEL,
+
+      inputTokens:
+        null,
+
+      outputTokens:
+        null,
+    };
+  }
+}
+
+
+function buildConversationProfileText(
+  value: unknown
+): string {
+  if (
+    !value ||
+    typeof value !==
+      "object"
+  ) {
+    return "";
+  }
+
+  try {
+    return JSON.stringify(
+      value,
+      null,
+      2
+    );
+  } catch {
+    return "";
+  }
+}
+
+export async function generateMagicTouchSafeReply(
+  input:
+    MagicTouchSafeReplyGenerationInput
+): Promise<MagicTouchSafeReplyGenerationResult> {
+  const messageText =
+    s(
+      input.messageText
+    );
+
+  const intent =
+    s(
+      input.intent
+    );
+
+  if (
+    !messageText ||
+    !intent
+  ) {
+    return {
+      replyText:
+        null,
+
+      confidence:
+        null,
+
+      source:
+        "unresolved",
+
+      reason:
+        "safe_reply_generation_input_missing",
+
+      model:
+        AI_MODEL,
+
+      inputTokens:
+        null,
+
+      outputTokens:
+        null,
+    };
+  }
+
+  const businessContextText =
+    buildSafeReplyBusinessContextText(
+      input.businessContext
+    );
+
+  const conversationProfileText =
+    buildConversationProfileText(
+      input.conversationProfile
+    );
+
+  const flowName =
+    s(
+      input.flowName
+    );
+
+  const stepName =
+    s(
+      input.stepName
+    );
+
+  const stepId =
+    s(
+      input.stepId
+    );
+
+  const waitingForType =
+    s(
+      input.waitingForType
+    );
+
+  const promptContext =
+    s(
+      input.prompt
+    );
+
+  const prompt =
+    [
+      "You generate a safe WhatsApp reply for MagicTouch.",
+      "",
+      "The customer's intent was already classified and approved by policy.",
+      "Write only the reply that may be sent to the customer.",
+      "",
+      "Safety rules:",
+      "- Use only facts, links and instructions present in the supplied business context.",
+      "- Do not invent business facts, status, dates, links, commitments, professional advice or actions.",
+      "- Do not claim that a document, signature, booking, payment or other event was completed unless the context explicitly confirms it.",
+      "- Do not change the flow state and do not tell the customer that an action was completed.",
+      "- If the available context is insufficient to answer safely, return replyText as null.",
+      "- Keep the reply concise and natural for WhatsApp.",
+      "- Never mention AI, automation, a bot, system routing, human_attention, internal flows, runs, intents or confidence.",
+      "- Speak as the agent/business itself, not as an assistant handing the conversation to someone else.",
+      "- Follow the supplied conversation profile when possible.",
+      "",
+      `Approved safe intent:\n${intent}`,
+      "",
+      flowName
+        ? `Flow name:\n${flowName}`
+        : "Flow name: unavailable",
+      "",
+      stepName
+        ? `Current step:\n${stepName}`
+        : stepId
+          ? `Current step id:\n${stepId}`
+          : "Current step: unavailable",
+      "",
+      waitingForType
+        ? `Run waiting for:\n${waitingForType}`
+        : "Run waiting for: unavailable",
+      "",
+      promptContext
+        ? `Relevant prompt/context:\n${promptContext}`
+        : "Relevant prompt/context: unavailable",
+      "",
+      businessContextText
+        ? `Current business context:\n${businessContextText}`
+        : "Current business context: unavailable",
+      "",
+      conversationProfileText
+        ? `Agent conversation profile:\n${conversationProfileText}`
+        : "Agent conversation profile: unavailable",
+      "",
+      `Customer message:\n${messageText}`,
+    ].join(
+      "\n"
+    );
+
+  try {
+    const {
+      parsed,
+      inputTokens,
+      outputTokens,
+    } =
+      await callOpenAIJson({
+        prompt,
+
+        schemaName:
+          "magic_touch_safe_reply_generation",
+
+        schema: {
+          type:
+            "object",
+
+          additionalProperties:
+            false,
+
+          properties: {
+            replyText: {
+              anyOf: [
+                {
+                  type:
+                    "string",
+                },
+
+                {
+                  type:
+                    "null",
+                },
+              ],
+            },
+
+            confidence: {
+              type:
+                "number",
+
+              minimum:
+                0,
+
+              maximum:
+                1,
+            },
+          },
+
+          required: [
+            "replyText",
+            "confidence",
+          ],
+        },
+      });
+
+    const replyText =
+      s(
+        parsed
+          ?.replyText
+      ) ||
+      null;
+
+    const confidence =
+      normalizeConfidence(
+        parsed
+          ?.confidence
+      );
+
+    const result:
+      MagicTouchSafeReplyGenerationResult = {
+      replyText,
+
+      confidence,
+
+      source:
+        replyText
+          ? "ai"
+          : "unresolved",
+
+      reason:
+        replyText
+          ? "safe_reply_generated"
+          : "safe_reply_generation_unresolved",
+
+      model:
+        AI_MODEL,
+
+      inputTokens,
+
+      outputTokens,
+    };
+
+    await saveSafeReplyGenerationUsage({
+      input,
+      result,
+    });
+
+    return result;
+  } catch (
+    error: any
+  ) {
+    logger.error(
+      "[MagicTouchActionResolver] Safe reply generation failed",
+      {
+        agentId:
+          input.context
+            ?.agentId ||
+          null,
+
+        runId:
+          input.context
+            ?.runId ||
+          null,
+
+        error:
+          error?.message ||
+          String(
+            error
+          ),
+      }
+    );
+
+    return {
+      replyText:
+        null,
+
+      confidence:
+        null,
+
+      source:
+        "unresolved",
+
+      reason:
+        "safe_reply_generation_failed",
+
+      model:
+        AI_MODEL,
+
+      inputTokens:
+        null,
+
+      outputTokens:
+        null,
     };
   }
 }
