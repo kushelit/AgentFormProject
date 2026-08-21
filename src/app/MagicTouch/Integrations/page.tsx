@@ -114,6 +114,14 @@ export default function MagicTouchIntegrationsPage() {
           icon="📥"
           statusText="ייבוא"
         />
+
+        <IntegrationCard
+  title="AI ושיחות"
+  description="שליטה בהבנת שיחות, הרשאות AI וסגנון השיחה של הסוכן."
+  href="/MagicTouch/Integrations/AI"
+  icon="✨"
+  statusText="AI"
+/>
       </section>
     </main>
   );

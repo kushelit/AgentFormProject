@@ -13,6 +13,10 @@ import type {ExecuteStepResult} from "../executeMagicTouchFlowStep";
 import {resolveMagicTouchStringTemplate} from "../../shared/magicTouchAutomationValueResolver";
 import {createMagicTouchDocumentRequest} from "../../shared/magicTouchDocumentRequestService";
 
+import {
+  nowTs,
+} from "../../shared/admin";
+
 function s(value: any): string {
   return String(value ?? "").trim();
 }
@@ -47,15 +51,64 @@ export async function executeRequestDocumentsStep({context, step}: {
     message: rawMessage,
   });
 
-  return {
-    status: "waiting",
-    nextStepId: step.nextStepId || null,
-    waitingUntil: null,
-    output: {
-      requestId: result.requestId,
-      uploadUrl: result.uploadUrl,
-      status: "requested",
-      waitingFor: "identity_card_both_sides",
+ return {
+  status: "waiting",
+
+  nextStepId:
+    step.nextStepId ||
+    null,
+
+  waitingUntil:
+    null,
+
+  waitingFor: {
+    type:
+      "document",
+
+    stepId:
+      step.id,
+
+    resumeStepId:
+      step.nextStepId ||
+      null,
+
+    startedAt:
+      nowTs(),
+
+    context: {
+      requestId:
+        result.requestId,
+
+      documentSet:
+        s(
+          step.config?.documentSet
+        ) ||
+        "identity_card_both_sides",
+
+      uploadUrl:
+        result.uploadUrl,
+
+      conversationId,
+
+      contactId,
     },
-  };
+  },
+
+  output: {
+    requestId:
+      result.requestId,
+
+    uploadUrl:
+      result.uploadUrl,
+
+    status:
+      "requested",
+
+    waitingFor:
+      s(
+        step.config?.documentSet
+      ) ||
+      "identity_card_both_sides",
+  },
+};
 }

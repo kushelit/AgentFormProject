@@ -318,3 +318,9 @@ export {
 export {
   syncGoogleCalendarAppointments,
 } from "./syncGoogleCalendarAppointments";
+
+export {
+  getMagicTouchAISettings,
+  saveSystemMagicTouchAISettings,
+  saveAgentMagicTouchAISettings,
+} from "./magicTouchAISettings";

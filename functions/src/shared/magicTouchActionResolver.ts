@@ -116,11 +116,87 @@ export interface MagicTouchActionResolverResult {
     number | null;
 }
 
+export interface MagicTouchConversationCandidate {
+  runId:
+    string;
+
+  flowId?:
+    string | null;
+
+  flowName?:
+    string | null;
+
+  status?:
+    string | null;
+
+  currentStepId?:
+    string | null;
+
+  waitingForType?:
+    string | null;
+
+  waitingStepId?:
+    string | null;
+
+  prompt?:
+    string | null;
+
+  expectedActions?:
+    string[];
+
+  responseOptions?:
+    MagicTouchResponseOption[];
+}
+
+export interface MagicTouchConversationTargetInput {
+  messageText:
+    string;
+
+  messageType?:
+    string | null;
+
+  candidates:
+    MagicTouchConversationCandidate[];
+
+  context?:
+    {
+      agentId?:
+        string | null;
+
+      contactId?:
+        string | null;
+
+      conversationId?:
+        string | null;
+    };
+}
+
+export interface MagicTouchConversationTargetResult {
+  targetRunId:
+    string | null;
+
+  intent:
+    string | null;
+
+  confidence:
+    number | null;
+
+  source:
+    "ai" |
+    "unresolved";
+
+  reason:
+    string;
+}
+
 const AI_MODEL =
   "gpt-5.6-luna";
 
 const DEFAULT_MIN_CONFIDENCE =
   0.8;
+
+const TARGET_RUN_MIN_CONFIDENCE =
+  0.7;
 
 function s(
   value: unknown
@@ -143,7 +219,9 @@ function normalizeActions(
 
   return values
     .map(
-      (value) =>
+      (
+        value
+      ) =>
         s(value)
     )
     .filter(
@@ -162,7 +240,9 @@ function isExpectedAction(
   }
 
   return expectedActions.some(
-    (expectedAction) =>
+    (
+      expectedAction
+    ) =>
       expectedAction ===
       action
   );
@@ -191,6 +271,209 @@ function normalizeConfidence(
       parsed
     )
   );
+}
+
+function getApiKey(): string {
+  return s(
+    OPENAI_API_KEY
+      .value()
+  );
+}
+
+function getOutputText(
+  responseBody: any
+): string {
+  const direct =
+    s(
+      responseBody
+        ?.output_text
+    );
+
+  if (
+    direct
+  ) {
+    return direct;
+  }
+
+  const outputs =
+    Array.isArray(
+      responseBody
+        ?.output
+    )
+      ? responseBody.output
+      : [];
+
+  for (
+    const output of
+    outputs
+  ) {
+    const content =
+      Array.isArray(
+        output?.content
+      )
+        ? output.content
+        : [];
+
+    for (
+      const item of
+      content
+    ) {
+      const text =
+        s(
+          item?.text
+        );
+
+      if (
+        text
+      ) {
+        return text;
+      }
+    }
+  }
+
+  return "";
+}
+
+async function callOpenAIJson({
+  prompt,
+  schemaName,
+  schema,
+}: {
+  prompt: string;
+  schemaName: string;
+  schema: Record<string, any>;
+}): Promise<{
+  parsed: any;
+  inputTokens: number;
+  outputTokens: number;
+}> {
+  const apiKey =
+    getApiKey();
+
+  if (
+    !apiKey
+  ) {
+    throw new Error(
+      "OPENAI_API_KEY is missing"
+    );
+  }
+
+  const response =
+    await fetch(
+      "https://api.openai.com/v1/responses",
+      {
+        method:
+          "POST",
+
+        headers: {
+          Authorization:
+            `Bearer ${apiKey}`,
+
+          "Content-Type":
+            "application/json",
+        },
+
+        body:
+          JSON.stringify({
+            model:
+              AI_MODEL,
+
+            store:
+              false,
+
+            max_output_tokens:
+              160,
+
+            input: [
+              {
+                role:
+                  "user",
+
+                content: [
+                  {
+                    type:
+                      "input_text",
+
+                    text:
+                      prompt,
+                  },
+                ],
+              },
+            ],
+
+            text: {
+              format: {
+                type:
+                  "json_schema",
+
+                name:
+                  schemaName,
+
+                strict:
+                  true,
+
+                schema,
+              },
+            },
+          }),
+      }
+    );
+
+  const responseBody:
+    any =
+    await response.json();
+
+  if (
+    !response.ok
+  ) {
+    const apiMessage =
+      s(
+        responseBody
+          ?.error
+          ?.message
+      );
+
+    throw new Error(
+      apiMessage ||
+      `OpenAI request failed with status ${response.status}`
+    );
+  }
+
+  const outputText =
+    getOutputText(
+      responseBody
+    );
+
+  if (
+    !outputText
+  ) {
+    throw new Error(
+      "OpenAI output is missing"
+    );
+  }
+
+  return {
+    parsed:
+      JSON.parse(
+        outputText
+      ),
+
+    inputTokens:
+      Number(
+        responseBody
+          ?.usage
+          ?.input_tokens ||
+        0
+      ),
+
+    outputTokens:
+      Number(
+        responseBody
+          ?.usage
+          ?.output_tokens ||
+        0
+      ),
+  };
 }
 
 function buildResponseOptionsText(
@@ -278,12 +561,16 @@ function buildResponseOptionsText(
 async function saveAiUsage({
   input,
   result,
+  purpose,
 }: {
   input:
     MagicTouchActionResolverInput;
 
   result:
     MagicTouchActionResolverResult;
+
+  purpose:
+    string;
 }): Promise<void> {
   const agentId =
     s(
@@ -313,8 +600,7 @@ async function saveAiUsage({
           result.model ||
           null,
 
-        purpose:
-          "intent_resolution",
+        purpose,
 
         runId:
           s(
@@ -384,19 +670,10 @@ async function saveAiUsage({
   } catch (
     error: any
   ) {
-    /*
-     * שימוש ב-AI לא צריך להיכשל
-     * רק כי רישום usage נכשל.
-     */
     logger.error(
       "[MagicTouchActionResolver] Failed to save AI usage",
       {
         agentId,
-
-        runId:
-          input.context
-            ?.runId ||
-          null,
 
         error:
           error?.message ||
@@ -408,23 +685,142 @@ async function saveAiUsage({
   }
 }
 
-async function resolveWithOpenAI(
+async function saveTargetRoutingUsage({
+  input,
+  result,
+  inputTokens,
+  outputTokens,
+}: {
   input:
-    MagicTouchActionResolverInput,
-  expectedActions:
-    string[]
-): Promise<MagicTouchActionResolverResult> {
-  const apiKey =
+    MagicTouchConversationTargetInput;
+
+  result:
+    MagicTouchConversationTargetResult;
+
+  inputTokens:
+    number;
+
+  outputTokens:
+    number;
+}): Promise<void> {
+  const agentId =
     s(
-      OPENAI_API_KEY
-        .value()
+      input.context
+        ?.agentId
     );
 
   if (
-    !apiKey
+    !agentId
+  ) {
+    return;
+  }
+
+  try {
+    const db =
+      adminDb();
+
+    await db
+      .collection(
+        `agents/${agentId}/magic_touch_ai_usage`
+      )
+      .add({
+        provider:
+          "openai",
+
+        model:
+          AI_MODEL,
+
+        purpose:
+          "conversation_target_routing",
+
+        contactId:
+          s(
+            input.context
+              ?.contactId
+          ) ||
+          null,
+
+        conversationId:
+          s(
+            input.context
+              ?.conversationId
+          ) ||
+          null,
+
+        targetRunId:
+          result
+            .targetRunId ||
+          null,
+
+        intent:
+          result.intent ||
+          null,
+
+        confidence:
+          result
+            .confidence ??
+          null,
+
+        source:
+          result.source,
+
+        reason:
+          result.reason,
+
+        candidateCount:
+          input.candidates.length,
+
+        inputTokens,
+
+        outputTokens,
+
+        createdAt:
+          nowTs(),
+      });
+  } catch (
+    error: any
+  ) {
+    logger.error(
+      "[MagicTouchActionResolver] Failed to save target routing usage",
+      {
+        agentId,
+
+        error:
+          error?.message ||
+          String(
+            error
+          ),
+      }
+    );
+  }
+}
+
+export async function resolveMagicTouchConversationTarget(
+  input:
+    MagicTouchConversationTargetInput
+): Promise<MagicTouchConversationTargetResult> {
+  const messageText =
+    s(
+      input.messageText
+    );
+
+  const candidates =
+    Array.isArray(
+      input.candidates
+    )
+      ? input.candidates
+      : [];
+
+  if (
+    !messageText ||
+    candidates.length ===
+      0
   ) {
     return {
-      resolvedAction:
+      targetRunId:
+        null,
+
+      intent:
         null,
 
       confidence:
@@ -434,10 +830,320 @@ async function resolveWithOpenAI(
         "unresolved",
 
       reason:
-        "openai_api_key_missing",
+        "conversation_target_input_missing",
     };
   }
 
+  /*
+   * אם יש Run פעיל אחד בלבד,
+   * אין צורך לשלם על AI רק כדי לבחור אותו.
+   */
+  if (
+    candidates.length ===
+    1
+  ) {
+    return {
+      targetRunId:
+        candidates[0]
+          .runId,
+
+      intent:
+        null,
+
+      confidence:
+        1,
+
+      source:
+        "unresolved",
+
+      reason:
+        "single_active_run_selected",
+    };
+  }
+
+  const candidateIds =
+    candidates
+      .map(
+        (
+          candidate
+        ) =>
+          candidate.runId
+      )
+      .filter(
+        Boolean
+      );
+
+  const candidatesText =
+    candidates
+      .map(
+        (
+          candidate,
+          index
+        ) => {
+          const actions =
+            Array.isArray(
+              candidate
+                .responseOptions
+            )
+              ? candidate
+                  .responseOptions
+                  .map(
+                    (
+                      option
+                    ) =>
+                      [
+                        option.action,
+                        s(
+                          option.label
+                        ),
+                        s(
+                          option.description
+                        ),
+                      ]
+                        .filter(
+                          Boolean
+                        )
+                        .join(
+                          ": "
+                        )
+                  )
+                  .join(
+                    ", "
+                  )
+              : "";
+
+          return [
+            `Candidate ${index + 1}`,
+            `runId: ${candidate.runId}`,
+            `flowName: ${candidate.flowName || ""}`,
+            `status: ${candidate.status || ""}`,
+            `waitingForType: ${candidate.waitingForType || ""}`,
+            `prompt/context: ${candidate.prompt || ""}`,
+            `possible actions: ${actions}`,
+          ].join(
+            "\n"
+          );
+        }
+      )
+      .join(
+        "\n\n"
+      );
+
+  const prompt =
+    [
+      "You are the conversation router for MagicTouch.",
+      "",
+      "A customer sent a new WhatsApp message while multiple business flows are active.",
+      "Choose which active run the message is most closely related to.",
+      "",
+      "Important:",
+      "- A run may be waiting for a document, signature, booking, customer response, or another event.",
+      "- A customer can ask for help about a run even when that message does NOT complete the event the run is waiting for.",
+      "- Example: 'I cannot upload the document' belongs to a run waiting for a document, but it does not mean the document was received.",
+      "- Example: 'Yes, I want another appointment' belongs to a run whose context asks whether the customer wants to reschedule.",
+      "- Do not choose based only on waitingForType. Use the semantic meaning of the customer message and each run context.",
+      "- If none of the runs is clearly relevant, return targetRunId as null.",
+      "- intent should be a short semantic label such as document_help, signature_help, booking, declined, question, callback, or another concise intent.",
+      "",
+      `Customer message:\n${messageText}`,
+      "",
+      `Active runs:\n${candidatesText}`,
+    ].join(
+      "\n"
+    );
+
+  try {
+    const {
+      parsed,
+      inputTokens,
+      outputTokens,
+    } =
+      await callOpenAIJson({
+        prompt,
+
+        schemaName:
+          "magic_touch_conversation_target",
+
+        schema: {
+          type:
+            "object",
+
+          additionalProperties:
+            false,
+
+          properties: {
+            targetRunId: {
+              anyOf: [
+                {
+                  type:
+                    "string",
+
+                  enum:
+                    candidateIds,
+                },
+
+                {
+                  type:
+                    "null",
+                },
+              ],
+            },
+
+            intent: {
+              anyOf: [
+                {
+                  type:
+                    "string",
+                },
+
+                {
+                  type:
+                    "null",
+                },
+              ],
+            },
+
+            confidence: {
+              type:
+                "number",
+
+              minimum:
+                0,
+
+              maximum:
+                1,
+            },
+          },
+
+          required: [
+            "targetRunId",
+            "intent",
+            "confidence",
+          ],
+        },
+      });
+
+    const targetRunId =
+      s(
+        parsed
+          ?.targetRunId
+      ) ||
+      null;
+
+    const confidence =
+      normalizeConfidence(
+        parsed
+          ?.confidence
+      );
+
+    const intent =
+      s(
+        parsed
+          ?.intent
+      ) ||
+      null;
+
+    const validTarget =
+      targetRunId &&
+      candidateIds.includes(
+        targetRunId
+      )
+        ? targetRunId
+        : null;
+
+    const result:
+      MagicTouchConversationTargetResult =
+      validTarget &&
+      confidence >=
+        TARGET_RUN_MIN_CONFIDENCE
+        ? {
+            targetRunId:
+              validTarget,
+
+            intent,
+
+            confidence,
+
+            source:
+              "ai",
+
+            reason:
+              "ai_conversation_target_resolved",
+          }
+        : {
+            targetRunId:
+              null,
+
+            intent,
+
+            confidence,
+
+            source:
+              "unresolved",
+
+            reason:
+              validTarget
+                ? "ai_conversation_target_below_threshold"
+                : "ai_conversation_target_unresolved",
+          };
+
+    await saveTargetRoutingUsage({
+      input,
+      result,
+      inputTokens,
+      outputTokens,
+    });
+
+    return result;
+  } catch (
+    error: any
+  ) {
+    logger.error(
+      "[MagicTouchActionResolver] Conversation target resolution failed",
+      {
+        agentId:
+          input.context
+            ?.agentId ||
+          null,
+
+        conversationId:
+          input.context
+            ?.conversationId ||
+          null,
+
+        error:
+          error?.message ||
+          String(
+            error
+          ),
+      }
+    );
+
+    return {
+      targetRunId:
+        null,
+
+      intent:
+        null,
+
+      confidence:
+        null,
+
+      source:
+        "unresolved",
+
+      reason:
+        "conversation_target_resolution_failed",
+    };
+  }
+}
+
+async function resolveWithOpenAI(
+  input:
+    MagicTouchActionResolverInput,
+  expectedActions:
+    string[]
+): Promise<MagicTouchActionResolverResult> {
   const messageText =
     s(
       input.messageText
@@ -487,266 +1193,96 @@ async function resolveWithOpenAI(
       "\n"
     );
 
-  const response =
-    await fetch(
-      "https://api.openai.com/v1/responses",
-      {
-        method:
-          "POST",
-
-        headers: {
-          Authorization:
-            `Bearer ${apiKey}`,
-
-          "Content-Type":
-            "application/json",
-        },
-
-        body:
-          JSON.stringify({
-            model:
-              AI_MODEL,
-
-            store:
-              false,
-
-            reasoning: {
-              effort:
-                "none",
-            },
-
-            max_output_tokens:
-              100,
-
-            input: [
-              {
-                role:
-                  "user",
-
-                content: [
-                  {
-                    type:
-                      "input_text",
-
-                    text:
-                      prompt,
-                  },
-                ],
-              },
-            ],
-
-            text: {
-              format: {
-                type:
-                  "json_schema",
-
-                name:
-                  "magic_touch_intent_resolution",
-
-                strict:
-                  true,
-
-                schema: {
-                  type:
-                    "object",
-
-                  additionalProperties:
-                    false,
-
-                  properties: {
-                    resolvedAction: {
-                      anyOf: [
-                        {
-                          type:
-                            "string",
-
-                          enum:
-                            expectedActions,
-                        },
-
-                        {
-                          type:
-                            "null",
-                        },
-                      ],
-                    },
-
-                    confidence: {
-                      type:
-                        "number",
-
-                      minimum:
-                        0,
-
-                      maximum:
-                        1,
-                    },
-                  },
-
-                  required: [
-                    "resolvedAction",
-                    "confidence",
-                  ],
-                },
-              },
-            },
-          }),
-      }
-    );
-
-  const responseBody:
-    any =
-    await response.json();
-
-  if (
-    !response.ok
-  ) {
-    const apiMessage =
-      s(
-        responseBody
-          ?.error
-          ?.message
-      );
-
-    throw new Error(
-      apiMessage ||
-      `OpenAI request failed with status ${response.status}`
-    );
-  }
-
-  const outputText =
-    s(
-      responseBody
-        ?.output_text
-    );
-
-  if (
-    !outputText
-  ) {
-    return {
-      resolvedAction:
-        null,
-
-      confidence:
-        null,
-
-      source:
-        "unresolved",
-
-      reason:
-        "openai_output_missing",
-
-      model:
-        AI_MODEL,
-
-      inputTokens:
-        Number(
-          responseBody
-            ?.usage
-            ?.input_tokens ||
-          0
-        ),
-
-      outputTokens:
-        Number(
-          responseBody
-            ?.usage
-            ?.output_tokens ||
-          0
-        ),
-    };
-  }
-
-  let parsed:
-    any;
-
   try {
-    parsed =
-      JSON.parse(
-        outputText
+    const {
+      parsed,
+      inputTokens,
+      outputTokens,
+    } =
+      await callOpenAIJson({
+        prompt,
+
+        schemaName:
+          "magic_touch_intent_resolution",
+
+        schema: {
+          type:
+            "object",
+
+          additionalProperties:
+            false,
+
+          properties: {
+            resolvedAction: {
+              anyOf: [
+                {
+                  type:
+                    "string",
+
+                  enum:
+                    expectedActions,
+                },
+
+                {
+                  type:
+                    "null",
+                },
+              ],
+            },
+
+            confidence: {
+              type:
+                "number",
+
+              minimum:
+                0,
+
+              maximum:
+                1,
+            },
+          },
+
+          required: [
+            "resolvedAction",
+            "confidence",
+          ],
+        },
+      });
+
+    const resolvedAction =
+      s(
+        parsed
+          ?.resolvedAction
+      ) ||
+      null;
+
+    const confidence =
+      normalizeConfidence(
+        parsed
+          ?.confidence
       );
-  } catch {
+
     return {
       resolvedAction:
-        null,
-
-      confidence:
-        null,
-
-      source:
-        "unresolved",
-
-      reason:
-        "openai_output_invalid_json",
-
-      model:
-        AI_MODEL,
-
-      inputTokens:
-        Number(
-          responseBody
-            ?.usage
-            ?.input_tokens ||
-          0
-        ),
-
-      outputTokens:
-        Number(
-          responseBody
-            ?.usage
-            ?.output_tokens ||
-          0
-        ),
-    };
-  }
-
-  const resolvedAction =
-    s(
-      parsed
-        ?.resolvedAction
-    ) ||
-    null;
-
-  const confidence =
-    normalizeConfidence(
-      parsed
-        ?.confidence
-    );
-
-  const inputTokens =
-    Number(
-      responseBody
-        ?.usage
-        ?.input_tokens ||
-      0
-    );
-
-  const outputTokens =
-    Number(
-      responseBody
-        ?.usage
-        ?.output_tokens ||
-      0
-    );
-
-  if (
-    resolvedAction &&
-    !isExpectedAction(
-      resolvedAction,
-      expectedActions
-    )
-  ) {
-    return {
-      resolvedAction:
-        null,
+        resolvedAction &&
+        isExpectedAction(
+          resolvedAction,
+          expectedActions
+        )
+          ? resolvedAction
+          : null,
 
       confidence,
 
       source:
-        "unresolved",
+        resolvedAction
+          ? "ai"
+          : "unresolved",
 
       reason:
-        "ai_action_not_expected",
+        resolvedAction
+          ? "ai_action_resolved"
+          : "ai_action_unresolved",
 
       model:
         AI_MODEL,
@@ -755,30 +1291,53 @@ async function resolveWithOpenAI(
 
       outputTokens,
     };
+  } catch (
+    error: any
+  ) {
+    logger.error(
+      "[MagicTouchActionResolver] AI action resolution failed",
+      {
+        agentId:
+          input.context
+            ?.agentId ||
+          null,
+
+        runId:
+          input.context
+            ?.runId ||
+          null,
+
+        error:
+          error?.message ||
+          String(
+            error
+          ),
+      }
+    );
+
+    return {
+      resolvedAction:
+        null,
+
+      confidence:
+        null,
+
+      source:
+        "unresolved",
+
+      reason:
+        "ai_resolution_failed",
+
+      model:
+        AI_MODEL,
+
+      inputTokens:
+        null,
+
+      outputTokens:
+        null,
+    };
   }
-
-  return {
-    resolvedAction,
-
-    confidence,
-
-    source:
-      resolvedAction
-        ? "ai"
-        : "unresolved",
-
-    reason:
-      resolvedAction
-        ? "ai_action_resolved"
-        : "ai_action_unresolved",
-
-    model:
-      AI_MODEL,
-
-    inputTokens,
-
-    outputTokens,
-  };
 }
 
 export async function resolveMagicTouchAction(
@@ -800,10 +1359,6 @@ export async function resolveMagicTouchAction(
       input.expectedActions
     );
 
-  /*
-   * Quick Reply הוא Action מפורש.
-   * אין שום צורך להפעיל AI.
-   */
   if (
     quickReplyAction
   ) {
@@ -863,7 +1418,7 @@ export async function resolveMagicTouchAction(
 
   if (
     expectedActions.length ===
-    0
+      0
   ) {
     return {
       resolvedAction:
@@ -885,11 +1440,6 @@ export async function resolveMagicTouchAction(
       ?.mode ||
     "quick_reply_only";
 
-  /*
-   * השליטה נמצאת ברמת ה-Flow.
-   * אם AI לא הותר ב-Step הזה,
-   * לא מתבצעת קריאת API.
-   */
   if (
     resolutionMode ===
     "quick_reply_only"
@@ -928,93 +1478,50 @@ export async function resolveMagicTouchAction(
         )
       : DEFAULT_MIN_CONFIDENCE;
 
-  try {
-    const aiResult =
-      await resolveWithOpenAI(
-        input,
-        expectedActions
-      );
-
-    /*
-     * רושמים שימוש לצורך עלויות וניטור.
-     */
-    await saveAiUsage({
+  const aiResult =
+    await resolveWithOpenAI(
       input,
-      result:
-        aiResult,
-    });
-
-    if (
-      !aiResult
-        .resolvedAction
-    ) {
-      return aiResult;
-    }
-
-    if (
-      (
-        aiResult
-          .confidence ??
-        0
-      ) <
-      minConfidence
-    ) {
-      return {
-        ...aiResult,
-
-        resolvedAction:
-          null,
-
-        source:
-          "unresolved",
-
-        reason:
-          "ai_confidence_below_threshold",
-      };
-    }
-
-    return aiResult;
-  } catch (
-    error: any
-  ) {
-    logger.error(
-      "[MagicTouchActionResolver] AI resolution failed",
-      {
-        agentId:
-          input.context
-            ?.agentId ||
-          null,
-
-        runId:
-          input.context
-            ?.runId ||
-          null,
-
-        flowId:
-          input.context
-            ?.flowId ||
-          null,
-
-        error:
-          error?.message ||
-          String(
-            error
-          ),
-      }
+      expectedActions
     );
 
-    return {
-      resolvedAction:
-        null,
+  await saveAiUsage({
+    input,
 
-      confidence:
+    result:
+      aiResult,
+
+    purpose:
+      "intent_resolution",
+  });
+
+  if (
+    !aiResult
+      .resolvedAction
+  ) {
+    return aiResult;
+  }
+
+  if (
+    (
+      aiResult
+        .confidence ??
+      0
+    ) <
+    minConfidence
+  ) {
+    return {
+      ...aiResult,
+
+      resolvedAction:
         null,
 
       source:
         "unresolved",
 
       reason:
-        "ai_resolution_failed",
+        "ai_confidence_below_threshold",
     };
   }
+
+  return aiResult;
 }

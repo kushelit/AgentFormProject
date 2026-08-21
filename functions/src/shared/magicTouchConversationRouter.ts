@@ -8,12 +8,17 @@ import {
 
 import {
   resolveMagicTouchAction,
+  resolveMagicTouchConversationTarget,
 } from "./magicTouchActionResolver";
 
 import type {
   MagicTouchResponseOption,
+  MagicTouchConversationCandidate,
 } from "./magicTouchActionResolver";
 
+import {
+  getEffectiveMagicTouchAISettings,
+} from "../magicTouchAISettings.impl";
 
 export type MagicTouchContactState =
   | "known"
@@ -43,17 +48,11 @@ export type MagicTouchResolvedAction =
 
 export interface MagicTouchConversationRouteInput {
   agentId: string;
-
   contactId?: string | null;
-
   conversationId: string;
-
   phoneNormalized: string;
-
   messageText?: string | null;
-
   messageType?: string | null;
-
   quickReplyAction?: string | null;
 }
 
@@ -86,6 +85,11 @@ export interface MagicTouchConversationRouteResult {
     string;
 }
 
+type ActiveRunRecord = {
+  runId: string;
+  data: Record<string, any>;
+};
+
 function s(
   value: unknown
 ): string {
@@ -94,7 +98,7 @@ function s(
   ).trim();
 }
 
-async function findActiveRun({
+async function findActiveRuns({
   agentId,
   contactId,
   conversationId,
@@ -102,7 +106,7 @@ async function findActiveRun({
   agentId: string;
   contactId: string | null;
   conversationId: string;
-}) {
+}): Promise<ActiveRunRecord[]> {
   const db =
     adminDb();
 
@@ -111,17 +115,58 @@ async function findActiveRun({
       `agents/${agentId}/magic_touch_flow_runs`
     );
 
-  /*
-   * בשלב הראשון אנחנו מגדירים כפעיל Run
-   * שנמצא ב-processing או waiting.
-   *
-   * בהמשך נוכל להרחיב את זה ל-waitingFor
-   * ולהבין בדיוק איזו תשובה ה-Flow מצפה לקבל.
-   */
+  const result =
+    new Map<
+      string,
+      ActiveRunRecord
+    >();
 
-  if (conversationId) {
-    const waitingByConversation =
-      await runsRef
+  async function addQueryResults(
+    query:
+      FirebaseFirestore.Query
+  ): Promise<void> {
+    const snap =
+      await query.get();
+
+    for (
+      const doc of
+      snap.docs
+    ) {
+      const data =
+        doc.data() as Record<
+          string,
+          any
+        >;
+
+      const status =
+        s(
+          data?.status
+        );
+
+      if (
+        status !== "waiting" &&
+        status !== "processing"
+      ) {
+        continue;
+      }
+
+      result.set(
+        doc.id,
+        {
+          runId:
+            doc.id,
+
+          data,
+        }
+      );
+    }
+  }
+
+  if (
+    conversationId
+  ) {
+    await addQueryResults(
+      runsRef
         .where(
           "conversationId",
           "==",
@@ -135,28 +180,20 @@ async function findActiveRun({
             "processing",
           ]
         )
-        .limit(1)
-        .get();
-
-    if (
-      !waitingByConversation.empty
-    ) {
-      const doc =
-        waitingByConversation.docs[0];
-
-      return {
-        runId:
-          doc.id,
-
-        data:
-          doc.data(),
-      };
-    }
+        .limit(20)
+    );
   }
 
-  if (contactId) {
-    const waitingByContact =
-      await runsRef
+  /*
+   * Fallback לפי contactId.
+   * Map מונע כפילויות אם אותו Run
+   * נמצא גם לפי conversation וגם לפי contact.
+   */
+  if (
+    contactId
+  ) {
+    await addQueryResults(
+      runsRef
         .where(
           "contactId",
           "==",
@@ -170,26 +207,13 @@ async function findActiveRun({
             "processing",
           ]
         )
-        .limit(1)
-        .get();
-
-    if (
-      !waitingByContact.empty
-    ) {
-      const doc =
-        waitingByContact.docs[0];
-
-      return {
-        runId:
-          doc.id,
-
-        data:
-          doc.data(),
-      };
-    }
+        .limit(20)
+    );
   }
 
-  return null;
+  return Array.from(
+    result.values()
+  );
 }
 
 async function findPreviousCompletedRun({
@@ -209,7 +233,9 @@ async function findPreviousCompletedRun({
       `agents/${agentId}/magic_touch_flow_runs`
     );
 
-  if (conversationId) {
+  if (
+    conversationId
+  ) {
     const snap =
       await runsRef
         .where(
@@ -241,7 +267,9 @@ async function findPreviousCompletedRun({
     }
   }
 
-  if (contactId) {
+  if (
+    contactId
+  ) {
     const snap =
       await runsRef
         .where(
@@ -285,17 +313,23 @@ function getExpectedActions(
       ?.expectedActions;
 
   if (
-    !Array.isArray(values)
+    !Array.isArray(
+      values
+    )
   ) {
     return [];
   }
 
   return values
     .map(
-      (value: any) =>
+      (
+        value: any
+      ) =>
         s(value)
     )
-    .filter(Boolean);
+    .filter(
+      Boolean
+    );
 }
 
 function getResponseOptions(
@@ -307,7 +341,9 @@ function getResponseOptions(
       ?.responseOptions;
 
   if (
-    !Array.isArray(values)
+    !Array.isArray(
+      values
+    )
   ) {
     return [];
   }
@@ -382,7 +418,22 @@ function getPromptQuestion(
   );
 }
 
+function getResolution(
+  runData: any
+) {
+  return (
+    runData
+      ?.waitingFor
+      ?.resolution ||
+    {
+      mode:
+        "quick_reply_only" as const,
 
+      minConfidence:
+        0.8,
+    }
+  );
+}
 
 function actionIsExpected({
   resolvedAction,
@@ -392,29 +443,102 @@ function actionIsExpected({
   expectedActions: string[];
 }): boolean {
   if (
-    !resolvedAction
-  ) {
-    return false;
-  }
-
-  /*
-   * אם לא הוגדרו expectedActions,
-   * אנחנו לא מניחים שכל פעולה היא תקינה.
-   */
-  if (
+    !resolvedAction ||
     expectedActions.length ===
-    0
+      0
   ) {
     return false;
   }
 
   return expectedActions.some(
-    (expectedAction) =>
+    (
+      expectedAction
+    ) =>
       expectedAction ===
       resolvedAction
   );
 }
 
+function buildConversationCandidates(
+  activeRuns:
+    ActiveRunRecord[]
+): MagicTouchConversationCandidate[] {
+  return activeRuns.map(
+    (
+      activeRun
+    ) => {
+      const waitingFor =
+        activeRun.data
+          ?.waitingFor ||
+        null;
+
+      return {
+        runId:
+          activeRun.runId,
+
+        flowId:
+          s(
+            activeRun.data
+              ?.flowId
+          ) ||
+          null,
+
+        flowName:
+          s(
+            activeRun.data
+              ?.flowName
+          ) ||
+          null,
+
+        status:
+          s(
+            activeRun.data
+              ?.status
+          ) ||
+          null,
+
+        currentStepId:
+          s(
+            activeRun.data
+              ?.currentStepId
+          ) ||
+          null,
+
+        waitingForType:
+          s(
+            waitingFor
+              ?.type
+          ) ||
+          null,
+
+        waitingStepId:
+          s(
+            waitingFor
+              ?.stepId
+          ) ||
+          null,
+
+        prompt:
+          s(
+            waitingFor
+              ?.promptContext
+              ?.question
+          ) ||
+          null,
+
+        expectedActions:
+          getExpectedActions(
+            activeRun.data
+          ),
+
+        responseOptions:
+          getResponseOptions(
+            activeRun.data
+          ),
+      };
+    }
+  );
+}
 
 export async function routeMagicTouchConversation(
   input:
@@ -447,6 +571,11 @@ export async function routeMagicTouchConversation(
     ) ||
     null;
 
+  const messageText =
+    s(
+      input.messageText
+    );
+
   if (
     !agentId ||
     !conversationId ||
@@ -463,127 +592,125 @@ export async function routeMagicTouchConversation(
       ? "known"
       : "unknown";
 
-  const activeRun =
-    await findActiveRun({
+  /*
+   * מקור אמת אחד להגדרות AI:
+   * system + agent.
+   *
+   * Quick Reply נשאר דטרמיניסטי
+   * ולא דורש AI.
+   */
+  const aiSettings =
+    await getEffectiveMagicTouchAISettings(
+      agentId
+    );
+
+  const aiUnderstandingEnabled =
+    aiSettings.enabled &&
+    aiSettings.mode !==
+      "off";
+
+  const activeRuns =
+    await findActiveRuns({
       agentId,
       contactId,
       conversationId,
     });
 
- if (activeRun) {
-  const runStatus =
-    s(
-      activeRun.data
-        ?.status
-    );
-
-  const waitingForType =
-    s(
-      activeRun.data
-        ?.waitingFor
-        ?.type
-    );
-
-  const expectedActions =
-    getExpectedActions(
-      activeRun.data
-    );
-
-  const responseOptions =
-    getResponseOptions(
-      activeRun.data
-    );
-
-  const promptQuestion =
-    getPromptQuestion(
-      activeRun.data
-    );
-
-const resolution =
-  activeRun.data
-    ?.waitingFor
-    ?.resolution ||
-  {
-    mode:
-      "quick_reply_only" as const,
-
-    minConfidence:
-      0.8,
-  };
-
-  /*
-   * Resolver מופעל רק כאשר ה-Run
-   * באמת ממתין לתשובת לקוח.
-   */
   if (
-    runStatus ===
-      "waiting" &&
-    waitingForType ===
-      "customer_response"
+    activeRuns.length >
+    0
   ) {
-    const resolverResult =
-      await resolveMagicTouchAction({
-        messageText:
-          s(
-            input.messageText
-          ),
+    /*
+     * Quick Reply:
+     * קודם מנסים התאמה דטרמיניסטית ל-Run
+     * שמחכה ל-customer_response ומצפה ל-action.
+     *
+     * כך Quick Reply לא דורש AI.
+     */
+    if (
+      quickReplyAction
+    ) {
+      const matchingRun =
+        activeRuns.find(
+          (
+            activeRun
+          ) => {
+            const status =
+              s(
+                activeRun.data
+                  ?.status
+              );
 
-        quickReplyAction,
+            const waitingForType =
+              s(
+                activeRun.data
+                  ?.waitingFor
+                  ?.type
+              );
 
-        expectedActions,
+            const expectedActions =
+              getExpectedActions(
+                activeRun.data
+              );
 
-        responseOptions,
-        resolution,
+            return (
+              status ===
+                "waiting" &&
+              waitingForType ===
+                "customer_response" &&
+              expectedActions.includes(
+                quickReplyAction
+              )
+            );
+          }
+        );
 
-        context: {
-          agentId,
+      if (
+        matchingRun
+      ) {
+        return {
+          contactState,
 
-          contactId,
+          flowState:
+            "active",
 
-          conversationId,
+          messageDisposition:
+            "expected",
 
-          runId:
-            activeRun.runId,
+          resolvedAction:
+            quickReplyAction,
 
-          flowId:
+          handling:
+            "continue_flow",
+
+          activeRunId:
+            matchingRun.runId,
+
+          activeFlowId:
             s(
-              activeRun.data
+              matchingRun.data
                 ?.flowId
             ) ||
             null,
 
-          flowName:
-            s(
-              activeRun.data
-                ?.flowName
-            ) ||
+          previousRunId:
             null,
 
-          stepId:
-            s(
-              activeRun.data
-                ?.waitingFor
-                ?.stepId
-            ) ||
-            null,
+          reason:
+            "quick_reply_matched_waiting_run",
+        };
+      }
+    }
 
-          lastQuestion:
-            promptQuestion,
-        },
-      });
-
-    const resolvedAction =
-      resolverResult
-        .resolvedAction;
-
-    const expected =
-      actionIsExpected({
-        resolvedAction,
-        expectedActions,
-      });
-
+    /*
+     * מכאן מדובר במלל חופשי.
+     *
+     * אם AI כבוי ברמת המערכת או הסוכן,
+     * לא מפעילים AI ולא מנחשים לאיזה Run
+     * ההודעה שייכת.
+     */
     if (
-      expected
+      !aiUnderstandingEnabled
     ) {
       return {
         contactState,
@@ -592,19 +719,276 @@ const resolution =
           "active",
 
         messageDisposition:
-          "expected",
+          "unexpected",
+
+        resolvedAction:
+          null,
+
+        handling:
+          "human_attention",
+
+        activeRunId:
+          null,
+
+        activeFlowId:
+          null,
+
+        previousRunId:
+          null,
+
+        reason:
+          "ai_understanding_disabled",
+      };
+    }
+
+    /*
+     * הודעה חופשית כאשר יש Runs פעילים:
+     * קודם בוחרים לאיזה Run ההודעה שייכת.
+     */
+    const candidates =
+      buildConversationCandidates(
+        activeRuns
+      );
+
+    const targetResult =
+      await resolveMagicTouchConversationTarget({
+        messageText,
+
+        messageType:
+          s(
+            input.messageType
+          ) ||
+          null,
+
+        candidates,
+
+        context: {
+          agentId,
+
+          contactId,
+
+          conversationId,
+        },
+      });
+
+    const targetRunId =
+      s(
+        targetResult
+          .targetRunId
+      );
+
+    const targetRun =
+      targetRunId
+        ? activeRuns.find(
+            (
+              activeRun
+            ) =>
+              activeRun.runId ===
+              targetRunId
+          ) ||
+          null
+        : null;
+
+    /*
+     * אם לא הצלחנו להבין לאיזה Run ההודעה שייכת,
+     * לא מנחשים ולא ממשיכים שום Flow.
+     */
+    if (
+      !targetRun
+    ) {
+      return {
+        contactState,
+
+        flowState:
+          "active",
+
+        messageDisposition:
+          "unexpected",
+
+        resolvedAction:
+          null,
+
+        handling:
+          "human_attention",
+
+        activeRunId:
+          null,
+
+        activeFlowId:
+          null,
+
+        previousRunId:
+          null,
+
+        reason:
+          targetResult
+            .reason ||
+          "active_runs_target_not_resolved",
+      };
+    }
+
+    const runStatus =
+      s(
+        targetRun.data
+          ?.status
+      );
+
+    const waitingForType =
+      s(
+        targetRun.data
+          ?.waitingFor
+          ?.type
+      );
+
+    /*
+     * אם ההודעה שייכת ל-Run שמחכה לתשובת לקוח,
+     * מפעילים את Action Resolver של אותו Run.
+     *
+     * שימי לב:
+     * getResolution עדיין קובע מה ה-Step עצמו מרשה.
+     * כלומר גם כאשר AI פעיל לסוכן,
+     * Step שלא אישר AI לא יקבל החלטת AI עסקית.
+     */
+    if (
+      runStatus ===
+        "waiting" &&
+      waitingForType ===
+        "customer_response"
+    ) {
+      const expectedActions =
+        getExpectedActions(
+          targetRun.data
+        );
+
+      const responseOptions =
+        getResponseOptions(
+          targetRun.data
+        );
+
+      const promptQuestion =
+        getPromptQuestion(
+          targetRun.data
+        );
+
+      const resolution =
+        getResolution(
+          targetRun.data
+        );
+
+      const resolverResult =
+        await resolveMagicTouchAction({
+          messageText,
+
+          quickReplyAction,
+
+          expectedActions,
+
+          responseOptions,
+
+          resolution,
+
+          context: {
+            agentId,
+
+            contactId,
+
+            conversationId,
+
+            runId:
+              targetRun.runId,
+
+            flowId:
+              s(
+                targetRun.data
+                  ?.flowId
+              ) ||
+              null,
+
+            flowName:
+              s(
+                targetRun.data
+                  ?.flowName
+              ) ||
+              null,
+
+            stepId:
+              s(
+                targetRun.data
+                  ?.waitingFor
+                  ?.stepId
+              ) ||
+              null,
+
+            lastQuestion:
+              promptQuestion,
+          },
+        });
+
+      const resolvedAction =
+        resolverResult
+          .resolvedAction;
+
+      const expected =
+        actionIsExpected({
+          resolvedAction,
+          expectedActions,
+        });
+
+      if (
+        expected
+      ) {
+        return {
+          contactState,
+
+          flowState:
+            "active",
+
+          messageDisposition:
+            "expected",
+
+          resolvedAction,
+
+          handling:
+            "continue_flow",
+
+          activeRunId:
+            targetRun.runId,
+
+          activeFlowId:
+            s(
+              targetRun.data
+                ?.flowId
+            ) ||
+            null,
+
+          previousRunId:
+            null,
+
+          reason:
+            "target_run_waiting_for_expected_customer_response",
+        };
+      }
+
+      return {
+        contactState,
+
+        flowState:
+          "active",
+
+        messageDisposition:
+          "unexpected",
 
         resolvedAction,
 
         handling:
-          "continue_flow",
+          "human_attention",
 
         activeRunId:
-          activeRun.runId,
+          targetRun.runId,
 
         activeFlowId:
           s(
-            activeRun.data
+            targetRun.data
               ?.flowId
           ) ||
           null,
@@ -613,10 +997,21 @@ const resolution =
           null,
 
         reason:
-          "active_flow_waiting_for_expected_customer_response",
+          resolvedAction
+            ? "target_run_customer_response_action_not_expected"
+            : "target_run_customer_response_not_resolved",
       };
     }
 
+    /*
+     * ההודעה שייכת ל-Run פעיל,
+     * אבל ה-Run מחכה למסמך / חתימה /
+     * booking / external event וכו'.
+     *
+     * במצב understand_only:
+     * ה-AI יכול לזהות את ההקשר/intent,
+     * אבל אינו עונה ללקוח ואינו משלים את ההמתנה.
+     */
     return {
       contactState,
 
@@ -626,17 +1021,19 @@ const resolution =
       messageDisposition:
         "unexpected",
 
-      resolvedAction,
+      resolvedAction:
+        targetResult.intent ||
+        null,
 
       handling:
         "human_attention",
 
       activeRunId:
-        activeRun.runId,
+        targetRun.runId,
 
       activeFlowId:
         s(
-          activeRun.data
+          targetRun.data
             ?.flowId
         ) ||
         null,
@@ -645,55 +1042,11 @@ const resolution =
         null,
 
       reason:
-        resolvedAction
-          ? "customer_response_action_not_expected"
-          : "customer_response_not_resolved",
+        waitingForType
+          ? `message_related_to_run_waiting_for_${waitingForType}`
+          : "message_related_to_active_run",
     };
   }
-
-  /*
-   * יש Run פעיל, אבל הוא לא ממתין
-   * לתשובת לקוח.
-   *
-   * לכן לא מפעילים Resolver / AI.
-   */
-  return {
-    contactState,
-
-    flowState:
-      "active",
-
-    messageDisposition:
-      "unexpected",
-
-    resolvedAction:
-      quickReplyAction,
-
-    handling:
-      "human_attention",
-
-    activeRunId:
-      activeRun.runId,
-
-    activeFlowId:
-      s(
-        activeRun.data
-          ?.flowId
-      ) ||
-      null,
-
-    previousRunId:
-      null,
-
-    reason:
-      runStatus ===
-        "processing"
-        ? "active_flow_is_processing"
-        : waitingForType
-          ? `active_flow_waiting_for_${waitingForType}`
-          : "active_flow_not_waiting_for_customer_response",
-  };
-}
 
   const previousRun =
     await findPreviousCompletedRun({
@@ -702,7 +1055,9 @@ const resolution =
       conversationId,
     });
 
-  if (previousRun) {
+  if (
+    previousRun
+  ) {
     return {
       contactState,
 
