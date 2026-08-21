@@ -1732,10 +1732,10 @@ export default function MagicTouchAISettings() {
               </div>
 
               {!safeRepliesSystemAllowed ? (
-                <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-800">
-                  כדי לפתוח תשובות AI בטוחות לסוכן, יש לאפשר קודם
-                  את מצב "תשובות AI בטוחות" ברמת המערכת.
-                </div>
+              <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-800">
+  כדי לפתוח תשובות AI בטוחות לסוכן, יש לאפשר קודם
+  את מצב &quot;תשובות AI בטוחות&quot; ברמת המערכת.
+</div>
               ) : null}
 
               <div className="mt-5 grid gap-3 md:grid-cols-2">
