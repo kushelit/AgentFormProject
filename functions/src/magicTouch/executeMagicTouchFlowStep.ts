@@ -4,6 +4,7 @@ import type {
   MagicTouchExecutionContext,
   MagicTouchFlowStep,
   MagicTouchWaitingFor,
+  MagicTouchResponseOption,
 } from "../shared/magicTouchDispatcherTypes";
 
 import {
@@ -125,6 +126,26 @@ function buildBookingMessage(
     "\n\n"
   );
 }
+
+function normalizeResolutionMode(
+  value: any
+):
+  | "quick_reply_only"
+  | "ai"
+  | "ai_with_human_fallback" {
+  const mode =
+    s(value);
+
+  if (
+    mode === "ai" ||
+    mode === "ai_with_human_fallback"
+  ) {
+    return mode;
+  }
+
+  return "quick_reply_only";
+}
+
 
 export async function executeMagicTouchFlowStep({
   context,
@@ -683,20 +704,136 @@ case "send_google_booking_link": {
   };
 }
 case "wait_for_customer_response": {
-const rawExpectedActions =
-  step.config?.expectedActions;
+  const rawExpectedActions =
+    step.config?.expectedActions;
 
-const expectedActions =
+  const expectedActions =
+    Array.isArray(
+      rawExpectedActions
+    )
+      ? rawExpectedActions
+          .map(
+            (value: any) =>
+              s(value)
+          )
+          .filter(Boolean)
+      : [];
+
+  /*
+   * responseOptions הן הגדרות דינמיות
+   * של ה-Flow הספציפי.
+   *
+   * הן נותנות ל-Resolver / AI משמעות
+   * עסקית לכל Action אפשרי.
+   */
+  const rawResponseOptions =
+    step.config?.responseOptions;
+
+ const responseOptions:
+  MagicTouchResponseOption[] =
   Array.isArray(
-    rawExpectedActions
+    rawResponseOptions
   )
-    ? rawExpectedActions
-        .map(
-          (value: any) =>
-            s(value)
-        )
-        .filter(Boolean)
+    ? rawResponseOptions.reduce(
+        (
+          result:
+            MagicTouchResponseOption[],
+          option: any
+        ) => {
+          const action =
+            s(
+              option?.action
+            );
+
+          if (
+            !action
+          ) {
+            return result;
+          }
+
+          const label =
+            s(
+              option?.label
+            );
+
+          const description =
+            s(
+              option?.description
+            );
+
+          const responseOption:
+            MagicTouchResponseOption = {
+              action,
+          };
+
+          if (
+            label
+          ) {
+            responseOption.label =
+              label;
+          }
+
+          if (
+            description
+          ) {
+            responseOption.description =
+              description;
+          }
+
+          result.push(
+            responseOption
+          );
+
+          return result;
+        },
+        []
+      )
     : [];
+  /*
+   * promptContext הוא ההקשר שה-Resolver
+   * יצטרך כדי להבין את תשובת הלקוח.
+   *
+   * כרגע אנחנו שומרים את השאלה שה-Flow
+   * שאל. בהמשך ניתן להרחיב את ההקשר
+   * בלי לשנות את מנוע ה-Flow.
+   */
+  const question =
+    resolveMagicTouchStringTemplate(
+      s(
+        step.config
+          ?.promptContext
+          ?.question
+      ),
+      context
+    );
+
+  const resolution =
+  step.config?.resolution &&
+  typeof step.config.resolution === "object"
+    ? {
+        mode:
+          normalizeResolutionMode(
+            step.config.resolution.mode
+          ),
+
+        minConfidence:
+          Number.isFinite(
+            Number(
+              step.config.resolution.minConfidence
+            )
+          )
+            ? Number(
+                step.config.resolution.minConfidence
+              )
+            : 0.8,
+      }
+    : {
+        mode:
+          "quick_reply_only" as const,
+
+        minConfidence:
+          0.8,
+      };
 
   return {
     status:
@@ -713,12 +850,21 @@ const expectedActions =
       stepId:
         step.id,
 
-        
-          resumeStepId:
-  step.nextStepId ||
-  null,
+      resumeStepId:
+        step.nextStepId ||
+        null,
 
       expectedActions,
+
+      responseOptions,
+
+      resolution,
+
+      promptContext: {
+        question:
+          question ||
+          null,
+      },
 
       startedAt:
         nowTs(),
@@ -728,7 +874,6 @@ const expectedActions =
           context.run
             .conversationId ||
           null,
-
 
         contactId:
           context.run
@@ -747,6 +892,15 @@ const expectedActions =
         "customer_response",
 
       expectedActions,
+
+      responseOptions,
+      resolution,
+
+      promptContext: {
+        question:
+          question ||
+          null,
+      },
     },
   };
 }

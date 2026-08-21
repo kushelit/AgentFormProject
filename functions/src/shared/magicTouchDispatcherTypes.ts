@@ -24,6 +24,24 @@ export type MagicTouchWaitingForType =
   | "external_event"
   | "delay";
 
+
+  export interface MagicTouchResponseOption {
+  action:
+    string;
+
+  label?:
+    string;
+
+  description?:
+    string;
+}
+
+export interface MagicTouchWaitingPromptContext {
+  question?:
+    string |
+    null;
+}
+
 export interface MagicTouchWaitingFor {
   type:
     MagicTouchWaitingForType;
@@ -32,15 +50,22 @@ export interface MagicTouchWaitingFor {
     string |
     null;
 
+  resumeStepId?:
+    string |
+    null;
+
   expectedActions?:
     string[];
 
+  responseOptions?:
+    MagicTouchResponseOption[];
+
+  promptContext?:
+    MagicTouchWaitingPromptContext |
+    null;
+
   startedAt?:
     any;
-
-    resumeStepId?:
-  string |
-  null;
 
   context?:
     Record<
@@ -48,6 +73,16 @@ export interface MagicTouchWaitingFor {
       any
     > |
     null;
+
+    resolution?: {
+  mode?:
+    | "quick_reply_only"
+    | "ai"
+    | "ai_with_human_fallback";
+
+  minConfidence?:
+    number;
+} | null;
 }
 
 export interface MagicTouchFlowStep {

@@ -6,6 +6,15 @@ import {
   adminDb,
 } from "./admin";
 
+import {
+  resolveMagicTouchAction,
+} from "./magicTouchActionResolver";
+
+import type {
+  MagicTouchResponseOption,
+} from "./magicTouchActionResolver";
+
+
 export type MagicTouchContactState =
   | "known"
   | "unknown";
@@ -289,6 +298,92 @@ function getExpectedActions(
     .filter(Boolean);
 }
 
+function getResponseOptions(
+  runData: any
+): MagicTouchResponseOption[] {
+  const values =
+    runData
+      ?.waitingFor
+      ?.responseOptions;
+
+  if (
+    !Array.isArray(values)
+  ) {
+    return [];
+  }
+
+  return values.reduce(
+    (
+      result:
+        MagicTouchResponseOption[],
+      option: any
+    ) => {
+      const action =
+        s(
+          option?.action
+        );
+
+      if (
+        !action
+      ) {
+        return result;
+      }
+
+      const label =
+        s(
+          option?.label
+        );
+
+      const description =
+        s(
+          option?.description
+        );
+
+      const responseOption:
+        MagicTouchResponseOption = {
+          action,
+        };
+
+      if (
+        label
+      ) {
+        responseOption.label =
+          label;
+      }
+
+      if (
+        description
+      ) {
+        responseOption.description =
+          description;
+      }
+
+      result.push(
+        responseOption
+      );
+
+      return result;
+    },
+    []
+  );
+}
+
+function getPromptQuestion(
+  runData: any
+): string | null {
+  return (
+    s(
+      runData
+        ?.waitingFor
+        ?.promptContext
+        ?.question
+    ) ||
+    null
+  );
+}
+
+
+
 function actionIsExpected({
   resolvedAction,
   expectedActions,
@@ -394,20 +489,31 @@ export async function routeMagicTouchConversation(
       activeRun.data
     );
 
-  /*
-   * כרגע ה-resolvedAction מגיע
-   * מ-Quick Reply.
-   *
-   * בעתיד בדיוק כאן אפשר להכניס
-   * Intent Resolver / AI.
-   */
-  const resolvedAction =
-    quickReplyAction;
+  const responseOptions =
+    getResponseOptions(
+      activeRun.data
+    );
+
+  const promptQuestion =
+    getPromptQuestion(
+      activeRun.data
+    );
+
+const resolution =
+  activeRun.data
+    ?.waitingFor
+    ?.resolution ||
+  {
+    mode:
+      "quick_reply_only" as const,
+
+    minConfidence:
+      0.8,
+  };
 
   /*
-   * Run יכול להיות active,
-   * אבל זה לא אומר שהוא מחכה
-   * לתשובת WhatsApp.
+   * Resolver מופעל רק כאשר ה-Run
+   * באמת ממתין לתשובת לקוח.
    */
   if (
     runStatus ===
@@ -415,13 +521,70 @@ export async function routeMagicTouchConversation(
     waitingForType ===
       "customer_response"
   ) {
+    const resolverResult =
+      await resolveMagicTouchAction({
+        messageText:
+          s(
+            input.messageText
+          ),
+
+        quickReplyAction,
+
+        expectedActions,
+
+        responseOptions,
+        resolution,
+
+        context: {
+          agentId,
+
+          contactId,
+
+          conversationId,
+
+          runId:
+            activeRun.runId,
+
+          flowId:
+            s(
+              activeRun.data
+                ?.flowId
+            ) ||
+            null,
+
+          flowName:
+            s(
+              activeRun.data
+                ?.flowName
+            ) ||
+            null,
+
+          stepId:
+            s(
+              activeRun.data
+                ?.waitingFor
+                ?.stepId
+            ) ||
+            null,
+
+          lastQuestion:
+            promptQuestion,
+        },
+      });
+
+    const resolvedAction =
+      resolverResult
+        .resolvedAction;
+
     const expected =
       actionIsExpected({
         resolvedAction,
         expectedActions,
       });
 
-    if (expected) {
+    if (
+      expected
+    ) {
       return {
         contactState,
 
@@ -454,16 +617,6 @@ export async function routeMagicTouchConversation(
       };
     }
 
-    /*
-     * ה-Flow באמת מחכה לתשובת לקוח,
-     * אבל ההודעה לא נפתרה לפעולה צפויה.
-     *
-     * בשלב הזה:
-     * human attention.
-     *
-     * בעתיד AI יוכל לנסות לפתור אותה
-     * לפני שנגיע לכאן.
-     */
     return {
       contactState,
 
@@ -499,15 +652,10 @@ export async function routeMagicTouchConversation(
   }
 
   /*
-   * יש Run פעיל,
-   * אבל הוא לא מחכה לתשובת לקוח.
+   * יש Run פעיל, אבל הוא לא ממתין
+   * לתשובת לקוח.
    *
-   * למשל:
-   * document / booking /
-   * signature / external event.
-   *
-   * לכן הודעת WhatsApp לא ממשיכה
-   * אוטומטית את אותו Flow.
+   * לכן לא מפעילים Resolver / AI.
    */
   return {
     contactState,
@@ -518,7 +666,8 @@ export async function routeMagicTouchConversation(
     messageDisposition:
       "unexpected",
 
-    resolvedAction,
+    resolvedAction:
+      quickReplyAction,
 
     handling:
       "human_attention",

@@ -9,6 +9,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import { adminDb, nowTs } from "./shared/admin";
 
 import {
+  OPENAI_API_KEY,
   PORTAL_ENC_KEY_B64,
   WHATSAPP_WEBHOOK_VERIFY_TOKEN,
 } from "./shared/secrets";
@@ -1275,6 +1276,7 @@ export const whatsappWebhook =
       secrets: [
         WHATSAPP_WEBHOOK_VERIFY_TOKEN,
         PORTAL_ENC_KEY_B64,
+        OPENAI_API_KEY,
       ],
 
       timeoutSeconds:

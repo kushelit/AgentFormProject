@@ -33,3 +33,8 @@ export const MICROSOFT_TENANT_ID =
 
 export const GOOGLE_CLIENT_SECRET =
   defineSecret("GOOGLE_CLIENT_SECRET");
+
+  export const OPENAI_API_KEY =
+  defineSecret(
+    "OPENAI_API_KEY"
+  );
