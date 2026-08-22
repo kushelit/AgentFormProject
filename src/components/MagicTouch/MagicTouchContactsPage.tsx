@@ -893,20 +893,50 @@ export default function MagicTouchContactsPage() {
       dir="rtl"
       className="w-full"
     >
-      <div className="mx-auto max-w-7xl">
-        <header className="mb-6 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+      <div className="mx-auto max-w-[1480px]">
+        <header className="mb-5 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div>
-            <div className="text-sm font-medium text-blue-700">
-              Magic Touch
+            <div className="text-sm font-bold text-blue-600">
+              MagicTouch
             </div>
 
-            <h1 className="mt-1 text-3xl font-bold text-gray-900">
+            <h1 className="mt-1.5 text-3xl font-bold tracking-tight text-slate-900">
               אנשי קשר
             </h1>
 
-            <p className="mt-2 text-gray-600">
+            <p className="mt-2 text-sm text-slate-500">
               ניהול אנשי קשר, מקורות מידע ושליחת קמפיינים.
             </p>
+
+            <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-slate-500">
+              <span className="inline-flex items-center gap-2">
+                <span className="text-slate-400">◉</span>
+                <strong className="font-semibold text-slate-700">
+                  {stats?.total ?? contacts.length}
+                </strong>
+                סה״כ אנשי קשר
+              </span>
+
+              <span className="hidden h-4 w-px bg-slate-200 sm:block" />
+
+              <span className="inline-flex items-center gap-2">
+                <span className="text-slate-400">◇</span>
+                <strong className="font-semibold text-slate-700">
+                  {stats?.bySource?.surense ?? 0}
+                </strong>
+                מתוכם משורנס
+              </span>
+
+              <span className="hidden h-4 w-px bg-slate-200 sm:block" />
+
+              <span className="inline-flex items-center gap-2">
+                <span className="text-slate-400">▣</span>
+                <strong className="font-semibold text-slate-700">
+                  {stats?.byAppointmentStatus?.booked ?? 0}
+                </strong>
+                עם פגישה שנקבעה
+              </span>
+            </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
@@ -917,16 +947,18 @@ export default function MagicTouchContactsPage() {
                 items-center
                 justify-center
                 gap-2
-                rounded-lg
+                rounded-xl
                 border
-                border-slate-300
+                border-slate-200
                 bg-white
                 px-4
                 py-2.5
+                text-sm
                 font-semibold
                 text-slate-700
                 shadow-sm
                 transition
+                hover:border-slate-300
                 hover:bg-slate-50
               "
             >
@@ -961,16 +993,18 @@ export default function MagicTouchContactsPage() {
                 items-center
                 justify-center
                 gap-2
-                rounded-lg
+                rounded-xl
                 border
-                border-slate-300
+                border-slate-200
                 bg-white
                 px-4
                 py-2.5
+                text-sm
                 font-semibold
                 text-slate-700
                 shadow-sm
                 transition
+                hover:border-slate-300
                 hover:bg-slate-50
                 disabled:cursor-not-allowed
                 disabled:opacity-50
@@ -1007,10 +1041,11 @@ export default function MagicTouchContactsPage() {
                 items-center
                 justify-center
                 gap-2
-                rounded-lg
+                rounded-xl
                 bg-blue-600
                 px-4
                 py-2.5
+                text-sm
                 font-semibold
                 text-white
                 shadow-sm
@@ -1043,60 +1078,10 @@ export default function MagicTouchContactsPage() {
           </div>
         ) : null}
 
-        <section className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-4">
-          <div className="rounded-xl border bg-white p-4 shadow-sm">
-            <div className="text-sm text-gray-500">
-              סך הכול אנשי קשר
-            </div>
-
-            <div className="mt-2 text-2xl font-bold">
-              {stats?.total ??
-                contacts.length}
-            </div>
-          </div>
-
-          <div className="rounded-xl border bg-white p-4 shadow-sm">
-            <div className="text-sm text-gray-500">
-              עם מספר טלפון
-            </div>
-
-            <div className="mt-2 text-2xl font-bold">
-              {stats?.withPhone ??
-                0}
-            </div>
-          </div>
-
-          <div className="rounded-xl border bg-white p-4 shadow-sm">
-            <div className="text-sm text-gray-500">
-              הגיעו משורנס
-            </div>
-
-            <div className="mt-2 text-2xl font-bold">
-              {stats
-                ?.bySource
-                ?.surense ??
-                0}
-            </div>
-          </div>
-
-          <div className="rounded-xl border bg-white p-4 shadow-sm">
-            <div className="text-sm text-gray-500">
-              נקבעה פגישה
-            </div>
-
-            <div className="mt-2 text-2xl font-bold">
-              {stats
-                ?.byAppointmentStatus
-                ?.booked ??
-                0}
-            </div>
-          </div>
-        </section>
-
         {selectedCount >
         0 ? (
-          <section className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3">
-            <div className="font-semibold text-blue-900">
+          <section className="mb-4 flex flex-wrap items-center gap-3 rounded-2xl bg-white px-4 py-3 shadow-[0_4px_18px_rgba(15,23,42,0.04)] ring-1 ring-slate-100">
+            <div className="text-sm font-semibold text-slate-800">
               נבחרו{' '}
               {selectedCount}{' '}
               אנשי קשר
@@ -1107,7 +1092,7 @@ export default function MagicTouchContactsPage() {
               onClick={
                 clearSelection
               }
-              className="rounded-lg border border-blue-200 bg-white px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-50"
+              className="rounded-lg bg-transparent px-3 py-1.5 text-sm font-semibold text-blue-600 transition hover:bg-blue-50"
             >
               ניקוי בחירה
             </button>
@@ -1123,15 +1108,15 @@ export default function MagicTouchContactsPage() {
                 selectedCount >
                 100
               }
-              className="rounded-lg bg-green-600 px-5 py-2.5 font-semibold text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
+              className="rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
               שליחת קמפיין WhatsApp
             </button>
           </section>
         ) : null}
 
-        <section className="overflow-hidden rounded-xl border bg-white shadow-sm">
-          <div className="flex flex-col gap-3 border-b p-4 md:flex-row md:items-center md:justify-between">
+        <section className="overflow-visible bg-transparent">
+          <div className="mb-3 flex flex-col gap-3 rounded-2xl bg-white p-3 shadow-[0_4px_18px_rgba(15,23,42,0.04)] ring-1 ring-slate-100 md:flex-row md:items-center md:justify-between">
             <div className="flex flex-1 flex-col gap-3 md:flex-row">
               <input
                 type="search"
@@ -1148,7 +1133,7 @@ export default function MagicTouchContactsPage() {
                   )
                 }
                 placeholder="חיפוש לפי שם, טלפון, אימייל או תעודת זהות"
-                className="w-full rounded-lg border px-3 py-2 md:max-w-md"
+                className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none transition placeholder:text-slate-400 focus:border-blue-300 focus:ring-4 focus:ring-blue-50 md:max-w-lg"
               />
 
               <select
@@ -1164,7 +1149,7 @@ export default function MagicTouchContactsPage() {
                       .value
                   )
                 }
-                className="rounded-lg border px-3 py-2"
+                className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-600 outline-none transition focus:border-blue-300 focus:ring-4 focus:ring-blue-50"
               >
                 <option value="">
                   כל מקורות המידע
@@ -1201,7 +1186,7 @@ export default function MagicTouchContactsPage() {
                 isLoading ||
                 !agentId
               }
-              className="rounded-lg border px-4 py-2 font-medium disabled:opacity-50"
+              className="rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 disabled:opacity-50"
             >
               {isLoading
                 ? 'טוען...'
@@ -1210,21 +1195,51 @@ export default function MagicTouchContactsPage() {
           </div>
 
           {isLoading ? (
-            <div className="p-8 text-center text-gray-500">
+            <div className="p-12 text-center text-sm text-slate-400">
               טוען אנשי קשר...
             </div>
           ) : filteredContacts
               .length ===
             0 ? (
-            <div className="p-8 text-center text-gray-500">
+            <div className="p-12 text-center text-sm text-slate-400">
               לא נמצאו אנשי קשר להצגה.
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="min-w-full text-right">
-                <thead className="bg-gray-50 text-sm text-gray-600">
+            <div
+              className="
+                overflow-hidden
+                rounded-2xl
+                bg-white
+                shadow-[0_8px_28px_rgba(15,23,42,0.05)]
+                ring-1
+                ring-slate-100
+                [&_table]:!border-0
+                [&_thead]:!border-0
+                [&_tbody]:!border-0
+                [&_tr]:!border-0
+                [&_th]:!border-0
+                [&_td]:!border-0
+              "
+            >
+              <div className="overflow-x-auto">
+                <table
+                  className="
+                    min-w-full
+                    border-separate
+                    border-spacing-0
+                    text-right
+                    !border-0
+                    !outline-none
+                  "
+                  style={{
+                    border: 'none',
+                    outline: 'none',
+                    boxShadow: 'none',
+                  }}
+                >
+                <thead className="bg-slate-50/70 text-[11px] font-bold text-slate-500">
                   <tr>
-                    <th className="w-12 px-4 py-3 text-center">
+                    <th className="w-12 px-4 py-3.5 text-center">
                       <input
                         type="checkbox"
                         checked={
@@ -1248,45 +1263,45 @@ export default function MagicTouchContactsPage() {
                       />
                     </th>
 
-                    <th className="px-4 py-3">
+                    <th className="px-4 py-3.5">
                       שם
                     </th>
 
-                    <th className="px-4 py-3">
+                    <th className="px-4 py-3.5">
                       טלפון
                     </th>
 
-                    <th className="px-4 py-3">
+                    <th className="px-4 py-3.5">
                       מקור
                     </th>
 
-                    <th className="px-4 py-3">
+                    <th className="px-4 py-3.5">
                       סטטוס עניין
                     </th>
 
-                    <th className="px-4 py-3">
+                    <th className="px-4 py-3.5">
                       פגישה
                     </th>
 
                   {hasSurenseIntegration ? (
   <>
-    <th className="px-4 py-3">
+    <th className="px-4 py-3.5">
       סטטוס במקור
     </th>
 
-    <th className="px-4 py-3">
+    <th className="px-4 py-3.5">
       סטטוס ייפוי כוח
     </th>
   </>
 ) : null}
 
-                    <th className="px-4 py-3">
+                    <th className="px-4 py-3.5">
                       עודכן
                     </th>
                   </tr>
                 </thead>
 
-                <tbody className="divide-y">
+                <tbody className="[&_tr:not(:last-child)_td]:!border-b [&_tr:not(:last-child)_td]:!border-slate-100">
                   {filteredContacts.map(
                     (
                       contact
@@ -1301,13 +1316,13 @@ export default function MagicTouchContactsPage() {
                           key={
                             contact.contactId
                           }
-                          className={`hover:bg-gray-50 ${
+                          className={`transition-colors hover:bg-slate-50/70 ${
                             isSelected
-                              ? 'bg-blue-50/60'
-                              : ''
+                              ? 'bg-blue-50/35'
+                              : 'bg-white'
                           }`}
                         >
-                          <td className="px-4 py-3 text-center">
+                          <td className="px-4 py-3.5 text-center">
                             <input
                               type="checkbox"
                               checked={
@@ -1322,7 +1337,7 @@ export default function MagicTouchContactsPage() {
                             />
                           </td>
 
-                          <td className="px-4 py-3">
+                          <td className="px-4 py-3.5">
                             <Link
                               href={`/MagicTouch/Contacts/${encodeURIComponent(
                                 contact.contactId
@@ -1331,13 +1346,13 @@ export default function MagicTouchContactsPage() {
                               )}`}
                               className="block rounded-md hover:text-blue-700"
                             >
-                              <div className="font-medium text-gray-900 hover:text-blue-700">
+                              <div className="font-semibold text-slate-900 transition hover:text-blue-700">
                                 {contact.fullName ||
                                   'ללא שם'}
                               </div>
 
                               {contact.email ? (
-                                <div className="text-sm text-gray-500">
+                                <div className="mt-0.5 text-xs text-slate-400">
                                   {contact.email}
                                 </div>
                               ) : null}
@@ -1345,38 +1360,76 @@ export default function MagicTouchContactsPage() {
                           </td>
 
                           <td
-                            className="px-4 py-3"
+                            className="px-4 py-3.5"
                             dir="ltr"
                           >
                             {contact.phone ||
                               '—'}
                           </td>
 
-                          <td className="px-4 py-3">
+                          <td className="px-4 py-3.5">
                             {sourceLabel(
                               contact.sourceSystem
                             )}
                           </td>
 
-                          <td className="px-4 py-3">
-                            {interestLabel(
-                              getContactInterestStatus(
-                                contact
-                              )
-                            )}
+                          <td className="px-4 py-3.5">
+                            {(() => {
+                              const status =
+                                getContactInterestStatus(
+                                  contact
+                                );
+
+                              const label =
+                                interestLabel(
+                                  status
+                                );
+
+                              const className =
+                                status === 'interested'
+                                  ? 'bg-emerald-50 text-emerald-700'
+                                  : status === 'not_interested'
+                                    ? 'bg-rose-50 text-rose-700'
+                                    : 'bg-slate-100 text-slate-600';
+
+                              return (
+                                <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${className}`}>
+                                  {label}
+                                </span>
+                              );
+                            })()}
                           </td>
 
-                          <td className="px-4 py-3">
-                            {appointmentLabel(
-                              getContactAppointmentStatus(
-                                contact
-                              )
-                            )}
+                          <td className="px-4 py-3.5">
+                            {(() => {
+                              const status =
+                                getContactAppointmentStatus(
+                                  contact
+                                );
+
+                              const label =
+                                appointmentLabel(
+                                  status
+                                );
+
+                              const className =
+                                status === 'booked'
+                                  ? 'bg-blue-50 text-blue-700'
+                                  : status === 'cancelled'
+                                    ? 'bg-rose-50 text-rose-700'
+                                    : 'bg-slate-100 text-slate-600';
+
+                              return (
+                                <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${className}`}>
+                                  {label}
+                                </span>
+                              );
+                            })()}
                           </td>
 
                           {hasSurenseIntegration ? (
   <>
-    <td className="px-4 py-3">
+    <td className="px-4 py-3.5">
       {contact.sourceSystem === "surense"
         ? contact
             .sourceData
@@ -1385,7 +1438,7 @@ export default function MagicTouchContactsPage() {
         : "—"}
     </td>
 
-    <td className="px-4 py-3">
+    <td className="px-4 py-3.5">
       {contact.sourceSystem === "surense" ? (
         <span
           className={[
@@ -1428,7 +1481,7 @@ export default function MagicTouchContactsPage() {
   </>
 ) : null}
 
-                          <td className="px-4 py-3">
+                          <td className="px-4 py-3.5 text-xs text-slate-500">
                             {formatDate(
                               contact.updatedAt
                             )}
@@ -1438,7 +1491,8 @@ export default function MagicTouchContactsPage() {
                     }
                   )}
                 </tbody>
-              </table>
+                </table>
+              </div>
             </div>
           )}
         </section>

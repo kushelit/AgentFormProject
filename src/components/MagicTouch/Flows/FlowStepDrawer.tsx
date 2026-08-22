@@ -61,6 +61,9 @@ type Props = {
     stepId: string,
     patch: Record<string, unknown>
   ) => void;
+  onReplaceSteps: (
+    nextSteps: Record<string, FlowStep>
+  ) => void;
 };
 
 const fieldClass =
@@ -277,6 +280,7 @@ export default function FlowStepDrawer({
   onClose,
   onUpdateStep,
   onUpdateConfig,
+  onReplaceSteps,
 }: Props) {
   useEffect(
     () => {
@@ -348,7 +352,35 @@ export default function FlowStepDrawer({
           step.type
       );
 
+  const managedWaitStepId =
+    step.type ===
+      "send_whatsapp"
+      ? s(
+          step.config
+            ?.managedWaitStepId
+        )
+      : "";
+
+  const managedWaitStep =
+    managedWaitStepId
+      ? steps[
+          managedWaitStepId
+        ] ||
+        null
+      : null;
+
+  const hasManagedWait =
+    Boolean(
+      managedWaitStep &&
+      managedWaitStep.type ===
+        "wait_for_customer_response" &&
+      managedWaitStep.config
+        ?.hiddenInBuilder ===
+        true
+    );
+
   const hasLinearNextStep =
+    !hasManagedWait &&
     step.type !==
       "end" &&
     step.type !==
@@ -556,13 +588,11 @@ export default function FlowStepDrawer({
                   step={
                     step
                   }
-                  onConfigChange={(
-                    patch
-                  ) =>
-                    onUpdateConfig(
-                      stepId,
-                      patch
-                    )
+                  steps={
+                    steps
+                  }
+                  onReplaceSteps={
+                    onReplaceSteps
                   }
                 />
               ) : null}

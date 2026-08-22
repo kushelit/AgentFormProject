@@ -7,7 +7,10 @@ import React, {
   useState,
 } from "react";
 
+import Link from "next/link";
+
 import {
+  collection,
   doc,
   getDoc,
   onSnapshot,
@@ -37,6 +40,10 @@ import WhatsAppTemplateBuilder, {
 
 import InboundFirstResponseBuilder from
   "@/components/MagicTouch/Integrations/InboundFirstResponseBuilder";
+
+import {
+  ensureMagicTouchOnboardingInboundFlow,
+} from "@/lib/MagicTouch/onboarding/api";
 
 type CalendarProvider =
   | "google"
@@ -618,9 +625,108 @@ export default function MagicTouchOnboardingPage() {
     useState(false);
 
   const [
+    inboundWelcomeMessage,
+    setInboundWelcomeMessage,
+  ] =
+    useState("");
+
+  const [
+    inboundOptions,
+    setInboundOptions,
+  ] =
+    useState<
+      Array<{
+        label: string;
+        action: string;
+      }>
+    >([]);
+
+  const [
+    editingFirstFlow,
+    setEditingFirstFlow,
+  ] =
+    useState(false);
+
+  const [
+    inboundFlowId,
+    setInboundFlowId,
+  ] =
+    useState("");
+
+  const [
+    inboundFlowVersion,
+    setInboundFlowVersion,
+  ] =
+    useState<number | null>(
+      null
+    );
+
+  const [
+    generatingInboundFlow,
+    setGeneratingInboundFlow,
+  ] =
+    useState(false);
+
+  const [
+    inboundFlowError,
+    setInboundFlowError,
+  ] =
+    useState("");
+
+  const [
+    inboundFlowAutoAttempted,
+    setInboundFlowAutoAttempted,
+  ] =
+    useState(false);
+
+  const [
     testCompleted,
     setTestCompleted,
   ] = useState(false);
+
+  const [
+    flightTestActive,
+    setFlightTestActive,
+  ] =
+    useState(false);
+
+  const [
+    flightTestStartedAt,
+    setFlightTestStartedAt,
+  ] =
+    useState<number | null>(
+      null
+    );
+
+  const [
+    flightTestRunId,
+    setFlightTestRunId,
+  ] =
+    useState("");
+
+  const [
+    flightTestMessageReceived,
+    setFlightTestMessageReceived,
+  ] =
+    useState(false);
+
+  const [
+    flightTestFlowStarted,
+    setFlightTestFlowStarted,
+  ] =
+    useState(false);
+
+  const [
+    flightTestReplySent,
+    setFlightTestReplySent,
+  ] =
+    useState(false);
+
+  const [
+    flightTestError,
+    setFlightTestError,
+  ] =
+    useState("");
 
   useEffect(() => {
     if (!agentId) {
@@ -632,6 +738,22 @@ export default function MagicTouchOnboardingPage() {
       setOutboundTemplateName("");
       setOutboundTemplateStatus("");
       setInboundSetupCompleted(false);
+      setInboundWelcomeMessage("");
+      setInboundOptions([]);
+      setEditingFirstFlow(false);
+      setInboundFlowId("");
+      setInboundFlowVersion(null);
+      setGeneratingInboundFlow(false);
+      setInboundFlowError("");
+      setInboundFlowAutoAttempted(false);
+      setFlightTestActive(false);
+      setFlightTestStartedAt(null);
+      setFlightTestRunId("");
+      setFlightTestMessageReceived(false);
+      setFlightTestFlowStarted(false);
+      setFlightTestReplySent(false);
+      setFlightTestError("");
+      setTestCompleted(false);
       setLoadingFirstFlowMode(false);
       return;
     }
@@ -689,6 +811,79 @@ export default function MagicTouchOnboardingPage() {
           data?.onboarding
             ?.inboundSetupCompleted ===
             true
+        );
+
+        setInboundFlowId(
+          String(
+            data?.onboarding
+              ?.inboundFlowId ||
+              ""
+          ).trim()
+        );
+
+        const storedInboundFlowVersion =
+          Number(
+            data?.onboarding
+              ?.inboundFlowVersion ||
+              0
+          );
+
+        setInboundFlowVersion(
+          storedInboundFlowVersion >
+            0
+            ? storedInboundFlowVersion
+            : null
+        );
+
+        const inboundSetup =
+          data?.inboundSetup &&
+          typeof data.inboundSetup ===
+            "object"
+            ? data.inboundSetup
+            : null;
+
+        setInboundWelcomeMessage(
+          String(
+            inboundSetup
+              ?.welcomeMessage ||
+              ""
+          ).trim()
+        );
+
+        setInboundOptions(
+          Array.isArray(
+            inboundSetup?.options
+          )
+            ? inboundSetup.options
+                .map(
+                  (
+                    item: any
+                  ) => ({
+                    label:
+                      String(
+                        item?.label ||
+                          ""
+                      ).trim(),
+
+                    action:
+                      String(
+                        item?.action ||
+                          ""
+                      ).trim(),
+                  })
+                )
+                .filter(
+                  (
+                    item: {
+                      label: string;
+                      action: string;
+                    }
+                  ) =>
+                    Boolean(
+                      item.label
+                    )
+                )
+            : []
         );
 
         setLoadingFirstFlowMode(
@@ -811,6 +1006,61 @@ export default function MagicTouchOnboardingPage() {
       }
     };
 
+  const ensureInboundFlow =
+    async () => {
+      if (
+        !agentId ||
+        !firstFlow.inbound ||
+        !inboundSetupCompleted ||
+        generatingInboundFlow
+      ) {
+        return;
+      }
+
+      setGeneratingInboundFlow(
+        true
+      );
+
+      setInboundFlowError(
+        ""
+      );
+
+      try {
+        const result =
+          await ensureMagicTouchOnboardingInboundFlow(
+            agentId
+          );
+
+        setInboundFlowId(
+          result.flowId
+        );
+
+        setInboundFlowVersion(
+          result.version
+        );
+
+        setInboundFlowAutoAttempted(
+          true
+        );
+      } catch (
+        cause: any
+      ) {
+        console.error(
+          "[MagicTouchOnboarding] Failed generating inbound Flow",
+          cause
+        );
+
+        setInboundFlowError(
+          cause?.message ||
+            "יצירת תהליך הפנייה הנכנסת נכשלה."
+        );
+      } finally {
+        setGeneratingInboundFlow(
+          false
+        );
+      }
+    };
+
   const calendarCompleted =
     calendarProvider === "none" ||
     (
@@ -834,13 +1084,317 @@ export default function MagicTouchOnboardingPage() {
       outboundTemplateName
     );
 
+  const inboundFlowReady =
+    !firstFlow.inbound ||
+    Boolean(
+      inboundFlowId
+    );
+
   const flowCompleted =
     flowSelected &&
     outboundSetupCompleted &&
     (
       !firstFlow.inbound ||
-      inboundSetupCompleted
+      (
+        inboundSetupCompleted &&
+        inboundFlowReady
+      )
     );
+
+  useEffect(() => {
+    if (
+      !agentId ||
+      loadingFirstFlowMode ||
+      !firstFlow.inbound ||
+      !inboundSetupCompleted ||
+      inboundFlowId ||
+      generatingInboundFlow ||
+      inboundFlowAutoAttempted
+    ) {
+      return;
+    }
+
+    setInboundFlowAutoAttempted(
+      true
+    );
+
+    void ensureInboundFlow();
+  }, [
+    agentId,
+    loadingFirstFlowMode,
+    firstFlow.inbound,
+    inboundSetupCompleted,
+    inboundFlowId,
+    generatingInboundFlow,
+    inboundFlowAutoAttempted,
+  ]);
+
+  const startFlightTest =
+    () => {
+      if (
+        !agentId ||
+        !inboundFlowId
+      ) {
+        setFlightTestError(
+          "לא נמצא Flow של פנייה נכנסת לבדיקה."
+        );
+
+        return;
+      }
+
+      setFlightTestError(
+        ""
+      );
+
+      setTestCompleted(
+        false
+      );
+
+      setFlightTestRunId(
+        ""
+      );
+
+      setFlightTestMessageReceived(
+        false
+      );
+
+      setFlightTestFlowStarted(
+        false
+      );
+
+      setFlightTestReplySent(
+        false
+      );
+
+      setFlightTestStartedAt(
+        Date.now()
+      );
+
+      setFlightTestActive(
+        true
+      );
+    };
+
+  useEffect(() => {
+    if (
+      !flightTestActive ||
+      !flightTestStartedAt ||
+      !agentId ||
+      !inboundFlowId
+    ) {
+      return;
+    }
+
+    const runsRef =
+      collection(
+        db,
+        `agents/${agentId}/magic_touch_flow_runs`
+      );
+
+    return onSnapshot(
+      runsRef,
+      (
+        snapshot
+      ) => {
+        const matchingRuns =
+          snapshot.docs
+            .map(
+              (
+                runDoc
+              ) => ({
+                id:
+                  runDoc.id,
+
+                data:
+                  runDoc.data() as Record<string, any>,
+              })
+            )
+            .filter(
+              (
+                item
+              ) => {
+                if (
+                  String(
+                    item.data
+                      ?.flowId ||
+                      ""
+                  ).trim() !==
+                  inboundFlowId
+                ) {
+                  return false;
+                }
+
+                const createdAt =
+                  item.data
+                    ?.createdAt;
+
+                const createdAtMs =
+                  typeof createdAt
+                    ?.toMillis ===
+                    "function"
+                    ? createdAt.toMillis()
+                    : 0;
+
+                return (
+                  createdAtMs >=
+                  flightTestStartedAt
+                );
+              }
+            )
+            .sort(
+              (
+                left,
+                right
+              ) => {
+                const leftMs =
+                  typeof left.data
+                    ?.createdAt
+                    ?.toMillis ===
+                    "function"
+                    ? left.data
+                        .createdAt
+                        .toMillis()
+                    : 0;
+
+                const rightMs =
+                  typeof right.data
+                    ?.createdAt
+                    ?.toMillis ===
+                    "function"
+                    ? right.data
+                        .createdAt
+                        .toMillis()
+                    : 0;
+
+                return (
+                  rightMs -
+                  leftMs
+                );
+              }
+            );
+
+        const run =
+          matchingRuns[0];
+
+        if (!run) {
+          return;
+        }
+
+        setFlightTestRunId(
+          run.id
+        );
+
+        setFlightTestMessageReceived(
+          true
+        );
+
+        const runStatus =
+          String(
+            run.data
+              ?.status ||
+              ""
+          ).trim();
+
+        const stepHistory =
+          Array.isArray(
+            run.data
+              ?.stepHistory
+          )
+            ? run.data
+                .stepHistory
+            : [];
+
+        const sendStep =
+          stepHistory.find(
+            (
+              step: any
+            ) =>
+              String(
+                step
+                  ?.stepId ||
+                  ""
+              ).trim() ===
+              "send_whatsapp_1"
+          );
+
+        const replySent =
+          Boolean(
+            sendStep &&
+            (
+              sendStep
+                ?.output
+                ?.sent ===
+                true ||
+              String(
+                sendStep
+                  ?.status ||
+                  ""
+              ).trim() ===
+                "continue"
+            )
+          );
+
+        const flowStarted =
+          Boolean(
+            runStatus ||
+            stepHistory.length >
+              0
+          );
+
+        setFlightTestFlowStarted(
+          flowStarted
+        );
+
+        setFlightTestReplySent(
+          replySent
+        );
+
+        const waitingForType =
+          String(
+            run.data
+              ?.waitingFor
+              ?.type ||
+              ""
+          ).trim();
+
+        const reachedWaitingState =
+          runStatus ===
+            "waiting" &&
+          waitingForType ===
+            "customer_response";
+
+        if (
+          replySent &&
+          reachedWaitingState
+        ) {
+          setTestCompleted(
+            true
+          );
+
+          setFlightTestActive(
+            false
+          );
+        }
+      },
+      (
+        error
+      ) => {
+        console.error(
+          "[MagicTouchOnboarding] Flight test listener failed",
+          error
+        );
+
+        setFlightTestError(
+          "לא ניתן לעקוב כרגע אחרי בדיקת ההמראה."
+        );
+      }
+    );
+  }, [
+    flightTestActive,
+    flightTestStartedAt,
+    agentId,
+    inboundFlowId,
+  ]);
 
   const currentStep =
     useMemo<JourneyStep>(() => {
@@ -885,6 +1439,18 @@ export default function MagicTouchOnboardingPage() {
       testCompleted,
     ]);
 
+  const displayStep:
+    JourneyStep =
+    editingFirstFlow &&
+    (
+      currentStep ===
+        "test" ||
+      currentStep ===
+        "launch"
+    )
+      ? "flow"
+      : currentStep;
+
   const currentIndex =
     [
       "whatsapp",
@@ -893,7 +1459,7 @@ export default function MagicTouchOnboardingPage() {
       "test",
       "launch",
     ].indexOf(
-      currentStep
+      displayStep
     );
 
   const completedCount =
@@ -1016,7 +1582,7 @@ export default function MagicTouchOnboardingPage() {
                 title="מתחברים"
                 subtitle="מחברים את WhatsApp Business ל־MagicTouch."
                 active={
-                  currentStep ===
+                  displayStep ===
                   "whatsapp"
                 }
                 completed={
@@ -1033,7 +1599,7 @@ export default function MagicTouchOnboardingPage() {
                 title="מתאמים"
                 subtitle="בוחרים Google Calendar או Microsoft 365."
                 active={
-                  currentStep ===
+                  displayStep ===
                   "calendar"
                 }
                 completed={
@@ -1053,7 +1619,7 @@ export default function MagicTouchOnboardingPage() {
                 title="בונים"
                 subtitle="יוצרים את תהליך ה־MagicTouch הראשון שלכם."
                 active={
-                  currentStep ===
+                  displayStep ===
                   "flow"
                 }
                 completed={
@@ -1075,7 +1641,7 @@ export default function MagicTouchOnboardingPage() {
                 title="מנסים"
                 subtitle="מריצים תרחיש קצר ובודקים שהכול עובד יחד."
                 active={
-                  currentStep ===
+                  displayStep ===
                   "test"
                 }
                 completed={
@@ -1119,7 +1685,7 @@ export default function MagicTouchOnboardingPage() {
               title="מתחברים"
               subtitle="מחברים WhatsApp Business."
               active={
-                currentStep ===
+                displayStep ===
                 "whatsapp"
               }
               completed={
@@ -1133,7 +1699,7 @@ export default function MagicTouchOnboardingPage() {
               title="מתאמים"
               subtitle="מחברים את היומן."
               active={
-                currentStep ===
+                displayStep ===
                 "calendar"
               }
               completed={
@@ -1150,7 +1716,7 @@ export default function MagicTouchOnboardingPage() {
               title="בונים"
               subtitle="יוצרים תהליך ראשון."
               active={
-                currentStep ===
+                displayStep ===
                 "flow"
               }
               completed={
@@ -1168,7 +1734,7 @@ export default function MagicTouchOnboardingPage() {
               title="מנסים"
               subtitle="בודקים את התהליך."
               active={
-                currentStep ===
+                displayStep ===
                 "test"
               }
               completed={
@@ -1190,16 +1756,16 @@ export default function MagicTouchOnboardingPage() {
                 </div>
 
                 <h2 className="mt-1 text-2xl font-black text-slate-950">
-                  {currentStep ===
+                  {displayStep ===
                   "whatsapp"
                     ? "מחברים את WhatsApp"
-                    : currentStep ===
+                    : displayStep ===
                         "calendar"
                       ? "בוחרים איך מתאמים פגישות"
-                      : currentStep ===
+                      : displayStep ===
                           "flow"
                         ? "בונים תהליך ראשון"
-                        : currentStep ===
+                        : displayStep ===
                             "test"
                           ? "עושים בדיקת מערכת"
                           : "MagicTouch מוכן"}
@@ -1207,23 +1773,23 @@ export default function MagicTouchOnboardingPage() {
               </div>
 
               <div className="hidden h-12 w-12 items-center justify-center rounded-2xl bg-blue-50 text-xl md:flex">
-                {currentStep ===
+                {displayStep ===
                 "whatsapp"
                   ? "💬"
-                  : currentStep ===
+                  : displayStep ===
                       "calendar"
                     ? "📅"
-                    : currentStep ===
+                    : displayStep ===
                         "flow"
                       ? "⚡"
-                      : currentStep ===
+                      : displayStep ===
                           "test"
                         ? "🧪"
                         : "🚀"}
               </div>
             </div>
 
-            {currentStep ===
+            {displayStep ===
             "whatsapp" ? (
               <div>
                 <p className="max-w-2xl text-sm leading-7 text-slate-600">
@@ -1278,7 +1844,7 @@ export default function MagicTouchOnboardingPage() {
               </div>
             ) : null}
 
-            {currentStep ===
+            {displayStep ===
             "calendar" ? (
               <div>
                 <p className="mb-5 text-sm leading-7 text-slate-600">
@@ -1447,15 +2013,32 @@ export default function MagicTouchOnboardingPage() {
               </div>
             ) : null}
 
-            {currentStep ===
+            {displayStep ===
             "flow" ? (
               <div>
-                <p className="mb-5 text-sm leading-7 text-slate-600">
-                  קודם בוחרים איך
-                  MagicTouch יתחיל לעבוד
-                  אצלכם. אפשר לבחור מסלול
-                  אחד או את שניהם.
-                </p>
+                <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <p className="text-sm leading-7 text-slate-600">
+                    קודם בוחרים איך
+                    MagicTouch יתחיל לעבוד
+                    אצלכם. אפשר לבחור מסלול
+                    אחד או את שניהם.
+                  </p>
+
+                  {editingFirstFlow &&
+                  flowCompleted ? (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setEditingFirstFlow(
+                          false
+                        )
+                      }
+                      className="shrink-0 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 shadow-sm transition hover:bg-slate-50"
+                    >
+                      חזרה לבדיקת המערכת
+                    </button>
+                  ) : null}
+                </div>
 
                 {loadingFirstFlowMode ? (
                   <div className="mb-5 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
@@ -1467,6 +2050,34 @@ export default function MagicTouchOnboardingPage() {
                 {savingFirstFlowMode ? (
                   <div className="mb-5 rounded-2xl border border-blue-100 bg-blue-50 p-4 text-sm font-semibold text-blue-700">
                     שומר את הבחירה...
+                  </div>
+                ) : null}
+
+                {generatingInboundFlow ? (
+                  <div className="mb-5 rounded-2xl border border-violet-100 bg-violet-50 p-4 text-sm font-semibold text-violet-700">
+                    יוצר את אוטומציית הפנייה הנכנסת ב־MagicTouch...
+                  </div>
+                ) : null}
+
+                {inboundFlowError ? (
+                  <div className="mb-5 rounded-2xl border border-rose-200 bg-rose-50 p-4">
+                    <div className="text-sm font-bold text-rose-700">
+                      {inboundFlowError}
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setInboundFlowAutoAttempted(
+                          true
+                        );
+
+                        void ensureInboundFlow();
+                      }}
+                      className="mt-3 rounded-xl border border-rose-200 bg-white px-4 py-2 text-sm font-bold text-rose-700 transition hover:bg-rose-50"
+                    >
+                      ניסיון נוסף
+                    </button>
                   </div>
                 ) : null}
 
@@ -1621,14 +2232,59 @@ export default function MagicTouchOnboardingPage() {
                           agentId={
                             agentId
                           }
-                          onSaved={() => {
+                          onSaved={(state) => {
                             setInboundSetupCompleted(
                               true
                             );
+
+                            setInboundWelcomeMessage(
+                              state.welcomeMessage
+                            );
+
+                            setInboundOptions(
+                              state.options
+                            );
+
+                            setInboundFlowError(
+                              ""
+                            );
+
+                            setInboundFlowAutoAttempted(
+                              true
+                            );
+
+                            void ensureInboundFlow();
                           }}
                         />
                       )}
                     </div>
+
+                    {inboundFlowId ? (
+                      <div className="mt-5 rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+                        <div className="font-black text-emerald-900">
+                          ✓ אוטומציית הפנייה הנכנסת נוצרה
+                        </div>
+
+                        <div className="mt-1 text-sm leading-6 text-emerald-800">
+                          זהו Flow רגיל של MagicTouch והוא מופיע גם במסך האוטומציות.
+                        </div>
+
+                        <div className="mt-3 flex flex-wrap items-center gap-3">
+                          <Link
+                            href={`/MagicTouch/Flows/${inboundFlowId}`}
+                            className="rounded-xl bg-white px-4 py-2 text-sm font-bold text-emerald-700 shadow-sm ring-1 ring-emerald-200 transition hover:bg-emerald-50"
+                          >
+                            פתיחת האוטומציה
+                          </Link>
+
+                          {inboundFlowVersion ? (
+                            <span className="text-xs font-bold text-emerald-700">
+                              גרסה {inboundFlowVersion}
+                            </span>
+                          ) : null}
+                        </div>
+                      </div>
+                    ) : null}
                   </div>
                 ) : null}
 
@@ -1643,20 +2299,22 @@ export default function MagicTouchOnboardingPage() {
                 !flowCompleted ? (
                   <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900">
                     נשלים את כל המסלולים
-                    שבחרתם לפני שהתחנה תסומן
-                    כהושלמה.
+                    שבחרתם וניצור את
+                    האוטומציות בפועל לפני
+                    שהתחנה תסומן כהושלמה.
                   </div>
                 ) : null}
               </div>
             ) : null}
 
-            {currentStep ===
+            {displayStep ===
             "test" ? (
               <div>
                 <p className="text-sm leading-7 text-slate-600">
                   החיבורים מוכנים והתהליך
-                  הראשון נבנה. עכשיו נריץ
-                  בדיקה קצרה לפני ההפעלה.
+                  הראשון הוגדר. לפני ההפעלה
+                  אפשר לעבור על ההגדרות ואז
+                  להריץ בדיקה קצרה.
                 </p>
 
                 <div className="mt-5 grid gap-3 md:grid-cols-3">
@@ -1673,21 +2331,234 @@ export default function MagicTouchOnboardingPage() {
                   </div>
                 </div>
 
-                <button
-                  type="button"
-                  className="mt-5 rounded-xl bg-slate-950 px-6 py-3 font-bold text-white hover:bg-slate-800"
-                  onClick={() =>
-                    setTestCompleted(
-                      true
-                    )
-                  }
-                >
-                  הרצת בדיקת המראה
-                </button>
+                <section className="mt-5 rounded-2xl border border-slate-200 bg-white p-5">
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                      <div className="text-xs font-black text-blue-600">
+                        התהליך הראשון שהוגדר
+                      </div>
+
+                      <h3 className="mt-1 text-lg font-black text-slate-950">
+                        סיכום לפני הבדיקה
+                      </h3>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setEditingFirstFlow(
+                          true
+                        )
+                      }
+                      className="shrink-0 rounded-xl border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-bold text-blue-700 transition hover:bg-blue-100"
+                    >
+                      עריכת ההגדרות
+                    </button>
+                  </div>
+
+                  <div className="mt-5 grid gap-4 md:grid-cols-2">
+                    {firstFlow.outbound ? (
+                      <div className="rounded-2xl border border-blue-100 bg-blue-50/40 p-4">
+                        <div className="text-xs font-black text-blue-600">
+                          📣 פנייה יזומה
+                        </div>
+
+                        <div className="mt-2 font-bold text-slate-900">
+                          תבנית WhatsApp
+                        </div>
+
+                        <div
+                          dir="ltr"
+                          className="mt-2 break-all rounded-xl bg-white px-3 py-2 text-xs font-medium text-slate-600 ring-1 ring-blue-100"
+                        >
+                          {outboundTemplateName ||
+                            "לא הוגדרה תבנית"}
+                        </div>
+
+                        {outboundTemplateStatus ? (
+                          <div className="mt-2 text-xs font-bold text-slate-500">
+                            סטטוס:{" "}
+                            {outboundTemplateStatus}
+                          </div>
+                        ) : null}
+                      </div>
+                    ) : null}
+
+                    {firstFlow.inbound ? (
+                      <div className="rounded-2xl border border-violet-100 bg-violet-50/40 p-4">
+                        <div className="text-xs font-black text-violet-600">
+                          💬 פנייה נכנסת
+                        </div>
+
+                        <div className="mt-2 font-bold text-slate-900">
+                          הודעת פתיחה
+                        </div>
+
+                        <div className="mt-2 whitespace-pre-wrap rounded-xl bg-white px-3 py-2 text-sm leading-6 text-slate-700 ring-1 ring-violet-100">
+                          {inboundWelcomeMessage ||
+                            "המענה הראשוני הוגדר"}
+                        </div>
+
+                        {inboundFlowId ? (
+                          <div className="mt-3 flex items-center justify-between gap-3 rounded-xl bg-emerald-50 px-3 py-2 ring-1 ring-emerald-100">
+                            <div className="text-xs font-bold text-emerald-700">
+                              ✓ Flow נוצר
+                              {inboundFlowVersion
+                                ? ` · גרסה ${inboundFlowVersion}`
+                                : ""}
+                            </div>
+
+                            <Link
+                              href={`/MagicTouch/Flows/${inboundFlowId}`}
+                              className="text-xs font-bold text-emerald-700 underline underline-offset-2"
+                            >
+                              פתיחה
+                            </Link>
+                          </div>
+                        ) : null}
+
+                        {inboundOptions.length >
+                        0 ? (
+                          <div className="mt-3">
+                            <div className="text-xs font-bold text-slate-500">
+                              אפשרויות ללקוח
+                            </div>
+
+                            <div className="mt-2 flex flex-wrap gap-2">
+                              {inboundOptions.map(
+                                (
+                                  option,
+                                  index
+                                ) => (
+                                  <span
+                                    key={`${option.action}-${index}`}
+                                    className="rounded-full bg-white px-3 py-1.5 text-xs font-bold text-violet-700 ring-1 ring-violet-100"
+                                  >
+                                    {option.label}
+                                  </span>
+                                )
+                              )}
+                            </div>
+                          </div>
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </div>
+                </section>
+
+                {flightTestError ? (
+                  <div className="mt-5 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm font-bold text-rose-700">
+                    {flightTestError}
+                  </div>
+                ) : null}
+
+                {flightTestActive ? (
+                  <section className="mt-5 rounded-2xl border border-blue-100 bg-blue-50/60 p-5">
+                    <div className="flex items-start gap-3">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-600 text-lg text-white">
+                        🧪
+                      </div>
+
+                      <div>
+                        <h3 className="font-black text-slate-950">
+                          בדיקת MagicTouch פעילה
+                        </h3>
+
+                        <p className="mt-1 text-sm leading-6 text-slate-600">
+                          עכשיו שלחו הודעת WhatsApp ממספר אחר למספר העסקי של הסוכן.
+                          אין צורך בטקסט מיוחד — אפשר פשוט לכתוב "שלום".
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="mt-5 grid gap-3 sm:grid-cols-3">
+                      <div
+                        className={[
+                          "rounded-xl p-3 text-sm font-bold",
+                          flightTestMessageReceived
+                            ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100"
+                            : "bg-white text-slate-500 ring-1 ring-slate-200",
+                        ].join(" ")}
+                      >
+                        {flightTestMessageReceived
+                          ? "✓ הודעה נכנסה"
+                          : "1. ממתין להודעה"}
+                      </div>
+
+                      <div
+                        className={[
+                          "rounded-xl p-3 text-sm font-bold",
+                          flightTestFlowStarted
+                            ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100"
+                            : "bg-white text-slate-500 ring-1 ring-slate-200",
+                        ].join(" ")}
+                      >
+                        {flightTestFlowStarted
+                          ? "✓ Flow הופעל"
+                          : "2. ממתין ל־Flow"}
+                      </div>
+
+                      <div
+                        className={[
+                          "rounded-xl p-3 text-sm font-bold",
+                          flightTestReplySent
+                            ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100"
+                            : "bg-white text-slate-500 ring-1 ring-slate-200",
+                        ].join(" ")}
+                      >
+                        {flightTestReplySent
+                          ? "✓ מענה נשלח"
+                          : "3. ממתין למענה"}
+                      </div>
+                    </div>
+
+                    {flightTestRunId ? (
+                      <div className="mt-4 text-xs text-slate-400" dir="ltr">
+                        Run: {flightTestRunId}
+                      </div>
+                    ) : null}
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFlightTestActive(
+                          false
+                        );
+
+                        setFlightTestStartedAt(
+                          null
+                        );
+                      }}
+                      className="mt-4 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-600 transition hover:bg-slate-50"
+                    >
+                      ביטול הבדיקה
+                    </button>
+                  </section>
+                ) : testCompleted ? (
+                  <section className="mt-5 rounded-2xl border border-emerald-200 bg-emerald-50 p-5">
+                    <div className="font-black text-emerald-900">
+                      ✓ בדיקת ההמראה עברה בהצלחה
+                    </div>
+
+                    <p className="mt-1 text-sm leading-6 text-emerald-800">
+                      התקבלה הודעת WhatsApp, ה־Flow הופעל והמענה הראשוני נשלח בפועל.
+                    </p>
+                  </section>
+                ) : (
+                  <button
+                    type="button"
+                    className="mt-5 rounded-xl bg-slate-950 px-6 py-3 font-bold text-white transition hover:bg-slate-800"
+                    onClick={
+                      startFlightTest
+                    }
+                  >
+                    הרצת בדיקת המראה
+                  </button>
+                )}
               </div>
             ) : null}
 
-            {currentStep ===
+            {displayStep ===
             "launch" ? (
               <div className="rounded-2xl bg-gradient-to-l from-blue-50 to-violet-50 p-6 text-center">
                 <div className="text-5xl">

@@ -50,13 +50,30 @@ export type MagicTouchResolvedAction =
   | null;
 
 export interface MagicTouchConversationRouteInput {
-  agentId: string;
-  contactId?: string | null;
-  conversationId: string;
-  phoneNormalized: string;
-  messageText?: string | null;
-  messageType?: string | null;
-  quickReplyAction?: string | null;
+  agentId:
+    string;
+
+  contactId?:
+    string |
+    null;
+
+  conversationId:
+    string;
+
+  phoneNormalized:
+    string;
+
+  messageText?:
+    string |
+    null;
+
+  messageType?:
+    string |
+    null;
+
+  quickReplyAction?:
+    string |
+    null;
 }
 
 export interface MagicTouchConversationRouteResult {
@@ -76,28 +93,53 @@ export interface MagicTouchConversationRouteResult {
     MagicTouchConversationHandling;
 
   activeRunId:
-    string | null;
+    string |
+    null;
 
   activeFlowId:
-    string | null;
+    string |
+    null;
 
   previousRunId:
-    string | null;
+    string |
+    null;
 
   reason:
     string;
 
   suggestedReply?:
-    string | null;
+    string |
+    null;
 
   suggestedReplyConfidence?:
-    number | null;
+    number |
+    null;
 }
 
 type ActiveRunRecord = {
-  runId: string;
-  data: Record<string, any>;
+  runId:
+    string;
+
+  data:
+    Record<
+      string,
+      any
+    >;
 };
+
+const HUMAN_ONLY_INTENTS =
+  new Set([
+    "callback",
+    "call_me",
+    "agent_callback",
+    "talk_to_agent",
+    "speak_to_agent",
+    "human_agent",
+    "human_request",
+    "agent_request",
+    "representative",
+    "complaint",
+  ]);
 
 function s(
   value: unknown
@@ -107,15 +149,52 @@ function s(
   ).trim();
 }
 
+function normalizeIntent(
+  value: unknown
+): string {
+  return s(
+    value
+  )
+    .toLowerCase()
+    .replace(
+      /[\s-]+/g,
+      "_"
+    );
+}
+
+function isHumanOnlyIntent(
+  value: unknown
+): boolean {
+  const intent =
+    normalizeIntent(
+      value
+    );
+
+  return Boolean(
+    intent &&
+    HUMAN_ONLY_INTENTS.has(
+      intent
+    )
+  );
+}
+
 async function findActiveRuns({
   agentId,
   contactId,
   conversationId,
 }: {
-  agentId: string;
-  contactId: string | null;
-  conversationId: string;
-}): Promise<ActiveRunRecord[]> {
+  agentId:
+    string;
+
+  contactId:
+    string |
+    null;
+
+  conversationId:
+    string;
+}): Promise<
+  ActiveRunRecord[]
+> {
   const db =
     adminDb();
 
@@ -142,10 +221,11 @@ async function findActiveRuns({
       snap.docs
     ) {
       const data =
-        doc.data() as Record<
-          string,
-          any
-        >;
+        doc.data() as
+          Record<
+            string,
+            any
+          >;
 
       const status =
         s(
@@ -153,8 +233,10 @@ async function findActiveRuns({
         );
 
       if (
-        status !== "waiting" &&
-        status !== "processing"
+        status !==
+          "waiting" &&
+        status !==
+          "processing"
       ) {
         continue;
       }
@@ -189,15 +271,12 @@ async function findActiveRuns({
             "processing",
           ]
         )
-        .limit(20)
+        .limit(
+          20
+        )
     );
   }
 
-  /*
-   * Fallback לפי contactId.
-   * Map מונע כפילויות אם אותו Run
-   * נמצא גם לפי conversation וגם לפי contact.
-   */
   if (
     contactId
   ) {
@@ -216,7 +295,9 @@ async function findActiveRuns({
             "processing",
           ]
         )
-        .limit(20)
+        .limit(
+          20
+        )
     );
   }
 
@@ -230,9 +311,15 @@ async function findPreviousCompletedRun({
   contactId,
   conversationId,
 }: {
-  agentId: string;
-  contactId: string | null;
-  conversationId: string;
+  agentId:
+    string;
+
+  contactId:
+    string |
+    null;
+
+  conversationId:
+    string;
 }) {
   const db =
     adminDb();
@@ -257,14 +344,18 @@ async function findPreviousCompletedRun({
           "==",
           "completed"
         )
-        .limit(1)
+        .limit(
+          1
+        )
         .get();
 
     if (
       !snap.empty
     ) {
       const doc =
-        snap.docs[0];
+        snap.docs[
+          0
+        ];
 
       return {
         runId:
@@ -291,14 +382,18 @@ async function findPreviousCompletedRun({
           "==",
           "completed"
         )
-        .limit(1)
+        .limit(
+          1
+        )
         .get();
 
     if (
       !snap.empty
     ) {
       const doc =
-        snap.docs[0];
+        snap.docs[
+          0
+        ];
 
       return {
         runId:
@@ -334,7 +429,9 @@ function getExpectedActions(
       (
         value: any
       ) =>
-        s(value)
+        s(
+          value
+        )
     )
     .filter(
       Boolean
@@ -361,11 +458,13 @@ function getResponseOptions(
     (
       result:
         MagicTouchResponseOption[],
-      option: any
+      option:
+        any
     ) => {
       const action =
         s(
-          option?.action
+          option
+            ?.action
         );
 
       if (
@@ -376,12 +475,14 @@ function getResponseOptions(
 
       const label =
         s(
-          option?.label
+          option
+            ?.label
         );
 
       const description =
         s(
-          option?.description
+          option
+            ?.description
         );
 
       const responseOption:
@@ -415,7 +516,8 @@ function getResponseOptions(
 
 function getPromptQuestion(
   runData: any
-): string | null {
+): string |
+  null {
   return (
     s(
       runData
@@ -448,8 +550,12 @@ function actionIsExpected({
   resolvedAction,
   expectedActions,
 }: {
-  resolvedAction: string | null;
-  expectedActions: string[];
+  resolvedAction:
+    string |
+    null;
+
+  expectedActions:
+    string[];
 }): boolean {
   if (
     !resolvedAction ||
@@ -663,7 +769,9 @@ function buildSafeReplyBusinessContext(
 export async function routeMagicTouchConversation(
   input:
     MagicTouchConversationRouteInput
-): Promise<MagicTouchConversationRouteResult> {
+): Promise<
+  MagicTouchConversationRouteResult
+> {
   const agentId =
     s(
       input.agentId
@@ -712,13 +820,6 @@ export async function routeMagicTouchConversation(
       ? "known"
       : "unknown";
 
-  /*
-   * מקור אמת אחד להגדרות AI:
-   * system + agent.
-   *
-   * Quick Reply נשאר דטרמיניסטי
-   * ולא דורש AI.
-   */
   const aiSettings =
     await getEffectiveMagicTouchAISettings(
       agentId
@@ -742,10 +843,7 @@ export async function routeMagicTouchConversation(
   ) {
     /*
      * Quick Reply:
-     * קודם מנסים התאמה דטרמיניסטית ל-Run
-     * שמחכה ל-customer_response ומצפה ל-action.
-     *
-     * כך Quick Reply לא דורש AI.
+     * התאמה דטרמיניסטית ל-Run שמצפה לאותו Action.
      */
     if (
       quickReplyAction
@@ -822,13 +920,6 @@ export async function routeMagicTouchConversation(
       }
     }
 
-    /*
-     * מכאן מדובר במלל חופשי.
-     *
-     * אם AI כבוי ברמת המערכת או הסוכן,
-     * לא מפעילים AI ולא מנחשים לאיזה Run
-     * ההודעה שייכת.
-     */
     if (
       !aiUnderstandingEnabled
     ) {
@@ -862,8 +953,7 @@ export async function routeMagicTouchConversation(
     }
 
     /*
-     * הודעה חופשית כאשר יש Runs פעילים:
-     * קודם בוחרים לאיזה Run ההודעה שייכת.
+     * קודם בוחרים לאיזה Run המלל החופשי שייך.
      */
     const candidates =
       buildConversationCandidates(
@@ -909,10 +999,6 @@ export async function routeMagicTouchConversation(
           null
         : null;
 
-    /*
-     * אם לא הצלחנו להבין לאיזה Run ההודעה שייכת,
-     * לא מנחשים ולא ממשיכים שום Flow.
-     */
     if (
       !targetRun
     ) {
@@ -941,8 +1027,7 @@ export async function routeMagicTouchConversation(
           null,
 
         reason:
-          targetResult
-            .reason ||
+          targetResult.reason ||
           "active_runs_target_not_resolved",
       };
     }
@@ -960,6 +1045,20 @@ export async function routeMagicTouchConversation(
           ?.type
       );
 
+    const targetIntent =
+      s(
+        targetResult
+          ?.intent
+      ) ||
+      null;
+
+    /*
+     * Safe Reply הוא fallback בלבד.
+     *
+     * Intent שמחייב אדם (למשל callback) לעולם
+     * לא נכנס ל-Generation. הוא עובר ישירות
+     * ל-human_attention.
+     */
     const trySafeReply =
       async (): Promise<
         MagicTouchConversationRouteResult |
@@ -1072,6 +1171,51 @@ export async function routeMagicTouchConversation(
         const safeConfidence =
           safeIntentResult
             .confidence;
+
+        /*
+         * זיהינו בקשה שמחייבת סוכן.
+         * לא מייצרים תשובה אוטומטית ולא שואלים
+         * שאלות המשך בשם הסוכן.
+         */
+        if (
+          isHumanOnlyIntent(
+            safeIntent
+          )
+        ) {
+          return {
+            contactState,
+
+            flowState:
+              "active",
+
+            messageDisposition:
+              "unexpected",
+
+            resolvedAction:
+              safeIntent,
+
+            handling:
+              "human_attention",
+
+            activeRunId:
+              targetRun.runId,
+
+            activeFlowId:
+              s(
+                targetRun.data
+                  ?.flowId
+              ) ||
+              null,
+
+            previousRunId:
+              null,
+
+            reason:
+              `human_only_intent_${normalizeIntent(
+                safeIntent
+              )}`,
+          };
+        }
 
         const safeIntentAllowed =
           Boolean(
@@ -1205,7 +1349,46 @@ export async function routeMagicTouchConversation(
         if (
           !replyConfidencePassed
         ) {
-          return null;
+          return {
+            contactState,
+
+            flowState:
+              "active",
+
+            messageDisposition:
+              "unexpected",
+
+            resolvedAction:
+              safeIntent,
+
+            handling:
+              "human_attention",
+
+            activeRunId:
+              targetRun.runId,
+
+            activeFlowId:
+              s(
+                targetRun.data
+                  ?.flowId
+              ) ||
+              null,
+
+            previousRunId:
+              null,
+
+            reason:
+              suggestedReply
+                ? "safe_reply_generation_confidence_below_threshold"
+                : "safe_reply_generation_unresolved",
+
+            suggestedReply:
+              null,
+
+            suggestedReplyConfidence:
+              suggestedReplyConfidence ??
+              null,
+          };
         }
 
         return {
@@ -1230,8 +1413,8 @@ export async function routeMagicTouchConversation(
             s(
               targetRun.data
                 ?.flowId
-            ) ||
-            null,
+          ) ||
+          null,
 
           previousRunId:
             null,
@@ -1245,6 +1428,9 @@ export async function routeMagicTouchConversation(
         };
       };
 
+    /*
+     * ה-Run מחכה לתשובה עסקית.
+     */
     if (
       runStatus ===
         "waiting" &&
@@ -1327,6 +1513,7 @@ export async function routeMagicTouchConversation(
       const expected =
         actionIsExpected({
           resolvedAction,
+
           expectedActions,
         });
 
@@ -1365,6 +1552,57 @@ export async function routeMagicTouchConversation(
         };
       }
 
+      /*
+       * אם Target Routing כבר הבין שמדובר בבקשה
+       * שמחייבת אדם, אסור ל-Safe Reply לענות עליה.
+       *
+       * אם callback היה Action צפוי, היינו כבר
+       * נכנסים ל-continue_flow למעלה.
+       */
+      if (
+        isHumanOnlyIntent(
+          targetIntent
+        )
+      ) {
+        return {
+          contactState,
+
+          flowState:
+            "active",
+
+          messageDisposition:
+            "unexpected",
+
+          resolvedAction:
+            targetIntent,
+
+          handling:
+            "human_attention",
+
+          activeRunId:
+            targetRun.runId,
+
+          activeFlowId:
+            s(
+              targetRun.data
+                ?.flowId
+            ) ||
+            null,
+
+          previousRunId:
+            null,
+
+          reason:
+            `human_only_intent_${normalizeIntent(
+              targetIntent
+            )}`,
+        };
+      }
+
+      /*
+       * זו לא תשובה עסקית, אבל אולי זו שאלת עזרה
+       * בטוחה שאפשר לענות עליה בלי לשנות את ה-Flow.
+       */
       const safeReplyRoute =
         await trySafeReply();
 
@@ -1408,6 +1646,52 @@ export async function routeMagicTouchConversation(
       };
     }
 
+    /*
+     * ה-Run מחכה למסמך / חתימה / booking /
+     * external event וכו'.
+     *
+     * callback או בקשה לאדם -> Human Attention מיד.
+     */
+    if (
+      isHumanOnlyIntent(
+        targetIntent
+      )
+    ) {
+      return {
+        contactState,
+
+        flowState:
+          "active",
+
+        messageDisposition:
+          "unexpected",
+
+        resolvedAction:
+          targetIntent,
+
+        handling:
+          "human_attention",
+
+        activeRunId:
+          targetRun.runId,
+
+        activeFlowId:
+          s(
+            targetRun.data
+              ?.flowId
+          ) ||
+          null,
+
+        previousRunId:
+          null,
+
+        reason:
+          `human_only_intent_${normalizeIntent(
+            targetIntent
+          )}`,
+      };
+    }
+
     const safeReplyRoute =
       await trySafeReply();
 
@@ -1417,11 +1701,6 @@ export async function routeMagicTouchConversation(
       return safeReplyRoute;
     }
 
-    /*
-     * understand_only (או safe replies כבוי):
-     * מבינים את ההקשר, אבל לא עונים ולא משלימים
-     * את ההמתנה העסקית של ה-Run.
-     */
     return {
       contactState,
 
@@ -1432,8 +1711,7 @@ export async function routeMagicTouchConversation(
         "unexpected",
 
       resolvedAction:
-        targetResult.intent ||
-        null,
+        targetIntent,
 
       handling:
         "human_attention",

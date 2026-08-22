@@ -31,6 +31,20 @@ type SendMessageResponse = {
   waMessageId: string;
 };
 
+type ResolveHumanAttentionResponse = {
+  ok: boolean;
+  mode:
+    | 'handled'
+    | 'continue_flow';
+  conversationId: string;
+  agentId: string;
+  runId: string | null;
+  resumed: boolean;
+  resolvedAction?: string;
+  eventId?: string;
+  resumeStepId?: string;
+};
+
 function formatPhoneNumber(
   phone: string
 ): string {
@@ -207,6 +221,7 @@ export default function MagicTouchConversationsPage() {
       clearConversationsError,
 
     waitingForReplyCount,
+    humanAttentionCount,
 
     selectConversation,
   } =
@@ -231,6 +246,12 @@ export default function MagicTouchConversationsPage() {
     setSendErrorMessage,
   ] =
     useState('');
+
+  const [
+    isResolvingAttention,
+    setIsResolvingAttention,
+  ] =
+    useState(false);
 
   const errorMessage =
     sendErrorMessage ||
@@ -321,6 +342,85 @@ export default function MagicTouchConversationsPage() {
       }
     };
 
+  const resolveHumanAttention =
+    async ({
+      mode,
+      resolvedAction,
+    }: {
+      mode:
+        | 'handled'
+        | 'continue_flow';
+      resolvedAction?:
+        string;
+    }) => {
+      if (
+        !selectedConversationId ||
+        isResolvingAttention
+      ) {
+        return;
+      }
+
+      setIsResolvingAttention(
+        true
+      );
+
+      setSendErrorMessage(
+        ''
+      );
+
+      clearConversationsError();
+
+      try {
+        const fn =
+          httpsCallable<
+            {
+              conversationId:
+                string;
+              mode:
+                'handled' |
+                'continue_flow';
+              resolvedAction?:
+                string;
+            },
+            ResolveHumanAttentionResponse
+          >(
+            functions,
+            'resolveMagicTouchHumanAttention'
+          );
+
+        await fn({
+          conversationId:
+            selectedConversationId,
+
+          mode,
+
+          ...(
+            resolvedAction
+              ? {
+                  resolvedAction,
+                }
+              : {}
+          ),
+        });
+      } catch (
+        error: any
+      ) {
+        console.error(
+          '[MagicTouchConversationsPage] Failed to resolve human attention',
+          error
+        );
+
+        setSendErrorMessage(
+          error?.message ||
+            'לא ניתן היה לסיים את הטיפול בשיחה.'
+        );
+      } finally {
+        setIsResolvingAttention(
+          false
+        );
+      }
+    };
+
   return (
     <section
       dir="rtl"
@@ -360,15 +460,27 @@ export default function MagicTouchConversationsPage() {
               </div>
             </div>
 
-            {waitingForReplyCount >
-            0 ? (
-              <span className="rounded-full bg-green-100 px-3 py-1 text-sm font-bold text-green-700">
-                {
-                  waitingForReplyCount
-                }{' '}
-                ממתינות למענה
-              </span>
-            ) : null}
+            <div className="flex flex-wrap items-center gap-2">
+              {waitingForReplyCount >
+              0 ? (
+                <span className="rounded-full bg-green-100 px-3 py-1 text-sm font-bold text-green-700">
+                  {
+                    waitingForReplyCount
+                  }{' '}
+                  ממתינות למענה
+                </span>
+              ) : null}
+
+              {humanAttentionCount >
+              0 ? (
+                <span className="rounded-full bg-red-100 px-3 py-1 text-sm font-bold text-red-700">
+                  🔴 {
+                    humanAttentionCount
+                  }{' '}
+                  דורשות טיפול
+                </span>
+              ) : null}
+            </div>
           </div>
 
           <div className="grid min-h-[650px] grid-cols-1 lg:grid-cols-[360px_minmax(0,1fr)]">
@@ -418,6 +530,13 @@ export default function MagicTouchConversationsPage() {
                           conversation.unreadCount ||
                             0
                         );
+
+                      const needsHumanAttention =
+                        conversation.needsHumanAttention ===
+                          true ||
+                        conversation.humanAttention
+                          ?.required ===
+                          true;
 
                       return (
                         <button
@@ -479,6 +598,14 @@ export default function MagicTouchConversationsPage() {
                                   conversation.customerPhone
                                 )}
                               </div>
+
+                              {needsHumanAttention ? (
+                                <div className="mt-1">
+                                  <span className="inline-flex rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-bold text-red-700">
+                                    🔴 דורש טיפול
+                                  </span>
+                                </div>
+                              ) : null}
 
                               <div className="mt-1 truncate text-sm text-slate-600">
                                 {conversation.lastMessageDirection ===
@@ -561,6 +688,167 @@ export default function MagicTouchConversationsPage() {
                       </Link>
                     ) : null}
                   </div>
+
+                  {selectedConversation.needsHumanAttention ===
+                    true ||
+                  selectedConversation.humanAttention
+                    ?.required ===
+                    true ? (
+                    <div className="border-b border-red-200 bg-red-50 px-4 py-3">
+                      <div className="flex items-center gap-2 font-bold text-red-800">
+                        <span>
+                          🔴
+                        </span>
+
+                        <span>
+                          נדרשת התערבות שלך
+                        </span>
+                      </div>
+
+                      <p className="mt-1 text-sm text-red-700">
+                        MagicTouch לא הצליח להתאים את תשובת הלקוח להמשך התהליך באופן בטוח.
+                      </p>
+
+                      {selectedConversation.humanAttention
+                        ?.customerMessage ? (
+                        <div className="mt-3 rounded-lg border border-red-100 bg-white px-3 py-2">
+                          <div className="text-xs font-semibold text-slate-500">
+                            הלקוח כתב
+                          </div>
+
+                          <div className="mt-1 whitespace-pre-wrap text-sm font-medium text-slate-800">
+                            {
+                              selectedConversation.humanAttention
+                                .customerMessage
+                            }
+                          </div>
+                        </div>
+                      ) : null}
+
+                      {selectedConversation.humanAttention
+                        ?.question ? (
+                        <div className="mt-2 rounded-lg border border-amber-100 bg-amber-50 px-3 py-2">
+                          <div className="text-xs font-semibold text-amber-700">
+                            התהליך עדיין ממתין לתשובה על
+                          </div>
+
+                          <div className="mt-1 whitespace-pre-wrap text-sm text-slate-800">
+                            {
+                              selectedConversation.humanAttention
+                                .question
+                            }
+                          </div>
+                        </div>
+                      ) : null}
+
+                      {selectedConversation.humanAttention
+                        ?.flowName ? (
+                        <div className="mt-2 text-xs text-slate-500">
+                          תהליך:{' '}
+                          <span className="font-semibold">
+                            {
+                              selectedConversation.humanAttention
+                                .flowName
+                            }
+                          </span>
+                        </div>
+                      ) : null}
+
+                      {Array.isArray(
+                        selectedConversation.humanAttention
+                          ?.expectedActions
+                      ) &&
+                      selectedConversation.humanAttention
+                        ?.expectedActions
+                        ?.length ? (
+                        <div className="mt-4 rounded-xl border border-blue-100 bg-white p-3">
+                          <div className="text-xs font-bold text-slate-700">
+                            להמשיך את ה־Flow לפי החלטתך
+                          </div>
+
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {selectedConversation.humanAttention
+                              .expectedActions
+                              .map(
+                                (
+                                  action
+                                ) => {
+                                  const option =
+                                    selectedConversation.humanAttention
+                                      ?.responseOptions
+                                      ?.find(
+                                        (
+                                          item
+                                        ) =>
+                                          item.action ===
+                                          action
+                                      );
+
+                                  const label =
+                                    option?.label ||
+                                    action;
+
+                                  return (
+                                    <button
+                                      key={
+                                        action
+                                      }
+                                      type="button"
+                                      disabled={
+                                        isResolvingAttention
+                                      }
+                                      onClick={() =>
+                                        void resolveHumanAttention({
+                                          mode:
+                                            'continue_flow',
+                                          resolvedAction:
+                                            action,
+                                        })
+                                      }
+                                      className="rounded-lg bg-blue-600 px-3 py-2 text-xs font-bold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                                      title={
+                                        option?.description ||
+                                        action
+                                      }
+                                    >
+                                      {label}
+                                    </button>
+                                  );
+                                }
+                              )}
+                          </div>
+
+                          <div className="mt-2 text-[11px] text-slate-400">
+                            בחירה כאן תפתור ידנית את ה־Action ותחדש את אותו Run מהמקום שבו נעצר.
+                          </div>
+                        </div>
+                      ) : null}
+
+                      <div className="mt-3 flex flex-wrap items-center gap-2">
+                        <button
+                          type="button"
+                          disabled={
+                            isResolvingAttention
+                          }
+                          onClick={() =>
+                            void resolveHumanAttention({
+                              mode:
+                                'handled',
+                            })
+                          }
+                          className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {isResolvingAttention
+                            ? 'מעדכן...'
+                            : '✓ טופל'}
+                        </button>
+
+                        <span className="text-[11px] text-slate-500">
+                          "טופל" מסיר את ההתראה בלבד ואינו ממשיך את ה־Flow.
+                        </span>
+                      </div>
+                    </div>
+                  ) : null}
 
                   <div className="h-[500px] flex-1 space-y-2 overflow-y-auto p-4">
                     {isLoadingMessages ? (

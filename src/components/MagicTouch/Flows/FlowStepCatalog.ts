@@ -13,14 +13,15 @@ export const STEP_TYPES: StepTypeOption[] = [
   {
     value: "send_whatsapp",
     label: "שליחת WhatsApp",
-    description: "שליחת הודעת טקסט ללקוח",
+    description:
+      "שליחת הודעה רגילה או הודעה שממתינה לתשובת הלקוח",
     icon: "💬",
   },
   {
     value: "wait_for_customer_response",
     label: "המתנה לתשובת לקוח",
     description:
-      "המתנה למענה חופשי או Quick Reply והמרתו לפעולה עסקית",
+      "פעולה מתקדמת: המתנה עצמאית למענה והמרתו לפעולה עסקית",
     icon: "⏳",
   },
   {
@@ -82,7 +83,8 @@ export const STEP_TYPES: StepTypeOption[] = [
   {
     value: "end",
     label: "סיום",
-    description: "סיום מסלול האוטומציה",
+    description:
+      "סיום מסלול האוטומציה",
     icon: "🏁",
   },
 ];

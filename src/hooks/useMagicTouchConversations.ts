@@ -47,6 +47,35 @@ export type MagicTouchConversation = {
 
   unreadCount?: number;
   needsReply?: boolean;
+
+  needsHumanAttention?: boolean;
+
+  humanAttention?: {
+    required?: boolean;
+    reason?: string | null;
+    eventId?: string | null;
+    runId?: string | null;
+    flowId?: string | null;
+    flowName?: string | null;
+    stepId?: string | null;
+    waitingForType?: string | null;
+    question?: string | null;
+    expectedActions?: string[];
+
+    responseOptions?: Array<{
+      action: string;
+      label?: string | null;
+      description?: string | null;
+    }>;
+
+    customerMessage?: string | null;
+    waMessageId?: string | null;
+    createdAt?: unknown;
+    updatedAt?: unknown;
+    resolvedAt?: unknown;
+    resolvedReason?: string | null;
+    resolvedByEventId?: string | null;
+  } | null;
 };
 
 export type MagicTouchConversationMessage = {
@@ -99,6 +128,7 @@ type UseMagicTouchConversationsResult = {
   clearError: () => void;
 
   waitingForReplyCount: number;
+  humanAttentionCount: number;
 
   selectConversation: (
     conversationId: string
@@ -484,6 +514,24 @@ export function useMagicTouchConversations(
       ]
     );
 
+  const humanAttentionCount =
+    useMemo(
+      () =>
+        conversations.filter(
+          (
+            conversation
+          ) =>
+            conversation.needsHumanAttention ===
+              true ||
+            conversation.humanAttention
+              ?.required ===
+              true
+        ).length,
+      [
+        conversations,
+      ]
+    );
+
   const markConversationRead =
     useCallback(
       async (
@@ -562,6 +610,7 @@ export function useMagicTouchConversations(
     clearError,
 
     waitingForReplyCount,
+    humanAttentionCount,
 
     selectConversation,
   };

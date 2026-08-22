@@ -23,14 +23,42 @@ type SelectedFlow = {
   steps: FlowDocument["steps"];
 };
 
+function statusLabel(status: string) {
+  switch (status) {
+    case "active":
+      return "פעיל";
+    case "inactive":
+      return "מושבת";
+    case "draft":
+      return "טיוטה";
+    case "archived":
+      return "בארכיון";
+    default:
+      return status || "—";
+  }
+}
+
+function statusClass(status: string) {
+  switch (status) {
+    case "active":
+      return "bg-emerald-50 text-emerald-700";
+    case "inactive":
+      return "bg-slate-100 text-slate-600";
+    case "draft":
+      return "bg-amber-50 text-amber-700";
+    default:
+      return "bg-slate-100 text-slate-600";
+  }
+}
+
 export default function MagicTouchFlowsPage() {
   const { user } = useAuth() as any;
-  const { effectiveAgentId: agentId, selectedAgentName, isSystemUser } = useMagicTouchAgent();
+  const { effectiveAgentId: agentId, selectedAgentName, isSystemUser } =
+    useMagicTouchAgent();
 
   const { canAccess: canManageTemplates } = usePermission(
     user ? "access_magic_touch_jobs_admin" : null
   );
-
 
   const [flows, setFlows] = useState<FlowDocument[]>([]);
   const [loading, setLoading] = useState(true);
@@ -52,6 +80,7 @@ export default function MagicTouchFlowsPage() {
         setFlows([]);
         return;
       }
+
       const data = await listFlows({ agentId });
       setFlows(data);
     } catch (loadError: any) {
@@ -125,20 +154,34 @@ export default function MagicTouchFlowsPage() {
   };
 
   return (
-    <main dir="rtl" className="mx-auto max-w-7xl p-6">
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+    <main dir="rtl" className="mx-auto max-w-[1480px] p-6">
+      <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold">אוטומציות MagicTouch</h1>
-          <p className="mt-1 text-sm text-gray-500">
+          <div className="text-sm font-bold text-blue-600">MagicTouch</div>
+
+          <h1 className="mt-1.5 text-3xl font-bold tracking-tight text-slate-900">
+            אוטומציות
+          </h1>
+
+          <p className="mt-2 text-sm text-slate-500">
             יצירה וניהול של תהליכי אוטומציה ללא עריכה ידנית ב-Firestore.
           </p>
+
+          {selectedAgentName ? (
+            <div className="mt-3 text-xs text-slate-400">
+              סוכן פעיל:{" "}
+              <span className="font-semibold text-slate-600">
+                {selectedAgentName}
+              </span>
+            </div>
+          ) : null}
         </div>
 
         <div className="flex flex-wrap gap-2">
           {isSystemUser && canManageTemplates && (
             <Link
               href="/MagicTouch/Flows/Templates"
-              className="rounded-lg border border-blue-200 bg-white px-4 py-2 text-blue-700"
+              className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50"
             >
               ספריית תהליכים
             </Link>
@@ -146,7 +189,7 @@ export default function MagicTouchFlowsPage() {
 
           <Link
             href="/MagicTouch/Flows/new"
-            className="rounded-lg bg-blue-600 px-4 py-2 text-white"
+            className="rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
           >
             תהליך חדש
           </Link>
@@ -154,74 +197,125 @@ export default function MagicTouchFlowsPage() {
       </div>
 
       {templateSavedMessage && (
-        <div className="mb-4 rounded-lg border border-green-200 bg-green-50 p-3 text-green-700">
+        <div className="mb-4 rounded-2xl border border-emerald-100 bg-emerald-50/80 p-3 text-sm font-medium text-emerald-700">
           {templateSavedMessage}
         </div>
       )}
 
       {error && (
-        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-red-700">
+        <div className="mb-4 rounded-2xl border border-red-100 bg-red-50/80 p-3 text-sm font-medium text-red-700">
           {error}
         </div>
       )}
 
       {loading ? (
-        <div className="rounded-xl border bg-white p-8 text-center">
+        <div className="rounded-2xl bg-white p-10 text-center text-sm text-slate-400 shadow-[0_6px_24px_rgba(15,23,42,0.04)] ring-1 ring-slate-100">
           טוען תהליכים...
         </div>
       ) : activeFlows.length === 0 ? (
-        <div className="rounded-xl border border-dashed bg-white p-10 text-center">
-          <div className="font-semibold">עדיין אין תהליכים</div>
+        <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-12 text-center shadow-[0_6px_24px_rgba(15,23,42,0.04)]">
+          <div className="font-semibold text-slate-800">עדיין אין תהליכים</div>
+
+          <p className="mt-2 text-sm text-slate-400">
+            אפשר להתחיל מתהליך חדש ולבנות את האוטומציה הראשונה.
+          </p>
 
           <Link
             href="/MagicTouch/Flows/new"
-            className="mt-4 inline-block rounded-lg bg-blue-600 px-4 py-2 text-white"
+            className="mt-5 inline-flex rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
           >
             יצירת התהליך הראשון
           </Link>
         </div>
       ) : (
-        <div className="overflow-hidden rounded-xl border bg-white">
+        <div
+          className="
+            overflow-hidden
+            rounded-2xl
+            bg-white
+            shadow-[0_8px_28px_rgba(15,23,42,0.05)]
+            ring-1
+            ring-slate-100
+            [&_table]:!border-0
+            [&_thead]:!border-0
+            [&_tbody]:!border-0
+            [&_tr]:!border-0
+            [&_th]:!border-0
+            [&_td]:!border-0
+          "
+        >
           <div className="overflow-x-auto">
-            <table className="min-w-full text-right">
-              <thead className="bg-gray-50 text-sm text-gray-600">
+            <table
+              className="min-w-full border-separate border-spacing-0 text-right !border-0 !outline-none"
+              style={{
+                border: "none",
+                outline: "none",
+                boxShadow: "none",
+              }}
+            >
+              <thead className="bg-slate-50/70 text-[11px] font-bold text-slate-500">
                 <tr>
-                  <th className="px-4 py-3">שם</th>
-                  <th className="px-4 py-3">סטטוס</th>
-                  <th className="px-4 py-3">Trigger</th>
-                  <th className="px-4 py-3">גרסה</th>
-                  <th className="px-4 py-3">פעולות</th>
+                  <th className="px-4 py-3.5">שם</th>
+                  <th className="px-4 py-3.5">סטטוס</th>
+                  <th className="px-4 py-3.5">Trigger</th>
+                  <th className="px-4 py-3.5">גרסה</th>
+                  <th className="px-4 py-3.5">פעולות</th>
                 </tr>
               </thead>
 
-              <tbody>
+              <tbody className="[&_tr:not(:last-child)_td]:!border-b [&_tr:not(:last-child)_td]:!border-slate-100">
                 {activeFlows.map((flow) => (
-                  <tr key={flow.flowId} className="border-t">
-                    <td className="px-4 py-3">
-                      <div className="font-medium">{flow.name}</div>
-                      <div className="text-xs text-gray-500">
-                        {flow.description}
+                  <tr
+                    key={flow.flowId}
+                    className="bg-white transition-colors hover:bg-slate-50/70"
+                  >
+                    <td className="px-4 py-4">
+                      <div className="font-semibold text-slate-900">
+                        {flow.name}
                       </div>
+
+                      {flow.description ? (
+                        <div className="mt-1 max-w-md text-xs leading-5 text-slate-400">
+                          {flow.description}
+                        </div>
+                      ) : null}
                     </td>
 
-                    <td className="px-4 py-3">{flow.status}</td>
-                    <td className="px-4 py-3 text-sm">
-                      {flow.trigger?.type || "-"}
+                    <td className="px-4 py-4">
+                      <span
+                        className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${statusClass(
+                          flow.status
+                        )}`}
+                      >
+                        {statusLabel(flow.status)}
+                      </span>
                     </td>
-                    <td className="px-4 py-3">{flow.version || 1}</td>
 
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-4">
+                      <span
+                        dir="ltr"
+                        className="inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600"
+                      >
+                        {flow.trigger?.type || "-"}
+                      </span>
+                    </td>
+
+                    <td className="px-4 py-4 text-sm text-slate-500">
+                      v{flow.version || 1}
+                    </td>
+
+                    <td className="px-4 py-4">
                       <div className="flex flex-wrap gap-2">
                         <Link
                           href={`/MagicTouch/Flows/${flow.flowId}`}
-                          className="rounded border px-3 py-1 text-sm"
+                          className="rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 transition hover:bg-blue-100"
                         >
                           עריכה
                         </Link>
 
                         <button
                           type="button"
-                          className="rounded border px-3 py-1 text-sm"
+                          className="rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-200"
                           onClick={() => void duplicate(flow.flowId!)}
                         >
                           שכפול
@@ -230,7 +324,7 @@ export default function MagicTouchFlowsPage() {
                         {isSystemUser && canManageTemplates && (
                           <button
                             type="button"
-                            className="rounded border border-blue-200 px-3 py-1 text-sm text-blue-700"
+                            className="rounded-lg bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-700 transition hover:bg-indigo-100"
                             onClick={() => openSaveTemplate(flow)}
                           >
                             פרסום כתבנית
@@ -240,7 +334,7 @@ export default function MagicTouchFlowsPage() {
                         {flow.status === "active" ? (
                           <button
                             type="button"
-                            className="rounded border px-3 py-1 text-sm"
+                            className="rounded-lg bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-700 transition hover:bg-amber-100"
                             onClick={() =>
                               void changeStatus(flow.flowId!, "inactive")
                             }
@@ -250,7 +344,7 @@ export default function MagicTouchFlowsPage() {
                         ) : (
                           <button
                             type="button"
-                            className="rounded border px-3 py-1 text-sm"
+                            className="rounded-lg bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-100"
                             onClick={() =>
                               void changeStatus(flow.flowId!, "active")
                             }
@@ -261,7 +355,7 @@ export default function MagicTouchFlowsPage() {
 
                         <button
                           type="button"
-                          className="rounded border px-3 py-1 text-sm text-red-600"
+                          className="rounded-lg bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-100"
                           onClick={() => void archive(flow.flowId!)}
                         >
                           ארכיון

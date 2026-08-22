@@ -84,8 +84,81 @@ function getBranches(
   );
 }
 
+function getManagedWaitStep(
+  step: FlowStep,
+  steps: Record<string, FlowStep>
+): FlowStep | null {
+  if (
+    step.type !==
+      "send_whatsapp"
+  ) {
+    return null;
+  }
+
+  const waitStepId =
+    s(
+      step.config
+        ?.managedWaitStepId
+    );
+
+  if (
+    !waitStepId
+  ) {
+    return null;
+  }
+
+  const waitStep =
+    steps[
+      waitStepId
+    ];
+
+  if (
+    !waitStep ||
+    waitStep.type !==
+      "wait_for_customer_response" ||
+    waitStep.config
+      ?.hiddenInBuilder !==
+      true
+  ) {
+    return null;
+  }
+
+  return waitStep;
+}
+
+function getDisplayNextStepId(
+  step: FlowStep,
+  steps: Record<string, FlowStep>
+): string | null {
+  const managedWait =
+    getManagedWaitStep(
+      step,
+      steps
+    );
+
+  if (
+    managedWait
+  ) {
+    return (
+      s(
+        managedWait
+          .nextStepId
+      ) ||
+      null
+    );
+  }
+
+  return (
+    s(
+      step.nextStepId
+    ) ||
+    null
+  );
+}
+
 function isConnected(
-  step: FlowStep
+  step: FlowStep,
+  steps: Record<string, FlowStep>
 ): boolean {
   if (
     step.type ===
@@ -118,7 +191,10 @@ function isConnected(
   }
 
   return Boolean(
-    step.nextStepId
+    getDisplayNextStepId(
+      step,
+      steps
+    )
   );
 }
 
@@ -142,8 +218,9 @@ function getNodeNextLabel(
   }
 
   const nextStepId =
-    s(
-      step.nextStepId
+    getDisplayNextStepId(
+      step,
+      steps
     );
 
   if (
@@ -238,6 +315,26 @@ function BranchTree({
     stepId
   );
 
+  const managedWait =
+    getManagedWaitStep(
+      step,
+      steps
+    );
+
+  if (
+    managedWait
+  ) {
+    nextVisited.add(
+      managedWait.id
+    );
+  }
+
+  const displayNextStepId =
+    getDisplayNextStepId(
+      step,
+      steps
+    );
+
   const nextStepName =
     getNodeNextLabel(
       step,
@@ -274,7 +371,8 @@ function BranchTree({
           }
           isConnected={
             isConnected(
-              step
+              step,
+              steps
             )
           }
           onSelect={() =>
@@ -403,7 +501,8 @@ function BranchTree({
         }
         isConnected={
           isConnected(
-            step
+            step,
+            steps
           )
         }
         onSelect={() =>
@@ -437,10 +536,10 @@ function BranchTree({
             }
           />
 
-          {step.nextStepId ? (
+          {displayNextStepId ? (
             <BranchTree
               stepId={
-                step.nextStepId
+                displayNextStepId
               }
               steps={
                 steps

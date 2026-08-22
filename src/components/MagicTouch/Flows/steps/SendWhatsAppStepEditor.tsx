@@ -1,6 +1,7 @@
 "use client";
 
 import React, {
+  useMemo,
   useRef,
 } from "react";
 
@@ -10,14 +11,16 @@ import type {
 
 type Props = {
   step: FlowStep;
-  onConfigChange: (
-    patch: Record<string, unknown>
+  steps: Record<string, FlowStep>;
+  onReplaceSteps: (
+    nextSteps: Record<string, FlowStep>
   ) => void;
 };
 
-type ReplyButton = {
-  id: string;
-  title: string;
+type ReplyOption = {
+  action: string;
+  label: string;
+  description: string;
 };
 
 const BOOKING_URL_TOKEN =
@@ -34,45 +37,176 @@ function s(
   ).trim();
 }
 
-function normalizeButtons(
-  value: unknown
-): ReplyButton[] {
+function getManagedWaitStep(
+  step: FlowStep,
+  steps: Record<string, FlowStep>
+): FlowStep | null {
+  const waitStepId =
+    s(
+      step.config
+        ?.managedWaitStepId
+    );
+
   if (
-    !Array.isArray(
-      value
-    )
+    !waitStepId
   ) {
-    return [];
+    return null;
   }
 
-  return value
-    .slice(
-      0,
-      3
+  const waitStep =
+    steps[
+      waitStepId
+    ];
+
+  if (
+    !waitStep ||
+    waitStep.type !==
+      "wait_for_customer_response"
+  ) {
+    return null;
+  }
+
+  return waitStep;
+}
+
+function createWaitStepId(
+  sendStepId: string,
+  steps: Record<string, FlowStep>
+): string {
+  const baseId =
+    `${sendStepId}_wait`;
+
+  if (
+    !steps[
+      baseId
+    ]
+  ) {
+    return baseId;
+  }
+
+  let index =
+    2;
+
+  let id =
+    `${baseId}_${index}`;
+
+  while (
+    steps[
+      id
+    ]
+  ) {
+    index +=
+      1;
+
+    id =
+      `${baseId}_${index}`;
+  }
+
+  return id;
+}
+
+function getReplyOptions(
+  waitStep: FlowStep | null,
+  sendStep: FlowStep
+): ReplyOption[] {
+  const rawWaitOptions =
+    waitStep
+      ?.config
+      ?.responseOptions;
+
+  if (
+    Array.isArray(
+      rawWaitOptions
     )
-    .map(
+  ) {
+    const options =
+      rawWaitOptions.map(
+        (
+          option: any
+        ) => ({
+          action:
+            s(
+              option?.action
+            ),
+
+          label:
+            s(
+              option?.label
+            ),
+
+          description:
+            s(
+              option?.description
+            ),
+        })
+      );
+
+    if (
+      options.length >
+      0
+    ) {
+      return options;
+    }
+  }
+
+  const rawButtons =
+    sendStep.config
+      ?.buttons;
+
+  if (
+    Array.isArray(
+      rawButtons
+    )
+  ) {
+    return rawButtons.map(
       (
         button: any
       ) => ({
-        id:
+        action:
           s(
             button?.id
           ),
-        title:
+
+        label:
           s(
             button?.title
           ),
+
+        description:
+          "",
       })
     );
+  }
+
+  return [];
 }
 
 export default function SendWhatsAppStepEditor({
   step,
-  onConfigChange,
+  steps,
+  onReplaceSteps,
 }: Props) {
   const textareaRef =
     useRef<HTMLTextAreaElement | null>(
       null
+    );
+
+  const managedWaitStep =
+    useMemo(
+      () =>
+        getManagedWaitStep(
+          step,
+          steps
+        ),
+      [
+        step,
+        steps,
+      ]
+    );
+
+  const waitForResponse =
+    Boolean(
+      managedWaitStep
     );
 
   const mode =
@@ -91,17 +225,346 @@ export default function SendWhatsAppStepEditor({
       ""
     );
 
-  const buttons =
-    normalizeButtons(
-      step.config
-        ?.buttons
+  const responseOptions =
+    getReplyOptions(
+      managedWaitStep,
+      step
     );
+
+  const resolution =
+    managedWaitStep
+      ?.config
+      ?.resolution &&
+    typeof managedWaitStep
+      .config
+      .resolution ===
+      "object"
+      ? managedWaitStep
+          .config
+          .resolution as
+          Record<
+            string,
+            unknown
+          >
+      : {};
+
+  const resolutionMode =
+    s(
+      resolution.mode
+    ) ||
+    "ai_with_human_fallback";
+
+  const minConfidence =
+    Number(
+      resolution
+        .minConfidence ??
+      0.8
+    );
+
+  const replaceSendOnly =
+    (
+      patch: Record<string, unknown>
+    ) => {
+      onReplaceSteps({
+        ...steps,
+
+        [
+          step.id
+        ]: {
+          ...step,
+
+          config: {
+            ...step.config,
+            ...patch,
+          },
+        },
+      });
+    };
+
+  const updateManagedResponse =
+    ({
+      nextMessage =
+        message,
+
+      nextMode =
+        mode,
+
+      nextOptions =
+        responseOptions,
+
+      nextResolutionMode =
+        resolutionMode,
+
+      nextMinConfidence =
+        minConfidence,
+
+      forceWait =
+        waitForResponse,
+    }: {
+      nextMessage?: string;
+      nextMode?: "text" | "interactive_buttons";
+      nextOptions?: ReplyOption[];
+      nextResolutionMode?: string;
+      nextMinConfidence?: number;
+      forceWait?: boolean;
+    }) => {
+      const shouldWait =
+        nextMode ===
+        "interactive_buttons"
+          ? true
+          : forceWait;
+
+      const normalizedOptions =
+        nextOptions.map(
+          (
+            option
+          ) => ({
+            action:
+              s(
+                option.action
+              ),
+
+            label:
+              s(
+                option.label
+              ),
+
+            description:
+              s(
+                option.description
+              ),
+          })
+        );
+
+      const validOptions =
+        normalizedOptions.filter(
+          (
+            option
+          ) =>
+            Boolean(
+              option.action
+            )
+        );
+
+      const buttons =
+        nextMode ===
+        "interactive_buttons"
+          ? validOptions
+              .filter(
+                (
+                  option
+                ) =>
+                  Boolean(
+                    option.label
+                  )
+              )
+              .slice(
+                0,
+                3
+              )
+              .map(
+                (
+                  option
+                ) => ({
+                  id:
+                    option.action,
+
+                  title:
+                    option.label,
+                })
+              )
+          : [];
+
+      const currentWait =
+        getManagedWaitStep(
+          step,
+          steps
+        );
+
+      const nextSteps = {
+        ...steps,
+      };
+
+      if (
+        !shouldWait
+      ) {
+        const visibleNextStepId =
+          currentWait
+            ?.nextStepId ||
+          step.nextStepId ||
+          null;
+
+        if (
+          currentWait
+        ) {
+          delete nextSteps[
+            currentWait.id
+          ];
+        }
+
+        nextSteps[
+          step.id
+        ] = {
+          ...step,
+
+          nextStepId:
+            visibleNextStepId,
+
+          config: {
+            ...step.config,
+
+            mode:
+              nextMode,
+
+            message:
+              nextMessage,
+
+            buttons,
+
+            managedWaitStepId:
+              null,
+
+            waitsForCustomerResponse:
+              false,
+          },
+        };
+
+        onReplaceSteps(
+          nextSteps
+        );
+
+        return;
+      }
+
+      const waitStepId =
+        currentWait
+          ?.id ||
+        createWaitStepId(
+          step.id,
+          steps
+        );
+
+      const visibleNextStepId =
+        currentWait
+          ?.nextStepId ||
+        (
+          step.nextStepId ===
+          waitStepId
+            ? null
+            : step.nextStepId ||
+              null
+        );
+
+      const nextWaitStep:
+        FlowStep = {
+          id:
+            waitStepId,
+
+          type:
+            "wait_for_customer_response",
+
+          name:
+            "המתנה לתשובת הלקוח",
+
+          nextStepId:
+            visibleNextStepId,
+
+          config: {
+            ...(
+              currentWait
+                ?.config ||
+              {}
+            ),
+
+            expectedActions:
+              validOptions.map(
+                (
+                  option
+                ) =>
+                  option.action
+              ),
+
+            responseOptions:
+              normalizedOptions,
+
+            promptContext: {
+              question:
+                nextMessage,
+            },
+
+            resolution: {
+              mode:
+                nextResolutionMode,
+
+              minConfidence:
+                nextMinConfidence,
+            },
+
+            hiddenInBuilder:
+              true,
+
+            managedByStepId:
+              step.id,
+
+            managedRole:
+              "whatsapp_response_wait",
+          },
+        };
+
+      nextSteps[
+        waitStepId
+      ] =
+        nextWaitStep;
+
+      nextSteps[
+        step.id
+      ] = {
+        ...step,
+
+        nextStepId:
+          waitStepId,
+
+        config: {
+          ...step.config,
+
+          mode:
+            nextMode,
+
+          message:
+            nextMessage,
+
+          buttons,
+
+          managedWaitStepId:
+            waitStepId,
+
+          waitsForCustomerResponse:
+            true,
+        },
+      };
+
+      onReplaceSteps(
+        nextSteps
+      );
+    };
 
   const updateMessage =
     (
       nextMessage: string
     ) => {
-      onConfigChange({
+      if (
+        waitForResponse ||
+        mode ===
+        "interactive_buttons"
+      ) {
+        updateManagedResponse({
+          nextMessage,
+        });
+
+        return;
+      }
+
+      replaceSendOnly({
         mode,
         message:
           nextMessage,
@@ -114,107 +577,155 @@ export default function SendWhatsAppStepEditor({
         | "text"
         | "interactive_buttons"
     ) => {
-      onConfigChange({
-        mode:
+      if (
+        nextMode ===
+        "interactive_buttons"
+      ) {
+        updateManagedResponse({
           nextMode,
 
-        message,
+          forceWait:
+            true,
 
-        buttons:
-          nextMode ===
-          "interactive_buttons"
-            ? (
-                buttons.length >
-                0
-                  ? buttons
-                  : [
-                      {
-                        id:
-                          "",
-                        title:
-                          "",
-                      },
-                      {
-                        id:
-                          "",
-                        title:
-                          "",
-                      },
-                    ]
-              )
-            : [],
+          nextOptions:
+            responseOptions.length >
+            0
+              ? responseOptions
+              : [
+                  {
+                    action:
+                      "",
+                    label:
+                      "",
+                    description:
+                      "",
+                  },
+                  {
+                    action:
+                      "",
+                    label:
+                      "",
+                    description:
+                      "",
+                  },
+                ],
+        });
+
+        return;
+      }
+
+      updateManagedResponse({
+        nextMode:
+          "text",
+
+        forceWait:
+          waitForResponse,
       });
     };
 
-  const updateButtons =
+  const setWaitForResponse =
     (
-      nextButtons: ReplyButton[]
+      enabled: boolean
     ) => {
-      onConfigChange({
-        mode:
-          "interactive_buttons",
+      updateManagedResponse({
+        forceWait:
+          enabled,
 
-        buttons:
-          nextButtons.slice(
-            0,
-            3
-          ),
+        nextOptions:
+          enabled &&
+          responseOptions.length ===
+            0
+            ? [
+                {
+                  action:
+                    "",
+                  label:
+                    "",
+                  description:
+                    "",
+                },
+                {
+                  action:
+                    "",
+                  label:
+                    "",
+                  description:
+                    "",
+                },
+              ]
+            : responseOptions,
       });
     };
 
-  const addButton =
+  const updateOptions =
+    (
+      nextOptions: ReplyOption[]
+    ) => {
+      updateManagedResponse({
+        nextOptions,
+        forceWait:
+          true,
+      });
+    };
+
+  const addOption =
     () => {
       if (
-        buttons.length >=
-        3
+        mode ===
+          "interactive_buttons" &&
+        responseOptions.length >=
+          3
       ) {
         return;
       }
 
-      updateButtons([
-        ...buttons,
+      updateOptions([
+        ...responseOptions,
+
         {
-          id:
+          action:
             "",
-          title:
+          label:
+            "",
+          description:
             "",
         },
       ]);
     };
 
-  const updateButton =
+  const updateOption =
     (
       index: number,
-      patch: Partial<ReplyButton>
+      patch: Partial<ReplyOption>
     ) => {
-      updateButtons(
-        buttons.map(
+      updateOptions(
+        responseOptions.map(
           (
-            button,
-            buttonIndex
+            option,
+            optionIndex
           ) =>
-            buttonIndex ===
+            optionIndex ===
             index
               ? {
-                  ...button,
+                  ...option,
                   ...patch,
                 }
-              : button
+              : option
         )
       );
     };
 
-  const removeButton =
+  const removeOption =
     (
       index: number
     ) => {
-      updateButtons(
-        buttons.filter(
+      updateOptions(
+        responseOptions.filter(
           (
             _,
-            buttonIndex
+            optionIndex
           ) =>
-            buttonIndex !==
+            optionIndex !==
             index
         )
       );
@@ -293,7 +804,7 @@ export default function SendWhatsAppStepEditor({
     );
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       <div>
         <div className="mb-2 text-sm font-semibold text-slate-700">
           סוג הודעה
@@ -322,7 +833,7 @@ export default function SendWhatsAppStepEditor({
             </div>
 
             <div className="mt-1 text-xs leading-5 text-slate-500">
-              הודעת WhatsApp רגילה ללא כפתורי תשובה.
+              יכולה להיות הודעה בלבד או הודעה שממתינה לתשובה.
             </div>
           </button>
 
@@ -348,7 +859,7 @@ export default function SendWhatsAppStepEditor({
             </div>
 
             <div className="mt-1 text-xs leading-5 text-slate-500">
-              עד 3 תשובות מובנות. לכל כפתור מגדירים Action עסקי.
+              הכפתורים וההמתנה לתשובה מנוהלים יחד באותו שלב WhatsApp.
             </div>
           </button>
         </div>
@@ -379,40 +890,97 @@ export default function SendWhatsAppStepEditor({
         />
       </label>
 
-      {mode ===
-      "interactive_buttons" ? (
+      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <div className="font-bold text-slate-900">
+              המתנה לתשובת הלקוח
+            </div>
+
+            <div className="mt-1 text-xs leading-5 text-slate-500">
+              כאשר פעיל, MagicTouch עוצר את ה־Flow עד שהלקוח עונה.
+            </div>
+          </div>
+
+          <button
+            type="button"
+            disabled={
+              mode ===
+              "interactive_buttons"
+            }
+            className={[
+              "relative h-7 w-12 rounded-full transition",
+              waitForResponse
+                ? "bg-blue-600"
+                : "bg-slate-300",
+              mode ===
+              "interactive_buttons"
+                ? "cursor-not-allowed opacity-70"
+                : "",
+            ].join(
+              " "
+            )}
+            onClick={() =>
+              setWaitForResponse(
+                !waitForResponse
+              )
+            }
+          >
+            <span
+              className={[
+                "absolute top-1 h-5 w-5 rounded-full bg-white shadow transition",
+                waitForResponse
+                  ? "right-1"
+                  : "left-1",
+              ].join(
+                " "
+              )}
+            />
+          </button>
+        </div>
+
+        {mode ===
+        "interactive_buttons" ? (
+          <div className="mt-3 text-xs font-medium text-blue-700">
+            בהודעה עם כפתורים ההמתנה לתשובה פעילה אוטומטית.
+          </div>
+        ) : null}
+      </div>
+
+      {waitForResponse ? (
         <div className="rounded-2xl border border-violet-100 bg-violet-50/50 p-4">
-          <div className="flex items-start justify-between gap-3">
+          <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <div className="font-bold text-slate-900">
-                כפתורי תשובה
+                תשובות עסקיות אפשריות
               </div>
 
               <p className="mt-1 text-xs leading-5 text-slate-500">
-                מה שהלקוח רואה הוא הכותרת. ה־Action הוא הערך שה־Flow יקבל,
-                למשל spouse_insurance_yes או declined.
+                ה־Action עובר ל־event.routing.resolvedAction ומשמש את שלב ה־Condition הבא.
               </p>
             </div>
 
             <button
               type="button"
               disabled={
-                buttons.length >=
-                3
+                mode ===
+                  "interactive_buttons" &&
+                responseOptions.length >=
+                  3
               }
               className="rounded-xl border border-violet-200 bg-white px-3 py-2 text-sm font-bold text-violet-700 disabled:cursor-not-allowed disabled:opacity-40"
               onClick={
-                addButton
+                addOption
               }
             >
-              + כפתור
+              + תשובה
             </button>
           </div>
 
           <div className="mt-4 space-y-3">
-            {buttons.map(
+            {responseOptions.map(
               (
-                button,
+                option,
                 index
               ) => (
                 <div
@@ -423,14 +991,14 @@ export default function SendWhatsAppStepEditor({
                 >
                   <div className="mb-3 flex items-center justify-between">
                     <div className="text-sm font-bold text-slate-800">
-                      כפתור {index + 1}
+                      תשובה {index + 1}
                     </div>
 
                     <button
                       type="button"
                       className="text-xs font-bold text-red-600"
                       onClick={() =>
-                        removeButton(
+                        removeOption(
                           index
                         )
                       }
@@ -442,7 +1010,10 @@ export default function SendWhatsAppStepEditor({
                   <div className="grid gap-3 md:grid-cols-2">
                     <label>
                       <span className="mb-2 block text-xs font-semibold text-slate-600">
-                        מה הלקוח יראה
+                        {mode ===
+                        "interactive_buttons"
+                          ? "מה הלקוח יראה בכפתור"
+                          : "משמעות התשובה"}
                       </span>
 
                       <input
@@ -450,35 +1021,33 @@ export default function SendWhatsAppStepEditor({
                           fieldClass
                         }
                         value={
-                          button.title
+                          option.label
                         }
                         maxLength={
-                          20
+                          mode ===
+                          "interactive_buttons"
+                            ? 20
+                            : undefined
                         }
                         placeholder="כן, אשמח"
                         onChange={(
                           event
                         ) =>
-                          updateButton(
+                          updateOption(
                             index,
                             {
-                              title:
-                                event
-                                  .target
+                              label:
+                                event.target
                                   .value,
                             }
                           )
                         }
                       />
-
-                      <span className="mt-1 block text-[11px] text-slate-400">
-                        עד 20 תווים
-                      </span>
                     </label>
 
                     <label>
                       <span className="mb-2 block text-xs font-semibold text-slate-600">
-                        Action עסקי
+                        Action
                       </span>
 
                       <input
@@ -486,31 +1055,51 @@ export default function SendWhatsAppStepEditor({
                           fieldClass
                         }
                         value={
-                          button.id
+                          option.action
                         }
                         dir="ltr"
-                        maxLength={
-                          256
-                        }
                         placeholder="booking"
                         onChange={(
                           event
                         ) =>
-                          updateButton(
+                          updateOption(
                             index,
                             {
-                              id:
-                                event
-                                  .target
+                              action:
+                                event.target
                                   .value,
                             }
                           )
                         }
                       />
+                    </label>
 
-                      <span className="mt-1 block text-[11px] text-slate-400">
-                        זה הערך שישמש את expectedActions ואת ה־Condition.
+                    <label className="md:col-span-2">
+                      <span className="mb-2 block text-xs font-semibold text-slate-600">
+                        הסבר נוסף ל־AI
                       </span>
+
+                      <input
+                        className={
+                          fieldClass
+                        }
+                        value={
+                          option.description
+                        }
+                        placeholder="אופציונלי"
+                        onChange={(
+                          event
+                        ) =>
+                          updateOption(
+                            index,
+                            {
+                              description:
+                                event.target
+                                  .value,
+                            }
+                          )
+                        }
+                      />
                     </label>
                   </div>
                 </div>
@@ -518,9 +1107,78 @@ export default function SendWhatsAppStepEditor({
             )}
           </div>
 
-          <div className="mt-4 rounded-xl border border-violet-100 bg-white px-3 py-2 text-xs leading-5 text-violet-700">
-            גם כאשר מוצגים כפתורים, הלקוח עדיין יכול לכתוב מלל חופשי.
-            במקרה כזה ה־Action Resolver יכול למפות את המלל לאותם Actions.
+          <div className="mt-5 grid gap-4 md:grid-cols-2">
+            <label>
+              <span className="mb-2 block text-sm font-semibold text-slate-700">
+                אופן זיהוי התשובה
+              </span>
+
+              <select
+                className={
+                  fieldClass
+                }
+                value={
+                  resolutionMode
+                }
+                onChange={(
+                  event
+                ) =>
+                  updateManagedResponse({
+                    nextResolutionMode:
+                      event.target
+                        .value,
+                  })
+                }
+              >
+                <option value="quick_reply_only">
+                  כפתורים בלבד
+                </option>
+
+                <option value="ai">
+                  AI
+                </option>
+
+                <option value="ai_with_human_fallback">
+                  AI עם מעבר לטיפול ידני
+                </option>
+              </select>
+            </label>
+
+            <label>
+              <span className="mb-2 block text-sm font-semibold text-slate-700">
+                סף ביטחון
+              </span>
+
+              <input
+                className={
+                  fieldClass
+                }
+                type="number"
+                min={
+                  0
+                }
+                max={
+                  1
+                }
+                step={
+                  0.05
+                }
+                value={
+                  minConfidence
+                }
+                onChange={(
+                  event
+                ) =>
+                  updateManagedResponse({
+                    nextMinConfidence:
+                      Number(
+                        event.target
+                          .value
+                      ),
+                  })
+                }
+              />
+            </label>
           </div>
         </div>
       ) : null}
@@ -561,7 +1219,8 @@ export default function SendWhatsAppStepEditor({
         ) : null}
 
         <div className="mt-3 text-xs text-slate-400">
-          בזמן הריצה:{" "}
+          בזמן הריצה:
+          {" "}
           <span
             dir="ltr"
             className="font-mono"

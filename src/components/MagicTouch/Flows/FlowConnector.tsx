@@ -13,278 +13,290 @@ import {
   FLOW_SYSTEMS,
 } from "@/lib/MagicTouch/flows/flowBuilderRegistry";
 
-import type {
-  FlowSystemDefinition,
-} from "@/lib/MagicTouch/flows/flowBuilderRegistry";
-
 type Props = {
-  onAdd: (type: StepType) => void;
+  onAdd: (
+    type: StepType
+  ) => void;
+};
+
+type PickerAction = {
+  value: StepType;
+  label: string;
+  description: string;
+  icon: string;
 };
 
 export default function FlowConnector({
   onAdd,
 }: Props) {
-  const [open, setOpen] =
-    useState(false);
+  const [
+    open,
+    setOpen,
+  ] =
+    useState(
+      false
+    );
 
   const [
     selectedSystemId,
     setSelectedSystemId,
   ] =
-    useState<string | null>(null);
+    useState<
+      string |
+      null
+    >(
+      null
+    );
 
-  const systemsWithActions =
+  const systems =
     useMemo(
       () =>
-        FLOW_SYSTEMS.filter(
-          (system) =>
-            system.actions.length > 0
-        ),
+        FLOW_SYSTEMS
+          .map(
+            (
+              system
+            ) => ({
+              ...system,
+
+              pickerActions:
+                system.actions
+                  .filter(
+                    (
+                      action
+                    ) =>
+                      action.active &&
+                      Boolean(
+                        action.stepType
+                      )
+                  )
+                  .map(
+                    (
+                      action
+                    ) => ({
+                      value:
+                        action.stepType!,
+
+                      label:
+                        action.label,
+
+                      description:
+                        action.description,
+
+                      icon:
+                        action.icon,
+                    } as PickerAction
+                  )),
+            })
+          )
+          .filter(
+            (
+              system
+            ) =>
+              system
+                .pickerActions
+                .length >
+              0
+          ),
       []
     );
 
-  const selectedSystem:
-    FlowSystemDefinition | undefined =
-    useMemo(
-      () =>
-        systemsWithActions.find(
-          (system) =>
-            system.id ===
-            selectedSystemId
-        ),
-      [
-        systemsWithActions,
-        selectedSystemId,
-      ]
-    );
+  const selectedSystem =
+    systems.find(
+      (
+        system
+      ) =>
+        system.id ===
+        selectedSystemId
+    ) ||
+    null;
 
-  const closeModal = () => {
-    setOpen(false);
-    setSelectedSystemId(null);
-  };
+  const close =
+    () => {
+      setOpen(
+        false
+      );
 
-  const handleActionClick = (
-    stepType:
-      StepType | undefined,
-    active: boolean
-  ) => {
-    if (
-      !active ||
-      !stepType
-    ) {
-      return;
-    }
+      setSelectedSystemId(
+        null
+      );
+    };
 
-    onAdd(stepType);
-    closeModal();
-  };
+  const chooseAction =
+    (
+      value: StepType
+    ) => {
+      onAdd(
+        value
+      );
+
+      close();
+    };
 
   return (
     <>
-      <div className="relative flex h-24 flex-col items-center justify-center">
-        <div className="h-8 w-px bg-gradient-to-b from-slate-300 to-blue-400" />
+      <div className="relative flex h-20 flex-col items-center justify-center">
+        <div className="h-5 w-px bg-gradient-to-b from-slate-300 to-blue-300" />
 
         <button
           type="button"
-          className="relative z-10 flex h-10 w-10 items-center justify-center rounded-full border-4 border-slate-50 bg-blue-600 text-xl font-semibold text-white shadow-md transition hover:scale-110 hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-100"
+          className="relative z-10 flex h-10 w-10 items-center justify-center rounded-full border-2 border-white bg-blue-600 text-xl font-semibold text-white shadow-md transition hover:scale-110 hover:bg-blue-700"
           title="הוספת שלב"
           onClick={() =>
-            setOpen(true)
+            setOpen(
+              true
+            )
           }
         >
           +
         </button>
 
-        <div className="h-8 w-px bg-gradient-to-b from-blue-400 to-slate-300" />
-
-        <div className="-mt-2 text-[10px] text-slate-400">
+        <div className="h-5 w-px bg-gradient-to-b from-blue-300 to-slate-300" />
+        <div className="-mt-1 text-xs text-slate-400">
           ▼
         </div>
       </div>
 
       {open ? (
         <div
-          className="fixed inset-0 z-[70] flex items-center justify-center p-4"
+          className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/35 p-4 backdrop-blur-[2px]"
           dir="rtl"
         >
           <button
             type="button"
-            className="absolute inset-0 bg-slate-950/35 backdrop-blur-[2px]"
-            aria-label="סגירת בחירת שלב"
-            onClick={closeModal}
+            className="absolute inset-0"
+            aria-label="סגירת חלון הוספת שלב"
+            onClick={
+              close
+            }
           />
 
-          <section className="relative z-10 w-full max-w-2xl rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl">
-            <div className="mb-5 flex items-start justify-between gap-4">
+          <section className="relative z-10 w-full max-w-3xl rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl">
+            <div className="flex items-start justify-between gap-4">
               <div>
-                <div className="flex items-center gap-2">
-                  {selectedSystem ? (
-                    <button
-                      type="button"
-                      className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-500 transition hover:bg-slate-50"
-                      onClick={() =>
-                        setSelectedSystemId(
-                          null
-                        )
-                      }
-                      title="חזרה לבחירת מערכת"
-                    >
-                      →
-                    </button>
-                  ) : null}
-
-                  <h3 className="text-xl font-bold text-slate-900">
-                    {selectedSystem
-                      ? `מה לעשות ב־${selectedSystem.label}?`
-                      : "איזה שלב להוסיף?"}
-                  </h3>
-                </div>
+                <h2 className="text-2xl font-bold text-slate-900">
+                  איזה שלב להוסיף?
+                </h2>
 
                 <p className="mt-1 text-sm text-slate-500">
-                  {selectedSystem
-                    ? "בחרי את הפעולה שתתווסף למסלול."
-                    : "בחרי קודם את המערכת שבה תרצי לבצע פעולה."}
+                  בחרי קודם את המערכת שבה תרצי לבצע פעולה.
                 </p>
               </div>
 
               <button
                 type="button"
-                className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 text-xl text-slate-500 hover:bg-slate-50"
-                onClick={closeModal}
+                className="flex h-9 w-9 items-center justify-center rounded-full text-xl text-slate-500 hover:bg-slate-100"
+                onClick={
+                  close
+                }
               >
                 ×
               </button>
             </div>
 
             {!selectedSystem ? (
-              <div className="grid gap-3 sm:grid-cols-2">
-                {systemsWithActions.map(
-                  (system) => {
-                    const activeCount =
-                      system.actions.filter(
-                        (action) =>
-                          action.active
-                      ).length;
+              <div className="mt-6 grid gap-4 md:grid-cols-2">
+                {systems.map(
+                  (
+                    system
+                  ) => (
+                    <button
+                      type="button"
+                      key={
+                        system.id
+                      }
+                      className="flex items-center gap-4 rounded-2xl border border-slate-200 p-5 text-right transition hover:border-blue-300 hover:bg-blue-50/40"
+                      onClick={() =>
+                        setSelectedSystemId(
+                          system.id
+                        )
+                      }
+                    >
+                      <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-2xl">
+                        {system.icon}
+                      </div>
 
-                    const plannedCount =
-                      system.actions.length -
-                      activeCount;
+                      <div>
+                        <div className="font-bold text-slate-900">
+                          {system.label}
+                        </div>
 
-                    return (
-                      <button
-                        key={system.id}
-                        type="button"
-                        className="flex items-start gap-4 rounded-2xl border border-slate-200 p-4 text-right transition hover:border-blue-300 hover:bg-blue-50/50 hover:shadow-sm"
-                        onClick={() =>
-                          setSelectedSystemId(
-                            system.id
-                          )
-                        }
-                      >
-                        <span className="flex h-12 w-12 flex-none items-center justify-center rounded-2xl bg-slate-100 text-2xl">
-                          {system.icon}
-                        </span>
-
-                        <span className="min-w-0 flex-1">
-                          <span className="block font-bold text-slate-900">
-                            {system.label}
-                          </span>
-
-                          <span className="mt-1 block text-sm text-slate-500">
-                            {activeCount}{" "}
-                            {activeCount === 1
-                              ? "פעולה זמינה"
-                              : "פעולות זמינות"}
-                          </span>
-
-                          {plannedCount >
-                          0 ? (
-                            <span className="mt-2 inline-flex rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700">
-                              +{" "}
-                              {
-                                plannedCount
-                              }{" "}
-                              בפיתוח
-                            </span>
-                          ) : null}
-                        </span>
-                      </button>
-                    );
-                  }
+                        <div className="mt-1 text-sm text-slate-500">
+                          {system
+                            .pickerActions
+                            .length}{" "}
+                          פעולות זמינות
+                        </div>
+                      </div>
+                    </button>
+                  )
                 )}
               </div>
             ) : (
-              <div className="grid gap-3 sm:grid-cols-2">
-                {selectedSystem.actions.map(
-                  (action) => {
-                    const enabled =
-                      action.active &&
-                      Boolean(
-                        action.stepType
-                      );
-
-                    return (
-                      <button
-                        key={action.id}
-                        type="button"
-                        disabled={
-                          !enabled
-                        }
-                        className={[
-                          "relative flex items-start gap-4 rounded-2xl border p-4 text-right transition",
-                          enabled
-                            ? "border-slate-200 hover:border-blue-300 hover:bg-blue-50/50 hover:shadow-sm"
-                            : "cursor-not-allowed border-slate-200 bg-slate-50 opacity-70",
-                        ].join(
-                          " "
-                        )}
-                        onClick={() =>
-                          handleActionClick(
-                            action.stepType,
-                            action.active
-                          )
-                        }
-                      >
-                        <span
-                          className={[
-                            "flex h-11 w-11 flex-none items-center justify-center rounded-2xl text-xl",
-                            enabled
-                              ? "bg-slate-100"
-                              : "bg-slate-200",
-                          ].join(
-                            " "
-                          )}
-                        >
-                          {
-                            action.icon
-                          }
-                        </span>
-
-                        <span className="min-w-0 flex-1">
-                          <span className="flex flex-wrap items-center gap-2">
-                            <span className="font-bold text-slate-900">
-                              {
-                                action.label
-                              }
-                            </span>
-
-                            {!action.active ? (
-                              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-700">
-                                בפיתוח
-                              </span>
-                            ) : null}
-                          </span>
-
-                          <span className="mt-1 block text-sm leading-6 text-slate-500">
-                            {
-                              action.description
-                            }
-                          </span>
-                        </span>
-                      </button>
-                    );
+              <div className="mt-6">
+                <button
+                  type="button"
+                  className="mb-4 text-sm font-bold text-blue-700"
+                  onClick={() =>
+                    setSelectedSystemId(
+                      null
+                    )
                   }
-                )}
+                >
+                  → חזרה למערכות
+                </button>
+
+                <div className="mb-4 flex items-center gap-3">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100 text-xl">
+                    {selectedSystem.icon}
+                  </div>
+
+                  <div>
+                    <div className="text-lg font-bold text-slate-900">
+                      {selectedSystem.label}
+                    </div>
+
+                    <div className="text-sm text-slate-500">
+                      בחרי פעולה להוספה למסלול
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid gap-3 md:grid-cols-2">
+                  {selectedSystem
+                    .pickerActions
+                    .map(
+                      (
+                        action
+                      ) => (
+                        <button
+                          type="button"
+                          key={
+                            action.value
+                          }
+                          className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-white p-4 text-right transition hover:border-blue-300 hover:bg-blue-50/40"
+                          onClick={() =>
+                            chooseAction(
+                              action.value
+                            )
+                          }
+                        >
+                          <div className="flex h-10 w-10 flex-none items-center justify-center rounded-xl bg-slate-100 text-xl">
+                            {action.icon}
+                          </div>
+
+                          <div>
+                            <div className="font-bold text-slate-900">
+                              {action.label}
+                            </div>
+
+                            <div className="mt-1 text-xs leading-5 text-slate-500">
+                              {action.description}
+                            </div>
+                          </div>
+                        </button>
+                      )
+                    )}
+                </div>
               </div>
             )}
           </section>

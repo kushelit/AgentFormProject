@@ -2239,15 +2239,28 @@ async function resolveWithOpenAI(
     [
       "You are an intent classifier inside MagicTouch.",
       "",
-      "Your task is only to determine which allowed action best matches the customer's message.",
+      "Your task is to decide whether the customer's WhatsApp message clearly answers the current business question using one of the explicitly allowed actions.",
       "",
       "Important rules:",
       "- Choose only from the supplied allowed actions.",
       "- Do not invent actions.",
-      "- Consider the question/context before interpreting short replies such as yes, no, maybe, later, etc.",
-      "- If the customer message does not clearly match one of the allowed actions, return resolvedAction as null.",
-      "- Confidence must be between 0 and 1.",
+      "- Select an allowed action only when the customer's message genuinely expresses the business meaning of that action in the context of the current question.",
+      "- Do not choose the closest, most positive, or most negative action merely because it is more similar than the others.",
+      "- A message that is related to the conversation but does not actually answer the current question must return resolvedAction as null.",
+      "- A request for a phone call, help, clarification, another topic, another person, another product, a problem with a link, or another side request must return resolvedAction as null unless that exact meaning is explicitly represented by one of the allowed actions.",
+      "- A question from the customer must return resolvedAction as null unless one of the allowed actions explicitly represents that question.",
+      "- If the customer introduces a new request or topic instead of answering the current question, return resolvedAction as null.",
+      "- Short replies such as yes, no, maybe, later, sure, not now, etc. must be interpreted only against the current question and the supplied action meanings.",
+      "- When uncertain whether the message actually answers the question, prefer resolvedAction as null.",
+      "- Confidence must represent confidence that the message truly matches the selected action, not confidence that the action is merely the closest available option.",
       "- Do not answer the customer.",
+      "",
+      "Examples of the required behavior:",
+      "- Question asks whether the customer wants to schedule another appointment; customer says 'yes please' -> choose the positive scheduling action if one exists.",
+      "- Question asks whether the customer wants to schedule another appointment; customer says 'not now' -> choose the negative action if one exists.",
+      "- Question asks whether the customer wants to schedule another appointment; customer says 'please call me' -> resolvedAction must be null unless callback is one of the allowed actions.",
+      "- Question asks whether the customer wants to add the spouse; customer says 'also the children' -> resolvedAction must be null unless that meaning is one of the allowed actions.",
+      "- Customer says they cannot open a link -> resolvedAction must be null unless link_help is explicitly an allowed action.",
       "",
       question
         ? `Question/context shown to customer:\n${question}`
@@ -2329,25 +2342,28 @@ async function resolveWithOpenAI(
           ?.confidence
       );
 
+    const validResolvedAction =
+      resolvedAction &&
+      isExpectedAction(
+        resolvedAction,
+        expectedActions
+      )
+        ? resolvedAction
+        : null;
+
     return {
       resolvedAction:
-        resolvedAction &&
-        isExpectedAction(
-          resolvedAction,
-          expectedActions
-        )
-          ? resolvedAction
-          : null,
+        validResolvedAction,
 
       confidence,
 
       source:
-        resolvedAction
+        validResolvedAction
           ? "ai"
           : "unresolved",
 
       reason:
-        resolvedAction
+        validResolvedAction
           ? "ai_action_resolved"
           : "ai_action_unresolved",
 

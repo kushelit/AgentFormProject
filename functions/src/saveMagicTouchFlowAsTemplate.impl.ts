@@ -12,115 +12,377 @@ import {
   MagicTouchFlowTemplateDocument,
 } from "./shared/magicTouchFlowTemplateTypes";
 
-function normalizeTemplateKey(value: string): string {
+function normalizeTemplateKey(
+  value: string
+): string {
   return value
     .trim()
     .toLowerCase()
-    .replace(/[^a-z0-9_\-]+/g, "_")
-    .replace(/^_+|_+$/g, "")
-    .slice(0, 100);
+    .replace(
+      /[^a-z0-9_\-]+/g,
+      "_"
+    )
+    .replace(
+      /^_+|_+$/g,
+      ""
+    )
+    .slice(
+      0,
+      100
+    );
 }
 
-export async function saveMagicTouchFlowAsTemplateImpl(req: any): Promise<object> {
-  const { db, authUid } = await resolveMagicTouchFlowTemplateAccess(req);
+export async function saveMagicTouchFlowAsTemplateImpl(
+  req: any
+): Promise<object> {
+  const {
+    db,
+    authUid,
+  } =
+    await resolveMagicTouchFlowTemplateAccess(
+      req
+    );
 
-  const agentId = safeString(req.data?.agentId);
-  const flowId = safeString(req.data?.flowId);
-  const requestedTemplateId = safeString(req.data?.templateId);
-  const name = safeString(req.data?.name);
-  const description = safeString(req.data?.description);
-  const category = safeString(req.data?.category) || "general";
-  const templateKey = normalizeTemplateKey(safeString(req.data?.templateKey));
+  const agentId =
+    safeString(
+      req.data?.agentId
+    );
 
-  if (!agentId || !flowId || !name || !templateKey) {
+  const flowId =
+    safeString(
+      req.data?.flowId
+    );
+
+  const requestedTemplateId =
+    safeString(
+      req.data?.templateId
+    );
+
+  const name =
+    safeString(
+      req.data?.name
+    );
+
+  const description =
+    safeString(
+      req.data?.description
+    );
+
+  const category =
+    safeString(
+      req.data?.category
+    ) ||
+    "general";
+
+  const templateKey =
+    normalizeTemplateKey(
+      safeString(
+        req.data?.templateKey
+      )
+    );
+
+  if (
+    !agentId ||
+    !flowId ||
+    !name ||
+    !templateKey
+  ) {
     throw new HttpsError(
       "invalid-argument",
       "agentId, flowId, name and templateKey are required"
     );
   }
 
-  const flowRef = (db as any).doc(
-    `agents/${agentId}/magic_touch_flows/${flowId}`
-  );
-  const flowSnap = await flowRef.get();
+  const flowRef =
+    (db as any).doc(
+      `agents/${agentId}/magic_touch_flows/${flowId}`
+    );
 
-  if (!flowSnap.exists) {
-    throw new HttpsError("not-found", "Flow not found");
+  const flowSnap =
+    await flowRef.get();
+
+  if (
+    !flowSnap.exists
+  ) {
+    throw new HttpsError(
+      "not-found",
+      "Flow not found"
+    );
   }
 
-  const flow = flowSnap.data() as any;
-  const sanitized = sanitizeFlowForTemplate(flow);
+  const flow =
+    flowSnap.data() as any;
 
-  if (!sanitized.firstStepId || Object.keys(sanitized.steps).length === 0) {
+  const sanitized =
+    sanitizeFlowForTemplate(
+      flow
+    );
+
+  if (
+    !sanitized.firstStepId ||
+    Object.keys(
+      sanitized.steps
+    ).length ===
+      0
+  ) {
     throw new HttpsError(
       "failed-precondition",
       "Flow has no valid first step or steps"
     );
   }
 
-  const collection = (db as any).collection("magic_touch_flow_templates");
-  let templateRef = requestedTemplateId
-    ? collection.doc(requestedTemplateId)
-    : collection.doc();
+  const collection =
+    (db as any).collection(
+      "magic_touch_flow_templates"
+    );
 
-  const existingSnap = await templateRef.get();
-  const existing = existingSnap.exists ? existingSnap.data() : null;
+  /*
+   * אם נבחרה במפורש תבנית קיימת:
+   * ממשיכים לעדכן אותה כגרסה חדשה.
+   */
+  let templateRef =
+    requestedTemplateId
+      ? collection.doc(
+          requestedTemplateId
+        )
+      : null;
 
-  if (!requestedTemplateId) {
-    const sameKeySnap = await collection
-      .where("templateKey", "==", templateKey)
-      .limit(1)
-      .get();
+  let existingSnap =
+    templateRef
+      ? await templateRef.get()
+      : null;
 
-    if (!sameKeySnap.empty) {
+  if (
+    requestedTemplateId &&
+    !existingSnap?.exists
+  ) {
+    throw new HttpsError(
+      "not-found",
+      "Template not found"
+    );
+  }
+
+  /*
+   * אם לא נבחרה תבנית קיימת:
+   * קודם בודקים האם אותו Flow כבר פורסם בעבר.
+   *
+   * זה מאפשר לפרסם שוב את אותו Flow
+   * כגרסה חדשה של אותה תבנית,
+   * גם בלי לבחור ידנית "עדכון תבנית".
+   */
+  if (
+    !requestedTemplateId
+  ) {
+    const sameSourceFlowSnap =
+      await collection
+        .where(
+          "sourceAgentId",
+          "==",
+          agentId
+        )
+        .where(
+          "sourceFlowId",
+          "==",
+          flowId
+        )
+        .limit(
+          1
+        )
+        .get();
+
+    if (
+      !sameSourceFlowSnap.empty
+    ) {
+      const existingDoc =
+        sameSourceFlowSnap
+          .docs[0];
+
+      templateRef =
+        existingDoc.ref;
+
+      existingSnap =
+        existingDoc;
+    }
+  }
+
+  /*
+   * אם זה Flow חדש בספרייה:
+   * ה-templateKey חייב להיות ייחודי.
+   *
+   * אם אותו Flow כבר קיים, אנחנו מעדכנים
+   * את אותה תבנית ולכן מותר להשתמש באותו Key.
+   */
+  if (
+    !templateRef
+  ) {
+    const sameKeySnap =
+      await collection
+        .where(
+          "templateKey",
+          "==",
+          templateKey
+        )
+        .limit(
+          1
+        )
+        .get();
+
+    if (
+      !sameKeySnap.empty
+    ) {
       throw new HttpsError(
         "already-exists",
         "A template with this templateKey already exists"
       );
     }
-  } else if (!existingSnap.exists) {
-    throw new HttpsError("not-found", "Template not found");
+
+    templateRef =
+      collection.doc();
+
+    existingSnap =
+      null;
+  } else {
+    /*
+     * בהחלפת Key לתבנית קיימת,
+     * עדיין מוודאים שה-Key החדש לא שייך
+     * לתבנית אחרת.
+     */
+    const sameKeySnap =
+      await collection
+        .where(
+          "templateKey",
+          "==",
+          templateKey
+        )
+        .limit(
+          2
+        )
+        .get();
+
+    const conflictingDoc =
+      sameKeySnap.docs.find(
+        (
+          doc: any
+        ) =>
+          doc.id !==
+          templateRef.id
+      );
+
+    if (
+      conflictingDoc
+    ) {
+      throw new HttpsError(
+        "already-exists",
+        "A template with this templateKey already exists"
+      );
+    }
   }
 
-  const version = existingSnap.exists
-    ? Number(existing?.version || 1) + 1
-    : 1;
+  const existing =
+    existingSnap?.exists
+      ? existingSnap.data()
+      : null;
 
-  const document: MagicTouchFlowTemplateDocument = {
-    schemaVersion: MAGIC_TOUCH_FLOW_TEMPLATE_SCHEMA_VERSION,
-    templateId: templateRef.id,
-    templateKey,
-    name,
-    description,
-    category,
-    status: safeString(req.data?.status) === "published" ? "published" : "draft",
-    version,
+  const version =
+    existingSnap?.exists
+      ? Number(
+          existing?.version ||
+          1
+        ) + 1
+      : 1;
 
-    sourceAgentId: agentId,
-    sourceFlowId: flowId,
-    sourceFlowVersion: Number(flow?.version || 1),
+  const document:
+    MagicTouchFlowTemplateDocument = {
+      schemaVersion:
+        MAGIC_TOUCH_FLOW_TEMPLATE_SCHEMA_VERSION,
 
-    trigger: sanitized.trigger,
-    firstStepId: sanitized.firstStepId,
-    steps: sanitized.steps,
+      templateId:
+        templateRef.id,
 
-    variables: Array.isArray(existing?.variables) ? existing.variables : [],
-    requiredIntegrations: sanitized.requiredIntegrations,
-    requiredPermissions: ["access_magic_touch"],
+      templateKey,
 
-    createdBy: existing?.createdBy || authUid,
-    updatedBy: authUid,
-    createdAt: existing?.createdAt || nowTs(),
-    updatedAt: nowTs(),
-  };
+      name,
 
-  await templateRef.set(document);
+      description,
+
+      category,
+
+      status:
+        safeString(
+          req.data?.status
+        ) ===
+          "published"
+          ? "published"
+          : "draft",
+
+      version,
+
+      sourceAgentId:
+        agentId,
+
+      sourceFlowId:
+        flowId,
+
+      sourceFlowVersion:
+        Number(
+          flow?.version ||
+          1
+        ),
+
+      trigger:
+        sanitized.trigger,
+
+      firstStepId:
+        sanitized.firstStepId,
+
+      steps:
+        sanitized.steps,
+
+      variables:
+        Array.isArray(
+          existing?.variables
+        )
+          ? existing.variables
+          : [],
+
+      requiredIntegrations:
+        sanitized.requiredIntegrations,
+
+      requiredPermissions: [
+        "access_magic_touch",
+      ],
+
+      createdBy:
+        existing?.createdBy ||
+        authUid,
+
+      updatedBy:
+        authUid,
+
+      createdAt:
+        existing?.createdAt ||
+        nowTs(),
+
+      updatedAt:
+        nowTs(),
+    };
+
+  await templateRef.set(
+    document
+  );
 
   return {
-    ok: true,
-    templateId: templateRef.id,
+    ok:
+      true,
+
+    templateId:
+      templateRef.id,
+
     templateKey,
+
     version,
-    requiredIntegrations: sanitized.requiredIntegrations,
+
+    requiredIntegrations:
+      sanitized.requiredIntegrations,
   };
 }

@@ -324,3 +324,15 @@ export {
   saveSystemMagicTouchAISettings,
   saveAgentMagicTouchAISettings,
 } from "./magicTouchAISettings";
+
+export {
+  syncMagicTouchHumanAttention,
+} from "./syncMagicTouchHumanAttention";
+
+export {
+  resolveMagicTouchHumanAttention,
+} from "./resolveMagicTouchHumanAttention";
+
+export {
+  ensureMagicTouchOnboardingInboundFlow,
+} from "./ensureMagicTouchOnboardingInboundFlow";

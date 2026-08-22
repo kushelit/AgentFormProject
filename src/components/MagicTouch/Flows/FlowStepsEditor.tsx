@@ -132,6 +132,10 @@ function createDefaultStep(
             "text",
           message:
             "",
+          waitsForCustomerResponse:
+            false,
+          managedWaitStepId:
+            null,
         },
       };
 
@@ -322,59 +326,62 @@ type ResponseOptionSeed = {
   description: string;
 };
 
-function getInteractiveButtonOptions(
-  step: FlowStep | null | undefined
-): ResponseOptionSeed[] {
+function isHiddenManagedWait(
+  step: FlowStep | undefined
+): boolean {
+  return Boolean(
+    step &&
+    step.type ===
+      "wait_for_customer_response" &&
+    step.config
+      ?.hiddenInBuilder ===
+      true &&
+    s(
+      step.config
+        ?.managedRole
+    ) ===
+      "whatsapp_response_wait"
+  );
+}
+
+function getManagedWaitStep(
+  step: FlowStep | undefined,
+  steps: Record<string, FlowStep>
+): FlowStep | null {
   if (
     !step ||
     step.type !==
-      "send_whatsapp" ||
+      "send_whatsapp"
+  ) {
+    return null;
+  }
+
+  const waitStepId =
     s(
       step.config
-        ?.mode
-    ) !==
-      "interactive_buttons"
-  ) {
-    return [];
-  }
-
-  const rawButtons =
-    step.config
-      ?.buttons;
+        ?.managedWaitStepId
+    );
 
   if (
-    !Array.isArray(
-      rawButtons
-    )
+    !waitStepId
   ) {
-    return [];
+    return null;
   }
 
-  return rawButtons
-    .map(
-      (
-        button: any
-      ) => ({
-        action:
-          s(
-            button?.id
-          ),
-        label:
-          s(
-            button?.title
-          ),
-        description:
-          "",
-      })
+  const waitStep =
+    steps[
+      waitStepId
+    ];
+
+  if (
+    !isHiddenManagedWait(
+      waitStep
     )
-    .filter(
-      (
-        option
-      ) =>
-        Boolean(
-          option.action
-        )
-    );
+  ) {
+    return null;
+  }
+
+  return waitStep;
 }
 
 function getWaitResponseOptions(
@@ -397,7 +404,7 @@ function getWaitResponseOptions(
       rawOptions
     )
   ) {
-    const normalized =
+    const options =
       rawOptions
         .map(
           (
@@ -430,10 +437,10 @@ function getWaitResponseOptions(
         );
 
     if (
-      normalized.length >
+      options.length >
       0
     ) {
-      return normalized;
+      return options;
     }
   }
 
@@ -538,65 +545,53 @@ function applyContextDefaultsToNewStep({
   previousStep: FlowStep | null;
 }): FlowStep {
   if (
-    newStep.type ===
-      "wait_for_customer_response"
-  ) {
-    const buttonOptions =
-      getInteractiveButtonOptions(
-        previousStep
-      );
-
-    if (
-      buttonOptions.length >
-      0
-    ) {
-      return {
-        ...newStep,
-        config: {
-          ...newStep.config,
-          expectedActions:
-            buttonOptions.map(
-              (
-                option
-              ) =>
-                option.action
-            ),
-          responseOptions:
-            buttonOptions,
-        },
-      };
-    }
-  }
-
-  if (
-    newStep.type ===
+    newStep.type !==
       "condition"
   ) {
-    const waitOptions =
-      getWaitResponseOptions(
-        previousStep
-      );
-
-    if (
-      waitOptions.length >
-      0
-    ) {
-      return {
-        ...newStep,
-        config: {
-          ...newStep.config,
-          field:
-            "event.routing.resolvedAction",
-          branches:
-            createBranchesFromOptions(
-              waitOptions
-            ),
-        },
-      };
-    }
+    return newStep;
   }
 
-  return newStep;
+  const waitOptions =
+    getWaitResponseOptions(
+      previousStep
+    );
+
+  if (
+    waitOptions.length ===
+    0
+  ) {
+    return newStep;
+  }
+
+  return {
+    ...newStep,
+    config: {
+      ...newStep.config,
+      field:
+        "event.routing.resolvedAction",
+      branches:
+        createBranchesFromOptions(
+          waitOptions
+        ),
+    },
+  };
+}
+
+function getVisibleStepIds(
+  steps: Record<string, FlowStep>
+): string[] {
+  return Object.keys(
+    steps
+  ).filter(
+    (
+      stepId
+    ) =>
+      !isHiddenManagedWait(
+        steps[
+          stepId
+        ]
+      )
+  );
 }
 
 function getReachableStepIds(
@@ -766,7 +761,7 @@ export default function FlowStepsEditor({
   const disconnectedIds =
     useMemo(
       () =>
-        Object.keys(
+        getVisibleStepIds(
           steps
         ).filter(
           (
@@ -821,6 +816,17 @@ export default function FlowStepsEditor({
       );
     };
 
+  const replaceSteps =
+    (
+      nextSteps: Record<string, FlowStep>
+    ) => {
+      onChange({
+        ...value,
+        steps:
+          nextSteps,
+      });
+    };
+
   const addLinearStep =
     (
       afterStepId: string | null,
@@ -838,7 +844,7 @@ export default function FlowStepsEditor({
           type
         );
 
-      const previousStep =
+      const visiblePreviousStep =
         afterStepId
           ? steps[
               afterStepId
@@ -846,11 +852,24 @@ export default function FlowStepsEditor({
             null
           : null;
 
+      const managedWait =
+        visiblePreviousStep
+          ? getManagedWaitStep(
+              visiblePreviousStep,
+              steps
+            )
+          : null;
+
+      const effectivePreviousStep =
+        managedWait ||
+        visiblePreviousStep;
+
       const newStep =
         applyContextDefaultsToNewStep({
           newStep:
             defaultStep,
-          previousStep,
+          previousStep:
+            effectivePreviousStep,
         });
 
       const nextSteps = {
@@ -894,28 +913,23 @@ export default function FlowStepsEditor({
         return;
       }
 
-    const sourceStep =
-  steps[
-    afterStepId
-  ];
-
-if (
-  !sourceStep ||
-  sourceStep.type ===
-    "condition"
-) {
-  return;
-}
+      if (
+        !effectivePreviousStep ||
+        effectivePreviousStep.type ===
+          "condition"
+      ) {
+        return;
+      }
 
       const previousNextStepId =
-        sourceStep
+        effectivePreviousStep
           .nextStepId ||
         null;
 
       nextSteps[
-        afterStepId
+        effectivePreviousStep.id
       ] = {
-        ...sourceStep,
+        ...effectivePreviousStep,
         nextStepId:
           stepId,
       };
@@ -1058,6 +1072,17 @@ if (
     (
       stepIdToRemove: string
     ) => {
+      const removedStep =
+        steps[
+          stepIdToRemove
+        ];
+
+      const managedWait =
+        getManagedWaitStep(
+          removedStep,
+          steps
+        );
+
       const approved =
         window.confirm(
           "למחוק את השלב?"
@@ -1069,19 +1094,31 @@ if (
         return;
       }
 
-      const removedStep =
-        steps[
-          stepIdToRemove
-        ];
+      const idsToRemove =
+        new Set<string>([
+          stepIdToRemove,
+        ]);
+
+      if (
+        managedWait
+      ) {
+        idsToRemove.add(
+          managedWait.id
+        );
+      }
 
       const replacementStepId =
-        removedStep &&
-        removedStep.type !==
-          "condition"
-          ? removedStep
+        managedWait
+          ? managedWait
               .nextStepId ||
             null
-          : null;
+          : removedStep &&
+            removedStep.type !==
+              "condition"
+            ? removedStep
+                .nextStepId ||
+              null
+            : null;
 
       const nextSteps:
         Record<
@@ -1098,15 +1135,18 @@ if (
         )
       ) {
         if (
-          stepId ===
-          stepIdToRemove
+          idsToRemove.has(
+            stepId
+          )
         ) {
           continue;
         }
 
         const nextStepId =
-          step.nextStepId ===
-          stepIdToRemove
+          step.nextStepId &&
+          idsToRemove.has(
+            step.nextStepId
+          )
             ? replacementStepId
             : step.nextStepId;
 
@@ -1124,8 +1164,10 @@ if (
                 ...branch,
                 nextStepId:
                   branch
-                    .nextStepId ===
-                  stepIdToRemove
+                    .nextStepId &&
+                  idsToRemove.has(
+                    branch.nextStepId
+                  )
                     ? replacementStepId
                     : branch
                         .nextStepId,
@@ -1147,8 +1189,10 @@ if (
               ...step.config,
               branches,
               fallbackStepId:
-                fallbackStepId ===
-                stepIdToRemove
+                fallbackStepId &&
+                idsToRemove.has(
+                  fallbackStepId
+                )
                   ? replacementStepId
                   : fallbackStepId ||
                     null,
@@ -1167,15 +1211,16 @@ if (
       }
 
       const remainingIds =
-        Object.keys(
+        getVisibleStepIds(
           nextSteps
         );
 
       onChange({
         ...value,
         firstStepId:
-          value.firstStepId ===
-          stepIdToRemove
+          idsToRemove.has(
+            value.firstStepId
+          )
             ? replacementStepId ||
               remainingIds[
                 0
@@ -1187,8 +1232,10 @@ if (
       });
 
       if (
-        selectedStepId ===
-        stepIdToRemove
+        selectedStepId &&
+        idsToRemove.has(
+          selectedStepId
+        )
       ) {
         setSelectedStepId(
           null
@@ -1214,14 +1261,14 @@ if (
             </h2>
 
             <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
-              {Object.keys(
+              {getVisibleStepIds(
                 steps
               ).length} שלבים
             </span>
 
             {disconnectedIds.length ===
             0 &&
-            Object.keys(
+            getVisibleStepIds(
               steps
             ).length >
               0 ? (
@@ -1383,6 +1430,9 @@ if (
         }
         onUpdateConfig={
           updateConfig
+        }
+        onReplaceSteps={
+          replaceSteps
         }
       />
     </section>

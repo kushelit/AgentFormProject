@@ -121,6 +121,10 @@ async function collectCandidates(): Promise<{
       path: `agents/${TEST_AGENT_ID}/magic_touch_documents`,
       label: "MagicTouch document",
     },
+    {
+  path: `agents/${TEST_AGENT_ID}/magic_touch_ai_usage`,
+  label: "MagicTouch AI usage",
+},
   ];
 
   for (const definition of agentCollectionDefinitions) {

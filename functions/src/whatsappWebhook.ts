@@ -1046,14 +1046,17 @@ async function createAutomationEvent({
       : null,
 },
 
-    channel:
-      "whatsapp",
+  channel:
+  "whatsapp",
 
-    messageType:
-      s(
-        message?.type
-      ) ||
-      null,
+sourceSystem:
+  "whatsapp",
+
+messageType:
+  s(
+    message?.type
+  ) ||
+  null,
 
     messageText:
       messageText ||

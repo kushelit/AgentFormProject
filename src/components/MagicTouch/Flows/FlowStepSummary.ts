@@ -457,11 +457,18 @@ export function getStepSummary(
               ?.buttons as any[]
           : [];
 
+      const waitsForResponse =
+        step.config
+          ?.waitsForCustomerResponse ===
+        true;
+
       return [
         mode ===
         "interactive_buttons"
           ? `הודעה עם ${buttons.length} כפתורי תשובה`
-          : "הודעת טקסט",
+          : waitsForResponse
+            ? "הודעת טקסט שממתינה לתשובה"
+            : "הודעת טקסט",
         message
           ? message.length >
             90
@@ -471,6 +478,13 @@ export function getStepSummary(
             )}…`
             : message
           : "תוכן ההודעה עדיין ריק",
+        ...(
+          waitsForResponse
+            ? [
+                "ממתין לתשובת הלקוח",
+              ]
+            : []
+        ),
         ...(
           mode ===
           "interactive_buttons"

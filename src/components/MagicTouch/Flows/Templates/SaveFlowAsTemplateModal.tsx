@@ -62,19 +62,24 @@ function makeTechnicalKey(
   trigger: FlowTrigger,
   flowId: string
 ): string {
-  const parts = [
-    trigger?.type,
-    trigger?.quickReplyAction,
-    trigger?.templateName,
-  ]
-    .map(normalizeTechnicalPart)
-    .filter(Boolean);
+  const triggerPart =
+    normalizeTechnicalPart(
+      trigger?.type
+    ) ||
+    "flow";
 
-  const generated =
-    parts.join("_") ||
-    `flow_${normalizeTechnicalPart(flowId).slice(0, 12)}`;
+  const flowPart =
+    normalizeTechnicalPart(
+      flowId
+    ).slice(
+      0,
+      16
+    );
 
-  return generated.slice(0, 100);
+  return `${triggerPart}_${flowPart}`.slice(
+    0,
+    100
+  );
 }
 
 function detectRequiredIntegrations(
