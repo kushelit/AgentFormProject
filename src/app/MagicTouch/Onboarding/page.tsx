@@ -2464,10 +2464,10 @@ export default function MagicTouchOnboardingPage() {
                           בדיקת MagicTouch פעילה
                         </h3>
 
-                        <p className="mt-1 text-sm leading-6 text-slate-600">
-                          עכשיו שלחו הודעת WhatsApp ממספר אחר למספר העסקי של הסוכן.
-                          אין צורך בטקסט מיוחד — אפשר פשוט לכתוב "שלום".
-                        </p>
+                     <p className="mt-1 text-sm leading-6 text-slate-600">
+  עכשיו שלחו הודעת WhatsApp ממספר אחר למספר העסקי של הסוכן.
+  אין צורך בטקסט מיוחד — אפשר פשוט לכתוב &quot;שלום&quot;.
+</p>
                       </div>
                     </div>
 
