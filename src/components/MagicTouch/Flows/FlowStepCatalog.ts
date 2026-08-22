@@ -1,4 +1,6 @@
-import type { StepType } from "@/lib/MagicTouch/flows/types";
+import type {
+  StepType,
+} from "@/lib/MagicTouch/flows/types";
 
 export type StepTypeOption = {
   value: StepType;
@@ -9,39 +11,72 @@ export type StepTypeOption = {
 
 export const STEP_TYPES: StepTypeOption[] = [
   {
-    value: "request_documents",
-    label: "בקשת מסמכים",
-    description: "שליחת קישור מאובטח לצילום שני צדי תעודת זהות",
-    icon: "🪪",
-  },
-  {
     value: "send_whatsapp",
     label: "שליחת WhatsApp",
     description: "שליחת הודעת טקסט ללקוח",
     icon: "💬",
   },
   {
+    value: "wait_for_customer_response",
+    label: "המתנה לתשובת לקוח",
+    description:
+      "המתנה למענה חופשי או Quick Reply והמרתו לפעולה עסקית",
+    icon: "⏳",
+  },
+  {
+    value: "condition",
+    label: "ניתוב לפי תשובה / ערך",
+    description:
+      "פיצול התהליך למספר ענפים דינמיים",
+    icon: "🔀",
+  },
+  {
+    value: "request_documents",
+    label: "בקשת מסמכים",
+    description:
+      "שליחת קישור מאובטח לצילום שני צדי תעודת זהות",
+    icon: "🪪",
+  },
+  {
+    value: "send_booking_link",
+    label: "שליחת קישור Bookings",
+    description:
+      "שליחת קישור לפגישת Microsoft Bookings",
+    icon: "📅",
+  },
+  {
+    value: "send_google_booking_link",
+    label: "שליחת קישור Google",
+    description:
+      "שליחת קישור לקביעת פגישה ב־Google Calendar",
+    icon: "🗓️",
+  },
+  {
     value: "update_contact",
     label: "עדכון איש קשר",
-    description: "עדכון סטטוסים, מועדים ונתוני תהליך",
+    description:
+      "עדכון סטטוסים, מועדים ונתוני תהליך",
     icon: "👤",
   },
   {
     value: "add_timeline_event",
     label: "הוספה לציר הזמן",
-    description: "תיעוד פעולה בהיסטוריית איש הקשר",
+    description:
+      "תיעוד פעולה בהיסטוריית איש הקשר",
     icon: "📝",
   },
   {
     value: "sync_surense_activity",
     label: "עדכון פעילות בשורנס",
-    description: "שליחת פעילות או סגירת תהליך בשורנס",
+    description:
+      "שליחת פעילות או סגירת תהליך בשורנס",
     icon: "🔄",
   },
   {
     value: "create_surense_power_of_attorney",
     label: "יצירת קישור ייפוי כוח",
-    description: "יצירת קישור חתימה דרך שורנס ושמירתו באיש הקשר",
+    description:
+      "יצירת קישור חתימה דרך שורנס ושמירתו באיש הקשר",
     icon: "✍️",
   },
   {

@@ -34,18 +34,26 @@ import {
 const WA_API_URL =
   "https://graph.facebook.com/v25.0";
 
+export interface SendWhatsAppConversationButton {
+  id: string;
+  title: string;
+}
+
 export interface SendWhatsAppConversationTextInput {
   agentId: string;
   conversationId: string;
   text: string;
 
+  buttons?:
+    SendWhatsAppConversationButton[];
+
   sentBy: string;
   sentByName?: string | null;
 
-source:
-  | "user"
-  | "magic_touch_automation"
-  | "magic_touch_document_request";
+  source:
+    | "user"
+    | "magic_touch_automation"
+    | "magic_touch_document_request";
 
   flowRunId?: string | null;
   flowId?: string | null;
@@ -58,12 +66,119 @@ export interface SendWhatsAppConversationTextResult {
   contactId: string | null;
   conversationId: string;
   waMessageId: string;
+  messageType:
+    | "text"
+    | "interactive";
+}
+
+function normalizeButtons(
+  value: unknown
+): SendWhatsAppConversationButton[] {
+  if (
+    !Array.isArray(
+      value
+    )
+  ) {
+    return [];
+  }
+
+  return value
+    .map(
+      (
+        button: any
+      ) => ({
+        id:
+          safeString(
+            button?.id
+          ),
+
+        title:
+          safeString(
+            button?.title
+          ),
+      })
+    )
+    .filter(
+      (
+        button
+      ) =>
+        Boolean(
+          button.id &&
+          button.title
+        )
+    );
+}
+
+function validateButtons(
+  buttons:
+    SendWhatsAppConversationButton[]
+): void {
+  if (
+    buttons.length ===
+    0
+  ) {
+    return;
+  }
+
+  if (
+    buttons.length >
+    3
+  ) {
+    throw new HttpsError(
+      "invalid-argument",
+      "WhatsApp interactive message supports up to 3 reply buttons"
+    );
+  }
+
+  const ids =
+    new Set<string>();
+
+  for (
+    const button of
+    buttons
+  ) {
+    if (
+      button.title.length >
+      20
+    ) {
+      throw new HttpsError(
+        "invalid-argument",
+        `WhatsApp button title is too long: ${button.title}`
+      );
+    }
+
+    if (
+      button.id.length >
+      256
+    ) {
+      throw new HttpsError(
+        "invalid-argument",
+        `WhatsApp button action is too long: ${button.id}`
+      );
+    }
+
+    if (
+      ids.has(
+        button.id
+      )
+    ) {
+      throw new HttpsError(
+        "invalid-argument",
+        `Duplicate WhatsApp button action: ${button.id}`
+      );
+    }
+
+    ids.add(
+      button.id
+    );
+  }
 }
 
 export async function sendWhatsAppConversationText({
   agentId,
   conversationId,
   text,
+  buttons = [],
   sentBy,
   sentByName = null,
   source,
@@ -86,35 +201,46 @@ export async function sendWhatsAppConversationText({
       text
     );
 
- const normalizedSentBy =
-  safeString(
-    sentBy
-  ) ||
-  (
-    source ===
-    "magic_touch_automation"
-      ? "magic_touch_automation"
-      : source ===
-        "magic_touch_document_request"
-        ? "magic_touch_document_request"
-        : ""
-  );
+  const normalizedButtons =
+    normalizeButtons(
+      buttons
+    );
 
-  if (!normalizedAgentId) {
+  const normalizedSentBy =
+    safeString(
+      sentBy
+    ) ||
+    (
+      source ===
+      "magic_touch_automation"
+        ? "magic_touch_automation"
+        : source ===
+          "magic_touch_document_request"
+          ? "magic_touch_document_request"
+          : ""
+    );
+
+  if (
+    !normalizedAgentId
+  ) {
     throw new HttpsError(
       "invalid-argument",
       "Missing agentId"
     );
   }
 
-  if (!normalizedConversationId) {
+  if (
+    !normalizedConversationId
+  ) {
     throw new HttpsError(
       "invalid-argument",
       "Missing conversationId"
     );
   }
 
-  if (!normalizedText) {
+  if (
+    !normalizedText
+  ) {
     throw new HttpsError(
       "invalid-argument",
       "Missing text"
@@ -131,12 +257,18 @@ export async function sendWhatsAppConversationText({
     );
   }
 
-  if (!normalizedSentBy) {
+  if (
+    !normalizedSentBy
+  ) {
     throw new HttpsError(
       "invalid-argument",
       "Missing sentBy"
     );
   }
+
+  validateButtons(
+    normalizedButtons
+  );
 
   const db =
     adminDb();
@@ -149,7 +281,9 @@ export async function sendWhatsAppConversationText({
   const conversationSnap =
     await conversationRef.get();
 
-  if (!conversationSnap.exists) {
+  if (
+    !conversationSnap.exists
+  ) {
     throw new HttpsError(
       "not-found",
       "Conversation not found"
@@ -164,17 +298,15 @@ export async function sendWhatsAppConversationText({
       conversation?.agentId
     );
 
-  if (!conversationAgentId) {
+  if (
+    !conversationAgentId
+  ) {
     throw new HttpsError(
       "failed-precondition",
       "Conversation is missing agentId"
     );
   }
 
-  /*
-   * הגנה קריטית בין סביבות וסוכנים:
-   * ה-Dispatcher רשאי לשלוח רק בשיחה ששייכת ל-agentId של ה-Run.
-   */
   if (
     conversationAgentId !==
     normalizedAgentId
@@ -187,12 +319,14 @@ export async function sendWhatsAppConversationText({
 
   const customerPhone =
     safeString(
-      conversation?.customerPhone
+      conversation
+        ?.customerPhone
     );
 
   const phoneNumberId =
     safeString(
-      conversation?.phoneNumberId
+      conversation
+        ?.phoneNumberId
     );
 
   if (
@@ -207,14 +341,16 @@ export async function sendWhatsAppConversationText({
 
   const magicTouchContact =
     await resolveMagicTouchContact({
-      db: db as any,
+      db:
+        db as any,
 
       agentId:
         normalizedAgentId,
 
       contactId:
         safeString(
-          conversation?.contactId
+          conversation
+            ?.contactId
         ) ||
         null,
 
@@ -234,7 +370,9 @@ export async function sendWhatsAppConversationText({
       )
       .get();
 
-  if (!waSecretSnap.exists) {
+  if (
+    !waSecretSnap.exists
+  ) {
     throw new HttpsError(
       "failed-precondition",
       "WhatsApp token not configured"
@@ -243,10 +381,13 @@ export async function sendWhatsAppConversationText({
 
   const keyB64 =
     safeString(
-      PORTAL_ENC_KEY_B64.value()
+      PORTAL_ENC_KEY_B64
+        .value()
     );
 
-  if (!keyB64) {
+  if (
+    !keyB64
+  ) {
     throw new HttpsError(
       "internal",
       "Missing encryption key"
@@ -264,12 +405,90 @@ export async function sendWhatsAppConversationText({
       waSecret.enc
     ) as any;
 
-  if (!accessToken) {
+  if (
+    !accessToken
+  ) {
     throw new HttpsError(
       "failed-precondition",
       "Invalid WhatsApp token"
     );
   }
+
+  const messageType:
+    | "text"
+    | "interactive" =
+    normalizedButtons.length >
+    0
+      ? "interactive"
+      : "text";
+
+  const providerBody =
+    messageType ===
+    "interactive"
+      ? {
+          messaging_product:
+            "whatsapp",
+
+          recipient_type:
+            "individual",
+
+          to:
+            customerPhone,
+
+          type:
+            "interactive",
+
+          interactive: {
+            type:
+              "button",
+
+            body: {
+              text:
+                normalizedText,
+            },
+
+            action: {
+              buttons:
+                normalizedButtons.map(
+                  (
+                    button
+                  ) => ({
+                    type:
+                      "reply",
+
+                    reply: {
+                      id:
+                        button.id,
+
+                      title:
+                        button.title,
+                    },
+                  })
+                ),
+            },
+          },
+        }
+      : {
+          messaging_product:
+            "whatsapp",
+
+          recipient_type:
+            "individual",
+
+          to:
+            customerPhone,
+
+          type:
+            "text",
+
+          text: {
+            preview_url:
+              true,
+
+            body:
+              normalizedText,
+          },
+        };
 
   const waRes =
     await fetch(
@@ -287,27 +506,9 @@ export async function sendWhatsAppConversationText({
         },
 
         body:
-          JSON.stringify({
-            messaging_product:
-              "whatsapp",
-
-            recipient_type:
-              "individual",
-
-            to:
-              customerPhone,
-
-            type:
-              "text",
-
-            text: {
-              preview_url:
-                true,
-
-              body:
-                normalizedText,
-            },
-          }),
+          JSON.stringify(
+            providerBody
+          ),
       }
     );
 
@@ -316,7 +517,9 @@ export async function sendWhatsAppConversationText({
 
   const waMessageId =
     safeString(
-      waData?.messages?.[0]?.id
+      waData
+        ?.messages?.[0]
+        ?.id
     );
 
   if (
@@ -336,6 +539,8 @@ export async function sendWhatsAppConversationText({
 
         flowRunId,
 
+        messageType,
+
         response:
           waData,
       }
@@ -353,8 +558,12 @@ export async function sendWhatsAppConversationText({
 
   const messageRef =
     conversationRef
-      .collection("messages")
-      .doc(waMessageId);
+      .collection(
+        "messages"
+      )
+      .doc(
+        waMessageId
+      );
 
   await messageRef.set(
     {
@@ -376,10 +585,16 @@ export async function sendWhatsAppConversationText({
         customerPhone,
 
       type:
-        "text",
+        messageType,
 
       text:
         normalizedText,
+
+      buttons:
+        normalizedButtons.length >
+        0
+          ? normalizedButtons
+          : null,
 
       waMessageId,
 
@@ -438,7 +653,7 @@ export async function sendWhatsAppConversationText({
         normalizedText,
 
       lastMessageType:
-        "text",
+        messageType,
 
       lastMessageDirection:
         "outbound",
@@ -461,7 +676,9 @@ export async function sendWhatsAppConversationText({
     }
   );
 
-  if (magicTouchContact) {
+  if (
+    magicTouchContact
+  ) {
     await magicTouchContact
       .contactRef
       .set(
@@ -487,95 +704,8 @@ export async function sendWhatsAppConversationText({
         }
       );
 
-   if (
-  source !==
-  "magic_touch_document_request"
-) {
-  try {
-    await addMagicTouchTimelineEvent({
-      agentId:
-        normalizedAgentId,
-
-      contactId:
-        magicTouchContact
-          .contactId,
-
-      type:
-        "whatsapp_message_sent",
-
-      channel:
-        "whatsapp",
-
-      title:
-        source ===
-        "magic_touch_automation"
-          ? "נשלחה הודעת WhatsApp אוטומטית"
-          : "נשלחה הודעת WhatsApp",
-
-      description:
-        normalizedText,
-
-      direction:
-        "outbound",
-
-      status:
-        "completed",
-
-      createdBy:
-        normalizedSentBy,
-
-      sourceSystem:
-        source ===
-        "user"
-          ? "whatsapp"
-          : "magic_touch",
-
-      sourceRecordId:
-        waMessageId,
-
-      metadata: {
-        waMessageId,
-
-        conversationId:
-          normalizedConversationId,
-
-        phoneNumberId,
-
-        customerPhone,
-
-        sentByName:
-          safeString(
-            sentByName
-          ) ||
-          null,
-
-        source,
-
-        flowRunId:
-          safeString(
-            flowRunId
-          ) ||
-          null,
-
-        flowId:
-          safeString(
-            flowId
-          ) ||
-          null,
-
-        eventId:
-          safeString(
-            eventId
-          ) ||
-          null,
-      },
-    });
-  } catch (
-    timelineError: any
-  ) {
-    console.error(
-      "[sendWhatsAppConversationText] Timeline event failed",
-      {
+    try {
+      await addMagicTouchTimelineEvent({
         agentId:
           normalizedAgentId,
 
@@ -583,23 +713,121 @@ export async function sendWhatsAppConversationText({
           magicTouchContact
             .contactId,
 
-        conversationId:
-          normalizedConversationId,
+        type:
+          "whatsapp_message_sent",
 
-        waMessageId,
+        channel:
+          "whatsapp",
 
-        source,
+        title:
+          source ===
+          "magic_touch_document_request"
+            ? "נשלחה בקשת מסמכים ב-WhatsApp"
+            : source ===
+              "magic_touch_automation"
+              ? (
+                  messageType ===
+                  "interactive"
+                    ? "נשלחה הודעת WhatsApp עם כפתורי תשובה"
+                    : "נשלחה הודעת WhatsApp אוטומטית"
+                )
+              : "נשלחה הודעת WhatsApp",
 
-        error:
-          timelineError
-            ?.message ||
-          String(
+        description:
+          normalizedText,
+
+        direction:
+          "outbound",
+
+        status:
+          "completed",
+
+        createdBy:
+          normalizedSentBy,
+
+        sourceSystem:
+          source ===
+          "user"
+            ? "whatsapp"
+            : "magic_touch",
+
+        sourceRecordId:
+          waMessageId,
+
+        metadata: {
+          waMessageId,
+
+          conversationId:
+            normalizedConversationId,
+
+          phoneNumberId,
+
+          customerPhone,
+
+          messageType,
+
+          buttons:
+            normalizedButtons.length >
+            0
+              ? normalizedButtons
+              : null,
+
+          sentByName:
+            safeString(
+              sentByName
+            ) ||
+            null,
+
+          source,
+
+          flowRunId:
+            safeString(
+              flowRunId
+            ) ||
+            null,
+
+          flowId:
+            safeString(
+              flowId
+            ) ||
+            null,
+
+          eventId:
+            safeString(
+              eventId
+            ) ||
+            null,
+        },
+      });
+    } catch (
+      timelineError: any
+    ) {
+      console.error(
+        "[sendWhatsAppConversationText] Timeline event failed",
+        {
+          agentId:
+            normalizedAgentId,
+
+          contactId:
+            magicTouchContact
+              .contactId,
+
+          conversationId:
+            normalizedConversationId,
+
+          waMessageId,
+
+          source,
+
+          error:
             timelineError
-          ),
-      }
-    );
-  }
-}
+              ?.message ||
+            String(
+              timelineError
+            ),
+        }
+      );
+    }
   } else {
     console.warn(
       "[sendWhatsAppConversationText] Magic Touch contact not found",
@@ -632,5 +860,7 @@ export async function sendWhatsAppConversationText({
       normalizedConversationId,
 
     waMessageId,
+
+    messageType,
   };
 }

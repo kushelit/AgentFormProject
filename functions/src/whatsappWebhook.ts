@@ -637,6 +637,49 @@ async function findOriginalMessageTemplateName({
   );
 }
 
+function getNativeInteractiveAction(
+  message: any
+): string | null {
+  const messageType =
+    s(
+      message?.type
+    );
+
+  if (
+    messageType !==
+    "interactive"
+  ) {
+    return null;
+  }
+
+  const buttonReplyId =
+    s(
+      message
+        ?.interactive
+        ?.button_reply
+        ?.id
+    );
+
+  if (
+    buttonReplyId
+  ) {
+    return buttonReplyId;
+  }
+
+  const listReplyId =
+    s(
+      message
+        ?.interactive
+        ?.list_reply
+        ?.id
+    );
+
+  return (
+    listReplyId ||
+    null
+  );
+}
+
 async function getQuickReplyAction({
   db,
   agentId,
@@ -1257,7 +1300,13 @@ async function processInboundMessage({
       contextMessageId,
     });
 
+  const nativeInteractiveAction =
+    getNativeInteractiveAction(
+      message
+    );
+
   const quickReplyAction =
+    nativeInteractiveAction ||
     await getQuickReplyAction({
       db,
       agentId,

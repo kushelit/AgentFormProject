@@ -163,16 +163,17 @@ export async function executeMagicTouchFlowStep({
     case "condition": {
       const field =
         s(
-          step.config?.field
+          step.config
+            ?.field
         );
 
-      const operator =
-        s(
-          step.config?.operator
+      if (
+        !field
+      ) {
+        throw new Error(
+          "Condition step is missing field"
         );
-
-      const expected =
-        step.config?.value;
+      }
 
       const actual =
         getMagicTouchContextValue(
@@ -180,63 +181,74 @@ export async function executeMagicTouchFlowStep({
           field
         );
 
-      let matched =
-        false;
+      const rawBranches =
+        step.config
+          ?.branches;
 
-      if (
-        operator ===
-        "equals"
-      ) {
-        matched =
-          eq(
-            actual,
-            expected
-          );
-      } else if (
-        operator ===
-        "not_equals"
-      ) {
-        matched =
-          !eq(
-            actual,
-            expected
-          );
-      } else if (
-        operator ===
-        "exists"
-      ) {
-        matched =
-          actual != null &&
-          s(
-            actual
-          ) !==
-            "";
-      } else if (
-        operator ===
-        "not_exists"
-      ) {
-        matched =
-          actual == null ||
-          s(
-            actual
-          ) ===
-            "";
-      } else {
-        throw new Error(
-          `Unsupported condition operator: ${operator}`
-        );
-      }
+      const branches =
+        Array.isArray(
+          rawBranches
+        )
+          ? rawBranches
+              .map(
+                (
+                  branch: any,
+                  index: number
+                ) => ({
+                  id:
+                    s(
+                      branch
+                        ?.id
+                    ) ||
+                    `branch_${index + 1}`,
+
+                  value:
+                    branch
+                      ?.value,
+
+                  label:
+                    s(
+                      branch
+                        ?.label
+                    ) ||
+                    s(
+                      branch
+                        ?.value
+                    ),
+
+                  nextStepId:
+                    s(
+                      branch
+                        ?.nextStepId
+                    ) ||
+                    null,
+                })
+              )
+          : [];
+
+      const matchedBranch =
+        branches.find(
+          (
+            branch
+          ) =>
+            eq(
+              actual,
+              branch.value
+            )
+        ) ||
+        null;
+
+      const fallbackStepId =
+        s(
+          step.config
+            ?.fallbackStepId
+        ) ||
+        null;
 
       const nextStepId =
-        matched
-          ? s(
-            step.config
-              ?.trueStepId
-          )
-          : s(
-            step.config
-              ?.falseStepId
-          );
+        matchedBranch
+          ?.nextStepId ||
+        fallbackStepId;
 
       return {
         status:
@@ -251,17 +263,39 @@ export async function executeMagicTouchFlowStep({
         output: {
           field,
 
-          operator,
-
-          expected:
-            expected ??
-            null,
-
           actual:
             actual ??
             null,
 
-          matched,
+          matched:
+            Boolean(
+              matchedBranch
+            ),
+
+          matchedBranchId:
+            matchedBranch
+              ?.id ||
+            null,
+
+          matchedBranchValue:
+            matchedBranch
+              ?.value ??
+            null,
+
+          matchedBranchLabel:
+            matchedBranch
+              ?.label ||
+            null,
+
+          usedFallback:
+            !matchedBranch &&
+            Boolean(
+              fallbackStepId
+            ),
+
+          nextStepId:
+            nextStepId ||
+            null,
         },
       };
     }
@@ -287,7 +321,7 @@ export async function executeMagicTouchFlowStep({
         !message
       ) {
         throw new Error(
-          "WhatsApp text step is missing message"
+          "WhatsApp step is missing message"
         );
       }
 
@@ -296,6 +330,66 @@ export async function executeMagicTouchFlowStep({
       ) {
         throw new Error(
           "Cannot send WhatsApp without conversationId"
+        );
+      }
+
+      const mode =
+        s(
+          step.config
+            ?.mode
+        ) ===
+        "interactive_buttons"
+          ? "interactive_buttons"
+          : "text";
+
+      const rawButtons =
+        step.config
+          ?.buttons;
+
+      const buttons =
+        mode ===
+        "interactive_buttons" &&
+        Array.isArray(
+          rawButtons
+        )
+          ? rawButtons
+              .map(
+                (
+                  button: any
+                ) => ({
+                  id:
+                    s(
+                      button?.id
+                    ),
+
+                  title:
+                    resolveMagicTouchStringTemplate(
+                      s(
+                        button?.title
+                      ),
+                      context
+                    ),
+                })
+              )
+              .filter(
+                (
+                  button
+                ) =>
+                  Boolean(
+                    button.id &&
+                    button.title
+                  )
+              )
+          : [];
+
+      if (
+        mode ===
+        "interactive_buttons" &&
+        buttons.length ===
+        0
+      ) {
+        throw new Error(
+          "WhatsApp interactive step has no valid buttons"
         );
       }
 
@@ -308,6 +402,8 @@ export async function executeMagicTouchFlowStep({
 
           text:
             message,
+
+          buttons,
 
           sentBy:
             "magic_touch_automation",
@@ -342,7 +438,15 @@ export async function executeMagicTouchFlowStep({
           sent:
             true,
 
+          mode,
+
           message,
+
+          buttons:
+            buttons.length >
+            0
+              ? buttons
+              : null,
 
           ...result,
         },
