@@ -843,9 +843,9 @@ export default function MagicTouchConversationsPage() {
                             : '✓ טופל'}
                         </button>
 
-                        <span className="text-[11px] text-slate-500">
-                          "טופל" מסיר את ההתראה בלבד ואינו ממשיך את ה־Flow.
-                        </span>
+                     <span className="text-[11px] text-slate-500">
+  &quot;טופל&quot; מסיר את ההתראה בלבד ואינו ממשיך את ה־Flow.
+</span>
                       </div>
                     </div>
                   ) : null}
