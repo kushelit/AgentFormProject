@@ -1,27 +1,46 @@
 .announcement-overlay {
   position: fixed;
   inset: 0;
+
   background: rgba(0, 0, 0, 0.45);
+
   z-index: 9999;
+
   display: flex;
   align-items: center;
   justify-content: center;
+
   padding: 16px;
+
   direction: rtl;
 }
 
+
+/* ========================================
+   BASE POPUP
+   ======================================== */
+
 .announcement-box {
   position: relative;
+
   background: white;
+
   border-radius: 20px;
+
   padding: 32px 40px 24px;
+
   max-width: 680px;
   width: 100%;
+
   text-align: right;
+
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18);
+
   line-height: 1.8;
   font-size: 1.05rem;
+
   max-height: 88vh;
+
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
 }
@@ -34,28 +53,41 @@
   max-width: 720px;
 }
 
+
+/* ========================================
+   TYPOGRAPHY
+   ======================================== */
+
 .announcement-title {
   font-size: 2rem;
   font-weight: 800;
+
   margin-bottom: 14px;
+
   color: #111;
+
   padding-left: 28px;
 }
 
 .announcement-box h3 {
   font-size: 1.2rem;
+
   margin: 24px 0 10px;
+
   color: #111827;
+
   font-weight: 800;
 }
 
 .announcement-box p {
   margin-bottom: 12px;
+
   color: #222;
 }
 
 .announcement-box ul {
   padding-right: 20px;
+
   margin-bottom: 24px;
 }
 
@@ -63,16 +95,29 @@
   margin-bottom: 8px;
 }
 
+
+/* ========================================
+   CLOSE BUTTON
+   ======================================== */
+
 .close-button {
   position: absolute;
+
   top: 14px;
   left: 14px;
+
   background: transparent;
+
   border: none;
+
   font-size: 20px;
+
   cursor: pointer;
+
   color: #0077cc;
+
   transition: color 0.2s ease-in-out;
+
   z-index: 2;
 }
 
@@ -80,61 +125,107 @@
   color: #005fa3;
 }
 
+
+/* ========================================
+   LINKS
+   ======================================== */
+
 .announcement-box a {
   color: #1a73e8;
+
   text-decoration: underline;
+
   font-weight: 500;
+
   cursor: pointer;
 }
 
 .announcement-box a:hover {
   color: #0b53c1;
+
   text-decoration: none;
 }
 
+
+/* ========================================
+   BADGE
+   ======================================== */
+
 .announcement-badge {
   display: inline-block;
+
   margin: 0 0 1rem;
+
   background: #eef6ff;
+
   color: #0b53c1;
+
   padding: 0.35rem 0.7rem;
+
   border-radius: 999px;
+
   font-size: 0.88rem;
+
   font-weight: 700;
 }
 
+
+/* ========================================
+   OLD SUMMARY LIST
+   ======================================== */
+
 .announcement-summary-list {
   display: flex;
+
   flex-direction: column;
-  gap: 12px;
-  margin: 18px 0;
+
+  gap: 10px;
+
+  margin: 16px 0;
 }
 
 .summary-item {
   display: flex;
+
   align-items: flex-start;
+
   gap: 10px;
+
   background: #f8fafc;
+
   border: 1px solid #e8eef7;
-  border-radius: 12px;
-  padding: 12px 14px;
+
+  border-radius: 10px;
+
+  padding: 10px 12px;
 }
 
 .summary-icon {
   font-size: 1.2rem;
+
   line-height: 1.2;
+
   flex-shrink: 0;
 }
 
+
+/* ========================================
+   OLD ACTIONS
+   ======================================== */
+
 .announcement-actions {
   display: flex;
+
   gap: 12px;
+
   flex-wrap: wrap;
+
   margin: 16px 0 10px;
 }
 
 .secondary-link {
   font-weight: 600;
+
   text-decoration: underline;
 }
 
@@ -144,35 +235,66 @@
 
 .secondary-button {
   background: #eef4ff;
+
   color: #0b53c1;
+
   border: 1px solid #d7e6ff;
+
   border-radius: 10px;
+
   padding: 10px 16px;
+
   cursor: pointer;
+
   font-size: 15px;
+
   font-weight: 700;
-  transition: background-color 0.2s ease-in-out, border-color 0.2s ease-in-out;
+
+  transition:
+    background-color 0.2s ease-in-out,
+    border-color 0.2s ease-in-out;
 }
 
 .secondary-button:hover {
   background: #e4efff;
+
   border-color: #bfd7ff;
 }
 
+
+/* ========================================
+   ACKNOWLEDGE BUTTON
+   ======================================== */
+
 .acknowledge-button {
   margin-top: 18px;
+
   background-color: #0077cc;
+
   color: white;
+
   border: none;
+
   border-radius: 10px;
+
   padding: 12px 20px;
+
   cursor: pointer;
+
   font-size: 15px;
+
   font-weight: 700;
+
   transition: background-color 0.2s ease-in-out;
+
   width: 100%;
+
   position: sticky;
+
   bottom: 0;
+
+  z-index: 5;
+
   box-shadow: 0 -8px 16px rgba(255, 255, 255, 0.95);
 }
 
@@ -180,77 +302,608 @@
   background-color: #005fa3;
 }
 
+
+/* ========================================
+   HIGHLIGHT
+   ======================================== */
+
 .highlight-line {
   margin: 20px 0;
+
   padding: 16px 20px;
+
   border-radius: 14px;
-  background: linear-gradient(90deg, #fffaf4, #fff2e0);
+
+  background: linear-gradient(
+    90deg,
+    #fffaf4,
+    #fff2e0
+  );
+
   border-right: 5px solid #ffa94d;
+
   font-size: 1.02rem;
+
   line-height: 1.6;
+
   font-weight: 600;
+
   color: #222;
+
   display: flex;
+
   align-items: center;
+
   justify-content: center;
+
   gap: 10px;
+
   text-align: center;
-  box-shadow: 0 2px 6px rgba(255, 180, 80, 0.15);
+
+  box-shadow:
+    0 2px 6px rgba(255, 180, 80, 0.15);
 }
 
 .highlight-icon {
   font-size: 1.4rem;
+
   flex-shrink: 0;
-  filter: drop-shadow(0 0 4px rgba(255, 180, 80, 0.55));
+
+  filter:
+    drop-shadow(
+      0 0 4px rgba(255, 180, 80, 0.55)
+    );
 }
 
 .highlight-text {
   color: #d35400;
+
   font-weight: 800;
 }
 
+
+/* ========================================
+   IMAGES
+   ======================================== */
+
 .announcement-image-placeholder img {
   max-width: 90%;
+
   max-height: 360px;
+
   margin: 16px auto;
+
   display: block;
+
   border-radius: 8px;
 }
 
-/* מובייל */
+
+/* ========================================
+   OLD HERO
+   ======================================== */
+
+.announcement-hero {
+  display: flex;
+
+  flex-direction: column;
+
+  gap: 14px;
+
+  margin: 20px 0;
+}
+
+.hero-card {
+  display: flex;
+
+  gap: 14px;
+
+  padding: 16px;
+
+  border-radius: 14px;
+
+  background: linear-gradient(
+    135deg,
+    #f5f9ff,
+    #eef6ff
+  );
+
+  border: 1px solid #dbeafe;
+
+  align-items: center;
+}
+
+.hero-card.highlight {
+  background: linear-gradient(
+    135deg,
+    #fff7ed,
+    #ffedd5
+  );
+
+  border: 1px solid #fed7aa;
+}
+
+.hero-card.automation {
+  background: linear-gradient(
+    135deg,
+    #ecfeff,
+    #cffafe
+  );
+
+  border: 1px solid #67e8f9;
+}
+
+.hero-icon {
+  font-size: 26px;
+}
+
+.hero-title {
+  font-weight: 800;
+
+  font-size: 1rem;
+}
+
+.hero-sub {
+  font-size: 0.9rem;
+
+  color: #555;
+}
+
+.hero-note {
+  margin-top: 6px;
+
+  font-size: 0.8rem;
+
+  color: #0b7285;
+
+  font-weight: 600;
+}
+
+
+/* ==========================================================
+   RELEASE V21
+   ========================================================== */
+
+.announcement-box.release-v21 {
+  max-width: 940px;
+
+  padding: 24px 32px 20px;
+
+  max-height: 92vh;
+
+  line-height: 1.55;
+}
+
+
+/* ========================================
+   RELEASE HEADER
+   ======================================== */
+
+.release-header {
+  text-align: center;
+}
+
+.release-header .announcement-badge {
+  margin-bottom: 8px;
+}
+
+.release-header .announcement-title {
+  padding-left: 0;
+
+  margin: 2px 0 4px;
+
+  font-size: 1.85rem;
+
+  line-height: 1.3;
+}
+
+.release-subtitle {
+  margin: 0 0 16px !important;
+
+  color: #64748b !important;
+
+  font-size: 0.92rem;
+
+  line-height: 1.6;
+}
+
+
+/* ========================================
+   RELEASE FEATURES
+   ======================================== */
+
+.release-features-grid {
+  display: grid;
+
+  grid-template-columns:
+    repeat(2, minmax(0, 1fr));
+
+  gap: 10px;
+
+  margin: 16px 0;
+}
+
+.release-feature {
+  display: flex;
+
+  gap: 11px;
+
+  align-items: flex-start;
+
+  padding: 12px 14px;
+
+  background: #f8fafc;
+
+  border: 1px solid #e2e8f0;
+
+  border-radius: 13px;
+
+  min-height: 86px;
+}
+
+.release-feature-icon {
+  font-size: 1.25rem;
+
+  line-height: 1.3;
+
+  flex-shrink: 0;
+}
+
+.release-feature strong {
+  display: block;
+
+  margin-bottom: 3px;
+
+  font-size: 0.92rem;
+
+  line-height: 1.45;
+
+  color: #111827;
+}
+
+.release-feature p {
+  margin: 0 !important;
+
+  font-size: 0.79rem;
+
+  line-height: 1.5;
+
+  color: #64748b !important;
+}
+
+
+/* אבטחה תופסת את כל השורה האחרונה */
+
+.release-feature-security {
+  grid-column: 1 / -1;
+
+  min-height: auto;
+}
+
+
+/* ========================================
+   MAGICTOUCH SHOWCASE
+   ======================================== */
+
+.magictouch-showcase {
+  margin-top: 16px;
+
+  padding: 18px;
+
+  border-radius: 18px;
+
+  border: 1px solid #ddd6fe;
+
+  background: linear-gradient(
+    135deg,
+    #fafaff 0%,
+    #f7f5ff 48%,
+    #f5f3ff 100%
+  );
+
+  box-shadow:
+    0 6px 18px rgba(79, 70, 229, 0.05);
+}
+
+
+/* ========================================
+   MAGICTOUCH HEADER
+   ======================================== */
+
+.magictouch-showcase-header {
+  display: grid;
+
+  grid-template-columns:
+    1fr 1fr;
+
+  gap: 24px;
+
+  align-items: center;
+
+  margin-bottom: 14px;
+}
+
+.magictouch-main-title {
+  text-align: center;
+}
+
+.magictouch-new-label {
+  margin-bottom: 1px;
+
+  font-size: 0.78rem;
+
+  font-weight: 800;
+
+  color: #7c3aed;
+}
+
+.magictouch-showcase h3 {
+  margin: 0 !important;
+
+  font-size: 1.75rem !important;
+
+  line-height: 1.25;
+
+  font-weight: 900;
+}
+
+.magictouch-showcase h3 span {
+  color: #7c3aed;
+}
+
+.magictouch-tagline {
+  display: block;
+
+  margin-top: 6px;
+
+  color: #312e81;
+
+  font-size: 0.86rem;
+
+  line-height: 1.5;
+}
+
+.magictouch-description {
+  margin: 0 !important;
+
+  font-size: 0.83rem !important;
+
+  line-height: 1.65 !important;
+
+  color: #64748b !important;
+
+  text-align: right;
+}
+
+
+/* ========================================
+   MAGICTOUCH CARDS
+   ======================================== */
+
+.magictouch-mini-grid {
+  display: grid;
+
+  grid-template-columns:
+    repeat(4, minmax(0, 1fr));
+
+  gap: 9px;
+}
+
+.magictouch-mini-card {
+  display: flex;
+
+  flex-direction: column;
+
+  align-items: center;
+
+  justify-content: flex-start;
+
+  min-height: 105px;
+
+  padding: 11px 8px;
+
+  background:
+    rgba(255, 255, 255, 0.92);
+
+  border: 1px solid #e9e5ff;
+
+  border-radius: 13px;
+
+  text-align: center;
+
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.magictouch-mini-card:hover {
+  transform: translateY(-2px);
+
+  box-shadow:
+    0 6px 15px rgba(79, 70, 229, 0.08);
+}
+
+.magictouch-mini-icon {
+  width: 34px;
+
+  height: 34px;
+
+  display: flex;
+
+  align-items: center;
+
+  justify-content: center;
+
+  margin-bottom: 5px;
+
+  border-radius: 50%;
+
+  background: #ede9fe;
+
+  font-size: 1.25rem;
+}
+
+.magictouch-mini-icon.whatsapp-icon {
+  background: #dcfce7;
+}
+
+.magictouch-mini-card strong {
+  font-size: 0.76rem;
+
+  line-height: 1.4;
+
+  color: #5b21b6;
+}
+
+.magictouch-mini-card small {
+  display: block;
+
+  margin-top: 4px;
+
+  font-size: 0.68rem;
+
+  line-height: 1.42;
+
+  color: #64748b;
+}
+
+
+/* ========================================
+   MAGICTOUCH CTA
+   ======================================== */
+
+.magictouch-contact {
+  margin-top: 11px;
+
+  padding: 9px 13px;
+
+  display: flex;
+
+  justify-content: center;
+
+  align-items: center;
+
+  gap: 9px;
+
+  border-radius: 11px;
+
+  background: linear-gradient(
+    90deg,
+    #fff7ed,
+    #fffbf5
+  );
+
+  border: 1px solid #fed7aa;
+
+  text-align: center;
+
+  font-size: 0.78rem;
+
+  line-height: 1.45;
+}
+
+.magictouch-contact-icon {
+  font-size: 1.1rem;
+
+  flex-shrink: 0;
+}
+
+.magictouch-contact div {
+  display: flex;
+
+  flex-direction: column;
+
+  gap: 1px;
+}
+
+.magictouch-contact strong {
+  color: #1f2937;
+}
+
+.magictouch-contact strong span {
+  color: #ea580c;
+}
+
+.magictouch-contact div > span {
+  color: #64748b;
+}
+
+
+/* ========================================
+   RELEASE V21 BUTTON
+   ======================================== */
+
+.release-v21 .acknowledge-button {
+  margin-top: 12px;
+
+  padding: 11px 20px;
+}
+
+
+/* ==========================================================
+   TABLET
+   ========================================================== */
+
+@media (max-width: 800px) {
+  .announcement-box.release-v21 {
+    max-width: 720px;
+  }
+
+  .magictouch-mini-grid {
+    grid-template-columns:
+      repeat(2, minmax(0, 1fr));
+  }
+}
+
+
+/* ==========================================================
+   MOBILE
+   ========================================================== */
+
 @media (max-width: 640px) {
   .announcement-overlay {
     align-items: flex-end;
+
     padding: 0;
   }
 
   .announcement-box {
     width: 100%;
+
     max-width: 100%;
+
     max-height: 92vh;
+
     border-radius: 22px 22px 0 0;
+
     padding: 22px 18px 18px;
+
     font-size: 0.98rem;
   }
 
   .announcement-title {
     font-size: 1.45rem;
+
     margin-bottom: 12px;
+
     padding-left: 26px;
   }
 
   .announcement-box h3 {
     font-size: 1.05rem;
+
     margin-top: 20px;
   }
 
   .announcement-box p {
     font-size: 0.96rem;
+
     line-height: 1.65;
   }
 
   .summary-item {
     padding: 11px 12px;
+
     border-radius: 10px;
   }
 
@@ -261,24 +914,112 @@
   .secondary-button,
   .acknowledge-button {
     width: 100%;
+
     font-size: 15px;
+
     padding: 13px 16px;
   }
 
   .close-button {
     top: 12px;
+
     left: 12px;
+
     font-size: 18px;
   }
 
   .highlight-line {
-    padding: 14px 14px;
+    padding: 14px;
+
     font-size: 0.95rem;
+
     line-height: 1.5;
+  }
+
+
+  /* V21 MOBILE */
+
+  .announcement-box.release-v21 {
+    max-width: 100%;
+
+    max-height: 94vh;
+
+    padding: 20px 16px 16px;
+
+    border-radius: 20px 20px 0 0;
+  }
+
+  .release-header .announcement-title {
+    font-size: 1.45rem;
+
+    padding-left: 24px;
+  }
+
+  .release-subtitle {
+    font-size: 0.84rem;
+  }
+
+  .release-features-grid {
+    grid-template-columns: 1fr;
+
+    gap: 8px;
+  }
+
+  .release-feature-security {
+    grid-column: auto;
+  }
+
+  .release-feature {
+    min-height: auto;
+
+    padding: 11px 12px;
+  }
+
+  .magictouch-showcase {
+    padding: 15px 12px;
+  }
+
+  .magictouch-showcase-header {
+    grid-template-columns: 1fr;
+
+    gap: 10px;
+
+    margin-bottom: 13px;
+  }
+
+  .magictouch-description {
+    text-align: center;
+
+    font-size: 0.8rem !important;
+  }
+
+  .magictouch-showcase h3 {
+    font-size: 1.5rem !important;
+  }
+
+  .magictouch-mini-grid {
+    grid-template-columns:
+      repeat(2, minmax(0, 1fr));
+
+    gap: 8px;
+  }
+
+  .magictouch-mini-card {
+    min-height: 100px;
+  }
+
+  .magictouch-contact {
+    align-items: flex-start;
+
+    text-align: right;
   }
 }
 
-/* מובייל קטן */
+
+/* ==========================================================
+   SMALL MOBILE
+   ========================================================== */
+
 @media (max-width: 400px) {
   .announcement-box {
     padding: 18px 14px 16px;
@@ -299,313 +1040,16 @@
   .announcement-box p {
     font-size: 0.92rem;
   }
-}
 
-/* HERO */
-.announcement-hero {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  margin: 20px 0;
-}
-
-.hero-card {
-  display: flex;
-  gap: 14px;
-  padding: 16px;
-  border-radius: 14px;
-  background: linear-gradient(135deg, #f5f9ff, #eef6ff);
-  border: 1px solid #dbeafe;
-  align-items: center;
-}
-
-.hero-card.highlight {
-  background: linear-gradient(135deg, #fff7ed, #ffedd5);
-  border: 1px solid #fed7aa;
-}
-
-.hero-icon {
-  font-size: 26px;
-}
-
-.hero-title {
-  font-weight: 800;
-  font-size: 1rem;
-}
-
-.hero-sub {
-  font-size: 0.9rem;
-  color: #555;
-}
-
-/* SUMMARY */
-.announcement-summary-list {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  margin: 16px 0;
-}
-
-.summary-item {
-  background: #f8fafc;
-  padding: 10px 12px;
-  border-radius: 10px;
-}
-
-/* BUTTON */
-.secondary-button {
-  background: #eef4ff;
-  border: none;
-  border-radius: 10px;
-  padding: 10px 16px;
-  cursor: pointer;
-}
-
-/* SCROLL + MOBILE */
-.announcement-box {
-  max-height: 88vh;
-  overflow-y: auto;
-}
-
-.acknowledge-button {
-  position: sticky;
-  bottom: 0;
-  width: 100%;
-}
-
-/* MOBILE FEEL */
-@media (max-width: 640px) {
-  .announcement-overlay {
-    align-items: flex-end;
-    padding: 0;
+  .announcement-box.release-v21 {
+    padding: 18px 13px 14px;
   }
 
-  .announcement-box {
-    border-radius: 20px 20px 0 0;
-    max-height: 92vh;
-  }
-}
-
-.hero-card.automation {
-  background: linear-gradient(135deg, #ecfeff, #cffafe);
-  border: 1px solid #67e8f9;
-}
-
-
-.hero-note {
-  margin-top: 6px;
-  font-size: 0.8rem;
-  color: #0b7285;
-  font-weight: 600;
-}
-
-
-
-
-/* ========================================
-   MagicTouch - New Product Announcement
-   ======================================== */
-
-.magictouch-announcement {
-  margin-top: 26px;
-  padding: 24px;
-
-  border: 1px solid #ddd6fe;
-  border-radius: 20px;
-
-  background: linear-gradient(
-    135deg,
-    #fafaff 0%,
-    #f7f5ff 55%,
-    #faf8ff 100%
-  );
-
-  box-shadow: 0 8px 24px rgba(79, 70, 229, 0.06);
-
-  direction: rtl;
-}
-
-.magictouch-top {
-  text-align: center;
-  margin-bottom: 22px;
-}
-
-.magictouch-heading {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 10px;
-}
-
-.magictouch-sparkle {
-  font-size: 24px;
-}
-
-.magictouch-title {
-  font-size: 22px;
-  font-weight: 800;
-  color: #1f2937;
-  line-height: 1.4;
-}
-
-.magictouch-title strong {
-  color: #7c3aed;
-}
-
-/* רווח בין הכותרת למשפט שמתחתיה */
-.magictouch-subtitle {
-  margin-top: 10px;
-  font-size: 15px;
-  font-weight: 700;
-  color: #4c1d95;
-}
-
-.magictouch-intro {
-  max-width: 600px;
-  margin: 16px auto 0;
-  font-size: 14px;
-  line-height: 1.8;
-  color: #6b7280;
-}
-
-.magictouch-features {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-  margin-top: 20px;
-}
-
-.magictouch-feature {
-  min-height: 120px;
-  padding: 16px 14px;
-
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-
-  text-align: center;
-
-  background: rgba(255, 255, 255, 0.92);
-
-  border: 1px solid #e9e5ff;
-  border-radius: 16px;
-
-  transition:
-    transform 0.2s ease,
-    box-shadow 0.2s ease;
-}
-
-.magictouch-feature:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 7px 18px rgba(79, 70, 229, 0.08);
-}
-
-.magictouch-feature-icon {
-  width: 44px;
-  height: 44px;
-
-  display: flex;
-  align-items: center;
-  justify-content: center;
-
-  margin-bottom: 10px;
-
-  border-radius: 50%;
-  background: #ede9fe;
-
-  font-size: 22px;
-}
-
-.magictouch-feature-icon.whatsapp {
-  background: #dcfce7;
-}
-
-.magictouch-feature-content {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 5px;
-}
-
-.magictouch-feature-content strong {
-  font-size: 14px;
-  font-weight: 800;
-  color: #5b21b6;
-}
-
-.magictouch-feature-content span {
-  font-size: 12px;
-  line-height: 1.6;
-  color: #6b7280;
-}
-
-.magictouch-cta {
-  margin-top: 18px;
-  padding: 14px 18px;
-
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 12px;
-
-  text-align: center;
-
-  border-radius: 14px;
-
-  background: linear-gradient(
-    90deg,
-    #fff7ed,
-    #fffbf5
-  );
-
-  border: 1px solid #fed7aa;
-}
-
-.magictouch-cta-icon {
-  font-size: 22px;
-  flex-shrink: 0;
-}
-
-.magictouch-cta div {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-
-.magictouch-cta strong {
-  font-size: 14px;
-  color: #1f2937;
-}
-
-.magictouch-cta span {
-  font-size: 13px;
-  color: #6b7280;
-}
-
-@media (max-width: 640px) {
-  .magictouch-announcement {
-    padding: 18px 14px;
+  .release-header .announcement-title {
+    font-size: 1.3rem;
   }
 
-  .magictouch-features {
+  .magictouch-mini-grid {
     grid-template-columns: 1fr;
-  }
-
-  .magictouch-title {
-    font-size: 19px;
-  }
-
-  .magictouch-subtitle {
-    margin-top: 8px;
-    font-size: 14px;
-  }
-
-  .magictouch-intro {
-    margin-top: 12px;
-  }
-
-  .magictouch-cta {
-    text-align: right;
-    justify-content: flex-start;
   }
 }

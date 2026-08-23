@@ -9,7 +9,7 @@ interface Props {
 const AnnouncementV21 = ({ onAcknowledge, onClose }: Props) => {
   return (
     <div className="announcement-overlay" dir="rtl">
-      <div className="announcement-box expanded">
+      <div className="announcement-box release-v21">
         <button
           className="close-button"
           onClick={onClose}
@@ -18,178 +18,195 @@ const AnnouncementV21 = ({ onAcknowledge, onClose }: Props) => {
           ✖
         </button>
 
-        <div className="announcement-badge">
-          חדש: עדכונים ושיפורים במערכת
+        {/* HEADER */}
+        <div className="release-header">
+          <div className="announcement-badge">
+            חדש: עדכונים ושיפורים במערכת
+          </div>
+
+          <h2 className="announcement-title">
+            ✨ מה חדש בגרסה החדשה?
+          </h2>
+
+          <p className="release-subtitle">
+            ממשיכים לשפר את העבודה היומיומית שלכם — יותר חופש,
+            יותר נוחות ויותר אבטחה.
+          </p>
         </div>
 
-        <h2 className="announcement-title">
-          ✨ מה חדש בגרסה החדשה?
-        </h2>
-
-        <div className="announcement-hero">
-          <div className="hero-card highlight">
-            <div className="hero-icon">🚀</div>
+        {/* SYSTEM UPDATES */}
+        <div className="release-features-grid">
+          <div className="release-feature">
+            <span className="release-feature-icon">📊</span>
 
             <div>
-              <div className="hero-title">
-                ממשיכים לשפר את העבודה היומיומית שלכם
-              </div>
+              <strong>
+                שיפורים במודול טעינת העמלות האוטומטית
+              </strong>
 
-              <div className="hero-sub">
-                יותר חופש בזמן טעינת עמלות, יותר נוחות ויותר אבטחה.
-              </div>
+              <p>
+                המשכנו לשפר ולייעל את תהליך טעינת העמלות
+                והעבודה עם דוחות העמלות במערכת.
+              </p>
+            </div>
+          </div>
+
+          <div className="release-feature">
+            <span className="release-feature-icon">🔄</span>
+
+            <div>
+              <strong>
+                ממשיכים לעבוד גם בזמן הריצה
+              </strong>
+
+              <p>
+                אין צורך להישאר במסך טעינת העמלות.
+                תוכלו לעבור בין מסכי המערכת ולהמשיך לעבוד
+                בזמן שהתהליך רץ.
+              </p>
+            </div>
+          </div>
+
+          <div className="release-feature">
+            <span className="release-feature-icon">📱</span>
+
+            <div>
+              <strong>
+                קוד SMS יגיע אליכם בכל מקום במערכת
+              </strong>
+
+              <p>
+                כאשר חברת הביטוח דורשת קוד אימות,
+                חלון הזנת הקוד יופיע אוטומטית במסך שבו
+                אתם נמצאים, כל עוד המערכת פתוחה.
+              </p>
+            </div>
+          </div>
+
+          <div className="release-feature">
+            <span className="release-feature-icon">📍</span>
+
+            <div>
+              <strong>
+                מתעדכנים בסטטוס הריצה בכל שלב
+              </strong>
+
+              <p>
+                תוכלו לחזור בכל רגע למסך טעינת העמלות
+                ולראות את מצב הריצה וההתקדמות שלה.
+              </p>
+            </div>
+          </div>
+
+          <div className="release-feature release-feature-security">
+            <span className="release-feature-icon">🔐</span>
+
+            <div>
+              <strong>
+                אבטחה משופרת
+              </strong>
+
+              <p>
+                הוספנו ניתוק אוטומטי מהמערכת לאחר
+                זיהוי של חוסר פעילות, לשמירה טובה יותר
+                על המידע שלכם.
+              </p>
             </div>
           </div>
         </div>
 
-        <div className="announcement-summary-list">
-          <div className="summary-item">
-            <span className="summary-icon">📊</span>
-
-            <span>
-              <strong>שיפורים במודול טעינת העמלות האוטומטית</strong>
-              <br />
-              המשכנו לשפר ולייעל את תהליך טעינת העמלות והעבודה עם דוחות
-              העמלות במערכת.
-            </span>
-          </div>
-
-          <div className="summary-item">
-            <span className="summary-icon">🔄</span>
-
-            <span>
-              <strong>ממשיכים לעבוד גם בזמן הריצה</strong>
-              <br />
-              אין צורך יותר להישאר במסך טעינת העמלות בזמן שהתהליך רץ.
-              תוכלו לעבור בין מסכי המערכת ולהמשיך לעבוד כרגיל.
-            </span>
-          </div>
-
-          <div className="summary-item">
-            <span className="summary-icon">📱</span>
-
-            <span>
-              <strong>קוד SMS יגיע אליכם בכל מקום במערכת</strong>
-              <br />
-              כאשר אחת מחברות הביטוח דורשת קוד אימות, חלון הזנת הקוד
-              יופיע אוטומטית במסך שבו אתם נמצאים, כל עוד המערכת פתוחה.
-            </span>
-          </div>
-
-          <div className="summary-item">
-            <span className="summary-icon">📍</span>
-
-            <span>
-              <strong>מתעדכנים בסטטוס הריצה בכל שלב</strong>
-              <br />
-              תוכלו לחזור בכל רגע למסך טעינת העמלות ולראות את מצב הריצה
-              וההתקדמות שלה.
-            </span>
-          </div>
-
-          <div className="summary-item">
-            <span className="summary-icon">🔐</span>
-
-            <span>
-              <strong>ניתוק אוטומטי לאחר חוסר פעילות</strong>
-              <br />
-              הוספנו מנגנון ניתוק אוטומטי לאחר זיהוי של חוסר פעילות,
-              לשמירה טובה יותר על המידע שלכם.
-            </span>
-          </div>
-        </div>
-
-        {/* MagicTouch */}
-        <div className="magictouch-announcement">
-          <div className="magictouch-top">
-            <div className="magictouch-heading">
-              <span className="magictouch-sparkle">✨</span>
-
-              <div>
-                <div className="magictouch-title">
-                  וגם חדש: <strong>MagicTouch</strong>
-                </div>
-
-                <div className="magictouch-subtitle">
-                  מערכת לתקשורת ותהליכים אוטומטיים מול הלקוחות
-                </div>
+        {/* MAGICTOUCH */}
+        <div className="magictouch-showcase">
+          <div className="magictouch-showcase-header">
+            <div className="magictouch-main-title">
+              <div className="magictouch-new-label">
+                ✨ וגם חדש
               </div>
+
+              <h3>
+                <span dir="ltr">MagicTouch</span>
+              </h3>
+
+              <strong className="magictouch-tagline">
+                מערכת לתקשורת ותהליכים אוטומטיים מול הלקוחות
+              </strong>
             </div>
 
-            <p className="magictouch-intro">
-              MagicTouch מאפשרת להפוך תהליכים שמתבצעים היום באופן ידני
-              לתהליכים חכמים ואוטומטיים מול הלקוחות שלכם.
+            <p className="magictouch-description">
+              הופכים תהליכים שמתבצעים היום באופן ידני
+              לתהליכים חכמים ואוטומטיים מול הלקוחות שלכם —
+              משלב הפנייה ועד להשלמת התהליך.
             </p>
           </div>
 
-          <div className="magictouch-features">
-            <div className="magictouch-feature">
-              <div className="magictouch-feature-icon whatsapp">
+          <div className="magictouch-mini-grid">
+            <div className="magictouch-mini-card">
+              <span className="magictouch-mini-icon whatsapp-icon">
                 💬
-              </div>
+              </span>
 
-              <div className="magictouch-feature-content">
-                <strong>WhatsApp אוטומטי</strong>
+              <strong>
+                WhatsApp אוטומטי
+              </strong>
 
-                <span>
-                  שליחת הודעות, תזכורות ופניות יזומות ללקוחות.
-                </span>
-              </div>
+              <small>
+                הודעות, תזכורות ופניות יזומות ללקוחות
+              </small>
             </div>
 
-            <div className="magictouch-feature">
-              <div className="magictouch-feature-icon">
+            <div className="magictouch-mini-card">
+              <span className="magictouch-mini-icon">
                 🤖
-              </div>
+              </span>
 
-              <div className="magictouch-feature-content">
-                <strong>בוטים ומענה אוטומטי</strong>
+              <strong>
+                בוטים ומענה אוטומטי
+              </strong>
 
-                <span>
-                  ניהול שיחות והמשך התהליך בהתאם לתשובות הלקוח.
-                </span>
-              </div>
+              <small>
+                ניהול שיחות והמשך תהליך לפי תשובות הלקוח
+              </small>
             </div>
 
-            <div className="magictouch-feature">
-              <div className="magictouch-feature-icon">
+            <div className="magictouch-mini-card">
+              <span className="magictouch-mini-icon">
                 📄
-              </div>
+              </span>
 
-              <div className="magictouch-feature-content">
-                <strong>בקשת מסמכים</strong>
+              <strong>
+                בקשת מסמכים
+              </strong>
 
-                <span>
-                  שליחה ומעקב אחר המסמכים הנדרשים מהלקוח במהלך התהליך.
-                </span>
-              </div>
+              <small>
+                שליחה ומעקב אחר המסמכים הנדרשים מהלקוח
+              </small>
             </div>
 
-            <div className="magictouch-feature">
-              <div className="magictouch-feature-icon">
+            <div className="magictouch-mini-card">
+              <span className="magictouch-mini-icon">
                 🔗
-              </div>
+              </span>
 
-              <div className="magictouch-feature-content">
-                <strong>חיבורים למערכות נוספות</strong>
+              <strong>
+                חיבורים למערכות
+              </strong>
 
-                <span>
-                  שילוב עם Surense, Roeto ומערכות נוספות כחלק מתהליך
-                  העבודה.
-                </span>
-              </div>
+              <small>
+                Surense, Roeto ומערכות נוספות כחלק מהתהליך
+              </small>
             </div>
           </div>
 
-          <div className="magictouch-cta">
-            <span className="magictouch-cta-icon">
+          <div className="magictouch-contact">
+            <span className="magictouch-contact-icon">
               📞
             </span>
 
             <div>
               <strong>
-                רוצים לראות איך MagicTouch יכולה להשתלב בתהליכי העבודה
-                שלכם?
+                רוצים לראות איך{" "}
+                <span dir="ltr">MagicTouch</span>{" "}
+                יכולה להשתלב בתהליכי העבודה שלכם?
               </strong>
 
               <span>
