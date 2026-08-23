@@ -24,10 +24,11 @@ interface UserSubscriptionPopupProps {
 
   userId: string;
 
-  addOns?: {
-    leadsModule?: boolean;
-    extraWorkers?: number;
-  };
+ addOns?: {
+  leadsModule?: boolean;
+  extraWorkers?: number;
+  extraCustomerBlocks?: number;
+};
 
   idNumber?: string;
 }
@@ -695,10 +696,22 @@ export const UserSubscriptionPopup: React.FC<UserSubscriptionPopupProps> = ({
             currentPlan={
               currentSubscriptionType
             }
-            currentAddOns={
-              addOns ||
-              (user as any)?.addOns
-            }
+          currentAddOns={{
+  leadsModule:
+    addOns?.leadsModule ??
+    (user as any)?.addOns?.leadsModule ??
+    false,
+
+  extraWorkers:
+    addOns?.extraWorkers ??
+    (user as any)?.addOns?.extraWorkers ??
+    0,
+
+  extraCustomerBlocks:
+    addOns?.extraCustomerBlocks ??
+    (user as any)?.addOns?.extraCustomerBlocks ??
+    0,
+}}
             prefill={{
               name: displayName,
               email: displayEmail,

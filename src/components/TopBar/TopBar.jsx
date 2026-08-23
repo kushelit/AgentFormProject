@@ -199,10 +199,10 @@ logOut={async () => {
     userId={user?.uid || ''}
   
     addOns={{
-      leadsModule: detail?.addOns?.leadsModule || false,
-      extraWorkers: detail?.addOns?.extraWorkers || 0
-    }}
-  
+  leadsModule: detail?.addOns?.leadsModule || false,
+  extraWorkers: detail?.addOns?.extraWorkers || 0,
+  extraCustomerBlocks: detail?.addOns?.extraCustomerBlocks || 0,
+}}
   
     onCancel={() => setShowPopup(false)}
     onClose={() => setShowPopup(false)}
