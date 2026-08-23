@@ -58,11 +58,72 @@ export async function POST(req: NextRequest) {
     }
 
     const planData = planSnap.data();
-    const basePrice = planData?.price || 0;
-    const leadsPrice = addOns?.leadsModule ? 29 : 0;
-    const extraWorkersPrice = addOns?.extraWorkers ? addOns.extraWorkers * 49 : 0;
 
-    let totalPrice = basePrice + leadsPrice + extraWorkersPrice;
+
+    // const basePrice = planData?.price || 0;
+    // const leadsPrice = addOns?.leadsModule ? 29 : 0;
+    // const extraWorkersPrice = addOns?.extraWorkers ? addOns.extraWorkers * 49 : 0;
+    // let totalPrice = basePrice + leadsPrice + extraWorkersPrice;
+const basePrice = planData?.price || 0;
+
+const leadsPrice =
+  addOns?.leadsModule ? 29 : 0;
+
+// ==============================
+// עובדים נוספים
+// ==============================
+
+const supportsExtraWorkers =
+  ['pro', 'magic_touch', 'magic_suite'].includes(newPlanId);
+
+const extraWorkers =
+  supportsExtraWorkers
+    ? Math.max(
+        0,
+        Number(addOns?.extraWorkers || 0)
+      )
+    : 0;
+
+// ==============================
+// הרחבת לקוחות
+// ==============================
+
+const supportsExtraCustomerBlocks =
+  ['pro', 'magic_suite'].includes(newPlanId);
+
+const extraCustomerBlocks =
+  supportsExtraCustomerBlocks
+    ? Math.max(
+        0,
+        Number(addOns?.extraCustomerBlocks || 0)
+      )
+    : 0;
+
+// ==============================
+// addOns מאושרים ע"י השרת
+// ==============================
+
+const normalizedAddOns = {
+  leadsModule: !!addOns?.leadsModule,
+  extraWorkers,
+  extraCustomerBlocks,
+};
+
+// ==============================
+// מחירים
+// ==============================
+
+const extraWorkersPrice =
+  extraWorkers * 49;
+
+const extraCustomerBlocksPrice =
+  extraCustomerBlocks * 39;
+
+let totalPrice =
+  basePrice +
+  leadsPrice +
+  extraWorkersPrice +
+  extraCustomerBlocksPrice;
     let appliedDiscount = 0;
     let appliedCouponCode: string | null = null;
     
@@ -120,7 +181,10 @@ if (couponCode) {
     formData.append('asmachta', asmachta);
     formData.append('changeStatus', '1');
     formData.append('sum', totalPrice.toString());
-    formData.append('cField3', JSON.stringify(addOns || {}));
+    formData.append(
+  'cField3',
+  JSON.stringify(normalizedAddOns)
+);
     formData.append('cField4', 'manual-upgrade');
     if (appliedCouponCode) formData.append('cField5', appliedCouponCode);
 
@@ -138,13 +202,14 @@ if (couponCode) {
     const prevCoupon = userData?.couponUsed || null;
     const prevCode = prevCoupon?.code || null;
     const nextCode = appliedCouponCode || null;
+
     
-    const updateData: any = {
-      subscriptionType: newPlanId,
-      futureChargeAmount: totalPrice,
-      lastPlanChangeDate: new Date(),
-      ...(addOns ? { addOns } : {}),
-    };
+   const updateData: any = {
+  subscriptionType: newPlanId,
+  futureChargeAmount: totalPrice,
+  lastPlanChangeDate: new Date(),
+  addOns: normalizedAddOns,
+};
     
     // ✅ היסטוריה רק אם הקופון השתנה או הוסר
     const couponChanged = !!prevCode && prevCode !== nextCode;

@@ -108,13 +108,66 @@ if (!isFullNameOk(fullName)) {
       return NextResponse.json({ error: 'סוג מסלול לא קיים' }, { status: 400 });
     }
     const planData = planDoc.data();
-    const basePrice = planData?.price || 0;
-    const leadsPrice = addOns?.leadsModule ? 29 : 0;
-    const extraWorkersPrice = addOns?.extraWorkers ? addOns.extraWorkers * 49 : 0;
 
-    // חישוב סך
-    const VAT_RATE = 0.18;
-    let calculatedTotal = basePrice + leadsPrice + extraWorkersPrice;
+
+    // const basePrice = planData?.price || 0;
+    // const leadsPrice = addOns?.leadsModule ? 29 : 0;
+    // const extraWorkersPrice = addOns?.extraWorkers ? addOns.extraWorkers * 49 : 0;
+
+    // // חישוב סך
+    // const VAT_RATE = 0.18;
+    // let calculatedTotal = basePrice + leadsPrice + extraWorkersPrice;
+
+
+
+    const basePrice = planData?.price || 0;
+
+const leadsPrice =
+  addOns?.leadsModule ? 29 : 0;
+
+const supportsExtraWorkers =
+  ['pro', 'magic_touch', 'magic_suite'].includes(plan);
+
+const extraWorkers =
+  supportsExtraWorkers
+    ? Math.max(
+        0,
+        Number(addOns?.extraWorkers || 0)
+      )
+    : 0;
+
+const supportsExtraCustomerBlocks =
+  ['pro', 'magic_suite'].includes(plan);
+
+const extraCustomerBlocks =
+  supportsExtraCustomerBlocks
+    ? Math.max(
+        0,
+        Number(addOns?.extraCustomerBlocks || 0)
+      )
+    : 0;
+
+const normalizedAddOns = {
+  leadsModule: !!addOns?.leadsModule,
+  extraWorkers,
+  extraCustomerBlocks,
+};
+
+const extraWorkersPrice =
+  extraWorkers * 49;
+
+const extraCustomerBlocksPrice =
+  extraCustomerBlocks * 39;
+
+// חישוב סך
+const VAT_RATE = 0.18;
+
+let calculatedTotal =
+  basePrice +
+  leadsPrice +
+  extraWorkersPrice +
+  extraCustomerBlocksPrice;
+
 
     if (couponData) {
       const discountPercent = (couponData.planDiscounts?.[plan] ?? couponData.discount ?? 0) as number;
@@ -232,10 +285,16 @@ if (!isFullNameOk(fullName)) {
     formData.append('pageField[email]', normalizedEmail);
     formData.append('cField1', customField);
     formData.append('cField2', plan);
-    formData.append('cField3', JSON.stringify(addOns || {}));
+   formData.append(
+  'cField3',
+  JSON.stringify(normalizedAddOns)
+);
     formData.append('cField4', resolvedSource);               // 'existing-user-upgrade' או 'public-signup'
     if (resolvedExistingUid) formData.append('cField9', resolvedExistingUid); // UID קיים להחייאה
-    formData.append('cField6', total?.toString() || totalPrice.toString());
+    formData.append(
+  'cField6',
+  totalPrice.toString()
+);
     formData.append('cField7', idNumber);
     formData.append('cField8', GROW_PAGE_CODE);
     if (trimmedCoupon) formData.append('cField5', trimmedCoupon);

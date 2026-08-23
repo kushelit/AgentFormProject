@@ -26,6 +26,7 @@ interface ChangePlanModalProps {
   currentAddOns?: {
     leadsModule?: boolean;
     extraWorkers?: number;
+    extraCustomerBlocks?: number;
   };
   prefill?: {
     name?: string;
@@ -38,8 +39,10 @@ interface ChangePlanModalProps {
 
 const planDescriptions: Record<string, string> = {
   basic: 'מנוי לסוכן אחד בלבד',
-  pro: 'מנוי לסוכן +  עובד, ניתן להוסיף עובדים נוספים בתשלום',
+  pro: 'מנוי לסוכן + עובד, ניתן להוסיף עובדים נוספים בתשלום',
   enterprise: 'מנוי מותאם אישית – יטופל בנפרד',
+  magic_touch: 'MagicTouch בלבד – כולל סוכן + עובד אחד',
+  magic_suite: 'MagicSale Pro + MagicTouch – כולל סוכן + עובד אחד',
 };
 const planFeatures: Record<string, string[]> = {
   basic: [
@@ -60,7 +63,30 @@ const planFeatures: Record<string, string[]> = {
     '✔️ הקצאת הרשאות לפי תפקידים',
     '✔️ ניהול יעדים אישיים וקבוצתיים',
     '✔️ אפשרות להוספת עובדים נוספים לפי צורך',
-    '✔️ מודול אינטיליגנטי לטעינת והשוואת עמלות מחברות הביטוח (המחיר כולל עד 2,000 לקוחות פעילים)',
+    '✔️ מודול אינטיליגנטי לטעינת והשוואת עמלות מחברות הביטוח',
+    '✔️ המחיר כולל עד 2,000 לקוחות פעילים',
+    '✔️ כל 2,000 לקוחות פעילים נוספים: 39 ₪ לחודש',
+  ],
+
+  magic_touch: [
+    '✔️ ניהול תקשורת ותהליכים מול לקוחות',
+    '✔️ עבודה עם WhatsApp כחלק מתהליך העבודה',
+    '✔️ מעקב אחר אנשי קשר, שיחות ותהליכים במקום אחד',
+    '✔️ חיבור לאינטגרציות ותהליכים אוטומטיים לפי הצורך',
+    '✔️ כולל סוכן + עובד אחד',
+    '✔️ אפשרות להוספת עובדים נוספים לפי צורך',
+  ],
+
+  magic_suite: [
+    '✔️ כל מה שכלול במנוי MagicTouch',
+    '✔️ כל מה שכלול במנוי MagicSale Pro',
+    '✔️ ניהול עסקאות, לקוחות ועמלות',
+    '✔️ ניהול עובדים והרשאות',
+    '✔️ טעינה וניתוח של נתוני עמלות',
+    '✔️ המחיר כולל עד 2,000 לקוחות פעילים',
+    '✔️ כל 2,000 לקוחות פעילים נוספים: 39 ₪ לחודש',
+    '✔️ כולל סוכן + עובד אחד',
+    '✔️ אפשרות להוספת עובדים נוספים לפי צורך',
   ],
 
   enterprise: [
@@ -87,6 +113,9 @@ export const ChangePlanModal: React.FC<ChangePlanModalProps> = ({
   const [selectedPlan, setSelectedPlan] = useState<string | null>(currentPlan || null);
   const [withLeadsModule, setWithLeadsModule] = useState<boolean>(currentAddOns?.leadsModule ?? false);
   const [extraWorkers, setExtraWorkers] = useState<number>(currentAddOns?.extraWorkers ?? 0);
+  const [extraCustomerBlocks, setExtraCustomerBlocks] = useState<number>(
+    currentAddOns?.extraCustomerBlocks ?? 0
+  );
 
   const [couponCode, setCouponCode] = useState<string>('');
   const [discount, setDiscount] = useState<number>(0);
@@ -99,6 +128,43 @@ export const ChangePlanModal: React.FC<ChangePlanModalProps> = ({
 
   // האם יש הוראת קבע קיימת? (זרימה 2)
   const hasGrow = Boolean(transactionToken && transactionId && asmachta);
+
+  const supportsExtraWorkers = (planId: string | null | undefined) =>
+    Boolean(
+      planId &&
+        ['pro', 'magic_touch', 'magic_suite'].includes(planId)
+    );
+
+  const supportsExtraCustomerBlocks = (
+    planId: string | null | undefined
+  ) =>
+    Boolean(
+      planId &&
+        ['pro', 'magic_suite'].includes(planId)
+    );
+
+  const getAllowedPlanIds = (planId?: string) => {
+    // מנוי MagicSale רגיל:
+    // נשארים במשפחת MagicSale, עם אפשרות לשדרג לחבילה המשולבת.
+    if (!planId || ['basic', 'pro', 'enterprise'].includes(planId)) {
+      return ['basic', 'pro', 'enterprise', 'magic_suite'];
+    }
+
+    // MagicTouch בלבד:
+    // ניתן להישאר ב-Touch או לשדרג לחבילה המשולבת.
+    if (planId === 'magic_touch') {
+      return ['magic_touch', 'magic_suite'];
+    }
+
+    // חבילה משולבת:
+    // ניתן להישאר משולב, לרדת ל-MagicTouch בלבד,
+    // או להישאר עם MagicSale Pro בלבד.
+    if (planId === 'magic_suite') {
+      return ['magic_suite', 'magic_touch', 'pro'];
+    }
+
+    return [planId];
+  };
 
   // שדות השלמה לפופאפ (רק כשאין הוראת קבע קיימת)
   const [idNumberInput, setIdNumberInput] = useState<string>(prefill?.idNumber ?? '');
@@ -114,21 +180,43 @@ export const ChangePlanModal: React.FC<ChangePlanModalProps> = ({
     const fetchPlans = async () => {
       try {
         const res = await axios.get('/api/subscription-plans');
-        setPlans(res.data);
-        if (currentPlan && res.data.find((p: Plan) => p.id === currentPlan)) {
+
+        const allPlans: Plan[] = Array.isArray(res.data)
+          ? res.data
+          : [];
+
+        const allowedIds = getAllowedPlanIds(currentPlan);
+
+        const visiblePlans = allPlans.filter((plan) =>
+          allowedIds.includes(plan.id)
+        );
+
+        setPlans(visiblePlans);
+
+        if (
+          currentPlan &&
+          visiblePlans.find((plan) => plan.id === currentPlan)
+        ) {
           setSelectedPlan(currentPlan);
-        } else if (res.data.length > 0) {
-          setSelectedPlan(res.data[0].id);
+        } else if (visiblePlans.length > 0) {
+          setSelectedPlan(visiblePlans[0].id);
         }
       } catch (err) {
         // console.error('שגיאה בטעינת מסלולים', err);
       }
     };
+
     fetchPlans();
   }, [currentPlan]);
 
   useEffect(() => {
-    if (selectedPlan !== 'pro') setExtraWorkers(0);
+    if (!supportsExtraWorkers(selectedPlan)) {
+      setExtraWorkers(0);
+    }
+
+    if (!supportsExtraCustomerBlocks(selectedPlan)) {
+      setExtraCustomerBlocks(0);
+    }
   }, [selectedPlan]);
 
   useEffect(() => {
@@ -157,8 +245,15 @@ export const ChangePlanModal: React.FC<ChangePlanModalProps> = ({
   const calculateTotal = () => {
     const base = plans.find((p) => p.id === selectedPlan)?.price || 0;
     const leadsPrice = withLeadsModule ? 29 : 0;
-    const workersPrice = selectedPlan === 'pro' ? extraWorkers * 49 : 0;
-    let total = base + leadsPrice + workersPrice;
+    const workersPrice = supportsExtraWorkers(selectedPlan)
+      ? extraWorkers * 49
+      : 0;
+
+    const customerBlocksPrice = supportsExtraCustomerBlocks(selectedPlan)
+      ? extraCustomerBlocks * 39
+      : 0;
+
+    let total = base + leadsPrice + workersPrice + customerBlocksPrice;
     if (discount > 0) total -= total * (discount / 100);
     const VAT_RATE = 0.18;
     total *= 1 + VAT_RATE;
@@ -186,7 +281,10 @@ export const ChangePlanModal: React.FC<ChangePlanModalProps> = ({
           couponCode,
           addOns: {
             leadsModule: withLeadsModule,
-            extraWorkers: selectedPlan === 'pro' ? extraWorkers : 0,
+            extraWorkers: supportsExtraWorkers(selectedPlan) ? extraWorkers : 0,
+            extraCustomerBlocks: supportsExtraCustomerBlocks(selectedPlan)
+              ? extraCustomerBlocks
+              : 0,
           },
         });
         if (!res.data?.success) throw new Error('Grow update failed');
@@ -203,7 +301,10 @@ export const ChangePlanModal: React.FC<ChangePlanModalProps> = ({
           plan: selectedPlan,
           addOns: {
             leadsModule: withLeadsModule,
-            extraWorkers: selectedPlan === 'pro' ? extraWorkers : 0,
+            extraWorkers: supportsExtraWorkers(selectedPlan) ? extraWorkers : 0,
+            extraCustomerBlocks: supportsExtraCustomerBlocks(selectedPlan)
+              ? extraCustomerBlocks
+              : 0,
           },
           couponCode: couponCode?.trim() || undefined,
           // דואגים שהטופס של Grow יתמלא; השם יילקח מ-prefill בצד שרת
@@ -231,9 +332,19 @@ export const ChangePlanModal: React.FC<ChangePlanModalProps> = ({
   };
 
 
-  const order = ['basic', 'pro', 'enterprise'];
+  const order = [
+    'basic',
+    'pro',
+    'enterprise',
+    'magic_touch',
+    'magic_suite',
+  ];
+
   const orderedPlans = React.useMemo(
-    () => [...plans].sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id)),
+    () =>
+      [...plans].sort(
+        (a, b) => order.indexOf(a.id) - order.indexOf(b.id)
+      ),
     [plans]
   );
 
@@ -244,17 +355,34 @@ export const ChangePlanModal: React.FC<ChangePlanModalProps> = ({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-30 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-xl shadow-xl max-w-4xl w-full text-right p-6 overflow-y-auto max-h-[90vh]">
+      <div className="bg-white rounded-xl shadow-xl max-w-6xl w-full text-right p-6 overflow-y-auto max-h-[90vh]">
         <h2 className="text-2xl font-bold mb-6">שינוי תוכנית</h2>
 
         <div className="mb-6 bg-blue-50 border border-blue-200 p-3 rounded text-sm text-blue-800">
           <p className="font-semibold mb-1">מה יהיה כלול לאחר השינוי:</p>
           {selectedPlan && <p>✔ תוכנית: {plans.find((p) => p.id === selectedPlan)?.name}</p>}
-          {selectedPlan === 'pro' && extraWorkers > 0 && <p>✔ {extraWorkers} עובדים נוספים</p>}
-          {!withLeadsModule && (selectedPlan !== 'pro' || extraWorkers === 0) && <p>אין תוספים נוספים</p>}
+          {supportsExtraWorkers(selectedPlan) && extraWorkers > 0 && (
+            <p>✔ {extraWorkers} עובדים נוספים</p>
+          )}
+
+          {supportsExtraCustomerBlocks(selectedPlan) &&
+            extraCustomerBlocks > 0 && (
+              <p>
+                ✔ הרחבת קיבולת ל־
+                {(1 + extraCustomerBlocks) * 2000}
+                {' '}לקוחות פעילים
+              </p>
+            )}
+
+          {!withLeadsModule &&
+            (!supportsExtraWorkers(selectedPlan) || extraWorkers === 0) &&
+            (!supportsExtraCustomerBlocks(selectedPlan) ||
+              extraCustomerBlocks === 0) && (
+              <p>אין תוספים נוספים</p>
+            )}
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
   {orderedPlans.map((plan) => (
     <div
       key={plan.id}
@@ -275,13 +403,46 @@ export const ChangePlanModal: React.FC<ChangePlanModalProps> = ({
         </div>
       )}
 
-      {/* תוכן עליון */}
-      <div>
-        <h3 className="text-lg font-bold mb-2">{plan.name}</h3>
+      {plan.id === 'magic_touch' && (
+        <div className="absolute top-2 left-2 bg-cyan-600 text-white text-xs font-bold px-2 py-1 rounded shadow">
+          MagicTouch
+        </div>
+      )}
+
+   {plan.id === 'magic_suite' && (
+  <div
+    className="
+      absolute
+      -top-3
+      left-3
+      z-10
+      rounded-md
+      bg-indigo-600
+      px-2.5
+      py-1
+      text-xs
+      font-semibold
+      text-white
+      shadow
+    "
+  >
+    משולב
+  </div>
+)}
+{/* תוכן עליון */}
+<div>
+        <div className="flex items-start justify-between gap-2 mb-2">
+          <h3 className="text-lg font-bold">{plan.name}</h3>
+
+          {plan.id === currentPlan && (
+            <span className="shrink-0 rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700">
+              המסלול הנוכחי
+            </span>
+          )}
+
+        </div>
         <p className="text-sm text-gray-600 mb-3">
-          {plan.id === 'basic' && 'מנוי לסוכן אחד בלבד'}
-          {plan.id === 'pro' && 'מנוי לסוכן + עובד, ניתן להוסיף עובדים נוספים בתשלום'}
-          {plan.id === 'enterprise' && 'מנוי מותאם אישית – יטופל בנפרד'}
+          {planDescriptions[plan.id] || plan.description}
         </p>
 
         <ul className="text-sm text-gray-700 space-y-1 mt-2 pr-2">
@@ -306,17 +467,72 @@ export const ChangePlanModal: React.FC<ChangePlanModalProps> = ({
 
         {selectedPlan !== 'enterprise' && (
   <div className="space-y-3">
-    <label className={`flex items-center gap-2 ${selectedPlan !== 'pro' ? 'opacity-50' : ''}`}>
+    <label
+      className={`flex items-center gap-2 ${
+        !supportsExtraWorkers(selectedPlan) ? 'opacity-50' : ''
+      }`}
+    >
       עובדים נוספים (₪49 לעובד):
       <input
         type="number"
         value={extraWorkers}
         min={0}
-        disabled={selectedPlan !== 'pro'}
-        onChange={(e) => setExtraWorkers(Number(e.target.value))}
+        disabled={!supportsExtraWorkers(selectedPlan)}
+        onChange={(e) =>
+          setExtraWorkers(Math.max(0, Number(e.target.value) || 0))
+        }
         className="w-20 border rounded px-2 py-1 text-right"
       />
     </label>
+
+    <div
+      className={`rounded-lg border p-3 ${
+        supportsExtraCustomerBlocks(selectedPlan)
+          ? 'border-slate-200 bg-slate-50'
+          : 'border-slate-100 bg-slate-50/50 opacity-50'
+      }`}
+    >
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <div className="font-semibold text-slate-800">
+            הרחבת כמות לקוחות פעילים
+          </div>
+
+          <div className="mt-1 text-xs leading-5 text-slate-500">
+            מנוי Pro כולל עד 2,000 לקוחות פעילים.
+            כל תוספת של עד 2,000 לקוחות פעילים נוספים היא 39 ₪ לחודש.
+            החל מהלקוח ה־2,001 נדרשת הרחבה אחת.
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-slate-600">
+            חבילות נוספות:
+          </span>
+
+          <input
+            type="number"
+            value={extraCustomerBlocks}
+            min={0}
+            disabled={!supportsExtraCustomerBlocks(selectedPlan)}
+            onChange={(e) =>
+              setExtraCustomerBlocks(
+                Math.max(0, Number(e.target.value) || 0)
+              )
+            }
+            className="w-20 border rounded px-2 py-1 text-right"
+          />
+        </div>
+      </div>
+
+      {supportsExtraCustomerBlocks(selectedPlan) && (
+        <div className="mt-2 text-xs font-medium text-blue-700">
+          קיבולת כוללת לאחר ההרחבה:{' '}
+          {(1 + extraCustomerBlocks) * 2000}
+          {' '}לקוחות פעילים
+        </div>
+      )}
+    </div>
 
     <div>
       <label className="block mb-1 font-semibold">קוד קופון</label>

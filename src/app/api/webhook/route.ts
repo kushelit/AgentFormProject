@@ -453,12 +453,38 @@ if (expiresAt) {
       if (idNumber && idNumber !== userData?.idNumber) updateFields.idNumber = idNumber;
       if (pageCode && pageCode !== userData?.pageCode) updateFields.pageCode = pageCode;
 
-      if (addOns && JSON.stringify(addOns) !== JSON.stringify(userData?.addOns)) {
-        updateFields.addOns = {
-          leadsModule: !!addOns.leadsModule,
-          extraWorkers: addOns.extraWorkers || 0,
-        };
-      }
+      // if (addOns && JSON.stringify(addOns) !== JSON.stringify(userData?.addOns)) {
+      //   updateFields.addOns = {
+      //     leadsModule: !!addOns.leadsModule,
+      //     extraWorkers: addOns.extraWorkers || 0,
+      //   };
+      // }
+
+if (
+  addOns &&
+  JSON.stringify(addOns) !==
+    JSON.stringify(userData?.addOns)
+) {
+  updateFields.addOns = {
+    leadsModule:
+      !!addOns.leadsModule,
+
+    extraWorkers:
+      Math.max(
+        0,
+        Number(addOns.extraWorkers || 0)
+      ),
+
+    extraCustomerBlocks:
+      Math.max(
+        0,
+        Number(
+          addOns.extraCustomerBlocks || 0
+        )
+      ),
+  };
+}
+
 
       const planChanged =
         (subscriptionType && subscriptionType !== userData?.subscriptionType) ||
@@ -565,7 +591,25 @@ if (expiresAt) {
       asmachta: asmachta || null,
       subscriptionStatus,
       subscriptionType,
-      addOns: { leadsModule: !!addOns.leadsModule, extraWorkers: addOns.extraWorkers || 0 },
+      // addOns: { leadsModule: !!addOns.leadsModule, extraWorkers: addOns.extraWorkers || 0 },
+     addOns: {
+  leadsModule:
+    !!addOns.leadsModule,
+
+  extraWorkers:
+    Math.max(
+      0,
+      Number(addOns.extraWorkers || 0)
+    ),
+
+  extraCustomerBlocks:
+    Math.max(
+      0,
+      Number(
+        addOns.extraCustomerBlocks || 0
+      )
+    ),
+},   
       lastPaymentStatus: paymentStatus,
       lastPaymentDate: new Date(),
       totalCharged,
