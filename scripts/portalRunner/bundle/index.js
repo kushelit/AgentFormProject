@@ -156669,7 +156669,7 @@ const runnerPaths_1 = __nccwpck_require__(9772);
 const logger_1 = __nccwpck_require__(9252);
 const loginCli_1 = __nccwpck_require__(873);
 // הגדרת גרסה נוכחית
-const RUNNER_VERSION = "3.1.0";
+const RUNNER_VERSION = "3.1.1";
 function sleep(ms) {
     return new Promise((r) => setTimeout(r, ms));
 }
@@ -156747,6 +156747,13 @@ async function claimRunClient(db, runId, runnerId, agentId) {
         if (String(d.agentId) !== agentId)
             return false;
         if (d?.runner?.claimedAt)
+            return false;
+        // שריון: אם ל-run הזה נקבע מראש runnerId ספציפי (reservedRunnerId) -
+        // רק ה-runner עם אותו מזהה בדיוק רשאי לתפוס אותו. זה מונע מצב שבו
+        // שני מחשבים שונים מזוהים כאותו agentId (למשל אדמין שמריץ בשם הסוכן,
+        // בזמן שגם המחשב האמיתי של הסוכן פעיל) "מתחרים" על אותו job.
+        const reservedRunnerId = String(d?.reservedRunnerId || "").trim();
+        if (reservedRunnerId && reservedRunnerId !== runnerId)
             return false;
         tx.set(ref, {
             status: "running",
@@ -156925,6 +156932,14 @@ async function main() {
     await checkForUpdates(db, log);
     const runnerId = `local_${agentId}_${crypto_1.default.randomUUID().slice(0, 8)}`;
     await updateRunnerPresence({ db, agentId, runnerId });
+    // heartbeat עצמאי, לא תלוי בלולאת ה-polling הראשית: updateRunnerPresence
+    // בתוך ה-while למטה נקרא רק פעם אחת בתחילת כל סבב, ואז הלולאה יכולה
+    // "להיתקע" דקות ארוכות בתוך await fn(ctx) (הרצת אוטומציה בפועל) בלי
+    // לחזור לראש הלולאה. בלי heartbeat נפרד, ה-UI (שמסתמך על lastSeenAt
+    // בפחות מ-30 שניות) מראה "לא פעיל" בדיוק בזמן שהבוט הכי עסוק בעבודה.
+    const heartbeatInterval = setInterval(() => {
+        updateRunnerPresence({ db, agentId, runnerId }).catch(() => { });
+    }, 15000);
     const pollMs = typeof runner?.pollIntervalMs === "number" && isFinite(runner.pollIntervalMs) && runner.pollIntervalMs >= 500
         ? runner.pollIntervalMs : 2000;
     const headlessFromConfig = typeof runner?.headless === "boolean" ? String(runner.headless) : undefined;

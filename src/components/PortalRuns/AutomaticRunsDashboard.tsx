@@ -236,7 +236,7 @@ const AutomaticRunsDashboard: React.FC<Props> = ({
   if (!selectedAgentId || automaticCompanies.length === 0) return null;
 
   return (
-    <section className="space-y-4" key={refreshKey}>
+    <section className="space-y-4">
       <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <div className="rounded-2xl border border-blue-100 bg-blue-50 p-4 text-center">

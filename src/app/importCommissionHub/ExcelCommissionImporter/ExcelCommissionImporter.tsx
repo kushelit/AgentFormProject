@@ -47,6 +47,7 @@ import BatchProgressCard from '@/components/PortalRuns/BatchProgressCard';
 import { applyMonthOffset } from "@/lib/multiSheetProfiles/applyMonthOffset";
 
 import AdminAgentPairingWidget from "@/components/PortalRuns/AdminAgentPairingWidget";
+import PortalOtpWatcher from "@/components/PortalRuns/PortalOtpWatcher";
 /* ==============================
    Types
 ============================== */
@@ -327,6 +328,7 @@ useEffect(() => {
 const [latestRunnerVersion, setLatestRunnerVersion] = useState<string>("");
 const [currentRunnerVersion, setCurrentRunnerVersion] = useState<string>("");
 const [currentRunnerId, setCurrentRunnerId] = useState<string>("");
+const [lastSeenAtMs, setLastSeenAtMs] = useState<number | null>(null);
 const [installerUrl, setInstallerUrl] = useState<string>("");
 const needsManualUpgrade =
   currentRunnerVersion === "2.0.0" ||
@@ -449,7 +451,18 @@ useEffect(() => {
       })
       .sort((a, b) => a.batchOrder - b.batchOrder);
 
-    if (!runs.length) return;
+    if (!runs.length) {
+      // אין יותר run-ים ל-batch הזה (למשל נמחקו ידנית) - לא נשארים תקועים
+      // עם isAutoRunActive=true לנצח, מנקים את המצב כמו batch שהסתיים.
+      setIsAutoRunActive(false);
+      setActiveAutoCompanyId("");
+      setActiveBatchId("");
+      setBatchRunIds([]);
+      setBatchProgress(null);
+      setBatchCompanyStatuses({});
+      setTimeout(() => setAutoDashboardRefreshKey((v) => v + 1), 500);
+      return;
+    }
 
     const done = runs.filter(
       (r) => r.status === "success" || r.status === "done"
@@ -584,6 +597,12 @@ useEffect(() => {
 
   const rehydrate = async () => {
     try {
+      // תמיד מרעננים את דשבורד החברות בכניסה מחדש - כדי שסטטוסי כרטיסים
+      // (item.uiStatus, שמגיע מ-useAutomationDashboardStatus ותלוי רק
+      // ב-refreshKey) לא יישארו "תקועים" על running אם הריצה הסתיימה
+      // בזמן שאף אחד לא היה בעמוד לעדכן אותו.
+      setAutoDashboardRefreshKey((v) => v + 1);
+
       // 1. batch פעיל (עדיין לא הגיע לסטטוס סופי)
       const batchQy = query(
         collection(db, "portalRunBatches"),
@@ -597,12 +616,21 @@ useEffect(() => {
 
       const batchDoc = batchSnap.docs[0];
       if (batchDoc) {
-        setActiveBatchId(batchDoc.id);
-        setIsAutoRunActive(true);
-        return;
+        // בודקים "טריות" - אם אף Runner לא כתב אליו כבר כמה דקות, זו כנראה
+        // ריצה שנתקעה (ה-Runner נסגר באמצע) ולא ריצה שבאמת פעילה כרגע.
+        // לא רוצים לחסום התחלת עבודה חדשה בגלל רשומה תקועה.
+        const batchUpdatedAt = batchDoc.data()?.updatedAt?.toDate?.() ?? null;
+        const isBatchFresh = batchUpdatedAt ? (Date.now() - batchUpdatedAt.getTime()) < 4 * 60 * 1000 : false;
+
+        if (isBatchFresh) {
+          setActiveBatchId(batchDoc.id);
+          setIsAutoRunActive(true);
+          return;
+        }
+        // תקוע - לא משחזרים כפעיל, ממשיכים כרגיל (לא חוסמים כלום)
       }
 
-      // 2. אין batch - בודקים ריצה בודדת (לא חלק מ-batch) שעדיין באמצע
+      // 2. אין batch טרי - בודקים ריצה בודדת (לא חלק מ-batch) שעדיין באמצע
       const singleQy = query(
         collection(db, "portalImportRuns"),
         where("agentId", "==", selectedAgentId),
@@ -616,12 +644,20 @@ useEffect(() => {
       const singleRun = singleSnap.docs.find((d) => !String(d.data()?.batchId || "").trim());
       if (singleRun) {
         const runData: any = singleRun.data();
-        setAutoRunId(singleRun.id);
-        setAutoRunKind(runData?.automationClass === "self_update" ? "self_update" : "portal");
-        setIsAutoRunActive(true);
+        const runUpdatedAt = runData?.updatedAt?.toDate?.() ?? null;
+        const isRunFresh = runUpdatedAt ? (Date.now() - runUpdatedAt.getTime()) < 4 * 60 * 1000 : false;
+
+        if (isRunFresh) {
+          setAutoRunId(singleRun.id);
+          setAutoRunKind(runData?.automationClass === "self_update" ? "self_update" : "portal");
+          setIsAutoRunActive(true);
+        }
+        // אחרת - תקוע, לא משחזרים כפעיל
       }
-    } catch {
-      // שחזור הוא best-effort - אם נכשל, פשוט לא משחזרים, לא מציגים שגיאה
+    } catch (e) {
+      // שחזור הוא best-effort - לא מציגים שגיאה למשתמש, אבל כן רושמים
+      // לקונסולה כדי שאפשר יהיה לאבחן (למשל אינדקס Firestore חסר).
+      console.error('[Rehydrate] Failed to restore active run/batch:', e);
     }
   };
 
@@ -631,6 +667,21 @@ useEffect(() => {
     cancelled = true;
   };
 }, [selectedAgentId]);
+
+// ה-hook שמזין את סטטוס הכרטיסים ב-AutomaticRunsDashboard
+// (useAutomationDashboardStatus) מבצע getDoc חד-פעמי, לא onSnapshot -
+// כלומר הוא "לא חי" ומתעדכן רק כש-refreshKey משתנה. כל עוד יש ריצה/batch
+// פעיל, מרעננים אותו כל כמה שניות כדי שהכרטיס לא יישאר תקוע על "בריצה"
+// עד F5.
+useEffect(() => {
+  if (!isAutoRunActive && !activeBatchId) return;
+
+  const interval = setInterval(() => {
+    setAutoDashboardRefreshKey((v) => v + 1);
+  }, 5000);
+
+  return () => clearInterval(interval);
+}, [isAutoRunActive, activeBatchId]);
 
 // const handleStartAuto = async () => {
 //   if (!selectedAgentId || !selectedCompanyId) return;
@@ -2684,10 +2735,12 @@ const unsub = onSnapshot(
         const data = snap.data();
         const newVersion = String(data?.runnerVersion || "").trim();
         
-        // בדיקת online לפי lastSeenAt
+        // שומרים רק את הזמן הגולמי - החישוב "האם זה עדיין טרי" עובר
+        // ל-useEffect נפרד עם טיימר, כי onSnapshot רץ רק כשיש כתיבה חדשה
+        // בפועל, ולא היה מחשב מחדש מעצמו עם הזמן שעובר (בוט שכבה נראה
+        // "online" לנצח, כי אף אחד לא "מעורר" מחדש את הבדיקה).
         const lastSeenAt = data?.lastSeenAt?.toDate?.() ?? null;
-        const online = lastSeenAt ? (Date.now() - lastSeenAt.getTime()) < 30_000 : false;
-        setIsRunnerOnline(online);
+        setLastSeenAtMs(lastSeenAt ? lastSeenAt.getTime() : null);
 
         // ✅ שומר את ה-runnerId הידוע כרגע לסוכן זה - משמש לנעילת ריצות
         // חדשות (reservedRunnerId) כדי למנוע תחרות בין שני מחשבים שמזוהים
@@ -2705,17 +2758,29 @@ const unsub = onSnapshot(
       } else {
         setCurrentRunnerVersion("");
         setCurrentRunnerId("");
-        setIsRunnerOnline(false);
+        setLastSeenAtMs(null);
       }
     },
     () => {
       setCurrentRunnerVersion("");
       setCurrentRunnerId("");
-      setIsRunnerOnline(false);
+      setLastSeenAtMs(null);
     }
   );
   return () => unsub();
 }, [selectedAgentId]);
+
+// מחשבים מחדש "האם הבוט online" כל כמה שניות, לא רק כשמגיעה כתיבה חדשה
+// מה-Runner. בלי זה, ברגע שה-Runner נסגר, isRunnerOnline נשאר תקוע על
+// true לנצח - כי שום דבר לא "מעורר" מחדש את הבדיקה נגד השעון.
+useEffect(() => {
+  const tick = () => {
+    setIsRunnerOnline(lastSeenAtMs ? (Date.now() - lastSeenAtMs) < 30_000 : false);
+  };
+  tick();
+  const t = setInterval(tick, 5000);
+  return () => clearInterval(t);
+}, [lastSeenAtMs]);
 
 
 
@@ -3813,10 +3878,20 @@ addToast(
       className="hidden"
     />
 
-    {/* ה-OTP מטופל עכשיו גלובלית דרך GlobalPortalOtpWatcher ב-layout -
-        לא מרנדרים אותו כאן יותר, כדי לא ליצור שני מופעים נפרדים לאותו
-        runId (כל מופע מנהל state פרטי משלו ב-PortalRunOtpModal, אז שני
-        מופעים בו-זמנית יוצרים שני דיאלוגים חופפים ומבלבלים). */}
+    {/* ה-OTP לריצה עצמית מטופל גלובלית דרך GlobalPortalOtpWatcher ב-layout.
+        אבל כשמריצים בשם סוכן אחר (selectedAgentId שונה מהזהות המחוברת -
+        למשל אדמין שמריץ בשם סוכן דרך AdminAgentPairingWidget), ה-watcher
+        הגלובלי לא יתפוס את זה, כי הוא בודק לפי הזהות המחוברת, לא לפי
+        agentId של ה-run. לכן מוסיפים כאן watcher נוסף, ממוקד ל-
+        selectedAgentId, רק כשהוא שונה מהזהות שלי - כדי לא ליצור כפילות
+        עם הגלובלי כשמדובר בסוכן שמריץ בשם עצמו. */}
+    {(() => {
+      const ownAgentId = String(detail?.agentId || user?.uid || "").trim();
+      const isActingForOtherAgent = !!selectedAgentId && selectedAgentId !== ownAgentId;
+      return isActingForOtherAgent ? (
+        <PortalOtpWatcher db={db} agentId={selectedAgentId} />
+      ) : null;
+    })()}
 
     {showConfirmDelete && (
       <DialogNotification

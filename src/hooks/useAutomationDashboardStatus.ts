@@ -184,7 +184,12 @@ export function useAutomationDashboardStatus({
       return;
     }
 
-    setLoading(true);
+    // מציגים את מסך "טוען סטטוסים..." רק בטעינה הראשונה האמיתית (כש-items
+    // עדיין ריק). רענוני רקע (refreshKey שמשתנה תוך כדי פוליניג, כשכבר יש
+    // נתונים על המסך) לא צריכים להחליף את כל הרשת בקופסת טעינה קטנה - זה
+    // גורם לגובה העמוד "לקפוץ" כל כמה שניות בלי סיבה אמיתית.
+    const isInitialLoad = items.length === 0;
+    if (isInitialLoad) setLoading(true);
     try {
       const ym = getCurrentPublicationYm();
       const monthLabel = labelFromYm(ym);
