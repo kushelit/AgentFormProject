@@ -8,6 +8,11 @@ import { PORTAL_ENC_KEY_B64 } from "./shared/secrets";
 import { decryptJsonAes256Gcm } from "./shared/cryptoAesGcm";
 import { FieldValue } from "firebase-admin/firestore";
 
+import {
+  requireBackendPermission,
+} from "./shared/backendPermissions";
+
+
 const WA_API_URL = "https://graph.facebook.com/v25.0";
 
 function s(v: any) {
@@ -24,25 +29,22 @@ export async function refreshWhatsAppTemplatesImpl(req: any): Promise<object> {
   if (!userSnap.exists) throw new HttpsError("permission-denied", "User not found");
 
   const userData = userSnap.data() as any;
+
+  await requireBackendPermission({
+  db: db as any,
+  userId: authUid,
+  userData,
+  permission: "access_magic_touch",
+});
+
 const isAdmin = userData?.role === "admin" || userData?.isSystem === true;
 const userAgentId = s(userData?.agentId);
 
-const allow = Array.isArray(userData?.permissionOverrides?.allow)
-  ? userData.permissionOverrides.allow
-  : [];
-
-const hasWhatsAppManagePermission =
-  allow.includes("access_whatsapp_manage") ||
-  allow.includes("*");
 
 const agentId = s(req.data?.agentId);
 if (!agentId) throw new HttpsError("invalid-argument", "Missing agentId");
 
 if (!isAdmin) {
-  if (!hasWhatsAppManagePermission) {
-    throw new HttpsError("permission-denied", "Missing WhatsApp manage permission");
-  }
-
   if (!userAgentId || userAgentId !== agentId) {
     throw new HttpsError("permission-denied", "Cannot refresh WhatsApp templates for another agent");
   }

@@ -398,3 +398,214 @@
   color: #0b7285;
   font-weight: 600;
 }
+
+
+
+
+/* ========================================
+   MagicTouch - New Product Announcement
+   ======================================== */
+
+.magictouch-announcement {
+  margin-top: 26px;
+  padding: 24px;
+
+  border: 1px solid #ddd6fe;
+  border-radius: 20px;
+
+  background: linear-gradient(
+    135deg,
+    #fafaff 0%,
+    #f7f5ff 55%,
+    #faf8ff 100%
+  );
+
+  box-shadow: 0 8px 24px rgba(79, 70, 229, 0.06);
+
+  direction: rtl;
+}
+
+.magictouch-top {
+  text-align: center;
+  margin-bottom: 22px;
+}
+
+.magictouch-heading {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+}
+
+.magictouch-sparkle {
+  font-size: 24px;
+}
+
+.magictouch-title {
+  font-size: 22px;
+  font-weight: 800;
+  color: #1f2937;
+  line-height: 1.4;
+}
+
+.magictouch-title strong {
+  color: #7c3aed;
+}
+
+/* רווח בין הכותרת למשפט שמתחתיה */
+.magictouch-subtitle {
+  margin-top: 10px;
+  font-size: 15px;
+  font-weight: 700;
+  color: #4c1d95;
+}
+
+.magictouch-intro {
+  max-width: 600px;
+  margin: 16px auto 0;
+  font-size: 14px;
+  line-height: 1.8;
+  color: #6b7280;
+}
+
+.magictouch-features {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.magictouch-feature {
+  min-height: 120px;
+  padding: 16px 14px;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+
+  text-align: center;
+
+  background: rgba(255, 255, 255, 0.92);
+
+  border: 1px solid #e9e5ff;
+  border-radius: 16px;
+
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.magictouch-feature:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 7px 18px rgba(79, 70, 229, 0.08);
+}
+
+.magictouch-feature-icon {
+  width: 44px;
+  height: 44px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  margin-bottom: 10px;
+
+  border-radius: 50%;
+  background: #ede9fe;
+
+  font-size: 22px;
+}
+
+.magictouch-feature-icon.whatsapp {
+  background: #dcfce7;
+}
+
+.magictouch-feature-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+}
+
+.magictouch-feature-content strong {
+  font-size: 14px;
+  font-weight: 800;
+  color: #5b21b6;
+}
+
+.magictouch-feature-content span {
+  font-size: 12px;
+  line-height: 1.6;
+  color: #6b7280;
+}
+
+.magictouch-cta {
+  margin-top: 18px;
+  padding: 14px 18px;
+
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
+
+  text-align: center;
+
+  border-radius: 14px;
+
+  background: linear-gradient(
+    90deg,
+    #fff7ed,
+    #fffbf5
+  );
+
+  border: 1px solid #fed7aa;
+}
+
+.magictouch-cta-icon {
+  font-size: 22px;
+  flex-shrink: 0;
+}
+
+.magictouch-cta div {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.magictouch-cta strong {
+  font-size: 14px;
+  color: #1f2937;
+}
+
+.magictouch-cta span {
+  font-size: 13px;
+  color: #6b7280;
+}
+
+@media (max-width: 640px) {
+  .magictouch-announcement {
+    padding: 18px 14px;
+  }
+
+  .magictouch-features {
+    grid-template-columns: 1fr;
+  }
+
+  .magictouch-title {
+    font-size: 19px;
+  }
+
+  .magictouch-subtitle {
+    margin-top: 8px;
+    font-size: 14px;
+  }
+
+  .magictouch-intro {
+    margin-top: 12px;
+  }
+
+  .magictouch-cta {
+    text-align: right;
+    justify-content: flex-start;
+  }
+}

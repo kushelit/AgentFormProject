@@ -7,6 +7,10 @@ import { adminDb, nowTs } from "./shared/admin";
 import { PORTAL_ENC_KEY_B64 } from "./shared/secrets";
 import { decryptJsonAes256Gcm } from "./shared/cryptoAesGcm";
 
+import {
+  requireBackendPermission,
+} from "./shared/backendPermissions";
+
 const WA_API_URL = "https://graph.facebook.com/v25.0";
 const MAX_QUICK_REPLY_BUTTONS = 3;
 
@@ -145,19 +149,21 @@ export async function createWhatsAppTemplateImpl(
   }
 
   const userData = userSnap.data() as any;
+
+  await requireBackendPermission({
+  db: db as any,
+  userId: authUid,
+  userData,
+  permission: "access_magic_touch",
+});
+
   const isAdmin =
     userData?.role === "admin" ||
     userData?.isSystem === true;
 
   const userAgentId = s(userData?.agentId);
 
-  const allow = Array.isArray(userData?.permissionOverrides?.allow)
-    ? userData.permissionOverrides.allow
-    : [];
-
-  const hasWhatsAppManagePermission =
-    allow.includes("access_whatsapp_manage") ||
-    allow.includes("*");
+ 
 
   const body = req.data || {};
   const agentId = s(body.agentId);
@@ -167,13 +173,6 @@ export async function createWhatsAppTemplateImpl(
   }
 
   if (!isAdmin) {
-    if (!hasWhatsAppManagePermission) {
-      throw new HttpsError(
-        "permission-denied",
-        "Missing WhatsApp manage permission"
-      );
-    }
-
     if (!userAgentId || userAgentId !== agentId) {
       throw new HttpsError(
         "permission-denied",

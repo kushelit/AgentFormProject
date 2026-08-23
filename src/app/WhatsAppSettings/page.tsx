@@ -59,8 +59,8 @@ export default function WhatsAppSettingsPage() {
   const { user, detail, isLoading } = useAuth() as any;
 
   const { canAccess, isChecking } = usePermission(
-    user ? 'access_whatsapp_manage' : null
-  );
+  user ? 'access_magic_touch_jobs_admin' : null
+);
 
   const agentId = String(detail?.agentId || '');
 
