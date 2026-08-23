@@ -16,7 +16,7 @@ const magicTouchPages: MagicTouchNavigationItem[] = [
     href: '/MagicTouch/Contacts',
     label: 'אנשי קשר',
     icon: '👥',
-    permission: 'access_magic_touch_contacts',
+    permission: 'access_magic_touch',
   },
   {
     href: '/MagicTouch/Conversations',
