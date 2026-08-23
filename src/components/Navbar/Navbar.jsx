@@ -175,6 +175,49 @@ const isItemVisible = (item) => {
               </NavbarItem>
             </div>
           )}
+
+          {canAccessMagicTouch && (
+            <div
+              style={{
+                marginTop: 14,
+                paddingTop: 14,
+                borderTop: "1px solid rgba(255,255,255,0.12)",
+              }}
+            >
+              <a
+                href="/MagicTouch"
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 8,
+                  padding: "12px 14px",
+                  borderRadius: 12,
+                  background:
+                    "linear-gradient(135deg, var(--clrdarkblue3, #2f6fed), var(--clrdarkblue2, #2558c9))",
+                  color: "#fff",
+                  fontWeight: 700,
+                  fontSize: 14,
+                  textDecoration: "none",
+                  boxShadow: "0 4px 14px rgba(47,111,237,0.35)",
+                  transition: "transform 0.15s ease, box-shadow 0.15s ease",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = "translateY(-1px)";
+                  e.currentTarget.style.boxShadow =
+                    "0 6px 18px rgba(47,111,237,0.45)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = "translateY(0)";
+                  e.currentTarget.style.boxShadow =
+                    "0 4px 14px rgba(47,111,237,0.35)";
+                }}
+              >
+                <span aria-hidden="true">✨</span>
+                <span>מעבר למערכת Magic Touch</span>
+              </a>
+            </div>
+          )}
         </>
       ) : (
         <p>נא התחבר למערכת</p>
