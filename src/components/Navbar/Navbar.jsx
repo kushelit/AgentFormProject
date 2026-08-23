@@ -5,7 +5,6 @@ import { Expand } from "../Expand";
 import { Collapse } from "../Collapse";
 import useFetchAgentData from "@/hooks/useFetchAgentData";
 import { useAuth } from '@/lib/firebase/AuthContext';
-import ContactFormModal from "@/components/ContactFormModal/ContactFormModal";
 import "./Navbar.css";
 import { usePermission } from '@/hooks/usePermission';
 
@@ -13,7 +12,6 @@ import { usePermission } from '@/hooks/usePermission';
 export const Navbar = ({ items, bottomPage, className }) => {
   const [openSubmenu, setOpenSubmenu] = useState(null);
   const [selectedTab, setSelectedTab] = useState(null);
-  const [isContactOpen, setIsContactOpen] = useState(false);
   const [isClient, setIsClient] = useState(false);
 
   const { user, detail } = useAuth();
@@ -25,17 +23,6 @@ export const Navbar = ({ items, bottomPage, className }) => {
       ? 'access_magic_touch'
       : null
   );
-
-  // const isItemVisible = (item) => {
-  //   // עד שטעון ה-role – לא להציג (גם מונע הבהוב)
-  //   if (!detail?.role) return false;
-  
-  //   if (Array.isArray(item.onlyRoles) && item.onlyRoles.length > 0) {
-  //     return item.onlyRoles.includes(detail.role);
-  //   }
-  //   return true;
-  // };
-
 
 const { canAccess: canAccessElementary } = usePermission(user ? 'access_sharon_elementary' : null);
 const { canAccess: canAccessTax } = usePermission(user ? 'access_sharon_tax_returns' : null);  // ← חסר!
@@ -187,27 +174,6 @@ const isItemVisible = (item) => {
                 </a>
               </NavbarItem>
             </div>
-          )}
-
-          <div className="contact-container">
-            <a
-              href="#"
-              className="contact-link"
-              onClick={(e) => {
-                e.preventDefault();
-                setIsContactOpen(true);
-              }}
-            >
-              📩 צור קשר
-            </a>
-          </div>
-
-          {isContactOpen && (
-            <ContactFormModal
-              onClose={() => setIsContactOpen(false)}
-              userEmail={detail?.email || ""}
-              userName={detail?.name || "משתמש אנונימי"}
-            />
           )}
         </>
       ) : (

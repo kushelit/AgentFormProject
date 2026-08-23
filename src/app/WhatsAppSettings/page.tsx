@@ -301,9 +301,16 @@ const isConnected = isPersistedConnected;
         setDisplayName(String(data.displayName || ''));
         setTemplateName(String(data.templateName || ''));
         setEmbeddedSignupCode('');
-        setIsPersistedConnected(
-  !!String(data.wabaId || '').trim() &&
-  !!String(data.phoneNumberId || '').trim()
+      setIsPersistedConnected(
+  String(
+    data.status ||
+    ""
+  ) ===
+    "ready" &&
+  data.phoneRegistered ===
+    true &&
+  data.webhookSubscribed ===
+    true
 );
       } catch (e: any) {
         clearConfigFields();

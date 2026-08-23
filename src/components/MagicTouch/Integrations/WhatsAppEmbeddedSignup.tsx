@@ -695,8 +695,8 @@ export default function WhatsAppEmbeddedSignup({
           title:
             "WhatsApp מחובר",
 
-          message:
-            "חשבון WhatsApp Business חובר ונשמר בהצלחה.",
+        message:
+  "חשבון WhatsApp Business חובר ומוכן לשליחה ולקבלת הודעות.",
         });
       } catch (
         error: any

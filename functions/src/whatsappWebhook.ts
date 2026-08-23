@@ -18,7 +18,11 @@ import {
   decryptJsonAes256Gcm,
 } from "./shared/cryptoAesGcm";
 
-import { FUNCTIONS_REGION } from "./shared/region";
+import {
+  FUNCTIONS_REGION,
+  PROJECT_ID,
+} from "./shared/region";
+
 
 import {
   resolveMagicTouchContact,
@@ -34,6 +38,209 @@ import {
 
 function s(value: any): string {
   return String(value ?? "").trim();
+}
+
+const PROD_PROJECT_ID =
+  "agentsale-693e8";
+
+const TEST_WHATSAPP_PHONE_NUMBER_ID =
+  "1226425417229127";
+
+const TEST_WHATSAPP_WEBHOOK_URL =
+  "https://europe-west1-magicsale-test.cloudfunctions.net/whatsappWebhook";
+
+function splitWebhookBodyByEnvironment(
+  body: any
+): {
+  productionBody: any | null;
+  testBody: any | null;
+  testChangeCount: number;
+} {
+  const entries =
+    Array.isArray(
+      body?.entry
+    )
+      ? body.entry
+      : [];
+
+  const productionEntries:
+    any[] = [];
+
+  const testEntries:
+    any[] = [];
+
+  let testChangeCount =
+    0;
+
+  for (
+    const entry of
+    entries
+  ) {
+    const changes =
+      Array.isArray(
+        entry?.changes
+      )
+        ? entry.changes
+        : [];
+
+    const productionChanges:
+      any[] = [];
+
+    const testChanges:
+      any[] = [];
+
+    for (
+      const change of
+      changes
+    ) {
+      if (
+        change?.field !==
+        "messages"
+      ) {
+        productionChanges.push(
+          change
+        );
+
+        continue;
+      }
+
+      const phoneNumberId =
+        s(
+          change
+            ?.value
+            ?.metadata
+            ?.phone_number_id
+        );
+
+      if (
+        phoneNumberId ===
+        TEST_WHATSAPP_PHONE_NUMBER_ID
+      ) {
+        testChanges.push(
+          change
+        );
+
+        testChangeCount +=
+          1;
+      } else {
+        productionChanges.push(
+          change
+        );
+      }
+    }
+
+    if (
+      productionChanges.length >
+      0
+    ) {
+      productionEntries.push({
+        ...entry,
+        changes:
+          productionChanges,
+      });
+    }
+
+    if (
+      testChanges.length >
+      0
+    ) {
+      testEntries.push({
+        ...entry,
+        changes:
+          testChanges,
+      });
+    }
+  }
+
+  const baseBody =
+    body &&
+    typeof body ===
+      "object" &&
+    !Array.isArray(
+      body
+    )
+      ? body
+      : {};
+
+  return {
+    productionBody:
+      productionEntries.length >
+      0
+        ? {
+            ...baseBody,
+            entry:
+              productionEntries,
+          }
+        : null,
+
+    testBody:
+      testEntries.length >
+      0
+        ? {
+            ...baseBody,
+            entry:
+              testEntries,
+          }
+        : null,
+
+    testChangeCount,
+  };
+}
+
+async function forwardWebhookBodyToTest(
+  body: any
+): Promise<void> {
+  const controller =
+    new AbortController();
+
+  const timeout =
+    setTimeout(
+      () =>
+        controller.abort(),
+      15000
+    );
+
+  try {
+    const response =
+      await fetch(
+        TEST_WHATSAPP_WEBHOOK_URL,
+        {
+          method:
+            "POST",
+
+          headers: {
+            "Content-Type":
+              "application/json",
+
+            "X-MagicTouch-Forwarded-From":
+              "production",
+          },
+
+          body:
+            JSON.stringify(
+              body
+            ),
+
+          signal:
+            controller.signal,
+        }
+      );
+
+    const responseText =
+      await response.text();
+
+    if (
+      !response.ok
+    ) {
+      throw new Error(
+        `Test WhatsApp webhook returned ${response.status}: ${responseText}`
+      );
+    }
+  } finally {
+    clearTimeout(
+      timeout
+    );
+  }
 }
 
 function normalizePhone(
@@ -1989,15 +2196,93 @@ export const whatsappWebhook =
       }
 
       try {
-        const body =
+        const originalBody =
           req.body;
+
+        const projectId =
+          PROJECT_ID;
+
+        const isProduction =
+          PROJECT_ID ===
+          PROD_PROJECT_ID;
+
+        let body =
+          originalBody;
 
         logger.info(
           "[whatsappWebhook] Payload received",
-          JSON.stringify(
-            body
-          )
+          {
+            projectId:
+              projectId ||
+              null,
+
+            body:
+              JSON.stringify(
+                originalBody
+              ),
+          }
         );
+
+        if (
+          isProduction
+        ) {
+          const {
+            productionBody,
+            testBody,
+            testChangeCount,
+          } =
+            splitWebhookBodyByEnvironment(
+              originalBody
+            );
+
+          if (
+            testBody &&
+            testChangeCount >
+              0
+          ) {
+            logger.info(
+              "[whatsappWebhook] Forwarding test WhatsApp payload to test environment",
+              {
+                projectId,
+
+                testPhoneNumberId:
+                  TEST_WHATSAPP_PHONE_NUMBER_ID,
+
+                testChangeCount,
+
+                target:
+                  TEST_WHATSAPP_WEBHOOK_URL,
+              }
+            );
+
+            await forwardWebhookBodyToTest(
+              testBody
+            );
+
+            logger.info(
+              "[whatsappWebhook] Test WhatsApp payload forwarded successfully",
+              {
+                testPhoneNumberId:
+                  TEST_WHATSAPP_PHONE_NUMBER_ID,
+
+                testChangeCount,
+              }
+            );
+          }
+
+          if (
+            !productionBody
+          ) {
+            res.sendStatus(
+              200
+            );
+
+            return;
+          }
+
+          body =
+            productionBody;
+        }
 
         const entries =
           Array.isArray(

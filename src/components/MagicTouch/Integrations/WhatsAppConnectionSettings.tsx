@@ -227,15 +227,20 @@ export default function WhatsAppConnectionSettings() {
             setDisplayName(
               loadedDisplayName
             );
+const isReady =
+  String(
+    data.status ||
+    ""
+  ) ===
+    "ready" &&
+  data.phoneRegistered ===
+    true &&
+  data.webhookSubscribed ===
+    true;
 
-            setIsPersistedConnected(
-              Boolean(
-                loadedWabaId.trim()
-              ) &&
-                Boolean(
-                  loadedPhoneNumberId.trim()
-                )
-            );
+setIsPersistedConnected(
+  isReady
+);
           } catch (
             error: any
           ) {

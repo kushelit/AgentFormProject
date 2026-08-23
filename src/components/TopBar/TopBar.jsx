@@ -11,13 +11,15 @@ import Link from "next/link";
 import { useRouter } from 'next/navigation';
 import { UserSubscriptionPopup } from "@/components/UserSubscriptionPopup/UserSubscriptionPopup";
 import CustomerSearchBox from "@/components/CustomerSearch/CustomerSearchBox";
+import ContactFormModal from "@/components/ContactFormModal/ContactFormModal";
 
 export const TopBar = ({ prop = true, className }) => {
-  const { user, detail, logOut } = useAuth();
+  const { user, detail, logOut, isLoading } = useAuth();
   const router = useRouter();
   const { canAccess: canAccessCrm } = usePermission(user ? 'access_crm_module' : null);
   const [showPopup, setShowPopup] = useState(false);
   const [showSettingsMenu, setShowSettingsMenu] = useState(false);
+  const [isContactOpen, setIsContactOpen] = useState(false);
 
 
   const settingsRef = useRef(null);
@@ -41,10 +43,22 @@ useEffect(() => {
     <>
       <div className={`top-bar ${className}`}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 36 }}>
-          <Link href="/NewAgentForm">
-            <Logo className="logo-instance" />
-          </Link>
-
+        <Link
+  href={
+    isLoading
+      ? '#'
+      : user
+        ? '/NewAgentForm'
+        : '/auth/log-in'
+  }
+  onClick={(e) => {
+    if (isLoading) {
+      e.preventDefault();
+    }
+  }}
+>
+  <Logo className="logo-instance" />
+</Link>
           {prop && user && canAccessCrm && (
             <CustomerSearchBox agentId={detail?.agentId} />
           )}
@@ -134,16 +148,17 @@ useEffect(() => {
                 <button onClick={() => router.push('/Help')} className="help-button">
                   📖 עזרה
                 </button>
+                <button
+                  onClick={() => setIsContactOpen(true)}
+                  className="help-button"
+                  title="צור קשר"
+                >
+                  📩 צור קשר
+                </button>
                 <img className="line" alt="Line" src="/static/img/line-2.png" />
                 <span
                   className="user-name"
                   onClick={() => {
-                    // console.log("detail", detail);
-                    // console.log("grow fields", {
-                    //   transactionToken: detail?.transactionToken,
-                    //   transactionId: detail?.transactionId,
-                    //   asmachta: detail?.asmachta,
-                    // });
                     setShowPopup(true);
                   }}
                                     style={{ cursor: "pointer" }}
@@ -161,7 +176,6 @@ logOut={async () => {
               </>
             ) : (
               <>
-                {/* <Link href="/auth/sign-up/agent" className="user-name">הרשם</Link> */}
                 <Link href="/auth/log-in" className="user-name">התחבר</Link>
               </>
             )}
@@ -169,8 +183,6 @@ logOut={async () => {
         )}
       </div>
 
-      {/* הפופאפ מחוץ ל-top-bar */}
-      {/* {user && showPopup && detail?.subscriptionId && detail?.role !== 'worker' && ( */}
       {user && showPopup && detail?.role !== 'worker' && (
     <UserSubscriptionPopup
     subscriptionStatus={detail?.subscriptionStatus}
@@ -196,6 +208,14 @@ logOut={async () => {
     onClose={() => setShowPopup(false)}
   />
   
+      )}
+
+      {isContactOpen && (
+        <ContactFormModal
+          onClose={() => setIsContactOpen(false)}
+          userEmail={detail?.email || ""}
+          userName={detail?.name || "משתמש אנונימי"}
+        />
       )}
     </>
   );

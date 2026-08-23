@@ -4,9 +4,70 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
 import magicTouchPages from '@/config/magicTouchPagesConfig';
+import { useAuth } from '@/lib/firebase/AuthContext';
+import { usePermission } from '@/hooks/usePermission';
+
+function MagicTouchSidebarItem({
+  href,
+  label,
+  icon,
+  permission,
+  selected,
+}: {
+  href: string;
+  label: string;
+  icon: string;
+  permission?: string;
+  selected: boolean;
+}) {
+  const { canAccess, isChecking } = usePermission(
+    permission || null
+  );
+
+  /*
+   * אין הרשאה לפריט:
+   * לא מציגים אותו בכלל בתפריט.
+   */
+  if (permission && (isChecking || !canAccess)) {
+    return null;
+  }
+
+  return (
+    <Link
+      href={href}
+      className={`
+        flex
+        items-center
+        gap-3
+        rounded-lg
+        px-3
+        py-3
+        text-sm
+        font-medium
+        transition
+        ${
+          selected
+            ? 'bg-blue-600 text-white'
+            : 'text-slate-200 hover:bg-slate-800 hover:text-white'
+        }
+      `}
+    >
+      <span
+        aria-hidden="true"
+        className="text-lg"
+      >
+        {icon}
+      </span>
+
+      <span>{label}</span>
+    </Link>
+  );
+}
 
 export default function MagicTouchSidebar() {
   const pathname = usePathname();
+
+  const { user } = useAuth();
 
   const isSelected = (
     href: string
@@ -17,6 +78,10 @@ export default function MagicTouchSidebar() {
 
     return pathname.startsWith(href);
   };
+
+  if (!user) {
+    return null;
+  }
 
   return (
     <aside
@@ -43,42 +108,16 @@ export default function MagicTouchSidebar() {
         </div>
 
         <div className="space-y-1">
-          {magicTouchPages.map((item) => {
-            const selected =
-              isSelected(item.href);
-
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`
-                  flex
-                  items-center
-                  gap-3
-                  rounded-lg
-                  px-3
-                  py-3
-                  text-sm
-                  font-medium
-                  transition
-                  ${
-                    selected
-                      ? 'bg-blue-600 text-white'
-                      : 'text-slate-200 hover:bg-slate-800 hover:text-white'
-                  }
-                `}
-              >
-                <span
-                  aria-hidden="true"
-                  className="text-lg"
-                >
-                  {item.icon}
-                </span>
-
-                <span>{item.label}</span>
-              </Link>
-            );
-          })}
+          {magicTouchPages.map((item) => (
+            <MagicTouchSidebarItem
+              key={item.href}
+              href={item.href}
+              label={item.label}
+              icon={item.icon}
+              permission={item.permission}
+              selected={isSelected(item.href)}
+            />
+          ))}
         </div>
       </nav>
 

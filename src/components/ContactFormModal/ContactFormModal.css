@@ -1,84 +1,171 @@
 .modal-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background-color: rgba(0, 0, 0, 0.4); /* רקע שקוף כהה */
-    display: flex;
-    justify-content: center;
-    align-items: center;
-  }
-  
-  .modal-content {
-    background-color: var(--clrgray3); /* צבע הרקע מפיגמה */
-    padding: 20px;
-    width: 400px;
-    min-height: 250px; /* 🔹 הגדלת הגובה */
-    border-radius: 10px;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-    position: relative;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-  }
-  
-  .titleModal {
-    margin-bottom: 10px;
-    font-size: 20px; 
-    color: #333;
-  }
-  
-  .modal-content textarea {
-    width: 100%;
-    height: 100px; 
-    font-size: 16px; 
-    padding: 10px;
-    border-radius: 5px;
-    border: 1px solid #ccc;
-    color: black   ;
-  }
-  
-  .modal-content textarea:focus {
-    border-color: #007bff;
-    outline: none;
-  }
-  
-  .cancelButton {
-    padding: 0 !important; /* מבטל את כל הריווחים הפנימיים */
-    margin: 0 !important; /* מבטל ריווח חיצוני אם קיים */
-    position: absolute !important;
-    margin-top: 0px  !important;
-    left: 10px !important;
-    background: transparent !important; /* מסיר רקע */
-    border: none !important;
-    border-radius: 0% !important;
-    outline: none !important; /* מסיר מסגרת בלחיצה */
-    font-size: 14px !important;
-    font-weight: normal !important;
-    cursor: pointer !important;
-    color: rgba(0, 0, 0, 0.3) !important;
-    z-index: 1010 !important;
-    transition: color 0.2s ease, transform 0.2s ease !important;
-    text-align: left !important;
-    width: auto !important;
-  }
-  
-  .modal-content button:not(.close-button) {
-    background-color: var(--clrdarkblue3); /* או החלפה ישירה בקוד */
-    color: white;
-    font-size: 16px; 
-    padding: 10px 20px;
-    border: none;
-    border-radius: 5px;
-    cursor: pointer;
-    margin-top: 15px;
-    width: 100%; /* 🔹 ממורכז */
-    text-align: center;
-  }
-  
-  .modal-content button:hover {
-    background-color: var(--clrdarkblue2); /* צבע hover רך ולא קונטרסטי מדי */
-  }
-  
- 
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(15, 23, 42, 0.38);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  animation: overlayFadeIn 0.18s ease-out;
+}
+
+@keyframes overlayFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.modal-card {
+  background-color: #ffffff;
+  width: 400px;
+  max-width: calc(100% - 32px);
+  border-radius: 20px;
+  padding: 32px 28px 28px;
+  box-shadow:
+    0 24px 60px -12px rgba(15, 23, 42, 0.25),
+    0 8px 24px -8px rgba(15, 23, 42, 0.12);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  animation: cardPopIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes cardPopIn {
+  from { opacity: 0; transform: translateY(8px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.modal-close {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: var(--clrgray3, #f1f3f5);
+  color: rgba(15, 23, 42, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.modal-close:hover {
+  background: #e6e9ec;
+  color: rgba(15, 23, 42, 0.75);
+}
+
+.modal-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--clrdarkblue3, #2f6fed) 12%, white);
+  color: var(--clrdarkblue3, #2f6fed);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 16px;
+}
+
+.modal-title {
+  margin: 0 0 6px;
+  font-size: 19px;
+  font-weight: 700;
+  color: #1a1d21;
+}
+
+.modal-subtitle {
+  margin: 0 0 20px;
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: #7a8087;
+  max-width: 300px;
+}
+
+.modal-body {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.modal-textarea {
+  width: 100%;
+  min-height: 100px;
+  font-size: 15px;
+  font-family: inherit;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid #e3e5e8;
+  background: #fafbfc;
+  color: #1a1d21;
+  resize: vertical;
+  box-sizing: border-box;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.modal-textarea::placeholder {
+  color: #a3a8ae;
+}
+
+.modal-textarea:focus {
+  border-color: var(--clrdarkblue3, #2f6fed);
+  background: #ffffff;
+  outline: none;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.modal-actions button {
+  flex: 1;
+  font-size: 14.5px;
+  font-weight: 600;
+  padding: 11px 16px;
+  border-radius: 12px;
+  cursor: pointer;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: background 0.15s ease, color 0.15s ease, transform 0.05s ease;
+}
+
+.btn-secondary {
+  background: #f1f3f5;
+  color: #52575d;
+}
+
+.btn-secondary:hover {
+  background: #e6e9ec;
+}
+
+.btn-primary {
+  background: var(--clrdarkblue3, #2f6fed);
+  color: white;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: var(--clrdarkblue2, #2558c9);
+}
+
+.btn-primary:disabled {
+  opacity: 0.65;
+  cursor: default;
+}
+
+.modal-actions button:active:not(:disabled) {
+  transform: scale(0.98);
+}

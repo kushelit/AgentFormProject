@@ -48,11 +48,17 @@ const magicTouchPages: MagicTouchNavigationItem[] = [
   icon: '🔗',
   permission: 'access_magic_touch',
 },
+{
+  href: '/MagicTouch/Onboarding',
+  label: 'הגדרת MagicTouch',
+  icon: '🚀',
+  permission: 'access_magic_touch',
+},
   {
   href: '/MagicTouch/Runs',
   label: 'הרצות תהליכים',
   icon: '📋',
-  permission: 'access_magic_touch',
+  permission: 'access_magic_touch_jobs_admin',
 },
 {
   href: '/MagicTouch/Monitor/Jobs',

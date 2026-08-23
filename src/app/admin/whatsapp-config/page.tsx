@@ -122,6 +122,7 @@ const [registering, setRegistering] = useState(false);
   const [dialog, setDialog] =
     useState<DialogState | null>(null);
 
+const [subscribingWebhook, setSubscribingWebhook] = useState(false);
 
   // =====================================================
   // טעינת Facebook JavaScript SDK + אירועי Embedded Signup
@@ -702,6 +703,58 @@ const handleRegisterPhone = async () => {
 };
 
 
+const handleSubscribeWebhook = async () => {
+  if (!selectedAgentId) {
+    setDialog({
+      type: 'warning',
+      title: 'לא נבחר סוכן',
+      message: 'יש לבחור סוכן לפני חיבור ה-Webhook.',
+    });
+    return;
+  }
+
+  setSubscribingWebhook(true);
+
+  try {
+    const fn = httpsCallable(
+      functions,
+      'subscribeAgentWhatsAppWebhook'
+    );
+
+    const result = await fn({
+      agentId: selectedAgentId,
+    });
+
+    const data: any = result.data;
+
+    console.log(
+      '[subscribeAgentWhatsAppWebhook]',
+      data
+    );
+
+    setDialog({
+      type: 'success',
+      title: 'Webhook מחובר',
+      message:
+        data?.alreadySubscribed
+          ? 'ה-WABA כבר הייתה מחוברת ל-Webhook של האפליקציה.'
+          : 'ה-WABA חוברה בהצלחה ל-Webhook של האפליקציה.',
+    });
+  } catch (e: any) {
+    console.error(
+      '[subscribeAgentWhatsAppWebhook]',
+      e
+    );
+
+    setDialog({
+      type: 'error',
+      title: 'שגיאה בחיבור Webhook',
+      message: String(e?.message || e),
+    });
+  } finally {
+    setSubscribingWebhook(false);
+  }
+};
 
 
 const getTemplateVariableNumbers = (value: string): number[] => {
@@ -1106,6 +1159,35 @@ const handleRefreshTemplates = async () => {
         !selectedAgentId ||
         !registrationPin.trim() ||
         registering
+      }
+    />
+  </div>
+
+</div>
+<div className="border-t pt-4 mt-4">
+
+  <div className="font-bold mb-2">
+    חיבור Webhook ל-WABA
+  </div>
+
+  <div className="text-sm text-gray-500 mb-3">
+    מחבר את חשבון ה-WhatsApp של הסוכן ל-Webhook
+    של אפליקציית Meta, כדי שהודעות נכנסות וסטטוסים
+    יגיעו ל-MagicTouch.
+  </div>
+
+  <div className="flex justify-end">
+    <Button
+      text={
+        subscribingWebhook
+          ? '⏳ מחבר Webhook...'
+          : 'חיבור Webhook'
+      }
+      type="secondary"
+      onClick={handleSubscribeWebhook}
+      disabled={
+        !selectedAgentId ||
+        subscribingWebhook
       }
     />
   </div>
