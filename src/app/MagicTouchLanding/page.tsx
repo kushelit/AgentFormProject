@@ -118,6 +118,64 @@ export default function MagicTouchLandingPage() {
         <div className="absolute -right-32 top-20 h-[520px] w-[520px] rounded-full bg-purple-500/15 blur-[130px]" />
         <div className="absolute -left-20 bottom-0 h-[420px] w-[420px] rounded-full bg-cyan-400/10 blur-[130px]" />
 
+        {/* קווי ניאון מתעגלים כמו בשפה הגרפית של MagicTouch */}
+        <div className="pointer-events-none absolute inset-0 overflow-hidden">
+          <svg
+            className="absolute -left-[9%] top-[7%] h-[88%] w-[118%] opacity-80"
+            viewBox="0 0 1500 760"
+            fill="none"
+            aria-hidden="true"
+          >
+            <defs>
+              <linearGradient id="magicOrbitA" x1="180" y1="610" x2="1300" y2="120">
+                <stop offset="0%" stopColor="#06B6D4" stopOpacity="0" />
+                <stop offset="28%" stopColor="#0EA5E9" stopOpacity="0.72" />
+                <stop offset="58%" stopColor="#7C3AED" stopOpacity="0.95" />
+                <stop offset="86%" stopColor="#D946EF" stopOpacity="0.72" />
+                <stop offset="100%" stopColor="#D946EF" stopOpacity="0" />
+              </linearGradient>
+              <linearGradient id="magicOrbitB" x1="250" y1="80" x2="1380" y2="650">
+                <stop offset="0%" stopColor="#8B5CF6" stopOpacity="0" />
+                <stop offset="28%" stopColor="#8B5CF6" stopOpacity="0.6" />
+                <stop offset="62%" stopColor="#22D3EE" stopOpacity="0.8" />
+                <stop offset="100%" stopColor="#22D3EE" stopOpacity="0" />
+              </linearGradient>
+              <filter id="magicGlow" x="-30%" y="-30%" width="160%" height="160%">
+                <feGaussianBlur stdDeviation="5" result="blur" />
+                <feMerge>
+                  <feMergeNode in="blur" />
+                  <feMergeNode in="SourceGraphic" />
+                </feMerge>
+              </filter>
+            </defs>
+
+            <path
+              d="M180 565C386 736 612 703 758 528C921 333 1042 153 1363 210"
+              stroke="url(#magicOrbitA)"
+              strokeWidth="3"
+              strokeLinecap="round"
+              filter="url(#magicGlow)"
+            />
+            <path
+              d="M265 124C472 34 675 111 812 286C951 463 1074 607 1369 583"
+              stroke="url(#magicOrbitB)"
+              strokeWidth="2.2"
+              strokeLinecap="round"
+              filter="url(#magicGlow)"
+            />
+            <path
+              d="M617 655C711 573 766 493 822 390C884 275 945 183 1082 127"
+              stroke="#7C3AED"
+              strokeOpacity="0.36"
+              strokeWidth="1.5"
+              strokeDasharray="7 11"
+            />
+            <circle cx="1255" cy="232" r="5" fill="#D946EF" filter="url(#magicGlow)" />
+            <circle cx="1040" cy="170" r="4" fill="#22D3EE" filter="url(#magicGlow)" />
+            <circle cx="750" cy="536" r="3.5" fill="#60A5FA" filter="url(#magicGlow)" />
+          </svg>
+        </div>
+
         <div className="relative z-10 mx-auto max-w-7xl px-6 pb-8 pt-5 md:px-10">
           <motion.header
             className="flex items-center justify-between"
@@ -125,31 +183,26 @@ export default function MagicTouchLandingPage() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
           >
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-4">
               <Image
-                src="/static/img/landingImg/union-5.png"
-                alt="MagicSale"
-                width={150}
-                height={40}
-                className="h-auto w-28 sm:w-36"
+                src="/static/img/MagicTouch/MagicTouchLogo.png"
+                alt="MagicTouch"
+                width={305}
+                height={66}
+                priority
+                className="h-auto w-[205px] sm:w-[250px]"
               />
 
-              <div className="hidden h-7 w-px bg-white/20 md:block" />
+              <div className="hidden h-8 w-px bg-white/20 md:block" />
 
-              <div className="hidden md:block">
-                <div className="text-base font-semibold">MagicTouch</div>
-                <div className="text-sm text-cyan-200/70">
-                  Smart Process Automation
-                </div>
-                <a
-                  href="https://www.unamix.co.il/"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="mt-1 inline-block text-xs font-semibold text-slate-400 transition hover:text-cyan-200"
-                >
-                  מבית Unamix
-                </a>
-              </div>
+              <a
+                href="https://www.unamix.co.il/"
+                target="_blank"
+                rel="noreferrer"
+                className="hidden text-sm font-medium text-slate-400 transition hover:text-cyan-200 md:block"
+              >
+                מבית Unamix
+              </a>
             </div>
 
             <div className="hidden items-center gap-5 text-sm font-medium text-slate-300 lg:flex">
@@ -231,9 +284,17 @@ export default function MagicTouchLandingPage() {
               animate={{ opacity: 1, scale: 1 }}
               transition={{ duration: 0.8, delay: 0.2 }}
             >
+              <div className="absolute -inset-10 rounded-[45%] bg-purple-600/10 blur-[55px]" />
               <div className="absolute inset-0 rounded-[40px] bg-cyan-400/10 blur-3xl" />
 
-              <div className="relative rounded-[34px] border border-white/10 bg-white/[0.06] p-6 shadow-2xl backdrop-blur">
+              <div className="pointer-events-none absolute -inset-16">
+                <div className="absolute left-[4%] top-[18%] h-[60%] w-[92%] rotate-[-13deg] rounded-[50%] border border-violet-500/30 shadow-[0_0_35px_rgba(124,58,237,0.18)]" />
+                <div className="absolute left-[10%] top-[22%] h-[54%] w-[84%] rotate-[18deg] rounded-[50%] border border-cyan-400/25 shadow-[0_0_30px_rgba(34,211,238,0.16)]" />
+                <span className="absolute left-[4%] top-[53%] h-2.5 w-2.5 rounded-full bg-cyan-300 shadow-[0_0_18px_5px_rgba(34,211,238,0.55)]" />
+                <span className="absolute right-[1%] top-[26%] h-2.5 w-2.5 rounded-full bg-fuchsia-400 shadow-[0_0_18px_5px_rgba(217,70,239,0.55)]" />
+              </div>
+
+              <div className="relative rounded-[34px] border border-violet-400/20 bg-white/[0.065] p-6 shadow-[0_28px_80px_rgba(32,20,88,0.48)] backdrop-blur-xl">
                 <div className="mb-5 flex items-center justify-between">
                   <div>
                     <div className="text-lg font-semibold">תהליך לקוח</div>
@@ -273,7 +334,7 @@ export default function MagicTouchLandingPage() {
       </section>
 
       <section id="how-it-works" className="bg-white px-6 py-20 text-slate-900">
-        <div className="mx-auto max-w-7xl">
+        <div className="relative z-10 mx-auto max-w-7xl">
           <div className="mx-auto mb-14 max-w-3xl text-center">
             <div className="mb-3 text-base font-medium text-indigo-600">מה MagicTouch עושה?</div>
             <h2 className="text-3xl font-semibold leading-tight md:text-5xl">
@@ -309,8 +370,11 @@ export default function MagicTouchLandingPage() {
         </div>
       </section>
 
-      <section className="bg-[#0b1230] px-6 py-20 text-white">
-        <div className="mx-auto max-w-7xl">
+      <section className="relative overflow-hidden bg-[#070B22] px-6 py-20 text-white">
+        <div className="pointer-events-none absolute -right-40 top-1/2 h-[420px] w-[620px] -translate-y-1/2 rounded-[50%] border border-violet-500/15 rotate-[-12deg]" />
+        <div className="pointer-events-none absolute -left-44 top-1/2 h-[360px] w-[560px] -translate-y-1/2 rounded-[50%] border border-cyan-400/10 rotate-[16deg]" />
+        <div className="pointer-events-none absolute right-[8%] top-[18%] h-2 w-2 rounded-full bg-fuchsia-400/80 shadow-[0_0_18px_5px_rgba(217,70,239,0.35)]" />
+        <div className="relative z-10 mx-auto max-w-7xl">
           <div className="mb-14 text-center">
             <div className="mb-3 text-base font-medium text-cyan-300">דוגמה פשוטה</div>
             <h2 className="text-3xl font-semibold md:text-5xl">כך תהליך אחד יכול להיראות</h2>
@@ -340,7 +404,7 @@ export default function MagicTouchLandingPage() {
       </section>
 
       <section className="bg-slate-50 px-6 py-20 text-slate-900">
-        <div className="mx-auto max-w-7xl">
+        <div className="relative z-10 mx-auto max-w-7xl">
           <div className="mx-auto mb-14 max-w-4xl text-center">
             <div className="mb-3 text-base font-medium text-indigo-600">מה משתנה ביום העבודה?</div>
             <h2 className="text-3xl font-semibold leading-tight md:text-5xl">
@@ -442,20 +506,25 @@ export default function MagicTouchLandingPage() {
         </div>
       </section>
 
-      <section className="bg-[#0b1230] px-6 py-20 text-white">
-        <div className="mx-auto max-w-6xl text-center">
-          <div className="mb-3 text-base font-medium text-cyan-300">ומה כשצריך אדם?</div>
+      <section className="relative overflow-hidden bg-[#070B22] px-6 py-20 text-white">
+        <div className="pointer-events-none absolute -right-40 top-1/2 h-[420px] w-[620px] -translate-y-1/2 rounded-[50%] border border-violet-500/15 rotate-[-12deg]" />
+        <div className="pointer-events-none absolute -left-44 top-1/2 h-[360px] w-[560px] -translate-y-1/2 rounded-[50%] border border-cyan-400/10 rotate-[16deg]" />
+        <div className="pointer-events-none absolute right-[8%] top-[18%] h-2 w-2 rounded-full bg-fuchsia-400/80 shadow-[0_0_18px_5px_rgba(217,70,239,0.35)]" />
+        <div className="relative z-10 mx-auto max-w-6xl text-center">
+          <div className="mb-3 text-base font-medium text-cyan-300">
+            פחות ידני. יותר אוטומטי.
+          </div>
 
           <h2 className="text-3xl font-semibold leading-tight md:text-5xl">
-            MagicTouch לא אמורה להחליף את העובד.
+            MagicTouch חוסכת לך
             <br />
-            היא אמורה לחסוך לו את מה שלא צריך לעשות ידנית.
+            את מה שלא צריך לעשות ידנית.
           </h2>
 
           <p className="mx-auto mt-6 max-w-3xl text-lg leading-8 text-slate-300 md:text-xl">
-            כשהתהליך יכול להמשיך לבד — הוא ממשיך.
-            כשצריך החלטה, שיחה או טיפול אנושי —
-            MagicTouch עוצרת בשלב הנכון ומעבירה את הטיפול לעובד.
+            הודעות, קישורים, תזכורות, בדיקות סטטוס והמשך לשלב הבא
+            יכולים להתבצע כחלק מהתהליך —
+            בלי לזכור בכל פעם מה צריך לעשות עכשיו.
           </p>
         </div>
       </section>

@@ -27,17 +27,23 @@ import {
   useMagicTouchAgent,
 } from "@/components/MagicTouch/MagicTouchAgentContext";
 
-import WhatsAppTemplateBuilder from
-  "@/components/MagicTouch/Integrations/WhatsAppTemplateBuilder";
+import WhatsAppTemplateBuilder, {
+  WhatsAppTemplateEditValue,
+  WhatsAppTemplateUrlButton,
+} from "@/components/MagicTouch/Integrations/WhatsAppTemplateBuilder";
 
 type WhatsAppTemplate = {
   id: string;
   name: string;
+  metaTemplateId: string;
   category?: string | null;
   language?: string | null;
   status?: string | null;
   bodyText?: string | null;
+  bodyExamples?: string[];
   quickReplyButtons?: string[];
+  quickReplyActions?: Record<string, string>;
+  urlButton?: WhatsAppTemplateUrlButton | null;
 };
 
 type RefreshTemplatesResponse = {
@@ -123,6 +129,14 @@ export default function MagicTouchTemplatesPage() {
     );
 
   const [
+    editingTemplate,
+    setEditingTemplate,
+  ] =
+    useState<WhatsAppTemplateEditValue | null>(
+      null
+    );
+
+  const [
     isLoadingTemplates,
     setIsLoadingTemplates,
   ] =
@@ -191,6 +205,12 @@ export default function MagicTouchTemplatesPage() {
                         templateDoc.id
                     ),
 
+                  metaTemplateId:
+                    String(
+                      data?.metaTemplateId ||
+                        ""
+                    ),
+
                   category:
                     data?.category ||
                     null,
@@ -207,6 +227,20 @@ export default function MagicTouchTemplatesPage() {
                     data?.bodyText ||
                     null,
 
+                  bodyExamples:
+                    Array.isArray(
+                      data?.bodyExamples
+                    )
+                      ? data.bodyExamples.map(
+                          (
+                            value: unknown
+                          ) =>
+                            String(
+                              value
+                            )
+                        )
+                      : [],
+
                   quickReplyButtons:
                     Array.isArray(
                       data?.quickReplyButtons
@@ -220,6 +254,32 @@ export default function MagicTouchTemplatesPage() {
                             )
                         )
                       : [],
+
+                  quickReplyActions:
+                    data?.quickReplyActions &&
+                    typeof data.quickReplyActions ===
+                      "object"
+                      ? data.quickReplyActions
+                      : {},
+
+                  urlButton:
+                    data?.urlButton &&
+                    typeof data.urlButton ===
+                      "object"
+                      ? {
+                          text:
+                            String(
+                              data.urlButton.text ||
+                                ""
+                            ),
+
+                          url:
+                            String(
+                              data.urlButton.url ||
+                                ""
+                            ),
+                        }
+                      : null,
                 };
               }
             )
@@ -329,6 +389,50 @@ export default function MagicTouchTemplatesPage() {
       }
     };
 
+  const startEdit =
+    (
+      template:
+        WhatsAppTemplate
+    ) => {
+      if (
+        !template.metaTemplateId
+      ) {
+        setToast({
+          type: "error",
+          title: "לא ניתן לערוך את התבנית",
+          message:
+            "לתבנית אין Meta Template ID. נסי קודם רענון תבניות מ־Meta.",
+        });
+        return;
+      }
+
+      setEditingTemplate({
+        name:
+          template.name,
+        metaTemplateId:
+          template.metaTemplateId,
+        category:
+          template.category,
+        language:
+          template.language,
+        bodyText:
+          template.bodyText,
+        bodyExamples:
+          template.bodyExamples,
+        quickReplyButtons:
+          template.quickReplyButtons,
+        quickReplyActions:
+          template.quickReplyActions,
+        urlButton:
+          template.urlButton,
+      });
+
+      window.scrollTo({
+        top: 0,
+        behavior: "smooth",
+      });
+    };
+
   return (
     <section
       dir="rtl"
@@ -401,10 +505,29 @@ export default function MagicTouchTemplatesPage() {
           </div>
         ) : (
           <WhatsAppTemplateBuilder
+            key={
+              editingTemplate
+                ?.metaTemplateId ||
+              "create"
+            }
             agentId={
               agentId
             }
+            editingTemplate={
+              editingTemplate
+            }
+            onCancelEdit={() =>
+              setEditingTemplate(
+                null
+              )
+            }
             onCreated={() => {
+              void loadTemplates();
+            }}
+            onUpdated={() => {
+              setEditingTemplate(
+                null
+              );
               void loadTemplates();
             }}
           />
@@ -460,6 +583,10 @@ export default function MagicTouchTemplatesPage() {
                     <th className="px-4 py-3">
                       כפתורים
                     </th>
+
+                    <th className="px-4 py-3">
+                      פעולות
+                    </th>
                   </tr>
                 </thead>
 
@@ -508,11 +635,10 @@ export default function MagicTouchTemplatesPage() {
                         </td>
 
                         <td className="px-4 py-3">
-                          {template
-                            .quickReplyButtons
-                            ?.length ? (
-                            <div className="flex flex-wrap gap-1">
-                              {template.quickReplyButtons.map(
+                          <div className="flex flex-wrap gap-1">
+                            {template
+                              .quickReplyButtons
+                              ?.map(
                                 (
                                   button
                                 ) => (
@@ -526,10 +652,47 @@ export default function MagicTouchTemplatesPage() {
                                   </span>
                                 )
                               )}
-                            </div>
-                          ) : (
-                            "—"
-                          )}
+
+                            {template
+                              .urlButton
+                              ?.text ? (
+                              <span className="rounded border border-blue-200 bg-blue-50 px-2 py-1 text-xs text-blue-700">
+                                🔗{" "}
+                                {
+                                  template
+                                    .urlButton
+                                    .text
+                                }
+                              </span>
+                            ) : null}
+
+                            {!template
+                              .quickReplyButtons
+                              ?.length &&
+                            !template
+                              .urlButton
+                              ?.text
+                              ? "—"
+                              : null}
+                          </div>
+                        </td>
+
+                        <td className="px-4 py-3">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              startEdit(
+                                template
+                              )
+                            }
+                            disabled={
+                              !template
+                                .metaTemplateId
+                            }
+                            className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-bold text-blue-700 hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            עריכה
+                          </button>
                         </td>
                       </tr>
                     )

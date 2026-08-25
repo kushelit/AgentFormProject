@@ -338,3 +338,6 @@ export {
 } from "./ensureMagicTouchOnboardingInboundFlow";
 
 export { subscribeAgentWhatsAppWebhook } from "./subscribeAgentWhatsAppWebhook";
+
+export { updateWhatsAppTemplate } from "./updateWhatsAppTemplate";
+

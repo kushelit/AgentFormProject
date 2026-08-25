@@ -13,6 +13,14 @@ import {
 
 const WA_API_URL = "https://graph.facebook.com/v25.0";
 const MAX_QUICK_REPLY_BUTTONS = 3;
+const MAX_URL_BUTTONS = 1;
+
+const ALLOWED_QUICK_REPLY_ACTIONS = new Set([
+  "interested",
+  "declined",
+  "booking",
+  "other",
+]);
 
 function s(v: any): string {
   return String(v ?? "").trim();
@@ -23,6 +31,44 @@ function normalizeTemplateName(v: string): string {
     .toLowerCase()
     .replace(/\s+/g, "_")
     .replace(/[^a-z0-9_]/g, "");
+}
+
+function normalizeHttpUrl(v: unknown): string {
+  const value =
+    s(v);
+
+  if (!value) {
+    return "";
+  }
+
+  let parsed:
+    URL;
+
+  try {
+    parsed =
+      new URL(
+        value
+      );
+  } catch {
+    throw new HttpsError(
+      "invalid-argument",
+      "Invalid URL button URL"
+    );
+  }
+
+  if (
+    parsed.protocol !==
+      "https:" &&
+    parsed.protocol !==
+      "http:"
+  ) {
+    throw new HttpsError(
+      "invalid-argument",
+      "URL button must use http:// or https://"
+    );
+  }
+
+  return parsed.toString();
 }
 
 /**
@@ -126,6 +172,60 @@ function normalizeQuickReplyButtons(rawButtons: unknown): string[] {
   }
 
   return buttons;
+}
+
+function normalizeUrlButton(
+  rawButton: unknown
+): {
+  text: string;
+  url: string;
+} | null {
+  if (
+    !rawButton ||
+    typeof rawButton !==
+      "object"
+  ) {
+    return null;
+  }
+
+  const text =
+    s(
+      (rawButton as any)
+        ?.text
+    );
+
+  const rawUrl =
+    s(
+      (rawButton as any)
+        ?.url
+    );
+
+  if (
+    !text &&
+    !rawUrl
+  ) {
+    return null;
+  }
+
+  if (
+    !text ||
+    !rawUrl
+  ) {
+    throw new HttpsError(
+      "invalid-argument",
+      "URL button requires both text and url"
+    );
+  }
+
+  const url =
+    normalizeHttpUrl(
+      rawUrl
+    );
+
+  return {
+    text,
+    url,
+  };
 }
 
 export async function createWhatsAppTemplateImpl(
@@ -238,6 +338,28 @@ export async function createWhatsAppTemplateImpl(
     body.quickReplyButtons
   );
 
+  const urlButton =
+    normalizeUrlButton(
+      body.urlButton
+    );
+
+  const urlButtons =
+    urlButton
+      ? [
+          urlButton,
+        ]
+      : [];
+
+  if (
+    urlButtons.length >
+    MAX_URL_BUTTONS
+  ) {
+    throw new HttpsError(
+      "invalid-argument",
+      `A maximum of ${MAX_URL_BUTTONS} URL button is allowed`
+    );
+  }
+
   const waConfigSnap = await (db as any)
     .doc(`agents/${agentId}/config/whatsapp`)
     .get();
@@ -310,13 +432,27 @@ export async function createWhatsAppTemplateImpl(
 
   components.push(bodyComponent);
 
-  if (quickReplyButtons.length > 0) {
+  const templateButtons: any[] = [];
+
+  for (const text of quickReplyButtons) {
+    templateButtons.push({
+      type: "QUICK_REPLY",
+      text,
+    });
+  }
+
+  if (urlButton) {
+    templateButtons.push({
+      type: "URL",
+      text: urlButton.text,
+      url: urlButton.url,
+    });
+  }
+
+  if (templateButtons.length > 0) {
     components.push({
       type: "BUTTONS",
-      buttons: quickReplyButtons.map((text) => ({
-        type: "QUICK_REPLY",
-        text,
-      })),
+      buttons: templateButtons,
     });
   }
 
@@ -387,8 +523,9 @@ export async function createWhatsAppTemplateImpl(
       );
 
       if (
-        action === "interested" ||
-        action === "declined"
+        ALLOWED_QUICK_REPLY_ACTIONS.has(
+          action
+        )
       ) {
         result[buttonText] = action;
       }
@@ -416,6 +553,9 @@ export async function createWhatsAppTemplateImpl(
       quickReplyButtons,
       hasQuickReplies: quickReplyButtons.length > 0,
       quickReplyActions,
+
+      urlButton,
+      hasUrlButton: Boolean(urlButton),
 
       componentsJson: JSON.stringify(components),
 
@@ -454,5 +594,6 @@ export async function createWhatsAppTemplateImpl(
     bodyVariableCount,
     quickReplyButtons,
     quickReplyActions,
+    urlButton,
   };
 }
