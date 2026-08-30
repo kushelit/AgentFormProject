@@ -3,6 +3,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { HttpsError } from "firebase-functions/v2/https";
+import { getStorage } from "firebase-admin/storage";
 
 import { nowTs } from "./admin";
 import { PORTAL_ENC_KEY_B64 } from "./secrets";
@@ -23,6 +24,14 @@ export type MagicTouchWhatsAppTemplateContext = {
   templateLanguage: string;
   templateBodyText: string;
   bodyVariableCount: number;
+
+  headerMedia: {
+    type: "DOCUMENT" | "IMAGE";
+    storagePath: string;
+    fileName: string;
+    mimeType: string;
+    size: number;
+  } | null;
 };
 
 export type SendMagicTouchTemplateToContactInput = {
@@ -134,6 +143,244 @@ function replaceTemplateVariables(
   );
 
   return result;
+}
+
+
+function normalizeStoredHeaderMedia(
+  rawMedia: unknown
+): MagicTouchWhatsAppTemplateContext["headerMedia"] {
+  if (
+    !rawMedia ||
+    typeof rawMedia !== "object"
+  ) {
+    return null;
+  }
+
+  const type =
+    safeString(
+      (rawMedia as any)?.type
+    ).toUpperCase();
+
+  const storagePath =
+    safeString(
+      (rawMedia as any)?.storagePath
+    );
+
+  const fileName =
+    safeString(
+      (rawMedia as any)?.fileName
+    );
+
+  const mimeType =
+    safeString(
+      (rawMedia as any)?.mimeType
+    ).toLowerCase();
+
+  const size =
+    Number(
+      (rawMedia as any)?.size ||
+      0
+    );
+
+  if (
+    type !== "DOCUMENT" &&
+    type !== "IMAGE"
+  ) {
+    return null;
+  }
+
+  if (!storagePath) {
+    throw new HttpsError(
+      "failed-precondition",
+      "WhatsApp template header media is missing storagePath"
+    );
+  }
+
+  return {
+    type:
+      type as
+        | "DOCUMENT"
+        | "IMAGE",
+
+    storagePath,
+
+    fileName:
+      fileName ||
+      (
+        type === "DOCUMENT"
+          ? "document.pdf"
+          : "image"
+      ),
+
+    mimeType:
+      mimeType ||
+      (
+        type === "DOCUMENT"
+          ? "application/pdf"
+          : "image/jpeg"
+      ),
+
+    size:
+      Number.isFinite(size) &&
+      size > 0
+        ? size
+        : 0,
+  };
+}
+
+async function uploadStoredTemplateMediaToWhatsApp({
+  phoneNumberId,
+  accessToken,
+  headerMedia,
+}: {
+  phoneNumberId: string;
+  accessToken: string;
+  headerMedia: NonNullable<
+    MagicTouchWhatsAppTemplateContext["headerMedia"]
+  >;
+}): Promise<string> {
+  const storageFile =
+    getStorage()
+      .bucket()
+      .file(
+        headerMedia.storagePath
+      );
+
+  let fileBuffer:
+    Buffer;
+
+  try {
+    [
+      fileBuffer,
+    ] =
+      await storageFile.download();
+  } catch (
+    error: any
+  ) {
+    console.error(
+      "[sendMagicTouchTemplateToContact] Could not read template media from Storage",
+      {
+        storagePath:
+          headerMedia.storagePath,
+
+        error:
+          error?.message ||
+          String(
+            error
+          ),
+      }
+    );
+
+    throw new HttpsError(
+      "failed-precondition",
+      "Template media file was not found"
+    );
+  }
+
+  const formData =
+    new FormData();
+
+  formData.append(
+    "messaging_product",
+    "whatsapp"
+  );
+
+  formData.append(
+    "type",
+    headerMedia.mimeType
+  );
+
+  formData.append(
+    "file",
+    new Blob(
+      [
+        fileBuffer,
+      ],
+      {
+        type:
+          headerMedia.mimeType,
+      }
+    ),
+    headerMedia.fileName
+  );
+
+  console.log(
+    "[sendMagicTouchTemplateToContact] Uploading template header media",
+    {
+      phoneNumberId,
+      type:
+        headerMedia.type,
+      storagePath:
+        headerMedia.storagePath,
+      fileName:
+        headerMedia.fileName,
+      mimeType:
+        headerMedia.mimeType,
+      bytes:
+        fileBuffer.length,
+    }
+  );
+
+  const mediaResponse =
+    await fetch(
+      `${WA_API_URL}/${phoneNumberId}/media`,
+      {
+        method:
+          "POST",
+
+        headers: {
+          Authorization:
+            `Bearer ${accessToken}`,
+        },
+
+        body:
+          formData,
+      }
+    );
+
+  const mediaResponseData: any =
+    await mediaResponse.json();
+
+  const mediaId =
+    safeString(
+      mediaResponseData?.id
+    );
+
+  if (
+    !mediaResponse.ok ||
+    !mediaId
+  ) {
+    console.error(
+      "[sendMagicTouchTemplateToContact] Meta media upload error",
+      {
+        phoneNumberId,
+        storagePath:
+          headerMedia.storagePath,
+        response:
+          mediaResponseData,
+      }
+    );
+
+    throw new HttpsError(
+      "failed-precondition",
+      mediaResponseData
+        ?.error
+        ?.message ||
+        "Failed to upload WhatsApp template media"
+    );
+  }
+
+  console.log(
+    "[sendMagicTouchTemplateToContact] Template header media uploaded",
+    {
+      phoneNumberId,
+      mediaId,
+      storagePath:
+        headerMedia.storagePath,
+    }
+  );
+
+  return mediaId;
 }
 
 export async function loadMagicTouchWhatsAppTemplateContext({
@@ -260,6 +507,33 @@ export async function loadMagicTouchWhatsAppTemplateContext({
       0
     );
 
+  const headerMedia =
+    normalizeStoredHeaderMedia(
+      template?.headerMedia
+    );
+
+  console.log(
+    "[loadMagicTouchWhatsAppTemplateContext] Template context loaded",
+    {
+      agentId:
+        normalizedAgentId,
+      templateName:
+        normalizedTemplateName,
+      templateStatus,
+      bodyVariableCount,
+      hasHeaderMedia:
+        Boolean(
+          headerMedia
+        ),
+      headerMediaType:
+        headerMedia?.type ||
+        null,
+      storagePath:
+        headerMedia?.storagePath ||
+        null,
+    }
+  );
+
   if (
     !Number.isInteger(
       bodyVariableCount
@@ -324,6 +598,7 @@ export async function loadMagicTouchWhatsAppTemplateContext({
     templateLanguage,
     templateBodyText,
     bodyVariableCount,
+    headerMedia,
   };
 }
 
@@ -421,28 +696,119 @@ export async function sendMagicTouchTemplateToContact(
       },
     };
 
+  const templateComponents:
+    any[] = [];
+
+  let sentHeaderMediaId:
+    string | null = null;
+
+  if (
+    context.headerMedia
+  ) {
+    sentHeaderMediaId =
+      await uploadStoredTemplateMediaToWhatsApp({
+        phoneNumberId:
+          context.phoneNumberId,
+
+        accessToken:
+          context.accessToken,
+
+        headerMedia:
+          context.headerMedia,
+      });
+
+    templateComponents.push({
+      type:
+        "header",
+
+      parameters: [
+        {
+          type:
+            context.headerMedia.type ===
+              "DOCUMENT"
+              ? "document"
+              : "image",
+
+          [
+            context.headerMedia.type ===
+              "DOCUMENT"
+              ? "document"
+              : "image"
+          ]: {
+            id:
+              sentHeaderMediaId,
+
+            ...(context.headerMedia.type ===
+              "DOCUMENT"
+              ? {
+                  filename:
+                    context.headerMedia.fileName,
+                }
+              : {}),
+          },
+        },
+      ],
+    });
+  }
+
   if (
     templateVariables.length >
     0
   ) {
-    templatePayload.components = [
-      {
-        type:
-          "body",
+    templateComponents.push({
+      type:
+        "body",
 
-        parameters:
-          templateVariables.map(
-            (value) => ({
-              type:
-                "text",
+      parameters:
+        templateVariables.map(
+          (value) => ({
+            type:
+              "text",
 
-              text:
-                value,
-            })
-          ),
-      },
-    ];
+            text:
+              value,
+          })
+        ),
+    });
   }
+
+  if (
+    templateComponents.length >
+    0
+  ) {
+    templatePayload.components =
+      templateComponents;
+  }
+
+  console.log(
+    "[sendMagicTouchTemplateToContact] Sending template",
+    {
+      agentId,
+      contactId,
+      campaignId,
+      to:
+        phoneNormalized,
+      templateName:
+        context.templateName,
+      templateLanguage:
+        context.templateLanguage,
+      bodyVariableCount:
+        templateVariables.length,
+      hasHeaderMedia:
+        Boolean(
+          context.headerMedia
+        ),
+      headerMediaType:
+        context.headerMedia?.type ||
+        null,
+      sentHeaderMediaId,
+      components:
+        templateComponents.map(
+          (component) =>
+            component?.type
+        ),
+    }
+  );
 
   const response =
     await fetch(
@@ -500,6 +866,8 @@ export async function sendMagicTouchTemplateToContact(
         agentId,
         contactId,
         campaignId,
+        httpStatus:
+          response.status,
         response:
           responseData,
       }
@@ -620,6 +988,26 @@ export async function sendMagicTouchTemplateToContact(
 
         templateVariables,
 
+        headerMedia:
+          context.headerMedia
+            ? {
+                type:
+                  context.headerMedia.type,
+
+                storagePath:
+                  context.headerMedia.storagePath,
+
+                fileName:
+                  context.headerMedia.fileName,
+
+                mimeType:
+                  context.headerMedia.mimeType,
+
+                waMediaId:
+                  sentHeaderMediaId,
+              }
+            : null,
+
         text:
           messagePreview,
 
@@ -723,6 +1111,23 @@ export async function sendMagicTouchTemplateToContact(
             context.templateLanguage,
 
           templateVariables,
+
+          headerMedia:
+            context.headerMedia
+              ? {
+                  type:
+                    context.headerMedia.type,
+
+                  fileName:
+                    context.headerMedia.fileName,
+
+                  storagePath:
+                    context.headerMedia.storagePath,
+
+                  waMediaId:
+                    sentHeaderMediaId,
+                }
+              : null,
         },
       });
 

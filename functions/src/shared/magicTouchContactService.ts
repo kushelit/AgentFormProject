@@ -2,7 +2,10 @@
 /* eslint-disable max-len */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import { adminDb, nowTs } from "./admin";
+import {
+  adminDb,
+  nowTs,
+} from "./admin";
 
 import {
   createMagicTouchContactId,
@@ -10,6 +13,7 @@ import {
   normalizeMagicTouchPhone,
   safeString,
   splitFullName,
+  formatMagicTouchPhoneForDisplay,
   type MagicTouchSourceSystem,
 } from "./magicTouchContacts";
 
@@ -43,7 +47,6 @@ export type UpsertMagicTouchContactInput = {
   tags?: string[];
 };
 
-
 export type UpsertMagicTouchContactResult = {
   contactId: string;
 
@@ -67,8 +70,13 @@ function normalizeTags(
   return Array.from(
     new Set(
       values
-        .map((value) =>
-          safeString(value)
+        .map(
+          (
+            value
+          ) =>
+            safeString(
+              value
+            )
         )
         .filter(Boolean)
     )
@@ -76,21 +84,32 @@ function normalizeTags(
 }
 
 export async function upsertMagicTouchContact(
-  input: UpsertMagicTouchContactInput
+  input:
+    UpsertMagicTouchContactInput
 ): Promise<UpsertMagicTouchContactResult> {
   const agentId =
-    safeString(input.agentId);
+    safeString(
+      input.agentId
+    );
 
   const sourceSystem =
     safeString(
       input.sourceSystem
     ).toLowerCase() as MagicTouchSourceSystem;
 
-   const sourceRecordId =
+  const sourceRecordId =
     safeString(
       input.sourceRecordId
     );
 
+  /*
+   * ברירת המחדל היא שהזהות של Contact
+   * חיצוני נקבעת לפי מזהה הרשומה
+   * במערכת המקור.
+   *
+   * לדוגמה:
+   * Surense Customer ID.
+   */
   const sourceIdentity =
     safeString(
       input.sourceIdentity
@@ -116,10 +135,14 @@ export async function upsertMagicTouchContact(
   }
 
   const fullName =
-    safeString(input.fullName);
+    safeString(
+      input.fullName
+    );
 
   const splitName =
-    splitFullName(fullName);
+    splitFullName(
+      fullName
+    );
 
   const firstName =
     safeString(
@@ -133,16 +156,25 @@ export async function upsertMagicTouchContact(
     ) ||
     splitName.lastName;
 
-  const phone =
-    safeString(input.phone);
+  const rawPhone =
+  safeString(
+    input.phone
+  );
 
-  const phoneNormalized =
-    normalizeMagicTouchPhone(
-      phone
-    );
+const phone =
+  formatMagicTouchPhoneForDisplay(
+    rawPhone
+  );
+
+const phoneNormalized =
+  normalizeMagicTouchPhone(
+    rawPhone
+  );
 
   const email =
-    safeString(input.email);
+    safeString(
+      input.email
+    );
 
   const emailNormalized =
     normalizeMagicTouchEmail(
@@ -150,30 +182,49 @@ export async function upsertMagicTouchContact(
     );
 
   const idNumber =
-    safeString(input.idNumber);
+    safeString(
+      input.idNumber
+    );
 
   const gender =
-    safeString(input.gender);
+    safeString(
+      input.gender
+    );
 
   const birthDate =
-    safeString(input.birthDate);
+    safeString(
+      input.birthDate
+    );
 
   const incomingTags =
-    normalizeTags(input.tags);
+    normalizeTags(
+      input.tags
+    );
 
   const sourceData =
     input.sourceData &&
-    typeof input.sourceData === "object"
+    typeof input.sourceData ===
+      "object"
       ? input.sourceData
       : {};
 
-   const contactId =
+  /*
+   * ה-contactId דטרמיניסטי לפי:
+   *
+   * sourceSystem + sourceIdentity
+   *
+   * לכן משיכה חוזרת של אותו
+   * Surense Customer ID מגיעה
+   * לאותו Contact ולא יוצרת כפילות.
+   */
+  const contactId =
     createMagicTouchContactId(
       sourceSystem,
       sourceIdentity
     );
 
-  const db = adminDb();
+  const db =
+    adminDb();
 
   const contactRef =
     (db as any).doc(
@@ -188,8 +239,12 @@ export async function upsertMagicTouchContact(
     | "updated" =
     "created";
 
-  await (db as any).runTransaction(
-    async (transaction: any) => {
+  await (
+    db as any
+  ).runTransaction(
+    async (
+      transaction: any
+    ) => {
       const existingSnap =
         await transaction.get(
           contactRef
@@ -205,12 +260,14 @@ export async function upsertMagicTouchContact(
 
       const existingData =
         exists
-          ? existingSnap.data() || {}
+          ? existingSnap.data() ||
+            {}
           : {};
 
       const existingSourceData =
         existingData.sourceData &&
-        typeof existingData.sourceData === "object"
+        typeof existingData.sourceData ===
+          "object"
           ? existingData.sourceData
           : {};
 
@@ -227,71 +284,95 @@ export async function upsertMagicTouchContact(
           ])
         );
 
+      /*
+       * הנתונים שמגיעים עכשיו
+       * ממערכת המקור מחליפים/מעדכנים
+       * את אותם שדות במקור,
+       * אבל לא מוחקים נתונים של
+       * מערכות מקור אחרות.
+       */
       const nextSourceData = {
         ...existingSourceData,
 
         [sourceSystem]: {
-          ...(existingSourceData[
-            sourceSystem
-          ] || {}),
+          ...(
+            existingSourceData[
+              sourceSystem
+            ] ||
+            {}
+          ),
 
           ...sourceData,
         },
       };
 
-      const commonFields: Record<
-        string,
-        any
-      > = {
-        agentId,
+      const commonFields:
+        Record<
+          string,
+          any
+        > = {
+          agentId,
 
-        fullName:
-          fullName || null,
+          fullName:
+            fullName ||
+            null,
 
-        firstName:
-          firstName || null,
+          firstName:
+            firstName ||
+            null,
 
-        lastName:
-          lastName || null,
+          lastName:
+            lastName ||
+            null,
 
-        phone:
-          phone || null,
+          phone:
+            phone ||
+            null,
 
-        phoneNormalized:
-          phoneNormalized || null,
+          phoneNormalized:
+            phoneNormalized ||
+            null,
 
-        email:
-          email || null,
+          email:
+            email ||
+            null,
 
-        emailNormalized:
-          emailNormalized || null,
+          emailNormalized:
+            emailNormalized ||
+            null,
 
-        idNumber:
-          idNumber || null,
+          idNumber:
+            idNumber ||
+            null,
 
-        gender:
-          gender || null,
+          gender:
+            gender ||
+            null,
 
-        birthDate:
-          birthDate || null,
+          birthDate:
+            birthDate ||
+            null,
 
-        sourceSystem,
+          sourceSystem,
 
-        sourceRecordId,
+          sourceRecordId,
 
-        sourceData:
-          nextSourceData,
+          sourceData:
+            nextSourceData,
 
-        tags:
-          mergedTags,
+          tags:
+            mergedTags,
 
-        sourceLastSyncedAt:
-          timestamp,
+          sourceLastSyncedAt:
+            timestamp,
 
-        updatedAt:
-          timestamp,
-      };
+          updatedAt:
+            timestamp,
+        };
 
+      /*
+       * Contact חדש.
+       */
       if (!exists) {
         transaction.set(
           contactRef,
@@ -333,6 +414,12 @@ export async function upsertMagicTouchContact(
         return;
       }
 
+      /*
+       * Contact קיים:
+       *
+       * מעדכנים אותו במקום
+       * ליצור Contact נוסף.
+       */
       transaction.set(
         contactRef,
         commonFields,

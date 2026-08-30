@@ -35,6 +35,14 @@ type WhatsAppTemplate = {
   bodyExamples?: string[];
 
   quickReplyButtons?: string[];
+
+  headerMedia?: {
+    type: 'DOCUMENT' | 'IMAGE';
+    storagePath?: string;
+    fileName: string;
+    mimeType: string;
+    size: number;
+  } | null;
 };
 
 type CampaignResultItem = {
@@ -260,6 +268,78 @@ export default function SendMagicTouchCampaignModal({
                             )
                         )
                       : [],
+
+                  headerMedia:
+                    data?.headerMedia &&
+                    (
+                      String(
+                        data.headerMedia?.type ||
+                        ''
+                      ).toUpperCase() ===
+                        'DOCUMENT' ||
+                      String(
+                        data.headerMedia?.type ||
+                        ''
+                      ).toUpperCase() ===
+                        'IMAGE'
+                    )
+                      ? {
+                          type:
+                            String(
+                              data.headerMedia.type
+                            ).toUpperCase() as
+                              | 'DOCUMENT'
+                              | 'IMAGE',
+
+                          storagePath:
+                            data.headerMedia
+                              ?.storagePath
+                              ? String(
+                                  data.headerMedia
+                                    .storagePath
+                                )
+                              : undefined,
+
+                          fileName:
+                            String(
+                              data.headerMedia
+                                ?.fileName ||
+                              (
+                                String(
+                                  data.headerMedia
+                                    ?.type ||
+                                  ''
+                                ).toUpperCase() ===
+                                'DOCUMENT'
+                                  ? 'document.pdf'
+                                  : 'image'
+                              )
+                            ),
+
+                          mimeType:
+                            String(
+                              data.headerMedia
+                                ?.mimeType ||
+                              (
+                                String(
+                                  data.headerMedia
+                                    ?.type ||
+                                  ''
+                                ).toUpperCase() ===
+                                'DOCUMENT'
+                                  ? 'application/pdf'
+                                  : 'image/jpeg'
+                              )
+                            ),
+
+                          size:
+                            Number(
+                              data.headerMedia
+                                ?.size ||
+                              0
+                            ),
+                        }
+                      : null,
                 } satisfies WhatsAppTemplate;
               }
             );
@@ -837,6 +917,21 @@ export default function SendMagicTouchCampaignModal({
                                       ) : null}
                                     </div>
 
+                                    {template.headerMedia ? (
+                                      <div className="mt-1.5 flex items-center gap-1.5 text-[11px] font-semibold text-slate-500">
+                                        <span>
+                                          {template.headerMedia.type ===
+                                          'DOCUMENT'
+                                            ? '📄'
+                                            : '🖼️'}
+                                        </span>
+
+                                        <span className="truncate">
+                                          {template.headerMedia.fileName}
+                                        </span>
+                                      </div>
+                                    ) : null}
+
                                     {template.bodyText ? (
                                       <div className="mt-1.5 line-clamp-1 text-xs text-slate-400">
                                         {replaceTemplatePreview(
@@ -880,6 +975,32 @@ export default function SendMagicTouchCampaignModal({
                     {selectedTemplate?.bodyText ? (
                       <>
                         <div className="mx-auto max-w-[390px] rounded-2xl bg-white p-5 text-sm leading-7 text-slate-700 shadow-sm ring-1 ring-slate-100">
+                          {selectedTemplate.headerMedia ? (
+                            <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                              <div className="flex items-center gap-3">
+                                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-white text-xl shadow-sm ring-1 ring-slate-100">
+                                  {selectedTemplate.headerMedia.type ===
+                                  'DOCUMENT'
+                                    ? '📄'
+                                    : '🖼️'}
+                                </div>
+
+                                <div className="min-w-0 flex-1">
+                                  <div className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                                    {selectedTemplate.headerMedia.type ===
+                                    'DOCUMENT'
+                                      ? 'PDF / DOCUMENT'
+                                      : 'IMAGE'}
+                                  </div>
+
+                                  <div className="mt-0.5 truncate text-xs font-semibold text-slate-700">
+                                    {selectedTemplate.headerMedia.fileName}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          ) : null}
+
                           <div className="whitespace-pre-wrap">
                             {templatePreview}
                           </div>
@@ -1016,8 +1137,31 @@ export default function SendMagicTouchCampaignModal({
                     ההודעה שתישלח
                   </div>
 
-                  <div className="mt-2 max-h-[170px] overflow-y-auto whitespace-pre-wrap rounded-xl bg-white p-3 text-sm leading-6 text-slate-700 ring-1 ring-slate-100">
-                    {templatePreview}
+                  <div className="mt-2 max-h-[210px] overflow-y-auto rounded-xl bg-white p-3 text-sm leading-6 text-slate-700 ring-1 ring-slate-100">
+                    {selectedTemplate.headerMedia ? (
+                      <div className="mb-3 flex items-center gap-2 rounded-lg bg-slate-50 p-2.5">
+                        <span className="text-lg">
+                          {selectedTemplate.headerMedia.type ===
+                          'DOCUMENT'
+                            ? '📄'
+                            : '🖼️'}
+                        </span>
+
+                        <div className="min-w-0">
+                          <div className="text-[10px] font-bold text-slate-400">
+                            קובץ מצורף
+                          </div>
+
+                          <div className="truncate text-xs font-semibold text-slate-700">
+                            {selectedTemplate.headerMedia.fileName}
+                          </div>
+                        </div>
+                      </div>
+                    ) : null}
+
+                    <div className="whitespace-pre-wrap">
+                      {templatePreview}
+                    </div>
                   </div>
                 </div>
               ) : null}

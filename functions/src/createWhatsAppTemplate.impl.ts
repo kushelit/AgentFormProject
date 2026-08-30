@@ -228,6 +228,127 @@ function normalizeUrlButton(
   };
 }
 
+function normalizeHeaderMedia(
+  rawMedia: unknown
+): {
+  type: "DOCUMENT" | "IMAGE";
+  handle: string;
+  storagePath: string;
+  fileName: string;
+  mimeType: string;
+  size: number;
+} | null {
+  if (
+    !rawMedia ||
+    typeof rawMedia !== "object"
+  ) {
+    return null;
+  }
+
+  const type =
+    s(
+      (rawMedia as any)?.type
+    ).toUpperCase();
+
+  const handle =
+    s(
+      (rawMedia as any)?.handle
+    );
+
+  const storagePath =
+    s(
+      (rawMedia as any)?.storagePath
+    );
+
+  const fileName =
+    s(
+      (rawMedia as any)?.fileName
+    );
+
+  const mimeType =
+    s(
+      (rawMedia as any)?.mimeType
+    );
+
+  const size =
+    Number(
+      (rawMedia as any)?.size ||
+      0
+    );
+
+  if (
+    !type &&
+    !handle
+  ) {
+    return null;
+  }
+
+  if (
+    type !== "DOCUMENT" &&
+    type !== "IMAGE"
+  ) {
+    throw new HttpsError(
+      "invalid-argument",
+      "Invalid template header media type"
+    );
+  }
+
+  if (!handle) {
+    throw new HttpsError(
+      "invalid-argument",
+      "Missing Meta header media handle"
+    );
+  }
+
+  if (!storagePath) {
+    throw new HttpsError(
+      "invalid-argument",
+      "Missing template media storagePath"
+    );
+  }
+
+  if (
+    type === "DOCUMENT" &&
+    mimeType &&
+    mimeType !== "application/pdf"
+  ) {
+    throw new HttpsError(
+      "invalid-argument",
+      "DOCUMENT template header currently supports PDF files only"
+    );
+  }
+
+  if (
+    type === "IMAGE" &&
+    mimeType &&
+    ![
+      "image/jpeg",
+      "image/png",
+    ].includes(mimeType)
+  ) {
+    throw new HttpsError(
+      "invalid-argument",
+      "IMAGE template header supports JPG or PNG files"
+    );
+  }
+
+  return {
+    type:
+      type as
+        | "DOCUMENT"
+        | "IMAGE",
+    handle,
+    storagePath,
+    fileName,
+    mimeType,
+    size:
+      Number.isFinite(size) &&
+      size > 0
+        ? size
+        : 0,
+  };
+}
+
 export async function createWhatsAppTemplateImpl(
   req: any
 ): Promise<object> {
@@ -343,6 +464,11 @@ export async function createWhatsAppTemplateImpl(
       body.urlButton
     );
 
+  const headerMedia =
+    normalizeHeaderMedia(
+      body.headerMedia
+    );
+
   const urlButtons =
     urlButton
       ? [
@@ -416,6 +542,18 @@ export async function createWhatsAppTemplateImpl(
   }
 
   const components: any[] = [];
+
+  if (headerMedia) {
+    components.push({
+      type: "HEADER",
+      format: headerMedia.type,
+      example: {
+        header_handle: [
+          headerMedia.handle,
+        ],
+      },
+    });
+  }
 
   const bodyComponent: any = {
     type: "BODY",
@@ -557,6 +695,10 @@ export async function createWhatsAppTemplateImpl(
       urlButton,
       hasUrlButton: Boolean(urlButton),
 
+      headerMedia,
+      hasHeaderMedia: Boolean(headerMedia),
+      headerMediaType: headerMedia?.type || null,
+
       componentsJson: JSON.stringify(components),
 
       metaTemplateId,
@@ -595,5 +737,6 @@ export async function createWhatsAppTemplateImpl(
     quickReplyButtons,
     quickReplyActions,
     urlButton,
+    headerMedia,
   };
 }

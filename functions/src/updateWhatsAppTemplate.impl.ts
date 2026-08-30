@@ -141,6 +141,124 @@ function normalizeUrlButton(rawButton: unknown): { text: string; url: string } |
   };
 }
 
+function normalizeHeaderMedia(
+  rawMedia: unknown
+): {
+  type: "DOCUMENT" | "IMAGE";
+  handle: string;
+  storagePath: string;
+  fileName: string;
+  mimeType: string;
+  size: number;
+} | null {
+  if (
+    !rawMedia ||
+    typeof rawMedia !== "object"
+  ) {
+    return null;
+  }
+
+  const type =
+    s(
+      (rawMedia as any)?.type
+    ).toUpperCase();
+
+  const handle =
+    s(
+      (rawMedia as any)?.handle
+    );
+
+  const storagePath =
+    s(
+      (rawMedia as any)?.storagePath
+    );
+
+  const fileName =
+    s(
+      (rawMedia as any)?.fileName
+    );
+
+  const mimeType =
+    s(
+      (rawMedia as any)?.mimeType
+    );
+
+  const size =
+    Number(
+      (rawMedia as any)?.size ||
+      0
+    );
+
+  if (!type && !handle) {
+    return null;
+  }
+
+  if (
+    type !== "DOCUMENT" &&
+    type !== "IMAGE"
+  ) {
+    throw new HttpsError(
+      "invalid-argument",
+      "Invalid template header media type"
+    );
+  }
+
+  if (!handle) {
+    throw new HttpsError(
+      "invalid-argument",
+      "Missing Meta header media handle"
+    );
+  }
+
+  if (!storagePath) {
+    throw new HttpsError(
+      "invalid-argument",
+      "Missing template media storagePath"
+    );
+  }
+
+  if (
+    type === "DOCUMENT" &&
+    mimeType &&
+    mimeType !== "application/pdf"
+  ) {
+    throw new HttpsError(
+      "invalid-argument",
+      "DOCUMENT template header currently supports PDF files only"
+    );
+  }
+
+  if (
+    type === "IMAGE" &&
+    mimeType &&
+    ![
+      "image/jpeg",
+      "image/png",
+    ].includes(mimeType)
+  ) {
+    throw new HttpsError(
+      "invalid-argument",
+      "IMAGE template header supports JPG or PNG files"
+    );
+  }
+
+  return {
+    type:
+      type as
+        | "DOCUMENT"
+        | "IMAGE",
+    handle,
+    storagePath,
+    fileName,
+    mimeType,
+    size:
+      Number.isFinite(size) &&
+      size > 0
+        ? size
+        : 0,
+  };
+}
+
 async function parseMetaResponse(response: Response): Promise<any> {
   const text = await response.text();
   if (!text) return null;
@@ -213,6 +331,7 @@ export async function updateWhatsAppTemplateImpl(req: any): Promise<object> {
   );
   const quickReplyButtons = normalizeQuickReplyButtons(body.quickReplyButtons);
   const urlButton = normalizeUrlButton(body.urlButton);
+  const requestedHeaderMedia = normalizeHeaderMedia(body.headerMedia);
 
   const templateRef = (db as any).doc(
     `agents/${agentId}/whatsapp_templates/${templateName}`
@@ -225,6 +344,46 @@ export async function updateWhatsAppTemplateImpl(req: any): Promise<object> {
 
   const existingTemplate = templateSnap.data() as any;
   const storedMetaTemplateId = s(existingTemplate?.metaTemplateId);
+
+  /*
+   * Legacy templates may already contain headerMedia from before we started
+   * persisting a durable Firebase Storage copy. In that case storagePath is
+   * missing. Do not validate the legacy value when a fresh file was uploaded:
+   * the freshly uploaded media is complete and should replace it.
+   *
+   * If no fresh file was uploaded, require the user to re-upload the attachment
+   * before updating. This guarantees that every updated media template can also
+   * be sent later, because the send path needs storagePath.
+   */
+  let headerMedia =
+    requestedHeaderMedia;
+
+  if (!headerMedia) {
+    const rawExistingHeaderMedia =
+      existingTemplate?.headerMedia;
+
+    if (
+      rawExistingHeaderMedia &&
+      typeof rawExistingHeaderMedia === "object"
+    ) {
+      const existingStoragePath =
+        s(
+          rawExistingHeaderMedia?.storagePath
+        );
+
+      if (!existingStoragePath) {
+        throw new HttpsError(
+          "failed-precondition",
+          "Existing template media is missing storagePath. Please re-upload the PDF or image before updating the template"
+        );
+      }
+
+      headerMedia =
+        normalizeHeaderMedia(
+          rawExistingHeaderMedia
+        );
+    }
+  }
 
   if (storedMetaTemplateId && storedMetaTemplateId !== metaTemplateId) {
     throw new HttpsError(
@@ -262,6 +421,18 @@ export async function updateWhatsAppTemplateImpl(req: any): Promise<object> {
   }
 
   const components: any[] = [];
+
+  if (headerMedia) {
+    components.push({
+      type: "HEADER",
+      format: headerMedia.type,
+      example: {
+        header_handle: [
+          headerMedia.handle,
+        ],
+      },
+    });
+  }
 
   const bodyComponent: any = {
     type: "BODY",
@@ -403,6 +574,9 @@ export async function updateWhatsAppTemplateImpl(req: any): Promise<object> {
       quickReplyActions,
       urlButton,
       hasUrlButton: Boolean(urlButton),
+      headerMedia,
+      hasHeaderMedia: Boolean(headerMedia),
+      headerMediaType: headerMedia?.type || null,
       componentsJson: JSON.stringify(
         refreshedTemplate?.components || components
       ),
@@ -436,6 +610,7 @@ export async function updateWhatsAppTemplateImpl(req: any): Promise<object> {
     quickReplyButtons,
     quickReplyActions,
     urlButton,
+    headerMedia,
     meta: updateJson,
   };
 }

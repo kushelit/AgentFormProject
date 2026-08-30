@@ -79,21 +79,9 @@ async function getSurenseAccessToken(
       input.agentId
     );
 
-  /*
-   * לפי OIDC Discovery של Surense:
-   *
-   * grant_types_supported כולל client_credentials
-   *
-   * token_endpoint_auth_methods_supported כולל:
-   * - client_secret_post
-   * - client_secret_basic
-   *
-   * בניסיון הזה נשתמש ב-client_secret_post
-   * ולא נשלח scope בכלל.
-   *
-   * ההרשאות העסקיות כבר משויכות ל-Client
-   * במסך API Keys של Surense.
-   */
+  const scopes =
+    input.scopes || [];
+
   const form =
     new URLSearchParams();
 
@@ -102,19 +90,32 @@ async function getSurenseAccessToken(
     "client_credentials"
   );
 
-  form.set(
-    "client_id",
-    credentials.clientId
-  );
+  if (scopes.length) {
+    form.set(
+      "scope",
+      scopes.join(" ")
+    );
+  }
 
-  form.set(
-    "client_secret",
-    credentials.clientSecret
-  );
+  const basicAuth =
+    Buffer.from(
+      `${credentials.clientId}:${credentials.clientSecret}`,
+      "utf8"
+    ).toString(
+      "base64"
+    );
+
+  /*
+   * חשוב:
+   * זה ה-endpoint שנצפה בפועל ב-Surense Docs
+   * ומחזיר 200 עבור client_credentials.
+   */
+  const tokenEndpoint =
+    "https://api.surense.com/oauth/token";
 
   const response =
     await fetch(
-      credentials.tokenEndpoint,
+      tokenEndpoint,
       {
         method:
           "POST",
@@ -125,6 +126,9 @@ async function getSurenseAccessToken(
 
           "Accept":
             "application/json",
+
+          "Authorization":
+            `Basic ${basicAuth}`,
         },
 
         body:
@@ -150,13 +154,10 @@ async function getSurenseAccessToken(
         response:
           parsed,
 
-        /*
-         * לצורכי לוג בלבד.
-         * לא נשלח ל-Surense.
-         */
         requestedScopes:
-          input.scopes ||
-          [],
+          scopes,
+
+        tokenEndpoint,
       }
     );
 
@@ -327,22 +328,21 @@ export async function executeSurenseDirectRequest<
     );
 
   if (!response.ok) {
-    console.error(
-      "[surenseDirectClient] API request failed",
-      {
-        agentId,
-        method,
-
-        path:
-          normalizedPath,
-
-        httpStatus:
-          response.status,
-
-        response:
-          parsed,
-      }
-    );
+  console.error(
+  "[surenseDirectClient] API request failed",
+  JSON.stringify(
+    {
+      agentId,
+      method,
+      path: normalizedPath,
+      httpStatus: response.status,
+      requestBody: input.body ?? null,
+      response: parsed,
+    },
+    null,
+    2
+  )
+);
 
     throw new HttpsError(
       "failed-precondition",

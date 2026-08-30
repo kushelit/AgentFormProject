@@ -70,7 +70,9 @@ async function assertCanManageAgent(
       )
       .get();
 
-  if (!requesterSnap.exists) {
+  if (
+    !requesterSnap.exists
+  ) {
     throw new HttpsError(
       "permission-denied",
       "User not found"
@@ -151,8 +153,8 @@ export async function runSurenseCustomerImportImpl(
   });
 
   /*
-   * קודם בודקים שהסוכן בכלל
-   * מחובר ל-Surense.
+   * בודקים שהסוכן מחובר בכלל
+   * לאינטגרציית Surense.
    */
   const agentConfig =
     await loadSurenseIntegrationConfig(
@@ -169,8 +171,9 @@ export async function runSurenseCustomerImportImpl(
   }
 
   /*
-   * גם ברמת הסוכן שתי היכולות
-   * צריכות להיות פעילות.
+   * הפעולה הזו היא Search/Import בלבד.
+   *
+   * אין כאן שום תלות ב-createWorkflow.
    */
   if (
     !agentConfig
@@ -184,35 +187,14 @@ export async function runSurenseCustomerImportImpl(
     );
   }
 
-  if (
-    !agentConfig
-      .actions
-      .createWorkflow
-      .enabled
-  ) {
-    throw new HttpsError(
-      "failed-precondition",
-      "Create Workflow is disabled for agent"
-    );
-  }
-
   /*
-   * עכשיו בודקים את החלטת המערכת:
-   * Make או Direct API.
+   * בודקים רק את capability
+   * של Search Customers ברמת המערכת.
    */
-  const [
-    searchConfig,
-    createWorkflowConfig,
-  ] =
-    await Promise.all([
-      getSurenseCapabilityConfig(
-        "searchCustomers"
-      ),
-
-      getSurenseCapabilityConfig(
-        "createWorkflow"
-      ),
-    ]);
+  const searchConfig =
+    await getSurenseCapabilityConfig(
+      "searchCustomers"
+    );
 
   if (
     !searchConfig.enabled
@@ -223,21 +205,12 @@ export async function runSurenseCustomerImportImpl(
     );
   }
 
-  if (
-    !createWorkflowConfig.enabled
-  ) {
-    throw new HttpsError(
-      "failed-precondition",
-      "Create Workflow is disabled system-wide"
-    );
-  }
-
   /*
-   * אם Search עדיין מוגדר Make,
-   * אנחנו לא מפעילים Direct API.
+   * אם Search Customers עדיין מופעל
+   * דרך Make, לא מריצים Direct API.
    *
-   * ה-Scenario הקיים ב-Make
-   * ממשיך לעבוד בעצמו.
+   * ה-Scenario הקיים יכול להמשיך
+   * לפעול בנפרד.
    */
   if (
     searchConfig.provider ===
@@ -252,26 +225,28 @@ export async function runSurenseCustomerImportImpl(
       provider:
         "make",
 
+      capability:
+        "searchCustomers",
+
       reason:
         "searchCustomers is configured to use Make",
     };
   }
 
   /*
-   * למסלול הישיר שלנו Search + Create
-   * צריכים כרגע להיות שניהם API.
+   * נכון לעכשיו קיימים שני providers:
+   * make / api.
    *
-   * מצב מעורב עלול לגרום לכך שנמשוך לקוח
-   * אבל לא ניצור לו Workflow שמונע
-   * משיכה חוזרת.
+   * מוסיפים guard מפורש כדי שלא נריץ
+   * Direct API במקרה של ערך לא צפוי.
    */
   if (
-    createWorkflowConfig.provider !==
+    searchConfig.provider !==
     "api"
   ) {
     throw new HttpsError(
       "failed-precondition",
-      "Direct customer import requires createWorkflow provider to be API"
+      "Unsupported Search Customers provider"
     );
   }
 
@@ -304,8 +279,11 @@ export async function runSurenseCustomerImportImpl(
   }
 
   /*
-   * מגבלת בטיחות לקריאה ידנית.
-   * אפשר להרחיב בהמשך כשנבנה pagination/job.
+   * מגבלת בטיחות להרצה ידנית.
+   *
+   * בהמשך, כאשר נבנה job/pagination
+   * מסודר, אפשר יהיה לטפל בכמויות
+   * גדולות יותר בצורה מבוקרת.
    */
   if (
     endRow -
@@ -318,7 +296,7 @@ export async function runSurenseCustomerImportImpl(
   }
 
   console.info(
-    "[runSurenseCustomerImport] Starting direct Surense import",
+    "[runSurenseCustomerImport] Starting direct Surense customer import",
     {
       agentId,
 
@@ -329,12 +307,18 @@ export async function runSurenseCustomerImportImpl(
 
       searchProvider:
         searchConfig.provider,
-
-      createWorkflowProvider:
-        createWorkflowConfig.provider,
     }
   );
 
+  /*
+   * importSurenseCustomersDirect מבצע:
+   *
+   * Search Customers
+   *       ↓
+   * Upsert MagicTouch Contact
+   *
+   * ולא יוצר Workflow ב-Surense.
+   */
   const result =
     await importSurenseCustomersDirect({
       agentId,
@@ -343,7 +327,7 @@ export async function runSurenseCustomerImportImpl(
     });
 
   console.info(
-    "[runSurenseCustomerImport] Direct Surense import completed",
+    "[runSurenseCustomerImport] Direct Surense customer import completed",
     {
       agentId,
 
@@ -361,12 +345,10 @@ export async function runSurenseCustomerImportImpl(
     executed:
       true,
 
-    providers: {
-      searchCustomers:
-        searchConfig.provider,
+    capability:
+      "searchCustomers",
 
-      createWorkflow:
-        createWorkflowConfig.provider,
-    },
+    provider:
+      searchConfig.provider,
   };
 }

@@ -11,10 +11,6 @@ import {
 } from "./searchSurenseCustomers";
 
 import {
-  createSurenseWorkflow,
-} from "./createSurenseWorkflow";
-
-import {
   upsertMagicTouchContact,
 } from "./magicTouchContactService";
 
@@ -66,8 +62,8 @@ function extractCustomers(
   }
 
   /*
-   * אם Direct API מחזיר לקוח יחיד,
-   * מאפשרים גם את המצב הזה.
+   * מאפשרים גם מצב שבו
+   * Surense מחזיר אובייקט לקוח יחיד.
    */
   if (
     response &&
@@ -90,18 +86,6 @@ function extractCustomers(
   return [];
 }
 
-function oneYearAgoIso(): string {
-  const date =
-    new Date();
-
-  date.setUTCFullYear(
-    date.getUTCFullYear() -
-      1
-  );
-
-  return date.toISOString();
-}
-
 export async function importSurenseCustomersDirect(
   input: {
     agentId: string;
@@ -122,15 +106,17 @@ export async function importSurenseCustomersDirect(
     );
   }
 
-  const cutoff =
-    oneYearAgoIso();
-
   /*
-   * משחזרים את הלוגיקה של Make:
+   * פעולה זו אחראית רק על:
    *
-   * lastModifiedDate <= לפני שנה
+   * 1. Search Customers ב-Surense
+   * 2. יצירה/עדכון Contact ב-MagicTouch
    *
-   * והמיון לפי lastActivityDate עולה.
+   * היא אינה יוצרת Workflow ב-Surense.
+   *
+   * Create Workflow הוא capability עצמאי
+   * ויכול להתבצע לאחר מכן לפי ה-Flow
+   * העסקי של הסוכן.
    */
   const searchResult =
     await searchSurenseCustomers({
@@ -144,31 +130,8 @@ export async function importSurenseCustomersDirect(
         input.endRow ??
         50,
 
-      sorts: [
-        {
-          dir:
-            "asc",
-
-          field:
-            "lastActivityDate",
-        },
-      ],
-
       filtersOperator:
         "and",
-
-      filters: [
-        {
-          field:
-            "lastModifiedDate",
-
-          operator:
-            "lessThanOrEqual",
-
-          value:
-            cutoff,
-        },
-      ],
     });
 
   const customers =
@@ -180,7 +143,7 @@ export async function importSurenseCustomersDirect(
     "[importSurenseCustomersDirect] Search completed",
     {
       agentId,
-      cutoff,
+
       count:
         customers.length,
     }
@@ -291,21 +254,13 @@ export async function importSurenseCustomersDirect(
       );
 
     /*
-     * קודם פותחים Workflow ב-Surense.
+     * Upsert קבוע:
      *
-     * זה גם מעדכן את הפעילות של הלקוח
-     * וכך מונע ממנו להיכנס שוב
-     * בסבב הבא.
-     */
-    const workflowResult =
-      await createSurenseWorkflow({
-        agentId,
-        customerId,
-      });
-
-    /*
-     * רק אחרי ש-Workflow נוצר בהצלחה,
-     * מכניסים/מעדכנים את הלקוח ב-MagicTouch.
+     * אם הלקוח לא קיים ב-MagicTouch
+     * הוא ייווצר.
+     *
+     * אם הוא כבר קיים לפי Surense Customer ID
+     * אותו Contact יעודכן בנתונים החדשים.
      */
     const contactResult =
       await upsertMagicTouchContact({
@@ -326,10 +281,6 @@ export async function importSurenseCustomersDirect(
         sourceData: {
           customerId,
 
-          workflowId:
-            workflowResult
-              .workflowId,
-
           statusName:
             statusName ||
             null,
@@ -337,8 +288,6 @@ export async function importSurenseCustomersDirect(
           statusActive,
 
           lastActivityDate:
-            workflowResult
-              .lastActivityDate ||
             lastActivityDate ||
             null,
         },
@@ -351,9 +300,13 @@ export async function importSurenseCustomersDirect(
     results.push({
       customerId,
 
-      workflowId:
-        workflowResult
-          .workflowId,
+      contactId:
+        contactResult
+          .contactId,
+
+      action:
+        contactResult
+          .action,
 
       contactResult,
     });
@@ -364,8 +317,6 @@ export async function importSurenseCustomersDirect(
 
     provider:
       "api",
-
-    cutoff,
 
     searched:
       customers.length,

@@ -32,6 +32,15 @@ export type WhatsAppTemplateUrlButton = {
   url: string;
 };
 
+export type WhatsAppTemplateHeaderMedia = {
+  type: "DOCUMENT" | "IMAGE";
+  handle: string;
+  storagePath?: string;
+  fileName: string;
+  mimeType: string;
+  size: number;
+};
+
 export type WhatsAppTemplateEditValue = {
   name: string;
   metaTemplateId: string;
@@ -42,6 +51,7 @@ export type WhatsAppTemplateEditValue = {
   quickReplyButtons?: string[];
   quickReplyActions?: Record<string, string>;
   urlButton?: WhatsAppTemplateUrlButton | null;
+  headerMedia?: WhatsAppTemplateHeaderMedia | null;
 };
 
 export type WhatsAppTemplateCreatedResult = {
@@ -51,6 +61,7 @@ export type WhatsAppTemplateCreatedResult = {
   quickReplyButtons: string[];
   quickReplyActions: Record<string, string>;
   urlButton?: WhatsAppTemplateUrlButton | null;
+  headerMedia?: WhatsAppTemplateHeaderMedia | null;
 };
 
 type TemplateMutationResponse = {
@@ -58,6 +69,18 @@ type TemplateMutationResponse = {
   name?: string;
   status?: string;
   urlButton?: WhatsAppTemplateUrlButton | null;
+  headerMedia?: WhatsAppTemplateHeaderMedia | null;
+};
+
+type UploadTemplateMediaResponse = {
+  ok?: boolean;
+  agentId?: string;
+  mediaType?: "DOCUMENT" | "IMAGE";
+  handle?: string;
+  storagePath?: string;
+  fileName?: string;
+  mimeType?: string;
+  size?: number;
 };
 
 type Props = {
@@ -164,6 +187,76 @@ function normalizeHttpUrl(
   }
 }
 
+
+function fileToBase64(
+  file: File
+): Promise<string> {
+  return new Promise(
+    (
+      resolve,
+      reject
+    ) => {
+      const reader =
+        new FileReader();
+
+      reader.onload =
+        () => {
+          const result =
+            String(
+              reader.result ||
+              ""
+            );
+
+          const commaIndex =
+            result.indexOf(",");
+
+          resolve(
+            commaIndex >= 0
+              ? result.slice(
+                  commaIndex + 1
+                )
+              : result
+          );
+        };
+
+      reader.onerror =
+        () => {
+          reject(
+            new Error(
+              "לא ניתן היה לקרוא את הקובץ."
+            )
+          );
+        };
+
+      reader.readAsDataURL(
+        file
+      );
+    }
+  );
+}
+
+function formatFileSize(
+  size: number
+): string {
+  if (size < 1024) {
+    return `${size} B`;
+  }
+
+  if (
+    size <
+    1024 * 1024
+  ) {
+    return `${(
+      size / 1024
+    ).toFixed(1)} KB`;
+  }
+
+  return `${(
+    size /
+    (1024 * 1024)
+  ).toFixed(1)} MB`;
+}
+
 export default function WhatsAppTemplateBuilder({
   agentId,
   compact = false,
@@ -245,6 +338,22 @@ export default function WhatsAppTemplateBuilder({
     useState("");
 
   const [
+    mediaFile,
+    setMediaFile,
+  ] =
+    useState<File | null>(
+      null
+    );
+
+  const [
+    existingHeaderMedia,
+    setExistingHeaderMedia,
+  ] =
+    useState<WhatsAppTemplateHeaderMedia | null>(
+      null
+    );
+
+  const [
     isCreating,
     setIsCreating,
   ] =
@@ -282,6 +391,8 @@ export default function WhatsAppTemplateBuilder({
     setQuickReply2Action(buttons[1] ? String(actions[buttons[1]] || "other") : "declined");
     setUrlButtonText(String(editingTemplate.urlButton?.text || ""));
     setUrlButtonUrl(String(editingTemplate.urlButton?.url || ""));
+    setExistingHeaderMedia(editingTemplate.headerMedia || null);
+    setMediaFile(null);
   }, [editingTemplate]);
 
   const variableNumbers =
@@ -350,6 +461,177 @@ export default function WhatsAppTemplateBuilder({
         },
         4500
       );
+    };
+
+  const handleMediaFileChange =
+    (
+      file:
+        File | null
+    ) => {
+      if (!file) {
+        setMediaFile(
+          null
+        );
+        return;
+      }
+
+      const allowedMimeTypes =
+        [
+          "application/pdf",
+          "image/jpeg",
+          "image/png",
+        ];
+
+      if (
+        !allowedMimeTypes.includes(
+          file.type
+        )
+      ) {
+        showToast({
+          type:
+            "warning",
+
+          title:
+            "סוג קובץ לא נתמך",
+
+          message:
+            "ניתן להעלות PDF, JPG או PNG.",
+        });
+
+        return;
+      }
+
+      const maxSize =
+        file.type ===
+        "application/pdf"
+          ? 10 *
+            1024 *
+            1024
+          : 5 *
+            1024 *
+            1024;
+
+      if (
+        file.size >
+        maxSize
+      ) {
+        showToast({
+          type:
+            "warning",
+
+          title:
+            "הקובץ גדול מדי",
+
+          message:
+            file.type ===
+            "application/pdf"
+              ? "בשלב זה ניתן להעלות PDF עד 10MB."
+              : "בשלב זה ניתן להעלות תמונה עד 5MB.",
+        });
+
+        return;
+      }
+
+      setMediaFile(
+        file
+      );
+    };
+
+  const uploadHeaderMedia =
+    async (): Promise<WhatsAppTemplateHeaderMedia | null> => {
+      if (!mediaFile) {
+        return existingHeaderMedia;
+      }
+
+      const base64Data =
+        await fileToBase64(
+          mediaFile
+        );
+
+      const uploadFn =
+        httpsCallable<
+          {
+            agentId: string;
+            fileName: string;
+            mimeType: string;
+            base64Data: string;
+          },
+          UploadTemplateMediaResponse
+        >(
+          functions,
+          "uploadWhatsAppTemplateMedia"
+        );
+
+      const response =
+        await uploadFn({
+          agentId,
+          fileName:
+            mediaFile.name,
+          mimeType:
+            mediaFile.type,
+          base64Data,
+        });
+
+      console.log(
+        "[WhatsAppTemplateBuilder] upload response",
+        response.data
+      );
+
+      const handle =
+        String(
+          response.data?.handle ||
+          ""
+        ).trim();
+
+      const storagePath =
+        String(
+          response.data?.storagePath ||
+          ""
+        ).trim();
+
+      const mediaType =
+        response.data?.mediaType;
+
+      if (
+        !handle ||
+        (
+          mediaType !== "DOCUMENT" &&
+          mediaType !== "IMAGE"
+        )
+      ) {
+        throw new Error(
+          "Meta לא החזירה מזהה תקין לקובץ."
+        );
+      }
+
+      if (!storagePath) {
+        console.error(
+          "[WhatsAppTemplateBuilder] Missing storagePath",
+          response.data
+        );
+
+        throw new Error(
+          "הקובץ הועלה אבל השרת לא החזיר storagePath."
+        );
+      }
+
+      return {
+        type:
+          mediaType,
+        handle,
+        storagePath,
+        fileName:
+          response.data?.fileName ||
+          mediaFile.name,
+        mimeType:
+          response.data?.mimeType ||
+          mediaFile.type,
+        size:
+          Number(
+            response.data?.size ||
+            mediaFile.size
+          ),
+      };
     };
 
   const handleCreateTemplate =
@@ -517,6 +799,29 @@ export default function WhatsAppTemplateBuilder({
         return;
       }
 
+      if (
+        isEditing &&
+        existingHeaderMedia &&
+        !String(
+          existingHeaderMedia.storagePath ||
+          ""
+        ).trim() &&
+        !mediaFile
+      ) {
+        showToast({
+          type:
+            "warning",
+
+          title:
+            "יש להעלות מחדש את הקובץ",
+
+          message:
+            "התבנית נוצרה לפני שהוספנו שמירה קבועה של קבצים. כדי לעדכן אותה יש לבחור מחדש את ה-PDF או התמונה המצורפים.",
+        });
+
+        return;
+      }
+
       const quickReplyButtons =
         [
           normalizedQuickReply1,
@@ -564,6 +869,17 @@ export default function WhatsAppTemplateBuilder({
       );
 
       try {
+        let headerMedia:
+          WhatsAppTemplateHeaderMedia | null =
+          existingHeaderMedia;
+
+        if (
+          mediaFile
+        ) {
+          headerMedia =
+            await uploadHeaderMedia();
+        }
+
         const functionName =
           isEditing
             ? "updateWhatsAppTemplate"
@@ -592,6 +908,8 @@ export default function WhatsAppTemplateBuilder({
                 Record<string, string>;
               urlButton:
                 WhatsAppTemplateUrlButton | null;
+              headerMedia:
+                WhatsAppTemplateHeaderMedia | null;
             },
             TemplateMutationResponse
           >(
@@ -628,6 +946,8 @@ export default function WhatsAppTemplateBuilder({
             quickReplyActions,
 
             urlButton,
+
+            headerMedia,
           });
 
         const result:
@@ -653,6 +973,11 @@ export default function WhatsAppTemplateBuilder({
               response.data
                 ?.urlButton ??
               urlButton,
+
+            headerMedia:
+              response.data
+                ?.headerMedia ??
+              headerMedia,
           };
 
         showToast({
@@ -952,6 +1277,84 @@ export default function WhatsAppTemplateBuilder({
             ) : null}
 
             <section className="rounded-xl border p-4">
+              <div>
+                <h3 className="font-bold text-slate-900">
+                  קובץ מצורף לתבנית
+                </h3>
+
+                <p className="mt-1 text-sm text-slate-500">
+                  אופציונלי. ניתן לצרף PDF או תמונה שיופיעו בכותרת הודעת ה־WhatsApp.
+                </p>
+              </div>
+
+              <div className="mt-4">
+                <label className="flex cursor-pointer items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-5 text-sm font-semibold text-slate-700 hover:bg-slate-100">
+                  <input
+                    type="file"
+                    accept=".pdf,image/jpeg,image/png"
+                    className="hidden"
+                    onChange={(
+                      event
+                    ) =>
+                      handleMediaFileChange(
+                        event.target.files?.[0] ||
+                        null
+                      )
+                    }
+                  />
+
+                  {mediaFile
+                    ? "החלפת קובץ שנבחר"
+                    : existingHeaderMedia
+                      ? "החלפת הקובץ המצורף"
+                      : "בחירת PDF או תמונה"}
+                </label>
+
+                {mediaFile ? (
+                  <div className="mt-3 flex items-center justify-between gap-3 rounded-lg border bg-white p-3">
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-semibold text-slate-800">
+                        {mediaFile.name}
+                      </div>
+
+                      <div className="mt-1 text-xs text-slate-500">
+                        קובץ חדש · {mediaFile.type} ·{" "}
+                        {formatFileSize(
+                          mediaFile.size
+                        )}
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setMediaFile(
+                          null
+                        )
+                      }
+                      className="shrink-0 rounded-lg border px-3 py-2 text-sm font-semibold text-red-600 hover:bg-red-50"
+                    >
+                      ביטול בחירה
+                    </button>
+                  </div>
+                ) : existingHeaderMedia ? (
+                  <div className="mt-3 rounded-lg border bg-white p-3">
+                    <div className="text-sm font-semibold text-slate-800">
+                      {existingHeaderMedia.fileName}
+                    </div>
+
+                    <div className="mt-1 text-xs text-slate-500">
+                      קובץ קיים · {existingHeaderMedia.type} ·{" "}
+                      {formatFileSize(
+                        existingHeaderMedia.size
+                      )}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            </section>
+
+            <section className="rounded-xl border p-4">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <h3 className="font-bold text-slate-900">
@@ -1146,8 +1549,18 @@ export default function WhatsAppTemplateBuilder({
               className="w-full rounded-lg bg-blue-600 px-5 py-3 font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {isCreating
-                ? (isEditing ? "מעדכן תבנית..." : "יוצר תבנית...")
-                : (isEditing ? "שמירת שינויים ב־Meta" : "שליחת התבנית לאישור Meta")}
+                ? (
+                    isEditing
+                      ? "מעדכן תבנית..."
+                      : mediaFile
+                        ? "מעלה קובץ ויוצר תבנית..."
+                        : "יוצר תבנית..."
+                  )
+                : (
+                    isEditing
+                      ? "שמירת שינויים ב־Meta"
+                      : "שליחת התבנית לאישור Meta"
+                  )}
             </button>
           </div>
         </section>
@@ -1160,6 +1573,30 @@ export default function WhatsAppTemplateBuilder({
 
             <div className="mt-4 rounded-2xl bg-[#efeae2] p-4">
               <div className="rounded-xl bg-white p-4 shadow-sm">
+                {mediaFile ? (
+                  <div className="mb-3 rounded-lg border bg-slate-50 p-3">
+                    <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      {mediaFile.type === "application/pdf"
+                        ? "PDF"
+                        : "IMAGE"}
+                    </div>
+
+                    <div className="mt-1 truncate text-sm font-semibold text-slate-700">
+                      {mediaFile.name}
+                    </div>
+                  </div>
+                ) : existingHeaderMedia ? (
+                  <div className="mb-3 rounded-lg border bg-slate-50 p-3">
+                    <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      {existingHeaderMedia.type}
+                    </div>
+
+                    <div className="mt-1 truncate text-sm font-semibold text-slate-700">
+                      {existingHeaderMedia.fileName}
+                    </div>
+                  </div>
+                ) : null}
+
                 <div className="whitespace-pre-wrap text-sm text-slate-800">
                   {previewText ||
                     "תוכן התבנית יוצג כאן."}

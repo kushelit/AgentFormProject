@@ -341,3 +341,14 @@ export { subscribeAgentWhatsAppWebhook } from "./subscribeAgentWhatsAppWebhook";
 
 export { updateWhatsAppTemplate } from "./updateWhatsAppTemplate";
 
+export {
+  uploadWhatsAppTemplateMedia,
+} from "./uploadWhatsAppTemplateMedia";
+
+export {
+  runSurenseCreateWorkflow,
+} from "./runSurenseCreateWorkflow";
+
+export {
+  runSurenseWorkflowTypesTest,
+} from "./runSurenseWorkflowTypesTest";

@@ -111,28 +111,27 @@ export async function searchSurenseCustomers(
   }
 
   /*
-   * כרגע לא מגבילים ל-2.
-   * ה-2 שהיה ב-Make היה רק לטסטים.
+   * Direct API Search primitive.
    *
-   * Pagination תישלט ע"י הקורא.
+   * הקובץ הזה אחראי רק לקריאת
+   * Search Customers של Surense.
+   *
+   * אין כאן:
+   * - יצירת Contact
+   * - יצירת Workflow
+   * - לוגיקה עסקית של סוכן מסוים
+   *
+   * כך ניתן יהיה להשתמש באותה פעולה
+   * גם מתוך Flow Engine וגם מתוך
+   * תהליכים מערכתיים וכלי בדיקה.
    */
   const body = {
     startRow,
     endRow,
 
     sorts:
-      input.sorts &&
-      input.sorts.length
-        ? input.sorts
-        : [
-            {
-              dir:
-                "desc",
-
-              field:
-                "createdDate",
-            },
-          ],
+      input.sorts ||
+      [],
 
     filtersOperator:
       input.filtersOperator ||
@@ -142,6 +141,14 @@ export async function searchSurenseCustomers(
       input.filters ||
       [],
   };
+
+  console.info(
+    "[searchSurenseCustomers] Request body",
+    {
+      agentId,
+      body,
+    }
+  );
 
   return executeSurenseDirectRequest({
     agentId,

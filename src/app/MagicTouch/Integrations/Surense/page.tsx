@@ -43,12 +43,14 @@ import type {
   SurenseSystemIntegrationConfig,
 } from "@/lib/MagicTouch/integrations/surense/types";
 
-
 import {
   runSurenseCustomerImport,
+  runSurenseCreateWorkflow,
+  runSurenseWorkflowTypesTest,
   type RunSurenseCustomerImportResponse,
+  type RunSurenseCreateWorkflowResponse,
+  type RunSurenseWorkflowTypesTestResponse,
 } from "@/lib/MagicTouch/integrations/surense/importApi";
-
 
 type TabKey =
   | "agent"
@@ -67,7 +69,7 @@ type IncomingState = {
 };
 
 const DEFAULT_TOKEN_ENDPOINT =
-  "https://auth.surense.com/oauth/token";
+  "https://api.surense.com/oauth/token";
 
 const EMPTY_CONFIG: SurenseIntegrationConfig = {
   enabled: false,
@@ -290,8 +292,7 @@ const workflowDefaults =
   ] =
     useState(false);
 
-
-    const [
+const [
   runningDirectImport,
   setRunningDirectImport,
 ] =
@@ -302,6 +303,40 @@ const [
   setDirectImportResult,
 ] =
   useState<RunSurenseCustomerImportResponse | null>(
+    null
+  );
+
+const [
+  testCustomerId,
+  setTestCustomerId,
+] =
+  useState("");
+
+const [
+  runningCreateWorkflow,
+  setRunningCreateWorkflow,
+] =
+  useState(false);
+
+const [
+  createWorkflowResult,
+  setCreateWorkflowResult,
+] =
+  useState<RunSurenseCreateWorkflowResponse | null>(
+    null
+  );
+
+const [
+  runningWorkflowTypes,
+  setRunningWorkflowTypes,
+] =
+  useState(false);
+
+const [
+  workflowTypesResult,
+  setWorkflowTypesResult,
+] =
+  useState<RunSurenseWorkflowTypesTestResponse | null>(
     null
   );
 
@@ -684,7 +719,7 @@ const [
     };
 
 
-    const runOneDirectCustomer =
+  const runOneDirectCustomer =
   async () => {
     if (!agentId) {
       setError(
@@ -695,7 +730,7 @@ const [
 
     const approved =
       window.confirm(
-        "ההרצה תחפש לקוח אחד, תיצור עבורו Workflow ב־Surense ותשמור אותו ב־MagicTouch. להמשיך?"
+        "ההרצה תחפש לקוח אחד ב־Surense ותיצור או תעדכן אותו ב־MagicTouch. לא ייווצר Workflow. להמשיך?"
       );
 
     if (!approved) {
@@ -708,6 +743,7 @@ const [
 
     setError("");
     setSuccess("");
+
     setDirectImportResult(
       null
     );
@@ -740,8 +776,26 @@ const [
         return;
       }
 
+      /*
+       * אם נמצא לקוח,
+       * מעתיקים אוטומטית את ה-Customer ID
+       * לשדה בדיקת Create Workflow.
+       *
+       * לא מפעילים Create Workflow אוטומטית.
+       */
+      const customerId =
+        result.results?.[0]
+          ?.customerId ||
+        "";
+
+      if (customerId) {
+        setTestCustomerId(
+          customerId
+        );
+      }
+
       setSuccess(
-        `הרצת Direct API הסתיימה. נמצאו ${result.searched ?? 0} לקוחות ונקלטו ${result.imported ?? 0}.`
+        `בדיקת Search הסתיימה. נמצאו ${result.searched ?? 0} לקוחות ונקלטו/עודכנו ${result.imported ?? 0} ב־MagicTouch.`
       );
     } catch (
       runError: any
@@ -753,10 +807,149 @@ const [
 
       setError(
         runError?.message ||
-        "הרצת Direct API נכשלה."
+        "בדיקת Search Customers נכשלה."
       );
     } finally {
       setRunningDirectImport(
+        false
+      );
+    }
+  };
+
+  const runCreateWorkflowTest =
+  async () => {
+    if (!agentId) {
+      setError(
+        "לא נבחר סוכן."
+      );
+      return;
+    }
+
+    const customerId =
+      testCustomerId.trim();
+
+    if (!customerId) {
+      setError(
+        "יש להזין Surense Customer ID."
+      );
+      return;
+    }
+
+    const approved =
+      window.confirm(
+        `ההרצה תיצור Workflow אמיתי ב־Surense עבור הלקוח ${customerId}. להמשיך?`
+      );
+
+    if (!approved) {
+      return;
+    }
+
+    setRunningCreateWorkflow(
+      true
+    );
+
+    setError("");
+    setSuccess("");
+
+    setCreateWorkflowResult(
+      null
+    );
+
+    try {
+      const result =
+        await runSurenseCreateWorkflow({
+          agentId,
+          customerId,
+        });
+
+      setCreateWorkflowResult(
+        result
+      );
+
+      if (
+        !result.executed &&
+        result.provider ===
+          "make"
+      ) {
+        setSuccess(
+          "לא בוצעה הרצת Direct API כי Create Workflow עדיין מוגדר ל־Make."
+        );
+
+        return;
+      }
+
+      setSuccess(
+        result.workflowId
+          ? `Workflow נוצר בהצלחה ב־Surense. Workflow ID: ${result.workflowId}`
+          : "בדיקת Create Workflow הסתיימה בהצלחה."
+      );
+    } catch (
+      runError: any
+    ) {
+      console.error(
+        "[Surense Create Workflow]",
+        runError
+      );
+
+      setError(
+        runError?.message ||
+        "בדיקת Create Workflow נכשלה."
+      );
+    } finally {
+      setRunningCreateWorkflow(
+        false
+      );
+    }
+  };
+
+
+  const runWorkflowTypesTest =
+  async () => {
+    if (!agentId) {
+      setError(
+        "לא נבחר סוכן."
+      );
+      return;
+    }
+
+    setRunningWorkflowTypes(
+      true
+    );
+
+    setError("");
+    setSuccess("");
+
+    setWorkflowTypesResult(
+      null
+    );
+
+    try {
+      const result =
+        await runSurenseWorkflowTypesTest({
+          agentId,
+        });
+
+      setWorkflowTypesResult(
+        result
+      );
+
+      setSuccess(
+        "בדיקת Workflow Types הסתיימה בהצלחה."
+      );
+    } catch (
+      runError: any
+    ) {
+      console.error(
+        "[Surense Workflow Types]",
+        runError
+      );
+
+      setError(
+        runError?.message ||
+        "בדיקת Workflow Types נכשלה."
+      );
+    } finally {
+      setRunningWorkflowTypes(
         false
       );
     }
@@ -1802,63 +1995,236 @@ const [
 <section className="mt-6 rounded-2xl border border-blue-200 bg-white p-5 shadow-sm">
   <SectionHeader
     icon="🧪"
-    title="הרצת Direct API מבוקרת"
-    description="כלי זמני לבדיקת המסלול החדש מול Surense. ההרצה מוגבלת ללקוח אחד."
+    title="בדיקות Direct API"
+    description="בדיקות מבוקרות של יכולות Surense. כל פעולה נבדקת באופן עצמאי."
     status="Test"
     statusKind="info"
   />
 
-  <div className="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-800">
-    ההרצה מבצעת בפועל:
-    Search Customer → Create Workflow → שמירת Contact ב־MagicTouch.
-    לכן יש להשתמש בה רק בסביבת הטסט.
+  <div className="mt-4 rounded-xl border border-blue-100 bg-blue-50 p-4 text-sm leading-6 text-blue-800">
+    שתי הבדיקות נפרדות. משיכת לקוח אינה יוצרת Workflow.
+    לאחר משיכת לקוח אחד, ה־Customer ID שלו יועתק אוטומטית
+    לבדיקה השנייה — אך יצירת ה־Workflow תתבצע רק בלחיצה
+    מפורשת.
   </div>
 
-  <div className="mt-5 flex flex-wrap items-center justify-between gap-4">
-    <div>
-      <div className="font-bold text-slate-900">
-        לקוח אחד בלבד
+  {/* ============================================= */}
+  {/* Test 1 - Search Customers + Contact Upsert */}
+  {/* ============================================= */}
+
+  <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50/70 p-5">
+    <div className="flex flex-wrap items-start justify-between gap-4">
+      <div>
+        <div className="flex items-center gap-2">
+          <span className="flex h-7 w-7 items-center justify-center rounded-full bg-blue-600 text-xs font-bold text-white">
+            1
+          </span>
+
+          <h3 className="font-bold text-slate-900">
+            Search Customers + עדכון MagicTouch
+          </h3>
+        </div>
+
+        <p className="mt-2 text-sm leading-6 text-slate-500">
+          מחפש לקוח אחד ב־Surense ומבצע Upsert ל־Contact
+          ב־MagicTouch. אם הלקוח כבר קיים, הנתונים שלו
+          יתעדכנו ולא תיווצר כפילות.
+        </p>
+
+        <div className="mt-2 text-xs font-semibold text-slate-400">
+          startRow = 0 · endRow = 1
+        </div>
       </div>
 
-      <div className="mt-1 text-sm text-slate-500">
-        startRow = 0 · endRow = 1
-      </div>
-    </div>
-
-    <button
-      type="button"
-      className="rounded-xl bg-blue-600 px-5 py-2.5 font-bold text-white hover:bg-blue-700 disabled:opacity-50"
-      disabled={
-        runningDirectImport
-      }
-      onClick={() =>
-        void runOneDirectCustomer()
-      }
-    >
-      {runningDirectImport
-        ? "מריץ מול Surense..."
-        : "הרצת Direct API – לקוח אחד"}
-    </button>
-  </div>
-
-  {directImportResult ? (
-    <div className="mt-5">
-      <div className="mb-2 text-sm font-bold text-slate-700">
-        תוצאת ההרצה
-      </div>
-
-      <pre
-        dir="ltr"
-        className="max-h-[450px] overflow-auto whitespace-pre-wrap break-all rounded-xl bg-slate-950 p-4 text-left text-xs text-white"
+      <button
+        type="button"
+        className="rounded-xl bg-blue-600 px-5 py-2.5 font-bold text-white hover:bg-blue-700 disabled:opacity-50"
+        disabled={
+          runningDirectImport
+        }
+        onClick={() =>
+          void runOneDirectCustomer()
+        }
       >
-        {JSON.stringify(
-          directImportResult,
-          null,
-          2
-        )}
-      </pre>
+        {runningDirectImport
+          ? "מחפש מול Surense..."
+          : "משיכת לקוח אחד"}
+      </button>
     </div>
-  ) : null}
+
+    {directImportResult ? (
+      <div className="mt-5">
+        <div className="mb-2 text-sm font-bold text-slate-700">
+          תוצאת Search / Upsert
+        </div>
+
+        <pre
+          dir="ltr"
+          className="max-h-[350px] overflow-auto whitespace-pre-wrap break-all rounded-xl bg-slate-950 p-4 text-left text-xs text-white"
+        >
+          {JSON.stringify(
+            directImportResult,
+            null,
+            2
+          )}
+        </pre>
+      </div>
+    ) : null}
+  </div>
+
+  {/* ============================================= */}
+  {/* Test 2 - Create Workflow */}
+  {/* ============================================= */}
+
+  <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50/70 p-5">
+    <div className="flex items-center gap-2">
+      <span className="flex h-7 w-7 items-center justify-center rounded-full bg-purple-600 text-xs font-bold text-white">
+        2
+      </span>
+
+      <h3 className="font-bold text-slate-900">
+        Create Workflow
+      </h3>
+    </div>
+
+    <p className="mt-2 text-sm leading-6 text-slate-500">
+      יוצר Workflow חדש ב־Surense עבור Customer ID נתון.
+      הפעולה אינה מבצעת Search ואינה משנה Contact
+      ב־MagicTouch.
+    </p>
+
+    <div className="mt-4 grid gap-4 md:grid-cols-[1fr_auto] md:items-end">
+      <label className="block">
+        <span className="mb-2 block text-sm font-semibold text-slate-700">
+          Surense Customer ID
+        </span>
+
+        <input
+          type="text"
+          dir="ltr"
+          autoComplete="off"
+          className={
+            fieldClass
+          }
+          value={
+            testCustomerId
+          }
+          onChange={(
+            event
+          ) =>
+            setTestCustomerId(
+              event.target.value
+            )
+          }
+          placeholder="Customer ID"
+        />
+      </label>
+
+      <button
+        type="button"
+        className="h-11 rounded-xl bg-purple-600 px-5 font-bold text-white hover:bg-purple-700 disabled:opacity-50"
+        disabled={
+          runningCreateWorkflow ||
+          !testCustomerId.trim()
+        }
+        onClick={() =>
+          void runCreateWorkflowTest()
+        }
+      >
+        {runningCreateWorkflow
+          ? "יוצר Workflow..."
+          : "יצירת Workflow"}
+      </button>
+    </div>
+
+    <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+      פעולה זו יוצרת Workflow אמיתי ב־Surense.
+      Type ID, Owner ID ו־Assigned User ID נלקחים
+      מהגדרות ה־Workflow של הסוכן.
+    </div>
+
+    {createWorkflowResult ? (
+      <div className="mt-5">
+        <div className="mb-2 text-sm font-bold text-slate-700">
+          תוצאת Create Workflow
+        </div>
+
+        <pre
+          dir="ltr"
+          className="max-h-[350px] overflow-auto whitespace-pre-wrap break-all rounded-xl bg-slate-950 p-4 text-left text-xs text-white"
+        >
+          {JSON.stringify(
+            createWorkflowResult,
+            null,
+            2
+          )}
+        </pre>
+      </div>
+    ) : null}
+  </div>
+
+  {/* ============================================= */}
+  {/* Test 3 - Workflow Types */}
+  {/* ============================================= */}
+
+  <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50/70 p-5">
+    <div className="flex flex-wrap items-start justify-between gap-4">
+      <div>
+        <div className="flex items-center gap-2">
+          <span className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-600 text-xs font-bold text-white">
+            3
+          </span>
+
+          <h3 className="font-bold text-slate-900">
+            Workflow Types
+          </h3>
+        </div>
+
+        <p className="mt-2 text-sm leading-6 text-slate-500">
+          בדיקת הרשאת קריאה לאזור ה־Workflow של Surense
+          ושליפת סוגי ה־Workflow הזמינים לסוכן.
+        </p>
+
+        <div className="mt-2 text-xs font-semibold text-slate-400">
+          GET /api/v1/workflows/types · scope: workflows:read
+        </div>
+      </div>
+
+      <button
+        type="button"
+        className="rounded-xl bg-emerald-600 px-5 py-2.5 font-bold text-white hover:bg-emerald-700 disabled:opacity-50"
+        disabled={
+          runningWorkflowTypes
+        }
+        onClick={() =>
+          void runWorkflowTypesTest()
+        }
+      >
+        {runningWorkflowTypes
+          ? "בודק מול Surense..."
+          : "בדיקת Workflow Types"}
+      </button>
+    </div>
+
+    {workflowTypesResult ? (
+      <div className="mt-5">
+        <div className="mb-2 text-sm font-bold text-slate-700">
+          תוצאת Workflow Types
+        </div>
+
+        <pre
+          dir="ltr"
+          className="max-h-[450px] overflow-auto whitespace-pre-wrap break-all rounded-xl bg-slate-950 p-4 text-left text-xs text-white"
+        >
+          {JSON.stringify(
+            workflowTypesResult,
+            null,
+            2
+          )}
+        </pre>
+      </div>
+    ) : null}
+  </div>
 </section>
             <section className="sticky bottom-3 z-30 mt-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-purple-200 bg-white/95 p-4 shadow-xl backdrop-blur">
               <div className="text-sm font-semibold text-purple-700">
