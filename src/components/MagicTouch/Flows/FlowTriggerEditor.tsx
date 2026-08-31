@@ -1,6 +1,19 @@
 "use client";
 
-import React, { useMemo } from "react";
+import React, {
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+
+import {
+  collection,
+  getDocs,
+} from "firebase/firestore";
+
+import {
+  db,
+} from "@/lib/firebase/firebase";
 
 import type {
   FlowTrigger,
@@ -12,13 +25,21 @@ import {
   getSystemForTrigger,
 } from "@/lib/MagicTouch/flows/flowBuilderRegistry";
 
-import type {
-  FlowSystemId,
-} from "@/lib/MagicTouch/flows/flowBuilderRegistry";
+import {
+  useMagicTouchAgent,
+} from "@/components/MagicTouch/MagicTouchAgentContext";
 
 type Props = {
   value: FlowTrigger;
-  onChange: (value: FlowTrigger) => void;
+  onChange: (
+    value: FlowTrigger
+  ) => void;
+};
+
+type WhatsAppTemplateOption = {
+  name: string;
+  label: string;
+  status: string;
 };
 
 const fieldClass =
@@ -28,39 +49,79 @@ export default function FlowTriggerEditor({
   value,
   onChange,
 }: Props) {
-  const currentSystem = useMemo(() => {
-    if (value.sourceSystem) {
-      const bySource = getFlowSystem(
+  const {
+    effectiveAgentId:
+      agentId,
+  } =
+    useMagicTouchAgent();
+
+  const [
+    whatsappTemplates,
+    setWhatsAppTemplates,
+  ] =
+    useState<
+      WhatsAppTemplateOption[]
+    >([]);
+
+  const [
+    templatesLoading,
+    setTemplatesLoading,
+  ] =
+    useState(false);
+
+  const [
+    templatesError,
+    setTemplatesError,
+  ] =
+    useState("");
+
+  const currentSystem =
+    useMemo(() => {
+      if (
         value.sourceSystem
-      );
+      ) {
+        const bySource =
+          getFlowSystem(
+            value.sourceSystem
+          );
 
-      if (bySource) {
-        return bySource;
+        if (
+          bySource
+        ) {
+          return bySource;
+        }
       }
-    }
 
-    return getSystemForTrigger(
-      value.type || ""
-    );
-  }, [
-    value.sourceSystem,
-    value.type,
-  ]);
+      return getSystemForTrigger(
+        value.type ||
+          ""
+      );
+    }, [
+      value.sourceSystem,
+      value.type,
+    ]);
 
   const selectedSystemId =
-    currentSystem?.id || "";
+    currentSystem?.id ||
+    "";
 
   const availableSystems =
     FLOW_SYSTEMS.filter(
-      (system) =>
-        system.triggers.length > 0
+      (
+        system
+      ) =>
+        system.triggers
+          .length >
+        0
     );
 
   const availableTriggers =
-    currentSystem?.triggers || [];
+    currentSystem?.triggers ||
+    [];
 
   const patch = (
-    next: Partial<FlowTrigger>
+    next:
+      Partial<FlowTrigger>
   ) => {
     onChange({
       ...value,
@@ -68,18 +129,197 @@ export default function FlowTriggerEditor({
     });
   };
 
+  /*
+   * טוענים את תבניות ה-WhatsApp
+   * של הסוכן הפעיל.
+   *
+   * אנחנו לא מסתמכים על query של status
+   * כדי לא לדרוש אינדקס נוסף.
+   * הטעינה קטנה ומסוננת בצד הלקוח.
+   */
+  useEffect(() => {
+    if (
+      !agentId ||
+      value.type !==
+        "whatsapp_quick_reply_received"
+    ) {
+      setWhatsAppTemplates(
+        []
+      );
+
+      setTemplatesError(
+        ""
+      );
+
+      return;
+    }
+
+    let cancelled =
+      false;
+
+    const loadTemplates =
+      async () => {
+        setTemplatesLoading(
+          true
+        );
+
+        setTemplatesError(
+          ""
+        );
+
+        try {
+          const templatesRef =
+            collection(
+              db,
+              "agents",
+              agentId,
+              "whatsapp_templates"
+            );
+
+          const snapshot =
+            await getDocs(
+              templatesRef
+            );
+
+          if (
+            cancelled
+          ) {
+            return;
+          }
+
+          const templates =
+            snapshot.docs
+              .map(
+                (
+                  templateDoc
+                ) => {
+                  const data =
+                    templateDoc.data() as Record<
+                      string,
+                      any
+                    >;
+
+                  const status =
+                    String(
+                      data.status ||
+                        ""
+                    )
+                      .trim()
+                      .toUpperCase();
+
+                  const name =
+                    String(
+                      data.name ||
+                        data.templateName ||
+                        templateDoc.id
+                    ).trim();
+
+                  const displayName =
+                    String(
+                      data.displayName ||
+                        data.label ||
+                        ""
+                    ).trim();
+
+                  return {
+                    name:
+                      name ||
+                      templateDoc.id,
+
+                    label:
+                      displayName ||
+                      name ||
+                      templateDoc.id,
+
+                    status,
+                  };
+                }
+              )
+              .filter(
+                (
+                  template
+                ) =>
+                  template.status ===
+                  "APPROVED"
+              )
+              .sort(
+                (
+                  a,
+                  b
+                ) =>
+                  a.label.localeCompare(
+                    b.label,
+                    "he"
+                  )
+              );
+
+          setWhatsAppTemplates(
+            templates
+          );
+        } catch (
+          error
+        ) {
+          console.error(
+            "[FlowTriggerEditor] Failed to load WhatsApp templates",
+            error
+          );
+
+          if (
+            cancelled
+          ) {
+            return;
+          }
+
+          setWhatsAppTemplates(
+            []
+          );
+
+          setTemplatesError(
+            "לא ניתן היה לטעון את תבניות ה-WhatsApp של הסוכן."
+          );
+        } finally {
+          if (
+            !cancelled
+          ) {
+            setTemplatesLoading(
+              false
+            );
+          }
+        }
+      };
+
+    void loadTemplates();
+
+    return () => {
+      cancelled =
+        true;
+    };
+  }, [
+    agentId,
+    value.type,
+  ]);
+
   const handleSystemChange = (
-    systemId: string
+    systemId:
+      string
   ) => {
     const system =
-      getFlowSystem(systemId);
+      getFlowSystem(
+        systemId
+      );
 
-    if (!system) {
+    if (
+      !system
+    ) {
       patch({
-        sourceSystem: "",
-        type: "",
-        templateName: undefined,
-        quickReplyAction: undefined,
+        sourceSystem:
+          "",
+        type:
+          "",
+        templateName:
+          undefined,
+        quickReplyAction:
+          undefined,
       });
 
       return;
@@ -87,50 +327,78 @@ export default function FlowTriggerEditor({
 
     const currentTriggerStillValid =
       system.triggers.some(
-        (trigger) =>
-          trigger.type === value.type
+        (
+          trigger
+        ) =>
+          trigger.type ===
+          value.type
       );
 
     patch({
-      sourceSystem: system.id,
+      sourceSystem:
+        system.id,
+
       type:
         currentTriggerStillValid
           ? value.type
           : "",
+
       templateName:
         currentTriggerStillValid &&
         value.type ===
           "whatsapp_quick_reply_received"
-          ? value.templateName || ""
+          ? value.templateName ||
+            ""
           : undefined,
+
       quickReplyAction:
         currentTriggerStillValid &&
         value.type ===
           "whatsapp_quick_reply_received"
-          ? value.quickReplyAction || ""
+          ? value.quickReplyAction ||
+            ""
           : undefined,
     });
   };
 
   const handleTriggerChange = (
-    type: string
+    type:
+      string
   ) => {
     patch({
       type,
+
       sourceSystem:
-        currentSystem?.id || "",
+        currentSystem?.id ||
+        "",
+
       templateName:
         type ===
         "whatsapp_quick_reply_received"
-          ? value.templateName || ""
+          ? value.templateName ||
+            ""
           : undefined,
+
       quickReplyAction:
         type ===
         "whatsapp_quick_reply_received"
-          ? value.quickReplyAction || ""
+          ? value.quickReplyAction ||
+            ""
           : undefined,
     });
   };
+
+  const selectedTemplateExists =
+    Boolean(
+      value.templateName &&
+        whatsappTemplates.some(
+          (
+            template
+          ) =>
+            template.name ===
+            value.templateName
+        )
+    );
 
   return (
     <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -159,11 +427,19 @@ export default function FlowTriggerEditor({
           </span>
 
           <select
-            className={fieldClass}
-            value={selectedSystemId}
-            onChange={(event) =>
+            className={
+              fieldClass
+            }
+            value={
+              selectedSystemId
+            }
+            onChange={(
+              event
+            ) =>
               handleSystemChange(
-                event.target.value
+                event
+                  .target
+                  .value
               )
             }
           >
@@ -172,10 +448,16 @@ export default function FlowTriggerEditor({
             </option>
 
             {availableSystems.map(
-              (system) => (
+              (
+                system
+              ) => (
                 <option
-                  key={system.id}
-                  value={system.id}
+                  key={
+                    system.id
+                  }
+                  value={
+                    system.id
+                  }
                 >
                   {system.icon}{" "}
                   {system.label}
@@ -191,12 +473,23 @@ export default function FlowTriggerEditor({
           </span>
 
           <select
-            className={fieldClass}
-            value={value.type || ""}
-            disabled={!selectedSystemId}
-            onChange={(event) =>
+            className={
+              fieldClass
+            }
+            value={
+              value.type ||
+              ""
+            }
+            disabled={
+              !selectedSystemId
+            }
+            onChange={(
+              event
+            ) =>
               handleTriggerChange(
-                event.target.value
+                event
+                  .target
+                  .value
               )
             }
           >
@@ -207,10 +500,16 @@ export default function FlowTriggerEditor({
             </option>
 
             {availableTriggers.map(
-              (trigger) => (
+              (
+                trigger
+              ) => (
                 <option
-                  key={trigger.type}
-                  value={trigger.type}
+                  key={
+                    trigger.type
+                  }
+                  value={
+                    trigger.type
+                  }
                 >
                   {trigger.label}
                 </option>
@@ -224,29 +523,97 @@ export default function FlowTriggerEditor({
           <>
             <label>
               <span className="mb-2 block text-sm font-semibold text-slate-700">
-                שם תבנית WhatsApp
+                תבנית WhatsApp
               </span>
 
-              <input
-                className={fieldClass}
-                value={
-                  value.templateName || ""
+              <select
+                className={
+                  fieldClass
                 }
-                onChange={(event) =>
+                value={
+                  value.templateName ||
+                  ""
+                }
+                disabled={
+                  templatesLoading ||
+                  !agentId
+                }
+                onChange={(
+                  event
+                ) =>
                   patch({
                     templateName:
-                      event.target.value,
+                      event
+                        .target
+                        .value,
                   })
                 }
-                placeholder="meir_reengagement_quick_reply_test"
-                dir="ltr"
-              />
+                dir="rtl"
+              >
+                <option value="">
+                  {templatesLoading
+                    ? "טוען תבניות..."
+                    : !agentId
+                      ? "לא נמצא סוכן פעיל"
+                      : "בחרי תבנית..."}
+                </option>
 
-              <span className="mt-2 block text-xs text-slate-400">
-                בשלב הבא נחליף את השדה
-                הזה בבחירה מתוך התבניות של
-                הסוכן.
-              </span>
+                {/*
+                 * אם נטען Flow קיים עם
+                 * templateName שכבר לא מופיע
+                 * ברשימת APPROVED,
+                 * לא נעלים את הערך הקיים.
+                 */}
+                {value.templateName &&
+                !selectedTemplateExists ? (
+                  <option
+                    value={
+                      value.templateName
+                    }
+                  >
+                    {value.templateName}{" "}
+                    (לא נמצאה בין התבניות המאושרות)
+                  </option>
+                ) : null}
+
+                {whatsappTemplates.map(
+                  (
+                    template
+                  ) => (
+                    <option
+                      key={
+                        template.name
+                      }
+                      value={
+                        template.name
+                      }
+                    >
+                      {
+                        template.label
+                      }
+                    </option>
+                  )
+                )}
+              </select>
+
+              {templatesError ? (
+                <span className="mt-2 block text-xs font-medium text-rose-600">
+                  {templatesError}
+                </span>
+              ) : !templatesLoading &&
+                agentId &&
+                whatsappTemplates.length ===
+                  0 ? (
+                <span className="mt-2 block text-xs text-amber-600">
+                  לא נמצאו תבניות WhatsApp
+                  מאושרות אצל הסוכן.
+                </span>
+              ) : (
+                <span className="mt-2 block text-xs text-slate-400">
+                  מוצגות התבניות המאושרות של
+                  הסוכן הפעיל.
+                </span>
+              )}
             </label>
 
             <label>
@@ -255,15 +622,21 @@ export default function FlowTriggerEditor({
               </span>
 
               <select
-                className={fieldClass}
+                className={
+                  fieldClass
+                }
                 value={
                   value.quickReplyAction ||
                   ""
                 }
-                onChange={(event) =>
+                onChange={(
+                  event
+                ) =>
                   patch({
                     quickReplyAction:
-                      event.target.value,
+                      event
+                        .target
+                        .value,
                   })
                 }
               >
@@ -279,7 +652,7 @@ export default function FlowTriggerEditor({
                   לא מעוניין
                 </option>
 
-                <option value="book">
+                <option value="booking">
                   קביעת פגישה
                 </option>
 
@@ -293,9 +666,9 @@ export default function FlowTriggerEditor({
               </select>
 
               <span className="mt-2 block text-xs text-slate-400">
-                גם את הרשימה הזו נחבר
-                בהמשך לתשובות שמוגדרות
-                בתבנית שנבחרה.
+                בשלב הבא נוכל לחבר גם את
+                הרשימה הזו אוטומטית לכפתורים
+                שמוגדרים בתבנית שנבחרה.
               </span>
             </label>
           </>

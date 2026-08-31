@@ -31,6 +31,10 @@ export type CreateSurenseWorkflowInput = {
   ownerId?: string;
   assignedUserId?: string;
 
+   // מיועד לבדיקת הרשאות:
+  // מאפשר לשלוח Create Workflow ללא assignedUserId
+  omitAssignedUserId?: boolean;
+
   dueAt?: string;
   dueAtTimeSet?: boolean;
 };
@@ -138,13 +142,20 @@ export async function createSurenseWorkflow(
    * customerId
    * assignedUserId
    */
-  const body:
-    Record<string, unknown> = {
-      typeId,
-      ownerId,
-      customerId,
-      assignedUserId,
-    };
+const body:
+  Record<string, unknown> = {
+    typeId,
+    ownerId,
+    customerId,
+  };
+
+if (
+  input.omitAssignedUserId !== true &&
+  assignedUserId
+) {
+  body.assignedUserId =
+    assignedUserId;
+}
 
   const dueAt =
     s(

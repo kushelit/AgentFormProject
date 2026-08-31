@@ -22,7 +22,7 @@ export async function GET(request: Request) {
     const agencyId = String(userDoc.data()?.agencies ?? "");
     const isAgency4 = agencyId === "4";
 
-    const [companySnap, groupSnap, productSnap, referrersSnap, statusSnap] = await Promise.all([
+    const [companySnap, groupSnap, productSnap, referrersSnap, statusSnap, sourceLeadSnap] = await Promise.all([
       db.collection("company").where("supportsElementary", "==", true).get(),
       db.collection("elementaryProductGroups").orderBy("order").get(),
       db.collection("elementaryProducts").orderBy("order").get(),
@@ -32,6 +32,7 @@ export async function GET(request: Request) {
       isAgency4
         ? db.collection("statusPolicy").where("isActive", "==", "1").get()
         : Promise.resolve(null),
+      db.collection("sourceLead").where("AgentId", "==", agentId).where("statusLead", "==", true).get(),
     ]);
 
     const companies = companySnap.docs.map((d) => ({
@@ -67,6 +68,8 @@ export async function GET(request: Request) {
       ? statusSnap.docs.map((d) => String(d.data().statusName || "")).filter(Boolean)
       : [];
 
+    const sourceLeadNames = sourceLeadSnap.docs.map((d) => String(d.data().sourceLead || "")).filter(Boolean);
+
     const { buffer, filename } = await generateElementaryTemplateExcel({
       agentId,
       isAgency4,
@@ -75,6 +78,7 @@ export async function GET(request: Request) {
       products,
       statusPolicies,
       referrers,
+      sourceLeadNames,
     });
 
     const fileBuffer = Buffer.isBuffer(buffer) ? buffer : Buffer.from(buffer as ArrayBuffer);

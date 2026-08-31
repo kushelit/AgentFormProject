@@ -280,6 +280,14 @@ export {
 } from "./archiveMagicTouchFlowTemplate";
 
 export {
+  deleteMagicTouchFlowTemplate,
+} from "./deleteMagicTouchFlowTemplate";
+
+export {
+  restoreMagicTouchFlow,
+} from "./restoreMagicTouchFlow";
+
+export {
   listMicrosoftBookingServices,
 } from "./listMicrosoftBookingServices";
 
@@ -352,3 +360,11 @@ export {
 export {
   runSurenseWorkflowTypesTest,
 } from "./runSurenseWorkflowTypesTest";
+
+export {
+  updateMagicTouchContactDetails,
+} from "./updateMagicTouchContactDetails";
+
+export {
+  updateMagicTouchFlowTemplate,
+} from "./updateMagicTouchFlowTemplate";

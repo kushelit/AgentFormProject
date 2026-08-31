@@ -66,27 +66,59 @@ export async function generatePensionFinanceTemplateExcel(
   const workbook = new ExcelJS.Workbook();
   const sheet = workbook.addWorksheet("עסקאות - פנסיה ופיננסים", { views: [{ rightToLeft: true }] });
 
-  const headers = [
-    'תעודת זהות לקוח',        // A
-    'שם פרטי',                 // B
-    'שם משפחה',                // C
-    'חברה',                    // D
-    'מוצר',                    // E
-    'חודש תפוקה (YYYY-MM-DD)', // F
-    'סטטוס עסקה',              // G
-    'מספר פוליסה (לא חובה)',
-    'מינוי סוכן (כן/לא)',
-    'עובד',
-    'מקור ליד',
-    'תאריך ביטול (YYYY-MM-DD)',
-    'פרמיית פנסיה',
-    'צבירת פנסיה',
-    'פרמיית פיננסים',
-    'צבירת פיננסים',
-    'הערות',
-    ...(isAgency4 ? [] : ['שולם היקף', 'שולם ניוד', 'סטטוס הפקדה']),
-    ...(isAgency4 ? ['נציג מפנה', 'פעולה', 'חברה לניוד', 'סוג קופה לניוד', 'סטטוס קופה', 'סטטוס מועמד'] : []),
-  ];
+  // ⚠️ agency4 ו-agency3 מקבלים סדר עמודות שונה **לגמרי** בכוונה — לא מבנה משותף
+  // עם הוספות מותנות (כפי שהיה קודם) — כי agency4 קיבל סדר חדש ומפורש (לפי בקשה),
+  // בעוד agency3 נשאר בסדר המקורי שלו ללא שינוי.
+  const headers: string[] = isAgency4
+    ? [
+        'תעודת זהות לקוח',        // A
+        'שם פרטי',                 // B
+        'שם משפחה',                // C
+        'חברה',                    // D
+        'מוצר',                    // E
+        'פעולה',                   // F
+        'חברה לניוד',              // G
+        'סוג קופה לניוד',          // H
+        'פרמיית פנסיה',            // I
+        'צבירת פנסיה',             // J
+        'פרמיית פיננסים',          // K
+        'צבירת פיננסים',           // L
+        'סטטוס קופה',              // M
+        'סטטוס מועמד',             // N
+        'חודש תפוקה (YYYY-MM-DD)', // O
+        'נציג מפנה',               // P
+        'סטטוס עסקה',              // Q
+        'מספר פוליסה (לא חובה)',   // R
+        'הערות',                   // S
+        // ⚠️ שדות שלא הוזכרו בסדר החדש — נשארו בסוף כדי לא לאבד יכולת ייבוא שלהם.
+        // אם תרצי מיקום/הסרה אחרים, תגידי לי.
+        'עובד',
+        'מינוי סוכן (כן/לא)',
+        'מקור ליד',
+        'תאריך ביטול (YYYY-MM-DD)',
+      ]
+    : [
+        'תעודת זהות לקוח',
+        'שם פרטי',
+        'שם משפחה',
+        'חברה',
+        'מוצר',
+        'חודש תפוקה (YYYY-MM-DD)',
+        'סטטוס עסקה',
+        'מספר פוליסה (לא חובה)',
+        'מינוי סוכן (כן/לא)',
+        'עובד',
+        'מקור ליד',
+        'תאריך ביטול (YYYY-MM-DD)',
+        'פרמיית פנסיה',
+        'צבירת פנסיה',
+        'פרמיית פיננסים',
+        'צבירת פיננסים',
+        'הערות',
+        'שולם היקף',
+        'שולם ניוד',
+        'סטטוס הפקדה',
+      ];
 
   const headerRow = sheet.addRow(headers);
   styleHeaderRow(headerRow);
@@ -94,14 +126,26 @@ export async function generatePensionFinanceTemplateExcel(
 
   const colOf = (name: string) => headers.indexOf(name) + 1;
 
-  // ── שורת דוגמה ──
-  const sampleRow: string[] = [
-    '123456789', 'ישראל', 'ישראלי', companies[0] || '', products[0]?.name || '',
-    '2026-01-01', statusPolicies[0] || '', '', 'לא', workerNames[0] || '', '', '',
-    '3500', '', '', '', '',
-  ];
-  if (!isAgency4) sampleRow.push('', '', '');
-  else sampleRow.push(referrers.find(r => r.active)?.name || '', 'קופה חדשה', '', '', 'פעיל', 'שכיר');
+  // ── שורת דוגמה — נבנית לפי אותו סדר בדיוק כמו headers ──
+  const sampleRow: string[] = isAgency4
+    ? [
+        '123456789', 'ישראל', 'ישראלי', companies[0] || '', products[0]?.name || '',
+        'קופה חדשה', '', '',
+        '3500', '', '', '',
+        'פעיל', 'שכיר',
+        '2026-01-01',
+        referrers.find(r => r.active)?.name || '',
+        statusPolicies[0] || '',
+        '', '',
+        workerNames[0] || '', 'לא', '', '',
+      ]
+    : [
+        '123456789', 'ישראל', 'ישראלי', companies[0] || '', products[0]?.name || '',
+        '2026-01-01', statusPolicies[0] || '', '', 'לא', workerNames[0] || '', '', '',
+        '3500', '', '', '', '',
+        '', '', '',
+      ];
+
   const exampleRow = sheet.addRow(sampleRow);
   exampleRow.eachCell((cell) => { cell.font = { italic: true, color: { argb: "FF888888" } }; });
 
@@ -148,6 +192,8 @@ export async function generatePensionFinanceTemplateExcel(
   const refColIndex: Record<string, number> = {};
   refCols.forEach((c) => { refColIndex[c.header] = refIdx++; });
 
+  // ⚠️ applyListValidation מבוסס על colOf(שם הכותרת) — לא תלוי במיקום/סדר בפועל,
+  // אז זה ממשיך לעבוד נכון גם אחרי שהסדר של headers השתנה לגמרי ל-agency4.
   applyListValidation(sheet, colLetter(colOf('חברה')), refRange(refColIndex['חברות'], companies.length));
   applyListValidation(sheet, colLetter(colOf('מוצר')), refRange(refColIndex['מוצרים (פנסיה/פיננסים)'], productNames.length));
   applyListValidation(sheet, colLetter(colOf('סטטוס עסקה')), refRange(refColIndex['סטטוסי עסקה'], statusPolicies.length));

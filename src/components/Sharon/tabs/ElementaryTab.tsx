@@ -126,6 +126,7 @@ const ElementaryTab: React.FC<Props> = ({ agentId, customer, onSelectCustomer })
 
   // ─── ייבוא מאקסל ────────────────────────────────────────────────────────
   const [isUploadingExcel, setIsUploadingExcel] = useState(false);
+  const [isExportingExcel, setIsExportingExcel] = useState(false);
   const uploadInputRef = useRef<HTMLInputElement>(null);
   const [importErrorRows, setImportErrorRows] = useState<{ row: number; error: string }[] | null>(null);
   const [showImportRunsManager, setShowImportRunsManager] = useState(false);
@@ -447,7 +448,8 @@ const ElementaryTab: React.FC<Props> = ({ agentId, customer, onSelectCustomer })
 
   // ─── ייצוא דוח — בדיוק מה שמוצג כרגע (אחרי הסינונים הפעילים) ───────────
   const exportPoliciesToExcel = async () => {
-    if (!filtered.length) return;
+    if (!filtered.length || isExportingExcel) return;
+    setIsExportingExcel(true);
 
     const headers = [
       'שם לקוח', 'ת"ז', 'חברה', 'מוצר',
@@ -483,6 +485,8 @@ const ElementaryTab: React.FC<Props> = ({ agentId, customer, onSelectCustomer })
       saveAs(blob, 'דוח_אלמנטרי.xlsx');
     } catch {
       addToast('error', 'שגיאה בהפקת הדוח');
+    } finally {
+      setIsExportingExcel(false);
     }
   };
 
@@ -675,11 +679,11 @@ const ElementaryTab: React.FC<Props> = ({ agentId, customer, onSelectCustomer })
             type="button"
             onClick={exportPoliciesToExcel}
             className="sharon-inline-btn"
-            style={{ background: '#185FA5' }}
-            disabled={!filtered.length}
+            style={{ background: '#185FA5', opacity: isExportingExcel ? 0.7 : 1 }}
+            disabled={!filtered.length || isExportingExcel}
             title={!filtered.length ? 'אין נתונים להורדה' : ''}
           >
-            הורד דוח ({filtered.length})
+            {isExportingExcel ? 'מוריד...' : `הורד דוח (${filtered.length})`}
           </button>
           <input
             ref={uploadInputRef}
@@ -706,7 +710,7 @@ const ElementaryTab: React.FC<Props> = ({ agentId, customer, onSelectCustomer })
             ניהול טעינות
           </button>
           <div className="sharon-add-row" onClick={startNew}>
-            + הוסף מכירה{customer ? ` ל${customer.firstNameCustomer} ${customer.lastNameCustomer}` : ''}
+            + הוסף פוליסה{customer ? ` ל${customer.firstNameCustomer} ${customer.lastNameCustomer}` : ''}
           </div>
         </div>
       )}

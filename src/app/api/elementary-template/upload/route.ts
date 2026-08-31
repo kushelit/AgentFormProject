@@ -19,6 +19,7 @@ const COL = {
   START_DATE: 'תאריך תחילה (YYYY-MM-DD)',
   END_DATE: 'תאריך סיום (YYYY-MM-DD)',
   PREMIUM: 'פרמיה',
+  SOURCE_LEAD: 'מקור ליד',
   COMMISSION_RATE: 'אחוז עמלה (רק לחברות ידניות)',
   STATUS: 'סטטוס',
   NOTES: 'הערות',
@@ -26,10 +27,6 @@ const COL = {
 };
 
 const EXAMPLE_ID = '123456789'; // ת"ז לדוגמה בתבנית — שורות עם הערך הזה מדולגות אוטומטית
-
-// ── זיהוי ת"ז ללא תלות בפורמט (עם/בלי 0 מוביל) - זהה לעיקרון בכל שאר הקבצים
-// (NewCustomer.tsx / DealFormModal.tsx / useEditableTable.ts / fetchDataForAgent.ts) ──
-const canonId = (v: any): string => String(v ?? '').trim().replace(/\D/g, '').replace(/^0+/, '');
 
 function getCellText(row: ExcelJS.Row, colIndex: number): string {
   const value = row.getCell(colIndex).value;
@@ -95,7 +92,7 @@ export async function POST(req: NextRequest) {
     }
 
     // ── נתוני עזר ──
-    const [companySnap, groupSnap, productSnap, contractsSnap, referrersSnap, customersSnap, statusSnap] = await Promise.all([
+    const [companySnap, groupSnap, productSnap, contractsSnap, referrersSnap, customersSnap, statusSnap, sourceLeadSnap] = await Promise.all([
       db.collection("company").where("supportsElementary", "==", true).get(),
       db.collection("elementaryProductGroups").get(),
       db.collection("elementaryProducts").get(),
@@ -107,6 +104,7 @@ export async function POST(req: NextRequest) {
       isAgency4
         ? db.collection("statusPolicy").where("isActive", "==", "1").get()
         : Promise.resolve(null),
+      db.collection("sourceLead").where("AgentId", "==", agentId).where("statusLead", "==", true).get(),
     ]);
 
     const companies = companySnap.docs.map((d) => ({
@@ -126,13 +124,10 @@ export async function POST(req: NextRequest) {
     const validStatusNames = statusSnap
       ? statusSnap.docs.map((d) => String(d.data().statusName || "")).filter(Boolean)
       : [];
-    // ✅ מפתח לפי ת"ז מנורמלת (canonId) - כדי שלא ייווצרו לקוחות כפולים בגלל
-    // הבדלי פורמט (עם/בלי 0 מוביל) בין מה שכתוב באקסל למה ששמור בפועל ב-DB.
-    const existingCustomersByCanonId = new Map(
-      customersSnap.docs
-        .map((d) => [canonId(d.data().IDCustomer), { id: d.id, ...(d.data() as any) }] as const)
-        .filter(([key]) => !!key)
+    const existingCustomersByIdNum = new Map(
+      customersSnap.docs.map((d) => [String(d.data().IDCustomer || "").trim(), { id: d.id, ...(d.data() as any) }])
     );
+    const sourceLeads = sourceLeadSnap.docs.map((d) => ({ id: d.id, name: String(d.data().sourceLead || "") }));
 
     type RowResult = { rowNumber: number; ok: boolean; error?: string; payload?: any; newCustomer?: any };
     const results: RowResult[] = [];
@@ -153,6 +148,7 @@ export async function POST(req: NextRequest) {
       const policyNumber = getCellText(row, colIndex[COL.POLICY_NUMBER]);
       const licenseOrAddress = colIndex[COL.LICENSE_OR_ADDRESS] ? getCellText(row, colIndex[COL.LICENSE_OR_ADDRESS]) : "";
       const premiumRaw = getCellText(row, colIndex[COL.PREMIUM]);
+      const sourceLeadRaw = colIndex[COL.SOURCE_LEAD] ? getCellText(row, colIndex[COL.SOURCE_LEAD]) : "";
 
       const errors: string[] = [];
 
@@ -164,6 +160,16 @@ export async function POST(req: NextRequest) {
 
       const matchedCompany = companies.find((c) => c.companyName === companyName);
       if (!matchedCompany) errors.push(`חברה לא מזוהה: "${companyName}" (או שאינה תומכת אלמנטרי)`);
+
+      let sourceValue = "";
+      if (sourceLeadRaw) {
+        const matchedSourceLead = sourceLeads.find((s) => s.name === sourceLeadRaw);
+        if (!matchedSourceLead) {
+          errors.push(`מקור ליד לא מזוהה: "${sourceLeadRaw}"`);
+        } else {
+          sourceValue = matchedSourceLead.id;
+        }
+      }
 
       // ── מוצר: תומך גם ב"תווית בלבד" וגם ב"קבוצה — תווית" (כפי שמופיע בלשונית הרשימות) ──
       let matchedProduct = products.find((p) => p.label === productLabelRaw);
@@ -239,20 +245,12 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      // ✅ חיפוש לקוח קיים לפי ת"ז מנורמלת, ולא מחרוזת גולמית מהאקסל
-      const idCustomerCanon = canonId(idCustomer);
-      const existingCustomer = existingCustomersByCanonId.get(idCustomerCanon);
+      const existingCustomer = existingCustomersByIdNum.get(idCustomer);
       const customerName = `${firstName} ${lastName}`.trim();
-
-      // ✅ הת"ז שבפועל תישמר על העסקה: אם נמצא לקוח קיים - בדיוק כמו שהוא שמור אצלו.
-      // אם לא - בפורמט קנוני (בלי 0 מוביל), כדי לא ליצור עוד כפילויות עתידיות.
-      const resolvedIdCustomer = existingCustomer
-        ? String(existingCustomer.IDCustomer || idCustomer).trim()
-        : (idCustomerCanon || idCustomer);
 
       const payload: any = {
         agentId,
-        customerId: resolvedIdCustomer,
+        customerId: idCustomer,
         customerName,
         company: matchedCompany!.companyName,
         productId: matchedProduct!.id,
@@ -265,6 +263,7 @@ export async function POST(req: NextRequest) {
         startDate: startDateResult.value,
         endDate: endDateResult.value,
         premium: String(premium),
+        sourceValue,
         commissionRate: isAgency4 ? '' : commissionRate,
         commission: isAgency4 ? '' : commission,
         isManual: isAgency4 ? false : isManual,
@@ -279,7 +278,7 @@ export async function POST(req: NextRequest) {
         payload,
         newCustomer: existingCustomer
           ? undefined
-          : { AgentId: agentId, IDCustomer: resolvedIdCustomer, firstNameCustomer: firstName, lastNameCustomer: lastName, phone, parentID: '' },
+          : { AgentId: agentId, IDCustomer: idCustomer, firstNameCustomer: firstName, lastNameCustomer: lastName, phone, parentID: '' },
       });
     });
 
@@ -297,9 +296,7 @@ export async function POST(req: NextRequest) {
     const CHUNK = 400;
     let writeCount = 0;
     let newCustomerCount = 0;
-    // ✅ מפתח לפי ת"ז מנורמלת (resolvedIdCustomer כבר קנוני) - כדי שאותו לקוח חדש
-    // שמופיע בכמה שורות בקובץ (אפילו בפורמטים שונים באקסל) ייווצר פעם אחת בלבד.
-    const createdCustomerIds = new Map<string, string>(); // canonId -> firestore doc id
+    const createdCustomerIds = new Map<string, string>(); // idCustomer -> firestore doc id, למקרה שאותו לקוח חדש מופיע בכמה שורות בקובץ
     const runId = db.collection("importRuns").doc().id;
 
     for (let i = 0; i < validRows.length; i += CHUNK) {
@@ -307,12 +304,11 @@ export async function POST(req: NextRequest) {
       const batch = db.batch();
 
       for (const row of chunk) {
-        const customerKey = canonId(row.payload.customerId) || row.payload.customerId;
-        if (row.newCustomer && !createdCustomerIds.has(customerKey)) {
+        if (row.newCustomer && !createdCustomerIds.has(row.payload.customerId)) {
           const customerRef = db.collection("customer").doc();
           batch.set(customerRef, { ...row.newCustomer, runId, createdAt: admin.firestore.FieldValue.serverTimestamp() });
           batch.update(customerRef, { parentID: customerRef.id });
-          createdCustomerIds.set(customerKey, customerRef.id);
+          createdCustomerIds.set(row.payload.customerId, customerRef.id);
           newCustomerCount++;
         }
 

@@ -206,6 +206,57 @@
   line-height: 1;
 }
 
+/* ── Multi-select checkbox list (e.g. "חברה לביטול") ─────────────────────── */
+
+.dfm-checkbox-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  padding: 10px;
+  border: 1px solid var(--clrgray5);
+  border-radius: 4px;
+  background-color: var(--clrwhite);
+  max-height: 140px;
+  overflow-y: auto;
+}
+
+.dfm-checkbox-list-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--font-size-text-regular);
+  color: var(--clrblack);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.dfm-checkbox-list-item input[type='checkbox'] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  border: 1px solid var(--clrgray5);
+  background-color: var(--clrwhite);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.dfm-checkbox-list-item input[type='checkbox']:checked {
+  background-color: var(--clrdarkblue3);
+  border-color: var(--clrdarkblue3);
+}
+
+.dfm-checkbox-list-item input[type='checkbox']:checked::before {
+  content: '✔';
+  color: #fff;
+  font-size: 10px;
+  line-height: 1;
+}
+
 /* ── Actions ──────────────────────────────────────────────────────────── */
 
 .dfm-actions {

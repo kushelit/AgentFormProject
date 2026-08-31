@@ -119,7 +119,7 @@ export function downloadFlowTemplate(template: FlowTemplateSummary): void {
   URL.revokeObjectURL(url);
 }
 
-export async function archiveFlowTemplate(
+export async function deleteFlowTemplate(
   templateId: string
 ): Promise<{
   templateId: string;
@@ -135,7 +135,7 @@ export async function archiveFlowTemplate(
       }
     >(
       functions,
-      "archiveMagicTouchFlowTemplate"
+      "deleteMagicTouchFlowTemplate"
     );
 
   const result =
@@ -146,5 +146,71 @@ export async function archiveFlowTemplate(
   return {
     templateId:
       result.data.templateId,
+  };
+}
+
+export async function updateFlowTemplate(input: {
+  templateId: string;
+
+  name: string;
+
+  description: string;
+
+  status:
+    | "draft"
+    | "published";
+
+  trigger:
+    Record<
+      string,
+      unknown
+    >;
+
+  firstStepId:
+    string;
+
+  steps:
+    Record<
+      string,
+      unknown
+    >;
+
+  variables?:
+    unknown[];
+}): Promise<{
+  templateId: string;
+  version: number;
+  status:
+    | "draft"
+    | "published";
+}> {
+  const fn =
+    httpsCallable<
+      typeof input,
+      {
+        ok: boolean;
+        templateId: string;
+        version: number;
+        status:
+          | "draft"
+          | "published";
+      }
+    >(
+      functions,
+      "updateMagicTouchFlowTemplate"
+    );
+
+  const result =
+    await fn(input);
+
+  return {
+    templateId:
+      result.data.templateId,
+
+    version:
+      result.data.version,
+
+    status:
+      result.data.status,
   };
 }

@@ -1,41 +1,41 @@
-'use client';
+"use client";
 
 import {
   useCallback,
   useEffect,
   useMemo,
   useState,
-} from 'react';
+} from "react";
 
-import Link from 'next/link';
+import Link from "next/link";
 
 import {
   httpsCallable,
-} from 'firebase/functions';
+} from "firebase/functions";
 
 import {
   functions,
-} from '@/lib/firebase/firebase';
+} from "@/lib/firebase/firebase";
 
 import {
   getAgentSurenseConfig,
 } from "@/lib/MagicTouch/integrations/surense/api";
 
-import { useMagicTouchAgent } from '@/components/MagicTouch/MagicTouchAgentContext';
+import {
+  useMagicTouchAgent,
+} from "@/components/MagicTouch/MagicTouchAgentContext";
 
-import CreateMagicTouchContactModal from '@/components/MagicTouch/CreateMagicTouchContactModal';
-import ImportMagicTouchExcelModal from '@/components/MagicTouch/ImportMagicTouchExcelModal';
-import SendMagicTouchCampaignModal from '@/components/MagicTouch/SendMagicTouchCampaignModal';
-
-
+import CreateMagicTouchContactModal from "@/components/MagicTouch/CreateMagicTouchContactModal";
+import ImportMagicTouchExcelModal from "@/components/MagicTouch/ImportMagicTouchExcelModal";
+import SendMagicTouchCampaignModal from "@/components/MagicTouch/SendMagicTouchCampaignModal";
 
 type SourceSystem =
-  | 'surense'
-  | 'magicsale'
-  | 'excel'
-  | 'manual'
-  | 'external_crm'
-  | 'other';
+  | "surense"
+  | "magicsale"
+  | "excel"
+  | "manual"
+  | "external_crm"
+  | "other";
 
 type MagicTouchContact = {
   id: string;
@@ -56,232 +56,124 @@ type MagicTouchContact = {
   gender: string | null;
   birthDate: string | null;
 
-  sourceSystem:
-    SourceSystem;
+  sourceSystem: SourceSystem;
 
-  sourceRecordId:
-    string | null;
+  sourceRecordId: string | null;
 
   sourceData?: {
     surense?: {
-      customerId:
-        string | null;
-
-      workflowId:
-        string | null;
-
-      statusName:
-        string | null;
-
-      statusActive:
-        boolean | null;
-
-      lastActivityDate:
-        string | null;
+      customerId: string | null;
+      workflowId: string | null;
+      statusName: string | null;
+      statusActive: boolean | null;
+      lastActivityDate: string | null;
     } | null;
 
     magicsale?: {
-      customerDocId:
-        string | null;
-
-      customerId:
-        string | null;
+      customerDocId: string | null;
+      customerId: string | null;
     } | null;
 
     excel?: {
-      importId:
-        string | null;
-
-      fileName:
-        string | null;
-
-      rowNumber:
-        number | null;
-
-      uploadedBy:
-        string | null;
+      importId: string | null;
+      fileName: string | null;
+      rowNumber: number | null;
+      uploadedBy: string | null;
     } | null;
   };
 
   engagement?: {
     reengagement?: {
-      status?:
-        string | null;
+      status?: string | null;
+      interestStatus?: string | null;
+      interestRespondedAt?: number | null;
 
-      interestStatus?:
-        string | null;
+      bookingStatus?: string | null;
+      bookingLink?: string | null;
+      bookingLinkSentAt?: number | null;
+      bookedAt?: number | null;
 
-      interestRespondedAt?:
-        number | null;
+      powerOfAttorney?: {
+        status?: string | null;
+        requestedAt?: number | null;
+        lastCheckedAt?: number | null;
+        signedAt?: number | null;
+        reminderDue?: boolean;
+      } | null;
 
-      bookingStatus?:
-        string | null;
-
-      bookingLink?:
-        string | null;
-
-      bookingLinkSentAt?:
-        number | null;
-
-      bookedAt?:
-        number | null;
-
-        powerOfAttorney?: {
-  status?: string | null;
-  requestedAt?: number | null;
-  lastCheckedAt?: number | null;
-  signedAt?: number | null;
-  reminderDue?: boolean;
-} | null;
-
-      resolvedAt?:
-        number | null;
-
-      lastFlowRunId?:
-        string | null;
-
-      surenseSyncStatus?:
-        string | null;
-
-      surenseSyncedAt?:
-        number | null;
-
-      updatedAt?:
-        number | null;
+      resolvedAt?: number | null;
+      lastFlowRunId?: string | null;
+      surenseSyncStatus?: string | null;
+      surenseSyncedAt?: number | null;
+      updatedAt?: number | null;
     } | null;
   } | null;
 
-  contactStatus:
-    string;
+  contactStatus: string;
+  interestStatus: string;
+  appointmentStatus: string;
+  appointmentProvider: string | null;
+  consentStatus: string;
 
-  interestStatus:
-    string;
+  tags: string[];
 
-  appointmentStatus:
-    string;
+  notes: string | null;
 
-  appointmentProvider:
-    string | null;
+  lastInboundAt: number | null;
+  lastOutboundAt: number | null;
+  lastReplyText: string | null;
+  sourceLastSyncedAt: number | null;
 
-  consentStatus:
-    string;
-
-  tags:
-    string[];
-
-  notes:
-    string | null;
-
-  lastInboundAt:
-    number | null;
-
-  lastOutboundAt:
-    number | null;
-
-  lastReplyText:
-    string | null;
-
-  sourceLastSyncedAt:
-    number | null;
-
-  createdAt:
-    number | null;
-
-  updatedAt:
-    number | null;
+  createdAt: number | null;
+  updatedAt: number | null;
 };
 
 type MagicTouchStats = {
-  total:
-    number;
+  total: number;
 
-  bySource:
-    Record<
-      string,
-      number
-    >;
+  bySource: Record<
+    string,
+    number
+  >;
 
-  byContactStatus:
-    Record<
-      string,
-      number
-    >;
+  byContactStatus: Record<
+    string,
+    number
+  >;
 
-  byInterestStatus:
-    Record<
-      string,
-      number
-    >;
+  byInterestStatus: Record<
+    string,
+    number
+  >;
 
-  byAppointmentStatus:
-    Record<
-      string,
-      number
-    >;
+  byAppointmentStatus: Record<
+    string,
+    number
+  >;
 
-  withPhone:
-    number;
-
-  withoutPhone:
-    number;
-
-  withEmail:
-    number;
-
-  withoutEmail:
-    number;
+  withPhone: number;
+  withoutPhone: number;
+  withEmail: number;
+  withoutEmail: number;
 };
 
 type GetMagicTouchContactsResponse = {
-  ok:
-    boolean;
-
-  agentId:
-    string;
-
-  contacts:
-    MagicTouchContact[];
-
-  stats:
-    MagicTouchStats;
-
-  count:
-    number;
-
-  limit:
-    number;
+  ok: boolean;
+  agentId: string;
+  contacts: MagicTouchContact[];
+  stats: MagicTouchStats;
+  count: number;
+  limit: number;
 };
 
-type SendCampaignResponse = {
-  ok:
-    boolean;
-
-  partialSuccess:
-    boolean;
-
-  agentId:
-    string;
-
-  campaignId:
-    string;
-
-  campaignName:
-    string;
-
-  templateName:
-    string;
-
-  received:
-    number;
-
-  sent:
-    number;
-
-  failed:
-    number;
-
-  status:
-    string;
+type UpdateMagicTouchContactDetailsResponse = {
+  ok: boolean;
+  agentId: string;
+  contactId: string;
+  phone: string;
+  phoneNormalized: string;
+  email: string | null;
+  emailNormalized: string | null;
 };
 
 function formatDate(
@@ -289,17 +181,17 @@ function formatDate(
     number | null
 ): string {
   if (!value) {
-    return '—';
+    return "—";
   }
 
   return new Intl.DateTimeFormat(
-    'he-IL',
+    "he-IL",
     {
       dateStyle:
-        'short',
+        "short",
 
       timeStyle:
-        'short',
+        "short",
     }
   ).format(
     new Date(
@@ -315,23 +207,23 @@ function sourceLabel(
   switch (
     source
   ) {
-    case 'surense':
-      return 'שורנס';
+    case "surense":
+      return "שורנס";
 
-    case 'magicsale':
-      return 'MagicSale';
+    case "magicsale":
+      return "MagicSale";
 
-    case 'excel':
-      return 'Excel';
+    case "excel":
+      return "Excel";
 
-    case 'manual':
-      return 'ידני';
+    case "manual":
+      return "ידני";
 
-    case 'external_crm':
-      return 'CRM חיצוני';
+    case "external_crm":
+      return "CRM חיצוני";
 
     default:
-      return 'אחר';
+      return "אחר";
   }
 }
 
@@ -342,20 +234,20 @@ function interestLabel(
   switch (
     status
   ) {
-    case 'interested':
-      return 'מעוניין';
+    case "interested":
+      return "מעוניין";
 
-    case 'not_interested':
-      return 'לא מעוניין';
+    case "not_interested":
+      return "לא מעוניין";
 
-    case 'pending':
-      return 'ממתין לתגובה';
+    case "pending":
+      return "ממתין לתגובה";
 
-    case 'no_response':
-      return 'ללא תגובה';
+    case "no_response":
+      return "ללא תגובה";
 
     default:
-      return 'טרם נוצר קשר';
+      return "טרם נוצר קשר";
   }
 }
 
@@ -366,29 +258,33 @@ function appointmentLabel(
   switch (
     status
   ) {
-    case 'link_sent':
-      return 'נשלח קישור';
+    case "link_sent":
+      return "נשלח קישור";
 
-    case 'booked':
-      return 'נקבעה פגישה';
+    case "booked":
+      return "נקבעה פגישה";
 
-    case 'cancelled':
-      return 'הפגישה בוטלה';
+    case "cancelled":
+      return "הפגישה בוטלה";
 
-    case 'no_booking':
-      return 'לא נקבעה';
+    case "no_booking":
+      return "לא נקבעה";
 
-    case 'not_required':
-      return 'לא נדרש';
+    case "not_required":
+      return "לא נדרש";
 
     default:
-      return 'טרם נשלח';
+      return "טרם נשלח";
   }
 }
+
 function powerOfAttorneyLabel(
-  status: string
+  status:
+    string
 ): string {
-  switch (status) {
+  switch (
+    status
+  ) {
     case "waiting_for_signature":
       return "ממתין לחתימה";
 
@@ -420,7 +316,7 @@ function getContactInterestStatus(
       ?.interestStatus ||
     contact
       .interestStatus ||
-    ''
+    ""
   );
 }
 
@@ -435,7 +331,7 @@ function getContactAppointmentStatus(
       ?.bookingStatus ||
     contact
       .appointmentStatus ||
-    ''
+    ""
   );
 }
 
@@ -448,12 +344,11 @@ export default function MagicTouchContactsPage() {
   const agentId =
     selectedAgentId;
 
-
-    const [
-  hasSurenseIntegration,
-  setHasSurenseIntegration,
-] = useState(false);
-
+  const [
+    hasSurenseIntegration,
+    setHasSurenseIntegration,
+  ] =
+    useState(false);
 
   const [
     contacts,
@@ -475,13 +370,13 @@ export default function MagicTouchContactsPage() {
     search,
     setSearch,
   ] =
-    useState('');
+    useState("");
 
   const [
     sourceFilter,
     setSourceFilter,
   ] =
-    useState('');
+    useState("");
 
   const [
     isLoading,
@@ -493,13 +388,13 @@ export default function MagicTouchContactsPage() {
     errorMessage,
     setErrorMessage,
   ] =
-    useState('');
+    useState("");
 
   const [
     successMessage,
     setSuccessMessage,
   ] =
-    useState('');
+    useState("");
 
   const [
     isCreateModalOpen,
@@ -516,6 +411,32 @@ export default function MagicTouchContactsPage() {
   const [
     isCampaignModalOpen,
     setIsCampaignModalOpen,
+  ] =
+    useState(false);
+
+  const [
+    editingContact,
+    setEditingContact,
+  ] =
+    useState<
+      MagicTouchContact | null
+    >(null);
+
+  const [
+    editPhone,
+    setEditPhone,
+  ] =
+    useState("");
+
+  const [
+    editEmail,
+    setEditEmail,
+  ] =
+    useState("");
+
+  const [
+    isSavingContact,
+    setIsSavingContact,
   ] =
     useState(false);
 
@@ -540,7 +461,7 @@ export default function MagicTouchContactsPage() {
         }
 
         setIsLoading(true);
-        setErrorMessage('');
+        setErrorMessage("");
 
         try {
           const fn =
@@ -555,7 +476,7 @@ export default function MagicTouchContactsPage() {
               GetMagicTouchContactsResponse
             >(
               functions,
-              'getMagicTouchContacts'
+              "getMagicTouchContacts"
             );
 
           const result =
@@ -585,7 +506,7 @@ export default function MagicTouchContactsPage() {
           error: any
         ) {
           console.error(
-            '[MagicTouchContactsPage] Failed to load contacts',
+            "[MagicTouchContactsPage] Failed to load contacts",
             error
           );
 
@@ -594,7 +515,7 @@ export default function MagicTouchContactsPage() {
 
           setErrorMessage(
             error?.message ||
-              'לא ניתן היה לטעון את אנשי הקשר.'
+              "לא ניתן היה לטעון את אנשי הקשר."
           );
         } finally {
           setIsLoading(false);
@@ -604,35 +525,43 @@ export default function MagicTouchContactsPage() {
         agentId,
       ]
     );
-    
-    useEffect(() => {
-  if (!agentId) {
-    setHasSurenseIntegration(false);
-    return;
-  }
 
-  const loadSurenseConfig = async () => {
-    try {
-      const result =
-        await getAgentSurenseConfig(
-          agentId
-        );
-
-      setHasSurenseIntegration(
-        result.config.enabled === true
-      );
-    } catch (error) {
-      console.error(
-        "[MagicTouchContactsPage] Failed to load Surense config",
-        error
-      );
-
+  useEffect(() => {
+    if (!agentId) {
       setHasSurenseIntegration(false);
+      return;
     }
-  };
 
-  void loadSurenseConfig();
-}, [agentId]);
+    const loadSurenseConfig =
+      async () => {
+        try {
+          const result =
+            await getAgentSurenseConfig(
+              agentId
+            );
+
+          setHasSurenseIntegration(
+            result.config.enabled ===
+              true
+          );
+        } catch (
+          error
+        ) {
+          console.error(
+            "[MagicTouchContactsPage] Failed to load Surense config",
+            error
+          );
+
+          setHasSurenseIntegration(
+            false
+          );
+        }
+      };
+
+    void loadSurenseConfig();
+  }, [
+    agentId,
+  ]);
 
   useEffect(() => {
     void loadContacts();
@@ -647,6 +576,18 @@ export default function MagicTouchContactsPage() {
 
     setIsCampaignModalOpen(
       false
+    );
+
+    setEditingContact(
+      null
+    );
+
+    setEditPhone(
+      ""
+    );
+
+    setEditEmail(
+      ""
     );
   }, [
     agentId,
@@ -683,11 +624,11 @@ export default function MagicTouchContactsPage() {
               contact.phone,
               contact.phoneNormalized,
               contact.email ||
-                '',
+                "",
               contact.idNumber ||
-                '',
+                "",
               contact.sourceRecordId ||
-                '',
+                "",
             ];
 
           return values.some(
@@ -850,7 +791,7 @@ export default function MagicTouchContactsPage() {
         !agentId
       ) {
         setErrorMessage(
-          'לא נמצא סוכן פעיל.'
+          "לא נמצא סוכן פעיל."
         );
         return;
       }
@@ -860,7 +801,7 @@ export default function MagicTouchContactsPage() {
         0
       ) {
         setErrorMessage(
-          'יש לבחור לפחות איש קשר אחד.'
+          "יש לבחור לפחות איש קשר אחד."
         );
         return;
       }
@@ -870,17 +811,164 @@ export default function MagicTouchContactsPage() {
         100
       ) {
         setErrorMessage(
-          'ניתן לשלוח עד 100 אנשי קשר בכל קמפיין.'
+          "ניתן לשלוח עד 100 אנשי קשר בכל קמפיין."
         );
         return;
       }
 
-      setErrorMessage('');
-      setSuccessMessage('');
+      setErrorMessage("");
+      setSuccessMessage("");
 
       setIsCampaignModalOpen(
         true
       );
+    };
+
+  const openEditContact =
+    (
+      contact:
+        MagicTouchContact
+    ) => {
+      setErrorMessage("");
+      setSuccessMessage("");
+
+      setEditingContact(
+        contact
+      );
+
+      setEditPhone(
+        contact.phone ||
+          ""
+      );
+
+      setEditEmail(
+        contact.email ||
+          ""
+      );
+    };
+
+  const closeEditContact =
+    () => {
+      if (
+        isSavingContact
+      ) {
+        return;
+      }
+
+      setEditingContact(
+        null
+      );
+
+      setEditPhone(
+        ""
+      );
+
+      setEditEmail(
+        ""
+      );
+    };
+
+  const saveContactDetails =
+    async () => {
+      if (
+        !agentId ||
+        !editingContact
+      ) {
+        return;
+      }
+
+      const phone =
+        editPhone.trim();
+
+      const email =
+        editEmail.trim();
+
+      if (
+        email &&
+        !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(
+          email
+        )
+      ) {
+        setErrorMessage(
+          "כתובת האימייל אינה תקינה."
+        );
+        return;
+      }
+
+      try {
+        setIsSavingContact(
+          true
+        );
+
+        setErrorMessage("");
+        setSuccessMessage("");
+
+        const fn =
+          httpsCallable<
+            {
+              agentId:
+                string;
+
+              contactId:
+                string;
+
+              phone:
+                string;
+
+              email:
+                string;
+            },
+            UpdateMagicTouchContactDetailsResponse
+          >(
+            functions,
+            "updateMagicTouchContactDetails"
+          );
+
+        await fn({
+          agentId,
+
+          contactId:
+            editingContact.contactId,
+
+          phone,
+
+          email,
+        });
+
+        setEditingContact(
+          null
+        );
+
+        setEditPhone(
+          ""
+        );
+
+        setEditEmail(
+          ""
+        );
+
+        setSuccessMessage(
+          "פרטי איש הקשר עודכנו בהצלחה."
+        );
+
+        await loadContacts();
+      } catch (
+        error: any
+      ) {
+        console.error(
+          "[MagicTouchContactsPage] Failed to update contact details",
+          error
+        );
+
+        setErrorMessage(
+          error?.message ||
+            "עדכון פרטי איש הקשר נכשל."
+        );
+      } finally {
+        setIsSavingContact(
+          false
+        );
+      }
     };
 
   const selectedPreviewName =
@@ -910,30 +998,49 @@ export default function MagicTouchContactsPage() {
 
             <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-slate-500">
               <span className="inline-flex items-center gap-2">
-                <span className="text-slate-400">◉</span>
+                <span className="text-slate-400">
+                  ◉
+                </span>
+
                 <strong className="font-semibold text-slate-700">
-                  {stats?.total ?? contacts.length}
+                  {stats?.total ??
+                    contacts.length}
                 </strong>
+
                 סה״כ אנשי קשר
               </span>
 
               <span className="hidden h-4 w-px bg-slate-200 sm:block" />
 
               <span className="inline-flex items-center gap-2">
-                <span className="text-slate-400">◇</span>
+                <span className="text-slate-400">
+                  ◇
+                </span>
+
                 <strong className="font-semibold text-slate-700">
-                  {stats?.bySource?.surense ?? 0}
+                  {stats
+                    ?.bySource
+                    ?.surense ??
+                    0}
                 </strong>
+
                 מתוכם משורנס
               </span>
 
               <span className="hidden h-4 w-px bg-slate-200 sm:block" />
 
               <span className="inline-flex items-center gap-2">
-                <span className="text-slate-400">▣</span>
+                <span className="text-slate-400">
+                  ▣
+                </span>
+
                 <strong className="font-semibold text-slate-700">
-                  {stats?.byAppointmentStatus?.booked ?? 0}
+                  {stats
+                    ?.byAppointmentStatus
+                    ?.booked ??
+                    0}
                 </strong>
+
                 עם פגישה שנקבעה
               </span>
             </div>
@@ -974,9 +1081,11 @@ export default function MagicTouchContactsPage() {
             <button
               type="button"
               onClick={() => {
-                if (!agentId) {
+                if (
+                  !agentId
+                ) {
                   setErrorMessage(
-                    'לא נמצא סוכן פעיל לייבוא.'
+                    "לא נמצא סוכן פעיל לייבוא."
                   );
                   return;
                 }
@@ -1022,9 +1131,11 @@ export default function MagicTouchContactsPage() {
             <button
               type="button"
               onClick={() => {
-                if (!agentId) {
+                if (
+                  !agentId
+                ) {
                   setErrorMessage(
-                    'לא נמצא סוכן פעיל להוספת איש קשר.'
+                    "לא נמצא סוכן פעיל להוספת איש קשר."
                   );
                   return;
                 }
@@ -1082,8 +1193,8 @@ export default function MagicTouchContactsPage() {
         0 ? (
           <section className="mb-4 flex flex-wrap items-center gap-3 rounded-2xl bg-white px-4 py-3 shadow-[0_4px_18px_rgba(15,23,42,0.04)] ring-1 ring-slate-100">
             <div className="text-sm font-semibold text-slate-800">
-              נבחרו{' '}
-              {selectedCount}{' '}
+              נבחרו{" "}
+              {selectedCount}{" "}
               אנשי קשר
             </div>
 
@@ -1189,8 +1300,8 @@ export default function MagicTouchContactsPage() {
               className="rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 disabled:opacity-50"
             >
               {isLoading
-                ? 'טוען...'
-                : 'רענון'}
+                ? "טוען..."
+                : "רענון"}
             </button>
           </div>
 
@@ -1232,271 +1343,444 @@ export default function MagicTouchContactsPage() {
                     !outline-none
                   "
                   style={{
-                    border: 'none',
-                    outline: 'none',
-                    boxShadow: 'none',
+                    border:
+                      "none",
+
+                    outline:
+                      "none",
+
+                    boxShadow:
+                      "none",
                   }}
                 >
-                <thead className="bg-slate-50/70 text-[11px] font-bold text-slate-500">
-                  <tr>
-                    <th className="w-12 px-4 py-3.5 text-center">
-                      <input
-                        type="checkbox"
-                        checked={
-                          allFilteredSelected
-                        }
-                        ref={(
-                          input
-                        ) => {
-                          if (
+                  <thead className="bg-slate-50/70 text-[11px] font-bold text-slate-500">
+                    <tr>
+                      <th className="w-12 px-4 py-3.5 text-center">
+                        <input
+                          type="checkbox"
+                          checked={
+                            allFilteredSelected
+                          }
+                          ref={(
                             input
-                          ) {
-                            input.indeterminate =
-                              someFilteredSelected &&
-                              !allFilteredSelected;
+                          ) => {
+                            if (
+                              input
+                            ) {
+                              input.indeterminate =
+                                someFilteredSelected &&
+                                !allFilteredSelected;
+                            }
+                          }}
+                          onChange={
+                            toggleAllFiltered
                           }
-                        }}
-                        onChange={
-                          toggleAllFiltered
-                        }
-                        aria-label="בחירת כל אנשי הקשר המסוננים"
-                      />
-                    </th>
+                          aria-label="בחירת כל אנשי הקשר המסוננים"
+                        />
+                      </th>
 
-                    <th className="px-4 py-3.5">
-                      שם
-                    </th>
+                      <th className="px-4 py-3.5">
+                        שם
+                      </th>
 
-                    <th className="px-4 py-3.5">
-                      טלפון
-                    </th>
+                      <th className="px-4 py-3.5">
+  <div className="flex items-center gap-2">
+    <span className="w-[52px]" />
+    <span>טלפון</span>
+  </div>
+</th>
+                      <th className="px-4 py-3.5">
+                        מקור
+                      </th>
 
-                    <th className="px-4 py-3.5">
-                      מקור
-                    </th>
+                      <th className="px-4 py-3.5">
+                        סטטוס עניין
+                      </th>
 
-                    <th className="px-4 py-3.5">
-                      סטטוס עניין
-                    </th>
+                      <th className="px-4 py-3.5">
+                        פגישה
+                      </th>
 
-                    <th className="px-4 py-3.5">
-                      פגישה
-                    </th>
+                      {hasSurenseIntegration ? (
+                        <>
+                          <th className="px-4 py-3.5">
+                            סטטוס במקור
+                          </th>
 
-                  {hasSurenseIntegration ? (
-  <>
-    <th className="px-4 py-3.5">
-      סטטוס במקור
-    </th>
+                          <th className="px-4 py-3.5">
+                            סטטוס ייפוי כוח
+                          </th>
+                        </>
+                      ) : null}
 
-    <th className="px-4 py-3.5">
-      סטטוס ייפוי כוח
-    </th>
-  </>
-) : null}
+                      <th className="px-4 py-3.5">
+                        עודכן
+                      </th>
+                    </tr>
+                  </thead>
 
-                    <th className="px-4 py-3.5">
-                      עודכן
-                    </th>
-                  </tr>
-                </thead>
-
-                <tbody className="[&_tr:not(:last-child)_td]:!border-b [&_tr:not(:last-child)_td]:!border-slate-100">
-                  {filteredContacts.map(
-                    (
-                      contact
-                    ) => {
-                      const isSelected =
-                        selectedContactIds.has(
-                          contact.contactId
-                        );
-
-                      return (
-                        <tr
-                          key={
+                  <tbody className="[&_tr:not(:last-child)_td]:!border-b [&_tr:not(:last-child)_td]:!border-slate-100">
+                    {filteredContacts.map(
+                      (
+                        contact
+                      ) => {
+                        const isSelected =
+                          selectedContactIds.has(
                             contact.contactId
-                          }
-                          className={`transition-colors hover:bg-slate-50/70 ${
-                            isSelected
-                              ? 'bg-blue-50/35'
-                              : 'bg-white'
-                          }`}
-                        >
-                          <td className="px-4 py-3.5 text-center">
-                            <input
-                              type="checkbox"
-                              checked={
-                                isSelected
-                              }
-                              onChange={() =>
-                                toggleContact(
-                                  contact.contactId
-                                )
-                              }
-                              aria-label={`בחירת ${contact.fullName || 'איש קשר'}`}
-                            />
-                          </td>
+                          );
 
-                          <td className="px-4 py-3.5">
-                            <Link
-                              href={`/MagicTouch/Contacts/${encodeURIComponent(
-                                contact.contactId
-                              )}?agentId=${encodeURIComponent(
-                                agentId
-                              )}`}
-                              className="block rounded-md hover:text-blue-700"
-                            >
-                              <div className="font-semibold text-slate-900 transition hover:text-blue-700">
-                                {contact.fullName ||
-                                  'ללא שם'}
-                              </div>
-
-                              {contact.email ? (
-                                <div className="mt-0.5 text-xs text-slate-400">
-                                  {contact.email}
-                                </div>
-                              ) : null}
-                            </Link>
-                          </td>
-
-                          <td
-                            className="px-4 py-3.5"
-                            dir="ltr"
+                        return (
+                          <tr
+                            key={
+                              contact.contactId
+                            }
+                            className={`transition-colors hover:bg-slate-50/70 ${
+                              isSelected
+                                ? "bg-blue-50/35"
+                                : "bg-white"
+                            }`}
                           >
-                            {contact.phone ||
-                              '—'}
-                          </td>
+                            <td className="px-4 py-3.5 text-center">
+                              <input
+                                type="checkbox"
+                                checked={
+                                  isSelected
+                                }
+                                onChange={() =>
+                                  toggleContact(
+                                    contact.contactId
+                                  )
+                                }
+                                aria-label={`בחירת ${contact.fullName || "איש קשר"}`}
+                              />
+                            </td>
 
-                          <td className="px-4 py-3.5">
-                            {sourceLabel(
-                              contact.sourceSystem
-                            )}
-                          </td>
+                            <td className="px-4 py-3.5">
+                              <Link
+                                href={`/MagicTouch/Contacts/${encodeURIComponent(
+                                  contact.contactId
+                                )}?agentId=${encodeURIComponent(
+                                  agentId
+                                )}`}
+                                className="block rounded-md hover:text-blue-700"
+                              >
+                                <div className="font-semibold text-slate-900 transition hover:text-blue-700">
+                                  {contact.fullName ||
+                                    "ללא שם"}
+                                </div>
 
-                          <td className="px-4 py-3.5">
-                            {(() => {
-                              const status =
-                                getContactInterestStatus(
-                                  contact
+                                {contact.email ? (
+                                  <div className="mt-0.5 text-xs text-slate-400">
+                                    {contact.email}
+                                  </div>
+                                ) : null}
+                              </Link>
+                            </td>
+
+                        <td className="px-4 py-3.5">
+  <div className="flex items-center gap-2">
+    <button
+      type="button"
+      onClick={() =>
+        openEditContact(
+          contact
+        )
+      }
+      className="w-[52px] shrink-0 rounded-lg bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700 transition hover:bg-blue-100"
+    >
+      עריכה
+    </button>
+
+    <span
+      dir="ltr"
+      className="w-[110px] text-left text-slate-700"
+    >
+      {contact.phone || "—"}
+    </span>
+  </div>
+</td>
+                            <td className="px-4 py-3.5">
+                              {sourceLabel(
+                                contact.sourceSystem
+                              )}
+                            </td>
+
+                            <td className="px-4 py-3.5">
+                              {(() => {
+                                const status =
+                                  getContactInterestStatus(
+                                    contact
+                                  );
+
+                                const label =
+                                  interestLabel(
+                                    status
+                                  );
+
+                                const className =
+                                  status ===
+                                  "interested"
+                                    ? "bg-emerald-50 text-emerald-700"
+                                    : status ===
+                                        "not_interested"
+                                      ? "bg-rose-50 text-rose-700"
+                                      : "bg-slate-100 text-slate-600";
+
+                                return (
+                                  <span
+                                    className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${className}`}
+                                  >
+                                    {label}
+                                  </span>
                                 );
+                              })()}
+                            </td>
 
-                              const label =
-                                interestLabel(
-                                  status
+                            <td className="px-4 py-3.5">
+                              {(() => {
+                                const status =
+                                  getContactAppointmentStatus(
+                                    contact
+                                  );
+
+                                const label =
+                                  appointmentLabel(
+                                    status
+                                  );
+
+                                const className =
+                                  status ===
+                                  "booked"
+                                    ? "bg-blue-50 text-blue-700"
+                                    : status ===
+                                        "cancelled"
+                                      ? "bg-rose-50 text-rose-700"
+                                      : "bg-slate-100 text-slate-600";
+
+                                return (
+                                  <span
+                                    className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${className}`}
+                                  >
+                                    {label}
+                                  </span>
                                 );
+                              })()}
+                            </td>
 
-                              const className =
-                                status === 'interested'
-                                  ? 'bg-emerald-50 text-emerald-700'
-                                  : status === 'not_interested'
-                                    ? 'bg-rose-50 text-rose-700'
-                                    : 'bg-slate-100 text-slate-600';
+                            {hasSurenseIntegration ? (
+                              <>
+                                <td className="px-4 py-3.5">
+                                  {contact.sourceSystem ===
+                                  "surense"
+                                    ? contact
+                                        .sourceData
+                                        ?.surense
+                                        ?.statusName ||
+                                      "—"
+                                    : "—"}
+                                </td>
 
-                              return (
-                                <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${className}`}>
-                                  {label}
-                                </span>
-                              );
-                            })()}
-                          </td>
+                                <td className="px-4 py-3.5">
+                                  {contact.sourceSystem ===
+                                  "surense" ? (
+                                    <span
+                                      className={[
+                                        "inline-flex rounded-full px-3 py-1 text-xs font-bold",
 
-                          <td className="px-4 py-3.5">
-                            {(() => {
-                              const status =
-                                getContactAppointmentStatus(
-                                  contact
-                                );
+                                        contact
+                                          .engagement
+                                          ?.reengagement
+                                          ?.powerOfAttorney
+                                          ?.status ===
+                                        "signed"
+                                          ? "bg-emerald-100 text-emerald-700"
+                                          : contact
+                                                .engagement
+                                                ?.reengagement
+                                                ?.powerOfAttorney
+                                                ?.status ===
+                                              "partially_signed"
+                                            ? "bg-amber-100 text-amber-700"
+                                            : contact
+                                                  .engagement
+                                                  ?.reengagement
+                                                  ?.powerOfAttorney
+                                                  ?.status ===
+                                                "waiting_for_signature"
+                                              ? "bg-blue-100 text-blue-700"
+                                              : "bg-slate-100 text-slate-500 border border-slate-200",
+                                      ].join(
+                                        " "
+                                      )}
+                                    >
+                                      {powerOfAttorneyLabel(
+                                        contact
+                                          .engagement
+                                          ?.reengagement
+                                          ?.powerOfAttorney
+                                          ?.status ||
+                                          ""
+                                      )}
+                                    </span>
+                                  ) : (
+                                    "—"
+                                  )}
+                                </td>
+                              </>
+                            ) : null}
 
-                              const label =
-                                appointmentLabel(
-                                  status
-                                );
-
-                              const className =
-                                status === 'booked'
-                                  ? 'bg-blue-50 text-blue-700'
-                                  : status === 'cancelled'
-                                    ? 'bg-rose-50 text-rose-700'
-                                    : 'bg-slate-100 text-slate-600';
-
-                              return (
-                                <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${className}`}>
-                                  {label}
-                                </span>
-                              );
-                            })()}
-                          </td>
-
-                          {hasSurenseIntegration ? (
-  <>
-    <td className="px-4 py-3.5">
-      {contact.sourceSystem === "surense"
-        ? contact
-            .sourceData
-            ?.surense
-            ?.statusName || "—"
-        : "—"}
-    </td>
-
-    <td className="px-4 py-3.5">
-      {contact.sourceSystem === "surense" ? (
-        <span
-          className={[
-            "inline-flex rounded-full px-3 py-1 text-xs font-bold",
-
-            contact
-              .engagement
-              ?.reengagement
-              ?.powerOfAttorney
-              ?.status === "signed"
-              ? "bg-emerald-100 text-emerald-700"
-              : contact
-                    .engagement
-                    ?.reengagement
-                    ?.powerOfAttorney
-                    ?.status === "partially_signed"
-                ? "bg-amber-100 text-amber-700"
-                : contact
-                      .engagement
-                      ?.reengagement
-                      ?.powerOfAttorney
-                      ?.status === "waiting_for_signature"
-                  ? "bg-blue-100 text-blue-700"
-                 : "bg-slate-100 text-slate-500 border border-slate-200",
-          ].join(" ")}
-        >
-          {powerOfAttorneyLabel(
-            contact
-              .engagement
-              ?.reengagement
-              ?.powerOfAttorney
-              ?.status ||
-              ""
-          )}
-        </span>
-      ) : (
-        "—"
-      )}
-    </td>
-  </>
-) : null}
-
-                          <td className="px-4 py-3.5 text-xs text-slate-500">
-                            {formatDate(
-                              contact.updatedAt
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    }
-                  )}
-                </tbody>
+                            <td className="px-4 py-3.5 text-xs text-slate-500">
+                              {formatDate(
+                                contact.updatedAt
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      }
+                    )}
+                  </tbody>
                 </table>
               </div>
             </div>
           )}
         </section>
       </div>
+
+      {editingContact &&
+      agentId ? (
+        <div
+          className="fixed inset-0 z-[10000] flex items-center justify-center bg-slate-950/45 p-4"
+          onMouseDown={(
+            event
+          ) => {
+            if (
+              event.target ===
+              event.currentTarget
+            ) {
+              closeEditContact();
+            }
+          }}
+        >
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <div className="text-sm font-bold text-blue-600">
+                  MagicTouch
+                </div>
+
+                <h2 className="mt-1 text-xl font-bold text-slate-900">
+                  עריכת פרטי איש קשר
+                </h2>
+
+                <p className="mt-1 text-sm text-slate-500">
+                  {editingContact.fullName ||
+                    "איש קשר"}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={
+                  closeEditContact
+                }
+                disabled={
+                  isSavingContact
+                }
+                className="rounded-lg px-2 py-1 text-xl leading-none text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 disabled:opacity-50"
+                aria-label="סגירה"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="mt-6 space-y-4">
+              <label className="block">
+                <span className="mb-1.5 block text-sm font-semibold text-slate-700">
+                  טלפון
+                </span>
+
+                <input
+                  type="tel"
+                  dir="ltr"
+                  value={
+                    editPhone
+                  }
+                  onChange={(
+                    event
+                  ) =>
+                    setEditPhone(
+                      event
+                        .target
+                        .value
+                    )
+                  }
+                  placeholder="050-1234567"
+                  className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-left text-sm outline-none transition focus:border-blue-300 focus:ring-4 focus:ring-blue-50"
+                />
+
+                <span className="mt-1 block text-xs text-slate-400">
+                  המספר יישמר גם בפורמט מנורמל לצורך WhatsApp.
+                </span>
+              </label>
+
+              <label className="block">
+                <span className="mb-1.5 block text-sm font-semibold text-slate-700">
+                  אימייל
+                </span>
+
+                <input
+                  type="email"
+                  dir="ltr"
+                  value={
+                    editEmail
+                  }
+                  onChange={(
+                    event
+                  ) =>
+                    setEditEmail(
+                      event
+                        .target
+                        .value
+                    )
+                  }
+                  placeholder="name@example.com"
+                  className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-left text-sm outline-none transition focus:border-blue-300 focus:ring-4 focus:ring-blue-50"
+                />
+              </label>
+            </div>
+
+            <div className="mt-6 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={
+                  closeEditContact
+                }
+                disabled={
+                  isSavingContact
+                }
+                className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                ביטול
+              </button>
+
+              <button
+                type="button"
+                onClick={() =>
+                  void saveContactDetails()
+                }
+                disabled={
+                  isSavingContact
+                }
+                className="rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {isSavingContact
+                  ? "שומר..."
+                  : "שמירת שינויים"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {isCreateModalOpen &&
       agentId ? (

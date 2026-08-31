@@ -23,7 +23,7 @@ import AccessDenied from "@/components/AccessDenied";
 import InstallFlowTemplateModal from "./InstallFlowTemplateModal";
 
 import {
-  archiveFlowTemplate,
+  deleteFlowTemplate,
   downloadFlowTemplate,
   importFlowTemplateJson,
   listFlowTemplates,
@@ -207,10 +207,10 @@ export default function MagicTouchFlowTemplatesPage() {
 const removeTemplate = async (
   template: FlowTemplateSummary
 ) => {
-  const approved =
-    window.confirm(
-      `למחוק את התבנית "${template.name}" מספריית התהליכים?\n\nתהליכים שכבר הותקנו אצל סוכנים לא יימחקו.`
-    );
+ const approved =
+  window.confirm(
+    `למחוק לצמיתות את התבנית "${template.name}" מספריית התהליכים?\n\nהתבנית תימחק מהספרייה, אך תהליכים שכבר הותקנו אצל סוכנים לא יימחקו.`
+  );
 
   if (!approved) {
     return;
@@ -220,9 +220,9 @@ const removeTemplate = async (
     setError("");
     setSuccess("");
 
-    await archiveFlowTemplate(
-      template.templateId
-    );
+   await deleteFlowTemplate(
+  template.templateId
+);
 
     setSuccess(
       `התבנית "${template.name}" הוסרה מספריית התהליכים.`

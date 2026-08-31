@@ -222,11 +222,17 @@ export async function runSurenseCreateWorkflowImpl(
     }
   );
 
-  const result =
-    await createSurenseWorkflow({
-      agentId,
-      customerId,
-    });
+const result =
+  await createSurenseWorkflow({
+    agentId,
+    customerId,
+
+    // בדיקת הרשאות:
+    // typeId + ownerId עדיין מגיעים
+    // מהגדרות הסוכן.
+    // רק assignedUserId לא נשלח.
+    omitAssignedUserId: true,
+  });
 
   console.info(
     "[runSurenseCreateWorkflow] Completed",

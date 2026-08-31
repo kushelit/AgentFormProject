@@ -73,19 +73,6 @@ export async function installMagicTouchFlowTemplateForAgentImpl(
     );
   }
 
-  const agentSnap =
-    await (db as any)
-      .collection("agents")
-      .doc(targetAgentId)
-      .get();
-
-  if (!agentSnap.exists) {
-    throw new HttpsError(
-      "not-found",
-      "Target agent not found"
-    );
-  }
-
   const templateRef =
     (db as any)
       .collection(

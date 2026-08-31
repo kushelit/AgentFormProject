@@ -171,3 +171,19 @@ export async function archiveFlow(
     flowId,
   });
 }
+
+export async function restoreFlow(
+  flowId: string,
+  input: OptionalAgent = {}
+): Promise<void> {
+  const fn =
+    httpsCallable(
+      functions,
+      "restoreMagicTouchFlow"
+    );
+
+  await fn({
+    ...input,
+    flowId,
+  });
+}

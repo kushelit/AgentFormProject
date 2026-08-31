@@ -170,88 +170,96 @@ useEffect(() => {
 
 
  const fetchDataForAgent = async (UserAgentId: string) => {
-  setLoading(true); // Set loading to true when the fetch starts
+  setLoading(true);
 
   let customerQuery;
   let salesQuery;
-  let dateRangeFilter; // Timestamp to filter based on time range
+  let dateRangeFilter;
 
-  // Log timeRange and UserAgentId for debugging
-  // console.log("Fetching data for time range:", timeRange, "and agent ID:", UserAgentId);
-
-  // Calculate the appropriate date range based on the selected time range
   if (timeRange === 'יום') {
-    // Create a new Date object to avoid mutation
-    const oneDayAgo = new Date(); // New Date object for Last Day
-    oneDayAgo.setDate(oneDayAgo.getDate() - 1); // Subtract 1 day
+    const oneDayAgo = new Date();
+    oneDayAgo.setDate(oneDayAgo.getDate() - 1);
     dateRangeFilter = Timestamp.fromDate(oneDayAgo);
-    // console.log("Date range filter applied for Last Day:", dateRangeFilter);
-
   } else if (timeRange === 'שבוע') {
-    // Create a new Date object to avoid mutation
-    const sevenDaysAgo = new Date(); // New Date object for Last Week
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7); // Subtract 7 days
-    dateRangeFilter = Timestamp.fromDate(sevenDaysAgo); // Convert to Firestore Timestamp
-
-    // console.log("Date range filter applied for Last Week:", dateRangeFilter);
-
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
     dateRangeFilter = Timestamp.fromDate(sevenDaysAgo);
   }
 
-  // If no specific agent is selected, fetch all data
+  const chunk = <T,>(arr: T[], size: number) =>
+    Array.from({ length: Math.ceil(arr.length / size) }, (_, i) =>
+      arr.slice(i * size, i * size + size)
+    );
+
+  let customers: Customer[] = [];
+  let sales: Sale[] = [];
+
   if (UserAgentId) {
+    // סוכן ספציפי נבחר - ללא שינוי
     customerQuery = query(collection(db, 'customer'), where('AgentId', '==', UserAgentId));
     salesQuery = query(collection(db, 'sales'), where('AgentId', '==', UserAgentId));
+
+    if (timeRange !== 'all' && dateRangeFilter) {
+      salesQuery = query(salesQuery, where('createdAt', '!=', null), where('createdAt', '>=', dateRangeFilter));
+    }
+
+    const customerSnapshot = await getDocs(customerQuery);
+    customers = customerSnapshot.docs.map(doc => ({ ...doc.data() as Customer, id: doc.id }));
+    const salesSnapshot = await getDocs(salesQuery);
+    sales = salesSnapshot.docs.map(doc => ({ ...doc.data() as Sale, id: doc.id }));
+
+  } else if (detail?.isSystem) {
+    // ✅ isSystem בלבד - רואה הכל, ללא סינון סוכנות
+    customerQuery = collection(db, 'customer');
+    salesQuery = collection(db, 'sales');
+
+    if (timeRange !== 'all' && dateRangeFilter) {
+      salesQuery = query(salesQuery, where('createdAt', '!=', null), where('createdAt', '>=', dateRangeFilter));
+    }
+
+    const customerSnapshot = await getDocs(customerQuery);
+    customers = customerSnapshot.docs.map(doc => ({ ...doc.data() as Customer, id: doc.id }));
+    const salesSnapshot = await getDocs(salesQuery);
+    sales = salesSnapshot.docs.map(doc => ({ ...doc.data() as Sale, id: doc.id }));
+
   } else {
-    customerQuery = collection(db, 'customer'); // Fetch all customers
-    salesQuery = collection(db, 'sales'); // Fetch all sales
+    // ✅ admin רגיל שבחר "כל הסוכנות" - מוגבל רק לסוכני הסוכנות שלו (כמו ב-agents מה-hook)
+    const allowedAgentIds = agents.map(a => a.id);
+    if (allowedAgentIds.length === 0) {
+      setAgentData([]);
+      setLoading(false);
+      return;
+    }
+
+    for (const batch of chunk(allowedAgentIds, 10)) {
+      const customerSnap = await getDocs(query(collection(db, 'customer'), where('AgentId', 'in', batch)));
+      customers.push(...customerSnap.docs.map(doc => ({ ...doc.data() as Customer, id: doc.id })));
+
+      let batchSalesQuery = query(collection(db, 'sales'), where('AgentId', 'in', batch));
+      if (timeRange !== 'all' && dateRangeFilter) {
+        batchSalesQuery = query(batchSalesQuery, where('createdAt', '!=', null), where('createdAt', '>=', dateRangeFilter));
+      }
+      const salesSnap = await getDocs(batchSalesQuery);
+      sales.push(...salesSnap.docs.map(doc => ({ ...doc.data() as Sale, id: doc.id })));
+    }
   }
 
-  // Apply date filter to salesQuery if a time range is selected (not "all")
-  if (timeRange !== 'all' && dateRangeFilter) {
-    salesQuery = query(
-      salesQuery,
-      where('createdAt', '!=', null), // Ensure createdAt is not null
-      where('createdAt', '>=', dateRangeFilter) // Apply date range filter
-    );
-    // console.log('Sales query with date filter applied:', dateRangeFilter.toDate());
-  }
-
-  // Fetch customer data
-  const customerSnapshot = await getDocs(customerQuery);
-  const customers: Customer[] = customerSnapshot.docs.map(doc => ({
-    ...doc.data() as Customer,
-    id: doc.id
-  }));
-
-  // Fetch sales data
-  const salesSnapshot = await getDocs(salesQuery);
-  const sales: Sale[] = salesSnapshot.docs.map(doc => ({
-    ...doc.data() as Sale,
-    id: doc.id
-  }));
-
-  // Log sales data for debugging
-  // console.log("Fetched sales data:", sales);
-
-  // Combine sales and customer data
   const combinedData: CombinedData[] = sales.map(sale => {
     const customer = customers.find(customer => customer.IDCustomer === sale.IDCustomer);
     return {
-      ...sale, 
+      ...sale,
       firstNameCustomer: customer ? customer.firstNameCustomer : 'Unknown',
       lastNameCustomer: customer ? customer.lastNameCustomer : 'Unknown',
     };
   });
 
-  // Sort the combined data by the month/year field in descending order
   setAgentData(combinedData.sort((a, b) => {
     const [monthA, yearA] = a.mounth.split('/').map(Number);
     const [monthB, yearB] = b.mounth.split('/').map(Number);
-    return (yearB + 2000) - (yearA + 2000) || monthB - monthA; // Adjust sort for descending order
+    return (yearB + 2000) - (yearA + 2000) || monthB - monthA;
   }));
 
-  setLoading(false); // Set loading to false when the fetch completes
+  setLoading(false);
 };
 
   useEffect(() => {

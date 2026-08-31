@@ -81,7 +81,7 @@ export async function generateRiskTemplateExcel(
     'פרמיית ביטוח',
     'הערות',
     ...(isAgency4 ? [] : ['שולם היקף', 'שולם ניוד', 'סטטוס הפקדה']),
-    ...(isAgency4 ? ['נציג מפנה', 'אחוז הנחה', 'חברה לביטול', 'נדרש תיקון (כן/לא — רק לפוליסה פעילה)'] : []),
+    ...(isAgency4 ? ['נציג מפנה', 'אחוז הנחה', 'חברה לביטול (אפשר כמה, מופרדות בפסיק)', 'נדרש תיקון (כן/לא — רק לפוליסה פעילה)'] : []),
   ];
 
   const headerRow = sheet.addRow(headers);
@@ -153,7 +153,7 @@ export async function generateRiskTemplateExcel(
     applyListValidation(sheet, colLetter(colOf('סטטוס הפקדה')), refRange(refColIndex['סטטוס הפקדה'], depositNames.length));
   } else {
     applyListValidation(sheet, colLetter(colOf('נציג מפנה')), refRange(refColIndex['נציגים מפנים פעילים'], activeReferrerNames.length));
-    applyListValidation(sheet, colLetter(colOf('חברה לביטול')), refRange(refColIndex['חברות'], companies.length));
+    // ⚠️ "חברה לביטול" מקבל כמה ערכים מופרדים בפסיק — לא dropdown של ערך יחיד, בכוונה לא הוצמד לו ולידציה
     applyListValidation(sheet, colLetter(colOf('נדרש תיקון (כן/לא — רק לפוליסה פעילה)')), refRange(refColIndex['כן / לא'], 2));
   }
 

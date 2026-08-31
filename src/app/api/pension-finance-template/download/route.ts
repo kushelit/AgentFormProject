@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { admin } from "@/lib/firebase/firebase-admin";
 import { generatePensionFinanceTemplateExcel } from "@/utils/generatePensionFinanceTemplateExcel";
+import { PENSION_FINANCE_AGENCY4_STATUSES } from "@/utils/pensionFinanceAgency4Statuses";
 
 export const runtime = "nodejs";
 
@@ -27,7 +28,9 @@ export async function GET(request: Request) {
     ] = await Promise.all([
       db.collection("company").get(),
       db.collection("product").get(),
-      db.collection("statusPolicy").where("isActive", "==", "1").get(),
+      // ⚠️ ל-agency4 יש רשימת סטטוסים סגורה משלה (PENSION_FINANCE_AGENCY4_STATUSES) —
+      // לא צריך לשלוף מ-statusPolicy הכללי בכלל, חוסך read מיותר.
+      !isAgency4 ? db.collection("statusPolicy").where("isActive", "==", "1").get() : Promise.resolve(null),
       db.collection("users").where("agentId", "==", agentId).where("role", "in", ["worker", "agent", "manager"]).get(),
       db.collection("sourceLead").where("AgentId", "==", agentId).where("statusLead", "==", true).get(),
       isAgency4 ? db.collection("agentReferrers").where("agentId", "==", agentId).get() : Promise.resolve(null),
@@ -45,7 +48,9 @@ export async function GET(request: Request) {
       }))
       .filter((p) => PENSION_FINANCE_GROUPS.includes(p.productGroup));
 
-    const statusPolicies = statusSnap.docs.map((d) => String(d.data().statusName || "")).filter(Boolean);
+    const statusPolicies = isAgency4
+      ? PENSION_FINANCE_AGENCY4_STATUSES
+      : (statusSnap ? statusSnap.docs.map((d) => String(d.data().statusName || "")).filter(Boolean) : []);
 
     const workerNames = workerSnap.docs.map((d) => String(d.data().name || "")).filter(Boolean);
 

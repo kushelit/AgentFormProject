@@ -22,6 +22,7 @@ type GenerateParams = {
   products: ElementaryProductRow[];
   statusPolicies?: string[];      // רק agency4 — סטטוסים פעילים מתוך statusPolicy
   referrers?: ReferrerRow[];      // רק agency4 — agentReferrers עבור agentId זה
+  sourceLeadNames?: string[];     // כל הסוכנויות — sourceLead עבור agentId זה
 };
 
 // כמה שורות מראש לתת ולידציית dropdown (כדי שגם שורות שהמשתמש יוסיף בעצמו יקבלו dropdown)
@@ -67,7 +68,7 @@ function applyListValidation(
 export async function generateElementaryTemplateExcel(
   params: GenerateParams
 ): Promise<{ buffer: ArrayBuffer; filename: string }> {
-  const { isAgency4, companies, groups, products, statusPolicies = [], referrers = [] } = params;
+  const { isAgency4, companies, groups, products, statusPolicies = [], referrers = [], sourceLeadNames = [] } = params;
 
   const workbook = new ExcelJS.Workbook();
   const sheet = workbook.addWorksheet("פוליסות", {
@@ -91,6 +92,7 @@ export async function generateElementaryTemplateExcel(
     'תאריך תחילה (YYYY-MM-DD)',
     'תאריך סיום (YYYY-MM-DD)',
     'פרמיה',
+    'מקור ליד',
     ...(isAgency4 ? ['סטטוס', 'הערות', 'נציג מפנה'] : ['אחוז עמלה (רק לחברות ידניות)']),
   ];
 
@@ -108,6 +110,7 @@ export async function generateElementaryTemplateExcel(
   const trackCol = trackHeaderIdx >= 0 ? colLetter(trackHeaderIdx + 1) : null;
   const statusCol = isAgency4 ? colLetter(colOf('סטטוס')) : null;
   const referrerCol = isAgency4 ? colLetter(colOf('נציג מפנה')) : null;
+  const sourceLeadCol = colLetter(colOf('מקור ליד'));
 
   // ── שורת דוגמה (להמחשה — המשתמש מוחק/דורס אותה) ──
   const sampleRow: string[] = [
@@ -115,7 +118,7 @@ export async function generateElementaryTemplateExcel(
     companies[0]?.companyName || '', products[0]?.label || '',
   ];
   if (!isAgency4) sampleRow.push('');
-  sampleRow.push('', '', '', '', '3500');
+  sampleRow.push('', '', '', '', '3500', '');
   if (isAgency4) sampleRow.push(statusPolicies[0] || '', '', referrers.find(r => r.active)?.name || '');
   else sampleRow.push('');
 
@@ -133,14 +136,14 @@ export async function generateElementaryTemplateExcel(
   const plainProductLabels = products.map((p) => p.label);
 
   const refHeaders = isAgency4
-    ? ['חברות', 'מוצרים', 'סטטוסים', 'נציגים מפנים פעילים']
-    : ['חברות', 'מוצרים', 'מסלול'];
+    ? ['חברות', 'מוצרים', 'סטטוסים', 'נציגים מפנים פעילים', 'מקורות ליד']
+    : ['חברות', 'מוצרים', 'מסלול', 'מקורות ליד'];
   refSheet.addRow(refHeaders);
   styleHeaderRow(refSheet.getRow(1));
 
   const refColumns: string[][] = isAgency4
-    ? [companies.map(c => c.companyName), plainProductLabels, statusPolicies, activeReferrerNames]
-    : [companies.map(c => c.companyName), plainProductLabels, ['מוזל', 'רגיל']];
+    ? [companies.map(c => c.companyName), plainProductLabels, statusPolicies, activeReferrerNames, sourceLeadNames]
+    : [companies.map(c => c.companyName), plainProductLabels, ['מוזל', 'רגיל'], sourceLeadNames];
 
   const maxLen = Math.max(1, ...refColumns.map((c) => c.length));
   for (let i = 0; i < maxLen; i++) {
@@ -154,6 +157,7 @@ export async function generateElementaryTemplateExcel(
   const refTrackCol = !isAgency4 ? 'C' : null;
   const refStatusCol = isAgency4 ? 'C' : null;
   const refReferrerCol = isAgency4 ? 'D' : null;
+  const refSourceLeadCol = isAgency4 ? 'E' : 'D';
 
   const refRange = (col: string, len: number) => `'רשימות תקפות'!$${col}$2:$${col}$${Math.max(2, len + 1)}`;
 
@@ -163,6 +167,7 @@ export async function generateElementaryTemplateExcel(
   if (trackCol && refTrackCol) applyListValidation(sheet, trackCol, refRange(refTrackCol, 2));
   if (statusCol && refStatusCol) applyListValidation(sheet, statusCol, refRange(refStatusCol, statusPolicies.length));
   if (referrerCol && refReferrerCol) applyListValidation(sheet, referrerCol, refRange(refReferrerCol, activeReferrerNames.length));
+  applyListValidation(sheet, sourceLeadCol, refRange(refSourceLeadCol, sourceLeadNames.length));
 
   const arrayBuffer = await workbook.xlsx.writeBuffer();
   const filename = `תבנית-אלמנטרי-${params.agentId}.xlsx`;

@@ -5,9 +5,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { collection, query, where, getDocs, doc, deleteDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase/firebase';
 import { useAuth } from '@/lib/firebase/AuthContext';
-import { usePermission } from '@/hooks/usePermission';
-import { useRouter } from 'next/navigation';
-import DealFormModal from '@/components/DealFormModal/DealFormModal';
+import DealFormModal, { PENSION_FINANCE_AGENCY4_STATUSES } from '@/components/DealFormModal/DealFormModal';
 import ImportRunsManager from '@/components/ImportRunsManager/ImportRunsManager';
 import useFetchMD from '@/hooks/useMD';
 import { useToast } from '@/hooks/useToast';
@@ -41,8 +39,14 @@ type SaleRow = {
   kupaAction?: string;
   kupaStatus?: string;
   needsCorrection?: boolean;
+  cancellationCompany?: string[];
   referrerName?: string;
   sourceValue?: string;
+  policyNumber?: string;
+  notes?: string;
+  transferCompany?: string;
+  transferKupaType?: string;
+  candidateStatus?: string;
 };
 
 type Props = {
@@ -69,9 +73,7 @@ function formatDate(dateStr: string): string {
 // ─── Component ───────────────────────────────────────────────────────────────
 
 const PensionTab: React.FC<Props> = ({ agentId, customer, onSelectCustomer, includeGroupIds, excludeGroupIds, dealFormContext }) => {
-  const { user, detail } = useAuth();
-  const router = useRouter();
-  const { canAccess: canAccessCrm } = usePermission(user ? 'access_crm_module' : null);
+  const { detail } = useAuth();
   const isAgency4 = String(detail?.agencyId ?? '') === '4';
   const { toasts, addToast, setToasts } = useToast();
   const [sales, setSales] = useState<SaleRow[]>([]);
@@ -129,6 +131,7 @@ const PensionTab: React.FC<Props> = ({ agentId, customer, onSelectCustomer, incl
 
   // ─── ייבוא מאקסל — כרגע רק ל"פנסיה ופיננסים" ───────────────────────────
   const [isUploadingExcel, setIsUploadingExcel] = useState(false);
+  const [isExportingExcel, setIsExportingExcel] = useState(false);
   const [importErrorRows, setImportErrorRows] = useState<{ row: number; error: string }[] | null>(null);
   const [showImportRunsManager, setShowImportRunsManager] = useState(false);
   const uploadInputRef = useRef<HTMLInputElement>(null);
@@ -198,9 +201,16 @@ const PensionTab: React.FC<Props> = ({ agentId, customer, onSelectCustomer, incl
     if (!agentId) return;
     setLoading(true);
     try {
+      // ⚠️ ל-agency4 בפנסיה+פיננסים יש רשימת סטטוסים סגורה משלה (לא "פעילה"/"הצעה" בלבד) —
+      // אם משתמשים בפילטר הכללי, עסקאות עם סטטוס כמו "קופה הוקמה"/"נשלח לחברה" פשוט לא ייטענו,
+      // למרות שנשמרו בהצלחה. ראו PENSION_FINANCE_AGENCY4_STATUSES ב-DealFormModal.tsx.
+      const activeStatusesForQuery = (isAgency4 && dealFormContext === 'pension_finance')
+        ? PENSION_FINANCE_AGENCY4_STATUSES
+        : ['פעילה', 'הצעה'];
+
       const constraints: any[] = [
         where('AgentId', '==', agentId),
-        where('statusPolicy', 'in', ['פעילה', 'הצעה']),
+        where('statusPolicy', 'in', activeStatusesForQuery),
       ];
       if (customer) constraints.push(where('IDCustomer', '==', customer.IDCustomer));
 
@@ -217,7 +227,7 @@ const PensionTab: React.FC<Props> = ({ agentId, customer, onSelectCustomer, incl
     } finally {
       setLoading(false);
     }
-  }, [agentId, customer]);
+  }, [agentId, customer, dealFormContext, isAgency4]);
 
   useEffect(() => { fetchSales(); }, [fetchSales]);
 
@@ -243,34 +253,69 @@ const PensionTab: React.FC<Props> = ({ agentId, customer, onSelectCustomer, incl
   const showInsPremia = dealFormContext !== 'pension_finance'; // מוצג בסיכונים, מוסתר בפנסיה+פיננסים
   const showPensionFinanceCols = dealFormContext !== 'risk';   // מוצג בפנסיה+פיננסים, מוסתר בסיכונים
   const showNeedsCorrectionCol = dealFormContext === 'risk';   // מוצג רק בסיכונים
+  const showCancellationCompanyCol = dealFormContext === 'risk'; // מוצג רק בסיכונים
   const showReferrerCol = isAgency4;                            // מוצג ב-agency4, בכל לשונית (פנסיה+פיננסים וגם סיכונים)
-  const totalColumns = 6 + (showInsPremia ? 1 : 0) + (showPensionFinanceCols ? 6 : 0) + (showNeedsCorrectionCol ? 1 : 0) + (showReferrerCol ? 1 : 0) + 1; // +1 = עמודת פעולות
+  const totalColumns = 6 + (showInsPremia ? 1 : 0) + (showPensionFinanceCols ? 6 : 0) + (showNeedsCorrectionCol ? 1 : 0) + (showCancellationCompanyCol ? 1 : 0) + (showReferrerCol ? 1 : 0) + 1; // +1 = עמודת פעולות
+
+  // ── "פנסיה ופיננסים" מקבל סדר עמודות ייעודי משלו (שונה לגמרי מ"סיכונים") ──
+  const isPensionFinanceView = dealFormContext === 'pension_finance';
+  const showPolicyNumberCol = true; // קל לכבות אם צר מדי ב-UI — פשוט שנה מ-true ל-false
+  // בסיס (בלי נציג מפנה/מספר פוליסה): שם לקוח, ת"ז, חברה, מוצר, פעולה, חברה לניוד, סוג קופה לניוד,
+  // 4 שדות פרמיה/צבירה, סטטוס קופה, סטטוס מועמד, חודש, סטטוס עסקה, הערות, פעולות = 17
+  const pensionFinanceTotalColumns = 17 + (showReferrerCol ? 1 : 0) + (showPolicyNumberCol ? 1 : 0);
 
   // ─── ייצוא דוח — בדיוק מה שמוצג כרגע (אחרי הסינונים הפעילים) ───────────
   const exportSalesToExcel = async () => {
-    if (!filtered.length) return;
+    if (!filtered.length || isExportingExcel) return;
+    setIsExportingExcel(true);
 
-    const headers = [
-      'חודש', 'שם', 'ת"ז', 'מוצר', 'חברה', 'סטטוס',
-      ...(showInsPremia ? ['פרמיית ביטוח'] : []),
-      ...(showNeedsCorrectionCol ? ['נדרש תיקון'] : []),
-      ...(showReferrerCol ? ['נציג מפנה'] : []),
-      'מקור ליד',
-      ...(showPensionFinanceCols
-        ? ['פרמיית פנסיה', 'צבירת פנסיה', 'פרמיית פיננסים', 'צבירת פיננסים', 'סוג פעולה', 'סטטוס קופה']
-        : []),
-    ];
+    let headers: string[];
+    let rows: any[][];
 
-    const rows = filtered.map((s) => [
-      formatDate(s.mounth), `${s.firstNameCustomer} ${s.lastNameCustomer}`, s.IDCustomer, s.product, s.company, s.statusPolicy,
-      ...(showInsPremia ? [s.insPremia || ''] : []),
-      ...(showNeedsCorrectionCol ? [s.statusPolicy === 'פעילה' ? (s.needsCorrection ? 'כן' : 'לא') : ''] : []),
-      ...(showReferrerCol ? [s.referrerName || ''] : []),
-      s.sourceValue ? (sourceLeadMap?.[s.sourceValue] || s.sourceValue) : '',
-      ...(showPensionFinanceCols
-        ? [s.pensiaPremia || '', s.pensiaZvira || '', s.finansimPremia || '', s.finansimZvira || '', s.kupaAction || '', s.kupaStatus || '']
-        : []),
-    ]);
+    if (isPensionFinanceView) {
+      // ── סדר חדש, ייעודי ל"פנסיה ופיננסים" בלבד ──
+      headers = [
+        'שם לקוח', 'ת"ז', 'חברה', 'מוצר', 'פעולה', 'חברה לניוד', 'סוג קופה לניוד',
+        'פרמיית פנסיה', 'צבירת פנסיה', 'פרמיית פיננסים', 'צבירת פיננסים',
+        'סטטוס קופה', 'סטטוס מועמד', 'חודש',
+        ...(showReferrerCol ? ['נציג מפנה'] : []),
+        'סטטוס עסקה', 'מספר פוליסה', 'הערות',
+      ];
+
+      rows = filtered.map((s) => [
+        `${s.firstNameCustomer} ${s.lastNameCustomer}`, s.IDCustomer, s.company, s.product,
+        s.kupaAction || '', s.transferCompany || '', s.transferKupaType || '',
+        s.pensiaPremia || '', s.pensiaZvira || '', s.finansimPremia || '', s.finansimZvira || '',
+        s.kupaStatus || '', s.candidateStatus || '', formatDate(s.mounth),
+        ...(showReferrerCol ? [s.referrerName || ''] : []),
+        s.statusPolicy, s.policyNumber || '', s.notes || '',
+      ]);
+    } else {
+      // ── סיכונים / הקשר כללי — נשאר בדיוק כמו שהיה ──
+      headers = [
+        'חודש', 'שם', 'ת"ז', 'מוצר', 'חברה', 'סטטוס',
+        ...(showInsPremia ? ['פרמיית ביטוח'] : []),
+        ...(showNeedsCorrectionCol ? ['נדרש תיקון'] : []),
+        ...(showCancellationCompanyCol ? ['חברה לביטול'] : []),
+        ...(showReferrerCol ? ['נציג מפנה'] : []),
+        'מקור ליד',
+        ...(showPensionFinanceCols
+          ? ['פרמיית פנסיה', 'צבירת פנסיה', 'פרמיית פיננסים', 'צבירת פיננסים', 'סוג פעולה', 'סטטוס קופה']
+          : []),
+      ];
+
+      rows = filtered.map((s) => [
+        formatDate(s.mounth), `${s.firstNameCustomer} ${s.lastNameCustomer}`, s.IDCustomer, s.product, s.company, s.statusPolicy,
+        ...(showInsPremia ? [s.insPremia || ''] : []),
+        ...(showNeedsCorrectionCol ? [s.statusPolicy === 'פעילה' ? (s.needsCorrection ? 'כן' : 'לא') : ''] : []),
+        ...(showCancellationCompanyCol ? [(s.cancellationCompany || []).join(', ')] : []),
+        ...(showReferrerCol ? [s.referrerName || ''] : []),
+        s.sourceValue ? (sourceLeadMap?.[s.sourceValue] || s.sourceValue) : '',
+        ...(showPensionFinanceCols
+          ? [s.pensiaPremia || '', s.pensiaZvira || '', s.finansimPremia || '', s.finansimZvira || '', s.kupaAction || '', s.kupaStatus || '']
+          : []),
+      ]);
+    }
 
     const sheetName = dealFormContext === 'risk' ? 'דוח סיכונים' : 'דוח פנסיה ופיננסים';
 
@@ -288,6 +333,8 @@ const PensionTab: React.FC<Props> = ({ agentId, customer, onSelectCustomer, incl
       saveAs(blob, `${sheetName}.xlsx`);
     } catch {
       addToast('error', 'שגיאה בהפקת הדוח');
+    } finally {
+      setIsExportingExcel(false);
     }
   };
 
@@ -298,27 +345,16 @@ const PensionTab: React.FC<Props> = ({ agentId, customer, onSelectCustomer, incl
       <div className="sharon-readonly-note" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
         <span>👁 קריאה בלבד — נתונים מתוך מערכת MagicSale</span>
         <div style={{ display: 'flex', gap: 8, marginRight: 'auto' }}>
-          {customer && canAccessCrm && (
-            <button
-              type="button"
-              onClick={() => router.push(`/customers/${customer.id}`)}
-              className="sharon-inline-btn"
-              style={{ background: '#2D5A8E' }}
-              title="פותח את כרטיס הלקוח המלא - משימות, תיאום פגישה, הערות, קשרים משפחתיים ותמונה מאוחדת של כל העסקאות (כולל סיכונים)"
-            >
-              👤 כרטיס לקוח מלא ({customer.firstNameCustomer} {customer.lastNameCustomer}) ←
-            </button>
-          )}
           {agentId && (
             <button
               type="button"
               onClick={exportSalesToExcel}
               className="sharon-inline-btn"
-              style={{ background: '#185FA5' }}
-              disabled={!filtered.length}
+              style={{ background: '#185FA5', opacity: isExportingExcel ? 0.7 : 1 }}
+              disabled={!filtered.length || isExportingExcel}
               title={!filtered.length ? 'אין נתונים להורדה' : ''}
             >
-              הורד דוח ({filtered.length})
+              {isExportingExcel ? 'מוריד...' : `הורד דוח (${filtered.length})`}
             </button>
           )}
           {agentId && canImport && (
@@ -393,6 +429,96 @@ const PensionTab: React.FC<Props> = ({ agentId, customer, onSelectCustomer, incl
       <div className="sharon-table-wrap">
         {loading ? (
           <div style={{ padding: 20, textAlign: 'center', color: '#888' }}>טוען...</div>
+        ) : isPensionFinanceView ? (
+          <table className="sharon-table">
+            <thead>
+              <tr>
+                <th>שם לקוח</th>
+                <th>ת&quot;ז</th>
+                <th>חברה</th>
+                <th>מוצר</th>
+                <th>פעולה</th>
+                <th>חברה לניוד</th>
+                <th>סוג קופה לניוד</th>
+                <th>פרמיה פנסיה</th>
+                <th>צבירה פנסיה</th>
+                <th>פרמיה פיננסים</th>
+                <th>צבירה פיננסים</th>
+                <th>סטטוס קופה</th>
+                <th>סטטוס מועמד</th>
+                <th>חודש</th>
+                {showReferrerCol && <th>נציג מפנה</th>}
+                <th>סטטוס עסקה</th>
+                {showPolicyNumberCol && <th>מספר פוליסה</th>}
+                <th>הערות</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map(sale => (
+                <tr key={sale.id} onClick={() => handleRowSelectCustomer(sale.IDCustomer)} style={{ cursor: 'pointer' }}>
+                  <td>{sale.firstNameCustomer} {sale.lastNameCustomer}</td>
+                  <td>{sale.IDCustomer}</td>
+                  <td>{sale.company}</td>
+                  <td>{sale.product}</td>
+                  <td>{sale.kupaAction || '—'}</td>
+                  <td>{sale.transferCompany || '—'}</td>
+                  <td>{sale.transferKupaType || '—'}</td>
+                  <td>{sale.pensiaPremia ? parseFloat(String(sale.pensiaPremia)).toLocaleString() : '—'}</td>
+                  <td>{sale.pensiaZvira ? parseFloat(String(sale.pensiaZvira)).toLocaleString() : '—'}</td>
+                  <td>{sale.finansimPremia ? parseFloat(String(sale.finansimPremia)).toLocaleString() : '—'}</td>
+                  <td>{sale.finansimZvira ? parseFloat(String(sale.finansimZvira)).toLocaleString() : '—'}</td>
+                  <td>{sale.kupaStatus || '—'}</td>
+                  <td>{sale.candidateStatus || '—'}</td>
+                  <td>{formatDate(sale.mounth)}</td>
+                  {showReferrerCol && <td>{sale.referrerName || '—'}</td>}
+                  <td>
+                    <span className={`sharon-pill ${sale.statusPolicy === 'פעילה' ? 'sharon-pill-green' : 'sharon-pill-blue'}`}>
+                      {sale.statusPolicy}
+                    </span>
+                  </td>
+                  {showPolicyNumberCol && <td>{sale.policyNumber || '—'}</td>}
+                  <td>
+                    <span
+                      title={sale.notes || ''}
+                      style={{
+                        display: '-webkit-box',
+                        WebkitLineClamp: 1,
+                        WebkitBoxOrient: 'vertical' as any,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        maxWidth: 160,
+                      }}
+                    >
+                      {sale.notes || '—'}
+                    </span>
+                  </td>
+                  <td onClick={(e) => e.stopPropagation()} style={{ display: 'flex', gap: 4 }}>
+                    <button type="button" className="sharon-inline-btn" style={{ background: '#5F5E5A' }} onClick={() => openEditDeal(sale.id)} title="עריכת עסקה">✏️</button>
+                    <button type="button" className="sharon-inline-btn" style={{ background: '#E24B4A' }} onClick={() => deleteSale(sale.id)} title="מחיקת עסקה">🗑</button>
+                  </td>
+                </tr>
+              ))}
+
+              {filtered.length > 0 && (
+                <tr className="sum-row">
+                  <td colSpan={7} style={{ fontSize: 12, color: '#5F5E5A' }}>{'סה"כ'} — {filtered.length} רשומות</td>
+                  <td colSpan={2}>{totalPremia.toLocaleString()}</td>
+                  <td colSpan={2}>{totalZvira.toLocaleString()}</td>
+                  <td colSpan={pensionFinanceTotalColumns - 12}></td>
+                  <td></td>
+                </tr>
+              )}
+
+              {filtered.length === 0 && (
+                <tr>
+                  <td colSpan={pensionFinanceTotalColumns} style={{ textAlign: 'center', padding: 20, color: '#888' }}>
+                    {customer ? 'אין נתונים פנסיוניים ללקוח זה' : 'בחר לקוח לצפייה בנתונים'}
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
         ) : (
           <table className="sharon-table">
             <thead>
@@ -405,6 +531,7 @@ const PensionTab: React.FC<Props> = ({ agentId, customer, onSelectCustomer, incl
                 <th>סטטוס</th>
                 {showInsPremia && <th>פרמיה ביטוח</th>}
                 {showNeedsCorrectionCol && <th>נדרש תיקון</th>}
+                {showCancellationCompanyCol && <th>חברה לביטול</th>}
                 {showReferrerCol && <th>נציג מפנה</th>}
                 {showPensionFinanceCols && (
                   <>
@@ -441,6 +568,9 @@ const PensionTab: React.FC<Props> = ({ agentId, customer, onSelectCustomer, incl
                     <td>
                       {sale.statusPolicy === 'פעילה' ? (sale.needsCorrection ? 'כן' : 'לא') : '—'}
                     </td>
+                  )}
+                  {showCancellationCompanyCol && (
+                    <td>{(sale.cancellationCompany || []).length > 0 ? sale.cancellationCompany!.join(', ') : '—'}</td>
                   )}
                   {showReferrerCol && <td>{sale.referrerName || '—'}</td>}
                   {showPensionFinanceCols && (
@@ -485,6 +615,7 @@ const PensionTab: React.FC<Props> = ({ agentId, customer, onSelectCustomer, incl
                     <td>{totalPremia.toLocaleString()}</td>
                   )}
                   {showNeedsCorrectionCol && <td></td>}
+                  {showCancellationCompanyCol && <td></td>}
                   {showReferrerCol && <td></td>}
                   {showPensionFinanceCols && (
                     <>

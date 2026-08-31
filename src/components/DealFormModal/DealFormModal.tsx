@@ -18,23 +18,16 @@ import { CombinedData, Customer } from '@/types/Sales';
 import { Button } from '@/components/Button/Button';
 import ReferrerField from '@/components/ReferrerField/ReferrerField';
 import confetti from 'canvas-confetti';
+import { PENSION_FINANCE_AGENCY4_STATUSES } from '@/utils/pensionFinanceAgency4Statuses';
 import './DealFormModal.css';
 
 // ─── Constants ─────────────────────────────────────────────────────────────
 
-// ⚠️ רשימה סגורה, מקודדת בכוונה (לא מגיעה מ-Firestore הכללי — statusPolicy) —
-// רלוונטית רק ל-agency4 בהקשר "פנסיה ופיננסים". "פעילה" ו"גניזה" זהים בכוונה
-// לערכים הקיימים ברשימה הכללית (כדי לשמור על משמעות עסקית עקבית), אבל שאר
-// הערכים ייחודיים להקשר הזה בלבד ולא נכתבים/נטענים משום collection משותף,
-// כדי שלא "יזלגו" לשאר הלשוניות/סוכנויות.
-const PENSION_FINANCE_AGENCY4_STATUSES = [
-  'פעילה',
-  'גניזה',
-  'נשלח לחברה',
-  'קופה הוקמה',
-  'ק.ה ממתין לניוד',
-  'ק.ה ממתין להפקדה',
-];
+// ⚠️ מיובא מקובץ נפרד (utils/pensionFinanceAgency4Statuses.ts) ולא מוגדר כאן
+// יותר — כדי שגם ה-API routes של ההעלאה/הורדה בצד שרת (pf-route.download.ts,
+// pf-route.upload.ts) יוכלו לייבא בדיוק את אותה רשימה, בלי תלות בקומפוננטת
+// 'use client'. ה-re-export כאן שומר על תאימות לאחור לקוד שכבר מייבא מהקובץ הזה.
+export { PENSION_FINANCE_AGENCY4_STATUSES };
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -155,7 +148,7 @@ const DealFormModal: React.FC<DealFormModalProps> = ({
     resetField('depositStatus' as any, '');
     resetField('discountPercent' as any, '');
     resetField('updateDate' as any, '');
-    resetField('cancellationCompany' as any, '');
+    resetField('cancellationCompany' as any, []);
     resetField('needsCorrection' as any, false);
     resetField('kupaAction' as any, '');
     resetField('transferCompany' as any, '');
@@ -453,7 +446,11 @@ const DealFormModal: React.FC<DealFormModalProps> = ({
         depositStatus: canManageAgency3Fields ? String((editData as any).depositStatus || '') : '',
         discountPercent: canManageAgency4RiskFields ? String((editData as any).discountPercent || '') : '',
         updateDate: canManageAgency4RiskFields ? String((editData as any).updateDate || '') : '',
-        cancellationCompany: canManageAgency4RiskFields ? String((editData as any).cancellationCompany || '') : '',
+        cancellationCompany: canManageAgency4RiskFields
+          ? (Array.isArray((editData as any).cancellationCompany)
+              ? (editData as any).cancellationCompany
+              : ((editData as any).cancellationCompany ? [(editData as any).cancellationCompany] : []))
+          : [],
         needsCorrection: canManageAgency4RiskFields ? !!(editData as any).needsCorrection : false,
         kupaAction: canManageAgency4PensionFinanceFields ? String((editData as any).kupaAction || '') : '',
         transferCompany: canManageAgency4PensionFinanceFields ? String((editData as any).transferCompany || '') : '',
@@ -1012,17 +1009,32 @@ const DealFormModal: React.FC<DealFormModalProps> = ({
               )}
 
               {canManageAgency4RiskFields && (
-                <div className="dfm-group">
-                  <label className="dfm-label">חברה לביטול</label>
-                  <select
-                    value={(editData as any).cancellationCompany || ''}
-                    onChange={(e) => handleEditChange('cancellationCompany' as any, e.target.value)}
-                  >
-                    <option value="">בחר חברה</option>
-                    {companies.map((companyName, index) => (
-                      <option key={index} value={companyName}>{companyName}</option>
-                    ))}
-                  </select>
+                <div className="dfm-group dfm-group--full">
+                  <label className="dfm-label">חברה לביטול (ניתן לבחור כמה)</label>
+                  <div className="dfm-checkbox-list">
+                    {companies.map((companyName, index) => {
+                      const rawValue = (editData as any).cancellationCompany;
+                      const selectedCompanies: string[] = Array.isArray(rawValue)
+                        ? rawValue
+                        : (rawValue ? [rawValue] : []);
+                      const isChecked = selectedCompanies.includes(companyName);
+                      return (
+                        <label key={index} className="dfm-checkbox-list-item">
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={(e) => {
+                              const next = e.target.checked
+                                ? [...selectedCompanies, companyName]
+                                : selectedCompanies.filter((c) => c !== companyName);
+                              handleEditChange('cancellationCompany' as any, next as any);
+                            }}
+                          />
+                          <span>{companyName}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
 

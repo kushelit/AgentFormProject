@@ -192,34 +192,33 @@ export default function LogInPage() {
   /**
    * ניקוי ה־reCAPTCHA.
    */
-  const resetRecaptcha = () => {
-    try {
-      recaptchaRef.current?.clear();
-    } catch (clearError) {
-      console.warn(
-        '[AUTH][RECAPTCHA] Failed to clear verifier',
-        clearError
-      );
+ const resetRecaptcha = () => {
+  try {
+    recaptchaRef.current?.clear();
+  } catch (clearError) {
+    console.warn(
+      '[AUTH][RECAPTCHA] Failed to clear verifier',
+      clearError
+    );
+  }
+
+  recaptchaRef.current = null;
+
+  try {
+    const container = document.getElementById(
+      'recaptcha-container'
+    );
+
+    if (container?.parentElement) {
+      container.parentElement.removeChild(container);
     }
-
-    recaptchaRef.current = null;
-
-    try {
-      const container = document.getElementById(
-        'recaptcha-container'
-      );
-
-      if (container) {
-        container.innerHTML = '';
-      }
-    } catch (containerError) {
-      console.warn(
-        '[AUTH][RECAPTCHA] Failed to clear container',
-        containerError
-      );
-    }
-  };
-
+  } catch (containerError) {
+    console.warn(
+      '[AUTH][RECAPTCHA] Failed to remove container',
+      containerError
+    );
+  }
+};
   /**
    * ניקוי בעת יציאה מהדף.
    */
@@ -254,77 +253,49 @@ export default function LogInPage() {
    * לא מפעילים כאן verifier.verify().
    * PhoneAuthProvider.verifyPhoneNumber מפעיל את התהליך בעצמו.
    */
-  const ensureRecaptcha =
-    async (): Promise<RecaptchaVerifier> => {
-      if (recaptchaRef.current) {
-        return recaptchaRef.current;
+ const ensureRecaptcha =
+  async (): Promise<RecaptchaVerifier> => {
+    if (recaptchaRef.current) {
+      return recaptchaRef.current;
+    }
+
+    let container = document.getElementById(
+      'recaptcha-container'
+    );
+
+    if (!container) {
+      container = document.createElement('div');
+      container.id = 'recaptcha-container';
+      document.body.appendChild(container);
+    }
+
+    const verifier = new RecaptchaVerifier(
+      auth,
+      'recaptcha-container',
+      {
+        size: 'invisible',
+
+        callback: () => {
+          console.info(
+            '[AUTH][RECAPTCHA] Verification completed'
+          );
+        },
+
+        'expired-callback': () => {
+          console.warn(
+            '[AUTH][RECAPTCHA] Verification expired'
+          );
+
+          resetRecaptcha();
+        },
       }
+    );
 
-      let container = document.getElementById(
-        'recaptcha-container'
-      );
+    recaptchaRef.current = verifier;
 
-      if (!container) {
-        container = document.createElement('div');
-        container.id = 'recaptcha-container';
-        document.body.appendChild(container);
-      }
-
-      container.innerHTML = '';
-
-      const verifier = new RecaptchaVerifier(
-        auth,
-        'recaptcha-container',
-        {
-          size: 'invisible',
-
-          callback: () => {
-            console.info(
-              '[AUTH][RECAPTCHA] Verification completed'
-            );
-          },
-
-          'expired-callback': () => {
-            console.warn(
-              '[AUTH][RECAPTCHA] Verification expired'
-            );
-
-            resetRecaptcha();
-          },
-        }
-      );
-
-      try {
-        const widgetId = await verifier.render();
-
-        console.info(
-          '[AUTH][RECAPTCHA] Rendered successfully',
-          {
-            widgetId,
-          }
-        );
-
-        recaptchaRef.current = verifier;
-
-        return verifier;
-      } catch (renderError) {
-        console.error(
-          '[AUTH][RECAPTCHA] Render failed',
-          renderError
-        );
-
-        try {
-          verifier.clear();
-        } catch {
-          // אין צורך לזרוק שגיאה נוספת
-        }
-
-        recaptchaRef.current = null;
-
-        throw renderError;
-      }
-    };
-
+    return verifier;
+  };
+  
   /**
    * בדיקת המשתמש ב־Firestore לאחר התחברות מלאה.
    */
