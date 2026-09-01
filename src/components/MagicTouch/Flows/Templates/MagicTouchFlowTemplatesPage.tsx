@@ -439,34 +439,48 @@ const removeTemplate = async (
                 </div>
               </dl>
 
-              <div className="mt-5 grid gap-2 sm:grid-cols-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setError("");
-                    setSuccess("");
-                    setInstallTemplate(
-                      template
-                    );
-                  }}
-                  disabled={!selectedAgentId}
-                  className="rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
-                >
-                  התקנה אצל הסוכן
-                </button>
+           <div className="mt-5 grid gap-2 sm:grid-cols-3">
+  <button
+  type="button"
+  onClick={() => {
+    setError("");
+    setSuccess("");
+    setInstallTemplate(
+      template
+    );
+  }}
+  disabled={
+    !selectedAgentId ||
+    template.status !== "published"
+  }
+  className="rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
+>
+  התקנה אצל הסוכן
+</button>
+  <Link
+    href={`/MagicTouch/Flows/Templates/${template.templateId}/edit`}
+    className="rounded-lg border border-slate-200 px-3 py-2 text-center text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+  >
+    עריכה
+  </Link>
 
-                <button
-                  type="button"
-                  onClick={() =>
-                    downloadFlowTemplate(
-                      template
-                    )
-                  }
-                  className="rounded-lg border border-blue-200 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-50"
-                >
-                  הורדת JSON
-                </button>
-              </div>
+  <button
+    type="button"
+    onClick={() =>
+      downloadFlowTemplate(
+        template
+      )
+    }
+    className="rounded-lg border border-blue-200 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-50"
+  >
+    הורדת JSON
+  </button>
+</div>
+{template.status === "draft" ? (
+  <div className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">
+    התבנית עדיין בטיוטה. יש לפרסם אותה לפני התקנה אצל סוכן.
+  </div>
+) : null}
 <button
   type="button"
   onClick={() =>

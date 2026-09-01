@@ -32,6 +32,7 @@ export async function installFlowTemplateForAgent(input: {
   templateId: string;
   agentId: string;
   name: string;
+  whatsappTemplateName?: string;
 }): Promise<{
   flowId: string;
   flowName: string;

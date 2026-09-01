@@ -66,6 +66,11 @@ export async function installMagicTouchFlowTemplateForAgentImpl(
       req.data?.name
     );
 
+    const whatsappTemplateName =
+  safeString(
+    req.data?.whatsappTemplateName
+  );
+
   if (!templateId || !targetAgentId) {
     throw new HttpsError(
       "invalid-argument",
@@ -92,6 +97,39 @@ export async function installMagicTouchFlowTemplateForAgentImpl(
 
   const template =
     templateSnap.data() as any;
+
+    const templateTrigger =
+  template?.trigger &&
+  typeof template.trigger === "object"
+    ? cleanObject(template.trigger)
+    : {};
+
+const requiresWhatsAppTemplate =
+  templateTrigger.type ===
+    "whatsapp_quick_reply_received" &&
+  !safeString(
+    templateTrigger.templateName
+  );
+
+if (
+  requiresWhatsAppTemplate &&
+  !whatsappTemplateName
+) {
+  throw new HttpsError(
+    "failed-precondition",
+    "WhatsApp template must be selected before installing this flow"
+  );
+}
+
+const installedTrigger = {
+  ...templateTrigger,
+  ...(requiresWhatsAppTemplate
+    ? {
+        templateName:
+          whatsappTemplateName,
+      }
+    : {}),
+};
 
   if (
     template.status === "archived"
@@ -147,7 +185,7 @@ export async function installMagicTouchFlowTemplateForAgentImpl(
     version: 1,
     firstStepId,
     trigger:
-      cleanObject(template.trigger || {}),
+  installedTrigger,
     steps,
 
     templateId,
