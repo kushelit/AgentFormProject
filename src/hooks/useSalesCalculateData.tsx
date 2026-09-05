@@ -20,7 +20,7 @@ import fetchDataForAgent from '@/services/fetchDataForAgent';
 /* =========================
    Types
 ========================= */
-type MonthlyTotal = {
+export type MonthlyTotal = {
   finansimTotal: number;
   pensiaTotal: number;
   insuranceTotal: number;
@@ -32,6 +32,25 @@ type MonthlyTotal = {
 };
 
 type MonthlyTotals = Record<string, MonthlyTotal>;
+
+// 🔹 מפתח כל עמודה בטבלה, משמש גם למפתחות הפירוט (drill-down)
+export type ColumnKey = keyof MonthlyTotal;
+
+// 🔹 שורת פירוט בודדת שהרכיבה חלק מהסכום בתא מסוים
+export type SaleDetailRow = {
+  saleId: string;
+  agentId: string;
+  workerId?: string;
+  company: string;
+  product: string;
+  customerId?: string;
+  customerName?: string;
+  month: string;
+  amount: number;
+};
+
+// 🔹 עבור כל חודש - לכל עמודה יש רשימת שורות שהרכיבו אותה
+export type MonthlyDetails = Record<string, Record<ColumnKey, SaleDetailRow[]>>;
 
 type BaseContract = {
   id: string;
@@ -69,6 +88,18 @@ const emptyMonth = (): MonthlyTotal => ({
   commissionNifraimTotal: 0,
   insuranceTravelTotal: 0,
   prishaMyaditTotal: 0,
+});
+
+// 🔹 בסיס ריק לפירוט - חייב להכיל את כל אותם מפתחות כמו MonthlyTotal
+const emptyDetails = (): Record<ColumnKey, SaleDetailRow[]> => ({
+  finansimTotal: [],
+  pensiaTotal: [],
+  insuranceTotal: [],
+  niudPensiaTotal: [],
+  commissionHekefTotal: [],
+  commissionNifraimTotal: [],
+  insuranceTravelTotal: [],
+  prishaMyaditTotal: [],
 });
 
 const chunk = <T,>(arr: T[], size: number) => {
@@ -209,6 +240,7 @@ export default function useSalesData(
   const { detail } = useAuth();
 
   const [monthlyTotals, setMonthlyTotals] = useState<MonthlyTotals>({});
+  const [monthlyDetails, setMonthlyDetails] = useState<MonthlyDetails>({});
   const [overallTotals, setOverallTotals] = useState<MonthlyTotal>(emptyMonth());
   const [companyCommissions, setCompanyCommissions] = useState<Record<string, number>>({});
   const [isLoadingData, setIsLoadingData] = useState(false);
@@ -457,13 +489,16 @@ export default function useSalesData(
   };
 
   // -----------------------
-  // 6) 계산 helpers
+  // 6) חישוב helpers
   // -----------------------
   const updateTotalsForMonth = (
     data: any,
+    saleId: string,
     monthTotals: MonthlyTotal,
+    monthDetails: Record<ColumnKey, SaleDetailRow[]>,
     includeMinuySochen: boolean,
-    product: Product | undefined
+    product: Product | undefined,
+    formatted: string
   ) => {
     if (includeMinuySochen) return;
 
@@ -472,10 +507,9 @@ export default function useSalesData(
     // במצב ALL אין לנו split בצורה אמינה כרגע (כי זה פר-סוכן),
     // אז אנחנו מפעילים split רק כשיש selectedAgentId ספציפי.
     const canSplit =
-    isCommissionSplitEnabled &&
-    selectedAgentId !== 'all' &&
-    !!selectedAgentId;
-  
+      isCommissionSplitEnabled &&
+      selectedAgentId !== 'all' &&
+      !!selectedAgentId;
 
     let productionFactor = 1;
 
@@ -486,22 +520,58 @@ export default function useSalesData(
       }
     }
 
+    const baseRow: Omit<SaleDetailRow, 'amount'> = {
+      saleId,
+      agentId: data.AgentId,
+      workerId: data.workerId,
+      company: data.company,
+      product: data.product,
+      customerId: data.IDCustomer,
+      customerName:
+        `${data.firstNameCustomer || ''} ${data.lastNameCustomer || ''}`.trim() || data.IDCustomer,
+      month: formatted,
+    };
+
+    const pushDetail = (columnKey: ColumnKey, amount: number) => {
+      if (!amount) return;
+      monthDetails[columnKey].push({ ...baseRow, amount });
+    };
+
     if (isOneTime) {
-      monthTotals.insuranceTravelTotal += (parseInt(data.insPremia) || 0) * productionFactor;
-      monthTotals.prishaMyaditTotal += (parseInt(data.pensiaZvira) || 0) * productionFactor;
+      const travelAmount = (parseInt(data.insPremia) || 0) * productionFactor;
+      const prishaAmount = (parseInt(data.pensiaZvira) || 0) * productionFactor;
+
+      monthTotals.insuranceTravelTotal += travelAmount;
+      monthTotals.prishaMyaditTotal += prishaAmount;
+
+      pushDetail('insuranceTravelTotal', travelAmount);
+      pushDetail('prishaMyaditTotal', prishaAmount);
     } else {
-      monthTotals.finansimTotal += (parseInt(data.finansimZvira) || 0) * productionFactor;
-      monthTotals.insuranceTotal += ((parseInt(data.insPremia) || 0) * 12) * productionFactor;
-      monthTotals.pensiaTotal += ((parseInt(data.pensiaPremia) || 0) * 12) * productionFactor;
-      monthTotals.niudPensiaTotal += (parseInt(data.pensiaZvira) || 0) * productionFactor;
+      const finansimAmount = (parseInt(data.finansimZvira) || 0) * productionFactor;
+      const insuranceAmount = ((parseInt(data.insPremia) || 0) * 12) * productionFactor;
+      const pensiaAmount = ((parseInt(data.pensiaPremia) || 0) * 12) * productionFactor;
+      const niudAmount = (parseInt(data.pensiaZvira) || 0) * productionFactor;
+
+      monthTotals.finansimTotal += finansimAmount;
+      monthTotals.insuranceTotal += insuranceAmount;
+      monthTotals.pensiaTotal += pensiaAmount;
+      monthTotals.niudPensiaTotal += niudAmount;
+
+      pushDetail('finansimTotal', finansimAmount);
+      pushDetail('insuranceTotal', insuranceAmount);
+      pushDetail('pensiaTotal', pensiaAmount);
+      pushDetail('niudPensiaTotal', niudAmount);
     }
   };
 
   const updateCommissionsForMonth = (
     data: any,
+    saleId: string,
     monthTotals: MonthlyTotal,
+    monthDetails: Record<ColumnKey, SaleDetailRow[]>,
     product: Product | undefined,
-    companyAgg: Record<string, number>
+    companyAgg: Record<string, number>,
+    formatted: string
   ) => {
     // חוזה סוכן
     const agentContractsForSale = agentContracts.filter((c) => c.agentId === data.AgentId);
@@ -509,11 +579,10 @@ export default function useSalesData(
     if (!agentContract) return;
 
     const canSplit =
-  isCommissionSplitEnabled &&
-  selectedAgentId !== 'all' &&
-  !!selectedAgentId;
+      isCommissionSplitEnabled &&
+      selectedAgentId !== 'all' &&
+      !!selectedAgentId;
 
-  
     const agentAmounts = calcCommissionAmounts(
       data,
       agentContract,
@@ -522,12 +591,30 @@ export default function useSalesData(
       customers,
       canSplit
     );
-    
+
+    const baseRow: Omit<SaleDetailRow, 'amount'> = {
+      saleId,
+      agentId: data.AgentId,
+      workerId: data.workerId,
+      company: data.company,
+      product: data.product,
+      customerId: data.IDCustomer,
+      customerName:
+        `${data.firstNameCustomer || ''} ${data.lastNameCustomer || ''}`.trim() || data.IDCustomer,
+      month: formatted,
+    };
 
     // מצב רגיל
     if (viewMode !== 'agencyMargin' || !isAdmin) {
       monthTotals.commissionHekefTotal += agentAmounts.hekef;
       monthTotals.commissionNifraimTotal += agentAmounts.nifraim;
+
+      if (agentAmounts.hekef) {
+        monthDetails.commissionHekefTotal.push({ ...baseRow, amount: agentAmounts.hekef });
+      }
+      if (agentAmounts.nifraim) {
+        monthDetails.commissionNifraimTotal.push({ ...baseRow, amount: agentAmounts.nifraim });
+      }
 
       if (data.company) companyAgg[data.company] = (companyAgg[data.company] || 0) + agentAmounts.hekef;
       return;
@@ -551,6 +638,13 @@ export default function useSalesData(
 
     monthTotals.commissionHekefTotal += marginHekef;
     monthTotals.commissionNifraimTotal += marginNifraim;
+
+    if (marginHekef) {
+      monthDetails.commissionHekefTotal.push({ ...baseRow, amount: marginHekef });
+    }
+    if (marginNifraim) {
+      monthDetails.commissionNifraimTotal.push({ ...baseRow, amount: marginNifraim });
+    }
 
     if (data.company) companyAgg[data.company] = (companyAgg[data.company] || 0) + marginHekef;
   };
@@ -578,6 +672,7 @@ export default function useSalesData(
 
     const resetAll = () => {
       setMonthlyTotals({});
+      setMonthlyDetails({});
       setCompanyCommissions({});
       setOverallTotals(emptyMonth());
     };
@@ -623,7 +718,13 @@ export default function useSalesData(
         ]);
 
         const newMonthly: MonthlyTotals = {};
+        const newDetails: MonthlyDetails = {};
         const newCompany: Record<string, number> = {};
+
+        const ensureMonth = (formatted: string) => {
+          if (!newMonthly[formatted]) newMonthly[formatted] = emptyMonth();
+          if (!newDetails[formatted]) newDetails[formatted] = emptyDetails();
+        };
 
         // general totals
         generalDocs.forEach((d) => {
@@ -637,13 +738,16 @@ export default function useSalesData(
             if (date.getFullYear() !== selectedYear) return;
           }
 
-          if (!newMonthly[formatted]) newMonthly[formatted] = emptyMonth();
+          ensureMonth(formatted);
 
           updateTotalsForMonth(
             data,
+            d.id,
             newMonthly[formatted],
+            newDetails[formatted],
             data.minuySochen,
-            productMap[data.product]
+            productMap[data.product],
+            formatted
           );
         });
 
@@ -658,13 +762,22 @@ export default function useSalesData(
             if (date.getFullYear() !== selectedYear) return;
           }
 
-          if (!newMonthly[formatted]) newMonthly[formatted] = emptyMonth();
+          ensureMonth(formatted);
 
-          updateCommissionsForMonth(data, newMonthly[formatted], productMap[data.product], newCompany);
+          updateCommissionsForMonth(
+            data,
+            d.id,
+            newMonthly[formatted],
+            newDetails[formatted],
+            productMap[data.product],
+            newCompany,
+            formatted
+          );
         });
 
         if (cancelled) return;
         setMonthlyTotals(newMonthly);
+        setMonthlyDetails(newDetails);
         setCompanyCommissions(newCompany);
         aggregateOverallTotals(newMonthly);
       } finally {
@@ -698,6 +811,7 @@ export default function useSalesData(
 
   return {
     monthlyTotals,
+    monthlyDetails,
     overallTotals,
     isLoadingData,
     companyCommissions,

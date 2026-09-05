@@ -6,7 +6,7 @@ import useFetchAgentData from '@/hooks/useFetchAgentData';
 import './NewSummaryTable.css';
 import useFetchMD from '@/hooks/useMD';
 import SalesCountGraph from '@/components/SalesCountGraph';
-import useSalesData from '@/hooks/useSalesCalculateData';
+import useSalesData, { ColumnKey, SaleDetailRow } from '@/hooks/useSalesCalculateData';
 import useFetchGraphData from '@/hooks/useFetchGraphData';
 import CommissionPerCustomerGraph from '@/components/CommissionPerCustomerGraph';
 import PieChartGraph from '@/components/CompanyCommissionPie';
@@ -21,6 +21,7 @@ import AgencySummaryAgentsTab from '@/components/AgencySummaryAgentsTab';
 
 import useProfitByLeadSourceData from '@/hooks/useProfitByLeadSourceData';
 import ProfitByLeadSourceStackedGraph from '@/components/ProfitByLeadSourceStackedGraph';
+import SaleDetailModal from '@/components/SaleDetailModal/SaleDetailModal';
 
 
 type ViewMode = 'agent' | 'agencyMargin';
@@ -33,6 +34,18 @@ type GraphKey =
   | 'profitByLeadSource'
   | 'nifraimYoY'
   | 'hekefYoY';
+
+// 🔹 תוויות עמודות עבור כותרת מודאל הפירוט
+const columnLabels: Record<ColumnKey, string> = {
+  finansimTotal: 'סך פיננסים',
+  pensiaTotal: 'סך פנסיה',
+  insuranceTotal: 'סך ביטוח',
+  niudPensiaTotal: 'ניוד פנסיה',
+  insuranceTravelTotal: 'סך נסיעות חול',
+  prishaMyaditTotal: 'סך פרישה מיידית',
+  commissionHekefTotal: 'עמלת היקף',
+  commissionNifraimTotal: 'עמלת נפרעים',
+};
 
 
 const NewSummaryTable = () => {
@@ -80,6 +93,7 @@ const [selectedGraph, setSelectedGraph] = useState<GraphKey>('newCustomers');
 
   const {
     monthlyTotals,
+    monthlyDetails,
     overallTotals,
     isLoadingData,
     companyCommissions,
@@ -95,6 +109,25 @@ const [selectedGraph, setSelectedGraph] = useState<GraphKey>('newCustomers');
     viewMode,
     detail?.agencyId
   );
+
+  // 🔹 מצב מודאל פירוט תא
+  const [drillDown, setDrillDown] = useState<{ title: string; rows: SaleDetailRow[] } | null>(null);
+
+  const handleCellClick = (month: string, columnKey: ColumnKey) => {
+    const rows = monthlyDetails[month]?.[columnKey] || [];
+    setDrillDown({
+      title: `${columnLabels[columnKey]} - ${month}`,
+      rows,
+    });
+  };
+
+  const handleSummaryCellClick = (columnKey: ColumnKey) => {
+    const rows = Object.values(monthlyDetails).flatMap((m) => m[columnKey] || []);
+    setDrillDown({
+      title: `${columnLabels[columnKey]} - סיכום שנתי`,
+      rows,
+    });
+  };
 
   const monthsCount = Object.keys(monthlyTotals).length || 1;
 
@@ -428,30 +461,90 @@ const [selectedGraph, setSelectedGraph] = useState<GraphKey>('newCustomers');
                       .map(([month, totals]) => (
                         <tr key={month}>
                           <td>{month}</td>
-                          <td>{totals.finansimTotal.toLocaleString()}</td>
-                          <td>{totals.pensiaTotal.toLocaleString()}</td>
-                          <td>{totals.insuranceTotal.toLocaleString()}</td>
-                          <td>{totals.niudPensiaTotal.toLocaleString()}</td>
-                          <td>{totals.insuranceTravelTotal?.toLocaleString() || '0'}</td>
-                          <td>{totals.prishaMyaditTotal?.toLocaleString() || '0'}</td>
-                          {canViewCommissions && <td>{totals.commissionHekefTotal.toLocaleString()}</td>}
-                          {canViewCommissions && <td>{totals.commissionNifraimTotal.toLocaleString()}</td>}
+                          <td className="clickable-cell" onClick={() => handleCellClick(month, 'finansimTotal')}>
+                            {totals.finansimTotal.toLocaleString()}
+                          </td>
+                          <td className="clickable-cell" onClick={() => handleCellClick(month, 'pensiaTotal')}>
+                            {totals.pensiaTotal.toLocaleString()}
+                          </td>
+                          <td className="clickable-cell" onClick={() => handleCellClick(month, 'insuranceTotal')}>
+                            {totals.insuranceTotal.toLocaleString()}
+                          </td>
+                          <td className="clickable-cell" onClick={() => handleCellClick(month, 'niudPensiaTotal')}>
+                            {totals.niudPensiaTotal.toLocaleString()}
+                          </td>
+                          <td
+                            className="clickable-cell"
+                            onClick={() => handleCellClick(month, 'insuranceTravelTotal')}
+                          >
+                            {totals.insuranceTravelTotal?.toLocaleString() || '0'}
+                          </td>
+                          <td
+                            className="clickable-cell"
+                            onClick={() => handleCellClick(month, 'prishaMyaditTotal')}
+                          >
+                            {totals.prishaMyaditTotal?.toLocaleString() || '0'}
+                          </td>
+                          {canViewCommissions && (
+                            <td
+                              className="clickable-cell"
+                              onClick={() => handleCellClick(month, 'commissionHekefTotal')}
+                            >
+                              {totals.commissionHekefTotal.toLocaleString()}
+                            </td>
+                          )}
+                          {canViewCommissions && (
+                            <td
+                              className="clickable-cell"
+                              onClick={() => handleCellClick(month, 'commissionNifraimTotal')}
+                            >
+                              {totals.commissionNifraimTotal.toLocaleString()}
+                            </td>
+                          )}
                         </tr>
                       ))}
 
                     <tr>
                       <td><strong>סיכום</strong></td>
-                      <td><strong>{overallTotals.finansimTotal.toLocaleString()}</strong></td>
-                      <td><strong>{overallTotals.pensiaTotal.toLocaleString()}</strong></td>
-                      <td><strong>{overallTotals.insuranceTotal.toLocaleString()}</strong></td>
-                      <td><strong>{overallTotals.niudPensiaTotal.toLocaleString()}</strong></td>
-                      <td><strong>{overallTotals.insuranceTravelTotal.toLocaleString()}</strong></td>
-                      <td><strong>{overallTotals.prishaMyaditTotal.toLocaleString()}</strong></td>
+                      <td className="clickable-cell" onClick={() => handleSummaryCellClick('finansimTotal')}>
+                        <strong>{overallTotals.finansimTotal.toLocaleString()}</strong>
+                      </td>
+                      <td className="clickable-cell" onClick={() => handleSummaryCellClick('pensiaTotal')}>
+                        <strong>{overallTotals.pensiaTotal.toLocaleString()}</strong>
+                      </td>
+                      <td className="clickable-cell" onClick={() => handleSummaryCellClick('insuranceTotal')}>
+                        <strong>{overallTotals.insuranceTotal.toLocaleString()}</strong>
+                      </td>
+                      <td className="clickable-cell" onClick={() => handleSummaryCellClick('niudPensiaTotal')}>
+                        <strong>{overallTotals.niudPensiaTotal.toLocaleString()}</strong>
+                      </td>
+                      <td
+                        className="clickable-cell"
+                        onClick={() => handleSummaryCellClick('insuranceTravelTotal')}
+                      >
+                        <strong>{overallTotals.insuranceTravelTotal.toLocaleString()}</strong>
+                      </td>
+                      <td
+                        className="clickable-cell"
+                        onClick={() => handleSummaryCellClick('prishaMyaditTotal')}
+                      >
+                        <strong>{overallTotals.prishaMyaditTotal.toLocaleString()}</strong>
+                      </td>
                       {canViewCommissions && (
-                        <td><strong>{overallTotals.commissionHekefTotal.toLocaleString()}</strong></td>
+                        <td
+                          className="clickable-cell"
+                          onClick={() => handleSummaryCellClick('commissionHekefTotal')}
+                        >
+                          <strong>{overallTotals.commissionHekefTotal.toLocaleString()}</strong>
+                        </td>
                       )}
                       {canViewCommissions && (
-                        <td><strong>{overallTotals.commissionNifraimTotal.toLocaleString()}</strong></td>
+                        <td
+                          className="clickable-cell"
+                          onClick={() => handleSummaryCellClick('commissionNifraimTotal')}
+                        >
+                          <strong>{overallTotals.commissionNifraimTotal.toLocaleString()}</strong>
+                        </td>
                       )}
                     </tr>
 
@@ -542,6 +635,14 @@ const [selectedGraph, setSelectedGraph] = useState<GraphKey>('newCustomers');
           />
         )}
       </div>
+
+      {drillDown && (
+        <SaleDetailModal
+          title={drillDown.title}
+          rows={drillDown.rows}
+          onClose={() => setDrillDown(null)}
+        />
+      )}
     </div>
   );
 };

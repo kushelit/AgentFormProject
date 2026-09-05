@@ -124,6 +124,11 @@ export default function RootLayout({
   return (
     <html lang="he" dir="rtl">
       <head>
+         {/* Google Search Console Verification */}
+  <meta
+    name="google-site-verification"
+    content="6p1HoKFD9X2UMgstFD7UnMhxJ8hw7atQF"
+  />
         {/* PWA */}
         <link rel="manifest" href="/manifest.json" />
 

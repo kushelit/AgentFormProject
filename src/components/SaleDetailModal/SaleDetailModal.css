@@ -1,0 +1,90 @@
+.sale-detail-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.sale-detail-modal {
+  background: #fff;
+  border-radius: 10px;
+  width: 90%;
+  max-width: 700px;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+  overflow: hidden;
+}
+
+.sale-detail-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  border-bottom: 1px solid #eee;
+}
+
+.sale-detail-header h3 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.sale-detail-close {
+  background: none;
+  border: none;
+  font-size: 18px;
+  cursor: pointer;
+  color: #666;
+  line-height: 1;
+}
+
+.sale-detail-close:hover {
+  color: #000;
+}
+
+.sale-detail-body {
+  padding: 14px 18px;
+  overflow-y: auto;
+}
+
+.sale-detail-empty {
+  text-align: center;
+  color: #888;
+  padding: 20px 0;
+}
+
+.sale-detail-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.sale-detail-table th,
+.sale-detail-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid #eee;
+  text-align: center;
+}
+
+.sale-detail-table thead th {
+  background: #f7f7f7;
+  font-weight: bold;
+}
+
+.sale-detail-table tfoot td {
+  background: #fafafa;
+  border-top: 2px solid #ddd;
+}
+
+.clickable-cell {
+  cursor: pointer;
+}
+
+.clickable-cell:hover {
+  background: #eef6ff;
+  text-decoration: underline;
+}

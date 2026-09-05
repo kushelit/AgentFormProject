@@ -1053,3 +1053,75 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* ========================================
+   Announcement V22 - compact MagicTouch
+   ======================================== */
+
+.magictouch-showcase-compact {
+  margin-top: 18px;
+  padding: 17px 18px;
+}
+
+.magictouch-showcase-compact .magictouch-main-title {
+  text-align: center;
+}
+
+.magictouch-showcase-compact h3 {
+  margin: 2px 0 0 !important;
+  font-size: 1.55rem !important;
+}
+
+.magictouch-compact-description {
+  max-width: 560px;
+  margin: 10px auto 12px !important;
+
+  text-align: center;
+
+  font-size: 0.84rem !important;
+  line-height: 1.65 !important;
+
+  color: #64748b !important;
+}
+
+.magictouch-compact-features {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+
+  gap: 8px;
+
+  margin-top: 10px;
+}
+
+.magictouch-compact-features span {
+  padding: 6px 10px;
+
+  background: rgba(255, 255, 255, 0.9);
+
+  border: 1px solid #e9e5ff;
+  border-radius: 999px;
+
+  font-size: 0.75rem;
+  font-weight: 700;
+
+  color: #5b21b6;
+}
+
+.magictouch-contact-compact {
+  margin-top: 12px;
+}
+
+@media (max-width: 640px) {
+  .magictouch-showcase-compact {
+    padding: 15px 12px;
+  }
+
+  .magictouch-compact-features {
+    gap: 6px;
+  }
+
+  .magictouch-compact-features span {
+    font-size: 0.7rem;
+  }
+}

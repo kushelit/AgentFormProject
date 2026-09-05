@@ -796,7 +796,7 @@ const calculateCommissions = (sale: any, contractMatch: any) => {
       risk: { count: 0, total: 0 },
     };
     nifraimWithGap.forEach(r => {
-      const g = groupOfProduct(r.product);
+      const g = groupOfProduct(r.displayProduct);
       stats[g].count += 1;
       stats[g].total += r.commissionAmount;
     });
@@ -805,7 +805,7 @@ const calculateCommissions = (sale: any, contractMatch: any) => {
 
   const nifraimFilteredByGroup = useMemo(() => {
     if (!nifraimGroupFilter) return nifraimFiltered;
-    return nifraimFiltered.filter(r => groupOfProduct(r.product) === nifraimGroupFilter);
+   return nifraimFiltered.filter(r => groupOfProduct(r.displayProduct) === nifraimGroupFilter);
   }, [nifraimFiltered, nifraimGroupFilter, productToGroupMap]);
 
   // ─── ניווט לדף השוואה מלאה ───────────────────────────────────────────────────
