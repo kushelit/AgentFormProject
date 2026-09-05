@@ -125,10 +125,10 @@ export default function RootLayout({
     <html lang="he" dir="rtl">
       <head>
          {/* Google Search Console Verification */}
-  <meta
-    name="google-site-verification"
-    content="6p1HoKFD9X2UMgstFD7UnMhxJ8hw7atQF"
-  />
+ <meta
+  name="google-site-verification"
+  content="6p1HoKFD9X2UMgstFD7UnMhxJ8hw7atQFfisjyJbhNU"
+/>
         {/* PWA */}
         <link rel="manifest" href="/manifest.json" />
 
