@@ -4,7 +4,7 @@
 
 import { onRequest } from "firebase-functions/v2/https";
 import { logger } from "firebase-functions";
-import { FieldValue } from "firebase-admin/firestore";
+import { FieldPath, FieldValue } from "firebase-admin/firestore";
 
 import { adminDb, nowTs } from "./shared/admin";
 
@@ -271,6 +271,212 @@ function normalizePhone(
   }
 
   return digits;
+}
+
+function normalizeCampaignStorageKey(
+  value: unknown
+): string {
+  return s(
+    value
+  )
+    .replace(
+      /\./g,
+      "_"
+    )
+    .trim();
+}
+
+function resolveOutboundStatus({
+  currentStatus,
+  incomingStatus,
+}: {
+  currentStatus: string;
+  incomingStatus: string;
+}): string {
+  const current =
+    s(
+      currentStatus
+    ).toLowerCase();
+
+  const incoming =
+    s(
+      incomingStatus
+    ).toLowerCase();
+
+  if (
+    !incoming
+  ) {
+    return current;
+  }
+
+  if (
+    current ===
+      "failed" &&
+    incoming !==
+      "failed"
+  ) {
+    return current;
+  }
+
+  if (
+    incoming ===
+    "failed"
+  ) {
+    if (
+      current ===
+        "delivered" ||
+      current ===
+        "read" ||
+      current ===
+        "replied"
+    ) {
+      return current;
+    }
+
+    return "failed";
+  }
+
+  const rank:
+    Record<string, number> = {
+      accepted:
+        0,
+
+      sent:
+        1,
+
+      delivered:
+        2,
+
+      read:
+        3,
+
+      replied:
+        4,
+    };
+
+  const currentRank =
+    rank[
+      current
+    ] ??
+    -1;
+
+  const incomingRank =
+    rank[
+      incoming
+    ] ??
+    -1;
+
+  if (
+    incomingRank >=
+    currentRank
+  ) {
+    return incoming;
+  }
+
+  return current ||
+    incoming;
+}
+
+function getWhatsAppErrorCode(
+  error: any
+): string | null {
+  const code =
+    s(
+      error
+        ?.code
+    );
+
+  return code ||
+    null;
+}
+
+function getWhatsAppErrorReason(
+  error: any
+): string | null {
+  return (
+    s(
+      error
+        ?.message
+    ) ||
+    s(
+      error
+        ?.title
+    ) ||
+    s(
+      error
+        ?.error_data
+        ?.details
+    ) ||
+    null
+  );
+}
+
+async function updateContactCampaignFields({
+  db,
+  agentId,
+  contactId,
+  campaignId,
+  fields,
+}: {
+  db: FirebaseFirestore.Firestore;
+  agentId: string;
+  contactId: string;
+  campaignId: string;
+  fields: Record<string, any>;
+}): Promise<void> {
+  const campaignStorageKey =
+    normalizeCampaignStorageKey(
+      campaignId
+    );
+
+  if (
+    !agentId ||
+    !contactId ||
+    !campaignStorageKey
+  ) {
+    return;
+  }
+
+  const contactRef =
+    db.doc(
+      `agents/${agentId}/magic_touch_contacts/${contactId}`
+    );
+
+  const updateArgs:
+    any[] = [];
+
+  for (
+    const [
+      fieldName,
+      fieldValue,
+    ] of Object.entries(
+      fields
+    )
+  ) {
+    updateArgs.push(
+      new FieldPath(
+        "engagement",
+        "campaigns",
+        campaignStorageKey,
+        fieldName
+      ),
+
+      fieldValue
+    );
+  }
+
+  if (
+    updateArgs.length ===
+    0
+  ) {
+    return;
+  }
+
+  await (
+    contactRef as any
+  ).update(
+    ...updateArgs
+  );
 }
 
 
@@ -808,7 +1014,7 @@ async function findAgentByPhoneNumberId(
   );
 }
 
-async function findOriginalMessageTemplateName({
+async function findOriginalMessageContext({
   db,
   conversationId,
   contextMessageId,
@@ -816,12 +1022,25 @@ async function findOriginalMessageTemplateName({
   db: FirebaseFirestore.Firestore;
   conversationId: string;
   contextMessageId: string;
-}): Promise<string> {
+}): Promise<{
+  templateName: string;
+  campaignId: string;
+  campaignSource: string;
+}> {
   if (
     !conversationId ||
     !contextMessageId
   ) {
-    return "";
+    return {
+      templateName:
+        "",
+
+      campaignId:
+        "",
+
+      campaignSource:
+        "",
+    };
   }
 
   const originalMessageSnap =
@@ -834,14 +1053,40 @@ async function findOriginalMessageTemplateName({
   if (
     !originalMessageSnap.exists
   ) {
-    return "";
+    return {
+      templateName:
+        "",
+
+      campaignId:
+        "",
+
+      campaignSource:
+        "",
+    };
   }
 
-  return s(
-    originalMessageSnap
-      .data()
-      ?.templateName
-  );
+  const originalMessageData =
+    originalMessageSnap.data() as any;
+
+  return {
+    templateName:
+      s(
+        originalMessageData
+          ?.templateName
+      ),
+
+    campaignId:
+      s(
+        originalMessageData
+          ?.campaignId
+      ),
+
+    campaignSource:
+      s(
+        originalMessageData
+          ?.campaignSource
+      ),
+  };
 }
 
 function getNativeInteractiveAction(
@@ -1009,16 +1254,33 @@ async function updateOutboundMessageStatus({
   const messageData =
     messageDoc.data() as any;
 
+  const timestamp =
+    nowTs();
+
+  const effectiveStatus =
+    resolveOutboundStatus({
+      currentStatus:
+        s(
+          messageData
+            ?.waLastStatus ||
+          messageData
+            ?.status
+        ),
+
+      incomingStatus:
+        waStatus,
+    });
+
   const statusUpdate:
     Record<string, any> = {
       status:
-        waStatus,
+        effectiveStatus,
 
       waLastStatus:
         waStatus,
 
       waLastStatusAt:
-        nowTs(),
+        timestamp,
 
       waRecipientId:
         recipientId ||
@@ -1029,35 +1291,35 @@ async function updateOutboundMessageStatus({
         null,
 
       updatedAt:
-        nowTs(),
+        timestamp,
     };
 
   if (
     waStatus === "sent"
   ) {
     statusUpdate.waSentAt =
-      nowTs();
+      timestamp;
   }
 
   if (
     waStatus === "delivered"
   ) {
     statusUpdate.waDeliveredAt =
-      nowTs();
+      timestamp;
   }
 
   if (
     waStatus === "read"
   ) {
     statusUpdate.waReadAt =
-      nowTs();
+      timestamp;
   }
 
   if (
     waStatus === "failed"
   ) {
     statusUpdate.waFailedAt =
-      nowTs();
+      timestamp;
 
     statusUpdate.waError =
       error || null;
@@ -1066,18 +1328,21 @@ async function updateOutboundMessageStatus({
   await messageDoc.ref.set(
     statusUpdate,
     {
-      merge: true,
+      merge:
+        true,
     }
   );
 
-  /*
-   * אם ההודעה נשלחה כחלק מקמפיין,
-   * מעדכנים גם את רשומת הנמען בקמפיין.
-   */
   const campaignId =
     s(
       messageData
         ?.campaignId
+    );
+
+  const campaignSource =
+    s(
+      messageData
+        ?.campaignSource
     );
 
   const agentId =
@@ -1092,10 +1357,168 @@ async function updateOutboundMessageStatus({
         ?.contactId
     );
 
+  /*
+   * כל שליחת תבנית שנשמרה עם campaignId
+   * מעדכנת גם את הסטטוס אצל איש הקשר.
+   *
+   * במצב ה-MVP שלנו:
+   * campaignId יכול להיות פשוט שם התבנית.
+   *
+   * בעתיד campaignId יכול להגיע מקמפיין
+   * אמיתי ונפרד.
+   */
   if (
     campaignId &&
     agentId &&
     contactId
+  ) {
+    const campaignStorageKey =
+      normalizeCampaignStorageKey(
+        campaignId
+      );
+
+    const contactRef =
+      db.doc(
+        `agents/${agentId}/magic_touch_contacts/${contactId}`
+      );
+
+    const contactSnap =
+      await contactRef.get();
+
+    const contactData =
+      contactSnap.exists
+        ? contactSnap.data() as any
+        : {};
+
+    const currentCampaignStatus =
+      campaignStorageKey
+        ? s(
+            contactData
+              ?.engagement
+              ?.campaigns
+              ?.[campaignStorageKey]
+              ?.status
+          )
+        : "";
+
+    const effectiveCampaignStatus =
+      resolveOutboundStatus({
+        currentStatus:
+          currentCampaignStatus,
+
+        incomingStatus:
+          waStatus,
+      });
+
+    const contactCampaignUpdate:
+      Record<string, any> = {
+        status:
+          effectiveCampaignStatus,
+
+        deliveryStatus:
+          waStatus,
+
+        waLastStatus:
+          waStatus,
+
+        waLastStatusAt:
+          timestamp,
+
+        waMessageId,
+
+        providerStatusTimestamp:
+          providerTimestamp ||
+          null,
+
+        updatedAt:
+          timestamp,
+      };
+
+    if (
+      waStatus ===
+        "sent"
+    ) {
+      contactCampaignUpdate
+        .sentConfirmedAt =
+        timestamp;
+    }
+
+    if (
+      waStatus ===
+        "delivered"
+    ) {
+      contactCampaignUpdate
+        .deliveredAt =
+        timestamp;
+    }
+
+    if (
+      waStatus ===
+        "read"
+    ) {
+      contactCampaignUpdate
+        .readAt =
+        timestamp;
+    }
+
+    if (
+      waStatus ===
+        "failed"
+    ) {
+      contactCampaignUpdate
+        .failedAt =
+        timestamp;
+
+      contactCampaignUpdate
+        .failureCode =
+        getWhatsAppErrorCode(
+          error
+        );
+
+      contactCampaignUpdate
+        .failureReason =
+        getWhatsAppErrorReason(
+          error
+        );
+
+      contactCampaignUpdate
+        .error =
+        error ||
+        null;
+    }
+
+    await updateContactCampaignFields({
+      db,
+
+      agentId,
+
+      contactId,
+
+      campaignId,
+
+      fields:
+        contactCampaignUpdate,
+    });
+  }
+
+  /*
+   * מנגנון Campaigns המלא שכבר קיים
+   * נשמר לתאימות.
+   *
+   * אם מדובר בקמפיין אמיתי או במסר ישן
+   * שאין בו campaignSource, ממשיכים לעדכן
+   * גם את recipient document.
+   *
+   * כאשר campaignSource = template,
+   * אנחנו לא יוצרים סתם Campaign parent
+   * עבור כל Template.
+   */
+  if (
+    campaignId &&
+    agentId &&
+    contactId &&
+    campaignSource !==
+      "template"
   ) {
     const recipientRef =
       db.doc(
@@ -1105,44 +1528,44 @@ async function updateOutboundMessageStatus({
     const recipientUpdate:
       Record<string, any> = {
         status:
-          waStatus,
+          effectiveStatus,
 
         waLastStatus:
           waStatus,
 
         waLastStatusAt:
-          nowTs(),
+          timestamp,
 
         updatedAt:
-          nowTs(),
+          timestamp,
       };
 
     if (
       waStatus === "sent"
     ) {
       recipientUpdate.sentConfirmedAt =
-        nowTs();
+        timestamp;
     }
 
     if (
       waStatus === "delivered"
     ) {
       recipientUpdate.deliveredAt =
-        nowTs();
+        timestamp;
     }
 
     if (
       waStatus === "read"
     ) {
       recipientUpdate.readAt =
-        nowTs();
+        timestamp;
     }
 
     if (
       waStatus === "failed"
     ) {
       recipientUpdate.failedAt =
-        nowTs();
+        timestamp;
 
       recipientUpdate.error =
         error || null;
@@ -1151,7 +1574,8 @@ async function updateOutboundMessageStatus({
     await recipientRef.set(
       recipientUpdate,
       {
-        merge: true,
+        merge:
+          true,
       }
     );
   }
@@ -1503,12 +1927,52 @@ async function processInboundMessage({
         ?.id
     );
 
-  const templateName =
-    await findOriginalMessageTemplateName({
+  const originalMessageContext =
+    await findOriginalMessageContext({
       db,
       conversationId,
       contextMessageId,
     });
+
+  const templateName =
+    originalMessageContext
+      .templateName;
+
+  const replyCampaignIdFromContext =
+    originalMessageContext
+      .campaignId ||
+    originalMessageContext
+      .templateName;
+
+  const canUseLastCampaignFallback =
+    s(
+      conversationData
+        ?.lastMessageDirection
+    ) ===
+      "outbound" &&
+    s(
+      conversationData
+        ?.lastMessageType
+    ) ===
+      "template";
+
+  const replyCampaignId =
+    replyCampaignIdFromContext ||
+    (
+      canUseLastCampaignFallback
+        ? s(
+            conversationData
+              ?.lastCampaignId
+          )
+        : ""
+    );
+
+  const replyCampaignAttribution =
+    replyCampaignIdFromContext
+      ? "context_message"
+      : replyCampaignId
+        ? "last_outbound_template"
+        : null;
 
   const nativeInteractiveAction =
     getNativeInteractiveAction(
@@ -1612,6 +2076,13 @@ async function processInboundMessage({
         templateName ||
         null,
 
+      campaignId:
+        replyCampaignId ||
+        null,
+
+      campaignAttribution:
+        replyCampaignAttribution,
+
       quickReplyAction:
         quickReplyAction ||
         null,
@@ -1665,6 +2136,13 @@ async function processInboundMessage({
           templateName ||
           null,
 
+        campaignId:
+          replyCampaignId ||
+          null,
+
+        campaignAttribution:
+          replyCampaignAttribution,
+
         quickReplyAction:
           quickReplyAction ||
           null,
@@ -1716,6 +2194,56 @@ async function processInboundMessage({
           merge: true,
         }
       );
+
+    if (
+      replyCampaignId
+    ) {
+      await updateContactCampaignFields({
+        db,
+
+        agentId,
+
+        contactId:
+          contactMatch
+            .contactId,
+
+        campaignId:
+          replyCampaignId,
+
+        fields: {
+          status:
+            "replied",
+
+          repliedAt:
+            timestamp,
+
+          lastReplyAt:
+            timestamp,
+
+          replyCount:
+            FieldValue.increment(
+              1
+            ),
+
+          replyWaMessageId:
+            inboundWaMessageId ||
+            null,
+
+          replyText:
+            messageText ||
+            null,
+
+          replyMessageType:
+            messageType,
+
+          replyAttribution:
+            replyCampaignAttribution,
+
+          updatedAt:
+            timestamp,
+        },
+      });
+    }
 
     try {
       await addMagicTouchTimelineEvent({
@@ -1777,6 +2305,13 @@ async function processInboundMessage({
           templateName:
             templateName ||
             null,
+
+          campaignId:
+            replyCampaignId ||
+            null,
+
+          campaignAttribution:
+            replyCampaignAttribution,
 
           quickReplyAction:
             quickReplyAction ||

@@ -1,6 +1,5 @@
 "use client";
 
-
 import React, {
   useEffect,
   useRef,
@@ -52,10 +51,6 @@ type Props = {
   agentId:
     string;
 
-  /*
-   * אם בעתיד נשתמש ברכיב מתוך
-   * Onboarding שכבר יודע שהחשבון מחובר.
-   */
   isConnected?:
     boolean;
 
@@ -65,18 +60,11 @@ type Props = {
   displayName?:
     string;
 
-  /*
-   * callback לאחר שהחיבור באמת
-   * נשמר ב-Firestore.
-   */
   onConnected?: (
     result:
       WhatsAppConnectionResult
   ) => void;
 
-  /*
-   * callback אופציונלי במקרה של שגיאה.
-   */
   onError?: (
     error: unknown
   ) => void;
@@ -171,6 +159,18 @@ export default function WhatsAppEmbeddedSignup({
     );
 
   const [
+    pinRequired,
+    setPinRequired,
+  ] =
+    useState(false);
+
+  const [
+    existingPin,
+    setExistingPin,
+  ] =
+    useState("");
+
+  const [
     dialog,
     setDialog,
   ] =
@@ -185,10 +185,6 @@ export default function WhatsAppEmbeddedSignup({
       phoneNumberId?: string;
     }>({});
 
-  /*
-   * אם המסך האב טוען סטטוס קיים
-   * ומעדכן את prop isConnected.
-   */
   useEffect(
     () => {
       setConnectionSaved(
@@ -200,10 +196,6 @@ export default function WhatsAppEmbeddedSignup({
     ]
   );
 
-  /*
-   * Meta Embedded Signup מחזיר
-   * חלק מפרטי החיבור דרך postMessage.
-   */
   useEffect(
     () => {
       const handleEmbeddedSignupMessage =
@@ -368,9 +360,6 @@ export default function WhatsAppEmbeddedSignup({
     ]
   );
 
-  /*
-   * טעינת Facebook SDK.
-   */
   useEffect(
     () => {
       if (
@@ -467,6 +456,30 @@ export default function WhatsAppEmbeddedSignup({
     ) &&
     !saving;
 
+  const buildConnectionResult =
+    (): WhatsAppConnectionResult => {
+      return {
+        agentId,
+
+        businessId:
+          businessId.trim(),
+
+        wabaId:
+          wabaId.trim(),
+
+        phoneNumberId:
+          phoneNumberId.trim(),
+
+        displayPhoneNumber:
+          displayPhoneNumber ||
+          undefined,
+
+        displayName:
+          displayName ||
+          undefined,
+      };
+    };
+
   const handleConnectMeta =
     () => {
       if (
@@ -537,6 +550,14 @@ export default function WhatsAppEmbeddedSignup({
       );
 
       setEmbeddedSignupCode(
+        ""
+      );
+
+      setPinRequired(
+        false
+      );
+
+      setExistingPin(
         ""
       );
 
@@ -662,27 +683,12 @@ export default function WhatsAppEmbeddedSignup({
           ""
         );
 
-        const result:
-          WhatsAppConnectionResult = {
-            agentId,
+        setPinRequired(
+          false
+        );
 
-            businessId:
-              businessId.trim(),
-
-            wabaId:
-              wabaId.trim(),
-
-            phoneNumberId:
-              phoneNumberId.trim(),
-
-            displayPhoneNumber:
-              displayPhoneNumber ||
-              undefined,
-
-            displayName:
-              displayName ||
-              undefined,
-          };
+        const result =
+          buildConnectionResult();
 
         onConnected?.(
           result
@@ -695,14 +701,163 @@ export default function WhatsAppEmbeddedSignup({
           title:
             "WhatsApp מחובר",
 
-        message:
-  "חשבון WhatsApp Business חובר ומוכן לשליחה ולקבלת הודעות.",
+          message:
+            "חשבון WhatsApp Business חובר ומוכן לשליחה ולקבלת הודעות.",
         });
       } catch (
         error: any
       ) {
         console.error(
           "[WhatsAppEmbeddedSignup] save failed",
+          error
+        );
+
+        const reason =
+          String(
+            error
+              ?.details
+              ?.reason ||
+            error
+              ?.customData
+              ?.details
+              ?.reason ||
+            ""
+          );
+
+        if (
+          reason ===
+          "existing_pin_required"
+        ) {
+          setPinRequired(
+            true
+          );
+
+          setDialog({
+            type:
+              "warning",
+
+            title:
+              "נדרש PIN קיים",
+
+            message:
+              "למספר הזה כבר מוגדר PIN אימות דו-שלבי ב-WhatsApp. הזן את ה-PIN הקיים כדי להשלים את החיבור.",
+          });
+
+          return;
+        }
+
+        onError?.(
+          error
+        );
+
+        setDialog({
+          type:
+            "error",
+
+          title:
+            "שגיאה בשמירת החיבור",
+
+          message:
+            String(
+              error?.message ||
+              error
+            ),
+        });
+      } finally {
+        setSaving(
+          false
+        );
+      }
+    };
+
+  const handleExistingPinSubmit =
+    async () => {
+      const pin =
+        existingPin.trim();
+
+      if (
+        !/^\d{6}$/.test(
+          pin
+        )
+      ) {
+        setDialog({
+          type:
+            "warning",
+
+          title:
+            "PIN לא תקין",
+
+          message:
+            "יש להזין PIN בן 6 ספרות.",
+        });
+
+        return;
+      }
+
+      setSaving(
+        true
+      );
+
+      try {
+        const registerFn =
+          httpsCallable(
+            functions,
+            "registerAgentWhatsAppPhone"
+          );
+
+        await registerFn({
+          agentId,
+          pin,
+        });
+
+        const subscribeFn =
+          httpsCallable(
+            functions,
+            "subscribeAgentWhatsAppWebhook"
+          );
+
+        await subscribeFn({
+          agentId,
+        });
+
+        setPinRequired(
+          false
+        );
+
+        setExistingPin(
+          ""
+        );
+
+        setEmbeddedSignupCode(
+          ""
+        );
+
+        setConnectionSaved(
+          true
+        );
+
+        const result =
+          buildConnectionResult();
+
+        onConnected?.(
+          result
+        );
+
+        setDialog({
+          type:
+            "success",
+
+          title:
+            "WhatsApp מחובר",
+
+          message:
+            "חשבון WhatsApp Business חובר בהצלחה ומוכן לשימוש.",
+        });
+      } catch (
+        error: any
+      ) {
+        console.error(
+          "[WhatsAppEmbeddedSignup] PIN completion failed",
           error
         );
 
@@ -715,7 +870,7 @@ export default function WhatsAppEmbeddedSignup({
             "error",
 
           title:
-            "שגיאה בשמירת החיבור",
+            "לא ניתן להשלים את החיבור",
 
           message:
             String(
@@ -804,7 +959,68 @@ export default function WhatsAppEmbeddedSignup({
           </div>
         ) : null}
 
-        {!embeddedSignupCode ? (
+        {pinRequired ? (
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+            <div className="font-bold text-amber-900">
+              נדרש PIN קיים
+            </div>
+
+            <p className="mt-1 text-sm leading-6 text-amber-800">
+              למספר הזה כבר מוגדר PIN אימות דו-שלבי ב-WhatsApp.
+              הזן את ה-PIN הקיים כדי להשלים את החיבור.
+            </p>
+
+            <div className="mt-4 max-w-xs">
+              <input
+                value={
+                  existingPin
+                }
+                onChange={(
+                  event
+                ) => {
+                  const value =
+                    event.target.value
+                      .replace(
+                        /\D/g,
+                        ""
+                      )
+                      .slice(
+                        0,
+                        6
+                      );
+
+                  setExistingPin(
+                    value
+                  );
+                }}
+                inputMode="numeric"
+                maxLength={6}
+                placeholder="PIN בן 6 ספרות"
+                className="w-full rounded-xl border border-amber-300 bg-white px-4 py-3 text-center text-lg tracking-[0.3em] outline-none"
+                dir="ltr"
+              />
+            </div>
+
+            <div className="mt-4">
+              <Button
+                text={
+                  saving
+                    ? "⏳ משלים חיבור..."
+                    : "השלמת החיבור"
+                }
+                type="primary"
+                onClick={
+                  handleExistingPinSubmit
+                }
+                disabled={
+                  saving ||
+                  existingPin.length !==
+                    6
+                }
+              />
+            </div>
+          </div>
+        ) : !embeddedSignupCode ? (
           <div className="flex flex-wrap gap-3">
             <Button
               text={

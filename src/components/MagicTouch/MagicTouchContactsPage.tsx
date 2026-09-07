@@ -37,6 +37,35 @@ type SourceSystem =
   | "external_crm"
   | "other";
 
+type MagicTouchCampaignStatus = {
+  campaignId?: string | null;
+  campaignSource?: string | null;
+
+  templateName?: string | null;
+  templateLanguage?: string | null;
+
+  status?: string | null;
+
+  waMessageId?: string | null;
+  conversationId?: string | null;
+
+  sentAt?: number | null;
+  sentConfirmedAt?: number | null;
+  deliveredAt?: number | null;
+  readAt?: number | null;
+  repliedAt?: number | null;
+  failedAt?: number | null;
+
+  replyCount?: number | null;
+  replyText?: string | null;
+
+  failureCode?: string | number | null;
+  failureReason?: string | null;
+
+  createdBy?: string | null;
+  updatedAt?: number | null;
+};
+
 type MagicTouchContact = {
   id: string;
   contactId: string;
@@ -75,10 +104,11 @@ type MagicTouchContact = {
     } | null;
 
     excel?: {
-      importId: string | null;
+      importId?: string | null;
+      importRunId?: string | null;
       fileName: string | null;
-      rowNumber: number | null;
-      uploadedBy: string | null;
+      rowNumber?: number | null;
+      uploadedBy?: string | null;
     } | null;
   };
 
@@ -107,6 +137,11 @@ type MagicTouchContact = {
       surenseSyncedAt?: number | null;
       updatedAt?: number | null;
     } | null;
+
+    campaigns?: Record<
+      string,
+      MagicTouchCampaignStatus
+    > | null;
   } | null;
 
   contactStatus: string;
@@ -174,6 +209,12 @@ type UpdateMagicTouchContactDetailsResponse = {
   phoneNormalized: string;
   email: string | null;
   emailNormalized: string | null;
+};
+
+type CampaignOption = {
+  key: string;
+  campaignId: string;
+  label: string;
 };
 
 function formatDate(
@@ -305,6 +346,66 @@ function powerOfAttorneyLabel(
   }
 }
 
+function campaignStatusLabel(
+  status:
+    string
+): string {
+  switch (
+    status
+  ) {
+    case "sent":
+      return "נשלח";
+
+    case "accepted":
+      return "נשלח";
+
+    case "delivered":
+      return "נמסר";
+
+    case "read":
+      return "נקרא";
+
+    case "replied":
+      return "הגיב";
+
+    case "failed":
+      return "נכשל";
+
+    default:
+      return status
+        ? status
+        : "טרם נשלח";
+  }
+}
+
+function campaignStatusClassName(
+  status:
+    string
+): string {
+  switch (
+    status
+  ) {
+    case "replied":
+      return "bg-violet-100 text-violet-700";
+
+    case "read":
+      return "bg-emerald-100 text-emerald-700";
+
+    case "delivered":
+      return "bg-blue-100 text-blue-700";
+
+    case "sent":
+    case "accepted":
+      return "bg-sky-100 text-sky-700";
+
+    case "failed":
+      return "bg-rose-100 text-rose-700";
+
+    default:
+      return "bg-slate-100 text-slate-600";
+  }
+}
+
 function getContactInterestStatus(
   contact:
     MagicTouchContact
@@ -333,6 +434,151 @@ function getContactAppointmentStatus(
       .appointmentStatus ||
     ""
   );
+}
+
+function getCampaigns(
+  contact:
+    MagicTouchContact
+): Record<
+  string,
+  MagicTouchCampaignStatus
+> {
+  const campaigns =
+    contact
+      .engagement
+      ?.campaigns;
+
+  if (
+    !campaigns ||
+    typeof campaigns !==
+      "object" ||
+    Array.isArray(
+      campaigns
+    )
+  ) {
+    return {};
+  }
+
+  return campaigns;
+}
+
+function getCampaignById(
+  contact:
+    MagicTouchContact,
+  campaignId:
+    string
+): MagicTouchCampaignStatus | null {
+  const campaigns =
+    getCampaigns(
+      contact
+    );
+
+  for (
+    const [
+      key,
+      campaign,
+    ] of Object.entries(
+      campaigns
+    )
+  ) {
+    const currentCampaignId =
+      String(
+        campaign
+          ?.campaignId ||
+        key
+      ).trim();
+
+    if (
+      currentCampaignId ===
+      campaignId
+    ) {
+      return campaign;
+    }
+  }
+
+  return null;
+}
+
+function getLatestCampaign(
+  contact:
+    MagicTouchContact
+): {
+  key: string;
+  campaign: MagicTouchCampaignStatus;
+} | null {
+  const entries =
+    Object.entries(
+      getCampaigns(
+        contact
+      )
+    );
+
+  if (
+    entries.length ===
+    0
+  ) {
+    return null;
+  }
+
+  const sorted =
+    entries.sort(
+      (
+        [
+          ,
+          left,
+        ],
+        [
+          ,
+          right,
+        ]
+      ) => {
+        const leftDate =
+          Number(
+            left
+              ?.updatedAt ||
+            left
+              ?.repliedAt ||
+            left
+              ?.readAt ||
+            left
+              ?.deliveredAt ||
+            left
+              ?.sentAt ||
+            0
+          );
+
+        const rightDate =
+          Number(
+            right
+              ?.updatedAt ||
+            right
+              ?.repliedAt ||
+            right
+              ?.readAt ||
+            right
+              ?.deliveredAt ||
+            right
+              ?.sentAt ||
+            0
+          );
+
+        return (
+          rightDate -
+          leftDate
+        );
+      }
+    );
+
+  const [
+    key,
+    campaign,
+  ] =
+    sorted[0];
+
+  return {
+    key,
+    campaign,
+  };
 }
 
 export default function MagicTouchContactsPage() {
@@ -375,6 +621,18 @@ export default function MagicTouchContactsPage() {
   const [
     sourceFilter,
     setSourceFilter,
+  ] =
+    useState("");
+
+  const [
+    campaignFilter,
+    setCampaignFilter,
+  ] =
+    useState("");
+
+  const [
+    campaignStatusFilter,
+    setCampaignStatusFilter,
   ] =
     useState("");
 
@@ -589,9 +847,102 @@ export default function MagicTouchContactsPage() {
     setEditEmail(
       ""
     );
+
+    setCampaignFilter(
+      ""
+    );
+
+    setCampaignStatusFilter(
+      ""
+    );
   }, [
     agentId,
   ]);
+
+  const campaignOptions =
+    useMemo<
+      CampaignOption[]
+    >(
+      () => {
+        const map =
+          new Map<
+            string,
+            CampaignOption
+          >();
+
+        for (
+          const contact of
+          contacts
+        ) {
+          const campaigns =
+            getCampaigns(
+              contact
+            );
+
+          for (
+            const [
+              key,
+              campaign,
+            ] of Object.entries(
+              campaigns
+            )
+          ) {
+            const campaignId =
+              String(
+                campaign
+                  ?.campaignId ||
+                key
+              ).trim();
+
+            if (
+              !campaignId
+            ) {
+              continue;
+            }
+
+            const label =
+              String(
+                campaign
+                  ?.templateName ||
+                campaignId
+              ).trim();
+
+            if (
+              !map.has(
+                campaignId
+              )
+            ) {
+              map.set(
+                campaignId,
+                {
+                  key,
+                  campaignId,
+                  label:
+                    label ||
+                    campaignId,
+                }
+              );
+            }
+          }
+        }
+
+        return Array.from(
+          map.values()
+        ).sort(
+          (
+            left,
+            right
+          ) =>
+            left.label.localeCompare(
+              right.label,
+              "he"
+            )
+        );
+      },
+      [
+        contacts,
+      ]
+    );
 
   const filteredContacts =
     useMemo(() => {
@@ -610,6 +961,57 @@ export default function MagicTouchContactsPage() {
               sourceFilter
           ) {
             return false;
+          }
+
+          if (
+            campaignFilter
+          ) {
+            const campaign =
+              getCampaignById(
+                contact,
+                campaignFilter
+              );
+
+            if (
+              campaignStatusFilter ===
+              "not_sent"
+            ) {
+              if (
+                campaign
+              ) {
+                return false;
+              }
+            } else {
+              if (
+                !campaign
+              ) {
+                return false;
+              }
+
+              const status =
+                String(
+                  campaign.status ||
+                  ""
+                ).trim();
+
+              if (
+                campaignStatusFilter ===
+                "already_sent"
+              ) {
+                if (
+                  status ===
+                  "failed"
+                ) {
+                  return false;
+                }
+              } else if (
+                campaignStatusFilter &&
+                status !==
+                  campaignStatusFilter
+              ) {
+                return false;
+              }
+            }
           }
 
           if (
@@ -649,6 +1051,8 @@ export default function MagicTouchContactsPage() {
       contacts,
       search,
       sourceFilter,
+      campaignFilter,
+      campaignStatusFilter,
     ]);
 
   const selectedContacts =
@@ -981,7 +1385,7 @@ export default function MagicTouchContactsPage() {
       dir="rtl"
       className="w-full"
     >
-      <div className="mx-auto max-w-[1480px]">
+      <div className="mx-auto max-w-[1580px]">
         <header className="mb-5 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div>
             <div className="text-sm font-bold text-blue-600">
@@ -1227,8 +1631,8 @@ export default function MagicTouchContactsPage() {
         ) : null}
 
         <section className="overflow-visible bg-transparent">
-          <div className="mb-3 flex flex-col gap-3 rounded-2xl bg-white p-3 shadow-[0_4px_18px_rgba(15,23,42,0.04)] ring-1 ring-slate-100 md:flex-row md:items-center md:justify-between">
-            <div className="flex flex-1 flex-col gap-3 md:flex-row">
+          <div className="mb-3 rounded-2xl bg-white p-3 shadow-[0_4px_18px_rgba(15,23,42,0.04)] ring-1 ring-slate-100">
+            <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
               <input
                 type="search"
                 value={
@@ -1244,7 +1648,7 @@ export default function MagicTouchContactsPage() {
                   )
                 }
                 placeholder="חיפוש לפי שם, טלפון, אימייל או תעודת זהות"
-                className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none transition placeholder:text-slate-400 focus:border-blue-300 focus:ring-4 focus:ring-blue-50 md:max-w-lg"
+                className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none transition placeholder:text-slate-400 focus:border-blue-300 focus:ring-4 focus:ring-blue-50 xl:max-w-md"
               />
 
               <select
@@ -1286,23 +1690,180 @@ export default function MagicTouchContactsPage() {
                   CRM חיצוני
                 </option>
               </select>
+
+              <select
+                value={
+                  campaignFilter
+                }
+                onChange={(
+                  event
+                ) => {
+                  const value =
+                    event
+                      .target
+                      .value;
+
+                  setCampaignFilter(
+                    value
+                  );
+
+                  setCampaignStatusFilter(
+                    value
+                      ? "not_sent"
+                      : ""
+                  );
+                }}
+                className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-600 outline-none transition focus:border-blue-300 focus:ring-4 focus:ring-blue-50"
+              >
+                <option value="">
+                  כל הקמפיינים
+                </option>
+
+                {campaignOptions.map(
+                  (
+                    option
+                  ) => (
+                    <option
+                      key={
+                        option.campaignId
+                      }
+                      value={
+                        option.campaignId
+                      }
+                    >
+                      {option.label}
+                    </option>
+                  )
+                )}
+              </select>
+
+              <select
+                value={
+                  campaignStatusFilter
+                }
+                onChange={(
+                  event
+                ) =>
+                  setCampaignStatusFilter(
+                    event
+                      .target
+                      .value
+                  )
+                }
+                disabled={
+                  !campaignFilter
+                }
+                className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-600 outline-none transition focus:border-blue-300 focus:ring-4 focus:ring-blue-50 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400"
+              >
+                <option value="">
+                  כל סטטוסי הקמפיין
+                </option>
+
+                <option value="not_sent">
+                  טרם נשלח
+                </option>
+
+                <option value="already_sent">
+                  כבר נשלח
+                </option>
+
+                <option value="sent">
+                  נשלח
+                </option>
+
+                <option value="delivered">
+                  נמסר
+                </option>
+
+                <option value="read">
+                  נקרא
+                </option>
+
+                <option value="replied">
+                  הגיב
+                </option>
+
+                <option value="failed">
+                  נכשל
+                </option>
+              </select>
+
+              <div className="flex-1" />
+
+              <div className="text-xs text-slate-400">
+                מוצגים{" "}
+                <strong className="text-slate-600">
+                  {filteredContacts.length}
+                </strong>{" "}
+                מתוך{" "}
+                {contacts.length}
+              </div>
+
+              <button
+                type="button"
+                onClick={() =>
+                  void loadContacts()
+                }
+                disabled={
+                  isLoading ||
+                  !agentId
+                }
+                className="rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 disabled:opacity-50"
+              >
+                {isLoading
+                  ? "טוען..."
+                  : "רענון"}
+              </button>
             </div>
 
-            <button
-              type="button"
-              onClick={() =>
-                void loadContacts()
-              }
-              disabled={
-                isLoading ||
-                !agentId
-              }
-              className="rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 disabled:opacity-50"
-            >
-              {isLoading
-                ? "טוען..."
-                : "רענון"}
-            </button>
+            {campaignFilter ? (
+              <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3 text-xs text-slate-500">
+                <span>
+                  מסנן לפי:
+                </span>
+
+                <span className="rounded-full bg-blue-50 px-3 py-1 font-semibold text-blue-700">
+                  {campaignOptions.find(
+                    (
+                      option
+                    ) =>
+                      option.campaignId ===
+                      campaignFilter
+                  )?.label ||
+                    campaignFilter}
+                </span>
+
+                {campaignStatusFilter ? (
+                  <span className="rounded-full bg-slate-100 px-3 py-1 font-semibold text-slate-600">
+                    {campaignStatusFilter ===
+                    "not_sent"
+                      ? "טרם נשלח"
+                      : campaignStatusFilter ===
+                          "already_sent"
+                        ? "כבר נשלח"
+                        : campaignStatusLabel(
+                            campaignStatusFilter
+                          )}
+                  </span>
+                ) : null}
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCampaignFilter(
+                      ""
+                    );
+
+                    setCampaignStatusFilter(
+                      ""
+                    );
+                  }}
+                  className="rounded-lg px-2 py-1 font-semibold text-blue-600 hover:bg-blue-50"
+                >
+                  ניקוי סינון
+                </button>
+              </div>
+            ) : null}
           </div>
 
           {isLoading ? (
@@ -1335,7 +1896,7 @@ export default function MagicTouchContactsPage() {
               <div className="overflow-x-auto">
                 <table
                   className="
-                    min-w-full
+                   min-w-[1450px]
                     border-separate
                     border-spacing-0
                     text-right
@@ -1383,10 +1944,13 @@ export default function MagicTouchContactsPage() {
                         שם
                       </th>
 
-                      <th className="px-4 py-3.5">
-  <div className="flex items-center gap-2">
-    <span className="w-[52px]" />
-    <span>טלפון</span>
+                   <th className="min-w-[190px] px-4 py-3.5">
+  <div className="flex items-center gap-2 whitespace-nowrap">
+    <span className="w-[52px] shrink-0" />
+
+    <span>
+      טלפון
+    </span>
   </div>
 </th>
                       <th className="px-4 py-3.5">
@@ -1399,6 +1963,10 @@ export default function MagicTouchContactsPage() {
 
                       <th className="px-4 py-3.5">
                         פגישה
+                      </th>
+
+                      <th className="px-4 py-3.5">
+                        קמפיין אחרון
                       </th>
 
                       {hasSurenseIntegration ? (
@@ -1428,6 +1996,32 @@ export default function MagicTouchContactsPage() {
                           selectedContactIds.has(
                             contact.contactId
                           );
+
+                        const latestCampaign =
+                          getLatestCampaign(
+                            contact
+                          );
+
+                        const latestCampaignStatus =
+                          String(
+                            latestCampaign
+                              ?.campaign
+                              ?.status ||
+                            ""
+                          ).trim();
+
+                        const latestCampaignName =
+                          String(
+                            latestCampaign
+                              ?.campaign
+                              ?.templateName ||
+                            latestCampaign
+                              ?.campaign
+                              ?.campaignId ||
+                            latestCampaign
+                              ?.key ||
+                            ""
+                          ).trim();
 
                         return (
                           <tr
@@ -1477,8 +2071,8 @@ export default function MagicTouchContactsPage() {
                               </Link>
                             </td>
 
-                        <td className="px-4 py-3.5">
-  <div className="flex items-center gap-2">
+                     <td className="min-w-[190px] px-4 py-3.5">
+  <div className="flex items-center gap-2 whitespace-nowrap">
     <button
       type="button"
       onClick={() =>
@@ -1493,9 +2087,10 @@ export default function MagicTouchContactsPage() {
 
     <span
       dir="ltr"
-      className="w-[110px] text-left text-slate-700"
+      className="w-[110px] shrink-0 whitespace-nowrap text-left text-slate-700"
     >
-      {contact.phone || "—"}
+      {contact.phone ||
+        "—"}
     </span>
   </div>
 </td>
@@ -1565,6 +2160,37 @@ export default function MagicTouchContactsPage() {
                                   </span>
                                 );
                               })()}
+                            </td>
+
+                            <td className="px-4 py-3.5">
+                              {latestCampaign ? (
+                                <div className="min-w-[145px]">
+                                  <div
+                                    className="max-w-[180px] truncate text-xs font-semibold text-slate-700"
+                                    title={
+                                      latestCampaignName
+                                    }
+                                  >
+                                    {latestCampaignName}
+                                  </div>
+
+                                  <div className="mt-1">
+                                    <span
+                                      className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-bold ${campaignStatusClassName(
+                                        latestCampaignStatus
+                                      )}`}
+                                    >
+                                      {campaignStatusLabel(
+                                        latestCampaignStatus
+                                      )}
+                                    </span>
+                                  </div>
+                                </div>
+                              ) : (
+                                <span className="text-xs text-slate-400">
+                                  —
+                                </span>
+                              )}
                             </td>
 
                             {hasSurenseIntegration ? (

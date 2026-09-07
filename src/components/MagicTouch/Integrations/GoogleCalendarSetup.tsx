@@ -518,7 +518,9 @@ export default function GoogleCalendarSetup({
       try {
         const fn =
           httpsCallable<
-            Record<string, never>,
+            {
+              agentId: string;
+            },
             {
               ok: boolean;
               authUrl: string;
@@ -529,7 +531,9 @@ export default function GoogleCalendarSetup({
           );
 
         const response =
-          await fn({});
+          await fn({
+            agentId,
+          });
 
         const authUrl =
           s(
@@ -768,22 +772,42 @@ export default function GoogleCalendarSetup({
             </p>
           </div>
 
-          <span
-            className={[
-              "rounded-full px-3 py-1 text-sm font-bold",
-              ready
-                ? "bg-emerald-100 text-emerald-800"
+          <div className="flex flex-wrap items-center gap-2">
+            <span
+              className={[
+                "rounded-full px-3 py-1 text-sm font-bold",
+                ready
+                  ? "bg-emerald-100 text-emerald-800"
+                  : config?.connected
+                    ? "bg-amber-100 text-amber-800"
+                    : "bg-slate-100 text-slate-700",
+              ].join(" ")}
+            >
+              {ready
+                ? "מוכן"
                 : config?.connected
-                  ? "bg-amber-100 text-amber-800"
-                  : "bg-slate-100 text-slate-700",
-            ].join(" ")}
-          >
-            {ready
-              ? "מוכן"
-              : config?.connected
-                ? "מחובר · נדרשת השלמה"
-                : "לא מחובר"}
-          </span>
+                  ? "מחובר · נדרשת השלמה"
+                  : "לא מחובר"}
+            </span>
+
+            {config?.connected ? (
+              <button
+                type="button"
+                onClick={
+                  handleConnectGoogle
+                }
+                disabled={
+                  connecting ||
+                  !agentId
+                }
+                className="rounded-xl border border-blue-200 bg-white px-3 py-1.5 text-xs font-bold text-blue-700 transition hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {connecting
+                  ? "מעביר ל-Google..."
+                  : "↻ חבר מחדש את Google"}
+              </button>
+            ) : null}
+          </div>
         </div>
 
         {!config?.connected ? (

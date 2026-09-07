@@ -52,6 +52,24 @@ function normalizeStringArray(
     );
 }
 
+function normalizeRecord(
+  value: unknown
+): Record<string, any> {
+  if (
+    !value ||
+    typeof value !==
+      "object" ||
+    Array.isArray(
+      value
+    )
+  ) {
+    return {};
+  }
+
+  return value as
+    Record<string, any>;
+}
+
 async function assertConversationAccess({
   authUid,
   conversationAgentId,
@@ -150,6 +168,24 @@ export async function resolveMagicTouchHumanAttentionImpl(
         ?.resolvedAction
     );
 
+ /*
+ * משמש לטיפול אנושי כאשר החיפוש הפנימי
+ * ב-Surense במהלך יצירת ייפוי הכוח
+ * לא הגיע להתאמה חד-משמעית.
+ *
+ * במקרה של מספר תוצאות:
+ * המשתמש יבחר Customer מתוך המועמדים.
+ *
+ * במקרה של 0 תוצאות:
+ * ניתן יהיה להזין Customer ID ידנית.
+ */
+
+  const requestedSurenseCustomerId =
+    s(
+      request.data
+        ?.surenseCustomerId
+    );
+
   if (
     !conversationId
   ) {
@@ -168,17 +204,6 @@ export async function resolveMagicTouchHumanAttentionImpl(
     throw new HttpsError(
       "invalid-argument",
       "mode must be handled or continue_flow"
-    );
-  }
-
-  if (
-    mode ===
-      "continue_flow" &&
-    !resolvedAction
-  ) {
-    throw new HttpsError(
-      "invalid-argument",
-      "resolvedAction is required when continuing the Flow"
     );
   }
 
@@ -256,6 +281,12 @@ export async function resolveMagicTouchHumanAttentionImpl(
         ?.runId
     );
 
+  /*
+   * "טופל" רק סוגר את ההתראה.
+   *
+   * הוא אינו ממשיך את ה-Flow.
+   * ההתנהגות הקיימת נשמרת.
+   */
   if (
     mode ===
     "handled"
@@ -540,30 +571,11 @@ export async function resolveMagicTouchHumanAttentionImpl(
 
           if (
             runStatus !==
-              "waiting" ||
-            waitingForType !==
-              "customer_response"
+            "waiting"
           ) {
             throw new HttpsError(
               "failed-precondition",
-              "Flow Run is no longer waiting for a customer response"
-            );
-          }
-
-          const expectedActions =
-            normalizeStringArray(
-              waitingFor
-                ?.expectedActions
-            );
-
-          if (
-            !expectedActions.includes(
-              resolvedAction
-            )
-          ) {
-            throw new HttpsError(
-              "invalid-argument",
-              "The selected Action is not expected by this Flow step"
+              "Flow Run is no longer waiting"
             );
           }
 
@@ -601,280 +613,857 @@ export async function resolveMagicTouchHumanAttentionImpl(
             ) ||
             null;
 
-          const humanResolution = {
-            source:
-              "human",
+          /*
+           * =====================================================
+           * מסלול 1:
+           * Human Attention שנוצר מתשובת לקוח.
+           * =====================================================
+           */
+          if (
+            waitingForType ===
+            "customer_response"
+          ) {
+            if (
+              !resolvedAction
+            ) {
+              throw new HttpsError(
+                "invalid-argument",
+                "resolvedAction is required when continuing a customer response Flow"
+              );
+            }
 
-            resolvedAction,
+            const expectedActions =
+              normalizeStringArray(
+                waitingFor
+                  ?.expectedActions
+              );
 
-            resolvedBy:
-              authUid,
+            if (
+              !expectedActions.includes(
+                resolvedAction
+              )
+            ) {
+              throw new HttpsError(
+                "invalid-argument",
+                "The selected Action is not expected by this Flow step"
+              );
+            }
 
-            resolvedAt:
-              timestamp,
+            const humanResolution = {
+              source:
+                "human",
 
-            conversationId,
+              resolutionType:
+                "customer_response",
 
-            runId,
+              resolvedAction,
 
-            eventId:
-              manualEventId,
-          };
+              resolvedBy:
+                authUid,
 
-          transaction.set(
-            eventRef,
-            {
-              eventId:
-                manualEventId,
-
-              agentId,
-
-              contactId,
+              resolvedAt:
+                timestamp,
 
               conversationId,
 
-              channel:
-                "human",
+              runId,
 
-              triggerType:
-                "human_flow_response_resolved",
+              eventId:
+                manualEventId,
+            };
 
-              status:
-                "dispatched",
+            transaction.set(
+              eventRef,
+              {
+                eventId:
+                  manualEventId,
 
-              occurredAt:
-                timestamp,
+                agentId,
 
-              createdAt:
-                timestamp,
+                contactId,
 
-              updatedAt:
-                timestamp,
+                conversationId,
 
-              processedAt:
-                timestamp,
+                channel:
+                  "human",
 
-              dispatchedAt:
-                timestamp,
+                triggerType:
+                  "human_flow_response_resolved",
 
-              messageText:
-                s(
-                  currentAttention
-                    ?.customerMessage
-                ) ||
-                null,
+                status:
+                  "dispatched",
 
-              messageType:
-                "human_resolution",
+                occurredAt:
+                  timestamp,
 
-              quickReplyAction:
-                null,
+                createdAt:
+                  timestamp,
 
-              flowRunIds: [
-                runId,
-              ],
+                updatedAt:
+                  timestamp,
 
-              resumedRunId:
-                runId,
+                processedAt:
+                  timestamp,
 
-              routing: {
-                contactState:
-                  contactId
-                    ? "known"
-                    : "unknown",
+                dispatchedAt:
+                  timestamp,
 
-                flowState:
-                  "active",
-
-                messageDisposition:
-                  "expected",
-
-                handling:
-                  "continue_flow",
-
-                activeRunId:
-                  runId,
-
-                activeFlowId:
-                  flowId,
-
-                previousRunId:
+                messageText:
+                  s(
+                    currentAttention
+                      ?.customerMessage
+                  ) ||
                   null,
 
-                resolvedAction,
+                messageType:
+                  "human_resolution",
 
-                reason:
-                  "human_selected_expected_action",
+                quickReplyAction:
+                  null,
 
-                resolutionSource:
-                  "human",
+                flowRunIds: [
+                  runId,
+                ],
+
+                resumedRunId:
+                  runId,
+
+                routing: {
+                  contactState:
+                    contactId
+                      ? "known"
+                      : "unknown",
+
+                  flowState:
+                    "active",
+
+                  messageDisposition:
+                    "expected",
+
+                  handling:
+                    "continue_flow",
+
+                  activeRunId:
+                    runId,
+
+                  activeFlowId:
+                    flowId,
+
+                  previousRunId:
+                    null,
+
+                  resolvedAction,
+
+                  reason:
+                    "human_selected_expected_action",
+
+                  resolutionSource:
+                    "human",
+                },
+
+                resume: {
+                  resumed:
+                    true,
+
+                  runId,
+
+                  resolvedAction,
+
+                  resumeStepId,
+
+                  source:
+                    "human",
+
+                  resolvedBy:
+                    authUid,
+                },
+
+                humanResolution,
               },
+              {
+                merge:
+                  false,
+              }
+            );
 
-              resume: {
-                resumed:
-                  true,
+            transaction.set(
+              runRef,
+              {
+                status:
+                  "queued",
 
-                runId,
+                currentStepId:
+                  resumeStepId,
 
-                resolvedAction,
+                executionEventId:
+                  manualEventId,
 
-                resumeStepId,
+                waitingFor:
+                  null,
 
-                source:
+                waitingUntil:
+                  null,
+
+                lastResumeEventId:
+                  manualEventId,
+
+                lastResolvedAction:
+                  resolvedAction,
+
+                lastResolutionSource:
                   "human",
 
-                resolvedBy:
+                lastResolvedBy:
                   authUid,
+
+                resumedAt:
+                  timestamp,
+
+                humanAttention: {
+                  ...(
+                    runData
+                      ?.humanAttention &&
+                    typeof runData
+                      .humanAttention ===
+                      "object"
+                      ? runData
+                          .humanAttention
+                      : {}
+                  ),
+
+                  required:
+                    false,
+
+                  resolvedAt:
+                    timestamp,
+
+                  resolvedReason:
+                    "human_selected_action",
+
+                  resolvedAction,
+
+                  resolvedBy:
+                    authUid,
+
+                  resolutionSource:
+                    "human",
+
+                  resolutionEventId:
+                    manualEventId,
+
+                  updatedAt:
+                    timestamp,
+                },
+
+                updatedAt:
+                  timestamp,
               },
+              {
+                merge:
+                  true,
+              }
+            );
 
-              humanResolution,
-            },
-            {
-              merge:
-                false,
+            transaction.set(
+              conversationRef,
+              {
+                needsHumanAttention:
+                  false,
+
+                needsReply:
+                  false,
+
+                humanAttention: {
+                  ...(
+                    currentAttention ||
+                    {}
+                  ),
+
+                  required:
+                    false,
+
+                  resolvedAt:
+                    timestamp,
+
+                  resolvedReason:
+                    "human_selected_action",
+
+                  resolvedAction,
+
+                  resolvedBy:
+                    authUid,
+
+                  resolutionSource:
+                    "human",
+
+                  resolutionEventId:
+                    manualEventId,
+
+                  updatedAt:
+                    timestamp,
+                },
+
+                updatedAt:
+                  timestamp,
+              },
+              {
+                merge:
+                  true,
+              }
+            );
+
+            return {
+              resumeStepId,
+
+              flowId,
+
+              contactId,
+
+              resolutionType:
+                "customer_response",
+
+              resolvedAction,
+
+              surenseCustomerId:
+                null,
+            };
+          }
+
+          /*
+           * =====================================================
+           * מסלול 2:
+           * החיפוש הפנימי ב-Surense במהלך
+           * יצירת ייפוי הכוח לא הגיע
+           * להתאמה חד-משמעית.
+           *
+           * 0 התאמות או יותר מהתאמה אחת.
+           * =====================================================
+           */
+          if (
+            waitingForType ===
+            "human_attention"
+          ) {
+            const waitingContext =
+              normalizeRecord(
+                waitingFor
+                  ?.context
+              );
+
+            const provider =
+              s(
+                waitingContext
+                  ?.provider
+              );
+
+            const action =
+              s(
+                waitingContext
+                  ?.action
+              );
+
+            if (
+              provider !==
+                "surense" ||
+              action !==
+                "findCustomer"
+            ) {
+              throw new HttpsError(
+                "failed-precondition",
+                "Unsupported human attention Flow type"
+              );
             }
-          );
 
-          transaction.set(
-            runRef,
-            {
-              status:
-                "queued",
+            if (
+              !requestedSurenseCustomerId
+            ) {
+              throw new HttpsError(
+                "invalid-argument",
+                "surenseCustomerId is required to continue this Flow"
+              );
+            }
 
-              currentStepId:
-                resumeStepId,
+            if (
+              !contactId
+            ) {
+              throw new HttpsError(
+                "failed-precondition",
+                "Flow Run is missing contactId"
+              );
+            }
 
-              executionEventId:
-                manualEventId,
+            const matchCount =
+              Number(
+                waitingContext
+                  ?.matchCount
+              );
 
-              waitingFor:
-                null,
+            const candidates =
+              Array.isArray(
+                waitingContext
+                  ?.candidates
+              )
+                ? waitingContext
+                    .candidates
+                    .map(
+                      (
+                        candidate: any
+                      ) =>
+                        normalizeRecord(
+                          candidate
+                        )
+                    )
+                : [];
 
-              waitingUntil:
-                null,
+            const candidateIds =
+              candidates
+                .map(
+                  (
+                    candidate
+                  ) =>
+                    s(
+                      candidate
+                        ?.customerId
+                    )
+                )
+                .filter(
+                  Boolean
+                );
 
-              lastResumeEventId:
-                manualEventId,
+            /*
+             * כאשר היו כמה התאמות,
+             * המשתמש חייב לבחור אחד
+             * מהמזהים שחזרו מ-Surense.
+             *
+             * אנחנו לא מאפשרים ID שרירותי
+             * במקרה הזה.
+             */
+            if (
+              Number.isFinite(
+                matchCount
+              ) &&
+              matchCount > 1 &&
+              !candidateIds.includes(
+                requestedSurenseCustomerId
+              )
+            ) {
+              throw new HttpsError(
+                "invalid-argument",
+                "Selected Surense customer is not one of the returned candidates"
+              );
+            }
 
-              lastResolvedAction:
-                resolvedAction,
+            const selectedCandidate =
+              candidates.find(
+                (
+                  candidate
+                ) =>
+                  s(
+                    candidate
+                      ?.customerId
+                  ) ===
+                  requestedSurenseCustomerId
+              ) ||
+              null;
 
-              lastResolutionSource:
+            const searchedFullName =
+              s(
+                waitingContext
+                  ?.searchedFullName
+              );
+
+            const selectedFullName =
+              s(
+                selectedCandidate
+                  ?.fullName
+              ) ||
+              searchedFullName ||
+              null;
+
+            const contactRef =
+              (db as any).doc(
+                `agents/${agentId}/magic_touch_contacts/${contactId}`
+              );
+
+            /*
+             * כאן נוצר בפועל הקישור
+             * בין לקוח MagicTouch/Excel
+             * לבין הלקוח שנבחר ב-Surense.
+             *
+             * sourceSystem עצמו לא משתנה.
+             */
+            transaction.update(
+              contactRef,
+              {
+                "sourceData.surense.customerId":
+                  requestedSurenseCustomerId,
+
+                "sourceData.surense.fullName":
+                  selectedFullName,
+
+                "sourceData.surense.matchMethod":
+                  selectedCandidate
+                    ? "human_selection"
+                    : "human_manual",
+
+                "sourceData.surense.matchedAt":
+                  timestamp,
+
+                "sourceData.surense.matchedBy":
+                  authUid,
+
+                updatedAt:
+                  timestamp,
+              }
+            );
+
+            const resolutionAction =
+              "surense_customer_selected";
+
+            const humanResolution = {
+              source:
                 "human",
 
-              lastResolvedBy:
+              resolutionType:
+                "surense_customer",
+
+              resolvedAction:
+                resolutionAction,
+
+              surenseCustomerId:
+                requestedSurenseCustomerId,
+
+              selectedCandidate:
+                selectedCandidate ||
+                null,
+
+              originalMatchCount:
+                Number.isFinite(
+                  matchCount
+                )
+                  ? matchCount
+                  : null,
+
+              searchedFullName:
+                searchedFullName ||
+                null,
+
+              resolvedBy:
                 authUid,
 
-              resumedAt:
+              resolvedAt:
                 timestamp,
 
-              humanAttention: {
-                ...(
-                  runData
-                    ?.humanAttention &&
-                  typeof runData
-                    .humanAttention ===
-                    "object"
-                    ? runData
-                        .humanAttention
-                    : {}
-                ),
+              conversationId,
 
-                required:
-                  false,
+              runId,
 
-                resolvedAt:
-                  timestamp,
+              eventId:
+                manualEventId,
+            };
 
-                resolvedReason:
-                  "human_selected_action",
+            transaction.set(
+              eventRef,
+              {
+                eventId:
+                  manualEventId,
 
-                resolvedAction,
+                agentId,
 
-                resolvedBy:
-                  authUid,
+                contactId,
 
-                resolutionSource:
+                conversationId,
+
+                channel:
                   "human",
 
-                resolutionEventId:
+                sourceSystem:
+                  "surense",
+
+                triggerType:
+                  "human_surense_customer_resolved",
+
+                status:
+                  "dispatched",
+
+                occurredAt:
+                  timestamp,
+
+                createdAt:
+                  timestamp,
+
+                updatedAt:
+                  timestamp,
+
+                processedAt:
+                  timestamp,
+
+                dispatchedAt:
+                  timestamp,
+
+                messageText:
+                  null,
+
+                messageType:
+                  "human_resolution",
+
+                quickReplyAction:
+                  null,
+
+                flowRunIds: [
+                  runId,
+                ],
+
+                resumedRunId:
+                  runId,
+
+                routing: {
+                  contactState:
+                    "known",
+
+                  flowState:
+                    "active",
+
+                  messageDisposition:
+                    "system",
+
+                  handling:
+                    "continue_flow",
+
+                  activeRunId:
+                    runId,
+
+                  activeFlowId:
+                    flowId,
+
+                  previousRunId:
+                    null,
+
+                  resolvedAction:
+                    resolutionAction,
+
+                  reason:
+                    "human_selected_surense_customer",
+
+                  resolutionSource:
+                    "human",
+                },
+
+                resume: {
+                  resumed:
+                    true,
+
+                  runId,
+
+                  resolvedAction:
+                    resolutionAction,
+
+                  resumeStepId,
+
+                  source:
+                    "human",
+
+                  resolvedBy:
+                    authUid,
+                },
+
+                surenseCustomer: {
+                  customerId:
+                    requestedSurenseCustomerId,
+
+                  fullName:
+                    selectedFullName,
+
+                  selectedCandidate:
+                    selectedCandidate ||
+                    null,
+
+                  searchedFullName:
+                    searchedFullName ||
+                    null,
+
+                  originalMatchCount:
+                    Number.isFinite(
+                      matchCount
+                    )
+                      ? matchCount
+                      : null,
+                },
+
+                humanResolution,
+              },
+              {
+                merge:
+                  false,
+              }
+            );
+
+            transaction.set(
+              runRef,
+              {
+                status:
+                  "queued",
+
+                currentStepId:
+                  resumeStepId,
+
+                executionEventId:
                   manualEventId,
+
+                waitingFor:
+                  null,
+
+                waitingUntil:
+                  null,
+
+                lastResumeEventId:
+                  manualEventId,
+
+                lastResolvedAction:
+                  resolutionAction,
+
+                lastResolutionSource:
+                  "human",
+
+                lastResolvedBy:
+                  authUid,
+
+                resumedAt:
+                  timestamp,
+
+                humanAttention: {
+                  ...(
+                    runData
+                      ?.humanAttention &&
+                    typeof runData
+                      .humanAttention ===
+                      "object"
+                      ? runData
+                          .humanAttention
+                      : {}
+                  ),
+
+                  required:
+                    false,
+
+                  resolvedAt:
+                    timestamp,
+
+                  resolvedReason:
+                    "surense_customer_selected",
+
+                  resolvedAction:
+                    resolutionAction,
+
+                  resolvedBy:
+                    authUid,
+
+                  resolutionSource:
+                    "human",
+
+                  resolutionEventId:
+                    manualEventId,
+
+                  surenseCustomerId:
+                    requestedSurenseCustomerId,
+
+                  updatedAt:
+                    timestamp,
+                },
 
                 updatedAt:
                   timestamp,
               },
+              {
+                merge:
+                  true,
+              }
+            );
 
-              updatedAt:
-                timestamp,
-            },
-            {
-              merge:
-                true,
-            }
-          );
-
-          transaction.set(
-            conversationRef,
-            {
-              needsHumanAttention:
-                false,
-
-              needsReply:
-                false,
-
-              humanAttention: {
-                ...(
-                  currentAttention ||
-                  {}
-                ),
-
-                required:
+            transaction.set(
+              conversationRef,
+              {
+                needsHumanAttention:
                   false,
 
-                resolvedAt:
-                  timestamp,
+                needsReply:
+                  false,
 
-                resolvedReason:
-                  "human_selected_action",
+                humanAttention: {
+                  ...(
+                    currentAttention ||
+                    {}
+                  ),
 
-                resolvedAction,
+                  required:
+                    false,
 
-                resolvedBy:
-                  authUid,
+                  resolvedAt:
+                    timestamp,
 
-                resolutionSource:
-                  "human",
+                  resolvedReason:
+                    "surense_customer_selected",
 
-                resolutionEventId:
-                  manualEventId,
+                  resolvedAction:
+                    resolutionAction,
+
+                  resolvedBy:
+                    authUid,
+
+                  resolutionSource:
+                    "human",
+
+                  resolutionEventId:
+                    manualEventId,
+
+                  surenseCustomerId:
+                    requestedSurenseCustomerId,
+
+                  updatedAt:
+                    timestamp,
+                },
 
                 updatedAt:
                   timestamp,
               },
+              {
+                merge:
+                  true,
+              }
+            );
 
-              updatedAt:
-                timestamp,
-            },
-            {
-              merge:
-                true,
-            }
+            return {
+              resumeStepId,
+
+              flowId,
+
+              contactId,
+
+              resolutionType:
+                "surense_customer",
+
+              resolvedAction:
+                resolutionAction,
+
+              surenseCustomerId:
+                requestedSurenseCustomerId,
+            };
+          }
+
+          throw new HttpsError(
+            "failed-precondition",
+            `Unsupported waitingFor type for human resolution: ${waitingForType || "missing"}`
           );
-
-          return {
-            resumeStepId,
-
-            flowId,
-
-            contactId,
-          };
         }
       );
 
   /*
    * אין צורך לקרוא ידנית ל-Dispatcher.
-   * שינוי ה-Run ל-queued מפעיל את
-   * dispatchMagicTouchFlowRun הקיים.
+   *
+   * שינוי status:
+   * waiting -> queued
+   *
+   * מפעיל את dispatchMagicTouchFlowRun
+   * שכבר קיים.
    */
   logger.info(
     "[resolveMagicTouchHumanAttention] Flow resumed by human",
@@ -885,7 +1474,17 @@ export async function resolveMagicTouchHumanAttentionImpl(
 
       runId,
 
-      resolvedAction,
+      resolutionType:
+        transactionResult
+          .resolutionType,
+
+      resolvedAction:
+        transactionResult
+          .resolvedAction,
+
+      surenseCustomerId:
+        transactionResult
+          .surenseCustomerId,
 
       eventId:
         manualEventId,
@@ -912,7 +1511,17 @@ export async function resolveMagicTouchHumanAttentionImpl(
 
     runId,
 
-    resolvedAction,
+    resolutionType:
+      transactionResult
+        .resolutionType,
+
+    resolvedAction:
+      transactionResult
+        .resolvedAction,
+
+    surenseCustomerId:
+      transactionResult
+        .surenseCustomerId,
 
     eventId:
       manualEventId,

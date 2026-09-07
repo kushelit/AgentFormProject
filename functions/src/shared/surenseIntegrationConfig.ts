@@ -69,6 +69,11 @@ SurenseIntegrationConfig {
         webhookUrl: "",
       },
 
+      findCustomer: {
+        enabled: false,
+        webhookUrl: "",
+      },
+
       createWorkflow: {
         enabled: false,
         webhookUrl: "",
@@ -166,6 +171,13 @@ export async function loadSurenseIntegrationConfig(
           current
             ?.actions
             ?.searchCustomers
+        ),
+
+      findCustomer:
+        normalizeAction(
+          current
+            ?.actions
+            ?.findCustomer
         ),
 
       createWorkflow:

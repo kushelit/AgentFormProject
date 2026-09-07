@@ -930,6 +930,16 @@ export async function syncMicrosoftBookingsAgent(
         )
         : null;
 
+/*
+ * זיהוי הלקוח והקשר התהליכי הם שני דברים נפרדים:
+ *
+ * 1. אם מצאנו Contact לפי טלפון/מייל — הפגישה שייכת אליו.
+ * 2. bookingStatus / appointmentProvider יכולים לתאר אם Flow מסוים
+ *    המתין לפגישה, אבל הם אינם תנאי לשיוך הפגישה או ליצירת האירוע.
+ *
+ * כך גם פגישה שנקבעה מקישור חיצוני (למשל PDF בקמפיין חג)
+ * משויכת ללקוח ומייצרת microsoft_booking_created.
+ */
 const bookingStatus =
   s(
     contactData
@@ -951,10 +961,7 @@ const isWaitingForMicrosoftBooking =
     "microsoft";
 
 const matchedContactDoc =
-  contactDoc &&
-  isWaitingForMicrosoftBooking
-    ? contactDoc
-    : null;
+  contactDoc;
 
 const conversationId =
   matchedContactDoc
@@ -1081,9 +1088,10 @@ await appointmentRef.set(
     matchStatus:
       resolvedContactId
         ? "matched"
-        : contactDoc
-          ? "contact_not_waiting_for_microsoft_booking"
-          : "unmatched",
+        : "unmatched",
+
+    flowWasWaitingForMicrosoftBooking:
+      isWaitingForMicrosoftBooking,
 
     rawJson:
       JSON.stringify(
@@ -1138,9 +1146,7 @@ await appointmentRef.set(
         null,
 
       reason:
-        contactDoc
-          ? "contact_not_waiting_for_microsoft_booking"
-          : "contact_not_found",
+        "contact_not_found",
     }
   );
 

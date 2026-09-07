@@ -373,25 +373,22 @@ export async function subscribeAgentWhatsAppWebhookImpl(
     before.length >
     0
   ) {
-    await configRef.set(
-      {
-        webhookSubscribed:
-          true,
+   await configRef.set(
+  {
+    webhookSubscribed: true,
+    webhookSubscribedAt: nowTs(),
 
-        webhookSubscribedAt:
-          nowTs(),
+    status: "ready",
 
-        updatedAt:
-          nowTs(),
+    provisioningError: null,
 
-        updatedBy:
-          authUid,
-      },
-      {
-        merge:
-          true,
-      }
-    );
+    updatedAt: nowTs(),
+    updatedBy: authUid,
+  },
+  {
+    merge: true,
+  }
+);
 
     return {
       ok:
@@ -421,25 +418,22 @@ export async function subscribeAgentWhatsAppWebhookImpl(
       accessToken,
     });
 
-  await configRef.set(
-    {
-      webhookSubscribed:
-        true,
+ await configRef.set(
+  {
+    webhookSubscribed: true,
+    webhookSubscribedAt: nowTs(),
 
-      webhookSubscribedAt:
-        nowTs(),
+    status: "ready",
 
-      updatedAt:
-        nowTs(),
+    provisioningError: null,
 
-      updatedBy:
-        authUid,
-    },
-    {
-      merge:
-        true,
-    }
-  );
+    updatedAt: nowTs(),
+    updatedBy: authUid,
+  },
+  {
+    merge: true,
+  }
+);
 
   return {
     ok:

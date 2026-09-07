@@ -23,13 +23,38 @@ export async function registerAgentWhatsAppPhoneImpl(req: any): Promise<object> 
   if (!userSnap.exists) throw new HttpsError("permission-denied", "User not found");
 
   const userData = userSnap.data() as any;
-  const isAdmin = userData?.role === "admin" || userData?.isSystem === true;
-  if (!isAdmin) throw new HttpsError("permission-denied", "Admin only");
 
-  const agentId = s(req.data?.agentId);
-  const pin = s(req.data?.pin);
+const agentId = s(req.data?.agentId);
+const pin = s(req.data?.pin);
 
-  if (!agentId) throw new HttpsError("invalid-argument", "Missing agentId");
+if (!agentId) {
+  throw new HttpsError(
+    "invalid-argument",
+    "Missing agentId"
+  );
+}
+
+const isAdmin =
+  userData?.role === "admin" ||
+  userData?.isSystem === true;
+
+const loggedInAgentId =
+  s(
+    userData?.agentId ||
+    authUid
+  );
+
+const canManageAgent =
+  isAdmin ||
+  loggedInAgentId === agentId;
+
+if (!canManageAgent) {
+  throw new HttpsError(
+    "permission-denied",
+    "You may only configure WhatsApp for your own agent"
+  );
+}
+
   if (!pin) throw new HttpsError("invalid-argument", "Missing pin");
 
   const configSnap = await (db as any).doc(`agents/${agentId}/config/whatsapp`).get();
@@ -83,12 +108,21 @@ export async function registerAgentWhatsAppPhoneImpl(req: any): Promise<object> 
     );
   }
 
-  await (db as any).doc(`agents/${agentId}/config/whatsapp`).set({
-    phoneRegisteredAt: nowTs(),
-    status: "registered",
-    updatedAt: nowTs(),
-    updatedBy: authUid,
-  }, { merge: true });
+await (db as any)
+  .doc(`agents/${agentId}/config/whatsapp`)
+  .set(
+    {
+      phoneRegistered: true,
+      phoneRegisteredAt: nowTs(),
+      status: "registered",
+      provisioningError: null,
+      updatedAt: nowTs(),
+      updatedBy: authUid,
+    },
+    {
+      merge: true,
+    }
+  );
 
   return {
     ok: true,

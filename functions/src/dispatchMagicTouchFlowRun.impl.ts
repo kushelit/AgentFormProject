@@ -36,6 +36,26 @@ function s(
   ).trim();
 }
 
+function createHumanAttentionEventId({
+  runId,
+  stepId,
+}: {
+  runId: string;
+  stepId: string;
+}): string {
+  return [
+    "flow_human_attention",
+    runId,
+    stepId,
+  ]
+    .filter(
+      Boolean
+    )
+    .join(
+      "_"
+    );
+}
+
 export async function dispatchMagicTouchFlowRunImpl({
   agentId,
   runId,
@@ -132,7 +152,9 @@ export async function dispatchMagicTouchFlowRunImpl({
         }
       );
 
-  if (!claimedRun) {
+  if (
+    !claimedRun
+  ) {
     return {
       ok:
         true,
@@ -189,15 +211,15 @@ export async function dispatchMagicTouchFlowRunImpl({
     }
 
     const executionEventId =
-  s(
-    claimedRun.executionEventId ||
-    claimedRun.eventId
-  );
+      s(
+        claimedRun.executionEventId ||
+        claimedRun.eventId
+      );
 
-const eventRef =
-  (db as any).doc(
-    `agents/${normalizedAgentId}/magic_touch_events/${executionEventId}`
-  );
+    const eventRef =
+      (db as any).doc(
+        `agents/${normalizedAgentId}/magic_touch_events/${executionEventId}`
+      );
 
     const microsoftBookingsConfigRef =
       (db as any).doc(
@@ -217,7 +239,7 @@ const eventRef =
       !eventSnap.exists
     ) {
       throw new Error(
-        `Event not found: ${claimedRun.eventId}`
+        `Event not found: ${executionEventId}`
       );
     }
 
@@ -351,85 +373,298 @@ const eventRef =
         }
       );
 
-    if (
-  result.status ===
-  "waiting"
-) {
-  await runRef.set(
-    {
-      status:
-        "waiting",
+      if (
+        result.status ===
+        "waiting"
+      ) {
+        const waitingFor =
+          result.waitingFor ||
+          null;
 
-      waitingUntil:
-        result.waitingUntil ||
-        null,
+        const waitingForType =
+          s(
+            waitingFor
+              ?.type
+          );
 
-      waitingFor:
-        result.waitingFor ||
-        null,
+        const timestamp =
+          nowTs();
 
-      updatedAt:
-        nowTs(),
-    },
-    {
-      merge:
-        true,
-    }
-  );
+        const batch =
+          (db as any).batch();
 
-  return {
-    ok:
-      true,
+        batch.set(
+          runRef,
+          {
+            status:
+              "waiting",
 
-    status:
-      "waiting",
+            waitingUntil:
+              result.waitingUntil ||
+              null,
 
-    runId:
-      normalizedRunId,
+            waitingFor,
 
-    currentStepId,
+            updatedAt:
+              timestamp,
+          },
+          {
+            merge:
+              true,
+          }
+        );
 
-    waitingFor:
-      result.waitingFor ||
-      null,
-  };
-}
+       /*
+ * Human Attention עסקי.
+ *
+ * לדוגמה:
+ * החיפוש הפנימי ב-Surense במהלך
+ * יצירת ייפוי הכוח החזיר
+ * 0 התאמות או יותר מהתאמה אחת.
+ *
+ * אנחנו לא מסמנים את ה-Run כ-failed.
+ * הוא נשאר waiting עד לטיפול אנושי.
+ *
+ * בנוסף יוצרים MagicTouch Event
+ * שה-syncMagicTouchHumanAttention
+ * הקיים יקלוט ויהפוך להתראה
+ * ב-whatsapp_conversations.
+ */
+
+        if (
+          waitingForType ===
+          "human_attention"
+        ) {
+          const conversationId =
+            s(
+              claimedRun
+                .conversationId ||
+              context.event
+                ?.conversationId
+            );
+
+          const contactId =
+            s(
+              claimedRun
+                .contactId ||
+              context.event
+                ?.contactId
+            );
+
+          const waitingContext =
+            waitingFor
+              ?.context &&
+            typeof waitingFor
+              .context ===
+              "object"
+              ? waitingFor
+                  .context
+              : {};
+
+          const reason =
+            s(
+              waitingContext
+                ?.reason ||
+              result.output
+                ?.reason
+            ) ||
+            "flow_requires_human_attention";
+
+          const humanAttentionEventId =
+            createHumanAttentionEventId({
+              runId:
+                normalizedRunId,
+
+              stepId:
+                currentStepId,
+            });
+
+          const humanAttentionEventRef =
+            (db as any).doc(
+              `agents/${normalizedAgentId}/magic_touch_events/${humanAttentionEventId}`
+            );
+
+          batch.set(
+            humanAttentionEventRef,
+            {
+              eventId:
+                humanAttentionEventId,
+
+              agentId:
+                normalizedAgentId,
+
+              contactId:
+                contactId ||
+                null,
+
+              conversationId:
+                conversationId ||
+                null,
+
+              channel:
+                "system",
+
+              triggerType:
+                "flow_human_attention_required",
+
+              status:
+                "dispatched",
+
+              occurredAt:
+                timestamp,
+
+              createdAt:
+                timestamp,
+
+              updatedAt:
+                timestamp,
+
+              processedAt:
+                timestamp,
+
+              dispatchedAt:
+                timestamp,
+
+              messageText:
+                null,
+
+              messageType:
+                "system",
+
+              quickReplyAction:
+                null,
+
+              flowRunIds: [
+                normalizedRunId,
+              ],
+
+              routing: {
+                contactState:
+                  contactId
+                    ? "known"
+                    : "unknown",
+
+                flowState:
+                  "active",
+
+                messageDisposition:
+                  "system",
+
+                handling:
+                  "human_attention",
+
+                activeRunId:
+                  normalizedRunId,
+
+                activeFlowId:
+                  flow.flowId,
+
+                previousRunId:
+                  null,
+
+                resolvedAction:
+                  null,
+
+                reason,
+
+                resolutionSource:
+                  "flow",
+              },
+
+              humanAttentionContext:
+                waitingContext,
+            },
+            {
+              merge:
+                true,
+            }
+          );
+
+          logger.info(
+            "[dispatchMagicTouchFlowRun] Human attention requested",
+            {
+              agentId:
+                normalizedAgentId,
+
+              runId:
+                normalizedRunId,
+
+              flowId:
+                flow.flowId,
+
+              stepId:
+                currentStepId,
+
+              conversationId:
+                conversationId ||
+                null,
+
+              contactId:
+                contactId ||
+                null,
+
+              reason,
+
+              eventId:
+                humanAttentionEventId,
+            }
+          );
+        }
+
+        await batch.commit();
+
+        return {
+          ok:
+            true,
+
+          status:
+            "waiting",
+
+          runId:
+            normalizedRunId,
+
+          currentStepId,
+
+          waitingFor,
+        };
+      }
 
       const nextStepId =
         s(
           result.nextStepId
         );
 
-  if (
-  result.status ===
-    "completed" ||
-  !nextStepId
-) {
-  await runRef.set(
-    {
-      status:
-        "completed",
+      if (
+        result.status ===
+          "completed" ||
+        !nextStepId
+      ) {
+        await runRef.set(
+          {
+            status:
+              "completed",
 
-      currentStepId:
-        null,
+            currentStepId:
+              null,
 
-      waitingFor:
-        null,
+            waitingFor:
+              null,
 
-      waitingUntil:
-        null,
+            waitingUntil:
+              null,
 
-      completedAt:
-        nowTs(),
+            completedAt:
+              nowTs(),
 
-      updatedAt:
-        nowTs(),
-    },
-    {
-      merge:
-        true,
-    }
-  );
+            updatedAt:
+              nowTs(),
+          },
+          {
+            merge:
+              true,
+          }
+        );
+
         logger.info(
           "[dispatchMagicTouchFlowRun] Run completed",
           {

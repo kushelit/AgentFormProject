@@ -48,8 +48,6 @@ import {
   getGoogleCalendarBookingUrl,
 } from "../shared/googleCalendar";
 
-
-
 export interface ExecuteStepResult {
   status:
     | "continue"
@@ -67,9 +65,9 @@ export interface ExecuteStepResult {
     Record<string, any> |
     null;
 
-    waitingFor?:
-  MagicTouchWaitingFor |
-  null;
+  waitingFor?:
+    MagicTouchWaitingFor |
+    null;
 }
 
 function s(
@@ -145,7 +143,6 @@ function normalizeResolutionMode(
 
   return "quick_reply_only";
 }
-
 
 export async function executeMagicTouchFlowStep({
   context,
@@ -453,561 +450,585 @@ export async function executeMagicTouchFlowStep({
       };
     }
 
-  case "send_booking_link": {
-  const conversationId =
-    s(
-      context
-        .run
-        .conversationId
-    );
-
-  if (
-    !conversationId
-  ) {
-    throw new Error(
-      "Cannot send booking link without conversationId"
-    );
-  }
-
-  const contactId =
-    s(
-      context
-        .run
-        .contactId ||
-      context
-        .event
-        ?.contactId
-    );
-
-  if (
-    !contactId
-  ) {
-    throw new Error(
-      "Cannot send booking link without contactId"
-    );
-  }
-
-  /*
-   * כרגע send_booking_link הוא Microsoft Bookings.
-   * בהמשך נרחיב אותו לבחירת provider.
-   */
-  const appointmentProvider =
-    "microsoft";
-
-  const bookingUrl =
-    s(
-      context
-        .agent
-        ?.booking
-        ?.defaultServiceUrl
-    );
-
-  if (
-    !bookingUrl
-  ) {
-    throw new Error(
-      "Microsoft Bookings default service URL is missing for this agent"
-    );
-  }
-
-  const messageBefore =
-    resolveMagicTouchStringTemplate(
-      s(
-        step.config
-          ?.messageBefore
-      ),
-      context
-    );
-
-  const messageAfter =
-    resolveMagicTouchStringTemplate(
-      s(
-        step.config
-          ?.messageAfter
-      ),
-      context
-    );
-
-  const message =
-    buildBookingMessage({
-      messageBefore,
-      bookingUrl,
-      messageAfter,
-    });
-
-  /*
-   * קודם שולחים בפועל.
-   *
-   * רק אם WhatsApp הצליח,
-   * נסמן את הלקוח כממתין לקביעת פגישה.
-   */
-  const result =
-    await sendWhatsAppConversationText({
-      agentId:
-        context.agentId,
-
-      conversationId,
-
-      text:
-        message,
-
-      sentBy:
-        "magic_touch_automation",
-
-      sentByName:
-        "MagicTouch",
-
-      source:
-        "magic_touch_automation",
-
-      flowRunId:
-        context.run.runId,
-
-      flowId:
-        context.flow.flowId,
-
-      eventId:
-        context.run.eventId,
-    });
-
-  const timestamp =
-    nowTs();
-
-  /*
-   * זה חלק מהותי מהפעולה send_booking_link.
-   *
-   * לא צריך Step נוסף של Update Contact
-   * כדי לומר שהמערכת מחכה עכשיו לפגישה.
-   */
-  await updateMagicTouchContactFields({
-    agentId:
-      context.agentId,
-
-    contactId,
-
-    updates: {
-      appointmentStatus:
-        "link_sent",
-
-      appointmentProvider,
-
-      "engagement.reengagement.bookingStatus":
-        "link_sent",
-
-      "engagement.reengagement.bookingLink":
-        bookingUrl,
-
-      "engagement.reengagement.bookingLinkSentAt":
-        timestamp,
-
-      "engagement.reengagement.updatedAt":
-        timestamp,
-    },
-  });
-
-  return {
-    status:
-      step.nextStepId
-        ? "continue"
-        : "completed",
-
-    nextStepId:
-      step.nextStepId ||
-      null,
-
-    output: {
-      sent:
-        true,
-
-      appointmentProvider,
-
-      bookingUrl,
-
-      bookingStatus:
-        "link_sent",
-
-      messageBefore:
-        messageBefore ||
-        null,
-
-      messageAfter:
-        messageAfter ||
-        null,
-
-      message,
-
-      ...result,
-    },
-  };
-}
-
-case "send_google_booking_link": {
-  const conversationId =
-    s(
-      context
-        .run
-        .conversationId
-    );
-
-  if (
-    !conversationId
-  ) {
-    throw new Error(
-      "Cannot send Google booking link without conversationId"
-    );
-  }
-
-  const contactId =
-    s(
-      context
-        .run
-        .contactId ||
-      context
-        .event
-        ?.contactId
-    );
-
-  if (
-    !contactId
-  ) {
-    throw new Error(
-      "Cannot send Google booking link without contactId"
-    );
-  }
-
-  const appointmentProvider =
-    "google";
-
-  const bookingUrl =
-    await getGoogleCalendarBookingUrl(
-      context.agentId
-    );
-
-  const messageBefore =
-    resolveMagicTouchStringTemplate(
-      s(
-        step.config
-          ?.messageBefore
-      ),
-      context
-    );
-
-  const messageAfter =
-    resolveMagicTouchStringTemplate(
-      s(
-        step.config
-          ?.messageAfter
-      ),
-      context
-    );
-
-  const message =
-    buildBookingMessage({
-      messageBefore,
-      bookingUrl,
-      messageAfter,
-    });
-
-  /*
-   * קודם שולחים את ההודעה.
-   * רק לאחר שליחה מוצלחת מעדכנים
-   * שהלקוח ממתין לפגישה דרך Google.
-   */
-  const result =
-    await sendWhatsAppConversationText({
-      agentId:
-        context.agentId,
-
-      conversationId,
-
-      text:
-        message,
-
-      sentBy:
-        "magic_touch_automation",
-
-      sentByName:
-        "MagicTouch",
-
-      source:
-        "magic_touch_automation",
-
-      flowRunId:
-        context.run.runId,
-
-      flowId:
-        context.flow.flowId,
-
-      eventId:
-        context.run.eventId,
-    });
-
-  const timestamp =
-    nowTs();
-
-  await updateMagicTouchContactFields({
-    agentId:
-      context.agentId,
-
-    contactId,
-
-    updates: {
-      appointmentStatus:
-        "link_sent",
-
-      appointmentProvider:
-        "google",
-
-      "engagement.reengagement.bookingStatus":
-        "link_sent",
-
-      "engagement.reengagement.bookingLink":
-        bookingUrl,
-
-      "engagement.reengagement.bookingLinkSentAt":
-        timestamp,
-
-      "engagement.reengagement.updatedAt":
-        timestamp,
-    },
-  });
-
-  return {
-    status:
-      step.nextStepId
-        ? "continue"
-        : "completed",
-
-    nextStepId:
-      step.nextStepId ||
-      null,
-
-    output: {
-      sent:
-        true,
-
-      appointmentProvider,
-
-      bookingUrl,
-
-      bookingStatus:
-        "link_sent",
-
-      messageBefore:
-        messageBefore ||
-        null,
-
-      messageAfter:
-        messageAfter ||
-        null,
-
-      message,
-
-      ...result,
-    },
-  };
-}
-case "wait_for_customer_response": {
-  const rawExpectedActions =
-    step.config?.expectedActions;
-
-  const expectedActions =
-    Array.isArray(
-      rawExpectedActions
-    )
-      ? rawExpectedActions
-          .map(
-            (value: any) =>
-              s(value)
-          )
-          .filter(Boolean)
-      : [];
-
-  /*
-   * responseOptions הן הגדרות דינמיות
-   * של ה-Flow הספציפי.
-   *
-   * הן נותנות ל-Resolver / AI משמעות
-   * עסקית לכל Action אפשרי.
-   */
-  const rawResponseOptions =
-    step.config?.responseOptions;
-
- const responseOptions:
-  MagicTouchResponseOption[] =
-  Array.isArray(
-    rawResponseOptions
-  )
-    ? rawResponseOptions.reduce(
-        (
-          result:
-            MagicTouchResponseOption[],
-          option: any
-        ) => {
-          const action =
-            s(
-              option?.action
-            );
-
-          if (
-            !action
-          ) {
-            return result;
-          }
-
-          const label =
-            s(
-              option?.label
-            );
-
-          const description =
-            s(
-              option?.description
-            );
-
-          const responseOption:
-            MagicTouchResponseOption = {
-              action,
-          };
-
-          if (
-            label
-          ) {
-            responseOption.label =
-              label;
-          }
-
-          if (
-            description
-          ) {
-            responseOption.description =
-              description;
-          }
-
-          result.push(
-            responseOption
-          );
-
-          return result;
-        },
-        []
-      )
-    : [];
-  /*
-   * promptContext הוא ההקשר שה-Resolver
-   * יצטרך כדי להבין את תשובת הלקוח.
-   *
-   * כרגע אנחנו שומרים את השאלה שה-Flow
-   * שאל. בהמשך ניתן להרחיב את ההקשר
-   * בלי לשנות את מנוע ה-Flow.
-   */
-  const question =
-    resolveMagicTouchStringTemplate(
-      s(
-        step.config
-          ?.promptContext
-          ?.question
-      ),
-      context
-    );
-
-  const resolution =
-  step.config?.resolution &&
-  typeof step.config.resolution === "object"
-    ? {
-        mode:
-          normalizeResolutionMode(
-            step.config.resolution.mode
-          ),
-
-        minConfidence:
-          Number.isFinite(
-            Number(
-              step.config.resolution.minConfidence
-            )
-          )
-            ? Number(
-                step.config.resolution.minConfidence
-              )
-            : 0.8,
+    case "send_booking_link": {
+      const conversationId =
+        s(
+          context
+            .run
+            .conversationId
+        );
+
+      if (
+        !conversationId
+      ) {
+        throw new Error(
+          "Cannot send booking link without conversationId"
+        );
       }
-    : {
-        mode:
-          "quick_reply_only" as const,
 
-        minConfidence:
-          0.8,
-      };
-
-  return {
-    status:
-      "waiting",
-
-    nextStepId:
-      step.nextStepId ||
-      null,
-
-    waitingFor: {
-      type:
-        "customer_response",
-
-      stepId:
-        step.id,
-
-      resumeStepId:
-        step.nextStepId ||
-        null,
-
-      expectedActions,
-
-      responseOptions,
-
-      resolution,
-
-      promptContext: {
-        question:
-          question ||
-          null,
-      },
-
-      startedAt:
-        nowTs(),
-
-      context: {
-        conversationId:
-          context.run
-            .conversationId ||
-          null,
-
-        contactId:
-          context.run
+      const contactId =
+        s(
+          context
+            .run
             .contactId ||
-          context.event
-            ?.contactId ||
+          context
+            .event
+            ?.contactId
+        );
+
+      if (
+        !contactId
+      ) {
+        throw new Error(
+          "Cannot send booking link without contactId"
+        );
+      }
+
+      /*
+       * כרגע send_booking_link הוא Microsoft Bookings.
+       * בהמשך נרחיב אותו לבחירת provider.
+       */
+      const appointmentProvider =
+        "microsoft";
+
+      const bookingUrl =
+        s(
+          context
+            .agent
+            ?.booking
+            ?.defaultServiceUrl
+        );
+
+      if (
+        !bookingUrl
+      ) {
+        throw new Error(
+          "Microsoft Bookings default service URL is missing for this agent"
+        );
+      }
+
+      const messageBefore =
+        resolveMagicTouchStringTemplate(
+          s(
+            step.config
+              ?.messageBefore
+          ),
+          context
+        );
+
+      const messageAfter =
+        resolveMagicTouchStringTemplate(
+          s(
+            step.config
+              ?.messageAfter
+          ),
+          context
+        );
+
+      const message =
+        buildBookingMessage({
+          messageBefore,
+          bookingUrl,
+          messageAfter,
+        });
+
+      /*
+       * קודם שולחים בפועל.
+       *
+       * רק אם WhatsApp הצליח,
+       * נסמן את הלקוח כממתין לקביעת פגישה.
+       */
+      const result =
+        await sendWhatsAppConversationText({
+          agentId:
+            context.agentId,
+
+          conversationId,
+
+          text:
+            message,
+
+          sentBy:
+            "magic_touch_automation",
+
+          sentByName:
+            "MagicTouch",
+
+          source:
+            "magic_touch_automation",
+
+          flowRunId:
+            context.run.runId,
+
+          flowId:
+            context.flow.flowId,
+
+          eventId:
+            context.run.eventId,
+        });
+
+      const timestamp =
+        nowTs();
+
+      /*
+       * זה חלק מהותי מהפעולה send_booking_link.
+       *
+       * לא צריך Step נוסף של Update Contact
+       * כדי לומר שהמערכת מחכה עכשיו לפגישה.
+       */
+      await updateMagicTouchContactFields({
+        agentId:
+          context.agentId,
+
+        contactId,
+
+        updates: {
+          appointmentStatus:
+            "link_sent",
+
+          appointmentProvider,
+
+          "engagement.reengagement.bookingStatus":
+            "link_sent",
+
+          "engagement.reengagement.bookingLink":
+            bookingUrl,
+
+          "engagement.reengagement.bookingLinkSentAt":
+            timestamp,
+
+          "engagement.reengagement.updatedAt":
+            timestamp,
+        },
+      });
+
+      return {
+        status:
+          step.nextStepId
+            ? "continue"
+            : "completed",
+
+        nextStepId:
+          step.nextStepId ||
           null,
-      },
-    },
 
-    output: {
-      waiting:
-        true,
+        output: {
+          sent:
+            true,
 
-      waitingFor:
-        "customer_response",
+          appointmentProvider,
 
-      expectedActions,
+          bookingUrl,
 
-      responseOptions,
-      resolution,
+          bookingStatus:
+            "link_sent",
 
-      promptContext: {
-        question:
-          question ||
+          messageBefore:
+            messageBefore ||
+            null,
+
+          messageAfter:
+            messageAfter ||
+            null,
+
+          message,
+
+          ...result,
+        },
+      };
+    }
+
+    case "send_google_booking_link": {
+      const conversationId =
+        s(
+          context
+            .run
+            .conversationId
+        );
+
+      if (
+        !conversationId
+      ) {
+        throw new Error(
+          "Cannot send Google booking link without conversationId"
+        );
+      }
+
+      const contactId =
+        s(
+          context
+            .run
+            .contactId ||
+          context
+            .event
+            ?.contactId
+        );
+
+      if (
+        !contactId
+      ) {
+        throw new Error(
+          "Cannot send Google booking link without contactId"
+        );
+      }
+
+      const appointmentProvider =
+        "google";
+
+      const bookingUrl =
+        await getGoogleCalendarBookingUrl(
+          context.agentId
+        );
+
+      const messageBefore =
+        resolveMagicTouchStringTemplate(
+          s(
+            step.config
+              ?.messageBefore
+          ),
+          context
+        );
+
+      const messageAfter =
+        resolveMagicTouchStringTemplate(
+          s(
+            step.config
+              ?.messageAfter
+          ),
+          context
+        );
+
+      const message =
+        buildBookingMessage({
+          messageBefore,
+          bookingUrl,
+          messageAfter,
+        });
+
+      /*
+       * קודם שולחים את ההודעה.
+       * רק לאחר שליחה מוצלחת מעדכנים
+       * שהלקוח ממתין לפגישה דרך Google.
+       */
+      const result =
+        await sendWhatsAppConversationText({
+          agentId:
+            context.agentId,
+
+          conversationId,
+
+          text:
+            message,
+
+          sentBy:
+            "magic_touch_automation",
+
+          sentByName:
+            "MagicTouch",
+
+          source:
+            "magic_touch_automation",
+
+          flowRunId:
+            context.run.runId,
+
+          flowId:
+            context.flow.flowId,
+
+          eventId:
+            context.run.eventId,
+        });
+
+      const timestamp =
+        nowTs();
+
+      await updateMagicTouchContactFields({
+        agentId:
+          context.agentId,
+
+        contactId,
+
+        updates: {
+          appointmentStatus:
+            "link_sent",
+
+          appointmentProvider:
+            "google",
+
+          "engagement.reengagement.bookingStatus":
+            "link_sent",
+
+          "engagement.reengagement.bookingLink":
+            bookingUrl,
+
+          "engagement.reengagement.bookingLinkSentAt":
+            timestamp,
+
+          "engagement.reengagement.updatedAt":
+            timestamp,
+        },
+      });
+
+      return {
+        status:
+          step.nextStepId
+            ? "continue"
+            : "completed",
+
+        nextStepId:
+          step.nextStepId ||
           null,
-      },
-    },
-  };
-}
+
+        output: {
+          sent:
+            true,
+
+          appointmentProvider,
+
+          bookingUrl,
+
+          bookingStatus:
+            "link_sent",
+
+          messageBefore:
+            messageBefore ||
+            null,
+
+          messageAfter:
+            messageAfter ||
+            null,
+
+          message,
+
+          ...result,
+        },
+      };
+    }
+
+    case "wait_for_customer_response": {
+      const rawExpectedActions =
+        step.config
+          ?.expectedActions;
+
+      const expectedActions =
+        Array.isArray(
+          rawExpectedActions
+        )
+          ? rawExpectedActions
+              .map(
+                (
+                  value: any
+                ) =>
+                  s(
+                    value
+                  )
+              )
+              .filter(
+                Boolean
+              )
+          : [];
+
+      /*
+       * responseOptions הן הגדרות דינמיות
+       * של ה-Flow הספציפי.
+       *
+       * הן נותנות ל-Resolver / AI משמעות
+       * עסקית לכל Action אפשרי.
+       */
+      const rawResponseOptions =
+        step.config
+          ?.responseOptions;
+
+      const responseOptions:
+        MagicTouchResponseOption[] =
+        Array.isArray(
+          rawResponseOptions
+        )
+          ? rawResponseOptions.reduce(
+              (
+                result:
+                  MagicTouchResponseOption[],
+                option: any
+              ) => {
+                const action =
+                  s(
+                    option
+                      ?.action
+                  );
+
+                if (
+                  !action
+                ) {
+                  return result;
+                }
+
+                const label =
+                  s(
+                    option
+                      ?.label
+                  );
+
+                const description =
+                  s(
+                    option
+                      ?.description
+                  );
+
+                const responseOption:
+                  MagicTouchResponseOption = {
+                    action,
+                  };
+
+                if (
+                  label
+                ) {
+                  responseOption.label =
+                    label;
+                }
+
+                if (
+                  description
+                ) {
+                  responseOption.description =
+                    description;
+                }
+
+                result.push(
+                  responseOption
+                );
+
+                return result;
+              },
+              []
+            )
+          : [];
+
+      /*
+       * promptContext הוא ההקשר שה-Resolver
+       * יצטרך כדי להבין את תשובת הלקוח.
+       *
+       * כרגע אנחנו שומרים את השאלה שה-Flow
+       * שאל. בהמשך ניתן להרחיב את ההקשר
+       * בלי לשנות את מנוע ה-Flow.
+       */
+      const question =
+        resolveMagicTouchStringTemplate(
+          s(
+            step.config
+              ?.promptContext
+              ?.question
+          ),
+          context
+        );
+
+      const resolution =
+        step.config
+          ?.resolution &&
+        typeof step.config
+          .resolution ===
+          "object"
+          ? {
+              mode:
+                normalizeResolutionMode(
+                  step.config
+                    .resolution
+                    .mode
+                ),
+
+              minConfidence:
+                Number.isFinite(
+                  Number(
+                    step.config
+                      .resolution
+                      .minConfidence
+                  )
+                )
+                  ? Number(
+                      step.config
+                        .resolution
+                        .minConfidence
+                    )
+                  : 0.8,
+            }
+          : {
+              mode:
+                "quick_reply_only" as const,
+
+              minConfidence:
+                0.8,
+            };
+
+      return {
+        status:
+          "waiting",
+
+        nextStepId:
+          step.nextStepId ||
+          null,
+
+        waitingFor: {
+          type:
+            "customer_response",
+
+          stepId:
+            step.id,
+
+          resumeStepId:
+            step.nextStepId ||
+            null,
+
+          expectedActions,
+
+          responseOptions,
+
+          resolution,
+
+          promptContext: {
+            question:
+              question ||
+              null,
+          },
+
+          startedAt:
+            nowTs(),
+
+          context: {
+            conversationId:
+              context.run
+                .conversationId ||
+              null,
+
+            contactId:
+              context.run
+                .contactId ||
+              context.event
+                ?.contactId ||
+              null,
+          },
+        },
+
+        output: {
+          waiting:
+            true,
+
+          waitingFor:
+            "customer_response",
+
+          expectedActions,
+
+          responseOptions,
+
+          resolution,
+
+          promptContext: {
+            question:
+              question ||
+              null,
+          },
+        },
+      };
+    }
+
     case "request_documents":
       return executeRequestDocumentsStep({
         context,

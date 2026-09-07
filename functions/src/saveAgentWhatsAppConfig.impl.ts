@@ -124,6 +124,29 @@ function createRegistrationPin(): string {
   );
 }
 
+function isExistingPinRequiredError(
+  error: any
+): boolean {
+  const message =
+    s(
+      error?.message
+    ).toLowerCase();
+
+  return (
+    message.includes(
+      "133005"
+    ) ||
+    message.includes(
+      "pin mismatch"
+    ) ||
+    message.includes(
+      "two step verification"
+    )
+  );
+}
+
+
+
 export async function saveAgentWhatsAppConfigImpl(
   req: any
 ): Promise<object> {
@@ -477,21 +500,39 @@ export async function saveAgentWhatsAppConfigImpl(
           true,
       }
     );
-  } catch (
-    error:
-      any
+ } catch (
+  error:
+    any
+) {
+  const existingPinRequired =
+    isExistingPinRequiredError(
+      error
+    );
+
+  if (
+    existingPinRequired
   ) {
-    await configRef.set(
+    const pinRequiredBatch =
+      (db as any).batch();
+
+    pinRequiredBatch.set(
+      configRef,
       {
         status:
-          "register_failed",
+          "pin_required",
 
         phoneRegistered:
+          false,
+
+        webhookSubscribed:
           false,
 
         provisioningError: {
           stage:
             "register_phone",
+
+          reason:
+            "existing_pin_required",
 
           message:
             error?.message ||
@@ -505,6 +546,9 @@ export async function saveAgentWhatsAppConfigImpl(
 
         updatedAt:
           nowTs(),
+
+        updatedBy:
+          authUid,
       },
       {
         merge:
@@ -512,8 +556,78 @@ export async function saveAgentWhatsAppConfigImpl(
       }
     );
 
-    throw error;
+    pinRequiredBatch.set(
+      phoneMappingRef,
+      {
+        status:
+          "pin_required",
+
+        updatedAt:
+          nowTs(),
+
+        updatedBy:
+          authUid,
+      },
+      {
+        merge:
+          true,
+      }
+    );
+
+    await pinRequiredBatch.commit();
+
+    throw new HttpsError(
+      "failed-precondition",
+      "Existing WhatsApp two-step verification PIN is required",
+      {
+        reason:
+          "existing_pin_required",
+
+        agentId,
+
+        phoneNumberId,
+
+        wabaId,
+      }
+    );
   }
+
+  await configRef.set(
+    {
+      status:
+        "register_failed",
+
+      phoneRegistered:
+        false,
+
+      provisioningError: {
+        stage:
+          "register_phone",
+
+        message:
+          error?.message ||
+          String(
+            error
+          ),
+
+        occurredAt:
+          nowTs(),
+      },
+
+      updatedAt:
+        nowTs(),
+
+      updatedBy:
+        authUid,
+    },
+    {
+      merge:
+        true,
+    }
+  );
+
+  throw error;
+}
 
   /*
    * 4. חיבור ה-WABA ל-Webhook של האפליקציה.

@@ -4,6 +4,7 @@
 
 import { HttpsError } from "firebase-functions/v2/https";
 import { getStorage } from "firebase-admin/storage";
+import { FieldPath } from "firebase-admin/firestore";
 
 import { nowTs } from "./admin";
 import { PORTAL_ENC_KEY_B64 } from "./secrets";
@@ -44,6 +45,17 @@ export type SendMagicTouchTemplateToContactInput = {
   createdBy: string;
 
   conversationId?: string | null;
+
+  /*
+   * אופציונלי.
+   *
+   * כרגע, אם לא נשלח campaignId,
+   * שם התבנית ישמש אוטומטית כמזהה
+   * של הקמפיין/סוג השליחה.
+   *
+   * בעתיד מסך Campaigns יוכל להעביר
+   * campaignId מפורש.
+   */
   campaignId?: string | null;
 };
 
@@ -59,6 +71,8 @@ export type SendMagicTouchTemplateToContactResult = {
   templateName: string;
   templateLanguage: string;
   templateVariables: string[];
+
+  campaignId: string;
 
   timelineEventId: string | null;
 };
@@ -145,6 +159,18 @@ function replaceTemplateVariables(
   return result;
 }
 
+function normalizeCampaignStorageKey(
+  value: unknown
+): string {
+  return safeString(
+    value
+  )
+    .replace(
+      /\./g,
+      "_"
+    )
+    .trim();
+}
 
 function normalizeStoredHeaderMedia(
   rawMedia: unknown
@@ -308,14 +334,19 @@ async function uploadStoredTemplateMediaToWhatsApp({
     "[sendMagicTouchTemplateToContact] Uploading template header media",
     {
       phoneNumberId,
+
       type:
         headerMedia.type,
+
       storagePath:
         headerMedia.storagePath,
+
       fileName:
         headerMedia.fileName,
+
       mimeType:
         headerMedia.mimeType,
+
       bytes:
         fileBuffer.length,
     }
@@ -354,8 +385,10 @@ async function uploadStoredTemplateMediaToWhatsApp({
       "[sendMagicTouchTemplateToContact] Meta media upload error",
       {
         phoneNumberId,
+
         storagePath:
           headerMedia.storagePath,
+
         response:
           mediaResponseData,
       }
@@ -374,7 +407,9 @@ async function uploadStoredTemplateMediaToWhatsApp({
     "[sendMagicTouchTemplateToContact] Template header media uploaded",
     {
       phoneNumberId,
+
       mediaId,
+
       storagePath:
         headerMedia.storagePath,
     }
@@ -517,17 +552,23 @@ export async function loadMagicTouchWhatsAppTemplateContext({
     {
       agentId:
         normalizedAgentId,
+
       templateName:
         normalizedTemplateName,
+
       templateStatus,
+
       bodyVariableCount,
+
       hasHeaderMedia:
         Boolean(
           headerMedia
         ),
+
       headerMediaType:
         headerMedia?.type ||
         null,
+
       storagePath:
         headerMedia?.storagePath ||
         null,
@@ -626,11 +667,34 @@ export async function sendMagicTouchTemplateToContact(
       input.createdBy
     );
 
-  const campaignId =
+  /*
+   * אם בעתיד נשלח campaignId מפורש,
+   * הוא יהיה המזהה העסקי של הקמפיין.
+   *
+   * כרגע, בשליחה רגילה של תבנית,
+   * שם התבנית משמש אוטומטית כמזהה.
+   */
+  const explicitCampaignId =
     safeString(
       input.campaignId
     ) ||
     null;
+
+  const campaignId =
+    explicitCampaignId ||
+    safeString(
+      context.templateName
+    );
+
+  const campaignSource =
+    explicitCampaignId
+      ? "campaign"
+      : "template";
+
+  const campaignStorageKey =
+    normalizeCampaignStorageKey(
+      campaignId
+    );
 
   if (
     !agentId ||
@@ -640,6 +704,16 @@ export async function sendMagicTouchTemplateToContact(
     throw new HttpsError(
       "invalid-argument",
       "Missing agentId, contactId or createdBy"
+    );
+  }
+
+  if (
+    !campaignId ||
+    !campaignStorageKey
+  ) {
+    throw new HttpsError(
+      "failed-precondition",
+      "Unable to determine WhatsApp campaign identifier"
     );
   }
 
@@ -784,24 +858,36 @@ export async function sendMagicTouchTemplateToContact(
     "[sendMagicTouchTemplateToContact] Sending template",
     {
       agentId,
+
       contactId,
+
       campaignId,
+
+      campaignSource,
+
       to:
         phoneNormalized,
+
       templateName:
         context.templateName,
+
       templateLanguage:
         context.templateLanguage,
+
       bodyVariableCount:
         templateVariables.length,
+
       hasHeaderMedia:
         Boolean(
           context.headerMedia
         ),
+
       headerMediaType:
         context.headerMedia?.type ||
         null,
+
       sentHeaderMediaId,
+
       components:
         templateComponents.map(
           (component) =>
@@ -864,10 +950,14 @@ export async function sendMagicTouchTemplateToContact(
       "[sendMagicTouchTemplateToContact] Meta error",
       {
         agentId,
+
         contactId,
+
         campaignId,
+
         httpStatus:
           response.status,
+
         response:
           responseData,
       }
@@ -896,7 +986,9 @@ export async function sendMagicTouchTemplateToContact(
   const messageRef =
     conversationRef
       .collection("messages")
-      .doc(waMessageId);
+      .doc(
+        waMessageId
+      );
 
   const timestamp =
     nowTs();
@@ -908,6 +1000,67 @@ export async function sendMagicTouchTemplateToContact(
           templateVariables
         )
       : `נשלחה תבנית WhatsApp: ${context.templateName}`;
+
+  /*
+   * רשומת מצב הקמפיין אצל הלקוח.
+   *
+   * כרגע Meta כבר קיבלה את ההודעה
+   * והחזירה waMessageId ולכן אנחנו
+   * מסמנים אותה כ-sent.
+   *
+   * ה-Webhook יעדכן בהמשך:
+   * delivered / read / failed.
+   *
+   * replied יעודכן בהמשך מתוך
+   * הודעה נכנסת של הלקוח.
+   */
+  const campaignStatus = {
+    campaignId,
+
+    campaignSource,
+
+    templateName:
+      context.templateName,
+
+    templateLanguage:
+      context.templateLanguage,
+
+    status:
+      "sent",
+
+    waMessageId,
+
+    conversationId,
+
+    phoneNumberId:
+      context.phoneNumberId,
+
+    sentAt:
+      timestamp,
+
+    deliveredAt:
+      null,
+
+    readAt:
+      null,
+
+    repliedAt:
+      null,
+
+    failedAt:
+      null,
+
+    failureCode:
+      null,
+
+    failureReason:
+      null,
+
+    createdBy,
+
+    updatedAt:
+      timestamp,
+  };
 
   await Promise.all([
     conversationRef.set(
@@ -967,6 +1120,8 @@ export async function sendMagicTouchTemplateToContact(
         conversationId,
 
         campaignId,
+
+        campaignSource,
 
         direction:
           "outbound",
@@ -1031,6 +1186,10 @@ export async function sendMagicTouchTemplateToContact(
       }
     ),
 
+    /*
+     * שמירת נתוני WhatsApp הכלליים
+     * על איש הקשר.
+     */
     contactRef.set(
       {
         lastOutboundAt:
@@ -1053,6 +1212,22 @@ export async function sendMagicTouchTemplateToContact(
           true,
       }
     ),
+
+    /*
+     * שמירת הקמפיין/התבנית הספציפית.
+     *
+     * FieldPath חשוב כאן כדי שנשמור
+     * רק את הקמפיין הנוכחי ולא נדרוס
+     * Campaigns קודמים של אותו לקוח.
+     */
+    contactRef.update(
+      new FieldPath(
+        "engagement",
+        "campaigns",
+        campaignStorageKey
+      ),
+      campaignStatus
+    ),
   ]);
 
   let timelineEventId:
@@ -1062,6 +1237,7 @@ export async function sendMagicTouchTemplateToContact(
     const timelineResult =
       await addMagicTouchTimelineEvent({
         agentId,
+
         contactId,
 
         type:
@@ -1071,7 +1247,7 @@ export async function sendMagicTouchTemplateToContact(
           "whatsapp",
 
         title:
-          campaignId
+          explicitCampaignId
             ? "נשלחה תבנית WhatsApp בקמפיין"
             : "נשלחה תבנית WhatsApp",
 
@@ -1094,9 +1270,14 @@ export async function sendMagicTouchTemplateToContact(
 
         metadata: {
           waMessageId,
+
           conversationId,
 
           campaignId,
+
+          campaignSource,
+
+          explicitCampaignId,
 
           phoneNumberId:
             context.phoneNumberId,
@@ -1140,8 +1321,11 @@ export async function sendMagicTouchTemplateToContact(
       "[sendMagicTouchTemplateToContact] Timeline event failed",
       {
         agentId,
+
         contactId,
+
         campaignId,
+
         waMessageId,
 
         error:
@@ -1155,9 +1339,11 @@ export async function sendMagicTouchTemplateToContact(
 
   return {
     agentId,
+
     contactId,
 
     conversationId,
+
     waMessageId,
 
     phoneNormalized,
@@ -1169,6 +1355,8 @@ export async function sendMagicTouchTemplateToContact(
       context.templateLanguage,
 
     templateVariables,
+
+    campaignId,
 
     timelineEventId,
   };

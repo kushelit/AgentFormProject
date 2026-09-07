@@ -1,12 +1,14 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 export type SurenseActionKey =
+  | "findCustomer"
   | "closeWorkflow"
   | "createPowerOfAttorney"
   | "getCustomer";
 
 export type SurenseCapabilityKey =
   | "searchCustomers"
+  | "findCustomer"
   | "createWorkflow"
   | "updateWorkflow"
   | "closeWorkflow"

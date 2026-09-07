@@ -279,10 +279,10 @@ export async function startMicrosoftBookingsAuthImpl(
    * מאפשר לבחור חשבון כאשר המשתמש כבר מחובר
    * ליותר מחשבון Microsoft אחד.
    */
-  authUrl.searchParams.set(
-    "prompt",
-    "select_account"
-  );
+ authUrl.searchParams.set(
+  "prompt",
+  "consent"
+);
 
   console.info(
     "[startMicrosoftBookingsAuth] OAuth connection started",

@@ -44,6 +44,24 @@ function normalizeStringArray(
     );
 }
 
+function normalizeRecord(
+  value: unknown
+): Record<string, any> | null {
+  if (
+    !value ||
+    typeof value !==
+      "object" ||
+    Array.isArray(
+      value
+    )
+  ) {
+    return null;
+  }
+
+  return value as
+    Record<string, any>;
+}
+
 export async function syncMagicTouchHumanAttentionImpl(
   event: any
 ): Promise<void> {
@@ -84,7 +102,8 @@ export async function syncMagicTouchHumanAttentionImpl(
    * מטפלים רק בשני מצבים:
    *
    * human_attention:
-   * המערכת לא הצליחה לפתור את הודעת הלקוח אוטומטית.
+   * המערכת לא הצליחה לפתור מצב אוטומטית
+   * ונדרשת התערבות אנושית.
    *
    * continue_flow:
    * התקבלה תשובה תקינה וה-Flow ממשיך.
@@ -292,6 +311,24 @@ export async function syncMagicTouchHumanAttentionImpl(
       ) ||
       null;
 
+  /*
+ * context מכיל מידע עסקי נוסף
+ * שה-Step שמבקש טיפול אנושי שמר.
+ *
+ * לדוגמה בחיפוש Surense פנימי:
+ * - fullName
+ * - matchCount
+ * - candidates
+ * - provider
+ * - action
+ */
+
+    const waitingContext =
+      normalizeRecord(
+        waitingFor
+          ?.context
+      );
+
     const flowName =
       s(
         runData
@@ -333,6 +370,14 @@ export async function syncMagicTouchHumanAttentionImpl(
       expectedActions,
 
       responseOptions,
+
+      /*
+       * שומרים את ה-context המלא
+       * כדי שמסך הטיפול האנושי יוכל
+       * להציג את פרטי הבעיה והמועמדים.
+       */
+      context:
+        waitingContext,
 
       customerMessage:
         messageText,
@@ -410,6 +455,9 @@ export async function syncMagicTouchHumanAttentionImpl(
               responseOptions:
                 attention.responseOptions,
 
+              context:
+                attention.context,
+
               createdAt:
                 timestamp,
 
@@ -452,6 +500,11 @@ export async function syncMagicTouchHumanAttentionImpl(
 
         reason:
           attention.reason,
+
+        waitingForType,
+
+        context:
+          waitingContext,
       }
     );
 

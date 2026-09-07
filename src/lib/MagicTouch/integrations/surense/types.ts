@@ -4,6 +4,7 @@ export type SurenseProvider =
 
 export type SurenseSystemAction =
   | "searchCustomers"
+  | "findCustomer"
   | "createWorkflow"
   | "updateWorkflow"
   | "closeWorkflow"
@@ -26,6 +27,9 @@ export type SurenseSystemActionConfig = {
 export type SurenseSystemIntegrationConfig = {
   actions: {
     searchCustomers:
+      SurenseSystemActionConfig;
+
+    findCustomer:
       SurenseSystemActionConfig;
 
     createWorkflow:
@@ -83,6 +87,9 @@ export type SurenseIntegrationConfig = {
 
   actions: {
     searchCustomers:
+      SurenseActionConfig;
+
+    findCustomer:
       SurenseActionConfig;
 
     createWorkflow:

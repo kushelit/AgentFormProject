@@ -52,17 +52,26 @@ function s(
   ).trim();
 }
 
-
 function getMagicSaleReturnUrl(
   params: Record<string, string>
 ): string {
-  const url = new URL(
-    "/MagicTouch/Integrations/GoogleCalendarSettings",
-    APP_BASE_URL
-  );
+  const url =
+    new URL(
+      "/MagicTouch/Integrations/GoogleCalendarSettings",
+      APP_BASE_URL
+    );
 
-  for (const [key, value] of Object.entries(params)) {
-    if (value) {
+  for (
+    const [
+      key,
+      value,
+    ] of Object.entries(
+      params
+    )
+  ) {
+    if (
+      value
+    ) {
       url.searchParams.set(
         key,
         value
@@ -193,7 +202,8 @@ async function exchangeGoogleAuthorizationCode(
           ?.error_description
       ) ||
       s(
-        payload?.error
+        payload
+          ?.error
       ) ||
       "Google token exchange failed"
     );
@@ -332,6 +342,46 @@ export async function googleCalendarOAuthCallbackImpl(
           .agentId
       );
 
+    if (
+      !agentId
+    ) {
+      throw new HttpsError(
+        "failed-precondition",
+        "OAuth state does not contain an agentId"
+      );
+    }
+
+    const db =
+      adminDb();
+
+    const configRef =
+      (db as any).doc(
+        `agents/${agentId}/config/googleCalendar`
+      );
+
+    const secretRef =
+      (db as any).doc(
+        `agents/${agentId}/secrets/googleCalendar`
+      );
+
+    const connectionIndexRef =
+      (db as any).doc(
+        `google_calendar_connections/${agentId}`
+      );
+
+    /*
+     * קוראים את ההגדרה הקיימת לפני OAuth reconnect,
+     * כדי שלא נאבד את היומן שהסוכן בחר
+     * ואת קישור ה-Appointment Schedule.
+     */
+    const existingConfigSnap =
+      await configRef.get();
+
+    const existingConfig =
+      existingConfigSnap.exists
+        ? existingConfigSnap.data()
+        : {};
+
     const tokenResponse =
       await exchangeGoogleAuthorizationCode(
         code,
@@ -361,8 +411,11 @@ export async function googleCalendarOAuthCallbackImpl(
     }
 
     /*
-     * בחיבור ראשון עם access_type=offline
-     * אנחנו מצפים ל-refresh token.
+     * startGoogleCalendarAuth משתמש ב:
+     * access_type=offline
+     * prompt=consent
+     * ולכן בחיבור / reconnect אנחנו מצפים
+     * ל-refresh token חדש.
      */
     if (
       !refreshToken
@@ -394,7 +447,9 @@ export async function googleCalendarOAuthCallbackImpl(
             summary:
               s(
                 calendar
-                  ?.summary
+                  ?.summary ||
+                calendar
+                  ?.id
               ),
 
             description:
@@ -434,8 +489,29 @@ export async function googleCalendarOAuthCallbackImpl(
             )
         );
 
+    const writableCalendars =
+      availableCalendars.filter(
+        (
+          calendar:
+            any
+        ) => {
+          const role =
+            s(
+              calendar
+                ?.accessRole
+            ).toLowerCase();
+
+          return (
+            role ===
+              "owner" ||
+            role ===
+              "writer"
+          );
+        }
+      );
+
     const primaryCalendar =
-      availableCalendars.find(
+      writableCalendars.find(
         (
           calendar:
             any
@@ -446,19 +522,33 @@ export async function googleCalendarOAuthCallbackImpl(
       ) ||
       null;
 
-    /*
-     * אם יש Primary Calendar,
-     * נבחר אותו אוטומטית להתחלה.
-     * בהמשך ה-UI יאפשר לסוכן
-     * לבחור Calendar אחר.
-     */
+    const existingSelectedCalendarId =
+      s(
+        existingConfig
+          ?.selectedCalendarId
+      );
+
+    const existingSelectedCalendar =
+      existingSelectedCalendarId
+        ? writableCalendars.find(
+            (
+              calendar:
+                any
+            ) =>
+              calendar.id ===
+              existingSelectedCalendarId
+          ) ||
+          null
+        : null;
+
     const selectedCalendar =
+      existingSelectedCalendar ||
       primaryCalendar ||
       (
-        availableCalendars
+        writableCalendars
           .length ===
         1
-          ? availableCalendars[
+          ? writableCalendars[
             0
           ]
           : null
@@ -515,34 +605,21 @@ export async function googleCalendarOAuthCallbackImpl(
         }
       );
 
-    const db =
-      adminDb();
-
-    const configRef =
-      (db as any).doc(
-        `agents/${agentId}/config/googleCalendar`
-      );
-
-    const secretRef =
-      (db as any).doc(
-        `agents/${agentId}/secrets/googleCalendar`
-      );
-
-    const connectionIndexRef =
-      (db as any).doc(
-        `google_calendar_connections/${agentId}`
-      );
-
-    /*
-     * ב-Primary Calendar,
-     * ה-id הוא בדרך כלל כתובת החשבון.
-     * נשמור אותו כ-connectedGoogleAccount
-     * לצורכי תצוגה בלבד.
-     */
     const connectedGoogleAccount =
       s(
         primaryCalendar
           ?.id
+      ) ||
+      s(
+        existingConfig
+          ?.googleAccount
+      ) ||
+      null;
+
+    const existingBookingUrl =
+      s(
+        existingConfig
+          ?.defaultBookingUrl
       ) ||
       null;
 
@@ -583,12 +660,8 @@ export async function googleCalendarOAuthCallbackImpl(
             ?.timeZone ||
           null,
 
-        /*
-         * Appointment Schedule URL
-         * יוזן בשלב הבא של ה-Onboarding.
-         */
         defaultBookingUrl:
-          null,
+          existingBookingUrl,
 
         scope:
           s(
@@ -674,10 +747,24 @@ export async function googleCalendarOAuthCallbackImpl(
           availableCalendars
             .length,
 
+        writableCalendarCount:
+          writableCalendars
+            .length,
+
         selectedCalendarId:
           selectedCalendar
             ?.id ||
           null,
+
+        preservedExistingCalendar:
+          Boolean(
+            existingSelectedCalendar
+          ),
+
+        preservedBookingUrl:
+          Boolean(
+            existingBookingUrl
+          ),
 
         hasPrimaryCalendar:
           Boolean(

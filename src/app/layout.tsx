@@ -47,20 +47,40 @@ export default function RootLayout({
   const isMagicTouchPrivacyPage =
     pathname === '/MagicTouchPrivacy';
 
+  /*
+   * עמוד העלאת מסמכים מאובטח ללקוח.
+   *
+   * מבנה הקישור:
+   * /MagicTouchUpload/{agentId}/{requestId}?token=...
+   *
+   * זהו עמוד ציבורי שנשלח ללקוח ולכן
+   * אסור להציג בו את ה-TopBar / Navbar
+   * של מערכת MagicSale.
+   */
+  const isMagicTouchUploadPage =
+    pathname === '/MagicTouchUpload' ||
+    pathname.startsWith('/MagicTouchUpload/');
+
   // כל האזור הציבורי של MagicTouch
   const isMagicTouchPublicPage =
     isMagicTouchLandingPage ||
     isMagicTouchSignupPage ||
     isMagicTouchTermsPage ||
-    isMagicTouchPrivacyPage;
+    isMagicTouchPrivacyPage ||
+    isMagicTouchUploadPage;
 
   // =========================================================
   // עמודים מיוחדים נוספים
   // =========================================================
 
-  const isOtpPage = pathname.startsWith('/otp');
-  const isAuthPage = pathname.startsWith('/auth');
-  const isHomePage = pathname === '/home';
+  const isOtpPage =
+    pathname.startsWith('/otp');
+
+  const isAuthPage =
+    pathname.startsWith('/auth');
+
+  const isHomePage =
+    pathname === '/home';
 
   // =========================================================
   // Landing / Public pages
@@ -106,7 +126,8 @@ export default function RootLayout({
   // Auth wrapper
   // =========================================================
 
-  const wrapInBox = isAuthPage;
+  const wrapInBox =
+    isAuthPage;
 
   // =========================================================
   // Idle Session
@@ -124,13 +145,17 @@ export default function RootLayout({
   return (
     <html lang="he" dir="rtl">
       <head>
-         {/* Google Search Console Verification */}
- <meta
-  name="google-site-verification"
-  content="6p1HoKFD9X2UMgstFD7UnMhxJ8hw7atQFfisjyJbhNU"
-/>
+        {/* Google Search Console Verification */}
+        <meta
+          name="google-site-verification"
+          content="6p1HoKFD9X2UMgstFD7UnMhxJ8hw7atQFfisjyJbhNU"
+        />
+
         {/* PWA */}
-        <link rel="manifest" href="/manifest.json" />
+        <link
+          rel="manifest"
+          href="/manifest.json"
+        />
 
         <meta
           name="theme-color"
