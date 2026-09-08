@@ -136,6 +136,17 @@ type HumanAttentionView =
       null;
   };
 
+type ConversationHoverPreview = {
+  text: string;
+  direction:
+    | 'inbound'
+    | 'outbound'
+    | null;
+  customerName: string;
+  top: number;
+  left: number;
+};
+
 function formatPhoneNumber(
   phone: string
 ): string {
@@ -410,6 +421,15 @@ export default function MagicTouchConversationsPage() {
   ] =
     useState('');
 
+  const [
+    hoverPreview,
+    setHoverPreview,
+  ] =
+    useState<
+      ConversationHoverPreview |
+      null
+    >(null);
+
   const errorMessage =
     sendErrorMessage ||
     conversationsError;
@@ -466,11 +486,126 @@ export default function MagicTouchConversationsPage() {
       ''
     ).trim();
 
+  const handleConversationMouseEnter =
+    (
+      event:
+        React.MouseEvent<HTMLButtonElement>,
+      conversation:
+        MagicTouchConversation
+    ) => {
+      const text =
+        String(
+          conversation
+            .lastMessageText ||
+          ''
+        ).trim();
+
+      if (
+        !text
+      ) {
+        setHoverPreview(
+          null
+        );
+
+        return;
+      }
+
+      const rect =
+        event.currentTarget
+          .getBoundingClientRect();
+
+      const previewWidth =
+        330;
+
+      const previewHeight =
+        150;
+
+      const gap =
+        12;
+
+      let left =
+        rect.left -
+        previewWidth -
+        gap;
+
+      if (
+        left <
+        12
+      ) {
+        left =
+          rect.right +
+          gap;
+      }
+
+      if (
+        left +
+          previewWidth >
+        window.innerWidth -
+          12
+      ) {
+        left =
+          Math.max(
+            12,
+            window.innerWidth -
+              previewWidth -
+              12
+          );
+      }
+
+      let top =
+        rect.top;
+
+      if (
+        top +
+          previewHeight >
+        window.innerHeight -
+          12
+      ) {
+        top =
+          Math.max(
+            12,
+            window.innerHeight -
+              previewHeight -
+              12
+          );
+      }
+
+      setHoverPreview({
+        text,
+
+        direction:
+          conversation
+            .lastMessageDirection ||
+          null,
+
+        customerName:
+          conversation.customerName ||
+          formatPhoneNumber(
+            conversation.customerPhone
+          ),
+
+        top,
+
+        left,
+      });
+    };
+
+  const handleConversationMouseLeave =
+    () => {
+      setHoverPreview(
+        null
+      );
+    };
+
   const handleSelectConversation =
     async (
       conversationId:
         string
     ) => {
+      setHoverPreview(
+        null
+      );
+
       setReplyText(
         ''
       );
@@ -702,6 +837,47 @@ export default function MagicTouchConversationsPage() {
       dir="rtl"
       className="w-full"
     >
+      {hoverPreview ? (
+        <div
+          className="pointer-events-none fixed z-[9999] w-[330px] rounded-xl border border-slate-200 bg-white p-3 text-right shadow-2xl"
+          style={{
+            top:
+              hoverPreview.top,
+
+            left:
+              hoverPreview.left,
+          }}
+        >
+          <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-2">
+            <div className="truncate text-xs font-bold text-slate-700">
+              {
+                hoverPreview.customerName
+              }
+            </div>
+
+            <div
+              className={`flex-shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                hoverPreview.direction ===
+                'outbound'
+                  ? 'bg-green-100 text-green-700'
+                  : 'bg-blue-100 text-blue-700'
+              }`}
+            >
+              {hoverPreview.direction ===
+              'outbound'
+                ? 'נשלחה'
+                : 'התקבלה'}
+            </div>
+          </div>
+
+          <div className="mt-2 max-h-[120px] overflow-hidden whitespace-pre-wrap break-words text-sm leading-6 text-slate-700">
+            {
+              hoverPreview.text
+            }
+          </div>
+        </div>
+      ) : null}
+
       <div className="mx-auto max-w-7xl">
         <header className="mb-6">
           <div className="text-sm font-medium text-blue-700">
@@ -915,6 +1091,17 @@ export default function MagicTouchConversationsPage() {
                             conversation.id
                           }
                           type="button"
+                          onMouseEnter={(
+                            event
+                          ) =>
+                            handleConversationMouseEnter(
+                              event,
+                              conversation
+                            )
+                          }
+                          onMouseLeave={
+                            handleConversationMouseLeave
+                          }
                           onClick={() =>
                             void handleSelectConversation(
                               conversation.id
