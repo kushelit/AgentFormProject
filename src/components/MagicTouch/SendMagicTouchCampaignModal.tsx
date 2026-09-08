@@ -45,9 +45,34 @@ type WhatsAppTemplate = {
   } | null;
 };
 
+export type MagicTouchCampaignSummary = {
+  campaignId: string;
+  agentId: string;
+  name: string;
+  channel: string;
+  templateName: string;
+  templateLanguage?: string | null;
+  status: string;
+  lastBatchStatus?: string | null;
+  totalContacts: number;
+  sentCount: number;
+  failedCount: number;
+  processedCount: number;
+  createdBy?: string | null;
+  createdByName?: string | null;
+  startedAt?: number | null;
+  createdAt?: number | null;
+  updatedAt?: number | null;
+  lastBatchCompletedAt?: number | null;
+  completedAt?: number | null;
+};
+
 type CampaignResultItem = {
   contactId: string;
   ok: boolean;
+
+  skipped?: boolean;
+  skipReason?: string;
 
   waMessageId?: string;
   conversationId?: string;
@@ -55,7 +80,7 @@ type CampaignResultItem = {
   error?: string;
 };
 
-type SendCampaignResponse = {
+export type SendCampaignResponse = {
   ok: boolean;
   partialSuccess: boolean;
 
@@ -66,13 +91,23 @@ type SendCampaignResponse = {
   templateName: string;
 
   received: number;
+  added?: number;
+  skipped?: number;
   sent: number;
   failed: number;
+
+  totalContacts?: number;
+  totalSent?: number;
+  totalFailed?: number;
+  totalProcessed?: number;
 
   status:
     | 'completed'
     | 'completed_with_errors'
     | 'failed';
+
+  campaignStatus?: string;
+  lastBatchStatus?: string;
 
   results: CampaignResultItem[];
 };
@@ -80,6 +115,9 @@ type SendCampaignResponse = {
 type Props = {
   agentId: string;
   contactIds: string[];
+
+  campaigns: MagicTouchCampaignSummary[];
+  preselectedCampaignId?: string | null;
 
   selectedContactName?: string | null;
 
@@ -90,6 +128,10 @@ type Props = {
       result: SendCampaignResponse
     ) => void | Promise<void>;
 };
+
+type SendMode =
+  | 'existing'
+  | 'new';
 
 function replaceTemplatePreview(
   bodyText: string,
@@ -104,9 +146,54 @@ function replaceTemplatePreview(
   );
 }
 
+function campaignStatusLabel(
+  status: string
+): string {
+  switch (
+    status
+  ) {
+    case 'active':
+      return 'פעיל';
+
+    case 'completed':
+      return 'היסטורי';
+
+    case 'completed_with_errors':
+      return 'היסטורי עם שגיאות';
+
+    case 'failed':
+      return 'נכשל בעבר';
+
+    case 'archived':
+      return 'בארכיון';
+
+    default:
+      return status ||
+        'פעיל';
+  }
+}
+
+function shortCampaignId(
+  campaignId: string
+): string {
+  if (
+    campaignId.length <=
+    8
+  ) {
+    return campaignId;
+  }
+
+  return campaignId.slice(
+    0,
+    8
+  );
+}
+
 export default function SendMagicTouchCampaignModal({
   agentId,
   contactIds,
+  campaigns,
+  preselectedCampaignId,
   selectedContactName,
   onClose,
   onSent,
@@ -130,6 +217,25 @@ export default function SendMagicTouchCampaignModal({
     setCampaignName,
   ] =
     useState('');
+
+  const [
+    sendMode,
+    setSendMode,
+  ] =
+    useState<SendMode>(
+      preselectedCampaignId
+        ? 'existing'
+        : 'new'
+    );
+
+  const [
+    selectedCampaignId,
+    setSelectedCampaignId,
+  ] =
+    useState(
+      preselectedCampaignId ||
+        ''
+    );
 
   const [
     isLoadingTemplates,
@@ -168,6 +274,87 @@ export default function SendMagicTouchCampaignModal({
     setTemplateSearch,
   ] =
     useState('');
+
+  const availableCampaigns =
+    useMemo(
+      () =>
+        campaigns
+          .filter(
+            (
+              campaign
+            ) =>
+              campaign.status !==
+              'archived'
+          )
+          .sort(
+            (
+              first,
+              second
+            ) => {
+              const firstActive =
+                first.status ===
+                'active'
+                  ? 1
+                  : 0;
+
+              const secondActive =
+                second.status ===
+                'active'
+                  ? 1
+                  : 0;
+
+              if (
+                firstActive !==
+                secondActive
+              ) {
+                return (
+                  secondActive -
+                  firstActive
+                );
+              }
+
+              return (
+                Number(
+                  second.updatedAt ||
+                    second.createdAt ||
+                    0
+                ) -
+                Number(
+                  first.updatedAt ||
+                    first.createdAt ||
+                    0
+                )
+              );
+            }
+          ),
+      [
+        campaigns,
+      ]
+    );
+
+  useEffect(() => {
+    if (
+      preselectedCampaignId &&
+      campaigns.some(
+        (
+          campaign
+        ) =>
+          campaign.campaignId ===
+          preselectedCampaignId
+      )
+    ) {
+      setSendMode(
+        'existing'
+      );
+
+      setSelectedCampaignId(
+        preselectedCampaignId
+      );
+    }
+  }, [
+    campaigns,
+    preselectedCampaignId,
+  ]);
 
   useEffect(() => {
     if (!agentId) {
@@ -216,7 +403,7 @@ export default function SendMagicTouchCampaignModal({
                   name:
                     String(
                       data?.name ||
-                      templateDoc.id
+                        templateDoc.id
                     ),
 
                   category:
@@ -238,7 +425,7 @@ export default function SendMagicTouchCampaignModal({
                   bodyVariableCount:
                     Number(
                       data?.bodyVariableCount ||
-                      0
+                        0
                     ),
 
                   bodyExamples:
@@ -274,12 +461,12 @@ export default function SendMagicTouchCampaignModal({
                     (
                       String(
                         data.headerMedia?.type ||
-                        ''
+                          ''
                       ).toUpperCase() ===
                         'DOCUMENT' ||
                       String(
                         data.headerMedia?.type ||
-                        ''
+                          ''
                       ).toUpperCase() ===
                         'IMAGE'
                     )
@@ -304,39 +491,39 @@ export default function SendMagicTouchCampaignModal({
                             String(
                               data.headerMedia
                                 ?.fileName ||
-                              (
-                                String(
-                                  data.headerMedia
-                                    ?.type ||
-                                  ''
-                                ).toUpperCase() ===
-                                'DOCUMENT'
-                                  ? 'document.pdf'
-                                  : 'image'
-                              )
+                                (
+                                  String(
+                                    data.headerMedia
+                                      ?.type ||
+                                      ''
+                                  ).toUpperCase() ===
+                                  'DOCUMENT'
+                                    ? 'document.pdf'
+                                    : 'image'
+                                )
                             ),
 
                           mimeType:
                             String(
                               data.headerMedia
                                 ?.mimeType ||
-                              (
-                                String(
-                                  data.headerMedia
-                                    ?.type ||
-                                  ''
-                                ).toUpperCase() ===
-                                'DOCUMENT'
-                                  ? 'application/pdf'
-                                  : 'image/jpeg'
-                              )
+                                (
+                                  String(
+                                    data.headerMedia
+                                      ?.type ||
+                                      ''
+                                  ).toUpperCase() ===
+                                  'DOCUMENT'
+                                    ? 'application/pdf'
+                                    : 'image/jpeg'
+                                )
                             ),
 
                           size:
                             Number(
                               data.headerMedia
                                 ?.size ||
-                              0
+                                0
                             ),
                         }
                       : null,
@@ -396,9 +583,7 @@ export default function SendMagicTouchCampaignModal({
 
           setTemplates([]);
           setSelectedTemplateName('');
-          setIsLoadingTemplates(
-            false
-          );
+          setIsLoadingTemplates(false);
 
           setErrorMessage(
             error.message ||
@@ -413,6 +598,31 @@ export default function SendMagicTouchCampaignModal({
   }, [
     agentId,
   ]);
+
+  const selectedCampaign =
+    useMemo(
+      () =>
+        availableCampaigns.find(
+          (
+            campaign
+          ) =>
+            campaign.campaignId ===
+            selectedCampaignId
+        ) ||
+        null,
+      [
+        availableCampaigns,
+        selectedCampaignId,
+      ]
+    );
+
+  const effectiveTemplateName =
+    sendMode ===
+      'existing'
+      ? selectedCampaign
+          ?.templateName ||
+        ''
+      : selectedTemplateName;
 
   const filteredTemplates =
     useMemo(
@@ -432,9 +642,12 @@ export default function SendMagicTouchCampaignModal({
           ) =>
             [
               template.name,
-              template.category || '',
-              template.language || '',
-              template.bodyText || '',
+              template.category ||
+                '',
+              template.language ||
+                '',
+              template.bodyText ||
+                '',
             ].some(
               (
                 value
@@ -463,12 +676,12 @@ export default function SendMagicTouchCampaignModal({
             template
           ) =>
             template.name ===
-            selectedTemplateName
+            effectiveTemplateName
         ) ||
         null,
       [
         templates,
-        selectedTemplateName,
+        effectiveTemplateName,
       ]
     );
 
@@ -508,6 +721,21 @@ export default function SendMagicTouchCampaignModal({
         )
       : '';
 
+  const canSend =
+    Boolean(
+      agentId &&
+      contactIds.length >
+        0 &&
+      (
+        sendMode ===
+          'existing'
+          ? selectedCampaign &&
+            effectiveTemplateName
+          : campaignName.trim() &&
+            selectedTemplateName
+      )
+    );
+
   const handleSend =
     async () => {
       if (
@@ -535,12 +763,53 @@ export default function SendMagicTouchCampaignModal({
       }
 
       if (
-        !selectedTemplateName
+        contactIds.length >
+        100
       ) {
         setErrorMessage(
-          'יש לבחור תבנית WhatsApp מאושרת.'
+          'ניתן לשלוח עד 100 אנשי קשר בכל פעימת שליחה.'
         );
         return;
+      }
+
+      if (
+        sendMode ===
+        'existing'
+      ) {
+        if (!selectedCampaign) {
+          setErrorMessage(
+            'יש לבחור קמפיין קיים.'
+          );
+          return;
+        }
+
+        if (
+          !selectedCampaign
+            .templateName
+        ) {
+          setErrorMessage(
+            'לקמפיין שנבחר לא משויכת תבנית WhatsApp.'
+          );
+          return;
+        }
+      } else {
+        if (
+          !campaignName.trim()
+        ) {
+          setErrorMessage(
+            'יש להזין שם לקמפיין.'
+          );
+          return;
+        }
+
+        if (
+          !selectedTemplateName
+        ) {
+          setErrorMessage(
+            'יש לבחור תבנית WhatsApp מאושרת.'
+          );
+          return;
+        }
       }
 
       if (!isConfirming) {
@@ -558,7 +827,8 @@ export default function SendMagicTouchCampaignModal({
             {
               agentId: string;
               contactIds: string[];
-              templateName: string;
+              campaignId?: string;
+              templateName?: string;
               campaignName?: string;
             },
             SendCampaignResponse
@@ -568,18 +838,25 @@ export default function SendMagicTouchCampaignModal({
           );
 
         const response =
-          await fn({
-            agentId,
-
-            contactIds,
-
-            templateName:
-              selectedTemplateName,
-
-            campaignName:
-              campaignName.trim() ||
-              undefined,
-          });
+          await fn(
+            sendMode ===
+              'existing'
+              ? {
+                  agentId,
+                  contactIds,
+                  campaignId:
+                    selectedCampaign
+                      ?.campaignId,
+                }
+              : {
+                  agentId,
+                  contactIds,
+                  templateName:
+                    selectedTemplateName,
+                  campaignName:
+                    campaignName.trim(),
+                }
+          );
 
         setResult(
           response.data
@@ -613,6 +890,23 @@ export default function SendMagicTouchCampaignModal({
         !item.ok
     ) ||
     [];
+
+  const skippedResults =
+    result?.results?.filter(
+      (
+        item
+      ) =>
+        item.skipped ===
+        true
+    ) ||
+    [];
+
+  const displayCampaignName =
+    sendMode ===
+      'existing'
+      ? selectedCampaign?.name ||
+        ''
+      : campaignName.trim();
 
   return (
     <div
@@ -649,7 +943,7 @@ export default function SendMagicTouchCampaignModal({
               <strong className="font-semibold text-slate-700">
                 {contactIds.length}
               </strong>{' '}
-              אנשי קשר
+              אנשי קשר לפעימה הנוכחית
             </p>
           </div>
 
@@ -692,11 +986,27 @@ export default function SendMagicTouchCampaignModal({
                     ' '
                   )}
                 >
-                  <h3 className="text-lg font-bold text-slate-900">
-                    תוצאות השליחה
-                  </h3>
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <h3 className="text-lg font-bold text-slate-900">
+                        הפעימה הסתיימה
+                      </h3>
 
-                  <div className="mt-4 grid grid-cols-3 gap-3 text-center">
+                      <p className="mt-1 text-sm text-slate-500">
+                        הקמפיין{' '}
+                        <strong className="text-slate-700">
+                          {result.campaignName}
+                        </strong>{' '}
+                        נשאר פעיל וניתן לשלוח אליו פעימות נוספות.
+                      </p>
+                    </div>
+
+                    <span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-emerald-700 shadow-sm ring-1 ring-emerald-100">
+                      קמפיין פעיל
+                    </span>
+                  </div>
+
+                  <div className="mt-4 grid grid-cols-2 gap-3 text-center sm:grid-cols-4">
                     <div className="rounded-2xl bg-white p-4 shadow-sm">
                       <div className="text-2xl font-bold text-slate-900">
                         {result.received}
@@ -713,7 +1023,7 @@ export default function SendMagicTouchCampaignModal({
                       </div>
 
                       <div className="mt-1 text-xs text-slate-400">
-                        נשלחו
+                        נשלחו עכשיו
                       </div>
                     </div>
 
@@ -726,7 +1036,26 @@ export default function SendMagicTouchCampaignModal({
                         נכשלו
                       </div>
                     </div>
+
+                    <div className="rounded-2xl bg-white p-4 shadow-sm">
+                      <div className="text-2xl font-bold text-blue-700">
+                        {result.totalSent ??
+                          result.sent}
+                      </div>
+
+                      <div className="mt-1 text-xs text-slate-400">
+                        נשלחו בקמפיין
+                      </div>
+                    </div>
                   </div>
+
+                  {skippedResults.length >
+                  0 ? (
+                    <div className="mt-4 rounded-xl bg-blue-50 px-4 py-3 text-sm text-blue-700">
+                      {skippedResults.length}{' '}
+                      אנשי קשר כבר היו משויכים לקמפיין ולכן לא נשלחו שוב.
+                    </div>
+                  ) : null}
                 </div>
 
                 {failedResults.length >
@@ -770,185 +1099,354 @@ export default function SendMagicTouchCampaignModal({
                 <section className="border-b border-slate-100 pb-6 lg:border-b-0 lg:border-l lg:border-slate-100 lg:pl-6">
                   <div className="mb-5">
                     <div className="text-sm font-bold text-slate-800">
-                      פרטי הקמפיין
+                      לאיזה קמפיין לשלוח?
                     </div>
 
-                    <label
-                      htmlFor="magic-touch-campaign-name"
-                      className="mt-3 block text-xs font-semibold text-slate-600"
-                    >
-                      שם הקמפיין
-                    </label>
+                    <div className="mt-3 grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSendMode(
+                            'existing'
+                          );
+                          setErrorMessage(
+                            ''
+                          );
 
-                    <input
-                      id="magic-touch-campaign-name"
-                      type="text"
-                      value={
-                        campaignName
-                      }
-                      onChange={(
-                        event
-                      ) =>
-                        setCampaignName(
-                          event.target.value
-                        )
-                      }
-                      disabled={
-                        isSending
-                      }
-                      placeholder="קמפיין עדכון לקוחות"
-                      className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition placeholder:text-slate-400 focus:border-emerald-300 focus:ring-4 focus:ring-emerald-50"
-                    />
+                          if (
+                            !selectedCampaignId &&
+                            availableCampaigns[0]
+                          ) {
+                            setSelectedCampaignId(
+                              availableCampaigns[0]
+                                .campaignId
+                            );
+                          }
+                        }}
+                        disabled={
+                          availableCampaigns.length ===
+                          0
+                        }
+                        className={[
+                          'rounded-xl border px-4 py-3 text-sm font-semibold transition',
+                          sendMode ===
+                          'existing'
+                            ? 'border-blue-300 bg-blue-50 text-blue-700'
+                            : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50',
+                          availableCampaigns.length ===
+                          0
+                            ? 'cursor-not-allowed opacity-40'
+                            : '',
+                        ].join(
+                          ' '
+                        )}
+                      >
+                        קמפיין קיים
+                      </button>
 
-                    <p className="mt-1.5 text-xs text-slate-400">
-                      השם יופיע בתוך המערכת בלבד
-                    </p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSendMode(
+                            'new'
+                          );
+                          setErrorMessage(
+                            ''
+                          );
+                        }}
+                        className={[
+                          'rounded-xl border px-4 py-3 text-sm font-semibold transition',
+                          sendMode ===
+                          'new'
+                            ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
+                            : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50',
+                        ].join(
+                          ' '
+                        )}
+                      >
+                        קמפיין חדש
+                      </button>
+                    </div>
                   </div>
 
-                  <div>
-                    <div className="mb-2 flex items-center justify-between gap-3">
+                  {sendMode ===
+                  'existing' ? (
+                    <div className="space-y-4">
                       <div>
-                        <div className="text-sm font-bold text-slate-800">
-                          בחרי תבנית WhatsApp
-                        </div>
+                        <label className="block text-xs font-semibold text-slate-600">
+                          בחירת קמפיין
+                        </label>
 
-                        <div className="mt-1 text-xs text-slate-400">
-                          מוצגות רק תבניות שאושרו ב-Meta
-                        </div>
+                        <select
+                          value={
+                            selectedCampaignId
+                          }
+                          onChange={(
+                            event
+                          ) =>
+                            setSelectedCampaignId(
+                              event.target.value
+                            )
+                          }
+                          disabled={
+                            isSending
+                          }
+                          className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 outline-none transition focus:border-blue-300 focus:ring-4 focus:ring-blue-50"
+                        >
+                          <option value="">
+                            בחרי קמפיין...
+                          </option>
+
+                          {availableCampaigns.map(
+                            (
+                              campaign
+                            ) => (
+                              <option
+                                key={
+                                  campaign.campaignId
+                                }
+                                value={
+                                  campaign.campaignId
+                                }
+                              >
+                                {campaign.name}{' '}
+                                •{' '}
+                                {campaignStatusLabel(
+                                  campaign.status
+                                )}{' '}
+                                •{' '}
+                                {shortCampaignId(
+                                  campaign.campaignId
+                                )}
+                              </option>
+                            )
+                          )}
+                        </select>
                       </div>
 
-                      {!isLoadingTemplates &&
-                      templates.length >
-                        0 ? (
-                        <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-500">
-                          {templates.length} תבניות
-                        </span>
+                      {selectedCampaign ? (
+                        <div className="rounded-2xl bg-blue-50/70 p-4 ring-1 ring-blue-100">
+                          <div className="flex flex-wrap items-start justify-between gap-3">
+                            <div>
+                              <div className="text-xs font-bold text-blue-500">
+                                הקמפיין שנבחר
+                              </div>
+
+                              <div className="mt-1 font-bold text-slate-900">
+                                {selectedCampaign.name}
+                              </div>
+                            </div>
+
+                            <span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-bold text-blue-700 ring-1 ring-blue-100">
+                              {campaignStatusLabel(
+                                selectedCampaign.status
+                              )}
+                            </span>
+                          </div>
+
+                          <div className="mt-4 grid grid-cols-2 gap-3 text-xs">
+                            <div className="rounded-xl bg-white p-3">
+                              <div className="text-slate-400">
+                                תבנית משויכת
+                              </div>
+
+                              <div className="mt-1 font-semibold text-slate-700">
+                                {selectedCampaign.templateName ||
+                                  'לא הוגדרה'}
+                              </div>
+                            </div>
+
+                            <div className="rounded-xl bg-white p-3">
+                              <div className="text-slate-400">
+                                נשלחו עד כה
+                              </div>
+
+                              <div className="mt-1 font-semibold text-slate-700">
+                                {selectedCampaign.sentCount}
+                              </div>
+                            </div>
+                          </div>
+
+                          {selectedCampaign.status !==
+                          'active' ? (
+                            <p className="mt-3 text-xs leading-5 text-blue-700">
+                              זהו קמפיין היסטורי. שליחה חדשה תחזיר אותו לסטטוס פעיל ותמשיך באותו campaignId.
+                            </p>
+                          ) : null}
+                        </div>
                       ) : null}
                     </div>
+                  ) : (
+                    <div>
+                      <div className="mb-5">
+                        <div className="text-sm font-bold text-slate-800">
+                          פרטי קמפיין חדש
+                        </div>
 
-                    <div className="relative mb-3">
-                      <input
-                        type="search"
-                        value={
-                          templateSearch
-                        }
-                        onChange={(
-                          event
-                        ) =>
-                          setTemplateSearch(
-                            event.target.value
-                          )
-                        }
-                        placeholder="חיפוש לפי שם תבנית..."
-                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 pr-10 text-sm outline-none transition placeholder:text-slate-400 focus:border-emerald-300 focus:ring-4 focus:ring-emerald-50"
-                      />
+                        <label
+                          htmlFor="magic-touch-campaign-name"
+                          className="mt-3 block text-xs font-semibold text-slate-600"
+                        >
+                          שם הקמפיין
+                        </label>
 
-                      <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
-                        ⌕
-                      </span>
-                    </div>
+                        <input
+                          id="magic-touch-campaign-name"
+                          type="text"
+                          value={
+                            campaignName
+                          }
+                          onChange={(
+                            event
+                          ) =>
+                            setCampaignName(
+                              event.target.value
+                            )
+                          }
+                          disabled={
+                            isSending
+                          }
+                          placeholder="לדוגמה: שנה טובה 2026"
+                          className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition placeholder:text-slate-400 focus:border-emerald-300 focus:ring-4 focus:ring-emerald-50"
+                        />
 
-                    {isLoadingTemplates ? (
-                      <div className="rounded-2xl bg-slate-50 p-5 text-center text-sm text-slate-400">
-                        טוען תבניות...
+                        <p className="mt-1.5 text-xs text-slate-400">
+                          התבנית שתיבחר עכשיו תהיה משויכת לקמפיין ולא תשתנה בין פעימות.
+                        </p>
                       </div>
-                    ) : filteredTemplates.length ===
-                      0 ? (
-                      <div className="rounded-2xl bg-amber-50 p-5 text-center text-sm text-amber-700 ring-1 ring-amber-100">
-                        לא נמצאו תבניות מתאימות.
-                      </div>
-                    ) : (
-                      <div className="max-h-[300px] space-y-2 overflow-y-auto pl-1">
-                        {filteredTemplates.map(
-                          (
-                            template
-                          ) => {
-                            const isSelected =
-                              template.name ===
-                              selectedTemplateName;
 
-                            return (
-                              <button
-                                key={
-                                  template.id
-                                }
-                                type="button"
-                                disabled={
-                                  isSending
-                                }
-                                onClick={() =>
-                                  setSelectedTemplateName(
-                                    template.name
-                                  )
-                                }
-                                className={[
-                                  'w-full rounded-2xl border p-4 text-right transition',
-                                  isSelected
-                                    ? 'border-emerald-300 bg-emerald-50/60 shadow-sm'
-                                    : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/60',
-                                ].join(
-                                  ' '
-                                )}
-                              >
-                                <div className="flex items-start gap-3">
-                                  <div
+                      <div>
+                        <div className="mb-2 flex items-center justify-between gap-3">
+                          <div>
+                            <div className="text-sm font-bold text-slate-800">
+                              תבנית WhatsApp לקמפיין
+                            </div>
+
+                            <div className="mt-1 text-xs text-slate-400">
+                              מוצגות רק תבניות שאושרו ב-Meta
+                            </div>
+                          </div>
+
+                          {!isLoadingTemplates &&
+                          templates.length >
+                            0 ? (
+                            <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-500">
+                              {templates.length}{' '}
+                              תבניות
+                            </span>
+                          ) : null}
+                        </div>
+
+                        <div className="relative mb-3">
+                          <input
+                            type="search"
+                            value={
+                              templateSearch
+                            }
+                            onChange={(
+                              event
+                            ) =>
+                              setTemplateSearch(
+                                event.target.value
+                              )
+                            }
+                            placeholder="חיפוש לפי שם תבנית..."
+                            className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 pr-10 text-sm outline-none transition placeholder:text-slate-400 focus:border-emerald-300 focus:ring-4 focus:ring-emerald-50"
+                          />
+
+                          <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
+                            ⌕
+                          </span>
+                        </div>
+
+                        {isLoadingTemplates ? (
+                          <div className="rounded-2xl bg-slate-50 p-5 text-center text-sm text-slate-400">
+                            טוען תבניות...
+                          </div>
+                        ) : filteredTemplates.length ===
+                          0 ? (
+                          <div className="rounded-2xl bg-amber-50 p-5 text-center text-sm text-amber-700 ring-1 ring-amber-100">
+                            לא נמצאו תבניות מתאימות.
+                          </div>
+                        ) : (
+                          <div className="max-h-[260px] space-y-2 overflow-y-auto pl-1">
+                            {filteredTemplates.map(
+                              (
+                                template
+                              ) => {
+                                const isSelected =
+                                  template.name ===
+                                  selectedTemplateName;
+
+                                return (
+                                  <button
+                                    key={
+                                      template.id
+                                    }
+                                    type="button"
+                                    disabled={
+                                      isSending
+                                    }
+                                    onClick={() =>
+                                      setSelectedTemplateName(
+                                        template.name
+                                      )
+                                    }
                                     className={[
-                                      'mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-[10px]',
+                                      'w-full rounded-2xl border p-4 text-right transition',
                                       isSelected
-                                        ? 'border-emerald-600 bg-emerald-600 text-white'
-                                        : 'border-slate-300 bg-white text-transparent',
+                                        ? 'border-emerald-300 bg-emerald-50/60 shadow-sm'
+                                        : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/60',
                                     ].join(
                                       ' '
                                     )}
                                   >
-                                    ✓
-                                  </div>
-
-                                  <div className="min-w-0 flex-1">
-                                    <div className="flex flex-wrap items-center gap-2">
-                                      <div className="truncate text-sm font-bold text-slate-800">
-                                        {template.name}
-                                      </div>
-
-                                      {template.category ? (
-                                        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-500">
-                                          {template.category}
-                                        </span>
-                                      ) : null}
-                                    </div>
-
-                                    {template.headerMedia ? (
-                                      <div className="mt-1.5 flex items-center gap-1.5 text-[11px] font-semibold text-slate-500">
-                                        <span>
-                                          {template.headerMedia.type ===
-                                          'DOCUMENT'
-                                            ? '📄'
-                                            : '🖼️'}
-                                        </span>
-
-                                        <span className="truncate">
-                                          {template.headerMedia.fileName}
-                                        </span>
-                                      </div>
-                                    ) : null}
-
-                                    {template.bodyText ? (
-                                      <div className="mt-1.5 line-clamp-1 text-xs text-slate-400">
-                                        {replaceTemplatePreview(
-                                          template.bodyText,
-                                          previewFirstName
+                                    <div className="flex items-start gap-3">
+                                      <div
+                                        className={[
+                                          'mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-[10px]',
+                                          isSelected
+                                            ? 'border-emerald-600 bg-emerald-600 text-white'
+                                            : 'border-slate-300 bg-white text-transparent',
+                                        ].join(
+                                          ' '
                                         )}
+                                      >
+                                        ✓
                                       </div>
-                                    ) : null}
-                                  </div>
-                                </div>
-                              </button>
-                            );
-                          }
+
+                                      <div className="min-w-0 flex-1">
+                                        <div className="flex flex-wrap items-center gap-2">
+                                          <div className="truncate text-sm font-bold text-slate-800">
+                                            {template.name}
+                                          </div>
+
+                                          {template.category ? (
+                                            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-500">
+                                              {template.category}
+                                            </span>
+                                          ) : null}
+                                        </div>
+
+                                        {template.bodyText ? (
+                                          <div className="mt-1.5 line-clamp-1 text-xs text-slate-400">
+                                            {replaceTemplatePreview(
+                                              template.bodyText,
+                                              previewFirstName
+                                            )}
+                                          </div>
+                                        ) : null}
+                                      </div>
+                                    </div>
+                                  </button>
+                                );
+                              }
+                            )}
+                          </div>
                         )}
                       </div>
-                    )}
-                  </div>
+                    </div>
+                  )}
                 </section>
 
                 <section className="pt-6 lg:pt-0 lg:pr-6">
@@ -1046,8 +1544,11 @@ export default function SendMagicTouchCampaignModal({
                         ) : null}
                       </>
                     ) : (
-                      <div className="flex min-h-[290px] items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-white text-sm text-slate-400">
-                        בחרי תבנית כדי לראות תצוגה מקדימה
+                      <div className="flex min-h-[290px] items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-white px-6 text-center text-sm text-slate-400">
+                        {sendMode ===
+                        'existing'
+                          ? 'בחרי קמפיין עם תבנית משויכת כדי לראות תצוגה מקדימה'
+                          : 'בחרי תבנית כדי לראות תצוגה מקדימה'}
                       </div>
                     )}
                   </div>
@@ -1080,9 +1581,7 @@ export default function SendMagicTouchCampaignModal({
               disabled={
                 isSending ||
                 isLoadingTemplates ||
-                contactIds.length ===
-                  0 ||
-                !selectedTemplateName
+                !canSend
               }
               className="rounded-xl bg-emerald-600 px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
@@ -1119,11 +1618,16 @@ export default function SendMagicTouchCampaignModal({
                 </h3>
 
                 <p className="mt-2 text-sm leading-6 text-slate-500">
-                  התבנית{' '}
+                  הקמפיין{' '}
                   <strong className="font-semibold text-slate-700">
-                    {selectedTemplateName}
+                    {displayCampaignName ||
+                      'החדש'}
                   </strong>{' '}
-                  תישלח ל-
+                  ישלח את התבנית{' '}
+                  <strong className="font-semibold text-slate-700">
+                    {effectiveTemplateName}
+                  </strong>{' '}
+                  ל-
                   <strong className="font-semibold text-slate-700">
                     {contactIds.length}
                   </strong>{' '}
@@ -1138,27 +1642,6 @@ export default function SendMagicTouchCampaignModal({
                   </div>
 
                   <div className="mt-2 max-h-[210px] overflow-y-auto rounded-xl bg-white p-3 text-sm leading-6 text-slate-700 ring-1 ring-slate-100">
-                    {selectedTemplate.headerMedia ? (
-                      <div className="mb-3 flex items-center gap-2 rounded-lg bg-slate-50 p-2.5">
-                        <span className="text-lg">
-                          {selectedTemplate.headerMedia.type ===
-                          'DOCUMENT'
-                            ? '📄'
-                            : '🖼️'}
-                        </span>
-
-                        <div className="min-w-0">
-                          <div className="text-[10px] font-bold text-slate-400">
-                            קובץ מצורף
-                          </div>
-
-                          <div className="truncate text-xs font-semibold text-slate-700">
-                            {selectedTemplate.headerMedia.fileName}
-                          </div>
-                        </div>
-                      </div>
-                    ) : null}
-
                     <div className="whitespace-pre-wrap">
                       {templatePreview}
                     </div>

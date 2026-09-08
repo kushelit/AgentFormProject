@@ -2,6 +2,7 @@
 /* eslint-disable max-len */
 
 import {
+  HttpsError,
   onCall,
 } from "firebase-functions/v2/https";
 
@@ -31,6 +32,13 @@ export const sendMagicTouchWhatsAppCampaign =
     },
 
     async (req) => {
+      if (!req.auth) {
+        throw new HttpsError(
+          "unauthenticated",
+          "Login required"
+        );
+      }
+
       const mod =
         await import(
           "./sendMagicTouchWhatsAppCampaign.impl"
@@ -42,3 +50,70 @@ export const sendMagicTouchWhatsAppCampaign =
         );
     }
   );
+
+export const getMagicTouchCampaigns =
+  onCall(
+    {
+      region:
+        FUNCTIONS_REGION,
+
+      timeoutSeconds:
+        60,
+
+      memory:
+        "256MiB",
+    },
+
+    async (req) => {
+      if (!req.auth) {
+        throw new HttpsError(
+          "unauthenticated",
+          "Login required"
+        );
+      }
+
+      const mod =
+        await import(
+          "./sendMagicTouchWhatsAppCampaign.impl"
+        );
+
+      return mod
+        .getMagicTouchCampaignsImpl(
+          req
+        );
+    }
+  );
+
+export const mergeMagicTouchCampaigns =
+  onCall(
+    {
+      region:
+        FUNCTIONS_REGION,
+
+      timeoutSeconds:
+        540,
+
+      memory:
+        "1GiB",
+    },
+
+    async (req) => {
+      if (!req.auth) {
+        throw new HttpsError(
+          "unauthenticated",
+          "Login required"
+        );
+      }
+
+      const mod =
+        await import(
+          "./sendMagicTouchWhatsAppCampaign.impl"
+        );
+
+      return mod
+        .mergeMagicTouchCampaignsImpl(
+          req
+        );
+    }
+  );
+

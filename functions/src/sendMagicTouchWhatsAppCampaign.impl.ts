@@ -2,28 +2,56 @@
 /* eslint-disable max-len */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import { HttpsError } from "firebase-functions/v2/https";
+import {
+  HttpsError,
+} from "firebase-functions/v2/https";
 
-import { adminDb, nowTs } from "./shared/admin";
-import { safeString } from "./shared/magicTouchContacts";
-import { requireBackendPermission } from "./shared/backendPermissions";
+import {
+  FieldValue,
+} from "firebase-admin/firestore";
+
+import {
+  adminDb,
+  nowTs,
+} from "./shared/admin";
+
+import {
+  safeString,
+} from "./shared/magicTouchContacts";
+
+import {
+  requireBackendPermission,
+} from "./shared/backendPermissions";
 
 import {
   loadMagicTouchWhatsAppTemplateContext,
   sendMagicTouchTemplateToContact,
 } from "./shared/sendMagicTouchWhatsAppTemplateService";
 
-const MAX_CONTACTS_PER_CAMPAIGN =
+const MAX_CONTACTS_PER_BATCH =
   100;
+
+const MAX_CAMPAIGNS_RETURNED =
+  200;
 
 type CampaignResultItem = {
   contactId: string;
   ok: boolean;
 
+  skipped?: boolean;
+  skipReason?: string;
+
   waMessageId?: string;
   conversationId?: string;
 
   error?: string;
+};
+
+type AgentAccessContext = {
+  db: FirebaseFirestore.Firestore;
+  authUid: string;
+  agentId: string;
+  userData: any;
 };
 
 function normalizeContactIds(
@@ -49,9 +77,72 @@ function normalizeContactIds(
   );
 }
 
-export async function sendMagicTouchWhatsAppCampaignImpl(
+function n(
+  value: unknown
+): number {
+  const parsed =
+    Number(
+      value
+    );
+
+  if (
+    !Number.isFinite(
+      parsed
+    )
+  ) {
+    return 0;
+  }
+
+  return parsed;
+}
+
+function timestampToMillis(
+  value: any
+): number | null {
+  if (!value) {
+    return null;
+  }
+
+  if (
+    typeof value ===
+      "number"
+  ) {
+    return value;
+  }
+
+  if (
+    typeof value?.toMillis ===
+      "function"
+  ) {
+    return value.toMillis();
+  }
+
+  if (
+    typeof value?._seconds ===
+      "number"
+  ) {
+    return (
+      value._seconds *
+      1000
+    );
+  }
+
+  if (
+    typeof value?.seconds ===
+      "number"
+  ) {
+    return (
+      value.seconds *
+      1000
+    );
+  }
+
+  return null;
+}
+
+async function resolveAgentAccess(
   req: any
-): Promise<object> {
+): Promise<AgentAccessContext> {
   const authUid =
     safeString(
       req.auth?.uid
@@ -69,55 +160,17 @@ export async function sendMagicTouchWhatsAppCampaignImpl(
       req.data?.agentId
     );
 
-  const templateName =
-    safeString(
-      req.data?.templateName
-    );
-
-  const campaignName =
-    safeString(
-      req.data?.campaignName
-    );
-
-  const contactIds =
-    normalizeContactIds(
-      req.data?.contactIds
-    );
-
-  if (!templateName) {
-    throw new HttpsError(
-      "invalid-argument",
-      "Missing templateName"
-    );
-  }
-
-  if (
-    contactIds.length ===
-    0
-  ) {
-    throw new HttpsError(
-      "invalid-argument",
-      "Missing contactIds"
-    );
-  }
-
-  if (
-    contactIds.length >
-    MAX_CONTACTS_PER_CAMPAIGN
-  ) {
-    throw new HttpsError(
-      "invalid-argument",
-      `A maximum of ${MAX_CONTACTS_PER_CAMPAIGN} contacts is allowed per campaign`
-    );
-  }
-
   const db =
     adminDb();
 
   const userSnap =
     await (db as any)
-      .collection("users")
-      .doc(authUid)
+      .collection(
+        "users"
+      )
+      .doc(
+        authUid
+      )
       .get();
 
   if (!userSnap.exists) {
@@ -164,70 +217,1807 @@ export async function sendMagicTouchWhatsAppCampaignImpl(
 
   if (
     !isAdmin &&
-    agentId !== userAgentId
+    agentId !==
+      userAgentId
   ) {
     throw new HttpsError(
       "permission-denied",
-      "Cannot send a campaign for another agent"
+      "Cannot access campaigns for another agent"
     );
   }
 
-  const campaignRef =
-    (db as any)
+  return {
+    db: db as any,
+    authUid,
+    agentId,
+    userData,
+  };
+}
+
+export async function getMagicTouchCampaignsImpl(
+  req: any
+): Promise<object> {
+  const {
+    db,
+    agentId,
+  } =
+    await resolveAgentAccess(
+      req
+    );
+
+  const snapshot =
+    await (db as any)
       .collection(
         `agents/${agentId}/magic_touch_campaigns`
       )
-      .doc();
+      .limit(
+        MAX_CAMPAIGNS_RETURNED
+      )
+      .get();
+
+  const includeMerged =
+    req.data?.includeMerged ===
+    true;
+
+  const campaigns =
+    snapshot.docs
+      .map(
+        (
+          doc: any
+        ) => {
+          const data =
+            doc.data() as any;
+
+          return {
+            campaignId:
+              safeString(
+                data?.campaignId
+              ) ||
+              doc.id,
+
+            agentId:
+              safeString(
+                data?.agentId
+              ) ||
+              agentId,
+
+            name:
+              safeString(
+                data?.name
+              ) ||
+              safeString(
+                data?.templateName
+              ) ||
+              doc.id,
+
+            channel:
+              safeString(
+                data?.channel
+              ) ||
+              "whatsapp",
+
+            templateName:
+              safeString(
+                data?.templateName
+              ),
+
+            templateLanguage:
+              safeString(
+                data?.templateLanguage
+              ) ||
+              null,
+
+            status:
+              safeString(
+                data?.status
+              ) ||
+              "active",
+
+            lastBatchStatus:
+              safeString(
+                data?.lastBatchStatus
+              ) ||
+              null,
+
+            totalContacts:
+              n(
+                data?.totalContacts
+              ),
+
+            sentCount:
+              n(
+                data?.sentCount
+              ),
+
+            failedCount:
+              n(
+                data?.failedCount
+              ),
+
+            processedCount:
+              n(
+                data?.processedCount
+              ),
+
+            createdBy:
+              safeString(
+                data?.createdBy
+              ) ||
+              null,
+
+            createdByName:
+              safeString(
+                data?.createdByName
+              ) ||
+              null,
+
+            startedAt:
+              timestampToMillis(
+                data?.startedAt
+              ),
+
+            createdAt:
+              timestampToMillis(
+                data?.createdAt
+              ),
+
+            updatedAt:
+              timestampToMillis(
+                data?.updatedAt
+              ),
+
+            lastBatchCompletedAt:
+              timestampToMillis(
+                data?.lastBatchCompletedAt
+              ),
+
+            completedAt:
+              timestampToMillis(
+                data?.completedAt
+              ),
+          };
+        }
+      )
+      .filter(
+        (
+          campaign: any
+        ) =>
+          includeMerged ||
+          campaign.status !==
+            "merged"
+      )
+      .sort(
+        (
+          left: any,
+          right: any
+        ) =>
+          Number(
+            right.updatedAt ||
+            right.createdAt ||
+            0
+          ) -
+          Number(
+            left.updatedAt ||
+            left.createdAt ||
+            0
+          )
+      );
+
+  return {
+    ok: true,
+    agentId,
+    campaigns,
+    count:
+      campaigns.length,
+  };
+}
+
+
+function normalizeCampaignStorageKey(
+  value: unknown
+): string {
+  return safeString(
+    value
+  )
+    .replace(
+      /\./g,
+      "_"
+    )
+    .trim();
+}
+
+function recipientStatusRank(
+  status: unknown
+): number {
+  switch (
+    safeString(
+      status
+    ).toLowerCase()
+  ) {
+    case "replied":
+      return 70;
+
+    case "read":
+      return 60;
+
+    case "delivered":
+      return 50;
+
+    case "sent":
+    case "accepted":
+      return 40;
+
+    case "failed":
+      return 20;
+
+    case "processing":
+      return 10;
+
+    default:
+      return 0;
+  }
+}
+
+function dataTimestampMillis(
+  value: any
+): number {
+  return Number(
+    timestampToMillis(
+      value?.updatedAt ||
+      value?.repliedAt ||
+      value?.readAt ||
+      value?.deliveredAt ||
+      value?.sentAt ||
+      value?.failedAt ||
+      value?.createdAt
+    ) ||
+    0
+  );
+}
+
+function chooseBetterStatusRecord(
+  current: any,
+  candidate: any
+): any {
+  if (!current) {
+    return candidate;
+  }
+
+  if (!candidate) {
+    return current;
+  }
+
+  const currentRank =
+    recipientStatusRank(
+      current?.status
+    );
+
+  const candidateRank =
+    recipientStatusRank(
+      candidate?.status
+    );
+
+  if (
+    candidateRank >
+    currentRank
+  ) {
+    return candidate;
+  }
+
+  if (
+    candidateRank <
+    currentRank
+  ) {
+    return current;
+  }
+
+  return dataTimestampMillis(
+    candidate
+  ) >=
+    dataTimestampMillis(
+      current
+    )
+    ? candidate
+    : current;
+}
+
+async function getAllInChunks(
+  db: FirebaseFirestore.Firestore,
+  refs: FirebaseFirestore.DocumentReference[],
+  chunkSize = 200
+): Promise<FirebaseFirestore.DocumentSnapshot[]> {
+  const results:
+    FirebaseFirestore.DocumentSnapshot[] = [];
+
+  for (
+    let index = 0;
+    index < refs.length;
+    index += chunkSize
+  ) {
+    const chunk =
+      refs.slice(
+        index,
+        index +
+          chunkSize
+      );
+
+    if (
+      chunk.length ===
+      0
+    ) {
+      continue;
+    }
+
+    const snapshots =
+      await (db as any)
+        .getAll(
+          ...chunk
+        );
+
+    results.push(
+      ...snapshots
+    );
+  }
+
+  return results;
+}
+
+export async function mergeMagicTouchCampaignsImpl(
+  req: any
+): Promise<object> {
+  const {
+    db,
+    authUid,
+    agentId,
+    userData,
+  } =
+    await resolveAgentAccess(
+      req
+    );
+
+  const sourceCampaignIds:
+    string[] =
+    Array.from(
+      new Set<string>(
+        (
+          Array.isArray(
+            req.data?.sourceCampaignIds
+          )
+            ? req.data.sourceCampaignIds
+            : []
+        )
+          .map(
+            (
+              value: unknown
+            ): string =>
+              safeString(
+                value
+              )
+          )
+          .filter(
+            (
+              value: string
+            ) =>
+              Boolean(
+                value
+              )
+          )
+      )
+    );
+
+  const requestedTargetCampaignId =
+    safeString(
+      req.data?.targetCampaignId
+    );
+
+  const requestedTargetCampaignName =
+    safeString(
+      req.data?.targetCampaignName
+    );
+
+  if (
+    sourceCampaignIds.length ===
+    0
+  ) {
+    throw new HttpsError(
+      "invalid-argument",
+      "Select at least one source campaign"
+    );
+  }
+
+  if (
+    sourceCampaignIds.length >
+    100
+  ) {
+    throw new HttpsError(
+      "invalid-argument",
+      "A maximum of 100 campaigns can be merged at once"
+    );
+  }
+
+  if (
+    requestedTargetCampaignId &&
+    sourceCampaignIds.includes(
+      requestedTargetCampaignId
+    )
+  ) {
+    throw new HttpsError(
+      "invalid-argument",
+      "Target campaign cannot also be a source campaign"
+    );
+  }
+
+  const campaignsCollection =
+    (db as any)
+      .collection(
+        `agents/${agentId}/magic_touch_campaigns`
+      );
+
+  const sourceRefs =
+    sourceCampaignIds.map(
+      (
+        campaignId
+      ) =>
+        campaignsCollection
+          .doc(
+            campaignId
+          )
+    );
+
+  const sourceSnaps =
+    await getAllInChunks(
+      db,
+      sourceRefs
+    );
+
+  const missingSourceIds:
+    string[] = [];
+
+  const sourceCampaigns =
+    sourceSnaps.map(
+      (
+        snap,
+        index
+      ) => {
+        if (!snap.exists) {
+          missingSourceIds.push(
+            sourceCampaignIds[
+              index
+            ]
+          );
+
+          return null;
+        }
+
+        return {
+          campaignId:
+            sourceCampaignIds[
+              index
+            ],
+          ref:
+            sourceRefs[
+              index
+            ],
+          data:
+            snap.data() as any,
+        };
+      }
+    ).filter(Boolean) as Array<{
+      campaignId: string;
+      ref: FirebaseFirestore.DocumentReference;
+      data: any;
+    }>;
+
+  if (
+    missingSourceIds.length >
+    0
+  ) {
+    throw new HttpsError(
+      "not-found",
+      `Campaigns not found: ${missingSourceIds.join(", ")}`
+    );
+  }
+
+  for (
+    const source of
+    sourceCampaigns
+  ) {
+    const status =
+      safeString(
+        source.data?.status
+      );
+
+    if (
+      status ===
+      "merged"
+    ) {
+      throw new HttpsError(
+        "failed-precondition",
+        `Campaign ${source.campaignId} was already merged`
+      );
+    }
+  }
+
+  const templateNames =
+    Array.from(
+      new Set(
+        sourceCampaigns
+          .map(
+            (
+              source
+            ) =>
+              safeString(
+                source.data
+                  ?.templateName
+              )
+          )
+          .filter(Boolean)
+      )
+    );
+
+  if (
+    templateNames.length !==
+    1
+  ) {
+    throw new HttpsError(
+      "failed-precondition",
+      "Only campaigns that use the same WhatsApp template can be merged"
+    );
+  }
+
+  const templateName =
+    templateNames[0];
+
+  let targetCampaignRef:
+    FirebaseFirestore.DocumentReference;
+
+  let targetCampaignData:
+    any =
+    null;
+
+  let targetCampaignId:
+    string;
+
+  let createdTargetCampaign =
+    false;
+
+  if (
+    requestedTargetCampaignId
+  ) {
+    targetCampaignRef =
+      campaignsCollection
+        .doc(
+          requestedTargetCampaignId
+        );
+
+    const targetSnap =
+      await targetCampaignRef
+        .get();
+
+    if (!targetSnap.exists) {
+      throw new HttpsError(
+        "not-found",
+        "Target campaign was not found"
+      );
+    }
+
+    targetCampaignData =
+      targetSnap.data() as any;
+
+    const targetTemplateName =
+      safeString(
+        targetCampaignData
+          ?.templateName
+      );
+
+    if (
+      targetTemplateName !==
+      templateName
+    ) {
+      throw new HttpsError(
+        "failed-precondition",
+        "Target campaign uses a different WhatsApp template"
+      );
+    }
+
+    const targetStatus =
+      safeString(
+        targetCampaignData
+          ?.status
+      );
+
+    if (
+      targetStatus ===
+        "merged" ||
+      targetStatus ===
+        "archived"
+    ) {
+      throw new HttpsError(
+        "failed-precondition",
+        "Merged or archived campaign cannot be used as a target"
+      );
+    }
+
+    targetCampaignId =
+      requestedTargetCampaignId;
+  } else {
+    if (
+      !requestedTargetCampaignName
+    ) {
+      throw new HttpsError(
+        "invalid-argument",
+        "Missing target campaign name"
+      );
+    }
+
+    targetCampaignRef =
+      campaignsCollection
+        .doc();
+
+    targetCampaignId =
+      targetCampaignRef.id;
+
+    createdTargetCampaign =
+      true;
+
+    targetCampaignData = {
+      campaignId:
+        targetCampaignId,
+      agentId,
+      name:
+        requestedTargetCampaignName,
+      channel:
+        "whatsapp",
+      templateName,
+      status:
+        "active",
+      totalContacts:
+        0,
+      sentCount:
+        0,
+      failedCount:
+        0,
+      processedCount:
+        0,
+      createdBy:
+        authUid,
+      createdByName:
+        safeString(
+          userData?.name
+        ) ||
+        null,
+      startedAt:
+        nowTs(),
+      completedAt:
+        null,
+      createdAt:
+        nowTs(),
+      updatedAt:
+        nowTs(),
+      migrationCreated:
+        true,
+    };
+
+    await targetCampaignRef
+      .set(
+        targetCampaignData
+      );
+  }
+
+  const sourceRecipientSnapshots:
+    Array<{
+      sourceCampaignId: string;
+      doc: FirebaseFirestore.QueryDocumentSnapshot;
+    }> = [];
+
+  for (
+    const source of
+    sourceCampaigns
+  ) {
+    const recipientsSnap =
+      await source.ref
+        .collection(
+          "recipients"
+        )
+        .get();
+
+    for (
+      const recipientDoc of
+      recipientsSnap.docs
+    ) {
+      sourceRecipientSnapshots.push({
+        sourceCampaignId:
+          source.campaignId,
+        doc:
+          recipientDoc,
+      });
+    }
+  }
+
+  const targetRecipientsSnap =
+    await targetCampaignRef
+      .collection(
+        "recipients"
+      )
+      .get();
+
+  const mergedRecipientMap =
+    new Map<
+      string,
+      any
+    >();
+
+  for (
+    const targetRecipientDoc of
+    targetRecipientsSnap.docs
+  ) {
+    const data =
+      targetRecipientDoc.data() as any;
+
+    mergedRecipientMap.set(
+      targetRecipientDoc.id,
+      {
+        ...data,
+        contactId:
+          safeString(
+            data?.contactId
+          ) ||
+          targetRecipientDoc.id,
+        campaignId:
+          targetCampaignId,
+      }
+    );
+  }
+
+  for (
+    const sourceRecipient of
+    sourceRecipientSnapshots
+  ) {
+    const data =
+      sourceRecipient.doc
+        .data() as any;
+
+    const contactId =
+      safeString(
+        data?.contactId
+      ) ||
+      sourceRecipient.doc.id;
+
+    if (!contactId) {
+      continue;
+    }
+
+    const current =
+      mergedRecipientMap.get(
+        contactId
+      );
+
+    const candidate = {
+      ...data,
+      contactId,
+      campaignId:
+        targetCampaignId,
+      mergedFromCampaignId:
+        sourceRecipient
+          .sourceCampaignId,
+    };
+
+    mergedRecipientMap.set(
+      contactId,
+      chooseBetterStatusRecord(
+        current,
+        candidate
+      )
+    );
+  }
+
+  const uniqueContactIds =
+    Array.from(
+      mergedRecipientMap.keys()
+    );
+
+  const contactRefs =
+    uniqueContactIds.map(
+      (
+        contactId
+      ) =>
+        (db as any)
+          .doc(
+            `agents/${agentId}/magic_touch_contacts/${contactId}`
+          )
+    );
+
+  const contactSnaps =
+    await getAllInChunks(
+      db,
+      contactRefs
+    );
+
+  const contactsById =
+    new Map<
+      string,
+      any
+    >();
+
+  contactSnaps.forEach(
+    (
+      snap,
+      index
+    ) => {
+      contactsById.set(
+        uniqueContactIds[
+          index
+        ],
+        snap.exists
+          ? snap.data()
+          : null
+      );
+    }
+  );
+
+  const conversationIds =
+    Array.from(
+      new Set(
+        Array.from(
+          mergedRecipientMap.values()
+        )
+          .map(
+            (
+              recipient
+            ) =>
+              safeString(
+                recipient
+                  ?.conversationId
+              )
+          )
+          .filter(Boolean)
+      )
+    );
+
+  const conversationRefs =
+    conversationIds.map(
+      (
+        conversationId
+      ) =>
+        (db as any)
+          .doc(
+            `whatsapp_conversations/${conversationId}`
+          )
+    );
+
+  const conversationSnaps =
+    await getAllInChunks(
+      db,
+      conversationRefs
+    );
+
+  const conversationsById =
+    new Map<
+      string,
+      any
+    >();
+
+  conversationSnaps.forEach(
+    (
+      snap,
+      index
+    ) => {
+      conversationsById.set(
+        conversationIds[
+          index
+        ],
+        snap.exists
+          ? snap.data()
+          : null
+      );
+    }
+  );
+
+  const sourceIdSet =
+    new Set(
+      sourceCampaignIds
+    );
+
+  const targetCampaignStorageKey =
+    normalizeCampaignStorageKey(
+      targetCampaignId
+    );
+
+  const writer =
+    (db as any)
+      .bulkWriter();
+
+  let sentCount =
+    0;
+
+  let failedCount =
+    0;
+
+  let processedCount =
+    0;
+
+  let deliveredCount =
+    0;
+
+  let readCount =
+    0;
+
+  let repliedCount =
+    0;
+
+  for (
+    const [
+      contactId,
+      recipient,
+    ] of mergedRecipientMap.entries()
+  ) {
+    const status =
+      safeString(
+        recipient?.status
+      ).toLowerCase();
+
+    if (
+      [
+        "accepted",
+        "sent",
+        "delivered",
+        "read",
+        "replied",
+      ].includes(
+        status
+      )
+    ) {
+      sentCount++;
+      processedCount++;
+    } else if (
+      status ===
+      "failed"
+    ) {
+      failedCount++;
+      processedCount++;
+    }
+
+    if (
+      [
+        "delivered",
+        "read",
+        "replied",
+      ].includes(
+        status
+      )
+    ) {
+      deliveredCount++;
+    }
+
+    if (
+      [
+        "read",
+        "replied",
+      ].includes(
+        status
+      )
+    ) {
+      readCount++;
+    }
+
+    if (
+      status ===
+      "replied"
+    ) {
+      repliedCount++;
+    }
+
+    const targetRecipientRef =
+      targetCampaignRef
+        .collection(
+          "recipients"
+        )
+        .doc(
+          contactId
+        );
+
+    writer.set(
+      targetRecipientRef,
+      {
+        ...recipient,
+        agentId,
+        campaignId:
+          targetCampaignId,
+        contactId,
+        templateName,
+        mergedAt:
+          nowTs(),
+      },
+      {
+        merge:
+          true,
+      }
+    );
+
+    const contactData =
+      contactsById.get(
+        contactId
+      );
+
+    if (
+      contactData
+    ) {
+      const campaigns =
+        contactData
+          ?.engagement
+          ?.campaigns &&
+        typeof contactData
+          .engagement
+          .campaigns ===
+          "object"
+          ? contactData
+              .engagement
+              .campaigns
+          : {};
+
+      let bestCampaignStatus =
+        campaigns[
+          targetCampaignStorageKey
+        ] ||
+        null;
+
+      for (
+        const sourceCampaignId of
+        sourceCampaignIds
+      ) {
+        const sourceKey =
+          normalizeCampaignStorageKey(
+            sourceCampaignId
+          );
+
+        bestCampaignStatus =
+          chooseBetterStatusRecord(
+            bestCampaignStatus,
+            campaigns[
+              sourceKey
+            ]
+          );
+      }
+
+      if (
+        !bestCampaignStatus
+      ) {
+        bestCampaignStatus = {
+          campaignId:
+            targetCampaignId,
+          campaignSource:
+            "campaign",
+          templateName,
+          status:
+            status ||
+            null,
+          waMessageId:
+            safeString(
+              recipient
+                ?.waMessageId
+            ) ||
+            null,
+          conversationId:
+            safeString(
+              recipient
+                ?.conversationId
+            ) ||
+            null,
+          sentAt:
+            recipient
+              ?.sentAt ||
+            null,
+          deliveredAt:
+            recipient
+              ?.deliveredAt ||
+            null,
+          readAt:
+            recipient
+              ?.readAt ||
+            null,
+          repliedAt:
+            recipient
+              ?.repliedAt ||
+            null,
+          failedAt:
+            recipient
+              ?.failedAt ||
+            null,
+          updatedAt:
+            recipient
+              ?.updatedAt ||
+            recipient
+              ?.sentAt ||
+            null,
+        };
+      } else {
+        bestCampaignStatus = {
+          ...bestCampaignStatus,
+          campaignId:
+            targetCampaignId,
+          campaignSource:
+            "campaign",
+          templateName:
+            safeString(
+              bestCampaignStatus
+                ?.templateName
+            ) ||
+            templateName,
+        };
+      }
+
+      const contactUpdate:
+        Record<string, any> = {
+          [`engagement.campaigns.${targetCampaignStorageKey}`]:
+            bestCampaignStatus,
+        };
+
+      for (
+        const sourceCampaignId of
+        sourceCampaignIds
+      ) {
+        const sourceKey =
+          normalizeCampaignStorageKey(
+            sourceCampaignId
+          );
+
+        if (
+          sourceKey !==
+          targetCampaignStorageKey
+        ) {
+          contactUpdate[
+            `engagement.campaigns.${sourceKey}`
+          ] =
+            FieldValue.delete();
+        }
+      }
+
+      if (
+        sourceIdSet.has(
+          safeString(
+            contactData
+              ?.lastCampaignId
+          )
+        )
+      ) {
+        contactUpdate.lastCampaignId =
+          targetCampaignId;
+      }
+
+      writer.update(
+        contactRefs[
+          uniqueContactIds.indexOf(
+            contactId
+          )
+        ],
+        contactUpdate
+      );
+    }
+
+    const conversationId =
+      safeString(
+        recipient
+          ?.conversationId
+      );
+
+    const waMessageId =
+      safeString(
+        recipient
+          ?.waMessageId
+      );
+
+    if (
+      conversationId &&
+      waMessageId
+    ) {
+      const messageRef =
+        (db as any)
+          .doc(
+            `whatsapp_conversations/${conversationId}/messages/${waMessageId}`
+          );
+
+      writer.set(
+        messageRef,
+        {
+          campaignId:
+            targetCampaignId,
+          campaignSource:
+            "campaign",
+        },
+        {
+          merge:
+            true,
+        }
+      );
+    }
+
+    if (
+      conversationId
+    ) {
+      const conversationData =
+        conversationsById.get(
+          conversationId
+        );
+
+      if (
+        conversationData &&
+        sourceIdSet.has(
+          safeString(
+            conversationData
+              ?.lastCampaignId
+          )
+        )
+      ) {
+        writer.set(
+          (db as any)
+            .doc(
+              `whatsapp_conversations/${conversationId}`
+            ),
+          {
+            lastCampaignId:
+              targetCampaignId,
+            updatedAt:
+              conversationData
+                ?.updatedAt ||
+              nowTs(),
+          },
+          {
+            merge:
+              true,
+          }
+        );
+      }
+    }
+  }
+
+  writer.set(
+    targetCampaignRef,
+    {
+      campaignId:
+        targetCampaignId,
+      agentId,
+      name:
+        requestedTargetCampaignId
+          ? safeString(
+              targetCampaignData
+                ?.name
+            ) ||
+            requestedTargetCampaignName ||
+            templateName
+          : requestedTargetCampaignName,
+      channel:
+        "whatsapp",
+      templateName,
+      status:
+        "active",
+      completedAt:
+        null,
+      totalContacts:
+        mergedRecipientMap.size,
+      sentCount,
+      failedCount,
+      processedCount,
+      deliveredCount,
+      readCount,
+      repliedCount,
+      mergedSourceCampaignIds:
+        FieldValue.arrayUnion(
+          ...sourceCampaignIds
+        ),
+      lastMergeAt:
+        nowTs(),
+      updatedAt:
+        nowTs(),
+    },
+    {
+      merge:
+        true,
+    }
+  );
+
+  for (
+    const source of
+    sourceCampaigns
+  ) {
+    writer.set(
+      source.ref,
+      {
+        status:
+          "merged",
+        mergedIntoCampaignId:
+          targetCampaignId,
+        mergedAt:
+          nowTs(),
+        updatedAt:
+          nowTs(),
+      },
+      {
+        merge:
+          true,
+      }
+    );
+  }
+
+  await writer.close();
+
+  console.log(
+    "[mergeMagicTouchCampaigns] Campaigns merged",
+    {
+      agentId,
+      targetCampaignId,
+      createdTargetCampaign,
+      sourceCampaignIds,
+      templateName,
+      totalContacts:
+        mergedRecipientMap.size,
+      sentCount,
+      failedCount,
+      deliveredCount,
+      readCount,
+      repliedCount,
+      mergedBy:
+        authUid,
+    }
+  );
+
+  return {
+    ok:
+      true,
+    agentId,
+    targetCampaignId,
+    createdTargetCampaign,
+    templateName,
+    sourceCampaignIds,
+    mergedCampaignCount:
+      sourceCampaignIds.length,
+    totalContacts:
+      mergedRecipientMap.size,
+    sentCount,
+    failedCount,
+    processedCount,
+    deliveredCount,
+    readCount,
+    repliedCount,
+  };
+}
+
+export async function sendMagicTouchWhatsAppCampaignImpl(
+  req: any
+): Promise<object> {
+  const {
+    db,
+    authUid,
+    agentId,
+    userData,
+  } =
+    await resolveAgentAccess(
+      req
+    );
+
+  const requestedCampaignId =
+    safeString(
+      req.data?.campaignId
+    );
+
+  const requestedTemplateName =
+    safeString(
+      req.data?.templateName
+    );
+
+  const requestedCampaignName =
+    safeString(
+      req.data?.campaignName
+    );
+
+  const contactIds =
+    normalizeContactIds(
+      req.data?.contactIds
+    );
+
+  if (
+    contactIds.length ===
+    0
+  ) {
+    throw new HttpsError(
+      "invalid-argument",
+      "Missing contactIds"
+    );
+  }
+
+  if (
+    contactIds.length >
+    MAX_CONTACTS_PER_BATCH
+  ) {
+    throw new HttpsError(
+      "invalid-argument",
+      `A maximum of ${MAX_CONTACTS_PER_BATCH} contacts is allowed per batch`
+    );
+  }
+
+  if (
+    requestedCampaignId &&
+    requestedCampaignId.includes(
+      "/"
+    )
+  ) {
+    throw new HttpsError(
+      "invalid-argument",
+      "Invalid campaignId"
+    );
+  }
+
+  const campaignsCollection =
+    (db as any)
+      .collection(
+        `agents/${agentId}/magic_touch_campaigns`
+      );
+
+  const campaignRef =
+    requestedCampaignId
+      ? campaignsCollection
+          .doc(
+            requestedCampaignId
+          )
+      : campaignsCollection
+          .doc();
 
   const campaignId =
     campaignRef.id;
 
-  const finalCampaignName =
-    campaignName ||
-    `קמפיין WhatsApp ${new Date().toLocaleDateString("he-IL")}`;
+  let existingCampaign:
+    any =
+    null;
 
-  await campaignRef.set({
-    campaignId,
-    agentId,
+  let templateName =
+    requestedTemplateName;
 
-    name:
-      finalCampaignName,
+  let finalCampaignName =
+    requestedCampaignName;
 
-    channel:
-      "whatsapp",
+  let baseTotalContacts =
+    0;
 
-    templateName,
+  let baseSentCount =
+    0;
 
-    status:
-      "processing",
+  let baseFailedCount =
+    0;
 
-    totalContacts:
-      contactIds.length,
+  let baseProcessedCount =
+    0;
 
-    sentCount:
-      0,
+  if (
+    requestedCampaignId
+  ) {
+    const campaignSnap =
+      await campaignRef.get();
 
-    failedCount:
-      0,
+    if (
+      !campaignSnap.exists
+    ) {
+      throw new HttpsError(
+        "not-found",
+        "Campaign not found"
+      );
+    }
 
-    createdBy:
-      authUid,
+    existingCampaign =
+      campaignSnap.data() as any;
 
-    createdByName:
+    const storedAgentId =
       safeString(
-        userData?.name
+        existingCampaign
+          ?.agentId
+      );
+
+    if (
+      storedAgentId &&
+      storedAgentId !==
+        agentId
+    ) {
+      throw new HttpsError(
+        "permission-denied",
+        "Campaign belongs to another agent"
+      );
+    }
+
+    const storedStatus =
+      safeString(
+        existingCampaign
+          ?.status
+      );
+
+    if (
+      storedStatus ===
+        "archived"
+    ) {
+      throw new HttpsError(
+        "failed-precondition",
+        "Archived campaign cannot receive new recipients"
+      );
+    }
+
+    templateName =
+      safeString(
+        existingCampaign
+          ?.templateName
+      );
+
+    if (!templateName) {
+      throw new HttpsError(
+        "failed-precondition",
+        "Campaign does not have a WhatsApp template"
+      );
+    }
+
+    if (
+      requestedTemplateName &&
+      requestedTemplateName !==
+        templateName
+    ) {
+      throw new HttpsError(
+        "failed-precondition",
+        "Campaign template cannot be changed"
+      );
+    }
+
+    finalCampaignName =
+      safeString(
+        existingCampaign
+          ?.name
       ) ||
-      null,
+      templateName;
 
-    startedAt:
-      nowTs(),
+    baseTotalContacts =
+      n(
+        existingCampaign
+          ?.totalContacts
+      );
 
-    createdAt:
-      nowTs(),
+    baseSentCount =
+      n(
+        existingCampaign
+          ?.sentCount
+      );
 
-    updatedAt:
-      nowTs(),
-  });
+    baseFailedCount =
+      n(
+        existingCampaign
+          ?.failedCount
+      );
+
+    baseProcessedCount =
+      n(
+        existingCampaign
+          ?.processedCount
+      );
+  } else {
+    if (!templateName) {
+      throw new HttpsError(
+        "invalid-argument",
+        "Missing templateName"
+      );
+    }
+
+    finalCampaignName =
+      finalCampaignName ||
+      `קמפיין WhatsApp ${new Date().toLocaleDateString("he-IL")}`;
+  }
+
+  const recipientSnapshots =
+    await Promise.all(
+      contactIds.map(
+        async (
+          contactId
+        ) => {
+          const recipientRef =
+            campaignRef
+              .collection(
+                "recipients"
+              )
+              .doc(
+                contactId
+              );
+
+          const snapshot =
+            requestedCampaignId
+              ? await recipientRef
+                  .get()
+              : null;
+
+          return {
+            contactId,
+            recipientRef,
+            exists:
+              Boolean(
+                snapshot
+                  ?.exists
+              ),
+          };
+        }
+      )
+    );
+
+  const newRecipients =
+    recipientSnapshots
+      .filter(
+        (
+          item
+        ) =>
+          !item.exists
+      );
+
+  const skippedRecipients =
+    recipientSnapshots
+      .filter(
+        (
+          item
+        ) =>
+          item.exists
+      );
+
+  const results:
+    CampaignResultItem[] =
+    skippedRecipients.map(
+      (
+        item
+      ) => ({
+        contactId:
+          item.contactId,
+
+        ok:
+          true,
+
+        skipped:
+          true,
+
+        skipReason:
+          "already_in_campaign",
+      })
+    );
+
+  if (
+    requestedCampaignId &&
+    newRecipients.length ===
+      0
+  ) {
+    return {
+      ok: true,
+      partialSuccess: false,
+
+      agentId,
+      campaignId,
+      campaignName:
+        finalCampaignName,
+      templateName,
+
+      received:
+        contactIds.length,
+      added:
+        0,
+      skipped:
+        skippedRecipients.length,
+      sent:
+        0,
+      failed:
+        0,
+
+      totalContacts:
+        baseTotalContacts,
+      totalSent:
+        baseSentCount,
+      totalFailed:
+        baseFailedCount,
+      totalProcessed:
+        baseProcessedCount,
+
+      status:
+        "completed",
+      campaignStatus:
+        "active",
+      lastBatchStatus:
+        "completed",
+
+      results,
+    };
+  }
+
+  const newTotalContacts =
+    requestedCampaignId
+      ? baseTotalContacts +
+        newRecipients.length
+      : newRecipients.length;
+
+  if (
+    requestedCampaignId
+  ) {
+    await campaignRef.set(
+      {
+        status:
+          "active",
+
+        completedAt:
+          null,
+
+        totalContacts:
+          newTotalContacts,
+
+        lastBatchStatus:
+          "processing",
+
+        lastBatchStartedAt:
+          nowTs(),
+
+        lastBatchSize:
+          newRecipients.length,
+
+        updatedAt:
+          nowTs(),
+      },
+      {
+        merge:
+          true,
+      }
+    );
+  } else {
+    await campaignRef.set({
+      campaignId,
+      agentId,
+
+      name:
+        finalCampaignName,
+
+      channel:
+        "whatsapp",
+
+      templateName,
+
+      status:
+        "active",
+
+      totalContacts:
+        newTotalContacts,
+
+      sentCount:
+        0,
+
+      failedCount:
+        0,
+
+      processedCount:
+        0,
+
+      createdBy:
+        authUid,
+
+      createdByName:
+        safeString(
+          userData?.name
+        ) ||
+        null,
+
+      startedAt:
+        nowTs(),
+
+      lastBatchStatus:
+        "processing",
+
+      lastBatchStartedAt:
+        nowTs(),
+
+      lastBatchSize:
+        newRecipients.length,
+
+      completedAt:
+        null,
+
+      createdAt:
+        nowTs(),
+
+      updatedAt:
+        nowTs(),
+    });
+  }
 
   let context;
 
@@ -241,19 +2031,22 @@ export async function sendMagicTouchWhatsAppCampaignImpl(
   } catch (
     error: any
   ) {
+    const errorMessage =
+      error?.message ||
+      String(error);
+
     await campaignRef.set(
       {
         status:
+          "active",
+
+        lastBatchStatus:
           "failed",
 
-        failedCount:
-          contactIds.length,
+        lastBatchError:
+          errorMessage,
 
-        error:
-          error?.message ||
-          String(error),
-
-        completedAt:
+        lastBatchFailedAt:
           nowTs(),
 
         updatedAt:
@@ -268,22 +2061,21 @@ export async function sendMagicTouchWhatsAppCampaignImpl(
     throw error;
   }
 
-  let sent = 0;
-  let failed = 0;
+  let sentThisBatch =
+    0;
 
-  const results:
-    CampaignResultItem[] = [];
+  let failedThisBatch =
+    0;
 
   for (
-    const contactId of
-    contactIds
+    const recipient of
+    newRecipients
   ) {
-    const recipientRef =
-      campaignRef
-        .collection(
-          "recipients"
-        )
-        .doc(contactId);
+    const {
+      contactId,
+      recipientRef,
+    } =
+      recipient;
 
     await recipientRef.set(
       {
@@ -322,7 +2114,7 @@ export async function sendMagicTouchWhatsAppCampaignImpl(
           campaignId,
         });
 
-      sent++;
+      sentThisBatch++;
 
       await recipientRef.set(
         {
@@ -370,7 +2162,7 @@ export async function sendMagicTouchWhatsAppCampaignImpl(
     } catch (
       error: any
     ) {
-      failed++;
+      failedThisBatch++;
 
       const errorMessage =
         error?.message ||
@@ -417,21 +2209,20 @@ export async function sendMagicTouchWhatsAppCampaignImpl(
       });
     }
 
-    /*
-     * מעדכנים התקדמות אחרי כל נמען,
-     * כדי שהמסך העתידי יוכל להציג התקדמות בזמן אמת.
-     */
     await campaignRef.set(
       {
         sentCount:
-          sent,
+          baseSentCount +
+          sentThisBatch,
 
         failedCount:
-          failed,
+          baseFailedCount +
+          failedThisBatch,
 
         processedCount:
-          sent +
-          failed,
+          baseProcessedCount +
+          sentThisBatch +
+          failedThisBatch,
 
         updatedAt:
           nowTs(),
@@ -443,30 +2234,62 @@ export async function sendMagicTouchWhatsAppCampaignImpl(
     );
   }
 
-  const finalStatus =
-    failed === 0
+  const totalSent =
+    baseSentCount +
+    sentThisBatch;
+
+  const totalFailed =
+    baseFailedCount +
+    failedThisBatch;
+
+  const totalProcessed =
+    baseProcessedCount +
+    sentThisBatch +
+    failedThisBatch;
+
+  const batchStatus =
+    failedThisBatch ===
+      0
       ? "completed"
-      : sent > 0
+      : sentThisBatch >
+          0
         ? "completed_with_errors"
         : "failed";
 
   await campaignRef.set(
     {
       status:
-        finalStatus,
-
-      sentCount:
-        sent,
-
-      failedCount:
-        failed,
-
-      processedCount:
-        sent +
-        failed,
+        "active",
 
       completedAt:
+        null,
+
+      totalContacts:
+        newTotalContacts,
+
+      sentCount:
+        totalSent,
+
+      failedCount:
+        totalFailed,
+
+      processedCount:
+        totalProcessed,
+
+      lastBatchStatus:
+        batchStatus,
+
+      lastBatchSentCount:
+        sentThisBatch,
+
+      lastBatchFailedCount:
+        failedThisBatch,
+
+      lastBatchCompletedAt:
         nowTs(),
+
+      lastBatchError:
+        null,
 
       updatedAt:
         nowTs(),
@@ -479,11 +2302,14 @@ export async function sendMagicTouchWhatsAppCampaignImpl(
 
   return {
     ok:
-      failed === 0,
+      failedThisBatch ===
+      0,
 
     partialSuccess:
-      sent > 0 &&
-      failed > 0,
+      sentThisBatch >
+        0 &&
+      failedThisBatch >
+        0,
 
     agentId,
     campaignId,
@@ -496,11 +2322,33 @@ export async function sendMagicTouchWhatsAppCampaignImpl(
     received:
       contactIds.length,
 
-    sent,
-    failed,
+    added:
+      newRecipients.length,
+
+    skipped:
+      skippedRecipients.length,
+
+    sent:
+      sentThisBatch,
+
+    failed:
+      failedThisBatch,
+
+    totalContacts:
+      newTotalContacts,
+
+    totalSent,
+    totalFailed,
+    totalProcessed,
 
     status:
-      finalStatus,
+      batchStatus,
+
+    campaignStatus:
+      "active",
+
+    lastBatchStatus:
+      batchStatus,
 
     results,
   };

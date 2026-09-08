@@ -154,6 +154,13 @@ export async function saveAgentSurenseConfigImpl(
             ?.searchCustomers
         ),
 
+      findCustomer:
+        normalizeAction(
+          config
+            ?.actions
+            ?.findCustomer
+        ),
+
       createWorkflow:
         normalizeAction(
           config
@@ -253,7 +260,9 @@ export async function saveAgentSurenseConfigImpl(
 
   return {
     ok: true,
+
     agentId,
+
     config:
       normalized,
   };

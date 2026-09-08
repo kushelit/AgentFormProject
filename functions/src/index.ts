@@ -108,6 +108,8 @@ export {
 
 export {
   sendMagicTouchWhatsAppCampaign,
+  getMagicTouchCampaigns,
+  mergeMagicTouchCampaigns,
 } from "./sendMagicTouchWhatsAppCampaign";
 
 export {
@@ -368,3 +370,7 @@ export {
 export {
   updateMagicTouchFlowTemplate,
 } from "./updateMagicTouchFlowTemplate";
+
+export {
+  getMagicTouchDashboard,
+} from "./getMagicTouchDashboard";

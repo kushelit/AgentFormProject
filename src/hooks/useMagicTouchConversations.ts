@@ -21,6 +21,11 @@ import {
   db,
 } from '@/lib/firebase/firebase';
 
+export type MagicTouchConversationFilter =
+  | 'all'
+  | 'unread'
+  | 'human_attention';
+
 export type MagicTouchConversation = {
   id: string;
 
@@ -110,6 +115,7 @@ type UseMagicTouchConversationsResult = {
     | null;
 
   selectedConversationId: string;
+
   setSelectedConversationId: (
     conversationId: string
   ) => void;
@@ -117,8 +123,17 @@ type UseMagicTouchConversationsResult = {
   messages: MagicTouchConversationMessage[];
 
   search: string;
+
   setSearch: (
     value: string
+  ) => void;
+
+  conversationFilter:
+    MagicTouchConversationFilter;
+
+  setConversationFilter: (
+    filter:
+      MagicTouchConversationFilter
   ) => void;
 
   isLoadingConversations: boolean;
@@ -128,6 +143,7 @@ type UseMagicTouchConversationsResult = {
   clearError: () => void;
 
   waitingForReplyCount: number;
+  unreadConversationCount: number;
   humanAttentionCount: number;
 
   selectConversation: (
@@ -161,7 +177,10 @@ function toDate(
 
   const parsed =
     new Date(
-      value as string | number | Date
+      value as
+        | string
+        | number
+        | Date
     );
 
   return Number.isNaN(
@@ -169,6 +188,31 @@ function toDate(
   )
     ? null
     : parsed;
+}
+
+function conversationRequiresHumanAttention(
+  conversation:
+    MagicTouchConversation
+): boolean {
+  return (
+    conversation.needsHumanAttention ===
+      true ||
+    conversation.humanAttention
+      ?.required ===
+      true
+  );
+}
+
+function conversationIsUnread(
+  conversation:
+    MagicTouchConversation
+): boolean {
+  return (
+    Number(
+      conversation.unreadCount ||
+        0
+    ) > 0
+  );
 }
 
 export function useMagicTouchConversations(
@@ -203,6 +247,14 @@ export function useMagicTouchConversations(
     useState('');
 
   const [
+    conversationFilter,
+    setConversationFilter,
+  ] =
+    useState<
+      MagicTouchConversationFilter
+    >('all');
+
+  const [
     isLoadingConversations,
     setIsLoadingConversations,
   ] =
@@ -232,11 +284,17 @@ export function useMagicTouchConversations(
     if (!agentId) {
       setConversations([]);
       setSelectedConversationId('');
-      setIsLoadingConversations(false);
+      setIsLoadingConversations(
+        false
+      );
+
       return;
     }
 
-    setIsLoadingConversations(true);
+    setIsLoadingConversations(
+      true
+    );
+
     setErrorMessage('');
 
     const conversationsQuery =
@@ -340,6 +398,7 @@ export function useMagicTouchConversations(
           );
 
           setConversations([]);
+
           setIsLoadingConversations(
             false
           );
@@ -366,7 +425,11 @@ export function useMagicTouchConversations(
       !selectedConversationId
     ) {
       setMessages([]);
-      setIsLoadingMessages(false);
+
+      setIsLoadingMessages(
+        false
+      );
+
       return;
     }
 
@@ -427,6 +490,7 @@ export function useMagicTouchConversations(
           );
 
           setMessages([]);
+
           setIsLoadingMessages(
             false
           );
@@ -445,18 +509,51 @@ export function useMagicTouchConversations(
     selectedConversationId,
   ]);
 
+  /*
+   * פילטר רשימת השיחות.
+   *
+   * קודם מסננים לפי:
+   * - הכל
+   * - לא נקראו
+   * - דורשות טיפול
+   *
+   * ורק לאחר מכן מפעילים את החיפוש.
+   */
   const filteredConversations =
     useMemo(() => {
+      let rows =
+        conversations;
+
+      if (
+        conversationFilter ===
+        'unread'
+      ) {
+        rows =
+          rows.filter(
+            conversationIsUnread
+          );
+      }
+
+      if (
+        conversationFilter ===
+        'human_attention'
+      ) {
+        rows =
+          rows.filter(
+            conversationRequiresHumanAttention
+          );
+      }
+
       const term =
         search
           .trim()
           .toLowerCase();
 
       if (!term) {
-        return conversations;
+        return rows;
       }
 
-      return conversations.filter(
+      return rows.filter(
         (
           conversation
         ) => {
@@ -479,6 +576,7 @@ export function useMagicTouchConversations(
       );
     }, [
       conversations,
+      conversationFilter,
       search,
     ]);
 
@@ -514,18 +612,22 @@ export function useMagicTouchConversations(
       ]
     );
 
+  const unreadConversationCount =
+    useMemo(
+      () =>
+        conversations.filter(
+          conversationIsUnread
+        ).length,
+      [
+        conversations,
+      ]
+    );
+
   const humanAttentionCount =
     useMemo(
       () =>
         conversations.filter(
-          (
-            conversation
-          ) =>
-            conversation.needsHumanAttention ===
-              true ||
-            conversation.humanAttention
-              ?.required ===
-              true
+          conversationRequiresHumanAttention
         ).length,
       [
         conversations,
@@ -603,6 +705,9 @@ export function useMagicTouchConversations(
     search,
     setSearch,
 
+    conversationFilter,
+    setConversationFilter,
+
     isLoadingConversations,
     isLoadingMessages,
 
@@ -610,6 +715,7 @@ export function useMagicTouchConversations(
     clearError,
 
     waitingForReplyCount,
+    unreadConversationCount,
     humanAttentionCount,
 
     selectConversation,

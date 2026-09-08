@@ -6,12 +6,12 @@ export type MagicTouchNavigationItem = {
 };
 
 const magicTouchPages: MagicTouchNavigationItem[] = [
-  // {
-  //   href: '/MagicTouch',
-  //   label: 'דשבורד',
-  //   icon: '🏠',
-  //   permission: 'access_magic_touch',
-  // },
+  {
+    href: '/MagicTouch',
+    label: 'דשבורד',
+    icon: '🏠',
+    permission: 'access_magic_touch',
+  },
   {
     href: '/MagicTouch/Contacts',
     label: 'אנשי קשר',
@@ -24,12 +24,12 @@ const magicTouchPages: MagicTouchNavigationItem[] = [
     icon: '💬',
   permission: 'access_magic_touch',
   },
-  // {
-  //   href: '/MagicTouch/Campaigns',
-  //   label: 'קמפיינים',
-  //   icon: '📣',
-  //   permission: 'access_magic_touch_campaigns',
-  // },
+  {
+    href: '/MagicTouch/Campaigns',
+    label: 'קמפיינים',
+    icon: '📣',
+    permission: 'access_magic_touch',
+  },
     {
     href: '/MagicTouch/Flows',
     label: 'אוטומציות',

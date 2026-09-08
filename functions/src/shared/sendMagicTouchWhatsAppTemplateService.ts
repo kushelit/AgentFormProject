@@ -946,22 +946,27 @@ export async function sendMagicTouchTemplateToContact(
     !response.ok ||
     !waMessageId
   ) {
-    console.error(
-      "[sendMagicTouchTemplateToContact] Meta error",
-      {
-        agentId,
+  console.error(
+  "[sendMagicTouchTemplateToContact] Meta error",
+  JSON.stringify({
+    agentId,
 
-        contactId,
+    contactId,
 
-        campaignId,
+    campaignId,
 
-        httpStatus:
-          response.status,
+    httpStatus:
+      response.status,
 
-        response:
-          responseData,
-      }
-    );
+    response:
+      responseData,
+
+    templatePayload,
+
+    phoneNumberId:
+      context.phoneNumberId,
+  })
+);
 
     throw new HttpsError(
       "failed-precondition",

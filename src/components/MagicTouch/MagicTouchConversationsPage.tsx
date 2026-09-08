@@ -23,6 +23,7 @@ import {
   magicTouchConversationValueToDate,
   type MagicTouchConversation,
   type MagicTouchConversationMessage,
+  type MagicTouchConversationFilter,
 } from '@/hooks/useMagicTouchConversations';
 
 type SendMessageResponse = {
@@ -357,6 +358,9 @@ export default function MagicTouchConversationsPage() {
     search,
     setSearch,
 
+    conversationFilter,
+    setConversationFilter,
+
     isLoadingConversations,
     isLoadingMessages,
 
@@ -367,6 +371,7 @@ export default function MagicTouchConversationsPage() {
       clearConversationsError,
 
     waitingForReplyCount,
+    unreadConversationCount,
     humanAttentionCount,
 
     selectConversation,
@@ -674,6 +679,24 @@ export default function MagicTouchConversationsPage() {
       }
     };
 
+  const getFilterButtonClass =
+    (
+      filter:
+        MagicTouchConversationFilter
+    ) => {
+      const isActive =
+        conversationFilter ===
+        filter;
+
+      return [
+        'inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5',
+        'text-xs font-semibold transition',
+        isActive
+          ? 'border-green-600 bg-green-600 text-white shadow-sm'
+          : 'border-slate-200 bg-white text-slate-600 hover:border-green-300 hover:bg-green-50',
+      ].join(' ');
+    };
+
   return (
     <section
       dir="rtl"
@@ -756,6 +779,95 @@ export default function MagicTouchConversationsPage() {
                   placeholder="חיפוש לפי שם, טלפון או הודעה"
                   className="w-full rounded-lg border bg-white px-3 py-2 text-sm"
                 />
+
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setConversationFilter(
+                        'all'
+                      )
+                    }
+                    className={getFilterButtonClass(
+                      'all'
+                    )}
+                  >
+                    <span>
+                      כל השיחות
+                    </span>
+
+                    <span
+                      className={
+                        conversationFilter ===
+                        'all'
+                          ? 'text-white/80'
+                          : 'text-slate-400'
+                      }
+                    >
+                      {
+                        conversations.length
+                      }
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setConversationFilter(
+                        'unread'
+                      )
+                    }
+                    className={getFilterButtonClass(
+                      'unread'
+                    )}
+                  >
+                    <span>
+                      לא נקראו
+                    </span>
+
+                    <span
+                      className={
+                        conversationFilter ===
+                        'unread'
+                          ? 'text-white/80'
+                          : 'text-slate-400'
+                      }
+                    >
+                      {
+                        unreadConversationCount
+                      }
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setConversationFilter(
+                        'human_attention'
+                      )
+                    }
+                    className={getFilterButtonClass(
+                      'human_attention'
+                    )}
+                  >
+                    <span>
+                      דורשות טיפול
+                    </span>
+
+                    <span
+                      className={
+                        conversationFilter ===
+                        'human_attention'
+                          ? 'text-white/80'
+                          : 'text-slate-400'
+                      }
+                    >
+                      {
+                        humanAttentionCount
+                      }
+                    </span>
+                  </button>
+                </div>
               </div>
 
               <div className="max-h-[610px] overflow-y-auto">
@@ -767,7 +879,13 @@ export default function MagicTouchConversationsPage() {
                     .length ===
                   0 ? (
                   <div className="p-6 text-center text-sm text-slate-500">
-                    אין שיחות להצגה.
+                    {conversationFilter ===
+                    'unread'
+                      ? 'אין שיחות שלא נקראו.'
+                      : conversationFilter ===
+                        'human_attention'
+                      ? 'אין שיחות שדורשות טיפול.'
+                      : 'אין שיחות להצגה.'}
                   </div>
                 ) : (
                   filteredConversations.map(

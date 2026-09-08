@@ -10,6 +10,10 @@ import {
 import Link from "next/link";
 
 import {
+  useSearchParams,
+} from "next/navigation";
+
+import {
   httpsCallable,
 } from "firebase/functions";
 
@@ -27,7 +31,9 @@ import {
 
 import CreateMagicTouchContactModal from "@/components/MagicTouch/CreateMagicTouchContactModal";
 import ImportMagicTouchExcelModal from "@/components/MagicTouch/ImportMagicTouchExcelModal";
-import SendMagicTouchCampaignModal from "@/components/MagicTouch/SendMagicTouchCampaignModal";
+import SendMagicTouchCampaignModal, {
+  type MagicTouchCampaignSummary,
+} from "@/components/MagicTouch/SendMagicTouchCampaignModal";
 
 type SourceSystem =
   | "surense"
@@ -215,6 +221,15 @@ type CampaignOption = {
   key: string;
   campaignId: string;
   label: string;
+  templateName: string;
+  status: string;
+};
+
+type GetMagicTouchCampaignsResponse = {
+  ok: boolean;
+  agentId: string;
+  campaigns: MagicTouchCampaignSummary[];
+  count: number;
 };
 
 function formatDate(
@@ -590,6 +605,25 @@ export default function MagicTouchContactsPage() {
   const agentId =
     selectedAgentId;
 
+  const searchParams =
+    useSearchParams();
+
+  const dashboardCampaignId =
+    String(
+      searchParams.get(
+        "campaignId"
+      ) ||
+      ""
+    ).trim();
+
+  const dashboardCampaignStatus =
+    String(
+      searchParams.get(
+        "campaignStatus"
+      ) ||
+      ""
+    ).trim();
+
   const [
     hasSurenseIntegration,
     setHasSurenseIntegration,
@@ -602,6 +636,14 @@ export default function MagicTouchContactsPage() {
   ] =
     useState<
       MagicTouchContact[]
+    >([]);
+
+  const [
+    campaignCatalog,
+    setCampaignCatalog,
+  ] =
+    useState<
+      MagicTouchCampaignSummary[]
     >([]);
 
   const [
@@ -784,6 +826,54 @@ export default function MagicTouchContactsPage() {
       ]
     );
 
+  const loadCampaigns =
+    useCallback(
+      async () => {
+        if (!agentId) {
+          setCampaignCatalog([]);
+          return;
+        }
+
+        try {
+          const fn =
+            httpsCallable<
+              {
+                agentId: string;
+              },
+              GetMagicTouchCampaignsResponse
+            >(
+              functions,
+              "getMagicTouchCampaigns"
+            );
+
+          const result =
+            await fn({
+              agentId,
+            });
+
+          setCampaignCatalog(
+            Array.isArray(
+              result.data?.campaigns
+            )
+              ? result.data.campaigns
+              : []
+          );
+        } catch (
+          error: any
+        ) {
+          console.error(
+            "[MagicTouchContactsPage] Failed to load campaigns",
+            error
+          );
+
+          setCampaignCatalog([]);
+        }
+      },
+      [
+        agentId,
+      ]
+    );
+
   useEffect(() => {
     if (!agentId) {
       setHasSurenseIntegration(false);
@@ -822,8 +912,12 @@ export default function MagicTouchContactsPage() {
   ]);
 
   useEffect(() => {
-    void loadContacts();
+    void Promise.all([
+      loadContacts(),
+      loadCampaigns(),
+    ]);
   }, [
+    loadCampaigns,
     loadContacts,
   ]);
 
@@ -848,6 +942,10 @@ export default function MagicTouchContactsPage() {
       ""
     );
 
+    setCampaignCatalog(
+      []
+    );
+
     setCampaignFilter(
       ""
     );
@@ -857,6 +955,27 @@ export default function MagicTouchContactsPage() {
     );
   }, [
     agentId,
+  ]);
+
+  useEffect(() => {
+    if (
+      !agentId ||
+      !dashboardCampaignId
+    ) {
+      return;
+    }
+
+    setCampaignFilter(
+      dashboardCampaignId
+    );
+
+    setCampaignStatusFilter(
+      dashboardCampaignStatus
+    );
+  }, [
+    agentId,
+    dashboardCampaignId,
+    dashboardCampaignStatus,
   ]);
 
   const campaignOptions =
@@ -870,6 +989,51 @@ export default function MagicTouchContactsPage() {
             CampaignOption
           >();
 
+        for (
+          const campaign of
+          campaignCatalog
+        ) {
+          const campaignId =
+            String(
+              campaign.campaignId ||
+              ""
+            ).trim();
+
+          if (!campaignId) {
+            continue;
+          }
+
+          map.set(
+            campaignId,
+            {
+              key:
+                campaignId,
+              campaignId,
+              label:
+                String(
+                  campaign.name ||
+                  campaign.templateName ||
+                  campaignId
+                ).trim(),
+              templateName:
+                String(
+                  campaign.templateName ||
+                  ""
+                ).trim(),
+              status:
+                String(
+                  campaign.status ||
+                  ""
+                ).trim(),
+            }
+          );
+        }
+
+        /*
+         * תאימות לקמפיינים ישנים: אם קיימת רשומת קמפיין
+         * אצל איש קשר אך מסמך הקמפיין לא נטען/לא קיים,
+         * עדיין נציג אותה במסנן ולא נאבד היסטוריה.
+         */
         for (
           const contact of
           contacts
@@ -895,34 +1059,34 @@ export default function MagicTouchContactsPage() {
               ).trim();
 
             if (
-              !campaignId
+              !campaignId ||
+              map.has(
+                campaignId
+              )
             ) {
               continue;
             }
 
-            const label =
+            const templateName =
               String(
                 campaign
                   ?.templateName ||
-                campaignId
+                ""
               ).trim();
 
-            if (
-              !map.has(
-                campaignId
-              )
-            ) {
-              map.set(
+            map.set(
+              campaignId,
+              {
+                key,
                 campaignId,
-                {
-                  key,
+                label:
+                  templateName ||
                   campaignId,
-                  label:
-                    label ||
-                    campaignId,
-                }
-              );
-            }
+                templateName,
+                status:
+                  "legacy",
+              }
+            );
           }
         }
 
@@ -940,6 +1104,7 @@ export default function MagicTouchContactsPage() {
         );
       },
       [
+        campaignCatalog,
         contacts,
       ]
     );
@@ -999,8 +1164,44 @@ export default function MagicTouchContactsPage() {
                 "already_sent"
               ) {
                 if (
-                  status ===
-                  "failed"
+                  ![
+                    "accepted",
+                    "sent",
+                    "delivered",
+                    "read",
+                    "replied",
+                  ].includes(
+                    status
+                  )
+                ) {
+                  return false;
+                }
+              } else if (
+                campaignStatusFilter ===
+                "delivered"
+              ) {
+                if (
+                  ![
+                    "delivered",
+                    "read",
+                    "replied",
+                  ].includes(
+                    status
+                  )
+                ) {
+                  return false;
+                }
+              } else if (
+                campaignStatusFilter ===
+                "read"
+              ) {
+                if (
+                  ![
+                    "read",
+                    "replied",
+                  ].includes(
+                    status
+                  )
                 ) {
                   return false;
                 }
@@ -1215,7 +1416,7 @@ export default function MagicTouchContactsPage() {
         100
       ) {
         setErrorMessage(
-          "ניתן לשלוח עד 100 אנשי קשר בכל קמפיין."
+          "ניתן לשלוח עד 100 אנשי קשר בכל פעימת שליחה."
         );
         return;
       }
@@ -1802,7 +2003,10 @@ export default function MagicTouchContactsPage() {
               <button
                 type="button"
                 onClick={() =>
-                  void loadContacts()
+                  void Promise.all([
+                    loadContacts(),
+                    loadCampaigns(),
+                  ])
                 }
                 disabled={
                   isLoading ||
@@ -1841,9 +2045,15 @@ export default function MagicTouchContactsPage() {
                       : campaignStatusFilter ===
                           "already_sent"
                         ? "כבר נשלח"
-                        : campaignStatusLabel(
-                            campaignStatusFilter
-                          )}
+                        : campaignStatusFilter ===
+                            "delivered"
+                          ? "נמסר ומעלה"
+                          : campaignStatusFilter ===
+                              "read"
+                            ? "נקרא או הגיב"
+                            : campaignStatusLabel(
+                                campaignStatusFilter
+                              )}
                   </span>
                 ) : null}
 
@@ -2453,6 +2663,13 @@ export default function MagicTouchContactsPage() {
           contactIds={Array.from(
             selectedContactIds
           )}
+          campaigns={
+            campaignCatalog
+          }
+          preselectedCampaignId={
+            campaignFilter ||
+            null
+          }
           selectedContactName={
             selectedPreviewName
           }
@@ -2464,16 +2681,43 @@ export default function MagicTouchContactsPage() {
           onSent={async (
             result
           ) => {
+            const skipped =
+              Number(
+                result.skipped ||
+                0
+              );
+
             setSuccessMessage(
               result.failed >
                 0
-                ? `הקמפיין הסתיים: ${result.sent} נשלחו, ${result.failed} נכשלו.`
-                : `הקמפיין נשלח בהצלחה ל-${result.sent} אנשי קשר.`
+                ? `הפעימה הסתיימה בקמפיין ${result.campaignName}: ${result.sent} נשלחו, ${result.failed} נכשלו${
+                    skipped >
+                    0
+                      ? `, ${skipped} כבר היו בקמפיין`
+                      : ""
+                  }.`
+                : `הפעימה נשלחה בקמפיין ${result.campaignName}: ${result.sent} נשלחו${
+                    skipped >
+                    0
+                      ? `, ${skipped} כבר היו בקמפיין ולא נשלחו שוב`
+                      : ""
+                  }.`
             );
 
             clearSelection();
 
-            await loadContacts();
+            setCampaignFilter(
+              result.campaignId
+            );
+
+            setCampaignStatusFilter(
+              "not_sent"
+            );
+
+            await Promise.all([
+              loadContacts(),
+              loadCampaigns(),
+            ]);
           }}
         />
       ) : null}
