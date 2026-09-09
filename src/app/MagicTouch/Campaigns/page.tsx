@@ -51,18 +51,6 @@ type GetCampaignsResponse = {
   count: number;
 };
 
-type RecalculateCampaignStatsResponse = {
-  ok: boolean;
-  agentId: string;
-  campaignId: string;
-  totalContacts: number;
-  sentCount: number;
-  deliveredCount: number;
-  readCount: number;
-  repliedCount: number;
-  failedCount: number;
-  processedCount: number;
-};
 
 type MergeCampaignsResponse = {
   ok: boolean;
@@ -195,12 +183,6 @@ export default function MagicTouchCampaignsPage() {
     setIsMerging,
   ] =
     useState(false);
-
-  const [
-    recalculatingCampaignId,
-    setRecalculatingCampaignId,
-  ] =
-    useState('');
 
   const [
     errorMessage,
@@ -693,76 +675,6 @@ export default function MagicTouchCampaignsPage() {
       );
     };
 
-  const handleRecalculateCampaign =
-    async (
-      campaign:
-        MagicTouchCampaignSummary
-    ) => {
-      if (
-        !agentId ||
-        recalculatingCampaignId
-      ) {
-        return;
-      }
-
-      const confirmed =
-        window.confirm(
-          `לחשב מחדש את נתוני הקמפיין "${campaign.name}"?\n\nהפעולה לא שולחת הודעות. היא רק משחזרת את מוני המסירה, הקריאה והתגובות מהנתונים שכבר נשמרו.`
-        );
-
-      if (!confirmed) {
-        return;
-      }
-
-      setRecalculatingCampaignId(
-        campaign.campaignId
-      );
-      setErrorMessage('');
-      setSuccessMessage('');
-
-      try {
-        const fn =
-          httpsCallable<
-            {
-              agentId: string;
-              campaignId: string;
-            },
-            RecalculateCampaignStatsResponse
-          >(
-            functions,
-            'recalculateMagicTouchCampaignStats'
-          );
-
-        const response =
-          await fn({
-            agentId,
-            campaignId:
-              campaign.campaignId,
-          });
-
-        const result =
-          response.data;
-
-        setSuccessMessage(
-          `הנתונים חושבו מחדש. נמענים: ${result.totalContacts}, נשלחו: ${result.sentCount}, נמסרו: ${result.deliveredCount}, נקראו: ${result.readCount}, הגיבו: ${result.repliedCount}, נכשלו: ${result.failedCount}.`
-        );
-
-        await loadCampaigns();
-      } catch (error: any) {
-        console.error(
-          '[MagicTouchCampaignsPage] Recalculate failed',
-          error
-        );
-
-        setErrorMessage(
-          error?.message ||
-            'חישוב נתוני הקמפיין מחדש נכשל.'
-        );
-      } finally {
-        setRecalculatingCampaignId('');
-      }
-    };
-
   const handleMerge =
     async () => {
       if (
@@ -1209,7 +1121,7 @@ export default function MagicTouchCampaignsPage() {
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="min-w-[1460px] w-full text-right text-sm">
+              <table className="min-w-[1320px] w-full text-right text-sm">
                 <thead className="bg-slate-50 text-xs font-bold text-slate-500">
                   <tr>
                     <th className="w-12 px-4 py-3.5 text-center">
@@ -1269,9 +1181,6 @@ export default function MagicTouchCampaignsPage() {
                       מזהה
                     </th>
 
-                    <th className="px-4 py-3.5 text-center">
-                      תיקון נתונים
-                    </th>
                   </tr>
                 </thead>
 
@@ -1394,40 +1303,6 @@ export default function MagicTouchCampaignsPage() {
                             {campaign.campaignId}
                           </td>
 
-                          <td className="px-4 py-3.5 text-center">
-                            <button
-                              type="button"
-                              onClick={() =>
-                                void handleRecalculateCampaign(
-                                  campaign
-                                )
-                              }
-                              disabled={
-                                Boolean(
-                                  recalculatingCampaignId
-                                ) ||
-                                campaign.status ===
-                                  'merged'
-                              }
-                              title="חשב מחדש את נתוני הקמפיין"
-                              className="inline-flex items-center gap-1.5 rounded-lg border border-violet-200 bg-violet-50 px-2.5 py-1.5 text-xs font-bold text-violet-700 transition hover:bg-violet-100 disabled:cursor-not-allowed disabled:opacity-50"
-                            >
-                              <span
-                                className={
-                                  recalculatingCampaignId ===
-                                  campaign.campaignId
-                                    ? 'inline-block animate-spin'
-                                    : ''
-                                }
-                              >
-                                ↻
-                              </span>
-                              {recalculatingCampaignId ===
-                              campaign.campaignId
-                                ? 'מחשב...'
-                                : 'חשב מחדש'}
-                            </button>
-                          </td>
                         </tr>
                       );
                     }

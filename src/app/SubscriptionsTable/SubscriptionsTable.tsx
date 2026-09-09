@@ -19,6 +19,17 @@ type SubscriptionRow = {
   id: string;
   agentId?: string;
   workersCount?: number;
+  workers?: Array<{
+    id: string;
+    name: string;
+    email: string;
+    phone: string;
+    idNumber?: string;
+    role: string;
+    isActive: boolean;
+    agentId?: string;
+    agencies?: any;
+  }>;
 
   name: string;
   email: string;
@@ -161,6 +172,21 @@ function getDaysLeft(value: any) {
   if (!date) return null;
   const diffMs = date.getTime() - Date.now();
   return Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+}
+
+function getRoleLabel(role?: string) {
+  switch (String(role || '').toLowerCase()) {
+    case 'agent':
+      return 'סוכן';
+    case 'admin':
+      return 'מנהל סוכנות';
+    case 'manager':
+      return 'מנהל';
+    case 'worker':
+      return 'עובד';
+    default:
+      return role || 'לא הוגדר';
+  }
 }
 
 function getSubscriptionStatusLabel(sub: SubscriptionRow) {
@@ -330,8 +356,12 @@ export default function SubscriptionsAdminPage() {
       if (!sub.isActive || sub.subscriptionStatus === 'canceled') return sum;
       return sum + Number(sub.futureChargeAmount || 0);
     }, 0);
+    const totalPaid = filteredSubscriptions.reduce(
+      (sum, sub) => sum + Number(sub.totalCharged || 0),
+      0
+    );
 
-    return { total, active, failed, withCoupon, missingGrow, workers, monthlyRevenue };
+    return { total, active, failed, withCoupon, missingGrow, workers, monthlyRevenue, totalPaid };
   }, [filteredSubscriptions]);
 
   const isTotalSelected =
@@ -404,10 +434,12 @@ export default function SubscriptionsAdminPage() {
       'טלפון': formatIsraeliPhone(sub.phone),
       'אימייל': sub.email || '',
       'Agent ID': sub.agentId || '',
+      'סוג לקוח': getRoleLabel(sub.role),
       'תוכנית': sub.subscriptionType || '',
       'Role': sub.role || '',
       'מספר עובדים': Number(sub.workersCount || 0),
       'מחיר חודשי': sub.futureChargeAmount ?? '',
+      'סה"כ שולם': sub.totalCharged ?? '',
       'קוד קופון': sub.couponUsed?.code || sub.usedCouponCode || '',
       'הנחה %': sub.couponUsed?.discount ?? '',
       'תאריך הפעלת קופון': formatDateOnly(sub.couponUsed?.appliedAt || sub.couponUsed?.date),
@@ -593,6 +625,7 @@ export default function SubscriptionsAdminPage() {
     { key: 'missingGrow', label: 'ללא Grow', value: String(kpi.missingGrow), selected: isMissingGrowSelected, tone: 'text-[#A9711F]' },
     { key: null, label: 'עובדים', value: String(kpi.workers), selected: false, tone: 'text-[#1F2A24]' },
     { key: null, label: 'הכנסה חודשית', value: formatMoney(kpi.monthlyRevenue), selected: false, tone: 'text-[#1F2A24]' },
+    { key: null, label: 'סה״כ שולם', value: formatMoney(kpi.totalPaid), selected: false, tone: 'text-[#1F2A24]' },
   ];
 
   return (
@@ -761,9 +794,11 @@ export default function SubscriptionsAdminPage() {
                 <thead>
                   <tr className="border-b border-[#E4E1D6] bg-[#FBFAF7] text-right text-[11.5px] font-semibold text-[#8B8478]">
                     <th className="px-5 py-3.5 font-semibold">לקוח</th>
+                    <th className="px-5 py-3.5 font-semibold">סוג לקוח</th>
                     <th className="px-5 py-3.5 font-semibold">מנוי</th>
                     <th className="px-5 py-3.5 font-semibold">עובדים</th>
                     <th className="px-5 py-3.5 font-semibold">תשלום חודשי</th>
+                    <th className="px-5 py-3.5 font-semibold">סה״כ שולם</th>
                     <th className="px-5 py-3.5 font-semibold">קופון</th>
                     <th className="px-5 py-3.5 font-semibold">Grow</th>
                     <th className="px-5 py-3.5 font-semibold">סטטוס</th>
@@ -797,6 +832,11 @@ export default function SubscriptionsAdminPage() {
                               </div>
                             </div>
                           </div>
+                        </td>
+                        <td className="px-5 py-4">
+                          <span className="inline-flex rounded-md bg-[#E8EEF5] px-2.5 py-1 text-[12.5px] font-semibold text-[#40556B]">
+                            {getRoleLabel(sub.role)}
+                          </span>
                         </td>
                         <td className="px-5 py-4">
                           <span className="inline-flex rounded-md bg-[#F0EEE7] px-2.5 py-1 text-[12.5px] font-semibold text-[#1F2A24]">
@@ -874,11 +914,9 @@ export default function SubscriptionsAdminPage() {
                 const daysLeft = getDaysLeft(sub.couponUsed?.expiresAt);
                 const couponUrgent = typeof daysLeft === 'number' && daysLeft <= 7;
 
-                // Workers are separate accounts whose agentId points back at this
-                // agent's own id — resolved from the already-loaded list, no extra call.
-                const agentWorkers = subscriptions.filter(
-                  (s) => s.id !== sub.id && s.agentId === sub.id
-                );
+                // Workers are returned by /api/subscriptions from the full users
+                // collection, using worker.agentId === agent document id.
+                const agentWorkers = sub.workers || [];
 
                 return (
                   <>
@@ -1052,11 +1090,9 @@ export default function SubscriptionsAdminPage() {
                         {agentWorkers.length > 0 ? (
                           <div className="divide-y divide-[#EFEDE7] rounded-lg border border-[#EFEDE7]">
                             {agentWorkers.map((worker) => (
-                              <button
+                              <div
                                 key={worker.id}
-                                type="button"
-                                onClick={() => setSelectedForDetail(worker)}
-                                className="flex w-full items-center gap-3 p-3.5 text-right transition hover:bg-[#FBFAF7] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1F6F4A]/20"
+                                className="flex w-full items-center gap-3 p-3.5 text-right"
                               >
                                 <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#F0EEE7] text-[12px] font-bold text-[#5B6560]">
                                   {(worker.name || '?').trim().charAt(0).toUpperCase()}
@@ -1069,10 +1105,16 @@ export default function SubscriptionsAdminPage() {
                                     {worker.role || 'עובד'}
                                   </div>
                                 </div>
-                                <span className="text-[#C8C4B6]">
-                                  <IconChevron />
+                                <span
+                                  className={`rounded-md px-2 py-1 text-[11.5px] font-semibold ${
+                                    worker.isActive
+                                      ? 'bg-[#E4EEE8] text-[#1F6F4A]'
+                                      : 'bg-[#EFEDE7] text-[#8B8478]'
+                                  }`}
+                                >
+                                  {worker.isActive ? 'פעיל' : 'לא פעיל'}
                                 </span>
-                              </button>
+                              </div>
                             ))}
                           </div>
                         ) : (

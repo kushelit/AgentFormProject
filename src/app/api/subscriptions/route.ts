@@ -7,11 +7,15 @@ import { admin } from '@/lib/firebase/firebase-admin';
 
 export async function GET() {
   try {
-    const snapshot = await admin.firestore().collection('users').get();
+    const snapshot = await admin
+      .firestore()
+      .collection('users')
+      .get();
 
     /**
-     * שומרים את כל המשתמשים פעם אחת בזיכרון,
-     * כדי שלא נבצע query נוסף לכל מנוי.
+     * כל המשתמשים במערכת.
+     * נשמור אותם פעם אחת בזיכרון,
+     * כדי לחשב עובדים בלי לבצע query נוסף לכל סוכן.
      */
     const allUsers = snapshot.docs.map((doc) => ({
       id: doc.id,
@@ -22,7 +26,9 @@ export async function GET() {
       if (!value) return '';
 
       if (typeof value?.toDate === 'function') {
-        return value.toDate().toLocaleDateString('he-IL');
+        return value
+          .toDate()
+          .toLocaleDateString('he-IL');
       }
 
       if (value instanceof Date) {
@@ -35,51 +41,99 @@ export async function GET() {
     const subscriptions = allUsers
       .map(({ id, data }) => {
         /**
-         * אצל סוכן, agentId יכול להיות שמור בשדה agentId.
-         * אם אין אותו, אנחנו משתמשים ב-UID של בעל המנוי.
+         * חשוב:
          *
-         * כך אנחנו תומכים גם במבנים ישנים שבהם
-         * הסוכן עצמו הוא ה-agentId.
+         * אצלנו מזהה הסוכן הוא ה-UID של מסמך המשתמש שלו.
+         *
+         * עובד שייך לסוכן כאשר:
+         *
+         * worker.agentId === agent.id
          */
-        const ownerAgentId =
-          String(data.agentId || id).trim();
+        const agentId = id;
 
         /**
-         * עובד = משתמש שיש לו agentId של הסוכן.
+         * כל העובדים ששייכים לסוכן הזה.
          *
-         * לא סופרים את בעל המנוי עצמו,
-         * גם במקרה שבו ה-agentId שלו שווה ל-UID שלו.
+         * בעל המנוי עצמו לא נספר.
          */
-        const workersCount = allUsers.filter(
-          ({ id: userId, data: userData }) => {
-            if (userId === id) return false;
+        const workers = allUsers
+          .filter(({ id: userId, data: userData }) => {
+            if (userId === id) {
+              return false;
+            }
 
-            const userAgentId =
-              String(userData.agentId || '').trim();
+            const workerAgentId = String(
+              userData.agentId || ''
+            ).trim();
 
-            return (
-              userAgentId !== '' &&
-              userAgentId === ownerAgentId
-            );
-          }
-        ).length;
+            return workerAgentId === agentId;
+          })
+          .map(({ id: workerId, data: workerData }) => ({
+            id: workerId,
+
+            name:
+              workerData.name || '',
+
+            email:
+              workerData.email || '',
+
+            phone:
+              workerData.phone || '',
+
+            idNumber:
+              workerData.idNumber || '',
+
+            role:
+              workerData.role || '',
+
+            isActive:
+              workerData.isActive ?? true,
+
+            agentId:
+              workerData.agentId || '',
+
+            agencies:
+              workerData.agencies ?? null,
+          }));
+
+        const workersCount = workers.length;
 
         return {
+          /**
+           * משתמש בעל המנוי
+           */
           id,
 
-          agentId: ownerAgentId,
+          /**
+           * במקרה של בעל מנוי / סוכן,
+           * agentId הוא ה-UID שלו.
+           */
+          agentId,
 
-          name: data.name || '',
-          email: data.email || '',
-          phone: data.phone || '',
-          idNumber: data.idNumber || '',
-          role: data.role || '',
-          isActive: data.isActive ?? true,
+          name:
+            data.name || '',
+
+          email:
+            data.email || '',
+
+          phone:
+            data.phone || '',
+
+          idNumber:
+            data.idNumber || '',
+
+          role:
+            data.role || '',
+
+          isActive:
+            data.isActive ?? true,
 
           /**
-           * מספר עובדים ששייכים לסוכן
+           * עובדים של הסוכן
            */
           workersCount,
+
+          workers,
 
           /**
            * מידע מנוי
@@ -94,13 +148,19 @@ export async function GET() {
             data.subscriptionId || '',
 
           subscriptionStartDate:
-            toDateStr(data.subscriptionStartDate),
+            toDateStr(
+              data.subscriptionStartDate
+            ),
 
           lastPlanChangeDate:
-            toDateStr(data.lastPlanChangeDate),
+            toDateStr(
+              data.lastPlanChangeDate
+            ),
 
           lastPaymentDate:
-            toDateStr(data.lastPaymentDate),
+            toDateStr(
+              data.lastPaymentDate
+            ),
 
           lastPaymentStatus:
             data.lastPaymentStatus || '',
@@ -112,10 +172,12 @@ export async function GET() {
             data.futureChargeAmount ?? null,
 
           /**
-           * ביטולים / זיכויים
+           * ביטול / זיכוי
            */
           cancellationDate:
-            toDateStr(data.cancellationDate),
+            toDateStr(
+              data.cancellationDate
+            ),
 
           growCancellationStatus:
             data.growCancellationStatus || '',
@@ -124,52 +186,61 @@ export async function GET() {
             data.wasRefunded === true,
 
           refundDate:
-            toDateStr(data.refundDate),
+            toDateStr(
+              data.refundDate
+            ),
 
           /**
            * קופון
-           *
-           * usedCouponCode הוא המבנה הישן.
-           * couponUsed הוא המבנה החדש.
            */
           usedCouponCode:
             data.usedCouponCode || '',
 
-          couponUsed: data.couponUsed
-            ? {
-                code:
-                  data.couponUsed.code || '',
+          couponUsed:
+            data.couponUsed
+              ? {
+                  code:
+                    data.couponUsed.code || '',
 
-                discount:
-                  typeof data.couponUsed.discount === 'number'
-                    ? data.couponUsed.discount
-                    : 0,
+                  discount:
+                    typeof data.couponUsed.discount ===
+                    'number'
+                      ? data.couponUsed.discount
+                      : 0,
 
-                date:
-                  toDateStr(data.couponUsed.date),
+                  date:
+                    toDateStr(
+                      data.couponUsed.date
+                    ),
 
-                appliedAt:
-                  toDateStr(data.couponUsed.appliedAt),
+                  appliedAt:
+                    toDateStr(
+                      data.couponUsed.appliedAt
+                    ),
 
-                expiresAt:
-                  toDateStr(data.couponUsed.expiresAt),
+                  expiresAt:
+                    toDateStr(
+                      data.couponUsed.expiresAt
+                    ),
 
-                lastNotifiedAt:
-                  toDateStr(data.couponUsed.lastNotifiedAt),
+                  lastNotifiedAt:
+                    toDateStr(
+                      data.couponUsed.lastNotifiedAt
+                    ),
 
-                notifyFlags:
-                  data.couponUsed.notifyFlags || {},
-              }
-            : null,
+                  notifyFlags:
+                    data.couponUsed.notifyFlags || {},
+                }
+              : null,
 
           /**
-           * שיוך לסוכנויות
+           * סוכנויות
            */
           agencies:
             data.agencies ?? null,
 
           /**
-           * Grow technical
+           * Grow
            */
           transactionId:
             data.transactionId || '',
@@ -189,18 +260,20 @@ export async function GET() {
       })
 
       /**
-       * רק משתמש שבאמת מחזיק מנוי.
+       * במסך המנויים מציגים רק בעלי מנוי.
        *
-       * העובדים עצמם לא יופיעו בטבלת המנויים,
-       * אלא רק ישפיעו על workersCount.
+       * העובדים לא מופיעים כשורות נפרדות,
+       * אבל כן מוחזרים תחת workers.
        */
       .filter(
         (sub) =>
-          !!sub.subscriptionId ||
-          !!sub.subscriptionType
+          Boolean(sub.subscriptionId) ||
+          Boolean(sub.subscriptionType)
       );
 
-    return NextResponse.json(subscriptions);
+    return NextResponse.json(
+      subscriptions
+    );
   } catch (error) {
     console.error(
       '[subscriptions] Failed loading subscriptions:',
@@ -209,7 +282,8 @@ export async function GET() {
 
     return NextResponse.json(
       {
-        error: 'שגיאה פנימית בשליפת מנויים',
+        error:
+          'שגיאה פנימית בשליפת מנויים',
       },
       {
         status: 500,

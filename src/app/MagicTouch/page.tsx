@@ -50,18 +50,6 @@ type DashboardCampaign = {
   stats: CampaignStats;
 };
 
-type RecalculateCampaignStatsResponse = {
-  ok: boolean;
-  agentId: string;
-  campaignId: string;
-  totalContacts: number;
-  sentCount: number;
-  deliveredCount: number;
-  readCount: number;
-  repliedCount: number;
-  failedCount: number;
-  processedCount: number;
-};
 
 type HumanAttentionItem = {
   runId: string;
@@ -226,18 +214,6 @@ export default function MagicTouchDashboardPage() {
   ] =
     useState('');
 
-  const [
-    successMessage,
-    setSuccessMessage,
-  ] =
-    useState('');
-
-  const [
-    recalculatingCampaignId,
-    setRecalculatingCampaignId,
-  ] =
-    useState('');
-
   const loadDashboard =
     useCallback(
       async () => {
@@ -295,83 +271,6 @@ export default function MagicTouchDashboardPage() {
       [
         agentId,
         selectedCampaignId,
-      ]
-    );
-
-  const recalculateCampaign =
-    useCallback(
-      async (
-        campaignId: string,
-        campaignName?: string
-      ) => {
-        if (
-          !agentId ||
-          !campaignId ||
-          recalculatingCampaignId
-        ) {
-          return;
-        }
-
-        const confirmed =
-          window.confirm(
-            `לחשב מחדש את נתוני הקמפיין "${campaignName || campaignId}"?\n\nהפעולה לא שולחת הודעות. היא רק משחזרת את מוני המסירה, הקריאה והתגובות מהנתונים שכבר נשמרו.`
-          );
-
-        if (!confirmed) {
-          return;
-        }
-
-        setRecalculatingCampaignId(
-          campaignId
-        );
-        setErrorMessage('');
-        setSuccessMessage('');
-
-        try {
-          const fn =
-            httpsCallable<
-              {
-                agentId: string;
-                campaignId: string;
-              },
-              RecalculateCampaignStatsResponse
-            >(
-              functions,
-              'recalculateMagicTouchCampaignStats'
-            );
-
-          const response =
-            await fn({
-              agentId,
-              campaignId,
-            });
-
-          const result =
-            response.data;
-
-          setSuccessMessage(
-            `הנתונים חושבו מחדש: נשלחו ${result.sentCount}, נמסרו ${result.deliveredCount}, נקראו ${result.readCount}, הגיבו ${result.repliedCount}, נכשלו ${result.failedCount}.`
-          );
-
-          await loadDashboard();
-        } catch (error: any) {
-          console.error(
-            '[MagicTouchDashboardPage] Recalculate failed',
-            error
-          );
-
-          setErrorMessage(
-            error?.message ||
-              'חישוב נתוני הקמפיין מחדש נכשל.'
-          );
-        } finally {
-          setRecalculatingCampaignId('');
-        }
-      },
-      [
-        agentId,
-        loadDashboard,
-        recalculatingCampaignId,
       ]
     );
 
@@ -526,12 +425,6 @@ export default function MagicTouchDashboardPage() {
         </div>
       ) : null}
 
-      {successMessage ? (
-        <div className="mb-5 rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">
-          {successMessage}
-        </div>
-      ) : null}
-
       <section className="rounded-2xl bg-white px-5 py-5 shadow-[0_6px_22px_rgba(15,23,42,0.04)] ring-1 ring-slate-100">
         <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
           <div className="min-w-0">
@@ -564,37 +457,6 @@ export default function MagicTouchDashboardPage() {
                   לכל אנשי הקשר בקמפיין ←
                 </Link>
 
-                <button
-                  type="button"
-                  onClick={() =>
-                    void recalculateCampaign(
-                      selectedCampaignId,
-                      selectedCampaignLabel
-                    )
-                  }
-                  disabled={
-                    Boolean(
-                      recalculatingCampaignId
-                    )
-                  }
-                  className="inline-flex items-center gap-1 rounded-lg border border-violet-200 bg-violet-50 px-2.5 py-1 text-[11px] font-bold text-violet-700 transition hover:bg-violet-100 disabled:cursor-not-allowed disabled:opacity-50"
-                  title="חשב מחדש את נתוני הקמפיין"
-                >
-                  <span
-                    className={
-                      recalculatingCampaignId ===
-                      selectedCampaignId
-                        ? 'inline-block animate-spin'
-                        : ''
-                    }
-                  >
-                    ↻
-                  </span>
-                  {recalculatingCampaignId ===
-                  selectedCampaignId
-                    ? 'מחשב נתונים...'
-                    : 'חשב נתונים מחדש'}
-                </button>
               </div>
             )}
           </div>
