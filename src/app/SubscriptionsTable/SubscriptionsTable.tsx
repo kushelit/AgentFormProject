@@ -82,13 +82,15 @@ type FilterActive = 'all' | 'active' | 'inactive';
 type FilterSubStatus = 'all' | 'ok' | 'failed' | 'canceled';
 type FilterGrow = 'all' | 'missing';
 type FilterCoupon = 'all' | 'with';
+type FilterRole = 'all' | 'agent' | 'admin' | 'manager' | 'worker';
 
 type KpiKey = 'total' | 'active' | 'failed' | 'withCoupon' | 'missingGrow';
 
 const moneyFormatter = new Intl.NumberFormat('he-IL', {
   style: 'currency',
   currency: 'ILS',
-  maximumFractionDigits: 0,
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 2,
 });
 
 function formatMoney(value?: number | null) {
@@ -247,6 +249,7 @@ export default function SubscriptionsAdminPage() {
   const [filterPlan, setFilterPlan] = useState('all');
   const [filterGrow, setFilterGrow] = useState<FilterGrow>('all');
   const [filterCoupon, setFilterCoupon] = useState<FilterCoupon>('all');
+  const [filterRole, setFilterRole] = useState<FilterRole>('all');
   const [search, setSearch] = useState('');
 
   const [selectedForChange, setSelectedForChange] = useState<SubscriptionRow | null>(null);
@@ -310,6 +313,7 @@ export default function SubscriptionsAdminPage() {
       if (filterSubStatus === 'failed' && sub.lastPaymentStatus !== 'failed') return false;
       if (filterSubStatus === 'canceled' && sub.subscriptionStatus !== 'canceled') return false;
       if (filterPlan !== 'all' && sub.subscriptionType !== filterPlan) return false;
+      if (filterRole !== 'all' && String(sub.role || '').toLowerCase() !== filterRole) return false;
       if (filterGrow === 'missing' && hasGrow(sub)) return false;
       if (filterCoupon === 'with' && !hasCoupon(sub)) return false;
 
@@ -341,7 +345,7 @@ export default function SubscriptionsAdminPage() {
 
       return true;
     });
-  }, [subscriptions, filterActive, filterSubStatus, filterPlan, filterGrow, filterCoupon, search]);
+  }, [subscriptions, filterActive, filterSubStatus, filterPlan, filterRole, filterGrow, filterCoupon, search]);
 
   const kpi = useMemo(() => {
     const total = filteredSubscriptions.length;
@@ -368,6 +372,7 @@ export default function SubscriptionsAdminPage() {
     filterActive === 'all' &&
     filterSubStatus === 'all' &&
     filterPlan === 'all' &&
+    filterRole === 'all' &&
     filterGrow === 'all' &&
     filterCoupon === 'all' &&
     !search.trim();
@@ -381,6 +386,7 @@ export default function SubscriptionsAdminPage() {
     setFilterActive('all');
     setFilterSubStatus('all');
     setFilterPlan('all');
+    setFilterRole('all');
     setFilterGrow('all');
     setFilterCoupon('all');
     setSearch('');
@@ -773,6 +779,19 @@ export default function SubscriptionsAdminPage() {
                 ))}
               </select>
 
+              <select
+                value={filterRole}
+                onChange={(event) => setFilterRole(event.target.value as FilterRole)}
+                className="h-9 rounded-lg border border-[#E4E1D6] bg-white px-3 text-[12.5px] font-medium text-[#1F2A24] outline-none"
+                aria-label="סינון לפי סוג לקוח"
+              >
+                <option value="all">כל סוגי הלקוחות</option>
+                <option value="agent">סוכנים</option>
+                <option value="admin">מנהלי סוכנות</option>
+                <option value="manager">מנהלים</option>
+                <option value="worker">עובדים</option>
+              </select>
+
               <button
                 type="button"
                 onClick={() => setFilterCoupon(filterCoupon === 'with' ? 'all' : 'with')}
@@ -846,6 +865,9 @@ export default function SubscriptionsAdminPage() {
                         <td className="px-5 py-4 tabular-nums text-[#1F2A24]">{sub.workersCount ?? 0}</td>
                         <td className="px-5 py-4 tabular-nums font-medium text-[#1F2A24]">
                           {formatMoney(sub.futureChargeAmount)}
+                        </td>
+                        <td className="px-5 py-4 tabular-nums font-semibold text-[#1F2A24]">
+                          {formatMoney(sub.totalCharged)}
                         </td>
                         <td className="px-5 py-4">
                           {couponCode ? (
