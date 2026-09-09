@@ -1,6 +1,5 @@
 "use client";
 
-
 import {
   useCallback,
   useEffect,
@@ -28,26 +27,55 @@ import {
 } from "@/components/MagicTouch/MagicTouchAgentContext";
 
 import WhatsAppTemplateBuilder, {
-  WhatsAppTemplateEditValue,
-  WhatsAppTemplateUrlButton,
+  type WhatsAppTemplateEditValue,
+  type WhatsAppTemplateHeaderMedia,
+  type WhatsAppTemplateUrlButton,
+  type WhatsAppTemplateVariable1Source,
 } from "@/components/MagicTouch/Integrations/WhatsAppTemplateBuilder";
 
 type WhatsAppTemplate = {
   id: string;
+
   name: string;
+
   metaTemplateId: string;
+
   category?: string | null;
+
   language?: string | null;
+
   status?: string | null;
+
   bodyText?: string | null;
+
   bodyExamples?: string[];
+
+  bodyVariable1Source:
+    WhatsAppTemplateVariable1Source;
+
   quickReplyButtons?: string[];
-  quickReplyActions?: Record<string, string>;
-  urlButton?: WhatsAppTemplateUrlButton | null;
+
+  quickReplyActions?:
+    Record<string, string>;
+
+  urlButton?:
+    WhatsAppTemplateUrlButton |
+    null;
+
+  headerMedia?:
+    WhatsAppTemplateHeaderMedia |
+    null;
+
+  headerMediaType?:
+    | "DOCUMENT"
+    | "IMAGE"
+    | "VIDEO"
+    | null;
 };
 
 type RefreshTemplatesResponse = {
   ok?: boolean;
+
   count?: number;
 };
 
@@ -55,16 +83,21 @@ type ToastState = {
   type:
     | "success"
     | "error";
+
   title: string;
+
   message: string;
 };
 
 function formatTemplateStatus(
-  status?: string | null
+  status?:
+    string |
+    null
 ): string {
   switch (
     String(
-      status || ""
+      status ||
+      ""
     ).toUpperCase()
   ) {
     case "APPROVED":
@@ -84,16 +117,22 @@ function formatTemplateStatus(
       return "לא פעילה";
 
     default:
-      return status || "לא ידוע";
+      return (
+        status ||
+        "לא ידוע"
+      );
   }
 }
 
 function getStatusClasses(
-  status?: string | null
+  status?:
+    string |
+    null
 ): string {
   switch (
     String(
-      status || ""
+      status ||
+      ""
     ).toUpperCase()
   ) {
     case "APPROVED":
@@ -111,6 +150,96 @@ function getStatusClasses(
   }
 }
 
+function normalizeBodyVariable1Source(
+  value: unknown
+): WhatsAppTemplateVariable1Source {
+  return value ===
+    "full_name"
+    ? "full_name"
+    : "first_name";
+}
+
+function formatBodyVariable1Source(
+  value:
+    WhatsAppTemplateVariable1Source
+): string {
+  return value ===
+    "full_name"
+    ? "שם מלא"
+    : "שם פרטי";
+}
+
+function normalizeHeaderMedia(
+  value: unknown
+):
+  | WhatsAppTemplateHeaderMedia
+  | null {
+  if (
+    !value ||
+    typeof value !==
+      "object"
+  ) {
+    return null;
+  }
+
+  const raw =
+    value as Record<
+      string,
+      unknown
+    >;
+
+  const type =
+    String(
+      raw.type ||
+      ""
+    ).toUpperCase();
+
+  if (
+    type !==
+      "DOCUMENT" &&
+    type !==
+      "IMAGE" &&
+    type !==
+      "VIDEO"
+  ) {
+    return null;
+  }
+
+  return {
+    type,
+
+    handle:
+      String(
+        raw.handle ||
+        ""
+      ),
+
+    storagePath:
+      String(
+        raw.storagePath ||
+        ""
+      ),
+
+    fileName:
+      String(
+        raw.fileName ||
+        ""
+      ),
+
+    mimeType:
+      String(
+        raw.mimeType ||
+        ""
+      ),
+
+    size:
+      Number(
+        raw.size ||
+        0
+      ),
+  };
+}
+
 export default function MagicTouchTemplatesPage() {
   const {
     selectedAgentId,
@@ -124,7 +253,9 @@ export default function MagicTouchTemplatesPage() {
     templates,
     setTemplates,
   ] =
-    useState<WhatsAppTemplate[]>(
+    useState<
+      WhatsAppTemplate[]
+    >(
       []
     );
 
@@ -132,7 +263,10 @@ export default function MagicTouchTemplatesPage() {
     editingTemplate,
     setEditingTemplate,
   ] =
-    useState<WhatsAppTemplateEditValue | null>(
+    useState<
+      WhatsAppTemplateEditValue |
+      null
+    >(
       null
     );
 
@@ -140,32 +274,49 @@ export default function MagicTouchTemplatesPage() {
     isLoadingTemplates,
     setIsLoadingTemplates,
   ] =
-    useState(true);
+    useState(
+      true
+    );
 
   const [
     isRefreshing,
     setIsRefreshing,
   ] =
-    useState(false);
+    useState(
+      false
+    );
 
   const [
     toast,
     setToast,
   ] =
-    useState<ToastState | null>(
+    useState<
+      ToastState |
+      null
+    >(
       null
     );
 
   const loadTemplates =
     useCallback(
       async () => {
-        if (!agentId) {
-          setTemplates([]);
-          setIsLoadingTemplates(false);
+        if (
+          !agentId
+        ) {
+          setTemplates(
+            []
+          );
+
+          setIsLoadingTemplates(
+            false
+          );
+
           return;
         }
 
-        setIsLoadingTemplates(true);
+        setIsLoadingTemplates(
+          true
+        );
 
         try {
           const templatesQuery =
@@ -195,6 +346,37 @@ export default function MagicTouchTemplatesPage() {
                 const data =
                   templateDoc.data() as any;
 
+                const headerMedia =
+                  normalizeHeaderMedia(
+                    data
+                      ?.headerMedia
+                  );
+
+                const headerMediaType =
+                  headerMedia
+                    ?.type ||
+                  (
+                    [
+                      "DOCUMENT",
+                      "IMAGE",
+                      "VIDEO",
+                    ].includes(
+                      String(
+                        data
+                          ?.headerMediaType ||
+                        ""
+                      ).toUpperCase()
+                    )
+                      ? String(
+                          data
+                            ?.headerMediaType
+                        ).toUpperCase() as
+                          | "DOCUMENT"
+                          | "IMAGE"
+                          | "VIDEO"
+                      : null
+                  );
+
                 return {
                   id:
                     templateDoc.id,
@@ -212,28 +394,34 @@ export default function MagicTouchTemplatesPage() {
                     ),
 
                   category:
-                    data?.category ||
+                    data
+                      ?.category ||
                     null,
 
                   language:
-                    data?.language ||
+                    data
+                      ?.language ||
                     null,
 
                   status:
-                    data?.status ||
+                    data
+                      ?.status ||
                     null,
 
                   bodyText:
-                    data?.bodyText ||
+                    data
+                      ?.bodyText ||
                     null,
 
                   bodyExamples:
                     Array.isArray(
-                      data?.bodyExamples
+                      data
+                        ?.bodyExamples
                     )
                       ? data.bodyExamples.map(
                           (
-                            value: unknown
+                            value:
+                              unknown
                           ) =>
                             String(
                               value
@@ -241,13 +429,25 @@ export default function MagicTouchTemplatesPage() {
                         )
                       : [],
 
+                  /*
+                   * תבניות ישנות ללא השדה
+                   * נשארות first_name.
+                   */
+                  bodyVariable1Source:
+                    normalizeBodyVariable1Source(
+                      data
+                        ?.bodyVariable1Source
+                    ),
+
                   quickReplyButtons:
                     Array.isArray(
-                      data?.quickReplyButtons
+                      data
+                        ?.quickReplyButtons
                     )
                       ? data.quickReplyButtons.map(
                           (
-                            value: unknown
+                            value:
+                              unknown
                           ) =>
                             String(
                               value
@@ -256,30 +456,43 @@ export default function MagicTouchTemplatesPage() {
                       : [],
 
                   quickReplyActions:
-                    data?.quickReplyActions &&
-                    typeof data.quickReplyActions ===
+                    data
+                        ?.quickReplyActions &&
+                    typeof data
+                        .quickReplyActions ===
                       "object"
-                      ? data.quickReplyActions
+                      ? data
+                          .quickReplyActions
                       : {},
 
                   urlButton:
-                    data?.urlButton &&
-                    typeof data.urlButton ===
+                    data
+                        ?.urlButton &&
+                    typeof data
+                        .urlButton ===
                       "object"
                       ? {
                           text:
                             String(
-                              data.urlButton.text ||
+                              data
+                                .urlButton
+                                .text ||
                                 ""
                             ),
 
                           url:
                             String(
-                              data.urlButton.url ||
+                              data
+                                .urlButton
+                                .url ||
                                 ""
                             ),
                         }
                       : null,
+
+                  headerMedia,
+
+                  headerMediaType,
                 };
               }
             )
@@ -292,7 +505,9 @@ export default function MagicTouchTemplatesPage() {
             error
           );
 
-          setTemplates([]);
+          setTemplates(
+            []
+          );
 
           setToast({
             type:
@@ -331,13 +546,16 @@ export default function MagicTouchTemplatesPage() {
         return;
       }
 
-      setIsRefreshing(true);
+      setIsRefreshing(
+        true
+      );
 
       try {
         const fn =
           httpsCallable<
             {
-              agentId: string;
+              agentId:
+                string;
             },
             RefreshTemplatesResponse
           >(
@@ -361,7 +579,8 @@ export default function MagicTouchTemplatesPage() {
 
           message:
             `עודכנו ${
-              response.data?.count ??
+              response.data
+                ?.count ??
               0
             } תבניות מ־Meta.`,
         });
@@ -385,7 +604,9 @@ export default function MagicTouchTemplatesPage() {
             "לא ניתן היה לרענן את התבניות מ־Meta.",
         });
       } finally {
-        setIsRefreshing(false);
+        setIsRefreshing(
+          false
+        );
       }
     };
 
@@ -395,41 +616,72 @@ export default function MagicTouchTemplatesPage() {
         WhatsAppTemplate
     ) => {
       if (
-        !template.metaTemplateId
+        !template
+          .metaTemplateId
       ) {
         setToast({
-          type: "error",
-          title: "לא ניתן לערוך את התבנית",
+          type:
+            "error",
+
+          title:
+            "לא ניתן לערוך את התבנית",
+
           message:
             "לתבנית אין Meta Template ID. נסי קודם רענון תבניות מ־Meta.",
         });
+
         return;
       }
 
       setEditingTemplate({
         name:
           template.name,
+
         metaTemplateId:
-          template.metaTemplateId,
+          template
+            .metaTemplateId,
+
         category:
           template.category,
+
         language:
           template.language,
+
         bodyText:
           template.bodyText,
+
         bodyExamples:
-          template.bodyExamples,
+          template
+            .bodyExamples,
+
+        bodyVariable1Source:
+          template
+            .bodyVariable1Source,
+
         quickReplyButtons:
-          template.quickReplyButtons,
+          template
+            .quickReplyButtons,
+
         quickReplyActions:
-          template.quickReplyActions,
+          template
+            .quickReplyActions,
+
         urlButton:
-          template.urlButton,
+          template
+            .urlButton,
+
+        headerMedia:
+          template
+            .headerMedia ||
+          null,
       });
 
       window.scrollTo({
-        top: 0,
-        behavior: "smooth",
+        top:
+          0,
+
+        behavior:
+          "smooth",
       });
     };
 
@@ -443,11 +695,15 @@ export default function MagicTouchTemplatesPage() {
           <div className="flex items-start justify-between gap-3">
             <div>
               <div className="font-bold text-slate-900">
-                {toast.title}
+                {
+                  toast.title
+                }
               </div>
 
               <div className="mt-1 text-sm text-slate-600">
-                {toast.message}
+                {
+                  toast.message
+                }
               </div>
             </div>
 
@@ -528,6 +784,7 @@ export default function MagicTouchTemplatesPage() {
               setEditingTemplate(
                 null
               );
+
               void loadTemplates();
             }}
           />
@@ -541,7 +798,10 @@ export default function MagicTouchTemplatesPage() {
               </h2>
 
               <p className="mt-1 text-sm text-slate-500">
-                {templates.length} תבניות שמורות
+                {
+                  templates.length
+                }{" "}
+                תבניות שמורות
               </p>
             </div>
           </div>
@@ -577,6 +837,14 @@ export default function MagicTouchTemplatesPage() {
                     </th>
 
                     <th className="px-4 py-3">
+                      משתנה {"{{1}}"}
+                    </th>
+
+                    <th className="px-4 py-3">
+                      מדיה
+                    </th>
+
+                    <th className="px-4 py-3">
                       תוכן
                     </th>
 
@@ -602,7 +870,9 @@ export default function MagicTouchTemplatesPage() {
                         className="hover:bg-slate-50"
                       >
                         <td className="px-4 py-3 font-mono text-xs">
-                          {template.name}
+                          {
+                            template.name
+                          }
                         </td>
 
                         <td className="px-4 py-3">
@@ -627,6 +897,54 @@ export default function MagicTouchTemplatesPage() {
                           </span>
                         </td>
 
+                        <td className="px-4 py-3">
+                          {template.bodyText?.includes(
+                            "{{1}}"
+                          ) ? (
+                            <span
+                              className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${
+                                template.bodyVariable1Source ===
+                                "full_name"
+                                  ? "border-violet-200 bg-violet-50 text-violet-700"
+                                  : "border-cyan-200 bg-cyan-50 text-cyan-700"
+                              }`}
+                            >
+                              {formatBodyVariable1Source(
+                                template.bodyVariable1Source
+                              )}
+                            </span>
+                          ) : (
+                            "—"
+                          )}
+                        </td>
+
+                        <td className="px-4 py-3">
+                          {template
+                            .headerMediaType ? (
+                            <span
+                              className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${
+                                template.headerMediaType ===
+                                "VIDEO"
+                                  ? "border-purple-200 bg-purple-50 text-purple-700"
+                                  : template.headerMediaType ===
+                                    "IMAGE"
+                                    ? "border-blue-200 bg-blue-50 text-blue-700"
+                                    : "border-slate-200 bg-slate-50 text-slate-700"
+                              }`}
+                            >
+                              {template.headerMediaType ===
+                              "VIDEO"
+                                ? "🎬 וידאו"
+                                : template.headerMediaType ===
+                                  "IMAGE"
+                                  ? "🖼️ תמונה"
+                                  : "📄 PDF"}
+                            </span>
+                          ) : (
+                            "—"
+                          )}
+                        </td>
+
                         <td className="max-w-sm px-4 py-3">
                           <div className="line-clamp-2 whitespace-pre-wrap text-slate-600">
                             {template.bodyText ||
@@ -648,7 +966,9 @@ export default function MagicTouchTemplatesPage() {
                                     }
                                     className="rounded border bg-slate-50 px-2 py-1 text-xs"
                                   >
-                                    {button}
+                                    {
+                                      button
+                                    }
                                   </span>
                                 )
                               )}

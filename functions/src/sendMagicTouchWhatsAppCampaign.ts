@@ -117,3 +117,35 @@ export const mergeMagicTouchCampaigns =
     }
   );
 
+export const recalculateMagicTouchCampaignStats =
+  onCall(
+    {
+      region:
+        FUNCTIONS_REGION,
+
+      timeoutSeconds:
+        300,
+
+      memory:
+        "512MiB",
+    },
+
+    async (req) => {
+      if (!req.auth) {
+        throw new HttpsError(
+          "unauthenticated",
+          "Login required"
+        );
+      }
+
+      const mod =
+        await import(
+          "./sendMagicTouchWhatsAppCampaign.impl"
+        );
+
+      return mod
+        .recalculateMagicTouchCampaignStatsImpl(
+          req
+        );
+    }
+  );

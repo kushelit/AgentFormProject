@@ -1,6 +1,5 @@
 "use client";
 
-
 import {
   useEffect,
   useMemo,
@@ -27,76 +26,157 @@ type ToastState = {
   message: string;
 };
 
+export type WhatsAppTemplateVariable1Source =
+  | "first_name"
+  | "full_name";
+
 export type WhatsAppTemplateUrlButton = {
   text: string;
   url: string;
 };
 
 export type WhatsAppTemplateHeaderMedia = {
-  type: "DOCUMENT" | "IMAGE";
+  type:
+    | "DOCUMENT"
+    | "IMAGE"
+    | "VIDEO";
+
   handle: string;
+
   storagePath?: string;
+
   fileName: string;
+
   mimeType: string;
+
   size: number;
 };
 
 export type WhatsAppTemplateEditValue = {
   name: string;
+
   metaTemplateId: string;
+
   category?: string | null;
+
   language?: string | null;
+
   bodyText?: string | null;
+
   bodyExamples?: string[];
+
+  /*
+   * קובע איזה ערך ייכנס ל-{{1}}.
+   *
+   * תבניות ישנות שלא מכילות את השדה
+   * ממשיכות להתנהג כמו בעבר:
+   * first_name.
+   */
+  bodyVariable1Source?:
+    WhatsAppTemplateVariable1Source |
+    null;
+
   quickReplyButtons?: string[];
-  quickReplyActions?: Record<string, string>;
-  urlButton?: WhatsAppTemplateUrlButton | null;
-  headerMedia?: WhatsAppTemplateHeaderMedia | null;
+
+  quickReplyActions?:
+    Record<string, string>;
+
+  urlButton?:
+    WhatsAppTemplateUrlButton |
+    null;
+
+  headerMedia?:
+    WhatsAppTemplateHeaderMedia |
+    null;
 };
 
 export type WhatsAppTemplateCreatedResult = {
   name: string;
+
   status: string;
+
   bodyText: string;
+
+  bodyVariable1Source:
+    WhatsAppTemplateVariable1Source;
+
   quickReplyButtons: string[];
-  quickReplyActions: Record<string, string>;
-  urlButton?: WhatsAppTemplateUrlButton | null;
-  headerMedia?: WhatsAppTemplateHeaderMedia | null;
+
+  quickReplyActions:
+    Record<string, string>;
+
+  urlButton?:
+    WhatsAppTemplateUrlButton |
+    null;
+
+  headerMedia?:
+    WhatsAppTemplateHeaderMedia |
+    null;
 };
 
 type TemplateMutationResponse = {
   ok?: boolean;
+
   name?: string;
+
   status?: string;
-  urlButton?: WhatsAppTemplateUrlButton | null;
-  headerMedia?: WhatsAppTemplateHeaderMedia | null;
+
+  bodyVariable1Source?:
+    WhatsAppTemplateVariable1Source;
+
+  urlButton?:
+    WhatsAppTemplateUrlButton |
+    null;
+
+  headerMedia?:
+    WhatsAppTemplateHeaderMedia |
+    null;
 };
 
 type UploadTemplateMediaResponse = {
   ok?: boolean;
+
   agentId?: string;
-  mediaType?: "DOCUMENT" | "IMAGE";
+
+  mediaType?:
+    | "DOCUMENT"
+    | "IMAGE"
+    | "VIDEO";
+
   handle?: string;
+
   storagePath?: string;
+
   fileName?: string;
+
   mimeType?: string;
+
   size?: number;
 };
 
 type Props = {
   agentId: string;
+
   compact?: boolean;
+
   defaultTemplateName?: string;
+
   defaultBodyText?: string;
-  editingTemplate?: WhatsAppTemplateEditValue | null;
+
+  editingTemplate?:
+    WhatsAppTemplateEditValue |
+    null;
+
   onCreated?: (
     result:
       WhatsAppTemplateCreatedResult
   ) => void;
+
   onUpdated?: (
     result:
       WhatsAppTemplateCreatedResult
   ) => void;
+
   onCancelEdit?: () => void;
 };
 
@@ -114,13 +194,17 @@ function getTemplateVariableNumbers(
     new Set(
       matches
         .map(
-          (match) =>
+          (
+            match
+          ) =>
             Number(
               match[1]
             )
         )
         .filter(
-          (number) =>
+          (
+            number
+          ) =>
             Number.isInteger(
               number
             ) &&
@@ -128,7 +212,10 @@ function getTemplateVariableNumbers(
         )
     )
   ).sort(
-    (first, second) =>
+    (
+      first,
+      second
+    ) =>
       first - second
   );
 }
@@ -139,8 +226,23 @@ function normalizeTemplateName(
   return value
     .trim()
     .toLowerCase()
-    .replace(/\s+/g, "_")
-    .replace(/[^a-z0-9_]/g, "");
+    .replace(
+      /\s+/g,
+      "_"
+    )
+    .replace(
+      /[^a-z0-9_]/g,
+      ""
+    );
+}
+
+function normalizeVariable1Source(
+  value: unknown
+): WhatsAppTemplateVariable1Source {
+  return value ===
+    "full_name"
+    ? "full_name"
+    : "first_name";
 }
 
 function replaceTemplatePreview(
@@ -148,7 +250,8 @@ function replaceTemplatePreview(
   exampleValue: string
 ): string {
   return String(
-    bodyText || ""
+    bodyText ||
+    ""
   ).replace(
     /\{\{1\}\}/g,
     exampleValue ||
@@ -162,7 +265,9 @@ function normalizeHttpUrl(
   const trimmed =
     value.trim();
 
-  if (!trimmed) {
+  if (
+    !trimmed
+  ) {
     return "";
   }
 
@@ -187,7 +292,6 @@ function normalizeHttpUrl(
   }
 }
 
-
 function fileToBase64(
   file: File
 ): Promise<string> {
@@ -208,12 +312,15 @@ function fileToBase64(
             );
 
           const commaIndex =
-            result.indexOf(",");
+            result.indexOf(
+              ","
+            );
 
           resolve(
             commaIndex >= 0
               ? result.slice(
-                  commaIndex + 1
+                  commaIndex +
+                    1
                 )
               : result
           );
@@ -238,23 +345,64 @@ function fileToBase64(
 function formatFileSize(
   size: number
 ): string {
-  if (size < 1024) {
+  if (
+    size <
+    1024
+  ) {
     return `${size} B`;
   }
 
   if (
     size <
-    1024 * 1024
+    1024 *
+      1024
   ) {
     return `${(
-      size / 1024
-    ).toFixed(1)} KB`;
+      size /
+      1024
+    ).toFixed(
+      1
+    )} KB`;
   }
 
   return `${(
     size /
-    (1024 * 1024)
-  ).toFixed(1)} MB`;
+    (
+      1024 *
+      1024
+    )
+  ).toFixed(
+    1
+  )} MB`;
+}
+
+function getMediaLabel(
+  mimeType: string
+): string {
+  if (
+    mimeType ===
+    "application/pdf"
+  ) {
+    return "PDF";
+  }
+
+  if (
+    mimeType ===
+    "video/mp4"
+  ) {
+    return "VIDEO";
+  }
+
+  if (
+    mimeType ===
+      "image/jpeg" ||
+    mimeType ===
+      "image/png"
+  ) {
+    return "IMAGE";
+  }
+
+  return "MEDIA";
 }
 
 export default function WhatsAppTemplateBuilder({
@@ -279,13 +427,17 @@ export default function WhatsAppTemplateBuilder({
     category,
     setCategory,
   ] =
-    useState("UTILITY");
+    useState(
+      "UTILITY"
+    );
 
   const [
     language,
     setLanguage,
   ] =
-    useState("he");
+    useState(
+      "he"
+    );
 
   const [
     bodyText,
@@ -299,43 +451,65 @@ export default function WhatsAppTemplateBuilder({
     exampleValue,
     setExampleValue,
   ] =
-    useState("");
+    useState(
+      ""
+    );
+
+  const [
+    bodyVariable1Source,
+    setBodyVariable1Source,
+  ] =
+    useState<WhatsAppTemplateVariable1Source>(
+      "first_name"
+    );
 
   const [
     quickReply1,
     setQuickReply1,
   ] =
-    useState("");
+    useState(
+      ""
+    );
 
   const [
     quickReply1Action,
     setQuickReply1Action,
   ] =
-    useState("interested");
+    useState(
+      "interested"
+    );
 
   const [
     quickReply2,
     setQuickReply2,
   ] =
-    useState("");
+    useState(
+      ""
+    );
 
   const [
     quickReply2Action,
     setQuickReply2Action,
   ] =
-    useState("declined");
+    useState(
+      "declined"
+    );
 
   const [
     urlButtonText,
     setUrlButtonText,
   ] =
-    useState("");
+    useState(
+      ""
+    );
 
   const [
     urlButtonUrl,
     setUrlButtonUrl,
   ] =
-    useState("");
+    useState(
+      ""
+    );
 
   const [
     mediaFile,
@@ -346,10 +520,21 @@ export default function WhatsAppTemplateBuilder({
     );
 
   const [
+    mediaPreviewUrl,
+    setMediaPreviewUrl,
+  ] =
+    useState(
+      ""
+    );
+
+  const [
     existingHeaderMedia,
     setExistingHeaderMedia,
   ] =
-    useState<WhatsAppTemplateHeaderMedia | null>(
+    useState<
+      WhatsAppTemplateHeaderMedia |
+      null
+    >(
       null
     );
 
@@ -357,7 +542,9 @@ export default function WhatsAppTemplateBuilder({
     isCreating,
     setIsCreating,
   ] =
-    useState(false);
+    useState(
+      false
+    );
 
   const [
     toast,
@@ -369,31 +556,192 @@ export default function WhatsAppTemplateBuilder({
 
   const isEditing =
     Boolean(
-      editingTemplate?.metaTemplateId
+      editingTemplate
+        ?.metaTemplateId
     );
 
   useEffect(() => {
-    if (!editingTemplate) return;
+    if (
+      !editingTemplate
+    ) {
+      return;
+    }
 
-    const buttons = Array.isArray(editingTemplate.quickReplyButtons)
-      ? editingTemplate.quickReplyButtons
-      : [];
-    const actions = editingTemplate.quickReplyActions || {};
+    const buttons =
+      Array.isArray(
+        editingTemplate
+          .quickReplyButtons
+      )
+        ? editingTemplate
+            .quickReplyButtons
+        : [];
 
-    setTemplateName(editingTemplate.name);
-    setCategory(String(editingTemplate.category || "UTILITY"));
-    setLanguage(String(editingTemplate.language || "he"));
-    setBodyText(String(editingTemplate.bodyText || ""));
-    setExampleValue(String(editingTemplate.bodyExamples?.[0] || ""));
-    setQuickReply1(String(buttons[0] || ""));
-    setQuickReply1Action(buttons[0] ? String(actions[buttons[0]] || "other") : "interested");
-    setQuickReply2(String(buttons[1] || ""));
-    setQuickReply2Action(buttons[1] ? String(actions[buttons[1]] || "other") : "declined");
-    setUrlButtonText(String(editingTemplate.urlButton?.text || ""));
-    setUrlButtonUrl(String(editingTemplate.urlButton?.url || ""));
-    setExistingHeaderMedia(editingTemplate.headerMedia || null);
-    setMediaFile(null);
-  }, [editingTemplate]);
+    const actions =
+      editingTemplate
+        .quickReplyActions ||
+      {};
+
+    setTemplateName(
+      editingTemplate.name
+    );
+
+    setCategory(
+      String(
+        editingTemplate
+          .category ||
+        "UTILITY"
+      )
+    );
+
+    setLanguage(
+      String(
+        editingTemplate
+          .language ||
+        "he"
+      )
+    );
+
+    setBodyText(
+      String(
+        editingTemplate
+          .bodyText ||
+        ""
+      )
+    );
+
+    setExampleValue(
+      String(
+        editingTemplate
+          .bodyExamples?.[0] ||
+        ""
+      )
+    );
+
+    /*
+     * חשוב:
+     * תבניות קיימות שנוצרו לפני היכולת החדשה
+     * לא כוללות bodyVariable1Source.
+     *
+     * עבורן ברירת המחדל נשארת first_name,
+     * בדיוק כמו ההתנהגות הקיימת היום.
+     */
+    setBodyVariable1Source(
+      normalizeVariable1Source(
+        editingTemplate
+          .bodyVariable1Source
+      )
+    );
+
+    setQuickReply1(
+      String(
+        buttons[0] ||
+        ""
+      )
+    );
+
+    setQuickReply1Action(
+      buttons[0]
+        ? String(
+            actions[
+              buttons[0]
+            ] ||
+            "other"
+          )
+        : "interested"
+    );
+
+    setQuickReply2(
+      String(
+        buttons[1] ||
+        ""
+      )
+    );
+
+    setQuickReply2Action(
+      buttons[1]
+        ? String(
+            actions[
+              buttons[1]
+            ] ||
+            "other"
+          )
+        : "declined"
+    );
+
+    setUrlButtonText(
+      String(
+        editingTemplate
+          .urlButton
+          ?.text ||
+        ""
+      )
+    );
+
+    setUrlButtonUrl(
+      String(
+        editingTemplate
+          .urlButton
+          ?.url ||
+        ""
+      )
+    );
+
+    setExistingHeaderMedia(
+      editingTemplate
+        .headerMedia ||
+      null
+    );
+
+    setMediaFile(
+      null
+    );
+  }, [
+    editingTemplate,
+  ]);
+
+  useEffect(() => {
+    if (
+      !mediaFile
+    ) {
+      setMediaPreviewUrl(
+        ""
+      );
+
+      return;
+    }
+
+    if (
+      mediaFile.type !==
+        "video/mp4" &&
+      mediaFile.type !==
+        "image/jpeg" &&
+      mediaFile.type !==
+        "image/png"
+    ) {
+      setMediaPreviewUrl(
+        ""
+      );
+
+      return;
+    }
+
+    const objectUrl =
+      URL.createObjectURL(
+        mediaFile
+      );
+
+    setMediaPreviewUrl(
+      objectUrl
+    );
+
+    return () => {
+      URL.revokeObjectURL(
+        objectUrl
+      );
+    };
+  }, [
+    mediaFile,
+  ]);
 
   const variableNumbers =
     useMemo(
@@ -417,11 +765,17 @@ export default function WhatsAppTemplateBuilder({
         replaceTemplatePreview(
           bodyText,
           exampleValue ||
-            "ישראל"
+            (
+              bodyVariable1Source ===
+              "full_name"
+                ? "כהן סוכנות לביטוח"
+                : "ישראל"
+            )
         ),
       [
         bodyText,
         exampleValue,
+        bodyVariable1Source,
       ]
     );
 
@@ -466,12 +820,16 @@ export default function WhatsAppTemplateBuilder({
   const handleMediaFileChange =
     (
       file:
-        File | null
+        File |
+        null
     ) => {
-      if (!file) {
+      if (
+        !file
+      ) {
         setMediaFile(
           null
         );
+
         return;
       }
 
@@ -480,6 +838,7 @@ export default function WhatsAppTemplateBuilder({
           "application/pdf",
           "image/jpeg",
           "image/png",
+          "video/mp4",
         ];
 
       if (
@@ -495,26 +854,60 @@ export default function WhatsAppTemplateBuilder({
             "סוג קובץ לא נתמך",
 
           message:
-            "ניתן להעלות PDF, JPG או PNG.",
+            "ניתן להעלות PDF, JPG, PNG או וידאו MP4.",
         });
 
         return;
       }
 
-      const maxSize =
+      let maxSize =
+        5 *
+        1024 *
+        1024;
+
+      if (
         file.type ===
         "application/pdf"
-          ? 10 *
-            1024 *
-            1024
-          : 5 *
-            1024 *
-            1024;
+      ) {
+        maxSize =
+          10 *
+          1024 *
+          1024;
+      }
+
+      if (
+        file.type ===
+        "video/mp4"
+      ) {
+        maxSize =
+          16 *
+          1024 *
+          1024;
+      }
 
       if (
         file.size >
         maxSize
       ) {
+        let message =
+          "בשלב זה ניתן להעלות תמונה עד 5MB.";
+
+        if (
+          file.type ===
+          "application/pdf"
+        ) {
+          message =
+            "בשלב זה ניתן להעלות PDF עד 10MB.";
+        }
+
+        if (
+          file.type ===
+          "video/mp4"
+        ) {
+          message =
+            "בשלב זה ניתן להעלות וידאו MP4 עד 16MB.";
+        }
+
         showToast({
           type:
             "warning",
@@ -522,11 +915,7 @@ export default function WhatsAppTemplateBuilder({
           title:
             "הקובץ גדול מדי",
 
-          message:
-            file.type ===
-            "application/pdf"
-              ? "בשלב זה ניתן להעלות PDF עד 10MB."
-              : "בשלב זה ניתן להעלות תמונה עד 5MB.",
+          message,
         });
 
         return;
@@ -538,8 +927,13 @@ export default function WhatsAppTemplateBuilder({
     };
 
   const uploadHeaderMedia =
-    async (): Promise<WhatsAppTemplateHeaderMedia | null> => {
-      if (!mediaFile) {
+    async (): Promise<
+      WhatsAppTemplateHeaderMedia |
+      null
+    > => {
+      if (
+        !mediaFile
+      ) {
         return existingHeaderMedia;
       }
 
@@ -565,10 +959,13 @@ export default function WhatsAppTemplateBuilder({
       const response =
         await uploadFn({
           agentId,
+
           fileName:
             mediaFile.name,
+
           mimeType:
             mediaFile.type,
+
           base64Data,
         });
 
@@ -579,24 +976,31 @@ export default function WhatsAppTemplateBuilder({
 
       const handle =
         String(
-          response.data?.handle ||
+          response.data
+            ?.handle ||
           ""
         ).trim();
 
       const storagePath =
         String(
-          response.data?.storagePath ||
+          response.data
+            ?.storagePath ||
           ""
         ).trim();
 
       const mediaType =
-        response.data?.mediaType;
+        response.data
+          ?.mediaType;
 
       if (
         !handle ||
         (
-          mediaType !== "DOCUMENT" &&
-          mediaType !== "IMAGE"
+          mediaType !==
+            "DOCUMENT" &&
+          mediaType !==
+            "IMAGE" &&
+          mediaType !==
+            "VIDEO"
         )
       ) {
         throw new Error(
@@ -604,7 +1008,9 @@ export default function WhatsAppTemplateBuilder({
         );
       }
 
-      if (!storagePath) {
+      if (
+        !storagePath
+      ) {
         console.error(
           "[WhatsAppTemplateBuilder] Missing storagePath",
           response.data
@@ -618,17 +1024,25 @@ export default function WhatsAppTemplateBuilder({
       return {
         type:
           mediaType,
+
         handle,
+
         storagePath,
+
         fileName:
-          response.data?.fileName ||
+          response.data
+            ?.fileName ||
           mediaFile.name,
+
         mimeType:
-          response.data?.mimeType ||
+          response.data
+            ?.mimeType ||
           mediaFile.type,
+
         size:
           Number(
-            response.data?.size ||
+            response.data
+              ?.size ||
             mediaFile.size
           ),
       };
@@ -674,7 +1088,7 @@ export default function WhatsAppTemplateBuilder({
       if (
         !isEditing &&
         normalizedName !==
-        templateName.trim()
+          templateName.trim()
       ) {
         setTemplateName(
           normalizedName
@@ -717,7 +1131,10 @@ export default function WhatsAppTemplateBuilder({
             "חסרה דוגמה למשתנה",
 
           message:
-            "התבנית כוללת את {{1}}. יש להזין דוגמה, למשל: ישראל.",
+            bodyVariable1Source ===
+            "full_name"
+              ? "התבנית כוללת את {{1}}. יש להזין דוגמה לשם מלא, למשל: כהן סוכנות לביטוח."
+              : "התבנית כוללת את {{1}}. יש להזין דוגמה לשם פרטי, למשל: ישראל.",
         });
 
         return;
@@ -803,7 +1220,8 @@ export default function WhatsAppTemplateBuilder({
         isEditing &&
         existingHeaderMedia &&
         !String(
-          existingHeaderMedia.storagePath ||
+          existingHeaderMedia
+            .storagePath ||
           ""
         ).trim() &&
         !mediaFile
@@ -816,7 +1234,7 @@ export default function WhatsAppTemplateBuilder({
             "יש להעלות מחדש את הקובץ",
 
           message:
-            "התבנית נוצרה לפני שהוספנו שמירה קבועה של קבצים. כדי לעדכן אותה יש לבחור מחדש את ה-PDF או התמונה המצורפים.",
+            "התבנית נוצרה לפני שהוספנו שמירה קבועה של קבצים. כדי לעדכן אותה יש לבחור מחדש את ה-PDF, התמונה או הווידאו המצורפים.",
         });
 
         return;
@@ -831,7 +1249,8 @@ export default function WhatsAppTemplateBuilder({
         );
 
       const quickReplyActions:
-        Record<string, string> = {};
+        Record<string, string> =
+        {};
 
       if (
         normalizedQuickReply1
@@ -852,7 +1271,8 @@ export default function WhatsAppTemplateBuilder({
       }
 
       const urlButton:
-        WhatsAppTemplateUrlButton | null =
+        WhatsAppTemplateUrlButton |
+        null =
           normalizedUrlButtonText &&
           normalizedUrlButtonUrl
             ? {
@@ -869,9 +1289,21 @@ export default function WhatsAppTemplateBuilder({
       );
 
       try {
+        /*
+         * בעריכת תבנית קיימת, אם לא נבחר קובץ חדש:
+         * לא שולחים ל-Backend את ה-handle הישן של Meta.
+         *
+         * ה-Backend ישמור את המדיה הקיימת מתוך Firestore,
+         * אבל לא ישלח את ה-handle הישן שוב ל-Meta.
+         *
+         * אם נבחר קובץ חדש - מעלים אותו ומעבירים handle חדש.
+         */
         let headerMedia:
-          WhatsAppTemplateHeaderMedia | null =
-          existingHeaderMedia;
+          WhatsAppTemplateHeaderMedia |
+          null =
+            isEditing
+              ? null
+              : existingHeaderMedia;
 
         if (
           mediaFile
@@ -890,26 +1322,44 @@ export default function WhatsAppTemplateBuilder({
             {
               agentId:
                 string;
+
               name:
                 string;
+
               metaTemplateId?:
                 string;
+
               category:
                 string;
+
               language:
                 string;
+
               bodyText:
                 string;
+
               bodyExamples:
                 string[];
+
+              bodyVariable1Source:
+                WhatsAppTemplateVariable1Source;
+
               quickReplyButtons:
                 string[];
+
               quickReplyActions:
-                Record<string, string>;
+                Record<
+                  string,
+                  string
+                >;
+
               urlButton:
-                WhatsAppTemplateUrlButton | null;
+                WhatsAppTemplateUrlButton |
+                null;
+
               headerMedia:
-                WhatsAppTemplateHeaderMedia | null;
+                WhatsAppTemplateHeaderMedia |
+                null;
             },
             TemplateMutationResponse
           >(
@@ -925,7 +1375,8 @@ export default function WhatsAppTemplateBuilder({
               normalizedName,
 
             metaTemplateId:
-              editingTemplate?.metaTemplateId,
+              editingTemplate
+                ?.metaTemplateId,
 
             category,
 
@@ -941,6 +1392,8 @@ export default function WhatsAppTemplateBuilder({
                   ]
                 : [],
 
+            bodyVariable1Source,
+
             quickReplyButtons,
 
             quickReplyActions,
@@ -951,7 +1404,8 @@ export default function WhatsAppTemplateBuilder({
           });
 
         const result:
-          WhatsAppTemplateCreatedResult = {
+          WhatsAppTemplateCreatedResult =
+          {
             name:
               response.data
                 ?.name ||
@@ -965,6 +1419,13 @@ export default function WhatsAppTemplateBuilder({
             bodyText:
               normalizedBody,
 
+            bodyVariable1Source:
+              normalizeVariable1Source(
+                response.data
+                  ?.bodyVariable1Source ||
+                bodyVariable1Source
+              ),
+
             quickReplyButtons,
 
             quickReplyActions,
@@ -977,7 +1438,8 @@ export default function WhatsAppTemplateBuilder({
             headerMedia:
               response.data
                 ?.headerMedia ??
-              headerMedia,
+              headerMedia ??
+              existingHeaderMedia,
           };
 
         showToast({
@@ -995,10 +1457,16 @@ export default function WhatsAppTemplateBuilder({
               : `התבנית ${result.name} נוצרה בסטטוס ${result.status}.`,
         });
 
-        if (isEditing) {
-          onUpdated?.(result);
+        if (
+          isEditing
+        ) {
+          onUpdated?.(
+            result
+          );
         } else {
-          onCreated?.(result);
+          onCreated?.(
+            result
+          );
         }
       } catch (
         error: any
@@ -1091,24 +1559,32 @@ export default function WhatsAppTemplateBuilder({
           compact
             ? "grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_360px]"
             : "grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_420px]",
-        ].join(" ")}
+        ].join(
+          " "
+        )}
       >
         <section className="rounded-xl border bg-white p-5 shadow-sm">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <h2 className="text-xl font-bold text-slate-900">
-                {isEditing ? "עריכת תבנית" : "יצירת תבנית חדשה"}
+                {isEditing
+                  ? "עריכת תבנית"
+                  : "יצירת תבנית חדשה"}
               </h2>
+
               <p className="mt-1 text-sm text-slate-500">
                 {isEditing
                   ? "השינויים יישלחו ל־Meta וייתכן שיעברו בדיקה מחדש."
                   : "התבנית תישלח לאישור Meta לפני שניתן יהיה להשתמש בה."}
               </p>
             </div>
+
             {isEditing ? (
               <button
                 type="button"
-                onClick={onCancelEdit}
+                onClick={
+                  onCancelEdit
+                }
                 className="rounded-lg border px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
               >
                 ביטול עריכה
@@ -1131,11 +1607,14 @@ export default function WhatsAppTemplateBuilder({
                   event
                 ) =>
                   setTemplateName(
-                    event.target.value
+                    event.target
+                      .value
                   )
                 }
                 onBlur={() => {
-                  if (!isEditing) {
+                  if (
+                    !isEditing
+                  ) {
                     setTemplateName(
                       normalizeTemplateName(
                         templateName
@@ -1143,7 +1622,9 @@ export default function WhatsAppTemplateBuilder({
                     );
                   }
                 }}
-                disabled={isEditing}
+                disabled={
+                  isEditing
+                }
                 placeholder="first_outbound_flow"
                 className="w-full rounded-lg border px-3 py-2.5 font-mono outline-none focus:border-blue-500 disabled:bg-slate-100"
               />
@@ -1168,7 +1649,8 @@ export default function WhatsAppTemplateBuilder({
                       event
                     ) =>
                       setCategory(
-                        event.target.value
+                        event.target
+                          .value
                       )
                     }
                     className="w-full rounded-lg border px-3 py-2.5"
@@ -1200,7 +1682,8 @@ export default function WhatsAppTemplateBuilder({
                       event
                     ) =>
                       setLanguage(
-                        event.target.value
+                        event.target
+                          .value
                       )
                     }
                     className="w-full rounded-lg border px-3 py-2.5"
@@ -1230,7 +1713,8 @@ export default function WhatsAppTemplateBuilder({
                   event
                 ) =>
                   setBodyText(
-                    event.target.value
+                    event.target
+                      .value
                   )
                 }
                 rows={
@@ -1244,7 +1728,7 @@ export default function WhatsAppTemplateBuilder({
               />
 
               <div className="mt-2 rounded-lg border bg-slate-50 px-3 py-2 text-sm text-slate-600">
-                ניתן לשלב שם פרטי באמצעות{" "}
+                ניתן לשלב את שם הלקוח באמצעות{" "}
                 <span className="font-mono font-bold">
                   {"{{1}}"}
                 </span>
@@ -1253,37 +1737,88 @@ export default function WhatsAppTemplateBuilder({
             </div>
 
             {hasFirstVariable ? (
-              <div>
-                <label className="mb-1 block text-sm font-semibold text-slate-700">
-                  דוגמה למשתנה {"{{1}}"} *
-                </label>
+              <div className="space-y-4 rounded-xl border border-blue-100 bg-blue-50/40 p-4">
+                <div>
+                  <label className="mb-1 block text-sm font-semibold text-slate-700">
+                    איזה שם ייכנס ל־{"{{1}}"}?
+                  </label>
 
-                <input
-                  type="text"
-                  value={
-                    exampleValue
-                  }
-                  onChange={(
-                    event
-                  ) =>
-                    setExampleValue(
-                      event.target.value
-                    )
-                  }
-                  placeholder="ישראל"
-                  className="w-full rounded-lg border px-3 py-2.5"
-                />
+                  <select
+                    value={
+                      bodyVariable1Source
+                    }
+                    onChange={(
+                      event
+                    ) =>
+                      setBodyVariable1Source(
+                        normalizeVariable1Source(
+                          event.target
+                            .value
+                        )
+                      )
+                    }
+                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5"
+                  >
+                    <option value="first_name">
+                      שם פרטי בלבד
+                    </option>
+
+                    <option value="full_name">
+                      שם מלא
+                    </option>
+                  </select>
+
+                  <p className="mt-2 text-xs leading-5 text-slate-500">
+                    {bodyVariable1Source ===
+                    "full_name"
+                      ? "בשליחה ייכנס כל הערך השמור ב־fullName. מתאים גם לשמות של סוכנויות ועסקים."
+                      : "בשליחה ייכנס השם הפרטי בלבד. זו ההתנהגות הקיימת של התבניות היום."}
+                  </p>
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-sm font-semibold text-slate-700">
+                    דוגמה למשתנה{" "}
+                    {"{{1}}"} *
+                  </label>
+
+                  <input
+                    type="text"
+                    value={
+                      exampleValue
+                    }
+                    onChange={(
+                      event
+                    ) =>
+                      setExampleValue(
+                        event.target
+                          .value
+                      )
+                    }
+                    placeholder={
+                      bodyVariable1Source ===
+                      "full_name"
+                        ? "כהן סוכנות לביטוח"
+                        : "ישראל"
+                    }
+                    className="w-full rounded-lg border px-3 py-2.5"
+                  />
+
+                  <p className="mt-1 text-xs text-slate-500">
+                    הדוגמה נשלחת ל־Meta לצורך אישור התבנית בלבד.
+                  </p>
+                </div>
               </div>
             ) : null}
 
             <section className="rounded-xl border p-4">
               <div>
                 <h3 className="font-bold text-slate-900">
-                  קובץ מצורף לתבנית
+                  מדיה לתבנית
                 </h3>
 
                 <p className="mt-1 text-sm text-slate-500">
-                  אופציונלי. ניתן לצרף PDF או תמונה שיופיעו בכותרת הודעת ה־WhatsApp.
+                  אופציונלי. ניתן לצרף PDF, תמונה או וידאו MP4 שיופיעו בראש הודעת ה־WhatsApp.
                 </p>
               </div>
 
@@ -1291,34 +1826,45 @@ export default function WhatsAppTemplateBuilder({
                 <label className="flex cursor-pointer items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-5 text-sm font-semibold text-slate-700 hover:bg-slate-100">
                   <input
                     type="file"
-                    accept=".pdf,image/jpeg,image/png"
+                    accept=".pdf,.jpg,.jpeg,.png,.mp4,application/pdf,image/jpeg,image/png,video/mp4"
                     className="hidden"
                     onChange={(
                       event
                     ) =>
                       handleMediaFileChange(
-                        event.target.files?.[0] ||
+                        event.target
+                          .files?.[0] ||
                         null
                       )
                     }
                   />
 
                   {mediaFile
-                    ? "החלפת קובץ שנבחר"
+                    ? "החלפת מדיה שנבחרה"
                     : existingHeaderMedia
-                      ? "החלפת הקובץ המצורף"
-                      : "בחירת PDF או תמונה"}
+                      ? "החלפת המדיה המצורפת"
+                      : "בחירת PDF, תמונה או וידאו"}
                 </label>
+
+                <div className="mt-2 text-xs text-slate-500">
+                  תמונה עד 5MB · PDF עד 10MB · וידאו MP4 עד 16MB
+                </div>
 
                 {mediaFile ? (
                   <div className="mt-3 flex items-center justify-between gap-3 rounded-lg border bg-white p-3">
                     <div className="min-w-0">
                       <div className="truncate text-sm font-semibold text-slate-800">
-                        {mediaFile.name}
+                        {
+                          mediaFile.name
+                        }
                       </div>
 
                       <div className="mt-1 text-xs text-slate-500">
-                        קובץ חדש · {mediaFile.type} ·{" "}
+                        קובץ חדש ·{" "}
+                        {getMediaLabel(
+                          mediaFile.type
+                        )}{" "}
+                        ·{" "}
                         {formatFileSize(
                           mediaFile.size
                         )}
@@ -1340,13 +1886,22 @@ export default function WhatsAppTemplateBuilder({
                 ) : existingHeaderMedia ? (
                   <div className="mt-3 rounded-lg border bg-white p-3">
                     <div className="text-sm font-semibold text-slate-800">
-                      {existingHeaderMedia.fileName}
+                      {
+                        existingHeaderMedia
+                          .fileName
+                      }
                     </div>
 
                     <div className="mt-1 text-xs text-slate-500">
-                      קובץ קיים · {existingHeaderMedia.type} ·{" "}
+                      מדיה קיימת ·{" "}
+                      {
+                        existingHeaderMedia
+                          .type
+                      }{" "}
+                      ·{" "}
                       {formatFileSize(
-                        existingHeaderMedia.size
+                        existingHeaderMedia
+                          .size
                       )}
                     </div>
                   </div>
@@ -1388,7 +1943,8 @@ export default function WhatsAppTemplateBuilder({
                       event
                     ) =>
                       setQuickReply1(
-                        event.target.value
+                        event.target
+                          .value
                       )
                     }
                     placeholder="כן, אשמח"
@@ -1403,7 +1959,8 @@ export default function WhatsAppTemplateBuilder({
                       event
                     ) =>
                       setQuickReply1Action(
-                        event.target.value
+                        event.target
+                          .value
                       )
                     }
                     className="w-full rounded-lg border px-3 py-2.5"
@@ -1436,7 +1993,8 @@ export default function WhatsAppTemplateBuilder({
                       event
                     ) =>
                       setQuickReply2(
-                        event.target.value
+                        event.target
+                          .value
                       )
                     }
                     placeholder="לא מעוניין"
@@ -1451,7 +2009,8 @@ export default function WhatsAppTemplateBuilder({
                       event
                     ) =>
                       setQuickReply2Action(
-                        event.target.value
+                        event.target
+                          .value
                       )
                     }
                     className="w-full rounded-lg border px-3 py-2.5"
@@ -1502,7 +2061,8 @@ export default function WhatsAppTemplateBuilder({
                       event
                     ) =>
                       setUrlButtonText(
-                        event.target.value
+                        event.target
+                          .value
                       )
                     }
                     placeholder="לפרטים נוספים"
@@ -1524,7 +2084,8 @@ export default function WhatsAppTemplateBuilder({
                       event
                     ) =>
                       setUrlButtonUrl(
-                        event.target.value
+                        event.target
+                          .value
                       )
                     }
                     placeholder="https://magicsale.co.il/landing"
@@ -1553,7 +2114,10 @@ export default function WhatsAppTemplateBuilder({
                     isEditing
                       ? "מעדכן תבנית..."
                       : mediaFile
-                        ? "מעלה קובץ ויוצר תבנית..."
+                        ? mediaFile.type ===
+                          "video/mp4"
+                          ? "מעלה וידאו ויוצר תבנית..."
+                          : "מעלה קובץ ויוצר תבנית..."
                         : "יוצר תבנית..."
                   )
                 : (
@@ -1572,59 +2136,130 @@ export default function WhatsAppTemplateBuilder({
             </h2>
 
             <div className="mt-4 rounded-2xl bg-[#efeae2] p-4">
-              <div className="rounded-xl bg-white p-4 shadow-sm">
-                {mediaFile ? (
-                  <div className="mb-3 rounded-lg border bg-slate-50 p-3">
+              <div className="overflow-hidden rounded-xl bg-white shadow-sm">
+                {mediaFile &&
+                mediaFile.type ===
+                  "video/mp4" &&
+                mediaPreviewUrl ? (
+                  <div className="bg-black">
+                    <video
+                      src={
+                        mediaPreviewUrl
+                      }
+                      controls
+                      playsInline
+                      preload="metadata"
+                      className="max-h-[320px] w-full object-contain"
+                    >
+                      הדפדפן אינו תומך בתצוגת וידאו.
+                    </video>
+                  </div>
+                ) : mediaFile &&
+                  (
+                    mediaFile.type ===
+                      "image/jpeg" ||
+                    mediaFile.type ===
+                      "image/png"
+                  ) &&
+                  mediaPreviewUrl ? (
+                  <div className="bg-slate-100">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={
+                        mediaPreviewUrl
+                      }
+                      alt="תצוגה מקדימה של המדיה"
+                      className="max-h-[320px] w-full object-contain"
+                    />
+                  </div>
+                ) : mediaFile ? (
+                  <div className="border-b bg-slate-50 p-3">
                     <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      {mediaFile.type === "application/pdf"
-                        ? "PDF"
-                        : "IMAGE"}
+                      {getMediaLabel(
+                        mediaFile.type
+                      )}
                     </div>
 
                     <div className="mt-1 truncate text-sm font-semibold text-slate-700">
-                      {mediaFile.name}
+                      {
+                        mediaFile.name
+                      }
                     </div>
                   </div>
                 ) : existingHeaderMedia ? (
-                  <div className="mb-3 rounded-lg border bg-slate-50 p-3">
+                  <div className="border-b bg-slate-50 p-3">
                     <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      {existingHeaderMedia.type}
+                      {
+                        existingHeaderMedia
+                          .type
+                      }
                     </div>
 
                     <div className="mt-1 truncate text-sm font-semibold text-slate-700">
-                      {existingHeaderMedia.fileName}
+                      {
+                        existingHeaderMedia
+                          .fileName
+                      }
                     </div>
+
+                    {existingHeaderMedia.type ===
+                    "VIDEO" ? (
+                      <div className="mt-1 text-xs text-slate-500">
+                        וידאו קיים בתבנית
+                      </div>
+                    ) : null}
                   </div>
                 ) : null}
 
-                <div className="whitespace-pre-wrap text-sm text-slate-800">
-                  {previewText ||
-                    "תוכן התבנית יוצג כאן."}
+                <div className="p-4">
+                  <div className="whitespace-pre-wrap text-sm text-slate-800">
+                    {previewText ||
+                      "תוכן התבנית יוצג כאן."}
+                  </div>
+
+                  {hasFirstVariable ? (
+                    <div className="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500">
+                      {"{{1}}"} יישלח כ־
+                      <strong className="mr-1 text-slate-700">
+                        {bodyVariable1Source ===
+                        "full_name"
+                          ? "שם מלא"
+                          : "שם פרטי"}
+                      </strong>
+                    </div>
+                  ) : null}
+
+                  {quickReply1 ||
+                  quickReply2 ||
+                  urlButtonText ? (
+                    <div className="mt-4 divide-y border-t">
+                      {quickReply1 ? (
+                        <div className="py-2 text-center text-sm font-semibold text-blue-600">
+                          {
+                            quickReply1
+                          }
+                        </div>
+                      ) : null}
+
+                      {quickReply2 ? (
+                        <div className="py-2 text-center text-sm font-semibold text-blue-600">
+                          {
+                            quickReply2
+                          }
+                        </div>
+                      ) : null}
+
+                      {urlButtonText ? (
+                        <div className="py-2 text-center text-sm font-semibold text-blue-600">
+                          🔗{" "}
+                          {
+                            urlButtonText
+                          }
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
                 </div>
-
-                {quickReply1 ||
-                quickReply2 ||
-                urlButtonText ? (
-                  <div className="mt-4 divide-y border-t">
-                    {quickReply1 ? (
-                      <div className="py-2 text-center text-sm font-semibold text-blue-600">
-                        {quickReply1}
-                      </div>
-                    ) : null}
-
-                    {quickReply2 ? (
-                      <div className="py-2 text-center text-sm font-semibold text-blue-600">
-                        {quickReply2}
-                      </div>
-                    ) : null}
-
-                    {urlButtonText ? (
-                      <div className="py-2 text-center text-sm font-semibold text-blue-600">
-                        🔗 {urlButtonText}
-                      </div>
-                    ) : null}
-                  </div>
-                ) : null}
               </div>
             </div>
           </section>

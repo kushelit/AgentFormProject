@@ -3,37 +3,105 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { HttpsError } from "firebase-functions/v2/https";
-import { adminDb, nowTs } from "./shared/admin";
-import { PORTAL_ENC_KEY_B64 } from "./shared/secrets";
-import { decryptJsonAes256Gcm } from "./shared/cryptoAesGcm";
+
+import {
+  adminDb,
+  nowTs,
+} from "./shared/admin";
+
+import {
+  PORTAL_ENC_KEY_B64,
+} from "./shared/secrets";
+
+import {
+  decryptJsonAes256Gcm,
+} from "./shared/cryptoAesGcm";
 
 import {
   requireBackendPermission,
 } from "./shared/backendPermissions";
 
-const WA_API_URL = "https://graph.facebook.com/v25.0";
-const MAX_QUICK_REPLY_BUTTONS = 3;
-const MAX_URL_BUTTONS = 1;
+const WA_API_URL =
+  "https://graph.facebook.com/v25.0";
 
-const ALLOWED_QUICK_REPLY_ACTIONS = new Set([
-  "interested",
-  "declined",
-  "booking",
-  "other",
-]);
+const MAX_QUICK_REPLY_BUTTONS =
+  3;
 
-function s(v: any): string {
-  return String(v ?? "").trim();
+const MAX_URL_BUTTONS =
+  1;
+
+const ALLOWED_QUICK_REPLY_ACTIONS =
+  new Set([
+    "interested",
+    "declined",
+    "booking",
+    "other",
+  ]);
+
+type TemplateHeaderMediaType =
+  | "DOCUMENT"
+  | "IMAGE"
+  | "VIDEO";
+
+type TemplateHeaderMedia = {
+  type:
+    TemplateHeaderMediaType;
+
+  handle:
+    string;
+
+  storagePath:
+    string;
+
+  fileName:
+    string;
+
+  mimeType:
+    string;
+
+  size:
+    number;
+};
+
+type BodyVariable1Source =
+  | "first_name"
+  | "full_name";
+
+function s(
+  v: any
+): string {
+  return String(
+    v ?? ""
+  ).trim();
 }
 
-function normalizeTemplateName(v: string): string {
+function normalizeTemplateName(
+  v: string
+): string {
   return s(v)
     .toLowerCase()
-    .replace(/\s+/g, "_")
-    .replace(/[^a-z0-9_]/g, "");
+    .replace(
+      /\s+/g,
+      "_"
+    )
+    .replace(
+      /[^a-z0-9_]/g,
+      ""
+    );
 }
 
-function normalizeHttpUrl(v: unknown): string {
+function normalizeBodyVariable1Source(
+  value: unknown
+): BodyVariable1Source {
+  return value ===
+    "full_name"
+    ? "full_name"
+    : "first_name";
+}
+
+function normalizeHttpUrl(
+  v: unknown
+): string {
   const value =
     s(v);
 
@@ -73,29 +141,70 @@ function normalizeHttpUrl(v: unknown): string {
 
 /**
  * מחזיר את מספר המשתנים הרציפים בגוף התבנית.
- *
- * לדוגמה:
- * שלום {{1}}, מספר הפנייה שלך הוא {{2}}
- * יחזיר 2.
  */
-function getBodyVariableCount(bodyText: string): number {
-  const matches = [...bodyText.matchAll(/\{\{(\d+)\}\}/g)];
+function getBodyVariableCount(
+  bodyText: string
+): number {
+  const matches =
+    [
+      ...bodyText.matchAll(
+        /\{\{(\d+)\}\}/g
+      ),
+    ];
 
-  if (matches.length === 0) {
+  if (
+    matches.length ===
+    0
+  ) {
     return 0;
   }
 
-  const numbers = matches
-    .map((match) => Number(match[1]))
-    .filter((value) => Number.isInteger(value) && value > 0);
+  const numbers =
+    matches
+      .map(
+        (
+          match
+        ) =>
+          Number(
+            match[1]
+          )
+      )
+      .filter(
+        (
+          value
+        ) =>
+          Number.isInteger(
+            value
+          ) &&
+          value > 0
+      );
 
-  const uniqueNumbers = [...new Set(numbers)].sort((a, b) => a - b);
+  const uniqueNumbers =
+    [
+      ...new Set(
+        numbers
+      ),
+    ].sort(
+      (
+        a,
+        b
+      ) =>
+        a - b
+    );
 
-  // Meta מצפה למשתנים רציפים: {{1}}, {{2}}, {{3}}.
-  for (let index = 0; index < uniqueNumbers.length; index++) {
-    const expectedNumber = index + 1;
+  for (
+    let index = 0;
+    index <
+    uniqueNumbers.length;
+    index++
+  ) {
+    const expectedNumber =
+      index + 1;
 
-    if (uniqueNumbers[index] !== expectedNumber) {
+    if (
+      uniqueNumbers[index] !==
+      expectedNumber
+    ) {
       throw new HttpsError(
         "invalid-argument",
         `Template variables must be sequential. Expected {{${expectedNumber}}}`
@@ -110,27 +219,50 @@ function normalizeBodyExamples(
   rawExamples: unknown,
   variableCount: number
 ): string[] {
-  if (variableCount === 0) {
+  if (
+    variableCount ===
+    0
+  ) {
     return [];
   }
 
-  if (!Array.isArray(rawExamples)) {
+  if (
+    !Array.isArray(
+      rawExamples
+    )
+  ) {
     throw new HttpsError(
       "invalid-argument",
       `The template contains ${variableCount} variables, but bodyExamples were not provided`
     );
   }
 
-  const examples = rawExamples.map((value) => s(value));
+  const examples =
+    rawExamples.map(
+      (
+        value
+      ) =>
+        s(value)
+    );
 
-  if (examples.length !== variableCount) {
+  if (
+    examples.length !==
+    variableCount
+  ) {
     throw new HttpsError(
       "invalid-argument",
       `Expected ${variableCount} body examples, received ${examples.length}`
     );
   }
 
-  if (examples.some((value) => !value)) {
+  if (
+    examples.some(
+      (
+        value
+      ) =>
+        !value
+    )
+  ) {
     throw new HttpsError(
       "invalid-argument",
       "All template variable examples must contain a value"
@@ -140,31 +272,64 @@ function normalizeBodyExamples(
   return examples;
 }
 
-function normalizeQuickReplyButtons(rawButtons: unknown): string[] {
-  if (!Array.isArray(rawButtons)) {
+function normalizeQuickReplyButtons(
+  rawButtons: unknown
+): string[] {
+  if (
+    !Array.isArray(
+      rawButtons
+    )
+  ) {
     return [];
   }
 
-  const buttons = rawButtons
-    .map((button) => {
-      if (typeof button === "string") {
-        return s(button);
-      }
+  const buttons =
+    rawButtons
+      .map(
+        (
+          button
+        ) => {
+          if (
+            typeof button ===
+            "string"
+          ) {
+            return s(
+              button
+            );
+          }
 
-      return s((button as any)?.text);
-    })
-    .filter(Boolean);
+          return s(
+            (
+              button as any
+            )?.text
+          );
+        }
+      )
+      .filter(
+        Boolean
+      );
 
-  if (buttons.length > MAX_QUICK_REPLY_BUTTONS) {
+  if (
+    buttons.length >
+    MAX_QUICK_REPLY_BUTTONS
+  ) {
     throw new HttpsError(
       "invalid-argument",
       `A maximum of ${MAX_QUICK_REPLY_BUTTONS} quick reply buttons is allowed`
     );
   }
 
-  const uniqueButtons = [...new Set(buttons)];
+  const uniqueButtons =
+    [
+      ...new Set(
+        buttons
+      ),
+    ];
 
-  if (uniqueButtons.length !== buttons.length) {
+  if (
+    uniqueButtons.length !==
+    buttons.length
+  ) {
     throw new HttpsError(
       "invalid-argument",
       "Quick reply button texts must be unique"
@@ -190,14 +355,16 @@ function normalizeUrlButton(
 
   const text =
     s(
-      (rawButton as any)
-        ?.text
+      (
+        rawButton as any
+      )?.text
     );
 
   const rawUrl =
     s(
-      (rawButton as any)
-        ?.url
+      (
+        rawButton as any
+      )?.url
     );
 
   if (
@@ -230,49 +397,55 @@ function normalizeUrlButton(
 
 function normalizeHeaderMedia(
   rawMedia: unknown
-): {
-  type: "DOCUMENT" | "IMAGE";
-  handle: string;
-  storagePath: string;
-  fileName: string;
-  mimeType: string;
-  size: number;
-} | null {
+): TemplateHeaderMedia | null {
   if (
     !rawMedia ||
-    typeof rawMedia !== "object"
+    typeof rawMedia !==
+      "object"
   ) {
     return null;
   }
 
   const type =
     s(
-      (rawMedia as any)?.type
+      (
+        rawMedia as any
+      )?.type
     ).toUpperCase();
 
   const handle =
     s(
-      (rawMedia as any)?.handle
+      (
+        rawMedia as any
+      )?.handle
     );
 
   const storagePath =
     s(
-      (rawMedia as any)?.storagePath
+      (
+        rawMedia as any
+      )?.storagePath
     );
 
   const fileName =
     s(
-      (rawMedia as any)?.fileName
+      (
+        rawMedia as any
+      )?.fileName
     );
 
   const mimeType =
     s(
-      (rawMedia as any)?.mimeType
-    );
+      (
+        rawMedia as any
+      )?.mimeType
+    ).toLowerCase();
 
   const size =
     Number(
-      (rawMedia as any)?.size ||
+      (
+        rawMedia as any
+      )?.size ||
       0
     );
 
@@ -284,8 +457,12 @@ function normalizeHeaderMedia(
   }
 
   if (
-    type !== "DOCUMENT" &&
-    type !== "IMAGE"
+    type !==
+      "DOCUMENT" &&
+    type !==
+      "IMAGE" &&
+    type !==
+      "VIDEO"
   ) {
     throw new HttpsError(
       "invalid-argument",
@@ -293,14 +470,18 @@ function normalizeHeaderMedia(
     );
   }
 
-  if (!handle) {
+  if (
+    !handle
+  ) {
     throw new HttpsError(
       "invalid-argument",
       "Missing Meta header media handle"
     );
   }
 
-  if (!storagePath) {
+  if (
+    !storagePath
+  ) {
     throw new HttpsError(
       "invalid-argument",
       "Missing template media storagePath"
@@ -308,9 +489,11 @@ function normalizeHeaderMedia(
   }
 
   if (
-    type === "DOCUMENT" &&
+    type ===
+      "DOCUMENT" &&
     mimeType &&
-    mimeType !== "application/pdf"
+    mimeType !==
+      "application/pdf"
   ) {
     throw new HttpsError(
       "invalid-argument",
@@ -319,12 +502,15 @@ function normalizeHeaderMedia(
   }
 
   if (
-    type === "IMAGE" &&
+    type ===
+      "IMAGE" &&
     mimeType &&
     ![
       "image/jpeg",
       "image/png",
-    ].includes(mimeType)
+    ].includes(
+      mimeType
+    )
   ) {
     throw new HttpsError(
       "invalid-argument",
@@ -332,17 +518,36 @@ function normalizeHeaderMedia(
     );
   }
 
+  if (
+    type ===
+      "VIDEO" &&
+    mimeType &&
+    mimeType !==
+      "video/mp4"
+  ) {
+    throw new HttpsError(
+      "invalid-argument",
+      "VIDEO template header supports MP4 files only"
+    );
+  }
+
   return {
     type:
       type as
-        | "DOCUMENT"
-        | "IMAGE",
+        TemplateHeaderMediaType,
+
     handle,
+
     storagePath,
+
     fileName,
+
     mimeType,
+
     size:
-      Number.isFinite(size) &&
+      Number.isFinite(
+        size
+      ) &&
       size > 0
         ? size
         : 0,
@@ -352,49 +557,93 @@ function normalizeHeaderMedia(
 export async function createWhatsAppTemplateImpl(
   req: any
 ): Promise<object> {
-  const authUid = req.auth?.uid;
+  const authUid =
+    req.auth?.uid;
 
-  if (!authUid) {
-    throw new HttpsError("unauthenticated", "Login required");
+  if (
+    !authUid
+  ) {
+    throw new HttpsError(
+      "unauthenticated",
+      "Login required"
+    );
   }
 
-  const db = adminDb();
+  const db =
+    adminDb();
 
-  const userSnap = await (db as any)
-    .collection("users")
-    .doc(authUid)
-    .get();
+  const userSnap =
+    await (db as any)
+      .collection(
+        "users"
+      )
+      .doc(
+        authUid
+      )
+      .get();
 
-  if (!userSnap.exists) {
-    throw new HttpsError("permission-denied", "User not found");
+  if (
+    !userSnap.exists
+  ) {
+    throw new HttpsError(
+      "permission-denied",
+      "User not found"
+    );
   }
 
-  const userData = userSnap.data() as any;
+  const userData =
+    userSnap.data() as any;
 
   await requireBackendPermission({
-  db: db as any,
-  userId: authUid,
-  userData,
-  permission: "access_magic_touch",
-});
+    db:
+      db as any,
+
+    userId:
+      authUid,
+
+    userData,
+
+    permission:
+      "access_magic_touch",
+  });
 
   const isAdmin =
-    userData?.role === "admin" ||
-    userData?.isSystem === true;
+    userData?.role ===
+      "admin" ||
+    userData?.isSystem ===
+      true;
 
-  const userAgentId = s(userData?.agentId);
+  const userAgentId =
+    s(
+      userData?.agentId
+    );
 
- 
+  const body =
+    req.data ||
+    {};
 
-  const body = req.data || {};
-  const agentId = s(body.agentId);
+  const agentId =
+    s(
+      body.agentId
+    );
 
-  if (!agentId) {
-    throw new HttpsError("invalid-argument", "Missing agentId");
+  if (
+    !agentId
+  ) {
+    throw new HttpsError(
+      "invalid-argument",
+      "Missing agentId"
+    );
   }
 
-  if (!isAdmin) {
-    if (!userAgentId || userAgentId !== agentId) {
+  if (
+    !isAdmin
+  ) {
+    if (
+      !userAgentId ||
+      userAgentId !==
+        agentId
+    ) {
       throw new HttpsError(
         "permission-denied",
         "Cannot manage WhatsApp templates for another agent"
@@ -402,13 +651,37 @@ export async function createWhatsAppTemplateImpl(
     }
   }
 
-  const rawName = s(body.name);
-  const name = normalizeTemplateName(rawName);
-  const category = s(body.category || "MARKETING").toUpperCase();
-  const language = s(body.language || "he");
-  const bodyText = s(body.bodyText);
+  const rawName =
+    s(
+      body.name
+    );
 
-  if (!name || !bodyText) {
+  const name =
+    normalizeTemplateName(
+      rawName
+    );
+
+  const category =
+    s(
+      body.category ||
+      "MARKETING"
+    ).toUpperCase();
+
+  const language =
+    s(
+      body.language ||
+      "he"
+    );
+
+  const bodyText =
+    s(
+      body.bodyText
+    );
+
+  if (
+    !name ||
+    !bodyText
+  ) {
     throw new HttpsError(
       "invalid-argument",
       "Missing name / bodyText"
@@ -416,7 +689,13 @@ export async function createWhatsAppTemplateImpl(
   }
 
   if (
-    !["MARKETING", "UTILITY", "AUTHENTICATION"].includes(category)
+    ![
+      "MARKETING",
+      "UTILITY",
+      "AUTHENTICATION",
+    ].includes(
+      category
+    )
   ) {
     throw new HttpsError(
       "invalid-argument",
@@ -424,40 +703,32 @@ export async function createWhatsAppTemplateImpl(
     );
   }
 
-  /*
-   * משתנים ודוגמאות
-   *
-   * bodyExamples אמור להגיע כך:
-   * ["ישראל"]
-   *
-   * עבור גוף שמכיל:
-   * שלום {{1}}
-   */
-  const bodyVariableCount = getBodyVariableCount(bodyText);
+  const bodyVariableCount =
+    getBodyVariableCount(
+      bodyText
+    );
 
-  const bodyExamples = normalizeBodyExamples(
-    body.bodyExamples,
-    bodyVariableCount
-  );
+  const bodyExamples =
+    normalizeBodyExamples(
+      body.bodyExamples,
+      bodyVariableCount
+    );
 
   /*
-   * כפתורי Quick Reply
+   * מקור הערך של {{1}}
    *
-   * quickReplyButtons יכול להגיע כך:
-   * [
-   *   "כן, אשמח לקבוע",
-   *   "לא מעוניין כרגע"
-   * ]
-   *
-   * או כך:
-   * [
-   *   { text: "כן, אשמח לקבוע" },
-   *   { text: "לא מעוניין כרגע" }
-   * ]
+   * אם השדה לא נשלח, נשמור first_name.
+   * כך נשמרת התאימות להתנהגות הקיימת.
    */
-  const quickReplyButtons = normalizeQuickReplyButtons(
-    body.quickReplyButtons
-  );
+  const bodyVariable1Source =
+    normalizeBodyVariable1Source(
+      body.bodyVariable1Source
+    );
+
+  const quickReplyButtons =
+    normalizeQuickReplyButtons(
+      body.quickReplyButtons
+    );
 
   const urlButton =
     normalizeUrlButton(
@@ -486,67 +757,101 @@ export async function createWhatsAppTemplateImpl(
     );
   }
 
-  const waConfigSnap = await (db as any)
-    .doc(`agents/${agentId}/config/whatsapp`)
-    .get();
+  const waConfigSnap =
+    await (db as any)
+      .doc(
+        `agents/${agentId}/config/whatsapp`
+      )
+      .get();
 
-  if (!waConfigSnap.exists) {
+  if (
+    !waConfigSnap.exists
+  ) {
     throw new HttpsError(
       "failed-precondition",
       "WhatsApp config not found for agent"
     );
   }
 
-  const waConfig = waConfigSnap.data() as any;
-  const wabaId = s(waConfig.wabaId);
+  const waConfig =
+    waConfigSnap.data() as any;
 
-  if (!wabaId) {
+  const wabaId =
+    s(
+      waConfig.wabaId
+    );
+
+  if (
+    !wabaId
+  ) {
     throw new HttpsError(
       "failed-precondition",
       "Missing wabaId for agent"
     );
   }
 
-  const waSecretSnap = await (db as any)
-    .doc(`agents/${agentId}/secrets/whatsapp`)
-    .get();
+  const waSecretSnap =
+    await (db as any)
+      .doc(
+        `agents/${agentId}/secrets/whatsapp`
+      )
+      .get();
 
-  if (!waSecretSnap.exists) {
+  if (
+    !waSecretSnap.exists
+  ) {
     throw new HttpsError(
       "failed-precondition",
       "WhatsApp token not configured for agent"
     );
   }
 
-  const keyB64 = PORTAL_ENC_KEY_B64.value();
+  const keyB64 =
+    PORTAL_ENC_KEY_B64.value();
 
-  if (!keyB64) {
+  if (
+    !keyB64
+  ) {
     throw new HttpsError(
       "internal",
       "Missing encryption key"
     );
   }
 
-  const waSecret = waSecretSnap.data() as any;
+  const waSecret =
+    waSecretSnap.data() as any;
 
-  const { accessToken } = decryptJsonAes256Gcm(
-    keyB64,
-    waSecret.enc
-  ) as any;
+  const {
+    accessToken,
+  } =
+    decryptJsonAes256Gcm(
+      keyB64,
+      waSecret.enc
+    ) as any;
 
-  if (!accessToken) {
+  if (
+    !accessToken
+  ) {
     throw new HttpsError(
       "failed-precondition",
       "Invalid WhatsApp token for agent"
     );
   }
 
-  const components: any[] = [];
+  const components:
+    any[] =
+    [];
 
-  if (headerMedia) {
+  if (
+    headerMedia
+  ) {
     components.push({
-      type: "HEADER",
-      format: headerMedia.type,
+      type:
+        "HEADER",
+
+      format:
+        headerMedia.type,
+
       example: {
         header_handle: [
           headerMedia.handle,
@@ -555,12 +860,19 @@ export async function createWhatsAppTemplateImpl(
     });
   }
 
-  const bodyComponent: any = {
-    type: "BODY",
-    text: bodyText,
-  };
+  const bodyComponent:
+    any = {
+      type:
+        "BODY",
 
-  if (bodyVariableCount > 0) {
+      text:
+        bodyText,
+    };
+
+  if (
+    bodyVariableCount >
+    0
+  ) {
     bodyComponent.example = {
       body_text: [
         bodyExamples,
@@ -568,29 +880,51 @@ export async function createWhatsAppTemplateImpl(
     };
   }
 
-  components.push(bodyComponent);
+  components.push(
+    bodyComponent
+  );
 
-  const templateButtons: any[] = [];
+  const templateButtons:
+    any[] =
+    [];
 
-  for (const text of quickReplyButtons) {
+  for (
+    const text of
+    quickReplyButtons
+  ) {
     templateButtons.push({
-      type: "QUICK_REPLY",
+      type:
+        "QUICK_REPLY",
+
       text,
     });
   }
 
-  if (urlButton) {
+  if (
+    urlButton
+  ) {
     templateButtons.push({
-      type: "URL",
-      text: urlButton.text,
-      url: urlButton.url,
+      type:
+        "URL",
+
+      text:
+        urlButton.text,
+
+      url:
+        urlButton.url,
     });
   }
 
-  if (templateButtons.length > 0) {
+  if (
+    templateButtons.length >
+    0
+  ) {
     components.push({
-      type: "BUTTONS",
-      buttons: templateButtons,
+      type:
+        "BUTTONS",
+
+      buttons:
+        templateButtons,
     });
   }
 
@@ -601,142 +935,241 @@ export async function createWhatsAppTemplateImpl(
     components,
   };
 
-  // console.log(
-  //   "[createWhatsAppTemplate] Creating template:",
-  //   JSON.stringify({
-  //     agentId,
-  //     wabaId,
-  //     name,
-  //     category,
-  //     language,
-  //     bodyVariableCount,
-  //     quickReplyButtons,
-  //   })
-  // );
+  const res =
+    await fetch(
+      `${WA_API_URL}/${wabaId}/message_templates`,
+      {
+        method:
+          "POST",
 
-  const res = await fetch(
-    `${WA_API_URL}/${wabaId}/message_templates`,
-    {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(payload),
-    }
-  );
+        headers: {
+          "Authorization":
+            `Bearer ${accessToken}`,
 
-  const json: any = await res.json();
+          "Content-Type":
+            "application/json",
+        },
 
-  if (!res.ok) {
+        body:
+          JSON.stringify(
+            payload
+          ),
+      }
+    );
+
+  const json:
+    any =
+    await res.json();
+
+  if (
+    !res.ok
+  ) {
     console.error(
       "[createWhatsAppTemplate] Meta error:",
-      JSON.stringify(json)
+      JSON.stringify(
+        json
+      )
     );
 
     throw new HttpsError(
       "failed-precondition",
-      json?.error?.error_user_msg ||
-        json?.error?.message ||
+      json?.error
+        ?.error_user_msg ||
+        json?.error
+          ?.message ||
         "Failed to create WhatsApp template"
     );
   }
 
-  const metaTemplateId = s(json.id);
-  const templateStatus = s(json.status) || "PENDING";
+  const metaTemplateId =
+    s(
+      json.id
+    );
+
+  const templateStatus =
+    s(
+      json.status
+    ) ||
+    "PENDING";
 
   const rawQuickReplyActions =
     body.quickReplyActions &&
-    typeof body.quickReplyActions === "object"
+    typeof body.quickReplyActions ===
+      "object"
       ? body.quickReplyActions
       : {};
 
-  const quickReplyActions = quickReplyButtons.reduce(
-    (
-      result: Record<string, string>,
-      buttonText: string
-    ) => {
-      const action = s(
-        rawQuickReplyActions[buttonText]
+  const quickReplyActions =
+    quickReplyButtons.reduce(
+      (
+        result:
+          Record<
+            string,
+            string
+          >,
+        buttonText:
+          string
+      ) => {
+        const action =
+          s(
+            rawQuickReplyActions[
+              buttonText
+            ]
+          );
+
+        if (
+          ALLOWED_QUICK_REPLY_ACTIONS.has(
+            action
+          )
+        ) {
+          result[
+            buttonText
+          ] =
+            action;
+        }
+
+        return result;
+      },
+      {}
+    );
+
+  const templateRef =
+    (db as any)
+      .collection(
+        `agents/${agentId}/whatsapp_templates`
+      )
+      .doc(
+        name
       );
-
-      if (
-        ALLOWED_QUICK_REPLY_ACTIONS.has(
-          action
-        )
-      ) {
-        result[buttonText] = action;
-      }
-
-      return result;
-    },
-    {}
-  );
-
-  const templateRef = (db as any)
-    .collection(`agents/${agentId}/whatsapp_templates`)
-    .doc(name);
 
   await templateRef.set(
     {
       name,
-      originalName: rawName,
+
+      originalName:
+        rawName,
+
       category,
+
       language,
+
       bodyText,
 
       bodyVariableCount,
+
       bodyExamples,
 
+      /*
+       * הגדרה פנימית של MagicTouch.
+       * Meta לא צריכה להכיר את מקור המשתנה.
+       */
+      bodyVariable1Source,
+
       quickReplyButtons,
-      hasQuickReplies: quickReplyButtons.length > 0,
+
+      hasQuickReplies:
+        quickReplyButtons.length >
+        0,
+
       quickReplyActions,
 
       urlButton,
-      hasUrlButton: Boolean(urlButton),
+
+      hasUrlButton:
+        Boolean(
+          urlButton
+        ),
 
       headerMedia,
-      hasHeaderMedia: Boolean(headerMedia),
-      headerMediaType: headerMedia?.type || null,
 
-      componentsJson: JSON.stringify(components),
+      hasHeaderMedia:
+        Boolean(
+          headerMedia
+        ),
+
+      headerMediaType:
+        headerMedia?.type ||
+        null,
+
+      componentsJson:
+        JSON.stringify(
+          components
+        ),
 
       metaTemplateId,
-      status: templateStatus,
-      provider: "meta_cloud_api",
 
-      createdAt: nowTs(),
-      updatedAt: nowTs(),
-      createdBy: authUid,
+      status:
+        templateStatus,
 
-      metaResponse: json,
+      provider:
+        "meta_cloud_api",
+
+      createdAt:
+        nowTs(),
+
+      updatedAt:
+        nowTs(),
+
+      createdBy:
+        authUid,
+
+      metaResponse:
+        json,
     },
-    { merge: true }
+    {
+      merge:
+        true,
+    }
   );
 
   await (db as any)
-    .doc(`agents/${agentId}/config/whatsapp`)
+    .doc(
+      `agents/${agentId}/config/whatsapp`
+    )
     .set(
       {
-        lastTemplateCreatedAt: nowTs(),
-        updatedAt: nowTs(),
-        updatedBy: authUid,
+        lastTemplateCreatedAt:
+          nowTs(),
+
+        updatedAt:
+          nowTs(),
+
+        updatedBy:
+          authUid,
       },
-      { merge: true }
+      {
+        merge:
+          true,
+      }
     );
 
   return {
-    ok: true,
+    ok:
+      true,
+
     agentId,
+
     name,
+
     category,
+
     language,
+
     metaTemplateId,
-    status: templateStatus,
+
+    status:
+      templateStatus,
+
     bodyVariableCount,
+
+    bodyVariable1Source,
+
     quickReplyButtons,
+
     quickReplyActions,
+
     urlButton,
+
     headerMedia,
   };
 }

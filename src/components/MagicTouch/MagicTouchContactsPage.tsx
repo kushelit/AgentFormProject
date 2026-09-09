@@ -225,6 +225,11 @@ type CampaignOption = {
   status: string;
 };
 
+type NameSortDirection =
+  | "asc"
+  | "desc"
+  | null;
+
 type GetMagicTouchCampaignsResponse = {
   ok: boolean;
   agentId: string;
@@ -659,6 +664,14 @@ export default function MagicTouchContactsPage() {
     setSearch,
   ] =
     useState("");
+
+  const [
+    nameSortDirection,
+    setNameSortDirection,
+  ] =
+    useState<NameSortDirection>(
+      null
+    );
 
   const [
     sourceFilter,
@@ -1116,7 +1129,8 @@ export default function MagicTouchContactsPage() {
           .trim()
           .toLowerCase();
 
-      return contacts.filter(
+      const filtered =
+        contacts.filter(
         (
           contact
         ) => {
@@ -1248,12 +1262,74 @@ export default function MagicTouchContactsPage() {
           );
         }
       );
+
+      if (
+        !nameSortDirection
+      ) {
+        return filtered;
+      }
+
+      return [
+        ...filtered,
+      ].sort(
+        (
+          left,
+          right
+        ) => {
+          const leftName =
+            String(
+              left.fullName ||
+              ""
+            ).trim();
+
+          const rightName =
+            String(
+              right.fullName ||
+              ""
+            ).trim();
+
+          if (
+            !leftName &&
+            !rightName
+          ) {
+            return 0;
+          }
+
+          if (
+            !leftName
+          ) {
+            return 1;
+          }
+
+          if (
+            !rightName
+          ) {
+            return -1;
+          }
+
+          const comparison =
+            leftName.localeCompare(
+              rightName,
+              "he",
+              {
+                sensitivity:
+                  "base",
+              }
+            );
+
+          return nameSortDirection ===
+            "asc"
+            ? comparison
+            : -comparison;
+        }
+      );
     }, [
       contacts,
       search,
       sourceFilter,
       campaignFilter,
       campaignStatusFilter,
+      nameSortDirection,
     ]);
 
   const selectedContacts =
@@ -2150,8 +2226,57 @@ export default function MagicTouchContactsPage() {
                         />
                       </th>
 
-                      <th className="px-4 py-3.5">
-                        שם
+                      <th
+                        className="px-4 py-3.5"
+                        aria-sort={
+                          nameSortDirection ===
+                          "asc"
+                            ? "ascending"
+                            : nameSortDirection ===
+                                "desc"
+                              ? "descending"
+                              : "none"
+                        }
+                      >
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setNameSortDirection(
+                              (
+                                current
+                              ) =>
+                                current ===
+                                "asc"
+                                  ? "desc"
+                                  : "asc"
+                            )
+                          }
+                          className="inline-flex items-center gap-1.5 font-bold text-slate-500 transition hover:text-blue-700"
+                          title={
+                            nameSortDirection ===
+                            "asc"
+                              ? "מיון שם ת׳-א׳"
+                              : "מיון שם א׳-ת׳"
+                          }
+                        >
+                          <span>
+                            שם
+                          </span>
+
+                          <span
+                            className={
+                              nameSortDirection
+                                ? "text-blue-600"
+                                : "text-slate-300"
+                            }
+                            aria-hidden="true"
+                          >
+                            {nameSortDirection ===
+                            "desc"
+                              ? "▼"
+                              : "▲"}
+                          </span>
+                        </button>
                       </th>
 
                    <th className="min-w-[190px] px-4 py-3.5">

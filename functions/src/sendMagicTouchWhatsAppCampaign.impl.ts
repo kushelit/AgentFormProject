@@ -184,10 +184,14 @@ async function resolveAgentAccess(
     userSnap.data() as any;
 
   await requireBackendPermission({
-    db: db as any,
+    db:
+      db as any,
+
     userId:
       authUid,
+
     userData,
+
     permission:
       "access_magic_touch",
   });
@@ -227,9 +231,13 @@ async function resolveAgentAccess(
   }
 
   return {
-    db: db as any,
+    db:
+      db as any,
+
     authUid,
+
     agentId,
+
     userData,
   };
 }
@@ -329,6 +337,21 @@ export async function getMagicTouchCampaignsImpl(
                 data?.sentCount
               ),
 
+            deliveredCount:
+              n(
+                data?.deliveredCount
+              ),
+
+            readCount:
+              n(
+                data?.readCount
+              ),
+
+            repliedCount:
+              n(
+                data?.repliedCount
+              ),
+
             failedCount:
               n(
                 data?.failedCount
@@ -375,6 +398,11 @@ export async function getMagicTouchCampaignsImpl(
               timestampToMillis(
                 data?.completedAt
               ),
+
+            statsRecalculatedAt:
+              timestampToMillis(
+                data?.statsRecalculatedAt
+              ),
           };
         }
       )
@@ -404,14 +432,17 @@ export async function getMagicTouchCampaignsImpl(
       );
 
   return {
-    ok: true,
+    ok:
+      true,
+
     agentId,
+
     campaigns,
+
     count:
       campaigns.length,
   };
 }
-
 
 function normalizeCampaignStorageKey(
   value: unknown
@@ -527,12 +558,15 @@ async function getAllInChunks(
   chunkSize = 200
 ): Promise<FirebaseFirestore.DocumentSnapshot[]> {
   const results:
-    FirebaseFirestore.DocumentSnapshot[] = [];
+    FirebaseFirestore.DocumentSnapshot[] =
+    [];
 
   for (
     let index = 0;
-    index < refs.length;
-    index += chunkSize
+    index <
+    refs.length;
+    index +=
+      chunkSize
   ) {
     const chunk =
       refs.slice(
@@ -560,6 +594,540 @@ async function getAllInChunks(
   }
 
   return results;
+}
+
+/*
+ * תיקון / חישוב מחדש של סטטיסטיקות קמפיין.
+ *
+ * חשוב:
+ * אנחנו לא מסתמכים רק על recipient.status.
+ *
+ * תגובות נכנסות נשמרו עד כה גם תחת:
+ * contact.engagement.campaigns[campaignId]
+ *
+ * לכן אנחנו מאחדים את שני מקורות המידע.
+ */
+export async function recalculateMagicTouchCampaignStatsImpl(
+  req: any
+): Promise<object> {
+  const {
+    db,
+    agentId,
+  } =
+    await resolveAgentAccess(
+      req
+    );
+
+  const campaignId =
+    safeString(
+      req.data?.campaignId
+    );
+
+  if (
+    !campaignId
+  ) {
+    throw new HttpsError(
+      "invalid-argument",
+      "Missing campaignId"
+    );
+  }
+
+  if (
+    campaignId.includes(
+      "/"
+    )
+  ) {
+    throw new HttpsError(
+      "invalid-argument",
+      "Invalid campaignId"
+    );
+  }
+
+  const campaignRef =
+    (db as any)
+      .doc(
+        `agents/${agentId}/magic_touch_campaigns/${campaignId}`
+      );
+
+  const campaignSnap =
+    await campaignRef.get();
+
+  if (
+    !campaignSnap.exists
+  ) {
+    throw new HttpsError(
+      "not-found",
+      "Campaign not found"
+    );
+  }
+
+  const campaignData =
+    campaignSnap.data() as any;
+
+  const storedAgentId =
+    safeString(
+      campaignData?.agentId
+    );
+
+  if (
+    storedAgentId &&
+    storedAgentId !==
+      agentId
+  ) {
+    throw new HttpsError(
+      "permission-denied",
+      "Campaign belongs to another agent"
+    );
+  }
+
+  const recipientsSnap =
+    await campaignRef
+      .collection(
+        "recipients"
+      )
+      .get();
+
+  type CampaignRecipientRecord = {
+  contactId: string;
+  ref: FirebaseFirestore.DocumentReference;
+  data: any;
+};
+
+const recipients:
+  CampaignRecipientRecord[] =
+  (
+    recipientsSnap.docs as
+      FirebaseFirestore.QueryDocumentSnapshot[]
+  ).map(
+    (
+      doc:
+        FirebaseFirestore.QueryDocumentSnapshot
+    ) => {
+      const data =
+        doc.data() as any;
+
+      return {
+        contactId:
+          safeString(
+            data?.contactId
+          ) ||
+          doc.id,
+
+        ref:
+          doc.ref,
+
+        data,
+      };
+    }
+  );
+
+const contactIds:
+  string[] =
+  recipients
+    .map(
+      (
+        recipient:
+          CampaignRecipientRecord
+      ) =>
+        recipient.contactId
+    )
+    .filter(
+      (
+        contactId:
+          string
+      ) =>
+        Boolean(
+          contactId
+        )
+    );
+
+const contactRefs:
+  FirebaseFirestore.DocumentReference[] =
+  contactIds.map(
+    (
+      contactId:
+        string
+    ) =>
+      (db as any)
+        .doc(
+          `agents/${agentId}/magic_touch_contacts/${contactId}`
+        )
+  );
+  
+  const contactSnaps =
+    await getAllInChunks(
+      db,
+      contactRefs
+    );
+
+  const contactsById =
+    new Map<
+      string,
+      any
+    >();
+
+  contactSnaps.forEach(
+    (
+      snap,
+      index
+    ) => {
+      contactsById.set(
+        contactIds[
+          index
+        ],
+
+        snap.exists
+          ? snap.data()
+          : null
+      );
+    }
+  );
+
+  const campaignStorageKey =
+    normalizeCampaignStorageKey(
+      campaignId
+    );
+
+  let sentCount =
+    0;
+
+  let deliveredCount =
+    0;
+
+  let readCount =
+    0;
+
+  let repliedCount =
+    0;
+
+  let failedCount =
+    0;
+
+  let processedCount =
+    0;
+
+  const writer =
+    (db as any)
+      .bulkWriter();
+
+  for (
+    const recipient of
+    recipients
+  ) {
+    const contactData =
+      contactsById.get(
+        recipient.contactId
+      );
+
+    const contactCampaignStatus =
+      contactData
+        ?.engagement
+        ?.campaigns
+        ?.[campaignStorageKey] ||
+      null;
+
+    const effectiveRecord =
+      chooseBetterStatusRecord(
+        recipient.data,
+        contactCampaignStatus
+      ) ||
+      recipient.data ||
+      {};
+
+    const effectiveStatus =
+      safeString(
+        effectiveRecord
+          ?.status
+      ).toLowerCase();
+
+    const replied =
+      effectiveStatus ===
+        "replied" ||
+      Boolean(
+        effectiveRecord
+          ?.repliedAt
+      ) ||
+      Boolean(
+        contactCampaignStatus
+          ?.repliedAt
+      );
+
+    const read =
+      replied ||
+      effectiveStatus ===
+        "read" ||
+      Boolean(
+        effectiveRecord
+          ?.readAt
+      ) ||
+      Boolean(
+        contactCampaignStatus
+          ?.readAt
+      );
+
+    const delivered =
+      read ||
+      effectiveStatus ===
+        "delivered" ||
+      Boolean(
+        effectiveRecord
+          ?.deliveredAt
+      ) ||
+      Boolean(
+        contactCampaignStatus
+          ?.deliveredAt
+      );
+
+    const failed =
+      effectiveStatus ===
+        "failed" &&
+      !delivered &&
+      !read &&
+      !replied;
+
+    const sent =
+      [
+        "accepted",
+        "sent",
+        "delivered",
+        "read",
+        "replied",
+      ].includes(
+        effectiveStatus
+      ) ||
+      Boolean(
+        recipient.data
+          ?.waMessageId
+      ) ||
+      Boolean(
+        recipient.data
+          ?.sentAt
+      ) ||
+      Boolean(
+        contactCampaignStatus
+          ?.waMessageId
+      ) ||
+      Boolean(
+        contactCampaignStatus
+          ?.sentAt
+      );
+
+    if (
+      sent
+    ) {
+      sentCount++;
+    }
+
+    if (
+      delivered
+    ) {
+      deliveredCount++;
+    }
+
+    if (
+      read
+    ) {
+      readCount++;
+    }
+
+    if (
+      replied
+    ) {
+      repliedCount++;
+    }
+
+    if (
+      failed
+    ) {
+      failedCount++;
+    }
+
+    if (
+      sent ||
+      failed
+    ) {
+      processedCount++;
+    }
+
+    /*
+     * Backfill ל-recipient:
+     * כך אחרי ה-recalculate גם מסמכי הנמענים
+     * משקפים את הסטטוס המתקדם ביותר.
+     */
+    const recipientPatch:
+      Record<
+        string,
+        any
+      > = {
+        updatedAt:
+          effectiveRecord
+            ?.updatedAt ||
+          recipient.data
+            ?.updatedAt ||
+          nowTs(),
+      };
+
+    if (
+      effectiveStatus
+    ) {
+      recipientPatch.status =
+        effectiveStatus;
+    }
+
+    if (
+      effectiveRecord
+        ?.deliveredAt ||
+      contactCampaignStatus
+        ?.deliveredAt
+    ) {
+      recipientPatch.deliveredAt =
+        effectiveRecord
+          ?.deliveredAt ||
+        contactCampaignStatus
+          ?.deliveredAt;
+    }
+
+    if (
+      effectiveRecord
+        ?.readAt ||
+      contactCampaignStatus
+        ?.readAt
+    ) {
+      recipientPatch.readAt =
+        effectiveRecord
+          ?.readAt ||
+        contactCampaignStatus
+          ?.readAt;
+    }
+
+    if (
+      effectiveRecord
+        ?.repliedAt ||
+      contactCampaignStatus
+        ?.repliedAt
+    ) {
+      recipientPatch.repliedAt =
+        effectiveRecord
+          ?.repliedAt ||
+        contactCampaignStatus
+          ?.repliedAt;
+    }
+
+    if (
+      effectiveRecord
+        ?.failedAt ||
+      contactCampaignStatus
+        ?.failedAt
+    ) {
+      recipientPatch.failedAt =
+        effectiveRecord
+          ?.failedAt ||
+        contactCampaignStatus
+          ?.failedAt;
+    }
+
+    if (
+      effectiveRecord
+        ?.waMessageId ||
+      contactCampaignStatus
+        ?.waMessageId
+    ) {
+      recipientPatch.waMessageId =
+        effectiveRecord
+          ?.waMessageId ||
+        contactCampaignStatus
+          ?.waMessageId;
+    }
+
+    writer.set(
+      recipient.ref,
+      recipientPatch,
+      {
+        merge:
+          true,
+      }
+    );
+  }
+
+  writer.set(
+    campaignRef,
+    {
+      totalContacts:
+        recipients.length,
+
+      sentCount,
+
+      deliveredCount,
+
+      readCount,
+
+      repliedCount,
+
+      failedCount,
+
+      processedCount,
+
+      statsRecalculatedAt:
+        nowTs(),
+
+      updatedAt:
+        nowTs(),
+    },
+    {
+      merge:
+        true,
+    }
+  );
+
+  await writer.close();
+
+  console.log(
+    "[recalculateMagicTouchCampaignStats] Campaign stats recalculated",
+    {
+      agentId,
+
+      campaignId,
+
+      totalContacts:
+        recipients.length,
+
+      sentCount,
+
+      deliveredCount,
+
+      readCount,
+
+      repliedCount,
+
+      failedCount,
+
+      processedCount,
+    }
+  );
+
+  return {
+    ok:
+      true,
+
+    agentId,
+
+    campaignId,
+
+    totalContacts:
+      recipients.length,
+
+    sentCount,
+
+    deliveredCount,
+
+    readCount,
+
+    repliedCount,
+
+    failedCount,
+
+    processedCount,
+  };
 }
 
 export async function mergeMagicTouchCampaignsImpl(
@@ -607,12 +1175,14 @@ export async function mergeMagicTouchCampaignsImpl(
 
   const requestedTargetCampaignId =
     safeString(
-      req.data?.targetCampaignId
+      req.data
+        ?.targetCampaignId
     );
 
   const requestedTargetCampaignName =
     safeString(
-      req.data?.targetCampaignName
+      req.data
+        ?.targetCampaignName
     );
 
   if (
@@ -671,42 +1241,52 @@ export async function mergeMagicTouchCampaignsImpl(
     );
 
   const missingSourceIds:
-    string[] = [];
+    string[] =
+    [];
 
   const sourceCampaigns =
-    sourceSnaps.map(
-      (
-        snap,
-        index
-      ) => {
-        if (!snap.exists) {
-          missingSourceIds.push(
-            sourceCampaignIds[
-              index
-            ]
-          );
+    sourceSnaps
+      .map(
+        (
+          snap,
+          index
+        ) => {
+          if (
+            !snap.exists
+          ) {
+            missingSourceIds.push(
+              sourceCampaignIds[
+                index
+              ]
+            );
 
-          return null;
+            return null;
+          }
+
+          return {
+            campaignId:
+              sourceCampaignIds[
+                index
+              ],
+
+            ref:
+              sourceRefs[
+                index
+              ],
+
+            data:
+              snap.data() as any,
+          };
         }
-
-        return {
-          campaignId:
-            sourceCampaignIds[
-              index
-            ],
-          ref:
-            sourceRefs[
-              index
-            ],
-          data:
-            snap.data() as any,
-        };
-      }
-    ).filter(Boolean) as Array<{
-      campaignId: string;
-      ref: FirebaseFirestore.DocumentReference;
-      data: any;
-    }>;
+      )
+      .filter(
+        Boolean
+      ) as Array<{
+        campaignId: string;
+        ref:
+          FirebaseFirestore.DocumentReference;
+        data: any;
+      }>;
 
   if (
     missingSourceIds.length >
@@ -724,7 +1304,8 @@ export async function mergeMagicTouchCampaignsImpl(
   ) {
     const status =
       safeString(
-        source.data?.status
+        source.data
+          ?.status
       );
 
     if (
@@ -751,7 +1332,9 @@ export async function mergeMagicTouchCampaignsImpl(
                   ?.templateName
               )
           )
-          .filter(Boolean)
+          .filter(
+            Boolean
+          )
       )
     );
 
@@ -794,7 +1377,9 @@ export async function mergeMagicTouchCampaignsImpl(
       await targetCampaignRef
         .get();
 
-    if (!targetSnap.exists) {
+    if (
+      !targetSnap.exists
+    ) {
       throw new HttpsError(
         "not-found",
         "Target campaign was not found"
@@ -863,37 +1448,62 @@ export async function mergeMagicTouchCampaignsImpl(
     targetCampaignData = {
       campaignId:
         targetCampaignId,
+
       agentId,
+
       name:
         requestedTargetCampaignName,
+
       channel:
         "whatsapp",
+
       templateName,
+
       status:
         "active",
+
       totalContacts:
         0,
+
       sentCount:
         0,
+
+      deliveredCount:
+        0,
+
+      readCount:
+        0,
+
+      repliedCount:
+        0,
+
       failedCount:
         0,
+
       processedCount:
         0,
+
       createdBy:
         authUid,
+
       createdByName:
         safeString(
           userData?.name
         ) ||
         null,
+
       startedAt:
         nowTs(),
+
       completedAt:
         null,
+
       createdAt:
         nowTs(),
+
       updatedAt:
         nowTs(),
+
       migrationCreated:
         true,
     };
@@ -906,9 +1516,13 @@ export async function mergeMagicTouchCampaignsImpl(
 
   const sourceRecipientSnapshots:
     Array<{
-      sourceCampaignId: string;
-      doc: FirebaseFirestore.QueryDocumentSnapshot;
-    }> = [];
+      sourceCampaignId:
+        string;
+
+      doc:
+        FirebaseFirestore.QueryDocumentSnapshot;
+    }> =
+    [];
 
   for (
     const source of
@@ -928,6 +1542,7 @@ export async function mergeMagicTouchCampaignsImpl(
       sourceRecipientSnapshots.push({
         sourceCampaignId:
           source.campaignId,
+
         doc:
           recipientDoc,
       });
@@ -958,11 +1573,13 @@ export async function mergeMagicTouchCampaignsImpl(
       targetRecipientDoc.id,
       {
         ...data,
+
         contactId:
           safeString(
             data?.contactId
           ) ||
           targetRecipientDoc.id,
+
         campaignId:
           targetCampaignId,
       }
@@ -974,16 +1591,20 @@ export async function mergeMagicTouchCampaignsImpl(
     sourceRecipientSnapshots
   ) {
     const data =
-      sourceRecipient.doc
+      sourceRecipient
+        .doc
         .data() as any;
 
     const contactId =
       safeString(
         data?.contactId
       ) ||
-      sourceRecipient.doc.id;
+      sourceRecipient
+        .doc.id;
 
-    if (!contactId) {
+    if (
+      !contactId
+    ) {
       continue;
     }
 
@@ -994,9 +1615,12 @@ export async function mergeMagicTouchCampaignsImpl(
 
     const candidate = {
       ...data,
+
       contactId,
+
       campaignId:
         targetCampaignId,
+
       mergedFromCampaignId:
         sourceRecipient
           .sourceCampaignId,
@@ -1048,6 +1672,7 @@ export async function mergeMagicTouchCampaignsImpl(
         uniqueContactIds[
           index
         ],
+
         snap.exists
           ? snap.data()
           : null
@@ -1070,7 +1695,9 @@ export async function mergeMagicTouchCampaignsImpl(
                   ?.conversationId
               )
           )
-          .filter(Boolean)
+          .filter(
+            Boolean
+          )
       )
     );
 
@@ -1106,6 +1733,7 @@ export async function mergeMagicTouchCampaignsImpl(
         conversationIds[
           index
         ],
+
         snap.exists
           ? snap.data()
           : null
@@ -1149,7 +1777,8 @@ export async function mergeMagicTouchCampaignsImpl(
     const [
       contactId,
       recipient,
-    ] of mergedRecipientMap.entries()
+    ] of
+    mergedRecipientMap.entries()
   ) {
     const status =
       safeString(
@@ -1220,11 +1849,16 @@ export async function mergeMagicTouchCampaignsImpl(
       targetRecipientRef,
       {
         ...recipient,
+
         agentId,
+
         campaignId:
           targetCampaignId,
+
         contactId,
+
         templateName,
+
         mergedAt:
           nowTs(),
       },
@@ -1285,44 +1919,55 @@ export async function mergeMagicTouchCampaignsImpl(
         bestCampaignStatus = {
           campaignId:
             targetCampaignId,
+
           campaignSource:
             "campaign",
+
           templateName,
+
           status:
             status ||
             null,
+
           waMessageId:
             safeString(
               recipient
                 ?.waMessageId
             ) ||
             null,
+
           conversationId:
             safeString(
               recipient
                 ?.conversationId
             ) ||
             null,
+
           sentAt:
             recipient
               ?.sentAt ||
             null,
+
           deliveredAt:
             recipient
               ?.deliveredAt ||
             null,
+
           readAt:
             recipient
               ?.readAt ||
             null,
+
           repliedAt:
             recipient
               ?.repliedAt ||
             null,
+
           failedAt:
             recipient
               ?.failedAt ||
             null,
+
           updatedAt:
             recipient
               ?.updatedAt ||
@@ -1333,10 +1978,13 @@ export async function mergeMagicTouchCampaignsImpl(
       } else {
         bestCampaignStatus = {
           ...bestCampaignStatus,
+
           campaignId:
             targetCampaignId,
+
           campaignSource:
             "campaign",
+
           templateName:
             safeString(
               bestCampaignStatus
@@ -1347,7 +1995,10 @@ export async function mergeMagicTouchCampaignsImpl(
       }
 
       const contactUpdate:
-        Record<string, any> = {
+        Record<
+          string,
+          any
+        > = {
           [`engagement.campaigns.${targetCampaignStorageKey}`]:
             bestCampaignStatus,
         };
@@ -1386,9 +2037,10 @@ export async function mergeMagicTouchCampaignsImpl(
 
       writer.update(
         contactRefs[
-          uniqueContactIds.indexOf(
-            contactId
-          )
+          uniqueContactIds
+            .indexOf(
+              contactId
+            )
         ],
         contactUpdate
       );
@@ -1421,6 +2073,7 @@ export async function mergeMagicTouchCampaignsImpl(
         {
           campaignId:
             targetCampaignId,
+
           campaignSource:
             "campaign",
         },
@@ -1456,6 +2109,7 @@ export async function mergeMagicTouchCampaignsImpl(
           {
             lastCampaignId:
               targetCampaignId,
+
             updatedAt:
               conversationData
                 ?.updatedAt ||
@@ -1475,7 +2129,9 @@ export async function mergeMagicTouchCampaignsImpl(
     {
       campaignId:
         targetCampaignId,
+
       agentId,
+
       name:
         requestedTargetCampaignId
           ? safeString(
@@ -1485,27 +2141,41 @@ export async function mergeMagicTouchCampaignsImpl(
             requestedTargetCampaignName ||
             templateName
           : requestedTargetCampaignName,
+
       channel:
         "whatsapp",
+
       templateName,
+
       status:
         "active",
+
       completedAt:
         null,
+
       totalContacts:
         mergedRecipientMap.size,
+
       sentCount,
+
       failedCount,
+
       processedCount,
+
       deliveredCount,
+
       readCount,
+
       repliedCount,
+
       mergedSourceCampaignIds:
         FieldValue.arrayUnion(
           ...sourceCampaignIds
         ),
+
       lastMergeAt:
         nowTs(),
+
       updatedAt:
         nowTs(),
     },
@@ -1524,10 +2194,13 @@ export async function mergeMagicTouchCampaignsImpl(
       {
         status:
           "merged",
+
         mergedIntoCampaignId:
           targetCampaignId,
+
         mergedAt:
           nowTs(),
+
         updatedAt:
           nowTs(),
       },
@@ -1544,17 +2217,28 @@ export async function mergeMagicTouchCampaignsImpl(
     "[mergeMagicTouchCampaigns] Campaigns merged",
     {
       agentId,
+
       targetCampaignId,
+
       createdTargetCampaign,
+
       sourceCampaignIds,
+
       templateName,
+
       totalContacts:
         mergedRecipientMap.size,
+
       sentCount,
+
       failedCount,
+
       deliveredCount,
+
       readCount,
+
       repliedCount,
+
       mergedBy:
         authUid,
     }
@@ -1563,20 +2247,33 @@ export async function mergeMagicTouchCampaignsImpl(
   return {
     ok:
       true,
+
     agentId,
+
     targetCampaignId,
+
     createdTargetCampaign,
+
     templateName,
+
     sourceCampaignIds,
+
     mergedCampaignCount:
       sourceCampaignIds.length,
+
     totalContacts:
       mergedRecipientMap.size,
+
     sentCount,
+
     failedCount,
+
     processedCount,
+
     deliveredCount,
+
     readCount,
+
     repliedCount,
   };
 }
@@ -1729,7 +2426,7 @@ export async function sendMagicTouchWhatsAppCampaignImpl(
 
     if (
       storedStatus ===
-        "archived"
+      "archived"
     ) {
       throw new HttpsError(
         "failed-precondition",
@@ -1743,7 +2440,9 @@ export async function sendMagicTouchWhatsAppCampaignImpl(
           ?.templateName
       );
 
-    if (!templateName) {
+    if (
+      !templateName
+    ) {
       throw new HttpsError(
         "failed-precondition",
         "Campaign does not have a WhatsApp template"
@@ -1792,7 +2491,9 @@ export async function sendMagicTouchWhatsAppCampaignImpl(
           ?.processedCount
       );
   } else {
-    if (!templateName) {
+    if (
+      !templateName
+    ) {
       throw new HttpsError(
         "invalid-argument",
         "Missing templateName"
@@ -1827,7 +2528,9 @@ export async function sendMagicTouchWhatsAppCampaignImpl(
 
           return {
             contactId,
+
             recipientRef,
+
             exists:
               Boolean(
                 snapshot
@@ -1882,39 +2585,54 @@ export async function sendMagicTouchWhatsAppCampaignImpl(
       0
   ) {
     return {
-      ok: true,
-      partialSuccess: false,
+      ok:
+        true,
+
+      partialSuccess:
+        false,
 
       agentId,
+
       campaignId,
+
       campaignName:
         finalCampaignName,
+
       templateName,
 
       received:
         contactIds.length,
+
       added:
         0,
+
       skipped:
         skippedRecipients.length,
+
       sent:
         0,
+
       failed:
         0,
 
       totalContacts:
         baseTotalContacts,
+
       totalSent:
         baseSentCount,
+
       totalFailed:
         baseFailedCount,
+
       totalProcessed:
         baseProcessedCount,
 
       status:
         "completed",
+
       campaignStatus:
         "active",
+
       lastBatchStatus:
         "completed",
 
@@ -1962,6 +2680,7 @@ export async function sendMagicTouchWhatsAppCampaignImpl(
   } else {
     await campaignRef.set({
       campaignId,
+
       agentId,
 
       name:
@@ -1979,6 +2698,15 @@ export async function sendMagicTouchWhatsAppCampaignImpl(
         newTotalContacts,
 
       sentCount:
+        0,
+
+      deliveredCount:
+        0,
+
+      readCount:
+        0,
+
+      repliedCount:
         0,
 
       failedCount:
@@ -2024,8 +2752,11 @@ export async function sendMagicTouchWhatsAppCampaignImpl(
   try {
     context =
       await loadMagicTouchWhatsAppTemplateContext({
-        db: db as any,
+        db:
+          db as any,
+
         agentId,
+
         templateName,
       });
   } catch (
@@ -2033,7 +2764,9 @@ export async function sendMagicTouchWhatsAppCampaignImpl(
   ) {
     const errorMessage =
       error?.message ||
-      String(error);
+      String(
+        error
+      );
 
     await campaignRef.set(
       {
@@ -2080,7 +2813,9 @@ export async function sendMagicTouchWhatsAppCampaignImpl(
     await recipientRef.set(
       {
         campaignId,
+
         agentId,
+
         contactId,
 
         status:
@@ -2103,7 +2838,9 @@ export async function sendMagicTouchWhatsAppCampaignImpl(
     try {
       const result =
         await sendMagicTouchTemplateToContact({
-          db: db as any,
+          db:
+            db as any,
+
           context,
 
           contactId,
@@ -2122,16 +2859,20 @@ export async function sendMagicTouchWhatsAppCampaignImpl(
             "accepted",
 
           phoneNormalized:
-            result.phoneNormalized,
+            result
+              .phoneNormalized,
 
           conversationId:
-            result.conversationId,
+            result
+              .conversationId,
 
           waMessageId:
-            result.waMessageId,
+            result
+              .waMessageId,
 
           timelineEventId:
-            result.timelineEventId,
+            result
+              .timelineEventId,
 
           sentAt:
             nowTs(),
@@ -2150,14 +2891,17 @@ export async function sendMagicTouchWhatsAppCampaignImpl(
 
       results.push({
         contactId,
+
         ok:
           true,
 
         waMessageId:
-          result.waMessageId,
+          result
+            .waMessageId,
 
         conversationId:
-          result.conversationId,
+          result
+            .conversationId,
       });
     } catch (
       error: any
@@ -2166,14 +2910,19 @@ export async function sendMagicTouchWhatsAppCampaignImpl(
 
       const errorMessage =
         error?.message ||
-        String(error);
+        String(
+          error
+        );
 
       console.error(
         "[sendMagicTouchWhatsAppCampaign] Recipient failed",
         {
           agentId,
+
           campaignId,
+
           contactId,
+
           error:
             errorMessage,
         }
@@ -2201,6 +2950,7 @@ export async function sendMagicTouchWhatsAppCampaignImpl(
 
       results.push({
         contactId,
+
         ok:
           false,
 
@@ -2312,6 +3062,7 @@ export async function sendMagicTouchWhatsAppCampaignImpl(
         0,
 
     agentId,
+
     campaignId,
 
     campaignName:
@@ -2338,7 +3089,9 @@ export async function sendMagicTouchWhatsAppCampaignImpl(
       newTotalContacts,
 
     totalSent,
+
     totalFailed,
+
     totalProcessed,
 
     status:

@@ -10,6 +10,7 @@ import {
 import {
   collection,
   doc,
+  getDocsFromServer,
   onSnapshot,
   orderBy,
   query,
@@ -138,6 +139,9 @@ type UseMagicTouchConversationsResult = {
 
   isLoadingConversations: boolean;
   isLoadingMessages: boolean;
+  isRefreshing: boolean;
+
+  refreshConversations: () => Promise<void>;
 
   errorMessage: string;
   clearError: () => void;
@@ -271,6 +275,12 @@ export function useMagicTouchConversations(
     setErrorMessage,
   ] =
     useState('');
+
+  const [
+    isRefreshing,
+    setIsRefreshing,
+  ] =
+    useState(false);
 
   const clearError =
     useCallback(() => {
@@ -634,6 +644,177 @@ export function useMagicTouchConversations(
       ]
     );
 
+  const refreshConversations =
+    useCallback(
+      async () => {
+        if (
+          !agentId ||
+          isRefreshing
+        ) {
+          return;
+        }
+
+        setIsRefreshing(
+          true
+        );
+
+        setErrorMessage('');
+
+        try {
+          const conversationsQuery =
+            query(
+              collection(
+                db,
+                'whatsapp_conversations'
+              ),
+              where(
+                'agentId',
+                '==',
+                agentId
+              )
+            );
+
+          const snapshot =
+            await getDocsFromServer(
+              conversationsQuery
+            );
+
+          const rows =
+            snapshot.docs.map(
+              (
+                conversationDoc
+              ) => ({
+                id:
+                  conversationDoc.id,
+
+                ...(
+                  conversationDoc.data() as Omit<
+                    MagicTouchConversation,
+                    'id'
+                  >
+                ),
+              })
+            );
+
+          rows.sort(
+            (
+              first,
+              second
+            ) => {
+              const firstTime =
+                toDate(
+                  first.lastMessageAt
+                )?.getTime() ||
+                0;
+
+              const secondTime =
+                toDate(
+                  second.lastMessageAt
+                )?.getTime() ||
+                0;
+
+              return (
+                secondTime -
+                firstTime
+              );
+            }
+          );
+
+          setConversations(
+            rows
+          );
+
+          const activeConversationId =
+            selectedConversationId &&
+            rows.some(
+              (
+                conversation
+              ) =>
+                conversation.id ===
+                selectedConversationId
+            )
+              ? selectedConversationId
+              : rows[0]?.id ||
+                '';
+
+          setSelectedConversationId(
+            activeConversationId
+          );
+
+          if (
+            activeConversationId
+          ) {
+            const messagesQuery =
+              query(
+                collection(
+                  doc(
+                    db,
+                    'whatsapp_conversations',
+                    activeConversationId
+                  ),
+                  'messages'
+                ),
+                orderBy(
+                  'createdAt',
+                  'asc'
+                )
+              );
+
+            const messagesSnapshot =
+              await getDocsFromServer(
+                messagesQuery
+              );
+
+            setMessages(
+              messagesSnapshot.docs.map(
+                (
+                  messageDoc
+                ) => ({
+                  id:
+                    messageDoc.id,
+
+                  ...(
+                    messageDoc.data() as Omit<
+                      MagicTouchConversationMessage,
+                      'id'
+                    >
+                  ),
+                })
+              )
+            );
+          } else {
+            setMessages([]);
+          }
+        } catch (
+          error
+        ) {
+          console.error(
+            '[useMagicTouchConversations] Failed to refresh conversations',
+            error
+          );
+
+          const message =
+            error instanceof Error
+              ? error.message
+              : '';
+
+          setErrorMessage(
+            message ||
+              'לא ניתן היה לרענן את השיחות.'
+          );
+        } finally {
+          setIsRefreshing(
+            false
+          );
+        }
+      },
+      [
+        agentId,
+        isRefreshing,
+        selectedConversationId,
+      ]
+    );
+
   const markConversationRead =
     useCallback(
       async (
@@ -710,6 +891,9 @@ export function useMagicTouchConversations(
 
     isLoadingConversations,
     isLoadingMessages,
+    isRefreshing,
+
+    refreshConversations,
 
     errorMessage,
     clearError,

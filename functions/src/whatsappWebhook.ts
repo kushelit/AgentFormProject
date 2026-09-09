@@ -1200,6 +1200,274 @@ async function getQuickReplyAction({
   return action || null;
 }
 
+
+async function updateCampaignRecipientProgress({
+  db,
+  agentId,
+  campaignId,
+  contactId,
+  incomingStatus,
+  timestamp,
+  waLastStatus,
+  error,
+  extraFields,
+}: {
+  db: FirebaseFirestore.Firestore;
+  agentId: string;
+  campaignId: string;
+  contactId: string;
+  incomingStatus: string;
+  timestamp: any;
+  waLastStatus?: string | null;
+  error?: any;
+  extraFields?: Record<string, any>;
+}): Promise<void> {
+  if (
+    !agentId ||
+    !campaignId ||
+    !contactId
+  ) {
+    return;
+  }
+
+  const campaignRef =
+    db.doc(
+      `agents/${agentId}/magic_touch_campaigns/${campaignId}`
+    );
+
+  const recipientRef =
+    campaignRef
+      .collection(
+        "recipients"
+      )
+      .doc(
+        contactId
+      );
+
+  await db.runTransaction(
+    async (
+      transaction
+    ) => {
+      const campaignSnap =
+        await transaction.get(
+          campaignRef
+        );
+
+      /*
+       * לא יוצרים Recipient יתום עבור campaignId
+       * שאינו קמפיין אמיתי (למשל template name).
+       */
+      if (
+        !campaignSnap.exists
+      ) {
+        return;
+      }
+
+      const recipientSnap =
+        await transaction.get(
+          recipientRef
+        );
+
+      /*
+       * מונים נספרים רק עבור איש קשר שכבר שייך
+       * בפועל לקמפיין. כך fallback של שיחה לא
+       * יכול לייצר recipient חדש או לנפח נתונים.
+       */
+      if (
+        !recipientSnap.exists
+      ) {
+        return;
+      }
+
+      const recipientData =
+        recipientSnap.data() as any;
+
+      const effectiveStatus =
+        resolveOutboundStatus({
+          currentStatus:
+            s(
+              recipientData
+                ?.status
+            ),
+          incomingStatus,
+        });
+
+      const reachedDelivered =
+        [
+          "delivered",
+          "read",
+          "replied",
+        ].includes(
+          effectiveStatus
+        );
+
+      const reachedRead =
+        [
+          "read",
+          "replied",
+        ].includes(
+          effectiveStatus
+        );
+
+      const reachedReplied =
+        effectiveStatus ===
+        "replied";
+
+      const reachedFailed =
+        effectiveStatus ===
+        "failed";
+
+      const deliveredDelta =
+        reachedDelivered &&
+        !recipientData
+          ?.deliveredAt
+          ? 1
+          : 0;
+
+      const readDelta =
+        reachedRead &&
+        !recipientData
+          ?.readAt
+          ? 1
+          : 0;
+
+      const repliedDelta =
+        reachedReplied &&
+        !recipientData
+          ?.repliedAt
+          ? 1
+          : 0;
+
+      const failedDelta =
+        reachedFailed &&
+        !recipientData
+          ?.failedAt
+          ? 1
+          : 0;
+
+      const recipientUpdate:
+        Record<string, any> = {
+          status:
+            effectiveStatus,
+          updatedAt:
+            timestamp,
+          ...(extraFields || {}),
+        };
+
+      if (
+        waLastStatus
+      ) {
+        recipientUpdate.waLastStatus =
+          waLastStatus;
+
+        recipientUpdate.waLastStatusAt =
+          timestamp;
+      }
+
+      if (
+        deliveredDelta
+      ) {
+        recipientUpdate.deliveredAt =
+          timestamp;
+      }
+
+      if (
+        readDelta
+      ) {
+        recipientUpdate.readAt =
+          timestamp;
+      }
+
+      if (
+        repliedDelta
+      ) {
+        recipientUpdate.repliedAt =
+          timestamp;
+      }
+
+      if (
+        failedDelta
+      ) {
+        recipientUpdate.failedAt =
+          timestamp;
+
+        recipientUpdate.error =
+          error || null;
+      }
+
+      transaction.set(
+        recipientRef,
+        recipientUpdate,
+        {
+          merge:
+            true,
+        }
+      );
+
+      if (
+        campaignSnap.exists &&
+        (
+          deliveredDelta ||
+          readDelta ||
+          repliedDelta ||
+          failedDelta
+        )
+      ) {
+        const campaignUpdate:
+          Record<string, any> = {
+            updatedAt:
+              timestamp,
+          };
+
+        if (
+          deliveredDelta
+        ) {
+          campaignUpdate.deliveredCount =
+            FieldValue.increment(
+              deliveredDelta
+            );
+        }
+
+        if (
+          readDelta
+        ) {
+          campaignUpdate.readCount =
+            FieldValue.increment(
+              readDelta
+            );
+        }
+
+        if (
+          repliedDelta
+        ) {
+          campaignUpdate.repliedCount =
+            FieldValue.increment(
+              repliedDelta
+            );
+        }
+
+        if (
+          failedDelta
+        ) {
+          campaignUpdate.failedCount =
+            FieldValue.increment(
+              failedDelta
+            );
+        }
+
+        transaction.set(
+          campaignRef,
+          campaignUpdate,
+          {
+            merge:
+              true,
+          }
+        );
+      }
+    }
+  );
+}
+
 async function updateOutboundMessageStatus({
   db,
   waMessageId,
@@ -1502,16 +1770,10 @@ async function updateOutboundMessageStatus({
   }
 
   /*
-   * מנגנון Campaigns המלא שכבר קיים
-   * נשמר לתאימות.
-   *
-   * אם מדובר בקמפיין אמיתי או במסר ישן
-   * שאין בו campaignSource, ממשיכים לעדכן
-   * גם את recipient document.
-   *
-   * כאשר campaignSource = template,
-   * אנחנו לא יוצרים סתם Campaign parent
-   * עבור כל Template.
+   * קמפיין אמיתי:
+   * מעדכנים את recipient ואת מוני הקמפיין הראשי
+   * ב-transaction אחד, ורק כאשר הסטטוס הגיע
+   * לשלב חדש. כך webhook כפול לא מגדיל מונים שוב.
    */
   if (
     campaignId &&
@@ -1520,64 +1782,43 @@ async function updateOutboundMessageStatus({
     campaignSource !==
       "template"
   ) {
-    const recipientRef =
-      db.doc(
-        `agents/${agentId}/magic_touch_campaigns/${campaignId}/recipients/${contactId}`
-      );
-
-    const recipientUpdate:
+    const recipientExtraFields:
       Record<string, any> = {
-        status:
-          effectiveStatus,
-
-        waLastStatus:
-          waStatus,
-
-        waLastStatusAt:
-          timestamp,
-
-        updatedAt:
-          timestamp,
+        providerStatusTimestamp:
+          providerTimestamp ||
+          null,
       };
 
     if (
-      waStatus === "sent"
+      waStatus ===
+      "sent"
     ) {
-      recipientUpdate.sentConfirmedAt =
+      recipientExtraFields.sentConfirmedAt =
         timestamp;
     }
 
     if (
-      waStatus === "delivered"
+      waStatus ===
+      "failed"
     ) {
-      recipientUpdate.deliveredAt =
-        timestamp;
-    }
-
-    if (
-      waStatus === "read"
-    ) {
-      recipientUpdate.readAt =
-        timestamp;
-    }
-
-    if (
-      waStatus === "failed"
-    ) {
-      recipientUpdate.failedAt =
-        timestamp;
-
-      recipientUpdate.error =
+      recipientExtraFields.error =
         error || null;
     }
 
-    await recipientRef.set(
-      recipientUpdate,
-      {
-        merge:
-          true,
-      }
-    );
+    await updateCampaignRecipientProgress({
+      db,
+      agentId,
+      campaignId,
+      contactId,
+      incomingStatus:
+        waStatus,
+      timestamp,
+      waLastStatus:
+        waStatus,
+      error,
+      extraFields:
+        recipientExtraFields,
+    });
   }
 }
 
@@ -2241,6 +2482,36 @@ async function processInboundMessage({
 
           updatedAt:
             timestamp,
+        },
+      });
+
+      /*
+       * תגובה לקמפיין נחשבת גם delivered/read/replied
+       * לצורכי funnel. ה-transaction מונע ספירה כפולה
+       * אם אותה הודעה/תגובה מעובדת שוב.
+       */
+      await updateCampaignRecipientProgress({
+        db,
+        agentId,
+        campaignId:
+          replyCampaignId,
+        contactId:
+          contactMatch
+            .contactId,
+        incomingStatus:
+          "replied",
+        timestamp,
+        extraFields: {
+          replyWaMessageId:
+            inboundWaMessageId ||
+            null,
+          replyText:
+            messageText ||
+            null,
+          replyMessageType:
+            messageType,
+          replyAttribution:
+            replyCampaignAttribution,
         },
       });
     }

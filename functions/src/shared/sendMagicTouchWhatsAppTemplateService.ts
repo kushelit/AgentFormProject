@@ -15,6 +15,15 @@ import { addMagicTouchTimelineEvent } from "./magicTouchTimelineService";
 const WA_API_URL =
   "https://graph.facebook.com/v25.0";
 
+type MagicTouchWhatsAppHeaderMediaType =
+  | "DOCUMENT"
+  | "IMAGE"
+  | "VIDEO";
+
+type BodyVariable1Source =
+  | "first_name"
+  | "full_name";
+
 export type MagicTouchWhatsAppTemplateContext = {
   agentId: string;
 
@@ -26,8 +35,25 @@ export type MagicTouchWhatsAppTemplateContext = {
   templateBodyText: string;
   bodyVariableCount: number;
 
+  /*
+   * מקור {{1}}.
+   *
+   * first_name:
+   * ההתנהגות הקיימת.
+   *
+   * full_name:
+   * כל הערך מתוך contact.fullName.
+   *
+   * תבניות ישנות ללא השדה
+   * יקבלו first_name.
+   */
+  bodyVariable1Source:
+    BodyVariable1Source;
+
   headerMedia: {
-    type: "DOCUMENT" | "IMAGE";
+    type:
+      MagicTouchWhatsAppHeaderMediaType;
+
     storagePath: string;
     fileName: string;
     mimeType: string;
@@ -46,16 +72,6 @@ export type SendMagicTouchTemplateToContactInput = {
 
   conversationId?: string | null;
 
-  /*
-   * אופציונלי.
-   *
-   * כרגע, אם לא נשלח campaignId,
-   * שם התבנית ישמש אוטומטית כמזהה
-   * של הקמפיין/סוג השליחה.
-   *
-   * בעתיד מסך Campaigns יוכל להעביר
-   * campaignId מפורש.
-   */
   campaignId?: string | null;
 };
 
@@ -77,29 +93,51 @@ export type SendMagicTouchTemplateToContactResult = {
   timelineEventId: string | null;
 };
 
+function normalizeBodyVariable1Source(
+  value: unknown
+): BodyVariable1Source {
+  return value ===
+    "full_name"
+    ? "full_name"
+    : "first_name";
+}
+
 function normalizePhone(
   phone: unknown
 ): string {
   const digits =
-    safeString(phone)
-      .replace(/\D/g, "");
+    safeString(
+      phone
+    ).replace(
+      /\D/g,
+      ""
+    );
 
   if (
-    digits.startsWith("972") &&
-    digits.length === 12
+    digits.startsWith(
+      "972"
+    ) &&
+    digits.length ===
+      12
   ) {
     return digits;
   }
 
   if (
-    digits.startsWith("0") &&
-    digits.length === 10
+    digits.startsWith(
+      "0"
+    ) &&
+    digits.length ===
+      10
   ) {
-    return `972${digits.slice(1)}`;
+    return `972${digits.slice(
+      1
+    )}`;
   }
 
   if (
-    digits.length === 9
+    digits.length ===
+    9
   ) {
     return `972${digits}`;
   }
@@ -112,25 +150,71 @@ function getFirstName(
   firstName: unknown
 ): string {
   const storedFirstName =
-    safeString(firstName);
+    safeString(
+      firstName
+    );
 
-  if (storedFirstName) {
+  if (
+    storedFirstName
+  ) {
     return storedFirstName;
   }
 
   const normalizedFullName =
-    safeString(fullName);
+    safeString(
+      fullName
+    );
 
-  if (!normalizedFullName) {
+  if (
+    !normalizedFullName
+  ) {
     return "לקוח יקר";
   }
 
   return (
     normalizedFullName
-      .split(/\s+/)
-      .filter(Boolean)[0] ||
+      .split(
+        /\s+/
+      )
+      .filter(
+        Boolean
+      )[0] ||
     "לקוח יקר"
   );
+}
+
+function getFullName(
+  fullName: unknown,
+  firstName: unknown
+): string {
+  const normalizedFullName =
+    safeString(
+      fullName
+    );
+
+  if (
+    normalizedFullName
+  ) {
+    return normalizedFullName;
+  }
+
+  /*
+   * fallback בטוח:
+   * אם אין fullName אבל יש firstName,
+   * נשתמש בו.
+   */
+  const normalizedFirstName =
+    safeString(
+      firstName
+    );
+
+  if (
+    normalizedFirstName
+  ) {
+    return normalizedFirstName;
+  }
+
+  return "לקוח יקר";
 }
 
 function replaceTemplateVariables(
@@ -138,7 +222,9 @@ function replaceTemplateVariables(
   values: string[]
 ): string {
   let result =
-    safeString(bodyText);
+    safeString(
+      bodyText
+    );
 
   values.forEach(
     (
@@ -177,77 +263,169 @@ function normalizeStoredHeaderMedia(
 ): MagicTouchWhatsAppTemplateContext["headerMedia"] {
   if (
     !rawMedia ||
-    typeof rawMedia !== "object"
+    typeof rawMedia !==
+      "object"
   ) {
     return null;
   }
 
   const type =
     safeString(
-      (rawMedia as any)?.type
+      (
+        rawMedia as any
+      )?.type
     ).toUpperCase();
 
   const storagePath =
     safeString(
-      (rawMedia as any)?.storagePath
+      (
+        rawMedia as any
+      )?.storagePath
     );
 
   const fileName =
     safeString(
-      (rawMedia as any)?.fileName
+      (
+        rawMedia as any
+      )?.fileName
     );
 
   const mimeType =
     safeString(
-      (rawMedia as any)?.mimeType
+      (
+        rawMedia as any
+      )?.mimeType
     ).toLowerCase();
 
   const size =
     Number(
-      (rawMedia as any)?.size ||
+      (
+        rawMedia as any
+      )?.size ||
       0
     );
 
   if (
-    type !== "DOCUMENT" &&
-    type !== "IMAGE"
+    type !==
+      "DOCUMENT" &&
+    type !==
+      "IMAGE" &&
+    type !==
+      "VIDEO"
   ) {
     return null;
   }
 
-  if (!storagePath) {
+  if (
+    !storagePath
+  ) {
     throw new HttpsError(
       "failed-precondition",
       "WhatsApp template header media is missing storagePath"
     );
   }
 
+  if (
+    type ===
+      "DOCUMENT" &&
+    mimeType &&
+    mimeType !==
+      "application/pdf"
+  ) {
+    throw new HttpsError(
+      "failed-precondition",
+      "WhatsApp DOCUMENT template media must be a PDF"
+    );
+  }
+
+  if (
+    type ===
+      "IMAGE" &&
+    mimeType &&
+    ![
+      "image/jpeg",
+      "image/png",
+    ].includes(
+      mimeType
+    )
+  ) {
+    throw new HttpsError(
+      "failed-precondition",
+      "WhatsApp IMAGE template media must be JPG or PNG"
+    );
+  }
+
+  if (
+    type ===
+      "VIDEO" &&
+    mimeType &&
+    mimeType !==
+      "video/mp4"
+  ) {
+    throw new HttpsError(
+      "failed-precondition",
+      "WhatsApp VIDEO template media must be MP4"
+    );
+  }
+
+  let fallbackFileName =
+    "media";
+
+  let fallbackMimeType =
+    "application/octet-stream";
+
+  if (
+    type ===
+    "DOCUMENT"
+  ) {
+    fallbackFileName =
+      "document.pdf";
+
+    fallbackMimeType =
+      "application/pdf";
+  }
+
+  if (
+    type ===
+    "IMAGE"
+  ) {
+    fallbackFileName =
+      "image.jpg";
+
+    fallbackMimeType =
+      "image/jpeg";
+  }
+
+  if (
+    type ===
+    "VIDEO"
+  ) {
+    fallbackFileName =
+      "video.mp4";
+
+    fallbackMimeType =
+      "video/mp4";
+  }
+
   return {
     type:
       type as
-        | "DOCUMENT"
-        | "IMAGE",
+        MagicTouchWhatsAppHeaderMediaType,
 
     storagePath,
 
     fileName:
       fileName ||
-      (
-        type === "DOCUMENT"
-          ? "document.pdf"
-          : "image"
-      ),
+      fallbackFileName,
 
     mimeType:
       mimeType ||
-      (
-        type === "DOCUMENT"
-          ? "application/pdf"
-          : "image/jpeg"
-      ),
+      fallbackMimeType,
 
     size:
-      Number.isFinite(size) &&
+      Number.isFinite(
+        size
+      ) &&
       size > 0
         ? size
         : 0,
@@ -260,16 +438,22 @@ async function uploadStoredTemplateMediaToWhatsApp({
   headerMedia,
 }: {
   phoneNumberId: string;
+
   accessToken: string;
-  headerMedia: NonNullable<
-    MagicTouchWhatsAppTemplateContext["headerMedia"]
-  >;
+
+  headerMedia:
+    NonNullable<
+      MagicTouchWhatsAppTemplateContext[
+        "headerMedia"
+      ]
+    >;
 }): Promise<string> {
   const storageFile =
     getStorage()
       .bucket()
       .file(
-        headerMedia.storagePath
+        headerMedia
+          .storagePath
       );
 
   let fileBuffer:
@@ -287,7 +471,8 @@ async function uploadStoredTemplateMediaToWhatsApp({
       "[sendMagicTouchTemplateToContact] Could not read template media from Storage",
       {
         storagePath:
-          headerMedia.storagePath,
+          headerMedia
+            .storagePath,
 
         error:
           error?.message ||
@@ -313,7 +498,8 @@ async function uploadStoredTemplateMediaToWhatsApp({
 
   formData.append(
     "type",
-    headerMedia.mimeType
+    headerMedia
+      .mimeType
   );
 
   formData.append(
@@ -324,10 +510,12 @@ async function uploadStoredTemplateMediaToWhatsApp({
       ],
       {
         type:
-          headerMedia.mimeType,
+          headerMedia
+            .mimeType,
       }
     ),
-    headerMedia.fileName
+    headerMedia
+      .fileName
   );
 
   console.log(
@@ -336,16 +524,20 @@ async function uploadStoredTemplateMediaToWhatsApp({
       phoneNumberId,
 
       type:
-        headerMedia.type,
+        headerMedia
+          .type,
 
       storagePath:
-        headerMedia.storagePath,
+        headerMedia
+          .storagePath,
 
       fileName:
-        headerMedia.fileName,
+        headerMedia
+          .fileName,
 
       mimeType:
-        headerMedia.mimeType,
+        headerMedia
+          .mimeType,
 
       bytes:
         fileBuffer.length,
@@ -369,12 +561,14 @@ async function uploadStoredTemplateMediaToWhatsApp({
       }
     );
 
-  const mediaResponseData: any =
+  const mediaResponseData:
+    any =
     await mediaResponse.json();
 
   const mediaId =
     safeString(
-      mediaResponseData?.id
+      mediaResponseData
+        ?.id
     );
 
   if (
@@ -387,7 +581,8 @@ async function uploadStoredTemplateMediaToWhatsApp({
         phoneNumberId,
 
         storagePath:
-          headerMedia.storagePath,
+          headerMedia
+            .storagePath,
 
         response:
           mediaResponseData,
@@ -410,8 +605,13 @@ async function uploadStoredTemplateMediaToWhatsApp({
 
       mediaId,
 
+      mediaType:
+        headerMedia
+          .type,
+
       storagePath:
-        headerMedia.storagePath,
+        headerMedia
+          .storagePath,
     }
   );
 
@@ -428,10 +628,14 @@ export async function loadMagicTouchWhatsAppTemplateContext({
   templateName: string;
 }): Promise<MagicTouchWhatsAppTemplateContext> {
   const normalizedAgentId =
-    safeString(agentId);
+    safeString(
+      agentId
+    );
 
   const normalizedTemplateName =
-    safeString(templateName);
+    safeString(
+      templateName
+    );
 
   if (
     !normalizedAgentId ||
@@ -468,21 +672,27 @@ export async function loadMagicTouchWhatsAppTemplateContext({
         .get(),
     ]);
 
-  if (!whatsappConfigSnap.exists) {
+  if (
+    !whatsappConfigSnap.exists
+  ) {
     throw new HttpsError(
       "failed-precondition",
       "WhatsApp config was not found for this agent"
     );
   }
 
-  if (!whatsappSecretSnap.exists) {
+  if (
+    !whatsappSecretSnap.exists
+  ) {
     throw new HttpsError(
       "failed-precondition",
       "WhatsApp token was not found for this agent"
     );
   }
 
-  if (!templateSnap.exists) {
+  if (
+    !templateSnap.exists
+  ) {
     throw new HttpsError(
       "failed-precondition",
       "The selected WhatsApp template was not found"
@@ -497,10 +707,13 @@ export async function loadMagicTouchWhatsAppTemplateContext({
 
   const phoneNumberId =
     safeString(
-      whatsappConfig?.phoneNumberId
+      whatsappConfig
+        ?.phoneNumberId
     );
 
-  if (!phoneNumberId) {
+  if (
+    !phoneNumberId
+  ) {
     throw new HttpsError(
       "failed-precondition",
       "Missing WhatsApp phoneNumberId"
@@ -509,7 +722,8 @@ export async function loadMagicTouchWhatsAppTemplateContext({
 
   const templateStatus =
     safeString(
-      template?.status
+      template
+        ?.status
     ).toUpperCase();
 
   if (
@@ -527,24 +741,38 @@ export async function loadMagicTouchWhatsAppTemplateContext({
 
   const templateLanguage =
     safeString(
-      template?.language
+      template
+        ?.language
     ) ||
     "he";
 
   const templateBodyText =
     safeString(
-      template?.bodyText
+      template
+        ?.bodyText
     );
 
   const bodyVariableCount =
     Number(
-      template?.bodyVariableCount ||
+      template
+        ?.bodyVariableCount ||
       0
+    );
+
+  /*
+   * תבניות קיימות ללא השדה
+   * ממשיכות עם first_name.
+   */
+  const bodyVariable1Source =
+    normalizeBodyVariable1Source(
+      template
+        ?.bodyVariable1Source
     );
 
   const headerMedia =
     normalizeStoredHeaderMedia(
-      template?.headerMedia
+      template
+        ?.headerMedia
     );
 
   console.log(
@@ -560,17 +788,21 @@ export async function loadMagicTouchWhatsAppTemplateContext({
 
       bodyVariableCount,
 
+      bodyVariable1Source,
+
       hasHeaderMedia:
         Boolean(
           headerMedia
         ),
 
       headerMediaType:
-        headerMedia?.type ||
+        headerMedia
+          ?.type ||
         null,
 
       storagePath:
-        headerMedia?.storagePath ||
+        headerMedia
+          ?.storagePath ||
         null,
     }
   );
@@ -579,7 +811,8 @@ export async function loadMagicTouchWhatsAppTemplateContext({
     !Number.isInteger(
       bodyVariableCount
     ) ||
-    bodyVariableCount < 0
+    bodyVariableCount <
+      0
   ) {
     throw new HttpsError(
       "failed-precondition",
@@ -588,7 +821,8 @@ export async function loadMagicTouchWhatsAppTemplateContext({
   }
 
   if (
-    bodyVariableCount > 1
+    bodyVariableCount >
+    1
   ) {
     throw new HttpsError(
       "failed-precondition",
@@ -601,7 +835,9 @@ export async function loadMagicTouchWhatsAppTemplateContext({
       PORTAL_ENC_KEY_B64.value()
     );
 
-  if (!keyB64) {
+  if (
+    !keyB64
+  ) {
     throw new HttpsError(
       "internal",
       "Missing encryption key"
@@ -611,15 +847,19 @@ export async function loadMagicTouchWhatsAppTemplateContext({
   const decrypted =
     decryptJsonAes256Gcm(
       keyB64,
-      whatsappSecretSnap.data()?.enc
+      whatsappSecretSnap
+        .data()?.enc
     ) as any;
 
   const accessToken =
     safeString(
-      decrypted?.accessToken
+      decrypted
+        ?.accessToken
     );
 
-  if (!accessToken) {
+  if (
+    !accessToken
+  ) {
     throw new HttpsError(
       "failed-precondition",
       "Invalid WhatsApp access token"
@@ -631,20 +871,27 @@ export async function loadMagicTouchWhatsAppTemplateContext({
       normalizedAgentId,
 
     phoneNumberId,
+
     accessToken,
 
     templateName:
       normalizedTemplateName,
 
     templateLanguage,
+
     templateBodyText,
+
     bodyVariableCount,
+
+    bodyVariable1Source,
+
     headerMedia,
   };
 }
 
 export async function sendMagicTouchTemplateToContact(
-  input: SendMagicTouchTemplateToContactInput
+  input:
+    SendMagicTouchTemplateToContactInput
 ): Promise<SendMagicTouchTemplateToContactResult> {
   const {
     db,
@@ -667,13 +914,6 @@ export async function sendMagicTouchTemplateToContact(
       input.createdBy
     );
 
-  /*
-   * אם בעתיד נשלח campaignId מפורש,
-   * הוא יהיה המזהה העסקי של הקמפיין.
-   *
-   * כרגע, בשליחה רגילה של תבנית,
-   * שם התבנית משמש אוטומטית כמזהה.
-   */
   const explicitCampaignId =
     safeString(
       input.campaignId
@@ -725,7 +965,9 @@ export async function sendMagicTouchTemplateToContact(
   const contactSnap =
     await contactRef.get();
 
-  if (!contactSnap.exists) {
+  if (
+    !contactSnap.exists
+  ) {
     throw new HttpsError(
       "not-found",
       "Magic Touch contact was not found"
@@ -737,11 +979,15 @@ export async function sendMagicTouchTemplateToContact(
 
   const phoneNormalized =
     normalizePhone(
-      contact?.phoneNormalized ||
-      contact?.phone
+      contact
+        ?.phoneNormalized ||
+      contact
+        ?.phone
     );
 
-  if (!phoneNormalized) {
+  if (
+    !phoneNormalized
+  ) {
     throw new HttpsError(
       "failed-precondition",
       "The contact does not have a valid WhatsApp phone number"
@@ -750,77 +996,139 @@ export async function sendMagicTouchTemplateToContact(
 
   const firstName =
     getFirstName(
-      contact?.fullName,
-      contact?.firstName
+      contact
+        ?.fullName,
+      contact
+        ?.firstName
     );
 
+  const fullName =
+    getFullName(
+      contact
+        ?.fullName,
+      contact
+        ?.firstName
+    );
+
+  const variable1Value =
+    context
+      .bodyVariable1Source ===
+    "full_name"
+      ? fullName
+      : firstName;
+
   const templateVariables =
-    context.bodyVariableCount === 1
-      ? [firstName]
+    context
+      .bodyVariableCount ===
+    1
+      ? [
+          variable1Value,
+        ]
       : [];
 
   const templatePayload:
-    Record<string, any> = {
+    Record<
+      string,
+      any
+    > = {
       name:
-        context.templateName,
+        context
+          .templateName,
 
       language: {
         code:
-          context.templateLanguage,
+          context
+            .templateLanguage,
       },
     };
 
   const templateComponents:
-    any[] = [];
+    any[] =
+    [];
 
   let sentHeaderMediaId:
-    string | null = null;
+    string |
+    null =
+    null;
 
   if (
-    context.headerMedia
+    context
+      .headerMedia
   ) {
     sentHeaderMediaId =
       await uploadStoredTemplateMediaToWhatsApp({
         phoneNumberId:
-          context.phoneNumberId,
+          context
+            .phoneNumberId,
 
         accessToken:
-          context.accessToken,
+          context
+            .accessToken,
 
         headerMedia:
-          context.headerMedia,
+          context
+            .headerMedia,
       });
+
+    let parameter:
+      Record<
+        string,
+        any
+      >;
+
+    if (
+      context
+        .headerMedia
+        .type ===
+      "DOCUMENT"
+    ) {
+      parameter = {
+        type:
+          "document",
+
+        document: {
+          id:
+            sentHeaderMediaId,
+
+          filename:
+            context
+              .headerMedia
+              .fileName,
+        },
+      };
+    } else if (
+      context
+        .headerMedia
+        .type ===
+      "VIDEO"
+    ) {
+      parameter = {
+        type:
+          "video",
+
+        video: {
+          id:
+            sentHeaderMediaId,
+        },
+      };
+    } else {
+      parameter = {
+        type:
+          "image",
+
+        image: {
+          id:
+            sentHeaderMediaId,
+        },
+      };
+    }
 
     templateComponents.push({
       type:
         "header",
 
       parameters: [
-        {
-          type:
-            context.headerMedia.type ===
-              "DOCUMENT"
-              ? "document"
-              : "image",
-
-          [
-            context.headerMedia.type ===
-              "DOCUMENT"
-              ? "document"
-              : "image"
-          ]: {
-            id:
-              sentHeaderMediaId,
-
-            ...(context.headerMedia.type ===
-              "DOCUMENT"
-              ? {
-                  filename:
-                    context.headerMedia.fileName,
-                }
-              : {}),
-          },
-        },
+        parameter,
       ],
     });
   }
@@ -835,7 +1143,9 @@ export async function sendMagicTouchTemplateToContact(
 
       parameters:
         templateVariables.map(
-          (value) => ({
+          (
+            value
+          ) => ({
             type:
               "text",
 
@@ -869,29 +1179,46 @@ export async function sendMagicTouchTemplateToContact(
         phoneNormalized,
 
       templateName:
-        context.templateName,
+        context
+          .templateName,
 
       templateLanguage:
-        context.templateLanguage,
+        context
+          .templateLanguage,
 
       bodyVariableCount:
-        templateVariables.length,
+        templateVariables
+          .length,
+
+      bodyVariable1Source:
+        context
+          .bodyVariable1Source,
+
+      variable1Value:
+        templateVariables[0] ||
+        null,
 
       hasHeaderMedia:
         Boolean(
-          context.headerMedia
+          context
+            .headerMedia
         ),
 
       headerMediaType:
-        context.headerMedia?.type ||
+        context
+          .headerMedia
+          ?.type ||
         null,
 
       sentHeaderMediaId,
 
       components:
         templateComponents.map(
-          (component) =>
-            component?.type
+          (
+            component
+          ) =>
+            component
+              ?.type
         ),
     }
   );
@@ -931,7 +1258,8 @@ export async function sendMagicTouchTemplateToContact(
       }
     );
 
-  const responseData: any =
+  const responseData:
+    any =
     await response.json();
 
   const waMessageId =
@@ -946,27 +1274,28 @@ export async function sendMagicTouchTemplateToContact(
     !response.ok ||
     !waMessageId
   ) {
-  console.error(
-  "[sendMagicTouchTemplateToContact] Meta error",
-  JSON.stringify({
-    agentId,
+    console.error(
+      "[sendMagicTouchTemplateToContact] Meta error",
+      JSON.stringify({
+        agentId,
 
-    contactId,
+        contactId,
 
-    campaignId,
+        campaignId,
 
-    httpStatus:
-      response.status,
+        httpStatus:
+          response.status,
 
-    response:
-      responseData,
+        response:
+          responseData,
 
-    templatePayload,
+        templatePayload,
 
-    phoneNumberId:
-      context.phoneNumberId,
-  })
-);
+        phoneNumberId:
+          context
+            .phoneNumberId,
+      })
+    );
 
     throw new HttpsError(
       "failed-precondition",
@@ -979,7 +1308,8 @@ export async function sendMagicTouchTemplateToContact(
 
   const conversationId =
     safeString(
-      input.conversationId
+      input
+        .conversationId
     ) ||
     `${agentId}_${phoneNormalized}`;
 
@@ -990,7 +1320,9 @@ export async function sendMagicTouchTemplateToContact(
 
   const messageRef =
     conversationRef
-      .collection("messages")
+      .collection(
+        "messages"
+      )
       .doc(
         waMessageId
       );
@@ -999,36 +1331,27 @@ export async function sendMagicTouchTemplateToContact(
     nowTs();
 
   const messagePreview =
-    context.templateBodyText
+    context
+      .templateBodyText
       ? replaceTemplateVariables(
-          context.templateBodyText,
+          context
+            .templateBodyText,
           templateVariables
         )
       : `נשלחה תבנית WhatsApp: ${context.templateName}`;
 
-  /*
-   * רשומת מצב הקמפיין אצל הלקוח.
-   *
-   * כרגע Meta כבר קיבלה את ההודעה
-   * והחזירה waMessageId ולכן אנחנו
-   * מסמנים אותה כ-sent.
-   *
-   * ה-Webhook יעדכן בהמשך:
-   * delivered / read / failed.
-   *
-   * replied יעודכן בהמשך מתוך
-   * הודעה נכנסת של הלקוח.
-   */
   const campaignStatus = {
     campaignId,
 
     campaignSource,
 
     templateName:
-      context.templateName,
+      context
+        .templateName,
 
     templateLanguage:
-      context.templateLanguage,
+      context
+        .templateLanguage,
 
     status:
       "sent",
@@ -1038,7 +1361,8 @@ export async function sendMagicTouchTemplateToContact(
     conversationId,
 
     phoneNumberId:
-      context.phoneNumberId,
+      context
+        .phoneNumberId,
 
     sentAt:
       timestamp,
@@ -1071,17 +1395,20 @@ export async function sendMagicTouchTemplateToContact(
     conversationRef.set(
       {
         agentId,
+
         contactId,
 
         phoneNumberId:
-          context.phoneNumberId,
+          context
+            .phoneNumberId,
 
         customerPhone:
           phoneNormalized,
 
         customerName:
           safeString(
-            contact?.fullName
+            contact
+              ?.fullName
           ) ||
           null,
 
@@ -1121,7 +1448,9 @@ export async function sendMagicTouchTemplateToContact(
     messageRef.set(
       {
         agentId,
+
         contactId,
+
         conversationId,
 
         campaignId,
@@ -1132,7 +1461,8 @@ export async function sendMagicTouchTemplateToContact(
           "outbound",
 
         fromPhoneNumberId:
-          context.phoneNumberId,
+          context
+            .phoneNumberId,
 
         to:
           phoneNormalized,
@@ -1141,27 +1471,42 @@ export async function sendMagicTouchTemplateToContact(
           "template",
 
         templateName:
-          context.templateName,
+          context
+            .templateName,
 
         templateLanguage:
-          context.templateLanguage,
+          context
+            .templateLanguage,
 
         templateVariables,
 
+        bodyVariable1Source:
+          context
+            .bodyVariable1Source,
+
         headerMedia:
-          context.headerMedia
+          context
+            .headerMedia
             ? {
                 type:
-                  context.headerMedia.type,
+                  context
+                    .headerMedia
+                    .type,
 
                 storagePath:
-                  context.headerMedia.storagePath,
+                  context
+                    .headerMedia
+                    .storagePath,
 
                 fileName:
-                  context.headerMedia.fileName,
+                  context
+                    .headerMedia
+                    .fileName,
 
                 mimeType:
-                  context.headerMedia.mimeType,
+                  context
+                    .headerMedia
+                    .mimeType,
 
                 waMediaId:
                   sentHeaderMediaId,
@@ -1191,10 +1536,6 @@ export async function sendMagicTouchTemplateToContact(
       }
     ),
 
-    /*
-     * שמירת נתוני WhatsApp הכלליים
-     * על איש הקשר.
-     */
     contactRef.set(
       {
         lastOutboundAt:
@@ -1218,13 +1559,6 @@ export async function sendMagicTouchTemplateToContact(
       }
     ),
 
-    /*
-     * שמירת הקמפיין/התבנית הספציפית.
-     *
-     * FieldPath חשוב כאן כדי שנשמור
-     * רק את הקמפיין הנוכחי ולא נדרוס
-     * Campaigns קודמים של אותו לקוח.
-     */
     contactRef.update(
       new FieldPath(
         "engagement",
@@ -1236,7 +1570,9 @@ export async function sendMagicTouchTemplateToContact(
   ]);
 
   let timelineEventId:
-    string | null = null;
+    string |
+    null =
+    null;
 
   try {
     const timelineResult =
@@ -1285,30 +1621,44 @@ export async function sendMagicTouchTemplateToContact(
           explicitCampaignId,
 
           phoneNumberId:
-            context.phoneNumberId,
+            context
+              .phoneNumberId,
 
           customerPhone:
             phoneNormalized,
 
           templateName:
-            context.templateName,
+            context
+              .templateName,
 
           templateLanguage:
-            context.templateLanguage,
+            context
+              .templateLanguage,
 
           templateVariables,
 
+          bodyVariable1Source:
+            context
+              .bodyVariable1Source,
+
           headerMedia:
-            context.headerMedia
+            context
+              .headerMedia
               ? {
                   type:
-                    context.headerMedia.type,
+                    context
+                      .headerMedia
+                      .type,
 
                   fileName:
-                    context.headerMedia.fileName,
+                    context
+                      .headerMedia
+                      .fileName,
 
                   storagePath:
-                    context.headerMedia.storagePath,
+                    context
+                      .headerMedia
+                      .storagePath,
 
                   waMediaId:
                     sentHeaderMediaId,
@@ -1318,7 +1668,8 @@ export async function sendMagicTouchTemplateToContact(
       });
 
     timelineEventId =
-      timelineResult.eventId;
+      timelineResult
+        .eventId;
   } catch (
     timelineError: any
   ) {
@@ -1334,7 +1685,8 @@ export async function sendMagicTouchTemplateToContact(
         waMessageId,
 
         error:
-          timelineError?.message ||
+          timelineError
+            ?.message ||
           String(
             timelineError
           ),
@@ -1354,10 +1706,12 @@ export async function sendMagicTouchTemplateToContact(
     phoneNormalized,
 
     templateName:
-      context.templateName,
+      context
+        .templateName,
 
     templateLanguage:
-      context.templateLanguage,
+      context
+        .templateLanguage,
 
     templateVariables,
 

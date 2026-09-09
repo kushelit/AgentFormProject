@@ -455,6 +455,43 @@ async function loadCampaignStats(
   );
 }
 
+function normalizeConversationPhone(
+  value: unknown
+): string {
+  const digits =
+    safeString(
+      value
+    ).replace(
+      /\D/g,
+      ""
+    );
+
+  if (
+    digits.startsWith(
+      "972"
+    )
+  ) {
+    return digits;
+  }
+
+  if (
+    digits.startsWith(
+      "0"
+    )
+  ) {
+    return `972${digits.slice(1)}`;
+  }
+
+  if (
+    digits.length ===
+      9
+  ) {
+    return `972${digits}`;
+  }
+
+  return digits;
+}
+
 function getHumanAttentionReason(
   run: any
 ): string {
@@ -842,6 +879,33 @@ export async function getMagicTouchDashboardImpl(
           ) ||
           {};
 
+        const normalizedPhone =
+          normalizeConversationPhone(
+            contact?.phoneNormalized ||
+            contact?.phone ||
+            run?.phoneNormalized ||
+            run?.phone
+          );
+
+        const conversationId =
+          safeString(
+            run?.conversationId
+          ) ||
+          safeString(
+            run?.waitingFor
+              ?.context
+              ?.conversationId
+          ) ||
+          safeString(
+            contact
+              ?.whatsappConversationId
+          ) ||
+          (
+            normalizedPhone
+              ? `${agentId}_${normalizedPhone}`
+              : ""
+          );
+
         return {
           runId:
             item.id,
@@ -870,6 +934,10 @@ export async function getMagicTouchDashboardImpl(
 
           contactId:
             contactId ||
+            null,
+
+          conversationId:
+            conversationId ||
             null,
 
           contactName:

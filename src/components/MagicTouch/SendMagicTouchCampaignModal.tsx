@@ -22,6 +22,25 @@ import {
   functions,
 } from '@/lib/firebase/firebase';
 
+type BodyVariable1Source =
+  | 'first_name'
+  | 'full_name';
+
+type WhatsAppTemplateHeaderMedia = {
+  type:
+    | 'DOCUMENT'
+    | 'IMAGE'
+    | 'VIDEO';
+
+  storagePath?: string;
+
+  fileName: string;
+
+  mimeType: string;
+
+  size: number;
+};
+
 type WhatsAppTemplate = {
   id: string;
   name: string;
@@ -34,15 +53,14 @@ type WhatsAppTemplate = {
   bodyVariableCount?: number;
   bodyExamples?: string[];
 
+  bodyVariable1Source:
+    BodyVariable1Source;
+
   quickReplyButtons?: string[];
 
-  headerMedia?: {
-    type: 'DOCUMENT' | 'IMAGE';
-    storagePath?: string;
-    fileName: string;
-    mimeType: string;
-    size: number;
-  } | null;
+  headerMedia?:
+    WhatsAppTemplateHeaderMedia |
+    null;
 };
 
 export type MagicTouchCampaignSummary = {
@@ -133,15 +151,24 @@ type SendMode =
   | 'existing'
   | 'new';
 
+function normalizeBodyVariable1Source(
+  value: unknown
+): BodyVariable1Source {
+  return value ===
+    'full_name'
+    ? 'full_name'
+    : 'first_name';
+}
+
 function replaceTemplatePreview(
   bodyText: string,
-  firstName: string
+  variableValue: string
 ): string {
   return String(
     bodyText || ''
   ).replace(
     /\{\{1\}\}/g,
-    firstName ||
+    variableValue ||
       'שם הלקוח'
   );
 }
@@ -187,6 +214,52 @@ function shortCampaignId(
     0,
     8
   );
+}
+
+function getHeaderMediaLabel(
+  type:
+    | 'DOCUMENT'
+    | 'IMAGE'
+    | 'VIDEO'
+): string {
+  switch (
+    type
+  ) {
+    case 'DOCUMENT':
+      return 'PDF / DOCUMENT';
+
+    case 'IMAGE':
+      return 'IMAGE';
+
+    case 'VIDEO':
+      return 'VIDEO';
+
+    default:
+      return 'MEDIA';
+  }
+}
+
+function getHeaderMediaIcon(
+  type:
+    | 'DOCUMENT'
+    | 'IMAGE'
+    | 'VIDEO'
+): string {
+  switch (
+    type
+  ) {
+    case 'DOCUMENT':
+      return '📄';
+
+    case 'IMAGE':
+      return '🖼️';
+
+    case 'VIDEO':
+      return '🎬';
+
+    default:
+      return '📎';
+  }
 }
 
 export default function SendMagicTouchCampaignModal({
@@ -396,6 +469,80 @@ export default function SendMagicTouchCampaignModal({
                 const data =
                   templateDoc.data() as any;
 
+                const rawHeaderMediaType =
+                  String(
+                    data?.headerMedia?.type ||
+                      ''
+                  ).toUpperCase();
+
+                const hasValidHeaderMedia =
+                  rawHeaderMediaType ===
+                    'DOCUMENT' ||
+                  rawHeaderMediaType ===
+                    'IMAGE' ||
+                  rawHeaderMediaType ===
+                    'VIDEO';
+
+                const headerMedia:
+                  WhatsAppTemplateHeaderMedia |
+                  null =
+                  data?.headerMedia &&
+                  hasValidHeaderMedia
+                    ? {
+                        type:
+                          rawHeaderMediaType as
+                            | 'DOCUMENT'
+                            | 'IMAGE'
+                            | 'VIDEO',
+
+                        storagePath:
+                          data.headerMedia
+                            ?.storagePath
+                            ? String(
+                                data.headerMedia
+                                  .storagePath
+                              )
+                            : undefined,
+
+                        fileName:
+                          String(
+                            data.headerMedia
+                              ?.fileName ||
+                              (
+                                rawHeaderMediaType ===
+                                'DOCUMENT'
+                                  ? 'document.pdf'
+                                  : rawHeaderMediaType ===
+                                    'VIDEO'
+                                    ? 'video.mp4'
+                                    : 'image'
+                              )
+                          ),
+
+                        mimeType:
+                          String(
+                            data.headerMedia
+                              ?.mimeType ||
+                              (
+                                rawHeaderMediaType ===
+                                'DOCUMENT'
+                                  ? 'application/pdf'
+                                  : rawHeaderMediaType ===
+                                    'VIDEO'
+                                    ? 'video/mp4'
+                                    : 'image/jpeg'
+                              )
+                          ),
+
+                        size:
+                          Number(
+                            data.headerMedia
+                              ?.size ||
+                              0
+                          ),
+                      }
+                    : null;
+
                 return {
                   id:
                     templateDoc.id,
@@ -442,6 +589,12 @@ export default function SendMagicTouchCampaignModal({
                         )
                       : [],
 
+                  bodyVariable1Source:
+                    normalizeBodyVariable1Source(
+                      data
+                        ?.bodyVariable1Source
+                    ),
+
                   quickReplyButtons:
                     Array.isArray(
                       data?.quickReplyButtons
@@ -456,77 +609,7 @@ export default function SendMagicTouchCampaignModal({
                         )
                       : [],
 
-                  headerMedia:
-                    data?.headerMedia &&
-                    (
-                      String(
-                        data.headerMedia?.type ||
-                          ''
-                      ).toUpperCase() ===
-                        'DOCUMENT' ||
-                      String(
-                        data.headerMedia?.type ||
-                          ''
-                      ).toUpperCase() ===
-                        'IMAGE'
-                    )
-                      ? {
-                          type:
-                            String(
-                              data.headerMedia.type
-                            ).toUpperCase() as
-                              | 'DOCUMENT'
-                              | 'IMAGE',
-
-                          storagePath:
-                            data.headerMedia
-                              ?.storagePath
-                              ? String(
-                                  data.headerMedia
-                                    .storagePath
-                                )
-                              : undefined,
-
-                          fileName:
-                            String(
-                              data.headerMedia
-                                ?.fileName ||
-                                (
-                                  String(
-                                    data.headerMedia
-                                      ?.type ||
-                                      ''
-                                  ).toUpperCase() ===
-                                  'DOCUMENT'
-                                    ? 'document.pdf'
-                                    : 'image'
-                                )
-                            ),
-
-                          mimeType:
-                            String(
-                              data.headerMedia
-                                ?.mimeType ||
-                                (
-                                  String(
-                                    data.headerMedia
-                                      ?.type ||
-                                      ''
-                                  ).toUpperCase() ===
-                                  'DOCUMENT'
-                                    ? 'application/pdf'
-                                    : 'image/jpeg'
-                                )
-                            ),
-
-                          size:
-                            Number(
-                              data.headerMedia
-                                ?.size ||
-                                0
-                            ),
-                        }
-                      : null,
+                  headerMedia,
                 } satisfies WhatsAppTemplate;
               }
             );
@@ -685,7 +768,19 @@ export default function SendMagicTouchCampaignModal({
       ]
     );
 
-  const previewFirstName =
+  /*
+   * ערך {{1}} לתצוגה מקדימה.
+   *
+   * first_name:
+   * רק המילה הראשונה מהשם.
+   *
+   * full_name:
+   * כל השם כפי שהגיע למסך.
+   *
+   * אם אין שם נבחר, משתמשים בדוגמה
+   * שנשמרה בתבנית.
+   */
+  const previewVariableValue =
     useMemo(() => {
       const normalizedName =
         String(
@@ -693,7 +788,17 @@ export default function SendMagicTouchCampaignModal({
             ''
         ).trim();
 
-      if (normalizedName) {
+      if (
+        normalizedName
+      ) {
+        if (
+          selectedTemplate
+            ?.bodyVariable1Source ===
+          'full_name'
+        ) {
+          return normalizedName;
+        }
+
         return (
           normalizedName
             .split(/\s+/)
@@ -706,7 +811,13 @@ export default function SendMagicTouchCampaignModal({
         selectedTemplate
           ?.bodyExamples
           ?.[0] ||
-        'שם הלקוח'
+        (
+          selectedTemplate
+            ?.bodyVariable1Source ===
+          'full_name'
+            ? 'כהן סוכנות לביטוח'
+            : 'ישראל'
+        )
       );
     }, [
       selectedContactName,
@@ -717,7 +828,7 @@ export default function SendMagicTouchCampaignModal({
     selectedTemplate?.bodyText
       ? replaceTemplatePreview(
           selectedTemplate.bodyText,
-          previewFirstName
+          previewVariableValue
         )
       : '';
 
@@ -1109,6 +1220,7 @@ export default function SendMagicTouchCampaignModal({
                           setSendMode(
                             'existing'
                           );
+
                           setErrorMessage(
                             ''
                           );
@@ -1150,6 +1262,7 @@ export default function SendMagicTouchCampaignModal({
                           setSendMode(
                             'new'
                           );
+
                           setErrorMessage(
                             ''
                           );
@@ -1378,6 +1491,29 @@ export default function SendMagicTouchCampaignModal({
                                   template.name ===
                                   selectedTemplateName;
 
+                                const previewName =
+                                  template.bodyVariable1Source ===
+                                  'full_name'
+                                    ? (
+                                        String(
+                                          selectedContactName ||
+                                            ''
+                                        ).trim() ||
+                                        template.bodyExamples?.[0] ||
+                                        'כהן סוכנות לביטוח'
+                                      )
+                                    : (
+                                        String(
+                                          selectedContactName ||
+                                            ''
+                                        )
+                                          .trim()
+                                          .split(/\s+/)
+                                          .filter(Boolean)[0] ||
+                                        template.bodyExamples?.[0] ||
+                                        'ישראל'
+                                      );
+
                                 return (
                                   <button
                                     key={
@@ -1426,13 +1562,47 @@ export default function SendMagicTouchCampaignModal({
                                               {template.category}
                                             </span>
                                           ) : null}
+
+                                          {(template.bodyVariableCount ||
+                                            0) >
+                                          0 ? (
+                                            <span
+                                              className={[
+                                                'rounded-full px-2 py-0.5 text-[10px] font-bold',
+                                                template.bodyVariable1Source ===
+                                                'full_name'
+                                                  ? 'bg-violet-50 text-violet-700'
+                                                  : 'bg-cyan-50 text-cyan-700',
+                                              ].join(
+                                                ' '
+                                              )}
+                                            >
+                                              {template.bodyVariable1Source ===
+                                              'full_name'
+                                                ? 'שם מלא'
+                                                : 'שם פרטי'}
+                                            </span>
+                                          ) : null}
+
+                                          {template.headerMedia ? (
+                                            <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-bold text-blue-600">
+                                              {getHeaderMediaIcon(
+                                                template.headerMedia
+                                                  .type
+                                              )}{' '}
+                                              {getHeaderMediaLabel(
+                                                template.headerMedia
+                                                  .type
+                                              )}
+                                            </span>
+                                          ) : null}
                                         </div>
 
                                         {template.bodyText ? (
                                           <div className="mt-1.5 line-clamp-1 text-xs text-slate-400">
                                             {replaceTemplatePreview(
                                               template.bodyText,
-                                              previewFirstName
+                                              previewName
                                             )}
                                           </div>
                                         ) : null}
@@ -1462,10 +1632,33 @@ export default function SendMagicTouchCampaignModal({
                     </div>
 
                     {selectedTemplate ? (
-                      <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-500">
-                        {selectedTemplate.language ||
-                          'he'}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        {(selectedTemplate.bodyVariableCount ||
+                          0) >
+                        0 ? (
+                          <span
+                            className={[
+                              'rounded-full px-2.5 py-1 text-xs font-semibold',
+                              selectedTemplate.bodyVariable1Source ===
+                              'full_name'
+                                ? 'bg-violet-50 text-violet-700'
+                                : 'bg-cyan-50 text-cyan-700',
+                            ].join(
+                              ' '
+                            )}
+                          >
+                            {selectedTemplate.bodyVariable1Source ===
+                            'full_name'
+                              ? 'שם מלא'
+                              : 'שם פרטי'}
+                          </span>
+                        ) : null}
+
+                        <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-500">
+                          {selectedTemplate.language ||
+                            'he'}
+                        </span>
+                      </div>
                     ) : null}
                   </div>
 
@@ -1477,23 +1670,30 @@ export default function SendMagicTouchCampaignModal({
                             <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50 p-3">
                               <div className="flex items-center gap-3">
                                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-white text-xl shadow-sm ring-1 ring-slate-100">
-                                  {selectedTemplate.headerMedia.type ===
-                                  'DOCUMENT'
-                                    ? '📄'
-                                    : '🖼️'}
+                                  {getHeaderMediaIcon(
+                                    selectedTemplate.headerMedia
+                                      .type
+                                  )}
                                 </div>
 
                                 <div className="min-w-0 flex-1">
                                   <div className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
-                                    {selectedTemplate.headerMedia.type ===
-                                    'DOCUMENT'
-                                      ? 'PDF / DOCUMENT'
-                                      : 'IMAGE'}
+                                    {getHeaderMediaLabel(
+                                      selectedTemplate.headerMedia
+                                        .type
+                                    )}
                                   </div>
 
                                   <div className="mt-0.5 truncate text-xs font-semibold text-slate-700">
                                     {selectedTemplate.headerMedia.fileName}
                                   </div>
+
+                                  {selectedTemplate.headerMedia.type ===
+                                  'VIDEO' ? (
+                                    <div className="mt-1 text-[11px] text-slate-400">
+                                      הווידאו יופיע בראש הודעת ה־WhatsApp
+                                    </div>
+                                  ) : null}
                                 </div>
                               </div>
                             </div>
@@ -1539,7 +1739,14 @@ export default function SendMagicTouchCampaignModal({
                           0) >
                         0 ? (
                           <p className="mt-4 text-center text-xs leading-5 text-slate-400">
-                            ההודעה תישלח עם השם הפרטי של כל נמען במקום {'{{1}}'}.
+                            ההודעה תישלח עם{' '}
+                            <strong className="font-semibold text-slate-600">
+                              {selectedTemplate.bodyVariable1Source ===
+                              'full_name'
+                                ? 'השם המלא'
+                                : 'השם הפרטי'}
+                            </strong>{' '}
+                            של כל נמען במקום {'{{1}}'}.
                           </p>
                         ) : null}
                       </>
@@ -1637,11 +1844,50 @@ export default function SendMagicTouchCampaignModal({
 
               {selectedTemplate?.bodyText ? (
                 <div className="mt-5 rounded-2xl bg-slate-50/80 p-3">
-                  <div className="text-[11px] font-bold text-slate-400">
-                    ההודעה שתישלח
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="text-[11px] font-bold text-slate-400">
+                      ההודעה שתישלח
+                    </div>
+
+                    {(selectedTemplate.bodyVariableCount ||
+                      0) >
+                    0 ? (
+                      <span className="rounded-full bg-white px-2 py-1 text-[10px] font-semibold text-slate-500 ring-1 ring-slate-200">
+                        {selectedTemplate.bodyVariable1Source ===
+                        'full_name'
+                          ? 'שם מלא'
+                          : 'שם פרטי'}
+                      </span>
+                    ) : null}
                   </div>
 
                   <div className="mt-2 max-h-[210px] overflow-y-auto rounded-xl bg-white p-3 text-sm leading-6 text-slate-700 ring-1 ring-slate-100">
+                    {selectedTemplate.headerMedia ? (
+                      <div className="mb-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+                        <div className="flex items-center gap-2">
+                          <span>
+                            {getHeaderMediaIcon(
+                              selectedTemplate.headerMedia.type
+                            )}
+                          </span>
+
+                          <span className="text-xs font-semibold text-slate-600">
+                            {getHeaderMediaLabel(
+                              selectedTemplate.headerMedia.type
+                            )}
+                          </span>
+
+                          <span className="min-w-0 flex-1 truncate text-[11px] text-slate-400">
+                            {
+                              selectedTemplate
+                                .headerMedia
+                                .fileName
+                            }
+                          </span>
+                        </div>
+                      </div>
+                    ) : null}
+
                     <div className="whitespace-pre-wrap">
                       {templatePreview}
                     </div>

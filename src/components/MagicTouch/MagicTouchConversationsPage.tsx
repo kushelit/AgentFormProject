@@ -1,6 +1,7 @@
 'use client';
 
 import {
+  useEffect,
   useState,
 } from 'react';
 
@@ -374,6 +375,9 @@ export default function MagicTouchConversationsPage() {
 
     isLoadingConversations,
     isLoadingMessages,
+    isRefreshing,
+
+    refreshConversations,
 
     errorMessage:
       conversationsError,
@@ -429,6 +433,91 @@ export default function MagicTouchConversationsPage() {
       ConversationHoverPreview |
       null
     >(null);
+
+  const [
+    requestedConversationId,
+    setRequestedConversationId,
+  ] =
+    useState('');
+
+  const [
+    openedRequestedConversationId,
+    setOpenedRequestedConversationId,
+  ] =
+    useState('');
+
+  useEffect(() => {
+    const params =
+      new URLSearchParams(
+        window.location.search
+      );
+
+    setRequestedConversationId(
+      String(
+        params.get(
+          'conversationId'
+        ) ||
+        ''
+      ).trim()
+    );
+  }, []);
+
+  useEffect(() => {
+    if (
+      !requestedConversationId ||
+      openedRequestedConversationId ===
+        requestedConversationId ||
+      isLoadingConversations
+    ) {
+      return;
+    }
+
+    const exists =
+      conversations.some(
+        (
+          conversation
+        ) =>
+          conversation.id ===
+          requestedConversationId
+      );
+
+    if (!exists) {
+      return;
+    }
+
+    setOpenedRequestedConversationId(
+      requestedConversationId
+    );
+
+    setHoverPreview(
+      null
+    );
+
+    setReplyText(
+      ''
+    );
+
+    setManualSurenseCustomerId(
+      ''
+    );
+
+    setSendErrorMessage(
+      ''
+    );
+
+    clearConversationsError();
+
+    void selectConversation(
+      requestedConversationId
+    );
+  }, [
+    conversations,
+    isLoadingConversations,
+    requestedConversationId,
+    openedRequestedConversationId,
+    selectConversation,
+    clearConversationsError,
+  ]);
 
   const errorMessage =
     sendErrorMessage ||
@@ -913,6 +1002,40 @@ export default function MagicTouchConversationsPage() {
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() =>
+                  void refreshConversations()
+                }
+                disabled={
+                  !agentId ||
+                  isRefreshing
+                }
+                title="רענון שיחות"
+                aria-label="רענון שיחות"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:border-green-300 hover:bg-green-50 hover:text-green-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className={`h-4 w-4 ${
+                    isRefreshing
+                      ? 'animate-spin'
+                      : ''
+                  }`}
+                  aria-hidden="true"
+                >
+                  <path d="M20 6v6h-6" />
+                  <path d="M4 18v-6h6" />
+                  <path d="M18.5 9A7 7 0 0 0 6.4 6.4L4 9" />
+                  <path d="M5.5 15A7 7 0 0 0 17.6 17.6L20 15" />
+                </svg>
+              </button>
+
               {waitingForReplyCount >
               0 ? (
                 <span className="rounded-full bg-green-100 px-3 py-1 text-sm font-bold text-green-700">
@@ -1691,9 +1814,8 @@ export default function MagicTouchConversationsPage() {
                       </div>
                     ) : null}
 
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
+                    <div className="flex items-end gap-2">
+                      <textarea
                         value={
                           replyText
                         }
@@ -1710,16 +1832,24 @@ export default function MagicTouchConversationsPage() {
                           event
                         ) => {
                           if (
-                            event.key ===
+                            event.key !==
                             'Enter'
                           ) {
-                            event.preventDefault();
+                            return;
+                          }
 
-                            if (
-                              serviceWindowOpen
-                            ) {
-                              void sendReply();
-                            }
+                          if (
+                            event.shiftKey
+                          ) {
+                            return;
+                          }
+
+                          event.preventDefault();
+
+                          if (
+                            serviceWindowOpen
+                          ) {
+                            void sendReply();
                           }
                         }}
                         disabled={
@@ -1731,7 +1861,8 @@ export default function MagicTouchConversationsPage() {
                             ? 'כתבי תשובה ללקוח...'
                             : 'חלון השיחה הסתיים'
                         }
-                        className="flex-1 rounded-full border bg-white px-4 py-2 text-sm disabled:text-slate-400"
+                        rows={1}
+                        className="max-h-32 min-h-[42px] flex-1 resize-y rounded-2xl border bg-white px-4 py-2.5 text-sm leading-5 disabled:text-slate-400"
                       />
 
                       <button

@@ -110,7 +110,8 @@ export {
   sendMagicTouchWhatsAppCampaign,
   getMagicTouchCampaigns,
   mergeMagicTouchCampaigns,
-} from "./sendMagicTouchWhatsAppCampaign";
+  recalculateMagicTouchCampaignStats,
+} from './sendMagicTouchWhatsAppCampaign';
 
 export {
   processMagicTouchEvent,

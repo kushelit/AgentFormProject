@@ -18,6 +18,7 @@ import {
 } from "./shared/backendPermissions";
 
 const META_API_VERSION = "v25.0";
+
 const META_GRAPH_URL =
   `https://graph.facebook.com/${META_API_VERSION}`;
 
@@ -26,6 +27,14 @@ const MAX_PDF_SIZE_BYTES =
 
 const MAX_IMAGE_SIZE_BYTES =
   5 * 1024 * 1024;
+
+const MAX_VIDEO_SIZE_BYTES =
+  16 * 1024 * 1024;
+
+type WhatsAppTemplateMediaType =
+  | "DOCUMENT"
+  | "IMAGE"
+  | "VIDEO";
 
 function s(value: any): string {
   return String(
@@ -60,7 +69,7 @@ function normalizeBase64(
 
 function getMediaType(
   mimeType: string
-): "DOCUMENT" | "IMAGE" {
+): WhatsAppTemplateMediaType {
   if (
     mimeType ===
     "application/pdf"
@@ -77,9 +86,16 @@ function getMediaType(
     return "IMAGE";
   }
 
+  if (
+    mimeType ===
+    "video/mp4"
+  ) {
+    return "VIDEO";
+  }
+
   throw new HttpsError(
     "invalid-argument",
-    "Only PDF, JPG and PNG files are supported"
+    "Only PDF, JPG, PNG and MP4 files are supported"
   );
 }
 
@@ -105,27 +121,251 @@ function sanitizeFileName(
 
 function validateFileSize(
   mediaType:
-    "DOCUMENT" | "IMAGE",
+    WhatsAppTemplateMediaType,
   size: number
 ) {
-  const maxSize =
-    mediaType ===
-    "DOCUMENT"
-      ? MAX_PDF_SIZE_BYTES
-      : MAX_IMAGE_SIZE_BYTES;
+  let maxSize =
+    MAX_IMAGE_SIZE_BYTES;
 
   if (
-    size >
+    mediaType ===
+    "DOCUMENT"
+  ) {
+    maxSize =
+      MAX_PDF_SIZE_BYTES;
+  }
+
+  if (
+    mediaType ===
+    "VIDEO"
+  ) {
+    maxSize =
+      MAX_VIDEO_SIZE_BYTES;
+  }
+
+  if (
+    size <=
     maxSize
+  ) {
+    return;
+  }
+
+  let message =
+    "Image file is too large";
+
+  if (
+    mediaType ===
+    "DOCUMENT"
+  ) {
+    message =
+      "PDF file is too large";
+  }
+
+  if (
+    mediaType ===
+    "VIDEO"
+  ) {
+    message =
+      "Video file is too large";
+  }
+
+  throw new HttpsError(
+    "invalid-argument",
+    message
+  );
+}
+
+
+export async function uploadWhatsAppTemplateBufferToMeta({
+  fileBuffer,
+  fileName,
+  mimeType,
+  accessToken,
+}: {
+  fileBuffer: Buffer;
+  fileName: string;
+  mimeType: string;
+  accessToken: string;
+}): Promise<string> {
+  const mediaType =
+    getMediaType(
+      mimeType
+    );
+
+  if (
+    !fileBuffer.length
   ) {
     throw new HttpsError(
       "invalid-argument",
-      mediaType ===
-        "DOCUMENT"
-        ? "PDF file is too large"
-        : "Image file is too large"
+      "Uploaded file is empty"
     );
   }
+
+  validateFileSize(
+    mediaType,
+    fileBuffer.length
+  );
+
+  const appId =
+    s(
+      META_APP_ID.value()
+    );
+
+  if (!appId) {
+    throw new HttpsError(
+      "failed-precondition",
+      "Missing META_APP_ID"
+    );
+  }
+
+  const createSessionUrl =
+    new URL(
+      `${META_GRAPH_URL}/${appId}/uploads`
+    );
+
+  createSessionUrl.searchParams.set(
+    "file_name",
+    fileName
+  );
+
+  createSessionUrl.searchParams.set(
+    "file_length",
+    String(
+      fileBuffer.length
+    )
+  );
+
+  createSessionUrl.searchParams.set(
+    "file_type",
+    mimeType
+  );
+
+  const sessionResponse =
+    await fetch(
+      createSessionUrl.toString(),
+      {
+        method:
+          "POST",
+
+        headers: {
+          Authorization:
+            `Bearer ${accessToken}`,
+        },
+      }
+    );
+
+  const sessionJson:
+    any =
+    await sessionResponse.json();
+
+  if (
+    !sessionResponse.ok
+  ) {
+    console.error(
+      "[uploadWhatsAppTemplateMedia] Meta create upload session error:",
+      JSON.stringify(
+        sessionJson
+      )
+    );
+
+    throw new HttpsError(
+      "failed-precondition",
+      sessionJson?.error
+        ?.error_user_msg ||
+        sessionJson?.error
+          ?.message ||
+        "Failed to create Meta upload session"
+    );
+  }
+
+  const uploadSessionId =
+    s(
+      sessionJson?.id
+    );
+
+  if (
+    !uploadSessionId
+  ) {
+    console.error(
+      "[uploadWhatsAppTemplateMedia] Missing upload session id:",
+      JSON.stringify(
+        sessionJson
+      )
+    );
+
+    throw new HttpsError(
+      "internal",
+      "Meta did not return an upload session id"
+    );
+  }
+
+  const uploadResponse =
+    await fetch(
+      `${META_GRAPH_URL}/${uploadSessionId}`,
+      {
+        method:
+          "POST",
+
+        headers: {
+          Authorization:
+            `Bearer ${accessToken}`,
+
+          file_offset:
+            "0",
+
+          "Content-Type":
+            mimeType,
+        },
+
+        body:
+          fileBuffer,
+      }
+    );
+
+  const uploadJson:
+    any =
+    await uploadResponse.json();
+
+  if (
+    !uploadResponse.ok
+  ) {
+    console.error(
+      "[uploadWhatsAppTemplateMedia] Meta upload error:",
+      JSON.stringify(
+        uploadJson
+      )
+    );
+
+    throw new HttpsError(
+      "failed-precondition",
+      uploadJson?.error
+        ?.error_user_msg ||
+        uploadJson?.error
+          ?.message ||
+        "Failed to upload template media to Meta"
+    );
+  }
+
+  const handle =
+    s(
+      uploadJson?.h
+    );
+
+  if (!handle) {
+    console.error(
+      "[uploadWhatsAppTemplateMedia] Meta did not return handle:",
+      JSON.stringify(
+        uploadJson
+      )
+    );
+
+    throw new HttpsError(
+      "internal",
+      "Meta did not return a media handle"
+    );
+  }
+
+  return handle;
 }
 
 export async function uploadWhatsAppTemplateMediaImpl(
@@ -323,6 +563,7 @@ export async function uploadWhatsAppTemplateMediaImpl(
       {
         agentId,
         storagePath,
+
         error:
           storageError?.message ||
           String(
@@ -483,7 +724,10 @@ export async function uploadWhatsAppTemplateMediaImpl(
 
   /*
    * STEP 2
-   * העלאת הקובץ עצמו.
+   * העלאת הקובץ עצמו ל-Meta.
+   *
+   * PDF / IMAGE / VIDEO משתמשים באותו
+   * Resumable Upload flow.
    *
    * התוצאה אמורה לכלול handle בשדה h.
    */

@@ -26,6 +26,7 @@ type HumanAttentionItem = {
   flowName: string | null;
   currentStepId: string | null;
   contactId: string | null;
+  conversationId: string | null;
   contactName: string;
   phone: string | null;
   reason: string;
@@ -289,20 +290,30 @@ export default function MagicTouchAttentionPage() {
                       </td>
 
                       <td className="px-5 py-4">
-                        {item.contactId ? (
+                        {item.conversationId ? (
+                          <Link
+                            href={`/MagicTouch/Conversations?conversationId=${encodeURIComponent(
+                              item.conversationId
+                            )}`}
+                            className="inline-flex rounded-lg bg-amber-100 px-3 py-2 text-xs font-bold text-amber-900 transition hover:bg-amber-200"
+                          >
+                            לטיפול בשיחה
+                          </Link>
+                        ) : item.contactId ? (
                           <Link
                             href={`/MagicTouch/Contacts/${encodeURIComponent(
                               item.contactId
                             )}?agentId=${encodeURIComponent(
                               agentId
                             )}`}
-                            className="inline-flex rounded-lg bg-amber-100 px-3 py-2 text-xs font-bold text-amber-900 transition hover:bg-amber-200"
+                            className="inline-flex rounded-lg bg-slate-100 px-3 py-2 text-xs font-bold text-slate-700 transition hover:bg-slate-200"
+                            title="לא נמצאה שיחת WhatsApp מקושרת"
                           >
-                            לטיפול
+                            לאיש קשר
                           </Link>
                         ) : (
                           <span className="text-xs text-slate-400">
-                            ללא איש קשר
+                            ללא שיחה מקושרת
                           </span>
                         )}
                       </td>

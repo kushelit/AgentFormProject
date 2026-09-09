@@ -12,200 +12,599 @@ import {
   requireBackendPermission,
 } from "./shared/backendPermissions";
 
+const WA_API_URL =
+  "https://graph.facebook.com/v25.0";
 
-const WA_API_URL = "https://graph.facebook.com/v25.0";
-
-function s(v: any) {
-  return String(v ?? "").trim();
+function s(
+  v: any
+): string {
+  return String(
+    v ?? ""
+  ).trim();
 }
 
-export async function refreshWhatsAppTemplatesImpl(req: any): Promise<object> {
-  const authUid = req.auth?.uid;
-  if (!authUid) throw new HttpsError("unauthenticated", "Login required");
+function getBodyVariableCount(
+  bodyText: string
+): number {
+  const matches =
+    [
+      ...bodyText.matchAll(
+        /\{\{(\d+)\}\}/g
+      ),
+    ];
 
-  const db = adminDb();
-
-  const userSnap = await (db as any).collection("users").doc(authUid).get();
-  if (!userSnap.exists) throw new HttpsError("permission-denied", "User not found");
-
-  const userData = userSnap.data() as any;
-
-  await requireBackendPermission({
-  db: db as any,
-  userId: authUid,
-  userData,
-  permission: "access_magic_touch",
-});
-
-const isAdmin = userData?.role === "admin" || userData?.isSystem === true;
-const userAgentId = s(userData?.agentId);
-
-
-const agentId = s(req.data?.agentId);
-if (!agentId) throw new HttpsError("invalid-argument", "Missing agentId");
-
-if (!isAdmin) {
-  if (!userAgentId || userAgentId !== agentId) {
-    throw new HttpsError("permission-denied", "Cannot refresh WhatsApp templates for another agent");
+  if (
+    matches.length ===
+    0
+  ) {
+    return 0;
   }
+
+  const numbers =
+    matches
+      .map(
+        (
+          match
+        ) =>
+          Number(
+            match[1]
+          )
+      )
+      .filter(
+        (
+          value
+        ) =>
+          Number.isInteger(
+            value
+          ) &&
+          value > 0
+      );
+
+  const uniqueNumbers =
+    [
+      ...new Set(
+        numbers
+      ),
+    ].sort(
+      (
+        a,
+        b
+      ) =>
+        a - b
+    );
+
+  return uniqueNumbers.length;
 }
 
-  const waConfigSnap = await (db as any).doc(`agents/${agentId}/config/whatsapp`).get();
-  if (!waConfigSnap.exists) {
-    throw new HttpsError("failed-precondition", "WhatsApp config not found for agent");
-  }
+export async function refreshWhatsAppTemplatesImpl(
+  req: any
+): Promise<object> {
+  const authUid =
+    req.auth?.uid;
 
-  const waConfig = waConfigSnap.data() as any;
-  const wabaId = s(waConfig.wabaId);
-
-  if (!wabaId) {
-    throw new HttpsError("failed-precondition", "Missing wabaId for agent");
-  }
-
-  const waSecretSnap = await (db as any).doc(`agents/${agentId}/secrets/whatsapp`).get();
-  if (!waSecretSnap.exists) {
-    throw new HttpsError("failed-precondition", "WhatsApp token not configured for agent");
-  }
-
-  const keyB64 = PORTAL_ENC_KEY_B64.value();
-  if (!keyB64) throw new HttpsError("internal", "Missing encryption key");
-
-  const waSecret = waSecretSnap.data() as any;
-  const { accessToken } = decryptJsonAes256Gcm(keyB64, waSecret.enc) as any;
-
-  if (!accessToken) {
-    throw new HttpsError("failed-precondition", "Invalid WhatsApp token for agent");
-  }
-
-  const fields = [
-    "id",
-    "name",
-    "status",
-    "category",
-    "language",
-    "components",
-  ].join(",");
-
-  const res = await fetch(
-    `${WA_API_URL}/${wabaId}/message_templates?fields=${encodeURIComponent(fields)}&limit=100`,
-    {
-      method: "GET",
-      headers: {
-        "Authorization": `Bearer ${accessToken}`,
-      },
-    }
-  );
-
-  const json: any = await res.json();
-
-  if (!res.ok) {
-    console.error("[refreshWhatsAppTemplates] Meta error:", JSON.stringify(json));
+  if (
+    !authUid
+  ) {
     throw new HttpsError(
-      "failed-precondition",
-      json?.error?.message || "Failed to refresh WhatsApp templates"
+      "unauthenticated",
+      "Login required"
     );
   }
 
-  const templates: any[] = Array.isArray(json?.data) ? json.data : [];
+  const db =
+    adminDb();
 
-const templatesCollection = (db as any)
-  .collection(`agents/${agentId}/whatsapp_templates`);
-
-const localTemplatesSnap = await templatesCollection.get();
-
-const metaTemplateNames = new Set(
-  templates
-    .map((t: any) => s(t.name))
-    .filter(Boolean)
-);
-
-const batch = (db as any).batch();
-
-// מחיקת תבניות מקומיות שכבר לא קיימות ב-Meta
-for (const doc of localTemplatesSnap.docs) {
-  if (!metaTemplateNames.has(doc.id)) {
-    batch.delete(doc.ref);
-  }
-}
-
-  for (const t of templates) {
-    const name = s(t.name);
-    if (!name) continue;
-
-    const bodyComponent = Array.isArray(t.components)
-      ? t.components.find((c: any) => String(c?.type || "").toUpperCase() === "BODY")
-      : null;
-
-    const templateRef = templatesCollection.doc(name);
-
-   const buttonComponent = Array.isArray(t.components)
-  ? t.components.find(
-      (c: any) =>
-        String(c?.type || "").toUpperCase() === "BUTTONS"
-    )
-  : null;
-
-const quickReplyButtons = Array.isArray(buttonComponent?.buttons)
-  ? buttonComponent.buttons
-      .filter(
-        (button: any) =>
-          String(button?.type || "").toUpperCase() === "QUICK_REPLY"
+  const userSnap =
+    await (db as any)
+      .collection(
+        "users"
       )
-      .map((button: any) => s(button?.text))
-      .filter(Boolean)
-  : [];
+      .doc(
+        authUid
+      )
+      .get();
 
-const bodyExamples =
-  Array.isArray(bodyComponent?.example?.body_text) &&
-  Array.isArray(bodyComponent.example.body_text[0])
-    ? bodyComponent.example.body_text[0]
-        .map((value: any) => s(value))
-        .filter(Boolean)
-    : [];
+  if (
+    !userSnap.exists
+  ) {
+    throw new HttpsError(
+      "permission-denied",
+      "User not found"
+    );
+  }
 
-batch.set(
-  templateRef,
-  {
-    name,
-    metaTemplateId: s(t.id),
-    category: s(t.category),
-    language: s(t.language),
-    status: s(t.status) || "UNKNOWN",
+  const userData =
+    userSnap.data() as any;
 
-    bodyText: s(bodyComponent?.text),
+  await requireBackendPermission({
+    db:
+      db as any,
 
-    bodyVariableCount: bodyExamples.length,
-    bodyExamples,
+    userId:
+      authUid,
 
-    quickReplyButtons,
-    hasQuickReplies: quickReplyButtons.length > 0,
+    userData,
 
-    componentsJson: JSON.stringify(t.components || []),
-    metaResponseJson: JSON.stringify(t),
+    permission:
+      "access_magic_touch",
+  });
 
-    components: FieldValue.delete(),
-    metaResponse: FieldValue.delete(),
+  const isAdmin =
+    userData?.role ===
+      "admin" ||
+    userData?.isSystem ===
+      true;
 
-    provider: "meta_cloud_api",
-    syncedAt: nowTs(),
-    updatedAt: nowTs(),
-    syncedBy: authUid,
-  },
-  { merge: true }
-); }
+  const userAgentId =
+    s(
+      userData?.agentId
+    );
+
+  const agentId =
+    s(
+      req.data?.agentId
+    );
+
+  if (
+    !agentId
+  ) {
+    throw new HttpsError(
+      "invalid-argument",
+      "Missing agentId"
+    );
+  }
+
+  if (
+    !isAdmin
+  ) {
+    if (
+      !userAgentId ||
+      userAgentId !==
+        agentId
+    ) {
+      throw new HttpsError(
+        "permission-denied",
+        "Cannot refresh WhatsApp templates for another agent"
+      );
+    }
+  }
+
+  const waConfigSnap =
+    await (db as any)
+      .doc(
+        `agents/${agentId}/config/whatsapp`
+      )
+      .get();
+
+  if (
+    !waConfigSnap.exists
+  ) {
+    throw new HttpsError(
+      "failed-precondition",
+      "WhatsApp config not found for agent"
+    );
+  }
+
+  const waConfig =
+    waConfigSnap.data() as any;
+
+  const wabaId =
+    s(
+      waConfig.wabaId
+    );
+
+  if (
+    !wabaId
+  ) {
+    throw new HttpsError(
+      "failed-precondition",
+      "Missing wabaId for agent"
+    );
+  }
+
+  const waSecretSnap =
+    await (db as any)
+      .doc(
+        `agents/${agentId}/secrets/whatsapp`
+      )
+      .get();
+
+  if (
+    !waSecretSnap.exists
+  ) {
+    throw new HttpsError(
+      "failed-precondition",
+      "WhatsApp token not configured for agent"
+    );
+  }
+
+  const keyB64 =
+    PORTAL_ENC_KEY_B64.value();
+
+  if (
+    !keyB64
+  ) {
+    throw new HttpsError(
+      "internal",
+      "Missing encryption key"
+    );
+  }
+
+  const waSecret =
+    waSecretSnap.data() as any;
+
+  const {
+    accessToken,
+  } =
+    decryptJsonAes256Gcm(
+      keyB64,
+      waSecret.enc
+    ) as any;
+
+  if (
+    !accessToken
+  ) {
+    throw new HttpsError(
+      "failed-precondition",
+      "Invalid WhatsApp token for agent"
+    );
+  }
+
+  const fields =
+    [
+      "id",
+      "name",
+      "status",
+      "category",
+      "language",
+      "components",
+    ].join(
+      ","
+    );
+
+  const res =
+    await fetch(
+      `${WA_API_URL}/${wabaId}/message_templates?fields=${encodeURIComponent(
+        fields
+      )}&limit=100`,
+      {
+        method:
+          "GET",
+
+        headers: {
+          Authorization:
+            `Bearer ${accessToken}`,
+        },
+      }
+    );
+
+  const json:
+    any =
+    await res.json();
+
+  if (
+    !res.ok
+  ) {
+    console.error(
+      "[refreshWhatsAppTemplates] Meta error:",
+      JSON.stringify(
+        json
+      )
+    );
+
+    throw new HttpsError(
+      "failed-precondition",
+      json?.error
+        ?.message ||
+        "Failed to refresh WhatsApp templates"
+    );
+  }
+
+  const templates:
+    any[] =
+    Array.isArray(
+      json?.data
+    )
+      ? json.data
+      : [];
+
+  const templatesCollection =
+    (db as any)
+      .collection(
+        `agents/${agentId}/whatsapp_templates`
+      );
+
+  const localTemplatesSnap =
+    await templatesCollection.get();
+
+  const metaTemplateNames =
+    new Set(
+      templates
+        .map(
+          (
+            template:
+              any
+          ) =>
+            s(
+              template.name
+            )
+        )
+        .filter(
+          Boolean
+        )
+    );
+
+  const batch =
+    (db as any)
+      .batch();
+
+  /*
+   * מחיקת תבניות מקומיות שכבר לא קיימות ב-Meta.
+   */
+  for (
+    const doc of
+    localTemplatesSnap.docs
+  ) {
+    if (
+      !metaTemplateNames.has(
+        doc.id
+      )
+    ) {
+      batch.delete(
+        doc.ref
+      );
+    }
+  }
+
+  for (
+    const template of
+    templates
+  ) {
+    const name =
+      s(
+        template.name
+      );
+
+    if (
+      !name
+    ) {
+      continue;
+    }
+
+    const bodyComponent =
+      Array.isArray(
+        template.components
+      )
+        ? template.components.find(
+            (
+              component:
+                any
+            ) =>
+              String(
+                component?.type ||
+                  ""
+              ).toUpperCase() ===
+              "BODY"
+          )
+        : null;
+
+    const buttonComponent =
+      Array.isArray(
+        template.components
+      )
+        ? template.components.find(
+            (
+              component:
+                any
+            ) =>
+              String(
+                component?.type ||
+                  ""
+              ).toUpperCase() ===
+              "BUTTONS"
+          )
+        : null;
+
+    const quickReplyButtons =
+      Array.isArray(
+        buttonComponent
+          ?.buttons
+      )
+        ? buttonComponent.buttons
+            .filter(
+              (
+                button:
+                  any
+              ) =>
+                String(
+                  button?.type ||
+                    ""
+                ).toUpperCase() ===
+                "QUICK_REPLY"
+            )
+            .map(
+              (
+                button:
+                  any
+              ) =>
+                s(
+                  button?.text
+                )
+            )
+            .filter(
+              Boolean
+            )
+        : [];
+
+    const bodyExamples =
+      Array.isArray(
+        bodyComponent
+          ?.example
+          ?.body_text
+      ) &&
+      Array.isArray(
+        bodyComponent
+          .example
+          .body_text[0]
+      )
+        ? bodyComponent
+            .example
+            .body_text[0]
+            .map(
+              (
+                value:
+                  any
+              ) =>
+                s(
+                  value
+                )
+            )
+            .filter(
+              Boolean
+            )
+        : [];
+
+    const bodyText =
+      s(
+        bodyComponent
+          ?.text
+      );
+
+    const bodyVariableCount =
+      getBodyVariableCount(
+        bodyText
+      );
+
+    const templateRef =
+      templatesCollection
+        .doc(
+          name
+        );
+
+    /*
+     * חשוב:
+     *
+     * אנחנו לא כותבים כאן bodyVariable1Source.
+     *
+     * זה שדה פנימי של MagicTouch
+     * ולא מגיע מ-Meta.
+     *
+     * בגלל merge: true:
+     * - תבנית עם full_name תשמור על full_name.
+     * - תבנית עם first_name תשמור על first_name.
+     * - תבנית ישנה ללא השדה תישאר ללא השדה
+     *   ותתפרש בזמן השליחה כ-first_name.
+     */
+    batch.set(
+      templateRef,
+      {
+        name,
+
+        metaTemplateId:
+          s(
+            template.id
+          ),
+
+        category:
+          s(
+            template.category
+          ),
+
+        language:
+          s(
+            template.language
+          ),
+
+        status:
+          s(
+            template.status
+          ) ||
+          "UNKNOWN",
+
+        bodyText,
+
+        bodyVariableCount,
+
+        bodyExamples,
+
+        quickReplyButtons,
+
+        hasQuickReplies:
+          quickReplyButtons.length >
+          0,
+
+        componentsJson:
+          JSON.stringify(
+            template.components ||
+              []
+          ),
+
+        metaResponseJson:
+          JSON.stringify(
+            template
+          ),
+
+        /*
+         * שדות legacy כבדים:
+         * ממשיכים למחוק כפי שהיה קודם.
+         */
+        components:
+          FieldValue.delete(),
+
+        metaResponse:
+          FieldValue.delete(),
+
+        provider:
+          "meta_cloud_api",
+
+        syncedAt:
+          nowTs(),
+
+        updatedAt:
+          nowTs(),
+
+        syncedBy:
+          authUid,
+      },
+      {
+        merge:
+          true,
+      }
+    );
+  }
 
   await batch.commit();
 
-  await (db as any).doc(`agents/${agentId}/config/whatsapp`).set({
-    lastTemplatesSyncedAt: nowTs(),
-    updatedAt: nowTs(),
-    updatedBy: authUid,
-  }, { merge: true });
+  await (db as any)
+    .doc(
+      `agents/${agentId}/config/whatsapp`
+    )
+    .set(
+      {
+        lastTemplatesSyncedAt:
+          nowTs(),
+
+        updatedAt:
+          nowTs(),
+
+        updatedBy:
+          authUid,
+      },
+      {
+        merge:
+          true,
+      }
+    );
 
   return {
-    ok: true,
+    ok:
+      true,
+
     agentId,
+
     wabaId,
-    count: templates.length,
+
+    count:
+      templates.length,
   };
 }
