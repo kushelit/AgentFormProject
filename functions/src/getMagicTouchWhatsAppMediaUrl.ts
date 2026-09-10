@@ -1,4 +1,5 @@
 /* eslint-disable require-jsdoc */
+/* eslint-disable max-len */
 
 import {
   onCall,
@@ -8,30 +9,26 @@ import {
   FUNCTIONS_REGION,
 } from "./shared/region";
 
-export const updateMagicTouchContactDetails =
+export const getMagicTouchWhatsAppMediaUrl =
   onCall(
     {
       region:
         FUNCTIONS_REGION,
-
       timeoutSeconds:
-        60,
-
+        30,
       memory:
         "256MiB",
     },
-
     async (
       req
     ) => {
       const mod =
         await import(
-          "./updateMagicTouchContactDetails.impl"
+          "./getMagicTouchWhatsAppMediaUrl.impl"
         );
 
-      return mod
-        .updateMagicTouchContactDetailsImpl(
-          req
-        );
+      return mod.getMagicTouchWhatsAppMediaUrlImpl(
+        req
+      );
     }
   );

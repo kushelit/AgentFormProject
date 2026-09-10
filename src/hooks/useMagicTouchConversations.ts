@@ -98,6 +98,29 @@ export type MagicTouchConversationMessage = {
   type?: string | null;
   text?: string | null;
 
+  media?: {
+    mediaId?: string | null;
+    type?:
+      | 'image'
+      | 'document'
+      | 'video'
+      | 'audio'
+      | 'sticker'
+      | string
+      | null;
+    mimeType?: string | null;
+    fileName?: string | null;
+    caption?: string | null;
+    storagePath?: string | null;
+    size?: number | null;
+    sha256?: string | null;
+  } | null;
+
+  mediaDownloadError?: string | null;
+
+  reactionEmoji?: string | null;
+  reactionToWaMessageId?: string | null;
+
   templateName?: string | null;
   templateLanguage?: string | null;
 

@@ -106,6 +106,7 @@ type MagicTouchContact = {
   lastInboundAt: number | null;
   lastOutboundAt: number | null;
   lastReplyText: string | null;
+  whatsappConversationId?: string | null;
 
   sourceLastSyncedAt: number | null;
   lastTimelineEventAt?: number | null;
@@ -165,6 +166,13 @@ type AddContactNoteResponse = {
   agentId: string;
   contactId: string;
   eventId: string;
+};
+
+type UpdateMagicTouchContactDetailsResponse = {
+  ok: boolean;
+  agentId: string;
+  contactId: string;
+  contactStatus: string;
 };
 
 type ActivityFilter =
@@ -727,6 +735,110 @@ export default function MagicTouchContactDetailsPage() {
       false
     );
 
+  const [
+    isEditModalOpen,
+    setIsEditModalOpen,
+  ] =
+    useState(
+      false
+    );
+
+  const [
+    isSavingContact,
+    setIsSavingContact,
+  ] =
+    useState(
+      false
+    );
+
+  const [
+    isUpdatingStatus,
+    setIsUpdatingStatus,
+  ] =
+    useState(
+      false
+    );
+
+  const [
+    editFullName,
+    setEditFullName,
+  ] =
+    useState(
+      ''
+    );
+
+  const [
+    editFirstName,
+    setEditFirstName,
+  ] =
+    useState(
+      ''
+    );
+
+  const [
+    editLastName,
+    setEditLastName,
+  ] =
+    useState(
+      ''
+    );
+
+  const [
+    editPhone,
+    setEditPhone,
+  ] =
+    useState(
+      ''
+    );
+
+  const [
+    editEmail,
+    setEditEmail,
+  ] =
+    useState(
+      ''
+    );
+
+  const [
+    editIdNumber,
+    setEditIdNumber,
+  ] =
+    useState(
+      ''
+    );
+
+  const [
+    editBirthDate,
+    setEditBirthDate,
+  ] =
+    useState(
+      ''
+    );
+
+  const [
+    editGender,
+    setEditGender,
+  ] =
+    useState(
+      ''
+    );
+
+  const [
+    editConsentStatus,
+    setEditConsentStatus,
+  ] =
+    useState(
+      ''
+    );
+
+  const [
+    editTags,
+    setEditTags,
+  ] =
+    useState(
+      ''
+    );
+
   const loadContact =
     useCallback(
       async () => {
@@ -943,6 +1055,373 @@ export default function MagicTouchContactDetailsPage() {
       }
     };
 
+  const openEditModal =
+    () => {
+      if (
+        !contact
+      ) {
+        return;
+      }
+
+      setErrorMessage(
+        ''
+      );
+
+      setSuccessMessage(
+        ''
+      );
+
+      setEditFullName(
+        contact.fullName ||
+        ''
+      );
+
+      setEditFirstName(
+        contact.firstName ||
+        ''
+      );
+
+      setEditLastName(
+        contact.lastName ||
+        ''
+      );
+
+      setEditPhone(
+        contact.phone ||
+        ''
+      );
+
+      setEditEmail(
+        contact.email ||
+        ''
+      );
+
+      setEditIdNumber(
+        contact.idNumber ||
+        ''
+      );
+
+      setEditBirthDate(
+        contact.birthDate ||
+        ''
+      );
+
+      setEditGender(
+        contact.gender ||
+        ''
+      );
+
+      setEditConsentStatus(
+        contact.consentStatus ||
+        ''
+      );
+
+      setEditTags(
+        Array.isArray(
+          contact.tags
+        )
+          ? contact.tags.join(
+              ', '
+            )
+          : ''
+      );
+
+      setIsEditModalOpen(
+        true
+      );
+    };
+
+  const saveContactDetails =
+    async () => {
+      if (
+        !agentId ||
+        !contact ||
+        isSavingContact
+      ) {
+        return;
+      }
+
+      const fullName =
+        editFullName.trim();
+
+      const firstName =
+        editFirstName.trim();
+
+      const lastName =
+        editLastName.trim();
+
+      const phone =
+        editPhone.trim();
+
+      const email =
+        editEmail.trim();
+
+      const idNumber =
+        editIdNumber.trim();
+
+      const birthDate =
+        editBirthDate.trim();
+
+      const gender =
+        editGender.trim();
+
+      const consentStatus =
+        editConsentStatus.trim();
+
+      const tags =
+        editTags
+          .split(',')
+          .map(
+            (
+              value
+            ) =>
+              value.trim()
+          )
+          .filter(Boolean);
+
+      if (
+        !fullName
+      ) {
+        setErrorMessage(
+          'יש להזין שם מלא.'
+        );
+
+        return;
+      }
+
+      if (
+        email &&
+        !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(
+          email
+        )
+      ) {
+        setErrorMessage(
+          'כתובת האימייל אינה תקינה.'
+        );
+
+        return;
+      }
+
+      try {
+        setIsSavingContact(
+          true
+        );
+
+        setErrorMessage(
+          ''
+        );
+
+        setSuccessMessage(
+          ''
+        );
+
+        const fn =
+          httpsCallable<
+            {
+              agentId:
+                string;
+
+              contactId:
+                string;
+
+              fullName:
+                string;
+
+              firstName:
+                string;
+
+              lastName:
+                string;
+
+              phone:
+                string;
+
+              email:
+                string;
+
+              idNumber:
+                string;
+
+              birthDate:
+                string;
+
+              gender:
+                string;
+
+              consentStatus:
+                string;
+
+              tags:
+                string[];
+            },
+            UpdateMagicTouchContactDetailsResponse
+          >(
+            functions,
+            'updateMagicTouchContactDetails'
+          );
+
+        await fn({
+          agentId,
+
+          contactId:
+            contact.contactId,
+
+          fullName,
+
+          firstName,
+
+          lastName,
+
+          phone,
+
+          email,
+
+          idNumber,
+
+          birthDate,
+
+          gender,
+
+          consentStatus,
+
+          tags,
+        });
+
+        setIsEditModalOpen(
+          false
+        );
+
+        setSuccessMessage(
+          'פרטי איש הקשר עודכנו בהצלחה.'
+        );
+
+        await loadContact();
+      } catch (
+        error: any
+      ) {
+        console.error(
+          '[MagicTouchContactDetailsPage] Failed to update contact',
+          error
+        );
+
+        setErrorMessage(
+          error?.message ||
+            'לא ניתן היה לעדכן את פרטי איש הקשר.'
+        );
+      } finally {
+        setIsSavingContact(
+          false
+        );
+      }
+    };
+
+  const toggleContactStatus =
+    async () => {
+      if (
+        !agentId ||
+        !contact ||
+        isUpdatingStatus
+      ) {
+        return;
+      }
+
+      const currentStatus =
+        String(
+          contact.contactStatus ||
+          'active'
+        ).toLowerCase();
+
+      const nextStatus =
+        currentStatus ===
+          'inactive'
+          ? 'active'
+          : 'inactive';
+
+      if (
+        nextStatus ===
+          'inactive'
+      ) {
+        const confirmed =
+          window.confirm(
+            'להפוך את איש הקשר ללא פעיל? הוא יוסתר מתצוגת ברירת המחדל, אך כל ההיסטוריה שלו תישמר.'
+          );
+
+        if (
+          !confirmed
+        ) {
+          return;
+        }
+      }
+
+      try {
+        setIsUpdatingStatus(
+          true
+        );
+
+        setErrorMessage(
+          ''
+        );
+
+        setSuccessMessage(
+          ''
+        );
+
+        const fn =
+          httpsCallable<
+            {
+              agentId:
+                string;
+
+              contactId:
+                string;
+
+              contactStatus:
+                'active' |
+                'inactive';
+            },
+            UpdateMagicTouchContactDetailsResponse
+          >(
+            functions,
+            'updateMagicTouchContactDetails'
+          );
+
+        await fn({
+          agentId,
+
+          contactId:
+            contact.contactId,
+
+          contactStatus:
+            nextStatus,
+        });
+
+        setSuccessMessage(
+          nextStatus ===
+            'inactive'
+            ? 'איש הקשר הוגדר כלא פעיל.'
+            : 'איש הקשר הוחזר לפעילות.'
+        );
+
+        await loadContact();
+      } catch (
+        error: any
+      ) {
+        console.error(
+          '[MagicTouchContactDetailsPage] Failed to update contact status',
+          error
+        );
+
+        setErrorMessage(
+          error?.message ||
+            'לא ניתן היה לעדכן את סטטוס איש הקשר.'
+        );
+      } finally {
+        setIsUpdatingStatus(
+          false
+        );
+      }
+    };
+
   const reengagement =
     contact?.engagement
       ?.reengagement;
@@ -1046,11 +1525,16 @@ export default function MagicTouchContactDetailsPage() {
         }
 
         const conversationId =
-          `${agentId}_${contact.phoneNormalized || contact.phone}`;
+          String(
+            contact.whatsappConversationId ||
+            `${agentId}_${contact.phoneNormalized || contact.phone}`
+          ).trim();
 
-        return `/MagicTouch/Conversations?conversationId=${encodeURIComponent(
-          conversationId
-        )}`;
+        return conversationId
+          ? `/MagicTouch/Conversations?conversationId=${encodeURIComponent(
+              conversationId
+            )}`
+          : '';
       },
       [
         agentId,
@@ -1155,9 +1639,20 @@ export default function MagicTouchContactDetailsPage() {
                           )}
                         </span>
 
-                        <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">
+                        <span
+                          className={`rounded-full px-3 py-1 text-xs font-bold ${
+                            String(
+                              contact.contactStatus ||
+                              'active'
+                            ).toLowerCase() ===
+                            'inactive'
+                              ? 'bg-slate-200 text-slate-600'
+                              : 'bg-emerald-50 text-emerald-700'
+                          }`}
+                        >
                           {contactStatusLabel(
-                            contact.contactStatus
+                            contact.contactStatus ||
+                            'active'
                           )}
                         </span>
 
@@ -1185,6 +1680,45 @@ export default function MagicTouchContactDetailsPage() {
                   </div>
 
                   <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={
+                        openEditModal
+                      }
+                      className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-2.5 text-sm font-bold text-blue-700 transition hover:bg-blue-100"
+                    >
+                      ✏️ עריכת פרטים
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        void toggleContactStatus()
+                      }
+                      disabled={
+                        isUpdatingStatus
+                      }
+                      className={`rounded-xl border px-4 py-2.5 text-sm font-bold transition disabled:cursor-not-allowed disabled:opacity-50 ${
+                        String(
+                          contact.contactStatus ||
+                          'active'
+                        ).toLowerCase() ===
+                        'inactive'
+                          ? 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                          : 'border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100'
+                      }`}
+                    >
+                      {isUpdatingStatus
+                        ? 'מעדכן...'
+                        : String(
+                            contact.contactStatus ||
+                            'active'
+                          ).toLowerCase() ===
+                          'inactive'
+                          ? '✓ החזר לפעיל'
+                          : 'הפוך ללא פעיל'}
+                    </button>
+
                     {contact.phone ? (
                       <a
                         href={`tel:${contact.phone}`}
@@ -1769,6 +2303,349 @@ export default function MagicTouchContactDetailsPage() {
           </>
         )}
       </div>
+      {isEditModalOpen &&
+      contact ? (
+        <div
+          className="fixed inset-0 z-[10020] flex items-center justify-center bg-slate-950/45 p-4"
+          onMouseDown={(
+            event
+          ) => {
+            if (
+              event.target ===
+              event.currentTarget &&
+              !isSavingContact
+            ) {
+              setIsEditModalOpen(
+                false
+              );
+            }
+          }}
+        >
+          <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white shadow-2xl">
+            <div className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-slate-100 bg-white px-5 py-4">
+              <div>
+                <div className="text-xs font-bold text-blue-600">
+                  MagicTouch
+                </div>
+
+                <h2 className="mt-1 text-xl font-bold text-slate-900">
+                  עריכת פרטי איש קשר
+                </h2>
+
+                <p className="mt-1 text-sm text-slate-500">
+                  {contact.fullName ||
+                    'איש קשר'}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() =>
+                  setIsEditModalOpen(
+                    false
+                  )
+                }
+                disabled={
+                  isSavingContact
+                }
+                className="rounded-lg px-2 py-1 text-xl leading-none text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 disabled:opacity-50"
+                aria-label="סגירה"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="grid gap-4 p-5 sm:grid-cols-2">
+              <label className="sm:col-span-2">
+                <span className="mb-1.5 block text-sm font-semibold text-slate-700">
+                  שם מלא
+                </span>
+
+                <input
+                  type="text"
+                  value={
+                    editFullName
+                  }
+                  onChange={(
+                    event
+                  ) =>
+                    setEditFullName(
+                      event.target
+                        .value
+                    )
+                  }
+                  className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm outline-none focus:border-blue-300 focus:ring-4 focus:ring-blue-50"
+                />
+              </label>
+
+              <label>
+                <span className="mb-1.5 block text-sm font-semibold text-slate-700">
+                  שם פרטי
+                </span>
+
+                <input
+                  type="text"
+                  value={
+                    editFirstName
+                  }
+                  onChange={(
+                    event
+                  ) =>
+                    setEditFirstName(
+                      event.target
+                        .value
+                    )
+                  }
+                  className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm outline-none focus:border-blue-300 focus:ring-4 focus:ring-blue-50"
+                />
+              </label>
+
+              <label>
+                <span className="mb-1.5 block text-sm font-semibold text-slate-700">
+                  שם משפחה
+                </span>
+
+                <input
+                  type="text"
+                  value={
+                    editLastName
+                  }
+                  onChange={(
+                    event
+                  ) =>
+                    setEditLastName(
+                      event.target
+                        .value
+                    )
+                  }
+                  className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm outline-none focus:border-blue-300 focus:ring-4 focus:ring-blue-50"
+                />
+              </label>
+
+              <label>
+                <span className="mb-1.5 block text-sm font-semibold text-slate-700">
+                  טלפון
+                </span>
+
+                <input
+                  type="tel"
+                  dir="ltr"
+                  value={
+                    editPhone
+                  }
+                  onChange={(
+                    event
+                  ) =>
+                    setEditPhone(
+                      event.target
+                        .value
+                    )
+                  }
+                  className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-left text-sm outline-none focus:border-blue-300 focus:ring-4 focus:ring-blue-50"
+                />
+              </label>
+
+              <label>
+                <span className="mb-1.5 block text-sm font-semibold text-slate-700">
+                  אימייל
+                </span>
+
+                <input
+                  type="email"
+                  dir="ltr"
+                  value={
+                    editEmail
+                  }
+                  onChange={(
+                    event
+                  ) =>
+                    setEditEmail(
+                      event.target
+                        .value
+                    )
+                  }
+                  className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-left text-sm outline-none focus:border-blue-300 focus:ring-4 focus:ring-blue-50"
+                />
+              </label>
+
+              <label>
+                <span className="mb-1.5 block text-sm font-semibold text-slate-700">
+                  תעודת זהות
+                </span>
+
+                <input
+                  type="text"
+                  value={
+                    editIdNumber
+                  }
+                  onChange={(
+                    event
+                  ) =>
+                    setEditIdNumber(
+                      event.target
+                        .value
+                    )
+                  }
+                  className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm outline-none focus:border-blue-300 focus:ring-4 focus:ring-blue-50"
+                />
+              </label>
+
+              <label>
+                <span className="mb-1.5 block text-sm font-semibold text-slate-700">
+                  תאריך לידה
+                </span>
+
+                <input
+                  type="date"
+                  dir="ltr"
+                  value={
+                    editBirthDate
+                  }
+                  onChange={(
+                    event
+                  ) =>
+                    setEditBirthDate(
+                      event.target
+                        .value
+                    )
+                  }
+                  className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm outline-none focus:border-blue-300 focus:ring-4 focus:ring-blue-50"
+                />
+              </label>
+
+              <label>
+                <span className="mb-1.5 block text-sm font-semibold text-slate-700">
+                  מגדר
+                </span>
+
+                <select
+                  value={
+                    editGender
+                  }
+                  onChange={(
+                    event
+                  ) =>
+                    setEditGender(
+                      event.target
+                        .value
+                    )
+                  }
+                  className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-blue-300 focus:ring-4 focus:ring-blue-50"
+                >
+                  <option value="">
+                    לא הוגדר
+                  </option>
+
+                  <option value="male">
+                    זכר
+                  </option>
+
+                  <option value="female">
+                    נקבה
+                  </option>
+
+                  <option value="other">
+                    אחר
+                  </option>
+                </select>
+              </label>
+
+              <label>
+                <span className="mb-1.5 block text-sm font-semibold text-slate-700">
+                  הסכמה לדיוור
+                </span>
+
+                <select
+                  value={
+                    editConsentStatus
+                  }
+                  onChange={(
+                    event
+                  ) =>
+                    setEditConsentStatus(
+                      event.target
+                        .value
+                    )
+                  }
+                  className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-blue-300 focus:ring-4 focus:ring-blue-50"
+                >
+                  <option value="">
+                    לא ידוע
+                  </option>
+
+                  <option value="granted">
+                    מאושר
+                  </option>
+
+                  <option value="denied">
+                    לא מאושר
+                  </option>
+                </select>
+              </label>
+
+              <label className="sm:col-span-2">
+                <span className="mb-1.5 block text-sm font-semibold text-slate-700">
+                  תגיות
+                </span>
+
+                <input
+                  type="text"
+                  value={
+                    editTags
+                  }
+                  onChange={(
+                    event
+                  ) =>
+                    setEditTags(
+                      event.target
+                        .value
+                    )
+                  }
+                  placeholder="VIP, ליד חם, פנסיה"
+                  className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm outline-none focus:border-blue-300 focus:ring-4 focus:ring-blue-50"
+                />
+
+                <span className="mt-1 block text-xs text-slate-400">
+                  הפרידי תגיות בפסיקים.
+                </span>
+              </label>
+            </div>
+
+            <div className="sticky bottom-0 flex justify-end gap-2 border-t border-slate-100 bg-white px-5 py-4">
+              <button
+                type="button"
+                onClick={() =>
+                  setIsEditModalOpen(
+                    false
+                  )
+                }
+                disabled={
+                  isSavingContact
+                }
+                className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
+              >
+                ביטול
+              </button>
+
+              <button
+                type="button"
+                onClick={() =>
+                  void saveContactDetails()
+                }
+                disabled={
+                  isSavingContact ||
+                  !editFullName.trim()
+                }
+                className="rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-bold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {isSavingContact
+                  ? 'שומר...'
+                  : 'שמירת שינויים'}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }

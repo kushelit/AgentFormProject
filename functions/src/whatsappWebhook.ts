@@ -25,8 +25,8 @@ import {
 
 
 import {
-  resolveMagicTouchContact,
-} from "./shared/magicTouchContactLookup";
+  getOrCreateMagicTouchContactFromWhatsApp,
+} from "./shared/getOrCreateMagicTouchContactFromWhatsApp";
 
 import {
   addMagicTouchTimelineEvent,
@@ -35,6 +35,12 @@ import {
 import {
   routeMagicTouchConversation,
 } from "./shared/magicTouchConversationRouter";
+
+import {
+  downloadWhatsAppInboundMediaToStorage,
+  getWhatsAppInboundMediaDescriptor,
+  type StoredWhatsAppInboundMedia,
+} from "./shared/downloadWhatsAppMedia";
 
 function s(value: any): string {
   return String(value ?? "").trim();
@@ -950,6 +956,25 @@ function getInboundMessageText(
           ?.caption
       ) ||
       "[וידאו]"
+    );
+  }
+
+  if (
+    messageType === "sticker"
+  ) {
+    return "[סטיקר]";
+  }
+
+  if (
+    messageType === "reaction"
+  ) {
+    return (
+      s(
+        message
+          ?.reaction
+          ?.emoji
+      ) ||
+      "[תגובה הוסרה]"
     );
   }
 
@@ -1984,10 +2009,14 @@ async function processInboundMessage({
   db,
   phoneNumberId,
   message,
+  profileName,
+  waId,
 }: {
   db: FirebaseFirestore.Firestore;
   phoneNumberId: string;
   message: any;
+  profileName?: string | null;
+  waId?: string | null;
 }): Promise<void> {
   const from =
     normalizePhone(
@@ -2088,44 +2117,129 @@ async function processInboundMessage({
       : {};
 
   /*
-   * קודם משתמשים ב-contactId שכבר מקושר לשיחה.
-   * אם עדיין אין, מחפשים איש קשר לפי מספר הטלפון.
+   * אם השיחה כבר מקושרת לאיש קשר קיים,
+   * נשמור את אותו קישור.
+   *
+   * אם אין contactId בשיחה:
+   * 1. מחפשים לפי הטלפון במנגנון הקיים.
+   * 2. אם לא נמצא - יוצרים איש קשר חדש
+   *    תחת agents/{agentId}/magic_touch_contacts.
    */
-  const contactMatch =
-    await resolveMagicTouchContact({
-      db,
-
-      agentId,
-
-      contactId:
-        s(
-          conversationData
-            ?.contactId
-        ) ||
-        null,
-
-      phone:
-        from,
-    });
-
-  const contactId =
-    contactMatch
-      ?.contactId ||
+  let contactMatch:
+    {
+      contactId: string;
+      contactRef: FirebaseFirestore.DocumentReference;
+      contactData: Record<string, any>;
+      created: boolean;
+    } | null =
     null;
 
+  const existingConversationContactId =
+    s(
+      conversationData
+        ?.contactId
+    );
+
+  if (
+    existingConversationContactId
+  ) {
+    const existingContactRef =
+      db.doc(
+        `agents/${agentId}/magic_touch_contacts/${existingConversationContactId}`
+      );
+
+    const existingContactSnap =
+      await existingContactRef.get();
+
+    if (
+      existingContactSnap.exists
+    ) {
+      contactMatch = {
+        contactId:
+          existingConversationContactId,
+
+        contactRef:
+          existingContactRef,
+
+        contactData:
+          existingContactSnap.data() as
+            Record<string, any>,
+
+        created:
+          false,
+      };
+    }
+  }
+
+  if (
+    !contactMatch
+  ) {
+    contactMatch =
+      await getOrCreateMagicTouchContactFromWhatsApp({
+        db,
+
+        agentId,
+
+        phone:
+          from,
+
+        profileName:
+          s(
+            profileName
+          ) ||
+          null,
+
+        waId:
+          s(
+            waId
+          ) ||
+          from,
+
+        conversationId,
+      });
+  }
+
+  const contactId =
+    contactMatch.contactId;
+
   const customerName =
-    contactMatch
-      ? s(
-          contactMatch
-            .contactData
-            ?.fullName
-        ) ||
-        null
-      : s(
-          conversationData
-            ?.customerName
-        ) ||
-        null;
+    s(
+      contactMatch
+        .contactData
+        ?.fullName
+    ) ||
+    s(
+      profileName
+    ) ||
+    s(
+      conversationData
+        ?.customerName
+    ) ||
+    null;
+
+  if (
+    contactMatch.created
+  ) {
+    logger.info(
+      "[whatsappWebhook] New MagicTouch contact created from inbound WhatsApp",
+      {
+        agentId,
+
+        contactId,
+
+        conversationId,
+
+        phone:
+          from,
+
+        profileName:
+          s(
+            profileName
+          ) ||
+          null,
+      }
+    );
+  }
 
   const conversationMessageRef =
     inboundWaMessageId
@@ -2229,6 +2343,119 @@ async function processInboundMessage({
       messageText,
     });
 
+  const reactionEmoji =
+    messageType ===
+      "reaction"
+      ? s(
+          message
+            ?.reaction
+            ?.emoji
+        ) ||
+        null
+      : null;
+
+  const reactionToWaMessageId =
+    messageType ===
+      "reaction"
+      ? s(
+          message
+            ?.reaction
+            ?.message_id
+        ) ||
+        null
+      : null;
+
+  const inboundMediaDescriptor =
+    getWhatsAppInboundMediaDescriptor(
+      message
+    );
+
+  let inboundMedia:
+    StoredWhatsAppInboundMedia | null =
+    null;
+
+  let mediaDownloadError:
+    string | null =
+    null;
+
+  if (
+    inboundMediaDescriptor
+  ) {
+    try {
+      const accessToken =
+        await loadAgentWhatsAppAccessToken({
+          db,
+          agentId,
+        });
+
+      inboundMedia =
+        await downloadWhatsAppInboundMediaToStorage({
+          agentId,
+          conversationId,
+          message,
+          accessToken,
+        });
+    } catch (
+      mediaError: any
+    ) {
+      mediaDownloadError =
+        mediaError
+          ?.message ||
+        String(
+          mediaError
+        );
+
+      logger.error(
+        "[whatsappWebhook] Failed to download inbound WhatsApp media",
+        {
+          agentId,
+          contactId,
+          conversationId,
+          inboundWaMessageId,
+          messageType,
+          mediaId:
+            inboundMediaDescriptor
+              .mediaId,
+          error:
+            mediaDownloadError,
+        }
+      );
+    }
+  }
+
+  const inboundMediaRecord =
+    inboundMedia ||
+    (
+      inboundMediaDescriptor
+        ? {
+            mediaId:
+              inboundMediaDescriptor
+                .mediaId,
+            type:
+              inboundMediaDescriptor
+                .type,
+            mimeType:
+              inboundMediaDescriptor
+                .mimeType ||
+              null,
+            fileName:
+              inboundMediaDescriptor
+                .fileName ||
+              null,
+            caption:
+              inboundMediaDescriptor
+                .caption ||
+              null,
+            storagePath:
+              null,
+            size:
+              null,
+            sha256:
+              null,
+          }
+        : null
+    );
+
   const timestamp =
     nowTs();
 
@@ -2313,6 +2540,17 @@ async function processInboundMessage({
         messageText ||
         null,
 
+      media:
+        inboundMediaRecord,
+
+      mediaDownloadError:
+        mediaDownloadError ||
+        null,
+
+      reactionEmoji,
+
+      reactionToWaMessageId,
+
       templateName:
         templateName ||
         null,
@@ -2372,6 +2610,17 @@ async function processInboundMessage({
         text:
           messageText ||
           null,
+
+        media:
+          inboundMediaRecord,
+
+        mediaDownloadError:
+          mediaDownloadError ||
+          null,
+
+        reactionEmoji,
+
+        reactionToWaMessageId,
 
         templateName:
           templateName ||
@@ -2568,6 +2817,17 @@ async function processInboundMessage({
             from,
 
           messageType,
+
+          media:
+            inboundMediaRecord,
+
+          mediaDownloadError:
+            mediaDownloadError ||
+            null,
+
+          reactionEmoji,
+
+          reactionToWaMessageId,
 
           contextMessageId:
             contextMessageId ||
@@ -3217,17 +3477,62 @@ export const whatsappWebhook =
                 ? value.messages
                 : [];
 
+            const contacts =
+              Array.isArray(
+                value?.contacts
+              )
+                ? value.contacts
+                : [];
+
             for (
               const message of
               messages
             ) {
               try {
+                const messageFrom =
+                  normalizePhone(
+                    s(
+                      message?.from
+                    )
+                  );
+
+                const matchingContact =
+                  contacts.find(
+                    (
+                      contact: any
+                    ) =>
+                      normalizePhone(
+                        s(
+                          contact?.wa_id
+                        )
+                      ) ===
+                        messageFrom
+                  ) ||
+                  contacts[0] ||
+                  null;
+
                 await processInboundMessage({
                   db,
 
                   phoneNumberId,
 
                   message,
+
+                  profileName:
+                    s(
+                      matchingContact
+                        ?.profile
+                        ?.name
+                    ) ||
+                    null,
+
+                  waId:
+                    s(
+                      matchingContact
+                        ?.wa_id
+                    ) ||
+                    messageFrom ||
+                    null,
                 });
               } catch (
                 messageError: any

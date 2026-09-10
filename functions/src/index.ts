@@ -375,3 +375,7 @@ export {
 export {
   getMagicTouchDashboard,
 } from "./getMagicTouchDashboard";
+
+export {
+  getMagicTouchWhatsAppMediaUrl,
+} from "./getMagicTouchWhatsAppMediaUrl";

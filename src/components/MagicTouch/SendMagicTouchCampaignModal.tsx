@@ -138,6 +138,7 @@ type Props = {
   preselectedCampaignId?: string | null;
 
   selectedContactName?: string | null;
+  selectedContactFirstName?: string | null;
 
   onClose: () => void;
 
@@ -268,6 +269,7 @@ export default function SendMagicTouchCampaignModal({
   campaigns,
   preselectedCampaignId,
   selectedContactName,
+  selectedContactFirstName,
   onClose,
   onSent,
 }: Props) {
@@ -772,35 +774,55 @@ export default function SendMagicTouchCampaignModal({
    * ערך {{1}} לתצוגה מקדימה.
    *
    * first_name:
-   * רק המילה הראשונה מהשם.
+   * קודם כל משתמשים ב-contact.firstName האמיתי
+   * שהגיע ממסך אנשי הקשר.
+   *
+   * רק אם firstName חסר, משתמשים ב-fallback
+   * של המילה הראשונה מתוך fullName.
    *
    * full_name:
-   * כל השם כפי שהגיע למסך.
-   *
-   * אם אין שם נבחר, משתמשים בדוגמה
-   * שנשמרה בתבנית.
+   * כל השם המלא כפי שהגיע למסך.
    */
   const previewVariableValue =
     useMemo(() => {
-      const normalizedName =
+      const normalizedFullName =
         String(
           selectedContactName ||
             ''
         ).trim();
 
-      if (
-        normalizedName
-      ) {
-        if (
-          selectedTemplate
-            ?.bodyVariable1Source ===
-          'full_name'
-        ) {
-          return normalizedName;
-        }
+      const normalizedFirstName =
+        String(
+          selectedContactFirstName ||
+            ''
+        ).trim();
 
+      if (
+        selectedTemplate
+          ?.bodyVariable1Source ===
+        'full_name'
+      ) {
         return (
-          normalizedName
+          normalizedFullName ||
+          normalizedFirstName ||
+          selectedTemplate
+            ?.bodyExamples
+            ?.[0] ||
+          'כהן סוכנות לביטוח'
+        );
+      }
+
+      if (
+        normalizedFirstName
+      ) {
+        return normalizedFirstName;
+      }
+
+      if (
+        normalizedFullName
+      ) {
+        return (
+          normalizedFullName
             .split(/\s+/)
             .filter(Boolean)[0] ||
           'שם הלקוח'
@@ -811,15 +833,10 @@ export default function SendMagicTouchCampaignModal({
         selectedTemplate
           ?.bodyExamples
           ?.[0] ||
-        (
-          selectedTemplate
-            ?.bodyVariable1Source ===
-          'full_name'
-            ? 'כהן סוכנות לביטוח'
-            : 'ישראל'
-        )
+        'ישראל'
       );
     }, [
+      selectedContactFirstName,
       selectedContactName,
       selectedTemplate,
     ]);
@@ -1491,23 +1508,30 @@ export default function SendMagicTouchCampaignModal({
                                   template.name ===
                                   selectedTemplateName;
 
+                                const normalizedFullName =
+                                  String(
+                                    selectedContactName ||
+                                      ''
+                                  ).trim();
+
+                                const normalizedFirstName =
+                                  String(
+                                    selectedContactFirstName ||
+                                      ''
+                                  ).trim();
+
                                 const previewName =
                                   template.bodyVariable1Source ===
                                   'full_name'
                                     ? (
-                                        String(
-                                          selectedContactName ||
-                                            ''
-                                        ).trim() ||
+                                        normalizedFullName ||
+                                        normalizedFirstName ||
                                         template.bodyExamples?.[0] ||
                                         'כהן סוכנות לביטוח'
                                       )
                                     : (
-                                        String(
-                                          selectedContactName ||
-                                            ''
-                                        )
-                                          .trim()
+                                        normalizedFirstName ||
+                                        normalizedFullName
                                           .split(/\s+/)
                                           .filter(Boolean)[0] ||
                                         template.bodyExamples?.[0] ||

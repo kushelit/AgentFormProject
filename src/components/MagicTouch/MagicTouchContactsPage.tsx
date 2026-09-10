@@ -68,6 +68,15 @@ type MagicTouchCampaignStatus = {
   failureCode?: string | number | null;
   failureReason?: string | null;
 
+  error?: {
+    code?: string | number | null;
+    title?: string | null;
+    message?: string | null;
+    error_data?: {
+      details?: string | null;
+    } | null;
+  } | null;
+
   createdBy?: string | null;
   updatedAt?: number | null;
 };
@@ -128,6 +137,7 @@ type MagicTouchContact = {
       bookingLink?: string | null;
       bookingLinkSentAt?: number | null;
       bookedAt?: number | null;
+      bookingStartAt?: number | null;
 
       powerOfAttorney?: {
         status?: string | null;
@@ -229,6 +239,15 @@ type NameSortDirection =
   | "asc"
   | "desc"
   | null;
+
+type CampaignFailureDetails = {
+  campaignName: string;
+  contactName: string;
+  code: string;
+  reason: string;
+  details: string;
+  failedAt: number | null;
+};
 
 type GetMagicTouchCampaignsResponse = {
   ok: boolean;
@@ -456,6 +475,20 @@ function getContactAppointmentStatus(
   );
 }
 
+function getContactPowerOfAttorneyStatus(
+  contact:
+    MagicTouchContact
+): string {
+  return (
+    contact
+      .engagement
+      ?.reengagement
+      ?.powerOfAttorney
+      ?.status ||
+    ""
+  );
+}
+
 function getCampaigns(
   contact:
     MagicTouchContact
@@ -601,6 +634,61 @@ function getLatestCampaign(
   };
 }
 
+function getCampaignFailureDetails(
+  contact: MagicTouchContact,
+  campaignName: string,
+  campaign: MagicTouchCampaignStatus
+): CampaignFailureDetails {
+  const rawError =
+    campaign.error || null;
+
+  const code =
+    String(
+      campaign.failureCode ??
+      rawError?.code ??
+      ""
+    ).trim();
+
+  const reason =
+    String(
+      campaign.failureReason ||
+      rawError?.message ||
+      rawError?.title ||
+      ""
+    ).trim();
+
+  const details =
+    String(
+      rawError?.error_data?.details ||
+      ""
+    ).trim();
+
+  return {
+    campaignName:
+      campaignName ||
+      "קמפיין WhatsApp",
+
+    contactName:
+      contact.fullName ||
+      contact.phone ||
+      "איש קשר",
+
+    code:
+      code ||
+      "—",
+
+    reason:
+      reason ||
+      "Meta לא החזירה תיאור נוסף לכשל.",
+
+    details,
+
+    failedAt:
+      campaign.failedAt ||
+      null,
+  };
+}
+
 export default function MagicTouchContactsPage() {
   const {
     selectedAgentId,
@@ -676,6 +764,24 @@ export default function MagicTouchContactsPage() {
   const [
     sourceFilter,
     setSourceFilter,
+  ] =
+    useState("");
+
+  const [
+    contactStatusFilter,
+    setContactStatusFilter,
+  ] =
+    useState("active");
+
+  const [
+    appointmentFilter,
+    setAppointmentFilter,
+  ] =
+    useState("");
+
+  const [
+    powerOfAttorneyFilter,
+    setPowerOfAttorneyFilter,
   ] =
     useState("");
 
@@ -762,6 +868,14 @@ export default function MagicTouchContactsPage() {
     >(
       new Set()
     );
+
+  const [
+    selectedFailure,
+    setSelectedFailure,
+  ] =
+    useState<
+      CampaignFailureDetails | null
+    >(null);
 
   const loadContacts =
     useCallback(
@@ -959,6 +1073,14 @@ export default function MagicTouchContactsPage() {
       []
     );
 
+    setAppointmentFilter(
+      ""
+    );
+
+    setPowerOfAttorneyFilter(
+      ""
+    );
+
     setCampaignFilter(
       ""
     );
@@ -1140,6 +1262,74 @@ export default function MagicTouchContactsPage() {
               sourceFilter
           ) {
             return false;
+          }
+
+          const normalizedContactStatus =
+            String(
+              contact.contactStatus ||
+              "active"
+            ).toLowerCase();
+
+          if (
+            contactStatusFilter &&
+            normalizedContactStatus !==
+              contactStatusFilter
+          ) {
+            return false;
+          }
+
+          if (
+            appointmentFilter
+          ) {
+            const appointmentStatus =
+              getContactAppointmentStatus(
+                contact
+              );
+
+            if (
+              appointmentFilter ===
+              "not_sent"
+            ) {
+              if (
+                appointmentStatus &&
+                appointmentStatus !==
+                  "not_sent"
+              ) {
+                return false;
+              }
+            } else if (
+              appointmentStatus !==
+              appointmentFilter
+            ) {
+              return false;
+            }
+          }
+
+          if (
+            powerOfAttorneyFilter
+          ) {
+            const powerOfAttorneyStatus =
+              getContactPowerOfAttorneyStatus(
+                contact
+              );
+
+            if (
+              powerOfAttorneyFilter ===
+              "not_sent"
+            ) {
+              if (
+                powerOfAttorneyStatus &&
+                powerOfAttorneyStatus !==
+                  "not_sent"
+              ) {
+                return false;
+              }
+            } else if (
+              powerOfAttorneyStatus !==
+              powerOfAttorneyFilter
+            ) {
+              return false;
+            }
           }
 
           if (
@@ -1327,6 +1517,9 @@ export default function MagicTouchContactsPage() {
       contacts,
       search,
       sourceFilter,
+      contactStatusFilter,
+      appointmentFilter,
+      powerOfAttorneyFilter,
       campaignFilter,
       campaignStatusFilter,
       nameSortDirection,
@@ -1657,6 +1850,11 @@ export default function MagicTouchContactsPage() {
       ?.fullName ||
     null;
 
+  const selectedPreviewFirstName =
+    selectedContacts[0]
+      ?.firstName ||
+    null;
+
   return (
     <section
       dir="rtl"
@@ -1970,6 +2168,124 @@ export default function MagicTouchContactsPage() {
 
               <select
                 value={
+                  appointmentFilter
+                }
+                onChange={(
+                  event
+                ) =>
+                  setAppointmentFilter(
+                    event
+                      .target
+                      .value
+                  )
+                }
+                className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-600 outline-none transition focus:border-blue-300 focus:ring-4 focus:ring-blue-50"
+              >
+                <option value="">
+                  כל סטטוסי הפגישה
+                </option>
+
+                <option value="not_sent">
+                  טרם נשלח קישור
+                </option>
+
+                <option value="link_sent">
+                  נשלח קישור
+                </option>
+
+                <option value="booked">
+                  נקבעה פגישה
+                </option>
+
+                <option value="cancelled">
+                  הפגישה בוטלה
+                </option>
+
+                <option value="no_booking">
+                  לא נקבעה
+                </option>
+
+                <option value="not_required">
+                  לא נדרש
+                </option>
+              </select>
+
+              {hasSurenseIntegration ? (
+                <select
+                  value={
+                    powerOfAttorneyFilter
+                  }
+                  onChange={(
+                    event
+                  ) =>
+                    setPowerOfAttorneyFilter(
+                      event
+                        .target
+                        .value
+                    )
+                  }
+                  className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-600 outline-none transition focus:border-blue-300 focus:ring-4 focus:ring-blue-50"
+                >
+                  <option value="">
+                    כל סטטוסי ייפוי הכוח
+                  </option>
+
+                  <option value="not_sent">
+                    לא נשלח
+                  </option>
+
+                  <option value="waiting_for_signature">
+                    ממתין לחתימה
+                  </option>
+
+                  <option value="partially_signed">
+                    חתום חלקית
+                  </option>
+
+                  <option value="signed">
+                    נחתם
+                  </option>
+
+                  <option value="failed">
+                    נכשל
+                  </option>
+
+                  <option value="cancelled">
+                    בוטל
+                  </option>
+                </select>
+              ) : null}
+
+              <select
+                value={
+                  contactStatusFilter
+                }
+                onChange={(
+                  event
+                ) =>
+                  setContactStatusFilter(
+                    event
+                      .target
+                      .value
+                  )
+                }
+                className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-600 outline-none transition focus:border-blue-300 focus:ring-4 focus:ring-blue-50"
+              >
+                <option value="active">
+                  לקוחות פעילים
+                </option>
+
+                <option value="inactive">
+                  לקוחות לא פעילים
+                </option>
+
+                <option value="">
+                  כל סטטוסי הלקוח
+                </option>
+              </select>
+
+              <select
+                value={
                   campaignFilter
                 }
                 onChange={(
@@ -2095,6 +2411,49 @@ export default function MagicTouchContactsPage() {
                   : "רענון"}
               </button>
             </div>
+
+            {appointmentFilter ||
+            powerOfAttorneyFilter ? (
+              <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3 text-xs text-slate-500">
+                <span>
+                  מסנן לפי:
+                </span>
+
+                {appointmentFilter ? (
+                  <span className="rounded-full bg-blue-50 px-3 py-1 font-semibold text-blue-700">
+                    פגישה:{" "}
+                    {appointmentLabel(
+                      appointmentFilter
+                    )}
+                  </span>
+                ) : null}
+
+                {powerOfAttorneyFilter ? (
+                  <span className="rounded-full bg-violet-50 px-3 py-1 font-semibold text-violet-700">
+                    ייפוי כוח:{" "}
+                    {powerOfAttorneyLabel(
+                      powerOfAttorneyFilter
+                    )}
+                  </span>
+                ) : null}
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAppointmentFilter(
+                      ""
+                    );
+
+                    setPowerOfAttorneyFilter(
+                      ""
+                    );
+                  }}
+                  className="rounded-lg px-2 py-1 font-semibold text-blue-600 hover:bg-blue-50"
+                >
+                  ניקוי סטטוסים
+                </button>
+              </div>
+            ) : null}
 
             {campaignFilter ? (
               <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3 text-xs text-slate-500">
@@ -2478,6 +2837,13 @@ export default function MagicTouchContactsPage() {
                                     status
                                   );
 
+                                const bookingStartAt =
+                                  contact
+                                    .engagement
+                                    ?.reengagement
+                                    ?.bookingStartAt ||
+                                  null;
+
                                 const className =
                                   status ===
                                   "booked"
@@ -2488,11 +2854,24 @@ export default function MagicTouchContactsPage() {
                                       : "bg-slate-100 text-slate-600";
 
                                 return (
-                                  <span
-                                    className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${className}`}
-                                  >
-                                    {label}
-                                  </span>
+                                  <div className="min-w-[150px]">
+                                    <span
+                                      className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${className}`}
+                                    >
+                                      {label}
+                                    </span>
+
+                                    {status ===
+                                      "booked" &&
+                                    bookingStartAt ? (
+                                      <div className="mt-1.5 whitespace-nowrap text-[11px] font-semibold text-slate-500">
+                                        📅{" "}
+                                        {formatDate(
+                                          bookingStartAt
+                                        )}
+                                      </div>
+                                    ) : null}
+                                  </div>
                                 );
                               })()}
                             </td>
@@ -2510,15 +2889,48 @@ export default function MagicTouchContactsPage() {
                                   </div>
 
                                   <div className="mt-1">
-                                    <span
-                                      className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-bold ${campaignStatusClassName(
-                                        latestCampaignStatus
-                                      )}`}
-                                    >
-                                      {campaignStatusLabel(
-                                        latestCampaignStatus
-                                      )}
-                                    </span>
+                                    {latestCampaignStatus ===
+                                    "failed" ? (
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          setSelectedFailure(
+                                            getCampaignFailureDetails(
+                                              contact,
+                                              latestCampaignName,
+                                              latestCampaign.campaign
+                                            )
+                                          )
+                                        }
+                                        className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold transition hover:ring-2 hover:ring-rose-200 ${campaignStatusClassName(
+                                          latestCampaignStatus
+                                        )}`}
+                                        title="לחצי להצגת סיבת הכשל"
+                                      >
+                                        <span>
+                                          {campaignStatusLabel(
+                                            latestCampaignStatus
+                                          )}
+                                        </span>
+
+                                        <span
+                                          aria-hidden="true"
+                                          className="text-[12px]"
+                                        >
+                                          ⓘ
+                                        </span>
+                                      </button>
+                                    ) : (
+                                      <span
+                                        className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-bold ${campaignStatusClassName(
+                                          latestCampaignStatus
+                                        )}`}
+                                      >
+                                        {campaignStatusLabel(
+                                          latestCampaignStatus
+                                        )}
+                                      </span>
+                                    )}
                                   </div>
                                 </div>
                               ) : (
@@ -2542,50 +2954,44 @@ export default function MagicTouchContactsPage() {
                                 </td>
 
                                 <td className="px-4 py-3.5">
-                                  {contact.sourceSystem ===
-                                  "surense" ? (
-                                    <span
-                                      className={[
-                                        "inline-flex rounded-full px-3 py-1 text-xs font-bold",
+                                  {(() => {
+                                    const status =
+                                      getContactPowerOfAttorneyStatus(
+                                        contact
+                                      );
 
-                                        contact
-                                          .engagement
-                                          ?.reengagement
-                                          ?.powerOfAttorney
-                                          ?.status ===
-                                        "signed"
-                                          ? "bg-emerald-100 text-emerald-700"
-                                          : contact
-                                                .engagement
-                                                ?.reengagement
-                                                ?.powerOfAttorney
-                                                ?.status ===
-                                              "partially_signed"
-                                            ? "bg-amber-100 text-amber-700"
-                                            : contact
-                                                  .engagement
-                                                  ?.reengagement
-                                                  ?.powerOfAttorney
-                                                  ?.status ===
-                                                "waiting_for_signature"
-                                              ? "bg-blue-100 text-blue-700"
-                                              : "bg-slate-100 text-slate-500 border border-slate-200",
-                                      ].join(
-                                        " "
-                                      )}
-                                    >
-                                      {powerOfAttorneyLabel(
-                                        contact
-                                          .engagement
-                                          ?.reengagement
-                                          ?.powerOfAttorney
-                                          ?.status ||
-                                          ""
-                                      )}
-                                    </span>
-                                  ) : (
-                                    "—"
-                                  )}
+                                    const className =
+                                      status ===
+                                      "signed"
+                                        ? "bg-emerald-100 text-emerald-700"
+                                        : status ===
+                                            "partially_signed"
+                                          ? "bg-amber-100 text-amber-700"
+                                          : status ===
+                                              "waiting_for_signature"
+                                            ? "bg-blue-100 text-blue-700"
+                                            : status ===
+                                                "failed" ||
+                                              status ===
+                                                "cancelled"
+                                              ? "bg-rose-100 text-rose-700"
+                                              : "bg-slate-100 text-slate-500 border border-slate-200";
+
+                                    return (
+                                      <span
+                                        className={[
+                                          "inline-flex rounded-full px-3 py-1 text-xs font-bold",
+                                          className,
+                                        ].join(
+                                          " "
+                                        )}
+                                      >
+                                        {powerOfAttorneyLabel(
+                                          status
+                                        )}
+                                      </span>
+                                    );
+                                  })()}
                                 </td>
                               </>
                             ) : null}
@@ -2606,6 +3012,113 @@ export default function MagicTouchContactsPage() {
           )}
         </section>
       </div>
+
+      {selectedFailure ? (
+        <div
+          className="fixed inset-0 z-[10020] flex items-center justify-center bg-slate-950/45 p-4"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) {
+              setSelectedFailure(null);
+            }
+          }}
+        >
+          <div className="w-full max-w-lg overflow-hidden rounded-2xl bg-white shadow-2xl">
+            <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-5 py-4">
+              <div>
+                <div className="text-xs font-bold text-rose-600">
+                  WhatsApp
+                </div>
+
+                <h2 className="mt-1 text-xl font-bold text-slate-900">
+                  סיבת כשל בשליחה
+                </h2>
+
+                <p className="mt-1 text-sm text-slate-500">
+                  {selectedFailure.contactName}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setSelectedFailure(null)}
+                className="rounded-lg px-2 py-1 text-xl leading-none text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+                aria-label="סגירה"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="space-y-4 p-5">
+              <div className="rounded-xl border border-rose-100 bg-rose-50 px-4 py-3">
+                <div className="text-xs font-bold text-rose-600">
+                  הודעת השגיאה
+                </div>
+
+                <div className="mt-1 text-sm font-semibold leading-6 text-rose-800">
+                  {selectedFailure.reason}
+                </div>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="rounded-xl bg-slate-50 px-4 py-3">
+                  <div className="text-xs font-semibold text-slate-400">
+                    קוד שגיאה
+                  </div>
+
+                  <div
+                    dir="ltr"
+                    className="mt-1 font-mono text-sm font-bold text-slate-800"
+                  >
+                    {selectedFailure.code}
+                  </div>
+                </div>
+
+                <div className="rounded-xl bg-slate-50 px-4 py-3">
+                  <div className="text-xs font-semibold text-slate-400">
+                    מועד הכשל
+                  </div>
+
+                  <div className="mt-1 text-sm font-bold text-slate-800">
+                    {formatDate(selectedFailure.failedAt)}
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-xl bg-slate-50 px-4 py-3">
+                <div className="text-xs font-semibold text-slate-400">
+                  קמפיין / תבנית
+                </div>
+
+                <div className="mt-1 break-words text-sm font-bold text-slate-800">
+                  {selectedFailure.campaignName}
+                </div>
+              </div>
+
+              {selectedFailure.details ? (
+                <div className="rounded-xl border border-slate-200 px-4 py-3">
+                  <div className="text-xs font-semibold text-slate-400">
+                    פירוט נוסף מ־Meta
+                  </div>
+
+                  <div className="mt-1 whitespace-pre-wrap break-words text-sm leading-6 text-slate-700">
+                    {selectedFailure.details}
+                  </div>
+                </div>
+              ) : null}
+
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setSelectedFailure(null)}
+                  className="rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-slate-800"
+                >
+                  סגירה
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {editingContact &&
       agentId ? (
@@ -2797,6 +3310,9 @@ export default function MagicTouchContactsPage() {
           }
           selectedContactName={
             selectedPreviewName
+          }
+          selectedContactFirstName={
+            selectedPreviewFirstName
           }
           onClose={() => {
             setIsCampaignModalOpen(

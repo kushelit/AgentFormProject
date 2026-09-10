@@ -86,6 +86,13 @@ function normalizeEmail(
   ).toLowerCase();
 }
 
+function wasProvided(
+  value: unknown
+): boolean {
+  return value !==
+    undefined;
+}
+
 export async function updateMagicTouchContactDetailsImpl(
   req: any
 ): Promise<object> {
@@ -109,16 +116,6 @@ export async function updateMagicTouchContactDetailsImpl(
   const contactId =
     safeString(
       req.data?.contactId
-    );
-
-  const phone =
-    safeString(
-      req.data?.phone
-    );
-
-  const email =
-    safeString(
-      req.data?.email
     );
 
   if (!requestedAgentId) {
@@ -209,34 +206,6 @@ export async function updateMagicTouchContactDetailsImpl(
     );
   }
 
-  const phoneNormalized =
-    normalizePhone(
-      phone
-    );
-
-  const emailNormalized =
-    normalizeEmail(
-      email
-    );
-
-  /*
-   * אם הוזן אימייל,
-   * נוודא שהוא בפורמט בסיסי תקין.
-   *
-   * אימייל ריק מותר.
-   */
-  if (
-    emailNormalized &&
-    !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(
-      emailNormalized
-    )
-  ) {
-    throw new HttpsError(
-      "invalid-argument",
-      "Invalid email address"
-    );
-  }
-
   const contactRef =
     (db as any).doc(
       `agents/${requestedAgentId}/magic_touch_contacts/${contactId}`
@@ -254,42 +223,319 @@ export async function updateMagicTouchContactDetailsImpl(
     );
   }
 
-  await contactRef.set(
-    {
-      /*
-       * שומרים את הערך לתצוגה
-       */
-      phone:
-        phone ||
-        "",
+  const currentContact =
+    contactSnap.data() ||
+    {};
 
-      /*
-       * ואת הערך שעליו MagicTouch
-       * ו-WhatsApp יכולים לעבוד.
-       */
-      phoneNormalized:
-        phoneNormalized ||
-        "",
-
-      email:
-        email ||
-        null,
-
-      emailNormalized:
-        emailNormalized ||
-        null,
-
+  const updateData:
+    Record<string, any> = {
       updatedAt:
         nowTs(),
 
       updatedBy:
         authUid,
-    },
+    };
+
+  /*
+   * כל השדות החדשים אופציונליים.
+   * כך הקריאות הישנות שמעדכנות רק טלפון/מייל
+   * נשארות תקינות, וגם שינוי סטטוס בלבד
+   * לא מאפס פרטים אחרים.
+   */
+
+  if (
+    wasProvided(
+      req.data?.fullName
+    )
+  ) {
+    const fullName =
+      safeString(
+        req.data?.fullName
+      );
+
+    if (!fullName) {
+      throw new HttpsError(
+        "invalid-argument",
+        "Full name is required"
+      );
+    }
+
+    updateData.fullName =
+      fullName;
+  }
+
+  if (
+    wasProvided(
+      req.data?.firstName
+    )
+  ) {
+    updateData.firstName =
+      safeString(
+        req.data?.firstName
+      );
+  }
+
+  if (
+    wasProvided(
+      req.data?.lastName
+    )
+  ) {
+    updateData.lastName =
+      safeString(
+        req.data?.lastName
+      );
+  }
+
+  if (
+    wasProvided(
+      req.data?.phone
+    )
+  ) {
+    const phone =
+      safeString(
+        req.data?.phone
+      );
+
+    const phoneNormalized =
+      normalizePhone(
+        phone
+      );
+
+    /*
+     * מונעים יצירת כפילות בטלפון
+     * כאשר משנים את המספר של איש הקשר.
+     */
+    if (
+      phoneNormalized &&
+      phoneNormalized !==
+        safeString(
+          currentContact
+            ?.phoneNormalized
+        )
+    ) {
+      const duplicateQuery =
+        await (db as any)
+          .collection(
+            `agents/${requestedAgentId}/magic_touch_contacts`
+          )
+          .where(
+            "phoneNormalized",
+            "==",
+            phoneNormalized
+          )
+          .limit(
+            2
+          )
+          .get();
+
+      const duplicate =
+        duplicateQuery.docs.find(
+          (
+            doc: any
+          ) =>
+            doc.id !==
+            contactId
+        );
+
+      if (
+        duplicate
+      ) {
+        throw new HttpsError(
+          "already-exists",
+          "קיים כבר איש קשר אחר עם מספר הטלפון הזה."
+        );
+      }
+    }
+
+    updateData.phone =
+      phone ||
+      "";
+
+    updateData.phoneNormalized =
+      phoneNormalized ||
+      "";
+  }
+
+  if (
+    wasProvided(
+      req.data?.email
+    )
+  ) {
+    const email =
+      safeString(
+        req.data?.email
+      );
+
+    const emailNormalized =
+      normalizeEmail(
+        email
+      );
+
+    /*
+     * אם הוזן אימייל,
+     * נוודא שהוא בפורמט בסיסי תקין.
+     *
+     * אימייל ריק מותר.
+     */
+    if (
+      emailNormalized &&
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(
+        emailNormalized
+      )
+    ) {
+      throw new HttpsError(
+        "invalid-argument",
+        "Invalid email address"
+      );
+    }
+
+    updateData.email =
+      email ||
+      null;
+
+    updateData.emailNormalized =
+      emailNormalized ||
+      null;
+  }
+
+  if (
+    wasProvided(
+      req.data?.idNumber
+    )
+  ) {
+    updateData.idNumber =
+      safeString(
+        req.data?.idNumber
+      ) ||
+      null;
+  }
+
+  if (
+    wasProvided(
+      req.data?.birthDate
+    )
+  ) {
+    updateData.birthDate =
+      safeString(
+        req.data?.birthDate
+      ) ||
+      null;
+  }
+
+  if (
+    wasProvided(
+      req.data?.gender
+    )
+  ) {
+    updateData.gender =
+      safeString(
+        req.data?.gender
+      ) ||
+      null;
+  }
+
+  if (
+    wasProvided(
+      req.data?.consentStatus
+    )
+  ) {
+    updateData.consentStatus =
+      safeString(
+        req.data?.consentStatus
+      ) ||
+      "unknown";
+  }
+
+  if (
+    req.data?.tags !==
+      undefined
+  ) {
+    const tags =
+      Array.isArray(
+        req.data?.tags
+      )
+        ? req.data.tags
+            .map(
+              (
+                value: unknown
+              ) =>
+                safeString(
+                  value
+                )
+            )
+            .filter(Boolean)
+        : [];
+
+    updateData.tags =
+      Array.from(
+        new Set(
+          tags
+        )
+      ).slice(
+        0,
+        50
+      );
+  }
+
+  if (
+    wasProvided(
+      req.data?.contactStatus
+    )
+  ) {
+    const contactStatus =
+      safeString(
+        req.data?.contactStatus
+      ).toLowerCase();
+
+    if (
+      ![
+        "active",
+        "inactive",
+      ].includes(
+        contactStatus
+      )
+    ) {
+      throw new HttpsError(
+        "invalid-argument",
+        "Invalid contact status"
+      );
+    }
+
+    updateData.contactStatus =
+      contactStatus;
+
+    if (
+      contactStatus ===
+        "inactive"
+    ) {
+      updateData.inactivatedAt =
+        nowTs();
+
+      updateData.inactivatedBy =
+        authUid;
+    } else {
+      updateData.reactivatedAt =
+        nowTs();
+
+      updateData.reactivatedBy =
+        authUid;
+    }
+  }
+
+  await contactRef.set(
+    updateData,
     {
       merge:
         true,
     }
   );
+
+  const updatedSnap =
+    await contactRef.get();
+
+  const updated =
+    updatedSnap.data() ||
+    {};
 
   return {
     ok:
@@ -300,20 +546,84 @@ export async function updateMagicTouchContactDetailsImpl(
 
     contactId,
 
+    fullName:
+      safeString(
+        updated?.fullName
+      ),
+
+    firstName:
+      safeString(
+        updated?.firstName
+      ),
+
+    lastName:
+      safeString(
+        updated?.lastName
+      ),
+
     phone:
-      phone ||
+      safeString(
+        updated?.phone
+      ) ||
       "",
 
     phoneNormalized:
-      phoneNormalized ||
+      safeString(
+        updated
+          ?.phoneNormalized
+      ) ||
       "",
 
     email:
-      email ||
+      safeString(
+        updated?.email
+      ) ||
       null,
 
     emailNormalized:
-      emailNormalized ||
+      safeString(
+        updated
+          ?.emailNormalized
+      ) ||
       null,
+
+    idNumber:
+      safeString(
+        updated?.idNumber
+      ) ||
+      null,
+
+    birthDate:
+      safeString(
+        updated?.birthDate
+      ) ||
+      null,
+
+    gender:
+      safeString(
+        updated?.gender
+      ) ||
+      null,
+
+    consentStatus:
+      safeString(
+        updated
+          ?.consentStatus
+      ) ||
+      "unknown",
+
+    tags:
+      Array.isArray(
+        updated?.tags
+      )
+        ? updated.tags
+        : [],
+
+    contactStatus:
+      safeString(
+        updated
+          ?.contactStatus
+      ) ||
+      "active",
   };
 }
