@@ -37,6 +37,14 @@ import {
 } from "./shared/magicTouchConversationRouter";
 
 import {
+  tryHandleCommissionAssistantInbound,
+} from "./shared/commissionAssistant/commissionAssistantRouter";
+
+import {
+  sendMagicTouchPushToAgent,
+} from "./shared/magicTouchPushNotifications";
+
+import {
   downloadWhatsAppInboundMediaToStorage,
   getWhatsAppInboundMediaDescriptor,
   type StoredWhatsAppInboundMedia,
@@ -44,6 +52,70 @@ import {
 
 function s(value: any): string {
   return String(value ?? "").trim();
+}
+
+function timestampToMillis(
+  value: any
+): number | null {
+  if (!value) {
+    return null;
+  }
+
+  if (
+    typeof value ===
+      "number"
+  ) {
+    return value;
+  }
+
+  if (
+    typeof value?.toMillis ===
+      "function"
+  ) {
+    return value.toMillis();
+  }
+
+  if (
+    typeof value?._seconds ===
+      "number"
+  ) {
+    const nanos =
+      typeof value?._nanoseconds ===
+        "number"
+        ? value._nanoseconds
+        : 0;
+
+    return (
+      value._seconds *
+        1000 +
+      Math.floor(
+        nanos /
+          1000000
+      )
+    );
+  }
+
+  if (
+    typeof value?.seconds ===
+      "number"
+  ) {
+    const nanos =
+      typeof value?.nanoseconds ===
+        "number"
+        ? value.nanoseconds
+        : 0;
+
+    return (
+      value.seconds *
+        1000 +
+      Math.floor(
+        nanos /
+          1000000
+      )
+    );
+  }
+
+  return null;
 }
 
 const PROD_PROJECT_ID =
@@ -744,6 +816,15 @@ async function sendMagicTouchSafeReply({
         lastMessageAt:
           timestamp,
 
+        lastMessageWaMessageId:
+          waMessageId,
+
+        lastMessageStatus:
+          "accepted",
+
+        lastMessageStatusAt:
+          timestamp,
+
         lastOutboundAt:
           timestamp,
 
@@ -850,6 +931,79 @@ async function sendMagicTouchSafeReply({
   return waMessageId;
 }
 
+function getWhatsAppFlowResponse(
+  message: any
+): Record<
+  string,
+  any
+> | null {
+  if (
+    s(
+      message?.type
+    ) !==
+      "interactive" ||
+    s(
+      message
+        ?.interactive
+        ?.type
+    ) !==
+      "nfm_reply"
+  ) {
+    return null;
+  }
+
+  const responseJson =
+    s(
+      message
+        ?.interactive
+        ?.nfm_reply
+        ?.response_json
+    );
+
+  if (
+    !responseJson
+  ) {
+    return null;
+  }
+
+  try {
+    const parsed =
+      JSON.parse(
+        responseJson
+      );
+
+    if (
+      parsed &&
+      typeof parsed ===
+        "object" &&
+      !Array.isArray(
+        parsed
+      )
+    ) {
+      return parsed as
+        Record<
+          string,
+          any
+        >;
+    }
+  } catch (
+    error: any
+  ) {
+    logger.warn(
+      "[whatsappWebhook] Failed to parse WhatsApp Flow response_json",
+      {
+        error:
+          error?.message ||
+          String(
+            error
+          ),
+      }
+    );
+  }
+
+  return null;
+}
+
 function getInboundMessageText(
   message: any
 ): string {
@@ -881,6 +1035,52 @@ function getInboundMessageText(
     messageType ===
     "interactive"
   ) {
+    const interactiveType =
+      s(
+        message
+          ?.interactive
+          ?.type
+      );
+
+    if (
+      interactiveType ===
+        "nfm_reply"
+    ) {
+      const flowResponse =
+        getWhatsAppFlowResponse(
+          message
+        );
+
+      const selectedCompanyIds =
+        flowResponse
+          ?.selectedCompanyIds;
+
+      const selectedCompanies =
+        flowResponse
+          ?.selected_companies;
+
+      const selected:
+        unknown[] =
+        Array.isArray(
+          selectedCompanyIds
+        )
+          ? selectedCompanyIds
+          : Array.isArray(
+              selectedCompanies
+            )
+            ? selectedCompanies
+            : [];
+
+      if (
+        selected.length >
+          0
+      ) {
+        return `נבחרו ${selected.length} חברות להרצת עמלות`;
+      }
+
+      return "[טופס WhatsApp Flow הושלם]";
+    }
+
     return (
       s(
         message
@@ -994,6 +1194,7 @@ function getInboundMessageText(
     ? `[${messageType}]`
     : "[הודעה]";
 }
+
 
 async function findAgentByPhoneNumberId(
   db: FirebaseFirestore.Firestore,
@@ -1626,6 +1827,110 @@ async function updateOutboundMessageStatus({
     }
   );
 
+  /*
+   * מעדכנים גם summary ברמת השיחה כדי שמסך
+   * רשימת השיחות יוכל להציג ✓ / ✓✓ בלי לבצע
+   * query נוסף לתת-הקולקשן messages.
+   *
+   * חשוב: מעדכנים רק אם הסטטוס שייך להודעה
+   * האחרונה שמוצגת כרגע בשיחה. כך status מאוחר
+   * של הודעה ישנה לא ידרוס את החיווי של הודעה חדשה.
+   */
+  const conversationRef =
+    messageDoc.ref
+      .parent
+      .parent;
+
+  if (
+    conversationRef
+  ) {
+    const conversationSnap =
+      await conversationRef
+        .get();
+
+    if (
+      conversationSnap.exists
+    ) {
+      const conversationData =
+        conversationSnap.data() as any;
+
+      const currentLastWaMessageId =
+        s(
+          conversationData
+            ?.lastMessageWaMessageId
+        );
+
+      const isDirectMatch =
+        currentLastWaMessageId ===
+          waMessageId;
+
+      /*
+       * Fallback לשיחות ישנות/שולחים קיימים שעדיין
+       * לא כתבו lastMessageWaMessageId:
+       * אם ההודעה היא outbound והיא נוצרה באותו זמן
+       * של lastMessageAt, היא ההודעה האחרונה.
+       */
+      const messageCreatedAtMs =
+        timestampToMillis(
+          messageData
+            ?.createdAt
+        );
+
+      const conversationLastMessageAtMs =
+        timestampToMillis(
+          conversationData
+            ?.lastMessageAt
+        );
+
+      const isLatestMessageByTimestamp =
+        s(
+          conversationData
+            ?.lastMessageDirection
+        ) ===
+          "outbound" &&
+        messageCreatedAtMs !==
+          null &&
+        conversationLastMessageAtMs !==
+          null &&
+        Math.abs(
+          messageCreatedAtMs -
+            conversationLastMessageAtMs
+        ) <=
+          2000;
+
+      /*
+       * גם אם נשאר lastMessageWaMessageId ישן על מסמך השיחה,
+       * ההודעה שבאמת תואמת ל-lastMessageAt רשאית "לקחת בעלות"
+       * על ה-summary. זה קריטי לשליחת media/text/template ממנגנונים
+       * ותיקים שעדיין לא כתבו lastMessageWaMessageId בזמן השליחה.
+       */
+      if (
+        isDirectMatch ||
+        isLatestMessageByTimestamp
+      ) {
+        await conversationRef.set(
+          {
+            lastMessageWaMessageId:
+              waMessageId,
+
+            lastMessageStatus:
+              effectiveStatus,
+
+            lastMessageStatusAt:
+              timestamp,
+
+            lastMessageProviderStatus:
+              waStatus,
+          },
+          {
+            merge:
+              true,
+          }
+        );
+      }
+    }
+  }
+
   const campaignId =
     s(
       messageData
@@ -2033,6 +2338,11 @@ async function processInboundMessage({
 
   const messageText =
     getInboundMessageText(
+      message
+    );
+
+  const flowResponse =
+    getWhatsAppFlowResponse(
       message
     );
 
@@ -2488,6 +2798,22 @@ async function processInboundMessage({
       lastMessageAt:
         timestamp,
 
+      /*
+       * ההודעה האחרונה עכשיו נכנסת, לכן אין V
+       * להצגה ברשימת השיחות.
+       */
+      lastMessageWaMessageId:
+        null,
+
+      lastMessageStatus:
+        null,
+
+      lastMessageStatusAt:
+        null,
+
+      lastMessageProviderStatus:
+        null,
+
       lastInboundAt:
         timestamp,
 
@@ -2566,6 +2892,10 @@ async function processInboundMessage({
         quickReplyAction ||
         null,
 
+      flowResponse:
+        flowResponse ||
+        null,
+
       contextMessageId:
         contextMessageId ||
         null,
@@ -2637,6 +2967,10 @@ async function processInboundMessage({
           quickReplyAction ||
           null,
 
+        flowResponse:
+          flowResponse ||
+          null,
+
         waMessageId:
           inboundWaMessageId ||
           null,
@@ -2655,6 +2989,78 @@ async function processInboundMessage({
           timestamp,
       }),
   ]);
+
+  /*
+   * Push למובייל על הודעת WhatsApp נכנסת.
+   *
+   * חשוב: כשל בשליחת Push לא מפיל את ה-Webhook
+   * ולא גורם ל-Meta לשלוח מחדש הודעה שכבר נשמרה.
+   * conversationId נשמר ב-data כדי שבהמשך לחיצה
+   * על ההתראה תוכל לפתוח את השיחה המתאימה במובייל.
+   */
+  try {
+    const pushBody =
+      messageText ||
+      `[${messageType}]`;
+
+    await sendMagicTouchPushToAgent({
+      db,
+
+      agentId,
+
+      title:
+        customerName
+          ? `MagicTouch • ${customerName}`
+          : "MagicTouch • הודעת WhatsApp חדשה",
+
+      body:
+        pushBody.slice(
+          0,
+          180
+        ),
+
+      data: {
+        type:
+          "whatsapp_message",
+
+        conversationId,
+
+        contactId:
+          contactId ||
+          null,
+
+        waMessageId:
+          inboundWaMessageId ||
+          null,
+
+        messageType:
+          messageType ||
+          null,
+      },
+    });
+  } catch (
+    pushError: any
+  ) {
+    logger.error(
+      "[whatsappWebhook] Failed to send inbound WhatsApp push",
+      {
+        agentId,
+
+        contactId,
+
+        conversationId,
+
+        inboundWaMessageId,
+
+        error:
+          pushError
+            ?.message ||
+          String(
+            pushError
+          ),
+      }
+    );
+  }
 
   if (
     contactMatch
@@ -2847,6 +3253,10 @@ async function processInboundMessage({
           quickReplyAction:
             quickReplyAction ||
             null,
+
+          flowResponse:
+            flowResponse ||
+            null,
         },
       });
     } catch (
@@ -2881,6 +3291,89 @@ async function processInboundMessage({
    * בשלב הזה האירוע רק נשמר במצב pending.
    * מנוע האוטומציות שנבנה בהמשך יחליט אילו פעולות לבצע.
    */
+
+
+const commissionAssistantResult =
+  await tryHandleCommissionAssistantInbound({
+    db,
+
+    whatsappAgentId:
+      agentId,
+
+    phoneNumberId,
+
+    contactId,
+
+    conversationId,
+
+    phoneNormalized:
+      from,
+
+    messageText:
+      messageText ||
+      null,
+
+    messageType:
+      messageType ||
+      null,
+
+    quickReplyAction:
+      quickReplyAction ||
+      null,
+
+    flowResponse:
+      flowResponse ||
+      null,
+  });
+
+logger.info(
+  "[whatsappWebhook] Commission Assistant routing result",
+  {
+    agentId,
+
+    contactId,
+
+    conversationId,
+
+    inboundWaMessageId,
+
+    commissionAssistantResult,
+  }
+);
+
+if (
+  commissionAssistantResult
+    .handled
+) {
+  logger.info(
+    "[whatsappWebhook] Inbound message handled by Commission Assistant",
+    {
+      agentId,
+
+      contactId,
+
+      conversationId,
+
+      inboundWaMessageId,
+
+      reason:
+        commissionAssistantResult
+          .reason,
+
+      requesterUserId:
+        commissionAssistantResult
+          .requesterUserId ||
+        null,
+
+      requesterAgentId:
+        commissionAssistantResult
+          .requesterAgentId ||
+        null,
+    }
+  );
+
+  return;
+}
 
 
 const routingResult =

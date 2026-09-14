@@ -447,6 +447,18 @@ export async function updateMagicTouchContactDetailsImpl(
   }
 
   if (
+    wasProvided(
+      req.data?.notes
+    )
+  ) {
+    updateData.notes =
+      safeString(
+        req.data?.notes
+      ) ||
+      null;
+  }
+
+  if (
     req.data?.tags !==
       undefined
   ) {
@@ -529,6 +541,45 @@ export async function updateMagicTouchContactDetailsImpl(
         true,
     }
   );
+
+  /*
+   * אם שם הלקוח השתנה, מסנכרנים אותו גם למסמך
+   * השיחה הקיים כדי שהכותרת ורשימת השיחות במובייל
+   * יתעדכנו מיד.
+   */
+  if (
+    wasProvided(
+      req.data?.fullName
+    )
+  ) {
+    const whatsappConversationId =
+      safeString(
+        currentContact
+          ?.whatsappConversationId
+      );
+
+    if (
+      whatsappConversationId
+    ) {
+      await (db as any)
+        .doc(
+          `whatsapp_conversations/${whatsappConversationId}`
+        )
+        .set(
+          {
+            customerName:
+              updateData.fullName,
+
+            updatedAt:
+              nowTs(),
+          },
+          {
+            merge:
+              true,
+          }
+        );
+    }
+  }
 
   const updatedSnap =
     await contactRef.get();
@@ -618,6 +669,12 @@ export async function updateMagicTouchContactDetailsImpl(
       )
         ? updated.tags
         : [],
+
+    notes:
+      safeString(
+        updated?.notes
+      ) ||
+      null,
 
     contactStatus:
       safeString(

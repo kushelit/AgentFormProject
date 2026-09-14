@@ -379,3 +379,11 @@ export {
 export {
   getMagicTouchWhatsAppMediaUrl,
 } from "./getMagicTouchWhatsAppMediaUrl";
+
+export {
+  registerMagicTouchPushToken,
+} from "./registerMagicTouchPushToken";
+
+export {
+  sendMagicTouchTestPush,
+} from "./sendMagicTouchTestPush";

@@ -47,6 +47,9 @@ export default function RootLayout({
   const isMagicTouchPrivacyPage =
     pathname === '/MagicTouchPrivacy';
 
+  const isMagicTouchSupportPage =
+    pathname === '/MagicTouchSupport';
+
   /*
    * עמוד העלאת מסמכים מאובטח ללקוח.
    *
@@ -67,6 +70,7 @@ export default function RootLayout({
     isMagicTouchSignupPage ||
     isMagicTouchTermsPage ||
     isMagicTouchPrivacyPage ||
+    isMagicTouchSupportPage ||
     isMagicTouchUploadPage;
 
   // =========================================================

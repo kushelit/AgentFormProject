@@ -11,6 +11,10 @@ import {
   nowTs,
 } from "./shared/admin";
 
+import {
+  sendMagicTouchPushToAgent,
+} from "./shared/magicTouchPushNotifications";
+
 function s(
   value: unknown
 ): string {
@@ -485,6 +489,87 @@ export async function syncMagicTouchHumanAttentionImpl(
     await Promise.all(
       writes
     );
+
+    /*
+     * Push לנייד:
+     * Human Attention הוא מצב שמחייב טיפול אנושי,
+     * ולכן לאחר שההתראה נשמרה בהצלחה ב-Firestore
+     * שולחים Push לכל המכשירים הפעילים של הסוכן.
+     *
+     * כשל ב-Push לא מפיל את סנכרון ה-Attention עצמו.
+     */
+    try {
+      const contactId =
+        s(
+          eventData
+            ?.contactId
+        ) ||
+        null;
+
+      const pushBody =
+        messageText ||
+        waitingQuestion ||
+        flowName ||
+        "יש שיחה שדורשת טיפול ידני";
+
+      await sendMagicTouchPushToAgent({
+        db,
+
+        agentId,
+
+        title:
+          "MagicTouch · דורש טיפול",
+
+        body:
+          pushBody,
+
+        data: {
+          type:
+            "human_attention",
+
+          conversationId,
+
+          contactId,
+
+          eventId:
+            eventId ||
+            null,
+
+          runId:
+            activeRunId,
+
+          flowId:
+            activeFlowId,
+
+          reason:
+            attention.reason ||
+            null,
+        },
+      });
+    } catch (
+      pushError: any
+    ) {
+      logger.error(
+        "[syncMagicTouchHumanAttention] Failed to send Human Attention push",
+        {
+          agentId,
+
+          eventId,
+
+          conversationId,
+
+          runId:
+            activeRunId,
+
+          error:
+            pushError
+              ?.message ||
+            String(
+              pushError
+            ),
+        }
+      );
+    }
 
     logger.info(
       "[syncMagicTouchHumanAttention] Human attention opened",

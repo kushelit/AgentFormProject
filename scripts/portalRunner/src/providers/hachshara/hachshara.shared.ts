@@ -3,7 +3,7 @@ import type { RunnerCtx } from "../../types";
 import path from "path";
 
 export async function hachsharaLogin(page: Page, username: string, password: string) {
-  // console.log("[Hachshara] Filling login form...");
+  console.log("[Hachshara] Filling login form...");
   const cdp = await page.context().newCDPSession(page);
 
 
@@ -17,7 +17,7 @@ export async function hachsharaLogin(page: Page, username: string, password: str
     })()`,
     returnByValue: true,
   });
-  // console.log("[Hachshara] Error page check:", errorCheck.result.value);
+  console.log("[Hachshara] Error page check:", errorCheck.result.value);
 
   if (errorCheck.result.value === 'CLICKED_RETRY') {
     await page.waitForTimeout(3000);
@@ -25,42 +25,133 @@ export async function hachsharaLogin(page: Page, username: string, password: str
   }
 
 
-  for (let i = 0; i < 30; i++) {
+  // הארכנו מ-30 ל-60 ניסיונות (דקה שלמה) - לפעמים הטעינה איטית יותר
+  // מהרגיל (רשת, redirect נוסף, שרת עמוס)
+  let usernameFound = false;
+  for (let i = 0; i < 60; i++) {
     const check = await cdp.send("Runtime.evaluate", {
       expression: `document.querySelector('#username') ? 'FOUND' : 'NOT_FOUND'`,
       returnByValue: true,
     });
-    // console.log(`[Hachshara] Login field check ${i + 1}:`, check.result.value);
-    if (check.result.value === 'FOUND') break;
+    console.log(`[Hachshara] Login field check ${i + 1}:`, check.result.value);
+    if (check.result.value === 'FOUND') { usernameFound = true; break; }
     await page.waitForTimeout(1000);
   }
 
-  const result = await cdp.send("Runtime.evaluate", {
-    expression: `(function(u, p) {
-      function fill(selector, val) {
-        const el = document.querySelector(selector);
-        if (!el) return false;
-        el.focus();
-        el.value = val;
-        el.dispatchEvent(new Event('input', { bubbles: true }));
-        el.dispatchEvent(new Event('change', { bubbles: true }));
-        el.dispatchEvent(new Event('blur', { bubbles: true }));
-        return true;
-      }
-      const uOk = fill('#username', u);
-      const pOk = fill('#password', p);
-      if (!uOk) return 'USER_NOT_FOUND';
-      if (!pOk) return 'PASS_NOT_FOUND';
-      setTimeout(() => {
-        const btn = document.querySelector('input.apmui-button-submit');
-        if (btn) btn.click();
-      }, 500);
-      return 'SUCCESS';
-    })('${username}', '${password}')`,
+  if (!usernameFound) {
+    throw new Error("שדה שם המשתמש לא נטען בזמן - ייתכן שהפורטל השתנה");
+  }
+
+  // ✅ המתנה קצרה נוספת אחרי שהשדה "נמצא" - חלק מהאתרים מרנדרים את
+  // השדה לפני שה-JS שלהם מסיים "לתפוס" אותו (hydration). אם ממלאים בדיוק
+  // בחלון הזה, ה-framework יכול "למחוק" את מה שמילאנו כשהוא מסיים לטעון.
+  await page.waitForTimeout(1500);
+
+  // ✅ מילוי עם קריאה-חוזרת (readback) לוודא שהערך באמת נשאר בשדה,
+  // ולא נמחק על ידי ה-framework של הדף. מנסה עד 5 פעמים.
+  let fillOk = false;
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const fillResult = await cdp.send("Runtime.evaluate", {
+      expression: `(function(u, p) {
+        function fill(selector, val) {
+          const el = document.querySelector(selector);
+          if (!el) return false;
+          el.focus();
+          el.value = val;
+          el.dispatchEvent(new Event('input', { bubbles: true }));
+          el.dispatchEvent(new Event('change', { bubbles: true }));
+          el.dispatchEvent(new Event('blur', { bubbles: true }));
+          return true;
+        }
+        const uOk = fill('#username', u);
+        const pOk = fill('#password', p);
+        if (!uOk) return 'USER_NOT_FOUND';
+        if (!pOk) return 'PASS_NOT_FOUND';
+        return 'FILLED';
+      })(${JSON.stringify(username)}, ${JSON.stringify(password)})`,
+      returnByValue: true,
+    });
+
+    if (fillResult.exceptionDetails) {
+      console.log(`[Hachshara] Fill attempt ${attempt + 1} threw an exception:`, JSON.stringify(fillResult.exceptionDetails));
+    }
+
+    if (fillResult.result.value !== 'FILLED') {
+      console.log(`[Hachshara] Fill attempt ${attempt + 1} failed:`, fillResult.result.value);
+      await page.waitForTimeout(1000);
+      continue;
+    }
+
+    // קריאה-חוזרת: האם הערך באמת נשאר בשדות?
+    await page.waitForTimeout(300);
+    const readback = await cdp.send("Runtime.evaluate", {
+      expression: `(function() {
+        const u = document.querySelector('#username');
+        const p = document.querySelector('#password');
+        return JSON.stringify({ u: u ? u.value : null, p: p ? p.value : null });
+      })()`,
+      returnByValue: true,
+    });
+
+    const parsed = JSON.parse(readback.result.value || '{}');
+    console.log(`[Hachshara] Fill readback attempt ${attempt + 1}:`, { uLen: (parsed.u || '').length, pLen: (parsed.p || '').length });
+
+    if (parsed.u === username && parsed.p === password) {
+      fillOk = true;
+      break;
+    }
+
+    console.log(`[Hachshara] Value did not stick (attempt ${attempt + 1}), retrying...`);
+    await page.waitForTimeout(1000);
+  }
+
+  if (!fillOk) {
+    throw new Error("לא הצלחנו למלא את פרטי ההתחברות - הערכים נמחקים על ידי הדף");
+  }
+
+  // ✅ עכשיו, כשאנחנו בטוחים שהערכים נשארו בשדות - לוחצים על כפתור הכניסה
+  const submitResult = await cdp.send("Runtime.evaluate", {
+    expression: `(function() {
+      const btn = document.querySelector('input.apmui-button-submit');
+      if (!btn) return 'BUTTON_NOT_FOUND';
+      btn.click();
+      return 'CLICKED';
+    })()`,
     returnByValue: true,
   });
+  console.log("[Hachshara] Submit result:", submitResult.result.value);
 
-  // console.log("[Hachshara] Login result:", result.result.value);
+  if (submitResult.result.value !== 'CLICKED') {
+    throw new Error("כפתור ההתחברות לא נמצא");
+  }
+
+  // ✅ וידוא אמיתי שההתחברות בכלל התקדמה - לא ממשיכים בשקט בלי לדעת.
+  // מחפשים אחד מהשלושה: שדה OTP הופיע, שדה שם המשתמש נעלם (עברנו הלאה),
+  // או ה-URL השתנה מדף הלוגין.
+  let progressed = false;
+  for (let i = 0; i < 20; i++) {
+    const check = await cdp.send("Runtime.evaluate", {
+      expression: `(function() {
+        const otpField = document.querySelector('input[name="text"]');
+        const usernameField = document.querySelector('#username');
+        const urlChanged = !window.location.href.includes('/my.policy');
+        if (otpField) return 'OTP_APPEARED';
+        if (urlChanged) return 'URL_CHANGED';
+        if (!usernameField) return 'USERNAME_GONE';
+        return 'STILL_ON_LOGIN';
+      })()`,
+      returnByValue: true,
+    });
+    console.log(`[Hachshara] Post-submit check ${i + 1}:`, check.result.value);
+    if (check.result.value !== 'STILL_ON_LOGIN') { progressed = true; break; }
+    await page.waitForTimeout(1000);
+  }
+
+  if (!progressed) {
+    throw new Error("ההתחברות נכשלה - נשארנו על דף הלוגין אחרי הלחיצה על כניסה");
+  }
+
+  console.log("[Hachshara] Login step completed successfully.");
 }
 
 export async function hachsharaHandleOtp(page: Page, ctx: RunnerCtx) {
@@ -104,7 +195,7 @@ export async function hachsharaHandleOtp(page: Page, ctx: RunnerCtx) {
         if (btn) btn.click();
       }, 500);
       return 'SUCCESS';
-    })('${otp}')`,
+    })(${JSON.stringify(otp)})`,
     returnByValue: true,
   });
 

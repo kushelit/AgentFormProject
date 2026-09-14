@@ -738,6 +738,353 @@ async function sendWhatsAppReaction({
   };
 }
 
+async function sendWhatsAppReplyText({
+  context,
+  text,
+  replyToWaMessageId,
+}: {
+  context: AuthorizedConversationContext;
+  text: string;
+  replyToWaMessageId: string;
+}): Promise<object> {
+  ensureServiceWindowOpen(
+    context.conversation
+  );
+
+  const targetQuery =
+    await context
+      .conversationRef
+      .collection(
+        "messages"
+      )
+      .where(
+        "waMessageId",
+        "==",
+        replyToWaMessageId
+      )
+      .limit(1)
+      .get();
+
+  if (
+    targetQuery.empty
+  ) {
+    throw new HttpsError(
+      "not-found",
+      "The message selected for reply was not found"
+    );
+  }
+
+  const accessToken =
+    await loadAgentWhatsAppAccessToken({
+      db:
+        context.db,
+
+      agentId:
+        context.agentId,
+    });
+
+  const response =
+    await fetch(
+      `${WA_API_URL}/${context.phoneNumberId}/messages`,
+      {
+        method:
+          "POST",
+
+        headers: {
+          Authorization:
+            `Bearer ${accessToken}`,
+
+          "Content-Type":
+            "application/json",
+        },
+
+        body:
+          JSON.stringify({
+            messaging_product:
+              "whatsapp",
+
+            recipient_type:
+              "individual",
+
+            to:
+              context.customerPhone,
+
+            context: {
+              message_id:
+                replyToWaMessageId,
+            },
+
+            type:
+              "text",
+
+            text: {
+              preview_url:
+                false,
+
+              body:
+                text,
+            },
+          }),
+      }
+    );
+
+  const responseData =
+    await parseMetaResponse(
+      response
+    );
+
+  const waMessageId =
+    safeString(
+      responseData
+        ?.messages?.[0]
+        ?.id
+    );
+
+  if (
+    !response.ok ||
+    !waMessageId
+  ) {
+    throw new HttpsError(
+      "failed-precondition",
+      responseData
+        ?.error
+        ?.message ||
+        "Failed to send WhatsApp reply"
+    );
+  }
+
+  const timestamp =
+    nowTs();
+
+  const messageRef =
+    context
+      .conversationRef
+      .collection(
+        "messages"
+      )
+      .doc(
+        waMessageId
+      );
+
+  const writes:
+    Promise<any>[] = [
+      messageRef.set({
+        agentId:
+          context.agentId,
+
+        contactId:
+          context.contactId,
+
+        conversationId:
+          context.conversationId,
+
+        direction:
+          "outbound",
+
+        fromPhoneNumberId:
+          context.phoneNumberId,
+
+        to:
+          context.customerPhone,
+
+        type:
+          "text",
+
+        text,
+
+        contextMessageId:
+          replyToWaMessageId,
+
+        replyToWaMessageId,
+
+        waMessageId,
+
+        status:
+          "accepted",
+
+        source:
+          "user",
+
+        sentBy:
+          context.authUid,
+
+        sentByName:
+          safeString(
+            context.userData
+              ?.name
+          ) ||
+          null,
+
+        createdAt:
+          timestamp,
+
+        updatedAt:
+          timestamp,
+      }),
+
+      context
+        .conversationRef
+        .set(
+          {
+            lastMessageText:
+              text,
+
+            lastMessageType:
+              "text",
+
+            lastMessageDirection:
+              "outbound",
+
+            lastMessageAt:
+              timestamp,
+
+            lastMessageWaMessageId:
+              waMessageId,
+
+            lastMessageStatus:
+              "accepted",
+
+            lastMessageStatusAt:
+              timestamp,
+
+            lastOutboundAt:
+              timestamp,
+
+            needsReply:
+              false,
+
+            updatedAt:
+              timestamp,
+          },
+          {
+            merge:
+              true,
+          }
+        ),
+    ];
+
+  if (
+    context.contactId
+  ) {
+    writes.push(
+      context.db
+        .doc(
+          `agents/${context.agentId}/magic_touch_contacts/${context.contactId}`
+        )
+        .set(
+          {
+            lastOutboundAt:
+              timestamp,
+
+            lastWhatsAppMessageId:
+              waMessageId,
+
+            whatsappConversationId:
+              context.conversationId,
+
+            updatedAt:
+              timestamp,
+          },
+          {
+            merge:
+              true,
+          }
+        )
+    );
+  }
+
+  await Promise.all(
+    writes
+  );
+
+  if (
+    context.contactId
+  ) {
+    try {
+      await addMagicTouchTimelineEvent({
+        agentId:
+          context.agentId,
+
+        contactId:
+          context.contactId,
+
+        type:
+          "whatsapp_message_sent",
+
+        channel:
+          "whatsapp",
+
+        title:
+          "נשלחה תשובת WhatsApp להודעה",
+
+        description:
+          text,
+
+        direction:
+          "outbound",
+
+        status:
+          "completed",
+
+        createdBy:
+          context.authUid,
+
+        sourceSystem:
+          "whatsapp",
+
+        sourceRecordId:
+          waMessageId,
+
+        metadata: {
+          waMessageId,
+
+          conversationId:
+            context.conversationId,
+
+          phoneNumberId:
+            context.phoneNumberId,
+
+          customerPhone:
+            context.customerPhone,
+
+          replyToWaMessageId,
+        },
+      });
+    } catch (
+      timelineError: any
+    ) {
+      console.error(
+        "[sendWhatsAppConversationMessage] Failed to create reply Timeline event",
+        timelineError?.message ||
+        String(
+          timelineError
+        )
+      );
+    }
+  }
+
+  return {
+    ok:
+      true,
+
+    action:
+      "text",
+
+    agentId:
+      context.agentId,
+
+    contactId:
+      context.contactId,
+
+    conversationId:
+      context.conversationId,
+
+    waMessageId,
+
+    replyToWaMessageId,
+  };
+}
+
 async function sendWhatsAppMedia({
   context,
   mediaInput,
@@ -1382,6 +1729,22 @@ export async function sendWhatsAppConversationMessageImpl(
     ensureServiceWindowOpen(
       context.conversation
     );
+
+    const replyToWaMessageId =
+      safeString(
+        req.data
+          ?.replyToWaMessageId
+      );
+
+    if (
+      replyToWaMessageId
+    ) {
+      return sendWhatsAppReplyText({
+        context,
+        text,
+        replyToWaMessageId,
+      });
+    }
 
     return sendWhatsAppConversationText({
       agentId:

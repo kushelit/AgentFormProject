@@ -27,7 +27,7 @@ export const sendWhatsAppConversationMessage =
         60,
 
       memory:
-        "256MiB",
+        "512MiB",
     },
 
     async (

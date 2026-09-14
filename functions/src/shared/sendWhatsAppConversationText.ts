@@ -53,7 +53,8 @@ export interface SendWhatsAppConversationTextInput {
   source:
     | "user"
     | "magic_touch_automation"
-    | "magic_touch_document_request";
+    | "magic_touch_document_request"
+    | "commission_assistant";
 
   flowRunId?: string | null;
   flowId?: string | null;
@@ -217,7 +218,10 @@ export async function sendWhatsAppConversationText({
         : source ===
           "magic_touch_document_request"
           ? "magic_touch_document_request"
-          : ""
+          : source ===
+            "commission_assistant"
+            ? "commission_assistant"
+            : ""
     );
 
   if (
@@ -724,14 +728,22 @@ export async function sendWhatsAppConversationText({
           "magic_touch_document_request"
             ? "נשלחה בקשת מסמכים ב-WhatsApp"
             : source ===
-              "magic_touch_automation"
+              "commission_assistant"
               ? (
                   messageType ===
                   "interactive"
-                    ? "נשלחה הודעת WhatsApp עם כפתורי תשובה"
-                    : "נשלחה הודעת WhatsApp אוטומטית"
+                    ? "נשלחה הודעת עמלות עם כפתורי תשובה"
+                    : "נשלחה הודעת עמלות אוטומטית"
                 )
-              : "נשלחה הודעת WhatsApp",
+              : source ===
+                "magic_touch_automation"
+                ? (
+                    messageType ===
+                    "interactive"
+                      ? "נשלחה הודעת WhatsApp עם כפתורי תשובה"
+                      : "נשלחה הודעת WhatsApp אוטומטית"
+                  )
+                : "נשלחה הודעת WhatsApp",
 
         description:
           normalizedText,
