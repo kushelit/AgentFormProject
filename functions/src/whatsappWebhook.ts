@@ -41,6 +41,10 @@ import {
 } from "./shared/commissionAssistant/commissionAssistantRouter";
 
 import {
+  tryHandleCommissionAssistantOtpInbound,
+} from "./shared/commissionAssistant/commissionAssistantOtp";
+
+import {
   sendMagicTouchPushToAgent,
 } from "./shared/magicTouchPushNotifications";
 
@@ -52,6 +56,158 @@ import {
 
 function s(value: any): string {
   return String(value ?? "").trim();
+}
+
+
+function summarizeWebhookPayloadForLog(
+  body: any
+): Record<string, any> {
+  const entries =
+    Array.isArray(
+      body?.entry
+    )
+      ? body.entry
+      : [];
+
+  let changesCount =
+    0;
+
+  let messageCount =
+    0;
+
+  let statusCount =
+    0;
+
+  const phoneNumberIds =
+    new Set<string>();
+
+  const messageTypes =
+    new Set<string>();
+
+  const messageIds:
+    string[] = [];
+
+  for (
+    const entry of
+    entries
+  ) {
+    const changes =
+      Array.isArray(
+        entry?.changes
+      )
+        ? entry.changes
+        : [];
+
+    changesCount +=
+      changes.length;
+
+    for (
+      const change of
+      changes
+    ) {
+      if (
+        change?.field !==
+          "messages"
+      ) {
+        continue;
+      }
+
+      const value =
+        change?.value ||
+        {};
+
+      const phoneNumberId =
+        s(
+          value
+            ?.metadata
+            ?.phone_number_id
+        );
+
+      if (
+        phoneNumberId
+      ) {
+        phoneNumberIds.add(
+          phoneNumberId
+        );
+      }
+
+      const messages =
+        Array.isArray(
+          value?.messages
+        )
+          ? value.messages
+          : [];
+
+      const statuses =
+        Array.isArray(
+          value?.statuses
+        )
+          ? value.statuses
+          : [];
+
+      messageCount +=
+        messages.length;
+
+      statusCount +=
+        statuses.length;
+
+      for (
+        const message of
+        messages
+      ) {
+        const messageType =
+          s(
+            message?.type
+          );
+
+        if (
+          messageType
+        ) {
+          messageTypes.add(
+            messageType
+          );
+        }
+
+        const messageId =
+          s(
+            message?.id
+          );
+
+        if (
+          messageId &&
+          messageIds.length <
+            20
+        ) {
+          messageIds.push(
+            messageId
+          );
+        }
+      }
+    }
+  }
+
+  return {
+    entryCount:
+      entries.length,
+
+    changesCount,
+
+    messageCount,
+
+    statusCount,
+
+    phoneNumberIds:
+      Array.from(
+        phoneNumberIds
+      ),
+
+    messageTypes:
+      Array.from(
+        messageTypes
+      ),
+
+    messageIds,
+  };
 }
 
 function timestampToMillis(
@@ -2413,6 +2569,78 @@ async function processInboundMessage({
   const conversationId =
     `${agentId}_${from}`;
 
+  /*
+   * OTP של Commission Assistant מטופל לפני שמירת הודעת WhatsApp רגילה.
+   *
+   * כך קוד האימות הגולמי אינו נשמר ב:
+   * - whatsapp_conversations/messages
+   * - whatsapp_inbound_messages
+   * - Timeline
+   * - Push
+   * - magic_touch_events
+   *
+   * helper ה-OTP שומר רק marker מסונן וכותב את הקוד ישירות ל-
+   * portalImportRuns/{runId}.otp.value — אותו שדה שה-UI הקיים כותב אליו.
+   */
+  const commissionOtpResult =
+    await tryHandleCommissionAssistantOtpInbound({
+      db,
+
+      whatsappAgentId:
+        agentId,
+
+      phoneNumberId,
+
+      conversationId,
+
+      phoneNormalized:
+        from,
+
+      messageText:
+        messageText ||
+        null,
+
+      messageType:
+        messageType ||
+        null,
+
+      inboundWaMessageId:
+        inboundWaMessageId ||
+        null,
+    });
+
+  if (
+    commissionOtpResult
+      .handled
+  ) {
+    logger.info(
+      "[whatsappWebhook] Inbound message handled as Commission Assistant OTP",
+      {
+        agentId,
+
+        conversationId,
+
+        inboundWaMessageId,
+
+        reason:
+          commissionOtpResult
+            .reason,
+
+        runId:
+          commissionOtpResult
+            .runId ||
+          null,
+
+        requesterAgentId:
+          commissionOtpResult
+            .requesterAgentId ||
+          null,
+      }
+    );
+
+    return;
+  }
+
   const conversationRef =
     db.doc(
       `whatsapp_conversations/${conversationId}`
@@ -3768,6 +3996,11 @@ export const whatsappWebhook =
         let body =
           originalBody;
 
+        /*
+         * לא רושמים את body המלא ללוג.
+         * הודעת WhatsApp עשויה להכיל OTP ולכן נשמרת רק מטא-דאטה
+         * שאינה כוללת text / response_json / קוד אימות.
+         */
         logger.info(
           "[whatsappWebhook] Payload received",
           {
@@ -3775,10 +4008,9 @@ export const whatsappWebhook =
               projectId ||
               null,
 
-            body:
-              JSON.stringify(
-                originalBody
-              ),
+            ...summarizeWebhookPayloadForLog(
+              originalBody
+            ),
           }
         );
 

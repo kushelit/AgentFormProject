@@ -185,6 +185,20 @@ const [batchCompanyStatuses, setBatchCompanyStatuses] = useState<
 const [autoRunId, setAutoRunId] = useState<string>("");
 const [autoRunKind, setAutoRunKind] = useState<"portal" | "self_update" | "">("");
 
+type RunnerUpdatePhase =
+  | "idle"
+  | "queued"
+  | "downloading"
+  | "installing"
+  | "restarting"
+  | "success"
+  | "error";
+
+const [runnerUpdateOpen, setRunnerUpdateOpen] = useState(false);
+const [runnerUpdatePhase, setRunnerUpdatePhase] = useState<RunnerUpdatePhase>("idle");
+const [runnerUpdateTargetVersion, setRunnerUpdateTargetVersion] = useState("");
+const [runnerUpdateError, setRunnerUpdateError] = useState("");
+
 const [isStartingAuto, setIsStartingAuto] = useState(false);
 const [isAutoRunActive, setIsAutoRunActive] = useState(false);
 const handledFinishedRunRef = useRef<string>('');
@@ -263,11 +277,14 @@ handledFinishedRunRef.current = '';
 const handlePortalRunFinished = useCallback((status: string) => {
   if (!autoRunId) return;
 
+  // עדכון גרסה מקבל חיווי ייעודי במסך ולא משתמש יותר בכרטיס הסטטוס הכללי.
+  if (autoRunKind === "self_update") return;
+
   const isFinalPortalStatus =
-  autoRunKind === "self_update"
-    ? status === "done" || status === "error"
-    : status === "success" || status === "error" || 
-      status === "failed" || status === "skipped";
+    status === "success" ||
+    status === "error" ||
+    status === "failed" ||
+    status === "skipped";
 
   if (!isFinalPortalStatus) return;
   if (activeBatchId) return;
@@ -275,23 +292,17 @@ const handlePortalRunFinished = useCallback((status: string) => {
 
   handledFinishedRunRef.current = autoRunId;
   setIsAutoRunActive(false);
-  setActiveAutoCompanyId('');
-setTimeout(() => setAutoDashboardRefreshKey((v) => v + 1), 3000);
+  setActiveAutoCompanyId("");
 
-  setTimeout(() => {
-setTimeout(() => setAutoDashboardRefreshKey((v) => v + 1), 3000);
-  }, 1500);
+  setTimeout(() => setAutoDashboardRefreshKey((v) => v + 1), 3000);
 
-  if (autoRunKind === "self_update") {
-    if (status === "done") addToast("success", "✅ קובץ העדכון ירד וההתקנה הופעלה.");
-    else if (status === "error") addToast("error", "❌ עדכון הגרסה נכשל.");
-    return;
+  if (status === "skipped") {
+    addToast("error", "⏭️ המשיכה דולגה (כבר קיים במערכת)");
+  } else if (status === "success") {
+    addToast("success", "✅ המשיכה האוטומטית הושלמה בהצלחה!");
+  } else if (status === "failed" || status === "error") {
+    addToast("error", "ℹ️ הריצה הסתיימה עם שגיאה.");
   }
-
-  if (status === "skipped") addToast("error", "⏭️ המשיכה דולגה (כבר קיים במערכת)");
-  else if (status === "success" || status === "done") addToast("success", "✅ המשיכה האוטומטית הושלמה בהצלחה!");
-  else if (status === "failed" || status === "error") addToast("error", "ℹ️ הריצה הסתיימה עם שגיאה.");
-
 }, [autoRunId, autoRunKind, activeBatchId]);
 
   /* ==============================
@@ -648,9 +659,23 @@ useEffect(() => {
         const isRunFresh = runUpdatedAt ? (Date.now() - runUpdatedAt.getTime()) < 4 * 60 * 1000 : false;
 
         if (isRunFresh) {
+          const restoredKind =
+            runData?.automationClass === "self_update" ? "self_update" : "portal";
+
           setAutoRunId(singleRun.id);
-          setAutoRunKind(runData?.automationClass === "self_update" ? "self_update" : "portal");
+          setAutoRunKind(restoredKind);
           setIsAutoRunActive(true);
+
+          if (restoredKind === "self_update") {
+            setRunnerUpdateTargetVersion(String(runData?.targetVersion || "").trim());
+            setRunnerUpdateError("");
+            setRunnerUpdatePhase(
+              String(runData?.status || "") === "running"
+                ? "downloading"
+                : "queued"
+            );
+            setRunnerUpdateOpen(true);
+          }
         }
         // אחרת - תקוע, לא משחזרים כפעיל
       }
@@ -2702,8 +2727,6 @@ useEffect(() => {
     return;
   }
 
-  let prevVersion = "";
-
 //   const unsub = onSnapshot(
 //     doc(db, "portalRunnerStatus", selectedAgentId),
 //     (snap) => {
@@ -2747,13 +2770,8 @@ const unsub = onSnapshot(
         // כאותו agentId (למשל אדמין שמריץ בשם הסוכן במקביל למחשב שלו).
         setCurrentRunnerId(String(data?.runnerId || "").trim());
 
-        // אם הגרסה השתנה ויש גרסה קודמת → עדכון הסתיים
-        if (prevVersion && newVersion && prevVersion !== newVersion) {
-          addToast("success", `✅ הבוט עודכן בהצלחה לגרסה ${newVersion}`);
-          setTimeout(() => window.location.reload(), 2000);
-        }
-
-        prevVersion = newVersion;
+        // עדכון הגרסה עצמו מנוהל ע"י חלון הסטטוס הייעודי.
+        // אין כאן reload אוטומטי - שינוי ה-runnerVersion מעדכן את ה-UI בזמן אמת.
         setCurrentRunnerVersion(newVersion);
       } else {
         setCurrentRunnerVersion("");
@@ -2792,27 +2810,141 @@ const handleTriggerUpdate = async () => {
     return;
   }
 
+  const targetVersion = String(latestRunnerVersion || "").trim();
+
+  setRunnerUpdateTargetVersion(targetVersion);
+  setRunnerUpdateError("");
+  setRunnerUpdatePhase("queued");
+  setRunnerUpdateOpen(true);
   setIsStartingAuto(true);
+  setIsAutoRunActive(true);
+  handledFinishedRunRef.current = "";
+
   try {
     const runRef = doc(collection(db, "portalImportRuns"));
+
     await setDoc(runRef, {
       agentId: selectedAgentId,
       status: "queued",
       automationClass: "self_update",
       installerUrl,
+      targetVersion,
       createdAt: serverTimestamp(),
       triggeredFrom: "ui_update_button",
     });
 
     setAutoRunId(runRef.id);
     setAutoRunKind("self_update");
-    addToast("success", "פקודת עדכון נשלחה לבוט!");
-  } catch (e) {
+  } catch (e: any) {
+    setRunnerUpdatePhase("error");
+    setRunnerUpdateError(String(e?.message || "נכשל בשליחת פקודת העדכון"));
+    setIsAutoRunActive(false);
     addToast("error", "נכשל בשליחת עדכון");
   } finally {
     setIsStartingAuto(false);
   }
 };
+
+// סטטוס self_update ב-Firestore אומר לנו מה קורה עד לרגע שבו ה-Updater
+// לוקח שליטה. לאחר status=done אנחנו ממשיכים להמתין ל-heartbeat של
+// runnerVersion החדש - ורק הוא נחשב הצלחה אמיתית מבחינת ה-UI.
+useEffect(() => {
+  if (!autoRunId || autoRunKind !== "self_update") return;
+
+  const unsub = onSnapshot(
+    doc(db, "portalImportRuns", autoRunId),
+    (snap) => {
+      if (!snap.exists()) return;
+
+      const data: any = snap.data() || {};
+      const status = String(data.status || "").trim();
+      const step = String(data.step || "").trim();
+
+      if (status === "error" || status === "failed") {
+        setRunnerUpdatePhase("error");
+        setRunnerUpdateError(
+          String(data?.error?.message || "עדכון הגרסה נכשל. ניתן לנסות שוב.")
+        );
+        setIsAutoRunActive(false);
+        return;
+      }
+
+      if (status === "queued") {
+        setRunnerUpdatePhase("queued");
+        return;
+      }
+
+      if (status === "running" || step === "downloading_update") {
+        setRunnerUpdatePhase("downloading");
+        return;
+      }
+
+      if (status === "done" || step === "update_downloaded") {
+        setRunnerUpdatePhase((current) =>
+          current === "success" ? current : "installing"
+        );
+      }
+    },
+    () => {
+      setRunnerUpdatePhase("error");
+      setRunnerUpdateError("לא ניתן לקרוא את סטטוס העדכון כרגע.");
+      setIsAutoRunActive(false);
+    }
+  );
+
+  return () => unsub();
+}, [autoRunId, autoRunKind]);
+
+// לאחר שהקובץ ירד, ההתקנה עצמה מתבצעת מחוץ ל-Runner.
+// אחרי מספר שניות עוברים לחיווי של הפעלה מחדש, עד שה-heartbeat החדש מגיע.
+useEffect(() => {
+  if (!runnerUpdateOpen || runnerUpdatePhase !== "installing") return;
+
+  const timer = setTimeout(() => {
+    setRunnerUpdatePhase((current) =>
+      current === "installing" ? "restarting" : current
+    );
+  }, 7000);
+
+  return () => clearTimeout(timer);
+}, [runnerUpdateOpen, runnerUpdatePhase]);
+
+// מקור האמת לסיום: ה-Runner חזר Online ומדווח את הגרסה שביקשנו להתקין.
+useEffect(() => {
+  if (!runnerUpdateOpen || !runnerUpdateTargetVersion) return;
+  if (runnerUpdatePhase === "error") return;
+
+  if (
+    currentRunnerVersion === runnerUpdateTargetVersion &&
+    isRunnerOnline === true
+  ) {
+    setRunnerUpdatePhase("success");
+    setIsAutoRunActive(false);
+    setActiveAutoCompanyId("");
+    setAutoDashboardRefreshKey((v) => v + 1);
+  }
+}, [
+  runnerUpdateOpen,
+  runnerUpdateTargetVersion,
+  runnerUpdatePhase,
+  currentRunnerVersion,
+  isRunnerOnline,
+]);
+
+// משאירים את הודעת ההצלחה על המסך לרגע ואז חוזרים אוטומטית למסך הרגיל.
+useEffect(() => {
+  if (runnerUpdatePhase !== "success") return;
+
+  const timer = setTimeout(() => {
+    setRunnerUpdateOpen(false);
+    setRunnerUpdatePhase("idle");
+    setRunnerUpdateError("");
+    setAutoRunId("");
+    setAutoRunKind("");
+  }, 2500);
+
+  return () => clearTimeout(timer);
+}, [runnerUpdatePhase]);
 
 const PROTOCOL_MIN_VERSION = "3.0.3"; // הגרסה הראשונה שתומכת בפרוטוקול
 
@@ -3209,6 +3341,38 @@ const singleModeReady =
   !!templateId &&
   (templateId !== 'sigma_nifraim' || !!selectedSigmaYear);
 
+const runnerUpdateSteps = [
+  "שולח את פקודת העדכון לבוט",
+  "מוריד ומאמת את קובץ העדכון",
+  "מתקין את הגרסה החדשה",
+  "מפעיל מחדש ומוודא שהבוט חזר",
+];
+
+const runnerUpdatePhaseIndex: Record<RunnerUpdatePhase, number> = {
+  idle: -1,
+  queued: 0,
+  downloading: 1,
+  installing: 2,
+  restarting: 3,
+  success: 4,
+  error: -1,
+};
+
+const currentRunnerUpdateStep = runnerUpdatePhaseIndex[runnerUpdatePhase];
+
+const runnerUpdateProgressWidth =
+  runnerUpdatePhase === "success"
+    ? "100%"
+    : runnerUpdatePhase === "restarting"
+      ? "90%"
+      : runnerUpdatePhase === "installing"
+        ? "70%"
+        : runnerUpdatePhase === "downloading"
+          ? "42%"
+          : runnerUpdatePhase === "queued"
+            ? "16%"
+            : "0%";
+
 
   /* ==============================
      Render
@@ -3306,10 +3470,10 @@ const singleModeReady =
 {isUpdateAvailable && isAutoEnabledByFlag && !needsManualUpgrade && (
   <>
     <Button
-      text={autoRunKind === "self_update" && autoRunId ? "מעדכן..." : "עדכן עכשיו"}
+      text={runnerUpdateOpen ? "העדכון בתהליך..." : "עדכן עכשיו"}
       className="bg-white text-orange-600 hover:bg-orange-50 px-4 py-2 text-sm font-bold rounded-lg shadow-md disabled:opacity-50"
       onClick={handleTriggerUpdate}
-      disabled={isStartingAuto || (autoRunKind === "self_update" && !!autoRunId) || isRunnerOnline === false}
+      disabled={isStartingAuto || runnerUpdateOpen || isRunnerOnline === false}
     />
    {isRunnerOnline === false && (
       <span className="text-white text-xs opacity-80">
@@ -3400,7 +3564,7 @@ addToast(
   </div>
 )}
         {/* סטטוס ריצה אוטומטית / עדכון */}
-        {autoRunId && (
+        {autoRunId && autoRunKind !== "self_update" && (
           <div className="animate-in slide-in-from-bottom-4 duration-500">
             <div className="bg-white border border-blue-100 rounded-xl p-4 shadow-sm relative">
               {!isAutoRunActive && (
@@ -3990,6 +4154,163 @@ addToast(
           <p className="text-blue-600 font-medium animate-pulse text-sm">
             {loadingStage || "אנא המתן..."}
           </p>
+        </div>
+      </div>
+    )}
+
+    {runnerUpdateOpen && (
+      <div
+        className="fixed inset-0 z-[10020] flex items-center justify-center bg-slate-950/55 px-4 backdrop-blur-sm"
+        dir="rtl"
+      >
+        <div className="w-full max-w-xl overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl">
+          <div
+            className={`px-7 py-6 text-white ${
+              runnerUpdatePhase === "error"
+                ? "bg-red-600"
+                : runnerUpdatePhase === "success"
+                  ? "bg-emerald-600"
+                  : "bg-blue-700"
+            }`}
+          >
+            <div className="flex items-center gap-4">
+              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-white/15 text-3xl">
+                {runnerUpdatePhase === "error"
+                  ? "⚠️"
+                  : runnerUpdatePhase === "success"
+                    ? "✅"
+                    : "⬆️"}
+              </div>
+
+              <div>
+                <h3 className="text-xl font-black">
+                  {runnerUpdatePhase === "error"
+                    ? "עדכון MagicSale Runner נכשל"
+                    : runnerUpdatePhase === "success"
+                      ? "העדכון הושלם בהצלחה"
+                      : "מעדכנים את MagicSale Runner"}
+                </h3>
+
+                <p className="mt-1 text-sm text-white/85">
+                  {runnerUpdateTargetVersion
+                    ? `גרסה ${currentRunnerVersion || "-"} ← ${runnerUpdateTargetVersion}`
+                    : "מתבצע עדכון לגרסה החדשה"}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="p-7">
+            {runnerUpdatePhase === "error" ? (
+              <>
+                <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm leading-6 text-red-800">
+                  {runnerUpdateError || "אירעה שגיאה במהלך עדכון הגרסה."}
+                </div>
+
+                <div className="mt-5 flex justify-start">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRunnerUpdateOpen(false);
+                      setRunnerUpdatePhase("idle");
+                      setRunnerUpdateError("");
+                      setAutoRunId("");
+                      setAutoRunKind("");
+                    }}
+                    className="rounded-xl bg-slate-800 px-5 py-2.5 text-sm font-bold text-white hover:bg-slate-900"
+                  >
+                    סגור
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="mb-6">
+                  <div className="mb-2 flex items-center justify-between text-xs font-bold text-slate-500">
+                    <span>
+                      {runnerUpdatePhase === "success"
+                        ? "הושלם"
+                        : "העדכון מתבצע כעת"}
+                    </span>
+                    <span>אין צורך לבצע פעולה נוספת</span>
+                  </div>
+
+                  <div className="h-2.5 overflow-hidden rounded-full bg-slate-100">
+                    <div
+                      className={`h-full rounded-full transition-all duration-700 ${
+                        runnerUpdatePhase === "success"
+                          ? "bg-emerald-500"
+                          : "bg-blue-600"
+                      }`}
+                      style={{ width: runnerUpdateProgressWidth }}
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  {runnerUpdateSteps.map((label, index) => {
+                    const isDone =
+                      runnerUpdatePhase === "success" ||
+                      currentRunnerUpdateStep > index;
+                    const isCurrent =
+                      runnerUpdatePhase !== "success" &&
+                      currentRunnerUpdateStep === index;
+
+                    return (
+                      <div
+                        key={label}
+                        className={`flex items-center gap-3 rounded-xl border px-4 py-3 transition-all ${
+                          isDone
+                            ? "border-emerald-100 bg-emerald-50"
+                            : isCurrent
+                              ? "border-blue-200 bg-blue-50"
+                              : "border-slate-100 bg-slate-50"
+                        }`}
+                      >
+                        <div
+                          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-black ${
+                            isDone
+                              ? "bg-emerald-500 text-white"
+                              : isCurrent
+                                ? "bg-blue-600 text-white"
+                                : "bg-slate-200 text-slate-500"
+                          }`}
+                        >
+                          {isDone ? (
+                            "✓"
+                          ) : isCurrent ? (
+                            <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+                          ) : (
+                            index + 1
+                          )}
+                        </div>
+
+                        <div className="flex-1">
+                          <div
+                            className={`text-sm font-bold ${
+                              isDone
+                                ? "text-emerald-800"
+                                : isCurrent
+                                  ? "text-blue-800"
+                                  : "text-slate-500"
+                            }`}
+                          >
+                            {label}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className="mt-6 rounded-2xl border border-amber-100 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-800">
+                  {runnerUpdatePhase === "success"
+                    ? "הגרסה החדשה פעילה והבוט חזר לעבוד."
+                    : "התהליך יכול להימשך כחצי דקה עד דקה. אין ללחוץ שוב על עדכון בזמן שהתהליך מתבצע."}
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </div>
     )}

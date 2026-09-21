@@ -123,6 +123,140 @@ function isCommissionStartCommand(
   );
 }
 
+const HEB_MONTHS = [
+  "ינואר",
+  "פברואר",
+  "מרץ",
+  "אפריל",
+  "מאי",
+  "יוני",
+  "יולי",
+  "אוגוסט",
+  "ספטמבר",
+  "אוקטובר",
+  "נובמבר",
+  "דצמבר",
+];
+
+function getIsraelPublicationYm(
+  now:
+    Date =
+      new Date()
+): string {
+  const parts =
+    new Intl.DateTimeFormat(
+      "en-CA",
+      {
+        timeZone:
+          "Asia/Jerusalem",
+        year:
+          "numeric",
+        month:
+          "2-digit",
+      }
+    ).formatToParts(
+      now
+    );
+
+  const year =
+    s(
+      parts.find(
+        (
+          part
+        ) =>
+          part.type ===
+          "year"
+      )?.value
+    );
+
+  const month =
+    s(
+      parts.find(
+        (
+          part
+        ) =>
+          part.type ===
+          "month"
+      )?.value
+    );
+
+  if (
+    !year ||
+    !month
+  ) {
+    throw new Error(
+      "COMMISSION_ASSISTANT_REPORT_MONTH_RESOLUTION_FAILED"
+    );
+  }
+
+  return `${year}-${month}`;
+}
+
+function offsetYm(
+  baseYm: string,
+  monthsBack: number
+): string {
+  const [
+    year,
+    month,
+  ] =
+    baseYm
+      .split(
+        "-"
+      )
+      .map(
+        Number
+      );
+
+  if (
+    !year ||
+    !month
+  ) {
+    throw new Error(
+      "COMMISSION_ASSISTANT_INVALID_BASE_YM"
+    );
+  }
+
+  const d =
+    new Date(
+      Date.UTC(
+        year,
+        month -
+          1 -
+          monthsBack,
+        1
+      )
+    );
+
+  return `${d.getUTCFullYear()}-${String(
+    d.getUTCMonth() +
+      1
+  ).padStart(
+    2,
+    "0"
+  )}`;
+}
+
+function labelFromYm(
+  ym: string
+): string {
+  const [
+    year,
+    month,
+  ] =
+    ym.split(
+      "-"
+    );
+
+  const index =
+    Number(
+      month
+    ) -
+    1;
+
+  return `${HEB_MONTHS[index] || month} ${year}`;
+}
+
 function selectionSummary(
   companies: CommissionAssistantCompany[]
 ): string {
@@ -130,12 +264,63 @@ function selectionSummary(
     .map(
       (
         company
-      ) =>
-        `• ${company.name}`
+      ) => {
+        const month =
+          s(
+            company
+              .requestedReportMonth
+          );
+
+        return month
+          ? `• ${company.name} — בגין ${labelFromYm(
+              month
+            )}`
+          : `• ${company.name}`;
+      }
     )
     .join(
       "\n"
     );
+}
+
+async function getEarlyDownloadOpen(
+  db:
+    FirebaseFirestore.Firestore
+): Promise<boolean> {
+  try {
+    const snap =
+      await db
+        .doc(
+          "portalRunnerConfig/global"
+        )
+        .get();
+
+    return (
+      snap.exists &&
+      snap.data()
+        ?.earlyDownloadOpen ===
+        true
+    );
+  } catch {
+    return false;
+  }
+}
+
+function getPendingEarlyDownloadCompanies(
+  companies:
+    CommissionAssistantCompany[]
+): CommissionAssistantCompany[] {
+  return companies.filter(
+    (
+      company
+    ) =>
+      company.allowEarlyDownload ===
+        true &&
+      !s(
+        company
+          .requestedReportMonth
+      )
+  );
 }
 
 function manualCompanyList(
@@ -427,6 +612,206 @@ async function sendAssistantMessage({
     source:
       "commission_assistant",
   });
+}
+
+async function sendReportMonthQuestion({
+  whatsappAgentId,
+  conversationId,
+  company,
+}: {
+  whatsappAgentId:
+    string;
+  conversationId:
+    string;
+  company:
+    CommissionAssistantCompany;
+}): Promise<void> {
+  const publicationYm =
+    getIsraelPublicationYm();
+
+  const ymMinus2 =
+    offsetYm(
+      publicationYm,
+      2
+    );
+
+  const ymMinus1 =
+    offsetYm(
+      publicationYm,
+      1
+    );
+
+  await sendAssistantMessage({
+    whatsappAgentId,
+    conversationId,
+
+    text:
+      `עבור ${company.name} ניתן לבחור חודש דיווח.\n\n` +
+      `📅 ${labelFromYm(
+        ymMinus2
+      )} — ברירת המחדל\n` +
+      `⚡ ${labelFromYm(
+        ymMinus1
+      )} — הורדה מוקדמת\n\n` +
+      "איזה חודש להריץ?",
+
+    buttons: [
+      {
+        id:
+          `commission_report_month:${company.id}:${ymMinus2}`,
+        title:
+          labelFromYm(
+            ymMinus2
+          ),
+      },
+      {
+        id:
+          `commission_report_month:${company.id}:${ymMinus1}`,
+        title:
+          labelFromYm(
+            ymMinus1
+          ),
+      },
+      {
+        id:
+          "commission_cancel",
+        title:
+          "ביטול",
+      },
+    ],
+  });
+}
+
+async function continueAfterCompanySelection({
+  db,
+  config,
+  requesterAgentId,
+  conversationId,
+  selectedCompanies,
+  selectionMethod,
+}: {
+  db:
+    FirebaseFirestore.Firestore;
+  config:
+    CommissionAssistantConfig;
+  requesterAgentId:
+    string;
+  conversationId:
+    string;
+  selectedCompanies:
+    CommissionAssistantCompany[];
+  selectionMethod:
+    "all" |
+    "whatsapp_flow" |
+    "manual_text";
+}): Promise<
+  "choosing_report_months" |
+  "confirming_selection"
+> {
+  const earlyDownloadOpen =
+    await getEarlyDownloadOpen(
+      db
+    );
+
+  const pending =
+    earlyDownloadOpen
+      ? getPendingEarlyDownloadCompanies(
+          selectedCompanies
+        )
+      : [];
+
+  if (
+    pending.length >
+      0
+  ) {
+    await updateCommissionAssistantSession({
+      db,
+      requesterAgentId,
+      patch: {
+        state:
+          "choosing_report_months",
+
+        selectedCompanies,
+
+        selectionMethod,
+
+        earlyDownloadOpen:
+          true,
+      },
+    });
+
+    await sendReportMonthQuestion({
+      whatsappAgentId:
+        config.whatsappAgentId,
+
+      conversationId,
+
+      company:
+        pending[0],
+    });
+
+    return "choosing_report_months";
+  }
+
+  await updateCommissionAssistantSession({
+    db,
+    requesterAgentId,
+    patch: {
+      state:
+        "confirming_selection",
+
+      selectedCompanies,
+
+      selectionMethod,
+
+      earlyDownloadOpen:
+        false,
+    },
+  });
+
+  await sendConfirmation({
+    whatsappAgentId:
+      config.whatsappAgentId,
+
+    conversationId,
+
+    companies:
+      selectedCompanies,
+  });
+
+  return "confirming_selection";
+}
+
+function parseReportMonthAction(
+  action: string
+): {
+  companyId:
+    string;
+  reportMonth:
+    string;
+} | null {
+  const match =
+    action.match(
+      /^commission_report_month:([^:]+):(\d{4}-\d{2})$/
+    );
+
+  if (
+    !match
+  ) {
+    return null;
+  }
+
+  return {
+    companyId:
+      s(
+        match[1]
+      ),
+
+    reportMonth:
+      s(
+        match[2]
+      ),
+  };
 }
 
 async function sendModeQuestion({
@@ -1061,15 +1446,15 @@ export async function tryHandleCommissionAssistantInbound({
       };
     }
 
-    await updateCommissionAssistantSession({
-      db,
+    const nextState =
+      await continueAfterCompanySelection({
+        db,
+        config,
 
-      requesterAgentId:
-        requester.requesterAgentId,
+        requesterAgentId:
+          requester.requesterAgentId,
 
-      patch: {
-        state:
-          "confirming_selection",
+        conversationId,
 
         selectedCompanies:
           flowSelection
@@ -1077,25 +1462,16 @@ export async function tryHandleCommissionAssistantInbound({
 
         selectionMethod:
           "whatsapp_flow",
-      },
-    });
-
-    await sendConfirmation({
-      whatsappAgentId:
-        config.whatsappAgentId,
-
-      conversationId,
-
-      companies:
-        flowSelection
-          .selectedCompanies,
-    });
+      });
 
     return {
       handled:
         true,
       reason:
-        "company_selection_flow_resolved",
+        nextState ===
+          "choosing_report_months"
+          ? "company_selection_flow_waiting_for_report_month"
+          : "company_selection_flow_resolved",
 
       requesterUserId:
         requester.userId,
@@ -1150,38 +1526,30 @@ export async function tryHandleCommissionAssistantInbound({
       const selectedCompanies =
         session.availableCompanies;
 
-      await updateCommissionAssistantSession({
-        db,
+      const nextState =
+        await continueAfterCompanySelection({
+          db,
+          config,
 
-        requesterAgentId:
-          requester.requesterAgentId,
+          requesterAgentId:
+            requester.requesterAgentId,
 
-        patch: {
-          state:
-            "confirming_selection",
+          conversationId,
 
           selectedCompanies,
 
           selectionMethod:
             "all",
-        },
-      });
-
-      await sendConfirmation({
-        whatsappAgentId:
-          config.whatsappAgentId,
-
-        conversationId,
-
-        companies:
-          selectedCompanies,
-      });
+        });
 
       return {
         handled:
           true,
         reason:
-          "all_companies_selected",
+          nextState ===
+            "choosing_report_months"
+            ? "all_companies_selected_waiting_for_report_month"
+            : "all_companies_selected",
       };
     }
 
@@ -1293,6 +1661,204 @@ export async function tryHandleCommissionAssistantInbound({
       };
     }
 
+    const nextState =
+      await continueAfterCompanySelection({
+        db,
+        config,
+
+        requesterAgentId:
+          requester.requesterAgentId,
+
+        conversationId,
+
+        selectedCompanies,
+
+        selectionMethod:
+          "manual_text",
+      });
+
+    return {
+      handled:
+        true,
+      reason:
+        nextState ===
+          "choosing_report_months"
+          ? "manual_selection_waiting_for_report_month"
+          : "manual_selection_resolved",
+    };
+  }
+
+  if (
+    session.state ===
+      "choosing_report_months"
+  ) {
+    const selectedCompanies =
+      session.selectedCompanies ||
+      [];
+
+    const pending =
+      getPendingEarlyDownloadCompanies(
+        selectedCompanies
+      );
+
+    if (
+      pending.length ===
+        0
+    ) {
+      await updateCommissionAssistantSession({
+        db,
+
+        requesterAgentId:
+          requester.requesterAgentId,
+
+        patch: {
+          state:
+            "confirming_selection",
+        },
+      });
+
+      await sendConfirmation({
+        whatsappAgentId:
+          config.whatsappAgentId,
+
+        conversationId,
+
+        companies:
+          selectedCompanies,
+      });
+
+      return {
+        handled:
+          true,
+        reason:
+          "report_month_selection_already_complete",
+      };
+    }
+
+    const currentCompany =
+      pending[0];
+
+    const reportMonthAction =
+      parseReportMonthAction(
+        action
+      );
+
+    if (
+      !reportMonthAction ||
+      reportMonthAction.companyId !==
+        currentCompany.id
+    ) {
+      await sendReportMonthQuestion({
+        whatsappAgentId:
+          config.whatsappAgentId,
+
+        conversationId,
+
+        company:
+          currentCompany,
+      });
+
+      return {
+        handled:
+          true,
+        reason:
+          "waiting_for_report_month_selection",
+      };
+    }
+
+    const publicationYm =
+      getIsraelPublicationYm();
+
+    const allowedMonths =
+      new Set([
+        offsetYm(
+          publicationYm,
+          2
+        ),
+        offsetYm(
+          publicationYm,
+          1
+        ),
+      ]);
+
+    if (
+      !allowedMonths.has(
+        reportMonthAction.reportMonth
+      )
+    ) {
+      await sendReportMonthQuestion({
+        whatsappAgentId:
+          config.whatsappAgentId,
+
+        conversationId,
+
+        company:
+          currentCompany,
+      });
+
+      return {
+        handled:
+          true,
+        reason:
+          "invalid_report_month_selection",
+      };
+    }
+
+    const updatedCompanies =
+      selectedCompanies.map(
+        (
+          company
+        ) =>
+          company.id ===
+            currentCompany.id
+            ? {
+                ...company,
+
+                requestedReportMonth:
+                  reportMonthAction.reportMonth,
+              }
+            : company
+      );
+
+    const nextPending =
+      getPendingEarlyDownloadCompanies(
+        updatedCompanies
+      );
+
+    if (
+      nextPending.length >
+        0
+    ) {
+      await updateCommissionAssistantSession({
+        db,
+
+        requesterAgentId:
+          requester.requesterAgentId,
+
+        patch: {
+          selectedCompanies:
+            updatedCompanies,
+        },
+      });
+
+      await sendReportMonthQuestion({
+        whatsappAgentId:
+          config.whatsappAgentId,
+
+        conversationId,
+
+        company:
+          nextPending[0],
+      });
+
+      return {
+        handled:
+          true,
+        reason:
+          "report_month_selected_next_company",
+      };
+    }
+
     await updateCommissionAssistantSession({
       db,
 
@@ -1303,10 +1869,8 @@ export async function tryHandleCommissionAssistantInbound({
         state:
           "confirming_selection",
 
-        selectedCompanies,
-
-        selectionMethod:
-          "manual_text",
+        selectedCompanies:
+          updatedCompanies,
       },
     });
 
@@ -1317,14 +1881,14 @@ export async function tryHandleCommissionAssistantInbound({
       conversationId,
 
       companies:
-        selectedCompanies,
+        updatedCompanies,
     });
 
     return {
       handled:
         true,
       reason:
-        "manual_selection_resolved",
+        "report_month_selection_completed",
     };
   }
 
@@ -1379,6 +1943,97 @@ export async function tryHandleCommissionAssistantInbound({
 
           selectedCompanies,
         });
+
+      if (
+        preparation.state ===
+          "nothing_to_run"
+      ) {
+        await updateCommissionAssistantSession({
+          db,
+
+          requesterAgentId:
+            requester.requesterAgentId,
+
+          patch: {
+            state:
+              "cancelled",
+
+            cancelReason:
+              "monthly_run_already_completed",
+
+            reportYm:
+              preparation.reportYm,
+
+            updatedAt:
+              new Date(),
+          },
+        });
+
+        const completedNames =
+          preparation
+            .completedCompanies
+            .map(
+              (
+                company
+              ) =>
+                company.name
+            )
+            .join(
+              ", "
+            );
+
+        const runningNames =
+          preparation
+            .runningCompanies
+            .map(
+              (
+                company
+              ) =>
+                company.name
+            )
+            .join(
+              ", "
+            );
+
+        const details = [
+          completedNames
+            ? `כבר הושלמו: ${completedNames}`
+            : "",
+
+          runningNames
+            ? `כבר בריצה: ${runningNames}`
+            : "",
+        ]
+          .filter(
+            Boolean
+          )
+          .join(
+            "\n"
+          );
+
+        await sendAssistantMessage({
+          whatsappAgentId:
+            config.whatsappAgentId,
+
+          conversationId,
+
+          text:
+            `אין כרגע חברה חדשה להרצה עבור חודש הדוח ${preparation.reportYm}.` +
+            (
+              details
+                ? `\n\n${details}`
+                : ""
+            ) +
+            "\n\nאם תרצה להתחיל בחירה חדשה, כתוב \"הרץ לי עמלות\".",
+        });
+
+        return {
+          handled:
+            true,
+          reason:
+            "monthly_run_nothing_to_run",
+        };
+      }
 
       if (
         preparation.state ===
@@ -1519,7 +2174,7 @@ export async function tryHandleCommissionAssistantInbound({
           conversationId,
 
           text:
-            `מצאתי שה-Runner בגרסה ${preparation.currentVersion || "לא ידועה"}, והגרסה העדכנית היא ${preparation.latestVersion}. שלחתי לו עדכון אוטומטי. לאחר שהעדכון יסתיים, לחץ \"בדוק שוב\" כדי להתחיל את הריצה.`,
+            `מצאתי שה-Runner בגרסה ${preparation.currentVersion || "לא ידועה"}, והגרסה העדכנית היא ${preparation.latestVersion}. שלחתי לו עדכון אוטומטי.\n\nאין צורך לעשות דבר — כשה-Runner יחזור בגרסה החדשה, ריצת העמלות תתחיל אוטומטית. הכפתור "בדוק שוב" נשאר רק כאפשרות בדיקה ידנית במקרה הצורך.`,
 
           buttons: [
             {
@@ -1581,10 +2236,52 @@ export async function tryHandleCommissionAssistantInbound({
 
         conversationId,
 
-        text:
-          preparation.alreadyExisted
-            ? `הריצה כבר נשלחה ל-Runner ✅\n${selectedCompanies.length} חברות נמצאות ב-Batch הקיים.`
-            : `הריצה יצאה לדרך ✅\n\nנוצר Batch עם ${selectedCompanies.length} חברות והוא נשלח ל-Runner במחשב שלך. החברות ירוצו אחת אחרי השנייה.`,
+        text: (() => {
+          const skippedCompleted =
+            preparation
+              .skippedCompletedCompanies
+              .map(
+                (
+                  company
+                ) =>
+                  company.name
+              );
+
+          const skippedRunning =
+            preparation
+              .skippedRunningCompanies
+              .map(
+                (
+                  company
+                ) =>
+                  company.name
+              );
+
+          const skippedLines = [
+            skippedCompleted.length >
+              0
+              ? `לא נשלחו כי כבר הושלמו החודש: ${skippedCompleted.join(", ")}`
+              : "",
+
+            skippedRunning.length >
+              0
+              ? `לא נשלחו כי כבר נמצאות בריצה: ${skippedRunning.join(", ")}`
+              : "",
+          ]
+            .filter(
+              Boolean
+            );
+
+          const suffix =
+            skippedLines.length >
+              0
+              ? `\n\n${skippedLines.join("\n")}`
+              : "";
+
+          return preparation.alreadyExisted
+            ? `הריצה כבר נשלחה ל-Runner ✅\n${preparation.runIds.length} חברות נמצאות ב-Batch הקיים.${suffix}`
+            : `הריצה יצאה לדרך ✅\n\nנוצר Batch עם ${preparation.runIds.length} חברות והוא נשלח ל-Runner במחשב שלך. החברות ירוצו אחת אחרי השנייה.${suffix}`;
+        })(),
       });
 
       return {
@@ -1761,6 +2458,97 @@ export async function tryHandleCommissionAssistantInbound({
 
     if (
       preparation.state ===
+        "nothing_to_run"
+    ) {
+      await updateCommissionAssistantSession({
+        db,
+
+        requesterAgentId:
+          requester.requesterAgentId,
+
+        patch: {
+          state:
+            "cancelled",
+
+          cancelReason:
+            "monthly_run_already_completed",
+
+          reportYm:
+            preparation.reportYm,
+
+          updatedAt:
+            new Date(),
+        },
+      });
+
+      const completedNames =
+        preparation
+          .completedCompanies
+          .map(
+            (
+              company
+            ) =>
+              company.name
+          )
+          .join(
+            ", "
+          );
+
+      const runningNames =
+        preparation
+          .runningCompanies
+          .map(
+            (
+              company
+            ) =>
+              company.name
+          )
+          .join(
+            ", "
+          );
+
+      const details = [
+        completedNames
+          ? `כבר הושלמו: ${completedNames}`
+          : "",
+
+        runningNames
+          ? `כבר בריצה: ${runningNames}`
+          : "",
+      ]
+        .filter(
+          Boolean
+        )
+        .join(
+          "\n"
+        );
+
+      await sendAssistantMessage({
+        whatsappAgentId:
+          config.whatsappAgentId,
+
+        conversationId,
+
+        text:
+          `אין כרגע חברה חדשה להרצה עבור חודש הדוח ${preparation.reportYm}.` +
+          (
+            details
+              ? `\n\n${details}`
+              : ""
+          ) +
+          "\n\nאם תרצה להתחיל בחירה חדשה, כתוב \"הרץ לי עמלות\".",
+      });
+
+      return {
+        handled:
+          true,
+        reason:
+          "monthly_run_nothing_to_run",
+      };
+    }
+
+    if (
+      preparation.state ===
         "runner_offline"
     ) {
       await updateCommissionAssistantSession({
@@ -1871,7 +2659,7 @@ export async function tryHandleCommissionAssistantInbound({
         conversationId,
 
         text:
-          `העדכון עדיין נדרש. יעד: ${preparation.latestVersion}. לאחר שה-Runner יחזור לפעילות בגרסה החדשה, לחץ שוב על \"בדוק שוב\".`,
+          `העדכון עדיין מתבצע. יעד: ${preparation.latestVersion}.\n\nכשה-Runner יחזור לפעילות בגרסה החדשה, ריצת העמלות תתחיל אוטומטית. אין צורך לבצע פעולה נוספת.`,
 
         buttons: [
           {
@@ -1930,10 +2718,52 @@ export async function tryHandleCommissionAssistantInbound({
 
       conversationId,
 
-      text:
-        preparation.alreadyExisted
-          ? "הריצה כבר קיימת ונשלחה ל-Runner ✅"
-          : `ה-Runner מוכן ✅\nנוצר Batch עם ${session.selectedCompanies.length} חברות והריצה יצאה לדרך.`,
+      text: (() => {
+        const skippedCompleted =
+          preparation
+            .skippedCompletedCompanies
+            .map(
+              (
+                company
+              ) =>
+                company.name
+            );
+
+        const skippedRunning =
+          preparation
+            .skippedRunningCompanies
+            .map(
+              (
+                company
+              ) =>
+                company.name
+            );
+
+        const skippedLines = [
+          skippedCompleted.length >
+            0
+            ? `לא נשלחו כי כבר הושלמו החודש: ${skippedCompleted.join(", ")}`
+            : "",
+
+          skippedRunning.length >
+            0
+            ? `לא נשלחו כי כבר נמצאות בריצה: ${skippedRunning.join(", ")}`
+            : "",
+        ]
+          .filter(
+            Boolean
+          );
+
+        const suffix =
+          skippedLines.length >
+            0
+            ? `\n\n${skippedLines.join("\n")}`
+            : "";
+
+        return preparation.alreadyExisted
+          ? `הריצה כבר קיימת ונשלחה ל-Runner ✅${suffix}`
+          : `ה-Runner מוכן ✅\nנוצר Batch עם ${preparation.runIds.length} חברות והריצה יצאה לדרך.${suffix}`;
+      })(),
     });
 
     return {

@@ -1,7 +1,7 @@
 import crypto from "crypto";
 import path from "path";
 import fs from "fs";
-import { spawn, execSync } from "child_process"; 
+import { spawn, execSync, execFileSync } from "child_process"; 
 import {
   collection,
   query,
@@ -24,7 +24,7 @@ import { createFileLogger } from "./logger";
 import { loginIfNeeded } from "./loginCli";
 
 // הגדרת גרסה נוכחית
-const RUNNER_VERSION = "3.1.2";
+const RUNNER_VERSION = "3.1.15";
 
 function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
@@ -59,25 +59,149 @@ function shouldForceAgentSwitch(): boolean {
   return argFlag || envFlag;
 }
 
-/**
- * בודק ב-Firestore אם קיימת גרסה חדשה יותר בשרת
- */
-async function checkForUpdates(db: any, log: any) {
-  try {
-    const configRef = doc(db, "portalRunnerConfig", "global");
-    const snap = await getDoc(configRef);
-    
-    if (snap.exists()) {
-      const remoteVersion = snap.data()?.latestVersion;
-      if (remoteVersion && remoteVersion !== RUNNER_VERSION) {
-        log.info(`[Update] New version detected on server: ${remoteVersion}. (Current: ${RUNNER_VERSION})`);
-        return remoteVersion;
-      }
-    }
-  } catch (e) {
-    log.error("[Update] Failed to check for updates:", e);
+async function downloadInstaller(params: {
+  installerUrl: string;
+  updatePath: string;
+  log: any;
+}) {
+  params.log.info("[Update] Starting self-update download...");
+
+  const response = await fetch(params.installerUrl);
+
+  if (!response.ok) {
+    throw new Error(
+      `Failed to download installer: ${response.status} ${response.statusText}`
+    );
   }
-  return null;
+
+  const buffer = await response.arrayBuffer();
+  fs.writeFileSync(params.updatePath, Buffer.from(buffer));
+
+  params.log.info(
+    `[Update] Installer downloaded to: ${params.updatePath}`
+  );
+}
+
+const UPDATER_TASK_NAME = "MagicSale Runner Updater";
+
+function getUpdateRequestPath(): string {
+  const appData = String(process.env.APPDATA || "").trim();
+
+  if (!appData) {
+    return path.join(
+      path.dirname(process.execPath),
+      "update-request.json"
+    );
+  }
+
+  return path.join(
+    appData,
+    "MagicSaleRunner",
+    "update-request.json"
+  );
+}
+
+function writeUpdateRequest(updatePath: string) {
+  const requestPath = getUpdateRequestPath();
+
+  fs.mkdirSync(
+    path.dirname(requestPath),
+    { recursive: true }
+  );
+
+  fs.writeFileSync(
+    requestPath,
+    JSON.stringify(
+      {
+        installerPath: path.resolve(updatePath),
+        requestedAtMs: Date.now(),
+        runnerVersion: RUNNER_VERSION,
+      },
+      null,
+      2
+    ),
+    "utf8"
+  );
+
+  return requestPath;
+}
+
+function launchInstallerDirectlyAndExit(
+  updatePath: string,
+  log: any
+): never {
+  log.warn(
+    "[Update] Elevated updater is unavailable. " +
+    "Falling back to the existing installer flow."
+  );
+
+  spawn(
+    updatePath,
+    ["/SILENT", "/SUPPRESSMSGBOXES", "/NORESTART"],
+    {
+      detached: true,
+      stdio: "ignore",
+    }
+  ).unref();
+
+  process.exit(0);
+}
+
+function launchUpdateAndExit(
+  updatePath: string,
+  log: any
+): never {
+  const requestPath = writeUpdateRequest(updatePath);
+
+  const systemRoot =
+    String(process.env.SystemRoot || process.env.WINDIR || "C:\\Windows").trim();
+
+  const schtasksPath = path.join(
+    systemRoot,
+    "System32",
+    "schtasks.exe"
+  );
+
+  try {
+    log.info(
+      `[Update] Update request written to: ${requestPath}`
+    );
+
+    execFileSync(
+      schtasksPath,
+      [
+        "/Run",
+        "/TN",
+        UPDATER_TASK_NAME,
+      ],
+      {
+        windowsHide: true,
+        stdio: "ignore",
+      }
+    );
+
+    log.info(
+      "[Update] Elevated updater task started. Exiting Runner..."
+    );
+
+    process.exit(0);
+  } catch (e: any) {
+    log.warn(
+      "[Update] Could not start elevated updater task. " +
+      `Using legacy installer flow. ${e?.message || e}`
+    );
+
+    try {
+      fs.unlinkSync(requestPath);
+    } catch {
+      // ignore
+    }
+
+    return launchInstallerDirectlyAndExit(
+      updatePath,
+      log
+    );
+  }
 }
 
 async function updateRunnerPresence(params: {
@@ -308,10 +432,17 @@ async function main() {
 
     // נסיון ראשון: אולי הסוכן כבר מחובר (יש לו session.json)
     tempAgentId = await loginIfNeeded({ auth, functions });
-  } catch (err) {
-    log.info("[Login] No session found, popping up UI pairing window...");
-    
-    // אם אין סשן - מקפיצים את החלון
+  } catch (err: any) {
+    const loginError = String(err?.message || err || "").trim();
+
+    if (forceAgentSwitch) {
+      log.info("[Login] Agent switch requested, popping up UI pairing window...");
+    } else {
+      log.warn(`[Login] Saved session login failed: ${loginError || "UNKNOWN_LOGIN_ERROR"}`);
+      log.info("[Login] Popping up UI pairing window...");
+    }
+
+    // אם אין סשן או שההתחברות השקטה נכשלה - מקפיצים את החלון
     const code = getPairingCodeFromUI();
 
     if (!code) {
@@ -332,9 +463,6 @@ async function main() {
 
   const agentId: string = tempAgentId; // מעכשיו הוא string ודאי
   log.info("[Login] Authenticated as agentId=", agentId);
-
-  // בדיקת עדכונים
-  await checkForUpdates(db, log);
 
   const runnerId = `local_${agentId}_${crypto.randomUUID().slice(0, 8)}`;
   await updateRunnerPresence({ db, agentId, runnerId });
@@ -370,7 +498,10 @@ while (!shouldStop()) {
   try {
     await updateRunnerPresence({ db, agentId, runnerId });
 
-    // 🔥 1. עדיפות עליונה לעדכון גרסה
+    // עדכון גרסה מתבצע רק בעקבות self_update שנוצר במפורש מה-UI.
+    // אין כאן בדיקת גרסה מחזורית ולכן עדכון לא מתחיל לבד בזמן עבודת הסוכן.
+
+    // 🔥 1. עדיפות עליונה לעדכון גרסה שנשלח כ-self_update run
     const updateSnap = await getDocs(
       query(
         collection(db, "portalImportRuns"),
@@ -392,28 +523,40 @@ while (!shouldStop()) {
         await setStatusClient(db, runId, { status: "running", step: "downloading_update" });
 
         try {
-          log.info("[Update] Starting self-update download...");
+          const installerUrl = String(
+            (run as any).installerUrl || ""
+          ).trim();
 
-          const installerUrl = String((run as any).installerUrl || "").trim();
           if (!installerUrl) {
-            throw new Error("Missing installerUrl on self_update run");
+            throw new Error(
+              "Missing installerUrl on self_update run"
+            );
           }
 
-          const updatePath = path.join(paths.downloadsDir, "MagicSaleSetup_New.exe");
+          const updatePath = path.join(
+            paths.downloadsDir,
+            "MagicSaleSetup_New.exe"
+          );
 
-          const response = await fetch(installerUrl);
-          if (!response.ok) {
-            throw new Error(`Failed to download installer: ${response.status} ${response.statusText}`);
-          }
+          await downloadInstaller({
+            installerUrl,
+            updatePath,
+            log,
+          });
 
-          const buffer = await response.arrayBuffer();
-          fs.writeFileSync(updatePath, Buffer.from(buffer));
+          await setStatusClient(
+            db,
+            runId,
+            {
+              status: "done",
+              step: "update_downloaded",
+            }
+          );
 
-          await setStatusClient(db, runId, { status: "done", step: "update_downloaded" });
-          log.info("[Update] Download complete. Launching installer...");
-
-          spawn(updatePath, ["/SILENT"], { detached: true, stdio: "ignore" }).unref();
-          process.exit(0);
+          launchUpdateAndExit(
+            updatePath,
+            log
+          );
         } catch (err: any) {
           log.error("[Update] Failed to perform self-update:", err.message);
           await setStatusClient(db, runId, { status: "error", error: { message: err.message } });
@@ -476,38 +619,83 @@ if (!allowedByBatchOrder) {
   continue;
 }
 
-        // מנגנון עדכון עצמי (OTA)
+        // מנגנון עדכון עצמי (OTA) - נשאר לתאימות עם
+        // self_update runs שכבר נוצרים היום מה-UI.
         if (run.automationClass === "self_update") {
-          await claimRunClient(db, runId, runnerId, agentId);
-          await setStatusClient(db, runId, { status: "running", step: "downloading_update" });
-          
+          const claimed = await claimRunClient(
+            db,
+            runId,
+            runnerId,
+            agentId
+          );
+
+          if (!claimed) {
+            continue;
+          }
+
+          await setStatusClient(
+            db,
+            runId,
+            {
+              status: "running",
+              step: "downloading_update",
+            }
+          );
+
           try {
-            log.info("[Update] Starting self-update download...");
-        log.info("[Update] Starting self-update download...");
+            const installerUrl = String(
+              (run as any).installerUrl || ""
+            ).trim();
 
-const installerUrl = String((run as any).installerUrl || "").trim();
-if (!installerUrl) {
-  throw new Error("Missing installerUrl on self_update run");
-}
+            if (!installerUrl) {
+              throw new Error(
+                "Missing installerUrl on self_update run"
+              );
+            }
 
-const updatePath = path.join(paths.downloadsDir, "MagicSaleSetup_New.exe");
+            const updatePath = path.join(
+              paths.downloadsDir,
+              "MagicSaleSetup_New.exe"
+            );
 
-const response = await fetch(installerUrl);
-if (!response.ok) {
-  throw new Error(`Failed to download installer: ${response.status} ${response.statusText}`);
-}
+            await downloadInstaller({
+              installerUrl,
+              updatePath,
+              log,
+            });
 
-const buffer = await response.arrayBuffer();
-fs.writeFileSync(updatePath, Buffer.from(buffer));
+            await setStatusClient(
+              db,
+              runId,
+              {
+                status: "done",
+                step: "update_downloaded",
+              }
+            );
 
-            await setStatusClient(db, runId, { status: "done", step: "update_downloaded" });
-            log.info("[Update] Download complete. Launching installer...");
-
-            spawn(updatePath, ["/SILENT"], { detached: true, stdio: "ignore" }).unref();
-            process.exit(0); 
+            launchUpdateAndExit(
+              updatePath,
+              log
+            );
           } catch (err: any) {
-            log.error("[Update] Failed to perform self-update:", err.message);
-            await setStatusClient(db, runId, { status: "error", error: { message: err.message } });
+            log.error(
+              "[Update] Failed to perform self-update:",
+              err?.message || err
+            );
+
+            await setStatusClient(
+              db,
+              runId,
+              {
+                status: "error",
+                error: {
+                  message:
+                    err?.message ||
+                    String(err),
+                },
+              }
+            );
+
             continue;
           }
         }

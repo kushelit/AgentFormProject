@@ -387,3 +387,11 @@ export {
 export {
   sendMagicTouchTestPush,
 } from "./sendMagicTouchTestPush";
+
+export {
+  exchangeMagicTouchNativeAuthToken,
+} from "./exchangeMagicTouchNativeAuthToken";
+
+export {
+  resumeCommissionAssistantAfterRunnerUpdate,
+} from "./resumeCommissionAssistantAfterRunnerUpdate";

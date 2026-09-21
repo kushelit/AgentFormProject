@@ -1,6 +1,10 @@
 /* eslint-disable require-jsdoc */
 /* eslint-disable max-len */
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import {
+  getCommissionAssistantMonthlyAvailability,
+} from "./commissionAssistantMonthlyStatus";
+
 
 function s(
   value: unknown
@@ -43,6 +47,7 @@ export type CommissionAssistantCompany = {
   companyAutoDownloadEnabled: boolean;
   companyAutoDownloadMessage: string;
   allowEarlyDownload: boolean;
+  requestedReportMonth?: string;
 };
 
 export type CommissionAutomationAvailability = {
@@ -243,11 +248,22 @@ export async function getCommissionAssistantCompanies({
 
       companyAutomationClass,
 
+      /*
+       * חשוב: משחזרים כאן בדיוק את ההתנהגות של
+       * ExcelCommissionImporter הקיים.
+       *
+       * ה-UI לא מעתיק companyInfo.portalId אל templateOptions,
+       * ולכן ב-uniqueCompanies מתקבל בפועל:
+       * portalId = t.portalId || t.companyId = companyId.
+       *
+       * לדוגמה מור:
+       * company document id = "9"
+       * companyInfo.portalId = "mor"
+       * אבל ה-Bundle הקיים הוא bundle_9_commissions.
+       *
+       * לכן אין לקרוא כאן companyInfo.portalId.
+       */
       portalId:
-        s(
-          companyInfo
-            ?.portalId
-        ) ||
         companyId,
 
       companyAutoDownloadEnabled:
@@ -266,14 +282,31 @@ export async function getCommissionAssistantCompanies({
     });
   }
 
-  return result.sort(
-    (
-      a,
-      b
-    ) =>
-      a.name.localeCompare(
-        b.name,
-        "he"
-      )
-  );
+  const sortedCompanies =
+    result.sort(
+      (
+        a,
+        b
+      ) =>
+        a.name.localeCompare(
+          b.name,
+          "he"
+        )
+    );
+
+  /*
+   * חברות שכבר הושלמו לחודש הדוח הנוכחי לא מוצגות
+   * לבחירה ב-WhatsApp. הבדיקה מבוססת על portalImportLocks
+   * שה-Runner עצמו מסמן כ-done לאחר הצלחה.
+   */
+  const monthlyAvailability =
+    await getCommissionAssistantMonthlyAvailability({
+      db,
+      requesterAgentId,
+      companies:
+        sortedCompanies,
+    });
+
+  return monthlyAvailability
+    .availableCompanies;
 }

@@ -50,6 +50,16 @@ function normalizePairingCode(code: string) {
   return String(code || "").trim().replace(/\s+/g, "").toUpperCase();
 }
 
+function authErrorMessage(e: any) {
+  const parts = [
+    s(e?.code),
+    s(e?.message),
+    s(e?.details),
+  ].filter(Boolean);
+
+  return parts.join(" | ") || "UNKNOWN_AUTH_ERROR";
+}
+
 /**
  * פונקציית הלוגין המרכזית:
  *
@@ -79,13 +89,20 @@ export async function loginIfNeeded(params: {
         const res: any = await fn({ refreshToken: sess.refreshToken });
         const customToken = s(res?.data?.customToken);
 
-        if (customToken) {
-          await signInWithCustomToken(auth, customToken);
-          const uid = auth.currentUser?.uid;
-          if (uid) return uid;
+        if (!customToken) {
+          throw new Error("SILENT_LOGIN_CUSTOM_TOKEN_MISSING");
         }
-      } catch (e) {
-        // אם נכשל, נמשיך הלאה
+
+        await signInWithCustomToken(auth, customToken);
+        const uid = auth.currentUser?.uid;
+
+        if (uid) return uid;
+
+        throw new Error("SILENT_LOGIN_UID_MISSING");
+      } catch (e: any) {
+        // אותה התנהגות כמו קודם: ה-Runner יעבור לחלון Pairing.
+        // ההבדל היחיד הוא שהסיבה האמיתית חוזרת ל-runner.ts לצורך לוג.
+        throw new Error(`SILENT_LOGIN_FAILED: ${authErrorMessage(e)}`);
       }
     }
 
@@ -119,7 +136,7 @@ export async function loginIfNeeded(params: {
   } catch (e: any) {
     // אם הצימוד נכשל (קוד שגוי למשל)
     // console.log("\n❌ הצימוד נכשל:", e?.message || e);
-    
+
     // Fallback רק אם הוגדר במפורש (למפתחים)
     const allowPw = String(process.env.RUNNER_ALLOW_PASSWORD_LOGIN || "").trim() === "1";
     if (allowPw) {

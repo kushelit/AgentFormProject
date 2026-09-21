@@ -10,6 +10,11 @@ import type {
   CommissionAssistantCompany,
 } from "./commissionAssistantCompanies";
 
+import {
+  getCommissionAssistantBundleTemplateId,
+  getCommissionAssistantMonthlyAvailability,
+} from "./commissionAssistantMonthlyStatus";
+
 const RUNNER_ONLINE_MAX_AGE_MS =
   30 *
   1000;
@@ -487,11 +492,10 @@ export async function createCommissionAssistantBatch({
               `portalImportRuns/${runId}`
             );
 
-          const portalId =
-            s(
-              company.portalId
-            ) ||
-            company.id;
+          const bundleTemplateId =
+            getCommissionAssistantBundleTemplateId(
+              company
+            );
 
           transaction.set(
             runRef,
@@ -506,13 +510,22 @@ export async function createCommissionAssistantBatch({
                 company.name,
 
               templateId:
-                `bundle_${portalId}_commissions`,
+                bundleTemplateId,
 
               automationClass:
                 company.companyAutomationClass,
 
               monthLabel:
                 "previous_month",
+
+              ...(
+                company.requestedReportMonth
+                  ? {
+                      requestedReportMonth:
+                        company.requestedReportMonth,
+                    }
+                  : {}
+              ),
 
               status:
                 "queued",
@@ -582,6 +595,15 @@ export type PrepareCommissionAssistantRunResult =
       runnerId: string;
       runnerVersion: string;
       alreadyExisted: boolean;
+      reportYm: string;
+      skippedCompletedCompanies: CommissionAssistantCompany[];
+      skippedRunningCompanies: CommissionAssistantCompany[];
+    }
+  | {
+      state: "nothing_to_run";
+      reportYm: string;
+      completedCompanies: CommissionAssistantCompany[];
+      runningCompanies: CommissionAssistantCompany[];
     }
   | {
       state: "runner_offline";
@@ -617,6 +639,44 @@ export async function prepareCommissionAssistantRun({
   sessionId: string;
   selectedCompanies: CommissionAssistantCompany[];
 }): Promise<PrepareCommissionAssistantRunResult> {
+  /*
+   * בדיקה חוזרת ממש לפני יצירת ה-Batch.
+   * גם אם ה-Flow נפתח לפני כמה דקות, חברה שהושלמה בינתיים
+   * לא תיכנס שוב לריצה.
+   */
+  const monthlyAvailability =
+    await getCommissionAssistantMonthlyAvailability({
+      db,
+      requesterAgentId,
+      companies:
+        selectedCompanies,
+    });
+
+  const runnableCompanies =
+    monthlyAvailability
+      .availableCompanies;
+
+  if (
+    runnableCompanies.length ===
+      0
+  ) {
+    return {
+      state:
+        "nothing_to_run",
+
+      reportYm:
+        monthlyAvailability.reportYm,
+
+      completedCompanies:
+        monthlyAvailability
+          .completedCompanies,
+
+      runningCompanies:
+        monthlyAvailability
+          .runningCompanies,
+    };
+  }
+
   const readiness =
     await getCommissionAssistantRunnerReadiness({
       db,
@@ -690,7 +750,8 @@ export async function prepareCommissionAssistantRun({
       whatsappAgentId,
       conversationId,
       sessionId,
-      selectedCompanies,
+      selectedCompanies:
+        runnableCompanies,
       reservedRunnerId:
         readiness.runnerId,
     });
@@ -708,5 +769,17 @@ export async function prepareCommissionAssistantRun({
       readiness.currentVersion,
     alreadyExisted:
       batch.alreadyExisted,
+
+    reportYm:
+      monthlyAvailability
+        .reportYm,
+
+    skippedCompletedCompanies:
+      monthlyAvailability
+        .completedCompanies,
+
+    skippedRunningCompanies:
+      monthlyAvailability
+        .runningCompanies,
   };
 }

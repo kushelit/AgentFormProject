@@ -59,6 +59,9 @@ export type ImportInsights = {
   previousMonth: string;
   deltaCommissionAmount: number;
   deltaCommissionPercent: number;
+  deltaPremiumAmount?: number;
+  deltaPremiumPercent?: number;
+  deltaCustomersCount?: number;
   newPoliciesCount: number;
   droppedPoliciesCount: number;
   droppedPoliciesTop: Array<{
@@ -385,6 +388,18 @@ export async function buildImportInsightsForPortalRun(portalRunId: string): Prom
     ? roundTo2((deltaCommissionAmount / prevSummary.totalCommissionAmount) * 100)
     : 0;
 
+  // שני השדות האלה כבר קיימים בתוך prevSummary (buildPrevMonthSummary כבר
+  // מחשבת אותם) - לא נדרשת שום שאילתת DB נוספת, רק להשתמש במה שכבר יש.
+  const deltaPremiumAmount = prevSummary
+    ? roundTo2(currentPremium - prevSummary.totalPremiumAmount)
+    : 0;
+  const deltaPremiumPercent = prevSummary && prevSummary.totalPremiumAmount > 0
+    ? roundTo2((deltaPremiumAmount / prevSummary.totalPremiumAmount) * 100)
+    : 0;
+  const deltaCustomersCount = prevSummary
+    ? totalCustomers - prevSummary.totalCustomers
+    : 0;
+
   return {
     runId: portalRunId,
     agentId,
@@ -405,6 +420,9 @@ export async function buildImportInsightsForPortalRun(portalRunId: string): Prom
     previousMonth: prevYm,
     deltaCommissionAmount,
     deltaCommissionPercent,
+    deltaPremiumAmount,
+    deltaPremiumPercent,
+    deltaCustomersCount,
     newPoliciesCount: prevSummary ? Math.max(0, totalPolicies - prevSummary.totalPolicies) : 0,
     droppedPoliciesCount: 0,
     droppedPoliciesTop: [],

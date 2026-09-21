@@ -21,6 +21,7 @@ import type {
 export type CommissionAssistantSessionState =
   | "choosing_mode"
   | "choosing_companies"
+  | "choosing_report_months"
   | "confirming_selection"
   | "ready"
   | "waiting_runner"
