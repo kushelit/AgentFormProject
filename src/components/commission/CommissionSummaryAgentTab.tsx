@@ -14,7 +14,7 @@ import { collection, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase/firebase';
 import { ChevronLeft, ChevronRight, PieChart as PieIcon } from 'lucide-react';
 import AnomalyPoliciesModal from '@/components/commission/AnomalyPoliciesModal';
-
+import PremiumKpiCards from '@/components/commission/PremiumKpiCards';
 
 // 1. ייבוא של כל הספרייה תחת משתנה אחד עם השתקת שגיאות גורפת
 const DynamicResponsiveContainer = dynamic(() => import('recharts').then(m => m.ResponsiveContainer), { ssr: false }) as React.ComponentType<any>;
@@ -591,9 +591,9 @@ const groupMonthlyData = useMemo(() => {
 
 
   return (
-    <div className="p-4 max-w-6xl mx-auto text-right" dir="rtl">
+    <div className="p-4 w-full text-right" dir="rtl">
       <h2 className="text-xl font-bold mb-4">סיכום עמלות לפי חודש וחברה</h2>
-      {/* 🔹 בלוק נפרד מתחת לסלקטים */}
+      {/* 🔹 בלוק נפרד מתחת לסלקטים
 <div className="mb-4 px-4 py-3 text-sm text-gray-600 border rounded bg-white">
   <button
     type="button"
@@ -613,8 +613,8 @@ const groupMonthlyData = useMemo(() => {
       <AgentImportChecklist agentId={selectedAgentId} year={selectedYear} />
     </div>
   )}
-</div>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4 items-end">
+</div> */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4 items-end">
         <div className="md:col-span-2">
           <label className="block font-semibold mb-1">בחר סוכן:</label>
           <select
@@ -647,20 +647,26 @@ const groupMonthlyData = useMemo(() => {
             )}
           </select>
         </div>
-        <button 
-  onClick={() => setShowYearlyAnalysis(!showYearlyAnalysis)}
-  className="bg-indigo-600 text-white px-4 py-2 rounded-lg font-bold shadow-lg hover:bg-indigo-700 transition"
->
-  {showYearlyAnalysis ? 'סגור ניתוח שנתי' : '📊 ניתוח תיק שנתי'}
-</button>
-<button
-  onClick={() => setShowAnomalies(true)}
-  disabled={!selectedAgentId || !selectedYear}
-  className="bg-red-50 text-red-700 border border-red-200 px-4 py-2 rounded-lg font-bold hover:bg-red-100 transition disabled:opacity-40"
->
-  ⚠️ פוליסות חריגות
-</button>
+        <button
+          onClick={() => setShowYearlyAnalysis(!showYearlyAnalysis)}
+          className="bg-indigo-600 text-white px-4 py-2 rounded-lg font-bold shadow-lg hover:bg-indigo-700 transition"
+        >
+          {showYearlyAnalysis ? 'סגור ניתוח שנתי' : '📊 ניתוח תיק שנתי'}
+        </button>
+        <button
+          onClick={() => setShowAnomalies(true)}
+          disabled={!selectedAgentId || !selectedYear}
+          className="bg-red-50 text-red-700 border border-red-200 px-4 py-2 rounded-lg font-bold hover:bg-red-100 transition disabled:opacity-40"
+        >
+          ⚠️ פוליסות חריגות
+        </button>
       </div>
+
+      {/* קוביות צבירה/פרמיה — ברוחב מלא, מחוץ ל-grid של הסלקטים */}
+      {selectedAgentId && selectedYear && (
+        <PremiumKpiCards agentId={selectedAgentId} year={selectedYear} />
+      )}
+
       {loading ? (
         <Spinner />
       ) : (
