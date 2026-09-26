@@ -714,7 +714,51 @@ export async function phoenixOpenReport(mainPage: Page, reportName: string): Pro
  * שינוי: במקום להמתין ל"היעלמות לואדר כללית" (שיכולה להימתח על עשרות שניות
  * גם כשהדוח כבר גלוי ומוכן), ממתינים ישירות ובאופן ממוקד לכפתור/אייקון האקסל.
  */
-export async function phoenixExportExcel(page: Page): Promise<Download | null> {
+export async function phoenixExportExcel(page: Page, log?: any): Promise<Download | null> {
+  const info = (msg: string) => {
+    if (log?.info) log.info(msg);
+    else console.log(msg);
+  };
+
+  // ✅ בדיקת סינון פעיל: לאחרונה נצפה שהדף לפעמים עולה מסונן מראש (שינוי בפורטל),
+  // מה שגורם להורדת דוח חלקי. אם הכפתור "ניקוי סינון" קיים ו*לא* disabled - יש
+  // סינון פעיל שצריך לנקות לפני ההורדה. ברוב המקרים הכפתור קיים אבל disabled
+  // (אין סינון פעיל) - במקרה הזה לא עושים כלום, ממשיכים כרגיל.
+  //
+  // חשוב: מזריקים את הקוד כמחרוזת (לא פונקציית JS ישירה) - בדיוק כמו
+  // injectionScript בהמשך הקובץ - כי ב-EXE הארוז דרך pkg פונקציה ישירה
+  // נכשלת עם "Passed function is not well-serializable!".
+  const filterCheckScript = `
+    (function() {
+      const btn = document.querySelector('#restoreFiltersElem');
+      if (!btn) return 'NO_BUTTON';
+      if (btn.disabled) return 'ALREADY_CLEAN';
+      btn.click();
+      return 'CLICKED';
+    })()
+  `;
+
+  let clearFilterResult = 'EVAL_FAILED';
+  for (let attempt = 0; attempt < 4; attempt++) {
+    try {
+      clearFilterResult = await page.evaluate(filterCheckScript);
+      break;
+    } catch (e: any) {
+      info(`[Fenix] Filter check attempt ${attempt + 1} threw: ${e?.message || e}`);
+      clearFilterResult = 'EVAL_FAILED';
+      await page.waitForTimeout(1000);
+    }
+  }
+
+  info(`[Fenix] Filter check result: ${clearFilterResult}`);
+
+  if (clearFilterResult === 'CLICKED') {
+    info('[Fenix] Active filter detected on report - cleared via ניקוי סינון before export.');
+    // נותנים לטבלה זמן להתעדכן אחרי ניקוי הסינון, לפני שמחפשים את כפתור האקסל
+    await page.waitForTimeout(2000);
+    await page.waitForLoadState("networkidle", { timeout: 15000 }).catch(() => {});
+  }
+
   // polling בתוך הדפדפן - לא page.waitForSelector/waitForFunction המובנים.
   // 60 ניסיונות × 500ms = 30 שנ' טווח חיפוש. חשוב: כן בודקים את התוצאה עכשיו
   // (לפני זה נזרקה בלי לבדוק בכלל) כדי לדעת אם באמת מצאנו את הכפתור.

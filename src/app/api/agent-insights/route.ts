@@ -1,0 +1,157 @@
+// ═══════════════════════════════════════════════════════════════════
+// app/api/agent-insights/route.ts
+// מקור הנתונים היחיד לסקירה + מוצרים. הכל לפי חודש פרסום (ym).
+// השליפות עצמן ב-lib/insights/serverData (משותף עם רשימת הפוליסות).
+// הכנסות: ymCommissionSummaries (אותו מקור של טבלת "לפי חודש פרסום").
+//
+// מטמון: agentInsightsCache/{agentId}_{year}
+//   חתימה = טעינות השנה (jobId + ym + זמן כתיבה) + הכנסות + הגדרות התבניות.
+//   חתימה זהה, בתוקף ובמבנה מלא → מחזירים מיד בלי לקרוא מסמכי פוליסות.
+//   תוקף מקסימלי 12 שעות (רשת ביטחון למחיקות גורפות).
+//
+// נפרעים בלבד — ללא תבניות hekefType (כולל תבניות לא פעילות).
+// ═══════════════════════════════════════════════════════════════════
+
+import { NextRequest, NextResponse } from 'next/server';
+import { createHash } from 'crypto';
+import { admin } from '@/lib/firebase/firebase-admin';
+import { computeInsights, type InsightsIncomeRow } from '@/lib/insights/computeInsights';
+import {
+  buildPortfolioIndex,
+  fetchPolicyRows,
+  loadJobMeta,
+  loadJobYms,
+  loadTemplates,
+  num,
+  str,
+  tsMillis,
+} from '@/lib/insights/serverData';
+
+export const maxDuration = 60;
+
+const INSIGHTS_CACHE_COLLECTION = 'agentInsightsCache';
+const CACHE_VERSION = 4; // להעלות כשמשנים את לוגיקת החישוב — מבטל את כל המטמון
+const CACHE_MAX_AGE_MS = 12 * 60 * 60 * 1000;
+
+/** מטמון נחשב תקין רק אם יש בו את כל השדות שהקוד הנוכחי מצפה להם */
+function isCompleteInsights(x: any): boolean {
+  return (
+    !!x &&
+    !!x.portfolio?.categories &&
+    Array.isArray(x.income?.months) &&
+    Array.isArray(x.income?.recentYms) &&
+    Array.isArray(x.income?.recentByCompany) &&
+    typeof x.income?.annualRunRate === 'number' &&
+    Array.isArray(x.products?.byCompany) &&
+    Array.isArray(x.products?.byMonth)
+  );
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    const { agentId, year } = await req.json();
+    if (!agentId || !year) {
+      return NextResponse.json({ error: 'missing params' }, { status: 400 });
+    }
+
+    const startedAt = Date.now();
+    const db = admin.firestore();
+    const yearStr = String(year);
+    const cacheRef = db.collection(INSIGHTS_CACHE_COLLECTION).doc(`${agentId}_${yearStr}`);
+
+    // ─── במקביל: תבניות, ריצות, הכנסות, מטמון ──────────────────────────────
+    const [tpl, ymByJobId, incomeSnap, cacheSnap] = await Promise.all([
+      loadTemplates(db),
+      loadJobYms(db, agentId, yearStr),
+      db
+        .collection('ymCommissionSummaries')
+        .where('agentId', '==', agentId)
+        .select('ym', 'company', 'templateId', 'totalCommissionAmount')
+        .get(),
+      cacheRef.get(),
+    ]);
+    const { templatesById, hekefTemplateIds, activeTemplateIds } = tpl;
+
+    // ─── הכנסות ─────────────────────────────────────────────────────────────
+    const incomeRows: InsightsIncomeRow[] = [];
+    let incomeSigTotal = 0;
+    incomeSnap.docs.forEach((d) => {
+      const x: any = d.data();
+      const ym = str(x.ym);
+      if (!ym.startsWith(`${yearStr}-`)) return;
+      if (hekefTemplateIds.has(str(x.templateId))) return;
+      const amount = num(x.totalCommissionAmount);
+      incomeRows.push({ ym, company: str(x.company) || 'חברה לא ידועה', amount });
+      incomeSigTotal += amount;
+    });
+
+    // ─── טעינות שהצליחו ─────────────────────────────────────────────────────
+    const jobMeta = await loadJobMeta(db, Object.keys(ymByJobId), hekefTemplateIds);
+    const jobIds = Object.keys(jobMeta).sort();
+
+    // ─── חתימה + מטמון ──────────────────────────────────────────────────────
+    const involvedTemplates = Array.from(new Set(jobIds.map((id) => jobMeta[id].templateId))).sort();
+    const signature = createHash('sha1')
+      .update(
+        JSON.stringify({
+          v: CACHE_VERSION,
+          jobs: jobIds.map((id) => [id, ymByJobId[id], jobMeta[id].createdAt]),
+          income: [incomeRows.length, Math.round(incomeSigTotal * 100)],
+          templates: involvedTemplates.map((tid) => {
+            const t: any = templatesById[tid] || {};
+            return [tid, t.Name ?? '', !!t.isactive, t.defaultPremiumField ?? '', t.fallbackProduct ?? '', t.productMap ?? {}];
+          }),
+        })
+      )
+      .digest('hex');
+
+    if (cacheSnap.exists && cacheSnap.get('signature') === signature) {
+      const age = Date.now() - tsMillis(cacheSnap.get('updatedAt'));
+      const cached = cacheSnap.get('insights');
+      if (age >= 0 && age < CACHE_MAX_AGE_MS && isCompleteInsights(cached) && cacheSnap.get('portfolioIndex')) {
+        console.log(`[agent-insights] cache hit ${agentId}_${yearStr} in ${Date.now() - startedAt}ms`);
+        return NextResponse.json(cached);
+      }
+    }
+
+    // ─── פוליסות של כל טעינות השנה ──────────────────────────────────────────
+    const policyRows = await fetchPolicyRows({ db, agentId, jobIds, ymByJobId, jobMeta, hekefTemplateIds });
+
+    console.log(
+      `[agent-insights] computed ${agentId}_${yearStr}: ${jobIds.length} jobs, ${policyRows.length} policies, ` +
+        `${incomeRows.length} income rows in ${Date.now() - startedAt}ms`
+    );
+
+    const insights = computeInsights({
+      agentId,
+      year: yearStr,
+      templatesById,
+      activeTemplateIds,
+      policyRows,
+      incomeRows,
+    });
+
+    // אינדקס לרשימת הפוליסות (לא נשלח לדפדפן)
+    const portfolioIndex = buildPortfolioIndex(policyRows, (r) => r.runId ?? '');
+
+    // שמירה למטמון לפני התשובה — סקירת ה-AI ורשימת הפוליסות נשענות על המסמך הזה.
+    // set מלא מנקה גם סקירת AI קודמת (החתימה השתנתה).
+    try {
+      await cacheRef.set({
+        signature,
+        insights,
+        portfolioIndex,
+        agentId,
+        year: yearStr,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+    } catch (e: any) {
+      console.error('[agent-insights] cache write failed', e);
+    }
+
+    return NextResponse.json(insights);
+  } catch (err: any) {
+    console.error('[agent-insights]', err);
+    return NextResponse.json({ error: err.message ?? 'server error' }, { status: 500 });
+  }
+}

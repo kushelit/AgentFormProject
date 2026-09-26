@@ -1,15 +1,14 @@
 // MagicSale — Commission Admin Purge Page
 // מחיקת נתוני עמלות גורפת לפי סוכן / חברה / חודש / תבנית
 // + ניהול ריצות טעינה לפי מספר טעינה / טוען
+// + הורדת קובץ המקור של כל טעינה מ-Storage (לפי file.bucket ששמר ה-Runner)
 // קובץ: app/admin/commission-purge/page.tsx
 
-//token to facebook to keep
-//EAAVvIohuDZCwBRlXYu7OyNN1S8ZBcNENrT3HOSdVtJOUdr0bxso0DBBiqfQZA70yhAIOSZBgZBwXbDzElV5Xp4Ubkoub44qJThuyGxdhuglanFQqt8ZApbej701W7U6PjTll4LzHe3fJx8t7ZCfOntLyeFXxM8rpZCo8p48fODz2KZCjGW42V52e0SiZCtWRn7BgZDZD
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { db } from '@/lib/firebase/firebase';
+import { db, firebaseApp } from '@/lib/firebase/firebase';
 import {
   collection,
   query,
@@ -25,6 +24,7 @@ import {
   setDoc,
   Timestamp,
 } from 'firebase/firestore';
+import { getStorage, ref as storageRef, getDownloadURL } from 'firebase/storage';
 import useFetchAgentData from '@/hooks/useFetchAgentData';
 import { Button } from '@/components/Button/Button';
 import DialogNotification from '@/components/DialogNotification';
@@ -56,6 +56,53 @@ interface CommissionImportRun {
   maxReportMonth?: string;
   reportMonthsCount?: number;
   companyId?: string;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// הורדת קבצי מקור — אותו דפוס כמו מסמכי לקוח (SharonPage):
+// getStorage(firebaseApp, `gs://${bucket}`) עם הבאקט שנשמר על המסמך, ולא
+// הבאקט הדיפולטי של האתר — כי כל סביבה עובדת עם באקט אחר.
+// ה-Runner מעלה עם ה-client SDK, ולכן file.bucket כפי שנשמר נגיש מהדפדפן.
+// אם לא — מנסים גם את הגרסה המנורמלת (כמו ה-worker) ואת הדיפולט.
+// ═══════════════════════════════════════════════════════════════════
+type ImportFileRef = { storagePath: string; bucket: string };
+
+function cleanBucket(b: any): string {
+  return String(b ?? '').trim().replace(/^gs:\/\//, '');
+}
+
+function bucketCandidates(raw: string): string[] {
+  const r = cleanBucket(raw);
+  const alt = r.endsWith('.firebasestorage.app')
+    ? r.replace('.firebasestorage.app', '.appspot.com')
+    : r.endsWith('.appspot.com')
+    ? r.replace('.appspot.com', '.firebasestorage.app')
+    : '';
+  const def = cleanBucket(firebaseApp.options.storageBucket);
+  return Array.from(new Set([r, alt, def].filter(Boolean)));
+}
+
+async function resolveDownloadUrl(ref: ImportFileRef): Promise<{ url: string; tried: string[] }> {
+  const tried = bucketCandidates(ref.bucket);
+  for (const b of tried) {
+    try {
+      const url = await getDownloadURL(storageRef(getStorage(firebaseApp, `gs://${b}`), ref.storagePath));
+      return { url, tried };
+    } catch {
+      // באקט לא נכון / קובץ לא שם — ממשיכים למועמד הבא
+    }
+  }
+  return { url: '', tried };
+}
+
+function triggerDownload(href: string, name: string) {
+  const a = document.createElement('a');
+  a.href = href;
+  a.download = name;
+  a.rel = 'noopener';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -206,6 +253,7 @@ export default function CommissionPurgeAdminPage() {
   const [runDeleteDialogOpen, setRunDeleteDialogOpen] = useState(false);
   const [selectedRun, setSelectedRun] = useState<CommissionImportRun | null>(null);
   const [runDeleteLoading, setRunDeleteLoading] = useState(false);
+  const [downloadingRunId, setDownloadingRunId] = useState<string | null>(null);
 
   // פילטרים לטבלת ריצות טעינה
   const [searchText, setSearchText] = useState('');
@@ -534,6 +582,80 @@ export default function CommissionPurgeAdminPage() {
     });
   }, [commissionRuns, searchText, uploaderFilter, dateFrom, dateTo]);
 
+  // ═══════════════════════════════════════════════════════════════════
+  // הורדת קובץ המקור של טעינה — קורא את file.storagePath + file.bucket
+  // מ-commissionImportQueue/{runId} (בטעינת פורטל runId = jobId), ובמיטב
+  // מצרף גם את הקבצים הנוספים מ-portalImportRuns.downloads — כמו ה-worker.
+  // ═══════════════════════════════════════════════════════════════════
+  async function handleDownloadRunFile(run: CommissionImportRun) {
+    setDownloadingRunId(run.runId);
+    try {
+      const refs: ImportFileRef[] = [];
+
+      const qSnap = await getDoc(doc(db, 'commissionImportQueue', run.runId));
+      if (qSnap.exists()) {
+        const job: any = qSnap.data();
+        const mainPath = String(job?.file?.storagePath || '').trim();
+        const mainBucket = cleanBucket(job?.file?.bucket);
+        if (mainPath) refs.push({ storagePath: mainPath, bucket: mainBucket });
+
+        const templateId = String(job?.templateId || '').trim();
+        const portalRunId = String(job?.portalRunId || '').trim() || run.runId.split('_')[0];
+        if (templateId === 'meitav_insurance' && portalRunId) {
+          const prSnap = await getDoc(doc(db, 'portalImportRuns', portalRunId));
+          const downloads: any[] = prSnap.exists() ? (prSnap.data() as any)?.downloads || [] : [];
+          const seen = new Set(refs.map((r) => r.storagePath));
+          for (const d of downloads) {
+            const p = String(d?.storagePath || '').trim();
+            if (!p || seen.has(p) || String(d?.templateId || '').trim() !== templateId) continue;
+            seen.add(p);
+            refs.push({ storagePath: p, bucket: cleanBucket(d?.bucket) || mainBucket });
+          }
+        }
+      }
+
+      if (!refs.length) {
+        setDialog({
+          type: 'warning',
+          title: 'לא נמצא קובץ',
+          message: `לא נשמר נתיב קובץ לטעינה ${run.runId} (ככל הנראה טעינה ידנית שלא שומרת את הקובץ ב-Storage).`,
+        });
+        return;
+      }
+
+      const failed: { ref: ImportFileRef; tried: string[] }[] = [];
+      for (const r of refs) {
+        const { url, tried } = await resolveDownloadUrl(r);
+        if (!url) {
+          failed.push({ ref: r, tried });
+          continue;
+        }
+        triggerDownload(url, r.storagePath.split('/').pop() || 'file');
+      }
+
+      if (failed.length) {
+        setDialog({
+          type: 'error',
+          title: 'הקובץ לא נמצא ב-Storage',
+          message: (
+            <div className="text-sm space-y-2">
+              {failed.map((f) => (
+                <div key={f.ref.storagePath} className="font-mono text-xs text-gray-600 break-all">
+                  <div>storagePath: {f.ref.storagePath}</div>
+                  <div>באקטים שנבדקו: {f.tried.join(', ')}</div>
+                </div>
+              ))}
+            </div>
+          ),
+        });
+      }
+    } catch (e: any) {
+      setDialog({ type: 'error', title: 'שגיאת הורדה', message: String(e?.message || e) });
+    } finally {
+      setDownloadingRunId(null);
+    }
+  }
+
   const deleteByRunIdInChunks = async (collectionName: string, runId: string) => {
     const qy = query(collection(db, collectionName), where('runId', '==', runId));
     const snap = await getDocs(qy);
@@ -595,17 +717,17 @@ export default function CommissionPurgeAdminPage() {
       if (portalRunDocId) {
         await deleteDoc(doc(db, 'portalImportRuns', portalRunDocId)).catch(() => {});
       }
-// מחק מסמכי מגשר שמצביעים על runId זה
-const bridgeSnap = await getDocs(
-  query(
-    collection(db, 'portalImportRuns'),
-    where('source', '==', 'manual_bridge'),
-    where('queue.jobIds', 'array-contains', runId)
-  )
-);
-for (const d of bridgeSnap.docs) {
-  await deleteDoc(d.ref).catch(() => {});
-}
+      // מחק מסמכי מגשר שמצביעים על runId זה
+      const bridgeSnap = await getDocs(
+        query(
+          collection(db, 'portalImportRuns'),
+          where('source', '==', 'manual_bridge'),
+          where('queue.jobIds', 'array-contains', runId)
+        )
+      );
+      for (const d of bridgeSnap.docs) {
+        await deleteDoc(d.ref).catch(() => {});
+      }
 
       await fetchCommissionRuns();
     } catch (e: any) {
@@ -1679,6 +1801,7 @@ for (const d of bridgeSnap.docs) {
             <table className="w-full border text-sm text-right">
               <thead>
                 <tr className="bg-gray-100">
+                  <th className="p-2">קובץ</th>
                   <th className="p-2">מספר טעינה</th>
                   <th className="p-2">תאריך</th>
                   <th>סוכן</th>
@@ -1695,6 +1818,16 @@ for (const d of bridgeSnap.docs) {
               <tbody>
                 {filteredCommissionRuns.map((run) => (
                   <tr key={run.runId} className="border-t hover:bg-gray-50">
+                    <td className="p-2 whitespace-nowrap">
+                      <button
+                        onClick={() => handleDownloadRunFile(run)}
+                        disabled={downloadingRunId === run.runId}
+                        title="הורדת קובץ המקור של הטעינה"
+                        className="text-blue-600 hover:underline font-medium disabled:opacity-50"
+                      >
+                        {downloadingRunId === run.runId ? 'מוריד...' : '⬇ הורד'}
+                      </button>
+                    </td>
                     <td className="p-2 font-mono text-xs">{run.runId}</td>
                     <td className="p-2">
                       {run.createdAt ? new Date(run.createdAt.seconds * 1000).toLocaleString('he-IL') : '-'}
@@ -1721,11 +1854,11 @@ for (const d of bridgeSnap.docs) {
                         מחק
                       </button>
                       <button
-  onClick={() => { setBridgeRun(run); setBridgeYm(''); }}
-  className="text-blue-600 hover:underline font-medium mr-2"
->
-  צור מגשר
-</button>
+                        onClick={() => { setBridgeRun(run); setBridgeYm(''); }}
+                        className="text-blue-600 hover:underline font-medium mr-2"
+                      >
+                        צור מגשר
+                      </button>
                     </td>
                   </tr>
                 ))}

@@ -257,6 +257,7 @@ async function updatePortalRunJobState(params: {
     const data = d.data();
     if (data?.agencyHouseOnly && !isAgencyHouse) return false;
     if (data?.excludeForAgencyHouse && isAgencyHouse) return false;
+     if (data?.manualOnly) return false;
     return true;
   })
   .map(d => d.id);

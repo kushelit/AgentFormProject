@@ -149,11 +149,16 @@ export const CONTRACTS_TABLES_CONFIG = [
       label: "היקף על צבירה",
        valueMode: "per_million", 
        minuySochen: false },
+    {
+      commissionType: "nifraim",
+      label: "נפרעים מינוי סוכן",
+      valueMode: "percent",
+      minuySochen: true,
+    },
   ],
 }
     ],
   },
-
   {
     key: "risk",
     title: "סיכונים",

@@ -1,0 +1,66 @@
+/*
+ * סגנון טבלה אחיד — כמו בשאר המערכת:
+ * כותרת תכלת בהירה עם טקסט כחול כהה מודגש, בלי מסגרת ובלי קווים אנכיים,
+ * קו אפור עדין בין שורות.
+ * הסלקטורים (class + element) + !important גוברים על הכלל הגלובלי של table/th/td.
+ */
+.cleanTable {
+  width: 100%;
+  border: 0 !important;
+  border-collapse: collapse !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  outline: 0 !important;
+  background: #fff !important;
+}
+
+.cleanTable th,
+.cleanTable td {
+  border: 0 !important;
+  text-align: right;
+}
+
+/* כותרת */
+.cleanTable thead th {
+  background: #eaf0f8 !important;
+  color: #1e3a5f !important;
+  font-weight: 700 !important;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+/* שורות */
+.cleanTable tbody td {
+  color: #1f2937;
+}
+
+.cleanTable tbody tr {
+  border-top: 1px solid #e5e7eb;
+}
+
+.cleanTable tbody tr:first-child {
+  border-top: 0;
+}
+
+.cleanTable tbody tr:hover > td {
+  background-color: #f8fafc;
+}
+
+/* שורת סה"כ */
+.cleanTable tfoot tr {
+  border-top: 1px solid #cbd5e1;
+}
+
+.cleanTable tfoot td {
+  background: #f8fafc;
+  font-weight: 700;
+}
+
+/* יישור חריג לתא ספציפי */
+.cleanTable .center {
+  text-align: center;
+}
+
+.cleanTable .left {
+  text-align: left;
+}

@@ -167,7 +167,7 @@ export async function runPhoenixAll(ctx: RunnerCtx) {
 const reportPage = await phoenixOpenReportByMatch(page, { include: rep.include, exclude: rep.exclude, exact: rep.exact });
 
         // 2. הורדת האקסל (עם ההמתנה הממוקדת - ר' fenix.shared.ts)
-        const download = await phoenixExportExcel(reportPage);
+        const download = await phoenixExportExcel(reportPage, log);
         if (download) {
           const filename = download.suggestedFilename();
           const localPath = path.join(absDir, `${Date.now()}_${filename}`);
