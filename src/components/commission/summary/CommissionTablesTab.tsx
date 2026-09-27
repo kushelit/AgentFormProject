@@ -10,6 +10,9 @@ import { Spinner } from '@/components/Spinner';
 import { resolveFromTemplate } from '@/utils/contractCommissionResolvers';
 import type { CommissionSummaryData } from '@/hooks/useCommissionSummary';
 import t from './table.module.css';
+import CustomerLink from './CustomerLink';
+import CustomerIssueBar from './CustomerIssueBar';
+import useOpenCustomer from '@/hooks/useOpenCustomer';
 import ClassifiedProduct, { MATCH_LABEL, matchFromDebug } from './ClassifiedProduct';
 
 interface Props {
@@ -65,6 +68,7 @@ const CommissionTablesTab: React.FC<Props> = ({ agentId, year, data, loading }) 
   const [drill, setDrill] = useState<DrillKey>(null);
   const [drillRows, setDrillRows] = useState<DrillRow[]>([]);
   const [drillLoading, setDrillLoading] = useState(false);
+  const { openCustomer, isPending, issue, clearIssue } = useOpenCustomer(agentId);
 
   useEffect(() => {
     (async () => {
@@ -484,6 +488,9 @@ const CommissionTablesTab: React.FC<Props> = ({ agentId, year, data, loading }) 
                 <button className="px-3 py-2 border rounded" onClick={() => setDrill(null)}>סגור</button>
               </div>
             </div>
+            <div className="-mx-4 mb-3">
+              <CustomerIssueBar agentId={agentId} issue={issue} onClose={clearIssue} />
+            </div>
             {drillLoading ? (
               <Spinner />
             ) : (
@@ -504,8 +511,12 @@ const CommissionTablesTab: React.FC<Props> = ({ agentId, year, data, loading }) 
                   {drillRows.map((r) => (
                     <tr key={`${r.policyNumberKey}_${r.customerId}`}>
                       <td className="px-3 py-2">{r.policyNumberKey}</td>
-                      <td className="px-3 py-2">{r.customerId ?? '-'}</td>
-                      <td className="px-3 py-2">{r.fullName ?? '-'}</td>
+                      <td className="px-3 py-2 tabular-nums">
+                        <CustomerLink customerId={r.customerId} label={r.customerId} name={r.fullName ?? ''} pending={false} onOpen={openCustomer} className="text-slate-600" />
+                      </td>
+                      <td className="px-3 py-2 font-semibold">
+                        <CustomerLink customerId={r.customerId} label={r.fullName} name={r.fullName ?? ''} pending={isPending(r.customerId)} onOpen={openCustomer} />
+                      </td>
                       <td className="px-3 py-2 text-slate-500">{String(r.product ?? '').trim() || '-'}</td>
                       <td className="px-3 py-2">
                         {(() => {

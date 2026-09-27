@@ -1,56 +1,202 @@
+/* =========================================================
+   מבנה כללי
+   גובה קבוע = גובה המסך פחות ה-TopBar (h-16 = 64px)
+   ========================================================= */
 .navbar {
-  align-items: flex-start;
+  align-items: stretch;
   background-color: var(--clrdarkblue3);
   display: flex;
   flex-direction: column;
-  height: 100%; /* משנה את הגובה */
-  min-height: calc(100vh - 60px); /* גובה הדף פחות ה-TopBar */
+  height: calc(100vh - 64px);
   width: 210px;
-  min-width: 210px; /* שמירה על רוחב קבוע */
-  max-width: 210px; /* הגבלת הרוחב המקסימלי */
+  min-width: 210px;
+  max-width: 210px;
   box-sizing: border-box;
-  overflow: hidden; /* מניעת גלילה מיותרת */
+  overflow: hidden; /* הגלילה מתבצעת רק בתוך navbar-scroll */
   position: fixed;
-  top: 60px; /* מתחיל בדיוק מתחת ל-TopBar */
-  z-index: 999; /* נמוך מה-TopBar */
-
+  top: 64px;
+  z-index: 999;
 }
 
+/* =========================================================
+   כותרת - שם המערכת הנוכחית
+   ========================================================= */
+.navbar-system-title {
+  flex: 0 0 auto;
+  padding: 14px 16px 10px;
+  color: #fff;
+  font-size: 16px;
+  font-weight: 700;
+  text-align: right;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.navbar-system-title[dir="ltr"] {
+  text-align: right;
+  unicode-bidi: plaintext;
+}
+
+/* =========================================================
+   מגירת מערכות - פסים זה מתחת לזה, תמיד בתחתית
+   ========================================================= */
+.navbar-drawer {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(0, 0, 0, 0.14);
+}
+
+.drawer-bar {
+  display: block;
+  padding: 11px 16px;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 14px;
+  font-weight: 600;
+  text-align: right;
+  text-decoration: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  border-right: 3px solid transparent;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.drawer-bar:last-child {
+  border-bottom: none;
+}
+
+.drawer-bar:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+
+.drawer-bar:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: -2px;
+}
+
+.drawer-bar.active {
+  background: rgba(255, 255, 255, 0.14);
+  border-right-color: #fff;
+  color: #fff;
+}
+
+/* מסכים נמוכים - פסים צפופים יותר */
+@media (max-height: 760px) {
+  .drawer-bar {
+    padding: 8px 16px;
+    font-size: 13px;
+  }
+
+  .navbar-system-title {
+    padding: 10px 16px 8px;
+    font-size: 15px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .drawer-bar {
+    transition: none;
+  }
+}
+
+/* =========================================================
+   אזור הפריטים - גולל בתוך עצמו
+   min-height: 0 הכרחי כדי ש-flex יאפשר לו להתכווץ
+   ========================================================= */
+.navbar-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 12px;
+  box-sizing: border-box;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.25) transparent;
+}
+
+.navbar-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+
+.navbar-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.navbar-scroll::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.25);
+  border-radius: 3px;
+}
+
+.navbar-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.4);
+}
+
+/* =========================================================
+   כותרת קבוצה (בשימוש בתפריט האדמין)
+   ========================================================= */
+.navbar-section-label {
+  padding: 14px 16px 4px;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 12px;
+  font-weight: 600;
+  text-align: right;
+  user-select: none;
+}
+
+.navbar-section-label:first-child {
+  padding-top: 8px;
+}
+
+/* =========================================================
+   פריטים
+   ========================================================= */
 .navbar .navbar-item-instance {
   align-self: stretch !important;
   width: 100% !important;
 }
+
 .navbar-link {
-  white-space: nowrap; /* מונע שבירת שורה */
-  overflow: hidden; /* מסתיר טקסט חורג */
-  text-overflow: ellipsis; /* מוסיף שלוש נקודות אם יש טקסט חורג */
-  width: 100%; /* תופס את כל הרוחב */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  width: 100%;
   display: block;
 }
+
 .navbar-item {
-  width: 100%; /* הבטחת גודל קבוע של הפריטים */
-  text-align: right; /* יישור המלל לימין */
+  width: 100%;
+  text-align: right;
 }
 
 .navbar-item-content {
-  /*width: 100%; /* תופס את כל הרוחב */
   display: flex;
   justify-content: space-between;
 }
 
-
-/* Flow - נמצא בתוך navbar-bottom */
-.navbar-bottom {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding-bottom: 20px;
+.submenu-toggle {
+  font-size: 18px;
+  margin-right: 8px;
+  font-weight: bold;
+  color: white;
+  cursor: pointer;
+  flex-shrink: 0;
 }
 
-/* 🔹 צור קשר - מוצמד לתחתית ה-NAVBAR */
+/* =========================================================
+   צור קשר (נשמר כמו שהיה)
+   ========================================================= */
 .contact-container {
-  position: absolute; /* ייתכן שגם fixed יתאים, אם ה-navbar לא בגובה דינמי */
-  bottom: 80px; /* תני לו מרווח מלמטה */
+  position: absolute;
+  bottom: 80px;
   left: 63%;
   transform: translateX(-50%);
   text-align: center;
@@ -70,14 +216,4 @@
 
 .contact-link:hover {
   color: #ffcc00;
-}
-
-
-.submenu-toggle {
-  font-size: 18px;         /* ✅ הגדלה לגודל בולט יותר */
-  margin-right: 8px;       /* טיפה מרווח מהטקסט */
-  font-weight: bold;       /* ✅ החץ נראה חזק יותר */
-  color: white;          /* ✅ צבע צהוב כהה – מושך תשומת לב */
-  cursor: pointer;
-  flex-shrink: 0;
 }

@@ -8,6 +8,7 @@ import React, { useState } from 'react';
 import useFetchAgentData from '@/hooks/useFetchAgentData';
 import { useAuth } from '@/lib/firebase/AuthContext';
 import AnomalyPoliciesModal from '@/components/commission/AnomalyPoliciesModal';
+import CustomerImportFromCommissions from '@/components/customers/CustomerImportFromCommissions';
 import useAgentInsights from '@/hooks/useAgentInsights';
 import useCommissionSummary from '@/hooks/useCommissionSummary';
 import OverviewTab from '@/components/commission/summary/OverviewTab';
@@ -63,6 +64,7 @@ const CommissionSummaryAgentTab: React.FC = () => {
             ))}
           </select>
         </div>
+        <CustomerImportFromCommissions agentId={ready ? selectedAgentId : ''} />
         <button
           type="button"
           onClick={() => setShowAnomalies(true)}

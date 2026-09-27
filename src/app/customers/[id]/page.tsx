@@ -20,8 +20,6 @@ import CustomerNotes from './CustomerNotes';
 import CustomerTasks from './CustomerTasks';
 import CustomerMeetingFlow from './CustomerMeetingFlow';
 
-// ─── טיפוסים ──────────────────────────────────────────────────────────────────
-
 interface CustomerDoc {
   id: string;
   IDCustomer: string;
@@ -66,7 +64,7 @@ interface SaleRow {
   commissionNifraim?: number;
   sumPremia?: number;
   sumTzvira?: number;
-  customerName?: string; // ← מוצג רק כשמציגים ריכוז תא משפחתי, כדי לדעת של מי כל שורה
+  customerName?: string;
 }
 
 interface ExternalRow {
@@ -77,7 +75,7 @@ interface ExternalRow {
   totalPremiumAmount?: number;
   reportMonth?: string;
   templateId?: string;
-  customerId?: string | null; // ← מ-policyCommissionSummaries, לשיוך לבן משפחה כש-includeFamily פעיל
+  customerId?: string | null;
   customerName?: string;
 }
 
@@ -97,8 +95,6 @@ interface AgentUser {
 }
 
 type TabKey = 'magic' | 'nifraim' | 'family' | 'notes' | 'tasks' | 'meeting';
-
-// ─── עזרים ────────────────────────────────────────────────────────────────────
 
 const normIdDigits = (v: any) => String(v ?? '').trim().replace(/\D/g, '');
 const pad9 = (v: string) => v.padStart(9, '0');
@@ -129,9 +125,8 @@ const dedupeSales = (rows: any[]) => {
   return Array.from(m.values());
 };
 
-const prevMonth = () => {
+const currentMonth = () => {
   const d = new Date();
-  d.setMonth(d.getMonth() - 1);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 };
 
@@ -149,8 +144,6 @@ const calculateAge = (birthday?: string): number | null => {
   return age >= 0 ? age : null;
 };
 
-// ─── קומפוננט ראשי ────────────────────────────────────────────────────────────
-
 export default function CustomerPage() {
   const params = useParams();
   const router = useRouter();
@@ -163,19 +156,15 @@ export default function CustomerPage() {
 
   const { canAccess: canViewCommissions } = usePermission('view_commissions_field');
 
-  // ─── מזהה לקוח מה-URL ────────────────────────────────────────────────────────
   const customerId = Array.isArray(params?.id) ? params.id[0] : (params?.id ?? '');
 
-  // ─── סטייט ───────────────────────────────────────────────────────────────────
   const [customer, setCustomer] = useState<CustomerDoc | null>(null);
   const [loadingCustomer, setLoadingCustomer] = useState(true);
 
-  const [activeTab, setActiveTab] = useState<TabKey>('tasks');
+  const [activeTab, setActiveTab] = useState<TabKey>('nifraim');
 
-  // ── ריכוז תא משפחתי — משותף בין "עסקאות Magic" ו"פוליסות מטעינה" (אותה כוונה, אותו טוגל) ──
   const [includeFamily, setIncludeFamily] = useState(false);
 
-  // עריכת פרטי לקוח
   const [isEditing, setIsEditing] = useState(false);
   const [editData, setEditData] = useState<Partial<CustomerDoc>>({});
   const [isSaving, setIsSaving] = useState(false);
@@ -228,37 +217,30 @@ export default function CustomerPage() {
     }
   };
 
-  // עסקאות Magic
   const [magicSales, setMagicSales] = useState<SaleRow[]>([]);
   const [loadingMagic, setLoadingMagic] = useState(false);
   const [contracts, setContracts] = useState<any[]>([]);
   const [productMap, setProductMap] = useState<Record<string, any>>({});
   const [templatesById, setTemplatesById] = useState<Record<string, any>>({});
 
-  // פוליסות מטעינה
-  const [reportMonth, setReportMonth] = useState(prevMonth);
-  const [nifraimFilterMode, setNifraimFilterMode] = useState<'report' | 'publish'>('report');
+  const [reportMonth, setReportMonth] = useState(currentMonth);
+  const [nifraimFilterMode, setNifraimFilterMode] = useState<'report' | 'publish'>('publish');
   const [externalRows, setExternalRows] = useState<ExternalRow[]>([]);
   const [loadingExternal, setLoadingExternal] = useState(false);
 
-  // פערים
   const [magicNifraim, setMagicNifraim] = useState(0);
   const [externalTotal, setExternalTotal] = useState(0);
 
-  // קשרים משפחתיים
   const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>([]);
   const [loadingFamily, setLoadingFamily] = useState(false);
 
-  // ── חיפוש והוספת בן משפחה (לשונית "קשרים משפחתיים") ──
   const [familySearchQuery, setFamilySearchQuery] = useState('');
   const [familySearchResults, setFamilySearchResults] = useState<FamilyMember[]>([]);
   const [searchingFamily, setSearchingFamily] = useState(false);
   const [addingFamilyMemberId, setAddingFamilyMemberId] = useState<string | null>(null);
 
-  // אנשי צוות הסוכנות — לבחירת "אחראי" ברמת לקוח (אותה רשימה כמו באחראי משימה)
   const [agentUsers, setAgentUsers] = useState<AgentUser[]>([]);
 
-  // ─── טעינת נתוני לקוח ────────────────────────────────────────────────────────
   useEffect(() => {
     if (!customerId) return;
     const load = async () => {
@@ -275,7 +257,6 @@ export default function CustomerPage() {
     load();
   }, [customerId]);
 
-  // ─── טעינת חוזים ומוצרים (חד-פעמי) ─────────────────────────────────────────
   useEffect(() => {
    const fetchContracts = async () => {
   const snap = await getDocs(collection(db, 'contracts'));
@@ -284,7 +265,7 @@ export default function CustomerPage() {
     return {
       id: d.id,
       ...data,
-      agentId: data.AgentId ?? data.agentId, // ← נרמול
+      agentId: data.AgentId ?? data.agentId,
     };
   }));
 };
@@ -308,12 +289,10 @@ export default function CustomerPage() {
     fetchTemplates();
   }, []);
 
-  // ─── sourceLeadMap ────────────────────────────────────────────────────────────
   useEffect(() => {
     if (customer?.AgentId) fetchSourceLeadMap(customer.AgentId);
   }, [customer?.AgentId]);
 
-  // ─── אנשי צוות הסוכנות (לשדה "אחראי" ברמת לקוח) ────────────────────────────────
   useEffect(() => {
     if (!customer?.AgentId) return;
     const loadUsers = async () => {
@@ -328,14 +307,12 @@ export default function CustomerPage() {
     loadUsers();
   }, [customer?.AgentId]);
 
-  // ─── חישוב עמלות ─────────────────────────────────────────────────────────────
 const calculateCommissions = (sale: any, contractMatch: any) => {
   const product = productMap[sale.product];
   const isOneTime = product?.isOneTime ?? false;
   const multiplier = isOneTime ? 1 : 12;
   const toNum = (v: any) => parseInt(v) || 0;
 
-  // fallback לקבוצת מוצר אם אין התאמה מדויקת
   const effectiveMatch = contractMatch ?? contracts.find(
     c =>
       c.productsGroup === product?.productGroup &&
@@ -365,8 +342,6 @@ const calculateCommissions = (sale: any, contractMatch: any) => {
   };
 };
 
-  // ─── טעינת תא משפחתי - תמיד כשיש parentID, לא רק בלשונית "family" -
-  // כי גם לשוניות "עסקאות Magic" ו"פוליסות מטעינה" צריכות את הרשימה לריכוז ──
   const loadFamilyMembers = async () => {
     if (!customer?.parentID) { setFamilyMembers([]); return; }
     setLoadingFamily(true);
@@ -388,7 +363,6 @@ const calculateCommissions = (sale: any, contractMatch: any) => {
     loadFamilyMembers();
   }, [customer]);
 
-  // ── מזהי התא המשפחתי (לרבות הלקוח הנוכחי עצמו), לצורך ריכוז Magic + מטעינה ──
   const familyCanonSet = useMemo(() => {
     if (!customer) return new Set<string>();
     const ids = includeFamily
@@ -397,7 +371,6 @@ const calculateCommissions = (sale: any, contractMatch: any) => {
     return new Set(ids.map(canonId).filter(Boolean));
   }, [includeFamily, customer, familyMembers]);
 
-  // Firestore 'in' תומך עד 10 ערכים - מפצלים לצ'אנקים של 10 את כל וריאנטי הת"ז (עם/בלי 0 מוביל)
   const familyIdVariantChunks = useMemo(() => {
     if (!customer) return [] as string[][];
     const ids = includeFamily
@@ -409,7 +382,6 @@ const calculateCommissions = (sale: any, contractMatch: any) => {
     return chunks;
   }, [includeFamily, customer, familyMembers]);
 
-  // שם מלא לפי ת"ז מנורמלת - להצגת "של מי" כל שורה כשמריכזים תא משפחתי
   const familyNameByCanon = useMemo(() => {
     const map = new Map<string, string>();
     if (customer) map.set(canonId(customer.IDCustomer), `${customer.firstNameCustomer} ${customer.lastNameCustomer}`.trim());
@@ -417,7 +389,6 @@ const calculateCommissions = (sale: any, contractMatch: any) => {
     return map;
   }, [customer, familyMembers]);
 
-  // ─── טעינת עסקאות Magic (הלקוח הנוכחי, או כל התא המשפחתי כש-includeFamily פעיל) ──
   useEffect(() => {
     if (!customer || familyIdVariantChunks.length === 0) return;
     const agentId = customer.AgentId;
@@ -467,11 +438,6 @@ const calculateCommissions = (sale: any, contractMatch: any) => {
     if (contracts.length > 0) load();
   }, [customer, contracts, productMap, familyIdVariantChunks, familyCanonSet, familyNameByCanon]);
 
-  // ─── טעינת פוליסות מטעינה (הלקוח הנוכחי, או כל התא המשפחתי כש-includeFamily פעיל) ──
-  // שני מצבי סינון: "לפי חודש דיווח" (reportMonth, כרגיל) או "לפי חודש פרסום" (ym) -
-  // האחרון דורש join ידני: policyCommissionSummaries.runId -> commissionImportRuns/{runId}.ym
-  // (בדיוק כמו commitRun בבקאנד - runId הוא מזהה המסמך ב-commissionImportRuns, לא portalImportRuns).
-  // שורות בלי ym (בד"כ ייבוא ידני, שלא כותב ym) לא נכללות בתצוגה הזו - נספרות בנפרד לשקיפות.
   const loadExternal = async () => {
     if (!customer) return;
     setLoadingExternal(true);
@@ -513,16 +479,13 @@ const calculateCommissions = (sale: any, contractMatch: any) => {
         setExternalRows(rows);
         setExternalTotal(Number(total.toFixed(2)));
       } else {
-        // ── מצב "לפי חודש פרסום" — קורא ל-API ייעודי שמשכפל את אותו join מאומת
-        // שכבר קיים ב-commission-summary-drilldown (portalImportRuns -> jobIds -> externalCommissions),
-        // רק מסונן לפי customerId-ים במקום agentCode+companyId בודדים ──
         const res = await fetch('/api/customer-commission-by-ym', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             agentId: customer.AgentId,
             customerIds: padded,
-            ym: reportMonth, // "reportMonth" בשדה ה-UI מתפרש כאן כחודש הפרסום שנבחר
+            ym: reportMonth,
           }),
         });
 
@@ -559,7 +522,6 @@ const calculateCommissions = (sale: any, contractMatch: any) => {
     }
   };
 
-  // ── פילטר חברה ומיון לטבלת פוליסות מטעינה (client-side - הדאטה כבר נטענה) ──
   const [nifraimCompanyFilter, setNifraimCompanyFilter] = useState('');
   const [nifraimSort, setNifraimSort] = useState<{ key: 'customerName' | 'company' | null; dir: 'asc' | 'desc' }>({ key: null, dir: 'asc' });
 
@@ -569,7 +531,6 @@ const calculateCommissions = (sale: any, contractMatch: any) => {
       : { key, dir: 'asc' });
   };
 
-  // ── מיון לטבלת עסקאות Magic (client-side, אותו דפוס בדיוק) ──
   const [magicSort, setMagicSort] = useState<{ key: 'customerName' | 'company' | null; dir: 'asc' | 'desc' }>({ key: null, dir: 'asc' });
 
   const handleMagicSort = (key: 'customerName' | 'company') => {
@@ -582,10 +543,6 @@ const calculateCommissions = (sale: any, contractMatch: any) => {
     if (activeTab === 'nifraim') loadExternal();
   }, [activeTab, reportMonth, customer, includeFamily, familyMembers, nifraimFilterMode]);
 
-  // ─── חיפוש בן משפחה להוספה ────────────────────────────────────────────────────
-  // ⚠️ הגבלה: Firestore לא תומך בחיפוש "מכיל" חופשי על אוסף גדול בלי שירות חיפוש חיצוני
-  // (כמו Algolia). זה חיפוש לפי prefix על שם פרטי/משפחה, ולפי ת"ז מדויקת (עם idVariants) -
-  // לא "מכיל בכל מקום". מספיק טוב לרוב המקרים, אבל שם חלקי שלא מתחיל באות שהוקלדה לא יימצא.
   useEffect(() => {
     if (activeTab !== 'family' || !customer) { setFamilySearchResults([]); return; }
     const raw = familySearchQuery.trim();
@@ -599,7 +556,6 @@ const calculateCommissions = (sale: any, contractMatch: any) => {
         let docsRaw: any[] = [];
 
         if (digitsOnly.length >= 3) {
-          // חיפוש לפי ת"ז - כל הפורמטים האפשריים (עם/בלי 0 מוביל)
           const variants = idVariants(digitsOnly);
           const q1 = query(
             collection(db, 'customer'),
@@ -609,7 +565,6 @@ const calculateCommissions = (sale: any, contractMatch: any) => {
           const snap1 = await getDocs(q1);
           docsRaw = snap1.docs.map(d => ({ id: d.id, ...(d.data() as any) }));
         } else {
-          // חיפוש לפי prefix על שם פרטי ושם משפחה (שתי שאילתות, ממוזגות)
           const [snapFirst, snapLast] = await Promise.all([
             getDocs(query(
               collection(db, 'customer'),
@@ -640,21 +595,17 @@ const calculateCommissions = (sale: any, contractMatch: any) => {
       } finally {
         if (!cancelled) setSearchingFamily(false);
       }
-    }, 350); // דיבאונס
+    }, 350);
 
     return () => { cancelled = true; clearTimeout(t); };
   }, [familySearchQuery, activeTab, customer, familyMembers]);
 
-  // ─── הוספת בן משפחה נמצא לתא המשפחתי של הלקוח הנוכחי ──────────────────────────
   const addToFamily = async (candidate: FamilyMember) => {
     if (!customer) return;
     setAddingFamilyMemberId(candidate.id);
     try {
-      // "הראשי" הנוכחי: אם ללקוח הזה אין עדיין תא משפחתי, הוא עצמו הופך לראשי;
-      // אחרת - ה-parentID הקיים שלו.
       const mainId = customer.parentID || customer.id;
 
-      // ולידציה: הראשי חייב להיות "עצמאי" (לא כבר ילד במשפחה אחרת) - זהה לבדיקה ב-FamilyLinkDialog.tsx
       const mainSnap = await getDoc(doc(db, 'customer', mainId));
       if (mainSnap.exists()) {
         const mainData = mainSnap.data() as any;
@@ -664,7 +615,6 @@ const calculateCommissions = (sale: any, contractMatch: any) => {
         }
       }
 
-      // בדיקת קונפליקט: האם המועמד משמש כ"הורה" (ראשי) למשפחה אחרת כרגע
       const candidateSnap = await getDoc(doc(db, 'customer', candidate.id));
       if (candidateSnap.exists()) {
         const candidateData = candidateSnap.data() as any;
@@ -685,7 +635,6 @@ const calculateCommissions = (sale: any, contractMatch: any) => {
         }
       }
 
-      // אם הלקוח הנוכחי עדיין לא היה בתא משפחתי (parentID עצמי/ריק) - הופך רשמית לראשי
       if (!customer.parentID || customer.parentID !== mainId) {
         await updateDoc(doc(db, 'customer', mainId), { parentID: mainId, lastUpdateDate: serverTimestamp() });
       }
@@ -696,7 +645,6 @@ const calculateCommissions = (sale: any, contractMatch: any) => {
       setFamilySearchQuery('');
       setFamilySearchResults([]);
 
-      // רענון הנתונים המקומיים
       if (!customer.parentID || customer.parentID !== mainId) {
         setCustomer(prev => prev ? { ...prev, parentID: mainId } : prev);
       }
@@ -708,7 +656,6 @@ const calculateCommissions = (sale: any, contractMatch: any) => {
     }
   };
 
-  // ─── סיכומים ─────────────────────────────────────────────────────────────────
   const totalMagicHekef = useMemo(() => magicSales.reduce((a, r) => a + (r.commissionHekef || 0), 0), [magicSales]);
 
   const magicSalesSorted = useMemo(() => {
@@ -723,7 +670,6 @@ const calculateCommissions = (sale: any, contractMatch: any) => {
   }, [magicSales, magicSort]);
   const delta = externalTotal - magicNifraim;
 
-  // ─── פוליסות מטעינה — סינון + העשרה ─────────────────────────────────────────
   const nifraimWithGap = useMemo(() => {
     return externalRows
       .filter(ext => {
@@ -749,7 +695,6 @@ const calculateCommissions = (sale: any, contractMatch: any) => {
       });
   }, [externalRows, magicSales, templatesById]);
 
-  // רשימת חברות זמינות לפילטר - נגזרת מהדאטה שכבר נטענה, לא קריאה נוספת
   const nifraimCompanyOptions = useMemo(
     () => Array.from(new Set(externalRows.map(r => r.company).filter(Boolean))).sort(),
     [externalRows],
@@ -773,8 +718,6 @@ const calculateCommissions = (sale: any, contractMatch: any) => {
     return rows;
   }, [nifraimWithGap, nifraimCompanyFilter, nifraimSort]);
 
-  // ── סיווג לקבוצת מוצר: פנסיה (1) / פיננסים (4) / סיכונים (כל השאר) - זהה להגדרה הקיימת
-  // ב-PensionTab.tsx (excludeGroupIds=['1','4'] לטאב "סיכונים") ──
   type NifraimGroup = 'pension' | 'finance' | 'risk';
   const NIFRAIM_GROUP_LABEL: Record<NifraimGroup, string> = { pension: 'פנסיה', finance: 'פיננסים', risk: 'סיכונים' };
 
@@ -787,8 +730,6 @@ const calculateCommissions = (sale: any, contractMatch: any) => {
 
   const [nifraimGroupFilter, setNifraimGroupFilter] = useState<NifraimGroup | null>(null);
 
-  // סטטיסטיקות לשלושת הריבועים - תמיד מהדאטה המלאה (nifraimWithGap), לא מושפעות מפילטר החברה,
-  // כך שהריבועים תמיד מציגים את התמונה המלאה ואפשר ללחוץ עליהם כדי לצמצם את הטבלה
   const nifraimGroupStats = useMemo(() => {
     const stats: Record<NifraimGroup, { count: number; total: number }> = {
       pension: { count: 0, total: 0 },
@@ -805,10 +746,9 @@ const calculateCommissions = (sale: any, contractMatch: any) => {
 
   const nifraimFilteredByGroup = useMemo(() => {
     if (!nifraimGroupFilter) return nifraimFiltered;
-   return nifraimFiltered.filter(r => groupOfProduct(r.displayProduct) === nifraimGroupFilter);
+    return nifraimFiltered.filter(r => groupOfProduct(r.displayProduct) === nifraimGroupFilter);
   }, [nifraimFiltered, nifraimGroupFilter, productToGroupMap]);
 
-  // ─── ניווט לדף השוואה מלאה ───────────────────────────────────────────────────
   const openFullCompare = () => {
     if (!customer) return;
     const p = new URLSearchParams({
@@ -820,7 +760,6 @@ const calculateCommissions = (sale: any, contractMatch: any) => {
     router.push(`/importCommissionHub/CompareRealToReported?${p.toString()}`);
   };
 
-  // ─── UI ──────────────────────────────────────────────────────────────────────
   if (loadingCustomer) {
     return <div className="cp-loading">טוען נתוני לקוח...</div>;
   }
@@ -840,15 +779,14 @@ const calculateCommissions = (sale: any, contractMatch: any) => {
     '—';
 
   const tabs: { key: TabKey; label: string }[] = [
+    { key: 'nifraim', label: 'פוליסות מטעינה' },
+    { key: 'magic', label: 'עסקאות Magic' },
     { key: 'tasks', label: 'משימות' },
     { key: 'meeting', label: 'תיאום פגישה' },
     { key: 'notes', label: 'הערות' },
-    { key: 'magic', label: 'עסקאות Magic' },
-    { key: 'nifraim', label: 'פוליסות מטעינה' },
     { key: 'family', label: 'קשרים משפחתיים' },
   ];
 
-  // ── טוגל ריכוז תא משפחתי - זהה בשתי הלשוניות (עסקאות Magic + פוליסות מטעינה) ──
   const familyToggleBar = (
     <div className="cp-family-toggle-bar">
       <label className="cp-family-toggle">
@@ -869,12 +807,10 @@ const calculateCommissions = (sale: any, contractMatch: any) => {
 
   return (
     <div className="cp-page" dir="rtl">
-      {/* ── Back ── */}
       <button className="cp-back" onClick={() => router.back()}>
         ← חזרה לרשימת לקוחות
       </button>
 
-      {/* ── Header card ── */}
       <div className="cp-header-card">
         <div className="cp-header-top">
           <div className="cp-avatar">
@@ -1068,7 +1004,6 @@ const calculateCommissions = (sale: any, contractMatch: any) => {
         </div>
       </div>
 
-      {/* ── Tabs ── */}
       <div className="cp-tabs">
         {tabs.map(t => (
           <button
@@ -1083,7 +1018,6 @@ const calculateCommissions = (sale: any, contractMatch: any) => {
 
       <div className="cp-tab-content">
 
-        {/* ── עסקאות Magic ── */}
         {activeTab === 'magic' && (
           <div>
             {familyToggleBar}
@@ -1141,12 +1075,10 @@ const calculateCommissions = (sale: any, contractMatch: any) => {
           </div>
         )}
 
-        {/* ── פוליסות מטעינה ── */}
         {activeTab === 'nifraim' && (
           <div>
             {familyToggleBar}
 
-            {/* ── 3 ריבועים קבועים לפי קבוצת מוצר - תמיד מוצגים, גם עם 0 ── */}
             <div className="cp-nifraim-group-cards">
               {(['pension', 'finance', 'risk'] as const).map(g => {
                 const stat = nifraimGroupStats[g];
@@ -1205,6 +1137,15 @@ const calculateCommissions = (sale: any, contractMatch: any) => {
                   <option key={c} value={c}>{c}</option>
                 ))}
               </select>
+              {(nifraimCompanyFilter || nifraimGroupFilter) && (
+                <button
+                  type="button"
+                  className="cp-btn-cancel"
+                  onClick={() => { setNifraimCompanyFilter(''); setNifraimGroupFilter(null); }}
+                >
+                  ✕ נקה סינון
+                </button>
+              )}
             </div>
             {loadingExternal ? (
               <div className="cp-loading-inline">טוען...</div>
@@ -1263,10 +1204,8 @@ const calculateCommissions = (sale: any, contractMatch: any) => {
           </div>
         )}
 
-        {/* ── קשרים משפחתיים ── */}
         {activeTab === 'family' && (
           <div>
-            {/* ── חיפוש והוספת בן משפחה ── */}
             <div className="cp-family-search">
               <input
                 type="text"
@@ -1337,24 +1276,20 @@ const calculateCommissions = (sale: any, contractMatch: any) => {
           </div>
         )}
 
-        {/* ── הערות ── */}
         {activeTab === 'notes' && (
           <CustomerNotes customerId={customerId} agentId={customer.AgentId} />
         )}
 
-        {/* ── משימות ── */}
         {activeTab === 'tasks' && (
           <CustomerTasks customerId={customerId} agentId={customer.AgentId} />
         )}
 
-        {/* ── תיאום פגישה ── */}
         {activeTab === 'meeting' && (
           <CustomerMeetingFlow customerId={customerId} agentId={customer.AgentId} />
         )}
 
       </div>
 
-      {/* ── Toasts ── */}
       {toasts.map(t => (
         <ToastNotification
           key={t.id}

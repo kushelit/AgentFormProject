@@ -35,6 +35,13 @@ import {
   db,
 } from '@/lib/firebase/firebase';
 
+import {
+  getSystemHref,
+  normalizePrimarySystem,
+  cachePrimarySystemForAgent,
+  resetNavigationState,
+} from '@/hooks/usePrimarySystem';
+
 type Step = 'login' | 'mfa';
 
 type FirebaseLikeError = {
@@ -67,6 +74,50 @@ const maskPhone = (phoneNumber?: string): string => {
   );
 
   return `${visibleStart}${'*'.repeat(hiddenLength)}${visibleEnd}`;
+};
+
+/**
+ * המערכת הראשית של המשתמש - קובעת לאן נוחתים אחרי התחברות.
+ *
+ * - סוכן / מנהל / אדמין: שדה primarySystem במסמך שלו
+ * - עובד: יורש מהסוכן שלו לפי agentId
+ *
+ * כשל בקריאה לא חוסם התחברות - חוזרים לברירת המחדל.
+ */
+const resolvePrimarySystem = async (
+  uid: string,
+  userData: Record<string, any>
+): Promise<string | null> => {
+  const agentId: string | undefined = userData?.agentId;
+
+  const readsOwnDoc =
+    userData?.role === 'admin' ||
+    !agentId ||
+    agentId === uid;
+
+  if (readsOwnDoc) {
+    return normalizePrimarySystem(userData?.primarySystem);
+  }
+
+  try {
+    const agentSnapshot = await getDoc(doc(db, 'users', agentId));
+    const value = normalizePrimarySystem(
+      agentSnapshot.exists()
+        ? agentSnapshot.data()?.primarySystem
+        : null
+    );
+
+    cachePrimarySystemForAgent(agentId, value);
+
+    return value;
+  } catch (resolveError) {
+    console.warn(
+      '[AUTH] Failed to resolve primary system, using default',
+      resolveError
+    );
+
+    return null;
+  }
 };
 
 /**
@@ -297,7 +348,8 @@ export default function LogInPage() {
   };
   
   /**
-   * בדיקת המשתמש ב־Firestore לאחר התחברות מלאה.
+   * בדיקת המשתמש ב־Firestore לאחר התחברות מלאה,
+   * והפניה לדף הנחיתה של המערכת הראשית.
    */
   const validateUserAndRedirect = async (
     user: User
@@ -317,10 +369,20 @@ export default function LogInPage() {
       throw new Error('המנוי שלך אינו פעיל');
     }
 
-   console.info('[AUTH] Login completed successfully');
+    // מצב ניווט מהתחברות קודמת באותה לשונית לא רלוונטי למשתמש הזה
+    resetNavigationState();
+
+    const primarySystem = await resolvePrimarySystem(
+      user.uid,
+      userData
+    );
+
+    console.info('[AUTH] Login completed successfully', {
+      primarySystem: primarySystem || 'default',
+    });
 
     resetRecaptcha();
-    router.push('/NewAgentForm');
+    router.push(getSystemHref(primarySystem));
   };
 
   /**

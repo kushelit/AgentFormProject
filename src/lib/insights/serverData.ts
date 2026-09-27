@@ -49,9 +49,9 @@ export async function loadTemplates(db: Db): Promise<TemplatesInfo> {
   return { templatesById, hekefTemplateIds, activeTemplateIds };
 }
 
-/** jobId → חודש פרסום, לטעינות שחודש הפרסום שלהן בשנה המבוקשת */
-export async function loadJobYms(db: Db, agentId: string, year: string): Promise<Record<string, string>> {
-  const prefix = `${year}-`;
+/** jobId → חודש פרסום. year אופציונלי — בלעדיו מחזיר את כל השנים */
+export async function loadJobYms(db: Db, agentId: string, year?: string): Promise<Record<string, string>> {
+  const prefix = year ? `${year}-` : '';
   const snap = await db
     .collection('portalImportRuns')
     .where('agentId', '==', agentId)
@@ -62,7 +62,7 @@ export async function loadJobYms(db: Db, agentId: string, year: string): Promise
   snap.docs.forEach((d) => {
     const r: any = d.data();
     const ym = str(r?.resolvedWindow?.ym);
-    if (!ym.startsWith(prefix)) return;
+    if (!ym || !ym.startsWith(prefix)) return;
     const jobIds: string[] = Array.isArray(r?.queue?.jobIds) ? r.queue.jobIds : [];
     for (const raw of jobIds) {
       const jobId = str(raw);
@@ -73,7 +73,7 @@ export async function loadJobYms(db: Db, agentId: string, year: string): Promise
   return ymByJobId;
 }
 
-export type JobMeta = { templateId: string; company: string; createdAt: number };
+export type JobMeta = { templateId: string; company: string; companyId?: string; createdAt: number };
 
 /** מטא של טעינות שהצליחו (קיים commissionImportRuns), ללא תבניות היקף */
 export async function loadJobMeta(
@@ -85,7 +85,7 @@ export async function loadJobMeta(
     chunk(jobIds, GETALL_CHUNK).map((ids) =>
       db.getAll(
         ...ids.map((id) => db.collection('commissionImportRuns').doc(id)),
-        { fieldMask: ['templateId', 'company', 'createdAt'] }
+        { fieldMask: ['templateId', 'company', 'companyId', 'createdAt'] }
       )
     )
   );
@@ -96,7 +96,7 @@ export async function loadJobMeta(
     const d: any = snap.data();
     const templateId = str(d?.templateId);
     if (!templateId || hekefTemplateIds.has(templateId)) return;
-    out[snap.id] = { templateId, company: str(d?.company), createdAt: tsMillis(d?.createdAt) };
+    out[snap.id] = { templateId, company: str(d?.company), companyId: str(d?.companyId), createdAt: tsMillis(d?.createdAt) };
   });
   return out;
 }

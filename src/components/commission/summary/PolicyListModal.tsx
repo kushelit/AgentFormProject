@@ -8,6 +8,9 @@ import type { PortfolioCategory, PortfolioPolicyRow } from '@/types/agentInsight
 import { ACCENTS, fmtInt, fmtMoney, type Accent } from './ui';
 import t from './table.module.css';
 import ClassifiedProduct, { MATCH_LABEL, isUnmapped } from './ClassifiedProduct';
+import CustomerLink from './CustomerLink';
+import CustomerIssueBar from './CustomerIssueBar';
+import useOpenCustomer from '@/hooks/useOpenCustomer';
 
 interface Props {
   agentId: string;
@@ -44,6 +47,7 @@ const PolicyListModal: React.FC<Props> = ({ agentId, year, category, categoryTit
   const [sort, setSort] = useState<{ key: SortKey; dir: 'asc' | 'desc' }>({ key: 'amount', dir: 'desc' });
   const [visible, setVisible] = useState(PAGE);
   const [onlyUnmapped, setOnlyUnmapped] = useState(false);
+  const { openCustomer, isPending, issue, clearIssue } = useOpenCustomer(agentId);
 
   useEffect(() => {
     let cancelled = false;
@@ -175,6 +179,8 @@ const PolicyListModal: React.FC<Props> = ({ agentId, year, category, categoryTit
           </div>
         </div>
 
+        <CustomerIssueBar agentId={agentId} issue={issue} onClose={clearIssue} />
+
         {mismatch && (
           <div className="px-5 py-2 text-xs bg-amber-50 text-amber-800 border-b border-amber-200">
             ⚠️ סכום הרשימה ({fmtInt(total)} ₪) שונה מהסכום בקוביה ({fmtInt(expectedTotal)} ₪). ייתכן שנטענו נתונים חדשים — רענני את הדף.
@@ -207,8 +213,12 @@ const PolicyListModal: React.FC<Props> = ({ agentId, year, category, categoryTit
               <tbody className="divide-y divide-slate-100">
                 {filtered.slice(0, visible).map((r, i) => (
                   <tr key={`${r.policyNumberKey}_${r.customerId}_${r.templateName}_${i}`} className="hover:bg-slate-50">
-                    <td className="px-3 py-1.5 font-semibold text-slate-800">{r.fullName || '-'}</td>
-                    <td className="px-3 py-1.5 text-slate-600 tabular-nums">{r.customerId || '-'}</td>
+                    <td className="px-3 py-1.5 font-semibold">
+                      <CustomerLink customerId={r.customerId} label={r.fullName} name={r.fullName} pending={isPending(r.customerId)} onOpen={openCustomer} />
+                    </td>
+                    <td className="px-3 py-1.5 tabular-nums">
+                      <CustomerLink customerId={r.customerId} label={r.customerId} name={r.fullName} pending={false} onOpen={openCustomer} className="text-slate-600" />
+                    </td>
                     <td className="px-3 py-1.5 text-slate-600 tabular-nums">{r.policyNumberKey}</td>
                     <td className="px-3 py-1.5 text-slate-500">{r.productRaw || '-'}</td>
                     <td className="px-3 py-1.5 text-slate-700">
