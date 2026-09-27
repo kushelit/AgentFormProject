@@ -7,6 +7,7 @@ import KpiCard from './KpiCard';
 import CompanyBreakdown from './CompanyBreakdown';
 import AiSummaryCard from './AiSummaryCard';
 import PolicyListModal from './PolicyListModal';
+import { prefetchJson } from '@/lib/fetchCache';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip } from './charts';
 import { fmtInt, fmtMoney, type Accent } from './ui';
 
@@ -79,6 +80,7 @@ const OverviewTab: React.FC<Props> = ({ agentId, year, insights, loading, error,
   const recentLabel = recentN === 1 ? 'חודש אחרון' : `${recentN} חודשים אחרונים`;
   const recentRange =
     recentN > 1 ? `${income.recentYms[0]} – ${income.recentYms[recentN - 1]}` : income.recentYms[0] ?? '';
+
   const toggle = (k: KpiKey) => setOpenKpi((cur) => (cur === k ? null : k));
 
   const drills: Record<KpiKey, { title: string; rows: CompanyAmount[]; total: number; accent: Accent; latestYm?: string | null }> = {
@@ -184,7 +186,15 @@ const OverviewTab: React.FC<Props> = ({ agentId, year, insights, loading, error,
           />
         </div>
         {open && openKpi && portfolioKeys.includes(openKpi) && (
-          <CompanyBreakdown {...open} onClose={() => setOpenKpi(null)} onCompanyClick={setPolicyCompany} />
+          <CompanyBreakdown
+            {...open}
+            onClose={() => setOpenKpi(null)}
+            onCompanyClick={setPolicyCompany}
+            onCompanyHover={(company) => {
+              const category = PORTFOLIO_KPI_CATEGORY[openKpi];
+              if (category) prefetchJson('/api/agent-insights/policies', { agentId, year, category, company });
+            }}
+          />
         )}
         {open && openKpi && policyCompany && PORTFOLIO_KPI_CATEGORY[openKpi] && (
           <PolicyListModal

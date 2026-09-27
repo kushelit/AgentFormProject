@@ -5,6 +5,7 @@ import React from 'react';
 import type { CompanyAmount } from '@/types/agentInsights';
 import { ACCENTS, fmtInt, type Accent } from './ui';
 import t from './table.module.css';
+import useHoverPrefetch from '@/hooks/useHoverPrefetch';
 
 interface Props {
   title: string;
@@ -13,11 +14,26 @@ interface Props {
   accent: Accent;
   latestYm?: string | null; // אם קיים — חודש ישן יותר מסומן
   onClose: () => void;
-  /** אם מוגדר — לחיצה על חברה פותחת את רשימת הפוליסות */
+  /** אם מוגדר — לחיצה על חברה מפעילה אותו (רשימת פוליסות / השוואה) */
   onCompanyClick?: (company: string) => void;
+  /** טקסט ההסבר ליד הכותרת כשהשורות לחיצות */
+  clickHint?: string;
+  /** טעינה מוקדמת כשהעכבר נשאר על שורה */
+  onCompanyHover?: (company: string) => void;
 }
 
-const CompanyBreakdown: React.FC<Props> = ({ title, rows, total, accent, latestYm, onClose, onCompanyClick }) => {
+const CompanyBreakdown: React.FC<Props> = ({
+  title,
+  rows,
+  total,
+  accent,
+  latestYm,
+  onClose,
+  onCompanyClick,
+  clickHint = 'לחצי על חברה לרשימת הפוליסות',
+  onCompanyHover,
+}) => {
+  const hover = useHoverPrefetch();
   const a = ACCENTS[accent];
   const showPolicies = rows.some((r) => r.policies !== undefined);
   const showMonths = rows.some((r) => r.months?.length);
@@ -28,7 +44,7 @@ const CompanyBreakdown: React.FC<Props> = ({ title, rows, total, accent, latestY
       <div className="flex items-center justify-between px-4 py-3 border-b bg-slate-50">
         <div className="font-bold text-slate-700 text-sm">
           {title} — פילוח לפי חברה
-          {onCompanyClick && <span className="font-normal text-xs text-slate-400 mr-2">לחצי על חברה לרשימת הפוליסות</span>}
+          {onCompanyClick && <span className="font-normal text-xs text-slate-400 mr-2">{clickHint}</span>}
         </div>
         <button type="button" onClick={onClose} className="text-xs text-slate-500 hover:text-slate-700">
           סגור ✕
@@ -58,6 +74,7 @@ const CompanyBreakdown: React.FC<Props> = ({ title, rows, total, accent, latestY
                     key={r.company}
                     className={`hover:bg-slate-50 ${onCompanyClick ? 'cursor-pointer' : ''}`}
                     onClick={onCompanyClick ? () => onCompanyClick(r.company) : undefined}
+                    {...(onCompanyHover ? hover(() => onCompanyHover(r.company)) : {})}
                   >
                     <td className="px-4 py-2 font-semibold text-slate-800">
                       {r.company}

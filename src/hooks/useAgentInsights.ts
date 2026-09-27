@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { AgentInsights, AiSummary } from '@/types/agentInsights';
 import { normalizeInsights } from '@/lib/insights/normalizeInsights';
+import { postJsonCached } from '@/lib/fetchCache';
 
 const AI_ERRORS: Record<string, string> = {
   ai_not_configured: 'סקירת AI לא הוגדרה בשרת (חסר מפתח API).',
@@ -65,13 +66,7 @@ export default function useAgentInsights(agentId: string, year: string) {
     setLoading(true);
     (async () => {
       try {
-        const res = await fetch('/api/agent-insights', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ agentId, year }),
-        });
-        if (!res.ok) throw new Error(String(res.status));
-        const data = normalizeInsights(await res.json());
+        const data = normalizeInsights(await postJsonCached('/api/agent-insights', { agentId, year }));
         if (reqId !== reqRef.current) return;
         setInsights(data);
         setLoading(false);

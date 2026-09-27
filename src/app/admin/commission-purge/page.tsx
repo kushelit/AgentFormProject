@@ -71,15 +71,49 @@ function cleanBucket(b: any): string {
   return String(b ?? '').trim().replace(/^gs:\/\//, '');
 }
 
+function normalizeFirebaseBucket(bucket: string): string {
+  const clean = cleanBucket(bucket);
+
+  if (clean.endsWith('.appspot.com')) {
+    return clean.replace(
+      '.appspot.com',
+      '.firebasestorage.app'
+    );
+  }
+
+  return clean;
+}
+
 function bucketCandidates(raw: string): string[] {
-  const r = cleanBucket(raw);
-  const alt = r.endsWith('.firebasestorage.app')
-    ? r.replace('.firebasestorage.app', '.appspot.com')
-    : r.endsWith('.appspot.com')
-    ? r.replace('.appspot.com', '.firebasestorage.app')
-    : '';
-  const def = cleanBucket(firebaseApp.options.storageBucket);
-  return Array.from(new Set([r, alt, def].filter(Boolean)));
+  const savedBucket = cleanBucket(raw);
+
+  const environmentBucket =
+    cleanBucket(firebaseApp.options.storageBucket);
+
+  const normalizedSavedBucket =
+    normalizeFirebaseBucket(savedBucket);
+
+  const normalizedEnvironmentBucket =
+    normalizeFirebaseBucket(environmentBucket);
+
+  console.log('BUCKET DEBUG', {
+    raw,
+    savedBucket,
+    environmentBucket,
+    normalizedSavedBucket,
+    normalizedEnvironmentBucket,
+  });
+
+  return Array.from(
+    new Set(
+      [
+        normalizedSavedBucket,
+        normalizedEnvironmentBucket,
+        savedBucket,
+        environmentBucket,
+      ].filter(Boolean)
+    )
+  );
 }
 
 async function resolveDownloadUrl(ref: ImportFileRef): Promise<{ url: string; tried: string[] }> {

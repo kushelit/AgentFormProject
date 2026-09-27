@@ -24,11 +24,11 @@ export function matchFromDebug(r: {
 }
 
 const ClassifiedProduct: React.FC<{ product: string; matchedBy: ProductMatch }> = ({ product, matchedBy }) => (
-  <span className="inline-flex items-center gap-1.5 flex-wrap">
+  <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
     <span>{product || '-'}</span>
     {isUnmapped(matchedBy) && (
       <span
-        className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 whitespace-nowrap"
+        className="text-[10px] leading-none font-bold px-1.5 py-1 rounded bg-amber-100 text-amber-800 whitespace-nowrap"
         title="המוצר המקורי לא נמצא ב-productMap של התבנית — הוחל fallbackProduct"
       >
         {MATCH_LABEL[matchedBy]}

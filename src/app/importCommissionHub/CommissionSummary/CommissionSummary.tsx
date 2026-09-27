@@ -27,7 +27,8 @@ export default function CommissionSummaryTabsPage() {
 
   return (
     <div className="min-h-screen bg-gray-50" dir="rtl">
-      <div className="max-w-6xl mx-auto px-4 py-6">
+      {/* רוחב: max-w-[1800px] (במקום max-w-6xl) — הטבלאות רחבות, ניצול מלא של המסך */}
+      <div className="w-full max-w-[1800px] mx-auto px-4 lg:px-6 py-6">
        <div className="flex items-center justify-between mb-4">
           <h1 className="text-2xl font-bold">
             {activeTab === 'hekef' ? 'דף עמלות – תפוקות' : 'דף עמלות – נפרעים'}
@@ -54,7 +55,7 @@ export default function CommissionSummaryTabsPage() {
           </div>
         </div>
         {/* 🔹 תוכן הלשוניות */}
-        <div className="bg-white rounded-xl shadow-sm border">
+        <div className="bg-white rounded-xl shadow-sm border min-w-0">
           {/* סוכן – תמיד זמין (וברירת מחדל) */}
           {activeTab === 'agent' && <CommissionSummaryAgentTab />}
           {/* סוכנות – רק אם יש הרשאה */}

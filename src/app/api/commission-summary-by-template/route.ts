@@ -1,16 +1,19 @@
 // ═══════════════════════════════════════════════════════════════════
 // app/api/commission-summary-by-template/route.ts
-// תיקון יסודי: כשמסננים לפי ym (חודש פרסום), קוראים מ-externalCommissions
-// (ה-ledger הגולמי, כל שורה מכל ריצה נשמרת בנפרד) ולא מ-commissionSummaries
-// (מסמך ממוזג עם runId בודד לקבוצה, שלא יכול לשמר "כמה הגיע באיזו ריצה").
+// פילוח חברה לפי תבניות × חודשי דיווח.
 //
-// בלי ym (תצוגת "לפי חודש דיווח") — שום שינוי, ממשיכים לקרוא את הסיכום
-// הממוזג כמו קודם, כי שם בדיוק רוצים את הסכום המצטבר ההיסטורי.
+// ym (חודש פרסום):
+//   מקור ראשי — ymCommissionSummaries (מסוכם לפי ym+תבנית+חברה+חודש דיווח).
+//   זה המקור של טבלת "לפי חודש פרסום", כך שהדריל תמיד תואם את הטבלה,
+//   ונקראים עשרות מסמכים במקום אלפי שורות גולמיות.
+//   גיבוי — אם לא נמצא כלום: externalCommissions לפי runId-ים (כמו קודם).
+//
+// בלי ym (חודש דיווח): commissionSummaries הממוזג — כמו קודם, רק עם שדות נבחרים.
 // ═══════════════════════════════════════════════════════════════════
 
 import { NextRequest, NextResponse } from 'next/server';
 import { admin } from '@/lib/firebase/firebase-admin';
-import { getDocsByFieldInBatches } from '@/lib/server/firestoreBatch';
+import { jobIdsForYm, loadTemplateInfo, queryByRunIds } from '@/lib/server/drillHelpers';
 
 export async function POST(req: NextRequest) {
   const { agentId, companyId, year, ym } = await req.json();
@@ -21,112 +24,69 @@ export async function POST(req: NextRequest) {
 
   try {
     const db = admin.firestore();
-
-    // ─── templates "היקף" (hekefType) — לא נכללים בדף הנפרעים, בשני המצבים ──
-    const templatesAllSnap = await db
-      .collection('commissionTemplates')
-      .where('isactive', '==', true)
-      .get();
-
-    const hekefTemplateIds = new Set(
-      templatesAllSnap.docs
-        .filter((d) => !!d.data().hekefType)
-        .map((d) => d.id)
-    );
+    const { names, hekef } = await loadTemplateInfo(db);
 
     const byTemplateMonth: Record<string, Record<string, number>> = {};
     const allMonths = new Set<string>();
 
+    const add = (tid: string, month: string, amount: number) => {
+      if (!tid || !month) return;
+      if (hekef.has(tid)) return;
+      if (year && !month.startsWith(String(year))) return;
+      allMonths.add(month);
+      if (!byTemplateMonth[tid]) byTemplateMonth[tid] = {};
+      byTemplateMonth[tid][month] = (byTemplateMonth[tid][month] || 0) + amount;
+    };
+
     if (ym) {
-      // ─── מצב "לפי חודש פרסום": externalCommissions, מסונן לפי runId-ים ────
-      const portalRunsSnap = await db
-        .collection('portalImportRuns')
+      // ─── ymCommissionSummaries ─────────────────────────────────────────
+      const snap = await db
+        .collection('ymCommissionSummaries')
         .where('agentId', '==', agentId)
+        .where('ym', '==', ym)
         .where('companyId', '==', companyId)
-        .where('resolvedWindow.ym', '==', ym)
+        .select('templateId', 'reportMonth', 'totalCommissionAmount')
         .get();
 
-      const jobIds: string[] = [];
-      for (const d of portalRunsSnap.docs) {
-        const ids: string[] = d.data()?.queue?.jobIds || [];
-        jobIds.push(...ids);
-      }
-
-      //console.log('[template-drill] ym mode, jobIds:', jobIds.length);
-
-      if (!jobIds.length) {
-        return NextResponse.json({ byTemplateMonth: {}, templateNames: {}, allMonths: [] });
-      }
-
-      const externalDocs = await getDocsByFieldInBatches({
-        collection: 'externalCommissions',
-        field: 'runId',
-        values: jobIds,
-        extraWhere: [
-          ['agentId', '==', agentId],
-          ['companyId', '==', companyId],
-        ],
+      snap.docs.forEach((d) => {
+        const r: any = d.data();
+        add(String(r.templateId || ''), String(r.reportMonth || ''), Number(r.totalCommissionAmount || 0));
       });
 
-     // console.log('[template-drill] ym mode, externalCommissions rows:', externalDocs.length);
-
-      for (const doc of externalDocs) {
-        const r = doc.data() as any;
-        const tid = String(r.templateId || '');
-        const month = String(r.reportMonth || '');
-        const amount = Number(r.commissionAmount || 0);
-
-        if (!tid || !month) continue;
-        if (hekefTemplateIds.has(tid)) continue;
-        if (year && !month.startsWith(String(year))) continue;
-
-        allMonths.add(month);
-        if (!byTemplateMonth[tid]) byTemplateMonth[tid] = {};
-        byTemplateMonth[tid][month] = (byTemplateMonth[tid][month] || 0) + amount;
+      // ─── גיבוי: externalCommissions ────────────────────────────────────
+      if (snap.empty) {
+        const jobIds = await jobIdsForYm(db, agentId, companyId, ym);
+        if (jobIds.length) {
+          const rows = await queryByRunIds({
+            db,
+            collection: 'externalCommissions',
+            runIds: jobIds,
+            where: [
+              ['agentId', '==', agentId],
+              ['companyId', '==', companyId],
+            ],
+            fields: ['templateId', 'reportMonth', 'commissionAmount'],
+          });
+          rows.forEach((r) => add(String(r.templateId || ''), String(r.reportMonth || ''), Number(r.commissionAmount || 0)));
+        }
       }
     } else {
-      // ─── מצב "לפי חודש דיווח": commissionSummaries הממוזג, ללא שינוי ──────
+      // ─── חודש דיווח: commissionSummaries ──────────────────────────────
       const snap = await db
         .collection('commissionSummaries')
         .where('agentId', '==', agentId)
         .where('companyId', '==', companyId)
+        .select('templateId', 'reportMonth', 'totalCommissionAmount')
         .get();
 
-      const rows = snap.docs.map((d) => d.data() as any);
-
-      const filtered = rows.filter((r) => {
-        if (year && !String(r.reportMonth || '').startsWith(year)) return false;
-        if (hekefTemplateIds.has(String(r.templateId || ''))) return false;
-        return true;
+      snap.docs.forEach((d) => {
+        const r: any = d.data();
+        add(String(r.templateId || ''), String(r.reportMonth || ''), Number(r.totalCommissionAmount || 0));
       });
-
-      for (const r of filtered) {
-        const tid = String(r.templateId || '');
-        const month = String(r.reportMonth || '');
-        const amount = Number(r.totalCommissionAmount || 0);
-
-        if (!tid || !month) continue;
-
-        allMonths.add(month);
-        if (!byTemplateMonth[tid]) byTemplateMonth[tid] = {};
-        byTemplateMonth[tid][month] = (byTemplateMonth[tid][month] || 0) + amount;
-      }
     }
 
-    // ─── שלוף שמות תבניות (משותף לשני המצבים) ────────────────────────────
     const templateNames: Record<string, string> = {};
-    const templateIds = Object.keys(byTemplateMonth);
-    await Promise.all(
-      templateIds.map(async (tid) => {
-        const tSnap = await db.collection('commissionTemplates').doc(tid).get();
-        if (tSnap.exists) {
-          const data = tSnap.data() as any;
-          templateNames[tid] = String(data.Name || data.type || tid);
-        } else {
-          templateNames[tid] = tid;
-        }
-      })
-    );
+    Object.keys(byTemplateMonth).forEach((tid) => (templateNames[tid] = names[tid] || tid));
 
     return NextResponse.json({
       byTemplateMonth,

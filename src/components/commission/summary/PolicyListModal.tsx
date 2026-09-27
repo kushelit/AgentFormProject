@@ -11,6 +11,7 @@ import ClassifiedProduct, { MATCH_LABEL, isUnmapped } from './ClassifiedProduct'
 import CustomerLink from './CustomerLink';
 import CustomerIssueBar from './CustomerIssueBar';
 import useOpenCustomer from '@/hooks/useOpenCustomer';
+import { postJsonCached } from '@/lib/fetchCache';
 
 interface Props {
   agentId: string;
@@ -55,13 +56,8 @@ const PolicyListModal: React.FC<Props> = ({ agentId, year, category, categoryTit
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch('/api/agent-insights/policies', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ agentId, year, category, company }),
-        });
-        if (!res.ok) throw new Error(String(res.status));
-        const d = await res.json();
+        // אותו גוף בקשה בדיוק כמו ב-prefetch של OverviewTab — כדי שייקלט מהזיכרון
+        const d = await postJsonCached('/api/agent-insights/policies', { agentId, year, category, company });
         if (!cancelled) setRows(d.rows ?? []);
       } catch {
         if (!cancelled) setError('לא הצלחנו לטעון את רשימת הפוליסות.');
@@ -203,7 +199,9 @@ const PolicyListModal: React.FC<Props> = ({ agentId, year, category, categoryTit
                     <th
                       key={c.key}
                       onClick={() => toggleSort(c.key)}
-                      className="px-3 py-2 font-bold cursor-pointer select-none whitespace-nowrap hover:text-slate-800 border-b"
+                      className={`px-3 py-2 font-bold cursor-pointer select-none whitespace-nowrap hover:text-slate-800 border-b ${
+                        c.key === 'fullName' ? '' : t.center
+                      }`}
                     >
                       {c.label} {sort.key === c.key ? (sort.dir === 'asc' ? '▲' : '▼') : ''}
                     </th>
@@ -216,17 +214,17 @@ const PolicyListModal: React.FC<Props> = ({ agentId, year, category, categoryTit
                     <td className="px-3 py-1.5 font-semibold">
                       <CustomerLink customerId={r.customerId} label={r.fullName} name={r.fullName} pending={isPending(r.customerId)} onOpen={openCustomer} />
                     </td>
-                    <td className="px-3 py-1.5 tabular-nums">
+                    <td className={`px-3 py-1.5 tabular-nums ${t.center}`}>
                       <CustomerLink customerId={r.customerId} label={r.customerId} name={r.fullName} pending={false} onOpen={openCustomer} className="text-slate-600" />
                     </td>
-                    <td className="px-3 py-1.5 text-slate-600 tabular-nums">{r.policyNumberKey}</td>
-                    <td className="px-3 py-1.5 text-slate-500">{r.productRaw || '-'}</td>
-                    <td className="px-3 py-1.5 text-slate-700">
+                    <td className={`px-3 py-1.5 text-slate-600 tabular-nums ${t.center}`}>{r.policyNumberKey}</td>
+                    <td className={`px-3 py-1.5 text-slate-500 ${t.center}`}>{r.productRaw || '-'}</td>
+                    <td className={`px-3 py-1.5 text-slate-700 ${t.center}`}>
                       <ClassifiedProduct product={r.product} matchedBy={r.matchedBy} />
                     </td>
-                    <td className="px-3 py-1.5 text-slate-600 tabular-nums">{r.agentCode || '-'}</td>
-                    <td className={`px-3 py-1.5 font-bold whitespace-nowrap tabular-nums ${a.text}`}>{fmtMoney(r.amount)} ₪</td>
-                    {showTemplate && <td className="px-3 py-1.5 text-slate-500 text-xs">{r.templateName}</td>}
+                    <td className={`px-3 py-1.5 text-slate-600 tabular-nums ${t.center}`}>{r.agentCode || '-'}</td>
+                    <td className={`px-3 py-1.5 font-bold whitespace-nowrap tabular-nums ${a.text} ${t.center}`}>{fmtMoney(r.amount)} ₪</td>
+                    {showTemplate && <td className={`px-3 py-1.5 text-slate-500 text-xs ${t.center}`}>{r.templateName}</td>}
                   </tr>
                 ))}
               </tbody>

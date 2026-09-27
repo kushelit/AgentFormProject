@@ -11,6 +11,9 @@ import { resolveFromTemplate } from '@/utils/contractCommissionResolvers';
 import type { CommissionSummaryData } from '@/hooks/useCommissionSummary';
 import t from './table.module.css';
 import CustomerLink from './CustomerLink';
+import { openComparison, previousIn } from '@/lib/insights/comparisonLink';
+import { postJsonCached, prefetchJson } from '@/lib/fetchCache';
+import useHoverPrefetch from '@/hooks/useHoverPrefetch';
 import CustomerIssueBar from './CustomerIssueBar';
 import useOpenCustomer from '@/hooks/useOpenCustomer';
 import ClassifiedProduct, { MATCH_LABEL, matchFromDebug } from './ClassifiedProduct';
@@ -40,6 +43,10 @@ const CommissionTablesTab: React.FC<Props> = ({ agentId, year, data, loading }) 
   const { companyIdByName, summaryByMonthCompany, summaryByYmCompany, allMonths, allCompanies } = data;
 
   const [subTab, setSubTab] = useState<'ym' | 'reportMonth'>('ym');
+
+  // ─── בחירה להשוואה (קפיצה לדף "השוואת טעינות") ───────────────────────
+  const [picked, setPicked] = useState<string[]>([]); // עד 2 חודשים
+  const [compareCompany, setCompareCompany] = useState(''); // '' = כל החברות
   const [templatesById, setTemplatesById] = useState<Record<string, any>>({});
 
   // דריל תבניות לפי חברה
@@ -87,7 +94,51 @@ const CommissionTablesTab: React.FC<Props> = ({ agentId, year, data, loading }) 
     setTemplateYearDrill(null);
     setAgentDrill(null);
     setDrill(null);
+    setPicked([]);
+    setCompareCompany('');
   }, [agentId, year]);
+
+  useEffect(() => {
+    setPicked([]);
+  }, [subTab]);
+
+  const ymList = Object.keys(summaryByYmCompany).sort();
+  const monthList = subTab === 'ym' ? ymList : [...allMonths].sort();
+
+  const togglePick = (m: string) =>
+    setPicked((cur) => (cur.includes(m) ? cur.filter((x) => x !== m) : [...cur, m].slice(-2)));
+
+  const goCompare = (m1: string, m2: string) => {
+    const companyId = compareCompany ? companyIdByName[compareCompany] : '';
+    openComparison({
+      agentId,
+      basis: subTab,
+      m1,
+      m2,
+      scope: companyId ? 'company' : 'all',
+      companyId,
+    });
+  };
+
+  /** השוואה ברמת תבנית מתוך חלון התבניות — לפי חודש פרסום */
+  const templateCompareMonths = (): [string, string] | null => {
+    const m2 = templateDrill?.ym || ymList[ymList.length - 1];
+    const m1 = m2 ? previousIn(ymList, m2) : null;
+    return m1 && m2 ? [m1, m2] : null;
+  };
+
+  // ─── בקשות הדרילים — בונים את הגוף במקום אחד, כך ש-prefetch ופתיחה משתמשים באותו מפתח ───
+  const URL_BY_TEMPLATE = '/api/commission-summary-by-template';
+  const URL_BY_AGENT = '/api/commission-summary-by-template-agent';
+  const URL_DRILLDOWN = '/api/commission-summary-drilldown';
+  const byTemplateBody = (companyId: string, ym?: string) => ({ agentId, companyId, year, ym });
+  const byAgentBody = (companyId: string, templateId: string, month: string, ym?: string) =>
+    ({ agentId, companyId, templateId, month, ym });
+  /** כל מספרי הסוכן של תבנית + חודש בבקשה אחת (נשמרת בזיכרון) */
+  const drilldownBody = (companyId: string, month: string, templateId?: string, ym?: string) =>
+    ({ agentId, companyId, reportMonth: month, templateId, ym, groupByAgent: true });
+
+  const hover = useHoverPrefetch();
 
   async function openTemplateDrill(companyId: string, companyName: string, ym?: string) {
     setTemplateDrill({ companyId, companyName, ym });
@@ -96,12 +147,7 @@ const CommissionTablesTab: React.FC<Props> = ({ agentId, year, data, loading }) 
     setTemplateNames({});
     setTemplateDrillMonths([]);
     try {
-      const res = await fetch('/api/commission-summary-by-template', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ agentId, companyId, year, ym }),
-      });
-      const d = await res.json();
+      const d = await postJsonCached(URL_BY_TEMPLATE, byTemplateBody(companyId, ym));
       setByTemplateMonth(d.byTemplateMonth ?? {});
       setTemplateNames(d.templateNames ?? {});
       setTemplateDrillMonths(d.allMonths ?? []);
@@ -112,12 +158,7 @@ const CommissionTablesTab: React.FC<Props> = ({ agentId, year, data, loading }) 
 
   async function openTemplateYearDrill(tid: string) {
     if (!templateDrill) return;
-    const res = await fetch('/api/commission-summary-by-template', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ agentId, companyId: templateDrill.companyId, year }),
-    });
-    const d = await res.json();
+    const d = await postJsonCached(URL_BY_TEMPLATE, byTemplateBody(templateDrill.companyId));
     setTemplateYearDrill({
       companyId: templateDrill.companyId,
       companyName: templateDrill.companyName,
@@ -129,15 +170,12 @@ const CommissionTablesTab: React.FC<Props> = ({ agentId, year, data, loading }) 
 
   async function openAgentDrill(companyId: string, companyName: string, templateId: string, month: string, ym?: string) {
     setAgentDrill({ companyName, companyId, templateId, month, ym });
+    // מתחילים לטעון ברקע את הפוליסות של כל מספרי הסוכן — עד שבוחרים מספר סוכן הן כבר מוכנות
+    prefetchJson(URL_DRILLDOWN, drilldownBody(companyId, month, templateId, ym));
     setAgentDrillLoading(true);
     setAgentDrillData({});
     try {
-      const res = await fetch('/api/commission-summary-by-template-agent', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ agentId, companyId, templateId, month, ym }),
-      });
-      const d = await res.json();
+      const d = await postJsonCached(URL_BY_AGENT, byAgentBody(companyId, templateId, month, ym));
       setAgentDrillData(d.byAgent ?? {});
     } finally {
       setAgentDrillLoading(false);
@@ -149,14 +187,10 @@ const CommissionTablesTab: React.FC<Props> = ({ agentId, year, data, loading }) 
     setDrillLoading(true);
     setDrillRows([]);
     try {
-      const res = await fetch('/api/commission-summary-drilldown', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ agentId, companyId, agentCode, reportMonth: month, templateId, ym }),
-      });
-      if (!res.ok) return;
-      const d = await res.json();
-      setDrillRows(d.rows ?? []);
+      const d = await postJsonCached(URL_DRILLDOWN, drilldownBody(companyId, month, templateId, ym)).catch(() => null);
+      if (!d) return;
+      const rowsForCode = d.byAgentCode?.[String(agentCode).trim()] ?? d.byAgentCode?.[agentCode] ?? [];
+      setDrillRows(rowsForCode);
     } finally {
       setDrillLoading(false);
     }
@@ -223,16 +257,73 @@ const CommissionTablesTab: React.FC<Props> = ({ agentId, year, data, loading }) 
         ))}
       </div>
 
+      {/* ─── פס השוואה ─── */}
+      <div className="flex flex-wrap items-center gap-3 px-3 py-2.5 my-3 rounded-xl bg-indigo-50/60 border border-indigo-100 text-sm">
+        <span className="font-bold text-indigo-900">⇄ השוואה לפי פוליסה</span>
+        {picked.length === 0 ? (
+          <span className="text-slate-500">סמני שני חודשים בטבלה כדי להשוות ביניהם</span>
+        ) : picked.length === 1 ? (
+          <>
+            <span className="text-slate-700">
+              נבחר <b className="tabular-nums">{picked[0]}</b> — סמני חודש נוסף, או:
+            </span>
+            {previousIn(monthList, picked[0]) && (
+              <button
+                type="button"
+                onClick={() => goCompare(previousIn(monthList, picked[0])!, picked[0])}
+                className="px-3 py-1 rounded-lg bg-white border border-indigo-200 text-indigo-700 hover:bg-indigo-50"
+              >
+                השווה לחודש הקודם ({previousIn(monthList, picked[0])})
+              </button>
+            )}
+          </>
+        ) : (
+          <span className="text-slate-700">
+            <b className="tabular-nums">{[...picked].sort()[0]}</b> מול <b className="tabular-nums">{[...picked].sort()[1]}</b>
+          </span>
+        )}
+
+        {picked.length > 0 && (
+          <>
+            <select
+              value={compareCompany}
+              onChange={(e) => setCompareCompany(e.target.value)}
+              className="border rounded-lg px-2 py-1 bg-white"
+            >
+              <option value="">כל החברות</option>
+              {allCompanies.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
+            {picked.length === 2 && (
+              <button
+                type="button"
+                onClick={() => goCompare(picked[0], picked[1])}
+                className="px-4 py-1 rounded-lg bg-indigo-600 text-white font-bold hover:bg-indigo-700"
+              >
+                פתח השוואה ←
+              </button>
+            )}
+            <button type="button" onClick={() => setPicked([])} className="text-xs text-slate-500 hover:text-slate-700">
+              נקה
+            </button>
+          </>
+        )}
+      </div>
+
       {subTab === 'ym' &&
         (Object.keys(summaryByYmCompany).length === 0 ? (
           <div className="p-6 text-sm text-slate-500">אין נתונים לפי חודש פרסום לשנה {year}.</div>
         ) : (
-          <table className={`${t.cleanTable} table-auto w-full text-sm text-right`}>
+          <div className="overflow-x-auto">
+          <table className={`${t.cleanTable} table-auto w-full text-[13px] text-right whitespace-nowrap`}>
             <thead>
               <tr>
-                <th className="px-3 py-2 min-w-[90px] whitespace-nowrap">חודש פרסום</th>
+                <th className="px-2.5 py-2 min-w-[90px] whitespace-nowrap">חודש פרסום</th>
                 {allCompanies.map((c) => companyHeader(c, ''))}
-                <th className="px-3 py-2 font-bold bg-blue-100">סה&quot;כ</th>
+                <th className="px-2.5 py-2 font-bold bg-blue-100">סה&quot;כ</th>
               </tr>
             </thead>
             <tbody>
@@ -241,67 +332,84 @@ const CommissionTablesTab: React.FC<Props> = ({ agentId, year, data, loading }) 
                 .map((ym) => {
                   const total = allCompanies.reduce((s, c) => s + (summaryByYmCompany[ym]?.[c] || 0), 0);
                   return (
-                    <tr key={ym}>
-                      <td className="px-3 py-2 font-semibold whitespace-nowrap">{ym}</td>
+                    <tr key={ym} className={picked.includes(ym) ? 'bg-indigo-50/60' : ''}>
+                      <td className="px-2.5 py-2 font-semibold whitespace-nowrap">
+                        <label className="inline-flex items-center gap-2 cursor-pointer">
+                          <input type="checkbox" checked={picked.includes(ym)} onChange={() => togglePick(ym)} />
+                          {ym}
+                        </label>
+                      </td>
                       {allCompanies.map((c) => {
                         const v = summaryByYmCompany[ym]?.[c];
                         return (
                           <td
                             key={c}
-                            className={`px-3 py-2 ${v ? 'cursor-pointer hover:bg-blue-50' : ''}`}
+                            className={`px-2.5 py-2 ${v ? 'cursor-pointer hover:bg-blue-50' : ''}`}
                             onClick={() => {
                               const companyId = companyIdByName[c];
                               if (companyId && v) openTemplateDrill(companyId, c, ym);
                             }}
+                            {...(v && companyIdByName[c]
+                              ? hover(() => prefetchJson(URL_BY_TEMPLATE, byTemplateBody(companyIdByName[c], ym)))
+                              : {})}
                           >
                             {v?.toLocaleString() ?? '-'}
                           </td>
                         );
                       })}
-                      <td className="px-3 py-2 font-bold bg-blue-50">{total.toLocaleString()}</td>
+                      <td className="px-2.5 py-2 font-bold bg-blue-50">{total.toLocaleString()}</td>
                     </tr>
                   );
                 })}
             </tbody>
           </table>
+          </div>
         ))}
 
       {subTab === 'reportMonth' &&
         (allMonths.length === 0 ? (
           <div className="p-6 text-sm text-slate-500">אין נתונים לפי חודש דיווח לשנה {year}.</div>
         ) : (
-          <table className={`${t.cleanTable} table-auto w-full text-sm text-right`}>
+          <div className="overflow-x-auto">
+          <table className={`${t.cleanTable} table-auto w-full text-[13px] text-right whitespace-nowrap`}>
             <thead>
               <tr>
-                <th className="px-3 py-2 min-w-[90px] whitespace-nowrap">חודש דיווח</th>
+                <th className="px-2.5 py-2 min-w-[90px] whitespace-nowrap">חודש דיווח</th>
                 {allCompanies.map((c) => companyHeader(c, ''))}
-                <th className="px-3 py-2 font-bold bg-gray-50">סה&quot;כ לחודש</th>
+                <th className="px-2.5 py-2 font-bold bg-gray-50">סה&quot;כ לחודש</th>
               </tr>
             </thead>
             <tbody>
               {allMonths.map((month) => {
                 const total = allCompanies.reduce((s, c) => s + (summaryByMonthCompany[month]?.[c] || 0), 0);
                 return (
-                  <tr key={month}>
-                    <td className="px-3 py-2 font-semibold whitespace-nowrap">{month}</td>
+                  <tr key={month} className={picked.includes(month) ? 'bg-indigo-50/60' : ''}>
+                    <td className="px-2.5 py-2 font-semibold whitespace-nowrap">
+                      <label className="inline-flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" checked={picked.includes(month)} onChange={() => togglePick(month)} />
+                        {month}
+                      </label>
+                    </td>
                     {allCompanies.map((c) => (
                       <td
                         key={c}
-                        className="px-3 py-2 cursor-pointer hover:bg-gray-100"
+                        className="px-2.5 py-2 cursor-pointer hover:bg-gray-100"
                         onClick={() => {
                           const companyId = companyIdByName[c];
                           if (companyId) openTemplateDrill(companyId, c);
                         }}
+                        {...(companyIdByName[c] ? hover(() => prefetchJson(URL_BY_TEMPLATE, byTemplateBody(companyIdByName[c]))) : {})}
                       >
                         {summaryByMonthCompany[month]?.[c]?.toLocaleString() ?? '-'}
                       </td>
                     ))}
-                    <td className="px-3 py-2 font-bold bg-gray-100">{total.toLocaleString()}</td>
+                    <td className="px-2.5 py-2 font-bold bg-gray-100">{total.toLocaleString()}</td>
                   </tr>
                 );
               })}
             </tbody>
           </table>
+          </div>
         ))}
 
       {/* ─── דריל: תבניות לפי חברה ─── */}
@@ -326,6 +434,7 @@ const CommissionTablesTab: React.FC<Props> = ({ agentId, year, data, loading }) 
                       <th key={m} className="px-3 py-2">{m}</th>
                     ))}
                     <th className="px-3 py-2 font-bold">סה&quot;כ</th>
+                    <th className="px-3 py-2">השוואה</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -349,11 +458,40 @@ const CommissionTablesTab: React.FC<Props> = ({ agentId, year, data, loading }) 
                               if (!monthMap[m]) return;
                               openAgentDrill(templateDrill.companyId, templateDrill.companyName, tid, m, templateDrill.ym);
                             }}
+                            {...(monthMap[m]
+                              ? hover(() => prefetchJson(URL_BY_AGENT, byAgentBody(templateDrill.companyId, tid, m, templateDrill.ym)))
+                              : {})}
                           >
                             {monthMap[m]?.toLocaleString() ?? '-'}
                           </td>
                         ))}
                         <td className="px-3 py-2 font-bold bg-gray-50">{total.toLocaleString()}</td>
+                        <td className="px-3 py-2 whitespace-nowrap">
+                          {(() => {
+                            const mm = templateCompareMonths();
+                            if (!mm) return <span className="text-xs text-slate-400">אין חודש קודם</span>;
+                            return (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  openComparison({
+                                    agentId,
+                                    basis: 'ym',
+                                    m1: mm[0],
+                                    m2: mm[1],
+                                    scope: 'template',
+                                    companyId: templateDrill.companyId,
+                                    templateId: tid,
+                                  })
+                                }
+                                title={`השוואת התבנית לפי חודש פרסום: ${mm[0]} מול ${mm[1]}`}
+                                className="text-xs px-2 py-1 rounded-md border border-indigo-200 text-indigo-700 hover:bg-indigo-50"
+                              >
+                                ⇄ {mm[0]} ← {mm[1]}
+                              </button>
+                            );
+                          })()}
+                        </td>
                       </tr>
                     );
                   })}
