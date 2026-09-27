@@ -5,7 +5,6 @@ import { Rubik } from 'next/font/google';
 import { AuthContextProvider } from '@/lib/firebase/AuthContext';
 import { TopBar } from '@/components/TopBar';
 import { Navbar } from '@/components/Navbar';
-import pages, { bottomPage } from '@/config/pagesConfig';
 import '@/app/globals.css';
 import Script from 'next/script';
 import AnalyticsTracker from '@/components/AnalyticsTracker';
@@ -257,20 +256,18 @@ export default function RootLayout({
 
             {/* Navbar */}
             {showNavbar && (
-              <Navbar
-                items={pages}
-                bottomPage={bottomPage}
-                className="
-                  custom-navbar
-                  fixed
-                  top-16
-                  right-0
-                  h-[calc(100vh-64px)]
-                  w-52
-                  z-10
-                  shadow-lg
-                "
-              />
+         <Navbar
+  className="
+    custom-navbar
+    fixed
+    top-16
+    right-0
+    h-[calc(100vh-64px)]
+    w-52
+    z-10
+    shadow-lg
+  "
+/>
             )}
 
             <main
