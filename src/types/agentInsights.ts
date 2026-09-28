@@ -62,12 +62,41 @@ export type ProductsSummary = {
   byMonth: ProductMonthRow[];
 };
 
+/** יעילות תיק — לפי משק בית (parentID בניהול לקוחות; לא מקושר = משק בית של אדם אחד) */
+export type HouseholdDepthLine = { depth: '1' | '2' | '3+'; households: number; avgMonthly: number };
+
+export type SingleProductHousehold = {
+  customerId: string;
+  name: string;
+  product: string;
+  company: string;
+  monthly: number; // עמלה חודשית ממוצעת
+  members: number; // בני משפחה מקושרים בניהול לקוחות (1 = לא מקושר)
+};
+
+export type EfficiencySummary = {
+  recentYms: string[];
+  /** מגמה: נפרעים למשק בית לכל חודש פרסום */
+  months: { ym: string; perHousehold: number; households: number }[];
+  avgPerHousehold: number;
+  households: number;
+  customers: number;
+  /** לקוחות שמקושרים למשפחה (2+ חברים בניהול לקוחות) */
+  linkedCustomers: number;
+  linkedShare: number; // 0..1
+  /** לקוחות מהטעינות שלא קיימים בניהול לקוחות */
+  notInCrm: number;
+  byDepth: HouseholdDepthLine[];
+  singleProduct: SingleProductHousehold[];
+};
+
 export type AgentInsights = {
   agentId: string;
   year: string;
   portfolio: PortfolioSnapshot;
   income: IncomeSummary;
   products: ProductsSummary;
+  efficiency: EfficiencySummary;
 };
 
 /** איך זוהה המוצר מול התבנית */

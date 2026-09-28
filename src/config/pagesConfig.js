@@ -82,7 +82,7 @@ const commissionsMenu = [
   { href: '/importCommissionHub/ExcelCommissionImporter', label: 'קליטת קבצים' },
   { href: '/importCommissionHub/CommissionSummary', label: 'דף מסכם עמלות' },
   { href: '/importCommissionHub/CommissionComparison', label: 'השוואה בין חודשים' },
-  { href: '/importCommissionHub/CompareRealToReported', label: 'השוואה לעמלה בפועל' },
+  { href: '/importCommissionHub/CompareRealToReported', label: 'השוואה להסכם עמלות' },
   { href: '/NewManageContracts', label: 'הסכמי עמלות' },
   { href: '/NewSimulation', label: 'סימולטור' },
 ];

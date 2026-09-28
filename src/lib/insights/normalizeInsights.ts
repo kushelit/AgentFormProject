@@ -40,5 +40,17 @@ export function normalizeInsights(d: any): AgentInsights {
       byCompany: d?.products?.byCompany ?? [],
       byMonth: d?.products?.byMonth ?? [],
     },
+    efficiency: {
+      recentYms: d?.efficiency?.recentYms ?? [],
+      months: d?.efficiency?.months ?? [],
+      avgPerHousehold: d?.efficiency?.avgPerHousehold ?? 0,
+      households: d?.efficiency?.households ?? 0,
+      customers: d?.efficiency?.customers ?? 0,
+      linkedCustomers: d?.efficiency?.linkedCustomers ?? 0,
+      linkedShare: d?.efficiency?.linkedShare ?? 0,
+      notInCrm: d?.efficiency?.notInCrm ?? 0,
+      byDepth: d?.efficiency?.byDepth ?? [],
+      singleProduct: d?.efficiency?.singleProduct ?? [],
+    },
   };
 }

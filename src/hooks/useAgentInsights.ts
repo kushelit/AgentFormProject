@@ -11,7 +11,7 @@ const AI_ERRORS: Record<string, string> = {
   no_data: 'אין מספיק נתונים לסקירה.',
 };
 
-export default function useAgentInsights(agentId: string, year: string) {
+export default function useAgentInsights(agentId: string, year: string, reloadKey = 0) {
   const [insights, setInsights] = useState<AgentInsights | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -66,7 +66,9 @@ export default function useAgentInsights(agentId: string, year: string) {
     setLoading(true);
     (async () => {
       try {
-        const data = normalizeInsights(await postJsonCached('/api/agent-insights', { agentId, year }));
+        // reloadKey > 0 = "רענון נתונים": מדלג על המטמון בשרת ובדפדפן
+        const body = reloadKey ? { agentId, year, force: true, r: reloadKey } : { agentId, year };
+        const data = normalizeInsights(await postJsonCached('/api/agent-insights', body));
         if (reqId !== reqRef.current) return;
         setInsights(data);
         setLoading(false);
@@ -77,7 +79,7 @@ export default function useAgentInsights(agentId: string, year: string) {
         setLoading(false);
       }
     })();
-  }, [agentId, year, loadAi]);
+  }, [agentId, year, reloadKey, loadAi]);
 
   return {
     insights,

@@ -26,9 +26,15 @@ const SYSTEM_PROMPT = `אתה אנליסט עסקי שכותב לסוכן ביט
 - income: הכנסות מעמלות לפי חודש פרסום ולפי חברה. הנתונים מכסים רק את החודשים שנטענו (monthsWithData), ולכן totalYear איננו הכנסה שנתית — אל תציג אותו ככזה. להכנסה חודשית שוטפת השתמש ב-avgRecent (ממוצע החודשים ב-recentYms), ולצפי שנתי ב-annualRunRate.
 - products: עמלות לפי מוצר בחודשים שנטענו.
 - staleTemplates: דוחות שעדיין לא עודכנו לחודש הפרסום האחרון — הנתונים שלהם מחודש קודם.
+- efficiency: יעילות תיק לפי משק בית. avgPerHousehold = נפרעים חודשיים ממוצעים למשק בית (מדד היעילות המרכזי).
+  byDepth = משקי בית לפי מספר מוצרים (1 / 2 / 3+) והנפרעים הממוצעים לכל קבוצה — הפער ביניהן הוא פוטנציאל ההרחבה בתיק של הסוכן עצמו.
+  linkedCustomers מתוך customers = לקוחות שקושרו לתא משפחתי בניהול לקוחות (linkedPct = האחוז). כשהאחוז נמוך, המדד מחושב כמעט לפי לקוח בודד ומוערך בחסר —
+  במקרה כזה המלץ לסוכן לקשר בני משפחה בניהול לקוחות (אל תנחש מי משפחה של מי). אם linkedCustomers גדול מ-0 — אל תכתוב שאף לקוח לא קושר; ציין את המספר.
+
+אל תכתוב בטקסט שמות של שדות טכניים מה-JSON (כמו linkedShare, avgPerHousehold) — רק ניסוח בעברית.
 
 כתוב 4 עד 6 תובנות, כל אחת משפט או שניים, בעברית פשוטה וישירה לסוכן (פנייה בגוף שני).
-התייחס לפי הרלוונטיות: קצב ההכנסה החודשי והצפי השנתי, השינוי בחודש האחרון מול הקודם, ריכוזיות (חברה אחת מעל 40% מההכנסות או מהצבירה), הרכב התיק ומוצרים מובילים, ודוחות שעדיין לא עודכנו.
+התייחס לפי הרלוונטיות: נפרעים למשק בית והפער בין משקי בית עם מוצר אחד לבין 2+ מוצרים (כולל פוטנציאל בשקלים אם הפער משמעותי), קצב ההכנסה החודשי והצפי השנתי, השינוי בחודש האחרון מול הקודם, ריכוזיות (חברה אחת מעל 40% מההכנסות או מהצבירה), הרכב התיק ומוצרים מובילים, ודוחות שעדיין לא עודכנו.
 השתמש רק במספרים שמופיעים בנתונים. אל תמציא נתונים ואל תסיק סיבות שאין להן בסיס. עגל סכומים לשקלים שלמים עם מפריד אלפים. אל תיתן ייעוץ השקעות.
 
 החזר JSON בלבד, בלי טקסט נוסף ובלי סימוני markdown, במבנה:
@@ -64,6 +70,17 @@ function buildAiInput(ins: ReturnType<typeof normalizeInsights>) {
       prevYm: ins.income.prevYm,
       prevTotal: ins.income.prevTotal,
       changePct: ins.income.changePct,
+    },
+    efficiency: {
+      recentYms: ins.efficiency.recentYms,
+      avgPerHousehold: ins.efficiency.avgPerHousehold,
+      households: ins.efficiency.households,
+      customers: ins.efficiency.customers,
+      linkedCustomers: ins.efficiency.linkedCustomers,
+      linkedPct: Math.round(ins.efficiency.linkedShare * 1000) / 10,
+      notInCrm: ins.efficiency.notInCrm,
+      byDepth: ins.efficiency.byDepth.map((d) => [d.depth, d.households, d.avgMonthly]),
+      trend: ins.efficiency.months.map((m) => [m.ym, m.perHousehold]),
     },
     products: Object.entries(productTotals)
       .sort((a, b) => b[1] - a[1])

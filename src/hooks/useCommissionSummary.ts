@@ -19,7 +19,7 @@ const EMPTY: CommissionSummaryData = {
   allCompanies: [],
 };
 
-export default function useCommissionSummary(agentId: string, year: string) {
+export default function useCommissionSummary(agentId: string, year: string, reloadKey = 0) {
   const [data, setData] = useState<CommissionSummaryData>(EMPTY);
   const [loading, setLoading] = useState(false);
   const reqRef = useRef(0);
@@ -36,7 +36,7 @@ export default function useCommissionSummary(agentId: string, year: string) {
     setLoading(true);
     (async () => {
       try {
-        const d: any = await postJsonCached('/api/commission-summary', { agentId, year, lite: true }).catch(() => ({}));
+        const d: any = await postJsonCached('/api/commission-summary', reloadKey ? { agentId, year, lite: true, r: reloadKey } : { agentId, year, lite: true }).catch(() => ({}));
         if (reqId !== reqRef.current) return;
         setData({
           companyIdByName: d.companyIdByName ?? {},
@@ -51,7 +51,7 @@ export default function useCommissionSummary(agentId: string, year: string) {
         if (reqId === reqRef.current) setLoading(false);
       }
     })();
-  }, [agentId, year]);
+  }, [agentId, year, reloadKey]);
 
   return { data, loading };
 }

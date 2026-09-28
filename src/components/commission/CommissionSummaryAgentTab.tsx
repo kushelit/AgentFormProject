@@ -14,6 +14,7 @@ import useCommissionSummary from '@/hooks/useCommissionSummary';
 import OverviewTab from '@/components/commission/summary/OverviewTab';
 import CommissionTablesTab from '@/components/commission/summary/CommissionTablesTab';
 import ProductsTab from '@/components/commission/summary/ProductsTab';
+import { clearFetchCache } from '@/lib/fetchCache';
 
 type TabKey = 'overview' | 'tables' | 'products';
 
@@ -32,8 +33,15 @@ const CommissionSummaryAgentTab: React.FC = () => {
   const [tab, setTab] = useState<TabKey>('overview');
   const [showAnomalies, setShowAnomalies] = useState(false);
 
-  const insights = useAgentInsights(selectedAgentId, selectedYear);
-  const summary = useCommissionSummary(selectedAgentId, selectedYear);
+  const [reloadKey, setReloadKey] = useState(0);
+  const insights = useAgentInsights(selectedAgentId, selectedYear, reloadKey);
+  const summary = useCommissionSummary(selectedAgentId, selectedYear, reloadKey);
+
+  /** רענון נתונים: מנקה את הזיכרון בדפדפן ומבקש חישוב מחדש בשרת */
+  const refreshData = () => {
+    clearFetchCache();
+    setReloadKey((k) => k + 1);
+  };
 
   const ready = !!selectedAgentId && !!selectedYear;
 
@@ -80,7 +88,7 @@ const CommissionSummaryAgentTab: React.FC = () => {
       ) : (
         <>
           {/* ─── לשוניות ─── */}
-          <div className="flex gap-1 border-b mb-6">
+          <div className="flex items-center gap-1 border-b mb-6">
             {TABS.map((t) => (
               <button
                 key={t.key}
@@ -93,6 +101,15 @@ const CommissionSummaryAgentTab: React.FC = () => {
                 {t.label}
               </button>
             ))}
+            <button
+              type="button"
+              onClick={refreshData}
+              disabled={insights.loading || summary.loading}
+              title="חישוב מחדש מהנתונים העדכניים (למשל אחרי טעינה חדשה או קישור משפחה)"
+              className="mr-auto text-xs text-slate-500 hover:text-indigo-700 px-2 py-1 disabled:opacity-40"
+            >
+              ↻ רענון נתונים
+            </button>
           </div>
 
           {tab === 'overview' && (

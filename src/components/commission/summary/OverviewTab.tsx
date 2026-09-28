@@ -7,6 +7,7 @@ import KpiCard from './KpiCard';
 import CompanyBreakdown from './CompanyBreakdown';
 import AiSummaryCard from './AiSummaryCard';
 import PolicyListModal from './PolicyListModal';
+import EfficiencySection from './EfficiencySection';
 import { prefetchJson } from '@/lib/fetchCache';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip } from './charts';
 import { fmtInt, fmtMoney, type Accent } from './ui';
@@ -251,6 +252,9 @@ const OverviewTab: React.FC<Props> = ({ agentId, year, insights, loading, error,
           <CompanyBreakdown {...open} onClose={() => setOpenKpi(null)} />
         )}
       </section>
+
+      {/* ─── יעילות תיק ─── */}
+      {insights.efficiency && <EfficiencySection agentId={agentId} efficiency={insights.efficiency} />}
 
       {/* ─── סקירת AI ─── */}
       <AiSummaryCard ai={ai} loading={aiLoading} error={aiError} onRefresh={onRefreshAi} />

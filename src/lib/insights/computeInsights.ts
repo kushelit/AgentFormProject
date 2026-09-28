@@ -10,6 +10,8 @@ import {
   type PortfolioSnapshot,
   type IncomeSummary,
   type ProductsSummary,
+  type EfficiencySummary,
+  type HouseholdDepthLine,
   type StaleTemplate,
   type ProductMatch,
 } from '@/types/agentInsights';
@@ -32,6 +34,12 @@ export type InsightsPolicyRow = {
   /** מזהה הטעינה שממנה הגיעה השורה */
   runId?: string;
 };
+
+/** לקוח בניהול לקוחות → משק הבית שלו */
+export type HouseholdMap = Record<string, { household: string; groupSize: number }>;
+
+/** ת"ז קנונית: ספרות בלבד, בלי אפסים מובילים (כמו canonId בניהול לקוחות) */
+export const canonCustomerId = (v: any) => String(v ?? '').replace(/\D/g, '').replace(/^0+/, '');
 
 /** שורת הכנסה (ymCommissionSummaries) */
 export type InsightsIncomeRow = { ym: string; company: string; amount: number };
@@ -131,8 +139,9 @@ export function computeInsights(params: {
   activeTemplateIds: Set<string>;
   policyRows: InsightsPolicyRow[];
   incomeRows: InsightsIncomeRow[];
+  households?: HouseholdMap;
 }): AgentInsights {
-  const { agentId, year, templatesById, activeTemplateIds, policyRows, incomeRows } = params;
+  const { agentId, year, templatesById, activeTemplateIds, policyRows, incomeRows, households = {} } = params;
 
   const resolve = makeResolver(templatesById);
 
@@ -142,6 +151,7 @@ export function computeInsights(params: {
     portfolio: computePortfolio(policyRows, templatesById, activeTemplateIds, resolve),
     income: computeIncome(incomeRows),
     products: computeProducts(policyRows, resolve),
+    efficiency: computeEfficiency(policyRows, resolve, households),
   };
 }
 
@@ -282,5 +292,126 @@ function computeProducts(rows: InsightsPolicyRow[], resolve: Resolver): Products
       productGroup: groupByProduct[x.product] ?? '',
     })),
     byMonth: Object.values(pm).map((x) => ({ ...x, amount: round2(x.amount) })),
+  };
+}
+
+// ─── יעילות תיק — נפרעים למשק בית ───────────────────────────────────────
+// משק בית = parentID בניהול לקוחות; לקוח לא מקושר / לא קיים = משק בית של אדם אחד.
+// בסיס: עמלות הפוליסות ב-3 חודשי הפרסום האחרונים.
+// ממוצע חודשי לכל משק בית — רק על החודשים שבהם הופיע בפועל, כך שלקוח (או סוכן)
+// שנטען לראשונה בחודש האחרון מקבל את הנפרעים האמיתיים שלו ולא חלק מהם.
+const SINGLE_LIST_LIMIT = 300;
+
+function computeEfficiency(rows: InsightsPolicyRow[], resolve: Resolver, households: HouseholdMap): EfficiencySummary {
+  const allYms = Array.from(new Set(rows.map((r) => r.ym))).sort();
+  const recentYms = allYms.slice(-3);
+  const recentSet = new Set(recentYms);
+
+  const hhOf = (cid: string) => households[cid]?.household ?? `solo:${cid}`;
+
+  // מגמה לכל חודש פרסום
+  const perYm: Record<string, { commission: number; hh: Set<string> }> = {};
+  for (const r of rows) {
+    const cid = canonCustomerId(r.customerId);
+    if (!cid) continue;
+    const m = (perYm[r.ym] ||= { commission: 0, hh: new Set() });
+    m.commission += r.commission;
+    m.hh.add(hhOf(cid));
+  }
+  const months = allYms.map((ym) => ({
+    ym,
+    households: perYm[ym].hh.size,
+    perHousehold: perYm[ym].hh.size ? round2(perYm[ym].commission / perYm[ym].hh.size) : 0,
+  }));
+
+  // משקי בית בחודשים האחרונים
+  type HH = {
+    commission: number;
+    yms: Set<string>;
+    products: Set<string>;
+    customers: Map<string, { commission: number; name: string }>;
+    byProduct: Record<string, number>;
+    byCompany: Record<string, number>;
+  };
+  const hh = new Map<string, HH>();
+  const customers = new Set<string>();
+
+  for (const r of rows) {
+    if (!recentSet.has(r.ym)) continue;
+    const cid = canonCustomerId(r.customerId);
+    if (!cid) continue;
+    customers.add(cid);
+    const key = hhOf(cid);
+    let h = hh.get(key);
+    if (!h) {
+      h = { commission: 0, yms: new Set(), products: new Set(), customers: new Map(), byProduct: {}, byCompany: {} };
+      hh.set(key, h);
+    }
+    const product = resolve(r.templateId, r.product).canonical;
+    h.commission += r.commission;
+    h.yms.add(r.ym);
+    h.products.add(product);
+    h.byProduct[product] = (h.byProduct[product] || 0) + r.commission;
+    h.byCompany[r.company] = (h.byCompany[r.company] || 0) + r.commission;
+    const c = h.customers.get(cid) ?? { commission: 0, name: '' };
+    c.commission += r.commission;
+    if (!c.name && r.fullName) c.name = r.fullName;
+    h.customers.set(cid, c);
+  }
+
+  /** נפרעים חודשיים של משק בית — לפי החודשים שבהם הופיע בפועל */
+  const monthlyOf = (h: HH) => h.commission / Math.max(1, h.yms.size);
+  const totalMonthly = Array.from(hh.values()).reduce((s, h) => s + monthlyOf(h), 0);
+
+  // עומק: מוצרים שונים למשק בית
+  const buckets: Record<HouseholdDepthLine['depth'], { households: number; commission: number }> = {
+    '1': { households: 0, commission: 0 },
+    '2': { households: 0, commission: 0 },
+    '3+': { households: 0, commission: 0 },
+  };
+  const top = (m: Record<string, number>) => Object.entries(m).sort((a, b) => b[1] - a[1])[0]?.[0] ?? '';
+  const single: EfficiencySummary['singleProduct'] = [];
+
+  hh.forEach((h, key) => {
+    const depth = h.products.size >= 3 ? '3+' : h.products.size === 2 ? '2' : '1';
+    buckets[depth].households++;
+    buckets[depth].commission += monthlyOf(h);
+    if (depth === '1') {
+      const lead = Array.from(h.customers.entries()).sort((a, b) => b[1].commission - a[1].commission)[0];
+      single.push({
+        customerId: lead?.[0] ?? '',
+        name: lead?.[1].name ?? '',
+        product: top(h.byProduct),
+        company: top(h.byCompany),
+        monthly: round2(monthlyOf(h)),
+        members: key.startsWith('solo:') ? 1 : households[lead?.[0] ?? '']?.groupSize ?? 1,
+      });
+    }
+  });
+
+  let linked = 0;
+  let notInCrm = 0;
+  customers.forEach((cid) => {
+    const x = households[cid];
+    if (!x) notInCrm++;
+    else if (x.groupSize >= 2) linked++;
+  });
+
+  return {
+    recentYms,
+    months,
+    avgPerHousehold: hh.size ? round2(totalMonthly / hh.size) : 0,
+    households: hh.size,
+    customers: customers.size,
+    linkedCustomers: linked,
+    // דיוק מלא — מעט לקוחות מקושרים מתוך אלפים לא יתעגלו ל-0
+    linkedShare: customers.size ? Math.round((linked / customers.size) * 10000) / 10000 : 0,
+    notInCrm,
+    byDepth: (['1', '2', '3+'] as const).map((d) => ({
+      depth: d,
+      households: buckets[d].households,
+      avgMonthly: buckets[d].households ? round2(buckets[d].commission / buckets[d].households) : 0,
+    })),
+    singleProduct: single.sort((a, b) => b.monthly - a.monthly).slice(0, SINGLE_LIST_LIMIT),
   };
 }

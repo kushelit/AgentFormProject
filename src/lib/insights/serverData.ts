@@ -8,7 +8,7 @@
 //     → policyCommissionSummaries.runId == jobId
 import { admin } from '@/lib/firebase/firebase-admin';
 import type { TemplateDoc } from '@/types/ContractCommissionComparison';
-import { portfolioWindows, type InsightsPolicyRow } from '@/lib/insights/computeInsights';
+import { canonCustomerId, portfolioWindows, type HouseholdMap, type InsightsPolicyRow } from '@/lib/insights/computeInsights';
 
 type Db = ReturnType<typeof admin.firestore>;
 
@@ -182,4 +182,34 @@ export function buildPortfolioIndex(rows: InsightsPolicyRow[], jobByRow: (r: Ins
       { ym: v.ym, reportMonth: v.reportMonth, jobIds: Array.from(v.jobIds), companies: Array.from(v.companies) },
     ])
   );
+}
+
+/**
+ * משקי בית של הסוכן מניהול לקוחות: ת"ז קנונית → parentID + גודל המשפחה.
+ * מחזיר גם חתימה קצרה כדי שקישור/ניתוק משפחה יבטל את מטמון הסקירה.
+ */
+export async function loadHouseholds(db: Db, agentId: string): Promise<{ map: HouseholdMap; signature: string }> {
+  const snap = await db.collection('customer').where('AgentId', '==', agentId).select('IDCustomer', 'parentID').get();
+  const parentOf: Record<string, string> = {};
+  const size: Record<string, number> = {};
+  const pairs: string[] = [];
+  snap.docs.forEach((d) => {
+    const x: any = d.data();
+    const cid = canonCustomerId(x.IDCustomer);
+    if (!cid) return;
+    const parent = str(x.parentID) || d.id;
+    parentOf[cid] = parent;
+    size[parent] = (size[parent] || 0) + 1;
+    pairs.push(`${cid}:${parent}`);
+  });
+  const map: HouseholdMap = {};
+  Object.entries(parentOf).forEach(([cid, parent]) => (map[cid] = { household: parent, groupSize: size[parent] }));
+  pairs.sort();
+  return { map, signature: `${pairs.length}:${simpleHash(pairs.join('|'))}` };
+}
+
+function simpleHash(s: string) {
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
+  return (h >>> 0).toString(36);
 }

@@ -19,6 +19,7 @@ import { computeInsights, type InsightsIncomeRow } from '@/lib/insights/computeI
 import {
   buildPortfolioIndex,
   fetchPolicyRows,
+  loadHouseholds,
   loadJobMeta,
   loadJobYms,
   loadTemplates,
@@ -30,8 +31,10 @@ import {
 export const maxDuration = 60;
 
 const INSIGHTS_CACHE_COLLECTION = 'agentInsightsCache';
-const CACHE_VERSION = 4; // להעלות כשמשנים את לוגיקת החישוב — מבטל את כל המטמון
+const CACHE_VERSION = 7; // להעלות כשמשנים את לוגיקת החישוב — מבטל את כל המטמון
 const CACHE_MAX_AGE_MS = 12 * 60 * 60 * 1000;
+/** מטמון שחושב לפני פחות מזה מוחזר מיד — בקריאה של מסמך אחד, בלי בדיקת חתימה */
+const FRESH_MS = 15 * 60 * 1000;
 
 /** מטמון נחשב תקין רק אם יש בו את כל השדות שהקוד הנוכחי מצפה להם */
 function isCompleteInsights(x: any): boolean {
@@ -43,13 +46,14 @@ function isCompleteInsights(x: any): boolean {
     Array.isArray(x.income?.recentByCompany) &&
     typeof x.income?.annualRunRate === 'number' &&
     Array.isArray(x.products?.byCompany) &&
-    Array.isArray(x.products?.byMonth)
+    Array.isArray(x.products?.byMonth) &&
+    Array.isArray(x.efficiency?.byDepth)
   );
 }
 
 export async function POST(req: NextRequest) {
   try {
-    const { agentId, year } = await req.json();
+    const { agentId, year, force } = await req.json();
     if (!agentId || !year) {
       return NextResponse.json({ error: 'missing params' }, { status: 400 });
     }
@@ -59,16 +63,29 @@ export async function POST(req: NextRequest) {
     const yearStr = String(year);
     const cacheRef = db.collection(INSIGHTS_CACHE_COLLECTION).doc(`${agentId}_${yearStr}`);
 
-    // ─── במקביל: תבניות, ריצות, הכנסות, מטמון ──────────────────────────────
-    const [tpl, ymByJobId, incomeSnap, cacheSnap] = await Promise.all([
+    // ─── מסלול מהיר: מטמון טרי → מסמך אחד ──────────────────────────────────
+    const cacheSnap = await cacheRef.get();
+    if (!force && cacheSnap.exists && cacheSnap.get('v') === CACHE_VERSION) {
+      const age = Date.now() - tsMillis(cacheSnap.get('updatedAt'));
+      const cached = cacheSnap.get('insights');
+      if (age >= 0 && age < FRESH_MS && isCompleteInsights(cached)) {
+        console.log(`[agent-insights] fresh cache ${agentId}_${yearStr} in ${Date.now() - startedAt}ms`);
+        return NextResponse.json(cached);
+      }
+    }
+
+    // ─── במקביל: תבניות, ריצות, הכנסות (השנה בלבד), משקי בית ─────────────────
+    const [tpl, ymByJobId, incomeSnap, hh] = await Promise.all([
       loadTemplates(db),
       loadJobYms(db, agentId, yearStr),
       db
         .collection('ymCommissionSummaries')
         .where('agentId', '==', agentId)
+        .where('ym', '>=', `${yearStr}-01`)
+        .where('ym', '<=', `${yearStr}-12`)
         .select('ym', 'company', 'templateId', 'totalCommissionAmount')
         .get(),
-      cacheRef.get(),
+      loadHouseholds(db, agentId),
     ]);
     const { templatesById, hekefTemplateIds, activeTemplateIds } = tpl;
 
@@ -97,6 +114,7 @@ export async function POST(req: NextRequest) {
           v: CACHE_VERSION,
           jobs: jobIds.map((id) => [id, ymByJobId[id], jobMeta[id].createdAt]),
           income: [incomeRows.length, Math.round(incomeSigTotal * 100)],
+          households: hh.signature, // קישור/ניתוק משפחה בניהול לקוחות → חישוב מחדש
           templates: involvedTemplates.map((tid) => {
             const t: any = templatesById[tid] || {};
             return [tid, t.Name ?? '', !!t.isactive, t.defaultPremiumField ?? '', t.fallbackProduct ?? '', t.productMap ?? {}];
@@ -110,12 +128,14 @@ export async function POST(req: NextRequest) {
       const cached = cacheSnap.get('insights');
       if (age >= 0 && age < CACHE_MAX_AGE_MS && isCompleteInsights(cached) && cacheSnap.get('portfolioIndex')) {
         console.log(`[agent-insights] cache hit ${agentId}_${yearStr} in ${Date.now() - startedAt}ms`);
+        // הנתונים לא השתנו — מסמנים את המטמון כטרי, כדי שהטעינות הבאות ילכו במסלול המהיר
+        cacheRef.update({ updatedAt: admin.firestore.FieldValue.serverTimestamp() }).catch(() => undefined);
         return NextResponse.json(cached);
       }
     }
 
     // ─── פוליסות של כל טעינות השנה ──────────────────────────────────────────
-    const policyRows = await fetchPolicyRows({ db, agentId, jobIds, ymByJobId, jobMeta, hekefTemplateIds });
+    const policyRows = await fetchPolicyRows({ db, agentId, jobIds, ymByJobId, jobMeta, hekefTemplateIds, withDetails: true });
 
     console.log(
       `[agent-insights] computed ${agentId}_${yearStr}: ${jobIds.length} jobs, ${policyRows.length} policies, ` +
@@ -129,6 +149,7 @@ export async function POST(req: NextRequest) {
       activeTemplateIds,
       policyRows,
       incomeRows,
+      households: hh.map,
     });
 
     // אינדקס לרשימת הפוליסות (לא נשלח לדפדפן)
@@ -138,6 +159,7 @@ export async function POST(req: NextRequest) {
     // set מלא מנקה גם סקירת AI קודמת (החתימה השתנתה).
     try {
       await cacheRef.set({
+        v: CACHE_VERSION,
         signature,
         insights,
         portfolioIndex,
