@@ -2971,7 +2971,7 @@ export default function MagicTouchContactsPage() {
                                         className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold transition hover:ring-2 hover:ring-rose-200 ${campaignStatusClassName(
                                           latestCampaignStatus
                                         )}`}
-                                        title="לחצי להצגת סיבת הכשל"
+                                        title="לחץ להצגת סיבת הכשל"
                                       >
                                         <span>
                                           {campaignStatusLabel(

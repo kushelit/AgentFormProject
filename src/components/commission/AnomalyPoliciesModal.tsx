@@ -24,6 +24,8 @@ import CustomerLink from '@/components/commission/summary/CustomerLink';
 import CustomerIssueBar from '@/components/commission/summary/CustomerIssueBar';
 import t from '@/components/commission/summary/table.module.css';
 import type { ProductMatch } from '@/types/agentInsights';
+import { premiumFieldShort } from '@/lib/premiumFields';
+import { matchNoiseRule, NOISE_RULES, type NoiseRule } from '@/lib/anomalyRules';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -42,6 +44,10 @@ type AnomalyRow = {
   totalPremiumAmount: number;
   commissionRate: number;
   validMonth?: string;
+  /** הפוליסה קיימת בדוח אח (lib/anomalyRules → SIBLING_REPORTS) */
+  siblingFound?: boolean;
+  siblingCommission?: number;
+  siblingTemplate?: string;
 };
 
 type HistoryRow = {
@@ -57,7 +63,43 @@ type HistoryRow = {
   validMonth?: string;
 };
 
-type AnomalyType = 'all' | 'zero_commission' | 'negative_commission' | 'premium_positive_commission_zero';
+/** קטגוריות חריגה — נפרדות וממצות */
+type AnomalyCategory = 'neg_prem_pos' | 'neg_prem_nonpos' | 'zero';
+type AnomalyType = 'all' | AnomalyCategory;
+
+const CATEGORY_META: Record<AnomalyCategory, { label: string; badge: string; card: string; cardActive: string; text: string }> = {
+  neg_prem_pos: {
+    label: 'עמלה שלילית · פרמיה חיובית',
+    badge: 'bg-red-100 text-red-700 border-red-200',
+    card: 'border-red-100 bg-red-50 hover:bg-red-100',
+    cardActive: 'border-red-400 bg-red-100 ring-2 ring-red-400',
+    text: 'text-red-600',
+  },
+  neg_prem_nonpos: {
+    label: 'עמלה שלילית · פרמיה שלילית או 0',
+    badge: 'bg-rose-50 text-rose-700 border-rose-200',
+    card: 'border-rose-100 bg-rose-50/60 hover:bg-rose-100',
+    cardActive: 'border-rose-400 bg-rose-100 ring-2 ring-rose-400',
+    text: 'text-rose-600',
+  },
+  zero: {
+    label: 'עמלה 0',
+    badge: 'bg-orange-100 text-orange-700 border-orange-200',
+    card: 'border-orange-100 bg-orange-50 hover:bg-orange-100',
+    cardActive: 'border-orange-400 bg-orange-100 ring-2 ring-orange-400',
+    text: 'text-orange-600',
+  },
+};
+const CATEGORIES: AnomalyCategory[] = ['neg_prem_pos', 'neg_prem_nonpos', 'zero'];
+
+function categoryOf(r: { totalCommissionAmount: number; totalPremiumAmount: number }): AnomalyCategory {
+  const comm = Number(r.totalCommissionAmount) || 0;
+  const prem = Number(r.totalPremiumAmount) || 0;
+  if (comm < 0) return prem > 0 ? 'neg_prem_pos' : 'neg_prem_nonpos';
+  return 'zero';
+}
+
+type SortKey = 'fullName' | 'customerId' | 'policyNumberKey' | 'company' | 'commission' | 'premium' | 'product' | 'productRaw' | 'template' | 'reportMonth' | 'agentCode';
 type MonthBasis = 'ym' | 'reportMonth';
 
 type Props = {
@@ -66,16 +108,27 @@ type Props = {
   onClose: () => void;
 };
 
-type Resolved = { templateName: string; product: string; matchedBy: ProductMatch };
+type Resolved = { templateName: string; product: string; matchedBy: ProductMatch; premiumField: string };
 
 const BASIS_LABEL: Record<MonthBasis, string> = { ym: 'חודש פרסום', reportMonth: 'חודש דיווח' };
 
+/** תפריט נפתח: חץ קטן בצד שמאל, עם ריווח — הטקסט לא מוסתר */
+const SELECT_CLS = 'text-sm border rounded-lg pr-3 pl-8 py-1.5 bg-white appearance-none cursor-pointer';
+const SELECT_STYLE: React.CSSProperties = {
+  backgroundImage:
+    "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E\")",
+  backgroundRepeat: 'no-repeat',
+  backgroundPosition: 'left 0.6rem center',
+  backgroundSize: '12px',
+};
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+/** 0 רק כשזה באמת 0. סכום קטן שאינו 0 מוצג בדיוק שלו (למשל -0.0012) ולא מעוגל ל-0 */
 function fmtNum(v: number) {
-  const n = Math.round(Number(v) * 100) / 100;
-  if (Object.is(n, -0)) return '0';
+  const n = Number(v) || 0;
   if (n === 0) return '0';
+  if (Math.abs(n) < 0.01) return n.toLocaleString('he-IL', { maximumSignificantDigits: 2 });
   return n.toLocaleString('he-IL', { maximumFractionDigits: 2 });
 }
 
@@ -93,18 +146,17 @@ function commissionColor(amount: number) {
   return 'text-gray-800';
 }
 
+/** חריגה רק כשהעמלה 0 בדיוק או שלילית */
+const isAnomalyCommission = (v: any) => (Number(v) || 0) <= 0;
+
 function premiumColor(premium: number, commission: number) {
   if (premium > 0 && commission <= 0) return 'text-red-600 font-bold';
   return 'text-gray-800';
 }
 
 function anomalyBadge(row: AnomalyRow) {
-  const comm = row.totalCommissionAmount;
-  const prem = row.totalPremiumAmount;
-  if (prem > 0 && comm < -0.001) return { label: 'פרמיה חיובית + עמלה שלילית', color: 'bg-red-100 text-red-700 border-red-200' };
-  if (prem > 0 && Math.abs(comm) < 0.001) return { label: 'פרמיה ללא עמלה', color: 'bg-orange-100 text-orange-700 border-orange-200' };
-  if (comm < -0.001) return { label: 'עמלה שלילית', color: 'bg-red-100 text-red-700 border-red-200' };
-  return { label: 'עמלה 0', color: 'bg-yellow-100 text-yellow-700 border-yellow-200' };
+  const c = CATEGORY_META[categoryOf(row)];
+  return { label: c.label, color: c.badge };
 }
 
 /** תבניות (לשם הדוח + פענוח מוצר) — נטען פעם אחת לכל פתיחת חלון */
@@ -132,6 +184,7 @@ function useTemplates() {
           templateName: String(tpl?.Name || tpl?.type || templateId || '-'),
           product: r.canonicalProduct || 'אחר',
           matchedBy: matchFromDebug(r),
+          premiumField: r.premiumFieldUsed || '',
         };
         cache.set(k, v);
       }
@@ -253,7 +306,7 @@ function PolicyHistoryModal({
               </thead>
               <tbody>
                 {rows.map((r, i) => {
-                  const isAnomaly = r.totalCommissionAmount < 0.001;
+                  const isAnomaly = isAnomalyCommission(r.totalCommissionAmount);
                   const res = resolve(r.templateId, r.product);
                   return (
                     <tr key={i} className={isAnomaly ? 'bg-red-50/40' : ''}>
@@ -315,9 +368,10 @@ export default function AnomalyPoliciesModal({ agentId, onClose }: Props) {
   const [search, setSearch] = useState('');
 
   const [historyPolicy, setHistoryPolicy] = useState<AnomalyRow | null>(null);
-  const [activeStatFilter, setActiveStatFilter] = useState<'negative' | 'zero' | 'premium_positive' | null>(null);
+  // שורות שסוננו כרעש לפי lib/anomalyRules — מוסתרות; לחיצה על כלל מציגה רק את השורות שלו
+  const [noiseFocus, setNoiseFocus] = useState<string | null>(null);
+  const [sort, setSort] = useState<{ key: SortKey; dir: 'asc' | 'desc' }>({ key: 'commission', dir: 'asc' });
 
-  const isNegative = (v: number) => Math.round(v * 100) / 100 < 0;
 
   // ─── טעינה ─────────────────────────────────────────────────────────────
   const load = async (b: MonthBasis = basis, month: string = selectedMonth) => {
@@ -330,15 +384,18 @@ export default function AnomalyPoliciesModal({ agentId, onClose }: Props) {
         b === 'ym'
           ? await postJsonCached('/api/commission-comparison/by-ym', { agentId, action: 'anomalies', ym: month })
           : await postJsonCached('/api/anomaly-policies', { agentId, reportMonth: month });
-      setRows(data.rows ?? []);
-      setTotal(data.total ?? (data.rows ?? []).length);
+      // הגנה גם במצב "חודש דיווח" (route ישן): עמלה חיובית — גם קטנה — אינה חריגה
+      const onlyAnomalies = (data.rows ?? []).filter((r: AnomalyRow) => isAnomalyCommission(r.totalCommissionAmount));
+      setRows(onlyAnomalies);
+      setNoiseFocus(null);
+      setTotal(onlyAnomalies.length);
       setLoadedLabel(`${BASIS_LABEL[b]}: ${month}`);
       setHasSearched(true);
     } catch (e: any) {
       const msg = String(e?.data?.error || e?.message || e);
       setError(
         /index/i.test(msg)
-          ? 'חסר אינדקס ב-Firestore לשאילתת החריגות. בלוג השרת (הטרמינל) מופיע לינק ליצירתו — לחצי עליו, המתיני כמה דקות לבנייה, ונסי שוב.'
+          ? 'חסר אינדקס ב-Firestore לשאילתת החריגות. בלוג השרת (הטרמינל) מופיע לינק ליצירתו — לחץ עליו, המתיני כמה דקות לבנייה, ונסי שוב.'
           : `שגיאה בטעינה: ${msg}`
       );
       setRows([]);
@@ -383,23 +440,60 @@ export default function AnomalyPoliciesModal({ agentId, onClose }: Props) {
     if (month) load(b, month);
   };
 
-  // ─── סינון ─────────────────────────────────────────────────────────────
-  const companies = useMemo(() => Array.from(new Set(rows.map((r) => r.company))).sort(), [rows]);
-  const agentCodes = useMemo(() => Array.from(new Set(rows.map((r) => r.agentCode).filter(Boolean))).sort(), [rows]);
-  const templateOptions = useMemo(() => {
-    const m = new Map<string, string>();
-    rows.forEach((r) => r.templateId && m.set(r.templateId, resolve(r.templateId, r.product).templateName));
-    return Array.from(m.entries()).sort((a, b) => a[1].localeCompare(b[1], 'he'));
+  // ─── כללי רעש ──────────────────────────────────────────────────────────
+  const noiseOf = useMemo(() => {
+    const m = new Map<AnomalyRow, NoiseRule | null>();
+    rows.forEach((r) => {
+      const res = resolve(r.templateId, r.product);
+      m.set(
+        r,
+        matchNoiseRule({
+          commission: Number(r.totalCommissionAmount) || 0,
+          premium: Number(r.totalPremiumAmount) || 0,
+          premiumField: res.premiumField,
+          product: res.product,
+          rawProduct: r.product || '',
+          templateId: r.templateId,
+          siblingFound: r.siblingFound,
+          siblingCommission: r.siblingCommission,
+          siblingTemplate: r.siblingTemplate ? resolve(r.siblingTemplate, '').templateName : undefined,
+        })
+      );
+    });
+    return m;
   }, [rows, resolve]);
 
+  const noiseCounts = useMemo(() => {
+    const c: Record<string, number> = {};
+    noiseOf.forEach((rule) => rule && (c[rule.id] = (c[rule.id] || 0) + 1));
+    return c;
+  }, [noiseOf]);
+  const noiseTotal = Object.values(noiseCounts).reduce((a, b) => a + b, 0);
+
+  /** החריגות האמיתיות (או הכל, כשבחרו להציג גם את הרעש) */
+  const baseRows = useMemo(
+    () => (noiseFocus ? rows.filter((r) => noiseOf.get(r)?.id === noiseFocus) : rows.filter((r) => !noiseOf.get(r))),
+    [rows, noiseOf, noiseFocus]
+  );
+  const focusedRule = noiseFocus ? NOISE_RULES.find((r) => r.id === noiseFocus) ?? null : null;
+
+  // ─── סינון ─────────────────────────────────────────────────────────────
+  // אפשרויות הסינון — רק ממה שמוצג בפועל (בלי שורות שסוננו כתקינות), כדי שלא תופיע חברה בלי חריגות
+  const companies = useMemo(() => Array.from(new Set(baseRows.map((r) => r.company))).sort(), [baseRows]);
+  const agentCodes = useMemo(() => Array.from(new Set(baseRows.map((r) => r.agentCode).filter(Boolean))).sort(), [baseRows]);
+  // דוחות לבחירה — רק של החברה שנבחרה (אם נבחרה)
+  const templateOptions = useMemo(() => {
+    const m = new Map<string, string>();
+    baseRows.forEach((r) => {
+      if (filterCompany && r.company !== filterCompany) return;
+      if (r.templateId) m.set(r.templateId, resolve(r.templateId, r.product).templateName);
+    });
+    return Array.from(m.entries()).sort((a, b) => a[1].localeCompare(b[1], 'he'));
+  }, [baseRows, filterCompany, resolve]);
+
   const filtered = useMemo(() => {
-    return rows.filter((r) => {
-      if (activeStatFilter === 'negative' && !isNegative(r.totalCommissionAmount)) return false;
-      if (activeStatFilter === 'zero' && r.totalCommissionAmount !== 0) return false;
-      if (activeStatFilter === 'premium_positive' && !(r.totalPremiumAmount > 0 && r.totalCommissionAmount <= 0)) return false;
-      if (filterType === 'zero_commission' && r.totalCommissionAmount !== 0) return false;
-      if (filterType === 'negative_commission' && !isNegative(r.totalCommissionAmount)) return false;
-      if (filterType === 'premium_positive_commission_zero' && !(r.totalPremiumAmount > 0 && r.totalCommissionAmount <= 0)) return false;
+    const list = baseRows.filter((r) => {
+      if (filterType !== 'all' && categoryOf(r) !== filterType) return false;
       if (filterCompany && r.company !== filterCompany) return false;
       if (filterTemplate && r.templateId !== filterTemplate) return false;
       if (filterAgentCode && r.agentCode !== filterAgentCode) return false;
@@ -416,15 +510,37 @@ export default function AnomalyPoliciesModal({ agentId, onClose }: Props) {
       }
       return true;
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rows, filterType, filterCompany, filterTemplate, filterAgentCode, search, activeStatFilter, resolve]);
 
+    const val = (r: AnomalyRow): string | number => {
+      switch (sort.key) {
+        case 'commission': return Number(r.totalCommissionAmount) || 0;
+        case 'premium': return Number(r.totalPremiumAmount) || 0;
+        case 'product': return resolve(r.templateId, r.product).product;
+        case 'productRaw': return r.product || '';
+        case 'template': return resolve(r.templateId, r.product).templateName;
+        case 'fullName': return r.fullName || '';
+        default: return String((r as any)[sort.key] ?? '');
+      }
+    };
+    const dir = sort.dir === 'asc' ? 1 : -1;
+    return list.slice().sort((x, y) => {
+      const a = val(x);
+      const b = val(y);
+      return (typeof a === 'number' && typeof b === 'number' ? a - b : String(a).localeCompare(String(b), 'he')) * dir;
+    });
+  }, [baseRows, filterType, filterCompany, filterTemplate, filterAgentCode, search, resolve, sort]);
+
+  const toggleSort = (key: SortKey) =>
+    setSort((cur) => (cur.key === key ? { key, dir: cur.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: key === 'commission' || key === 'premium' ? 'asc' : 'asc' }));
+  const sortMark = (key: SortKey) => (sort.key === key ? (sort.dir === 'asc' ? ' ▲' : ' ▼') : '');
+
+  // הקוביות סופרות רק חריגות אמיתיות (בלי הרעש), גם כשבחרו להציג אותו
+  const realRows = useMemo(() => rows.filter((r) => !noiseOf.get(r)), [rows, noiseOf]);
   const stats = useMemo(() => {
-    const zeroCommission = rows.filter((r) => r.totalCommissionAmount === 0).length;
-    const negativeCommission = rows.filter((r) => r.totalCommissionAmount < 0).length;
-    const premiumPositive = rows.filter((r) => r.totalPremiumAmount > 0 && r.totalCommissionAmount <= 0).length;
-    return { zeroCommission, negativeCommission, premiumPositive };
-  }, [rows]);
+    const c: Record<AnomalyCategory, number> = { neg_prem_pos: 0, neg_prem_nonpos: 0, zero: 0 };
+    realRows.forEach((r) => c[categoryOf(r)]++);
+    return c;
+  }, [realRows]);
 
   const exportToExcel = () => {
     if (!filtered.length) return;
@@ -432,7 +548,7 @@ export default function AnomalyPoliciesModal({ agentId, onClose }: Props) {
       filtered.map((r) => {
         const res = resolve(r.templateId, r.product);
         return {
-          'סוג חריגה': anomalyBadge(r).label,
+          'סוג חריגה': noiseOf.get(r) ? `לא חריגה · ${noiseOf.get(r)!.label}` : anomalyBadge(r).label,
           'פוליסה': r.policyNumberKey,
           'ת״ז': r.customerId,
           'לקוח': r.fullName ?? '',
@@ -444,7 +560,8 @@ export default function AnomalyPoliciesModal({ agentId, onClose }: Props) {
           ...(basis === 'ym' ? { 'חודש פרסום': r.ym ?? selectedMonth } : {}),
           'חודש דיווח': r.reportMonth,
           'מספר סוכן': r.agentCode,
-          'פרמיה': r.totalPremiumAmount,
+          'פרמיה/צבירה': r.totalPremiumAmount,
+          'סוג סכום': premiumFieldShort(res.premiumField),
           'עמלה': r.totalCommissionAmount,
           '% עמלה': r.commissionRate,
         };
@@ -455,7 +572,7 @@ export default function AnomalyPoliciesModal({ agentId, onClose }: Props) {
     XLSX.writeFile(wb, `פוליסות_חריגות_${basis === 'ym' ? 'פרסום' : 'דיווח'}_${selectedMonth}.xlsx`);
   };
 
-  const hasFilters = filterType !== 'all' || filterCompany || filterTemplate || filterAgentCode || search || activeStatFilter;
+  const hasFilters = filterType !== 'all' || filterCompany || filterTemplate || filterAgentCode || search;
 
   return (
     <>
@@ -467,7 +584,7 @@ export default function AnomalyPoliciesModal({ agentId, onClose }: Props) {
               <h2 className="text-lg font-bold text-gray-900">⚠️ פוליסות חריגות</h2>
               {hasSearched && (
                 <p className="text-xs text-gray-400 mt-0.5">
-                  {loadedLabel} · נמצאו {total} פוליסות
+                  {loadedLabel} · {realRows.length} חריגות{noiseTotal ? ` (+${noiseTotal} שסוננו כרעש)` : ''}
                 </p>
               )}
             </div>
@@ -511,7 +628,7 @@ export default function AnomalyPoliciesModal({ agentId, onClose }: Props) {
                 value={selectedYm}
                 onChange={(e) => setSelectedYm(e.target.value)}
                 disabled={ymsLoading || !availableYms.length}
-                className="text-sm border rounded-lg px-3 py-1.5 bg-white min-w-[140px]"
+                className={`${SELECT_CLS} min-w-[140px]`} style={SELECT_STYLE}
               >
                 {ymsLoading && <option value="">טוען…</option>}
                 {!ymsLoading && !availableYms.length && <option value="">אין טעינות לפי חודש פרסום</option>}
@@ -553,30 +670,68 @@ export default function AnomalyPoliciesModal({ agentId, onClose }: Props) {
               </div>
             ) : (
               <>
+                {/* Noise rules — שורות שנראות חריגות אבל תקינות */}
+                {noiseTotal > 0 && !focusedRule && (
+                  <div className="shrink-0 mb-3 rounded-xl border border-emerald-100 bg-emerald-50/50 px-4 py-2.5 flex flex-wrap items-center gap-x-2 gap-y-1.5 text-sm">
+                    <span className="text-slate-700 ml-1">
+                      ✓ <b>{noiseTotal}</b> שורות שנראות חריגות אבל הן תקינות. לחץ לפירוט:
+                    </span>
+                    {NOISE_RULES.filter((rule) => noiseCounts[rule.id]).map((rule) => (
+                      <button
+                        key={rule.id}
+                        type="button"
+                        onClick={() => {
+                          setNoiseFocus(rule.id);
+                          setFilterType('all');
+                          setFilterCompany('');
+                          setFilterTemplate('');
+                          setFilterAgentCode('');
+                        }}
+                        title={rule.description}
+                        className="px-2.5 py-1 rounded-full bg-white border border-emerald-200 text-emerald-800 hover:bg-emerald-100 text-xs font-semibold"
+                      >
+                        {rule.label} ({noiseCounts[rule.id]})
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {focusedRule && (
+                  <div className="shrink-0 mb-3 rounded-xl border-2 border-emerald-200 bg-emerald-50 px-4 py-3 flex flex-wrap items-start gap-3">
+                    <div className="flex-1 min-w-[260px]">
+                      <div className="font-bold text-emerald-900">
+                        ✓ {focusedRule.label} · {noiseCounts[focusedRule.id] ?? 0} שורות — לא חריגות
+                      </div>
+                      <div className="text-sm text-emerald-900/80 mt-0.5 leading-relaxed">{focusedRule.description}</div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setNoiseFocus(null);
+                        setFilterCompany('');
+                        setFilterTemplate('');
+                        setFilterAgentCode('');
+                      }}
+                      className="shrink-0 px-3 py-1.5 rounded-lg bg-white border border-emerald-300 text-emerald-800 text-sm font-bold hover:bg-emerald-100"
+                    >
+                      ← חזרה לחריגות
+                    </button>
+                  </div>
+                )}
+
                 {/* Stats */}
-                <div className="shrink-0 grid grid-cols-3 gap-3 mb-4">
-                  {(
-                    [
-                      ['negative', 'עמלה שלילית', stats.negativeCommission, 'red'],
-                      ['zero', 'עמלה 0', stats.zeroCommission, 'orange'],
-                      ['premium_positive', 'פרמיה חיובית + עמלה 0/שלילית', stats.premiumPositive, 'yellow'],
-                    ] as const
-                  ).map(([key, label, count, color]) => {
-                    const active = activeStatFilter === key;
-                    const cls = {
-                      red: active ? 'border-red-400 bg-red-100 ring-2 ring-red-400' : 'border-red-100 bg-red-50 hover:bg-red-100',
-                      orange: active ? 'border-orange-400 bg-orange-100 ring-2 ring-orange-400' : 'border-orange-100 bg-orange-50 hover:bg-orange-100',
-                      yellow: active ? 'border-yellow-400 bg-yellow-100 ring-2 ring-yellow-400' : 'border-yellow-100 bg-yellow-50 hover:bg-yellow-100',
-                    }[color];
-                    const text = { red: 'text-red-600', orange: 'text-orange-600', yellow: 'text-yellow-600' }[color];
+                <div className={`shrink-0 grid grid-cols-3 gap-3 mb-4 ${focusedRule ? 'hidden' : ''}`}>
+                  {CATEGORIES.map((cat) => {
+                    const m = CATEGORY_META[cat];
+                    const active = filterType === cat;
                     return (
                       <div
-                        key={key}
-                        onClick={() => setActiveStatFilter((prev) => (prev === key ? null : key))}
-                        className={`rounded-xl border p-4 text-center cursor-pointer transition ${cls}`}
+                        key={cat}
+                        onClick={() => setFilterType((prev) => (prev === cat ? 'all' : cat))}
+                        className={`rounded-xl border p-4 text-center cursor-pointer transition ${active ? m.cardActive : m.card}`}
                       >
-                        <div className={`text-xs font-bold mb-1 ${text}`}>{label}</div>
-                        <div className={`text-3xl font-black ${text}`}>{count}</div>
+                        <div className={`text-xs font-bold mb-1 ${m.text}`}>{m.label}</div>
+                        <div className={`text-3xl font-black ${m.text}`}>{stats[cat]}</div>
                       </div>
                     );
                   })}
@@ -584,14 +739,23 @@ export default function AnomalyPoliciesModal({ agentId, onClose }: Props) {
 
                 {/* Filters */}
                 <div className="shrink-0 flex flex-wrap gap-2 mb-3">
-                  <select value={filterType} onChange={(e) => setFilterType(e.target.value as AnomalyType)} className="text-sm border rounded-lg px-3 py-1.5 bg-white">
+                  <select value={filterType} onChange={(e) => setFilterType(e.target.value as AnomalyType)} className={`${SELECT_CLS}`} style={SELECT_STYLE}>
                     <option value="all">כל החריגות</option>
-                    <option value="zero_commission">עמלה 0 בלבד</option>
-                    <option value="negative_commission">עמלה שלילית בלבד</option>
-                    <option value="premium_positive_commission_zero">פרמיה חיובית + עמלה 0/שלילית</option>
+                    {CATEGORIES.map((cat) => (
+                      <option key={cat} value={cat}>
+                        {CATEGORY_META[cat].label}
+                      </option>
+                    ))}
                   </select>
 
-                  <select value={filterCompany} onChange={(e) => setFilterCompany(e.target.value)} className="text-sm border rounded-lg px-3 py-1.5 bg-white">
+                  <select
+                    value={filterCompany}
+                    onChange={(e) => {
+                      setFilterCompany(e.target.value);
+                      setFilterTemplate(''); // דוח של חברה אחרת כבר לא רלוונטי
+                    }}
+                    className={`${SELECT_CLS}`} style={SELECT_STYLE}
+                  >
                     <option value="">כל החברות</option>
                     {companies.map((c) => (
                       <option key={c} value={c}>
@@ -600,7 +764,7 @@ export default function AnomalyPoliciesModal({ agentId, onClose }: Props) {
                     ))}
                   </select>
 
-                  <select value={filterTemplate} onChange={(e) => setFilterTemplate(e.target.value)} className="text-sm border rounded-lg px-3 py-1.5 bg-white max-w-[240px]">
+                  <select value={filterTemplate} onChange={(e) => setFilterTemplate(e.target.value)} className={`${SELECT_CLS} max-w-[240px]`} style={SELECT_STYLE}>
                     <option value="">כל הדוחות</option>
                     {templateOptions.map(([id, name]) => (
                       <option key={id} value={id}>
@@ -609,7 +773,7 @@ export default function AnomalyPoliciesModal({ agentId, onClose }: Props) {
                     ))}
                   </select>
 
-                  <select value={filterAgentCode} onChange={(e) => setFilterAgentCode(e.target.value)} className="text-sm border rounded-lg px-3 py-1.5 bg-white">
+                  <select value={filterAgentCode} onChange={(e) => setFilterAgentCode(e.target.value)} className={`${SELECT_CLS}`} style={SELECT_STYLE}>
                     <option value="">כל מספרי הסוכן</option>
                     {agentCodes.map((c) => (
                       <option key={c} value={c}>
@@ -634,7 +798,6 @@ export default function AnomalyPoliciesModal({ agentId, onClose }: Props) {
                         setFilterTemplate('');
                         setFilterAgentCode('');
                         setSearch('');
-                        setActiveStatFilter(null);
                       }}
                       className="text-xs text-gray-500 hover:text-gray-700 px-2"
                     >
@@ -651,29 +814,70 @@ export default function AnomalyPoliciesModal({ agentId, onClose }: Props) {
                     <table className={`${t.cleanTable} text-[13px]`}>
                       <thead className="sticky top-0 z-10">
                         <tr>
-                          <th className="px-2 py-2 whitespace-nowrap">סוג חריגה</th>
-                          <th className="px-2 py-2 whitespace-nowrap">לקוח</th>
-                          <th className={`px-2 py-2 whitespace-nowrap ${t.center}`}>ת״ז</th>
-                          <th className={`px-2 py-2 whitespace-nowrap ${t.center}`}>פוליסה</th>
-                          <th className={`px-2 py-2 whitespace-nowrap ${t.center}`}>חברה</th>
-                          <th className={`px-2 py-2 whitespace-nowrap ${t.center}`}>עמלה</th>
-                          <th className={`px-2 py-2 whitespace-nowrap ${t.center}`}>פרמיה/צבירה</th>
-                          <th className={`px-2 py-2 whitespace-nowrap ${t.center}`}>מוצר מסווג</th>
-                          <th className={`px-2 py-2 whitespace-nowrap ${t.center}`}>מוצר</th>
-                          <th className={`px-2 py-2 whitespace-nowrap ${t.center}`}>דוח</th>
-                          <th className={`px-2 py-2 whitespace-nowrap ${t.center}`}>חודש דיווח</th>
-                          <th className={`px-2 py-2 whitespace-nowrap ${t.center}`}>מס׳ סוכן</th>
-                          <th className={`px-2 py-2 ${t.center}`} />
+                          {(
+                            [
+                              [null, 'סוג חריגה', false],
+                              ['fullName', 'לקוח', false],
+                              ['customerId', 'ת״ז', true],
+                              ['policyNumberKey', 'פוליסה', true],
+                              ['company', 'חברה', true],
+                              ['commission', 'עמלה', true],
+                              ['premium', 'פרמיה/צבירה', true],
+                              ['product', 'מוצר מסווג', true],
+                              ['productRaw', 'מוצר', true],
+                              ['template', 'דוח', true],
+                              ['reportMonth', 'חודש דיווח', true],
+                              ['agentCode', 'מס׳ סוכן', true],
+                              [null, '', true],
+                            ] as Array<[SortKey | null, string, boolean]>
+                          ).map(([key, label, centered], i) => (
+                            <th
+                              key={i}
+                              onClick={key ? () => toggleSort(key) : undefined}
+                              className={`px-2 py-2 whitespace-nowrap ${centered ? t.center : ''} ${key ? 'cursor-pointer select-none hover:text-indigo-700' : ''}`}
+                              title={key ? 'מיון' : undefined}
+                            >
+                              {label}
+                              {key && sortMark(key)}
+                            </th>
+                          ))}
                         </tr>
                       </thead>
                       <tbody>
                         {filtered.map((r, i) => {
-                          const badge = anomalyBadge(r);
+                          const noise = noiseOf.get(r);
+                          const badge = noise
+                            ? { label: `לא חריגה · ${noise.label}`, color: 'bg-slate-100 text-slate-500 border-slate-200' }
+                            : anomalyBadge(r);
                           const res = resolve(r.templateId, r.product);
                           return (
-                            <tr key={`${r.policyNumberKey}_${r.customerId}_${r.templateId}_${r.reportMonth}_${i}`}>
+                            <tr
+                              key={`${r.policyNumberKey}_${r.customerId}_${r.templateId}_${r.reportMonth}_${i}`}
+                              className={noise ? 'opacity-60' : ''}
+                            >
                               <td className="px-2 py-1.5 whitespace-nowrap">
-                                <span className={`text-[11px] leading-none px-2 py-1 rounded-full border font-medium ${badge.color}`}>{badge.label}</span>
+                                <span
+                                  className={`text-[11px] leading-none px-2 py-1 rounded-full border font-medium ${badge.color}`}
+                                  title={
+                                    noise
+                                      ? noise.explain
+                                        ? noise.explain({
+                                            commission: Number(r.totalCommissionAmount) || 0,
+                                            premium: Number(r.totalPremiumAmount) || 0,
+                                            premiumField: res.premiumField,
+                                            product: res.product,
+                                            rawProduct: r.product || '',
+                                            templateId: r.templateId,
+                                            siblingFound: r.siblingFound,
+                                            siblingCommission: r.siblingCommission,
+                                            siblingTemplate: r.siblingTemplate ? resolve(r.siblingTemplate, '').templateName : undefined,
+                                          })
+                                        : noise.description
+                                      : undefined
+                                  }
+                                >
+                                  {badge.label}
+                                </span>
                               </td>
                               <td className="px-2 py-1.5 font-semibold whitespace-nowrap">
                                 <CustomerLink
@@ -694,6 +898,9 @@ export default function AnomalyPoliciesModal({ agentId, onClose }: Props) {
                               </td>
                               <td className={`px-2 py-1.5 tabular-nums whitespace-nowrap ${premiumColor(r.totalPremiumAmount, r.totalCommissionAmount)} ${t.center}`}>
                                 {fmtNum(r.totalPremiumAmount)}
+                                {res.premiumField && (
+                                  <div className="text-[10px] font-normal text-slate-400 leading-tight">{premiumFieldShort(res.premiumField)}</div>
+                                )}
                               </td>
                               <td className={`px-2 py-1.5 ${t.center}`}>
                                 <ClassifiedProduct product={res.product} matchedBy={res.matchedBy} />

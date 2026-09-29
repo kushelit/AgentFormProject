@@ -932,6 +932,11 @@ const getValueBySystemField = (
       toNum(pick(row, ["מאגד-סה'כ עמלה", "מאגד - סה'כ עמלה", 'מאגד-סה׳כ עמלה', 'מאגד - סה׳כ עמלה'])),
   };
 
+
+    // איילון: שורות "סוג עמלה = צבירה" → תבנית נגזרת ayalon_zvira (כמו בקליטה האוטומטית)
+  const AYALON_ZVIRA_TYPE = 'צבירה';
+  const AYALON_ZVIRA_TEMPLATE_ID = 'ayalon_zvira';
+
   const chunk = <T,>(arr: T[], size: number) =>
     Array.from({ length: Math.ceil(arr.length / size) }, (_, i) => arr.slice(i * size, i + size));
 
@@ -1020,8 +1025,10 @@ const confirmMissingCustomerIds = (missingRows: any[]): Promise<boolean> => {
 
       const templates: CommissionTemplateOption[] = [];
       const companyCache: Record<string, any> = {};
-      for (const docSnap of snapshot.docs) {
+          for (const docSnap of snapshot.docs) {
         const data = docSnap.data();
+        // תבנית נגזרת (למשל ayalon_zvira) נוצרת מתוך קובץ של תבנית אחרת — לא בוחרים בה ידנית
+        if (data.derivedFrom) continue;
         const companyId = data.companyId;
         let companyName = '';
         let automationEnabled = false;
@@ -1571,17 +1578,18 @@ const standardizeRowWithMapping = (
 
       result[systemField] = roundTo2(commission);
 
-    } else if (systemField === "premium") {
-      if (base.templateId === "fenix_insurance") {
-        const sector = String(getValueBySystemField(row, mapping, "product") ?? "").trim();
-        const accRaw = getValueBySystemField(row, mapping, "premium");
-        const premRaw = getValueBySystemField(row, mapping, "premium");
-
-        result.premium = toNum(
-          sector === "פיננסים וזמן פרישה"
-            ? (accRaw ?? premRaw)
-            : premRaw
-        );
+       } else if (systemField === "premium") {
+      if (base.templateId === "fenix_insurance" || base.templateId === "fenix_hefreshim") {
+        // פניקס — זהה לקליטה האוטומטית: "פיננסים וזמן פרישה" → צבירה, אחרת פרמיה
+        const sector = String(getCell(row, "ענף") ?? "").trim();
+        const accRaw = getCell(row, "צבירה") ?? getCell(row, "סכום צבירה");
+        const premRaw = getCell(row, "פרמיה") ?? getCell(row, "סכום פרמיה") ?? value;
+        result.premium = toNum(sector === "פיננסים וזמן פרישה" ? (accRaw ?? premRaw) : premRaw);
+      } else if (base.templateId === "ayalon_insurance") {
+        // איילון — צבירה → הסכום הוא הצבירה הפיננסית (הפרמיה הנפרעת תמיד 0 בשורות האלה)
+        const isZvira = String(getCell(row, "סוג עמלה") ?? "").trim() === AYALON_ZVIRA_TYPE;
+        const accRaw = getCell(row, "סכום צבירה יתרון פיננסי");
+        result.premium = toNum(isZvira ? (accRaw ?? value) : value);
       } else {
         result.premium = toNum(value);
       }
@@ -1627,6 +1635,13 @@ const standardizeRowWithMapping = (
   if (base.templateId === "clal_pensia" && !result.policyNumber && result.customerId) {
     result.policyNumber = String(result.customerId).trim();
   }
+  // איילון: סוג עמלה + שורות צבירה → תבנית הצבירה (מסמך נפרד בסיכום הפוליסות, מספר פוליסה נקי)
+  if (base.templateId === "ayalon_insurance") {
+    const commissionType = String(getCell(row, "סוג עמלה") ?? "").trim();
+    if (commissionType) result.commissionType = commissionType;
+    if (commissionType === AYALON_ZVIRA_TYPE) result.templateId = AYALON_ZVIRA_TEMPLATE_ID;
+  }
+
 
   if (base.templateId === "altshuler_insurance") {
     const rawMonth = getCell(row, "חודש");
@@ -3491,7 +3506,7 @@ const runnerUpdateProgressWidth =
            <div className="text-sm text-red-700">
                 <span className="font-bold">⚠️ הבוט לא פעיל כרגע במחשב הסוכן.</span>
                 <span className="block text-xs text-red-500 mt-0.5">
-                  לחצי כדי לנסות להפעיל אותו מרחוק
+                  לחץ כדי לנסות להפעיל אותו מרחוק
                 </span>
               </div>
               <a
@@ -3878,7 +3893,7 @@ addToast(
               <>
                 <div className="text-3xl opacity-50">📄</div>
                 <div className="text-sm font-bold text-gray-600">
-                  לחצי לבחירת קובץ או גררי לכאן
+                  לחץ לבחירת קובץ או גרור לכאן
                 </div>
               </>
             ) : (

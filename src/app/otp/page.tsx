@@ -632,7 +632,7 @@ function OtpPageInner() {
           <div className="mb-4 rounded-3xl border border-red-200 bg-red-50 p-4 shadow-sm">
   <div className="text-sm font-semibold text-red-800">⚠️ התראות למכשיר הזה</div>
             <p className="mt-1 text-xs text-gray-500">
-              לחצי פעם אחת כדי לקבל התראה כשנדרש קוד OTP.
+              לחץ פעם אחת כדי לקבל התראה כשנדרש קוד OTP.
             </p>
 
             <button

@@ -523,7 +523,7 @@ export default function MagicTouchDashboardPage() {
 
             {selectedCampaignId ? (
               <div className="mt-3 text-[11px] font-semibold text-slate-400">
-                לחצי על נתון כדי לפתוח את אנשי הקשר של הקמפיין באותו סטטוס.
+                לחץ על נתון כדי לפתוח את אנשי הקשר של הקמפיין באותו סטטוס.
               </div>
             ) : null}
           </div>

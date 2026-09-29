@@ -60,7 +60,7 @@ const EfficiencySection: React.FC<Props> = ({ agentId, efficiency: e }) => {
     <section>
       <div className="flex items-baseline justify-between mb-3 gap-3">
         <h3 className="text-base font-black text-slate-800">יעילות תיק</h3>
-        <span className="text-xs text-slate-500">לפי משק בית · ממוצע חודשי {range} (לפי החודשים שבהם כל לקוח הופיע)</span>
+        <span className="text-sm text-slate-500">לפי משק בית · ממוצע חודשי {range} (לפי החודשים שבהם כל לקוח הופיע)</span>
       </div>
 
       {/* ─── המלצה: קישור משפחות ─── */}
@@ -136,7 +136,7 @@ const EfficiencySection: React.FC<Props> = ({ agentId, efficiency: e }) => {
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 mt-4">
         <div className="lg:col-span-3 bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
           <div className="text-sm font-bold text-slate-700">נפרעים חודשיים למשק בית לפי עומק התיק</div>
-          <div className="text-[11px] text-slate-400 mb-3">
+          <div className="text-[13px] text-slate-500 mb-3">
             עומק = מספר סוגי מוצרים שונים במשק הבית (לפי המוצר המסווג), לא מספר הפוליסות — שתי פוליסות בריאות הן מוצר אחד.
           </div>
           <div className="space-y-3">
@@ -144,7 +144,7 @@ const EfficiencySection: React.FC<Props> = ({ agentId, efficiency: e }) => {
               const mult = d1?.avgMonthly && d.depth !== '1' ? d.avgMonthly / d1.avgMonthly : null;
               return (
                 <div key={d.depth}>
-                  <div className="flex justify-between text-xs mb-1">
+                  <div className="flex justify-between text-sm mb-1">
                     <span className="font-semibold text-slate-700">
                       {DEPTH_LABEL[d.depth]} · {fmtInt(d.households)} משקי בית
                     </span>
@@ -179,7 +179,7 @@ const EfficiencySection: React.FC<Props> = ({ agentId, efficiency: e }) => {
               <b className="text-emerald-700">
                 +{fmtInt(potentialMonthly)} ₪ בחודש · +{fmtInt(potentialMonthly * 12)} ₪ בשנה
               </b>
-              <span className="text-xs text-emerald-800/70 w-full">
+              <span className="text-[13px] text-emerald-800/80 w-full">
                 לפי הפער בתיק שלך: {fmtInt(d1?.avgMonthly ?? 0)} ₪ למשק בית עם מוצר אחד מול {fmtInt(d2?.avgMonthly ?? 0)} ₪ עם שניים.
               </span>
             </div>

@@ -546,7 +546,7 @@ if (
           body: JSON.stringify({
             to: emailLower,
             subject: 'איפוס סיסמה לאחר חידוש מנוי',
-            html: `שלום ${fullName},<br><br>המנוי שלך חודש בהצלחה.<br>לאיפוס סיסמה: <a href="${resetLink}">לחצי כאן</a>`,
+            html: `שלום ${fullName},<br><br>המנוי שלך חודש בהצלחה.<br>לאיפוס סיסמה: <a href="${resetLink}">לחץ כאן</a>`,
           }),
         });
       } catch {

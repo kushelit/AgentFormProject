@@ -1169,7 +1169,7 @@ const CommissionComparisonByPolicy: React.FC = () => {
                       × הצג את כל הדוחות
                     </button>
                   ) : (
-                    "לחצי על דוח כדי למקד את כל ההשוואה בו"
+                    "לחץ על דוח כדי למקד את כל ההשוואה בו"
                   )}
                 </span>
               </div>
@@ -1213,7 +1213,7 @@ const CommissionComparisonByPolicy: React.FC = () => {
             </div>
           )}
 
-          {!drillStatus && <p className="text-gray-500 mb-4">לחצי על סטטוס להצגת הפוליסות.</p>}
+          {!drillStatus && <p className="text-gray-500 mb-4">לחץ על סטטוס להצגת הפוליסות.</p>}
         </>
       )}
 

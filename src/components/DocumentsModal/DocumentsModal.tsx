@@ -147,7 +147,7 @@ const DocumentsModal: React.FC<Props> = ({ open, title, documents, loading, onCl
                 ) : (
                   <>
                     <span className="dm-upload-icon">⬆️</span>
-                    <span>גררי קבצים לכאן או לחצי להעלאה (ניתן לבחור כמה קבצים)</span>
+                    <span>גרור קבצים לכאן או לחץ להעלאה (ניתן לבחור כמה קבצים)</span>
                   </>
                 )}
               </div>

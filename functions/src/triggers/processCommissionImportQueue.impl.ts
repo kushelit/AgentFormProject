@@ -14,6 +14,7 @@ import { standardizeRows } from "../shared/import/standardize";
 import { buildArtifacts } from "../shared/import/buildArtifacts";
 import { makeAdminAdapter } from "../shared/import/commit/adminAdapter";
 import { commitRun } from "../shared/import/commit/commitRun";
+import { invalidateAgentInsightsCache } from "../shared/insightsCache";
 import type { CommissionTemplate } from "../shared/import/types";
 
 function safeStr(v: any) {
@@ -258,6 +259,9 @@ async function updatePortalRunJobState(params: {
     if (data?.agencyHouseOnly && !isAgencyHouse) return false;
     if (data?.excludeForAgencyHouse && isAgencyHouse) return false;
      if (data?.manualOnly) return false;
+    // תבנית נגזרת (למשל ayalon_zvira) — השורות שלה מגיעות מהריצה של תבנית האם,
+    // אין לה הורדה משלה ולכן היא לא "דוח חסר"
+    if (data?.derivedFrom) return false;
     return true;
   })
   .map(d => d.id);
@@ -810,6 +814,12 @@ const { rowsPrepared, commissionSummaries, policySummaries, runDoc } = buildArti
 
     const adapter = makeAdminAdapter(db as any);
     await commitRun({ adapter, runDoc, rowsPrepared, commissionSummaries, policySummaries, agentCodes: allAgentCodes });
+
+    // 🔧 הנתונים החדשים נכתבו — מנקים את מטמון הסקירה של הסוכן, כדי שהכניסה הבאה
+    // לדף המסכם תחשב מחדש. כשל כאן לא מפיל את הטעינה.
+    await invalidateAgentInsightsCache(db as any, agentId).catch((e) =>
+      console.error("[processQueue] insights cache invalidation failed", e)
+    );
 
     await queueRef.set(
       {

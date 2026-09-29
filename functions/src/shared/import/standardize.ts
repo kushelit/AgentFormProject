@@ -7,6 +7,13 @@ const decodeFirestoreFieldKey = (s: string) =>
 
 const VAT_DEFAULT = 0.18;
 
+// איילון: שורת "סוג עמלה = צבירה" היא רכיב נפרד של אותה פוליסה (העמלה על הצבירה),
+// לצד שורת "נפרעים" של רכיב החיסכון (הפקדות). שורות הצבירה משויכות לתבנית נגזרת
+// (ayalon_zvira, derivedFrom: ayalon_insurance) — כמו harel_insurance / harel_tzvira.
+// כך הן נשמרות בסיכום הפוליסות כמסמך נפרד (המפתח כולל את התבנית), ומספר הפוליסה נשאר נקי.
+const AYALON_ZVIRA_TYPE = "צבירה";
+const AYALON_ZVIRA_TEMPLATE_ID = "ayalon_zvira";
+
 function roundTo2(num: number) {
   return Math.round(num * 100) / 100;
 }
@@ -101,6 +108,11 @@ const HEB_MONTHS: Record<string, string> = {
 function monthNameToMM(name: any): string {
   const s = normalizeHeader(String(name ?? ""));
   return HEB_MONTHS[s] || "";
+}
+
+/** איילון: ערך העמודה "סוג עמלה" (נפרעים / צבירה) */
+function ayalonCommissionType(rawRow: any): string {
+  return String(pick(rawRow, ["סוג עמלה"]) ?? "").trim();
 }
 
 // overrides כמו אצלך
@@ -227,6 +239,11 @@ if (systemField === "commissionAmount") {
         const accRaw = pick(rawRow, ["צבירה", "סכום צבירה"]);
         const premRaw = pick(rawRow, ["פרמיה", "סכום פרמיה"]);
         result.premium = toNum(sector === "פיננסים וזמן פרישה" ? (accRaw ?? premRaw) : premRaw);
+      } else if (template.templateId === "ayalon_insurance") {
+        // איילון: "סוג עמלה = צבירה" → הסכום הוא הצבירה הפיננסית (לא הפרמיה הנפרעת, שתמיד 0 בשורות האלה)
+        const isZvira = ayalonCommissionType(rawRow) === AYALON_ZVIRA_TYPE;
+        const accRaw = pick(rawRow, ["סכום צבירה יתרון פיננסי"]);
+        result.premium = toNum(isZvira ? (accRaw ?? value) : value);
       } else {
         result.premium = toNum(value);
       }
@@ -279,6 +296,18 @@ if (systemField === "commissionAmount") {
 
     if (!result.policyNumber && result.customerId) {
       result.policyNumber = String(result.customerId).trim();
+    }
+  }
+
+  // 2b) איילון: סוג עמלה + שורות צבירה → תבנית הצבירה (ayalon_zvira)
+  if (template.templateId === "ayalon_insurance") {
+    const commissionType = ayalonCommissionType(rawRow);
+    if (commissionType) result.commissionType = commissionType;
+
+    if (commissionType === AYALON_ZVIRA_TYPE) {
+      // אותה פוליסה מופיעה גם כשורת "נפרעים" (חסכון, הפקדות) בתבנית הראשית.
+      // תבנית נפרדת = מסמך נפרד בסיכום הפוליסות, עם אותו מספר פוליסה בדיוק.
+      result.templateId = AYALON_ZVIRA_TEMPLATE_ID;
     }
   }
 

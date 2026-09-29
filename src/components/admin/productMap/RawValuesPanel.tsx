@@ -6,6 +6,7 @@ import { resolveFromTemplate } from '@/utils/contractCommissionResolvers';
 import ClassifiedProduct, { isUnmapped, matchFromDebug } from '@/components/commission/summary/ClassifiedProduct';
 import t from '@/components/commission/summary/table.module.css';
 import type { Draft } from './model';
+import { premiumFieldShort } from '@/lib/premiumFields';
 
 export type RawValue = { raw: string; count: number; lastReportMonth: string };
 
@@ -106,7 +107,7 @@ const RawValuesPanel: React.FC<Props> = ({ values, loading, error, scanned, trun
                   <td className="px-3 py-1.5">
                     <ClassifiedProduct product={r.product} matchedBy={r.matchedBy} />
                   </td>
-                  <td className="px-3 py-1.5 text-xs text-slate-500 font-mono">{r.premiumField || '-'}</td>
+                  <td className="px-3 py-1.5 text-xs text-slate-500">{premiumFieldShort(r.premiumField) || '-'}</td>
                   <td className="px-3 py-1.5">
                     {r.raw ? (
                       <select

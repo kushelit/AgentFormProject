@@ -130,13 +130,16 @@ export default function ProductMapAdminPage() {
   };
 
   // ─── אפשרויות לבחירה (נגזרות מהנתונים הקיימים) ─────────────────────
+  // שדות מוכרים (לפי הסדר המוגדר) + שדות נוספים שכבר קיימים בתבניות
   const premiumFieldOptions = useMemo(() => {
-    const s = new Set<string>(Object.keys(KNOWN_PREMIUM_FIELDS));
+    const known = Object.keys(KNOWN_PREMIUM_FIELDS);
+    const extra = new Set<string>();
     templates.forEach(({ data }) => {
-      if (data.defaultPremiumField) s.add(String(data.defaultPremiumField));
-      Object.values(data.productMap ?? {}).forEach((e: any) => e?.premiumField && s.add(String(e.premiumField)));
+      if (data.defaultPremiumField) extra.add(String(data.defaultPremiumField));
+      Object.values(data.productMap ?? {}).forEach((e: any) => e?.premiumField && extra.add(String(e.premiumField)));
     });
-    return Array.from(s).sort();
+    known.forEach((k) => extra.delete(k));
+    return [...known, ...Array.from(extra).sort()];
   }, [templates]);
 
   const canonicalOptions = useMemo(() => {

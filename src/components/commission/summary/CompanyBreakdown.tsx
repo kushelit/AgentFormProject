@@ -30,7 +30,7 @@ const CompanyBreakdown: React.FC<Props> = ({
   latestYm,
   onClose,
   onCompanyClick,
-  clickHint = 'לחצי על חברה לרשימת הפוליסות',
+  clickHint = 'לחץ על חברה לרשימת הפוליסות',
   onCompanyHover,
 }) => {
   const hover = useHoverPrefetch();

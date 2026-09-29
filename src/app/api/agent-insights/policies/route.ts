@@ -89,6 +89,8 @@ export async function POST(req: NextRequest) {
       ).filter((r) => r.company === company);
     }
 
+    // selectPortfolioRows מסווג לפי שורה (כולל פוליסה אחות) — השורות כאן הן של החברה בלבד,
+    // וכוללות גם את דוח האח שלה (למשל harel_tzvira), כך שהסיווג זהה לקוביות.
     const { selected } = selectPortfolioRows(rows, makeResolver(templatesById));
 
     const out: PortfolioPolicyRow[] = selected

@@ -225,7 +225,7 @@ const CommissionTablesTab: React.FC<Props> = ({ agentId, year, data, loading }) 
       <button
         type="button"
         className="hover:underline"
-        title="לחצי לפילוח לפי תבניות"
+        title="לחץ לפילוח לפי תבניות"
         onClick={() => {
           const companyId = companyIdByName[company];
           if (companyId) openTemplateDrill(companyId, company);
@@ -445,7 +445,7 @@ const CommissionTablesTab: React.FC<Props> = ({ agentId, year, data, loading }) 
                         <td
                           className="px-3 py-2 font-semibold cursor-pointer hover:bg-blue-50"
                           onClick={() => openTemplateYearDrill(tid)}
-                          title="לחצי לתצוגה שנתית של התבנית"
+                          title="לחץ חצי לתצוגה שנתית של התבנית"
                         >
                           {templateNames[tid] || tid}
                         </td>
@@ -453,7 +453,7 @@ const CommissionTablesTab: React.FC<Props> = ({ agentId, year, data, loading }) 
                           <td
                             key={m}
                             className={`px-3 py-2 ${monthMap[m] ? 'cursor-pointer hover:bg-gray-100' : 'text-gray-300'}`}
-                            title="לחצי לפירוט לפי מספר סוכן"
+                            title="לחץ לפירוט לפי מספר סוכן"
                             onClick={() => {
                               if (!monthMap[m]) return;
                               openAgentDrill(templateDrill.companyId, templateDrill.companyName, tid, m, templateDrill.ym);

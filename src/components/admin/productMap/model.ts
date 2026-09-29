@@ -16,13 +16,12 @@ export type Draft = {
   entries: MapEntry[];
 };
 
-export const KNOWN_PREMIUM_FIELDS: Record<string, string> = {
-  finansimZvira: 'צבירה פיננסית',
-  pensiaPremia: 'פרמיה פנסיה',
-  insPremia: 'פרמיה ביטוח',
-};
+import { PREMIUM_FIELD_LABEL, premiumFieldDisplay } from '@/lib/premiumFields';
 
-export const premiumFieldLabel = (f: string) => (KNOWN_PREMIUM_FIELDS[f] ? `${KNOWN_PREMIUM_FIELDS[f]} (${f})` : f);
+/** כל שדות הפרמיה והצבירה המוכרים (מקור אחד: lib/premiumFields) */
+export const KNOWN_PREMIUM_FIELDS: Record<string, string> = PREMIUM_FIELD_LABEL;
+
+export const premiumFieldLabel = premiumFieldDisplay;
 
 /** אותו נרמול כמו ב-resolveFromTemplate */
 export const normAlias = (v: any) =>

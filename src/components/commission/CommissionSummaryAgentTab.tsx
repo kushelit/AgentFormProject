@@ -1,9 +1,11 @@
 'use client';
 // src/components/commission/CommissionSummaryAgentTab.tsx
-// מסך סיכום עמלות לסוכן — מעטפת: בחירת סוכן/שנה + לשוניות.
-//   סקירה          → /api/agent-insights (+ סקירת AI)
+// מסך סיכום עמלות לסוכן — מעטפת: בחירת סוכן/שנה + פעולות + לשוניות.
+//   סקירה          → /api/agent-insights: תיק נוכחי, הכנסות, גרפים (+ הפניה לתובנות)
+//   תובנות         → סקירת AI + יעילות תיק (משק בית, עומק, פוטנציאל, רשימת עבודה)
 //   עמלות לפי חודש → /api/commission-summary (טבלאות + דרילים)
 //   מוצרים         → /api/agent-insights (אותה תשובה של הסקירה)
+// הכותרת ("דף עמלות – נפרעים / תפוקות") נמצאת בדף העוטף — כאן אין כותרת נוספת.
 import React, { useState } from 'react';
 import useFetchAgentData from '@/hooks/useFetchAgentData';
 import { useAuth } from '@/lib/firebase/AuthContext';
@@ -12,17 +14,22 @@ import CustomerImportFromCommissions from '@/components/customers/CustomerImport
 import useAgentInsights from '@/hooks/useAgentInsights';
 import useCommissionSummary from '@/hooks/useCommissionSummary';
 import OverviewTab from '@/components/commission/summary/OverviewTab';
+import InsightsTab from '@/components/commission/summary/InsightsTab';
 import CommissionTablesTab from '@/components/commission/summary/CommissionTablesTab';
 import ProductsTab from '@/components/commission/summary/ProductsTab';
 import { clearFetchCache } from '@/lib/fetchCache';
 
-type TabKey = 'overview' | 'tables' | 'products';
+type TabKey = 'overview' | 'insights' | 'tables' | 'products';
 
 const TABS: { key: TabKey; label: string }[] = [
   { key: 'overview', label: 'סקירה' },
+  { key: 'insights', label: '✨ תובנות' },
   { key: 'tables', label: 'עמלות לפי חודש' },
   { key: 'products', label: 'מוצרים' },
 ];
+
+/** תפקידים שיש להם עץ סוכנים — רק הם רואים את בחירת הסוכן */
+const AGENT_PICKER_ROLES = ['admin', 'manager'];
 
 const CommissionSummaryAgentTab: React.FC = () => {
   const { detail } = useAuth();
@@ -45,15 +52,20 @@ const CommissionSummaryAgentTab: React.FC = () => {
 
   const ready = !!selectedAgentId && !!selectedYear;
 
-  return (
-    <div className="p-4 w-full text-right" dir="rtl">
-      <h2 className="text-xl font-bold mb-4">סיכום עמלות</h2>
+  // בחירת סוכן — רק למי שיש לו עץ סוכנים (אדמין / מנהל), או יותר מסוכן אחד לבחור ממנו
+  const canPickAgent = AGENT_PICKER_ROLES.includes(String(detail?.role || '')) || agents.length > 1;
 
-      {/* ─── סוכן + שנה + פעולות ─── */}
-      <div className="flex flex-wrap items-end gap-3 mb-6">
-        <div className="flex-1 min-w-[220px]">
-          <label className="block font-semibold mb-1">בחר סוכן:</label>
-          <select value={selectedAgentId} onChange={handleAgentChange} className="select-input w-full">
+  return (
+    <div className="px-4 pt-3 pb-4 w-full text-right" dir="rtl">
+      {/* ─── סוכן + שנה + פעולות — שורה אחת קומפקטית ─── */}
+      <div className="flex flex-wrap items-center gap-3 mb-3">
+        {canPickAgent && (
+          <select
+            value={selectedAgentId}
+            onChange={handleAgentChange}
+            className="select-input h-9 min-w-[220px] max-w-[320px] flex-1"
+            aria-label="סוכן"
+          >
             {detail?.role === 'admin' && <option value="">בחר סוכן</option>}
             {agents.map((agent) => (
               <option key={agent.id} value={agent.id}>
@@ -61,26 +73,31 @@ const CommissionSummaryAgentTab: React.FC = () => {
               </option>
             ))}
           </select>
-        </div>
-        <div className="w-40">
-          <label className="block font-semibold mb-1">בחר שנה:</label>
-          <select className="select-input w-full" value={selectedYear} onChange={(e) => setSelectedYear(e.target.value)}>
-            {Array.from({ length: 10 }, (_, i) => currentYear - i).map((y) => (
-              <option key={y} value={y.toString()}>
-                {y}
-              </option>
-            ))}
-          </select>
-        </div>
-        <CustomerImportFromCommissions agentId={ready ? selectedAgentId : ''} />
-        <button
-          type="button"
-          onClick={() => setShowAnomalies(true)}
-          disabled={!ready}
-          className="bg-red-50 text-red-700 border border-red-200 px-4 py-2 rounded-lg font-bold hover:bg-red-100 transition disabled:opacity-40"
+        )}
+        <select
+          className="select-input h-9 w-28"
+          value={selectedYear}
+          onChange={(e) => setSelectedYear(e.target.value)}
+          aria-label="שנה"
         >
-          ⚠️ פוליסות חריגות
-        </button>
+          {Array.from({ length: 10 }, (_, i) => currentYear - i).map((y) => (
+            <option key={y} value={y.toString()}>
+              {y}
+            </option>
+          ))}
+        </select>
+
+        <div className="flex items-center gap-2 mr-auto">
+          <CustomerImportFromCommissions agentId={ready ? selectedAgentId : ''} />
+          <button
+            type="button"
+            onClick={() => setShowAnomalies(true)}
+            disabled={!ready}
+            className="bg-red-50 text-red-700 border border-red-200 px-4 py-2 rounded-lg font-bold hover:bg-red-100 transition disabled:opacity-40"
+          >
+            ⚠️ פוליסות חריגות
+          </button>
+        </div>
       </div>
 
       {!ready ? (
@@ -88,7 +105,7 @@ const CommissionSummaryAgentTab: React.FC = () => {
       ) : (
         <>
           {/* ─── לשוניות ─── */}
-          <div className="flex items-center gap-1 border-b mb-6">
+          <div className="flex items-center gap-1 border-b mb-5">
             {TABS.map((t) => (
               <button
                 key={t.key}
@@ -116,6 +133,18 @@ const CommissionSummaryAgentTab: React.FC = () => {
             <OverviewTab
               agentId={selectedAgentId}
               year={selectedYear}
+              insights={insights.insights}
+              loading={insights.loading}
+              error={insights.error}
+              ai={insights.ai}
+              aiLoading={insights.aiLoading}
+              onOpenInsights={() => setTab('insights')}
+            />
+          )}
+
+          {tab === 'insights' && (
+            <InsightsTab
+              agentId={selectedAgentId}
               insights={insights.insights}
               loading={insights.loading}
               error={insights.error}

@@ -1667,7 +1667,7 @@ export default function CommissionPurgeAdminPage() {
           </p>
 
           {!hasSearchedRuns ? (
-            <p className="text-sm text-gray-500">בחרי סוכן למעלה ולחצי &quot;חפש&quot; כדי לראות באצ&apos;ים.</p>
+            <p className="text-sm text-gray-500">בחר סוכן למעלה לחץ  &quot;חפש&quot; כדי לראות באצ&apos;ים.</p>
           ) : batchesLoading ? (
             <p className="text-sm text-gray-500">טוען...</p>
           ) : filteredBatches.length === 0 ? (

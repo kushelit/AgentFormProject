@@ -1088,7 +1088,7 @@ const calculateCommissions = (sale: any, contractMatch: any) => {
                     key={g}
                     className={`cp-nifraim-group-card${active ? ' cp-nifraim-group-card-active' : ''}`}
                     onClick={() => setNifraimGroupFilter(prev => prev === g ? null : g)}
-                    title="לחצי לסינון הטבלה לפי הקבוצה הזו"
+                    title="לחץ לסינון הטבלה לפי הקבוצה הזו"
                   >
                     <div className="cp-nifraim-group-label">{NIFRAIM_GROUP_LABEL[g]}</div>
                     <div className="cp-nifraim-group-count">{stat.count} פוליסות</div>
@@ -1164,6 +1164,7 @@ const calculateCommissions = (sale: any, contractMatch: any) => {
                       חברה {nifraimSort.key === 'company' ? (nifraimSort.dir === 'asc' ? '▲' : '▼') : ''}
                     </th>
                     <th>מוצר</th>
+                    <th>מוצר מקורי (מהטעינה)</th>
                     <th>מספר פוליסה</th>
                     <th>פרמיה / צבירה</th>
                     {canViewCommissions && <th>עמלה</th>}
@@ -1175,6 +1176,7 @@ const calculateCommissions = (sale: any, contractMatch: any) => {
                       {includeFamily && <td>{r.customerName || '—'}</td>}
                       <td>{r.company}</td>
                       <td>{r.displayProduct}</td>
+                      <td>{r.product || '—'}</td>
                       <td>{r.policyNumber || '—'}</td>
                       <td>
                         {r.totalPremiumAmount
@@ -1190,7 +1192,7 @@ const calculateCommissions = (sale: any, contractMatch: any) => {
                 {canViewCommissions && (
                   <tfoot>
                     <tr>
-                      <td colSpan={includeFamily ? 5 : 4} style={{ fontWeight: 'bold', textAlign: 'left' }}>
+                      <td colSpan={includeFamily ? 6 : 5} style={{ fontWeight: 'bold', textAlign: 'left' }}>
                         סה&quot;כ עמלות{(nifraimCompanyFilter || nifraimGroupFilter) ? ' (מסונן)' : ''}
                       </td>
                       <td style={{ fontWeight: 'bold' }}>

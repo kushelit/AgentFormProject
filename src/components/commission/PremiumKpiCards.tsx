@@ -128,7 +128,7 @@ const PremiumKpiCards: React.FC<Props> = ({ agentId, year }) => {
               className={`text-right bg-white p-5 rounded-2xl shadow-sm border border-slate-200 border-r-4 ${c.border} hover:shadow-md transition ${
                 isOpen ? `ring-2 ${c.ring}` : ''
               }`}
-              title="לחצי לפילוח לפי חברה"
+              title="לחץ לפילוח לפי חברה"
             >
               <div className="flex items-center justify-between">
                 <div className="text-slate-500 text-xs font-bold">{c.title}</div>

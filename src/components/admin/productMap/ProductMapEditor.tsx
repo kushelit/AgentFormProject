@@ -2,7 +2,7 @@
 // src/components/admin/productMap/ProductMapEditor.tsx
 import React from 'react';
 import AliasInput from './AliasInput';
-import { newId, normAlias, type Draft, type DraftIssues, type MapEntry } from './model';
+import { newId, normAlias, premiumFieldLabel, type Draft, type DraftIssues, type MapEntry } from './model';
 
 interface Props {
   draft: Draft;
@@ -75,10 +75,12 @@ const ProductMapEditor: React.FC<Props> = ({ draft, issues, premiumFieldOptions,
                   onChange={(ev) => update(e.id, { premiumField: ev.target.value })}
                   className="w-full border rounded-lg px-2 py-1.5 text-sm bg-white"
                 >
-                  <option value="">ברירת המחדל של התבנית{draft.defaultPremiumField ? ` (${draft.defaultPremiumField})` : ''}</option>
+                  <option value="">
+                    ברירת המחדל של התבנית{draft.defaultPremiumField ? ` — ${premiumFieldLabel(draft.defaultPremiumField)}` : ''}
+                  </option>
                   {premiumFieldOptions.map((f) => (
                     <option key={f} value={f}>
-                      {f}
+                      {premiumFieldLabel(f)}
                     </option>
                   ))}
                 </select>

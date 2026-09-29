@@ -6,7 +6,8 @@
 // action: 'policies' → מסמכי policyCommissionSummaries של חודש פרסום אחד,
 //                      לפי רמת ההשוואה (תבנית / חברה / הכל)
 // action: 'anomalies' → כמו policies (כל החברות), רק פוליסות חריגות:
-//                      עמלה 0 או שלילית (מעוגל ל-2 ספרות). משמש את "פוליסות חריגות".
+//                      עמלה 0 בדיוק או שלילית — בלי עיגול. עמלה חיובית קטנה (0.003)
+//                      היא תוצאה לגיטימית של ההסכם ואינה חריגה. משמש את "פוליסות חריגות".
 //
 // שרשרת חודש פרסום — אותה של הסקירה:
 //   portalImportRuns.resolvedWindow.ym → queue.jobIds → commissionImportRuns → runId
@@ -16,6 +17,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { admin } from '@/lib/firebase/firebase-admin';
 import { chunk, loadJobMeta, loadJobYms, loadTemplates, str } from '@/lib/insights/serverData';
+import { siblingReportFor } from '@/lib/anomalyRules';
 
 export const maxDuration = 60;
 
@@ -33,7 +35,7 @@ export async function POST(req: NextRequest) {
     if (!agentId || !action) return NextResponse.json({ error: 'missing params' }, { status: 400 });
 
     const db = admin.firestore();
-    const { hekefTemplateIds } = await loadTemplates(db);
+    const { hekefTemplateIds, templatesById } = await loadTemplates(db);
 
     // ─── חודשי פרסום זמינים ─────────────────────────────────────────────
     if (action === 'listYms') {
@@ -54,10 +56,13 @@ export async function POST(req: NextRequest) {
       const jobIdsOfYm = Object.keys(ymByJobId).filter((id) => ymByJobId[id] === ym);
       const meta = await loadJobMeta(db, jobIdsOfYm, hekefTemplateIds);
 
+      // תבנית נגזרת (derivedFrom, למשל ayalon_zvira) — אין לה ריצות משלה; השורות שלה
+      // מגיעות מהריצה של תבנית האם, ולכן מחפשים גם שם (השורות מסוננות לפי templateId בהמשך)
+      const parentTemplate = str((templatesById[templateId] as any)?.derivedFrom);
       const jobIds = Object.entries(meta)
         .filter(([, m]) => {
           if (anomaliesOnly) return true;
-          if (scope === 'template') return m.templateId === templateId;
+          if (scope === 'template') return m.templateId === templateId || (!!parentTemplate && m.templateId === parentTemplate);
           if (scope === 'company') return !!companyId && m.companyId === companyId;
           return true;
         })
@@ -67,11 +72,9 @@ export async function POST(req: NextRequest) {
       const snaps = await Promise.all(
         chunk(jobIds, IN_LIMIT).map((ids) => {
           let q: FirebaseFirestore.Query = db.collection('policyCommissionSummaries').where('runId', 'in', ids);
-          // חריגות: הסינון ב-Firestore עצמו (עמלה < 0.005 = 0 או שלילית אחרי עיגול) —
-          // נקראות רק החריגות, לא כל פוליסות החודש.
-          // דורש אינדקס מורכב: runId ASC + totalCommissionAmount ASC
-          // (בפעם הראשונה Firestore מחזיר שגיאה עם לינק ליצירתו — בלוג השרת).
-          if (anomaliesOnly) q = q.where('totalCommissionAmount', '<', 0.005);
+          // חריגות: הסינון ב-Firestore עצמו (עמלה <= 0 בדיוק) — נקראות רק החריגות.
+          // אינדקס מורכב: runId ASC + totalCommissionAmount ASC (אותו אינדקס כמו קודם).
+          if (anomaliesOnly) q = q.where('totalCommissionAmount', '<=', 0);
           return q.select(...POLICY_FIELDS).get();
         })
       );
@@ -83,13 +86,13 @@ export async function POST(req: NextRequest) {
           if (str(x.agentId) !== agentId) continue;
           if (hekefTemplateIds.has(str(x.templateId))) continue;
           if (anomaliesOnly) {
-            const commission = Math.round(Number(x.totalCommissionAmount || 0) * 100) / 100;
+            const commission = Number(x.totalCommissionAmount || 0);
             if (commission > 0) continue;
             rows.push({
               ...x,
               ym,
               totalCommissionAmount: commission,
-              totalPremiumAmount: Math.round(Number(x.totalPremiumAmount || 0) * 100) / 100,
+              totalPremiumAmount: Number(x.totalPremiumAmount || 0),
               commissionRate: Number(x.commissionRate || 0),
             });
             continue;
@@ -106,6 +109,55 @@ export async function POST(req: NextRequest) {
       );
 
       if (anomaliesOnly) {
+        // ─── דוחות אחים: עמלה לאותה פוליסה בדוח אחר של החברה (lib/anomalyRules) ───
+        const bySibling = new Map<string, any[]>(); // siblingTemplateId → חריגות מועמדות
+        rows.forEach((r) => {
+          const s = siblingReportFor(str(r.templateId), r.product);
+          if (s && Number(r.totalCommissionAmount) === 0) {
+            const list = bySibling.get(s.sibling) ?? [];
+            list.push(r);
+            bySibling.set(s.sibling, list);
+          }
+        });
+        for (const [siblingTemplate, candidates] of Array.from(bySibling.entries())) {
+          const siblingJobs = Object.entries(meta)
+            .filter(([, m]) => m.templateId === siblingTemplate)
+            .map(([id]) => id);
+          if (!siblingJobs.length) continue;
+          const keys = Array.from(new Set(candidates.map((r) => str(r.policyNumberKey)).filter(Boolean)));
+          const commissionByKey: Record<string, number> = {};
+          const foundKeys = new Set<string>();
+          const snaps = await Promise.all(
+            siblingJobs.flatMap((job) =>
+              chunk(keys, IN_LIMIT).map((ks) =>
+                db
+                  .collection('policyCommissionSummaries')
+                  .where('runId', '==', job)
+                  .where('policyNumberKey', 'in', ks)
+                  .select('agentId', 'policyNumberKey', 'totalCommissionAmount')
+                  .get()
+              )
+            )
+          );
+          snaps.forEach((sn) =>
+            sn.docs.forEach((d) => {
+              const x: any = d.data();
+              if (str(x.agentId) !== agentId) return;
+              const k = str(x.policyNumberKey);
+              foundKeys.add(k);
+              commissionByKey[k] = (commissionByKey[k] || 0) + Number(x.totalCommissionAmount || 0);
+            })
+          );
+          candidates.forEach((r) => {
+            const k = str(r.policyNumberKey);
+            if (foundKeys.has(k)) {
+              r.siblingFound = true;
+              r.siblingCommission = commissionByKey[k] ?? 0;
+              r.siblingTemplate = siblingTemplate;
+            }
+          });
+        }
+
         rows.sort((a, b) => a.totalCommissionAmount - b.totalCommissionAmount);
         return NextResponse.json({ rows, total: rows.length, jobs: jobIds.length });
       }

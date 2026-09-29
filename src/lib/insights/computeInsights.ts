@@ -1,6 +1,7 @@
 // src/lib/insights/computeInsights.ts
 // חישוב טהור (ללא Firestore) של כל נתוני הסקירה — רץ בצד השרת.
 import { resolveFromTemplate } from '@/utils/contractCommissionResolvers';
+import { SIBLING_REPORTS, siblingReportFor } from '@/lib/anomalyRules';
 import type { TemplateDoc } from '@/types/ContractCommissionComparison';
 import {
   PORTFOLIO_FIELDS,
@@ -88,6 +89,37 @@ export function makeResolver(templatesById: Record<string, TemplateDoc | undefin
   };
 }
 
+/** פענוח לשורה (ולא רק לתבנית+מוצר) — כולל סיווג מחדש לפי פוליסה אחות בדוח אחר */
+export type RowResolver = (r: InsightsPolicyRow) => Resolved;
+
+/**
+ * מסווג לפי שורה: אם לשורה יש פוליסה אחות בדוח האח (lib/anomalyRules → SIBLING_REPORTS,
+ * עם reclassifyAs) באותו חודש פרסום — היא מסווגת לפי reclassifyAs.
+ * למשל הראל "פרט" + אחות בצבירה → פוליסת חיסכון / פרמיה פיננסים (לא נכנס לקוביית פרמיה ביטוח).
+ * אחרת — הסיווג הרגיל של התבנית.
+ * rows = כל השורות שבידינו (צריכות לכלול את שורות דוח האח, באותו חודש פרסום).
+ */
+export function makeRowResolver(rows: InsightsPolicyRow[], resolve: Resolver): RowResolver {
+  const siblingTemplates = new Set(SIBLING_REPORTS.filter((s) => s.reclassifyAs).map((s) => s.sibling));
+  const siblingKeys = new Set<string>();
+  if (siblingTemplates.size) {
+    for (const r of rows) {
+      if (siblingTemplates.has(r.templateId) && r.policyNumberKey) {
+        siblingKeys.add(`${r.templateId}|${r.ym}|${r.policyNumberKey}`);
+      }
+    }
+  }
+  return (r) => {
+    if (siblingKeys.size) {
+      const s = siblingReportFor(r.templateId, r.product);
+      if (s?.reclassifyAs && siblingKeys.has(`${s.sibling}|${r.ym}|${r.policyNumberKey}`)) {
+        return { canonical: s.reclassifyAs.canonicalProduct, premiumField: s.reclassifyAs.premiumField, matchedBy: 'key' };
+      }
+    }
+    return resolve(r.templateId, r.product);
+  };
+}
+
 export type SelectedPortfolioRow = {
   row: InsightsPolicyRow;
   category: PortfolioCategory;
@@ -118,13 +150,13 @@ export function portfolioWindows(rows: InsightsPolicyRow[]) {
   return { latestYm, maxReportMonth };
 }
 
-export function selectPortfolioRows(rows: InsightsPolicyRow[], resolve: Resolver) {
+export function selectPortfolioRows(rows: InsightsPolicyRow[], resolve: Resolver, rowResolve: RowResolver = makeRowResolver(rows, resolve)) {
   const { latestYm, maxReportMonth } = portfolioWindows(rows);
 
   const selected: SelectedPortfolioRow[] = [];
   for (const r of rows) {
     if (r.ym !== latestYm[r.templateId] || r.reportMonth !== maxReportMonth[r.templateId]) continue;
-    const { canonical, premiumField, matchedBy } = resolve(r.templateId, r.product);
+    const { canonical, premiumField, matchedBy } = rowResolve(r);
     if (!isPortfolioField(premiumField)) continue;
     selected.push({ row: r, category: premiumField, product: canonical, matchedBy });
   }
@@ -144,14 +176,16 @@ export function computeInsights(params: {
   const { agentId, year, templatesById, activeTemplateIds, policyRows, incomeRows, households = {} } = params;
 
   const resolve = makeResolver(templatesById);
+  // סיווג לפי שורה — כולל "פוליסה אחות" (הראל "פרט" + צבירה → פוליסת חיסכון / פרמיה פיננסים)
+  const rowResolve = makeRowResolver(policyRows, resolve);
 
   return {
     agentId,
     year,
-    portfolio: computePortfolio(policyRows, templatesById, activeTemplateIds, resolve),
+    portfolio: computePortfolio(policyRows, templatesById, activeTemplateIds, resolve, rowResolve),
     income: computeIncome(incomeRows),
-    products: computeProducts(policyRows, resolve),
-    efficiency: computeEfficiency(policyRows, resolve, households),
+    products: computeProducts(policyRows, rowResolve),
+    efficiency: computeEfficiency(policyRows, rowResolve, households),
   };
 }
 
@@ -163,9 +197,10 @@ function computePortfolio(
   rows: InsightsPolicyRow[],
   templatesById: Record<string, TemplateDoc | undefined>,
   activeTemplateIds: Set<string>,
-  resolve: Resolver
+  resolve: Resolver,
+  rowResolve: RowResolver
 ): PortfolioSnapshot {
-  const { latestYm, selected } = selectPortfolioRows(rows, resolve);
+  const { latestYm, selected } = selectPortfolioRows(rows, resolve, rowResolve);
 
   const companyByTemplate: Record<string, string> = {};
   for (const r of rows) if (r.company) companyByTemplate[r.templateId] = r.company;
@@ -266,13 +301,13 @@ function computeIncome(rows: InsightsIncomeRow[]): IncomeSummary {
 }
 
 // ─── מוצרים ───────────────────────────────────────────────────────────────
-function computeProducts(rows: InsightsPolicyRow[], resolve: Resolver): ProductsSummary {
+function computeProducts(rows: InsightsPolicyRow[], rowResolve: RowResolver): ProductsSummary {
   const groupByProduct: Record<string, string> = {};
   const pc: Record<string, { product: string; company: string; amount: number }> = {};
   const pm: Record<string, { product: string; ym: string; amount: number }> = {};
 
   for (const r of rows) {
-    const product = resolve(r.templateId, r.product).canonical;
+    const product = rowResolve(r).canonical;
     if (!groupByProduct[product] && r.productGroup) groupByProduct[product] = r.productGroup;
 
     const company = r.company || 'חברה לא ידועה';
@@ -302,7 +337,7 @@ function computeProducts(rows: InsightsPolicyRow[], resolve: Resolver): Products
 // שנטען לראשונה בחודש האחרון מקבל את הנפרעים האמיתיים שלו ולא חלק מהם.
 const SINGLE_LIST_LIMIT = 300;
 
-function computeEfficiency(rows: InsightsPolicyRow[], resolve: Resolver, households: HouseholdMap): EfficiencySummary {
+function computeEfficiency(rows: InsightsPolicyRow[], rowResolve: RowResolver, households: HouseholdMap): EfficiencySummary {
   const allYms = Array.from(new Set(rows.map((r) => r.ym))).sort();
   const recentYms = allYms.slice(-3);
   const recentSet = new Set(recentYms);
@@ -318,7 +353,8 @@ function computeEfficiency(rows: InsightsPolicyRow[], resolve: Resolver, househo
     m.commission += r.commission;
     m.hh.add(hhOf(cid));
   }
-  const months = allYms.map((ym) => ({
+  // רק חודשים שיש בהם שורות עם ת"ז (חודש בלי אף ת"ז לא נספר — ולא מפיל את החישוב)
+  const months = allYms.filter((ym) => perYm[ym]).map((ym) => ({
     ym,
     households: perYm[ym].hh.size,
     perHousehold: perYm[ym].hh.size ? round2(perYm[ym].commission / perYm[ym].hh.size) : 0,
@@ -347,7 +383,7 @@ function computeEfficiency(rows: InsightsPolicyRow[], resolve: Resolver, househo
       h = { commission: 0, yms: new Set(), products: new Set(), customers: new Map(), byProduct: {}, byCompany: {} };
       hh.set(key, h);
     }
-    const product = resolve(r.templateId, r.product).canonical;
+    const product = rowResolve(r).canonical;
     h.commission += r.commission;
     h.yms.add(r.ym);
     h.products.add(product);

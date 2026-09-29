@@ -75,12 +75,28 @@ export async function loadJobYms(db: Db, agentId: string, year?: string): Promis
 
 export type JobMeta = { templateId: string; company: string; companyId?: string; createdAt: number };
 
-/** מטא של טעינות שהצליחו (קיים commissionImportRuns), ללא תבניות היקף */
+/**
+ * מטא של טעינות שהצליחו (קיים commissionImportRuns), ללא תבניות היקף.
+ * חיפוש בשני שלבים:
+ *   1. לפי מזהה המסמך (טעינות אוטומטיות: מזהה המסמך = runId = jobId)
+ *   2. מה שלא נמצא — לפי השדה runId (טעינה ידנית שנשמרה עם מזהה מסמך אוטומטי)
+ */
 export async function loadJobMeta(
   db: Db,
   jobIds: string[],
   hekefTemplateIds: Set<string>
 ): Promise<Record<string, JobMeta>> {
+  const out: Record<string, JobMeta> = {};
+  const found = new Set<string>();
+
+  const accept = (jobId: string, d: any) => {
+    found.add(jobId);
+    const templateId = str(d?.templateId);
+    if (!templateId || hekefTemplateIds.has(templateId)) return;
+    out[jobId] = { templateId, company: str(d?.company), companyId: str(d?.companyId), createdAt: tsMillis(d?.createdAt) };
+  };
+
+  // 1) לפי מזהה המסמך
   const chunks = await Promise.all(
     chunk(jobIds, GETALL_CHUNK).map((ids) =>
       db.getAll(
@@ -89,15 +105,40 @@ export async function loadJobMeta(
       )
     )
   );
+  chunks.flat().forEach((snap) => snap.exists && accept(snap.id, snap.data()));
 
-  const out: Record<string, JobMeta> = {};
-  chunks.flat().forEach((snap) => {
-    if (!snap.exists) return;
-    const d: any = snap.data();
-    const templateId = str(d?.templateId);
-    if (!templateId || hekefTemplateIds.has(templateId)) return;
-    out[snap.id] = { templateId, company: str(d?.company), companyId: str(d?.companyId), createdAt: tsMillis(d?.createdAt) };
-  });
+  // 2) לפי השדה runId
+  const missing = jobIds.filter((id) => !found.has(id));
+  let byField = 0;
+  if (missing.length) {
+    const snaps = await Promise.all(
+      chunk(missing, IN_LIMIT).map((ids) =>
+        db
+          .collection('commissionImportRuns')
+          .where('runId', 'in', ids)
+          .select('runId', 'templateId', 'company', 'companyId', 'createdAt')
+          .get()
+      )
+    );
+    snaps.forEach((snap) =>
+      snap.docs.forEach((d) => {
+        const x: any = d.data();
+        const runId = str(x.runId);
+        if (runId && !found.has(runId)) {
+          accept(runId, x);
+          byField++;
+        }
+      })
+    );
+  }
+
+  const notFound = jobIds.filter((id) => !found.has(id));
+  if (byField || notFound.length) {
+    console.log(
+      `[insights/jobMeta] ${jobIds.length} jobs: ${found.size - byField} by doc id, ${byField} by runId field, ` +
+        `${notFound.length} not found${notFound.length ? ` (e.g. ${notFound.slice(0, 3).join(', ')})` : ''}`
+    );
+  }
   return out;
 }
 

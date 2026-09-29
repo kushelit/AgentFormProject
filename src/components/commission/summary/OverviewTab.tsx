@@ -1,13 +1,12 @@
 'use client';
 // src/components/commission/summary/OverviewTab.tsx
-// סקירה: תיק נוכחי + הכנסות (לפי חודש פרסום) + סקירת AI + גרפים
+// סקירה: תיק נוכחי + הכנסות (לפי חודש פרסום) + גרפים (המשך ישיר של ההכנסות).
+// סקירת AI ויעילות תיק — בלשונית "תובנות" (InsightsTab); כאן כרטיס הפניה קצר עם כותרת ה-AI.
 import React, { useEffect, useState } from 'react';
 import type { AgentInsights, AiSummary, CompanyAmount, PortfolioCategory } from '@/types/agentInsights';
 import KpiCard from './KpiCard';
 import CompanyBreakdown from './CompanyBreakdown';
-import AiSummaryCard from './AiSummaryCard';
 import PolicyListModal from './PolicyListModal';
-import EfficiencySection from './EfficiencySection';
 import { prefetchJson } from '@/lib/fetchCache';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip } from './charts';
 import { fmtInt, fmtMoney, type Accent } from './ui';
@@ -20,8 +19,8 @@ interface Props {
   error: string | null;
   ai: AiSummary | null;
   aiLoading: boolean;
-  aiError: string | null;
-  onRefreshAi: () => void;
+  /** מעבר ללשונית "תובנות" (AI + יעילות תיק) */
+  onOpenInsights: () => void;
 }
 
 type KpiKey = 'zvira' | 'pension' | 'insurance' | 'incomeLast' | 'incomeAvg' | 'incomeAnnual';
@@ -35,12 +34,13 @@ const PORTFOLIO_KPI_CATEGORY: Partial<Record<KpiKey, PortfolioCategory>> = {
 const SectionTitle: React.FC<{ title: string; hint?: React.ReactNode }> = ({ title, hint }) => (
   <div className="flex items-baseline justify-between mb-3 gap-3">
     <h3 className="text-base font-black text-slate-800">{title}</h3>
-    {hint && <span className="text-xs text-slate-500">{hint}</span>}
+    {hint && <span className="text-sm text-slate-500">{hint}</span>}
   </div>
 );
 
-const OverviewTab: React.FC<Props> = ({ agentId, year, insights, loading, error, ai, aiLoading, aiError, onRefreshAi }) => {
+const OverviewTab: React.FC<Props> = ({ agentId, year, insights, loading, error, ai, aiLoading, onOpenInsights }) => {
   const [openKpi, setOpenKpi] = useState<KpiKey | null>(null);
+  const [showAllIncomeCompanies, setShowAllIncomeCompanies] = useState(false);
   const [showStale, setShowStale] = useState(false);
   const [policyCompany, setPolicyCompany] = useState<string | null>(null);
 
@@ -48,6 +48,7 @@ const OverviewTab: React.FC<Props> = ({ agentId, year, insights, loading, error,
     setOpenKpi(null);
     setShowStale(false);
     setPolicyCompany(null);
+    setShowAllIncomeCompanies(false);
   }, [insights]);
 
   if (loading) {
@@ -124,6 +125,22 @@ const OverviewTab: React.FC<Props> = ({ agentId, year, insights, loading, error,
 
   return (
     <div className="space-y-8">
+      {/* ─── הפניה ל"תובנות": כותרת ה-AI + יעילות תיק ─── */}
+      <button
+        type="button"
+        onClick={onOpenInsights}
+        className="w-full text-right flex items-center gap-4 bg-gradient-to-l from-violet-50 to-white border border-violet-100 rounded-2xl px-5 py-3.5 shadow-sm hover:shadow-md transition"
+      >
+        <span className="text-2xl">✨</span>
+        <span className="flex-1 min-w-0">
+          <span className="block text-xs font-bold text-violet-700">תובנות · סקירת AI ויעילות תיק</span>
+          <span className="block text-[15px] text-slate-800 font-semibold truncate">
+            {aiLoading ? 'מכינה סקירה…' : ai?.headline || 'סקירה חכמה של התיק, נפרעים למשק בית והזדמנויות להרחבה'}
+          </span>
+        </span>
+        <span className="shrink-0 text-sm font-bold text-violet-700">לתובנות ←</span>
+      </button>
+
       {/* ─── תיק נוכחי ─── */}
       <section>
         <SectionTitle
@@ -253,12 +270,6 @@ const OverviewTab: React.FC<Props> = ({ agentId, year, insights, loading, error,
         )}
       </section>
 
-      {/* ─── יעילות תיק ─── */}
-      {insights.efficiency && <EfficiencySection agentId={agentId} efficiency={insights.efficiency} />}
-
-      {/* ─── סקירת AI ─── */}
-      <AiSummaryCard ai={ai} loading={aiLoading} error={aiError} onRefresh={onRefreshAi} />
-
       {/* ─── גרפים ─── */}
       <section className="grid grid-cols-1 lg:grid-cols-5 gap-4">
         <div className="lg:col-span-3 bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
@@ -283,11 +294,11 @@ const OverviewTab: React.FC<Props> = ({ agentId, year, insights, loading, error,
         <div className="lg:col-span-2 bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
           <div className="text-sm font-bold text-slate-700 mb-3">הכנסה חודשית לפי חברה · ממוצע {recentLabel}</div>
           <div className="space-y-2.5">
-            {topIncomeCompanies.map((c) => {
+            {(showAllIncomeCompanies ? income.recentByCompany : topIncomeCompanies).map((c) => {
               const share = income.avgRecent ? (c.amount / income.avgRecent) * 100 : 0;
               return (
                 <div key={c.company}>
-                  <div className="flex justify-between text-xs mb-1">
+                  <div className="flex justify-between text-sm mb-1">
                     <span className="font-semibold text-slate-700">{c.company}</span>
                     <span className="text-slate-500">
                       {fmtInt(c.amount)} ₪ · {share.toFixed(0)}%
@@ -302,10 +313,10 @@ const OverviewTab: React.FC<Props> = ({ agentId, year, insights, loading, error,
             {income.recentByCompany.length > topIncomeCompanies.length && (
               <button
                 type="button"
-                onClick={() => setOpenKpi('incomeAvg')}
-                className="text-xs text-sky-700 hover:underline"
+                onClick={() => setShowAllIncomeCompanies((v) => !v)}
+                className="text-sm text-sky-700 hover:underline"
               >
-                הצג את כל {income.recentByCompany.length} החברות
+                {showAllIncomeCompanies ? 'הצג פחות' : `הצג את כל ${income.recentByCompany.length} החברות`}
               </button>
             )}
           </div>

@@ -739,7 +739,7 @@ export default function CustomerTiersPage() {
 
           {sortedRows.length === 0 ? (
             <div className="ct-empty">
-              {showAll ? 'לא נמצאו לקוחות התואמים לסינון' : 'אין שינויים להצגה — לחצי על "הצג את כל הלקוחות" לראות את כולם'}
+              {showAll ? 'לא נמצאו לקוחות התואמים לסינון' : 'אין שינויים להצגה — לחץ על "הצג את כל הלקוחות" לראות את כולם'}
             </div>
           ) : (
             <div>

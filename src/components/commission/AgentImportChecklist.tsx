@@ -166,7 +166,7 @@ export default function AgentImportChecklist({ agentId, year }: Props) {
                         prev === r.companyId ? null : r.companyId
                       )
                     }
-                    title="לחצי לפתיחת פירוט תבניות"
+                    title="לחץ לפתיחת פירוט תבניות"
                   >
                     <td className="px-3 py-2 border-b font-semibold text-gray-800 whitespace-nowrap">
                       {r.companyName}

@@ -717,7 +717,7 @@ setEmbeddedSignupCode('');
 
                 {!!embeddedSignupCode && (
                   <div className="rounded border border-green-200 bg-green-50 p-3 text-sm text-green-700">
-                    ✓ החיבור מול Meta הושלם. לחצי על שמירה כדי לשמור את החיבור
+                    ✓ החיבור מול Meta הושלם. לחץ על שמירה כדי לשמור את החיבור
                     במערכת.
                   </div>
                 )}
