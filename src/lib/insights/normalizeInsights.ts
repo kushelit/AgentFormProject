@@ -40,6 +40,11 @@ export function normalizeInsights(d: any): AgentInsights {
       byCompany: d?.products?.byCompany ?? [],
       byMonth: d?.products?.byMonth ?? [],
     },
+    transfers: {
+      recentYms: d?.transfers?.recentYms ?? [],
+      items: d?.transfers?.items ?? [],
+      thresholds: d?.transfers?.thresholds ?? { minPremium: 0, spikeMultiplier: 0, lowRateRatio: 0, minPeers: 0 },
+    },
     efficiency: {
       recentYms: d?.efficiency?.recentYms ?? [],
       months: d?.efficiency?.months ?? [],

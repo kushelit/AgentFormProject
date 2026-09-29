@@ -4,7 +4,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import * as XLSX from 'xlsx';
 import { Spinner } from '@/components/Spinner';
-import type { PortfolioCategory, PortfolioPolicyRow } from '@/types/agentInsights';
+import type { PortfolioCategory, PortfolioPolicyRow, TransferSuspect } from '@/types/agentInsights';
+import { transferKey, transferReasonText } from '@/lib/insights/transfers';
 import { ACCENTS, fmtInt, fmtMoney, type Accent } from './ui';
 import t from './table.module.css';
 import ClassifiedProduct, { MATCH_LABEL, isUnmapped } from './ClassifiedProduct';
@@ -21,6 +22,8 @@ interface Props {
   company: string;
   accent: Accent;
   expectedTotal: number; // הסכום שמוצג בפילוח — לבדיקת התאמה
+  /** ניודים אפשריים (פרמיה פנסיה) — מפתח: transferKey(policyNumberKey, customerId) */
+  transferFlags?: Record<string, TransferSuspect>;
   onClose: () => void;
 }
 
@@ -39,7 +42,7 @@ const COLUMNS: { key: SortKey; label: string }[] = [
 
 const PAGE = 300;
 
-const PolicyListModal: React.FC<Props> = ({ agentId, year, category, categoryTitle, company, accent, expectedTotal, onClose }) => {
+const PolicyListModal: React.FC<Props> = ({ agentId, year, category, categoryTitle, company, accent, expectedTotal, transferFlags, onClose }) => {
   const a = ACCENTS[accent];
   const [rows, setRows] = useState<PortfolioPolicyRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -213,6 +216,17 @@ const PolicyListModal: React.FC<Props> = ({ agentId, year, category, categoryTit
                   <tr key={`${r.policyNumberKey}_${r.customerId}_${r.templateName}_${i}`} className="hover:bg-slate-50">
                     <td className="px-3 py-1.5 font-semibold">
                       <CustomerLink customerId={r.customerId} label={r.fullName} name={r.fullName} pending={isPending(r.customerId)} onOpen={openCustomer} />
+                      {(() => {
+                        const tr = transferFlags?.[transferKey(r.policyNumberKey, r.customerId)];
+                        return tr ? (
+                          <span
+                            className="mr-2 inline-block text-[11px] leading-none px-2 py-1 rounded-full bg-amber-100 text-amber-800 font-bold align-middle"
+                            title={`ניוד אפשרי (הערכה בלבד):\n${transferReasonText(tr).join('\n')}`}
+                          >
+                            ניוד?
+                          </span>
+                        ) : null;
+                      })()}
                     </td>
                     <td className={`px-3 py-1.5 tabular-nums ${t.center}`}>
                       <CustomerLink customerId={r.customerId} label={r.customerId} name={r.fullName} pending={false} onOpen={openCustomer} className="text-slate-600" />

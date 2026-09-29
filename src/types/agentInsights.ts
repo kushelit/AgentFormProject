@@ -90,6 +90,36 @@ export type EfficiencySummary = {
   singleProduct: SingleProductHousehold[];
 };
 
+/** ניוד אפשרי בפנסיה — סימון בלבד (לא מפצלים ולא מנחשים סכום ניוד) */
+export type TransferReason = 'spike' | 'low_rate';
+
+export type TransferSuspect = {
+  ym: string;
+  templateId: string;
+  company: string;
+  policyNumberKey: string;
+  customerId: string;
+  fullName: string;
+  product: string;
+  premium: number;
+  commission: number;
+  /** אחוז עמלה בפוליסה (commission / premium * 100) */
+  rate: number;
+  reasons: TransferReason[];
+  /** פרמיה בחודש הפרסום הקודם (לסימן "קפיצה") */
+  prevPremium?: number;
+  /** חציון אחוז העמלה בפוליסות מאותו דוח ומוצר באותו חודש (לסימן "אחוז נמוך") */
+  peerRate?: number;
+  /** השורה נכללת בקוביית "פרמיה פנסיה" (החלון האחרון של התבנית) */
+  inPortfolio: boolean;
+};
+
+export type TransferSummary = {
+  recentYms: string[];
+  items: TransferSuspect[];
+  thresholds: { minPremium: number; spikeMultiplier: number; lowRateRatio: number; minPeers: number };
+};
+
 export type AgentInsights = {
   agentId: string;
   year: string;
@@ -97,6 +127,7 @@ export type AgentInsights = {
   income: IncomeSummary;
   products: ProductsSummary;
   efficiency: EfficiencySummary;
+  transfers: TransferSummary;
 };
 
 /** איך זוהה המוצר מול התבנית */

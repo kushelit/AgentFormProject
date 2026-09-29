@@ -13,6 +13,8 @@ import {
   type ProductsSummary,
   type EfficiencySummary,
   type HouseholdDepthLine,
+  type TransferSummary,
+  type TransferSuspect,
   type StaleTemplate,
   type ProductMatch,
 } from '@/types/agentInsights';
@@ -186,6 +188,7 @@ export function computeInsights(params: {
     income: computeIncome(incomeRows),
     products: computeProducts(policyRows, rowResolve),
     efficiency: computeEfficiency(policyRows, rowResolve, households),
+    transfers: computeTransfers(policyRows, resolve, rowResolve),
   };
 }
 
@@ -450,4 +453,127 @@ function computeEfficiency(rows: InsightsPolicyRow[], rowResolve: RowResolver, h
     })),
     singleProduct: single.sort((a, b) => b.monthly - a.monthly).slice(0, SINGLE_LIST_LIMIT),
   };
+}
+
+// ─── ניודים אפשריים בפנסיה ─────────────────────────────────────────────
+// ניוד (צבירה שעוברת בין חברות) מגיע לעיתים בדוח כ"פרמיה פנסיה" בחודש הניוד: מקפיץ את
+// הפרמיה ומוריד את אחוז העמלה (על הניוד אין עמלה, על ההפקדה יש). סימון בלבד — בלי פיצול.
+// שני סימנים (אחד מספיק), תמיד מעל סף פרמיה מינימלי:
+//   spike    — בחודש הפרסום הקודם הייתה לפוליסה הפקדה רגילה, והחודש הפרמיה גבוהה ממנה פי SPIKE_MULTIPLIER
+//   low_rate — אחוז העמלה נמוך מ-LOW_RATE_RATIO מהחציון של פוליסות מאותו דוח ומוצר באותו חודש
+//              (רק כשיש לפחות MIN_PEERS פוליסות להשוואה) — תופס גם פוליסה חדשה בלי היסטוריה
+const TRANSFER_MIN_PREMIUM = 20000;
+const TRANSFER_SPIKE_MULTIPLIER = 5;
+const TRANSFER_LOW_RATE_RATIO = 0.3;
+const TRANSFER_MIN_PEERS = 5;
+const TRANSFER_LIST_LIMIT = 300;
+
+function median(values: number[]) {
+  if (!values.length) return 0;
+  const v = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(v.length / 2);
+  return v.length % 2 ? v[mid] : (v[mid - 1] + v[mid]) / 2;
+}
+
+function computeTransfers(rows: InsightsPolicyRow[], resolve: Resolver, rowResolve: RowResolver): TransferSummary {
+  const thresholds = {
+    minPremium: TRANSFER_MIN_PREMIUM,
+    spikeMultiplier: TRANSFER_SPIKE_MULTIPLIER,
+    lowRateRatio: TRANSFER_LOW_RATE_RATIO,
+    minPeers: TRANSFER_MIN_PEERS,
+  };
+
+  // פוליסה × חודש פרסום (כמה חודשי דיווח באותו פרסום — מתאחדים)
+  type Agg = {
+    ym: string;
+    templateId: string;
+    company: string;
+    policyNumberKey: string;
+    customerId: string;
+    fullName: string;
+    product: string;
+    premium: number;
+    commission: number;
+  };
+  const byKey = new Map<string, Agg>();
+  for (const r of rows) {
+    const res = rowResolve(r);
+    if (res.premiumField !== 'pensiaPremia') continue;
+    const cid = canonCustomerId(r.customerId);
+    const policyKey = `${r.templateId}|${r.policyNumberKey}|${cid}`;
+    const k = `${policyKey}|${r.ym}`;
+    let a = byKey.get(k);
+    if (!a) {
+      a = {
+        ym: r.ym,
+        templateId: r.templateId,
+        company: r.company,
+        policyNumberKey: r.policyNumberKey,
+        customerId: String(r.customerId ?? ''),
+        fullName: r.fullName ?? '',
+        product: res.canonical,
+        premium: 0,
+        commission: 0,
+      };
+      byKey.set(k, a);
+    }
+    a.premium += r.premium;
+    a.commission += r.commission;
+    if (!a.fullName && r.fullName) a.fullName = r.fullName;
+  }
+
+  const allYms = Array.from(new Set(rows.map((r) => r.ym))).sort();
+  const prevYm: Record<string, string | undefined> = {};
+  allYms.forEach((ym, i) => (prevYm[ym] = allYms[i - 1]));
+  const recentYms = allYms.slice(-3);
+  const recentSet = new Set(recentYms);
+
+  // חציון אחוז עמלה: דוח × מוצר × חודש פרסום
+  const peerRates = new Map<string, number[]>();
+  byKey.forEach((a) => {
+    if (a.premium <= 0) return;
+    const pk = `${a.templateId}|${a.product}|${a.ym}`;
+    const list = peerRates.get(pk) ?? [];
+    list.push((a.commission / a.premium) * 100);
+    peerRates.set(pk, list);
+  });
+  const peerMedian = new Map<string, number>();
+  peerRates.forEach((list, pk) => list.length >= TRANSFER_MIN_PEERS && peerMedian.set(pk, median(list)));
+
+  // אילו שורות בקוביית "פרמיה פנסיה" (החלון האחרון של כל תבנית)
+  const inPortfolio = new Set<string>();
+  selectPortfolioRows(rows, resolve, rowResolve).selected.forEach((s) => {
+    if (s.category !== 'pensiaPremia') return;
+    inPortfolio.add(`${s.row.templateId}|${s.row.policyNumberKey}|${canonCustomerId(s.row.customerId)}|${s.row.ym}`);
+  });
+
+  const items: TransferSuspect[] = [];
+  byKey.forEach((a, k) => {
+    if (!recentSet.has(a.ym) || a.premium < TRANSFER_MIN_PREMIUM) return;
+    const reasons: TransferSuspect['reasons'] = [];
+    const rate = a.premium > 0 ? (a.commission / a.premium) * 100 : 0;
+
+    const pYm = prevYm[a.ym];
+    const policyKey = k.slice(0, k.lastIndexOf('|'));
+    const prev = pYm ? byKey.get(`${policyKey}|${pYm}`) : undefined;
+    if (prev && prev.premium > 0 && a.premium >= prev.premium * TRANSFER_SPIKE_MULTIPLIER) reasons.push('spike');
+
+    const peer = peerMedian.get(`${a.templateId}|${a.product}|${a.ym}`);
+    if (peer !== undefined && peer > 0 && rate < peer * TRANSFER_LOW_RATE_RATIO) reasons.push('low_rate');
+
+    if (!reasons.length) return;
+    items.push({
+      ...a,
+      premium: round2(a.premium),
+      commission: round2(a.commission),
+      rate: Math.round(rate * 1000) / 1000,
+      reasons,
+      prevPremium: prev ? round2(prev.premium) : undefined,
+      peerRate: peer !== undefined ? Math.round(peer * 1000) / 1000 : undefined,
+      inPortfolio: inPortfolio.has(k),
+    });
+  });
+
+  items.sort((x, y) => (x.ym === y.ym ? y.premium - x.premium : y.ym.localeCompare(x.ym)));
+  return { recentYms, items: items.slice(0, TRANSFER_LIST_LIMIT), thresholds };
 }

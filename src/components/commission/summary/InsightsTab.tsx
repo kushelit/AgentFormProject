@@ -1,10 +1,11 @@
 'use client';
 // src/components/commission/summary/InsightsTab.tsx
-// "תובנות": סקירת AI (למעלה) + יעילות תיק — נפרעים למשק בית, עומק תיק, פוטנציאל, רשימת עבודה.
+// "תובנות": סקירת AI (למעלה) + ניודים אפשריים בפנסיה + יעילות תיק — נפרעים למשק בית, עומק תיק, פוטנציאל, רשימת עבודה.
 import React from 'react';
 import type { AgentInsights, AiSummary } from '@/types/agentInsights';
 import AiSummaryCard from './AiSummaryCard';
 import EfficiencySection from './EfficiencySection';
+import TransfersCard from './TransfersCard';
 
 interface Props {
   agentId: string;
@@ -36,6 +37,7 @@ const InsightsTab: React.FC<Props> = ({ agentId, insights, loading, error, ai, a
   return (
     <div className="space-y-8">
       <AiSummaryCard ai={ai} loading={aiLoading} error={aiError} onRefresh={onRefreshAi} />
+      {insights.transfers && <TransfersCard agentId={agentId} transfers={insights.transfers} />}
       {insights.efficiency && <EfficiencySection agentId={agentId} efficiency={insights.efficiency} />}
     </div>
   );

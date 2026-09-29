@@ -3,7 +3,8 @@
 // סקירה: תיק נוכחי + הכנסות (לפי חודש פרסום) + גרפים (המשך ישיר של ההכנסות).
 // סקירת AI ויעילות תיק — בלשונית "תובנות" (InsightsTab); כאן כרטיס הפניה קצר עם כותרת ה-AI.
 import React, { useEffect, useState } from 'react';
-import type { AgentInsights, AiSummary, CompanyAmount, PortfolioCategory } from '@/types/agentInsights';
+import type { AgentInsights, AiSummary, CompanyAmount, PortfolioCategory, TransferSuspect } from '@/types/agentInsights';
+import { transferKey } from '@/lib/insights/transfers';
 import KpiCard from './KpiCard';
 import CompanyBreakdown from './CompanyBreakdown';
 import PolicyListModal from './PolicyListModal';
@@ -110,6 +111,11 @@ const OverviewTab: React.FC<Props> = ({ agentId, year, insights, loading, error,
   };
 
   const portfolioKeys: KpiKey[] = ['zvira', 'pension', 'insurance'];
+
+  // ניודים אפשריים שנכללים בקוביית "פרמיה פנסיה" — לסימון בקובייה וברשימת הפוליסות
+  const portfolioTransfers = (insights.transfers?.items ?? []).filter((t) => t.inPortfolio);
+  const transferFlags: Record<string, TransferSuspect> = {};
+  portfolioTransfers.forEach((t) => (transferFlags[transferKey(t.policyNumberKey, t.customerId)] = t));
   const incomeKeys: KpiKey[] = ['incomeLast', 'incomeAvg', 'incomeAnnual'];
   const open = openKpi ? drills[openKpi] : null;
 
@@ -189,7 +195,16 @@ const OverviewTab: React.FC<Props> = ({ agentId, year, insights, loading, error,
           <KpiCard
             title='סה"כ פרמיה פנסיה'
             value={`${fmtInt(cat.pensiaPremia.amount)} ₪`}
-            sub={`${fmtInt(cat.pensiaPremia.policies)} פוליסות · פרמיה חודשית`}
+            sub={
+              <>
+                {fmtInt(cat.pensiaPremia.policies)} פוליסות · פרמיה חודשית
+                {portfolioTransfers.length > 0 && (
+                  <span className="block mt-1 text-amber-700 font-semibold">
+                    ⚠ כולל {portfolioTransfers.length} {portfolioTransfers.length === 1 ? 'ניוד אפשרי' : 'ניודים אפשריים'} · פירוט בתובנות
+                  </span>
+                )}
+              </>
+            }
             accent="amber"
             active={openKpi === 'pension'}
             onClick={() => toggle('pension')}
@@ -223,6 +238,7 @@ const OverviewTab: React.FC<Props> = ({ agentId, year, insights, loading, error,
             company={policyCompany}
             accent={open.accent}
             expectedTotal={open.rows.find((r) => r.company === policyCompany)?.amount ?? 0}
+            transferFlags={PORTFOLIO_KPI_CATEGORY[openKpi] === 'pensiaPremia' ? transferFlags : undefined}
             onClose={() => setPolicyCompany(null)}
           />
         )}
