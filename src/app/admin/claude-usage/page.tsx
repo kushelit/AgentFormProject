@@ -274,10 +274,14 @@ function AllUsageSection() {
             ))}
           </select>
         </label>
-        <label className="text-xs font-medium text-slate-500">
-          פיצ'ר
-          <select value={featureFilter} onChange={(e) => setFeatureFilter(e.target.value)} className="block mt-1 text-sm border border-slate-200 rounded-lg px-2 py-1.5 min-w-[180px]">
-            <option value="">כל הפיצ'רים</option>
+      <label className="text-xs font-medium text-slate-500">
+  פיצ&apos;ר
+  <select
+    value={featureFilter}
+    onChange={(e) => setFeatureFilter(e.target.value)}
+    className="block mt-1 text-sm border border-slate-200 rounded-lg px-2 py-1.5 min-w-[180px]"
+  >
+    <option value="">כל הפיצ&apos;רים</option>
             {features.map((f) => (
               <option key={f} value={f}>
                 {featureLabel(f)}
@@ -301,8 +305,9 @@ function AllUsageSection() {
 
       {/* לפי פיצ'ר */}
       <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
-        <div className="px-4 py-3 border-b border-slate-200 font-semibold text-sm">לפי פיצ'ר</div>
-        <div className="overflow-x-auto">
+<div className="px-4 py-3 border-b border-slate-200 font-semibold text-sm">
+  לפי פיצ&apos;ר
+</div>        <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-slate-50">
               <tr>
