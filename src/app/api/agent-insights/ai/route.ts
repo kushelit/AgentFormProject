@@ -24,7 +24,8 @@ const SYSTEM_PROMPT = `אתה אנליסט עסקי שכותב לסוכן ביט
 הגדרות:
 - portfolio: תמונת תיק לפי חודש הפרסום האחרון של כל תבנית. zvira = צבירה פיננסית (יתרה), pensionPremium = פרמיה חודשית בפנסיה, insurancePremium = פרמיה חודשית בביטוח.
 - income: הכנסות מעמלות לפי חודש פרסום ולפי חברה. הנתונים מכסים רק את החודשים שנטענו (monthsWithData), ולכן totalYear איננו הכנסה שנתית — אל תציג אותו ככזה. להכנסה חודשית שוטפת השתמש ב-avgRecent (ממוצע החודשים ב-recentYms), ולצפי שנתי ב-annualRunRate.
-- products: עמלות לפי מוצר בחודשים שנטענו.
+  recentByCompany = לכל חברה: [שם, ממוצע חודשי בשקלים, אחוז מההכנסה החודשית].
+- products: עמלות לפי מוצר, **מצטברות מתחילת השנה** (סכום כל החודשים שנטענו — זה לא סכום חודשי). לכל מוצר: [שם, סכום מצטבר, אחוז מסך העמלות המצטברות].
 - staleTemplates: דוחות שעדיין לא עודכנו לחודש הפרסום האחרון — הנתונים שלהם מחודש קודם.
 - efficiency: יעילות תיק לפי משק בית. avgPerHousehold = נפרעים חודשיים ממוצעים למשק בית (מדד היעילות המרכזי).
   byDepth = משקי בית לפי מספר מוצרים (1 / 2 / 3+) והנפרעים הממוצעים לכל קבוצה — הפער ביניהן הוא פוטנציאל ההרחבה בתיק של הסוכן עצמו.
@@ -43,6 +44,7 @@ const SYSTEM_PROMPT = `אתה אנליסט עסקי שכותב לסוכן ביט
 חלוקה בין חברות: מותר לתאר אותה כעובדה (למשל "כ-40% מההכנסות מגיעות מחברה X"), אבל אסור להמליץ לפזר, לבזר, לגוון או
 להפחית תלות בחברה מסוימת, ואסור להציג ריכוז כבעיה, כסיכון או כחולשה. הבחירה עם אילו חברות לעבוד ובאיזה היקף היא
 החלטה מקצועית ועסקית של הסוכן, על בסיס שיקולים שאינם בנתונים — אינה עניין של הסקירה.
+תקופה לכל סכום: בכל סכום בשקלים שאתה מציין, ציין במפורש את התקופה שלו — "בממוצע חודשי", "בחודש האחרון" או "מתחילת השנה". אל תציב זה ליד זה סכום מצטבר וסכום חודשי ואל תשווה ביניהם. כשמתארים חלוקה בין חברות או בין מוצרים — העדף אחוזים.
 השתמש רק במספרים שמופיעים בנתונים. אל תמציא נתונים ואל תסיק סיבות שאין להן בסיס. עגל סכומים לשקלים שלמים עם מפריד אלפים. אל תיתן ייעוץ השקעות.
 
 החזר JSON בלבד, בלי טקסט נוסף ובלי סימוני markdown, במבנה:
@@ -55,6 +57,9 @@ function buildAiInput(ins: ReturnType<typeof normalizeInsights>) {
   ins.products.byCompany.forEach((r) => {
     productTotals[r.product] = (productTotals[r.product] || 0) + r.amount;
   });
+  const productsYtd = Object.values(productTotals).reduce((a, b) => a + b, 0);
+  const pct = (part: number, whole: number) => (whole > 0 ? Math.round((part / whole) * 1000) / 10 : 0);
+  const recentMonthlyTotal = ins.income.recentByCompany.reduce((s, c) => s + c.amount, 0);
 
   return {
     year: ins.year,
@@ -71,7 +76,8 @@ function buildAiInput(ins: ReturnType<typeof normalizeInsights>) {
       recentYms: ins.income.recentYms,
       avgRecent: ins.income.avgRecent,
       annualRunRate: ins.income.annualRunRate,
-      recentByCompany: top(ins.income.recentByCompany, 10).map((c) => [c.company, c.amount]),
+      // [חברה, ממוצע חודשי בשקלים, אחוז מההכנסה החודשית] — ממוצע של recentYms
+      recentByCompany: top(ins.income.recentByCompany, 10).map((c) => [c.company, Math.round(c.amount), pct(c.amount, recentMonthlyTotal)]),
       byMonth: ins.income.months.map((m) => [m.ym, m.total]),
       lastYm: ins.income.lastYm,
       lastTotal: ins.income.lastTotal,
@@ -82,7 +88,7 @@ function buildAiInput(ins: ReturnType<typeof normalizeInsights>) {
     transfers: {
       count: ins.transfers.items.length,
       inPortfolioCount: ins.transfers.items.filter((t) => t.inPortfolio).length,
-      inPortfolioPremium: Math.round(ins.transfers.items.filter((t) => t.inPortfolio).reduce((s, t) => s + t.premium, 0)),
+      inPortfolioPremium: Math.round(ins.transfers.items.filter((t) => t.inPortfolio).reduce((s, t) => s + (t.portfolioPremium ?? t.premium), 0)),
       byYm: ins.transfers.recentYms.map((ym) => [ym, ins.transfers.items.filter((t) => t.ym === ym).length]),
     },
     efficiency: {
@@ -96,10 +102,16 @@ function buildAiInput(ins: ReturnType<typeof normalizeInsights>) {
       byDepth: ins.efficiency.byDepth.map((d) => [d.depth, d.households, d.avgMonthly]),
       trend: ins.efficiency.months.map((m) => [m.ym, m.perHousehold]),
     },
-    products: Object.entries(productTotals)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 10)
-      .map(([p, amount]) => [p, Math.round(amount)]),
+    // עמלות מצטברות מתחילת השנה (סכום כל החודשים שנטענו) — לא סכום חודשי
+    products: {
+      period: 'מצטבר מתחילת השנה (כל החודשים שנטענו)',
+      totalCumulative: Math.round(productsYtd),
+      // [מוצר, סכום מצטבר בשקלים, אחוז מסך העמלות המצטברות]
+      byProduct: Object.entries(productTotals)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 10)
+        .map(([p, amount]) => [p, Math.round(amount), pct(amount, productsYtd)]),
+    },
   };
 }
 

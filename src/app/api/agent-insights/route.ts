@@ -31,7 +31,7 @@ import {
 export const maxDuration = 60;
 
 const INSIGHTS_CACHE_COLLECTION = 'agentInsightsCache';
-const CACHE_VERSION = 10; // להעלות כשמשנים את לוגיקת החישוב — מבטל את כל המטמון
+const CACHE_VERSION = 11; // להעלות כשמשנים את לוגיקת החישוב — מבטל את כל המטמון
 const CACHE_MAX_AGE_MS = 12 * 60 * 60 * 1000;
 /** מטמון שחושב לפני פחות מזה מוחזר מיד — בקריאה של מסמך אחד, בלי בדיקת חתימה */
 const FRESH_MS = 15 * 60 * 1000;

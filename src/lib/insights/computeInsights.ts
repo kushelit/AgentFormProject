@@ -541,10 +541,12 @@ function computeTransfers(rows: InsightsPolicyRow[], resolve: Resolver, rowResol
   peerRates.forEach((list, pk) => list.length >= TRANSFER_MIN_PEERS && peerMedian.set(pk, median(list)));
 
   // אילו שורות בקוביית "פרמיה פנסיה" (החלון האחרון של כל תבנית)
-  const inPortfolio = new Set<string>();
+  // הפרמיה שנספרת בפועל בקוביית "פרמיה פנסיה" לכל פוליסה (חודש הדיווח האחרון בתוך חודש הפרסום האחרון)
+  const portfolioPremiumByKey = new Map<string, number>();
   selectPortfolioRows(rows, resolve, rowResolve).selected.forEach((s) => {
     if (s.category !== 'pensiaPremia') return;
-    inPortfolio.add(`${s.row.templateId}|${s.row.policyNumberKey}|${canonCustomerId(s.row.customerId)}|${s.row.ym}`);
+    const pk = `${s.row.templateId}|${s.row.policyNumberKey}|${canonCustomerId(s.row.customerId)}|${s.row.ym}`;
+    portfolioPremiumByKey.set(pk, (portfolioPremiumByKey.get(pk) ?? 0) + s.row.premium);
   });
 
   const items: TransferSuspect[] = [];
@@ -568,7 +570,8 @@ function computeTransfers(rows: InsightsPolicyRow[], resolve: Resolver, rowResol
       commission: round2(a.commission),
       rate: Math.round(rate * 1000) / 1000,
       reasons,
-      inPortfolio: inPortfolio.has(k),
+      inPortfolio: portfolioPremiumByKey.has(k),
+      portfolioPremium: round2(portfolioPremiumByKey.get(k) ?? 0),
     };
     // שדות אופציונליים — רק כשיש ערך (Firestore דוחה undefined)
     if (prev) item.prevPremium = round2(prev.premium);

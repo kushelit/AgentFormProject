@@ -23,6 +23,7 @@ const TransfersCard: React.FC<Props> = ({ agentId, transfers }) => {
   const items = transfers.items;
   if (!items.length) return null;
 
+  const totalPremium = items.filter((x) => x.inPortfolio).reduce((s, x) => s + (x.portfolioPremium ?? x.premium), 0);
   const range =
     transfers.recentYms.length > 1
       ? `${transfers.recentYms[0]} – ${transfers.recentYms[transfers.recentYms.length - 1]}`
@@ -38,6 +39,12 @@ const TransfersCard: React.FC<Props> = ({ agentId, transfers }) => {
         <p className="text-sm text-amber-900/80 mt-1 leading-relaxed">
           פוליסות שבהן כנראה הועברה צבירה, והיא הגיעה בדוח כפרמיה פנסיה. זה מקפיץ את הפרמיה באותו חודש ומוריד את אחוז העמלה (על הניוד אין
           עמלה). זו הערכה בלבד — אתה יודע אם אלה ניודים.
+          {totalPremium > 0 && (
+            <>
+              {' '}
+              <b>סך הפרמיה בפוליסות האלה שנספרת בקוביית "פרמיה פנסיה": כ-{fmtInt(totalPremium)} ₪</b> (כולל גם ההפקדה החודשית הרגילה בהן).
+            </>
+          )}
         </p>
       </div>
 

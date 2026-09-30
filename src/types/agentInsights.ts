@@ -112,6 +112,8 @@ export type TransferSuspect = {
   peerRate?: number;
   /** השורה נכללת בקוביית "פרמיה פנסיה" (החלון האחרון של התבנית) */
   inPortfolio: boolean;
+  /** הפרמיה של הפוליסה שנספרת בפועל בקוביית "פרמיה פנסיה" (0 אם לא נכללת) */
+  portfolioPremium: number;
 };
 
 export type TransferSummary = {

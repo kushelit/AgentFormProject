@@ -120,6 +120,8 @@ const OverviewTab: React.FC<Props> = ({ agentId, year, insights, loading, error,
 
   // ניודים אפשריים שנכללים בקוביית "פרמיה פנסיה" — לסימון בקובייה וברשימת הפוליסות
   const portfolioTransfers = (insights.transfers?.items ?? []).filter((t) => t.inPortfolio);
+  // סך הפרמיה שנספרת בקובייה בפוליסות המסומנות (הערכה — כולל גם את ההפקדה החודשית הרגילה בהן)
+  const transferPremium = portfolioTransfers.reduce((s, t) => s + (t.portfolioPremium ?? t.premium), 0);
   const transferFlags: Record<string, TransferSuspect> = {};
   portfolioTransfers.forEach((t) => (transferFlags[transferKey(t.policyNumberKey, t.customerId)] = t));
   const incomeKeys: KpiKey[] = ['incomeLast', 'incomeAvg', 'incomeAnnual'];
@@ -205,8 +207,11 @@ const OverviewTab: React.FC<Props> = ({ agentId, year, insights, loading, error,
               <>
                 {fmtInt(cat.pensiaPremia.policies)} פוליסות · פרמיה חודשית
                 {portfolioTransfers.length > 0 && (
-                  <span className="block mt-1 text-amber-700 font-semibold">
-                    ⚠ כולל {portfolioTransfers.length} {portfolioTransfers.length === 1 ? 'ניוד אפשרי' : 'ניודים אפשריים'} · פירוט בתובנות
+                  <span className="block mt-1.5 text-amber-700 font-semibold">
+                    ⚠ כולל {portfolioTransfers.length} {portfolioTransfers.length === 1 ? 'ניוד אפשרי' : 'ניודים אפשריים'}, בסך כ-{fmtInt(transferPremium)} ₪ (הערכה)
+                    <span className="block font-normal text-slate-600">
+                      בלעדיהם: כ-{fmtInt(Math.max(0, cat.pensiaPremia.amount - transferPremium))} ₪ · פירוט בתובנות
+                    </span>
                   </span>
                 )}
               </>
