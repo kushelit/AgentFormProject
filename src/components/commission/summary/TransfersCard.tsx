@@ -42,8 +42,10 @@ const TransfersCard: React.FC<Props> = ({ agentId, transfers }) => {
           {totalPremium > 0 && (
             <>
               {' '}
-              <b>סך הפרמיה בפוליסות האלה שנספרת בקוביית "פרמיה פנסיה": כ-{fmtInt(totalPremium)} ₪</b> (כולל גם ההפקדה החודשית הרגילה בהן).
-            </>
+<b>
+  סך הפרמיה בפוליסות האלה שנספרת בקוביית &quot;פרמיה פנסיה&quot;: כ-{fmtInt(totalPremium)} ₪
+</b>{' '}
+(כולל גם ההפקדה החודשית הרגילה בהן).            </>
           )}
         </p>
       </div>
