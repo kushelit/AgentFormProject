@@ -1,7 +1,6 @@
 import React from "react";
 import Link from "next/link";
 import "../announcementPopup.css";
-import "../announcementV23.css";
 
 interface Props {
   onAcknowledge: () => void;
