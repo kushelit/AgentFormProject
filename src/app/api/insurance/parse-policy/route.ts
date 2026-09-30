@@ -3,6 +3,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { admin } from "@/lib/firebase/firebase-admin";
 import { AiError, callClaude, extractJson } from "@/lib/ai/client";
+import { estimateCostUsd } from "@/lib/ai/pricing";
 
 export const maxDuration = 60;
 
@@ -95,6 +96,26 @@ export async function POST(req: NextRequest) {
       console.error("parse-policy: model returned non-JSON", text.slice(0, 500));
       return NextResponse.json({ error: "תשובת המודל לא בפורמט JSON" }, { status: 502 });
     }
+
+    // ─── רישום שימוש: סופר למכסה החודשית + מזין את דף ניטור Claude ───────────────
+    const confidence = ["high", "medium", "low"].includes(parsed?.parseConfidence) ? parsed.parseConfidence : "medium";
+    await db
+      .collection("policy_usage_logs")
+      .add({
+        agentUid,
+        agentEmail: String(agentSnap.data()?.email || agentUid),
+        insuredName: parsed?.insuredName ?? null,
+        policyNumber: parsed?.policyNumber ?? null,
+        companyName: parsed?.companyName ?? null,
+        inputTokens: usage.input_tokens,
+        outputTokens: usage.output_tokens,
+        estimatedCostUsd: estimateCostUsd(model, usage.input_tokens, usage.output_tokens).cost,
+        model,
+        fileName: file.name || "",
+        parseConfidence: confidence,
+        timestamp: admin.firestore.FieldValue.serverTimestamp(),
+      })
+      .catch((e: any) => console.error("parse-policy: usage log failed", e));
 
     return NextResponse.json({
       ...parsed,

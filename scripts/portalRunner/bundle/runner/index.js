@@ -156806,7 +156806,7 @@ const runnerPaths_1 = __nccwpck_require__(9772);
 const logger_1 = __nccwpck_require__(9252);
 const loginCli_1 = __nccwpck_require__(873);
 // הגדרת גרסה נוכחית
-const RUNNER_VERSION = "3.1.15";
+const RUNNER_VERSION = "3.2.0";
 function sleep(ms) {
     return new Promise((r) => setTimeout(r, ms));
 }

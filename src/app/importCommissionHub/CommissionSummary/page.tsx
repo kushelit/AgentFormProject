@@ -4,19 +4,27 @@ import { Suspense, useEffect, useState } from 'react';
 import { useAuth } from '@/lib/firebase/AuthContext';
 import { usePermission } from '@/hooks/usePermission';
 import AccessDenied from '@/components/AccessDenied';
+import GlobalAnnouncementPopup from '@/components/announcements/GlobalAnnouncementPopup';
 import CommissionSummary from './CommissionSummary';
 
 const CommissionSummaryPage = () => {
   const { user, isLoading, detail } = useAuth();
+
   // הרשאה אחידה לכל דפי העמלות
-  const { canAccess, isChecking } = usePermission(user ? 'access_commission_import' : null);
+  const { canAccess, isChecking } = usePermission(
+    user ? 'access_commission_import' : null
+  );
 
   const [ready, setReady] = useState(false);
   const [isClient, setIsClient] = useState(false);
 
-  useEffect(() => { setIsClient(true); }, []);
   useEffect(() => {
-    const timer = setTimeout(() => setReady(true), 300);
+    setIsClient(true);
+
+    const timer = setTimeout(() => {
+      setReady(true);
+    }, 300);
+
     return () => clearTimeout(timer);
   }, []);
 
@@ -25,7 +33,11 @@ const CommissionSummaryPage = () => {
 
   // שלבי טעינה
   if (isLoading || isChecking || !ready || !user || !detail) {
-    return <div className="p-4 text-gray-600">⏳ טוען מידע...</div>;
+    return (
+      <div className="p-4 text-gray-600">
+        ⏳ טוען מידע...
+      </div>
+    );
   }
 
   // לא מחובר
@@ -42,11 +54,15 @@ const CommissionSummaryPage = () => {
     return <AccessDenied />;
   }
 
-  // הכול תקין – מציגים את הרכיב
+  // הכול תקין – מציגים הודעה גלובלית ואת הדף
   return (
-    <Suspense fallback={<div>Loading...</div>}>
-      <CommissionSummary />
-    </Suspense>
+    <>
+      <GlobalAnnouncementPopup />
+
+      <Suspense fallback={<div>Loading...</div>}>
+        <CommissionSummary />
+      </Suspense>
+    </>
   );
 };
 

@@ -2,7 +2,8 @@
 // src/lib/ai/client.ts
 // עטיפה אחת לכל קריאות ה-AI במערכת (צד שרת בלבד).
 //
-// • מפתח: ANTHROPIC_API_KEY (אחד לכל סביבה — פיתוח / פרודקשן)
+// • מפתח: ANTHROPIC_API_KEY (אחד לכל סביבה — פיתוח / פרודקשן; מומלץ Workspace נפרד לכל סביבה ב-Console)
+//   כל רישום כולל keyHint (4 התווים האחרונים של המפתח) — כדי לדעת באיזה מפתח נעשה שימוש
 // • מודל ברירת מחדל: AI_DEFAULT_MODEL, אחרת claude-sonnet-4-5
 //   פיצ'ר שצריך מודל אחר — מעביר model בקריאה.
 // • כל קריאה נרשמת ב-aiUsageLogs עם שם הפיצ'ר, טוקנים וזמן —
@@ -11,6 +12,7 @@
 // ═══════════════════════════════════════════════════════════════════
 
 import { admin } from '@/lib/firebase/firebase-admin';
+import { estimateCostUsd } from '@/lib/ai/pricing';
 
 export const DEFAULT_MODEL = process.env.AI_DEFAULT_MODEL || 'claude-sonnet-4-5';
 
@@ -69,7 +71,7 @@ export async function callClaude(p: CallClaudeParams): Promise<CallClaudeResult>
 
   const model = p.model || DEFAULT_MODEL;
   const started = Date.now();
-  const baseLog = { feature: p.feature, model, ...(p.meta ?? {}) };
+  const baseLog = { feature: p.feature, model, keyHint: apiKey.slice(-4), ...(p.meta ?? {}) };
 
   let res: Response;
   try {
@@ -117,7 +119,15 @@ export async function callClaude(p: CallClaudeParams): Promise<CallClaudeResult>
   };
   const ms = Date.now() - started;
 
-  await logUsage({ ...baseLog, ok: !!text.trim(), ...usage, ms, ...(text.trim() ? {} : { error: 'empty' }) });
+  const { cost } = estimateCostUsd(model, usage.input_tokens, usage.output_tokens);
+  await logUsage({
+    ...baseLog,
+    ok: !!text.trim(),
+    ...usage,
+    estimatedCostUsd: Math.round(cost * 1e6) / 1e6,
+    ms,
+    ...(text.trim() ? {} : { error: 'empty' }),
+  });
 
   if (!text.trim()) throw new AiError('empty', 'המודל החזיר תשובה ריקה');
 
