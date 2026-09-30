@@ -37,7 +37,7 @@ import {
  *   – אחרת commission / premium * 100
  *
  * פער: לכל פוליסה delta = עמלה בחודש ב׳ − עמלה בחודש א׳ (חסר = 0).
- * "דוח התאמה לחברה": אקסל רב-גיליונות (סיכום / נעלמו / נוספו / שינוי / השוואה מלאה)
+ * "דוח התאמה לחברה": אקסל רב-גיליונות (סיכום / הופיעו רק בחודש הראשון / הופיעו רק בחודש השני / שינוי / השוואה מלאה)
  *   עם עמודות פער כנוסחאות ושורת SUM — מוכן לשליחה לחברת הביטוח.
  *
  * פרמטרים ב-URL (לקפיצה מהדף המסכם):
@@ -172,8 +172,8 @@ const SCOPE_LABEL: Record<Scope, string> = { template: "תבנית", company: "�
 
 const statusOptions = [
   { value: "", label: "הצג הכל" },
-  { value: "added", label: "פוליסה נוספה" },
-  { value: "removed", label: "פוליסה נמחקה" },
+  { value: "added", label: "הופיעה רק בחודש השני" },
+  { value: "removed", label: "הופיעה רק בחודש הראשון" },
   { value: "changed", label: "שינוי" },
   { value: "unchanged", label: "ללא שינוי" },
 ] as const;
@@ -756,7 +756,7 @@ const CommissionComparisonByPolicy: React.FC = () => {
   const safeName = (v: string) => v.replace(/[\\/:*?"<>|]+/g, "").replace(/\s+/g, "_");
   const basisTag = () => (shownBasis === "ym" ? "פרסום" : "דיווח");
 
-  /** דוח התאמה לחברה — סיכום + נעלמו + נוספו + שינוי + השוואה מלאה */
+  /** דוח התאמה לחברה — סיכום + הופיעו רק בחודש הראשון + הופיעו רק בחודש השני + שינוי + השוואה מלאה */
   const exportReconciliation = async () => {
     if (!comparisonRows.length || exporting) return;
     setExporting(true);
@@ -1079,7 +1079,7 @@ const CommissionComparisonByPolicy: React.FC = () => {
               onClick={exportReconciliation}
               disabled={exporting}
               className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg font-bold text-sm shadow-sm disabled:opacity-60"
-              title="אקסל עם גיליונות: סיכום, נעלמו, נוספו, שינוי בעמלה, השוואה מלאה"
+              title="אקסל עם גיליונות: סיכום, הופיעו רק בחודש הראשון, הופיעו רק בחודש השני, שינוי בעמלה, השוואה מלאה"
             >
               {exporting ? "⏳ מכינה קובץ…" : "📑 דוח התאמה לחברה (אקסל)"}
             </button>
@@ -1104,7 +1104,7 @@ const CommissionComparisonByPolicy: React.FC = () => {
               onClick={() => setDrillStatus("removed")}
               className="text-right bg-red-50 border border-red-100 rounded-xl p-3 hover:bg-red-100"
             >
-              <div className="text-xs text-red-700 font-bold">נעלמו · {statusStats.removed.count} פוליסות</div>
+              <div className="text-xs text-red-700 font-bold">הופיעו רק בחודש הראשון · {statusStats.removed.count} פוליסות</div>
               <div className="text-lg font-black text-red-700 tabular-nums">{fmtSigned(statusStats.removed.delta)} ₪</div>
             </button>
             <button
@@ -1112,12 +1112,68 @@ const CommissionComparisonByPolicy: React.FC = () => {
               onClick={() => setDrillStatus("added")}
               className="text-right bg-emerald-50 border border-emerald-100 rounded-xl p-3 hover:bg-emerald-100"
             >
-              <div className="text-xs text-emerald-700 font-bold">נוספו · {statusStats.added.count} פוליסות</div>
+              <div className="text-xs text-emerald-700 font-bold">הופיעו רק בחודש השני · {statusStats.added.count} פוליסות</div>
               <div className="text-lg font-black text-emerald-700 tabular-nums">{fmtSigned(statusStats.added.delta)} ₪</div>
             </button>
           </div>
 
+          {/* Gaps by report */}
+          {byTemplate.length > 0 && (
+            <div className="mb-6">
+              <div className="flex items-baseline justify-between mb-2">
+                <h3 className="text-base font-bold">פערים לפי דוח</h3>
+                <span className="text-xs text-slate-500">
+                  {templateFilter ? (
+                    <button type="button" onClick={() => setTemplateFilter("")} className="text-indigo-700 hover:underline">
+                      × הצג את כל הדוחות
+                    </button>
+                  ) : (
+                    "לחצי על דוח כדי למקד את כל ההשוואה בו"
+                  )}
+                </span>
+              </div>
+              <div className="overflow-x-auto rounded-xl border border-gray-200">
+                <table className={`${t.cleanTable} text-[13px] whitespace-nowrap`}>
+                  <thead>
+                    <tr>
+                      <th className="px-3 py-2">חברה</th>
+                      <th className="px-3 py-2">דוח</th>
+                      <th className={`px-3 py-2 ${t.center}`}>רק בחודש הראשון</th>
+                      <th className={`px-3 py-2 ${t.center}`}>רק בחודש השני</th>
+                      <th className={`px-3 py-2 ${t.center}`}>שינוי</th>
+                      <th className={`px-3 py-2 ${t.center}`}>עמלה · {monthTitle(shownM1)}</th>
+                      <th className={`px-3 py-2 ${t.center}`}>עמלה · {monthTitle(shownM2)}</th>
+                      <th className={`px-3 py-2 ${t.center}`}>פער עמלה</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {byTemplate.map((x) => {
+                      const active = templateFilter === x.templateId;
+                      return (
+                        <tr
+                          key={x.templateId}
+                          onClick={() => setTemplateFilter(active ? "" : x.templateId)}
+                          className={`cursor-pointer ${active ? "bg-indigo-50" : ""}`}
+                        >
+                          <td className="px-3 py-1.5">{x.company}</td>
+                          <td className="px-3 py-1.5 font-semibold text-indigo-700">{x.template}</td>
+                          <td className={`px-3 py-1.5 tabular-nums ${x.removed ? "text-red-700 font-bold" : "text-slate-400"} ${t.center}`}>{x.removed || "-"}</td>
+                          <td className={`px-3 py-1.5 tabular-nums ${x.added ? "text-emerald-700 font-bold" : "text-slate-400"} ${t.center}`}>{x.added || "-"}</td>
+                          <td className={`px-3 py-1.5 tabular-nums ${x.changed ? "text-amber-700 font-bold" : "text-slate-400"} ${t.center}`}>{x.changed || "-"}</td>
+                          <td className={`px-3 py-1.5 tabular-nums ${t.center}`}>{fmtMoney(x.c1)}</td>
+                          <td className={`px-3 py-1.5 tabular-nums ${t.center}`}>{fmtMoney(x.c2)}</td>
+                          <td className={`px-3 py-1.5 tabular-nums font-bold ${deltaColor(x.delta)} ${t.center}`}>{fmtSigned(x.delta)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
           {/* Status table */}
+          <h3 className="text-base font-bold mb-2">סיכום לפי סטטוס</h3>
           <table className={`${t.cleanTable} text-sm mb-6`}>
             <thead>
               <tr>
@@ -1158,62 +1214,14 @@ const CommissionComparisonByPolicy: React.FC = () => {
               </tr>
             </tfoot>
           </table>
-          {/* Gaps by report */}
-          {byTemplate.length > 0 && (
-            <div className="mb-6">
-              <div className="flex items-baseline justify-between mb-2">
-                <h3 className="text-base font-bold">פערים לפי דוח</h3>
-                <span className="text-xs text-slate-500">
-                  {templateFilter ? (
-                    <button type="button" onClick={() => setTemplateFilter("")} className="text-indigo-700 hover:underline">
-                      × הצג את כל הדוחות
-                    </button>
-                  ) : (
-                    "לחץ על דוח כדי למקד את כל ההשוואה בו"
-                  )}
-                </span>
-              </div>
-              <div className="overflow-x-auto rounded-xl border border-gray-200">
-                <table className={`${t.cleanTable} text-[13px] whitespace-nowrap`}>
-                  <thead>
-                    <tr>
-                      <th className="px-3 py-2">חברה</th>
-                      <th className="px-3 py-2">דוח</th>
-                      <th className={`px-3 py-2 ${t.center}`}>נעלמו</th>
-                      <th className={`px-3 py-2 ${t.center}`}>נוספו</th>
-                      <th className={`px-3 py-2 ${t.center}`}>שינוי</th>
-                      <th className={`px-3 py-2 ${t.center}`}>עמלה · {monthTitle(shownM1)}</th>
-                      <th className={`px-3 py-2 ${t.center}`}>עמלה · {monthTitle(shownM2)}</th>
-                      <th className={`px-3 py-2 ${t.center}`}>פער עמלה</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {byTemplate.map((x) => {
-                      const active = templateFilter === x.templateId;
-                      return (
-                        <tr
-                          key={x.templateId}
-                          onClick={() => setTemplateFilter(active ? "" : x.templateId)}
-                          className={`cursor-pointer ${active ? "bg-indigo-50" : ""}`}
-                        >
-                          <td className="px-3 py-1.5">{x.company}</td>
-                          <td className="px-3 py-1.5 font-semibold text-indigo-700">{x.template}</td>
-                          <td className={`px-3 py-1.5 tabular-nums ${x.removed ? "text-red-700 font-bold" : "text-slate-400"} ${t.center}`}>{x.removed || "-"}</td>
-                          <td className={`px-3 py-1.5 tabular-nums ${x.added ? "text-emerald-700 font-bold" : "text-slate-400"} ${t.center}`}>{x.added || "-"}</td>
-                          <td className={`px-3 py-1.5 tabular-nums ${x.changed ? "text-amber-700 font-bold" : "text-slate-400"} ${t.center}`}>{x.changed || "-"}</td>
-                          <td className={`px-3 py-1.5 tabular-nums ${t.center}`}>{fmtMoney(x.c1)}</td>
-                          <td className={`px-3 py-1.5 tabular-nums ${t.center}`}>{fmtMoney(x.c2)}</td>
-                          <td className={`px-3 py-1.5 tabular-nums font-bold ${deltaColor(x.delta)} ${t.center}`}>{fmtSigned(x.delta)}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+          {statusStats.removed.count > 0 && (
+            <p className="text-sm text-slate-600 -mt-4 mb-6 leading-relaxed">
+              <b>&quot;הופיעה רק בחודש הראשון&quot;</b> אינה בהכרח פוליסה שבוטלה — ייתכן שהעמלה עליה לא שולמה, נדחתה לחודש אחר או טרם הגיעה.
+              כדאי לברר מול החברה.
+            </p>
           )}
 
-          {!drillStatus && <p className="text-gray-500 mb-4">לחץ על סטטוס להצגת הפוליסות.</p>}
+          {!drillStatus && <p className="text-gray-500 mb-4">לחצי על סטטוס להצגת הפוליסות.</p>}
         </>
       )}
 

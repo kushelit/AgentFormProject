@@ -1,6 +1,6 @@
 // src/lib/excel/reconciliationWorkbook.ts
 // "דוח התאמה לחברה" — אקסל מעוצב (exceljs, נטען דינמית רק בלחיצה).
-// גיליונות: סיכום · נעלמו · נוספו · שינוי בעמלה · השוואה מלאה
+// גיליונות: סיכום · הופיעו רק בחודש הראשון · הופיעו רק בחודש השני · שינוי בעמלה · השוואה מלאה
 // בכל גיליון פוליסות: דוח מקור, חודש א׳ מול חודש ב׳, פער כנוסחה, שורת SUM, מסננים, כותרת מוקפאת.
 // בגיליון הסיכום: טבלת סטטוסים + "פערים לפי דוח" (לאיזה קובץ של החברה לפנות).
 
@@ -299,7 +299,7 @@ function addSummarySheet(wb: any, meta: ReconMeta, lines: ReconStatusLine[], tot
     tt.font = { bold: true, size: 12, color: { argb: C.navy } };
     tt.border = { bottom: { style: 'medium', color: { argb: C.navy } } };
     r++;
-    const th = ['חברה', 'דוח', 'נעלמו', 'נוספו', 'שינוי', `עמלה · ${meta.m1Label}`, `עמלה · ${meta.m2Label}`, 'פער עמלה'];
+    const th = ['חברה', 'דוח', 'רק בחודש הראשון', 'רק בחודש השני', 'שינוי', `עמלה · ${meta.m1Label}`, `עמלה · ${meta.m2Label}`, 'פער עמלה'];
     const thr = ws.getRow(r);
     th.forEach((h, i) => {
       const c = thr.getCell(i + 1);
@@ -330,10 +330,10 @@ function addSummarySheet(wb: any, meta: ReconMeta, lines: ReconStatusLine[], tot
   r += 2;
   ws.mergeCells(`A${r}:H${r}`);
   const note = ws.getCell(`A${r}`);
-  note.value = 'פער = עמלה בחודש ב׳ פחות עמלה בחודש א׳. פירוט הפוליסות בגיליונות "נעלמו", "נוספו", "שינוי בעמלה" ו"השוואה מלאה".';
+  note.value = 'פער = עמלה בחודש ב׳ פחות עמלה בחודש א׳. פוליסה שהופיעה רק בחודש אחד אינה בהכרח פוליסה שבוטלה — ייתכן שהעמלה לא שולמה, נדחתה או טרם הגיעה. פירוט הפוליסות בגיליונות "הופיעו רק בחודש הראשון", "הופיעו רק בחודש השני", "שינוי בעמלה" ו"השוואה מלאה".';
   note.font = { italic: true, size: 9, color: { argb: C.gray } };
   note.alignment = { horizontal: 'right', wrapText: true };
-  ws.getRow(r).height = 28;
+  ws.getRow(r).height = 42;
 }
 
 function download(buffer: ArrayBuffer, fileName: string) {
@@ -366,8 +366,8 @@ export async function exportReconciliationXlsx(p: {
   wb.created = new Date();
 
   addSummarySheet(wb, p.meta, p.statusLines, p.total, p.byTemplate);
-  addPolicySheet(wb, 'נעלמו', p.removed, p.meta, 'FFDC2626');
-  addPolicySheet(wb, 'נוספו', p.added, p.meta, 'FF16A34A');
+  addPolicySheet(wb, 'הופיעו רק בחודש הראשון', p.removed, p.meta, 'FFDC2626');
+  addPolicySheet(wb, 'הופיעו רק בחודש השני', p.added, p.meta, 'FF16A34A');
   addPolicySheet(wb, 'שינוי בעמלה', p.changed, p.meta, 'FFD97706');
   addPolicySheet(wb, 'השוואה מלאה', p.all, p.meta, 'FF1E3A5F');
 

@@ -1,6 +1,7 @@
 import React from "react";
 import Link from "next/link";
 import "../announcementPopup.css";
+import "../announcementV23.css";
 
 interface Props {
   onAcknowledge: () => void;
@@ -81,8 +82,7 @@ const AnnouncementV23 = ({ onAcknowledge, onClose }: Props) => {
             <div>
               <strong>השוואת טעינות בין חודשים – משודרגת</strong>
               <p>
-                השוואה לפי חודש פרסום, פער בשקלים לכל פוליסה, מה נוסף ומה
-                נעלם, ודוח התאמה מעוצב שמוכן לשליחה לחברת הביטוח.
+                השוואה לפי חודש פרסום, פער בשקלים לכל פוליסה, מה הופיע רק באחד החודשים, ודוח התאמה מעוצב שמוכן לשליחה לחברת הביטוח.
               </p>
             </div>
           </div>
