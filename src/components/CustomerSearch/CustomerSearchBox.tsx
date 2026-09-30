@@ -142,7 +142,7 @@ export default function CustomerSearchBox({ agentId }: Props) {
         setErrorMsg(
           e?.code === 'failed-precondition'
             ? 'חסר אינדקס ב-Firestore לחיפוש הזה — פרטים בקונסול (F12), יש שם קישור ליצירתו'
-            : 'שגיאה בחיפוש — נסי שוב',
+            : 'שגיאה בחיפוש — נסה שוב',
         );
       } finally {
         setLoading(false);

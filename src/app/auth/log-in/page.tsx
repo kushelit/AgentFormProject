@@ -142,7 +142,7 @@ const mapAuthError = (error?: FirebaseLikeError): string => {
       return 'בוצעו יותר מדי ניסיונות. יש להמתין ולנסות שוב מאוחר יותר.';
 
     case 'auth/network-request-failed':
-      return 'לא ניתן להתחבר ל־Firebase. בדקי את החיבור לאינטרנט ונסי שוב.';
+      return 'לא ניתן להתחבר ל־Firebase. בדקי את החיבור לאינטרנט נסה שוב.';
 
     case 'auth/quota-exceeded':
       return 'חריגה ממכסת הודעות ה־SMS. יש לפנות לתמיכה.';

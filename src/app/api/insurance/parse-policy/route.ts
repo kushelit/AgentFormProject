@@ -130,7 +130,7 @@ export async function POST(req: NextRequest) {
     if (err instanceof AiError) {
       console.error("parse-policy AI error:", err.message);
       const msg =
-        err.code === "timeout" ? "ניתוח הפוליסה לקח יותר מדי זמן, נסי שוב" :
+        err.code === "timeout" ? "ניתוח הפוליסה לקח יותר מדי זמן, נסה שוב" :
         err.code === "not_configured" ? "שירות ה-AI לא מוגדר בשרת" :
         "שגיאה בשירות ה-AI";
       return NextResponse.json({ error: msg }, { status: err.code === "timeout" ? 504 : 502 });

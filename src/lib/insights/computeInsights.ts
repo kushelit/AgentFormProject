@@ -562,16 +562,18 @@ function computeTransfers(rows: InsightsPolicyRow[], resolve: Resolver, rowResol
     if (peer !== undefined && peer > 0 && rate < peer * TRANSFER_LOW_RATE_RATIO) reasons.push('low_rate');
 
     if (!reasons.length) return;
-    items.push({
+    const item: TransferSuspect = {
       ...a,
       premium: round2(a.premium),
       commission: round2(a.commission),
       rate: Math.round(rate * 1000) / 1000,
       reasons,
-      prevPremium: prev ? round2(prev.premium) : undefined,
-      peerRate: peer !== undefined ? Math.round(peer * 1000) / 1000 : undefined,
       inPortfolio: inPortfolio.has(k),
-    });
+    };
+    // שדות אופציונליים — רק כשיש ערך (Firestore דוחה undefined)
+    if (prev) item.prevPremium = round2(prev.premium);
+    if (peer !== undefined) item.peerRate = Math.round(peer * 1000) / 1000;
+    items.push(item);
   });
 
   items.sort((x, y) => (x.ym === y.ym ? y.premium - x.premium : y.ym.localeCompare(x.ym)));

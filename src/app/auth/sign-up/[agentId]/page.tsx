@@ -87,13 +87,13 @@ export default function WorkerSignUpPage({ params }: { params: { agentId: string
   
     // ✅ חסימה UX: אם יש מנוי והלימיט עדיין נטען – לא מאפשרים submit
     if (agent.subscriptionId && agent.subscriptionType && loadingLimits) {
-      setError('טוען נתוני מכסה... נסי שוב בעוד רגע');
+      setError('טוען נתוני מכסה... נסה שוב בעוד רגע');
       return;
     }
   
     // ✅ אם יש מנוי פעיל: לא מאפשרים לעבור לוגית בלי workerStats
     if (agent.subscriptionId && agent.subscriptionType && !workerStats) {
-      setError('לא ניתן לאמת מכסה לעובדים. נסי שוב או פני לתמיכה.');
+      setError('לא ניתן לאמת מכסה לעובדים. נסה שוב או פני לתמיכה.');
       return;
     }
   

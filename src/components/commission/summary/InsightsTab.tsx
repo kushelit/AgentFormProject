@@ -6,6 +6,7 @@ import type { AgentInsights, AiSummary } from '@/types/agentInsights';
 import AiSummaryCard from './AiSummaryCard';
 import EfficiencySection from './EfficiencySection';
 import TransfersCard from './TransfersCard';
+import SlowLoadHint from './SlowLoadHint';
 
 interface Props {
   agentId: string;
@@ -22,6 +23,7 @@ const InsightsTab: React.FC<Props> = ({ agentId, insights, loading, error, ai, a
   if (loading) {
     return (
       <div className="space-y-6">
+        <SlowLoadHint />
         <div className="h-40 bg-slate-100 rounded-2xl animate-pulse" />
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {[0, 1, 2].map((i) => (

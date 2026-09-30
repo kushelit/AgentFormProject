@@ -135,12 +135,9 @@ export async function POST(req: NextRequest) {
     }
 
     // ─── פוליסות של כל טעינות השנה ──────────────────────────────────────────
+    const tSetup = Date.now() - startedAt;
     const policyRows = await fetchPolicyRows({ db, agentId, jobIds, ymByJobId, jobMeta, hekefTemplateIds, withDetails: true });
-
-    console.log(
-      `[agent-insights] computed ${agentId}_${yearStr}: ${jobIds.length} jobs, ${policyRows.length} policies, ` +
-        `${incomeRows.length} income rows in ${Date.now() - startedAt}ms`
-    );
+    const tFetch = Date.now() - startedAt - tSetup;
 
     const insights = computeInsights({
       agentId,
@@ -154,22 +151,32 @@ export async function POST(req: NextRequest) {
 
     // אינדקס לרשימת הפוליסות (לא נשלח לדפדפן)
     const portfolioIndex = buildPortfolioIndex(policyRows, (r) => r.runId ?? '');
+    const tCompute = Date.now() - startedAt - tSetup - tFetch;
 
     // שמירה למטמון לפני התשובה — סקירת ה-AI ורשימת הפוליסות נשענות על המסמך הזה.
     // set מלא מנקה גם סקירת AI קודמת (החתימה השתנתה).
+    // Firestore דוחה undefined — הסבב דרך JSON מסיר אותו (ו-NaN/Infinity הופכים ל-null).
+    // כשל בכתיבה = סקירת ה-AI לא תעבוד (insights_not_ready), לכן נרשם בבירור.
     try {
+      const plain = JSON.parse(JSON.stringify({ insights, portfolioIndex }));
       await cacheRef.set({
         v: CACHE_VERSION,
         signature,
-        insights,
-        portfolioIndex,
+        insights: plain.insights,
+        portfolioIndex: plain.portfolioIndex,
         agentId,
         year: yearStr,
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       });
     } catch (e: any) {
-      console.error('[agent-insights] cache write failed', e);
+      console.error(`[agent-insights] CACHE WRITE FAILED ${agentId}_${yearStr} — סקירת AI לא תעבוד עד שזה נפתר:`, e?.message ?? e);
     }
+
+    const tWrite = Date.now() - startedAt - tSetup - tFetch - tCompute;
+    console.log(
+      `[agent-insights] computed ${agentId}_${yearStr}: ${jobIds.length} jobs, ${policyRows.length} policies, ${incomeRows.length} income rows — ` +
+        `total ${Date.now() - startedAt}ms (setup ${tSetup} · fetch ${tFetch} · compute ${tCompute} · cache-write ${tWrite})`
+    );
 
     return NextResponse.json(insights);
   } catch (err: any) {

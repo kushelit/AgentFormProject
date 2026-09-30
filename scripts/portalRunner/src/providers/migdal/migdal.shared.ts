@@ -158,7 +158,7 @@ export async function migdalHandleOtp(page: Page, ctx: RunnerCtx) {
     // הזדמנות נוספת אחת, כמו בפניקס ובכלל
     await setStatus(runId, {
       status: "otp_required",
-      step: "הקוד הקודם היה שגוי - נסי שוב",
+      step: "הקוד הקודם היה שגוי - נסה שוב",
       "otp.mode": "firestore"
     });
 

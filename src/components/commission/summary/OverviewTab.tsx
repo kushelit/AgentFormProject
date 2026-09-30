@@ -3,11 +3,12 @@
 // סקירה: תיק נוכחי + הכנסות (לפי חודש פרסום) + גרפים (המשך ישיר של ההכנסות).
 // סקירת AI ויעילות תיק — בלשונית "תובנות" (InsightsTab); כאן כרטיס הפניה קצר עם כותרת ה-AI.
 import React, { useEffect, useState } from 'react';
-import type { AgentInsights, AiSummary, CompanyAmount, PortfolioCategory, TransferSuspect } from '@/types/agentInsights';
+import type { AgentInsights, AiSummary, CompanyAmount, PortfolioCategory, TransferSuspect, StaleTemplate } from '@/types/agentInsights';
 import { transferKey } from '@/lib/insights/transfers';
 import KpiCard from './KpiCard';
 import CompanyBreakdown from './CompanyBreakdown';
 import PolicyListModal from './PolicyListModal';
+import SlowLoadHint from './SlowLoadHint';
 import { prefetchJson } from '@/lib/fetchCache';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip } from './charts';
 import { fmtInt, fmtMoney, type Accent } from './ui';
@@ -55,6 +56,7 @@ const OverviewTab: React.FC<Props> = ({ agentId, year, insights, loading, error,
   if (loading) {
     return (
       <div className="space-y-6">
+        <SlowLoadHint />
         {[0, 1].map((row) => (
           <div key={row} className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {[0, 1, 2].map((i) => (
@@ -111,6 +113,10 @@ const OverviewTab: React.FC<Props> = ({ agentId, year, insights, loading, error,
   };
 
   const portfolioKeys: KpiKey[] = ['zvira', 'pension', 'insurance'];
+
+  // דוחות שעדיין בחודש פרסום ישן — לפי חברה, כדי להראות בפילוח איזה דוח מפגר
+  const staleByCompany: Record<string, StaleTemplate[]> = {};
+  portfolio.staleTemplates.forEach((t) => (staleByCompany[t.companyName] ||= []).push(t));
 
   // ניודים אפשריים שנכללים בקוביית "פרמיה פנסיה" — לסימון בקובייה וברשימת הפוליסות
   const portfolioTransfers = (insights.transfers?.items ?? []).filter((t) => t.inPortfolio);
@@ -221,6 +227,7 @@ const OverviewTab: React.FC<Props> = ({ agentId, year, insights, loading, error,
         {open && openKpi && portfolioKeys.includes(openKpi) && (
           <CompanyBreakdown
             {...open}
+            staleByCompany={staleByCompany}
             onClose={() => setOpenKpi(null)}
             onCompanyClick={setPolicyCompany}
             onCompanyHover={(company) => {

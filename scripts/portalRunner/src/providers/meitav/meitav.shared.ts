@@ -211,7 +211,7 @@ export async function meitavHandleOtp(page: Page, ctx: RunnerCtx) {
   if (hasError) {
     await setStatus(runId, {
       status: "otp_required",
-      step: "הקוד הקודם היה שגוי - נסי שוב",
+      step: "הקוד הקודם היה שגוי - נסה שוב",
       "otp.mode": "firestore",
       monthLabel,
     });

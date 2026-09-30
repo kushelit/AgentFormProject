@@ -2,7 +2,7 @@
 // src/components/commission/summary/CompanyBreakdown.tsx
 // פילוח לפי חברה — רכיב אחד לכל הקוביות
 import React from 'react';
-import type { CompanyAmount } from '@/types/agentInsights';
+import type { CompanyAmount, StaleTemplate } from '@/types/agentInsights';
 import { ACCENTS, fmtInt, type Accent } from './ui';
 import t from './table.module.css';
 import useHoverPrefetch from '@/hooks/useHoverPrefetch';
@@ -13,6 +13,8 @@ interface Props {
   total: number;
   accent: Accent;
   latestYm?: string | null; // אם קיים — חודש ישן יותר מסומן
+  /** דוחות שעדיין בחודש פרסום ישן, לפי חברה — מוצגים מתחת לחודשים (איזה דוח מפגר) */
+  staleByCompany?: Record<string, StaleTemplate[]>;
   onClose: () => void;
   /** אם מוגדר — לחיצה על חברה מפעילה אותו (רשימת פוליסות / השוואה) */
   onCompanyClick?: (company: string) => void;
@@ -28,9 +30,10 @@ const CompanyBreakdown: React.FC<Props> = ({
   total,
   accent,
   latestYm,
+  staleByCompany,
   onClose,
   onCompanyClick,
-  clickHint = 'לחץ על חברה לרשימת הפוליסות',
+  clickHint = 'לחצי על חברה לרשימת הפוליסות',
   onCompanyHover,
 }) => {
   const hover = useHoverPrefetch();
@@ -81,8 +84,15 @@ const CompanyBreakdown: React.FC<Props> = ({
                       {onCompanyClick && <span className="text-slate-400 text-xs mr-1">›</span>}
                     </td>
                     {showMonths && (
-                      <td className={`px-4 py-2 whitespace-nowrap ${old ? 'text-amber-700' : 'text-slate-600'}`}>
-                        {r.months?.join(', ')}
+                      <td className={`px-4 py-2 ${old ? 'text-amber-700' : 'text-slate-600'}`}>
+                        <span dir="ltr" className="whitespace-nowrap">
+                          {[...(r.months ?? [])].sort().join(' · ')}
+                        </span>
+                        {staleByCompany?.[r.company]?.map((t) => (
+                          <div key={t.templateId} className="text-xs text-amber-700 mt-0.5">
+                            ⚠ {t.templateName} עדיין מ-<span dir="ltr">{t.ym}</span>
+                          </div>
+                        ))}
                       </td>
                     )}
                     {showPolicies && <td className="px-4 py-2 text-slate-600">{fmtInt(r.policies ?? 0)}</td>}

@@ -395,7 +395,7 @@ export default function AnomalyPoliciesModal({ agentId, onClose }: Props) {
       const msg = String(e?.data?.error || e?.message || e);
       setError(
         /index/i.test(msg)
-          ? 'חסר אינדקס ב-Firestore לשאילתת החריגות. בלוג השרת (הטרמינל) מופיע לינק ליצירתו — לחץ עליו, המתיני כמה דקות לבנייה, ונסי שוב.'
+          ? 'חסר אינדקס ב-Firestore לשאילתת החריגות. בלוג השרת (הטרמינל) מופיע לינק ליצירתו — לחץ עליו, המתן כמה דקות לבנייה, נסה שוב.'
           : `שגיאה בטעינה: ${msg}`
       );
       setRows([]);

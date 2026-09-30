@@ -143,6 +143,23 @@ export async function loadJobMeta(
 }
 
 /** מסמכי policyCommissionSummaries של הטעינות → שורות לחישוב */
+/** הרצת משימות במקביל עם תקרת מקביליות (סדר התוצאות נשמר) */
+export async function mapPool<T, R>(items: T[], concurrency: number, worker: (item: T) => Promise<R>): Promise<R[]> {
+  const out: R[] = new Array(items.length);
+  let next = 0;
+  const runners = Array.from({ length: Math.min(concurrency, items.length) }, async () => {
+    while (true) {
+      const i = next++;
+      if (i >= items.length) return;
+      out[i] = await worker(items[i]);
+    }
+  });
+  await Promise.all(runners);
+  return out;
+}
+
+const FETCH_CONCURRENCY = 20;
+
 export async function fetchPolicyRows(params: {
   db: Db;
   agentId: string;
@@ -160,10 +177,10 @@ export async function fetchPolicyRows(params: {
     ...(withDetails ? ['fullName', 'agentCode'] : []),
   ];
 
-  const snaps = await Promise.all(
-    chunk(jobIds, IN_LIMIT).map((ids) =>
-      db.collection('policyCommissionSummaries').where('runId', 'in', ids).select(...fields).get()
-    )
+  // שאילתה נפרדת לכל טעינה (runId ==) עם עד FETCH_CONCURRENCY במקביל — הרבה יותר זרמי קריאה מאשר
+  // שאילתות `in` של 30 טעינות, שבהן כל הנתונים עוברים דרך זרם אחד.
+  const snaps = await mapPool(jobIds, FETCH_CONCURRENCY, (id) =>
+    db.collection('policyCommissionSummaries').where('runId', '==', id).select(...fields).get()
   );
 
   const rows: InsightsPolicyRow[] = [];

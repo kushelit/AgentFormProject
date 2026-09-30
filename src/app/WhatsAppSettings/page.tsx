@@ -351,7 +351,7 @@ const isConnected = isPersistedConnected;
       setDialog({
         type: 'warning',
         title: 'Meta עדיין נטען',
-        message: 'החיבור ל-Meta עדיין נטען. נסי שוב בעוד מספר שניות.',
+        message: 'החיבור ל-Meta עדיין נטען. נסה שוב בעוד מספר שניות.',
       });
       return;
     }

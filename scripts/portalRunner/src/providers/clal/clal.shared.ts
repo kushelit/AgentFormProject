@@ -227,7 +227,7 @@ export async function clalHandleOtp(page: Page, ctx: RunnerCtx) {
   if (wrongToken) {
     await setStatus(runId, {
       status: "otp_required",
-      step: "הקוד הקודם היה שגוי - נסי שוב",
+      step: "הקוד הקודם היה שגוי - נסה שוב",
       "otp.mode": "firestore"
     });
 

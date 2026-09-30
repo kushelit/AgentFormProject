@@ -7,7 +7,7 @@ import { postJsonCached } from '@/lib/fetchCache';
 
 const AI_ERRORS: Record<string, string> = {
   ai_not_configured: 'סקירת AI לא הוגדרה בשרת (חסר מפתח API).',
-  insights_not_ready: 'הנתונים עדיין בטעינה — נסי שוב בעוד רגע.',
+  insights_not_ready: 'הנתונים עדיין בטעינה — נסה שוב בעוד רגע.',
   no_data: 'אין מספיק נתונים לסקירה.',
 };
 
