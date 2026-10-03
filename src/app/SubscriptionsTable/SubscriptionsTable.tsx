@@ -500,6 +500,21 @@ export default function SubscriptionsAdminPage() {
     }
   };
 
+  // The phone identifies the agent to the WhatsApp bot; it changes only here (admin), never from sign-up.
+  const handleUpdatePhone = async (sub: SubscriptionRow) => {
+    const phone = window.prompt(`טלפון חדש עבור ${sub.name} (נוכחי: ${sub.phone || 'אין'})`, '');
+    if (!phone?.trim()) return;
+    if (!window.confirm(`לעדכן את הטלפון של ${sub.name} ל-${phone.trim()}?\nהמשתמש יתנתק מכל המכשירים.`)) return;
+    try {
+      const { data } = await apiAxios.post('/api/admin/update-user-phone', { uid: sub.id, phone: phone.trim() });
+      setSubscriptions(prev => prev.map(row => row.id === sub.id ? { ...row, phone: data.phone } : row));
+      setSelectedForDetail(prev => prev?.id === sub.id ? { ...prev, phone: data.phone } : prev);
+      addToast('success', `הטלפון עודכן ל-${data.phone}`);
+    } catch (error: any) {
+      addToast('error', error?.response?.data?.error || 'עדכון הטלפון נכשל');
+    }
+  };
+
   const handleSendFailureEmail = async (email: string, name: string) => {
     try {
       await apiAxios.post('/api/sendFailureEmail', { email, name });
@@ -1038,6 +1053,13 @@ export default function SubscriptionsAdminPage() {
                           className="rounded-lg border border-[#E4E1D6] px-3 py-2.5 text-[13px] font-semibold leading-none text-[#1F2A24] transition hover:border-[#1F6F4A] hover:text-[#1F6F4A] disabled:cursor-not-allowed disabled:opacity-40"
                         >
                           שליחת מייל קופון
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleUpdatePhone(sub)}
+                          className="rounded-lg border border-[#E4E1D6] px-3 py-2.5 text-[13px] font-semibold leading-none text-[#1F2A24] transition hover:border-[#1F6F4A] hover:text-[#1F6F4A]"
+                        >
+                          עדכון טלפון
                         </button>
                       </div>
 

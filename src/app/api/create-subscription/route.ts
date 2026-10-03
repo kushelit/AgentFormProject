@@ -19,6 +19,17 @@ const normalizePhoneE164 = (raw?: string) => {
   return undefined;
 };
 
+/** uid of the user that owns this phone in Firebase Auth or in users.phone, or null. */
+async function findPhoneOwnerUid(phoneE164: string): Promise<string | null> {
+  try {
+    return (await admin.auth().getUserByPhoneNumber(phoneE164)).uid;
+  } catch (e: any) {
+    if (e?.code !== 'auth/user-not-found') throw e;
+  }
+  const snap = await admin.firestore().collection('users').where('phone', '==', phoneE164).limit(1).get();
+  return snap.empty ? null : snap.docs[0].id;
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
@@ -53,8 +64,10 @@ export async function POST(req: NextRequest) {
       }
       const u = snap.data() || {};
       fullName = fullName || u.name || '';
-      email    = (email || u.email || '').toLowerCase();
-      phone    = phone || u.phone || '';
+      // Identity fields come from the existing record, never from the request:
+      // the phone identifies the user to the WhatsApp bot. Changing it is an admin action.
+      email    = (u.email || email || '').toLowerCase();
+      phone    = u.phone || phone || '';
       idNumber = idNumber || u.idNumber || '';
     }
 
@@ -222,7 +235,25 @@ let calculatedTotal =
             { status: 400 }
           );
         }
-        // אימייל קיים אך מושבת → החייאה/שדרוג
+        // אימייל קיים אך מושבת → החייאה/שדרוג, רק עם הטלפון של אותו חשבון.
+        // הטלפון מזהה את הסוכן מול הבוט, ולכן שינוי טלפון נעשה רק ע"י אדמין (טבלת מנויים → עדכון טלפון).
+        const accountDoc = await db.collection('users').doc(byEmail.uid).get();
+        const accountPhone = normalizePhoneE164(byEmail.phoneNumber || accountDoc.data()?.phone);
+        if (accountPhone && accountPhone !== phone) {
+          return NextResponse.json(
+            { error: 'מספר הטלפון שהוזן אינו תואם לחשבון הקיים. לחידוש המנוי יש לפנות לתמיכה.' },
+            { status: 400 }
+          );
+        }
+        if (!accountPhone) {
+          const ownerUid = await findPhoneOwnerUid(phone);
+          if (ownerUid && ownerUid !== byEmail.uid) {
+            return NextResponse.json(
+              { error: 'מספר הטלפון משויך לחשבון אחר. לחידוש המנוי יש לפנות לתמיכה.' },
+              { status: 400 }
+            );
+          }
+        }
         resolvedExistingUid = byEmail.uid;
         resolvedSource = 'existing-user-upgrade';
       } else {
@@ -256,6 +287,12 @@ let calculatedTotal =
               { status: 400 }
             );
           }
+        } else if (await findPhoneOwnerUid(phone)) {
+          // הטלפון לא ב-Auth אבל רשום במשתמש ב-users (שם הבוט מזהה לפיו)
+          return NextResponse.json(
+            { error: 'מספר הטלפון משויך לחשבון אחר. יש להתחבר לחשבון הקיים או לפנות לתמיכה.' },
+            { status: 400 }
+          );
         }
       }
     }

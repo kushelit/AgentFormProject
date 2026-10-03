@@ -531,12 +531,33 @@ if (
       try {
         const user = await auth.getUserByEmail(emailLower);
         if (!user.emailVerified) await auth.updateUser(user.uid, { emailVerified: true });
-        if (formattedPhone && user.phoneNumber !== formattedPhone) {
-          await auth.updateUser(user.uid, { phoneNumber: formattedPhone });
+
+        // Re-enable first, so a later failure can't leave a paying user disabled.
+        if (user.disabled) await auth.updateUser(user.uid, { disabled: false });
+
+        // A phone change must not stop the renewal. create-subscription blocks mismatching phones
+        // before payment; if one still gets here (e.g. the phone belongs to another user),
+        // keep the existing phone and record the issue for support.
+        let phoneUpdated = !formattedPhone || user.phoneNumber === formattedPhone;
+        if (!phoneUpdated) {
+          try {
+            await auth.updateUser(user.uid, { phoneNumber: formattedPhone });
+            phoneUpdated = true;
+          } catch (e: any) {
+            await userDocRef.update({ phone: user.phoneNumber || userData?.phone || null });
+            await logRegistrationIssue({
+              email: emailLower, name: fullName, phone: formattedPhone, type: 'agent',
+              reason: 'phone-already-exists', source: 'webhook', subscriptionType, transactionId, processId,
+              pageCode, couponCode, idNumber,
+              additionalInfo: { stage: 'renewal-phone-update', uid: user.uid, keptPhone: user.phoneNumber || null, error: e?.code || e?.message || String(e) },
+            });
+          }
         }
-        try { await ensureSingleMfaPhone(user.uid, formattedPhone); } 
-        catch (e) { 
-          // console.warn('[ensureMfaPhone] skipped:', (e as any)?.message || e);
+        if (phoneUpdated) {
+          try { await ensureSingleMfaPhone(user.uid, formattedPhone); }
+          catch (e) {
+            // console.warn('[ensureMfaPhone] skipped:', (e as any)?.message || e);
+          }
         }
 
         if (planChanged && !user.disabled && isMagicTouchCustomer) {
@@ -552,8 +573,6 @@ if (
           });
         }
 
-        if (user.disabled) await auth.updateUser(user.uid, { disabled: false });
-
         if (isMagicTouchCustomer) {
           const mtResetLink = await generateMagicTouchPasswordResetLink(auth, emailLower);
           await sendMagicTouchEmail({
@@ -568,8 +587,15 @@ if (
             html: `שלום ${fullName},<br><br>המנוי שלך חודש בהצלחה.<br>לאיפוס סיסמה: <a href="${resetLink}">לחץ כאן</a>`,
           });
         }
-      } catch {
-        // console.log('⚠️ Firebase Auth user not found for update');
+      } catch (e: any) {
+        // Was silent before: a failure here left the user disabled with no trace.
+        console.error('[webhook] renewal auth/email step failed', e);
+        await logRegistrationIssue({
+          email: emailLower, name: fullName, phone: formattedPhone, type: 'agent',
+          reason: 'unknown', source: 'webhook', subscriptionType, transactionId, processId,
+          pageCode, couponCode, idNumber,
+          additionalInfo: { stage: 'renewal-auth-update', error: e?.code || e?.message || String(e) },
+        }).catch(() => undefined);
       }
 
       return NextResponse.json({ updated: true });
