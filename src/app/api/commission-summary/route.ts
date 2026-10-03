@@ -6,10 +6,13 @@
 
 import { getCommissionSummary } from '@/services/server/commissionSummaryService';
 import { NextRequest, NextResponse } from 'next/server';
+import { guardAgentAccess } from '@/lib/server/auth';
 
 export async function POST(req: NextRequest) {
   try {
     const { agentId, year, lite } = await req.json();
+    const denied = await guardAgentAccess(req, agentId, 'commission-summary');
+    if (denied) return denied;
 
     if (!agentId || !year) {
       return NextResponse.json({ error: 'missing params (agentId, year)' }, { status: 400 });

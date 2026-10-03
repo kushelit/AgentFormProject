@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import ExcelJS from "exceljs";
+import { guardUser } from '@/lib/server/auth';
 
 export const runtime = "nodejs";
 
 const HEADER_FILL: ExcelJS.Fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1E5FA8" } };
 
 export async function POST(req: NextRequest) {
+const denied = await guardUser(req, 'export-report');
+if (denied) return denied;
   try {
     const { sheetName, headers, rows } = await req.json();
 

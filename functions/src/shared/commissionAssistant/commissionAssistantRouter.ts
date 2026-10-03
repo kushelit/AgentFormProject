@@ -2061,7 +2061,9 @@ export async function tryHandleCommissionAssistantInbound({
           conversationId,
 
           text:
-            "הבחירה אושרה ✅\n\nכרגע ה-Runner לא מחובר מהמחשב שלך. אם המחשב פתוח, ה-Watchdog אמור להפעיל אותו אוטומטית. אפשר להמתין מעט ואז ללחוץ \"בדוק שוב\".",
+            preparation.executionMode === "extension" ?
+              "הבחירה אושרה ✅\n\nתוסף Chrome אינו מחובר או מושהה. פתחו Chrome והפעילו את התוסף, ואז לחצו \"בדוק שוב\"." :
+              "הבחירה אושרה ✅\n\nכרגע ה-Runner לא מחובר מהמחשב שלך. אם המחשב פתוח, ה-Watchdog אמור להפעיל אותו אוטומטית. אפשר להמתין מעט ואז ללחוץ \"בדוק שוב\".",
 
           buttons: [
             {
@@ -2279,8 +2281,8 @@ export async function tryHandleCommissionAssistantInbound({
               : "";
 
           return preparation.alreadyExisted
-            ? `הריצה כבר נשלחה ל-Runner ✅\n${preparation.runIds.length} חברות נמצאות ב-Batch הקיים.${suffix}`
-            : `הריצה יצאה לדרך ✅\n\nנוצר Batch עם ${preparation.runIds.length} חברות והוא נשלח ל-Runner במחשב שלך. החברות ירוצו אחת אחרי השנייה.${suffix}`;
+            ? `הריצה כבר נשלחה לכלי ההרצה של הסוכן ✅\n${preparation.runIds.length} חברות נמצאות ב-Batch הקיים.${suffix}`
+            : `הריצה יצאה לדרך ✅\n\nנוצר Batch עם ${preparation.runIds.length} חברות והוא נשלח לכלי ההרצה של הסוכן במחשב שלך. החברות ירוצו אחת אחרי השנייה.${suffix}`;
         })(),
       });
 
@@ -2405,7 +2407,7 @@ export async function tryHandleCommissionAssistantInbound({
         conversationId,
 
         text:
-          "הבחירה שמורה. לחץ \"בדוק שוב\" כדי לבדוק אם ה-Runner מוכן ולהתחיל את הריצה.",
+          "הבחירה שמורה. לחץ \"בדוק שוב\" כדי לבדוק אם כלי ההרצה של הסוכן מוכן ולהתחיל את הריצה.",
 
         buttons: [
           {
@@ -2570,7 +2572,9 @@ export async function tryHandleCommissionAssistantInbound({
         conversationId,
 
         text:
-          "ה-Runner עדיין לא מחובר. ודא שהמחשב פתוח, המתן מעט ולחץ שוב על \"בדוק שוב\".",
+          preparation.executionMode === "extension" ?
+            "תוסף Chrome עדיין אינו מחובר או שהוא מושהה. בדקו שהוא פועל ומצומד לסוכן, ואז לחצו \"בדוק שוב\"." :
+            "ה-Runner עדיין לא מחובר. ודא שהמחשב פתוח, המתן מעט ולחץ שוב על \"בדוק שוב\".",
 
         buttons: [
           {
@@ -2761,8 +2765,8 @@ export async function tryHandleCommissionAssistantInbound({
             : "";
 
         return preparation.alreadyExisted
-          ? `הריצה כבר קיימת ונשלחה ל-Runner ✅${suffix}`
-          : `ה-Runner מוכן ✅\nנוצר Batch עם ${preparation.runIds.length} חברות והריצה יצאה לדרך.${suffix}`;
+          ? `הריצה כבר קיימת ונשלחה לכלי ההרצה של הסוכן ✅${suffix}`
+          : `כלי ההרצה של הסוכן מוכן ✅\nנוצר Batch עם ${preparation.runIds.length} חברות והריצה יצאה לדרך.${suffix}`;
       })(),
     });
 
@@ -2787,7 +2791,7 @@ export async function tryHandleCommissionAssistantInbound({
       conversationId,
 
       text:
-        `ריצת העמלות כבר נשלחה ל-Runner ✅${s((session as any)?.batchId) ? `\nBatch: ${s((session as any).batchId)}` : ""}`,
+        `ריצת העמלות כבר נשלחה לכלי ההרצה של הסוכן ✅${s((session as any)?.batchId) ? `\nBatch: ${s((session as any).batchId)}` : ""}`,
     });
 
     return {

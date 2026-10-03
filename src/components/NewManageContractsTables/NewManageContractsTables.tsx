@@ -1,4 +1,5 @@
 'use client';
+import { apiFetch } from '@/lib/apiFetch';
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -93,7 +94,9 @@ const { detail, user } = useAuth();
     "pension" | "finance" | "risk" | "elementary"
   >("pension");
 
-const effectiveAgentId = detail?.role === "admin"
+const canSelectAgent = detail?.role === "admin" || detail?.role === "manager";
+
+const effectiveAgentId = canSelectAgent
   ? selectedAgentId
   : detail?.agentId || "";
   
@@ -857,7 +860,7 @@ const handleUploadExcel = async (e: React.ChangeEvent<HTMLInputElement>) => {
     formData.append("file", file);
     formData.append("agentId", effectiveAgentId);
 
-    const res = await fetch("/api/contracts-template/upload", {
+    const res = await apiFetch("/api/contracts-template/upload", {
       method: "POST",
       body: formData,
     });
@@ -914,7 +917,7 @@ return (
   )}
 
   <div className="toolbar-actions">
-    {detail?.role === "admin" && (
+    {canSelectAgent && (
       <select value={selectedAgentId} onChange={handleAgentChange} className="select-input">
         <option value="">בחר סוכן</option>
         {agents.map((agent: any) => (

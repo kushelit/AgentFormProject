@@ -18,6 +18,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { admin } from '@/lib/firebase/firebase-admin';
 import { chunk, loadJobMeta, loadJobYms, loadTemplates, str } from '@/lib/insights/serverData';
 import { siblingReportFor } from '@/lib/anomalyRules';
+import { guardAgentAccess } from '@/lib/server/auth';
 
 export const maxDuration = 60;
 
@@ -32,6 +33,8 @@ const POLICY_FIELDS = [
 export async function POST(req: NextRequest) {
   try {
     const { agentId, action, ym, scope, companyId, templateId } = await req.json();
+    const denied = await guardAgentAccess(req, agentId, 'commission-comparison/by-ym');
+    if (denied) return denied;
     if (!agentId || !action) return NextResponse.json({ error: 'missing params' }, { status: 400 });
 
     const db = admin.firestore();

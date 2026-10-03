@@ -1,4 +1,5 @@
 'use client';
+import { apiFetch } from '@/lib/apiFetch';
 
 // src/components/commission/PremiumKpiCards.tsx
 import React, { useEffect, useState } from 'react';
@@ -69,7 +70,7 @@ const PremiumKpiCards: React.FC<Props> = ({ agentId, year }) => {
       setShowStale(false);
       setOpenCat(null);
       try {
-        const res = await fetch('/api/commission-summary-premium-kpis', {
+        const res = await apiFetch('/api/commission-summary-premium-kpis', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ agentId, year }),

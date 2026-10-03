@@ -22,6 +22,7 @@ import { createHash } from 'crypto';
 import { admin } from '@/lib/firebase/firebase-admin';
 import { computePremiumKpis, type PremiumKpiRow } from '@/utils/premiumKpis';
 import type { TemplateDoc } from '@/types/ContractCommissionComparison';
+import { guardAgentAccess } from '@/lib/server/auth';
 
 const CACHE_COLLECTION = 'premiumKpiCache';
 const CACHE_VERSION = 2;  // להעלות כשמשנים את לוגיקת החישוב — מבטל את כל המטמון
@@ -42,6 +43,8 @@ const tsMillis = (v: any): number =>
 export async function POST(req: NextRequest) {
   try {
     const { agentId, year } = await req.json();
+    const denied = await guardAgentAccess(req, agentId, 'commission-summary-premium-kpis');
+    if (denied) return denied;
 
     if (!agentId || !year) {
       return NextResponse.json({ error: 'missing params' }, { status: 400 });

@@ -4,6 +4,14 @@ import { parse } from 'querystring';
 import { admin } from '@/lib/firebase/firebase-admin';
 import { GROW_BASE_URL, APP_BASE_URL } from '@/lib/env';
 import { logRegistrationIssue } from '@/services/logRegistrationIssue';
+import {
+  buildMagicTouchPlanUpdatedEmail,
+  buildMagicTouchRenewalEmail,
+  buildMagicTouchWelcomeEmail,
+  generateMagicTouchPasswordResetLink,
+  sendMagicTouchEmail,
+} from '@/lib/MagicTouch/magicTouchAccountEmails';
+import { sendAppEmail } from '@/lib/server/sendAppEmail';
 
 export const dynamic = 'force-dynamic';
 
@@ -193,6 +201,10 @@ export async function POST(req: NextRequest) {
       }
     }
         const formattedPhone = formatPhone(phone);
+
+    // לקוח MagicTouch: מסלול MagicTouch בלבד, או הרשמה מדף ההרשמה של MagicTouch
+    const isMagicTouchOnlyPlan = subscriptionType === 'magic_touch';
+    const isMagicTouchCustomer = isMagicTouchOnlyPlan || source === 'magic-touch-signup';
 
     const rawSum = data['data[sum]'];
     const sumStr = Array.isArray(rawSum) ? rawSum[0] : rawSum || '0';
@@ -452,6 +464,8 @@ if (expiresAt) {
       if (subscriptionType && subscriptionType !== userData?.subscriptionType) updateFields.subscriptionType = subscriptionType;
       if (idNumber && idNumber !== userData?.idNumber) updateFields.idNumber = idNumber;
       if (pageCode && pageCode !== userData?.pageCode) updateFields.pageCode = pageCode;
+      // מנוי MagicTouch בלבד → אחרי התחברות נוחתים ב-MagicTouch
+      if (isMagicTouchOnlyPlan) updateFields.primarySystem = 'magictouch';
 
       // if (addOns && JSON.stringify(addOns) !== JSON.stringify(userData?.addOns)) {
       //   updateFields.addOns = {
@@ -525,30 +539,35 @@ if (
           // console.warn('[ensureMfaPhone] skipped:', (e as any)?.message || e);
         }
 
-        if (planChanged && !user.disabled) {
-          await fetch(`${APP_BASE_URL}/api/sendEmail`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              to: emailLower,
-              subject: 'עדכון תוכנית במערכת MagicSale',
-              html: `שלום ${fullName},<br><br>תוכנית המנוי שלך עודכנה בהצלחה במערכת MagicSale.<br>סוג מנוי נוכחי: <strong>${subscriptionType}</strong><br><br>תוכל להתחבר כאן: <a href="${APP_BASE_URL}/auth/log-in">כניסה למערכת</a>`,
-            }),
+        if (planChanged && !user.disabled && isMagicTouchCustomer) {
+          await sendMagicTouchEmail({
+            to: emailLower,
+            ...buildMagicTouchPlanUpdatedEmail({ fullName }),
+          });
+        } else if (planChanged && !user.disabled) {
+          await sendAppEmail({
+            to: emailLower,
+            subject: 'עדכון תוכנית במערכת MagicSale',
+            html: `שלום ${fullName},<br><br>תוכנית המנוי שלך עודכנה בהצלחה במערכת MagicSale.<br>סוג מנוי נוכחי: <strong>${subscriptionType}</strong><br><br>תוכל להתחבר כאן: <a href="${APP_BASE_URL}/auth/log-in">כניסה למערכת</a>`,
           });
         }
 
         if (user.disabled) await auth.updateUser(user.uid, { disabled: false });
 
-        const resetLink = await auth.generatePasswordResetLink(emailLower);
-        await fetch(`${APP_BASE_URL}/api/sendEmail`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
+        if (isMagicTouchCustomer) {
+          const mtResetLink = await generateMagicTouchPasswordResetLink(auth, emailLower);
+          await sendMagicTouchEmail({
+            to: emailLower,
+            ...buildMagicTouchRenewalEmail({ fullName, resetLink: mtResetLink }),
+          });
+        } else {
+          const resetLink = await auth.generatePasswordResetLink(emailLower);
+          await sendAppEmail({
             to: emailLower,
             subject: 'איפוס סיסמה לאחר חידוש מנוי',
             html: `שלום ${fullName},<br><br>המנוי שלך חודש בהצלחה.<br>לאיפוס סיסמה: <a href="${resetLink}">לחץ כאן</a>`,
-          }),
-        });
+          });
+        }
       } catch {
         // console.log('⚠️ Firebase Auth user not found for update');
       }
@@ -569,16 +588,20 @@ if (
       //  console.warn('[ensureMfaPhone] skipped:', (e as any)?.message || e); 
       }
 
-    const resetLink = await auth.generatePasswordResetLink(emailLower);
-    await fetch(`${APP_BASE_URL}/api/sendEmail`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
+    if (isMagicTouchCustomer) {
+      const mtResetLink = await generateMagicTouchPasswordResetLink(auth, emailLower);
+      await sendMagicTouchEmail({
+        to: emailLower,
+        ...buildMagicTouchWelcomeEmail({ fullName, resetLink: mtResetLink }),
+      });
+    } else {
+      const resetLink = await auth.generatePasswordResetLink(emailLower);
+      await sendAppEmail({
         to: emailLower,
         subject: 'ברוך/ה הבא/ה ל-MagicSale – הגדרת סיסמה',
         html: `שלום ${fullName},<br>תודה על ההרשמה! לקביעת סיסמה: <a href="${resetLink}">לחצו כאן</a>`,
-      }),
-    });
+      });
+    }
 
     const newUserData: any = {
       name: fullName,
@@ -620,6 +643,9 @@ if (
       pageCode: pageCode || null,
       isActive: true,
     };
+
+    // מנוי MagicTouch בלבד → אחרי התחברות נוחתים ב-MagicTouch
+    if (isMagicTouchOnlyPlan) newUserData.primarySystem = 'magictouch';
 
     if (typeof agenciesValue !== 'undefined') newUserData.agencies = agenciesValue;
     if (couponCode) newUserData.usedCouponCode = couponCode;

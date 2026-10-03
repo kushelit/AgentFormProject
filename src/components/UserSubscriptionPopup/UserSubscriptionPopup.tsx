@@ -1,4 +1,5 @@
 'use client';
+import { apiAxios } from '@/lib/apiFetch';
 
 import React, { useState } from 'react';
 import { ChangePlanModal } from '../ChangePlanModal/ChangePlanModal';
@@ -237,8 +238,7 @@ export const UserSubscriptionPopup: React.FC<UserSubscriptionPopupProps> = ({
     try {
       const idToken = await user.getIdToken();
 
-      const res = await axios.post(
-        '/api/updatePaymentMethod',
+      const res = await apiAxios.post('/api/updatePaymentMethod',
         {},
         {
           headers: {
@@ -310,8 +310,7 @@ export const UserSubscriptionPopup: React.FC<UserSubscriptionPopupProps> = ({
     setIsCancelling(true);
 
     try {
-      const res = await axios.post(
-        '/api/cancelSubscription',
+      const res = await apiAxios.post('/api/cancelSubscription',
         {
           id: userId,
           transactionToken,

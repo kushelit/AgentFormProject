@@ -10,10 +10,15 @@
 //      שאילתה רחבה אחת לפי runId בלבד - Firestore היה מחזיר את כל לקוחות אותה ריצה (נמדד: 9,670
 //      מסמכים מיותרים) ורק מסננים אח"כ בזיכרון; עכשיו Firestore עצמו מצמצם
 //   3. commissionTemplates: רץ במקביל (Promise, לא await) לכל שאר השרשרת - לא תלוי בשום דבר אחר
+//
+// mode: 'current' ("תיק נוכחי") — במקום ym אחד: לכל תבנית חודש הפרסום האחרון שלה ברמת הסוכן
+// (כמו קוביות "תיק נוכחי" בסקירה), ובתוכו חודש הדיווח האחרון. כל שורה חוזרת עם ym.
 // ═══════════════════════════════════════════════════════════════════
 
 import { NextRequest, NextResponse } from 'next/server';
 import { admin } from '@/lib/firebase/firebase-admin';
+import { loadJobMeta } from '@/lib/insights/serverData';
+import { guardAgentAccess } from '@/lib/server/auth';
 
 function roundTo2(num: number) {
   return Math.round(num * 100) / 100;
@@ -23,7 +28,15 @@ function canonOf(v: any): string {
   return String(v ?? '').replace(/\D/g, '').replace(/^0+/, '');
 }
 
+/** חודש דיווח לפורמט YYYY-MM (גם MM/YYYY או MM-YYYY) — להשוואה בין חודשים */
+function normMonth(v: any): string {
+  const s = String(v ?? '').trim().replace(/\//g, '-');
+  const m = s.match(/^(\d{1,2})-(\d{4})$/);
+  return m ? `${m[2]}-${m[1].padStart(2, '0')}` : s;
+}
+
 interface Row {
+  ym?: string;
   policyNumberKey: string;
   customerId: string;
   fullName?: string;
@@ -36,10 +49,13 @@ interface Row {
 }
 
 export async function POST(req: NextRequest) {
-  const { agentId, customerIds, ym } = await req.json();
+  const { agentId, customerIds, ym, mode } = await req.json();
+  const denied = await guardAgentAccess(req, agentId, 'customer-commission-by-ym');
+  if (denied) return denied;
+  const isCurrent = mode === 'current';
 
-  if (!agentId || !ym || !Array.isArray(customerIds) || !customerIds.length) {
-    return NextResponse.json({ error: 'missing params (agentId, customerIds, ym)' }, { status: 400 });
+  if (!agentId || (!ym && !isCurrent) || !Array.isArray(customerIds) || !customerIds.length) {
+    return NextResponse.json({ error: 'missing params (agentId, customerIds, ym | mode=current)' }, { status: 400 });
   }
 
   try {
@@ -65,23 +81,46 @@ export async function POST(req: NextRequest) {
     ));
     const t2 = Date.now();
 
-    // 2) כל ריצות הפורטל שהתפרסמו ב-ym הזה לסוכן, מצומצם לחברות הרלוונטיות בלבד
+    // 2) ריצות הפורטל של הסוכן, מצומצם לחברות הרלוונטיות בלבד.
+    //    רגיל: רק ב-ym המבוקש. תיק נוכחי: כל החודשים, ואז בחירה לפי תבנית (למטה).
     let portalRunsQuery: FirebaseFirestore.Query = db
       .collection('portalImportRuns')
-      .where('agentId', '==', agentId)
-      .where('resolvedWindow.ym', '==', String(ym).trim());
+      .where('agentId', '==', agentId);
+    if (!isCurrent) portalRunsQuery = portalRunsQuery.where('resolvedWindow.ym', '==', String(ym).trim());
 
     if (relevantCompanyIds.length > 0 && relevantCompanyIds.length <= 30) {
       portalRunsQuery = portalRunsQuery.where('companyId', 'in', relevantCompanyIds);
     }
     // אם יש יותר מ-30 חברות רלוונטיות (נדיר מאוד) - לא מסננים, נופלים חזרה להתנהגות הקודמת (כל הסוכן)
 
-    const portalRunsSnap = await portalRunsQuery.get();
+    const portalRunsSnap = await portalRunsQuery.select('resolvedWindow.ym', 'queue.jobIds').get();
 
-    const jobIds: string[] = [];
+    // jobId → חודש פרסום (אם אותה טעינה מופיעה בכמה ריצות — החודש המאוחר)
+    const ymByJobId: Record<string, string> = {};
     for (const d of portalRunsSnap.docs) {
-      const ids: string[] = d.data()?.queue?.jobIds || [];
-      jobIds.push(...ids);
+      const runYm = String(d.get('resolvedWindow.ym') || '').trim();
+      if (!runYm) continue;
+      const ids: string[] = d.get('queue.jobIds') || [];
+      for (const raw of ids) {
+        const id = String(raw || '').trim();
+        if (id && (!ymByJobId[id] || runYm > ymByJobId[id])) ymByJobId[id] = runYm;
+      }
+    }
+
+    let jobIds = Object.keys(ymByJobId);
+    // תיק נוכחי: templateId של כל טעינה (כולל ידנית מגושרת), ולכל תבנית רק טעינות חודש הפרסום האחרון שלה
+    let templateByJobId: Record<string, string> = {};
+    if (isCurrent && jobIds.length) {
+      const templatesSnap = await templatesPromise;
+      const hekefIds = new Set(templatesSnap.docs.filter((d) => !!d.data().hekefType).map((d) => d.id));
+      const jobMeta = await loadJobMeta(db, jobIds, hekefIds);
+      templateByJobId = Object.fromEntries(Object.entries(jobMeta).map(([id, m]) => [id, m.templateId]));
+
+      const latestYm: Record<string, string> = {};
+      for (const [id, tid] of Object.entries(templateByJobId)) {
+        if (!latestYm[tid] || ymByJobId[id] > latestYm[tid]) latestYm[tid] = ymByJobId[id];
+      }
+      jobIds = jobIds.filter((id) => templateByJobId[id] && ymByJobId[id] === latestYm[templateByJobId[id]]);
     }
     const t3 = Date.now();
 
@@ -130,7 +169,8 @@ export async function POST(req: NextRequest) {
       const r = doc.data() as any;
       if (!targetCanon.has(canonOf(r.customerId))) continue;
 
-      const tid = String(r.templateId || '');
+      const runId = String(r.runId || '').trim();
+      const tid = String(r.templateId || '') || templateByJobId[runId] || '';
       if (hekefTemplateIds.has(tid)) continue;
 
       const policyNumberKey = String(r.policyNumberKey || '').trim();
@@ -142,6 +182,7 @@ export async function POST(req: NextRequest) {
 
       if (!map.has(key)) {
         map.set(key, {
+          ym: ymByJobId[runId],
           policyNumberKey,
           customerId,
           fullName: r.fullName ? String(r.fullName).trim() : undefined,
@@ -162,7 +203,20 @@ export async function POST(req: NextRequest) {
       if (!agg.product && r.product) agg.product = String(r.product).trim();
     }
 
-    const rows = Array.from(map.values()).map((r) => ({
+    let aggregated = Array.from(map.values());
+
+    // תיק נוכחי: בתוך חודש הפרסום — רק חודש הדיווח האחרון של כל תבנית
+    // (יתרת צבירה אסור לסכום על פני חודשים; תיקוני רטרו לא נכנסים לתמונה השוטפת)
+    if (isCurrent) {
+      const maxReportMonth: Record<string, string> = {};
+      for (const r of aggregated) {
+        const m = normMonth(r.reportMonth);
+        if (!maxReportMonth[r.templateId] || m > maxReportMonth[r.templateId]) maxReportMonth[r.templateId] = m;
+      }
+      aggregated = aggregated.filter((r) => normMonth(r.reportMonth) === maxReportMonth[r.templateId]);
+    }
+
+    const rows = aggregated.map((r) => ({
       ...r,
       totalCommissionAmount: roundTo2(r.totalCommissionAmount),
       totalPremiumAmount: roundTo2(r.totalPremiumAmount),

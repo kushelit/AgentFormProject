@@ -16,6 +16,7 @@ import { generateNifraimFromLoadReport } from '@/app/Reports/generators/generate
 
 import { admin } from '@/lib/firebase/firebase-admin';
 import { checkServerPermission } from '@/services/server/checkServerPermission';
+import { guardAgentAccess } from '@/lib/server/auth';
 export const runtime = 'nodejs';
 export const maxDuration = 60;
 
@@ -31,6 +32,8 @@ export async function POST(req: NextRequest) {
   try {
     const body: any = await req.json();
     let { reportType, emailTo, uid, userEmail } = body;
+    const denied = await guardAgentAccess(req, body?.agentId, 'sendReport');
+    if (denied) return denied;
 
     if (!reportType) return NextResponse.json({ error: 'Missing reportType' }, { status: 400 });
     if (!emailTo)   return NextResponse.json({ error: 'Missing emailTo' }, { status: 400 });

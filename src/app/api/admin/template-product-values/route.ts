@@ -6,12 +6,15 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { admin } from '@/lib/firebase/firebase-admin';
+import { guardAdmin } from '@/lib/server/auth';
 
 export const maxDuration = 60;
 
 const MAX_VALUES = 2000;
 
 export async function POST(req: NextRequest) {
+const denied = await guardAdmin(req, 'admin/template-product-values');
+if (denied) return denied;
   try {
     const { templateId } = await req.json();
     if (!templateId) return NextResponse.json({ error: 'missing templateId' }, { status: 400 });

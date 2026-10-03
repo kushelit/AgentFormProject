@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { admin } from "@/lib/firebase/firebase-admin";
 import { CONTRACTS_TABLES_CONFIG } from "@/config/contractsTablesConfig";
 import { generateContractsTemplateExcel } from "@/components/NewManageContractsTables/generateContractsTemplateExcel";
+import { guardAgentAccess } from '@/lib/server/auth';
 
 export const runtime = "nodejs";
 
@@ -9,6 +10,8 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const agentId = searchParams.get("agentId") || "";
+    const denied = await guardAgentAccess(request, agentId, 'contracts-template/download');
+    if (denied) return denied;
 
     const db = admin.firestore();
 

@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from '@/lib/apiFetch';
 
 import { useEffect, useState } from "react";
 import { parseCurrentStateFromMeslekaZip } from "@/lib/pension/parseCurrentStateFromMeslekaZip";
@@ -47,7 +48,7 @@ const [insuranceGroups, setInsuranceGroups] = useState<{ idNumber: string; rows:
       // טען gemelnet פעם אחת
       let gemelMap: GemelNetMap | null = null;
       try {
-        const res = await fetch("/api/gemelnet/data");
+        const res = await apiFetch("/api/gemelnet/data");
         if (res.ok) {
           const data = await res.json();
           if (data.exists && Array.isArray(data.entries)) {
@@ -183,7 +184,7 @@ setInsuranceGroups(
 
 useEffect(() => {
   if (!user) return;
-  fetch(`/api/insurance/pdf-quota?agentUid=${user.uid}`)
+  apiFetch(`/api/insurance/pdf-quota?agentUid=${user.uid}`)
     .then((r) => r.json())
     .then(setPdfQuota)
     .catch(() => {});

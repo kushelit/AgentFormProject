@@ -1,55 +1,23 @@
 import { NextResponse } from 'next/server';
-import sgMail from '@sendgrid/mail';
-import { captureRejectionSymbol } from 'events';
-import { admin } from '@/lib/firebase/firebase-admin';
+import { guardAdmin } from '@/lib/server/auth';
+import { sendAppEmail } from '@/lib/server/sendAppEmail';
 
-
-//https://agent-form-project.vercel.app/api/sendEmail
-
-// הוסיפי את מפתח ה-API שקיבלת מ-SendGrid
-sgMail.setApiKey(process.env.SENDGRID_API_KEY);
-
-//recovery sgMail KNFSCFQR593PYVD9N1RCZD6U
-
+// Admin-only HTTP route (admin screens). Server code calls sendAppEmail() directly.
 export async function POST(req) {
+  const denied = await guardAdmin(req, 'sendEmail');
+  if (denied) return denied;
   try {
-    const body = await req.json();
-    const { to, subject, text, html } = body; // פרטי המייל
-    // console.log("body " + body)
-    // ודא שכל השדות נשלחו
+    const { to, subject, text, html, fromName } = await req.json();
     if (!to || !subject || (!text && !html)) {
       return NextResponse.json(
         { error: 'Missing required fields: to, subject, and text or html' },
         { status: 400 }
       );
     }
-
-    const msg = {
-      to,
-      from: {
-        email: 'admin@magicsale.co.il',
-        name: 'MagicSale' 
-      },
-      subject,
-      text,
-      html,
-    };
-
-    await sgMail.send(msg);
-    const db = admin.firestore();
-await db.collection('emailLogs').add({
-  to,
-  subject,
-  html: html || null,
-  text: text || null,
-  createdAt: admin.firestore.FieldValue.serverTimestamp(),
-});
-
+    const result = await sendAppEmail({ to, subject, text, html, fromName });
+    if (!result.success) return NextResponse.json({ error: 'Failed to send email' }, { status: 500 });
     return NextResponse.json({ message: 'Email sent successfully!' }, { status: 200 });
-    captureRejectionSymbol.log("Email sent successfully!")
-
   } catch (error) {
-    // console.error('Error sending email:', error);
     return NextResponse.json({ error: 'Failed to send email' }, { status: 500 });
   }
 }

@@ -63,6 +63,13 @@ export default function RootLayout({
     pathname === '/MagicTouchUpload' ||
     pathname.startsWith('/MagicTouchUpload/');
 
+  // עמודי חשבון של MagicTouch: התחברות, איפוס סיסמה וסיום תשלום
+  const isMagicTouchAccountPage =
+    pathname === '/MagicTouchLogin' ||
+    pathname === '/MagicTouchResetPassword' ||
+    pathname === '/MagicTouchPaymentSuccess' ||
+    pathname === '/MagicTouchPaymentFailed';
+
   // כל האזור הציבורי של MagicTouch
   const isMagicTouchPublicPage =
     isMagicTouchLandingPage ||
@@ -70,6 +77,7 @@ export default function RootLayout({
     isMagicTouchTermsPage ||
     isMagicTouchPrivacyPage ||
     isMagicTouchSupportPage ||
+    isMagicTouchAccountPage ||
     isMagicTouchUploadPage;
 
   // =========================================================

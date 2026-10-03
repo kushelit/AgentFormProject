@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { admin } from "@/lib/firebase/firebase-admin";
+import { guardDocOwner } from '@/lib/server/auth';
 
 export const runtime = "nodejs";
 
@@ -23,6 +24,8 @@ async function deleteAllMatching(db: FirebaseFirestore.Firestore, collectionName
 export async function POST(req: NextRequest) {
   try {
     const { runId } = await req.json();
+    const denied = await guardDocOwner(req, { collection: 'importRuns', id: runId, ownerField: 'agentId' }, 'import-runs/delete');
+    if (denied) return denied;
 
     if (!runId) {
       return NextResponse.json({ error: "missing runId" }, { status: 400 });

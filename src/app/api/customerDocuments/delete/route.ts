@@ -2,6 +2,7 @@ export const runtime = 'nodejs';
 
 import { NextResponse } from 'next/server';
 import { admin } from '@/lib/firebase/firebase-admin';
+import { guardDocOwner } from '@/lib/server/auth';
 
 export async function POST(req: Request) {
   try {
@@ -20,6 +21,8 @@ export async function POST(req: Request) {
     }
 
     const data = docSnap.data();
+    const denied = await guardDocOwner(req, { collection: 'customer', id: data?.customerId, ownerField: 'AgentId' }, 'customerDocuments/delete');
+    if (denied) return denied;
     const bucketName = String(data?.bucket || '').trim();
     const storagePath = String(data?.storagePath || '').trim();
 

@@ -23,6 +23,7 @@ import {
   type PortfolioIndex,
 } from '@/lib/insights/serverData';
 import { PORTFOLIO_FIELDS, type PortfolioCategory, type PortfolioPolicyRow } from '@/types/agentInsights';
+import { guardAgentAccess } from '@/lib/server/auth';
 
 export const maxDuration = 60;
 
@@ -31,6 +32,8 @@ const UNKNOWN_COMPANY = 'חברה לא ידועה';
 export async function POST(req: NextRequest) {
   try {
     const { agentId, year, category, company } = await req.json();
+    const denied = await guardAgentAccess(req, agentId, 'agent-insights/policies');
+    if (denied) return denied;
     if (!agentId || !year || !company || !(PORTFOLIO_FIELDS as readonly string[]).includes(category)) {
       return NextResponse.json({ error: 'missing params' }, { status: 400 });
     }

@@ -1,4 +1,5 @@
 'use client';
+import { apiFetch } from '@/lib/apiFetch';
 
 import { useEffect, useState, useMemo } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
@@ -74,6 +75,7 @@ interface ExternalRow {
   commissionAmount: number;
   totalPremiumAmount?: number;
   reportMonth?: string;
+  ym?: string; // חודש פרסום (במצב "תיק נוכחי")
   templateId?: string;
   customerId?: string | null;
   customerName?: string;
@@ -224,7 +226,7 @@ export default function CustomerPage() {
   const [templatesById, setTemplatesById] = useState<Record<string, any>>({});
 
   const [reportMonth, setReportMonth] = useState(currentMonth);
-  const [nifraimFilterMode, setNifraimFilterMode] = useState<'report' | 'publish'>('publish');
+  const [nifraimFilterMode, setNifraimFilterMode] = useState<'current' | 'report' | 'publish'>('current');
   const [externalRows, setExternalRows] = useState<ExternalRow[]>([]);
   const [loadingExternal, setLoadingExternal] = useState(false);
 
@@ -479,13 +481,13 @@ const calculateCommissions = (sale: any, contractMatch: any) => {
         setExternalRows(rows);
         setExternalTotal(Number(total.toFixed(2)));
       } else {
-        const res = await fetch('/api/customer-commission-by-ym', {
+        const res = await apiFetch('/api/customer-commission-by-ym', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             agentId: customer.AgentId,
             customerIds: padded,
-            ym: reportMonth,
+            ...(nifraimFilterMode === 'current' ? { mode: 'current' } : { ym: reportMonth }),
           }),
         });
 
@@ -506,6 +508,7 @@ const calculateCommissions = (sale: any, contractMatch: any) => {
           commissionAmount: Number(r.totalCommissionAmount || 0),
           totalPremiumAmount: Number(r.totalPremiumAmount || 0),
           reportMonth: r.reportMonth,
+          ym: r.ym ?? undefined,
           templateId: r.templateId ?? undefined,
           customerId: r.customerId ?? null,
           customerName: r.customerId ? (familyNameByCanon.get(canonId(r.customerId)) || '') : '',
@@ -694,6 +697,13 @@ const calculateCommissions = (sale: any, contractMatch: any) => {
         return { ...ext, magicVal, gap, displayProduct };
       });
   }, [externalRows, magicSales, templatesById]);
+
+  // תיק נוכחי: חודש הפרסום החדש ביותר בטבלה — שורות מחודש ישן יותר מסומנות
+  const showNifraimYm = nifraimFilterMode === 'current';
+  const nifraimLatestYm = useMemo(
+    () => externalRows.reduce((max, r) => (r.ym && r.ym > max ? r.ym : max), ''),
+    [externalRows],
+  );
 
   const nifraimCompanyOptions = useMemo(
     () => Array.from(new Set(externalRows.map(r => r.company).filter(Boolean))).sort(),
@@ -1104,6 +1114,14 @@ const calculateCommissions = (sale: any, contractMatch: any) => {
               <div className="cp-nifraim-mode-toggle">
                 <button
                   type="button"
+                  className={`cp-mode-btn${nifraimFilterMode === 'current' ? ' cp-mode-btn-active' : ''}`}
+                  onClick={() => setNifraimFilterMode('current')}
+                  title="לכל דוח — חודש הפרסום האחרון שלו (גם אם דוח מסוים עדיין לא הורד החודש)"
+                >
+                  תיק נוכחי
+                </button>
+                <button
+                  type="button"
                   className={`cp-mode-btn${nifraimFilterMode === 'report' ? ' cp-mode-btn-active' : ''}`}
                   onClick={() => setNifraimFilterMode('report')}
                 >
@@ -1118,14 +1136,18 @@ const calculateCommissions = (sale: any, contractMatch: any) => {
                 </button>
               </div>
               <span className="cp-month-bar-divider" />
-              <label>{nifraimFilterMode === 'report' ? 'חודש דיווח:' : 'חודש פרסום:'}</label>
-              <input
-                type="month"
-                value={reportMonth}
-                onChange={e => setReportMonth(e.target.value)}
-                className="cp-month-input"
-              />
-              <span className="cp-month-bar-divider" />
+              {nifraimFilterMode !== 'current' && (
+                <>
+                  <label>{nifraimFilterMode === 'report' ? 'חודש דיווח:' : 'חודש פרסום:'}</label>
+                  <input
+                    type="month"
+                    value={reportMonth}
+                    onChange={e => setReportMonth(e.target.value)}
+                    className="cp-month-input"
+                  />
+                  <span className="cp-month-bar-divider" />
+                </>
+              )}
               <label>חברה:</label>
               <select
                 className="cp-month-input"
@@ -1150,7 +1172,9 @@ const calculateCommissions = (sale: any, contractMatch: any) => {
             {loadingExternal ? (
               <div className="cp-loading-inline">טוען...</div>
             ) : nifraimFilteredByGroup.length === 0 ? (
-              <div className="cp-empty">אין נתוני פוליסות לחודש זה</div>
+              <div className="cp-empty">
+                {nifraimFilterMode === 'current' ? 'אין פוליסות מטעינה ללקוח זה' : 'אין נתוני פוליסות לחודש זה'}
+              </div>
             ) : (
               <table className="cp-table">
                 <thead>
@@ -1166,6 +1190,7 @@ const calculateCommissions = (sale: any, contractMatch: any) => {
                     <th>מוצר</th>
                     <th>מוצר מקורי (מהטעינה)</th>
                     <th>מספר פוליסה</th>
+                    {showNifraimYm && <th>חודש פרסום</th>}
                     <th>פרמיה / צבירה</th>
                     {canViewCommissions && <th>עמלה</th>}
                   </tr>
@@ -1178,6 +1203,18 @@ const calculateCommissions = (sale: any, contractMatch: any) => {
                       <td>{r.displayProduct}</td>
                       <td>{r.product || '—'}</td>
                       <td>{r.policyNumber || '—'}</td>
+                      {showNifraimYm && (
+                        r.ym && r.ym < nifraimLatestYm ? (
+                          <td
+                            style={{ color: '#b45309', fontWeight: 600 }}
+                            title={`הדוח של ${r.company} עדיין לא פורסם ל-${nifraimLatestYm} — מוצג החודש האחרון שלו`}
+                          >
+                            ⚠ {r.ym}
+                          </td>
+                        ) : (
+                          <td>{r.ym || '—'}</td>
+                        )
+                      )}
                       <td>
                         {r.totalPremiumAmount
                           ? r.totalPremiumAmount.toLocaleString()
@@ -1192,7 +1229,7 @@ const calculateCommissions = (sale: any, contractMatch: any) => {
                 {canViewCommissions && (
                   <tfoot>
                     <tr>
-                      <td colSpan={includeFamily ? 6 : 5} style={{ fontWeight: 'bold', textAlign: 'left' }}>
+                      <td colSpan={(includeFamily ? 6 : 5) + (showNifraimYm ? 1 : 0)} style={{ fontWeight: 'bold', textAlign: 'left' }}>
                         סה&quot;כ עמלות{(nifraimCompanyFilter || nifraimGroupFilter) ? ' (מסונן)' : ''}
                       </td>
                       <td style={{ fontWeight: 'bold' }}>

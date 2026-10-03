@@ -384,7 +384,13 @@ export default function IdleSessionManager() {
 
           await logOut();
 
-window.location.replace('/auth/log-in?reason=idle');
+          // משתמש שעבד ב-MagicTouch חוזר למסך הכניסה של MagicTouch
+          const loginPath =
+            window.location.pathname.startsWith('/MagicTouch')
+              ? '/MagicTouchLogin'
+              : '/auth/log-in';
+
+          window.location.replace(`${loginPath}?reason=idle`);
         } catch (error) {
           logoutStartedRef.current =
             false;

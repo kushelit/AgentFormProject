@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import ExcelJS from "exceljs";
 import { admin } from "@/lib/firebase/firebase-admin";
 import { PENSION_FINANCE_AGENCY4_STATUSES } from "@/utils/pensionFinanceAgency4Statuses";
+import { guardAgentAccess } from '@/lib/server/auth';
 
 export const runtime = "nodejs";
 
@@ -60,6 +61,8 @@ export async function POST(req: NextRequest) {
     const formData = await req.formData();
     const file = formData.get("file") as File | null;
     const agentId = String(formData.get("agentId") || "").trim();
+    const denied = await guardAgentAccess(req, agentId, 'pension-finance-template/upload');
+    if (denied) return denied;
 
     if (!file || !agentId) {
       return NextResponse.json({ error: "missing file or agentId" }, { status: 400 });

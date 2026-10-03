@@ -264,14 +264,23 @@ let calculatedTotal =
     const normalizedEmail = emailLower;
     const customField = `MAGICSALE-${normalizedEmail}`;
 
+    // הרשמה מדף MagicTouch (או מסלול MagicTouch בלבד) חוזרת לעמודים ממותגי MagicTouch
+    const isMagicTouchSignup =
+      source === 'magic-touch-signup' ||
+      plan === 'magic_touch';
+
+    const successPath = isMagicTouchSignup ? '/MagicTouchPaymentSuccess' : '/payment-success';
+
     const successUrl =
-      `${APP_BASE_URL}/payment-success?fullName=${encodeURIComponent(fullName)}` +
+      `${APP_BASE_URL}${successPath}?fullName=${encodeURIComponent(fullName)}` +
       `&email=${encodeURIComponent(normalizedEmail)}` +
       `&phone=${encodeURIComponent(phone)}` +
       `&customField=${encodeURIComponent(customField)}` +
       `&plan=${plan}`;
 
-    const cancelUrl = `${APP_BASE_URL}/payment-failed`;
+    const cancelUrl = isMagicTouchSignup
+      ? `${APP_BASE_URL}/MagicTouchPaymentFailed`
+      : `${APP_BASE_URL}/payment-failed`;
 
     const formData = new URLSearchParams();
     formData.append('pageCode', GROW_PAGE_CODE);

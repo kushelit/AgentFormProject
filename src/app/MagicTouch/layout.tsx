@@ -42,6 +42,13 @@ export default function MagicTouchLayout({
     setIsClient(true);
   }, []);
 
+  // משתמש לא מחובר → מסך הכניסה של MagicTouch
+  useEffect(() => {
+    if (!isLoading && !user) {
+      window.location.replace('/MagicTouchLogin');
+    }
+  }, [isLoading, user]);
+
   if (!isClient) {
     return null;
   }
@@ -63,7 +70,10 @@ export default function MagicTouchLayout({
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-50">
         <div className="rounded-xl bg-white p-6 shadow">
-          נדרש להתחבר למערכת.
+          נדרש להתחבר למערכת.{' '}
+          <a href="/MagicTouchLogin" className="font-semibold text-cyan-700 hover:underline">
+            לכניסה ל-MagicTouch
+          </a>
         </div>
       </div>
     );

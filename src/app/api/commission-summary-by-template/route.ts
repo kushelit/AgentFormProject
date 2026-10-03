@@ -14,9 +14,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { admin } from '@/lib/firebase/firebase-admin';
 import { jobIdsForYm, loadTemplateInfo, queryByRunIds } from '@/lib/server/drillHelpers';
+import { guardAgentAccess } from '@/lib/server/auth';
 
 export async function POST(req: NextRequest) {
   const { agentId, companyId, year, ym } = await req.json();
+  const denied = await guardAgentAccess(req, agentId, 'commission-summary-by-template');
+  if (denied) return denied;
 
   if (!agentId || !companyId) {
     return NextResponse.json({ error: 'missing params' }, { status: 400 });

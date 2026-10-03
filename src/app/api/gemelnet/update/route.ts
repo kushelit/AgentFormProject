@@ -15,8 +15,11 @@ import {
   loadGemelNetFromFirestore,
   loadPensiaNetFromFirestore,
 } from "@/lib/pension/gemelNetStorage";
+import { guardAdmin } from '@/lib/server/auth';
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const denied = await guardAdmin(req, 'gemelnet/update');
+  if (denied) return denied;
   try {
     const [gemel, pensia] = await Promise.all([
       loadGemelNetFromFirestore(),
@@ -50,6 +53,8 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+const denied = await guardAdmin(req, 'gemelnet/update');
+if (denied) return denied;
   try {
     const { searchParams } = new URL(req.url);
     const type = searchParams.get("type") ?? "gemel"; // "gemel" או "pensia"

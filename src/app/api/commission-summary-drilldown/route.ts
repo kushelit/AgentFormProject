@@ -17,6 +17,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { admin } from '@/lib/firebase/firebase-admin';
 import { jobIdsForYm, loadTemplateInfo, queryByRunIds } from '@/lib/server/drillHelpers';
+import { guardAgentAccess } from '@/lib/server/auth';
 
 const roundTo2 = (n: number) => Math.round(n * 100) / 100;
 
@@ -34,6 +35,8 @@ type DrillRow = {
 
 export async function POST(req: NextRequest) {
   const { agentId, companyId, agentCode, reportMonth, templateId, ym, groupByAgent } = await req.json();
+  const denied = await guardAgentAccess(req, agentId, 'commission-summary-drilldown');
+  if (denied) return denied;
 
   if (!agentId || !companyId || !reportMonth || (!agentCode && !groupByAgent)) {
     return NextResponse.json({ error: 'missing params' }, { status: 400 });

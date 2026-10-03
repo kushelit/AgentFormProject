@@ -1,4 +1,5 @@
 'use client';
+import { apiFetch } from '@/lib/apiFetch';
 // components/ImportRunsManager/ImportRunsManager.tsx
 
 import React, { useEffect, useState } from 'react';
@@ -57,7 +58,7 @@ const ImportRunsManager: React.FC<Props> = ({ agentId, onClose, onDeleted }) => 
     setLoading(true);
     setError('');
     try {
-      const res = await fetch(`/api/import-runs/list?agentId=${agentId}`);
+      const res = await apiFetch(`/api/import-runs/list?agentId=${agentId}`);
       const data = await res.json();
       if (!res.ok) {
         setError(data.detail || data.error || 'שגיאה בטעינת הרשימה');
@@ -81,7 +82,7 @@ const ImportRunsManager: React.FC<Props> = ({ agentId, onClose, onDeleted }) => 
 
     setDeletingId(run.runId);
     try {
-      const res = await fetch('/api/import-runs/delete', {
+      const res = await apiFetch('/api/import-runs/delete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ runId: run.runId }),

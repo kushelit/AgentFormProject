@@ -1,4 +1,5 @@
 'use client';
+import { apiFetch } from '@/lib/apiFetch';
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import useFetchAgentData from '@/hooks/useFetchAgentData';
@@ -109,7 +110,7 @@ const CommissionSummaryHekefTab: React.FC = () => {
       }
       setLoading(true);
       try {
-        const res = await fetch('/api/hekef-summary', {
+        const res = await apiFetch('/api/hekef-summary', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ agentId: selectedAgentId, year: selectedYear }),
@@ -136,7 +137,7 @@ const CommissionSummaryHekefTab: React.FC = () => {
       setIsYearlyLoading(true);
       setYearlyPolicies([]);
       try {
-        const res = await fetch('/api/hekef-summary-yearly-analysis', {
+        const res = await apiFetch('/api/hekef-summary-yearly-analysis', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ agentId: selectedAgentId, year: selectedYear }),
@@ -172,7 +173,7 @@ const CommissionSummaryHekefTab: React.FC = () => {
     setDrillLoading(true);
     setDrillRows([]);
     try {
-      const res = await fetch('/api/hekef-summary-drilldown', {
+      const res = await apiFetch('/api/hekef-summary-drilldown', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ agentId: selectedAgentId, companyId, agentCode, reportMonth: month }),

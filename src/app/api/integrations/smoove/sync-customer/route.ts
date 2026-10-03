@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { admin } from "@/lib/firebase/firebase-admin";
+import { guardAgentAccess } from '@/lib/server/auth';
 
 type SmooveFlags = {
   lifeRisk: boolean;
@@ -20,6 +21,8 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));
     const agentId = normStr(body.agentId);
+    const denied = await guardAgentAccess(req, agentId, 'integrations/smoove/sync-customer');
+    if (denied) return denied;
     const IDCustomer = normStr(body.IDCustomer);
 
     if (!agentId || !IDCustomer) {

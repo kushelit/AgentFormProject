@@ -1,3 +1,4 @@
+import { apiAxios } from '@/lib/apiFetch';
 // ✅ ChangePlanModal.tsx – עדכני
 'use client';
 
@@ -179,7 +180,7 @@ export const ChangePlanModal: React.FC<ChangePlanModalProps> = ({
   useEffect(() => {
     const fetchPlans = async () => {
       try {
-        const res = await axios.get('/api/subscription-plans');
+        const res = await apiAxios.get('/api/subscription-plans');
 
         const allPlans: Plan[] = Array.isArray(res.data)
           ? res.data
@@ -225,7 +226,7 @@ export const ChangePlanModal: React.FC<ChangePlanModalProps> = ({
 
   const checkCoupon = async (code: string, plan: string) => {
     try {
-      const res = await axios.post('/api/validate-coupon', {
+      const res = await apiAxios.post('/api/validate-coupon', {
         couponCode: code.trim(),
         plan,
       });
@@ -272,7 +273,7 @@ export const ChangePlanModal: React.FC<ChangePlanModalProps> = ({
     try {
       if (hasGrow) {
         // זרימה 2 – עדכון הוראת קבע קיימת
-        const res = await axios.post('/api/upgrade-plan', {
+        const res = await apiAxios.post('/api/upgrade-plan', {
           id: userId,
           transactionToken,
           transactionId,
@@ -295,7 +296,7 @@ export const ChangePlanModal: React.FC<ChangePlanModalProps> = ({
         }, 1500);
       } else {
         // זרימה 3 – יצירת הוראת קבע חדשה למשתמש קיים (UID קיים)
-        const { data } = await axios.post('/api/create-subscription', {
+        const { data } = await apiAxios.post('/api/create-subscription', {
           existingUserUid: userId,                // ⭐ מקשר ל-UID הקיים
           source: 'existing-user-upgrade',        // ⭐ שה-webhook יידע לא ליצור יוזר
           plan: selectedPlan,

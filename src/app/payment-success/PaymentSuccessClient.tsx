@@ -21,10 +21,7 @@ export default function PaymentSuccessClient() {
     setStatus(`🎉 תודה על התשלום, ${name}! 
     החשבון שלך נוצר כעת, ונשלח אליך מייל עם קישור להגדרת סיסמה.
 
-    ⚠️ אם לא התקבל מייל תוך מספר דקות, בדוק/י בתיקיית הספאם.
-
-    // ✉️ ניתן גם לאפס סיסמה ישירות כאן: 
-    // https://test.magicsale.co.il/auth/reset-password`);
+    ⚠️ אם לא התקבל מייל תוך מספר דקות, בדוק/י בתיקיית הספאם.`);
   }, [searchParams]);
 
   return (

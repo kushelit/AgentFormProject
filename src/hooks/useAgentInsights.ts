@@ -1,3 +1,4 @@
+import { apiFetch } from '@/lib/apiFetch';
 // src/hooks/useAgentInsights.ts
 // טוען את נתוני הסקירה (/api/agent-insights) ואחריהם את סקירת ה-AI.
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -28,7 +29,7 @@ export default function useAgentInsights(agentId: string, year: string, reloadKe
       setAiLoading(true);
       setAiError(null);
       try {
-        const res = await fetch('/api/agent-insights/ai', {
+        const res = await apiFetch('/api/agent-insights/ai', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ agentId, year, force }),

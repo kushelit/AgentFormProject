@@ -1,3 +1,4 @@
+import { apiFetch } from '@/lib/apiFetch';
 // src/lib/portalRuns/triggerPortalRun.ts
 
 export type TriggerPortalRunResult = {
@@ -8,7 +9,7 @@ export type TriggerPortalRunResult = {
 };
 
 export async function triggerPortalRun(runId: string) {
-  const res = await fetch(`/api/portal-run`, {
+  const res = await apiFetch(`/api/portal-run`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ runId }),

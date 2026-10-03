@@ -1,7 +1,7 @@
 // /app/api/reviveWorker/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { admin } from '@/lib/firebase/firebase-admin';
-import { APP_BASE_URL } from '@/lib/env';
+import { sendAppEmail } from '@/lib/server/sendAppEmail';
 
 const canon = (v: any) => String(v ?? '').trim();
 const normEmail = (v: any) => canon(v).toLowerCase();
@@ -215,13 +215,10 @@ export async function POST(req: NextRequest) {
     /** ✅ 7) Send password reset email */
     const resetLink = await auth.generatePasswordResetLink(cleanEmail);
 
-    await fetch(`${APP_BASE_URL}/api/sendEmail`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        to: cleanEmail,
-        subject: 'הוזמנת למערכת MagicSale',
-        html: `
+    await sendAppEmail({
+      to: cleanEmail,
+      subject: 'הוזמנת למערכת MagicSale',
+      html: `
           שלום ${cleanName},<br><br>
           ${isNew ? 'נוצר עבורך משתמש חדש' : 'המשתמש שלך חודש'} במערכת MagicSale.<br>
           להשלמת ההתחברות, לחץ על הקישור הבא כדי לקבוע סיסמה:<br>
@@ -229,7 +226,6 @@ export async function POST(req: NextRequest) {
           בברכה,<br>
           צוות MagicSale
         `,
-      }),
     });
 
     return NextResponse.json({

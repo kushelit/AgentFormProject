@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { admin } from '@/lib/firebase/firebase-admin';
+import { guardAgentAccess } from '@/lib/server/auth';
 
 export async function POST(req: NextRequest) {
   const { agentId, companyId, agentCode, reportMonth } = await req.json();
+  const denied = await guardAgentAccess(req, agentId, 'hekef-summary-drilldown');
+  if (denied) return denied;
 
   if (!agentId || !companyId || !agentCode || !reportMonth) {
     return NextResponse.json({ error: 'missing params' }, { status: 400 });

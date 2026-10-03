@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { admin } from "@/lib/firebase/firebase-admin";
 import { AiError, callClaude, extractJson } from "@/lib/ai/client";
 import { estimateCostUsd } from "@/lib/ai/pricing";
+import { guardAgentAccess } from '@/lib/server/auth';
 
 export const maxDuration = 60;
 
@@ -35,6 +36,8 @@ export async function POST(req: NextRequest) {
     const formData = await req.formData();
     const file = formData.get("file") as File;
     const agentUid = formData.get("agentUid") as string;
+    const denied = await guardAgentAccess(req, agentUid, 'insurance/parse-policy');
+    if (denied) return denied;
 
     if (!file) return NextResponse.json({ error: "לא נשלח קובץ" }, { status: 400 });
     if (!agentUid) return NextResponse.json({ error: "לא זוהה משתמש" }, { status: 401 });

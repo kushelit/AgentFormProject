@@ -1,4 +1,5 @@
 'use client';
+import { apiFetch } from '@/lib/apiFetch';
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/lib/firebase/AuthContext';
@@ -68,7 +69,7 @@ const CommissionSummaryAgencyMatrixTab: React.FC = () => {
 
       setLoading(true);
       try {
-        const res = await fetch('/api/admin/commission-summary-matrix', {
+        const res = await apiFetch('/api/admin/commission-summary-matrix', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

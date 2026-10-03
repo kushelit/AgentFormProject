@@ -1,4 +1,5 @@
 'use client';
+import { apiFetch } from '@/lib/apiFetch';
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -277,7 +278,7 @@ export default function MeetingsDashboard() {
         ];
       });
 
-      const res = await fetch('/api/export-report', {
+      const res = await apiFetch('/api/export-report', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ sheetName: 'תהליך פגישות', headers, rows }),

@@ -3,7 +3,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { admin } from '@/lib/firebase/firebase-admin';
 import axios from 'axios';
 import { GROW_ENDPOINTS } from '@/lib/growApi';
-import { APP_BASE_URL, GROW_USER_ID } from '@/lib/env';
+import { GROW_USER_ID } from '@/lib/env';
+import { guardSelfOrAdmin } from '@/lib/server/auth';
+import { sendCancelSubscriptionEmail } from '@/lib/server/sendAppEmail';
 
 
 export async function POST(req: NextRequest) {
@@ -17,6 +19,8 @@ export async function POST(req: NextRequest) {
       updates,
       sendCancelEmail
     } = await req.json();
+    const denied = await guardSelfOrAdmin(req, id, 'cancelSubscription');
+    if (denied) return denied;
 
     const db = admin.firestore();
     let userDocRef = null;
@@ -185,12 +189,7 @@ export async function POST(req: NextRequest) {
 
     // שליחת מייל ביטול אם רלוונטי
     if (sendCancelEmail && userEmail) {
-      // await fetch('https://test.magicsale.co.il/api/sendCancelEmail', {
-        await fetch(`${APP_BASE_URL}/api/sendCancelEmail`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: userEmail, name: userName , refunded: shouldRefund})
-      });
+      await sendCancelSubscriptionEmail({ email: userEmail, name: userName, refunded: shouldRefund });
     }
 
     return NextResponse.json({

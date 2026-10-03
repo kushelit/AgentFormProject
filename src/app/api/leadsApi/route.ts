@@ -4,25 +4,11 @@ export const runtime = 'nodejs';
 import { NextRequest, NextResponse } from 'next/server';
 import { admin } from '@/lib/firebase/firebase-admin';
 import { saveRequestLogToDB } from '@/utils/saveRequestLogToDB';
-import { APP_BASE_URL } from '@/lib/env';
+import { sendAppEmail } from '@/lib/server/sendAppEmail';
 
-// שליחת מייל דרך ה-API הפנימי
-const sendEmail = async (to: string, subject: string, text: string, html: string) => {
-  try {
-    const res = await fetch(`${APP_BASE_URL}/api/sendEmail`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ to, subject, text, html }),
-    });
-    if (!res.ok) {
-      const e = await res.json().catch(() => ({}));
-      return { success: false, error: e?.error || 'Email API error' };
-    }
-    return { success: true };
-  } catch (e: any) {
-    return { success: false, error: e?.message || 'Email send failed' };
-  }
-};
+// שליחת מייל ישירות מהשרת (לא דרך /api/sendEmail, שמוגן לאדמין)
+const sendEmail = (to: string, subject: string, text: string, html: string) =>
+  sendAppEmail({ to, subject, text, html });
 
 const normalizeBoolean = (value: any): boolean =>
   value === true || value === 'true' || value === 1;

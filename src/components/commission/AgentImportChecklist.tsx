@@ -1,4 +1,5 @@
 'use client';
+import { apiFetch } from '@/lib/apiFetch';
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { Spinner } from '@/components/Spinner';
@@ -55,7 +56,7 @@ export default function AgentImportChecklist({ agentId, year }: Props) {
     (async () => {
       setLoading(true);
       try {
-        const res = await fetch('/api/agent-import-checklist', {
+        const res = await apiFetch('/api/agent-import-checklist', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ agentId, year }),

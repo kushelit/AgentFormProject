@@ -1,4 +1,5 @@
 'use client';
+import { apiFetch } from '@/lib/apiFetch';
 // components/Sharon/SharonPage.tsx
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
@@ -213,7 +214,7 @@ const SharonPage: React.FC = () => {
       formData.append('customerId', selectedCustomer.id);
       formData.append('file', file);
 
-      const res = await fetch('/api/customerDocuments/upload', {
+      const res = await apiFetch('/api/customerDocuments/upload', {
         method: 'POST',
         body: formData,
       });
@@ -256,7 +257,7 @@ const SharonPage: React.FC = () => {
 
 const handleDeleteCustomerDocument = async (docId: string) => {
   try {
-    const res = await fetch('/api/customerDocuments/delete', {
+    const res = await apiFetch('/api/customerDocuments/delete', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ documentId: docId }),

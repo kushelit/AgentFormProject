@@ -1,4 +1,5 @@
 'use client';
+import { apiFetch } from '@/lib/apiFetch';
 // ═══════════════════════════════════════════════════════════════════
 // app/admin/product-map/page.tsx
 // ניהול מפת המוצרים בתבניות העמלות (commissionTemplates):
@@ -100,7 +101,7 @@ export default function ProductMapAdminPage() {
     setRawLoading(true);
     setRawError(null);
     try {
-      const res = await fetch('/api/admin/template-product-values', {
+      const res = await apiFetch('/api/admin/template-product-values', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ templateId }),

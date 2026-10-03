@@ -1,9 +1,12 @@
 import { NextResponse } from 'next/server';
 import { getAdminCommissionSummaryMatrix } from '@/services/server/adminCommissionSummaryService';
+import { guardAgentsAccess } from '@/lib/server/auth';
 
 export async function POST(req: Request) {
   try {
     const { year, agentIds } = await req.json();
+    const denied = await guardAgentsAccess(req, Array.isArray(agentIds) ? agentIds : [], 'admin/commission-summary-matrix');
+    if (denied) return denied;
 
     if (!year) {
       return NextResponse.json(

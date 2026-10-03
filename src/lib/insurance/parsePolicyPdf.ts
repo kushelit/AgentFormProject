@@ -1,3 +1,4 @@
+import { apiFetch } from '@/lib/apiFetch';
 /**
  * parsePolicyPdf.ts
  * ─────────────────────────────────────────────────────────────
@@ -106,7 +107,7 @@ export async function parsePolicyPdf(file: File , agentUid: string): Promise<Pol
   formData.append("file", file);
 formData.append("agentUid", agentUid);
 
-  const res = await fetch("/api/insurance/parse-policy", {
+  const res = await apiFetch("/api/insurance/parse-policy", {
     method: "POST",
     body: formData,
   });

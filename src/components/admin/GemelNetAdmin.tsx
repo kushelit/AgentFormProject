@@ -1,4 +1,5 @@
 "use client";
+import { apiFetch } from '@/lib/apiFetch';
 
 import { useEffect, useState } from "react";
 
@@ -23,7 +24,7 @@ export default function GemelNetAdmin() {
   useEffect(() => { fetchStatus(); }, []);
 
   const fetchStatus = () => {
-    fetch("/api/gemelnet/update")
+    apiFetch("/api/gemelnet/update")
       .then((r) => r.json())
       .then(setStatus)
       .catch(() => setStatus({ gemel: { exists: false }, pensia: { exists: false } }));
@@ -35,7 +36,7 @@ export default function GemelNetAdmin() {
     try {
       const formData = new FormData();
       formData.append("file", file);
-      const res = await fetch(`/api/gemelnet/update?type=${type}`, { method: "POST", body: formData });
+      const res = await apiFetch(`/api/gemelnet/update?type=${type}`, { method: "POST", body: formData });
       const data = await res.json();
       if (!res.ok) { setMessage({ type: "error", text: data.error ?? "שגיאה" }); return; }
       setMessage({ type: "success", text: `✅ ${type === "gemel" ? "גמל נט" : "פנסיה נט"} — עודכנו ${data.entryCount} רשומות` });

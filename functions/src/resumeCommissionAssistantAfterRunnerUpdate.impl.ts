@@ -352,6 +352,12 @@ export async function resumeCommissionAssistantAfterRunnerUpdateImpl(
   const db =
     adminDb();
 
+  // Do not resume a native-update session through a newly selected extension.
+  const selectedExecutor = await db.doc("users/" + agentId).get();
+  const executionMode = selectedExecutor.data()?.portalExecutionMode;
+  if (executionMode != null && executionMode !== "" && executionMode !== "runner") {
+    return {ok: true, skipped: true, reason: "execution_mode_changed"};
+  }
   const sessionRef =
     db.doc(
       `agents/${agentId}/commission_assistant_sessions/current`

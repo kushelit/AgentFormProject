@@ -3,6 +3,9 @@
 // • בקשה זהה (אותה כתובת + אותו גוף) שכבר בדרך — לא נשלחת פעמיים.
 // • נשמר ברמת המודול, כך ששורד מעבר בין לשוניות וסגירה/פתיחה של חלונות.
 // • בקשה שנכשלה לא נשמרת.
+// • הבקשות נשלחות דרך apiFetch — עם טוקן המשתמש המחובר.
+
+import { apiFetch } from '@/lib/apiFetch';
 
 const DEFAULT_TTL_MS = 10 * 60 * 1000;
 
@@ -28,7 +31,7 @@ export function postJsonCached<T = any>(
   const hit = store.get(key);
   if (!opts.force && hit && Date.now() - hit.at < (opts.ttlMs ?? DEFAULT_TTL_MS)) return hit.promise;
 
-  const promise = fetch(url, {
+  const promise = apiFetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),

@@ -16,6 +16,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createHash } from 'crypto';
 import { admin } from '@/lib/firebase/firebase-admin';
 import { computeInsights, type InsightsIncomeRow } from '@/lib/insights/computeInsights';
+import { guardAgentAccess } from '@/lib/server/auth';
 import {
   buildPortfolioIndex,
   fetchPolicyRows,
@@ -54,6 +55,8 @@ function isCompleteInsights(x: any): boolean {
 export async function POST(req: NextRequest) {
   try {
     const { agentId, year, force } = await req.json();
+    const denied = await guardAgentAccess(req, agentId, 'agent-insights');
+    if (denied) return denied;
     if (!agentId || !year) {
       return NextResponse.json({ error: 'missing params' }, { status: 400 });
     }

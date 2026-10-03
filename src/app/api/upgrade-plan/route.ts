@@ -3,6 +3,7 @@ import { admin } from '@/lib/firebase/firebase-admin';
 import axios from 'axios';
 import { GROW_ENDPOINTS } from '@/lib/growApi';
 import { GROW_USER_ID } from '@/lib/env';
+import { guardSelfOrAdmin } from '@/lib/server/auth';
 
 
 
@@ -30,6 +31,8 @@ export async function POST(req: NextRequest) {
       addOns,
       couponCode, // ✅ תוספת חדשה
     } = await req.json();
+    const denied = await guardSelfOrAdmin(req, id, 'upgrade-plan');
+    if (denied) return denied;
 
     const db = admin.firestore();
 

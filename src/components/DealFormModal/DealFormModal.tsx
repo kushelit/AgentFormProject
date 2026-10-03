@@ -1,4 +1,5 @@
 'use client';
+import { apiFetch } from '@/lib/apiFetch';
 // components/DealFormModal/DealFormModal.tsx
 
 import React, { useState, useEffect, useRef, useMemo, FormEvent } from 'react';
@@ -470,7 +471,7 @@ const DealFormModal: React.FC<DealFormModalProps> = ({
       }
 
       // סנכרון CRM (זהה למקור)
-      fetch('/api/integrations/smoove/sync-customer', {
+      apiFetch('/api/integrations/smoove/sync-customer', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ agentId: agentIdToUse, IDCustomer: editData.IDCustomer }),

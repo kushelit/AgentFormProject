@@ -1,4 +1,5 @@
 'use client';
+import { apiFetch } from '@/lib/apiFetch';
 // components/Sharon/tabs/ElementaryTab.tsx
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
@@ -154,7 +155,7 @@ const ElementaryTab: React.FC<Props> = ({ agentId, customer, onSelectCustomer })
       formData.append('file', file);
       formData.append('agentId', agentId);
 
-      const res = await fetch('/api/elementary-template/upload', {
+      const res = await apiFetch('/api/elementary-template/upload', {
         method: 'POST',
         body: formData,
       });
@@ -472,7 +473,7 @@ const ElementaryTab: React.FC<Props> = ({ agentId, customer, onSelectCustomer })
     ]);
 
     try {
-      const res = await fetch('/api/export-report', {
+      const res = await apiFetch('/api/export-report', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ sheetName: 'דוח אלמנטרי', headers, rows }),

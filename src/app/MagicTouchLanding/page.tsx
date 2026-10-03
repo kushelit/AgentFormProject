@@ -213,7 +213,7 @@ export default function MagicTouchLandingPage() {
 
             <div className="flex items-center gap-2">
               <Link
-                href="/auth/log-in"
+                href="/MagicTouchLogin"
                 className="rounded-xl border border-white/20 bg-white/5 px-4 py-2 text-sm font-bold text-white transition hover:bg-white/10"
               >
                 כניסה למערכת

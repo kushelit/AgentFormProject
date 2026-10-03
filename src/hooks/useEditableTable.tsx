@@ -1,3 +1,4 @@
+import { apiFetch } from '@/lib/apiFetch';
 import React, { useState, useEffect } from 'react';
 import { CombinedData } from '@/types/Sales';
 
@@ -222,7 +223,7 @@ useEffect(() => {
   
       // ✅ שליחה לסמווב רק כשסטטוס השתנה
       if (shouldSyncSmoove) {
-        await fetch("/api/integrations/smoove/sync-customer", {
+        await apiFetch("/api/integrations/smoove/sync-customer", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({

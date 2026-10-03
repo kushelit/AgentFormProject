@@ -67,7 +67,7 @@ export default function MagicTouchTopBar() {
           type="button"
           onClick={() => {
             void logOut().then(() => {
-              window.location.href = '/auth/log-in';
+              window.location.href = '/MagicTouchLogin';
             });
           }}
           className="rounded-lg border border-slate-700 px-3 py-2 hover:bg-slate-800"

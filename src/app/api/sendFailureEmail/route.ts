@@ -2,10 +2,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import sgMail from '@sendgrid/mail';
 import { admin } from '@/lib/firebase/firebase-admin';
+import { guardAdmin } from '@/lib/server/auth';
 
 sgMail.setApiKey(process.env.SENDGRID_API_KEY!);
 
 export async function POST(req: NextRequest) {
+const denied = await guardAdmin(req, 'sendFailureEmail');
+if (denied) return denied;
   try {
     const { email, name } = await req.json();
 

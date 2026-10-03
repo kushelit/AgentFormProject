@@ -305,7 +305,7 @@ function buildWhatsAppSummary({
   );
 
   lines.push(
-    "מייל סיכום נשלח בנפרד עבור כל חברה שהשלימה את שלב קליטת הנתונים בהצלחה."
+    "סיכום כל החברות בריצה מרוכז במייל אחד ברמת ה-Batch."
   );
 
   return lines.join(

@@ -1,0 +1,71 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAnonymous() {
+      return isSignedIn()
+        && request.auth.token.firebase.sign_in_provider == "anonymous";
+    }
+
+    function userDoc() {
+      return firestore.get(
+        /databases/(default)/documents/users/$(request.auth.uid)
+      );
+    }
+
+    // Same definition as firestore.rules: non-anonymous with a known role.
+    function isRegistered() {
+      return isSignedIn() && !isAnonymous()
+        && firestore.exists(/databases/(default)/documents/users/$(request.auth.uid))
+        && userDoc().data.get("role", "") in ["agent", "manager", "worker", "admin"];
+    }
+
+    // role/isSystem are now protected in firestore.rules, so this is trustworthy.
+    function isAdminOrSystem() {
+      return isRegistered()
+        && (
+          userDoc().data.role == "admin"
+          || userDoc().data.get("isSystem", false) == true
+        );
+    }
+
+    match /commission-imports/{uid}/{allPaths=**} {
+      allow read: if isRegistered()
+        && (
+          request.auth.uid == uid
+          || isAdminOrSystem()
+        );
+
+      allow write: if isRegistered()
+        && request.auth.uid == uid;
+    }
+
+    match /portalRuns/{uid}/{runId}/{allPaths=**} {
+      allow read: if isRegistered()
+        && (
+          request.auth.uid == uid
+          || isAdminOrSystem()
+        );
+
+      allow write: if isRegistered()
+        && request.auth.uid == uid;
+    }
+
+    // Uploads/deletes go through the server (Admin SDK); the client only gets download URLs.
+    // Stage B: scope reads per agent (the path does not include the agent today).
+    match /leadFiles/{allPaths=**} {
+      allow read: if isRegistered();
+      allow write: if false;
+    }
+
+    match /customerFiles/{allPaths=**} {
+      allow read: if isRegistered();
+      allow write: if false;
+    }
+  }
+}

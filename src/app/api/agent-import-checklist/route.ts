@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { admin } from "@/lib/firebase/firebase-admin";
+import { guardAgentAccess } from '@/lib/server/auth';
 
 type RunDoc = {
   agentId: string;
@@ -36,6 +37,8 @@ function buildMonthsForYear(year: number) {
 export async function POST(req: NextRequest) {
   try {
     const { agentId, year } = await req.json();
+    const denied = await guardAgentAccess(req, agentId, 'agent-import-checklist');
+    if (denied) return denied;
     if (!agentId || !year) {
       return NextResponse.json(
         { ok: false, error: "missing agentId/year" },

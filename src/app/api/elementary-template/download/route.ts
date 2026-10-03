@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { admin } from "@/lib/firebase/firebase-admin";
 import { generateElementaryTemplateExcel } from "@/utils/generateElementaryTemplateExcel";
+import { guardAgentAccess } from '@/lib/server/auth';
 
 export const runtime = "nodejs";
 
@@ -8,6 +9,8 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const agentId = searchParams.get("agentId") || "";
+    const denied = await guardAgentAccess(request, agentId, 'elementary-template/download');
+    if (denied) return denied;
 
     if (!agentId) {
       return NextResponse.json({ error: "missing agentId" }, { status: 400 });

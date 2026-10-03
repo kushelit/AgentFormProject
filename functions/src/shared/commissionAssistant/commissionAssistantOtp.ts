@@ -1117,7 +1117,7 @@ export async function tryHandleCommissionAssistantOtpInbound({
       conversationId,
 
       text:
-        `קוד האימות עבור ${companyName} התקבל ✅ אני מעביר אותו ל-Runner. הריצה תמשיך אוטומטית.`,
+        `קוד האימות עבור ${companyName} התקבל ✅ אני מעביר אותו לריצה הפעילה. הריצה תמשיך אוטומטית.`,
     });
 
     logger.info(
@@ -1161,7 +1161,7 @@ export async function tryHandleCommissionAssistantOtpInbound({
     text:
       transactionResult ===
         "already_has_value"
-        ? `כבר התקבל קוד אימות עבור ${companyName}. ה-Runner מטפל בו כרגע.`
+        ? `כבר התקבל קוד אימות עבור ${companyName}. הריצה מטפלת בו כרגע.`
         : `כרגע ${companyName} כבר לא ממתינה לקוד אימות. הקוד שנשלח לא נשמר.`,
   });
 
@@ -1472,7 +1472,7 @@ export async function handleCommissionAssistantOtpRunChange({
               ? `\n\n${hint}`
               : ""
           ) +
-          "\n\nאפשר גם להדביק את הודעת ה-SMS המלאה.\nמומלץ להשיב בהקדם — ה-Runner ממתין לקוד כרגע."
+          "\n\nאפשר גם להדביק את הודעת ה-SMS המלאה.\nמומלץ להשיב בהקדם — הריצה ממתינה לקוד כרגע."
         )
       : (
           `🔐 נדרש קוד אימות עבור ${companyName}.\n` +
@@ -1481,7 +1481,7 @@ export async function handleCommissionAssistantOtpRunChange({
               ? `\n${hint}\n`
               : ""
           ) +
-          "\nשלח כאן את הקוד שקיבלת ב-SMS. אפשר גם להדביק את הודעת ה-SMS המלאה.\nמומלץ להשיב בהקדם — ה-Runner ממתין לקוד כרגע."
+          "\nשלח כאן את הקוד שקיבלת ב-SMS. אפשר גם להדביק את הודעת ה-SMS המלאה.\nמומלץ להשיב בהקדם — הריצה ממתינה לקוד כרגע."
         );
 
   try {

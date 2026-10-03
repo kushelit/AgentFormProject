@@ -1,8 +1,11 @@
 // /app/api/updateUserStatus/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { admin } from '@/lib/firebase/firebase-admin';
+import { guardAdmin } from '@/lib/server/auth';
 
 export async function POST(req: NextRequest) {
+const denied = await guardAdmin(req, 'updateUserStatus');
+if (denied) return denied;
   try {
     const { uid, disabled } = await req.json();
 

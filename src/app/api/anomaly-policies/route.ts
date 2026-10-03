@@ -5,9 +5,12 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { admin } from '@/lib/firebase/firebase-admin';
+import { guardAgentAccess } from '@/lib/server/auth';
 
 export async function POST(req: NextRequest) {
   const { agentId, reportMonth } = await req.json();
+  const denied = await guardAgentAccess(req, agentId, 'anomaly-policies');
+  if (denied) return denied;
 
   if (!agentId || !reportMonth) {
     return NextResponse.json({ error: 'missing params' }, { status: 400 });

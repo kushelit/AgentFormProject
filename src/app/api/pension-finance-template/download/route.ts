@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { admin } from "@/lib/firebase/firebase-admin";
 import { generatePensionFinanceTemplateExcel } from "@/utils/generatePensionFinanceTemplateExcel";
 import { PENSION_FINANCE_AGENCY4_STATUSES } from "@/utils/pensionFinanceAgency4Statuses";
+import { guardAgentAccess } from '@/lib/server/auth';
 
 export const runtime = "nodejs";
 
@@ -11,6 +12,8 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const agentId = searchParams.get("agentId") || "";
+    const denied = await guardAgentAccess(request, agentId, 'pension-finance-template/download');
+    if (denied) return denied;
 
     if (!agentId) {
       return NextResponse.json({ error: "missing agentId" }, { status: 400 });

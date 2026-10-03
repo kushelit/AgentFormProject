@@ -30,6 +30,7 @@ import { useToast } from "@/hooks/useToast";
 import { add } from "date-fns";
 import {ToastNotification} from '@/components/ToastNotification'
 import { deleteDoc } from 'firebase/firestore';
+import { parsePortalExecutionMode, portalStatusCollection, portalExecutorOnline, resolvePortalExecutor, type PortalExecutionMode } from '@/lib/portalRuns/portalExecutor';
 import { startAutoPortalRun } from "@/lib/portalRuns/startAutoPortalRun";
 // import PortalRunOtpModal from "@/components/PortalRunOtpModal"; // הוסר - מטופל גלובלית עכשיו, ר' GlobalPortalOtpWatcher
 // import { triggerPortalRun } from "@/lib/portalRuns/triggerPortalRun";
@@ -338,8 +339,9 @@ useEffect(() => {
 // --- לוגיקת ניהול ה-Runner (OTA & Download) ---
 const [latestRunnerVersion, setLatestRunnerVersion] = useState<string>("");
 const [currentRunnerVersion, setCurrentRunnerVersion] = useState<string>("");
+const [portalExecutionMode, setPortalExecutionMode] = useState<PortalExecutionMode>('runner');
 const [currentRunnerId, setCurrentRunnerId] = useState<string>("");
-const [lastSeenAtMs, setLastSeenAtMs] = useState<number | null>(null);
+
 const [installerUrl, setInstallerUrl] = useState<string>("");
 const needsManualUpgrade =
   currentRunnerVersion === "2.0.0" ||
@@ -2732,94 +2734,58 @@ useEffect(() => {
 }, []);
 
 
-// 2. זיהוי הגרסה הנוכחית של הסוכן (לפי הריצה האחרונה שלו)
-
-// 2. זיהוי הגרסה הנוכחית - שאילתה חכמה
 useEffect(() => {
-  if (!selectedAgentId) {
-    setCurrentRunnerVersion("");
-    setCurrentRunnerId("");
-    return;
-  }
-
-//   const unsub = onSnapshot(
-//     doc(db, "portalRunnerStatus", selectedAgentId),
-//     (snap) => {
-//       if (snap.exists()) {
-//         const newVersion = String(snap.data()?.runnerVersion || "").trim();
-        
-//         // אם הגרסה השתנה ויש גרסה קודמת → עדכון הסתיים
-//         if (prevVersion && newVersion && prevVersion !== newVersion) {
-//           addToast("success", `✅ הבוט עודכן בהצלחה לגרסה ${newVersion}`);
-//           setTimeout(() => window.location.reload(), 2000);
-//         }
-
-//         prevVersion = newVersion;
-//         setCurrentRunnerVersion(newVersion);
-//       } else {
-//         setCurrentRunnerVersion("");
-//       }
-//     },
-//     () => setCurrentRunnerVersion("")
-//   );
-//   return () => unsub();
-// }, [selectedAgentId]);
-
-
-const unsub = onSnapshot(
-    doc(db, "portalRunnerStatus", selectedAgentId),
-    (snap) => {
-      if (snap.exists()) {
-        const data = snap.data();
-        const newVersion = String(data?.runnerVersion || "").trim();
-        
-        // שומרים רק את הזמן הגולמי - החישוב "האם זה עדיין טרי" עובר
-        // ל-useEffect נפרד עם טיימר, כי onSnapshot רץ רק כשיש כתיבה חדשה
-        // בפועל, ולא היה מחשב מחדש מעצמו עם הזמן שעובר (בוט שכבה נראה
-        // "online" לנצח, כי אף אחד לא "מעורר" מחדש את הבדיקה).
-        const lastSeenAt = data?.lastSeenAt?.toDate?.() ?? null;
-        setLastSeenAtMs(lastSeenAt ? lastSeenAt.getTime() : null);
-
-        // ✅ שומר את ה-runnerId הידוע כרגע לסוכן זה - משמש לנעילת ריצות
-        // חדשות (reservedRunnerId) כדי למנוע תחרות בין שני מחשבים שמזוהים
-        // כאותו agentId (למשל אדמין שמריץ בשם הסוכן במקביל למחשב שלו).
-        setCurrentRunnerId(String(data?.runnerId || "").trim());
-
-        // עדכון הגרסה עצמו מנוהל ע"י חלון הסטטוס הייעודי.
-        // אין כאן reload אוטומטי - שינוי ה-runnerVersion מעדכן את ה-UI בזמן אמת.
-        setCurrentRunnerVersion(newVersion);
-      } else {
-        setCurrentRunnerVersion("");
-        setCurrentRunnerId("");
-        setLastSeenAtMs(null);
-      }
-    },
-    () => {
-      setCurrentRunnerVersion("");
-      setCurrentRunnerId("");
-      setLastSeenAtMs(null);
-    }
-  );
-  return () => unsub();
-}, [selectedAgentId]);
-
-// מחשבים מחדש "האם הבוט online" כל כמה שניות, לא רק כשמגיעה כתיבה חדשה
-// מה-Runner. בלי זה, ברגע שה-Runner נסגר, isRunnerOnline נשאר תקוע על
-// true לנצח - כי שום דבר לא "מעורר" מחדש את הבדיקה נגד השעון.
-useEffect(() => {
-  const tick = () => {
-    setIsRunnerOnline(lastSeenAtMs ? (Date.now() - lastSeenAtMs) < 30_000 : false);
+  let stopped = false;
+  let unsubscribeStatus: (() => void) | undefined;
+  let statusData: any;
+  let generation = 0;
+  let mode: PortalExecutionMode = 'runner';
+  const reset = () => {
+    statusData = undefined;
+    setCurrentRunnerId('');
+    setCurrentRunnerVersion('');
+    setIsRunnerOnline(false);
   };
-  tick();
-  const t = setInterval(tick, 5000);
-  return () => clearInterval(t);
-}, [lastSeenAtMs]);
-
+  const tick = () => {
+    if (!stopped) setIsRunnerOnline(portalExecutorOnline(mode, statusData));
+  };
+  reset();
+  setPortalExecutionMode('runner');
+  if (!selectedAgentId) return;
+  const unsubscribeUser = onSnapshot(doc(db, 'users', selectedAgentId), snap => {
+    const currentGeneration = ++generation;
+    unsubscribeStatus?.();
+    unsubscribeStatus = undefined;
+    reset();
+    if (!snap.exists()) return;
+    try { mode = parsePortalExecutionMode(snap.data()?.portalExecutionMode); }
+    catch { addToast('error', 'הגדרת אופן ההרצה של הסוכן אינה תקינה'); return; }
+    setPortalExecutionMode(mode);
+    unsubscribeStatus = onSnapshot(doc(db, portalStatusCollection(mode), selectedAgentId), status => {
+      if (stopped || currentGeneration !== generation) return;
+      statusData = status.data();
+      setCurrentRunnerId(String(statusData?.runnerId || '').trim());
+      setCurrentRunnerVersion(String(statusData?.runnerVersion || '').trim());
+      tick();
+    }, () => { if (!stopped) reset(); });
+  }, () => {
+    unsubscribeStatus?.();
+    unsubscribeStatus = undefined;
+    if (!stopped) reset();
+  });
+  const timer = setInterval(tick, 5000);
+  return () => {
+    stopped = true;
+    clearInterval(timer);
+    unsubscribeUser();
+    unsubscribeStatus?.();
+  };
+}, [selectedAgentId]);
 
 
 // 3. פונקציית שליחת פקודת העדכון (OTA)
 const handleTriggerUpdate = async () => {
-  if (!selectedAgentId) return;
+  if (!selectedAgentId || portalExecutionMode !== 'runner') return;
   if (!installerUrl) {
     addToast("error", "חסר installerUrl בהגדרות המערכת");
     return;
@@ -2836,9 +2802,12 @@ const handleTriggerUpdate = async () => {
   handledFinishedRunRef.current = "";
 
   try {
+    const updateExecutor = await resolvePortalExecutor(db, selectedAgentId);
+    if (updateExecutor.executionMode !== 'runner') throw new Error('הסוכן מוגדר לעבוד דרך התוסף');
     const runRef = doc(collection(db, "portalImportRuns"));
 
     await setDoc(runRef, {
+      ...updateExecutor,
       agentId: selectedAgentId,
       status: "queued",
       automationClass: "self_update",
@@ -2979,7 +2948,7 @@ function isVersionAtLeast(version: string, min: string): boolean {
 const supportsRemoteStart =
   !!currentRunnerVersion && isVersionAtLeast(currentRunnerVersion, PROTOCOL_MIN_VERSION);
 
-const isUpdateAvailable = latestRunnerVersion && currentRunnerVersion && latestRunnerVersion !== currentRunnerVersion;
+const isUpdateAvailable = portalExecutionMode === 'runner' && latestRunnerVersion && currentRunnerVersion && latestRunnerVersion !== currentRunnerVersion;
 
 const isCompanyAutoEnabled = selectedCompany?.companyAutoDownloadEnabled !== false;
 
@@ -3459,13 +3428,13 @@ const runnerUpdateProgressWidth =
                   : isUpdateAvailable
                     ? `הגרסה שלך (${currentRunnerVersion}) ישנה. הגרסה החדשה היא ${latestRunnerVersion}.`
                     : !currentRunnerVersion
-                      ? "הבוט עדיין לא מותקן. ניתן להוריד התקנה ראשונה ולהתחיל לעבוד."
+                      ? (portalExecutionMode === 'extension' ? 'תוסף Chrome אינו מחובר. הפעילו אותו ובדקו שהוא מצומד לסוכן.' : 'הבוט עדיין לא מותקן. ניתן להוריד התקנה ראשונה ולהתחיל לעבוד.')
                       : "מעקב אחר הדוחות שפורסמו החודש ולחיצה מהירה להפעלה לפי חברה."}
               </div>
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            {!currentRunnerVersion && installerUrl && (
+            {portalExecutionMode === 'runner' && !currentRunnerVersion && installerUrl && (
               <a
                 href={installerUrl}
                 className="bg-white text-blue-600 px-4 py-2 text-sm font-bold rounded-lg hover:bg-blue-50 shadow-md"
@@ -3474,7 +3443,7 @@ const runnerUpdateProgressWidth =
               </a>
             )}
 
-            {needsManualUpgrade && installerUrl && (
+            {portalExecutionMode === 'runner' && needsManualUpgrade && installerUrl && (
               <a
                 href={installerUrl}
                 className="bg-white text-red-600 hover:bg-red-50 px-4 py-2 text-sm font-bold rounded-lg shadow-md"
@@ -3501,7 +3470,11 @@ const runnerUpdateProgressWidth =
         </div>
 
         {selectedAgentId && currentRunnerVersion && isRunnerOnline === false && (
-          supportsRemoteStart ? (
+          portalExecutionMode === 'extension' ? (
+            <div className="rounded-xl bg-amber-50 border border-amber-200 p-4 text-sm text-amber-700">
+              תוסף Chrome אינו פעיל. פתחו Chrome ובדקו שהוא מצומד לסוכן ואינו מושהה.
+            </div>
+          ) : supportsRemoteStart ? (
             <div className="rounded-xl bg-red-50 border border-red-200 p-4 flex items-center justify-between gap-3">
            <div className="text-sm text-red-700">
                 <span className="font-bold">⚠️ הבוט לא פעיל כרגע במחשב הסוכן.</span>
@@ -3527,6 +3500,9 @@ const runnerUpdateProgressWidth =
             </div>
           )
         )}   
+    <div className="mb-3 text-sm text-gray-600">
+      כלי הרצת דוחות לסוכן: {portalExecutionMode === 'extension' ? 'תוסף Chrome' : 'Runner (EXE)'}
+    </div>
     {/* 3. קוביות החברות */}
 {automaticCompanies.length > 0 ? (
  <AutomaticRunsDashboard

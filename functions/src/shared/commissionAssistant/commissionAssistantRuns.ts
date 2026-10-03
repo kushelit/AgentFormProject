@@ -15,6 +15,8 @@ import {
   getCommissionAssistantMonthlyAvailability,
 } from "./commissionAssistantMonthlyStatus";
 
+import {getAgentPortalExecutionMode, type PortalExecutionMode} from "./portalExecutor";
+
 const RUNNER_ONLINE_MAX_AGE_MS =
   30 *
   1000;
@@ -74,6 +76,7 @@ function timestampToMillis(
 }
 
 export type CommissionAssistantRunnerReadiness = {
+  executionMode: PortalExecutionMode;
   state:
     | "ready"
     | "offline"
@@ -86,111 +89,35 @@ export type CommissionAssistantRunnerReadiness = {
 };
 
 export async function getCommissionAssistantRunnerReadiness({
-  db,
-  requesterAgentId,
+  db, requesterAgentId,
 }: {
   db: FirebaseFirestore.Firestore;
   requesterAgentId: string;
 }): Promise<CommissionAssistantRunnerReadiness> {
-  const [
-    statusSnap,
-    configSnap,
-  ] = await Promise.all([
-    db
-      .doc(
-        `portalRunnerStatus/${requesterAgentId}`
-      )
-      .get(),
-
-    db
-      .doc(
-        "portalRunnerConfig/global"
-      )
-      .get(),
+  const executionMode = await getAgentPortalExecutionMode(db, requesterAgentId);
+  const extension = executionMode === "extension";
+  const [statusSnap, configSnap] = await Promise.all([
+    db.doc(`${extension ? "portalExtensionStatus" : "portalRunnerStatus"}/${requesterAgentId}`).get(),
+    extension ? Promise.resolve(null) : db.doc("portalRunnerConfig/global").get(),
   ]);
-
-  const statusData =
-    statusSnap.exists
-      ? statusSnap.data() as any
-      : {};
-
-  const configData =
-    configSnap.exists
-      ? configSnap.data() as any
-      : {};
-
-  const runnerId =
-    s(
-      statusData?.runnerId
-    );
-
-  const currentVersion =
-    s(
-      statusData?.runnerVersion
-    );
-
-  const latestVersion =
-    s(
-      configData?.latestVersion
-    );
-
-  const installerUrl =
-    s(
-      configData?.installerUrl
-    );
-
-  const lastSeenAtMs =
-    timestampToMillis(
-      statusData?.lastSeenAt
-    );
-
-  const online =
-    Boolean(
-      runnerId &&
-      lastSeenAtMs &&
-      Date.now() -
-        lastSeenAtMs <
-        RUNNER_ONLINE_MAX_AGE_MS
-    );
-
-  if (
-    !online
-  ) {
-    return {
-      state:
-        "offline",
-      runnerId,
-      currentVersion,
-      latestVersion,
-      installerUrl,
-      lastSeenAtMs,
-    };
-  }
-
-  if (
-    latestVersion &&
-    currentVersion !==
-      latestVersion
-  ) {
-    return {
-      state:
-        "update_required",
-      runnerId,
-      currentVersion,
-      latestVersion,
-      installerUrl,
-      lastSeenAtMs,
-    };
-  }
-
+  const status = statusSnap.exists ? statusSnap.data() as any : {};
+  const config = configSnap?.exists ? configSnap.data() as any : {};
+  const runnerId = s(status?.runnerId);
+  const currentVersion = s(status?.runnerVersion);
+  const latestVersion = extension ? "" : s(config?.latestVersion);
+  const installerUrl = extension ? "" : s(config?.installerUrl);
+  const lastSeenAtMs = timestampToMillis(status?.lastSeenAt);
+  const correctType = extension ?
+    runnerId.startsWith("chrome-") && status?.runnerType === "chrome-extension" :
+    !!runnerId && !runnerId.startsWith("chrome-");
+  const age = lastSeenAtMs == null ? Infinity : Date.now() - lastSeenAtMs;
+  const online = correctType && status?.isOnline !== false && age >= -5_000 &&
+    age < (extension ? 90_000 : RUNNER_ONLINE_MAX_AGE_MS);
   return {
-    state:
-      "ready",
-    runnerId,
-    currentVersion,
-    latestVersion,
-    installerUrl,
-    lastSeenAtMs,
+    executionMode,
+    state: !online ? "offline" : latestVersion && currentVersion !== latestVersion ?
+      "update_required" : "ready",
+    runnerId, currentVersion, latestVersion, installerUrl, lastSeenAtMs,
   };
 }
 
@@ -211,6 +138,9 @@ export async function ensureCommissionAssistantSelfUpdateRun({
   targetVersion: string;
   conversationId: string;
 }): Promise<string> {
+  if (await getAgentPortalExecutionMode(db, requesterAgentId) !== "runner") {
+    throw new Error("COMMISSION_ASSISTANT_NATIVE_UPDATE_NOT_APPLICABLE");
+  }
   if (
     !runnerId ||
     !installerUrl
@@ -338,6 +268,7 @@ export async function createCommissionAssistantBatch({
   sessionId,
   selectedCompanies,
   reservedRunnerId,
+  executionMode,
 }: {
   db: FirebaseFirestore.Firestore;
   requesterAgentId: string;
@@ -346,6 +277,7 @@ export async function createCommissionAssistantBatch({
   sessionId: string;
   selectedCompanies: CommissionAssistantCompany[];
   reservedRunnerId: string;
+  executionMode: PortalExecutionMode;
 }): Promise<CreateCommissionAssistantBatchResult> {
   if (
     selectedCompanies.length ===
@@ -447,6 +379,8 @@ export async function createCommissionAssistantBatch({
 
           reservedRunnerId,
 
+          executionMode,
+
           totalCount:
             selectedCompanies.length,
 
@@ -546,6 +480,8 @@ export async function createCommissionAssistantBatch({
 
               reservedRunnerId,
 
+              executionMode,
+
               batchId,
 
               batchOrder:
@@ -607,6 +543,7 @@ export type PrepareCommissionAssistantRunResult =
     }
   | {
       state: "runner_offline";
+      executionMode: PortalExecutionMode;
       runnerId: string;
       runnerVersion: string;
     }
@@ -690,6 +627,7 @@ export async function prepareCommissionAssistantRun({
     return {
       state:
         "runner_offline",
+      executionMode: readiness.executionMode,
       runnerId:
         readiness.runnerId,
       runnerVersion:
@@ -754,6 +692,7 @@ export async function prepareCommissionAssistantRun({
         runnableCompanies,
       reservedRunnerId:
         readiness.runnerId,
+      executionMode: readiness.executionMode,
     });
 
   return {

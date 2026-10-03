@@ -2,6 +2,7 @@ export const runtime = 'nodejs';
 
 import { NextResponse } from 'next/server';
 import { admin } from '@/lib/firebase/firebase-admin';
+import { guardDocOwner } from '@/lib/server/auth';
 
 function buildBucketCandidates(rawBucket: string) {
   const clean = String(rawBucket || '').trim().replace(/^gs:\/\//, '');
@@ -23,6 +24,8 @@ export async function POST(req: Request) {
   try {
     const formData = await req.formData();
     const leadId = String(formData.get('leadId') || '').trim();
+    const denied = await guardDocOwner(req, { collection: 'leads', id: leadId, ownerField: 'AgentId' }, 'leadDocuments/upload');
+    if (denied) return denied;
     const file = formData.get('file') as File | null;
 
     if (!leadId) {

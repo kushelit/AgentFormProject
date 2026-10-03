@@ -1,10 +1,13 @@
 // app/api/hekef-summary-yearly-analysis/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { admin } from '@/lib/firebase/firebase-admin';
+import { guardAgentAccess } from '@/lib/server/auth';
 
 export async function POST(req: NextRequest) {
   try {
     const { agentId, year } = await req.json();
+    const denied = await guardAgentAccess(req, agentId, 'hekef-summary-yearly-analysis');
+    if (denied) return denied;
     if (!agentId || !year) return NextResponse.json({ error: 'missing params' }, { status: 400 });
 
     const db = admin.firestore();

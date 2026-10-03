@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { admin } from "@/lib/firebase/firebase-admin";
+import { guardAgentAccess } from '@/lib/server/auth';
 
 export async function GET(req: NextRequest) {
   const agentUid = req.nextUrl.searchParams.get("agentUid");
+  const denied = await guardAgentAccess(req, agentUid, 'insurance/pdf-quota');
+  if (denied) return denied;
   if (!agentUid) return NextResponse.json({ error: "חסר uid" }, { status: 401 });
 
   const db = admin.firestore();

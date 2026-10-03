@@ -1,8 +1,10 @@
+import { apiAxios } from '@/lib/apiFetch';
 // app/admin/subscriptions/page.tsx
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
+import { auth } from '@/lib/firebase/firebase';
 import * as XLSX from 'xlsx';
 
 import { ToastNotification } from '@/components/ToastNotification';
@@ -16,6 +18,7 @@ type AddOns = {
 };
 
 type SubscriptionRow = {
+  portalExecutionMode?: string;
   id: string;
   agentId?: string;
   workersCount?: number;
@@ -243,6 +246,7 @@ function IconUsers() {
 export default function SubscriptionsAdminPage() {
   const [subscriptions, setSubscriptions] = useState<SubscriptionRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [savingExecutorIds, setSavingExecutorIds] = useState<string[]>([]);
 
   const [filterActive, setFilterActive] = useState<FilterActive>('all');
   const [filterSubStatus, setFilterSubStatus] = useState<FilterSubStatus>('all');
@@ -268,7 +272,7 @@ export default function SubscriptionsAdminPage() {
 
     const fetchSubscriptions = async () => {
       try {
-        const { data } = await axios.get<SubscriptionRow[]>('/api/subscriptions');
+        const { data } = await apiAxios.get<SubscriptionRow[]>('/api/subscriptions');
         if (!cancelled) setSubscriptions(data);
       } catch {
         if (!cancelled && !errorShown) {
@@ -478,9 +482,27 @@ export default function SubscriptionsAdminPage() {
     addToast('success', `יוצאו ${filteredSubscriptions.length} מנויים לאקסל`);
   };
 
+  const handleExecutionModeChange = async (sub: SubscriptionRow, mode: 'runner' | 'extension') => {
+    if (savingExecutorIds.includes(sub.id)) return;
+    setSavingExecutorIds(prev => [...prev, sub.id]);
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) throw new Error('נדרשת התחברות');
+      await apiAxios.post('/api/admin/portalExecutionMode', { agentId: sub.id, portalExecutionMode: mode },
+        { headers: { Authorization: 'Bearer ' + token } });
+      setSubscriptions(prev => prev.map(row => row.id === sub.id ? { ...row, portalExecutionMode: mode } : row));
+      setSelectedForDetail(prev => prev?.id === sub.id ? { ...prev, portalExecutionMode: mode } : prev);
+      addToast('success', 'כלי ההרצה נשמר. הבחירה תחול על ריצות חדשות בלבד.');
+    } catch (error: any) {
+      addToast('error', error?.response?.data?.error || error?.message || 'שמירת כלי ההרצה נכשלה');
+    } finally {
+      setSavingExecutorIds(prev => prev.filter(id => id !== sub.id));
+    }
+  };
+
   const handleSendFailureEmail = async (email: string, name: string) => {
     try {
-      await axios.post('/api/sendFailureEmail', { email, name });
+      await apiAxios.post('/api/sendFailureEmail', { email, name });
       addToast('success', `המייל נשלח ל־${name}`);
     } catch {
       addToast('error', 'שגיאה בשליחת המייל');
@@ -491,7 +513,7 @@ export default function SubscriptionsAdminPage() {
     if (!confirm(`האם לבטל את המנוי של ${sub.name}?`)) return;
 
     try {
-      const { data } = await axios.post('/api/cancelSubscription', {
+      const { data } = await apiAxios.post('/api/cancelSubscription', {
         id: sub.id,
         subscriptionId: sub.subscriptionId,
         transactionToken: sub.transactionToken,
@@ -556,7 +578,7 @@ export default function SubscriptionsAdminPage() {
 
     try {
       setCouponEmailSending(true);
-      await axios.post('/api/sendEmail', {
+      await apiAxios.post('/api/sendEmail', {
         to: couponEmailTarget.email,
         subject: couponEmailSubject.trim(),
         html: couponEmailBody.replace(/\n/g, '<br>'),
@@ -579,7 +601,7 @@ export default function SubscriptionsAdminPage() {
     if (!confirm(`לפתוח תהליך עדכון אמצעי תשלום עבור ${sub.name}?`)) return;
 
     try {
-      const { data } = await axios.post('/api/create-subscription', {
+      const { data } = await apiAxios.post('/api/create-subscription', {
         existingUserUid: sub.id,
         source: 'existing-user-upgrade',
         plan: sub.subscriptionType,
@@ -814,6 +836,7 @@ export default function SubscriptionsAdminPage() {
                   <tr className="border-b border-[#E4E1D6] bg-[#FBFAF7] text-right text-[11.5px] font-semibold text-[#8B8478]">
                     <th className="px-5 py-3.5 font-semibold">לקוח</th>
                     <th className="px-5 py-3.5 font-semibold">סוג לקוח</th>
+                    <th className="px-5 py-3.5 font-semibold">כלי הרצת דוחות</th>
                     <th className="px-5 py-3.5 font-semibold">מנוי</th>
                     <th className="px-5 py-3.5 font-semibold">עובדים</th>
                     <th className="px-5 py-3.5 font-semibold">תשלום חודשי</th>
@@ -856,6 +879,24 @@ export default function SubscriptionsAdminPage() {
                           <span className="inline-flex rounded-md bg-[#E8EEF5] px-2.5 py-1 text-[12.5px] font-semibold text-[#40556B]">
                             {getRoleLabel(sub.role)}
                           </span>
+                        </td>
+                        <td className="px-5 py-4" onClick={event => event.stopPropagation()}>
+                          {sub.role === 'worker' ? <span className="text-xs text-gray-500">לפי הסוכן</span> : (
+                            <div>
+                              <select aria-label={'כלי הרצת דוחות עבור ' + sub.name}
+                                value={sub.portalExecutionMode || 'runner'}
+                                disabled={savingExecutorIds.includes(sub.id)}
+                                onChange={event => void handleExecutionModeChange(sub, event.target.value as 'runner' | 'extension')}
+                                className="rounded border border-gray-300 bg-white p-2 text-sm disabled:opacity-50">
+                                {sub.portalExecutionMode && !['runner', 'extension'].includes(sub.portalExecutionMode) && (
+                                  <option value={sub.portalExecutionMode}>הגדרה לא תקינה</option>
+                                )}
+                                <option value="runner">Runner (EXE)</option>
+                                <option value="extension">תוסף Chrome</option>
+                              </select>
+                              {savingExecutorIds.includes(sub.id) && <div className="mt-1 text-xs text-gray-500">שומר…</div>}
+                            </div>
+                          )}
                         </td>
                         <td className="px-5 py-4">
                           <span className="inline-flex rounded-md bg-[#F0EEE7] px-2.5 py-1 text-[12.5px] font-semibold text-[#1F2A24]">

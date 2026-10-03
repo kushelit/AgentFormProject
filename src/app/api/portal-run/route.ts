@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { guardDocOwner } from '@/lib/server/auth';
 
 function normBase(v: string) {
   let s = String(v || "").trim();
@@ -14,6 +15,8 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));
     const runId = String(body?.runId || "").trim();
+    const denied = await guardDocOwner(req, { collection: 'portalImportRuns', id: runId, ownerField: 'agentId' }, 'portal-run');
+    if (denied) return denied;
     if (!runId) {
       return NextResponse.json({ ok: false, error: "Missing runId" }, { status: 400 });
     }

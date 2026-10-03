@@ -1,3 +1,4 @@
+import { apiFetch } from '@/lib/apiFetch';
 import { ChangeEventHandler, FormEventHandler, SetStateAction, useEffect, useMemo, useState } from "react";
 import { collection, query, setDoc, where, getDocs, getDoc, addDoc, deleteDoc, doc, updateDoc, DocumentSnapshot, DocumentData, serverTimestamp, Timestamp, Query } from "firebase/firestore";
 import { db, firebaseApp } from "@/lib/firebase/firebase";
@@ -656,7 +657,7 @@ const handleUploadLeadDocument = async (file: File) => {
     formData.append('leadId', documentsLeadId);
     formData.append('file', file);
 
-    const res = await fetch('/api/leadDocuments/upload', {
+    const res = await apiFetch('/api/leadDocuments/upload', {
       method: 'POST',
       body: formData,
     });
@@ -702,7 +703,7 @@ const handleUploadLeadDocument = async (file: File) => {
 
 const handleDeleteLeadDocument = async (docId: string) => {
   try {
-    const res = await fetch('/api/leadDocuments/delete', {
+    const res = await apiFetch('/api/leadDocuments/delete', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ documentId: docId }),

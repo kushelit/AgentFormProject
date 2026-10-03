@@ -4,8 +4,11 @@ export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
 import { admin } from '@/lib/firebase/firebase-admin';
+import { guardAdmin } from '@/lib/server/auth';
 
-export async function GET() {
+export async function GET(req: Request) {
+  const denied = await guardAdmin(req, 'subscriptions');
+  if (denied) return denied;
   try {
     const snapshot = await admin
       .firestore()
@@ -109,6 +112,7 @@ export async function GET() {
            * agentId הוא ה-UID שלו.
            */
           agentId,
+          portalExecutionMode: data.portalExecutionMode ?? 'runner',
 
           name:
             data.name || '',

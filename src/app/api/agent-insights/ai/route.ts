@@ -12,6 +12,7 @@ import { admin } from '@/lib/firebase/firebase-admin';
 import { AiError, callClaude, extractJson } from '@/lib/ai/client';
 import type { AiSummary, AiTone } from '@/types/agentInsights';
 import { normalizeInsights } from '@/lib/insights/normalizeInsights';
+import { guardAgentAccess } from '@/lib/server/auth';
 
 export const maxDuration = 60;
 
@@ -131,6 +132,8 @@ function toSummary(j: any): Omit<AiSummary, 'generatedAt'> | null {
 export async function POST(req: NextRequest) {
   try {
     const { agentId, year, force } = await req.json();
+    const denied = await guardAgentAccess(req, agentId, 'agent-insights/ai');
+    if (denied) return denied;
     if (!agentId || !year) {
       return NextResponse.json({ error: 'missing params' }, { status: 400 });
     }

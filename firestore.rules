@@ -1,0 +1,169 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    /* =========================
+       Identity helpers
+       ========================= */
+    function isSignedIn() {
+      return request.auth != null && request.auth.uid != null;
+    }
+    function isAnonymous() {
+      return isSignedIn()
+        && request.auth.token.firebase != null
+        && request.auth.token.firebase.sign_in_provider == "anonymous";
+    }
+    function myDocPath() {
+      return /databases/$(database)/documents/users/$(request.auth.uid);
+    }
+    function me() {
+      return get(myDocPath()).data;
+    }
+    // A registered user = a non-anonymous user whose users doc has a known role.
+    // A self-created users doc without a role grants no access.
+    function isRegistered() {
+      return isSignedIn() && !isAnonymous() && exists(myDocPath())
+        && me().get("role", "") in ["agent", "manager", "worker", "admin"];
+    }
+    function isSystem() {
+      return isRegistered() && me().get("isSystem", false) == true;
+    }
+    function isAdmin() {
+      return isRegistered() && me().role == "admin";
+    }
+
+    // Fields that grant access, permissions or billing state.
+    // Only admin/system may change them (isSystem: system only).
+    function privilegedUserFields() {
+      return ["role", "isSystem", "agencies", "agencyId", "managerId", "agentGroupId", "agentId",
+        "permissionOverrides", "subscriptionId", "subscriptionType", "subscriptionStartDate",
+        "addOns", "isActive", "email", "phone", "phoneNumber", "multiFactor",
+        "lastPaymentDate", "lastPaymentStatus", "futureChargeAmount", "cancellationDate",
+        "growCancellationStatus", "transactionId", "transactionToken", "pageCode", "asmachta",
+        "couponHistory", "portalExecutionMode", "portalExecutionModeUpdatedAt",
+        "portalExecutionModeUpdatedBy"];
+    }
+    function changedKeys() {
+      return request.resource.data.diff(resource.data).affectedKeys();
+    }
+
+    /* =========================
+       Portal Runner Config (OTA)
+       ========================= */
+    match /portalRunnerConfig/{document} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    /* =========================
+       Desktop Pair Requests (unchanged)
+       ========================= */
+    match /desktopPairRequests/{codeHash} {
+      allow create: if isAnonymous()
+        && request.resource.data.codeHash == codeHash
+        && request.resource.data.requesterUid == request.auth.uid
+        && request.resource.data.status == "pending"
+        && !("customToken" in request.resource.data);
+      allow read: if isSignedIn()
+        && resource.data.requesterUid == request.auth.uid;
+      allow update: if isAnonymous()
+        && resource.data.requesterUid == request.auth.uid
+        && resource.data.status == "pending"
+        && request.resource.data.status == "pending"
+        && !("customToken" in request.resource.data);
+      allow delete: if false;
+    }
+
+    /* =========================
+       Users
+       ========================= */
+    match /users/{uid} {
+      // Stage A: reads stay as today for registered users (many screens query users).
+      // Narrowing reads per agent is stage B.
+      allow read: if (isSignedIn() && uid == request.auth.uid) || isRegistered();
+
+      // Self-create only, without any privileged field.
+      allow create: if isSignedIn() && uid == request.auth.uid
+        && !request.resource.data.keys().hasAny(privilegedUserFields());
+
+      allow update: if
+        // System admin: anything.
+        isSystem()
+        // Admin: anything except granting isSystem.
+        || (isAdmin() && !changedKeys().hasAny(["isSystem"]))
+        // Self, a worker of this agent, or this agent's manager: non-privileged fields only
+        // (preferences, comparisonTolerance, agentCodes, agency house...).
+        || (isRegistered()
+            && (uid == request.auth.uid
+                || me().get("agentId", "") == uid
+                || resource.data.get("managerId", "") == request.auth.uid)
+            && !changedKeys().hasAny(privilegedUserFields()))
+        // An agent managing his own worker's permission overrides (TeamPermissionsTable).
+        || (isRegistered()
+            && resource.data.get("role", "") == "worker"
+            && resource.data.get("agentId", "") == request.auth.uid
+            && changedKeys().hasOnly(["permissionOverrides"]));
+
+      allow delete: if isSystem() || isAdmin();
+
+      // Push tokens for OTP notifications (otp/page.tsx): owner only.
+      match /pushTokens/{token} {
+        allow read, write: if isRegistered() && uid == request.auth.uid;
+      }
+    }
+
+    /* =========================
+       Server-only collections (Admin SDK bypasses rules)
+       ========================= */
+    match /portalCredentials/{document=**} {
+      allow read, write: if false;
+    }
+    match /agents/{agentId}/reengagement_leads/{leadId} {
+      allow read, write: if false;
+    }
+
+    /* =========================
+       System-wide configuration: read by registered users, written by admin/system
+       ========================= */
+    match /roles/{document=**} {
+      allow read: if isRegistered();
+      allow write: if isSystem() || isAdmin();
+    }
+    match /permissions/{document=**} {
+      allow read: if isRegistered();
+      allow write: if isSystem() || isAdmin();
+    }
+    match /subscriptions_permissions/{document=**} {
+      allow read: if isRegistered();
+      allow write: if isSystem() || isAdmin();
+    }
+    match /commissionTemplates/{document=**} {
+      allow read: if isRegistered();
+      allow write: if isSystem() || isAdmin();
+    }
+    match /agentsGroup/{document=**} {
+      allow read: if isRegistered();
+      allow write: if isSystem() || isAdmin();
+    }
+    match /aiUsageLogs/{document=**} {
+      allow read: if isSystem() || isAdmin();
+      allow write: if false;
+    }
+    // API auth audit (src/lib/server/auth.ts) - written by the server only.
+    match /apiAuthLogs/{document=**} {
+      allow read: if isSystem() || isAdmin();
+      allow write: if false;
+    }
+
+    /* =========================
+       Default: registered users only (stage A - same as today minus the
+       collections above). Per-agent separation is stage B.
+       ========================= */
+    match /{collection}/{document=**} {
+      allow read, write: if isRegistered()
+        && !(collection in ["users", "portalCredentials", "roles", "permissions",
+          "subscriptions_permissions", "commissionTemplates", "agentsGroup",
+          "aiUsageLogs", "apiAuthLogs", "portalRunnerConfig", "desktopPairRequests"]);
+    }
+  }
+}

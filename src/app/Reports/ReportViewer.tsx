@@ -1,4 +1,5 @@
 'use client';
+import { apiFetch } from '@/lib/apiFetch';
 
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/firebase/AuthContext';
@@ -318,7 +319,7 @@ useEffect(() => {
           sourceLeadId: rules.showLeadSource ? selectedLeadSource?.value : undefined,
       };
 
-      const res = await fetch('/api/sendReport', {
+      const res = await apiFetch('/api/sendReport', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),

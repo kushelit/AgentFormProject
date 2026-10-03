@@ -1,4 +1,5 @@
 'use client';
+import { apiFetch } from '@/lib/apiFetch';
 // components/Sharon/tabs/PensionTab.tsx
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
@@ -156,7 +157,7 @@ const PensionTab: React.FC<Props> = ({ agentId, customer, onSelectCustomer, incl
       formData.append('file', file);
       formData.append('agentId', agentId);
 
-      const res = await fetch(`/api/${importApiSlug}/upload`, { method: 'POST', body: formData });
+      const res = await apiFetch(`/api/${importApiSlug}/upload`, { method: 'POST', body: formData });
       const data = await res.json();
 
       if (!res.ok) {
@@ -320,7 +321,7 @@ const PensionTab: React.FC<Props> = ({ agentId, customer, onSelectCustomer, incl
     const sheetName = dealFormContext === 'risk' ? 'דוח סיכונים' : 'דוח פנסיה ופיננסים';
 
     try {
-      const res = await fetch('/api/export-report', {
+      const res = await apiFetch('/api/export-report', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ sheetName, headers, rows }),
