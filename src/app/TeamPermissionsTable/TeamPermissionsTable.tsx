@@ -507,7 +507,8 @@ const detailAsMinimalUser: MinimalUser | null = detail && user
           if ((isAgent || isManager || isWorker) && selectedAgentId && selectedAgentId !== 'all') {
             workersQuery = query(baseRef, where('agentId', '==', selectedAgentId));
           } else {
-            workersQuery = query(baseRef, where('role', 'in', ['worker', 'agent', 'manager']));
+            // Without a selected agent: only the user's own agent team (previously loaded every user in the system).
+            workersQuery = query(baseRef, where('agentId', '==', detail?.agentId || user?.uid || ''));
           }
   
           const qs = await getDocs(workersQuery);

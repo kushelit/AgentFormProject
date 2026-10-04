@@ -48,6 +48,26 @@ service cloud.firestore {
     }
 
     /* =========================
+       Agent access (stage B) - agentAccess/{uid} is computed by Cloud Functions
+       (functions/src/shared/agentAccess.ts): { all, agentIds, groupId }
+       ========================= */
+    function accessPath() {
+      return /databases/$(database)/documents/agentAccess/$(request.auth.uid);
+    }
+    function hasAccessDoc() {
+      return isRegistered() && exists(accessPath());
+    }
+    function myAccess() {
+      return get(accessPath()).data;
+    }
+    function canAccessAgent(agentId) {
+      return isSystem() || (hasAccessDoc() && agentId in myAccess().agentIds);
+    }
+    function myGroupId() {
+      return hasAccessDoc() ? myAccess().get("groupId", "") : "";
+    }
+
+    /* =========================
        Portal Runner Config (OTA)
        ========================= */
     match /portalRunnerConfig/{document} {
@@ -78,9 +98,20 @@ service cloud.firestore {
        Users
        ========================= */
     match /users/{uid} {
-      // Stage A: reads stay as today for registered users (many screens query users).
-      // Narrowing reads per agent is stage B.
-      allow read: if (isSignedIn() && uid == request.auth.uid) || isRegistered();
+      // Stage B: a user reads itself, the agents it may access, their workers
+      // (users.agentId = the agent; an agent's own doc has agentId = itself),
+      // its agent group, and - for an agency admin - its agency's users.
+      allow get: if (isSignedIn() && uid == request.auth.uid)
+        || isSystem()
+        || canAccessAgent(uid)
+        || canAccessAgent(resource.data.get("agentId", ""))
+        || (myGroupId() != "" && resource.data.get("agentGroupId", "") == myGroupId())
+        || (isAdmin() && resource.data.get("agencies", "") == me().get("agencies", "-"));
+      // Queries must filter by agentId / agentGroupId / agencies so the rule can be proven.
+      allow list: if isSystem()
+        || canAccessAgent(resource.data.agentId)
+        || (myGroupId() != "" && resource.data.agentGroupId == myGroupId())
+        || (isAdmin() && resource.data.agencies == me().get("agencies", "-"));
 
       // Self-create only, without any privileged field.
       allow create: if isSignedIn() && uid == request.auth.uid

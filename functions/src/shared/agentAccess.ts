@@ -23,7 +23,13 @@ export const ACCESS_FIELDS = ["role", "isSystem", "agencies", "agentId", "agentG
 
 const s = (v: any) => String(v ?? "").trim();
 
-export type AgentAccess = { all: boolean; agentIds: string[] };
+/**
+ * all      — system admin: every agent.
+ * agentIds — agents this user may access.
+ * groupId  — set when the user may access the whole agentGroupId (lets rules allow
+ *            users queries filtered by agentGroupId).
+ */
+export type AgentAccess = { all: boolean; agentIds: string[]; groupId?: string };
 
 /**
  * Mirrors src/lib/permissions/hasPermission.ts for a non-paid permission.
@@ -74,6 +80,7 @@ export async function computeAgentAccess(db: FirebaseFirestore.Firestore, uid: s
     if (groupId) {
       const snap = await db.collection("users").where("agentGroupId", "==", groupId).where("role", "in", ["agent", "manager"]).get();
       snap.forEach((d) => ids.add(d.id));
+      return {all: false, agentIds: [...ids].sort(), groupId};
     }
   }
   return {all: false, agentIds: [...ids].sort()};
@@ -84,9 +91,9 @@ export async function syncAgentAccess(db: FirebaseFirestore.Firestore, uid: stri
   const next = await computeAgentAccess(db, uid);
   const ref = db.collection(AGENT_ACCESS_COLLECTION).doc(uid);
   const current = (await ref.get()).data();
-  if (current && current.all === next.all &&
+  if (current && current.all === next.all && (current.groupId || "") === (next.groupId || "") &&
     JSON.stringify(current.agentIds || []) === JSON.stringify(next.agentIds)) return false;
-  await ref.set({...next, updatedAt: FieldValue.serverTimestamp()});
+  await ref.set({all: next.all, agentIds: next.agentIds, groupId: next.groupId || "", updatedAt: FieldValue.serverTimestamp()});
   return true;
 }
 
