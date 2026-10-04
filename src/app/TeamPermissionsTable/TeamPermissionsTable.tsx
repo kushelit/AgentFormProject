@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useState, useMemo } from 'react';
-import { collection, doc, getDoc, getDocs, query, updateDoc, arrayUnion, arrayRemove, where } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, query, where } from 'firebase/firestore';
+import { apiFetch } from '@/lib/apiFetch';
 import { useAuth } from '@/lib/firebase/AuthContext';
 import { hasPermission } from '@/lib/permissions/hasPermission';
 import { db } from '@/lib/firebase/firebase';
@@ -601,7 +602,6 @@ const detailAsMinimalUser: MinimalUser | null = detail && user
   };
   const updatePermission = async (workerId: string, permission: string, has: boolean) => {
     // console.log('🔄 עדכון הרשאה:');
-    const userRef = doc(db, 'users', workerId);
     const worker = workers.find(w => w.id === workerId);
     if (!worker) return;
   
@@ -611,76 +611,29 @@ const detailAsMinimalUser: MinimalUser | null = detail && user
       return;
     }
   
-    const rolePerms = rolePermissionsMap[worker.role || ''] ?? [];
-  
-    // AGENT/MANAGER = plan-based (ללא ירושה מ-role)
-    const isPlanBased = (worker.role === 'agent' || worker.role === 'manager');
-  
-    // 🔎 בודקים ירושה בסיסית *בלי* overrides (כדי לא ליפול ל"מצב שלישי")
-    const baseUser = {
-      ...worker,
-      permissionOverrides: { allow: [], deny: [] }, // מנקים overrides לבדיקה
-    };
-  
-    // ירושה מ-role (רק ללא plan-based)
-    const hasFromRoleBase = !isPlanBased && (rolePerms.includes('*') || rolePerms.includes(permission));
-  
-    // ירושה ממסלול/תוסף (רק ל-plan-based)
-    const hasFromPlanOrAddonBase = isPlanBased ? hasPermission({
-      user: baseUser,
-      permission,
-      rolePermissions: rolePerms, // לא רלוונטי ל-plan-based, אבל נשאיר חתימה אחידה
-      subscriptionPermissionsMap,
-    }) : false;
-  
-    const isInheritedFromBase = hasFromRoleBase || hasFromPlanOrAddonBase;
-  
-    const update: any = {};
-    const isExplicitlyAllowed = worker.permissionOverrides?.allow?.includes(permission);
-  
-    if (!has) {
-      // המשתמש כרגע *לא* מחזיק בהרשאה → נלחץ כדי להוסיף
-      if (!isInheritedFromBase) {
-        // אין מקור בסיס → צריך ALLOW מפורש
-        // console.log('➕ מוסיפה ל־allow (אין מקור בסיס)');
-        update['permissionOverrides.allow'] = arrayUnion(permission);
-        update['permissionOverrides.deny'] = arrayRemove(permission);
-      } else {
-        // יש מקור בסיס (מסלול/תוסף/role) → מספיק להסיר DENY
-        // console.log('🧹 הסרת deny בלבד (יש מקור בסיס)');
-        update['permissionOverrides.deny'] = arrayRemove(permission);
-        // ניקוי מיותר: אם בטעות נשאר ALLOW היסטורי, ננקה (כי יש ירושה בסיסית)
-        update['permissionOverrides.allow'] = arrayRemove(permission);
-      }
-    } else {
-      // המשתמש כרגע *כן* מחזיק בהרשאה → נלחץ כדי להסיר
-      if (isExplicitlyAllowed) {
-        // console.log('➖ מסירה מ־allow (הייתה מפורשת)');
-        update['permissionOverrides.allow'] = arrayRemove(permission);
-        update['permissionOverrides.deny'] = arrayRemove(permission); // ניקוי ביטחון
-      } else {
-        // console.log('⛔ מוסיפה ל־deny (חוסם מעל הבסיס)');
-        update['permissionOverrides.deny'] = arrayUnion(permission);
-      }
-    }
-  
     try {
-      await updateDoc(userRef, update);
-      const refreshed = await getDoc(userRef);
+      // The server applies the same toggle and enforces who may change what
+      // (Firestore rules block browser writes to permissionOverrides).
+      const res = await apiFetch('/api/team-permissions/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ targetUid: workerId, permission }),
+      });
+      const result = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(result?.error || 'שגיאה בעדכון ההרשאה');
       setWorkers(prev =>
         prev.map(w =>
           w.id === workerId
             ? {
                 ...w,
-                permissionOverrides: refreshed.data()?.permissionOverrides || {},
+                permissionOverrides: result.permissionOverrides || {},
               }
             : w
         )
       );
       addToast('success', 'העדכון בוצע בהצלחה');
-    } catch (error) {
-      // console.error('שגיאה בעדכון הרשאה:', error);
-      addToast('error', 'שגיאה בעדכון ההרשאה');
+    } catch (error: any) {
+      addToast('error', error?.message || 'שגיאה בעדכון ההרשאה');
     }
   };
   

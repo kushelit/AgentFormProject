@@ -128,12 +128,9 @@ service cloud.firestore {
             && (uid == request.auth.uid
                 || me().get("agentId", "") == uid
                 || resource.data.get("managerId", "") == request.auth.uid)
-            && !changedKeys().hasAny(privilegedUserFields()))
-        // An agent managing his own worker's permission overrides (TeamPermissionsTable).
-        || (isRegistered()
-            && resource.data.get("role", "") == "worker"
-            && resource.data.get("agentId", "") == request.auth.uid
-            && changedKeys().hasOnly(["permissionOverrides"]));
+            && !changedKeys().hasAny(privilegedUserFields()));
+        // Permission overrides for the caller's tree (self / group agents / workers) are changed
+        // only through the server: /api/team-permissions/update enforces the rules.
 
       allow delete: if isSystem() || isAdmin();
 
