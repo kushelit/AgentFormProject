@@ -3,6 +3,9 @@ import { admin } from "@/lib/firebase/firebase-admin";
 import { generateElementaryTemplateExcel } from "@/utils/generateElementaryTemplateExcel";
 import { guardAgentAccess } from '@/lib/server/auth';
 
+// Reads the request (Authorization header / query) — never pre-render at build time.
+export const dynamic = 'force-dynamic';
+
 export const runtime = "nodejs";
 
 export async function GET(request: Request) {

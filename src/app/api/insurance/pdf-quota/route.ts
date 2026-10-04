@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { admin } from "@/lib/firebase/firebase-admin";
 import { guardAgentAccess } from '@/lib/server/auth';
 
+// Reads the request (Authorization header / query) — never pre-render at build time.
+export const dynamic = 'force-dynamic';
+
 export async function GET(req: NextRequest) {
   const agentUid = req.nextUrl.searchParams.get("agentUid");
   const denied = await guardAgentAccess(req, agentUid, 'insurance/pdf-quota');

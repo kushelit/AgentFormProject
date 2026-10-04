@@ -4,6 +4,9 @@ import { CONTRACTS_TABLES_CONFIG } from "@/config/contractsTablesConfig";
 import { generateContractsTemplateExcel } from "@/components/NewManageContractsTables/generateContractsTemplateExcel";
 import { guardAgentAccess } from '@/lib/server/auth';
 
+// Reads the request (Authorization header / query) — never pre-render at build time.
+export const dynamic = 'force-dynamic';
+
 export const runtime = "nodejs";
 
 export async function GET(request: Request) {

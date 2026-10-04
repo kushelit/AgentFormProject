@@ -3,6 +3,9 @@ import { admin } from "@/lib/firebase/firebase-admin";
 import { generateRiskTemplateExcel } from "@/utils/generateRiskTemplateExcel";
 import { guardAgentAccess } from '@/lib/server/auth';
 
+// Reads the request (Authorization header / query) — never pre-render at build time.
+export const dynamic = 'force-dynamic';
+
 export const runtime = "nodejs";
 
 const PENSION_FINANCE_GROUPS = ["1", "4", "6"]; // כל השאר = סיכונים

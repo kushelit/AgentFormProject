@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 import { admin } from "@/lib/firebase/firebase-admin";
 import { guardAgentAccess } from '@/lib/server/auth';
 
+// Reads the request (Authorization header / query) — never pre-render at build time.
+export const dynamic = 'force-dynamic';
+
 export const runtime = "nodejs";
 
 export async function GET(request: Request) {

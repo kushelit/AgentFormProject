@@ -4,6 +4,9 @@ import { generatePensionFinanceTemplateExcel } from "@/utils/generatePensionFina
 import { PENSION_FINANCE_AGENCY4_STATUSES } from "@/utils/pensionFinanceAgency4Statuses";
 import { guardAgentAccess } from '@/lib/server/auth';
 
+// Reads the request (Authorization header / query) — never pre-render at build time.
+export const dynamic = 'force-dynamic';
+
 export const runtime = "nodejs";
 
 const PENSION_FINANCE_GROUPS = ["1", "4", "6"];

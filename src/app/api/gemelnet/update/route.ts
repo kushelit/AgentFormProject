@@ -17,6 +17,9 @@ import {
 } from "@/lib/pension/gemelNetStorage";
 import { guardAdmin } from '@/lib/server/auth';
 
+// Reads the request (Authorization header / query) — never pre-render at build time.
+export const dynamic = 'force-dynamic';
+
 export async function GET(req: NextRequest) {
   const denied = await guardAdmin(req, 'gemelnet/update');
   if (denied) return denied;
