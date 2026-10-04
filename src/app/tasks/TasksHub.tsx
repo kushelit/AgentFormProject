@@ -331,7 +331,7 @@ export default function TasksHub() {
       const nameMap: Record<string, string> = {};
       for (let i = 0; i < ids.length; i += 10) {
         const chunk = ids.slice(i, i + 10);
-        const cq = query(collection(db, 'customer'), where('__name__', 'in', chunk));
+        const cq = query(collection(db, 'customer'), where('AgentId', '==', selectedAgentId), where('__name__', 'in', chunk));
         const cs = await getDocs(cq);
         cs.docs.forEach(d => {
           const data = d.data() as any;

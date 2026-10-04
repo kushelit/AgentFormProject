@@ -2,6 +2,7 @@ export const runtime = 'nodejs';
 
 import { NextResponse } from 'next/server';
 import { admin } from '@/lib/firebase/firebase-admin';
+import { agentIdOf } from '@/lib/server/documentOwners';
 
 const DEFAULT_STATUS_LEAD = 'JVhM7nnBrwNBfvrb4zH5';
 const PROSAAS_SOURCE_VALUE = 'prosaaslead';
@@ -266,8 +267,10 @@ async function saveProsaasFilesToLead(
     }
 
     // 🧠 שמירה ב־DB
+    const AgentId = await agentIdOf('leads', leadId);
     const docRef = await db.collection('leadDocuments').add({
       leadId,
+      ...(AgentId ? { AgentId } : {}),
       sourceSystem: 'prosaas',
       externalBusinessId: String(metadata.business_id || ''),
       externalLeadId: String(metadata.lead_id || ''),
@@ -289,6 +292,7 @@ async function saveProsaasFilesToLead(
       const customerId = customerSnap.docs[0].id;
       await db.collection('customerDocuments').add({
         customerId,
+        ...(AgentId ? { AgentId } : {}),
         convertedFromLeadDocId: docRef.id,
         leadId,
         sourceSystem: 'prosaas',

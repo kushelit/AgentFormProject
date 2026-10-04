@@ -20,6 +20,7 @@ import './CustomerPage.css';
 import CustomerNotes from './CustomerNotes';
 import CustomerTasks from './CustomerTasks';
 import CustomerMeetingFlow from './CustomerMeetingFlow';
+import { getDocsForMyAgents } from '@/lib/agentScope';
 
 interface CustomerDoc {
   id: string;
@@ -261,7 +262,7 @@ export default function CustomerPage() {
 
   useEffect(() => {
    const fetchContracts = async () => {
-  const snap = await getDocs(collection(db, 'contracts'));
+  const snap = await getDocsForMyAgents('contracts', 'AgentId').then((docs) => ({ docs }));
   setContracts(snap.docs.map(d => {
     const data = d.data() as any;
     return {

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { collection, getDocs, query, where, QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
+import { getAgentDocs } from '@/lib/agentScope';
 import { db } from "@/lib/firebase/firebase";
 import { useAuth } from '@/lib/firebase/AuthContext';
 
@@ -34,17 +35,10 @@ function useSalesData(
       setOverallInsuranceTotal(0);
       setOverallNiudPensiaTotal(0);
 
-      let salesQuery = query(collection(db, 'sales'), where('statusPolicy', 'in', ['פעילה', 'הצעה']));
-
-      if (selectedAgentId) {
-        salesQuery = query(salesQuery, where('AgentId', '==', selectedAgentId));
-      }
-
-      if (selectedWorkerId) {
-        salesQuery = query(salesQuery, where('workerId', '==', selectedWorkerId));
-      }
-
-      const querySnapshot = await getDocs(salesQuery);
+      const constraints = [where('statusPolicy', 'in', ['פעילה', 'הצעה'])];
+      if (selectedWorkerId) constraints.push(where('workerId', '==', selectedWorkerId));
+      // No agent selected → only the agents this user may access (not every agent in the system).
+      const querySnapshot = await getAgentDocs('sales', 'AgentId', selectedAgentId, constraints);
       let initialMonthlyTotals: MonthlyTotals = {};
 
       querySnapshot.forEach((doc: QueryDocumentSnapshot<DocumentData>) => {

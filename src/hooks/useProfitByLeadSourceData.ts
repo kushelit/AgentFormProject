@@ -19,6 +19,7 @@ import { CombinedData } from '../types/Sales';
 import { fetchSplits } from '@/services/splitsService';
 import fetchDataForAgent from '@/services/fetchDataForAgent';
 import { fetchSourceLeadsForAgent } from '@/services/sourceLeadService';
+import { getDocsForMyAgents } from '@/lib/agentScope';
 
 /** ---------- Types ---------- */
 type BaseContract = {
@@ -248,7 +249,7 @@ export default function useProfitByLeadSourceData(params: {
       if (!selectedAgentId) return;
 
       const [contractsSnapshot, productsSnapshot] = await Promise.all([
-        getDocs(collection(db, 'contracts')),
+        getDocsForMyAgents('contracts', 'AgentId').then((docs) => ({ docs })),
         getDocs(collection(db, 'product')),
       ]);
 

@@ -30,6 +30,9 @@ const MAX_QUICK_REPLY_BUTTONS =
 const MAX_URL_BUTTONS =
   1;
 
+const MAX_FOOTER_LENGTH =
+  60;
+
 const ALLOWED_QUICK_REPLY_ACTIONS =
   new Set([
     "interested",
@@ -97,6 +100,43 @@ function normalizeBodyVariable1Source(
     "full_name"
     ? "full_name"
     : "first_name";
+}
+
+/**
+ * Meta: FOOTER עד 60 תווים, ללא משתנים.
+ */
+function normalizeFooterText(
+  v: unknown
+): string {
+  const value =
+    s(v);
+
+  if (!value) {
+    return "";
+  }
+
+  if (
+    value.length >
+    MAX_FOOTER_LENGTH
+  ) {
+    throw new HttpsError(
+      "invalid-argument",
+      `Footer text is limited to ${MAX_FOOTER_LENGTH} characters`
+    );
+  }
+
+  if (
+    /\{\{.*?\}\}/.test(
+      value
+    )
+  ) {
+    throw new HttpsError(
+      "invalid-argument",
+      "Footer text cannot contain variables"
+    );
+  }
+
+  return value;
 }
 
 function normalizeHttpUrl(
@@ -740,6 +780,11 @@ export async function createWhatsAppTemplateImpl(
       body.headerMedia
     );
 
+  const footerText =
+    normalizeFooterText(
+      body.footerText
+    );
+
   const urlButtons =
     urlButton
       ? [
@@ -883,6 +928,22 @@ export async function createWhatsAppTemplateImpl(
   components.push(
     bodyComponent
   );
+
+  /*
+   * סדר הרכיבים ש-Meta דורשת:
+   * HEADER -> BODY -> FOOTER -> BUTTONS
+   */
+  if (
+    footerText
+  ) {
+    components.push({
+      type:
+        "FOOTER",
+
+      text:
+        footerText,
+    });
+  }
 
   const templateButtons:
     any[] =
@@ -1091,6 +1152,13 @@ export async function createWhatsAppTemplateImpl(
         headerMedia?.type ||
         null,
 
+      footerText,
+
+      hasFooter:
+        Boolean(
+          footerText
+        ),
+
       componentsJson:
         JSON.stringify(
           components
@@ -1171,5 +1239,7 @@ export async function createWhatsAppTemplateImpl(
     urlButton,
 
     headerMedia,
+
+    footerText,
   };
 }

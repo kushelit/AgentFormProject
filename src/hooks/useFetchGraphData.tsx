@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { collection, query, where, getDocs } from 'firebase/firestore';
+import { getAgentDocs } from '@/lib/agentScope';
 import { db } from '@/lib/firebase/firebase';
 import useSalesData from '@/hooks/useSalesCalculateData';
 
@@ -130,19 +131,10 @@ const fetchNewCustomerData = async (filters: { selectedAgentId: string | null; s
   // console.log('Months to process for selected year:', monthsUpToNow);
 
   // יצירת השאילתה
-  let salesQuery = query(
-    collection(db, 'sales'),
-    where('statusPolicy', 'in', ['פעילה', 'הצעה'])
-  );
-
-  if (selectedAgentId && selectedAgentId !== 'all') {
-    salesQuery = query(salesQuery, where('AgentId', '==', selectedAgentId));
-  }
-  if (selectedWorkerIdFilter) {
-    salesQuery = query(salesQuery, where('workerId', '==', selectedWorkerIdFilter));
-  }
-
-  const querySnapshot = await getDocs(salesQuery);
+  const constraints = [where('statusPolicy', 'in', ['פעילה', 'הצעה'])];
+  if (selectedWorkerIdFilter) constraints.push(where('workerId', '==', selectedWorkerIdFilter));
+  // "all" / no agent → only the agents this user may access (not every agent in the system).
+  const querySnapshot = await getAgentDocs('sales', 'AgentId', selectedAgentId, constraints);
 
   // מיפוי החודש הראשון של כל מבוטח
   const customerFirstMonth: Record<string, string> = {};

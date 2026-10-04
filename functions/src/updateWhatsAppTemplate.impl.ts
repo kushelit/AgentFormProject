@@ -18,6 +18,9 @@ const WA_API_URL =
 const MAX_QUICK_REPLY_BUTTONS =
   3;
 
+const MAX_FOOTER_LENGTH =
+  60;
+
 const ALLOWED_QUICK_REPLY_ACTIONS =
   new Set([
     "interested",
@@ -70,6 +73,47 @@ function normalizeBodyVariable1Source(
     "full_name"
     ? "full_name"
     : "first_name";
+}
+
+/**
+ * Meta: FOOTER עד 60 תווים, ללא משתנים.
+ */
+function normalizeFooterText(
+  value: unknown
+): string {
+  const text =
+    s(
+      value
+    );
+
+  if (
+    !text
+  ) {
+    return "";
+  }
+
+  if (
+    text.length >
+    MAX_FOOTER_LENGTH
+  ) {
+    throw new HttpsError(
+      "invalid-argument",
+      `Footer text is limited to ${MAX_FOOTER_LENGTH} characters`
+    );
+  }
+
+  if (
+    /\{\{.*?\}\}/.test(
+      text
+    )
+  ) {
+    throw new HttpsError(
+      "invalid-argument",
+      "Footer text cannot contain variables"
+    );
+  }
+
+  return text;
 }
 
 function getBodyVariableCount(
@@ -765,6 +809,24 @@ export async function updateWhatsAppTemplateImpl(
         ?.metaTemplateId
     );
 
+  /*
+   * FOOTER:
+   *
+   * אם הגיע ערך מה-UI (גם מחרוזת ריקה = הסרת הפוטר) - משתמשים בו.
+   * אם לא הגיע בכלל - שומרים את הפוטר הקיים,
+   * כדי שלא יימחק בטעות בעדכון.
+   */
+  const footerText =
+    body.footerText !==
+    undefined
+      ? normalizeFooterText(
+          body.footerText
+        )
+      : normalizeFooterText(
+          existingTemplate
+            ?.footerText
+        );
+
   const rawExistingHeaderMedia =
     existingTemplate
       ?.headerMedia;
@@ -980,6 +1042,22 @@ export async function updateWhatsAppTemplateImpl(
   components.push(
     bodyComponent
   );
+
+  /*
+   * סדר הרכיבים ש-Meta דורשת:
+   * HEADER -> BODY -> FOOTER -> BUTTONS
+   */
+  if (
+    footerText
+  ) {
+    components.push({
+      type:
+        "FOOTER",
+
+      text:
+        footerText,
+    });
+  }
 
   const templateButtons:
     any[] =
@@ -1242,6 +1320,13 @@ export async function updateWhatsAppTemplateImpl(
         headerMedia?.type ||
         null,
 
+      footerText,
+
+      hasFooter:
+        Boolean(
+          footerText
+        ),
+
       componentsJson:
         JSON.stringify(
           refreshedTemplate
@@ -1319,6 +1404,8 @@ export async function updateWhatsAppTemplateImpl(
     urlButton,
 
     headerMedia,
+
+    footerText,
 
     meta:
       updateJson,

@@ -88,3 +88,5 @@ coverage/
 .DS_Store
 Thumbs.db
 **/pw-browsers/
+# Claude Code shell temp files
+tmpclaude-*

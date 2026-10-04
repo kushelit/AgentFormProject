@@ -7,6 +7,7 @@ import { collection, getDocs, limit, orderBy, query } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { db, functions } from '@/lib/firebase/firebase';
 import { useAuth } from '@/lib/firebase/AuthContext';
+import { apiFetch } from '@/lib/apiFetch';
 import AdminGuard from '../_components/AdminGuard';
 
 /** Full rebuild of agentAccess (which agents each user may access; used by Firestore rules). System admin only. */
@@ -31,7 +32,7 @@ function RebuildAgentAccess() {
   };
 
   return (
-    <div className="mb-6 p-3 border rounded bg-gray-50 flex flex-wrap items-center gap-3">
+    <div className="mb-3 p-3 border rounded bg-gray-50 flex flex-wrap items-center gap-3">
       <span className="text-sm">הרשאות גישה לסוכנים (agentAccess):</span>
       <button onClick={run} disabled={running}
         className="border rounded px-3 py-1 bg-white hover:bg-gray-100 disabled:opacity-50">
@@ -113,6 +114,7 @@ function ApiAuthLogs() {
       </p>
 
       <RebuildAgentAccess />
+      <BackfillDocumentOwners />
 
       <div className="flex flex-wrap items-center gap-2 mb-4">
         <select value={day} onChange={(e) => setDay(e.target.value)} className="border rounded px-2 py-1">
@@ -163,6 +165,42 @@ function ApiAuthLogs() {
       {text && (
         <textarea readOnly value={text} className="w-full h-48 mt-4 border rounded p-2 font-mono text-xs" dir="ltr" />
       )}
+    </div>
+  );
+}
+
+/** One-time: add AgentId to existing customer/lead documents (adds a field only). System admin only. */
+function BackfillDocumentOwners() {
+  const { detail } = useAuth();
+  const [running, setRunning] = useState(false);
+  const [result, setResult] = useState('');
+  if (!(detail as any)?.isSystem) return null;
+
+  const run = async () => {
+    setRunning(true);
+    setResult('');
+    try {
+      const res = await apiFetch('/api/admin/backfill-document-owners', { method: 'POST' });
+      const r = await res.json();
+      if (!res.ok) throw new Error(r?.error || `HTTP ${res.status}`);
+      const line = (label: string, x: any) =>
+        `${label}: ${x.scanned} נבדקו, ${x.updated} הושלמו, ${x.alreadySet} כבר היו תקינים, ${x.ownerNotFound} בלי לקוח/ליד מתאים`;
+      setResult(`${line('מסמכי לקוח', r.customerDocuments)} | ${line('מסמכי ליד', r.leadDocuments)}`);
+    } catch (e: any) {
+      setResult(`שגיאה: ${e?.message || e}`);
+    } finally {
+      setRunning(false);
+    }
+  };
+
+  return (
+    <div className="mb-6 p-3 border rounded bg-gray-50 flex flex-wrap items-center gap-3">
+      <span className="text-sm">שיוך מסמכי לקוח וליד לסוכן (AgentId):</span>
+      <button onClick={run} disabled={running}
+        className="border rounded px-3 py-1 bg-white hover:bg-gray-100 disabled:opacity-50">
+        {running ? 'משלים...' : 'השלמה למסמכים קיימים'}
+      </button>
+      {result && <span className="text-sm">{result}</span>}
     </div>
   );
 }

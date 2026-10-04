@@ -8,12 +8,10 @@ import {
 
 import { db } from '@/lib/firebase/firebase';
 import { useAuth } from '@/lib/firebase/AuthContext';
-
-const LAST_ACTIVITY_KEY =
-  'magicsale_last_activity';
-
-const LOGOUT_REASON_KEY =
-  'magicsale_logout_reason';
+import {
+  LAST_ACTIVITY_KEY,
+  LOGOUT_REASON_KEY,
+} from '@/lib/auth/idleSessionStorage';
 
 const DEFAULT_IDLE_TIMEOUT_MINUTES = 60;
 const DEFAULT_WARNING_MINUTES = 5;

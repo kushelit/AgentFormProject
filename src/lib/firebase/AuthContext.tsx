@@ -13,6 +13,7 @@ import {
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { auth, db } from "./firebase";
 import { doc, getDoc } from "firebase/firestore";
+import { clearLastActivity } from "@/lib/auth/idleSessionStorage";
 
 // טיפוסים
 type AuthContextType = {
@@ -76,6 +77,9 @@ useEffect(() => {
 
   const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
     if (!currentUser) {
+      // אין משתמש מחובר - מנקים זמן פעילות ישן כדי שכניסה חדשה
+      // לא תנותק מיד עקב timestamp שנשאר מהסשן הקודם
+      clearLastActivity();
       setUser(null);
       setDetail(null);
       setIsLoading(false);
@@ -163,7 +167,8 @@ const logOut = async () => {
     // קודם כל נקה את הסטייט מיד
     setUser(null);
     setDetail(null);
-    
+    clearLastActivity();
+
     // עכשיו התנתק מFirebase
     await signOut(auth);
   } catch (error) {

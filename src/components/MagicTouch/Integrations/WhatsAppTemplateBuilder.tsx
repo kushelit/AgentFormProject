@@ -88,6 +88,8 @@ export type WhatsAppTemplateEditValue = {
   headerMedia?:
     WhatsAppTemplateHeaderMedia |
     null;
+
+  footerText?: string | null;
 };
 
 export type WhatsAppTemplateCreatedResult = {
@@ -112,6 +114,8 @@ export type WhatsAppTemplateCreatedResult = {
   headerMedia?:
     WhatsAppTemplateHeaderMedia |
     null;
+
+  footerText?: string;
 };
 
 type TemplateMutationResponse = {
@@ -179,6 +183,14 @@ type Props = {
 
   onCancelEdit?: () => void;
 };
+
+/*
+ * Meta: FOOTER עד 60 תווים, ללא משתנים.
+ */
+const MAX_FOOTER_LENGTH = 60;
+
+const SUGGESTED_FOOTER_TEXT =
+  "להסרה השב הסר";
 
 function getTemplateVariableNumbers(
   value: string
@@ -512,6 +524,14 @@ export default function WhatsAppTemplateBuilder({
     );
 
   const [
+    footerText,
+    setFooterText,
+  ] =
+    useState(
+      ""
+    );
+
+  const [
     mediaFile,
     setMediaFile,
   ] =
@@ -690,6 +710,14 @@ export default function WhatsAppTemplateBuilder({
       editingTemplate
         .headerMedia ||
       null
+    );
+
+    setFooterText(
+      String(
+        editingTemplate
+          .footerText ||
+        ""
+      )
     );
 
     setMediaFile(
@@ -1216,6 +1244,46 @@ export default function WhatsAppTemplateBuilder({
         return;
       }
 
+      const normalizedFooterText =
+        footerText.trim();
+
+      if (
+        normalizedFooterText.length >
+        MAX_FOOTER_LENGTH
+      ) {
+        showToast({
+          type:
+            "warning",
+
+          title:
+            "הפוטר ארוך מדי",
+
+          message:
+            `Meta מאפשרת עד ${MAX_FOOTER_LENGTH} תווים בפוטר.`,
+        });
+
+        return;
+      }
+
+      if (
+        /\{\{.*?\}\}/.test(
+          normalizedFooterText
+        )
+      ) {
+        showToast({
+          type:
+            "warning",
+
+          title:
+            "הפוטר לא יכול לכלול משתנים",
+
+          message:
+            "בפוטר אי אפשר להשתמש ב-{{1}}. יש להזין טקסט קבוע בלבד.",
+        });
+
+        return;
+      }
+
       if (
         isEditing &&
         existingHeaderMedia &&
@@ -1360,6 +1428,9 @@ export default function WhatsAppTemplateBuilder({
               headerMedia:
                 WhatsAppTemplateHeaderMedia |
                 null;
+
+              footerText:
+                string;
             },
             TemplateMutationResponse
           >(
@@ -1401,6 +1472,9 @@ export default function WhatsAppTemplateBuilder({
             urlButton,
 
             headerMedia,
+
+            footerText:
+              normalizedFooterText,
           });
 
         const result:
@@ -1440,6 +1514,9 @@ export default function WhatsAppTemplateBuilder({
                 ?.headerMedia ??
               headerMedia ??
               existingHeaderMedia,
+
+            footerText:
+              normalizedFooterText,
           };
 
         showToast({
@@ -2096,6 +2173,70 @@ export default function WhatsAppTemplateBuilder({
               </div>
             </section>
 
+            <section className="rounded-xl border p-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <h3 className="font-bold text-slate-900">
+                    פוטר (אופציונלי)
+                  </h3>
+
+                  <p className="mt-1 text-sm text-slate-500">
+                    טקסט קטן ואפור בתחתית ההודעה, מתאים למשפט הסרה.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    setFooterText(
+                      SUGGESTED_FOOTER_TEXT
+                    )
+                  }
+                  className="rounded-lg border px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-50"
+                >
+                  מילוי מומלץ
+                </button>
+              </div>
+
+              <div className="mt-4">
+                <input
+                  type="text"
+                  value={
+                    footerText
+                  }
+                  onChange={(
+                    event
+                  ) =>
+                    setFooterText(
+                      event.target
+                        .value
+                    )
+                  }
+                  maxLength={
+                    MAX_FOOTER_LENGTH
+                  }
+                  placeholder={`לדוגמה: ${SUGGESTED_FOOTER_TEXT}`}
+                  className="w-full rounded-lg border px-3 py-2.5"
+                />
+
+                <div className="mt-1 flex items-center justify-between text-xs text-slate-500">
+                  <span>
+                    טקסט קבוע בלבד, ללא משתנים.
+                  </span>
+
+                  <span>
+                    {
+                      footerText.length
+                    }
+                    /
+                    {
+                      MAX_FOOTER_LENGTH
+                    }
+                  </span>
+                </div>
+              </div>
+            </section>
+
             <button
               type="button"
               onClick={() =>
@@ -2226,6 +2367,12 @@ export default function WhatsAppTemplateBuilder({
                           ? "שם מלא"
                           : "שם פרטי"}
                       </strong>
+                    </div>
+                  ) : null}
+
+                  {footerText.trim() ? (
+                    <div className="mt-3 text-xs text-slate-400">
+                      {footerText.trim()}
                     </div>
                   ) : null}
 

@@ -231,6 +231,7 @@ const doConvert = async () => {
     const notesSnap = await getDocs(query(
       collection(db, 'customerNotes'),
       where('customerId', '==', lead.id),
+      where('agentId', '==', lead.AgentId),
     ));
     for (const n of notesSnap.docs) {
       await updateDoc(n.ref, { customerId: customerRef.id });
@@ -239,6 +240,7 @@ const doConvert = async () => {
     const tasksSnap = await getDocs(query(
       collection(db, 'customerTasks'),
       where('customerId', '==', lead.id),
+      where('agentId', '==', lead.AgentId),
     ));
     for (const t of tasksSnap.docs) {
       await updateDoc(t.ref, { customerId: customerRef.id });

@@ -16,6 +16,7 @@ import { CommissionSplit } from '@/types/CommissionSplit';
 import { CombinedData } from '../types/Sales';
 import { fetchSplits } from '@/services/splitsService';
 import fetchDataForAgent from '@/services/fetchDataForAgent';
+import { getDocsForMyAgents } from '@/lib/agentScope';
 
 /* =========================
    Types
@@ -269,7 +270,7 @@ export default function useSalesData(
       setLoadingMeta(true);
 
       const [contractsSnapshot, productsSnapshot] = await Promise.all([
-        getDocs(collection(db, 'contracts')),
+        getDocsForMyAgents('contracts', 'AgentId').then((docs) => ({ docs })),
         getDocs(collection(db, 'product')),
       ]);
 

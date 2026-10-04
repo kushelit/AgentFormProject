@@ -3,6 +3,7 @@ export const runtime = 'nodejs';
 import { NextResponse } from 'next/server';
 import { admin } from '@/lib/firebase/firebase-admin';
 import { guardDocOwner } from '@/lib/server/auth';
+import { agentIdOf } from '@/lib/server/documentOwners';
 
 function buildBucketCandidates(rawBucket: string) {
   const clean = String(rawBucket || '').trim().replace(/^gs:\/\//, '');
@@ -99,8 +100,10 @@ export async function POST(req: Request) {
       );
     }
 
+    const AgentId = await agentIdOf('leads', leadId);
     const docRef = await db.collection('leadDocuments').add({
       leadId,
+      ...(AgentId ? { AgentId } : {}),
       sourceSystem: 'manual',
       fileName: file.name,
       mimeType: file.type || '',

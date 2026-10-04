@@ -71,6 +71,8 @@ type WhatsAppTemplate = {
     | "IMAGE"
     | "VIDEO"
     | null;
+
+  footerText?: string | null;
 };
 
 type RefreshTemplatesResponse = {
@@ -493,6 +495,13 @@ export default function MagicTouchTemplatesPage() {
                   headerMedia,
 
                   headerMediaType,
+
+                  footerText:
+                    String(
+                      data
+                        ?.footerText ||
+                      ""
+                    ),
                 };
               }
             )
@@ -674,6 +683,11 @@ export default function MagicTouchTemplatesPage() {
           template
             .headerMedia ||
           null,
+
+        footerText:
+          template
+            .footerText ||
+          "",
       });
 
       window.scrollTo({

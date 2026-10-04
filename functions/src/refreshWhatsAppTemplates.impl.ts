@@ -470,6 +470,33 @@ export async function refreshWhatsAppTemplatesImpl(
           ?.text
       );
 
+    const footerComponent =
+      Array.isArray(
+        template.components
+      )
+        ? template.components.find(
+            (
+              component:
+                any
+            ) =>
+              String(
+                component?.type ||
+                  ""
+              ).toUpperCase() ===
+              "FOOTER"
+          )
+        : null;
+
+    /*
+     * Meta היא מקור האמת: תבנית ללא FOOTER
+     * תקבל מחרוזת ריקה, כך שלא יישאר פוטר ישן.
+     */
+    const footerText =
+      s(
+        footerComponent
+          ?.text
+      );
+
     const bodyVariableCount =
       getBodyVariableCount(
         bodyText
@@ -532,6 +559,13 @@ export async function refreshWhatsAppTemplatesImpl(
         hasQuickReplies:
           quickReplyButtons.length >
           0,
+
+        footerText,
+
+        hasFooter:
+          Boolean(
+            footerText
+          ),
 
         componentsJson:
           JSON.stringify(
