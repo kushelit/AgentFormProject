@@ -516,7 +516,8 @@ const AutomaticRunsDashboard: React.FC<Props> = ({
 
           const snap = await getDocs(
 
-            query(collection(db, col), where('runId', '==', jobId))
+            // Filter by the agent too: Firestore rules allow only agent-scoped queries.
+            query(collection(db, col), where('agentId', '==', selectedAgentId || ''), where('runId', '==', jobId))
 
           );
 

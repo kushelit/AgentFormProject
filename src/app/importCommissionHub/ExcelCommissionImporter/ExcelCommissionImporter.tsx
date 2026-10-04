@@ -1466,7 +1466,8 @@ async function enrichSigmaCustomerIdsFromSales(params: {
 
 
   const deleteByRunIdInChunks = async (collectionName: string, runId: string) => {
-    const qy = query(collection(db, collectionName), where('runId', '==', runId));
+    // Filter by the agent too: Firestore rules allow only agent-scoped queries.
+    const qy = query(collection(db, collectionName), where('agentId', '==', selectedAgentId), where('runId', '==', runId));
     const snap = await getDocs(qy);
     if (snap.empty) return;
   
