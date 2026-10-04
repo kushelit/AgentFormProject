@@ -141,6 +141,46 @@ service cloud.firestore {
     }
 
     /* =========================
+       Stage B3: customers, deals, agreements, tasks, notes, documents - per agent.
+       Read / write only for the agents in agentAccess (system admin: everything).
+       Queries must filter by the owner field (AgentId / agentId).
+       isSystem() is checked first so a document without an owner field stays readable to the system admin.
+       ========================= */
+    match /customer/{id} {
+      allow read, delete: if isSystem() || canAccessAgent(resource.data.AgentId);
+      allow create: if isSystem() || canAccessAgent(request.resource.data.AgentId);
+      allow update: if isSystem() || (canAccessAgent(resource.data.AgentId) && canAccessAgent(request.resource.data.AgentId));
+    }
+    match /sales/{id} {
+      allow read, delete: if isSystem() || canAccessAgent(resource.data.AgentId);
+      allow create: if isSystem() || canAccessAgent(request.resource.data.AgentId);
+      allow update: if isSystem() || (canAccessAgent(resource.data.AgentId) && canAccessAgent(request.resource.data.AgentId));
+    }
+    match /contracts/{id} {
+      allow read, delete: if isSystem() || canAccessAgent(resource.data.AgentId);
+      allow create: if isSystem() || canAccessAgent(request.resource.data.AgentId);
+      allow update: if isSystem() || (canAccessAgent(resource.data.AgentId) && canAccessAgent(request.resource.data.AgentId));
+    }
+    match /customerDocuments/{id} {
+      allow read, delete: if isSystem() || canAccessAgent(resource.data.AgentId);
+      allow create: if isSystem() || canAccessAgent(request.resource.data.AgentId);
+      allow update: if isSystem() || (canAccessAgent(resource.data.AgentId) && canAccessAgent(request.resource.data.AgentId));
+    }
+    match /customerNotes/{id} {
+      allow read, delete: if isSystem() || canAccessAgent(resource.data.agentId);
+      allow create: if isSystem() || canAccessAgent(request.resource.data.agentId);
+      allow update: if isSystem() || (canAccessAgent(resource.data.agentId) && canAccessAgent(request.resource.data.agentId));
+    }
+    match /customerTasks/{id} {
+      // Also the user a task is assigned to (TaskReminderWatcher queries by assignedTo).
+      allow read: if isSystem() || canAccessAgent(resource.data.agentId)
+        || (isRegistered() && resource.data.assignedTo == request.auth.uid);
+      allow delete: if isSystem() || canAccessAgent(resource.data.agentId);
+      allow create: if isSystem() || canAccessAgent(request.resource.data.agentId);
+      allow update: if isSystem() || (canAccessAgent(resource.data.agentId) && canAccessAgent(request.resource.data.agentId));
+    }
+
+    /* =========================
        Server-only collections (Admin SDK bypasses rules)
        ========================= */
     match /portalCredentials/{document=**} {
@@ -196,7 +236,8 @@ service cloud.firestore {
       allow read, write: if isRegistered()
         && !(collection in ["users", "portalCredentials", "roles", "permissions",
           "subscriptions_permissions", "commissionTemplates", "agentsGroup",
-          "aiUsageLogs", "apiAuthLogs", "agentAccess", "portalRunnerConfig", "desktopPairRequests"]);
+          "aiUsageLogs", "apiAuthLogs", "agentAccess", "portalRunnerConfig", "desktopPairRequests",
+          "customer", "sales", "contracts", "customerDocuments", "customerNotes", "customerTasks"]);
     }
   }
 }

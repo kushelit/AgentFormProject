@@ -167,6 +167,7 @@ const SharonPage: React.FC = () => {
     try {
       const snap = await getDocs(query(
         collection(db, 'customerDocuments'),
+        where('AgentId', '==', effectiveAgentId),
         where('customerId', '==', customer.id)
       ));
       const rows = await Promise.all(snap.docs.map(async d => {
