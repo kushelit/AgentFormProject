@@ -240,6 +240,24 @@ export default function LogInPage() {
   const [phoneForMfa, setPhoneForMfa] =
     useState('');
 
+  // שליחה חוזרת של קוד SMS: הודעה ראשונה למספר חדש לפעמים לא נמסרת / מסוננת לספאם.
+  const RESEND_COOLDOWN_SECONDS = 30;
+  const [resendIn, setResendIn] = useState(0);
+  const [resending, setResending] = useState(false);
+  const [resendNotice, setResendNotice] = useState('');
+
+  useEffect(() => {
+    if (step !== 'mfa' || !verificationId) return;
+    setResendIn(RESEND_COOLDOWN_SECONDS);
+    const timer = setInterval(() => {
+      setResendIn((s) => {
+        if (s <= 1) clearInterval(timer);
+        return Math.max(0, s - 1);
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [step, verificationId]);
+
   /**
    * ניקוי ה־reCAPTCHA.
    */
@@ -688,6 +706,23 @@ export default function LogInPage() {
   };
 
   /**
+   * שליחת קוד SMS חדש לאותו מספר, בלי לחזור למסך ההתחברות.
+   */
+  const handleResendCode = async () => {
+    if (!resolverState || resending || smsLoading || resendIn > 0) return;
+    setResending(true);
+    setResendNotice('');
+    try {
+      await startMfaChallenge(resolverState);
+      setResendNotice('נשלח קוד חדש');
+    } catch (resendError: unknown) {
+      setError(mapAuthError(resendError as FirebaseLikeError));
+    } finally {
+      setResending(false);
+    }
+  };
+
+  /**
    * חזרה למסך ההתחברות.
    */
   const handleBackToLogin = () => {
@@ -697,6 +732,7 @@ export default function LogInPage() {
     setResolverState(null);
     setPhoneForMfa('');
     setError('');
+    setResendNotice('');
     setStep('login');
   };
 
@@ -761,6 +797,25 @@ export default function LogInPage() {
               ? 'מאמת...'
               : 'אימות קוד'}
           </button>
+
+          <div className="text-center text-sm">
+            <button
+              type="button"
+              onClick={handleResendCode}
+              disabled={smsLoading || resending || resendIn > 0}
+              className="text-blue-900 underline disabled:text-gray-400 disabled:no-underline"
+            >
+              {resending
+                ? 'שולח...'
+                : resendIn > 0
+                  ? `לא קיבלת קוד? אפשר לשלוח שוב בעוד ${resendIn} שניות`
+                  : 'לא קיבלת קוד? שלח שוב'}
+            </button>
+            {resendNotice && <div className="mt-1 text-green-700">{resendNotice}</div>}
+            <p className="mt-1 text-xs text-gray-500">
+              ייתכן שההודעה הראשונה הגיעה לתיקיית הספאם בהודעות בטלפון.
+            </p>
+          </div>
 
           <button
             type="button"

@@ -1,5 +1,5 @@
 'use client';
-import { apiFetch } from '@/lib/apiFetch';
+import { apiFetch, apiDownload } from '@/lib/apiFetch';
 // components/Sharon/tabs/PensionTab.tsx
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
@@ -141,9 +141,13 @@ const PensionTab: React.FC<Props> = ({ agentId, customer, onSelectCustomer, incl
   const importApiSlug = dealFormContext === 'risk' ? 'risk-template' : 'pension-finance-template';
   const canImport = dealFormContext === 'pension_finance' || dealFormContext === 'risk';
 
-  const downloadImportTemplate = () => {
+  const downloadImportTemplate = async () => {
     if (!agentId) return;
-    window.open(`/api/${importApiSlug}/download?agentId=${agentId}`, '_blank');
+    try {
+      await apiDownload(`/api/${importApiSlug}/download?agentId=${agentId}`, `${importApiSlug}.xlsx`);
+    } catch (e: any) {
+      addToast('error', e?.message || 'הורדת התבנית נכשלה');
+    }
   };
 
   const handleUploadImportExcel = async (e: React.ChangeEvent<HTMLInputElement>) => {

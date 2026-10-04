@@ -4,8 +4,43 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { collection, getDocs, limit, orderBy, query } from 'firebase/firestore';
-import { db } from '@/lib/firebase/firebase';
+import { httpsCallable } from 'firebase/functions';
+import { db, functions } from '@/lib/firebase/firebase';
+import { useAuth } from '@/lib/firebase/AuthContext';
 import AdminGuard from '../_components/AdminGuard';
+
+/** Full rebuild of agentAccess (which agents each user may access; used by Firestore rules). System admin only. */
+function RebuildAgentAccess() {
+  const { detail } = useAuth();
+  const [running, setRunning] = useState(false);
+  const [result, setResult] = useState('');
+  if (!(detail as any)?.isSystem) return null;
+
+  const run = async () => {
+    setRunning(true);
+    setResult('');
+    try {
+      const res: any = await httpsCallable(functions, 'rebuildAgentAccess')();
+      const r = res.data || {};
+      setResult(`הושלם: ${r.users} משתמשים, ${r.changed} עודכנו, ${r.removed} הוסרו`);
+    } catch (e: any) {
+      setResult(`שגיאה: ${e?.message || e}`);
+    } finally {
+      setRunning(false);
+    }
+  };
+
+  return (
+    <div className="mb-6 p-3 border rounded bg-gray-50 flex flex-wrap items-center gap-3">
+      <span className="text-sm">הרשאות גישה לסוכנים (agentAccess):</span>
+      <button onClick={run} disabled={running}
+        className="border rounded px-3 py-1 bg-white hover:bg-gray-100 disabled:opacity-50">
+        {running ? 'בונה...' : 'בנייה מחדש לכל המשתמשים'}
+      </button>
+      {result && <span className="text-sm">{result}</span>}
+    </div>
+  );
+}
 
 type LogRow = {
   id: string;
@@ -76,6 +111,8 @@ function ApiAuthLogs() {
       <p className="text-sm text-gray-600 mb-4">
         בקשות שהבדיקה בשרת הייתה חוסמת (מצב רישום) או חסמה (מצב חסימה). שורה אחת לכל יום + ממשק + משתמש + סוכן + סיבה.
       </p>
+
+      <RebuildAgentAccess />
 
       <div className="flex flex-wrap items-center gap-2 mb-4">
         <select value={day} onChange={(e) => setDay(e.target.value)} className="border rounded px-2 py-1">

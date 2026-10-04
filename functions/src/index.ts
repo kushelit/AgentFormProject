@@ -17,6 +17,13 @@ export { sendImportInsightsEmailOnPortalRun } from "./sendImportInsightsEmail";
 
 export { sendOtpPushOnRunUpdate } from "./sendOtpPushOnRunUpdate";
 
+export {
+  syncAgentAccessOnUserWrite,
+  syncAgentAccessOnPlanWrite,
+  syncAgentAccessOnRoleWrite,
+  rebuildAgentAccess,
+} from "./syncAgentAccess";
+
 export { reengagementLeadsWebhook } from "./reengagementLeads";
 
 export { sendReengagementBatch } from "./sendReengagementBatch";

@@ -5,12 +5,24 @@
 // • בקשה שנכשלה לא נשמרת.
 // • הבקשות נשלחות דרך apiFetch — עם טוקן המשתמש המחובר.
 
+import { onAuthStateChanged } from 'firebase/auth';
 import { apiFetch } from '@/lib/apiFetch';
+import { auth } from '@/lib/firebase/firebase';
 
 const DEFAULT_TTL_MS = 10 * 60 * 1000;
 
 type Entry = { at: number; promise: Promise<any> };
 const store = new Map<string, Entry>();
+
+// • מתנקה כשהמשתמש המחובר מתחלף/מתנתק — כדי שמשתמש לא יקבל נתונים שנשמרו עבור קודמו.
+let cacheUid: string | null | undefined;
+if (typeof window !== 'undefined') {
+  onAuthStateChanged(auth, (user) => {
+    const uid = user?.uid ?? null;
+    if (cacheUid !== undefined && uid !== cacheUid) store.clear();
+    cacheUid = uid;
+  });
+}
 
 export class FetchError extends Error {
   status: number;

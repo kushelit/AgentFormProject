@@ -1,5 +1,5 @@
 'use client';
-import { apiFetch } from '@/lib/apiFetch';
+import { apiFetch, apiDownload } from '@/lib/apiFetch';
 // components/Sharon/tabs/ElementaryTab.tsx
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
@@ -132,13 +132,16 @@ const ElementaryTab: React.FC<Props> = ({ agentId, customer, onSelectCustomer })
   const [importErrorRows, setImportErrorRows] = useState<{ row: number; error: string }[] | null>(null);
   const [showImportRunsManager, setShowImportRunsManager] = useState(false);
 
-  const downloadElementaryTemplate = () => {
+  const downloadElementaryTemplate = async () => {
     if (!agentId) {
       addToast('error', 'יש לבחור סוכן תחילה');
       return;
     }
-    const url = `/api/elementary-template/download?agentId=${agentId}`;
-    window.open(url, '_blank');
+    try {
+      await apiDownload(`/api/elementary-template/download?agentId=${agentId}`, 'elementary-template.xlsx');
+    } catch (e: any) {
+      addToast('error', e?.message || 'הורדת התבנית נכשלה');
+    }
   };
 
   const handleUploadElementaryExcel = async (e: React.ChangeEvent<HTMLInputElement>) => {

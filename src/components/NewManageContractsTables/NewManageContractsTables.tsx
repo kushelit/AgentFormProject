@@ -1,5 +1,5 @@
 'use client';
-import { apiFetch } from '@/lib/apiFetch';
+import { apiFetch, apiDownload } from '@/lib/apiFetch';
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -171,15 +171,16 @@ useEffect(() => {
   };
 
 
-const downloadExcelTemplate = () => {
+const downloadExcelTemplate = async () => {
    if (!effectiveAgentId) {
     addToast("error", "יש לבחור סוכן תחילה");
     return;
   }
-  const url = effectiveAgentId
-    ? `/api/contracts-template/download?agentId=${effectiveAgentId}`
-    : `/api/contracts-template/download`;
-  window.open(url, "_blank");
+  try {
+    await apiDownload(`/api/contracts-template/download?agentId=${effectiveAgentId}`, "contracts-template.xlsx");
+  } catch (e: any) {
+    addToast("error", e?.message || "הורדת התבנית נכשלה");
+  }
 };
 
   const fetchMeta = async () => {

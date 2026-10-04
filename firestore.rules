@@ -149,6 +149,11 @@ service cloud.firestore {
       allow read: if isSystem() || isAdmin();
       allow write: if false;
     }
+    // Which agents each user may access - computed by Cloud Functions (syncAgentAccess).
+    match /agentAccess/{uid} {
+      allow read: if isSignedIn() && uid == request.auth.uid;
+      allow write: if false;
+    }
     // API auth audit (src/lib/server/auth.ts) - written by the server only.
     match /apiAuthLogs/{document=**} {
       allow read: if isSystem() || isAdmin();
@@ -163,7 +168,7 @@ service cloud.firestore {
       allow read, write: if isRegistered()
         && !(collection in ["users", "portalCredentials", "roles", "permissions",
           "subscriptions_permissions", "commissionTemplates", "agentsGroup",
-          "aiUsageLogs", "apiAuthLogs", "portalRunnerConfig", "desktopPairRequests"]);
+          "aiUsageLogs", "apiAuthLogs", "agentAccess", "portalRunnerConfig", "desktopPairRequests"]);
     }
   }
 }
