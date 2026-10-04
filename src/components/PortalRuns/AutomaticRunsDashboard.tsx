@@ -634,6 +634,11 @@ const AutomaticRunsDashboard: React.FC<Props> = ({
               'commissionImportQueue'
             ),
             where(
+              'agentId',
+              '==',
+              selectedAgentId || ''
+            ),
+            where(
               'portalRunId',
               '==',
               item.runId

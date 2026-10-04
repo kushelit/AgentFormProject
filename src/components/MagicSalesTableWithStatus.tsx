@@ -71,7 +71,7 @@ export default function MagicSalesTableWithStatus({ agentId, repYm, company, row
         const extAmts: Record<string, number> = {};
         for (let i = 0; i < unique.length; i += 10) {
           const chunk = unique.slice(i, i + 10);
-          const qExt = query(collection(db, 'externalCommissions'), where('__name__', 'in', chunk));
+          const qExt = query(collection(db, 'externalCommissions'), where('agentId', '==', agentId), where('__name__', 'in', chunk));
           const s = await getDocs(qExt);
           s.forEach(d => {
             const E = d.data() as ExtRow;

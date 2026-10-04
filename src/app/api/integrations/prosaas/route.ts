@@ -335,6 +335,11 @@ const normalizeDate = (v: any): string => {
 
 
 export async function POST(req: Request) {
+  // The ProSaaS partnership ended: the endpoint is closed unless explicitly re-enabled
+  // (PROSAAS_ENABLED=true). The code is kept for a possible renewal.
+  if (process.env.PROSAAS_ENABLED !== 'true') {
+    return NextResponse.json({ error: 'Integration disabled' }, { status: 410 });
+  }
   try {
     const apiKey = req.headers.get('x-api-key');
     const expectedKey = process.env.PROSAAS_WEBHOOK_SECRET;
