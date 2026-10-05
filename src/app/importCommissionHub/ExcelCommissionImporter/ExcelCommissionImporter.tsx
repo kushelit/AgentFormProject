@@ -2696,8 +2696,9 @@ const rowsPrepared = finalRowsForImport.map((r) =>
       fileInputRef.current.value = "";
     }
   } catch (error) {
-    // console.error("handleImport error:", error);
-    addToast("error", "שגיאה בעת טעינה למסד. בדוק קונסול.");
+    // Technical details for support/debugging; the user gets a plain message.
+    console.error("handleImport error:", error);
+    addToast("error", "הטעינה נכשלה. נסו שוב, ואם הבעיה חוזרת פנו לתמיכה.");
   } finally {
     setIsLoading(false);
     setLoadingStage("");

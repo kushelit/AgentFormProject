@@ -147,33 +147,38 @@ service cloud.firestore {
        isSystem() is checked first so a document without an owner field stays readable to the system admin.
        ========================= */
     match /customer/{id} {
-      allow read, delete: if isSystem() || canAccessAgent(resource.data.AgentId);
+      allow read: if resource == null || isSystem() || canAccessAgent(resource.data.AgentId);
+      allow delete: if isSystem() || canAccessAgent(resource.data.AgentId);
       allow create: if isSystem() || canAccessAgent(request.resource.data.AgentId);
       allow update: if isSystem() || (canAccessAgent(resource.data.AgentId) && canAccessAgent(request.resource.data.AgentId));
     }
     match /sales/{id} {
-      allow read, delete: if isSystem() || canAccessAgent(resource.data.AgentId);
+      allow read: if resource == null || isSystem() || canAccessAgent(resource.data.AgentId);
+      allow delete: if isSystem() || canAccessAgent(resource.data.AgentId);
       allow create: if isSystem() || canAccessAgent(request.resource.data.AgentId);
       allow update: if isSystem() || (canAccessAgent(resource.data.AgentId) && canAccessAgent(request.resource.data.AgentId));
     }
     match /contracts/{id} {
-      allow read, delete: if isSystem() || canAccessAgent(resource.data.AgentId);
+      allow read: if resource == null || isSystem() || canAccessAgent(resource.data.AgentId);
+      allow delete: if isSystem() || canAccessAgent(resource.data.AgentId);
       allow create: if isSystem() || canAccessAgent(request.resource.data.AgentId);
       allow update: if isSystem() || (canAccessAgent(resource.data.AgentId) && canAccessAgent(request.resource.data.AgentId));
     }
     match /customerDocuments/{id} {
-      allow read, delete: if isSystem() || canAccessAgent(resource.data.AgentId);
+      allow read: if resource == null || isSystem() || canAccessAgent(resource.data.AgentId);
+      allow delete: if isSystem() || canAccessAgent(resource.data.AgentId);
       allow create: if isSystem() || canAccessAgent(request.resource.data.AgentId);
       allow update: if isSystem() || (canAccessAgent(resource.data.AgentId) && canAccessAgent(request.resource.data.AgentId));
     }
     match /customerNotes/{id} {
-      allow read, delete: if isSystem() || canAccessAgent(resource.data.agentId);
+      allow read: if resource == null || isSystem() || canAccessAgent(resource.data.agentId);
+      allow delete: if isSystem() || canAccessAgent(resource.data.agentId);
       allow create: if isSystem() || canAccessAgent(request.resource.data.agentId);
       allow update: if isSystem() || (canAccessAgent(resource.data.agentId) && canAccessAgent(request.resource.data.agentId));
     }
     match /customerTasks/{id} {
       // Also the user a task is assigned to (TaskReminderWatcher queries by assignedTo).
-      allow read: if isSystem() || canAccessAgent(resource.data.agentId)
+      allow read: if resource == null || isSystem() || canAccessAgent(resource.data.agentId)
         || (isRegistered() && resource.data.assignedTo == request.auth.uid);
       allow delete: if isSystem() || canAccessAgent(resource.data.agentId);
       allow create: if isSystem() || canAccessAgent(request.resource.data.agentId);
@@ -186,7 +191,11 @@ service cloud.firestore {
        portalImportLocks, portalRunnerStatus, portalExtensionStatus, portalRunBatches)
        are NOT here yet: the Runner queries portalImportRuns by batchId only.
        ========================= */
+    // A missing document reveals nothing; allowing it lets code check "does it exist yet" (getDoc).
     function readByAgentId() {
+      return resource == null || isSystem() || canAccessAgent(resource.data.agentId);
+    }
+    function deleteByAgentId() {
       return isSystem() || canAccessAgent(resource.data.agentId);
     }
     function createByAgentId() {
@@ -196,62 +205,74 @@ service cloud.firestore {
       return isSystem() || (canAccessAgent(resource.data.agentId) && canAccessAgent(request.resource.data.agentId));
     }
     match /policyCommissionSummaries/{id} {
-      allow read, delete: if readByAgentId();
+      allow read: if readByAgentId();
+      allow delete: if deleteByAgentId();
       allow create: if createByAgentId();
       allow update: if updateByAgentId();
     }
     match /externalCommissions/{id} {
-      allow read, delete: if readByAgentId();
+      allow read: if readByAgentId();
+      allow delete: if deleteByAgentId();
       allow create: if createByAgentId();
       allow update: if updateByAgentId();
     }
     match /commissionSummaries/{id} {
-      allow read, delete: if readByAgentId();
+      allow read: if readByAgentId();
+      allow delete: if deleteByAgentId();
       allow create: if createByAgentId();
       allow update: if updateByAgentId();
     }
     match /ymCommissionSummaries/{id} {
-      allow read, delete: if readByAgentId();
+      allow read: if readByAgentId();
+      allow delete: if deleteByAgentId();
       allow create: if createByAgentId();
       allow update: if updateByAgentId();
     }
     match /commissionImportRuns/{id} {
-      allow read, delete: if readByAgentId();
+      allow read: if readByAgentId();
+      allow delete: if deleteByAgentId();
       allow create: if createByAgentId();
       allow update: if updateByAgentId();
     }
     match /commissionImportQueue/{id} {
-      allow read, delete: if readByAgentId();
+      allow read: if readByAgentId();
+      allow delete: if deleteByAgentId();
       allow create: if createByAgentId();
       allow update: if updateByAgentId();
     }
     match /importRuns/{id} {
-      allow read, delete: if readByAgentId();
+      allow read: if readByAgentId();
+      allow delete: if deleteByAgentId();
       allow create: if createByAgentId();
       allow update: if updateByAgentId();
     }
     match /commissionSplits/{id} {
-      allow read, delete: if readByAgentId();
+      allow read: if readByAgentId();
+      allow delete: if deleteByAgentId();
       allow create: if createByAgentId();
       allow update: if updateByAgentId();
     }
     match /commissionLinks/{id} {
-      allow read, delete: if readByAgentId();
+      allow read: if readByAgentId();
+      allow delete: if deleteByAgentId();
       allow create: if createByAgentId();
       allow update: if updateByAgentId();
     }
     match /agentPortalFilters/{id} {
-      allow read, delete: if readByAgentId();
+      allow read: if readByAgentId();
+      allow delete: if deleteByAgentId();
       allow create: if createByAgentId();
       allow update: if updateByAgentId();
     }
     match /tierCalcRuns/{id} {
-      allow read, delete: if readByAgentId();
+      allow read: if readByAgentId();
+      allow delete: if deleteByAgentId();
       allow create: if createByAgentId();
       allow update: if updateByAgentId();
     }
     match /agentInsightsCache/{id} {
-      allow read, delete: if readByAgentId();
+      allow read: if readByAgentId();
+      allow delete: if deleteByAgentId();
       allow create, update: if false;   // written by the server only
     }
     // Keyed by the agent's uid.
