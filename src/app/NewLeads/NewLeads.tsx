@@ -17,7 +17,7 @@ import {useSortableTable}  from "@/hooks/useSortableTable";
 import {ToastNotification} from '@/components/ToastNotification';
 import { useToast } from "@/hooks/useToast";
 import { useValidation } from "@/hooks/useValidation";
-import { getDownloadURL, getStorage, ref } from "firebase/storage";
+import { getDocumentLinks } from "@/lib/fileLinks";
 import { useRouter } from 'next/navigation';
 import { usePermission } from "@/hooks/usePermission";
 import DocumentsModal from "@/components/DocumentsModal/DocumentsModal";
@@ -600,29 +600,13 @@ const openLeadDocuments = async (lead: LeadsType) => {
 
     const snap = await getDocs(qDocs);
 
+    // Short-lived links from the server (permission-checked), one request for the whole list.
+    const links = await getDocumentLinks('leadDocuments', snap.docs.map((d) => d.id));
+
     const rows = [];
 for (const d of snap.docs) {
     const data: any = d.data();
-    let url = "";
-
-    try {
-      const bucketName = String(data.bucket || '').trim();
-      const storagePath = String(data.storagePath || '').trim();
-
-      if (bucketName && storagePath) {
-        // ✅ מציינים את ה-app וה-bucket הספציפי במפורש
-        const { firebaseApp } = await import('@/lib/firebase/firebase');
-        const storage = getStorage(firebaseApp, `gs://${bucketName}`);
-const storageRef = ref(storage, storagePath);
-url = await getDownloadURL(storageRef);
-      }
-    } catch (e) {
-      console.error("Failed to create download URL", {
-        bucket: data.bucket,
-        storagePath: data.storagePath,
-        error: e,
-      });
-    }
+    const url = links[d.id] || "";
       rows.push({
         id: d.id,
         leadId: data.leadId,
@@ -677,14 +661,8 @@ const handleUploadLeadDocument = async (file: File) => {
       return;
     }
 
-    // שליפת URL להורדה מיידית לתצוגה
-    const { firebaseApp } = await import('@/lib/firebase/firebase');
-    let url = '';
-    try {
-      const storage = getStorage(firebaseApp, `gs://${result.bucket}`);
-      const storageRef = ref(storage, result.storagePath);
-      url = await getDownloadURL(storageRef);
-    } catch {}
+    // קישור זמני לתצוגה מיידית (מהשרת, אחרי בדיקת הרשאה)
+    const url = (await getDocumentLinks('leadDocuments', [result.documentId]))[result.documentId] || '';
 
     setLeadDocuments(prev => [...prev, {
       id: result.documentId,

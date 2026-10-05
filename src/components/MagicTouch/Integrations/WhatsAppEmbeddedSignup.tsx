@@ -183,6 +183,8 @@ export default function WhatsAppEmbeddedSignup({
       businessId?: string;
       wabaId?: string;
       phoneNumberId?: string;
+      // Embedded Signup v4: הלקוח סיים את החלון בלי לבחור מספר טלפון
+      finishedWithoutPhone?: boolean;
     }>({});
 
   useEffect(
@@ -292,6 +294,54 @@ export default function WhatsAppEmbeddedSignup({
             ) {
               setPhoneNumberId(
                 sessionData.phoneNumberId
+              );
+            }
+
+            return;
+          }
+
+          /*
+           * Embedded Signup v4 מאפשר לסיים בלי מספר טלפון.
+           * בלי מספר אי אפשר לשלוח ולקבל הודעות, ולכן מבקשים לחבר שוב.
+           */
+          if (
+            payload?.event ===
+            "FINISH_ONLY_WABA"
+          ) {
+            const wabaOnlyBusinessId =
+              String(
+                data.business_id ||
+                ""
+              ).trim();
+
+            const wabaOnlyWabaId =
+              String(
+                data.waba_id ||
+                ""
+              ).trim();
+
+            embeddedSignupSessionRef.current = {
+              businessId:
+                wabaOnlyBusinessId,
+              wabaId:
+                wabaOnlyWabaId,
+              finishedWithoutPhone:
+                true,
+            };
+
+            if (
+              wabaOnlyBusinessId
+            ) {
+              setBusinessId(
+                wabaOnlyBusinessId
+              );
+            }
+
+            if (
+              wabaOnlyWabaId
+            ) {
+              setWabaId(
+                wabaOnlyWabaId
               );
             }
 
@@ -596,6 +646,29 @@ export default function WhatsAppEmbeddedSignup({
             return;
           }
 
+          if (
+            embeddedSignupSessionRef
+              .current
+              .finishedWithoutPhone
+          ) {
+            setConnectingMeta(
+              false
+            );
+
+            setDialog({
+              type:
+                "warning",
+
+              title:
+                "לא נבחר מספר טלפון",
+
+              message:
+                "החיבור ל-Meta הושלם בלי מספר טלפון. כדי ש-MagicTouch תוכל לשלוח ולקבל הודעות, יש לחבר שוב ולבחור מספר.",
+            });
+
+            return;
+          }
+
           setEmbeddedSignupCode(
             String(
               code
@@ -627,14 +700,13 @@ export default function WhatsAppEmbeddedSignup({
           override_default_response_type:
             true,
 
+          /*
+           * Embedded Signup v4: הגרסה והמוצרים נקבעים בהגדרה (config_id)
+           * ב-Meta. לא שולחים sessionInfoVersion, כי הוא מכריח את v2,
+           * שמושבתת ב-15.10.2026.
+           */
           extras: {
             setup: {},
-
-            featureType:
-              "",
-
-            sessionInfoVersion:
-              "3",
           },
         }
       );

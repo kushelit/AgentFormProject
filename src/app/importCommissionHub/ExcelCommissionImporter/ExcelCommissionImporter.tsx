@@ -1663,6 +1663,19 @@ const standardizeRowWithMapping = (
     }
   }
 
+  // ילין לפידות: reportMonth = שנה + חודש (זהה לקליטה האוטומטית)
+  if (base.templateId === "yalin_insurance") {
+    const rawMonth = getCell(row, "חודש");
+    const rawYear = getCell(row, "שנה");
+
+    const mm = String(rawMonth ?? "").trim().padStart(2, "0");
+    const yyyy = String(rawYear ?? "").trim();
+
+    if (mm && yyyy && /^\d{4}$/.test(yyyy)) {
+      result.reportMonth = `${yyyy}-${mm}`;
+    }
+  }
+
   if ("agentCode" in result && result.agentCode === undefined) {
 }
 
@@ -2425,6 +2438,8 @@ const handleImport = async () => {
     addToast("success", "נמצאה טעינה קודמת לחודשים אלו. הטעינה החדשה תתווסף ותחושב מחדש.");
   }
 
+  // Which step failed, logged with the error (for support / debugging).
+  let importStep = "start";
   try {
     const runRef = doc(collection(db, "commissionImportRuns"));
     const runId = runRef.id;
@@ -2434,6 +2449,7 @@ const handleImport = async () => {
       if (row.agentCode) uniqueAgentCodes.add(String(row.agentCode).trim());
     }
 
+    importStep = "users.agentCodes";
     const userRef = doc(db, "users", selectedAgentId);
     const userSnap = await getDoc(userRef);
     if (userSnap.exists()) {
@@ -2455,6 +2471,7 @@ const handleImport = async () => {
 let rowsAfterFilter = rowsWithPolicyKey;
 
 if (importMode === "single" && selectedCompanyId) {
+  importStep = "agentPortalFilters";
   const filterSnap = await getDoc(doc(db, "agentPortalFilters", `${selectedAgentId}_${selectedCompanyId}`));
   if (filterSnap.exists()) {
     const allowedCodes: string[] = (filterSnap.data()?.agentCodes || [])
@@ -2530,11 +2547,13 @@ const rowsPrepared = finalRowsForImport.map((r) =>
 );
 
     setLoadingStage("שומר שורות מקור...");
+    importStep = "externalCommissions.write";
     await writeExternalRowsInChunks(rowsPrepared);
 
     setImportProgress(75);
     setLoadingStage("מחשב סיכומים מחדש...");
 
+    importStep = "summaries.recompute";
     const { commissionSummariesCount, policySummariesCount } =
       await recomputeSummariesFromExternalManual({
         db,
@@ -2555,6 +2574,7 @@ const rowsPrepared = finalRowsForImport.map((r) =>
     setImportProgress(95);
     setLoadingStage("שומר רשומת טעינה...");
 
+    importStep = "commissionImportRuns.write";
     await setDoc(runRef, {
       runId,
       createdAt: serverTimestamp(),
@@ -2697,7 +2717,7 @@ const rowsPrepared = finalRowsForImport.map((r) =>
     }
   } catch (error) {
     // Technical details for support/debugging; the user gets a plain message.
-    console.error("handleImport error:", error);
+    console.error(`handleImport error at step "${importStep}":`, error);
     addToast("error", "הטעינה נכשלה. נסו שוב, ואם הבעיה חוזרת פנו לתמיכה.");
   } finally {
     setIsLoading(false);

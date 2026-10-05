@@ -8,11 +8,7 @@ import type { Firestore } from 'firebase/firestore';
 
 import { firebaseApp } from '@/lib/firebase/firebase';
 
-import {
-  getDownloadURL,
-  getStorage,
-  ref as storageRef,
-} from 'firebase/storage';
+import { getCommissionFileLinks } from '@/lib/fileLinks';
 
 import AutoCompanyCard from './AutoCompanyCard';
 
@@ -120,21 +116,13 @@ function bucketCandidates(raw: string): string[] {
   );
 }
 
+// קישור חתום וקצר-מועד מהשרת (בודק הרשאה: הסוכן, המנהל שלו או אדמין) במקום getDownloadURL,
+// שיוצר קישור קבוע לקובץ. השרת מנסה גם את שם ה-bucket הישן (appspot.com).
 async function resolveDownloadUrl(fileRef: DownloadFileRef): Promise<string> {
-  for (const bucket of bucketCandidates(fileRef.bucket)) {
-    try {
-      return await getDownloadURL(
-        storageRef(
-          getStorage(firebaseApp, `gs://${bucket}`),
-          fileRef.storagePath
-        )
-      );
-    } catch {
-      // נסיון הבא - תומך גם במסמכים ישנים ששמרו appspot.com.
-    }
-  }
-
-  return '';
+  const links = await getCommissionFileLinks([
+    { bucket: cleanBucket(fileRef.bucket), storagePath: fileRef.storagePath },
+  ]);
+  return links[fileRef.storagePath] || '';
 }
 
 function triggerDownload(href: string, name: string) {

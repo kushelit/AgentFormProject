@@ -290,12 +290,66 @@ service cloud.firestore {
     }
 
     /* =========================
+       Stage B6: MagicTouch - per agent.
+       Browser / mobile access (web + magictouch-mobile), everything else goes through Functions:
+         - agents/{agentId}/...: read config/*, whatsapp_templates, magic_touch_contacts (Monitor),
+           magic_touch_flow_runs (Onboarding), booking_appointments (Monitor/GoogleCalendar).
+           Write only config/magicTouch (Onboarding, InboundFirstResponseBuilder).
+         - whatsapp_conversations: queried by agentId, opened by id; messages subcollection read.
+           The only write is "mark as read" (unreadCount: 0).
+       secrets (encrypted OAuth / WhatsApp tokens) and reengagement_leads stay server-only.
+       ========================= */
+    // MagicTouch is per agent only, for now: the agent itself + system admin.
+    // No worker / manager / agency-admin access to Touch exists in the product yet.
+    // When it is built, switch this to canAccessAgent(agentId).
+    function isTouchOwner(agentId) {
+      return isSystem() || (isRegistered() && request.auth.uid == agentId);
+    }
+    match /agents/{agentId}/{sub}/{document=**} {
+      allow read: if !(sub in ["secrets", "reengagement_leads"]) && isTouchOwner(agentId);
+    }
+    match /agents/{agentId}/config/magicTouch {
+      allow create, update: if isTouchOwner(agentId);
+    }
+    match /whatsapp_conversations/{conversationId} {
+      allow read: if resource == null || isTouchOwner(resource.data.agentId);
+      // Mark as read: only unreadCount, set to 0, on the agent's own conversation.
+      allow update: if isTouchOwner(resource.data.agentId)
+        && changedKeys().hasOnly(["unreadCount"])
+        && request.resource.data.unreadCount == 0;
+      allow create, delete: if false;   // written by the server only
+
+      match /messages/{messageId} {
+        allow read: if isTouchOwner(
+          get(/databases/$(database)/documents/whatsapp_conversations/$(conversationId)).data.agentId);
+        allow write: if false;          // written by the server only
+      }
+    }
+
+    /* =========================
        Server-only collections (Admin SDK bypasses rules)
        ========================= */
     match /portalCredentials/{document=**} {
       allow read, write: if false;
     }
     match /agents/{agentId}/reengagement_leads/{leadId} {
+      allow read, write: if false;
+    }
+    // MagicTouch server-side state (B6): phone routing, raw inbound webhooks, calendar
+    // connection indexes, the global flow-template catalog.
+    match /whatsapp_phone_mappings/{document=**} {
+      allow read, write: if false;
+    }
+    match /whatsapp_inbound_messages/{document=**} {
+      allow read, write: if false;
+    }
+    match /google_calendar_connections/{document=**} {
+      allow read, write: if false;
+    }
+    match /microsoft_bookings_connections/{document=**} {
+      allow read, write: if false;
+    }
+    match /magic_touch_flow_templates/{document=**} {
       allow read, write: if false;
     }
 
@@ -350,7 +404,9 @@ service cloud.firestore {
           "policyCommissionSummaries", "externalCommissions", "commissionSummaries", "ymCommissionSummaries",
           "commissionImportRuns", "commissionImportQueue", "importRuns", "commissionSplits", "commissionLinks",
           "agentPortalFilters", "tierCalcRuns", "agentInsightsCache", "agentImportState", "tierThresholds",
-          "portalAgentCodeIncludeList"]);
+          "portalAgentCodeIncludeList",
+          "agents", "whatsapp_conversations", "whatsapp_phone_mappings", "whatsapp_inbound_messages",
+          "google_calendar_connections", "microsoft_bookings_connections", "magic_touch_flow_templates"]);
     }
   }
 }

@@ -56,15 +56,19 @@ service firebase.storage {
         && request.auth.uid == uid;
     }
 
-    // Uploads/deletes go through the server (Admin SDK); the client only gets download URLs.
-    // Stage B: scope reads per agent (the path does not include the agent today).
+    function isSystem() {
+      return isRegistered() && userDoc().data.get("isSystem", false) == true;
+    }
+
+    // Customer / lead documents: no direct browser access. Uploads go through the server, and
+    // viewing uses short-lived signed links from /api/files/signed-urls (per-agent permission check).
     match /leadFiles/{allPaths=**} {
-      allow read: if isRegistered();
+      allow read: if isSystem();
       allow write: if false;
     }
 
     match /customerFiles/{allPaths=**} {
-      allow read: if isRegistered();
+      allow read: if isSystem();
       allow write: if false;
     }
   }

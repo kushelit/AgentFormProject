@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import axios from 'axios';
 
-export async function POST(req: NextRequest) {
+// Disabled: unused (no caller in the app), unauthenticated. Kept for reference.
+export async function POST(_req: NextRequest) {
+  return NextResponse.json({ error: 'Endpoint disabled' }, { status: 410 });
+}
+
+async function legacyCreateTokenOnlyPayment(req: NextRequest) {
   try {
     const body = await req.json();
     const { fullName, email, phone } = body;

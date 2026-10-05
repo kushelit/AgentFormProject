@@ -4,7 +4,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import axios from 'axios';
 import { GROW_BASE_URL, GROW_USER_ID, APP_BASE_URL } from '@/lib/env';
 
-export async function POST(req: NextRequest) {
+// Disabled: charges a saved card for any sum, with no caller in the app and no auth.
+// Kept for reference; re-enable only behind an admin check.
+export async function POST(_req: NextRequest) {
+  return NextResponse.json({ error: 'Endpoint disabled' }, { status: 410 });
+}
+
+async function legacyChargeToken(req: NextRequest) {
   try {
     const body = await req.json();
     const { token, fullName, email, phone, sum } = body;

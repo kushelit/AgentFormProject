@@ -24,7 +24,7 @@ import {
   setDoc,
   Timestamp,
 } from 'firebase/firestore';
-import { getStorage, ref as storageRef, getDownloadURL } from 'firebase/storage';
+import { getCommissionFileLinks } from '@/lib/fileLinks';
 import useFetchAgentData from '@/hooks/useFetchAgentData';
 import { Button } from '@/components/Button/Button';
 import DialogNotification from '@/components/DialogNotification';
@@ -116,17 +116,11 @@ function bucketCandidates(raw: string): string[] {
   );
 }
 
+// קישור חתום וקצר-מועד מהשרת במקום getDownloadURL (שיוצר קישור קבוע). השרת מנסה את שני שמות ה-bucket.
 async function resolveDownloadUrl(ref: ImportFileRef): Promise<{ url: string; tried: string[] }> {
   const tried = bucketCandidates(ref.bucket);
-  for (const b of tried) {
-    try {
-      const url = await getDownloadURL(storageRef(getStorage(firebaseApp, `gs://${b}`), ref.storagePath));
-      return { url, tried };
-    } catch {
-      // באקט לא נכון / קובץ לא שם — ממשיכים למועמד הבא
-    }
-  }
-  return { url: '', tried };
+  const links = await getCommissionFileLinks([{ bucket: tried[0] || ref.bucket, storagePath: ref.storagePath }]);
+  return { url: links[ref.storagePath] || '', tried };
 }
 
 function triggerDownload(href: string, name: string) {

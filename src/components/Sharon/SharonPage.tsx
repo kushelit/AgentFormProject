@@ -1,5 +1,6 @@
 'use client';
 import { apiFetch } from '@/lib/apiFetch';
+import { getDocumentLinks } from '@/lib/fileLinks';
 // components/Sharon/SharonPage.tsx
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
@@ -170,23 +171,18 @@ const SharonPage: React.FC = () => {
         where('AgentId', '==', effectiveAgentId),
         where('customerId', '==', customer.id)
       ));
-      const rows = await Promise.all(snap.docs.map(async d => {
+      // Short-lived links from the server (permission-checked), one request for the whole list.
+      const links = await getDocumentLinks('customerDocuments', snap.docs.map(d => d.id));
+      const rows = snap.docs.map(d => {
         const data = d.data();
-        let url = '';
-        try {
-          const { firebaseApp } = await import('@/lib/firebase/firebase');
-          const { getStorage, ref, getDownloadURL } = await import('firebase/storage');
-          const storage = getStorage(firebaseApp, `gs://${data.bucket}`);
-          url = await getDownloadURL(ref(storage, data.storagePath));
-        } catch {}
         return {
           id: d.id,
           fileName: data.fileName || 'מסמך',
           mimeType: data.mimeType || '',
           size: data.size || 0,
-          url,
+          url: links[d.id] || '',
         };
-      }));
+      });
       setCustomerDocs(rows);
     } catch (error) {
       console.error('שגיאה בטעינת מסמכי לקוח:', error);
@@ -232,14 +228,7 @@ const SharonPage: React.FC = () => {
         return;
       }
 
-      const { firebaseApp } = await import('@/lib/firebase/firebase');
-      const { getStorage, ref, getDownloadURL } = await import('firebase/storage');
-      let url = '';
-      try {
-        const storage = getStorage(firebaseApp, `gs://${result.bucket}`);
-        const storageRef = ref(storage, result.storagePath);
-        url = await getDownloadURL(storageRef);
-      } catch {}
+      const url = (await getDocumentLinks('customerDocuments', [result.documentId]))[result.documentId] || '';
 
       setCustomerDocs(prev => [...prev, {
         id: result.documentId,
