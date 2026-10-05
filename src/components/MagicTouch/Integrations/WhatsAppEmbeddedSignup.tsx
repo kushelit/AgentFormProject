@@ -731,21 +731,29 @@ export default function WhatsAppEmbeddedSignup({
             "saveAgentWhatsAppConfig"
           );
 
-        await fn({
-          agentId,
+        const response =
+          await fn({
+            agentId,
 
-          businessId:
-            businessId.trim(),
+            businessId:
+              businessId.trim(),
 
-          wabaId:
-            wabaId.trim(),
+            wabaId:
+              wabaId.trim(),
 
-          phoneNumberId:
-            phoneNumberId.trim(),
+            phoneNumberId:
+              phoneNumberId.trim(),
 
-          embeddedSignupCode:
-            embeddedSignupCode.trim(),
-        });
+            embeddedSignupCode:
+              embeddedSignupCode.trim(),
+          });
+
+        // The server fetches the display number / verified name from Meta.
+        const saved =
+          (response?.data || {}) as {
+            displayPhoneNumber?: string;
+            displayName?: string;
+          };
 
         setConnectionSaved(
           true
@@ -762,9 +770,17 @@ export default function WhatsAppEmbeddedSignup({
         const result =
           buildConnectionResult();
 
-        onConnected?.(
-          result
-        );
+        onConnected?.({
+          ...result,
+
+          displayPhoneNumber:
+            saved.displayPhoneNumber ||
+            result.displayPhoneNumber,
+
+          displayName:
+            saved.displayName ||
+            result.displayName,
+        });
 
         setDialog({
           type:

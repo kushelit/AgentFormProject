@@ -199,6 +199,7 @@
 ### שונות
 - **`next.config.mjs`:** `experimental.optimizePackageImports` (`lucide-react`, `recharts`, `chart.js`, `date-fns`). זה נועד לשפר את ה-local, שהיה איטי בגלל הידור של webpack ב-Next 14.1. הומלץ גם להחריג את התיקייה ב-Defender ולנסות `--turbo`.
 - **`.gitignore`:** `tmpclaude-*`. אלה קבצים זמניים של Claude Code.
+- **WhatsApp Embedded Signup, מספר ושם תצוגה (תיקון MagicTouch שבוצע כאן):** Meta מחזירה ב-Embedded Signup רק מזהים, ולכן "מספר מחובר" ו"שם תצוגה" הופיעו "לא הוגדר". עכשיו `saveAgentWhatsAppConfig` שולף מ-Meta את `display_phone_number` ואת `verified_name` אחרי החלפת הקוד ב-token (`fetchWhatsAppPhoneNumberDetails`, לא זורקת שגיאה), שומר אותם ב-`config/whatsapp` וב-`whatsapp_phone_mappings`, ומחזיר אותם ללקוח. `WhatsAppEmbeddedSignup.tsx` מציג אותם מיד. **חיבור קיים מתעדכן רק בחיבור מחדש.** שגיאות ה-eslint בקובץ (70) היו קיימות קודם.
 
 ---
 

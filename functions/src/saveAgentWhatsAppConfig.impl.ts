@@ -115,6 +115,96 @@ async function exchangeEmbeddedSignupCode(
   );
 }
 
+/*
+ * Embedded Signup מחזיר רק waba_id ו-phone_number_id.
+ * את המספר המוצג ואת שם התצוגה המאושר שולפים מ-Meta.
+ * לא זורק שגיאה: אם Meta לא מחזירה, החיבור ממשיך בלי השדות.
+ */
+async function fetchWhatsAppPhoneNumberDetails(
+  phoneNumberId: string,
+  accessToken: string
+): Promise<{
+  displayPhoneNumber: string;
+  displayName: string;
+}> {
+  try {
+    const url =
+      new URL(
+        `https://graph.facebook.com/v25.0/${encodeURIComponent(phoneNumberId)}`
+      );
+
+    url.searchParams.set(
+      "fields",
+      "display_phone_number,verified_name"
+    );
+
+    const res =
+      await fetch(
+        url.toString(),
+        {
+          method:
+            "GET",
+
+          headers: {
+            Authorization:
+              `Bearer ${accessToken}`,
+          },
+        }
+      );
+
+    const json:
+      any =
+      await res.json();
+
+    if (
+      !res.ok
+    ) {
+      console.warn(
+        "[fetchWhatsAppPhoneNumberDetails] Meta error",
+        JSON.stringify(
+          json?.error ||
+          json
+        )
+      );
+
+      return {
+        displayPhoneNumber:
+          "",
+        displayName:
+          "",
+      };
+    }
+
+    return {
+      displayPhoneNumber:
+        s(
+          json?.display_phone_number
+        ),
+      displayName:
+        s(
+          json?.verified_name
+        ),
+    };
+  } catch (
+    error: any
+  ) {
+    console.warn(
+      "[fetchWhatsAppPhoneNumberDetails] failed",
+      error?.message ||
+      String(
+        error
+      )
+    );
+
+    return {
+      displayPhoneNumber:
+        "",
+      displayName:
+        "",
+    };
+  }
+}
+
 function createRegistrationPin(): string {
   return String(
     randomInt(
@@ -246,12 +336,12 @@ export async function saveAgentWhatsAppConfigImpl(
       body.phoneNumberId
     );
 
-  const displayPhoneNumber =
+  let displayPhoneNumber =
     s(
       body.displayPhoneNumber
     );
 
-  const displayName =
+  let displayName =
     s(
       body.displayName
     );
@@ -305,6 +395,28 @@ export async function saveAgentWhatsAppConfigImpl(
     await exchangeEmbeddedSignupCode(
       embeddedSignupCode
     );
+
+  /*
+   * 1b. מספר מוצג ושם תצוגה מאושר, אם לא הגיעו מהלקוח.
+   */
+  if (
+    !displayPhoneNumber ||
+    !displayName
+  ) {
+    const details =
+      await fetchWhatsAppPhoneNumberDetails(
+        phoneNumberId,
+        accessToken
+      );
+
+    displayPhoneNumber =
+      displayPhoneNumber ||
+      details.displayPhoneNumber;
+
+    displayName =
+      displayName ||
+      details.displayName;
+  }
 
   /*
    * 2. PIN קבוע לחיבור הזה.
@@ -748,6 +860,10 @@ export async function saveAgentWhatsAppConfigImpl(
     wabaId,
 
     phoneNumberId,
+
+    displayPhoneNumber,
+
+    displayName,
 
     phoneRegistered:
       true,
