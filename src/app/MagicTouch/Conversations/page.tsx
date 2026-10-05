@@ -30,6 +30,10 @@ import {
   type MagicTouchConversationFilter,
 } from '@/hooks/useMagicTouchConversations';
 
+import ConversationTemplatePicker, {
+  type ConversationTemplateRow,
+} from '@/components/MagicTouch/Conversations/ConversationTemplatePicker';
+
 type SendMessageResponse = {
   ok: boolean;
   action?: 'text' | 'media' | 'reaction';
@@ -590,6 +594,48 @@ function getMessageText(
   return message.type
     ? `[${message.type}]`
     : '[הודעה]';
+}
+
+// תקציר קצר להודעה מצוטטת: טקסט, כיתוב מדיה או שם הקובץ
+function getReplyPreviewText(
+  message:
+    MagicTouchConversationMessage
+): string {
+  if (
+    message.text
+  ) {
+    return message.text;
+  }
+
+  const caption =
+    String(
+      message.media
+        ?.caption ||
+      ''
+    ).trim();
+
+  if (
+    caption
+  ) {
+    return caption;
+  }
+
+  const fileName =
+    String(
+      message.media
+        ?.fileName ||
+      ''
+    ).trim();
+
+  if (
+    fileName
+  ) {
+    return `📎 ${fileName}`;
+  }
+
+  return getMessageText(
+    message
+  );
 }
 
 function formatFileSize(
@@ -1199,6 +1245,42 @@ export default function MagicTouchConversationsPage() {
   ] =
     useState(false);
 
+  // הודעה שעונים עליה בציטוט (כמו "השב" ב-WhatsApp)
+  const [
+    replyTarget,
+    setReplyTarget,
+  ] =
+    useState<MagicTouchConversationMessage | null>(
+      null
+    );
+
+  const [
+    isTemplatePickerOpen,
+    setIsTemplatePickerOpen,
+  ] =
+    useState(false);
+
+  const [
+    isSendingTemplate,
+    setIsSendingTemplate,
+  ] =
+    useState(false);
+
+  const [
+    templateNotice,
+    setTemplateNotice,
+  ] =
+    useState('');
+
+  // אזור ההודעות נגלל בתוך השיחה, ולא מותח את הדף
+  const messagesContainerRef =
+    useRef<HTMLDivElement | null>(
+      null
+    );
+
+  const lastScrolledConversationIdRef =
+    useRef('');
+
   const textareaRef =
     useRef<HTMLTextAreaElement | null>(
       null
@@ -1337,6 +1419,54 @@ export default function MagicTouchConversationsPage() {
     openedRequestedConversationId,
     selectConversation,
     clearConversationsError,
+  ]);
+
+  /*
+   * גלילה להודעה האחרונה:
+   * בפתיחת שיחה תמיד לתחתית. בהודעה חדשה רק אם המשתמש
+   * כבר נמצא ליד התחתית, כדי לא לקפוץ כשהוא קורא הודעות ישנות.
+   */
+  useEffect(() => {
+    const container =
+      messagesContainerRef.current;
+
+    if (
+      !container ||
+      isLoadingMessages ||
+      messages.length === 0
+    ) {
+      return;
+    }
+
+    const conversationChanged =
+      lastScrolledConversationIdRef.current !==
+      selectedConversationId;
+
+    const distanceFromBottom =
+      container.scrollHeight -
+      container.scrollTop -
+      container.clientHeight;
+
+    if (
+      conversationChanged ||
+      distanceFromBottom < 160
+    ) {
+      container.scrollTo({
+        top:
+          container.scrollHeight,
+        behavior:
+          conversationChanged
+            ? 'auto'
+            : 'smooth',
+      });
+    }
+
+    lastScrolledConversationIdRef.current =
+      selectedConversationId || '';
+  }, [
+    selectedConversationId,
+    messages.length,
+    isLoadingMessages,
   ]);
 
   const errorMessage =
@@ -1539,6 +1669,18 @@ export default function MagicTouchConversationsPage() {
         ''
       );
 
+      setTemplateNotice(
+        ''
+      );
+
+      setIsTemplatePickerOpen(
+        false
+      );
+
+      setReplyTarget(
+        null
+      );
+
       clearConversationsError();
 
       await selectConversation(
@@ -1701,6 +1843,10 @@ export default function MagicTouchConversationsPage() {
               text?:
                 string;
 
+              // השרת תומך בציטוט רק בהודעת טקסט
+              replyToWaMessageId?:
+                string | null;
+
               media?: {
                 fileName:
                   string;
@@ -1723,6 +1869,14 @@ export default function MagicTouchConversationsPage() {
             functions,
             'sendWhatsAppConversationMessage'
           );
+
+        const replyToWaMessageId =
+          String(
+            replyTarget
+              ?.waMessageId ||
+            ''
+          ).trim() ||
+          null;
 
         if (
           selectedFile
@@ -1776,6 +1930,10 @@ export default function MagicTouchConversationsPage() {
             ''
           );
 
+          setReplyTarget(
+            null
+          );
+
           return;
         }
 
@@ -1787,10 +1945,16 @@ export default function MagicTouchConversationsPage() {
             'text',
 
           text,
+
+          replyToWaMessageId,
         });
 
         setReplyText(
           ''
+        );
+
+        setReplyTarget(
+          null
         );
       } catch (
         error: unknown
@@ -1913,6 +2077,127 @@ export default function MagicTouchConversationsPage() {
         );
       } finally {
         setIsSendingReaction(
+          false
+        );
+      }
+    };
+
+  /*
+   * שליחת תבנית מתוך השיחה (כמו באפליקציית המובייל).
+   * השרת ממלא את משתני התבנית לפי איש הקשר.
+   */
+  const sendTemplate =
+    async (
+      template:
+        ConversationTemplateRow
+    ) => {
+      if (
+        !agentId ||
+        !selectedConversationId ||
+        isSendingTemplate
+      ) {
+        return;
+      }
+
+      const contactId =
+        String(
+          selectedConversation
+            ?.contactId ||
+          ''
+        ).trim();
+
+      if (
+        !contactId
+      ) {
+        setIsTemplatePickerOpen(
+          false
+        );
+
+        setSendErrorMessage(
+          'השיחה עדיין אינה מקושרת לאיש קשר, ולכן לא ניתן לשלוח תבנית.'
+        );
+
+        return;
+      }
+
+      setIsSendingTemplate(
+        true
+      );
+
+      setSendErrorMessage(
+        ''
+      );
+
+      setTemplateNotice(
+        ''
+      );
+
+      clearConversationsError();
+
+      try {
+        const fn =
+          httpsCallable<
+            {
+              agentId:
+                string;
+
+              contactId:
+                string;
+
+              conversationId:
+                string;
+
+              templateName:
+                string;
+            },
+            unknown
+          >(
+            functions,
+            'sendMagicTouchWhatsAppTemplate'
+          );
+
+        await fn({
+          agentId,
+
+          contactId,
+
+          conversationId:
+            selectedConversationId,
+
+          templateName:
+            template.name,
+        });
+
+        setIsTemplatePickerOpen(
+          false
+        );
+
+        setTemplateNotice(
+          `התבנית ${template.name} נשלחה.`
+        );
+      } catch (
+        error: unknown
+      ) {
+        console.error(
+          '[MagicTouchConversationsPage] Failed to send template',
+          error
+        );
+
+        const message =
+          error instanceof Error
+            ? error.message
+            : '';
+
+        setIsTemplatePickerOpen(
+          false
+        );
+
+        setSendErrorMessage(
+          message ||
+          'שליחת התבנית נכשלה.'
+        );
+      } finally {
+        setIsSendingTemplate(
           false
         );
       }
@@ -2087,6 +2372,30 @@ export default function MagicTouchConversationsPage() {
           </div>
         </div>
       ) : null}
+
+      <ConversationTemplatePicker
+        agentId={
+          agentId || ''
+        }
+        isOpen={
+          isTemplatePickerOpen
+        }
+        isSending={
+          isSendingTemplate
+        }
+        onClose={() =>
+          setIsTemplatePickerOpen(
+            false
+          )
+        }
+        onSelect={(
+          template
+        ) =>
+          void sendTemplate(
+            template
+          )
+        }
+      />
 
       <div className="mx-auto max-w-7xl">
         <header className="mb-6">
@@ -2443,7 +2752,7 @@ export default function MagicTouchConversationsPage() {
                   בחרי שיחה להצגה.
                 </div>
               ) : (
-                <div className="flex w-full max-w-[600px] flex-col overflow-hidden rounded-[24px] border bg-[#efeae2] shadow-xl">
+                <div className="flex h-[calc(100vh-15rem)] min-h-[560px] w-full max-w-[600px] flex-col overflow-hidden rounded-[24px] border bg-[#efeae2] shadow-xl">
                   <div className="flex items-center justify-between gap-3 bg-[#075e54] px-4 py-3 text-white">
                     <div className="flex min-w-0 items-center gap-3">
                       <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-white/20 font-bold">
@@ -2496,7 +2805,7 @@ export default function MagicTouchConversationsPage() {
                   humanAttention
                     ?.required ===
                     true ? (
-                    <div className="border-b border-red-200 bg-red-50 px-4 py-3">
+                    <div className="max-h-[45%] shrink-0 overflow-y-auto border-b border-red-200 bg-red-50 px-4 py-3">
                       <div className="flex items-center gap-2 font-bold text-red-800">
                         <span>
                           🔴
@@ -2867,7 +3176,12 @@ export default function MagicTouchConversationsPage() {
                     </div>
                   ) : null}
 
-                  <div className="h-[500px] flex-1 space-y-2 overflow-y-auto p-4">
+                  <div
+                    ref={
+                      messagesContainerRef
+                    }
+                    className="min-h-0 flex-1 space-y-2 overflow-y-auto p-4"
+                  >
                     {isLoadingMessages ? (
                       <div className="mt-10 text-center text-sm text-slate-500">
                         טוען הודעות...
@@ -3011,6 +3325,95 @@ export default function MagicTouchConversationsPage() {
                                   </div>
                                 ) : null}
 
+                                {message.type !==
+                                  'reaction' &&
+                                message.waMessageId ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setReplyTarget(
+                                        message
+                                      );
+
+                                      setReactionTargetWaMessageId(
+                                        ''
+                                      );
+
+                                      requestAnimationFrame(
+                                        () =>
+                                          textareaRef.current?.focus()
+                                      );
+                                    }}
+                                    disabled={
+                                      !serviceWindowOpen
+                                    }
+                                    title="השב להודעה"
+                                    aria-label="השב להודעה"
+                                    className={`absolute -top-3 ${
+                                      isOutbound
+                                        ? '-left-16'
+                                        : '-right-16'
+                                    } flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 bg-white text-sm text-slate-600 shadow-sm opacity-0 transition hover:bg-slate-50 group-hover:opacity-100 disabled:cursor-not-allowed disabled:opacity-30`}
+                                  >
+                                    ↩
+                                  </button>
+                                ) : null}
+
+                                {(() => {
+                                  const referencedWaMessageId =
+                                    String(
+                                      message.replyToWaMessageId ||
+                                      message.contextMessageId ||
+                                      ''
+                                    ).trim();
+
+                                  if (
+                                    !referencedWaMessageId
+                                  ) {
+                                    return null;
+                                  }
+
+                                  const referencedMessage =
+                                    messages.find(
+                                      (
+                                        row
+                                      ) =>
+                                        String(
+                                          row.waMessageId ||
+                                          ''
+                                        ).trim() ===
+                                        referencedWaMessageId
+                                    ) ||
+                                    null;
+
+                                  return (
+                                    <div
+                                      className={`mb-1.5 rounded-lg border-r-4 px-2 py-1 text-xs ${
+                                        isOutbound
+                                          ? 'border-green-700 bg-green-900/5'
+                                          : 'border-blue-500 bg-slate-100'
+                                      }`}
+                                    >
+                                      <div className="font-bold text-slate-700">
+                                        {referencedMessage
+                                          ?.direction ===
+                                          'outbound'
+                                          ? 'אתם'
+                                          : selectedConversation.customerName ||
+                                            'הלקוח'}
+                                      </div>
+
+                                      <div className="line-clamp-2 whitespace-pre-wrap text-slate-600">
+                                        {referencedMessage
+                                          ? getReplyPreviewText(
+                                              referencedMessage
+                                            )
+                                          : 'הודעה קודמת'}
+                                      </div>
+                                    </div>
+                                  );
+                                })()}
+
                                 <MessageContent
                                   conversationId={
                                     selectedConversationId
@@ -3044,10 +3447,35 @@ export default function MagicTouchConversationsPage() {
                     )}
                   </div>
 
-                  <div className="bg-slate-100 p-3">
+                  <div className="shrink-0 bg-slate-100 p-3">
                     {!serviceWindowOpen ? (
-                      <div className="mb-2 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
-                        חלפו יותר מ־24 שעות מהודעת הלקוח האחרונה. כדי לחדש את השיחה יש לשלוח תבנית WhatsApp מאושרת.
+                      <div className="mb-2 flex flex-wrap items-center justify-between gap-2 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                        <span>
+                          חלפו יותר מ־24 שעות מהודעת הלקוח האחרונה. כדי לחדש את השיחה יש לשלוח תבנית WhatsApp מאושרת.
+                        </span>
+
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setIsTemplatePickerOpen(
+                              true
+                            )
+                          }
+                          disabled={
+                            isSendingTemplate
+                          }
+                          className="shrink-0 rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-bold text-white transition hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {isSendingTemplate
+                            ? 'שולח תבנית...'
+                            : 'שליחת תבנית'}
+                        </button>
+                      </div>
+                    ) : null}
+
+                    {templateNotice ? (
+                      <div className="mb-2 rounded border border-green-200 bg-green-50 px-3 py-2 text-xs text-green-700">
+                        {templateNotice}
                       </div>
                     ) : null}
 
@@ -3099,6 +3527,50 @@ export default function MagicTouchConversationsPage() {
                       </div>
                     ) : null}
 
+                    {replyTarget ? (
+                      <div className="mb-2 flex items-center gap-3 rounded-xl border-r-4 border-green-600 bg-white px-3 py-2 shadow-sm">
+                        <div className="min-w-0 flex-1">
+                          <div className="text-xs font-bold text-green-700">
+                            משיבים ל
+                            {replyTarget.direction ===
+                            'outbound'
+                              ? 'הודעה שלכם'
+                              : selectedConversation.customerName ||
+                                'לקוח'}
+                          </div>
+
+                          <div className="truncate text-xs text-slate-600">
+                            {getReplyPreviewText(
+                              replyTarget
+                            )}
+                          </div>
+
+                          {selectedFile ? (
+                            <div className="mt-0.5 text-[11px] text-amber-600">
+                              עם קובץ מצורף ההודעה תישלח בלי ציטוט.
+                            </div>
+                          ) : null}
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setReplyTarget(
+                              null
+                            )
+                          }
+                          disabled={
+                            isSending
+                          }
+                          className="flex h-8 w-8 items-center justify-center rounded-full text-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 disabled:opacity-50"
+                          aria-label="ביטול ציטוט"
+                          title="ביטול ציטוט"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ) : null}
+
                     <div className="relative flex items-end gap-2">
                       <input
                         ref={
@@ -3136,6 +3608,24 @@ export default function MagicTouchConversationsPage() {
                         className="flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-full bg-white text-xl text-slate-600 shadow-sm ring-1 ring-slate-200 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         📎
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setIsTemplatePickerOpen(
+                            true
+                          )
+                        }
+                        disabled={
+                          isSending ||
+                          isSendingTemplate
+                        }
+                        title="שליחת תבנית"
+                        aria-label="שליחת תבנית"
+                        className="flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-full bg-white text-xl text-slate-600 shadow-sm ring-1 ring-slate-200 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        📋
                       </button>
 
                       <div className="relative">

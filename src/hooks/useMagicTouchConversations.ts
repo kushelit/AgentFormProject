@@ -127,6 +127,10 @@ export type MagicTouchConversationMessage = {
   waMessageId?: string | null;
   status?: string | null;
 
+  // ציטוט: הודעה נכנסת שהלקוח השיב בה (contextMessageId), או תשובה שלנו (replyToWaMessageId)
+  contextMessageId?: string | null;
+  replyToWaMessageId?: string | null;
+
   createdAt?: unknown;
 };
 

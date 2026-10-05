@@ -12,7 +12,12 @@ import {
 } from "firebase/firestore";
 
 import {
+  httpsCallable,
+} from "firebase/functions";
+
+import {
   db,
+  functions,
 } from "@/lib/firebase/firebase";
 
 import {
@@ -57,6 +62,7 @@ export default function WhatsAppConnectionSettings() {
 
   const {
     user,
+    detail,
     isLoading,
   } =
     useAuth() as any;
@@ -122,6 +128,30 @@ export default function WhatsAppConnectionSettings() {
   ] =
     useState<DialogState | null>(
       null
+    );
+
+  const [
+    isDisconnectConfirmOpen,
+    setIsDisconnectConfirmOpen,
+  ] =
+    useState(false);
+
+  const [
+    isDisconnecting,
+    setIsDisconnecting,
+  ] =
+    useState(false);
+
+  // ניתוק מותר לסוכן עצמו או ל-isSystem, כמו בשרת ובחוקי Firestore
+  const canDisconnect =
+    Boolean(
+      agentId
+    ) &&
+    (
+      user?.uid ===
+        agentId ||
+      detail?.isSystem ===
+        true
     );
 
   const clearConfigFields =
@@ -311,6 +341,91 @@ setIsPersistedConnected(
       );
     };
 
+  /*
+   * ניתוק בתוך MagicTouch בלבד (disconnectAgentWhatsApp).
+   * המספר נשאר רשום אצל Meta, ואפשר לחבר מחדש בכל עת.
+   */
+  const handleDisconnect =
+    async () => {
+      if (
+        !agentId ||
+        isDisconnecting
+      ) {
+        return;
+      }
+
+      setIsDisconnecting(
+        true
+      );
+
+      try {
+        const fn =
+          httpsCallable<
+            {
+              agentId:
+                string;
+            },
+            {
+              ok: boolean;
+              disconnected: boolean;
+            }
+          >(
+            functions,
+            "disconnectAgentWhatsApp"
+          );
+
+        await fn({
+          agentId,
+        });
+
+        setIsDisconnectConfirmOpen(
+          false
+        );
+
+        clearConfigFields();
+
+        setDialog({
+          type:
+            "success",
+
+          title:
+            "WhatsApp נותק",
+
+          message:
+            "החיבור נותק. הודעות כבר לא יגיעו ל-MagicTouch. אפשר לחבר מחדש בכל עת.",
+        });
+      } catch (
+        error: any
+      ) {
+        console.error(
+          "[WhatsAppConnectionSettings] Disconnect failed",
+          error
+        );
+
+        setIsDisconnectConfirmOpen(
+          false
+        );
+
+        setDialog({
+          type:
+            "error",
+
+          title:
+            "הניתוק נכשל",
+
+          message:
+            String(
+              error?.message ||
+                "לא ניתן היה לנתק את החיבור. יש לנסות שוב."
+            ),
+        });
+      } finally {
+        setIsDisconnecting(
+          false
+        );
+      }
+    };
+
   if (
     isLoading ||
     isChecking
@@ -405,6 +520,27 @@ setIsPersistedConnected(
                   {phoneNumberId}
                 </div>
               ) : null}
+
+              {canDisconnect ? (
+                <div className="pt-2">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setIsDisconnectConfirmOpen(
+                        true
+                      )
+                    }
+                    disabled={
+                      isDisconnecting
+                    }
+                    className="rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-bold text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {isDisconnecting
+                      ? "מנתק..."
+                      : "ניתוק WhatsApp"}
+                  </button>
+                </div>
+              ) : null}
             </div>
           ) : (
             <div className="font-bold text-orange-700">
@@ -457,6 +593,31 @@ setIsPersistedConnected(
           ) : null}
         </div>
       </section>
+
+      {isDisconnectConfirmOpen && (
+        <DialogNotification
+          type="warning"
+          title="לנתק את WhatsApp?"
+          message={`הודעות למספר ${
+            displayPhoneNumber ||
+            phoneNumberId
+          } יפסיקו להגיע ל-MagicTouch, ולא יהיה אפשר לשלוח ממנו הודעות, תהליכים וקמפיינים. המספר עצמו נשאר פעיל אצל Meta, ואפשר לחבר מחדש בכל עת.`}
+          onConfirm={() =>
+            void handleDisconnect()
+          }
+          onCancel={() =>
+            setIsDisconnectConfirmOpen(
+              false
+            )
+          }
+          confirmText={
+            isDisconnecting
+              ? "מנתק..."
+              : "כן, לנתק"
+          }
+          cancelText="ביטול"
+        />
+      )}
 
       {dialog && (
         <DialogNotification
