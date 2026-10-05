@@ -28,6 +28,10 @@ import {
 import {
   registerWhatsAppPhoneNumber,
   subscribeWhatsAppWabaToApp,
+  listWabaPhoneNumbers,
+  requestSmbAppDataSync,
+  CLOUD_API_WEBHOOK_FIELDS,
+  COEXISTENCE_WEBHOOK_FIELDS,
 } from "./shared/metaWhatsAppProvisioning";
 
 function s(
@@ -331,10 +335,25 @@ export async function saveAgentWhatsAppConfigImpl(
       body.wabaId
     );
 
-  const phoneNumberId =
+  let phoneNumberId =
     s(
       body.phoneNumberId
     );
+
+  /*
+   * Coexistence: המספר כבר עובד באפליקציית WhatsApp Business.
+   * לא רושמים אותו מחדש ב-Cloud API, ומבקשים סנכרון של אנשי קשר והיסטוריה.
+   */
+  const isCoexistence =
+    s(
+      body.connectionMode
+    ) ===
+    "coexistence";
+
+  const connectionMode =
+    isCoexistence
+      ? "coexistence"
+      : "cloud_api";
 
   let displayPhoneNumber =
     s(
@@ -356,10 +375,16 @@ export async function saveAgentWhatsAppConfigImpl(
       body.embeddedSignupCode
     );
 
+  // ב-Coexistence ייתכן ש-Meta לא החזירה phone_number_id; משלימים אחרי החלפת הקוד
   if (
-    !businessId ||
     !wabaId ||
-    !phoneNumberId
+    (
+      !isCoexistence &&
+      (
+        !businessId ||
+        !phoneNumberId
+      )
+    )
   ) {
     throw new HttpsError(
       "invalid-argument",
@@ -397,6 +422,53 @@ export async function saveAgentWhatsAppConfigImpl(
     );
 
   /*
+   * 1a. Coexistence בלי phone_number_id: לוקחים את המספר של ה-WABA.
+   * אם יש יותר ממספר אחד, אי אפשר לנחש, ומבקשים לחבר שוב.
+   */
+  if (
+    !phoneNumberId
+  ) {
+    const wabaPhoneNumbers =
+      await listWabaPhoneNumbers({
+        wabaId,
+        accessToken,
+      });
+
+    if (
+      wabaPhoneNumbers.length !==
+      1
+    ) {
+      throw new HttpsError(
+        "failed-precondition",
+        wabaPhoneNumbers.length ===
+          0
+          ? "לא נמצא מספר טלפון בחשבון ה-WhatsApp שחובר."
+          : "בחשבון ה-WhatsApp שחובר יש יותר ממספר אחד. יש לחבר שוב ולבחור מספר.",
+        {
+          reason:
+            "phone_number_not_resolved",
+
+          wabaId,
+
+          phoneNumberCount:
+            wabaPhoneNumbers.length,
+        }
+      );
+    }
+
+    phoneNumberId =
+      wabaPhoneNumbers[0].id;
+
+    displayPhoneNumber =
+      displayPhoneNumber ||
+      wabaPhoneNumbers[0].displayPhoneNumber;
+
+    displayName =
+      displayName ||
+      wabaPhoneNumbers[0].verifiedName;
+  }
+
+  /*
    * 1b. מספר מוצג ושם תצוגה מאושר, אם לא הגיעו מהלקוח.
    */
   if (
@@ -416,6 +488,18 @@ export async function saveAgentWhatsAppConfigImpl(
     displayName =
       displayName ||
       details.displayName;
+  }
+
+  if (
+    !phoneNumberId ||
+    phoneNumberId.includes(
+      "/"
+    )
+  ) {
+    throw new HttpsError(
+      "invalid-argument",
+      "Invalid phoneNumberId"
+    );
   }
 
   /*
@@ -482,6 +566,8 @@ export async function saveAgentWhatsAppConfigImpl(
 
       connectedVia:
         "embedded_signup",
+
+      connectionMode,
 
       phoneRegistered:
         false,
@@ -568,6 +654,8 @@ export async function saveAgentWhatsAppConfigImpl(
       source:
         "embedded_signup",
 
+      connectionMode,
+
       updatedAt:
         nowTs(),
 
@@ -584,8 +672,35 @@ export async function saveAgentWhatsAppConfigImpl(
 
   /*
    * 3. רישום המספר ב-Cloud API.
+   * ב-Coexistence מדלגים: המספר כבר רשום דרך אפליקציית WhatsApp Business,
+   * ורישום מחדש היה מנתק אותו מהאפליקציה.
    */
-  try {
+  if (
+    isCoexistence
+  ) {
+    await configRef.set(
+      {
+        phoneRegistered:
+          true,
+
+        phoneRegisteredAt:
+          nowTs(),
+
+        phoneRegisteredVia:
+          "whatsapp_business_app",
+
+        status:
+          "registering_webhook",
+
+        updatedAt:
+          nowTs(),
+      },
+      {
+        merge:
+          true,
+      }
+    );
+  } else try {
     await registerWhatsAppPhoneNumber({
       phoneNumberId,
       accessToken,
@@ -748,6 +863,10 @@ export async function saveAgentWhatsAppConfigImpl(
     await subscribeWhatsAppWabaToApp({
       wabaId,
       accessToken,
+      subscribedFields:
+        isCoexistence
+          ? COEXISTENCE_WEBHOOK_FIELDS
+          : CLOUD_API_WEBHOOK_FIELDS,
     });
 
     const finalBatch =
@@ -846,12 +965,99 @@ export async function saveAgentWhatsAppConfigImpl(
     throw error;
   }
 
+  /*
+   * 5. Coexistence: בקשת סנכרון אנשי קשר והיסטוריה.
+   * חייב להתבצע עד 24 שעות מהחיבור, וכל סוג פעם אחת בלבד.
+   * התוכן עצמו מגיע ב-webhook (smb_app_state_sync / history).
+   * כשל כאן לא מבטל את החיבור: נשמר ומוצג, ואפשר לטפל ידנית.
+   */
+  let coexistenceSync:
+    Record<
+      string,
+      any
+    > | null =
+    null;
+
+  if (
+    isCoexistence
+  ) {
+    const contactsSync =
+      await requestSmbAppDataSync({
+        phoneNumberId,
+        accessToken,
+        syncType:
+          "smb_app_state_sync",
+      });
+
+    const historySync =
+      await requestSmbAppDataSync({
+        phoneNumberId,
+        accessToken,
+        syncType:
+          "history",
+      });
+
+    coexistenceSync = {
+      contacts: {
+        status:
+          contactsSync.requestId
+            ? "requested"
+            : "failed",
+
+        requestId:
+          contactsSync.requestId,
+
+        error:
+          contactsSync.error,
+
+        requestedAt:
+          nowTs(),
+      },
+
+      history: {
+        status:
+          historySync.requestId
+            ? "requested"
+            : "failed",
+
+        requestId:
+          historySync.requestId,
+
+        error:
+          historySync.error,
+
+        requestedAt:
+          nowTs(),
+      },
+    };
+
+    await configRef.set(
+      {
+        coexistenceSync,
+
+        updatedAt:
+          nowTs(),
+      },
+      {
+        merge:
+          true,
+      }
+    );
+  }
+
   return {
     ok:
       true,
 
     ready:
       true,
+
+    connectionMode,
+
+    coexistenceSyncRequested:
+      Boolean(
+        coexistenceSync
+      ),
 
     agentId,
 

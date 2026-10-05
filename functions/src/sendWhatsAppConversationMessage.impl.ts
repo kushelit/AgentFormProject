@@ -43,6 +43,11 @@ import {
   addMagicTouchTimelineEvent,
 } from "./shared/magicTouchTimelineService";
 
+import {
+  buildHumanTakeover,
+  getHumanTakeoverPauseMinutes,
+} from "./shared/whatsappCoexistence";
+
 const WA_API_URL =
   "https://graph.facebook.com/v25.0";
 
@@ -1692,7 +1697,87 @@ async function sendWhatsAppMedia({
   }
 }
 
+/*
+ * הודעה ידנית מ-MagicTouch (טקסט או קובץ) משהה את תשובות ה-AI בשיחה,
+ * כמו הודעה שהסוכן שלח מהטלפון ב-Coexistence. תגובת אימוג'י לא משהה.
+ * כשל בסימון לא מכשיל את השליחה.
+ */
 export async function sendWhatsAppConversationMessageImpl(
+  req: any
+): Promise<object> {
+  const result =
+    await sendWhatsAppConversationMessageInner(
+      req
+    );
+
+  const action =
+    (
+      safeString(
+        req.data
+          ?.action
+      ) ||
+      "text"
+    ).toLowerCase();
+
+  const conversationId =
+    safeString(
+      req.data
+        ?.conversationId
+    );
+
+  if (
+    action !==
+      "reaction" &&
+    conversationId &&
+    !conversationId.includes(
+      "/"
+    )
+  ) {
+    try {
+      const db =
+        adminDb();
+
+      const pauseMinutes =
+        await getHumanTakeoverPauseMinutes(
+          db
+        );
+
+      await db
+        .doc(
+          `whatsapp_conversations/${conversationId}`
+        )
+        .set(
+          {
+            humanTakeover:
+              buildHumanTakeover(
+                pauseMinutes,
+                "magictouch_manual",
+                req.auth?.uid ||
+                  null
+              ),
+          },
+          {
+            merge:
+              true,
+          }
+        );
+    } catch (
+      error: any
+    ) {
+      console.warn(
+        "[sendWhatsAppConversationMessage] Failed to mark human takeover",
+        error?.message ||
+          String(
+            error
+          )
+      );
+    }
+  }
+
+  return result;
+}
+
+async function sendWhatsAppConversationMessageInner(
   req: any
 ): Promise<object> {
   const context =

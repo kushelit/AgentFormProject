@@ -1278,8 +1278,15 @@ export default function MagicTouchConversationsPage() {
       null
     );
 
-  const lastScrolledConversationIdRef =
-    useRef('');
+  // התוכן הפנימי של ההודעות: עוקבים אחרי שינוי הגובה שלו (למשל תמונה שנטענה)
+  const messagesContentRef =
+    useRef<HTMLDivElement | null>(
+      null
+    );
+
+  // "דבוק לתחתית": נכון בפתיחת שיחה, ומשתחרר כשהמשתמש גולל למעלה
+  const stickToBottomRef =
+    useRef(true);
 
   const textareaRef =
     useRef<HTMLTextAreaElement | null>(
@@ -1422,50 +1429,99 @@ export default function MagicTouchConversationsPage() {
   ]);
 
   /*
-   * גלילה להודעה האחרונה:
-   * בפתיחת שיחה תמיד לתחתית. בהודעה חדשה רק אם המשתמש
-   * כבר נמצא ליד התחתית, כדי לא לקפוץ כשהוא קורא הודעות ישנות.
+   * גלילה להודעה האחרונה, כמו בטלפון:
+   * בפתיחת שיחה החלון "דבוק לתחתית", וממשיך להיצמד גם כשההודעות
+   * של השיחה מגיעות מאוחר יותר או כשתמונות נטענות ומגדילות את התוכן.
+   * אם המשתמש גולל למעלה לקרוא הודעות ישנות, ההצמדה משתחררת,
+   * וחוזרת כשהוא גולל חזרה לתחתית.
    */
+  const scrollMessagesToBottom =
+    () => {
+      const container =
+        messagesContainerRef.current;
+
+      if (
+        container
+      ) {
+        container.scrollTop =
+          container.scrollHeight;
+      }
+    };
+
+  const handleMessagesScroll =
+    () => {
+      const container =
+        messagesContainerRef.current;
+
+      if (
+        !container
+      ) {
+        return;
+      }
+
+      const distanceFromBottom =
+        container.scrollHeight -
+        container.scrollTop -
+        container.clientHeight;
+
+      stickToBottomRef.current =
+        distanceFromBottom < 160;
+    };
+
+  // שיחה חדשה נפתחת תמיד בתחתית
   useEffect(() => {
-    const container =
-      messagesContainerRef.current;
+    stickToBottomRef.current =
+      true;
+  }, [
+    selectedConversationId,
+  ]);
+
+  // הודעות שנוספו (או נטענו לשיחה החדשה)
+  useEffect(() => {
+    if (
+      !isLoadingMessages &&
+      stickToBottomRef.current
+    ) {
+      scrollMessagesToBottom();
+    }
+  }, [
+    selectedConversationId,
+    messages,
+    isLoadingMessages,
+  ]);
+
+  // שינוי גובה של התוכן, למשל תמונה או וידאו שנטענו אחרי הגלילה
+  useEffect(() => {
+    const content =
+      messagesContentRef.current;
 
     if (
-      !container ||
-      isLoadingMessages ||
-      messages.length === 0
+      !content ||
+      typeof ResizeObserver ===
+        'undefined'
     ) {
       return;
     }
 
-    const conversationChanged =
-      lastScrolledConversationIdRef.current !==
-      selectedConversationId;
+    const observer =
+      new ResizeObserver(
+        () => {
+          if (
+            stickToBottomRef.current
+          ) {
+            scrollMessagesToBottom();
+          }
+        }
+      );
 
-    const distanceFromBottom =
-      container.scrollHeight -
-      container.scrollTop -
-      container.clientHeight;
+    observer.observe(
+      content
+    );
 
-    if (
-      conversationChanged ||
-      distanceFromBottom < 160
-    ) {
-      container.scrollTo({
-        top:
-          container.scrollHeight,
-        behavior:
-          conversationChanged
-            ? 'auto'
-            : 'smooth',
-      });
-    }
-
-    lastScrolledConversationIdRef.current =
-      selectedConversationId || '';
+    return () =>
+      observer.disconnect();
   }, [
     selectedConversationId,
-    messages.length,
     isLoadingMessages,
   ]);
 
@@ -3180,8 +3236,17 @@ export default function MagicTouchConversationsPage() {
                     ref={
                       messagesContainerRef
                     }
-                    className="min-h-0 flex-1 space-y-2 overflow-y-auto p-4"
+                    onScroll={
+                      handleMessagesScroll
+                    }
+                    className="min-h-0 flex-1 overflow-y-auto p-4"
                   >
+                    <div
+                      ref={
+                        messagesContentRef
+                      }
+                      className="space-y-2"
+                    >
                     {isLoadingMessages ? (
                       <div className="mt-10 text-center text-sm text-slate-500">
                         טוען הודעות...
@@ -3445,6 +3510,7 @@ export default function MagicTouchConversationsPage() {
                         }
                       )
                     )}
+                    </div>
                   </div>
 
                   <div className="shrink-0 bg-slate-100 p-3">

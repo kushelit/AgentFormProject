@@ -424,7 +424,11 @@ const CommissionComparisonByPolicy: React.FC = () => {
     [templateOptions, selectedCompanyId, hekefTemplateIds]
   );
 
-  const agentCodes = useMemo(() => agents.find((a) => a.id === selectedAgentId)?.agentCodes ?? [], [selectedAgentId, agents]);
+  // Agent codes that appear in the compared rows (not users.agentCodes), like CompareRealToReported.
+  const agentCodes = useMemo(
+    () => Array.from(new Set(comparisonRows.map((r) => r.agentCode).filter(Boolean))).sort(),
+    [comparisonRows]
+  );
 
   const ymMissing = (ym: string) => monthBasis === "ym" && !ymsLoading && availableYms.length > 0 && !!ym && !availableYms.includes(ym);
 

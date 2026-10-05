@@ -14,8 +14,6 @@ import {
   serverTimestamp,
   query,
   where,
-  updateDoc,
-  arrayUnion,
   setDoc,
   orderBy,
   limit,
@@ -2444,23 +2442,8 @@ const handleImport = async () => {
     const runRef = doc(collection(db, "commissionImportRuns"));
     const runId = runRef.id;
 
-    const uniqueAgentCodes = new Set<string>();
-    for (const row of standardizedRows) {
-      if (row.agentCode) uniqueAgentCodes.add(String(row.agentCode).trim());
-    }
-
-    importStep = "users.agentCodes";
-    const userRef = doc(db, "users", selectedAgentId);
-    const userSnap = await getDoc(userRef);
-    if (userSnap.exists()) {
-      const existingCodes: string[] = userSnap.data().agentCodes || [];
-      const codesToAdd = Array.from(uniqueAgentCodes).filter(
-        (c) => !existingCodes.includes(c)
-      );
-      if (codesToAdd.length > 0) {
-        await updateDoc(userRef, { agentCodes: arrayUnion(...codesToAdd) });
-      }
-    }
+    // The manual import no longer writes users.agentCodes: agent codes live on every
+    // commission row, and screens build their agent-code lists from the loaded rows.
 
     const rowsWithPolicyKey = standardizedRows.map((r) => ({
       ...r,

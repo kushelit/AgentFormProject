@@ -170,6 +170,25 @@ export default function WhatsAppEmbeddedSignup({
   ] =
     useState("");
 
+  /*
+   * cloud_api: מספר חדש שעובר ל-Cloud API.
+   * coexistence: מספר שכבר עובד באפליקציית WhatsApp Business וממשיך לעבוד בה.
+   */
+  const [
+    connectionMode,
+    setConnectionMode,
+  ] =
+    useState<
+      "cloud_api" |
+      "coexistence"
+    >(
+      "cloud_api"
+    );
+
+  const isCoexistence =
+    connectionMode ===
+    "coexistence";
+
   const [
     dialog,
     setDialog,
@@ -296,6 +315,56 @@ export default function WhatsAppEmbeddedSignup({
                 sessionData.phoneNumberId
               );
             }
+
+            return;
+          }
+
+          /*
+           * Coexistence: הלקוח חיבר מספר שכבר עובד באפליקציית WhatsApp Business.
+           * phone_number_id לא תמיד מגיע כאן; השרת משלים אותו מה-WABA.
+           */
+          if (
+            payload?.event ===
+            "FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING"
+          ) {
+            const sessionData = {
+              businessId:
+                String(
+                  data.business_id ||
+                  ""
+                ).trim(),
+
+              wabaId:
+                String(
+                  data.waba_id ||
+                  ""
+                ).trim(),
+
+              phoneNumberId:
+                String(
+                  data.phone_number_id ||
+                  ""
+                ).trim(),
+            };
+
+            embeddedSignupSessionRef.current =
+              sessionData;
+
+            setConnectionMode(
+              "coexistence"
+            );
+
+            setBusinessId(
+              sessionData.businessId
+            );
+
+            setWabaId(
+              sessionData.wabaId
+            );
+
+            setPhoneNumberId(
+              sessionData.phoneNumberId
+            );
 
             return;
           }
@@ -488,18 +557,25 @@ export default function WhatsAppEmbeddedSignup({
     []
   );
 
+  // ב-Coexistence השרת משלים את המספר (ואת ה-Business) אם Meta לא שלחה אותם
   const canSave =
     Boolean(
       agentId
     ) &&
-    Boolean(
-      businessId
+    (
+      isCoexistence ||
+      Boolean(
+        businessId
+      )
     ) &&
     Boolean(
       wabaId
     ) &&
-    Boolean(
-      phoneNumberId
+    (
+      isCoexistence ||
+      Boolean(
+        phoneNumberId
+      )
     ) &&
     Boolean(
       embeddedSignupCode
@@ -586,6 +662,10 @@ export default function WhatsAppEmbeddedSignup({
 
       embeddedSignupSessionRef.current =
         {};
+
+      setConnectionMode(
+        "cloud_api"
+      );
 
       setBusinessId(
         ""
@@ -704,9 +784,15 @@ export default function WhatsAppEmbeddedSignup({
            * Embedded Signup v4: הגרסה והמוצרים נקבעים בהגדרה (config_id)
            * ב-Meta. לא שולחים sessionInfoVersion, כי הוא מכריח את v2,
            * שמושבתת ב-15.10.2026.
+           *
+           * featureType מציג בחלון גם את האפשרות לחבר מספר שכבר עובד
+           * באפליקציית WhatsApp Business (Coexistence). מספר חדש ממשיך לעבוד כרגיל.
            */
           extras: {
             setup: {},
+
+            featureType:
+              "whatsapp_business_app_onboarding",
           },
         }
       );
@@ -746,14 +832,27 @@ export default function WhatsAppEmbeddedSignup({
 
             embeddedSignupCode:
               embeddedSignupCode.trim(),
+
+            connectionMode,
           });
 
-        // The server fetches the display number / verified name from Meta.
+        // The server fetches the display number / verified name from Meta,
+        // and in Coexistence may also resolve the phone number id.
         const saved =
           (response?.data || {}) as {
             displayPhoneNumber?: string;
             displayName?: string;
+            phoneNumberId?: string;
+            businessId?: string;
           };
+
+        if (
+          saved.phoneNumberId
+        ) {
+          setPhoneNumberId(
+            saved.phoneNumberId
+          );
+        }
 
         setConnectionSaved(
           true
@@ -773,6 +872,14 @@ export default function WhatsAppEmbeddedSignup({
         onConnected?.({
           ...result,
 
+          businessId:
+            saved.businessId ||
+            result.businessId,
+
+          phoneNumberId:
+            saved.phoneNumberId ||
+            result.phoneNumberId,
+
           displayPhoneNumber:
             saved.displayPhoneNumber ||
             result.displayPhoneNumber,
@@ -790,7 +897,9 @@ export default function WhatsAppEmbeddedSignup({
             "WhatsApp מחובר",
 
           message:
-            "חשבון WhatsApp Business חובר ומוכן לשליחה ולקבלת הודעות.",
+            isCoexistence
+              ? "המספר חובר וממשיך לעבוד גם באפליקציית WhatsApp Business. אנשי הקשר והיסטוריית השיחות יסונכרנו ל-MagicTouch בדקות הקרובות."
+              : "חשבון WhatsApp Business חובר ומוכן לשליחה ולקבלת הודעות.",
         });
       } catch (
         error: any
@@ -1109,6 +1218,21 @@ export default function WhatsAppEmbeddedSignup({
             </div>
           </div>
         ) : !embeddedSignupCode ? (
+          <div className="space-y-3">
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm leading-6 text-slate-600">
+            <div className="font-semibold text-slate-800">
+              אפשר לחבר מספר חדש, או מספר שכבר עובד באפליקציית WhatsApp Business.
+            </div>
+            <div>
+              במספר קיים: צריך את אפליקציית WhatsApp Business בגרסה 2.24.17 ומעלה.
+              באפליקציה יגיע קוד לאישור החיבור, ותופיע שאלה אם לשתף את היסטוריית השיחות.
+              המספר ימשיך לעבוד גם באפליקציה בטלפון.
+            </div>
+            <div className="mt-1 text-xs text-slate-500">
+              מומלץ לכבות באפליקציה את ההודעות האוטומטיות (פתיחה / &quot;לא זמין&quot;),
+              כדי שהלקוח לא יקבל גם אותן וגם את התשובות של MagicTouch.
+            </div>
+          </div>
           <div className="flex flex-wrap gap-3">
             <Button
               text={
@@ -1126,6 +1250,7 @@ export default function WhatsAppEmbeddedSignup({
                 !metaSdkReady
               }
             />
+          </div>
           </div>
         ) : (
           <div className="rounded-2xl border border-blue-100 bg-blue-50 p-4">

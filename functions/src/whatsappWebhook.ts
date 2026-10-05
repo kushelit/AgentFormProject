@@ -53,6 +53,14 @@ import {
   getWhatsAppInboundMediaDescriptor,
   type StoredWhatsAppInboundMedia,
 } from "./shared/downloadWhatsAppMedia";
+import {
+  handleAccountUpdate,
+  handleHistory,
+  handleMessageEchoes,
+  handleStateSync,
+  isHumanTakeoverActive,
+  type CoexistenceDeps,
+} from "./shared/whatsappCoexistence";
 
 function s(value: any): string {
   return String(value ?? "").trim();
@@ -283,13 +291,102 @@ const TEST_WHATSAPP_PHONE_NUMBER_ID =
 const TEST_WHATSAPP_WEBHOOK_URL =
   "https://europe-west1-magicsale-test.cloudfunctions.net/whatsappWebhook";
 
-function splitWebhookBodyByEnvironment(
+/*
+ * מספרי הבדיקה שהייצור מעביר לטסט.
+ * נקבעים במשתנה הסביבה WHATSAPP_TEST_PHONE_NUMBER_IDS (רשימה מופרדת בפסיקים)
+ * בקובץ functions/.env.prod, כך שאי אפשר לשנות אותם מהדפדפן.
+ * המספר הקבוע נשאר תמיד ברשימה, כדי שהתנהגות קיימת לא תישבר.
+ */
+const TEST_WHATSAPP_PHONE_NUMBER_IDS =
+  new Set(
+    [
+      TEST_WHATSAPP_PHONE_NUMBER_ID,
+      ...String(
+        process.env.WHATSAPP_TEST_PHONE_NUMBER_IDS ||
+        ""
+      ).split(
+        ","
+      ),
+    ]
+      .map(
+        (
+          id
+        ) =>
+          id.trim()
+      )
+      .filter(
+        Boolean
+      )
+  );
+
+// סוגי אירועים שמנותבים לפי phone_number_id (כולל Coexistence)
+const PHONE_ROUTED_WEBHOOK_FIELDS =
+  new Set([
+    "messages",
+    "smb_message_echoes",
+    "history",
+    "smb_app_state_sync",
+  ]);
+
+/*
+ * היסטוריה ואנשי קשר נשלחים רק דקות אחרי חיבור Coexistence, ואפשר לבקש אותם רק פעם אחת.
+ * מספר שחובר בטסט עוד לא מופיע ברשימת מספרי הבדיקה באותו רגע (ה-ID נוצר בזמן החיבור),
+ * ולכן אירועים כאלה של מספר שאין לו מיפוי בייצור מועברים לטסט, כדי שלא יאבדו.
+ * הודעות רגילות והודעות מהטלפון ממשיכות לעבור לטסט רק לפי הרשימה.
+ */
+const ONBOARDING_SYNC_WEBHOOK_FIELDS =
+  new Set([
+    "history",
+    "smb_app_state_sync",
+  ]);
+
+async function splitWebhookBodyByEnvironment(
+  db: FirebaseFirestore.Firestore,
   body: any
-): {
+): Promise<{
   productionBody: any | null;
   testBody: any | null;
   testChangeCount: number;
-} {
+}> {
+  const productionMappingExists =
+    new Map<string, boolean>();
+
+  const hasProductionMapping =
+    async (
+      phoneNumberId: string
+    ): Promise<boolean> => {
+      if (
+        !phoneNumberId ||
+        phoneNumberId.includes(
+          "/"
+        )
+      ) {
+        return true;
+      }
+
+      if (
+        !productionMappingExists.has(
+          phoneNumberId
+        )
+      ) {
+        const snap =
+          await db
+            .doc(
+              `whatsapp_phone_mappings/${phoneNumberId}`
+            )
+            .get();
+
+        productionMappingExists.set(
+          phoneNumberId,
+          snap.exists
+        );
+      }
+
+      return productionMappingExists.get(
+        phoneNumberId
+      ) === true;
+    };
+
   const entries =
     Array.isArray(
       body?.entry
@@ -328,8 +425,11 @@ function splitWebhookBodyByEnvironment(
       changes
     ) {
       if (
-        change?.field !==
-        "messages"
+        !PHONE_ROUTED_WEBHOOK_FIELDS.has(
+          s(
+            change?.field
+          )
+        )
       ) {
         productionChanges.push(
           change
@@ -346,9 +446,23 @@ function splitWebhookBodyByEnvironment(
             ?.phone_number_id
         );
 
+      const routeToTest =
+        TEST_WHATSAPP_PHONE_NUMBER_IDS.has(
+          phoneNumberId
+        ) ||
+        (
+          ONBOARDING_SYNC_WEBHOOK_FIELDS.has(
+            s(
+              change?.field
+            )
+          ) &&
+          !(await hasProductionMapping(
+            phoneNumberId
+          ))
+        );
+
       if (
-        phoneNumberId ===
-        TEST_WHATSAPP_PHONE_NUMBER_ID
+        routeToTest
       ) {
         testChanges.push(
           change
@@ -3676,10 +3790,36 @@ logger.info(
    * חשוב:
    * אין כאן Resume ל-Flow ואין שינוי ב-waitingFor של ה-Run.
    */
+  /*
+   * סוכן ענה ידנית לאחרונה (מהטלפון ב-Coexistence, או מ-MagicTouch):
+   * לא שולחים תשובת AI אוטומטית עד שההשהיה מסתיימת.
+   */
+  const humanTakeoverActive =
+    isHumanTakeoverActive(
+      conversationData
+    );
+
   if (
     routingResult
       ?.handling ===
-      "safe_reply"
+      "safe_reply" &&
+    humanTakeoverActive
+  ) {
+    logger.info(
+      "[whatsappWebhook] Safe AI reply skipped: human takeover is active",
+      {
+        agentId,
+        conversationId,
+        inboundWaMessageId,
+      }
+    );
+  }
+
+  if (
+    routingResult
+      ?.handling ===
+      "safe_reply" &&
+    !humanTakeoverActive
   ) {
     const suggestedReply =
       s(
@@ -3887,6 +4027,15 @@ logger.info(
   );
 }
 
+// עזרים מהקובץ הזה שמשמשים גם את הטיפול באירועי Coexistence
+const coexistenceDeps: CoexistenceDeps = {
+  normalizePhone,
+  getMessageText:
+    getInboundMessageText,
+  loadAccessToken:
+    loadAgentWhatsAppAccessToken,
+};
+
 export const whatsappWebhook =
   onRequest(
     {
@@ -4022,7 +4171,8 @@ export const whatsappWebhook =
             testBody,
             testChangeCount,
           } =
-            splitWebhookBodyByEnvironment(
+            await splitWebhookBodyByEnvironment(
+              db,
               originalBody
             );
 
@@ -4097,10 +4247,86 @@ export const whatsappWebhook =
             const change of
             changes
           ) {
+            const changeField =
+              s(
+                change?.field
+              );
+
+            /*
+             * Coexistence: אירועים של מספר שעובד גם באפליקציית WhatsApp Business.
+             * שגיאה באירוע אחד לא מפילה את כל ה-webhook.
+             */
             if (
-              change?.field !==
+              changeField !==
               "messages"
             ) {
+              try {
+                if (
+                  changeField ===
+                  "smb_message_echoes"
+                ) {
+                  await handleMessageEchoes({
+                    db,
+                    deps:
+                      coexistenceDeps,
+                    value:
+                      change?.value,
+                  });
+                } else if (
+                  changeField ===
+                  "history"
+                ) {
+                  await handleHistory({
+                    db,
+                    deps:
+                      coexistenceDeps,
+                    value:
+                      change?.value,
+                  });
+                } else if (
+                  changeField ===
+                  "smb_app_state_sync"
+                ) {
+                  await handleStateSync({
+                    db,
+                    deps:
+                      coexistenceDeps,
+                    value:
+                      change?.value,
+                  });
+                } else if (
+                  changeField ===
+                  "account_update"
+                ) {
+                  await handleAccountUpdate({
+                    db,
+                    wabaId:
+                      s(
+                        entry?.id
+                      ),
+                    value:
+                      change?.value,
+                  });
+                }
+              } catch (
+                coexistenceError: any
+              ) {
+                logger.error(
+                  "[whatsappWebhook] Failed to process coexistence event",
+                  {
+                    field:
+                      changeField,
+
+                    error:
+                      coexistenceError
+                        ?.message ||
+                      String(
+                        coexistenceError
+                      ),
+                  }
+                );
+              }
+
               continue;
             }
 
