@@ -15,6 +15,7 @@ import { useAuth } from '@/lib/firebase/AuthContext';
 import { CommissionSplit } from '@/types/CommissionSplit';
 import { CombinedData } from '../types/Sales';
 import { fetchSplits } from '@/services/splitsService';
+import { resolveCommissionSplit } from '@/utils/resolveCommissionSplit';
 import fetchDataForAgent from '@/services/fetchDataForAgent';
 import { getDocsForMyAgents } from '@/lib/agentScope';
 
@@ -124,7 +125,8 @@ function formatMonthFromMounthField(mounthValue: any) {
 function findSplitAgreementForSale(
   data: any,
   commissionSplits: CommissionSplit[],
-  customers: CombinedData[]
+  customers: CombinedData[],
+  product: Product | undefined
 ): CommissionSplit | undefined {
   // התאמה לפי ת"ז מנורמלת (לא מחרוזת מדויקת) - כדי שעסקה שנשמרה עם פורמט ת"ז אחר
   // (עם/בלי 0 מוביל) עדיין תמצא את הסכם הפיצול הנכון של אותו לקוח בפועל.
@@ -135,9 +137,12 @@ function findSplitAgreementForSale(
   const sourceValueUnified = customer?.sourceValue || customer?.sourceLead || '';
   if (!sourceValueUnified) return undefined;
 
-  return commissionSplits.find(
-    (split) => split.agentId === data.AgentId && split.sourceLeadId === sourceValueUnified
-  );
+  return resolveCommissionSplit(commissionSplits, {
+    agentId: data.AgentId,
+    sourceLeadId: sourceValueUnified,
+    product: data.product,
+    productGroup: product?.productGroup,
+  });
 }
 
 function calcCommissionAmounts(
@@ -155,7 +160,7 @@ function calcCommissionAmounts(
   let commissionFactor = 1;
 
   if (isCommissionSplitEnabled) {
-    const splitAgreement = findSplitAgreementForSale(data, commissionSplits, customers);
+    const splitAgreement = findSplitAgreementForSale(data, commissionSplits, customers, product);
     if (splitAgreement) {
       const percentToAgent = (splitAgreement.percentToAgent ?? 100) / 100;
       const splitMode = splitAgreement.splitMode || 'commission';
@@ -515,7 +520,7 @@ export default function useSalesData(
     let productionFactor = 1;
 
     if (canSplit) {
-      const splitAgreement = findSplitAgreementForSale(data, commissionSplits, customers);
+      const splitAgreement = findSplitAgreementForSale(data, commissionSplits, customers, product);
       if (splitAgreement && splitAgreement.splitMode === 'production') {
         productionFactor = (splitAgreement.percentToAgent ?? 100) / 100;
       }

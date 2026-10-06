@@ -1,15 +1,21 @@
 /* ── TaskReminderWatcher — פופ-אפ תזכורת גלובלי ── */
 
+/* ברירת מחדל: למעלה במרכז, מתחת לכותרת העליונה */
 .trw-overlay {
   position: fixed;
-  bottom: 24px;
-  left: 24px;
+  top: 80px;
+  left: 50%;
+  transform: translateX(-50%);
   z-index: 2000;
-  animation: trw-slide-in 0.25s ease-out;
+}
+
+/* מיקום שהמשתמש בחר בגרירה (left/top מגיעים inline) */
+.trw-overlay--custom {
+  transform: none;
 }
 
 @keyframes trw-slide-in {
-  from { transform: translateY(20px); opacity: 0; }
+  from { transform: translateY(-16px); opacity: 0; }
   to { transform: translateY(0); opacity: 1; }
 }
 
@@ -21,7 +27,10 @@
   box-shadow: 0 8px 28px rgba(30, 58, 95, 0.18);
   padding: 16px 18px;
   width: 320px;
+  max-width: calc(100vw - 32px);
+  box-sizing: border-box;
   font-family: 'Heebo', sans-serif;
+  animation: trw-slide-in 0.25s ease-out;
 }
 
 .trw-header {
@@ -29,6 +38,41 @@
   align-items: center;
   gap: 8px;
   margin-bottom: 8px;
+  cursor: move;
+  user-select: none;
+  touch-action: none;
+}
+
+.trw-btn-reset {
+  margin-inline-start: auto;
+  background: none;
+  border: none;
+  color: #7a8faa;
+  font-size: 15px;
+  line-height: 1;
+  padding: 2px 4px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.trw-btn-reset:hover { color: #1e3a5f; background: #f0f4f9; }
+
+.trw-customer {
+  font-size: 13px;
+  font-weight: 600;
+  color: #2d5a8e;
+  margin-bottom: 4px;
+}
+
+.trw-lead-badge {
+  display: inline-block;
+  margin-inline-start: 6px;
+  padding: 1px 7px;
+  border-radius: 10px;
+  background: #fff3e0;
+  color: #e65100;
+  font-size: 11px;
+  font-weight: 600;
+  vertical-align: middle;
 }
 
 .trw-icon {

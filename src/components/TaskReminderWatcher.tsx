@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-  collection, query, where, onSnapshot, updateDoc, doc, Timestamp,
+  collection, query, where, onSnapshot, updateDoc, doc, getDoc, Timestamp,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase/firebase';
 import { useAuth } from '@/lib/firebase/AuthContext';
@@ -27,6 +27,9 @@ interface WatchedTask {
 const CHECK_INTERVAL_MS = 20000; // בודק כל 20 שניות
 const DEFAULT_REMINDER_MINUTES = 15;
 const SNOOZE_MINUTES = 15;
+const POSITION_STORAGE_KEY = 'trw-position';
+
+type Position = { x: number; y: number };
 
 export default function TaskReminderWatcher() {
   const { user } = useAuth();
@@ -34,7 +37,96 @@ export default function TaskReminderWatcher() {
   const { canAccess: canUseTaskReminders } = usePermission('access_crm_module');
   const [tasks, setTasks] = useState<WatchedTask[]>([]);
   const [activePopup, setActivePopup] = useState<WatchedTask | null>(null);
+  const [customerName, setCustomerName] = useState('');
+  const [isLead, setIsLead] = useState(false);
+  const [position, setPosition] = useState<Position | null>(null); // null = ברירת מחדל (למעלה במרכז)
   const queueRef = useRef<WatchedTask[]>([]);
+  const cardRef = useRef<HTMLDivElement>(null);
+  const dragOffsetRef = useRef<Position | null>(null);
+
+  // ─── טעינת מיקום שמור (אם המשתמש גרר את התזכורת בעבר) ─────────────────────────
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(POSITION_STORAGE_KEY);
+      if (!raw) return;
+      const p = JSON.parse(raw);
+      if (typeof p?.x === 'number' && typeof p?.y === 'number') setPosition(p);
+    } catch {}
+  }, []);
+
+  // ─── למי שייכת המשימה המוצגת — לקוח או ליד ────────────────────────────────────
+  // משימות של ליד נשמרות ב-customerTasks עם מזהה הליד ב-customerId (עד שהליד מומר ללקוח,
+  // ואז ההמרה מעבירה אותן למזהה הלקוח). לכן מחפשים קודם לקוח, ואם אין — ליד.
+  useEffect(() => {
+    setCustomerName('');
+    setIsLead(false);
+    const id = activePopup?.customerId;
+    if (!id) return;
+    let cancelled = false;
+    const fullName = (data: any) =>
+      `${data.firstNameCustomer ?? ''} ${data.lastNameCustomer ?? ''}`.trim();
+    (async () => {
+      try {
+        const customerSnap = await getDoc(doc(db, 'customer', id));
+        if (cancelled) return;
+        if (customerSnap.exists()) {
+          setCustomerName(fullName(customerSnap.data()));
+          return;
+        }
+      } catch {}
+      try {
+        const leadSnap = await getDoc(doc(db, 'leads', id));
+        if (cancelled || !leadSnap.exists()) return;
+        setIsLead(true);
+        setCustomerName(fullName(leadSnap.data()));
+      } catch {}
+    })();
+    return () => { cancelled = true; };
+  }, [activePopup?.id, activePopup?.customerId]);
+
+  // ─── גרירה ─────────────────────────────────────────────────────────────────────
+  const clampToViewport = (p: Position): Position => {
+    const w = cardRef.current?.offsetWidth ?? 320;
+    const h = cardRef.current?.offsetHeight ?? 160;
+    return {
+      x: Math.min(Math.max(0, p.x), Math.max(0, window.innerWidth - w)),
+      y: Math.min(Math.max(0, p.y), Math.max(0, window.innerHeight - h)),
+    };
+  };
+
+  // אם החלון קטן מאז שנשמר המיקום — מוודאים שהתזכורת לא יוצאת מהמסך
+  useEffect(() => {
+    if (activePopup && position) setPosition(clampToViewport(position));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activePopup?.id]);
+
+  const onDragStart = (e: React.PointerEvent<HTMLDivElement>) => {
+    if ((e.target as HTMLElement).closest('button')) return;
+    const rect = cardRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    dragOffsetRef.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    e.currentTarget.setPointerCapture(e.pointerId);
+  };
+
+  const onDragMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const offset = dragOffsetRef.current;
+    if (!offset) return;
+    setPosition(clampToViewport({ x: e.clientX - offset.x, y: e.clientY - offset.y }));
+  };
+
+  const onDragEnd = (e: React.PointerEvent<HTMLDivElement>) => {
+    const offset = dragOffsetRef.current;
+    if (!offset) return;
+    dragOffsetRef.current = null;
+    const p = clampToViewport({ x: e.clientX - offset.x, y: e.clientY - offset.y });
+    setPosition(p);
+    try { localStorage.setItem(POSITION_STORAGE_KEY, JSON.stringify(p)); } catch {}
+  };
+
+  const resetPosition = () => {
+    setPosition(null);
+    try { localStorage.removeItem(POSITION_STORAGE_KEY); } catch {}
+  };
 
   // ─── האזנה בזמן אמת למשימות פתוחות שהוקצו למשתמש הנוכחי ─────────────────────
   // רק אם למשתמש/לסוכנות יש הרשאה לפיצ'ר הזה — כדי לא להריץ שאילתה לכל משתמשי המערכת
@@ -114,7 +206,7 @@ export default function TaskReminderWatcher() {
 
   const goToTask = async (t: WatchedTask) => {
     await dismissForever(t);
-    if (t.customerId) router.push(`/customers/${t.customerId}`);
+    if (t.customerId) router.push(isLead ? `/NewLeads/${t.customerId}` : `/customers/${t.customerId}`);
   };
 
   const formatDue = (s?: string) => {
@@ -128,12 +220,33 @@ export default function TaskReminderWatcher() {
   if (!activePopup) return null;
 
   return (
-    <div className="trw-overlay">
-      <div className="trw-card" dir="rtl">
-        <div className="trw-header">
+    <div
+      className={`trw-overlay${position ? ' trw-overlay--custom' : ''}`}
+      style={position ? { left: position.x, top: position.y } : undefined}
+    >
+      <div className="trw-card" dir="rtl" ref={cardRef}>
+        <div
+          className="trw-header"
+          title="אפשר לגרור את התזכורת למיקום אחר"
+          onPointerDown={onDragStart}
+          onPointerMove={onDragMove}
+          onPointerUp={onDragEnd}
+          onPointerCancel={onDragEnd}
+        >
           <span className="trw-icon">⏰</span>
           <span className="trw-title">תזכורת למשימה</span>
+          {position && (
+            <button className="trw-btn-reset" onClick={resetPosition} title="החזר למיקום ברירת המחדל">
+              ↺
+            </button>
+          )}
         </div>
+        {customerName && (
+          <div className="trw-customer">
+            👤 {customerName}
+            {isLead && <span className="trw-lead-badge">ליד</span>}
+          </div>
+        )}
         <div className="trw-text">{activePopup.text}</div>
         {activePopup.dueDate && (
           <div className="trw-due">מועד יעד: {formatDue(activePopup.dueDate)}</div>

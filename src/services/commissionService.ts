@@ -29,6 +29,8 @@ function mapSplit(id: string, data: any): CommissionSplit {
     percentToSourceLead: data.percentToSourceLead,
     // ברירת מחדל כדי ש-TypeScript יהיה מרוצה גם אם השדה לא קיים במסד
     splitMode: (data.splitMode as 'commission' | 'production') ?? 'commission',
+    productGroup: String(data.productGroup ?? ''),
+    product: String(data.product ?? ''),
   };
 }
 

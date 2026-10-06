@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import {
   collection, doc, getDoc, getDocs, query, where,
-  updateDoc, setDoc, serverTimestamp,
+  updateDoc, serverTimestamp,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase/firebase';
 import { useAuth } from '@/lib/firebase/AuthContext';
@@ -17,6 +17,7 @@ import CustomerNotes from '@/app/customers/[id]/CustomerNotes';
 import CustomerTasks from '@/app/customers/[id]/CustomerTasks';
 import '@/app/customers/[id]/CustomerPage.css';
 import DialogNotification from '@/components/DialogNotification';
+import { convertLeadToCustomer, validateLeadForConversion } from '@/lib/leads/convertLeadToCustomer';
 // ─── טיפוסים ──────────────────────────────────────────────────────────────────
 
 interface LeadDoc {
@@ -60,7 +61,7 @@ export default function LeadPage() {
   const params = useParams();
   const router = useRouter();
   const { user } = useAuth();
-  const { formatIsraeliDateOnly, sourceLeadMap, fetchSourceLeadMap } = useFetchMD();
+  const { formatIsraeliDateOnly, sourceLeadMap, fetchSourceLeadMap, fetchStatusLeadForAgentAndDefault } = useFetchMD();
   const { toasts, addToast, setToasts } = useToast();
   const { agents, selectedAgentId } = useFetchAgentData();
   const { canAccess: canAccessCrm } = usePermission('access_crm_module');
@@ -109,9 +110,9 @@ export default function LeadPage() {
 
   // ─── טעינת מטא-דאטה ──────────────────────────────────────────────────────────
   const loadMeta = async (agentId: string) => {
-    // סטטוסים
-    const statusSnap = await getDocs(collection(db, 'statusLead'));
-    setStatusLeadMap(statusSnap.docs.map(d => ({ id: d.id, ...(d.data() as any) })));
+    // סטטוסים — של הסוכן + ברירות מחדל (אותו מקור כמו בדף הלידים)
+    const statuses = await fetchStatusLeadForAgentAndDefault(agentId);
+    setStatusLeadMap(statuses.map((s: any) => ({ id: s.id, statusLeadName: s.statusLeadName })));
 
     // מקורות ליד
     const sourceSnap = await getDocs(query(
@@ -183,8 +184,9 @@ export default function LeadPage() {
   // ─── המרה ללקוח עם migration מלא ─────────────────────────────────────────────
  const handleConvert = () => {
   if (!lead) return;
-  if (!lead.IDCustomer || !lead.firstNameCustomer || !lead.lastNameCustomer) {
-    addToast('error', 'להמרה נדרשים: שם פרטי, שם משפחה ותעודת זהות');
+  const validationError = validateLeadForConversion(lead);
+  if (validationError) {
+    addToast('error', validationError);
     return;
   }
   setConfirmDialog(true);
@@ -195,67 +197,14 @@ const doConvert = async () => {
   setConfirmDialog(false);
   setConverting(true);
   try {
-    const existQ = query(
-      collection(db, 'customer'),
-      where('IDCustomer', '==', lead.IDCustomer),
-      where('AgentId', '==', lead.AgentId),
-    );
-    const existSnap = await getDocs(existQ);
-    if (!existSnap.empty) {
-      addToast('error', 'לקוח עם תז זה כבר קיים במערכת');
+    const result = await convertLeadToCustomer(lead, statusLeadMap);
+    if (!result.ok) {
+      addToast('error', result.error);
       return;
     }
 
-    const customerRef = doc(collection(db, 'customer'));
-    await setDoc(customerRef, {
-      AgentId: lead.AgentId,
-      firstNameCustomer: lead.firstNameCustomer || '',
-      lastNameCustomer: lead.lastNameCustomer || '',
-      fullNameCustomer: `${lead.firstNameCustomer || ''} ${lead.lastNameCustomer || ''}`.trim(),
-      IDCustomer: lead.IDCustomer,
-      parentID: customerRef.id,
-      phone: lead.phone || '',
-      mail: lead.mail || '',
-      address: lead.address || '',
-      birthday: lead.birthday || '',
-      issueDay: lead.idCardIssueDate || '',
-      gender: mapGenderToHebrew(lead.gender),
-      notes: lead.notes || '',
-      sourceValue: lead.sourceValue || '',
-      sourceLead: lead.sourceValue || '',
-      convertedFromLeadId: lead.id,
-      createdAt: serverTimestamp(),
-      lastUpdateDate: serverTimestamp(),
-    });
-
-    const notesSnap = await getDocs(query(
-      collection(db, 'customerNotes'),
-      where('customerId', '==', lead.id),
-      where('agentId', '==', lead.AgentId),
-    ));
-    for (const n of notesSnap.docs) {
-      await updateDoc(n.ref, { customerId: customerRef.id });
-    }
-
-    const tasksSnap = await getDocs(query(
-      collection(db, 'customerTasks'),
-      where('customerId', '==', lead.id),
-      where('agentId', '==', lead.AgentId),
-    ));
-    for (const t of tasksSnap.docs) {
-      await updateDoc(t.ref, { customerId: customerRef.id });
-    }
-
-    const convertedStatus = statusLeadMap.find(
-      s => s.statusLeadName === 'הפך ללקוח',
-    )?.id ?? '';
-    await updateDoc(doc(db, 'leads', lead.id), {
-      selectedStatusLead: convertedStatus,
-      lastUpdateDate: serverTimestamp(),
-    });
-
     addToast('success', `${lead.firstNameCustomer} ${lead.lastNameCustomer} הומר ללקוח בהצלחה`);
-    setTimeout(() => router.push(`/customers/${customerRef.id}`), 1200);
+    setTimeout(() => router.push(`/customers/${result.customerId}`), 1200);
   } catch {
     addToast('error', 'שגיאה ביצירת הלקוח');
   } finally {

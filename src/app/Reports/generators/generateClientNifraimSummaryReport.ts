@@ -9,6 +9,7 @@ import { fetchContractsByAgent } from '@/services/server/fetchContracts';
 import { fetchCommissionSplits } from '@/services/server/commissionService';
 import { getProductMap } from '@/services/server/productService';
 import type { CommissionSplit } from '@/types/CommissionSplit';
+import { resolveCommissionSplit } from '@/utils/resolveCommissionSplit';
 
 type PolicyAgg = {
   company: string;
@@ -187,17 +188,20 @@ export async function generateClientNifraimSummaryReport(
 
   // עזר למציאת הסכם פיצול ללקוח
   function findSplitForCustomer(
-    customerId: string
+    customerId: string,
+    product: string
   ): CommissionSplit | undefined {
     const cust = customersById[customerId];
     if (!cust) return undefined;
     const unifiedSource = cust.sourceValue || cust.sourceLead;
     if (!unifiedSource) return undefined;
 
-    return splits.find(
-      (split) =>
-        split.agentId === agentId && split.sourceLeadId === unifiedSource
-    );
+    return resolveCommissionSplit(splits, {
+      agentId: canon(agentId),
+      sourceLeadId: canon(unifiedSource),
+      product,
+      productGroup: (productMap as any)[canon(product)]?.productGroup,
+    });
   }
 
   for (const doc of salesSnapshot.docs) {
@@ -264,7 +268,7 @@ export async function generateClientNifraimSummaryReport(
 
     // ✅ מיישמים פיצול (אם הופעל מה-UI ויש הסכם)
     if (applyCommissionSplit && splits.length > 0) {
-      const splitAgreement = findSplitForCustomer(customerId);
+      const splitAgreement = findSplitForCustomer(customerId, sale.product);
       if (splitAgreement) {
         const perc = splitAgreement.percentToAgent ?? 100;
         nifraim = Number(((nifraim * perc) / 100).toFixed(2));

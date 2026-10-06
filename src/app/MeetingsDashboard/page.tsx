@@ -8,7 +8,19 @@ import { db } from '@/lib/firebase/firebase';
 import { useAuth } from '@/lib/firebase/AuthContext';
 import { usePermission } from '@/hooks/usePermission';
 import useFetchAgentData from '@/hooks/useFetchAgentData';
-import { MeetingStage, MEETING_STAGE_META, MEETING_STAGE_ORDER, getMeetingStageLabel } from '@/lib/meetingStages';
+import {
+  MeetingStage,
+  MEETING_STAGE_META,
+  MEETING_STAGE_ORDER,
+  MEETING_STAGE_GROUPS,
+  ContactLogEntry,
+  StageHistoryEntry,
+  getMeetingStageLabel,
+  getStageGroup,
+  getLastContactDate,
+  toSafeDate,
+  toDateInputValue,
+} from '@/lib/meetingStages';
 import { saveAs } from 'file-saver';
 import './MeetingsDashboard.css';
 
@@ -26,7 +38,12 @@ interface CustomerRow {
   responsibleUserName?: string;
   meetingStage?: MeetingStage;
   meetingDate?: string;
-  contactedAt?: any;
+  recommendationsDate?: string;
+  meetingStageUpdatedAt?: any;
+  lastContactAt?: any;
+  nextContactDate?: string;
+  contactLog?: ContactLogEntry[];
+  stageHistory?: StageHistoryEntry[];
 }
 
 interface AgentUser {
@@ -36,7 +53,7 @@ interface AgentUser {
   email?: string;
 }
 
-type SortField = 'name' | 'phone' | 'tier' | 'responsible' | 'stage' | 'contacted' | 'date';
+type SortField = 'name' | 'phone' | 'tier' | 'responsible' | 'stage' | 'contacted' | 'date' | 'reminder';
 type SortDir = 'asc' | 'desc';
 
 const TIER_LABEL: Record<Tier, string> = {
@@ -56,30 +73,44 @@ const TIER_CLASS: Record<Tier, string> = {
 // ── דירוג עזר למיון "דירוג לקוח" ──
 const TIER_RANK: Record<Tier, number> = { standard: 0, silver: 1, gold: 2, premium: 3 };
 
-// ── צבע התג לכל שלב, נגזר אוטומטית מ-MEETING_STAGE_META — אין צורך לעדכן כאן כשמוסיפים שלב חדש ──
+// ── צבע התג לכל שלב, נגזר אוטומטית מ-MEETING_STAGE_META.kind — אין צורך לעדכן כאן כשמוסיפים שלב חדש ──
 const getStageClass = (stage: MeetingStage): string => {
   const meta = MEETING_STAGE_META[stage];
   if (!meta) return 'md-stage-neutral';
-  if (meta.isNegative) return 'md-stage-negative';
-  if (meta.isFinal) return 'md-stage-positive';
-  if (stage === 'not_started') return 'md-stage-neutral';
+  if (meta.kind === 'exit') return 'md-stage-negative';
+  if (meta.kind === 'success') return 'md-stage-positive';
+  if (meta.kind === 'pending') return 'md-stage-neutral';
   return 'md-stage-progress';
 };
 
-// ── דירוג עזר למיון "סטטוס תהליך", נגזר מ-MEETING_STAGE_ORDER ──
-// שלבים סופיים-שליליים (כמו "לא מעוניין") אינם ב-MEETING_STAGE_ORDER, ומוצבים בסוף
+// ── דירוג עזר למיון "סטטוס תהליך", נגזר מ-MEETING_STAGE_ORDER; יציאות מוצבות בסוף ──
 const STAGE_RANK: Record<string, number> = {};
 MEETING_STAGE_ORDER.forEach((s, i) => { STAGE_RANK[s] = i; });
 Object.keys(MEETING_STAGE_META).forEach(key => {
   if (!(key in STAGE_RANK)) STAGE_RANK[key] = MEETING_STAGE_ORDER.length;
 });
 
-// ── ממיר בבטחה Firestore Timestamp או מחרוזת ISO לאובייקט Date ──
-const toSafeDate = (v: any): Date | null => {
-  if (!v) return null;
-  const d = typeof v?.toDate === 'function' ? v.toDate() : new Date(v);
-  return isNaN(d.getTime()) ? null : d;
+// ── המועד הקרוב של הלקוח: פגישה שתואמה או פגישת המלצות ──
+const getNextMeeting = (c: CustomerRow): { at: string; label: string } | null => {
+  if (c.meetingStage === 'scheduled' && c.meetingDate) return { at: c.meetingDate, label: '' };
+  if (c.meetingStage === 'recommendations_meeting' && c.recommendationsDate) {
+    return { at: c.recommendationsDate, label: 'המלצות: ' };
+  }
+  return null;
 };
+
+// ══════════ KPI — תמונת מצב נוכחית: כל לקוח בדלי אחד לפי הסטטוס שלו עכשיו ══════════
+type KpiTone = 'blue' | 'green' | 'red' | 'gray';
+
+const KPI_TONE_BY_KIND: Record<string, KpiTone> = {
+  pending: 'gray',
+  active: 'blue',
+  success: 'green',
+  exit: 'red',
+};
+
+// סדר הכרטיסים = סדר ההגדרה ב-MEETING_STAGE_META (מסלול ואז יציאות). שלב חדש מופיע אוטומטית.
+const KPI_STAGES = Object.keys(MEETING_STAGE_META) as MeetingStage[];
 
 export default function MeetingsDashboard() {
   const router = useRouter();
@@ -95,8 +126,11 @@ export default function MeetingsDashboard() {
   // ── פילטרים ──
   const [filterResponsible, setFilterResponsible] = useState<'me' | 'all' | string>('me');
   const [filterTier, setFilterTier] = useState<'all' | Tier>('all');
-  const [filterStage, setFilterStage] = useState<'all' | MeetingStage>('all');
+  const [filterStage, setFilterStage] = useState<string>('all'); // 'all' | MeetingStage | 'group:<key>'
   const [nameFilter, setNameFilter] = useState(''); // ── חיפוש חופשי: שם או ת"ז ──
+
+  // ── KPI: כרטיס "תזכורות" מסנן את הטבלה (כרטיסי הסטטוס מסננים דרך filterStage) ──
+  const [remindersOnly, setRemindersOnly] = useState(false);
 
   // ── מיון ──
   const [sortField, setSortField] = useState<SortField | null>(null);
@@ -153,8 +187,8 @@ export default function MeetingsDashboard() {
     return u?.name || u?.displayName || u?.email || uid;
   };
 
-  // ── פילטור ──
-  const filtered = useMemo(() => {
+  // ── היקף: אחראי + דירוג + חיפוש. ה-KPI מחושבים על ההיקף הזה (לא מושפעים מסינון סטטוס/כרטיס) ──
+  const scoped = useMemo(() => {
     let rows = customers;
 
     if (filterResponsible === 'me') {
@@ -165,10 +199,6 @@ export default function MeetingsDashboard() {
 
     if (filterTier !== 'all') {
       rows = rows.filter(c => (c.customerTier || 'standard') === filterTier);
-    }
-
-    if (filterStage !== 'all') {
-      rows = rows.filter(c => (c.meetingStage || 'not_started') === filterStage);
     }
 
     // ── חיפוש חופשי: מתאים גם לשם (פרטי+משפחה) וגם לת"ז ──
@@ -182,7 +212,41 @@ export default function MeetingsDashboard() {
     }
 
     return rows;
-  }, [customers, filterResponsible, filterTier, filterStage, nameFilter, user?.uid]);
+  }, [customers, filterResponsible, filterTier, nameFilter, user?.uid]);
+
+  // ── KPI: כמה לקוחות יש עכשיו בכל סטטוס. כל לקוח נספר פעם אחת, לכן הסכום = scoped.length ──
+  const stageCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const c of scoped) {
+      const s = c.meetingStage || 'not_started';
+      counts[s] = (counts[s] ?? 0) + 1;
+    }
+    return counts;
+  }, [scoped]);
+
+  // תזכורות שהגיע זמנן — לא סטטוס, אלא חיתוך על פני הלקוחות
+  const reminderCount = useMemo(() => {
+    const todayKey = toDateInputValue(new Date());
+    return scoped.filter(c => !!c.nextContactDate && c.nextContactDate <= todayKey).length;
+  }, [scoped]);
+
+  // ── פילטור הטבלה: היקף + סטטוס (או כרטיס "תזכורות") ──
+  const filtered = useMemo(() => {
+    let rows = scoped;
+
+    if (filterStage.startsWith('group:')) {
+      const group = filterStage.slice(6);
+      rows = rows.filter(c => getStageGroup(c.meetingStage) === group);
+    } else if (filterStage !== 'all') {
+      rows = rows.filter(c => (c.meetingStage || 'not_started') === filterStage);
+    }
+
+    if (remindersOnly) {
+      rows = rows.filter(c => !!c.nextContactDate && c.nextContactDate <= toDateInputValue(new Date()));
+    }
+
+    return rows;
+  }, [scoped, filterStage, remindersOnly]);
 
   // ── מיון על גבי הרשימה המסוננת ──
   const sorted = useMemo(() => {
@@ -223,15 +287,21 @@ export default function MeetingsDashboard() {
           break;
         }
         case 'contacted': {
-          const timeA = toSafeDate(a.contactedAt)?.getTime() ?? 0;
-          const timeB = toSafeDate(b.contactedAt)?.getTime() ?? 0;
+          const timeA = getLastContactDate(a)?.getTime() ?? 0;
+          const timeB = getLastContactDate(b)?.getTime() ?? 0;
           cmp = timeA - timeB;
           break;
         }
         case 'date': {
-          const timeA = a.meetingDate ? new Date(a.meetingDate).getTime() : 0;
-          const timeB = b.meetingDate ? new Date(b.meetingDate).getTime() : 0;
+          const nmA = getNextMeeting(a);
+          const nmB = getNextMeeting(b);
+          const timeA = nmA ? new Date(nmA.at).getTime() : 0;
+          const timeB = nmB ? new Date(nmB.at).getTime() : 0;
           cmp = timeA - timeB;
+          break;
+        }
+        case 'reminder': {
+          cmp = (a.nextContactDate || '').localeCompare(b.nextContactDate || '');
           break;
         }
       }
@@ -241,31 +311,33 @@ export default function MeetingsDashboard() {
     return rows;
   }, [filtered, sortField, sortDir, agentUsers]);
 
-  const formatMeetingDate = (s?: string) => {
-    if (!s) return '';
-    const d = new Date(s);
-    if (isNaN(d.getTime())) return s;
-    return d.toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit', year: 'numeric' }) +
-      ' ' + d.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
-  };
-
-  const formatContactedAt = (v?: any) => {
+  const formatDateTime = (v?: any) => {
     const d = toSafeDate(v);
     if (!d) return '';
     return d.toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit', year: 'numeric' }) +
       ' ' + d.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
   };
 
+  const formatDay = (s?: string) => {
+    if (!s) return '';
+    const d = new Date(`${s}T00:00:00`);
+    if (isNaN(d.getTime())) return s;
+    return d.toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  };
+
+  const todayStr = toDateInputValue(new Date());
+
   // ── ייצוא דוח — בדיוק מה שמוצג כרגע על המסך (אחרי סינון ומיון) ──
   const exportToExcel = async () => {
     if (!sorted.length || isExporting) return;
     setIsExporting(true);
     try {
-      const headers = ['לקוח', 'ת"ז', 'טלפון', 'דירוג', 'אחראי', 'סטטוס תהליך', 'יצירת קשר אחרונה', 'מועד פגישה'];
+      const headers = ['לקוח', 'ת"ז', 'טלפון', 'דירוג', 'אחראי', 'סטטוס תהליך', 'שיחה אחרונה', 'פגישה קרובה', 'תזכורת לשיחה'];
 
       const rows = sorted.map(c => {
         const tier = (c.customerTier || 'standard') as Tier;
         const stage = (c.meetingStage || 'not_started') as MeetingStage;
+        const nm = getNextMeeting(c);
         return [
           `${c.firstNameCustomer ?? ''} ${c.lastNameCustomer ?? ''}`.trim(),
           c.IDCustomer || '',
@@ -273,8 +345,9 @@ export default function MeetingsDashboard() {
           TIER_LABEL[tier],
           c.responsibleUserName || getUserName(c.responsibleUserId) || '',
           getMeetingStageLabel(stage),
-          c.contactedAt ? formatContactedAt(c.contactedAt) : '',
-          stage === 'scheduled' && c.meetingDate ? formatMeetingDate(c.meetingDate) : '',
+          formatDateTime(getLastContactDate(c)),
+          nm ? `${nm.label}${formatDateTime(nm.at)}` : '',
+          formatDay(c.nextContactDate),
         ];
       });
 
@@ -315,6 +388,48 @@ export default function MeetingsDashboard() {
         >
           {isExporting ? 'מפיק דוח...' : `⬇ הורד דוח (${sorted.length})`}
         </button>
+      </div>
+
+      {/* ── KPI: כמה לקוחות יש עכשיו בכל סטטוס (סכום הכרטיסים = סה"כ לקוחות) ── */}
+      <div className="md-kpi-bar">
+        <div className="md-kpi-head">
+          <div className="md-kpi-title">לקוחות לפי סטטוס נוכחי</div>
+          <div className="md-kpi-total">סה&quot;כ {scoped.length}</div>
+          <div className="md-kpi-note">מושפע מסינון אחראי / דירוג / חיפוש. לחיצה על כרטיס מסננת את הטבלה.</div>
+        </div>
+
+        <div className="md-kpi-grid">
+          {KPI_STAGES.map(stageKey => {
+            const meta = MEETING_STAGE_META[stageKey];
+            const tone = KPI_TONE_BY_KIND[meta.kind] ?? 'gray';
+            const active = filterStage === stageKey;
+            return (
+              <button
+                key={stageKey}
+                type="button"
+                className={`md-kpi-card md-kpi-${tone}${active ? ' md-kpi-active' : ''}`}
+                onClick={() => { setRemindersOnly(false); setFilterStage(active ? 'all' : stageKey); }}
+                title={active ? 'לחץ לביטול הסינון' : 'לחץ לסינון הטבלה'}
+              >
+                <div className="md-kpi-value">{stageCounts[stageKey] ?? 0}</div>
+                <div className="md-kpi-label">{meta.icon} {meta.label}</div>
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="md-kpi-extra">
+          <button
+            type="button"
+            className={`md-kpi-card md-kpi-orange${remindersOnly ? ' md-kpi-active' : ''}`}
+            onClick={() => setRemindersOnly(v => !v)}
+            title={remindersOnly ? 'לחץ לביטול הסינון' : 'לחץ לסינון הטבלה'}
+          >
+            <div className="md-kpi-value">{reminderCount}</div>
+            <div className="md-kpi-label">📆 תזכורות שהגיע זמנן</div>
+            <div className="md-kpi-sub">נכון להיום · לא סטטוס, נספר בנוסף</div>
+          </button>
+        </div>
       </div>
 
       {/* ── פילטרים ── */}
@@ -366,10 +481,17 @@ export default function MeetingsDashboard() {
 
         <div className="md-filter-group">
           <label className="md-filter-label">סטטוס תהליך</label>
-          <select className="md-select" value={filterStage} onChange={e => setFilterStage(e.target.value as any)}>
+          <select className="md-select" value={filterStage} onChange={e => setFilterStage(e.target.value)}>
             <option value="all">הכל</option>
-            {Object.entries(MEETING_STAGE_META).map(([key, meta]) => (
-              <option key={key} value={key}>{meta.label}</option>
+            {MEETING_STAGE_GROUPS.map(g => (
+              <optgroup key={g.key} label={g.label}>
+                <option value={`group:${g.key}`}>כל ה{g.label}</option>
+                {(Object.keys(MEETING_STAGE_META) as MeetingStage[])
+                  .filter(s => getStageGroup(s) === g.key)
+                  .map(s => (
+                    <option key={s} value={s}>{MEETING_STAGE_META[s].label}</option>
+                  ))}
+              </optgroup>
             ))}
           </select>
         </div>
@@ -411,10 +533,13 @@ export default function MeetingsDashboard() {
                   סטטוס תהליך {sortIndicator('stage')}
                 </th>
                 <th className="md-th-sortable" onClick={() => handleSort('contacted')}>
-                  יצירת קשר אחרונה {sortIndicator('contacted')}
+                  שיחה אחרונה {sortIndicator('contacted')}
                 </th>
                 <th className="md-th-sortable" onClick={() => handleSort('date')}>
-                  מועד פגישה {sortIndicator('date')}
+                  פגישה קרובה {sortIndicator('date')}
+                </th>
+                <th className="md-th-sortable" onClick={() => handleSort('reminder')}>
+                  תזכורת לשיחה {sortIndicator('reminder')}
                 </th>
               </tr>
             </thead>
@@ -422,6 +547,9 @@ export default function MeetingsDashboard() {
               {sorted.map(c => {
                 const tier = (c.customerTier || 'standard') as Tier;
                 const stage = (c.meetingStage || 'not_started') as MeetingStage;
+                const lastContact = getLastContactDate(c);
+                const nm = getNextMeeting(c);
+                const reminderDue = !!c.nextContactDate && c.nextContactDate <= todayStr;
                 return (
                   <tr key={c.id} onClick={() => router.push(`/customers/${c.id}`)} className="md-row">
                     <td className="md-cell-name">
@@ -438,11 +566,16 @@ export default function MeetingsDashboard() {
                     <td>{c.responsibleUserName || getUserName(c.responsibleUserId) || '—'}</td>
                     <td>
                       <span className={`md-stage-badge ${getStageClass(stage)}`}>
-                        {MEETING_STAGE_META[stage].icon} {getMeetingStageLabel(stage)}
+                        {MEETING_STAGE_META[stage]?.icon} {getMeetingStageLabel(stage)}
                       </span>
                     </td>
-                    <td>{c.contactedAt ? formatContactedAt(c.contactedAt) : <span className="md-muted">—</span>}</td>
-                    <td>{stage === 'scheduled' && c.meetingDate ? formatMeetingDate(c.meetingDate) : '—'}</td>
+                    <td>{lastContact ? formatDateTime(lastContact) : <span className="md-muted">—</span>}</td>
+                    <td>{nm ? `${nm.label}${formatDateTime(nm.at)}` : <span className="md-muted">—</span>}</td>
+                    <td>
+                      {c.nextContactDate
+                        ? <span className={reminderDue ? 'md-reminder-due' : ''}>{formatDay(c.nextContactDate)}</span>
+                        : <span className="md-muted">—</span>}
+                    </td>
                   </tr>
                 );
               })}

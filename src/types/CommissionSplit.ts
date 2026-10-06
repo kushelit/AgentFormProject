@@ -4,5 +4,8 @@ export type CommissionSplit = {
   sourceLeadId: string;
   percentToAgent: number;
   percentToSourceLead: number;
-  splitMode: 'commission' | 'production'; 
+  splitMode: 'commission' | 'production';
+  // ריק = כל הקבוצות / כל המוצרים (הסכם כללי למקור הליד)
+  productGroup?: string;
+  product?: string;
 };

@@ -3,6 +3,10 @@
   "private": true,
   "type": "commonjs",
   "scripts": {
+    "build:extension": "node scripts/build-extension.cjs",
+    "check:extension": "tsc -p extension/tsconfig.json",
+    "test:extension": "node --test tests/extension.test.cjs",
+    "test:extension:browser": "node tests/browser-fixtures.cjs",
     "dev": "tsx src/poller.local.ts",
     "build": "tsc -p tsconfig.json",
     "start:test": "node dist/runner.js",
@@ -15,6 +19,7 @@
     "playwright": "^1.58.1"
   },
   "devDependencies": {
+    "esbuild": "^0.27.2",
     "@types/node": "^20.12.12",
     "@vercel/ncc": "^0.38.4",
     "pkg": "^5.8.1",

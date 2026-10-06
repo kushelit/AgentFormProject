@@ -120,6 +120,8 @@ const [percentToAgent, setPercentToAgent] = useState('');
 const [percentToSourceLead, setPercentToSourceLead] = useState('');
 const [sourceLeads, setSourceLeads] = useState<SourceLead[]>([]);
 const [splitMode, setSplitMode] = useState<'commission' | 'production'>('commission');
+const [splitProductGroup, setSplitProductGroup] = useState(''); // ריק = כל הקבוצות
+const [splitProduct, setSplitProduct] = useState(''); // ריק = כל המוצרים
 const [openMenuRowCommissionSplit, setOpenMenuRowCommissionSplit] = useState<string | null>(null);
 
 const { canAccess: canAccessElementary } = usePermission(
@@ -326,24 +328,109 @@ useEffect(() => {
 }, [effectiveAgentId]);
 
 
+const productGroupNameById = useMemo(() => {
+  const map: Record<string, string> = {};
+  productsGroups.forEach((g) => { map[String(g.id)] = g.productsGroupName; });
+  return map;
+}, [productsGroups]);
+
+const getProductsForGroup = (groupId: string) =>
+  products
+    .filter((p) => String(p.productGroup) === String(groupId))
+    .sort((a, b) => a.productName.localeCompare(b.productName, 'he'));
+
+// מיון: מקור ליד → כללי לפני קבוצה → קבוצה לפני מוצר
+const sortedCommissionSplits = useMemo(() => {
+  const leadName = (id: string) => sourceLeads.find((l) => l.id === id)?.sourceLead || '';
+  const level = (s: any) => (s.product ? 2 : s.productGroup ? 1 : 0);
+  return [...commissionSplits].sort((a: any, b: any) =>
+    leadName(a.sourceLeadId).localeCompare(leadName(b.sourceLeadId), 'he') ||
+    level(a) - level(b) ||
+    String(a.productGroup || '').localeCompare(String(b.productGroup || '')) ||
+    String(a.product || '').localeCompare(String(b.product || ''), 'he')
+  );
+}, [commissionSplits, sourceLeads]);
+
+// מחזיר הודעת שגיאה, או null אם תקין
+const validateSplit = (row: {
+  id?: string;
+  sourceLeadId: string;
+  productGroup: string;
+  product: string;
+  percentToAgent: number;
+  percentToSourceLead: number;
+}): string | null => {
+  if (!row.sourceLeadId) return 'יש לבחור מקור ליד';
+  if (row.product && !row.productGroup) return 'יש לבחור קבוצת מוצר למוצר';
+  if (row.product) {
+    const p = products.find((x) => x.productName === row.product);
+    if (!p || String(p.productGroup) !== String(row.productGroup)) {
+      return 'המוצר שנבחר אינו שייך לקבוצת המוצר';
+    }
+  }
+  const a = Number(row.percentToAgent);
+  const s = Number(row.percentToSourceLead);
+  if (!Number.isFinite(a) || !Number.isFinite(s) || a < 0 || s < 0) return 'אחוזים לא תקינים';
+  if (Math.abs(a + s - 100) > 0.001) return 'סכום האחוזים חייב להיות 100';
+  const duplicate = commissionSplits.some(
+    (x: any) =>
+      x.id !== row.id &&
+      x.sourceLeadId === row.sourceLeadId &&
+      String(x.productGroup || '') === row.productGroup &&
+      String(x.product || '') === row.product
+  );
+  if (duplicate) return 'כבר קיים הסכם למקור ליד זה עם אותה קבוצה ומוצר';
+  return null;
+};
+
 const handleSubmitSplitForm = async (e: any) => {
   e.preventDefault();
-  if (!effectiveAgentId || !selectedSourceLeadId) return;
+  if (!effectiveAgentId) return;
+
+  const row = {
+    sourceLeadId: selectedSourceLeadId,
+    productGroup: splitProductGroup,
+    product: splitProduct,
+    percentToAgent: Number(percentToAgent),
+    percentToSourceLead: Number(percentToSourceLead),
+  };
+  const error = validateSplit(row);
+  if (error) {
+    addToast("error", error);
+    return;
+  }
 
   await addDoc(collection(db, 'commissionSplits'), {
     agentId: effectiveAgentId,
-    sourceLeadId: selectedSourceLeadId,
-    percentToAgent: Number(percentToAgent),
-    percentToSourceLead: Number(percentToSourceLead),
+    ...row,
     splitMode,
   });
 
   setSelectedSourceLeadId('');
+  setSplitProductGroup('');
+  setSplitProduct('');
   setPercentToAgent('');
   setPercentToSourceLead('');
   setSplitMode('commission');
   setIsModalOpenSplit(false);
   reloadCommissionSplits(effectiveAgentId);
+};
+
+const handleSaveSplitEdit = async () => {
+  const d: any = editCommissionSplitData;
+  const error = validateSplit({
+    id: editingRowCommissionSplit || undefined,
+    sourceLeadId: d.sourceLeadId || '',
+    productGroup: String(d.productGroup || ''),
+    product: String(d.product || ''),
+    percentToAgent: Number(d.percentToAgent),
+    percentToSourceLead: Number(d.percentToSourceLead),
+  });
+  if (error) {
+    addToast("error", error);
+    return;
+  }
+  await saveSplitAgreementChanges();
 };
 
 const denormalizeForDisplay = (
@@ -939,7 +1026,7 @@ return (
     {activeView === 'splits' && (
       <>
         <Button onClick={!effectiveAgentId ? undefined : () => setIsModalOpenSplit(true)} text="הוספת הסכם פיצול" type="primary" icon="on" state={!effectiveAgentId ? "disabled" : "default"} />
-        <Button onClick={saveSplitAgreementChanges} text="שמור שינויים" type="primary" icon="off" state={editingRowCommissionSplit ? "default" : "disabled"} />
+        <Button onClick={handleSaveSplitEdit} text="שמור שינויים" type="primary" icon="off" state={editingRowCommissionSplit ? "default" : "disabled"} />
         <Button onClick={cancelEditSplitAgreement} text="בטל" type="primary" icon="off" state={editingRowCommissionSplit ? "default" : "disabled"} />
       </>
     )}
@@ -975,6 +1062,8 @@ return (
               <thead>
                 <tr>
                   <th>מקור ליד</th>
+                  <th>קבוצת מוצר</th>
+                  <th>מוצר</th>
                   <th>אחוז לסוכן</th>
                   <th>אחוז למקור ליד</th>
                   <th>סוג הסכם</th>
@@ -982,7 +1071,7 @@ return (
                 </tr>
               </thead>
               <tbody>
-                {commissionSplits.map((item: any) => {
+                {sortedCommissionSplits.map((item: any) => {
                   const lead = sourceLeads.find(l => l.id === item.sourceLeadId);
                   return (
                     <tr key={item.id}>
@@ -999,6 +1088,40 @@ return (
                           </select>
                         ) : (
                           lead?.sourceLead || '—'
+                        )}
+                      </td>
+                      <td>
+                        {editingRowCommissionSplit === item.id ? (
+                          <select
+                            value={String(editCommissionSplitData.productGroup || '')}
+                            onChange={(e) => {
+                              handleEditCommissionSplitChange("productGroup", e.target.value);
+                              handleEditCommissionSplitChange("product", '');
+                            }}
+                          >
+                            <option value="">כל הקבוצות</option>
+                            {productsGroups.map((g) => (
+                              <option key={g.id} value={g.id}>{g.productsGroupName}</option>
+                            ))}
+                          </select>
+                        ) : (
+                          item.productGroup ? (productGroupNameById[String(item.productGroup)] || item.productGroup) : 'כללי'
+                        )}
+                      </td>
+                      <td>
+                        {editingRowCommissionSplit === item.id ? (
+                          <select
+                            value={String(editCommissionSplitData.product || '')}
+                            onChange={(e) => handleEditCommissionSplitChange("product", e.target.value)}
+                            disabled={!editCommissionSplitData.productGroup}
+                          >
+                            <option value="">כל המוצרים</option>
+                            {getProductsForGroup(String(editCommissionSplitData.productGroup || '')).map((p) => (
+                              <option key={p.id} value={p.productName}>{p.productName}</option>
+                            ))}
+                          </select>
+                        ) : (
+                          item.product || (item.productGroup ? 'כל המוצרים' : 'כללי')
                         )}
                       </td>
                       <td>
@@ -1076,6 +1199,31 @@ return (
                     <option value="">בחר מקור ליד</option>
                     {sourceLeads.map((lead) => (
                       <option key={lead.id} value={lead.id}>{lead.sourceLead}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label>קבוצת מוצר</label>
+                  <select
+                    value={splitProductGroup}
+                    onChange={(e) => { setSplitProductGroup(e.target.value); setSplitProduct(''); }}
+                  >
+                    <option value="">כל הקבוצות (הסכם כללי)</option>
+                    {productsGroups.map((g) => (
+                      <option key={g.id} value={g.id}>{g.productsGroupName}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label>מוצר</label>
+                  <select
+                    value={splitProduct}
+                    onChange={(e) => setSplitProduct(e.target.value)}
+                    disabled={!splitProductGroup}
+                  >
+                    <option value="">כל המוצרים בקבוצה</option>
+                    {getProductsForGroup(splitProductGroup).map((p) => (
+                      <option key={p.id} value={p.productName}>{p.productName}</option>
                     ))}
                   </select>
                 </div>

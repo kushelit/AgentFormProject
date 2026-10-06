@@ -9,6 +9,7 @@ import { fetchContractsByAgent } from '@/services/server/fetchContracts';
 import { getProductMap } from '@/services/server/productService';
 import { fetchCommissionSplits } from '@/services/server/commissionService';
 import type { CommissionSplit } from '@/types/CommissionSplit';
+import { resolveCommissionSplit } from '@/utils/resolveCommissionSplit';
 
 /** ---------------- Helpers ---------------- */
 const canon = (v?: any) => String(v ?? '').trim();
@@ -186,7 +187,8 @@ const getCustomerKey = (agentId: string, cid: string) => `${agentId}::${cid}`;
 function findSplitForSale(
   sale: any,
   commissionSplits: CommissionSplit[],
-  customersByKey: Map<string, any>
+  customersByKey: Map<string, any>,
+  productGroup?: string
 ): CommissionSplit | undefined {
   const agentId = canon(sale.AgentId);
   const cid = canon(sale.IDCustomer || sale.customerId);
@@ -198,9 +200,12 @@ function findSplitForSale(
   const leadId = canon(customer.sourceValue ?? customer.sourceLead ?? '');
   if (!leadId) return undefined;
 
-  return commissionSplits.find(
-    (split) => canon((split as any).agentId) === agentId && canon((split as any).sourceLeadId) === leadId
-  );
+  return resolveCommissionSplit(commissionSplits, {
+    agentId,
+    sourceLeadId: leadId,
+    product: sale.product,
+    productGroup,
+  });
 }
 
 function getSourceLeadPercent(split: CommissionSplit): number {
@@ -340,7 +345,7 @@ export async function generateLeadSourceStatementReport(params: ReportRequest) {
     if (saleLeadId !== sourceLeadId) continue; // only selected lead source
 
     // split factor
-    const split = findSplitForSale(s, commissionSplits, customersByKey);
+    const split = findSplitForSale(s, commissionSplits, customersByKey, (productMap as any)[canon(s.product)]?.productGroup);
     if (!split) continue; // no agreement -> no payment
 
     const pctSource = getSourceLeadPercent(split);

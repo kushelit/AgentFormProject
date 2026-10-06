@@ -1,6 +1,6 @@
 import { apiFetch } from '@/lib/apiFetch';
 import { ChangeEventHandler, FormEventHandler, SetStateAction, useEffect, useMemo, useState } from "react";
-import { collection, query, setDoc, where, getDocs, getDoc, addDoc, deleteDoc, doc, updateDoc, DocumentSnapshot, DocumentData, serverTimestamp, Timestamp, Query } from "firebase/firestore";
+import { collection, query, where, getDocs, getDoc, addDoc, deleteDoc, doc, updateDoc, DocumentSnapshot, DocumentData, serverTimestamp, Timestamp, Query } from "firebase/firestore";
 import { db, firebaseApp } from "@/lib/firebase/firebase";
 import { useAuth } from '@/lib/firebase/AuthContext';
 import useFetchMD from "@/hooks/useMD";
@@ -21,6 +21,7 @@ import { getDocumentLinks } from "@/lib/fileLinks";
 import { useRouter } from 'next/navigation';
 import { usePermission } from "@/hooks/usePermission";
 import DocumentsModal from "@/components/DocumentsModal/DocumentsModal";
+import { convertLeadToCustomer } from "@/lib/leads/convertLeadToCustomer";
 
 const NewLeads = () => {
 
@@ -472,104 +473,14 @@ const [documentsLeadId, setDocumentsLeadId] = useState<string | null>(null);
 
   const { sortedData, sortColumn, sortOrder, handleSort, setSortedData } = useSortableTable(filteredData);
 
-const mapGenderToHebrew = (g: string): string => {
-  if (g === 'male') return 'זכר';
-  if (g === 'female') return 'נקבה';
-  return '';
-};
-
 
 const handleConvertToCustomer = async (lead: LeadsType) => {
-     if (!lead.AgentId) {
-    addToast("error", "ליד חסר סוכן – לא ניתן להמיר");
-    return;
-  }
-  if (!lead.IDCustomer || !lead.firstNameCustomer || !lead.lastNameCustomer) {
-    addToast("error", "להמרה ללקוח נדרשים: שם פרטי, שם משפחה ותעודת זהות");
-    return;
-  }
-
-  // בדיקת קיום לקוח
-  const customerQuery = query(
-    collection(db, 'customer'),
-    where('IDCustomer', '==', lead.IDCustomer),
-    where('AgentId', '==', lead.AgentId)
-  );
-  const customerSnapshot = await getDocs(customerQuery);
-
-  if (!customerSnapshot.empty) {
-    addToast("error", "לקוח עם תז זה כבר קיים במערכת");
-    return;
-  }
-
   try {
-    // יצירת רשומת customer
-    const customerRef = doc(collection(db, 'customer'));
-    await setDoc(customerRef, {
-      AgentId: lead.AgentId,
-      firstNameCustomer: lead.firstNameCustomer || '',
-      lastNameCustomer: lead.lastNameCustomer || '',
-      fullNameCustomer: `${lead.firstNameCustomer || ''} ${lead.lastNameCustomer || ''}`.trim(),
-      IDCustomer: lead.IDCustomer,
-      parentID: customerRef.id,
-      phone: lead.phone || '',
-      mail: lead.mail || '',
-      address: lead.address || '',
-      birthday: lead.birthday || '',
-      issueDay: lead.idCardIssueDate || '',
-      gender: mapGenderToHebrew(lead.gender || ''),
-      notes: lead.notes || '',
-      sourceValue: lead.sourceValue || '',
-      sourceLead: lead.sourceValue || '',
-      convertedFromLeadId: lead.id,
-      createdAt: serverTimestamp(),
-      lastUpdateDate: serverTimestamp(),
-    });
-
-// ── Migration הערות ──
-const notesSnap = await getDocs(query(
-  collection(db, 'customerNotes'),
-  where('customerId', '==', lead.id),
-  where('agentId', '==', lead.AgentId),
-));
-for (const n of notesSnap.docs) {
-  await updateDoc(n.ref, { customerId: customerRef.id });
-}
-
-// ── Migration משימות ──
-const tasksSnap = await getDocs(query(
-  collection(db, 'customerTasks'),
-  where('customerId', '==', lead.id),
-  where('agentId', '==', lead.AgentId),
-));
-for (const t of tasksSnap.docs) {
-  await updateDoc(t.ref, { customerId: customerRef.id });
-}
-
-// ── Migration מסמכים ──
-const docsSnap = await getDocs(query(
-  collection(db, 'leadDocuments'),
-  where('leadId', '==', lead.id),
-));
-for (const d of docsSnap.docs) {
-  // מוסיפים רשומה חדשה ב-customerDocuments עם אותם נתוני קובץ
-  await addDoc(collection(db, 'customerDocuments'), {
-    ...d.data(),
-    customerId: customerRef.id,
-    AgentId: lead.AgentId,
-    convertedFromLeadDocId: d.id,
-    createdAt: serverTimestamp(),
-  });
-}
-    // עדכון סטטוס הליד
-    const convertedStatus = statusLeadMap.find(
-      s => s.statusLeadName === 'הפך ללקוח'
-    )?.id ?? '';
-
-    await updateDoc(doc(db, 'leads', lead.id), {
-      selectedStatusLead: convertedStatus,
-      lastUpdateDate: serverTimestamp(),
-    });
+    const result = await convertLeadToCustomer(lead, statusLeadMap);
+    if (!result.ok) {
+      addToast("error", result.error);
+      return;
+    }
 
     reloadLeadsData(selectedAgentId);
     addToast("success", `${lead.firstNameCustomer} ${lead.lastNameCustomer} הומר ללקוח בהצלחה`);

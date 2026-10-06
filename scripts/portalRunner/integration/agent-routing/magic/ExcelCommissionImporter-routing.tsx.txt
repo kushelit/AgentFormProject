@@ -1,0 +1,91 @@
+// 1. Add these imports to ExcelCommissionImporter.tsx:
+import {
+  parsePortalExecutionMode,
+  portalStatusCollection,
+  portalExecutorOnline,
+  resolvePortalExecutor,
+  type PortalExecutionMode,
+} from '@/lib/portalRuns/portalExecutor';
+
+// 2. Add alongside the existing currentRunnerId/currentRunnerVersion state:
+const [portalExecutionMode, setPortalExecutionMode] = useState<PortalExecutionMode>('runner');
+
+// 3. Replace the entire existing effect that subscribes to portalRunnerStatus,
+// and the next effect calculating isRunnerOnline from lastSeenAtMs, with this:
+useEffect(() => {
+  let stopped = false;
+  let unsubscribeStatus: (() => void) | undefined;
+  let statusData: any;
+  let mode: PortalExecutionMode = 'runner';
+  const reset = () => {
+    statusData = undefined;
+    setCurrentRunnerId('');
+    setCurrentRunnerVersion('');
+    setLastSeenAtMs(null);
+    setIsRunnerOnline(false);
+  };
+  const tick = () => {
+    if (!stopped) setIsRunnerOnline(portalExecutorOnline(mode, statusData));
+  };
+  reset();
+  setPortalExecutionMode('runner');
+  if (!selectedAgentId) return;
+  const unsubscribeUser = onSnapshot(doc(db, 'users', selectedAgentId), snap => {
+    unsubscribeStatus?.();
+    unsubscribeStatus = undefined;
+    reset();
+    if (!snap.exists()) return;
+    try { mode = parsePortalExecutionMode(snap.data()?.portalExecutionMode); }
+    catch { addToast('error', 'הגדרת אופן ההרצה של הסוכן אינה תקינה'); return; }
+    setPortalExecutionMode(mode);
+    unsubscribeStatus = onSnapshot(doc(db, portalStatusCollection(mode), selectedAgentId), status => {
+      if (stopped) return;
+      statusData = status.data();
+      setCurrentRunnerId(String(statusData?.runnerId || '').trim());
+      setCurrentRunnerVersion(String(statusData?.runnerVersion || '').trim());
+      setLastSeenAtMs(statusData?.lastSeenAt?.toMillis?.() ?? null);
+      tick();
+    }, () => { if (!stopped) reset(); });
+  }, () => {
+    unsubscribeStatus?.();
+    unsubscribeStatus = undefined;
+    if (!stopped) reset();
+  });
+  const timer = setInterval(tick, 5000);
+  return () => {
+    stopped = true;
+    clearInterval(timer);
+    unsubscribeUser();
+    unsubscribeStatus?.();
+  };
+}, [selectedAgentId]);
+
+// 4. Replace isUpdateAvailable with:
+const isUpdateAvailable = portalExecutionMode === 'runner' &&
+  latestRunnerVersion && currentRunnerVersion && latestRunnerVersion !== currentRunnerVersion;
+
+// 5. In handleTriggerUpdate, immediately after if (!selectedAgentId) return,
+// add this guard and capture the executor BEFORE creating a self_update run:
+if (portalExecutionMode !== 'runner') return;
+// Inside the existing try block, before const runRef = ...:
+const updateExecutor = await resolvePortalExecutor(db, selectedAgentId);
+if (updateExecutor.executionMode !== 'runner') throw new Error('הסוכן מוגדר לעבוד דרך התוסף');
+// Add to the self_update setDoc payload (alongside automationClass):
+// ...updateExecutor,
+
+// 6. Gate native download links / manual-upgrade links with
+// portalExecutionMode === 'runner'.
+// In the missing-installation description, use:
+// portalExecutionMode === 'extension'
+//   ? 'תוסף Chrome אינו מחובר. הפעילו אותו ובדקו שהוא מצומד לסוכן.'
+//   : 'הבוט עדיין לא מותקן. ניתן להוריד התקנה ראשונה ולהתחיל לעבוד.'
+// In the offline box, handle extension first:
+// portalExecutionMode === 'extension' ? (
+//   <div className="rounded-xl bg-amber-50 border border-amber-200 p-4 text-sm text-amber-700">
+//     תוסף Chrome אינו פעיל. פתחו Chrome, הפעילו את התוסף ובדקו שאינו מושהה.
+//   </div>
+// ) : supportsRemoteStart ? ( ...existing native remote-start UI... ) : ( ...existing native UI... )
+
+// The two run-creation helpers now resolve the selected executor themselves.
+// Existing reservedRunnerId: currentRunnerId arguments may be removed;
+// they are accepted for compatibility but no longer determine routing.

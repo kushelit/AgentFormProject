@@ -9,6 +9,7 @@ import { fetchContractsByAgent } from '@/services/server/fetchContracts';
 import { getProductMap } from '@/services/server/productService';
 import { fetchCommissionSplits } from '@/services/server/commissionService';
 import type { CommissionSplit } from '@/types/CommissionSplit';
+import { resolveCommissionSplit } from '@/utils/resolveCommissionSplit';
 
 /** ---------------- Helpers ---------------- */
 const canon = (v?: any) => String(v ?? '').trim();
@@ -145,7 +146,8 @@ const getCustomerKey = (agentId: string, cid: string) => `${agentId}::${cid}`;
 function findSplitForSale(
   sale: any,
   commissionSplits: CommissionSplit[],
-  customersByKey: Map<string, any>
+  customersByKey: Map<string, any>,
+  productGroup?: string
 ): CommissionSplit | undefined {
   const agentId = canon(sale.AgentId);
   const cid = canon(sale.IDCustomer || sale.customerId);
@@ -157,9 +159,12 @@ function findSplitForSale(
   const sourceValueUnified = canon(customer.sourceValue ?? customer.sourceLead ?? '');
   if (!sourceValueUnified) return undefined;
 
-  return commissionSplits.find(
-    (split) => canon(split.agentId) === agentId && canon(split.sourceLeadId) === sourceValueUnified
-  );
+  return resolveCommissionSplit(commissionSplits, {
+    agentId,
+    sourceLeadId: sourceValueUnified,
+    product: sale.product,
+    productGroup,
+  });
 }
 
 /** ---------------- Types ---------------- */
@@ -321,7 +326,7 @@ export async function generateProfitByLeadSourceReport(params: ReportRequest) {
 
     // פיצול (percentToAgent)
     if (applyCommissionSplit && commissionSplits.length && customersByKey.size) {
-      const split = findSplitForSale(s, commissionSplits, customersByKey);
+      const split = findSplitForSale(s, commissionSplits, customersByKey, (productMap as any)[canon(s.product)]?.productGroup);
       if (split) {
         const pct = Number((split as any).percentToAgent ?? 100);
         if (!Number.isNaN(pct)) {

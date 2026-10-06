@@ -25,6 +25,7 @@ import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
 import { CommissionSplit } from '@/types/CommissionSplit';
 import { fetchSplits } from '@/services/splitsService';
+import { resolveCommissionSplit } from '@/utils/resolveCommissionSplit';
 import { fetchExternalForCustomers } from '@/services/externalQueries';
 import { useRouter } from 'next/navigation';
 import { useSearchParams } from 'next/navigation';
@@ -740,11 +741,12 @@ useEffect(() => {
           if (isCommissionSplitEnabled && sourceValue) {
             // console.log("Checking split for sourceValue:", sourceValue);
             // console.log("Current commission before split:", commissions);
-            const splitAgreement = commissionSplits.find(
-              (split) =>
-                split.agentId === selectedAgentId &&
-                split.sourceLeadId === sourceValue
-            );
+            const splitAgreement = resolveCommissionSplit(commissionSplits, {
+              agentId: selectedAgentId,
+              sourceLeadId: sourceValue,
+              product: data.product,
+              productGroup: productMap[data.product]?.productGroup,
+            });
           
             if (splitAgreement) {
               commissions.commissionHekef = Math.round(commissions.commissionHekef * (splitAgreement.percentToAgent / 100));
@@ -875,11 +877,12 @@ useEffect(() => {
 
           
           if (isCommissionSplitEnabled && sourceValue) {
-            const splitAgreement = commissionSplits.find(
-              (split) =>
-                split.agentId === selectedAgentId &&
-                split.sourceLeadId === sourceValue
-            );
+            const splitAgreement = resolveCommissionSplit(commissionSplits, {
+              agentId: selectedAgentId,
+              sourceLeadId: sourceValue,
+              product: data.product,
+              productGroup: productMap[data.product]?.productGroup,
+            });
           
             if (splitAgreement) {
               commissions = {
@@ -1185,11 +1188,12 @@ const loadCustomerMiniCompare = async () => {
         let commissions = { ...commissionsRaw };
 
         if (isCommissionSplitEnabled && sourceValue) {
-          const splitAgreement = commissionSplits.find(
-            (split) =>
-              split.agentId === selectedAgentId &&
-              split.sourceLeadId === sourceValue
-          );
+          const splitAgreement = resolveCommissionSplit(commissionSplits, {
+              agentId: selectedAgentId,
+              sourceLeadId: sourceValue,
+              product: s.product,
+              productGroup: productMap[s.product]?.productGroup,
+            });
           if (splitAgreement) {
             commissions = {
               commissionHekef: Math.round(commissionsRaw.commissionHekef * (splitAgreement.percentToAgent / 100)),

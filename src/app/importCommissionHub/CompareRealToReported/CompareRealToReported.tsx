@@ -12,6 +12,7 @@ import { calculateCommissions } from '@/utils/commissionCalculations';
 import * as XLSX from 'xlsx';
 import { useRouter, useSearchParams } from 'next/navigation';
 import type { CommissionSplit } from '@/types/CommissionSplit';
+import { resolveCommissionSplit } from '@/utils/resolveCommissionSplit';
 
 // ✅ Contracts comparison (new tab)
 import type { ViewMode, ContractComparisonRow } from '@/types/ContractCommissionComparison';
@@ -144,7 +145,8 @@ async function getFamilyIds(dbAgentId: string, lockedCustomerId: string): Promis
 function findSplitAgreementForSale(
   sale: any,
   commissionSplits: CommissionSplit[],
-  customers: any[]
+  customers: any[],
+  productGroup?: string
 ): CommissionSplit | undefined {
   // מזהי לקוח וסוכן מהמכירה
   const cid = String(sale.customerId || sale.IDCustomer || '').trim();
@@ -163,12 +165,13 @@ function findSplitAgreementForSale(
   const sourceUnified = String(customer?.sourceValue || customer?.sourceLead || '').trim();
   if (!sourceUnified) return undefined;
 
-  // מחפשים הסכם פיצול שמוגדר על אותו מקור ליד
-  return commissionSplits.find(
-    split =>
-      String(split.agentId || '').trim() === agentId &&
-      String(split.sourceLeadId || '').trim() === sourceUnified
-  );
+  // מחפשים הסכם פיצול למקור הליד (מוצר → קבוצה → כללי)
+  return resolveCommissionSplit(commissionSplits, {
+    agentId,
+    sourceLeadId: sourceUnified,
+    product: sale.product,
+    productGroup,
+  });
 }
 
 /* ---------- products map ---------- */
@@ -864,7 +867,7 @@ extRows = s.docs
           let magicNifraim = Number((commissions as any)?.commissionNifraim ?? 0);
 
           if (splitEnabled) {
-            const split = findSplitAgreementForSale(sale, commissionSplits, customersForSplit);
+            const split = findSplitAgreementForSale(sale, commissionSplits, customersForSplit, productMap[sale.product]?.productGroup);
             if (split) magicNifraim = Math.round(magicNifraim * (split.percentToAgent / 100));
           }
 
@@ -962,7 +965,7 @@ premiumMagicTzvira += (
           let magicNifraim = Number((commissions as any)?.commissionNifraim ?? 0);
 
           if (splitEnabled) {
-            const split = findSplitAgreementForSale(sale, commissionSplits, customersForSplit);
+            const split = findSplitAgreementForSale(sale, commissionSplits, customersForSplit, productMap[sale.product]?.productGroup);
             if (split) magicNifraim = Math.round(magicNifraim * (split.percentToAgent / 100));
           }
 

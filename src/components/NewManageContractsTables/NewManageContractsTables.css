@@ -487,19 +487,41 @@
 
 .splits-view .contracts-table th:first-child,
 .splits-view .contracts-table td:first-child {
-  width: 40%;  /* מקור ליד — הכי רחב */
+  width: 22%;  /* מקור ליד */
 }
 
 .splits-view .contracts-table th:nth-child(2),
-.splits-view .contracts-table td:nth-child(2),
+.splits-view .contracts-table td:nth-child(2) {
+  width: 15%;  /* קבוצת מוצר */
+}
+
 .splits-view .contracts-table th:nth-child(3),
 .splits-view .contracts-table td:nth-child(3) {
-  width: 15%;  /* אחוזים */
+  width: 20%;  /* מוצר */
 }
 
 .splits-view .contracts-table th:nth-child(4),
-.splits-view .contracts-table td:nth-child(4) {
-  width: 20%;  /* סוג הסכם */
+.splits-view .contracts-table td:nth-child(4),
+.splits-view .contracts-table th:nth-child(5),
+.splits-view .contracts-table td:nth-child(5) {
+  width: 10%;  /* אחוזים */
+}
+
+.splits-view .contracts-table th:nth-child(6),
+.splits-view .contracts-table td:nth-child(6) {
+  width: 15%;  /* סוג הסכם */
+}
+
+/* שדות עריכה בתוך הטבלה — ממלאים את התא */
+.splits-view .contracts-table td select,
+.splits-view .contracts-table td input {
+  width: 100%;
+  min-width: 110px;
+  box-sizing: border-box;
+}
+
+.splits-view .contracts-table td input[type="number"] {
+  min-width: 70px;
 }
 
 .splits-view .contracts-table th:last-child,

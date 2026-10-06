@@ -23,6 +23,8 @@ export const fetchSplits = async (selectedAgentId: string): Promise<CommissionSp
         percentToAgent: data.percentToAgent,
         percentToSourceLead: data.percentToSourceLead,
         splitMode: (data.splitMode as 'commission' | 'production') || 'commission', 
+        productGroup: String(data.productGroup ?? ''),
+        product: String(data.product ?? ''),
       };
     });
   } catch (error) {

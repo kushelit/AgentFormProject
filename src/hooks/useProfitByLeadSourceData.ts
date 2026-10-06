@@ -17,6 +17,7 @@ import { CommissionSplit } from '@/types/CommissionSplit';
 import { CombinedData } from '../types/Sales';
 
 import { fetchSplits } from '@/services/splitsService';
+import { resolveCommissionSplit } from '@/utils/resolveCommissionSplit';
 import fetchDataForAgent from '@/services/fetchDataForAgent';
 import { fetchSourceLeadsForAgent } from '@/services/sourceLeadService';
 import { getDocsForMyAgents } from '@/lib/agentScope';
@@ -56,7 +57,8 @@ const canonId = (v: any): string => String(v ?? '').trim().replace(/\D/g, '').re
 function findSplitAgreementForSale(
   sale: any,
   commissionSplits: CommissionSplit[],
-  customers: CombinedData[]
+  customers: CombinedData[],
+  product: Product | undefined
 ) {
   // התאמה לפי ת"ז מנורמלת - כדי שעסקה בפורמט ת"ז שונה עדיין תמצא את הסכם הפיצול הנכון
   const customer = customers.find(
@@ -66,9 +68,12 @@ function findSplitAgreementForSale(
   const sourceValueUnified = (customer?.sourceValue || customer?.sourceLead || '').trim();
   if (!sourceValueUnified) return undefined;
 
-  return commissionSplits.find(
-    (split) => split.agentId === sale.AgentId && split.sourceLeadId === sourceValueUnified
-  );
+  return resolveCommissionSplit(commissionSplits, {
+    agentId: sale.AgentId,
+    sourceLeadId: sourceValueUnified,
+    product: sale.product,
+    productGroup: product?.productGroup,
+  });
 }
 
 function calcCommissionAmounts(
@@ -86,7 +91,7 @@ function calcCommissionAmounts(
   let commissionFactor = 1;
 
   if (isCommissionSplitEnabled) {
-    const splitAgreement = findSplitAgreementForSale(sale, commissionSplits, customers);
+    const splitAgreement = findSplitAgreementForSale(sale, commissionSplits, customers, product);
     if (splitAgreement) {
       const percentToAgent = (splitAgreement.percentToAgent ?? 100) / 100;
       const splitMode = splitAgreement.splitMode || 'commission';

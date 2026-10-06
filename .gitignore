@@ -57,6 +57,11 @@ scripts/portalRunner/build_log.txt
 scripts/portalRunner/curl
 scripts/portalRunner/gcloud
 
+# Chrome extension build outputs (npm run build:extension)
+scripts/portalRunner/dist-extension/
+scripts/portalRunner/portal-runner-extension.zip
+scripts/portalRunner/extension-build-inputs.json
+
 # =====================================================
 # SECRETS / SERVICE ACCOUNTS
 # =====================================================

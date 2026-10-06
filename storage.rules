@@ -71,5 +71,12 @@ service firebase.storage {
       allow read: if isSystem();
       allow write: if false;
     }
+
+    // Public marketing content (e.g. the newsletter video at /commissions-video).
+    // Copied from the production console rules so a deploy keeps it.
+    match /public-marketing/{allPaths=**} {
+      allow read: if true;
+      allow write: if false;
+    }
   }
 }

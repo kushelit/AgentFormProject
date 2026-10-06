@@ -1,0 +1,38 @@
+// Replace only getCommissionAssistantRunnerReadiness in commissionAssistantRuns.ts.
+// The existing return type and s()/timestampToMillis() helpers remain unchanged.
+export async function getCommissionAssistantRunnerReadiness({
+  db, requesterAgentId,
+}: {
+  db: FirebaseFirestore.Firestore;
+  requesterAgentId: string;
+}): Promise<CommissionAssistantRunnerReadiness> {
+  const userSnap = await db.doc(`users/${requesterAgentId}`).get();
+  if (!userSnap.exists) throw new Error('COMMISSION_ASSISTANT_AGENT_NOT_FOUND');
+  const configuredMode = userSnap.data()?.portalExecutionMode;
+  if (configuredMode != null && configuredMode !== '' &&
+      configuredMode !== 'runner' && configuredMode !== 'extension')
+    throw new Error('COMMISSION_ASSISTANT_EXECUTION_MODE_INVALID');
+  const extension = configuredMode === 'extension';
+  const [statusSnap, configSnap] = await Promise.all([
+    db.doc(`${extension ? 'portalExtensionStatus' : 'portalRunnerStatus'}/${requesterAgentId}`).get(),
+    extension ? Promise.resolve(null) : db.doc('portalRunnerConfig/global').get(),
+  ]);
+  const status = statusSnap.exists ? statusSnap.data() as any : {};
+  const config = configSnap?.exists ? configSnap.data() as any : {};
+  const runnerId = s(status?.runnerId);
+  const currentVersion = s(status?.runnerVersion);
+  const latestVersion = extension ? '' : s(config?.latestVersion);
+  const installerUrl = extension ? '' : s(config?.installerUrl);
+  const lastSeenAtMs = timestampToMillis(status?.lastSeenAt);
+  const correctType = extension
+    ? runnerId.startsWith('chrome-') && status?.runnerType === 'chrome-extension'
+    : !!runnerId && !runnerId.startsWith('chrome-') && status?.runnerType !== 'chrome-extension';
+  const age = lastSeenAtMs == null ? Infinity : Date.now() - lastSeenAtMs;
+  const online = correctType && status?.isOnline !== false && age >= -5_000 &&
+    age < (extension ? 90_000 : RUNNER_ONLINE_MAX_AGE_MS);
+  return {
+    state: !online ? 'offline' : latestVersion && currentVersion !== latestVersion
+      ? 'update_required' : 'ready',
+    runnerId, currentVersion, latestVersion, installerUrl, lastSeenAtMs,
+  };
+}
