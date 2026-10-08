@@ -95,3 +95,8 @@ Thumbs.db
 **/pw-browsers/
 # Claude Code shell temp files
 tmpclaude-*
+
+# =====================================================
+# BUSINESS DOCUMENTS (proposals, quotes) - not part of the product code
+# =====================================================
+deliverables/
