@@ -16,6 +16,7 @@ import 'react-datepicker/dist/react-datepicker.css';
 import { registerLocale } from 'react-datepicker';
 import { he } from 'date-fns/locale/he';
 import { fetchSourceLeadsForAgent } from '@/services/sourceLeadService';
+import NifraimMonthPicker, { useNifraimMonth } from '@/components/commission/NifraimMonthPicker';
 
 registerLocale('he', he);
 
@@ -147,6 +148,9 @@ const ReportsPage: React.FC = () => {
     { value: string; label: string }[]
   >([]);
   const [applyCommissionSplit, setApplyCommissionSplit] = useState(false);
+  // דוח נפרעים מטעינות — חודש יחיד (פרסום / דיווח) במקום טווח
+  const isNifraimFromLoad = reportType === 'nifraimFromLoadReport';
+  const nifraimMonth = useNifraimMonth(isNifraimFromLoad ? selectedAgentId : '');
 
   const minuySochenOptions = [
     { value: 'true', label: 'כן' },
@@ -268,8 +272,8 @@ useEffect(() => {
     addToast('error', 'בדוח זה יש לבחור סוכן יחיד');
     return;
   }
-  if (!fromDate || !toDate) {
-    addToast('error', 'נדרש לבחור טווח תאריכים (מתאריך ועד תאריך)');
+  if (!nifraimMonth.month) {
+    addToast('error', 'נדרש לבחור חודש');
     return;
   }
 }
@@ -317,6 +321,7 @@ useEffect(() => {
           ? applyCommissionSplit
           : undefined,
           sourceLeadId: rules.showLeadSource ? selectedLeadSource?.value : undefined,
+        ...(isNifraimFromLoad ? { dateBasis: nifraimMonth.basis, month: nifraimMonth.month } : {}),
       };
 
       const res = await apiFetch('/api/sendReport', {
@@ -347,10 +352,7 @@ useEffect(() => {
 
 
 
-  const dateRangeLabel =
-  reportType === 'nifraimFromLoadReport'
-    ? 'טווח חודשי דיווח (טעינות):'
-    : 'טווח תאריכי חודש תפוקה:';
+  const dateRangeLabel = 'טווח תאריכי חודש תפוקה:';
 
 
   return (
@@ -376,7 +378,19 @@ useEffect(() => {
         </select>
       </div>
 
+     {/* חודש יחיד – דוח נפרעים מטעינות */}
+{isNifraimFromLoad && (
+  <div className="mb-4">
+    <label className="block font-semibold mb-1">חודש (טעינות):</label>
+    {!selectedAgentId || selectedAgentId === 'all' ? (
+      <div className="text-sm text-gray-500">בחרי סוכן כדי לבחור חודש</div>
+    ) : (
+      <NifraimMonthPicker state={nifraimMonth} />
+    )}
+  </div>
+)}
      {/* טווח תאריכים */}
+{!isNifraimFromLoad && (
 <div className="mb-4">
   <label className="block font-semibold mb-1">{dateRangeLabel}</label>
   <div className="flex gap-2">
@@ -414,6 +428,7 @@ useEffect(() => {
     />
   </div>
 </div>
+)}
       {/* סוכן */}
       <div className="mb-4">
         <label className="block font-semibold mb-1">בחר סוכן:</label>

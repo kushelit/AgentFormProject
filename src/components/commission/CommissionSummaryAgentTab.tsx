@@ -10,6 +10,7 @@ import React, { useState } from 'react';
 import useFetchAgentData from '@/hooks/useFetchAgentData';
 import { useAuth } from '@/lib/firebase/AuthContext';
 import AnomalyPoliciesModal from '@/components/commission/AnomalyPoliciesModal';
+import NifraimFromLoadReportModal from '@/components/commission/NifraimFromLoadReportModal';
 import CustomerImportFromCommissions from '@/components/customers/CustomerImportFromCommissions';
 import useAgentInsights from '@/hooks/useAgentInsights';
 import useCommissionSummary from '@/hooks/useCommissionSummary';
@@ -33,12 +34,13 @@ const AGENT_PICKER_ROLES = ['admin', 'manager'];
 
 const CommissionSummaryAgentTab: React.FC = () => {
   const { detail } = useAuth();
-  const { agents, selectedAgentId, handleAgentChange } = useFetchAgentData();
+  const { agents, selectedAgentId, handleAgentChange, selectedAgentName, companies } = useFetchAgentData();
 
   const currentYear = new Date().getFullYear();
   const [selectedYear, setSelectedYear] = useState<string>(currentYear.toString());
   const [tab, setTab] = useState<TabKey>('overview');
   const [showAnomalies, setShowAnomalies] = useState(false);
+  const [showNifraimReport, setShowNifraimReport] = useState(false);
 
   const [reloadKey, setReloadKey] = useState(0);
   const insights = useAgentInsights(selectedAgentId, selectedYear, reloadKey);
@@ -96,6 +98,14 @@ const CommissionSummaryAgentTab: React.FC = () => {
             className="bg-red-50 text-red-700 border border-red-200 px-4 py-2 rounded-lg font-bold hover:bg-red-100 transition disabled:opacity-40"
           >
             ⚠️ פוליסות חריגות
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowNifraimReport(true)}
+            disabled={!ready}
+            className="bg-emerald-50 text-emerald-700 border border-emerald-200 px-4 py-2 rounded-lg font-bold hover:bg-emerald-100 transition disabled:opacity-40"
+          >
+            📥 דוח נפרעים מטעינות
           </button>
         </div>
       </div>
@@ -167,6 +177,15 @@ const CommissionSummaryAgentTab: React.FC = () => {
 
       {showAnomalies && selectedAgentId && (
         <AnomalyPoliciesModal agentId={selectedAgentId} selectedYear={selectedYear} onClose={() => setShowAnomalies(false)} />
+      )}
+
+      {showNifraimReport && selectedAgentId && (
+        <NifraimFromLoadReportModal
+          agentId={selectedAgentId}
+          agentName={selectedAgentName}
+          companies={companies}
+          onClose={() => setShowNifraimReport(false)}
+        />
       )}
     </div>
   );

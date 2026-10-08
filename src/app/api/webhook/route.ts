@@ -205,6 +205,8 @@ export async function POST(req: NextRequest) {
     // לקוח MagicTouch: מסלול MagicTouch בלבד, או הרשמה מדף ההרשמה של MagicTouch
     const isMagicTouchOnlyPlan = subscriptionType === 'magic_touch';
     const isMagicTouchCustomer = isMagicTouchOnlyPlan || source === 'magic-touch-signup';
+    // מערכת ראשית לנרשם: MagicTouch בלבד → MagicTouch, כל מסלול אחר → טעינת עמלות
+    const signupPrimarySystem = isMagicTouchOnlyPlan ? 'magictouch' : 'commissions';
 
     const rawSum = data['data[sum]'];
     const sumStr = Array.isArray(rawSum) ? rawSum[0] : rawSum || '0';
@@ -464,8 +466,8 @@ if (expiresAt) {
       if (subscriptionType && subscriptionType !== userData?.subscriptionType) updateFields.subscriptionType = subscriptionType;
       if (idNumber && idNumber !== userData?.idNumber) updateFields.idNumber = idNumber;
       if (pageCode && pageCode !== userData?.pageCode) updateFields.pageCode = pageCode;
-      // מנוי MagicTouch בלבד → אחרי התחברות נוחתים ב-MagicTouch
-      if (isMagicTouchOnlyPlan) updateFields.primarySystem = 'magictouch';
+      // נרשם חוזר → נוחת במערכת של המסלול; שדרוג מתוך המערכת לא משנה את המערכת הראשית
+      if (source !== 'existing-user-upgrade') updateFields.primarySystem = signupPrimarySystem;
 
       // if (addOns && JSON.stringify(addOns) !== JSON.stringify(userData?.addOns)) {
       //   updateFields.addOns = {
@@ -670,8 +672,7 @@ if (
       isActive: true,
     };
 
-    // מנוי MagicTouch בלבד → אחרי התחברות נוחתים ב-MagicTouch
-    if (isMagicTouchOnlyPlan) newUserData.primarySystem = 'magictouch';
+    newUserData.primarySystem = signupPrimarySystem;
 
     if (typeof agenciesValue !== 'undefined') newUserData.agencies = agenciesValue;
     if (couponCode) newUserData.usedCouponCode = couponCode;

@@ -38,6 +38,7 @@ import {
 import {
   getSystemHref,
   normalizePrimarySystem,
+  normalizeWorkerPrimarySystem,
   cachePrimarySystemForAgent,
   resetNavigationState,
 } from '@/hooks/usePrimarySystem';
@@ -80,7 +81,7 @@ const maskPhone = (phoneNumber?: string): string => {
  * המערכת הראשית של המשתמש - קובעת לאן נוחתים אחרי התחברות.
  *
  * - סוכן / מנהל / אדמין: שדה primarySystem במסמך שלו
- * - עובד: יורש מהסוכן שלו לפי agentId
+ * - עובד: יורש מהסוכן שלו לפי agentId (בלי מערכות שאין לעובד גישה אליהן)
  *
  * כשל בקריאה לא חוסם התחברות - חוזרים לברירת המחדל.
  */
@@ -101,7 +102,7 @@ const resolvePrimarySystem = async (
 
   try {
     const agentSnapshot = await getDoc(doc(db, 'users', agentId));
-    const value = normalizePrimarySystem(
+    const value = normalizeWorkerPrimarySystem(
       agentSnapshot.exists()
         ? agentSnapshot.data()?.primarySystem
         : null

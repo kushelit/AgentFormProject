@@ -4,6 +4,9 @@
 import { admin } from '@/lib/firebase/firebase-admin';
 import ExcelJS from 'exceljs';
 import { ReportRequest } from '@/types';
+import { loadJobMeta, loadJobYms, loadTemplates, mapPool } from '@/lib/insights/serverData';
+import { makeResolver, makeRowResolver, type InsightsPolicyRow } from '@/lib/insights/computeInsights';
+import type { ProductMatch } from '@/types/agentInsights';
 
 /** -------------------------------------------------- */
 /**   Helpers                                          */
@@ -138,27 +141,84 @@ function autofitColumns(ws: ExcelJS.Worksheet, headerCount: number) {
 /**   Main                                             */
 /** -------------------------------------------------- */
 
-export async function generateNifraimFromLoadReport(params: ReportRequest) {
-  const { agentId, company, fromDate, toDate } = params;
+export type NifraimDateBasis = 'ym' | 'reportMonth';
+
+const BASIS_LABEL: Record<NifraimDateBasis, string> = { ym: 'פרסום', reportMonth: 'דיווח' };
+
+const MATCH_SUFFIX: Partial<Record<ProductMatch, string>> = {
+  fallback: ' (ברירת מחדל)',
+  none: ' (לא זוהה)',
+};
+
+const POLICY_FIELDS = [
+  'agentId', 'runId', 'templateId', 'reportMonth', 'validMonth', 'product', 'company',
+  'policyNumberKey', 'policyNumber', 'customerId', 'IDCustomer', 'fullName', 'totalCommissionAmount',
+];
+
+/**
+ * חודש יחיד.
+ * dateBasis 'ym' (ברירת מחדל) — חודש פרסום: portalImportRuns.resolvedWindow.ym → jobIds → runId
+ *   (אותה שרשרת של השוואת טעינות / הסקירה, ללא תבניות היקף).
+ * dateBasis 'reportMonth' — חודש הדיווח שבתוך הקובץ.
+ */
+export async function generateNifraimFromLoadReport(
+  params: ReportRequest & { dateBasis?: NifraimDateBasis; month?: string }
+) {
+  const { agentId, company } = params;
   if (!agentId) throw new Error('נדרש לבחור סוכן');
 
-  const fromYm = toYm(fromDate);
-  const toYmVal = toYm(toDate);
-  if (!fromYm || !toYmVal) throw new Error('נדרש לבחור טווח חודשים');
-  if (fromYm > toYmVal) throw new Error('טווח חודשים לא תקין');
+  const basis: NifraimDateBasis = params.dateBasis === 'reportMonth' ? 'reportMonth' : 'ym';
+  const month = toYm(params.month || params.fromDate);
+  if (!month) throw new Error('נדרש לבחור חודש');
 
   const selectedCompanies = Array.isArray(company) ? company.map(canon) : [];
 
   const db = admin.firestore();
+  const { templatesById, hekefTemplateIds } = await loadTemplates(db);
 
   // ── 1. טעינות (policyCommissionSummaries) ──────────────────────────────
-  let extQuery: FirebaseFirestore.Query = db
-    .collection('policyCommissionSummaries')
-    .where('agentId', '==', agentId)
-    .where('reportMonth', '>=', fromYm)
-    .where('reportMonth', '<=', toYmVal);
+  let extDocs: any[] = [];
+  let ymByJobId: Record<string, string> = {};
 
-  const extSnap = await extQuery.get();
+  if (basis === 'ym') {
+    ymByJobId = await loadJobYms(db, agentId, month.slice(0, 4));
+    const jobIdsOfYm = Object.keys(ymByJobId).filter((id) => ymByJobId[id] === month);
+    const meta = await loadJobMeta(db, jobIdsOfYm, hekefTemplateIds);
+    const jobIds = Object.keys(meta);
+    const snaps = await mapPool(jobIds, 20, (id) =>
+      db.collection('policyCommissionSummaries').where('runId', '==', id).select(...POLICY_FIELDS).get()
+    );
+    for (const snap of snaps) {
+      for (const d of snap.docs) {
+        const x: any = d.data();
+        if (canon(x.agentId) !== agentId) continue;
+        const templateId = canon(x.templateId) || meta[canon(x.runId)]?.templateId || '';
+        if (!templateId || hekefTemplateIds.has(templateId)) continue;
+        extDocs.push({ ...x, templateId, _ym: month });
+      }
+    }
+  } else {
+    const snap = await db
+      .collection('policyCommissionSummaries')
+      .where('agentId', '==', agentId)
+      .where('reportMonth', '==', month)
+      .get();
+    extDocs = snap.docs.map((d) => ({ ...d.data(), _ym: month }));
+  }
+
+  // ── פענוח מוצר: productMap של התבנית + סיווג מחדש לפי פוליסה אחות (כמו בדף הסיכום) ──
+  // ym: בחודש דיווח אין חודש פרסום — החודש הנבחר משמש כמפתח החלון (כל השורות באותו חודש)
+  const insightRows: InsightsPolicyRow[] = extDocs.map((r) => ({
+    templateId: canon(r.templateId),
+    ym: r._ym,
+    reportMonth: canon(r.reportMonth),
+    product: r.product,
+    company: canon(r.company),
+    policyNumberKey: canon(r.policyNumberKey || r.policyNumber),
+    premium: 0,
+    commission: 0,
+  }));
+  const rowResolve = makeRowResolver(insightRows, makeResolver(templatesById));
 
   // ── 2. לקוחות (customer) – לשמות + parentID ───────────────────────────
   const customersSnap = await db
@@ -188,6 +248,9 @@ export async function generateNifraimFromLoadReport(params: ReportRequest) {
     lastName: string;
     company: string;
     policyNumber: string;
+    originalProduct: string;
+    classifiedProduct: string;
+    ym: string;
     reportMonth: string;
     validMonth: string;
     amount: number;
@@ -201,21 +264,21 @@ export async function generateNifraimFromLoadReport(params: ReportRequest) {
     { firstName: string; lastName: string; amount: number }
   > = {};
 
-  for (const d of extSnap.docs) {
-    const r = d.data() as any;
-
+  extDocs.forEach((r, i) => {
     const comp = canon(r.company);
     const ym = canon(r.reportMonth);
     const validYm = canon(r.validMonth ?? '');
 
-    if (!ym) continue;
-    // סינון כפול (Firestore כבר סינן, אבל על הבטוח)
-    if (ym < fromYm || ym > toYmVal) continue;
-    if (selectedCompanies.length && !selectedCompanies.includes(comp)) continue;
+    if (!ym) return;
+    if (basis === 'reportMonth' && ym !== month) return;
+    if (selectedCompanies.length && !selectedCompanies.includes(comp)) return;
 
     const policy = canon(r.policyNumberKey || r.policyNumber || '');
     const cid = canon(r.customerId || r.IDCustomer || '');
     const amount = Number(r.totalCommissionAmount ?? 0);
+
+    const resolved = rowResolve(insightRows[i]);
+    const classifiedProduct = resolved.canonical + (MATCH_SUFFIX[resolved.matchedBy] ?? '');
 
     // שם – נעדיף מ-customer collection
     let firstName = '';
@@ -233,7 +296,11 @@ export async function generateNifraimFromLoadReport(params: ReportRequest) {
       lastName = parts.slice(1).join(' ') || '';
     }
 
-    policyRows.push({ cid, firstName, lastName, company: comp, policyNumber: policy, reportMonth: ym, validMonth: validYm, amount });
+    policyRows.push({
+      cid, firstName, lastName, company: comp, policyNumber: policy,
+      originalProduct: canon(r.product), classifiedProduct,
+      ym: r._ym, reportMonth: ym, validMonth: validYm, amount,
+    });
 
     // צבירה לפי לקוח
     if (cid) {
@@ -242,7 +309,7 @@ export async function generateNifraimFromLoadReport(params: ReportRequest) {
       if (!byCustomer[cid].firstName && firstName) byCustomer[cid].firstName = firstName;
       if (!byCustomer[cid].lastName && lastName) byCustomer[cid].lastName = lastName;
     }
-  }
+  });
 
   // מיון פוליסות
   policyRows.sort(
@@ -336,6 +403,9 @@ export async function generateNifraimFromLoadReport(params: ReportRequest) {
     'שם משפחה',
     'חברה',
     'מס׳ פוליסה',
+    'מוצר מקורי',
+    'מוצר מסווג',
+    ...(basis === 'ym' ? ['חודש פרסום'] : []),
     'חודש דיווח',
     'חודש תחילה',
     'נפרעים (טעינות)',
@@ -354,7 +424,10 @@ export async function generateNifraimFromLoadReport(params: ReportRequest) {
       r.lastName,
       r.company,
       r.policyNumber,
-      r.reportMonth,  // מחרוזת YYYY-MM ישירות – בלי המרה ל-Date
+      r.originalProduct,
+      r.classifiedProduct,
+      ...(basis === 'ym' ? [r.ym] : []),
+      r.reportMonth,  // מחרוזת YYYY-MM ישירות – בלי המרה ל-Date (החודש שעליו שולם)
       r.validMonth,   // מחרוזת YYYY-MM ישירות
       Number(r.amount.toFixed(2)),
     ]);
@@ -362,7 +435,7 @@ export async function generateNifraimFromLoadReport(params: ReportRequest) {
 
   styleDataRows(wsPolicy, policyHeaders.length, {
     firstDataRow: 2,
-    numericCols: [8],  // הסרנו dateCols – עמודות החודש נשארות טקסט
+    numericCols: [policyHeaders.length],  // הסרנו dateCols – עמודות החודש נשארות טקסט
   });
   autofitColumns(wsPolicy, policyHeaders.length);
 
@@ -420,7 +493,7 @@ export async function generateNifraimFromLoadReport(params: ReportRequest) {
 
   // אם אין נתוני משפחה
   if (sortedFamilies.length === 0) {
-    const emptyRow = wsFamily.addRow(['אין מבוטחים מקושרים למשפחה בטווח זה', '', '', '', '']);
+    const emptyRow = wsFamily.addRow(['אין מבוטחים מקושרים למשפחה בחודש זה', '', '', '', '']);
     emptyRow.getCell(1).alignment = { horizontal: 'center' };
   }
 
@@ -434,9 +507,9 @@ export async function generateNifraimFromLoadReport(params: ReportRequest) {
 
   return {
     buffer,
-    filename: `דוח_נפרעים_מטעינות_${fromYm}_עד_${toYmVal}.xlsx`,
-    subject: 'דוח נפרעים מטעינות – לקוח / פוליסה / משפחה',
+    filename: `דוח_נפרעים_מטעינות_${BASIS_LABEL[basis]}_${month}.xlsx`,
+    subject: `דוח נפרעים מטעינות – חודש ${BASIS_LABEL[basis]} ${month}`,
     description:
-      'דוח נפרעים מבוסס טעינות קבצים לפי לקוח, לפי פוליסה (שורה לכל חודש דיווח) ולפי משפחה.',
+      `דוח נפרעים מבוסס טעינות קבצים לחודש ${BASIS_LABEL[basis]} ${month}, לפי לקוח, לפי פוליסה (שורה לכל חודש דיווח, כולל מוצר מקורי ומסווג) ולפי משפחה.`,
   };
 }

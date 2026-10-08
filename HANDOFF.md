@@ -273,8 +273,13 @@
 - [ ] **ה-promote מעלה את כל מה שנמצא ב-commit,** כולל עבודה של שיחות מקבילות (למשל MagicTouch). לפני promote צריך לוודא שכל מה שבו מוכן לייצור, ושה-Functions שהוא צריך כבר פרוסות בייצור.
 - [ ] **משתני סביבה:** ב-Vercel, `API_AUTH_MODE=enforce` צריך להיות מסומן **רק ל-Preview**, ולא ל-Production. אחרי ה-promote הראשון צריך לבדוק ב-`/admin/api-auth-logs` של הייצור שהשורות מופיעות עם `mode: log`. אם מופיע `enforce`, הייצור קיבל את המשתנה של ה-Preview.
 - [x] **גיבוי חוקים:** חוקי הייצור הועתקו מהקונסולה (2026-10-06), והיא שומרת אותם לשחזור. **ההשוואה הראתה:** חוקי ה-Firestore בייצור זהים לחוקים שהיו בטסט לפני העבודה, כלומר המעבר כבר נבדק בטסט. ב-Storage של הייצור היה חוק `public-marketing` (קריאה ציבורית), שלא היה בקובץ. **הוא הועתק ל-`storage.rules`**, ו-dry-run עבר.
-- [ ] **CORS** ב-bucket של הייצור: כל דומיינים של הייצור, GET ו-HEAD. לדבריה, כבר הוגדר.
+- [x] **CORS** ב-`agentsale-693e8.firebasestorage.app` (נבדק 2026-10-06): `https://magicsale.co.il` ו-`https://www.magicsale.co.il`, GET ו-HEAD, `Content-Type` ו-`Content-Disposition`. ✅ ה-bucket הישן `agentsale-693e8.appspot.com` לא קיים בייצור (404), ולכן אין מה להגדיר שם.
 - [ ] **אינדקסים:** להשוות בין `firebase firestore:indexes --project prod` (קריאה בלבד, היא מריצה) לבין הטסט. בטסט נוצר `portalImportRuns(agentId, status, createdAt desc)`.
+- [x] **דוח מוכנות (2026-10-06), `scripts/prod-readiness-check.ps1`, קריאה בלבד, היא מריצה:**
+  - **בייצור:** 109 משתמשים. לכולם `role` מוכר. אין עובדים יתומים, ואין אי-התאמה בקבוצות. בנתוני העמלות, בלקוחות, בהסכמים, במשימות, בהערות וב-`whatsapp_conversations` אין מסמכים חסרים.
+  - ✅ `isSystem` מסומן רק ל-`WmLYPsV1XeUuFlZr9gfYBvc3Wxq1` ('נעמה כהן', admin). **זה המשתמש שלה בייצור.** (בטסט ה-isSystem הוא 'הראל כהן'.)
+  - עסקה אחת בלי `AgentId`: `sales/zxrIm4EOwXrLqebDVbih` (לקוח 'כגככ רררר', ת"ז 33552, בלי חברה ובלי מוצר). זה נתון בדיקה ישן, והיא מטפלת בו ידנית.
+  - **פתוח:** `customerDocuments` (66/66) ו-`leadDocuments` (89/89) חסרים `AgentId`. הכפתור "השלמה" בשלב 3 ישלים אותם. **להריץ את הדוח שוב לפני שלב 5.**
 - [ ] **נתוני משתמשים:**
   - `isSystem` רק לה.
   - לכל משתמש יש `role` מוכר (agent, manager, worker, admin). מי שאין לו יאבד גישה.

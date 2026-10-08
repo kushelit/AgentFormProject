@@ -113,6 +113,7 @@ export async function GET(req: Request) {
            */
           agentId,
           portalExecutionMode: data.portalExecutionMode ?? 'runner',
+          primarySystem: data.primarySystem ?? null,
 
           name:
             data.name || '',

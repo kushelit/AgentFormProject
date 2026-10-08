@@ -10,7 +10,8 @@ import { systems, DEFAULT_PRIMARY_SYSTEM } from '@/config/pagesConfig';
 // המערכת הראשית של המשתמש
 //
 // - סוכן / מנהל / אדמין: שדה primarySystem במסמך שלו ב-users
-// - עובד: יורש מהסוכן שלו לפי detail.agentId
+// - עובד: יורש מהסוכן שלו לפי detail.agentId,
+//   חוץ ממערכות שאין לעובד גישה אליהן (WORKER_BLOCKED_SYSTEMS) - שם מקבל ברירת מחדל
 // - ערך חסר או לא תקין: DEFAULT_PRIMARY_SYSTEM
 //
 // ערכים תקינים: כל מערכת ב-systems שאינה pinnedLast
@@ -30,6 +31,15 @@ export const normalizePrimarySystem = (value) =>
   typeof value === 'string' && VALID_IDS.has(value) ? value : null;
 
 const normalize = normalizePrimarySystem;
+
+// מערכות שאין לעובד גישה אליהן - עובד של סוכן שזו המערכת הראשית שלו נוחת בברירת המחדל
+const WORKER_BLOCKED_SYSTEMS = new Set(['commissions']);
+
+// המערכת הראשית של עובד לפי הערך של הסוכן שלו
+export const normalizeWorkerPrimarySystem = (value) => {
+  const normalized = normalize(value);
+  return normalized && !WORKER_BLOCKED_SYSTEMS.has(normalized) ? normalized : null;
+};
 
 // cache לעובדים - כדי שלא תהיה קריאה ל-Firestore ו"קפיצה" בכל טעינת דף
 const readCache = (agentId) => {
@@ -70,7 +80,7 @@ export default function usePrimarySystem() {
     }
 
     // עובד - קודם מה-cache, ואז אימות מול המסמך של הסוכן
-    const cached = normalize(readCache(agentId));
+    const cached = normalizeWorkerPrimarySystem(readCache(agentId));
     if (cached) {
       setPrimarySystem(cached);
       setIsResolved(true);
@@ -80,7 +90,7 @@ export default function usePrimarySystem() {
       .then((snap) => {
         if (cancelled) return;
         const value =
-          normalize(snap.exists() ? snap.data().primarySystem : null) ||
+          normalizeWorkerPrimarySystem(snap.exists() ? snap.data().primarySystem : null) ||
           DEFAULT_PRIMARY_SYSTEM;
         setPrimarySystem(value);
         writeCache(agentId, value);

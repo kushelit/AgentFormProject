@@ -19,6 +19,7 @@ type AddOns = {
 
 type SubscriptionRow = {
   portalExecutionMode?: string;
+  primarySystem?: string | null;
   id: string;
   agentId?: string;
   workersCount?: number;
@@ -179,6 +180,20 @@ function getDaysLeft(value: any) {
   return Math.ceil(diffMs / (1000 * 60 * 60 * 24));
 }
 
+// מערכת ראשית - ערכים כמו systems ב-pagesConfig (בלי admin). ריק = MagicSale
+const PRIMARY_SYSTEM_OPTIONS = [
+  { value: 'magicsale', label: 'MagicSale' },
+  { value: 'commissions', label: 'טעינת עמלות' },
+  { value: 'flow', label: 'Flow' },
+  { value: 'magictouch', label: 'Magic Touch' },
+];
+const DEFAULT_PRIMARY_SYSTEM = 'magicsale';
+
+function getPrimarySystemLabel(value?: string | null) {
+  const id = value || DEFAULT_PRIMARY_SYSTEM;
+  return PRIMARY_SYSTEM_OPTIONS.find(option => option.value === id)?.label || id;
+}
+
 function getRoleLabel(role?: string) {
   switch (String(role || '').toLowerCase()) {
     case 'agent':
@@ -247,6 +262,7 @@ export default function SubscriptionsAdminPage() {
   const [subscriptions, setSubscriptions] = useState<SubscriptionRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [savingExecutorIds, setSavingExecutorIds] = useState<string[]>([]);
+  const [savingPrimaryIds, setSavingPrimaryIds] = useState<string[]>([]);
 
   const [filterActive, setFilterActive] = useState<FilterActive>('all');
   const [filterSubStatus, setFilterSubStatus] = useState<FilterSubStatus>('all');
@@ -463,6 +479,7 @@ export default function SubscriptionsAdminPage() {
       'Grow': hasGrow(sub) ? 'מחובר' : 'חסר',
       'Subscription ID': sub.subscriptionId || '',
       'Transaction ID': sub.transactionId || '',
+      'מערכת ראשית': getPrimarySystemLabel(sub.primarySystem),
     }));
 
     const worksheet = XLSX.utils.json_to_sheet(rows);
@@ -497,6 +514,24 @@ export default function SubscriptionsAdminPage() {
       addToast('error', error?.response?.data?.error || error?.message || 'שמירת כלי ההרצה נכשלה');
     } finally {
       setSavingExecutorIds(prev => prev.filter(id => id !== sub.id));
+    }
+  };
+
+  const handlePrimarySystemChange = async (sub: SubscriptionRow, primarySystem: string) => {
+    if (savingPrimaryIds.includes(sub.id)) return;
+    setSavingPrimaryIds(prev => [...prev, sub.id]);
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) throw new Error('נדרשת התחברות');
+      await apiAxios.post('/api/admin/primarySystem', { agentId: sub.id, primarySystem },
+        { headers: { Authorization: 'Bearer ' + token } });
+      setSubscriptions(prev => prev.map(row => row.id === sub.id ? { ...row, primarySystem } : row));
+      setSelectedForDetail(prev => prev?.id === sub.id ? { ...prev, primarySystem } : prev);
+      addToast('success', 'המערכת הראשית נשמרה. תחול מההתחברות הבאה של הסוכן.');
+    } catch (error: any) {
+      addToast('error', error?.response?.data?.error || error?.message || 'שמירת המערכת הראשית נכשלה');
+    } finally {
+      setSavingPrimaryIds(prev => prev.filter(id => id !== sub.id));
     }
   };
 
@@ -846,12 +881,13 @@ export default function SubscriptionsAdminPage() {
           {/* Table */}
           <div className="overflow-hidden rounded-xl border border-[#E4E1D6] bg-white">
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[980px] border-collapse text-[13.5px]">
+              <table className="w-full min-w-[1120px] border-collapse text-[13.5px]">
                 <thead>
                   <tr className="border-b border-[#E4E1D6] bg-[#FBFAF7] text-right text-[11.5px] font-semibold text-[#8B8478]">
                     <th className="px-5 py-3.5 font-semibold">לקוח</th>
                     <th className="px-5 py-3.5 font-semibold">סוג לקוח</th>
                     <th className="px-5 py-3.5 font-semibold">כלי הרצת דוחות</th>
+                    <th className="px-5 py-3.5 font-semibold">מערכת ראשית</th>
                     <th className="px-5 py-3.5 font-semibold">מנוי</th>
                     <th className="px-5 py-3.5 font-semibold">עובדים</th>
                     <th className="px-5 py-3.5 font-semibold">תשלום חודשי</th>
@@ -910,6 +946,25 @@ export default function SubscriptionsAdminPage() {
                                 <option value="extension">תוסף Chrome</option>
                               </select>
                               {savingExecutorIds.includes(sub.id) && <div className="mt-1 text-xs text-gray-500">שומר…</div>}
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-5 py-4" onClick={event => event.stopPropagation()}>
+                          {sub.role === 'worker' ? <span className="text-xs text-gray-500">לפי הסוכן</span> : (
+                            <div>
+                              <select aria-label={'מערכת ראשית עבור ' + sub.name}
+                                value={sub.primarySystem || DEFAULT_PRIMARY_SYSTEM}
+                                disabled={savingPrimaryIds.includes(sub.id)}
+                                onChange={event => void handlePrimarySystemChange(sub, event.target.value)}
+                                className="rounded border border-gray-300 bg-white p-2 text-sm disabled:opacity-50">
+                                {sub.primarySystem && !PRIMARY_SYSTEM_OPTIONS.some(option => option.value === sub.primarySystem) && (
+                                  <option value={sub.primarySystem}>הגדרה לא תקינה</option>
+                                )}
+                                {PRIMARY_SYSTEM_OPTIONS.map(option => (
+                                  <option key={option.value} value={option.value}>{option.label}</option>
+                                ))}
+                              </select>
+                              {savingPrimaryIds.includes(sub.id) && <div className="mt-1 text-xs text-gray-500">שומר…</div>}
                             </div>
                           )}
                         </td>
