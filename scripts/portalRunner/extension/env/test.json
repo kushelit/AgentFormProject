@@ -1,0 +1,9 @@
+{
+  "firebase": {
+    "apiKey": "PASTE_API_KEY",
+    "authDomain": "magicsale-test.firebaseapp.com",
+    "projectId": "magicsale-test",
+    "storageBucket": "PASTE_STORAGE_BUCKET",
+    "appId": "PASTE_APP_ID"
+  }
+}

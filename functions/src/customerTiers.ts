@@ -7,10 +7,17 @@
 // שתי Cloud Functions:
 // 1. calculateCustomerTiers — מריצה חישוב (קריאה בלבד, לא כותבת ל-DB) ומחזירה הצעות דירוג
 // 2. applyCustomerTiers — מקבלת רשימת שורות מאושרות וכותבת אותן בפועל ל-customer.customerTier
+//
+// החישוב לפי חודש פרסום (ym) — אותו מנגנון "תיק נוכחי" של הסקירה (src/lib/insights):
+//   portalImportRuns.resolvedWindow.ym → queue.jobIds → commissionImportRuns (templateId)
+//   → policyCommissionSummaries.runId == jobId
+// לכל תבנית: חודש הפרסום האחרון שלה עד החודש שנבחר (עד 12 חודשים אחורה), ובתוכו חודש הדיווח האחרון.
+// נפרעים בלבד — ללא תבניות hekefType.
 
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { adminDb, nowTs } from "./shared/admin";
 import { FUNCTIONS_REGION } from "./shared/region";
+import { computeAgentAccess } from "./shared/agentAccess";
 
 function s(v: any): string {
   return String(v ?? "").trim();
@@ -61,6 +68,174 @@ function canonId(v: any): string {
   return digits.replace(/^0+/, "");
 }
 
+// ── הרשאה: המשתמש רשאי לגשת לנתוני הסוכן (אותו מודל של agentAccess / חוקי Firestore) ──
+async function assertAgentAccess(db: FirebaseFirestore.Firestore, uid: string, agentId: string) {
+  const access = await computeAgentAccess(db, uid);
+  if (!access.all && !access.agentIds.includes(agentId)) {
+    throw new HttpsError("permission-denied", "אין הרשאה לנתוני הסוכן");
+  }
+}
+
+const YM_RE = /^\d{4}-\d{2}$/;
+const LOOKBACK_MONTHS = 12;
+const IN_LIMIT = 30;
+const GETALL_CHUNK = 100;
+const FETCH_CONCURRENCY = 20;
+
+function shiftYm(ym: string, delta: number): string {
+  const [y, m] = ym.split("-").map(Number);
+  const d = new Date(y, m - 1 + delta, 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function chunk<T>(arr: T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+  return out;
+}
+
+async function mapPool<T, R>(items: T[], concurrency: number, worker: (item: T) => Promise<R>): Promise<R[]> {
+  const out: R[] = new Array(items.length);
+  let next = 0;
+  const runners = Array.from({ length: Math.min(concurrency, items.length) }, async () => {
+    for (;;) {
+      const i = next++;
+      if (i >= items.length) return;
+      out[i] = await worker(items[i]);
+    }
+  });
+  await Promise.all(runners);
+  return out;
+}
+
+interface TemplateWindow {
+  templateId: string;
+  templateName: string;
+  companyName: string;
+  ym: string;          // חודש הפרסום שנלקח לתבנית
+  reportMonth: string; // חודש הדיווח שנלקח בתוכו
+  stale: boolean;      // ym < החודש שנבחר — התבנית עוד לא נטענה לחודש הזה
+}
+
+/**
+ * נפרעים לפי לקוח (ת"ז קנונית) לחודש פרסום — "תיק נוכחי" עד selectedYm.
+ * מחזיר גם את החלון שנבחר לכל תבנית ואת חודש הפרסום האחרון שקיים לסוכן.
+ */
+async function loadNifraimByYm(db: FirebaseFirestore.Firestore, agentId: string, selectedYm: string) {
+  const minYm = shiftYm(selectedYm, -(LOOKBACK_MONTHS - 1));
+
+  const [tplSnap, runsSnap] = await Promise.all([
+    db.collection("commissionTemplates").get(),
+    db.collection("portalImportRuns").where("agentId", "==", agentId).select("resolvedWindow.ym", "queue.jobIds").get(),
+  ]);
+
+  const hekefTemplateIds = new Set<string>();
+  const activeTemplateIds = new Set<string>();
+  const templateNames: Record<string, string> = {};
+  tplSnap.docs.forEach((d) => {
+    const t: any = d.data();
+    if (t.hekefType) hekefTemplateIds.add(d.id);
+    if (t.isactive) activeTemplateIds.add(d.id);
+    templateNames[d.id] = s(t.Name) || d.id;
+  });
+
+  // jobId → חודש פרסום (בטווח), וחודש הפרסום האחרון שקיים בכלל
+  let latestAvailableYm: string | null = null;
+  const ymByJobId: Record<string, string> = {};
+  runsSnap.docs.forEach((d) => {
+    const r: any = d.data();
+    const ym = s(r?.resolvedWindow?.ym);
+    if (!YM_RE.test(ym)) return;
+    if (!latestAvailableYm || ym > latestAvailableYm) latestAvailableYm = ym;
+    if (ym > selectedYm || ym < minYm) return;
+    const jobIds: any[] = Array.isArray(r?.queue?.jobIds) ? r.queue.jobIds : [];
+    jobIds.forEach((raw) => {
+      const jobId = s(raw);
+      if (jobId && (!ymByJobId[jobId] || ym > ymByJobId[jobId])) ymByJobId[jobId] = ym;
+    });
+  });
+
+  // טעינות שהצליחו (קיים commissionImportRuns) → תבנית. לפי מזהה מסמך, ואם לא נמצא — לפי השדה runId
+  const templateByJob: Record<string, string> = {};
+  const companyByJob: Record<string, string> = {};
+  const allJobIds = Object.keys(ymByJobId);
+  const found = new Set<string>();
+  const accept = (jobId: string, x: any) => {
+    found.add(jobId);
+    const templateId = s(x?.templateId);
+    if (!templateId || hekefTemplateIds.has(templateId)) return;
+    templateByJob[jobId] = templateId;
+    companyByJob[jobId] = s(x?.company);
+  };
+  const byDoc = await Promise.all(chunk(allJobIds, GETALL_CHUNK).map((ids) =>
+    db.getAll(...ids.map((id) => db.collection("commissionImportRuns").doc(id)), { fieldMask: ["templateId", "company"] }),
+  ));
+  byDoc.flat().forEach((snap) => snap.exists && accept(snap.id, snap.data()));
+  const missing = allJobIds.filter((id) => !found.has(id));
+  if (missing.length) {
+    const snaps = await Promise.all(chunk(missing, IN_LIMIT).map((ids) =>
+      db.collection("commissionImportRuns").where("runId", "in", ids).select("runId", "templateId", "company").get(),
+    ));
+    snaps.forEach((snap) => snap.docs.forEach((d) => {
+      const x: any = d.data();
+      const runId = s(x.runId);
+      if (runId && !found.has(runId)) accept(runId, x);
+    }));
+  }
+
+  // לכל תבנית: חודש הפרסום האחרון שלה עד החודש שנבחר → רק הטעינות של אותו חודש
+  const latestYmByTemplate: Record<string, string> = {};
+  Object.entries(templateByJob).forEach(([jobId, templateId]) => {
+    const ym = ymByJobId[jobId];
+    if (!latestYmByTemplate[templateId] || ym > latestYmByTemplate[templateId]) latestYmByTemplate[templateId] = ym;
+  });
+  const jobsToFetch = Object.keys(templateByJob).filter((jobId) => ymByJobId[jobId] === latestYmByTemplate[templateByJob[jobId]]);
+
+  const snaps = await mapPool(jobsToFetch, FETCH_CONCURRENCY, (jobId) =>
+    db.collection("policyCommissionSummaries").where("runId", "==", jobId)
+      .select("agentId", "runId", "templateId", "reportMonth", "customerId", "totalCommissionAmount", "company").get(),
+  );
+
+  type Row = { templateId: string; reportMonth: string; customerKey: string; amount: number };
+  const rows: Row[] = [];
+  const companyByTemplate: Record<string, string> = {};
+  snaps.forEach((snap) => snap.docs.forEach((d) => {
+    const x: any = d.data();
+    if (s(x.agentId) !== agentId) return;
+    const runId = s(x.runId);
+    const templateId = s(x.templateId) || templateByJob[runId];
+    if (!templateId || hekefTemplateIds.has(templateId)) return;
+    const customerKey = canonId(x.customerId);
+    if (!customerKey) return;
+    companyByTemplate[templateId] = s(x.company) || companyByJob[runId] || companyByTemplate[templateId] || "";
+    rows.push({ templateId, reportMonth: s(x.reportMonth), customerKey, amount: Number(x.totalCommissionAmount || 0) });
+  }));
+
+  // בתוך חודש הפרסום של כל תבנית — חודש הדיווח האחרון בלבד (קובץ יכול להכיל כמה חודשי דיווח)
+  const maxReportMonth: Record<string, string> = {};
+  rows.forEach((r) => {
+    if (!maxReportMonth[r.templateId] || r.reportMonth > maxReportMonth[r.templateId]) maxReportMonth[r.templateId] = r.reportMonth;
+  });
+
+  const amountByCustomerId = new Map<string, number>();
+  rows.forEach((r) => {
+    if (r.reportMonth !== maxReportMonth[r.templateId]) return;
+    amountByCustomerId.set(r.customerKey, (amountByCustomerId.get(r.customerKey) || 0) + r.amount);
+  });
+
+  const templates: TemplateWindow[] = Object.keys(maxReportMonth).map((templateId) => ({
+    templateId,
+    templateName: templateNames[templateId] || templateId,
+    companyName: companyByTemplate[templateId] || "",
+    ym: latestYmByTemplate[templateId],
+    reportMonth: maxReportMonth[templateId],
+    // כמו staleTemplates בסקירה — רק תבניות פעילות מסומנות כ"עדיין בחודש קודם"
+    stale: latestYmByTemplate[templateId] < selectedYm && activeTemplateIds.has(templateId),
+  })).sort((a, b) => a.ym.localeCompare(b.ym) || a.companyName.localeCompare(b.companyName));
+
+  return { amountByCustomerId, templates, latestAvailableYm, policyRowsCount: rows.length };
+}
+
 function tierFromAmount(amount: number, thresholds: TierThresholds): Tier {
   if (amount >= thresholds.premium) return "premium";
   if (amount >= thresholds.gold) return "gold";
@@ -81,12 +256,13 @@ export const calculateCustomerTiers = onCall(
     if (!callerUid) throw new HttpsError("unauthenticated", "יש להתחבר למערכת");
 
     const agentId = s(request.data?.agentId);
-    const month = s(request.data?.month);
-    if (!agentId || !month) {
-      throw new HttpsError("invalid-argument", "נדרש agentId וmonth (YYYY-MM)");
+    const month = s(request.data?.month); // חודש פרסום (ym)
+    if (!agentId || !YM_RE.test(month)) {
+      throw new HttpsError("invalid-argument", "נדרש agentId וחודש פרסום (YYYY-MM)");
     }
 
     const db = adminDb();
+    await assertAgentAccess(db, callerUid, agentId);
 
     // 1) טעינת ספי דירוג מ-MD (מוגדר ב-Firestore, נטען בלבד)
     const thresholdsSnap = await db.collection("tierThresholds").doc(agentId).get();
@@ -151,22 +327,8 @@ export const calculateCustomerTiers = onCall(
       return primaryByCanonId.get(key)?.id === c.id;
     });
 
-    // 3) טעינת כל שורות העמלה מטעינות (policyCommissionSummaries) לחודש הנבחר
-    const externalSnap = await db
-      .collection("policyCommissionSummaries")
-      .where("agentId", "==", agentId)
-      .where("reportMonth", "==", month)
-      .get();
-
-    // מיפוי customerId (מנורמל) -> סכום נפרעים
-    const amountByCustomerId = new Map<string, number>();
-    externalSnap.docs.forEach((d) => {
-      const row = d.data() as any;
-      const key = canonId(row.customerId);
-      if (!key) return;
-      const amt = Number(row.totalCommissionAmount || 0);
-      amountByCustomerId.set(key, (amountByCustomerId.get(key) || 0) + amt);
-    });
+    // 3) נפרעים לפי לקוח — לפי חודש פרסום ("תיק נוכחי" עד החודש שנבחר)
+    const { amountByCustomerId, templates, latestAvailableYm, policyRowsCount } = await loadNifraimByYm(db, agentId, month);
 
     // 4) קיבוץ לקוחות לפי תא משפחתי (parentID) - לאחר סינון הכפילויות
     const familyGroups = new Map<string, typeof customers>();
@@ -231,6 +393,10 @@ export const calculateCustomerTiers = onCall(
       totalCustomers: customers.length,
       totalFamilies: rows.length,
       changedCount: rows.filter((r) => r.changed).length,
+      basis: "ym",
+      latestAvailableYm,
+      policyRowsCount, // 0 = אין נתוני טעינה לחודש — הדף חוסם אישור
+      templates,       // לכל תבנית: חודש הפרסום/הדיווח שנלקחו, ו-stale אם עדיין בחודש קודם
       duplicatesSkippedCount: duplicatesSkipped.length,
       duplicatesSkipped, // לצורך שקיפות/ניקוי עתידי - אילו לקוחות זוהו ככפילות ואילו נשמרו
       rows,
@@ -263,6 +429,7 @@ export const applyCustomerTiers = onCall(
     }
 
     const db = adminDb();
+    await assertAgentAccess(db, callerUid, agentId);
 
     // טעינת כל לקוחות הסוכן, כדי לזהות:
     // (א) רשומות כפולות (אותה ת"ז מנורמלת, עם/בלי 0 מוביל) שצריכות לקבל את אותו הדירוג

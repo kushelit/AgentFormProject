@@ -249,6 +249,7 @@ async function messagingHarness() {
     export const firebaseClient=async()=>state.client;
     export const resetFirebase=async()=>{state.client=null};
     export const validateSettings=s=>{if(!s?.firebase?.projectId)throw Error('INVALID_CONFIGURATION');return s};
+    export const builtInSettings=null,builtInEnvironment=null;
     export const identity=async()=>'fixture-runner';export const processing=()=>state.busy || false;
     export const tick=async()=>{state.ticks++};export const recover=async()=>{state.recovered++;delete state.local.active};
     export const safeError=e=>e.message;export const worker=()=>undefined;

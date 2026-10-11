@@ -1,554 +1,229 @@
-/* ── CustomerTiers — עיצוב קליל ואלגנטי ── */
+/* ── CustomerTiers — מבוסס על MeetingsDashboard.css (מחלקות md-), כאן רק התוספות של דף הדירוג ── */
 
-.ct-page {
-  position: relative;
-  padding: 16px 20px;
-  direction: rtl;
-  font-family: 'Heebo', 'Rubik-Regular', Helvetica, sans-serif;
-}
-
-.ct-header {
+.ct-header-actions {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 4px 4px 12px;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
-.ct-header .ct-btn-secondary {
-  height: 34px;
+.ct-btn-secondary {
+  background: white;
+  color: #2d5a8e;
+  border: 1px solid #cdd5e0;
+  border-radius: 8px;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: 'Heebo', sans-serif;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s;
 }
+.ct-btn-secondary:hover:not(:disabled) { background: #eef3fa; }
+.ct-btn-secondary:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.ct-btn-apply {
+  background: #2e7d32;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 9px 18px;
+  font-size: 13px;
+  font-weight: 700;
+  font-family: 'Heebo', sans-serif;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: opacity 0.15s;
+}
+.ct-btn-apply:hover:not(:disabled) { opacity: 0.9; }
+.ct-btn-apply:disabled { opacity: 0.4; cursor: not-allowed; }
 
 /* ── פאנל הגדרות סף דירוג ── */
 .ct-threshold-panel {
-  background: #fff;
-  box-shadow: var(--m3-elevation-light-1);
-  border-radius: 8px;
-  padding: 16px;
-  margin-bottom: 16px;
+  background: white;
+  border: 1px solid #dde3ee;
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin-bottom: 14px;
 }
-
-.ct-threshold-loading {
-  text-align: center;
-  color: #9aa5b1;
-  font-size: 13px;
-  padding: 8px;
-}
-
+.ct-threshold-loading { text-align: center; color: #7a8faa; font-size: 13px; padding: 8px; }
 .ct-threshold-header {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 10px;
-  margin-bottom: 14px;
+  gap: 8px 12px;
+  margin-bottom: 12px;
 }
-
-.ct-threshold-title {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--clrdarkblue3);
-}
-
+.ct-threshold-title { font-size: 15px; font-weight: 700; color: #1e3a5f; }
 .ct-threshold-badge {
-  font-size: 11.5px;
-  font-weight: 600;
-  color: #b8860b;
-  background: #fdf3df;
+  font-size: 12px;
+  color: #9a6b00;
+  background: #fff4d6;
+  border: 1px solid #f0c14b;
   border-radius: 20px;
-  padding: 3px 10px;
+  padding: 2px 10px;
 }
+.ct-threshold-fields { display: flex; flex-wrap: wrap; gap: 16px; margin-bottom: 12px; }
+.ct-threshold-input { width: 130px; }
+.ct-threshold-actions { display: flex; gap: 8px; }
 
-.ct-threshold-fields {
+/* ── באנר טעינה חדשה ── */
+.ct-newer-banner {
   display: flex;
-  flex-wrap: wrap;
-  gap: 14px;
-  margin-bottom: 14px;
-}
-
-.ct-threshold-fields .ct-field {
-  min-width: 140px;
-}
-
-.ct-threshold-fields .input {
-  height: 34px;
-  border: 1px solid #e4e8ee;
-  border-radius: 8px;
-  background: #fafbfc;
-  width: 100%;
-  box-sizing: border-box;
-}
-.ct-threshold-fields .input:focus {
-  background: #fff;
-  border-color: var(--clrdarkblue3);
-}
-
-.ct-threshold-actions {
-  display: flex;
-  gap: 10px;
-}
-
-.ct-title {
-  font-size: 26px;
-  font-weight: 600;
-  color: var(--clrdarkblue3);
-  letter-spacing: -0.2px;
-}
-
-.ct-subtitle {
-  font-size: 13px;
-  color: #9aa5b1;
-  margin-top: 2px;
-}
-
-/* ── סרגל בקרה ── */
-.ct-controls {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 14px;
-  align-items: flex-end;
-  background: #fff;
-  box-shadow: var(--m3-elevation-light-1);
-  border-radius: 8px;
-  padding: 14px 16px;
-  margin-bottom: 16px;
-}
-
-.ct-field {
-  display: flex;
-  flex-direction: column;
-  min-width: 150px;
-}
-
-.ct-label {
-  font-size: 11px;
-  color: #9aa5b1;
-  margin-bottom: 4px;
-  font-weight: 500;
-}
-
-.ct-controls .input,
-.ct-controls .select-input {
-  height: 34px;
-  border: 1px solid #e4e8ee;
-  border-radius: 8px;
-  background: #fafbfc;
-}
-.ct-controls .input:focus,
-.ct-controls .select-input:focus {
-  background: #fff;
-  border-color: var(--clrdarkblue3);
-}
-
-.ct-btn-calc {
-  height: 34px;
-  background: var(--clrdarkblue3);
-  color: #fff;
-  border: none;
-  border-radius: 8px;
-  padding: 0 20px;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: opacity 0.15s, transform 0.1s;
-}
-.ct-btn-calc:hover:not(:disabled) { opacity: 0.88; }
-.ct-btn-calc:active:not(:disabled) { transform: scale(0.98); }
-.ct-btn-calc:disabled { opacity: 0.4; cursor: not-allowed; }
-
-/* ── תוצאות ── */
-.ct-results {
-  background: #fff;
-  box-shadow: var(--m3-elevation-light-1);
-  border-radius: 8px;
-  padding: 16px;
-}
-
-.ct-results-bar {
-  display: flex;
-  flex-wrap: wrap;
+  align-items: center;
   justify-content: space-between;
-  align-items: center;
-  margin-bottom: 14px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid #f0f2f5;
+  flex-wrap: wrap;
   gap: 10px;
+  background: #fff3e0;
+  border: 1px solid #ffb74d;
+  border-inline-start: 4px solid #e65100;
+  border-radius: 10px;
+  padding: 10px 16px;
+  margin-bottom: 14px;
+  color: #8a3a00;
+  font-size: 14px;
 }
 
-.ct-results-summary {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  font-size: 13px;
-  color: #5a6472;
-}
+/* ── KPI ── */
+.ct-kpi-head-second { margin-top: 16px; padding-top: 12px; border-top: 1px solid #edf0f7; }
+.ct-changed-count { font-size: 13px; font-weight: 700; color: #e65100; }
 
-.ct-dot { color: #d5dae1; }
-
-.ct-changed-count {
-  font-weight: 600;
-  color: #c98a1e;
-}
+.ct-kpi-premium { border-inline-start-color: #7c3aed; }
+.ct-kpi-premium .md-kpi-value { color: #5b21b6; }
+.ct-kpi-gold { border-inline-start-color: #f0c14b; }
+.ct-kpi-gold .md-kpi-value { color: #9a6b00; }
+.ct-kpi-silver { border-inline-start-color: #a0aab8; }
+.ct-kpi-silver .md-kpi-value { color: #5a6b7d; }
+.ct-kpi-standard { border-inline-start-color: #d5dbe4; }
+.ct-kpi-standard .md-kpi-value { color: #9aa9bd; }
 
 .ct-show-all-toggle {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 12.5px;
-  color: #7a8494;
+  font-size: 13px;
+  color: #3b4d68;
   cursor: pointer;
-  user-select: none;
+  white-space: nowrap;
 }
 .ct-show-all-toggle input { cursor: pointer; }
 
-.ct-empty {
-  text-align: center;
-  padding: 36px;
-  color: #b3bac4;
-  font-size: 13px;
-}
-
-/* ── שורת סינון — קלילה, ללא מסגרות כבדות ── */
-.ct-results .filter-inputs-container {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 10px;
-  background: #fafbfc;
-  border-radius: 10px;
-  box-shadow: none;
-  padding: 8px;
-  margin-bottom: 12px;
-}
-
-.ct-results .filter-select-container {
-  flex: 1 1 160px;
-  min-width: 150px;
-}
-
-.ct-results .filter-input,
-.ct-results .select-input {
-  width: 100%;
-  height: 32px;
-  border: 1px solid #e9ecf1;
-  border-radius: 7px;
-  background: #fff;
-  font-size: 12.5px;
-}
-.ct-results .filter-input::placeholder {
-  color: #b8bfc9;
-}
-.ct-results .filter-input:focus,
-.ct-results .select-input:focus {
-  border-color: var(--clrdarkblue3);
-  box-shadow: 0 0 0 3px rgba(59,106,149,.08);
-}
-
-/* ── טבלה: מיושר לעיצוב הטבלאות בשאר המערכת (כמו table-Data-AgentForm.is-new-design) ── */
-.ct-results table {
-  border-collapse: collapse;
-  border: none !important;
-  width: 100%;
-}
-
-.ct-results table th {
-  background-color: var(--clrgray3);
-  color: var(--clrdarkblue3);
-  font-weight: bold;
-  border: none;
-  border-bottom: 1px solid var(--clrgray4);
-  padding: 10px 12px;
-  font-size: 13px;
-  text-align: right;
-  direction: rtl;
-  white-space: nowrap;
-}
-
-.ct-results table td {
-  border: none;
-  border-bottom: 1px solid var(--clrgray4);
-  padding: 10px 12px;
-  font-size: 13px;
-  color: var(--clrblack);
-  text-align: right;
-  direction: rtl;
-}
-
-.ct-results table tr:last-child td {
-  border-bottom: none;
-}
-
-.ct-results table tr:hover td {
-  background-color: var(--clrgray3);
-}
-
-.ct-th-check,
-.ct-results table td:first-child {
-  text-align: center !important;
-}
-
-.ct-th-check {
-  width: 36px !important;
-  text-align: center !important;
-}
-.ct-th-check input,
-.ct-results td input[type="checkbox"] {
-  width: 16px;
-  height: 16px;
-  accent-color: var(--clrdarkblue3);
-  cursor: pointer;
-}
-
-/* שורה לחיצה למעבר לכרטיס הלקוח */
-.ct-row-clickable {
-  cursor: pointer;
-}
-
-/* ── תגי דירוג — רכים, לא בולטים ── */
-.ct-tier-badge {
-  display: inline-flex;
-  padding: 3px 12px;
-  border-radius: 20px;
-  font-size: 11.5px;
-  font-weight: 600;
-  white-space: nowrap;
-  border: none;
-}
-
-.ct-tier-premium {
-  background: #f1e9ff;
-  color: #6b3fc9;
-}
-
-.ct-tier-gold {
-  background: #fdf3df;
-  color: #b8860b;
-}
-
-.ct-tier-silver {
-  background: #eef1f5;
-  color: #6b7785;
-}
-
-.ct-tier-standard {
-  background: #f5f6f8;
-  color: #a3aab3;
-}
-
-.ct-change-arrow {
-  display: block;
-  color: #c98a1e;
-  font-size: 10.5px;
-  font-weight: 500;
-  margin-top: 3px;
-}
-
-/* ── תג "משפחה" ליד שם הלקוח + שורת הרחבה עם בני המשפחה ── */
-.ct-family-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  margin-right: 8px;
-  padding: 2px 10px;
-  border-radius: 20px;
-  font-size: 10.5px;
-  font-weight: 600;
-  background: #eef1f5;
-  color: #6b7785;
-  border: none;
-  cursor: pointer;
-  transition: background 0.15s;
-}
-.ct-family-badge:hover { background: #e2e7ee; }
-
-.ct-family-members-row td {
-  background: #fafbfc;
-  border-bottom: 1px solid var(--clrgray4);
-  padding: 8px 12px;
-}
-
-.ct-family-members-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.ct-family-member-chip {
-  font-size: 12px;
-  color: #5a6472;
-  background: #fff;
-  border: 1px solid #e9ecf1;
-  border-radius: 7px;
-  padding: 3px 10px;
-}
-
-/* ── טבלת ריכוז לפי דירוג נוכחי (כרטיסים) ── */
-.ct-tier-summary {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 10px;
-  margin-bottom: 16px;
-}
-
-.ct-tier-summary-card {
-  border-radius: 10px;
-  padding: 14px 12px;
-  text-align: center;
-  cursor: pointer;
-  transition: box-shadow 0.15s, transform 0.1s;
-}
-.ct-tier-summary-card:hover { transform: translateY(-1px); }
-.ct-tier-summary-card.ct-tier-summary-active {
-  box-shadow: 0 0 0 2px var(--clrdarkblue3) inset;
-}
-
-.ct-tier-summary-count {
-  font-size: 22px;
-  font-weight: 700;
-  line-height: 1.1;
-}
-
-.ct-tier-summary-label {
-  margin-top: 4px;
-  font-size: 12px;
-  font-weight: 600;
-}
-
-/* משתמש באותן צבעוניות בדיוק כמו .ct-tier-badge כדי לשמור על עקביות */
-.ct-tier-summary-card.ct-tier-premium { background: #f1e9ff; }
-.ct-tier-summary-card.ct-tier-premium .ct-tier-summary-count,
-.ct-tier-summary-card.ct-tier-premium .ct-tier-summary-label { color: #6b3fc9; }
-
-.ct-tier-summary-card.ct-tier-gold { background: #fdf3df; }
-.ct-tier-summary-card.ct-tier-gold .ct-tier-summary-count,
-.ct-tier-summary-card.ct-tier-gold .ct-tier-summary-label { color: #b8860b; }
-
-.ct-tier-summary-card.ct-tier-silver { background: #eef1f5; }
-.ct-tier-summary-card.ct-tier-silver .ct-tier-summary-count,
-.ct-tier-summary-card.ct-tier-silver .ct-tier-summary-label { color: #6b7785; }
-
-.ct-tier-summary-card.ct-tier-standard { background: #f5f6f8; }
-.ct-tier-summary-card.ct-tier-standard .ct-tier-summary-count,
-.ct-tier-summary-card.ct-tier-standard .ct-tier-summary-label { color: #a3aab3; }
-
-/* ── עמודת אחראי - רחבה מספיק כדי שלא ייחתך טקסט ── */
-.ct-th-responsible {
-  min-width: 190px;
-}
-.ct-td-responsible .select-input {
-  min-width: 170px;
-  height: 32px;
-  font-size: 12.5px;
-}
-
-/* ── פס פעולה מאוחד: שיבוץ אחראי + אישור דירוג יחד, ליד הפילטרים ── */
+/* ── שורת פעולה ── */
 .ct-action-bar {
   display: flex;
-  flex-wrap: wrap;
+  align-items: center;
   justify-content: space-between;
-  align-items: center;
-  gap: 10px;
-  background: #f7f4ff;
-  border: 1px solid #e6ddff;
-  border-radius: 10px;
-  padding: 10px 14px;
-  margin-bottom: 12px;
-}
-
-.ct-action-count {
-  font-size: 13px;
-  font-weight: 600;
-  color: #6b3fc9;
-  white-space: nowrap;
-}
-
-.ct-action-buttons {
-  display: flex;
   flex-wrap: wrap;
-  align-items: center;
-  gap: 12px;
-}
-
-/* ── פס פעולה מרובה (נשמר לתאימות לאחור — אינו בשימוש פעיל יותר בקומפוננטה) ── */
-.ct-bulk-bar {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  align-items: center;
   gap: 10px;
-  background: #f7f4ff;
-  border: 1px solid #e6ddff;
+  background: #e8f0fb;
+  border: 1px solid #c5d6ee;
   border-radius: 10px;
-  padding: 10px 14px;
-  margin-bottom: 12px;
+  padding: 10px 16px;
+  margin-bottom: 14px;
+}
+.ct-action-count { font-size: 13px; font-weight: 600; color: #1e3a5f; }
+.ct-action-buttons { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.ct-bulk-action { display: flex; align-items: center; gap: 6px; }
+
+/* ── טבלה ── */
+.ct-th-check { width: 36px; }
+.ct-th-check input,
+.md-table td input[type="checkbox"] { width: 16px; height: 16px; cursor: pointer; }
+.ct-row-changed td { background: #fffaf0; }
+.ct-td-responsible .md-select { min-width: 140px; }
+
+.ct-change-arrow {
+  margin-inline-start: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #e65100;
 }
 
-.ct-bulk-count {
-  font-size: 13px;
+.ct-family-badge,
+.ct-gap-badge {
+  margin-inline-start: 8px;
+  border-radius: 20px;
+  padding: 1px 9px;
+  font-size: 11.5px;
   font-weight: 600;
-  color: #6b3fc9;
-}
-
-.ct-bulk-action {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.ct-bulk-action .select-input {
-  min-width: 190px;
-  height: 32px;
-  font-size: 12.5px;
-  border: 1px solid #e9ecf1;
-  border-radius: 7px;
-  background: #fff;
-}
-
-.ct-btn-secondary {
-  height: 32px;
-  background: #fff;
-  color: var(--clrdarkblue3);
-  border: 1px solid #d8e0ea;
-  border-radius: 8px;
-  padding: 0 16px;
-  font-size: 12.5px;
-  font-weight: 600;
+  font-family: 'Heebo', sans-serif;
   cursor: pointer;
-  white-space: nowrap;
-  transition: background 0.15s;
+  vertical-align: middle;
 }
-.ct-btn-secondary:hover:not(:disabled) { background: #f3f6fa; }
-.ct-btn-secondary:disabled { opacity: 0.4; cursor: not-allowed; }
+.ct-family-badge { background: #eef1f5; color: #3b4d68; border: 1px solid #d5dbe4; }
+.ct-family-badge:hover { background: #e2e7ee; }
+.ct-gap-badge { background: #fff3e0; color: #e65100; border: 1px solid #ffb74d; }
+.ct-gap-badge:hover { background: #ffe8cc; }
 
-/* ── סרגל אישור (נשמר לתאימות לאחור — אינו בשימוש פעיל יותר בקומפוננטה) ── */
-.ct-apply-bar {
+.ct-extra-stages {
+  margin-inline-start: 6px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #7a8faa;
+  white-space: nowrap;
+}
+
+/* ── פירוט בני משפחה ── */
+.ct-family-members-row td { background: #f7f9fc; cursor: default; }
+.ct-family-members-list { display: flex; flex-direction: column; gap: 6px; }
+.ct-family-member {
   display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
   align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  background: white;
+  border: 1px solid #dde3ee;
+  border-radius: 8px;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+.ct-family-member:hover { border-color: #2d5a8e; }
+.ct-member-name { font-weight: 600; color: #1e3a5f; min-width: 160px; }
+.ct-member-resp { font-size: 13px; color: #3b4d68; }
+.ct-off { outline: 2px solid #e65100; outline-offset: 1px; border-radius: 20px; }
+.ct-member-resp.ct-off { padding: 1px 8px; color: #e65100; font-weight: 700; }
+.ct-gap-hint { margin-top: 8px; font-size: 12.5px; color: #8a3a00; }
+
+.ct-kpi-hint {
   margin-top: 14px;
-  padding-top: 14px;
-  border-top: 1px solid #f0f2f5;
+  padding-top: 10px;
+  border-top: 1px solid #edf0f7;
   font-size: 13px;
-  color: #7a8494;
-  gap: 10px;
+  color: #7a8faa;
 }
 
-.ct-btn-apply {
-  background: #2e8b57;
-  color: #fff;
+.ct-amount-input { width: 95px; }
+
+/* ── אין נתוני טעינה / תבניות בחודש קודם ── */
+.ct-nodata-banner {
+  background: #fdeceb;
+  border: 1px solid #f5b5b0;
+  border-inline-start: 4px solid #b3261e;
+  border-radius: 10px;
+  padding: 10px 16px;
+  margin-bottom: 14px;
+  color: #8c1d18;
+  font-size: 14px;
+}
+.ct-stale-box {
+  background: white;
+  border: 1px solid #ffd59e;
+  border-radius: 10px;
+  padding: 8px 16px;
+  margin-bottom: 14px;
+}
+.ct-stale-toggle {
+  background: none;
   border: none;
-  border-radius: 8px;
-  padding: 9px 22px;
+  padding: 0;
+  font-family: 'Heebo', sans-serif;
   font-size: 13px;
   font-weight: 600;
+  color: #b45309;
   cursor: pointer;
-  transition: opacity 0.15s, transform 0.1s;
+  text-align: right;
 }
-.ct-btn-apply:hover:not(:disabled) { opacity: 0.9; }
-.ct-btn-apply:active:not(:disabled) { transform: scale(0.98); }
-.ct-btn-apply:disabled { opacity: 0.4; cursor: not-allowed; }
+.ct-stale-list { margin: 8px 0 2px; padding-inline-start: 18px; font-size: 13px; color: #3b4d68; }
+.ct-stale-list li { margin: 2px 0; }
 
-@media (max-width: 900px) {
-  .ct-tier-summary { grid-template-columns: repeat(2, 1fr); }
-  .ct-action-bar { flex-direction: column; align-items: stretch; }
-  .ct-action-buttons { flex-direction: column; align-items: stretch; }
-}
+.ct-kpi-elsewhere { font-size: 11.5px; font-weight: 600; color: #e65100; }

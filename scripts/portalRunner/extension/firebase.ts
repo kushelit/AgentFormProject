@@ -20,6 +20,9 @@ export function validateSettings(value: any): Settings {
     throw new Error('INVALID_CONFIGURATION');
   return {firebase};
 }
+const builtIn = typeof __BUILT_IN_SETTINGS__ === 'undefined' ? null : __BUILT_IN_SETTINGS__;
+export const builtInSettings: Settings | null = builtIn ? validateSettings(builtIn) : null;
+export const builtInEnvironment = builtIn?.environment || null;
 let cached: ReturnType<typeof create> | undefined;
 let loading: Promise<ReturnType<typeof create> | undefined> | undefined;
 function create(settings: Settings) {
@@ -31,7 +34,7 @@ function create(settings: Settings) {
 export async function firebaseClient() {
   if (cached) return cached;
   return loading ||= (async () => {
-    const {settings} = await chrome.storage.local.get('settings');
+    const settings = builtInSettings || (await chrome.storage.local.get('settings')).settings;
     if (!settings) return undefined;
     cached = create(validateSettings(settings));
     await cached.auth.authStateReady();

@@ -1,0 +1,1 @@
+{"manifest_version":3,"name":"Portal fixture tests","version":"1.0","permissions":["debugger","tabs","storage"],"host_permissions":["http://127.0.0.1/*","http://localhost/*"],"background":{"service_worker":"test-worker.js","type":"module"}}

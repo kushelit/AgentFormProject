@@ -1,0 +1,6 @@
+2026/10/11-10:47:02.675 4ef0 Creating DB C:\projects\AgentFormProject\scripts\portalRunner\.test-artifacts\profile-AedO9m\Default\IndexedDB\chrome-extension_cgkbkceeifejgabhlabfjomaeppkenfa_0.indexeddb.leveldb since it was missing.
+2026/10/11-10:47:02.682 4ef0 Reusing MANIFEST C:\projects\AgentFormProject\scripts\portalRunner\.test-artifacts\profile-AedO9m\Default\IndexedDB\chrome-extension_cgkbkceeifejgabhlabfjomaeppkenfa_0.indexeddb.leveldb/MANIFEST-000001
+2026/10/11-10:47:02.701 6f2c Level-0 table #5: started
+2026/10/11-10:47:02.705 6f2c Level-0 table #5: 1371 bytes OK
+2026/10/11-10:47:02.707 6f2c Delete type=0 #3
+2026/10/11-10:47:02.708 6f2c Manual compaction at level-0 from '\x00\x01\x00\x00\x00' @ 72057594037927935 : 1 .. '\x00\x02\x00\x00\x00' @ 0 : 0; will stop at (end)

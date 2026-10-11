@@ -1,0 +1,49 @@
+{
+  "manifest_version": 3,
+  "name": "MagicSale Portal Runner",
+  "version": "4.0.0",
+  "minimum_chrome_version": "120",
+  "description": "Process MagicSale portal report jobs in a minimized Chrome worker window.",
+  "permissions": [
+    "storage",
+    "alarms",
+    "debugger",
+    "tabs"
+  ],
+  "host_permissions": [
+    "https://*.clalnet.co.il/*",
+    "https://*.clalbit.co.il/*",
+    "https://*.migdal.co.il/*",
+    "https://*.fnx.co.il/*",
+    "https://*.menora.co.il/*",
+    "https://*.harel-group.co.il/*",
+    "https://*.harel.co.il/*",
+    "https://*.ayalon-ins.co.il/*",
+    "https://*.more.co.il/*",
+    "https://*.meitav.co.il/*",
+    "https://*.analyst.co.il/*",
+    "https://*.as-invest.co.il/*",
+    "https://*.hcsra.co.il/*",
+    "https://*.yl-invest.co.il/*",
+    "https://*.malam-payroll.com/*",
+    "https://identitytoolkit.googleapis.com/*",
+    "https://securetoken.googleapis.com/*",
+    "https://firestore.googleapis.com/*",
+    "https://firebasestorage.googleapis.com/*",
+    "https://*.cloudfunctions.net/*"
+  ],
+  "background": {
+    "service_worker": "service-worker.js",
+    "type": "module"
+  },
+  "action": {
+    "default_popup": "popup.html"
+  },
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": true
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'"
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "firebase": {
+    "apiKey": "PASTE_API_KEY",
+    "authDomain": "agentsale-693e8.firebaseapp.com",
+    "projectId": "agentsale-693e8",
+    "storageBucket": "PASTE_STORAGE_BUCKET",
+    "appId": "PASTE_APP_ID"
+  }
+}

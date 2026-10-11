@@ -9,7 +9,8 @@ async function refresh() {
   try {
     const status = await request('status');
     byId('agent').textContent = status.agentId ? `Paired agent: ${status.agentId}` : 'Not paired';
-    byId('runner').textContent = `Runner: ${status.runnerId}`;
+    byId('runner').textContent = `Runner: ${status.runnerId}` + (status.environment ? ` · ${status.environment === 'prod' ? 'Production' : 'Test'}` : '');
+    byId('settings').hidden = !!status.environment;
     byId('state').textContent = !status.configured ? 'Set up Firebase in Settings.' : !status.agentId ? 'Enter your website pairing code.' :
       status.active ? `Working: ${status.active.step || status.active.runId}` : status.paused ? 'Paused' : 'Waiting for queued jobs';
     byId<HTMLButtonElement>('pause').textContent = status.paused ? 'Resume' : 'Pause';

@@ -1,0 +1,9 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Portal Runner</title><link rel="stylesheet" href="ui.css"></head>
+<body data-page="popup"><main>
+<h1>Portal Runner</h1><p id="state" role="status">Loading…</p><p id="agent"></p><p id="runner" class="secondary"></p>
+<form id="pairing"><label for="code">Website pairing code / switch agent</label><div class="row"><input id="code" required maxlength="128" autocomplete="off" placeholder="Pairing code"><button id="pair" type="submit">Pair</button></div></form>
+<div class="row"><button id="pause">Pause</button><button id="show" disabled>Show worker window</button></div>
+<div class="row"><button id="settings">Settings</button><button id="disconnect">Disconnect</button></div>
+<p class="secondary">Jobs run automatically while Chrome is open. Pause lets the current job finish. Portal sessions are shared with your Chrome profile.</p>
+<p id="error" role="alert"></p></main><script type="module" src="ui.js"></script></body></html>

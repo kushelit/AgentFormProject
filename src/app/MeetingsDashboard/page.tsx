@@ -1,7 +1,7 @@
 'use client';
 import { apiFetch } from '@/lib/apiFetch';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase/firebase';
@@ -116,7 +116,8 @@ export default function MeetingsDashboard() {
   const router = useRouter();
   const { user, detail } = useAuth();
   const { canAccess: canAccessCrm } = usePermission('access_crm_module');
-  const { agents, selectedAgentId, handleAgentChange } = useFetchAgentData();
+  const { canAccess: canAccessTiers } = usePermission('access_customer_tiers');
+  const { agents, selectedAgentId, setSelectedAgentId, handleAgentChange } = useFetchAgentData();
 
   const [customers, setCustomers] = useState<CustomerRow[]>([]);
   const [agentUsers, setAgentUsers] = useState<AgentUser[]>([]);
@@ -124,7 +125,7 @@ export default function MeetingsDashboard() {
   const [isExporting, setIsExporting] = useState(false);
 
   // ── פילטרים ──
-  const [filterResponsible, setFilterResponsible] = useState<'me' | 'all' | string>('me');
+  const [filterResponsible, setFilterResponsible] = useState<'me' | 'all' | 'none' | string>('me');
   const [filterTier, setFilterTier] = useState<'all' | Tier>('all');
   const [filterStage, setFilterStage] = useState<string>('all'); // 'all' | MeetingStage | 'group:<key>'
   const [nameFilter, setNameFilter] = useState(''); // ── חיפוש חופשי: שם או ת"ז ──
@@ -135,6 +136,27 @@ export default function MeetingsDashboard() {
   // ── מיון ──
   const [sortField, setSortField] = useState<SortField | null>(null);
   const [sortDir, setSortDir] = useState<SortDir>('asc');
+
+  // ── הגעה מדף הדירוג עם סינון בכתובת: ?agent=&responsible=me|all|none|<uid>&tier=&stage=
+  // בלי פרמטרים — הדף מתנהג כרגיל (ברירת מחדל "שלי") ──
+  useEffect(() => {
+    const p = new URLSearchParams(window.location.search);
+    const responsible = p.get('responsible');
+    const tier = p.get('tier');
+    const stage = p.get('stage');
+    if (responsible) setFilterResponsible(responsible);
+    if (tier && tier in TIER_LABEL) setFilterTier(tier as Tier);
+    if (stage && stage in MEETING_STAGE_META) setFilterStage(stage);
+  }, []);
+
+  // הסוכן מהכתובת — רק למי שבוחר סוכן (admin), ורק אם הוא ברשימת הסוכנים המורשית שלו
+  const agentParamApplied = useRef(false);
+  useEffect(() => {
+    if (agentParamApplied.current || !agents.length || detail?.role !== 'admin') return;
+    agentParamApplied.current = true;
+    const agentParam = new URLSearchParams(window.location.search).get('agent');
+    if (agentParam && agents.some(a => a.id === agentParam)) setSelectedAgentId(agentParam);
+  }, [agents, detail?.role, setSelectedAgentId]);
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -193,6 +215,8 @@ export default function MeetingsDashboard() {
 
     if (filterResponsible === 'me') {
       rows = rows.filter(c => c.responsibleUserId === user?.uid);
+    } else if (filterResponsible === 'none') {
+      rows = rows.filter(c => !c.responsibleUserId);
     } else if (filterResponsible !== 'all') {
       rows = rows.filter(c => c.responsibleUserId === filterResponsible);
     }
@@ -379,6 +403,16 @@ export default function MeetingsDashboard() {
           <div className="md-title">ריכוז לקוחות ותהליך פגישות</div>
           <div className="md-subtitle">{filtered.length} לקוחות מוצגים</div>
         </div>
+        <div className="md-header-actions">
+        {canAccessTiers && (
+          <button
+            type="button"
+            className="md-btn-secondary"
+            onClick={() => router.push(selectedAgentId ? `/customer-tiers?agent=${selectedAgentId}` : '/customer-tiers')}
+          >
+            ⚙ דירוג לקוחות
+          </button>
+        )}
         <button
           type="button"
           className="md-btn-export"
@@ -388,6 +422,7 @@ export default function MeetingsDashboard() {
         >
           {isExporting ? 'מפיק דוח...' : `⬇ הורד דוח (${sorted.length})`}
         </button>
+        </div>
       </div>
 
       {/* ── KPI: כמה לקוחות יש עכשיו בכל סטטוס (סכום הכרטיסים = סה"כ לקוחות) ── */}
@@ -455,10 +490,14 @@ export default function MeetingsDashboard() {
               className={`md-toggle-btn${filterResponsible === 'all' ? ' active' : ''}`}
               onClick={() => setFilterResponsible('all')}
             >כולם</button>
+            <button
+              className={`md-toggle-btn${filterResponsible === 'none' ? ' active' : ''}`}
+              onClick={() => setFilterResponsible('none')}
+            >לא שובץ</button>
           </div>
           <select
             className="md-select"
-            value={filterResponsible === 'me' || filterResponsible === 'all' ? '' : filterResponsible}
+            value={filterResponsible === 'me' || filterResponsible === 'all' || filterResponsible === 'none' ? '' : filterResponsible}
             onChange={e => { if (e.target.value) setFilterResponsible(e.target.value); }}
           >
             <option value="">חבר צוות...</option>

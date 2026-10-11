@@ -1,0 +1,7 @@
+:root {font:14px/1.5 system-ui,sans-serif;color:#182838;background:#f4f7fa;color-scheme:light}
+body {margin:0} main {padding:20px;max-width:680px;margin:auto} body[data-page="popup"] {width:390px}
+h1 {font-size:21px;margin:0 0 12px} p {overflow-wrap:anywhere} label {display:block;margin:12px 0 6px;font-weight:600}
+input,textarea,button {font:inherit;border:1px solid #b7c6d4;border-radius:7px;padding:9px;box-sizing:border-box}
+input,textarea {background:white;min-width:0} input {flex:1} textarea {width:100%;font-family:monospace}
+button {cursor:pointer;background:#17496f;color:white} button:disabled {opacity:.55;cursor:default}
+.row {display:flex;gap:8px;margin:12px 0}.secondary {font-size:12px;color:#536579} #error {color:#aa2435}

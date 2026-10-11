@@ -742,6 +742,28 @@ if (templateId === "harel_tzvira") {
     return;
   }
 }
+if (templateId === "menura_new_nifraim" || templateId === "menura_new_zvira") {
+  // מנורה: רק M-1 ("חודש עיבוד") — הגנה למקרה שבורר החודש בפורטל לא נלחץ והורד טווח רחב
+  const targetMonth = getPreviousMonthStr();
+
+  rowsForThisFile = rowsForThisFile.filter((row: any) => {
+    return safeStr(row.reportMonth) === targetMonth;
+  });
+
+  if (!rowsForThisFile.length) {
+    await finishAsEmpty({
+      db,
+      queueRef,
+      portalRunId: effectivePortalRunId,
+      jobId,
+      templateId,
+      templateName: safeStr(template.templateName) || templateId,
+      message: `הדוח נקלט אך אין נתונים עבור ${targetMonth}`,
+      reason: "filter_month_empty",
+    });
+    return;
+  }
+}
 // סינון לפי קודי סוכן מותרים (agentPortalFilters)
 const portalFilterSnap = await db
   .collection("agentPortalFilters")

@@ -408,7 +408,7 @@ export async function menoraSetReportDate(page: Page, monthYear: string) {
     const year = parts[1];
     const hebrewMonths = [
         "ינו'", "פבר'", "מרץ", "אפר'", "מאי", "יוני",
-        "יולי", "אוג'", "ספטי'", "אוק'", "נוב'", "דצמ'"
+        "יולי", "אוג'", "ספט'", "אוק'", "נוב'", "דצמ'"
     ];
     const monthName = hebrewMonths[monthNum - 1];
     const safeMonth = JSON.stringify(monthName);

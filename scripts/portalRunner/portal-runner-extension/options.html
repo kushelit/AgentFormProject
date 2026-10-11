@@ -1,0 +1,8 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Portal Runner settings</title><link rel="stylesheet" href="ui.css"></head>
+<body data-page="settings"><main><h1>Portal Runner settings</h1>
+<p>Paste the public Firebase configuration from your existing runner's config.json. Changing configuration disconnects the paired agent.</p>
+<label for="config">Firebase configuration (JSON)</label><textarea id="config" rows="16" spellcheck="false"></textarea>
+<button id="save">Save configuration</button><p id="saved" role="status"></p><p id="error" role="alert"></p>
+<p>After saving, open the toolbar popup and enter a pairing code from the website. Use the runner ID shown there when reserving jobs for this extension.</p>
+</main><script type="module" src="ui.js"></script></body></html>

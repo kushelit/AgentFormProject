@@ -1,6 +1,6 @@
 import { httpsCallable } from 'firebase/functions';
 import { signInWithCustomToken, signOut } from 'firebase/auth/web-extension';
-import { firebaseClient, resetFirebase, validateSettings } from './firebase';
+import { firebaseClient, resetFirebase, validateSettings, builtInSettings, builtInEnvironment } from './firebase';
 import { tick, identity, processing, safeError, recover } from './jobs';
 import { worker } from './browser';
 
@@ -20,7 +20,7 @@ async function handle(message: any) {
     const state = await chrome.storage.local.get(['paused','active','lastError','settings']);
     const client = await firebaseClient();
     return {agentId:client?.auth.currentUser?.uid || null, runnerId:await identity(), paused:state.paused || false,
-      configured:!!state.settings, active:state.active ? {runId:state.active.runId,step:state.active.step} : null,
+      configured:!!(builtInSettings || state.settings), environment:builtInEnvironment, active:state.active ? {runId:state.active.runId,step:state.active.step} : null,
       lastError:state.lastError || null};
   }
   if (message.type === 'settings') return (await chrome.storage.local.get('settings')).settings || null;
@@ -40,6 +40,7 @@ async function handle(message: any) {
     return true;
   }
   if (!['configure','pair','disconnect'].includes(message.type)) throw new Error('INVALID_MESSAGE');
+  if (message.type === 'configure' && builtInSettings) throw new Error('CONFIGURATION_LOCKED');
   if (processing() || commandBusy) throw new Error('WAIT_FOR_CURRENT_OPERATION');
   commandBusy = true;
   try {

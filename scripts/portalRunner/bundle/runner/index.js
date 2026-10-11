@@ -151441,7 +151441,7 @@ async function clalHandleOtp(page, ctx) {
     if (wrongToken) {
         await setStatus(runId, {
             status: "otp_required",
-            step: "הקוד הקודם היה שגוי - נסי שוב",
+            step: "הקוד הקודם היה שגוי - נסה שוב",
             "otp.mode": "firestore"
         });
         const otpCode2 = await pollOtp(runId);
@@ -152223,7 +152223,7 @@ async function phoenixHandleOtp(page, ctx) {
     if (wrongToken) {
         await setStatus(runId, {
             status: "otp_required",
-            step: "הקוד הקודם היה שגוי - נסי שוב",
+            step: "הקוד הקודם היה שגוי - נסה שוב",
             "otp.mode": "firestore"
         });
         otpCode = await pollOtp(runId);
@@ -154473,7 +154473,7 @@ async function meitavHandleOtp(page, ctx) {
     if (hasError) {
         await setStatus(runId, {
             status: "otp_required",
-            step: "הקוד הקודם היה שגוי - נסי שוב",
+            step: "הקוד הקודם היה שגוי - נסה שוב",
             "otp.mode": "firestore",
             monthLabel,
         });
@@ -155158,7 +155158,7 @@ async function menoraSetReportDate(page, monthYear) {
     const year = parts[1];
     const hebrewMonths = [
         "ינו'", "פבר'", "מרץ", "אפר'", "מאי", "יוני",
-        "יולי", "אוג'", "ספטי'", "אוק'", "נוב'", "דצמ'"
+        "יולי", "אוג'", "ספט'", "אוק'", "נוב'", "דצמ'"
     ];
     const monthName = hebrewMonths[monthNum - 1];
     // console.log(`[Menora] Setting date: ${monthName} ${year}`);
@@ -155711,7 +155711,7 @@ async function migdalHandleOtp(page, ctx) {
         // הזדמנות נוספת אחת, כמו בפניקס ובכלל
         await setStatus(runId, {
             status: "otp_required",
-            step: "הקוד הקודם היה שגוי - נסי שוב",
+            step: "הקוד הקודם היה שגוי - נסה שוב",
             "otp.mode": "firestore"
         });
         otpCode = await pollOtp(runId);
@@ -156806,7 +156806,7 @@ const runnerPaths_1 = __nccwpck_require__(9772);
 const logger_1 = __nccwpck_require__(9252);
 const loginCli_1 = __nccwpck_require__(873);
 // הגדרת גרסה נוכחית
-const RUNNER_VERSION = "3.2.0";
+const RUNNER_VERSION = "3.2.1";
 function sleep(ms) {
     return new Promise((r) => setTimeout(r, ms));
 }

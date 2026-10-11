@@ -4,6 +4,8 @@
   "type": "commonjs",
   "scripts": {
     "build:extension": "node scripts/build-extension.cjs",
+    "build:extension:test": "node scripts/build-extension.cjs --env=test",
+    "build:extension:prod": "node scripts/build-extension.cjs --env=prod",
     "check:extension": "tsc -p extension/tsconfig.json",
     "test:extension": "node --test tests/extension.test.cjs",
     "test:extension:browser": "node tests/browser-fixtures.cjs",

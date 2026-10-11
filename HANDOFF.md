@@ -239,6 +239,7 @@
 | 18 | **`src/lib/MagicTouch.zip` ב-git** | נבדק ואין בו סודות, אבל אין סיבה שיישאר בריפו | 💡 |
 | 19 | **🔴 דחיפות בייצור** | בייצור, `customerFiles` ו-`leadFiles` ב-Storage פתוחים גם למשתמש **אנונימי**, וכל משתמש רשום יכול לשנות לעצמו `role` או `isSystem`. לכן כדאי לא לדחות יותר מדי לפחות את חוקי שלב א' בייצור | ⏳ החלטה שלה |
 | 21 | **🔴 ב6: MagicTouch בחוקים** | עדיין תחת ה-catch-all, כלומר כל משתמש רשום יכול לקרוא, לכתוב ולמחוק: `agents/{agentId}/**` (`magic_touch_contacts`, `magic_touch_flow_runs`, `magic_touch_events`, `whatsapp_templates`, `config`, `secrets` ועוד), `whatsapp_conversations` (+`messages`), `whatsapp_phone_mappings`, `whatsapp_inbound_messages`. **כלומר אנשי קשר ותוכן שיחות וואטסאפ של לקוחות.** ב-`secrets` ה-tokens של WhatsApp, Google ו-Microsoft מוצפנים (AES-GCM), אבל אפשר לדרוס או למחוק אותם. **טעות קודמת שלנו:** חוק ה-`false` של `agents/{agentId}/reengagement_leads` לא חוסם בפועל, כי ה-catch-all (`{collection}=agents`) מתיר את אותו נתיב. מה שהשיחה של MagicTouch הציעה: קריאה לפי `agentAccess`; `secrets` ו-`whatsapp_phone_mappings` לשרת בלבד. הווב והמובייל קוראים את `whatsapp_conversations` לפי `agentId`, והמובייל כותב `unreadCount: 0` | ✅ **פרוס ונבדק בטסט** (2026-10-05). מיפוי ווב+מובייל הושלם. **החלטה שלה:** ב-Touch יש גישה רק לסוכן עצמו ול-`isSystem` (`isTouchOwner`). אין גישה לעובד, למנהל או לאדמין סוכנות, כי זה עוד לא קיים במוצר. כשייבנה, מחליפים ל-`canAccessAgent` |
+| 22 | **🔴 Node.js 20 ב-Functions: יעד 30.10.2026** | בפריסה לייצור (2026-10-08) הופיעה אזהרה: Node 20 deprecated, ו-**decommissioned ב-2026-10-30**. אחרי התאריך הזה **לא ניתן לפרוס Functions**. הפונקציות הקיימות ממשיכות לרוץ. וגם: `firebase-functions` מיושן. צריך לשדרג ל-Node 22 (`engines` ב-`functions/package.json`), ו-`npm install firebase-functions@latest`, ולבדוק בטסט לפני ייצור | ⏳ **לפני 30.10** |
 | 20 | **קטנים** | הניסוח "0 הוסרו" בכפתור הבנייה מחדש מבהיל. ההצעה: "X משתמשים נבדקו, X סיכומי גישה עודכנו, 0 סיכומים ישנים נמחקו". שדרוג עתידי ל-Next 14.2/15 (Turbopack יציב) | 💡 |
 
 ---
@@ -287,7 +288,7 @@
 - [ ] **מסמכים בלי שדה סוכן:** ב-`customer`, `sales`, `contracts` (`AgentId`), ובנתוני העמלות ו-`whatsapp_conversations` (`agentId`). אחרי החוקים הם יהיו גלויים רק ל-`isSystem`. צריך להחליט מה לעשות איתם.
 - [ ] **התחברות אנונימית נשארת פעילה** בשביל צימוד ה-Runner.
 
-**שלב 1: Functions לייצור (us-central1)**
+**שלב 1: Functions לייצור (us-central1)** ✅ **בוצע 2026-10-08:** `firebase deploy --only functions --project prod`. כל הפונקציות עלו, ו-4 של agentAccess ו-`disconnectAgentWhatsApp` נוצרו. ה-429 של `backfillYmCommissionSummaries` עבר בניסיון חוזר.
 - [ ] **agentAccess:** `syncAgentAccessOnUserWrite`, `syncAgentAccessOnPlanWrite`, `syncAgentAccessOnRoleWrite`, `rebuildAgentAccess`.
 - [ ] **MagicTouch, אם הגרסה שלו עולה עכשיו (לתאם עם שיחת MagicTouch):** `saveAgentWhatsAppConfig`, `whatsappWebhook`, `sendWhatsAppConversationMessage`, `disconnectAgentWhatsApp`.
 - [ ] תמיד עם `--only functions:<שם>,...` ו-`--project prod`. אם הפריסה שואלת על מחיקת פונקציות, עונים N.
@@ -296,9 +297,16 @@
 - [ ] `API_AUTH_MODE` **לא מוגדר**, כלומר מצב log. `PROSAAS_ENABLED` לא מוגדר.
 - [ ] פריסת הקוד: **Promote to Production** של ה-Preview שנבדק, רק **אחרי** שלב 1. **בטוח בלי החוקים:** הקישורים החתומים ועדכון ההרשאות עוברים דרך השרת (Admin SDK), והטעינה הידנית כבר לא כותבת ל-`users`.
 
-**שלב 3: נתונים (כפתורים ב-`/admin/api-auth-logs`, רק ל-isSystem)**
+**שלב 2 (Promote) ✅ בוצע 2026-10-08.**
+
+**שלב 3: נתונים (כפתורים ב-`/admin/api-auth-logs`, רק ל-isSystem)** ✅ **בוצע 2026-10-08:**
+- "בנייה מחדש": 111 משתמשים, 111 עודכנו, 0 הוסרו.
+- "השלמה": מסמכי לקוח 66/66 הושלמו. מסמכי ליד 59 מתוך 89 הושלמו, ו-**30 יתומים** (ה-`leadId` שלהם מצביע על ליד שנמחק). היום הם לא מוצגים לאף סוכן, ואחרי החוקים רק isSystem יראה אותם. **להחליט בהמשך:** למחוק אותם, יחד עם הקבצים ב-Storage, או להשאיר.
+- **הדוח אחרי ההשלמה (2026-10-08):** בכל ה-collections אין מסמכים חסרים, חוץ מ-30 מסמכי ליד יתומים. `sales` 0, אחרי שהעסקה הישנה נמחקה. 111 משתמשים, ואין בעיות תפקיד או קבוצה. **הנתונים מוכנים לחוקים.**
 - [ ] "בנייה מחדש לכל המשתמשים". אחר כך בדיקה מדגמית ב-`agentAccess`: סוכן, עובד, מנהל, אדמין סוכנות ו-isSystem.
 - [ ] "השלמה למסמכים קיימים". אחר כך בדיקה של המסמכים היתומים.
+
+**בדיקות בייצור אחרי ה-promote (2026-10-08):** ✅ טעינה אוטומטית (EXE), ✅ טעינה ידנית, ✅ מסמכים (קישור חתום) כסוכן וכאדמין. ⏳ הורדה מהכרטיס, שהיא בדיקת ה-CORS: רק היא מורידה עם `fetch` בדפדפן. PURGE ומסמכים לא בודקים CORS.
 
 **שלב 4: מעקב במצב log, כמה ימים**
 - [ ] כל יום: `/admin/api-auth-logs` ← "העתק הכל" ← לשלוח לבדיקה. כל השורות צריכות להיות `mode: log`.
