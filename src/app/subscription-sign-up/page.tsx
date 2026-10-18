@@ -4,7 +4,12 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import PlansSection from '@/components/FeatureCard/PlansSection';
+import {
+  proFeatures,
+  basicFeatures,
+  enterpriseFeatures,
+  isSoonFeature,
+} from '@/components/FeatureCard/planContent';
 
 
 interface Plan {
@@ -35,40 +40,6 @@ const permissionLabels: { [key: string]: string } = {
   access_helpsPages : 'גישה מלאה לדפי עזרה',
   view_commissions_field : 'צפייה בנתוני עמלות',
   access_flow : 'גישה מלאה לדף ניהול לידים ',
-};
-
-const planFeatures: { [key: string]: string[] } = {
-  basic: [
-    '✔️ ניהול עסקאות בצורה פשוטה ונוחה',
-    '✔️ יצירה ועדכון של לקוחות ומשפחות',
-    '✔️ צפייה בעמלות חודשיות וסיכומים כלליים',
-    '✔️ ניהול לידים וקבלת לידים מממשקים חיצוניים',
-    '✔️ ניהול יעדים',
-    '✔️ שימוש בסימולטור לחישוב רווחים צפויים',
-    '✔️ יבוא נתונים מקובצי אקסל',
-    '✔️ מעקב גרפי אחר ביצועים',
-    '✔️ מודול דוחות מתקדם',
-  ],
-
-  pro: [
-    '✔️ כל מה שכלול בתוכנית Basic, ובנוסף:',
-    '✔️ ניהול עובדים, כולל שיוך לסוכנים',
-    '✔️ הקצאת הרשאות לפי תפקידים',
-    '✔️ ניהול יעדים אישיים וקבוצתיים',
-    '✔️ אפשרות להוספת עובדים נוספים לפי צורך',
-    '✔️ מודול אינטיליגנטי לטעינת והשוואת עמלות מחברות הביטוח',
-    '✔️ המחיר כולל עד 2,000 לקוחות פעילים',
-    '✔️ כל 2,000 לקוחות פעילים נוספים או חלק מהם: 39 ₪ לחודש',
-  ],
-
-  enterprise: [
-    '✔️ כל מה שכלול בתוכנית Pro, ובנוסף:',
-    '✔️ ניהול מתקדם של קבוצות וסוכנויות משנה',
-    '✔️ התאמות מיוחדות לפי צרכי הארגון',
-    '✔️ תמיכה טכנית מורחבת ומנהל לקוח אישי',
-    '✔️ אפשרויות אינטגרציה מתקדמות למערכות חיצוניות',
-    '📞 להצעת מחיר מותאמת – צרו איתנו קשר',
-  ],
 };
 
 export default function SubscriptionSignUpPage() {
@@ -331,62 +302,85 @@ if (isLoading || plans.length === 0) {
 
     return (
     <div className="max-w-4xl mx-auto mt-10 bg-white shadow-lg rounded-xl p-6 text-right">
-      <h2 className="text-2xl font-bold mb-6">הרשמה למנוי</h2>
-      <p className="text-gray-600 text-sm mb-6">
-  אתם עומדים לרכוש מנוי לשימוש חודשי במערכת <strong>MagicSale</strong> – מערכת לניהול סוכני ביטוח, הכוללת ניהול עסקאות, לקוחות, עמלות, עובדים, גרפים ויעדים.
-</p>
+      <h2 className="text-2xl font-bold mb-2">הרשמה למנוי</h2>
+      <p className="text-gray-600 text-sm mb-6 leading-relaxed">
+        כל דוחות העמלות שלכם – במקום אחד, אוטומטית. המנוי המקצועי כולל טעינה אוטומטית של דוחות
+        העמלות מכל החברות, ניתוח תיק, השוואה בין חודשים וסקירת AI – וגם את כל מודולי ניהול המכירות.
+        החזר מלא אם תבטלו בתוך 14 יום.
+      </p>
       <form onSubmit={handleSubmit} className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-6xl mx-auto">
-      {orderedPlans.map((plan) => (
-        <div
-  key={plan.id}
-  onClick={() => setSelectedPlan(plan.id)}
-  className={`relative cursor-pointer rounded-lg border p-4 shadow-md transition hover:shadow-xl text-right flex flex-col justify-between h-full min-h-[420px] ${
-    selectedPlan === plan.id
-      ? plan.id === 'pro'
-        ? 'border-2 border-blue-600 bg-blue-50 shadow-xl scale-[1.03] ring-2 ring-blue-300'
-        : 'border-blue-500 bg-blue-50'
-      : plan.id === 'enterprise'
-      ? 'bg-purple-50 border-purple-400'
-      : 'border-gray-300'
-  }`}
->
-         {/* תג הכי פופולרי */}
-         {plan.id === 'pro' && (
-           <div className="absolute top-2 left-2 bg-yellow-400 text-white text-xs font-bold px-2 py-1 rounded shadow">
-             הכי פופולרי ⭐
-           </div>
-         )}
-         {plan.id === 'enterprise' && (
-  <div className="absolute top-2 left-2 bg-purple-600 text-white text-xs font-bold px-2 py-1 rounded shadow">
-    מותאם לארגונים
-  </div>
-)}       
-         <div>
-           <h3 className="text-lg font-bold mb-2">{plan.name}</h3>
-           <p className="text-sm text-gray-600 mb-3">
-  {plan.id === 'basic' && 'מנוי לסוכן אחד בלבד'}
-  {plan.id === 'pro' && 'מנוי לסוכן + עובד, ניתן להוסיף עובדים נוספים בתשלום'}
-  {plan.id === 'enterprise' && 'מנוי מותאם אישית – יטופל בנפרד'}
-</p>
-           <ul className="text-sm text-gray-700 space-y-1 mt-2 pr-2">
-             {planFeatures[plan.id]?.map((feature, index) => (
-               <li key={index} className="flex items-center gap-2">
-                 <span className="text-green-600 font-bold">
-                   {feature.startsWith('📞') ? '📞' : '✔️'}
-                 </span>
-                 <span>{feature.replace(/^✔️ |^📞 /, '')}</span>
-               </li>
-             ))}
-           </ul>
-         </div>
-       
-         {/* מחיר */}
-         {plan.id !== 'enterprise' && (
-          <p className="text-xl font-bold mt-4">₪{plan.price} + מע&quot;מ</p>
-         )}
-       </div>       
-          ))}
+        <div className="grid grid-cols-1 md:grid-cols-[1fr_1.5fr_1fr] gap-6 items-center">
+          {orderedPlans.map((plan) => {
+            const isPro = plan.id === 'pro';
+            const isEnterprise = plan.id === 'enterprise';
+            const isSelected = selectedPlan === plan.id;
+            const features = isPro ? proFeatures : isEnterprise ? enterpriseFeatures : basicFeatures;
+
+            const cardClasses = [
+              'relative cursor-pointer rounded-2xl transition text-right flex flex-col justify-between',
+              isPro
+                ? 'order-first md:order-none p-6 md:p-8 bg-white border-2 border-indigo-600 shadow-xl'
+                : isEnterprise
+                ? 'p-5 bg-purple-50 border border-purple-200'
+                : 'p-5 bg-gray-50 border border-gray-200',
+              isSelected && (isPro ? 'ring-4 ring-indigo-200' : 'ring-2 ring-blue-400'),
+            ]
+              .filter(Boolean)
+              .join(' ');
+
+            return (
+              <div key={plan.id} onClick={() => setSelectedPlan(plan.id)} className={cardClasses}>
+                {isPro && (
+                  <div className="absolute -top-3 right-1/2 translate-x-1/2 bg-yellow-400 text-indigo-950 text-xs font-bold px-3 py-1 rounded-full shadow">
+                    הכי פופולרי ⭐
+                  </div>
+                )}
+                {isSelected && (
+                  <div className="absolute top-2 left-2 bg-blue-600 text-white text-xs font-bold px-2 py-0.5 rounded-full">
+                    נבחר ✓
+                  </div>
+                )}
+
+                <div>
+                  <h3
+                    className={
+                      isPro
+                        ? 'text-2xl font-extrabold mb-1 text-indigo-900'
+                        : isEnterprise
+                        ? 'text-lg font-bold mb-1 text-purple-900'
+                        : 'text-lg font-bold mb-1 text-gray-800'
+                    }
+                  >
+                    {plan.name}
+                  </h3>
+                  {isPro && (
+                    <p className="text-sm text-indigo-700 font-semibold mb-2">
+                      טעינה אוטומטית + ניתוח תיק + ניהול מכירות
+                    </p>
+                  )}
+                  <p className="text-xs text-gray-500 mb-3">
+                    {plan.id === 'basic' && 'לסוכן אחד, ללא טעינת דוחות עמלות וניתוח תיק'}
+                    {isPro && 'לסוכן + עובד, ניתן להוסיף עובדים נוספים בתשלום · כולל עד 2,000 לקוחות פעילים (כל 2,000 נוספים או חלק מהם: 39 ₪ לחודש)'}
+                    {isEnterprise && 'פתרון נפרד הכולל הקמה – יטופל מולנו ישירות'}
+                  </p>
+                  <ul className={`space-y-1.5 leading-relaxed ${isPro ? 'text-sm md:text-base text-gray-800' : 'text-sm text-gray-600'}`}>
+                    {features.map((f, idx) => (
+                      <li
+                        key={f}
+                        className={isPro && idx === 0 ? 'font-bold text-indigo-900' : isSoonFeature(f) ? 'text-gray-500' : ''}
+                      >
+                        {isSoonFeature(f) ? '⏳' : '✔'} {f}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
+                <p className={`mt-4 font-bold ${isPro ? 'text-3xl text-indigo-900' : 'text-lg text-gray-700'}`}>
+                  {isEnterprise ? 'בהתאמה אישית' : <>₪{plan.price} <span className="text-sm font-medium text-gray-600">+ מע&quot;מ</span></>}
+                </p>
+              </div>
+            );
+          })}
         </div>
 
         <div className="mt-6 space-y-2">
@@ -473,7 +467,7 @@ if (isLoading || plans.length === 0) {
     className="w-4 h-4"
   />
   <label htmlFor="acceptTerms" className="text-sm text-gray-700">
-    אני מאשר/ת שקראתי את <Link href="/terms" className="text-blue-700 underline">תנאי השימוש</Link>
+    אני מאשר/ת שקראתי את <Link href="/terms" className="text-blue-700 underline">תנאי השימוש</Link> ואת <Link href="/privacy" className="text-blue-700 underline">מדיניות הפרטיות</Link>
   </label>
 </div>
 <div className="font-bold text-lg">

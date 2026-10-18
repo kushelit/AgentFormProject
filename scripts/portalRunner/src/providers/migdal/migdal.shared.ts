@@ -194,10 +194,24 @@ export async function navigateToCommissions(page: Page) {
           .find(el => (el.innerText || el.textContent || "").includes(text));
       };
 
+      // מגדל הוסיפה כפתור נוסף עם הטקסט "כלים" (span.mat-button-wrapper) שמופיע לפני התפריט —
+      // לכן קודם LABEL עם טקסט זהה, ורק אם אין — ההתנהגות הקודמת
+      const findTools = () =>
+        Array.from(document.querySelectorAll('label'))
+          .find(el => (el.innerText || el.textContent || "").trim() === 'כלים' && el.offsetHeight > 0)
+        || getByText('label, span, .item-label', 'כלים');
+
+      // "דוחות" בחלונית כלים: id חדש goToSubCategory_Reports (היה goToSubCategory)
+      const findReports = () =>
+        document.getElementById('goToSubCategory_Reports')
+        || document.getElementById('goToSubCategory')
+        || Array.from(document.querySelectorAll('label'))
+          .find(el => (el.innerText || el.textContent || "").trim() === 'דוחות' && el.offsetHeight > 0);
+
       // 1. לופ המתנה ל"כלים" - עד 10 שניות
       let tools = null;
       for (let i = 0; i < 10; i++) {
-        tools = getByText('label, span, .item-label', 'כלים');
+        tools = findTools();
         // בודקים שהאלמנט לא רק קיים אלא גם גלוי
         if (tools && tools.offsetHeight > 0) break; 
         await wait(1000);
@@ -209,12 +223,12 @@ export async function navigateToCommissions(page: Page) {
       tools.click();
       await wait(1500);
 
-      let reportBtn = document.getElementById('goToSubCategory');
+      let reportBtn = findReports();
       if (!reportBtn) {
           // console.log("Submenu didn't open, clicking 'tools' again...");
           tools.click(); // לחיצה נוספת לביטחון
           await wait(2000);
-          reportBtn = document.getElementById('goToSubCategory');
+          reportBtn = findReports();
       }
 
       if (!reportBtn) return "SUBMENU_FAILED_TO_OPEN";

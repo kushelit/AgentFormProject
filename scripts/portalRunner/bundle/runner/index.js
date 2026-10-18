@@ -151047,7 +151047,8 @@ async function getClalCredsViaCallable(ctx, portalId) {
     return {
         username: s(res?.data?.username),
         password: s(res?.data?.password),
-        companyTaxId: s(res?.data?.companyTaxId)
+        companyTaxId: s(res?.data?.companyTaxId),
+        hekefTaxId: s(res?.data?.hekefTaxId)
     };
 }
 async function runClalAll(ctx) {
@@ -151058,7 +151059,7 @@ async function runClalAll(ctx) {
     const storage = ctx.storage;
     const absDir = s(ctx.paths?.downloadsDir);
     ensureDir(absDir);
-    const { username, password, companyTaxId } = await getClalCredsViaCallable(ctx, "clal");
+    const { username, password, companyTaxId, hekefTaxId } = await getClalCredsViaCallable(ctx, "clal");
     const monthLabel = (run.resolvedWindow?.kind === "month" ? (run.resolvedWindow.label || run.monthLabel) : run.resolvedWindow?.label) || "חודש נוכחי";
     const appendDownload = async (item) => {
         const cur = ctx.run?.downloads || [];
@@ -151186,6 +151187,60 @@ async function runClalAll(ctx) {
                 await setStatus(runId, { status: "running", step: `${rep.stepPrefix}_failed`, error: err.message });
             }
         }
+        // ===== היקף: היקף → "דוח אקסל" → "דוח עמלות היקף" (טאב חדש) → "מוכן" =====
+        // כל תקלה כאן מסומנת כשלב שנכשל ולא מפילה את הריצה — ארבעת דוחות הנפרעים כבר הורדו.
+        // כמה שורות: נבחרת השורה של hekefTaxId (שדה בפרטי הכניסה לכלל); ריק — רק כשיש שורה אחת.
+        // לא לפי companyTaxId של בית הסוכן — הוא לא בהכרח השורה שרוצים.
+        let hekefPage = null;
+        try {
+            await setStatus(runId, { status: "running", step: "clal_hekef_open" });
+            await (0, clal_shared_1.openReportFromSummaryByName)(commissionsPage, "היקף");
+            await (0, clal_shared_1.waitClalLoaderGone)(commissionsPage, 10000);
+            await commissionsPage.waitForTimeout(1000);
+            await (0, clal_shared_1.clickReportTabHeading)(commissionsPage, "דוח אקסל");
+            hekefPage = await (0, clal_shared_1.openHekefExcelReportPage)(commissionsPage);
+            if (!hekefPage) {
+                await setStatus(runId, { status: "running", step: "clal_hekef_link_not_found" });
+            }
+            else {
+                await (0, clal_shared_1.waitClalLoaderGone)(hekefPage, 15000);
+                const res = await (0, clal_shared_1.downloadHekefReportRow)(hekefPage, hekefTaxId);
+                if (res.status !== "DOWNLOADED") {
+                    await setStatus(runId, {
+                        status: "running",
+                        step: `clal_hekef_${res.status.toLowerCase()}`,
+                        hekefCandidates: res.taxIds,
+                    });
+                }
+                else {
+                    const localPath = path_1.default.join(absDir, `${Date.now()}_${res.filename}`);
+                    await res.download.saveAs(localPath);
+                    const up = await (0, uploadToStorage_client_1.uploadLocalFileToStorageClient)({
+                        storage,
+                        localPath,
+                        agentId,
+                        runId,
+                        subdir: "clal_hekef"
+                    });
+                    if (up && up.storagePath) {
+                        await appendDownload({
+                            templateId: "clal_hekef",
+                            localPath,
+                            filename: up.filename || res.filename,
+                            storagePath: up.storagePath
+                        });
+                        await setStatus(runId, { status: "file_uploaded", step: "clal_hekef_done" });
+                    }
+                }
+            }
+        }
+        catch (err) {
+            await setStatus(runId, { status: "running", step: "clal_hekef_failed", error: err.message });
+        }
+        finally {
+            if (hekefPage)
+                await hekefPage.close().catch(() => { });
+        }
         const totalDownloads = (ctx.run?.downloads || []).length;
         if (totalDownloads === 0) {
             await setStatus(runId, { status: "error", step: "clal_done_no_files", error: { message: "No downloads[] / download.storagePath found" }, monthLabel });
@@ -151231,6 +151286,8 @@ exports.clickSearchOnly = clickSearchOnly;
 exports.waitForCommissionsGridFilled = waitForCommissionsGridFilled;
 exports.clickReportTabHeading = clickReportTabHeading;
 exports.exportExcelFromCurrentReport = exportExcelFromCurrentReport;
+exports.openHekefExcelReportPage = openHekefExcelReportPage;
+exports.downloadHekefReportRow = downloadHekefReportRow;
 function envBool(v, fallback = false) {
     if (v == null)
         return fallback;
@@ -151745,6 +151802,101 @@ async function exportExcelFromCurrentReport(page) {
     catch (e) {
         return { download: null, filename: "" };
     }
+}
+// ====== היקף ======
+/**
+ * בלשונית "דוח אקסל" של היקף: לחיצה על "דוח עמלות היקף" (LifeExposingAdvances),
+ * שנפתח בטאב חדש. מחזיר את הטאב החדש, או null אם הקישור לא נמצא.
+ */
+async function openHekefExcelReportPage(page) {
+    const newPagePromise = page.context().waitForEvent("page", { timeout: 30000 }).catch(() => null);
+    const result = await page.evaluate(`
+    (function() {
+      return new Promise((resolve) => {
+        let attempts = 0;
+        const interval = setInterval(() => {
+          attempts++;
+          const links = Array.from(document.querySelectorAll('a[href]'));
+          const target = links.find(a => (a.getAttribute('href') || '').includes('LifeExposingAdvances'))
+            || links.find(a => (a.innerText || '').includes('דוח עמלות היקף'));
+          if (target) {
+            clearInterval(interval);
+            target.click();
+            resolve("CLICKED");
+          }
+          if (attempts > 40) { clearInterval(interval); resolve("NOT_FOUND"); }
+        }, 500);
+      });
+    })()
+  `).catch(() => "ERROR");
+    if (result !== "CLICKED") {
+        newPagePromise.catch(() => { });
+        return null;
+    }
+    const newPage = await newPagePromise;
+    if (!newPage)
+        return null;
+    await newPage.waitForLoadState("domcontentloaded").catch(() => { });
+    await newPage.bringToFront().catch(() => { });
+    return newPage;
+}
+/**
+ * בדף "דוח עמלות היקף": בוחר שורה ולוחץ "מוכן" (מוריד את האקסל ישירות).
+ * - יש taxId (companyTaxId) → השורה שה-ח.פ שלה תואם
+ * - אין taxId → רק אם יש שורה אחת בטבלה
+ * לעולם לא בוחר "את הראשונה" כשיש כמה שורות.
+ */
+async function downloadHekefReportRow(page, taxId) {
+    const wanted = String(taxId || "").replace(/\D/g, "").replace(/^0+/, "");
+    const downloadPromise = page.waitForEvent("download", { timeout: 60000 }).catch(() => null);
+    const raw = await page.evaluate(`
+    (function(wanted) {
+      const norm = (s) => String(s || '').replace(/\\s+/g, ' ').trim();
+      const idOf = (s) => norm(s).replace(/^0+/, '');
+      return new Promise((resolve) => {
+        let attempts = 0;
+        const interval = setInterval(() => {
+          attempts++;
+          const rows = Array.from(document.querySelectorAll('tr')).filter(tr => tr.querySelectorAll('td').length > 3);
+          if (!rows.length) {
+            if (attempts > 120) { clearInterval(interval); resolve({ status: 'NO_ROWS', taxIds: [] }); }
+            return;
+          }
+          clearInterval(interval);
+
+          const info = rows.map(tr => {
+            const cells = Array.from(tr.querySelectorAll('td')).map(td => norm(td.innerText));
+            const taxIds = cells.filter(c => /^\\d{5,10}$/.test(c)).map(idOf);
+            const ready = Array.from(tr.querySelectorAll('a')).find(a => norm(a.innerText) === 'מוכן');
+            return { tr, taxIds, ready };
+          });
+          const allIds = info.map(r => r.taxIds.join('/'));
+
+          let pick = null;
+          if (wanted) {
+            pick = info.find(r => r.taxIds.includes(wanted));
+            if (!pick) return resolve({ status: 'NO_MATCH', taxIds: allIds });
+          } else {
+            if (info.length > 1) return resolve({ status: 'MULTIPLE_NO_TAXID', taxIds: allIds });
+            pick = info[0];
+          }
+          if (!pick.ready) return resolve({ status: 'NOT_READY', taxIds: pick.taxIds });
+
+          pick.ready.click();
+          resolve({ status: 'CLICKED', taxIds: pick.taxIds });
+        }, 500);
+      });
+    })('${wanted}')
+  `).catch(() => ({ status: "NO_ROWS", taxIds: [] }));
+    const res = raw;
+    if (res.status !== "CLICKED") {
+        downloadPromise.catch(() => { });
+        return { status: res.status, taxIds: res.taxIds || [] };
+    }
+    const download = await downloadPromise;
+    if (!download)
+        return { status: "NO_DOWNLOAD", taxIds: res.taxIds || [] };
+    return { status: "DOWNLOADED", download, filename: download.suggestedFilename(), taxId: (res.taxIds || [])[0] || wanted };
 }
 
 
@@ -155741,10 +155893,24 @@ async function navigateToCommissions(page) {
           .find(el => (el.innerText || el.textContent || "").includes(text));
       };
 
+      // מגדל הוסיפה כפתור נוסף עם הטקסט "כלים" (span.mat-button-wrapper) שמופיע לפני התפריט —
+      // לכן קודם LABEL עם טקסט זהה, ורק אם אין — ההתנהגות הקודמת
+      const findTools = () =>
+        Array.from(document.querySelectorAll('label'))
+          .find(el => (el.innerText || el.textContent || "").trim() === 'כלים' && el.offsetHeight > 0)
+        || getByText('label, span, .item-label', 'כלים');
+
+      // "דוחות" בחלונית כלים: id חדש goToSubCategory_Reports (היה goToSubCategory)
+      const findReports = () =>
+        document.getElementById('goToSubCategory_Reports')
+        || document.getElementById('goToSubCategory')
+        || Array.from(document.querySelectorAll('label'))
+          .find(el => (el.innerText || el.textContent || "").trim() === 'דוחות' && el.offsetHeight > 0);
+
       // 1. לופ המתנה ל"כלים" - עד 10 שניות
       let tools = null;
       for (let i = 0; i < 10; i++) {
-        tools = getByText('label, span, .item-label', 'כלים');
+        tools = findTools();
         // בודקים שהאלמנט לא רק קיים אלא גם גלוי
         if (tools && tools.offsetHeight > 0) break; 
         await wait(1000);
@@ -155756,12 +155922,12 @@ async function navigateToCommissions(page) {
       tools.click();
       await wait(1500);
 
-      let reportBtn = document.getElementById('goToSubCategory');
+      let reportBtn = findReports();
       if (!reportBtn) {
           // console.log("Submenu didn't open, clicking 'tools' again...");
           tools.click(); // לחיצה נוספת לביטחון
           await wait(2000);
-          reportBtn = document.getElementById('goToSubCategory');
+          reportBtn = findReports();
       }
 
       if (!reportBtn) return "SUBMENU_FAILED_TO_OPEN";
@@ -156806,7 +156972,7 @@ const runnerPaths_1 = __nccwpck_require__(9772);
 const logger_1 = __nccwpck_require__(9252);
 const loginCli_1 = __nccwpck_require__(873);
 // הגדרת גרסה נוכחית
-const RUNNER_VERSION = "3.2.1";
+const RUNNER_VERSION = "3.2.2";
 function sleep(ms) {
     return new Promise((r) => setTimeout(r, ms));
 }

@@ -11,7 +11,25 @@ export type CommissionTemplate = {
   fallbackProduct?: string;
   fields: Mapping; // excelCol -> systemField
   missingZipEntryBehavior?: "error" | "skip";
-  hekefType?: "tfuka_letagmul" | "hekefim";
+  // hekef_commission = דוח עמלות היקף: שומר את סכום העמלה (בניגוד לשאר סוגי ההיקף שמאפסים אותה)
+  // ומנרמל את שדות ההיקף (ראו HEKEF_* ב-standardize)
+  hekefType?: "tfuka_letagmul" | "hekefim" | "hekef_commission";
+  // המרת ערכים לפי שדה מערכת, למשל { processingType: { RTR: "retro", STF: "current" } }
+  valueMaps?: Record<string, Record<string, string>>;
+
+  // ====== אפשרויות קריאה (כלל היקף ואילך) — כולן אופציונליות; בלעדיהן ההתנהגות כמו קודם ======
+  // לשונית לפי שם (מכיל). בלי — הלשונית הראשונה
+  sheetName?: string;
+  // לשונית חסרה: "empty_ok" = אין נתונים החודש, תקין (לא דוח חסר). ברירת מחדל: שגיאה
+  missingSheetBehavior?: "error" | "empty_ok";
+  // חודש הדיווח מכותרת הקובץ ("חודש ריצה: MM/YYYY") ולא מעמודה
+  reportMonthFromHeader?: boolean;
+  // ערכים קבועים לכל השורות, למשל { processingType: "retro" }
+  constants?: Record<string, string>;
+  // לא לשמור שורות שהעמלה בהן 0
+  skipZeroCommission?: boolean;
+  // חילוץ "דף חשבון" חודשי ברמת סוכן מאותו קובץ
+  statementParser?: "clal_hekef";
 };
 
 export type BaseRow = {
@@ -37,6 +55,40 @@ export type StandardizedRow = BaseRow & {
 
   policyNumber?: string;
   policyNumberKey?: string;
+
+  // שדות היקף (hekefType = hekef_commission)
+  processingType?: string; // retro / current
+  productionDate?: string; // YYYY-MM-DD
+  cancellationDate?: string; // YYYY-MM-DD
+  movementType?: string;
+  depositType?: string;
+  grossPremium?: number;
+  cancelledPremium?: number;
+  agentCancelPercent?: number;
+  agentCancelPremium?: number;
+  contractCommissionRate?: number;
+  actualCommissionRate?: number;
+  premiumChange?: number;
+  // כלל: פירוט החישוב ברמת פוליסה
+  prevPremium?: number; // פרמיה קובעת נטו קודמת: מקדמות — חודש קודם; ש"ק — בגמ"ח (סגירת השנה)
+  commissionRate?: number; // שיעור עמלה (ש"ק: שיעור סופי בגמ"ח)
+  cumulativeCommission?: number; // זכאות / עמלה מצטברת עד החודש, כולל
+  paidSoFar?: number; // שולם עד החודש (לא כולל)
+  // מנורה: חלק הסוכן בעמלה, מתי נרשמה התנועה (STF = בחודש העיבוד), ובאיזו שנה של הפוליסה
+  agentSplitPercent?: number;
+  registrationDate?: string; // YYYY-MM-DD
+  yearsInForce?: number;
+  // מגדל: לפי איזה הסכם/מבצע זוכתה התנועה, וסוג התגמול (עמלות נפח / מענקים / עמלות פרסים)
+  creditBase?: string;
+  rewardType?: string;
+  // קטגוריית תנועה מנורמלת: new / increase / decrease / cancel / risk / transfer / other
+  movementCategory?: string;
+  // כלל: סטטוס תפוקה בחודש קודם / נוכחי, כיסוי ונספח
+  prevStatus?: string;
+  currentStatus?: string;
+  coverageNumber?: string;
+  annexType?: string;
+  annexYear?: string;
 
   // internal meta
   runId?: string;

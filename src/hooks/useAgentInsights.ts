@@ -37,13 +37,13 @@ export default function useAgentInsights(agentId: string, year: string, reloadKe
         const data = await res.json().catch(() => ({}));
         if (reqId !== reqRef.current) return;
         if (!res.ok) {
-          const base = AI_ERRORS[data?.error] || 'לא הצלחנו ליצור סקירה כרגע.';
-          setAiError(data?.detail ? `${base} (${data.detail})` : base);
+          setAiError(AI_ERRORS[data?.error] || 'לא הצלחנו ליצור סקירה כרגע.');
           return;
         }
         setAi(data as AiSummary);
       } catch (e: any) {
-        if (reqId === reqRef.current) setAiError(`לא הצלחנו ליצור סקירה כרגע. (${String(e?.message ?? e)})`);
+        console.error('[useAgentInsights] ai request failed', e);
+        if (reqId === reqRef.current) setAiError('לא הצלחנו ליצור סקירה כרגע.');
       } finally {
         if (reqId === reqRef.current) setAiLoading(false);
       }

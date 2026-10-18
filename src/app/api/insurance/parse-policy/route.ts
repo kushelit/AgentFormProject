@@ -31,7 +31,14 @@ const USER_PROMPT = `נתח את דף פרטי הביטוח והחזר JSON במ
   "parseConfidence": "high"
 }`;
 
+// מושבת כברירת מחדל: הקובץ המלא (שם, ת"ז, מידע רפואי) נשלח ל-AI.
+// להפעלה מחדש — רק אחרי שמסירים פרטים מזהים לפני השליחה: PARSE_POLICY_ENABLED=true
+const isEnabled = () => process.env.PARSE_POLICY_ENABLED === 'true';
+
 export async function POST(req: NextRequest) {
+  if (!isEnabled()) {
+    return NextResponse.json({ error: "שירות ניתוח הפוליסות מושבת כרגע" }, { status: 503 });
+  }
   try {
     const formData = await req.formData();
     const file = formData.get("file") as File;

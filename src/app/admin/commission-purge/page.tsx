@@ -642,11 +642,19 @@ export default function CommissionPurgeAdminPage() {
         }
       }
 
+      // טעינה ידנית (נפרעים): הקובץ המקורי נשמר על רשומת הטעינה עצמה (file), מאז שהטעינה הידנית שומרת אותו
+      if (!refs.length) {
+        const mSnap = await getDoc(doc(db, 'commissionImportRuns', run.runId));
+        const f: any = mSnap.exists() ? (mSnap.data() as any)?.file : null;
+        const p = String(f?.storagePath || '').trim();
+        if (p) refs.push({ storagePath: p, bucket: cleanBucket(f?.bucket) });
+      }
+
       if (!refs.length) {
         setDialog({
           type: 'warning',
           title: 'לא נמצא קובץ',
-          message: `לא נשמר נתיב קובץ לטעינה ${run.runId} (ככל הנראה טעינה ידנית שלא שומרת את הקובץ ב-Storage).`,
+          message: `לא נשמר קובץ לטעינה ${run.runId} (טעינה ידנית מלפני שהקובץ המקורי התחיל להישמר).`,
         });
         return;
       }

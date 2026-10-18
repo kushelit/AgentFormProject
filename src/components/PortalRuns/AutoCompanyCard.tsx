@@ -52,6 +52,14 @@ type Props = {
 
   companyId: string;
 
+  // פרטי כניסה לפורטל - מועבר רק כשהסוכן שנבחר הוא המשתמש המחובר
+  credentialsStatus?: { has: boolean; updatedAtMs?: number };
+
+  onEditCredentials?: () => void;
+
+  // כל הפרטים החסרים מולאו מראש מנתוני הרישום - הסוכן רק בודק ומאשר
+  credentialsPrefillComplete?: boolean;
+
 };
 
 
@@ -490,6 +498,12 @@ const AutoCompanyCard: React.FC<Props> = ({
 
   companyId,
 
+  credentialsStatus,
+
+  onEditCredentials,
+
+  credentialsPrefillComplete = false,
+
 }) => {
 
   const meta = getUiMeta(uiStatus, autoDisabledReason);
@@ -509,6 +523,12 @@ const AutoCompanyCard: React.FC<Props> = ({
   const choiceLabel = selectedReportMonth ? getMonthLabel(selectedReportMonth) : null;
 
   const isEarlyChoice = selectedReportMonth && selectedReportMonth === getOffsetYm(1);
+
+  const credentialsMissing = !!credentialsStatus && !credentialsStatus.has;
+
+  const credentialsUpdatedLabel = credentialsStatus?.updatedAtMs
+    ? formatDateTime(new Date(credentialsStatus.updatedAtMs))
+    : '';
 
 
 
@@ -604,7 +624,7 @@ const AutoCompanyCard: React.FC<Props> = ({
 
               {/* קונפיג פתוח + טרם נבחר חודש */}
 
-              {earlyDownloadOpen && !choiceLabel && (uiStatus === 'ready' || uiStatus === 'error') && (
+              {earlyDownloadOpen && !choiceLabel && !credentialsMissing && (uiStatus === 'ready' || uiStatus === 'error') && (
 
                 <div className="mt-2">
 
@@ -730,6 +750,51 @@ const AutoCompanyCard: React.FC<Props> = ({
 
             </div>
 
+          )}
+
+          {credentialsStatus && (
+            credentialsMissing && credentialsPrefillComplete ? (
+              <div className="mt-3 text-[11px] text-indigo-800 bg-indigo-50 border border-indigo-300 rounded-lg px-2 py-1.5 flex items-center justify-between gap-2">
+                <span>✨ פרטי הכניסה מוכנים מנתוני הרישום — יש לבדוק ולאשר</span>
+                {onEditCredentials && (
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); onEditCredentials(); }}
+                    className="shrink-0 px-2.5 py-1 rounded-lg bg-indigo-600 text-white text-[11px] font-semibold hover:bg-indigo-700 transition"
+                  >
+                    בדוק ואשר
+                  </button>
+                )}
+              </div>
+            ) : credentialsMissing ? (
+              <div className="mt-3 text-[11px] text-amber-800 bg-amber-50 border border-amber-300 rounded-lg px-2 py-1.5 flex items-center justify-between gap-2">
+                <span>⚠️ חסרים פרטי כניסה — לא ניתן להפעיל טעינה</span>
+                {onEditCredentials && (
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); onEditCredentials(); }}
+                    className="shrink-0 px-2.5 py-1 rounded-lg bg-amber-600 text-white text-[11px] font-semibold hover:bg-amber-700 transition"
+                  >
+                    הגדר
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="mt-3 text-[11px] text-gray-500 flex items-center justify-between gap-2">
+                <span>
+                  🔐 פרטי כניסה מוגדרים{credentialsUpdatedLabel ? ` · עודכן ${credentialsUpdatedLabel}` : ''}
+                </span>
+                {onEditCredentials && (
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); onEditCredentials(); }}
+                    className="text-gray-500 underline hover:text-gray-700"
+                  >
+                    ערוך
+                  </button>
+                )}
+              </div>
+            )
           )}
 
         </div>

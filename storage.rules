@@ -34,6 +34,8 @@ service firebase.storage {
         );
     }
 
+    // Manual loads: the original file is kept under the AGENT's folder (like portalRuns), so both the
+    // agent and the admin can download it. An admin may upload into an agent's folder (write only).
     match /commission-imports/{uid}/{allPaths=**} {
       allow read: if isRegistered()
         && (
@@ -42,7 +44,10 @@ service firebase.storage {
         );
 
       allow write: if isRegistered()
-        && request.auth.uid == uid;
+        && (
+          request.auth.uid == uid
+          || isAdminOrSystem()
+        );
     }
 
     match /portalRuns/{uid}/{runId}/{allPaths=**} {

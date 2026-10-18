@@ -352,6 +352,10 @@ service cloud.firestore {
     match /magic_touch_flow_templates/{document=**} {
       allow read, write: if false;
     }
+    // Open questions to the companies (admin only) - via /api/admin-questions, which checks admin on the server.
+    match /adminQuestions/{document=**} {
+      allow read, write: if false;
+    }
 
     /* =========================
        System-wide configuration: read by registered users, written by admin/system
@@ -390,6 +394,15 @@ service cloud.firestore {
       allow read: if isSystem() || isAdmin();
       allow write: if false;
     }
+    // Agent deletion audit (src/lib/server/agentDeletion.ts) - written by the server only.
+    match /agentDeletionLogs/{document=**} {
+      allow read: if isSystem();
+      allow write: if false;
+    }
+    // Test-only switch that pauses import scrambling (functions/src/shared/import/testScramble.ts).
+    match /testScrambleControl/{document=**} {
+      allow read, write: if isSystem();
+    }
 
     /* =========================
        Default: registered users only (stage A - same as today minus the
@@ -399,14 +412,16 @@ service cloud.firestore {
       allow read, write: if isRegistered()
         && !(collection in ["users", "portalCredentials", "roles", "permissions",
           "subscriptions_permissions", "commissionTemplates", "agentsGroup",
-          "aiUsageLogs", "apiAuthLogs", "agentAccess", "portalRunnerConfig", "desktopPairRequests",
+          "aiUsageLogs", "apiAuthLogs", "agentDeletionLogs", "testScrambleControl",
+          "agentAccess", "portalRunnerConfig", "desktopPairRequests",
           "customer", "sales", "contracts", "customerDocuments", "customerNotes", "customerTasks",
           "policyCommissionSummaries", "externalCommissions", "commissionSummaries", "ymCommissionSummaries",
           "commissionImportRuns", "commissionImportQueue", "importRuns", "commissionSplits", "commissionLinks",
           "agentPortalFilters", "tierCalcRuns", "agentInsightsCache", "agentImportState", "tierThresholds",
           "portalAgentCodeIncludeList",
           "agents", "whatsapp_conversations", "whatsapp_phone_mappings", "whatsapp_inbound_messages",
-          "google_calendar_connections", "microsoft_bookings_connections", "magic_touch_flow_templates"]);
+          "google_calendar_connections", "microsoft_bookings_connections", "magic_touch_flow_templates",
+          "adminQuestions"]);
     }
   }
 }

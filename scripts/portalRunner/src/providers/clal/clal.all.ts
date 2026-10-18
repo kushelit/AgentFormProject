@@ -15,7 +15,9 @@ import {
   exportExcelFromCurrentReport,
   openReportFromSummaryByName,
   clickReportTabHeading,
-  waitClalLoaderGone
+  waitClalLoaderGone,
+  openHekefExcelReportPage,
+  downloadHekefReportRow
 } from "./clal.shared";
 
 import { uploadLocalFileToStorageClient } from "../../uploadToStorage.client";
@@ -36,7 +38,8 @@ async function getClalCredsViaCallable(ctx: RunnerCtx, portalId: string) {
   return {
     username: s(res?.data?.username),
     password: s(res?.data?.password),
-    companyTaxId: s(res?.data?.companyTaxId)
+    companyTaxId: s(res?.data?.companyTaxId),
+    hekefTaxId: s(res?.data?.hekefTaxId)
   };
 }
 
@@ -50,7 +53,7 @@ export async function runClalAll(ctx: RunnerCtx) {
   const absDir = s(ctx.paths?.downloadsDir);
   ensureDir(absDir);
 
-const { username, password, companyTaxId } = await getClalCredsViaCallable(ctx, "clal");
+const { username, password, companyTaxId, hekefTaxId } = await getClalCredsViaCallable(ctx, "clal");
  const monthLabel = (run.resolvedWindow?.kind === "month" ? (run.resolvedWindow.label || run.monthLabel) : run.resolvedWindow?.label) || "חודש נוכחי";
 
   const appendDownload = async (item: any) => {
@@ -210,6 +213,58 @@ if (gridResult === "TIMEOUT" || gridResult === "NO_DATA") {
         // console.error(`[Clal] Error in ${rep.linkText}: ${err.message}`);
         await setStatus(runId, { status: "running", step: `${rep.stepPrefix}_failed`, error: err.message });
       }
+    }
+
+    // ===== היקף: היקף → "דוח אקסל" → "דוח עמלות היקף" (טאב חדש) → "מוכן" =====
+    // כל תקלה כאן מסומנת כשלב שנכשל ולא מפילה את הריצה — ארבעת דוחות הנפרעים כבר הורדו.
+    // כמה שורות: נבחרת השורה של hekefTaxId (שדה בפרטי הכניסה לכלל); ריק — רק כשיש שורה אחת.
+    // לא לפי companyTaxId של בית הסוכן — הוא לא בהכרח השורה שרוצים.
+    let hekefPage: any = null;
+    try {
+      await setStatus(runId, { status: "running", step: "clal_hekef_open" });
+      await openReportFromSummaryByName(commissionsPage, "היקף");
+      await waitClalLoaderGone(commissionsPage, 10000);
+      await commissionsPage.waitForTimeout(1000);
+      await clickReportTabHeading(commissionsPage, "דוח אקסל");
+
+      hekefPage = await openHekefExcelReportPage(commissionsPage);
+      if (!hekefPage) {
+        await setStatus(runId, { status: "running", step: "clal_hekef_link_not_found" });
+      } else {
+        await waitClalLoaderGone(hekefPage, 15000);
+        const res = await downloadHekefReportRow(hekefPage, hekefTaxId);
+
+        if (res.status !== "DOWNLOADED") {
+          await setStatus(runId, {
+            status: "running",
+            step: `clal_hekef_${res.status.toLowerCase()}`,
+            hekefCandidates: res.taxIds,
+          });
+        } else {
+          const localPath = path.join(absDir, `${Date.now()}_${res.filename}`);
+          await res.download.saveAs(localPath);
+          const up = await uploadLocalFileToStorageClient({
+            storage,
+            localPath,
+            agentId,
+            runId,
+            subdir: "clal_hekef"
+          } as any);
+          if (up && up.storagePath) {
+            await appendDownload({
+              templateId: "clal_hekef",
+              localPath,
+              filename: up.filename || res.filename,
+              storagePath: up.storagePath
+            });
+            await setStatus(runId, { status: "file_uploaded", step: "clal_hekef_done" });
+          }
+        }
+      }
+    } catch (err: any) {
+      await setStatus(runId, { status: "running", step: "clal_hekef_failed", error: err.message });
+    } finally {
+      if (hekefPage) await hekefPage.close().catch(() => {});
     }
 
 const totalDownloads = ((ctx.run as any)?.downloads || []).length;

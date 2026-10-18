@@ -1,4 +1,5 @@
 // functions/src/shared/import/standardize.ts
+import * as XLSX from "xlsx";
 import {normalizeHeader, parseReportMonth, sanitizeMonth} from "../month";
 import {BaseRow, CommissionTemplate, Mapping, StandardizedRow} from "./types";
 
@@ -108,6 +109,165 @@ const HEB_MONTHS: Record<string, string> = {
 function monthNameToMM(name: any): string {
   const s = normalizeHeader(String(name ?? ""));
   return HEB_MONTHS[s] || "";
+}
+
+// ====== היקף (hekefType = hekef_commission) ======
+const HEKEF_NUMBER_FIELDS = [
+  "grossPremium",
+  "cancelledPremium",
+  "agentCancelPercent",
+  "agentCancelPremium",
+  "contractCommissionRate",
+  "actualCommissionRate",
+  "premiumChange",
+  "prevPremium",
+  "commissionRate",
+  "cumulativeCommission",
+  "paidSoFar",
+  "agentSplitPercent",
+  "yearsInForce",
+];
+const HEKEF_DATE_FIELDS = ["productionDate", "cancellationDate", "registrationDate"];
+const HEKEF_TEXT_FIELDS = [
+  "processingType", "movementType", "depositType",
+  "prevStatus", "currentStatus", "coverageNumber", "annexType", "annexYear",
+  "creditBase", "rewardType",
+];
+
+/** קטגוריה לפי תחילת שם התנועה (מנורה: "שם סוג תנועת תפוקה", מגדל: "סוג אירוע") */
+function movementCategoryFromText(mv: string): string {
+  if (/^פיגור.*\+\s*$/.test(mv)) return "increase"; // מגדל: "פיגורים שנה ב +" = חזרה מפיגור
+  if (/^פיגור/.test(mv)) return "risk";
+  if (/^(ביטול|משיכה)/.test(mv)) return "cancel";
+  if (/^הגדלה/.test(mv)) return "increase";
+  if (/^הקטנה/.test(mv)) return "decrease";
+  if (/^העברה/.test(mv)) return "transfer";
+  if (/^(פתיחה|הפקדה|שינוי סוכן|חידוש|עסק חדש|חד פעמי)/.test(mv)) return "new";
+  return "other";
+}
+
+const isCancelStatus = (st: string) => /ביטול|משיכה/.test(st);
+const isRiskStatus = (st: string) => /פיגור/.test(st);
+
+/**
+ * כלל: אין עמודת "סוג תנועה" — נגזר ממעבר סטטוס התפוקה (חודש קודם → נוכחי)
+ * ומשינוי הפרמיה הקובעת.
+ */
+function movementFromStatus(prev: string, cur: string, premiumChange: number) {
+  // בלי סטטוס בשני החודשים — הפוליסה יצאה מהתפוקה (המקדמה עליה מוחזרת), לא הפקה חדשה
+  if (!prev && !cur) return {movementType: "יצאה מהתפוקה", movementCategory: "cancel"};
+  if (!prev) {
+    return {movementType: `חדש – ${cur || "ללא סטטוס"}`, movementCategory: "new"};
+  }
+  if (prev !== cur) {
+    const movementType = `${prev} → ${cur || "ללא סטטוס"}`;
+    if (isCancelStatus(cur)) return {movementType, movementCategory: "cancel"};
+    if (isRiskStatus(cur)) return {movementType, movementCategory: "risk"};
+    // חזרה מפיגור/ביטול למצב פעיל
+    return {movementType, movementCategory: "increase"};
+  }
+  if (premiumChange > 0.004) return {movementType: `הגדלה בפרמיה – ${cur}`, movementCategory: "increase"};
+  if (premiumChange < -0.004) return {movementType: `הקטנה בפרמיה – ${cur}`, movementCategory: "decrease"};
+  return {movementType: `ללא שינוי – ${cur}`, movementCategory: "other"};
+}
+
+/** תאריך מלא YYYY-MM-DD; תאריכי "ריק" של הפורטלים (1950-01-01 וכד') → "" */
+function toIsoDate(v: any, date1904?: boolean): string {
+  if (v === null || v === undefined || v === "") return "";
+  let y = 0;
+  let m = 0;
+  let d = 0;
+
+  if (v instanceof Date && !isNaN(v.getTime())) {
+    // xlsx מייצר Date בחצות לפי אזור זמן מקומי — מזיזים לאמצע היום כדי לא ליפול ליום הקודם
+    const t = new Date(v.getTime() + 12 * 3600 * 1000);
+    y = t.getUTCFullYear();
+    m = t.getUTCMonth() + 1;
+    d = t.getUTCDate();
+  } else if (typeof v === "number") {
+    const p = XLSX.SSF.parse_date_code(v, {date1904});
+    if (p) {
+      y = p.y;
+      m = p.m;
+      d = p.d;
+    }
+  } else if (/^\d{4,6}(\.\d+)?$/.test(String(v).trim())) {
+    // מספר סידורי של אקסל שהגיע כטקסט (CSV של מגדל: "46028.00046296296")
+    const p = XLSX.SSF.parse_date_code(Number(String(v).trim()), {date1904});
+    if (p) {
+      y = p.y;
+      m = p.m;
+      d = p.d;
+    }
+  } else {
+    const s = String(v).trim();
+    let mt = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+    if (mt) {
+      y = +mt[1];
+      m = +mt[2];
+      d = +mt[3];
+    } else {
+      mt = s.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{4})/);
+      if (mt) {
+        y = +mt[3];
+        m = +mt[2];
+        d = +mt[1];
+      }
+    }
+  }
+
+  if (!y || !m || !d || y < 1960) return "";
+  return `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+}
+
+/** נרמול שדות ההיקף + valueMaps מהתבנית. רץ רק לתבניות hekef_commission */
+function normalizeHekefFields(
+  result: any,
+  template: CommissionTemplate,
+  date1904?: boolean
+) {
+  for (const [field, value] of Object.entries(template.constants || {})) {
+    result[field] = value;
+  }
+
+  // שם מלא משתי עמודות (כלל: שם פרטי + שם משפחה)
+  if (!result.fullName && (result.firstName || result.lastName)) {
+    result.fullName = normalizeFullName(result.firstName, result.lastName);
+  }
+  delete result.firstName;
+  delete result.lastName;
+
+  for (const f of HEKEF_NUMBER_FIELDS) {
+    if (f in result) result[f] = roundTo2(toNum(result[f]));
+  }
+  for (const f of HEKEF_DATE_FIELDS) {
+    if (f in result) result[f] = toIsoDate(result[f], date1904);
+  }
+  for (const f of HEKEF_TEXT_FIELDS) {
+    if (f in result) result[f] = normalizeProduct(result[f]);
+  }
+
+  for (const [field, map] of Object.entries(template.valueMaps || {})) {
+    if (!(field in result)) continue;
+    const raw = String(result[field] ?? "").trim();
+    if (raw in map) result[field] = map[raw];
+  }
+
+  // תאריך תפוקה = ממתי ההפקה נחשבת → validMonth
+  if (result.productionDate && !result.validMonth) {
+    result.validMonth = String(result.productionDate).slice(0, 7);
+  }
+
+  // קטגוריית תנועה מנורמלת — ממעבר סטטוס (כלל) או מטקסט התנועה (מנורה)
+  if ("currentStatus" in result) {
+    Object.assign(result, movementFromStatus(
+      String(result.prevStatus || ""),
+      String(result.currentStatus || ""),
+      Number(result.premiumChange || 0)
+    ));
+  } else if (result.movementType) {
+    result.movementCategory = movementCategoryFromText(String(result.movementType));
+  }
 }
 
 /** איילון: ערך העמודה "סוג עמלה" (נפרעים / צבירה) */
@@ -349,7 +509,9 @@ if (template.templateId === "yalin_insurance") {
   //   }
   // }
   
- if (template.hekefType) {
+ if (template.hekefType === "hekef_commission") {
+    normalizeHekefFields(result, template, date1904);
+  } else if (template.hekefType) {
     result.commissionAmountOriginal = 0;
     result.commissionIncludesVAT = false;
     result.commissionAmount = 0;

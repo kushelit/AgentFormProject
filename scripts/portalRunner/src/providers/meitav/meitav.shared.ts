@@ -276,27 +276,57 @@ if (requestedReportMonth) {
     return JSON.parse(result.result.value || 'null');
   }
 
-  async function openAndSelectByValue(selector: string, dataValue: string, label: string) {
-    const pos = await getPos(selector);
-    if (!pos) { console.log(`[Meitav] ${label} not found`); return false; }
+  /**
+   * בחירה בתפריט לפי data-value. לא מניחים הצלחה: אם האפשרות לא ברשימה (הרשימה עוד נטענת אחרי בחירת סוכן,
+   * או שאין בכלל דוח לשנה/חודש הזה) — מנסים שוב, ובסוף מחזירים 'NOT_FOUND' עם האפשרויות שהיו.
+   * לפני התיקון הפונקציה החזירה תמיד הצלחה, והפורטל נשאר על ברירת המחדל שלו (חודש אחר) — וזה מה שירד.
+   */
+  async function openAndSelectByValue(
+    selector: string,
+    dataValue: string,
+    label: string,
+    attempts = 4
+  ): Promise<{ status: "CLICKED" | "NOT_FOUND" | "NO_SELECT"; options: string[] }> {
+    let options: string[] = [];
+    for (let attempt = 1; attempt <= attempts; attempt++) {
+      const pos = await getPos(selector);
+      if (!pos) {
+        await page.waitForTimeout(1000);
+        continue;
+      }
+      await page.mouse.click(pos.x, pos.y);
+      await page.waitForTimeout(1000 + attempt * 500);
 
-    await page.mouse.click(pos.x, pos.y);
-    await page.waitForTimeout(1000);
-
-    const result = await cdp.send("Runtime.evaluate", {
-      expression: `(function(val) {
-        const options = Array.from(document.querySelectorAll('[role="option"]'));
-        const target = options.find(o => o.getAttribute('data-value') === val);
-        if (!target) return 'NOT_FOUND: ' + options.map(o => o.getAttribute('data-value')).join(' | ');
-        target.click();
-        return 'CLICKED: ' + target.textContent?.trim();
-      })('${dataValue}')`,
-      returnByValue: true,
-    });
-    // console.log(`[Meitav] ${label}:`, result.result.value);
-    await page.waitForTimeout(500);
-    return true;
+      const result = await cdp.send("Runtime.evaluate", {
+        expression: `(function(val) {
+          const opts = Array.from(document.querySelectorAll('[role="option"]'));
+          const target = opts.find(o => o.getAttribute('data-value') === val);
+          if (!target) return JSON.stringify({ status: 'NOT_FOUND', options: opts.map(o => o.getAttribute('data-value') || '') });
+          target.click();
+          return JSON.stringify({ status: 'CLICKED', options: [] });
+        })('${dataValue}')`,
+        returnByValue: true,
+      });
+      const r = JSON.parse(result.result.value || '{"status":"NOT_FOUND","options":[]}');
+      if (r.status === "CLICKED") {
+        await page.waitForTimeout(500);
+        return { status: "CLICKED", options: [] };
+      }
+      options = r.options || [];
+      console.log(`[Meitav] ${label} ${dataValue} not in list (attempt ${attempt}/${attempts}):`, options.join(" | "));
+      await page.keyboard.press("Escape");
+      await page.waitForTimeout(1500);
+    }
+    return { status: options.length ? "NOT_FOUND" : "NO_SELECT", options };
   }
+
+  /** חודש הדוח מתוך שם הקובץ: Amalot_2-6940_2025_11.xls → "2025-11" */
+  const monthFromFilename = (name: string) => {
+    const m = name.match(/_(\d{4})_(\d{1,2})(?=\D|$)/);
+    return m ? `${m[1]}-${m[2].padStart(2, "0")}` : "";
+  };
+  const targetMonth = `${prevYear}-${prevMonthNum.padStart(2, "0")}`;
+  const targetLabel = `${prevMonthNum.padStart(2, "0")}/${prevYear}`;
 
   // ✅ שלב 1: נווט לדוח עמלות
   const navResult = await cdp.send("Runtime.evaluate", {
@@ -383,71 +413,93 @@ if (agents.length === 0) throw new Error("No agents found");
     console.log(`[Meitav] Agent select by index:`, selectResult.result.value);
     await page.waitForTimeout(1000);
 
-    // בחר סוג דוח
-    await openAndSelectByValue('#selectReportType', '102', 'Report type');
+    // בחירת סוג דוח / שנה / חודש, חיפוש והורדה. מחזיר הורדה, או סיבה למה אין.
+    const selectAndDownload = async (): Promise<
+      { kind: "ok"; download: any } | { kind: "no_report" | "failed"; reason: string }
+    > => {
+      const type = await openAndSelectByValue('#selectReportType', '102', 'Report type');
+      if (type.status !== "CLICKED") return { kind: "failed", reason: "לא נמצא סוג הדוח 'עמלות' בפורטל" };
 
-    // בחר שנה
-    await openAndSelectByValue('#selectedYear', prevYear, 'Year');
+      // שנה / חודש שלא קיימים ברשימה = אין עדיין דוח לתקופה הזו — לא כישלון
+      const year = await openAndSelectByValue('#selectedYear', prevYear, 'Year');
+      if (year.status === "NOT_FOUND") return { kind: "no_report", reason: `אין דוח ל-${targetLabel} (השנה ${prevYear} לא קיימת בפורטל)` };
+      if (year.status !== "CLICKED") return { kind: "failed", reason: "בחירת השנה בפורטל נכשלה" };
 
-    // בחר חודש
-    await openAndSelectByValue('#selectedMonth', prevMonthNum, 'Month');
+      const month = await openAndSelectByValue('#selectedMonth', prevMonthNum, 'Month');
+      if (month.status === "NOT_FOUND") return { kind: "no_report", reason: `אין דוח ל-${targetLabel}` };
+      if (month.status !== "CLICKED") return { kind: "failed", reason: "בחירת החודש בפורטל נכשלה" };
 
-    // ✅ לחץ על "הצג דוחות" - פיזית לפי קלאס
-    const searchBtnPos = await getPos('.col-md-2.searchBtn');
-    if (!searchBtnPos) {
-      // console.log("[Meitav] searchBtn not found by class, trying text fallback...");
-      await cdp.send("Runtime.evaluate", {
-        expression: `(function() {
-          const divs = Array.from(document.querySelectorAll('div'));
-          const btn = divs.find(d => (d.textContent || '').trim().includes('הצג דוחות'));
-          if (btn) btn.click();
-        })()`,
-        returnByValue: true,
-      });
-    } else {
-      await page.mouse.click(searchBtnPos.x, searchBtnPos.y);
-    }
-    // console.log("[Meitav] Search button clicked");
-    await page.waitForTimeout(5000);
-
-    // ✅ המתן שה-resDownload יופיע (עד 15 שניות)
-    for (let w = 0; w < 15; w++) {
-      const check = await cdp.send("Runtime.evaluate", {
-        expression: `document.querySelector('div.resDownload') ? 'FOUND' : 'NOT_FOUND'`,
-        returnByValue: true,
-      });
-      if (check.result.value === 'FOUND') break;
-      // console.log(`[Meitav] Waiting for resDownload... (${w + 1})`);
-      await page.waitForTimeout(1000);
-    }
-    await page.waitForTimeout(2000);
-
-    // ✅ הורד קובץ
-    try {
-      const [download] = await Promise.all([
-        page.waitForEvent("download", { timeout: 30000 }),
-        cdp.send("Runtime.evaluate", {
+      // ✅ לחץ על "הצג דוחות" - פיזית לפי קלאס
+      const searchBtnPos = await getPos('.col-md-2.searchBtn');
+      if (!searchBtnPos) {
+        await cdp.send("Runtime.evaluate", {
           expression: `(function() {
-            const btn = document.querySelector('div.resDownload');
-            if (!btn) return 'NOT_FOUND';
-            btn.click();
-            return 'CLICKED: ' + btn.textContent?.trim();
+            const divs = Array.from(document.querySelectorAll('div'));
+            const btn = divs.find(d => (d.textContent || '').trim().includes('הצג דוחות'));
+            if (btn) btn.click();
           })()`,
           returnByValue: true,
-        }),
-      ]);
+        });
+      } else {
+        await page.mouse.click(searchBtnPos.x, searchBtnPos.y);
+      }
+      await page.waitForTimeout(5000);
 
-      const filename = download.suggestedFilename();
+      // ✅ המתן שה-resDownload יופיע (עד 15 שניות). לא הופיע = אין דוח לתקופה
+      let found = false;
+      for (let w = 0; w < 15; w++) {
+        const check = await cdp.send("Runtime.evaluate", {
+          expression: `document.querySelector('div.resDownload') ? 'FOUND' : 'NOT_FOUND'`,
+          returnByValue: true,
+        });
+        if (check.result.value === 'FOUND') { found = true; break; }
+        await page.waitForTimeout(1000);
+      }
+      if (!found) return { kind: "no_report", reason: `אין דוח ל-${targetLabel}` };
+      await page.waitForTimeout(2000);
+
+      try {
+        const [download] = await Promise.all([
+          page.waitForEvent("download", { timeout: 30000 }),
+          cdp.send("Runtime.evaluate", {
+            expression: `(function() {
+              const btn = document.querySelector('div.resDownload');
+              if (!btn) return 'NOT_FOUND';
+              btn.click();
+              return 'CLICKED: ' + btn.textContent?.trim();
+            })()`,
+            returnByValue: true,
+          }),
+        ]);
+        return { kind: "ok", download };
+      } catch (e: any) {
+        return { kind: "failed", reason: String(e?.message || "download_failed") };
+      }
+    };
+
+    // ניסיון נוסף אם ירד דוח של חודש אחר (הפורטל לא קלט את הבחירה). בפעם השנייה — לא מעלים.
+    let outcome: { localPath: string; filename: string; agentName: string; failed?: boolean; failReason?: string } | null = null;
+    for (let attempt = 1; attempt <= 2 && !outcome; attempt++) {
+      const res = await selectAndDownload();
+      if (res.kind !== "ok") {
+        outcome = { localPath: '', filename: '', agentName, failed: true, failReason: res.reason };
+        break;
+      }
+      const filename = res.download.suggestedFilename();
+      const fileMonth = monthFromFilename(filename);
+      if (fileMonth && fileMonth !== targetMonth) {
+        console.log(`[Meitav] ${agentName}: got ${fileMonth} instead of ${targetMonth} (attempt ${attempt}/2)`);
+        await res.download.delete().catch(() => {});
+        if (attempt === 2) {
+          outcome = { localPath: '', filename: '', agentName, failed: true, failReason: `ירד דוח של ${fileMonth} במקום ${targetMonth} — לא נטען` };
+        }
+        continue;
+      }
       const localPath = path.join(absDir, `${Date.now()}_${filename}`);
-      await download.saveAs(localPath);
-      // console.log("[Meitav] Saved:", localPath);
-      
-      // ✅ שומרים גם את שם הסוכן
-      results.push({ localPath, filename, agentName });
-
-    } catch (e: any) {
-      results.push({ localPath: '', filename: '', agentName, failed: true, failReason: String(e?.message || 'download_failed') });
+      await res.download.saveAs(localPath);
+      outcome = { localPath, filename, agentName };
     }
+    if (outcome) results.push(outcome);
 
     // ✅ המתנה קצרה בין סוכנים
     await page.waitForTimeout(1000);

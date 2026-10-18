@@ -172,10 +172,7 @@ export async function POST(req: NextRequest) {
     }
     if (!parsed) {
       console.error('[agent-insights/ai] unparsable response', text);
-      return NextResponse.json(
-        { error: 'ai_bad_response', detail: `תשובת המודל לא בפורמט הצפוי: ${text.slice(0, 200)}` },
-        { status: 502 }
-      );
+      return NextResponse.json({ error: 'ai_bad_response' }, { status: 502 });
     }
 
     const aiSummary: AiSummary = { ...parsed, generatedAt: Date.now() };
@@ -189,10 +186,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(aiSummary);
   } catch (err: any) {
     if (err instanceof AiError) {
+      console.error('[agent-insights/ai] AI error', err.code, err.message);
       const code = err.code === 'not_configured' ? 'ai_not_configured' : 'ai_failed';
-      return NextResponse.json({ error: code, detail: err.message }, { status: err.code === 'not_configured' ? 503 : 502 });
+      return NextResponse.json({ error: code }, { status: err.code === 'not_configured' ? 503 : 502 });
     }
     console.error('[agent-insights/ai]', err);
-    return NextResponse.json({ error: 'server_error', detail: String(err?.message ?? err) }, { status: 500 });
+    return NextResponse.json({ error: 'server_error' }, { status: 500 });
   }
 }

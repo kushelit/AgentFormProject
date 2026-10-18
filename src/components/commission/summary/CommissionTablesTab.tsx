@@ -261,11 +261,11 @@ const CommissionTablesTab: React.FC<Props> = ({ agentId, year, data, loading }) 
       <div className="flex flex-wrap items-center gap-3 px-3 py-2.5 my-3 rounded-xl bg-indigo-50/60 border border-indigo-100 text-sm">
         <span className="font-bold text-indigo-900">⇄ השוואה לפי פוליסה</span>
         {picked.length === 0 ? (
-          <span className="text-slate-500">סמני שני חודשים בטבלה כדי להשוות ביניהם</span>
+          <span className="text-slate-500">סמן שני חודשים בטבלה כדי להשוות ביניהם</span>
         ) : picked.length === 1 ? (
           <>
             <span className="text-slate-700">
-              נבחר <b className="tabular-nums">{picked[0]}</b> — סמני חודש נוסף, או:
+              נבחר <b className="tabular-nums">{picked[0]}</b> — סמן חודש נוסף, או:
             </span>
             {previousIn(monthList, picked[0]) && (
               <button

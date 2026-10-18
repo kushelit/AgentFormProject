@@ -5,7 +5,10 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import * as XLSX from "xlsx";
 import { useAuth } from '@/lib/firebase/AuthContext';
 import useFetchAgentData from '@/hooks/useFetchAgentData';
-import { db } from '@/lib/firebase/firebase';
+import { auth, db } from '@/lib/firebase/firebase';
+import { ref as storageRef, uploadBytes } from 'firebase/storage';
+import { getUploadStorage } from '@/lib/uploadStorage';
+import { apiFetch } from '@/lib/apiFetch';
 import {
   collection,
   getDoc,
@@ -22,7 +25,7 @@ import {
 import { Button } from '@/components/Button/Button';
 import DialogNotification from '@/components/DialogNotification';
 import './ExcelCommissionImporter.css';
-import { writeBatch } from 'firebase/firestore';
+import { writeBatch, updateDoc } from 'firebase/firestore';
 import Link from 'next/link';
 import { useToast } from "@/hooks/useToast";
 import { add } from "date-fns";
@@ -64,6 +67,7 @@ interface CommissionTemplateOption {
 companyAutoDownloadMessage?: string;
 portalId?: string;
 allowEarlyDownload?: boolean;
+  hekefType?: string;
 }
 
 interface CommissionSummary {
@@ -112,8 +116,11 @@ const ExcelCommissionImporter: React.FC = () => {
   const [standardizedRows, setStandardizedRows] = useState<any[]>([]);
   const [existingDocs, setExistingDocs] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [hekefRunId, setHekefRunId] = useState(''); // טעינה ידנית של דוח היקף — נטען בשרת כמו הורדת Runner
   const [showConfirmDelete, setShowConfirmDelete] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // הקובץ המקורי של הטעינה הידנית — נשמר ב-Storage בסוף טעינה מוצלחת
+  const sourceFileRef = useRef<File | null>(null);
 
   const [summaryByAgentCode, setSummaryByAgentCode] = useState<any[]>([]);
   const [showSummaryDialog, setShowSummaryDialog] = useState(false);
@@ -1056,6 +1063,7 @@ const confirmMissingCustomerIds = (missingRows: any[]): Promise<boolean> => {
           companyId,
           automationEnabled,
           type: data.type || '',
+          hekefType: data.hekefType || '',
           Name: data.Name || '',
           automationClass: data.automationClass || '',
           companyAutoClass: companyAutomationClass,
@@ -1749,10 +1757,44 @@ const standardizeRowWithMapping = (
 
 
 
+// דוח היקף: לא נקרא בדפדפן. הקובץ עולה כמו שהוא, והשרת טוען אותו בתהליך של הטעינה האוטומטית
+// (שדות ההיקף, דף החשבון וה-ש"ק של כלל קיימים רק שם). /api/hekef-upload
+const isHekefTemplate = selectedTemplate?.hekefType === 'hekef_commission';
+
+const uploadHekefFile = async (file: File) => {
+  if (!auth.currentUser || !selectedAgentId || !templateId) return;
+  setIsLoading(true);
+  try {
+    const safeName = file.name.replace(/[^\w.\-א-ת ]/g, '_');
+    const storagePath = `commission-imports/${selectedAgentId}/hekef/${Date.now()}_${safeName}`;
+    const { storage } = await getUploadStorage();
+    await uploadBytes(storageRef(storage, storagePath), file);
+    const res = await apiFetch('/api/hekef-upload', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ agentId: selectedAgentId, templateId, storagePath, filename: file.name }),
+    });
+    const j = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(j?.error || `HTTP ${res.status}`);
+    setHekefRunId(j.runId);
+    addToast('success', 'הקובץ נשלח לטעינה. הסטטוס מוצג כאן');
+  } catch (err: any) {
+    addToast('error', `טעינת ההיקף נכשלה: ${err?.message || err}`);
+  } finally {
+    setIsLoading(false);
+  }
+};
+
 const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
   const file = e.target.files?.[0];
 
   if (!file || !selectedAgentId) return;
+
+  if (importMode === "single" && isHekefTemplate) {
+    if (e.target) e.target.value = '';
+    void uploadHekefFile(file);
+    return;
+  }
 
   if (importMode === "single" && !selectedCompanyId) return;
   if (importMode === "single" && !templateId) return;
@@ -1805,6 +1847,7 @@ const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
   }
 
   setSelectedFileName(file.name);
+  sourceFileRef.current = file;
   setStandardizedRows([]);
   setMultiSheetPreview(null);
   setExistingRunIds([]);
@@ -2638,6 +2681,24 @@ const rowsPrepared = finalRowsForImport.map((r) =>
     });
 
     addToast("success", "✅ הטעינה הושלמה בהצלחה");
+
+    // הקובץ המקורי → תיקיית הסוכן ב-Storage (כמו קובצי ה-Runner), להורדה במסך "מחיקת קבצי עמלות".
+    // כישלון כאן לא מבטל את הטעינה — רק הקובץ לא יהיה זמין להורדה.
+    const sourceFile = sourceFileRef.current;
+    if (sourceFile && selectedAgentId) {
+      try {
+        const safeName = sourceFile.name.replace(/[^\w.\-א-ת ]/g, '_');
+        const filePath = `commission-imports/${selectedAgentId}/manual/${runId}/${safeName}`;
+        const { storage, bucket } = await getUploadStorage();
+        await uploadBytes(storageRef(storage, filePath), sourceFile);
+        await updateDoc(runRef, {
+          file: { bucket, storagePath: filePath, filename: sourceFile.name },
+        });
+      } catch (fileErr) {
+        console.error('[manual import] source file upload failed', fileErr);
+        addToast('error', 'הטעינה הצליחה, אבל שמירת הקובץ המקורי נכשלה');
+      }
+    }
 
     const grouped: Record<
       string,
@@ -3855,7 +3916,7 @@ addToast(
               "border-blue-300 bg-blue-50/20 hover:border-blue-400 hover:bg-blue-50 cursor-pointer"
             } ${selectedFileName ? "p-4" : "p-8"}`}
             onClick={() =>
-              !existingRunIds.length && fileInputRef.current?.click()
+              (isHekefTemplate || !existingRunIds.length) && fileInputRef.current?.click()
             }
             onDragOver={(e) => {
               e.preventDefault();
@@ -3876,6 +3937,12 @@ addToast(
                 <div className="text-sm font-bold text-gray-600">
                   לחץ לבחירת קובץ או גרור לכאן
                 </div>
+                {importMode === "single" && isHekefTemplate && (
+                  <div className="text-xs text-gray-500 max-w-md text-center">
+                    תבנית היקף: מעלים את הקובץ כמו שירד מהפורטל (ZIP / XLS). הוא נטען בשרת בדיוק כמו בטעינה האוטומטית,
+                    וטעינה חוזרת של אותו חודש מחליפה את הקודמת.
+                  </div>
+                )}
               </>
             ) : (
               <div className="flex items-center gap-4 bg-white p-3 px-6 rounded-xl shadow-sm border border-blue-100">
@@ -3891,6 +3958,18 @@ addToast(
               </div>
             )}
           </div>
+          {hekefRunId && (
+            <div className="mt-4 bg-white border border-blue-100 rounded-xl p-4 shadow-sm relative">
+              <button
+                onClick={() => setHekefRunId('')}
+                className="absolute top-2 left-2 text-gray-300 hover:text-gray-500 text-xs font-bold"
+                title="נקה סטטוס"
+              >
+                ✖
+              </button>
+              <PortalRunStatus key={hekefRunId} db={db} runId={hekefRunId} runKind="portal" />
+            </div>
+          )}
           {/* PREVIEW MULTI */}
           {importMode === "multi_sheet" && multiSheetPreview && (
             <div className="mt-4 bg-white rounded-xl border border-gray-200 p-4">

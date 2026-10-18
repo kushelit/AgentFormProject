@@ -17,6 +17,7 @@ type Input = {
   licenseNumber?: string;
   loginType?: string;
   accountingNumber?: string;
+  hekefTaxId?: string;
 };
 
 type PortalCredentials = {
@@ -25,6 +26,7 @@ type PortalCredentials = {
   phoneNumber?: string;
   licenseNumber?: string;
   accountingNumber?: string;
+  hekefTaxId?: string;
 };
 
 function s(v: any) {
@@ -82,11 +84,14 @@ const isAnalyst = portalId === "analyst";
 const isAltshuler = portalId === "altshuler";
 const isYalin = portalId === "yalin";
 const isInfinity = portalId === "infinity";
+const isClal = portalId === "clal";
 
 
 
 const licenseNumber = s((body as any).licenseNumber);
 const accountingNumber = s((body as any).accountingNumber); // אופציונלי - רק למנורה, בית סוכן
+// אופציונלי - רק לכלל: ח.פ / ע.מ לבחירת השורה בדוח ההיקף כשיש כמה שורות. ספרות בלבד
+const hekefTaxId = s((body as any).hekefTaxId).replace(/\D/g, "");
 
 if (isMor) {
   if (!licenseNumber) {
@@ -139,7 +144,9 @@ const encPayload: PortalCredentials = isMor
         ? {username, phoneNumber, ...(accountingNumber ? {accountingNumber} : {})}
         : (isMeitav || isAnalyst || isYalin)
           ? {username, phoneNumber}
-          : {username, password};
+          : isClal
+            ? {username, password, ...(hekefTaxId ? {hekefTaxId} : {})}
+            : {username, password};
 
     const enc = encryptJsonAes256Gcm(keyB64, encPayload);
 

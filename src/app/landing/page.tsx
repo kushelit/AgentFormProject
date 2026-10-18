@@ -11,115 +11,180 @@ import {
   Users,
   ShieldCheck,
   BarChart3,
+  TrendingUp,
+  FileSearch,
+  Scale,
+  KeyRound,
+  DownloadCloud,
+  Lightbulb,
+  Target,
+  Calculator,
+  Webhook,
+  Split,
+  FileText,
+  GitCompare,
+  type LucideIcon,
 } from 'lucide-react';
-import { GraphsSection } from '@/components/FeatureCard';
 import { ContactSection } from '@/components/FeatureCard';
+import {
+  proFeatures,
+  basicFeatures,
+  enterpriseFeatures,
+  isSoonFeature,
+} from '@/components/FeatureCard/planContent';
 
-const features = [
+// חברות שהטעינה האוטומטית פעילה עבורן בייצור (אינפיניטי עדיין לא)
+const supportedCompanies = [
+  'כלל',
+  'מגדל',
+  'הפניקס',
+  'מנורה',
+  'הראל',
+  'איילון',
+  'מור',
+  'מיטב',
+  'אנליסט',
+  'אלטשולר שחם',
+  'הכשרה',
+  'ילין לפידות',
+];
+
+const heroBullets = [
+  { text: 'עמלות נפרעים – טעינה אוטומטית מכל חברות הביטוח ובתי ההשקעות', soon: false },
+  { text: 'עמלות היקף – בקרוב', soon: true },
+  { text: 'ניתוח תיק ברמת לקוח, פוליסה, חברה וחודש', soon: false },
+  { text: 'השוואה בין חודשים – מה נוסף, מה ירד ומה השתנה', soon: false },
+  { text: 'סקירת AI, מגמות וסיכומים', soon: false },
+];
+
+const steps = [
+  {
+    icon: KeyRound,
+    title: 'מחברים את הפורטלים',
+    text: 'מגדירים פעם אחת את פרטי הכניסה לפורטלים של החברות.',
+  },
+  {
+    icon: DownloadCloud,
+    title: 'הדוחות נטענים אוטומטית',
+    text: 'המערכת מושכת את דוחות העמלות מכל החברות ומאחדת אותם למקום אחד.',
+  },
+  {
+    icon: Lightbulb,
+    title: 'מקבלים ניתוח ותובנות',
+    text: 'רואים מה קורה בתיק – ברמת לקוח, פוליסה, חברה וחודש – כולל סקירת AI.',
+  },
+];
+
+// image: null = צילום מסך חדש שעוד לא הוכן (מוצג פאנל חלופי). שם הקובץ המתוכנן מופיע בהערה.
+const coreFeatures: {
+  id: string;
+  title: string;
+  description: string;
+  extraText: string;
+  image: string | null;
+  icon: LucideIcon;
+}[] = [
   {
     id: 'auto-import-dashboard',
     title: 'טעינה אוטומטית של דוחות עמלות',
     description:
-      'המערכת מאפשרת משיכה אוטומטית של דוחות הנפרעים מחברות הביטוח ומבתי ההשקעות.',
+      'בלי להיכנס לפורטלים ובלי להוריד קבצים – דוחות העמלות נמשכים אוטומטית מחברות הביטוח ומבתי ההשקעות.',
     extraText:
       'דשבורד מרכזי מציג את סטטוס ההרצות, ההצלחות, השגיאות והטעינות שבוצעו — כך שתמיד תדעו מה הושלם, מה בטיפול ומה דורש תשומת לב.',
     image: '/static/img/landingImg/auto-dashboard.png',
-    icon: Sparkles,
+    icon: DownloadCloud,
   },
   {
     id: 'portfolio-analysis',
     title: 'ניתוח תיק והבנה אמיתית של ההכנסות',
-    description:
-      'תמונה מלאה של התיק לפי מוצרים, חברות וחודשים — במקום אחד.',
+    description: 'תמונה מלאה של התיק לפי מוצרים, חברות וחודשים — במקום אחד.',
     extraText:
-      'המערכת מנתחת את התפתחות התיק לאורך זמן, מציגה התפלגות לפי מוצרים וחברות, ועוזרת להבין בדיוק מאיפה מגיעות ההכנסות ואיפה נמצאות הזדמנויות.',
+      'התפלגות לפי מוצרים וחברות, השוואה בין תקופות, והבנה מדויקת של מאיפה מגיעות ההכנסות ואיפה נמצאות ההזדמנויות.',
     image: '/static/img/landingImg/portfolio-analysis.png',
     icon: BarChart3,
   },
   {
-    id: 'deals',
-    title: 'ניהול עסקאות',
-    description: 'ניהול חכם, מהיר ומדויק של כל העסקאות במקום אחד.',
+    id: 'customer-policy',
+    title: 'רמת לקוח ופוליסה',
+    description: 'יורדים לפרטים: כמה כל לקוח וכל פוליסה מכניסים, בכל חברה ובכל חודש.',
     extraText:
-      'הזנה, עדכון ומעקב אחר עסקאות בצורה מסודרת, ברורה ונוחה לעבודה יומיומית.',
-    image: '/static/img/landingImg/deals.png',
-    icon: LayoutDashboard,
+      'מזהים לקוחות שהעמלה שלהם ירדה או נעלמה, פוליסות חדשות שנכנסו, ומה השתנה מחודש לחודש.',
+    image: null, // customer-policy.png
+    icon: FileSearch,
   },
   {
-    id: 'customers',
-    title: 'ניהול לקוחות',
-    description: 'כל הלקוחות שלכם מרוכזים במערכת אחת מסודרת וחכמה.',
+    id: 'month-comparison',
+    title: 'השוואה בין חודשים',
+    description: 'בוחרים שני חודשים ורואים בדיוק מה נוסף, מה ירד ומה השתנה.',
     extraText:
-      'הוספה, עדכון וניהול מלא של לקוחות, כולל תמונה מלאה על כל הפעילות העסקית שלהם.',
-    image: '/static/img/landingImg/customers.png',
-    icon: Users,
+      'פוליסות חדשות, פוליסות שנעלמו ועמלות שהשתנו – ברמת פוליסה, עם סינון לפי חברה וסוכן וייצוא לאקסל.',
+    image: null, // month-comparison.png
+    icon: GitCompare,
   },
   {
-    id: 'family',
-    title: 'קשרים משפחתיים',
-    description: 'תצוגה משפחתית מרוכזת לניהול, בקרה והבנה טובה יותר של התיק.',
+    id: 'trends',
+    title: 'מגמות וסיכומים',
+    description: 'מעקב אחר התפתחות התיק לאורך זמן – לפי חברה, מוצר וחודש.',
     extraText:
-      'המערכת מחברת בין בני משפחה ומציגה תמונה רחבה שמאפשרת עבודה יעילה ונוחה יותר.',
-    image: '/static/img/landingImg/family.png',
-    icon: Users,
+      'סיכומים חודשיים ושנתיים, גרפי מגמה והשוואות שעוזרים להבין לאן התיק הולך.',
+    image: null, // trends.png
+    icon: TrendingUp,
   },
   {
-    id: 'commissions',
-    title: 'ניהול עמלות והסכמים',
-    description: 'ניהול עמלות גמיש לפי ברירת מחדל, מוצר, חברה או הסכם.',
+    id: 'ai-insights',
+    title: 'סקירת AI ותובנות',
+    description: 'סקירה חכמה של התיק שמסכמת מה חשוב לדעת עכשיו.',
     extraText:
-      'שליטה מלאה במבני העמלות וביכולת לחשב, לבדוק ולהבין מה אמור להתקבל בפועל.',
+      'יעילות תיק, פוטנציאל לניודים, נקודות שדורשות טיפול ורשימת עבודה – בלי לחפור בטבלאות.',
+    image: null, // ai-insights.png
+    icon: Sparkles,
+  },
+  {
+    id: 'agreements-check',
+    title: 'בדיקת עמלות מול ההסכמים',
+    description: 'השוואה בין מה ששולם בפועל לבין ההסכמים שהוגדרו לכם במערכת.',
+    extraText:
+      'ניהול הסכמי עמלות לפי ברירת מחדל, מוצר וחברה – ושליטה מלאה במה שאמור להתקבל.',
     image: '/static/img/landingImg/commissions.png',
-    icon: BarChart3,
+    icon: Scale,
   },
-  {
-    id: 'reports',
-    title: 'מודול דוחות מתקדם',
-    description: 'הפקת דוחות חכמים לפי חודשים, עובדים, מוצרים וחברות.',
-    extraText:
-      'ניתוח מגמות, רווחיות, השוואות בין תקופות וייצוא מידע להמשך עבודה וקבלת החלטות.',
-    image: '/static/img/landingImg/reports.png',
-    icon: BarChart3,
-  },
-  {
-    id: 'commission-split',
-    title: 'פיצול עמלות',
-    description: 'ניהול שיתופי פעולה בין סוכנים, עובדים ומקורות לידים.',
-    extraText:
-      'הגדרת אחוזי פיצול בצורה מדויקת, שקופה ואוטומטית, בהתאם להסכמים הקיימים במערכת.',
-    image: '/static/img/landingImg/commissionSplit.png',
-    icon: BarChart3,
-  },
-  {
-    id: 'permissions',
-    title: 'ניהול הרשאות',
-    description: 'שליטה מלאה בהרשאות של סוכנים, עובדים ומנהלים.',
-    extraText:
-      'הגדירו מי רואה מה, מי מבצע מה, והתאימו את המערכת למבנה העבודה שלכם.',
-    image: '/static/img/landingImg/permissions.png',
-    icon: ShieldCheck,
-  },
-  {
-    id: 'goals',
-    title: 'יעדים וביצועים',
-    description: 'מעקב יעדים, ניתוח ביצועים ותמונה עסקית עדכנית בכל רגע.',
-    extraText:
-      'גרפים, נתונים וסטטיסטיקות שיעזרו לכם להבין איפה אתם עומדים ולאן אתם מתקדמים.',
-    image: '/static/img/landingImg/goals.png',
-    icon: BarChart3,
-  },
+];
+
+const salesModules: { icon: LucideIcon; title: string; text: string }[] = [
+  { icon: LayoutDashboard, title: 'ניהול עסקאות', text: 'הזנה, עדכון ומעקב אחר עסקאות' },
+  { icon: Users, title: 'לקוחות ומשפחות', text: 'כל הלקוחות וקשרי המשפחה במקום אחד' },
+  { icon: Webhook, title: 'לידים מ-API', text: 'קבלת לידים ממערכות וממשקים חיצוניים' },
+  { icon: ShieldCheck, title: 'עובדים והרשאות', text: 'מי רואה מה ומי מבצע מה' },
+  { icon: Target, title: 'יעדים וביצועים', text: 'יעדים אישיים וקבוצתיים ומעקב ביצועים' },
+  { icon: Split, title: 'פיצול עמלות', text: 'שיתופי פעולה בין סוכנים, עובדים ומקורות לידים' },
+  { icon: Calculator, title: 'סימולטור', text: 'חישוב רווחים צפויים' },
+  { icon: FileText, title: 'דוחות', text: 'דוחות לפי חודשים, עובדים, מוצרים וחברות' },
 ];
 
 const faqs = [
   {
-    question: 'איך מודול טעינת העמלות עוזר לי בפועל?',
-    answer:
-      'המערכת מאפשרת טעינה אוטומטית של דוחות נפרעים מחברות הביטוח ומבתי ההשקעות. בנוסף, היא מאפשרת לנתח את התפתחות התיק לפי מוצר, חברה וחודש, ולהשוות בין מה ששולם בפועל לבין ההסכמים שהוגדרו לסוכן במערכת.',
+    question: 'מאילו חברות נטענים הדוחות?',
+    answer: `כיום הטעינה האוטומטית פעילה מול: ${supportedCompanies.join(', ')}. חברות נוספות מתווספות כל הזמן.`,
   },
   {
-    question: 'איך עוברים מאקסל למערכת?',
+    question: 'אילו דוחות נטענים?',
     answer:
-      'ניתן לבצע טעינה ראשונית של נתונים מקובצי אקסל, כך שתוכלו להעביר את המידע שלכם בקלות ולהתחיל לעבוד במערכת בלי להתחיל מאפס.',
+      'כרגע נטענים דוחות עמלות נפרעים. טעינת עמלות היקף נמצאת בפיתוח ותתווסף בקרוב.',
+  },
+  {
+    question: 'האם פרטי ההתחברות לפורטלים מאובטחים?',
+    answer:
+      'כן. פרטי ההתחברות נשמרים מוצפנים, והגישה לנתונים מוגבלת לפי הרשאות – כל משתמש רואה רק את מה שמותר לו.',
+  },
+  {
+    question: 'איפה נשמר המידע שלי ושל הלקוחות שלי?',
+    answer:
+      'המידע נשמר בתשתית Google Cloud, בהפרדה מלאה בין סוכנים, בהתאם לתקנות הגנת הפרטיות. כל סוכן רואה רק את הנתונים שלו (או של קבוצת הסוכנים שהוגדרה לו), והמידע אינו משמש לאימון מודלים של בינה מלאכותית.',
+  },
+  {
+    question: 'מה ההבדל בין המנוי המקצועי למנוי הבסיסי?',
+    answer:
+      'המנוי המקצועי כולל את הטעינה האוטומטית של דוחות העמלות, ניתוח התיק, סקירת ה-AI והבדיקה מול ההסכמים – וגם את כל מודולי ניהול המכירות. המנוי הבסיסי מיועד למי שצריך רק ניהול מכירות, בלי טעינה וניתוח.',
   },
   {
     question: 'האם יש הרשאות לעובדים?',
@@ -133,72 +198,19 @@ const faqs = [
   },
 ];
 
-const pricingPlans = [
-  {
-    id: 'basic',
-    title: 'מנוי בסיסי',
-    badgeText: null as string | null,
-    badgeColor: '',
-    priceText: '₪89 לחודש + מע"מ',
-    subtitle: 'מנוי לסוכן אחד בלבד',
-    features: [
-      'ניהול עסקאות בצורה פשוטה ונוחה',
-      'יצירה, עדכון וניהול של לקוחות ומשפחות',
-      'צפייה בעמלות חודשיות וסיכומים כלליים',
-      'ניהול לידים וקבלת לידים מממשקים חיצוניים',
-      'ניהול יעדים',
-      'שימוש בסימולטור לחישוב רווחים צפויים',
-      'ייבוא נתונים מקובצי אקסל',
-      'מעקב גרפי אחר ביצועים',
-      'מודול דוחות מתקדם',
-    ],
-    ctaType: 'link' as const,
-    ctaText: 'התחילו עכשיו',
-    ctaHref: '/subscription-sign-up',
-  },
-  {
-    id: 'pro',
-    title: 'מנוי מקצועי',
-    badgeText: 'הכי פופולרי ⭐',
-    badgeColor: 'bg-yellow-400',
-    priceText: '₪285 לחודש + מע"מ',
-    subtitle: 'מנוי לסוכן + עובד, ניתן להוסיף עובדים נוספים בתשלום',
-    features: [
-      'כל מה שכלול בתוכנית הבסיס, ובנוסף:',
-      'ניהול עובדים, כולל שיוך לסוכנים',
-      'הקצאת הרשאות לפי תפקידים',
-      'ניהול יעדים אישיים וקבוצתיים',
-      'אפשרות להוספת עובדים נוספים לפי צורך',
-      'טעינה אוטומטית של דוחות עמלות נפרעים',
-      'ניתוח התפתחות התיק ברמת מוצר, חברה וחודש',
-      'בדיקת עמלות מול ההסכמים המוגדרים במערכת',
-      'המחיר כולל עד 2,000 לקוחות פעילים',
-    ],
-    ctaType: 'link' as const,
-    ctaText: 'התחילו עכשיו',
-    ctaHref: '/subscription-sign-up',
-  },
-  {
-    id: 'enterprise',
-    title: 'מנוי לבתי סוכן',
-    badgeText: 'מותאם לארגונים',
-    badgeColor: 'bg-purple-600',
-    priceText: 'בהתאמה אישית',
-    subtitle: 'פתרון מותאם אישית לסוכנויות, בתי סוכן וארגונים',
-    features: [
-      'כל מה שכלול בתוכנית המקצועית, ובנוסף:',
-      'ניהול מתקדם של קבוצות, סוכנויות משנה ועובדים',
-      'התאמות מיוחדות לפי צרכי הארגון',
-      'תמיכה מורחבת ומנהל לקוח אישי',
-      'אינטגרציות מתקדמות למערכות חיצוניות',
-      'פתרון מותאם להיקפי פעילות גדולים',
-      'להצעת מחיר מותאמת – צרו איתנו קשר',
-    ],
-    ctaType: 'button' as const,
-    ctaText: 'דברו איתנו',
-    ctaHref: '/landing#contact',
-  },
-];
+function scrollToId(id: string) {
+  const el = document.getElementById(id);
+  if (el) el.scrollIntoView({ behavior: 'smooth' });
+}
+
+function ScreenshotPlaceholder({ icon: Icon, title }: { icon: LucideIcon; title: string }) {
+  return (
+    <div className="w-full max-w-[700px] aspect-[7/4] rounded-xl shadow-lg bg-gradient-to-br from-indigo-100 via-blue-50 to-violet-100 border border-indigo-100 flex flex-col items-center justify-center gap-3 text-indigo-800">
+      <Icon className="w-16 h-16 opacity-70" />
+      <span className="text-lg font-bold opacity-80">{title}</span>
+    </div>
+  );
+}
 
 export default function LandingPage() {
   const router = useRouter();
@@ -254,25 +266,44 @@ export default function LandingPage() {
         </div>
       </motion.div>
 
-      <section className="relative min-h-[74vh] pt-24 md:pt-32 flex flex-col justify-center items-center bg-gradient-to-br from-indigo-900 to-blue-800 text-white text-center overflow-hidden">
-       <motion.h1
-  className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-extrabold mb-4 z-10 relative leading-tight max-w-6xl px-4"
-  initial={{ opacity: 0, y: -30 }}
-  animate={{ opacity: 1, y: 0 }}
-  transition={{ duration: 0.9 }}
->
-  תנו למספרים <span className="text-green-400">לדבר בעד עצמם</span>
-</motion.h1>
+      {/* ─── Hero: טעינה אוטומטית של דוחות עמלות ─── */}
+      <section className="relative min-h-[80vh] pt-28 md:pt-36 pb-12 flex flex-col justify-center items-center bg-gradient-to-br from-indigo-900 to-blue-800 text-white text-center overflow-hidden">
+        <motion.h1
+          className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-extrabold mb-5 z-10 relative leading-tight max-w-5xl px-4"
+          initial={{ opacity: 0, y: -30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.9 }}
+        >
+          כל דוחות העמלות שלכם –{' '}
+          <span className="text-green-400">במקום אחד, אוטומטית</span>
+        </motion.h1>
 
-<motion.p
-  className="text-lg md:text-xl mb-6 z-10 relative max-w-4xl px-6 leading-relaxed"
-  initial={{ opacity: 0, y: 20 }}
-  animate={{ opacity: 1, y: 0 }}
-  transition={{ duration: 1, delay: 0.4 }}
->
-  כל מה שסוכן ביטוח צריך – במקום אחד: ניהול עסקאות, לקוחות, טעינת עמלות, לידים, גרפים והרשאות.
-  בטלו תוך 14 יום ותקבלו החזר מלא.
-</motion.p>
+        <motion.p
+          className="text-lg md:text-xl mb-6 z-10 relative max-w-3xl px-6 leading-relaxed text-indigo-100"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 1, delay: 0.3 }}
+        >
+          בלי להיכנס לפורטלים ובלי להוריד קבצים. MagicSale מושכת את הדוחות, מאחדת אותם
+          ומראה לכם בדיוק מה קורה בתיק.
+        </motion.p>
+
+        <motion.ul
+          className="z-10 relative mb-8 px-6 grid sm:grid-cols-2 gap-x-8 gap-y-2 text-right max-w-3xl"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.9, delay: 0.5 }}
+        >
+          {heroBullets.map((b) => (
+            <li key={b.text} className="flex items-start gap-2 text-base md:text-lg">
+              <span className={b.soon ? 'text-yellow-300' : 'text-green-400'}>
+                {b.soon ? '⏳' : '✔'}
+              </span>
+              <span className={b.soon ? 'text-indigo-200' : ''}>{b.text}</span>
+            </li>
+          ))}
+        </motion.ul>
+
         <motion.div
           className="flex flex-col sm:flex-row gap-3 z-10 relative"
           initial={{ opacity: 0, y: 20 }}
@@ -281,19 +312,16 @@ export default function LandingPage() {
         >
           <button
             onClick={() => router.push('/subscription-sign-up')}
-            className="bg-white text-indigo-900 font-bold px-8 py-3 rounded-full shadow-xl hover:bg-indigo-100 transition"
+            className="bg-green-400 text-indigo-950 font-bold px-8 py-3 rounded-full shadow-xl hover:bg-green-300 transition"
           >
             התחילו עכשיו
           </button>
 
           <button
-            onClick={() => {
-              const el = document.getElementById('pricing');
-              if (el) el.scrollIntoView({ behavior: 'smooth' });
-            }}
+            onClick={() => scrollToId('video')}
             className="border border-white text-white font-bold px-8 py-3 rounded-full hover:bg-white hover:text-indigo-900 transition"
           >
-            לצפייה בתוכניות
+            ▶ צפו בסרטון
           </button>
         </motion.div>
 
@@ -305,196 +333,241 @@ export default function LandingPage() {
           <Sparkles className="absolute w-full h-full opacity-10" />
         </motion.div>
 
-        <nav className="mt-8 flex justify-center flex-wrap gap-6 text-sm text-white z-10 relative px-4">
-          <a href="#auto-import-dashboard" className="hover:underline">
-            טעינה אוטומטית
-          </a>
-          <a href="#portfolio-analysis" className="hover:underline">
-            ניתוח תיק
-          </a>
-          <a href="#deals" className="hover:underline">
-            ניהול עסקאות
-          </a>
-          <a href="#customers" className="hover:underline">
-            ניהול לקוחות
-          </a>
-          <a href="#commissions" className="hover:underline">
-            ניהול עמלות
-          </a>
-          <a href="#reports" className="hover:underline">
-            דוחות
-          </a>
-          <a href="#faq" className="hover:underline">
-            שאלות נפוצות
-          </a>
+        <nav className="mt-10 flex justify-center flex-wrap gap-6 text-sm text-white z-10 relative px-4">
+          <a href="#how-it-works" className="hover:underline">איך זה עובד</a>
+          <a href="#core-features" className="hover:underline">מה מקבלים</a>
+          <a href="#pricing" className="hover:underline">מחירים</a>
+          <a href="#sales-modules" className="hover:underline">ניהול מכירות</a>
+          <a href="#faq" className="hover:underline">שאלות נפוצות</a>
         </nav>
       </section>
 
-      <section className="bg-blue-100 text-blue-900 text-center py-6 px-4 border-t border-b border-blue-300">
+      {/* ─── חברות נתמכות ─── */}
+      <section className="bg-white py-8 px-4 border-b border-gray-200">
+        <div className="max-w-6xl mx-auto text-center">
+          <p className="text-blue-900 font-bold mb-4">
+            טעינה אוטומטית מכל חברות הביטוח ובתי ההשקעות
+          </p>
+          <div className="flex flex-wrap justify-center gap-2">
+            {supportedCompanies.map((c) => (
+              <span
+                key={c}
+                className="px-4 py-1.5 rounded-full bg-blue-50 border border-blue-100 text-sm text-blue-900"
+              >
+                {c}
+              </span>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="bg-blue-100 text-blue-900 text-center py-5 px-4 border-b border-blue-300">
         <p className="text-lg font-semibold">
           ⭐ נסו את MagicSale בראש שקט – החזר מלא אם תבטלו בתוך 14 יום ⭐
         </p>
       </section>
 
-      <section className="bg-white py-8 px-4 border-b border-gray-200">
-        <div className="max-w-6xl mx-auto grid md:grid-cols-3 gap-6 text-center">
-          <div className="bg-blue-50 rounded-2xl p-5 shadow-sm border border-blue-100">
-            <h3 className="text-blue-900 font-bold mb-2">טעינה אוטומטית</h3>
-            <p className="text-sm text-gray-700 leading-relaxed">
-              משיכת דוחות נפרעים ישירות מהחברות, בלי עבודה ידנית
-            </p>
+      {/* ─── איך זה עובד ─── */}
+      <section id="how-it-works" className="bg-white py-16 px-4">
+        <div className="max-w-6xl mx-auto">
+          <h2 className="text-3xl font-bold text-blue-800 text-center mb-10">איך זה עובד</h2>
+          <div className="grid md:grid-cols-3 gap-6">
+            {steps.map((s, idx) => (
+              <motion.div
+                key={s.title}
+                className="bg-blue-50 rounded-2xl p-6 border border-blue-100 shadow-sm text-center"
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.5, delay: idx * 0.15 }}
+              >
+                <div className="mx-auto mb-3 w-12 h-12 rounded-full bg-indigo-600 text-white flex items-center justify-center text-lg font-bold">
+                  {idx + 1}
+                </div>
+                <s.icon className="w-8 h-8 mx-auto mb-2 text-indigo-700" />
+                <h3 className="text-blue-900 font-bold text-lg mb-2">{s.title}</h3>
+                <p className="text-sm text-gray-700 leading-relaxed">{s.text}</p>
+              </motion.div>
+            ))}
           </div>
 
-          <div className="bg-blue-50 rounded-2xl p-5 shadow-sm border border-blue-100">
-            <h3 className="text-blue-900 font-bold mb-2">ניתוח תיק מתקדם</h3>
-            <p className="text-sm text-gray-700 leading-relaxed">
-              הבנה מלאה של ההכנסות לפי מוצר, חברה וחודש
-            </p>
-          </div>
-
-          <div className="bg-blue-50 rounded-2xl p-5 shadow-sm border border-blue-100">
-            <h3 className="text-blue-900 font-bold mb-2">בדיקת עמלות</h3>
-            <p className="text-sm text-gray-700 leading-relaxed">
-              השוואה בין מה ששולם בפועל לבין ההסכמים שלך
-            </p>
+          {/* סרטון ההדגמה – אותו קישור שנשלח בוואטסאפ (מפנה לקובץ ב-Storage) */}
+          <div id="video" className="mt-12 max-w-4xl mx-auto">
+            <h3 className="text-2xl font-bold text-blue-800 text-center mb-4">
+              צפו איך זה עובד
+            </h3>
+            <video
+              src="/commissions-video"
+              controls
+              playsInline
+              preload="metadata"
+              className="w-full rounded-xl shadow-lg bg-black"
+            />
           </div>
         </div>
       </section>
 
-      <section className="overflow-y-visible py-20 px-6 space-y-32">
-        {features.map((feature, index) => (
-          <motion.div
-            id={feature.id}
-            key={feature.id}
-            className={`max-w-6xl mx-auto flex flex-col md:flex-row items-center gap-12 ${
-              index % 2 !== 0 ? 'md:flex-row-reverse' : ''
-            }`}
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.7 }}
-          >
-            <Image
-              src={feature.image}
-              alt={feature.title}
-              width={700}
-              height={400}
-              className={`rounded-xl shadow-lg w-full max-w-[700px] object-contain ${
-                feature.id === 'permissions' ? 'max-h-[300px]' : ''
-              }`}
-            />
+      {/* ─── מה מקבלים מהטעינה ─── */}
+      <section id="core-features" className="overflow-y-visible py-20 px-6">
+        <h2 className="text-3xl font-bold text-blue-800 text-center mb-4">
+          מה מקבלים מהטעינה האוטומטית
+        </h2>
+        <p className="text-center text-gray-600 max-w-3xl mx-auto mb-16 leading-relaxed">
+          הדוחות הם רק ההתחלה – המערכת הופכת אותם לתמונה ברורה של התיק וההכנסות.
+        </p>
 
-            <div className="text-right max-w-md">
-              <div className="flex items-center gap-2 mb-3 text-green-400">
-                <feature.icon className="w-6 h-6 animate-pulse" />
-                <h3 className="text-2xl font-bold text-indigo-900">
-                  {feature.title}
-                </h3>
+        <div className="space-y-28">
+          {coreFeatures.map((feature, index) => (
+            <motion.div
+              id={feature.id}
+              key={feature.id}
+              className={`max-w-6xl mx-auto flex flex-col md:flex-row items-center gap-12 ${
+                index % 2 !== 0 ? 'md:flex-row-reverse' : ''
+              }`}
+              initial={{ opacity: 0, y: 30 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.7 }}
+            >
+              {feature.image ? (
+                <Image
+                  src={feature.image}
+                  alt={feature.title}
+                  width={700}
+                  height={400}
+                  className="rounded-xl shadow-lg w-full max-w-[700px] object-contain"
+                />
+              ) : (
+                <ScreenshotPlaceholder icon={feature.icon} title={feature.title} />
+              )}
+
+              <div className="text-right max-w-md">
+                <div className="flex items-center gap-2 mb-3 text-green-500">
+                  <feature.icon className="w-6 h-6" />
+                  <h3 className="text-2xl font-bold text-indigo-900">{feature.title}</h3>
+                </div>
+                <p className="text-gray-700 text-md leading-relaxed mb-2">{feature.description}</p>
+                <p className="text-gray-500 text-sm leading-relaxed">{feature.extraText}</p>
               </div>
-              <p className="text-gray-700 text-md leading-relaxed mb-2">
-                {feature.description}
-              </p>
-              <p className="text-gray-500 text-sm leading-relaxed">
-                {feature.extraText}
-              </p>
-            </div>
-          </motion.div>
-        ))}
+            </motion.div>
+          ))}
+        </div>
       </section>
 
-      <GraphsSection />
-
+      {/* ─── מחירים: PRO במרכז ─── */}
       <section id="pricing" className="py-20 bg-white text-right">
         <div className="max-w-7xl mx-auto px-6">
           <h2 className="text-3xl font-bold text-blue-800 mb-4 text-center">
-            בחרו את התוכנית שמתאימה לכם
+            מנוי אחד – כל דוחות העמלות וכל הניתוחים
           </h2>
           <p className="text-center text-gray-600 max-w-3xl mx-auto mb-12 leading-relaxed">
-            בין אם אתם סוכן עצמאי, משרד עם עובדים או בית סוכן — MagicSale בנויה לצמוח יחד איתכם.
+            המנוי המקצועי כולל את הטעינה האוטומטית, ניתוח התיק, סקירת ה-AI – וגם את כל מודולי
+            ניהול המכירות.
           </p>
 
-          <div className="grid md:grid-cols-3 gap-8">
-            {pricingPlans.map((plan) => {
-              const isBasic = plan.id === 'basic';
-              const isPro = plan.id === 'pro';
-              const isEnterprise = plan.id === 'enterprise';
+          <div className="grid gap-8 md:grid-cols-[1fr_1.5fr_1fr] items-center">
+            {/* בסיסי – כרטיס קטן */}
+            <div className="order-2 md:order-none rounded-2xl p-6 bg-gray-50 border border-gray-200 flex flex-col justify-between">
+              <div>
+                <h3 className="text-lg font-bold mb-1 text-gray-800">מנוי בסיסי – ניהול מכירות</h3>
+                <p className="text-sm text-gray-600 mb-1">₪89 לחודש + מע&quot;מ</p>
+                <p className="text-xs text-gray-500 mb-4">
+                  לסוכן אחד, ללא טעינת דוחות עמלות וניתוח תיק
+                </p>
+                <ul className="text-gray-600 space-y-1.5 text-sm leading-relaxed mb-5">
+                  {basicFeatures.map((f) => (
+                    <li key={f}>✔ {f}</li>
+                  ))}
+                </ul>
+              </div>
+              <Link
+                href="/subscription-sign-up"
+                className="border border-gray-400 text-gray-700 hover:bg-gray-100 font-bold py-2 px-4 rounded-full w-full text-center text-sm"
+              >
+                להרשמה למנוי בסיסי
+              </Link>
+            </div>
 
-              const cardClasses = [
-                'relative rounded-2xl p-8 flex flex-col justify-between min-h-[560px] transition',
-                isBasic && 'bg-blue-50 shadow hover:shadow-lg',
-                isPro && 'bg-white border-2 border-indigo-600 shadow-lg scale-[1.01]',
-                isEnterprise && 'bg-purple-50 border border-purple-300 shadow hover:shadow-lg',
-              ]
-                .filter(Boolean)
-                .join(' ');
-
-              return (
-                <div key={plan.id} className={cardClasses}>
-                  {plan.badgeText && (
-                    <div
-                      className={`absolute top-2 left-2 ${plan.badgeColor} text-white text-xs font-bold px-2 py-1 rounded shadow`}
+            {/* PRO – במרכז */}
+            <div className="order-1 md:order-none relative rounded-2xl p-8 md:p-10 bg-white border-2 border-indigo-600 shadow-2xl flex flex-col justify-between">
+              <div className="absolute -top-3 right-1/2 translate-x-1/2 bg-yellow-400 text-indigo-950 text-xs font-bold px-3 py-1 rounded-full shadow">
+                הכי פופולרי ⭐
+              </div>
+              <div>
+                <h3 className="text-2xl font-extrabold mb-1 text-indigo-900">מנוי מקצועי</h3>
+                <p className="text-sm text-indigo-700 font-semibold mb-3">
+                  טעינה אוטומטית + ניתוח תיק + ניהול מכירות
+                </p>
+                <p className="text-3xl font-extrabold text-indigo-900 mb-1">
+                  ₪285 <span className="text-base font-medium text-gray-600">לחודש + מע&quot;מ</span>
+                </p>
+                <p className="text-xs text-gray-500 mb-6">
+                  לסוכן + עובד, ניתן להוסיף עובדים נוספים בתשלום · כולל עד 2,000 לקוחות פעילים
+                </p>
+                <ul className="text-gray-800 space-y-2.5 text-base leading-relaxed mb-8">
+                  {proFeatures.map((f, idx) => (
+                    <li
+                      key={f}
+                      className={idx === 0 ? 'font-bold text-indigo-900' : isSoonFeature(f) ? 'text-gray-500' : ''}
                     >
-                      {plan.badgeText}
-                    </div>
-                  )}
+                      {isSoonFeature(f) ? '⏳' : '✔'} {f}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <Link
+                href="/subscription-sign-up"
+                className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-full w-full text-center text-lg"
+              >
+                התחילו עכשיו
+              </Link>
+            </div>
 
-                  <div>
-                    <h3
-                      className={`text-xl font-bold mb-2 ${
-                        isEnterprise
-                          ? 'text-purple-900'
-                          : isPro
-                          ? 'text-indigo-900'
-                          : 'text-blue-900'
-                      }`}
-                    >
-                      {plan.title}
-                    </h3>
+            {/* בתי סוכן – פתרון נפרד עם הקמה */}
+            <div className="order-3 md:order-none rounded-2xl p-6 bg-purple-50 border border-purple-200 flex flex-col justify-between">
+              <div>
+                <h3 className="text-lg font-bold mb-1 text-purple-900">בתי סוכן וסוכנויות</h3>
+                <p className="text-sm text-gray-600 mb-1">בהתאמה אישית</p>
+                <p className="text-xs text-gray-500 mb-4">פתרון נפרד הכולל הקמה</p>
+                <ul className="text-gray-600 space-y-1.5 text-sm leading-relaxed mb-5">
+                  {enterpriseFeatures.map((f) => (
+                    <li key={f}>✔ {f}</li>
+                  ))}
+                </ul>
+              </div>
+              <button
+                onClick={() => scrollToId('contact')}
+                className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-full w-full text-sm"
+              >
+                דברו איתנו
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
 
-                    <p className="text-sm text-gray-600 mb-1">{plan.priceText}</p>
-
-                    {plan.subtitle && (
-                      <p className="text-xs text-gray-500 mb-4">{plan.subtitle}</p>
-                    )}
-
-                    <ul className="text-gray-700 space-y-2 text-sm leading-relaxed mb-6">
-                      {plan.features.map((feature, idx) => (
-                        <li key={idx}>✔ {feature}</li>
-                      ))}
-                    </ul>
-                  </div>
-
-                  {plan.ctaType === 'link' ? (
-                    <Link
-                      href={plan.ctaHref}
-                      className={
-                        isPro
-                          ? 'bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-full w-full text-center'
-                          : 'bg-yellow-400 hover:bg-yellow-500 text-white font-bold py-2 px-4 rounded-full w-full text-center'
-                      }
-                    >
-                      {plan.ctaText}
-                    </Link>
-                  ) : (
-                    <button
-                      onClick={() => router.push(plan.ctaHref)}
-                      className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-full w-full"
-                    >
-                      {plan.ctaText}
-                    </button>
-                  )}
-                </div>
-              );
-            })}
+      {/* ─── משני: מודולי ניהול מכירות ─── */}
+      <section id="sales-modules" className="py-16 px-4 bg-gray-100">
+        <div className="max-w-6xl mx-auto">
+          <h2 className="text-2xl font-bold text-blue-800 text-center mb-3">
+            ובנוסף – מודולים לניהול המכירות
+          </h2>
+          <p className="text-center text-gray-600 mb-10">כלולים במנוי המקצועי</p>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {salesModules.map((m) => (
+              <div key={m.title} className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
+                <m.icon className="w-6 h-6 text-indigo-600 mb-2" />
+                <h3 className="font-bold text-blue-900 text-sm mb-1">{m.title}</h3>
+                <p className="text-xs text-gray-600 leading-relaxed">{m.text}</p>
+              </div>
+            ))}
           </div>
         </div>
       </section>
 
       <section id="faq" className="bg-white py-20 px-4">
         <div className="max-w-4xl mx-auto">
-          <h2 className="text-3xl font-bold text-blue-800 text-center mb-10">
-            שאלות נפוצות
-          </h2>
+          <h2 className="text-3xl font-bold text-blue-800 text-center mb-10">שאלות נפוצות</h2>
           <div className="space-y-6">
             {faqs.map((faq, idx) => (
               <motion.div
@@ -504,9 +577,7 @@ export default function LandingPage() {
                 whileInView={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.4, delay: idx * 0.1 }}
               >
-                <h4 className="font-semibold text-lg text-blue-900 mb-2">
-                  {faq.question}
-                </h4>
+                <h4 className="font-semibold text-lg text-blue-900 mb-2">{faq.question}</h4>
                 <p className="text-gray-700 leading-relaxed">{faq.answer}</p>
               </motion.div>
             ))}
@@ -515,12 +586,10 @@ export default function LandingPage() {
       </section>
 
       <section className="text-center py-24 bg-gradient-to-br from-blue-800 to-indigo-900 text-white px-4">
-        <h2 className="text-4xl font-extrabold mb-4">
-          הגיע הזמן לשלוט טוב יותר בהכנסות שלכם
-        </h2>
+        <h2 className="text-4xl font-extrabold mb-4">די להוריד דוחות מהפורטלים</h2>
         <p className="text-lg mb-6 max-w-3xl mx-auto leading-relaxed">
-          עם MagicSale תוכלו לטעון, לנתח, להשוות ולהבין באמת מה קורה בעמלות, בלקוחות ובביצועים —
-          ממערכת אחת חכמה שנבנתה במיוחד לעולם סוכני הביטוח.
+          דוחות העמלות נטענים אוטומטית, ואתם מקבלים ניתוח מלא של התיק – ברמת לקוח, פוליסה, חברה
+          וחודש, כולל סקירת AI.
         </p>
         <button
           onClick={() => router.push('/subscription-sign-up')}

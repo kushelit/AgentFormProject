@@ -91,24 +91,57 @@ function findHeaderRowIndex(ws: XLSX.WorkSheet, expectedHeadersRaw: string[]): n
    Main
 ============================== */
 
+/** "חודש ריצה: 09/2026" בשורות הראשונות של הלשונית הראשונה → "2026-09" */
+export function readHeaderReportMonth(wb: XLSX.WorkBook): string {
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  if (!ws) return "";
+  const rows = XLSX.utils.sheet_to_json<any[]>(ws, {header: 1, defval: "", range: 0}).slice(0, 5);
+  for (const r of rows) {
+    for (const cell of r) {
+      const m = String(cell ?? "").match(/חודש ריצה:\s*(\d{1,2})\/(\d{4})/);
+      if (m) return `${m[2]}-${m[1].padStart(2, "0")}`;
+    }
+  }
+  return "";
+}
+
 export async function parseNodeFile(params: {
   fileBuffer: Buffer;
   storagePathOrName: string;
   templateId: string;
   fields: Mapping;
+  // אופציונלי: לשונית לפי שם (מכיל); בלי — הלשונית הראשונה (התנהגות קודמת)
+  sheetName?: string;
+  // אופציונלי: לקרוא "חודש ריצה" מכותרת הקובץ
+  readHeaderMonth?: boolean;
 }) {
-  const {fileBuffer, storagePathOrName, templateId, fields} = params;
+  const {fileBuffer, storagePathOrName, templateId, fields, sheetName, readHeaderMonth} = params;
 
   const ext = extOf(storagePathOrName);
   let rawRows: Record<string, any>[] = [];
   let detectedFilename = path.basename(storagePathOrName);
   let debug: any = {};
+  let headerReportMonth = "";
 
   /** XLSX / XLS parser */
   const parseSheet = (buf: Buffer, filename: string) => {
     const wb = XLSX.read(buf, {type: "buffer", cellDates: true});
     let wsName = wb.SheetNames[0];
     let headerRowIndex = 0;
+
+    if (readHeaderMonth) headerReportMonth = readHeaderReportMonth(wb);
+
+    if (sheetName) {
+      const wanted = normalizeHeader(sheetName);
+      const found = wb.SheetNames.find((n) => normalizeHeader(n).includes(wanted));
+      if (!found) {
+        const err: any = new Error(`לשונית "${sheetName}" לא נמצאה בקובץ`);
+        err.step = "sheet_missing";
+        err.debug = {sheets: wb.SheetNames, filename};
+        throw err;
+      }
+      wsName = found;
+    }
 
     if (templateId === "menura_insurance") {
       const found = wb.SheetNames.find((n) => n.includes("דוח עמלות"));
@@ -206,5 +239,6 @@ export async function parseNodeFile(params: {
     detectedFilename,
     debug,
     rowsCount: rawRows.length,
+    headerReportMonth,
   };
 }

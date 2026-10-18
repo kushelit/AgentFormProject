@@ -20,6 +20,7 @@ type PortalCredentials = {
   licenseNumber?: string;
   loginType?: string;
   accountingNumber?: string;
+  hekefTaxId?: string;
 };
 
 function s(v: any) {
@@ -78,6 +79,7 @@ const plain = decryptJsonAes256Gcm(keyB64, enc) as PortalCredentials;
    if (!username) throw new HttpsError("internal", "Decrypted username empty");
 const loginType = s(plain?.loginType);
 const accountingNumber = s(plain?.accountingNumber);
+const hekefTaxId = s(plain?.hekefTaxId); // כלל: בחירת שורה בדוח ההיקף
 
     // ח.פ בית סוכן - נשמר ברמת הסוכן (users/{agentId}), לא ברמת הפורטל
     // הבודד, כדי שיחול אוטומטית על כל הפורטלים שתומכים בכך.
@@ -101,6 +103,7 @@ const accountingNumber = s(plain?.accountingNumber);
       ...(loginType ? {loginType} : {}),
       ...(companyTaxId ? {companyTaxId} : {}),
       ...(accountingNumber ? {accountingNumber} : {}),
+      ...(hekefTaxId ? {hekefTaxId} : {}),
     };
   }
 );

@@ -41,6 +41,61 @@ function asArrayDownloads(after: any): DownloadItem[] {
   return [];
 }
 
+// תבניות שקוראות קובץ אחר מתוך אותה הורדה (למשל היקף מנורה = YEADIM מתוך ה-ZIP של הנפרעים).
+// מוגדר בתבנית: fromDownloadOf = ה-templateId שההורדה הגיעה איתו מה-Runner.
+// בלי תבניות כאלה (או בכשל בשליפה) — ההורדות חוזרות כמו שהן, והטעינה ממשיכה כרגיל.
+async function expandDownloadsByTemplates(
+  db: FirebaseFirestore.Firestore,
+  companyId: string,
+  downloads: DownloadItem[]
+): Promise<DownloadItem[]> {
+  if (!companyId || !downloads.length) return downloads;
+  try {
+    const snap = await db.collection("commissionTemplates").where("companyId", "==", companyId).get();
+    const existing = new Set(downloads.map((d) => safeStr(d.templateId)));
+    const extra: DownloadItem[] = [];
+
+    for (const doc of snap.docs) {
+      const t = doc.data() as any;
+      const parentId = safeStr(t?.fromDownloadOf);
+      if (!parentId || t?.isactive !== true || existing.has(doc.id)) continue;
+
+      const parent = downloads.find((d) => safeStr(d.templateId) === parentId);
+      if (!parent) continue;
+
+      extra.push({...parent, templateId: doc.id});
+      existing.add(doc.id);
+    }
+    return downloads.concat(extra);
+  } catch (e) {
+    console.error("[enqueue] expandDownloadsByTemplates failed — continuing with original downloads", e);
+    return downloads;
+  }
+}
+
+// הורדה שאין לה מסמך תבנית (למשל Runner חדש שמוריד דוח היקף לפני שהתבנית הוקמה בסביבה הזו)
+// לא נכנסת לתור — אחרת ה-job נכשל ב-load_template והריצה כולה מסומנת כשגיאה.
+// בכשל בשליפה — ההורדות חוזרות כמו שהן (התנהגות קודמת).
+async function dropDownloadsWithoutTemplate(
+  db: FirebaseFirestore.Firestore,
+  downloads: DownloadItem[]
+): Promise<{ kept: DownloadItem[]; skipped: DownloadItem[] }> {
+  const ids = [...new Set(downloads.map((d) => safeStr(d.templateId)).filter(Boolean))];
+  if (!ids.length) return {kept: downloads, skipped: []};
+  try {
+    const snaps = await db.getAll(...ids.map((id) => db.collection("commissionTemplates").doc(id)));
+    const missing = new Set(snaps.filter((s) => !s.exists).map((s) => s.id));
+    if (!missing.size) return {kept: downloads, skipped: []};
+    return {
+      kept: downloads.filter((d) => !missing.has(safeStr(d.templateId))),
+      skipped: downloads.filter((d) => missing.has(safeStr(d.templateId))),
+    };
+  } catch (e) {
+    console.error("[enqueue] dropDownloadsWithoutTemplate failed — continuing with original downloads", e);
+    return {kept: downloads, skipped: []};
+  }
+}
+
 function shouldEnqueue(after: any): boolean {
   const st = safeStr(after?.status);
 
@@ -99,6 +154,12 @@ if (automationClass === "self_update") return;
 
   const runRef = db.collection("portalImportRuns").doc(portalRunId);
 
+  const rawDownloads = asArrayDownloads(after);
+  const {kept, skipped: skippedNoTemplate} = rawDownloads.every((d) => safeStr(d.templateId)) ?
+    await dropDownloadsWithoutTemplate(db as any, rawDownloads) :
+    {kept: rawDownloads, skipped: [] as DownloadItem[]};
+  const allDownloads = await expandDownloadsByTemplates(db as any, companyId, kept);
+
   await db.runTransaction(async (tx) => {
     const runSnap = await tx.get(runRef);
     const runData = runSnap.data() as any;
@@ -119,7 +180,7 @@ if (automationClass === "self_update") return;
       return;
     }
 
-    const downloads = asArrayDownloads(after);
+    const downloads = allDownloads;
     if (!downloads.length) {
       tx.set(
         runRef,
@@ -215,6 +276,9 @@ if (automationClass === "self_update") return;
           state: "enqueued",
           jobsCreatedAt: nowTs(),
           jobIds: createdJobIds,
+          ...(skippedNoTemplate.length ?
+            {skippedNoTemplate: skippedNoTemplate.map((d) => ({templateId: safeStr(d.templateId), filename: safeStr(d.filename)}))} :
+            {}),
         },
         updatedAt: nowTs(),
       },

@@ -121,6 +121,15 @@ export async function runMeitavAll(ctx: RunnerCtx) {
     
     // ✅ meitavNavigateAndExport מחזיר מערך של כל ההורדות (סוכן אחד או יותר)
 const requestedReportMonth = String((run as any)?.requestedReportMonth || '').trim() || undefined;
+// החודש שמבקשים בפועל (שעון המחשב) נרשם על הריצה — הטעינה בשרת משתמשת בו, כדי לא לחשב בשעון אחר (UTC)
+// ולחסום קובץ תקין בשעות הראשונות של החודש
+{
+  const d = new Date();
+  d.setDate(1);
+  d.setMonth(d.getMonth() - 2);
+  const targetReportMonth = requestedReportMonth || `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  await setStatus(runId, { status: "running", step: "מנסה לנווט לדוח עמלות", monthLabel, targetReportMonth });
+}
 const downloads = await meitavNavigateAndExport(loginPage2, absDir, requestedReportMonth, includeCodes);
 
     const successDownloads = downloads.filter(d => !d.failed);
@@ -163,9 +172,20 @@ const downloads = await meitavNavigateAndExport(loginPage2, absDir, requestedRep
           missingAgents: failedDownloads.map(d => ({ agentName: d.agentName, reason: d.failReason }))
         } : {}),
       });
-    } else if (downloads.length === 0) {
-      await setStatus(runId, { status: "error", step: "meitav_done_no_files", error: { message: "No downloads[] / download.storagePath found" }, monthLabel });
-      throw new Error("No downloads[] / download.storagePath found");
+    } else {
+      // אף סוכן לא ירד: אין דוח לתקופה (לא תקלה), או כשל — הסיבה של כל סוכן נשמרת ב-missingAgents
+      const reasons = failedDownloads.map(d => d.failReason || "").filter(Boolean);
+      const message = reasons.length ? [...new Set(reasons)].join(" · ") : "No downloads[] / download.storagePath found";
+      await setStatus(runId, {
+        status: "error",
+        step: "meitav_done_no_files",
+        error: { message },
+        monthLabel,
+        ...(failedDownloads.length > 0 ? {
+          missingAgents: failedDownloads.map(d => ({ agentName: d.agentName, reason: d.failReason }))
+        } : {}),
+      });
+      throw new Error(message);
     }
 
   } catch (e: any) {

@@ -16,6 +16,9 @@ import { makeAdminAdapter } from "../shared/import/commit/adminAdapter";
 import { commitRun } from "../shared/import/commit/commitRun";
 import { invalidateAgentInsightsCache } from "../shared/insightsCache";
 import type { CommissionTemplate } from "../shared/import/types";
+import * as XLSX from "xlsx";
+import { parseClalHekefStatement } from "../shared/import/hekef/clalStatement";
+import { scrambleRowsForTest, scrubParseDebugForTest } from "../shared/import/testScramble";
 
 function safeStr(v: any) {
   return String(v ?? "").trim();
@@ -48,6 +51,15 @@ function getTwoMonthsAgoStr(): string {
   return `${year}-${String(month).padStart(2, "0")}`;
 }
 
+
+/** "לפני חודשיים" לפי שעון ישראל (הפונקציה רצה ב-UTC; בתחילת החודש זה יוצא חודש אחר) */
+function getTwoMonthsAgoIsraelStr(): string {
+  const parts = new Intl.DateTimeFormat("en-CA", {timeZone: "Asia/Jerusalem", year: "numeric", month: "2-digit"}).formatToParts(new Date());
+  const y = Number(parts.find((p) => p.type === "year")?.value);
+  const m = Number(parts.find((p) => p.type === "month")?.value);
+  const d = new Date(Date.UTC(y, m - 1 - 2, 1));
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+}
 
 function normalizeBucketName(b: string) {
   const s = String(b || "").trim().replace(/^gs:\/\//, "");
@@ -119,6 +131,84 @@ async function finishAsEmpty(params: {
 
 
 
+
+/**
+ * דוח שאין בו נתונים החודש וזה מצב תקין (למשל לשונית ש"ק שכלל משמיטה כשאין התחשבנות) —
+ * success עם 0 שורות, כדי שלא יופיע בכרטיס כ"דוח חסר".
+ */
+async function finishAsNoData(params: {
+  db: FirebaseFirestore.Firestore;
+  queueRef: FirebaseFirestore.DocumentReference;
+  portalRunId: string;
+  jobId: string;
+  templateId: string;
+  templateName?: string;
+  message: string;
+  reason: string;
+}) {
+  const { db, queueRef, portalRunId, jobId, templateId, templateName, message, reason } = params;
+  const result = { type: "no_data", reason, message };
+
+  await queueRef.set(
+    {
+      status: "success",
+      finishedAt: nowTs(),
+      updatedAt: nowTs(),
+      externalCount: 0,
+      commissionSummariesCount: 0,
+      policySummariesCount: 0,
+      result,
+    },
+    { merge: true }
+  );
+
+  await updatePortalRunJobState({
+    db,
+    portalRunId,
+    jobId,
+    patch: {
+      status: "success",
+      templateId,
+      templateName: templateName || templateId,
+      finishedAt: nowTs(),
+      externalCount: 0,
+      commissionSummariesCount: 0,
+      policySummariesCount: 0,
+      result,
+    },
+    aggregate: { finalStatus: "success" },
+  });
+}
+
+/** דף חשבון חודשי של היקף כלל → hekefStatements/{agentId}_{companyId}_{month} */
+async function saveClalHekefStatement(params: {
+  db: FirebaseFirestore.Firestore;
+  buf: Buffer;
+  agentId: string;
+  companyId: string;
+  companyName: string;
+  templateId: string;
+  jobId: string;
+  portalRunId: string;
+}) {
+  const { db, buf, agentId, companyId, companyName, templateId, jobId, portalRunId } = params;
+  const statement = parseClalHekefStatement(XLSX.read(buf, { type: "buffer" }));
+  if (!statement.month) throw new Error("clal hekef statement: report month not found in header");
+
+  await db
+    .collection("hekefStatements")
+    .doc(`${agentId}_${companyId}_${statement.month}`)
+    .set({
+      ...statement,
+      agentId,
+      companyId,
+      company: companyName,
+      templateId,
+      runId: jobId,
+      portalRunId,
+      updatedAt: nowTs(),
+    });
+}
 
 async function downloadStorageFileToTmp(params: { bucketNameRaw: string; storagePath: string }) {
   const { bucketNameRaw, storagePath } = params;
@@ -343,6 +433,8 @@ export async function processCommissionImportQueueImpl(event: any) {
 
   const jobId = event.params.jobId as string;
 let requestedReportMonth: string | undefined;
+// החודש שה-Runner ביקש בפועל (מיטב) — לפי שעון המחשב שלו
+let runnerTargetMonth: string | undefined;
 
  const after = event.data;
 if (!after?.exists) return;
@@ -464,6 +556,13 @@ const template: CommissionTemplate = {
   fields,
   missingZipEntryBehavior: (missingZipEntryBehavior as "error" | "skip"),
     hekefType: tmpl?.hekefType || undefined,
+  valueMaps: tmpl?.valueMaps || undefined,
+  sheetName: safeStr(tmpl?.sheetName) || undefined,
+  missingSheetBehavior: tmpl?.missingSheetBehavior === "empty_ok" ? "empty_ok" : undefined,
+  reportMonthFromHeader: tmpl?.reportMonthFromHeader === true,
+  constants: tmpl?.constants || undefined,
+  skipZeroCommission: tmpl?.skipZeroCommission === true,
+  statementParser: tmpl?.statementParser === "clal_hekef" ? "clal_hekef" : undefined,
 };
 
 // 🔧 שלוף את ה-ym ו-requestedReportMonth מה-portalImportRun *לפני* לולאת
@@ -473,6 +572,7 @@ const portalRunForYm = await db.collection("portalImportRuns").doc(effectivePort
 if (portalRunForYm.exists) {
   resolvedYm = safeStr(portalRunForYm.data()?.resolvedWindow?.ym) || undefined;
   requestedReportMonth = safeStr(portalRunForYm.data()?.requestedReportMonth) || undefined;
+  runnerTargetMonth = safeStr(portalRunForYm.data()?.targetReportMonth) || undefined;
 }
 
 // ====== מיטב: כמה קבצים עם אותו templateId ======
@@ -494,6 +594,11 @@ if (templateId === "meitav_insurance") {
 let allFinalRows: any[] = [];
 let allAgentCodes: string[] = [];
 const tmpPaths: string[] = [];
+
+// מיטב: ריצה אחת מורידה כמה קבצים (קובץ לכל מספר סוכן). נטען רק חודש היעד — קובץ של חודש אחר
+// (הפורטל לא קלט את בחירת החודש) מדולג ונרשם, ולא נכנס בשקט ומייצר סכומים שלא מתיישבים.
+const meitavTargetMonth = templateId === "meitav_insurance" ? (requestedReportMonth || runnerTargetMonth || getTwoMonthsAgoIsraelStr()) : "";
+const meitavSkipped: { file: string; reason: string; months?: string[]; rows?: number }[] = [];
 
   for (const currentStoragePath of storagePathsToProcess) {
       try {
@@ -580,8 +685,47 @@ if (!picked.ok) {
     parseBuf = Buffer.from(nb);
   }
 }
-    const parsed = await parseNodeFile({ fileBuffer: parseBuf, storagePathOrName: parseName, templateId, fields });
+    // דף חשבון חודשי (כלל היקף) — נשמר גם כשלשונית השורות חסרה החודש. כשל כאן לא מפיל את הטעינה
+    if (template.statementParser === "clal_hekef") {
+      await saveClalHekefStatement({
+        db, buf: parseBuf, agentId, companyId, companyName, templateId, jobId, portalRunId: effectivePortalRunId,
+      }).catch((e) => console.error("[processQueue] clal hekef statement failed", e));
+    }
+
+    let parsed: Awaited<ReturnType<typeof parseNodeFile>>;
+    try {
+      parsed = await parseNodeFile({
+        fileBuffer: parseBuf,
+        storagePathOrName: parseName,
+        templateId,
+        fields,
+        sheetName: template.sheetName,
+        readHeaderMonth: template.reportMonthFromHeader,
+      });
+    } catch (parseErr: any) {
+      if (safeStr(parseErr?.step) === "sheet_missing" && template.missingSheetBehavior === "empty_ok") {
+        await finishAsNoData({
+          db, queueRef, portalRunId: effectivePortalRunId, jobId, templateId,
+          templateName: safeStr(template.templateName) || templateId,
+          message: "אין נתונים החודש — הלשונית לא קיימת בדוח",
+          reason: "sheet_missing",
+        });
+        return;
+      }
+      throw parseErr;
+    }
+    // טסט בלבד: בלי קטע גולמי מהקובץ ב-debug
+    parsed = { ...parsed, debug: scrubParseDebugForTest(parsed.debug) };
     // if (!parsed.rowsCount) throw stepError("parse_file", "File parsed but has 0 rows", parsed?.debug);
+if (!parsed.rowsCount && template.missingSheetBehavior === "empty_ok") {
+  await finishAsNoData({
+    db, queueRef, portalRunId: effectivePortalRunId, jobId, templateId,
+    templateName: safeStr(template.templateName) || templateId,
+    message: "אין נתונים החודש",
+    reason: "parse_file_empty",
+  });
+  return;
+}
 if (!parsed.rowsCount) {
   await finishAsEmpty({
     db,
@@ -624,7 +768,28 @@ if (!standardized.length) {
   return;
 }
 
-let rowsForThisFile = [...standardized];
+// טסט בלבד: שיבוש ת"ז, שם ומספר פוליסה (בייצור מחזיר את השורות כמו שהן)
+let rowsForThisFile = await scrambleRowsForTest([...standardized]);
+// חודש הדיווח מכותרת הקובץ (כלל: "חודש ריצה")
+if (template.reportMonthFromHeader && parsed.headerReportMonth) {
+  rowsForThisFile = rowsForThisFile.map((row: any) => ({
+    ...row,
+    reportMonth: parsed.headerReportMonth,
+    validMonth: row.validMonth || parsed.headerReportMonth,
+  }));
+}
+if (template.skipZeroCommission) {
+  rowsForThisFile = rowsForThisFile.filter((row: any) => Math.abs(Number(row.commissionAmount || 0)) > 0.004);
+  if (!rowsForThisFile.length) {
+    await finishAsNoData({
+      db, queueRef, portalRunId: effectivePortalRunId, jobId, templateId,
+      templateName: safeStr(template.templateName) || templateId,
+      message: "אין סכומים לתשלום או לקיזוז החודש",
+      reason: "no_amounts",
+    });
+    return;
+  }
+}
 // מור: באוטומטי תמיד כופים חודש דיווח = חודש קודם
 if (templateId === "mor_insurance") {
 const reportMonth = requestedReportMonth || getTwoMonthsAgoStr();
@@ -742,7 +907,7 @@ if (templateId === "harel_tzvira") {
     return;
   }
 }
-if (templateId === "menura_new_nifraim" || templateId === "menura_new_zvira") {
+if (templateId === "menura_new_nifraim" || templateId === "menura_new_zvira" || templateId === "menura_new_hekef") {
   // מנורה: רק M-1 ("חודש עיבוד") — הגנה למקרה שבורר החודש בפורטל לא נלחץ והורד טווח רחב
   const targetMonth = getPreviousMonthStr();
 
@@ -786,6 +951,11 @@ if (portalFilterSnap.exists) {
     );
   console.log(`[portalFilter] rowsAfterFilter=${rowsForThisFile.length}`);
 
+    // מיטב: קובץ אחד בלי מספר סוכן מותר לא עוצר את שאר הקבצים של הריצה
+    if (!rowsForThisFile.length && meitavTargetMonth) {
+      meitavSkipped.push({ file: path.basename(currentStoragePath), reason: "portal_filter_empty" });
+      continue;
+    }
     if (!rowsForThisFile.length) {
       await finishAsEmpty({
         db,
@@ -804,13 +974,42 @@ if (portalFilterSnap.exists) {
 
 
 
+if (meitavTargetMonth) {
+  const other = rowsForThisFile.filter((row: any) => safeStr(row.reportMonth) !== meitavTargetMonth);
+  if (other.length) {
+    const months = [...new Set(other.map((row: any) => safeStr(row.reportMonth)))];
+    console.warn(`[processQueue] meitav: ${path.basename(currentStoragePath)} has ${other.length} rows of ${months.join(",")} (expected ${meitavTargetMonth}) — skipped`);
+    meitavSkipped.push({ file: path.basename(currentStoragePath), reason: "wrong_month", months, rows: other.length });
+    rowsForThisFile = rowsForThisFile.filter((row: any) => safeStr(row.reportMonth) === meitavTargetMonth);
+  }
+}
+
 allFinalRows = allFinalRows.concat(rowsForThisFile);
 allAgentCodes = Array.from(new Set([...allAgentCodes, ...agentCodes]));
 
       } catch (fileErr: any) {
         console.error(`[processQueue] Error processing file ${currentStoragePath}:`, fileErr.message);
+        if (meitavTargetMonth) meitavSkipped.push({ file: path.basename(currentStoragePath), reason: `error: ${safeStr(fileErr?.message).slice(0, 200)}` });
       }
     } // סגירת for
+
+// מיטב: מה דולג נשמר על ה-job (לבדיקה), ואם לא נשאר כלום מחודש היעד — לא טוענים
+if (meitavTargetMonth && meitavSkipped.length) {
+  await queueRef.set({ meitavExpectedMonth: meitavTargetMonth, meitavSkippedFiles: meitavSkipped, updatedAt: nowTs() }, { merge: true });
+}
+if (meitavTargetMonth && !allFinalRows.length) {
+  await finishAsEmpty({
+    db,
+    queueRef,
+    portalRunId: effectivePortalRunId,
+    jobId,
+    templateId,
+    templateName: safeStr(template.templateName) || templateId,
+    message: `לא נמצאו שורות של ${meitavTargetMonth} — הדוח שירד הוא של חודש אחר, ולא נטען`,
+    reason: "filter_month_empty",
+  });
+  return;
+}
 
 const finalRows = allFinalRows;
 

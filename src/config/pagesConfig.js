@@ -110,12 +110,15 @@ const adminMenu = [
   { href: '/ManageManager', label: 'ניהול קבוצות סוכנים' },
   { href: '/SubscriptionsTable', label: 'ניהול מנויים' },
   { href: '/ManagePoolAgents', label: 'ניהול פול ליד' },
+  { href: '/admin/agent-deletion', label: 'מחיקת סוכן שעזב' },
 
   { type: 'section', label: 'טעינות ותבניות' },
   { href: '/Admin-ImportExcelruns', label: 'טעינת קבצי עסקאות' },
   { href: '/admin/commission-purge', label: 'מחיקת קבצי עמלות' },
   { href: '/admin/agent-portal-filters', label: 'סינון מספרי סוכן בטעינה' },
   { href: '/admin/product-map', label: 'מפת מוצרים בתבניות' },
+  { href: '/admin/commission-templates', label: 'תבניות טעינה' },
+  { href: '/admin/open-questions', label: 'שאלות פתוחות – היקף' },
   { href: '/ManageSimulation', label: 'ניהול סימולטור' },
 
   { type: 'section', label: 'אינטגרציות' },

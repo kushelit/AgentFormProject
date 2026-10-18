@@ -6,8 +6,13 @@ import React, { useMemo, useState, useEffect } from 'react';
 
 import type { Firestore } from 'firebase/firestore';
 
-import { firebaseApp } from '@/lib/firebase/firebase';
-
+import { firebaseApp, functions } from '@/lib/firebase/firebase';
+import { httpsCallable } from 'firebase/functions';
+import { useAuth } from '@/lib/firebase/AuthContext';
+import PortalCredentialsModal, {
+  type PortalCredentialsStatusMap,
+} from '@/components/PortalCredentials/PortalCredentialsModal';
+import { getPortalPrefill, type PortalPrefill } from '@/lib/portalCredentials/prefill';
 import { getCommissionFileLinks } from '@/lib/fileLinks';
 
 import AutoCompanyCard from './AutoCompanyCard';
@@ -444,6 +449,130 @@ const AutomaticRunsDashboard: React.FC<Props> = ({
 
 
 
+
+  // ── פרטי כניסה לפורטלים: רק כשהסוכן שנבחר הוא המשתמש המחובר עצמו ──
+  // (הפונקציות בשרת מאפשרות לסוכן לגשת רק לפרטים של עצמו; צופה בסוכן אחר לא רואה כלום)
+  const { user } = useAuth();
+  const isSelfAgent = !!user?.uid && user.uid === selectedAgentId;
+  const [credStatusMap, setCredStatusMap] = useState<PortalCredentialsStatusMap | null>(null);
+  const [credModalCompany, setCredModalCompany] = useState<AutomaticCompany | null>(null);
+
+  // ה-portalId שמגיע ב-companies הוא בפועל companyId (משמש למזהה תבנית הבאנדל),
+  // לכן ה-portalId האמיתי של פרטי הכניסה נקרא ישירות מ-company/{id}, כמו בדף portal-credentials
+  const [credPortalIdByCompany, setCredPortalIdByCompany] = useState<Record<string, string>>({});
+  const automaticCompanyIdsKey = automaticCompanies.map((c) => c.id).join(',');
+
+  useEffect(() => {
+    if (!isSelfAgent || !automaticCompanies.length) {
+      setCredPortalIdByCompany({});
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const entries = await Promise.all(
+        automaticCompanies.map(async (c) => {
+          try {
+            const snap = await getDoc(doc(db, 'company', c.id));
+            return [c.id, String(snap.data()?.portalId || '').trim().toLowerCase()] as const;
+          } catch {
+            return [c.id, ''] as const;
+          }
+        })
+      );
+      if (!cancelled) {
+        setCredPortalIdByCompany(Object.fromEntries(entries.filter(([, pid]) => pid)));
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [db, isSelfAgent, automaticCompanyIdsKey]);
+
+  const credPortalIds = useMemo(
+    () => Array.from(new Set(Object.values(credPortalIdByCompany))),
+    [credPortalIdByCompany]
+  );
+
+  const refreshCredStatus = async () => {
+    if (!isSelfAgent || !credPortalIds.length) {
+      setCredStatusMap(null);
+      return;
+    }
+    try {
+      const getStatus = httpsCallable(functions, 'getPortalCredentialsStatus');
+      const res: any = await getStatus({ agentId: selectedAgentId, portalIds: credPortalIds });
+      setCredStatusMap(res?.data?.status || {});
+    } catch {
+      // כשלא הצלחנו לבדוק - לא מציגים ולא חוסמים (כמו לפני)
+      setCredStatusMap(null);
+    }
+  };
+
+  useEffect(() => {
+    refreshCredStatus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isSelfAgent, selectedAgentId, credPortalIds.join(',')]);
+
+  function getCredStatus(company?: AutomaticCompany) {
+    const pid = company ? credPortalIdByCompany[company.id] : '';
+    if (!isSelfAgent || !credStatusMap || !pid) return undefined;
+    return credStatusMap[pid] || { has: false };
+  }
+
+  function isMissingCredentials(company?: AutomaticCompany) {
+    const st = getCredStatus(company);
+    return !!st && !st.has;
+  }
+
+  const missingCredCompanies = useMemo(
+    () =>
+      isSelfAgent && credStatusMap
+        ? automaticCompanies.filter((c) => {
+            const pid = credPortalIdByCompany[c.id];
+            return pid && !credStatusMap[pid]?.has;
+          })
+        : [],
+    [isSelfAgent, credStatusMap, automaticCompanies, credPortalIdByCompany]
+  );
+
+  // נתוני הרישום של הסוכן (ת"ז + טלפון) - למילוי מראש של פורטלים שעוד אין להם פרטים
+  const [agentProfile, setAgentProfile] = useState<{ idNumber?: string; phone?: string } | null>(null);
+
+  useEffect(() => {
+    if (!isSelfAgent || !user?.uid) {
+      setAgentProfile(null);
+      return;
+    }
+    let cancelled = false;
+    getDoc(doc(db, 'users', user.uid))
+      .then((snap) => {
+        if (cancelled) return;
+        const data: any = snap.data() || {};
+        setAgentProfile({ idNumber: String(data.idNumber || ''), phone: String(data.phone || '') });
+      })
+      .catch(() => {
+        if (!cancelled) setAgentProfile(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [db, isSelfAgent, user?.uid]);
+
+  function getCredPrefill(company?: AutomaticCompany): PortalPrefill | null {
+    const pid = company ? credPortalIdByCompany[company.id] : '';
+    if (!pid || !agentProfile || !isMissingCredentials(company)) return null;
+    return getPortalPrefill(pid, agentProfile);
+  }
+
+  const credCompaniesCount = automaticCompanies.filter((c) => credPortalIdByCompany[c.id]).length;
+
+  // חברה שנבחרה לתור ואז התברר שחסרים לה פרטי כניסה - מוציאים אותה מהבחירה
+  useEffect(() => {
+    if (!missingCredCompanies.length) return;
+    const missingIds = new Set(missingCredCompanies.map((c) => c.id));
+    setSelectedIds((prev) => prev.filter((id) => !missingIds.has(id)));
+  }, [missingCredCompanies]);
   const byCompanyId = useMemo(
 
     () => Object.fromEntries(automaticCompanies.map((c) => [c.id, c])),
@@ -971,9 +1100,10 @@ const AutomaticRunsDashboard: React.FC<Props> = ({
 
     () =>
 
-      selectedIds.map((id) => byCompanyId[id]).filter(Boolean) as AutomaticCompany[],
-
-    [selectedIds, byCompanyId]
+      (selectedIds.map((id) => byCompanyId[id]).filter(Boolean) as AutomaticCompany[])
+        .filter((c) => !isMissingCredentials(c)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [selectedIds, byCompanyId, credStatusMap, isSelfAgent]
 
   );
 
@@ -987,6 +1117,7 @@ const AutomaticRunsDashboard: React.FC<Props> = ({
 
     if (company.companyAutoDownloadEnabled === false) return false;
 
+    if (isMissingCredentials(company)) return false;
     return uiStatus === 'ready' || uiStatus === 'error';
 
   }
@@ -1099,6 +1230,19 @@ const AutomaticRunsDashboard: React.FC<Props> = ({
 
     <section className="space-y-4">
 
+      {credModalCompany && isSelfAgent && user?.uid && (
+        <PortalCredentialsModal
+          company={{
+            companyName: credModalCompany.name,
+            portalId: credPortalIdByCompany[credModalCompany.id],
+          }}
+          statusMap={credStatusMap || {}}
+          agentId={user.uid}
+          onClose={() => setCredModalCompany(null)}
+          onSaved={refreshCredStatus}
+          prefill={getCredPrefill(credModalCompany)?.values}
+        />
+      )}
       <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -1177,6 +1321,21 @@ const AutomaticRunsDashboard: React.FC<Props> = ({
 
         )}
 
+        {isSelfAgent && credStatusMap && credPortalIds.length > 0 && (
+          <div
+            className={`text-sm mt-1 font-semibold ${
+              missingCredCompanies.length ? 'text-amber-700' : 'text-green-700'
+            }`}
+          >
+            🔐 פרטי כניסה: {credCompaniesCount - missingCredCompanies.length} מתוך{' '}
+            {credCompaniesCount} חברות מוגדרות
+            {missingCredCompanies.length > 0 && (
+              <span className="font-normal">
+                {' '}— חסר ב: {missingCredCompanies.map((c) => c.name).join(', ')}
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
 
@@ -1293,6 +1452,13 @@ const AutomaticRunsDashboard: React.FC<Props> = ({
 
                   companyId={item.companyId}
 
+                  credentialsStatus={getCredStatus(company)}
+                  credentialsPrefillComplete={!!getCredPrefill(company)?.complete}
+                  onEditCredentials={
+                    isSelfAgent && credStatusMap && company && credPortalIdByCompany[company.id]
+                      ? () => setCredModalCompany(company)
+                      : undefined
+                  }
                   companyName={item.companyName}
 
                   monthLabel={item.monthLabel}

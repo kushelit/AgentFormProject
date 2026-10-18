@@ -556,3 +556,109 @@ export async function exportExcelFromCurrentReport(page: Page): Promise<{ downlo
     return { download: null, filename: "" };
   }
 }
+// ====== היקף ======
+
+/**
+ * בלשונית "דוח אקסל" של היקף: לחיצה על "דוח עמלות היקף" (LifeExposingAdvances),
+ * שנפתח בטאב חדש. מחזיר את הטאב החדש, או null אם הקישור לא נמצא.
+ */
+export async function openHekefExcelReportPage(page: Page): Promise<Page | null> {
+  const newPagePromise = page.context().waitForEvent("page", { timeout: 30000 }).catch(() => null);
+
+  const result = await page.evaluate(`
+    (function() {
+      return new Promise((resolve) => {
+        let attempts = 0;
+        const interval = setInterval(() => {
+          attempts++;
+          const links = Array.from(document.querySelectorAll('a[href]'));
+          const target = links.find(a => (a.getAttribute('href') || '').includes('LifeExposingAdvances'))
+            || links.find(a => (a.innerText || '').includes('דוח עמלות היקף'));
+          if (target) {
+            clearInterval(interval);
+            target.click();
+            resolve("CLICKED");
+          }
+          if (attempts > 40) { clearInterval(interval); resolve("NOT_FOUND"); }
+        }, 500);
+      });
+    })()
+  `).catch(() => "ERROR");
+
+  if (result !== "CLICKED") {
+    newPagePromise.catch(() => {});
+    return null;
+  }
+
+  const newPage = await newPagePromise;
+  if (!newPage) return null;
+  await newPage.waitForLoadState("domcontentloaded").catch(() => {});
+  await newPage.bringToFront().catch(() => {});
+  return newPage;
+}
+
+export type HekefRowResult =
+  | { status: "DOWNLOADED"; download: Download; filename: string; taxId: string }
+  | { status: "NO_ROWS" | "NO_MATCH" | "MULTIPLE_NO_TAXID" | "NOT_READY" | "NO_DOWNLOAD"; taxIds: string[] };
+
+/**
+ * בדף "דוח עמלות היקף": בוחר שורה ולוחץ "מוכן" (מוריד את האקסל ישירות).
+ * - יש taxId (companyTaxId) → השורה שה-ח.פ שלה תואם
+ * - אין taxId → רק אם יש שורה אחת בטבלה
+ * לעולם לא בוחר "את הראשונה" כשיש כמה שורות.
+ */
+export async function downloadHekefReportRow(page: Page, taxId?: string): Promise<HekefRowResult> {
+  const wanted = String(taxId || "").replace(/\D/g, "").replace(/^0+/, "");
+
+  const downloadPromise = page.waitForEvent("download", { timeout: 60000 }).catch(() => null);
+
+  const raw = await page.evaluate(`
+    (function(wanted) {
+      const norm = (s) => String(s || '').replace(/\\s+/g, ' ').trim();
+      const idOf = (s) => norm(s).replace(/^0+/, '');
+      return new Promise((resolve) => {
+        let attempts = 0;
+        const interval = setInterval(() => {
+          attempts++;
+          const rows = Array.from(document.querySelectorAll('tr')).filter(tr => tr.querySelectorAll('td').length > 3);
+          if (!rows.length) {
+            if (attempts > 120) { clearInterval(interval); resolve({ status: 'NO_ROWS', taxIds: [] }); }
+            return;
+          }
+          clearInterval(interval);
+
+          const info = rows.map(tr => {
+            const cells = Array.from(tr.querySelectorAll('td')).map(td => norm(td.innerText));
+            const taxIds = cells.filter(c => /^\\d{5,10}$/.test(c)).map(idOf);
+            const ready = Array.from(tr.querySelectorAll('a')).find(a => norm(a.innerText) === 'מוכן');
+            return { tr, taxIds, ready };
+          });
+          const allIds = info.map(r => r.taxIds.join('/'));
+
+          let pick = null;
+          if (wanted) {
+            pick = info.find(r => r.taxIds.includes(wanted));
+            if (!pick) return resolve({ status: 'NO_MATCH', taxIds: allIds });
+          } else {
+            if (info.length > 1) return resolve({ status: 'MULTIPLE_NO_TAXID', taxIds: allIds });
+            pick = info[0];
+          }
+          if (!pick.ready) return resolve({ status: 'NOT_READY', taxIds: pick.taxIds });
+
+          pick.ready.click();
+          resolve({ status: 'CLICKED', taxIds: pick.taxIds });
+        }, 500);
+      });
+    })('${wanted}')
+  `).catch(() => ({ status: "NO_ROWS", taxIds: [] }));
+
+  const res = raw as { status: string; taxIds: string[] };
+  if (res.status !== "CLICKED") {
+    downloadPromise.catch(() => {});
+    return { status: res.status as any, taxIds: res.taxIds || [] };
+  }
+
+  const download = await downloadPromise;
+  if (!download) return { status: "NO_DOWNLOAD", taxIds: res.taxIds || [] };
+  return { status: "DOWNLOADED", download, filename: download.suggestedFilename(), taxId: (res.taxIds || [])[0] || wanted };
+}
