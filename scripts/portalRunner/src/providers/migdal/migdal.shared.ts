@@ -267,21 +267,24 @@ export async function navigateToCommissions(page: Page) {
 /**
  * פתיחת דוח באמצעות קליק ישיר על השם שלו - ללא שגיאות TS וללא בעיות Serialization
  */
-export async function migdalOpenReport(page: Page, reportName: string) {
+export async function migdalOpenReport(page: Page, reportName: string, opts: { exact?: boolean } = {}): Promise<boolean> {
   // console.log(`[Migdal] Step: Searching for report "${reportName}"...`);
 
   const injection = `
-    (function(name) {
+    (function(name, exact) {
       // מחפש בכל הסוגים שראינו בתמונות שלך (גם div וגם label)
       const selectors = 'label.title, div.rslt-item-param-ttl, .title, .item-label';
       const items = Array.from(document.querySelectorAll(selectors));
-      
+      // מנרמל רווחים ומקפים ("נטו- שנה" / "נטו - שנה" / "נטו–שנה" → "נטו-שנה")
+      const norm = (t) => (t || "").replace(/\\s+/g, ' ').replace(/\\s*[-\u2013\u2014]\\s*/g, '-').trim();
+      const cleanSearchName = norm(name);
+
       const target = items.find(el => {
-        // הופך את כל הניו-ליינים והרווחים הכפולים לרווח אחד רגיל
-        const cleanText = (el.textContent || "").replace(/\\s+/g, ' ').trim();
-        const cleanSearchName = name.replace(/\\s+/g, ' ').trim();
-        
-        return cleanText.includes(cleanSearchName);
+        // תנאי "גלוי" רק בדוחות היקף (שם מלא אחרי חיפוש); בנפרעים — כמו שהיה
+        if (exact && el.offsetHeight === 0) return false;
+        const cleanText = norm(el.textContent);
+        // exact: שני דוחות היקף מתחילים באותו טקסט — רק שם מלא
+        return exact ? cleanText === cleanSearchName : cleanText.includes(cleanSearchName);
       });
       
       if (target) {
@@ -292,17 +295,153 @@ export async function migdalOpenReport(page: Page, reportName: string) {
       
       // אם לא מצא, נחזיר לוג של מה שכן קיים על המסך כדי שנדע מה הטקסט המדויק
       return "NOT_FOUND. Available on page: " + items.map(i => i.textContent.trim()).join(' | ');
-    })('${reportName}')
+    })(${JSON.stringify(reportName)}, ${opts.exact ? 'true' : 'false'})
   `;
 
-  const result = await page.evaluate(injection);
+  // הרשימה יכולה להיטען לאט — מנסים עד 20 שניות לפני שמוותרים
+  let result = "";
+  for (let i = 0; i < 40; i++) {
+    result = String(await page.evaluate(injection).catch((e: any) => "ERROR: " + e?.message));
+    if (result === "CLICKED") break;
+    await page.waitForTimeout(500);
+  }
+  // לא נמצא → לא מייצאים את מה שפתוח כרגע על המסך (היה יורד קובץ של דוח אחר)
+  if (result !== "CLICKED") return false;
   // console.log(`[Migdal] Find & Click result for "${reportName}": ${result}`);
 
   await waitMigdalLoaderGone(page);
-  
+
   // השארתי 15 שניות כדי לוודא שאת רואה שהדוח אכן נפתח
   // console.log("[Migdal] PAUSE: Observing for 15s...");
-  await page.waitForTimeout(15000); 
+  await page.waitForTimeout(15000);
+  return true;
+}
+
+/**
+ * שדה "הקלד שם דוח לחיפוש" — נבדק ישירות בדף (כמו שאר הקובץ). ה-locator של Playwright
+ * לא זיהה אותו כ"גלוי" למרות שהוא מוצג (migdalHekefTimings: NO_INPUT), ולכן הריצה חיכתה סתם.
+ */
+const FIND_SEARCH_INPUT = `
+  Array.from(document.querySelectorAll('input.src-input, input[placeholder*="שם דוח"]'))[0] || null
+`;
+
+async function migdalWaitSearchInput(page: Page, timeoutMs: number): Promise<boolean> {
+  const started = Date.now();
+  while (Date.now() - started < timeoutMs) {
+    const ok = await page.evaluate(`!!(${FIND_SEARCH_INPUT})`).catch(() => false);
+    if (ok) return true;
+    await page.waitForTimeout(300);
+  }
+  return false;
+}
+
+/** מקליד בשדה החיפוש (כולל אירוע input בשביל Angular) ולוחץ על כפתור החיפוש שלידו */
+async function migdalTypeSearch(page: Page, text: string): Promise<boolean> {
+  const res = await page.evaluate(`
+    (function(text) {
+      const input = ${FIND_SEARCH_INPUT};
+      if (!input) return false;
+      input.focus();
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+      setter.call(input, text);
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+      const btn = (input.closest('.src-input-container') || document).querySelector('button.src-btn');
+      if (btn) btn.click();
+      else input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true }));
+      return true;
+    })(${JSON.stringify(text)})
+  `).catch(() => false);
+  return res === true;
+}
+
+/**
+ * דף הדוחות הראשי, בלי קטגוריה פתוחה — רק בו שדה "הקלד שם דוח לחיפוש" גלוי
+ * (כשקטגוריה כמו "הסכמים ועמלות" פתוחה, השדה קיים אבל מוסתר).
+ */
+export async function migdalGoToReportsLobby(page: Page): Promise<"menu" | "reload"> {
+  // טעינה ישירה של דף הדוחות (3–4 שניות). מעבר דרך "כלים" → "דוחות" לא זוהה בזמן — ויתרנו עליו
+  // לא מחכים ל-networkidle (האתר שולח בקשות ברקע כל הזמן) — ממשיכים ברגע ששדה החיפוש גלוי
+  await page.goto("https://apmaccess.migdal.co.il/NewEra/reports-lobby", { waitUntil: "domcontentloaded" }).catch(() => {});
+  await migdalWaitSearchInput(page, 20000);
+  // שהדף יהיה מוכן לחיפוש — שקט ברשת, לכל היותר 5 שניות
+  await page.waitForLoadState("networkidle", { timeout: 5000 }).catch(() => {});
+  // בלי waitMigdalLoaderGone: בדף הזה סימן טעינה יכול להישאר "גלוי" ולעכב 30 שניות סתם —
+  // מחכים לאלמנט עצמו (שדה החיפוש) ואחר כך לשם הדוח בתוצאות
+  await migdalClearModals(page);
+  return "reload";
+}
+
+/**
+ * גיבוי לחיפוש: דפדוף ברשימת הקטגוריה הפתוחה (חץ ימינה) עד שהשם המלא מופיע.
+ * מחזיר true כשהדוח גלוי על המסך.
+ */
+export async function migdalPageToReport(page: Page, name: string, maxPages = 6): Promise<boolean> {
+  const visible = () => page.evaluate(`
+    (function(name) {
+      const norm = (t) => (t || "").replace(/\\s+/g, ' ').replace(/\\s*[-–—]\\s*/g, '-').trim();
+      return Array.from(document.querySelectorAll('label.title, div.rslt-item-param-ttl, .title'))
+        .some(el => el.offsetHeight > 0 && norm(el.textContent) === norm(name));
+    })(${JSON.stringify(name)})
+  `).catch(() => false);
+
+  for (let i = 0; i <= maxPages; i++) {
+    if (await visible()) return true;
+    const moved = await page.evaluate(`
+      (function() {
+        const arrow = Array.from(document.querySelectorAll('.pager-wrapper .arrow.right'))
+          .find(el => el.offsetHeight > 0 && !el.classList.contains('disabled'));
+        if (!arrow) return false;
+        (arrow.querySelector('label') || arrow).click();
+        return true;
+      })()
+    `).catch(() => false);
+    if (!moved) return false;
+    await page.waitForTimeout(1500);
+    await waitMigdalLoaderGone(page, 5000);
+  }
+  return false;
+}
+
+/** כותרות הדוחות שגלויות כרגע על המסך— לאבחון כשדוח לא נמצא (שמות דוחות בלבד) */
+export async function migdalVisibleReportTitles(page: Page): Promise<string[]> {
+  return (await page.evaluate(`
+    (function() {
+      const items = Array.from(document.querySelectorAll('label.title, div.rslt-item-param-ttl, .title'));
+      return items.filter(el => el.offsetHeight > 0)
+        .map(el => (el.textContent || '').replace(/\\s+/g, ' ').trim())
+        .filter(Boolean).slice(0, 40);
+    })()
+  `).catch(() => [])) as string[];
+}
+
+/**
+ * חיפוש דוח בשדה "הקלד שם דוח לחיפוש" בדף הסכמים ועמלות.
+ * דוחות שלא בעמוד הראשון של הרשימה לא קיימים ב-DOM עד שמדפדפים — החיפוש מביא אותם.
+ * FOUND = הדוח בשם המלא (expectName) מופיע בתוצאות.
+ */
+export async function migdalSearchReports(
+  page: Page, text: string, expectName: string
+): Promise<"FOUND" | "NO_INPUT" | "NOT_FOUND"> {
+  if (!(await migdalWaitSearchInput(page, 5000))) return "NO_INPUT";
+  // שני ניסיונות: אם החיפוש הראשון לא הביא את הדוח — מקלידים ומחפשים שוב
+  for (let attempt = 0; attempt < 2; attempt++) {
+  if (!(await migdalTypeSearch(page, text))) return "NO_INPUT";
+
+  // מחכים שהשם המלא יופיע בתוצאות (לא סומכים על "נמצאו N תוצאות" — המספר יכול להיות באלמנט נפרד)
+  for (let i = 0; i < 20; i++) {
+    const found = await page.evaluate(`
+      (function(name) {
+        const norm = (t) => (t || "").replace(/\\s+/g, ' ').replace(/\\s*[-–—]\\s*/g, '-').trim();
+        return Array.from(document.querySelectorAll('label.title, div.rslt-item-param-ttl, .title'))
+          .some(el => el.offsetHeight > 0 && norm(el.textContent) === norm(name));
+      })(${JSON.stringify(expectName)})
+    `).catch(() => false);
+    if (found) return "FOUND";
+    await page.waitForTimeout(500);
+  }
+  }
+  return "NOT_FOUND";
 }
 
 

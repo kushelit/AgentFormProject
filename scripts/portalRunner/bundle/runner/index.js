@@ -154365,6 +154365,15 @@ async function runMeitavAll(ctx) {
         await setStatus(runId, { status: "running", step: "מנסה לנווט לדוח עמלות", monthLabel });
         // ✅ meitavNavigateAndExport מחזיר מערך של כל ההורדות (סוכן אחד או יותר)
         const requestedReportMonth = String(run?.requestedReportMonth || '').trim() || undefined;
+        // החודש שמבקשים בפועל (שעון המחשב) נרשם על הריצה — הטעינה בשרת משתמשת בו, כדי לא לחשב בשעון אחר (UTC)
+        // ולחסום קובץ תקין בשעות הראשונות של החודש
+        {
+            const d = new Date();
+            d.setDate(1);
+            d.setMonth(d.getMonth() - 2);
+            const targetReportMonth = requestedReportMonth || `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+            await setStatus(runId, { status: "running", step: "מנסה לנווט לדוח עמלות", monthLabel, targetReportMonth });
+        }
         const downloads = await (0, meitav_shared_1.meitavNavigateAndExport)(loginPage2, absDir, requestedReportMonth, includeCodes);
         const successDownloads = downloads.filter(d => !d.failed);
         const failedDownloads = downloads.filter(d => d.failed);
@@ -154403,9 +154412,20 @@ async function runMeitavAll(ctx) {
                 } : {}),
             });
         }
-        else if (downloads.length === 0) {
-            await setStatus(runId, { status: "error", step: "meitav_done_no_files", error: { message: "No downloads[] / download.storagePath found" }, monthLabel });
-            throw new Error("No downloads[] / download.storagePath found");
+        else {
+            // אף סוכן לא ירד: אין דוח לתקופה (לא תקלה), או כשל — הסיבה של כל סוכן נשמרת ב-missingAgents
+            const reasons = failedDownloads.map(d => d.failReason || "").filter(Boolean);
+            const message = reasons.length ? [...new Set(reasons)].join(" · ") : "No downloads[] / download.storagePath found";
+            await setStatus(runId, {
+                status: "error",
+                step: "meitav_done_no_files",
+                error: { message },
+                monthLabel,
+                ...(failedDownloads.length > 0 ? {
+                    missingAgents: failedDownloads.map(d => ({ agentName: d.agentName, reason: d.failReason }))
+                } : {}),
+            });
+            throw new Error(message);
         }
     }
     catch (e) {
@@ -154676,28 +154696,50 @@ async function meitavNavigateAndExport(page, absDir, requestedReportMonth, inclu
         });
         return JSON.parse(result.result.value || 'null');
     }
-    async function openAndSelectByValue(selector, dataValue, label) {
-        const pos = await getPos(selector);
-        if (!pos) {
-            console.log(`[Meitav] ${label} not found`);
-            return false;
+    /**
+     * בחירה בתפריט לפי data-value. לא מניחים הצלחה: אם האפשרות לא ברשימה (הרשימה עוד נטענת אחרי בחירת סוכן,
+     * או שאין בכלל דוח לשנה/חודש הזה) — מנסים שוב, ובסוף מחזירים 'NOT_FOUND' עם האפשרויות שהיו.
+     * לפני התיקון הפונקציה החזירה תמיד הצלחה, והפורטל נשאר על ברירת המחדל שלו (חודש אחר) — וזה מה שירד.
+     */
+    async function openAndSelectByValue(selector, dataValue, label, attempts = 4) {
+        let options = [];
+        for (let attempt = 1; attempt <= attempts; attempt++) {
+            const pos = await getPos(selector);
+            if (!pos) {
+                await page.waitForTimeout(1000);
+                continue;
+            }
+            await page.mouse.click(pos.x, pos.y);
+            await page.waitForTimeout(1000 + attempt * 500);
+            const result = await cdp.send("Runtime.evaluate", {
+                expression: `(function(val) {
+          const opts = Array.from(document.querySelectorAll('[role="option"]'));
+          const target = opts.find(o => o.getAttribute('data-value') === val);
+          if (!target) return JSON.stringify({ status: 'NOT_FOUND', options: opts.map(o => o.getAttribute('data-value') || '') });
+          target.click();
+          return JSON.stringify({ status: 'CLICKED', options: [] });
+        })('${dataValue}')`,
+                returnByValue: true,
+            });
+            const r = JSON.parse(result.result.value || '{"status":"NOT_FOUND","options":[]}');
+            if (r.status === "CLICKED") {
+                await page.waitForTimeout(500);
+                return { status: "CLICKED", options: [] };
+            }
+            options = r.options || [];
+            console.log(`[Meitav] ${label} ${dataValue} not in list (attempt ${attempt}/${attempts}):`, options.join(" | "));
+            await page.keyboard.press("Escape");
+            await page.waitForTimeout(1500);
         }
-        await page.mouse.click(pos.x, pos.y);
-        await page.waitForTimeout(1000);
-        const result = await cdp.send("Runtime.evaluate", {
-            expression: `(function(val) {
-        const options = Array.from(document.querySelectorAll('[role="option"]'));
-        const target = options.find(o => o.getAttribute('data-value') === val);
-        if (!target) return 'NOT_FOUND: ' + options.map(o => o.getAttribute('data-value')).join(' | ');
-        target.click();
-        return 'CLICKED: ' + target.textContent?.trim();
-      })('${dataValue}')`,
-            returnByValue: true,
-        });
-        // console.log(`[Meitav] ${label}:`, result.result.value);
-        await page.waitForTimeout(500);
-        return true;
+        return { status: options.length ? "NOT_FOUND" : "NO_SELECT", options };
     }
+    /** חודש הדוח מתוך שם הקובץ: Amalot_2-6940_2025_11.xls → "2025-11" */
+    const monthFromFilename = (name) => {
+        const m = name.match(/_(\d{4})_(\d{1,2})(?=\D|$)/);
+        return m ? `${m[1]}-${m[2].padStart(2, "0")}` : "";
+    };
+    const targetMonth = `${prevYear}-${prevMonthNum.padStart(2, "0")}`;
+    const targetLabel = `${prevMonthNum.padStart(2, "0")}/${prevYear}`;
     // ✅ שלב 1: נווט לדוח עמלות
     const navResult = await cdp.send("Runtime.evaluate", {
         expression: `(function() {
@@ -154774,66 +154816,97 @@ async function meitavNavigateAndExport(page, absDir, requestedReportMonth, inclu
         });
         console.log(`[Meitav] Agent select by index:`, selectResult.result.value);
         await page.waitForTimeout(1000);
-        // בחר סוג דוח
-        await openAndSelectByValue('#selectReportType', '102', 'Report type');
-        // בחר שנה
-        await openAndSelectByValue('#selectedYear', prevYear, 'Year');
-        // בחר חודש
-        await openAndSelectByValue('#selectedMonth', prevMonthNum, 'Month');
-        // ✅ לחץ על "הצג דוחות" - פיזית לפי קלאס
-        const searchBtnPos = await getPos('.col-md-2.searchBtn');
-        if (!searchBtnPos) {
-            // console.log("[Meitav] searchBtn not found by class, trying text fallback...");
-            await cdp.send("Runtime.evaluate", {
-                expression: `(function() {
-          const divs = Array.from(document.querySelectorAll('div'));
-          const btn = divs.find(d => (d.textContent || '').trim().includes('הצג דוחות'));
-          if (btn) btn.click();
-        })()`,
-                returnByValue: true,
-            });
-        }
-        else {
-            await page.mouse.click(searchBtnPos.x, searchBtnPos.y);
-        }
-        // console.log("[Meitav] Search button clicked");
-        await page.waitForTimeout(5000);
-        // ✅ המתן שה-resDownload יופיע (עד 15 שניות)
-        for (let w = 0; w < 15; w++) {
-            const check = await cdp.send("Runtime.evaluate", {
-                expression: `document.querySelector('div.resDownload') ? 'FOUND' : 'NOT_FOUND'`,
-                returnByValue: true,
-            });
-            if (check.result.value === 'FOUND')
-                break;
-            // console.log(`[Meitav] Waiting for resDownload... (${w + 1})`);
-            await page.waitForTimeout(1000);
-        }
-        await page.waitForTimeout(2000);
-        // ✅ הורד קובץ
-        try {
-            const [download] = await Promise.all([
-                page.waitForEvent("download", { timeout: 30000 }),
-                cdp.send("Runtime.evaluate", {
+        // בחירת סוג דוח / שנה / חודש, חיפוש והורדה. מחזיר הורדה, או סיבה למה אין.
+        const selectAndDownload = async () => {
+            const type = await openAndSelectByValue('#selectReportType', '102', 'Report type');
+            if (type.status !== "CLICKED")
+                return { kind: "failed", reason: "לא נמצא סוג הדוח 'עמלות' בפורטל" };
+            // שנה / חודש שלא קיימים ברשימה = אין עדיין דוח לתקופה הזו — לא כישלון
+            const year = await openAndSelectByValue('#selectedYear', prevYear, 'Year');
+            if (year.status === "NOT_FOUND")
+                return { kind: "no_report", reason: `אין דוח ל-${targetLabel} (השנה ${prevYear} לא קיימת בפורטל)` };
+            if (year.status !== "CLICKED")
+                return { kind: "failed", reason: "בחירת השנה בפורטל נכשלה" };
+            const month = await openAndSelectByValue('#selectedMonth', prevMonthNum, 'Month');
+            if (month.status === "NOT_FOUND")
+                return { kind: "no_report", reason: `אין דוח ל-${targetLabel}` };
+            if (month.status !== "CLICKED")
+                return { kind: "failed", reason: "בחירת החודש בפורטל נכשלה" };
+            // ✅ לחץ על "הצג דוחות" - פיזית לפי קלאס
+            const searchBtnPos = await getPos('.col-md-2.searchBtn');
+            if (!searchBtnPos) {
+                await cdp.send("Runtime.evaluate", {
                     expression: `(function() {
-            const btn = document.querySelector('div.resDownload');
-            if (!btn) return 'NOT_FOUND';
-            btn.click();
-            return 'CLICKED: ' + btn.textContent?.trim();
+            const divs = Array.from(document.querySelectorAll('div'));
+            const btn = divs.find(d => (d.textContent || '').trim().includes('הצג דוחות'));
+            if (btn) btn.click();
           })()`,
                     returnByValue: true,
-                }),
-            ]);
-            const filename = download.suggestedFilename();
+                });
+            }
+            else {
+                await page.mouse.click(searchBtnPos.x, searchBtnPos.y);
+            }
+            await page.waitForTimeout(5000);
+            // ✅ המתן שה-resDownload יופיע (עד 15 שניות). לא הופיע = אין דוח לתקופה
+            let found = false;
+            for (let w = 0; w < 15; w++) {
+                const check = await cdp.send("Runtime.evaluate", {
+                    expression: `document.querySelector('div.resDownload') ? 'FOUND' : 'NOT_FOUND'`,
+                    returnByValue: true,
+                });
+                if (check.result.value === 'FOUND') {
+                    found = true;
+                    break;
+                }
+                await page.waitForTimeout(1000);
+            }
+            if (!found)
+                return { kind: "no_report", reason: `אין דוח ל-${targetLabel}` };
+            await page.waitForTimeout(2000);
+            try {
+                const [download] = await Promise.all([
+                    page.waitForEvent("download", { timeout: 30000 }),
+                    cdp.send("Runtime.evaluate", {
+                        expression: `(function() {
+              const btn = document.querySelector('div.resDownload');
+              if (!btn) return 'NOT_FOUND';
+              btn.click();
+              return 'CLICKED: ' + btn.textContent?.trim();
+            })()`,
+                        returnByValue: true,
+                    }),
+                ]);
+                return { kind: "ok", download };
+            }
+            catch (e) {
+                return { kind: "failed", reason: String(e?.message || "download_failed") };
+            }
+        };
+        // ניסיון נוסף אם ירד דוח של חודש אחר (הפורטל לא קלט את הבחירה). בפעם השנייה — לא מעלים.
+        let outcome = null;
+        for (let attempt = 1; attempt <= 2 && !outcome; attempt++) {
+            const res = await selectAndDownload();
+            if (res.kind !== "ok") {
+                outcome = { localPath: '', filename: '', agentName, failed: true, failReason: res.reason };
+                break;
+            }
+            const filename = res.download.suggestedFilename();
+            const fileMonth = monthFromFilename(filename);
+            if (fileMonth && fileMonth !== targetMonth) {
+                console.log(`[Meitav] ${agentName}: got ${fileMonth} instead of ${targetMonth} (attempt ${attempt}/2)`);
+                await res.download.delete().catch(() => { });
+                if (attempt === 2) {
+                    outcome = { localPath: '', filename: '', agentName, failed: true, failReason: `ירד דוח של ${fileMonth} במקום ${targetMonth} — לא נטען` };
+                }
+                continue;
+            }
             const localPath = path_1.default.join(absDir, `${Date.now()}_${filename}`);
-            await download.saveAs(localPath);
-            // console.log("[Meitav] Saved:", localPath);
-            // ✅ שומרים גם את שם הסוכן
-            results.push({ localPath, filename, agentName });
+            await res.download.saveAs(localPath);
+            outcome = { localPath, filename, agentName };
         }
-        catch (e) {
-            results.push({ localPath: '', filename: '', agentName, failed: true, failReason: String(e?.message || 'download_failed') });
-        }
+        if (outcome)
+            results.push(outcome);
         // ✅ המתנה קצרה בין סוכנים
         await page.waitForTimeout(1000);
     }
@@ -155635,6 +155708,12 @@ async function runMigdalAll(ctx) {
             { name: "עמלה מדמי ניהול קהש וגמל - לבעלים", templateId: "migdal_gemel" },
             { name: "עמלה מצבירה/דמי ניהול לביטוח חיים לבעלים", templateId: "migdal_life" }
         ];
+        // דוחות שלא ירדו — נשמר בריצה לאבחון (שם הדוח, הסיבה, הכותרות שהיו על המסך)
+        const missing = [];
+        const recordMissing = async (report, reason) => {
+            missing.push({ report, reason, seen: await (0, migdal_shared_1.migdalVisibleReportTitles)(page) });
+            await setStatus(runId, { migdalMissing: missing });
+        };
         const appendDownload = async (item) => {
             const cur = ctx.run?.downloads || [];
             const downloads = [...cur, item];
@@ -155645,7 +155724,13 @@ async function runMigdalAll(ctx) {
             try {
                 await setStatus(runId, { status: "running", step: `מפיק דוח: ${rep.name}` });
                 // 1. פתיחת הדוח (כולל העצירה של ה-30 שניות)
-                await (0, migdal_shared_1.migdalOpenReport)(page, rep.name);
+                const opened = await (0, migdal_shared_1.migdalOpenReport)(page, rep.name);
+                if (!opened) {
+                    await setStatus(runId, { status: "running", step: `דוח לא נמצא: ${rep.name}` });
+                    await recordMissing(rep.name, "not_found");
+                    await (0, migdal_shared_1.migdalReturnToAgreements)(page);
+                    continue;
+                }
                 // 2. ניסיון הורדה
                 const download = await (0, migdal_shared_1.migdalExportExcel)(page);
                 if (download) {
@@ -155669,14 +155754,74 @@ async function runMigdalAll(ctx) {
                     // console.log(`[Migdal] No download for ${rep.name} (maybe no data?)`);
                 }
                 // --- כאן השינוי המרכזי ---
-                // במקום goBack, אנחנו חוזרים לתפריט דרך הקליקים בצד
-                await setStatus(runId, { status: "running", step: `חוזר לתפריט הראשי...` });
-                await (0, migdal_shared_1.migdalReturnToAgreements)(page);
+                // במקום goBack, אנחנו חוזרים לתפריט דרך הקליקים בצד.
+                // אחרי הדוח האחרון לא חוזרים — דוחות ההיקף נכנסים ישר לדף הדוחות הראשי.
+                if (rep !== REPORTS[REPORTS.length - 1]) {
+                    await setStatus(runId, { status: "running", step: `חוזר לתפריט הראשי...` });
+                    await (0, migdal_shared_1.migdalReturnToAgreements)(page);
+                }
             }
             catch (repErr) {
                 // console.error(`[Migdal] Failed to process ${rep.name}:`, repErr.message);
                 // אם היתה שגיאה, עדיין ננסה לחזור לתפריט בשביל הדוח הבא
                 await (0, migdal_shared_1.migdalReturnToAgreements)(page).catch(() => { });
+            }
+        }
+        // 4. דוחות היקף — לא בעמוד הראשון של הרשימה, לכן דרך החיפוש. כל דוח: חיפוש "היקף" → שם מלא → ייצוא.
+        //    כשל כאן לא מכשיל את הריצה — הנפרעים כבר ירדו; רק נרשם ב-step.
+        const HEKEF_REPORTS = [
+            { name: "תפוקה עמלת היקף נטו- שנה נוכחית", templateId: "migdal_hekef" },
+            { name: "תפוקה עמלת היקף נטו- שנים קודמות", templateId: "migdal_hekef_shk" }
+        ];
+        const hekefTimings = [];
+        for (const rep of HEKEF_REPORTS) {
+            try {
+                await setStatus(runId, { status: "running", step: `מפיק דוח: ${rep.name}` });
+                // החיפוש גלוי רק בדף הדוחות הראשי; גיבוי — דפדוף ב"הסכמים ועמלות"
+                // זמנים לאבחון (נשמר בריצה: migdalHekefTimings) — כמה לקח להגיע לדף הדוחות ולמצוא את הדוח
+                const t0 = Date.now();
+                const via = await (0, migdal_shared_1.migdalGoToReportsLobby)(page);
+                const t1 = Date.now();
+                const search = await (0, migdal_shared_1.migdalSearchReports)(page, "היקף", rep.name);
+                hekefTimings.push({ report: rep.templateId, via, lobbySec: Math.round((t1 - t0) / 1000), searchSec: Math.round((Date.now() - t1) / 1000), search });
+                await setStatus(runId, { migdalHekefTimings: hekefTimings });
+                let found = search === "FOUND";
+                if (!found) {
+                    await (0, migdal_shared_1.migdalReturnToAgreements)(page);
+                    found = await (0, migdal_shared_1.migdalPageToReport)(page, rep.name);
+                }
+                const opened = found && await (0, migdal_shared_1.migdalOpenReport)(page, rep.name, { exact: true });
+                if (!opened) {
+                    await setStatus(runId, { status: "running", step: `migdal_hekef_not_found: ${rep.templateId}` });
+                    await recordMissing(rep.name, found ? "click_failed" : `search_${search.toLowerCase()}+pager_not_found`);
+                    continue;
+                }
+                const download = await (0, migdal_shared_1.migdalExportExcel)(page);
+                if (download) {
+                    const filename = download.suggestedFilename();
+                    const localPath = path_1.default.join(absDir, `${Date.now()}_${filename}`);
+                    await download.saveAs(localPath);
+                    const up = await (0, uploadToStorage_client_1.uploadLocalFileToStorageClient)({
+                        storage, localPath, agentId, runId, subdir: rep.templateId
+                    });
+                    if (up?.storagePath) {
+                        await appendDownload({
+                            templateId: rep.templateId,
+                            localPath,
+                            filename: up.filename || filename,
+                            storagePath: up.storagePath
+                        });
+                    }
+                }
+                else {
+                    await setStatus(runId, { status: "running", step: `migdal_hekef_no_download: ${rep.templateId}` });
+                    await recordMissing(rep.name, "no_download");
+                }
+                // אין חזרה ל"הסכמים ועמלות" — הדוח הבא נכנס ישר לדף הדוחות הראשי
+            }
+            catch (err) {
+                await setStatus(runId, { status: "running", step: `migdal_hekef_failed: ${rep.templateId}` });
+                await recordMissing(rep.name, `error: ${String(err?.message || err).slice(0, 200)}`).catch(() => { });
             }
         }
         const totalDownloads = (ctx.run?.downloads || []).length;
@@ -155710,6 +155855,10 @@ exports.migdalLogin = migdalLogin;
 exports.migdalHandleOtp = migdalHandleOtp;
 exports.navigateToCommissions = navigateToCommissions;
 exports.migdalOpenReport = migdalOpenReport;
+exports.migdalGoToReportsLobby = migdalGoToReportsLobby;
+exports.migdalPageToReport = migdalPageToReport;
+exports.migdalVisibleReportTitles = migdalVisibleReportTitles;
+exports.migdalSearchReports = migdalSearchReports;
 exports.migdalReturnToAgreements = migdalReturnToAgreements;
 exports.migdalExportExcel = migdalExportExcel;
 exports.migdalClearModals = migdalClearModals;
@@ -155963,20 +156112,23 @@ async function navigateToCommissions(page) {
 /**
  * פתיחת דוח באמצעות קליק ישיר על השם שלו - ללא שגיאות TS וללא בעיות Serialization
  */
-async function migdalOpenReport(page, reportName) {
+async function migdalOpenReport(page, reportName, opts = {}) {
     // console.log(`[Migdal] Step: Searching for report "${reportName}"...`);
     const injection = `
-    (function(name) {
+    (function(name, exact) {
       // מחפש בכל הסוגים שראינו בתמונות שלך (גם div וגם label)
       const selectors = 'label.title, div.rslt-item-param-ttl, .title, .item-label';
       const items = Array.from(document.querySelectorAll(selectors));
-      
+      // מנרמל רווחים ומקפים ("נטו- שנה" / "נטו - שנה" / "נטו–שנה" → "נטו-שנה")
+      const norm = (t) => (t || "").replace(/\\s+/g, ' ').replace(/\\s*[-\u2013\u2014]\\s*/g, '-').trim();
+      const cleanSearchName = norm(name);
+
       const target = items.find(el => {
-        // הופך את כל הניו-ליינים והרווחים הכפולים לרווח אחד רגיל
-        const cleanText = (el.textContent || "").replace(/\\s+/g, ' ').trim();
-        const cleanSearchName = name.replace(/\\s+/g, ' ').trim();
-        
-        return cleanText.includes(cleanSearchName);
+        // תנאי "גלוי" רק בדוחות היקף (שם מלא אחרי חיפוש); בנפרעים — כמו שהיה
+        if (exact && el.offsetHeight === 0) return false;
+        const cleanText = norm(el.textContent);
+        // exact: שני דוחות היקף מתחילים באותו טקסט — רק שם מלא
+        return exact ? cleanText === cleanSearchName : cleanText.includes(cleanSearchName);
       });
       
       if (target) {
@@ -155987,14 +156139,147 @@ async function migdalOpenReport(page, reportName) {
       
       // אם לא מצא, נחזיר לוג של מה שכן קיים על המסך כדי שנדע מה הטקסט המדויק
       return "NOT_FOUND. Available on page: " + items.map(i => i.textContent.trim()).join(' | ');
-    })('${reportName}')
+    })(${JSON.stringify(reportName)}, ${opts.exact ? 'true' : 'false'})
   `;
-    const result = await page.evaluate(injection);
+    // הרשימה יכולה להיטען לאט — מנסים עד 20 שניות לפני שמוותרים
+    let result = "";
+    for (let i = 0; i < 40; i++) {
+        result = String(await page.evaluate(injection).catch((e) => "ERROR: " + e?.message));
+        if (result === "CLICKED")
+            break;
+        await page.waitForTimeout(500);
+    }
+    // לא נמצא → לא מייצאים את מה שפתוח כרגע על המסך (היה יורד קובץ של דוח אחר)
+    if (result !== "CLICKED")
+        return false;
     // console.log(`[Migdal] Find & Click result for "${reportName}": ${result}`);
     await waitMigdalLoaderGone(page);
     // השארתי 15 שניות כדי לוודא שאת רואה שהדוח אכן נפתח
     // console.log("[Migdal] PAUSE: Observing for 15s...");
     await page.waitForTimeout(15000);
+    return true;
+}
+/**
+ * שדה "הקלד שם דוח לחיפוש" — נבדק ישירות בדף (כמו שאר הקובץ). ה-locator של Playwright
+ * לא זיהה אותו כ"גלוי" למרות שהוא מוצג (migdalHekefTimings: NO_INPUT), ולכן הריצה חיכתה סתם.
+ */
+const FIND_SEARCH_INPUT = `
+  Array.from(document.querySelectorAll('input.src-input, input[placeholder*="שם דוח"]'))[0] || null
+`;
+async function migdalWaitSearchInput(page, timeoutMs) {
+    const started = Date.now();
+    while (Date.now() - started < timeoutMs) {
+        const ok = await page.evaluate(`!!(${FIND_SEARCH_INPUT})`).catch(() => false);
+        if (ok)
+            return true;
+        await page.waitForTimeout(300);
+    }
+    return false;
+}
+/** מקליד בשדה החיפוש (כולל אירוע input בשביל Angular) ולוחץ על כפתור החיפוש שלידו */
+async function migdalTypeSearch(page, text) {
+    const res = await page.evaluate(`
+    (function(text) {
+      const input = ${FIND_SEARCH_INPUT};
+      if (!input) return false;
+      input.focus();
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+      setter.call(input, text);
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+      const btn = (input.closest('.src-input-container') || document).querySelector('button.src-btn');
+      if (btn) btn.click();
+      else input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true }));
+      return true;
+    })(${JSON.stringify(text)})
+  `).catch(() => false);
+    return res === true;
+}
+/**
+ * דף הדוחות הראשי, בלי קטגוריה פתוחה — רק בו שדה "הקלד שם דוח לחיפוש" גלוי
+ * (כשקטגוריה כמו "הסכמים ועמלות" פתוחה, השדה קיים אבל מוסתר).
+ */
+async function migdalGoToReportsLobby(page) {
+    // טעינה ישירה של דף הדוחות (3–4 שניות). מעבר דרך "כלים" → "דוחות" לא זוהה בזמן — ויתרנו עליו
+    // לא מחכים ל-networkidle (האתר שולח בקשות ברקע כל הזמן) — ממשיכים ברגע ששדה החיפוש גלוי
+    await page.goto("https://apmaccess.migdal.co.il/NewEra/reports-lobby", { waitUntil: "domcontentloaded" }).catch(() => { });
+    await migdalWaitSearchInput(page, 20000);
+    // שהדף יהיה מוכן לחיפוש — שקט ברשת, לכל היותר 5 שניות
+    await page.waitForLoadState("networkidle", { timeout: 5000 }).catch(() => { });
+    // בלי waitMigdalLoaderGone: בדף הזה סימן טעינה יכול להישאר "גלוי" ולעכב 30 שניות סתם —
+    // מחכים לאלמנט עצמו (שדה החיפוש) ואחר כך לשם הדוח בתוצאות
+    await migdalClearModals(page);
+    return "reload";
+}
+/**
+ * גיבוי לחיפוש: דפדוף ברשימת הקטגוריה הפתוחה (חץ ימינה) עד שהשם המלא מופיע.
+ * מחזיר true כשהדוח גלוי על המסך.
+ */
+async function migdalPageToReport(page, name, maxPages = 6) {
+    const visible = () => page.evaluate(`
+    (function(name) {
+      const norm = (t) => (t || "").replace(/\\s+/g, ' ').replace(/\\s*[-–—]\\s*/g, '-').trim();
+      return Array.from(document.querySelectorAll('label.title, div.rslt-item-param-ttl, .title'))
+        .some(el => el.offsetHeight > 0 && norm(el.textContent) === norm(name));
+    })(${JSON.stringify(name)})
+  `).catch(() => false);
+    for (let i = 0; i <= maxPages; i++) {
+        if (await visible())
+            return true;
+        const moved = await page.evaluate(`
+      (function() {
+        const arrow = Array.from(document.querySelectorAll('.pager-wrapper .arrow.right'))
+          .find(el => el.offsetHeight > 0 && !el.classList.contains('disabled'));
+        if (!arrow) return false;
+        (arrow.querySelector('label') || arrow).click();
+        return true;
+      })()
+    `).catch(() => false);
+        if (!moved)
+            return false;
+        await page.waitForTimeout(1500);
+        await waitMigdalLoaderGone(page, 5000);
+    }
+    return false;
+}
+/** כותרות הדוחות שגלויות כרגע על המסך— לאבחון כשדוח לא נמצא (שמות דוחות בלבד) */
+async function migdalVisibleReportTitles(page) {
+    return (await page.evaluate(`
+    (function() {
+      const items = Array.from(document.querySelectorAll('label.title, div.rslt-item-param-ttl, .title'));
+      return items.filter(el => el.offsetHeight > 0)
+        .map(el => (el.textContent || '').replace(/\\s+/g, ' ').trim())
+        .filter(Boolean).slice(0, 40);
+    })()
+  `).catch(() => []));
+}
+/**
+ * חיפוש דוח בשדה "הקלד שם דוח לחיפוש" בדף הסכמים ועמלות.
+ * דוחות שלא בעמוד הראשון של הרשימה לא קיימים ב-DOM עד שמדפדפים — החיפוש מביא אותם.
+ * FOUND = הדוח בשם המלא (expectName) מופיע בתוצאות.
+ */
+async function migdalSearchReports(page, text, expectName) {
+    if (!(await migdalWaitSearchInput(page, 5000)))
+        return "NO_INPUT";
+    // שני ניסיונות: אם החיפוש הראשון לא הביא את הדוח — מקלידים ומחפשים שוב
+    for (let attempt = 0; attempt < 2; attempt++) {
+        if (!(await migdalTypeSearch(page, text)))
+            return "NO_INPUT";
+        // מחכים שהשם המלא יופיע בתוצאות (לא סומכים על "נמצאו N תוצאות" — המספר יכול להיות באלמנט נפרד)
+        for (let i = 0; i < 20; i++) {
+            const found = await page.evaluate(`
+      (function(name) {
+        const norm = (t) => (t || "").replace(/\\s+/g, ' ').replace(/\\s*[-–—]\\s*/g, '-').trim();
+        return Array.from(document.querySelectorAll('label.title, div.rslt-item-param-ttl, .title'))
+          .some(el => el.offsetHeight > 0 && norm(el.textContent) === norm(name));
+      })(${JSON.stringify(expectName)})
+    `).catch(() => false);
+            if (found)
+                return "FOUND";
+            await page.waitForTimeout(500);
+        }
+    }
+    return "NOT_FOUND";
 }
 async function migdalReturnToAgreements(page) {
     // console.log("[Migdal] Returning to Agreements menu via side-bar...");

@@ -11,7 +11,11 @@ import {
   waitMigdalLoaderGone,
   navigateToCommissions,
   migdalReturnToAgreements,
-  migdalClearModals
+  migdalClearModals,
+  migdalSearchReports,
+  migdalVisibleReportTitles,
+  migdalGoToReportsLobby,
+  migdalPageToReport
 } from "./migdal.shared";
 import { uploadLocalFileToStorageClient } from "../../uploadToStorage.client";
 import { httpsCallable } from "firebase/functions";
@@ -113,6 +117,13 @@ await migdalClearModals(page);
       { name: "עמלה מצבירה/דמי ניהול לביטוח חיים לבעלים", templateId: "migdal_life" }
     ];
 
+    // דוחות שלא ירדו — נשמר בריצה לאבחון (שם הדוח, הסיבה, הכותרות שהיו על המסך)
+    const missing: any[] = [];
+    const recordMissing = async (report: string, reason: string) => {
+      missing.push({ report, reason, seen: await migdalVisibleReportTitles(page) });
+      await setStatus(runId, { migdalMissing: missing });
+    };
+
     const appendDownload = async (item: any) => {
       const cur = (ctx.run as any)?.downloads || [];
       const downloads = [...cur, item];
@@ -125,8 +136,14 @@ await migdalClearModals(page);
         await setStatus(runId, { status: "running", step: `מפיק דוח: ${rep.name}` });
         
         // 1. פתיחת הדוח (כולל העצירה של ה-30 שניות)
-        await migdalOpenReport(page, rep.name);
-        
+        const opened = await migdalOpenReport(page, rep.name);
+        if (!opened) {
+          await setStatus(runId, { status: "running", step: `דוח לא נמצא: ${rep.name}` });
+          await recordMissing(rep.name, "not_found");
+          await migdalReturnToAgreements(page);
+          continue;
+        }
+
         // 2. ניסיון הורדה
         const download = await migdalExportExcel(page);
         
@@ -153,14 +170,74 @@ await migdalClearModals(page);
         }
 
         // --- כאן השינוי המרכזי ---
-        // במקום goBack, אנחנו חוזרים לתפריט דרך הקליקים בצד
-        await setStatus(runId, { status: "running", step: `חוזר לתפריט הראשי...` });
-        await migdalReturnToAgreements(page);
+        // במקום goBack, אנחנו חוזרים לתפריט דרך הקליקים בצד.
+        // אחרי הדוח האחרון לא חוזרים — דוחות ההיקף נכנסים ישר לדף הדוחות הראשי.
+        if (rep !== REPORTS[REPORTS.length - 1]) {
+          await setStatus(runId, { status: "running", step: `חוזר לתפריט הראשי...` });
+          await migdalReturnToAgreements(page);
+        }
         
       } catch (repErr: any) {
         // console.error(`[Migdal] Failed to process ${rep.name}:`, repErr.message);
         // אם היתה שגיאה, עדיין ננסה לחזור לתפריט בשביל הדוח הבא
         await migdalReturnToAgreements(page).catch(() => {});
+      }
+    }
+
+    // 4. דוחות היקף — לא בעמוד הראשון של הרשימה, לכן דרך החיפוש. כל דוח: חיפוש "היקף" → שם מלא → ייצוא.
+    //    כשל כאן לא מכשיל את הריצה — הנפרעים כבר ירדו; רק נרשם ב-step.
+    const HEKEF_REPORTS = [
+      { name: "תפוקה עמלת היקף נטו- שנה נוכחית", templateId: "migdal_hekef" },
+      { name: "תפוקה עמלת היקף נטו- שנים קודמות", templateId: "migdal_hekef_shk" }
+    ];
+    const hekefTimings: any[] = [];
+    for (const rep of HEKEF_REPORTS) {
+      try {
+        await setStatus(runId, { status: "running", step: `מפיק דוח: ${rep.name}` });
+        // החיפוש גלוי רק בדף הדוחות הראשי; גיבוי — דפדוף ב"הסכמים ועמלות"
+        // זמנים לאבחון (נשמר בריצה: migdalHekefTimings) — כמה לקח להגיע לדף הדוחות ולמצוא את הדוח
+        const t0 = Date.now();
+        const via = await migdalGoToReportsLobby(page);
+        const t1 = Date.now();
+        const search = await migdalSearchReports(page, "היקף", rep.name);
+        hekefTimings.push({ report: rep.templateId, via, lobbySec: Math.round((t1 - t0) / 1000), searchSec: Math.round((Date.now() - t1) / 1000), search });
+        await setStatus(runId, { migdalHekefTimings: hekefTimings });
+        let found = search === "FOUND";
+        if (!found) {
+          await migdalReturnToAgreements(page);
+          found = await migdalPageToReport(page, rep.name);
+        }
+        const opened = found && await migdalOpenReport(page, rep.name, { exact: true });
+        if (!opened) {
+          await setStatus(runId, { status: "running", step: `migdal_hekef_not_found: ${rep.templateId}` });
+          await recordMissing(rep.name, found ? "click_failed" : `search_${search.toLowerCase()}+pager_not_found`);
+          continue;
+        }
+
+        const download = await migdalExportExcel(page);
+        if (download) {
+          const filename = download.suggestedFilename();
+          const localPath = path.join(absDir, `${Date.now()}_${filename}`);
+          await download.saveAs(localPath);
+          const up = await uploadLocalFileToStorageClient({
+            storage, localPath, agentId, runId, subdir: rep.templateId
+          } as any);
+          if (up?.storagePath) {
+            await appendDownload({
+              templateId: rep.templateId,
+              localPath,
+              filename: up.filename || filename,
+              storagePath: up.storagePath
+            });
+          }
+        } else {
+          await setStatus(runId, { status: "running", step: `migdal_hekef_no_download: ${rep.templateId}` });
+          await recordMissing(rep.name, "no_download");
+        }
+        // אין חזרה ל"הסכמים ועמלות" — הדוח הבא נכנס ישר לדף הדוחות הראשי
+      } catch (err: any) {
+        await setStatus(runId, { status: "running", step: `migdal_hekef_failed: ${rep.templateId}` });
+        await recordMissing(rep.name, `error: ${String(err?.message || err).slice(0, 200)}`).catch(() => {});
       }
     }
 
