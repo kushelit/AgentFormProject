@@ -228,3 +228,9 @@
 .sumCell { background: none; border: 0; padding: 0; font: inherit; color: inherit; cursor: pointer; text-decoration: underline dotted; text-underline-offset: 3px; }
 .sumCell:hover { color: var(--accent); }
 .pendingRow { margin-top: 12px; padding: 10px 12px; border-radius: 10px; background: var(--accent-soft); font-size: 14px; }
+
+/* קוביות שילמו / קיזזו — לחיצה מסננת את טבלת הפוליסות */
+.tileClick { font: inherit; color: inherit; text-align: inherit; background: var(--surface); cursor: pointer; width: 100%; }
+.tileClick.stmtHeld { background: var(--accent-soft); }
+.tileClick:hover { border-color: var(--accent); }
+.tileOn { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }

@@ -48,7 +48,9 @@ const kindLabelsFor = (coKey: string, isStmt: boolean) =>
   isStmt ? STATEMENT_KIND_LABEL : coKey === 'migdal' ? MIGDAL_KIND_LABEL : KIND_LABEL;
 const DEP_LABEL: Record<string, string> = { regular: 'שוטף', one_time: 'חד פעמי' };
 const TYPE_LABEL: Record<HekefPolicy['type'], string> = { new: 'הפקה', cancel: 'ביטול', chg: 'שינוי', risk: 'פיגור', transfer: 'העברה/המרה', none: 'ללא שינוי', fix: 'תיקון' };
-type Filter = 'all' | 'current' | 'retro' | 'cancel' | 'chg' | 'risk' | 'rate' | 'corr';
+// paid / offset — לחיצה על הקוביות "שילמו לך" / "קיזזו לך" (לא מוצגים כצ'יפ)
+type Filter = 'all' | 'current' | 'retro' | 'cancel' | 'chg' | 'risk' | 'rate' | 'corr' | 'paid' | 'offset';
+type KpiPick = { active: 'paid' | 'offset' | ''; onPick: (k: 'paid' | 'offset' | '') => void };
 const FILTERS: [Filter, string][] = [
   ['all', 'הכל'], ['current', 'שוטף'], ['retro', 'רטרו'], ['cancel', 'ביטולים'], ['chg', 'שינויים'], ['risk', 'פיגור'], ['corr', 'תיקוני אחוז'], ['rate', 'אחוז שונה מההסכם'],
 ];
@@ -114,8 +116,14 @@ export default function HekefCommissionTab() {
   const filtered = useMemo(() => {
     if (!view) return [];
     const qq = q.trim();
+    // שילמו / קיזזו: בדיוק הפוליסות שנספרו בקבוצות של הקוביה (פוליסה יכולה להיות בשתיהן)
+    const flowKeys = filter === 'paid' || filter === 'offset'
+      ? new Set(view.flows[filter].flatMap((g) => g.policies.map((x) => `${x.agent}|${x.no}`)))
+      : null;
     return view.policies.filter((p) => {
-      if (filter === 'current' || filter === 'retro') {
+      if (flowKeys) {
+        if (!flowKeys.has(`${p.agent}|${p.no}`)) return false;
+      } else if (filter === 'current' || filter === 'retro') {
         if (!p.kinds.includes(filter)) return false;
       } else if (filter === 'rate') {
         if (!p.rateFlag) return false;
@@ -314,6 +322,10 @@ function HekefBody(props: {
   );
   const kindLabels = kindLabelsFor(coKey, isStmt);
   const isMigdal = coKey === 'migdal';
+  const kpiPick: KpiPick = {
+    active: props.filter === 'paid' || props.filter === 'offset' ? props.filter : '',
+    onPick: (k) => (k ? props.jumpTo(k) : props.setFilter('all')),
+  };
   const hasBases = v.bases.length > 0;
   const C = v.cat;
   const sumC = filtered.reduce((a, p) => a + p.c, 0);
@@ -346,12 +358,12 @@ function HekefBody(props: {
       {props.statement ? (
         <>
           <StatementExplainer s={props.statement} />
-          <StatementCard s={props.statement} v={v} badge={badge} />
+          <StatementCard s={props.statement} v={v} badge={badge} pick={kpiPick} />
         </>
       ) : (
         <>
           {isMigdal ? <MigdalExplainer /> : <MonthlyExplainer companyName={props.companyName} />}
-          <MonthCard v={v} trend={props.trend} onPickMonth={props.onPickMonth} badge={badge} variant={isMigdal ? 'migdal' : 'monthly'} />
+          <MonthCard v={v} trend={props.trend} onPickMonth={props.onPickMonth} badge={badge} variant={isMigdal ? 'migdal' : 'monthly'} pick={kpiPick} />
         </>
       )}
 
@@ -419,6 +431,9 @@ function HekefBody(props: {
             {FILTERS.filter(([f]) => (f !== 'rate' || v.checks.rateRows > 0) && (f !== 'risk' || C.risk.rows > 0) && (f !== 'corr' || v.corrections.policies > 0)).map(([f, label]) => (
               <button key={f} type="button" className={`${st.chip} ${props.filter === f && !props.mvFilter && !props.baseFilter ? st.chipOn : ''}`} onClick={() => props.setFilter(f)}>{f === 'current' || f === 'retro' ? kindLabels[f] : label}</button>
             ))}
+            {(props.filter === 'paid' || props.filter === 'offset') && (
+              <span className={st.activeFilter}>מסנן: {props.filter === 'paid' ? 'שילמו לך' : 'קיזזו לך'}<button type="button" aria-label="נקה" onClick={() => props.setFilter('all')}>×</button></span>
+            )}
             {props.mvFilter && (
               <span className={st.activeFilter}>תנועה: {props.mvFilter}<button type="button" aria-label="נקה" onClick={() => props.setFilter('all')}>×</button></span>
             )}
@@ -884,36 +899,52 @@ function FlowList({ title, total, groups, labelOf, badge, empty }: {
 
 /* סיכום החודש לדוח תנועות חודשי (מנורה) — באותו מבנה של דף החשבון של כלל */
 /* שילמו / קיזזו / נטו — אותן שלוש קוביות בכל החברות */
-function Kpi3({ paid, offset, net, lines }: {
+function Kpi3({ paid, offset, net, lines, pick }: {
   paid: number;
   offset: number;
   net: number;
   /** שורות פירוט קטנות מתחת לכל קוביה (כלל: שנה נוכחית / שנים קודמות) */
   lines?: { paid: string[]; offset: string[]; net: string[] };
+  /** לחיצה על קוביה מסננת את טבלת הפוליסות; לחיצה חוזרת / "נטו" מבטלת */
+  pick?: KpiPick;
 }) {
   const sub = (ls?: string[]) => ls?.map((t) => <div key={t} className={st.sub}>{t}</div>);
+  const tile = (k: 'paid' | 'offset' | '', extra: string, children: React.ReactNode) =>
+    pick ? (
+      <button
+        type="button"
+        className={`${st.stmtTile} ${st.tileClick} ${extra} ${k && pick.active === k ? st.tileOn : ''}`}
+        onClick={() => pick.onPick(k && pick.active !== k ? k : '')}
+        title={k ? 'לחיצה מסננת את רשימת הפוליסות' : pick.active ? 'לחיצה מבטלת את הסינון' : undefined}
+      >
+        {children}
+      </button>
+    ) : (
+      <div className={`${st.stmtTile} ${extra}`}>{children}</div>
+    );
   return (
     <div className={st.kpi3}>
-      <div className={st.stmtTile}>
+      {tile('paid', '', <>
         <div className={st.tileK}>שילמו לך</div>
         <div className={`${st.statV} ${st.num} ${st.pos}`}>{fmt2(paid)}</div>
         {sub(lines?.paid)}
-      </div>
-      <div className={st.stmtTile}>
+      </>)}
+      {tile('offset', '', <>
         <div className={st.tileK}>קיזזו לך</div>
         <div className={`${st.statV} ${st.num} ${offset < -0.004 ? st.neg : ''}`}>{fmt2(offset)}</div>
         {sub(lines?.offset)}
-      </div>
-      <div className={`${st.stmtTile} ${st.stmtHeld}`}>
+      </>)}
+      {tile('', st.stmtHeld, <>
         <div className={st.tileK}>נטו החודש</div>
         <div className={`${st.statV} ${st.num} ${net < -0.004 ? st.neg : ''}`}>{fmt2(net)}</div>
         {sub(lines?.net)}
-      </div>
+      </>)}
     </div>
   );
 }
 
-function MonthCard({ v, trend, onPickMonth, badge, variant = 'monthly' }: {
+function MonthCard({ v, trend, onPickMonth, badge, variant = 'monthly', pick }: {
+  pick?: KpiPick;
   v: HekefView;
   trend: HekefMonthSummary[];
   onPickMonth: (m: string) => void;
@@ -930,7 +961,7 @@ function MonthCard({ v, trend, onPickMonth, badge, variant = 'monthly' }: {
         </div>
       </div>
 
-      <Kpi3 paid={v.flows.paidTotal} offset={v.flows.offsetTotal} net={v.net} />
+      <Kpi3 paid={v.flows.paidTotal} offset={v.flows.offsetTotal} net={v.net} pick={pick} />
 
       {months.length > 1 && (
         <div className={st.block}>
@@ -943,7 +974,7 @@ function MonthCard({ v, trend, onPickMonth, badge, variant = 'monthly' }: {
   );
 }
 
-function StatementCard({ s, v, badge }: { s: HekefStatement; v: HekefView; badge: (topic: string) => React.ReactNode }) {
+function StatementCard({ s, v, badge, pick }: { s: HekefStatement; v: HekefView; badge: (topic: string) => React.ReactNode; pick?: KpiPick }) {
   const cy = s.currentYear;
   const pay = cy.payThisMonth ?? 0;
   const shk = s.priorYears.payThisMonth ?? 0;
@@ -983,6 +1014,7 @@ function StatementCard({ s, v, badge }: { s: HekefStatement; v: HekefView; badge
           offset: split(k.current.offset, k.retro.offset),
           net: [yearLine, `שנים קודמות: ${ltr(fmt(shk))}`],
         }}
+        pick={pick}
       />
 
       {pay < -0.004 && (
